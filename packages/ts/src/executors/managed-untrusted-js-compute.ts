@@ -116,19 +116,60 @@ export interface ManagedUntrustedJsComputeCancellationRequested {
 	readonly kind: "managed-untrusted-js-compute-cancellation-requested";
 	readonly cancellationId: string;
 	readonly runId: string;
+	readonly adapterInputId: string;
+	readonly requestId: string;
+	readonly operationId: string;
+	readonly routeId: string;
+	readonly executorId: string;
+	readonly profileId: string;
+	readonly runAdmissionId: string;
 	readonly attempt: number;
+	readonly environmentId: string;
 	readonly environmentRevision: string;
 	readonly manifestFingerprint: string;
 	readonly epoch: string;
 }
 
+/** Exact-attempt cancellation candidate; publishing it has no execution side effect. */
+export interface ManagedUntrustedJsComputeCancellationProposal
+	extends Omit<ManagedUntrustedJsComputeCancellationRequested, "kind"> {
+	readonly kind: "managed-untrusted-js-compute-cancellation-proposal";
+	readonly proposalId: string;
+}
+
+/** Host-authored cancellation authority result for one exact proposal. */
+export interface ManagedUntrustedJsComputeCancellationDecision
+	extends Omit<ManagedUntrustedJsComputeCancellationRequested, "kind"> {
+	readonly kind: "managed-untrusted-js-compute-cancellation-decision";
+	readonly decisionId: string;
+	readonly proposalId: string;
+	readonly outcome: "admit" | "block";
+	readonly sourceRefs: readonly SourceRef[];
+}
+
+/** Graph-visible cancellation admission; only `admitted` may reach the private driver. */
+export interface ManagedUntrustedJsComputeCancellationAdmission
+	extends Omit<ManagedUntrustedJsComputeCancellationProposal, "kind"> {
+	readonly kind: "managed-untrusted-js-compute-cancellation-admission";
+	readonly admissionId: string;
+	readonly decisionId: string;
+	readonly state: "admitted" | "blocked";
+	readonly sourceRefs: readonly SourceRef[];
+}
+
 export interface ManagedUntrustedJsComputeCancellationAcknowledgement {
 	readonly kind: "managed-untrusted-js-compute-cancellation-acknowledgement";
+	readonly proposalId: string;
+	readonly admissionId: string;
 	readonly cancellationId: string;
 	readonly runId: string;
 	readonly attempt: number;
 	readonly epoch: string;
-	readonly state: "kill-requested" | "rejected";
+	readonly state:
+		| "accepted-before-allocation"
+		| "allocation-fenced"
+		| "kill-requested"
+		| "rejected";
 	readonly code?: string;
 }
 
@@ -215,6 +256,7 @@ export interface ManagedUntrustedJsComputeRuntimeOptions {
 	readonly manifests: readonly Node<ManagedUntrustedJsComputeManifest>[];
 	readonly readiness: readonly Node<ManagedUntrustedJsComputeReadiness>[];
 	readonly cancellationRequests?: readonly Node<ManagedUntrustedJsComputeCancellationRequested>[];
+	readonly cancellationDecisions?: readonly Node<ManagedUntrustedJsComputeCancellationDecision>[];
 	readonly driver: ManagedUntrustedJsComputeDriver;
 	readonly now?: () => number;
 }
@@ -226,6 +268,8 @@ export interface ManagedUntrustedJsComputeRuntimeBundle {
 	readonly cleanup: Node<ManagedUntrustedJsComputeCleanupStatus>;
 	readonly movement: Node<ManagedUntrustedJsComputeMovementEvidence>;
 	readonly outcomes: Node<ExecutorOutcome>;
+	readonly cancellationProposals: Node<ManagedUntrustedJsComputeCancellationProposal>;
+	readonly cancellationAdmissions: Node<ManagedUntrustedJsComputeCancellationAdmission>;
 	readonly cancellations: Node<ManagedUntrustedJsComputeCancellationAcknowledgement>;
 	readonly issues: Node<DataIssue>;
 	readonly audit: Node<AgentRuntimeAuditRecord>;
@@ -235,14 +279,20 @@ export interface ManagedUntrustedJsComputeRuntimeBundle {
 interface Active {
 	readonly input: ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>;
 	readonly request: ToolProviderAdapterRunRequested;
+	readonly runAdmissionId: string;
 	readonly manifest: ManagedUntrustedJsComputeManifest;
 	readonly context: ManagedUntrustedJsComputeDriverContext;
 	readonly abortController: AbortController;
 	readonly disposeSignal: Promise<"disposed">;
 	readonly resolveDispose: () => void;
+	readonly cancelSignal: Promise<"canceled">;
+	readonly resolveCancel: () => void;
 	sandbox?: unknown;
+	admissionPublished: boolean;
+	cancellationDeliveryReserved: boolean;
 	cancelRequested: boolean;
 	cancelled: boolean;
+	timedOut: boolean;
 	settled: boolean;
 	destroyed: boolean;
 	cleanupPublished: boolean;
@@ -250,16 +300,23 @@ interface Active {
 	publishCleanupRequested: boolean;
 	killRequired: boolean;
 	allocationPromise?: Promise<void>;
+	allocationStarted: boolean;
 	allocationSettled: boolean;
 	allocationFenced: boolean;
+	allocationFenceAttempted: boolean;
 	allocationFencePromise?: Promise<ManagedUntrustedJsComputeCleanupStatus["state"]>;
 	killPromise?: Promise<boolean>;
 	killCompletion?: Promise<boolean>;
 	killState?: boolean;
+	killSettledWithinDeadline?: boolean;
 	destroyPromise?: Promise<void>;
 	postKillDestroyScheduled: boolean;
 	destroyState?: ManagedUntrustedJsComputeCleanupStatus["state"];
 	cleanupDeadlineAtMs?: number;
+	pendingCancellationProposalId?: string;
+	readonly cancellationIds: Map<string, string>;
+	readonly cancellationDecisionIds: Map<string, string>;
+	acceptedCancellation?: ManagedUntrustedJsComputeCancellationAdmission;
 }
 
 const SAFE = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255}$/;
@@ -269,6 +326,8 @@ const MAX_REFS = 32;
 const MAX_MOVEMENT = 16;
 const MAX_MOVEMENT_BYTES = 64 * 1024 * 1024;
 const MAX_CLEANUP_TIMEOUT_MS = 5 * 60_000;
+const MAX_CANCELLATIONS_PER_ATTEMPT = 32;
+const MAX_GENERATED_CANCELLATION_ID_CHARS = 8 * 1024;
 const PRIVATE_REF_TERMS = [
 	"apikey",
 	"client",
@@ -429,6 +488,13 @@ export function managedUntrustedJsComputeRuntime(
 ): ManagedUntrustedJsComputeRuntimeBundle {
 	if (opts.driver.compatibility !== MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY)
 		throw new TypeError("Managed untrusted JS compute driver compatibility mismatch.");
+	if (
+		(opts.cancellationRequests?.length ?? 0) > 0 !==
+		(opts.cancellationDecisions?.length ?? 0) > 0
+	)
+		throw new TypeError(
+			"Managed untrusted JS compute cancellation requires request and decision nodes.",
+		);
 	const name = opts.name ?? "managedUntrustedJsCompute";
 	const group = graph.topologyGroup({ name });
 	const admittedRunRequests = group.node<ToolProviderAdapterRunRequested>([], null, {
@@ -467,6 +533,26 @@ export function managedUntrustedJsComputeRuntime(
 		completeWhenDepsComplete: false,
 		errorWhenDepsError: false,
 	});
+	const cancellationProposals = group.node<ManagedUntrustedJsComputeCancellationProposal>(
+		[],
+		null,
+		{
+			name: `${name}/cancellationProposals`,
+			factory: "managedUntrustedJsComputeCancellationProposals",
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+		},
+	);
+	const cancellationAdmissions = group.node<ManagedUntrustedJsComputeCancellationAdmission>(
+		[],
+		null,
+		{
+			name: `${name}/cancellationAdmissions`,
+			factory: "managedUntrustedJsComputeCancellationAdmissions",
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+		},
+	);
 	const cancellations = group.node<ManagedUntrustedJsComputeCancellationAcknowledgement>([], null, {
 		name: `${name}/cancellations`,
 		factory: "managedUntrustedJsComputeCancellations",
@@ -490,6 +576,10 @@ export function managedUntrustedJsComputeRuntime(
 	let posture: ManagedUntrustedJsComputeReadiness | undefined;
 	const active = new Map<string, Active>();
 	const allocating = new Set<Active>();
+	const cancellationProposalsById = new Map<
+		string,
+		ManagedUntrustedJsComputeCancellationProposal
+	>();
 	const terminal = new Set<string>();
 	const pending = new Set<Promise<unknown>>();
 	let disposed = false;
@@ -524,7 +614,14 @@ export function managedUntrustedJsComputeRuntime(
 		state: ManagedUntrustedJsComputeLifecycleState,
 		record: Active,
 		evidenceRefs?: readonly SourceRef[],
+		generatedCancellationEvidence = false,
 	) => {
+		const safeEvidenceRefs =
+			evidenceRefs === undefined
+				? undefined
+				: generatedCancellationEvidence
+					? Object.freeze(evidenceRefs.map((source) => Object.freeze({ ...source })))
+					: refs(evidenceRefs);
 		const fact: ManagedUntrustedJsComputeLifecycleFact = Object.freeze({
 			kind: "managed-untrusted-js-compute-lifecycle-fact",
 			state,
@@ -534,7 +631,7 @@ export function managedUntrustedJsComputeRuntime(
 			manifestFingerprint: record.context.manifestFingerprint,
 			epoch: record.context.epoch,
 			occurredAtMs: now(),
-			...(evidenceRefs === undefined ? {} : { evidenceRefs: refs(evidenceRefs) }),
+			...(safeEvidenceRefs === undefined ? {} : { evidenceRefs: safeEvidenceRefs }),
 		});
 		emit(lifecycle, fact);
 		emit(audit, {
@@ -547,8 +644,51 @@ export function managedUntrustedJsComputeRuntime(
 				manifestFingerprint: fact.manifestFingerprint,
 				epoch: fact.epoch,
 			},
+			...(fact.evidenceRefs === undefined ? {} : { sourceRefs: fact.evidenceRefs }),
 		});
 	};
+	const cancellationCoordinates = (
+		value: Omit<ManagedUntrustedJsComputeCancellationRequested, "kind">,
+	): Record<string, unknown> => ({
+		cancellationId: value.cancellationId,
+		runId: value.runId,
+		adapterInputId: value.adapterInputId,
+		requestId: value.requestId,
+		operationId: value.operationId,
+		routeId: value.routeId,
+		executorId: value.executorId,
+		profileId: value.profileId,
+		runAdmissionId: value.runAdmissionId,
+		attempt: value.attempt,
+		environmentId: value.environmentId,
+		environmentRevision: value.environmentRevision,
+		manifestFingerprint: value.manifestFingerprint,
+		epoch: value.epoch,
+	});
+	const cancellationEvidenceRefs = (
+		admission: ManagedUntrustedJsComputeCancellationAdmission,
+	): readonly SourceRef[] => [
+		{ kind: "managed-untrusted-js-compute-cancellation", id: admission.cancellationId },
+		{ kind: "managed-untrusted-js-compute-cancellation-proposal", id: admission.proposalId },
+		{ kind: "managed-untrusted-js-compute-cancellation-decision", id: admission.decisionId },
+		{ kind: "managed-untrusted-js-compute-cancellation-admission", id: admission.admissionId },
+		...admission.sourceRefs,
+	];
+	const emitCancellationAudit = (
+		kind: string,
+		subjectId: string,
+		metadata: Record<string, unknown>,
+		sourceRefs?: readonly SourceRef[],
+		issueCode?: string,
+	) =>
+		emit(audit, {
+			id: compoundTupleKey("managed-untrusted-js-compute-cancellation-audit", [kind, subjectId]),
+			kind,
+			subjectId,
+			...(sourceRefs === undefined ? {} : { sourceRefs }),
+			...(issueCode === undefined ? {} : { issueCode }),
+			metadata,
+		});
 	const unsubscribes = [
 		opts.inputs.subscribe((m) => {
 			if (m[0] !== "DATA") return;
@@ -604,9 +744,11 @@ export function managedUntrustedJsComputeRuntime(
 						return;
 					}
 					active.set(key, activeRecord);
-					emit(admittedRunRequests, request);
-					emit(runStatus, status(request, "requested"));
 					emitLifecycle("admitted", activeRecord, request.sourceRefs);
+					emit(runStatus, status(request, "requested"));
+					activeRecord.admissionPublished = true;
+					if (disposed) return;
+					emit(admittedRunRequests, request);
 					if (disposed) return;
 					await execute(activeRecord);
 				}, "managed-untrusted-js-compute-driver-failed");
@@ -623,59 +765,188 @@ export function managedUntrustedJsComputeRuntime(
 				const record = active.get(activeKey(request));
 				if (
 					record === undefined ||
-					record.context.epoch !== request.epoch ||
-					record.context.environmentRevision !== request.environmentRevision ||
-					record.context.manifestFingerprint !== request.manifestFingerprint ||
-					record.settled ||
-					record.cancelRequested ||
-					record.sandbox === undefined
+					!record.admissionPublished ||
+					!cancellationMatchesRecord(request, record)
 				) {
-					emit(cancellations, {
-						kind: "managed-untrusted-js-compute-cancellation-acknowledgement",
-						cancellationId: request.cancellationId,
-						runId: request.runId,
-						attempt: request.attempt,
-						epoch: request.epoch,
-						state: "rejected",
-						code: "not-current",
-					});
+					issue(
+						"managed-untrusted-js-compute-cancellation-coordinate-mismatch",
+						"Cancellation did not exactly match the active managed compute attempt.",
+					);
 					return;
 				}
-				record.cancelRequested = true;
-				record.killRequired = true;
-				emitLifecycle("cancel-requested", record);
-				record.abortController.abort();
-				track(
-					(async () => {
-						emitLifecycle("kill-requested", record);
-						const delivered = await killOnce(record);
-						if (disposed) return;
-						if (delivered) {
-							emit(cancellations, {
-								kind: "managed-untrusted-js-compute-cancellation-acknowledgement",
-								cancellationId: request.cancellationId,
-								runId: request.runId,
-								attempt: request.attempt,
-								epoch: request.epoch,
-								state: "kill-requested",
-							});
-						} else {
-							issue(
-								"managed-untrusted-js-compute-cancellation-kill-failed",
-								"Managed untrusted JS compute cancellation kill was not delivered.",
-							);
-							emit(cancellations, {
-								kind: "managed-untrusted-js-compute-cancellation-acknowledgement",
-								cancellationId: request.cancellationId,
-								runId: request.runId,
-								attempt: request.attempt,
-								epoch: request.epoch,
-								state: "rejected",
-								code: "kill-failed",
-							});
-						}
-					})(),
+				if (
+					record.pendingCancellationProposalId !== undefined ||
+					record.cancellationDeliveryReserved ||
+					record.cancelRequested
+				) {
+					issue(
+						"managed-untrusted-js-compute-cancellation-proposal-outstanding",
+						"The managed compute attempt already has an outstanding or admitted cancellation.",
+					);
+					return;
+				}
+				const priorProposalId = record.cancellationIds.get(request.cancellationId);
+				if (priorProposalId !== undefined) {
+					issue(
+						"managed-untrusted-js-compute-cancellation-duplicate",
+						"Cancellation identity was already proposed.",
+					);
+					return;
+				}
+				if (record.cancellationIds.size >= MAX_CANCELLATIONS_PER_ATTEMPT) {
+					issue(
+						"managed-untrusted-js-compute-cancellation-capacity-exceeded",
+						"The managed compute attempt exceeded its bounded cancellation intent capacity.",
+					);
+					return;
+				}
+				const proposalId = compoundTupleKey("managed-untrusted-js-compute-cancellation-proposal", [
+					request.cancellationId,
+					request.runId,
+					request.adapterInputId,
+					request.requestId,
+					request.operationId,
+					request.routeId,
+					request.executorId,
+					request.profileId,
+					request.runAdmissionId,
+					String(request.attempt),
+					request.environmentId,
+					request.environmentRevision,
+					request.manifestFingerprint,
+					request.epoch,
+				]);
+				if (!generatedCancellationIdentity(proposalId)) {
+					issue(
+						"managed-untrusted-js-compute-cancellation-identity-too-large",
+						"Cancellation coordinates exceeded the bounded canonical identity envelope.",
+					);
+					return;
+				}
+				const proposal: ManagedUntrustedJsComputeCancellationProposal = Object.freeze({
+					...request,
+					kind: "managed-untrusted-js-compute-cancellation-proposal",
+					proposalId,
+				});
+				record.cancellationIds.set(request.cancellationId, proposalId);
+				record.pendingCancellationProposalId = proposalId;
+				cancellationProposalsById.set(proposalId, proposal);
+				emitCancellationAudit(
+					"managed-untrusted-js-compute-cancellation-proposed",
+					proposal.proposalId,
+					{
+						...cancellationCoordinates(proposal),
+						proposalId: proposal.proposalId,
+					},
 				);
+				emit(cancellationProposals, proposal);
+			}),
+		),
+		...(opts.cancellationDecisions ?? []).map((node) =>
+			node.subscribe((m) => {
+				if (m[0] !== "DATA" || disposed) return;
+				const decision = snapshotCancellationDecision(m[1]);
+				if (decision === undefined) {
+					issue(
+						"managed-untrusted-js-compute-cancellation-decision-invalid",
+						"Cancellation decision is invalid.",
+					);
+					return;
+				}
+				const proposal = cancellationProposalsById.get(decision.proposalId);
+				if (proposal === undefined) {
+					issue(
+						"managed-untrusted-js-compute-cancellation-decision-missing-proposal",
+						"Cancellation decision had no current proposal.",
+					);
+					return;
+				}
+				if (!cancellationCoordinatesMatch(decision, proposal)) {
+					issue(
+						"managed-untrusted-js-compute-cancellation-decision-coordinate-mismatch",
+						"Cancellation decision did not exactly match its proposal.",
+					);
+					return;
+				}
+				const record = active.get(activeKey(proposal));
+				const priorDecisionProposalId = record?.cancellationDecisionIds.get(decision.decisionId);
+				if (priorDecisionProposalId !== undefined) {
+					issue(
+						priorDecisionProposalId === decision.proposalId
+							? "managed-untrusted-js-compute-cancellation-decision-duplicate"
+							: "managed-untrusted-js-compute-cancellation-decision-conflict",
+						"Cancellation decision identity was already consumed.",
+					);
+					return;
+				}
+				if (
+					record !== undefined &&
+					record.cancellationDecisionIds.size >= MAX_CANCELLATIONS_PER_ATTEMPT
+				) {
+					issue(
+						"managed-untrusted-js-compute-cancellation-decision-capacity-exceeded",
+						"The managed compute attempt exceeded its bounded cancellation decision capacity.",
+					);
+					return;
+				}
+				const admissionId = compoundTupleKey(
+					"managed-untrusted-js-compute-cancellation-admission",
+					[proposal.proposalId, decision.decisionId],
+				);
+				if (!generatedCancellationIdentity(admissionId)) {
+					issue(
+						"managed-untrusted-js-compute-cancellation-identity-too-large",
+						"Cancellation admission exceeded the bounded canonical identity envelope.",
+					);
+					return;
+				}
+				record?.cancellationDecisionIds.set(decision.decisionId, decision.proposalId);
+				cancellationProposalsById.delete(decision.proposalId);
+				if (record?.pendingCancellationProposalId === decision.proposalId)
+					record.pendingCancellationProposalId = undefined;
+				const admitted =
+					decision.outcome === "admit" &&
+					record !== undefined &&
+					record.admissionPublished &&
+					cancellationMatchesRecord(proposal, record) &&
+					!record.settled &&
+					!record.cancelRequested &&
+					!record.cancellationDeliveryReserved &&
+					!record.timedOut &&
+					(!record.allocationSettled || record.sandbox !== undefined || !record.allocationStarted);
+				const admission: ManagedUntrustedJsComputeCancellationAdmission = Object.freeze({
+					...proposal,
+					kind: "managed-untrusted-js-compute-cancellation-admission",
+					admissionId,
+					decisionId: decision.decisionId,
+					state: admitted ? "admitted" : "blocked",
+					sourceRefs: decision.sourceRefs,
+				});
+				if (admitted && record !== undefined) record.cancellationDeliveryReserved = true;
+				emitCancellationAudit(
+					`managed-untrusted-js-compute-cancellation-${admission.state}`,
+					admission.admissionId,
+					{
+						...cancellationCoordinates(admission),
+						proposalId: admission.proposalId,
+						decisionId: admission.decisionId,
+						admissionId: admission.admissionId,
+					},
+					cancellationEvidenceRefs(admission),
+					admitted ? undefined : "managed-untrusted-js-compute-cancellation-blocked",
+				);
+				emit(cancellationAdmissions, admission);
+				if (!admitted)
+					issue(
+						"managed-untrusted-js-compute-cancellation-blocked",
+						"Managed untrusted JS compute cancellation was blocked by current admission.",
+						refIds(admission.sourceRefs),
+					);
+				if (admitted && record !== undefined && !disposed)
+					runAsync(
+						() => deliverCancellation(record, admission),
+						"managed-untrusted-js-compute-cancellation-delivery-failed",
+					);
 			}),
 		),
 	];
@@ -685,8 +956,11 @@ export function managedUntrustedJsComputeRuntime(
 		const timeoutSignal = new Promise<"timeout">((resolve) => {
 			timeout = setTimeout(() => {
 				timedOut = true;
+				record.timedOut = true;
 				record.killRequired = true;
-				if (record.sandbox !== undefined) void killOnce(record);
+				if (record.allocationStarted && !record.allocationSettled && record.sandbox === undefined)
+					void fenceAllocationOnce(record);
+				else if (record.sandbox !== undefined) void killOnce(record);
 				record.abortController.abort();
 				resolve("timeout");
 			}, record.manifest.executionTimeoutMs);
@@ -702,6 +976,7 @@ export function managedUntrustedJsComputeRuntime(
 			emitLifecycle("creating", record);
 			assertCurrent();
 			allocating.add(record);
+			record.allocationStarted = true;
 			record.allocationPromise = Promise.resolve(
 				opts.driver.createSandbox(record.context, args, record.manifest),
 			)
@@ -737,9 +1012,26 @@ export function managedUntrustedJsComputeRuntime(
 						await destroy(record, false);
 					}
 				});
-			const result = await Promise.race([driverWork, timeoutSignal, record.disposeSignal]);
+			const result = await Promise.race([
+				driverWork,
+				timeoutSignal,
+				record.disposeSignal,
+				record.cancelSignal,
+			]);
 			if (result === "disposed") return;
 			if (disposed) return;
+			if (result === "canceled") {
+				record.settled = true;
+				emit(
+					outcomes,
+					outcome(record, {
+						outcome: "canceled",
+						reason: "managed-untrusted-js-compute-canceled",
+					}),
+				);
+				emit(runStatus, status(record.request, "canceled"));
+				return;
+			}
 			if (record.cancelRequested && record.killPromise !== undefined) await record.killPromise;
 			if (record.cancelled)
 				throw new TypeError("Managed untrusted JS compute is no longer current.");
@@ -789,11 +1081,13 @@ export function managedUntrustedJsComputeRuntime(
 			}
 			if (record.cancelRequested && record.killPromise !== undefined) await record.killPromise;
 			if (disposed) return;
+			const cancellationObserved = record.cancelled || record.cancelRequested;
+			if (cancellationObserved) record.cancelled = true;
 			const problem = {
-				code: record.cancelled
+				code: cancellationObserved
 					? "managed-untrusted-js-compute-canceled"
 					: "managed-untrusted-js-compute-failed",
-				message: record.cancelled
+				message: cancellationObserved
 					? "Managed untrusted JS compute was cancelled."
 					: "Managed untrusted JS compute failed closed.",
 				severity: "error" as const,
@@ -802,20 +1096,30 @@ export function managedUntrustedJsComputeRuntime(
 			emit(
 				outcomes,
 				outcome(record, {
-					outcome: record.cancelled ? "canceled" : "failed",
-					...(record.cancelled
+					outcome: cancellationObserved ? "canceled" : "failed",
+					...(cancellationObserved
 						? { reason: "managed-untrusted-js-compute-canceled" }
 						: { issue: problem }),
 				} as ManagedUntrustedJsComputeDriverResult),
 			);
-			emit(runStatus, status(record.request, record.cancelled ? "canceled" : "failure"));
-			if (!record.cancelled) issue(problem.code, problem.message);
+			emit(runStatus, status(record.request, cancellationObserved ? "canceled" : "failure"));
+			if (!cancellationObserved) issue(problem.code, problem.message);
 			void caught;
 		} finally {
 			if (timeout !== undefined) clearTimeout(timeout);
 			await destroy(record, !disposed);
-			if (!disposed) emitLifecycle("settled", record);
+			if (!disposed)
+				emitLifecycle(
+					"settled",
+					record,
+					record.acceptedCancellation === undefined
+						? undefined
+						: cancellationEvidenceRefs(record.acceptedCancellation),
+					record.acceptedCancellation !== undefined,
+				);
 			const key = activeKey(record.request);
+			if (record.pendingCancellationProposalId !== undefined)
+				cancellationProposalsById.delete(record.pendingCancellationProposalId);
 			active.delete(key);
 			terminal.add(key);
 		}
@@ -848,6 +1152,7 @@ export function managedUntrustedJsComputeRuntime(
 		record: Active,
 	): Promise<ManagedUntrustedJsComputeCleanupStatus["state"]> | undefined => {
 		if (record.allocationFencePromise !== undefined) return record.allocationFencePromise;
+		if (record.allocationFenceAttempted) return undefined;
 		let evidence:
 			| ManagedUntrustedJsComputeCleanupStatus["state"]
 			| PromiseLike<ManagedUntrustedJsComputeCleanupStatus["state"]>;
@@ -864,6 +1169,8 @@ export function managedUntrustedJsComputeRuntime(
 		} catch {
 			return undefined;
 		}
+		record.allocationFenceAttempted = true;
+		ensureCleanupDeadline(record);
 		record.allocationFenced = true;
 		record.allocationFencePromise = boundedProviderWork(
 			Promise.resolve(evidence),
@@ -893,11 +1200,116 @@ export function managedUntrustedJsComputeRuntime(
 				record.killCompletion as Promise<boolean>,
 				remainingCleanupTime(record),
 			);
+			record.killSettledWithinDeadline = result.state === "fulfilled";
 			record.killState = result.state === "fulfilled" && result.value;
 			if (record.killState) record.cancelled = record.cancelRequested;
 			return record.killState;
 		})();
 		return record.killPromise;
+	};
+	const publishCancellationAcknowledgement = (
+		admission: ManagedUntrustedJsComputeCancellationAdmission,
+		state: ManagedUntrustedJsComputeCancellationAcknowledgement["state"],
+		code?: string,
+	) => {
+		const acknowledgement: ManagedUntrustedJsComputeCancellationAcknowledgement = Object.freeze({
+			kind: "managed-untrusted-js-compute-cancellation-acknowledgement",
+			proposalId: admission.proposalId,
+			admissionId: admission.admissionId,
+			cancellationId: admission.cancellationId,
+			runId: admission.runId,
+			attempt: admission.attempt,
+			epoch: admission.epoch,
+			state,
+			...(code === undefined ? {} : { code }),
+		});
+		emit(cancellations, acknowledgement);
+		emitCancellationAudit(
+			`managed-untrusted-js-compute-cancellation-delivery-${state}`,
+			admission.admissionId,
+			{
+				...cancellationCoordinates(admission),
+				proposalId: admission.proposalId,
+				decisionId: admission.decisionId,
+				admissionId: admission.admissionId,
+			},
+			cancellationEvidenceRefs(admission),
+			code,
+		);
+	};
+	const deliverCancellation = async (
+		record: Active,
+		admission: ManagedUntrustedJsComputeCancellationAdmission,
+	) => {
+		if (
+			record.settled ||
+			record.cancelRequested ||
+			!record.cancellationDeliveryReserved ||
+			!cancellationMatchesRecord(admission, record)
+		)
+			return;
+		if (!record.allocationStarted) {
+			record.cancelRequested = true;
+			record.cancelled = true;
+			record.acceptedCancellation = admission;
+			emitLifecycle("cancel-requested", record, cancellationEvidenceRefs(admission), true);
+			record.abortController.abort();
+			publishCancellationAcknowledgement(admission, "accepted-before-allocation");
+			record.resolveCancel();
+			return;
+		}
+		if (!record.allocationSettled && record.sandbox === undefined) {
+			void fenceAllocationOnce(record);
+			if (!record.allocationFenced) {
+				record.cancellationDeliveryReserved = false;
+				issue(
+					"managed-untrusted-js-compute-cancellation-allocation-fence-unavailable",
+					"Managed compute cancellation could not fence the pending allocation.",
+				);
+				publishCancellationAcknowledgement(admission, "rejected", "allocation-fence-unavailable");
+				return;
+			}
+			record.cancelRequested = true;
+			record.cancelled = true;
+			record.killRequired = true;
+			record.acceptedCancellation = admission;
+			emitLifecycle("cancel-requested", record, cancellationEvidenceRefs(admission), true);
+			record.abortController.abort();
+			publishCancellationAcknowledgement(admission, "allocation-fenced");
+			record.resolveCancel();
+			return;
+		}
+		if (record.sandbox === undefined) {
+			record.cancellationDeliveryReserved = false;
+			publishCancellationAcknowledgement(admission, "rejected", "not-current");
+			return;
+		}
+		record.cancelRequested = true;
+		record.killRequired = true;
+		record.acceptedCancellation = admission;
+		emitLifecycle("cancel-requested", record, cancellationEvidenceRefs(admission), true);
+		record.abortController.abort();
+		emitLifecycle("kill-requested", record);
+		publishCancellationAcknowledgement(admission, "kill-requested");
+		const delivered = await killOnce(record);
+		if (disposed) return;
+		if (delivered) return;
+		issue(
+			"managed-untrusted-js-compute-cancellation-kill-failed",
+			"Managed untrusted JS compute cancellation kill was not delivered.",
+		);
+		emitCancellationAudit(
+			"managed-untrusted-js-compute-cancellation-delivery-failed",
+			admission.admissionId,
+			{
+				...cancellationCoordinates(admission),
+				proposalId: admission.proposalId,
+				decisionId: admission.decisionId,
+				admissionId: admission.admissionId,
+			},
+			cancellationEvidenceRefs(admission),
+			"managed-untrusted-js-compute-cancellation-kill-failed",
+		);
 	};
 	const startDestroy = async (record: Active) => {
 		if (record.destroyPromise === undefined) {
@@ -917,17 +1329,26 @@ export function managedUntrustedJsComputeRuntime(
 	const destroy = async (record: Active, publish = true) => {
 		if (publish) record.publishCleanupRequested = true;
 		if (record.sandbox === undefined) {
+			if (record.allocationFenced && record.allocationFencePromise !== undefined)
+				await record.allocationFencePromise;
 			if (record.publishCleanupRequested)
 				publishCleanup(
 					record,
-					record.allocationFenced && record.destroyState !== undefined
-						? record.destroyState
-						: "unverifiable",
+					!record.allocationStarted
+						? "succeeded"
+						: record.allocationFenced && record.destroyState !== undefined
+							? record.destroyState
+							: "unverifiable",
 				);
 			return;
 		}
 		if (record.killPromise !== undefined) await record.killPromise;
-		if (record.killRequired && record.killState === false && record.killCompletion !== undefined) {
+		if (
+			record.killRequired &&
+			record.killState === false &&
+			record.killSettledWithinDeadline !== true &&
+			record.killCompletion !== undefined
+		) {
 			if (!record.postKillDestroyScheduled) {
 				record.postKillDestroyScheduled = true;
 				void record.killCompletion.then(() => startDestroy(record)).catch(() => undefined);
@@ -987,6 +1408,8 @@ export function managedUntrustedJsComputeRuntime(
 		cleanup,
 		movement,
 		outcomes,
+		cancellationProposals,
+		cancellationAdmissions,
 		cancellations,
 		issues,
 		audit,
@@ -1052,6 +1475,7 @@ export function managedUntrustedJsComputeRuntime(
 						active.clear();
 						allocating.clear();
 						terminal.clear();
+						cancellationProposalsById.clear();
 						tryRelease();
 					})
 					.finally(() => {
@@ -1087,6 +1511,8 @@ function admit(
 	if (input.toolCall.arguments === undefined)
 		return failure("missing-input", "managed-untrusted-js-compute-arguments-missing", request);
 	const args = managedUntrustedJsComputeArguments(input.toolCall.arguments);
+	const runAdmissionRefs =
+		request.sourceRefs?.filter((source) => source.kind === "admission") ?? [];
 	if (
 		args.templateBuildId !== manifest.templateBuildId ||
 		args.runnerRevision !== manifest.runnerRevision ||
@@ -1099,15 +1525,20 @@ function admit(
 		input.adapterInputId !== request.adapterInputId ||
 		input.requestId !== request.requestId ||
 		input.operationId !== request.operationId ||
-		(input.routeId !== undefined && input.routeId !== request.routeId) ||
-		(input.executorId !== undefined && input.executorId !== request.executorId) ||
-		(input.profileId !== undefined && input.profileId !== request.profileId)
+		input.routeId === undefined ||
+		input.routeId !== request.routeId ||
+		input.executorId === undefined ||
+		input.executorId !== request.executorId ||
+		input.profileId === undefined ||
+		input.profileId !== request.profileId ||
+		runAdmissionRefs.length !== 1
 	)
 		return failure("mismatched-request", "managed-untrusted-js-compute-request-mismatch", request);
 	const meta = request.metadata as Partial<ExecutionEnvironmentPinnedRunMetadata> | undefined;
 	if (
 		meta?.executionEnvironmentLocality !== "managed-cloud" ||
 		meta.executionEnvironmentBindingKind !== "remote-session" ||
+		meta.executionEnvironmentId === undefined ||
 		meta.executionEnvironmentRevision === undefined ||
 		meta.executionManifestFingerprint !== manifest.fingerprint
 	)
@@ -1118,6 +1549,7 @@ function admit(
 		);
 	const epoch = meta.executionSessionEpoch;
 	try {
+		assertSafe(meta.executionEnvironmentId, "execution environment");
 		assertSafe(meta.executionEnvironmentRevision, "execution environment revision");
 		if (typeof epoch !== "string") throw new TypeError("Invalid execution session epoch.");
 		assertSafe(epoch, "execution session epoch");
@@ -1129,9 +1561,14 @@ function admit(
 	const disposeSignal = new Promise<"disposed">((resolve) => {
 		resolveDispose = () => resolve("disposed");
 	});
+	let resolveCancel = () => {};
+	const cancelSignal = new Promise<"canceled">((resolve) => {
+		resolveCancel = () => resolve("canceled");
+	});
 	return {
 		input,
 		request,
+		runAdmissionId: runAdmissionRefs[0]!.id,
 		manifest,
 		context: {
 			runId: request.runId,
@@ -1144,17 +1581,26 @@ function admit(
 		abortController,
 		disposeSignal,
 		resolveDispose,
+		cancelSignal,
+		resolveCancel,
+		admissionPublished: false,
+		cancellationDeliveryReserved: false,
 		cancelRequested: false,
 		cancelled: false,
+		timedOut: false,
 		settled: false,
 		destroyed: false,
 		cleanupPublished: false,
 		destroyingPublished: false,
 		publishCleanupRequested: false,
 		killRequired: false,
+		allocationStarted: false,
 		allocationSettled: false,
 		allocationFenced: false,
+		allocationFenceAttempted: false,
 		postKillDestroyScheduled: false,
+		cancellationIds: new Map(),
+		cancellationDecisionIds: new Map(),
 	};
 }
 
@@ -1230,12 +1676,21 @@ function snapshotCancellation(
 ): ManagedUntrustedJsComputeCancellationRequested | undefined {
 	if (
 		!plain(raw) ||
+		hasAccessorOrExoticObject(raw) ||
 		raw.kind !== "managed-untrusted-js-compute-cancellation-requested" ||
 		!exactKeys(raw, [
 			"kind",
 			"cancellationId",
 			"runId",
+			"adapterInputId",
+			"requestId",
+			"operationId",
+			"routeId",
+			"executorId",
+			"profileId",
+			"runAdmissionId",
 			"attempt",
+			"environmentId",
 			"environmentRevision",
 			"manifestFingerprint",
 			"epoch",
@@ -1247,6 +1702,14 @@ function snapshotCancellation(
 		for (const value of [
 			raw.cancellationId,
 			raw.runId,
+			raw.adapterInputId,
+			raw.requestId,
+			raw.operationId,
+			raw.routeId,
+			raw.executorId,
+			raw.profileId,
+			raw.runAdmissionId,
+			raw.environmentId,
 			raw.environmentRevision,
 			raw.manifestFingerprint,
 			raw.epoch,
@@ -1258,7 +1721,15 @@ function snapshotCancellation(
 			kind: "managed-untrusted-js-compute-cancellation-requested",
 			cancellationId: raw.cancellationId as string,
 			runId: raw.runId as string,
+			adapterInputId: raw.adapterInputId as string,
+			requestId: raw.requestId as string,
+			operationId: raw.operationId as string,
+			routeId: raw.routeId as string,
+			executorId: raw.executorId as string,
+			profileId: raw.profileId as string,
+			runAdmissionId: raw.runAdmissionId as string,
 			attempt: raw.attempt as number,
+			environmentId: raw.environmentId as string,
 			environmentRevision: raw.environmentRevision as string,
 			manifestFingerprint: raw.manifestFingerprint as string,
 			epoch: raw.epoch as string,
@@ -1266,6 +1737,120 @@ function snapshotCancellation(
 	} catch {
 		return undefined;
 	}
+}
+
+function snapshotCancellationDecision(
+	raw: unknown,
+): ManagedUntrustedJsComputeCancellationDecision | undefined {
+	if (
+		!plain(raw) ||
+		hasAccessorOrExoticObject(raw) ||
+		raw.kind !== "managed-untrusted-js-compute-cancellation-decision" ||
+		!exactKeys(raw, [
+			"kind",
+			"decisionId",
+			"proposalId",
+			"outcome",
+			"sourceRefs",
+			"cancellationId",
+			"runId",
+			"adapterInputId",
+			"requestId",
+			"operationId",
+			"routeId",
+			"executorId",
+			"profileId",
+			"runAdmissionId",
+			"attempt",
+			"environmentId",
+			"environmentRevision",
+			"manifestFingerprint",
+			"epoch",
+		]) ||
+		(raw.outcome !== "admit" && raw.outcome !== "block")
+	)
+		return undefined;
+	try {
+		if (typeof raw.decisionId !== "string" || typeof raw.proposalId !== "string") return undefined;
+		assertSafe(raw.decisionId, "cancellation decision");
+		if (!generatedCancellationIdentity(raw.proposalId)) return undefined;
+		const sourceRefs = refs(raw.sourceRefs as SourceRef[]);
+		if (sourceRefs.length !== 1 || sourceRefs[0]?.kind !== "authorization") return undefined;
+		const request = snapshotCancellation({
+			kind: "managed-untrusted-js-compute-cancellation-requested",
+			cancellationId: raw.cancellationId,
+			runId: raw.runId,
+			adapterInputId: raw.adapterInputId,
+			requestId: raw.requestId,
+			operationId: raw.operationId,
+			routeId: raw.routeId,
+			executorId: raw.executorId,
+			profileId: raw.profileId,
+			runAdmissionId: raw.runAdmissionId,
+			attempt: raw.attempt,
+			environmentId: raw.environmentId,
+			environmentRevision: raw.environmentRevision,
+			manifestFingerprint: raw.manifestFingerprint,
+			epoch: raw.epoch,
+		});
+		if (request === undefined) return undefined;
+		return Object.freeze({
+			...request,
+			kind: "managed-untrusted-js-compute-cancellation-decision",
+			decisionId: raw.decisionId,
+			proposalId: raw.proposalId,
+			outcome: raw.outcome,
+			sourceRefs,
+		});
+	} catch {
+		return undefined;
+	}
+}
+
+function cancellationCoordinatesMatch(
+	left: Omit<ManagedUntrustedJsComputeCancellationRequested, "kind">,
+	right: Omit<ManagedUntrustedJsComputeCancellationRequested, "kind">,
+): boolean {
+	return (
+		left.cancellationId === right.cancellationId &&
+		left.runId === right.runId &&
+		left.adapterInputId === right.adapterInputId &&
+		left.requestId === right.requestId &&
+		left.operationId === right.operationId &&
+		left.routeId === right.routeId &&
+		left.executorId === right.executorId &&
+		left.profileId === right.profileId &&
+		left.runAdmissionId === right.runAdmissionId &&
+		left.attempt === right.attempt &&
+		left.environmentId === right.environmentId &&
+		left.environmentRevision === right.environmentRevision &&
+		left.manifestFingerprint === right.manifestFingerprint &&
+		left.epoch === right.epoch
+	);
+}
+
+function cancellationMatchesRecord(
+	request: Omit<ManagedUntrustedJsComputeCancellationRequested, "kind">,
+	record: Active,
+): boolean {
+	const metadata = record.request.metadata as
+		| Partial<ExecutionEnvironmentPinnedRunMetadata>
+		| undefined;
+	return (
+		request.runId === record.request.runId &&
+		request.adapterInputId === record.request.adapterInputId &&
+		request.requestId === record.request.requestId &&
+		request.operationId === record.request.operationId &&
+		request.routeId === record.request.routeId &&
+		request.executorId === record.request.executorId &&
+		request.profileId === record.request.profileId &&
+		request.runAdmissionId === record.runAdmissionId &&
+		request.attempt === record.request.attempt &&
+		request.environmentId === metadata?.executionEnvironmentId &&
+		request.environmentRevision === record.context.environmentRevision &&
+		request.manifestFingerprint === record.context.manifestFingerprint &&
+		request.epoch === record.context.epoch
+	);
 }
 
 function snapshotDriverResult(
@@ -1356,8 +1941,31 @@ function provesResultMovement(
 }
 
 function outcome(record: Active, result: ManagedUntrustedJsComputeDriverResult): ExecutorOutcome {
+	const cancellationRefs =
+		result.outcome === "canceled" && record.acceptedCancellation !== undefined
+			? [
+					{
+						kind: "managed-untrusted-js-compute-cancellation",
+						id: record.acceptedCancellation.cancellationId,
+					},
+					{
+						kind: "managed-untrusted-js-compute-cancellation-proposal",
+						id: record.acceptedCancellation.proposalId,
+					},
+					{
+						kind: "managed-untrusted-js-compute-cancellation-decision",
+						id: record.acceptedCancellation.decisionId,
+					},
+					{
+						kind: "managed-untrusted-js-compute-cancellation-admission",
+						id: record.acceptedCancellation.admissionId,
+					},
+					...record.acceptedCancellation.sourceRefs,
+				]
+			: [];
 	const evidenceRefs = [
 		{ kind: "managed-untrusted-js-compute-run", id: record.request.runId },
+		...cancellationRefs,
 		...(result.outcome === "succeeded"
 			? result.resultRefs
 			: "artifactRefs" in result && result.artifactRefs !== undefined
@@ -1436,6 +2044,14 @@ function outcome(record: Active, result: ManagedUntrustedJsComputeDriverResult):
 				runId: record.request.runId,
 				epoch: record.context.epoch,
 				manifestFingerprint: record.context.manifestFingerprint,
+				...(record.acceptedCancellation === undefined
+					? {}
+					: {
+							cancellationId: record.acceptedCancellation.cancellationId,
+							cancellationProposalId: record.acceptedCancellation.proposalId,
+							cancellationDecisionId: record.acceptedCancellation.decisionId,
+							cancellationAdmissionId: record.acceptedCancellation.admissionId,
+						}),
 			},
 		},
 		{ runId: record.request.runId, attempt: record.request.attempt },
@@ -1550,6 +2166,15 @@ function publicText(value: unknown, fallback: string): string {
 	return value;
 }
 
+function generatedCancellationIdentity(value: unknown): value is string {
+	return (
+		typeof value === "string" &&
+		value.length > 0 &&
+		value.length <= MAX_GENERATED_CANCELLATION_ID_CHARS &&
+		/^[\x20-\x7e]+$/.test(value)
+	);
+}
+
 function privateText(value: string): boolean {
 	const text = value.toLowerCase().replace(/[^a-z0-9]+/g, "");
 	return PRIVATE_REF_TERMS.some((term) => text.includes(term));
@@ -1566,6 +2191,7 @@ function refs(raw: readonly SourceRef[] | undefined): readonly SourceRef[] {
 		raw.some(
 			(ref) =>
 				!plain(ref) ||
+				hasAccessorOrExoticObject(ref) ||
 				!exactKeys(ref, ["kind", "id"]) ||
 				typeof ref.kind !== "string" ||
 				typeof ref.id !== "string" ||
@@ -1595,6 +2221,20 @@ function plain(value: unknown): value is Record<string, unknown> {
 		value !== null &&
 		(Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
 	);
+}
+
+function hasAccessorOrExoticObject(value: unknown, seen = new Set<object>()): boolean {
+	if (value === null || typeof value !== "object") return false;
+	if (seen.has(value)) return false;
+	seen.add(value);
+	const prototype = Object.getPrototypeOf(value);
+	if (prototype !== Object.prototype && prototype !== Array.prototype && prototype !== null)
+		return true;
+	for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(value))) {
+		if (descriptor.get !== undefined || descriptor.set !== undefined) return true;
+		if ("value" in descriptor && hasAccessorOrExoticObject(descriptor.value, seen)) return true;
+	}
+	return false;
 }
 
 function exactKeys(value: Record<string, unknown>, keys: readonly string[]) {
