@@ -1,5 +1,11 @@
 # @graphrefly/ts
 
+## 0.6.1
+
+### Patch Changes
+
+- 4878eac: add managed compute admission fix
+
 ## 0.6.0
 
 ### Minor Changes

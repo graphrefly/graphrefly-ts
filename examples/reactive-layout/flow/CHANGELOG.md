@@ -1,5 +1,12 @@
 # @graphrefly-examples/reactive-layout-flow
 
+## 0.0.21
+
+### Patch Changes
+
+- Updated dependencies [4878eac]
+  - @graphrefly/ts@0.6.1
+
 ## 0.0.20
 
 ### Patch Changes
