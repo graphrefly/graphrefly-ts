@@ -192,6 +192,7 @@ describe("toolProviderRunAdmissionProjector (D419)", () => {
 			expect.objectContaining({
 				runId: "approved-require-run",
 				sourceRefs: expect.arrayContaining([
+					{ kind: "tool-provider-run-admission", id: "admission-approve" },
 					{ kind: "tool-provider-run-admission-decision", id: "decision-approve" },
 				]),
 			}),

@@ -1512,7 +1512,7 @@ function admit(
 		return failure("missing-input", "managed-untrusted-js-compute-arguments-missing", request);
 	const args = managedUntrustedJsComputeArguments(input.toolCall.arguments);
 	const runAdmissionRefs =
-		request.sourceRefs?.filter((source) => source.kind === "admission") ?? [];
+		request.sourceRefs?.filter((source) => source.kind === "tool-provider-run-admission") ?? [];
 	if (
 		args.templateBuildId !== manifest.templateBuildId ||
 		args.runnerRevision !== manifest.runnerRevision ||

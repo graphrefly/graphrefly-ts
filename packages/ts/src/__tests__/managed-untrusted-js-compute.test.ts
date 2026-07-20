@@ -122,7 +122,7 @@ const run = (
 	profileId: "profile:js-compute:1",
 	attempt: 1,
 	reason: "manual",
-	sourceRefs: [ref("admission", "admission:js-compute:1")],
+	sourceRefs: [ref("tool-provider-run-admission", "admission:js-compute:1")],
 	metadata: {
 		executionEnvironmentId: "environment:managed-js-compute",
 		executionEnvironmentRevision: "environment-revision:js-compute:1",
@@ -540,6 +540,11 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 						executionEnvironmentRevision: "environment:private-sandbox-id",
 					},
 				}),
+			],
+			[
+				"noncanonical-admission-ref",
+				readiness(),
+				run({ sourceRefs: [ref("admission", "admission:js-compute:1")] }),
 			],
 		] as const) {
 			const g = graph({ name: `managed-js-compute-${label}` });
