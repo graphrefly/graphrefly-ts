@@ -1,7 +1,7 @@
 {
 	"name": "@graphrefly-examples/framework-vue",
 	"private": true,
-	"version": "0.0.19",
+	"version": "0.0.20",
 	"type": "module",
 	"description": "Vue 3 binding for GraphReFly — useNodeInput / useNodeValue.",
 	"scripts": {

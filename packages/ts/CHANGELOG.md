@@ -1,5 +1,11 @@
 # @graphrefly/ts
 
+## 0.6.0
+
+### Minor Changes
+
+- c438218: Add an explicit, exact-coordinate cancellation proposal, authorization decision,
+
 ## 0.5.0
 
 ### Minor Changes
