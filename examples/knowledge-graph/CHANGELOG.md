@@ -1,5 +1,12 @@
 # @graphrefly-examples/knowledge-graph
 
+## 0.0.20
+
+### Patch Changes
+
+- Updated dependencies [c438218]
+  - @graphrefly/ts@0.6.0
+
 ## 0.0.19
 
 ### Patch Changes

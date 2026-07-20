@@ -1,7 +1,7 @@
 {
 	"name": "@graphrefly-examples/reactive-layout-flow",
 	"private": true,
-	"version": "0.0.19",
+	"version": "0.0.20",
 	"type": "module",
 	"description": "Multi-column text flowing around drifting obstacles — reactive-layout recipe.",
 	"scripts": {
