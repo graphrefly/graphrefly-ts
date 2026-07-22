@@ -1,7 +1,7 @@
 {
 	"name": "@graphrefly-examples/nestjs-graph-boundary",
 	"private": true,
-	"version": "0.0.20",
+	"version": "0.0.21",
 	"type": "module",
 	"description": "NestJS keyed ingress/egress boundary nodes over @graphrefly/ts.",
 	"scripts": {
