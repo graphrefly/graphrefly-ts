@@ -6,6 +6,7 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import { attachObserveEventLog } from "../adapters/observe-storage.js";
 import {
 	appendLogCommittedFactJournal,
+	type CommittedFactJournalBackend,
 	type CommittedFactJournalBatch,
 	type CommittedFactJournalFact,
 	type CommittedFactJournalProfile,
@@ -193,6 +194,43 @@ describe("D641 reusable committed-fact journal", () => {
 		expect(await log.size()).toBe(1);
 	});
 
+	it("installs the single-handle queue before caller-owned profile code can re-enter", async () => {
+		const log = memoryAppendLog<WorkFactBatch>("reentrant-profile");
+		let journal: CommittedFactJournalBackend<WorkFactBatch, WorkFact, WorkCursor>;
+		let nested: ReturnType<typeof journal.append> | undefined;
+		let reentered = false;
+		const profile: CommittedFactJournalProfile<WorkFact, WorkFactBatch, WorkCursor> = {
+			assertBatch(value) {
+				const canonical = workProfile.assertBatch(value);
+				if (!reentered) {
+					reentered = true;
+					nested = journal.append(batch([fact("work:reentrant-nested", "nested")]));
+				}
+				return canonical;
+			},
+			cursor: workProfile.cursor,
+		};
+		journal = appendLogCommittedFactJournal({ log, profile });
+
+		const outer = await journal.append(batch([fact("work:reentrant-outer", "outer")]));
+		expect(nested).toBeDefined();
+		const nestedResult = await nested;
+		const read = await journal.read();
+
+		expect(outer).toMatchObject({
+			status: "committed",
+			cursor: { position: 1 },
+		});
+		expect(nestedResult).toMatchObject({
+			status: "committed",
+			cursor: { position: 2 },
+		});
+		expect(read.facts.map((item) => item.identity.key)).toEqual([
+			"work:reentrant-outer",
+			"work:reentrant-nested",
+		]);
+	});
+
 	it("keeps a proven commit closed when optional backend cursor diagnostics fail", async () => {
 		const log = memoryAppendLog<WorkFactBatch>("diagnostic-failure");
 		const journal = appendLogCommittedFactJournal({
@@ -226,6 +264,90 @@ describe("D641 reusable committed-fact journal", () => {
 			},
 		]);
 		expect(() => strictCanonicalJsonBytes({ committed, read })).not.toThrow();
+	});
+
+	it("contains hostile diagnostic errors after a proven commit and bounds their messages", async () => {
+		const hostile = Object.create(Error.prototype) as Error;
+		Object.defineProperty(hostile, "message", {
+			get() {
+				throw new Error("message getter escaped");
+			},
+		});
+		const hostileLog = memoryAppendLog<WorkFactBatch>("hostile-diagnostic");
+		const hostileJournal = appendLogCommittedFactJournal({
+			log: hostileLog,
+			profile: workProfile,
+			backendCursorValue() {
+				throw hostile;
+			},
+		});
+		const boundedLog = memoryAppendLog<WorkFactBatch>("large-diagnostic");
+		const boundedJournal = appendLogCommittedFactJournal({
+			log: boundedLog,
+			profile: workProfile,
+			backendCursorValue() {
+				throw new Error("x".repeat(50_000));
+			},
+		});
+
+		const hostileResult = await hostileJournal.append(
+			batch([fact("work:hostile-diagnostic", "committed")]),
+		);
+		const boundedResult = await boundedJournal.append(
+			batch([fact("work:large-diagnostic", "committed")]),
+		);
+
+		expect(hostileResult).toMatchObject({
+			status: "committed",
+			issues: [{ message: "error details were not safely reportable", severity: "warning" }],
+		});
+		expect(boundedResult.status).toBe("committed");
+		expect(boundedResult.issues[0]?.message).toHaveLength(1_024);
+		expect(() => strictCanonicalJsonBytes({ hostileResult, boundedResult })).not.toThrow();
+	});
+
+	it("normalizes synchronous backend throws into closed read and append results", async () => {
+		const readBase = memoryAppendLog<WorkFactBatch>("sync-read-throw");
+		const readThrows: AppendLogStorageTier<WorkFactBatch> = {
+			...readBase,
+			read() {
+				throw new Error("synchronous read failure");
+			},
+		};
+		const readJournal = appendLogCommittedFactJournal({
+			log: readThrows,
+			profile: workProfile,
+		});
+		const appendBase = memoryAppendLog<WorkFactBatch>("sync-append-throw");
+		const appendThrows: AppendLogStorageTier<WorkFactBatch> = {
+			...appendBase,
+			append() {
+				throw new Error("synchronous append failure");
+			},
+		};
+		const appendJournal = appendLogCommittedFactJournal({
+			log: appendThrows,
+			profile: workProfile,
+		});
+
+		expect(await readJournal.read()).toMatchObject({
+			facts: [],
+			done: false,
+			issues: [{ code: "committed-fact-journal.append-log.read-failed" }],
+		});
+		expect(
+			await readJournal.append(batch([fact("work:sync-read", "not committed")])),
+		).toMatchObject({
+			status: "uncertain",
+			issues: [{ code: "committed-fact-journal.append-log.precondition-read-failed" }],
+		});
+		expect(
+			await appendJournal.append(batch([fact("work:sync-append", "not committed")])),
+		).toMatchObject({
+			status: "uncertain",
+			issues: [{ code: "committed-fact-journal.append-log.append-uncertain" }],
+		});
+		expect(await appendBase.size()).toBe(0);
 	});
 
 	it("rejects a non-strict or position-incoherent profile cursor before physical append", async () => {

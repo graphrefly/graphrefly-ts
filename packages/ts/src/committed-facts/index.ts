@@ -315,16 +315,14 @@ export function appendLogCommittedFactJournal<
 			capability("multi-writer-correctness", false),
 			...additionalCapabilities,
 		]);
-	let tail: PromiseLike<unknown> | undefined;
+	let tail: Promise<unknown> = Promise.resolve();
 
-	function enqueue<R>(task: () => R | PromiseLike<R>): R | PromiseLike<R> {
-		const run = tail === undefined ? task() : tail.then(task, task);
-		if (isPromiseLike(run)) {
-			tail = run.then(
-				() => undefined,
-				() => undefined,
-			);
-		}
+	function enqueue<R>(task: () => R | PromiseLike<R>): Promise<R> {
+		const run = tail.then(task);
+		tail = run.then(
+			() => undefined,
+			() => undefined,
+		);
 		return run;
 	}
 
@@ -431,7 +429,7 @@ export function appendLogCommittedFactJournal<
 						break;
 				}
 
-				return opts.log.append(canonical).then(
+				return callLogAppend(canonical).then(
 					(entry) => {
 						const diagnosticIssues: DataIssue[] = [];
 						const diagnosticCursor = safeBackendCursor(entry, diagnosticIssues);
@@ -527,7 +525,7 @@ export function appendLogCommittedFactJournal<
 			);
 		}
 
-		return opts.log.read().then(
+		return callLogRead().then(
 			(entries) => {
 				try {
 					const facts = flattenBatches(
@@ -593,12 +591,20 @@ export function appendLogCommittedFactJournal<
 	}
 
 	function readAllFacts(): PromiseLike<readonly TFact[]> {
-		return opts.log.read().then((entries) =>
+		return callLogRead().then((entries) =>
 			flattenBatches(
 				entries.map((entry) => entry.value),
 				opts.profile,
 			),
 		);
+	}
+
+	function callLogAppend(batch: TBatch): Promise<AppendLogEntry<TBatch>> {
+		return Promise.resolve().then(() => opts.log.append(batch));
+	}
+
+	function callLogRead(): Promise<readonly AppendLogEntry<TBatch>[]> {
+		return Promise.resolve().then(() => opts.log.read());
 	}
 
 	function cursorAt(position: number): TCursor {
@@ -896,12 +902,9 @@ function normalizeName(value: string | undefined, fallback: string): string {
 }
 
 function boundedText(value: string, maxLength: number): string {
-	return Array.from(replaceUnpairedSurrogates(value)).slice(0, maxLength).join("");
-}
-
-function replaceUnpairedSurrogates(value: string): string {
 	let out = "";
-	for (let index = 0; index < value.length; index += 1) {
+	let length = 0;
+	for (let index = 0; index < value.length && length < maxLength; index += 1) {
 		const unit = value.charCodeAt(index);
 		if (unit >= 0xd800 && unit <= 0xdbff) {
 			const next = value.charCodeAt(index + 1);
@@ -917,6 +920,7 @@ function replaceUnpairedSurrogates(value: string): string {
 		} else {
 			out += value[index] ?? "";
 		}
+		length += 1;
 	}
 	return out;
 }
@@ -936,13 +940,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function errorMessage(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
-}
-
-function isPromiseLike<T>(value: T | PromiseLike<T>): value is PromiseLike<T> {
-	return (
-		value !== null &&
-		(typeof value === "object" || typeof value === "function") &&
-		typeof (value as PromiseLike<T>).then === "function"
-	);
+	try {
+		const message = error instanceof Error ? error.message : String(error);
+		return typeof message === "string" ? message : "error details were not safely reportable";
+	} catch {
+		return "error details were not safely reportable";
+	}
 }

@@ -69,6 +69,10 @@ const ALLOW_ALL = new Set<string>([
  * unless explicitly listed for a sanctioned boundary file.
  */
 const ALLOW_LABELS = new Map<string, ReadonlySet<string>>([
+	// D641 committed-fact journal is application-infrastructure over passive storage.
+	// Promise.resolve installs its single-handle serializer before caller/backend code
+	// and normalizes synchronous host adapter throws; it never enters the graph wave core.
+	["packages/ts/src/committed-facts/index.ts", new Set<string>(["Promise.resolve()"])],
 	// D628 focused ClickHouse adapter glue is the host-injected async runtime boundary.
 	// Keep the exception pattern-scoped so the surrounding DTO/validation surface stays synchronous.
 	[
