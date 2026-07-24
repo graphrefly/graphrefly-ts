@@ -1,5 +1,11 @@
 # @graphrefly/ts
 
+## 0.6.2
+
+### Patch Changes
+
+- 69e38a9: fix certifier entrypoint
+
 ## 0.6.1
 
 ### Patch Changes
