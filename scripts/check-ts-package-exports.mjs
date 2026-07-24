@@ -124,6 +124,14 @@ const expectedSubpaths = {
 		absent: [],
 	},
 	"./adapters/svelte": { present: ["nodeReadable", "nodeWritable", "nodeRecord"], absent: [] },
+	"./committed-facts": {
+		present: [
+			"appendLogCommittedFactJournal",
+			"committedFactJournalCursor",
+			"committedFactJournalCursorCodec",
+		],
+		absent: [],
+	},
 	"./cqrs/messaging": { present: ["cqrsMessagingRecipe"], absent: [] },
 	"./cqrs/work-queue": { present: ["cqrsWorkQueueRecipe"], absent: [] },
 	"./executors/tool-provider": {
@@ -399,6 +407,9 @@ const forbiddenFrameworkSpecifiers = [
 ];
 
 const rootAbsentExports = [
+	"appendLogCommittedFactJournal",
+	"committedFactJournalCursor",
+	"committedFactJournalCursorCodec",
 	"PRODUCTION_EVALUATION_AUTHORITY_COMPATIBILITY",
 	"createProductionEvaluationAuthority",
 	"createProductionEvaluationMemoryPersistence",
@@ -713,6 +724,15 @@ import { createNodeInput, createNodeRecord, createNodeValue } from "@graphrefly/
 import { nodeReadable, nodeRecord, nodeWritable } from "@graphrefly/ts/adapters/svelte";
 import { useNodeInput as useVueNodeInput, useNodeRecord as useVueNodeRecord, useNodeValue as useVueNodeValue } from "@graphrefly/ts/adapters/vue";
 import {
+	appendLogCommittedFactJournal,
+	committedFactJournalCursor,
+	committedFactJournalCursorCodec,
+	type CommittedFactJournalBackend,
+	type CommittedFactJournalBatch,
+	type CommittedFactJournalFact,
+	type CommittedFactJournalProfile,
+} from "@graphrefly/ts/committed-facts";
+import {
 	toolProviderExecutionRecipe,
 	type ToolProviderExecutionRecipeBundle,
 	type ToolProviderExecutionRecipeOptions,
@@ -859,6 +879,9 @@ void nodeWritable;
 void useVueNodeInput;
 void useVueNodeRecord;
 void useVueNodeValue;
+void appendLogCommittedFactJournal;
+void committedFactJournalCursor;
+void committedFactJournalCursorCodec;
 void toolProviderExecutionRecipe;
 void attachToolProviderAdapterRuntime;
 void httpToolProviderCatalog;
@@ -905,6 +928,16 @@ void validateWorkspaceProposalProjectionReleaseMaterial;
 void workspaceProposalProjectionReleaseDiagnosticProjector;
 
 declare const manifest: BoundaryManifest;
+declare const committedFactJournalBackend: CommittedFactJournalBackend<
+	CommittedFactJournalBatch,
+	CommittedFactJournalFact,
+	ReturnType<typeof committedFactJournalCursor>
+>;
+declare const committedFactJournalProfile: CommittedFactJournalProfile<
+	CommittedFactJournalFact,
+	CommittedFactJournalBatch,
+	ReturnType<typeof committedFactJournalCursor>
+>;
 const role: BoundaryRole = "input";
 const node: BoundaryNode | undefined = manifest.inputs[0] ?? manifest.outputs[0];
 declare const memoryNamespaceFragment: MemoryNamespaceFragment;
@@ -981,6 +1014,8 @@ declare const protobufBundle: WireBridgeProtobufBundle;
 	const projectionReleaseTargetKind: WorkspaceProposalProjectionReleaseTargetKind = "family-read-model-query";
 void role;
 void node;
+void committedFactJournalBackend;
+void committedFactJournalProfile;
 void memoryNamespaceFragment;
 void memoryRetrievalOptions;
 void scoringPolicy;

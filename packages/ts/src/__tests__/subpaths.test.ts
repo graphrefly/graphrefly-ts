@@ -20,6 +20,7 @@ import * as reactAdapters from "../adapters/react.js";
 import * as solidAdapters from "../adapters/solid.js";
 import * as svelteAdapters from "../adapters/svelte.js";
 import * as vueAdapters from "../adapters/vue.js";
+import * as committedFacts from "../committed-facts/index.js";
 import * as composition from "../composition/index.js";
 import * as core from "../core/index.js";
 import * as cqrs from "../cqrs/index.js";
@@ -270,6 +271,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./adapters/solid",
 			"./adapters/svelte",
 			"./adapters/vue",
+			"./committed-facts",
 			"./composition",
 			"./core",
 			"./cqrs",
@@ -498,6 +500,11 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof nestjsMicroservicesAdapters.provideGraphMessageProviders).toBe("function");
 		expect(typeof observeStorage.attachObserveEventLog).toBe("function");
 		expect(typeof observeStorage.attachObserveSink).toBe("function");
+		expect(typeof committedFacts.appendLogCommittedFactJournal).toBe("function");
+		expect(typeof committedFacts.committedFactJournalCursor).toBe("function");
+		expect(typeof committedFacts.committedFactJournalCursorCodec).toBe("function");
+		expect(committedFacts.COMMITTED_FACT_JOURNAL_CURSOR_KIND).toBe("committed-fact-journal.cursor");
+		expect(Object.hasOwn(rootPackage, "appendLogCommittedFactJournal")).toBe(false);
 		expect(typeof patterns.profileSummary).toBe("function");
 		expect(typeof patterns.eventFlow).toBe("function");
 		expect(typeof patterns.eventFlowProjection).toBe("function");

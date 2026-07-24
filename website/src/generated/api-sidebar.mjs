@@ -2563,6 +2563,24 @@ export const apiSidebar = [
 		]
 	},
 	{
+		"label": "Committed Facts",
+		"collapsed": true,
+		"items": [
+			{
+				"label": "committedFactJournalCursorCodec()",
+				"link": "/api/committedfactjournalcursorcodec"
+			},
+			{
+				"label": "committedFactJournalCursor()",
+				"link": "/api/committedfactjournalcursor"
+			},
+			{
+				"label": "appendLogCommittedFactJournal()",
+				"link": "/api/appendlogcommittedfactjournal"
+			}
+		]
+	},
+	{
 		"label": "Json",
 		"collapsed": true,
 		"items": [

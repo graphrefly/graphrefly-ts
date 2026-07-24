@@ -25,6 +25,7 @@ This matrix is the fast inventory view. Use it to find what exists today, where 
 | Node sources | Node-only source factories | `@graphrefly/ts/sources/node` |
 | Render | Pure describe snapshot renderers | `@graphrefly/ts/render` |
 | Composition | Topology composition helpers | `@graphrefly/ts/composition` |
+| Committed facts | Domain-neutral committed-fact journal mechanics over passive append logs | `@graphrefly/ts/committed-facts` |
 | Data structures | Reactive list/map/index/log helpers | `@graphrefly/ts/data-structures` |
 | Passive storage | Storage codecs, KV, append-log, WAL, and read-through helpers | `@graphrefly/ts/storage` |
 | Browser storage | IndexedDB-backed storage helpers | `@graphrefly/ts/storage/browser` |

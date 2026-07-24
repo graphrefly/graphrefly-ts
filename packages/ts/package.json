@@ -136,6 +136,16 @@
 				"default": "./dist/composition/index.cjs"
 			}
 		},
+		"./committed-facts": {
+			"import": {
+				"types": "./dist/committed-facts/index.d.ts",
+				"default": "./dist/committed-facts/index.js"
+			},
+			"require": {
+				"types": "./dist/committed-facts/index.d.cts",
+				"default": "./dist/committed-facts/index.cjs"
+			}
+		},
 		"./cqrs": {
 			"import": {
 				"types": "./dist/cqrs/index.d.ts",

@@ -7,6 +7,11 @@
 
 /// <reference lib="dom" />
 
+import {
+	assertCommittedFactStreamIntegrity,
+	committedFactBatchDisposition,
+	committedFactReadWindow,
+} from "../../committed-facts/internal.js";
 import type { DataIssue } from "../../data/index.js";
 import {
 	type IndexedDbAppendLogOptions,
@@ -158,44 +163,54 @@ export function indexedDbAgenticMemoryCommittedFactLogBackend<
 		return readAllFacts().then(
 			(existing) => {
 				const cursorBefore = factCursor(existing.length);
-				const internal = internalIdentityConflict(canonical.facts);
-				if (internal !== undefined) {
-					return appendResult(internal.status, cursorBefore, 0, { issues: [internal.issue] });
-				}
-				const existingByIdentity = new Map<string, string>();
-				for (const fact of existing) {
-					existingByIdentity.set(fact.identity.key, fact.materialIdentity.key);
-				}
-				let duplicateFacts = 0;
-				for (const fact of canonical.facts) {
-					const materialIdentity = existingByIdentity.get(fact.identity.key);
-					if (materialIdentity === undefined) continue;
-					if (materialIdentity !== fact.materialIdentity.key) {
+				const disposition = committedFactBatchDisposition(existing, canonical.facts);
+				switch (disposition.kind) {
+					case "internal-conflict":
+						return appendResult("conflict", cursorBefore, 0, {
+							issues: [
+								issue(
+									"agentic-memory.fact-log-backend.indexeddb.internal-identity-conflict",
+									"committed fact batch reuses one identity with different material",
+									"error",
+									disposition.identity,
+								),
+							],
+						});
+					case "internal-duplicate":
+						return appendResult("rejected", cursorBefore, 0, {
+							issues: [
+								issue(
+									"agentic-memory.fact-log-backend.indexeddb.internal-duplicate-identity",
+									"committed fact batch repeats one identity; submit each fact identity once per batch",
+									"error",
+									disposition.identity,
+								),
+							],
+						});
+					case "conflict":
 						return appendResult("conflict", cursorBefore, 0, {
 							issues: [
 								issue(
 									"agentic-memory.fact-log-backend.indexeddb.identity-conflict",
 									"committed fact identity was reused with different material",
 									"error",
-									fact.identity.key,
+									disposition.identity,
 								),
 							],
 						});
-					}
-					duplicateFacts += 1;
-				}
-				if (duplicateFacts === canonical.facts.length) {
-					return appendResult("duplicate", cursorBefore, 0);
-				}
-				if (duplicateFacts > 0) {
-					return appendResult("rejected", cursorBefore, 0, {
-						issues: [
-							issue(
-								"agentic-memory.fact-log-backend.indexeddb.batch-overlaps-committed-log",
-								"committed fact batch partially overlaps existing facts; retry by reading the stream cursor",
-							),
-						],
-					});
+					case "duplicate":
+						return appendResult("duplicate", cursorBefore, 0);
+					case "partial-overlap":
+						return appendResult("rejected", cursorBefore, 0, {
+							issues: [
+								issue(
+									"agentic-memory.fact-log-backend.indexeddb.batch-overlaps-committed-log",
+									"committed fact batch partially overlaps existing facts; retry by reading the stream cursor",
+								),
+							],
+						});
+					case "append":
+						break;
 				}
 
 				return log.append(canonical).then(
@@ -288,29 +303,51 @@ export function indexedDbAgenticMemoryCommittedFactLogBackend<
 		}
 		return log.read().then(
 			(entries) => {
-				const facts = flattenBatches(entries.map((entry) => entry.value));
-				const visible = facts.slice(
-					after.position,
-					limit === Number.POSITIVE_INFINITY ? undefined : after.position + limit,
-				);
-				const cursor = factCursor(after.position + visible.length);
-				const lastEntry = entries[entries.length - 1];
-				return readResult(visible, cursor, cursor.position >= facts.length, {
-					backendCursor:
-						lastEntry === undefined
-							? undefined
-							: agenticMemoryCommittedFactLogBackendCursor(backendName, {
-									indexedDbKey: lastEntry.key,
-									appendLogSeq: lastEntry.seq,
-								}),
-					backendStatus: status(),
-					audit: [
-						factLogAudit("facts-read", {
-							cursor,
-							reason: "IndexedDB backend returned committed facts in fact-stream order",
+				try {
+					const facts = flattenBatches(entries.map((entry) => entry.value));
+					if (after.position > facts.length) {
+						return readResult([], after, false, {
+							issues: [
+								issue(
+									"agentic-memory.fact-log-backend.indexeddb.invalid-fact-cursor",
+									"fact cursor is beyond the current stream tail",
+								),
+							],
+							backendStatus: status(),
+						});
+					}
+					const window = committedFactReadWindow(facts, after.position, limit);
+					const cursor = factCursor(window.position);
+					const lastEntry = entries[entries.length - 1];
+					return readResult(window.facts, cursor, window.done, {
+						backendCursor:
+							lastEntry === undefined
+								? undefined
+								: agenticMemoryCommittedFactLogBackendCursor(backendName, {
+										indexedDbKey: lastEntry.key,
+										appendLogSeq: lastEntry.seq,
+									}),
+						backendStatus: status(),
+						audit: [
+							factLogAudit("facts-read", {
+								cursor,
+								reason: "IndexedDB backend returned committed facts in fact-stream order",
+							}),
+						],
+					});
+				} catch (error) {
+					const storedIssue = issue(
+						"agentic-memory.fact-log-backend.indexeddb.invalid-stored-stream",
+						errorMessage(error),
+					);
+					return readResult([], after, false, {
+						issues: [storedIssue],
+						backendStatus: agenticMemoryCommittedFactLogBackendStatus("degraded", {
+							backend: backendName,
+							issues: [storedIssue],
 						}),
-					],
-				});
+					});
+				}
 			},
 			(error) =>
 				readResult([], after, false, {
@@ -340,6 +377,7 @@ function flattenBatches<TJson extends StrictJsonValue>(
 		const canonical = assertAgenticMemoryCommittedFactBatch<TJson>(batch);
 		facts.push(...canonical.facts);
 	}
+	assertCommittedFactStreamIntegrity(facts);
 	return Object.freeze(facts);
 }
 
@@ -385,45 +423,6 @@ function readResult<TJson extends StrictJsonValue>(
 		...(opts.backendStatus === undefined ? {} : { backendStatus: opts.backendStatus }),
 		...(opts.backendCursor === undefined ? {} : { backendCursor: opts.backendCursor }),
 	});
-}
-
-function internalIdentityConflict<TJson extends StrictJsonValue>(
-	facts: readonly AgenticMemoryCommittedFact<TJson>[],
-):
-	| {
-			readonly status: "conflict" | "rejected";
-			readonly issue: DataIssue;
-	  }
-	| undefined {
-	const seen = new Map<string, string>();
-	for (const fact of facts) {
-		const existing = seen.get(fact.identity.key);
-		if (existing === undefined) {
-			seen.set(fact.identity.key, fact.materialIdentity.key);
-			continue;
-		}
-		if (existing !== fact.materialIdentity.key) {
-			return {
-				status: "conflict",
-				issue: issue(
-					"agentic-memory.fact-log-backend.indexeddb.internal-identity-conflict",
-					"committed fact batch reuses one identity with different material",
-					"error",
-					fact.identity.key,
-				),
-			};
-		}
-		return {
-			status: "rejected",
-			issue: issue(
-				"agentic-memory.fact-log-backend.indexeddb.internal-duplicate-identity",
-				"committed fact batch repeats one identity; submit each fact identity once per batch",
-				"error",
-				fact.identity.key,
-			),
-		};
-	}
-	return undefined;
 }
 
 function validateFactCursor(cursor: unknown): DataIssue | undefined {

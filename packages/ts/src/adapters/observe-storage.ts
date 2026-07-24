@@ -7,6 +7,7 @@
 
 import type { Graph } from "../graph/graph.js";
 import type { ObserveEvent } from "../graph/inspect.js";
+import { cloneStrictJsonValue } from "../json/codec.js";
 import type { AppendLogStorageTier } from "../storage/append-log.js";
 import {
 	type ObserveEventFrame,
@@ -61,9 +62,11 @@ type QueueItem<T> =
 
 /** Options for persisting Graph.observe() events into an append log. */
 export interface AttachObserveEventLogOptions<T = ObserveEvent> {
-	path?: string;
+	/** Required exact node id or subtree path. Whole-graph persistence is never implicit (D641). */
+	path: string;
 	stream?: string;
-	map?: (event: ObserveEvent) => T | undefined;
+	/** Required bounded projection/filter into durable strict DATA (D641). */
+	map: (event: ObserveEvent) => T | undefined;
 	onError?: (error: unknown, ctx: ObserveSinkErrorContext<ObserveEventFrame<T>>) => void;
 }
 
@@ -258,16 +261,30 @@ export function attachObserveSink<T = ObserveEvent>(
 export function attachObserveEventLog<T = ObserveEvent>(
 	graph: Graph,
 	log: AppendLogStorageTier<ObserveEventFrame<T>>,
-	opts: AttachObserveEventLogOptions<T> = {},
+	opts: AttachObserveEventLogOptions<T>,
 ): ObserveEventLogHandle {
+	if (typeof opts.path !== "string" || opts.path.length === 0) {
+		throw new TypeError("attachObserveEventLog: path must be a non-empty exact id or subtree path");
+	}
+	if (typeof opts.map !== "function") {
+		throw new TypeError("attachObserveEventLog: map must be an explicit DATA projection/filter");
+	}
 	return attachObserveSink<ObserveEventFrame<T>>(
 		graph,
 		{ write: (frame) => log.append(frame).then(() => undefined) },
 		{
 			path: opts.path,
 			map: (event) => {
-				const value = opts.map ? opts.map(event) : (event as unknown as T);
-				return value === undefined ? undefined : observeEventFrame(event, value, opts);
+				const value = opts.map(event);
+				if (value === undefined) return undefined;
+				const canonical = cloneStrictJsonValue(
+					value,
+					"attachObserveEventLog.mappedValue",
+				) as unknown as T;
+				return cloneStrictJsonValue(
+					observeEventFrame(event, canonical, opts),
+					"attachObserveEventLog.frame",
+				) as unknown as ObserveEventFrame<T>;
 			},
 			onError: opts.onError,
 		},

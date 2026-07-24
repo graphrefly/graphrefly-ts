@@ -1,6 +1,8 @@
+import { execFileSync } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { memoryAgenticMemoryPassiveStoreFrameAdapter } from "../adapters/index.js";
 import { graph } from "../graph/graph.js";
@@ -1649,6 +1651,95 @@ describe("AgenticMemory D594 Node file committed fact-log reference backend", ()
 			});
 			expect(jsonForBoundaryText({ append, startup })).not.toMatch(
 				/applicationAck|liveGraphTruth|recordMutation|hotHydration|hydrate|hydration|restore|liveRefresh|commitBarrier|sameEvaluationFeedback/i,
+			);
+		});
+	});
+});
+
+describe("AgenticMemory D641 journal specialization restart coverage", () => {
+	it("reads and materializes raw memory plus insight records in a separate cold process", async () => {
+		await withTempDir("graphrefly-agentic-memory-d641-process", async (dir) => {
+			const fixture = fileURLToPath(
+				new URL("./fixtures/agentic-memory-d641-process.ts", import.meta.url),
+			);
+			const run = (mode: "write" | "read") =>
+				JSON.parse(
+					execFileSync(process.execPath, ["--import", "tsx", fixture, mode, dir], {
+						cwd: process.cwd(),
+						encoding: "utf8",
+					}),
+				) as Record<string, unknown>;
+
+			expect(run("write")).toMatchObject({
+				status: "committed",
+				facts: 2,
+				cursor: { kind: "agentic-memory-fact-stream.cursor", position: 2 },
+			});
+			expect(run("read")).toMatchObject({
+				artifactKinds: ["raw", "insight"],
+				state: "ready",
+				readyForCallerWiring: true,
+				cursor: { kind: "agentic-memory-fact-stream.cursor", position: 2 },
+			});
+		});
+	});
+
+	it("reopens file-backed raw memory and insight records through explicit startup materialization", async () => {
+		await withTempDir("graphrefly-agentic-memory-d641", async (dir) => {
+			const raw = record({
+				id: "record-d641-raw",
+				artifactKind: "raw",
+				fragment: fragment({
+					id: "fragment-d641-raw",
+					payload: "bounded raw evidence",
+				}),
+			});
+			const insight = record({
+				id: "record-d641-insight",
+				artifactKind: "insight",
+				fragment: fragment({
+					id: "fragment-d641-insight",
+					payload: "derived reusable insight",
+				}),
+			});
+			const firstHandle = agenticMemoryCommittedFactLogBackendAdapter(
+				nodeFileAgenticMemoryCommittedFactLogBackend<string>(dir),
+			);
+
+			const append = await agenticMemoryCommittedFactLogAppendAttempt(
+				firstHandle,
+				agenticMemoryCommittedFactBatch([
+					agenticMemoryCommittedRecordMaterialFact(raw, {
+						operation: "create",
+						correlationId: "d641-raw",
+					}),
+					agenticMemoryCommittedRecordMaterialFact(insight, {
+						operation: "create",
+						correlationId: "d641-insight",
+					}),
+				]),
+			);
+			const reopenedHandle = agenticMemoryCommittedFactLogBackendAdapter(
+				nodeFileAgenticMemoryCommittedFactLogBackend<string>(dir),
+			);
+			const startup = await agenticMemoryCommittedFactLogStartupRead(reopenedHandle, {
+				evaluation: 641,
+			});
+
+			expect(append.commitResult).toMatchObject({
+				status: "committed",
+				facts: 2,
+				cursor: { kind: "agentic-memory-fact-stream.cursor", position: 2 },
+			});
+			expect(startup.records).toEqual([raw, insight]);
+			expect(startup.records.map((item) => item.artifactKind)).toEqual(["raw", "insight"]);
+			expect(startup.bootstrapStatus).toMatchObject({
+				state: "ready",
+				readyForCallerWiring: true,
+				factLogCursor: { kind: "agentic-memory-fact-stream.cursor", position: 2 },
+			});
+			expect(jsonForBoundaryText(startup)).not.toMatch(
+				/hotHydration|liveRefresh|graphCommitBarrier|applicationAck/i,
 			);
 		});
 	});

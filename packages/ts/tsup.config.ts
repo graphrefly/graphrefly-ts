@@ -13,6 +13,7 @@ export default defineConfig({
 		"src/adapters/solid.ts",
 		"src/adapters/svelte.ts",
 		"src/adapters/vue.ts",
+		"src/committed-facts/index.ts",
 		"src/composition/index.ts",
 		"src/cqrs/index.ts",
 		"src/cqrs/messaging.ts",

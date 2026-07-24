@@ -20,7 +20,7 @@ import { attachObserveEventLog } from "@graphrefly/ts/adapters/observe-storage";
 function attachObserveEventLog(
 	graph: Graph,
 	log: AppendLogStorageTier<ObserveEventFrame<T>>,
-	opts: AttachObserveEventLogOptions<T> = {},
+	opts: AttachObserveEventLogOptions<T>,
 ): ObserveEventLogHandle
 ```
 
