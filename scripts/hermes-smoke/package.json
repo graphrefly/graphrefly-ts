@@ -1,6 +1,6 @@
 {
 	"name": "@graphrefly/hermes-smoke",
-	"version": "0.0.13",
+	"version": "0.0.14",
 	"private": true,
 	"type": "module",
 	"description": "Private RN/Hermes smoke consumer for the @graphrefly/ts graph export map.",
