@@ -26,7 +26,7 @@ const DIGEST = /^sha256:[a-f0-9]{64}$/;
 const SAFE_IMAGE = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,254}$/;
 const PROBE_ENTRYPOINT = ["/bin/bash", "-ec"] as const;
 const PROBE_COMMAND =
-	'test "$(id -u)" != "0" && test "$(cat /run/secrets/d645-canary)" = "d645-canary-value" && test -z "$(getent hosts example.com || true)"';
+	'test "$(id -u)" != "0" && test "$(cat /run/secrets/d645-canary)" = "d645-canary-value" && test -z "$(timeout 2 getent hosts example.com || true)"';
 
 const LIMITATION_REFS = Object.freeze([
 	{ kind: "limitation", id: "podman-libpod-api-v0-rootless-only" },
@@ -293,6 +293,14 @@ export async function certifyPodmanLibpodApiV0RootlessLocalContainerPostgresqlWi
 				...patch,
 				cleanupVerified: await cleanup(socketPath, containerId, secretName, networkName),
 			});
+		const cancellationVerified = await verifyCancellationCanaries(
+			socketPath,
+			networkName,
+			opts.imageRef,
+			suffix,
+			opts.signal,
+		);
+		patch = { ...patch, cancellationVerified };
 
 		const cleanupVerified = await cleanup(socketPath, containerId, secretName, networkName);
 		containerId = undefined;
@@ -320,6 +328,125 @@ export async function certifyPodmanLibpodApiV0RootlessLocalContainerPostgresqlWi
 			secretDestructionVerified: cleanupVerified && patch.isolationVerified === true,
 			cleanupVerified,
 		});
+	}
+}
+
+async function verifyCancellationCanaries(
+	socketPath: string,
+	networkName: string,
+	imageRef: string,
+	suffix: string,
+	signal?: AbortSignal,
+): Promise<boolean> {
+	const cooperative = await runCancellationCanary({
+		socketPath,
+		networkName,
+		imageRef,
+		name: `graphrefly-d645-${suffix}-cooperative-cancel`,
+		command: "trap 'exit 0' TERM; while :; do :; done",
+		expectedExitCode: "0",
+		signal,
+	});
+	if (!cooperative) return false;
+	return runCancellationCanary({
+		socketPath,
+		networkName,
+		imageRef,
+		name: `graphrefly-d645-${suffix}-forced-cancel`,
+		command: "trap '' TERM; while :; do sleep 1; done",
+		expectedExitCode: "137",
+		signal,
+	});
+}
+
+async function runCancellationCanary(opts: {
+	readonly socketPath: string;
+	readonly networkName: string;
+	readonly imageRef: string;
+	readonly name: string;
+	readonly command: string;
+	readonly expectedExitCode: string;
+	readonly signal?: AbortSignal;
+}): Promise<boolean> {
+	let containerId: string | undefined;
+	try {
+		const created = await jsonRequest(
+			opts.socketPath,
+			`/v${API_REVISION}/libpod/containers/create`,
+			opts.signal,
+			"POST",
+			cancellationContainerRequest(opts.name, opts.networkName, opts.imageRef, opts.command),
+		);
+		if (
+			created.status !== 201 ||
+			!isRecord(created.body) ||
+			typeof created.body.Id !== "string" ||
+			!ID.test(created.body.Id) ||
+			!Array.isArray(created.body.Warnings) ||
+			created.body.Warnings.length !== 0
+		)
+			return false;
+		containerId = created.body.Id;
+		const inspected = await jsonRequest(
+			opts.socketPath,
+			`/v${API_REVISION}/libpod/containers/${containerId}/json`,
+			opts.signal,
+		);
+		if (
+			!cancellationInspectMatches(
+				inspected,
+				containerId,
+				opts.name,
+				opts.networkName,
+				opts.imageRef,
+				opts.command,
+			)
+		)
+			return false;
+		const started = await rawRequest(
+			opts.socketPath,
+			`/v${API_REVISION}/libpod/containers/${containerId}/start`,
+			opts.signal,
+			"POST",
+		);
+		if (started.status !== 204) return false;
+		const stopped = await rawRequest(
+			opts.socketPath,
+			`/v${API_REVISION}/libpod/containers/${containerId}/stop?timeout=2`,
+			opts.signal,
+			"POST",
+		);
+		if (stopped.status !== 200 && stopped.status !== 204) return false;
+		const waited = await rawRequest(
+			opts.socketPath,
+			`/v${API_REVISION}/libpod/containers/${containerId}/wait?condition=exited`,
+			opts.signal,
+			"POST",
+		);
+		if (waited.status !== 200) return false;
+		const settled = await jsonRequest(
+			opts.socketPath,
+			`/v${API_REVISION}/libpod/containers/${containerId}/json`,
+			opts.signal,
+		);
+		if (settled.status !== 200 || !isRecord(settled.body)) return false;
+		const state = isRecord(settled.body.State) ? settled.body.State : undefined;
+		return (
+			!!state &&
+			state.Running === false &&
+			state.ExitCode === Number.parseInt(opts.expectedExitCode, 10)
+		);
+	} catch {
+		return false;
+	} finally {
+		if (containerId !== undefined) {
+			await rawRequest(
+				opts.socketPath,
+				`/v${API_REVISION}/libpod/containers/${containerId}?force=true&v=true`,
+				undefined,
+				"DELETE",
+			).catch(() => undefined);
+		}
 	}
 }
 
@@ -442,9 +569,46 @@ function probeContainerRequest(
 		terminal: false,
 		stdin: false,
 		remove: false,
+		stop_signal: 15,
 		publish_image_ports: false,
 		networks: { [network]: {} },
 		secrets: [{ source: secret, target: "d645-canary", uid: 65532, gid: 65532, mode: 0o444 }],
+		labels: { "dev.graphrefly.boundary": BOUNDARY_LABEL },
+		resource_limits: {
+			memory: { limit: 128 * 1024 * 1024 },
+			cpu: { period: 100_000, quota: 50_000 },
+			pids: { limit: 64 },
+		},
+	};
+}
+
+function cancellationContainerRequest(
+	name: string,
+	network: string,
+	image: string,
+	command: string,
+): Record<string, unknown> {
+	return {
+		name,
+		image,
+		entrypoint: [...PROBE_ENTRYPOINT],
+		command: [command],
+		user: "65532:65532",
+		env: {},
+		env_host: false,
+		httpproxy: false,
+		image_volume_mode: "ignore",
+		read_only_filesystem: true,
+		read_write_tmpfs: false,
+		privileged: false,
+		cap_drop: ["all"],
+		no_new_privileges: true,
+		terminal: false,
+		stdin: false,
+		remove: false,
+		stop_signal: 15,
+		publish_image_ports: false,
+		networks: { [network]: {} },
 		labels: { "dev.graphrefly.boundary": BOUNDARY_LABEL },
 		resource_limits: {
 			memory: { limit: 128 * 1024 * 1024 },
@@ -495,6 +659,50 @@ function inspectMatches(
 		networkName in networks &&
 		!!mounts &&
 		mounts.length === 0
+	);
+}
+
+function cancellationInspectMatches(
+	response: JsonResponse,
+	containerId: string,
+	containerName: string,
+	networkName: string,
+	imageRef: string,
+	command: string,
+): boolean {
+	if (response.status !== 200 || !isRecord(response.body)) return false;
+	const body = response.body;
+	const config = isRecord(body.Config) ? body.Config : undefined;
+	const host = isRecord(body.HostConfig) ? body.HostConfig : undefined;
+	const settings = isRecord(body.NetworkSettings) ? body.NetworkSettings : undefined;
+	const networks = settings && isRecord(settings.Networks) ? settings.Networks : undefined;
+	const labels = config && isRecord(config.Labels) ? config.Labels : undefined;
+	return (
+		body.Id === containerId &&
+		body.Name === containerName &&
+		body.Path === PROBE_ENTRYPOINT[0] &&
+		exactStrings(body.Args, [PROBE_ENTRYPOINT[1], command]) &&
+		!!config &&
+		config.Image === imageRef &&
+		config.User === "65532:65532" &&
+		exactStrings(config.Entrypoint, PROBE_ENTRYPOINT) &&
+		exactStrings(config.Cmd, [command]) &&
+		!!labels &&
+		labels["dev.graphrefly.boundary"] === BOUNDARY_LABEL &&
+		!!host &&
+		host.ReadonlyRootfs === true &&
+		host.Privileged === false &&
+		Array.isArray(host.SecurityOpt) &&
+		host.SecurityOpt.includes("no-new-privileges") &&
+		host.Memory === 128 * 1024 * 1024 &&
+		host.CpuPeriod === 100_000 &&
+		host.CpuQuota === 50_000 &&
+		host.PidsLimit === 64 &&
+		!!networks &&
+		Object.keys(networks).length === 1 &&
+		networkName in networks &&
+		Array.isArray(body.Mounts) &&
+		body.Mounts.length === 0
 	);
 }
 

@@ -12,7 +12,7 @@ const digest = "sha256:d13105efe29040feb046f1c5fc9f0a98e58d8980c85300306a325c80d
 const imageRef = `docker.io/library/postgres@${digest}`;
 
 describe.runIf(live)("Node-local Podman Libpod API v0 rootless candidate (D645 live)", () => {
-	it("proves the implemented containment and secret lifecycle without claiming full readiness", async () => {
+	it("proves containment, secret destruction, and both cancellation paths without claiming full readiness", async () => {
 		const manifest = localContainerPostgresqlManifest({
 			kind: "local-container-postgresql-manifest",
 			manifestId: "manifest:pg-d645-live",
@@ -56,7 +56,7 @@ describe.runIf(live)("Node-local Podman Libpod API v0 rootless candidate (D645 l
 			secretDestructionVerified: true,
 			cleanupVerified: true,
 			dnsRebindingResistanceVerified: false,
-			cancellationVerified: false,
+			cancellationVerified: true,
 		});
 		expect(JSON.stringify(preflight)).not.toContain("podman-machine-default-api.sock");
 		expect(JSON.stringify(preflight)).not.toContain("d645-canary-value");
