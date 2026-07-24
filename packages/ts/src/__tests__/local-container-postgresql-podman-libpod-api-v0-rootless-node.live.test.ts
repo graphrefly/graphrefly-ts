@@ -11,8 +11,8 @@ const live = process.env.GRAPHREFLY_D645_LIVE_PODMAN === "1";
 const digest = "sha256:d13105efe29040feb046f1c5fc9f0a98e58d8980c85300306a325c80df9a45c4";
 const imageRef = `docker.io/library/postgres@${digest}`;
 
-describe.runIf(live)("Node-local Podman Libpod API v0 rootless candidate (D645 live)", () => {
-	it("proves containment, secret destruction, and both cancellation paths without claiming full readiness", async () => {
+describe.runIf(live)("Node-local Podman Libpod API v0 rootless certifier (D645 live)", () => {
+	it("certifies the exact host only after every containment, network, secret, cancellation, and cleanup proof", async () => {
 		const manifest = localContainerPostgresqlManifest({
 			kind: "local-container-postgresql-manifest",
 			manifestId: "manifest:pg-d645-live",
@@ -21,7 +21,7 @@ describe.runIf(live)("Node-local Podman Libpod API v0 rootless candidate (D645 l
 			imageDigest: digest,
 			engineCompatibilityRevision: LOCAL_CONTAINER_POSTGRESQL_COMPATIBILITY,
 			backendFamily: LOCAL_CONTAINER_POSTGRESQL_PODMAN_LIBPOD_API_V0_ROOTLESS_BACKEND_FAMILY,
-			backendCertificationRevision: "podman-certification:d645-candidate-v0",
+			backendCertificationRevision: "podman-certification:d645-v0",
 			recipeRevision: "postgresql-read-only-query-v1",
 			sandboxRevision: "sandbox:d645-live",
 			mountPolicyRevision: "mount:d645-live",
@@ -40,10 +40,11 @@ describe.runIf(live)("Node-local Podman Libpod API v0 rootless candidate (D645 l
 			localContainerPostgresqlPodmanLibpodApiV0RootlessPreflightReadiness(preflight);
 
 		expect(readiness).toMatchObject({
-			state: "unavailable",
+			state: "ready",
 			backendFamily: "podman-libpod-api-v0-rootless",
 			engineReachable: true,
 			backendFamilyVerified: true,
+			compatibilityVerified: true,
 			imageDigestVerified: true,
 			isolationVerified: true,
 			nonRootUserVerified: true,
@@ -55,7 +56,12 @@ describe.runIf(live)("Node-local Podman Libpod API v0 rootless candidate (D645 l
 			cpuMemoryPidsTimeBoundsVerified: true,
 			secretDestructionVerified: true,
 			cleanupVerified: true,
-			dnsRebindingResistanceVerified: false,
+			destinationPinnedEgressDenyVerified: true,
+			metadataEgressDenyVerified: true,
+			linkLocalEgressDenyVerified: true,
+			loopbackEgressDenyVerified: true,
+			hostGatewayEgressDenyVerified: true,
+			dnsRebindingResistanceVerified: true,
 			cancellationVerified: true,
 		});
 		expect(JSON.stringify(preflight)).not.toContain("podman-machine-default-api.sock");

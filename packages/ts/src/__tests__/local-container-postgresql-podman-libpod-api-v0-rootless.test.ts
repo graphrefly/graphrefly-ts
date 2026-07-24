@@ -172,10 +172,16 @@ describe("Podman native Libpod API v0 rootless PostgreSQL contract (D645)", () =
 		const surface = await import(
 			"../executors/local-container-postgresql-podman-libpod-api-v0-rootless.js"
 		);
+		const nodeSurface = await import(
+			"../executors/local-container-postgresql-podman-libpod-api-v0-rootless/node.js"
+		);
 		expect(Object.keys(surface).sort()).toEqual([
 			"PODMAN_LIBPOD_API_V0_ROOTLESS_BROKER_COMPATIBILITY",
 			"PODMAN_LIBPOD_API_V0_ROOTLESS_CERTIFIER_COMPATIBILITY",
 			"podmanLibpodApiV0RootlessLocalContainerPostgresqlDriver",
+		]);
+		expect(Object.keys(nodeSurface)).toEqual([
+			"certifyPodmanLibpodApiV0RootlessLocalContainerPostgresqlWithNode",
 		]);
 	});
 });

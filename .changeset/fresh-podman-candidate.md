@@ -3,6 +3,7 @@
 ---
 
 Add the independent rootless native Libpod API v0 PostgreSQL backend family and
-its Node-local candidate certifier. The certifier keeps socket discovery and
-resource handles private and remains unavailable until the remaining D645
-network and cancellation effect probes are certified.
+its Node-local certifier. The certifier keeps socket discovery and resource
+handles private and admits only the package-owned exact host profile after all
+containment, network, secret, cancellation, cleanup, and zero-residue probes
+succeed.
