@@ -276,6 +276,36 @@
 				"default": "./dist/executors/local-container-postgresql-docker-engine-api-v0/node.cjs"
 			}
 		},
+		"./executors/local-container-postgresql-podman-libpod-api-v0-rootless": {
+			"import": {
+				"types": "./dist/executors/local-container-postgresql-podman-libpod-api-v0-rootless.d.ts",
+				"default": "./dist/executors/local-container-postgresql-podman-libpod-api-v0-rootless.js"
+			},
+			"require": {
+				"types": "./dist/executors/local-container-postgresql-podman-libpod-api-v0-rootless.d.cts",
+				"default": "./dist/executors/local-container-postgresql-podman-libpod-api-v0-rootless.cjs"
+			}
+		},
+		"./executors/local-container-postgresql-podman-libpod-api-v0-rootless/node": {
+			"node": {
+				"import": {
+					"types": "./dist/executors/local-container-postgresql-podman-libpod-api-v0-rootless/node.d.ts",
+					"default": "./dist/executors/local-container-postgresql-podman-libpod-api-v0-rootless/node.js"
+				},
+				"require": {
+					"types": "./dist/executors/local-container-postgresql-podman-libpod-api-v0-rootless/node.d.cts",
+					"default": "./dist/executors/local-container-postgresql-podman-libpod-api-v0-rootless/node.cjs"
+				}
+			},
+			"import": {
+				"types": "./dist/executors/local-container-postgresql-podman-libpod-api-v0-rootless/node.d.ts",
+				"default": "./dist/executors/local-container-postgresql-podman-libpod-api-v0-rootless/node.js"
+			},
+			"require": {
+				"types": "./dist/executors/local-container-postgresql-podman-libpod-api-v0-rootless/node.d.cts",
+				"default": "./dist/executors/local-container-postgresql-podman-libpod-api-v0-rootless/node.cjs"
+			}
+		},
 		"./executors/managed-cloud-postgresql": {
 			"import": {
 				"types": "./dist/executors/managed-cloud-postgresql.d.ts",

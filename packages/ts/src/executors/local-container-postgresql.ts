@@ -20,7 +20,16 @@ import { postgresqlQueryToolArgumentsFromIntent } from "./postgresql-tool-provid
 
 export const LOCAL_CONTAINER_POSTGRESQL_COMPATIBILITY =
 	"graphrefly-local-container-postgresql-v1" as const;
-export const LOCAL_CONTAINER_POSTGRESQL_BACKEND_FAMILY = "docker-engine-api-v0" as const;
+export const LOCAL_CONTAINER_POSTGRESQL_DOCKER_ENGINE_API_V0_BACKEND_FAMILY =
+	"docker-engine-api-v0" as const;
+export const LOCAL_CONTAINER_POSTGRESQL_PODMAN_LIBPOD_API_V0_ROOTLESS_BACKEND_FAMILY =
+	"podman-libpod-api-v0-rootless" as const;
+/** @deprecated Prefer the explicit Docker-family constant. */
+export const LOCAL_CONTAINER_POSTGRESQL_BACKEND_FAMILY =
+	LOCAL_CONTAINER_POSTGRESQL_DOCKER_ENGINE_API_V0_BACKEND_FAMILY;
+export type LocalContainerPostgresqlBackendFamily =
+	| typeof LOCAL_CONTAINER_POSTGRESQL_DOCKER_ENGINE_API_V0_BACKEND_FAMILY
+	| typeof LOCAL_CONTAINER_POSTGRESQL_PODMAN_LIBPOD_API_V0_ROOTLESS_BACKEND_FAMILY;
 
 export interface LocalContainerPostgresqlManifest {
 	readonly kind: "local-container-postgresql-manifest";
@@ -29,7 +38,7 @@ export interface LocalContainerPostgresqlManifest {
 	readonly fingerprint: string;
 	readonly imageDigest: string;
 	readonly engineCompatibilityRevision: typeof LOCAL_CONTAINER_POSTGRESQL_COMPATIBILITY;
-	readonly backendFamily: typeof LOCAL_CONTAINER_POSTGRESQL_BACKEND_FAMILY;
+	readonly backendFamily: LocalContainerPostgresqlBackendFamily;
 	readonly backendCertificationRevision: string;
 	readonly recipeRevision: "postgresql-read-only-query-v1";
 	readonly sandboxRevision: string;
@@ -47,7 +56,7 @@ export interface LocalContainerPostgresqlReadiness {
 	readonly state: "ready" | "stale" | "unavailable";
 	readonly observedAtMs: number;
 	readonly expiresAtMs: number;
-	readonly backendFamily: typeof LOCAL_CONTAINER_POSTGRESQL_BACKEND_FAMILY;
+	readonly backendFamily: LocalContainerPostgresqlBackendFamily;
 	readonly hostPlatform: string;
 	readonly engineApiRevision: string;
 	readonly engineRevision: string;
@@ -100,6 +109,49 @@ export interface LocalContainerPostgresqlDockerEngineApiV0Preflight {
 	readonly vmRuntimeRevision?: string;
 	readonly engineReachable: boolean;
 	readonly compatibilityVerified: boolean;
+	readonly hostPlatformVerified: boolean;
+	readonly imageDigestPresent: boolean;
+	readonly imageDigestVerified: boolean;
+	readonly recipeVerified: boolean;
+	readonly isolationVerified: boolean;
+	readonly nonRootUserVerified: boolean;
+	readonly noNewPrivilegesVerified: boolean;
+	readonly readOnlyRootFilesystemVerified: boolean;
+	readonly boundedFilesystemImportVerified: boolean;
+	readonly noEngineSocketMountVerified: boolean;
+	readonly noHostNetworkVerified: boolean;
+	readonly noHostBindMountVerified: boolean;
+	readonly destinationPinnedEgressDenyVerified: boolean;
+	readonly metadataEgressDenyVerified: boolean;
+	readonly linkLocalEgressDenyVerified: boolean;
+	readonly loopbackEgressDenyVerified: boolean;
+	readonly hostGatewayEgressDenyVerified: boolean;
+	readonly dnsRebindingResistanceVerified: boolean;
+	readonly cpuMemoryPidsTimeBoundsVerified: boolean;
+	readonly cancellationVerified: boolean;
+	readonly cleanupVerified: boolean;
+	readonly artifactResolverReady: boolean;
+	readonly credentialResolverReady: boolean;
+	readonly secretDestructionVerified: boolean;
+	readonly limitationRefs: readonly SourceRef[];
+	readonly attestationRefs: readonly SourceRef[];
+}
+
+export interface LocalContainerPostgresqlPodmanLibpodApiV0RootlessPreflight {
+	readonly kind: "local-container-postgresql-podman-libpod-api-v0-rootless-preflight";
+	readonly manifestFingerprint: string;
+	readonly backendCertificationRevision: string;
+	readonly observedAtMs: number;
+	readonly expiresAtMs: number;
+	readonly hostPlatform: string;
+	readonly engineApiRevision: string;
+	readonly engineRevision: string;
+	readonly runtimeRevision: string;
+	readonly guestPlatform: string;
+	readonly vmRuntimeRevision?: string;
+	readonly engineReachable: boolean;
+	readonly compatibilityVerified: boolean;
+	readonly rootlessVerified: boolean;
 	readonly hostPlatformVerified: boolean;
 	readonly imageDigestPresent: boolean;
 	readonly imageDigestVerified: boolean;
@@ -327,7 +379,56 @@ const D613_DOCKER_ENGINE_API_V0_ATTESTATION_PREFIXES = Object.freeze([
 	"docker-engine-api-v0:network",
 	"docker-engine-api-v0:cancellation-cleanup",
 ]);
+const D645_PODMAN_LIBPOD_API_V0_ROOTLESS_PROOF_REFS = Object.freeze([
+	{ kind: "limitation", id: "podman-libpod-api-v0-rootless-only" },
+	{ kind: "limitation", id: "digest-pinned-image" },
+	{ kind: "limitation", id: "host-injected-runtime-driver" },
+	{ kind: "limitation", id: "non-root-no-new-privileges" },
+	{ kind: "limitation", id: "read-only-bounded-filesystem" },
+	{ kind: "limitation", id: "cpu-memory-pids-time-bounds" },
+	{ kind: "policy", id: "deny-by-default-isolation" },
+	{ kind: "policy", id: "destination-pinned-egress" },
+	{ kind: "policy", id: "runtime-ephemeral-auth-material-mount" },
+	{ kind: "policy", id: "remove-on-terminal-cleanup" },
+	{ kind: "policy", id: "engine-api-not-mounted" },
+	{ kind: "policy", id: "host-mounts-denied" },
+	{ kind: "policy", id: "metadata-link-local-loopback-host-gateway-denied" },
+	{ kind: "policy", id: "dns-rebinding-resistance" },
+	{ kind: "readiness", id: "local-container-cleanup-removal-verified" },
+	{ kind: "readiness", id: "local-container-cancellation-verified" },
+	{ kind: "readiness", id: "ephemeral-auth-material-destruction-verified" },
+]);
+const D645_PODMAN_LIBPOD_API_V0_ROOTLESS_ATTESTATION_PREFIXES = Object.freeze([
+	"podman-libpod-api-v0-rootless:readiness",
+	"podman-libpod-api-v0-rootless:containment",
+	"podman-libpod-api-v0-rootless:network",
+	"podman-libpod-api-v0-rootless:cancellation-cleanup",
+]);
 const BOUNDED_ATTESTATION_EVIDENCE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+
+function localContainerPostgresqlBackendFamily(
+	value: unknown,
+): value is LocalContainerPostgresqlBackendFamily {
+	return (
+		value === LOCAL_CONTAINER_POSTGRESQL_DOCKER_ENGINE_API_V0_BACKEND_FAMILY ||
+		value === LOCAL_CONTAINER_POSTGRESQL_PODMAN_LIBPOD_API_V0_ROOTLESS_BACKEND_FAMILY
+	);
+}
+
+function requiredProofPolicy(family: LocalContainerPostgresqlBackendFamily): {
+	readonly refs: readonly SourceRef[];
+	readonly attestationPrefixes: readonly string[];
+} {
+	return family === LOCAL_CONTAINER_POSTGRESQL_DOCKER_ENGINE_API_V0_BACKEND_FAMILY
+		? {
+				refs: D613_DOCKER_ENGINE_API_V0_PROOF_REFS,
+				attestationPrefixes: D613_DOCKER_ENGINE_API_V0_ATTESTATION_PREFIXES,
+			}
+		: {
+				refs: D645_PODMAN_LIBPOD_API_V0_ROOTLESS_PROOF_REFS,
+				attestationPrefixes: D645_PODMAN_LIBPOD_API_V0_ROOTLESS_ATTESTATION_PREFIXES,
+			};
+}
 
 export function localContainerPostgresqlManifest(
 	value: LocalContainerPostgresqlManifest,
@@ -370,7 +471,7 @@ export function localContainerPostgresqlManifest(
 	if (
 		!DIGEST.test(value.imageDigest) ||
 		value.engineCompatibilityRevision !== LOCAL_CONTAINER_POSTGRESQL_COMPATIBILITY ||
-		value.backendFamily !== LOCAL_CONTAINER_POSTGRESQL_BACKEND_FAMILY ||
+		!localContainerPostgresqlBackendFamily(value.backendFamily) ||
 		!publicCoordinate(value.backendCertificationRevision) ||
 		value.recipeRevision !== "postgresql-read-only-query-v1" ||
 		!Number.isSafeInteger(value.stopGraceMs) ||
@@ -410,7 +511,7 @@ export function localContainerPostgresqlReadiness(
 		!Number.isSafeInteger(value.expiresAtMs) ||
 		value.observedAtMs < 0 ||
 		value.expiresAtMs <= value.observedAtMs ||
-		value.backendFamily !== LOCAL_CONTAINER_POSTGRESQL_BACKEND_FAMILY ||
+		!localContainerPostgresqlBackendFamily(value.backendFamily) ||
 		!publicCoordinate(value.hostPlatform) ||
 		!publicCoordinate(value.engineApiRevision) ||
 		!publicCoordinate(value.engineRevision) ||
@@ -535,13 +636,11 @@ export function localContainerPostgresqlReadiness(
 		throw new TypeError("Ready local-container readiness lacks D613 proof booleans.");
 	const limitationRefs = refs(value.limitationRefs);
 	const attestationRefs = refs(value.attestationRefs);
+	const proofPolicy = requiredProofPolicy(value.backendFamily);
 	if (
 		value.state === "ready" &&
-		(!includesEveryRef(limitationRefs, D613_DOCKER_ENGINE_API_V0_PROOF_REFS) ||
-			!includesEveryAttestationPrefix(
-				attestationRefs,
-				D613_DOCKER_ENGINE_API_V0_ATTESTATION_PREFIXES,
-			))
+		(!includesEveryRef(limitationRefs, proofPolicy.refs) ||
+			!includesEveryAttestationPrefix(attestationRefs, proofPolicy.attestationPrefixes))
 	)
 		throw new TypeError("Ready local-container readiness lacks D613 proof refs.");
 	return Object.freeze({
@@ -769,6 +868,56 @@ export function localContainerPostgresqlDockerEngineApiV0PreflightReadiness(
 		limitationRefs,
 		attestationRefs: preflightAttestationRefs,
 	});
+}
+
+export function localContainerPostgresqlPodmanLibpodApiV0RootlessPreflightReadiness(
+	value: LocalContainerPostgresqlPodmanLibpodApiV0RootlessPreflight,
+): LocalContainerPostgresqlReadiness {
+	if (
+		!plain(value) ||
+		value.kind !== "local-container-postgresql-podman-libpod-api-v0-rootless-preflight" ||
+		typeof value.rootlessVerified !== "boolean"
+	)
+		throw new TypeError("Invalid Podman Libpod API v0 rootless preflight.");
+	const { kind: _kind, rootlessVerified, ...evidence } = value;
+	const unavailable = localContainerPostgresqlReadiness({
+		...evidence,
+		kind: "local-container-postgresql-readiness",
+		state: "unavailable",
+		backendFamily: LOCAL_CONTAINER_POSTGRESQL_PODMAN_LIBPOD_API_V0_ROOTLESS_BACKEND_FAMILY,
+		backendFamilyVerified: rootlessVerified,
+	});
+	const proofFields = [
+		"engineReachable",
+		"compatibilityVerified",
+		"backendFamilyVerified",
+		"hostPlatformVerified",
+		"imageDigestPresent",
+		"imageDigestVerified",
+		"recipeVerified",
+		"isolationVerified",
+		"nonRootUserVerified",
+		"noNewPrivilegesVerified",
+		"readOnlyRootFilesystemVerified",
+		"boundedFilesystemImportVerified",
+		"noEngineSocketMountVerified",
+		"noHostNetworkVerified",
+		"noHostBindMountVerified",
+		"destinationPinnedEgressDenyVerified",
+		"metadataEgressDenyVerified",
+		"linkLocalEgressDenyVerified",
+		"loopbackEgressDenyVerified",
+		"hostGatewayEgressDenyVerified",
+		"dnsRebindingResistanceVerified",
+		"cpuMemoryPidsTimeBoundsVerified",
+		"cancellationVerified",
+		"cleanupVerified",
+		"artifactResolverReady",
+		"credentialResolverReady",
+		"secretDestructionVerified",
+	] as const;
+	if (!proofFields.every((field) => unavailable[field])) return unavailable;
+	return localContainerPostgresqlReadiness({ ...unavailable, state: "ready" });
 }
 
 export function localContainerPostgresqlRuntime(
@@ -1017,8 +1166,7 @@ export function localContainerPostgresqlRuntime(
 			!publicCoordinate(environmentId) ||
 			!publicCoordinate(sessionEpoch) ||
 			!publicCoordinate(environmentRevision) ||
-			manifest.backendFamily !== LOCAL_CONTAINER_POSTGRESQL_BACKEND_FAMILY ||
-			posture.backendFamily !== LOCAL_CONTAINER_POSTGRESQL_BACKEND_FAMILY ||
+			manifest.backendFamily !== posture.backendFamily ||
 			posture.backendCertificationRevision !== manifest.backendCertificationRevision ||
 			posture.state !== "ready" ||
 			posture.observedAtMs > (opts.now?.() ?? Date.now()) ||
@@ -1532,7 +1680,10 @@ function includesEveryAttestationPrefix(
 
 function publicSourceRefId(ref: SourceRef): boolean {
 	if (ref.kind === "attestation" && typeof ref.id === "string") {
-		for (const prefix of D613_DOCKER_ENGINE_API_V0_ATTESTATION_PREFIXES) {
+		for (const prefix of [
+			...D613_DOCKER_ENGINE_API_V0_ATTESTATION_PREFIXES,
+			...D645_PODMAN_LIBPOD_API_V0_ROOTLESS_ATTESTATION_PREFIXES,
+		]) {
 			const refPrefix = `${prefix}:`;
 			if (ref.id.startsWith(refPrefix)) {
 				return (
@@ -1545,9 +1696,10 @@ function publicSourceRefId(ref: SourceRef): boolean {
 	}
 	return (
 		publicCoordinate(ref.id) ||
-		D613_DOCKER_ENGINE_API_V0_PROOF_REFS.some(
-			(required) => ref.kind === required.kind && ref.id === required.id,
-		)
+		[
+			...D613_DOCKER_ENGINE_API_V0_PROOF_REFS,
+			...D645_PODMAN_LIBPOD_API_V0_ROOTLESS_PROOF_REFS,
+		].some((required) => ref.kind === required.kind && ref.id === required.id)
 	);
 }
 

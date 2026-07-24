@@ -39,6 +39,8 @@ import * as executorExecutionEnvironment from "../executors/execution-environmen
 import * as executorLocalContainerPostgresql from "../executors/local-container-postgresql.js";
 import * as executorLocalContainerPostgresqlDockerEngineApiV0Node from "../executors/local-container-postgresql-docker-engine-api-v0/node.js";
 import * as executorLocalContainerPostgresqlDockerEngineApiV0 from "../executors/local-container-postgresql-docker-engine-api-v0.js";
+import * as executorLocalContainerPostgresqlPodmanLibpodApiV0RootlessNode from "../executors/local-container-postgresql-podman-libpod-api-v0-rootless/node.js";
+import * as executorLocalContainerPostgresqlPodmanLibpodApiV0Rootless from "../executors/local-container-postgresql-podman-libpod-api-v0-rootless.js";
 import * as executorManagedCloudPostgresql from "../executors/managed-cloud-postgresql.js";
 import * as executorManagedUntrustedJsCompute from "../executors/managed-untrusted-js-compute.js";
 import * as executorPostgresqlRunOperations from "../executors/postgresql-run-operations.js";
@@ -284,6 +286,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./executors/local-container-postgresql",
 			"./executors/local-container-postgresql-docker-engine-api-v0",
 			"./executors/local-container-postgresql-docker-engine-api-v0/node",
+			"./executors/local-container-postgresql-podman-libpod-api-v0-rootless",
+			"./executors/local-container-postgresql-podman-libpod-api-v0-rootless/node",
 			"./executors/managed-cloud-postgresql",
 			"./executors/managed-untrusted-js-compute",
 			"./executors/postgresql-run-operations",
@@ -456,6 +460,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof adapters.toHttp).toBe("function");
 		expect(typeof adapters.toProcess).toBe("function");
 		expect(typeof adapters.toWebSocket).toBe("function");
+		expect(typeof adapters.attachKeyedRateLimitAuthority).toBe("function");
 		expect(typeof adapters.webSocketSession).toBe("function");
 		expect(typeof adapters.remoteCall).toBe("function");
 		expect(typeof adapters.remoteResponder).toBe("function");
@@ -952,6 +957,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(
 			typeof executorLocalContainerPostgresqlDockerEngineApiV0Node.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker,
 		).toBe("function");
+		expect(
+			typeof executorLocalContainerPostgresqlPodmanLibpodApiV0Rootless.podmanLibpodApiV0RootlessLocalContainerPostgresqlDriver,
+		).toBe("function");
+		expect(
+			typeof executorLocalContainerPostgresqlPodmanLibpodApiV0RootlessNode.certifyPodmanLibpodApiV0RootlessLocalContainerPostgresqlWithNode,
+		).toBe("function");
 		expect(Object.hasOwn(rootPackage, "certifyDockerEngineApiV0LocalContainerPostgresql")).toBe(
 			false,
 		);
@@ -965,6 +976,15 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(rootPackage, "dockerEngineApiV0LocalContainerPostgresqlDriver")).toBe(
 			false,
 		);
+		expect(
+			Object.hasOwn(rootPackage, "podmanLibpodApiV0RootlessLocalContainerPostgresqlDriver"),
+		).toBe(false);
+		expect(
+			Object.hasOwn(
+				rootPackage,
+				"certifyPodmanLibpodApiV0RootlessLocalContainerPostgresqlWithNode",
+			),
+		).toBe(false);
 		expect(Object.hasOwn(rootPackage, "LocalSandboxDriver")).toBe(false);
 		expect(typeof executorManagedCloudPostgresql.managedCloudPostgresqlRuntime).toBe("function");
 		expect(typeof executorManagedUntrustedJsCompute.managedUntrustedJsComputeRuntime).toBe(
@@ -1045,7 +1065,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof orchestration.breakerBundle).toBe("function");
 		expect(typeof orchestration.processBundle).toBe("function");
 		expect(typeof orchestration.processEffectRunner).toBe("function");
-		expect(typeof orchestration.rateLimitBundle).toBe("function");
+		expect(typeof orchestration.localFixedWindowRateLimitBundle).toBe("function");
+		expect(typeof orchestration.keyedRateLimitAdmissionBundle).toBe("function");
+		expect(Object.hasOwn(orchestration, "rateLimitBundle")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "localFixedWindowRateLimitBundle")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "keyedRateLimitAdmissionBundle")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "attachKeyedRateLimitAuthority")).toBe(false);
 		expect(typeof orchestration.timeoutBundle).toBe("function");
 		expect(typeof orchestration.requestSatisfactionProjector).toBe("function");
 		expect(typeof orchestration.effectRunCompletionProjector).toBe("function");

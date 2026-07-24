@@ -43,6 +43,10 @@ const ALLOW_ALL = new Set<string>([
 	"packages/ts/src/executors/local-container-postgresql-docker-engine-api-v0.ts",
 	// D624 Node-local Docker Engine API transport entry; sockets/IDs stay implementation-private.
 	"packages/ts/src/executors/local-container-postgresql-docker-engine-api-v0/node.ts",
+	// D645 native rootless Libpod runtime contract; never part of the sync wave core.
+	"packages/ts/src/executors/local-container-postgresql-podman-libpod-api-v0-rootless.ts",
+	// D645 Node-local Podman transport entry; sockets/IDs stay implementation-private.
+	"packages/ts/src/executors/local-container-postgresql-podman-libpod-api-v0-rootless/node.ts",
 	// D605 concrete managed control-store, WSS transport, and worker runtime boundary.
 	"packages/ts/src/executors/managed-cloud-postgresql.ts",
 	// D606 concrete customer endpoint, CAS store, outbound transport, and worker boundary.
