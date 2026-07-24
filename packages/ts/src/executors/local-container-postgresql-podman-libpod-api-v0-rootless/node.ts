@@ -3,6 +3,8 @@ import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { lstat } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
+import { createServer, type Server } from "node:net";
+import { setTimeout as delay } from "node:timers/promises";
 import { promisify } from "node:util";
 import type {
 	LocalContainerPostgresqlManifest,
@@ -16,6 +18,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 const API_REVISION = "5.0.3";
+const CERTIFICATION_REVISION = "podman-certification:d645-v0";
 const BOUNDARY_LABEL = "d645-podman-libpod-api-v0-rootless-certifier";
 const DEFAULT_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -26,8 +29,22 @@ const DIGEST = /^sha256:[a-f0-9]{64}$/;
 const SAFE_IMAGE = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,254}$/;
 const IPV4 = /^(?:\d{1,3}\.){3}\d{1,3}$/;
 const PROBE_ENTRYPOINT = ["/bin/bash", "-ec"] as const;
+const EXPECTED_CAP_DROP = [
+	"CAP_CHOWN",
+	"CAP_DAC_OVERRIDE",
+	"CAP_FOWNER",
+	"CAP_FSETID",
+	"CAP_KILL",
+	"CAP_NET_BIND_SERVICE",
+	"CAP_SETFCAP",
+	"CAP_SETGID",
+	"CAP_SETPCAP",
+	"CAP_SETUID",
+	"CAP_SYS_CHROOT",
+] as const;
 const PEER_PORT = 15432;
 const PEER_COMMAND = `exec nc -l -p ${PEER_PORT} >/dev/null`;
+const CANCELLATION_READY_MARKER = "graphrefly-d645-cancel-ready";
 
 const LIMITATION_REFS = Object.freeze([
 	{ kind: "limitation", id: "podman-libpod-api-v0-rootless-only" },
@@ -61,8 +78,6 @@ const ATTESTATION_REFS = Object.freeze([
 export interface NodeLocalPodmanLibpodApiV0RootlessCertificationOptions {
 	readonly manifest: LocalContainerPostgresqlManifest;
 	readonly imageRef: string;
-	readonly observedAtMs?: number;
-	readonly ttlMs?: number;
 	readonly signal?: AbortSignal;
 }
 
@@ -74,24 +89,22 @@ export async function certifyPodmanLibpodApiV0RootlessLocalContainerPostgresqlWi
 	opts: NodeLocalPodmanLibpodApiV0RootlessCertificationOptions,
 ): Promise<LocalContainerPostgresqlPodmanLibpodApiV0RootlessPreflight> {
 	const manifest = localContainerPostgresqlManifest(opts.manifest);
-	const observedAtMs = opts.observedAtMs ?? Date.now();
-	const ttlMs = opts.ttlMs ?? DEFAULT_TTL_MS;
-	if (!Number.isSafeInteger(observedAtMs) || observedAtMs < 0)
-		throw new TypeError("Invalid Podman observation time.");
-	if (!Number.isSafeInteger(ttlMs) || ttlMs < 1 || ttlMs > 60 * 60 * 1000)
-		throw new TypeError("Invalid Podman readiness TTL.");
+	const observedAtMs = Date.now();
+	const ttlMs = DEFAULT_TTL_MS;
 	if (
 		manifest.backendFamily !==
 		LOCAL_CONTAINER_POSTGRESQL_PODMAN_LIBPOD_API_V0_ROOTLESS_BACKEND_FAMILY
 	)
 		throw new TypeError("Podman certifier requires the Podman rootless backend family.");
+	if (manifest.backendCertificationRevision !== CERTIFICATION_REVISION)
+		throw new TypeError("Podman certifier requires the package-owned certification revision.");
 	if (!SAFE_IMAGE.test(opts.imageRef) || !imageRefPinsDigest(opts.imageRef, manifest.imageDigest))
 		throw new TypeError("Podman certifier requires the manifest digest-pinned image.");
 
 	const base = (): LocalContainerPostgresqlPodmanLibpodApiV0RootlessPreflight => ({
 		kind: "local-container-postgresql-podman-libpod-api-v0-rootless-preflight",
 		manifestFingerprint: manifest.fingerprint,
-		backendCertificationRevision: manifest.backendCertificationRevision,
+		backendCertificationRevision: CERTIFICATION_REVISION,
 		observedAtMs,
 		expiresAtMs: observedAtMs + ttlMs,
 		hostPlatform: `${process.platform}/${process.arch}`,
@@ -142,8 +155,10 @@ export async function certifyPodmanLibpodApiV0RootlessLocalContainerPostgresqlWi
 	let socketPath: string | undefined;
 	let networkName: string | undefined;
 	let secretName: string | undefined;
+	let secretId: string | undefined;
 	let containerId: string | undefined;
 	let peerContainerId: string | undefined;
+	let hostControl: HostControl | undefined;
 	let patch: Partial<LocalContainerPostgresqlPodmanLibpodApiV0RootlessPreflight> = {};
 	try {
 		const discovered = await discoverRootlessPodmanSocket(opts.signal);
@@ -187,6 +202,8 @@ export async function certifyPodmanLibpodApiV0RootlessLocalContainerPostgresqlWi
 		secretName = `graphrefly-d645-${suffix}-secret`;
 		const containerName = `graphrefly-d645-${suffix}-container`;
 		const peerContainerName = `graphrefly-d645-${suffix}-peer`;
+		containerId = containerName;
+		peerContainerId = peerContainerName;
 		const network = await jsonRequest(
 			socketPath,
 			`/v${API_REVISION}/libpod/networks/create`,
@@ -195,6 +212,7 @@ export async function certifyPodmanLibpodApiV0RootlessLocalContainerPostgresqlWi
 			{
 				name: networkName,
 				internal: true,
+				dns_enabled: false,
 				labels: { "dev.graphrefly.boundary": BOUNDARY_LABEL },
 			},
 		);
@@ -202,13 +220,29 @@ export async function certifyPodmanLibpodApiV0RootlessLocalContainerPostgresqlWi
 			network.status !== 200 ||
 			!isRecord(network.body) ||
 			network.body.name !== networkName ||
-			network.body.internal !== true
+			network.body.internal !== true ||
+			network.body.dns_enabled !== false
 		)
+			return finish({
+				...patch,
+				cleanupVerified: await cleanup(
+					socketPath,
+					containerId,
+					secretName,
+					networkName,
+					peerContainerId,
+				),
+			});
+		const networkInspected = await jsonRequest(
+			socketPath,
+			`/v${API_REVISION}/libpod/networks/${encodeURIComponent(networkName)}/json`,
+			opts.signal,
+		);
+		if (!networkInspectMatches(networkInspected, networkName))
 			return finish({
 				...patch,
 				cleanupVerified: await cleanup(socketPath, containerId, secretName, networkName),
 			});
-
 		const secret = await rawRequest(
 			socketPath,
 			`/v${API_REVISION}/libpod/secrets/create?name=${encodeURIComponent(secretName)}`,
@@ -226,8 +260,15 @@ export async function certifyPodmanLibpodApiV0RootlessLocalContainerPostgresqlWi
 		)
 			return finish({
 				...patch,
-				cleanupVerified: await cleanup(socketPath, containerId, secretName, networkName),
+				cleanupVerified: await cleanup(
+					socketPath,
+					containerId,
+					secretName,
+					networkName,
+					peerContainerId,
+				),
 			});
+		secretId = secretBody.ID;
 
 		const peerCreated = await jsonRequest(
 			socketPath,
@@ -246,7 +287,13 @@ export async function certifyPodmanLibpodApiV0RootlessLocalContainerPostgresqlWi
 		)
 			return finish({
 				...patch,
-				cleanupVerified: await cleanup(socketPath, containerId, secretName, networkName),
+				cleanupVerified: await cleanup(
+					socketPath,
+					containerId,
+					secretName,
+					networkName,
+					peerContainerId,
+				),
 			});
 		peerContainerId = peerCreated.body.Id;
 		const peerStarted = await rawRequest(
@@ -289,7 +336,28 @@ export async function certifyPodmanLibpodApiV0RootlessLocalContainerPostgresqlWi
 					peerContainerId,
 				),
 			});
-		const probeCommand = probeCommandForPeer(peerIp);
+		hostControl = await startHostControl();
+		if (
+			hostControl === undefined ||
+			!(await verifyHostGatewayPositiveControl(
+				socketPath,
+				opts.imageRef,
+				`graphrefly-d645-${suffix}-host-gateway-control`,
+				hostControl.port,
+				opts.signal,
+			))
+		)
+			return finish({
+				...patch,
+				cleanupVerified: await cleanup(
+					socketPath,
+					containerId,
+					secretName,
+					networkName,
+					peerContainerId,
+				),
+			});
+		const probeCommand = probeCommandForPeer(peerIp, hostControl.port);
 		const created = await jsonRequest(
 			socketPath,
 			`/v${API_REVISION}/libpod/containers/create`,
@@ -406,6 +474,19 @@ export async function certifyPodmanLibpodApiV0RootlessLocalContainerPostgresqlWi
 					peerContainerId,
 				),
 			});
+		const hostControlClosed = await closeHostControl(hostControl);
+		hostControl = undefined;
+		if (!hostControlClosed)
+			return finish({
+				...patch,
+				cleanupVerified: await cleanup(
+					socketPath,
+					containerId,
+					secretName,
+					networkName,
+					peerContainerId,
+				),
+			});
 		patch = {
 			...patch,
 			destinationPinnedEgressDenyVerified: true,
@@ -423,6 +504,14 @@ export async function certifyPodmanLibpodApiV0RootlessLocalContainerPostgresqlWi
 			opts.signal,
 		);
 		patch = { ...patch, cancellationVerified };
+		const secretDestructionVerified = await verifySecretDestruction(
+			socketPath,
+			secretName,
+			secretId,
+			networkName,
+			opts.imageRef,
+			suffix,
+		);
 
 		const cleanupVerified = await cleanup(
 			socketPath,
@@ -441,7 +530,7 @@ export async function certifyPodmanLibpodApiV0RootlessLocalContainerPostgresqlWi
 			recipeVerified: manifest.recipeRevision === "postgresql-read-only-query-v1",
 			artifactResolverReady: true,
 			credentialResolverReady: true,
-			secretDestructionVerified: cleanupVerified,
+			secretDestructionVerified,
 			cleanupVerified,
 		};
 		return finish(patch);
@@ -452,10 +541,169 @@ export async function certifyPodmanLibpodApiV0RootlessLocalContainerPostgresqlWi
 				: await cleanup(socketPath, containerId, secretName, networkName, peerContainerId);
 		return finish({
 			...patch,
-			secretDestructionVerified: cleanupVerified && patch.isolationVerified === true,
+			secretDestructionVerified: false,
 			cleanupVerified,
 		});
+	} finally {
+		if (hostControl !== undefined) await closeHostControl(hostControl);
 	}
+}
+
+interface HostControl {
+	readonly server: Server;
+	readonly port: number;
+}
+
+async function startHostControl(): Promise<HostControl | undefined> {
+	const server = createServer((socket) => socket.end());
+	server.unref();
+	const listening = new Promise<boolean>((resolve) => {
+		server.once("listening", () => resolve(true));
+		server.once("error", () => resolve(false));
+	});
+	server.listen({ host: "127.0.0.1", port: 0, exclusive: true });
+	if (!(await listening)) return undefined;
+	const address = server.address();
+	if (address === null || typeof address === "string" || address.address !== "127.0.0.1") {
+		await closeHostControl({ server, port: 0 });
+		return undefined;
+	}
+	return { server, port: address.port };
+}
+
+async function closeHostControl(control: HostControl): Promise<boolean> {
+	const closed = new Promise<boolean>((resolve) => {
+		control.server.close((error) => resolve(error === undefined));
+	});
+	return Promise.race([closed, delay(1_000).then(() => false)]);
+}
+
+async function verifyHostGatewayPositiveControl(
+	socketPath: string,
+	imageRef: string,
+	containerName: string,
+	port: number,
+	signal?: AbortSignal,
+): Promise<boolean> {
+	let containerRef = containerName;
+	const command = `timeout 2 nc -z -w 2 host.containers.internal ${port}`;
+	const request = cancellationContainerRequest(containerName, "unused", imageRef, command);
+	delete request.networks;
+	const verified = await (async (): Promise<boolean> => {
+		try {
+			const created = await jsonRequest(
+				socketPath,
+				`/v${API_REVISION}/libpod/containers/create`,
+				signal,
+				"POST",
+				request,
+			);
+			if (
+				created.status !== 201 ||
+				!isRecord(created.body) ||
+				typeof created.body.Id !== "string" ||
+				!ID.test(created.body.Id) ||
+				!Array.isArray(created.body.Warnings) ||
+				created.body.Warnings.length !== 0
+			)
+				return false;
+			containerRef = created.body.Id;
+			const started = await rawRequest(
+				socketPath,
+				`/v${API_REVISION}/libpod/containers/${containerRef}/start`,
+				signal,
+				"POST",
+			);
+			if (started.status !== 204) return false;
+			const waited = await rawRequest(
+				socketPath,
+				`/v${API_REVISION}/libpod/containers/${containerRef}/wait?condition=exited`,
+				signal,
+				"POST",
+			);
+			return waited.status === 200 && waited.body.trim() === "0";
+		} catch {
+			return false;
+		}
+	})();
+	return verified && (await removeContainerAndVerify(socketPath, containerRef));
+}
+
+async function verifySecretDestruction(
+	socketPath: string,
+	secretName: string,
+	secretId: string,
+	networkName: string,
+	imageRef: string,
+	suffix: string,
+): Promise<boolean> {
+	const removed = await rawRequest(
+		socketPath,
+		`/v${API_REVISION}/libpod/secrets/${encodeURIComponent(secretName)}`,
+		undefined,
+		"DELETE",
+	).catch(() => undefined);
+	if (removed?.status !== 204) return false;
+	for (const secretRef of [secretName, secretId]) {
+		const absent = await rawRequest(
+			socketPath,
+			`/v${API_REVISION}/libpod/secrets/${encodeURIComponent(secretRef)}/json`,
+		).catch(() => undefined);
+		if (absent?.status !== 404) return false;
+	}
+	const nameRejected = await secretCannotBeRemounted(
+		socketPath,
+		secretName,
+		networkName,
+		imageRef,
+		`graphrefly-d645-${suffix}-deleted-secret-name`,
+	);
+	const idRejected = await secretCannotBeRemounted(
+		socketPath,
+		secretId,
+		networkName,
+		imageRef,
+		`graphrefly-d645-${suffix}-deleted-secret-id`,
+	);
+	return nameRejected && idRejected;
+}
+
+async function secretCannotBeRemounted(
+	socketPath: string,
+	secretRef: string,
+	networkName: string,
+	imageRef: string,
+	containerName: string,
+): Promise<boolean> {
+	const created = await jsonRequest(
+		socketPath,
+		`/v${API_REVISION}/libpod/containers/create`,
+		undefined,
+		"POST",
+		probeContainerRequest(containerName, networkName, secretRef, imageRef, "true"),
+	).catch(() => undefined);
+	const cleanupRef =
+		created &&
+		created.status === 201 &&
+		isRecord(created.body) &&
+		typeof created.body.Id === "string" &&
+		ID.test(created.body.Id)
+			? created.body.Id
+			: containerName;
+	const absent = await rawRequest(
+		socketPath,
+		`/v${API_REVISION}/libpod/containers/${encodeURIComponent(containerName)}/json`,
+	).catch(() => undefined);
+	const rejected =
+		created !== undefined &&
+		created.status === 500 &&
+		isRecord(created.body) &&
+		created.body.cause === "no such secret" &&
+		created.body.response === 500 &&
+		created.body.message === `no secret with name or id "${secretRef}": no such secret` &&
+		absent?.status === 404;
+	const cleanupVerified = await removeContainerAndVerify(socketPath, cleanupRef);
+	return rejected && cleanupVerified;
 }
 
 async function verifyCancellationCanaries(
@@ -470,7 +718,7 @@ async function verifyCancellationCanaries(
 		networkName,
 		imageRef,
 		name: `graphrefly-d645-${suffix}-cooperative-cancel`,
-		command: "trap 'exit 0' TERM; while :; do :; done",
+		command: `trap 'exit 0' TERM; echo ${CANCELLATION_READY_MARKER}; while :; do :; done`,
 		expectedExitCode: "0",
 		signal,
 	});
@@ -480,7 +728,7 @@ async function verifyCancellationCanaries(
 		networkName,
 		imageRef,
 		name: `graphrefly-d645-${suffix}-forced-cancel`,
-		command: "trap '' TERM; while :; do sleep 1; done",
+		command: `trap '' TERM; echo ${CANCELLATION_READY_MARKER}; while :; do sleep 1; done`,
 		expectedExitCode: "137",
 		signal,
 	});
@@ -495,86 +743,101 @@ async function runCancellationCanary(opts: {
 	readonly expectedExitCode: string;
 	readonly signal?: AbortSignal;
 }): Promise<boolean> {
-	let containerId: string | undefined;
-	try {
-		const created = await jsonRequest(
-			opts.socketPath,
-			`/v${API_REVISION}/libpod/containers/create`,
-			opts.signal,
-			"POST",
-			cancellationContainerRequest(opts.name, opts.networkName, opts.imageRef, opts.command),
-		);
-		if (
-			created.status !== 201 ||
-			!isRecord(created.body) ||
-			typeof created.body.Id !== "string" ||
-			!ID.test(created.body.Id) ||
-			!Array.isArray(created.body.Warnings) ||
-			created.body.Warnings.length !== 0
-		)
-			return false;
-		containerId = created.body.Id;
-		const inspected = await jsonRequest(
-			opts.socketPath,
-			`/v${API_REVISION}/libpod/containers/${containerId}/json`,
-			opts.signal,
-		);
-		if (
-			!cancellationInspectMatches(
-				inspected,
-				containerId,
-				opts.name,
-				opts.networkName,
-				opts.imageRef,
-				opts.command,
-			)
-		)
-			return false;
-		const started = await rawRequest(
-			opts.socketPath,
-			`/v${API_REVISION}/libpod/containers/${containerId}/start`,
-			opts.signal,
-			"POST",
-		);
-		if (started.status !== 204) return false;
-		const stopped = await rawRequest(
-			opts.socketPath,
-			`/v${API_REVISION}/libpod/containers/${containerId}/stop?timeout=2`,
-			opts.signal,
-			"POST",
-		);
-		if (stopped.status !== 200 && stopped.status !== 204) return false;
-		const waited = await rawRequest(
-			opts.socketPath,
-			`/v${API_REVISION}/libpod/containers/${containerId}/wait?condition=exited`,
-			opts.signal,
-			"POST",
-		);
-		if (waited.status !== 200) return false;
-		const settled = await jsonRequest(
-			opts.socketPath,
-			`/v${API_REVISION}/libpod/containers/${containerId}/json`,
-			opts.signal,
-		);
-		if (settled.status !== 200 || !isRecord(settled.body)) return false;
-		const state = isRecord(settled.body.State) ? settled.body.State : undefined;
-		return (
-			!!state &&
-			state.Running === false &&
-			state.ExitCode === Number.parseInt(opts.expectedExitCode, 10)
-		);
-	} catch {
-		return false;
-	} finally {
-		if (containerId !== undefined) {
-			await rawRequest(
+	let containerRef = opts.name;
+	const canaryVerified = await (async (): Promise<boolean> => {
+		try {
+			const created = await jsonRequest(
 				opts.socketPath,
-				`/v${API_REVISION}/libpod/containers/${containerId}?force=true&v=true`,
-				undefined,
-				"DELETE",
-			).catch(() => undefined);
+				`/v${API_REVISION}/libpod/containers/create`,
+				opts.signal,
+				"POST",
+				cancellationContainerRequest(opts.name, opts.networkName, opts.imageRef, opts.command),
+			);
+			if (
+				created.status !== 201 ||
+				!isRecord(created.body) ||
+				typeof created.body.Id !== "string" ||
+				!ID.test(created.body.Id) ||
+				!Array.isArray(created.body.Warnings) ||
+				created.body.Warnings.length !== 0
+			)
+				return false;
+			containerRef = created.body.Id;
+			const inspected = await jsonRequest(
+				opts.socketPath,
+				`/v${API_REVISION}/libpod/containers/${containerRef}/json`,
+				opts.signal,
+			);
+			if (
+				!cancellationInspectMatches(
+					inspected,
+					containerRef,
+					opts.name,
+					opts.networkName,
+					opts.imageRef,
+					opts.command,
+				)
+			)
+				return false;
+			const started = await rawRequest(
+				opts.socketPath,
+				`/v${API_REVISION}/libpod/containers/${containerRef}/start`,
+				opts.signal,
+				"POST",
+			);
+			if (started.status !== 204) return false;
+			if (!(await waitForCancellationReady(opts.socketPath, containerRef, opts.signal)))
+				return false;
+			const stopped = await rawRequest(
+				opts.socketPath,
+				`/v${API_REVISION}/libpod/containers/${containerRef}/stop?timeout=2`,
+				opts.signal,
+				"POST",
+			);
+			if (stopped.status !== 200 && stopped.status !== 204) return false;
+			const waited = await rawRequest(
+				opts.socketPath,
+				`/v${API_REVISION}/libpod/containers/${containerRef}/wait?condition=exited`,
+				opts.signal,
+				"POST",
+			);
+			if (waited.status !== 200) return false;
+			const settled = await jsonRequest(
+				opts.socketPath,
+				`/v${API_REVISION}/libpod/containers/${containerRef}/json`,
+				opts.signal,
+			);
+			if (settled.status !== 200 || !isRecord(settled.body)) return false;
+			const state = isRecord(settled.body.State) ? settled.body.State : undefined;
+			return (
+				!!state &&
+				state.Running === false &&
+				state.ExitCode === Number.parseInt(opts.expectedExitCode, 10)
+			);
+		} catch {
+			return false;
 		}
+	})();
+	const cleanupVerified = await removeContainerAndVerify(opts.socketPath, containerRef);
+	return canaryVerified && cleanupVerified;
+}
+
+async function waitForCancellationReady(
+	socketPath: string,
+	containerRef: string,
+	signal?: AbortSignal,
+): Promise<boolean> {
+	for (let attempt = 0; attempt < 20; attempt += 1) {
+		if (signal?.aborted) return false;
+		const logs = await rawRequest(
+			socketPath,
+			`/v${API_REVISION}/libpod/containers/${containerRef}/logs?stdout=true&stderr=true&tail=10`,
+			signal,
+		).catch(() => undefined);
+		if (logs?.status === 200 && logs.body.includes(CANCELLATION_READY_MARKER)) return true;
+		await delay(25, undefined, { signal }).catch(() => undefined);
 	}
+	return false;
 }
 
 interface DiscoveredPodman {
@@ -707,7 +970,7 @@ function exactCandidateFacts(
 		engineRevision: API_REVISION,
 		runtimeRevision: "1.14.4",
 		guestPlatform: "linux/arm64",
-		vmRuntimeRevision: `${discovered.machineName}:applehv-v1`,
+		vmRuntimeRevision: "podman-machine:applehv-v1",
 	};
 }
 
@@ -784,8 +1047,10 @@ function peerContainerRequest(
 	};
 }
 
-function probeCommandForPeer(peerIp: string): string {
+function probeCommandForPeer(peerIp: string, hostControlPort: number): string {
 	if (!validIpv4(peerIp)) throw new TypeError("Invalid private Podman probe peer address.");
+	if (!Number.isSafeInteger(hostControlPort) || hostControlPort < 1_024 || hostControlPort > 65_535)
+		throw new TypeError("Invalid host control port.");
 	return [
 		'test "$(id -u)" != "0"',
 		'test "$(cat /run/secrets/d645-canary)" = "d645-canary-value"',
@@ -793,10 +1058,43 @@ function probeCommandForPeer(peerIp: string): string {
 		"! grep -Eq '^[^[:space:]]+[[:space:]]+00000000[[:space:]]' /proc/net/route",
 		"! timeout 1 nc -z -w 1 1.1.1.1 53",
 		"! timeout 1 nc -z -w 1 169.254.169.254 80",
-		"! timeout 1 nc -z -w 1 127.0.0.1 15432",
-		"! timeout 1 nc -z -w 1 host.containers.internal 15432",
+		"! timeout 1 nc -z -w 1 169.254.1.1 9",
+		`! timeout 1 nc -z -w 1 127.0.0.1 ${hostControlPort}`,
+		`! timeout 1 nc -z -w 1 host.containers.internal ${hostControlPort}`,
 		'test -z "$(timeout 2 getent hosts example.com || true)"',
 	].join(" && ");
+}
+
+function networkInspectMatches(response: JsonResponse, networkName: string): boolean {
+	if (response.status !== 200 || !isRecord(response.body)) return false;
+	const labels = isRecord(response.body.labels) ? response.body.labels : undefined;
+	const subnets = Array.isArray(response.body.subnets) ? response.body.subnets : undefined;
+	if (
+		response.body.name !== networkName ||
+		response.body.driver !== "bridge" ||
+		response.body.internal !== true ||
+		response.body.dns_enabled !== false ||
+		response.body.ipv6_enabled !== false ||
+		!labels ||
+		labels["dev.graphrefly.boundary"] !== BOUNDARY_LABEL ||
+		!subnets ||
+		subnets.length !== 1 ||
+		!isRecord(subnets[0]) ||
+		typeof subnets[0].subnet !== "string"
+	)
+		return false;
+	return privateIpv4Cidr(subnets[0].subnet);
+}
+
+function privateIpv4Cidr(value: string): boolean {
+	const match = /^(10|172|192)\.(\d{1,3})\.(\d{1,3})\.0\/24$/.exec(value);
+	if (!match) return false;
+	const second = Number(match[2]);
+	const third = Number(match[3]);
+	if (second > 255 || third > 255) return false;
+	if (match[1] === "172") return second >= 16 && second <= 31;
+	if (match[1] === "192") return second === 168;
+	return true;
 }
 
 function cancellationContainerRequest(
@@ -865,6 +1163,7 @@ function runningPeerIp(
 		!labels ||
 		labels["dev.graphrefly.boundary"] !== BOUNDARY_LABEL ||
 		!host ||
+		!containmentHostMatches(host) ||
 		host.ReadonlyRootfs !== true ||
 		host.Privileged !== false ||
 		!Array.isArray(host.SecurityOpt) ||
@@ -916,6 +1215,7 @@ function inspectMatches(
 		!!labels &&
 		labels["dev.graphrefly.boundary"] === BOUNDARY_LABEL &&
 		!!host &&
+		containmentHostMatches(host) &&
 		host.ReadonlyRootfs === true &&
 		host.Privileged === false &&
 		Array.isArray(host.SecurityOpt) &&
@@ -960,6 +1260,7 @@ function cancellationInspectMatches(
 		!!labels &&
 		labels["dev.graphrefly.boundary"] === BOUNDARY_LABEL &&
 		!!host &&
+		containmentHostMatches(host) &&
 		host.ReadonlyRootfs === true &&
 		host.Privileged === false &&
 		Array.isArray(host.SecurityOpt) &&
@@ -976,6 +1277,17 @@ function cancellationInspectMatches(
 	);
 }
 
+function containmentHostMatches(host: Record<string, unknown>): boolean {
+	const portBindings = isRecord(host.PortBindings) ? host.PortBindings : undefined;
+	return (
+		exactStrings(host.CapDrop, EXPECTED_CAP_DROP) &&
+		host.PublishAllPorts === false &&
+		portBindings !== undefined &&
+		Object.keys(portBindings).length === 0 &&
+		host.NetworkMode === "bridge"
+	);
+}
+
 async function cleanup(
 	socketPath: string,
 	containerId?: string,
@@ -986,18 +1298,7 @@ async function cleanup(
 	let verified = true;
 	for (const privateContainerId of [containerId, peerContainerId]) {
 		if (privateContainerId === undefined) continue;
-		const response = await rawRequest(
-			socketPath,
-			`/v${API_REVISION}/libpod/containers/${privateContainerId}?force=true&v=true`,
-			undefined,
-			"DELETE",
-		).catch(() => undefined);
-		const absent = await rawRequest(
-			socketPath,
-			`/v${API_REVISION}/libpod/containers/${privateContainerId}/json`,
-		).catch(() => undefined);
-		verified =
-			(response?.status === 200 || response?.status === 404) && absent?.status === 404 && verified;
+		verified = (await removeContainerAndVerify(socketPath, privateContainerId)) && verified;
 	}
 	if (secretName !== undefined) {
 		const removed = await rawRequest(
@@ -1028,6 +1329,24 @@ async function cleanup(
 			(response?.status === 200 || response?.status === 404) && absent?.status === 404 && verified;
 	}
 	return verified;
+}
+
+async function removeContainerAndVerify(
+	socketPath: string,
+	containerRef: string,
+): Promise<boolean> {
+	const encodedRef = encodeURIComponent(containerRef);
+	const response = await rawRequest(
+		socketPath,
+		`/v${API_REVISION}/libpod/containers/${encodedRef}?force=true&v=true`,
+		undefined,
+		"DELETE",
+	).catch(() => undefined);
+	const absent = await rawRequest(
+		socketPath,
+		`/v${API_REVISION}/libpod/containers/${encodedRef}/json`,
+	).catch(() => undefined);
+	return (response?.status === 200 || response?.status === 404) && absent?.status === 404;
 }
 
 interface RawResponse {
