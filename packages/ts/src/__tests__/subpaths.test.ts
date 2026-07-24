@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, expectTypeOf, it } from "vitest";
@@ -11,15 +11,7 @@ import type {
 	AgenticMemoryRecordsPersistenceHandle,
 } from "../adapters/index.js";
 import * as adapters from "../adapters/index.js";
-import * as nestjsMicroservicesAdapters from "../adapters/nestjs/microservices.js";
-import * as nestjsNativeAdapters from "../adapters/nestjs/native.js";
-import * as nestjsWebsocketsAdapters from "../adapters/nestjs/websockets.js";
-import * as nestjsAdapters from "../adapters/nestjs.js";
 import * as observeStorage from "../adapters/observe-storage.js";
-import * as reactAdapters from "../adapters/react.js";
-import * as solidAdapters from "../adapters/solid.js";
-import * as svelteAdapters from "../adapters/svelte.js";
-import * as vueAdapters from "../adapters/vue.js";
 import * as committedFacts from "../committed-facts/index.js";
 import * as composition from "../composition/index.js";
 import * as core from "../core/index.js";
@@ -233,20 +225,6 @@ const exportsJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
 	exports?: Record<string, unknown>;
 };
 
-function listTsFiles(dir: string): string[] {
-	const files: string[] = [];
-	for (const entry of readdirSync(dir)) {
-		const path = join(dir, entry);
-		const stat = statSync(path);
-		if (stat.isDirectory()) {
-			files.push(...listTsFiles(path));
-			continue;
-		}
-		if (entry.endsWith(".ts")) files.push(path);
-	}
-	return files;
-}
-
 function docsPath(...segments: string[]): string {
 	return join(
 		dirname(fileURLToPath(import.meta.url)),
@@ -264,15 +242,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.keys(exportsJson.exports ?? {}).sort()).toEqual([
 			".",
 			"./adapters",
-			"./adapters/nestjs",
-			"./adapters/nestjs/microservices",
-			"./adapters/nestjs/native",
-			"./adapters/nestjs/websockets",
 			"./adapters/observe-storage",
-			"./adapters/react",
-			"./adapters/solid",
-			"./adapters/svelte",
-			"./adapters/vue",
 			"./committed-facts",
 			"./composition",
 			"./core",
@@ -444,18 +414,6 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(adapters, "reactExternalStore")).toBe(false);
 		expect(Object.hasOwn(adapters, "svelteReadableStore")).toBe(false);
 		expect(Object.hasOwn(adapters, "svelteWritableStore")).toBe(false);
-		expect(typeof reactAdapters.useNodeValue).toBe("function");
-		expect(typeof reactAdapters.useNodeInput).toBe("function");
-		expect(typeof reactAdapters.useNodeRecord).toBe("function");
-		expect(typeof vueAdapters.useNodeValue).toBe("function");
-		expect(typeof vueAdapters.useNodeInput).toBe("function");
-		expect(typeof vueAdapters.useNodeRecord).toBe("function");
-		expect(typeof solidAdapters.createNodeValue).toBe("function");
-		expect(typeof solidAdapters.createNodeInput).toBe("function");
-		expect(typeof solidAdapters.createNodeRecord).toBe("function");
-		expect(typeof svelteAdapters.nodeReadable).toBe("function");
-		expect(typeof svelteAdapters.nodeWritable).toBe("function");
-		expect(typeof svelteAdapters.nodeRecord).toBe("function");
 		expect(typeof boundaryInspection.boundaryManifest).toBe("function");
 		expect(typeof adapters.toHttp).toBe("function");
 		expect(typeof adapters.toProcess).toBe("function");
@@ -471,38 +429,6 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(adapters, "dedupeReducer")).toBe(false);
 		expect(typeof adapters.writableStore).toBe("function");
 		expect(typeof adapters.zustandStore).toBe("function");
-		expect(typeof nestjsAdapters.fromNestReq).toBe("function");
-		expect(typeof nestjsAdapters.fromNestGuard).toBe("function");
-		expect(typeof nestjsAdapters.fromNestIntercept).toBe("function");
-		expect(typeof nestjsAdapters.fromNestError).toBe("function");
-		expect(typeof nestjsAdapters.fromNestLifecycle).toBe("function");
-		expect(typeof nestjsAdapters.fromNestCron).toBe("function");
-		expect(typeof nestjsAdapters.fromNestDiagnostics).toBe("function");
-		expect(typeof nestjsAdapters.sanitizeNestDiagnostic).toBe("function");
-		expect(typeof nestjsAdapters.toNestHttp).toBe("function");
-		expect(typeof nestjsAdapters.GraphFilter).toBe("function");
-		expect(typeof nestjsAdapters.GraphGuardDecision).toBe("function");
-		expect(typeof nestjsAdapters.getGraphToken).toBe("function");
-		expect(typeof nestjsAdapters.getNestBoundaryToken).toBe("function");
-		expect(typeof nestjsNativeAdapters.createGraphCronController).toBe("function");
-		expect(typeof nestjsNativeAdapters.createNestGraphGuardAwaitScope).toBe("function");
-		expect(typeof nestjsNativeAdapters.graphCronTarget).toBe("function");
-		expect(typeof nestjsNativeAdapters.graphLifecycleTarget).toBe("function");
-		expect(typeof nestjsNativeAdapters.provideGraphBoundaryInterceptor).toBe("function");
-		expect(typeof nestjsNativeAdapters.provideGraphGuard).toBe("function");
-		expect(typeof nestjsNativeAdapters.createGraphExceptionFilter).toBe("function");
-		expect(typeof nestjsNativeAdapters.provideGraphExceptionFilter).toBe("function");
-		expect(typeof nestjsNativeAdapters.createGraphGuardDeniedFilter).toBe("function");
-		expect(typeof nestjsNativeAdapters.provideGraphGuardDeniedFilter).toBe("function");
-		expect(typeof nestjsNativeAdapters.provideGraphCronScheduler).toBe("function");
-		expect(typeof nestjsNativeAdapters.provideGraphLifecycleHooks).toBe("function");
-		expect(typeof nestjsNativeAdapters.provideGraphNativeHttpProviders).toBe("function");
-		expect(typeof nestjsNativeAdapters.provideGraphNativeProviders).toBe("function");
-		expect(typeof nestjsNativeAdapters.GRAPHREFLY_NEST_EXCEPTION_FILTER).toBe("symbol");
-		expect(typeof nestjsWebsocketsAdapters.fromNestWs).toBe("function");
-		expect(typeof nestjsWebsocketsAdapters.provideGraphWsProviders).toBe("function");
-		expect(typeof nestjsMicroservicesAdapters.fromNestMessage).toBe("function");
-		expect(typeof nestjsMicroservicesAdapters.provideGraphMessageProviders).toBe("function");
 		expect(typeof observeStorage.attachObserveEventLog).toBe("function");
 		expect(typeof observeStorage.attachObserveSink).toBe("function");
 		expect(typeof committedFacts.appendLogCommittedFactJournal).toBe("function");
@@ -1643,7 +1569,6 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof reactiveLayoutBrowser.CanvasMeasureAdapter).toBe("function");
 		expect(typeof reactiveLayoutBrowser.canvasTextMeasurements).toBe("function");
 		expect(typeof reactiveLayoutNodeCanvas.nodeCanvasTextMeasurements).toBe("function");
-		expect(typeof reactiveLayoutNodeCanvas.nodeCanvasPackageTextMeasurements).toBe("function");
 		expect(typeof reactiveLayoutSkia.skiaTextMeasurements).toBe("function");
 		expect(typeof reactiveLayoutSkia.skiaReadyTextMeasurements).toBe("function");
 		expect(typeof reactiveLayoutSkia.skiaParagraphTextMeasureCapability).toBe("function");
@@ -1680,45 +1605,6 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(solutions, "persistAgenticMemoryRecords")).toBe(false);
 		expect(Object.hasOwn(solutions, "openPersistentReactiveMap")).toBe(false);
 		expect(Object.hasOwn(solutions, "Graph")).toBe(false);
-	});
-
-	it("keeps D488 NestJS WebSocket and microservice peers in focused subpaths", () => {
-		const sourceRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-		const nestRoot = join(sourceRoot, "adapters", "nestjs");
-		const websocketFile = join(nestRoot, "websockets.ts");
-		const microserviceFile = join(nestRoot, "microservices.ts");
-		const nestAdapterFiles = [join(sourceRoot, "adapters", "nestjs.ts"), ...listTsFiles(nestRoot)];
-
-		for (const file of nestAdapterFiles) {
-			const source = readFileSync(file, "utf8");
-			if (file === websocketFile) {
-				expect(source).toContain("@nestjs/websockets");
-				expect(source).not.toContain("@nestjs/microservices");
-				continue;
-			}
-			if (file === microserviceFile) {
-				expect(source).toContain("@nestjs/microservices");
-				expect(source).not.toContain("@nestjs/websockets");
-				continue;
-			}
-			expect(source, file).not.toContain("@nestjs/websockets");
-			expect(source, file).not.toContain("@nestjs/microservices");
-		}
-		expect(typeof nestjsAdapters.GraphWs).toBe("function");
-		expect(typeof nestjsAdapters.GraphMessage).toBe("function");
-		expect(typeof nestjsWebsocketsAdapters.createGraphWsBridge).toBe("function");
-		expect(typeof nestjsWebsocketsAdapters.provideGraphWsBridge).toBe("function");
-		expect(typeof nestjsWebsocketsAdapters.provideGraphWsProviders).toBe("function");
-		expect(typeof nestjsWebsocketsAdapters.GraphWsAck).toBe("function");
-		expect(typeof nestjsWebsocketsAdapters.GraphWsReply).toBe("function");
-		expect(typeof nestjsMicroservicesAdapters.createGraphMessageBridge).toBe("function");
-		expect(typeof nestjsMicroservicesAdapters.provideGraphMessageBridge).toBe("function");
-		expect(typeof nestjsMicroservicesAdapters.provideGraphMessageProviders).toBe("function");
-		expect(typeof nestjsMicroservicesAdapters.GraphMessageReply).toBe("function");
-		expect(Object.hasOwn(nestjsAdapters, "provideGraphWsProviders")).toBe(false);
-		expect(Object.hasOwn(nestjsAdapters, "provideGraphMessageProviders")).toBe(false);
-		expect(Object.hasOwn(nestjsNativeAdapters, "provideGraphWsProviders")).toBe(false);
-		expect(Object.hasOwn(nestjsNativeAdapters, "provideGraphMessageProviders")).toBe(false);
 	});
 
 	it("documents D486 cron misfire and catch-up default skip semantics", () => {

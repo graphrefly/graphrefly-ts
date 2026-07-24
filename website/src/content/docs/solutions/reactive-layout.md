@@ -128,6 +128,8 @@ Focused platform subpaths expose dependency-free API shapes for native text meas
 These subpaths do not import `canvas`, Skia, or React Native packages. They keep platform packages
 caller-owned while making the measurement capability a graph-visible dependency. Async font or
 native layout readiness should still be modeled with explicit readiness or measurement facts.
+Use `@graphrefly/reactive-layout-node-canvas` when the adapter should load the concrete `canvas`
+package instead of receiving a caller-owned context.
 
 ## Recipes
 

@@ -1,9 +1,8 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
-import { nodeWritable } from "../adapters/svelte.js";
 import { graph } from "../graph/index.js";
 import { type BoundaryCapabilityRef, boundaryManifest } from "../inspection/boundary.js";
 
-describe("D238 framework adapter subpaths", () => {
+describe("framework-neutral boundary projection", () => {
 	it("derives a framework-neutral boundary manifest from describe topology", () => {
 		const g = graph({ name: "boundary" });
 		const amount = g.state(0, { name: "amount" });
@@ -99,17 +98,5 @@ describe("D238 framework adapter subpaths", () => {
 		expect(manifest.inputs[0].capabilities).not.toContainEqual(
 			expect.objectContaining({ id: "config-form" }),
 		);
-	});
-
-	it("does not write undefined as ordinary DATA through writable helpers", () => {
-		const g = graph();
-		const count = g.state(1);
-		const writable = nodeWritable(count);
-
-		expect(() => {
-			(writable.set as (value: undefined) => void)(undefined);
-		}).toThrow(/SENTINEL\/no DATA/);
-
-		expect(count.cache).toBe(1);
 	});
 });

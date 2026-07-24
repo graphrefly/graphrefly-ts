@@ -82,7 +82,7 @@ See [Adapters](/integrations/adapters/) for usage guidance and naming convention
 | Agentic WorkItem memory application | Cross-family application composition recipe | `@graphrefly/ts/solutions/agentic-work-item-memory-application` |
 | Reactive layout | DOM-free reactive layout solution core | `@graphrefly/ts/solutions/reactive-layout` |
 | Reactive layout browser | Browser measurement helpers | `@graphrefly/ts/solutions/reactive-layout/browser` |
-| Reactive layout node-canvas | Node canvas measurement helpers | `@graphrefly/ts/solutions/reactive-layout/node-canvas` |
+| Reactive layout caller-owned canvas context | Dependency-free Node-style canvas measurement helper | `@graphrefly/ts/solutions/reactive-layout/node-canvas` |
 | Reactive layout React Native | React Native measurement helpers | `@graphrefly/ts/solutions/reactive-layout/react-native` |
 | Reactive layout Skia | Skia measurement helpers | `@graphrefly/ts/solutions/reactive-layout/skia` |
 | Work item | Focused WorkItem solution barrel | `@graphrefly/ts/solutions/work-item` |
@@ -94,14 +94,15 @@ See [Adapters](/integrations/adapters/) for usage guidance and naming convention
 
 | Integration | Type | Entry |
 |---|---|---|
-| React | Framework adapter | `@graphrefly/ts/adapters/react` |
-| Vue | Framework adapter | `@graphrefly/ts/adapters/vue` |
-| Solid | Framework adapter | `@graphrefly/ts/adapters/solid` |
-| Svelte | Framework adapter | `@graphrefly/ts/adapters/svelte` |
-| NestJS structural metadata | D484 dependency-light boundary factories/decorators | `@graphrefly/ts/adapters/nestjs` |
-| NestJS native providers | D494 HTTP/guard/filter/cron/lifecycle provider bundles and explicit targets | `@graphrefly/ts/adapters/nestjs/native` |
-| NestJS WebSocket boundary | D488 focused optional-peer gateway bridge plus D495 provider bundle | `@graphrefly/ts/adapters/nestjs/websockets` |
-| NestJS microservice boundary | D488 focused optional-peer message-pattern bridge plus D495 provider bundle | `@graphrefly/ts/adapters/nestjs/microservices` |
+| React | Framework adapter | `@graphrefly/react` |
+| Vue | Framework adapter | `@graphrefly/vue` |
+| Solid | Framework adapter | `@graphrefly/solid` |
+| Svelte | Framework adapter | `@graphrefly/svelte` |
+| NestJS structural metadata | D484 dependency-light boundary factories/decorators | `@graphrefly/nestjs` |
+| NestJS native providers | D494 HTTP/guard/filter/cron/lifecycle provider bundles and explicit targets | `@graphrefly/nestjs/native` |
+| NestJS WebSocket boundary | D488 focused optional-peer gateway bridge plus D495 provider bundle | `@graphrefly/nestjs/websockets` |
+| NestJS microservice boundary | D488 focused optional-peer message-pattern bridge plus D495 provider bundle | `@graphrefly/nestjs/microservices` |
+| node-canvas package loader | Concrete third-party canvas integration | `@graphrefly/reactive-layout-node-canvas` |
 | Jotai-style facade | Framework-neutral store facade | `jotaiAtom` from `@graphrefly/ts/adapters` |
 | Nanostores-style facade | Framework-neutral store facade | `nanoAtom` from `@graphrefly/ts/adapters` |
 | Zustand-style facade | Framework-neutral store facade | `zustandStore` from `@graphrefly/ts/adapters` |

@@ -32,7 +32,6 @@ const ALLOW_ALL = new Set<string>([
 	"packages/ts/src/adapters/environment.ts",
 	"packages/ts/src/adapters/environment-outbound.ts",
 	"packages/ts/src/adapters/environment-websocket-session.ts",
-	"packages/ts/src/adapters/nestjs/native.ts",
 	"packages/ts/src/graph/environment.ts",
 	"packages/ts/src/graph/sources.ts",
 	"packages/ts/src/graph/worker.ts",
@@ -92,15 +91,6 @@ const ALLOW_LABELS = new Map<string, ReadonlySet<string>>([
 	[
 		"packages/ts/src/executors/tool-provider-adapters.ts",
 		new Set<string>(["Promise.resolve()", "setTimeout("]),
-	],
-	["packages/ts/src/adapters/nestjs.ts", new Set<string>(["new Promise"])],
-	[
-		"packages/ts/src/adapters/nestjs/microservices.ts",
-		new Set<string>(["new Promise", "setTimeout("]),
-	],
-	[
-		"packages/ts/src/adapters/nestjs/websockets.ts",
-		new Set<string>(["new Promise", "setTimeout("]),
 	],
 	[
 		"packages/ts/src/storage/append-log.ts",

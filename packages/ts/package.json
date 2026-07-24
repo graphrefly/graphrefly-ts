@@ -36,46 +36,6 @@
 				"default": "./dist/adapters/index.cjs"
 			}
 		},
-		"./adapters/nestjs": {
-			"import": {
-				"types": "./dist/adapters/nestjs.d.ts",
-				"default": "./dist/adapters/nestjs.js"
-			},
-			"require": {
-				"types": "./dist/adapters/nestjs.d.cts",
-				"default": "./dist/adapters/nestjs.cjs"
-			}
-		},
-		"./adapters/nestjs/microservices": {
-			"import": {
-				"types": "./dist/adapters/nestjs/microservices.d.ts",
-				"default": "./dist/adapters/nestjs/microservices.js"
-			},
-			"require": {
-				"types": "./dist/adapters/nestjs/microservices.d.cts",
-				"default": "./dist/adapters/nestjs/microservices.cjs"
-			}
-		},
-		"./adapters/nestjs/native": {
-			"import": {
-				"types": "./dist/adapters/nestjs/native.d.ts",
-				"default": "./dist/adapters/nestjs/native.js"
-			},
-			"require": {
-				"types": "./dist/adapters/nestjs/native.d.cts",
-				"default": "./dist/adapters/nestjs/native.cjs"
-			}
-		},
-		"./adapters/nestjs/websockets": {
-			"import": {
-				"types": "./dist/adapters/nestjs/websockets.d.ts",
-				"default": "./dist/adapters/nestjs/websockets.js"
-			},
-			"require": {
-				"types": "./dist/adapters/nestjs/websockets.d.cts",
-				"default": "./dist/adapters/nestjs/websockets.cjs"
-			}
-		},
 		"./adapters/observe-storage": {
 			"import": {
 				"types": "./dist/adapters/observe-storage.d.ts",
@@ -84,46 +44,6 @@
 			"require": {
 				"types": "./dist/adapters/observe-storage.d.cts",
 				"default": "./dist/adapters/observe-storage.cjs"
-			}
-		},
-		"./adapters/react": {
-			"import": {
-				"types": "./dist/adapters/react.d.ts",
-				"default": "./dist/adapters/react.js"
-			},
-			"require": {
-				"types": "./dist/adapters/react.d.cts",
-				"default": "./dist/adapters/react.cjs"
-			}
-		},
-		"./adapters/solid": {
-			"import": {
-				"types": "./dist/adapters/solid.d.ts",
-				"default": "./dist/adapters/solid.js"
-			},
-			"require": {
-				"types": "./dist/adapters/solid.d.cts",
-				"default": "./dist/adapters/solid.cjs"
-			}
-		},
-		"./adapters/svelte": {
-			"import": {
-				"types": "./dist/adapters/svelte.d.ts",
-				"default": "./dist/adapters/svelte.js"
-			},
-			"require": {
-				"types": "./dist/adapters/svelte.d.cts",
-				"default": "./dist/adapters/svelte.cjs"
-			}
-		},
-		"./adapters/vue": {
-			"import": {
-				"types": "./dist/adapters/vue.d.ts",
-				"default": "./dist/adapters/vue.js"
-			},
-			"require": {
-				"types": "./dist/adapters/vue.d.cts",
-				"default": "./dist/adapters/vue.cjs"
 			}
 		},
 		"./composition": {
@@ -862,50 +782,6 @@
 		"test:watch": "vitest"
 	},
 	"license": "MIT",
-	"peerDependencies": {
-		"@nestjs/common": "^11.0.0",
-		"@nestjs/core": "^11.0.0",
-		"@nestjs/microservices": "^11.0.0",
-		"@nestjs/websockets": "^11.0.0",
-		"canvas": "^3.2.3",
-		"react": "^18.0.0 || ^19.0.0",
-		"rxjs": "^7.8.0",
-		"solid-js": "^1.9.0",
-		"svelte": "^5.0.0",
-		"vue": "^3.5.0"
-	},
-	"peerDependenciesMeta": {
-		"@nestjs/common": {
-			"optional": true
-		},
-		"@nestjs/core": {
-			"optional": true
-		},
-		"@nestjs/microservices": {
-			"optional": true
-		},
-		"@nestjs/websockets": {
-			"optional": true
-		},
-		"canvas": {
-			"optional": true
-		},
-		"react": {
-			"optional": true
-		},
-		"rxjs": {
-			"optional": true
-		},
-		"solid-js": {
-			"optional": true
-		},
-		"svelte": {
-			"optional": true
-		},
-		"vue": {
-			"optional": true
-		}
-	},
 	"devDependencies": {
 		"tsup": "^8.5.1",
 		"typescript": "^5.7.0",

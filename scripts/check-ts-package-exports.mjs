@@ -4,11 +4,12 @@ import {
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
+	readdirSync,
 	readFileSync,
 	rmSync,
-	symlinkSync,
 	writeFileSync,
 } from "node:fs";
+import { builtinModules } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,19 +18,17 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PKG = join(ROOT, "packages", "ts");
 const TSC = join(ROOT, "node_modules", ".bin", "tsc");
 const packageJson = JSON.parse(readFileSync(join(PKG, "package.json"), "utf8"));
-const optionalPeers = [
-	"@nestjs/common",
-	"@nestjs/core",
-	"@nestjs/microservices",
-	"@nestjs/websockets",
-	"canvas",
-	"react",
-	"rxjs",
-	"solid-js",
-	"svelte",
-	"vue",
+const nodeBuiltins = new Set(builtinModules.flatMap((name) => [name, `node:${name}`]));
+const removedEcosystemSubpaths = [
+	"./adapters/nestjs",
+	"./adapters/nestjs/microservices",
+	"./adapters/nestjs/native",
+	"./adapters/nestjs/websockets",
+	"./adapters/react",
+	"./adapters/solid",
+	"./adapters/svelte",
+	"./adapters/vue",
 ];
-
 const expectedSubpaths = {
 	"./adapters": {
 		present: [
@@ -63,67 +62,6 @@ const expectedSubpaths = {
 			"toNestHttp",
 		],
 	},
-	"./adapters/nestjs": {
-		present: [
-			"fromNestReq",
-			"fromNestGuard",
-			"fromNestIntercept",
-			"fromNestError",
-			"fromNestLifecycle",
-			"fromNestCron",
-			"toNestHttp",
-			"GraphReq",
-			"GraphGuard",
-			"GraphIntercept",
-			"GraphError",
-			"GraphLifecycle",
-			"GraphCron",
-			"GraphHttpReply",
-			"createNestGraphBoundaryRunner",
-			"createNestGraphBoundaryInterceptor",
-			"getNestBoundaryToken",
-		],
-		absent: [],
-	},
-	"./adapters/nestjs/native": {
-		present: [
-			"provideGraphBoundaryInterceptor",
-			"provideGraphGuard",
-			"provideGraphExceptionFilter",
-			"provideGraphCronScheduler",
-			"provideGraphLifecycleHooks",
-			"provideGraphGuardDeniedFilter",
-		],
-		absent: [],
-	},
-	"./adapters/nestjs/websockets": {
-		present: [
-			"fromNestWs",
-			"GraphWs",
-			"GraphWsAck",
-			"GraphWsReply",
-			"createGraphWsBridge",
-			"provideGraphWsBridge",
-		],
-		absent: ["fromNestMessage", "GraphMessage", "GraphMessageReply"],
-	},
-	"./adapters/nestjs/microservices": {
-		present: [
-			"fromNestMessage",
-			"GraphMessage",
-			"GraphMessageReply",
-			"createGraphMessageBridge",
-			"provideGraphMessageBridge",
-		],
-		absent: ["fromNestWs", "GraphWs", "GraphWsAck", "GraphWsReply"],
-	},
-	"./adapters/react": { present: ["useNodeValue", "useNodeInput", "useNodeRecord"], absent: [] },
-	"./adapters/vue": { present: ["useNodeValue", "useNodeInput", "useNodeRecord"], absent: [] },
-	"./adapters/solid": {
-		present: ["createNodeValue", "createNodeInput", "createNodeRecord"],
-		absent: [],
-	},
-	"./adapters/svelte": { present: ["nodeReadable", "nodeWritable", "nodeRecord"], absent: [] },
 	"./committed-facts": {
 		present: [
 			"appendLogCommittedFactJournal",
@@ -584,6 +522,13 @@ function expectTscFailure(tmp, file, expectedNames) {
 
 validateExportTree(packageJson.exports, "exports");
 
+for (const subpath of removedEcosystemSubpaths) {
+	assert(
+		packageJson.exports?.[subpath] === undefined,
+		`${subpath} must move to an ecosystem package`,
+	);
+}
+
 for (const subpath of Object.keys(expectedSubpaths)) {
 	assert(packageJson.exports?.[subpath] !== undefined, `${subpath} missing from package exports`);
 	for (const [condition, extension] of [
@@ -604,15 +549,25 @@ for (const subpath of Object.keys(expectedSubpaths)) {
 	}
 }
 
-for (const peer of optionalPeers) {
-	assert(
-		packageJson.peerDependencies?.[peer] !== undefined,
-		`optional peer ${peer} missing from peerDependencies`,
-	);
-	assert(
-		packageJson.peerDependenciesMeta?.[peer]?.optional === true,
-		`optional peer ${peer} missing peerDependenciesMeta optional:true`,
-	);
+for (const field of ["dependencies", "optionalDependencies", "peerDependencies"]) {
+	assert(packageJson[field] === undefined, `${field} must be absent from the strict core manifest`);
+}
+
+for (const file of readdirSync(join(PKG, "dist"), { recursive: true, withFileTypes: true })) {
+	if (!file.isFile() || (!file.name.endsWith(".js") && !file.name.endsWith(".cjs"))) continue;
+	const path = join(file.parentPath, file.name);
+	const source = readFileSync(path, "utf8");
+	const specifiers = [
+		...source.matchAll(/^\s*(?:import|export)\s+(?:[\s\S]*?\s+from\s+)?["']([^"']+)["'];?\s*$/gm),
+		...source.matchAll(/^[^"'`]*\bimport\s*\(\s*["']([^"']+)["']\s*\)/gm),
+		...source.matchAll(/^[^"'`]*\brequire\s*\(\s*["']([^"']+)["']\s*\)/gm),
+	].map((match) => match[1]);
+	for (const specifier of specifiers) {
+		assert(
+			specifier.startsWith(".") || nodeBuiltins.has(specifier),
+			`${path} contains non-built-in bare import: ${specifier}`,
+		);
+	}
 }
 
 for (const rel of [
@@ -640,14 +595,6 @@ try {
 	mkdirSync(tmpPkg, { recursive: true });
 	cpSync(join(PKG, "package.json"), join(tmpPkg, "package.json"));
 	cpSync(join(PKG, "dist"), join(tmpPkg, "dist"), { recursive: true });
-	for (const peer of optionalPeers) {
-		const realPeer = join(ROOT, "node_modules", peer);
-		if (existsSync(realPeer)) {
-			const link = join(tmp, "node_modules", peer);
-			mkdirSync(dirname(link), { recursive: true });
-			symlinkSync(realPeer, link, "dir");
-		}
-	}
 	writeFileSync(
 		join(tmp, "package.json"),
 		JSON.stringify({ type: "module", private: true }, null, "\t"),
@@ -743,10 +690,6 @@ ${runtimeAssertions.replaceAll("await load", "load")}
 	writeFileSync(
 		join(tmp, "types-smoke.mts"),
 		`import { externalStore, readableStore, recordReadableStore, subscribeNodeValues, wireBridgeProtobuf, writableStore, type AgenticMemoryPassiveStoreFrameAdapter, type AgenticMemoryPassiveStoreFrameCursor, type AgenticMemoryPassiveStoreFrameReadResult, type AgenticMemoryPassiveStoreFrameStatus, type AgenticMemoryPassiveStoreFrameWriteResult, type WireBridgeProtobufBundle, type WireBridgeProtobufData, type WireBridgeProtobufIssue, type WireBridgeProtobufOptions, type WireBridgeProtobufStatus } from "@graphrefly/ts/adapters";
-import { useNodeInput, useNodeRecord, useNodeValue } from "@graphrefly/ts/adapters/react";
-import { createNodeInput, createNodeRecord, createNodeValue } from "@graphrefly/ts/adapters/solid";
-import { nodeReadable, nodeRecord, nodeWritable } from "@graphrefly/ts/adapters/svelte";
-import { useNodeInput as useVueNodeInput, useNodeRecord as useVueNodeRecord, useNodeValue as useVueNodeValue } from "@graphrefly/ts/adapters/vue";
 import {
 	appendLogCommittedFactJournal,
 	committedFactJournalCursor,
@@ -891,18 +834,6 @@ void recordReadableStore;
 void subscribeNodeValues;
 void wireBridgeProtobuf;
 void writableStore;
-void useNodeInput;
-void useNodeRecord;
-void useNodeValue;
-void createNodeInput;
-void createNodeRecord;
-void createNodeValue;
-void nodeReadable;
-void nodeRecord;
-void nodeWritable;
-void useVueNodeInput;
-void useVueNodeRecord;
-void useVueNodeValue;
 void appendLogCommittedFactJournal;
 void committedFactJournalCursor;
 void committedFactJournalCursorCodec;
