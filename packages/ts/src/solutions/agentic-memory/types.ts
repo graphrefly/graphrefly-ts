@@ -1428,10 +1428,206 @@ export interface AgenticMemoryBundle<T = unknown> {
 
 export interface AgenticMemoryBundleOptions<T = unknown> {
 	readonly name?: string;
-	/** Explicit record-envelope input. Persistence, if needed, composes D161 outside this bundle. */
+	/**
+	 * Explicit record-envelope input. Persistence, if needed, composes D161 outside this bundle.
+	 * This lower-level bundle does not authorize record use; governed retrieval passes D643
+	 * `allowedRecords` here and retains no parallel raw-record edge.
+	 */
 	readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
 	/** Explicit retrieval query input. */
 	readonly query: Node<MemoryRetrievalQuery>;
+}
+
+/** Opaque request coordinate for one D643 record-use subject, purpose, or scope. */
+export interface AgenticMemoryRecordUseCoordinate {
+	readonly kind: string;
+	readonly id: string;
+}
+
+/** Opaque, application-owned currentness coordinate carried by a D643 request. */
+export interface AgenticMemoryRecordUseRevisionCoordinate extends AgenticMemoryRecordUseCoordinate {
+	readonly revision: string;
+}
+
+/**
+ * Strict v1 request for one exact AgenticMemory record use.
+ *
+ * Source revisions are the sole application/domain revision coordinates. This
+ * request does not introduce a second record-owner version or authorization truth.
+ */
+export interface AgenticMemoryRecordUseRequest {
+	readonly format: "graphrefly.agenticMemoryRecordUseRequest";
+	readonly version: 1;
+	readonly requestId: FactId;
+	readonly subject: AgenticMemoryRecordUseCoordinate;
+	readonly purpose: AgenticMemoryRecordUseCoordinate;
+	readonly scope: AgenticMemoryRecordUseCoordinate;
+	readonly sourceRevisions: readonly AgenticMemoryRecordUseRevisionCoordinate[];
+	readonly policyCoordinates: readonly AgenticMemoryRecordUseRevisionCoordinate[];
+	readonly authorityCoordinates: readonly AgenticMemoryRecordUseRevisionCoordinate[];
+}
+
+/** Synchronous strict-canonical identity for the complete D643 request frame. */
+export interface AgenticMemoryRecordUseRequestIdentity {
+	readonly version: 1;
+	readonly algorithm: "graphrefly.agenticMemoryRecordUseRequest.identity.v1";
+	readonly key: string;
+}
+
+/** Synchronous strict-canonical identity for a complete AgenticMemoryRecordFrame. */
+export interface AgenticMemoryRecordUseRecordIdentity {
+	readonly version: 1;
+	readonly algorithm: "graphrefly.agenticMemoryRecordUseRecord.identity.v1";
+	readonly key: string;
+}
+
+/** External application-authority result; the gate never derives this state. */
+export type AgenticMemoryRecordUseDecisionState = "allowed" | "denied";
+
+/** External authority result pinned to one exact request and current record material. */
+export interface AgenticMemoryRecordUseDecision {
+	readonly format: "graphrefly.agenticMemoryRecordUseDecision";
+	readonly version: 1;
+	readonly decisionId: FactId;
+	readonly requestIdentity: AgenticMemoryRecordUseRequestIdentity;
+	readonly recordId: FactId;
+	readonly recordIdentity: AgenticMemoryRecordUseRecordIdentity;
+	readonly state: AgenticMemoryRecordUseDecisionState;
+}
+
+/** Closed v1 reason vocabulary for fail-closed gate diagnostics and counts. */
+export type AgenticMemoryRecordUseReasonCode =
+	| "input-overflow"
+	| "invalid-input"
+	| "invalid-request"
+	| "invalid-record"
+	| "duplicate-record"
+	| "invalid-decision"
+	| "missing-decision"
+	| "request-mismatch"
+	| "stale-record"
+	| "orphan-decision"
+	| "duplicate-decision"
+	| "ambiguous-decision"
+	| "evaluation-invalid"
+	| "denied";
+
+/** Bounded, material-free explanation for why a current record was not allowed. */
+export interface AgenticMemoryRecordUseExclusion {
+	readonly kind: "agentic-memory-record-use-exclusion";
+	readonly version: 1;
+	readonly reason: AgenticMemoryRecordUseReasonCode;
+}
+
+/** Bounded DataIssue-compatible gate diagnostic. Identity keys and record material are forbidden. */
+export interface AgenticMemoryRecordUseIssue
+	extends Pick<DataIssue, "kind" | "code" | "message" | "severity" | "source"> {
+	readonly kind: "issue";
+	readonly version: 1;
+	readonly code: AgenticMemoryRecordUseReasonCode;
+	readonly message: string;
+	readonly severity: "error";
+	readonly source: "agentic-memory-record-use-gate";
+}
+
+/** Closed v1 action vocabulary for material-free evaluation evidence. */
+export type AgenticMemoryRecordUseAuditAction = "allowed" | "denied" | "excluded" | "invalid-input";
+
+/** Bounded gate evaluation evidence. It never contains identity keys or record material. */
+export interface AgenticMemoryRecordUseAuditEntry {
+	readonly kind: "agentic-memory-record-use-audit";
+	readonly version: 1;
+	readonly action: AgenticMemoryRecordUseAuditAction;
+	readonly reason?: AgenticMemoryRecordUseReasonCode;
+}
+
+/** Evidence that a deterministic v1 output collection was bounded after total counting. */
+export interface AgenticMemoryRecordUseBoundedCollectionCursor {
+	readonly kind: "agentic-memory-record-use-bounded-collection-cursor";
+	readonly version: 1;
+	readonly total: number;
+	readonly emitted: number;
+	readonly truncated: boolean;
+}
+
+/** Untruncated per-reason counts for one exact-use evaluation. */
+export type AgenticMemoryRecordUseReasonCounts = Readonly<
+	Record<AgenticMemoryRecordUseReasonCode, number>
+>;
+
+/**
+ * Evaluation-local progress and untruncated totals.
+ *
+ * This is not a request/record revision, storage/backend cursor, or fact-stream cursor.
+ */
+export interface AgenticMemoryRecordUseCursor {
+	readonly kind: "agentic-memory-record-use-cursor";
+	readonly version: 1;
+	readonly evaluation: number;
+	readonly inputRecords: number;
+	readonly validRecords: number;
+	readonly invalidRecords: number;
+	readonly unevaluatedRecords: number;
+	readonly inputDecisions: number;
+	readonly validDecisions: number;
+	readonly invalidDecisions: number;
+	readonly unevaluatedDecisions: number;
+	readonly allowedRecords: number;
+	readonly deniedRecords: number;
+	readonly excludedRecords: number;
+	readonly reasonCounts: AgenticMemoryRecordUseReasonCounts;
+	readonly exclusions: AgenticMemoryRecordUseBoundedCollectionCursor;
+	readonly issues: AgenticMemoryRecordUseBoundedCollectionCursor;
+	readonly audit: AgenticMemoryRecordUseBoundedCollectionCursor;
+}
+
+/** Gate structural health; external denial is not an invalid state. */
+export type AgenticMemoryRecordUseStatusState = "ready" | "invalid";
+
+/** Structural gate health. A valid external denial remains `ready`. */
+export interface AgenticMemoryRecordUseStatus {
+	readonly kind: "agentic-memory-record-use-status";
+	readonly version: 1;
+	readonly state: AgenticMemoryRecordUseStatusState;
+	readonly evaluated: true;
+}
+
+/** One immutable D643 gate evaluation shared by all declared projection nodes. */
+export interface AgenticMemoryRecordUseSnapshot<TJson extends StrictJsonValue = StrictJsonValue> {
+	readonly format: "graphrefly.agenticMemoryRecordUseSnapshot";
+	readonly version: 1;
+	readonly allowedRecords: readonly AgenticMemoryRecord<TJson>[];
+	readonly exclusions: readonly AgenticMemoryRecordUseExclusion[];
+	readonly status: AgenticMemoryRecordUseStatus;
+	readonly issues: readonly AgenticMemoryRecordUseIssue[];
+	readonly audit: readonly AgenticMemoryRecordUseAuditEntry[];
+	readonly cursor: AgenticMemoryRecordUseCursor;
+}
+
+/** Standalone one-use gate bundle. Governed retrieval consumes only `allowedRecords`. */
+export interface AgenticMemoryRecordUseGateBundle<TJson extends StrictJsonValue = StrictJsonValue> {
+	readonly input: {
+		readonly records: Node<readonly AgenticMemoryRecord<TJson>[]>;
+		readonly request: Node<AgenticMemoryRecordUseRequest>;
+		readonly decisions: Node<readonly AgenticMemoryRecordUseDecision[]>;
+	};
+	readonly snapshot: Node<AgenticMemoryRecordUseSnapshot<TJson>>;
+	readonly allowedRecords: Node<readonly AgenticMemoryRecord<TJson>[]>;
+	readonly exclusions: Node<readonly AgenticMemoryRecordUseExclusion[]>;
+	readonly status: Node<AgenticMemoryRecordUseStatus>;
+	readonly issues: Node<readonly AgenticMemoryRecordUseIssue[]>;
+	readonly audit: Node<readonly AgenticMemoryRecordUseAuditEntry[]>;
+	readonly cursor: Node<AgenticMemoryRecordUseCursor>;
+}
+
+/** Declared DATA dependencies and stable optional name for one D643 gate instance. */
+export interface AgenticMemoryRecordUseGateBundleOptions<
+	TJson extends StrictJsonValue = StrictJsonValue,
+> {
+	readonly name?: string;
+	readonly records: Node<readonly AgenticMemoryRecord<TJson>[]>;
+	readonly request: Node<AgenticMemoryRecordUseRequest>;
+	readonly decisions: Node<readonly AgenticMemoryRecordUseDecision[]>;
 }
 
 /**

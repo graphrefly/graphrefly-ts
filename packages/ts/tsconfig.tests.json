@@ -16,6 +16,7 @@
 		"src/solutions/production-evaluation-authority.ts",
 		"src/testing/production-evaluation-memory-persistence.ts",
 		"src/__tests__/production-evaluation-authority.test.ts",
+		"src/__tests__/solutions-agentic-memory-record-use.d643.test.ts",
 		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.eval.test.ts",
 		"src/__tests__/eval-support/memory-rerun-avoidance/**/*.ts",
 		"evals/memory-rerun-avoidance/**/*.ts"
