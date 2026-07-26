@@ -176,13 +176,18 @@ describe("first-run gate (R-first-run-gate)", () => {
 });
 
 describe("ctx.up direction guard (R-ctx-up)", () => {
-	it("throws on a down-only tier", () => {
+	it("rejects START, down-only tiers, and unknown tags while down rejects unknown tags", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const d = node<number>([a], (ctx: Ctx) => ctx.down([["DATA", 1]]));
 		d.subscribe(() => {});
-		expect(() => d.up([["DATA", 5]])).toThrow(/down-only/);
-		expect(() => d.up([["COMPLETE"]])).toThrow(/down-only/);
+		expect(() => d.up([["START"]])).toThrow(/not up-going/);
+		expect(() => d.up([["DATA", 5]])).toThrow(/not up-going/);
+		expect(() => d.up([["COMPLETE"]])).toThrow(/not up-going/);
 		expect(() => d.up([["INVALIDATE"]])).not.toThrow();
+
+		const custom = [["CUSTOM"]] as unknown as Message[];
+		expect(() => d.up(custom)).toThrow(/closed message-type set/);
+		expect(() => d.down(custom)).toThrow(/closed message-type set/);
 	});
 });
 
