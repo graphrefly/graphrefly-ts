@@ -220,6 +220,17 @@ const expectedSubpaths = {
 	"./inspection/boundary": { present: ["boundaryManifest"], absent: [] },
 	"./orchestration/messaging": { present: ["orchestrationMessagingRecipe"], absent: [] },
 	"./orchestration/work-queue": { present: ["orchestrationWorkQueueRecipe"], absent: [] },
+	"./rate-limit": {
+		present: [
+			"assertKeyedRateLimitRequest",
+			"keyedRateLimitAdmissionBundle",
+			"localFixedWindowRateLimitBundle",
+			"evaluateFixedWindowRateLimitTransition",
+			"evaluateSlidingWindowRateLimitTransition",
+			"evaluateTokenBucketRateLimitTransition",
+		],
+		absent: ["attachKeyedRateLimitAuthority", "RateLimitStore", "rateLimitBundle"],
+	},
 	"./memory": {
 		present: ["validateMemoryFragment", "filterMemoryFragments", "memoryRetrievalBundle"],
 		absent: ["agenticMemoryBundle", "workItemAuthoringProjector", "persistAgenticMemoryRecords"],
@@ -345,6 +356,13 @@ const forbiddenFrameworkSpecifiers = [
 ];
 
 const rootAbsentExports = [
+	"assertKeyedRateLimitRequest",
+	"keyedRateLimitAdmissionBundle",
+	"localFixedWindowRateLimitBundle",
+	"evaluateFixedWindowRateLimitTransition",
+	"evaluateSlidingWindowRateLimitTransition",
+	"evaluateTokenBucketRateLimitTransition",
+	"KeyedRateLimitTransitionError",
 	"appendLogCommittedFactJournal",
 	"committedFactJournalCursor",
 	"committedFactJournalCursorCodec",
@@ -404,6 +422,13 @@ const rootAbsentExports = [
 ];
 
 const rootAbsentTypeExports = [
+	"KeyedRateLimitRequest",
+	"KeyedRateLimitOutcome",
+	"KeyedRateLimitAdmission",
+	"FixedWindowRateLimitPolicy",
+	"SlidingWindowRateLimitState",
+	"TokenBucketRateLimitTransition",
+	"LocalFixedWindowRateLimitOptions",
 	"ProductionEvaluationAuthority",
 	"ProductionEvaluationPersistencePort",
 	"ProductionEvaluationCampaignRevision",
@@ -453,6 +478,21 @@ function exportTarget(subpath, condition, key) {
 	const entry = packageJson.exports?.[subpath]?.[condition]?.[key];
 	assert(typeof entry === "string", `${subpath} missing exports.${condition}.${key}`);
 	return join(PKG, entry);
+}
+
+function declarationExportNames(file) {
+	const source = readFileSync(file, "utf8");
+	const names = new Set();
+	for (const match of source.matchAll(/export\s*\{([\s\S]*?)\}\s*(?:from\s*["'][^"']+["'])?;/g)) {
+		for (const rawSpecifier of match[1].split(",")) {
+			const specifier = rawSpecifier.trim().replace(/^type\s+/, "");
+			if (specifier === "") continue;
+			const parts = specifier.split(/\s+as\s+/);
+			const exported = parts.at(-1);
+			if (exported !== undefined && /^[A-Za-z_$][\w$]*$/.test(exported)) names.add(exported);
+		}
+	}
+	return [...names].sort();
 }
 
 function errorOutput(err) {
@@ -521,6 +561,10 @@ function expectTscFailure(tmp, file, expectedNames) {
 }
 
 validateExportTree(packageJson.exports, "exports");
+const rateLimitPublicExports = declarationExportNames(
+	exportTarget("./rate-limit", "import", "types"),
+);
+assert(rateLimitPublicExports.length > 0, "./rate-limit must expose public DTS symbols");
 
 for (const subpath of removedEcosystemSubpaths) {
 	assert(
@@ -610,6 +654,15 @@ try {
 	const runtimeAssertions = `{
 	const root = await load("@graphrefly/ts");
 	${rootAbsentChecks}
+}
+{
+	const root = await load("@graphrefly/ts");
+	const orchestration = await load("@graphrefly/ts/orchestration");
+	const rateLimit = await load("@graphrefly/ts/rate-limit");
+	for (const name of Object.keys(rateLimit)) {
+		assert(!Object.hasOwn(root, name), \`@graphrefly/ts must not export rate-limit symbol \${name}\`);
+		assert(!Object.hasOwn(orchestration, name), \`@graphrefly/ts/orchestration must not export rate-limit symbol \${name}\`);
+	}
 }
 ${Object.entries(expectedSubpaths)
 	.map(([subpath, { present, absent }]) => {
@@ -749,6 +802,19 @@ import {
 	type MemoryRetrievalBundleOptions,
 } from "@graphrefly/ts/memory/semantic";
 import {
+	assertKeyedRateLimitRequest,
+	evaluateFixedWindowRateLimitTransition,
+	evaluateSlidingWindowRateLimitTransition,
+	evaluateTokenBucketRateLimitTransition,
+	keyedRateLimitAdmissionBundle,
+	localFixedWindowRateLimitBundle,
+	type FixedWindowRateLimitPolicy,
+	type KeyedRateLimitRequest,
+	type LocalFixedWindowRateLimitOptions,
+	type SlidingWindowRateLimitState,
+	type TokenBucketRateLimitTransition,
+} from "@graphrefly/ts/rate-limit";
+import {
 	admissionScored,
 	cosineSimilarity,
 	isFiniteScore,
@@ -849,6 +915,12 @@ void processToolProviderCatalog;
 void boundaryManifest;
 void validateMemoryFragment;
 void memoryRetrievalBundle;
+void assertKeyedRateLimitRequest;
+void evaluateFixedWindowRateLimitTransition;
+void evaluateSlidingWindowRateLimitTransition;
+void evaluateTokenBucketRateLimitTransition;
+void keyedRateLimitAdmissionBundle;
+void localFixedWindowRateLimitBundle;
 void admissionScored;
 void cosineSimilarity;
 void isFiniteScore;
@@ -946,6 +1018,11 @@ declare const runtimeRetentionPolicy: ToolProviderAdapterRuntimeRetentionPolicy;
 declare const runtimeStatus: ToolProviderAdapterRuntimeStatus;
 declare const runtimeStatusKind: ToolProviderAdapterRuntimeStatusKind;
 declare const publicTextPolicy: ToolProviderPublicTextPolicy;
+declare const fixedWindowRateLimitPolicy: FixedWindowRateLimitPolicy;
+declare const keyedRateLimitRequest: KeyedRateLimitRequest;
+declare const localFixedWindowRateLimitOptions: LocalFixedWindowRateLimitOptions;
+declare const slidingWindowRateLimitState: SlidingWindowRateLimitState;
+declare const tokenBucketRateLimitTransition: TokenBucketRateLimitTransition;
 declare const httpDriver: HttpToolProviderDriver;
 declare const httpRuntimeBundle: HttpToolProviderRuntimeBundle;
 declare const httpRuntimeOptions: HttpToolProviderRuntimeOptions;
@@ -1022,6 +1099,11 @@ void runtimeRetentionPolicy;
 void runtimeStatus;
 void runtimeStatusKind;
 void publicTextPolicy;
+void fixedWindowRateLimitPolicy;
+void keyedRateLimitRequest;
+void localFixedWindowRateLimitOptions;
+void slidingWindowRateLimitState;
+void tokenBucketRateLimitTransition;
 void httpDriver;
 void httpRuntimeBundle;
 void httpRuntimeOptions;
@@ -1045,7 +1127,10 @@ void protobufBundle;
 	void passiveStoreFrameWriteResult;
 	`,
 	);
-	const rootForbiddenNames = [...rootAbsentExports, ...rootAbsentTypeExports].join(", ");
+	const rootForbiddenExports = [
+		...new Set([...rootAbsentExports, ...rootAbsentTypeExports, ...rateLimitPublicExports]),
+	];
+	const rootForbiddenNames = rootForbiddenExports.join(", ");
 	writeFileSync(
 		join(tmp, "root-negative.mts"),
 		`import type { ${rootForbiddenNames} } from "@graphrefly/ts";
@@ -1054,6 +1139,11 @@ void protobufBundle;
 	writeFileSync(
 		join(tmp, "adapters-negative.mts"),
 		`import type { useNodeValue, useNodeInput, useNodeRecord, createNodeValue, createNodeInput, createNodeRecord, nodeReadable, nodeWritable, nodeRecord, fromNestReq, toNestHttp } from "@graphrefly/ts/adapters";
+`,
+	);
+	writeFileSync(
+		join(tmp, "orchestration-negative.mts"),
+		`import type { ${rateLimitPublicExports.join(", ")} } from "@graphrefly/ts/orchestration";
 `,
 	);
 	writeFileSync(
@@ -1084,8 +1174,9 @@ void protobufBundle;
 	execFileSync(process.execPath, ["esm-smoke.mjs"], { cwd: tmp, stdio: "pipe" });
 	execFileSync(process.execPath, ["cjs-smoke.cjs"], { cwd: tmp, stdio: "pipe" });
 	execFileSync(TSC, ["-p", "tsconfig.json"], { cwd: tmp, stdio: "pipe" });
-	expectTscFailure(tmp, "root-negative.mts", [...rootAbsentExports, ...rootAbsentTypeExports]);
+	expectTscFailure(tmp, "root-negative.mts", rootForbiddenExports);
 	expectTscFailure(tmp, "adapters-negative.mts", expectedSubpaths["./adapters"].absent);
+	expectTscFailure(tmp, "orchestration-negative.mts", rateLimitPublicExports);
 	expectTscFailure(
 		tmp,
 		"scheduling-negative.mts",

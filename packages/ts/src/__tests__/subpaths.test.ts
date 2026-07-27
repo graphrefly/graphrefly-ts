@@ -181,6 +181,7 @@ import type {
 import * as orchestrationWorkQueueRecipe from "../orchestration/work-queue.js";
 import * as eventFlowPatterns from "../patterns/event-flow.js";
 import * as patterns from "../patterns/index.js";
+import * as rateLimit from "../rate-limit/index.js";
 import * as render from "../render/index.js";
 import * as scoring from "../scoring/index.js";
 import * as agenticMemoryBrowser from "../solutions/agentic-memory/browser.js";
@@ -283,6 +284,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./orchestration/work-queue",
 			"./patterns",
 			"./patterns/event-flow",
+			"./rate-limit",
 			"./render",
 			"./scoring",
 			"./solutions",
@@ -1025,7 +1027,34 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof orchestration.breakerBundle).toBe("function");
 		expect(typeof orchestration.processBundle).toBe("function");
 		expect(typeof orchestration.processEffectRunner).toBe("function");
-		expect(typeof orchestration.rateLimitBundle).toBe("function");
+		expect(Object.hasOwn(orchestration, "localFixedWindowRateLimitBundle")).toBe(false);
+		expect(Object.hasOwn(orchestration, "keyedRateLimitAdmissionBundle")).toBe(false);
+		expect(Object.hasOwn(orchestration, "assertKeyedRateLimitRequest")).toBe(false);
+		expect(Object.hasOwn(orchestration, "evaluateFixedWindowRateLimitTransition")).toBe(false);
+		expect(Object.hasOwn(orchestration, "evaluateSlidingWindowRateLimitTransition")).toBe(false);
+		expect(Object.hasOwn(orchestration, "evaluateTokenBucketRateLimitTransition")).toBe(false);
+		expect(Object.hasOwn(orchestration, "rateLimitBundle")).toBe(false);
+		expect(typeof rateLimit.localFixedWindowRateLimitBundle).toBe("function");
+		expect(typeof rateLimit.keyedRateLimitAdmissionBundle).toBe("function");
+		expect(typeof rateLimit.assertKeyedRateLimitRequest).toBe("function");
+		expect(typeof rateLimit.evaluateFixedWindowRateLimitTransition).toBe("function");
+		expect(typeof rateLimit.evaluateSlidingWindowRateLimitTransition).toBe("function");
+		expect(typeof rateLimit.evaluateTokenBucketRateLimitTransition).toBe("function");
+		expect(typeof rateLimit.assertKeyedRateLimitTransition).toBe("function");
+		expect(typeof rateLimit.createFixedWindowRateLimitPolicy).toBe("function");
+		expect(typeof rateLimit.KeyedRateLimitTransitionError).toBe("function");
+		expect(Object.hasOwn(rateLimit, "attachKeyedRateLimitAuthority")).toBe(false);
+		expect(Object.hasOwn(rateLimit, "RateLimitStore")).toBe(false);
+		expect(Object.hasOwn(rateLimit, "rateLimitBundle")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "localFixedWindowRateLimitBundle")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "keyedRateLimitAdmissionBundle")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "evaluateFixedWindowRateLimitTransition")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "evaluateSlidingWindowRateLimitTransition")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "evaluateTokenBucketRateLimitTransition")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "assertKeyedRateLimitTransition")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "createFixedWindowRateLimitPolicy")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "KeyedRateLimitTransitionError")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "attachKeyedRateLimitAuthority")).toBe(false);
 		expect(typeof orchestration.timeoutBundle).toBe("function");
 		expect(typeof orchestration.requestSatisfactionProjector).toBe("function");
 		expect(typeof orchestration.effectRunCompletionProjector).toBe("function");

@@ -50,6 +50,7 @@ export default defineConfig({
 		"src/orchestration/index.ts",
 		"src/orchestration/messaging.ts",
 		"src/orchestration/work-queue.ts",
+		"src/rate-limit/index.ts",
 		"src/patterns/event-flow.ts",
 		"src/patterns/index.ts",
 		"src/render/index.ts",

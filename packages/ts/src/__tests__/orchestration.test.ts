@@ -4,7 +4,6 @@ import { compoundTupleKey } from "../identity.js";
 import {
 	backoffDelayMs,
 	breakerBundle,
-	localFixedWindowRateLimitBundle,
 	type ProcessEffectCommandPayload,
 	type ProcessEffectOutcome,
 	processBundle,
@@ -12,6 +11,7 @@ import {
 	retryPolicy,
 	retryStatusBundle,
 } from "../orchestration/index.js";
+import { localFixedWindowRateLimitBundle } from "../rate-limit/index.js";
 
 describe("graph-visible resilience bundles (D132)", () => {
 	it("shares bounded retry/backoff policy semantics", () => {

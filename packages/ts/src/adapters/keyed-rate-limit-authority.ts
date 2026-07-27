@@ -13,7 +13,7 @@ import {
 	type KeyedRateLimitRequest,
 	keyedRateLimitAdmissionBundle,
 	keyedRateLimitRequestIdentity,
-} from "../orchestration/keyed-rate-limit.js";
+} from "../rate-limit/keyed-rate-limit.js";
 
 const DEFAULT_MAX_IN_FLIGHT = 128;
 const DEFAULT_MAX_COMPLETED = 256;

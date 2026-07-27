@@ -428,6 +428,16 @@
 				"default": "./dist/orchestration/work-queue.cjs"
 			}
 		},
+		"./rate-limit": {
+			"import": {
+				"types": "./dist/rate-limit/index.d.ts",
+				"default": "./dist/rate-limit/index.js"
+			},
+			"require": {
+				"types": "./dist/rate-limit/index.d.cts",
+				"default": "./dist/rate-limit/index.cjs"
+			}
+		},
 		"./patterns": {
 			"import": {
 				"types": "./dist/patterns/index.d.ts",

@@ -45,6 +45,7 @@ See [Adapters](/integrations/adapters/) for usage guidance and naming convention
 | CQRS messaging recipe | Focused CQRS messaging recipe | `@graphrefly/ts/cqrs/messaging` |
 | CQRS work-queue recipe | Focused CQRS work-queue recipe | `@graphrefly/ts/cqrs/work-queue` |
 | Work queue | Work queue facts and projections | `@graphrefly/ts/work-queue` |
+| Rate limit | Strict keyed admission contracts, exact host-side reference transitions, and the explicitly local fixed-window helper | `@graphrefly/ts/rate-limit` |
 | Orchestration | Process, retry, timeout, tool-provider, and scheduled-readiness projectors | `@graphrefly/ts/orchestration` |
 | Orchestration messaging recipe | Focused orchestration messaging recipe | `@graphrefly/ts/orchestration/messaging` |
 | Orchestration work-queue recipe | Focused orchestration work-queue recipe | `@graphrefly/ts/orchestration/work-queue` |

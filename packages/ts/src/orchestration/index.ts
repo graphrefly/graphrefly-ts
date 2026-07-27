@@ -16,7 +16,6 @@ export {
 	shouldRetry,
 } from "../graph/resilience.js";
 export * from "./agent-runtime.js";
-export * from "./keyed-rate-limit.js";
 export * from "./process.js";
 export * from "./resilience-bundles.js";
 export type {

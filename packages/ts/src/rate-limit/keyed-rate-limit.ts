@@ -1,3 +1,4 @@
+/** D651 focused keyed rate-limit contracts and graph-visible admission correlation. */
 import { depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";

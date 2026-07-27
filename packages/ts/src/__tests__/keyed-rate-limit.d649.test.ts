@@ -19,7 +19,7 @@ import {
 	type KeyedRateLimitStatus,
 	keyedRateLimitAdmissionBundle,
 	keyedRateLimitRequestIdentity,
-} from "../orchestration/index.js";
+} from "../rate-limit/index.js";
 
 function request(
 	requestId: string,
