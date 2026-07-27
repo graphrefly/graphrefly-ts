@@ -1,7 +1,6 @@
 ---
 name: design-review
 description: "Validate the design of a new primitive or API surface against the 5-question lens (Q5–Q9 from the per-unit review format). Use BEFORE coding (or right after a sketch lands) when adding a new public API / pattern factory / domain primitive. Triggers: 'design review', 'review the design', 'is this the right shape', 'before I implement'. Different from /qa — that finds bugs in landed code; this validates abstraction + long-term shape + reactive composability + alternatives."
-argument-hint: "[<file path> | <symbol> | --diff] [optional context]"
 ---
 
 You are executing the **design-review** workflow for the **clean-slate GraphReFly** redesign.
@@ -25,8 +24,16 @@ Resolve the target(s) from `$ARGUMENTS`:
 
 1. **`--diff` / no args** — review the new public symbols in the uncommitted diff. Enumerate via `git diff --name-only HEAD` + `git status --short`, filtered to `packages/ts/src/**` files that introduce new exports.
 2. **`<file path>`** — public symbols in that file.
-3. **`<symbol name>`** — Grep-locate, then review.
+3. **`<symbol name>`** — Codegraph-locate when the implementation repository has a live index; otherwise
+   `rg`-locate, then review.
 4. **Multiple targets** — apply Q5–Q9 to each, then add Phase 2 synthesis.
+
+For indexed implementation source, call `codegraph_explore` before raw Read/`rg` and ask for the target's
+exact source, call paths, dependents, closest precedents, tests, public/export boundaries, and blast radius.
+Treat returned source as already read; query again only for uncovered symbols. Read authority jsonl, docs,
+configs, git diff, untracked files, and any stale/unindexed files directly. Never initialize an index
+autonomously. Validate any post-sketch code with the normal compiler, tests, lint, build, and export gates;
+Codegraph is design evidence, not a correctness gate.
 
 Read in parallel before reviewing (clean-slate authority):
 

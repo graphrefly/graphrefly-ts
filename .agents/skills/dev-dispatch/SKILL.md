@@ -1,7 +1,6 @@
 ---
 name: dev-dispatch
 description: "Implement feature/fix with planning and self-test. Use when user says 'dispatch', 'dev-dispatch', or provides a task with implementation context. Supports --light flag for bug fixes and small changes. Run /qa afterward for code review and final checks."
-argument-hint: "[--light] [task description or context]"
 ---
 
 You are executing the **dev-dispatch** workflow for the **clean-slate GraphReFly** redesign.
@@ -21,8 +20,21 @@ If `$ARGUMENTS` contains `--light`, this is **light mode**. Otherwise **full mod
 - **decision-first**: any architectural lock needs a `D#` in `~/src/graphrefly/decisions/decisions.jsonl` BEFORE code (`/design-review` → user approval → append). Decisions locked ≠ implementation approved — wait for an explicit "implement".
 - **spec-first** (F-NO-IMPL-DEFINED): any wave-protocol behavior change amends `spec/rules.jsonl` + `formal/*.tla` + `spec/conformance.jsonl` FIRST (`/spec-amend`), THEN code. Operators/sugar/inspection are per-language (D6/D24) — NOT spec, skip spec-amend.
 - **no autonomous decisions**: surface spec↔code conflicts; don't silently pick. File-by-file review for multi-file rewrites.
-- **verify premise**: design tables lag code — grep the named symbols + check landed markers (`plan/phases.jsonl` status/notes) before designing new surface; a stale premise is a HALT.
+- **verify premise**: design tables lag code — inspect the named symbols + check landed markers (`plan/phases.jsonl` status/notes) before designing new surface; a stale premise is a HALT.
 - **consistency gate**: after touching any `~/src/graphrefly` jsonl, run `node ~/src/graphrefly/dashboard/build.mjs --check` (non-zero on broken links / orphans).
+
+### Code-intelligence routing
+
+- For implementation source in a repository with a live `.codegraph` index, call `codegraph_explore`
+  before raw Read/`rg`. Query the named symbols or flow endpoints and request exact source, call paths,
+  dependents, relevant tests, export/build boundaries, and blast radius.
+- Treat returned source as already read; do not re-read or grep it merely to verify Codegraph. Use another
+  targeted query only for uncovered symbols or paths.
+- Read `AGENTS.md`, `CLAUDE.md`, skills, authority jsonl, docs, configs, generated artifacts, git diff,
+  untracked files, and unindexed files directly. If the index is absent/disabled or reports stale files,
+  follow its fallback guidance and never initialize an index autonomously.
+- After edits, verify correctness with git diff, compiler/typecheck, tests, lint, build, and package/export
+  gates. Codegraph informs scope and blast radius; it is not a correctness gate.
 
 ---
 

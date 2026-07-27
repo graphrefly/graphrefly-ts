@@ -1,7 +1,6 @@
 ---
 name: decision-guard
 description: "GraphReFly clean-slate decision-consistency check. Loads the user's locked values/principles + the unified D-numbered decision log (decisions.jsonl) + recurring decision-process patterns. Use BEFORE answering any question of the form 'is this consistent with our decisions?', 'should I pick option A/B/C?', 'what about this proposed fix?', 'is X part of our scope?', 'is this a regression on a prior decision?'. Triggers: 'decision check', 'drift check', 'align check', 'is this consistent', 'should I pick', 'what about this', 'is this in scope', 'consistency review'."
-argument-hint: "[short context of what you're being asked about — paste the proposal if relevant]"
 ---
 
 # decision-guard — recall and apply locked decisions, values, invariants (clean-slate)
@@ -34,7 +33,7 @@ expanding a locked slice, or builds on a premise that may be stale.
 3. **Single source of truth**: one canonical per concern; index points, never duplicates. `feedback_single_source_of_truth`.
 4. **No autonomous decisions** (hard rule): surface spec↔code conflicts; don't silently pick; file-by-file review for multi-file rewrites. `feedback_no_autonomous_decisions`.
 5. **No implement without approval**: decisions locked ≠ implementation approved. `feedback_no_implement_without_approval`.
-6. **Verify premise before greenfield**: design tables lag code — grep symbols + check landed markers before a 9Q; stale premise = HALT. `feedback_verify_premise_before_greenfield`.
+6. **Verify premise before greenfield**: design tables lag code — inspect symbols + check landed markers before a 9Q; stale premise = HALT. `feedback_verify_premise_before_greenfield`.
 7. **Latest versions + context7** for current API docs. `feedback_latest_versions_context7`.
 8. **Long-command observation discipline** (run-logged + DONE sentinel; no tail; no sleep-poll) and **subagent bg hygiene** (sync-verify or teardown before return). `feedback_long_command_observation`, `feedback_subagent_bg_hygiene`.
 
@@ -57,7 +56,11 @@ graph-level shared mutable state accessed implicitly (must be explicit node + de
 
 1. **Identify the governing D#.** Grep `decisions.jsonl` by `layer`/keyword. Is the proposal within a locked D's scope? Mid-implementation scope expansion = anti-pattern unless promoted to a NEW D#.
 2. **Check the spec.** Does `rules.jsonl` pin the behavior? If yes, follow it — divergence is a bug, not a design call. If silent/ambiguous → real design HALT.
-3. **Verify premise (value 6).** Has the symbol/surface already landed? grep before designing new surface.
+3. **Verify premise (value 6).** Has the symbol/surface already landed? In a repository with a live
+   `.codegraph` index, call `codegraph_explore` first for the exact source, callers/dependents, tests,
+   export boundary, and blast radius. Treat its source as already read and query again only for uncovered
+   paths. Use direct `rg`/Read for authority jsonl, docs, configs, git diff, untracked files, and
+   stale/unindexed files; never initialize an index autonomously.
 4. **Apply values + floor.** Especially: no autonomous decisions, no imperative, single source of truth, sync-core/async-at-boundary, F-* constraints.
 5. **Verdict:** `consistent (cite D#)` / `regression on D#` / `out-of-scope` / `needs new decision (don't auto-pick)`.
 6. **Routing:**

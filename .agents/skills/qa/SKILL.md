@@ -1,7 +1,6 @@
 ---
 name: qa
 description: "Adversarial code review, apply fixes, final checks (test/lint/build), and doc updates. Run after /dev-dispatch or any manual implementation. Use when user says 'qa', 'review', or 'code review'. Supports --skip-docs to skip documentation phase."
-argument-hint: "[--skip-docs] [optional context about what was implemented]"
 ---
 
 You are executing the **qa** workflow for the **clean-slate GraphReFly** redesign.
@@ -25,6 +24,14 @@ Inspect the diff to detect which package(s) are touched: `packages/ts/` (this re
 ### 1a. Gather the diff
 
 Run `git diff` for uncommitted changes; if the chat's work was already committed, diff against the chat's baseline commit (`git log --oneline` to find it, then `git diff <base>..HEAD`). Include relevant untracked files (read them). Concentrate the review on the **substantive hand-written code** — formally-verified TLA+ (already TLC-checked), generated artifacts, and jsonl data are lower bug-risk than imperative substrate/graph code.
+
+For changed implementation source in a repository with a live `.codegraph` index, call
+`codegraph_explore` after gathering the diff and before raw source Read/`rg`. Query the changed symbols or
+flow endpoints for exact source, callers/callees, dependents, relevant tests, export/build boundaries, and
+blast radius. Treat returned source as already read; use a second targeted query only for uncovered paths.
+Read the diff, untracked/stale files, authority jsonl, docs, configs, and generated artifacts directly. If
+the index is absent/disabled or reports stale files, follow its fallback guidance and never initialize it
+autonomously. Codegraph does not replace diff review, compiler/typecheck, tests, lint, build, or export gates.
 
 Also load the clean-slate context the review must NOT contradict:
 - `~/src/graphrefly/spec/rules.jsonl` — the protocol 宪法 (R-* rules); the behavior authority. Cite R-ids in findings.
