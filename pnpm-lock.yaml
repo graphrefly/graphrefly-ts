@@ -214,6 +214,19 @@ importers:
         specifier: ^19.0.0
         version: 19.2.4(react@19.2.4)
 
+  examples/basic/keyed-rate-limit:
+    dependencies:
+      '@graphrefly/ts':
+        specifier: workspace:*
+        version: link:../../../packages/ts
+    devDependencies:
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
   examples/basic/state-and-derived:
     dependencies:
       '@graphrefly/ts':

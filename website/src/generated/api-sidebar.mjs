@@ -1025,6 +1025,10 @@ export const apiSidebar = [
 				"link": "/api/websocketsession"
 			},
 			{
+				"label": "attachKeyedRateLimitAuthority()",
+				"link": "/api/attachkeyedratelimitauthority"
+			},
+			{
 				"label": "attachObserveSink()",
 				"link": "/api/attachobservesink"
 			},
@@ -1323,10 +1327,6 @@ export const apiSidebar = [
 			{
 				"label": "breakerBundle()",
 				"link": "/api/breakerbundle"
-			},
-			{
-				"label": "rateLimitBundle()",
-				"link": "/api/ratelimitbundle"
 			},
 			{
 				"label": "timeoutBundle()",
@@ -2421,6 +2421,144 @@ export const apiSidebar = [
 			{
 				"label": "isMemoryFragment()",
 				"link": "/api/ismemoryfragment"
+			}
+		]
+	},
+	{
+		"label": "Rate Limit",
+		"collapsed": true,
+		"items": [
+			{
+				"label": "KeyedRateLimitTransitionError",
+				"link": "/api/keyedratelimittransitionerror"
+			},
+			{
+				"label": "createFixedWindowRateLimitPolicy()",
+				"link": "/api/createfixedwindowratelimitpolicy"
+			},
+			{
+				"label": "createSlidingWindowRateLimitPolicy()",
+				"link": "/api/createslidingwindowratelimitpolicy"
+			},
+			{
+				"label": "createTokenBucketRateLimitPolicy()",
+				"link": "/api/createtokenbucketratelimitpolicy"
+			},
+			{
+				"label": "createFixedWindowRateLimitTransitionInput()",
+				"link": "/api/createfixedwindowratelimittransitioninput"
+			},
+			{
+				"label": "createSlidingWindowRateLimitTransitionInput()",
+				"link": "/api/createslidingwindowratelimittransitioninput"
+			},
+			{
+				"label": "createTokenBucketRateLimitTransitionInput()",
+				"link": "/api/createtokenbucketratelimittransitioninput"
+			},
+			{
+				"label": "assertFixedWindowRateLimitPolicy()",
+				"link": "/api/assertfixedwindowratelimitpolicy"
+			},
+			{
+				"label": "assertSlidingWindowRateLimitPolicy()",
+				"link": "/api/assertslidingwindowratelimitpolicy"
+			},
+			{
+				"label": "assertTokenBucketRateLimitPolicy()",
+				"link": "/api/asserttokenbucketratelimitpolicy"
+			},
+			{
+				"label": "assertKeyedRateLimitReferencePolicy()",
+				"link": "/api/assertkeyedratelimitreferencepolicy"
+			},
+			{
+				"label": "assertFixedWindowRateLimitState()",
+				"link": "/api/assertfixedwindowratelimitstate"
+			},
+			{
+				"label": "assertSlidingWindowRateLimitState()",
+				"link": "/api/assertslidingwindowratelimitstate"
+			},
+			{
+				"label": "assertTokenBucketRateLimitState()",
+				"link": "/api/asserttokenbucketratelimitstate"
+			},
+			{
+				"label": "assertKeyedRateLimitReferenceState()",
+				"link": "/api/assertkeyedratelimitreferencestate"
+			},
+			{
+				"label": "assertFixedWindowRateLimitTransitionInput()",
+				"link": "/api/assertfixedwindowratelimittransitioninput"
+			},
+			{
+				"label": "assertSlidingWindowRateLimitTransitionInput()",
+				"link": "/api/assertslidingwindowratelimittransitioninput"
+			},
+			{
+				"label": "assertTokenBucketRateLimitTransitionInput()",
+				"link": "/api/asserttokenbucketratelimittransitioninput"
+			},
+			{
+				"label": "assertKeyedRateLimitReferenceTransitionInput()",
+				"link": "/api/assertkeyedratelimitreferencetransitioninput"
+			},
+			{
+				"label": "evaluateFixedWindowRateLimitTransition()",
+				"link": "/api/evaluatefixedwindowratelimittransition"
+			},
+			{
+				"label": "evaluateSlidingWindowRateLimitTransition()",
+				"link": "/api/evaluateslidingwindowratelimittransition"
+			},
+			{
+				"label": "evaluateTokenBucketRateLimitTransition()",
+				"link": "/api/evaluatetokenbucketratelimittransition"
+			},
+			{
+				"label": "assertFixedWindowRateLimitTransition()",
+				"link": "/api/assertfixedwindowratelimittransition"
+			},
+			{
+				"label": "assertSlidingWindowRateLimitTransition()",
+				"link": "/api/assertslidingwindowratelimittransition"
+			},
+			{
+				"label": "assertTokenBucketRateLimitTransition()",
+				"link": "/api/asserttokenbucketratelimittransition"
+			},
+			{
+				"label": "assertKeyedRateLimitTransition()",
+				"link": "/api/assertkeyedratelimittransition"
+			},
+			{
+				"label": "assertKeyedRateLimitRequest()",
+				"link": "/api/assertkeyedratelimitrequest"
+			},
+			{
+				"label": "keyedRateLimitRequestIdentity()",
+				"link": "/api/keyedratelimitrequestidentity"
+			},
+			{
+				"label": "assertKeyedRateLimitRequestIdentity()",
+				"link": "/api/assertkeyedratelimitrequestidentity"
+			},
+			{
+				"label": "createKeyedRateLimitOutcome()",
+				"link": "/api/createkeyedratelimitoutcome"
+			},
+			{
+				"label": "assertKeyedRateLimitOutcome()",
+				"link": "/api/assertkeyedratelimitoutcome"
+			},
+			{
+				"label": "keyedRateLimitAdmissionBundle()",
+				"link": "/api/keyedratelimitadmissionbundle"
+			},
+			{
+				"label": "localFixedWindowRateLimitBundle()",
+				"link": "/api/localfixedwindowratelimitbundle"
 			}
 		]
 	},

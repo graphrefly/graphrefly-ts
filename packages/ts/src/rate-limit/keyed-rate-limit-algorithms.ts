@@ -203,7 +203,15 @@ export type KeyedRateLimitTransitionErrorCode =
 	| "arithmetic-overflow"
 	| "state-bound-overflow";
 
-/** Sanitized fail-closed error from a D650 reference transition evaluator. */
+/**
+ * Sanitized fail-closed error from a D650 reference transition evaluator.
+ *
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { KeyedRateLimitTransitionError } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export class KeyedRateLimitTransitionError extends Error {
 	readonly code: KeyedRateLimitTransitionErrorCode;
 
@@ -235,7 +243,18 @@ export interface CreateTokenBucketRateLimitPolicyOptions {
 	readonly initialUnits: number;
 }
 
-/** Create one exact scoped fixed-window-v1 policy from an already-identifiable request. */
+/**
+ * Create one exact scoped fixed-window-v1 policy from an already-identifiable request.
+ *
+ * @param requestValue - Complete strict request that establishes the exact scope.
+ * @param opts - State revision, capacity, and epoch-aligned window duration.
+ * @returns The immutable normalized fixed-window policy.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { createFixedWindowRateLimitPolicy } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function createFixedWindowRateLimitPolicy(
 	requestValue: unknown,
 	opts: CreateFixedWindowRateLimitPolicyOptions,
@@ -253,7 +272,18 @@ export function createFixedWindowRateLimitPolicy(
 	});
 }
 
-/** Create one exact scoped sliding-window-v1 policy from an already-identifiable request. */
+/**
+ * Create one exact scoped sliding-window-v1 policy from an already-identifiable request.
+ *
+ * @param requestValue - Complete strict request that establishes the exact scope.
+ * @param opts - State revision, capacity, exact window, and bounded ledger size.
+ * @returns The immutable normalized sliding-window policy.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { createSlidingWindowRateLimitPolicy } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function createSlidingWindowRateLimitPolicy(
 	requestValue: unknown,
 	opts: CreateSlidingWindowRateLimitPolicyOptions,
@@ -272,7 +302,18 @@ export function createSlidingWindowRateLimitPolicy(
 	});
 }
 
-/** Create one exact scoped token-bucket-v1 policy from an already-identifiable request. */
+/**
+ * Create one exact scoped token-bucket-v1 policy from an already-identifiable request.
+ *
+ * @param requestValue - Complete strict request that establishes the exact scope.
+ * @param opts - State revision, capacity, integer refill ratio, and initial units.
+ * @returns The immutable normalized token-bucket policy.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { createTokenBucketRateLimitPolicy } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function createTokenBucketRateLimitPolicy(
 	requestValue: unknown,
 	opts: CreateTokenBucketRateLimitPolicyOptions,
@@ -298,7 +339,21 @@ export function createTokenBucketRateLimitPolicy(
 	});
 }
 
-/** Create and strictly normalize one fixed-window-v1 evaluator input. */
+/**
+ * Create and strictly normalize one fixed-window-v1 evaluator input.
+ *
+ * @param request - Complete strict request to evaluate.
+ * @param policy - Exact scoped fixed-window policy.
+ * @param state - Exact scoped state, or `null` only when the host atomically confirms that no
+ * exact scoped state exists and authorizes this evaluation to perform first initialization.
+ * @param observedAtMs - Externally supplied authoritative Unix epoch milliseconds.
+ * @returns The immutable normalized fixed-window evaluator input.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { createFixedWindowRateLimitTransitionInput } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function createFixedWindowRateLimitTransitionInput(
 	request: unknown,
 	policy: unknown,
@@ -316,7 +371,21 @@ export function createFixedWindowRateLimitTransitionInput(
 	});
 }
 
-/** Create and strictly normalize one sliding-window-v1 evaluator input. */
+/**
+ * Create and strictly normalize one sliding-window-v1 evaluator input.
+ *
+ * @param request - Complete strict request to evaluate.
+ * @param policy - Exact scoped sliding-window policy.
+ * @param state - Exact scoped state, or `null` only when the host atomically confirms that no
+ * exact scoped state exists and authorizes this evaluation to perform first initialization.
+ * @param observedAtMs - Externally supplied authoritative Unix epoch milliseconds.
+ * @returns The immutable normalized sliding-window evaluator input.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { createSlidingWindowRateLimitTransitionInput } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function createSlidingWindowRateLimitTransitionInput(
 	request: unknown,
 	policy: unknown,
@@ -334,7 +403,21 @@ export function createSlidingWindowRateLimitTransitionInput(
 	});
 }
 
-/** Create and strictly normalize one token-bucket-v1 evaluator input. */
+/**
+ * Create and strictly normalize one token-bucket-v1 evaluator input.
+ *
+ * @param request - Complete strict request to evaluate.
+ * @param policy - Exact scoped token-bucket policy.
+ * @param state - Exact scoped state, or `null` only when the host atomically confirms that no
+ * exact scoped state exists and authorizes this evaluation to perform first initialization.
+ * @param observedAtMs - Externally supplied authoritative Unix epoch milliseconds.
+ * @returns The immutable normalized token-bucket evaluator input.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { createTokenBucketRateLimitTransitionInput } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function createTokenBucketRateLimitTransitionInput(
 	request: unknown,
 	policy: unknown,
@@ -352,6 +435,17 @@ export function createTokenBucketRateLimitTransitionInput(
 	});
 }
 
+/**
+ * Validate and deeply normalize one strict fixed-window-v1 policy.
+ *
+ * @param value - Candidate strict JSON policy material.
+ * @returns The immutable normalized fixed-window policy.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { assertFixedWindowRateLimitPolicy } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function assertFixedWindowRateLimitPolicy(value: unknown): FixedWindowRateLimitPolicy {
 	return sanitized("malformed-policy", () => {
 		const object = strictObject(value, "fixed-window policy");
@@ -376,6 +470,17 @@ export function assertFixedWindowRateLimitPolicy(value: unknown): FixedWindowRat
 	});
 }
 
+/**
+ * Validate and deeply normalize one strict sliding-window-v1 policy.
+ *
+ * @param value - Candidate strict JSON policy material.
+ * @returns The immutable normalized sliding-window policy.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { assertSlidingWindowRateLimitPolicy } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function assertSlidingWindowRateLimitPolicy(value: unknown): SlidingWindowRateLimitPolicy {
 	return sanitized("malformed-policy", () => {
 		const object = strictObject(value, "sliding-window policy");
@@ -403,6 +508,17 @@ export function assertSlidingWindowRateLimitPolicy(value: unknown): SlidingWindo
 	});
 }
 
+/**
+ * Validate and deeply normalize one strict token-bucket-v1 policy.
+ *
+ * @param value - Candidate strict JSON policy material.
+ * @returns The immutable normalized token-bucket policy.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { assertTokenBucketRateLimitPolicy } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function assertTokenBucketRateLimitPolicy(value: unknown): TokenBucketRateLimitPolicy {
 	return sanitized("malformed-policy", () => {
 		const object = strictObject(value, "token-bucket policy");
@@ -441,6 +557,17 @@ export function assertTokenBucketRateLimitPolicy(value: unknown): TokenBucketRat
 	});
 }
 
+/**
+ * Validate a strict policy from any supported reference-transition family.
+ *
+ * @param value - Candidate fixed-window, sliding-window, or token-bucket policy.
+ * @returns The immutable normalized reference policy.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { assertKeyedRateLimitReferencePolicy } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function assertKeyedRateLimitReferencePolicy(value: unknown): KeyedRateLimitReferencePolicy {
 	const object = sanitized("malformed-policy", () => strictObject(value, "reference policy"));
 	if (object.format === FIXED_WINDOW_RATE_LIMIT_POLICY_FORMAT) {
@@ -455,6 +582,17 @@ export function assertKeyedRateLimitReferencePolicy(value: unknown): KeyedRateLi
 	fail("malformed-policy");
 }
 
+/**
+ * Validate and deeply normalize exact fixed-window-v1 quota state.
+ *
+ * @param value - Candidate strict JSON state material.
+ * @returns The immutable normalized fixed-window state.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { assertFixedWindowRateLimitState } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function assertFixedWindowRateLimitState(value: unknown): FixedWindowRateLimitState {
 	return sanitized("malformed-state", () => {
 		const object = strictObject(value, "fixed-window state");
@@ -478,6 +616,17 @@ export function assertFixedWindowRateLimitState(value: unknown): FixedWindowRate
 	});
 }
 
+/**
+ * Validate exact bounded and canonically ordered sliding-window-v1 state.
+ *
+ * @param value - Candidate strict JSON state material.
+ * @returns The immutable normalized sliding-window state.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { assertSlidingWindowRateLimitState } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function assertSlidingWindowRateLimitState(value: unknown): SlidingWindowRateLimitState {
 	return sanitized("malformed-state", () => {
 		const object = strictObject(value, "sliding-window state");
@@ -523,6 +672,17 @@ export function assertSlidingWindowRateLimitState(value: unknown): SlidingWindow
 	});
 }
 
+/**
+ * Validate exact integer-rational token-bucket-v1 state.
+ *
+ * @param value - Candidate strict JSON state material.
+ * @returns The immutable normalized token-bucket state.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { assertTokenBucketRateLimitState } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function assertTokenBucketRateLimitState(value: unknown): TokenBucketRateLimitState {
 	return sanitized("malformed-state", () => {
 		const object = strictObject(value, "token-bucket state");
@@ -554,6 +714,17 @@ export function assertTokenBucketRateLimitState(value: unknown): TokenBucketRate
 	});
 }
 
+/**
+ * Validate state from any supported reference-transition family.
+ *
+ * @param value - Candidate fixed-window, sliding-window, or token-bucket state.
+ * @returns The immutable normalized reference state.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { assertKeyedRateLimitReferenceState } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function assertKeyedRateLimitReferenceState(value: unknown): KeyedRateLimitReferenceState {
 	const object = sanitized("malformed-state", () => strictObject(value, "reference state"));
 	if (object.format === FIXED_WINDOW_RATE_LIMIT_STATE_FORMAT) {
@@ -568,6 +739,17 @@ export function assertKeyedRateLimitReferenceState(value: unknown): KeyedRateLim
 	fail("malformed-state");
 }
 
+/**
+ * Validate one strict fixed-window-v1 evaluator input with externally supplied time.
+ *
+ * @param value - Candidate request, policy, state, and `observedAtMs` input.
+ * @returns The immutable normalized fixed-window evaluator input.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { assertFixedWindowRateLimitTransitionInput } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function assertFixedWindowRateLimitTransitionInput(
 	value: unknown,
 ): FixedWindowRateLimitTransitionInput {
@@ -586,6 +768,17 @@ export function assertFixedWindowRateLimitTransitionInput(
 	});
 }
 
+/**
+ * Validate one strict sliding-window-v1 evaluator input with externally supplied time.
+ *
+ * @param value - Candidate request, policy, state, and `observedAtMs` input.
+ * @returns The immutable normalized sliding-window evaluator input.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { assertSlidingWindowRateLimitTransitionInput } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function assertSlidingWindowRateLimitTransitionInput(
 	value: unknown,
 ): SlidingWindowRateLimitTransitionInput {
@@ -604,6 +797,17 @@ export function assertSlidingWindowRateLimitTransitionInput(
 	});
 }
 
+/**
+ * Validate one strict token-bucket-v1 evaluator input with externally supplied time.
+ *
+ * @param value - Candidate request, policy, state, and `observedAtMs` input.
+ * @returns The immutable normalized token-bucket evaluator input.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { assertTokenBucketRateLimitTransitionInput } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function assertTokenBucketRateLimitTransitionInput(
 	value: unknown,
 ): TokenBucketRateLimitTransitionInput {
@@ -622,6 +826,17 @@ export function assertTokenBucketRateLimitTransitionInput(
 	});
 }
 
+/**
+ * Validate an evaluator input from any supported reference-transition family.
+ *
+ * @param value - Candidate strict reference-transition input.
+ * @returns The immutable normalized evaluator input.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { assertKeyedRateLimitReferenceTransitionInput } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function assertKeyedRateLimitReferenceTransitionInput(
 	value: unknown,
 ): KeyedRateLimitReferenceTransitionInput {
@@ -649,6 +864,14 @@ export function assertKeyedRateLimitReferenceTransitionInput(
  * returns the stored outcome without reading time or evaluating; different material conflicts;
  * resolve the exact policy; load exact scoped state; acquire authoritative `observedAtMs`; evaluate;
  * atomically persist `nextState` and the outcome receipt.
+ *
+ * @param value - Strict fixed-window request, policy, state, and supplied observation input.
+ * @returns One immutable ready transition with exact `nextState`.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { evaluateFixedWindowRateLimitTransition } from "@graphrefly/ts/rate-limit";
+ * ```
  */
 export function evaluateFixedWindowRateLimitTransition(
 	value: unknown,
@@ -704,6 +927,14 @@ export function evaluateFixedWindowRateLimitTransition(
  * See {@link evaluateFixedWindowRateLimitTransition} for the mandatory receipt-first durable host
  * ordering. This calculator is synchronous, pure, host-side, and never approximates or evicts an
  * active ledger entry to admit work.
+ *
+ * @param value - Strict sliding-window request, policy, state, and supplied observation input.
+ * @returns One immutable ready transition with the exact bounded ledger `nextState`.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { evaluateSlidingWindowRateLimitTransition } from "@graphrefly/ts/rate-limit";
+ * ```
  */
 export function evaluateSlidingWindowRateLimitTransition(
 	value: unknown,
@@ -796,6 +1027,14 @@ export function evaluateSlidingWindowRateLimitTransition(
  * See {@link evaluateFixedWindowRateLimitTransition} for the mandatory receipt-first durable host
  * ordering. No IEEE floating-point token accumulation is used; saturation discards excess credit
  * and remainder, and a valid denial still advances the returned refill state.
+ *
+ * @param value - Strict token-bucket request, policy, state, and supplied observation input.
+ * @returns One immutable ready transition with integer-rational `nextState`.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { evaluateTokenBucketRateLimitTransition } from "@graphrefly/ts/rate-limit";
+ * ```
  */
 export function evaluateTokenBucketRateLimitTransition(
 	value: unknown,
@@ -879,6 +1118,17 @@ export function evaluateTokenBucketRateLimitTransition(
 	return assertTokenBucketRateLimitTransition(transition);
 }
 
+/**
+ * Validate one ready immutable fixed-window-v1 transition.
+ *
+ * @param value - Candidate transition material.
+ * @returns The normalized fixed-window transition and exact `nextState`.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { assertFixedWindowRateLimitTransition } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function assertFixedWindowRateLimitTransition(
 	value: unknown,
 ): FixedWindowRateLimitTransition {
@@ -889,6 +1139,17 @@ export function assertFixedWindowRateLimitTransition(
 	});
 }
 
+/**
+ * Validate one ready immutable sliding-window-v1 transition.
+ *
+ * @param value - Candidate transition material.
+ * @returns The normalized sliding-window transition and exact `nextState`.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { assertSlidingWindowRateLimitTransition } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function assertSlidingWindowRateLimitTransition(
 	value: unknown,
 ): SlidingWindowRateLimitTransition {
@@ -899,6 +1160,17 @@ export function assertSlidingWindowRateLimitTransition(
 	});
 }
 
+/**
+ * Validate one ready immutable token-bucket-v1 transition.
+ *
+ * @param value - Candidate transition material.
+ * @returns The normalized token-bucket transition and exact `nextState`.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { assertTokenBucketRateLimitTransition } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function assertTokenBucketRateLimitTransition(
 	value: unknown,
 ): TokenBucketRateLimitTransition {
@@ -909,6 +1181,17 @@ export function assertTokenBucketRateLimitTransition(
 	});
 }
 
+/**
+ * Validate a ready transition from any supported reference family.
+ *
+ * @param value - Candidate fixed-window, sliding-window, or token-bucket transition.
+ * @returns The immutable normalized transition.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { assertKeyedRateLimitTransition } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function assertKeyedRateLimitTransition(value: unknown): KeyedRateLimitTransition {
 	const object = sanitized("malformed-transition", () => strictObject(value, "transition"));
 	if (object.algorithm === FIXED_WINDOW_RATE_LIMIT_ALGORITHM) {

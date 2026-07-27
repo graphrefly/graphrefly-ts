@@ -29,6 +29,13 @@ export type KeyedRateLimitAuthorityCancel = () => void;
  * replay must return the same outcome without consuming again; request-id reuse with different
  * material must settle as `conflict`. `complete` must be called at most once. Handles and callbacks
  * never enter Graph DATA.
+ *
+ * Inside one host-owned atomic consume operation, validate and identify the request; look up the
+ * receipt by authority/request id; return the stored outcome for identical material without policy,
+ * state, clock, evaluator, or commit access; return conflict for different material; otherwise
+ * resolve exact policy, load exact scoped state, acquire authoritative time, evaluate, and atomically
+ * persist next state with the outcome receipt. Durable protected-effect receipts are a separate
+ * application/executor boundary.
  */
 export interface KeyedRateLimitAuthority {
 	consume(
@@ -117,6 +124,17 @@ interface KeyedRateLimitAuthorityAdapterRuntimeState {
  * -> exact-admission topology. Governed consumers use `admission.admissions`; they do not wire raw
  * requests to a second correlation gate or protected effect. This adapter supplies no timer, retry
  * loop, store, clock, fingerprint, or application effect executor.
+ *
+ * @param graph - Graph that owns the adapter and composed admission nodes.
+ * @param requests - Strict raw requests entering the bounded adapter.
+ * @param authority - Host-private atomic consume capability.
+ * @param opts - Positive in-flight and retained-completion bounds plus an optional node name.
+ * @returns The graph-visible authority projections and composed admission gate.
+ * @category adapters
+ * @example
+ * ```ts
+ * import { attachKeyedRateLimitAuthority } from "@graphrefly/ts/adapters";
+ * ```
  */
 export function attachKeyedRateLimitAuthority(
 	graph: Graph,

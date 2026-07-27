@@ -60,6 +60,12 @@ const expectedSubpaths = {
 			"nodeRecord",
 			"fromNestReq",
 			"toNestHttp",
+			"assertKeyedRateLimitRequest",
+			"keyedRateLimitAdmissionBundle",
+			"localFixedWindowRateLimitBundle",
+			"evaluateFixedWindowRateLimitTransition",
+			"evaluateSlidingWindowRateLimitTransition",
+			"evaluateTokenBucketRateLimitTransition",
 		],
 	},
 	"./committed-facts": {
@@ -1138,7 +1144,7 @@ void protobufBundle;
 	);
 	writeFileSync(
 		join(tmp, "adapters-negative.mts"),
-		`import type { useNodeValue, useNodeInput, useNodeRecord, createNodeValue, createNodeInput, createNodeRecord, nodeReadable, nodeWritable, nodeRecord, fromNestReq, toNestHttp } from "@graphrefly/ts/adapters";
+		`import type { ${expectedSubpaths["./adapters"].absent.join(", ")} } from "@graphrefly/ts/adapters";
 `,
 	);
 	writeFileSync(

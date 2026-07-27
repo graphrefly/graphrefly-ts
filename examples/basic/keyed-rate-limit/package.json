@@ -1,0 +1,19 @@
+{
+	"name": "@graphrefly-examples/keyed-rate-limit",
+	"private": true,
+	"version": "0.0.22",
+	"type": "module",
+	"description": "Deterministic keyed externally authoritative rate-limit host integration.",
+	"scripts": {
+		"start": "tsx index.ts",
+		"test": "tsx index.ts",
+		"typecheck": "tsc --noEmit -p tsconfig.json"
+	},
+	"dependencies": {
+		"@graphrefly/ts": "workspace:*"
+	},
+	"devDependencies": {
+		"tsx": "^4.21.0",
+		"typescript": "^5.7.0"
+	}
+}

@@ -1,0 +1,18 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "ES2022",
+		"moduleResolution": "bundler",
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"noEmit": true,
+		"baseUrl": ".",
+		"paths": {
+			"@graphrefly/ts/adapters": ["../../../packages/ts/src/adapters/index.ts"],
+			"@graphrefly/ts/graph": ["../../../packages/ts/src/graph/index.ts"],
+			"@graphrefly/ts/rate-limit": ["../../../packages/ts/src/rate-limit/index.ts"]
+		}
+	},
+	"include": ["index.ts", "custom-authority.ts"]
+}

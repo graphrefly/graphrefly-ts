@@ -451,12 +451,17 @@ describe("D650 keyed rate-limit reference transitions — common strict boundary
 			new URL("../rate-limit/keyed-rate-limit-algorithms.ts", import.meta.url),
 			"utf8",
 		);
-		expect(source).not.toMatch(
+		// B111.7 adds generated-doc examples with the required focused public import. Strip JSDoc so
+		// these assertions continue to inspect evaluator implementation ownership rather than prose.
+		const implementationSource = source.replace(/\/\*\*[\s\S]*?\*\//g, "");
+		expect(implementationSource).not.toMatch(
 			/\bDate\.now\b|\bsetTimeout\b|\bsetInterval\b|\bsetImmediate\b|\brequestAnimationFrame\b|\bqueueMicrotask\b/,
 		);
-		expect(source).not.toMatch(/\basync\b|\bPromise\b/);
-		expect(source).not.toMatch(/from\s+["'][^"']*(graph|node|adapter|store|client)[^"']*["']/);
-		expect(source).not.toMatch(
+		expect(implementationSource).not.toMatch(/\basync\b|\bPromise\b/);
+		expect(implementationSource).not.toMatch(
+			/from\s+["'][^"']*(graph|node|adapter|store|client)[^"']*["']/,
+		);
+		expect(implementationSource).not.toMatch(
 			/from\s+["']node:(fs|net|http|https|dns|dgram|tls|child_process)["']|\bfetch\s*\(/,
 		);
 	});

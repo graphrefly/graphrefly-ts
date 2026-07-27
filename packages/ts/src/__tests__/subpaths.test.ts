@@ -426,6 +426,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof adapters.toHttp).toBe("function");
 		expect(typeof adapters.toProcess).toBe("function");
 		expect(typeof adapters.toWebSocket).toBe("function");
+		expect(typeof adapters.attachKeyedRateLimitAuthority).toBe("function");
+		expect(Object.hasOwn(adapters, "assertKeyedRateLimitRequest")).toBe(false);
+		expect(Object.hasOwn(adapters, "keyedRateLimitAdmissionBundle")).toBe(false);
+		expect(Object.hasOwn(adapters, "evaluateFixedWindowRateLimitTransition")).toBe(false);
+		expect(Object.hasOwn(adapters, "evaluateSlidingWindowRateLimitTransition")).toBe(false);
+		expect(Object.hasOwn(adapters, "evaluateTokenBucketRateLimitTransition")).toBe(false);
 		expect(typeof adapters.webSocketSession).toBe("function");
 		expect(typeof adapters.remoteCall).toBe("function");
 		expect(typeof adapters.remoteResponder).toBe("function");

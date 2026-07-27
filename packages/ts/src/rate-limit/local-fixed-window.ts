@@ -39,7 +39,9 @@ type LocalFixedWindowRateLimitEvent<T> =
  *
  * This helper is a local stream-shaping state machine. It is not keyed, durable, atomic across
  * processes, or an application security/enforcement authority. Use the D648 keyed external
- * authority surface when a protected operation depends on durable rate-limit admission.
+ * authority surface when a protected operation depends on host-owned durable quota authority and
+ * receipts; governed protected effects must not use this helper's `allowed` projection as an
+ * authority-adapter bypass.
  *
  * @param graph - Graph that owns the created nodes or projector.
  * @param source - Source node that provides graph-visible input.

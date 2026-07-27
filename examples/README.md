@@ -14,7 +14,8 @@ your own project, replace `workspace:*` with a published version** (see
 ```
 examples/
 ├── basic/
-│   └── state-and-derived/       state() + derived() + subscribe(), run via tsx
+│   ├── state-and-derived/       state() + derived() + subscribe(), run via tsx
+│   └── keyed-rate-limit/        externally authoritative admission + three host evaluators
 ├── compat/
 │   ├── jotai/                   Jotai-style atom facade over caller-owned GraphReFly nodes
 │   ├── nanostores/              Nanostores-style atom facade over caller-owned GraphReFly nodes
@@ -48,6 +49,13 @@ For single-directory examples such as `examples/spending-alerts`, run the
 same commands from that directory instead of `examples/<subject>/<name>`.
 `examples/reactive-layout/recipes/` is documentation-only glue, so it has no
 package commands.
+
+The keyed rate-limit example also exposes deterministic self-check commands:
+
+```bash
+pnpm --filter @graphrefly-examples/keyed-rate-limit typecheck
+pnpm --filter @graphrefly-examples/keyed-rate-limit test
+```
 
 ## Retired
 

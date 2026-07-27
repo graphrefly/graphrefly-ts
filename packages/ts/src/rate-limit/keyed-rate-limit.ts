@@ -297,6 +297,14 @@ interface KeyedRateLimitRuntimeState {
  *
  * Unknown fields, accessors, functions, BigInt, non-plain objects, unsafe numbers, and other
  * non-strict-JSON material fail instead of being ignored.
+ *
+ * @param value - Candidate complete request material.
+ * @returns The immutable normalized strict request.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { assertKeyedRateLimitRequest } from "@graphrefly/ts/rate-limit";
+ * ```
  */
 export function assertKeyedRateLimitRequest(value: unknown): KeyedRateLimitRequest {
 	assertStrictJson(value);
@@ -329,7 +337,17 @@ export function assertKeyedRateLimitRequest(value: unknown): KeyedRateLimitReque
 	return request;
 }
 
-/** Return the strict-canonical identity of the complete D648 request frame. */
+/**
+ * Return the strict-canonical identity of the complete D648 request frame.
+ *
+ * @param value - Candidate complete strict request material.
+ * @returns The immutable canonical request identity.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { keyedRateLimitRequestIdentity } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function keyedRateLimitRequestIdentity(value: unknown): KeyedRateLimitRequestIdentity {
 	const request = assertKeyedRateLimitRequest(value);
 	return Object.freeze({
@@ -339,7 +357,17 @@ export function keyedRateLimitRequestIdentity(value: unknown): KeyedRateLimitReq
 	});
 }
 
-/** Assert that an identity encodes one complete canonical D648 request. */
+/**
+ * Assert that an identity encodes one complete canonical D648 request.
+ *
+ * @param value - Candidate canonical identity material.
+ * @returns The immutable validated request identity.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { assertKeyedRateLimitRequestIdentity } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function assertKeyedRateLimitRequestIdentity(value: unknown): KeyedRateLimitRequestIdentity {
 	assertStrictJson(value);
 	assertDataObject(value, "keyed rate-limit request identity");
@@ -368,7 +396,21 @@ export function assertKeyedRateLimitRequestIdentity(value: unknown): KeyedRateLi
 	});
 }
 
-/** Create one externally supplied outcome without requiring handwritten canonical encoding. */
+/**
+ * Create one externally authoritative outcome without handwritten canonical encoding.
+ *
+ * The host assigns the outcome id after a valid authority decision. This helper owns no durable
+ * receipt, transaction, clock, evaluator, or admission.
+ *
+ * @param requestValue - The complete strict request decided by the host authority.
+ * @param opts - The authoritative result, outcome id, quota material, and provenance.
+ * @returns The immutable strict outcome for adapter delivery.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { createKeyedRateLimitOutcome } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function createKeyedRateLimitOutcome(
 	requestValue: unknown,
 	opts: CreateKeyedRateLimitOutcomeOptions,
@@ -406,7 +448,17 @@ export function createKeyedRateLimitOutcome(
 	return assertKeyedRateLimitOutcome(outcome);
 }
 
-/** Assert and deeply normalize one strict externally authoritative D648 outcome. */
+/**
+ * Assert and deeply normalize one strict externally authoritative D648 outcome.
+ *
+ * @param value - Candidate externally authoritative outcome material.
+ * @returns The immutable normalized strict outcome.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { assertKeyedRateLimitOutcome } from "@graphrefly/ts/rate-limit";
+ * ```
+ */
 export function assertKeyedRateLimitOutcome(value: unknown): KeyedRateLimitOutcome {
 	assertStrictJson(value);
 	assertDataObject(value, "keyed rate-limit outcome");
@@ -478,6 +530,15 @@ export function assertKeyedRateLimitOutcome(value: unknown): KeyedRateLimitOutco
  * owns durable quota, clocks, algorithms, and atomic consume. Replay suppression is exact while a
  * completed correlation remains retained; cross-restart business-effect idempotency remains
  * executor/application-owned.
+ *
+ * @param graph - Graph that owns the declared correlation and projection nodes.
+ * @param opts - One bounded authority-admitted correlation lane and retention bounds.
+ * @returns Graph-visible admissions, denials, status, issues, audit, and cursor projections.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { keyedRateLimitAdmissionBundle } from "@graphrefly/ts/rate-limit";
+ * ```
  */
 export function keyedRateLimitAdmissionBundle(
 	graph: Graph,
