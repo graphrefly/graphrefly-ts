@@ -36,6 +36,12 @@ archive/evals/results/replay-cache/
 # regenerated. Do not commit (mirrors the replay-cache precedent above).
 archive/evals/results/harness-retrospective/
 
+# B112/D638-D639 empirical campaign manifests, qualification observations,
+# trial observations, and scorecards are private machine-local evidence by
+# default. Repository inclusion requires a separately approved sanitized,
+# protection-checked complete evidence bundle.
+packages/ts/evals/.private/empirical-memory-rerun-avoidance/
+
 # Environment (keep examples)
 .env
 .env.*
