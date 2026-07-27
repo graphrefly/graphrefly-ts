@@ -4,11 +4,11 @@ import { compoundTupleKey } from "../identity.js";
 import {
 	backoffDelayMs,
 	breakerBundle,
+	localFixedWindowRateLimitBundle,
 	type ProcessEffectCommandPayload,
 	type ProcessEffectOutcome,
 	processBundle,
 	processEffectRunner,
-	rateLimitBundle,
 	retryPolicy,
 	retryStatusBundle,
 } from "../orchestration/index.js";
@@ -63,7 +63,7 @@ describe("graph-visible resilience bundles (D132)", () => {
 		let now = 0;
 		const g = graph();
 		const source = g.node<number>([], null, { name: "source" });
-		const bundle = rateLimitBundle(g, source, {
+		const bundle = localFixedWindowRateLimitBundle(g, source, {
 			name: "limit",
 			max: 2,
 			windowMs: 100,

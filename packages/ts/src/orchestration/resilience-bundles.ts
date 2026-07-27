@@ -46,29 +46,37 @@ export interface BreakerBundle {
 	readonly allowed: Node<boolean>;
 }
 
-export interface RateLimitOptions {
+export interface LocalFixedWindowRateLimitOptions {
 	readonly max: number;
 	readonly windowMs: number;
 	readonly now?: () => number;
 	readonly name?: string;
 }
 
-export interface RateLimitStatus {
+export interface LocalFixedWindowRateLimitStatus {
 	readonly allowed: number;
 	readonly dropped: number;
 	readonly remaining: number;
 	readonly resetAtMs: number;
 }
 
-export interface RateLimitBundle<T> {
+export interface LocalFixedWindowRateLimitBundle<T> {
 	readonly allowed: Node<T>;
 	readonly dropped: Node<T>;
-	readonly status: Node<RateLimitStatus>;
+	readonly status: Node<LocalFixedWindowRateLimitStatus>;
 }
 
-type RateLimitEvent<T> =
-	| { readonly kind: "allowed"; readonly value: T; readonly status: RateLimitStatus }
-	| { readonly kind: "dropped"; readonly value: T; readonly status: RateLimitStatus };
+type LocalFixedWindowRateLimitEvent<T> =
+	| {
+			readonly kind: "allowed";
+			readonly value: T;
+			readonly status: LocalFixedWindowRateLimitStatus;
+	  }
+	| {
+			readonly kind: "dropped";
+			readonly value: T;
+			readonly status: LocalFixedWindowRateLimitStatus;
+	  };
 
 export interface TimeoutBundle<T> {
 	readonly node: Node<T>;
@@ -223,7 +231,11 @@ export function breakerBundle(
 }
 
 /**
- * Creates a rate limit bundle.
+ * Creates a graph-local in-memory fixed-window rate limit bundle.
+ *
+ * This helper is a local stream-shaping state machine. It is not keyed, durable, atomic across
+ * processes, or an application security/enforcement authority. Use the D648 keyed external
+ * authority surface when a protected operation depends on durable rate-limit admission.
  *
  * @param graph - Graph that owns the created nodes or projector.
  * @param source - Source node that provides graph-visible input.
@@ -232,23 +244,23 @@ export function breakerBundle(
  * @category orchestration
  * @example
  * ```ts
- * import { rateLimitBundle } from "@graphrefly/ts/orchestration";
+ * import { localFixedWindowRateLimitBundle } from "@graphrefly/ts/orchestration";
  * ```
  */
-export function rateLimitBundle<T>(
+export function localFixedWindowRateLimitBundle<T>(
 	graph: Graph,
 	source: Node<T>,
-	opts: RateLimitOptions,
-): RateLimitBundle<T> {
+	opts: LocalFixedWindowRateLimitOptions,
+): LocalFixedWindowRateLimitBundle<T> {
 	if (!Number.isInteger(opts.max) || opts.max <= 0) {
-		throw new RangeError("rateLimitBundle: max must be a positive integer");
+		throw new RangeError("localFixedWindowRateLimitBundle: max must be a positive integer");
 	}
 	if (!Number.isFinite(opts.windowMs) || opts.windowMs <= 0) {
-		throw new RangeError("rateLimitBundle: windowMs must be positive");
+		throw new RangeError("localFixedWindowRateLimitBundle: windowMs must be positive");
 	}
 	const now = opts.now ?? Date.now;
-	const name = opts.name ?? "rateLimit";
-	const events = graph.node<RateLimitEvent<T>>(
+	const name = opts.name ?? "localFixedWindowRateLimit";
+	const events = graph.node<LocalFixedWindowRateLimitEvent<T>>(
 		[source],
 		(ctx) => {
 			type State = { count: number; resetAtMs: number; allowed: number; dropped: number };
@@ -269,48 +281,56 @@ export function rateLimitBundle<T>(
 					dropped: state.dropped,
 					remaining: Math.max(0, opts.max - state.count),
 					resetAtMs: state.resetAtMs,
-				} satisfies RateLimitStatus;
+				} satisfies LocalFixedWindowRateLimitStatus;
 				ctx.down([
 					[
 						"DATA",
 						allowed
-							? ({ kind: "allowed", value: value as T, status } satisfies RateLimitEvent<T>)
-							: ({ kind: "dropped", value: value as T, status } satisfies RateLimitEvent<T>),
+							? ({
+									kind: "allowed",
+									value: value as T,
+									status,
+								} satisfies LocalFixedWindowRateLimitEvent<T>)
+							: ({
+									kind: "dropped",
+									value: value as T,
+									status,
+								} satisfies LocalFixedWindowRateLimitEvent<T>),
 					],
 				]);
 			}
 			ctx.state.set(state);
 		},
-		{ name: `${name}/events`, factory: "rateLimitEvents" },
+		{ name: `${name}/events`, factory: "localFixedWindowRateLimitEvents" },
 	);
 	const allowed = graph.node<T>(
 		[events],
 		(ctx) => {
 			for (const event of depBatch(ctx, 0) ?? []) {
-				const typed = event as RateLimitEvent<T>;
+				const typed = event as LocalFixedWindowRateLimitEvent<T>;
 				if (typed.kind === "allowed") ctx.down([["DATA", typed.value]]);
 			}
 		},
-		{ name: `${name}/allowed`, factory: "rateLimitAllowed" },
+		{ name: `${name}/allowed`, factory: "localFixedWindowRateLimitAllowed" },
 	);
 	const dropped = graph.node<T>(
 		[events],
 		(ctx) => {
 			for (const event of depBatch(ctx, 0) ?? []) {
-				const typed = event as RateLimitEvent<T>;
+				const typed = event as LocalFixedWindowRateLimitEvent<T>;
 				if (typed.kind === "dropped") ctx.down([["DATA", typed.value]]);
 			}
 		},
-		{ name: `${name}/dropped`, factory: "rateLimitDropped" },
+		{ name: `${name}/dropped`, factory: "localFixedWindowRateLimitDropped" },
 	);
-	const status = graph.node<RateLimitStatus>(
+	const status = graph.node<LocalFixedWindowRateLimitStatus>(
 		[events],
 		(ctx) => {
 			for (const event of depBatch(ctx, 0) ?? []) {
-				ctx.down([["DATA", (event as RateLimitEvent<T>).status]]);
+				ctx.down([["DATA", (event as LocalFixedWindowRateLimitEvent<T>).status]]);
 			}
 		},
-		{ name: `${name}/status`, factory: "rateLimitStatus" },
+		{ name: `${name}/status`, factory: "localFixedWindowRateLimitStatus" },
 	);
 	return { allowed, dropped, status };
 }

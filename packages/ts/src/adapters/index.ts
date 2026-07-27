@@ -9,5 +9,6 @@ export * from "./agentic-memory-storage.js";
 export * from "./bridge.js";
 export * from "./bridge-wire-edge-group.js";
 export * from "./environment.js";
+export * from "./keyed-rate-limit-authority.js";
 export * from "./reactive-collection-storage.js";
 export * from "./store.js";
