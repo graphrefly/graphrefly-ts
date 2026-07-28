@@ -12,6 +12,7 @@ import {
 	type EmpiricalModelTurnOutcomeV1,
 	type EmpiricalModelTurnPortV1,
 	type EmpiricalModelTurnRequestV1,
+	executeEmpiricalProtection,
 	validateEmpiricalModelTurnOutcome,
 	validateEmpiricalModelTurnRequest,
 } from "../../../../evals/empirical-memory-rerun-avoidance/model-execution.js";
@@ -27,6 +28,12 @@ export interface DeterministicCredentialCapabilityFixture {
 	readonly credentialBindingRef: string;
 	readonly credentialBindingRevision: string;
 }
+
+const allowProtection = Object.freeze({
+	inspect() {
+		return { disposition: "allowed" as const };
+	},
+});
 
 export function buildEmpiricalModelTurnAuthorityFixture(
 	usageSource: EmpiricalUsageSource = "provider-reported",
@@ -72,6 +79,12 @@ export function buildEmpiricalModelTurnRequestFixture(
 		contextRefs: ["context-placeholder"],
 	});
 	const structuredInputDigest = empiricalStrictJsonDigest(structuredInput);
+	const inputProtectionReceipt = executeEmpiricalProtection(allowProtection, {
+		policyRef: manifest.policies.protectionPolicyRef,
+		policyRevision: manifest.policies.protectionPolicyRevision,
+		stage: "source-ingress",
+		subject: structuredInput,
+	}).receipt;
 	return validateEmpiricalModelTurnRequest(
 		{
 			schemaVersion: EMPIRICAL_MODEL_EXECUTION_SCHEMAS.request,
@@ -96,15 +109,7 @@ export function buildEmpiricalModelTurnRequestFixture(
 			usageSource: configuration.usageSource,
 			structuredInput,
 			structuredInputDigest,
-			inputProtectionReceipt: {
-				policyRef: manifest.policies.protectionPolicyRef,
-				policyRevision: manifest.policies.protectionPolicyRevision,
-				stage: "source-ingress",
-				subjectDigest: structuredInputDigest,
-				receiptRef: "source-ingress-protection-placeholder",
-				receiptDigest: empiricalFixtureDigest("source-ingress-protection-placeholder"),
-				disposition: "allowed",
-			},
+			inputProtectionReceipt,
 			priorToolResults: [],
 			toolSetRevision: configuration.settings.tools.schemaRevision,
 			toolSetDigest: configuration.settings.tools.toolSetDigest,
@@ -143,6 +148,12 @@ export function buildEmpiricalModelTurnOutcomeFixture(
 		structuredOutput,
 		toolIntents,
 	});
+	const protectionReceipt = executeEmpiricalProtection(allowProtection, {
+		policyRef: request.protectionPolicyRef,
+		policyRevision: request.protectionPolicyRevision,
+		stage: "model-egress",
+		subject: egressMaterial,
+	}).receipt;
 	return validateEmpiricalModelTurnOutcome(
 		{
 			schemaVersion: EMPIRICAL_MODEL_EXECUTION_SCHEMAS.outcome,
@@ -169,15 +180,7 @@ export function buildEmpiricalModelTurnOutcomeFixture(
 			latencyMs: 1_000,
 			issueCodes,
 			evidenceRefs,
-			protectionReceipt: {
-				policyRef: request.protectionPolicyRef,
-				policyRevision: request.protectionPolicyRevision,
-				stage: "model-egress",
-				subjectDigest: empiricalStrictJsonDigest(egressMaterial),
-				receiptRef: "model-egress-protection-placeholder",
-				receiptDigest: empiricalFixtureDigest("model-egress-protection-placeholder"),
-				disposition: "allowed",
-			},
+			protectionReceipt,
 		},
 		request,
 		authority.frozen,

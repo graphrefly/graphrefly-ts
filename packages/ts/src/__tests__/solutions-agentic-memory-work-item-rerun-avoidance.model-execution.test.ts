@@ -4,8 +4,13 @@ import {
 	strictSnapshot,
 } from "../../evals/empirical-memory-rerun-avoidance/canonical.js";
 import {
+	EMPIRICAL_MODEL_EGRESS_BLOCKED_SUBJECT_EVIDENCE_ID,
+	EMPIRICAL_MODEL_EGRESS_BLOCKED_SUBJECT_EVIDENCE_KIND,
+	EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES,
 	EMPIRICAL_MODEL_EXECUTION_SCHEMAS,
 	type EmpiricalModelTurnOutcomeV1,
+	type EmpiricalProtectionExecutorV1,
+	executeEmpiricalProtection,
 	MAX_EMPIRICAL_MODEL_TURN_OUTCOME_BYTES,
 	MAX_EMPIRICAL_MODEL_TURN_REQUEST_BYTES,
 	validateEmpiricalModelTurnOutcome,
@@ -17,6 +22,7 @@ import {
 	assertEmpiricalStrictJsonShapeMatch,
 	validateEmpiricalStrictJsonShape,
 } from "../../evals/empirical-memory-rerun-avoidance/strict-json-shape.js";
+import type { StrictJsonValue } from "../json/codec.js";
 import { strictJsonCodec } from "../json/codec.js";
 import { empiricalFixtureDigest } from "./eval-support/empirical-memory-rerun-avoidance/fixtures.js";
 import {
@@ -49,22 +55,33 @@ function rebindEgress(
 	patch: Partial<EmpiricalModelTurnOutcomeV1>,
 ): EmpiricalModelTurnOutcomeV1 {
 	const merged = { ...outcome, ...patch };
-	const subjectDigest = empiricalStrictJsonDigest({
+	const egressMaterial = strictSnapshot({
 		evidenceRefs: merged.evidenceRefs,
 		issueCodes: merged.issueCodes,
 		structuredOutput: merged.structuredOutput,
 		toolIntents: merged.toolIntents,
-	});
+	}) as unknown as StrictJsonValue;
+	const protectionReceipt = executeEmpiricalProtection(protectionExecutor("allowed"), {
+		policyRef: merged.protectionReceipt.policyRef,
+		policyRevision: merged.protectionReceipt.policyRevision,
+		stage: "model-egress",
+		subject: egressMaterial,
+	}).receipt;
 	return {
 		...merged,
-		protectionReceipt: {
-			...merged.protectionReceipt,
-			subjectDigest,
+		protectionReceipt,
+	};
+}
+
+function protectionExecutor(disposition: "allowed" | "blocked"): EmpiricalProtectionExecutorV1 {
+	return {
+		inspect() {
+			return { disposition };
 		},
 	};
 }
 
-describe("B112.6.2 private one-turn semantic model port (D652-D653)", () => {
+describe("B112.6.2-B112.6.3 private model turn and protection execution (D652-D655)", () => {
 	it("binds one canonical request to a qualified frozen manifest and protected input", () => {
 		const authority = buildEmpiricalModelTurnAuthorityFixture();
 		const request = buildEmpiricalModelTurnRequestFixture(authority);
@@ -84,6 +101,18 @@ describe("B112.6.2 private one-turn semantic model port (D652-D653)", () => {
 		});
 		expect(request.structuredInputDigest).toBe(empiricalStrictJsonDigest(request.structuredInput));
 		expect(Object.isFrozen(request.outputSchema.schema)).toBe(true);
+		expect(() =>
+			validateRequest(
+				{
+					...request,
+					inputProtectionReceipt: {
+						...request.inputProtectionReceipt,
+						receiptRef: "forged-source-ingress-receipt",
+					},
+				},
+				authority,
+			),
+		).toThrow(/allowed receipt does not match its canonical provenance/);
 		const bytes = strictJsonCodec.encode(request);
 		expect(
 			validateEmpiricalModelTurnRequestBytes(
@@ -188,20 +217,18 @@ describe("B112.6.2 private one-turn semantic model port (D652-D653)", () => {
 
 		const resultValue = { exitCode: 0, summaryRef: "tool-result-placeholder" };
 		const resultDigest = empiricalStrictJsonDigest(resultValue);
+		const resultProtectionReceipt = executeEmpiricalProtection(protectionExecutor("allowed"), {
+			policyRef: request.protectionPolicyRef,
+			policyRevision: request.protectionPolicyRevision,
+			stage: "tool-ingress",
+			subject: resultValue,
+		}).receipt;
 		const toolResult = {
 			toolCallRef: "tool-call-placeholder",
 			toolRef: request.availableTools[0]?.toolRef,
 			resultDigest,
 			result: resultValue,
-			protectionReceipt: {
-				policyRef: request.protectionPolicyRef,
-				policyRevision: request.protectionPolicyRevision,
-				stage: "tool-ingress",
-				subjectDigest: resultDigest,
-				receiptRef: "tool-result-protection-placeholder",
-				receiptDigest: empiricalFixtureDigest("tool-result-protection-placeholder"),
-				disposition: "allowed",
-			},
+			protectionReceipt: resultProtectionReceipt,
 		};
 		const next = validateRequest(
 			{
@@ -213,6 +240,23 @@ describe("B112.6.2 private one-turn semantic model port (D652-D653)", () => {
 			authority,
 		);
 		expect(next.priorToolResults).toHaveLength(1);
+		expect(() =>
+			validateRequest(
+				{
+					...next,
+					priorToolResults: [
+						{
+							...toolResult,
+							protectionReceipt: {
+								...toolResult.protectionReceipt,
+								receiptDigest: empiricalFixtureDigest("forged-tool-receipt"),
+							},
+						},
+					],
+				},
+				authority,
+			),
+		).toThrow(/allowed receipt does not match its canonical provenance/);
 		expect(() =>
 			validateRequest(
 				{
@@ -280,6 +324,336 @@ describe("B112.6.2 private one-turn semantic model port (D652-D653)", () => {
 				authority,
 			),
 		).toThrow(/completed measured-token outcomes require all token counts/);
+	});
+
+	it("binds blocked model egress to one candidate digest without publishing the candidate", () => {
+		const authority = buildEmpiricalModelTurnAuthorityFixture();
+		const request = buildEmpiricalModelTurnRequestFixture(authority);
+		const completed = buildEmpiricalModelTurnOutcomeFixture(request, authority);
+		const candidate = strictSnapshot({
+			kind: "model-turn-output-placeholder",
+			summary: "blocked-candidate-placeholder",
+		});
+		const protection = executeEmpiricalProtection(protectionExecutor("blocked"), {
+			policyRef: request.protectionPolicyRef,
+			policyRevision: request.protectionPolicyRevision,
+			stage: "model-egress",
+			subject: candidate,
+		});
+		const blocked = {
+			...completed,
+			status: "non-evaluable",
+			finishReason: null,
+			structuredOutput: null,
+			structuredOutputDigest: null,
+			toolIntents: [],
+			issueCodes: [EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES.blocked],
+			evidenceRefs: [
+				{
+					kind: EMPIRICAL_MODEL_EGRESS_BLOCKED_SUBJECT_EVIDENCE_KIND,
+					id: EMPIRICAL_MODEL_EGRESS_BLOCKED_SUBJECT_EVIDENCE_ID,
+					digest: protection.subjectDigest,
+				},
+			],
+			protectionReceipt: protection.receipt,
+		} as const;
+		const validated = validateOutcome(blocked, request, authority);
+		expect(validated).toMatchObject({
+			status: "non-evaluable",
+			structuredOutput: null,
+			toolIntents: [],
+			protectionReceipt: {
+				disposition: "blocked",
+				subjectDigest: empiricalStrictJsonDigest(candidate),
+			},
+		});
+		expect(JSON.stringify(validated)).not.toContain("blocked-candidate-placeholder");
+
+		expect(() => validateOutcome({ ...blocked, evidenceRefs: [] }, request, authority)).toThrow(
+			/exactly one model-egress-blocked-subject/,
+		);
+		expect(() =>
+			validateOutcome(
+				{
+					...blocked,
+					evidenceRefs: [
+						...blocked.evidenceRefs,
+						{
+							kind: "provider-response-summary",
+							id: "unexpected-extra-evidence",
+							digest: empiricalFixtureDigest("unexpected-extra-evidence"),
+						},
+					],
+				},
+				request,
+				authority,
+			),
+		).toThrow(/exactly one model-egress-blocked-subject/);
+		expect(() =>
+			validateOutcome(
+				{
+					...blocked,
+					protectionReceipt: {
+						...blocked.protectionReceipt,
+						subjectDigest: empiricalFixtureDigest("different-blocked-candidate"),
+					},
+				},
+				request,
+				authority,
+			),
+		).toThrow(/expected policy, stage, subject, and disposition/);
+		expect(() =>
+			validateOutcome(
+				{
+					...blocked,
+					issueCodes: ["provider-unavailable"],
+				},
+				request,
+				authority,
+			),
+		).toThrow(/requires exactly one protection classification/);
+		expect(() =>
+			validateOutcome(
+				{
+					...blocked,
+					issueCodes: [
+						EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES.blocked,
+						"raw-candidate-secret",
+					],
+				},
+				request,
+				authority,
+			),
+		).toThrow(/requires exactly one protection classification/);
+		expect(() =>
+			validateOutcome(
+				{
+					...blocked,
+					evidenceRefs: [
+						{
+							...blocked.evidenceRefs[0],
+							id: "raw-candidate-secret",
+						},
+					],
+				},
+				request,
+				authority,
+			),
+		).toThrow(/fixed blocked-subject evidence id/);
+		expect(() =>
+			validateOutcome(
+				{
+					...blocked,
+					protectionReceipt: {
+						...blocked.protectionReceipt,
+						receiptRef: "raw-candidate-secret",
+					},
+				},
+				request,
+				authority,
+			),
+		).toThrow(/classification does not match receipt provenance/);
+		expect(() =>
+			validateOutcome(
+				{
+					...blocked,
+					issueCodes: [EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES.failed],
+				},
+				request,
+				authority,
+			),
+		).toThrow(/classification does not match receipt provenance/);
+		expect(() =>
+			validateOutcome(
+				{
+					...blocked,
+					issueCodes: [
+						EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES.blocked,
+						EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES.failed,
+					],
+				},
+				request,
+				authority,
+			),
+		).toThrow(/requires exactly one protection classification/);
+		expect(() =>
+			validateOutcome(
+				{
+					...blocked,
+					usage: {
+						...blocked.usage,
+						inputTokens: null,
+						outputTokens: null,
+						totalTokens: null,
+						requests: 0,
+						hostOutputBytes: 0,
+					},
+				},
+				request,
+				authority,
+			),
+		).toThrow(/blocked model egress requires one remote provider request/);
+
+		const failedProtection = executeEmpiricalProtection(
+			{
+				inspect() {
+					throw new Error("unprocessed-protection-error");
+				},
+			},
+			{
+				policyRef: request.protectionPolicyRef,
+				policyRevision: request.protectionPolicyRevision,
+				stage: "model-egress",
+				subject: candidate,
+			},
+		);
+		const failedOutcome = {
+			...blocked,
+			issueCodes: [EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES.failed],
+			evidenceRefs: [
+				{
+					...blocked.evidenceRefs[0],
+					digest: failedProtection.subjectDigest,
+				},
+			],
+			protectionReceipt: failedProtection.receipt,
+		};
+		expect(validateOutcome(failedOutcome, request, authority).issueCodes).toEqual([
+			EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES.failed,
+		]);
+		expect(() =>
+			validateOutcome(
+				{
+					...failedOutcome,
+					issueCodes: [EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES.blocked],
+				},
+				request,
+				authority,
+			),
+		).toThrow(/classification does not match receipt provenance/);
+	});
+
+	it("keeps allowed failure egress separate and fails closed on protection implementation errors", () => {
+		const authority = buildEmpiricalModelTurnAuthorityFixture();
+		const request = buildEmpiricalModelTurnRequestFixture(authority);
+		const completed = buildEmpiricalModelTurnOutcomeFixture(request, authority);
+		const sanitizedFailure = rebindEgress(completed, {
+			status: "non-evaluable",
+			finishReason: null,
+			structuredOutput: null,
+			structuredOutputDigest: null,
+			toolIntents: [],
+			issueCodes: ["provider-unavailable"],
+		});
+		expect(
+			validateOutcome(sanitizedFailure, request, authority).protectionReceipt.disposition,
+		).toBe("allowed");
+		expect(() =>
+			validateOutcome(
+				{
+					...sanitizedFailure,
+					evidenceRefs: [
+						{
+							kind: EMPIRICAL_MODEL_EGRESS_BLOCKED_SUBJECT_EVIDENCE_KIND,
+							id: "invalid-blocked-subject-placeholder",
+							digest: empiricalFixtureDigest("invalid-blocked-subject-placeholder"),
+						},
+					],
+				},
+				request,
+				authority,
+			),
+		).toThrow(/allowed model egress cannot carry/);
+
+		const rawErrorMarker = "raw-provider-error-must-not-persist";
+		const failed = executeEmpiricalProtection(
+			{
+				inspect() {
+					throw new Error(rawErrorMarker);
+				},
+			},
+			{
+				policyRef: request.protectionPolicyRef,
+				policyRevision: request.protectionPolicyRevision,
+				stage: "model-egress",
+				subject: { candidateRef: "candidate-placeholder" },
+			},
+		);
+		expect(failed).toMatchObject({
+			issueCode: EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES.failed,
+			receipt: { disposition: "blocked" },
+		});
+		expect(JSON.stringify(failed)).not.toContain(rawErrorMarker);
+		expect(
+			executeEmpiricalProtection(
+				{
+					inspect() {
+						throw new Error(rawErrorMarker);
+					},
+				},
+				{
+					policyRef: request.protectionPolicyRef,
+					policyRevision: request.protectionPolicyRevision,
+					stage: "model-egress",
+					subject: { candidateRef: "candidate-placeholder" },
+				},
+			),
+		).toEqual(failed);
+
+		const untrustedReceiptMarker = "raw-candidate-secret";
+		const malformed = executeEmpiricalProtection(
+			{
+				inspect() {
+					return {
+						disposition: "blocked",
+						receiptRef: untrustedReceiptMarker,
+					} as unknown as { readonly disposition: "blocked" };
+				},
+			},
+			{
+				policyRef: request.protectionPolicyRef,
+				policyRevision: request.protectionPolicyRevision,
+				stage: "model-egress",
+				subject: { candidateRef: "candidate-placeholder" },
+			},
+		);
+		expect(malformed.issueCode).toBe(EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES.failed);
+		expect(JSON.stringify(malformed)).not.toContain(untrustedReceiptMarker);
+
+		for (const stage of ["source-ingress", "tool-ingress", "model-egress"] as const) {
+			const allowed = executeEmpiricalProtection(protectionExecutor("allowed"), {
+				policyRef: request.protectionPolicyRef,
+				policyRevision: request.protectionPolicyRevision,
+				stage,
+				subject: { stage },
+			});
+			expect(allowed).toMatchObject({
+				issueCode: null,
+				receipt: { stage, disposition: "allowed", subjectDigest: allowed.subjectDigest },
+			});
+		}
+
+		let getterInvoked = false;
+		const hostileInput = {
+			policyRef: request.protectionPolicyRef,
+			policyRevision: request.protectionPolicyRevision,
+			stage: "model-egress",
+			subject: { candidateRef: "candidate-placeholder" },
+		};
+		Object.defineProperty(hostileInput, "subject", {
+			enumerable: true,
+			get() {
+				getterInvoked = true;
+				return { candidateRef: "hostile-candidate-placeholder" };
+			},
+		});
+		expect(() =>
+			executeEmpiricalProtection(
+				protectionExecutor("allowed"),
+				hostileInput as unknown as Parameters<typeof executeEmpiricalProtection>[1],
+			),
+		).toThrow(/expected an own data property/);
+		expect(getterInvoked).toBe(false);
 	});
 
 	it("keeps host-measured byte accounting separate from unavailable token counts", () => {
@@ -501,6 +875,19 @@ describe("B112.6.2 private one-turn semantic model port (D652-D653)", () => {
 				authority,
 			),
 		).toThrow(/expected policy, stage, subject, and disposition/);
+		expect(() =>
+			validateOutcome(
+				{
+					...outcome,
+					protectionReceipt: {
+						...outcome.protectionReceipt,
+						receiptRef: "forged-model-egress-receipt",
+					},
+				},
+				request,
+				authority,
+			),
+		).toThrow(/allowed receipt does not match its canonical provenance/);
 	});
 
 	it("uses a deterministic fake with explicit credential capability and host cancellation", async () => {

@@ -40,6 +40,12 @@ export const EMPIRICAL_MODEL_EXECUTION_SCHEMAS = Object.freeze({
 
 export const MAX_EMPIRICAL_MODEL_TURN_REQUEST_BYTES = 262_144;
 export const MAX_EMPIRICAL_MODEL_TURN_OUTCOME_BYTES = 262_144;
+export const EMPIRICAL_MODEL_EGRESS_BLOCKED_SUBJECT_EVIDENCE_KIND = "model-egress-blocked-subject";
+export const EMPIRICAL_MODEL_EGRESS_BLOCKED_SUBJECT_EVIDENCE_ID = "model-egress-blocked-subject";
+export const EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES = Object.freeze({
+	blocked: "model-egress-protection-blocked",
+	failed: "model-egress-protection-failed",
+});
 
 const MODEL_ROLES = Object.freeze(["actor", "auxiliary-judge", "semantic-redactor"] as const);
 const TRIAL_STAGES = Object.freeze([
@@ -78,6 +84,34 @@ export interface EmpiricalProtectionReceiptV1 {
 	readonly receiptRef: string;
 	readonly receiptDigest: string;
 	readonly disposition: "allowed" | "blocked";
+}
+
+export interface EmpiricalProtectionExecutionInputV1 {
+	readonly policyRef: string;
+	readonly policyRevision: string;
+	readonly stage: EmpiricalProtectionStageV1;
+	readonly subject: StrictJsonValue;
+}
+
+/**
+ * Private synchronous local-first D655 protection capability.
+ *
+ * Implementations inspect only the supplied bounded canonical subject and
+ * return one closed disposition. The trusted wrapper emits bounded
+ * material-free receipt coordinates. Implementations own no network,
+ * persistence, retry, timer, provider selection, durable receipt, or Graph
+ * topology.
+ */
+export interface EmpiricalProtectionExecutorV1 {
+	inspect(input: EmpiricalProtectionExecutionInputV1): {
+		readonly disposition: "allowed" | "blocked";
+	};
+}
+
+export interface EmpiricalProtectionExecutionV1 {
+	readonly subjectDigest: string;
+	readonly receipt: EmpiricalProtectionReceiptV1;
+	readonly issueCode: typeof EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES.failed | null;
 }
 
 export type EmpiricalModelToolSchemaV1 = EmpiricalToolSchemaCatalogEntryV1;
@@ -357,7 +391,118 @@ function validateProtectionReceipt(
 	) {
 		fail(path, "does not match the expected policy, stage, subject, and disposition");
 	}
+	if (
+		expected.disposition === "allowed" &&
+		!sameProtectionReceipt(
+			validated,
+			canonicalProtectionReceipt(
+				{
+					policyRef: expected.policyRef,
+					policyRevision: expected.policyRevision,
+					stage: expected.stage,
+				},
+				expected.subjectDigest,
+				"allowed",
+			),
+		)
+	) {
+		fail(path, "allowed receipt does not match its canonical provenance");
+	}
 	return validated;
+}
+
+function canonicalProtectionReceipt(
+	input: Omit<EmpiricalProtectionExecutionInputV1, "subject">,
+	subjectDigest: string,
+	disposition: "allowed" | "blocked",
+): EmpiricalProtectionReceiptV1 {
+	const receiptRef = `protection:${input.stage}:${disposition}:${subjectDigest.slice("sha256:".length)}`;
+	const receiptMaterial = strictSnapshot({
+		policyRef: input.policyRef,
+		policyRevision: input.policyRevision,
+		stage: input.stage,
+		subjectDigest,
+		receiptRef,
+		disposition,
+	});
+	return strictSnapshot({
+		...receiptMaterial,
+		receiptDigest: empiricalStrictJsonDigest(receiptMaterial),
+	});
+}
+
+function failedProtectionReceipt(
+	input: Omit<EmpiricalProtectionExecutionInputV1, "subject">,
+	subjectDigest: string,
+): EmpiricalProtectionReceiptV1 {
+	const receiptRef = `protection-failed:${input.stage}:${subjectDigest.slice("sha256:".length)}`;
+	const receiptMaterial = strictSnapshot({
+		policyRef: input.policyRef,
+		policyRevision: input.policyRevision,
+		stage: input.stage,
+		subjectDigest,
+		receiptRef,
+		disposition: "blocked" as const,
+	});
+	return strictSnapshot({
+		...receiptMaterial,
+		receiptDigest: empiricalStrictJsonDigest(receiptMaterial),
+	});
+}
+
+function sameProtectionReceipt(
+	left: EmpiricalProtectionReceiptV1,
+	right: EmpiricalProtectionReceiptV1,
+): boolean {
+	return sameBytes(strictJsonCodec.encode(left), strictJsonCodec.encode(right));
+}
+
+/**
+ * Runs one bounded synchronous protection inspection. Implementation failures
+ * discard the thrown value and become a deterministic blocked receipt without
+ * persisting raw error or subject material.
+ */
+export function executeEmpiricalProtection(
+	executor: EmpiricalProtectionExecutorV1,
+	input: EmpiricalProtectionExecutionInputV1,
+): EmpiricalProtectionExecutionV1 {
+	const rawInput = record(input, "protection");
+	exactKeys(rawInput, ["policyRef", "policyRevision", "stage", "subject"], "protection");
+	const policyRef = coordinate(rawInput.policyRef, "protection.policyRef");
+	const policyRevision = coordinate(rawInput.policyRevision, "protection.policyRevision");
+	const stage = oneOf(rawInput.stage, PROTECTION_STAGES, "protection.stage");
+	const subject = boundedStrictJson(rawInput.subject, "protection.subject");
+	const subjectDigest = empiricalStrictJsonDigest(subject);
+	try {
+		const rawInspection = record(
+			executor.inspect({ policyRef, policyRevision, stage, subject }),
+			"protection.inspection",
+		);
+		exactKeys(rawInspection, ["disposition"], "protection.inspection");
+		const disposition = oneOf(
+			rawInspection.disposition,
+			["allowed", "blocked"] as const,
+			"protection.inspection.disposition",
+		);
+		const receipt = validateProtectionReceipt(
+			canonicalProtectionReceipt({ policyRef, policyRevision, stage }, subjectDigest, disposition),
+			"protection.receipt",
+			{
+				policyRef,
+				policyRevision,
+				stage,
+				subjectDigest,
+				disposition,
+			},
+		);
+		return strictSnapshot({ subjectDigest, receipt, issueCode: null });
+	} catch {
+		return strictSnapshot({
+			subjectDigest,
+			receipt: failedProtectionReceipt({ policyRef, policyRevision, stage }, subjectDigest),
+			issueCode: EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES.failed,
+		});
+	}
 }
 
 function validateToolSchemas(value: unknown): readonly EmpiricalModelToolSchemaV1[] {
@@ -908,17 +1053,102 @@ export function validateEmpiricalModelTurnOutcome(
 		structuredOutput,
 		toolIntents,
 	});
+	const blockedSubjectRefs = evidenceRefs.filter(
+		(ref) => ref.kind === EMPIRICAL_MODEL_EGRESS_BLOCKED_SUBJECT_EVIDENCE_KIND,
+	);
+	const rawProtectionReceipt = record(outcome.protectionReceipt, "outcome.protectionReceipt");
+	const protectionDisposition = oneOf(
+		rawProtectionReceipt.disposition,
+		["allowed", "blocked"] as const,
+		"outcome.protectionReceipt.disposition",
+	);
+	let expectedProtectionSubjectDigest = empiricalStrictJsonDigest(egressMaterial);
+	let protectionIssueCode:
+		| (typeof EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES)[keyof typeof EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES]
+		| null = null;
+	if (protectionDisposition === "blocked") {
+		if (status !== "non-evaluable") {
+			fail("outcome.protectionReceipt", "blocked model egress must be non-evaluable");
+		}
+		if (usage.requests !== 1) {
+			fail("outcome.usage.requests", "blocked model egress requires one remote provider request");
+		}
+		if (blockedSubjectRefs.length !== 1 || evidenceRefs.length !== 1) {
+			fail(
+				"outcome.evidenceRefs",
+				"blocked model egress requires exactly one model-egress-blocked-subject evidence ref in total",
+			);
+		}
+		if (blockedSubjectRefs[0]?.id !== EMPIRICAL_MODEL_EGRESS_BLOCKED_SUBJECT_EVIDENCE_ID) {
+			fail(
+				"outcome.evidenceRefs",
+				"blocked model egress requires the fixed blocked-subject evidence id",
+			);
+		}
+		const protectionIssueCodes = issueCodes.filter(
+			(issue) =>
+				issue === EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES.blocked ||
+				issue === EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES.failed,
+		);
+		if (protectionIssueCodes.length !== 1 || issueCodes.length !== 1) {
+			fail(
+				"outcome.issueCodes",
+				"blocked model egress requires exactly one protection classification in total",
+			);
+		}
+		protectionIssueCode = protectionIssueCodes[0] as NonNullable<typeof protectionIssueCode>;
+		expectedProtectionSubjectDigest =
+			blockedSubjectRefs[0]?.digest ??
+			fail("outcome.evidenceRefs", "missing blocked-subject evidence digest");
+	} else {
+		if (blockedSubjectRefs.length !== 0) {
+			fail(
+				"outcome.evidenceRefs",
+				"allowed model egress cannot carry model-egress-blocked-subject evidence",
+			);
+		}
+		if (
+			issueCodes.includes(EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES.blocked) ||
+			issueCodes.includes(EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES.failed)
+		) {
+			fail(
+				"outcome.issueCodes",
+				"allowed model egress cannot carry a protection failure classification",
+			);
+		}
+	}
 	const protectionReceipt = validateProtectionReceipt(
-		outcome.protectionReceipt,
+		rawProtectionReceipt,
 		"outcome.protectionReceipt",
 		{
 			policyRef: validatedRequest.protectionPolicyRef,
 			policyRevision: validatedRequest.protectionPolicyRevision,
 			stage: "model-egress",
-			subjectDigest: empiricalStrictJsonDigest(egressMaterial),
-			disposition: status === "completed" ? "allowed" : undefined,
+			subjectDigest: expectedProtectionSubjectDigest,
+			disposition: protectionDisposition,
 		},
 	);
+	if (protectionDisposition === "blocked") {
+		const receiptCoordinates = {
+			policyRef: validatedRequest.protectionPolicyRef,
+			policyRevision: validatedRequest.protectionPolicyRevision,
+			stage: "model-egress" as const,
+		};
+		const expectedReceipt =
+			protectionIssueCode === EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES.failed
+				? failedProtectionReceipt(receiptCoordinates, expectedProtectionSubjectDigest)
+				: canonicalProtectionReceipt(
+						receiptCoordinates,
+						expectedProtectionSubjectDigest,
+						"blocked",
+					);
+		if (!sameProtectionReceipt(protectionReceipt, expectedReceipt)) {
+			fail(
+				"outcome.protectionReceipt",
+				"protection classification does not match receipt provenance",
+			);
+		}
+	}
 	const latencyMs = safeInteger(outcome.latencyMs, "outcome.latencyMs", {
 		max: 86_400_000,
 	});
