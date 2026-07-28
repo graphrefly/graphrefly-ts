@@ -748,8 +748,12 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("model-execution.ts") || file.endsWith("openai-responses-model-turn.ts");
 			const allowsFocusedTransportAsync = file.endsWith("openai-responses-model-turn.ts");
 			const allowsRepositoryNodeDriver = file.endsWith("single-baseline-repository-node.ts");
+			const allowsClosedHostNodeDriver = file.endsWith("closed-task-profile-host.ts");
+			const allowsClosedVerifierCalibration = file.endsWith(
+				"closed-task-profile-verifier-calibration.ts",
+			);
 			expect(source).not.toMatch(
-				allowsRepositoryNodeDriver
+				allowsRepositoryNodeDriver || allowsClosedHostNodeDriver || allowsClosedVerifierCalibration
 					? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls)|(?:from|import)\s+["'](?:http|https|net|tls|undici|ws)["']/
 					: allowsFocusedTransportAsync
 						? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
@@ -757,9 +761,15 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							? /\b(?:async|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
 							: /\b(?:async|Promise|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/,
 			);
-			if (allowsRepositoryNodeDriver) {
+			if (allowsRepositoryNodeDriver || allowsClosedHostNodeDriver) {
 				expect(source).not.toMatch(/(?:^|[^.A-Za-z0-9_$])(?:exec|execFile|fork)\s*\(/m);
+			}
+			if (allowsRepositoryNodeDriver) {
 				expect(source).toContain('spawn(\n\t\t\t"git"');
+			}
+			if (allowsClosedHostNodeDriver) {
+				expect(source).toContain("spawn(executable");
+				expect(source).toContain("shell: false");
 			}
 			const imports = [
 				...source.matchAll(/(?:from|import)\s+["']([^"']+)["']/g),
@@ -769,7 +779,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				imports.every(
 					(specifier) =>
 						specifier === "node:crypto" ||
-						(allowsRepositoryNodeDriver &&
+						((allowsRepositoryNodeDriver || allowsClosedHostNodeDriver) &&
 							(specifier === "node:child_process" ||
 								specifier === "node:fs/promises" ||
 								specifier === "node:path")) ||

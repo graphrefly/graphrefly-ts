@@ -10,6 +10,7 @@ export const EMPIRICAL_EXACT_PRIVATE_NEEDLE_PROTECTION_PROFILE =
 export const MIN_EMPIRICAL_PRIVATE_NEEDLE_CODE_UNITS = 16;
 export const MAX_EMPIRICAL_PRIVATE_NEEDLE_CODE_UNITS = 4_096;
 export const MAX_EMPIRICAL_PRIVATE_NEEDLES = 16;
+const constructedExecutors = new WeakSet<object>();
 
 export interface EmpiricalExactPrivateNeedleProtectionConfigV1 {
 	readonly policyRef: string;
@@ -77,7 +78,7 @@ function createValidatedExecutor(value: unknown): EmpiricalExactPrivateNeedlePro
 	);
 	const protectedNeedles = validateProtectedNeedles(config.protectedNeedles);
 
-	return Object.freeze({
+	const executor = Object.freeze({
 		profile: EMPIRICAL_EXACT_PRIVATE_NEEDLE_PROTECTION_PROFILE,
 		policyRef,
 		policyRevision,
@@ -94,6 +95,14 @@ function createValidatedExecutor(value: unknown): EmpiricalExactPrivateNeedlePro
 			};
 		},
 	});
+	constructedExecutors.add(executor);
+	return executor;
+}
+
+export function isEmpiricalExactPrivateNeedleProtectionExecutor(
+	value: unknown,
+): value is EmpiricalExactPrivateNeedleProtectionExecutorV1 {
+	return typeof value === "object" && value !== null && constructedExecutors.has(value);
 }
 
 function validateProtectedNeedles(value: unknown): readonly string[] {
