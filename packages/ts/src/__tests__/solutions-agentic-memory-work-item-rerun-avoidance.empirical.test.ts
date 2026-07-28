@@ -744,11 +744,15 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 		}
 		for (const file of sourceFiles(EMPIRICAL_SOURCE_URL.pathname)) {
 			const source = readFileSync(file, "utf8");
-			const allowsOneTurnPromise = file.endsWith("model-execution.ts");
+			const allowsOneTurnPromise =
+				file.endsWith("model-execution.ts") || file.endsWith("openai-responses-model-turn.ts");
+			const allowsFocusedTransportAsync = file.endsWith("openai-responses-model-turn.ts");
 			expect(source).not.toMatch(
-				allowsOneTurnPromise
-					? /\b(?:async|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
-					: /\b(?:async|Promise|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/,
+				allowsFocusedTransportAsync
+					? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
+					: allowsOneTurnPromise
+						? /\b(?:async|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
+						: /\b(?:async|Promise|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/,
 			);
 			const imports = [
 				...source.matchAll(/(?:from|import)\s+["']([^"']+)["']/g),

@@ -24,6 +24,7 @@
 		"evals/empirical-memory-rerun-avoidance/**/*.ts",
 		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.empirical.test.ts",
 		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.model-execution.test.ts",
+		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.openai-responses.test.ts",
 		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.protection-policy.test.ts"
 	],
 	"exclude": ["node_modules", "dist"]
