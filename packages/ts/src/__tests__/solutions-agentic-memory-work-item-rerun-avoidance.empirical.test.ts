@@ -747,13 +747,20 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsOneTurnPromise =
 				file.endsWith("model-execution.ts") || file.endsWith("openai-responses-model-turn.ts");
 			const allowsFocusedTransportAsync = file.endsWith("openai-responses-model-turn.ts");
+			const allowsRepositoryNodeDriver = file.endsWith("single-baseline-repository-node.ts");
 			expect(source).not.toMatch(
-				allowsFocusedTransportAsync
-					? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
-					: allowsOneTurnPromise
-						? /\b(?:async|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
-						: /\b(?:async|Promise|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/,
+				allowsRepositoryNodeDriver
+					? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls)|(?:from|import)\s+["'](?:http|https|net|tls|undici|ws)["']/
+					: allowsFocusedTransportAsync
+						? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
+						: allowsOneTurnPromise
+							? /\b(?:async|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
+							: /\b(?:async|Promise|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/,
 			);
+			if (allowsRepositoryNodeDriver) {
+				expect(source).not.toMatch(/(?:^|[^.A-Za-z0-9_$])(?:exec|execFile|fork)\s*\(/m);
+				expect(source).toContain('spawn(\n\t\t\t"git"');
+			}
 			const imports = [
 				...source.matchAll(/(?:from|import)\s+["']([^"']+)["']/g),
 				...source.matchAll(/require\s*\(\s*["']([^"']+)["']\s*\)/g),
@@ -762,6 +769,10 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				imports.every(
 					(specifier) =>
 						specifier === "node:crypto" ||
+						(allowsRepositoryNodeDriver &&
+							(specifier === "node:child_process" ||
+								specifier === "node:fs/promises" ||
+								specifier === "node:path")) ||
 						specifier === "../../src/json/codec.js" ||
 						specifier.startsWith("./"),
 				),
