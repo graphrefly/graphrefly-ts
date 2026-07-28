@@ -176,6 +176,56 @@ export function buildEmpiricalCampaignManifestFixture(
 	catalog = buildEmpiricalQualificationCatalogFixture(),
 	report = buildEmpiricalQualificationReportFixture(catalog),
 ): EmpiricalCampaignManifestV1 {
+	const stringShape = Object.freeze({
+		kind: "string",
+		minLength: 1,
+		maxLength: 256,
+		enum: null,
+	} as const);
+	const toolInputSchema = Object.freeze({
+		kind: "object",
+		properties: Object.freeze([
+			Object.freeze({ name: "commandRef", required: true, shape: stringShape }),
+			Object.freeze({
+				name: "args",
+				required: true,
+				shape: Object.freeze({
+					kind: "array",
+					items: stringShape,
+					minItems: 0,
+					maxItems: 16,
+				} as const),
+			}),
+		]),
+		additionalProperties: false,
+	} as const);
+	const actorOutputSchema = Object.freeze({
+		kind: "object",
+		properties: Object.freeze([
+			Object.freeze({ name: "kind", required: true, shape: stringShape }),
+			Object.freeze({ name: "summary", required: true, shape: stringShape }),
+		]),
+		additionalProperties: false,
+	} as const);
+	const toolSchemaEntry = Object.freeze({
+		toolRef: "tool-placeholder",
+		schemaRevision: "tool-schema-placeholder.v1",
+		inputSchema: toolInputSchema,
+		inputSchemaDigest: empiricalStrictJsonDigest(toolInputSchema),
+	});
+	const outputSchemaEntry = Object.freeze({
+		schemaRef: "actor-turn-output-placeholder",
+		role: "actor",
+		schemaRevision: "actor-output-placeholder.v1",
+		schema: actorOutputSchema,
+		schemaDigest: empiricalStrictJsonDigest(actorOutputSchema),
+	} as const);
+	const schemaCatalog = Object.freeze({
+		schemaVersion: "graphrefly.private-solution-eval.strict-json-shape.v1",
+		catalogRevision: "model-schema-catalog-placeholder.v1",
+		tools: Object.freeze([toolSchemaEntry]),
+		outputs: Object.freeze([outputSchemaEntry]),
+	} as const);
 	return Object.freeze({
 		schemaVersion: EMPIRICAL_MEMORY_RERUN_AVOIDANCE_SCHEMAS.campaignManifest,
 		campaignRef: "campaign-placeholder",
@@ -200,6 +250,7 @@ export function buildEmpiricalCampaignManifestFixture(
 				"wrong-scope-applied",
 			] as const),
 		}),
+		schemaCatalog,
 		modelConfigurations: Object.freeze([
 			Object.freeze({
 				configurationRef: "actor-model-placeholder",
@@ -226,12 +277,16 @@ export function buildEmpiricalCampaignManifestFixture(
 					reasoning: Object.freeze({ mode: "none", effort: null }),
 					output: Object.freeze({
 						format: "strict-json",
-						schemaRevision: "actor-output-placeholder.v1",
+						schemaRef: outputSchemaEntry.schemaRef,
+						schemaRevision: outputSchemaEntry.schemaRevision,
+						schemaDigest: outputSchemaEntry.schemaDigest,
 						maxOutputTokens: 2_048,
 					}),
 					tools: Object.freeze({
 						enabled: true,
-						schemaRevision: "actor-tools-placeholder.v1",
+						schemaRevision: schemaCatalog.catalogRevision,
+						toolRefs: Object.freeze([toolSchemaEntry.toolRef]),
+						toolSetDigest: empiricalStrictJsonDigest([toolSchemaEntry]),
 						choice: "auto",
 						maxSteps: 8,
 					}),

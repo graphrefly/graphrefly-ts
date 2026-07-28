@@ -20,6 +20,7 @@ import {
 	validateEmpiricalTaskQualificationReportBytes,
 	validateFrozenEmpiricalCampaignManifest,
 } from "../../evals/empirical-memory-rerun-avoidance/qualification.js";
+import { validateEmpiricalOutputSchemaCatalogEntry } from "../../evals/empirical-memory-rerun-avoidance/strict-json-shape.js";
 import { strictJsonCodec } from "../json/codec.js";
 import {
 	buildEmpiricalCampaignFixture,
@@ -165,6 +166,43 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				fixture.report,
 			),
 		).toThrow(/manifestDigest.*does not match/);
+	});
+
+	it("reserves null as the no-output sentinel while retaining nested null shapes", () => {
+		const outputEntry = (schema: unknown) => ({
+			schemaRef: "output-schema-placeholder",
+			role: "actor",
+			schemaRevision: "output-schema-placeholder.v1",
+			schema,
+			schemaDigest: empiricalStrictJsonDigest(schema),
+		});
+		expect(() =>
+			validateEmpiricalOutputSchemaCatalogEntry(
+				outputEntry({ kind: "null" }),
+				"manifest.schemaCatalog.outputs[0]",
+			),
+		).toThrow(/output schema root must not accept null/);
+		const nullableRoot = {
+			kind: "one-of",
+			variants: [{ kind: "null" }, { kind: "string", minLength: 0, maxLength: 16, enum: null }],
+		};
+		expect(() =>
+			validateEmpiricalOutputSchemaCatalogEntry(
+				outputEntry(nullableRoot),
+				"manifest.schemaCatalog.outputs[0]",
+			),
+		).toThrow(/output schema root must not accept null/);
+		const nestedNull = {
+			kind: "object",
+			properties: [{ name: "detail", required: true, shape: { kind: "null" } }],
+			additionalProperties: false,
+		};
+		expect(
+			validateEmpiricalOutputSchemaCatalogEntry(
+				outputEntry(nestedNull),
+				"manifest.schemaCatalog.outputs[0]",
+			).schema,
+		).toEqual(nestedNull);
 	});
 
 	it("locks graphrefly-ts task identity and rejects aliased or invalid baseline material", () => {
@@ -425,12 +463,30 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 		expect(() =>
 			validateEmpiricalCampaignManifest({
 				...fixture.manifest,
+				schemaCatalog: {
+					...fixture.manifest.schemaCatalog,
+					outputs: [
+						...fixture.manifest.schemaCatalog.outputs,
+						{
+							...fixture.manifest.schemaCatalog.outputs[0],
+							schemaRef: "judge-output-placeholder",
+							role: "auxiliary-judge",
+						},
+					],
+				},
 				modelConfigurations: [
 					actor,
 					{
 						...actor,
 						configurationRef: "judge-placeholder",
 						role: "auxiliary-judge",
+						settings: {
+							...actor?.settings,
+							output: {
+								...actor?.settings.output,
+								schemaRef: "judge-output-placeholder",
+							},
+						},
 					},
 				],
 			}),
@@ -481,12 +537,30 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 		expect(() =>
 			validateEmpiricalCampaignManifest({
 				...fixture.manifest,
+				schemaCatalog: {
+					...fixture.manifest.schemaCatalog,
+					outputs: [
+						...fixture.manifest.schemaCatalog.outputs,
+						{
+							...fixture.manifest.schemaCatalog.outputs[0],
+							schemaRef: "judge-output-placeholder",
+							role: "auxiliary-judge",
+						},
+					],
+				},
 				modelConfigurations: [
 					actor,
 					{
 						...actor,
 						configurationRef: "judge-placeholder",
 						role: "auxiliary-judge",
+						settings: {
+							...actor?.settings,
+							output: {
+								...actor?.settings.output,
+								schemaRef: "judge-output-placeholder",
+							},
+						},
 					},
 				],
 				policies: {
@@ -670,8 +744,11 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 		}
 		for (const file of sourceFiles(EMPIRICAL_SOURCE_URL.pathname)) {
 			const source = readFileSync(file, "utf8");
+			const allowsOneTurnPromise = file.endsWith("model-execution.ts");
 			expect(source).not.toMatch(
-				/\b(?:async|Promise|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/,
+				allowsOneTurnPromise
+					? /\b(?:async|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
+					: /\b(?:async|Promise|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/,
 			);
 			const imports = [
 				...source.matchAll(/(?:from|import)\s+["']([^"']+)["']/g),

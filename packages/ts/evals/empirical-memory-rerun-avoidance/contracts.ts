@@ -130,15 +130,79 @@ export interface EmpiricalModelSettingsV1 {
 	};
 	readonly output: {
 		readonly format: "strict-json";
+		readonly schemaRef: string;
 		readonly schemaRevision: string;
+		readonly schemaDigest: string;
 		readonly maxOutputTokens: number;
 	};
 	readonly tools: {
 		readonly enabled: true;
 		readonly schemaRevision: string;
+		readonly toolRefs: readonly string[];
+		readonly toolSetDigest: string;
 		readonly choice: "auto" | "required";
 		readonly maxSteps: number;
 	};
+}
+
+export type EmpiricalStrictJsonShapeV1 =
+	| {
+			readonly kind: "null";
+	  }
+	| {
+			readonly kind: "boolean";
+	  }
+	| {
+			readonly kind: "number" | "integer";
+			readonly minimum: number | null;
+			readonly maximum: number | null;
+	  }
+	| {
+			readonly kind: "string";
+			readonly minLength: number;
+			readonly maxLength: number;
+			readonly enum: readonly string[] | null;
+	  }
+	| {
+			readonly kind: "array";
+			readonly items: EmpiricalStrictJsonShapeV1;
+			readonly minItems: number;
+			readonly maxItems: number;
+	  }
+	| {
+			readonly kind: "object";
+			readonly properties: readonly {
+				readonly name: string;
+				readonly required: boolean;
+				readonly shape: EmpiricalStrictJsonShapeV1;
+			}[];
+			readonly additionalProperties: false;
+	  }
+	| {
+			readonly kind: "one-of";
+			readonly variants: readonly EmpiricalStrictJsonShapeV1[];
+	  };
+
+export interface EmpiricalToolSchemaCatalogEntryV1 {
+	readonly toolRef: string;
+	readonly schemaRevision: string;
+	readonly inputSchema: EmpiricalStrictJsonShapeV1;
+	readonly inputSchemaDigest: string;
+}
+
+export interface EmpiricalOutputSchemaCatalogEntryV1 {
+	readonly schemaRef: string;
+	readonly role: "actor" | "auxiliary-judge" | "semantic-redactor";
+	readonly schemaRevision: string;
+	readonly schema: EmpiricalStrictJsonShapeV1;
+	readonly schemaDigest: string;
+}
+
+export interface EmpiricalSchemaCatalogV1 {
+	readonly schemaVersion: "graphrefly.private-solution-eval.strict-json-shape.v1";
+	readonly catalogRevision: string;
+	readonly tools: readonly EmpiricalToolSchemaCatalogEntryV1[];
+	readonly outputs: readonly EmpiricalOutputSchemaCatalogEntryV1[];
 }
 
 export interface EmpiricalModelConfigurationV1 {
@@ -240,6 +304,7 @@ export interface EmpiricalCampaignManifestV1 {
 		readonly reportDigest: string;
 	};
 	readonly trialPlan: EmpiricalTrialPlanV1;
+	readonly schemaCatalog: EmpiricalSchemaCatalogV1;
 	readonly modelConfigurations: readonly EmpiricalModelConfigurationV1[];
 	readonly policies: EmpiricalCampaignPolicyCoordinatesV1;
 	readonly budgets: EmpiricalCampaignBudgetsV1;

@@ -35,6 +35,7 @@ import {
 	type EmpiricalTaskCatalogV1,
 	type EmpiricalTrialPlanV1,
 } from "./contracts.js";
+import { validateEmpiricalSchemaCatalog } from "./strict-json-shape.js";
 
 export const MAX_EMPIRICAL_CAMPAIGN_MANIFEST_BYTES = 256 * 1024;
 
@@ -48,6 +49,7 @@ const MANIFEST_KEYS = Object.freeze([
 	"modelConfigurations",
 	"policies",
 	"qualification",
+	"schemaCatalog",
 	"schemaVersion",
 	"trialPlan",
 ]);
@@ -350,9 +352,17 @@ function validateSettings(value: unknown, path: string): EmpiricalModelSettingsV
 	const reasoning = record(settings.reasoning, `${path}.reasoning`);
 	exactKeys(reasoning, ["effort", "mode"], `${path}.reasoning`);
 	const output = record(settings.output, `${path}.output`);
-	exactKeys(output, ["format", "maxOutputTokens", "schemaRevision"], `${path}.output`);
+	exactKeys(
+		output,
+		["format", "maxOutputTokens", "schemaDigest", "schemaRef", "schemaRevision"],
+		`${path}.output`,
+	);
 	const tools = record(settings.tools, `${path}.tools`);
-	exactKeys(tools, ["choice", "enabled", "maxSteps", "schemaRevision"], `${path}.tools`);
+	exactKeys(
+		tools,
+		["choice", "enabled", "maxSteps", "schemaRevision", "toolRefs", "toolSetDigest"],
+		`${path}.tools`,
+	);
 	return strictSnapshot({
 		sampling: {
 			temperature: optionalFiniteNumber(sampling.temperature, `${path}.sampling.temperature`, {
@@ -374,7 +384,9 @@ function validateSettings(value: unknown, path: string): EmpiricalModelSettingsV
 		},
 		output: {
 			format: literal(output.format, "strict-json", `${path}.output.format`),
+			schemaRef: coordinate(output.schemaRef, `${path}.output.schemaRef`),
 			schemaRevision: string(output.schemaRevision, `${path}.output.schemaRevision`),
+			schemaDigest: digest(output.schemaDigest, `${path}.output.schemaDigest`),
 			maxOutputTokens: safeInteger(output.maxOutputTokens, `${path}.output.maxOutputTokens`, {
 				min: 1,
 				max: 1_000_000,
@@ -383,6 +395,11 @@ function validateSettings(value: unknown, path: string): EmpiricalModelSettingsV
 		tools: {
 			enabled: literal(tools.enabled, true, `${path}.tools.enabled`),
 			schemaRevision: string(tools.schemaRevision, `${path}.tools.schemaRevision`),
+			toolRefs: denseUniqueStrings(tools.toolRefs, `${path}.tools.toolRefs`, {
+				min: 1,
+				max: 64,
+			}),
+			toolSetDigest: digest(tools.toolSetDigest, `${path}.tools.toolSetDigest`),
 			choice: oneOf(tools.choice, ["auto", "required"], `${path}.tools.choice`),
 			maxSteps: safeInteger(tools.maxSteps, `${path}.tools.maxSteps`, {
 				min: 1,
@@ -722,6 +739,7 @@ export function validateEmpiricalCampaignManifest(value: unknown): EmpiricalCamp
 	);
 	const catalog = validateEmpiricalTaskCatalog(manifest.catalog);
 	const trialPlan = validateTrialPlan(manifest.trialPlan, catalog, "manifest.trialPlan");
+	const schemaCatalog = validateEmpiricalSchemaCatalog(manifest.schemaCatalog);
 	const modelValues = array(manifest.modelConfigurations, "manifest.modelConfigurations");
 	if (modelValues.length < 1 || modelValues.length > 4) {
 		fail("manifest.modelConfigurations", "expected between one and four focused configurations");
@@ -729,6 +747,53 @@ export function validateEmpiricalCampaignManifest(value: unknown): EmpiricalCamp
 	const modelConfigurations = modelValues.map((configuration, index) =>
 		validateModelConfiguration(configuration, `manifest.modelConfigurations[${index}]`),
 	);
+	const selectedToolRefs = new Set<string>();
+	const selectedOutputRefs = new Set<string>();
+	for (const configuration of modelConfigurations) {
+		if (configuration.settings.tools.schemaRevision !== schemaCatalog.catalogRevision) {
+			fail(
+				"manifest.modelConfigurations",
+				"tool schema revision must equal the frozen schema catalog revision",
+			);
+		}
+		const selectedTools = configuration.settings.tools.toolRefs.map((toolRef) => {
+			const tool = schemaCatalog.tools.find((entry) => entry.toolRef === toolRef);
+			if (tool === undefined) {
+				return fail("manifest.modelConfigurations", `unknown tool schema ref ${toolRef}`);
+			}
+			selectedToolRefs.add(toolRef);
+			return tool;
+		});
+		if (configuration.settings.tools.toolSetDigest !== empiricalStrictJsonDigest(selectedTools)) {
+			fail("manifest.modelConfigurations", "toolSetDigest does not match selected schema entries");
+		}
+		const output = schemaCatalog.outputs.find(
+			(entry) => entry.schemaRef === configuration.settings.output.schemaRef,
+		);
+		if (output === undefined) {
+			fail("manifest.modelConfigurations", "selected output schema is missing from the catalog");
+		}
+		selectedOutputRefs.add(output.schemaRef);
+		if (
+			output.role !== configuration.role ||
+			output.schemaRevision !== configuration.settings.output.schemaRevision ||
+			output.schemaDigest !== configuration.settings.output.schemaDigest
+		) {
+			fail(
+				"manifest.modelConfigurations",
+				"selected output schema does not match role, revision, and digest",
+			);
+		}
+	}
+	if (
+		selectedToolRefs.size !== schemaCatalog.tools.length ||
+		selectedOutputRefs.size !== schemaCatalog.outputs.length
+	) {
+		fail(
+			"manifest.schemaCatalog",
+			"every schema catalog entry must be selected by a configuration",
+		);
+	}
 	if (
 		new Set(modelConfigurations.map((configuration) => configuration.configurationRef)).size !==
 		modelConfigurations.length
@@ -922,6 +987,7 @@ export function validateEmpiricalCampaignManifest(value: unknown): EmpiricalCamp
 		catalog,
 		qualification,
 		trialPlan,
+		schemaCatalog,
 		modelConfigurations,
 		policies,
 		budgets,

@@ -22,7 +22,8 @@
 		"src/__tests__/eval-support/empirical-memory-rerun-avoidance/**/*.ts",
 		"evals/memory-rerun-avoidance/**/*.ts",
 		"evals/empirical-memory-rerun-avoidance/**/*.ts",
-		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.empirical.test.ts"
+		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.empirical.test.ts",
+		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.model-execution.test.ts"
 	],
 	"exclude": ["node_modules", "dist"]
 }

@@ -35,11 +35,48 @@ export function record(value: unknown, path: string): Record<string, unknown> {
 	if (value === null || typeof value !== "object" || Array.isArray(value)) {
 		return fail(path, "expected object");
 	}
+	const prototype = Object.getPrototypeOf(value);
+	if (prototype !== Object.prototype && prototype !== null) {
+		return fail(path, "expected a plain object");
+	}
+	if (Object.getOwnPropertySymbols(value).length > 0) {
+		return fail(path, "symbol-keyed properties are forbidden");
+	}
+	for (const key of Object.getOwnPropertyNames(value)) {
+		const descriptor = Object.getOwnPropertyDescriptor(value, key);
+		if (descriptor === undefined || "get" in descriptor || "set" in descriptor) {
+			return fail(`${path}.${key}`, "expected an own data property");
+		}
+		if (!descriptor.enumerable) {
+			return fail(`${path}.${key}`, "expected an enumerable property");
+		}
+	}
 	return value as Record<string, unknown>;
 }
 
 export function array(value: unknown, path: string): readonly unknown[] {
 	if (!Array.isArray(value)) return fail(path, "expected array");
+	if (Object.getOwnPropertySymbols(value).length > 0) {
+		return fail(path, "symbol-keyed array properties are forbidden");
+	}
+	let indexCount = 0;
+	for (const key of Object.getOwnPropertyNames(value)) {
+		if (key === "length") continue;
+		const index =
+			/^(0|[1-9]\d*)$/.test(key) && Number.isSafeInteger(Number(key)) ? Number(key) : -1;
+		if (index < 0 || index >= value.length) {
+			return fail(`${path}.${key}`, "expected only canonical array index properties");
+		}
+		const descriptor = Object.getOwnPropertyDescriptor(value, key);
+		if (descriptor === undefined || "get" in descriptor || "set" in descriptor) {
+			return fail(`${path}[${index}]`, "expected an own data property");
+		}
+		if (!descriptor.enumerable) {
+			return fail(`${path}[${index}]`, "expected an enumerable array entry");
+		}
+		indexCount += 1;
+	}
+	if (indexCount !== value.length) return fail(path, "expected a dense array");
 	return value;
 }
 
