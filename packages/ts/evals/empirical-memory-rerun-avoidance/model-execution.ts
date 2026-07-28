@@ -40,6 +40,7 @@ export const EMPIRICAL_MODEL_EXECUTION_SCHEMAS = Object.freeze({
 
 export const MAX_EMPIRICAL_MODEL_TURN_REQUEST_BYTES = 262_144;
 export const MAX_EMPIRICAL_MODEL_TURN_OUTCOME_BYTES = 262_144;
+export const MAX_EMPIRICAL_PROTECTION_SUBJECT_BYTES = 262_144;
 export const EMPIRICAL_MODEL_EGRESS_BLOCKED_SUBJECT_EVIDENCE_KIND = "model-egress-blocked-subject";
 export const EMPIRICAL_MODEL_EGRESS_BLOCKED_SUBJECT_EVIDENCE_ID = "model-egress-blocked-subject";
 export const EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES = Object.freeze({
@@ -472,6 +473,9 @@ export function executeEmpiricalProtection(
 	const policyRevision = coordinate(rawInput.policyRevision, "protection.policyRevision");
 	const stage = oneOf(rawInput.stage, PROTECTION_STAGES, "protection.stage");
 	const subject = boundedStrictJson(rawInput.subject, "protection.subject");
+	if (strictJsonCodec.encode(subject).byteLength > MAX_EMPIRICAL_PROTECTION_SUBJECT_BYTES) {
+		fail("protection.subject", `exceeds ${MAX_EMPIRICAL_PROTECTION_SUBJECT_BYTES} canonical bytes`);
+	}
 	const subjectDigest = empiricalStrictJsonDigest(subject);
 	try {
 		const rawInspection = record(
