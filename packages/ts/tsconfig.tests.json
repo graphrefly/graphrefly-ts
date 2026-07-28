@@ -27,6 +27,7 @@
 		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.closed-host.test.ts",
 		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.model-execution.test.ts",
 		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.openai-responses.test.ts",
+		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.openrouter-responses.test.ts",
 		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.protection-policy.test.ts"
 	],
 	"exclude": ["node_modules", "dist"]

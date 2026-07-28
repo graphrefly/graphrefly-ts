@@ -745,8 +745,12 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 		for (const file of sourceFiles(EMPIRICAL_SOURCE_URL.pathname)) {
 			const source = readFileSync(file, "utf8");
 			const allowsOneTurnPromise =
-				file.endsWith("model-execution.ts") || file.endsWith("openai-responses-model-turn.ts");
-			const allowsFocusedTransportAsync = file.endsWith("openai-responses-model-turn.ts");
+				file.endsWith("model-execution.ts") ||
+				file.endsWith("openai-responses-model-turn.ts") ||
+				file.endsWith("openrouter-responses-model-turn.ts");
+			const allowsFocusedTransportAsync =
+				file.endsWith("openai-responses-model-turn.ts") ||
+				file.endsWith("openrouter-responses-model-turn.ts");
 			const allowsRepositoryNodeDriver = file.endsWith("single-baseline-repository-node.ts");
 			const allowsClosedHostNodeDriver = file.endsWith("closed-task-profile-host.ts");
 			const allowsClosedVerifierCalibration = file.endsWith(
