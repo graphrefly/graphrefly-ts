@@ -23,6 +23,7 @@
 			"!archive/website-prototypes",
 			"!benchmarks",
 			"!packages/ts/runners/local-untrusted-js/local-untrusted-js-runner.mjs",
+			"!packages/ts/evals/.private/empirical-memory-rerun-avoidance",
 			"!website",
 			"!examples/nestjs"
 		]

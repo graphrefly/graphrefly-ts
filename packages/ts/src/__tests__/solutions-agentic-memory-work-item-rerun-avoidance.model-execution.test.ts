@@ -29,7 +29,7 @@ import {
 	buildEmpiricalModelTurnAuthorityFixture,
 	buildEmpiricalModelTurnOutcomeFixture,
 	buildEmpiricalModelTurnRequestFixture,
-	DeterministicEmpiricalModelTurnFake,
+	DeterministicEmpiricalModelTurnScript,
 	type EmpiricalModelTurnAuthorityFixture,
 } from "./eval-support/empirical-memory-rerun-avoidance/model-execution-fixtures.js";
 
@@ -890,44 +890,142 @@ describe("B112.6.2-B112.6.3 private model turn and protection execution (D652-D6
 		).toThrow(/allowed receipt does not match its canonical provenance/);
 	});
 
-	it("uses a deterministic fake with explicit credential capability and host cancellation", async () => {
+	it("strictly replays a finite deterministic script without network, fallback, or hidden retries", async () => {
 		const authority = buildEmpiricalModelTurnAuthorityFixture();
-		const request = buildEmpiricalModelTurnRequestFixture(authority);
-		const outcome = buildEmpiricalModelTurnOutcomeFixture(request, authority);
-		const fake = new DeterministicEmpiricalModelTurnFake(
+		const firstRequest = buildEmpiricalModelTurnRequestFixture(authority);
+		const firstOutcome = buildEmpiricalModelTurnOutcomeFixture(firstRequest, authority);
+		const secondRequest = validateRequest(
 			{
-				credentialBindingRef: request.credentialBindingRef,
-				credentialBindingRevision: request.credentialBindingRevision,
+				...firstRequest,
+				requestRef: "model-turn-request-placeholder-step-1",
+				stepIndex: 1,
 			},
 			authority,
-			request,
-			outcome,
+		);
+		const secondOutcome = buildEmpiricalModelTurnOutcomeFixture(secondRequest, authority);
+		const script = new DeterministicEmpiricalModelTurnScript(
+			{
+				credentialBindingRef: firstRequest.credentialBindingRef,
+				credentialBindingRevision: firstRequest.credentialBindingRevision,
+			},
+			authority,
+			[
+				{ request: firstRequest, outcome: firstOutcome },
+				{ request: secondRequest, outcome: secondOutcome },
+			],
 		);
 		const controller = new AbortController();
-		await expect(fake.invoke(request, controller.signal)).resolves.toEqual(outcome);
-		await expect(fake.invoke(request, controller.signal)).resolves.toEqual(outcome);
+		await expect(script.invoke(firstRequest, controller.signal)).resolves.toEqual(firstOutcome);
 		await expect(
-			fake.invoke(
-				validateRequest({ ...request, requestRef: "unexpected-model-turn-request" }, authority),
+			script.invoke(
+				validateRequest(
+					{ ...secondRequest, requestRef: "unexpected-model-turn-request" },
+					authority,
+				),
 				controller.signal,
 			),
 		).rejects.toThrow(/unexpected request/);
+		expect(script.observations).toEqual([
+			{
+				attemptIndex: 0,
+				scriptIndex: 0,
+				requestRef: firstRequest.requestRef,
+				requestDigest: empiricalStrictJsonDigest(firstRequest),
+				stepIndex: 0,
+				outcomeStatus: "completed",
+			},
+		]);
+		expect(Object.isFrozen(script.observations)).toBe(true);
 		const cancelled = new AbortController();
 		cancelled.abort();
-		await expect(fake.invoke(request, cancelled.signal)).rejects.toMatchObject({
+		await expect(script.invoke(secondRequest, cancelled.signal)).rejects.toMatchObject({
 			name: "AbortError",
 		});
+		await expect(script.invoke(secondRequest, controller.signal)).resolves.toEqual(secondOutcome);
+		await expect(script.invoke(secondRequest, controller.signal)).rejects.toThrow(
+			/frozen attempt budget/,
+		);
+		expect(script.observations).toEqual([
+			{
+				attemptIndex: 0,
+				scriptIndex: 0,
+				requestRef: firstRequest.requestRef,
+				requestDigest: empiricalStrictJsonDigest(firstRequest),
+				stepIndex: 0,
+				outcomeStatus: "completed",
+			},
+			{
+				attemptIndex: 3,
+				scriptIndex: 1,
+				requestRef: secondRequest.requestRef,
+				requestDigest: empiricalStrictJsonDigest(secondRequest),
+				stepIndex: 1,
+				outcomeStatus: "completed",
+			},
+		]);
+		expect(script.attemptCount).toBe(authority.frozen.manifest.budgets.agentRun.maxRequests);
+		expect(firstOutcome.usage.requests).toBe(1);
 		expect(
 			() =>
-				new DeterministicEmpiricalModelTurnFake(
+				new DeterministicEmpiricalModelTurnScript(
 					{
 						credentialBindingRef: "different-credential-binding",
-						credentialBindingRevision: request.credentialBindingRevision,
+						credentialBindingRevision: firstRequest.credentialBindingRevision,
 					},
 					authority,
-					request,
-					outcome,
+					[{ request: firstRequest, outcome: firstOutcome }],
 				),
 		).toThrow(/credential capability does not match/);
+		expect(
+			() =>
+				new DeterministicEmpiricalModelTurnScript(
+					{
+						credentialBindingRef: firstRequest.credentialBindingRef,
+						credentialBindingRevision: firstRequest.credentialBindingRevision,
+					},
+					authority,
+					Array.from(
+						{ length: authority.frozen.manifest.budgets.agentRun.maxRequests + 1 },
+						() => ({ request: firstRequest, outcome: firstOutcome }),
+					),
+				),
+		).toThrow(/exceeds the frozen agent-run request budget/);
+		expect(
+			() =>
+				new DeterministicEmpiricalModelTurnScript(
+					{
+						credentialBindingRef: firstRequest.credentialBindingRef,
+						credentialBindingRevision: firstRequest.credentialBindingRevision,
+					},
+					authority,
+					new Array(1),
+				),
+		).toThrow(/dense semantic replay script/);
+		const boundedMisses = new DeterministicEmpiricalModelTurnScript(
+			{
+				credentialBindingRef: firstRequest.credentialBindingRef,
+				credentialBindingRevision: firstRequest.credentialBindingRevision,
+			},
+			authority,
+			[{ request: firstRequest, outcome: firstOutcome }],
+		);
+		const unexpectedRequest = validateRequest(
+			{ ...firstRequest, requestRef: "bounded-unexpected-model-turn-request" },
+			authority,
+		);
+		for (
+			let attempt = 0;
+			attempt < authority.frozen.manifest.budgets.agentRun.maxRequests;
+			attempt += 1
+		) {
+			await expect(boundedMisses.invoke(unexpectedRequest, controller.signal)).rejects.toThrow(
+				/unexpected request/,
+			);
+		}
+		await expect(boundedMisses.invoke(firstRequest, controller.signal)).rejects.toThrow(
+			/frozen attempt budget/,
+		);
+		expect(boundedMisses.attemptCount).toBe(authority.frozen.manifest.budgets.agentRun.maxRequests);
+		expect(boundedMisses.observations).toEqual([]);
 	});
 });

@@ -188,62 +188,133 @@ export function buildEmpiricalModelTurnOutcomeFixture(
 	);
 }
 
-export class DeterministicEmpiricalModelTurnFake implements EmpiricalModelTurnPortV1 {
+export interface DeterministicEmpiricalModelTurnScriptStep {
+	readonly request: EmpiricalModelTurnRequestV1;
+	readonly outcome: EmpiricalModelTurnOutcomeV1;
+}
+
+export interface DeterministicEmpiricalModelTurnCallObservation {
+	readonly attemptIndex: number;
+	readonly scriptIndex: number;
+	readonly requestRef: string;
+	readonly requestDigest: string;
+	readonly stepIndex: number;
+	readonly outcomeStatus: EmpiricalModelTurnOutcomeV1["status"];
+}
+
+/**
+ * Test-only strict semantic replay for the D652 single-turn port.
+ *
+ * Each successful invocation consumes exactly one prevalidated request/outcome pair. It performs no
+ * provider call and must never be used as empirical campaign evidence: completed scripted outcomes retain
+ * D653's simulated one-request accounting only to exercise the same validators and host control flow.
+ */
+export class DeterministicEmpiricalModelTurnScript implements EmpiricalModelTurnPortV1 {
 	readonly #capability: DeterministicCredentialCapabilityFixture;
 	readonly #authority: EmpiricalModelTurnAuthorityFixture;
-	readonly #request: EmpiricalModelTurnRequestV1;
-	readonly #requestDigest: string;
-	readonly #outcome: EmpiricalModelTurnOutcomeV1;
+	readonly #steps: readonly {
+		readonly requestDigest: string;
+		readonly outcome: EmpiricalModelTurnOutcomeV1;
+	}[];
+	readonly #maxAttempts: number;
+	readonly #observations: DeterministicEmpiricalModelTurnCallObservation[] = [];
+	#cursor = 0;
+	#attemptCount = 0;
 
 	constructor(
 		capability: DeterministicCredentialCapabilityFixture,
 		authority: EmpiricalModelTurnAuthorityFixture,
-		request: EmpiricalModelTurnRequestV1,
-		outcome: EmpiricalModelTurnOutcomeV1,
+		script: readonly DeterministicEmpiricalModelTurnScriptStep[],
 	) {
 		this.#capability = strictSnapshot(capability);
 		this.#authority = strictSnapshot(authority);
-		this.#request = validateEmpiricalModelTurnRequest(
-			request,
-			this.#authority.frozen,
-			this.#authority.qualificationReport,
-		);
-		this.#requestDigest = empiricalStrictJsonDigest(this.#request);
-		if (
-			this.#request.credentialBindingRef !== this.#capability.credentialBindingRef ||
-			this.#request.credentialBindingRevision !== this.#capability.credentialBindingRevision
-		) {
-			throw new TypeError("fake binding credential capability does not match the request");
+		if (!Array.isArray(script) || script.length === 0) {
+			throw new TypeError("scripted binding requires at least one semantic replay step");
 		}
-		this.#outcome = validateEmpiricalModelTurnOutcome(
-			outcome,
-			this.#request,
-			this.#authority.frozen,
-			this.#authority.qualificationReport,
+		for (let index = 0; index < script.length; index += 1) {
+			if (!Object.hasOwn(script, index)) {
+				throw new TypeError("scripted binding requires a dense semantic replay script");
+			}
+		}
+		this.#maxAttempts = this.#authority.frozen.manifest.budgets.agentRun.maxRequests;
+		if (script.length > this.#maxAttempts) {
+			throw new TypeError("scripted binding exceeds the frozen agent-run request budget");
+		}
+		this.#steps = Object.freeze(
+			script.map((step) => {
+				const request = validateEmpiricalModelTurnRequest(
+					step.request,
+					this.#authority.frozen,
+					this.#authority.qualificationReport,
+				);
+				if (
+					request.credentialBindingRef !== this.#capability.credentialBindingRef ||
+					request.credentialBindingRevision !== this.#capability.credentialBindingRevision
+				) {
+					throw new TypeError("scripted binding credential capability does not match the request");
+				}
+				return Object.freeze({
+					requestDigest: empiricalStrictJsonDigest(request),
+					outcome: validateEmpiricalModelTurnOutcome(
+						step.outcome,
+						request,
+						this.#authority.frozen,
+						this.#authority.qualificationReport,
+					),
+				});
+			}),
 		);
+	}
+
+	get observations(): readonly DeterministicEmpiricalModelTurnCallObservation[] {
+		return strictSnapshot([...this.#observations]);
+	}
+
+	get attemptCount(): number {
+		return this.#attemptCount;
 	}
 
 	invoke(
 		request: EmpiricalModelTurnRequestV1,
 		signal: AbortSignal,
 	): Promise<EmpiricalModelTurnOutcomeV1> {
+		if (this.#attemptCount >= this.#maxAttempts) {
+			return Promise.reject(new TypeError("scripted binding exhausted its frozen attempt budget"));
+		}
+		const attemptIndex = this.#attemptCount;
+		this.#attemptCount += 1;
 		if (signal.aborted) {
 			return Promise.reject(new DOMException("model turn cancelled by host", "AbortError"));
 		}
-		const validated = validateEmpiricalModelTurnRequest(
-			request,
-			this.#authority.frozen,
-			this.#authority.qualificationReport,
+		const step = this.#steps[this.#cursor];
+		if (step === undefined) {
+			return Promise.reject(new TypeError("scripted binding exhausted its semantic replay steps"));
+		}
+		let validated: EmpiricalModelTurnRequestV1;
+		try {
+			validated = validateEmpiricalModelTurnRequest(
+				request,
+				this.#authority.frozen,
+				this.#authority.qualificationReport,
+			);
+		} catch (error) {
+			return Promise.reject(error);
+		}
+		const requestDigest = empiricalStrictJsonDigest(validated);
+		if (requestDigest !== step.requestDigest) {
+			return Promise.reject(new TypeError("scripted binding received an unexpected request"));
+		}
+		this.#observations.push(
+			strictSnapshot({
+				attemptIndex,
+				scriptIndex: this.#cursor,
+				requestRef: validated.requestRef,
+				requestDigest,
+				stepIndex: validated.stepIndex,
+				outcomeStatus: step.outcome.status,
+			}),
 		);
-		if (empiricalStrictJsonDigest(validated) !== this.#requestDigest) {
-			return Promise.reject(new TypeError("fake binding received an unexpected request"));
-		}
-		if (
-			validated.credentialBindingRef !== this.#capability.credentialBindingRef ||
-			validated.credentialBindingRevision !== this.#capability.credentialBindingRevision
-		) {
-			return Promise.reject(new TypeError("fake binding credential capability mismatch"));
-		}
-		return Promise.resolve(this.#outcome);
+		this.#cursor += 1;
+		return Promise.resolve(step.outcome);
 	}
 }
