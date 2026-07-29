@@ -1,5 +1,11 @@
 # @graphrefly/ts
 
+## 0.6.4
+
+### Patch Changes
+
+- 913388c: Share the dependency-cache context key across CJS package entry bundles so focused subpath helpers can consume root-created graphs.
+
 ## 0.6.3
 
 ### Patch Changes
