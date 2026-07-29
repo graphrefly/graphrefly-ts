@@ -933,7 +933,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			);
 			transport.mockResolvedValueOnce({ status, body: responseEncoder.encode(rawBody) });
 			const outcome = await binding.modelTurnPort.invoke(request, new AbortController().signal);
-			expect(outcome.issueCodes).toEqual([issueCode]);
+			expect(outcome.issueCodes).toEqual([issueCode, `openrouter-http-status:${status}`]);
 			expect(outcome.usage.requests).toBe(1);
 			serializedWithoutCredential(outcome);
 			expect(JSON.stringify(outcome)).not.toContain("raw-provider-error");
@@ -945,13 +945,16 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		expect(outcome.issueCodes).toEqual([OPENROUTER_RESPONSES_ISSUE_CODES.unavailableTransport]);
 		expect(outcome.usage.requests).toBe(1);
 		serializedWithoutCredential(outcome);
+	});
 
+	it("records only bounded allowlisted provider rejection diagnostics", async () => {
 		const typedFailures = [
 			["authentication", OPENROUTER_RESPONSES_ISSUE_CODES.authenticationPermission],
 			["payment_required", OPENROUTER_RESPONSES_ISSUE_CODES.quotaRateLimit],
 			["provider_overloaded", OPENROUTER_RESPONSES_ISSUE_CODES.unavailableTransport],
 			["invalid_request", OPENROUTER_RESPONSES_ISSUE_CODES.rejected],
 			["unknown-type", OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse],
+			[bearerToken, OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse],
 		] as const;
 		for (const [errorType, issueCode] of typedFailures) {
 			const typedHarness = createHarness();
@@ -967,9 +970,72 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 				typedHarness.request,
 				new AbortController().signal,
 			);
-			expect(typedOutcome.issueCodes).toEqual([issueCode]);
+			const errorTypeDiagnostic =
+				errorType === "unknown-type" || errorType === bearerToken
+					? "openrouter-error-type:unrecognized"
+					: `openrouter-error-type:${errorType}`;
+			expect(typedOutcome.issueCodes).toEqual([
+				issueCode,
+				"openrouter-http-status:500",
+				errorTypeDiagnostic,
+				"openrouter-error-code:server_error",
+			]);
 			serializedWithoutCredential(typedOutcome);
 		}
+
+		const nativeCodeHarness = createHarness();
+		nativeCodeHarness.transport.mockResolvedValueOnce({
+			status: 400,
+			body: responseBytes({
+				error: { code: "invalid_prompt", message: `raw-${bearerToken}` },
+				metadata: null,
+			}),
+		});
+		const nativeCodeOutcome = await nativeCodeHarness.binding.modelTurnPort.invoke(
+			nativeCodeHarness.request,
+			new AbortController().signal,
+		);
+		expect(nativeCodeOutcome.issueCodes).toEqual([
+			OPENROUTER_RESPONSES_ISSUE_CODES.rejected,
+			"openrouter-http-status:400",
+			"openrouter-error-code:invalid_prompt",
+		]);
+		serializedWithoutCredential(nativeCodeOutcome);
+	});
+
+	it("does not reflect an unknown native code or malformed response bytes", async () => {
+		const unknownCodeHarness = createHarness();
+		unknownCodeHarness.transport.mockResolvedValueOnce({
+			status: 400,
+			body: responseBytes({
+				error: { code: bearerToken, message: `raw-${bearerToken}` },
+			}),
+		});
+		const unknownCodeOutcome = await unknownCodeHarness.binding.modelTurnPort.invoke(
+			unknownCodeHarness.request,
+			new AbortController().signal,
+		);
+		expect(unknownCodeOutcome.issueCodes).toEqual([
+			OPENROUTER_RESPONSES_ISSUE_CODES.rejected,
+			"openrouter-http-status:400",
+			"openrouter-error-code:unrecognized",
+		]);
+		serializedWithoutCredential(unknownCodeOutcome);
+
+		const malformedUtf8Harness = createHarness();
+		malformedUtf8Harness.transport.mockResolvedValueOnce({
+			status: 422,
+			body: new Uint8Array([0xc3, 0x28]),
+		});
+		const malformedUtf8Outcome = await malformedUtf8Harness.binding.modelTurnPort.invoke(
+			malformedUtf8Harness.request,
+			new AbortController().signal,
+		);
+		expect(malformedUtf8Outcome.issueCodes).toEqual([
+			OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+			"openrouter-http-status:422",
+		]);
+		serializedWithoutCredential(malformedUtf8Outcome);
 	});
 
 	it("blocks forged credential-bearing request material before transport", async () => {

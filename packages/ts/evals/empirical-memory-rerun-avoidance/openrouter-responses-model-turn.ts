@@ -922,37 +922,95 @@ function issueForStatus(status: number): OpenRouterResponsesIssueCode {
 	return OPENROUTER_RESPONSES_ISSUE_CODES.rejected;
 }
 
-function issueForErrorResponse(status: number, bytes: Uint8Array): OpenRouterResponsesIssueCode {
+function diagnosticHttpStatus(status: number): string {
+	return `openrouter-http-status:${status}`;
+}
+
+function diagnosticErrorType(errorType: string): string {
+	switch (errorType) {
+		case "authentication":
+		case "permission_denied":
+		case "payment_required":
+		case "rate_limit_exceeded":
+		case "provider_overloaded":
+		case "provider_unavailable":
+		case "timeout":
+		case "server":
+		case "context_length_exceeded":
+		case "content_policy_violation":
+		case "invalid_prompt":
+		case "invalid_request":
+		case "not_found":
+		case "payload_too_large":
+		case "precondition_failed":
+		case "refusal":
+		case "unmapped":
+		case "unprocessable":
+			return `openrouter-error-type:${errorType}`;
+		default:
+			return "openrouter-error-type:unrecognized";
+	}
+}
+
+function diagnosticErrorCode(root: Record<string, unknown>): string | null {
+	if (root.error === undefined) return null;
+	let code: unknown;
+	try {
+		code = providerRecord(root.error).code;
+	} catch {
+		return "openrouter-error-code:unrecognized";
+	}
+	if (code === undefined || typeof code === "number") return null;
+	if (typeof code !== "string") return "openrouter-error-code:unrecognized";
+	switch (code) {
+		case "image_content_policy_violation":
+		case "invalid_prompt":
+		case "rate_limit_exceeded":
+		case "server_error":
+			return `openrouter-error-code:${code}`;
+		default:
+			return "openrouter-error-code:unrecognized";
+	}
+}
+
+function issuesForErrorResponse(status: number, bytes: Uint8Array): readonly string[] {
+	const statusDiagnostic = diagnosticHttpStatus(status);
 	let text: string;
 	try {
 		text = decoder.decode(bytes);
 	} catch {
-		return OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse;
+		return [OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse, statusDiagnostic];
 	}
-	if (!text.trimStart().startsWith("{")) return issueForStatus(status);
+	if (!text.trimStart().startsWith("{")) return [issueForStatus(status), statusDiagnostic];
 	let errorType: string;
+	let errorCodeDiagnostic: string | null;
 	try {
 		const root = providerRecord(parseStrictJsonText(text));
-		if (root.error_type === undefined) return issueForStatus(status);
+		errorCodeDiagnostic = diagnosticErrorCode(root);
+		if (root.error_type === undefined) {
+			return [
+				issueForStatus(status),
+				statusDiagnostic,
+				...(errorCodeDiagnostic === null ? [] : [errorCodeDiagnostic]),
+			];
+		}
 		errorType = boundedProviderString(root.error_type, 64);
 	} catch {
-		return OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse;
+		return [OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse, statusDiagnostic];
 	}
+	let issueCode: OpenRouterResponsesIssueCode;
 	if (errorType === "authentication" || errorType === "permission_denied") {
-		return OPENROUTER_RESPONSES_ISSUE_CODES.authenticationPermission;
-	}
-	if (errorType === "payment_required" || errorType === "rate_limit_exceeded") {
-		return OPENROUTER_RESPONSES_ISSUE_CODES.quotaRateLimit;
-	}
-	if (
+		issueCode = OPENROUTER_RESPONSES_ISSUE_CODES.authenticationPermission;
+	} else if (errorType === "payment_required" || errorType === "rate_limit_exceeded") {
+		issueCode = OPENROUTER_RESPONSES_ISSUE_CODES.quotaRateLimit;
+	} else if (
 		errorType === "provider_overloaded" ||
 		errorType === "provider_unavailable" ||
 		errorType === "timeout" ||
 		errorType === "server"
 	) {
-		return OPENROUTER_RESPONSES_ISSUE_CODES.unavailableTransport;
-	}
-	if (
+		issueCode = OPENROUTER_RESPONSES_ISSUE_CODES.unavailableTransport;
+	} else if (
 		errorType === "context_length_exceeded" ||
 		errorType === "content_policy_violation" ||
 		errorType === "invalid_prompt" ||
@@ -964,9 +1022,16 @@ function issueForErrorResponse(status: number, bytes: Uint8Array): OpenRouterRes
 		errorType === "unmapped" ||
 		errorType === "unprocessable"
 	) {
-		return OPENROUTER_RESPONSES_ISSUE_CODES.rejected;
+		issueCode = OPENROUTER_RESPONSES_ISSUE_CODES.rejected;
+	} else {
+		issueCode = OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse;
 	}
-	return OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse;
+	return [
+		issueCode,
+		statusDiagnostic,
+		diagnosticErrorType(errorType),
+		...(errorCodeDiagnostic === null ? [] : [errorCodeDiagnostic]),
+	];
 }
 
 function readMeasurement(readMs: OpenRouterResponsesMonotonicMeasurementV1["readMs"]): number {
@@ -1109,7 +1174,7 @@ function allowedOutcome(
 function failureOutcome(
 	config: RuntimeBindingConfig,
 	request: EmpiricalModelTurnRequestV1,
-	issueCode: OpenRouterResponsesIssueCode,
+	issues: OpenRouterResponsesIssueCode | readonly string[],
 	requests: 0 | 1,
 	hostInputBytes: number,
 	latencyMs: number,
@@ -1122,7 +1187,7 @@ function failureOutcome(
 		toolIntents: [],
 		turnUsage: usage(request, requests, hostInputBytes, 0, providerUsage),
 		latencyMs,
-		issueCodes: [issueCode],
+		issueCodes: typeof issues === "string" ? [issues] : issues,
 		evidenceRefs: [],
 	});
 }
@@ -1324,7 +1389,7 @@ async function invokeOpenRouterResponses(
 		return failureOutcome(
 			config,
 			request,
-			issueForErrorResponse(response.status, response.body),
+			issuesForErrorResponse(response.status, response.body),
 			1,
 			body.byteLength,
 			latencyMs,

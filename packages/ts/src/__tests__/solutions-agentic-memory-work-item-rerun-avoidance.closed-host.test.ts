@@ -1230,6 +1230,68 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		).not.toContain(failureCredentialSentinel);
 	});
 
+	it("persists only allowlisted rejection diagnostics after one provider response", async () => {
+		const fixture = await createClosedHostFixture();
+		const rejectionCredentialSentinel = "openrouter-rejection-secret-0123456789";
+		const privateRoot = join(
+			temporaryRoot("provider-rejection"),
+			".private",
+			"empirical-memory-rerun-avoidance",
+		);
+		mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
+		chmodSync(privateRoot, 0o700);
+		const result = await runOpenRouterFirstTaskSmoke({
+			host: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: fixture.materialization,
+				verifier: fixture.verifier,
+			},
+			routeQualification: simulatedRouteQualification(fixture),
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: rejectionCredentialSentinel,
+			},
+			transport: {
+				request() {
+					return Promise.resolve({
+						status: 400,
+						body: encoder.encode(
+							JSON.stringify({
+								error: {
+									code: "invalid_prompt",
+									message: `raw ${rejectionCredentialSentinel}`,
+								},
+								error_type: rejectionCredentialSentinel,
+							}),
+						),
+					});
+				},
+			},
+			monotonicMeasurement: { readMs: () => 0 },
+			executionClass: "simulated-contract",
+			privateRoot,
+			generationRef: "provider-rejection-generation",
+			signal: new AbortController().signal,
+		});
+		expect(result.observation.issueCodes).toEqual([
+			"model-turn-non-evaluable",
+			"openrouter-error-code:invalid_prompt",
+			"openrouter-error-type:unrecognized",
+			"openrouter-http-status:400",
+			"openrouter-invalid-unsupported-response",
+		]);
+		expect(result.scorecard.issueCodes).toEqual(result.observation.issueCodes);
+		for (const file of readdirSync(result.persistence.generationPath)) {
+			expect(readFileSync(join(result.persistence.generationPath, file), "utf8")).not.toContain(
+				rejectionCredentialSentinel,
+			);
+		}
+	});
+
 	it("preserves one attempted request when the outer deadline aborts in-flight transport", async () => {
 		const fixture = await createClosedHostFixture();
 		const controller = new AbortController();
