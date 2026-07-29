@@ -23,7 +23,7 @@ export interface DeliveryMeta {
  * Internal current-value reader. It is deliberately a symbol-backed implementation detail:
  * raw ctx exposes `waveData` + `terminal`; helpers below derive from that plus this dep cache.
  */
-export const CTX_DEP_CACHE: unique symbol = Symbol("graphrefly.ctx.depCache");
+export const CTX_DEP_CACHE: unique symbol = Symbol.for("graphrefly.ctx.depCache");
 
 export interface CtxDepCache {
 	readonly latest: readonly unknown[];
