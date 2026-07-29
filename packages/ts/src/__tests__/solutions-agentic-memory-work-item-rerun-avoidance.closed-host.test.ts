@@ -1777,16 +1777,21 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			return result;
 		};
 
-		const loopBound = await runBoundedCase("request-step", { maxRequests: 2 }, 2);
-		expect(loopBound.observation.result).toMatchObject({ requests: 2, steps: 3 });
-		expect(loopBound.admissionRejection).toMatchObject({
-			schemaVersion: "b112-smoke-admission-rejection.v1",
-			reasons: ["request-limit"],
-			requests: 2,
-			maxRequests: 2,
-		});
+		const loopBound = await runBoundedCase(
+			"request-step",
+			{ maxRequests: 2 },
+			2,
+			OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+		);
+		expect(loopBound.observation.result).toMatchObject({ requests: 2, steps: 2 });
+		expect(loopBound.admissionRejection).toBeNull();
 
-		const stepBound = await runBoundedCase("step", {}, 8, "agent-step-budget-exhausted");
+		const stepBound = await runBoundedCase(
+			"step",
+			{},
+			8,
+			OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+		);
 		expect(stepBound.observation.result).toMatchObject({ requests: 8, steps: 8 });
 		expect(stepBound.admissionRejection).toBeNull();
 
@@ -1794,7 +1799,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			"settled-reservation",
 			{ maxInputTokens: 10_000 },
 			8,
-			"agent-step-budget-exhausted",
+			OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
 		);
 		expect(settledReservation.observation.result).toMatchObject({
 			inputTokens: 800,

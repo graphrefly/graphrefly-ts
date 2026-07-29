@@ -39,6 +39,7 @@ import {
 	OPENROUTER_OFFICIAL_PRICING_SOURCE,
 	OPENROUTER_ROUTE_EVIDENCE_SCHEMA_REVISION,
 	OPENROUTER_ROUTE_QUALIFICATION_SCHEMA,
+	type OpenRouterRouteQualificationV1,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-route-qualification.js";
 import { freezeEmpiricalCampaignManifest } from "../../evals/empirical-memory-rerun-avoidance/qualification.js";
 import { strictJsonCodec } from "../json/codec.js";
@@ -328,6 +329,7 @@ function createHarness(
 		messageOutput({ kind: "model-turn-output-placeholder", summary: "bounded-placeholder" }),
 	),
 	credentialToken = bearerToken,
+	route: OpenRouterRouteQualificationV1 = routeQualification(authority),
 ): {
 	readonly binding: OpenRouterResponsesEmpiricalBindingV1;
 	readonly request: EmpiricalModelTurnRequestV1;
@@ -352,7 +354,7 @@ function createHarness(
 		frozen: authority.frozen,
 		qualificationReport: authority.qualificationReport,
 		configurationRef: authority.manifest.modelConfigurations[0]?.configurationRef as string,
-		routeQualification: routeQualification(authority),
+		routeQualification: route,
 		credential: {
 			credentialBindingRef: authority.manifest.policies.actorCredentialBindingRef,
 			credentialBindingRevision: authority.manifest.policies.actorCredentialBindingRevision,
@@ -523,7 +525,12 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		});
 		const envelope = JSON.parse(body.input as string) as Record<string, unknown>;
 		expect(envelope).toMatchObject({
-			schemaVersion: "graphrefly.private-solution-eval.openrouter-user-envelope.v1",
+			schemaVersion: "graphrefly.private-solution-eval.openrouter-user-envelope.v2",
+			turn: {
+				stepIndex: request.stepIndex,
+				maxSteps: 4,
+				finalStep: false,
+			},
 			structuredInput: request.structuredInput,
 			priorToolResults: [],
 		});
@@ -532,6 +539,233 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			protectedNeedleCapabilityRevision: request.credentialBindingRevision,
 		});
 		serializedWithoutCredential({ binding, outcome, body });
+	});
+
+	it("lowers the frozen final turn coordinate and requires final structured output", async () => {
+		const authority = buildAuthority();
+		const baseRoute = routeQualification(authority);
+		const route = strictSnapshot({
+			...baseRoute,
+			budget: {
+				...baseRoute.budget,
+				maxRequests: 2,
+				maxStepsPerRun: 2,
+			},
+		});
+		const harness = createHarness(authority, undefined, bearerToken, route);
+		const configurationMaxSteps =
+			authority.manifest.modelConfigurations[0]?.settings.tools.maxSteps;
+		if (configurationMaxSteps === undefined) throw new TypeError("missing OpenRouter maxSteps");
+		const maxSteps = Math.min(
+			configurationMaxSteps,
+			authority.manifest.budgets.agentRun.maxSteps,
+			authority.manifest.budgets.agentRun.maxRequests,
+			route.budget.maxStepsPerRun,
+			route.budget.maxRequests,
+			256,
+		);
+		const finalRequest = validateEmpiricalModelTurnRequest(
+			{
+				...harness.request,
+				stepIndex: maxSteps - 1,
+			},
+			authority.frozen,
+			authority.qualificationReport,
+		);
+
+		await harness.binding.modelTurnPort.invoke(finalRequest, new AbortController().signal);
+
+		expect(harness.transport).toHaveBeenCalledTimes(1);
+		const sent = harness.transport.mock.calls[0]?.[0] as OpenRouterResponsesTransportRequestV1;
+		const body = strictJsonCodec.decode(sent.body) as Record<string, unknown>;
+		const envelope = JSON.parse(body.input as string) as Record<string, unknown>;
+		expect(envelope).toMatchObject({
+			turn: {
+				stepIndex: maxSteps - 1,
+				maxSteps,
+				finalStep: true,
+			},
+		});
+		expect(body.instructions).toContain(
+			"When turn.finalStep is true, do not call a tool; return the final response",
+		);
+		expect(body.tool_choice).toBe("none");
+	});
+
+	it("fails closed before transport outside a stricter qualified route turn limit", async () => {
+		const authority = buildAuthority();
+		const baseRoute = routeQualification(authority);
+		const route = strictSnapshot({
+			...baseRoute,
+			budget: {
+				...baseRoute.budget,
+				maxRequests: 2,
+				maxStepsPerRun: 2,
+			},
+		});
+		const harness = createHarness(authority, undefined, bearerToken, route);
+		const outOfRouteRequest = validateEmpiricalModelTurnRequest(
+			{
+				...harness.request,
+				stepIndex: 2,
+			},
+			authority.frozen,
+			authority.qualificationReport,
+		);
+
+		const outcome = await harness.binding.modelTurnPort.invoke(
+			outOfRouteRequest,
+			new AbortController().signal,
+		);
+
+		expect(outcome).toMatchObject({
+			status: "non-evaluable",
+			usage: { requests: 0 },
+			issueCodes: [OPENROUTER_RESPONSES_ISSUE_CODES.rejected],
+		});
+		expect(harness.admission).not.toHaveBeenCalled();
+		expect(harness.transport).not.toHaveBeenCalled();
+	});
+
+	it("rejects a provider tool call on the frozen final turn", async () => {
+		const authority = buildAuthority();
+		const baseRoute = routeQualification(authority);
+		const route = strictSnapshot({
+			...baseRoute,
+			budget: {
+				...baseRoute.budget,
+				maxRequests: 1,
+				maxStepsPerRun: 1,
+			},
+		});
+		const response = completedResponse([
+			{
+				type: "function_call",
+				status: "completed",
+				call_id: "call_forbidden_final_placeholder",
+				name: "tool-placeholder",
+				arguments: JSON.stringify({ commandRef: "command-placeholder", args: [] }),
+			},
+		]);
+		const harness = createHarness(authority, response, bearerToken, route);
+
+		const outcome = await harness.binding.modelTurnPort.invoke(
+			harness.request,
+			new AbortController().signal,
+		);
+
+		expect(outcome).toMatchObject({
+			status: "non-evaluable",
+			finishReason: null,
+			toolIntents: [],
+			usage: {
+				requests: 1,
+				inputTokens: 100,
+				outputTokens: 20,
+				totalTokens: 120,
+				providerCostMicrousd: 1_225,
+			},
+			issueCodes: [OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse],
+		});
+		expect(outcome.evidenceRefs).toHaveLength(1);
+		expect(outcome.evidenceRefs[0]?.kind).toBe("openrouter-response-summary");
+		expect(harness.transport).toHaveBeenCalledTimes(1);
+	});
+
+	it("protects forbidden final-turn tool material before sanitizing the outcome", async () => {
+		const authority = buildAuthority();
+		const baseRoute = routeQualification(authority);
+		const route = strictSnapshot({
+			...baseRoute,
+			budget: {
+				...baseRoute.budget,
+				maxRequests: 1,
+				maxStepsPerRun: 1,
+			},
+		});
+		const response = completedResponse([
+			{
+				type: "function_call",
+				status: "completed",
+				call_id: "call_protected_final_placeholder",
+				name: "tool-placeholder",
+				arguments: JSON.stringify({ commandRef: bearerToken, args: [] }),
+			},
+		]);
+		const harness = createHarness(authority, response, bearerToken, route);
+
+		const outcome = await harness.binding.modelTurnPort.invoke(
+			harness.request,
+			new AbortController().signal,
+		);
+
+		expect(outcome).toMatchObject({
+			status: "non-evaluable",
+			finishReason: null,
+			toolIntents: [],
+			usage: { requests: 1, providerCostMicrousd: 1_225 },
+			issueCodes: [EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES.blocked],
+			protectionReceipt: { disposition: "blocked" },
+		});
+		expect(outcome.evidenceRefs).toEqual([
+			{
+				kind: EMPIRICAL_MODEL_EGRESS_BLOCKED_SUBJECT_EVIDENCE_KIND,
+				id: "model-egress-blocked-subject",
+				digest: outcome.protectionReceipt.subjectDigest,
+			},
+		]);
+		serializedWithoutCredential(outcome);
+	});
+
+	it("normalizes over-budget usage before rejecting a final-turn tool call", async () => {
+		const authority = buildAuthority();
+		const baseRoute = routeQualification(authority);
+		const route = strictSnapshot({
+			...baseRoute,
+			budget: {
+				...baseRoute.budget,
+				maxRequests: 1,
+				maxStepsPerRun: 1,
+			},
+		});
+		const response = completedResponse(
+			[
+				{
+					type: "function_call",
+					status: "completed",
+					call_id: "call_over_budget_final_placeholder",
+					name: "tool-placeholder",
+					arguments: JSON.stringify({ commandRef: "command-placeholder", args: [] }),
+				},
+			],
+			{
+				usage: {
+					input_tokens: 100,
+					output_tokens: 9_999_999,
+					total_tokens: 10_000_099,
+					cost: 0.001_225,
+				},
+			},
+		);
+		const harness = createHarness(authority, response, bearerToken, route);
+
+		const outcome = await harness.binding.modelTurnPort.invoke(
+			harness.request,
+			new AbortController().signal,
+		);
+
+		expect(outcome).toMatchObject({
+			status: "non-evaluable",
+			usage: {
+				requests: 1,
+				inputTokens: 100,
+				outputTokens: null,
+				totalTokens: 10_000_099,
+				providerCostMicrousd: 1_225,
+			},
+			issueCodes: [OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse],
+		});
+		expect(outcome.evidenceRefs).toHaveLength(1);
 	});
 
 	it("fails closed before transport when the actual wire body is not admitted", async () => {

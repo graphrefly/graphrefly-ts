@@ -30,7 +30,7 @@ export const OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG = "openai";
 export const OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME = "OpenAI";
 export const OPENROUTER_RESPONSES_ENDPOINT_REVISION = "openrouter-responses-2026-07-29.v2";
 export const OPENROUTER_RESPONSES_ADAPTER_REVISION = "graphrefly-openrouter-responses-turn.v2";
-export const OPENROUTER_RESPONSES_BINDING_REVISION = "graphrefly-openrouter-responses-wire.v6";
+export const OPENROUTER_RESPONSES_BINDING_REVISION = "graphrefly-openrouter-responses-wire.v7";
 export const OPENROUTER_ROUTE_EVIDENCE_SCHEMA_REVISION = "openrouter-metadata-2026-07-29.v1";
 export const OPENROUTER_PROVIDER_USAGE_REVISION =
 	"openrouter-provider-reported-cost-microusd-2026-07-29.v2";
