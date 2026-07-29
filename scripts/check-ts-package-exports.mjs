@@ -730,6 +730,11 @@ ${runtimeAssertions.replaceAll("await load", "load")}
 	const messages = [];
 	const unsubscribe = measured.subscribe((message) => messages.push(message));
 	assert.match(JSON.stringify(messages), /"code":"measurement.failed"/);
+	assert.equal(
+		messages[1]?.[1]?.[0]?.details?.message,
+		"measurement unavailable",
+		"CJS root Graph and reactive-layout subpath must share dependency context",
+	);
 	unsubscribe();
 }
 `,
