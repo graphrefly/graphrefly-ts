@@ -39,20 +39,26 @@ import {
 	validateEmpiricalModelTurnOutcome,
 	validateEmpiricalModelTurnRequest,
 } from "./model-execution.js";
+import {
+	type OPENROUTER_RESPONSES_ENDPOINT,
+	type OpenRouterRouteQualificationV1,
+	type QualifiedOpenRouterRouteV1,
+	validateOpenRouterRouteQualification,
+} from "./openrouter-route-qualification.js";
 import { validateFrozenEmpiricalCampaignManifest } from "./qualification.js";
 
-export const OPENROUTER_RESPONSES_ENDPOINT = "https://openrouter.ai/api/v1/responses";
-export const OPENROUTER_RESPONSES_MODEL = "openai/gpt-5.6-sol";
-export const OPENROUTER_RESPONSES_DOWNSTREAM_PROVIDER = "OpenAI";
-export const OPENROUTER_RESPONSES_ENDPOINT_REVISION = "openrouter-responses-2026-07-28.v1";
-export const OPENROUTER_RESPONSES_ADAPTER_REVISION = "graphrefly-openrouter-responses-turn.v1";
-export const OPENROUTER_RESPONSES_BINDING_REVISION =
-	"openrouter-openai-gpt-5.6-sol-shared-direct.v1";
 export const OPENROUTER_RESPONSES_PROMPT_REVISION = "openrouter-responses-user-envelope.v1";
 export const OPENROUTER_RESPONSES_SYSTEM_PROMPT_REVISION = "openrouter-responses-system.v1";
 export const MAX_OPENROUTER_RESPONSES_RESPONSE_BYTES = 1_048_576;
-export const OPENROUTER_SHARED_CAPACITY_QUALIFICATION_SCHEMA =
-	"graphrefly.private-solution-eval.openrouter-shared-capacity-qualification.v1";
+export {
+	OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME as OPENROUTER_RESPONSES_DOWNSTREAM_PROVIDER,
+	OPENROUTER_FIRST_SMOKE_REQUEST_MODEL as OPENROUTER_RESPONSES_MODEL,
+	OPENROUTER_RESPONSES_ADAPTER_REVISION,
+	OPENROUTER_RESPONSES_BINDING_REVISION,
+	OPENROUTER_RESPONSES_ENDPOINT,
+	OPENROUTER_RESPONSES_ENDPOINT_REVISION,
+	OPENROUTER_SHARED_CAPACITY_QUALIFICATION_SCHEMA,
+} from "./openrouter-route-qualification.js";
 
 export const OPENROUTER_RESPONSES_ISSUE_CODES = Object.freeze({
 	authenticationPermission: "openrouter-authentication-permission",
@@ -64,6 +70,7 @@ export const OPENROUTER_RESPONSES_ISSUE_CODES = Object.freeze({
 	requestProtectionBlocked: "openrouter-request-protection-blocked",
 	requestProtectionFailed: "openrouter-request-protection-failed",
 	measurementInvalid: "openrouter-measurement-invalid",
+	transportAdmissionRejected: "openrouter-transport-admission-rejected",
 });
 
 const OPENROUTER_RESPONSES_USER_ENVELOPE_SCHEMA =
@@ -84,20 +91,6 @@ export interface OpenRouterResponsesCredentialCapabilityV1 {
 	readonly credentialBindingRef: string;
 	readonly credentialBindingRevision: string;
 	readonly bearerToken: string;
-	readonly sharedCapacityQualification: OpenRouterSharedCapacityQualificationV1;
-}
-
-export interface OpenRouterSharedCapacityQualificationV1 {
-	readonly schemaVersion: typeof OPENROUTER_SHARED_CAPACITY_QUALIFICATION_SCHEMA;
-	readonly qualificationRef: string;
-	readonly qualificationRevision: string;
-	readonly credentialBindingRef: string;
-	readonly credentialBindingRevision: string;
-	readonly workspaceRef: string;
-	readonly workspaceRevision: string;
-	readonly capacityMode: "openrouter-shared-only";
-	readonly qualified: true;
-	readonly byokCredentialCount: 0;
 }
 
 export interface OpenRouterResponsesTransportRequestV1 {
@@ -122,6 +115,14 @@ export interface OpenRouterResponsesByteTransportV1 {
 	): Promise<OpenRouterResponsesTransportResponseV1>;
 }
 
+export interface OpenRouterResponsesTransportAdmissionV1 {
+	admit(input: {
+		readonly requestRef: string;
+		readonly wireRequestBytes: number;
+		readonly maxOutputTokens: number;
+	}): boolean;
+}
+
 export interface OpenRouterResponsesMonotonicMeasurementV1 {
 	readMs(): number;
 }
@@ -130,8 +131,10 @@ export interface OpenRouterResponsesEmpiricalBindingConfigV1 {
 	readonly frozen: FrozenEmpiricalCampaignManifestV1;
 	readonly qualificationReport: EmpiricalTaskQualificationReportV1;
 	readonly configurationRef: string;
+	readonly routeQualification: OpenRouterRouteQualificationV1;
 	readonly credential: OpenRouterResponsesCredentialCapabilityV1;
 	readonly transport: OpenRouterResponsesByteTransportV1;
+	readonly transportAdmission: OpenRouterResponsesTransportAdmissionV1;
 	readonly monotonicMeasurement: OpenRouterResponsesMonotonicMeasurementV1;
 }
 
@@ -139,6 +142,7 @@ export interface OpenRouterResponsesEmpiricalBindingV1 {
 	readonly modelTurnPort: EmpiricalModelTurnPortV1;
 	readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
 	readonly configurationRef: string;
+	readonly routeQualificationDigest: string;
 	readonly credentialBindingRef: string;
 	readonly credentialBindingRevision: string;
 }
@@ -147,10 +151,12 @@ interface ValidatedBindingConfig {
 	readonly frozen: FrozenEmpiricalCampaignManifestV1;
 	readonly qualificationReport: EmpiricalTaskQualificationReportV1;
 	readonly configuration: EmpiricalModelConfigurationV1;
+	readonly route: QualifiedOpenRouterRouteV1;
 	readonly credentialBindingRef: string;
 	readonly credentialBindingRevision: string;
 	readonly bearerToken: string;
 	readonly transportRequest: OpenRouterResponsesByteTransportV1["request"];
+	readonly admitTransport: OpenRouterResponsesTransportAdmissionV1["admit"];
 	readonly readMs: OpenRouterResponsesMonotonicMeasurementV1["readMs"];
 }
 
@@ -226,64 +232,6 @@ function validateBearerToken(value: unknown): string {
 	return value;
 }
 
-function validateSharedCapacityQualification(
-	value: unknown,
-	credentialBindingRef: string,
-	credentialBindingRevision: string,
-): OpenRouterSharedCapacityQualificationV1 {
-	const qualification = record(value, "binding.credential.sharedCapacityQualification");
-	exactKeys(
-		qualification,
-		[
-			"byokCredentialCount",
-			"capacityMode",
-			"credentialBindingRef",
-			"credentialBindingRevision",
-			"qualificationRef",
-			"qualificationRevision",
-			"qualified",
-			"schemaVersion",
-			"workspaceRef",
-			"workspaceRevision",
-		],
-		"binding.credential.sharedCapacityQualification",
-	);
-	if (
-		qualification.schemaVersion !== OPENROUTER_SHARED_CAPACITY_QUALIFICATION_SCHEMA ||
-		qualification.capacityMode !== "openrouter-shared-only" ||
-		qualification.qualified !== true ||
-		qualification.byokCredentialCount !== 0 ||
-		qualification.credentialBindingRef !== credentialBindingRef ||
-		qualification.credentialBindingRevision !== credentialBindingRevision
-	) {
-		throw new TypeError("shared-capacity qualification does not match D661");
-	}
-	return strictSnapshot({
-		schemaVersion: OPENROUTER_SHARED_CAPACITY_QUALIFICATION_SCHEMA,
-		qualificationRef: coordinate(
-			qualification.qualificationRef,
-			"binding.credential.sharedCapacityQualification.qualificationRef",
-		),
-		qualificationRevision: coordinate(
-			qualification.qualificationRevision,
-			"binding.credential.sharedCapacityQualification.qualificationRevision",
-		),
-		credentialBindingRef,
-		credentialBindingRevision,
-		workspaceRef: coordinate(
-			qualification.workspaceRef,
-			"binding.credential.sharedCapacityQualification.workspaceRef",
-		),
-		workspaceRevision: coordinate(
-			qualification.workspaceRevision,
-			"binding.credential.sharedCapacityQualification.workspaceRevision",
-		),
-		capacityMode: "openrouter-shared-only",
-		qualified: true,
-		byokCredentialCount: 0,
-	});
-}
-
 function assertOpenRouterName(value: string): string {
 	if (!OPENROUTER_NAME.test(value))
 		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.rejected);
@@ -325,15 +273,8 @@ function assertOpenRouterConfiguration(configuration: EmpiricalModelConfiguratio
 	const expected = {
 		providerFamily: "openrouter",
 		provider: "openrouter",
-		model: OPENROUTER_RESPONSES_MODEL,
-		modelIdentityKind: "alias-disclosed",
-		endpoint: OPENROUTER_RESPONSES_ENDPOINT,
-		endpointRevision: OPENROUTER_RESPONSES_ENDPOINT_REVISION,
-		adapterRevision: OPENROUTER_RESPONSES_ADAPTER_REVISION,
-		bindingRevision: OPENROUTER_RESPONSES_BINDING_REVISION,
 		promptRevision: OPENROUTER_RESPONSES_PROMPT_REVISION,
 		systemPromptRevision: OPENROUTER_RESPONSES_SYSTEM_PROMPT_REVISION,
-		usageSource: "provider-reported",
 	} as const;
 	for (const [key, expectedValue] of Object.entries(expected)) {
 		if (configuration[key as keyof EmpiricalModelConfigurationV1] !== expectedValue) {
@@ -370,7 +311,9 @@ function validateBindingConfig(
 			"frozen",
 			"monotonicMeasurement",
 			"qualificationReport",
+			"routeQualification",
 			"transport",
+			"transportAdmission",
 		],
 		"binding",
 	);
@@ -389,12 +332,7 @@ function validateBindingConfig(
 	const credential = record(config.credential, "binding.credential");
 	exactKeys(
 		credential,
-		[
-			"bearerToken",
-			"credentialBindingRef",
-			"credentialBindingRevision",
-			"sharedCapacityQualification",
-		],
+		["bearerToken", "credentialBindingRef", "credentialBindingRevision"],
 		"binding.credential",
 	);
 	const credentialBindingRef = coordinate(
@@ -406,10 +344,13 @@ function validateBindingConfig(
 		"binding.credential.credentialBindingRevision",
 	);
 	const bearerToken = validateBearerToken(credential.bearerToken);
-	validateSharedCapacityQualification(
-		credential.sharedCapacityQualification,
+	const route = validateOpenRouterRouteQualification(
+		config.routeQualification,
+		configuration,
 		credentialBindingRef,
 		credentialBindingRevision,
+		frozen.manifest.campaignRef,
+		frozen.manifestDigest,
 	);
 	let expectedCredentialBindingRef: string | null;
 	let expectedCredentialBindingRevision: string | null;
@@ -436,6 +377,11 @@ function validateBindingConfig(
 		"request",
 		"binding.transport",
 	);
+	const admitTransport = ownFunction<OpenRouterResponsesTransportAdmissionV1["admit"]>(
+		config.transportAdmission,
+		"admit",
+		"binding.transportAdmission",
+	);
 	const readMs = ownFunction<OpenRouterResponsesMonotonicMeasurementV1["readMs"]>(
 		config.monotonicMeasurement,
 		"readMs",
@@ -445,10 +391,12 @@ function validateBindingConfig(
 		frozen,
 		qualificationReport,
 		configuration,
+		route,
 		credentialBindingRef,
 		credentialBindingRevision,
 		bearerToken,
 		transportRequest,
+		admitTransport,
 		readMs,
 	};
 }
@@ -502,6 +450,7 @@ function lowerShape(shape: EmpiricalStrictJsonShapeV1): StrictJsonValue {
 function requestBody(
 	request: EmpiricalModelTurnRequestV1,
 	configuration: EmpiricalModelConfigurationV1,
+	route: OpenRouterRouteQualificationV1,
 ): PreparedOpenRouterRequest {
 	const toolBindings = providerToolBindings(request.availableTools);
 	const providerNameByToolRef = new Map(
@@ -524,10 +473,10 @@ function requestBody(
 		priorToolResults,
 	});
 	const body = {
-		model: OPENROUTER_RESPONSES_MODEL,
+		model: route.requestModel,
 		provider: {
-			order: ["openai"],
-			only: ["openai"],
+			order: [route.downstreamProviderSlug],
+			only: [route.downstreamProviderSlug],
 			allow_fallbacks: false,
 			require_parameters: true,
 		},
@@ -761,7 +710,10 @@ function assertClosedRouteKeys(
 	}
 }
 
-function validateDirectRouteEvidence(root: Record<string, unknown>): StrictJsonValue {
+function validateDirectRouteEvidence(
+	root: Record<string, unknown>,
+	route: OpenRouterRouteQualificationV1,
+): StrictJsonValue {
 	const metadata = routeRecord(root.openrouter_metadata);
 	assertClosedRouteKeys(
 		metadata,
@@ -769,7 +721,7 @@ function validateDirectRouteEvidence(root: Record<string, unknown>): StrictJsonV
 		["attempts", "pipeline", "region", "summary"],
 	);
 	if (
-		metadata.requested !== OPENROUTER_RESPONSES_MODEL ||
+		metadata.requested !== route.requestModel ||
 		metadata.strategy !== "direct" ||
 		metadata.attempt !== 1 ||
 		metadata.is_byok !== false
@@ -797,8 +749,8 @@ function validateDirectRouteEvidence(root: Record<string, unknown>): StrictJsonV
 	const selected = routeRecord(available[0]);
 	assertClosedRouteKeys(selected, ["model", "provider", "selected"]);
 	if (
-		selected.provider !== OPENROUTER_RESPONSES_DOWNSTREAM_PROVIDER ||
-		selected.model !== OPENROUTER_RESPONSES_MODEL ||
+		selected.provider !== route.downstreamProviderName ||
+		selected.model !== route.requestModel ||
 		selected.selected !== true
 	) {
 		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.routingMismatch);
@@ -811,8 +763,8 @@ function validateDirectRouteEvidence(root: Record<string, unknown>): StrictJsonV
 		const attempt = routeRecord(attempts[0]);
 		assertClosedRouteKeys(attempt, ["model", "provider", "status"]);
 		if (
-			attempt.provider !== OPENROUTER_RESPONSES_DOWNSTREAM_PROVIDER ||
-			attempt.model !== OPENROUTER_RESPONSES_MODEL ||
+			attempt.provider !== route.downstreamProviderName ||
+			attempt.model !== route.requestModel ||
 			attempt.status !== 200
 		) {
 			throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.routingMismatch);
@@ -822,16 +774,20 @@ function validateDirectRouteEvidence(root: Record<string, unknown>): StrictJsonV
 		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.routingMismatch);
 	}
 	return strictSnapshot({
-		requested: OPENROUTER_RESPONSES_MODEL,
+		requested: route.requestModel,
 		strategy: "direct",
 		attempt: 1,
 		isByok: false,
-		selectedProvider: OPENROUTER_RESPONSES_DOWNSTREAM_PROVIDER,
-		selectedModel: OPENROUTER_RESPONSES_MODEL,
+		selectedProvider: route.downstreamProviderName,
+		selectedModel: route.requestModel,
 	});
 }
 
-function parseCandidate(bytes: Uint8Array, request: EmpiricalModelTurnRequestV1): ParsedCandidate {
+function parseCandidate(
+	bytes: Uint8Array,
+	request: EmpiricalModelTurnRequestV1,
+	route: OpenRouterRouteQualificationV1,
+): ParsedCandidate {
 	let text: string;
 	try {
 		text = decoder.decode(bytes);
@@ -842,10 +798,10 @@ function parseCandidate(bytes: Uint8Array, request: EmpiricalModelTurnRequestV1)
 	if (root.object !== "response" || root.status !== "completed") {
 		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.rejected);
 	}
-	if (root.model !== OPENROUTER_RESPONSES_MODEL) {
+	if (root.model !== route.requestModel) {
 		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse);
 	}
-	const routeEvidence = validateDirectRouteEvidence(root);
+	const routeEvidence = validateDirectRouteEvidence(root, route);
 	const responseId = boundedProviderString(root.id, 256);
 	const usageRecord = providerRecord(root.usage);
 	const usage = {
@@ -1185,6 +1141,10 @@ async function invokeOpenRouterResponses(
 		config.qualificationReport,
 	);
 	if (
+		request.campaignRef !== config.route.qualification.campaignRef ||
+		request.manifestDigest !== config.route.qualification.manifestDigest ||
+		request.trialBlockRef !== config.route.qualification.trialBlockRef ||
+		request.trialBlockDigest !== config.route.qualification.trialBlockDigest ||
 		request.configurationRef !== config.configuration.configurationRef ||
 		request.credentialBindingRef !== config.credentialBindingRef ||
 		request.credentialBindingRevision !== config.credentialBindingRevision
@@ -1194,7 +1154,7 @@ async function invokeOpenRouterResponses(
 
 	let preparedRequest: PreparedOpenRouterRequest;
 	try {
-		preparedRequest = requestBody(request, config.configuration);
+		preparedRequest = requestBody(request, config.configuration, config.route.qualification);
 	} catch (error) {
 		const issueCode =
 			error instanceof BindingFailure ? error.issueCode : OPENROUTER_RESPONSES_ISSUE_CODES.rejected;
@@ -1238,6 +1198,27 @@ async function invokeOpenRouterResponses(
 			0,
 		);
 	}
+	let admitted = false;
+	try {
+		admitted =
+			config.admitTransport({
+				requestRef: request.requestRef,
+				wireRequestBytes: body.byteLength,
+				maxOutputTokens: request.remainingTurnBudget.maxOutputTokens,
+			}) === true;
+	} catch {
+		admitted = false;
+	}
+	if (!admitted) {
+		return failureOutcome(
+			config,
+			request,
+			OPENROUTER_RESPONSES_ISSUE_CODES.transportAdmissionRejected,
+			0,
+			body.byteLength,
+			0,
+		);
+	}
 
 	let startedAtMs: number;
 	try {
@@ -1255,7 +1236,7 @@ async function invokeOpenRouterResponses(
 	let transportResponse: OpenRouterResponsesTransportResponseV1;
 	try {
 		transportResponse = await config.transportRequest({
-			endpoint: OPENROUTER_RESPONSES_ENDPOINT,
+			endpoint: config.route.qualification.endpoint,
 			method: "POST",
 			authorizationBearer: config.bearerToken,
 			contentType: "application/json",
@@ -1265,7 +1246,6 @@ async function invokeOpenRouterResponses(
 			signal,
 		});
 	} catch {
-		if (signal.aborted) throw new DOMException("model turn cancelled by host", "AbortError");
 		return failureOutcome(
 			config,
 			request,
@@ -1276,7 +1256,14 @@ async function invokeOpenRouterResponses(
 		);
 	}
 	if (signal.aborted) {
-		throw new DOMException("model turn cancelled by host", "AbortError");
+		return failureOutcome(
+			config,
+			request,
+			OPENROUTER_RESPONSES_ISSUE_CODES.unavailableTransport,
+			1,
+			body.byteLength,
+			0,
+		);
 	}
 
 	let latencyMs = 0;
@@ -1356,7 +1343,7 @@ async function invokeOpenRouterResponses(
 
 	let candidate: ParsedCandidate;
 	try {
-		candidate = parseCandidate(response.body, request);
+		candidate = parseCandidate(response.body, request, config.route.qualification);
 	} catch (error) {
 		return failureOutcome(
 			config,
@@ -1416,11 +1403,12 @@ async function invokeOpenRouterResponses(
 			id: candidate.responseId,
 			digest: empiricalStrictJsonDigest({
 				responseId: candidate.responseId,
-				model: OPENROUTER_RESPONSES_MODEL,
+				model: config.route.qualification.requestModel,
 				status: "completed",
 				usage: candidate.usage,
 				finishReason: candidate.finishReason,
 				route: candidate.routeEvidence,
+				routeQualificationDigest: config.route.qualificationDigest,
 			}),
 		},
 	];
@@ -1449,9 +1437,9 @@ async function invokeOpenRouterResponses(
 }
 
 /**
- * Package-private D660-D661 OpenRouter Responses binding for exactly one D652 model
- * turn. The returned D656 executor is constructed from the same explicit
- * bearer credential used by the focused transport boundary.
+ * Package-private D669-qualified OpenRouter Responses binding for exactly one
+ * D652 model turn. The returned D656 executor is constructed from the same
+ * explicit bearer credential used by the focused transport boundary.
  */
 export function createOpenRouterResponsesEmpiricalBinding(
 	value: OpenRouterResponsesEmpiricalBindingConfigV1,
@@ -1479,6 +1467,7 @@ export function createOpenRouterResponsesEmpiricalBinding(
 		modelTurnPort,
 		protectionExecutor,
 		configurationRef: config.configuration.configurationRef,
+		routeQualificationDigest: config.route.qualificationDigest,
 		credentialBindingRef: config.credentialBindingRef,
 		credentialBindingRevision: config.credentialBindingRevision,
 	});

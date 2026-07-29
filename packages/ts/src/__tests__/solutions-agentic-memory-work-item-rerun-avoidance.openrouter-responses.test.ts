@@ -33,6 +33,13 @@ import {
 	type OpenRouterResponsesEmpiricalBindingV1,
 	type OpenRouterResponsesTransportRequestV1,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-responses-model-turn.js";
+import {
+	OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG,
+	OPENROUTER_OFFICIAL_PRICING_REVISION,
+	OPENROUTER_OFFICIAL_PRICING_SOURCE,
+	OPENROUTER_ROUTE_EVIDENCE_SCHEMA_REVISION,
+	OPENROUTER_ROUTE_QUALIFICATION_SCHEMA,
+} from "../../evals/empirical-memory-rerun-avoidance/openrouter-route-qualification.js";
 import { freezeEmpiricalCampaignManifest } from "../../evals/empirical-memory-rerun-avoidance/qualification.js";
 import { strictJsonCodec } from "../json/codec.js";
 import { buildEmpiricalCampaignFixture } from "./eval-support/empirical-memory-rerun-avoidance/fixtures.js";
@@ -60,6 +67,71 @@ function sharedCapacityQualification(authority: OpenRouterAuthorityFixture) {
 		capacityMode: "openrouter-shared-only" as const,
 		qualified: true as const,
 		byokCredentialCount: 0 as const,
+	} as const;
+}
+
+function routeQualification(authority: OpenRouterAuthorityFixture) {
+	const configuration = authority.manifest.modelConfigurations[0];
+	if (configuration === undefined) throw new TypeError("missing OpenRouter configuration");
+	const request = buildEmpiricalModelTurnRequestFixture(authority);
+	return {
+		schemaVersion: OPENROUTER_ROUTE_QUALIFICATION_SCHEMA,
+		qualificationRef: "openrouter-route-qualification-placeholder",
+		qualificationRevision: "openrouter-route-qualification-revision-placeholder",
+		dispatchMode: "simulated" as const,
+		campaignRef: authority.manifest.campaignRef,
+		manifestDigest: authority.frozen.manifestDigest,
+		trialBlockRef: request.trialBlockRef,
+		trialBlockDigest: request.trialBlockDigest,
+		configurationRef: configuration.configurationRef,
+		configurationDigest: empiricalStrictJsonDigest(configuration),
+		requestModel: configuration.model,
+		modelIdentityKind: configuration.modelIdentityKind,
+		downstreamProviderSlug: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG,
+		downstreamProviderName: OPENROUTER_RESPONSES_DOWNSTREAM_PROVIDER,
+		endpoint: OPENROUTER_RESPONSES_ENDPOINT,
+		endpointRevision: OPENROUTER_RESPONSES_ENDPOINT_REVISION,
+		adapterRevision: OPENROUTER_RESPONSES_ADAPTER_REVISION,
+		bindingRevision: OPENROUTER_RESPONSES_BINDING_REVISION,
+		capabilitiesDigest: empiricalStrictJsonDigest(configuration.capabilities),
+		settingsDigest: empiricalStrictJsonDigest(configuration.settings),
+		usageSource: configuration.usageSource,
+		usageRevision: "openrouter-provider-usage-placeholder",
+		routeEvidenceSchemaRevision: OPENROUTER_ROUTE_EVIDENCE_SCHEMA_REVISION,
+		pricing: {
+			sourceUrl: OPENROUTER_OFFICIAL_PRICING_SOURCE,
+			pricingRevision: OPENROUTER_OFFICIAL_PRICING_REVISION,
+			currency: "USD" as const,
+			inputMicrousdPerMillionTokens: 5_000_000,
+			outputMicrousdPerMillionTokens: 30_000_000,
+		},
+		budget: {
+			approvalRef: "simulated-budget-approval-placeholder",
+			approvalRevision: "simulated-budget-approval-revision-placeholder",
+			maxSmokeSpendMicrousd: 1_000_000,
+			maxRequests: 24,
+			maxStepsPerRun: 8,
+			maxCanonicalRequestBytes: 262_144,
+			maxInputTokens: 100_000,
+			maxOutputTokens: 49_152,
+			maxLatencyMs: 600_000,
+			reservationRevision: "canonical-byte-upper-bound-reservation-v1",
+			inputTokensPerCanonicalByteUpperBound: 1 as const,
+			fixedInputTokenOverheadPerRequest: 4_096,
+		},
+		keySpendLimit: {
+			qualificationRef: "simulated-key-limit-qualification-placeholder",
+			qualificationRevision: "simulated-key-limit-revision-placeholder",
+			readOnlyQualified: false,
+			limitReset: "none" as const,
+			limitMicrousd: 1_000_000,
+			remainingMicrousd: 1_000_000,
+			credentialBindingRef: authority.manifest.policies.actorCredentialBindingRef,
+			credentialBindingRevision: authority.manifest.policies.actorCredentialBindingRevision,
+			workspaceRef: "openrouter-workspace-placeholder",
+			workspaceRevision: "openrouter-workspace-revision-placeholder",
+		},
+		sharedCapacityQualification: sharedCapacityQualification(authority),
 	} as const;
 }
 
@@ -115,6 +187,8 @@ function openRouterManifest(
 			},
 		},
 		usageSource: "provider-reported" as const,
+		pricingRevision: OPENROUTER_OFFICIAL_PRICING_REVISION,
+		pricingScheduleRef: OPENROUTER_OFFICIAL_PRICING_SOURCE,
 	};
 	return strictSnapshot({
 		...base,
@@ -255,23 +329,34 @@ function createHarness(
 	readonly binding: OpenRouterResponsesEmpiricalBindingV1;
 	readonly request: EmpiricalModelTurnRequestV1;
 	readonly transport: ReturnType<typeof vi.fn<OpenRouterResponsesByteTransportV1["request"]>>;
+	readonly admission: ReturnType<
+		typeof vi.fn<
+			(input: {
+				readonly requestRef: string;
+				readonly wireRequestBytes: number;
+				readonly maxOutputTokens: number;
+			}) => boolean
+		>
+	>;
 } {
 	const transport = vi.fn<OpenRouterResponsesByteTransportV1["request"]>(() =>
 		Promise.resolve({ status: 200, body: response }),
 	);
+	const admission = vi.fn(() => true);
 	let measurementIndex = 0;
 	const measurements = [1_000, 1_025];
 	const binding = createOpenRouterResponsesEmpiricalBinding({
 		frozen: authority.frozen,
 		qualificationReport: authority.qualificationReport,
 		configurationRef: authority.manifest.modelConfigurations[0]?.configurationRef as string,
+		routeQualification: routeQualification(authority),
 		credential: {
 			credentialBindingRef: authority.manifest.policies.actorCredentialBindingRef,
 			credentialBindingRevision: authority.manifest.policies.actorCredentialBindingRevision,
 			bearerToken: credentialToken,
-			sharedCapacityQualification: sharedCapacityQualification(authority),
 		},
 		transport: { request: transport },
+		transportAdmission: { admit: admission },
 		monotonicMeasurement: {
 			readMs() {
 				const value = measurements[measurementIndex];
@@ -281,7 +366,7 @@ function createHarness(
 		},
 	});
 	const request = buildEmpiricalModelTurnRequestFixture(authority);
-	return { binding, request, transport };
+	return { admission, binding, request, transport };
 }
 
 function rebindInput(
@@ -353,9 +438,9 @@ function serializedWithoutCredential(value: unknown): string {
 	return serialized;
 }
 
-describe("B112 D660-D661 package-private OpenRouter Responses binding", () => {
+describe("B112 D669-qualified package-private OpenRouter Responses binding", () => {
 	it("sends one canonical stateless Responses request and validates protected structured output", async () => {
-		const { binding, request, transport } = createHarness();
+		const { admission, binding, request, transport } = createHarness();
 		const outcome = await binding.modelTurnPort.invoke(request, new AbortController().signal);
 
 		expect(outcome).toMatchObject({
@@ -379,6 +464,11 @@ describe("B112 D660-D661 package-private OpenRouter Responses binding", () => {
 		expect(outcome.protectionReceipt.disposition).toBe("allowed");
 		expect(transport).toHaveBeenCalledTimes(1);
 		const sent = transport.mock.calls[0]?.[0] as OpenRouterResponsesTransportRequestV1;
+		expect(admission).toHaveBeenCalledWith({
+			requestRef: request.requestRef,
+			wireRequestBytes: sent.body.byteLength,
+			maxOutputTokens: request.remainingTurnBudget.maxOutputTokens,
+		});
 		expect(sent).toMatchObject({
 			endpoint: OPENROUTER_RESPONSES_ENDPOINT,
 			method: "POST",
@@ -438,6 +528,35 @@ describe("B112 D660-D661 package-private OpenRouter Responses binding", () => {
 			protectedNeedleCapabilityRevision: request.credentialBindingRevision,
 		});
 		serializedWithoutCredential({ binding, outcome, body });
+	});
+
+	it("fails closed before transport when the actual wire body is not admitted", async () => {
+		const harness = createHarness();
+		harness.admission.mockReturnValue(false);
+		const outcome = await harness.binding.modelTurnPort.invoke(
+			harness.request,
+			new AbortController().signal,
+		);
+		expect(outcome.issueCodes).toEqual([
+			OPENROUTER_RESPONSES_ISSUE_CODES.transportAdmissionRejected,
+		]);
+		expect(outcome.usage.requests).toBe(0);
+		expect(harness.admission.mock.calls[0]?.[0].wireRequestBytes).not.toBe(
+			strictJsonCodec.encode(harness.request).byteLength,
+		);
+		expect(harness.transport).not.toHaveBeenCalled();
+
+		const truthyHarness = createHarness();
+		truthyHarness.admission.mockReturnValue("yes" as never);
+		const truthyOutcome = await truthyHarness.binding.modelTurnPort.invoke(
+			truthyHarness.request,
+			new AbortController().signal,
+		);
+		expect(truthyOutcome.issueCodes).toEqual([
+			OPENROUTER_RESPONSES_ISSUE_CODES.transportAdmissionRejected,
+		]);
+		expect(truthyOutcome.usage.requests).toBe(0);
+		expect(truthyHarness.transport).not.toHaveBeenCalled();
 	});
 
 	it("requires direct shared-capacity OpenAI routing evidence without fallback or pipeline stages", async () => {
@@ -1068,6 +1187,22 @@ describe("B112 D660-D661 package-private OpenRouter Responses binding", () => {
 		).rejects.toMatchObject({ name: "AbortError" });
 		expect(harness.transport).not.toHaveBeenCalled();
 
+		const timeoutHarness = createHarness();
+		const timeoutController = new AbortController();
+		timeoutHarness.transport.mockImplementationOnce(() => {
+			timeoutController.abort();
+			return Promise.reject(new DOMException("provider timeout", "AbortError"));
+		});
+		const timeoutOutcome = await timeoutHarness.binding.modelTurnPort.invoke(
+			timeoutHarness.request,
+			timeoutController.signal,
+		);
+		expect(timeoutOutcome).toMatchObject({
+			status: "non-evaluable",
+			issueCodes: [OPENROUTER_RESPONSES_ISSUE_CODES.unavailableTransport],
+			usage: { requests: 1 },
+		});
+
 		const authority = buildAuthority();
 		const getter = vi.fn(() => bearerToken);
 		const credential = Object.defineProperty(
@@ -1083,8 +1218,10 @@ describe("B112 D660-D661 package-private OpenRouter Responses binding", () => {
 				frozen: authority.frozen as FrozenEmpiricalCampaignManifestV1,
 				qualificationReport: authority.qualificationReport as EmpiricalTaskQualificationReportV1,
 				configurationRef: authority.manifest.modelConfigurations[0]?.configurationRef as string,
+				routeQualification: routeQualification(authority),
 				credential: credential as never,
 				transport: { request: vi.fn() },
+				transportAdmission: { admit: () => true },
 				monotonicMeasurement: { readMs: () => 0 },
 			}),
 		).toThrow("invalid OpenRouter Responses binding configuration");
@@ -1094,13 +1231,14 @@ describe("B112 D660-D661 package-private OpenRouter Responses binding", () => {
 				frozen: authority.frozen,
 				qualificationReport: authority.qualificationReport,
 				configurationRef: authority.manifest.modelConfigurations[0]?.configurationRef as string,
+				routeQualification: routeQualification(authority),
 				credential: {
 					credentialBindingRef: authority.manifest.policies.actorCredentialBindingRef,
 					credentialBindingRevision: authority.manifest.policies.actorCredentialBindingRevision,
 					bearerToken: "short",
-					sharedCapacityQualification: sharedCapacityQualification(authority),
 				},
 				transport: { request: vi.fn() },
+				transportAdmission: { admit: () => true },
 				monotonicMeasurement: { readMs: () => 0 },
 			}),
 		).toThrow("invalid OpenRouter Responses binding configuration");
@@ -1110,18 +1248,53 @@ describe("B112 D660-D661 package-private OpenRouter Responses binding", () => {
 				frozen: authority.frozen,
 				qualificationReport: authority.qualificationReport,
 				configurationRef: authority.manifest.modelConfigurations[0]?.configurationRef as string,
-				credential: {
-					credentialBindingRef: authority.manifest.policies.actorCredentialBindingRef,
-					credentialBindingRevision: authority.manifest.policies.actorCredentialBindingRevision,
-					bearerToken,
+				routeQualification: {
+					...routeQualification(authority),
 					sharedCapacityQualification: {
 						...sharedCapacityQualification(authority),
 						byokCredentialCount: 1,
 					} as never,
 				},
+				credential: {
+					credentialBindingRef: authority.manifest.policies.actorCredentialBindingRef,
+					credentialBindingRevision: authority.manifest.policies.actorCredentialBindingRevision,
+					bearerToken,
+				},
 				transport: { request: vi.fn() },
+				transportAdmission: { admit: () => true },
 				monotonicMeasurement: { readMs: () => 0 },
 			}),
 		).toThrow("invalid OpenRouter Responses binding configuration");
+
+		for (const substitutedRoute of [
+			{
+				...routeQualification(authority),
+				campaignRef: "substituted-campaign",
+			},
+			{
+				...routeQualification(authority),
+				keySpendLimit: {
+					...routeQualification(authority).keySpendLimit,
+					workspaceRef: "substituted-workspace",
+				},
+			},
+		]) {
+			expect(() =>
+				createOpenRouterResponsesEmpiricalBinding({
+					frozen: authority.frozen,
+					qualificationReport: authority.qualificationReport,
+					configurationRef: authority.manifest.modelConfigurations[0]?.configurationRef as string,
+					routeQualification: substitutedRoute,
+					credential: {
+						credentialBindingRef: authority.manifest.policies.actorCredentialBindingRef,
+						credentialBindingRevision: authority.manifest.policies.actorCredentialBindingRevision,
+						bearerToken,
+					},
+					transport: { request: vi.fn() },
+					transportAdmission: { admit: () => true },
+					monotonicMeasurement: { readMs: () => 0 },
+				}),
+			).toThrow("invalid OpenRouter Responses binding configuration");
+		}
 	});
 });

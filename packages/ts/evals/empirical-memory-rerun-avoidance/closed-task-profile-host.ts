@@ -20,6 +20,7 @@ import { assertPortableRepositoryPath } from "./canonical-repository-tree.js";
 import type {
 	EmpiricalCampaignTaskV1,
 	EmpiricalTaskQualificationReportV1,
+	EmpiricalUsageSource,
 	FrozenEmpiricalCampaignManifestV1,
 } from "./contracts.js";
 import {
@@ -34,6 +35,7 @@ import {
 	type EmpiricalModelTurnOutcomeV1,
 	type EmpiricalModelTurnPortV1,
 	type EmpiricalModelTurnRequestV1,
+	type EmpiricalProtectionReceiptV1,
 	executeEmpiricalProtection,
 	validateEmpiricalModelTurnOutcome,
 	validateEmpiricalModelTurnRequest,
@@ -244,8 +246,20 @@ export interface ClosedTaskProfileHostRunOutcomeV1 {
 		readonly status: "completed" | "non-evaluable";
 		readonly finishReason: "structured-output" | "tool-intents" | null;
 		readonly requests: 0 | 1;
+		readonly usageSource: EmpiricalUsageSource;
+		readonly inputTokens: number | null;
+		readonly outputTokens: number | null;
+		readonly totalTokens: number | null;
 		readonly hostInputBytes: number;
 		readonly hostOutputBytes: number;
+		readonly latencyMs: number;
+		readonly issueCodes: readonly string[];
+		readonly evidenceRefs: readonly {
+			readonly kind: string;
+			readonly id: string;
+			readonly digest: string;
+		}[];
+		readonly protectionReceipt: EmpiricalProtectionReceiptV1;
 	}[];
 	readonly toolEvidence: readonly {
 		readonly toolCallRef: string;
@@ -894,8 +908,16 @@ async function executeValidatedHost(
 				status: outcome.status,
 				finishReason: outcome.finishReason,
 				requests: outcome.usage.requests,
+				usageSource: outcome.usage.source,
+				inputTokens: outcome.usage.inputTokens,
+				outputTokens: outcome.usage.outputTokens,
+				totalTokens: outcome.usage.totalTokens,
 				hostInputBytes: outcome.usage.hostInputBytes,
 				hostOutputBytes: outcome.usage.hostOutputBytes,
+				latencyMs: outcome.latencyMs,
+				issueCodes: outcome.issueCodes,
+				evidenceRefs: outcome.evidenceRefs,
+				protectionReceipt: outcome.protectionReceipt,
 			}),
 		);
 		if (outcome.status === "non-evaluable") {

@@ -1,5 +1,14 @@
 import { execFileSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+	chmodSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -34,6 +43,11 @@ import type {
 } from "../../evals/empirical-memory-rerun-avoidance/contracts.js";
 import { EMPIRICAL_QUALIFICATION_EVIDENCE_KINDS } from "../../evals/empirical-memory-rerun-avoidance/contracts.js";
 import {
+	createEmpiricalCampaignScorecard,
+	validateEmpiricalCampaignScorecard,
+	validateEmpiricalTrialBlockObservation,
+} from "../../evals/empirical-memory-rerun-avoidance/empirical-smoke-evidence.js";
+import {
 	createEmpiricalExactPrivateNeedleProtectionExecutor,
 	type EmpiricalExactPrivateNeedleProtectionExecutorV1,
 } from "../../evals/empirical-memory-rerun-avoidance/exact-private-needle-protection.js";
@@ -47,6 +61,32 @@ import {
 	validateEmpiricalModelTurnOutcome,
 } from "../../evals/empirical-memory-rerun-avoidance/model-execution.js";
 import {
+	B112_FIRST_TASK_SMOKE_AGGREGATION_REVISION,
+	B112_SMOKE_BUDGET_ISSUE_CODE,
+	runOpenRouterFirstTaskSmoke,
+} from "../../evals/empirical-memory-rerun-avoidance/openrouter-first-task-smoke.js";
+import {
+	OPENROUTER_RESPONSES_ADAPTER_REVISION,
+	OPENROUTER_RESPONSES_BINDING_REVISION,
+	OPENROUTER_RESPONSES_ENDPOINT,
+	OPENROUTER_RESPONSES_ENDPOINT_REVISION,
+	OPENROUTER_RESPONSES_PROMPT_REVISION,
+	OPENROUTER_RESPONSES_SYSTEM_PROMPT_REVISION,
+	type OpenRouterResponsesByteTransportV1,
+} from "../../evals/empirical-memory-rerun-avoidance/openrouter-responses-model-turn.js";
+import {
+	OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
+	OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG,
+	OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
+	OPENROUTER_OFFICIAL_PRICING_REVISION,
+	OPENROUTER_OFFICIAL_PRICING_SOURCE,
+	OPENROUTER_ROUTE_EVIDENCE_SCHEMA_REVISION,
+	OPENROUTER_ROUTE_QUALIFICATION_SCHEMA,
+	OPENROUTER_SHARED_CAPACITY_QUALIFICATION_SCHEMA,
+	type OpenRouterRouteQualificationV1,
+} from "../../evals/empirical-memory-rerun-avoidance/openrouter-route-qualification.js";
+import { persistPrivateSmokeGeneration } from "../../evals/empirical-memory-rerun-avoidance/private-smoke-persistence.js";
+import {
 	createEmpiricalTaskQualificationReport,
 	freezeEmpiricalCampaignManifest,
 } from "../../evals/empirical-memory-rerun-avoidance/qualification.js";
@@ -57,6 +97,7 @@ import {
 	type SingleBaselineWorkspaceAllocationV1,
 	type SingleBaselineWorkspaceAllocatorCapabilityV1,
 } from "../../evals/empirical-memory-rerun-avoidance/single-baseline-repository-node.js";
+import { strictJsonCodec } from "../json/codec.js";
 import {
 	buildEmpiricalCampaignManifestFixture,
 	buildEmpiricalQualificationCatalogFixture,
@@ -197,8 +238,27 @@ async function createClosedHostFixture(
 	if (baseConfiguration === undefined) throw new Error("missing actor configuration fixture");
 	const modelConfiguration = strictSnapshot({
 		...baseConfiguration,
+		providerFamily: "openrouter",
+		provider: "openrouter",
+		model: OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
+		modelIdentityKind: "alias-disclosed" as const,
+		endpoint: OPENROUTER_RESPONSES_ENDPOINT,
+		endpointRevision: OPENROUTER_RESPONSES_ENDPOINT_REVISION,
+		adapterRevision: OPENROUTER_RESPONSES_ADAPTER_REVISION,
+		bindingRevision: OPENROUTER_RESPONSES_BINDING_REVISION,
+		promptRevision: OPENROUTER_RESPONSES_PROMPT_REVISION,
+		systemPromptRevision: OPENROUTER_RESPONSES_SYSTEM_PROMPT_REVISION,
+		capabilities: {
+			toolCalling: true,
+			structuredOutput: true,
+			reasoningControl: true,
+			seed: false,
+			providerUsage: true,
+		},
 		settings: {
 			...baseConfiguration.settings,
+			sampling: { temperature: null, topP: null, seed: null },
+			reasoning: { mode: "provider-native" as const, effort: "medium" },
 			tools: {
 				...baseConfiguration.settings.tools,
 				schemaRevision: schemaCatalog.catalogRevision,
@@ -207,6 +267,9 @@ async function createClosedHostFixture(
 				maxSteps: 8,
 			},
 		},
+		usageSource: "provider-reported" as const,
+		pricingRevision: OPENROUTER_OFFICIAL_PRICING_REVISION,
+		pricingScheduleRef: OPENROUTER_OFFICIAL_PRICING_SOURCE,
 	});
 	const manifest: EmpiricalCampaignManifestV1 = strictSnapshot({
 		...baseManifest,
@@ -522,6 +585,132 @@ function targetRunEvidence(coordinates: ClosedVerifierRunCoordinatesV1, id = "ta
 	});
 }
 
+function simulatedRouteQualification(
+	fixture: ClosedHostFixture,
+	budgetOverrides: Readonly<Record<string, number>> = {},
+): OpenRouterRouteQualificationV1 {
+	const configuration = fixture.frozen.manifest.modelConfigurations[0];
+	if (configuration === undefined) throw new Error("missing smoke configuration");
+	const credentialBindingRef = fixture.frozen.manifest.policies.actorCredentialBindingRef;
+	const credentialBindingRevision = fixture.frozen.manifest.policies.actorCredentialBindingRevision;
+	const qualification: OpenRouterRouteQualificationV1 = {
+		schemaVersion: OPENROUTER_ROUTE_QUALIFICATION_SCHEMA,
+		qualificationRef: "b112-simulated-route-qualification",
+		qualificationRevision: "b112-simulated-route-qualification.v1",
+		dispatchMode: "simulated" as const,
+		campaignRef: fixture.frozen.manifest.campaignRef,
+		manifestDigest: fixture.frozen.manifestDigest,
+		trialBlockRef: fixture.initialRequest.trialBlockRef,
+		trialBlockDigest: fixture.initialRequest.trialBlockDigest,
+		configurationRef: configuration.configurationRef,
+		configurationDigest: empiricalStrictJsonDigest(configuration),
+		requestModel: OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
+		modelIdentityKind: configuration.modelIdentityKind,
+		downstreamProviderSlug: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG,
+		downstreamProviderName: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
+		endpoint: OPENROUTER_RESPONSES_ENDPOINT,
+		endpointRevision: OPENROUTER_RESPONSES_ENDPOINT_REVISION,
+		adapterRevision: OPENROUTER_RESPONSES_ADAPTER_REVISION,
+		bindingRevision: OPENROUTER_RESPONSES_BINDING_REVISION,
+		capabilitiesDigest: empiricalStrictJsonDigest(configuration.capabilities),
+		settingsDigest: empiricalStrictJsonDigest(configuration.settings),
+		usageSource: configuration.usageSource,
+		usageRevision: "openrouter-provider-usage-2026-07-29.v1",
+		routeEvidenceSchemaRevision: OPENROUTER_ROUTE_EVIDENCE_SCHEMA_REVISION,
+		pricing: {
+			sourceUrl: OPENROUTER_OFFICIAL_PRICING_SOURCE,
+			pricingRevision: OPENROUTER_OFFICIAL_PRICING_REVISION,
+			currency: "USD" as const,
+			inputMicrousdPerMillionTokens: 5_000_000,
+			outputMicrousdPerMillionTokens: 30_000_000,
+		},
+		budget: {
+			approvalRef: "b112-simulated-budget",
+			approvalRevision: "b112-simulated-budget.v1",
+			maxSmokeSpendMicrousd: 1_000_000,
+			maxRequests: 8,
+			maxStepsPerRun: 8,
+			maxCanonicalRequestBytes: 262_144,
+			maxInputTokens: 100_000,
+			maxOutputTokens: 49_152,
+			maxLatencyMs: 60_000,
+			reservationRevision: "canonical-byte-upper-bound-reservation.v1",
+			inputTokensPerCanonicalByteUpperBound: 1 as const,
+			fixedInputTokenOverheadPerRequest: 4_096,
+			...budgetOverrides,
+		},
+		keySpendLimit: {
+			qualificationRef: "b112-simulated-key-limit",
+			qualificationRevision: "b112-simulated-key-limit.v1",
+			readOnlyQualified: false,
+			limitReset: "none" as const,
+			limitMicrousd: 1_000_000,
+			remainingMicrousd: 1_000_000,
+			credentialBindingRef,
+			credentialBindingRevision,
+			workspaceRef: "b112-dedicated-openrouter-workspace",
+			workspaceRevision: "b112-simulated-workspace-attestation.v1",
+		},
+		sharedCapacityQualification: {
+			schemaVersion: OPENROUTER_SHARED_CAPACITY_QUALIFICATION_SCHEMA,
+			qualificationRef: "b112-simulated-shared-capacity",
+			qualificationRevision: "b112-simulated-shared-capacity.v1",
+			credentialBindingRef,
+			credentialBindingRevision,
+			workspaceRef: "b112-dedicated-openrouter-workspace",
+			workspaceRevision: "b112-simulated-workspace-attestation.v1",
+			capacityMode: "openrouter-shared-only" as const,
+			qualified: true as const,
+			byokCredentialCount: 0 as const,
+		},
+	};
+	return strictSnapshot(qualification);
+}
+
+function dryRunOpenRouterResponse(
+	id: string,
+	output: readonly unknown[],
+	usage = { input_tokens: 100, output_tokens: 20, total_tokens: 120 },
+): { readonly status: 200; readonly body: Uint8Array } {
+	return {
+		status: 200,
+		body: encoder.encode(
+			JSON.stringify({
+				id,
+				object: "response",
+				status: "completed",
+				model: OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
+				output,
+				usage,
+				openrouter_metadata: {
+					requested: OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
+					strategy: "direct",
+					attempt: 1,
+					is_byok: false,
+					endpoints: {
+						total: 1,
+						available: [
+							{
+								provider: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
+								model: OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
+								selected: true,
+							},
+						],
+					},
+					attempts: [
+						{
+							provider: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
+							model: OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
+							status: 200,
+						},
+					],
+					pipeline: [],
+				},
+			}),
+		),
+	};
+}
+
 describe("B112 D659 deterministic closed task-profile host", () => {
 	it("runs five code-closed actor tools in explicit turns, gates the diff, verifies, and cleans up", async () => {
 		const fixture = await createClosedHostFixture();
@@ -615,6 +804,458 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(JSON.stringify(outcome)).not.toContain(fixture.workspaceRoot);
 		expect(() => readFileSync(join(fixture.workspaceRoot, "README.md"))).toThrow();
 	});
+
+	it("dry-runs injected OpenRouter bytes through host, verifier, canonical evidence, and atomic private persistence", async () => {
+		const fixture = await createClosedHostFixture();
+		const credentialSentinel = "openrouter-dry-run-secret-sentinel-0123456789";
+		const baseContentDigest = empiricalSha256(encoder.encode("broken-placeholder-value\n"));
+		let transportCalls = 0;
+		const transport: OpenRouterResponsesByteTransportV1 = {
+			async request(input) {
+				transportCalls += 1;
+				const requestBody = JSON.parse(new TextDecoder().decode(input.body)) as {
+					readonly tools: readonly { readonly name: string }[];
+				};
+				const output =
+					transportCalls === 1
+						? [
+								{ type: "reasoning", summary: [] },
+								{
+									type: "function_call",
+									status: "completed",
+									call_id: "call.replace-exact",
+									name: requestBody.tools[2]?.name,
+									arguments: JSON.stringify({
+										baseContentDigest,
+										newText: "fixed",
+										oldText: "broken-placeholder-value",
+										path: "README.md",
+									}),
+								},
+							]
+						: [
+								{ type: "reasoning", summary: [] },
+								{
+									type: "message",
+									role: "assistant",
+									status: "completed",
+									content: [
+										{
+											type: "output_text",
+											text: JSON.stringify({
+												kind: "model-turn-output-placeholder",
+												summary: "bounded-placeholder",
+											}),
+										},
+									],
+								},
+							];
+				return {
+					status: 200,
+					body: encoder.encode(
+						JSON.stringify({
+							id: `response.dry-run.${transportCalls}`,
+							object: "response",
+							status: "completed",
+							model: OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
+							output,
+							usage: {
+								input_tokens: 100,
+								output_tokens: 20,
+								total_tokens: 120,
+							},
+							openrouter_metadata: {
+								requested: OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
+								strategy: "direct",
+								attempt: 1,
+								is_byok: false,
+								endpoints: {
+									total: 1,
+									available: [
+										{
+											provider: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
+											model: OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
+											selected: true,
+										},
+									],
+								},
+								attempts: [
+									{
+										provider: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
+										model: OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
+										status: 200,
+									},
+								],
+								pipeline: [],
+							},
+						}),
+					),
+				};
+			},
+		};
+		const artifactRoot = temporaryRoot("private-artifacts");
+		const privateRoot = join(artifactRoot, ".private", "empirical-memory-rerun-avoidance");
+		mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
+		chmodSync(privateRoot, 0o700);
+		let measurement = 0;
+		const routeQualification = simulatedRouteQualification(fixture);
+		const result = await runOpenRouterFirstTaskSmoke({
+			host: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: fixture.materialization,
+				verifier: fixture.verifier,
+			},
+			routeQualification,
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: credentialSentinel,
+			},
+			transport,
+			monotonicMeasurement: { readMs: () => (measurement += 1) },
+			executionClass: "simulated-contract",
+			privateRoot,
+			generationRef: "dry-run-generation",
+			signal: new AbortController().signal,
+		});
+
+		expect(transportCalls).toBe(2);
+		expect(result.observation).toMatchObject({
+			executionClass: "simulated-contract",
+			empiricalLiveEvidence: false,
+			result: {
+				classification: "complete",
+				verifierStatus: "passed",
+				requests: 2,
+				steps: 2,
+				costMicrousd: 0,
+				costBasis: "simulated-contract",
+			},
+		});
+		expect(result.scorecard).toMatchObject({
+			evidenceClass: "simulated-contract",
+			empiricalLiveEvidence: false,
+			efficacyClaim: "none",
+			status: "smoke-complete-no-efficacy-claim",
+			aggregationRevision: B112_FIRST_TASK_SMOKE_AGGREGATION_REVISION,
+		});
+		expect(validateEmpiricalTrialBlockObservation(result.observation)).toEqual(result.observation);
+		expect(validateEmpiricalCampaignScorecard(result.scorecard)).toEqual(result.scorecard);
+		const repeatedScorecard = createEmpiricalCampaignScorecard(
+			result.observation,
+			B112_FIRST_TASK_SMOKE_AGGREGATION_REVISION,
+		);
+		expect(strictJsonCodec.encode(repeatedScorecard)).toEqual(
+			strictJsonCodec.encode(result.scorecard),
+		);
+		expect(() =>
+			validateEmpiricalTrialBlockObservation({
+				...result.observation,
+				rawProviderResponse: "forbidden",
+			}),
+		).toThrow(/unexpected keys/);
+		expect(() =>
+			validateEmpiricalTrialBlockObservation({
+				...result.observation,
+				routeEvidenceDigests: [],
+				verifierEvidenceDigests: [],
+				protectionReceiptDigests: [],
+			}),
+		).toThrow(/required frozen evidence/);
+		expect(
+			validateEmpiricalTrialBlockObservation({
+				...result.observation,
+				executionClass: "live-provider",
+				empiricalLiveEvidence: true,
+				result: {
+					...result.observation.result,
+					classification: "non-evaluable",
+					verifierStatus: "not-run",
+					inputTokens: result.observation.route.maxInputTokens + 1,
+					outputTokens: result.observation.route.maxOutputTokens + 1,
+					costMicrousd: result.observation.route.maxSmokeSpendMicrousd + 1,
+					costBasis: "provider-usage",
+				},
+				issueCodes: ["smoke-budget-exhausted"],
+			}).result.costBasis,
+		).toBe("provider-usage");
+		const persistedFiles = readdirSync(result.persistence.generationPath).sort();
+		expect(persistedFiles).toEqual([
+			"campaign-scorecard.v1.json",
+			"generation.v1.json",
+			"trial-block-observation.v1.json",
+		]);
+		for (const file of persistedFiles) {
+			expect(statSync(join(result.persistence.generationPath, file)).mode & 0o777).toBe(0o600);
+			const persisted = readFileSync(join(result.persistence.generationPath, file), "utf8");
+			expect(persisted).not.toContain(credentialSentinel);
+			expect(persisted).not.toMatch(
+				/raw provider|rawResponse|stdout|stderr|expected patch|environment material/i,
+			);
+		}
+		await expect(
+			persistPrivateSmokeGeneration({
+				privateRoot,
+				generationRef: "dry-run-generation",
+				observation: result.observation,
+				scorecard: result.scorecard,
+				protectionExecutor: fixture.protectionExecutor,
+			}),
+		).rejects.toThrow();
+		expect(readdirSync(privateRoot).filter((name) => name.startsWith(".staging-"))).toEqual([]);
+		await expect(
+			persistPrivateSmokeGeneration({
+				privateRoot,
+				generationRef: "safe/../../escaped-generation",
+				observation: result.observation,
+				scorecard: result.scorecard,
+				protectionExecutor: fixture.protectionExecutor,
+			}),
+		).rejects.toThrow(/path-free coordinate/);
+		expect(readdirSync(join(artifactRoot, ".private"))).not.toContain("escaped-generation");
+		await expect(
+			persistPrivateSmokeGeneration({
+				privateRoot,
+				generationRef: "forged-live-scorecard",
+				observation: result.observation,
+				scorecard: {
+					...result.scorecard,
+					evidenceClass: "live-provider",
+					empiricalLiveEvidence: true,
+				},
+				protectionExecutor: fixture.protectionExecutor,
+			}),
+		).rejects.toThrow(/canonical aggregation/);
+		expect(readdirSync(privateRoot)).not.toContain("forged-live-scorecard");
+
+		const contaminatedObservation = strictSnapshot({
+			...result.observation,
+			issueCodes: [credentialSentinel],
+		});
+		const contaminatedScorecard = createEmpiricalCampaignScorecard(
+			contaminatedObservation,
+			B112_FIRST_TASK_SMOKE_AGGREGATION_REVISION,
+		);
+		const sentinelProtection = createEmpiricalExactPrivateNeedleProtectionExecutor({
+			policyRef: fixture.initialRequest.protectionPolicyRef,
+			policyRevision: fixture.initialRequest.protectionPolicyRevision,
+			protectedNeedleCapabilityRef: "dry-run-sentinel",
+			protectedNeedleCapabilityRevision: "dry-run-sentinel.v1",
+			protectedNeedles: [credentialSentinel],
+		});
+		await expect(
+			persistPrivateSmokeGeneration({
+				privateRoot,
+				generationRef: "credential-leak-generation",
+				observation: contaminatedObservation,
+				scorecard: contaminatedScorecard,
+				protectionExecutor: sentinelProtection,
+			}),
+		).rejects.toThrow(/artifact-persistence protection/);
+		expect(readdirSync(privateRoot)).not.toContain("credential-leak-generation");
+		await expect(
+			persistPrivateSmokeGeneration({
+				privateRoot,
+				generationRef: credentialSentinel,
+				observation: result.observation,
+				scorecard: result.scorecard,
+				protectionExecutor: sentinelProtection,
+			}),
+		).rejects.toThrow(/generation failed artifact-persistence protection/);
+		expect(readdirSync(privateRoot)).not.toContain(credentialSentinel);
+	});
+
+	it("persists a sanitized non-evaluable generation after one transport attempt fails", async () => {
+		const fixture = await createClosedHostFixture();
+		const failureCredentialSentinel = "openrouter-transport-failure-secret-0123456789";
+		let transportCalls = 0;
+		const privateRoot = join(
+			temporaryRoot("transport-failure"),
+			".private",
+			"empirical-memory-rerun-avoidance",
+		);
+		mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
+		chmodSync(privateRoot, 0o700);
+		const result = await runOpenRouterFirstTaskSmoke({
+			host: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: fixture.materialization,
+				verifier: fixture.verifier,
+			},
+			routeQualification: simulatedRouteQualification(fixture),
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: failureCredentialSentinel,
+			},
+			transport: {
+				request() {
+					transportCalls += 1;
+					return Promise.reject(new Error(`raw ${failureCredentialSentinel}`));
+				},
+			},
+			monotonicMeasurement: { readMs: () => 0 },
+			executionClass: "simulated-contract",
+			privateRoot,
+			generationRef: "transport-failure-generation",
+			signal: new AbortController().signal,
+		});
+		expect(transportCalls).toBe(1);
+		expect(result.observation).toMatchObject({
+			result: { classification: "non-evaluable", requests: 1 },
+			routeEvidenceDigests: [],
+		});
+		expect(result.scorecard.status).toBe("non-evaluable");
+		expect(
+			readFileSync(
+				join(result.persistence.generationPath, "trial-block-observation.v1.json"),
+				"utf8",
+			),
+		).not.toContain(failureCredentialSentinel);
+	});
+
+	it("persists known provider usage when a completed attempt exceeds the frozen budget", async () => {
+		const fixture = await createClosedHostFixture();
+		const privateRoot = join(
+			temporaryRoot("known-overrun"),
+			".private",
+			"empirical-memory-rerun-avoidance",
+		);
+		mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
+		chmodSync(privateRoot, 0o700);
+		const result = await runOpenRouterFirstTaskSmoke({
+			host: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: fixture.materialization,
+				verifier: fixture.verifier,
+			},
+			routeQualification: simulatedRouteQualification(fixture),
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: "openrouter-known-overrun-secret-0123456789",
+			},
+			transport: {
+				request(input) {
+					const requestBody = JSON.parse(new TextDecoder().decode(input.body)) as {
+						readonly tools: readonly { readonly name: string }[];
+					};
+					return Promise.resolve(
+						dryRunOpenRouterResponse(
+							"response.known-overrun",
+							[
+								{
+									type: "function_call",
+									status: "completed",
+									call_id: "call.known-overrun",
+									name: requestBody.tools[0]?.name,
+									arguments: JSON.stringify({ path: "README.md" }),
+								},
+							],
+							{ input_tokens: 100_001, output_tokens: 20, total_tokens: 100_021 },
+						),
+					);
+				},
+			},
+			monotonicMeasurement: { readMs: () => 0 },
+			executionClass: "simulated-contract",
+			privateRoot,
+			generationRef: "known-overrun-generation",
+			signal: new AbortController().signal,
+		});
+		expect(result.observation).toMatchObject({
+			result: {
+				classification: "non-evaluable",
+				requests: 1,
+				inputTokens: 100_001,
+				outputTokens: 20,
+			},
+		});
+		expect(result.observation.issueCodes).toContain(B112_SMOKE_BUDGET_ISSUE_CODE);
+		expect(result.observation.routeEvidenceDigests).toHaveLength(1);
+		expect(result.scorecard.status).toBe("non-evaluable");
+	});
+
+	it("stops a simulated bad loop at request/step bounds and fails closed before a cost-overrun request", async () => {
+		const runBoundedCase = async (
+			label: string,
+			budgetOverrides: Readonly<Record<string, number>>,
+			expectedTransportCalls: number,
+			expectedIssueCode = "smoke-budget-exhausted",
+		) => {
+			const fixture = await createClosedHostFixture();
+			let transportCalls = 0;
+			const transport: OpenRouterResponsesByteTransportV1 = {
+				async request(input) {
+					transportCalls += 1;
+					const requestBody = JSON.parse(new TextDecoder().decode(input.body)) as {
+						readonly tools: readonly { readonly name: string }[];
+					};
+					return dryRunOpenRouterResponse(`response.${label}.${transportCalls}`, [
+						{
+							type: "function_call",
+							status: "completed",
+							call_id: `call.${label}.${transportCalls}`,
+							name: requestBody.tools[0]?.name,
+							arguments: JSON.stringify({ path: "README.md" }),
+						},
+					]);
+				},
+			};
+			const artifactRoot = temporaryRoot(`bounded-${label}`);
+			const privateRoot = join(artifactRoot, ".private", "empirical-memory-rerun-avoidance");
+			mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
+			chmodSync(privateRoot, 0o700);
+			let measurement = 0;
+			const result = await runOpenRouterFirstTaskSmoke({
+				host: {
+					frozen: fixture.frozen,
+					qualificationReport: fixture.report,
+					initialRequest: fixture.initialRequest,
+					taskProfile: fixture.taskProfile,
+					materialization: fixture.materialization,
+					verifier: fixture.verifier,
+				},
+				routeQualification: simulatedRouteQualification(fixture, budgetOverrides),
+				credential: {
+					credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+					credentialBindingRevision:
+						fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+					bearerToken: "openrouter-bounded-secret-sentinel-0123456789",
+				},
+				transport,
+				monotonicMeasurement: { readMs: () => (measurement += 1) },
+				executionClass: "simulated-contract",
+				privateRoot,
+				generationRef: `bounded-${label}`,
+				signal: new AbortController().signal,
+			});
+			expect(transportCalls).toBe(expectedTransportCalls);
+			expect(result.observation.result.classification).toBe("non-evaluable");
+			expect(result.observation.issueCodes).toContain(expectedIssueCode);
+			expect(result.scorecard.status).toBe("non-evaluable");
+			expect(result.scorecard.empiricalLiveEvidence).toBe(false);
+			return result;
+		};
+
+		const loopBound = await runBoundedCase("request-step", { maxRequests: 2 }, 2);
+		expect(loopBound.observation.result).toMatchObject({ requests: 2, steps: 3 });
+
+		const stepBound = await runBoundedCase("step", {}, 8, "agent-step-budget-exhausted");
+		expect(stepBound.observation.result).toMatchObject({ requests: 8, steps: 8 });
+
+		const costBound = await runBoundedCase("cost", { maxSmokeSpendMicrousd: 1 }, 0);
+		expect(costBound.observation.result).toMatchObject({ requests: 0, steps: 1 });
+	}, 15_000);
 
 	it("rejects a profile-digest mismatch before model invocation and still cleans the workspace", async () => {
 		const fixture = await createClosedHostFixture();
