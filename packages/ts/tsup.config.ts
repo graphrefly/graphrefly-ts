@@ -21,6 +21,8 @@ export default defineConfig({
 		"src/executors/local-container-postgresql-docker-engine-api-v0/node.ts",
 		"src/executors/local-container-postgresql-podman-libpod-api-v0-rootless.ts",
 		"src/executors/local-container-postgresql-podman-libpod-api-v0-rootless/node.ts",
+		"src/executors/local-untrusted-js-compute.ts",
+		"src/executors/local-untrusted-js-compute/node.ts",
 		"src/executors/local-container-postgresql.ts",
 		"src/executors/managed-cloud-postgresql.ts",
 		"src/executors/managed-untrusted-js-compute.ts",
