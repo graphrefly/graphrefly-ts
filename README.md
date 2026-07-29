@@ -89,7 +89,7 @@ import { map, switchMap } from "@graphrefly/ts/operators";
 import { fromPromise, timer } from "@graphrefly/ts/sources";
 import { memoryKv } from "@graphrefly/ts/storage";
 import { describeToMermaid } from "@graphrefly/ts/render";
-import { useNodeValue } from "@graphrefly/ts/adapters/react";
+import { useNodeValue } from "@graphrefly/react";
 ```
 
 Node-only and browser-only helpers are split:

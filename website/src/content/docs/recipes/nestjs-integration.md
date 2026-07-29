@@ -23,10 +23,10 @@ The NestJS adapter has focused subpaths:
 
 | Import path | Use |
 |---|---|
-| `@graphrefly/ts/adapters/nestjs` | Dependency-light structural metadata: boundary factories, binding decorators, envelopes, and lowering types. |
-| `@graphrefly/ts/adapters/nestjs/native` | Nest/RxJS native phase bridges for HTTP interceptor, guard, filter, cron, and lifecycle phases. |
-| `@graphrefly/ts/adapters/nestjs/websockets` | Focused optional-peer native bridge for `@nestjs/websockets` gateway ingress plus ack/reply egress. |
-| `@graphrefly/ts/adapters/nestjs/microservices` | Focused optional-peer native bridge for `@nestjs/microservices` message-pattern ingress plus reply egress. |
+| `@graphrefly/nestjs` | Dependency-light structural metadata: boundary factories, binding decorators, envelopes, and lowering types. |
+| `@graphrefly/nestjs/native` | Nest/RxJS native phase bridges for HTTP interceptor, guard, filter, cron, and lifecycle phases. |
+| `@graphrefly/nestjs/websockets` | Focused optional-peer native bridge for `@nestjs/websockets` gateway ingress plus ack/reply egress. |
+| `@graphrefly/nestjs/microservices` | Focused optional-peer native bridge for `@nestjs/microservices` message-pattern ingress plus reply egress. |
 
 HTTP/native imports do not pull `@nestjs/websockets` or `@nestjs/microservices`. The WebSocket and message subpaths import only their matching optional peer.
 
@@ -60,7 +60,7 @@ import {
   GraphHttpReply,
   type NestBoundaryEnvelope,
   type NestReplyEnvelope,
-} from "@graphrefly/ts/adapters/nestjs";
+} from "@graphrefly/nestjs";
 
 const g = graph({ name: "orders" });
 
@@ -98,7 +98,7 @@ class OrdersController {
 Register the native phase bridge with Nest providers:
 
 ```ts
-import { provideGraphBoundaryInterceptor } from "@graphrefly/ts/adapters/nestjs/native";
+import { provideGraphBoundaryInterceptor } from "@graphrefly/nestjs/native";
 
 @Module({
   providers: [
@@ -119,7 +119,7 @@ import {
   graphCronTarget,
   graphLifecycleTarget,
   provideGraphNativeProviders,
-} from "@graphrefly/ts/adapters/nestjs/native";
+} from "@graphrefly/nestjs/native";
 
 const cronTargets = [
   graphCronTarget(OrdersController, "cronTick", {
@@ -155,13 +155,13 @@ The bundle returns ordinary `Provider[]`. It is not a module, does not create a 
 
 ## WebSocket and Message Bridges
 
-D495 extends the NestJS ergonomics slice to focused transport subpaths. WebSocket modules may use `provideGraphWsProviders(...)` from `@graphrefly/ts/adapters/nestjs/websockets`, and message-pattern modules may use `provideGraphMessageProviders(...)` from `@graphrefly/ts/adapters/nestjs/microservices`. Each helper returns an ordinary explicit Nest provider array over existing bridge options. These helpers are not modules, do not create graphs, do not scan the container, do not discover routes or handlers, and do not own retry, session, or transport lifecycle policy.
+D495 extends the NestJS ergonomics slice to focused transport subpaths. WebSocket modules may use `provideGraphWsProviders(...)` from `@graphrefly/nestjs/websockets`, and message-pattern modules may use `provideGraphMessageProviders(...)` from `@graphrefly/nestjs/microservices`. Each helper returns an ordinary explicit Nest provider array over existing bridge options. These helpers are not modules, do not create graphs, do not scan the container, do not discover routes or handlers, and do not own retry, session, or transport lifecycle policy.
 
-Use `GraphWs(...)` with `GraphWsAck(...)` or `GraphWsReply(...)` through `provideGraphWsProviders(...)` or the primitive `provideGraphWsBridge(...)` from `@graphrefly/ts/adapters/nestjs/websockets`. Use `GraphMessage(...)` with `GraphMessageReply(...)` through `provideGraphMessageProviders(...)` or the primitive `provideGraphMessageBridge(...)` from `@graphrefly/ts/adapters/nestjs/microservices`.
+Use `GraphWs(...)` with `GraphWsAck(...)` or `GraphWsReply(...)` through `provideGraphWsProviders(...)` or the primitive `provideGraphWsBridge(...)` from `@graphrefly/nestjs/websockets`. Use `GraphMessage(...)` with `GraphMessageReply(...)` through `provideGraphMessageProviders(...)` or the primitive `provideGraphMessageBridge(...)` from `@graphrefly/nestjs/microservices`.
 
 ```ts
-import { provideGraphMessageProviders } from "@graphrefly/ts/adapters/nestjs/microservices";
-import { provideGraphWsProviders } from "@graphrefly/ts/adapters/nestjs/websockets";
+import { provideGraphMessageProviders } from "@graphrefly/nestjs/microservices";
+import { provideGraphWsProviders } from "@graphrefly/nestjs/websockets";
 
 @Module({
   providers: [
@@ -182,7 +182,7 @@ class AppModule {}
 
 These native phase bridges read only the metadata for the current gateway/controller method, require explicit payload selectors, and correlate reply-capable egress by both `requestId` and `bindingId`. Sockets, clients, ack callbacks, message contexts, transport clients, Observables, Promises, and reply handles stay host-private pending handles; graph-visible DATA carries only the selected payload envelope. Wrong-binding, stale, malformed, terminal, timeout, disconnect, and dispose cases are adapter diagnostics and cleanup paths, not protocol `ERROR`.
 
-The optional-peer boundary remains strict: `@nestjs/websockets` is imported only by the WebSocket subpath, and `@nestjs/microservices` is imported only by the microservice/message subpath. The structural `@graphrefly/ts/adapters/nestjs` surface and HTTP/native `@graphrefly/ts/adapters/nestjs/native` surface do not pull those transport peers.
+The optional-peer boundary remains strict: `@nestjs/websockets` is imported only by the WebSocket subpath, and `@nestjs/microservices` is imported only by the microservice/message subpath. The structural `@graphrefly/nestjs` surface and HTTP/native `@graphrefly/nestjs/native` surface do not pull those transport peers.
 
 ## Guards, Filters, and Issues
 
@@ -190,7 +190,7 @@ Use `GraphGuard(...)` with `GraphGuardDecision(...)` for guard phase decisions. 
 
 ```ts
 import { UseFilters } from "@nestjs/common";
-import { GraphGuardDeniedFilter } from "@graphrefly/ts/adapters/nestjs/native";
+import { GraphGuardDeniedFilter } from "@graphrefly/nestjs/native";
 
 class OrdersController {
   @UseFilters(GraphGuardDeniedFilter)
@@ -218,7 +218,7 @@ For exception handling, prefer the targeted helper:
 
 ```ts
 import { UseFilters } from "@nestjs/common";
-import { createGraphExceptionFilter } from "@graphrefly/ts/adapters/nestjs/native";
+import { createGraphExceptionFilter } from "@graphrefly/nestjs/native";
 
 const graphErrorFilter = createGraphExceptionFilter({
   target: () => ({ target: OrdersController, methodKey: "handledError" }),
@@ -257,7 +257,7 @@ Plain `DataIssue` values lower through `issueResponse(issue, host)`. Protocol `E
 The deterministic controller is for manual checks and tests:
 
 ```ts
-import { createGraphCronController, graphCronTarget } from "@graphrefly/ts/adapters/nestjs/native";
+import { createGraphCronController, graphCronTarget } from "@graphrefly/nestjs/native";
 
 const controller = createGraphCronController({
   targets: [
@@ -290,10 +290,10 @@ const stop = g.observe("orders.audit").subscribe((event) => {
 Graph-visible adapter diagnostics require an explicitly wired diagnostic ingress boundary:
 
 ```ts
-import { fromNestDiagnostics } from "@graphrefly/ts/adapters/nestjs";
-import { provideGraphMessageProviders } from "@graphrefly/ts/adapters/nestjs/microservices";
-import { provideGraphNativeProviders } from "@graphrefly/ts/adapters/nestjs/native";
-import { provideGraphWsProviders } from "@graphrefly/ts/adapters/nestjs/websockets";
+import { fromNestDiagnostics } from "@graphrefly/nestjs";
+import { provideGraphMessageProviders } from "@graphrefly/nestjs/microservices";
+import { provideGraphNativeProviders } from "@graphrefly/nestjs/native";
+import { provideGraphWsProviders } from "@graphrefly/nestjs/websockets";
 
 const nestDiagnostics = fromNestDiagnostics(g, {
   bindingId: "node.nest.diagnostics",

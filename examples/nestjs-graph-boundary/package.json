@@ -9,6 +9,7 @@
 		"check": "pnpm --dir ../.. --filter @graphrefly/ts build && tsc --noEmit"
 	},
 	"dependencies": {
+		"@graphrefly/nestjs": "^0.1.0",
 		"@graphrefly/ts": "workspace:*",
 		"@nestjs/common": "^11.1.17",
 		"@nestjs/core": "^11.1.17",

@@ -129,7 +129,8 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		expect(createBody).toMatchObject({
 			Image: imageRef,
 			User: "65532:65532",
-			Cmd: ["sh", "-ec", 'test "$(id -u)" != "0"'],
+			Entrypoint: ["/bin/sh", "-ec"],
+			Cmd: ['test "$(id -u)" != "0"'],
 			Env: [],
 			StopTimeout: 5,
 			HostConfig: {
@@ -857,7 +858,7 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 				certifiedHostMatrix: certifiedHostMatrix(),
 				observedAtMs: 20,
 				ttlMs: 100,
-				maxResponseBytes: 1024,
+				maxResponseBytes: 2048,
 				proofs: proofAdapter(),
 			},
 		);
@@ -994,6 +995,86 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		);
 		expect(JSON.stringify(preflight)).not.toContain("graphrefly-d624-unrelated");
 		expect(JSON.stringify(preflight)).not.toContain("unexpected-boundary");
+	});
+
+	it.each([
+		{
+			name: "the image entrypoint is inherited",
+			mutate: (inspected: Record<string, unknown>) => ({
+				...inspected,
+				Config: {
+					...(inspected.Config as Record<string, unknown>),
+					Entrypoint: ["docker-entrypoint.sh"],
+				},
+			}),
+		},
+		{
+			name: "the configured command is the legacy shell-shaped command",
+			mutate: (inspected: Record<string, unknown>) => ({
+				...inspected,
+				Config: {
+					...(inspected.Config as Record<string, unknown>),
+					Cmd: ["sh", "-ec", 'test "$(id -u)" != "0"'],
+				},
+			}),
+		},
+		{
+			name: "the resolved executable does not match the explicit entrypoint",
+			mutate: (inspected: Record<string, unknown>) => ({
+				...inspected,
+				Path: "docker-entrypoint.sh",
+			}),
+		},
+		{
+			name: "the resolved arguments do not match the explicit command",
+			mutate: (inspected: Record<string, unknown>) => ({
+				...inspected,
+				Args: ["-ec", "id -u"],
+			}),
+		},
+	])("fails closed before start when $name", async ({ mutate }) => {
+		const docker = installDockerApiMock({
+			rawInspectContainerBody: JSON.stringify(
+				mutate(
+					safeInspectContainerBody(
+						"__GRAPHREFLY_PROBE_NETWORK_NAME__",
+						"__GRAPHREFLY_PROBE_CONTAINER_NAME__",
+					),
+				),
+			),
+		});
+		const mod = await import(
+			"../executors/local-container-postgresql-docker-engine-api-v0/node.js"
+		);
+		const preflight = await mod.certifyDockerEngineApiV0LocalContainerPostgresqlWithNodeLocalDocker(
+			{
+				manifest: manifest(),
+				imageRef,
+				hostPlatform: "linux/amd64",
+				guestPlatform: "linux/amd64",
+				runtimeRevision: "docker-engine:24.0.7",
+				certifiedHostMatrix: certifiedHostMatrix(),
+				observedAtMs: 20,
+				ttlMs: 100,
+				proofs: proofAdapter(),
+			},
+		);
+
+		expect(localContainerPostgresqlDockerEngineApiV0PreflightReadiness(preflight)).toMatchObject({
+			state: "unavailable",
+			isolationVerified: false,
+			cleanupVerified: true,
+		});
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).toEqual(
+			expect.arrayContaining([
+				`GET /containers/${containerId}/json`,
+				`DELETE /containers/${containerId}?force=true&v=true`,
+				`DELETE /networks/${networkId}`,
+			]),
+		);
+		expect(docker.calls.map((c) => `${c.method} ${c.path}`)).not.toContain(
+			`POST /containers/${containerId}/start`,
+		);
 	});
 
 	it("fails closed when Docker inspect body does not match the private probe container id", async () => {
@@ -2715,9 +2796,13 @@ function safeInspectContainerBody(
 	return {
 		Id: containerId,
 		Name: `/${containerName}`,
+		Path: "/bin/sh",
+		Args: ["-ec", 'test "$(id -u)" != "0"'],
 		Config: {
 			Image: containerImageRef,
 			User: "65532:65532",
+			Entrypoint: ["/bin/sh", "-ec"],
+			Cmd: ['test "$(id -u)" != "0"'],
 			OpenStdin: false,
 			Env: ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"],
 			Labels: {

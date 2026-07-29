@@ -20,10 +20,10 @@ examples/
 │   ├── nanostores/              Nanostores-style atom facade over caller-owned GraphReFly nodes
 │   └── zustand/                 Zustand StoreApi facade over a caller-owned GraphReFly state node
 ├── framework/
-│   ├── react/                   Vite + React 19, useNodeInput/useNodeValue via `@graphrefly/ts/adapters/react` (D238)
-│   ├── vue/                     Vite + Vue 3, useNodeInput/useNodeValue via `@graphrefly/ts/adapters/vue` (D238)
-│   ├── solid/                   Vite + SolidJS, createNodeInput/createNodeValue via `@graphrefly/ts/adapters/solid` (D238)
-│   └── svelte/                  Vite + Svelte 5 (runes), nodeWritable/nodeReadable via `@graphrefly/ts/adapters/svelte` (D238)
+│   ├── react/                   Vite + React 19, useNodeInput/useNodeValue via `@graphrefly/react` (D238)
+│   ├── vue/                     Vite + Vue 3, useNodeInput/useNodeValue via `@graphrefly/vue` (D238)
+│   ├── solid/                   Vite + SolidJS, createNodeInput/createNodeValue via `@graphrefly/solid` (D238)
+│   └── svelte/                  Vite + Svelte 5 (runes), nodeWritable/nodeReadable via `@graphrefly/svelte` (D238)
 ├── knowledge-graph/             Node-runnable semantic-memory KG reducer via `@graphrefly/ts/patterns`
 ├── nestjs-graph-boundary/       NestJS HTTP, WebSocket, message, cron, guard/filter boundary nodes via focused provider bundles
 ├── reactive-layout/

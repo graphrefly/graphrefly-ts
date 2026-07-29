@@ -6,12 +6,8 @@ import type {
 	WritableNode,
 	ZustandStoreApi,
 } from "@graphrefly/ts/adapters";
-import {
-	useNodeInput,
-	useNodeRecord,
-	useNodeValue as useSubscribe,
-} from "@graphrefly/ts/adapters/vue";
 import type { Node } from "@graphrefly/ts/graph";
+import { useNodeInput, useNodeRecord, useNodeValue as useSubscribe } from "@graphrefly/vue";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import {
 	counterGraph,

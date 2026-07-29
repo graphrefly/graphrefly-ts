@@ -9,14 +9,14 @@ description: "Historical note for the retired compatibility layers."
 > API generator still lives in `website/`.
 
 
-The old `@graphrefly/graphrefly/compat/*` runtime model is retired. Framework and host bindings now live under focused `@graphrefly/ts/adapters/*` subpaths.
+The old `@graphrefly/graphrefly/compat/*` runtime model is retired. Framework and host bindings now live in one-way ecosystem packages over `@graphrefly/ts`.
 
 ## Current replacements
 
-- **NestJS structural metadata**: `@graphrefly/ts/adapters/nestjs` keyed ingress/egress boundary nodes plus decorators over existing graph nodes.
-- **NestJS HTTP/native providers**: `@graphrefly/ts/adapters/nestjs/native` explicit D494 provider bundles for interceptor, guard, filter, cron, and lifecycle phases.
-- **NestJS WebSocket/message providers**: `@graphrefly/ts/adapters/nestjs/websockets` and `@graphrefly/ts/adapters/nestjs/microservices` focused D495 provider bundles over the existing D488 bridges.
-- **React/Vue/Solid/Svelte**: focused framework adapter subpaths.
+- **NestJS structural metadata**: `@graphrefly/nestjs` keyed ingress/egress boundary nodes plus decorators over existing graph nodes.
+- **NestJS HTTP/native providers**: `@graphrefly/nestjs/native` explicit D494 provider bundles for interceptor, guard, filter, cron, and lifecycle phases.
+- **NestJS WebSocket/message providers**: `@graphrefly/nestjs/websockets` and `@graphrefly/nestjs/microservices` focused D495 provider bundles over the existing D488 bridges.
+- **React/Vue/Solid/Svelte**: `@graphrefly/react`, `@graphrefly/vue`, `@graphrefly/solid`, and `@graphrefly/svelte`.
 - **Jotai/Nanostores/Zustand-style facades**: small store facades from `@graphrefly/ts/adapters`.
 
 See the full walkthrough in [NestJS Integration](/recipes/nestjs-integration/).

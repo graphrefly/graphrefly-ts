@@ -93,11 +93,11 @@ All 70+ operators carry forward with the same names and semantics. A few notes:
 |---|---|
 | `callbag-recharge/compat/zustand` | `zustandStore(...)` from `@graphrefly/ts/adapters` |
 | `callbag-recharge/compat/jotai` | `jotaiAtom(...)` from `@graphrefly/ts/adapters` |
-| `callbag-recharge/compat/react` | `@graphrefly/ts/adapters/react` |
-| `callbag-recharge/compat/vue` | `@graphrefly/ts/adapters/vue` |
-| `callbag-recharge/compat/svelte` | `@graphrefly/ts/adapters/svelte` |
-| `callbag-recharge/compat/solid` | `@graphrefly/ts/adapters/solid` |
-| — | `@graphrefly/ts/adapters/nestjs` keyed boundary nodes |
+| `callbag-recharge/compat/react` | `@graphrefly/react` |
+| `callbag-recharge/compat/vue` | `@graphrefly/vue` |
+| `callbag-recharge/compat/svelte` | `@graphrefly/svelte` |
+| `callbag-recharge/compat/solid` | `@graphrefly/solid` |
+| — | `@graphrefly/nestjs` keyed boundary nodes |
 
 ### Messages
 

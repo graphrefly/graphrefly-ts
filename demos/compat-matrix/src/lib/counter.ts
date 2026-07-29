@@ -128,7 +128,7 @@ export type FrameworkName = "react" | "vue" | "solid" | "svelte";
 const GRAPHREFLY_BY_FRAMEWORK: Record<FrameworkName, string> = {
 	react: `// GraphReFly direct node binding [React]
 import { graph } from "@graphrefly/ts/graph";
-import { useNodeInput, useNodeValue } from "@graphrefly/ts/adapters/react";
+import { useNodeInput, useNodeValue } from "@graphrefly/react";
 
 const g = graph({ name: "counter" });
 const count = g.state(0, { name: "count" });
@@ -149,7 +149,7 @@ function Counter() {
 	vue: `<!-- GraphReFly direct node binding [Vue] -->
 <script setup lang="ts">
 import { graph } from "@graphrefly/ts/graph";
-import { useNodeInput, useNodeValue } from "@graphrefly/ts/adapters/vue";
+import { useNodeInput, useNodeValue } from "@graphrefly/vue";
 
 const g = graph({ name: "counter" });
 const count = g.state(0, { name: "count" });
@@ -168,7 +168,7 @@ const dbl = useNodeValue(doubled);
 </template>`,
 	solid: `// GraphReFly direct node binding [SolidJS]
 import { graph } from "@graphrefly/ts/graph";
-import { createNodeInput, createNodeValue } from "@graphrefly/ts/adapters/solid";
+import { createNodeInput, createNodeValue } from "@graphrefly/solid";
 
 const g = graph({ name: "counter" });
 const count = g.state(0, { name: "count" });
@@ -189,7 +189,7 @@ export function Counter() {
 	svelte: `<!-- GraphReFly direct node binding [Svelte] -->
 <script lang="ts">
   import { graph } from "@graphrefly/ts/graph";
-  import { nodeWritable, nodeReadable } from "@graphrefly/ts/adapters/svelte";
+  import { nodeWritable, nodeReadable } from "@graphrefly/svelte";
 
   const g = graph({ name: "counter" });
   const count = g.state(0, { name: "count" });
@@ -208,7 +208,7 @@ export function Counter() {
 
 const LEADERBOARD_BY_FRAMEWORK: Record<FrameworkName, string> = {
 	react: `// Leaderboard: useNodeRecord maps keys through a node factory [React]
-import { useNodeRecord, useNodeValue } from "@graphrefly/ts/adapters/react";
+import { useNodeRecord, useNodeValue } from "@graphrefly/react";
 
 const keys = g.state(["graphrefly", "jotai", "nanostores", "zustand"]);
 const record = useNodeRecord(keys, (key) => ({ count: nodeForKey(key) }));
@@ -222,7 +222,7 @@ return (
 );`,
 	vue: `<!-- Leaderboard: useNodeRecord maps keys through a node factory [Vue] -->
 <script setup lang="ts">
-import { useNodeRecord, useNodeValue } from "@graphrefly/ts/adapters/vue";
+import { useNodeRecord, useNodeValue } from "@graphrefly/vue";
 
 const keys = g.state(["graphrefly", "jotai", "nanostores", "zustand"]);
 const record = useNodeRecord(keys, (key) => ({ count: nodeForKey(key) }));
@@ -236,7 +236,7 @@ const total = useNodeValue(totalNode);
   </ul>
 </template>`,
 	solid: `// Leaderboard: createNodeRecord maps keys through a node factory [SolidJS]
-import { createNodeRecord, createNodeValue } from "@graphrefly/ts/adapters/solid";
+import { createNodeRecord, createNodeValue } from "@graphrefly/solid";
 
 const keys = g.state(["graphrefly", "jotai", "nanostores", "zustand"]);
 const record = createNodeRecord(keys, (key) => ({ count: nodeForKey(key) }));
@@ -252,7 +252,7 @@ return (
 );`,
 	svelte: `<!-- Leaderboard: nodeRecord maps keys through a node factory [Svelte] -->
 <script lang="ts">
-  import { nodeRecord, nodeReadable } from "@graphrefly/ts/adapters/svelte";
+  import { nodeRecord, nodeReadable } from "@graphrefly/svelte";
 
   const keys = g.state(["graphrefly", "jotai", "nanostores", "zustand"]);
   const recordStore = nodeRecord(keys, (key) => ({ count: nodeForKey(key) }));

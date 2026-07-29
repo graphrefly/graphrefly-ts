@@ -129,6 +129,8 @@ const PROBE_CONTAINER_MEMORY_BYTES = 128 * 1024 * 1024;
 const PROBE_CONTAINER_CPU_PERIOD = 100_000;
 const PROBE_CONTAINER_CPU_QUOTA = 50_000;
 const PROBE_CONTAINER_PIDS_LIMIT = 64;
+const PROBE_CONTAINER_ENTRYPOINT = Object.freeze(["/bin/sh", "-ec"] as const);
+const PROBE_CONTAINER_COMMAND = 'test "$(id -u)" != "0"';
 const DOCKER_PATH_SAFE = /^[A-Za-z0-9._~:/@+-]+$/;
 const DOCKER_ID_SAFE = /^[a-f0-9]{12,64}$/i;
 const DOCKER_IMAGE_DIGEST = /^sha256:[a-f0-9]{64}$/i;
@@ -542,7 +544,8 @@ function probeContainerCreateRequest(
 	const body = {
 		Image: imageRef,
 		User: PROBE_CONTAINER_USER,
-		Cmd: ["sh", "-ec", 'test "$(id -u)" != "0"'],
+		Entrypoint: [...PROBE_CONTAINER_ENTRYPOINT],
+		Cmd: [PROBE_CONTAINER_COMMAND],
 		Env: [],
 		AttachStdout: false,
 		AttachStderr: false,
@@ -581,6 +584,7 @@ function probeContainerRequestPolicy(
 	imageRef: string,
 ): DockerProbeContainerRequestPolicy {
 	const hostConfig = plainObject(body.HostConfig);
+	const entrypoint = Array.isArray(body.Entrypoint) ? body.Entrypoint : [];
 	const cmd = Array.isArray(body.Cmd) ? body.Cmd : [];
 	const securityOpt = Array.isArray(hostConfig?.SecurityOpt) ? hostConfig.SecurityOpt : [];
 	const capDrop = Array.isArray(hostConfig?.CapDrop) ? hostConfig.CapDrop : [];
@@ -589,10 +593,11 @@ function probeContainerRequestPolicy(
 		imageRefRequested: body.Image === imageRef,
 		nonRootUserRequested: body.User === PROBE_CONTAINER_USER,
 		rootUserProbeFails:
-			cmd.length === 3 &&
-			cmd[0] === "sh" &&
-			cmd[1] === "-ec" &&
-			cmd[2] === 'test "$(id -u)" != "0"',
+			entrypoint.length === 2 &&
+			entrypoint[0] === PROBE_CONTAINER_ENTRYPOINT[0] &&
+			entrypoint[1] === PROBE_CONTAINER_ENTRYPOINT[1] &&
+			cmd.length === 1 &&
+			cmd[0] === PROBE_CONTAINER_COMMAND,
 		noNewPrivilegesRequested: securityOpt.includes("no-new-privileges"),
 		capabilitiesDroppedRequested: capDrop.length === 1 && capDrop[0] === "ALL",
 		noPrivilegedModeRequested: hostConfig?.Privileged === false,
@@ -976,11 +981,23 @@ function dockerInspectContainerIdentityVerified(
 	const inspectedId = stringValue(record.Id);
 	const inspectedName = stringValue(record.Name);
 	const inspectedImageRef = stringValue(config.Image);
+	const inspectedEntrypoint = stringArray(config.Entrypoint);
+	const inspectedCommand = stringArray(config.Cmd);
+	const inspectedPath = stringValue(record.Path);
+	const inspectedArgs = stringArray(record.Args);
 	const labels = plainObject(config.Labels);
 	return (
 		inspectedId === privateContainer.id &&
 		(inspectedName === privateContainer.name || inspectedName === `/${privateContainer.name}`) &&
 		dockerInspectImageRefMatchesRequested(inspectedImageRef, privateContainer.requestedImageRef) &&
+		inspectedEntrypoint?.length === PROBE_CONTAINER_ENTRYPOINT.length &&
+		inspectedEntrypoint.every((value, index) => value === PROBE_CONTAINER_ENTRYPOINT[index]) &&
+		inspectedCommand?.length === 1 &&
+		inspectedCommand[0] === PROBE_CONTAINER_COMMAND &&
+		inspectedPath === PROBE_CONTAINER_ENTRYPOINT[0] &&
+		inspectedArgs?.length === 2 &&
+		inspectedArgs[0] === PROBE_CONTAINER_ENTRYPOINT[1] &&
+		inspectedArgs[1] === PROBE_CONTAINER_COMMAND &&
 		labels?.["dev.graphrefly.boundary"] === "d624-docker-engine-api-v0-certifier" &&
 		dockerInspectContainerNetworkIdentityVerified(record, privateContainer)
 	);

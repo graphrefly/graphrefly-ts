@@ -19,3 +19,9 @@ allowBuilds:
   esbuild: true
   protobufjs: true
   sharp: true
+minimumReleaseAgeExclude:
+  - '@graphrefly/nestjs@0.1.0'
+  - '@graphrefly/react@0.1.0'
+  - '@graphrefly/solid@0.1.0'
+  - '@graphrefly/svelte@0.1.0'
+  - '@graphrefly/vue@0.1.0'

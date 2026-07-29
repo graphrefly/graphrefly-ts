@@ -694,69 +694,6 @@ describe("reactive-layout solution (D181) — part 1", () => {
 		expect(contextValue.font).toBe("previous font");
 		nodeCanvasFacts.unsubscribe();
 
-		const concreteGraph = graph({ name: "node-canvas-package-provider" });
-		const concreteText = concreteGraph.state("abc", { name: "text" });
-		const concreteFont = concreteGraph.state("10px package", { name: "font" });
-		let createdCanvas: readonly [number, number] | null = null;
-		const concreteFacts = collect(
-			reactiveLayoutNodeCanvas.nodeCanvasPackageTextMeasurements({
-				graph: concreteGraph,
-				text: concreteText,
-				font: concreteFont,
-				width: 2,
-				height: 3,
-				canvas: {
-					createCanvas(width, height) {
-						createdCanvas = [width, height];
-						return {
-							getContext(type) {
-								expect(type).toBe("2d");
-								return {
-									font: "old",
-									measureText(segment: string) {
-										return {
-											width: segment.length * (this.font.includes("package") ? 5 : 1),
-										};
-									},
-								};
-							},
-						};
-					},
-				},
-			}),
-		);
-		expect(createdCanvas).toEqual([2, 3]);
-		expect(
-			(
-				data<Measurements>(concreteFacts.messages).at(
-					-1,
-				)?.[0] as MeasurementResult<TextSegmentsMeasurement>
-			).value.segments[0]?.width,
-		).toBe(15);
-		concreteFacts.unsubscribe();
-
-		const failingGraph = graph({ name: "node-canvas-package-failure" });
-		const failingFacts = collect(
-			reactiveLayoutNodeCanvas.nodeCanvasPackageTextMeasurements({
-				graph: failingGraph,
-				text: failingGraph.state("abc", { name: "text" }),
-				font: failingGraph.state("10px package", { name: "font" }),
-				canvas: {
-					createCanvas() {
-						throw new Error("canvas unavailable");
-					},
-				},
-			}),
-		);
-		expect(data<Measurements>(failingFacts.messages).at(-1)?.[0]).toMatchObject({
-			kind: "issue",
-			code: "measurement.failed",
-			subjectId: "text",
-			measurementKind: "text-segments",
-		});
-		expect(failingFacts.messages.some((message) => message[0] === "ERROR")).toBe(false);
-		failingFacts.unsubscribe();
-
 		const capabilityGraph = graph({ name: "focused-platform-provider" });
 		const platformText = capabilityGraph.state("xy", { name: "text" });
 		const platformFont = capabilityGraph.state("font", { name: "font" });

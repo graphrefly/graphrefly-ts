@@ -53,6 +53,8 @@ See [Adapters](/integrations/adapters/) for usage guidance and naming convention
 | Local-container PostgreSQL binding | Digest-pinned, host-injected PostgreSQL container lifecycle with exact cancellation and independently visible cleanup | `@graphrefly/ts/executors/local-container-postgresql` |
 | Local-container PostgreSQL Docker Engine API v0 broker | D624 host-runtime focused Docker Engine API broker/certifier; sockets, endpoints, client handles, resource IDs, raw inspect/logs, credentials, and cleanup handles remain private | `@graphrefly/ts/executors/local-container-postgresql-docker-engine-api-v0` |
 | Node-local Docker Engine API v0 certifier | D624 Node-only Docker Engine API certifier entry for the existing local-container PostgreSQL family; private Docker socket/resource handles stay inside the host process and caller-supplied proof adapters provide containment/network/secret evidence | `@graphrefly/ts/executors/local-container-postgresql-docker-engine-api-v0/node` |
+| Rootless Podman native Libpod API v0 PostgreSQL contract | D645 independent Podman backend family and app-private runtime host contract; it does not use the Docker-compatible API or expose a provider registry | `@graphrefly/ts/executors/local-container-postgresql-podman-libpod-api-v0-rootless` |
+| Node-local rootless Podman Libpod API v0 certifier | D645 Node-only candidate certifier with package-owned host coordinates, bounded CLI socket discovery, native Libpod requests, and private resource handles; it remains unavailable until every required live effect probe is certified | `@graphrefly/ts/executors/local-container-postgresql-podman-libpod-api-v0-rootless/node` |
 | Managed-cloud PostgreSQL binding | PostgreSQL-16 atomic control-store and worker-initiated WSS session lifecycle with exact fenced leases, cancellation, and settlement | `@graphrefly/ts/executors/managed-cloud-postgresql` |
 | Managed untrusted JS compute | E2B Cloud v0 untrusted JavaScript compute lifecycle with deny-all network, bounded movement evidence, exact cancellation, and independently visible cleanup | `@graphrefly/ts/executors/managed-untrusted-js-compute` |
 | Customer-hosted PostgreSQL binding | Signed digest-pinned endpoint agent, outbound authenticated WSS, customer-resident credentials, exact cross-domain fences, and encrypted evidence-only offline outbox | `@graphrefly/ts/executors/customer-hosted-postgresql` |
@@ -80,7 +82,7 @@ See [Adapters](/integrations/adapters/) for usage guidance and naming convention
 | Agentic WorkItem memory application | Cross-family application composition recipe | `@graphrefly/ts/solutions/agentic-work-item-memory-application` |
 | Reactive layout | DOM-free reactive layout solution core | `@graphrefly/ts/solutions/reactive-layout` |
 | Reactive layout browser | Browser measurement helpers | `@graphrefly/ts/solutions/reactive-layout/browser` |
-| Reactive layout node-canvas | Node canvas measurement helpers | `@graphrefly/ts/solutions/reactive-layout/node-canvas` |
+| Reactive layout caller-owned canvas context | Dependency-free Node-style canvas measurement helper | `@graphrefly/ts/solutions/reactive-layout/node-canvas` |
 | Reactive layout React Native | React Native measurement helpers | `@graphrefly/ts/solutions/reactive-layout/react-native` |
 | Reactive layout Skia | Skia measurement helpers | `@graphrefly/ts/solutions/reactive-layout/skia` |
 | Work item | Focused WorkItem solution barrel | `@graphrefly/ts/solutions/work-item` |
@@ -92,14 +94,15 @@ See [Adapters](/integrations/adapters/) for usage guidance and naming convention
 
 | Integration | Type | Entry |
 |---|---|---|
-| React | Framework adapter | `@graphrefly/ts/adapters/react` |
-| Vue | Framework adapter | `@graphrefly/ts/adapters/vue` |
-| Solid | Framework adapter | `@graphrefly/ts/adapters/solid` |
-| Svelte | Framework adapter | `@graphrefly/ts/adapters/svelte` |
-| NestJS structural metadata | D484 dependency-light boundary factories/decorators | `@graphrefly/ts/adapters/nestjs` |
-| NestJS native providers | D494 HTTP/guard/filter/cron/lifecycle provider bundles and explicit targets | `@graphrefly/ts/adapters/nestjs/native` |
-| NestJS WebSocket boundary | D488 focused optional-peer gateway bridge plus D495 provider bundle | `@graphrefly/ts/adapters/nestjs/websockets` |
-| NestJS microservice boundary | D488 focused optional-peer message-pattern bridge plus D495 provider bundle | `@graphrefly/ts/adapters/nestjs/microservices` |
+| React | Framework adapter | `@graphrefly/react` |
+| Vue | Framework adapter | `@graphrefly/vue` |
+| Solid | Framework adapter | `@graphrefly/solid` |
+| Svelte | Framework adapter | `@graphrefly/svelte` |
+| NestJS structural metadata | D484 dependency-light boundary factories/decorators | `@graphrefly/nestjs` |
+| NestJS native providers | D494 HTTP/guard/filter/cron/lifecycle provider bundles and explicit targets | `@graphrefly/nestjs/native` |
+| NestJS WebSocket boundary | D488 focused optional-peer gateway bridge plus D495 provider bundle | `@graphrefly/nestjs/websockets` |
+| NestJS microservice boundary | D488 focused optional-peer message-pattern bridge plus D495 provider bundle | `@graphrefly/nestjs/microservices` |
+| node-canvas package loader | Concrete third-party canvas integration | `@graphrefly/reactive-layout-node-canvas` |
 | Jotai-style facade | Framework-neutral store facade | `jotaiAtom` from `@graphrefly/ts/adapters` |
 | Nanostores-style facade | Framework-neutral store facade | `nanoAtom` from `@graphrefly/ts/adapters` |
 | Zustand-style facade | Framework-neutral store facade | `zustandStore` from `@graphrefly/ts/adapters` |
