@@ -16,6 +16,25 @@ The user's task/context is: $ARGUMENTS
 ### Mode detection
 If `$ARGUMENTS` contains `--light`, this is **light mode**. Otherwise **full mode**. Differences are noted inline per phase.
 
+### Repository ownership practice
+
+Apply the global `repository-ownership-practice` skill unless `$ARGUMENTS` explicitly contains
+`--delivery-only`.
+
+- Before broad context loading, pause for the user's OWN card and best-effort PREDICT card.
+- Map one concrete input-to-output path before proposing implementation. Limit the implementation map to five
+  files and eight symbols; targeted authority records do not count toward that cap, but load only records that
+  govern the slice.
+- Preserve the user's first debugging pass: hypotheses and cheapest discriminators before a generated fix.
+- Freeze one Given/When/Then behavior and its stopping boundary before code.
+- Finish with diff, behavior, and trace evidence plus the user's TEACH-BACK checkpoint and next-day five
+  questions.
+- Do not begin another slice in the same turn after the teach-back checkpoint. Waiting for the user leaves any
+  Goal active; it is not a blocker.
+
+`--delivery-only` skips waiting for the user's cards and teach-back, not the narrow map, frozen contract,
+three-layer verification, or ownership handoff. Label such work `delivered, not yet ownership-verified`.
+
 ### Workflow floor (non-negotiable)
 - **decision-first**: any architectural lock needs a `D#` in `~/src/graphrefly/decisions/decisions.jsonl` BEFORE code (`/design-review` → user approval → append). Decisions locked ≠ implementation approved — wait for an explicit "implement".
 - **spec-first** (F-NO-IMPL-DEFINED): any wave-protocol behavior change amends `spec/rules.jsonl` + `formal/*.tla` + `spec/conformance.jsonl` FIRST (`/spec-amend`), THEN code. Operators/sugar/inspection are per-language (D6/D24) — NOT spec, skip spec-amend.
@@ -40,7 +59,9 @@ If `$ARGUMENTS` contains `--light`, this is **light mode**. Otherwise **full mod
 
 ## Phase 1: Context & Planning
 
-Load context and plan in a single pass. **Parallelize all reads.**
+Load context and plan in a bounded pass. Read authority indexes first, then only the records and implementation
+seams governing the frozen slice. Parallelize independent targeted reads; do not load the whole design history
+merely because it is available.
 
 Read in parallel (clean-slate authority):
 - `~/src/graphrefly/AGENTS.md` — the single-source authority index (read FIRST).
@@ -134,4 +155,5 @@ After user approves (full mode) or after Phase 1 (light mode, no escalation):
 
 If implementation leaves an **open architectural decision** (deferred behavior, parity caveat, "needs spec" item), append it to `~/src/graphrefly/plan/backlog.jsonl` (B# + trigger) — NOT a docs file. If it **lands or advances a CSP-* phase**, update that phase's `status`/`note` in `~/src/graphrefly/plan/phases.jsonl`, flip any conformance-backed `draft` rule to `active` once its scenario is green per arm, then run the consistency gate.
 
-When done, briefly list files changed and new exports added. Then suggest running `/qa` for adversarial review and final checks.
+When done, briefly list files changed and new exports added. Run the ownership handoff before suggesting `/qa`.
+In practice mode, wait for the user's teach-back before starting another implementation slice.

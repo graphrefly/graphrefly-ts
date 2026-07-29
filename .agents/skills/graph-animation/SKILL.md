@@ -1,7 +1,6 @@
 ---
 name: graph-animation
 description: "Create GraphReFly concept explanation videos using HyperFrames. Use when asked to generate animated diagrams of reactive graph topologies — node activations, START/DIRTY/DATA/COMPLETE message flow, diamond resolution, batch mode, operators, etc. Supports two modes: default = concept-explainer (captioned, beat-structured, 30–90s); `--mode ambient-hero` = silent looping landing-page background (8-stage canonical storyboard, ~42s seamless loop). Invokes /hyperframes for composition authoring and /gsap for deterministic animation. Run /hyperframes-cli for preview/render commands."
-argument-hint: "[--mode ambient-hero] [concept to animate, e.g. 'diamond resolution', 'batch mode', 'node lifecycle']"
 ---
 
 You are executing the **graph-animation** workflow for **GraphReFly**.
@@ -17,6 +16,16 @@ This skill produces a HyperFrames HTML composition that animates GraphReFly reac
 If `$ARGUMENTS` contains `--mode ambient-hero` (or the user asks for a "hero", "landing-page", "background video", or "loop"), use **ambient-hero mode** — skip directly to the "Mode B: ambient hero" section near the bottom. The 8-stage canonical storyboard is fully specified there; do not re-derive it.
 
 Otherwise, treat the request as **concept-explainer mode** (default) and follow Steps 1–4 below.
+
+## Code-intelligence routing
+
+When an animation claims current GraphReFly implementation behavior or names a source API, call
+`codegraph_explore` in the indexed implementation repo before raw source Read/`rg`. Ask for the exact symbol,
+its message/call path, callers/dependents, tests, public exports, and blast radius; treat returned source as
+already read. Read protocol/decision jsonl, storyboard assets, HyperFrames files, configs, git diff, untracked
+files, and stale/unindexed files directly. If an index is absent or disabled, use direct inspection and never
+initialize it autonomously. The protocol authority wins over implementation, and rendered preview/lint remain
+the visual correctness gates.
 
 ---
 

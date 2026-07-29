@@ -1,12 +1,20 @@
 ---
 name: dashboard
-description: "Build / check the GraphReFly internal docs dashboard (jsonl single-source -> generated HTML with progress, structure map, gaps, search). Use when the user wants to see global project state, regenerate the dashboard, run the docs consistency gate (broken links / orphans / coverage gaps), or after editing any jsonl in ~/src/graphrefly (decisions/plan/spec/sessions/guide). Triggers: 'build the dashboard', 'check docs consistency', 'what are the gaps', 'show progress', 'regenerate dashboard', 'doc gate'."
-argument-hint: "[--check (gate only) | (default: build + report)]"
+description: "Build / check the GraphReFly internal docs dashboard (jsonl single-source → generated HTML with progress, structure map, gaps, search). Use when the user wants to see global project state, regenerate the dashboard, run the docs consistency gate (broken links / orphans / coverage gaps), or after editing any jsonl in ~/src/graphrefly (decisions/plan/spec/sessions/guide). Triggers: 'build the dashboard', 'check docs consistency', 'what are the gaps', 'show progress', 'regenerate dashboard', 'doc gate'."
 ---
 
 You are executing **dashboard** for the clean-slate GraphReFly redesign.
 
 **Repo:** `~/src/graphrefly` (clean-slate branch). All structured docs are jsonl (single source of truth, decision 2); the dashboard renders them into one searchable HTML view for the maintainer (decision 3). Schema contract: `~/src/graphrefly/dashboard/README.md`.
+
+## Code-intelligence routing
+
+Running or interpreting the dashboard needs no source survey. When debugging or changing indexed generator
+implementation, call `codegraph_explore` before raw source Read/`rg` for the named generator symbol, its
+callers/dependents, tests, generated-output boundary, and blast radius. Treat returned source as already read.
+Read jsonl authority, README/schema text, generated HTML, configs, git diff, untracked files, and stale or
+unindexed files directly. If no live index exists, use direct inspection and never initialize one
+autonomously. The generator and consistency gate remain the correctness evidence.
 
 ## What this skill does
 

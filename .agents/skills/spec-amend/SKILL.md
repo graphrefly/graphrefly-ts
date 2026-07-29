@@ -1,7 +1,6 @@
 ---
 name: spec-amend
 description: "Spec-first protocol amendment flow for the clean-slate GraphReFly redesign. Use BEFORE changing any wave-protocol behavior (tiers, wave semantics, diamond/equals/SENTINEL, batch, push-on-subscribe, ctx.up/down contract). Enforces F-NO-IMPL-DEFINED: amend spec/rules.jsonl + formal/*.tla + spec/conformance.jsonl FIRST, then implement in each language package. Triggers: 'amend the spec', 'change the protocol', 'add a tier', 'spec change', 'new wave rule', 'this changes protocol behavior'. NOT for sugar/operator/inspection changes — those are per-language, never touch spec."
-argument-hint: "[short description of the protocol behavior to change]"
 ---
 
 You are executing **spec-amend** for the clean-slate GraphReFly redesign.
@@ -26,6 +25,17 @@ Protocol behavior is **spec-first**. No "implementation defines what happens." O
 - **9 tiers are a closed set** (D9). Adding a tier is a constitutional change — requires explicit user lock + TLA+ re-model, not a casual amend.
 - **onMessage/onSubscribe are substrate-fixed** (D19) — they are NOT user-replaceable hooks; "amend" means changing the spec'd behavior, not adding a config knob.
 - **equals fires only single-DATA-wave** (D15); **ctx.up is control-tier only** (R-ctx-up); **restore ≠ fresh-lifecycle wipe** (R-restore). Re-read these rules before touching adjacent behavior.
+
+## Code-intelligence routing
+
+Before estimating or implementing each runtime delta, call `codegraph_explore` in every indexed affected
+implementation repo before raw source Read/`rg`. Query the changed rule's protocol symbols and journey
+endpoints for exact source, call paths, callers/dependents, existing conformance/property tests, public
+boundaries, and blast radius. Treat returned source as already read and query again only for uncovered paths.
+Read rules/conformance jsonl, decisions, TLA+, configs, git diff, untracked files, and stale/unindexed files
+directly. If an index is absent or disabled, use direct inspection and never initialize it autonomously.
+Codegraph scopes the implementation work; the amended spec, TLC, scenarios, compiler, and runtime gates decide
+correctness.
 
 ## Output
 

@@ -1,7 +1,6 @@
 ---
 name: conformance
 description: "Behavioral conformance check across GraphReFly language runtimes (ts/rust/py) for the clean-slate redesign. Replaces the old structural 'parity' diff. Parity = does each runtime satisfy the wave-protocol behavior (conformance scenarios) + dispatcher contract — NOT 'do the symbol sets match'. Use after implementing/changing substrate behavior in any runtime, or when adding a new protocol rule. Authors/runs language-agnostic scenarios and updates conformance.jsonl runtime status. Triggers: 'conformance', 'cross-lang check', 'does rust match', 'parity', 'run the conformance suite', 'is the substrate behavior consistent'."
-argument-hint: "[rule-id | scenario-id | 'full'] [optional: runtime ts|rust|py]"
 ---
 
 You are executing **conformance** for the clean-slate GraphReFly redesign.
@@ -27,6 +26,16 @@ each runtime passes the same language-agnostic scenarios.
 - **scenario-id** (e.g. `C-1`) → that scenario.
 - **full** → every `status:"required"` scenario.
 - optional **runtime** → restrict to one arm.
+
+## Code-intelligence routing
+
+For each indexed runtime implementation, call `codegraph_explore` before raw source Read/`rg` to locate the
+scenario harness and trace the protocol symbols it exercises, their callers/dependents, adjacent tests,
+public boundaries, and blast radius. Treat returned source as already read and query again only for uncovered
+paths. Read spec/conformance jsonl, TLA+, configs, git diff, untracked files, and stale/unindexed files
+directly. If an index is absent or disabled, use direct inspection and never initialize it autonomously.
+Codegraph locates behavioral paths; the shared scenario, property tests, compiler, and runtime gates decide
+conformance.
 
 ## Phase 1 — scenario integrity
 
