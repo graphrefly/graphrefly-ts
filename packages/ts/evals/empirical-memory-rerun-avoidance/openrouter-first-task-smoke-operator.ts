@@ -108,6 +108,7 @@ async function main(): Promise<void> {
 			observationDigest: result.persistence.observationDigest,
 			scorecardDigest: result.persistence.scorecardDigest,
 			status: result.scorecard.status,
+			admissionRejection: result.admissionRejection,
 		})}\n`,
 	);
 }

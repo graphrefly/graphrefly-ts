@@ -1779,9 +1779,16 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 
 		const loopBound = await runBoundedCase("request-step", { maxRequests: 2 }, 2);
 		expect(loopBound.observation.result).toMatchObject({ requests: 2, steps: 3 });
+		expect(loopBound.admissionRejection).toMatchObject({
+			schemaVersion: "b112-smoke-admission-rejection.v1",
+			reasons: ["request-limit"],
+			requests: 2,
+			maxRequests: 2,
+		});
 
 		const stepBound = await runBoundedCase("step", {}, 8, "agent-step-budget-exhausted");
 		expect(stepBound.observation.result).toMatchObject({ requests: 8, steps: 8 });
+		expect(stepBound.admissionRejection).toBeNull();
 
 		const settledReservation = await runBoundedCase(
 			"settled-reservation",
@@ -1798,6 +1805,34 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 
 		const costBound = await runBoundedCase("cost", { maxSmokeSpendMicrousd: 1 }, 0);
 		expect(costBound.observation.result).toMatchObject({ requests: 0, steps: 1 });
+		expect(costBound.admissionRejection).toMatchObject({
+			reasons: ["cost-reservation"],
+			requests: 0,
+			reservedCostMicrousd: 0,
+			maxSmokeSpendMicrousd: 1,
+		});
+		expect(costBound.admissionRejection?.prospectiveCostMicrousd).toBeGreaterThan(1);
+		expect(JSON.stringify(costBound.observation)).not.toContain(
+			"b112-smoke-admission-rejection.v1",
+		);
+		expect(JSON.stringify(costBound.scorecard)).not.toContain("b112-smoke-admission-rejection.v1");
+		for (const artifactName of [
+			"trial-block-observation.v1.json",
+			"campaign-scorecard.v1.json",
+			"generation.v1.json",
+		]) {
+			expect(
+				readFileSync(join(costBound.persistence.generationPath, artifactName), "utf8"),
+			).not.toContain("b112-smoke-admission-rejection.v1");
+		}
+
+		const byteBound = await runBoundedCase(
+			"canonical-request-bytes",
+			{ maxCanonicalRequestBytes: 1 },
+			0,
+		);
+		expect(byteBound.admissionRejection?.reasons).toContain("canonical-request-bytes");
+		expect(byteBound.admissionRejection?.wireRequestBytes).toBeGreaterThan(1);
 	}, 15_000);
 
 	it("rejects a profile-digest mismatch before model invocation and still cleans the workspace", async () => {

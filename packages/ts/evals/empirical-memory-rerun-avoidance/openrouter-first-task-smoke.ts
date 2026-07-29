@@ -46,11 +46,49 @@ export const OPENROUTER_API_KEY_ENVIRONMENT_NAME = "OPENROUTER_API_KEY";
 export const B112_FIRST_TASK_SMOKE_AGGREGATION_REVISION =
 	"b112-first-task-smoke-single-observation.v1";
 export const B112_SMOKE_BUDGET_ISSUE_CODE = "smoke-budget-exhausted";
+export const B112_SMOKE_ADMISSION_REJECTION_SCHEMA = "b112-smoke-admission-rejection.v1";
+export const B112_SMOKE_ADMISSION_REJECTION_REASONS = Object.freeze({
+	pendingReservation: "pending-reservation",
+	requestLimit: "request-limit",
+	stepLimit: "step-limit",
+	canonicalRequestBytes: "canonical-request-bytes",
+	inputTokenReservation: "input-token-reservation",
+	outputTokenReservation: "output-token-reservation",
+	costReservation: "cost-reservation",
+} as const);
+
+type B112SmokeAdmissionRejectionReason =
+	(typeof B112_SMOKE_ADMISSION_REJECTION_REASONS)[keyof typeof B112_SMOKE_ADMISSION_REJECTION_REASONS];
+
+export interface B112SmokeAdmissionRejectionV1 {
+	readonly schemaVersion: typeof B112_SMOKE_ADMISSION_REJECTION_SCHEMA;
+	readonly requestRef: string;
+	readonly reasons: readonly B112SmokeAdmissionRejectionReason[];
+	readonly requests: number;
+	readonly maxRequests: number;
+	readonly maxStepsPerRun: number;
+	readonly wireRequestBytes: number;
+	readonly maxCanonicalRequestBytes: number;
+	readonly reservedInputTokens: number;
+	readonly prospectiveInputTokens: number;
+	readonly maxInputTokens: number;
+	readonly reservedOutputTokens: number;
+	readonly prospectiveOutputTokens: number;
+	readonly maxOutputTokens: number;
+	readonly reservedCostMicrousd: number;
+	readonly prospectiveCostMicrousd: number;
+	readonly maxSmokeSpendMicrousd: number;
+}
 
 export interface OpenRouterFirstTaskSmokeResultV1 {
 	readonly observation: EmpiricalTrialBlockObservationV1;
 	readonly scorecard: EmpiricalCampaignScorecardV1;
 	readonly persistence: PersistedPrivateSmokeGenerationV1;
+	/**
+	 * Bounded operator diagnostic only. It is intentionally excluded from the
+	 * observation, scorecard, and private persisted generation.
+	 */
+	readonly admissionRejection: B112SmokeAdmissionRejectionV1 | null;
 }
 
 function assertFirstSmokeRoute(route: OpenRouterRouteQualificationV1): void {
@@ -120,6 +158,7 @@ interface MutableSmokeBudget {
 	providerCostMicrousd: number;
 	latencyMs: number;
 	exhausted: boolean;
+	admissionRejection: B112SmokeAdmissionRejectionV1 | null;
 }
 
 function budgetExhaustedOutcome(
@@ -260,17 +299,49 @@ function createSmokeTransportAdmission(
 				route.pricing,
 			);
 			const prospectiveCost = ledger.reservedCostMicrousd + reservedCostMicrousd;
-			if (
-				ledger.pendingReservedInputTokens > 0 ||
-				ledger.pendingReservedOutputTokens > 0 ||
-				ledger.requests >= route.budget.maxRequests ||
-				ledger.requests >= route.budget.maxStepsPerRun ||
-				wireRequestBytes > route.budget.maxCanonicalRequestBytes ||
-				prospectiveInputTokens > route.budget.maxInputTokens ||
-				prospectiveOutputTokens > route.budget.maxOutputTokens ||
-				prospectiveCost > route.budget.maxSmokeSpendMicrousd
-			) {
+			const reasons: B112SmokeAdmissionRejectionReason[] = [];
+			if (ledger.pendingReservedInputTokens > 0 || ledger.pendingReservedOutputTokens > 0) {
+				reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.pendingReservation);
+			}
+			if (ledger.requests >= route.budget.maxRequests) {
+				reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.requestLimit);
+			}
+			if (ledger.requests >= route.budget.maxStepsPerRun) {
+				reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.stepLimit);
+			}
+			if (wireRequestBytes > route.budget.maxCanonicalRequestBytes) {
+				reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.canonicalRequestBytes);
+			}
+			if (prospectiveInputTokens > route.budget.maxInputTokens) {
+				reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.inputTokenReservation);
+			}
+			if (prospectiveOutputTokens > route.budget.maxOutputTokens) {
+				reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.outputTokenReservation);
+			}
+			if (prospectiveCost > route.budget.maxSmokeSpendMicrousd) {
+				reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.costReservation);
+			}
+			if (reasons.length > 0) {
 				ledger.exhausted = true;
+				ledger.admissionRejection = strictSnapshot({
+					schemaVersion: B112_SMOKE_ADMISSION_REJECTION_SCHEMA,
+					requestRef: input.requestRef,
+					reasons,
+					requests: ledger.requests,
+					maxRequests: route.budget.maxRequests,
+					maxStepsPerRun: route.budget.maxStepsPerRun,
+					wireRequestBytes,
+					maxCanonicalRequestBytes: route.budget.maxCanonicalRequestBytes,
+					reservedInputTokens: ledger.reservedInputTokens,
+					prospectiveInputTokens,
+					maxInputTokens: route.budget.maxInputTokens,
+					reservedOutputTokens: ledger.reservedOutputTokens,
+					prospectiveOutputTokens,
+					maxOutputTokens: route.budget.maxOutputTokens,
+					reservedCostMicrousd: ledger.reservedCostMicrousd,
+					prospectiveCostMicrousd: prospectiveCost,
+					maxSmokeSpendMicrousd: route.budget.maxSmokeSpendMicrousd,
+				});
 				return false;
 			}
 			ledger.requests += 1;
@@ -386,6 +457,7 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 		providerCostMicrousd: 0,
 		latencyMs: 0,
 		exhausted: false,
+		admissionRejection: null,
 	};
 	const binding = createOpenRouterResponsesEmpiricalBinding({
 		frozen: input.host.frozen,
@@ -432,5 +504,10 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 		scorecard,
 		protectionExecutor: binding.protectionExecutor,
 	});
-	return Object.freeze({ observation, scorecard, persistence });
+	return Object.freeze({
+		observation,
+		scorecard,
+		persistence,
+		admissionRejection: ledger.admissionRejection,
+	});
 }
