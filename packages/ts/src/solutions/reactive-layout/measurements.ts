@@ -340,7 +340,7 @@ export function textMeasurementProvider(opts: TextMeasurementProviderOptions): N
 		(ctx: Ctx) => {
 			const flush = () => {
 				cache.clear();
-				(depLatest(ctx, 2) as MeasurementAdapter).clearCache?.();
+				activeAdapter?.clearCache?.();
 			};
 			ctx.onDeactivation(flush);
 			ctx.onInvalidate(flush);

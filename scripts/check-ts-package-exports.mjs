@@ -713,6 +713,25 @@ ${runtimeAssertions}
 		`const assert = require("node:assert/strict");
 const load = (specifier) => require(specifier);
 ${runtimeAssertions.replaceAll("await load", "load")}
+{
+	const { graph } = require("@graphrefly/ts");
+	const { textMeasurementProvider } = require("@graphrefly/ts/solutions/reactive-layout");
+	const g = graph();
+	const measured = textMeasurementProvider({
+		graph: g,
+		text: g.state("abc"),
+		font: g.state("10px test"),
+		adapter: g.state({
+			measureSegment() {
+				throw new Error("measurement unavailable");
+			},
+		}),
+	});
+	const messages = [];
+	const unsubscribe = measured.subscribe((message) => messages.push(message));
+	assert.match(JSON.stringify(messages), /"code":"measurement.failed"/);
+	unsubscribe();
+}
 `,
 	);
 
