@@ -729,6 +729,7 @@ function usage(
 		inputTokens: providerUsage?.inputTokens ?? null,
 		outputTokens: providerUsage?.outputTokens ?? null,
 		totalTokens: providerUsage?.totalTokens ?? null,
+		providerCostMicrousd: null,
 		requests,
 		hostInputBytes,
 		hostOutputBytes,

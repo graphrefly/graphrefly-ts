@@ -172,6 +172,7 @@ interface ParsedCandidate {
 		readonly inputTokens: number;
 		readonly outputTokens: number;
 		readonly totalTokens: number;
+		readonly providerCostMicrousd: number;
 	};
 	readonly responseId: string;
 	readonly routeEvidence: StrictJsonValue;
@@ -182,6 +183,7 @@ interface ProviderUsageAccounting {
 	readonly inputTokens: number | null;
 	readonly outputTokens: number | null;
 	readonly totalTokens: number | null;
+	readonly providerCostMicrousd: number | null;
 }
 
 interface PreparedOpenRouterRequest {
@@ -478,7 +480,7 @@ function requestBody(
 			order: [route.downstreamProviderSlug],
 			only: [route.downstreamProviderSlug],
 			allow_fallbacks: false,
-			require_parameters: true,
+			require_parameters: false,
 		},
 		instructions: OPENROUTER_RESPONSES_SYSTEM_INSTRUCTIONS,
 		input: decoder.decode(strictJsonCodec.encode(userEnvelope)),
@@ -682,6 +684,17 @@ function providerTokenCount(value: unknown): number {
 	}
 }
 
+function providerCostMicrousd(value: unknown): number {
+	if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse);
+	}
+	const roundedUpMicrousd = Math.ceil(value * 1_000_000);
+	if (!Number.isSafeInteger(roundedUpMicrousd) || roundedUpMicrousd > 1_000_000_000_000) {
+		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse);
+	}
+	return roundedUpMicrousd;
+}
+
 function routeRecord(value: unknown): Record<string, unknown> {
 	try {
 		return record(value, "provider.response.openrouter_metadata");
@@ -708,6 +721,21 @@ function assertClosedRouteKeys(
 	if (required.some((key) => !Object.hasOwn(value, key)) || keys.some((key) => !allowed.has(key))) {
 		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.routingMismatch);
 	}
+}
+
+function selectedRouteModel(value: unknown, route: OpenRouterRouteQualificationV1): string {
+	if (typeof value !== "string" || value.length > 512) {
+		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.routingMismatch);
+	}
+	if (value === route.requestModel) return value;
+	if (
+		route.modelIdentityKind !== "alias-disclosed" ||
+		!value.startsWith(`${route.requestModel}-`) ||
+		!/^\d{8}$/.test(value.slice(route.requestModel.length + 1))
+	) {
+		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.routingMismatch);
+	}
+	return value;
 }
 
 function validateDirectRouteEvidence(
@@ -739,7 +767,11 @@ function validateDirectRouteEvidence(
 	}
 	const endpoints = routeRecord(metadata.endpoints);
 	assertClosedRouteKeys(endpoints, ["available", "total"]);
-	if (endpoints.total !== 1) {
+	if (
+		!Number.isSafeInteger(endpoints.total) ||
+		(endpoints.total as number) < 1 ||
+		(endpoints.total as number) > 1_024
+	) {
 		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.routingMismatch);
 	}
 	const available = routeArray(endpoints.available);
@@ -748,11 +780,8 @@ function validateDirectRouteEvidence(
 	}
 	const selected = routeRecord(available[0]);
 	assertClosedRouteKeys(selected, ["model", "provider", "selected"]);
-	if (
-		selected.provider !== route.downstreamProviderName ||
-		selected.model !== route.requestModel ||
-		selected.selected !== true
-	) {
+	const selectedModel = selectedRouteModel(selected.model, route);
+	if (selected.provider !== route.downstreamProviderName || selected.selected !== true) {
 		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.routingMismatch);
 	}
 	if (metadata.attempts !== undefined) {
@@ -762,9 +791,10 @@ function validateDirectRouteEvidence(
 		}
 		const attempt = routeRecord(attempts[0]);
 		assertClosedRouteKeys(attempt, ["model", "provider", "status"]);
+		const attemptModel = selectedRouteModel(attempt.model, route);
 		if (
 			attempt.provider !== route.downstreamProviderName ||
-			attempt.model !== route.requestModel ||
+			attemptModel !== selectedModel ||
 			attempt.status !== 200
 		) {
 			throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.routingMismatch);
@@ -779,7 +809,7 @@ function validateDirectRouteEvidence(
 		attempt: 1,
 		isByok: false,
 		selectedProvider: route.downstreamProviderName,
-		selectedModel: route.requestModel,
+		selectedModel,
 	});
 }
 
@@ -808,6 +838,7 @@ function parseCandidate(
 		inputTokens: providerTokenCount(usageRecord.input_tokens),
 		outputTokens: providerTokenCount(usageRecord.output_tokens),
 		totalTokens: providerTokenCount(usageRecord.total_tokens),
+		providerCostMicrousd: providerCostMicrousd(usageRecord.cost),
 	};
 	let messageItemCount = 0;
 	const messageTexts: string[] = [];
@@ -1054,6 +1085,7 @@ function usage(
 		inputTokens: providerUsage?.inputTokens ?? null,
 		outputTokens: providerUsage?.outputTokens ?? null,
 		totalTokens: providerUsage?.totalTokens ?? null,
+		providerCostMicrousd: providerUsage?.providerCostMicrousd ?? null,
 		requests,
 		hostInputBytes,
 		hostOutputBytes,
@@ -1450,6 +1482,7 @@ async function invokeOpenRouterResponses(
 					inputTokens: candidate.usage.inputTokens,
 					outputTokens: null,
 					totalTokens: candidate.usage.totalTokens,
+					providerCostMicrousd: candidate.usage.providerCostMicrousd,
 				}
 			: candidate.usage;
 	const turnUsage = usage(

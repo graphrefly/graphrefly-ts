@@ -35,7 +35,7 @@ import {
 
 export const EMPIRICAL_MODEL_EXECUTION_SCHEMAS = Object.freeze({
 	request: "graphrefly.private-solution-eval.empirical-model-turn-request.v1",
-	outcome: "graphrefly.private-solution-eval.empirical-model-turn-outcome.v1",
+	outcome: "graphrefly.private-solution-eval.empirical-model-turn-outcome.v2",
 });
 
 export const MAX_EMPIRICAL_MODEL_TURN_REQUEST_BYTES = 262_144;
@@ -173,6 +173,8 @@ export interface EmpiricalModelTurnUsageV1 {
 	readonly inputTokens: number | null;
 	readonly outputTokens: number | null;
 	readonly totalTokens: number | null;
+	/** Provider-reported cost, rounded up to the nearest micro-USD. */
+	readonly providerCostMicrousd: number | null;
 	readonly requests: 0 | 1;
 	readonly hostInputBytes: number;
 	readonly hostOutputBytes: number;
@@ -267,7 +269,11 @@ const OUTCOME_KEYS = Object.freeze([
 	"usage",
 ]);
 
-function boundedStrictJson(value: unknown, path: string): StrictJsonValue {
+function boundedStrictJson(
+	value: unknown,
+	path: string,
+	maxStringLength = MAX_STRICT_JSON_STRING_LENGTH,
+): StrictJsonValue {
 	const seen = new Set<object>();
 	let nodes = 0;
 	const visit = (current: unknown, currentPath: string, depth: number): void => {
@@ -282,7 +288,7 @@ function boundedStrictJson(value: unknown, path: string): StrictJsonValue {
 			return;
 		}
 		if (typeof current === "string") {
-			if (current.length > MAX_STRICT_JSON_STRING_LENGTH) {
+			if (current.length > maxStringLength) {
 				fail(currentPath, "exceeds the strict-JSON string limit");
 			}
 			return;
@@ -472,7 +478,11 @@ export function executeEmpiricalProtection(
 	const policyRef = coordinate(rawInput.policyRef, "protection.policyRef");
 	const policyRevision = coordinate(rawInput.policyRevision, "protection.policyRevision");
 	const stage = oneOf(rawInput.stage, PROTECTION_STAGES, "protection.stage");
-	const subject = boundedStrictJson(rawInput.subject, "protection.subject");
+	const subject = boundedStrictJson(
+		rawInput.subject,
+		"protection.subject",
+		MAX_EMPIRICAL_PROTECTION_SUBJECT_BYTES,
+	);
 	if (strictJsonCodec.encode(subject).byteLength > MAX_EMPIRICAL_PROTECTION_SUBJECT_BYTES) {
 		fail("protection.subject", `exceeds ${MAX_EMPIRICAL_PROTECTION_SUBJECT_BYTES} canonical bytes`);
 	}
@@ -543,7 +553,11 @@ function validateToolResults(
 		if (!availableToolRefs.has(toolRef)) {
 			fail(`${path}.toolRef`, "is not declared by availableTools");
 		}
-		const resultValue = boundedStrictJson(result.result, `${path}.result`);
+		const resultValue = boundedStrictJson(
+			result.result,
+			`${path}.result`,
+			MAX_EMPIRICAL_MODEL_TURN_REQUEST_BYTES,
+		);
 		const resultDigest = digest(result.resultDigest, `${path}.resultDigest`);
 		if (resultDigest !== empiricalStrictJsonDigest(resultValue)) {
 			fail(`${path}.resultDigest`, "does not match result");
@@ -872,6 +886,7 @@ function validateUsage(value: unknown): EmpiricalModelTurnUsageV1 {
 			"hostOutputBytes",
 			"inputTokens",
 			"outputTokens",
+			"providerCostMicrousd",
 			"requests",
 			"source",
 			"totalTokens",
@@ -890,6 +905,11 @@ function validateUsage(value: unknown): EmpiricalModelTurnUsageV1 {
 		totalTokens: optionalSafeInteger(usage.totalTokens, "outcome.usage.totalTokens", {
 			max: 1_000_000_000,
 		}),
+		providerCostMicrousd: optionalSafeInteger(
+			usage.providerCostMicrousd,
+			"outcome.usage.providerCostMicrousd",
+			{ max: 1_000_000_000_000 },
+		),
 		requests,
 		hostInputBytes: safeInteger(usage.hostInputBytes, "outcome.usage.hostInputBytes", {
 			max: 16_777_216,
@@ -1046,6 +1066,7 @@ export function validateEmpiricalModelTurnOutcome(
 		(usage.inputTokens !== null ||
 			usage.outputTokens !== null ||
 			usage.totalTokens !== null ||
+			usage.providerCostMicrousd !== null ||
 			usage.hostOutputBytes !== 0)
 	) {
 		fail("outcome.usage", "zero-request outcomes cannot carry provider usage or output bytes");

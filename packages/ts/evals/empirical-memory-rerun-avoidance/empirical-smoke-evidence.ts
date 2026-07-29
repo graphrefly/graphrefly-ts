@@ -148,13 +148,16 @@ function summedProviderUsage(
 	field: "inputTokens" | "outputTokens" | "totalTokens",
 ): number | null {
 	let total = 0;
+	let observedProviderRequest = false;
 	for (const turn of outcome.turnEvidence) {
+		if (turn.requests === 0) continue;
+		observedProviderRequest = true;
 		const value = turn[field];
 		if (value === null) return null;
 		total += value;
 		if (!Number.isSafeInteger(total)) throw new TypeError(`smoke ${field} total overflow`);
 	}
-	return total;
+	return observedProviderRequest ? total : null;
 }
 
 export function createEmpiricalTrialBlockObservation(input: {
@@ -407,8 +410,12 @@ export function validateEmpiricalTrialBlockObservation(
 	const postAttemptBudgetExceeded =
 		(result.inputTokens !== null && result.inputTokens > route.maxInputTokens) ||
 		(result.outputTokens !== null && result.outputTokens > route.maxOutputTokens) ||
+		(result.costBasis === "conservative-reservation" &&
+			(result.reservedInputTokens > route.maxInputTokens ||
+				result.reservedOutputTokens > route.maxOutputTokens)) ||
 		result.latencyMs > route.maxLatencyMs ||
 		result.costMicrousd > route.maxSmokeSpendMicrousd;
+	const providerUsageKnown = result.inputTokens !== null && result.outputTokens !== null;
 	if (
 		(executionClass === "simulated-contract") !== (result.costBasis === "simulated-contract") ||
 		(executionClass === "simulated-contract" && result.costMicrousd !== 0) ||
@@ -424,6 +431,20 @@ export function validateEmpiricalTrialBlockObservation(
 		(postAttemptBudgetExceeded && !hasBudgetExhaustion)
 	) {
 		throw new TypeError("trial observation result exceeds or mismatches its frozen route budget");
+	}
+	if (
+		(executionClass !== "simulated-contract" &&
+			providerUsageKnown !== (result.costBasis === "provider-usage")) ||
+		(result.costBasis === "provider-usage" &&
+			(!providerUsageKnown ||
+				result.reservedInputTokens !== result.inputTokens ||
+				result.reservedOutputTokens !== result.outputTokens ||
+				result.costMicrousd <= 0)) ||
+		(result.costBasis === "conservative-reservation" &&
+			(result.reservedInputTokens > 0 || result.reservedOutputTokens > 0) &&
+			result.costMicrousd <= 0)
+	) {
+		throw new TypeError("trial observation cost does not match its frozen pricing and token basis");
 	}
 	if (
 		(result.classification === "complete") !== (result.verifierStatus === "passed") ||

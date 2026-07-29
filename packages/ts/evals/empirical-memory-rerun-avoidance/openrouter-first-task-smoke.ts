@@ -34,6 +34,7 @@ import {
 	OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
 	OPENROUTER_OFFICIAL_PRICING_REVISION,
 	OPENROUTER_OFFICIAL_PRICING_SOURCE,
+	OPENROUTER_PROVIDER_USAGE_REVISION,
 	type OpenRouterRouteQualificationV1,
 } from "./openrouter-route-qualification.js";
 import {
@@ -59,7 +60,8 @@ function assertFirstSmokeRoute(route: OpenRouterRouteQualificationV1): void {
 		route.downstreamProviderName !== OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME ||
 		route.pricing.sourceUrl !== OPENROUTER_OFFICIAL_PRICING_SOURCE ||
 		route.pricing.pricingRevision !== OPENROUTER_OFFICIAL_PRICING_REVISION ||
-		route.pricing.inputMicrousdPerMillionTokens !== 5_000_000 ||
+		route.usageRevision !== OPENROUTER_PROVIDER_USAGE_REVISION ||
+		route.pricing.inputMicrousdPerMillionTokens !== 6_250_000 ||
 		route.pricing.outputMicrousdPerMillionTokens !== 30_000_000
 	) {
 		throw new TypeError("B112 first smoke route does not match its frozen exact route and pricing");
@@ -111,9 +113,11 @@ interface MutableSmokeBudget {
 	reservedInputTokens: number;
 	reservedOutputTokens: number;
 	reservedCostMicrousd: number;
+	pendingReservedInputTokens: number;
+	pendingReservedOutputTokens: number;
+	pendingReservedCostMicrousd: number;
 	allProviderUsageKnown: boolean;
-	providerInputTokens: number;
-	providerOutputTokens: number;
+	providerCostMicrousd: number;
 	latencyMs: number;
 	exhausted: boolean;
 }
@@ -126,6 +130,7 @@ function budgetExhaustedOutcome(
 		inputTokens: null,
 		outputTokens: null,
 		totalTokens: null,
+		providerCostMicrousd: null,
 		requests: 0,
 		hostInputBytes: 0,
 		hostOutputBytes: 0,
@@ -184,23 +189,39 @@ function createBudgetedModelTurnPort(
 			) {
 				return budgetExhaustedOutcome(request, protectionExecutor);
 			}
-			if (outcome.usage.inputTokens === null || outcome.usage.outputTokens === null) {
+			const hasPendingReservation =
+				ledger.pendingReservedInputTokens > 0 || ledger.pendingReservedOutputTokens > 0;
+			if (
+				hasPendingReservation &&
+				outcome.usage.inputTokens !== null &&
+				outcome.usage.outputTokens !== null &&
+				outcome.usage.providerCostMicrousd !== null
+			) {
+				ledger.reservedInputTokens =
+					ledger.reservedInputTokens -
+					ledger.pendingReservedInputTokens +
+					outcome.usage.inputTokens;
+				ledger.reservedOutputTokens =
+					ledger.reservedOutputTokens -
+					ledger.pendingReservedOutputTokens +
+					outcome.usage.outputTokens;
+				ledger.reservedCostMicrousd =
+					ledger.reservedCostMicrousd -
+					ledger.pendingReservedCostMicrousd +
+					outcome.usage.providerCostMicrousd;
+				ledger.providerCostMicrousd += outcome.usage.providerCostMicrousd;
+			} else if (hasPendingReservation) {
 				ledger.allProviderUsageKnown = false;
-			} else {
-				ledger.providerInputTokens += outcome.usage.inputTokens;
-				ledger.providerOutputTokens += outcome.usage.outputTokens;
 			}
+			ledger.pendingReservedInputTokens = 0;
+			ledger.pendingReservedOutputTokens = 0;
+			ledger.pendingReservedCostMicrousd = 0;
 			ledger.latencyMs += outcome.latencyMs;
-			const providerCost = calculateOpenRouterCostMicrousd(
-				ledger.providerInputTokens,
-				ledger.providerOutputTokens,
-				route.pricing,
-			);
 			if (
 				ledger.latencyMs > route.budget.maxLatencyMs ||
-				ledger.providerInputTokens > route.budget.maxInputTokens ||
-				ledger.providerOutputTokens > route.budget.maxOutputTokens ||
-				providerCost > route.budget.maxSmokeSpendMicrousd
+				ledger.reservedInputTokens > route.budget.maxInputTokens ||
+				ledger.reservedOutputTokens > route.budget.maxOutputTokens ||
+				ledger.reservedCostMicrousd > route.budget.maxSmokeSpendMicrousd
 			) {
 				ledger.exhausted = true;
 				return budgetExhaustedOutcome(
@@ -233,12 +254,15 @@ function createSmokeTransportAdmission(
 				route.budget.fixedInputTokenOverheadPerRequest;
 			const prospectiveInputTokens = ledger.reservedInputTokens + reservedInputTokens;
 			const prospectiveOutputTokens = ledger.reservedOutputTokens + maxOutputTokens;
-			const prospectiveCost = calculateOpenRouterCostMicrousd(
-				prospectiveInputTokens,
-				prospectiveOutputTokens,
+			const reservedCostMicrousd = calculateOpenRouterCostMicrousd(
+				reservedInputTokens,
+				maxOutputTokens,
 				route.pricing,
 			);
+			const prospectiveCost = ledger.reservedCostMicrousd + reservedCostMicrousd;
 			if (
+				ledger.pendingReservedInputTokens > 0 ||
+				ledger.pendingReservedOutputTokens > 0 ||
 				ledger.requests >= route.budget.maxRequests ||
 				ledger.requests >= route.budget.maxStepsPerRun ||
 				wireRequestBytes > route.budget.maxCanonicalRequestBytes ||
@@ -253,6 +277,9 @@ function createSmokeTransportAdmission(
 			ledger.reservedInputTokens = prospectiveInputTokens;
 			ledger.reservedOutputTokens = prospectiveOutputTokens;
 			ledger.reservedCostMicrousd = prospectiveCost;
+			ledger.pendingReservedInputTokens = reservedInputTokens;
+			ledger.pendingReservedOutputTokens = maxOutputTokens;
+			ledger.pendingReservedCostMicrousd = reservedCostMicrousd;
 			return true;
 		},
 	});
@@ -261,7 +288,6 @@ function createSmokeTransportAdmission(
 function finalCostLedger(
 	ledger: MutableSmokeBudget,
 	executionClass: "simulated-contract" | "live-provider",
-	route: OpenRouterRouteQualificationV1,
 ): EmpiricalSmokeCostLedgerV1 {
 	if (executionClass === "simulated-contract") {
 		return Object.freeze({
@@ -271,16 +297,17 @@ function finalCostLedger(
 			costMicrousd: 0,
 		});
 	}
-	const providerCost = calculateOpenRouterCostMicrousd(
-		ledger.providerInputTokens,
-		ledger.providerOutputTokens,
-		route.pricing,
-	);
 	return Object.freeze({
-		costBasis: ledger.allProviderUsageKnown ? "provider-usage" : "conservative-reservation",
+		costBasis:
+			ledger.allProviderUsageKnown && ledger.requests > 0
+				? "provider-usage"
+				: "conservative-reservation",
 		reservedInputTokens: ledger.reservedInputTokens,
 		reservedOutputTokens: ledger.reservedOutputTokens,
-		costMicrousd: ledger.allProviderUsageKnown ? providerCost : ledger.reservedCostMicrousd,
+		costMicrousd:
+			ledger.allProviderUsageKnown && ledger.requests > 0
+				? ledger.providerCostMicrousd
+				: ledger.reservedCostMicrousd,
 	});
 }
 
@@ -352,9 +379,11 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 		reservedInputTokens: 0,
 		reservedOutputTokens: 0,
 		reservedCostMicrousd: 0,
+		pendingReservedInputTokens: 0,
+		pendingReservedOutputTokens: 0,
+		pendingReservedCostMicrousd: 0,
 		allProviderUsageKnown: true,
-		providerInputTokens: 0,
-		providerOutputTokens: 0,
+		providerCostMicrousd: 0,
 		latencyMs: 0,
 		exhausted: false,
 	};
@@ -390,7 +419,7 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 		executionClass: input.executionClass,
 		trialBlockRef: input.host.initialRequest.trialBlockRef,
 		trialBlockDigest: input.host.initialRequest.trialBlockDigest,
-		costLedger: finalCostLedger(ledger, input.executionClass, input.routeQualification),
+		costLedger: finalCostLedger(ledger, input.executionClass),
 	});
 	const scorecard = createEmpiricalCampaignScorecard(
 		observation,

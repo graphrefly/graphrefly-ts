@@ -13,6 +13,7 @@ import {
 	executeEmpiricalProtection,
 	MAX_EMPIRICAL_MODEL_TURN_OUTCOME_BYTES,
 	MAX_EMPIRICAL_MODEL_TURN_REQUEST_BYTES,
+	MAX_EMPIRICAL_PROTECTION_SUBJECT_BYTES,
 	validateEmpiricalModelTurnOutcome,
 	validateEmpiricalModelTurnOutcomeBytes,
 	validateEmpiricalModelTurnRequest,
@@ -240,6 +241,30 @@ describe("B112.6.2-B112.6.3 private model turn and protection execution (D652-D6
 			authority,
 		);
 		expect(next.priorToolResults).toHaveLength(1);
+		const largeResultValue = { content: "x".repeat(77_194) };
+		const largeResultDigest = empiricalStrictJsonDigest(largeResultValue);
+		const largeResultReceipt = executeEmpiricalProtection(protectionExecutor("allowed"), {
+			policyRef: request.protectionPolicyRef,
+			policyRevision: request.protectionPolicyRevision,
+			stage: "tool-ingress",
+			subject: largeResultValue,
+		}).receipt;
+		expect(
+			validateRequest(
+				{
+					...next,
+					priorToolResults: [
+						{
+							...toolResult,
+							result: largeResultValue,
+							resultDigest: largeResultDigest,
+							protectionReceipt: largeResultReceipt,
+						},
+					],
+				},
+				authority,
+			).priorToolResults[0]?.resultDigest,
+		).toBe(largeResultDigest);
 		expect(() =>
 			validateRequest(
 				{
@@ -302,6 +327,16 @@ describe("B112.6.2-B112.6.3 private model turn and protection execution (D652-D6
 			issueCodes: ["provider-unavailable"],
 		});
 		expect(validateOutcome(postAttempt, request, authority).usage.requests).toBe(1);
+		expect(() =>
+			validateOutcome(
+				{
+					...preflight,
+					usage: { ...preflight.usage, providerCostMicrousd: 1 },
+				},
+				request,
+				authority,
+			),
+		).toThrow(/zero-request outcomes cannot carry provider usage/);
 		expect(() =>
 			validateOutcome(
 				{ ...completed, usage: { ...completed.usage, requests: 0 } },
@@ -632,6 +667,24 @@ describe("B112.6.2-B112.6.3 private model turn and protection execution (D652-D6
 				receipt: { stage, disposition: "allowed", subjectDigest: allowed.subjectDigest },
 			});
 		}
+		const largeToolResult = executeEmpiricalProtection(protectionExecutor("allowed"), {
+			policyRef: request.protectionPolicyRef,
+			policyRevision: request.protectionPolicyRevision,
+			stage: "tool-ingress",
+			subject: { content: "x".repeat(77_194) },
+		});
+		expect(largeToolResult).toMatchObject({
+			issueCode: null,
+			receipt: { disposition: "allowed" },
+		});
+		expect(() =>
+			executeEmpiricalProtection(protectionExecutor("allowed"), {
+				policyRef: request.protectionPolicyRef,
+				policyRevision: request.protectionPolicyRevision,
+				stage: "tool-ingress",
+				subject: { content: "x".repeat(MAX_EMPIRICAL_PROTECTION_SUBJECT_BYTES) },
+			}),
+		).toThrow(/exceeds 262144 canonical bytes/);
 
 		let getterInvoked = false;
 		const hostileInput = {

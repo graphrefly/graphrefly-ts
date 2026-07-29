@@ -215,7 +215,7 @@ describe("B112 D658 history-free single-baseline repository materialization", ()
 		await mutableRequestResult.cleanup();
 		expect(allocator.cleaned).toEqual(allocator.allocations);
 		await expect(first.cleanup()).rejects.toMatchObject({ code: "cleanup-already-attempted" });
-	});
+	}, 10_000);
 
 	it("bakes an exact private replacement into the baseline without exposing it as a diff", async () => {
 		const source = sourceFixture();

@@ -76,15 +76,18 @@ import {
 	type OpenRouterResponsesByteTransportV1,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-responses-model-turn.js";
 import {
+	calculateOpenRouterCostMicrousd,
 	OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
 	OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG,
 	OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
 	OPENROUTER_OFFICIAL_PRICING_REVISION,
 	OPENROUTER_OFFICIAL_PRICING_SOURCE,
+	OPENROUTER_PROVIDER_USAGE_REVISION,
 	OPENROUTER_ROUTE_EVIDENCE_SCHEMA_REVISION,
 	OPENROUTER_ROUTE_QUALIFICATION_SCHEMA,
 	OPENROUTER_SHARED_CAPACITY_QUALIFICATION_SCHEMA,
 	type OpenRouterRouteQualificationV1,
+	validateOpenRouterRouteQualification,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-route-qualification.js";
 import { persistPrivateSmokeGeneration } from "../../evals/empirical-memory-rerun-avoidance/private-smoke-persistence.js";
 import {
@@ -510,6 +513,7 @@ function completedOutcome(
 				inputTokens: 10,
 				outputTokens: 10,
 				totalTokens: 20,
+				providerCostMicrousd: null,
 				requests: 1,
 				hostInputBytes: 128,
 				hostOutputBytes: 2_048,
@@ -616,13 +620,13 @@ function simulatedRouteQualification(
 		capabilitiesDigest: empiricalStrictJsonDigest(configuration.capabilities),
 		settingsDigest: empiricalStrictJsonDigest(configuration.settings),
 		usageSource: configuration.usageSource,
-		usageRevision: "openrouter-provider-usage-2026-07-29.v1",
+		usageRevision: OPENROUTER_PROVIDER_USAGE_REVISION,
 		routeEvidenceSchemaRevision: OPENROUTER_ROUTE_EVIDENCE_SCHEMA_REVISION,
 		pricing: {
 			sourceUrl: OPENROUTER_OFFICIAL_PRICING_SOURCE,
 			pricingRevision: OPENROUTER_OFFICIAL_PRICING_REVISION,
 			currency: "USD" as const,
-			inputMicrousdPerMillionTokens: 5_000_000,
+			inputMicrousdPerMillionTokens: 6_250_000,
 			outputMicrousdPerMillionTokens: 30_000_000,
 		},
 		budget: {
@@ -668,10 +672,50 @@ function simulatedRouteQualification(
 	return strictSnapshot(qualification);
 }
 
+function liveRouteQualification(
+	fixture: ClosedHostFixture,
+	budgetOverrides: Readonly<Record<string, number>> = {},
+): OpenRouterRouteQualificationV1 {
+	const simulated = simulatedRouteQualification(fixture, budgetOverrides);
+	const workspaceRef = "openrouter-workspace.closed-host-fixture";
+	const workspaceRevision = "openrouter-workspace.closed-host-fixture.v1";
+	return strictSnapshot({
+		...simulated,
+		qualificationRef: "b112-live-route-qualification",
+		qualificationRevision: "b112-live-route-qualification.v1",
+		dispatchMode: "live-approved" as const,
+		budget: {
+			...simulated.budget,
+			approvalRef: "b112-live-budget-approval",
+			approvalRevision: "b112-live-budget-approval.v1",
+		},
+		keySpendLimit: {
+			...simulated.keySpendLimit,
+			qualificationRef: "b112-live-key-limit",
+			qualificationRevision: "b112-live-key-limit.v1",
+			readOnlyQualified: true,
+			workspaceRef,
+			workspaceRevision,
+		},
+		sharedCapacityQualification: {
+			...simulated.sharedCapacityQualification,
+			qualificationRef: "d661-live-shared-capacity",
+			qualificationRevision: "d661-live-shared-capacity.v1",
+			workspaceRef,
+			workspaceRevision,
+		},
+	});
+}
+
 function dryRunOpenRouterResponse(
 	id: string,
 	output: readonly unknown[],
-	usage = { input_tokens: 100, output_tokens: 20, total_tokens: 120 },
+	usage: Readonly<Record<string, unknown>> = {
+		input_tokens: 100,
+		output_tokens: 20,
+		total_tokens: 120,
+		cost: 0.001_225,
+	},
 ): { readonly status: 200; readonly body: Uint8Array } {
 	return {
 		status: 200,
@@ -864,6 +908,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 								input_tokens: 100,
 								output_tokens: 20,
 								total_tokens: 120,
+								cost: 0.001_225,
 							},
 							openrouter_metadata: {
 								requested: OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
@@ -946,6 +991,19 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			aggregationRevision: B112_FIRST_TASK_SMOKE_AGGREGATION_REVISION,
 		});
 		expect(validateEmpiricalTrialBlockObservation(result.observation)).toEqual(result.observation);
+		const providerReportedCostObservation = validateEmpiricalTrialBlockObservation({
+			...result.observation,
+			executionClass: "live-provider",
+			empiricalLiveEvidence: true,
+			result: {
+				...result.observation.result,
+				costBasis: "provider-usage",
+				costMicrousd: 2_452,
+				reservedInputTokens: 200,
+				reservedOutputTokens: 40,
+			},
+		});
+		expect(providerReportedCostObservation.result.costMicrousd).toBe(2_452);
 		expect(validateEmpiricalCampaignScorecard(result.scorecard)).toEqual(result.scorecard);
 		const repeatedScorecard = createEmpiricalCampaignScorecard(
 			result.observation,
@@ -966,7 +1024,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				inputTokens: null,
 				outputTokens: null,
 				totalTokens: null,
-				costMicrousd: 99_585,
+				costMicrousd: 109_122,
 				costBasis: "conservative-reservation",
 				reservedInputTokens: 7_629,
 				reservedOutputTokens: 2_048,
@@ -983,7 +1041,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			evidenceClass: "live-approved-no-provider-evidence",
 			empiricalLiveEvidence: false,
 			requests: 0,
-			costMicrousd: 99_585,
+			costMicrousd: 109_122,
 			costBasis: "conservative-reservation",
 			reservedInputTokens: 7_629,
 			reservedOutputTokens: 2_048,
@@ -1010,6 +1068,15 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				costBasis: "provider-usage",
 			}),
 		).toThrow(/evidence and cost provenance/);
+		expect(() =>
+			validateEmpiricalTrialBlockObservation({
+				...preDispatchObservation,
+				result: {
+					...preDispatchObservation.result,
+					costMicrousd: 0,
+				},
+			}),
+		).toThrow(/frozen pricing and token basis/);
 		const liveFailureObservation = validateEmpiricalTrialBlockObservation({
 			...result.observation,
 			executionClass: "live-provider",
@@ -1022,7 +1089,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				inputTokens: null,
 				outputTokens: null,
 				totalTokens: null,
-				costMicrousd: 99_585,
+				costMicrousd: 109_122,
 				costBasis: "conservative-reservation",
 				reservedInputTokens: 7_629,
 				reservedOutputTokens: 2_048,
@@ -1067,6 +1134,8 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				protectionReceiptDigests: [],
 			}),
 		).toThrow(/required frozen evidence/);
+		const overrunInputTokens = result.observation.route.maxInputTokens + 1;
+		const overrunOutputTokens = result.observation.route.maxOutputTokens + 1;
 		const overrunObservation = {
 			...result.observation,
 			executionClass: "live-provider" as const,
@@ -1075,16 +1144,36 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				...result.observation.result,
 				classification: "non-evaluable" as const,
 				verifierStatus: "not-run" as const,
-				inputTokens: result.observation.route.maxInputTokens + 1,
-				outputTokens: result.observation.route.maxOutputTokens + 1,
-				costMicrousd: result.observation.route.maxSmokeSpendMicrousd + 1,
+				inputTokens: overrunInputTokens,
+				outputTokens: overrunOutputTokens,
+				costMicrousd: calculateOpenRouterCostMicrousd(overrunInputTokens, overrunOutputTokens, {
+					currency: "USD",
+					inputMicrousdPerMillionTokens: result.observation.route.inputMicrousdPerMillionTokens,
+					outputMicrousdPerMillionTokens: result.observation.route.outputMicrousdPerMillionTokens,
+					pricingRevision: result.observation.route.pricingRevision,
+					sourceUrl: result.observation.route.pricingSourceUrl,
+				}),
 				costBasis: "provider-usage" as const,
+				reservedInputTokens: overrunInputTokens,
+				reservedOutputTokens: overrunOutputTokens,
 			},
 			issueCodes: ["smoke-budget-exhausted"],
 		};
 		expect(validateEmpiricalTrialBlockObservation(overrunObservation).result.costBasis).toBe(
 			"provider-usage",
 		);
+		expect(() =>
+			validateEmpiricalTrialBlockObservation({
+				...overrunObservation,
+				result: {
+					...overrunObservation.result,
+					costBasis: "conservative-reservation",
+					costMicrousd: 0,
+					reservedInputTokens: 0,
+					reservedOutputTokens: 0,
+				},
+			}),
+		).toThrow(/frozen pricing and token basis/);
 		expect(() =>
 			validateEmpiricalTrialBlockObservation({
 				...overrunObservation,
@@ -1198,7 +1287,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				materialization: fixture.materialization,
 				verifier: fixture.verifier,
 			},
-			routeQualification: simulatedRouteQualification(fixture),
+			routeQualification: liveRouteQualification(fixture),
 			credential: {
 				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
 				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
@@ -1211,7 +1300,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				},
 			},
 			monotonicMeasurement: { readMs: () => 0 },
-			executionClass: "simulated-contract",
+			executionClass: "live-provider",
 			privateRoot,
 			generationRef: "transport-failure-generation",
 			signal: new AbortController().signal,
@@ -1249,7 +1338,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				materialization: fixture.materialization,
 				verifier: fixture.verifier,
 			},
-			routeQualification: simulatedRouteQualification(fixture),
+			routeQualification: liveRouteQualification(fixture),
 			credential: {
 				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
 				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
@@ -1272,7 +1361,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				},
 			},
 			monotonicMeasurement: { readMs: () => 0 },
-			executionClass: "simulated-contract",
+			executionClass: "live-provider",
 			privateRoot,
 			generationRef: "provider-rejection-generation",
 			signal: new AbortController().signal,
@@ -1290,6 +1379,94 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				rejectionCredentialSentinel,
 			);
 		}
+	});
+
+	it("persists a live-approved zero-request budget rejection with conservative cost provenance", async () => {
+		const fixture = await createClosedHostFixture();
+		let transportCalls = 0;
+		const privateRoot = join(
+			temporaryRoot("live-pre-admission"),
+			".private",
+			"empirical-memory-rerun-avoidance",
+		);
+		mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
+		chmodSync(privateRoot, 0o700);
+		const result = await runOpenRouterFirstTaskSmoke({
+			host: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: fixture.materialization,
+				verifier: fixture.verifier,
+			},
+			routeQualification: liveRouteQualification(fixture, { maxSmokeSpendMicrousd: 1 }),
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: "openrouter-live-pre-admission-secret-0123456789",
+			},
+			transport: {
+				request() {
+					transportCalls += 1;
+					throw new Error("transport must not run");
+				},
+			},
+			monotonicMeasurement: { readMs: () => 0 },
+			executionClass: "live-provider",
+			privateRoot,
+			generationRef: "live-pre-admission-generation",
+			signal: new AbortController().signal,
+		});
+		expect(transportCalls).toBe(0);
+		expect(result.observation).toMatchObject({
+			executionClass: "live-approved-no-provider-evidence",
+			empiricalLiveEvidence: false,
+			result: {
+				classification: "non-evaluable",
+				requests: 0,
+				costBasis: "conservative-reservation",
+				costMicrousd: 0,
+			},
+		});
+		expect(result.observation.issueCodes).toContain(B112_SMOKE_BUDGET_ISSUE_CODE);
+		expect(result.persistence.observationDigest).toBe(result.scorecard.observationDigests[0]);
+	});
+
+	it("requires the live incremental budget to fit both the total key limit and current remainder", async () => {
+		const fixture = await createClosedHostFixture();
+		const route = liveRouteQualification(fixture);
+		const configuration = fixture.frozen.manifest.modelConfigurations[0];
+		if (configuration === undefined) throw new Error("missing fixture model configuration");
+		const validate = (candidate: OpenRouterRouteQualificationV1) =>
+			validateOpenRouterRouteQualification(
+				candidate,
+				configuration,
+				fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				fixture.frozen.manifest.campaignRef,
+				fixture.frozen.manifestDigest,
+			);
+		expect(validate(route).qualification.dispatchMode).toBe("live-approved");
+		expect(() =>
+			validate({
+				...route,
+				keySpendLimit: {
+					...route.keySpendLimit,
+					limitMicrousd: route.budget.maxSmokeSpendMicrousd - 1,
+					remainingMicrousd: route.budget.maxSmokeSpendMicrousd - 1,
+				},
+			}),
+		).toThrow(/does not prove the approved smoke budget/);
+		expect(() =>
+			validate({
+				...route,
+				keySpendLimit: {
+					...route.keySpendLimit,
+					remainingMicrousd: route.budget.maxSmokeSpendMicrousd - 1,
+				},
+			}),
+		).toThrow(/does not prove the approved smoke budget/);
 	});
 
 	it("preserves one attempted request when the outer deadline aborts in-flight transport", async () => {
@@ -1312,7 +1489,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				materialization: fixture.materialization,
 				verifier: fixture.verifier,
 			},
-			routeQualification: simulatedRouteQualification(fixture),
+			routeQualification: liveRouteQualification(fixture),
 			credential: {
 				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
 				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
@@ -1325,7 +1502,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				},
 			},
 			monotonicMeasurement: { readMs: () => 0 },
-			executionClass: "simulated-contract",
+			executionClass: "live-provider",
 			privateRoot,
 			generationRef: "transport-timeout-generation",
 			signal: controller.signal,
@@ -1363,7 +1540,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				materialization: fixture.materialization,
 				verifier: fixture.verifier,
 			},
-			routeQualification: simulatedRouteQualification(fixture),
+			routeQualification: liveRouteQualification(fixture),
 			credential: {
 				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
 				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
@@ -1386,13 +1563,18 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 									arguments: JSON.stringify({ path: "README.md" }),
 								},
 							],
-							{ input_tokens: 100_001, output_tokens: 20, total_tokens: 100_021 },
+							{
+								input_tokens: 100_001,
+								output_tokens: 20,
+								total_tokens: 100_021,
+								cost: 0.625_606_25,
+							},
 						),
 					);
 				},
 			},
 			monotonicMeasurement: { readMs: () => 0 },
-			executionClass: "simulated-contract",
+			executionClass: "live-provider",
 			privateRoot,
 			generationRef: "known-overrun-generation",
 			signal: new AbortController().signal,
@@ -1403,11 +1585,134 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				requests: 1,
 				inputTokens: 100_001,
 				outputTokens: 20,
+				costMicrousd: 625_607,
+				costBasis: "provider-usage",
 			},
 		});
 		expect(result.observation.issueCodes).toContain(B112_SMOKE_BUDGET_ISSUE_CODE);
 		expect(result.observation.routeEvidenceDigests).toHaveLength(1);
 		expect(result.scorecard.status).toBe("non-evaluable");
+	});
+
+	it("retains known provider cost when a later attempted turn has unknown usage", async () => {
+		const fixture = await createClosedHostFixture();
+		const artifactRoot = temporaryRoot("mixed-known-unknown-cost");
+		const privateRoot = join(artifactRoot, ".private", "empirical-memory-rerun-avoidance");
+		mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
+		chmodSync(privateRoot, 0o700);
+		let transportCalls = 0;
+		const result = await runOpenRouterFirstTaskSmoke({
+			host: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: fixture.materialization,
+				verifier: fixture.verifier,
+			},
+			routeQualification: liveRouteQualification(fixture),
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: "openrouter-mixed-cost-secret-0123456789",
+			},
+			transport: {
+				request(input) {
+					transportCalls += 1;
+					const requestBody = JSON.parse(new TextDecoder().decode(input.body)) as {
+						readonly tools: readonly { readonly name: string }[];
+					};
+					if (transportCalls === 1) {
+						return Promise.resolve(
+							dryRunOpenRouterResponse(
+								"response.mixed-cost.1",
+								[
+									{
+										type: "function_call",
+										status: "completed",
+										call_id: "call.mixed-cost.1",
+										name: requestBody.tools[0]?.name,
+										arguments: JSON.stringify({ path: "README.md" }),
+									},
+								],
+								{
+									input_tokens: 100,
+									output_tokens: 20,
+									total_tokens: 120,
+									cost: 0.1,
+								},
+							),
+						);
+					}
+					return Promise.resolve(
+						dryRunOpenRouterResponse(
+							"response.mixed-cost.2",
+							[
+								{
+									type: "message",
+									role: "assistant",
+									status: "completed",
+									content: [
+										{
+											type: "output_text",
+											text: JSON.stringify({
+												kind: "model-turn-output-placeholder",
+												summary: "bounded-placeholder",
+											}),
+										},
+									],
+								},
+							],
+							{ input_tokens: 100, output_tokens: 20, total_tokens: 120 },
+						),
+					);
+				},
+			},
+			monotonicMeasurement: { readMs: () => 0 },
+			executionClass: "live-provider",
+			privateRoot,
+			generationRef: "mixed-known-unknown-cost-generation",
+			signal: new AbortController().signal,
+		});
+		expect(transportCalls).toBe(2);
+		expect(result.observation.result).toMatchObject({
+			classification: "non-evaluable",
+			requests: 2,
+			inputTokens: null,
+			outputTokens: null,
+			costBasis: "conservative-reservation",
+		});
+		const pricing = {
+			currency: "USD" as const,
+			inputMicrousdPerMillionTokens: result.observation.route.inputMicrousdPerMillionTokens,
+			outputMicrousdPerMillionTokens: result.observation.route.outputMicrousdPerMillionTokens,
+			pricingRevision: result.observation.route.pricingRevision,
+			sourceUrl: result.observation.route.pricingSourceUrl,
+		};
+		const fullReservationCost = calculateOpenRouterCostMicrousd(
+			result.observation.result.reservedInputTokens,
+			result.observation.result.reservedOutputTokens,
+			pricing,
+		);
+		const pendingSecondTurnCost = calculateOpenRouterCostMicrousd(
+			result.observation.result.reservedInputTokens - 100,
+			result.observation.result.reservedOutputTokens - 20,
+			pricing,
+		);
+		const expectedHybridCost = 100_000 + pendingSecondTurnCost;
+		expect(expectedHybridCost).toBeGreaterThan(fullReservationCost);
+		expect(result.observation.result.costMicrousd).toBe(expectedHybridCost);
+		expect(result.persistence.observationDigest).toBe(result.scorecard.observationDigests[0]);
+		const persistedObservation = JSON.parse(
+			readFileSync(
+				join(result.persistence.generationPath, "trial-block-observation.v1.json"),
+				"utf8",
+			),
+		) as { readonly result: { readonly costBasis: string; readonly costMicrousd: number } };
+		expect(persistedObservation.result).toMatchObject({
+			costBasis: "conservative-reservation",
+			costMicrousd: expectedHybridCost,
+		});
 	});
 
 	it("stops a simulated bad loop at request/step bounds and fails closed before a cost-overrun request", async () => {
@@ -1477,6 +1782,19 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 
 		const stepBound = await runBoundedCase("step", {}, 8, "agent-step-budget-exhausted");
 		expect(stepBound.observation.result).toMatchObject({ requests: 8, steps: 8 });
+
+		const settledReservation = await runBoundedCase(
+			"settled-reservation",
+			{ maxInputTokens: 10_000 },
+			8,
+			"agent-step-budget-exhausted",
+		);
+		expect(settledReservation.observation.result).toMatchObject({
+			inputTokens: 800,
+			outputTokens: 160,
+			requests: 8,
+			steps: 8,
+		});
 
 		const costBound = await runBoundedCase("cost", { maxSmokeSpendMicrousd: 1 }, 0);
 		expect(costBound.observation.result).toMatchObject({ requests: 0, steps: 1 });

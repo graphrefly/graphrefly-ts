@@ -173,6 +173,7 @@ export function buildEmpiricalModelTurnOutcomeFixture(
 				inputTokens: request.usageSource === "host-measured" ? null : 100,
 				outputTokens: request.usageSource === "host-measured" ? null : 20,
 				totalTokens: request.usageSource === "host-measured" ? null : 120,
+				providerCostMicrousd: null,
 				requests: 1,
 				hostInputBytes: 1_024,
 				hostOutputBytes: 512,

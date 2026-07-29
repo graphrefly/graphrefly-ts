@@ -30,10 +30,14 @@ export const OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG = "openai";
 export const OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME = "OpenAI";
 export const OPENROUTER_RESPONSES_ENDPOINT_REVISION = "openrouter-responses-2026-07-29.v2";
 export const OPENROUTER_RESPONSES_ADAPTER_REVISION = "graphrefly-openrouter-responses-turn.v2";
-export const OPENROUTER_RESPONSES_BINDING_REVISION = "graphrefly-openrouter-responses-wire.v3";
+export const OPENROUTER_RESPONSES_BINDING_REVISION = "graphrefly-openrouter-responses-wire.v6";
 export const OPENROUTER_ROUTE_EVIDENCE_SCHEMA_REVISION = "openrouter-metadata-2026-07-29.v1";
-export const OPENROUTER_OFFICIAL_PRICING_SOURCE = "https://openrouter.ai/openai/gpt-5.6-sol/";
-export const OPENROUTER_OFFICIAL_PRICING_REVISION = "openrouter-openai-gpt-5.6-sol-2026-07-29.v1";
+export const OPENROUTER_PROVIDER_USAGE_REVISION =
+	"openrouter-provider-reported-cost-microusd-2026-07-29.v2";
+export const OPENROUTER_OFFICIAL_PRICING_SOURCE =
+	"https://openrouter.ai/api/v1/models/openai/gpt-5.6-sol/endpoints";
+export const OPENROUTER_OFFICIAL_PRICING_REVISION =
+	"openrouter-openai-gpt-5.6-sol-openai-cache-write-ceiling-2026-07-29.v2";
 
 export interface OpenRouterSharedCapacityQualificationV1 {
 	readonly schemaVersion: typeof OPENROUTER_SHARED_CAPACITY_QUALIFICATION_SCHEMA;
@@ -630,7 +634,7 @@ function validateKeySpendLimit(
 	if (
 		dispatchMode === "live-approved" &&
 		(!readOnlyQualified ||
-			limitMicrousd > budget.maxSmokeSpendMicrousd ||
+			budget.maxSmokeSpendMicrousd > limitMicrousd ||
 			remainingMicrousd < budget.maxSmokeSpendMicrousd)
 	) {
 		throw new TypeError("live OpenRouter key spend limit does not prove the approved smoke budget");

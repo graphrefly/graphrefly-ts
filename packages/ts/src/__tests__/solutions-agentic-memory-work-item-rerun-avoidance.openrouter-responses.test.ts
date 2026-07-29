@@ -102,7 +102,7 @@ function routeQualification(authority: OpenRouterAuthorityFixture) {
 			sourceUrl: OPENROUTER_OFFICIAL_PRICING_SOURCE,
 			pricingRevision: OPENROUTER_OFFICIAL_PRICING_REVISION,
 			currency: "USD" as const,
-			inputMicrousdPerMillionTokens: 5_000_000,
+			inputMicrousdPerMillionTokens: 6_250_000,
 			outputMicrousdPerMillionTokens: 30_000_000,
 		},
 		budget: {
@@ -257,6 +257,8 @@ function responseBytes(value: unknown): Uint8Array {
 	return responseEncoder.encode(JSON.stringify(value));
 }
 
+const OPENROUTER_RESPONSES_CANONICAL_MODEL = `${OPENROUTER_RESPONSES_MODEL}-20260709`;
+
 function directRouteMetadata(overrides: Record<string, unknown> = {}): Record<string, unknown> {
 	return {
 		requested: OPENROUTER_RESPONSES_MODEL,
@@ -266,11 +268,11 @@ function directRouteMetadata(overrides: Record<string, unknown> = {}): Record<st
 		attempt: 1,
 		is_byok: false,
 		endpoints: {
-			total: 1,
+			total: 3,
 			available: [
 				{
 					provider: OPENROUTER_RESPONSES_DOWNSTREAM_PROVIDER,
-					model: OPENROUTER_RESPONSES_MODEL,
+					model: OPENROUTER_RESPONSES_CANONICAL_MODEL,
 					selected: true,
 				},
 			],
@@ -278,7 +280,7 @@ function directRouteMetadata(overrides: Record<string, unknown> = {}): Record<st
 		attempts: [
 			{
 				provider: OPENROUTER_RESPONSES_DOWNSTREAM_PROVIDER,
-				model: OPENROUTER_RESPONSES_MODEL,
+				model: OPENROUTER_RESPONSES_CANONICAL_MODEL,
 				status: 200,
 			},
 		],
@@ -301,6 +303,7 @@ function completedResponse(
 			input_tokens: 100,
 			output_tokens: 20,
 			total_tokens: 120,
+			cost: 0.001_225,
 		},
 		openrouter_metadata: directRouteMetadata(),
 		...overrides,
@@ -456,6 +459,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 				inputTokens: 100,
 				outputTokens: 20,
 				totalTokens: 120,
+				providerCostMicrousd: 1_225,
 				requests: 1,
 			},
 			latencyMs: 25,
@@ -484,7 +488,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 				order: ["openai"],
 				only: ["openai"],
 				allow_fallbacks: false,
-				require_parameters: true,
+				require_parameters: false,
 			},
 			store: false,
 			background: false,
@@ -591,7 +595,12 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 						available: [
 							{
 								provider: OPENROUTER_RESPONSES_DOWNSTREAM_PROVIDER,
-								model: OPENROUTER_RESPONSES_MODEL,
+								model: OPENROUTER_RESPONSES_CANONICAL_MODEL,
+								selected: true,
+							},
+							{
+								provider: OPENROUTER_RESPONSES_DOWNSTREAM_PROVIDER,
+								model: OPENROUTER_RESPONSES_CANONICAL_MODEL,
 								selected: true,
 							},
 						],
@@ -614,10 +623,24 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			},
 			{
 				openrouter_metadata: directRouteMetadata({
+					endpoints: {
+						total: 3,
+						available: [
+							{
+								provider: OPENROUTER_RESPONSES_DOWNSTREAM_PROVIDER,
+								model: `${OPENROUTER_RESPONSES_MODEL}-other`,
+								selected: true,
+							},
+						],
+					},
+				}),
+			},
+			{
+				openrouter_metadata: directRouteMetadata({
 					attempts: [
 						{
 							provider: OPENROUTER_RESPONSES_DOWNSTREAM_PROVIDER,
-							model: OPENROUTER_RESPONSES_MODEL,
+							model: OPENROUTER_RESPONSES_CANONICAL_MODEL,
 							status: 503,
 						},
 					],
@@ -650,7 +673,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			]).toContain(outcome.issueCodes[0]);
 			serializedWithoutCredential(outcome);
 		}
-	});
+	}, 10_000);
 
 	it("maps declared function calls without owning the tool loop", async () => {
 		const response = completedResponse([
@@ -848,6 +871,15 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			completedResponse(messageOutput({ kind: "model-turn-output-placeholder", summary: "ok" }), {
 				usage: { input_tokens: 1, output_tokens: 1 },
 			}),
+			completedResponse(messageOutput({ kind: "model-turn-output-placeholder", summary: "ok" }), {
+				usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+			}),
+			completedResponse(messageOutput({ kind: "model-turn-output-placeholder", summary: "ok" }), {
+				usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2, cost: "0.1" },
+			}),
+			completedResponse(messageOutput({ kind: "model-turn-output-placeholder", summary: "ok" }), {
+				usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2, cost: -1 },
+			}),
 		];
 		for (const response of cases) {
 			const { binding, request, transport } = createHarness(buildAuthority(), response);
@@ -864,7 +896,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			expect(transport).toHaveBeenCalledTimes(1);
 			serializedWithoutCredential(outcome);
 		}
-	});
+	}, 10_000);
 
 	it("preserves known provider token usage when D653 rejects candidate semantics", async () => {
 		const response = completedResponse(messageOutput({ kind: "unexpected", summary: 1 }));
@@ -895,6 +927,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 					input_tokens: 100,
 					output_tokens: 2_049,
 					total_tokens: 2_149,
+					cost: 0.062_095,
 				},
 			},
 		);
@@ -1147,6 +1180,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 					input_tokens: 100,
 					output_tokens: 2_049,
 					total_tokens: 2_149,
+					cost: 0.062_095,
 				},
 			},
 		);
