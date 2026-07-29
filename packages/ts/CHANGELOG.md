@@ -1,5 +1,11 @@
 # @graphrefly/ts
 
+## 0.6.3
+
+### Patch Changes
+
+- ba71180: Keep reactive-layout adapter cache cleanup safe when a failed CJS measurement provider deactivates.
+
 ## 0.6.2
 
 ### Patch Changes
