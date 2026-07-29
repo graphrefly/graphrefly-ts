@@ -3,6 +3,7 @@ import {
 	createOpenRouterCredentialCapabilityFromOperatorEnvironment,
 	OPENROUTER_API_KEY_ENVIRONMENT_NAME,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-first-task-smoke.js";
+import { readOpenRouterSmokeOperatorMonotonicMs } from "../../evals/empirical-memory-rerun-avoidance/openrouter-first-task-smoke-operator.js";
 import { createOpenRouterResponsesFetchByteTransport } from "../../evals/empirical-memory-rerun-avoidance/openrouter-responses-byte-transport.js";
 import {
 	MAX_OPENROUTER_RESPONSES_RESPONSE_BYTES,
@@ -31,6 +32,12 @@ function transportRequest(
 }
 
 describe("B112 package-private OpenRouter live byte transport", () => {
+	it("supplies safe-integer monotonic milliseconds at the outermost live operator boundary", () => {
+		const observedAtMs = readOpenRouterSmokeOperatorMonotonicMs();
+		expect(Number.isSafeInteger(observedAtMs)).toBe(true);
+		expect(observedAtMs).toBeGreaterThanOrEqual(0);
+	});
+
 	it("constructs credential capability only from the outer operator environment snapshot", () => {
 		const route = {
 			dispatchMode: "live-approved",

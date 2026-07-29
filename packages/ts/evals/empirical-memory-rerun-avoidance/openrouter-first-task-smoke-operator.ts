@@ -19,6 +19,10 @@ export interface OpenRouterFirstTaskSmokeOperatorInputModuleV1 {
 	createOperatorInput(): Promise<OpenRouterFirstTaskSmokeOperatorInputV1>;
 }
 
+export function readOpenRouterSmokeOperatorMonotonicMs(): number {
+	return Math.floor(performance.now());
+}
+
 function isSameOrDescendant(parent: string, candidate: string): boolean {
 	const nested = relative(parent, candidate);
 	return nested === "" || (nested !== ".." && !nested.startsWith(`..${sep}`));
@@ -96,7 +100,7 @@ async function main(): Promise<void> {
 		privateRoot,
 		environment: process.env,
 		fetch: globalThis.fetch,
-		monotonicNowMs: () => performance.now(),
+		monotonicNowMs: readOpenRouterSmokeOperatorMonotonicMs,
 	});
 	process.stdout.write(
 		`${JSON.stringify({

@@ -20,6 +20,11 @@ export const EMPIRICAL_CAMPAIGN_SCORECARD_SCHEMA =
 	"graphrefly.private-solution-eval.empirical-campaign-scorecard.v1";
 export const B112_SMOKE_NO_EFFICACY_CLAIM = "smoke-integration-no-efficacy-claim";
 
+export type EmpiricalSmokeEvidenceClassV1 =
+	| "simulated-contract"
+	| "live-approved-no-provider-evidence"
+	| "live-provider";
+
 export interface EmpiricalSmokeCostLedgerV1 {
 	readonly costBasis: "simulated-contract" | "provider-usage" | "conservative-reservation";
 	readonly reservedInputTokens: number;
@@ -29,7 +34,7 @@ export interface EmpiricalSmokeCostLedgerV1 {
 
 export interface EmpiricalTrialBlockObservationV1 {
 	readonly schemaVersion: typeof EMPIRICAL_TRIAL_BLOCK_OBSERVATION_SCHEMA;
-	readonly executionClass: "simulated-contract" | "live-provider";
+	readonly executionClass: EmpiricalSmokeEvidenceClassV1;
 	readonly empiricalLiveEvidence: boolean;
 	readonly claimBoundary: typeof B112_SMOKE_NO_EFFICACY_CLAIM;
 	readonly campaignRef: string;
@@ -104,7 +109,7 @@ export interface EmpiricalCampaignScorecardV1 {
 	readonly campaignRef: string;
 	readonly manifestDigest: string;
 	readonly profile: "smoke";
-	readonly evidenceClass: "simulated-contract" | "live-provider";
+	readonly evidenceClass: EmpiricalSmokeEvidenceClassV1;
 	readonly empiricalLiveEvidence: boolean;
 	readonly efficacyClaim: "none";
 	readonly claimBoundary: typeof B112_SMOKE_NO_EFFICACY_CLAIM;
@@ -124,6 +129,9 @@ export interface EmpiricalCampaignScorecardV1 {
 	readonly hostOutputBytes: number;
 	readonly latencyMs: number;
 	readonly costMicrousd: number;
+	readonly costBasis: "simulated-contract" | "provider-usage" | "conservative-reservation";
+	readonly reservedInputTokens: number;
+	readonly reservedOutputTokens: number;
 	readonly status: "smoke-complete-no-efficacy-claim" | "incomplete" | "non-evaluable";
 	readonly issueCodes: readonly string[];
 }
@@ -198,10 +206,15 @@ export function createEmpiricalTrialBlockObservation(input: {
 		if (!Number.isSafeInteger(next)) throw new TypeError("smoke latency total overflow");
 		return next;
 	}, 0);
+	const hasLiveProviderAttempt = input.hostOutcome.remoteRequests > 0;
+	const executionClass: EmpiricalSmokeEvidenceClassV1 =
+		input.executionClass === "live-provider" && !hasLiveProviderAttempt
+			? "live-approved-no-provider-evidence"
+			: input.executionClass;
 	const observation = strictSnapshot({
 		schemaVersion: EMPIRICAL_TRIAL_BLOCK_OBSERVATION_SCHEMA,
-		executionClass: input.executionClass,
-		empiricalLiveEvidence: input.executionClass === "live-provider",
+		executionClass,
+		empiricalLiveEvidence: executionClass === "live-provider",
 		claimBoundary: B112_SMOKE_NO_EFFICACY_CLAIM,
 		campaignRef: manifest.campaignRef,
 		manifestDigest: input.frozen.manifestDigest,
@@ -357,7 +370,7 @@ export function validateEmpiricalTrialBlockObservation(
 	);
 	const executionClass = oneOf(
 		observation.executionClass,
-		["simulated-contract", "live-provider"],
+		["simulated-contract", "live-approved-no-provider-evidence", "live-provider"],
 		"trialBlockObservation.executionClass",
 	);
 	literal(
@@ -399,6 +412,13 @@ export function validateEmpiricalTrialBlockObservation(
 	if (
 		(executionClass === "simulated-contract") !== (result.costBasis === "simulated-contract") ||
 		(executionClass === "simulated-contract" && result.costMicrousd !== 0) ||
+		(executionClass === "live-approved-no-provider-evidence" &&
+			(result.requests !== 0 ||
+				result.costBasis !== "conservative-reservation" ||
+				result.inputTokens !== null ||
+				result.outputTokens !== null ||
+				result.totalTokens !== null)) ||
+		(executionClass === "live-provider" && result.requests === 0) ||
 		result.requests > route.maxRequests ||
 		result.steps > route.maxStepsPerRun ||
 		(postAttemptBudgetExceeded && !hasBudgetExhaustion)
@@ -413,6 +433,8 @@ export function validateEmpiricalTrialBlockObservation(
 	}
 	if (
 		(result.steps > 0 && protectionReceiptDigests.length !== result.steps) ||
+		(executionClass === "live-approved-no-provider-evidence" &&
+			routeEvidenceDigests.length !== 0) ||
 		(hasBudgetExhaustion &&
 			result.inputTokens !== null &&
 			result.outputTokens !== null &&
@@ -766,6 +788,9 @@ export function createEmpiricalCampaignScorecard(
 		hostOutputBytes: observation.result.hostOutputBytes,
 		latencyMs: observation.result.latencyMs,
 		costMicrousd: observation.result.costMicrousd,
+		costBasis: observation.result.costBasis,
+		reservedInputTokens: observation.result.reservedInputTokens,
+		reservedOutputTokens: observation.result.reservedOutputTokens,
 		status:
 			complete === 1
 				? ("smoke-complete-no-efficacy-claim" as const)
@@ -786,6 +811,7 @@ export function validateEmpiricalCampaignScorecard(value: unknown): EmpiricalCam
 			"campaignRef",
 			"claimBoundary",
 			"completeBlocks",
+			"costBasis",
 			"costMicrousd",
 			"efficacyClaim",
 			"empiricalLiveEvidence",
@@ -802,6 +828,8 @@ export function validateEmpiricalCampaignScorecard(value: unknown): EmpiricalCam
 			"outputTokens",
 			"profile",
 			"requests",
+			"reservedInputTokens",
+			"reservedOutputTokens",
 			"schemaVersion",
 			"status",
 			"steps",
@@ -817,7 +845,7 @@ export function validateEmpiricalCampaignScorecard(value: unknown): EmpiricalCam
 	);
 	const evidenceClass = oneOf(
 		scorecard.evidenceClass,
-		["simulated-contract", "live-provider"],
+		["simulated-contract", "live-approved-no-provider-evidence", "live-provider"],
 		"campaignScorecard.evidenceClass",
 	);
 	literal(
@@ -869,6 +897,27 @@ export function validateEmpiricalCampaignScorecard(value: unknown): EmpiricalCam
 	}
 	const nullableTokens = (item: unknown, path: string): number | null =>
 		item === null ? null : safeInteger(item, path, { min: 0 });
+	const requests = safeInteger(scorecard.requests, "campaignScorecard.requests", {
+		min: 0,
+		max: 24,
+	});
+	const costBasis = oneOf(
+		scorecard.costBasis,
+		["simulated-contract", "provider-usage", "conservative-reservation"],
+		"campaignScorecard.costBasis",
+	);
+	if (
+		(evidenceClass === "simulated-contract") !== (costBasis === "simulated-contract") ||
+		(evidenceClass === "live-approved-no-provider-evidence" &&
+			(requests !== 0 ||
+				costBasis !== "conservative-reservation" ||
+				scorecard.inputTokens !== null ||
+				scorecard.outputTokens !== null ||
+				scorecard.totalTokens !== null)) ||
+		(evidenceClass === "live-provider" && requests === 0)
+	) {
+		throw new TypeError("campaign scorecard evidence and cost provenance do not match");
+	}
 	return strictSnapshot({
 		schemaVersion: EMPIRICAL_CAMPAIGN_SCORECARD_SCHEMA,
 		campaignRef: coordinate(scorecard.campaignRef, "campaignScorecard.campaignRef"),
@@ -888,10 +937,7 @@ export function validateEmpiricalCampaignScorecard(value: unknown): EmpiricalCam
 		incompleteBlocks,
 		nonEvaluableBlocks,
 		verifierPassedBlocks,
-		requests: safeInteger(scorecard.requests, "campaignScorecard.requests", {
-			min: 0,
-			max: 24,
-		}),
+		requests,
 		steps: safeInteger(scorecard.steps, "campaignScorecard.steps", { min: 0, max: 64 }),
 		inputTokens: nullableTokens(scorecard.inputTokens, "campaignScorecard.inputTokens"),
 		outputTokens: nullableTokens(scorecard.outputTokens, "campaignScorecard.outputTokens"),
@@ -909,6 +955,17 @@ export function validateEmpiricalCampaignScorecard(value: unknown): EmpiricalCam
 		costMicrousd: safeInteger(scorecard.costMicrousd, "campaignScorecard.costMicrousd", {
 			min: 0,
 		}),
+		costBasis,
+		reservedInputTokens: safeInteger(
+			scorecard.reservedInputTokens,
+			"campaignScorecard.reservedInputTokens",
+			{ min: 0 },
+		),
+		reservedOutputTokens: safeInteger(
+			scorecard.reservedOutputTokens,
+			"campaignScorecard.reservedOutputTokens",
+			{ min: 0 },
+		),
 		status,
 		issueCodes: validateCoordinateList(scorecard.issueCodes, "campaignScorecard.issueCodes"),
 	});

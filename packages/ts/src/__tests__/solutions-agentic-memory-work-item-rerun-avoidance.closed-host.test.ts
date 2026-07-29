@@ -940,6 +940,8 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			evidenceClass: "simulated-contract",
 			empiricalLiveEvidence: false,
 			efficacyClaim: "none",
+			costMicrousd: 0,
+			costBasis: "simulated-contract",
 			status: "smoke-complete-no-efficacy-claim",
 			aggregationRevision: B112_FIRST_TASK_SMOKE_AGGREGATION_REVISION,
 		});
@@ -952,6 +954,105 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(strictJsonCodec.encode(repeatedScorecard)).toEqual(
 			strictJsonCodec.encode(result.scorecard),
 		);
+		const preDispatchObservation = validateEmpiricalTrialBlockObservation({
+			...result.observation,
+			executionClass: "live-approved-no-provider-evidence",
+			empiricalLiveEvidence: false,
+			result: {
+				...result.observation.result,
+				classification: "non-evaluable",
+				verifierStatus: "not-run",
+				requests: 0,
+				inputTokens: null,
+				outputTokens: null,
+				totalTokens: null,
+				costMicrousd: 99_585,
+				costBasis: "conservative-reservation",
+				reservedInputTokens: 7_629,
+				reservedOutputTokens: 2_048,
+			},
+			routeEvidenceDigests: [],
+			verifierEvidenceDigests: [],
+			issueCodes: ["model-turn-non-evaluable", "openrouter-measurement-invalid"],
+		});
+		const preDispatchScorecard = createEmpiricalCampaignScorecard(
+			preDispatchObservation,
+			B112_FIRST_TASK_SMOKE_AGGREGATION_REVISION,
+		);
+		expect(preDispatchScorecard).toMatchObject({
+			evidenceClass: "live-approved-no-provider-evidence",
+			empiricalLiveEvidence: false,
+			requests: 0,
+			costMicrousd: 99_585,
+			costBasis: "conservative-reservation",
+			reservedInputTokens: 7_629,
+			reservedOutputTokens: 2_048,
+			status: "non-evaluable",
+		});
+		expect(() =>
+			validateEmpiricalTrialBlockObservation({
+				...preDispatchObservation,
+				result: {
+					...preDispatchObservation.result,
+					inputTokens: 1,
+					outputTokens: 1,
+					totalTokens: 2,
+					costBasis: "provider-usage",
+				},
+			}),
+		).toThrow(/exceeds or mismatches/);
+		expect(() =>
+			validateEmpiricalCampaignScorecard({
+				...preDispatchScorecard,
+				inputTokens: 1,
+				outputTokens: 1,
+				totalTokens: 2,
+				costBasis: "provider-usage",
+			}),
+		).toThrow(/evidence and cost provenance/);
+		const liveFailureObservation = validateEmpiricalTrialBlockObservation({
+			...result.observation,
+			executionClass: "live-provider",
+			empiricalLiveEvidence: true,
+			result: {
+				...result.observation.result,
+				classification: "non-evaluable",
+				verifierStatus: "not-run",
+				requests: 1,
+				inputTokens: null,
+				outputTokens: null,
+				totalTokens: null,
+				costMicrousd: 99_585,
+				costBasis: "conservative-reservation",
+				reservedInputTokens: 7_629,
+				reservedOutputTokens: 2_048,
+			},
+			routeEvidenceDigests: [],
+			verifierEvidenceDigests: [],
+			issueCodes: ["openrouter-transport-unavailable"],
+		});
+		const liveFailureScorecard = createEmpiricalCampaignScorecard(
+			liveFailureObservation,
+			B112_FIRST_TASK_SMOKE_AGGREGATION_REVISION,
+		);
+		expect(liveFailureScorecard).toMatchObject({
+			evidenceClass: "live-provider",
+			empiricalLiveEvidence: true,
+			requests: 1,
+			costBasis: "conservative-reservation",
+			status: "non-evaluable",
+		});
+		await expect(
+			persistPrivateSmokeGeneration({
+				privateRoot,
+				generationRef: "live-failure-contract-generation",
+				observation: liveFailureObservation,
+				scorecard: liveFailureScorecard,
+				protectionExecutor: fixture.protectionExecutor,
+			}),
+		).resolves.toMatchObject({
+			observationDigest: liveFailureScorecard.observationDigests[0],
+		});
 		expect(() =>
 			validateEmpiricalTrialBlockObservation({
 				...result.observation,
@@ -1037,7 +1138,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				},
 				protectionExecutor: fixture.protectionExecutor,
 			}),
-		).rejects.toThrow(/canonical aggregation/);
+		).rejects.toThrow(/evidence and cost provenance|canonical aggregation/);
 		expect(readdirSync(privateRoot)).not.toContain("forged-live-scorecard");
 
 		const contaminatedObservation = strictSnapshot({
