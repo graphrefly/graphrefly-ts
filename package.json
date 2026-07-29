@@ -27,6 +27,8 @@
 		"dashboard": "node ../graphrefly/dashboard/build.mjs",
 		"dashboard:check": "node ../graphrefly/dashboard/build.mjs --check",
 		"build": "pnpm --filter @graphrefly/ts build",
+		"build:local-untrusted-js-runner": "node scripts/build-local-untrusted-js-runner.mjs",
+		"build:local-untrusted-js-runner-image": "node scripts/build-local-untrusted-js-runner-image.mjs",
 		"test": "pnpm --filter @graphrefly/ts test",
 		"test:ts": "pnpm --filter @graphrefly/ts test",
 		"probe:b49:ts": "tsx packages/ts/src/__bench__/b49-probe.ts",

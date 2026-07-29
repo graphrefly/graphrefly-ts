@@ -134,6 +134,7 @@ export interface LocalUntrustedJsComputeProvenance {
 	readonly runId: string;
 	readonly attempt: number;
 	readonly graphName: string;
+	readonly answerNodeId: string;
 	readonly admittedInputRefs: readonly string[];
 	readonly inputDigest: string;
 	readonly runAdmissionId: string;
@@ -1162,12 +1163,15 @@ export function localUntrustedJsComputeArguments(
 	return Object.freeze({ ...value, admittedInputRefs });
 }
 
-function localUntrustedJsComputeDriverOutcome(
+export function localUntrustedJsComputeDriverOutcome(
 	value: LocalUntrustedJsComputeDriverOutcome,
 	args: LocalUntrustedJsComputeArguments,
 	manifest: LocalUntrustedJsComputeManifest,
 	runAdmissionId: string,
 ): LocalUntrustedJsComputeDriverOutcome {
+	const exactManifest = localUntrustedJsComputeManifest(manifest);
+	const exactArgs = localUntrustedJsComputeArguments(args, exactManifest);
+	safe(runAdmissionId, "local untrusted JS compute run admission id");
 	if (
 		!plain(value) ||
 		!["succeeded", "failed", "timeout", "canceled"].includes(String(value.outcome))
@@ -1185,8 +1189,8 @@ function localUntrustedJsComputeDriverOutcome(
 			code: "local-untrusted-js-compute-cleanup-not-verified",
 			cleanup: value.cleanup,
 		});
-	const result = runnerResult(value.result, args, manifest, runAdmissionId);
-	if (jsonBytes(result, "local untrusted JS compute result") > manifest.maxOutputBytes)
+	const result = runnerResult(value.result, exactArgs, exactManifest, runAdmissionId);
+	if (jsonBytes(result, "local untrusted JS compute result") > exactManifest.maxOutputBytes)
 		throw new TypeError("Local untrusted JS compute result exceeds the output byte bound.");
 	return Object.freeze({ outcome: "succeeded", result, cleanup: "succeeded" });
 }
@@ -1212,6 +1216,7 @@ function runnerResult(
 		"runId",
 		"attempt",
 		"graphName",
+		"answerNodeId",
 		"admittedInputRefs",
 		"inputDigest",
 		"runAdmissionId",
@@ -1242,10 +1247,19 @@ function runnerResult(
 	const answer = cloneJson(value.answer, "local untrusted JS compute answer");
 	const topology = validateTopologySnapshot(value.topology, manifest);
 	const describe = validateDescribeSnapshot(value.describe, manifest);
+	const answerDescribeNode = describe.nodes.find(
+		(node) => node.id === value.provenance.answerNodeId,
+	);
 	if (
 		JSON.stringify(topology) !== JSON.stringify(topologyFromDescribe(describe)) ||
 		topology.name !== value.provenance.graphName ||
-		describe.name !== value.provenance.graphName
+		describe.name !== value.provenance.graphName ||
+		!topology.nodes.some((node) => node.id === value.provenance.answerNodeId) ||
+		answerDescribeNode === undefined ||
+		answerDescribeNode.value === undefined ||
+		JSON.stringify(
+			cloneJson(answerDescribeNode.value, "local untrusted JS compute answer node"),
+		) !== JSON.stringify(answer)
 	)
 		throw new TypeError("Local untrusted JS compute topology and describe snapshots disagree.");
 	const provenance = Object.freeze({
@@ -1262,11 +1276,13 @@ function runnerResult(
 		runId: value.provenance.runId,
 		attempt: value.provenance.attempt,
 		graphName: value.provenance.graphName,
+		answerNodeId: value.provenance.answerNodeId,
 		admittedInputRefs: Object.freeze([...value.provenance.admittedInputRefs]),
 		inputDigest: value.provenance.inputDigest,
 		runAdmissionId: value.provenance.runAdmissionId,
 	});
 	safe(provenance.graphName, "local untrusted JS compute graph name");
+	safe(provenance.answerNodeId, "local untrusted JS compute answer node id");
 	return Object.freeze({
 		contractVersion: "1",
 		answer,

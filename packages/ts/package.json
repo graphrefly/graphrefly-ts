@@ -799,13 +799,15 @@
 	},
 	"files": [
 		"dist",
+		"runners/local-untrusted-js/Containerfile",
+		"runners/local-untrusted-js/local-untrusted-js-runner.mjs",
 		"LICENSE"
 	],
 	"publishConfig": {
 		"access": "public"
 	},
 	"scripts": {
-		"build": "tsup && node ../../scripts/check-ts-package-exports.mjs",
+		"build": "node ../../scripts/build-local-untrusted-js-runner.mjs && tsup && node ../../scripts/check-ts-package-exports.mjs",
 		"test": "vitest run",
 		"test:typecheck": "tsc --noEmit -p tsconfig.tests.json",
 		"test:browser:agentic-memory": "node ../../scripts/run-agentic-memory-indexeddb-smoke.mjs",

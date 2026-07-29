@@ -48,6 +48,7 @@ interface HarnessState {
 		| "residue"
 		| "strict-exit"
 		| "delayed-create"
+		| "delayed-create-transient-control"
 		| "unrelated-list";
 	created: boolean;
 	deleted: boolean;
@@ -56,6 +57,9 @@ interface HarnessState {
 	labels?: Record<string, string>;
 	readonly createdRunLabels: string[];
 	readonly deletePaths: string[];
+	readonly stopPaths: string[];
+	transientDeleteFailures: number;
+	transientListFailures: number;
 }
 
 const cleanupTasks: Array<() => Promise<void>> = [];
@@ -138,6 +142,9 @@ async function harness(mode: HarnessState["mode"]): Promise<{
 		hangInfo: false,
 		createdRunLabels: [],
 		deletePaths: [],
+		stopPaths: [],
+		transientDeleteFailures: 0,
+		transientListFailures: 0,
 	};
 	const previousRuntimeDirectory = process.env.XDG_RUNTIME_DIR;
 	vi.stubEnv("XDG_RUNTIME_DIR", directory);
@@ -176,12 +183,18 @@ async function harness(mode: HarnessState["mode"]): Promise<{
 					if (mode === "ambiguous-create") sendJson(response, 500, { message: "response lost" });
 					else sendJson(response, 201, { Id: containerId, Warnings: [] });
 				};
-				if (mode === "delayed-create") setTimeout(finishCreate, 60);
+				if (mode === "delayed-create" || mode === "delayed-create-transient-control")
+					setTimeout(finishCreate, 160);
 				else finishCreate();
 			});
 			return;
 		}
 		if (path.includes("/libpod/containers/json?")) {
+			if (mode === "delayed-create-transient-control" && state.transientListFailures < 2) {
+				state.transientListFailures += 1;
+				sendJson(response, 503, { message: "transient list failure" });
+				return;
+			}
 			if (mode === "unrelated-list") {
 				sendJson(response, 200, [
 					{
@@ -240,12 +253,16 @@ async function harness(mode: HarnessState["mode"]): Promise<{
 			return;
 		}
 		if (path.includes("/stop?") || path.includes("/kill?")) {
+			if (path.includes("/stop?")) state.stopPaths.push(path);
 			response.writeHead(204).end();
 			return;
 		}
 		if (request.method === "DELETE") {
 			state.deletePaths.push(path);
-			if (mode === "residue") response.writeHead(500).end();
+			if (mode === "delayed-create-transient-control" && state.transientDeleteFailures < 1) {
+				state.transientDeleteFailures += 1;
+				response.writeHead(503).end();
+			} else if (mode === "residue") response.writeHead(500).end();
 			else {
 				if (!path.includes("b".repeat(64))) state.deleted = true;
 				response.writeHead(204).end();
@@ -278,7 +295,13 @@ function inspectBody(
 		Config: {
 			Image: imageRef,
 			User: "65532:65532",
-			Entrypoint: ["/usr/local/bin/node", "/opt/graphrefly/local-untrusted-js-runner.mjs"],
+			Entrypoint: [
+				"/nodejs/bin/node",
+				"--experimental-vm-modules",
+				"--no-addons",
+				"--disable-proto=throw",
+				"/opt/graphrefly/local-untrusted-js-runner.mjs",
+			],
 			Cmd: ["/input/bundle.mjs", "/input/input.json", "/input/control.json"],
 			Env: mismatch ? ["SECRET=ambient"] : [],
 			Labels: labels,
@@ -300,8 +323,8 @@ function inspectBody(
 				"/tmp": "rw,nosuid,nodev,noexec,size=16777216,mode=0700,rprivate,tmpcopyup",
 			},
 			Ulimits: [
-				{ Name: "RLIMIT_RLIMIT_FSIZE", Soft: 16 * 1024 * 1024, Hard: 16 * 1024 * 1024 },
-				{ Name: "RLIMIT_RLIMIT_NOFILE", Soft: 128, Hard: 128 },
+				{ Name: "RLIMIT_FSIZE", Soft: 16 * 1024 * 1024, Hard: 16 * 1024 * 1024 },
+				{ Name: "RLIMIT_NOFILE", Soft: 128, Hard: 128 },
 			],
 		},
 		Mounts: [],
@@ -345,13 +368,30 @@ describe("D667 Node rootless-Podman broker lifecycle", () => {
 	it("keeps an aborted create unverifiable while reconciling a delayed allocation", async () => {
 		const { state, hostBindingDigest } = await harness("delayed-create");
 		await expect(
-			execute(hostBindingDigest, manifest({ executionTimeoutMs: 25, cleanupTimeoutMs: 300 })),
+			execute(hostBindingDigest, manifest({ executionTimeoutMs: 25, cleanupTimeoutMs: 350 })),
 		).resolves.toMatchObject({
 			outcome: "timeout",
 			code: "local-untrusted-js-compute-timeout",
 			cleanup: "unverifiable",
 		});
 		expect(state).toMatchObject({ created: true, deleted: true });
+	});
+
+	it("uses the full cleanup window when delayed create reconciliation has transient control failures", async () => {
+		const { state, hostBindingDigest } = await harness("delayed-create-transient-control");
+		await expect(
+			execute(hostBindingDigest, manifest({ executionTimeoutMs: 25, cleanupTimeoutMs: 400 })),
+		).resolves.toMatchObject({
+			outcome: "timeout",
+			code: "local-untrusted-js-compute-timeout",
+			cleanup: "unverifiable",
+		});
+		expect(state).toMatchObject({
+			created: true,
+			deleted: true,
+			transientDeleteFailures: 1,
+			transientListFailures: 2,
+		});
 	});
 
 	it("refuses an unrelated ID even when an ignored filter returns matching labels and name", async () => {
@@ -379,6 +419,7 @@ describe("D667 Node rootless-Podman broker lifecycle", () => {
 			cleanup: "succeeded",
 		});
 		expect(state.deleted).toBe(true);
+		expect(state.stopPaths).toEqual([expect.stringContaining("/stop?timeout=1")]);
 	});
 
 	it("classifies one attempt-wide deadline as timeout and still cleans up", async () => {

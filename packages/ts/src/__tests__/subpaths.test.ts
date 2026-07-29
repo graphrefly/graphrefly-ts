@@ -899,6 +899,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof executorLocalUntrustedJsCompute.localUntrustedJsComputeArguments).toBe(
 			"function",
 		);
+		expect(typeof executorLocalUntrustedJsCompute.localUntrustedJsComputeDriverOutcome).toBe(
+			"function",
+		);
 		expect(typeof executorLocalUntrustedJsCompute.localUntrustedJsComputeRuntime).toBe("function");
 		expect(typeof executorLocalUntrustedJsComputeNode.nodeLocalUntrustedJsComputeDriver).toBe(
 			"function",
@@ -906,7 +909,11 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(
 			typeof executorLocalUntrustedJsComputeNode.nodeLocalUntrustedJsComputeHostBindingAttestation,
 		).toBe("function");
+		expect(typeof executorLocalUntrustedJsComputeNode.certifyNodeLocalUntrustedJsCompute).toBe(
+			"function",
+		);
 		expect(Object.hasOwn(rootPackage, "localUntrustedJsComputeRuntime")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "certifyNodeLocalUntrustedJsCompute")).toBe(false);
 		expect(Object.hasOwn(rootPackage, "certifyDockerEngineApiV0LocalContainerPostgresql")).toBe(
 			false,
 		);

@@ -217,6 +217,7 @@ const successfulDriver = (): LocalUntrustedJsComputeDriver => ({
 				runId: request.runId,
 				attempt: request.attempt,
 				graphName: "local-code-workgraph",
+				answerNodeId: "answer",
 				admittedInputRefs: request.admittedInputRefs,
 				inputDigest: request.inputDigest,
 				runAdmissionId: "run-admission:1",
@@ -357,6 +358,25 @@ describe("D667 local untrusted JS compute contract", () => {
 				now: () => 200,
 			}),
 		).rejects.toThrow("mismatched provenance");
+
+		const detachedAnswerDriver = successfulDriver();
+		vi.mocked(detachedAnswerDriver.execute).mockImplementationOnce(async (...call) => {
+			const good = await successfulDriver().execute(...call);
+			if (good.outcome !== "succeeded") return good;
+			return {
+				...good,
+				result: {
+					...good.result,
+					provenance: { ...good.result.provenance, answerNodeId: "question" },
+				},
+			};
+		});
+		await expect(
+			runLocalUntrustedJsComputeAttempt({
+				...attemptOptions(detachedAnswerDriver),
+				now: () => 200,
+			}),
+		).rejects.toThrow("topology and describe snapshots disagree");
 	});
 
 	it("does not accept a mutable image tag for the Node broker", () => {
@@ -515,7 +535,22 @@ describe("D667 local untrusted JS compute contract", () => {
 		vi.mocked(overflowDriver.execute).mockImplementationOnce(async (...call) => {
 			const good = await successfulDriver().execute(...call);
 			if (good.outcome !== "succeeded") return good;
-			return { ...good, result: { ...good.result, answer: "x".repeat(20_000) } };
+			const oversizedAnswer = "x".repeat(20_000);
+			return {
+				...good,
+				result: {
+					...good.result,
+					answer: oversizedAnswer,
+					describe: {
+						...good.result.describe,
+						nodes: good.result.describe.nodes.map((node) =>
+							node.id === good.result.provenance.answerNodeId
+								? { ...node, value: oversizedAnswer }
+								: node,
+						),
+					},
+				},
+			};
 		});
 		await expect(runLocalUntrustedJsComputeAttempt(attemptOptions(overflowDriver))).rejects.toThrow(
 			"output byte bound",

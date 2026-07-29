@@ -12,14 +12,28 @@ import type {
 	LocalUntrustedJsComputeDriverOutcome,
 	LocalUntrustedJsComputeManifest,
 	LocalUntrustedJsComputeMaterial,
+	LocalUntrustedJsComputeReadiness,
 	LocalUntrustedJsComputeRunnerControl,
 	LocalUntrustedJsComputeRunnerResult,
+	LocalUntrustedJsJson,
 } from "../local-untrusted-js-compute.js";
-import { LOCAL_UNTRUSTED_JS_COMPUTE_COMPATIBILITY } from "../local-untrusted-js-compute.js";
+import {
+	LOCAL_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+	localUntrustedJsComputeArguments,
+	localUntrustedJsComputeDriverOutcome,
+	localUntrustedJsComputeManifest,
+	localUntrustedJsComputeReadiness,
+} from "../local-untrusted-js-compute.js";
 
 const execFileAsync = promisify(execFile);
 const API_REVISION = "5.0.3";
-const RUNNER_ENTRYPOINT = ["/usr/local/bin/node", "/opt/graphrefly/local-untrusted-js-runner.mjs"];
+const RUNNER_ENTRYPOINT = [
+	"/nodejs/bin/node",
+	"--experimental-vm-modules",
+	"--no-addons",
+	"--disable-proto=throw",
+	"/opt/graphrefly/local-untrusted-js-runner.mjs",
+];
 const BOUNDARY_LABEL = "d667-local-untrusted-js-compute";
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 const MAX_ENGINE_RESPONSE_BYTES = 512 * 1024;
@@ -35,6 +49,17 @@ const NOFILE_LIMIT = 128;
 const ID = /^[a-f0-9]{64}$/;
 const SAFE_IMAGE = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,254}$/;
 const NAMED_DIGEST_IMAGE = /^[A-Za-z0-9][A-Za-z0-9._:/+-]{0,190}@sha256:[a-f0-9]{64}$/;
+const CERTIFICATION_TTL_MS = 5 * 60_000;
+const CERTIFICATION_CANCEL_DELAY_MS = 500;
+
+export const NODE_LOCAL_UNTRUSTED_JS_RUNNER_REVISION = "graphrefly-local-js-runner-v0" as const;
+export const NODE_LOCAL_UNTRUSTED_JS_ALLOWED_API_REVISION =
+	"graphrefly-source-derive-api-v0" as const;
+export const NODE_LOCAL_UNTRUSTED_JS_SANDBOX_POLICY_REVISION = "podman-vm-no-imports-v0" as const;
+export const NODE_LOCAL_UNTRUSTED_JS_RESOURCE_POLICY_REVISION =
+	"podman-256m-1cpu-64pids-v0" as const;
+export const NODE_LOCAL_UNTRUSTED_JS_OUTPUT_POLICY_REVISION =
+	"strict-json-topology-provenance-v0" as const;
 
 interface PodmanBinding {
 	readonly socketPath: string;
@@ -67,6 +92,13 @@ export interface NodeLocalUntrustedJsComputeHostBindingAttestation {
 	readonly rootless: true;
 }
 
+export interface NodeLocalUntrustedJsComputeCertificationOptions {
+	readonly manifest: LocalUntrustedJsComputeManifest;
+	readonly imageRef: string;
+	readonly signal?: AbortSignal;
+	readonly now?: () => number;
+}
+
 /**
  * Returns only a digest-bound host attestation. Socket paths and engine handles
  * remain private; the broker rechecks the same digest before every allocation.
@@ -83,6 +115,278 @@ export async function nodeLocalUntrustedJsComputeHostBindingAttestation(
 		apiRevision: API_REVISION,
 		rootless: true,
 	});
+}
+
+/**
+ * Mints D667 readiness only after the fixed image executes a real Graph, denies
+ * ambient module authority, honors cancellation and verifies terminal removal.
+ */
+export async function certifyNodeLocalUntrustedJsCompute(
+	opts: NodeLocalUntrustedJsComputeCertificationOptions,
+): Promise<LocalUntrustedJsComputeReadiness> {
+	const manifest = localUntrustedJsComputeManifest(opts.manifest);
+	if (
+		manifest.runnerRevision !== NODE_LOCAL_UNTRUSTED_JS_RUNNER_REVISION ||
+		manifest.allowedApiRevision !== NODE_LOCAL_UNTRUSTED_JS_ALLOWED_API_REVISION ||
+		manifest.sandboxPolicyRevision !== NODE_LOCAL_UNTRUSTED_JS_SANDBOX_POLICY_REVISION ||
+		manifest.resourcePolicyRevision !== NODE_LOCAL_UNTRUSTED_JS_RESOURCE_POLICY_REVISION ||
+		manifest.outputPolicyRevision !== NODE_LOCAL_UNTRUSTED_JS_OUTPUT_POLICY_REVISION ||
+		manifest.executionTimeoutMs < 2_000 ||
+		!opts.imageRef.endsWith(`@${manifest.runnerImageDigest}`)
+	)
+		throw new TypeError("D667 certifier requires the package-owned fixed runner profile.");
+	const observedAtMs = (opts.now ?? Date.now)();
+	if (!Number.isSafeInteger(observedAtMs))
+		throw new TypeError("D667 certification clock is invalid.");
+	const host = await nodeLocalUntrustedJsComputeHostBindingAttestation(opts.signal);
+	const driver = nodeLocalUntrustedJsComputeDriver({ imageRef: opts.imageRef });
+	const probeSuffix = randomUUID();
+	const runProbe = (
+		label: string,
+		bundleSource: string,
+		input: LocalUntrustedJsJson,
+		signal: AbortSignal,
+	): Promise<{
+		readonly outcome: LocalUntrustedJsComputeDriverOutcome;
+		readonly args: LocalUntrustedJsComputeArguments;
+		readonly runAdmissionId: string;
+	}> => {
+		const bundle = new TextEncoder().encode(bundleSource);
+		const args = localUntrustedJsComputeArguments(
+			{
+				contractVersion: "1",
+				runId: `certify:d667:${probeSuffix}:${label}`,
+				attempt: 1,
+				epoch: "certification:1",
+				sourceRevision: `certification-source:${label}`,
+				sourceDigest: `sha256:${createHash("sha256").update(bundleSource).digest("hex")}`,
+				bundleRevision: `certification-bundle:${label}`,
+				bundleDigest: `sha256:${createHash("sha256").update(bundle).digest("hex")}`,
+				compilerRevision: manifest.compilerRevision,
+				allowedApiRevision: manifest.allowedApiRevision,
+				graphreflyPackageRevision: manifest.graphreflyPackageRevision,
+				runnerRevision: manifest.runnerRevision,
+				runnerImageDigest: manifest.runnerImageDigest,
+				sandboxPolicyRevision: manifest.sandboxPolicyRevision,
+				networkPolicyRevision: manifest.networkPolicyRevision,
+				filesystemPolicyRevision: manifest.filesystemPolicyRevision,
+				resourcePolicyRevision: manifest.resourcePolicyRevision,
+				outputPolicyRevision: manifest.outputPolicyRevision,
+				admittedInputRefs: [`certification-input:${label}`],
+				inputDigest: `sha256:${createHash("sha256")
+					.update(strictCanonicalJsonBytes(input))
+					.digest("hex")}`,
+			},
+			manifest,
+		);
+		const runAdmissionId = `certification-admission:${probeSuffix}:${label}`;
+		return Promise.resolve(
+			driver.execute(
+				{
+					runId: args.runId,
+					attempt: args.attempt,
+					epoch: args.epoch,
+					manifestFingerprint: manifest.fingerprint,
+					hostBindingDigest: host.hostBindingDigest,
+					runAdmissionId,
+					signal,
+				},
+				args,
+				{ bundle, input },
+				manifest,
+			),
+		).then((outcome) => ({ outcome, args, runAdmissionId }));
+	};
+	const positiveProbe = await runProbe(
+		"positive",
+		`export default async ({ graphrefly, input }) => {
+			graphrefly.graph("certified-runner-graph");
+			const rows = graphrefly.source("rows", input.rows);
+			let graphRuntimeComputeCount = 0;
+			const count = graphrefly.derive("count", [rows], function (value) {
+				if (this !== undefined) throw new TypeError("Derived callback receiver is not empty.");
+				graphRuntimeComputeCount += 1;
+				return value.length;
+			});
+			const blocked = (attempt) => {
+				try {
+					attempt();
+					return true;
+				} catch {
+					return false;
+				}
+			};
+			let caughtDynamicImportConstructorEscape = true;
+			let caughtDynamicImportBuiltinEscape = true;
+			try {
+				await import("node:child_process");
+			} catch (error) {
+				caughtDynamicImportConstructorEscape = blocked(() =>
+					error.constructor.constructor("return process")(),
+				);
+				caughtDynamicImportBuiltinEscape = blocked(() =>
+					error.constructor
+						.constructor("return process")()
+						.getBuiltinModule("node:fs"),
+				);
+			}
+			const answer = graphrefly.derive("answer", [count], (value) => {
+				graphRuntimeComputeCount += 1;
+				return {
+					count: value,
+					graphRuntimeComputeCount,
+					ambient: {
+						process: typeof process !== "undefined",
+						require: typeof require !== "undefined",
+						fetch: typeof fetch !== "undefined",
+						apiConstructorEscape: blocked(() =>
+							graphrefly.source.constructor("return process")(),
+						),
+						globalConstructorEscape: blocked(() =>
+							globalThis.constructor.constructor("return process")(),
+						),
+						inputConstructorEscape: blocked(() =>
+							input.constructor.constructor("return process")(),
+						),
+						legacyHostInputGlobal: typeof __graphreflyAdmittedInput !== "undefined",
+						runnerBridgeGlobal: typeof __graphreflyRunnerRun !== "undefined",
+						userMainBridgeGlobal: typeof __graphreflyUserMain !== "undefined",
+						inputJsonBridgeGlobal: typeof __graphreflyAdmittedInputJson !== "undefined",
+						caughtDynamicImportConstructorEscape,
+						caughtDynamicImportBuiltinEscape,
+						stringEval: blocked(() => eval("1")),
+					},
+				};
+			});
+			return answer;
+		};`,
+		{ rows: [{ id: 1 }, { id: 2 }] },
+		opts.signal ?? new AbortController().signal,
+	);
+	const positive = localUntrustedJsComputeDriverOutcome(
+		positiveProbe.outcome,
+		positiveProbe.args,
+		manifest,
+		positiveProbe.runAdmissionId,
+	);
+	if (positive.outcome !== "succeeded" || positive.cleanup !== "succeeded")
+		throw new TypeError("D667 fixed runner positive Graph probe failed.");
+	const positiveAnswer = positive.result.answer;
+	if (!localJsonRecord(positiveAnswer))
+		throw new TypeError("D667 fixed runner answer probe failed.");
+	const positiveAmbient = positiveAnswer.ambient;
+	if (!localJsonRecord(positiveAmbient))
+		throw new TypeError("D667 fixed runner ambient probe failed.");
+	if (
+		positiveAnswer.count !== 2 ||
+		positiveAnswer.graphRuntimeComputeCount !== 2 ||
+		Object.values(positiveAmbient).some((entry) => entry !== false) ||
+		positive.result.topology.name !== "certified-runner-graph" ||
+		positive.result.topology.nodes.length !== 3 ||
+		positive.result.topology.edges.length !== 2 ||
+		positive.result.describe.nodes.length !== 3 ||
+		positive.result.cleanup.graphNodesAfterDispose !== 0 ||
+		positive.result.cleanup.graphEdgesAfterDispose !== 0
+	)
+		throw new TypeError("D667 fixed runner positive Graph probe failed.");
+	const deniedStaticImport = (
+		await runProbe(
+			"static-import-denied",
+			`import fs from "node:fs"; export default () => fs.readFileSync("/etc/passwd", "utf8");`,
+			{ admitted: true },
+			opts.signal ?? new AbortController().signal,
+		)
+	).outcome;
+	if (
+		deniedStaticImport.outcome !== "failed" ||
+		deniedStaticImport.code !== "local-untrusted-js-compute-runner-failed" ||
+		deniedStaticImport.cleanup !== "succeeded"
+	)
+		throw new TypeError("D667 fixed runner static-import denial probe failed.");
+	const deniedDynamicImport = (
+		await runProbe(
+			"dynamic-import-denied",
+			`export default async () => import("node:child_process");`,
+			{ admitted: true },
+			opts.signal ?? new AbortController().signal,
+		)
+	).outcome;
+	if (
+		deniedDynamicImport.outcome !== "failed" ||
+		deniedDynamicImport.code !== "local-untrusted-js-compute-runner-failed" ||
+		deniedDynamicImport.cleanup !== "succeeded"
+	)
+		throw new TypeError("D667 fixed runner dynamic-import denial probe failed.");
+	const deniedDetachedAnswer = (
+		await runProbe(
+			"detached-answer-denied",
+			`export default () => ({ answer: "not-a-graph-node" });`,
+			{ admitted: true },
+			opts.signal ?? new AbortController().signal,
+		)
+	).outcome;
+	if (
+		deniedDetachedAnswer.outcome !== "failed" ||
+		deniedDetachedAnswer.code !== "local-untrusted-js-compute-runner-failed" ||
+		deniedDetachedAnswer.cleanup !== "succeeded"
+	)
+		throw new TypeError("D667 fixed runner Graph-node answer probe failed.");
+	const cancellation = new AbortController();
+	const cancelSignal =
+		opts.signal === undefined
+			? cancellation.signal
+			: AbortSignal.any([opts.signal, cancellation.signal]);
+	const timer = setTimeout(() => cancellation.abort(), CERTIFICATION_CANCEL_DELAY_MS);
+	let canceled: LocalUntrustedJsComputeDriverOutcome;
+	try {
+		canceled = (
+			await runProbe(
+				"cancellation",
+				`export default () => { while (true) {} };`,
+				{ admitted: true },
+				cancelSignal,
+			)
+		).outcome;
+	} finally {
+		clearTimeout(timer);
+	}
+	if (canceled.outcome !== "canceled" || canceled.cleanup !== "succeeded")
+		throw new TypeError(
+			`D667 fixed runner cancellation and cleanup probe failed (${canceled.outcome}/${"code" in canceled ? canceled.code : "none"}/${canceled.cleanup}).`,
+		);
+	return localUntrustedJsComputeReadiness(
+		{
+			kind: "local-untrusted-js-compute-readiness",
+			manifestFingerprint: manifest.fingerprint,
+			state: "ready",
+			observedAtMs,
+			expiresAtMs: observedAtMs + CERTIFICATION_TTL_MS,
+			rootlessVerified: true,
+			imageDigestVerified: true,
+			runnerVerified: true,
+			nonRootVerified: true,
+			readOnlyRootFilesystemVerified: true,
+			noNewPrivilegesVerified: true,
+			capabilitiesDroppedVerified: true,
+			noEngineSocketMountVerified: true,
+			noHostBindMountVerified: true,
+			denyNetworkVerified: true,
+			resourceBoundsVerified: true,
+			cancellationVerified: true,
+			cleanupVerified: true,
+			hostBindingDigest: host.hostBindingDigest,
+			attestationRefs: [
+				"d667:fixed-runner-positive-graph",
+				"d667:actual-graph-runtime-computation-and-node-answer",
+				"d667:static-and-dynamic-import-denied",
+				"d667:ambient-process-require-fetch-and-host-realm-constructors-absent",
+				"d667:rootless-containment-inspected",
+				"d667:cancellation-and-terminal-removal",
+			],
+		},
+		manifest,
+		observedAtMs,
+	);
 }
 
 /**
@@ -352,8 +656,8 @@ function containerRequest(
 			},
 		],
 		r_limits: [
-			{ type: "RLIMIT_FSIZE", hard: FILE_SIZE_LIMIT_BYTES, soft: FILE_SIZE_LIMIT_BYTES },
-			{ type: "RLIMIT_NOFILE", hard: NOFILE_LIMIT, soft: NOFILE_LIMIT },
+			{ type: "FSIZE", hard: FILE_SIZE_LIMIT_BYTES, soft: FILE_SIZE_LIMIT_BYTES },
+			{ type: "NOFILE", hard: NOFILE_LIMIT, soft: NOFILE_LIMIT },
 		],
 		privileged: false,
 		cap_drop: ["all"],
@@ -428,14 +732,15 @@ async function stopAndKill(
 ): Promise<void> {
 	const seconds = graceMs / 1_000;
 	const identifier = binding.containerId ?? binding.containerName;
+	const stopDeadline = Math.min(deadline, Date.now() + graceMs + 1_000);
 	const stopped = await rawRequest(
 		binding.socketPath,
-		`/v${API_REVISION}/libpod/containers/${identifier}/stop?t=${seconds}`,
+		`/v${API_REVISION}/libpod/containers/${identifier}/stop?timeout=${seconds}`,
 		signal,
 		"POST",
 		undefined,
 		undefined,
-		remainingMs(deadline),
+		remainingMs(stopDeadline),
 	).catch(() => undefined);
 	if (stopped?.status === 204 || stopped?.status === 304 || stopped?.status === 404) return;
 	await rawRequest(
@@ -457,23 +762,28 @@ async function removeAndVerify(
 ): Promise<"succeeded" | "unverifiable" | false> {
 	const deadline = Date.now() + cleanupTimeoutMs;
 	const signal = AbortSignal.timeout(cleanupTimeoutMs);
-	await stopAndKill(binding, graceMs, signal, deadline);
 	const identifier = binding.containerId ?? binding.containerName;
-	const removed = await rawRequest(
-		binding.socketPath,
-		`/v${API_REVISION}/libpod/containers/${identifier}?force=true&v=true`,
-		signal,
-		"DELETE",
-		undefined,
-		undefined,
-		remainingMs(deadline),
-	).catch(() => undefined);
-	if (removed?.status !== 200 && removed?.status !== 204 && removed?.status !== 404) return false;
 	let absentSince: number | undefined;
+	await stopAndKill(binding, graceMs, signal, deadline);
 	while (Date.now() < deadline) {
+		await rawRequest(
+			binding.socketPath,
+			`/v${API_REVISION}/libpod/containers/${identifier}?force=true&v=true`,
+			signal,
+			"DELETE",
+			undefined,
+			undefined,
+			remainingMs(deadline),
+		).catch(() => undefined);
 		const residues = await labeledResidues(binding, signal, deadline);
-		if (residues === undefined) return false;
+		if (residues === undefined) {
+			absentSince = undefined;
+			if (createRequestSettled) return false;
+			await delay(20, signal).catch(() => undefined);
+			continue;
+		}
 		for (const id of residues) {
+			await stopAndKill({ ...binding, containerId: id }, graceMs, signal, deadline);
 			await rawRequest(
 				binding.socketPath,
 				`/v${API_REVISION}/libpod/containers/${id}?force=true&v=true`,
@@ -486,6 +796,7 @@ async function removeAndVerify(
 		}
 		if (residues.length > 0) {
 			absentSince = undefined;
+			await delay(20, signal).catch(() => undefined);
 			continue;
 		}
 		const absent = await rawRequest(
@@ -497,9 +808,14 @@ async function removeAndVerify(
 			undefined,
 			remainingMs(deadline),
 		).catch(() => undefined);
-		if (absent?.status !== 404) return false;
+		if (absent?.status !== 404) {
+			absentSince = undefined;
+			if (createRequestSettled) return false;
+			await delay(20, signal).catch(() => undefined);
+			continue;
+		}
 		absentSince ??= Date.now();
-		if (Date.now() - absentSince >= 100) return createRequestSettled ? "succeeded" : "unverifiable";
+		if (Date.now() - absentSince >= 100 && createRequestSettled) return "succeeded";
 		await delay(20, signal).catch(() => undefined);
 	}
 	return createRequestSettled ? false : "unverifiable";
@@ -836,6 +1152,12 @@ function record(value: unknown): value is Record<string, any> {
 	return proto === Object.prototype || proto === null;
 }
 
+function localJsonRecord(
+	value: LocalUntrustedJsJson,
+): value is { readonly [key: string]: LocalUntrustedJsJson } {
+	return record(value);
+}
+
 function exactStrings(value: unknown, expected: readonly string[]): boolean {
 	return (
 		Array.isArray(value) &&
@@ -903,13 +1225,13 @@ function rlimitsMatch(value: unknown): boolean {
 		normalized.length === 2 &&
 		normalized.some(
 			(entry) =>
-				(entry.name === "RLIMIT_FSIZE" || entry.name === "RLIMIT_RLIMIT_FSIZE") &&
+				entry.name === "RLIMIT_FSIZE" &&
 				entry.hard === FILE_SIZE_LIMIT_BYTES &&
 				entry.soft === FILE_SIZE_LIMIT_BYTES,
 		) &&
 		normalized.some(
 			(entry) =>
-				(entry.name === "RLIMIT_NOFILE" || entry.name === "RLIMIT_RLIMIT_NOFILE") &&
+				entry.name === "RLIMIT_NOFILE" &&
 				entry.hard === NOFILE_LIMIT &&
 				entry.soft === NOFILE_LIMIT,
 		)
