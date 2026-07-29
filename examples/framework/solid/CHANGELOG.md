@@ -1,5 +1,13 @@
 # @graphrefly-examples/framework-solid
 
+## 0.0.25
+
+### Patch Changes
+
+- Updated dependencies [82e9d70]
+- Updated dependencies [82e9d70]
+  - @graphrefly/ts@0.7.0
+
 ## 0.0.24
 
 ### Patch Changes

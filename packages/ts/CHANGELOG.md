@@ -1,5 +1,20 @@
 # @graphrefly/ts
 
+## 0.7.0
+
+### Minor Changes
+
+- 82e9d70: Add the independent rootless native Libpod API v0 PostgreSQL backend family and
+  its Node-local certifier. The certifier keeps socket discovery and resource
+  handles private and admits only the package-owned exact host profile after all
+  containment, network, secret, cancellation, cleanup, and zero-residue probes
+  succeed.
+- 82e9d70: Enforce the strict zero-dependency package floor. Framework and third-party
+  runtime integrations move to `@graphrefly/react`, `@graphrefly/vue`,
+  `@graphrefly/solid`, `@graphrefly/svelte`, `@graphrefly/nestjs`, and
+  `@graphrefly/reactive-layout-node-canvas`; the core manifest no longer declares
+  dependencies, optional dependencies, or peer dependencies.
+
 ## 0.6.4
 
 ### Patch Changes
