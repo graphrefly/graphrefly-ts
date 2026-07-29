@@ -412,11 +412,15 @@ export function validateEmpiricalTrialBlockObservation(
 		throw new TypeError("trial observation classification does not match verifier status");
 	}
 	if (
-		result.classification === "complete" &&
-		(result.requests === 0 ||
-			routeEvidenceDigests.length !== result.requests ||
-			verifierEvidenceDigests.length === 0 ||
-			protectionReceiptDigests.length !== result.steps)
+		(result.steps > 0 && protectionReceiptDigests.length !== result.steps) ||
+		(hasBudgetExhaustion &&
+			result.inputTokens !== null &&
+			result.outputTokens !== null &&
+			routeEvidenceDigests.length !== result.requests) ||
+		(result.classification === "complete" &&
+			(result.requests === 0 ||
+				routeEvidenceDigests.length !== result.requests ||
+				verifierEvidenceDigests.length === 0))
 	) {
 		throw new TypeError("trial observation lacks required frozen evidence");
 	}

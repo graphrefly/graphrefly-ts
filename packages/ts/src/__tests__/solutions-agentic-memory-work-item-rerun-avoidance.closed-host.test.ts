@@ -70,6 +70,7 @@ import {
 	OPENROUTER_RESPONSES_BINDING_REVISION,
 	OPENROUTER_RESPONSES_ENDPOINT,
 	OPENROUTER_RESPONSES_ENDPOINT_REVISION,
+	OPENROUTER_RESPONSES_ISSUE_CODES,
 	OPENROUTER_RESPONSES_PROMPT_REVISION,
 	OPENROUTER_RESPONSES_SYSTEM_PROMPT_REVISION,
 	type OpenRouterResponsesByteTransportV1,
@@ -965,23 +966,31 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				protectionReceiptDigests: [],
 			}),
 		).toThrow(/required frozen evidence/);
-		expect(
+		const overrunObservation = {
+			...result.observation,
+			executionClass: "live-provider" as const,
+			empiricalLiveEvidence: true,
+			result: {
+				...result.observation.result,
+				classification: "non-evaluable" as const,
+				verifierStatus: "not-run" as const,
+				inputTokens: result.observation.route.maxInputTokens + 1,
+				outputTokens: result.observation.route.maxOutputTokens + 1,
+				costMicrousd: result.observation.route.maxSmokeSpendMicrousd + 1,
+				costBasis: "provider-usage" as const,
+			},
+			issueCodes: ["smoke-budget-exhausted"],
+		};
+		expect(validateEmpiricalTrialBlockObservation(overrunObservation).result.costBasis).toBe(
+			"provider-usage",
+		);
+		expect(() =>
 			validateEmpiricalTrialBlockObservation({
-				...result.observation,
-				executionClass: "live-provider",
-				empiricalLiveEvidence: true,
-				result: {
-					...result.observation.result,
-					classification: "non-evaluable",
-					verifierStatus: "not-run",
-					inputTokens: result.observation.route.maxInputTokens + 1,
-					outputTokens: result.observation.route.maxOutputTokens + 1,
-					costMicrousd: result.observation.route.maxSmokeSpendMicrousd + 1,
-					costBasis: "provider-usage",
-				},
-				issueCodes: ["smoke-budget-exhausted"],
-			}).result.costBasis,
-		).toBe("provider-usage");
+				...overrunObservation,
+				routeEvidenceDigests: [],
+				protectionReceiptDigests: [],
+			}),
+		).toThrow(/required frozen evidence/);
 		const persistedFiles = readdirSync(result.persistence.generationPath).sort();
 		expect(persistedFiles).toEqual([
 			"campaign-scorecard.v1.json",
@@ -1118,6 +1127,59 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				"utf8",
 			),
 		).not.toContain(failureCredentialSentinel);
+	});
+
+	it("preserves one attempted request when the outer deadline aborts in-flight transport", async () => {
+		const fixture = await createClosedHostFixture();
+		const controller = new AbortController();
+		const timeoutCredentialSentinel = "openrouter-timeout-secret-0123456789";
+		const privateRoot = join(
+			temporaryRoot("transport-timeout"),
+			".private",
+			"empirical-memory-rerun-avoidance",
+		);
+		mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
+		chmodSync(privateRoot, 0o700);
+		const result = await runOpenRouterFirstTaskSmoke({
+			host: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: fixture.materialization,
+				verifier: fixture.verifier,
+			},
+			routeQualification: simulatedRouteQualification(fixture),
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: timeoutCredentialSentinel,
+			},
+			transport: {
+				request() {
+					controller.abort();
+					return Promise.reject(new DOMException("raw provider timeout", "AbortError"));
+				},
+			},
+			monotonicMeasurement: { readMs: () => 0 },
+			executionClass: "simulated-contract",
+			privateRoot,
+			generationRef: "transport-timeout-generation",
+			signal: controller.signal,
+		});
+		expect(result.observation).toMatchObject({
+			result: { classification: "non-evaluable", requests: 1, steps: 1 },
+			routeEvidenceDigests: [],
+		});
+		expect(result.observation.issueCodes).toContain(
+			OPENROUTER_RESPONSES_ISSUE_CODES.unavailableTransport,
+		);
+		expect(
+			readFileSync(
+				join(result.persistence.generationPath, "trial-block-observation.v1.json"),
+				"utf8",
+			),
+		).not.toContain(timeoutCredentialSentinel);
 	});
 
 	it("persists known provider usage when a completed attempt exceeds the frozen budget", async () => {

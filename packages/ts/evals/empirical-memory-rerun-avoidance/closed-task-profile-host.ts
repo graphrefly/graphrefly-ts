@@ -877,7 +877,7 @@ async function executeValidatedHost(
 			if (input.signal.aborted) throw new HostRunFailure("host-cancelled");
 			throw new HostRunFailure("model-turn-invocation-failed");
 		}
-		assertNotCancelled(input.signal);
+		const cancelledAfterInvocation = input.signal.aborted;
 		let outcome: EmpiricalModelTurnOutcomeV1;
 		try {
 			outcome = validateEmpiricalModelTurnOutcome(
@@ -888,6 +888,9 @@ async function executeValidatedHost(
 			);
 		} catch (error) {
 			throw new HostRunFailure(classifyModelOutcomeValidationFailure(error));
+		}
+		if (cancelledAfterInvocation && outcome.status !== "non-evaluable") {
+			throw new HostRunFailure("host-cancelled");
 		}
 		evidence.remoteRequests += outcome.usage.requests;
 		evidence.hostInputBytes = checkedSum(
