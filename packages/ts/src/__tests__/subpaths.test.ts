@@ -418,7 +418,6 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof adapters.toHttp).toBe("function");
 		expect(typeof adapters.toProcess).toBe("function");
 		expect(typeof adapters.toWebSocket).toBe("function");
-		expect(typeof adapters.attachKeyedRateLimitAuthority).toBe("function");
 		expect(typeof adapters.webSocketSession).toBe("function");
 		expect(typeof adapters.remoteCall).toBe("function");
 		expect(typeof adapters.remoteResponder).toBe("function");
@@ -991,12 +990,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof orchestration.breakerBundle).toBe("function");
 		expect(typeof orchestration.processBundle).toBe("function");
 		expect(typeof orchestration.processEffectRunner).toBe("function");
-		expect(typeof orchestration.localFixedWindowRateLimitBundle).toBe("function");
-		expect(typeof orchestration.keyedRateLimitAdmissionBundle).toBe("function");
-		expect(Object.hasOwn(orchestration, "rateLimitBundle")).toBe(false);
-		expect(Object.hasOwn(rootPackage, "localFixedWindowRateLimitBundle")).toBe(false);
-		expect(Object.hasOwn(rootPackage, "keyedRateLimitAdmissionBundle")).toBe(false);
-		expect(Object.hasOwn(rootPackage, "attachKeyedRateLimitAuthority")).toBe(false);
+		expect(typeof orchestration.rateLimitBundle).toBe("function");
 		expect(typeof orchestration.timeoutBundle).toBe("function");
 		expect(typeof orchestration.requestSatisfactionProjector).toBe("function");
 		expect(typeof orchestration.effectRunCompletionProjector).toBe("function");
