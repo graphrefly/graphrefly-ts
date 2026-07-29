@@ -414,6 +414,45 @@ function validateTaskProfile(
 	frozen: FrozenEmpiricalCampaignManifestV1,
 	request: EmpiricalModelTurnRequestV1,
 ): ValidatedTaskProfile {
+	const candidate = record(value, "host.taskProfile");
+	const taskRef = coordinate(candidate.taskRef, "host.taskProfile.taskRef");
+	const task = frozen.manifest.catalog.tasks.find((candidate) => candidate.taskRef === taskRef);
+	if (task === undefined || taskRef !== request.taskRef) {
+		fail("host.taskProfile.taskRef", "does not resolve the exact request task");
+	}
+	const taskDigest = empiricalStrictJsonDigest(task);
+	if (request.taskDigest !== taskDigest) {
+		fail("host.initialRequest.taskDigest", "does not match the exact task");
+	}
+	const profile = validateClosedTaskExecutionProfile(value, task);
+	const toolRefs = request.availableTools.map((tool) => tool.toolRef);
+	if (
+		toolRefs.length !== CLOSED_TOOL_ORDER.length ||
+		toolRefs.some((toolRef, index) => toolRef !== CLOSED_TOOL_ORDER[index])
+	) {
+		fail("host.initialRequest.availableTools", "must equal the closed D659 actor tool order");
+	}
+	return Object.freeze({
+		profile,
+		task,
+		taskDigest,
+		commandByRef: new Map(
+			profile.commandPolicy.commands.map((command) => [command.commandRef, command]),
+		),
+		readableFiles: new Set(profile.workspaceRecipe.readableFiles),
+		writableFiles: new Map(profile.workspaceRecipe.writableFiles.map((rule) => [rule.path, rule])),
+	});
+}
+
+/**
+ * Validates one exact D659 task profile without constructing an actor/model run.
+ * This package-private seam lets provider-independent qualification prove the
+ * recipe, command-policy, and verifier coordinates before any model port exists.
+ */
+export function validateClosedTaskExecutionProfile(
+	value: ClosedTaskExecutionProfileV1,
+	task: EmpiricalCampaignTaskV1,
+): ClosedTaskExecutionProfileV1 {
 	const profile = record(value, "host.taskProfile");
 	exactKeys(
 		profile,
@@ -424,37 +463,18 @@ function validateTaskProfile(
 		fail("host.taskProfile.schemaVersion", "unexpected schema");
 	}
 	const taskRef = coordinate(profile.taskRef, "host.taskProfile.taskRef");
-	const task = frozen.manifest.catalog.tasks.find((candidate) => candidate.taskRef === taskRef);
-	if (task === undefined || taskRef !== request.taskRef) {
-		fail("host.taskProfile.taskRef", "does not resolve the exact request task");
-	}
-	const taskDigest = empiricalStrictJsonDigest(task);
-	if (request.taskDigest !== taskDigest) {
-		fail("host.initialRequest.taskDigest", "does not match the exact task");
+	if (taskRef !== task.taskRef) {
+		fail("host.taskProfile.taskRef", "does not match the exact task");
 	}
 	const workspaceRecipe = validateWorkspaceRecipe(profile.workspaceRecipe, task);
 	const commandPolicy = validateCommandPolicy(profile.commandPolicy, task);
 	const verifierProfile = validateVerifierProfile(profile.verifierProfile, task, commandPolicy);
-	const toolRefs = request.availableTools.map((tool) => tool.toolRef);
-	if (
-		toolRefs.length !== CLOSED_TOOL_ORDER.length ||
-		toolRefs.some((toolRef, index) => toolRef !== CLOSED_TOOL_ORDER[index])
-	) {
-		fail("host.initialRequest.availableTools", "must equal the closed D659 actor tool order");
-	}
-	return Object.freeze({
-		profile: strictSnapshot({
-			schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.taskProfile,
-			taskRef,
-			workspaceRecipe,
-			commandPolicy,
-			verifierProfile,
-		}),
-		task,
-		taskDigest,
-		commandByRef: new Map(commandPolicy.commands.map((command) => [command.commandRef, command])),
-		readableFiles: new Set(workspaceRecipe.readableFiles),
-		writableFiles: new Map(workspaceRecipe.writableFiles.map((rule) => [rule.path, rule])),
+	return strictSnapshot({
+		schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.taskProfile,
+		taskRef,
+		workspaceRecipe,
+		commandPolicy,
+		verifierProfile,
 	});
 }
 

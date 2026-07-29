@@ -756,8 +756,12 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsClosedVerifierCalibration = file.endsWith(
 				"closed-task-profile-verifier-calibration.ts",
 			);
+			const allowsOfflineQualification = file.endsWith("exact-five-task-offline-qualification.ts");
 			expect(source).not.toMatch(
-				allowsRepositoryNodeDriver || allowsClosedHostNodeDriver || allowsClosedVerifierCalibration
+				allowsRepositoryNodeDriver ||
+					allowsClosedHostNodeDriver ||
+					allowsClosedVerifierCalibration ||
+					allowsOfflineQualification
 					? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls)|(?:from|import)\s+["'](?:http|https|net|tls|undici|ws)["']/
 					: allowsFocusedTransportAsync
 						? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
