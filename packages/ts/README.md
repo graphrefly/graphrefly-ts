@@ -165,15 +165,15 @@ The package includes `reactiveMap`, `reactiveList`, `reactiveLog`,
 Focused adapter subpaths keep framework/runtime ownership explicit:
 
 ```ts
-import { useNodeValue as useReactNodeValue } from "@graphrefly/ts/adapters/react";
-import { useNodeValue as useVueNodeValue } from "@graphrefly/ts/adapters/vue";
-import { nodeReadable } from "@graphrefly/ts/adapters/svelte";
-import { createNodeValue } from "@graphrefly/ts/adapters/solid";
+import { useNodeValue as useReactNodeValue } from "@graphrefly/react";
+import { useNodeValue as useVueNodeValue } from "@graphrefly/vue";
+import { nodeReadable } from "@graphrefly/svelte";
+import { createNodeValue } from "@graphrefly/solid";
 ```
 
 Other focused surfaces include:
 
-- `@graphrefly/ts/adapters/nestjs`
+- `@graphrefly/nestjs`
 - `@graphrefly/ts/adapters/observe-storage`
 - `@graphrefly/ts/messaging`
 - `@graphrefly/ts/memory`

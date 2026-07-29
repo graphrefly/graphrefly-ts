@@ -144,9 +144,21 @@ importers:
       '@astrojs/vue':
         specifier: ^5.1.4
         version: 5.1.4(@types/node@25.5.0)(astro@5.18.1(@types/node@25.5.0)(lightningcss@1.32.0)(rollup@4.60.0)(terser@5.47.1)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.9.0))(lightningcss@1.32.0)(rollup@4.60.0)(terser@5.47.1)(tsx@4.21.0)(vue@3.5.31(typescript@5.9.3))(yaml@2.9.0)
+      '@graphrefly/react':
+        specifier: ^0.1.0
+        version: 0.1.0(@graphrefly/ts@packages+ts)(react@19.2.4)
+      '@graphrefly/solid':
+        specifier: ^0.1.0
+        version: 0.1.0(@graphrefly/ts@packages+ts)(solid-js@1.9.12)
+      '@graphrefly/svelte':
+        specifier: ^0.1.0
+        version: 0.1.0(@graphrefly/ts@packages+ts)(svelte@5.56.3(@typescript-eslint/types@8.58.0))
       '@graphrefly/ts':
         specifier: workspace:*
         version: link:../../packages/ts
+      '@graphrefly/vue':
+        specifier: ^0.1.0
+        version: 0.1.0(@graphrefly/ts@packages+ts)(vue@3.5.31(typescript@5.9.3))
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.14
@@ -256,6 +268,9 @@ importers:
 
   examples/framework/react:
     dependencies:
+      '@graphrefly/react':
+        specifier: ^0.1.0
+        version: 0.1.0(@graphrefly/ts@packages+ts)(react@19.2.4)
       '@graphrefly/ts':
         specifier: workspace:*
         version: link:../../../packages/ts
@@ -284,6 +299,9 @@ importers:
 
   examples/framework/solid:
     dependencies:
+      '@graphrefly/solid':
+        specifier: ^0.1.0
+        version: 0.1.0(@graphrefly/ts@packages+ts)(solid-js@1.9.12)
       '@graphrefly/ts':
         specifier: workspace:*
         version: link:../../../packages/ts
@@ -303,6 +321,9 @@ importers:
 
   examples/framework/svelte:
     dependencies:
+      '@graphrefly/svelte':
+        specifier: ^0.1.0
+        version: 0.1.0(@graphrefly/ts@packages+ts)(svelte@5.55.1)
       '@graphrefly/ts':
         specifier: workspace:*
         version: link:../../../packages/ts
@@ -325,6 +346,9 @@ importers:
       '@graphrefly/ts':
         specifier: workspace:*
         version: link:../../../packages/ts
+      '@graphrefly/vue':
+        specifier: ^0.1.0
+        version: 0.1.0(@graphrefly/ts@packages+ts)(vue@3.5.31(typescript@5.9.3))
       vue:
         specifier: ^3.5.0
         version: 3.5.31(typescript@5.9.3)
@@ -357,6 +381,9 @@ importers:
 
   examples/nestjs-graph-boundary:
     dependencies:
+      '@graphrefly/nestjs':
+        specifier: ^0.1.0
+        version: 0.1.0(@graphrefly/ts@packages+ts)(@nestjs/common@11.1.17(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.17)(@nestjs/microservices@11.1.27)(@nestjs/websockets@11.1.18)(rxjs@7.8.2)
       '@graphrefly/ts':
         specifier: workspace:*
         version: link:../../packages/ts
@@ -2010,6 +2037,56 @@ packages:
 
   '@expressive-code/plugin-text-markers@0.41.7':
     resolution: {integrity: sha512-Ewpwuc5t6eFdZmWlFyeuy3e1PTQC0jFvw2Q+2bpcWXbOZhPLsT7+h8lsSIJxb5mS7wZko7cKyQ2RLYDyK6Fpmw==}
+
+  '@graphrefly/nestjs@0.1.0':
+    resolution: {integrity: sha512-yGrM7nDikrwyrsyHbrN0B39ls/39RgrygsYlvnGxrmbULuVxyFQpKp8XlyCx/ChhoCPk/GW8TDsfKOHoy2GjRQ==}
+    engines: {node: '>=24'}
+    peerDependencies:
+      '@graphrefly/ts': '>=0.6.2 <1.0.0'
+      '@nestjs/common': ^11.0.0
+      '@nestjs/core': ^11.0.0
+      '@nestjs/microservices': ^11.0.0
+      '@nestjs/websockets': ^11.0.0
+      rxjs: ^7.8.0
+    peerDependenciesMeta:
+      '@nestjs/common':
+        optional: true
+      '@nestjs/core':
+        optional: true
+      '@nestjs/microservices':
+        optional: true
+      '@nestjs/websockets':
+        optional: true
+      rxjs:
+        optional: true
+
+  '@graphrefly/react@0.1.0':
+    resolution: {integrity: sha512-USqebxmLNV9p7DFbTxIvy0yJSaKY6Q7jPJms0PnvYXfHn2IgODj/blcLx67B/bB0yXcsOT1wXdnQp3KNHr9tsA==}
+    engines: {node: '>=24'}
+    peerDependencies:
+      '@graphrefly/ts': '>=0.6.2 <1.0.0'
+      react: ^18.0.0 || ^19.0.0
+
+  '@graphrefly/solid@0.1.0':
+    resolution: {integrity: sha512-Php2HupltoNDuGlLPApSwhRLsKjh0fsa8feFSyTXuf3f55C7fWituclliJzJwADpYoNQ25GzGxANHWZQYLcnWg==}
+    engines: {node: '>=24'}
+    peerDependencies:
+      '@graphrefly/ts': '>=0.6.2 <1.0.0'
+      solid-js: ^1.9.0
+
+  '@graphrefly/svelte@0.1.0':
+    resolution: {integrity: sha512-3j0qk0oB7jEgW4SE5LAmuuUkvUexlU16AebpgfdOfRufJM9UHMPRk/de5y6iVIoIUgSzL83Oy3BL9EeynoADYA==}
+    engines: {node: '>=24'}
+    peerDependencies:
+      '@graphrefly/ts': '>=0.6.2 <1.0.0'
+      svelte: ^5.0.0
+
+  '@graphrefly/vue@0.1.0':
+    resolution: {integrity: sha512-ZSLbwiYEmExqnpAnaWtWGNrtFZIlBZ1+KZ3aR25GaFg0C6XrJuEZn9MQfzlU4YRgq341YTwfR5dyIUHg26Po5w==}
+    engines: {node: '>=24'}
+    peerDependencies:
+      '@graphrefly/ts': '>=0.6.2 <1.0.0'
+      vue: ^3.5.0
 
   '@iconify/types@2.0.0':
     resolution: {integrity: sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==}
@@ -9219,6 +9296,41 @@ snapshots:
   '@expressive-code/plugin-text-markers@0.41.7':
     dependencies:
       '@expressive-code/core': 0.41.7
+
+  '@graphrefly/nestjs@0.1.0(@graphrefly/ts@packages+ts)(@nestjs/common@11.1.17(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.17)(@nestjs/microservices@11.1.27)(@nestjs/websockets@11.1.18)(rxjs@7.8.2)':
+    dependencies:
+      '@graphrefly/ts': link:packages/ts
+    optionalDependencies:
+      '@nestjs/common': 11.1.17(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/core': 11.1.17(@nestjs/common@11.1.17(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.27)(@nestjs/platform-express@11.1.18)(@nestjs/websockets@11.1.18)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/microservices': 11.1.27(@nestjs/common@11.1.17(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.17)(@nestjs/websockets@11.1.18)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/websockets': 11.1.18(@nestjs/common@11.1.17(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.17)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      rxjs: 7.8.2
+
+  '@graphrefly/react@0.1.0(@graphrefly/ts@packages+ts)(react@19.2.4)':
+    dependencies:
+      '@graphrefly/ts': link:packages/ts
+      react: 19.2.4
+
+  '@graphrefly/solid@0.1.0(@graphrefly/ts@packages+ts)(solid-js@1.9.12)':
+    dependencies:
+      '@graphrefly/ts': link:packages/ts
+      solid-js: 1.9.12
+
+  '@graphrefly/svelte@0.1.0(@graphrefly/ts@packages+ts)(svelte@5.55.1)':
+    dependencies:
+      '@graphrefly/ts': link:packages/ts
+      svelte: 5.55.1
+
+  '@graphrefly/svelte@0.1.0(@graphrefly/ts@packages+ts)(svelte@5.56.3(@typescript-eslint/types@8.58.0))':
+    dependencies:
+      '@graphrefly/ts': link:packages/ts
+      svelte: 5.56.3(@typescript-eslint/types@8.58.0)
+
+  '@graphrefly/vue@0.1.0(@graphrefly/ts@packages+ts)(vue@3.5.31(typescript@5.9.3))':
+    dependencies:
+      '@graphrefly/ts': link:packages/ts
+      vue: 3.5.31(typescript@5.9.3)
 
   '@iconify/types@2.0.0': {}
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useNodeInput, useNodeValue } from "@graphrefly/ts/adapters/vue";
+import { useNodeInput, useNodeValue } from "@graphrefly/vue";
 import { count, doubled } from "./store";
 
 const [value, setValue] = useNodeInput(count);

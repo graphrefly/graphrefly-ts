@@ -10,6 +10,7 @@
 		"preview": "vite preview"
 	},
 	"dependencies": {
+		"@graphrefly/react": "^0.1.0",
 		"@graphrefly/ts": "workspace:*",
 		"react": "^19.0.0",
 		"react-dom": "^19.0.0"

@@ -1,4 +1,4 @@
-import { useNodeInput, useNodeValue } from "@graphrefly/ts/adapters/react";
+import { useNodeInput, useNodeValue } from "@graphrefly/react";
 import { count, doubled } from "./store";
 
 export function Counter() {

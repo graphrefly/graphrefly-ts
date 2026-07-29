@@ -1,5 +1,10 @@
 /** @jsxImportSource solid-js */
 
+import {
+	createNodeRecord,
+	createNodeInput as useStore,
+	createNodeValue as useSubscribe,
+} from "@graphrefly/solid";
 import type {
 	JotaiAtom,
 	NanoAtom,
@@ -7,11 +12,6 @@ import type {
 	WritableNanoAtom,
 	ZustandStoreApi,
 } from "@graphrefly/ts/adapters";
-import {
-	createNodeRecord,
-	createNodeInput as useStore,
-	createNodeValue as useSubscribe,
-} from "@graphrefly/ts/adapters/solid";
 import type { Node } from "@graphrefly/ts/graph";
 import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import {

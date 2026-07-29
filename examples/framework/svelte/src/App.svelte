@@ -1,5 +1,5 @@
 <script lang="ts">
-import { nodeReadable, nodeWritable } from "@graphrefly/ts/adapters/svelte";
+import { nodeReadable, nodeWritable } from "@graphrefly/svelte";
 import { count, doubled } from "./store";
 
 const value = nodeWritable(count);

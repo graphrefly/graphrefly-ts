@@ -1,5 +1,4 @@
 import "reflect-metadata";
-import { depLatest } from "@graphrefly/ts";
 import {
 	fromNestCron,
 	fromNestDiagnostics,
@@ -18,7 +17,7 @@ import {
 	type HttpDataIssue,
 	type NestBoundaryEnvelope,
 	type NestReplyEnvelope,
-} from "@graphrefly/ts/adapters/nestjs";
+} from "@graphrefly/nestjs";
 import {
 	fromNestMessage,
 	GRAPHREFLY_NEST_MESSAGE_BRIDGE,
@@ -26,7 +25,7 @@ import {
 	type GraphMessageBridge,
 	GraphMessageReply,
 	provideGraphMessageProviders,
-} from "@graphrefly/ts/adapters/nestjs/microservices";
+} from "@graphrefly/nestjs/microservices";
 import {
 	createGraphCronController,
 	createGraphExceptionFilter,
@@ -34,7 +33,7 @@ import {
 	graphCronTarget,
 	graphLifecycleTarget,
 	provideGraphNativeProviders,
-} from "@graphrefly/ts/adapters/nestjs/native";
+} from "@graphrefly/nestjs/native";
 import {
 	fromNestWs,
 	GRAPHREFLY_NEST_WS_BRIDGE,
@@ -43,7 +42,8 @@ import {
 	type GraphWsBridge,
 	GraphWsReply,
 	provideGraphWsProviders,
-} from "@graphrefly/ts/adapters/nestjs/websockets";
+} from "@graphrefly/nestjs/websockets";
+import { depLatest } from "@graphrefly/ts";
 import { type Graph, graph } from "@graphrefly/ts/graph";
 import {
 	BadRequestException,

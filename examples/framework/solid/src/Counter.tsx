@@ -1,4 +1,4 @@
-import { createNodeInput, createNodeValue } from "@graphrefly/ts/adapters/solid";
+import { createNodeInput, createNodeValue } from "@graphrefly/solid";
 import type { Component } from "solid-js";
 import { count, doubled } from "./store";
 

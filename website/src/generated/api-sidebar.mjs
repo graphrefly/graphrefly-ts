@@ -103,6 +103,18 @@ export const apiSidebar = [
 		"collapsed": true,
 		"items": [
 			{
+				"label": "parseGraphBlueprint()",
+				"link": "/api/parsegraphblueprint"
+			},
+			{
+				"label": "verifyBlueprintHash()",
+				"link": "/api/verifyblueprinthash"
+			},
+			{
+				"label": "diffGraphBlueprints()",
+				"link": "/api/diffgraphblueprints"
+			},
+			{
 				"label": "normalizeTopology()",
 				"link": "/api/normalizetopology"
 			},
@@ -181,6 +193,10 @@ export const apiSidebar = [
 			{
 				"label": "describeToMermaid()",
 				"link": "/api/describetomermaid"
+			},
+			{
+				"label": "blueprintToMermaid()",
+				"link": "/api/blueprinttomermaid"
 			},
 			{
 				"label": "mermaidLiveUrl()",
@@ -1009,288 +1025,12 @@ export const apiSidebar = [
 				"link": "/api/websocketsession"
 			},
 			{
-				"label": "getGraphToken()",
-				"link": "/api/getgraphtoken"
-			},
-			{
-				"label": "getNodeToken()",
-				"link": "/api/getnodetoken"
-			},
-			{
-				"label": "getNestBoundaryToken()",
-				"link": "/api/getnestboundarytoken"
-			},
-			{
-				"label": "nestProvider()",
-				"link": "/api/nestprovider"
-			},
-			{
-				"label": "fromNestReq()",
-				"link": "/api/fromnestreq"
-			},
-			{
-				"label": "fromNestGuard()",
-				"link": "/api/fromnestguard"
-			},
-			{
-				"label": "fromNestIntercept()",
-				"link": "/api/fromnestintercept"
-			},
-			{
-				"label": "fromNestError()",
-				"link": "/api/fromnesterror"
-			},
-			{
-				"label": "fromNestLifecycle()",
-				"link": "/api/fromnestlifecycle"
-			},
-			{
-				"label": "fromNestCron()",
-				"link": "/api/fromnestcron"
-			},
-			{
-				"label": "fromNestDiagnostics()",
-				"link": "/api/fromnestdiagnostics"
-			},
-			{
-				"label": "fromNestWs()",
-				"link": "/api/fromnestws"
-			},
-			{
-				"label": "fromNestMessage()",
-				"link": "/api/fromnestmessage"
-			},
-			{
-				"label": "toNestHttp()",
-				"link": "/api/tonesthttp"
-			},
-			{
-				"label": "GraphReq()",
-				"link": "/api/graphreq"
-			},
-			{
-				"label": "GraphGuard()",
-				"link": "/api/graphguard"
-			},
-			{
-				"label": "GraphIntercept()",
-				"link": "/api/graphintercept"
-			},
-			{
-				"label": "GraphFilter()",
-				"link": "/api/graphfilter"
-			},
-			{
-				"label": "GraphError()",
-				"link": "/api/grapherror"
-			},
-			{
-				"label": "GraphLifecycle()",
-				"link": "/api/graphlifecycle"
-			},
-			{
-				"label": "GraphCron()",
-				"link": "/api/graphcron"
-			},
-			{
-				"label": "GraphWs()",
-				"link": "/api/graphws"
-			},
-			{
-				"label": "GraphMessage()",
-				"link": "/api/graphmessage"
-			},
-			{
-				"label": "GraphHttpReply()",
-				"link": "/api/graphhttpreply"
-			},
-			{
-				"label": "GraphGuardDecision()",
-				"link": "/api/graphguarddecision"
-			},
-			{
-				"label": "GraphWsAck()",
-				"link": "/api/graphwsack"
-			},
-			{
-				"label": "GraphWsReply()",
-				"link": "/api/graphwsreply"
-			},
-			{
-				"label": "GraphMessageReply()",
-				"link": "/api/graphmessagereply"
-			},
-			{
-				"label": "createNestGraphBoundaryRunner()",
-				"link": "/api/createnestgraphboundaryrunner"
-			},
-			{
-				"label": "createNestGraphBoundaryInterceptor()",
-				"link": "/api/createnestgraphboundaryinterceptor"
-			},
-			{
-				"label": "getNestBoundaryBindings()",
-				"link": "/api/getnestboundarybindings"
-			},
-			{
-				"label": "resolveNestMethodKey()",
-				"link": "/api/resolvenestmethodkey"
-			},
-			{
-				"label": "bindingRequestId()",
-				"link": "/api/bindingrequestid"
-			},
-			{
-				"label": "bindingEmitOptions()",
-				"link": "/api/bindingemitoptions"
-			},
-			{
-				"label": "isDataIssue()",
-				"link": "/api/isdataissue"
-			},
-			{
-				"label": "isHttpDataIssue()",
-				"link": "/api/ishttpdataissue"
-			},
-			{
-				"label": "issueResponse()",
-				"link": "/api/issueresponse"
-			},
-			{
-				"label": "protocolError()",
-				"link": "/api/protocolerror"
-			},
-			{
-				"label": "lowerHttpReplyPayload()",
-				"link": "/api/lowerhttpreplypayload"
-			},
-			{
-				"label": "lowerProtocolError()",
-				"link": "/api/lowerprotocolerror"
-			},
-			{
-				"label": "sanitizeNestDiagnostic()",
-				"link": "/api/sanitizenestdiagnostic"
-			},
-			{
-				"label": "OnGraphEvent()",
-				"link": "/api/ongraphevent"
-			},
-			{
-				"label": "GraphInterval()",
-				"link": "/api/graphinterval"
-			},
-			{
-				"label": "provideGraphMessageBridge()",
-				"link": "/api/providegraphmessagebridge"
-			},
-			{
-				"label": "provideGraphMessageProviders()",
-				"link": "/api/providegraphmessageproviders"
-			},
-			{
-				"label": "createGraphMessageBridge()",
-				"link": "/api/creategraphmessagebridge"
-			},
-			{
-				"label": "provideGraphBoundaryInterceptor()",
-				"link": "/api/providegraphboundaryinterceptor"
-			},
-			{
-				"label": "provideGraphGuard()",
-				"link": "/api/providegraphguard"
-			},
-			{
-				"label": "provideGraphExceptionFilter()",
-				"link": "/api/providegraphexceptionfilter"
-			},
-			{
-				"label": "createGraphExceptionFilter()",
-				"link": "/api/creategraphexceptionfilter"
-			},
-			{
-				"label": "provideGraphGuardDeniedFilter()",
-				"link": "/api/providegraphguarddeniedfilter"
-			},
-			{
-				"label": "createGraphGuardDeniedFilter()",
-				"link": "/api/creategraphguarddeniedfilter"
-			},
-			{
-				"label": "provideGraphCronScheduler()",
-				"link": "/api/providegraphcronscheduler"
-			},
-			{
-				"label": "provideGraphLifecycleHooks()",
-				"link": "/api/providegraphlifecyclehooks"
-			},
-			{
-				"label": "provideGraphNativeHttpProviders()",
-				"link": "/api/providegraphnativehttpproviders"
-			},
-			{
-				"label": "provideGraphNativeProviders()",
-				"link": "/api/providegraphnativeproviders"
-			},
-			{
-				"label": "graphCronTarget()",
-				"link": "/api/graphcrontarget"
-			},
-			{
-				"label": "graphLifecycleTarget()",
-				"link": "/api/graphlifecycletarget"
-			},
-			{
-				"label": "createGraphCronController()",
-				"link": "/api/creategraphcroncontroller"
-			},
-			{
-				"label": "GraphExceptionFilterBridge",
-				"link": "/api/graphexceptionfilterbridge"
-			},
-			{
-				"label": "GraphGuardDeniedException",
-				"link": "/api/graphguarddeniedexception"
-			},
-			{
-				"label": "isGraphGuardDeniedException()",
-				"link": "/api/isgraphguarddeniedexception"
-			},
-			{
-				"label": "GraphGuardDeniedFilter",
-				"link": "/api/graphguarddeniedfilter"
-			},
-			{
-				"label": "provideGraphWsBridge()",
-				"link": "/api/providegraphwsbridge"
-			},
-			{
-				"label": "provideGraphWsProviders()",
-				"link": "/api/providegraphwsproviders"
-			},
-			{
-				"label": "createGraphWsBridge()",
-				"link": "/api/creategraphwsbridge"
-			},
-			{
 				"label": "attachObserveSink()",
 				"link": "/api/attachobservesink"
 			},
 			{
 				"label": "attachObserveEventLog()",
 				"link": "/api/attachobserveeventlog"
-			},
-			{
-				"label": "useNodeValue()",
-				"link": "/api/usenodevalue"
-			},
-			{
-				"label": "useNodeInput()",
-				"link": "/api/usenodeinput"
-			},
-			{
-				"label": "useNodeRecord()",
-				"link": "/api/usenoderecord"
 			},
 			{
 				"label": "persistReactiveCollection()",
@@ -1311,18 +1051,6 @@ export const apiSidebar = [
 			{
 				"label": "openPersistentReactiveIndex()",
 				"link": "/api/openpersistentreactiveindex"
-			},
-			{
-				"label": "createNodeValue()",
-				"link": "/api/createnodevalue"
-			},
-			{
-				"label": "createNodeInput()",
-				"link": "/api/createnodeinput"
-			},
-			{
-				"label": "createNodeRecord()",
-				"link": "/api/createnoderecord"
 			},
 			{
 				"label": "nodeSnapshot()",
@@ -1363,18 +1091,6 @@ export const apiSidebar = [
 			{
 				"label": "signalFromNode()",
 				"link": "/api/signalfromnode"
-			},
-			{
-				"label": "nodeReadable()",
-				"link": "/api/nodereadable"
-			},
-			{
-				"label": "nodeWritable()",
-				"link": "/api/nodewritable"
-			},
-			{
-				"label": "nodeRecord()",
-				"link": "/api/noderecord"
 			}
 		]
 	},
@@ -1949,6 +1665,38 @@ export const apiSidebar = [
 				"link": "/api/applyagenticmemoryrecordadmissions"
 			},
 			{
+				"label": "assertAgenticMemoryRecordUseRequest()",
+				"link": "/api/assertagenticmemoryrecorduserequest"
+			},
+			{
+				"label": "agenticMemoryRecordUseRequestIdentity()",
+				"link": "/api/agenticmemoryrecorduserequestidentity"
+			},
+			{
+				"label": "agenticMemoryRecordUseRecordIdentity()",
+				"link": "/api/agenticmemoryrecorduserecordidentity"
+			},
+			{
+				"label": "agenticMemoryRecordUseDecisionCoordinate()",
+				"link": "/api/agenticmemoryrecordusedecisioncoordinate"
+			},
+			{
+				"label": "createAgenticMemoryRecordUseDecision()",
+				"link": "/api/createagenticmemoryrecordusedecision"
+			},
+			{
+				"label": "assertAgenticMemoryRecordUseDecision()",
+				"link": "/api/assertagenticmemoryrecordusedecision"
+			},
+			{
+				"label": "projectAgenticMemoryRecordUseGate()",
+				"link": "/api/projectagenticmemoryrecordusegate"
+			},
+			{
+				"label": "agenticMemoryRecordUseGateBundle()",
+				"link": "/api/agenticmemoryrecordusegatebundle"
+			},
+			{
 				"label": "agenticMemoryRetentionBundle()",
 				"link": "/api/agenticmemoryretentionbundle"
 			},
@@ -2019,6 +1767,18 @@ export const apiSidebar = [
 			{
 				"label": "capabilityAdmissionProjector()",
 				"link": "/api/capabilityadmissionprojector"
+			},
+			{
+				"label": "createClickHouseTrustedQueryAdapterInput()",
+				"link": "/api/createclickhousetrustedqueryadapterinput"
+			},
+			{
+				"label": "createClickHouseTrustedQueryScenarioResultFromOutcome()",
+				"link": "/api/createclickhousetrustedqueryscenarioresultfromoutcome"
+			},
+			{
+				"label": "clickHouseTrustedQueryRuntime()",
+				"link": "/api/clickhousetrustedqueryruntime"
 			},
 			{
 				"label": "InjectedMeasureAdapter",
@@ -2163,10 +1923,6 @@ export const apiSidebar = [
 			{
 				"label": "nodeCanvasTextMeasurements()",
 				"link": "/api/nodecanvastextmeasurements"
-			},
-			{
-				"label": "nodeCanvasPackageTextMeasurements()",
-				"link": "/api/nodecanvaspackagetextmeasurements"
 			},
 			{
 				"label": "reactNativeTextMeasurements()",
@@ -2516,6 +2272,54 @@ export const apiSidebar = [
 		"label": "Executors",
 		"collapsed": true,
 		"items": [
+			{
+				"label": "postgresql16CustomerHostedControlStore()",
+				"link": "/api/postgresql16customerhostedcontrolstore"
+			},
+			{
+				"label": "authenticatedOutboundCustomerHostedTransport()",
+				"link": "/api/authenticatedoutboundcustomerhostedtransport"
+			},
+			{
+				"label": "customerHostedPostgresqlRuntime()",
+				"link": "/api/customerhostedpostgresqlruntime"
+			},
+			{
+				"label": "customerHostedPostgresqlAdmittedEnvelopeFromApprovedRun()",
+				"link": "/api/customerhostedpostgresqladmittedenvelopefromapprovedrun"
+			},
+			{
+				"label": "certifyPodmanLibpodApiV0RootlessLocalContainerPostgresqlWithNode()",
+				"link": "/api/certifypodmanlibpodapiv0rootlesslocalcontainerpostgresqlwithnode"
+			},
+			{
+				"label": "postgresql16ManagedCloudControlStore()",
+				"link": "/api/postgresql16managedcloudcontrolstore"
+			},
+			{
+				"label": "authenticatedWssManagedCloudTransport()",
+				"link": "/api/authenticatedwssmanagedcloudtransport"
+			},
+			{
+				"label": "executeManagedCloudPostgresqlClaimWithAttemptCredential()",
+				"link": "/api/executemanagedcloudpostgresqlclaimwithattemptcredential"
+			},
+			{
+				"label": "executeManagedCloudPostgresqlClaimWithAuthorizedAttemptCredential()",
+				"link": "/api/executemanagedcloudpostgresqlclaimwithauthorizedattemptcredential"
+			},
+			{
+				"label": "postgresql16RunOperationsStore()",
+				"link": "/api/postgresql16runoperationsstore"
+			},
+			{
+				"label": "postgresqlQueryToolArgumentsFromIntent()",
+				"link": "/api/postgresqlquerytoolargumentsfromintent"
+			},
+			{
+				"label": "postgresqlToolProviderInputFromIntent()",
+				"link": "/api/postgresqltoolproviderinputfromintent"
+			},
 			{
 				"label": "localBuiltinToolProviderBinding()",
 				"link": "/api/localbuiltintoolproviderbinding"
