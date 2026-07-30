@@ -49,7 +49,7 @@ export const CLOSED_TASK_PROFILE_HOST_SCHEMAS = Object.freeze({
 	verifierProfile: "graphrefly.private-solution-eval.closed-verifier-profile.v1",
 	taskProfile: "graphrefly.private-solution-eval.closed-task-execution-profile.v1",
 	verifierResult: "graphrefly.private-solution-eval.closed-verifier-result.v1",
-	runOutcome: "graphrefly.private-solution-eval.closed-host-run-outcome.v1",
+	runOutcome: "graphrefly.private-solution-eval.closed-host-run-outcome.v2",
 });
 
 export const CLOSED_ACTOR_TOOL_REFS = Object.freeze({
@@ -59,6 +59,8 @@ export const CLOSED_ACTOR_TOOL_REFS = Object.freeze({
 	workspaceDiff: "graphrefly.private-solution-eval.workspace.diff.v1",
 	runCommand: "graphrefly.private-solution-eval.workspace.run-command-ref.v1",
 });
+
+export const CLOSED_TASK_PROFILE_HOST_MAX_ACTION_TRACE_ENTRIES = 256;
 
 const CLOSED_TOOL_ORDER = Object.freeze([
 	CLOSED_ACTOR_TOOL_REFS.readFile,
@@ -227,7 +229,7 @@ export interface ClosedTaskProfileHostRunInputV1 {
 	readonly signal: AbortSignal;
 }
 
-export interface ClosedTaskProfileHostRunOutcomeV1 {
+export interface ClosedTaskProfileHostRunOutcomeV2 {
 	readonly schemaVersion: typeof CLOSED_TASK_PROFILE_HOST_SCHEMAS.runOutcome;
 	readonly status: "completed" | "non-evaluable";
 	readonly taskRef: string;
@@ -237,12 +239,19 @@ export interface ClosedTaskProfileHostRunOutcomeV1 {
 	readonly toolActionCount: number;
 	readonly hostInputBytes: number;
 	readonly hostOutputBytes: number;
+	readonly initialRequestDigest: string | null;
+	readonly initialMemoryContextRecordDigest: string | null;
 	readonly finalOutput: StrictJsonValue | null;
 	readonly finalOutputDigest: string | null;
 	readonly verifierVerdict: "passed" | "failed" | "unverifiable" | null;
 	readonly verifierEvidenceRefs: readonly ClosedVerifierRunEvidenceRefV1[];
+	readonly workspaceBaselineDigest: string | null;
+	readonly workspaceStateDigest: string | null;
+	readonly workspaceChangeDigest: string | null;
+	readonly workspaceChanged: boolean | null;
 	readonly turnEvidence: readonly {
 		readonly stepIndex: number;
+		readonly requestDigest: string;
 		readonly status: "completed" | "non-evaluable";
 		readonly finishReason: "structured-output" | "tool-intents" | null;
 		readonly requests: 0 | 1;
@@ -263,8 +272,20 @@ export interface ClosedTaskProfileHostRunOutcomeV1 {
 	}[];
 	readonly toolEvidence: readonly {
 		readonly toolCallRef: string;
+		readonly toolCallRefDigest: string;
 		readonly toolRef: string;
 		readonly resultDigest: string;
+	}[];
+	readonly actionTrace: readonly {
+		readonly stepIndex: number;
+		readonly actionIndex: number;
+		readonly initialRequestDigest: string;
+		readonly requestDigest: string;
+		readonly toolCallRefDigest: string;
+		readonly toolRef: string;
+		readonly intentDigest: string;
+		readonly resultDigest: string;
+		readonly memoryContextRecordDigest: string | null;
 	}[];
 	readonly issueCodes: readonly string[];
 	readonly cleanupSucceeded: boolean;
@@ -304,8 +325,14 @@ interface MutableRunEvidence {
 	toolActionCount: number;
 	hostInputBytes: number;
 	hostOutputBytes: number;
-	readonly turnEvidence: Array<ClosedTaskProfileHostRunOutcomeV1["turnEvidence"][number]>;
-	readonly toolEvidence: Array<ClosedTaskProfileHostRunOutcomeV1["toolEvidence"][number]>;
+	initialRequestDigest: string | null;
+	initialMemoryContextRecordDigest: string | null;
+	workspaceBaselineDigest: string | null;
+	workspaceStateDigest: string | null;
+	workspaceChangeDigest: string | null;
+	readonly turnEvidence: Array<ClosedTaskProfileHostRunOutcomeV2["turnEvidence"][number]>;
+	readonly toolEvidence: Array<ClosedTaskProfileHostRunOutcomeV2["toolEvidence"][number]>;
+	readonly actionTrace: Array<ClosedTaskProfileHostRunOutcomeV2["actionTrace"][number]>;
 }
 
 class HostRunFailure extends Error {
@@ -324,10 +351,10 @@ class HostRunFailure extends Error {
  */
 export async function runClosedTaskProfileHost(
 	input: ClosedTaskProfileHostRunInputV1,
-): Promise<ClosedTaskProfileHostRunOutcomeV1> {
+): Promise<ClosedTaskProfileHostRunOutcomeV2> {
 	let taskRef = "unresolved-task";
 	let taskDigest = empiricalStrictJsonDigest({ taskRef });
-	let internalOutcome: ClosedTaskProfileHostRunOutcomeV1 | null = null;
+	let internalOutcome: ClosedTaskProfileHostRunOutcomeV2 | null = null;
 	let configurationError: unknown = null;
 	try {
 		const frozen = validateFrozenEmpiricalCampaignManifest(input.frozen, input.qualificationReport);
@@ -580,7 +607,7 @@ function validateWorkspaceRecipe(
 		maxToolActions: safeInteger(
 			recipe.maxToolActions,
 			"host.taskProfile.workspaceRecipe.maxToolActions",
-			{ min: 1, max: 256 },
+			{ min: 1, max: CLOSED_TASK_PROFILE_HOST_MAX_ACTION_TRACE_ENTRIES },
 		),
 	});
 	if (
@@ -796,7 +823,7 @@ async function runValidatedHost(
 	initialRequest: EmpiricalModelTurnRequestV1,
 	validated: ValidatedTaskProfile,
 	verifier: ClosedVerifierCapabilityV1,
-): Promise<ClosedTaskProfileHostRunOutcomeV1> {
+): Promise<ClosedTaskProfileHostRunOutcomeV2> {
 	const evidence = emptyEvidence();
 	try {
 		return await executeValidatedHost(input, frozen, initialRequest, validated, verifier, evidence);
@@ -817,7 +844,7 @@ async function executeValidatedHost(
 	validated: ValidatedTaskProfile,
 	verifier: ClosedVerifierCapabilityV1,
 	evidence: MutableRunEvidence,
-): Promise<ClosedTaskProfileHostRunOutcomeV1> {
+): Promise<ClosedTaskProfileHostRunOutcomeV2> {
 	assertNotCancelled(input.signal);
 	const workspaceRoot = await validateWorkspaceRoot(
 		input.materialization.workspace.rootPathForHostRunner(),
@@ -825,6 +852,9 @@ async function executeValidatedHost(
 	await normalizeWorkspaceIndex(workspaceRoot, input.signal);
 	const baselineSnapshot = await captureWorkspaceSnapshot(workspaceRoot, input.signal);
 	assertSnapshotMatchesProfileBaseline(baselineSnapshot, validated);
+	evidence.workspaceBaselineDigest = workspaceSnapshotDigest(baselineSnapshot);
+	evidence.initialRequestDigest = empiricalStrictJsonDigest(initialRequest);
+	evidence.initialMemoryContextRecordDigest = initialMemoryContextRecordDigest(initialRequest);
 	const configuration = frozen.manifest.modelConfigurations.find(
 		(candidate) => candidate.configurationRef === initialRequest.configurationRef,
 	);
@@ -908,6 +938,7 @@ async function executeValidatedHost(
 		evidence.turnEvidence.push(
 			strictSnapshot({
 				stepIndex,
+				requestDigest: empiricalStrictJsonDigest(request),
 				status: outcome.status,
 				finishReason: outcome.finishReason,
 				requests: outcome.usage.requests,
@@ -931,18 +962,23 @@ async function executeValidatedHost(
 		}
 		if (outcome.finishReason === "structured-output" && outcome.structuredOutput !== null) {
 			let workspaceStateDigest: string;
+			let workspaceChangeDigest: string;
 			try {
-				workspaceStateDigest = await assertAllowedWorkspaceDiff(
+				const workspaceEvidence = await assertAllowedWorkspaceDiff(
 					workspaceRoot,
 					validated,
 					baselineSnapshot,
 					input.signal,
 				);
+				workspaceStateDigest = workspaceEvidence.workspaceStateDigest;
+				workspaceChangeDigest = workspaceEvidence.workspaceChangeDigest;
 			} catch (error) {
 				if (error instanceof HostRunFailure) throw error;
 				if (input.signal.aborted) throw new HostRunFailure("host-cancelled");
 				throw new HostRunFailure("workspace-diff-policy-check-failed");
 			}
+			evidence.workspaceStateDigest = workspaceStateDigest;
+			evidence.workspaceChangeDigest = workspaceChangeDigest;
 			let verifierResult: ClosedVerifierResultV1;
 			let verifierValue: unknown;
 			try {
@@ -988,12 +1024,19 @@ async function executeValidatedHost(
 				toolActionCount: evidence.toolActionCount,
 				hostInputBytes: evidence.hostInputBytes,
 				hostOutputBytes: evidence.hostOutputBytes,
+				initialRequestDigest: evidence.initialRequestDigest,
+				initialMemoryContextRecordDigest: evidence.initialMemoryContextRecordDigest,
 				finalOutput: outcome.structuredOutput,
 				finalOutputDigest: outcome.structuredOutputDigest,
 				verifierVerdict: verifierResult.verdict,
 				verifierEvidenceRefs: verifierResult.evidenceRefs,
+				workspaceBaselineDigest: evidence.workspaceBaselineDigest,
+				workspaceStateDigest,
+				workspaceChangeDigest,
+				workspaceChanged: workspaceChangeDigest !== empiricalStrictJsonDigest([]),
 				turnEvidence: evidence.turnEvidence,
 				toolEvidence: evidence.toolEvidence,
+				actionTrace: evidence.actionTrace,
 				issueCodes: verifierResult.issueCodes,
 				cleanupSucceeded: false,
 			});
@@ -1042,17 +1085,61 @@ async function executeValidatedHost(
 				throw new HostRunFailure("tool-result-byte-budget-exhausted");
 			}
 			pendingToolResults.push(result);
+			const actionIndex = evidence.toolActionCount;
 			evidence.toolActionCount += 1;
 			evidence.toolEvidence.push(
 				strictSnapshot({
 					toolCallRef: result.toolCallRef,
+					toolCallRefDigest: empiricalStrictJsonDigest({ toolCallRef: result.toolCallRef }),
 					toolRef: result.toolRef,
 					resultDigest: result.resultDigest,
+				}),
+			);
+			evidence.actionTrace.push(
+				strictSnapshot({
+					stepIndex,
+					actionIndex,
+					initialRequestDigest: empiricalStrictJsonDigest(initialRequest),
+					requestDigest: empiricalStrictJsonDigest(request),
+					toolCallRefDigest: empiricalStrictJsonDigest({ toolCallRef: result.toolCallRef }),
+					toolRef: result.toolRef,
+					intentDigest: empiricalStrictJsonDigest({
+						toolRef: intent.toolRef,
+						arguments: intent.arguments,
+					}),
+					resultDigest: result.resultDigest,
+					memoryContextRecordDigest: evidence.initialMemoryContextRecordDigest,
 				}),
 			);
 		}
 	}
 	throw new HostRunFailure("agent-step-budget-exhausted");
+}
+
+function initialMemoryContextRecordDigest(
+	initialRequest: EmpiricalModelTurnRequestV1,
+): string | null {
+	const structuredInput = initialRequest.structuredInput;
+	if (
+		structuredInput === null ||
+		typeof structuredInput !== "object" ||
+		Array.isArray(structuredInput) ||
+		!("memoryContext" in structuredInput)
+	) {
+		return null;
+	}
+	const memoryContext = record(structuredInput.memoryContext, "host.initialRequest.memoryContext");
+	exactKeys(
+		memoryContext,
+		["kind", "recordDigest", "revision", "text"],
+		"host.initialRequest.memoryContext",
+	);
+	if (memoryContext.kind !== "agentic-memory-context") {
+		throw new HostRunFailure("memory-context-invalid");
+	}
+	coordinate(memoryContext.revision, "host.initialRequest.memoryContext.revision");
+	string(memoryContext.text, "host.initialRequest.memoryContext.text", 64 * 1024);
+	return digest(memoryContext.recordDigest, "host.initialRequest.memoryContext.recordDigest");
 }
 
 function nextTurnRequest(
@@ -1378,7 +1465,10 @@ async function assertAllowedWorkspaceDiff(
 	validated: ValidatedTaskProfile,
 	baselineSnapshot: WorkspaceSnapshot,
 	signal: AbortSignal,
-): Promise<string> {
+): Promise<{
+	readonly workspaceStateDigest: string;
+	readonly workspaceChangeDigest: string;
+}> {
 	const process = await runProcess(
 		workspaceRoot,
 		"/usr/bin/git",
@@ -1408,7 +1498,10 @@ async function assertAllowedWorkspaceDiff(
 	await normalizeWorkspaceIndex(workspaceRoot, signal);
 	const finalSnapshot = await captureWorkspaceSnapshot(workspaceRoot, signal);
 	assertWorkspaceSnapshotDifference(baselineSnapshot, finalSnapshot, validated);
-	return workspaceSnapshotDigest(finalSnapshot);
+	return Object.freeze({
+		workspaceStateDigest: workspaceSnapshotDigest(finalSnapshot),
+		workspaceChangeDigest: workspaceSnapshotDifferenceDigest(baselineSnapshot, finalSnapshot),
+	});
 }
 
 async function normalizeWorkspaceIndex(workspaceRoot: string, signal: AbortSignal): Promise<void> {
@@ -1557,6 +1650,37 @@ function workspaceSnapshotDigest(snapshot: WorkspaceSnapshot): string {
 					},
 		),
 	);
+}
+
+function workspaceSnapshotDifferenceDigest(
+	baseline: WorkspaceSnapshot,
+	final: WorkspaceSnapshot,
+): string {
+	const entryProjection = (entry: WorkspaceSnapshotEntry): StrictJsonValue =>
+		entry.kind === "directory"
+			? { kind: entry.kind, mode: entry.mode }
+			: {
+					kind: entry.kind,
+					mode: entry.mode,
+					byteLength: entry.byteLength,
+					digest: entry.digest,
+				};
+	const changes: StrictJsonValue[] = [];
+	for (const [path, baselineEntry] of baseline.entries) {
+		const finalEntry = final.entries.get(path);
+		if (
+			finalEntry !== undefined &&
+			empiricalStrictJsonDigest(entryProjection(baselineEntry)) !==
+				empiricalStrictJsonDigest(entryProjection(finalEntry))
+		) {
+			changes.push({
+				path,
+				before: entryProjection(baselineEntry),
+				after: entryProjection(finalEntry),
+			});
+		}
+	}
+	return empiricalStrictJsonDigest(changes);
 }
 
 function validateVerifierResult(
@@ -1810,8 +1934,14 @@ function emptyEvidence(): MutableRunEvidence {
 		toolActionCount: 0,
 		hostInputBytes: 0,
 		hostOutputBytes: 0,
+		initialRequestDigest: null,
+		initialMemoryContextRecordDigest: null,
+		workspaceBaselineDigest: null,
+		workspaceStateDigest: null,
+		workspaceChangeDigest: null,
 		turnEvidence: [],
 		toolEvidence: [],
+		actionTrace: [],
 	};
 }
 
@@ -1820,7 +1950,7 @@ function nonEvaluableOutcome(
 	taskDigest: string,
 	evidence: MutableRunEvidence,
 	issueCodes: readonly string[],
-): ClosedTaskProfileHostRunOutcomeV1 {
+): ClosedTaskProfileHostRunOutcomeV2 {
 	return strictSnapshot({
 		schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.runOutcome,
 		status: "non-evaluable" as const,
@@ -1831,12 +1961,22 @@ function nonEvaluableOutcome(
 		toolActionCount: evidence.toolActionCount,
 		hostInputBytes: evidence.hostInputBytes,
 		hostOutputBytes: evidence.hostOutputBytes,
+		initialRequestDigest: evidence.initialRequestDigest,
+		initialMemoryContextRecordDigest: evidence.initialMemoryContextRecordDigest,
 		finalOutput: null,
 		finalOutputDigest: null,
 		verifierVerdict: null,
 		verifierEvidenceRefs: [],
+		workspaceBaselineDigest: evidence.workspaceBaselineDigest,
+		workspaceStateDigest: evidence.workspaceStateDigest,
+		workspaceChangeDigest: evidence.workspaceChangeDigest,
+		workspaceChanged:
+			evidence.workspaceChangeDigest === null
+				? null
+				: evidence.workspaceChangeDigest !== empiricalStrictJsonDigest([]),
 		turnEvidence: evidence.turnEvidence,
 		toolEvidence: evidence.toolEvidence,
+		actionTrace: evidence.actionTrace,
 		issueCodes: sortedIssueCodes(issueCodes),
 		cleanupSucceeded: false,
 	});

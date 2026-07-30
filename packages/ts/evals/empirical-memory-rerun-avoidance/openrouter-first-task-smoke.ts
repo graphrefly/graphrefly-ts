@@ -7,9 +7,9 @@ import {
 import {
 	createEmpiricalCampaignScorecard,
 	createEmpiricalTrialBlockObservation,
-	type EmpiricalCampaignScorecardV1,
+	type EmpiricalCampaignScorecardV2,
 	type EmpiricalSmokeCostLedgerV1,
-	type EmpiricalTrialBlockObservationV1,
+	type EmpiricalTrialBlockObservationV2,
 } from "./empirical-smoke-evidence.js";
 import {
 	B112_MATCHED_BLOCK_MEMORY_REVISION,
@@ -44,7 +44,7 @@ import {
 	type OpenRouterRouteQualificationV1,
 } from "./openrouter-route-qualification.js";
 import {
-	type PersistedPrivateSmokeGenerationV1,
+	type PersistedPrivateSmokeGenerationV2,
 	persistPrivateSmokeGeneration,
 } from "./private-smoke-persistence.js";
 
@@ -86,10 +86,10 @@ export interface B112SmokeAdmissionRejectionV1 {
 	readonly maxSmokeSpendMicrousd: number;
 }
 
-export interface OpenRouterFirstTaskSmokeResultV1 {
-	readonly observation: EmpiricalTrialBlockObservationV1;
-	readonly scorecard: EmpiricalCampaignScorecardV1;
-	readonly persistence: PersistedPrivateSmokeGenerationV1;
+export interface OpenRouterFirstTaskSmokeResultV2 {
+	readonly observation: EmpiricalTrialBlockObservationV2;
+	readonly scorecard: EmpiricalCampaignScorecardV2;
+	readonly persistence: PersistedPrivateSmokeGenerationV2;
 	/**
 	 * Bounded operator diagnostic only. It is intentionally excluded from the
 	 * observation, scorecard, and private persisted generation.
@@ -507,7 +507,7 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 	readonly generationRef: string;
 	readonly signal: AbortSignal;
 	readonly prepareWarmHost?: OpenRouterFirstTaskWarmHostFactoryV1;
-}): Promise<OpenRouterFirstTaskSmokeResultV1> {
+}): Promise<OpenRouterFirstTaskSmokeResultV2> {
 	const trialPlan = input.host.frozen.manifest.trialPlan;
 	if (
 		trialPlan.profile !== "smoke" ||

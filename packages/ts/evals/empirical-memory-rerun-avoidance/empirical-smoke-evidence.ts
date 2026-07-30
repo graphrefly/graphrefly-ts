@@ -10,14 +10,17 @@ import {
 	safeInteger,
 	strictSnapshot,
 } from "./canonical.js";
-import type { ClosedTaskProfileHostRunOutcomeV1 } from "./closed-task-profile-host.js";
+import {
+	CLOSED_TASK_PROFILE_HOST_MAX_ACTION_TRACE_ENTRIES,
+	type ClosedTaskProfileHostRunOutcomeV2,
+} from "./closed-task-profile-host.js";
 import type { EmpiricalWarmBranchKind, FrozenEmpiricalCampaignManifestV1 } from "./contracts.js";
 import type { QualifiedOpenRouterRouteV1 } from "./openrouter-route-qualification.js";
 
 export const EMPIRICAL_TRIAL_BLOCK_OBSERVATION_SCHEMA =
-	"graphrefly.private-solution-eval.empirical-trial-block-observation.v1";
+	"graphrefly.private-solution-eval.empirical-trial-block-observation.v2";
 export const EMPIRICAL_CAMPAIGN_SCORECARD_SCHEMA =
-	"graphrefly.private-solution-eval.empirical-campaign-scorecard.v1";
+	"graphrefly.private-solution-eval.empirical-campaign-scorecard.v2";
 export const B112_SMOKE_NO_EFFICACY_CLAIM = "smoke-integration-no-efficacy-claim";
 
 export type EmpiricalSmokeEvidenceClassV1 =
@@ -35,7 +38,7 @@ export interface EmpiricalSmokeCostLedgerV1 {
 export type EmpiricalSmokeRunClassificationV1 = "complete" | "incomplete" | "non-evaluable";
 export type EmpiricalSmokeVerifierStatusV1 = "passed" | "failed" | "unverifiable" | "not-run";
 
-export interface EmpiricalSmokeRunObservationV1 {
+export interface EmpiricalSmokeRunObservationV2 {
 	readonly runRef: string;
 	readonly trialStage: "cold" | "warm";
 	readonly branchKind: EmpiricalWarmBranchKind | null;
@@ -54,13 +57,27 @@ export interface EmpiricalSmokeRunObservationV1 {
 	readonly reservedInputTokens: number;
 	readonly reservedOutputTokens: number;
 	readonly hostOutcomeDigest: string;
+	readonly initialRequestDigest: string | null;
+	readonly memoryContextRecordDigest: string | null;
+	readonly turnRequestDigests: readonly string[];
+	readonly toolResultBindings: readonly {
+		readonly toolCallRefDigest: string;
+		readonly toolRef: string;
+		readonly resultDigest: string;
+	}[];
+	readonly workspaceBaselineDigest: string | null;
+	readonly workspaceStateDigest: string | null;
+	readonly workspaceChangeDigest: string | null;
+	readonly workspaceChanged: boolean | null;
+	readonly actionTraceDigest: string;
+	readonly actionTrace: ClosedTaskProfileHostRunOutcomeV2["actionTrace"];
 	readonly routeEvidenceDigests: readonly string[];
 	readonly verifierEvidenceDigests: readonly string[];
 	readonly protectionReceiptDigests: readonly string[];
 	readonly issueCodes: readonly string[];
 }
 
-export interface EmpiricalWarmBranchLifecycleV1 {
+export interface EmpiricalWarmBranchLifecycleV2 {
 	readonly branchKind: EmpiricalWarmBranchKind;
 	readonly selectedRecordDigest: string;
 	readonly proposalState: "emitted" | "not-emitted";
@@ -68,7 +85,7 @@ export interface EmpiricalWarmBranchLifecycleV1 {
 	readonly applicationState: "applied" | "not-applied" | "not-run";
 	readonly retrievalState: "retrieved" | "not-retrieved";
 	readonly plannerRoute: "baseline" | "memory-guided";
-	readonly traceMemoryDisposition: "used" | "rejected-irrelevant" | "rejected-scope" | "none";
+	readonly traceMemoryDisposition: "delivered" | "rejected-irrelevant" | "rejected-scope" | "none";
 	readonly mapperExplicitCandidates: 0;
 	readonly proposalRecordDigests: readonly string[];
 	readonly admissionRecordDigests: readonly string[];
@@ -83,6 +100,7 @@ export interface EmpiricalWarmBranchLifecycleV1 {
 		readonly memory_record_retrieved: boolean;
 		readonly warm_run_passed: boolean;
 		readonly warm_decision_trace_includes_memory: boolean;
+		readonly warm_action_trace_bound_to_memory_context: boolean;
 		readonly same_work_item_input: boolean;
 		readonly prior_failure_route_avoided: boolean;
 	};
@@ -90,15 +108,15 @@ export interface EmpiricalWarmBranchLifecycleV1 {
 	readonly issueCodes: readonly string[];
 }
 
-export interface EmpiricalWarmBranchObservationV1 {
+export interface EmpiricalWarmBranchObservationV2 {
 	readonly branchKind: EmpiricalWarmBranchKind;
 	readonly attempted: boolean;
-	readonly lifecycle: EmpiricalWarmBranchLifecycleV1 | null;
-	readonly run: EmpiricalSmokeRunObservationV1 | null;
+	readonly lifecycle: EmpiricalWarmBranchLifecycleV2 | null;
+	readonly run: EmpiricalSmokeRunObservationV2 | null;
 	readonly issueCodes: readonly string[];
 }
 
-export interface EmpiricalTrialBlockObservationV1 {
+export interface EmpiricalTrialBlockObservationV2 {
 	readonly schemaVersion: typeof EMPIRICAL_TRIAL_BLOCK_OBSERVATION_SCHEMA;
 	readonly executionClass: EmpiricalSmokeEvidenceClassV1;
 	readonly empiricalLiveEvidence: boolean;
@@ -167,19 +185,19 @@ export interface EmpiricalTrialBlockObservationV1 {
 	readonly routeEvidenceDigests: readonly string[];
 	readonly verifierEvidenceDigests: readonly string[];
 	readonly protectionReceiptDigests: readonly string[];
-	readonly cold: EmpiricalSmokeRunObservationV1;
+	readonly cold: EmpiricalSmokeRunObservationV2;
 	readonly rerunEligible: boolean;
 	readonly reflection: {
 		readonly evidenceDigest: string | null;
 		readonly candidateRecordDigests: readonly string[];
 		readonly issueCodes: readonly string[];
 	};
-	readonly warmBranches: readonly EmpiricalWarmBranchObservationV1[];
+	readonly warmBranches: readonly EmpiricalWarmBranchObservationV2[];
 	readonly familyPassed: boolean | null;
 	readonly issueCodes: readonly string[];
 }
 
-export interface EmpiricalCampaignScorecardV1 {
+export interface EmpiricalCampaignScorecardV2 {
 	readonly schemaVersion: typeof EMPIRICAL_CAMPAIGN_SCORECARD_SCHEMA;
 	readonly campaignRef: string;
 	readonly manifestDigest: string;
@@ -253,7 +271,7 @@ function sortedUniqueCoordinates(values: readonly string[], path: string): reado
 }
 
 function summedProviderUsage(
-	outcome: ClosedTaskProfileHostRunOutcomeV1,
+	outcome: ClosedTaskProfileHostRunOutcomeV2,
 	field: "inputTokens" | "outputTokens" | "totalTokens",
 ): number | null {
 	let total = 0;
@@ -274,7 +292,7 @@ export function createEmpiricalTrialBlockObservation(input: {
 	readonly route: QualifiedOpenRouterRouteV1;
 	readonly cold: {
 		readonly runRef: string;
-		readonly hostOutcome: ClosedTaskProfileHostRunOutcomeV1;
+		readonly hostOutcome: ClosedTaskProfileHostRunOutcomeV2;
 		readonly costLedger: EmpiricalSmokeCostLedgerV1;
 	};
 	readonly reflection?: {
@@ -284,10 +302,10 @@ export function createEmpiricalTrialBlockObservation(input: {
 	};
 	readonly warmBranches?: readonly {
 		readonly branchKind: EmpiricalWarmBranchKind;
-		readonly lifecycle: EmpiricalWarmBranchLifecycleV1 | null;
+		readonly lifecycle: EmpiricalWarmBranchLifecycleV2 | null;
 		readonly run: {
 			readonly runRef: string;
-			readonly hostOutcome: ClosedTaskProfileHostRunOutcomeV1;
+			readonly hostOutcome: ClosedTaskProfileHostRunOutcomeV2;
 			readonly costLedger: EmpiricalSmokeCostLedgerV1;
 		} | null;
 		readonly issueCodes: readonly string[];
@@ -295,7 +313,7 @@ export function createEmpiricalTrialBlockObservation(input: {
 	readonly executionClass: "simulated-contract" | "live-provider";
 	readonly trialBlockRef: string;
 	readonly trialBlockDigest: string;
-}): EmpiricalTrialBlockObservationV1 {
+}): EmpiricalTrialBlockObservationV2 {
 	const manifest = input.frozen.manifest;
 	if (manifest.trialPlan.profile !== "smoke") {
 		throw new TypeError("B112 smoke observation requires the smoke trial plan");
@@ -330,7 +348,7 @@ export function createEmpiricalTrialBlockObservation(input: {
 	) {
 		throw new TypeError("B112 smoke warm branches do not match the frozen order");
 	}
-	const warmBranches: EmpiricalWarmBranchObservationV1[] = expectedBranches.map(
+	const warmBranches: EmpiricalWarmBranchObservationV2[] = expectedBranches.map(
 		(branchKind, index) => {
 			const supplied = suppliedBranches[index];
 			if (supplied === undefined) {
@@ -362,12 +380,20 @@ export function createEmpiricalTrialBlockObservation(input: {
 				costLedger: supplied.run.costLedger,
 				executionClass: input.executionClass,
 			});
+			const actionTraceBoundToMemory = actionTraceBoundToDeliveredMemory(
+				run,
+				supplied.lifecycle.selectedRecordDigest,
+			);
 			const lifecycle = strictSnapshot({
 				...supplied.lifecycle,
 				stagePredicates: {
 					...supplied.lifecycle.stagePredicates,
 					cold_run_failed: rerunEligible,
 					warm_run_passed: run.verifierStatus === "passed",
+					warm_decision_trace_includes_memory: false,
+					warm_action_trace_bound_to_memory_context: actionTraceBoundToMemory,
+					prior_failure_route_avoided:
+						actionTraceBoundToMemory && priorFailureRouteAvoided(cold, run),
 				},
 			});
 			const lifecycleWithOutcome = strictSnapshot({
@@ -394,7 +420,7 @@ export function createEmpiricalTrialBlockObservation(input: {
 		rerunEligible &&
 		attemptedWarm.length === expectedBranches.length &&
 		evaluableWarm.length === expectedBranches.length;
-	const classification: EmpiricalTrialBlockObservationV1["result"]["classification"] =
+	const classification: EmpiricalTrialBlockObservationV2["result"]["classification"] =
 		cold.classification === "non-evaluable"
 			? "non-evaluable"
 			: rerunEligible
@@ -573,10 +599,10 @@ function createRunObservation(input: {
 	readonly runRef: string;
 	readonly trialStage: "cold" | "warm";
 	readonly branchKind: EmpiricalWarmBranchKind | null;
-	readonly hostOutcome: ClosedTaskProfileHostRunOutcomeV1;
+	readonly hostOutcome: ClosedTaskProfileHostRunOutcomeV2;
 	readonly costLedger: EmpiricalSmokeCostLedgerV1;
 	readonly executionClass: "simulated-contract" | "live-provider";
-}): EmpiricalSmokeRunObservationV1 {
+}): EmpiricalSmokeRunObservationV2 {
 	const costLedger = validateCostLedger(input.costLedger, input.executionClass);
 	const verifierStatus =
 		input.hostOutcome.verifierVerdict === null
@@ -611,6 +637,20 @@ function createRunObservation(input: {
 		reservedInputTokens: costLedger.reservedInputTokens,
 		reservedOutputTokens: costLedger.reservedOutputTokens,
 		hostOutcomeDigest: empiricalStrictJsonDigest(input.hostOutcome),
+		initialRequestDigest: input.hostOutcome.initialRequestDigest,
+		memoryContextRecordDigest: input.hostOutcome.initialMemoryContextRecordDigest,
+		turnRequestDigests: input.hostOutcome.turnEvidence.map((turn) => turn.requestDigest),
+		toolResultBindings: input.hostOutcome.toolEvidence.map((tool) => ({
+			toolCallRefDigest: tool.toolCallRefDigest,
+			toolRef: tool.toolRef,
+			resultDigest: tool.resultDigest,
+		})),
+		workspaceBaselineDigest: input.hostOutcome.workspaceBaselineDigest,
+		workspaceStateDigest: input.hostOutcome.workspaceStateDigest,
+		workspaceChangeDigest: input.hostOutcome.workspaceChangeDigest,
+		workspaceChanged: input.hostOutcome.workspaceChanged,
+		actionTraceDigest: empiricalStrictJsonDigest(input.hostOutcome.actionTrace),
+		actionTrace: input.hostOutcome.actionTrace,
 		routeEvidenceDigests: sortedUniqueCoordinates(
 			input.hostOutcome.turnEvidence.flatMap((turn) =>
 				turn.evidenceRefs.map((evidence) => evidence.digest),
@@ -629,9 +669,58 @@ function createRunObservation(input: {
 	});
 }
 
+function actionTraceBoundToDeliveredMemory(
+	run: EmpiricalSmokeRunObservationV2,
+	selectedRecordDigest: string,
+): boolean {
+	// This predicate proves only that a completed action belongs to the exact
+	// request lineage carrying the selected memory record. It does not infer
+	// hidden model cognition or causal use from context delivery.
+	return (
+		run.initialRequestDigest !== null &&
+		run.memoryContextRecordDigest === selectedRecordDigest &&
+		run.actionTrace.length > 0 &&
+		run.actionTrace.every(
+			(entry) =>
+				entry.initialRequestDigest === run.initialRequestDigest &&
+				entry.memoryContextRecordDigest === selectedRecordDigest &&
+				run.turnRequestDigests[entry.stepIndex] === entry.requestDigest &&
+				run.toolResultBindings[entry.actionIndex]?.toolCallRefDigest === entry.toolCallRefDigest &&
+				run.toolResultBindings[entry.actionIndex]?.toolRef === entry.toolRef &&
+				run.toolResultBindings[entry.actionIndex]?.resultDigest === entry.resultDigest,
+		)
+	);
+}
+
+function actionRouteDigest(run: EmpiricalSmokeRunObservationV2): string {
+	return empiricalStrictJsonDigest(
+		run.actionTrace.map((entry) => ({
+			toolRef: entry.toolRef,
+			intentDigest: entry.intentDigest,
+		})),
+	);
+}
+
+function priorFailureRouteAvoided(
+	cold: EmpiricalSmokeRunObservationV2,
+	warm: EmpiricalSmokeRunObservationV2,
+): boolean {
+	return (
+		warm.actionTrace.length > 0 &&
+		cold.workspaceBaselineDigest !== null &&
+		cold.workspaceBaselineDigest === warm.workspaceBaselineDigest &&
+		actionRouteDigest(warm) !== actionRouteDigest(cold) &&
+		cold.workspaceStateDigest !== null &&
+		warm.workspaceChangeDigest !== null &&
+		cold.workspaceChangeDigest !== null &&
+		cold.workspaceChangeDigest !== warm.workspaceChangeDigest &&
+		warm.workspaceChanged === true
+	);
+}
+
 function validateCostLedger(
 	value: EmpiricalSmokeCostLedgerV1,
-	executionClass: EmpiricalTrialBlockObservationV1["executionClass"],
+	executionClass: EmpiricalTrialBlockObservationV2["executionClass"],
 ): EmpiricalSmokeCostLedgerV1 {
 	const ledger = record(value, "smoke.costLedger");
 	exactKeys(
@@ -685,11 +774,71 @@ function nullableTokens(value: unknown, path: string): number | null {
 	return value === null ? null : safeInteger(value, path, { min: 0 });
 }
 
-function validateSmokeRunObservation(value: unknown, path: string): EmpiricalSmokeRunObservationV1 {
+function validateActionTrace(
+	value: unknown,
+	path: string,
+): ClosedTaskProfileHostRunOutcomeV2["actionTrace"] {
+	const values = array(value, path);
+	if (values.length > CLOSED_TASK_PROFILE_HOST_MAX_ACTION_TRACE_ENTRIES) {
+		throw new TypeError(`${path} exceeds its bounded item count`);
+	}
+	return Object.freeze(
+		values.map((value, index) => {
+			const entryPath = `${path}[${index}]`;
+			const entry = record(value, entryPath);
+			exactKeys(
+				entry,
+				[
+					"actionIndex",
+					"initialRequestDigest",
+					"intentDigest",
+					"requestDigest",
+					"resultDigest",
+					"stepIndex",
+					"toolCallRefDigest",
+					"toolRef",
+					"memoryContextRecordDigest",
+				],
+				entryPath,
+			);
+			const actionIndex = safeInteger(entry.actionIndex, `${entryPath}.actionIndex`, {
+				min: 0,
+				max: CLOSED_TASK_PROFILE_HOST_MAX_ACTION_TRACE_ENTRIES - 1,
+			});
+			if (actionIndex !== index) {
+				throw new TypeError(`${entryPath}.actionIndex must equal its canonical ordinal`);
+			}
+			return strictSnapshot({
+				stepIndex: safeInteger(entry.stepIndex, `${entryPath}.stepIndex`, {
+					min: 0,
+					max: CLOSED_TASK_PROFILE_HOST_MAX_ACTION_TRACE_ENTRIES - 1,
+				}),
+				actionIndex,
+				initialRequestDigest: digest(
+					entry.initialRequestDigest,
+					`${entryPath}.initialRequestDigest`,
+				),
+				requestDigest: digest(entry.requestDigest, `${entryPath}.requestDigest`),
+				toolCallRefDigest: digest(entry.toolCallRefDigest, `${entryPath}.toolCallRefDigest`),
+				toolRef: coordinate(entry.toolRef, `${entryPath}.toolRef`),
+				intentDigest: digest(entry.intentDigest, `${entryPath}.intentDigest`),
+				resultDigest: digest(entry.resultDigest, `${entryPath}.resultDigest`),
+				memoryContextRecordDigest:
+					entry.memoryContextRecordDigest === null
+						? null
+						: digest(entry.memoryContextRecordDigest, `${entryPath}.memoryContextRecordDigest`),
+			});
+		}),
+	);
+}
+
+function validateSmokeRunObservation(value: unknown, path: string): EmpiricalSmokeRunObservationV2 {
 	const run = record(value, path);
 	exactKeys(
 		run,
 		[
+			"actionTrace",
+			"actionTraceDigest",
 			"branchKind",
 			"classification",
 			"costBasis",
@@ -697,9 +846,11 @@ function validateSmokeRunObservation(value: unknown, path: string): EmpiricalSmo
 			"hostInputBytes",
 			"hostOutcomeDigest",
 			"hostOutputBytes",
+			"initialRequestDigest",
 			"inputTokens",
 			"issueCodes",
 			"latencyMs",
+			"memoryContextRecordDigest",
 			"outputTokens",
 			"protectionReceiptDigests",
 			"requests",
@@ -709,9 +860,15 @@ function validateSmokeRunObservation(value: unknown, path: string): EmpiricalSmo
 			"runRef",
 			"steps",
 			"totalTokens",
+			"toolResultBindings",
 			"trialStage",
+			"turnRequestDigests",
 			"verifierEvidenceDigests",
 			"verifierStatus",
+			"workspaceBaselineDigest",
+			"workspaceChangeDigest",
+			"workspaceChanged",
+			"workspaceStateDigest",
 		],
 		path,
 	);
@@ -750,6 +907,103 @@ function validateSmokeRunObservation(value: unknown, path: string): EmpiricalSmo
 	if (steps > 0 && protectionReceiptDigests.length !== steps) {
 		throw new TypeError(`${path} lacks one protection receipt per step`);
 	}
+	const actionTrace = validateActionTrace(run.actionTrace, `${path}.actionTrace`);
+	if (actionTrace.some((entry) => entry.stepIndex >= steps)) {
+		throw new TypeError(`${path}.actionTrace contains an action outside the bounded steps`);
+	}
+	for (let index = 1; index < actionTrace.length; index += 1) {
+		if (
+			(actionTrace[index] as (typeof actionTrace)[number]).stepIndex <
+			(actionTrace[index - 1] as (typeof actionTrace)[number]).stepIndex
+		) {
+			throw new TypeError(`${path}.actionTrace step indexes must be nondecreasing`);
+		}
+	}
+	const actionTraceDigest = digest(run.actionTraceDigest, `${path}.actionTraceDigest`);
+	if (actionTraceDigest !== empiricalStrictJsonDigest(actionTrace)) {
+		throw new TypeError(`${path}.actionTraceDigest does not bind the canonical action trace`);
+	}
+	const initialRequestDigest =
+		run.initialRequestDigest === null
+			? null
+			: digest(run.initialRequestDigest, `${path}.initialRequestDigest`);
+	const memoryContextRecordDigest =
+		run.memoryContextRecordDigest === null
+			? null
+			: digest(run.memoryContextRecordDigest, `${path}.memoryContextRecordDigest`);
+	const turnRequestDigests = validateOrderedDigestList(
+		run.turnRequestDigests,
+		`${path}.turnRequestDigests`,
+	);
+	if (turnRequestDigests.length !== steps) {
+		throw new TypeError(`${path}.turnRequestDigests must bind every exact turn`);
+	}
+	if (
+		steps > 0 &&
+		(initialRequestDigest === null || turnRequestDigests[0] !== initialRequestDigest)
+	) {
+		throw new TypeError(`${path}.turnRequestDigests[0] must equal the initial request digest`);
+	}
+	const toolResultBindings = Object.freeze(
+		array(run.toolResultBindings, `${path}.toolResultBindings`).map((value, index) => {
+			const bindingPath = `${path}.toolResultBindings[${index}]`;
+			const binding = record(value, bindingPath);
+			exactKeys(binding, ["resultDigest", "toolCallRefDigest", "toolRef"], bindingPath);
+			return strictSnapshot({
+				toolCallRefDigest: digest(binding.toolCallRefDigest, `${bindingPath}.toolCallRefDigest`),
+				toolRef: coordinate(binding.toolRef, `${bindingPath}.toolRef`),
+				resultDigest: digest(binding.resultDigest, `${bindingPath}.resultDigest`),
+			});
+		}),
+	);
+	if (toolResultBindings.length > CLOSED_TASK_PROFILE_HOST_MAX_ACTION_TRACE_ENTRIES) {
+		throw new TypeError(`${path}.toolResultBindings exceeds its bounded item count`);
+	}
+	if (
+		new Set(toolResultBindings.map((binding) => binding.toolCallRefDigest)).size !==
+		toolResultBindings.length
+	) {
+		throw new TypeError(`${path}.toolResultBindings must have unique tool-call digests`);
+	}
+	if (
+		actionTrace.some((entry) => entry.initialRequestDigest !== initialRequestDigest) ||
+		actionTrace.some(
+			(entry) =>
+				turnRequestDigests[entry.stepIndex] !== entry.requestDigest ||
+				entry.memoryContextRecordDigest !== memoryContextRecordDigest ||
+				toolResultBindings[entry.actionIndex]?.toolCallRefDigest !== entry.toolCallRefDigest ||
+				toolResultBindings[entry.actionIndex]?.toolRef !== entry.toolRef ||
+				toolResultBindings[entry.actionIndex]?.resultDigest !== entry.resultDigest,
+		) ||
+		(actionTrace.length > 0 && initialRequestDigest === null) ||
+		toolResultBindings.length !== actionTrace.length
+	) {
+		throw new TypeError(`${path}.actionTrace is not bound to its exact request and tool result`);
+	}
+	const workspaceBaselineDigest =
+		run.workspaceBaselineDigest === null
+			? null
+			: digest(run.workspaceBaselineDigest, `${path}.workspaceBaselineDigest`);
+	const workspaceStateDigest =
+		run.workspaceStateDigest === null
+			? null
+			: digest(run.workspaceStateDigest, `${path}.workspaceStateDigest`);
+	const workspaceChangeDigest =
+		run.workspaceChangeDigest === null
+			? null
+			: digest(run.workspaceChangeDigest, `${path}.workspaceChangeDigest`);
+	const workspaceChanged = nullableBoolean(run.workspaceChanged, `${path}.workspaceChanged`);
+	if (
+		(workspaceBaselineDigest === null ||
+			workspaceStateDigest === null ||
+			workspaceChangeDigest === null) !==
+			(workspaceChanged === null) ||
+		(workspaceChanged !== null &&
+			(workspaceChanged !== (workspaceBaselineDigest !== workspaceStateDigest) ||
+				workspaceChanged !== (workspaceChangeDigest !== empiricalStrictJsonDigest([]))))
+	) {
+		throw new TypeError(`${path} workspace state classification is inconsistent`);
+	}
 	return strictSnapshot({
 		runRef: coordinate(run.runRef, `${path}.runRef`),
 		trialStage,
@@ -780,6 +1034,16 @@ function validateSmokeRunObservation(value: unknown, path: string): EmpiricalSmo
 			min: 0,
 		}),
 		hostOutcomeDigest: digest(run.hostOutcomeDigest, `${path}.hostOutcomeDigest`),
+		initialRequestDigest,
+		memoryContextRecordDigest,
+		turnRequestDigests,
+		toolResultBindings,
+		workspaceBaselineDigest,
+		workspaceStateDigest,
+		workspaceChangeDigest,
+		workspaceChanged,
+		actionTraceDigest,
+		actionTrace,
 		routeEvidenceDigests: validateDigestList(
 			run.routeEvidenceDigests,
 			`${path}.routeEvidenceDigests`,
@@ -796,7 +1060,7 @@ function validateSmokeRunObservation(value: unknown, path: string): EmpiricalSmo
 function validateStagePredicates(
 	value: unknown,
 	path: string,
-): EmpiricalWarmBranchLifecycleV1["stagePredicates"] {
+): EmpiricalWarmBranchLifecycleV2["stagePredicates"] {
 	const predicates = record(value, path);
 	const keys = [
 		"cold_run_failed",
@@ -806,6 +1070,7 @@ function validateStagePredicates(
 		"memory_record_retrieved",
 		"prior_failure_route_avoided",
 		"same_work_item_input",
+		"warm_action_trace_bound_to_memory_context",
 		"warm_decision_trace_includes_memory",
 		"warm_run_passed",
 	] as const;
@@ -816,7 +1081,7 @@ function validateStagePredicates(
 				throw new TypeError(`${path}.${key} must be boolean`);
 			return [key, predicates[key]];
 		}),
-	) as unknown as EmpiricalWarmBranchLifecycleV1["stagePredicates"];
+	) as unknown as EmpiricalWarmBranchLifecycleV2["stagePredicates"];
 	return strictSnapshot(validated);
 }
 
@@ -828,7 +1093,7 @@ function expectedLifecycle(branchKind: EmpiricalWarmBranchKind) {
 			applicationState: "applied",
 			retrievalState: "retrieved",
 			plannerRoute: "memory-guided",
-			traceMemoryDisposition: "used",
+			traceMemoryDisposition: "delivered",
 			warmRunPassed: true,
 		} as const;
 	}
@@ -867,7 +1132,7 @@ function expectedLifecycle(branchKind: EmpiricalWarmBranchKind) {
 }
 
 function lifecycleConforms(
-	lifecycle: Omit<EmpiricalWarmBranchLifecycleV1, "caseConforms"> | EmpiricalWarmBranchLifecycleV1,
+	lifecycle: Omit<EmpiricalWarmBranchLifecycleV2, "caseConforms"> | EmpiricalWarmBranchLifecycleV2,
 	branchKind: EmpiricalWarmBranchKind,
 ): boolean {
 	const expected = expectedLifecycle(branchKind);
@@ -876,7 +1141,7 @@ function lifecycleConforms(
 	const admitted = expected.admissionState === "admitted";
 	const applied = expected.applicationState === "applied";
 	const retrieved = expected.retrievalState === "retrieved";
-	const memoryUsed = expected.traceMemoryDisposition === "used";
+	const memoryDelivered = expected.traceMemoryDisposition === "delivered";
 	const exactSelectedDigestList = (values: readonly string[], present: boolean) =>
 		present ? values.length === 1 && values[0] === selected : values.length === 0;
 	return (
@@ -891,10 +1156,10 @@ function lifecycleConforms(
 		lifecycle.stagePredicates.memory_record_applied === applied &&
 		lifecycle.stagePredicates.memory_record_retrieved === retrieved &&
 		lifecycle.stagePredicates.warm_run_passed === expected.warmRunPassed &&
-		lifecycle.stagePredicates.warm_decision_trace_includes_memory === memoryUsed &&
+		lifecycle.stagePredicates.warm_decision_trace_includes_memory === memoryDelivered &&
+		lifecycle.stagePredicates.warm_action_trace_bound_to_memory_context === memoryDelivered &&
 		lifecycle.stagePredicates.cold_run_failed &&
 		lifecycle.stagePredicates.same_work_item_input &&
-		lifecycle.stagePredicates.prior_failure_route_avoided === memoryUsed &&
 		exactSelectedDigestList(lifecycle.proposalRecordDigests, proposed) &&
 		exactSelectedDigestList(lifecycle.admissionRecordDigests, admitted) &&
 		exactSelectedDigestList(lifecycle.applicationRecordDigests, applied) &&
@@ -906,7 +1171,7 @@ function lifecycleConforms(
 function validateWarmBranchLifecycle(
 	value: unknown,
 	branchKind: EmpiricalWarmBranchKind,
-): EmpiricalWarmBranchLifecycleV1 {
+): EmpiricalWarmBranchLifecycleV2 {
 	const path = `smoke.lifecycle.${branchKind}`;
 	const lifecycle = record(value, path);
 	exactKeys(
@@ -971,7 +1236,7 @@ function validateWarmBranchLifecycle(
 		),
 		traceMemoryDisposition: oneOf(
 			lifecycle.traceMemoryDisposition,
-			["used", "rejected-irrelevant", "rejected-scope", "none"],
+			["delivered", "rejected-irrelevant", "rejected-scope", "none"],
 			`${path}.traceMemoryDisposition`,
 		),
 		mapperExplicitCandidates: 0 as const,
@@ -1005,7 +1270,7 @@ function validateWarmBranchLifecycle(
 
 export function validateEmpiricalTrialBlockObservation(
 	value: unknown,
-): EmpiricalTrialBlockObservationV1 {
+): EmpiricalTrialBlockObservationV2 {
 	const observation = record(value, "trialBlockObservation");
 	exactKeys(
 		observation,
@@ -1072,7 +1337,11 @@ export function validateEmpiricalTrialBlockObservation(
 		"trialBlockObservation.protectionReceiptDigests",
 	);
 	const cold = validateSmokeRunObservation(observation.cold, "trialBlockObservation.cold");
-	if (cold.trialStage !== "cold" || cold.branchKind !== null) {
+	if (
+		cold.trialStage !== "cold" ||
+		cold.branchKind !== null ||
+		cold.memoryContextRecordDigest !== null
+	) {
 		throw new TypeError("trial observation cold run has invalid coordinates");
 	}
 	const rerunEligible = cold.classification === "incomplete" && cold.verifierStatus === "failed";
@@ -1101,7 +1370,7 @@ export function validateEmpiricalTrialBlockObservation(
 	if (warmValues.length !== EMPIRICAL_WARM_BRANCHES.length) {
 		throw new TypeError("trial observation requires the exact five warm branches");
 	}
-	const warmBranches = warmValues.map((value, index): EmpiricalWarmBranchObservationV1 => {
+	const warmBranches = warmValues.map((value, index): EmpiricalWarmBranchObservationV2 => {
 		const path = `trialBlockObservation.warmBranches[${index}]`;
 		const branch = record(value, path);
 		exactKeys(branch, ["attempted", "branchKind", "issueCodes", "lifecycle", "run"], path);
@@ -1137,6 +1406,29 @@ export function validateEmpiricalTrialBlockObservation(
 	) {
 		throw new TypeError("trial observation warm lifecycle is not bound to reflected candidates");
 	}
+	for (const branch of warmBranches) {
+		if (branch.lifecycle === null || branch.run === null) continue;
+		const actionTraceBoundToMemory = actionTraceBoundToDeliveredMemory(
+			branch.run,
+			branch.lifecycle.selectedRecordDigest,
+		);
+		const routeAvoided = actionTraceBoundToMemory && priorFailureRouteAvoided(cold, branch.run);
+		const expectsMemory =
+			branch.lifecycle.traceMemoryDisposition === "delivered"
+				? branch.lifecycle.selectedRecordDigest
+				: null;
+		if (
+			branch.run.memoryContextRecordDigest !== expectsMemory ||
+			branch.lifecycle.stagePredicates.warm_decision_trace_includes_memory ||
+			branch.lifecycle.stagePredicates.warm_action_trace_bound_to_memory_context !==
+				actionTraceBoundToMemory ||
+			branch.lifecycle.stagePredicates.prior_failure_route_avoided !== routeAvoided
+		) {
+			throw new TypeError(
+				`trial observation ${branch.branchKind} lifecycle is not derived from its bound action trace`,
+			);
+		}
+	}
 	const issueCodes = validateCoordinateList(
 		observation.issueCodes,
 		"trialBlockObservation.issueCodes",
@@ -1144,9 +1436,9 @@ export function validateEmpiricalTrialBlockObservation(
 	const attemptedWarm = warmBranches.filter(
 		(
 			branch,
-		): branch is EmpiricalWarmBranchObservationV1 & {
+		): branch is EmpiricalWarmBranchObservationV2 & {
 			readonly attempted: true;
-			readonly run: EmpiricalSmokeRunObservationV1;
+			readonly run: EmpiricalSmokeRunObservationV2;
 		} => branch.attempted && branch.run !== null,
 	);
 	const runs = [cold, ...attemptedWarm.map((branch) => branch.run)];
@@ -1334,7 +1626,7 @@ export function validateEmpiricalTrialBlockObservation(
 	});
 }
 
-function validateObservationRoute(value: unknown): EmpiricalTrialBlockObservationV1["route"] {
+function validateObservationRoute(value: unknown): EmpiricalTrialBlockObservationV2["route"] {
 	const route = record(value, "trialBlockObservation.route");
 	const keys = [
 		"adapterRevision",
@@ -1499,7 +1791,7 @@ function validateObservationRoute(value: unknown): EmpiricalTrialBlockObservatio
 	});
 }
 
-function validateObservationResult(value: unknown): EmpiricalTrialBlockObservationV1["result"] {
+function validateObservationResult(value: unknown): EmpiricalTrialBlockObservationV2["result"] {
 	const result = record(value, "trialBlockObservation.result");
 	exactKeys(
 		result,
@@ -1605,6 +1897,12 @@ function validateDigestList(value: unknown, path: string): readonly string[] {
 	return Object.freeze(validated);
 }
 
+function validateOrderedDigestList(value: unknown, path: string): readonly string[] {
+	const values = array(value, path);
+	if (values.length > 64) throw new TypeError(`${path} exceeds its bounded item count`);
+	return Object.freeze(values.map((item, index) => digest(item, `${path}[${index}]`)));
+}
+
 function validateCoordinateList(value: unknown, path: string): readonly string[] {
 	const values = array(value, path);
 	if (values.length > 128) throw new TypeError(`${path} exceeds its bounded item count`);
@@ -1619,9 +1917,9 @@ function validateCoordinateList(value: unknown, path: string): readonly string[]
 }
 
 export function createEmpiricalCampaignScorecard(
-	observationValue: EmpiricalTrialBlockObservationV1,
+	observationValue: EmpiricalTrialBlockObservationV2,
 	aggregationRevision: string,
-): EmpiricalCampaignScorecardV1 {
+): EmpiricalCampaignScorecardV2 {
 	const observation = validateEmpiricalTrialBlockObservation(observationValue);
 	const complete = observation.result.classification === "complete" ? 1 : 0;
 	const incomplete = observation.result.classification === "incomplete" ? 1 : 0;
@@ -1733,7 +2031,7 @@ export function createEmpiricalCampaignScorecard(
 	});
 }
 
-export function validateEmpiricalCampaignScorecard(value: unknown): EmpiricalCampaignScorecardV1 {
+export function validateEmpiricalCampaignScorecard(value: unknown): EmpiricalCampaignScorecardV2 {
 	const scorecard = record(value, "campaignScorecard");
 	exactKeys(
 		scorecard,

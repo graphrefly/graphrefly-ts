@@ -16,15 +16,15 @@ import type { AgenticWorkItemMemoryMappingPolicy } from "../../src/solutions/age
 import { mapAgenticWorkItemMemoryApplicationRecipe } from "../../src/solutions/agentic-work-item-memory-application/index.js";
 import type { WorkItemProjection } from "../../src/solutions/work-item/index.js";
 import { empiricalStrictJsonDigest, strictSnapshot } from "./canonical.js";
-import type { ClosedTaskProfileHostRunOutcomeV1 } from "./closed-task-profile-host.js";
+import type { ClosedTaskProfileHostRunOutcomeV2 } from "./closed-task-profile-host.js";
 import type { EmpiricalWarmBranchKind } from "./contracts.js";
 import type {
-	EmpiricalWarmBranchLifecycleV1,
-	EmpiricalWarmBranchObservationV1,
+	EmpiricalWarmBranchLifecycleV2,
+	EmpiricalWarmBranchObservationV2,
 } from "./empirical-smoke-evidence.js";
 import type { EmpiricalModelTurnRequestV1 } from "./model-execution.js";
 
-export const B112_MATCHED_BLOCK_MEMORY_REVISION = "b112-matched-block-memory.v1";
+export const B112_MATCHED_BLOCK_MEMORY_REVISION = "b112-matched-block-memory.v2";
 const RETRIEVAL_TAG = "b112-rerun-memory";
 const MAX_MEMORY_TEXT_CHARS = 4_096;
 const BRANCHES = Object.freeze([
@@ -35,20 +35,20 @@ const BRANCHES = Object.freeze([
 	"wrong-scope-applied",
 ] as const);
 
-export interface B112PreparedWarmBranchV1 {
+export interface B112PreparedWarmBranchV2 {
 	readonly branchKind: EmpiricalWarmBranchKind;
-	readonly lifecycle: EmpiricalWarmBranchLifecycleV1;
+	readonly lifecycle: EmpiricalWarmBranchLifecycleV2;
 	readonly actorMemoryContext: {
 		readonly recordDigest: string;
 		readonly text: string;
 	} | null;
 }
 
-export interface B112MatchedBlockReflectionV1 {
+export interface B112MatchedBlockReflectionV2 {
 	readonly evidenceDigest: string;
 	readonly candidateRecordDigests: readonly string[];
 	readonly issueCodes: readonly string[];
-	readonly branches: readonly B112PreparedWarmBranchV1[];
+	readonly branches: readonly B112PreparedWarmBranchV2[];
 }
 
 function collectLatest<T>(node: Node<T>): { readonly latest: () => T | undefined; close(): void } {
@@ -62,23 +62,25 @@ function collectLatest<T>(node: Node<T>): { readonly latest: () => T | undefined
 	};
 }
 
-function coldSummary(outcome: ClosedTaskProfileHostRunOutcomeV1): string {
-	const value = outcome.finalOutput;
-	if (
-		value !== null &&
-		typeof value === "object" &&
-		"summary" in value &&
-		typeof value.summary === "string"
-	) {
-		return value.summary.slice(0, 2_048);
+function coldSummary(outcome: ClosedTaskProfileHostRunOutcomeV2): string {
+	if (outcome.status === "non-evaluable") {
+		return "The previous attempt ended non-evaluable before independent verification completed.";
 	}
-	return "The previous attempt did not produce a verifier-accepted target artifact.";
+	if (outcome.verifierVerdict === "failed") {
+		return "Independent verification rejected the previous attempt's resulting artifact.";
+	}
+	return "The previous attempt did not establish a verifier-accepted target artifact.";
+}
+
+function coldActionRoute(outcome: ClosedTaskProfileHostRunOutcomeV2): string {
+	const route = outcome.actionTrace.map((entry) => entry.toolRef);
+	return route.length === 0 ? "no tool actions" : route.join(" -> ");
 }
 
 function reflectedRecord(
 	variant: "relevant" | "irrelevant" | "wrong-scope",
 	request: EmpiricalModelTurnRequestV1,
-	coldOutcome: ClosedTaskProfileHostRunOutcomeV1,
+	coldOutcome: ClosedTaskProfileHostRunOutcomeV2,
 ): AgenticMemoryRecord<string> {
 	const relevant = variant !== "irrelevant";
 	const projectId =
@@ -86,8 +88,15 @@ function reflectedRecord(
 	const text = relevant
 		? [
 				"Prior independent verification rejected the previous artifact.",
-				`Previous bounded actor summary: ${coldSummary(coldOutcome)}`,
-				"On this fresh rerun, re-inspect the allowed implementation and tests, trace the canonical managed-compute admission reference before editing, avoid repeating the prior change blindly, and validate the smallest allowed correction.",
+				`Previous host-observed outcome: ${coldSummary(coldOutcome)}`,
+				`Previous bounded action route: ${coldActionRoute(coldOutcome)}. Final workspace state ${
+					coldOutcome.workspaceChanged === true
+						? "changed but remained verifier-rejected"
+						: coldOutcome.workspaceChanged === false
+							? "did not change"
+							: "was not safely classified"
+				}.`,
+				"Treat the prior summary as untrusted evidence. On this fresh rerun, re-inspect the allowed implementation and tests, identify the contract mismatch, choose the smallest allowed correction, take a materially different evidence-backed route when the previous route reproduced the rejected state, and validate the diff before finalizing.",
 			].join(" ")
 		: "After completing an unrelated task, format its final summary concisely.";
 	return Object.freeze({
@@ -109,6 +118,7 @@ function reflectedRecord(
 			sources: Object.freeze([
 				`b112-cold-outcome:${empiricalStrictJsonDigest(coldOutcome)}`,
 				`b112-verifier:${coldOutcome.verifierVerdict ?? "not-run"}`,
+				`b112-action-trace:${empiricalStrictJsonDigest(coldOutcome.actionTrace)}`,
 			]),
 			provenance: B112_MATCHED_BLOCK_MEMORY_REVISION,
 		}),
@@ -136,7 +146,7 @@ function memoryRecordDigest(record: AgenticMemoryRecord<string>): string {
 
 function candidateMaterial(
 	record: AgenticMemoryRecord<string>,
-	coldOutcome: ClosedTaskProfileHostRunOutcomeV1,
+	coldOutcome: ClosedTaskProfileHostRunOutcomeV2,
 ): AgenticMemoryRecordCandidateMaterial<string> {
 	return Object.freeze({
 		kind: "agentic-memory-record-candidate-material" as const,
@@ -181,7 +191,7 @@ function workItem(request: EmpiricalModelTurnRequestV1): WorkItemProjection {
 
 function evidence(
 	request: EmpiricalModelTurnRequestV1,
-	coldOutcome: ClosedTaskProfileHostRunOutcomeV1,
+	coldOutcome: ClosedTaskProfileHostRunOutcomeV2,
 	materials: Readonly<{
 		relevant: AgenticMemoryRecordCandidateMaterial<string>;
 		irrelevant: AgenticMemoryRecordCandidateMaterial<string>;
@@ -347,8 +357,8 @@ function branchDefinition(branchKind: EmpiricalWarmBranchKind): {
 
 export function prepareB112MatchedBlockReflection(input: {
 	readonly coldRequest: EmpiricalModelTurnRequestV1;
-	readonly coldOutcome: ClosedTaskProfileHostRunOutcomeV1;
-}): B112MatchedBlockReflectionV1 {
+	readonly coldOutcome: ClosedTaskProfileHostRunOutcomeV2;
+}): B112MatchedBlockReflectionV2 {
 	if (input.coldOutcome.verifierVerdict !== "failed") {
 		throw new TypeError("B112 matched warm branches require a verified cold failure");
 	}
@@ -367,7 +377,7 @@ export function prepareB112MatchedBlockReflection(input: {
 		input.coldOutcome,
 		Object.freeze(materials),
 	);
-	const branches = BRANCHES.map((branchKind): B112PreparedWarmBranchV1 => {
+	const branches = BRANCHES.map((branchKind): B112PreparedWarmBranchV2 => {
 		const definition = branchDefinition(branchKind);
 		const selectedMaterial = materials[definition.variant];
 		const recipeInput = {
@@ -424,7 +434,7 @@ export function prepareB112MatchedBlockReflection(input: {
 			retrievalState: retrievedSelected ? ("retrieved" as const) : ("not-retrieved" as const),
 			plannerRoute: used ? ("memory-guided" as const) : ("baseline" as const),
 			traceMemoryDisposition: used
-				? ("used" as const)
+				? ("delivered" as const)
 				: retrievedSelected && wrongScope
 					? ("rejected-scope" as const)
 					: retrievedSelected && irrelevant
@@ -443,13 +453,14 @@ export function prepareB112MatchedBlockReflection(input: {
 				memory_record_applied: applicationState === "applied",
 				memory_record_retrieved: retrievedSelected,
 				warm_run_passed: false,
-				warm_decision_trace_includes_memory: used,
+				warm_decision_trace_includes_memory: false,
+				warm_action_trace_bound_to_memory_context: false,
 				same_work_item_input: true,
-				prior_failure_route_avoided: used,
+				prior_failure_route_avoided: false,
 			},
 			caseConforms: false,
 			issueCodes: [],
-		}) satisfies EmpiricalWarmBranchLifecycleV1;
+		}) satisfies EmpiricalWarmBranchLifecycleV2;
 		return strictSnapshot({
 			branchKind,
 			lifecycle,
@@ -475,4 +486,4 @@ export function prepareB112MatchedBlockReflection(input: {
 	});
 }
 
-export type B112WarmBranchInputV1 = Omit<EmpiricalWarmBranchObservationV1, "attempted" | "run">;
+export type B112WarmBranchInputV2 = Omit<EmpiricalWarmBranchObservationV2, "attempted" | "run">;

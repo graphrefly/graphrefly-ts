@@ -855,6 +855,24 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			CLOSED_ACTOR_TOOL_REFS.workspaceDiff,
 			CLOSED_ACTOR_TOOL_REFS.runCommand,
 		]);
+		expect(outcome.actionTrace.map((entry) => entry.actionIndex)).toEqual([0, 1, 2, 3, 4]);
+		expect(outcome.actionTrace.map((entry) => entry.stepIndex)).toEqual([0, 1, 2, 3, 4]);
+		expect(
+			outcome.actionTrace.every(
+				(entry) =>
+					entry.initialRequestDigest === outcome.initialRequestDigest &&
+					entry.memoryContextRecordDigest === null &&
+					outcome.turnEvidence[entry.stepIndex]?.requestDigest === entry.requestDigest &&
+					outcome.toolEvidence.some(
+						(tool) =>
+							tool.toolCallRefDigest === entry.toolCallRefDigest &&
+							tool.toolRef === entry.toolRef &&
+							tool.resultDigest === entry.resultDigest,
+					),
+			),
+		).toBe(true);
+		expect(outcome.workspaceChanged).toBe(true);
+		expect(outcome.workspaceBaselineDigest).not.toBe(outcome.workspaceStateDigest);
 		expect(JSON.stringify(outcome)).not.toContain("broken");
 		expect(JSON.stringify(outcome)).not.toContain(fixture.workspaceRoot);
 		expect(() => readFileSync(join(fixture.workspaceRoot, "README.md"))).toThrow();
@@ -1258,9 +1276,9 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		).toThrow(/evidence digests do not match|required frozen evidence/);
 		const persistedFiles = readdirSync(result.persistence.generationPath).sort();
 		expect(persistedFiles).toEqual([
-			"campaign-scorecard.v1.json",
-			"generation.v1.json",
-			"trial-block-observation.v1.json",
+			"campaign-scorecard.v2.json",
+			"generation.v2.json",
+			"trial-block-observation.v2.json",
 		]);
 		for (const file of persistedFiles) {
 			expect(statSync(join(result.persistence.generationPath, file)).mode & 0o777).toBe(0o600);
@@ -1346,9 +1364,42 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		const fixture = await createClosedHostFixture();
 		const credentialSentinel = "openrouter-matched-block-secret-sentinel-0123456789";
 		const baseContentDigest = empiricalSha256(encoder.encode("broken-placeholder-value\n"));
+		const taskSpecificCorrectionSentinel =
+			"replace broken-placeholder-value with fixed task-specific correction";
 		const wireBodies: string[] = [];
 		const actorInputs: string[] = [];
 		let transportCalls = 0;
+		let correctionIssued = false;
+		let expectedRelevantMemoryDigest: string | null = null;
+		const validatesGenericMemory = (
+			memoryContext:
+				| {
+						readonly kind?: string;
+						readonly revision?: string;
+						readonly recordDigest?: string;
+						readonly text?: string;
+				  }
+				| undefined,
+			expectedDigest: string | null,
+		) =>
+			memoryContext?.kind === "agentic-memory-context" &&
+			memoryContext.revision === "b112-matched-block-memory.v2" &&
+			memoryContext.recordDigest === expectedDigest &&
+			typeof memoryContext.text === "string" &&
+			memoryContext.text.includes("Previous bounded action route") &&
+			memoryContext.text.includes("re-inspect the allowed implementation and tests") &&
+			!memoryContext.text.match(/managed-compute|tool-provider-run-admission/);
+		expect(
+			validatesGenericMemory(
+				{
+					kind: "agentic-memory-context",
+					revision: "b112-matched-block-memory.v2",
+					recordDigest: `sha256:${"a".repeat(64)}`,
+					text: "Previous bounded action route; re-inspect the allowed implementation and tests.",
+				},
+				`sha256:${"b".repeat(64)}`,
+			),
+		).toBe(false);
 		const transport: OpenRouterResponsesByteTransportV1 = {
 			async request(input) {
 				transportCalls += 1;
@@ -1359,41 +1410,67 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 					readonly input: string;
 				};
 				actorInputs.push(requestBody.input);
+				const userEnvelope = JSON.parse(requestBody.input) as {
+					readonly structuredInput?: {
+						readonly memoryContext?: {
+							readonly kind?: string;
+							readonly revision?: string;
+							readonly recordDigest?: string;
+							readonly text?: string;
+						};
+					};
+				};
+				const memoryContext = userEnvelope.structuredInput?.memoryContext;
+				const hasValidatedGenericMemory = validatesGenericMemory(
+					memoryContext,
+					expectedRelevantMemoryDigest,
+				);
 				const output =
-					transportCalls === 2
+					transportCalls === 1
 						? [
 								{
 									type: "function_call",
 									status: "completed",
-									call_id: "call.matched-replace",
-									name: requestBody.tools[2]?.name,
-									arguments: JSON.stringify({
-										baseContentDigest,
-										newText: "fixed",
-										oldText: "broken-placeholder-value",
-										path: "README.md",
-									}),
+									call_id: "call.matched-cold-read",
+									name: requestBody.tools[0]?.name,
+									arguments: JSON.stringify({ path: "README.md" }),
 								},
 							]
-						: [
-								{
-									type: "message",
-									role: "assistant",
-									status: "completed",
-									content: [
-										{
-											type: "output_text",
-											text: JSON.stringify({
-												kind: "model-turn-output-placeholder",
-												summary:
-													transportCalls === 1
-														? "Previous attempt stopped before the target correction."
-														: "Bounded matched-block completion.",
-											}),
-										},
-									],
-								},
-							];
+						: hasValidatedGenericMemory && !correctionIssued
+							? [
+									{
+										type: "function_call",
+										status: "completed",
+										call_id: "call.matched-replace",
+										name: requestBody.tools[2]?.name,
+										arguments: JSON.stringify({
+											baseContentDigest,
+											newText: "fixed",
+											oldText: "broken-placeholder-value",
+											path: "README.md",
+										}),
+									},
+								]
+							: [
+									{
+										type: "message",
+										role: "assistant",
+										status: "completed",
+										content: [
+											{
+												type: "output_text",
+												text: JSON.stringify({
+													kind: "model-turn-output-placeholder",
+													summary:
+														transportCalls === 2
+															? taskSpecificCorrectionSentinel
+															: "Bounded matched-block completion.",
+												}),
+											},
+										],
+									},
+								];
+				if (hasValidatedGenericMemory && !correctionIssued) correctionIssued = true;
 				return dryRunOpenRouterResponse(`response.matched.${transportCalls}`, output);
 			},
 		};
@@ -1404,10 +1481,25 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		);
 		mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
 		chmodSync(privateRoot, 0o700);
+		const historicalGenerationRef = "historical-v1-generation";
+		const historicalGenerationRoot = join(privateRoot, historicalGenerationRef);
+		mkdirSync(historicalGenerationRoot, { mode: 0o700 });
+		const historicalV1Files = [
+			"trial-block-observation.v1.json",
+			"campaign-scorecard.v1.json",
+			"generation.v1.json",
+		] as const;
+		const historicalV1Bytes = new Map<string, string>();
+		for (const file of historicalV1Files) {
+			const content = JSON.stringify({ kind: "immutable-historical-v1", file });
+			writeFileSync(join(historicalGenerationRoot, file), content, { mode: 0o600 });
+			chmodSync(join(historicalGenerationRoot, file), 0o600);
+			historicalV1Bytes.set(file, content);
+		}
 		let measurement = 0;
 		const routeQualification = simulatedRouteQualification(fixture, {
 			maxRequests: 48,
-			maxStepsPerRun: 2,
+			maxStepsPerRun: 8,
 			maxInputTokens: 600_000,
 			maxOutputTokens: 49_152,
 		});
@@ -1420,7 +1512,23 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			input: Parameters<
 				NonNullable<Parameters<typeof runOpenRouterFirstTaskSmoke>[0]["prepareWarmHost"]>
 			>[0],
-		) => fixture.prepareFreshMaterialization(input.signal);
+		) => {
+			const structuredInput = input.initialRequest.structuredInput;
+			if (
+				structuredInput !== null &&
+				typeof structuredInput === "object" &&
+				!Array.isArray(structuredInput) &&
+				"memoryContext" in structuredInput &&
+				structuredInput.memoryContext !== null &&
+				typeof structuredInput.memoryContext === "object" &&
+				!Array.isArray(structuredInput.memoryContext) &&
+				"recordDigest" in structuredInput.memoryContext &&
+				typeof structuredInput.memoryContext.recordDigest === "string"
+			) {
+				expectedRelevantMemoryDigest = structuredInput.memoryContext.recordDigest;
+			}
+			return fixture.prepareFreshMaterialization(input.signal);
+		};
 		const common = {
 			prepareWarmHost,
 			routeQualification,
@@ -1444,19 +1552,19 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			},
 		});
 
-		expect(transportCalls).toBe(7);
+		expect(transportCalls).toBe(8);
 		expect(result.admissionRejection).toBeNull();
 		expect(fixture.verifierCalls.count).toBe(6);
 		expect(result.observation).toMatchObject({
 			rerunEligible: true,
-			familyPassed: true,
+			familyPassed: false,
 			result: {
 				classification: "complete",
 				verifierStatus: "failed",
 				coldRunsAttempted: 1,
 				warmRunsAttempted: 5,
-				requests: 7,
-				steps: 7,
+				requests: 8,
+				steps: 8,
 			},
 		});
 		expect(result.observation.warmBranches.map((branch) => branch.branchKind)).toEqual([
@@ -1479,7 +1587,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			eligibleColdFailures: 1,
 			warmRunsAttempted: 5,
 			warmRunsEvaluable: 5,
-			familyPassed: true,
+			familyPassed: false,
 			primaryComparison: {
 				relevantAppliedPass: 1,
 				proposalOnlyPass: 0,
@@ -1515,6 +1623,30 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		if (relevantLifecycle === null || relevantLifecycle === undefined) {
 			throw new TypeError("matched dry-run relevant lifecycle is missing");
 		}
+		const relevantRun = result.observation.warmBranches[0]?.run;
+		if (relevantRun === null || relevantRun === undefined) {
+			throw new TypeError("matched dry-run relevant run is missing");
+		}
+		expect(relevantLifecycle.traceMemoryDisposition).toBe("delivered");
+		expect(expectedRelevantMemoryDigest).toBe(relevantLifecycle.selectedRecordDigest);
+		expect(relevantLifecycle.stagePredicates).toMatchObject({
+			warm_decision_trace_includes_memory: false,
+			warm_action_trace_bound_to_memory_context: true,
+			prior_failure_route_avoided: true,
+			warm_run_passed: true,
+		});
+		expect(result.observation.cold.actionTrace).toHaveLength(1);
+		expect(result.observation.warmBranches[0]?.run?.actionTrace).toHaveLength(1);
+		expect(
+			result.observation.warmBranches
+				.slice(1)
+				.every(
+					(branch) =>
+						branch.lifecycle?.stagePredicates.warm_decision_trace_includes_memory === false &&
+						branch.lifecycle?.stagePredicates.warm_action_trace_bound_to_memory_context === false &&
+						branch.lifecycle?.stagePredicates.prior_failure_route_avoided === false,
+				),
+		).toBe(true);
 		expect(() =>
 			validateEmpiricalTrialBlockObservation({
 				...result.observation,
@@ -1524,16 +1656,146 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 								...branch,
 								lifecycle: {
 									...relevantLifecycle,
-									stagePredicates: {
-										...relevantLifecycle.stagePredicates,
-										memory_record_applied: false,
-									},
+									caseConforms: true,
 								},
 							}
 						: branch,
 				),
 			}),
 		).toThrow(/caseConforms/);
+		const repeatedColdRoute = result.observation.cold.actionTrace.map((entry) => ({
+			...entry,
+			initialRequestDigest: relevantRun.initialRequestDigest as string,
+		}));
+		expect(() =>
+			validateEmpiricalTrialBlockObservation({
+				...result.observation,
+				warmBranches: result.observation.warmBranches.map((branch, index) =>
+					index === 0
+						? {
+								...branch,
+								run: {
+									...relevantRun,
+									actionTrace: repeatedColdRoute,
+									actionTraceDigest: empiricalStrictJsonDigest(repeatedColdRoute),
+									workspaceStateDigest: result.observation.cold.workspaceStateDigest,
+									workspaceChangeDigest: result.observation.cold.workspaceChangeDigest,
+									workspaceChanged: result.observation.cold.workspaceChanged,
+								},
+							}
+						: branch,
+				),
+			}),
+		).toThrow(/exact request and tool result|bound action trace/);
+		const relevantAction = relevantRun.actionTrace[0];
+		const relevantBinding = relevantRun.toolResultBindings[0];
+		if (relevantAction === undefined || relevantBinding === undefined) {
+			throw new TypeError("matched dry-run relevant action binding is missing");
+		}
+		const duplicatedActionTrace = [relevantAction, { ...relevantAction, actionIndex: 1 }] as const;
+		expect(() =>
+			validateEmpiricalTrialBlockObservation({
+				...result.observation,
+				warmBranches: result.observation.warmBranches.map((branch, index) =>
+					index === 0
+						? {
+								...branch,
+								run: {
+									...relevantRun,
+									actionTrace: duplicatedActionTrace,
+									actionTraceDigest: empiricalStrictJsonDigest(duplicatedActionTrace),
+									toolResultBindings: [relevantBinding, relevantBinding],
+								},
+							}
+						: branch,
+				),
+			}),
+		).toThrow(/unique tool-call digests/);
+		const secondTurnRequestDigest = relevantRun.turnRequestDigests[1];
+		if (secondTurnRequestDigest === undefined) {
+			throw new TypeError("matched dry-run second turn request digest is missing");
+		}
+		const reversedStepToolCallDigest = empiricalStrictJsonDigest({
+			toolCallRef: "reversed-step-tool-call",
+		});
+		const reversedStepResultDigest = empiricalStrictJsonDigest({
+			result: "reversed-step-result",
+		});
+		const reversedStepActionTrace = [
+			{
+				...relevantAction,
+				stepIndex: 1,
+				actionIndex: 0,
+				requestDigest: secondTurnRequestDigest,
+				toolCallRefDigest: reversedStepToolCallDigest,
+				intentDigest: empiricalStrictJsonDigest({ intent: "reversed-step-intent" }),
+				resultDigest: reversedStepResultDigest,
+			},
+			{ ...relevantAction, stepIndex: 0, actionIndex: 1 },
+		] as const;
+		expect(() =>
+			validateEmpiricalTrialBlockObservation({
+				...result.observation,
+				warmBranches: result.observation.warmBranches.map((branch, index) =>
+					index === 0
+						? {
+								...branch,
+								run: {
+									...relevantRun,
+									actionTrace: reversedStepActionTrace,
+									actionTraceDigest: empiricalStrictJsonDigest(reversedStepActionTrace),
+									toolResultBindings: [
+										{
+											toolCallRefDigest: reversedStepToolCallDigest,
+											toolRef: relevantAction.toolRef,
+											resultDigest: reversedStepResultDigest,
+										},
+										relevantBinding,
+									],
+								},
+							}
+						: branch,
+				),
+			}),
+		).toThrow(/step indexes must be nondecreasing/);
+		expect(() =>
+			validateEmpiricalTrialBlockObservation({
+				...result.observation,
+				warmBranches: result.observation.warmBranches.map((branch, index) =>
+					index === 0
+						? {
+								...branch,
+								run: {
+									...relevantRun,
+									turnRequestDigests: relevantRun.turnRequestDigests.map((value, turnIndex) =>
+										turnIndex === 0
+											? empiricalStrictJsonDigest({ kind: "substituted-initial-turn" })
+											: value,
+									),
+								},
+							}
+						: branch,
+				),
+			}),
+		).toThrow(/must equal the initial request digest/);
+		expect(() =>
+			validateEmpiricalTrialBlockObservation({
+				...result.observation,
+				warmBranches: result.observation.warmBranches.map((branch, index) =>
+					index === 0
+						? {
+								...branch,
+								run: {
+									...relevantRun,
+									workspaceBaselineDigest: empiricalStrictJsonDigest({
+										kind: "different-baseline",
+									}),
+								},
+							}
+						: branch,
+				),
+			}),
+		).toThrow(/derived from its bound action trace/);
 		expect(() =>
 			validateEmpiricalCampaignScorecard({
 				...result.scorecard,
@@ -1544,6 +1806,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		).toThrow(/secondaryComparisons\[0\]/);
 		expect(actorInputs.map((body) => body.includes('"memoryContext"'))).toEqual([
 			false,
+			false,
 			true,
 			true,
 			false,
@@ -1551,6 +1814,10 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			false,
 			false,
 		]);
+		expect(actorInputs[2]).toContain("Previous bounded action route");
+		expect(actorInputs[2]).toContain(CLOSED_ACTOR_TOOL_REFS.readFile);
+		expect(actorInputs[2]).not.toMatch(/managed-compute|tool-provider-run-admission/);
+		expect(actorInputs[2]).not.toContain(taskSpecificCorrectionSentinel);
 		for (const body of wireBodies) {
 			expect(body).not.toContain(credentialSentinel);
 			expect(body).not.toMatch(
@@ -1559,14 +1826,46 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		}
 		const generationRoot = result.persistence.generationPath;
 		const persisted = [
-			readFileSync(join(generationRoot, "trial-block-observation.v1.json"), "utf8"),
-			readFileSync(join(generationRoot, "campaign-scorecard.v1.json"), "utf8"),
-			readFileSync(join(generationRoot, "generation.v1.json"), "utf8"),
+			readFileSync(join(generationRoot, "trial-block-observation.v2.json"), "utf8"),
+			readFileSync(join(generationRoot, "campaign-scorecard.v2.json"), "utf8"),
+			readFileSync(join(generationRoot, "generation.v2.json"), "utf8"),
 		].join("\n");
 		expect(persisted).not.toContain(credentialSentinel);
-		expect(statSync(join(generationRoot, "trial-block-observation.v1.json")).mode & 0o777).toBe(
+		expect(persisted).toContain('"actionTrace"');
+		expect(persisted).not.toContain(fixture.workspaceRoot);
+		expect(statSync(join(generationRoot, "trial-block-observation.v2.json")).mode & 0o777).toBe(
 			0o600,
 		);
+		const persistenceProtection = createEmpiricalExactPrivateNeedleProtectionExecutor({
+			policyRef: fixture.initialRequest.protectionPolicyRef,
+			policyRevision: fixture.initialRequest.protectionPolicyRevision,
+			protectedNeedleCapabilityRef: "matched-v2-persistence-sentinel",
+			protectedNeedleCapabilityRevision: "matched-v2-persistence-sentinel.v1",
+			protectedNeedles: [credentialSentinel],
+		});
+		await expect(
+			persistPrivateSmokeGeneration({
+				privateRoot,
+				generationRef: historicalGenerationRef,
+				observation: result.observation,
+				scorecard: result.scorecard,
+				protectionExecutor: persistenceProtection,
+			}),
+		).rejects.toThrow();
+		for (const file of historicalV1Files) {
+			expect(readFileSync(join(historicalGenerationRoot, file), "utf8")).toBe(
+				historicalV1Bytes.get(file),
+			);
+			expect(statSync(join(historicalGenerationRoot, file)).mode & 0o777).toBe(0o600);
+		}
+		const adjacentPersistence = await persistPrivateSmokeGeneration({
+			privateRoot,
+			generationRef: "adjacent-v2-generation",
+			observation: result.observation,
+			scorecard: result.scorecard,
+			protectionExecutor: persistenceProtection,
+		});
+		expect(adjacentPersistence.generationPath.endsWith("/adjacent-v2-generation")).toBe(true);
 		expect(() => readFileSync(join(fixture.workspaceRoot, "README.md"))).toThrow();
 		let boundedTransportCalls = 0;
 		const boundedTransport: OpenRouterResponsesByteTransportV1 = {
@@ -1688,7 +1987,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(result.scorecard.status).toBe("non-evaluable");
 		expect(
 			readFileSync(
-				join(result.persistence.generationPath, "trial-block-observation.v1.json"),
+				join(result.persistence.generationPath, "trial-block-observation.v2.json"),
 				"utf8",
 			),
 		).not.toContain(failureCredentialSentinel);
@@ -1891,7 +2190,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		);
 		expect(
 			readFileSync(
-				join(result.persistence.generationPath, "trial-block-observation.v1.json"),
+				join(result.persistence.generationPath, "trial-block-observation.v2.json"),
 				"utf8",
 			),
 		).not.toContain(timeoutCredentialSentinel);
@@ -2080,7 +2379,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(result.persistence.observationDigest).toBe(result.scorecard.observationDigests[0]);
 		const persistedObservation = JSON.parse(
 			readFileSync(
-				join(result.persistence.generationPath, "trial-block-observation.v1.json"),
+				join(result.persistence.generationPath, "trial-block-observation.v2.json"),
 				"utf8",
 			),
 		) as { readonly result: { readonly costBasis: string; readonly costMicrousd: number } };
@@ -2197,9 +2496,9 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		);
 		expect(JSON.stringify(costBound.scorecard)).not.toContain("b112-smoke-admission-rejection.v1");
 		for (const artifactName of [
-			"trial-block-observation.v1.json",
-			"campaign-scorecard.v1.json",
-			"generation.v1.json",
+			"trial-block-observation.v2.json",
+			"campaign-scorecard.v2.json",
+			"generation.v2.json",
 		]) {
 			expect(
 				readFileSync(join(costBound.persistence.generationPath, artifactName), "utf8"),
