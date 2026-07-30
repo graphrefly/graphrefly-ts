@@ -262,6 +262,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./executors/local-container-postgresql-podman-libpod-api-v0-rootless/node",
 			"./executors/local-untrusted-js-compute",
 			"./executors/local-untrusted-js-compute/node",
+			"./executors/local-untrusted-js-compute/runner/Containerfile",
+			"./executors/local-untrusted-js-compute/runner/local-untrusted-js-runner.mjs",
 			"./executors/managed-cloud-postgresql",
 			"./executors/managed-untrusted-js-compute",
 			"./executors/postgresql-run-operations",

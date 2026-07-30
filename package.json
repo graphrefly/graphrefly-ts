@@ -34,7 +34,7 @@
 		"probe:b49:ts": "tsx packages/ts/src/__bench__/b49-probe.ts",
 		"bench": "pnpm run probe:b49:ts",
 		"changeset": "changeset",
-		"version-packages": "changeset version",
+		"version-packages": "changeset version && pnpm run build:local-untrusted-js-runner",
 		"release": "pnpm run build && changeset publish",
 		"lint": "biome check . && tsx scripts/check-no-raw-async.ts && tsx scripts/check-typecheck.ts && pnpm --filter @graphrefly/ts test:typecheck",
 		"lint:no-raw-async": "tsx scripts/check-no-raw-async.ts",

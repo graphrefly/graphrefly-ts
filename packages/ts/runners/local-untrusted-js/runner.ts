@@ -5,8 +5,11 @@ import { graph } from "../../src/graph/graph.js";
 import { strictCanonicalJsonBytes } from "../../src/json/codec.js";
 import type { Node } from "../../src/node/node.js";
 
+declare const __GRAPHREFLY_TS_PACKAGE_REVISION__: string;
+
 const COMPATIBILITY_REVISION = "graphrefly-local-untrusted-js-compute-v1";
 const RUNNER_API_REVISION = "graphrefly-runner-api-v1";
+const GRAPHREFLY_PACKAGE_REVISION = __GRAPHREFLY_TS_PACKAGE_REVISION__;
 const INPUT_PATHS = ["/input/bundle.mjs", "/input/input.json", "/input/control.json"] as const;
 const MAX_RUNNER_NODES = 1_000;
 const MAX_RUNNER_EDGES = 2_000;
@@ -284,12 +287,13 @@ function parseControl(value: unknown): RunnerControl {
 	if (
 		value.contractVersion !== "1" ||
 		value.compatibilityRevision !== COMPATIBILITY_REVISION ||
-		value.runnerApiRevision !== RUNNER_API_REVISION
+		value.runnerApiRevision !== RUNNER_API_REVISION ||
+		!record(value.args) ||
+		value.args.graphreflyPackageRevision !== GRAPHREFLY_PACKAGE_REVISION
 	)
 		throw new TypeError("Runner control identity is invalid.");
 	safeString(value.manifestFingerprint, "Manifest fingerprint");
 	safeString(value.runAdmissionId, "Run admission id");
-	if (!record(value.args)) throw new TypeError("Runner arguments must be an object.");
 	const args = value.args;
 	for (const key of [
 		"runId",
@@ -490,7 +494,7 @@ function materializeResult(
 				bundleDigest: control.args.bundleDigest,
 				compilerRevision: control.args.compilerRevision,
 				allowedApiRevision: control.args.allowedApiRevision,
-				graphreflyPackageRevision: control.args.graphreflyPackageRevision,
+				graphreflyPackageRevision: GRAPHREFLY_PACKAGE_REVISION,
 				runnerRevision: control.args.runnerRevision,
 				runnerImageDigest: control.args.runnerImageDigest,
 				manifestFingerprint: control.manifestFingerprint,

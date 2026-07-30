@@ -1,9 +1,9 @@
-// runners/local-untrusted-js/runner.ts
+// packages/ts/runners/local-untrusted-js/runner.ts
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createContext, Script, SourceTextModule } from "node:vm";
 
-// src/batch/boundary.ts
+// packages/ts/src/batch/boundary.ts
 var depth = 0;
 var pendingCores = [];
 var pendingHead = 0;
@@ -59,7 +59,7 @@ function drain() {
   if (escaped !== null) throw escaped.e;
 }
 
-// src/batch/batch.ts
+// packages/ts/src/batch/batch.ts
 var active = null;
 var boundaryOwner = null;
 function currentBatch() {
@@ -139,7 +139,7 @@ function batch(fn) {
   }
 }
 
-// src/protocol/messages.ts
+// packages/ts/src/protocol/messages.ts
 var SENTINEL = void 0;
 function isInvalidErrorPayload(v) {
   return v === SENTINEL || typeof v === "boolean";
@@ -188,7 +188,7 @@ function isUpAllowed(t) {
   return tier !== void 0 && tier !== TIER_START && tier !== TIER_VALUE && tier !== TIER_TERMINAL;
 }
 
-// src/ctx/types.ts
+// packages/ts/src/ctx/types.ts
 var CTX_DEP_CACHE = /* @__PURE__ */ Symbol.for("graphrefly.ctx.depCache");
 var ctxDepWaveOrigins = /* @__PURE__ */ new WeakMap();
 function setCtxDepWaveOrigin(ctx, origin) {
@@ -202,7 +202,7 @@ function depLatest(ctx, depIndex) {
   return ctx[CTX_DEP_CACHE]?.latest[depIndex];
 }
 
-// src/dispatcher/index.ts
+// packages/ts/src/dispatcher/index.ts
 var PoolTable = class {
   constructor(kind) {
     this.kind = kind;
@@ -311,7 +311,7 @@ var Dispatcher = class {
 };
 var defaultDispatcher = new Dispatcher();
 
-// src/node/core.ts
+// packages/ts/src/node/core.ts
 var NodeCore = class {
   nextId = 0;
   slots = [];
@@ -459,7 +459,7 @@ function makeDepBookkeeping(depCount2) {
   };
 }
 
-// src/graph/environment.ts
+// packages/ts/src/graph/environment.ts
 var EnvironmentDrivers = class _EnvironmentDrivers {
   process;
   http;
@@ -510,7 +510,7 @@ var EnvironmentDrivers = class _EnvironmentDrivers {
 };
 var EMPTY_ENVIRONMENT = new EnvironmentDrivers();
 
-// src/node/protocol-guards.ts
+// packages/ts/src/node/protocol-guards.ts
 function terminalView(t) {
   return t === void 0 ? false : t;
 }
@@ -541,7 +541,7 @@ function validateDownPayloads(msgs) {
   }
 }
 
-// src/node/runtime-accessors.ts
+// packages/ts/src/node/runtime-accessors.ts
 var constructingCore;
 var constructingEnvironment;
 var ownerTokens = /* @__PURE__ */ new WeakMap();
@@ -614,7 +614,7 @@ function isNodeRuntimeReleased(n) {
   return releasedNodes.has(n);
 }
 
-// src/node/node-context-runtime.ts
+// packages/ts/src/node/node-context-runtime.ts
 function nodeBuildCtx(self) {
   const kind = self._slot.handle ? self._slot.dispatcher.poolKind(self._slot.handle.poolId) : "sync";
   if (kind === "sync") {
@@ -710,7 +710,7 @@ function nodeMakeState(self) {
   };
 }
 
-// src/node/node-input-runtime.ts
+// packages/ts/src/node/node-input-runtime.ts
 function nodeRecordDepProjection(self, idx, delivery) {
   const token = delivery?.wave ?? {};
   if (self._dep.waveTokens[idx] !== token) {
@@ -927,12 +927,12 @@ function nodeRunWave(self) {
   self._wave.emittedDirtyThisWave = false;
 }
 
-// src/node/node-runtime-host.ts
+// packages/ts/src/node/node-runtime-host.ts
 function nodeRuntimeHost(node) {
   return node;
 }
 
-// src/node/node-lifecycle-runtime.ts
+// packages/ts/src/node/node-lifecycle-runtime.ts
 function nodeActivate(self) {
   self._lifecycle.activated = true;
   const seedRestoredDeps = self._restoredActivationPending;
@@ -1105,7 +1105,7 @@ function nodeResetDepState(self) {
   self._wave.emittedDirtyThisWave = false;
 }
 
-// src/json/codec.ts
+// packages/ts/src/json/codec.ts
 var JS_MIN_NORMAL_NUMBER = 2 ** -1022;
 function deepFreezeStrictJson(value) {
   if (value !== null && typeof value === "object") {
@@ -1561,7 +1561,7 @@ function assertStrictJsonObject(value, label = "strictJsonObject") {
   return cloneStrictJsonObject(value, label);
 }
 
-// src/node/versioning.ts
+// packages/ts/src/node/versioning.ts
 var ABSENT_V1_SEED = Object.freeze({
   "@graphrefly/node-version": "v1-absent"
 });
@@ -1639,7 +1639,7 @@ function restoredV1Cid(policy, hasData, cache) {
   return computeV1Cid(policy, hasData ? cache : ABSENT_V1_SEED);
 }
 
-// src/node/node-output-runtime.ts
+// packages/ts/src/node/node-output-runtime.ts
 function nodeDown(self, msgs) {
   if (self._released) return;
   validateDownPayloads(msgs);
@@ -2015,7 +2015,7 @@ function nodeDeferBoundary(self, fn, batchToken) {
   });
 }
 
-// src/node/node-rewire-runtime.ts
+// packages/ts/src/node/node-rewire-runtime.ts
 function nodeRequestRewireNext(self, op) {
   deferRewire(self._core, () => self._applyRewireNext(op), {
     batchToken: currentBoundaryBatchToken(),
@@ -2170,7 +2170,7 @@ function nodeRewire(self, newDeps, fn, opts = {}) {
   return false;
 }
 
-// src/node/node.ts
+// packages/ts/src/node/node.ts
 var Node = class _Node {
   _core;
   _id;
@@ -2740,12 +2740,12 @@ var Node = class _Node {
   }
 };
 
-// src/identity.ts
+// packages/ts/src/identity.ts
 function canonicalTupleKey(parts) {
   return JSON.stringify(parts);
 }
 
-// src/graph/blueprint.ts
+// packages/ts/src/graph/blueprint.ts
 var GRAPH_BLUEPRINT_VERSION = "graphrefly.blueprint.v2";
 function normalizeTopologyMeta(meta, label = "meta", kind = "graph meta") {
   try {
@@ -2918,7 +2918,7 @@ function compareIssues(a, b) {
   return compareText(a.code, b.code) || compareText(a.nodeId ?? "", b.nodeId ?? "") || compareText(a.from ?? "", b.from ?? "") || compareText(a.to ?? "", b.to ?? "");
 }
 
-// src/graph/checkpoint.ts
+// packages/ts/src/graph/checkpoint.ts
 var GRAPH_CHECKPOINT_VERSION = "graphrefly.checkpoint.v1";
 function toCheckpointJson(value, path = "$") {
   try {
@@ -2945,7 +2945,7 @@ function checkpointBackendStateOfNode(node, path) {
   return toCheckpointJson(contributor(), path);
 }
 
-// src/graph/describe.ts
+// packages/ts/src/graph/describe.ts
 function topologyFromDescribe(snapshot) {
   const nodes = snapshot.nodes.map((node) => {
     const topologyNode = {
@@ -3008,11 +3008,11 @@ function cloneTopologyValue(value, seen) {
   return out;
 }
 
-// src/graph/graph-lifecycle.ts
+// packages/ts/src/graph/graph-lifecycle.ts
 var restoreRegistrars = /* @__PURE__ */ new WeakMap();
 var lifecycleRegistrars = /* @__PURE__ */ new WeakMap();
 
-// src/graph/graph-support.ts
+// packages/ts/src/graph/graph-support.ts
 function isNonAuthoritativeCollectionHelperMeta(meta) {
   return meta?.kind === "collection_delta" || meta?.kind === "collection_intent" || meta?.kind === "collection_policy_apply" || meta?.kind === "collection_snapshot" || meta?.kind === "collection_snapshot_prep";
 }
@@ -3111,7 +3111,7 @@ function explainSubset(snap, chain) {
   };
 }
 
-// src/graph/graph-topology-group.ts
+// packages/ts/src/graph/graph-topology-group.ts
 var GraphTopologyGroup = class {
   name;
   _graph;
@@ -3173,7 +3173,7 @@ var GraphTopologyGroup = class {
   }
 };
 
-// src/graph/operators.ts
+// packages/ts/src/graph/operators.ts
 function initNodeWithCore(core, op, deps, opts = {}) {
   return withNodeCore(core, () => makeInitNode(op, deps, opts));
 }
@@ -3191,7 +3191,7 @@ function operatorNodeFn(op) {
   };
 }
 
-// src/graph/graph.ts
+// packages/ts/src/graph/graph.ts
 function nodeOwner(n) {
   return getNodeOwner(n);
 }
@@ -3890,9 +3890,10 @@ function graph(opts = {}) {
   return new Graph(opts);
 }
 
-// runners/local-untrusted-js/runner.ts
+// packages/ts/runners/local-untrusted-js/runner.ts
 var COMPATIBILITY_REVISION = "graphrefly-local-untrusted-js-compute-v1";
 var RUNNER_API_REVISION = "graphrefly-runner-api-v1";
+var GRAPHREFLY_PACKAGE_REVISION = "graphrefly-ts:0.7.0";
 var INPUT_PATHS = ["/input/bundle.mjs", "/input/input.json", "/input/control.json"];
 var MAX_RUNNER_NODES = 1e3;
 var MAX_RUNNER_EDGES = 2e3;
@@ -4099,11 +4100,10 @@ function parseControl(value) {
     ],
     "Runner control"
   );
-  if (value.contractVersion !== "1" || value.compatibilityRevision !== COMPATIBILITY_REVISION || value.runnerApiRevision !== RUNNER_API_REVISION)
+  if (value.contractVersion !== "1" || value.compatibilityRevision !== COMPATIBILITY_REVISION || value.runnerApiRevision !== RUNNER_API_REVISION || !record(value.args) || value.args.graphreflyPackageRevision !== GRAPHREFLY_PACKAGE_REVISION)
     throw new TypeError("Runner control identity is invalid.");
   safeString(value.manifestFingerprint, "Manifest fingerprint");
   safeString(value.runAdmissionId, "Run admission id");
-  if (!record(value.args)) throw new TypeError("Runner arguments must be an object.");
   const args = value.args;
   for (const key of [
     "runId",
@@ -4261,7 +4261,7 @@ function materializeResult(evaluated, control) {
         bundleDigest: control.args.bundleDigest,
         compilerRevision: control.args.compilerRevision,
         allowedApiRevision: control.args.allowedApiRevision,
-        graphreflyPackageRevision: control.args.graphreflyPackageRevision,
+        graphreflyPackageRevision: GRAPHREFLY_PACKAGE_REVISION,
         runnerRevision: control.args.runnerRevision,
         runnerImageDigest: control.args.runnerImageDigest,
         manifestFingerprint: control.manifestFingerprint,

@@ -1,4 +1,10 @@
+import { readFileSync } from "node:fs";
 import { defineConfig } from "tsup";
+
+const packageMetadata = JSON.parse(
+	readFileSync(new URL("./package.json", import.meta.url), "utf8"),
+);
+const packageRevision = `graphrefly-ts:${packageMetadata.version}`;
 
 export default defineConfig({
 	entry: [
@@ -73,6 +79,9 @@ export default defineConfig({
 		"src/work-queue/index.ts",
 	],
 	format: ["esm", "cjs"],
+	define: {
+		__GRAPHREFLY_TS_PACKAGE_REVISION__: JSON.stringify(packageRevision),
+	},
 	dts: true,
 	clean: true,
 	sourcemap: true,

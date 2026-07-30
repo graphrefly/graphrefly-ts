@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { nodeLocalUntrustedJsComputeDriver } from "../executors/local-untrusted-js-compute/node.js";
+import {
+	NODE_LOCAL_UNTRUSTED_JS_GRAPHREFLY_PACKAGE_REVISION,
+	nodeLocalUntrustedJsComputeDriver,
+} from "../executors/local-untrusted-js-compute/node.js";
 import {
 	LOCAL_UNTRUSTED_JS_COMPUTE_BACKEND,
 	LOCAL_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
@@ -10,6 +13,7 @@ import {
 	type LocalUntrustedJsComputeDriver,
 	type LocalUntrustedJsComputeManifest,
 	type LocalUntrustedJsComputeReadiness,
+	localUntrustedJsComputeManifest,
 	localUntrustedJsComputeRuntime,
 	runLocalUntrustedJsComputeAttempt,
 } from "../executors/local-untrusted-js-compute.js";
@@ -45,7 +49,7 @@ const manifest = (): LocalUntrustedJsComputeManifest => ({
 	runnerRevision: "runner:1",
 	compilerRevision: "compiler:1",
 	allowedApiRevision: "api:1",
-	graphreflyPackageRevision: "graphrefly-ts:0.7.0",
+	graphreflyPackageRevision: NODE_LOCAL_UNTRUSTED_JS_GRAPHREFLY_PACKAGE_REVISION,
 	sandboxPolicyRevision: "sandbox:1",
 	networkPolicyRevision: "deny-all-v1",
 	filesystemPolicyRevision: "read-only-input-bounded-tmp-v1",
@@ -95,7 +99,7 @@ const args = (): LocalUntrustedJsComputeArguments => ({
 	bundleDigest,
 	compilerRevision: "compiler:1",
 	allowedApiRevision: "api:1",
-	graphreflyPackageRevision: "graphrefly-ts:0.7.0",
+	graphreflyPackageRevision: NODE_LOCAL_UNTRUSTED_JS_GRAPHREFLY_PACKAGE_REVISION,
 	runnerRevision: "runner:1",
 	runnerImageDigest: imageDigest,
 	sandboxPolicyRevision: "sandbox:1",
@@ -249,6 +253,39 @@ const eventually = async (predicate: () => boolean): Promise<void> => {
 };
 
 describe("D667 local untrusted JS compute contract", () => {
+	it("admits only the fixed v0 result and topology ceilings", () => {
+		expect(
+			localUntrustedJsComputeManifest({
+				...manifest(),
+				maxOutputBytes: 1024 * 1024,
+				maxTopologyNodes: 1_000,
+				maxTopologyEdges: 2_000,
+			}),
+		).toMatchObject({
+			maxOutputBytes: 1024 * 1024,
+			maxTopologyNodes: 1_000,
+			maxTopologyEdges: 2_000,
+		});
+		expect(() =>
+			localUntrustedJsComputeManifest({
+				...manifest(),
+				maxOutputBytes: 1024 * 1024 + 1,
+			}),
+		).toThrow("v0 ceiling");
+		expect(() =>
+			localUntrustedJsComputeManifest({
+				...manifest(),
+				maxTopologyNodes: 1_001,
+			}),
+		).toThrow("v0 ceiling");
+		expect(() =>
+			localUntrustedJsComputeManifest({
+				...manifest(),
+				maxTopologyEdges: 2_001,
+			}),
+		).toThrow("v0 ceiling");
+	});
+
 	it("runs one exact admitted attempt and returns bounded actual topology/provenance only after cleanup", async () => {
 		const driver = successfulDriver();
 		const outcome = await runLocalUntrustedJsComputeAttempt({

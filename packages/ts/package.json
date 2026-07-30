@@ -256,6 +256,8 @@
 				"default": "./dist/executors/local-untrusted-js-compute/node.cjs"
 			}
 		},
+		"./executors/local-untrusted-js-compute/runner/Containerfile": "./runners/local-untrusted-js/Containerfile",
+		"./executors/local-untrusted-js-compute/runner/local-untrusted-js-runner.mjs": "./runners/local-untrusted-js/local-untrusted-js-runner.mjs",
 		"./executors/managed-cloud-postgresql": {
 			"import": {
 				"types": "./dist/executors/managed-cloud-postgresql.d.ts",
@@ -807,7 +809,7 @@
 		"access": "public"
 	},
 	"scripts": {
-		"build": "node ../../scripts/build-local-untrusted-js-runner.mjs && tsup && node ../../scripts/check-ts-package-exports.mjs",
+		"build": "node ../../scripts/build-local-untrusted-js-runner.mjs && node --max-old-space-size=6144 ../../node_modules/tsup/dist/cli-default.js && node ../../scripts/check-ts-package-exports.mjs",
 		"test": "vitest run",
 		"test:typecheck": "tsc --noEmit -p tsconfig.tests.json",
 		"test:browser:agentic-memory": "node ../../scripts/run-agentic-memory-indexeddb-smoke.mjs",

@@ -30,8 +30,9 @@ const MAX_EXECUTION_TIMEOUT_MS = 5 * 60_000;
 const MAX_KILL_GRACE_MS = 60_000;
 const MAX_CLEANUP_TIMEOUT_MS = 5 * 60_000;
 const MAX_MATERIAL_BYTES = 16 * 1024 * 1024;
-const MAX_TOPOLOGY_NODES = 100_000;
-const MAX_TOPOLOGY_EDGES = 200_000;
+const MAX_OUTPUT_BYTES = 1024 * 1024;
+const MAX_TOPOLOGY_NODES = 1_000;
+const MAX_TOPOLOGY_EDGES = 2_000;
 
 export type LocalUntrustedJsJson =
 	| null
@@ -1027,7 +1028,7 @@ export function localUntrustedJsComputeManifest(
 		value.cleanupTimeoutMs > MAX_CLEANUP_TIMEOUT_MS ||
 		value.maxBundleBytes > MAX_MATERIAL_BYTES ||
 		value.maxInputBytes > MAX_MATERIAL_BYTES ||
-		value.maxOutputBytes > MAX_MATERIAL_BYTES ||
+		value.maxOutputBytes > MAX_OUTPUT_BYTES ||
 		value.maxTopologyNodes > MAX_TOPOLOGY_NODES ||
 		value.maxTopologyEdges > MAX_TOPOLOGY_EDGES
 	)

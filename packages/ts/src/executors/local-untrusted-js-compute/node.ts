@@ -25,6 +25,8 @@ import {
 	localUntrustedJsComputeReadiness,
 } from "../local-untrusted-js-compute.js";
 
+declare const __GRAPHREFLY_TS_PACKAGE_REVISION__: string;
+
 const execFileAsync = promisify(execFile);
 const API_REVISION = "5.0.3";
 const RUNNER_ENTRYPOINT = [
@@ -37,7 +39,7 @@ const RUNNER_ENTRYPOINT = [
 const BOUNDARY_LABEL = "d667-local-untrusted-js-compute";
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 const MAX_ENGINE_RESPONSE_BYTES = 512 * 1024;
-const MAX_LOG_BYTES = 1024 * 1024;
+const MAX_LOG_BYTES = 1024 * 1024 + 8 * 1024;
 const MAX_CONTROL_BYTES = 32 * 1024;
 const MEMORY_LIMIT_BYTES = 256 * 1024 * 1024;
 const TMPFS_LIMIT_BYTES = 16 * 1024 * 1024;
@@ -53,6 +55,8 @@ const CERTIFICATION_TTL_MS = 5 * 60_000;
 const CERTIFICATION_CANCEL_DELAY_MS = 500;
 
 export const NODE_LOCAL_UNTRUSTED_JS_RUNNER_REVISION = "graphrefly-local-js-runner-v0" as const;
+export const NODE_LOCAL_UNTRUSTED_JS_GRAPHREFLY_PACKAGE_REVISION: string =
+	__GRAPHREFLY_TS_PACKAGE_REVISION__;
 export const NODE_LOCAL_UNTRUSTED_JS_ALLOWED_API_REVISION =
 	"graphrefly-source-derive-api-v0" as const;
 export const NODE_LOCAL_UNTRUSTED_JS_SANDBOX_POLICY_REVISION = "podman-vm-no-imports-v0" as const;
@@ -131,13 +135,11 @@ export async function certifyNodeLocalUntrustedJsCompute(
 		manifest.sandboxPolicyRevision !== NODE_LOCAL_UNTRUSTED_JS_SANDBOX_POLICY_REVISION ||
 		manifest.resourcePolicyRevision !== NODE_LOCAL_UNTRUSTED_JS_RESOURCE_POLICY_REVISION ||
 		manifest.outputPolicyRevision !== NODE_LOCAL_UNTRUSTED_JS_OUTPUT_POLICY_REVISION ||
+		manifest.graphreflyPackageRevision !== NODE_LOCAL_UNTRUSTED_JS_GRAPHREFLY_PACKAGE_REVISION ||
 		manifest.executionTimeoutMs < 2_000 ||
 		!opts.imageRef.endsWith(`@${manifest.runnerImageDigest}`)
 	)
 		throw new TypeError("D667 certifier requires the package-owned fixed runner profile.");
-	const observedAtMs = (opts.now ?? Date.now)();
-	if (!Number.isSafeInteger(observedAtMs))
-		throw new TypeError("D667 certification clock is invalid.");
 	const host = await nodeLocalUntrustedJsComputeHostBindingAttestation(opts.signal);
 	const driver = nodeLocalUntrustedJsComputeDriver({ imageRef: opts.imageRef });
 	const probeSuffix = randomUUID();
@@ -354,6 +356,9 @@ export async function certifyNodeLocalUntrustedJsCompute(
 		throw new TypeError(
 			`D667 fixed runner cancellation and cleanup probe failed (${canceled.outcome}/${"code" in canceled ? canceled.code : "none"}/${canceled.cleanup}).`,
 		);
+	const observedAtMs = (opts.now ?? Date.now)();
+	if (!Number.isSafeInteger(observedAtMs))
+		throw new TypeError("D667 certification clock is invalid.");
 	return localUntrustedJsComputeReadiness(
 		{
 			kind: "local-untrusted-js-compute-readiness",
@@ -426,6 +431,11 @@ async function executeAttempt(
 	try {
 		if (!imageRef.endsWith(`@${manifest.runnerImageDigest}`))
 			throw new TypeError("D667 runner image does not match the admitted manifest digest.");
+		if (
+			manifest.graphreflyPackageRevision !== NODE_LOCAL_UNTRUSTED_JS_GRAPHREFLY_PACKAGE_REVISION ||
+			args.graphreflyPackageRevision !== NODE_LOCAL_UNTRUSTED_JS_GRAPHREFLY_PACKAGE_REVISION
+		)
+			throw new TypeError("D667 package revision does not match the fixed runner profile.");
 		const observedBundleDigest = `sha256:${createHash("sha256").update(material.bundle).digest("hex")}`;
 		if (observedBundleDigest !== args.bundleDigest)
 			throw new TypeError("D667 bundle bytes do not match the admitted digest.");
@@ -778,7 +788,6 @@ async function removeAndVerify(
 		const residues = await labeledResidues(binding, signal, deadline);
 		if (residues === undefined) {
 			absentSince = undefined;
-			if (createRequestSettled) return false;
 			await delay(20, signal).catch(() => undefined);
 			continue;
 		}
@@ -810,7 +819,6 @@ async function removeAndVerify(
 		).catch(() => undefined);
 		if (absent?.status !== 404) {
 			absentSince = undefined;
-			if (createRequestSettled) return false;
 			await delay(20, signal).catch(() => undefined);
 			continue;
 		}

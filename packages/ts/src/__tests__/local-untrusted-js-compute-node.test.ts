@@ -6,6 +6,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+	certifyNodeLocalUntrustedJsCompute,
+	NODE_LOCAL_UNTRUSTED_JS_ALLOWED_API_REVISION,
+	NODE_LOCAL_UNTRUSTED_JS_GRAPHREFLY_PACKAGE_REVISION,
+	NODE_LOCAL_UNTRUSTED_JS_OUTPUT_POLICY_REVISION,
+	NODE_LOCAL_UNTRUSTED_JS_RESOURCE_POLICY_REVISION,
+	NODE_LOCAL_UNTRUSTED_JS_RUNNER_REVISION,
+	NODE_LOCAL_UNTRUSTED_JS_SANDBOX_POLICY_REVISION,
 	nodeLocalUntrustedJsComputeDriver,
 	nodeLocalUntrustedJsComputeHostBindingAttestation,
 } from "../executors/local-untrusted-js-compute/node.js";
@@ -49,6 +56,7 @@ interface HarnessState {
 		| "strict-exit"
 		| "delayed-create"
 		| "delayed-create-transient-control"
+		| "transient-settled-cleanup"
 		| "unrelated-list";
 	created: boolean;
 	deleted: boolean;
@@ -82,7 +90,7 @@ const manifest = (overrides: Partial<LocalUntrustedJsComputeManifest> = {}) =>
 		runnerRevision: "runner:harness",
 		compilerRevision: "compiler:harness",
 		allowedApiRevision: "api:harness",
-		graphreflyPackageRevision: "graphrefly-ts:0.7.0",
+		graphreflyPackageRevision: NODE_LOCAL_UNTRUSTED_JS_GRAPHREFLY_PACKAGE_REVISION,
 		sandboxPolicyRevision: "sandbox:d667-v0",
 		networkPolicyRevision: "deny-all-v1",
 		filesystemPolicyRevision: "read-only-input-bounded-tmp-v1",
@@ -110,7 +118,7 @@ const args = (): LocalUntrustedJsComputeArguments => ({
 	bundleDigest: digest(bundle),
 	compilerRevision: "compiler:harness",
 	allowedApiRevision: "api:harness",
-	graphreflyPackageRevision: "graphrefly-ts:0.7.0",
+	graphreflyPackageRevision: NODE_LOCAL_UNTRUSTED_JS_GRAPHREFLY_PACKAGE_REVISION,
 	runnerRevision: "runner:harness",
 	runnerImageDigest: imageDigest,
 	sandboxPolicyRevision: "sandbox:d667-v0",
@@ -190,7 +198,10 @@ async function harness(mode: HarnessState["mode"]): Promise<{
 			return;
 		}
 		if (path.includes("/libpod/containers/json?")) {
-			if (mode === "delayed-create-transient-control" && state.transientListFailures < 2) {
+			if (
+				(mode === "delayed-create-transient-control" || mode === "transient-settled-cleanup") &&
+				state.transientListFailures < 2
+			) {
 				state.transientListFailures += 1;
 				sendJson(response, 503, { message: "transient list failure" });
 				return;
@@ -392,6 +403,37 @@ describe("D667 Node rootless-Podman broker lifecycle", () => {
 			transientDeleteFailures: 1,
 			transientListFailures: 2,
 		});
+	});
+
+	it("retries transient settled-create verification failures through the cleanup window", async () => {
+		const { state, hostBindingDigest } = await harness("transient-settled-cleanup");
+		await expect(
+			execute(hostBindingDigest, manifest({ cleanupTimeoutMs: 400 })),
+		).resolves.toMatchObject({
+			outcome: "succeeded",
+			cleanup: "succeeded",
+		});
+		expect(state).toMatchObject({
+			deleted: true,
+			transientListFailures: 2,
+		});
+	});
+
+	it("rejects a caller-authored package revision before fixed-profile certification", async () => {
+		await expect(
+			certifyNodeLocalUntrustedJsCompute({
+				manifest: manifest({
+					runnerRevision: NODE_LOCAL_UNTRUSTED_JS_RUNNER_REVISION,
+					allowedApiRevision: NODE_LOCAL_UNTRUSTED_JS_ALLOWED_API_REVISION,
+					graphreflyPackageRevision: "graphrefly-ts:caller-authored",
+					sandboxPolicyRevision: NODE_LOCAL_UNTRUSTED_JS_SANDBOX_POLICY_REVISION,
+					resourcePolicyRevision: NODE_LOCAL_UNTRUSTED_JS_RESOURCE_POLICY_REVISION,
+					outputPolicyRevision: NODE_LOCAL_UNTRUSTED_JS_OUTPUT_POLICY_REVISION,
+					executionTimeoutMs: 2_000,
+				}),
+				imageRef,
+			}),
+		).rejects.toThrow("package-owned fixed runner profile");
 	});
 
 	it("refuses an unrelated ID even when an ignored filter returns matching labels and name", async () => {
