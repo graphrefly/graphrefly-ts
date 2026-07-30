@@ -1,0 +1,478 @@
+import { graph } from "../../src/graph/graph.js";
+import type { Node } from "../../src/node/node.js";
+import type { WorkItemEvidenceRecorded } from "../../src/orchestration/work-item-runtime.js";
+import type { Message } from "../../src/protocol/messages.js";
+import {
+	type AgenticMemoryContext,
+	type AgenticMemoryRecord,
+	type AgenticMemoryRecordAdmissionPolicy,
+	type AgenticMemoryRecordApplicationPolicy,
+	type AgenticMemoryRecordCandidateMaterial,
+	agenticMemoryBundle,
+	agenticMemoryRecordUseGateBundle,
+	createAgenticMemoryRecordUseDecision,
+} from "../../src/solutions/agentic-memory/index.js";
+import type { AgenticWorkItemMemoryMappingPolicy } from "../../src/solutions/agentic-work-item-memory/index.js";
+import { mapAgenticWorkItemMemoryApplicationRecipe } from "../../src/solutions/agentic-work-item-memory-application/index.js";
+import type { WorkItemProjection } from "../../src/solutions/work-item/index.js";
+import { empiricalStrictJsonDigest, strictSnapshot } from "./canonical.js";
+import type { ClosedTaskProfileHostRunOutcomeV1 } from "./closed-task-profile-host.js";
+import type { EmpiricalWarmBranchKind } from "./contracts.js";
+import type {
+	EmpiricalWarmBranchLifecycleV1,
+	EmpiricalWarmBranchObservationV1,
+} from "./empirical-smoke-evidence.js";
+import type { EmpiricalModelTurnRequestV1 } from "./model-execution.js";
+
+export const B112_MATCHED_BLOCK_MEMORY_REVISION = "b112-matched-block-memory.v1";
+const RETRIEVAL_TAG = "b112-rerun-memory";
+const MAX_MEMORY_TEXT_CHARS = 4_096;
+const BRANCHES = Object.freeze([
+	"relevant-applied",
+	"proposal-only",
+	"admission-rejected",
+	"irrelevant-applied",
+	"wrong-scope-applied",
+] as const);
+
+export interface B112PreparedWarmBranchV1 {
+	readonly branchKind: EmpiricalWarmBranchKind;
+	readonly lifecycle: EmpiricalWarmBranchLifecycleV1;
+	readonly actorMemoryContext: {
+		readonly recordDigest: string;
+		readonly text: string;
+	} | null;
+}
+
+export interface B112MatchedBlockReflectionV1 {
+	readonly evidenceDigest: string;
+	readonly candidateRecordDigests: readonly string[];
+	readonly issueCodes: readonly string[];
+	readonly branches: readonly B112PreparedWarmBranchV1[];
+}
+
+function collectLatest<T>(node: Node<T>): { readonly latest: () => T | undefined; close(): void } {
+	const values: T[] = [];
+	const unsubscribe = node.subscribe((message: Message) => {
+		if (message[0] === "DATA") values.push(message[1] as T);
+	});
+	return {
+		latest: () => values.at(-1),
+		close: unsubscribe,
+	};
+}
+
+function coldSummary(outcome: ClosedTaskProfileHostRunOutcomeV1): string {
+	const value = outcome.finalOutput;
+	if (
+		value !== null &&
+		typeof value === "object" &&
+		"summary" in value &&
+		typeof value.summary === "string"
+	) {
+		return value.summary.slice(0, 2_048);
+	}
+	return "The previous attempt did not produce a verifier-accepted target artifact.";
+}
+
+function reflectedRecord(
+	variant: "relevant" | "irrelevant" | "wrong-scope",
+	request: EmpiricalModelTurnRequestV1,
+	coldOutcome: ClosedTaskProfileHostRunOutcomeV1,
+): AgenticMemoryRecord<string> {
+	const relevant = variant !== "irrelevant";
+	const projectId =
+		variant === "wrong-scope" ? `${request.campaignRef}-unrelated-project` : request.campaignRef;
+	const text = relevant
+		? [
+				"Prior independent verification rejected the previous artifact.",
+				`Previous bounded actor summary: ${coldSummary(coldOutcome)}`,
+				"On this fresh rerun, re-inspect the allowed implementation and tests, trace the canonical managed-compute admission reference before editing, avoid repeating the prior change blindly, and validate the smallest allowed correction.",
+			].join(" ")
+		: "After completing an unrelated task, format its final summary concisely.";
+	return Object.freeze({
+		id: `b112-memory-record-${variant}`,
+		kind: "procedural" as const,
+		persistenceLevel: "project" as const,
+		artifactKind: "procedure" as const,
+		scope: Object.freeze({ projectId }),
+		fragment: Object.freeze({
+			id: `b112-memory-fragment-${variant}`,
+			payload: text.slice(0, MAX_MEMORY_TEXT_CHARS),
+			tNs: 1n,
+			confidence: 1,
+			tags: Object.freeze([
+				RETRIEVAL_TAG,
+				relevant ? "b112-relevant" : "b112-irrelevant",
+				`b112-work-item:${request.taskRef}`,
+			]),
+			sources: Object.freeze([
+				`b112-cold-outcome:${empiricalStrictJsonDigest(coldOutcome)}`,
+				`b112-verifier:${coldOutcome.verifierVerdict ?? "not-run"}`,
+			]),
+			provenance: B112_MATCHED_BLOCK_MEMORY_REVISION,
+		}),
+	});
+}
+
+function memoryRecordDigest(record: AgenticMemoryRecord<string>): string {
+	return empiricalStrictJsonDigest({
+		id: record.id,
+		kind: record.kind,
+		persistenceLevel: record.persistenceLevel,
+		artifactKind: record.artifactKind,
+		scope: record.scope ?? null,
+		fragment: {
+			id: record.fragment.id,
+			payload: record.fragment.payload,
+			tNs: record.fragment.tNs.toString(),
+			confidence: record.fragment.confidence,
+			tags: record.fragment.tags,
+			sources: record.fragment.sources,
+			provenance: record.fragment.provenance ?? null,
+		},
+	});
+}
+
+function candidateMaterial(
+	record: AgenticMemoryRecord<string>,
+	coldOutcome: ClosedTaskProfileHostRunOutcomeV1,
+): AgenticMemoryRecordCandidateMaterial<string> {
+	return Object.freeze({
+		kind: "agentic-memory-record-candidate-material" as const,
+		operation: "create" as const,
+		operationVersion: 1 as const,
+		record,
+		sourceRefs: Object.freeze([
+			Object.freeze({
+				kind: "closed-task-profile-host-outcome",
+				id: empiricalStrictJsonDigest(coldOutcome),
+			}),
+		]),
+		evidenceRefs: Object.freeze([
+			Object.freeze({
+				kind: "independent-verifier",
+				id: coldOutcome.verifierEvidenceRefs[0]?.digest ?? empiricalStrictJsonDigest(coldOutcome),
+			}),
+		]),
+		metadata: Object.freeze({ reflectionRevision: B112_MATCHED_BLOCK_MEMORY_REVISION }),
+	});
+}
+
+function workItem(request: EmpiricalModelTurnRequestV1): WorkItemProjection {
+	return Object.freeze({
+		workItemId: request.taskRef,
+		authoringRevision: 1,
+		executionInputRevision: 1,
+		lastEventId: `b112-work-item-event-${request.taskRef}`,
+		summary: `Complete preregistered task ${request.taskRef}`,
+		acceptanceCriteria: Object.freeze([
+			Object.freeze({
+				criterionId: `b112-acceptance-${request.taskRef}`,
+				statement: "The independent closed verifier accepts the target artifact.",
+				required: true,
+			}),
+		]),
+		sourceRefs: Object.freeze([
+			Object.freeze({ kind: "empirical-campaign-task", id: request.taskDigest }),
+		]),
+	});
+}
+
+function evidence(
+	request: EmpiricalModelTurnRequestV1,
+	coldOutcome: ClosedTaskProfileHostRunOutcomeV1,
+	materials: Readonly<{
+		relevant: AgenticMemoryRecordCandidateMaterial<string>;
+		irrelevant: AgenticMemoryRecordCandidateMaterial<string>;
+		wrongScope: AgenticMemoryRecordCandidateMaterial<string>;
+	}>,
+): WorkItemEvidenceRecorded {
+	return Object.freeze({
+		kind: "work-item-evidence-recorded",
+		evidenceId: `b112-cold-failure-${request.taskRef}`,
+		workItemId: request.taskRef,
+		effectRunId: `b112-cold-effect-${request.taskRef}`,
+		effectRunResultId: `b112-cold-result-${request.taskRef}`,
+		executionInputRevision: 1,
+		status: "failed",
+		error: Object.freeze({
+			kind: "issue",
+			code: coldOutcome.issueCodes[0] ?? "target-artifact-mismatch",
+			message: "The independent closed verifier rejected the previous target artifact.",
+			severity: "error",
+		}),
+		issues: Object.freeze(
+			coldOutcome.issueCodes.map((code) =>
+				Object.freeze({
+					kind: "issue" as const,
+					code,
+					message: "Bounded cold-run issue.",
+					severity: "error" as const,
+				}),
+			),
+		),
+		metadata: { reflectedCandidateMaterials: materials },
+	});
+}
+
+function mappingPolicy(
+	branchKind: EmpiricalWarmBranchKind,
+	variant: "relevant" | "irrelevant" | "wrongScope",
+	evidenceId: string,
+): AgenticWorkItemMemoryMappingPolicy<string> {
+	return Object.freeze({
+		kind: "agentic-work-item-memory-mapping-policy",
+		policyId: `b112-mapping-policy-${branchKind}`,
+		recordRules: Object.freeze([
+			Object.freeze({
+				ruleId: `b112-record-rule-${branchKind}`,
+				candidateMaterialFrom: Object.freeze({
+					input: "evidence",
+					refId: evidenceId,
+					path: Object.freeze(["metadata", "reflectedCandidateMaterials", variant]),
+				}),
+				reason: "Independent verifier failure emitted deterministic candidate material.",
+				evidenceRefs: Object.freeze([
+					Object.freeze({ kind: "work-item-evidence", id: evidenceId }),
+				]),
+			}),
+		]),
+		scoreRules: Object.freeze([]),
+	});
+}
+
+function admissionPolicy(
+	branchKind: EmpiricalWarmBranchKind,
+	admit: boolean,
+): AgenticMemoryRecordAdmissionPolicy {
+	return Object.freeze({
+		kind: "agentic-memory-record-admission-policy",
+		policyId: `b112-admission-policy-${branchKind}`,
+		defaultState: admit ? "admitted" : "rejected",
+	});
+}
+
+function applicationPolicy(
+	branchKind: EmpiricalWarmBranchKind,
+): AgenticMemoryRecordApplicationPolicy {
+	return Object.freeze({
+		kind: "agentic-memory-record-application-policy",
+		policyId: `b112-application-policy-${branchKind}`,
+		requireAdmittedState: true,
+		rejectDuplicateRecordIds: true,
+		rejectDuplicateFragmentIds: true,
+	});
+}
+
+function graphRetrieval(
+	branchKind: EmpiricalWarmBranchKind,
+	records: readonly AgenticMemoryRecord<string>[],
+	request: EmpiricalModelTurnRequestV1,
+): {
+	readonly retrieved: readonly AgenticMemoryRecord<string>[];
+	readonly topologyDigest: string;
+} {
+	const owner = graph();
+	const recordState = owner.state(records, { name: `b112/${branchKind}/records` });
+	const useRequest = Object.freeze({
+		format: "graphrefly.agenticMemoryRecordUseRequest" as const,
+		version: 1 as const,
+		requestId: `b112-use-request-${branchKind}`,
+		subject: { kind: "actor", id: request.configurationRef },
+		purpose: { kind: "purpose", id: "matched-warm-rerun" },
+		scope: { kind: "campaign", id: request.campaignRef },
+		sourceRevisions: [
+			{ kind: "reflection", id: request.taskRef, revision: B112_MATCHED_BLOCK_MEMORY_REVISION },
+		],
+		policyCoordinates: [
+			{ kind: "use-policy", id: "b112-warm-use", revision: B112_MATCHED_BLOCK_MEMORY_REVISION },
+		],
+		authorityCoordinates: [
+			{ kind: "host", id: "d659", revision: B112_MATCHED_BLOCK_MEMORY_REVISION },
+		],
+	});
+	const requestState = owner.state(useRequest, { name: `b112/${branchKind}/useRequest` });
+	const decisions = records.map((record, index) =>
+		createAgenticMemoryRecordUseDecision(useRequest, record, {
+			decisionId: `b112-use-decision-${branchKind}-${index}`,
+			state: "allowed",
+		}),
+	);
+	const decisionState = owner.state(decisions, { name: `b112/${branchKind}/useDecisions` });
+	const gate = agenticMemoryRecordUseGateBundle(owner, {
+		name: `b112/${branchKind}/useGate`,
+		records: recordState,
+		request: requestState,
+		decisions: decisionState,
+	});
+	const memory = agenticMemoryBundle<string>(owner, {
+		name: `b112/${branchKind}/memory`,
+		records: gate.allowedRecords,
+		query: owner.state({ tags: [RETRIEVAL_TAG], limit: 4 }, { name: `b112/${branchKind}/query` }),
+	});
+	const context = collectLatest<AgenticMemoryContext<string>>(memory.context);
+	try {
+		recordState.set(Object.freeze([...records]));
+		const latest = context.latest();
+		const topology = owner.describe();
+		return Object.freeze({
+			retrieved: Object.freeze(
+				(latest?.entries ?? []).flatMap((entry) =>
+					entry.record === undefined
+						? []
+						: records.filter((record) => record.id === entry.record?.recordId),
+				),
+			),
+			topologyDigest: empiricalStrictJsonDigest({
+				nodes: topology.nodes.map((node) => ({ id: node.id, factory: node.factory })),
+				edges: topology.edges,
+			}),
+		});
+	} finally {
+		context.close();
+	}
+}
+
+function branchDefinition(branchKind: EmpiricalWarmBranchKind): {
+	readonly variant: "relevant" | "irrelevant" | "wrongScope";
+	readonly mode: "proposal-only" | "reject" | "admit";
+} {
+	if (branchKind === "proposal-only") return { variant: "relevant", mode: "proposal-only" };
+	if (branchKind === "admission-rejected") return { variant: "relevant", mode: "reject" };
+	if (branchKind === "irrelevant-applied") return { variant: "irrelevant", mode: "admit" };
+	if (branchKind === "wrong-scope-applied") return { variant: "wrongScope", mode: "admit" };
+	return { variant: "relevant", mode: "admit" };
+}
+
+export function prepareB112MatchedBlockReflection(input: {
+	readonly coldRequest: EmpiricalModelTurnRequestV1;
+	readonly coldOutcome: ClosedTaskProfileHostRunOutcomeV1;
+}): B112MatchedBlockReflectionV1 {
+	if (input.coldOutcome.verifierVerdict !== "failed") {
+		throw new TypeError("B112 matched warm branches require a verified cold failure");
+	}
+	const records = {
+		relevant: reflectedRecord("relevant", input.coldRequest, input.coldOutcome),
+		irrelevant: reflectedRecord("irrelevant", input.coldRequest, input.coldOutcome),
+		wrongScope: reflectedRecord("wrong-scope", input.coldRequest, input.coldOutcome),
+	};
+	const materials = {
+		relevant: candidateMaterial(records.relevant, input.coldOutcome),
+		irrelevant: candidateMaterial(records.irrelevant, input.coldOutcome),
+		wrongScope: candidateMaterial(records.wrongScope, input.coldOutcome),
+	};
+	const reflectedEvidence = evidence(
+		input.coldRequest,
+		input.coldOutcome,
+		Object.freeze(materials),
+	);
+	const branches = BRANCHES.map((branchKind): B112PreparedWarmBranchV1 => {
+		const definition = branchDefinition(branchKind);
+		const selectedMaterial = materials[definition.variant];
+		const recipeInput = {
+			workItem: workItem(input.coldRequest),
+			policy: mappingPolicy(branchKind, definition.variant, reflectedEvidence.evidenceId),
+			evidence: Object.freeze([reflectedEvidence]),
+			outcomes: Object.freeze([]),
+			records: Object.freeze([]),
+			evaluation: 1,
+		} as const;
+		const recipe =
+			definition.mode === "proposal-only"
+				? mapAgenticWorkItemMemoryApplicationRecipe<unknown, string>(recipeInput)
+				: mapAgenticWorkItemMemoryApplicationRecipe<unknown, string>({
+						...recipeInput,
+						admissionPolicy: admissionPolicy(branchKind, definition.mode === "admit"),
+						applicationPolicy: applicationPolicy(branchKind),
+					});
+		const proposed = recipe.proposals.map((proposal) => proposal.candidateMaterial.record);
+		const admitted = recipe.admission?.admitted.map((item) => item.candidateMaterial.record) ?? [];
+		const rejected = recipe.admission?.rejected.map((item) => item.candidateMaterial.record) ?? [];
+		const applied = recipe.application?.appliedRecords ?? [];
+		const retrieval = graphRetrieval(branchKind, applied, input.coldRequest);
+		const selected = selectedMaterial.record;
+		const retrievedSelected = retrieval.retrieved.some((record) => record.id === selected.id);
+		const wrongScope = selected.scope?.projectId !== input.coldRequest.campaignRef;
+		const irrelevant = !selected.fragment.tags.includes("b112-relevant");
+		const used = retrievedSelected && !wrongScope && !irrelevant;
+		const digestRecords = (items: readonly AgenticMemoryRecord<string>[]) =>
+			Object.freeze(items.map(memoryRecordDigest).sort());
+		const proposalState = proposed.some((record) => record.id === selected.id)
+			? ("emitted" as const)
+			: ("not-emitted" as const);
+		const admissionState =
+			recipe.admission === undefined
+				? ("not-run" as const)
+				: admitted.some((record) => record.id === selected.id)
+					? ("admitted" as const)
+					: rejected.some((record) => record.id === selected.id)
+						? ("rejected" as const)
+						: ("not-run" as const);
+		const applicationState =
+			recipe.application === undefined
+				? ("not-run" as const)
+				: applied.some((record) => record.id === selected.id)
+					? ("applied" as const)
+					: ("not-applied" as const);
+		const lifecycle = strictSnapshot({
+			branchKind,
+			selectedRecordDigest: memoryRecordDigest(selected),
+			proposalState,
+			admissionState,
+			applicationState,
+			retrievalState: retrievedSelected ? ("retrieved" as const) : ("not-retrieved" as const),
+			plannerRoute: used ? ("memory-guided" as const) : ("baseline" as const),
+			traceMemoryDisposition: used
+				? ("used" as const)
+				: retrievedSelected && wrongScope
+					? ("rejected-scope" as const)
+					: retrievedSelected && irrelevant
+						? ("rejected-irrelevant" as const)
+						: ("none" as const),
+			mapperExplicitCandidates: 0 as const,
+			proposalRecordDigests: digestRecords(proposed),
+			admissionRecordDigests: digestRecords(admitted),
+			applicationRecordDigests: digestRecords(applied),
+			retrievalRecordDigests: digestRecords(retrieval.retrieved),
+			topologyDigest: retrieval.topologyDigest,
+			stagePredicates: {
+				cold_run_failed: true,
+				memory_record_proposed: proposalState === "emitted",
+				memory_record_admitted: admissionState === "admitted",
+				memory_record_applied: applicationState === "applied",
+				memory_record_retrieved: retrievedSelected,
+				warm_run_passed: false,
+				warm_decision_trace_includes_memory: used,
+				same_work_item_input: true,
+				prior_failure_route_avoided: used,
+			},
+			caseConforms: false,
+			issueCodes: [],
+		}) satisfies EmpiricalWarmBranchLifecycleV1;
+		return strictSnapshot({
+			branchKind,
+			lifecycle,
+			actorMemoryContext: used
+				? {
+						recordDigest: memoryRecordDigest(selected),
+						text: selected.fragment.payload.slice(0, MAX_MEMORY_TEXT_CHARS),
+					}
+				: null,
+		});
+	});
+	return strictSnapshot({
+		evidenceDigest: empiricalStrictJsonDigest({
+			evidenceId: reflectedEvidence.evidenceId,
+			workItemId: reflectedEvidence.workItemId,
+			status: reflectedEvidence.status,
+			issueCodes: input.coldOutcome.issueCodes,
+			candidateRecordDigests: Object.values(records).map(memoryRecordDigest).sort(),
+		}),
+		candidateRecordDigests: Object.freeze(Object.values(records).map(memoryRecordDigest).sort()),
+		issueCodes: [],
+		branches,
+	});
+}
+
+export type B112WarmBranchInputV1 = Omit<EmpiricalWarmBranchObservationV1, "attempted" | "run">;

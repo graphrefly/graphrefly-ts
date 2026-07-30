@@ -121,6 +121,9 @@ interface ClosedHostFixture {
 	readonly verifier: ClosedVerifierCapabilityV1;
 	readonly verifierCalls: { count: number };
 	readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
+	readonly prepareFreshMaterialization: (
+		signal: AbortSignal,
+	) => Promise<HistoryFreeSingleBaselineRepositoryMaterializationV1>;
 }
 
 afterEach(() => {
@@ -349,12 +352,12 @@ async function createClosedHostFixture(
 				fixtureSuiteDigest: verifierProfile.fixtureSuiteDigest,
 				harnessRevision: verifierProfile.harnessRevision,
 			});
-			expect(readFileSync(join(workspaceRoot, "README.md"), "utf8")).toBe("fixed\n");
+			const targetAccepted = readFileSync(join(workspaceRoot, "README.md"), "utf8") === "fixed\n";
 			return strictSnapshot({
 				schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.verifierResult,
-				verdict: "passed",
+				verdict: targetAccepted ? "passed" : "failed",
 				evidenceRefs: [targetRunEvidence(input.profileCoordinates)],
-				issueCodes: [],
+				issueCodes: targetAccepted ? [] : ["target-artifact-mismatch"],
 			});
 		},
 	};
@@ -374,6 +377,13 @@ async function createClosedHostFixture(
 		verifier,
 		verifierCalls,
 		protectionExecutor,
+		prepareFreshMaterialization: (signal) =>
+			materializeHistoryFreeSingleBaselineRepository(source, allocator, {
+				sourceCommitSha,
+				sourceTreeObjectId,
+				overlay: null,
+				signal,
+			}),
 	};
 }
 
@@ -1002,7 +1012,22 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				reservedInputTokens: 200,
 				reservedOutputTokens: 40,
 			},
+			cold: {
+				...result.observation.cold,
+				costBasis: "provider-usage",
+				costMicrousd: 2_452,
+				reservedInputTokens: 200,
+				reservedOutputTokens: 40,
+			},
 		});
+		expect(
+			strictJsonCodec.encode(
+				createEmpiricalCampaignScorecard(
+					result.observation,
+					B112_FIRST_TASK_SMOKE_AGGREGATION_REVISION,
+				),
+			),
+		).toEqual(strictJsonCodec.encode(result.scorecard));
 		expect(providerReportedCostObservation.result.costMicrousd).toBe(2_452);
 		expect(validateEmpiricalCampaignScorecard(result.scorecard)).toEqual(result.scorecard);
 		const repeatedScorecard = createEmpiricalCampaignScorecard(
@@ -1029,6 +1054,22 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				reservedInputTokens: 7_629,
 				reservedOutputTokens: 2_048,
 			},
+			cold: {
+				...result.observation.cold,
+				classification: "non-evaluable",
+				verifierStatus: "not-run",
+				requests: 0,
+				inputTokens: null,
+				outputTokens: null,
+				totalTokens: null,
+				costMicrousd: 109_122,
+				costBasis: "conservative-reservation",
+				reservedInputTokens: 7_629,
+				reservedOutputTokens: 2_048,
+				routeEvidenceDigests: [],
+				verifierEvidenceDigests: [],
+			},
+			rerunEligible: false,
 			routeEvidenceDigests: [],
 			verifierEvidenceDigests: [],
 			issueCodes: ["model-turn-non-evaluable", "openrouter-measurement-invalid"],
@@ -1058,7 +1099,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 					costBasis: "provider-usage",
 				},
 			}),
-		).toThrow(/exceeds or mismatches/);
+		).toThrow(/aggregate does not match|exceeds or mismatches/);
 		expect(() =>
 			validateEmpiricalCampaignScorecard({
 				...preDispatchScorecard,
@@ -1076,7 +1117,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 					costMicrousd: 0,
 				},
 			}),
-		).toThrow(/frozen pricing and token basis/);
+		).toThrow(/aggregate does not match|frozen pricing and token basis/);
 		const liveFailureObservation = validateEmpiricalTrialBlockObservation({
 			...result.observation,
 			executionClass: "live-provider",
@@ -1094,6 +1135,22 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				reservedInputTokens: 7_629,
 				reservedOutputTokens: 2_048,
 			},
+			cold: {
+				...result.observation.cold,
+				classification: "non-evaluable",
+				verifierStatus: "not-run",
+				requests: 1,
+				inputTokens: null,
+				outputTokens: null,
+				totalTokens: null,
+				costMicrousd: 109_122,
+				costBasis: "conservative-reservation",
+				reservedInputTokens: 7_629,
+				reservedOutputTokens: 2_048,
+				routeEvidenceDigests: [],
+				verifierEvidenceDigests: [],
+			},
+			rerunEligible: false,
 			routeEvidenceDigests: [],
 			verifierEvidenceDigests: [],
 			issueCodes: ["openrouter-transport-unavailable"],
@@ -1133,7 +1190,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				verifierEvidenceDigests: [],
 				protectionReceiptDigests: [],
 			}),
-		).toThrow(/required frozen evidence/);
+		).toThrow(/evidence digests do not match|required frozen evidence/);
 		const overrunInputTokens = result.observation.route.maxInputTokens + 1;
 		const overrunOutputTokens = result.observation.route.maxOutputTokens + 1;
 		const overrunObservation = {
@@ -1157,6 +1214,24 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				reservedInputTokens: overrunInputTokens,
 				reservedOutputTokens: overrunOutputTokens,
 			},
+			cold: {
+				...result.observation.cold,
+				classification: "non-evaluable" as const,
+				verifierStatus: "not-run" as const,
+				inputTokens: overrunInputTokens,
+				outputTokens: overrunOutputTokens,
+				costMicrousd: calculateOpenRouterCostMicrousd(overrunInputTokens, overrunOutputTokens, {
+					currency: "USD",
+					inputMicrousdPerMillionTokens: result.observation.route.inputMicrousdPerMillionTokens,
+					outputMicrousdPerMillionTokens: result.observation.route.outputMicrousdPerMillionTokens,
+					pricingRevision: result.observation.route.pricingRevision,
+					sourceUrl: result.observation.route.pricingSourceUrl,
+				}),
+				costBasis: "provider-usage" as const,
+				reservedInputTokens: overrunInputTokens,
+				reservedOutputTokens: overrunOutputTokens,
+			},
+			rerunEligible: false,
 			issueCodes: ["smoke-budget-exhausted"],
 		};
 		expect(validateEmpiricalTrialBlockObservation(overrunObservation).result.costBasis).toBe(
@@ -1173,14 +1248,14 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 					reservedOutputTokens: 0,
 				},
 			}),
-		).toThrow(/frozen pricing and token basis/);
+		).toThrow(/aggregate does not match|frozen pricing and token basis/);
 		expect(() =>
 			validateEmpiricalTrialBlockObservation({
 				...overrunObservation,
 				routeEvidenceDigests: [],
 				protectionReceiptDigests: [],
 			}),
-		).toThrow(/required frozen evidence/);
+		).toThrow(/evidence digests do not match|required frozen evidence/);
 		const persistedFiles = readdirSync(result.persistence.generationPath).sort();
 		expect(persistedFiles).toEqual([
 			"campaign-scorecard.v1.json",
@@ -1266,6 +1341,306 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		).rejects.toThrow(/generation failed artifact-persistence protection/);
 		expect(readdirSync(privateRoot)).not.toContain(credentialSentinel);
 	});
+
+	it("dry-runs one failed cold run and the exact five fresh matched warm arms atomically", async () => {
+		const fixture = await createClosedHostFixture();
+		const credentialSentinel = "openrouter-matched-block-secret-sentinel-0123456789";
+		const baseContentDigest = empiricalSha256(encoder.encode("broken-placeholder-value\n"));
+		const wireBodies: string[] = [];
+		const actorInputs: string[] = [];
+		let transportCalls = 0;
+		const transport: OpenRouterResponsesByteTransportV1 = {
+			async request(input) {
+				transportCalls += 1;
+				const wireBody = new TextDecoder().decode(input.body);
+				wireBodies.push(wireBody);
+				const requestBody = JSON.parse(wireBody) as {
+					readonly tools: readonly { readonly name: string }[];
+					readonly input: string;
+				};
+				actorInputs.push(requestBody.input);
+				const output =
+					transportCalls === 2
+						? [
+								{
+									type: "function_call",
+									status: "completed",
+									call_id: "call.matched-replace",
+									name: requestBody.tools[2]?.name,
+									arguments: JSON.stringify({
+										baseContentDigest,
+										newText: "fixed",
+										oldText: "broken-placeholder-value",
+										path: "README.md",
+									}),
+								},
+							]
+						: [
+								{
+									type: "message",
+									role: "assistant",
+									status: "completed",
+									content: [
+										{
+											type: "output_text",
+											text: JSON.stringify({
+												kind: "model-turn-output-placeholder",
+												summary:
+													transportCalls === 1
+														? "Previous attempt stopped before the target correction."
+														: "Bounded matched-block completion.",
+											}),
+										},
+									],
+								},
+							];
+				return dryRunOpenRouterResponse(`response.matched.${transportCalls}`, output);
+			},
+		};
+		const privateRoot = join(
+			temporaryRoot("matched-private-artifacts"),
+			".private",
+			"empirical-memory-rerun-avoidance",
+		);
+		mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
+		chmodSync(privateRoot, 0o700);
+		let measurement = 0;
+		const routeQualification = simulatedRouteQualification(fixture, {
+			maxRequests: 48,
+			maxStepsPerRun: 2,
+			maxInputTokens: 600_000,
+			maxOutputTokens: 49_152,
+		});
+		const credential = {
+			credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+			credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+			bearerToken: credentialSentinel,
+		};
+		const prepareWarmHost = async (
+			input: Parameters<
+				NonNullable<Parameters<typeof runOpenRouterFirstTaskSmoke>[0]["prepareWarmHost"]>
+			>[0],
+		) => fixture.prepareFreshMaterialization(input.signal);
+		const common = {
+			prepareWarmHost,
+			routeQualification,
+			credential,
+			transport,
+			monotonicMeasurement: { readMs: () => (measurement += 1) },
+			executionClass: "simulated-contract" as const,
+			privateRoot,
+			generationRef: "matched-dry-run-generation",
+			signal: new AbortController().signal,
+		};
+		const result = await runOpenRouterFirstTaskSmoke({
+			...common,
+			host: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: fixture.materialization,
+				verifier: fixture.verifier,
+			},
+		});
+
+		expect(transportCalls).toBe(7);
+		expect(result.admissionRejection).toBeNull();
+		expect(fixture.verifierCalls.count).toBe(6);
+		expect(result.observation).toMatchObject({
+			rerunEligible: true,
+			familyPassed: true,
+			result: {
+				classification: "complete",
+				verifierStatus: "failed",
+				coldRunsAttempted: 1,
+				warmRunsAttempted: 5,
+				requests: 7,
+				steps: 7,
+			},
+		});
+		expect(result.observation.warmBranches.map((branch) => branch.branchKind)).toEqual([
+			"relevant-applied",
+			"proposal-only",
+			"admission-rejected",
+			"irrelevant-applied",
+			"wrong-scope-applied",
+		]);
+		expect(result.observation.warmBranches.map((branch) => branch.run?.verifierStatus)).toEqual([
+			"passed",
+			"failed",
+			"failed",
+			"failed",
+			"failed",
+		]);
+		expect(result.scorecard).toMatchObject({
+			status: "smoke-complete-no-efficacy-claim",
+			efficacyClaim: "none",
+			eligibleColdFailures: 1,
+			warmRunsAttempted: 5,
+			warmRunsEvaluable: 5,
+			familyPassed: true,
+			primaryComparison: {
+				relevantAppliedPass: 1,
+				proposalOnlyPass: 0,
+				riskDifference: 1,
+				discordance: "relevant-only",
+			},
+			secondaryComparisons: [
+				{
+					controlBranchKind: "admission-rejected",
+					relevantAppliedPass: 1,
+					controlPass: 0,
+					riskDifference: 1,
+					discordance: "relevant-only",
+				},
+				{
+					controlBranchKind: "irrelevant-applied",
+					relevantAppliedPass: 1,
+					controlPass: 0,
+					riskDifference: 1,
+					discordance: "relevant-only",
+				},
+				{
+					controlBranchKind: "wrong-scope-applied",
+					relevantAppliedPass: 1,
+					controlPass: 0,
+					riskDifference: 1,
+					discordance: "relevant-only",
+				},
+			],
+		});
+		const relevantLifecycle = result.observation.warmBranches[0]?.lifecycle;
+		expect(relevantLifecycle).not.toBeNull();
+		if (relevantLifecycle === null || relevantLifecycle === undefined) {
+			throw new TypeError("matched dry-run relevant lifecycle is missing");
+		}
+		expect(() =>
+			validateEmpiricalTrialBlockObservation({
+				...result.observation,
+				warmBranches: result.observation.warmBranches.map((branch, index) =>
+					index === 0
+						? {
+								...branch,
+								lifecycle: {
+									...relevantLifecycle,
+									stagePredicates: {
+										...relevantLifecycle.stagePredicates,
+										memory_record_applied: false,
+									},
+								},
+							}
+						: branch,
+				),
+			}),
+		).toThrow(/caseConforms/);
+		expect(() =>
+			validateEmpiricalCampaignScorecard({
+				...result.scorecard,
+				secondaryComparisons: result.scorecard.secondaryComparisons.map((comparison, index) =>
+					index === 0 ? { ...comparison, riskDifference: 0 } : comparison,
+				),
+			}),
+		).toThrow(/secondaryComparisons\[0\]/);
+		expect(actorInputs.map((body) => body.includes('"memoryContext"'))).toEqual([
+			false,
+			true,
+			true,
+			false,
+			false,
+			false,
+			false,
+		]);
+		for (const body of wireBodies) {
+			expect(body).not.toContain(credentialSentinel);
+			expect(body).not.toMatch(
+				/relevant-applied|proposal-only|admission-rejected|irrelevant-applied|wrong-scope-applied/,
+			);
+		}
+		const generationRoot = result.persistence.generationPath;
+		const persisted = [
+			readFileSync(join(generationRoot, "trial-block-observation.v1.json"), "utf8"),
+			readFileSync(join(generationRoot, "campaign-scorecard.v1.json"), "utf8"),
+			readFileSync(join(generationRoot, "generation.v1.json"), "utf8"),
+		].join("\n");
+		expect(persisted).not.toContain(credentialSentinel);
+		expect(statSync(join(generationRoot, "trial-block-observation.v1.json")).mode & 0o777).toBe(
+			0o600,
+		);
+		expect(() => readFileSync(join(fixture.workspaceRoot, "README.md"))).toThrow();
+		let boundedTransportCalls = 0;
+		const boundedTransport: OpenRouterResponsesByteTransportV1 = {
+			async request() {
+				boundedTransportCalls += 1;
+				return dryRunOpenRouterResponse(`response.bounded.${boundedTransportCalls}`, [
+					{
+						type: "message",
+						role: "assistant",
+						status: "completed",
+						content: [
+							{
+								type: "output_text",
+								text: JSON.stringify({
+									kind: "model-turn-output-placeholder",
+									summary: "Bounded control completion without a workspace correction.",
+								}),
+							},
+						],
+					},
+				]);
+			},
+		};
+		const boundedRoute = simulatedRouteQualification(fixture, {
+			maxRequests: 3,
+			maxStepsPerRun: 2,
+			maxInputTokens: 600_000,
+			maxOutputTokens: 49_152,
+		});
+		const budgetExhausted = await runOpenRouterFirstTaskSmoke({
+			...common,
+			host: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: await fixture.prepareFreshMaterialization(new AbortController().signal),
+				verifier: fixture.verifier,
+			},
+			routeQualification: boundedRoute,
+			transport: boundedTransport,
+			generationRef: "matched-budget-exhausted-generation",
+		});
+		expect(boundedTransportCalls).toBe(3);
+		expect(budgetExhausted.observation.result.classification).toBe("incomplete");
+		expect(budgetExhausted.observation.issueCodes).toContain(B112_SMOKE_BUDGET_ISSUE_CODE);
+		expect(
+			budgetExhausted.observation.warmBranches
+				.filter((branch) => !branch.attempted)
+				.every((branch) => branch.lifecycle === null),
+		).toBe(true);
+		const preparationFailure = await runOpenRouterFirstTaskSmoke({
+			...common,
+			host: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: await fixture.prepareFreshMaterialization(new AbortController().signal),
+				verifier: fixture.verifier,
+			},
+			routeQualification,
+			transport: boundedTransport,
+			prepareWarmHost: async () => {
+				throw new TypeError("simulated materialization failure");
+			},
+			generationRef: "matched-preparation-failure-generation",
+		});
+		expect(boundedTransportCalls).toBe(4);
+		expect(preparationFailure.observation).toMatchObject({
+			result: { classification: "incomplete", requests: 1, warmRunsAttempted: 0 },
+		});
+		expect(preparationFailure.observation.issueCodes).toContain("warm-host-preparation-failed");
+	}, 60_000);
 
 	it("persists a sanitized non-evaluable generation after one transport attempt fails", async () => {
 		const fixture = await createClosedHostFixture();

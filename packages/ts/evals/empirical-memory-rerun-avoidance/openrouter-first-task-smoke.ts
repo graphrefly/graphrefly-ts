@@ -12,12 +12,17 @@ import {
 	type EmpiricalTrialBlockObservationV1,
 } from "./empirical-smoke-evidence.js";
 import {
+	B112_MATCHED_BLOCK_MEMORY_REVISION,
+	prepareB112MatchedBlockReflection,
+} from "./matched-block-memory.js";
+import {
 	EMPIRICAL_MODEL_EXECUTION_SCHEMAS,
 	type EmpiricalModelTurnEvidenceRefV1,
 	type EmpiricalModelTurnOutcomeV1,
 	type EmpiricalModelTurnPortV1,
 	type EmpiricalModelTurnRequestV1,
 	executeEmpiricalProtection,
+	validateEmpiricalModelTurnRequest,
 } from "./model-execution.js";
 import {
 	createOpenRouterResponsesEmpiricalBinding,
@@ -32,6 +37,7 @@ import {
 	OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
 	OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG,
 	OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
+	OPENROUTER_FIRST_SMOKE_STANDARD_PRICING_MAX_INPUT_TOKENS,
 	OPENROUTER_OFFICIAL_PRICING_REVISION,
 	OPENROUTER_OFFICIAL_PRICING_SOURCE,
 	OPENROUTER_PROVIDER_USAGE_REVISION,
@@ -100,7 +106,10 @@ function assertFirstSmokeRoute(route: OpenRouterRouteQualificationV1): void {
 		route.pricing.pricingRevision !== OPENROUTER_OFFICIAL_PRICING_REVISION ||
 		route.usageRevision !== OPENROUTER_PROVIDER_USAGE_REVISION ||
 		route.pricing.inputMicrousdPerMillionTokens !== 6_250_000 ||
-		route.pricing.outputMicrousdPerMillionTokens !== 30_000_000
+		route.pricing.outputMicrousdPerMillionTokens !== 30_000_000 ||
+		route.budget.maxCanonicalRequestBytes * route.budget.inputTokensPerCanonicalByteUpperBound +
+			route.budget.fixedInputTokenOverheadPerRequest >
+			OPENROUTER_FIRST_SMOKE_STANDARD_PRICING_MAX_INPUT_TOKENS
 	) {
 		throw new TypeError("B112 first smoke route does not match its frozen exact route and pricing");
 	}
@@ -148,13 +157,14 @@ export function createOpenRouterCredentialCapabilityFromOperatorEnvironment(
 
 interface MutableSmokeBudget {
 	requests: number;
+	currentRunRequests: number;
 	reservedInputTokens: number;
 	reservedOutputTokens: number;
 	reservedCostMicrousd: number;
 	pendingReservedInputTokens: number;
 	pendingReservedOutputTokens: number;
 	pendingReservedCostMicrousd: number;
-	allProviderUsageKnown: boolean;
+	unknownProviderUsageRequests: number;
 	providerCostMicrousd: number;
 	latencyMs: number;
 	exhausted: boolean;
@@ -250,7 +260,7 @@ function createBudgetedModelTurnPort(
 					outcome.usage.providerCostMicrousd;
 				ledger.providerCostMicrousd += outcome.usage.providerCostMicrousd;
 			} else if (hasPendingReservation) {
-				ledger.allProviderUsageKnown = false;
+				ledger.unknownProviderUsageRequests += 1;
 			}
 			ledger.pendingReservedInputTokens = 0;
 			ledger.pendingReservedOutputTokens = 0;
@@ -306,7 +316,7 @@ function createSmokeTransportAdmission(
 			if (ledger.requests >= route.budget.maxRequests) {
 				reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.requestLimit);
 			}
-			if (ledger.requests >= route.budget.maxStepsPerRun) {
+			if (ledger.currentRunRequests >= route.budget.maxStepsPerRun) {
 				reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.stepLimit);
 			}
 			if (wireRequestBytes > route.budget.maxCanonicalRequestBytes) {
@@ -345,6 +355,7 @@ function createSmokeTransportAdmission(
 				return false;
 			}
 			ledger.requests += 1;
+			ledger.currentRunRequests += 1;
 			ledger.reservedInputTokens = prospectiveInputTokens;
 			ledger.reservedOutputTokens = prospectiveOutputTokens;
 			ledger.reservedCostMicrousd = prospectiveCost;
@@ -356,35 +367,131 @@ function createSmokeTransportAdmission(
 	});
 }
 
-function finalCostLedger(
-	ledger: MutableSmokeBudget,
-	executionClass: "simulated-contract" | "live-provider",
-): EmpiricalSmokeCostLedgerV1 {
-	if (executionClass === "simulated-contract") {
-		return Object.freeze({
-			costBasis: "simulated-contract",
-			reservedInputTokens: ledger.reservedInputTokens,
-			reservedOutputTokens: ledger.reservedOutputTokens,
-			costMicrousd: 0,
-		});
-	}
+interface SmokeBudgetSnapshot {
+	readonly requests: number;
+	readonly reservedInputTokens: number;
+	readonly reservedOutputTokens: number;
+	readonly reservedCostMicrousd: number;
+	readonly providerCostMicrousd: number;
+	readonly unknownProviderUsageRequests: number;
+	readonly latencyMs: number;
+}
+
+function smokeBudgetSnapshot(ledger: MutableSmokeBudget): SmokeBudgetSnapshot {
 	return Object.freeze({
-		costBasis:
-			ledger.allProviderUsageKnown && ledger.requests > 0
-				? "provider-usage"
-				: "conservative-reservation",
+		requests: ledger.requests,
 		reservedInputTokens: ledger.reservedInputTokens,
 		reservedOutputTokens: ledger.reservedOutputTokens,
-		costMicrousd:
-			ledger.allProviderUsageKnown && ledger.requests > 0
-				? ledger.providerCostMicrousd
-				: ledger.reservedCostMicrousd,
+		reservedCostMicrousd: ledger.reservedCostMicrousd,
+		providerCostMicrousd: ledger.providerCostMicrousd,
+		unknownProviderUsageRequests: ledger.unknownProviderUsageRequests,
+		latencyMs: ledger.latencyMs,
 	});
 }
 
+function runCostLedger(
+	before: SmokeBudgetSnapshot,
+	after: SmokeBudgetSnapshot,
+	executionClass: "simulated-contract" | "live-provider",
+): EmpiricalSmokeCostLedgerV1 {
+	const requests = after.requests - before.requests;
+	const reservedInputTokens = after.reservedInputTokens - before.reservedInputTokens;
+	const reservedOutputTokens = after.reservedOutputTokens - before.reservedOutputTokens;
+	const providerCostMicrousd = after.providerCostMicrousd - before.providerCostMicrousd;
+	const reservedCostMicrousd = after.reservedCostMicrousd - before.reservedCostMicrousd;
+	const providerUsageKnown =
+		requests > 0 && after.unknownProviderUsageRequests === before.unknownProviderUsageRequests;
+	return Object.freeze({
+		costBasis:
+			executionClass === "simulated-contract"
+				? "simulated-contract"
+				: providerUsageKnown
+					? "provider-usage"
+					: "conservative-reservation",
+		reservedInputTokens,
+		reservedOutputTokens,
+		costMicrousd:
+			executionClass === "simulated-contract"
+				? 0
+				: providerUsageKnown
+					? providerCostMicrousd
+					: reservedCostMicrousd,
+	});
+}
+
+function createPerRunSignal(signal: AbortSignal, maxElapsedMs: number): AbortSignal {
+	return AbortSignal.any([signal, AbortSignal.timeout(maxElapsedMs)]);
+}
+
+function createWarmInitialRequest(input: {
+	readonly cold: EmpiricalModelTurnRequestV1;
+	readonly runIndex: number;
+	readonly branchKind: NonNullable<
+		ReturnType<typeof prepareB112MatchedBlockReflection>["branches"][number]
+	>["branchKind"];
+	readonly actorMemoryContext: {
+		readonly recordDigest: string;
+		readonly text: string;
+	} | null;
+	readonly protectionExecutor: ClosedTaskProfileHostRunInputV1["protectionExecutor"];
+	readonly host: Omit<
+		ClosedTaskProfileHostRunInputV1,
+		"modelTurnPort" | "protectionExecutor" | "signal"
+	>;
+}): EmpiricalModelTurnRequestV1 {
+	const baseInput = input.cold.structuredInput;
+	if (baseInput === null || typeof baseInput !== "object" || Array.isArray(baseInput)) {
+		throw new TypeError("B112 matched warm input requires the frozen structured object input");
+	}
+	const structuredInput = strictSnapshot({
+		...baseInput,
+		...(input.actorMemoryContext === null
+			? {}
+			: {
+					memoryContext: {
+						kind: "agentic-memory-context",
+						revision: B112_MATCHED_BLOCK_MEMORY_REVISION,
+						recordDigest: input.actorMemoryContext.recordDigest,
+						text: input.actorMemoryContext.text,
+					},
+				}),
+	});
+	const inputProtectionReceipt = executeEmpiricalProtection(input.protectionExecutor, {
+		policyRef: input.cold.protectionPolicyRef,
+		policyRevision: input.cold.protectionPolicyRevision,
+		stage: "source-ingress",
+		subject: structuredInput,
+	}).receipt;
+	return validateEmpiricalModelTurnRequest(
+		{
+			...input.cold,
+			requestRef: `b112-first-task-live-smoke-run-${input.runIndex}-request-1`,
+			trialStage: input.branchKind,
+			stepIndex: 0,
+			structuredInput,
+			structuredInputDigest: empiricalStrictJsonDigest(structuredInput),
+			inputProtectionReceipt,
+			priorToolResults: [],
+		},
+		input.host.frozen,
+		input.host.qualificationReport,
+	);
+}
+
+export interface OpenRouterFirstTaskWarmHostFactoryInputV1 {
+	readonly initialRequest: EmpiricalModelTurnRequestV1;
+	readonly signal: AbortSignal;
+}
+
+export type OpenRouterFirstTaskWarmHostFactoryV1 = (
+	input: OpenRouterFirstTaskWarmHostFactoryInputV1,
+) => Promise<ClosedTaskProfileHostRunInputV1["materialization"]>;
+
 /**
  * Executes exactly the preregistered first task as one cold attempted smoke
- * block, emits no efficacy claim, and never auto-runs warm/calibration work.
+ * block. When a fresh-host factory is supplied, a verified cold failure fans
+ * into D639's exact five serial warm branches under one monotonic block ledger.
+ * It emits no efficacy claim and never auto-runs calibration work.
  */
 export async function runOpenRouterFirstTaskSmoke(input: {
 	readonly host: Omit<
@@ -399,6 +506,7 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 	readonly privateRoot: string;
 	readonly generationRef: string;
 	readonly signal: AbortSignal;
+	readonly prepareWarmHost?: OpenRouterFirstTaskWarmHostFactoryV1;
 }): Promise<OpenRouterFirstTaskSmokeResultV1> {
 	const trialPlan = input.host.frozen.manifest.trialPlan;
 	if (
@@ -426,19 +534,15 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 	const manifestBudgets = input.host.frozen.manifest.budgets;
 	if (
 		input.routeQualification.budget.maxRequests >
-			Math.min(
-				manifestBudgets.campaign.maxRequests,
-				manifestBudgets.taskModel.maxRequests,
-				manifestBudgets.agentRun.maxRequests,
-			) ||
-		input.routeQualification.budget.maxStepsPerRun > manifestBudgets.agentRun.maxSteps ||
+			Math.min(manifestBudgets.campaign.maxRequests, manifestBudgets.taskModel.maxRequests) ||
+		input.routeQualification.budget.maxStepsPerRun >
+			Math.min(manifestBudgets.agentRun.maxSteps, manifestBudgets.agentRun.maxRequests) ||
 		input.routeQualification.budget.maxSmokeSpendMicrousd >
 			Math.min(
 				manifestBudgets.campaign.maxCostMicrousd,
 				manifestBudgets.taskModel.maxCostMicrousd,
 			) ||
-		input.routeQualification.budget.maxLatencyMs >
-			Math.min(manifestBudgets.campaign.maxElapsedMs, manifestBudgets.agentRun.maxElapsedMs)
+		input.routeQualification.budget.maxLatencyMs > manifestBudgets.campaign.maxElapsedMs
 	) {
 		throw new TypeError("OpenRouter route budget exceeds the frozen D652 host budget");
 	}
@@ -447,13 +551,14 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 	});
 	const ledger: MutableSmokeBudget = {
 		requests: 0,
+		currentRunRequests: 0,
 		reservedInputTokens: 0,
 		reservedOutputTokens: 0,
 		reservedCostMicrousd: 0,
 		pendingReservedInputTokens: 0,
 		pendingReservedOutputTokens: 0,
 		pendingReservedCostMicrousd: 0,
-		allProviderUsageKnown: true,
+		unknownProviderUsageRequests: 0,
 		providerCostMicrousd: 0,
 		latencyMs: 0,
 		exhausted: false,
@@ -469,6 +574,22 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 		transportAdmission: createSmokeTransportAdmission(input.routeQualification, ledger),
 		monotonicMeasurement: input.monotonicMeasurement,
 	});
+	const route = Object.freeze({
+		qualification: input.routeQualification,
+		qualificationDigest: binding.routeQualificationDigest,
+	});
+	const warmBranches: {
+		readonly branchKind: (typeof input.host.frozen.manifest.trialPlan.branchOrder)[number];
+		readonly lifecycle: NonNullable<typeof reflection>["branches"][number]["lifecycle"] | null;
+		readonly run: {
+			readonly runRef: string;
+			readonly hostOutcome: Awaited<ReturnType<typeof runClosedTaskProfileHost>>;
+			readonly costLedger: EmpiricalSmokeCostLedgerV1;
+		} | null;
+		readonly issueCodes: readonly string[];
+	}[] = [];
+	ledger.currentRunRequests = 0;
+	const coldBudgetBefore = smokeBudgetSnapshot(ledger);
 	const outcome = await runClosedTaskProfileHost({
 		...input.host,
 		modelTurnPort: createBudgetedModelTurnPort(
@@ -478,21 +599,124 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 			ledger,
 		),
 		protectionExecutor: binding.protectionExecutor,
-		signal: input.signal,
+		signal: createPerRunSignal(input.signal, manifestBudgets.agentRun.maxElapsedMs),
 	});
-	const route = Object.freeze({
-		qualification: input.routeQualification,
-		qualificationDigest: binding.routeQualificationDigest,
-	});
-	const observation = createEmpiricalTrialBlockObservation({
-		frozen: input.host.frozen,
-		route,
-		hostOutcome: outcome,
-		executionClass: input.executionClass,
-		trialBlockRef: input.host.initialRequest.trialBlockRef,
-		trialBlockDigest: input.host.initialRequest.trialBlockDigest,
-		costLedger: finalCostLedger(ledger, input.executionClass),
-	});
+	const coldBudgetAfter = smokeBudgetSnapshot(ledger);
+	const coldCostLedger = runCostLedger(coldBudgetBefore, coldBudgetAfter, input.executionClass);
+	const rerunEligible = outcome.status === "completed" && outcome.verifierVerdict === "failed";
+	const reflection =
+		rerunEligible && input.prepareWarmHost !== undefined
+			? prepareB112MatchedBlockReflection({
+					coldRequest: input.host.initialRequest,
+					coldOutcome: outcome,
+				})
+			: null;
+	const createObservation = () =>
+		createEmpiricalTrialBlockObservation({
+			frozen: input.host.frozen,
+			route,
+			cold: {
+				runRef: "cold",
+				hostOutcome: outcome,
+				costLedger: coldCostLedger,
+			},
+			...(reflection === null
+				? {}
+				: {
+						reflection: {
+							evidenceDigest: reflection.evidenceDigest,
+							candidateRecordDigests: reflection.candidateRecordDigests,
+							issueCodes: reflection.issueCodes,
+						},
+						warmBranches,
+					}),
+			executionClass: input.executionClass,
+			trialBlockRef: input.host.initialRequest.trialBlockRef,
+			trialBlockDigest: input.host.initialRequest.trialBlockDigest,
+		});
+	let warmPreparationFailed = false;
+	if (reflection !== null && input.prepareWarmHost !== undefined) {
+		for (let index = 0; index < reflection.branches.length; index += 1) {
+			const branch = reflection.branches[index];
+			if (branch === undefined) throw new TypeError("B112 warm branch order is incomplete");
+			if (input.signal.aborted) {
+				throw new DOMException("B112 matched block cancelled between serial arms", "AbortError");
+			}
+			if (ledger.exhausted) {
+				warmBranches.push({
+					branchKind: branch.branchKind,
+					lifecycle: null,
+					run: null,
+					issueCodes: [B112_SMOKE_BUDGET_ISSUE_CODE, "warm-branch-not-attempted"].sort(),
+				});
+				continue;
+			}
+			if (warmPreparationFailed) {
+				warmBranches.push({
+					branchKind: branch.branchKind,
+					lifecycle: null,
+					run: null,
+					issueCodes: ["warm-branch-not-attempted", "warm-host-preparation-failed"].sort(),
+				});
+				continue;
+			}
+			const warmSignal = createPerRunSignal(input.signal, manifestBudgets.agentRun.maxElapsedMs);
+			const initialRequest = createWarmInitialRequest({
+				cold: input.host.initialRequest,
+				runIndex: index + 2,
+				branchKind: branch.branchKind,
+				actorMemoryContext: branch.actorMemoryContext,
+				protectionExecutor: binding.protectionExecutor,
+				host: input.host,
+			});
+			let warmMaterialization: Awaited<ReturnType<OpenRouterFirstTaskWarmHostFactoryV1>>;
+			try {
+				warmMaterialization = await input.prepareWarmHost({ initialRequest, signal: warmSignal });
+			} catch {
+				if (input.signal.aborted || warmSignal.aborted) {
+					throw new DOMException(
+						"B112 matched block cancelled during warm preparation",
+						"AbortError",
+					);
+				}
+				warmPreparationFailed = true;
+				warmBranches.push({
+					branchKind: branch.branchKind,
+					lifecycle: null,
+					run: null,
+					issueCodes: ["warm-branch-not-attempted", "warm-host-preparation-failed"].sort(),
+				});
+				continue;
+			}
+			ledger.currentRunRequests = 0;
+			const budgetBefore = smokeBudgetSnapshot(ledger);
+			const warmOutcome = await runClosedTaskProfileHost({
+				...input.host,
+				initialRequest,
+				materialization: warmMaterialization,
+				modelTurnPort: createBudgetedModelTurnPort(
+					binding.modelTurnPort,
+					input.routeQualification,
+					binding.protectionExecutor,
+					ledger,
+				),
+				protectionExecutor: binding.protectionExecutor,
+				signal: warmSignal,
+			});
+			const budgetAfter = smokeBudgetSnapshot(ledger);
+			warmBranches.push({
+				branchKind: branch.branchKind,
+				lifecycle: branch.lifecycle,
+				run: {
+					runRef: `warm-${index + 1}`,
+					hostOutcome: warmOutcome,
+					costLedger: runCostLedger(budgetBefore, budgetAfter, input.executionClass),
+				},
+				issueCodes: [],
+			});
+		}
+	}
+	const observation = createObservation();
 	const scorecard = createEmpiricalCampaignScorecard(
 		observation,
 		B112_FIRST_TASK_SMOKE_AGGREGATION_REVISION,

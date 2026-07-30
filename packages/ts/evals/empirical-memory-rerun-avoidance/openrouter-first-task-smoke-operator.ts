@@ -10,6 +10,9 @@ import { validateOperatorSuppliedOpenRouterRouteQualification } from "./openrout
 
 export interface OpenRouterFirstTaskSmokeOperatorInputV1 {
 	readonly host: Parameters<typeof runOpenRouterFirstTaskSmoke>[0]["host"];
+	readonly prepareWarmHost: NonNullable<
+		Parameters<typeof runOpenRouterFirstTaskSmoke>[0]["prepareWarmHost"]
+	>;
 	readonly routeQualification: unknown;
 	readonly privateRoot: string;
 	readonly generationRef: string;

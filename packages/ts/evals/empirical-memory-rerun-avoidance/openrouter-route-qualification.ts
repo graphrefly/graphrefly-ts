@@ -37,7 +37,8 @@ export const OPENROUTER_PROVIDER_USAGE_REVISION =
 export const OPENROUTER_OFFICIAL_PRICING_SOURCE =
 	"https://openrouter.ai/api/v1/models/openai/gpt-5.6-sol/endpoints";
 export const OPENROUTER_OFFICIAL_PRICING_REVISION =
-	"openrouter-openai-gpt-5.6-sol-openai-cache-write-ceiling-2026-07-29.v2";
+	"openrouter-openai-gpt-5.6-sol-openai-under-272k-cache-write-ceiling-2026-07-29.v3";
+export const OPENROUTER_FIRST_SMOKE_STANDARD_PRICING_MAX_INPUT_TOKENS = 272_000;
 
 export interface OpenRouterSharedCapacityQualificationV1 {
 	readonly schemaVersion: typeof OPENROUTER_SHARED_CAPACITY_QUALIFICATION_SCHEMA;
@@ -527,7 +528,7 @@ function validateBudget(value: unknown): OpenRouterRouteQualificationV1["budget"
 			"openRouter.routeQualification.budget.maxRequests",
 			{
 				min: 1,
-				max: 24,
+				max: 48,
 			},
 		),
 		maxStepsPerRun: safeInteger(

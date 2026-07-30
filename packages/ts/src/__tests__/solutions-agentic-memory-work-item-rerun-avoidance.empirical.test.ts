@@ -764,6 +764,17 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				"openrouter-responses-byte-transport.ts",
 			);
 			const allowsOutermostLiveOperator = file.endsWith("openrouter-first-task-smoke-operator.ts");
+			const allowsMatchedBlockMemory = file.endsWith("matched-block-memory.ts");
+			const matchedBlockMemoryImports = new Set([
+				"../../src/graph/graph.js",
+				"../../src/node/node.js",
+				"../../src/orchestration/work-item-runtime.js",
+				"../../src/protocol/messages.js",
+				"../../src/solutions/agentic-memory/index.js",
+				"../../src/solutions/agentic-work-item-memory/index.js",
+				"../../src/solutions/agentic-work-item-memory-application/index.js",
+				"../../src/solutions/work-item/index.js",
+			]);
 			expect(source).not.toMatch(
 				allowsOutermostLiveOperator
 					? /\b(?:WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
@@ -808,6 +819,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							(specifier === "node:fs/promises" || specifier === "node:path")) ||
 						(allowsOutermostLiveOperator && specifier === "node:url") ||
 						specifier === "../../src/json/codec.js" ||
+						(allowsMatchedBlockMemory && matchedBlockMemoryImports.has(specifier)) ||
 						specifier.startsWith("./"),
 				),
 			).toBe(true);
