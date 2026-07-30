@@ -66,6 +66,12 @@ import {
 	runOpenRouterFirstTaskSmoke,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-first-task-smoke.js";
 import {
+	OPENROUTER_CHAT_COMPLETIONS_ADAPTER_REVISION,
+	OPENROUTER_CHAT_COMPLETIONS_BINDING_REVISION,
+	OPENROUTER_CHAT_COMPLETIONS_ENDPOINT,
+	OPENROUTER_CHAT_COMPLETIONS_ENDPOINT_REVISION,
+	OPENROUTER_CHAT_COMPLETIONS_PROMPT_REVISION,
+	OPENROUTER_CHAT_COMPLETIONS_SYSTEM_PROMPT_REVISION,
 	OPENROUTER_RESPONSES_ADAPTER_REVISION,
 	OPENROUTER_RESPONSES_BINDING_REVISION,
 	OPENROUTER_RESPONSES_ENDPOINT,
@@ -261,12 +267,22 @@ async function createClosedHostFixture(
 		provider: "openrouter",
 		model: glmProfile ? OPENROUTER_GLM_5_2_REQUEST_MODEL : OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
 		modelIdentityKind: "alias-disclosed" as const,
-		endpoint: OPENROUTER_RESPONSES_ENDPOINT,
-		endpointRevision: OPENROUTER_RESPONSES_ENDPOINT_REVISION,
-		adapterRevision: OPENROUTER_RESPONSES_ADAPTER_REVISION,
-		bindingRevision: OPENROUTER_RESPONSES_BINDING_REVISION,
-		promptRevision: OPENROUTER_RESPONSES_PROMPT_REVISION,
-		systemPromptRevision: OPENROUTER_RESPONSES_SYSTEM_PROMPT_REVISION,
+		endpoint: glmProfile ? OPENROUTER_CHAT_COMPLETIONS_ENDPOINT : OPENROUTER_RESPONSES_ENDPOINT,
+		endpointRevision: glmProfile
+			? OPENROUTER_CHAT_COMPLETIONS_ENDPOINT_REVISION
+			: OPENROUTER_RESPONSES_ENDPOINT_REVISION,
+		adapterRevision: glmProfile
+			? OPENROUTER_CHAT_COMPLETIONS_ADAPTER_REVISION
+			: OPENROUTER_RESPONSES_ADAPTER_REVISION,
+		bindingRevision: glmProfile
+			? OPENROUTER_CHAT_COMPLETIONS_BINDING_REVISION
+			: OPENROUTER_RESPONSES_BINDING_REVISION,
+		promptRevision: glmProfile
+			? OPENROUTER_CHAT_COMPLETIONS_PROMPT_REVISION
+			: OPENROUTER_RESPONSES_PROMPT_REVISION,
+		systemPromptRevision: glmProfile
+			? OPENROUTER_CHAT_COMPLETIONS_SYSTEM_PROMPT_REVISION
+			: OPENROUTER_RESPONSES_SYSTEM_PROMPT_REVISION,
 		capabilities: {
 			toolCalling: true,
 			structuredOutput: true,
@@ -647,10 +663,10 @@ function simulatedRouteQualification(
 		downstreamProviderName: glmProfile
 			? OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME
 			: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
-		endpoint: OPENROUTER_RESPONSES_ENDPOINT,
-		endpointRevision: OPENROUTER_RESPONSES_ENDPOINT_REVISION,
-		adapterRevision: OPENROUTER_RESPONSES_ADAPTER_REVISION,
-		bindingRevision: OPENROUTER_RESPONSES_BINDING_REVISION,
+		endpoint: configuration.endpoint as OpenRouterRouteQualificationV1["endpoint"],
+		endpointRevision: configuration.endpointRevision,
+		adapterRevision: configuration.adapterRevision,
+		bindingRevision: configuration.bindingRevision,
 		capabilitiesDigest: empiricalStrictJsonDigest(configuration.capabilities),
 		settingsDigest: empiricalStrictJsonDigest(configuration.settings),
 		usageSource: configuration.usageSource,
@@ -762,42 +778,94 @@ function dryRunOpenRouterResponse(
 		downstreamProviderName: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
 	},
 ): { readonly status: 200; readonly body: Uint8Array } {
+	const routeMetadata = {
+		requested: route.requestModel,
+		strategy: "direct",
+		attempt: 1,
+		is_byok: false,
+		endpoints: {
+			total: 1,
+			available: [
+				{
+					provider: route.downstreamProviderName,
+					model: route.requestModel,
+					selected: true,
+				},
+			],
+		},
+		attempts: [
+			{
+				provider: route.downstreamProviderName,
+				model: route.requestModel,
+				status: 200,
+			},
+		],
+		pipeline: [],
+	};
+	let response: Record<string, unknown>;
+	if (route.requestModel === OPENROUTER_GLM_5_2_REQUEST_MODEL) {
+		const functionCalls = output
+			.map((item) => item as Record<string, unknown>)
+			.filter((item) => item.type === "function_call");
+		const message = output
+			.map((item) => item as Record<string, unknown>)
+			.find((item) => item.type === "message");
+		const content = message?.content as readonly { readonly text?: unknown }[] | undefined;
+		const inputTokens = usage.input_tokens;
+		const outputTokens = usage.output_tokens;
+		response = {
+			id,
+			object: "chat.completion",
+			model: route.requestModel,
+			choices: [
+				functionCalls.length > 0
+					? {
+							index: 0,
+							finish_reason: "tool_calls",
+							message: {
+								role: "assistant",
+								content: null,
+								tool_calls: functionCalls.map((call) => ({
+									id: call.call_id,
+									type: "function",
+									function: {
+										name: call.name,
+										arguments: call.arguments,
+									},
+								})),
+							},
+						}
+					: {
+							index: 0,
+							finish_reason: "stop",
+							message: {
+								role: "assistant",
+								content: content?.[0]?.text,
+							},
+						},
+			],
+			usage: {
+				prompt_tokens: inputTokens,
+				completion_tokens: outputTokens,
+				total_tokens: usage.total_tokens,
+				cost: usage.cost,
+			},
+			openrouter_metadata: routeMetadata,
+		};
+	} else {
+		response = {
+			id,
+			object: "response",
+			status: "completed",
+			model: route.requestModel,
+			output,
+			usage,
+			openrouter_metadata: routeMetadata,
+		};
+	}
 	return {
 		status: 200,
-		body: encoder.encode(
-			JSON.stringify({
-				id,
-				object: "response",
-				status: "completed",
-				model: route.requestModel,
-				output,
-				usage,
-				openrouter_metadata: {
-					requested: route.requestModel,
-					strategy: "direct",
-					attempt: 1,
-					is_byok: false,
-					endpoints: {
-						total: 1,
-						available: [
-							{
-								provider: route.downstreamProviderName,
-								model: route.requestModel,
-								selected: true,
-							},
-						],
-					},
-					attempts: [
-						{
-							provider: route.downstreamProviderName,
-							model: route.requestModel,
-							status: 200,
-						},
-					],
-					pipeline: [],
-				},
-			}),
-		),
+		body: encoder.encode(JSON.stringify(response)),
 	};
 }
 
@@ -1534,11 +1602,18 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				const wireBody = new TextDecoder().decode(input.body);
 				wireBodies.push(wireBody);
 				const requestBody = JSON.parse(wireBody) as {
-					readonly tools: readonly { readonly name: string }[];
-					readonly input: string;
+					readonly tools: readonly {
+						readonly function: { readonly name: string };
+					}[];
+					readonly messages: readonly {
+						readonly role: string;
+						readonly content: string;
+					}[];
 				};
-				actorInputs.push(requestBody.input);
-				const userEnvelope = JSON.parse(requestBody.input) as {
+				const userMessage = requestBody.messages.find((message) => message.role === "user");
+				if (userMessage === undefined) throw new TypeError("missing GLM Chat user message");
+				actorInputs.push(userMessage.content);
+				const userEnvelope = JSON.parse(userMessage.content) as {
 					readonly structuredInput?: {
 						readonly memoryContext?: {
 							readonly kind?: string;
@@ -1560,7 +1635,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 									type: "function_call",
 									status: "completed",
 									call_id: "call.matched-cold-read",
-									name: requestBody.tools[0]?.name,
+									name: requestBody.tools[0]?.function.name,
 									arguments: JSON.stringify({ path: "README.md" }),
 								},
 							]
@@ -1570,7 +1645,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 										type: "function_call",
 										status: "completed",
 										call_id: "call.matched-replace",
-										name: requestBody.tools[2]?.name,
+										name: requestBody.tools[2]?.function.name,
 										arguments: JSON.stringify({
 											baseContentDigest,
 											newText: "fixed",
@@ -1685,7 +1760,8 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 
 		expect(transportCalls).toBe(8);
 		for (const wireBody of wireBodies) {
-			expect(JSON.parse(wireBody)).toMatchObject({
+			const parsedWireBody = JSON.parse(wireBody) as Record<string, unknown>;
+			expect(parsedWireBody).toMatchObject({
 				model: OPENROUTER_GLM_5_2_REQUEST_MODEL,
 				provider: {
 					order: [OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_SLUG],
@@ -1693,8 +1769,17 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 					allow_fallbacks: false,
 					require_parameters: true,
 				},
+				messages: [{ role: "system" }, { role: "user" }],
+				max_tokens: expect.any(Number),
 				reasoning: { effort: "high" },
+				response_format: {
+					type: "json_schema",
+					json_schema: { strict: true },
+				},
 			});
+			expect(parsedWireBody).not.toHaveProperty("input");
+			expect(parsedWireBody).not.toHaveProperty("instructions");
+			expect(parsedWireBody).not.toHaveProperty("parallel_tool_calls");
 		}
 		expect(result.admissionRejection).toBeNull();
 		expect(fixture.verifierCalls.count).toBe(6);

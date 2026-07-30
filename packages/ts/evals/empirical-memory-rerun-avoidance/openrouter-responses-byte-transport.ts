@@ -5,7 +5,10 @@ import type {
 	OpenRouterResponsesTransportRequestV1,
 	OpenRouterResponsesTransportResponseV1,
 } from "./openrouter-responses-model-turn.js";
-import { OPENROUTER_RESPONSES_ENDPOINT } from "./openrouter-route-qualification.js";
+import {
+	OPENROUTER_CHAT_COMPLETIONS_ENDPOINT,
+	OPENROUTER_RESPONSES_ENDPOINT,
+} from "./openrouter-route-qualification.js";
 
 const typedArrayByteLengthGetter = Object.getOwnPropertyDescriptor(
 	Object.getPrototypeOf(Uint8Array.prototype),
@@ -92,7 +95,8 @@ export function createOpenRouterResponsesFetchByteTransport(
 			input: OpenRouterResponsesTransportRequestV1,
 		): Promise<OpenRouterResponsesTransportResponseV1> {
 			if (
-				input.endpoint !== OPENROUTER_RESPONSES_ENDPOINT ||
+				(input.endpoint !== OPENROUTER_RESPONSES_ENDPOINT &&
+					input.endpoint !== OPENROUTER_CHAT_COMPLETIONS_ENDPOINT) ||
 				input.method !== "POST" ||
 				input.contentType !== "application/json" ||
 				input.xOpenRouterMetadata !== "enabled" ||

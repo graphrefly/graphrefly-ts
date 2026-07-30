@@ -25,6 +25,7 @@ export const OPENROUTER_ROUTE_QUALIFICATION_SCHEMA =
 export const OPENROUTER_SHARED_CAPACITY_QUALIFICATION_SCHEMA =
 	"graphrefly.private-solution-eval.openrouter-shared-capacity-qualification.v1";
 export const OPENROUTER_RESPONSES_ENDPOINT = "https://openrouter.ai/api/v1/responses";
+export const OPENROUTER_CHAT_COMPLETIONS_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 export const OPENROUTER_FIRST_SMOKE_REQUEST_MODEL = "openai/gpt-5.6-sol";
 export const OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG = "openai";
 export const OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME = "OpenAI";
@@ -34,6 +35,12 @@ export const OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME = "Decart";
 export const OPENROUTER_RESPONSES_ENDPOINT_REVISION = "openrouter-responses-2026-07-29.v2";
 export const OPENROUTER_RESPONSES_ADAPTER_REVISION = "graphrefly-openrouter-responses-turn.v2";
 export const OPENROUTER_RESPONSES_BINDING_REVISION = "graphrefly-openrouter-responses-wire.v8";
+export const OPENROUTER_CHAT_COMPLETIONS_ENDPOINT_REVISION =
+	"openrouter-chat-completions-2026-07-30.v1";
+export const OPENROUTER_CHAT_COMPLETIONS_ADAPTER_REVISION =
+	"graphrefly-openrouter-chat-completions-turn.v1";
+export const OPENROUTER_CHAT_COMPLETIONS_BINDING_REVISION =
+	"graphrefly-openrouter-chat-completions-wire.v9";
 export const OPENROUTER_ROUTE_EVIDENCE_SCHEMA_REVISION = "openrouter-metadata-2026-07-29.v1";
 export const OPENROUTER_PROVIDER_USAGE_REVISION =
 	"openrouter-provider-reported-cost-microusd-2026-07-29.v2";
@@ -48,6 +55,10 @@ export const OPENROUTER_GLM_5_2_PRICING_REVISION =
 	"openrouter-z-ai-glm-5.2-decart-fp4-2026-07-30.v1";
 export const OPENROUTER_GLM_5_2_INPUT_MICROUSD_PER_MILLION_TOKENS = 600_000;
 export const OPENROUTER_GLM_5_2_OUTPUT_MICROUSD_PER_MILLION_TOKENS = 1_250_000;
+
+export type OpenRouterEndpointV1 =
+	| typeof OPENROUTER_RESPONSES_ENDPOINT
+	| typeof OPENROUTER_CHAT_COMPLETIONS_ENDPOINT;
 
 export interface OpenRouterSharedCapacityQualificationV1 {
 	readonly schemaVersion: typeof OPENROUTER_SHARED_CAPACITY_QUALIFICATION_SCHEMA;
@@ -77,7 +88,7 @@ export interface OpenRouterRouteQualificationV1 {
 	readonly modelIdentityKind: "exact-snapshot" | "alias-disclosed";
 	readonly downstreamProviderSlug: string;
 	readonly downstreamProviderName: string;
-	readonly endpoint: typeof OPENROUTER_RESPONSES_ENDPOINT;
+	readonly endpoint: OpenRouterEndpointV1;
 	readonly endpointRevision: string;
 	readonly adapterRevision: string;
 	readonly bindingRevision: string;
@@ -125,6 +136,31 @@ export interface OpenRouterRouteQualificationV1 {
 export interface QualifiedOpenRouterRouteV1 {
 	readonly qualification: OpenRouterRouteQualificationV1;
 	readonly qualificationDigest: string;
+}
+
+function qualifiedWireProfile(endpoint: unknown): {
+	readonly endpoint: OpenRouterEndpointV1;
+	readonly endpointRevision: string;
+	readonly adapterRevision: string;
+	readonly bindingRevision: string;
+} {
+	if (endpoint === OPENROUTER_RESPONSES_ENDPOINT) {
+		return {
+			endpoint: OPENROUTER_RESPONSES_ENDPOINT,
+			endpointRevision: OPENROUTER_RESPONSES_ENDPOINT_REVISION,
+			adapterRevision: OPENROUTER_RESPONSES_ADAPTER_REVISION,
+			bindingRevision: OPENROUTER_RESPONSES_BINDING_REVISION,
+		};
+	}
+	if (endpoint === OPENROUTER_CHAT_COMPLETIONS_ENDPOINT) {
+		return {
+			endpoint: OPENROUTER_CHAT_COMPLETIONS_ENDPOINT,
+			endpointRevision: OPENROUTER_CHAT_COMPLETIONS_ENDPOINT_REVISION,
+			adapterRevision: OPENROUTER_CHAT_COMPLETIONS_ADAPTER_REVISION,
+			bindingRevision: OPENROUTER_CHAT_COMPLETIONS_BINDING_REVISION,
+		};
+	}
+	throw new TypeError("OpenRouter route qualification uses an unsupported wire endpoint");
 }
 
 export function validateOpenRouterSharedCapacityQualification(
@@ -282,24 +318,23 @@ export function validateOpenRouterRouteQualification(
 	) {
 		throw new TypeError("OpenRouter route qualification does not match its frozen configuration");
 	}
-	literal(
+	const wireProfile = qualifiedWireProfile(
 		httpsEndpoint(qualification.endpoint, "openRouter.routeQualification.endpoint"),
-		OPENROUTER_RESPONSES_ENDPOINT,
-		"openRouter.routeQualification.endpoint",
 	);
+	literal(qualification.endpoint, wireProfile.endpoint, "openRouter.routeQualification.endpoint");
 	literal(
 		qualification.endpointRevision,
-		OPENROUTER_RESPONSES_ENDPOINT_REVISION,
+		wireProfile.endpointRevision,
 		"openRouter.routeQualification.endpointRevision",
 	);
 	literal(
 		qualification.adapterRevision,
-		OPENROUTER_RESPONSES_ADAPTER_REVISION,
+		wireProfile.adapterRevision,
 		"openRouter.routeQualification.adapterRevision",
 	);
 	literal(
 		qualification.bindingRevision,
-		OPENROUTER_RESPONSES_BINDING_REVISION,
+		wireProfile.bindingRevision,
 		"openRouter.routeQualification.bindingRevision",
 	);
 	literal(
@@ -386,7 +421,7 @@ export function validateOpenRouterRouteQualification(
 			qualification.downstreamProviderName,
 			"openRouter.routeQualification.downstreamProviderName",
 		),
-		endpoint: OPENROUTER_RESPONSES_ENDPOINT,
+		endpoint: wireProfile.endpoint,
 		endpointRevision: coordinate(
 			qualification.endpointRevision,
 			"openRouter.routeQualification.endpointRevision",

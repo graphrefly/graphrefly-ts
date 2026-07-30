@@ -7,6 +7,7 @@ import { readOpenRouterSmokeOperatorMonotonicMs } from "../../evals/empirical-me
 import { createOpenRouterResponsesFetchByteTransport } from "../../evals/empirical-memory-rerun-avoidance/openrouter-responses-byte-transport.js";
 import {
 	MAX_OPENROUTER_RESPONSES_RESPONSE_BYTES,
+	OPENROUTER_CHAT_COMPLETIONS_ENDPOINT,
 	OPENROUTER_RESPONSES_ENDPOINT,
 	type OpenRouterResponsesTransportRequestV1,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-responses-model-turn.js";
@@ -113,6 +114,18 @@ describe("B112 package-private OpenRouter live byte transport", () => {
 			"x-openrouter-metadata": "enabled",
 		});
 		expect(new TextDecoder().decode(response.body)).toBe('{"ok":true}');
+	});
+
+	it("allows only the separately qualified Chat Completions wire endpoint", async () => {
+		const fetchCapability = vi.fn<typeof fetch>(() =>
+			Promise.resolve(new Response('{"ok":true}', { status: 200 })),
+		);
+		const transport = createOpenRouterResponsesFetchByteTransport({ fetch: fetchCapability });
+
+		await transport.request(transportRequest({ endpoint: OPENROUTER_CHAT_COMPLETIONS_ENDPOINT }));
+
+		expect(fetchCapability).toHaveBeenCalledTimes(1);
+		expect(fetchCapability.mock.calls[0]?.[0]).toBe(OPENROUTER_CHAT_COMPLETIONS_ENDPOINT);
 	});
 
 	it("fails closed on declared or streamed overflow without retry", async () => {

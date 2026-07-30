@@ -19,6 +19,12 @@ import {
 import {
 	createOpenRouterResponsesEmpiricalBinding,
 	MAX_OPENROUTER_RESPONSES_RESPONSE_BYTES,
+	OPENROUTER_CHAT_COMPLETIONS_ADAPTER_REVISION,
+	OPENROUTER_CHAT_COMPLETIONS_BINDING_REVISION,
+	OPENROUTER_CHAT_COMPLETIONS_ENDPOINT,
+	OPENROUTER_CHAT_COMPLETIONS_ENDPOINT_REVISION,
+	OPENROUTER_CHAT_COMPLETIONS_PROMPT_REVISION,
+	OPENROUTER_CHAT_COMPLETIONS_SYSTEM_PROMPT_REVISION,
 	OPENROUTER_RESPONSES_ADAPTER_REVISION,
 	OPENROUTER_RESPONSES_BINDING_REVISION,
 	OPENROUTER_RESPONSES_DOWNSTREAM_PROVIDER,
@@ -78,7 +84,7 @@ function sharedCapacityQualification(authority: OpenRouterAuthorityFixture) {
 	} as const;
 }
 
-function routeQualification(authority: OpenRouterAuthorityFixture) {
+function routeQualification(authority: OpenRouterAuthorityFixture): OpenRouterRouteQualificationV1 {
 	const configuration = authority.manifest.modelConfigurations[0];
 	if (configuration === undefined) throw new TypeError("missing OpenRouter configuration");
 	const request = buildEmpiricalModelTurnRequestFixture(authority);
@@ -97,10 +103,10 @@ function routeQualification(authority: OpenRouterAuthorityFixture) {
 		modelIdentityKind: configuration.modelIdentityKind,
 		downstreamProviderSlug: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG,
 		downstreamProviderName: OPENROUTER_RESPONSES_DOWNSTREAM_PROVIDER,
-		endpoint: OPENROUTER_RESPONSES_ENDPOINT,
-		endpointRevision: OPENROUTER_RESPONSES_ENDPOINT_REVISION,
-		adapterRevision: OPENROUTER_RESPONSES_ADAPTER_REVISION,
-		bindingRevision: OPENROUTER_RESPONSES_BINDING_REVISION,
+		endpoint: configuration.endpoint as OpenRouterRouteQualificationV1["endpoint"],
+		endpointRevision: configuration.endpointRevision,
+		adapterRevision: configuration.adapterRevision,
+		bindingRevision: configuration.bindingRevision,
 		capabilitiesDigest: empiricalStrictJsonDigest(configuration.capabilities),
 		settingsDigest: empiricalStrictJsonDigest(configuration.settings),
 		usageSource: configuration.usageSource,
@@ -226,6 +232,12 @@ function buildGlmAuthority(): OpenRouterAuthorityFixture {
 		...baseConfiguration,
 		configurationRef: "actor.openrouter.z-ai.glm-5.2",
 		model: OPENROUTER_GLM_5_2_REQUEST_MODEL,
+		endpoint: OPENROUTER_CHAT_COMPLETIONS_ENDPOINT,
+		endpointRevision: OPENROUTER_CHAT_COMPLETIONS_ENDPOINT_REVISION,
+		adapterRevision: OPENROUTER_CHAT_COMPLETIONS_ADAPTER_REVISION,
+		bindingRevision: OPENROUTER_CHAT_COMPLETIONS_BINDING_REVISION,
+		promptRevision: OPENROUTER_CHAT_COMPLETIONS_PROMPT_REVISION,
+		systemPromptRevision: OPENROUTER_CHAT_COMPLETIONS_SYSTEM_PROMPT_REVISION,
 		settings: {
 			...baseConfiguration.settings,
 			reasoning: { mode: "provider-native" as const, effort: "high" },
@@ -600,17 +612,26 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		const authority = buildGlmAuthority();
 		const route = glmRouteQualification(authority);
 		const response = responseBytes({
-			id: "resp_glm_placeholder_01",
-			object: "response",
-			status: "completed",
+			id: "chatcmpl_glm_placeholder_01",
+			object: "chat.completion",
 			model: OPENROUTER_GLM_5_2_REQUEST_MODEL,
-			output: messageOutput({
-				kind: "model-turn-output-placeholder",
-				summary: "bounded-glm-placeholder",
-			}),
+			choices: [
+				{
+					index: 0,
+					finish_reason: "stop",
+					message: {
+						role: "assistant",
+						content: JSON.stringify({
+							kind: "model-turn-output-placeholder",
+							summary: "bounded-glm-placeholder",
+						}),
+					},
+				},
+			],
 			usage: {
-				input_tokens: 100,
-				output_tokens: 20,
+				prompt_tokens: 100,
+				completion_tokens: 20,
+				completion_tokens_details: { reasoning_tokens: 12 },
 				total_tokens: 120,
 				cost: 0.000_085,
 			},
@@ -650,6 +671,9 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 				summary: "bounded-glm-placeholder",
 			},
 			usage: {
+				inputTokens: 100,
+				outputTokens: 20,
+				totalTokens: 120,
 				requests: 1,
 				providerCostMicrousd: 85,
 			},
@@ -666,12 +690,218 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 				allow_fallbacks: false,
 				require_parameters: true,
 			},
+			messages: [{ role: "system" }, { role: "user" }],
+			max_tokens: request.remainingTurnBudget.maxOutputTokens,
 			reasoning: { effort: "high" },
+			response_format: {
+				type: "json_schema",
+				json_schema: {
+					strict: true,
+					schema: {
+						type: "object",
+						required: ["kind", "summary"],
+						additionalProperties: false,
+					},
+				},
+			},
+			tool_choice: "auto",
 		});
+		expect(sent.endpoint).toBe(OPENROUTER_CHAT_COMPLETIONS_ENDPOINT);
+		expect(body).not.toHaveProperty("instructions");
+		expect(body).not.toHaveProperty("input");
+		expect(body).not.toHaveProperty("text");
+		expect(body).not.toHaveProperty("max_output_tokens");
+		expect(body).not.toHaveProperty("store");
+		expect(body).not.toHaveProperty("background");
+		expect(body).not.toHaveProperty("truncation");
+		expect(body).not.toHaveProperty("service_tier");
 		expect(body).not.toHaveProperty("parallel_tool_calls");
 		expect(body).not.toHaveProperty("models");
 		expect(body).not.toHaveProperty("plugins");
 		expect(body).not.toHaveProperty("transforms");
+		serializedWithoutCredential({ body, outcome, route });
+	});
+
+	it("treats GLM reasoning tokens as a bounded completion-token subset", async () => {
+		const authority = buildGlmAuthority();
+		const route = glmRouteQualification(authority);
+		const response = responseBytes({
+			id: "chatcmpl_glm_usage_placeholder_01",
+			object: "chat.completion",
+			model: OPENROUTER_GLM_5_2_REQUEST_MODEL,
+			choices: [
+				{
+					index: 0,
+					finish_reason: "stop",
+					message: {
+						role: "assistant",
+						content: JSON.stringify({
+							kind: "model-turn-output-placeholder",
+							summary: "bounded-glm-placeholder",
+						}),
+					},
+				},
+			],
+			usage: {
+				prompt_tokens: 2,
+				completion_tokens: 4,
+				completion_tokens_details: { reasoning_tokens: 5 },
+				total_tokens: 6,
+				cost: 0.000_006,
+			},
+			openrouter_metadata: {
+				requested: OPENROUTER_GLM_5_2_REQUEST_MODEL,
+				strategy: "direct",
+				attempt: 1,
+				is_byok: false,
+				endpoints: {
+					total: 1,
+					available: [
+						{
+							provider: OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME,
+							model: `${OPENROUTER_GLM_5_2_REQUEST_MODEL}-20260616`,
+							selected: true,
+						},
+					],
+				},
+				attempts: [
+					{
+						provider: OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME,
+						model: `${OPENROUTER_GLM_5_2_REQUEST_MODEL}-20260616`,
+						status: 200,
+					},
+				],
+				pipeline: [],
+			},
+		});
+		const harness = createHarness(authority, response, bearerToken, route);
+
+		const outcome = await harness.binding.modelTurnPort.invoke(
+			harness.request,
+			new AbortController().signal,
+		);
+
+		expect(outcome).toMatchObject({
+			status: "non-evaluable",
+			usage: {
+				inputTokens: null,
+				outputTokens: null,
+				totalTokens: null,
+				requests: 1,
+			},
+			issueCodes: [OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse],
+		});
+		expect(harness.transport).toHaveBeenCalledTimes(1);
+		serializedWithoutCredential({ outcome, route });
+	});
+
+	it("maps GLM Chat Completions tool calls without changing the D652 semantic port", async () => {
+		const authority = buildGlmAuthority();
+		const route = glmRouteQualification(authority);
+		const request = buildEmpiricalModelTurnRequestFixture(authority);
+		const toolRef = request.availableTools[0]?.toolRef;
+		if (toolRef === undefined) throw new TypeError("GLM tool fixture requires one tool");
+		const response = responseBytes({
+			id: "chatcmpl_glm_tool_placeholder_01",
+			object: "chat.completion",
+			model: OPENROUTER_GLM_5_2_REQUEST_MODEL,
+			choices: [
+				{
+					index: 0,
+					finish_reason: "tool_calls",
+					message: {
+						role: "assistant",
+						content: null,
+						tool_calls: [
+							{
+								id: "call_glm_placeholder_01",
+								type: "function",
+								function: {
+									name: toolRef,
+									arguments: JSON.stringify({
+										commandRef: "command-placeholder",
+										args: [],
+									}),
+								},
+							},
+						],
+					},
+				},
+			],
+			usage: {
+				prompt_tokens: 120,
+				completion_tokens: 24,
+				total_tokens: 144,
+				cost: 0.000_102,
+			},
+			openrouter_metadata: {
+				requested: OPENROUTER_GLM_5_2_REQUEST_MODEL,
+				strategy: "direct",
+				attempt: 1,
+				is_byok: false,
+				endpoints: {
+					total: 1,
+					available: [
+						{
+							provider: OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME,
+							model: `${OPENROUTER_GLM_5_2_REQUEST_MODEL}-20260616`,
+							selected: true,
+						},
+					],
+				},
+				attempts: [
+					{
+						provider: OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME,
+						model: `${OPENROUTER_GLM_5_2_REQUEST_MODEL}-20260616`,
+						status: 200,
+					},
+				],
+				pipeline: [],
+			},
+		});
+		const harness = createHarness(authority, response, bearerToken, route);
+
+		const outcome = await harness.binding.modelTurnPort.invoke(
+			harness.request,
+			new AbortController().signal,
+		);
+
+		expect(outcome).toMatchObject({
+			status: "completed",
+			finishReason: "tool-intents",
+			structuredOutput: null,
+			toolIntents: [
+				{
+					toolCallRef: "call_glm_placeholder_01",
+					toolRef,
+					arguments: {
+						commandRef: "command-placeholder",
+						args: [],
+					},
+				},
+			],
+			usage: {
+				inputTokens: 120,
+				outputTokens: 24,
+				totalTokens: 144,
+				providerCostMicrousd: 102,
+				requests: 1,
+			},
+			issueCodes: [],
+		});
+		const sent = harness.transport.mock.calls[0]?.[0] as OpenRouterResponsesTransportRequestV1;
+		const body = strictJsonCodec.decode(sent.body) as Record<string, unknown>;
+		expect(body.tools).toEqual([
+			{
+				type: "function",
+				function: expect.objectContaining({
+					name: toolRef,
+					strict: true,
+					parameters: expect.any(Object),
+				}),
+			},
+		]);
+		expect(body).not.toHaveProperty("parallel_tool_calls");
 		serializedWithoutCredential({ body, outcome, route });
 	});
 
