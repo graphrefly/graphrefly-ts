@@ -1,5 +1,42 @@
 # @graphrefly/ts
 
+## 0.8.0
+
+### Minor Changes
+
+- e527c71: Add the focused D667 local untrusted-JavaScript compute contract and Node
+  rootless-Podman Libpod API v0 broker subpaths. The contract binds immutable
+  bundle, runner image, compiler, fixed GraphReFly API, admitted input, sandbox,
+  network, filesystem, resource and output coordinates; accepts only current
+  independently certified readiness; and returns bounded answer, actual runtime
+  topology/describe/provenance and verified cleanup. Its Graph-visible runtime
+  projects admitted runs, lifecycle, status, outcome, usage, issues, audit and
+  exact-attempt cancellation while keeping bundle/input bytes and Podman handles
+  host-private.
+
+  The Node broker uses one fixed runner entrypoint in a fresh digest-pinned
+  non-root container with a read-only root filesystem, all capabilities dropped,
+  no-new-privileges, no host bind or engine-socket mount, one bounded noexec
+  tmpfs, no network, bounded resources, exact stop/kill/remove and stable absence
+  verification. It is distinct
+  from the hosted E2B managed-compute backend and the fixed PostgreSQL Podman
+  recipe. The package root and aggregate executor surfaces remain unchanged.
+
+- e527c71: Add the fixed distroless D667 local untrusted-JavaScript runner artifact and independent rootless-Podman live certifier.
+
+### Patch Changes
+
+- e527c71: Reject unknown, START, value, and terminal messages on the upward path and reject
+  unknown messages on the downward path so generated fixed-runner artifacts retain
+  the package's closed wave-message direction guards. Pin runner bundle generation
+  to the repository root so package-scoped and root builds produce the same artifact.
+
+  Expose the package-owned fixed runner assets through focused package subpaths,
+  bind runtime provenance to the package version injected into both the broker and
+  runner, and align v0 result/topology admission with the fixed profile. Start
+  readiness freshness after certification, retry cleanup verification through its
+  window, and make the locked Node 24 declaration build heap self-contained.
+
 ## 0.7.0
 
 ### Minor Changes
