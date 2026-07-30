@@ -477,7 +477,14 @@ describe("D667 Node rootless-Podman broker lifecycle", () => {
 	});
 
 	it("fails closed on bounded log overflow and strict exit-code parsing", async () => {
-		for (const mode of ["output-overflow", "strict-exit"] as const) {
+		for (const mode of [
+			"output-overflow",
+			"output-overflow",
+			"output-overflow",
+			"output-overflow",
+			"output-overflow",
+			"strict-exit",
+		] as const) {
 			const { state, hostBindingDigest } = await harness(mode);
 			await expect(execute(hostBindingDigest, manifest())).resolves.toMatchObject({
 				outcome: "failed",

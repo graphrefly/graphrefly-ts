@@ -1017,6 +1017,12 @@ function rawRequest(
 	maxResponseBytes = MAX_ENGINE_RESPONSE_BYTES,
 ): Promise<RawResponse> {
 	return new Promise((resolve, reject) => {
+		let settled = false;
+		const rejectOnce = (error: unknown): void => {
+			if (settled) return;
+			settled = true;
+			reject(error);
+		};
 		const request = httpRequest(
 			{
 				socketPath,
@@ -1037,22 +1043,26 @@ function rawRequest(
 				response.on("data", (chunk: Buffer) => {
 					total += chunk.byteLength;
 					if (total > maxResponseBytes) {
-						request.destroy(new ResponseBoundError());
+						rejectOnce(new ResponseBoundError());
+						response.destroy();
+						request.destroy();
 						return;
 					}
 					chunks.push(chunk);
 				});
-				response.on("end", () =>
+				response.on("end", () => {
+					if (settled) return;
+					settled = true;
 					resolve({
 						status: response.statusCode ?? 0,
 						body: new Uint8Array(Buffer.concat(chunks)),
-					}),
-				);
-				response.on("error", reject);
+					});
+				});
+				response.on("error", rejectOnce);
 			},
 		);
 		request.setTimeout(timeoutMs, () => request.destroy(new Error("Podman request timed out.")));
-		request.on("error", reject);
+		request.on("error", rejectOnce);
 		if (body !== undefined) request.write(body);
 		request.end();
 	});
