@@ -46,6 +46,10 @@ const ALLOW_ALL = new Set<string>([
 	"packages/ts/src/executors/local-container-postgresql-podman-libpod-api-v0-rootless.ts",
 	// D645 Node-local Podman transport entry; sockets/IDs stay implementation-private.
 	"packages/ts/src/executors/local-container-postgresql-podman-libpod-api-v0-rootless/node.ts",
+	// D667 independently certified local untrusted-JS driver/runtime boundary.
+	"packages/ts/src/executors/local-untrusted-js-compute.ts",
+	// D667 Node-local rootless Podman broker; sockets/IDs stay implementation-private.
+	"packages/ts/src/executors/local-untrusted-js-compute/node.ts",
 	// D605 concrete managed control-store, WSS transport, and worker runtime boundary.
 	"packages/ts/src/executors/managed-cloud-postgresql.ts",
 	// D606 concrete customer endpoint, CAS store, outbound transport, and worker boundary.

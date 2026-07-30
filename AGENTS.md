@@ -47,12 +47,14 @@ Sibling implementations (each self-contained, cross-language = wire bridge, not 
 - **8 verbs, closed set (D4):** `node` `graph` `batch` `state` + `producer` `derived` `effect` `mount`.
   Operators are `node` sugar, not verbs — per-language, never in parity (D6).
 - **`ctx.up` / `ctx.down(msgs)` (D8):** one `msgs` array = one wave; may mix tiers. `ctx.up` is
-  **control-tier only** (DIRTY/PAUSE/RESUME/INVALIDATE/TEARDOWN); DATA/RESOLVED/COMPLETE/ERROR are
-  down-only (R-ctx-up). Handle = pure data `(pool_id, handle_id)`, no methods (D7).
-- **7-tier const table + 10-message closed set (D9/D34, R-tier/R-msg-closed-set):** adding a tier
+  **control/demand only** (DIRTY/PAUSE/RESUME/PULL/INVALIDATE/TEARDOWN);
+  START/DATA/RESOLVED/COMPLETE/ERROR are not up-going (R-ctx-up). Handle = pure data
+  `(pool_id, handle_id)`, no methods (D7).
+- **7-tier const table + 11-message closed set (D9/D34/D269, R-tier/R-msg-closed-set):** adding a tier
   or message type is a constitutional change.
-- **graph = single-thread causal/concurrency domain (D22):** parallelism via pool callback or
-  multi-graph + wire bridge; rewire intra-graph only.
+- **graph = single-thread concurrency domain (D22):** causal influence may cross graphs through
+  delayed-consistency wire bridges; parallelism via pool callback or multi-graph + wire bridge;
+  rewire intra-graph only.
 - **parity = behavioral conformance (D24):** structural `Impl` + cross-track-ledger retired.
 - **config dissolved (D26):** clock is graph-local (no global singleton); `messageTier` is a
   compile-time const table; `onMessage`/`onSubscribe` are substrate-fixed, not user-replaceable (D19).

@@ -223,9 +223,15 @@ export function nodeUp<T>(
 	if (self._released) return;
 	const routeState = route ?? { demandFired: new Map() };
 	for (const m of msgs) {
+		const tier = messageTier(m[0]);
+		if (tier === undefined) {
+			throw new Error(
+				`ctx.up: ${String(m[0])} is not in the closed message-type set (R-msg-closed-set)`,
+			);
+		}
 		if (!isUpAllowed(m[0])) {
 			throw new Error(
-				`ctx.up: ${m[0]} is down-only (tier ${messageTier(m[0])}); up carries control tiers only (R-ctx-up)`,
+				`ctx.up: ${m[0]} is not up-going (tier ${tier}); up carries control/demand messages only (R-ctx-up)`,
 			);
 		}
 	}

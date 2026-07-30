@@ -33,6 +33,8 @@ import * as executorLocalContainerPostgresqlDockerEngineApiV0Node from "../execu
 import * as executorLocalContainerPostgresqlDockerEngineApiV0 from "../executors/local-container-postgresql-docker-engine-api-v0.js";
 import * as executorLocalContainerPostgresqlPodmanLibpodApiV0RootlessNode from "../executors/local-container-postgresql-podman-libpod-api-v0-rootless/node.js";
 import * as executorLocalContainerPostgresqlPodmanLibpodApiV0Rootless from "../executors/local-container-postgresql-podman-libpod-api-v0-rootless.js";
+import * as executorLocalUntrustedJsComputeNode from "../executors/local-untrusted-js-compute/node.js";
+import * as executorLocalUntrustedJsCompute from "../executors/local-untrusted-js-compute.js";
 import * as executorManagedCloudPostgresql from "../executors/managed-cloud-postgresql.js";
 import * as executorManagedUntrustedJsCompute from "../executors/managed-untrusted-js-compute.js";
 import * as executorPostgresqlRunOperations from "../executors/postgresql-run-operations.js";
@@ -258,6 +260,10 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./executors/local-container-postgresql-docker-engine-api-v0/node",
 			"./executors/local-container-postgresql-podman-libpod-api-v0-rootless",
 			"./executors/local-container-postgresql-podman-libpod-api-v0-rootless/node",
+			"./executors/local-untrusted-js-compute",
+			"./executors/local-untrusted-js-compute/node",
+			"./executors/local-untrusted-js-compute/runner/Containerfile",
+			"./executors/local-untrusted-js-compute/runner/local-untrusted-js-runner.mjs",
 			"./executors/managed-cloud-postgresql",
 			"./executors/managed-untrusted-js-compute",
 			"./executors/postgresql-run-operations",
@@ -888,6 +894,28 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(
 			typeof executorLocalContainerPostgresqlPodmanLibpodApiV0RootlessNode.certifyPodmanLibpodApiV0RootlessLocalContainerPostgresqlWithNode,
 		).toBe("function");
+		expect(typeof executorLocalUntrustedJsCompute.localUntrustedJsComputeManifest).toBe("function");
+		expect(typeof executorLocalUntrustedJsCompute.localUntrustedJsComputeReadiness).toBe(
+			"function",
+		);
+		expect(typeof executorLocalUntrustedJsCompute.localUntrustedJsComputeArguments).toBe(
+			"function",
+		);
+		expect(typeof executorLocalUntrustedJsCompute.localUntrustedJsComputeDriverOutcome).toBe(
+			"function",
+		);
+		expect(typeof executorLocalUntrustedJsCompute.localUntrustedJsComputeRuntime).toBe("function");
+		expect(typeof executorLocalUntrustedJsComputeNode.nodeLocalUntrustedJsComputeDriver).toBe(
+			"function",
+		);
+		expect(
+			typeof executorLocalUntrustedJsComputeNode.nodeLocalUntrustedJsComputeHostBindingAttestation,
+		).toBe("function");
+		expect(typeof executorLocalUntrustedJsComputeNode.certifyNodeLocalUntrustedJsCompute).toBe(
+			"function",
+		);
+		expect(Object.hasOwn(rootPackage, "localUntrustedJsComputeRuntime")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "certifyNodeLocalUntrustedJsCompute")).toBe(false);
 		expect(Object.hasOwn(rootPackage, "certifyDockerEngineApiV0LocalContainerPostgresql")).toBe(
 			false,
 		);
@@ -910,6 +938,13 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 				"certifyPodmanLibpodApiV0RootlessLocalContainerPostgresqlWithNode",
 			),
 		).toBe(false);
+		expect(Object.hasOwn(rootPackage, "localUntrustedJsComputeManifest")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "localUntrustedJsComputeReadiness")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "localUntrustedJsComputeArguments")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "nodeLocalUntrustedJsComputeDriver")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "nodeLocalUntrustedJsComputeHostBindingAttestation")).toBe(
+			false,
+		);
 		expect(Object.hasOwn(rootPackage, "LocalSandboxDriver")).toBe(false);
 		expect(typeof executorManagedCloudPostgresql.managedCloudPostgresqlRuntime).toBe("function");
 		expect(typeof executorManagedUntrustedJsCompute.managedUntrustedJsComputeRuntime).toBe(

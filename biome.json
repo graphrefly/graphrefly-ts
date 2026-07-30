@@ -22,6 +22,7 @@
 			"!archive/packages",
 			"!archive/website-prototypes",
 			"!benchmarks",
+			"!packages/ts/runners/local-untrusted-js/local-untrusted-js-runner.mjs",
 			"!website",
 			"!examples/nestjs"
 		]

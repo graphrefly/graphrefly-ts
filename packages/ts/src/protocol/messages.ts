@@ -182,5 +182,5 @@ export function isTerminal(t: MessageType): boolean {
  */
 export function isUpAllowed(t: MessageType): boolean {
 	const tier = TIER[t];
-	return tier !== TIER_VALUE && tier !== TIER_TERMINAL;
+	return tier !== undefined && tier !== TIER_START && tier !== TIER_VALUE && tier !== TIER_TERMINAL;
 }

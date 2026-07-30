@@ -1,4 +1,9 @@
-import { isInvalidErrorPayload, type PullDemand, type Wave } from "../protocol/messages.js";
+import {
+	isInvalidErrorPayload,
+	messageTier,
+	type PullDemand,
+	type Wave,
+} from "../protocol/messages.js";
 
 export function terminalView(t: unknown): unknown {
 	return t === undefined ? false : t;
@@ -18,6 +23,11 @@ export function normalizePullDemand(demand: PullDemand): PullDemand {
 
 export function validateDownPayloads(msgs: Wave): void {
 	for (const m of msgs) {
+		if (messageTier(m[0]) === undefined) {
+			throw new Error(
+				`down: ${String(m[0])} is not in the closed message-type set (R-msg-closed-set)`,
+			);
+		}
 		if (m[0] === "DATA" && m[1] === undefined) {
 			throw new Error("down: DATA requires a non-SENTINEL payload (R-data-payload)");
 		}

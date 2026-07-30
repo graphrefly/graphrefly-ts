@@ -1,4 +1,10 @@
+import { readFileSync } from "node:fs";
 import { defineConfig } from "tsup";
+
+const packageMetadata = JSON.parse(
+	readFileSync(new URL("./package.json", import.meta.url), "utf8"),
+);
+const packageRevision = `graphrefly-ts:${packageMetadata.version}`;
 
 export default defineConfig({
 	entry: [
@@ -21,6 +27,8 @@ export default defineConfig({
 		"src/executors/local-container-postgresql-docker-engine-api-v0/node.ts",
 		"src/executors/local-container-postgresql-podman-libpod-api-v0-rootless.ts",
 		"src/executors/local-container-postgresql-podman-libpod-api-v0-rootless/node.ts",
+		"src/executors/local-untrusted-js-compute.ts",
+		"src/executors/local-untrusted-js-compute/node.ts",
 		"src/executors/local-container-postgresql.ts",
 		"src/executors/managed-cloud-postgresql.ts",
 		"src/executors/managed-untrusted-js-compute.ts",
@@ -71,6 +79,9 @@ export default defineConfig({
 		"src/work-queue/index.ts",
 	],
 	format: ["esm", "cjs"],
+	define: {
+		__GRAPHREFLY_TS_PACKAGE_REVISION__: JSON.stringify(packageRevision),
+	},
 	dts: true,
 	clean: true,
 	sourcemap: true,

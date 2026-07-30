@@ -283,6 +283,13 @@ describe("C-26 — PULL is explicit demand with params; RESUME remains pause-onl
 		).not.toThrow();
 		expect(msgs).toEqual([]);
 		expect(() => snap.up([["DATA", 3] as Message])).toThrow(/ctx\.up|control|demand|DATA/i);
+		expect(() => snap.up([["START"]])).toThrow(/ctx\.up|not up-going|START/i);
+		expect(() => snap.up([["DEMAND", { pullId }]] as unknown as Message[])).toThrow(
+			/closed message-type set/i,
+		);
+		expect(() => snap.down([["DEMAND", { pullId }]] as unknown as Message[])).toThrow(
+			/closed message-type set/i,
+		);
 
 		acc.down([["DIRTY"]]);
 		snap.up([["PULL", { pullId, params: { cursor: 1 } }]]);
