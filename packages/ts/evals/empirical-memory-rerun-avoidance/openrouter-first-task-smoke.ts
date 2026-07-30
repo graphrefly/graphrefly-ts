@@ -38,6 +38,13 @@ import {
 	OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG,
 	OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
 	OPENROUTER_FIRST_SMOKE_STANDARD_PRICING_MAX_INPUT_TOKENS,
+	OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME,
+	OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_SLUG,
+	OPENROUTER_GLM_5_2_INPUT_MICROUSD_PER_MILLION_TOKENS,
+	OPENROUTER_GLM_5_2_OUTPUT_MICROUSD_PER_MILLION_TOKENS,
+	OPENROUTER_GLM_5_2_PRICING_REVISION,
+	OPENROUTER_GLM_5_2_PRICING_SOURCE,
+	OPENROUTER_GLM_5_2_REQUEST_MODEL,
 	OPENROUTER_OFFICIAL_PRICING_REVISION,
 	OPENROUTER_OFFICIAL_PRICING_SOURCE,
 	OPENROUTER_PROVIDER_USAGE_REVISION,
@@ -97,21 +104,34 @@ export interface OpenRouterFirstTaskSmokeResultV2 {
 	readonly admissionRejection: B112SmokeAdmissionRejectionV1 | null;
 }
 
-function assertFirstSmokeRoute(route: OpenRouterRouteQualificationV1): void {
-	if (
-		route.requestModel !== OPENROUTER_FIRST_SMOKE_REQUEST_MODEL ||
-		route.downstreamProviderSlug !== OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG ||
-		route.downstreamProviderName !== OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME ||
-		route.pricing.sourceUrl !== OPENROUTER_OFFICIAL_PRICING_SOURCE ||
-		route.pricing.pricingRevision !== OPENROUTER_OFFICIAL_PRICING_REVISION ||
-		route.usageRevision !== OPENROUTER_PROVIDER_USAGE_REVISION ||
-		route.pricing.inputMicrousdPerMillionTokens !== 6_250_000 ||
-		route.pricing.outputMicrousdPerMillionTokens !== 30_000_000 ||
-		route.budget.maxCanonicalRequestBytes * route.budget.inputTokensPerCanonicalByteUpperBound +
-			route.budget.fixedInputTokenOverheadPerRequest >
-			OPENROUTER_FIRST_SMOKE_STANDARD_PRICING_MAX_INPUT_TOKENS
-	) {
-		throw new TypeError("B112 first smoke route does not match its frozen exact route and pricing");
+function assertQualifiedSmokeRoute(
+	route: OpenRouterRouteQualificationV1,
+	reasoningEffort: string | null,
+): void {
+	const qualifiedTuple =
+		(route.requestModel === OPENROUTER_FIRST_SMOKE_REQUEST_MODEL &&
+			reasoningEffort === "medium" &&
+			route.downstreamProviderSlug === OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG &&
+			route.downstreamProviderName === OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME &&
+			route.pricing.sourceUrl === OPENROUTER_OFFICIAL_PRICING_SOURCE &&
+			route.pricing.pricingRevision === OPENROUTER_OFFICIAL_PRICING_REVISION &&
+			route.pricing.inputMicrousdPerMillionTokens === 6_250_000 &&
+			route.pricing.outputMicrousdPerMillionTokens === 30_000_000 &&
+			route.budget.maxCanonicalRequestBytes * route.budget.inputTokensPerCanonicalByteUpperBound +
+				route.budget.fixedInputTokenOverheadPerRequest <=
+				OPENROUTER_FIRST_SMOKE_STANDARD_PRICING_MAX_INPUT_TOKENS) ||
+		(route.requestModel === OPENROUTER_GLM_5_2_REQUEST_MODEL &&
+			reasoningEffort === "high" &&
+			route.downstreamProviderSlug === OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_SLUG &&
+			route.downstreamProviderName === OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME &&
+			route.pricing.sourceUrl === OPENROUTER_GLM_5_2_PRICING_SOURCE &&
+			route.pricing.pricingRevision === OPENROUTER_GLM_5_2_PRICING_REVISION &&
+			route.pricing.inputMicrousdPerMillionTokens ===
+				OPENROUTER_GLM_5_2_INPUT_MICROUSD_PER_MILLION_TOKENS &&
+			route.pricing.outputMicrousdPerMillionTokens ===
+				OPENROUTER_GLM_5_2_OUTPUT_MICROUSD_PER_MILLION_TOKENS);
+	if (!qualifiedTuple || route.usageRevision !== OPENROUTER_PROVIDER_USAGE_REVISION) {
+		throw new TypeError("B112 smoke route does not match its frozen exact route and pricing");
 	}
 	if (route.dispatchMode === "live-approved") {
 		const liveCoordinates = [
@@ -522,7 +542,17 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 	) {
 		throw new TypeError("OpenRouter smoke execution class does not match route dispatch approval");
 	}
-	assertFirstSmokeRoute(input.routeQualification);
+	const selectedConfiguration = input.host.frozen.manifest.modelConfigurations.find(
+		(configuration) =>
+			configuration.configurationRef === input.host.initialRequest.configurationRef,
+	);
+	if (selectedConfiguration === undefined) {
+		throw new TypeError("OpenRouter smoke configuration is not frozen");
+	}
+	assertQualifiedSmokeRoute(
+		input.routeQualification,
+		selectedConfiguration.settings.reasoning.effort,
+	);
 	if (
 		input.routeQualification.campaignRef !== input.host.frozen.manifest.campaignRef ||
 		input.routeQualification.manifestDigest !== input.host.frozen.manifestDigest ||

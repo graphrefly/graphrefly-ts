@@ -35,6 +35,13 @@ import {
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-responses-model-turn.js";
 import {
 	OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG,
+	OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME,
+	OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_SLUG,
+	OPENROUTER_GLM_5_2_INPUT_MICROUSD_PER_MILLION_TOKENS,
+	OPENROUTER_GLM_5_2_OUTPUT_MICROUSD_PER_MILLION_TOKENS,
+	OPENROUTER_GLM_5_2_PRICING_REVISION,
+	OPENROUTER_GLM_5_2_PRICING_SOURCE,
+	OPENROUTER_GLM_5_2_REQUEST_MODEL,
 	OPENROUTER_OFFICIAL_PRICING_REVISION,
 	OPENROUTER_OFFICIAL_PRICING_SOURCE,
 	OPENROUTER_ROUTE_EVIDENCE_SCHEMA_REVISION,
@@ -205,6 +212,54 @@ function buildAuthority(shapeOverride?: EmpiricalStrictJsonShapeV1): OpenRouterA
 		manifest,
 		frozen: freezeEmpiricalCampaignManifest(manifest, campaign.report),
 		qualificationReport: campaign.report,
+	});
+}
+
+function buildGlmAuthority(): OpenRouterAuthorityFixture {
+	const campaign = buildEmpiricalCampaignFixture();
+	const base = openRouterManifest(campaign.manifest);
+	const baseConfiguration = base.modelConfigurations[0];
+	if (baseConfiguration === undefined) {
+		throw new TypeError("GLM OpenRouter fixture requires one configuration");
+	}
+	const configuration = strictSnapshot({
+		...baseConfiguration,
+		configurationRef: "actor.openrouter.z-ai.glm-5.2",
+		model: OPENROUTER_GLM_5_2_REQUEST_MODEL,
+		settings: {
+			...baseConfiguration.settings,
+			reasoning: { mode: "provider-native" as const, effort: "high" },
+		},
+		pricingRevision: OPENROUTER_GLM_5_2_PRICING_REVISION,
+		pricingScheduleRef: OPENROUTER_GLM_5_2_PRICING_SOURCE,
+	});
+	const manifest = strictSnapshot({
+		...base,
+		campaignRef: "b112-openrouter-z-ai-glm-5.2-smoke-fixture",
+		modelConfigurations: [configuration],
+	});
+	return Object.freeze({
+		manifest,
+		frozen: freezeEmpiricalCampaignManifest(manifest, campaign.report),
+		qualificationReport: campaign.report,
+	});
+}
+
+function glmRouteQualification(
+	authority: OpenRouterAuthorityFixture,
+): OpenRouterRouteQualificationV1 {
+	const base = routeQualification(authority);
+	return strictSnapshot({
+		...base,
+		downstreamProviderSlug: OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_SLUG,
+		downstreamProviderName: OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME,
+		pricing: {
+			sourceUrl: OPENROUTER_GLM_5_2_PRICING_SOURCE,
+			pricingRevision: OPENROUTER_GLM_5_2_PRICING_REVISION,
+			currency: "USD" as const,
+			inputMicrousdPerMillionTokens: OPENROUTER_GLM_5_2_INPUT_MICROUSD_PER_MILLION_TOKENS,
+			outputMicrousdPerMillionTokens: OPENROUTER_GLM_5_2_OUTPUT_MICROUSD_PER_MILLION_TOKENS,
+		},
 	});
 }
 
@@ -490,17 +545,17 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 				order: ["openai"],
 				only: ["openai"],
 				allow_fallbacks: false,
-				require_parameters: false,
+				require_parameters: true,
 			},
 			store: false,
 			background: false,
 			stream: false,
 			truncation: "disabled",
 			service_tier: "default",
-			parallel_tool_calls: false,
 			reasoning: { effort: "medium" },
 			tool_choice: "auto",
 		});
+		expect(body).not.toHaveProperty("parallel_tool_calls");
 		expect(body).not.toHaveProperty("previous_response_id");
 		expect(body).not.toHaveProperty("conversation");
 		expect(body).not.toHaveProperty("temperature");
@@ -539,6 +594,85 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			protectedNeedleCapabilityRevision: request.credentialBindingRevision,
 		});
 		serializedWithoutCredential({ binding, outcome, body });
+	});
+
+	it("derives the exact GLM 5.2 high request and Decart route from frozen D669 coordinates", async () => {
+		const authority = buildGlmAuthority();
+		const route = glmRouteQualification(authority);
+		const response = responseBytes({
+			id: "resp_glm_placeholder_01",
+			object: "response",
+			status: "completed",
+			model: OPENROUTER_GLM_5_2_REQUEST_MODEL,
+			output: messageOutput({
+				kind: "model-turn-output-placeholder",
+				summary: "bounded-glm-placeholder",
+			}),
+			usage: {
+				input_tokens: 100,
+				output_tokens: 20,
+				total_tokens: 120,
+				cost: 0.000_085,
+			},
+			openrouter_metadata: {
+				requested: OPENROUTER_GLM_5_2_REQUEST_MODEL,
+				strategy: "direct",
+				attempt: 1,
+				is_byok: false,
+				endpoints: {
+					total: 1,
+					available: [
+						{
+							provider: OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME,
+							model: `${OPENROUTER_GLM_5_2_REQUEST_MODEL}-20260616`,
+							selected: true,
+						},
+					],
+				},
+				attempts: [
+					{
+						provider: OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME,
+						model: `${OPENROUTER_GLM_5_2_REQUEST_MODEL}-20260616`,
+						status: 200,
+					},
+				],
+				pipeline: [],
+			},
+		});
+		const { binding, request, transport } = createHarness(authority, response, bearerToken, route);
+
+		const outcome = await binding.modelTurnPort.invoke(request, new AbortController().signal);
+
+		expect(outcome).toMatchObject({
+			status: "completed",
+			structuredOutput: {
+				kind: "model-turn-output-placeholder",
+				summary: "bounded-glm-placeholder",
+			},
+			usage: {
+				requests: 1,
+				providerCostMicrousd: 85,
+			},
+			issueCodes: [],
+		});
+		expect(transport).toHaveBeenCalledTimes(1);
+		const sent = transport.mock.calls[0]?.[0] as OpenRouterResponsesTransportRequestV1;
+		const body = strictJsonCodec.decode(sent.body) as Record<string, unknown>;
+		expect(body).toMatchObject({
+			model: OPENROUTER_GLM_5_2_REQUEST_MODEL,
+			provider: {
+				order: [OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_SLUG],
+				only: [OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_SLUG],
+				allow_fallbacks: false,
+				require_parameters: true,
+			},
+			reasoning: { effort: "high" },
+		});
+		expect(body).not.toHaveProperty("parallel_tool_calls");
+		expect(body).not.toHaveProperty("models");
+		expect(body).not.toHaveProperty("plugins");
+		expect(body).not.toHaveProperty("transforms");
+		serializedWithoutCredential({ body, outcome, route });
 	});
 
 	it("lowers the frozen final turn coordinate and requires final structured output", async () => {

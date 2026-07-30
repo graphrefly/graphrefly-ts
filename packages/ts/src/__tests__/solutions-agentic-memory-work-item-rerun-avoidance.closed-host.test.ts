@@ -80,6 +80,13 @@ import {
 	OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
 	OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG,
 	OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
+	OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME,
+	OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_SLUG,
+	OPENROUTER_GLM_5_2_INPUT_MICROUSD_PER_MILLION_TOKENS,
+	OPENROUTER_GLM_5_2_OUTPUT_MICROUSD_PER_MILLION_TOKENS,
+	OPENROUTER_GLM_5_2_PRICING_REVISION,
+	OPENROUTER_GLM_5_2_PRICING_SOURCE,
+	OPENROUTER_GLM_5_2_REQUEST_MODEL,
 	OPENROUTER_OFFICIAL_PRICING_REVISION,
 	OPENROUTER_OFFICIAL_PRICING_SOURCE,
 	OPENROUTER_PROVIDER_USAGE_REVISION,
@@ -154,6 +161,7 @@ async function createClosedHostFixture(
 		argv: ["status", "--porcelain=v1"],
 	},
 	sourceContent = "broken-placeholder-value\n",
+	modelProfile: "gpt-5.6-sol-medium" | "glm-5.2-high" | "glm-5.2-medium" = "gpt-5.6-sol-medium",
 ): Promise<ClosedHostFixture> {
 	const sourceRoot = temporaryRoot("source");
 	git(sourceRoot, ["init", "--quiet", "--initial-branch=main"]);
@@ -243,11 +251,15 @@ async function createClosedHostFixture(
 	const schemaCatalog = closedToolSchemaCatalog(baseManifest);
 	const baseConfiguration = baseManifest.modelConfigurations[0];
 	if (baseConfiguration === undefined) throw new Error("missing actor configuration fixture");
+	const glmProfile = modelProfile !== "gpt-5.6-sol-medium";
 	const modelConfiguration = strictSnapshot({
 		...baseConfiguration,
+		configurationRef: glmProfile
+			? "actor.openrouter.z-ai.glm-5.2"
+			: "actor.openrouter.openai.gpt-5.6-sol",
 		providerFamily: "openrouter",
 		provider: "openrouter",
-		model: OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
+		model: glmProfile ? OPENROUTER_GLM_5_2_REQUEST_MODEL : OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
 		modelIdentityKind: "alias-disclosed" as const,
 		endpoint: OPENROUTER_RESPONSES_ENDPOINT,
 		endpointRevision: OPENROUTER_RESPONSES_ENDPOINT_REVISION,
@@ -265,7 +277,10 @@ async function createClosedHostFixture(
 		settings: {
 			...baseConfiguration.settings,
 			sampling: { temperature: null, topP: null, seed: null },
-			reasoning: { mode: "provider-native" as const, effort: "medium" },
+			reasoning: {
+				mode: "provider-native" as const,
+				effort: modelProfile === "glm-5.2-high" ? "high" : "medium",
+			},
 			tools: {
 				...baseConfiguration.settings.tools,
 				schemaRevision: schemaCatalog.catalogRevision,
@@ -275,8 +290,12 @@ async function createClosedHostFixture(
 			},
 		},
 		usageSource: "provider-reported" as const,
-		pricingRevision: OPENROUTER_OFFICIAL_PRICING_REVISION,
-		pricingScheduleRef: OPENROUTER_OFFICIAL_PRICING_SOURCE,
+		pricingRevision: glmProfile
+			? OPENROUTER_GLM_5_2_PRICING_REVISION
+			: OPENROUTER_OFFICIAL_PRICING_REVISION,
+		pricingScheduleRef: glmProfile
+			? OPENROUTER_GLM_5_2_PRICING_SOURCE
+			: OPENROUTER_OFFICIAL_PRICING_SOURCE,
 	});
 	const manifest: EmpiricalCampaignManifestV1 = strictSnapshot({
 		...baseManifest,
@@ -608,6 +627,7 @@ function simulatedRouteQualification(
 	if (configuration === undefined) throw new Error("missing smoke configuration");
 	const credentialBindingRef = fixture.frozen.manifest.policies.actorCredentialBindingRef;
 	const credentialBindingRevision = fixture.frozen.manifest.policies.actorCredentialBindingRevision;
+	const glmProfile = configuration.model === OPENROUTER_GLM_5_2_REQUEST_MODEL;
 	const qualification: OpenRouterRouteQualificationV1 = {
 		schemaVersion: OPENROUTER_ROUTE_QUALIFICATION_SCHEMA,
 		qualificationRef: "b112-simulated-route-qualification",
@@ -619,10 +639,14 @@ function simulatedRouteQualification(
 		trialBlockDigest: fixture.initialRequest.trialBlockDigest,
 		configurationRef: configuration.configurationRef,
 		configurationDigest: empiricalStrictJsonDigest(configuration),
-		requestModel: OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
+		requestModel: configuration.model,
 		modelIdentityKind: configuration.modelIdentityKind,
-		downstreamProviderSlug: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG,
-		downstreamProviderName: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
+		downstreamProviderSlug: glmProfile
+			? OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_SLUG
+			: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG,
+		downstreamProviderName: glmProfile
+			? OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME
+			: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
 		endpoint: OPENROUTER_RESPONSES_ENDPOINT,
 		endpointRevision: OPENROUTER_RESPONSES_ENDPOINT_REVISION,
 		adapterRevision: OPENROUTER_RESPONSES_ADAPTER_REVISION,
@@ -633,11 +657,15 @@ function simulatedRouteQualification(
 		usageRevision: OPENROUTER_PROVIDER_USAGE_REVISION,
 		routeEvidenceSchemaRevision: OPENROUTER_ROUTE_EVIDENCE_SCHEMA_REVISION,
 		pricing: {
-			sourceUrl: OPENROUTER_OFFICIAL_PRICING_SOURCE,
-			pricingRevision: OPENROUTER_OFFICIAL_PRICING_REVISION,
+			sourceUrl: configuration.pricingScheduleRef,
+			pricingRevision: configuration.pricingRevision,
 			currency: "USD" as const,
-			inputMicrousdPerMillionTokens: 6_250_000,
-			outputMicrousdPerMillionTokens: 30_000_000,
+			inputMicrousdPerMillionTokens: glmProfile
+				? OPENROUTER_GLM_5_2_INPUT_MICROUSD_PER_MILLION_TOKENS
+				: 6_250_000,
+			outputMicrousdPerMillionTokens: glmProfile
+				? OPENROUTER_GLM_5_2_OUTPUT_MICROUSD_PER_MILLION_TOKENS
+				: 30_000_000,
 		},
 		budget: {
 			approvalRef: "b112-simulated-budget",
@@ -726,6 +754,13 @@ function dryRunOpenRouterResponse(
 		total_tokens: 120,
 		cost: 0.001_225,
 	},
+	route: {
+		readonly requestModel: string;
+		readonly downstreamProviderName: string;
+	} = {
+		requestModel: OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
+		downstreamProviderName: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
+	},
 ): { readonly status: 200; readonly body: Uint8Array } {
 	return {
 		status: 200,
@@ -734,11 +769,11 @@ function dryRunOpenRouterResponse(
 				id,
 				object: "response",
 				status: "completed",
-				model: OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
+				model: route.requestModel,
 				output,
 				usage,
 				openrouter_metadata: {
-					requested: OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
+					requested: route.requestModel,
 					strategy: "direct",
 					attempt: 1,
 					is_byok: false,
@@ -746,16 +781,16 @@ function dryRunOpenRouterResponse(
 						total: 1,
 						available: [
 							{
-								provider: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
-								model: OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
+								provider: route.downstreamProviderName,
+								model: route.requestModel,
 								selected: true,
 							},
 						],
 					},
 					attempts: [
 						{
-							provider: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
-							model: OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
+							provider: route.downstreamProviderName,
+							model: route.requestModel,
 							status: 200,
 						},
 					],
@@ -876,6 +911,99 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(JSON.stringify(outcome)).not.toContain("broken");
 		expect(JSON.stringify(outcome)).not.toContain(fixture.workspaceRoot);
 		expect(() => readFileSync(join(fixture.workspaceRoot, "README.md"))).toThrow();
+	});
+
+	it("rejects GLM downstream-provider or pricing substitution before transport", async () => {
+		const fixture = await createClosedHostFixture(undefined, undefined, "glm-5.2-high");
+		const route = simulatedRouteQualification(fixture);
+		let transportCalls = 0;
+		const input = {
+			host: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: fixture.materialization,
+				verifier: fixture.verifier,
+			},
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: "openrouter-route-substitution-secret-sentinel-0123456789",
+			},
+			transport: {
+				request() {
+					transportCalls += 1;
+					throw new Error("transport must not run");
+				},
+			},
+			monotonicMeasurement: { readMs: () => 0 },
+			executionClass: "simulated-contract" as const,
+			privateRoot: temporaryRoot("route-substitution"),
+			generationRef: "route-substitution-generation",
+			signal: new AbortController().signal,
+		};
+		await expect(
+			runOpenRouterFirstTaskSmoke({
+				...input,
+				routeQualification: strictSnapshot({
+					...route,
+					downstreamProviderSlug: "other-provider/fp4",
+				}),
+			}),
+		).rejects.toThrow(/frozen exact route and pricing/);
+		await expect(
+			runOpenRouterFirstTaskSmoke({
+				...input,
+				routeQualification: strictSnapshot({
+					...route,
+					pricing: {
+						...route.pricing,
+						inputMicrousdPerMillionTokens: 1,
+						outputMicrousdPerMillionTokens: 1,
+					},
+				}),
+			}),
+		).rejects.toThrow(/frozen exact route and pricing/);
+		expect(transportCalls).toBe(0);
+		await fixture.materialization.cleanup();
+	});
+
+	it("rejects a GLM medium-effort profile before transport", async () => {
+		const fixture = await createClosedHostFixture(undefined, undefined, "glm-5.2-medium");
+		let transportCalls = 0;
+		await expect(
+			runOpenRouterFirstTaskSmoke({
+				host: {
+					frozen: fixture.frozen,
+					qualificationReport: fixture.report,
+					initialRequest: fixture.initialRequest,
+					taskProfile: fixture.taskProfile,
+					materialization: fixture.materialization,
+					verifier: fixture.verifier,
+				},
+				routeQualification: simulatedRouteQualification(fixture),
+				credential: {
+					credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+					credentialBindingRevision:
+						fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+					bearerToken: "openrouter-medium-effort-secret-sentinel-0123456789",
+				},
+				transport: {
+					request() {
+						transportCalls += 1;
+						throw new Error("transport must not run");
+					},
+				},
+				monotonicMeasurement: { readMs: () => 0 },
+				executionClass: "simulated-contract",
+				privateRoot: temporaryRoot("medium-effort"),
+				generationRef: "medium-effort-generation",
+				signal: new AbortController().signal,
+			}),
+		).rejects.toThrow(/frozen exact route and pricing/);
+		expect(transportCalls).toBe(0);
+		await fixture.materialization.cleanup();
 	});
 
 	it("dry-runs injected OpenRouter bytes through host, verifier, canonical evidence, and atomic private persistence", async () => {
@@ -1361,7 +1489,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 	});
 
 	it("dry-runs one failed cold run and the exact five fresh matched warm arms atomically", async () => {
-		const fixture = await createClosedHostFixture();
+		const fixture = await createClosedHostFixture(undefined, undefined, "glm-5.2-high");
 		const credentialSentinel = "openrouter-matched-block-secret-sentinel-0123456789";
 		const baseContentDigest = empiricalSha256(encoder.encode("broken-placeholder-value\n"));
 		const taskSpecificCorrectionSentinel =
@@ -1471,7 +1599,10 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 									},
 								];
 				if (hasValidatedGenericMemory && !correctionIssued) correctionIssued = true;
-				return dryRunOpenRouterResponse(`response.matched.${transportCalls}`, output);
+				return dryRunOpenRouterResponse(`response.matched.${transportCalls}`, output, undefined, {
+					requestModel: OPENROUTER_GLM_5_2_REQUEST_MODEL,
+					downstreamProviderName: OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME,
+				});
 			},
 		};
 		const privateRoot = join(
@@ -1553,6 +1684,18 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		});
 
 		expect(transportCalls).toBe(8);
+		for (const wireBody of wireBodies) {
+			expect(JSON.parse(wireBody)).toMatchObject({
+				model: OPENROUTER_GLM_5_2_REQUEST_MODEL,
+				provider: {
+					order: [OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_SLUG],
+					only: [OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_SLUG],
+					allow_fallbacks: false,
+					require_parameters: true,
+				},
+				reasoning: { effort: "high" },
+			});
+		}
 		expect(result.admissionRejection).toBeNull();
 		expect(fixture.verifierCalls.count).toBe(6);
 		expect(result.observation).toMatchObject({
@@ -1871,22 +2014,30 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		const boundedTransport: OpenRouterResponsesByteTransportV1 = {
 			async request() {
 				boundedTransportCalls += 1;
-				return dryRunOpenRouterResponse(`response.bounded.${boundedTransportCalls}`, [
+				return dryRunOpenRouterResponse(
+					`response.bounded.${boundedTransportCalls}`,
+					[
+						{
+							type: "message",
+							role: "assistant",
+							status: "completed",
+							content: [
+								{
+									type: "output_text",
+									text: JSON.stringify({
+										kind: "model-turn-output-placeholder",
+										summary: "Bounded control completion without a workspace correction.",
+									}),
+								},
+							],
+						},
+					],
+					undefined,
 					{
-						type: "message",
-						role: "assistant",
-						status: "completed",
-						content: [
-							{
-								type: "output_text",
-								text: JSON.stringify({
-									kind: "model-turn-output-placeholder",
-									summary: "Bounded control completion without a workspace correction.",
-								}),
-							},
-						],
+						requestModel: OPENROUTER_GLM_5_2_REQUEST_MODEL,
+						downstreamProviderName: OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME,
 					},
-				]);
+				);
 			},
 		};
 		const boundedRoute = simulatedRouteQualification(fixture, {

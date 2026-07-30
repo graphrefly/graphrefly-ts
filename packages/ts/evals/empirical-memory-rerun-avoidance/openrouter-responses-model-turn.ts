@@ -281,9 +281,10 @@ function assertOpenRouterConfiguration(configuration: EmpiricalModelConfiguratio
 	} as const;
 	for (const [key, expectedValue] of Object.entries(expected)) {
 		if (configuration[key as keyof EmpiricalModelConfigurationV1] !== expectedValue) {
-			throw new TypeError(`configuration.${key} does not match D660`);
+			throw new TypeError(`configuration.${key} does not match D669`);
 		}
 	}
+	const reasoningEffort = configuration.settings.reasoning.effort;
 	if (
 		configuration.capabilities.toolCalling !== true ||
 		configuration.capabilities.structuredOutput !== true ||
@@ -294,11 +295,11 @@ function assertOpenRouterConfiguration(configuration: EmpiricalModelConfiguratio
 		configuration.settings.sampling.topP !== null ||
 		configuration.settings.sampling.seed !== null ||
 		configuration.settings.reasoning.mode !== "provider-native" ||
-		configuration.settings.reasoning.effort !== "medium" ||
+		(reasoningEffort !== "medium" && reasoningEffort !== "high") ||
 		configuration.settings.output.format !== "strict-json" ||
 		configuration.settings.tools.enabled !== true
 	) {
-		throw new TypeError("configuration capabilities/settings do not match D660");
+		throw new TypeError("configuration capabilities/settings do not match D669");
 	}
 }
 
@@ -492,7 +493,7 @@ function requestBody(
 			order: [route.downstreamProviderSlug],
 			only: [route.downstreamProviderSlug],
 			allow_fallbacks: false,
-			require_parameters: false,
+			require_parameters: true,
 		},
 		instructions: OPENROUTER_RESPONSES_SYSTEM_INSTRUCTIONS,
 		input: decoder.decode(strictJsonCodec.encode(userEnvelope)),
@@ -501,9 +502,8 @@ function requestBody(
 		stream: false,
 		truncation: "disabled",
 		service_tier: "default",
-		parallel_tool_calls: false,
 		max_output_tokens: request.remainingTurnBudget.maxOutputTokens,
-		reasoning: { effort: "medium" },
+		reasoning: { effort: configuration.settings.reasoning.effort },
 		text: {
 			format: {
 				type: "json_schema",

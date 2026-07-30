@@ -28,9 +28,12 @@ export const OPENROUTER_RESPONSES_ENDPOINT = "https://openrouter.ai/api/v1/respo
 export const OPENROUTER_FIRST_SMOKE_REQUEST_MODEL = "openai/gpt-5.6-sol";
 export const OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG = "openai";
 export const OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME = "OpenAI";
+export const OPENROUTER_GLM_5_2_REQUEST_MODEL = "z-ai/glm-5.2";
+export const OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_SLUG = "decart/fp4";
+export const OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME = "Decart";
 export const OPENROUTER_RESPONSES_ENDPOINT_REVISION = "openrouter-responses-2026-07-29.v2";
 export const OPENROUTER_RESPONSES_ADAPTER_REVISION = "graphrefly-openrouter-responses-turn.v2";
-export const OPENROUTER_RESPONSES_BINDING_REVISION = "graphrefly-openrouter-responses-wire.v7";
+export const OPENROUTER_RESPONSES_BINDING_REVISION = "graphrefly-openrouter-responses-wire.v8";
 export const OPENROUTER_ROUTE_EVIDENCE_SCHEMA_REVISION = "openrouter-metadata-2026-07-29.v1";
 export const OPENROUTER_PROVIDER_USAGE_REVISION =
 	"openrouter-provider-reported-cost-microusd-2026-07-29.v2";
@@ -39,6 +42,12 @@ export const OPENROUTER_OFFICIAL_PRICING_SOURCE =
 export const OPENROUTER_OFFICIAL_PRICING_REVISION =
 	"openrouter-openai-gpt-5.6-sol-openai-under-272k-cache-write-ceiling-2026-07-29.v3";
 export const OPENROUTER_FIRST_SMOKE_STANDARD_PRICING_MAX_INPUT_TOKENS = 272_000;
+export const OPENROUTER_GLM_5_2_PRICING_SOURCE =
+	"https://openrouter.ai/api/v1/models/z-ai/glm-5.2/endpoints";
+export const OPENROUTER_GLM_5_2_PRICING_REVISION =
+	"openrouter-z-ai-glm-5.2-decart-fp4-2026-07-30.v1";
+export const OPENROUTER_GLM_5_2_INPUT_MICROUSD_PER_MILLION_TOKENS = 600_000;
+export const OPENROUTER_GLM_5_2_OUTPUT_MICROUSD_PER_MILLION_TOKENS = 1_250_000;
 
 export interface OpenRouterSharedCapacityQualificationV1 {
 	readonly schemaVersion: typeof OPENROUTER_SHARED_CAPACITY_QUALIFICATION_SCHEMA;
