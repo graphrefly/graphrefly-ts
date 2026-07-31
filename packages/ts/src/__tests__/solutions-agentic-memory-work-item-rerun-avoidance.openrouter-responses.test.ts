@@ -615,7 +615,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		serializedWithoutCredential({ binding, outcome, body });
 	});
 
-	it("derives the exact GLM 5.2 high request and DeepInfra route from frozen D672 coordinates", async () => {
+	it("derives the exact GLM 5.2 high request and DeepInfra route from frozen D673 coordinates", async () => {
 		const authority = buildGlmAuthority();
 		const route = glmRouteQualification(authority);
 		const response = responseBytes({
@@ -700,7 +700,6 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			max_tokens: request.remainingTurnBudget.maxOutputTokens,
 			reasoning: { effort: "high" },
 			tool_choice: "required",
-			parallel_tool_calls: false,
 		});
 		expect(body).not.toHaveProperty("response_format");
 		const messages = body.messages as readonly {
@@ -725,7 +724,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		expect(body).not.toHaveProperty("background");
 		expect(body).not.toHaveProperty("truncation");
 		expect(body).not.toHaveProperty("service_tier");
-		expect(body.parallel_tool_calls).toBe(false);
+		expect(body).not.toHaveProperty("parallel_tool_calls");
 		expect(body).not.toHaveProperty("models");
 		expect(body).not.toHaveProperty("plugins");
 		expect(body).not.toHaveProperty("transforms");
@@ -910,7 +909,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 				}),
 			},
 		]);
-		expect(body.parallel_tool_calls).toBe(false);
+		expect(body).not.toHaveProperty("parallel_tool_calls");
 		serializedWithoutCredential({ body, outcome, route });
 
 		const duplicateResponse = JSON.parse(new TextDecoder().decode(response)) as Record<
@@ -964,7 +963,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		expect(multipleToolHarness.transport).toHaveBeenCalledTimes(1);
 	});
 
-	it("keeps the D672 capability probe to one simulated request and no efficacy evidence", async () => {
+	it("keeps the D673 capability probe to one simulated request and no efficacy evidence", async () => {
 		const authority = buildGlmAuthority();
 		const route = glmRouteQualification(authority);
 		const request = buildEmpiricalModelTurnRequestFixture(authority);
@@ -1070,7 +1069,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		serializedWithoutCredential({ result, route });
 	});
 
-	it("rejects a non-first, final-step, or pricing-source-substituted D672 probe before transport", async () => {
+	it("rejects a non-first, final-step, or pricing-source-substituted D673 probe before transport", async () => {
 		const authority = buildGlmAuthority();
 		const route = glmRouteQualification(authority);
 		const request = buildEmpiricalModelTurnRequestFixture(authority);
@@ -1093,13 +1092,13 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			signal: new AbortController().signal,
 		};
 		const secondTaskRef = authority.frozen.manifest.catalog.tasks[1]?.taskRef;
-		if (secondTaskRef === undefined) throw new TypeError("missing second D672 fixture task");
+		if (secondTaskRef === undefined) throw new TypeError("missing second D673 fixture task");
 		await expect(
 			runOpenRouterFirstTaskCapabilityProbe({
 				...baseInput,
 				request: strictSnapshot({ ...request, taskRef: secondTaskRef }),
 			}),
-		).rejects.toThrow(/frozen D672 coordinates/);
+		).rejects.toThrow(/frozen D673 coordinates/);
 		await expect(
 			runOpenRouterFirstTaskCapabilityProbe({
 				...baseInput,
@@ -1108,7 +1107,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 					budget: { ...route.budget, maxRequests: 1, maxStepsPerRun: 1 },
 				}),
 			}),
-		).rejects.toThrow(/frozen D672 coordinates/);
+		).rejects.toThrow(/frozen D673 coordinates/);
 		await expect(
 			runOpenRouterFirstTaskCapabilityProbe({
 				...baseInput,
@@ -1117,7 +1116,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 					pricing: { ...route.pricing, sourceUrl: "https://example.invalid/pricing" },
 				}),
 			}),
-		).rejects.toThrow(/frozen D672 coordinates/);
+		).rejects.toThrow(/frozen D673 coordinates/);
 		expect(transport).not.toHaveBeenCalled();
 	});
 

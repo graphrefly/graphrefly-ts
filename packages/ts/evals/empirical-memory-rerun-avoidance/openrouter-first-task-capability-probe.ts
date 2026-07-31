@@ -60,7 +60,7 @@ function conservativeCostMicrousd(
 	);
 }
 
-function assertD672ProbeRoute(
+function assertD673ProbeRoute(
 	frozen: FrozenEmpiricalCampaignManifestV1,
 	request: EmpiricalModelTurnRequestV1,
 	route: OpenRouterRouteQualificationV1,
@@ -106,12 +106,12 @@ function assertD672ProbeRoute(
 		route.pricing.outputMicrousdPerMillionTokens !==
 			OPENROUTER_GLM_5_2_DEEPINFRA_OUTPUT_MICROUSD_PER_MILLION_TOKENS
 	) {
-		throw new TypeError("B112 capability probe route does not match frozen D672 coordinates");
+		throw new TypeError("B112 capability probe route does not match frozen D673 coordinates");
 	}
 }
 
 /**
- * D672's one-request, non-persisted mechanical route probe.
+ * D673's one-request, non-persisted mechanical route probe.
  *
  * This does not run the closed host, verifier, observation, scorecard, retry,
  * reflection, warm branches, or efficacy aggregation.
@@ -127,7 +127,7 @@ export async function runOpenRouterFirstTaskCapabilityProbe(input: {
 	readonly executionClass: "simulated-contract" | "live-provider";
 	readonly signal: AbortSignal;
 }): Promise<OpenRouterFirstTaskCapabilityProbeResultV1> {
-	assertD672ProbeRoute(input.frozen, input.request, input.routeQualification);
+	assertD673ProbeRoute(input.frozen, input.request, input.routeQualification);
 	if (
 		(input.executionClass === "live-provider") !==
 		(input.routeQualification.dispatchMode === "live-approved")

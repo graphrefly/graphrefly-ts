@@ -41,8 +41,6 @@ import {
 } from "./model-execution.js";
 import {
 	OPENROUTER_CHAT_COMPLETIONS_ENDPOINT,
-	OPENROUTER_GLM_5_2_DEEPINFRA_DOWNSTREAM_PROVIDER_NAME,
-	OPENROUTER_GLM_5_2_DEEPINFRA_DOWNSTREAM_PROVIDER_SLUG,
 	type OpenRouterEndpointV1,
 	type OpenRouterRouteQualificationV1,
 	type QualifiedOpenRouterRouteV1,
@@ -550,11 +548,6 @@ function requestBody(
 						},
 					})),
 					tool_choice: toolChoice,
-					...(route.downstreamProviderSlug ===
-						OPENROUTER_GLM_5_2_DEEPINFRA_DOWNSTREAM_PROVIDER_SLUG &&
-					route.downstreamProviderName === OPENROUTER_GLM_5_2_DEEPINFRA_DOWNSTREAM_PROVIDER_NAME
-						? { parallel_tool_calls: false }
-						: {}),
 				}
 			: {
 					model: route.requestModel,
