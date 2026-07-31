@@ -118,6 +118,7 @@ export interface OpenRouterResponsesTransportRequestV1 {
 export interface OpenRouterResponsesTransportResponseV1 {
 	readonly status: number;
 	readonly body: Uint8Array;
+	readonly retryAfterMs: number | null;
 }
 
 export interface OpenRouterResponsesByteTransportV1 {
@@ -1216,30 +1217,56 @@ function diagnosticErrorCode(root: Record<string, unknown>): string | null {
 	}
 }
 
-function issuesForErrorResponse(status: number, bytes: Uint8Array): readonly string[] {
+function errorTypeFromResponse(root: Record<string, unknown>): unknown {
+	if (root.error_type !== undefined) return root.error_type;
+	if (root.error === undefined) return undefined;
+	const error = providerRecord(root.error);
+	if (error.metadata === undefined) return undefined;
+	return providerRecord(error.metadata).error_type;
+}
+
+function issuesForErrorResponse(
+	status: number,
+	bytes: Uint8Array,
+	retryAfterMs: number | null,
+): readonly string[] {
 	const statusDiagnostic = diagnosticHttpStatus(status);
+	const retryAfterDiagnostic =
+		retryAfterMs === null ? [] : [`openrouter-retry-after-ms:${retryAfterMs}`];
 	let text: string;
 	try {
 		text = decoder.decode(bytes);
 	} catch {
-		return [OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse, statusDiagnostic];
+		return [
+			OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+			statusDiagnostic,
+			...retryAfterDiagnostic,
+		];
 	}
-	if (!text.trimStart().startsWith("{")) return [issueForStatus(status), statusDiagnostic];
+	if (!text.trimStart().startsWith("{")) {
+		return [issueForStatus(status), statusDiagnostic, ...retryAfterDiagnostic];
+	}
 	let errorType: string;
 	let errorCodeDiagnostic: string | null;
 	try {
 		const root = providerRecord(parseStrictJsonText(text));
 		errorCodeDiagnostic = diagnosticErrorCode(root);
-		if (root.error_type === undefined) {
+		const rawErrorType = errorTypeFromResponse(root);
+		if (rawErrorType === undefined) {
 			return [
 				issueForStatus(status),
 				statusDiagnostic,
 				...(errorCodeDiagnostic === null ? [] : [errorCodeDiagnostic]),
+				...retryAfterDiagnostic,
 			];
 		}
-		errorType = boundedProviderString(root.error_type, 64);
+		errorType = boundedProviderString(rawErrorType, 64);
 	} catch {
-		return [OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse, statusDiagnostic];
+		return [
+			OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+			statusDiagnostic,
+			...retryAfterDiagnostic,
+		];
 	}
 	let issueCode: OpenRouterResponsesIssueCode;
 	if (errorType === "authentication" || errorType === "permission_denied") {
@@ -1274,6 +1301,7 @@ function issuesForErrorResponse(status: number, bytes: Uint8Array): readonly str
 		statusDiagnostic,
 		diagnosticErrorType(errorType),
 		...(errorCodeDiagnostic === null ? [] : [errorCodeDiagnostic]),
+		...retryAfterDiagnostic,
 	];
 }
 
@@ -1610,11 +1638,18 @@ async function invokeOpenRouterResponses(
 	let response: OpenRouterResponsesTransportResponseV1;
 	try {
 		const raw = record(transportResponse, "provider.transport.response");
-		exactKeys(raw, ["body", "status"], "provider.transport.response");
+		exactKeys(raw, ["body", "retryAfterMs", "status"], "provider.transport.response");
 		const status = safeInteger(raw.status, "provider.transport.response.status", {
 			min: 100,
 			max: 599,
 		});
+		const retryAfterMs =
+			raw.retryAfterMs === null
+				? null
+				: safeInteger(raw.retryAfterMs, "provider.transport.response.retryAfterMs", {
+						min: 1,
+						max: 600_000,
+					});
 		if (!(raw.body instanceof Uint8Array)) throw new TypeError("response body must be bytes");
 		if (
 			typedArrayByteLengthGetter === undefined ||
@@ -1632,6 +1667,7 @@ async function invokeOpenRouterResponses(
 		response = {
 			status,
 			body: responseBody,
+			retryAfterMs,
 		};
 	} catch {
 		return failureOutcome(
@@ -1647,7 +1683,7 @@ async function invokeOpenRouterResponses(
 		return failureOutcome(
 			config,
 			request,
-			issuesForErrorResponse(response.status, response.body),
+			issuesForErrorResponse(response.status, response.body, response.retryAfterMs),
 			1,
 			body.byteLength,
 			latencyMs,

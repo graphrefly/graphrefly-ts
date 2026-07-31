@@ -777,7 +777,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			]);
 			expect(source).not.toMatch(
 				allowsOutermostLiveOperator
-					? /\b(?:WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
+					? /\b(?:WebSocket|setInterval|setImmediate|queueMicrotask)\b|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
 					: allowsRepositoryNodeDriver ||
 							allowsClosedHostNodeDriver ||
 							allowsClosedVerifierCalibration ||
@@ -792,6 +792,10 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 									? /\b(?:async|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
 									: /\b(?:async|Promise|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/,
 			);
+			if (allowsOutermostLiveOperator) {
+				expect(source.match(/\bsetTimeout\b/g)).toHaveLength(1);
+				expect(source.match(/\bclearTimeout\b/g)).toHaveLength(1);
+			}
 			if (allowsRepositoryNodeDriver || allowsClosedHostNodeDriver) {
 				expect(source).not.toMatch(/(?:^|[^.A-Za-z0-9_$])(?:exec|execFile|fork)\s*\(/m);
 			}

@@ -26,6 +26,26 @@ export function readOpenRouterSmokeOperatorMonotonicMs(): number {
 	return Math.floor(performance.now());
 }
 
+export function waitOpenRouterSmokeRetryDelay(input: {
+	readonly delayMs: number;
+	readonly signal: AbortSignal;
+}): Promise<void> {
+	if (input.signal.aborted) {
+		return Promise.reject(new DOMException("OpenRouter retry wait cancelled", "AbortError"));
+	}
+	return new Promise<void>((resolve, reject) => {
+		const onAbort = () => {
+			clearTimeout(timer);
+			reject(new DOMException("OpenRouter retry wait cancelled", "AbortError"));
+		};
+		const timer = setTimeout(() => {
+			input.signal.removeEventListener("abort", onAbort);
+			resolve();
+		}, input.delayMs);
+		input.signal.addEventListener("abort", onAbort, { once: true });
+	});
+}
+
 function isSameOrDescendant(parent: string, candidate: string): boolean {
 	const nested = relative(parent, candidate);
 	return nested === "" || (nested !== ".." && !nested.startsWith(`..${sep}`));
@@ -85,6 +105,7 @@ export async function runOpenRouterFirstTaskSmokeOperator(input: {
 		credential,
 		transport: createOpenRouterResponsesFetchByteTransport({ fetch: input.fetch }),
 		monotonicMeasurement: { readMs: input.monotonicNowMs },
+		retryWait: { wait: waitOpenRouterSmokeRetryDelay },
 		executionClass: "live-provider",
 		signal: AbortSignal.timeout(qualifiedRoute.qualification.budget.maxLatencyMs),
 	});

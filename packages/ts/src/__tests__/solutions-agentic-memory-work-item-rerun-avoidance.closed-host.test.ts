@@ -123,6 +123,9 @@ import {
 import { buildEmpiricalModelTurnRequestFixture } from "./eval-support/empirical-memory-rerun-avoidance/model-execution-fixtures.js";
 
 const encoder = new TextEncoder();
+const immediateRetryWait = Object.freeze({
+	async wait(): Promise<void> {},
+});
 const temporaryRoots: string[] = [];
 interface ClosedHostFixture {
 	readonly frozen: FrozenEmpiricalCampaignManifestV1;
@@ -574,6 +577,63 @@ function completedOutcome(
 	);
 }
 
+function nonEvaluableOutcome(
+	request: EmpiricalModelTurnRequestV1,
+	frozen: FrozenEmpiricalCampaignManifestV1,
+	report: EmpiricalTaskQualificationReportV1,
+	protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1,
+	issueCodes: readonly string[],
+	hostOutputBytes: number,
+): EmpiricalModelTurnOutcomeV1 {
+	const evidenceRefs = strictSnapshot([]);
+	const protectedIssueCodes = strictSnapshot(issueCodes);
+	const egressMaterial = strictSnapshot({
+		evidenceRefs,
+		issueCodes: protectedIssueCodes,
+		structuredOutput: null,
+		toolIntents: [],
+	});
+	const protectionReceipt = executeEmpiricalProtection(protectionExecutor, {
+		policyRef: request.protectionPolicyRef,
+		policyRevision: request.protectionPolicyRevision,
+		stage: "model-egress",
+		subject: egressMaterial,
+	}).receipt;
+	return validateEmpiricalModelTurnOutcome(
+		{
+			schemaVersion: EMPIRICAL_MODEL_EXECUTION_SCHEMAS.outcome,
+			requestRef: request.requestRef,
+			requestDigest: empiricalStrictJsonDigest(request),
+			configurationRef: request.configurationRef,
+			configurationDigest: request.configurationDigest,
+			role: request.role,
+			status: "non-evaluable",
+			finishReason: null,
+			outputSchemaDigest: request.outputSchema.schemaDigest,
+			structuredOutput: null,
+			structuredOutputDigest: null,
+			toolIntents: [],
+			usage: {
+				source: request.usageSource,
+				inputTokens: null,
+				outputTokens: null,
+				totalTokens: null,
+				providerCostMicrousd: null,
+				requests: 1,
+				hostInputBytes: 128,
+				hostOutputBytes,
+			},
+			latencyMs: 1,
+			issueCodes: protectedIssueCodes,
+			evidenceRefs,
+			protectionReceipt,
+		},
+		request,
+		frozen,
+		report,
+	);
+}
+
 function scriptedPort(
 	fixture: ClosedHostFixture,
 	select: (request: EmpiricalModelTurnRequestV1) =>
@@ -777,7 +837,7 @@ function dryRunOpenRouterResponse(
 		requestModel: OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
 		downstreamProviderName: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
 	},
-): { readonly status: 200; readonly body: Uint8Array } {
+): { readonly status: 200; readonly body: Uint8Array; readonly retryAfterMs: null } {
 	const routeMetadata = {
 		requested: route.requestModel,
 		strategy: "direct",
@@ -866,6 +926,7 @@ function dryRunOpenRouterResponse(
 	return {
 		status: 200,
 		body: encoder.encode(JSON.stringify(response)),
+		retryAfterMs: null,
 	};
 }
 
@@ -943,7 +1004,8 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 
 		expect(outcome).toMatchObject({
 			status: "completed",
-			turnCount: 6,
+			logicalStepCount: 6,
+			attemptCount: 6,
 			remoteRequests: 6,
 			toolActionCount: 5,
 			verifierVerdict: "passed",
@@ -1006,6 +1068,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				},
 			},
 			monotonicMeasurement: { readMs: () => 0 },
+			retryWait: immediateRetryWait,
 			executionClass: "simulated-contract" as const,
 			privateRoot: temporaryRoot("route-substitution"),
 			generationRef: "route-substitution-generation",
@@ -1064,6 +1127,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 					},
 				},
 				monotonicMeasurement: { readMs: () => 0 },
+				retryWait: immediateRetryWait,
 				executionClass: "simulated-contract",
 				privateRoot: temporaryRoot("medium-effort"),
 				generationRef: "medium-effort-generation",
@@ -1160,6 +1224,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 							},
 						}),
 					),
+					retryAfterMs: null,
 				};
 			},
 		};
@@ -1186,6 +1251,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			},
 			transport,
 			monotonicMeasurement: { readMs: () => (measurement += 1) },
+			retryWait: immediateRetryWait,
 			executionClass: "simulated-contract",
 			privateRoot,
 			generationRef: "dry-run-generation",
@@ -1282,6 +1348,10 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				reservedOutputTokens: 2_048,
 				routeEvidenceDigests: [],
 				verifierEvidenceDigests: [],
+				attemptTrace: result.observation.cold.attemptTrace.map((attempt) => ({
+					...attempt,
+					requests: 0 as const,
+				})),
 			},
 			rerunEligible: false,
 			routeEvidenceDigests: [],
@@ -1363,6 +1433,10 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				reservedOutputTokens: 2_048,
 				routeEvidenceDigests: [],
 				verifierEvidenceDigests: [],
+				attemptTrace: result.observation.cold.attemptTrace.map((attempt, index) => ({
+					...attempt,
+					requests: (index === 0 ? 1 : 0) as 0 | 1,
+				})),
 			},
 			rerunEligible: false,
 			routeEvidenceDigests: [],
@@ -1472,9 +1546,9 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		).toThrow(/evidence digests do not match|required frozen evidence/);
 		const persistedFiles = readdirSync(result.persistence.generationPath).sort();
 		expect(persistedFiles).toEqual([
-			"campaign-scorecard.v2.json",
-			"generation.v2.json",
-			"trial-block-observation.v2.json",
+			"campaign-scorecard.v3.json",
+			"generation.v3.json",
+			"trial-block-observation.v3.json",
 		]);
 		for (const file of persistedFiles) {
 			expect(statSync(join(result.persistence.generationPath, file)).mode & 0o777).toBe(0o600);
@@ -1741,6 +1815,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			credential,
 			transport,
 			monotonicMeasurement: { readMs: () => (measurement += 1) },
+			retryWait: immediateRetryWait,
 			executionClass: "simulated-contract" as const,
 			privateRoot,
 			generationRef: "matched-dry-run-generation",
@@ -2054,14 +2129,14 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		}
 		const generationRoot = result.persistence.generationPath;
 		const persisted = [
-			readFileSync(join(generationRoot, "trial-block-observation.v2.json"), "utf8"),
-			readFileSync(join(generationRoot, "campaign-scorecard.v2.json"), "utf8"),
-			readFileSync(join(generationRoot, "generation.v2.json"), "utf8"),
+			readFileSync(join(generationRoot, "trial-block-observation.v3.json"), "utf8"),
+			readFileSync(join(generationRoot, "campaign-scorecard.v3.json"), "utf8"),
+			readFileSync(join(generationRoot, "generation.v3.json"), "utf8"),
 		].join("\n");
 		expect(persisted).not.toContain(credentialSentinel);
 		expect(persisted).toContain('"actionTrace"');
 		expect(persisted).not.toContain(fixture.workspaceRoot);
-		expect(statSync(join(generationRoot, "trial-block-observation.v2.json")).mode & 0o777).toBe(
+		expect(statSync(join(generationRoot, "trial-block-observation.v3.json")).mode & 0o777).toBe(
 			0o600,
 		);
 		const persistenceProtection = createEmpiricalExactPrivateNeedleProtectionExecutor({
@@ -2210,6 +2285,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				},
 			},
 			monotonicMeasurement: { readMs: () => 0 },
+			retryWait: immediateRetryWait,
 			executionClass: "live-provider",
 			privateRoot,
 			generationRef: "transport-failure-generation",
@@ -2223,7 +2299,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(result.scorecard.status).toBe("non-evaluable");
 		expect(
 			readFileSync(
-				join(result.persistence.generationPath, "trial-block-observation.v2.json"),
+				join(result.persistence.generationPath, "trial-block-observation.v3.json"),
 				"utf8",
 			),
 		).not.toContain(failureCredentialSentinel);
@@ -2267,10 +2343,12 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 								error_type: rejectionCredentialSentinel,
 							}),
 						),
+						retryAfterMs: null,
 					});
 				},
 			},
 			monotonicMeasurement: { readMs: () => 0 },
+			retryWait: immediateRetryWait,
 			executionClass: "live-provider",
 			privateRoot,
 			generationRef: "provider-rejection-generation",
@@ -2323,6 +2401,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				},
 			},
 			monotonicMeasurement: { readMs: () => 0 },
+			retryWait: immediateRetryWait,
 			executionClass: "live-provider",
 			privateRoot,
 			generationRef: "live-pre-admission-generation",
@@ -2412,6 +2491,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				},
 			},
 			monotonicMeasurement: { readMs: () => 0 },
+			retryWait: immediateRetryWait,
 			executionClass: "live-provider",
 			privateRoot,
 			generationRef: "transport-timeout-generation",
@@ -2426,7 +2506,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		);
 		expect(
 			readFileSync(
-				join(result.persistence.generationPath, "trial-block-observation.v2.json"),
+				join(result.persistence.generationPath, "trial-block-observation.v3.json"),
 				"utf8",
 			),
 		).not.toContain(timeoutCredentialSentinel);
@@ -2484,6 +2564,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				},
 			},
 			monotonicMeasurement: { readMs: () => 0 },
+			retryWait: immediateRetryWait,
 			executionClass: "live-provider",
 			privateRoot,
 			generationRef: "known-overrun-generation",
@@ -2579,6 +2660,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				},
 			},
 			monotonicMeasurement: { readMs: () => 0 },
+			retryWait: immediateRetryWait,
 			executionClass: "live-provider",
 			privateRoot,
 			generationRef: "mixed-known-unknown-cost-generation",
@@ -2615,7 +2697,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(result.persistence.observationDigest).toBe(result.scorecard.observationDigests[0]);
 		const persistedObservation = JSON.parse(
 			readFileSync(
-				join(result.persistence.generationPath, "trial-block-observation.v2.json"),
+				join(result.persistence.generationPath, "trial-block-observation.v3.json"),
 				"utf8",
 			),
 		) as { readonly result: { readonly costBasis: string; readonly costMicrousd: number } };
@@ -2674,6 +2756,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				},
 				transport,
 				monotonicMeasurement: { readMs: () => (measurement += 1) },
+				retryWait: immediateRetryWait,
 				executionClass: "simulated-contract",
 				privateRoot,
 				generationRef: `bounded-${label}`,
@@ -2732,9 +2815,9 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		);
 		expect(JSON.stringify(costBound.scorecard)).not.toContain("b112-smoke-admission-rejection.v1");
 		for (const artifactName of [
-			"trial-block-observation.v2.json",
-			"campaign-scorecard.v2.json",
-			"generation.v2.json",
+			"trial-block-observation.v3.json",
+			"campaign-scorecard.v3.json",
+			"generation.v3.json",
 		]) {
 			expect(
 				readFileSync(join(costBound.persistence.generationPath, artifactName), "utf8"),
@@ -2784,6 +2867,458 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(() => readFileSync(join(fixture.workspaceRoot, "README.md"))).toThrow();
 	});
 
+	it("retries one exact 429 turn after the bounded server floor and persists distinct attempt evidence", async () => {
+		const fixture = await createClosedHostFixture();
+		const credentialSentinel = "openrouter-retry-secret-sentinel-0123456789";
+		const rawProviderSentinel = "raw-openrouter-retry-provider-sentinel";
+		const baseContentDigest = empiricalSha256(encoder.encode("broken-placeholder-value\n"));
+		const requestBodies: Uint8Array[] = [];
+		const waits: number[] = [];
+		let transportCalls = 0;
+		let activeCalls = 0;
+		let maximumActiveCalls = 0;
+		const transport: OpenRouterResponsesByteTransportV1 = {
+			async request(input) {
+				transportCalls += 1;
+				activeCalls += 1;
+				maximumActiveCalls = Math.max(maximumActiveCalls, activeCalls);
+				requestBodies.push(input.body.slice());
+				try {
+					if (transportCalls === 1) {
+						return {
+							status: 429,
+							body: encoder.encode(
+								JSON.stringify({
+									error: {
+										code: "rate_limit_exceeded",
+										message: rawProviderSentinel,
+										metadata: { error_type: "rate_limit_exceeded" },
+									},
+								}),
+							),
+							retryAfterMs: 7_000,
+						};
+					}
+					const requestBody = JSON.parse(new TextDecoder().decode(input.body)) as {
+						readonly tools: readonly { readonly name: string }[];
+					};
+					return dryRunOpenRouterResponse(
+						`response.retry.${transportCalls}`,
+						transportCalls === 2
+							? [
+									{
+										type: "function_call",
+										status: "completed",
+										call_id: "call.retry.replace-exact",
+										name: requestBody.tools[2]?.name,
+										arguments: JSON.stringify({
+											baseContentDigest,
+											newText: "fixed",
+											oldText: "broken-placeholder-value",
+											path: "README.md",
+										}),
+									},
+								]
+							: [
+									{
+										type: "message",
+										role: "assistant",
+										status: "completed",
+										content: [
+											{
+												type: "output_text",
+												text: JSON.stringify({
+													kind: "model-turn-output-placeholder",
+													summary: "bounded-placeholder",
+												}),
+											},
+										],
+									},
+								],
+					);
+				} finally {
+					activeCalls -= 1;
+				}
+			},
+		};
+		const artifactRoot = temporaryRoot("retry-private-artifacts");
+		const privateRoot = join(artifactRoot, ".private", "empirical-memory-rerun-avoidance");
+		mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
+		chmodSync(privateRoot, 0o700);
+		let measurement = 0;
+
+		const result = await runOpenRouterFirstTaskSmoke({
+			host: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: fixture.materialization,
+				verifier: fixture.verifier,
+			},
+			routeQualification: simulatedRouteQualification(fixture),
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: credentialSentinel,
+			},
+			transport,
+			monotonicMeasurement: { readMs: () => measurement },
+			retryWait: {
+				async wait(input) {
+					expect(input.signal.aborted).toBe(false);
+					waits.push(input.delayMs);
+					measurement += input.delayMs;
+				},
+			},
+			executionClass: "simulated-contract",
+			privateRoot,
+			generationRef: "retry-dry-run-generation",
+			signal: new AbortController().signal,
+		});
+
+		expect(transportCalls).toBe(3);
+		expect(maximumActiveCalls).toBe(1);
+		expect(waits).toEqual([7_000]);
+		expect(requestBodies[0]).toEqual(requestBodies[1]);
+		expect(result.observation.cold).toMatchObject({
+			classification: "complete",
+			requests: 3,
+			steps: 2,
+			attempts: 3,
+			retryWaitMs: 7_000,
+		});
+		expect(
+			result.observation.cold.attemptTrace.map((attempt) => [
+				attempt.stepIndex,
+				attempt.attemptOrdinal,
+				attempt.requests,
+			]),
+		).toEqual([
+			[0, 1, 1],
+			[0, 2, 1],
+			[1, 1, 1],
+		]);
+		expect(result.observation.cold.retryWaitTrace).toEqual([
+			{
+				stepIndex: 0,
+				afterAttemptOrdinal: 1,
+				scheduledDelayMs: 7_000,
+				elapsedMs: 7_000,
+			},
+		]);
+		const [retryAttemptOne, retryAttemptTwo, nextStepAttempt] =
+			result.observation.cold.attemptTrace;
+		if (
+			retryAttemptOne === undefined ||
+			retryAttemptTwo === undefined ||
+			nextStepAttempt === undefined
+		) {
+			throw new TypeError("retry dry run did not produce the exact three-attempt fixture");
+		}
+		for (const invalidCold of [
+			{
+				...result.observation.cold,
+				attemptTrace: [retryAttemptTwo, retryAttemptOne, nextStepAttempt],
+			},
+			{
+				...result.observation.cold,
+				retryWaitTrace: [],
+			},
+			{
+				...result.observation.cold,
+				retryWaitTrace: [
+					...result.observation.cold.retryWaitTrace,
+					...result.observation.cold.retryWaitTrace,
+				],
+			},
+			{
+				...result.observation.cold,
+				protectionReceiptDigests: [
+					...result.observation.cold.protectionReceiptDigests,
+					empiricalStrictJsonDigest({ extra: "receipt" }),
+				].sort(),
+			},
+		]) {
+			expect(() =>
+				validateEmpiricalTrialBlockObservation({
+					...result.observation,
+					cold: invalidCold,
+				}),
+			).toThrow();
+		}
+		expect(result.scorecard).toMatchObject({
+			status: "smoke-complete-no-efficacy-claim",
+			requests: 3,
+			steps: 2,
+			attempts: 3,
+			efficacyClaim: "none",
+		});
+		const persisted = [
+			"trial-block-observation.v3.json",
+			"campaign-scorecard.v3.json",
+			"generation.v3.json",
+		]
+			.map((file) => readFileSync(join(result.persistence.generationPath, file), "utf8"))
+			.join("\n");
+		expect(persisted).not.toContain(credentialSentinel);
+		expect(persisted).not.toContain(rawProviderSentinel);
+	});
+
+	it("bounds 503 fallback, never retries 409, and re-admits every retry against request budget", async () => {
+		const runFailureCase = async (input: {
+			readonly label: string;
+			readonly status: 409 | 429 | 503;
+			readonly errorType: "rate_limit_exceeded" | "provider_overloaded";
+			readonly maxRequests?: number;
+			readonly maxLatencyMs?: number;
+			readonly abortWait?: boolean;
+			readonly earlyReturnWait?: boolean;
+		}) => {
+			const fixture = await createClosedHostFixture();
+			const waits: number[] = [];
+			const requestBodies: Uint8Array[] = [];
+			let transportCalls = 0;
+			const route = simulatedRouteQualification(fixture);
+			const routeQualification = strictSnapshot({
+				...route,
+				budget: {
+					...route.budget,
+					...(input.maxRequests === undefined ? {} : { maxRequests: input.maxRequests }),
+					...(input.maxLatencyMs === undefined ? {} : { maxLatencyMs: input.maxLatencyMs }),
+				},
+			});
+			const artifactRoot = temporaryRoot(`retry-${input.label}`);
+			const privateRoot = join(artifactRoot, ".private", "empirical-memory-rerun-avoidance");
+			mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
+			chmodSync(privateRoot, 0o700);
+			let measurement = 0;
+			const controller = new AbortController();
+			const result = await runOpenRouterFirstTaskSmoke({
+				host: {
+					frozen: fixture.frozen,
+					qualificationReport: fixture.report,
+					initialRequest: fixture.initialRequest,
+					taskProfile: fixture.taskProfile,
+					materialization: fixture.materialization,
+					verifier: fixture.verifier,
+				},
+				routeQualification,
+				credential: {
+					credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+					credentialBindingRevision:
+						fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+					bearerToken: `openrouter-${input.label}-secret-sentinel-0123456789`,
+				},
+				transport: {
+					async request(request) {
+						transportCalls += 1;
+						requestBodies.push(request.body.slice());
+						return {
+							status: input.status,
+							body: encoder.encode(
+								JSON.stringify({
+									error: {
+										code:
+											input.errorType === "rate_limit_exceeded"
+												? "rate_limit_exceeded"
+												: "server_error",
+										message: `raw-${input.label}-provider-sentinel`,
+										metadata: { error_type: input.errorType },
+									},
+								}),
+							),
+							retryAfterMs: null,
+						};
+					},
+				},
+				monotonicMeasurement: { readMs: () => measurement },
+				retryWait: {
+					async wait(waitInput) {
+						waits.push(waitInput.delayMs);
+						if (input.abortWait) {
+							controller.abort();
+							throw new DOMException("test retry wait cancellation", "AbortError");
+						}
+						if (!input.earlyReturnWait) measurement += waitInput.delayMs;
+					},
+				},
+				executionClass: "simulated-contract",
+				privateRoot,
+				generationRef: `retry-${input.label}-generation`,
+				signal: controller.signal,
+			});
+			return { result, waits, requestBodies, transportCalls };
+		};
+
+		const exhausted = await runFailureCase({
+			label: "503-exhausted",
+			status: 503,
+			errorType: "provider_overloaded",
+		});
+		expect(exhausted.transportCalls).toBe(3);
+		expect(exhausted.waits).toEqual([5_000, 10_000]);
+		expect(exhausted.requestBodies[0]).toEqual(exhausted.requestBodies[1]);
+		expect(exhausted.requestBodies[1]).toEqual(exhausted.requestBodies[2]);
+		expect(exhausted.result.observation.cold).toMatchObject({
+			classification: "non-evaluable",
+			requests: 3,
+			steps: 1,
+			attempts: 3,
+			retryWaitMs: 15_000,
+		});
+		expect(exhausted.result.observation.issueCodes).toContain("model-turn-retry-exhausted");
+
+		const no409Retry = await runFailureCase({
+			label: "409-no-retry",
+			status: 409,
+			errorType: "rate_limit_exceeded",
+		});
+		expect(no409Retry.transportCalls).toBe(1);
+		expect(no409Retry.waits).toEqual([]);
+		expect(no409Retry.result.observation.cold).toMatchObject({
+			requests: 1,
+			steps: 1,
+			attempts: 1,
+			retryWaitMs: 0,
+		});
+
+		const requestBound = await runFailureCase({
+			label: "429-request-bound",
+			status: 429,
+			errorType: "rate_limit_exceeded",
+			maxRequests: 1,
+		});
+		expect(requestBound.transportCalls).toBe(1);
+		expect(requestBound.waits).toEqual([]);
+		expect(requestBound.result.observation.cold).toMatchObject({
+			requests: 1,
+			steps: 1,
+			attempts: 1,
+		});
+		expect(requestBound.result.admissionRejection?.reasons).toContain("request-limit");
+		expect(requestBound.result.observation.issueCodes).toContain(B112_SMOKE_BUDGET_ISSUE_CODE);
+
+		const serverFloorBound = await runFailureCase({
+			label: "503-server-floor-bound",
+			status: 503,
+			errorType: "provider_overloaded",
+			maxLatencyMs: 4_999,
+		});
+		expect(serverFloorBound.transportCalls).toBe(1);
+		expect(serverFloorBound.waits).toEqual([]);
+		expect(serverFloorBound.result.observation.issueCodes).toContain(
+			"model-turn-retry-elapsed-budget-exhausted",
+		);
+
+		const elapsedBound = await runFailureCase({
+			label: "503-elapsed-bound",
+			status: 503,
+			errorType: "provider_overloaded",
+			maxLatencyMs: 5_000,
+		});
+		expect(elapsedBound.transportCalls).toBe(1);
+		expect(elapsedBound.waits).toEqual([5_000]);
+		expect(elapsedBound.result.observation.cold).toMatchObject({
+			requests: 1,
+			steps: 1,
+			attempts: 1,
+			retryWaitMs: 5_000,
+		});
+		expect(elapsedBound.result.observation.issueCodes).toContain(
+			"model-turn-retry-elapsed-budget-exhausted",
+		);
+
+		const earlyWait = await runFailureCase({
+			label: "503-early-wait",
+			status: 503,
+			errorType: "provider_overloaded",
+			earlyReturnWait: true,
+		});
+		expect(earlyWait.transportCalls).toBe(1);
+		expect(earlyWait.waits).toEqual([5_000]);
+		expect(earlyWait.result.observation.issueCodes).toContain("model-turn-retry-wait-failed");
+
+		const aborted = await runFailureCase({
+			label: "429-aborted-wait",
+			status: 429,
+			errorType: "rate_limit_exceeded",
+			abortWait: true,
+		});
+		expect(aborted.transportCalls).toBe(1);
+		expect(aborted.waits).toEqual([5_000]);
+		expect(aborted.result.observation.cold).toMatchObject({
+			requests: 1,
+			steps: 1,
+			attempts: 1,
+			retryWaitMs: 0,
+		});
+		expect(aborted.result.observation.issueCodes).toContain("host-cancelled");
+	}, 15_000);
+
+	it("retains every validated retry attempt when cumulative host output bytes exhaust", async () => {
+		const fixture = await createClosedHostFixture();
+		const initialRequest = {
+			...fixture.initialRequest,
+			remainingTurnBudget: {
+				...fixture.initialRequest.remainingTurnBudget,
+				maxOutputBytes: 4_096,
+			},
+		};
+		let invocations = 0;
+		const outcome = await runClosedTaskProfileHost({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			initialRequest,
+			taskProfile: fixture.taskProfile,
+			materialization: fixture.materialization,
+			modelTurnPort: {
+				async invoke(request) {
+					invocations += 1;
+					return invocations === 1
+						? nonEvaluableOutcome(
+								request,
+								fixture.frozen,
+								fixture.report,
+								fixture.protectionExecutor,
+								["openrouter-error-type:provider_overloaded", "openrouter-http-status:503"],
+								2_500,
+							)
+						: completedOutcome(
+								request,
+								fixture.frozen,
+								fixture.report,
+								fixture.protectionExecutor,
+								{
+									finishReason: "structured-output",
+									structuredOutput: {
+										kind: "model-turn-output-placeholder",
+										summary: "bounded-placeholder",
+									},
+								},
+							);
+				},
+			},
+			protectionExecutor: fixture.protectionExecutor,
+			verifier: fixture.verifier,
+			retry: {
+				maxAttemptsPerTurn: 3,
+				retryDelayMs: () => 1,
+				retryAdmissionIssueCodes: () => [],
+				remainingElapsedMs: () => 10_000,
+				wait: async () => 1,
+			},
+			signal: new AbortController().signal,
+		});
+
+		expect(outcome.issueCodes).toEqual(["agent-output-byte-budget-exhausted"]);
+		expect(outcome.logicalStepCount).toBe(1);
+		expect(outcome.attemptCount).toBe(2);
+		expect(outcome.turnEvidence).toHaveLength(2);
+		expect(outcome.remoteRequests).toBe(2);
+		expect(outcome.hostOutputBytes).toBe(4_548);
+	});
+
 	it("classifies an actor-selected unknown commandRef non-evaluable without invoking the verifier", async () => {
 		const fixture = await createClosedHostFixture();
 		const port = scriptedPort(fixture, () => ({
@@ -2810,7 +3345,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(outcome.status).toBe("non-evaluable");
 		expect(outcome.issueCodes).toContain("command-ref-not-allowed");
 		expect(outcome.cleanupSucceeded).toBe(true);
-		expect(outcome.turnCount).toBe(1);
+		expect(outcome.logicalStepCount).toBe(1);
 		expect(outcome.remoteRequests).toBe(1);
 		expect(fixture.verifierCalls.count).toBe(0);
 	});
@@ -2836,7 +3371,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 
 		expect(outcome.status).toBe("non-evaluable");
 		expect(outcome.issueCodes).toEqual(["tool-execution-invalid"]);
-		expect(outcome.turnCount).toBe(1);
+		expect(outcome.logicalStepCount).toBe(1);
 		expect(outcome.toolActionCount).toBe(0);
 		expect(fixture.verifierCalls.count).toBe(0);
 	});
@@ -3037,7 +3572,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 
 		expect(outcome.status).toBe("non-evaluable");
 		expect(outcome.issueCodes).toEqual(["agent-output-byte-budget-exhausted"]);
-		expect(outcome.turnCount).toBe(1);
+		expect(outcome.logicalStepCount).toBe(1);
 		expect(invocations).toBe(1);
 	});
 
@@ -3070,7 +3605,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 
 		expect(outcome.status).toBe("non-evaluable");
 		expect(outcome.issueCodes).toEqual(["duplicate-tool-call-ref"]);
-		expect(outcome.turnCount).toBe(2);
+		expect(outcome.logicalStepCount).toBe(2);
 		expect(outcome.toolActionCount).toBe(1);
 	});
 
@@ -3303,7 +3838,8 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		});
 
 		expect(outcome.issueCodes).toEqual(["model-turn-tool-intent-invalid"]);
-		expect(outcome.turnCount).toBe(1);
+		expect(outcome.logicalStepCount).toBe(0);
+		expect(outcome.attemptCount).toBe(0);
 		expect(outcome.remoteRequests).toBe(0);
 	});
 
@@ -3354,7 +3890,8 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		});
 
 		expect(outcome.issueCodes).toEqual(["model-turn-output-budget-exhausted"]);
-		expect(outcome.turnCount).toBe(1);
+		expect(outcome.logicalStepCount).toBe(0);
+		expect(outcome.attemptCount).toBe(0);
 		expect(outcome.remoteRequests).toBe(0);
 	});
 

@@ -49,7 +49,7 @@ export const CLOSED_TASK_PROFILE_HOST_SCHEMAS = Object.freeze({
 	verifierProfile: "graphrefly.private-solution-eval.closed-verifier-profile.v1",
 	taskProfile: "graphrefly.private-solution-eval.closed-task-execution-profile.v1",
 	verifierResult: "graphrefly.private-solution-eval.closed-verifier-result.v1",
-	runOutcome: "graphrefly.private-solution-eval.closed-host-run-outcome.v2",
+	runOutcome: "graphrefly.private-solution-eval.closed-host-run-outcome.v3",
 });
 
 export const CLOSED_ACTOR_TOOL_REFS = Object.freeze({
@@ -226,16 +226,27 @@ export interface ClosedTaskProfileHostRunInputV1 {
 	readonly modelTurnPort: EmpiricalModelTurnPortV1;
 	readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
 	readonly verifier: ClosedVerifierCapabilityV1;
+	readonly retry?: ClosedTaskProfileHostRetryCapabilityV1;
 	readonly signal: AbortSignal;
 }
 
-export interface ClosedTaskProfileHostRunOutcomeV2 {
+export interface ClosedTaskProfileHostRetryCapabilityV1 {
+	readonly maxAttemptsPerTurn: number;
+	retryDelayMs(outcome: EmpiricalModelTurnOutcomeV1, attemptOrdinal: number): number | null;
+	retryAdmissionIssueCodes(): readonly string[];
+	remainingElapsedMs(): number;
+	wait(input: { readonly delayMs: number; readonly signal: AbortSignal }): Promise<number>;
+}
+
+export interface ClosedTaskProfileHostRunOutcomeV3 {
 	readonly schemaVersion: typeof CLOSED_TASK_PROFILE_HOST_SCHEMAS.runOutcome;
 	readonly status: "completed" | "non-evaluable";
 	readonly taskRef: string;
 	readonly taskDigest: string;
-	readonly turnCount: number;
+	readonly logicalStepCount: number;
+	readonly attemptCount: number;
 	readonly remoteRequests: number;
+	readonly retryWaitMs: number;
 	readonly toolActionCount: number;
 	readonly hostInputBytes: number;
 	readonly hostOutputBytes: number;
@@ -251,6 +262,7 @@ export interface ClosedTaskProfileHostRunOutcomeV2 {
 	readonly workspaceChanged: boolean | null;
 	readonly turnEvidence: readonly {
 		readonly stepIndex: number;
+		readonly attemptOrdinal: number;
 		readonly requestDigest: string;
 		readonly status: "completed" | "non-evaluable";
 		readonly finishReason: "structured-output" | "tool-intents" | null;
@@ -269,6 +281,12 @@ export interface ClosedTaskProfileHostRunOutcomeV2 {
 			readonly digest: string;
 		}[];
 		readonly protectionReceipt: EmpiricalProtectionReceiptV1;
+	}[];
+	readonly retryWaitEvidence: readonly {
+		readonly stepIndex: number;
+		readonly afterAttemptOrdinal: number;
+		readonly scheduledDelayMs: number;
+		readonly elapsedMs: number;
 	}[];
 	readonly toolEvidence: readonly {
 		readonly toolCallRef: string;
@@ -320,8 +338,10 @@ interface WorkspaceSnapshot {
 }
 
 interface MutableRunEvidence {
-	turnCount: number;
+	logicalStepCount: number;
+	attemptCount: number;
 	remoteRequests: number;
+	retryWaitMs: number;
 	toolActionCount: number;
 	hostInputBytes: number;
 	hostOutputBytes: number;
@@ -330,9 +350,10 @@ interface MutableRunEvidence {
 	workspaceBaselineDigest: string | null;
 	workspaceStateDigest: string | null;
 	workspaceChangeDigest: string | null;
-	readonly turnEvidence: Array<ClosedTaskProfileHostRunOutcomeV2["turnEvidence"][number]>;
-	readonly toolEvidence: Array<ClosedTaskProfileHostRunOutcomeV2["toolEvidence"][number]>;
-	readonly actionTrace: Array<ClosedTaskProfileHostRunOutcomeV2["actionTrace"][number]>;
+	readonly turnEvidence: Array<ClosedTaskProfileHostRunOutcomeV3["turnEvidence"][number]>;
+	readonly retryWaitEvidence: Array<ClosedTaskProfileHostRunOutcomeV3["retryWaitEvidence"][number]>;
+	readonly toolEvidence: Array<ClosedTaskProfileHostRunOutcomeV3["toolEvidence"][number]>;
+	readonly actionTrace: Array<ClosedTaskProfileHostRunOutcomeV3["actionTrace"][number]>;
 }
 
 class HostRunFailure extends Error {
@@ -351,10 +372,10 @@ class HostRunFailure extends Error {
  */
 export async function runClosedTaskProfileHost(
 	input: ClosedTaskProfileHostRunInputV1,
-): Promise<ClosedTaskProfileHostRunOutcomeV2> {
+): Promise<ClosedTaskProfileHostRunOutcomeV3> {
 	let taskRef = "unresolved-task";
 	let taskDigest = empiricalStrictJsonDigest({ taskRef });
-	let internalOutcome: ClosedTaskProfileHostRunOutcomeV2 | null = null;
+	let internalOutcome: ClosedTaskProfileHostRunOutcomeV3 | null = null;
 	let configurationError: unknown = null;
 	try {
 		const frozen = validateFrozenEmpiricalCampaignManifest(input.frozen, input.qualificationReport);
@@ -817,16 +838,85 @@ function validateVerifierCapability(
 	return value;
 }
 
+function ownCapabilityFunction<T extends (...args: never[]) => unknown>(
+	value: Record<string, unknown>,
+	key: string,
+	path: string,
+): T {
+	const descriptor = Object.getOwnPropertyDescriptor(value, key);
+	if (
+		descriptor === undefined ||
+		"get" in descriptor ||
+		"set" in descriptor ||
+		typeof descriptor.value !== "function"
+	) {
+		fail(path, "expected an own function data property");
+	}
+	return descriptor.value as T;
+}
+
+function validateRetryCapability(
+	value: ClosedTaskProfileHostRetryCapabilityV1 | undefined,
+): ClosedTaskProfileHostRetryCapabilityV1 | null {
+	if (value === undefined) return null;
+	const capability = record(value, "host.retry");
+	exactKeys(
+		capability,
+		[
+			"maxAttemptsPerTurn",
+			"remainingElapsedMs",
+			"retryAdmissionIssueCodes",
+			"retryDelayMs",
+			"wait",
+		],
+		"host.retry",
+	);
+	const maxAttemptsPerTurn = safeInteger(
+		capability.maxAttemptsPerTurn,
+		"host.retry.maxAttemptsPerTurn",
+		{ min: 1, max: 3 },
+	);
+	const retryDelayMs = ownCapabilityFunction<
+		ClosedTaskProfileHostRetryCapabilityV1["retryDelayMs"]
+	>(capability, "retryDelayMs", "host.retry.retryDelayMs");
+	const retryAdmissionIssueCodes = ownCapabilityFunction<
+		ClosedTaskProfileHostRetryCapabilityV1["retryAdmissionIssueCodes"]
+	>(capability, "retryAdmissionIssueCodes", "host.retry.retryAdmissionIssueCodes");
+	const remainingElapsedMs = ownCapabilityFunction<
+		ClosedTaskProfileHostRetryCapabilityV1["remainingElapsedMs"]
+	>(capability, "remainingElapsedMs", "host.retry.remainingElapsedMs");
+	const wait = ownCapabilityFunction<ClosedTaskProfileHostRetryCapabilityV1["wait"]>(
+		capability,
+		"wait",
+		"host.retry.wait",
+	);
+	return Object.freeze({
+		maxAttemptsPerTurn,
+		retryDelayMs,
+		retryAdmissionIssueCodes,
+		remainingElapsedMs,
+		wait,
+	});
+}
+
 async function runValidatedHost(
 	input: ClosedTaskProfileHostRunInputV1,
 	frozen: FrozenEmpiricalCampaignManifestV1,
 	initialRequest: EmpiricalModelTurnRequestV1,
 	validated: ValidatedTaskProfile,
 	verifier: ClosedVerifierCapabilityV1,
-): Promise<ClosedTaskProfileHostRunOutcomeV2> {
+): Promise<ClosedTaskProfileHostRunOutcomeV3> {
 	const evidence = emptyEvidence();
 	try {
-		return await executeValidatedHost(input, frozen, initialRequest, validated, verifier, evidence);
+		return await executeValidatedHost(
+			input,
+			frozen,
+			initialRequest,
+			validated,
+			verifier,
+			validateRetryCapability(input.retry),
+			evidence,
+		);
 	} catch (error) {
 		if (error instanceof HostRunFailure) {
 			return nonEvaluableOutcome(validated.task.taskRef, validated.taskDigest, evidence, [
@@ -843,8 +933,9 @@ async function executeValidatedHost(
 	initialRequest: EmpiricalModelTurnRequestV1,
 	validated: ValidatedTaskProfile,
 	verifier: ClosedVerifierCapabilityV1,
+	retry: ClosedTaskProfileHostRetryCapabilityV1 | null,
 	evidence: MutableRunEvidence,
-): Promise<ClosedTaskProfileHostRunOutcomeV2> {
+): Promise<ClosedTaskProfileHostRunOutcomeV3> {
 	assertNotCancelled(input.signal);
 	const workspaceRoot = await validateWorkspaceRoot(
 		input.materialization.workspace.rootPathForHostRunner(),
@@ -866,7 +957,6 @@ async function executeValidatedHost(
 	}
 	const maximumTurns = Math.min(
 		frozen.manifest.budgets.agentRun.maxSteps,
-		frozen.manifest.budgets.agentRun.maxRequests,
 		configuration.settings.tools.maxSteps,
 	);
 	let request = initialRequest;
@@ -877,9 +967,6 @@ async function executeValidatedHost(
 
 	for (let stepIndex = 0; stepIndex < maximumTurns; stepIndex += 1) {
 		assertNotCancelled(input.signal);
-		if (evidence.turnCount >= frozen.manifest.budgets.agentRun.maxRequests) {
-			throw new HostRunFailure("agent-request-budget-exhausted");
-		}
 		if (stepIndex > 0) {
 			if (remainingOutputBytes === 0) {
 				throw new HostRunFailure("agent-output-byte-budget-exhausted");
@@ -899,66 +986,175 @@ async function executeValidatedHost(
 				throw new HostRunFailure("next-turn-request-invalid");
 			}
 		}
-		evidence.turnCount += 1;
-		let outcomeValue: unknown;
-		try {
-			outcomeValue = await input.modelTurnPort.invoke(request, input.signal);
-		} catch {
-			if (input.signal.aborted) throw new HostRunFailure("host-cancelled");
-			throw new HostRunFailure("model-turn-invocation-failed");
-		}
-		const cancelledAfterInvocation = input.signal.aborted;
-		let outcome: EmpiricalModelTurnOutcomeV1;
-		try {
-			outcome = validateEmpiricalModelTurnOutcome(
-				outcomeValue,
-				request,
-				frozen,
-				input.qualificationReport,
+		let outcome: EmpiricalModelTurnOutcomeV1 | null = null;
+		const maximumAttempts = retry?.maxAttemptsPerTurn ?? 1;
+		for (let attemptOrdinal = 1; attemptOrdinal <= maximumAttempts; attemptOrdinal += 1) {
+			if (evidence.attemptCount >= frozen.manifest.budgets.agentRun.maxRequests) {
+				throw new HostRunFailure("agent-request-budget-exhausted");
+			}
+			let outcomeValue: unknown;
+			try {
+				outcomeValue = await input.modelTurnPort.invoke(request, input.signal);
+			} catch {
+				if (input.signal.aborted) throw new HostRunFailure("host-cancelled");
+				throw new HostRunFailure("model-turn-invocation-failed");
+			}
+			const cancelledAfterInvocation = input.signal.aborted;
+			try {
+				outcome = validateEmpiricalModelTurnOutcome(
+					outcomeValue,
+					request,
+					frozen,
+					input.qualificationReport,
+				);
+			} catch (error) {
+				throw new HostRunFailure(classifyModelOutcomeValidationFailure(error));
+			}
+			evidence.logicalStepCount = stepIndex + 1;
+			evidence.attemptCount += 1;
+			if (cancelledAfterInvocation && outcome.status !== "non-evaluable") {
+				throw new HostRunFailure("host-cancelled");
+			}
+			evidence.remoteRequests += outcome.usage.requests;
+			evidence.hostInputBytes = checkedSum(
+				evidence.hostInputBytes,
+				outcome.usage.hostInputBytes,
+				"host-input-byte-budget-overflow",
 			);
-		} catch (error) {
-			throw new HostRunFailure(classifyModelOutcomeValidationFailure(error));
+			evidence.hostOutputBytes = checkedSum(
+				evidence.hostOutputBytes,
+				outcome.usage.hostOutputBytes,
+				"host-output-byte-budget-overflow",
+			);
+			remainingOutputBytes -= outcome.usage.hostOutputBytes;
+			evidence.turnEvidence.push(
+				strictSnapshot({
+					stepIndex,
+					attemptOrdinal,
+					requestDigest: empiricalStrictJsonDigest(request),
+					status: outcome.status,
+					finishReason: outcome.finishReason,
+					requests: outcome.usage.requests,
+					usageSource: outcome.usage.source,
+					inputTokens: outcome.usage.inputTokens,
+					outputTokens: outcome.usage.outputTokens,
+					totalTokens: outcome.usage.totalTokens,
+					hostInputBytes: outcome.usage.hostInputBytes,
+					hostOutputBytes: outcome.usage.hostOutputBytes,
+					latencyMs: outcome.latencyMs,
+					issueCodes: outcome.issueCodes,
+					evidenceRefs: outcome.evidenceRefs,
+					protectionReceipt: outcome.protectionReceipt,
+				}),
+			);
+			if (remainingOutputBytes < 0) {
+				throw new HostRunFailure("agent-output-byte-budget-exhausted");
+			}
+			if (outcome.status !== "non-evaluable") break;
+			let delayMs: number | null = null;
+			if (retry !== null) {
+				try {
+					const candidate = retry.retryDelayMs(outcome, attemptOrdinal);
+					delayMs =
+						candidate === null
+							? null
+							: safeInteger(candidate, "host.retry.delayMs", { min: 1, max: 600_000 });
+				} catch {
+					throw new HostRunFailure("model-turn-retry-policy-invalid");
+				}
+			}
+			if (delayMs === null) {
+				return nonEvaluableOutcome(validated.task.taskRef, validated.taskDigest, evidence, [
+					...outcome.issueCodes,
+					"model-turn-non-evaluable",
+				]);
+			}
+			if (attemptOrdinal >= maximumAttempts) {
+				return nonEvaluableOutcome(validated.task.taskRef, validated.taskDigest, evidence, [
+					...outcome.issueCodes,
+					"model-turn-non-evaluable",
+					"model-turn-retry-exhausted",
+				]);
+			}
+			if (retry === null) {
+				throw new HostRunFailure("model-turn-retry-policy-invalid");
+			}
+			let retryAdmissionIssueCodes: readonly string[];
+			try {
+				retryAdmissionIssueCodes = sortedIssueCodes(retry.retryAdmissionIssueCodes());
+			} catch {
+				throw new HostRunFailure("model-turn-retry-policy-invalid");
+			}
+			if (retryAdmissionIssueCodes.length > 0) {
+				return nonEvaluableOutcome(validated.task.taskRef, validated.taskDigest, evidence, [
+					...outcome.issueCodes,
+					...retryAdmissionIssueCodes,
+					"model-turn-non-evaluable",
+					"model-turn-retry-admission-rejected",
+				]);
+			}
+			let remainingElapsedMs: number;
+			try {
+				remainingElapsedMs = safeInteger(
+					retry.remainingElapsedMs(),
+					"host.retry.remainingElapsedMs",
+					{ min: 0, max: 86_400_000 },
+				);
+			} catch {
+				throw new HostRunFailure("model-turn-retry-policy-invalid");
+			}
+			if (delayMs > remainingElapsedMs) {
+				return nonEvaluableOutcome(validated.task.taskRef, validated.taskDigest, evidence, [
+					...outcome.issueCodes,
+					"model-turn-non-evaluable",
+					"model-turn-retry-elapsed-budget-exhausted",
+				]);
+			}
+			let elapsedMs: number;
+			try {
+				elapsedMs = safeInteger(
+					await retry.wait({ delayMs, signal: input.signal }),
+					"host.retry.elapsedMs",
+					{ min: delayMs, max: 86_400_000 },
+				);
+			} catch {
+				if (input.signal.aborted) throw new HostRunFailure("host-cancelled");
+				throw new HostRunFailure("model-turn-retry-wait-failed");
+			}
+			evidence.retryWaitMs = checkedSum(
+				evidence.retryWaitMs,
+				elapsedMs,
+				"model-turn-retry-wait-budget-overflow",
+			);
+			evidence.retryWaitEvidence.push(
+				strictSnapshot({
+					stepIndex,
+					afterAttemptOrdinal: attemptOrdinal,
+					scheduledDelayMs: delayMs,
+					elapsedMs,
+				}),
+			);
+			assertNotCancelled(input.signal);
+			let remainingAfterWaitMs: number;
+			try {
+				remainingAfterWaitMs = safeInteger(
+					retry.remainingElapsedMs(),
+					"host.retry.remainingElapsedMs",
+					{ min: 0, max: 86_400_000 },
+				);
+			} catch {
+				throw new HostRunFailure("model-turn-retry-policy-invalid");
+			}
+			if (remainingAfterWaitMs === 0) {
+				return nonEvaluableOutcome(validated.task.taskRef, validated.taskDigest, evidence, [
+					...outcome.issueCodes,
+					"model-turn-non-evaluable",
+					"model-turn-retry-elapsed-budget-exhausted",
+				]);
+			}
 		}
-		if (cancelledAfterInvocation && outcome.status !== "non-evaluable") {
-			throw new HostRunFailure("host-cancelled");
-		}
-		evidence.remoteRequests += outcome.usage.requests;
-		evidence.hostInputBytes = checkedSum(
-			evidence.hostInputBytes,
-			outcome.usage.hostInputBytes,
-			"host-input-byte-budget-overflow",
-		);
-		evidence.hostOutputBytes = checkedSum(
-			evidence.hostOutputBytes,
-			outcome.usage.hostOutputBytes,
-			"host-output-byte-budget-overflow",
-		);
-		remainingOutputBytes -= outcome.usage.hostOutputBytes;
-		if (remainingOutputBytes < 0) throw new HostRunFailure("agent-output-byte-budget-exhausted");
-		evidence.turnEvidence.push(
-			strictSnapshot({
-				stepIndex,
-				requestDigest: empiricalStrictJsonDigest(request),
-				status: outcome.status,
-				finishReason: outcome.finishReason,
-				requests: outcome.usage.requests,
-				usageSource: outcome.usage.source,
-				inputTokens: outcome.usage.inputTokens,
-				outputTokens: outcome.usage.outputTokens,
-				totalTokens: outcome.usage.totalTokens,
-				hostInputBytes: outcome.usage.hostInputBytes,
-				hostOutputBytes: outcome.usage.hostOutputBytes,
-				latencyMs: outcome.latencyMs,
-				issueCodes: outcome.issueCodes,
-				evidenceRefs: outcome.evidenceRefs,
-				protectionReceipt: outcome.protectionReceipt,
-			}),
-		);
-		if (outcome.status === "non-evaluable") {
-			return nonEvaluableOutcome(validated.task.taskRef, validated.taskDigest, evidence, [
-				...outcome.issueCodes,
-				"model-turn-non-evaluable",
-			]);
+		if (outcome === null || outcome.status === "non-evaluable") {
+			throw new HostRunFailure("model-turn-retry-outcome-missing");
 		}
 		if (outcome.finishReason === "structured-output" && outcome.structuredOutput !== null) {
 			let workspaceStateDigest: string;
@@ -1019,8 +1215,10 @@ async function executeValidatedHost(
 				status: "completed" as const,
 				taskRef: validated.task.taskRef,
 				taskDigest: validated.taskDigest,
-				turnCount: evidence.turnCount,
+				logicalStepCount: evidence.logicalStepCount,
+				attemptCount: evidence.attemptCount,
 				remoteRequests: evidence.remoteRequests,
+				retryWaitMs: evidence.retryWaitMs,
 				toolActionCount: evidence.toolActionCount,
 				hostInputBytes: evidence.hostInputBytes,
 				hostOutputBytes: evidence.hostOutputBytes,
@@ -1035,6 +1233,7 @@ async function executeValidatedHost(
 				workspaceChangeDigest,
 				workspaceChanged: workspaceChangeDigest !== empiricalStrictJsonDigest([]),
 				turnEvidence: evidence.turnEvidence,
+				retryWaitEvidence: evidence.retryWaitEvidence,
 				toolEvidence: evidence.toolEvidence,
 				actionTrace: evidence.actionTrace,
 				issueCodes: verifierResult.issueCodes,
@@ -1929,8 +2128,10 @@ function isSameOrDescendant(parent: string, candidate: string): boolean {
 
 function emptyEvidence(): MutableRunEvidence {
 	return {
-		turnCount: 0,
+		logicalStepCount: 0,
+		attemptCount: 0,
 		remoteRequests: 0,
+		retryWaitMs: 0,
 		toolActionCount: 0,
 		hostInputBytes: 0,
 		hostOutputBytes: 0,
@@ -1940,6 +2141,7 @@ function emptyEvidence(): MutableRunEvidence {
 		workspaceStateDigest: null,
 		workspaceChangeDigest: null,
 		turnEvidence: [],
+		retryWaitEvidence: [],
 		toolEvidence: [],
 		actionTrace: [],
 	};
@@ -1950,14 +2152,16 @@ function nonEvaluableOutcome(
 	taskDigest: string,
 	evidence: MutableRunEvidence,
 	issueCodes: readonly string[],
-): ClosedTaskProfileHostRunOutcomeV2 {
+): ClosedTaskProfileHostRunOutcomeV3 {
 	return strictSnapshot({
 		schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.runOutcome,
 		status: "non-evaluable" as const,
 		taskRef,
 		taskDigest,
-		turnCount: evidence.turnCount,
+		logicalStepCount: evidence.logicalStepCount,
+		attemptCount: evidence.attemptCount,
 		remoteRequests: evidence.remoteRequests,
+		retryWaitMs: evidence.retryWaitMs,
 		toolActionCount: evidence.toolActionCount,
 		hostInputBytes: evidence.hostInputBytes,
 		hostOutputBytes: evidence.hostOutputBytes,
@@ -1975,6 +2179,7 @@ function nonEvaluableOutcome(
 				? null
 				: evidence.workspaceChangeDigest !== empiricalStrictJsonDigest([]),
 		turnEvidence: evidence.turnEvidence,
+		retryWaitEvidence: evidence.retryWaitEvidence,
 		toolEvidence: evidence.toolEvidence,
 		actionTrace: evidence.actionTrace,
 		issueCodes: sortedIssueCodes(issueCodes),

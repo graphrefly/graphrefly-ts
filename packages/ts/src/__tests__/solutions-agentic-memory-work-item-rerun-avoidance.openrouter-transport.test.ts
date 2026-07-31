@@ -3,7 +3,10 @@ import {
 	createOpenRouterCredentialCapabilityFromOperatorEnvironment,
 	OPENROUTER_API_KEY_ENVIRONMENT_NAME,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-first-task-smoke.js";
-import { readOpenRouterSmokeOperatorMonotonicMs } from "../../evals/empirical-memory-rerun-avoidance/openrouter-first-task-smoke-operator.js";
+import {
+	readOpenRouterSmokeOperatorMonotonicMs,
+	waitOpenRouterSmokeRetryDelay,
+} from "../../evals/empirical-memory-rerun-avoidance/openrouter-first-task-smoke-operator.js";
 import { createOpenRouterResponsesFetchByteTransport } from "../../evals/empirical-memory-rerun-avoidance/openrouter-responses-byte-transport.js";
 import {
 	MAX_OPENROUTER_RESPONSES_RESPONSE_BYTES,
@@ -37,6 +40,33 @@ describe("B112 package-private OpenRouter live byte transport", () => {
 		const observedAtMs = readOpenRouterSmokeOperatorMonotonicMs();
 		expect(Number.isSafeInteger(observedAtMs)).toBe(true);
 		expect(observedAtMs).toBeGreaterThanOrEqual(0);
+	});
+
+	it("waits only at the outer operator boundary and removes the timer on abort", async () => {
+		vi.useFakeTimers();
+		try {
+			const completed = waitOpenRouterSmokeRetryDelay({
+				delayMs: 25,
+				signal: new AbortController().signal,
+			});
+			await vi.advanceTimersByTimeAsync(24);
+			expect(vi.getTimerCount()).toBe(1);
+			await vi.advanceTimersByTimeAsync(1);
+			await expect(completed).resolves.toBeUndefined();
+			expect(vi.getTimerCount()).toBe(0);
+
+			const controller = new AbortController();
+			const cancelled = waitOpenRouterSmokeRetryDelay({
+				delayMs: 25,
+				signal: controller.signal,
+			});
+			const rejection = expect(cancelled).rejects.toMatchObject({ name: "AbortError" });
+			controller.abort();
+			await rejection;
+			expect(vi.getTimerCount()).toBe(0);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("constructs credential capability only from the outer operator environment snapshot", () => {
@@ -114,6 +144,33 @@ describe("B112 package-private OpenRouter live byte transport", () => {
 			"x-openrouter-metadata": "enabled",
 		});
 		expect(new TextDecoder().decode(response.body)).toBe('{"ok":true}');
+		expect(response.retryAfterMs).toBeNull();
+	});
+
+	it("extracts only a bounded Retry-After delta without exposing other headers", async () => {
+		const fetchCapability = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(
+				new Response('{"error":true}', {
+					status: 429,
+					headers: { "retry-after": "7", "x-private-provider-material": credentialSentinel },
+				}),
+			)
+			.mockResolvedValueOnce(
+				new Response('{"error":true}', {
+					status: 429,
+					headers: { "retry-after": "601" },
+				}),
+			);
+		const transport = createOpenRouterResponsesFetchByteTransport({ fetch: fetchCapability });
+
+		const bounded = await transport.request(transportRequest());
+		const rejected = await transport.request(transportRequest());
+
+		expect(bounded).toMatchObject({ status: 429, retryAfterMs: 7_000 });
+		expect(rejected).toMatchObject({ status: 429, retryAfterMs: null });
+		expect(JSON.stringify({ bounded, rejected })).not.toContain(credentialSentinel);
+		expect(fetchCapability).toHaveBeenCalledTimes(2);
 	});
 
 	it("allows only the separately qualified Chat Completions wire endpoint", async () => {

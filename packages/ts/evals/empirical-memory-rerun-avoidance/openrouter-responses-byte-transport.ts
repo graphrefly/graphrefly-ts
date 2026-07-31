@@ -82,6 +82,19 @@ async function readBoundedResponseBody(
 	return body;
 }
 
+function retryAfterMs(response: Response): number | null {
+	let raw: string | null;
+	try {
+		raw = response.headers.get("retry-after");
+	} catch {
+		return null;
+	}
+	if (raw === null || !/^[1-9]\d{0,2}$/.test(raw)) return null;
+	const seconds = Number(raw);
+	if (!Number.isSafeInteger(seconds) || seconds > 600) return null;
+	return seconds * 1_000;
+}
+
 /**
  * Package-private, one-fetch byte transport. Redirects are rejected so the
  * explicit bearer capability can never be replayed to a second URL.
@@ -158,6 +171,7 @@ export function createOpenRouterResponsesFetchByteTransport(
 			return Object.freeze({
 				status,
 				body: await readBoundedResponseBody(response, maxResponseBytes),
+				retryAfterMs: retryAfterMs(response),
 			});
 		},
 	});

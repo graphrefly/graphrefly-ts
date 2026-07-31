@@ -16,11 +16,11 @@ import type { AgenticWorkItemMemoryMappingPolicy } from "../../src/solutions/age
 import { mapAgenticWorkItemMemoryApplicationRecipe } from "../../src/solutions/agentic-work-item-memory-application/index.js";
 import type { WorkItemProjection } from "../../src/solutions/work-item/index.js";
 import { empiricalStrictJsonDigest, strictSnapshot } from "./canonical.js";
-import type { ClosedTaskProfileHostRunOutcomeV2 } from "./closed-task-profile-host.js";
+import type { ClosedTaskProfileHostRunOutcomeV3 } from "./closed-task-profile-host.js";
 import type { EmpiricalWarmBranchKind } from "./contracts.js";
 import type {
 	EmpiricalWarmBranchLifecycleV2,
-	EmpiricalWarmBranchObservationV2,
+	EmpiricalWarmBranchObservationV3,
 } from "./empirical-smoke-evidence.js";
 import type { EmpiricalModelTurnRequestV1 } from "./model-execution.js";
 
@@ -62,7 +62,7 @@ function collectLatest<T>(node: Node<T>): { readonly latest: () => T | undefined
 	};
 }
 
-function coldSummary(outcome: ClosedTaskProfileHostRunOutcomeV2): string {
+function coldSummary(outcome: ClosedTaskProfileHostRunOutcomeV3): string {
 	if (outcome.status === "non-evaluable") {
 		return "The previous attempt ended non-evaluable before independent verification completed.";
 	}
@@ -72,7 +72,7 @@ function coldSummary(outcome: ClosedTaskProfileHostRunOutcomeV2): string {
 	return "The previous attempt did not establish a verifier-accepted target artifact.";
 }
 
-function coldActionRoute(outcome: ClosedTaskProfileHostRunOutcomeV2): string {
+function coldActionRoute(outcome: ClosedTaskProfileHostRunOutcomeV3): string {
 	const route = outcome.actionTrace.map((entry) => entry.toolRef);
 	return route.length === 0 ? "no tool actions" : route.join(" -> ");
 }
@@ -80,7 +80,7 @@ function coldActionRoute(outcome: ClosedTaskProfileHostRunOutcomeV2): string {
 function reflectedRecord(
 	variant: "relevant" | "irrelevant" | "wrong-scope",
 	request: EmpiricalModelTurnRequestV1,
-	coldOutcome: ClosedTaskProfileHostRunOutcomeV2,
+	coldOutcome: ClosedTaskProfileHostRunOutcomeV3,
 ): AgenticMemoryRecord<string> {
 	const relevant = variant !== "irrelevant";
 	const projectId =
@@ -146,7 +146,7 @@ function memoryRecordDigest(record: AgenticMemoryRecord<string>): string {
 
 function candidateMaterial(
 	record: AgenticMemoryRecord<string>,
-	coldOutcome: ClosedTaskProfileHostRunOutcomeV2,
+	coldOutcome: ClosedTaskProfileHostRunOutcomeV3,
 ): AgenticMemoryRecordCandidateMaterial<string> {
 	return Object.freeze({
 		kind: "agentic-memory-record-candidate-material" as const,
@@ -191,7 +191,7 @@ function workItem(request: EmpiricalModelTurnRequestV1): WorkItemProjection {
 
 function evidence(
 	request: EmpiricalModelTurnRequestV1,
-	coldOutcome: ClosedTaskProfileHostRunOutcomeV2,
+	coldOutcome: ClosedTaskProfileHostRunOutcomeV3,
 	materials: Readonly<{
 		relevant: AgenticMemoryRecordCandidateMaterial<string>;
 		irrelevant: AgenticMemoryRecordCandidateMaterial<string>;
@@ -357,7 +357,7 @@ function branchDefinition(branchKind: EmpiricalWarmBranchKind): {
 
 export function prepareB112MatchedBlockReflection(input: {
 	readonly coldRequest: EmpiricalModelTurnRequestV1;
-	readonly coldOutcome: ClosedTaskProfileHostRunOutcomeV2;
+	readonly coldOutcome: ClosedTaskProfileHostRunOutcomeV3;
 }): B112MatchedBlockReflectionV2 {
 	if (input.coldOutcome.verifierVerdict !== "failed") {
 		throw new TypeError("B112 matched warm branches require a verified cold failure");
@@ -486,4 +486,4 @@ export function prepareB112MatchedBlockReflection(input: {
 	});
 }
 
-export type B112WarmBranchInputV2 = Omit<EmpiricalWarmBranchObservationV2, "attempted" | "run">;
+export type B112WarmBranchInputV2 = Omit<EmpiricalWarmBranchObservationV3, "attempted" | "run">;

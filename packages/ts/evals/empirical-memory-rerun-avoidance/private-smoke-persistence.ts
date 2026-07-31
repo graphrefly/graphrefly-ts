@@ -10,8 +10,8 @@ import {
 } from "./canonical.js";
 import {
 	createEmpiricalCampaignScorecard,
-	type EmpiricalCampaignScorecardV2,
-	type EmpiricalTrialBlockObservationV2,
+	type EmpiricalCampaignScorecardV3,
+	type EmpiricalTrialBlockObservationV3,
 	validateEmpiricalCampaignScorecard,
 	validateEmpiricalTrialBlockObservation,
 } from "./empirical-smoke-evidence.js";
@@ -19,13 +19,13 @@ import type { EmpiricalExactPrivateNeedleProtectionExecutorV1 } from "./exact-pr
 import { executeEmpiricalProtection } from "./model-execution.js";
 
 export const PRIVATE_SMOKE_GENERATION_SCHEMA =
-	"graphrefly.private-solution-eval.empirical-smoke-generation.v2";
+	"graphrefly.private-solution-eval.empirical-smoke-generation.v3";
 const PRIVATE_OWNERSHIP_DIRECTORY = "empirical-memory-rerun-avoidance";
-const OBSERVATION_FILE = "trial-block-observation.v2.json";
-const SCORECARD_FILE = "campaign-scorecard.v2.json";
-const GENERATION_FILE = "generation.v2.json";
+const OBSERVATION_FILE = "trial-block-observation.v3.json";
+const SCORECARD_FILE = "campaign-scorecard.v3.json";
+const GENERATION_FILE = "generation.v3.json";
 
-export interface PersistedPrivateSmokeGenerationV2 {
+export interface PersistedPrivateSmokeGenerationV3 {
 	readonly generationPath: string;
 	readonly generationDigest: string;
 	readonly observationDigest: string;
@@ -92,10 +92,10 @@ async function syncDirectory(path: string): Promise<void> {
 export async function persistPrivateSmokeGeneration(input: {
 	readonly privateRoot: string;
 	readonly generationRef: string;
-	readonly observation: EmpiricalTrialBlockObservationV2;
-	readonly scorecard: EmpiricalCampaignScorecardV2;
+	readonly observation: EmpiricalTrialBlockObservationV3;
+	readonly scorecard: EmpiricalCampaignScorecardV3;
 	readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
-}): Promise<PersistedPrivateSmokeGenerationV2> {
+}): Promise<PersistedPrivateSmokeGenerationV3> {
 	const privateRoot = await assertSafePrivateRoot(input.privateRoot);
 	const generationRef = coordinate(input.generationRef, "privateSmoke.generationRef");
 	if (

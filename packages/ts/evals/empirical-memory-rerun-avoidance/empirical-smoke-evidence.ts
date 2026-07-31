@@ -12,15 +12,15 @@ import {
 } from "./canonical.js";
 import {
 	CLOSED_TASK_PROFILE_HOST_MAX_ACTION_TRACE_ENTRIES,
-	type ClosedTaskProfileHostRunOutcomeV2,
+	type ClosedTaskProfileHostRunOutcomeV3,
 } from "./closed-task-profile-host.js";
 import type { EmpiricalWarmBranchKind, FrozenEmpiricalCampaignManifestV1 } from "./contracts.js";
 import type { QualifiedOpenRouterRouteV1 } from "./openrouter-route-qualification.js";
 
 export const EMPIRICAL_TRIAL_BLOCK_OBSERVATION_SCHEMA =
-	"graphrefly.private-solution-eval.empirical-trial-block-observation.v2";
+	"graphrefly.private-solution-eval.empirical-trial-block-observation.v3";
 export const EMPIRICAL_CAMPAIGN_SCORECARD_SCHEMA =
-	"graphrefly.private-solution-eval.empirical-campaign-scorecard.v2";
+	"graphrefly.private-solution-eval.empirical-campaign-scorecard.v3";
 export const B112_SMOKE_NO_EFFICACY_CLAIM = "smoke-integration-no-efficacy-claim";
 
 export type EmpiricalSmokeEvidenceClassV1 =
@@ -38,7 +38,7 @@ export interface EmpiricalSmokeCostLedgerV1 {
 export type EmpiricalSmokeRunClassificationV1 = "complete" | "incomplete" | "non-evaluable";
 export type EmpiricalSmokeVerifierStatusV1 = "passed" | "failed" | "unverifiable" | "not-run";
 
-export interface EmpiricalSmokeRunObservationV2 {
+export interface EmpiricalSmokeRunObservationV3 {
 	readonly runRef: string;
 	readonly trialStage: "cold" | "warm";
 	readonly branchKind: EmpiricalWarmBranchKind | null;
@@ -46,6 +46,8 @@ export interface EmpiricalSmokeRunObservationV2 {
 	readonly verifierStatus: EmpiricalSmokeVerifierStatusV1;
 	readonly requests: number;
 	readonly steps: number;
+	readonly attempts: number;
+	readonly retryWaitMs: number;
 	readonly inputTokens: number | null;
 	readonly outputTokens: number | null;
 	readonly totalTokens: number | null;
@@ -60,6 +62,22 @@ export interface EmpiricalSmokeRunObservationV2 {
 	readonly initialRequestDigest: string | null;
 	readonly memoryContextRecordDigest: string | null;
 	readonly turnRequestDigests: readonly string[];
+	readonly attemptTrace: readonly {
+		readonly stepIndex: number;
+		readonly attemptOrdinal: number;
+		readonly requestDigest: string;
+		readonly status: "completed" | "non-evaluable";
+		readonly requests: 0 | 1;
+		readonly latencyMs: number;
+		readonly issueCodes: readonly string[];
+		readonly protectionReceiptDigest: string;
+	}[];
+	readonly retryWaitTrace: readonly {
+		readonly stepIndex: number;
+		readonly afterAttemptOrdinal: number;
+		readonly scheduledDelayMs: number;
+		readonly elapsedMs: number;
+	}[];
 	readonly toolResultBindings: readonly {
 		readonly toolCallRefDigest: string;
 		readonly toolRef: string;
@@ -70,7 +88,7 @@ export interface EmpiricalSmokeRunObservationV2 {
 	readonly workspaceChangeDigest: string | null;
 	readonly workspaceChanged: boolean | null;
 	readonly actionTraceDigest: string;
-	readonly actionTrace: ClosedTaskProfileHostRunOutcomeV2["actionTrace"];
+	readonly actionTrace: ClosedTaskProfileHostRunOutcomeV3["actionTrace"];
 	readonly routeEvidenceDigests: readonly string[];
 	readonly verifierEvidenceDigests: readonly string[];
 	readonly protectionReceiptDigests: readonly string[];
@@ -108,15 +126,15 @@ export interface EmpiricalWarmBranchLifecycleV2 {
 	readonly issueCodes: readonly string[];
 }
 
-export interface EmpiricalWarmBranchObservationV2 {
+export interface EmpiricalWarmBranchObservationV3 {
 	readonly branchKind: EmpiricalWarmBranchKind;
 	readonly attempted: boolean;
 	readonly lifecycle: EmpiricalWarmBranchLifecycleV2 | null;
-	readonly run: EmpiricalSmokeRunObservationV2 | null;
+	readonly run: EmpiricalSmokeRunObservationV3 | null;
 	readonly issueCodes: readonly string[];
 }
 
-export interface EmpiricalTrialBlockObservationV2 {
+export interface EmpiricalTrialBlockObservationV3 {
 	readonly schemaVersion: typeof EMPIRICAL_TRIAL_BLOCK_OBSERVATION_SCHEMA;
 	readonly executionClass: EmpiricalSmokeEvidenceClassV1;
 	readonly empiricalLiveEvidence: boolean;
@@ -170,6 +188,7 @@ export interface EmpiricalTrialBlockObservationV2 {
 		readonly warmRunsAttempted: number;
 		readonly requests: number;
 		readonly steps: number;
+		readonly attempts: number;
 		readonly inputTokens: number | null;
 		readonly outputTokens: number | null;
 		readonly totalTokens: number | null;
@@ -185,19 +204,19 @@ export interface EmpiricalTrialBlockObservationV2 {
 	readonly routeEvidenceDigests: readonly string[];
 	readonly verifierEvidenceDigests: readonly string[];
 	readonly protectionReceiptDigests: readonly string[];
-	readonly cold: EmpiricalSmokeRunObservationV2;
+	readonly cold: EmpiricalSmokeRunObservationV3;
 	readonly rerunEligible: boolean;
 	readonly reflection: {
 		readonly evidenceDigest: string | null;
 		readonly candidateRecordDigests: readonly string[];
 		readonly issueCodes: readonly string[];
 	};
-	readonly warmBranches: readonly EmpiricalWarmBranchObservationV2[];
+	readonly warmBranches: readonly EmpiricalWarmBranchObservationV3[];
 	readonly familyPassed: boolean | null;
 	readonly issueCodes: readonly string[];
 }
 
-export interface EmpiricalCampaignScorecardV2 {
+export interface EmpiricalCampaignScorecardV3 {
 	readonly schemaVersion: typeof EMPIRICAL_CAMPAIGN_SCORECARD_SCHEMA;
 	readonly campaignRef: string;
 	readonly manifestDigest: string;
@@ -249,6 +268,7 @@ export interface EmpiricalCampaignScorecardV2 {
 	readonly familyPassed: boolean | null;
 	readonly requests: number;
 	readonly steps: number;
+	readonly attempts: number;
 	readonly inputTokens: number | null;
 	readonly outputTokens: number | null;
 	readonly totalTokens: number | null;
@@ -271,7 +291,7 @@ function sortedUniqueCoordinates(values: readonly string[], path: string): reado
 }
 
 function summedProviderUsage(
-	outcome: ClosedTaskProfileHostRunOutcomeV2,
+	outcome: ClosedTaskProfileHostRunOutcomeV3,
 	field: "inputTokens" | "outputTokens" | "totalTokens",
 ): number | null {
 	let total = 0;
@@ -292,7 +312,7 @@ export function createEmpiricalTrialBlockObservation(input: {
 	readonly route: QualifiedOpenRouterRouteV1;
 	readonly cold: {
 		readonly runRef: string;
-		readonly hostOutcome: ClosedTaskProfileHostRunOutcomeV2;
+		readonly hostOutcome: ClosedTaskProfileHostRunOutcomeV3;
 		readonly costLedger: EmpiricalSmokeCostLedgerV1;
 	};
 	readonly reflection?: {
@@ -305,7 +325,7 @@ export function createEmpiricalTrialBlockObservation(input: {
 		readonly lifecycle: EmpiricalWarmBranchLifecycleV2 | null;
 		readonly run: {
 			readonly runRef: string;
-			readonly hostOutcome: ClosedTaskProfileHostRunOutcomeV2;
+			readonly hostOutcome: ClosedTaskProfileHostRunOutcomeV3;
 			readonly costLedger: EmpiricalSmokeCostLedgerV1;
 		} | null;
 		readonly issueCodes: readonly string[];
@@ -313,7 +333,7 @@ export function createEmpiricalTrialBlockObservation(input: {
 	readonly executionClass: "simulated-contract" | "live-provider";
 	readonly trialBlockRef: string;
 	readonly trialBlockDigest: string;
-}): EmpiricalTrialBlockObservationV2 {
+}): EmpiricalTrialBlockObservationV3 {
 	const manifest = input.frozen.manifest;
 	if (manifest.trialPlan.profile !== "smoke") {
 		throw new TypeError("B112 smoke observation requires the smoke trial plan");
@@ -348,7 +368,7 @@ export function createEmpiricalTrialBlockObservation(input: {
 	) {
 		throw new TypeError("B112 smoke warm branches do not match the frozen order");
 	}
-	const warmBranches: EmpiricalWarmBranchObservationV2[] = expectedBranches.map(
+	const warmBranches: EmpiricalWarmBranchObservationV3[] = expectedBranches.map(
 		(branchKind, index) => {
 			const supplied = suppliedBranches[index];
 			if (supplied === undefined) {
@@ -420,7 +440,7 @@ export function createEmpiricalTrialBlockObservation(input: {
 		rerunEligible &&
 		attemptedWarm.length === expectedBranches.length &&
 		evaluableWarm.length === expectedBranches.length;
-	const classification: EmpiricalTrialBlockObservationV2["result"]["classification"] =
+	const classification: EmpiricalTrialBlockObservationV3["result"]["classification"] =
 		cold.classification === "non-evaluable"
 			? "non-evaluable"
 			: rerunEligible
@@ -451,6 +471,7 @@ export function createEmpiricalTrialBlockObservation(input: {
 		field:
 			| "requests"
 			| "steps"
+			| "attempts"
 			| "hostInputBytes"
 			| "hostOutputBytes"
 			| "latencyMs"
@@ -544,6 +565,7 @@ export function createEmpiricalTrialBlockObservation(input: {
 			warmRunsAttempted: attemptedWarm.length,
 			requests: summed("requests"),
 			steps: summed("steps"),
+			attempts: summed("attempts"),
 			inputTokens: summedNullable("inputTokens"),
 			outputTokens: summedNullable("outputTokens"),
 			totalTokens: summedNullable("totalTokens"),
@@ -599,10 +621,10 @@ function createRunObservation(input: {
 	readonly runRef: string;
 	readonly trialStage: "cold" | "warm";
 	readonly branchKind: EmpiricalWarmBranchKind | null;
-	readonly hostOutcome: ClosedTaskProfileHostRunOutcomeV2;
+	readonly hostOutcome: ClosedTaskProfileHostRunOutcomeV3;
 	readonly costLedger: EmpiricalSmokeCostLedgerV1;
 	readonly executionClass: "simulated-contract" | "live-provider";
-}): EmpiricalSmokeRunObservationV2 {
+}): EmpiricalSmokeRunObservationV3 {
 	const costLedger = validateCostLedger(input.costLedger, input.executionClass);
 	const verifierStatus =
 		input.hostOutcome.verifierVerdict === null
@@ -616,7 +638,23 @@ function createRunObservation(input: {
 				: ("incomplete" as const);
 	const latencyMs = input.hostOutcome.turnEvidence.reduce(
 		(total, turn) => checkedSum(total, turn.latencyMs, "smoke run latency total overflow"),
-		0,
+		input.hostOutcome.retryWaitMs,
+	);
+	const turnRequestDigests = Array.from(
+		{ length: input.hostOutcome.logicalStepCount },
+		(_, stepIndex) => {
+			const attempts = input.hostOutcome.turnEvidence.filter(
+				(turn) => turn.stepIndex === stepIndex,
+			);
+			const requestDigest = attempts[0]?.requestDigest;
+			if (
+				requestDigest === undefined ||
+				attempts.some((attempt) => attempt.requestDigest !== requestDigest)
+			) {
+				throw new TypeError("smoke retry attempts must bind one exact logical-turn request");
+			}
+			return requestDigest;
+		},
 	);
 	return strictSnapshot({
 		runRef: coordinate(input.runRef, "smoke.runRef"),
@@ -625,7 +663,9 @@ function createRunObservation(input: {
 		classification,
 		verifierStatus,
 		requests: input.hostOutcome.remoteRequests,
-		steps: input.hostOutcome.turnCount,
+		steps: input.hostOutcome.logicalStepCount,
+		attempts: input.hostOutcome.attemptCount,
+		retryWaitMs: input.hostOutcome.retryWaitMs,
 		inputTokens: summedProviderUsage(input.hostOutcome, "inputTokens"),
 		outputTokens: summedProviderUsage(input.hostOutcome, "outputTokens"),
 		totalTokens: summedProviderUsage(input.hostOutcome, "totalTokens"),
@@ -639,7 +679,18 @@ function createRunObservation(input: {
 		hostOutcomeDigest: empiricalStrictJsonDigest(input.hostOutcome),
 		initialRequestDigest: input.hostOutcome.initialRequestDigest,
 		memoryContextRecordDigest: input.hostOutcome.initialMemoryContextRecordDigest,
-		turnRequestDigests: input.hostOutcome.turnEvidence.map((turn) => turn.requestDigest),
+		turnRequestDigests,
+		attemptTrace: input.hostOutcome.turnEvidence.map((turn) => ({
+			stepIndex: turn.stepIndex,
+			attemptOrdinal: turn.attemptOrdinal,
+			requestDigest: turn.requestDigest,
+			status: turn.status,
+			requests: turn.requests,
+			latencyMs: turn.latencyMs,
+			issueCodes: sortedUniqueCoordinates(turn.issueCodes, "smoke.run.attemptTrace.issueCodes"),
+			protectionReceiptDigest: turn.protectionReceipt.receiptDigest,
+		})),
+		retryWaitTrace: input.hostOutcome.retryWaitEvidence,
 		toolResultBindings: input.hostOutcome.toolEvidence.map((tool) => ({
 			toolCallRefDigest: tool.toolCallRefDigest,
 			toolRef: tool.toolRef,
@@ -670,7 +721,7 @@ function createRunObservation(input: {
 }
 
 function actionTraceBoundToDeliveredMemory(
-	run: EmpiricalSmokeRunObservationV2,
+	run: EmpiricalSmokeRunObservationV3,
 	selectedRecordDigest: string,
 ): boolean {
 	// This predicate proves only that a completed action belongs to the exact
@@ -692,7 +743,7 @@ function actionTraceBoundToDeliveredMemory(
 	);
 }
 
-function actionRouteDigest(run: EmpiricalSmokeRunObservationV2): string {
+function actionRouteDigest(run: EmpiricalSmokeRunObservationV3): string {
 	return empiricalStrictJsonDigest(
 		run.actionTrace.map((entry) => ({
 			toolRef: entry.toolRef,
@@ -702,8 +753,8 @@ function actionRouteDigest(run: EmpiricalSmokeRunObservationV2): string {
 }
 
 function priorFailureRouteAvoided(
-	cold: EmpiricalSmokeRunObservationV2,
-	warm: EmpiricalSmokeRunObservationV2,
+	cold: EmpiricalSmokeRunObservationV3,
+	warm: EmpiricalSmokeRunObservationV3,
 ): boolean {
 	return (
 		warm.actionTrace.length > 0 &&
@@ -720,7 +771,7 @@ function priorFailureRouteAvoided(
 
 function validateCostLedger(
 	value: EmpiricalSmokeCostLedgerV1,
-	executionClass: EmpiricalTrialBlockObservationV2["executionClass"],
+	executionClass: EmpiricalTrialBlockObservationV3["executionClass"],
 ): EmpiricalSmokeCostLedgerV1 {
 	const ledger = record(value, "smoke.costLedger");
 	exactKeys(
@@ -777,7 +828,7 @@ function nullableTokens(value: unknown, path: string): number | null {
 function validateActionTrace(
 	value: unknown,
 	path: string,
-): ClosedTaskProfileHostRunOutcomeV2["actionTrace"] {
+): ClosedTaskProfileHostRunOutcomeV3["actionTrace"] {
 	const values = array(value, path);
 	if (values.length > CLOSED_TASK_PROFILE_HOST_MAX_ACTION_TRACE_ENTRIES) {
 		throw new TypeError(`${path} exceeds its bounded item count`);
@@ -832,13 +883,17 @@ function validateActionTrace(
 	);
 }
 
-function validateSmokeRunObservation(value: unknown, path: string): EmpiricalSmokeRunObservationV2 {
+function validateSmokeRunObservation(value: unknown, path: string): EmpiricalSmokeRunObservationV3 {
 	const run = record(value, path);
 	exactKeys(
 		run,
 		[
 			"actionTrace",
 			"actionTraceDigest",
+			"attemptTrace",
+			"attempts",
+			"retryWaitMs",
+			"retryWaitTrace",
 			"branchKind",
 			"classification",
 			"costBasis",
@@ -903,10 +958,95 @@ function validateSmokeRunObservation(value: unknown, path: string): EmpiricalSmo
 		run.protectionReceiptDigests,
 		`${path}.protectionReceiptDigests`,
 	);
+	const runIssueCodes = validateCoordinateList(run.issueCodes, `${path}.issueCodes`);
 	const steps = safeInteger(run.steps, `${path}.steps`, { min: 0, max: 64 });
-	if (steps > 0 && protectionReceiptDigests.length !== steps) {
-		throw new TypeError(`${path} lacks one protection receipt per step`);
+	const attempts = safeInteger(run.attempts, `${path}.attempts`, { min: 0, max: 64 });
+	const attemptValues = array(run.attemptTrace, `${path}.attemptTrace`);
+	if (attemptValues.length > 64) {
+		throw new TypeError(`${path}.attemptTrace exceeds its bounded item count`);
 	}
+	const attemptTrace = Object.freeze(
+		attemptValues.map((value, index) => {
+			const attemptPath = `${path}.attemptTrace[${index}]`;
+			const attempt = record(value, attemptPath);
+			exactKeys(
+				attempt,
+				[
+					"attemptOrdinal",
+					"issueCodes",
+					"latencyMs",
+					"protectionReceiptDigest",
+					"requestDigest",
+					"requests",
+					"status",
+					"stepIndex",
+				],
+				attemptPath,
+			);
+			return strictSnapshot({
+				stepIndex: safeInteger(attempt.stepIndex, `${attemptPath}.stepIndex`, {
+					min: 0,
+					max: 63,
+				}),
+				attemptOrdinal: safeInteger(attempt.attemptOrdinal, `${attemptPath}.attemptOrdinal`, {
+					min: 1,
+					max: 3,
+				}),
+				requestDigest: digest(attempt.requestDigest, `${attemptPath}.requestDigest`),
+				status: oneOf(attempt.status, ["completed", "non-evaluable"], `${attemptPath}.status`),
+				requests: safeInteger(attempt.requests, `${attemptPath}.requests`, {
+					min: 0,
+					max: 1,
+				}) as 0 | 1,
+				latencyMs: safeInteger(attempt.latencyMs, `${attemptPath}.latencyMs`, {
+					min: 0,
+					max: 86_400_000,
+				}),
+				issueCodes: validateCoordinateList(attempt.issueCodes, `${attemptPath}.issueCodes`),
+				protectionReceiptDigest: digest(
+					attempt.protectionReceiptDigest,
+					`${attemptPath}.protectionReceiptDigest`,
+				),
+			});
+		}),
+	);
+	if (attemptTrace.length !== attempts) {
+		throw new TypeError(`${path}.attemptTrace must bind every exact attempt`);
+	}
+	const retryWaitValues = array(run.retryWaitTrace, `${path}.retryWaitTrace`);
+	if (retryWaitValues.length > attempts) {
+		throw new TypeError(`${path}.retryWaitTrace exceeds its bounded attempt count`);
+	}
+	const retryWaitTrace = Object.freeze(
+		retryWaitValues.map((value, index) => {
+			const waitPath = `${path}.retryWaitTrace[${index}]`;
+			const wait = record(value, waitPath);
+			exactKeys(
+				wait,
+				["afterAttemptOrdinal", "elapsedMs", "scheduledDelayMs", "stepIndex"],
+				waitPath,
+			);
+			return strictSnapshot({
+				stepIndex: safeInteger(wait.stepIndex, `${waitPath}.stepIndex`, {
+					min: 0,
+					max: 63,
+				}),
+				afterAttemptOrdinal: safeInteger(
+					wait.afterAttemptOrdinal,
+					`${waitPath}.afterAttemptOrdinal`,
+					{ min: 1, max: 2 },
+				),
+				scheduledDelayMs: safeInteger(wait.scheduledDelayMs, `${waitPath}.scheduledDelayMs`, {
+					min: 1,
+					max: 600_000,
+				}),
+				elapsedMs: safeInteger(wait.elapsedMs, `${waitPath}.elapsedMs`, {
+					min: 1,
+					max: 86_400_000,
+				}),
+			});
+		}),
+	);
 	const actionTrace = validateActionTrace(run.actionTrace, `${path}.actionTrace`);
 	if (actionTrace.some((entry) => entry.stepIndex >= steps)) {
 		throw new TypeError(`${path}.actionTrace contains an action outside the bounded steps`);
@@ -943,6 +1083,107 @@ function validateSmokeRunObservation(value: unknown, path: string): EmpiricalSmo
 		(initialRequestDigest === null || turnRequestDigests[0] !== initialRequestDigest)
 	) {
 		throw new TypeError(`${path}.turnRequestDigests[0] must equal the initial request digest`);
+	}
+	for (let index = 0; index < attemptTrace.length; index += 1) {
+		const attempt = attemptTrace[index] as (typeof attemptTrace)[number];
+		const previous = attemptTrace[index - 1];
+		if (
+			attempt.stepIndex >= steps ||
+			turnRequestDigests[attempt.stepIndex] !== attempt.requestDigest
+		) {
+			throw new TypeError(`${path}.attemptTrace is not bound to its exact logical turn`);
+		}
+		if (previous === undefined) {
+			if (attempt.stepIndex !== 0 || attempt.attemptOrdinal !== 1) {
+				throw new TypeError(`${path}.attemptTrace must begin at step zero attempt one`);
+			}
+			continue;
+		}
+		if (attempt.stepIndex === previous.stepIndex) {
+			if (
+				previous.status !== "non-evaluable" ||
+				attempt.attemptOrdinal !== previous.attemptOrdinal + 1
+			) {
+				throw new TypeError(`${path}.attemptTrace retry order is not canonical`);
+			}
+			continue;
+		}
+		if (
+			previous.status !== "completed" ||
+			attempt.stepIndex !== previous.stepIndex + 1 ||
+			attempt.attemptOrdinal !== 1
+		) {
+			throw new TypeError(`${path}.attemptTrace logical-step order is not canonical`);
+		}
+	}
+	if (
+		(steps === 0 && attemptTrace.length !== 0) ||
+		(steps > 0 &&
+			(attemptTrace.length === 0 ||
+				(attemptTrace.at(-1) as (typeof attemptTrace)[number]).stepIndex !== steps - 1))
+	) {
+		throw new TypeError(`${path}.attemptTrace must include every logical turn`);
+	}
+	const expectedRetryWaitForAttempt = (attempt: (typeof attemptTrace)[number], index: number) => {
+		const retryable429 =
+			attempt.status === "non-evaluable" &&
+			attempt.issueCodes.includes("openrouter-http-status:429") &&
+			attempt.issueCodes.includes("openrouter-error-type:rate_limit_exceeded");
+		const retryable503 =
+			attempt.status === "non-evaluable" &&
+			attempt.issueCodes.includes("openrouter-http-status:503") &&
+			attempt.issueCodes.includes("openrouter-error-type:provider_overloaded");
+		if (!retryable429 && !retryable503) {
+			throw new TypeError(`${path}.attemptTrace retries a non-allowlisted outcome`);
+		}
+		const retryAfterPrefix = "openrouter-retry-after-ms:";
+		const encodedRetryAfter = attempt.issueCodes.find((issueCode) =>
+			issueCode.startsWith(retryAfterPrefix),
+		);
+		const retryAfterMs =
+			encodedRetryAfter === undefined
+				? 0
+				: safeInteger(
+						Number(encodedRetryAfter.slice(retryAfterPrefix.length)),
+						`${path}.attemptTrace[${index}].retryAfterMs`,
+						{ min: 1, max: 600_000 },
+					);
+		const fallbackMs = attempt.attemptOrdinal === 1 ? 5_000 : 10_000;
+		return {
+			stepIndex: attempt.stepIndex,
+			afterAttemptOrdinal: attempt.attemptOrdinal,
+			scheduledDelayMs: Math.max(fallbackMs, retryAfterMs),
+		};
+	};
+	const expectedRetryWaits = attemptTrace.flatMap((attempt, index) => {
+		const next = attemptTrace[index + 1];
+		if (next === undefined || next.stepIndex !== attempt.stepIndex) return [];
+		return [expectedRetryWaitForAttempt(attempt, index)];
+	});
+	if (
+		retryWaitTrace.length === expectedRetryWaits.length + 1 &&
+		runIssueCodes.includes("model-turn-retry-elapsed-budget-exhausted")
+	) {
+		const terminalAttempt = attemptTrace.at(-1);
+		if (terminalAttempt === undefined || terminalAttempt.status !== "non-evaluable") {
+			throw new TypeError(`${path}.retryWaitTrace has no terminal retryable attempt`);
+		}
+		expectedRetryWaits.push(expectedRetryWaitForAttempt(terminalAttempt, attemptTrace.length - 1));
+	}
+	if (
+		retryWaitTrace.length !== expectedRetryWaits.length ||
+		retryWaitTrace.some((wait, index) => {
+			const expected = expectedRetryWaits[index];
+			return (
+				expected === undefined ||
+				wait.stepIndex !== expected.stepIndex ||
+				wait.afterAttemptOrdinal !== expected.afterAttemptOrdinal ||
+				wait.scheduledDelayMs !== expected.scheduledDelayMs ||
+				wait.elapsedMs < wait.scheduledDelayMs
+			);
+		})
+	) {
+		throw new TypeError(`${path}.retryWaitTrace is not the exact canonical retry sequence`);
 	}
 	const toolResultBindings = Object.freeze(
 		array(run.toolResultBindings, `${path}.toolResultBindings`).map((value, index) => {
@@ -1004,23 +1245,45 @@ function validateSmokeRunObservation(value: unknown, path: string): EmpiricalSmo
 	) {
 		throw new TypeError(`${path} workspace state classification is inconsistent`);
 	}
+	const requests = safeInteger(run.requests, `${path}.requests`, { min: 0, max: 64 });
+	const latencyMs = safeInteger(run.latencyMs, `${path}.latencyMs`, {
+		min: 0,
+		max: 86_400_000,
+	});
+	const retryWaitMs = safeInteger(run.retryWaitMs, `${path}.retryWaitMs`, {
+		min: 0,
+		max: 86_400_000,
+	});
+	const expectedProtectionReceiptDigests = [
+		...new Set(attemptTrace.map((attempt) => attempt.protectionReceiptDigest)),
+	].sort();
+	if (
+		attemptTrace.reduce((total, attempt) => total + attempt.requests, 0) !== requests ||
+		attemptTrace.reduce((total, attempt) => total + attempt.latencyMs, retryWaitMs) !== latencyMs ||
+		retryWaitTrace.reduce((total, wait) => total + wait.elapsedMs, 0) !== retryWaitMs ||
+		expectedProtectionReceiptDigests.length !== protectionReceiptDigests.length ||
+		expectedProtectionReceiptDigests.some(
+			(receiptDigest, index) => protectionReceiptDigests[index] !== receiptDigest,
+		)
+	) {
+		throw new TypeError(`${path}.attemptTrace totals or protection receipts do not match`);
+	}
 	return strictSnapshot({
 		runRef: coordinate(run.runRef, `${path}.runRef`),
 		trialStage,
 		branchKind,
 		classification,
 		verifierStatus,
-		requests: safeInteger(run.requests, `${path}.requests`, { min: 0, max: 64 }),
+		requests,
 		steps,
+		attempts,
+		retryWaitMs,
 		inputTokens: nullableTokens(run.inputTokens, `${path}.inputTokens`),
 		outputTokens: nullableTokens(run.outputTokens, `${path}.outputTokens`),
 		totalTokens: nullableTokens(run.totalTokens, `${path}.totalTokens`),
 		hostInputBytes: safeInteger(run.hostInputBytes, `${path}.hostInputBytes`, { min: 0 }),
 		hostOutputBytes: safeInteger(run.hostOutputBytes, `${path}.hostOutputBytes`, { min: 0 }),
-		latencyMs: safeInteger(run.latencyMs, `${path}.latencyMs`, {
-			min: 0,
-			max: 86_400_000,
-		}),
+		latencyMs,
 		costMicrousd: safeInteger(run.costMicrousd, `${path}.costMicrousd`, { min: 0 }),
 		costBasis: oneOf(
 			run.costBasis,
@@ -1037,6 +1300,8 @@ function validateSmokeRunObservation(value: unknown, path: string): EmpiricalSmo
 		initialRequestDigest,
 		memoryContextRecordDigest,
 		turnRequestDigests,
+		attemptTrace,
+		retryWaitTrace,
 		toolResultBindings,
 		workspaceBaselineDigest,
 		workspaceStateDigest,
@@ -1053,7 +1318,7 @@ function validateSmokeRunObservation(value: unknown, path: string): EmpiricalSmo
 			`${path}.verifierEvidenceDigests`,
 		),
 		protectionReceiptDigests,
-		issueCodes: validateCoordinateList(run.issueCodes, `${path}.issueCodes`),
+		issueCodes: runIssueCodes,
 	});
 }
 
@@ -1270,7 +1535,7 @@ function validateWarmBranchLifecycle(
 
 export function validateEmpiricalTrialBlockObservation(
 	value: unknown,
-): EmpiricalTrialBlockObservationV2 {
+): EmpiricalTrialBlockObservationV3 {
 	const observation = record(value, "trialBlockObservation");
 	exactKeys(
 		observation,
@@ -1370,7 +1635,7 @@ export function validateEmpiricalTrialBlockObservation(
 	if (warmValues.length !== EMPIRICAL_WARM_BRANCHES.length) {
 		throw new TypeError("trial observation requires the exact five warm branches");
 	}
-	const warmBranches = warmValues.map((value, index): EmpiricalWarmBranchObservationV2 => {
+	const warmBranches = warmValues.map((value, index): EmpiricalWarmBranchObservationV3 => {
 		const path = `trialBlockObservation.warmBranches[${index}]`;
 		const branch = record(value, path);
 		exactKeys(branch, ["attempted", "branchKind", "issueCodes", "lifecycle", "run"], path);
@@ -1436,9 +1701,9 @@ export function validateEmpiricalTrialBlockObservation(
 	const attemptedWarm = warmBranches.filter(
 		(
 			branch,
-		): branch is EmpiricalWarmBranchObservationV2 & {
+		): branch is EmpiricalWarmBranchObservationV3 & {
 			readonly attempted: true;
-			readonly run: EmpiricalSmokeRunObservationV2;
+			readonly run: EmpiricalSmokeRunObservationV3;
 		} => branch.attempted && branch.run !== null,
 	);
 	const runs = [cold, ...attemptedWarm.map((branch) => branch.run)];
@@ -1446,6 +1711,7 @@ export function validateEmpiricalTrialBlockObservation(
 		field:
 			| "requests"
 			| "steps"
+			| "attempts"
 			| "hostInputBytes"
 			| "hostOutputBytes"
 			| "latencyMs"
@@ -1486,6 +1752,7 @@ export function validateEmpiricalTrialBlockObservation(
 		result.costBasis !== expectedCostBasis ||
 		result.requests !== sum("requests") ||
 		result.steps !== sum("steps") ||
+		result.attempts !== sum("attempts") ||
 		result.inputTokens !== sumNullable("inputTokens") ||
 		result.outputTokens !== sumNullable("outputTokens") ||
 		result.totalTokens !== sumNullable("totalTokens") ||
@@ -1512,7 +1779,8 @@ export function validateEmpiricalTrialBlockObservation(
 	);
 	const hasBudgetExhaustion =
 		(result.classification === "non-evaluable" || result.classification === "incomplete") &&
-		issueCodes.includes("smoke-budget-exhausted");
+		(issueCodes.includes("smoke-budget-exhausted") ||
+			issueCodes.includes("model-turn-retry-elapsed-budget-exhausted"));
 	const postAttemptBudgetExceeded =
 		(result.inputTokens !== null && result.inputTokens > route.maxInputTokens) ||
 		(result.outputTokens !== null && result.outputTokens > route.maxOutputTokens) ||
@@ -1563,7 +1831,6 @@ export function validateEmpiricalTrialBlockObservation(
 		"trialBlockObservation.result.warmRunsAttempted",
 	);
 	if (
-		(result.steps > 0 && protectionReceiptDigests.length !== result.steps) ||
 		(executionClass === "live-approved-no-provider-evidence" &&
 			routeEvidenceDigests.length !== 0) ||
 		(hasBudgetExhaustion &&
@@ -1571,8 +1838,8 @@ export function validateEmpiricalTrialBlockObservation(
 			result.outputTokens !== null &&
 			routeEvidenceDigests.length !== result.requests) ||
 		(result.classification === "complete" &&
-			result.requests > 0 &&
-			routeEvidenceDigests.length !== result.requests)
+			result.steps > 0 &&
+			routeEvidenceDigests.length !== result.steps)
 	) {
 		throw new TypeError("trial observation lacks required frozen evidence");
 	}
@@ -1626,7 +1893,7 @@ export function validateEmpiricalTrialBlockObservation(
 	});
 }
 
-function validateObservationRoute(value: unknown): EmpiricalTrialBlockObservationV2["route"] {
+function validateObservationRoute(value: unknown): EmpiricalTrialBlockObservationV3["route"] {
 	const route = record(value, "trialBlockObservation.route");
 	const keys = [
 		"adapterRevision",
@@ -1791,7 +2058,7 @@ function validateObservationRoute(value: unknown): EmpiricalTrialBlockObservatio
 	});
 }
 
-function validateObservationResult(value: unknown): EmpiricalTrialBlockObservationV2["result"] {
+function validateObservationResult(value: unknown): EmpiricalTrialBlockObservationV3["result"] {
 	const result = record(value, "trialBlockObservation.result");
 	exactKeys(
 		result,
@@ -1800,6 +2067,7 @@ function validateObservationResult(value: unknown): EmpiricalTrialBlockObservati
 			"coldRunsAttempted",
 			"costBasis",
 			"costMicrousd",
+			"attempts",
 			"hostInputBytes",
 			"hostOutputBytes",
 			"inputTokens",
@@ -1845,6 +2113,10 @@ function validateObservationResult(value: unknown): EmpiricalTrialBlockObservati
 		steps: safeInteger(result.steps, "trialBlockObservation.result.steps", {
 			min: 0,
 			max: 384,
+		}),
+		attempts: safeInteger(result.attempts, "trialBlockObservation.result.attempts", {
+			min: 0,
+			max: 48,
 		}),
 		inputTokens: nullableTokens(result.inputTokens, "trialBlockObservation.result.inputTokens"),
 		outputTokens: nullableTokens(result.outputTokens, "trialBlockObservation.result.outputTokens"),
@@ -1917,9 +2189,9 @@ function validateCoordinateList(value: unknown, path: string): readonly string[]
 }
 
 export function createEmpiricalCampaignScorecard(
-	observationValue: EmpiricalTrialBlockObservationV2,
+	observationValue: EmpiricalTrialBlockObservationV3,
 	aggregationRevision: string,
-): EmpiricalCampaignScorecardV2 {
+): EmpiricalCampaignScorecardV3 {
 	const observation = validateEmpiricalTrialBlockObservation(observationValue);
 	const complete = observation.result.classification === "complete" ? 1 : 0;
 	const incomplete = observation.result.classification === "incomplete" ? 1 : 0;
@@ -2011,6 +2283,7 @@ export function createEmpiricalCampaignScorecard(
 		familyPassed: observation.familyPassed,
 		requests: observation.result.requests,
 		steps: observation.result.steps,
+		attempts: observation.result.attempts,
 		inputTokens: observation.result.inputTokens,
 		outputTokens: observation.result.outputTokens,
 		totalTokens: observation.result.totalTokens,
@@ -2031,13 +2304,14 @@ export function createEmpiricalCampaignScorecard(
 	});
 }
 
-export function validateEmpiricalCampaignScorecard(value: unknown): EmpiricalCampaignScorecardV2 {
+export function validateEmpiricalCampaignScorecard(value: unknown): EmpiricalCampaignScorecardV3 {
 	const scorecard = record(value, "campaignScorecard");
 	exactKeys(
 		scorecard,
 		[
 			"aggregationRevision",
 			"armResults",
+			"attempts",
 			"attemptedBlocks",
 			"campaignRef",
 			"claimBoundary",
@@ -2380,6 +2654,10 @@ export function validateEmpiricalCampaignScorecard(value: unknown): EmpiricalCam
 		familyPassed,
 		requests,
 		steps: safeInteger(scorecard.steps, "campaignScorecard.steps", { min: 0, max: 384 }),
+		attempts: safeInteger(scorecard.attempts, "campaignScorecard.attempts", {
+			min: 0,
+			max: 48,
+		}),
 		inputTokens: nullableTokens(scorecard.inputTokens, "campaignScorecard.inputTokens"),
 		outputTokens: nullableTokens(scorecard.outputTokens, "campaignScorecard.outputTokens"),
 		totalTokens: nullableTokens(scorecard.totalTokens, "campaignScorecard.totalTokens"),

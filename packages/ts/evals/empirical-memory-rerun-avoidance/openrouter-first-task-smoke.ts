@@ -1,15 +1,16 @@
 import { type StrictJsonValue, strictJsonCodec } from "../../src/json/codec.js";
 import { empiricalStrictJsonDigest, safeInteger, strictSnapshot } from "./canonical.js";
 import {
+	type ClosedTaskProfileHostRetryCapabilityV1,
 	type ClosedTaskProfileHostRunInputV1,
 	runClosedTaskProfileHost,
 } from "./closed-task-profile-host.js";
 import {
 	createEmpiricalCampaignScorecard,
 	createEmpiricalTrialBlockObservation,
-	type EmpiricalCampaignScorecardV2,
+	type EmpiricalCampaignScorecardV3,
 	type EmpiricalSmokeCostLedgerV1,
-	type EmpiricalTrialBlockObservationV2,
+	type EmpiricalTrialBlockObservationV3,
 } from "./empirical-smoke-evidence.js";
 import {
 	B112_MATCHED_BLOCK_MEMORY_REVISION,
@@ -59,7 +60,7 @@ import {
 	type OpenRouterRouteQualificationV1,
 } from "./openrouter-route-qualification.js";
 import {
-	type PersistedPrivateSmokeGenerationV2,
+	type PersistedPrivateSmokeGenerationV3,
 	persistPrivateSmokeGeneration,
 } from "./private-smoke-persistence.js";
 
@@ -101,10 +102,10 @@ export interface B112SmokeAdmissionRejectionV1 {
 	readonly maxSmokeSpendMicrousd: number;
 }
 
-export interface OpenRouterFirstTaskSmokeResultV2 {
-	readonly observation: EmpiricalTrialBlockObservationV2;
-	readonly scorecard: EmpiricalCampaignScorecardV2;
-	readonly persistence: PersistedPrivateSmokeGenerationV2;
+export interface OpenRouterFirstTaskSmokeResultV3 {
+	readonly observation: EmpiricalTrialBlockObservationV3;
+	readonly scorecard: EmpiricalCampaignScorecardV3;
+	readonly persistence: PersistedPrivateSmokeGenerationV3;
 	/**
 	 * Bounded operator diagnostic only. It is intentionally excluded from the
 	 * observation, scorecard, and private persisted generation.
@@ -193,7 +194,12 @@ export function createOpenRouterCredentialCapabilityFromOperatorEnvironment(
 
 interface MutableSmokeBudget {
 	requests: number;
-	currentRunRequests: number;
+	readonly currentRunRequestRefs: Set<string>;
+	lastAdmission: {
+		readonly requestRef: string;
+		readonly wireRequestBytes: number;
+		readonly maxOutputTokens: number;
+	} | null;
 	reservedInputTokens: number;
 	reservedOutputTokens: number;
 	reservedCostMicrousd: number;
@@ -205,6 +211,112 @@ interface MutableSmokeBudget {
 	latencyMs: number;
 	exhausted: boolean;
 	admissionRejection: B112SmokeAdmissionRejectionV1 | null;
+}
+
+export interface OpenRouterFirstTaskRetryWaitCapabilityV1 {
+	wait(input: { readonly delayMs: number; readonly signal: AbortSignal }): Promise<void>;
+}
+
+const B112_OPENROUTER_MAX_ATTEMPTS_PER_TURN = 3;
+const B112_OPENROUTER_RETRY_FALLBACK_MS = Object.freeze([5_000, 10_000] as const);
+
+function retryAfterMsFromIssues(issueCodes: readonly string[]): number | null {
+	const prefix = "openrouter-retry-after-ms:";
+	const encoded = issueCodes.find((issueCode) => issueCode.startsWith(prefix));
+	if (encoded === undefined) return null;
+	const value = Number(encoded.slice(prefix.length));
+	return Number.isSafeInteger(value) && value >= 1 && value <= 600_000 ? value : null;
+}
+
+function createOpenRouterRetryCapability(
+	route: OpenRouterRouteQualificationV1,
+	ledger: MutableSmokeBudget,
+	waitCapability: OpenRouterFirstTaskRetryWaitCapabilityV1,
+	monotonicMeasurement: OpenRouterResponsesMonotonicMeasurementV1,
+	blockStartedAtMs: number,
+	runStartedAtMs: number,
+	maxRunElapsedMs: number,
+): ClosedTaskProfileHostRetryCapabilityV1 {
+	const waitDescriptor = Object.getOwnPropertyDescriptor(waitCapability, "wait");
+	if (
+		waitDescriptor === undefined ||
+		"get" in waitDescriptor ||
+		"set" in waitDescriptor ||
+		typeof waitDescriptor.value !== "function"
+	) {
+		throw new TypeError("B112 retry wait must be an explicit own function capability");
+	}
+	const wait = waitDescriptor.value as OpenRouterFirstTaskRetryWaitCapabilityV1["wait"];
+	const readMsDescriptor = Object.getOwnPropertyDescriptor(monotonicMeasurement, "readMs");
+	if (
+		readMsDescriptor === undefined ||
+		"get" in readMsDescriptor ||
+		"set" in readMsDescriptor ||
+		typeof readMsDescriptor.value !== "function"
+	) {
+		throw new TypeError("B112 monotonic measurement must be an explicit own function capability");
+	}
+	const readMs = readMsDescriptor.value as OpenRouterResponsesMonotonicMeasurementV1["readMs"];
+	let lastMonotonicMs = Math.max(blockStartedAtMs, runStartedAtMs);
+	const readMonotonicMs = (): number => {
+		const current = safeInteger(readMs(), "smoke.monotonicMs", { min: 0 });
+		if (current < lastMonotonicMs) {
+			throw new TypeError("B112 monotonic measurement moved backwards");
+		}
+		lastMonotonicMs = current;
+		return current;
+	};
+	const remainingElapsedMs = (): number => {
+		const current = readMonotonicMs();
+		return Math.max(
+			0,
+			Math.min(
+				route.budget.maxLatencyMs - (current - blockStartedAtMs),
+				maxRunElapsedMs - (current - runStartedAtMs),
+				route.budget.maxLatencyMs - ledger.latencyMs,
+			),
+		);
+	};
+	return Object.freeze({
+		maxAttemptsPerTurn: B112_OPENROUTER_MAX_ATTEMPTS_PER_TURN,
+		retryDelayMs(outcome: EmpiricalModelTurnOutcomeV1, attemptOrdinal: number): number | null {
+			if (outcome.status !== "non-evaluable") return null;
+			const retryable429 =
+				outcome.issueCodes.includes("openrouter-http-status:429") &&
+				outcome.issueCodes.includes("openrouter-error-type:rate_limit_exceeded");
+			const retryable503 =
+				outcome.issueCodes.includes("openrouter-http-status:503") &&
+				outcome.issueCodes.includes("openrouter-error-type:provider_overloaded");
+			if (!retryable429 && !retryable503) return null;
+			const fallback =
+				B112_OPENROUTER_RETRY_FALLBACK_MS[
+					Math.min(attemptOrdinal - 1, B112_OPENROUTER_RETRY_FALLBACK_MS.length - 1)
+				];
+			if (fallback === undefined) throw new TypeError("B112 retry fallback is incomplete");
+			return Math.max(fallback, retryAfterMsFromIssues(outcome.issueCodes) ?? 0);
+		},
+		retryAdmissionIssueCodes(): readonly string[] {
+			const lastAdmission = ledger.lastAdmission;
+			if (lastAdmission === null) {
+				throw new TypeError("B112 retry has no exact prior transport admission");
+			}
+			const evaluation = evaluateSmokeTransportAdmission(route, ledger, lastAdmission);
+			if (evaluation.reasons.length === 0) return [];
+			recordSmokeAdmissionRejection(route, ledger, lastAdmission, evaluation);
+			return [B112_SMOKE_BUDGET_ISSUE_CODE];
+		},
+		remainingElapsedMs,
+		async wait(input: { readonly delayMs: number; readonly signal: AbortSignal }): Promise<number> {
+			const startedAtMs = readMonotonicMs();
+			await wait({ delayMs: input.delayMs, signal: input.signal });
+			const elapsedMs = readMonotonicMs() - startedAtMs;
+			if (elapsedMs < input.delayMs) {
+				throw new TypeError("B112 retry wait completed before its scheduled floor");
+			}
+			ledger.latencyMs += elapsedMs;
+			return elapsedMs;
+		},
+	});
 }
 
 function budgetExhaustedOutcome(
@@ -328,78 +440,125 @@ function createSmokeTransportAdmission(
 ): OpenRouterResponsesTransportAdmissionV1 {
 	return Object.freeze({
 		admit(input: Parameters<OpenRouterResponsesTransportAdmissionV1["admit"]>[0]) {
-			const wireRequestBytes = safeInteger(input.wireRequestBytes, "smoke.wireRequestBytes", {
-				min: 1,
-			});
-			const maxOutputTokens = safeInteger(input.maxOutputTokens, "smoke.maxOutputTokens", {
-				min: 1,
-			});
-			const reservedInputTokens =
-				wireRequestBytes * route.budget.inputTokensPerCanonicalByteUpperBound +
-				route.budget.fixedInputTokenOverheadPerRequest;
-			const prospectiveInputTokens = ledger.reservedInputTokens + reservedInputTokens;
-			const prospectiveOutputTokens = ledger.reservedOutputTokens + maxOutputTokens;
-			const reservedCostMicrousd = calculateOpenRouterCostMicrousd(
-				reservedInputTokens,
-				maxOutputTokens,
-				route.pricing,
-			);
-			const prospectiveCost = ledger.reservedCostMicrousd + reservedCostMicrousd;
-			const reasons: B112SmokeAdmissionRejectionReason[] = [];
-			if (ledger.pendingReservedInputTokens > 0 || ledger.pendingReservedOutputTokens > 0) {
-				reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.pendingReservation);
-			}
-			if (ledger.requests >= route.budget.maxRequests) {
-				reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.requestLimit);
-			}
-			if (ledger.currentRunRequests >= route.budget.maxStepsPerRun) {
-				reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.stepLimit);
-			}
-			if (wireRequestBytes > route.budget.maxCanonicalRequestBytes) {
-				reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.canonicalRequestBytes);
-			}
-			if (prospectiveInputTokens > route.budget.maxInputTokens) {
-				reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.inputTokenReservation);
-			}
-			if (prospectiveOutputTokens > route.budget.maxOutputTokens) {
-				reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.outputTokenReservation);
-			}
-			if (prospectiveCost > route.budget.maxSmokeSpendMicrousd) {
-				reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.costReservation);
-			}
-			if (reasons.length > 0) {
-				ledger.exhausted = true;
-				ledger.admissionRejection = strictSnapshot({
-					schemaVersion: B112_SMOKE_ADMISSION_REJECTION_SCHEMA,
-					requestRef: input.requestRef,
-					reasons,
-					requests: ledger.requests,
-					maxRequests: route.budget.maxRequests,
-					maxStepsPerRun: route.budget.maxStepsPerRun,
-					wireRequestBytes,
-					maxCanonicalRequestBytes: route.budget.maxCanonicalRequestBytes,
-					reservedInputTokens: ledger.reservedInputTokens,
-					prospectiveInputTokens,
-					maxInputTokens: route.budget.maxInputTokens,
-					reservedOutputTokens: ledger.reservedOutputTokens,
-					prospectiveOutputTokens,
-					maxOutputTokens: route.budget.maxOutputTokens,
-					reservedCostMicrousd: ledger.reservedCostMicrousd,
-					prospectiveCostMicrousd: prospectiveCost,
-					maxSmokeSpendMicrousd: route.budget.maxSmokeSpendMicrousd,
-				});
+			const admission = {
+				requestRef: input.requestRef,
+				wireRequestBytes: safeInteger(input.wireRequestBytes, "smoke.wireRequestBytes", {
+					min: 1,
+				}),
+				maxOutputTokens: safeInteger(input.maxOutputTokens, "smoke.maxOutputTokens", {
+					min: 1,
+				}),
+			};
+			const evaluation = evaluateSmokeTransportAdmission(route, ledger, admission);
+			if (evaluation.reasons.length > 0) {
+				recordSmokeAdmissionRejection(route, ledger, admission, evaluation);
 				return false;
 			}
 			ledger.requests += 1;
-			ledger.currentRunRequests += 1;
-			ledger.reservedInputTokens = prospectiveInputTokens;
-			ledger.reservedOutputTokens = prospectiveOutputTokens;
-			ledger.reservedCostMicrousd = prospectiveCost;
-			ledger.pendingReservedInputTokens = reservedInputTokens;
-			ledger.pendingReservedOutputTokens = maxOutputTokens;
-			ledger.pendingReservedCostMicrousd = reservedCostMicrousd;
+			ledger.currentRunRequestRefs.add(admission.requestRef);
+			ledger.lastAdmission = Object.freeze(admission);
+			ledger.reservedInputTokens = evaluation.prospectiveInputTokens;
+			ledger.reservedOutputTokens = evaluation.prospectiveOutputTokens;
+			ledger.reservedCostMicrousd = evaluation.prospectiveCostMicrousd;
+			ledger.pendingReservedInputTokens = evaluation.reservedInputTokens;
+			ledger.pendingReservedOutputTokens = admission.maxOutputTokens;
+			ledger.pendingReservedCostMicrousd = evaluation.reservedCostMicrousd;
 			return true;
 		},
+	});
+}
+
+interface SmokeTransportAdmissionInput {
+	readonly requestRef: string;
+	readonly wireRequestBytes: number;
+	readonly maxOutputTokens: number;
+}
+
+interface SmokeTransportAdmissionEvaluation {
+	readonly reasons: readonly B112SmokeAdmissionRejectionReason[];
+	readonly reservedInputTokens: number;
+	readonly reservedCostMicrousd: number;
+	readonly prospectiveInputTokens: number;
+	readonly prospectiveOutputTokens: number;
+	readonly prospectiveCostMicrousd: number;
+}
+
+function evaluateSmokeTransportAdmission(
+	route: OpenRouterRouteQualificationV1,
+	ledger: MutableSmokeBudget,
+	input: SmokeTransportAdmissionInput,
+): SmokeTransportAdmissionEvaluation {
+	const reservedInputTokens =
+		input.wireRequestBytes * route.budget.inputTokensPerCanonicalByteUpperBound +
+		route.budget.fixedInputTokenOverheadPerRequest;
+	const prospectiveInputTokens = ledger.reservedInputTokens + reservedInputTokens;
+	const prospectiveOutputTokens = ledger.reservedOutputTokens + input.maxOutputTokens;
+	const reservedCostMicrousd = calculateOpenRouterCostMicrousd(
+		reservedInputTokens,
+		input.maxOutputTokens,
+		route.pricing,
+	);
+	const prospectiveCostMicrousd = ledger.reservedCostMicrousd + reservedCostMicrousd;
+	const reasons: B112SmokeAdmissionRejectionReason[] = [];
+	if (ledger.pendingReservedInputTokens > 0 || ledger.pendingReservedOutputTokens > 0) {
+		reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.pendingReservation);
+	}
+	if (ledger.requests >= route.budget.maxRequests) {
+		reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.requestLimit);
+	}
+	if (
+		!ledger.currentRunRequestRefs.has(input.requestRef) &&
+		ledger.currentRunRequestRefs.size >= route.budget.maxStepsPerRun
+	) {
+		reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.stepLimit);
+	}
+	if (input.wireRequestBytes > route.budget.maxCanonicalRequestBytes) {
+		reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.canonicalRequestBytes);
+	}
+	if (prospectiveInputTokens > route.budget.maxInputTokens) {
+		reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.inputTokenReservation);
+	}
+	if (prospectiveOutputTokens > route.budget.maxOutputTokens) {
+		reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.outputTokenReservation);
+	}
+	if (prospectiveCostMicrousd > route.budget.maxSmokeSpendMicrousd) {
+		reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.costReservation);
+	}
+	return Object.freeze({
+		reasons: Object.freeze(reasons),
+		reservedInputTokens,
+		reservedCostMicrousd,
+		prospectiveInputTokens,
+		prospectiveOutputTokens,
+		prospectiveCostMicrousd,
+	});
+}
+
+function recordSmokeAdmissionRejection(
+	route: OpenRouterRouteQualificationV1,
+	ledger: MutableSmokeBudget,
+	input: SmokeTransportAdmissionInput,
+	evaluation: SmokeTransportAdmissionEvaluation,
+): void {
+	ledger.exhausted = true;
+	ledger.admissionRejection = strictSnapshot({
+		schemaVersion: B112_SMOKE_ADMISSION_REJECTION_SCHEMA,
+		requestRef: input.requestRef,
+		reasons: evaluation.reasons,
+		requests: ledger.requests,
+		maxRequests: route.budget.maxRequests,
+		maxStepsPerRun: route.budget.maxStepsPerRun,
+		wireRequestBytes: input.wireRequestBytes,
+		maxCanonicalRequestBytes: route.budget.maxCanonicalRequestBytes,
+		reservedInputTokens: ledger.reservedInputTokens,
+		prospectiveInputTokens: evaluation.prospectiveInputTokens,
+		maxInputTokens: route.budget.maxInputTokens,
+		reservedOutputTokens: ledger.reservedOutputTokens,
+		prospectiveOutputTokens: evaluation.prospectiveOutputTokens,
+		maxOutputTokens: route.budget.maxOutputTokens,
+		reservedCostMicrousd: ledger.reservedCostMicrousd,
+		prospectiveCostMicrousd: evaluation.prospectiveCostMicrousd,
+		maxSmokeSpendMicrousd: route.budget.maxSmokeSpendMicrousd,
 	});
 }
 
@@ -542,8 +701,9 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 	readonly privateRoot: string;
 	readonly generationRef: string;
 	readonly signal: AbortSignal;
+	readonly retryWait: OpenRouterFirstTaskRetryWaitCapabilityV1;
 	readonly prepareWarmHost?: OpenRouterFirstTaskWarmHostFactoryV1;
-}): Promise<OpenRouterFirstTaskSmokeResultV2> {
+}): Promise<OpenRouterFirstTaskSmokeResultV3> {
 	const trialPlan = input.host.frozen.manifest.trialPlan;
 	if (
 		trialPlan.profile !== "smoke" ||
@@ -597,7 +757,8 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 	});
 	const ledger: MutableSmokeBudget = {
 		requests: 0,
-		currentRunRequests: 0,
+		currentRunRequestRefs: new Set<string>(),
+		lastAdmission: null,
 		reservedInputTokens: 0,
 		reservedOutputTokens: 0,
 		reservedCostMicrousd: 0,
@@ -634,8 +795,15 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 		} | null;
 		readonly issueCodes: readonly string[];
 	}[] = [];
-	ledger.currentRunRequests = 0;
+	const readBlockMonotonicMs = input.monotonicMeasurement.readMs.bind(input.monotonicMeasurement);
+	const blockStartedAtMs = safeInteger(readBlockMonotonicMs(), "smoke.blockStartedAtMs", {
+		min: 0,
+	});
+	ledger.currentRunRequestRefs.clear();
 	const coldBudgetBefore = smokeBudgetSnapshot(ledger);
+	const coldRunStartedAtMs = safeInteger(readBlockMonotonicMs(), "smoke.coldRunStartedAtMs", {
+		min: blockStartedAtMs,
+	});
 	const outcome = await runClosedTaskProfileHost({
 		...input.host,
 		modelTurnPort: createBudgetedModelTurnPort(
@@ -645,6 +813,15 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 			ledger,
 		),
 		protectionExecutor: binding.protectionExecutor,
+		retry: createOpenRouterRetryCapability(
+			input.routeQualification,
+			ledger,
+			input.retryWait,
+			input.monotonicMeasurement,
+			blockStartedAtMs,
+			coldRunStartedAtMs,
+			manifestBudgets.agentRun.maxElapsedMs,
+		),
 		signal: createPerRunSignal(input.signal, manifestBudgets.agentRun.maxElapsedMs),
 	});
 	const coldBudgetAfter = smokeBudgetSnapshot(ledger);
@@ -706,6 +883,9 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 				});
 				continue;
 			}
+			const warmRunStartedAtMs = safeInteger(readBlockMonotonicMs(), "smoke.warmRunStartedAtMs", {
+				min: blockStartedAtMs,
+			});
 			const warmSignal = createPerRunSignal(input.signal, manifestBudgets.agentRun.maxElapsedMs);
 			const initialRequest = createWarmInitialRequest({
 				cold: input.host.initialRequest,
@@ -734,7 +914,7 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 				});
 				continue;
 			}
-			ledger.currentRunRequests = 0;
+			ledger.currentRunRequestRefs.clear();
 			const budgetBefore = smokeBudgetSnapshot(ledger);
 			const warmOutcome = await runClosedTaskProfileHost({
 				...input.host,
@@ -747,6 +927,15 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 					ledger,
 				),
 				protectionExecutor: binding.protectionExecutor,
+				retry: createOpenRouterRetryCapability(
+					input.routeQualification,
+					ledger,
+					input.retryWait,
+					input.monotonicMeasurement,
+					blockStartedAtMs,
+					warmRunStartedAtMs,
+					manifestBudgets.agentRun.maxElapsedMs,
+				),
 				signal: warmSignal,
 			});
 			const budgetAfter = smokeBudgetSnapshot(ledger);

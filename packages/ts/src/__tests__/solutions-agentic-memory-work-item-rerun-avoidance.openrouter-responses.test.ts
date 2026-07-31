@@ -412,7 +412,7 @@ function createHarness(
 	>;
 } {
 	const transport = vi.fn<OpenRouterResponsesByteTransportV1["request"]>(() =>
-		Promise.resolve({ status: 200, body: response }),
+		Promise.resolve({ status: 200, body: response, retryAfterMs: null }),
 	);
 	const admission = vi.fn(() => true);
 	let measurementIndex = 0;
@@ -1328,6 +1328,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 						}),
 					},
 				]),
+				retryAfterMs: null,
 			});
 		});
 		const outcome = await harness.binding.modelTurnPort.invoke(
@@ -1562,7 +1563,11 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 				buildAuthority(),
 				responseEncoder.encode(rawBody),
 			);
-			transport.mockResolvedValueOnce({ status, body: responseEncoder.encode(rawBody) });
+			transport.mockResolvedValueOnce({
+				status,
+				body: responseEncoder.encode(rawBody),
+				retryAfterMs: null,
+			});
 			const outcome = await binding.modelTurnPort.invoke(request, new AbortController().signal);
 			expect(outcome.issueCodes).toEqual([issueCode, `openrouter-http-status:${status}`]);
 			expect(outcome.usage.requests).toBe(1);
@@ -1596,6 +1601,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 					error: { code: "server_error", message: `raw-${bearerToken}` },
 					error_type: errorType,
 				}),
+				retryAfterMs: null,
 			});
 			const typedOutcome = await typedHarness.binding.modelTurnPort.invoke(
 				typedHarness.request,
@@ -1614,6 +1620,31 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			serializedWithoutCredential(typedOutcome);
 		}
 
+		const chatRateLimitHarness = createHarness();
+		chatRateLimitHarness.transport.mockResolvedValueOnce({
+			status: 429,
+			body: responseBytes({
+				error: {
+					code: "rate_limit_exceeded",
+					message: `raw-${bearerToken}`,
+					metadata: { error_type: "rate_limit_exceeded" },
+				},
+			}),
+			retryAfterMs: 7_000,
+		});
+		const chatRateLimitOutcome = await chatRateLimitHarness.binding.modelTurnPort.invoke(
+			chatRateLimitHarness.request,
+			new AbortController().signal,
+		);
+		expect(chatRateLimitOutcome.issueCodes).toEqual([
+			OPENROUTER_RESPONSES_ISSUE_CODES.quotaRateLimit,
+			"openrouter-http-status:429",
+			"openrouter-error-type:rate_limit_exceeded",
+			"openrouter-error-code:rate_limit_exceeded",
+			"openrouter-retry-after-ms:7000",
+		]);
+		serializedWithoutCredential(chatRateLimitOutcome);
+
 		const nativeCodeHarness = createHarness();
 		nativeCodeHarness.transport.mockResolvedValueOnce({
 			status: 400,
@@ -1621,6 +1652,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 				error: { code: "invalid_prompt", message: `raw-${bearerToken}` },
 				metadata: null,
 			}),
+			retryAfterMs: null,
 		});
 		const nativeCodeOutcome = await nativeCodeHarness.binding.modelTurnPort.invoke(
 			nativeCodeHarness.request,
@@ -1641,6 +1673,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			body: responseBytes({
 				error: { code: bearerToken, message: `raw-${bearerToken}` },
 			}),
+			retryAfterMs: null,
 		});
 		const unknownCodeOutcome = await unknownCodeHarness.binding.modelTurnPort.invoke(
 			unknownCodeHarness.request,
@@ -1657,6 +1690,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		malformedUtf8Harness.transport.mockResolvedValueOnce({
 			status: 422,
 			body: new Uint8Array([0xc3, 0x28]),
+			retryAfterMs: null,
 		});
 		const malformedUtf8Outcome = await malformedUtf8Harness.binding.modelTurnPort.invoke(
 			malformedUtf8Harness.request,
@@ -1836,6 +1870,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		oversizedHarness.transport.mockResolvedValueOnce({
 			status: 200,
 			body: oversizedBody,
+			retryAfterMs: null,
 		});
 		const oversizedOutcome = await oversizedHarness.binding.modelTurnPort.invoke(
 			oversizedHarness.request,
@@ -1850,6 +1885,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		exoticHarness.transport.mockResolvedValueOnce({
 			status: 200,
 			body: new ExoticResponseBytes(16),
+			retryAfterMs: null,
 		});
 		const exoticOutcome = await exoticHarness.binding.modelTurnPort.invoke(
 			exoticHarness.request,
@@ -1867,6 +1903,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		shadowedHarness.transport.mockResolvedValueOnce({
 			status: 200,
 			body: shadowedBody,
+			retryAfterMs: null,
 		});
 		const shadowedOutcome = await shadowedHarness.binding.modelTurnPort.invoke(
 			shadowedHarness.request,
