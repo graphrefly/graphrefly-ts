@@ -16,6 +16,9 @@ import {
 	executeEmpiricalProtection,
 	validateEmpiricalModelTurnRequest,
 } from "../../evals/empirical-memory-rerun-avoidance/model-execution.js";
+import { runOpenRouterFirstTaskCapabilityProbe } from "../../evals/empirical-memory-rerun-avoidance/openrouter-first-task-capability-probe.js";
+import { runLoadedOpenRouterFirstTaskCapabilityProbeOperator } from "../../evals/empirical-memory-rerun-avoidance/openrouter-first-task-capability-probe-operator.js";
+import type { OpenRouterFirstTaskSmokeOperatorInputV1 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-first-task-smoke-operator.js";
 import {
 	createOpenRouterResponsesEmpiricalBinding,
 	MAX_OPENROUTER_RESPONSES_RESPONSE_BYTES,
@@ -41,12 +44,12 @@ import {
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-responses-model-turn.js";
 import {
 	OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG,
-	OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME,
-	OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_SLUG,
-	OPENROUTER_GLM_5_2_INPUT_MICROUSD_PER_MILLION_TOKENS,
-	OPENROUTER_GLM_5_2_OUTPUT_MICROUSD_PER_MILLION_TOKENS,
-	OPENROUTER_GLM_5_2_PRICING_REVISION,
-	OPENROUTER_GLM_5_2_PRICING_SOURCE,
+	OPENROUTER_GLM_5_2_DEEPINFRA_DOWNSTREAM_PROVIDER_NAME as OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME,
+	OPENROUTER_GLM_5_2_DEEPINFRA_DOWNSTREAM_PROVIDER_SLUG as OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_SLUG,
+	OPENROUTER_GLM_5_2_DEEPINFRA_INPUT_MICROUSD_PER_MILLION_TOKENS as OPENROUTER_GLM_5_2_INPUT_MICROUSD_PER_MILLION_TOKENS,
+	OPENROUTER_GLM_5_2_DEEPINFRA_OUTPUT_MICROUSD_PER_MILLION_TOKENS as OPENROUTER_GLM_5_2_OUTPUT_MICROUSD_PER_MILLION_TOKENS,
+	OPENROUTER_GLM_5_2_DEEPINFRA_PRICING_REVISION as OPENROUTER_GLM_5_2_PRICING_REVISION,
+	OPENROUTER_GLM_5_2_DEEPINFRA_PRICING_SOURCE as OPENROUTER_GLM_5_2_PRICING_SOURCE,
 	OPENROUTER_GLM_5_2_REQUEST_MODEL,
 	OPENROUTER_OFFICIAL_PRICING_REVISION,
 	OPENROUTER_OFFICIAL_PRICING_SOURCE,
@@ -241,6 +244,10 @@ function buildGlmAuthority(): OpenRouterAuthorityFixture {
 		settings: {
 			...baseConfiguration.settings,
 			reasoning: { mode: "provider-native" as const, effort: "high" },
+			tools: {
+				...baseConfiguration.settings.tools,
+				choice: "required" as const,
+			},
 		},
 		pricingRevision: OPENROUTER_GLM_5_2_PRICING_REVISION,
 		pricingScheduleRef: OPENROUTER_GLM_5_2_PRICING_SOURCE,
@@ -608,7 +615,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		serializedWithoutCredential({ binding, outcome, body });
 	});
 
-	it("derives the exact GLM 5.2 high request and Decart route from frozen D669 coordinates", async () => {
+	it("derives the exact GLM 5.2 high request and DeepInfra route from frozen D672 coordinates", async () => {
 		const authority = buildGlmAuthority();
 		const route = glmRouteQualification(authority);
 		const response = responseBytes({
@@ -692,7 +699,8 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			messages: [{ role: "system" }, { role: "user" }],
 			max_tokens: request.remainingTurnBudget.maxOutputTokens,
 			reasoning: { effort: "high" },
-			tool_choice: "auto",
+			tool_choice: "required",
+			parallel_tool_calls: false,
 		});
 		expect(body).not.toHaveProperty("response_format");
 		const messages = body.messages as readonly {
@@ -717,7 +725,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		expect(body).not.toHaveProperty("background");
 		expect(body).not.toHaveProperty("truncation");
 		expect(body).not.toHaveProperty("service_tier");
-		expect(body).not.toHaveProperty("parallel_tool_calls");
+		expect(body.parallel_tool_calls).toBe(false);
 		expect(body).not.toHaveProperty("models");
 		expect(body).not.toHaveProperty("plugins");
 		expect(body).not.toHaveProperty("transforms");
@@ -902,7 +910,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 				}),
 			},
 		]);
-		expect(body).not.toHaveProperty("parallel_tool_calls");
+		expect(body.parallel_tool_calls).toBe(false);
 		serializedWithoutCredential({ body, outcome, route });
 
 		const duplicateResponse = JSON.parse(new TextDecoder().decode(response)) as Record<
@@ -954,6 +962,181 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			issueCodes: [OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse],
 		});
 		expect(multipleToolHarness.transport).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps the D672 capability probe to one simulated request and no efficacy evidence", async () => {
+		const authority = buildGlmAuthority();
+		const route = glmRouteQualification(authority);
+		const request = buildEmpiricalModelTurnRequestFixture(authority);
+		const toolRef = request.availableTools[0]?.toolRef;
+		if (toolRef === undefined) throw new TypeError("GLM capability probe requires one tool");
+		const response = responseBytes({
+			id: "chatcmpl_glm_probe_placeholder_01",
+			object: "chat.completion",
+			model: OPENROUTER_GLM_5_2_REQUEST_MODEL,
+			choices: [
+				{
+					index: 0,
+					finish_reason: "tool_calls",
+					message: {
+						role: "assistant",
+						content: null,
+						tool_calls: [
+							{
+								id: "call_glm_probe_placeholder_01",
+								type: "function",
+								function: {
+									name: toolRef,
+									arguments: JSON.stringify({
+										commandRef: "command-placeholder",
+										args: [],
+									}),
+								},
+							},
+						],
+					},
+				},
+			],
+			usage: {
+				prompt_tokens: 120,
+				completion_tokens: 24,
+				total_tokens: 144,
+				cost: 0.000_102,
+			},
+			openrouter_metadata: {
+				requested: OPENROUTER_GLM_5_2_REQUEST_MODEL,
+				strategy: "direct",
+				attempt: 1,
+				is_byok: false,
+				endpoints: {
+					total: 1,
+					available: [
+						{
+							provider: OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME,
+							model: `${OPENROUTER_GLM_5_2_REQUEST_MODEL}-20260616`,
+							selected: true,
+						},
+					],
+				},
+				attempts: [
+					{
+						provider: OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME,
+						model: `${OPENROUTER_GLM_5_2_REQUEST_MODEL}-20260616`,
+						status: 200,
+					},
+				],
+				pipeline: [],
+			},
+		});
+		const transport = vi.fn<OpenRouterResponsesByteTransportV1["request"]>(() =>
+			Promise.resolve({ status: 200, body: response, retryAfterMs: null }),
+		);
+		let measurementIndex = 0;
+		const result = await runOpenRouterFirstTaskCapabilityProbe({
+			frozen: authority.frozen,
+			qualificationReport: authority.qualificationReport,
+			request,
+			routeQualification: route,
+			credential: {
+				credentialBindingRef: authority.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: authority.manifest.policies.actorCredentialBindingRevision,
+				bearerToken,
+			},
+			transport: { request: transport },
+			monotonicMeasurement: {
+				readMs() {
+					measurementIndex += 1;
+					return measurementIndex === 1 ? 1_000 : 1_025;
+				},
+			},
+			executionClass: "simulated-contract",
+			signal: new AbortController().signal,
+		});
+
+		expect(result).toEqual({
+			schemaVersion: "graphrefly.private-solution-eval.openrouter-capability-probe.v1",
+			capable: true,
+			executionClass: "simulated-contract",
+			evidenceClass: "mechanical-capability-only",
+			efficacyClaim: "none",
+			status: "completed",
+			finishReason: "tool-intents",
+			toolIntentCount: 1,
+			requests: 1,
+			providerCostMicrousd: 102,
+			issueCodes: [],
+		});
+		expect(transport).toHaveBeenCalledTimes(1);
+		serializedWithoutCredential({ result, route });
+	});
+
+	it("rejects a non-first, final-step, or pricing-source-substituted D672 probe before transport", async () => {
+		const authority = buildGlmAuthority();
+		const route = glmRouteQualification(authority);
+		const request = buildEmpiricalModelTurnRequestFixture(authority);
+		const transport = vi.fn<OpenRouterResponsesByteTransportV1["request"]>(() => {
+			throw new Error("transport must not run");
+		});
+		const baseInput = {
+			frozen: authority.frozen,
+			qualificationReport: authority.qualificationReport,
+			request,
+			routeQualification: route,
+			credential: {
+				credentialBindingRef: authority.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: authority.manifest.policies.actorCredentialBindingRevision,
+				bearerToken,
+			},
+			transport: { request: transport },
+			monotonicMeasurement: { readMs: () => 0 },
+			executionClass: "simulated-contract" as const,
+			signal: new AbortController().signal,
+		};
+		const secondTaskRef = authority.frozen.manifest.catalog.tasks[1]?.taskRef;
+		if (secondTaskRef === undefined) throw new TypeError("missing second D672 fixture task");
+		await expect(
+			runOpenRouterFirstTaskCapabilityProbe({
+				...baseInput,
+				request: strictSnapshot({ ...request, taskRef: secondTaskRef }),
+			}),
+		).rejects.toThrow(/frozen D672 coordinates/);
+		await expect(
+			runOpenRouterFirstTaskCapabilityProbe({
+				...baseInput,
+				routeQualification: strictSnapshot({
+					...route,
+					budget: { ...route.budget, maxRequests: 1, maxStepsPerRun: 1 },
+				}),
+			}),
+		).rejects.toThrow(/frozen D672 coordinates/);
+		await expect(
+			runOpenRouterFirstTaskCapabilityProbe({
+				...baseInput,
+				routeQualification: strictSnapshot({
+					...route,
+					pricing: { ...route.pricing, sourceUrl: "https://example.invalid/pricing" },
+				}),
+			}),
+		).rejects.toThrow(/frozen D672 coordinates/);
+		expect(transport).not.toHaveBeenCalled();
+	});
+
+	it("cleans a loaded capability-probe workspace when pre-transport validation fails", async () => {
+		const cleanup = vi.fn(() => Promise.resolve());
+		const operatorInput = {
+			privateRoot: "/operator-private/substituted",
+			host: { materialization: { cleanup } },
+		} as unknown as OpenRouterFirstTaskSmokeOperatorInputV1;
+		await expect(
+			runLoadedOpenRouterFirstTaskCapabilityProbeOperator({
+				operatorInput,
+				privateRoot: "/operator-private/expected",
+				environment: {},
+				fetch: globalThis.fetch,
+				monotonicNowMs: () => 0,
+			}),
+		).rejects.toThrow(/changed private artifact ownership/);
+		expect(cleanup).toHaveBeenCalledTimes(1);
 	});
 
 	it("lowers the frozen final turn coordinate and requires final structured output", async () => {

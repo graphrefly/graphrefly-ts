@@ -32,6 +32,8 @@ export const OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME = "OpenAI";
 export const OPENROUTER_GLM_5_2_REQUEST_MODEL = "z-ai/glm-5.2";
 export const OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_SLUG = "decart/fp4";
 export const OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME = "Decart";
+export const OPENROUTER_GLM_5_2_DEEPINFRA_DOWNSTREAM_PROVIDER_SLUG = "deepinfra/fp4";
+export const OPENROUTER_GLM_5_2_DEEPINFRA_DOWNSTREAM_PROVIDER_NAME = "DeepInfra";
 export const OPENROUTER_RESPONSES_ENDPOINT_REVISION = "openrouter-responses-2026-07-29.v2";
 export const OPENROUTER_RESPONSES_ADAPTER_REVISION = "graphrefly-openrouter-responses-turn.v2";
 export const OPENROUTER_RESPONSES_BINDING_REVISION = "graphrefly-openrouter-responses-wire.v8";
@@ -40,7 +42,7 @@ export const OPENROUTER_CHAT_COMPLETIONS_ENDPOINT_REVISION =
 export const OPENROUTER_CHAT_COMPLETIONS_ADAPTER_REVISION =
 	"graphrefly-openrouter-chat-completions-turn.v1";
 export const OPENROUTER_CHAT_COMPLETIONS_BINDING_REVISION =
-	"graphrefly-openrouter-chat-completions-wire.v12";
+	"graphrefly-openrouter-chat-completions-wire.v14";
 export const OPENROUTER_ROUTE_EVIDENCE_SCHEMA_REVISION = "openrouter-metadata-2026-07-29.v1";
 export const OPENROUTER_PROVIDER_USAGE_REVISION =
 	"openrouter-provider-reported-cost-microusd-2026-07-29.v2";
@@ -55,6 +57,12 @@ export const OPENROUTER_GLM_5_2_PRICING_REVISION =
 	"openrouter-z-ai-glm-5.2-decart-fp4-2026-07-30.v1";
 export const OPENROUTER_GLM_5_2_INPUT_MICROUSD_PER_MILLION_TOKENS = 600_000;
 export const OPENROUTER_GLM_5_2_OUTPUT_MICROUSD_PER_MILLION_TOKENS = 1_250_000;
+export const OPENROUTER_GLM_5_2_DEEPINFRA_PRICING_SOURCE =
+	"https://openrouter.ai/api/v1/models/z-ai/glm-5.2/endpoints";
+export const OPENROUTER_GLM_5_2_DEEPINFRA_PRICING_REVISION =
+	"openrouter-z-ai-glm-5.2-deepinfra-fp4-2026-07-30.v1";
+export const OPENROUTER_GLM_5_2_DEEPINFRA_INPUT_MICROUSD_PER_MILLION_TOKENS = 750_000;
+export const OPENROUTER_GLM_5_2_DEEPINFRA_OUTPUT_MICROUSD_PER_MILLION_TOKENS = 2_400_000;
 
 export type OpenRouterEndpointV1 =
 	| typeof OPENROUTER_RESPONSES_ENDPOINT

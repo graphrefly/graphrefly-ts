@@ -51,7 +51,7 @@ function isSameOrDescendant(parent: string, candidate: string): boolean {
 	return nested === "" || (nested !== ".." && !nested.startsWith(`..${sep}`));
 }
 
-async function loadOperatorInputModule(
+export async function loadOpenRouterFirstTaskSmokeOperatorInput(
 	modulePath: string,
 	privateRoot: string,
 ): Promise<OpenRouterFirstTaskSmokeOperatorInputV1> {
@@ -84,7 +84,10 @@ export async function runOpenRouterFirstTaskSmokeOperator(input: {
 	readonly fetch: typeof fetch;
 	readonly monotonicNowMs: () => number;
 }): Promise<Awaited<ReturnType<typeof runOpenRouterFirstTaskSmoke>>> {
-	const operatorInput = await loadOperatorInputModule(input.modulePath, input.privateRoot);
+	const operatorInput = await loadOpenRouterFirstTaskSmokeOperatorInput(
+		input.modulePath,
+		input.privateRoot,
+	);
 	if (operatorInput.privateRoot !== input.privateRoot) {
 		throw new TypeError("OpenRouter smoke operator input changed private artifact ownership");
 	}

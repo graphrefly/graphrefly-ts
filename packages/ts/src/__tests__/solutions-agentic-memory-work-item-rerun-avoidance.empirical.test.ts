@@ -747,10 +747,12 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsOneTurnPromise =
 				file.endsWith("model-execution.ts") ||
 				file.endsWith("openai-responses-model-turn.ts") ||
-				file.endsWith("openrouter-responses-model-turn.ts");
+				file.endsWith("openrouter-responses-model-turn.ts") ||
+				file.endsWith("openrouter-first-task-capability-probe.ts");
 			const allowsFocusedTransportAsync =
 				file.endsWith("openai-responses-model-turn.ts") ||
-				file.endsWith("openrouter-responses-model-turn.ts");
+				file.endsWith("openrouter-responses-model-turn.ts") ||
+				file.endsWith("openrouter-first-task-capability-probe.ts");
 			const allowsRepositoryNodeDriver = file.endsWith("single-baseline-repository-node.ts");
 			const allowsClosedHostNodeDriver = file.endsWith("closed-task-profile-host.ts");
 			const allowsClosedVerifierCalibration = file.endsWith(
@@ -763,7 +765,10 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsOneRequestFetchTransport = file.endsWith(
 				"openrouter-responses-byte-transport.ts",
 			);
-			const allowsOutermostLiveOperator = file.endsWith("openrouter-first-task-smoke-operator.ts");
+			const allowsOutermostLiveOperator =
+				file.endsWith("openrouter-first-task-smoke-operator.ts") ||
+				file.endsWith("openrouter-first-task-capability-probe-operator.ts");
+			const allowsRetryTimerOperator = file.endsWith("openrouter-first-task-smoke-operator.ts");
 			const allowsMatchedBlockMemory = file.endsWith("matched-block-memory.ts");
 			const matchedBlockMemoryImports = new Set([
 				"../../src/graph/graph.js",
@@ -792,7 +797,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 									? /\b(?:async|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
 									: /\b(?:async|Promise|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/,
 			);
-			if (allowsOutermostLiveOperator) {
+			if (allowsRetryTimerOperator) {
 				expect(source.match(/\bsetTimeout\b/g)).toHaveLength(1);
 				expect(source.match(/\bclearTimeout\b/g)).toHaveLength(1);
 			}

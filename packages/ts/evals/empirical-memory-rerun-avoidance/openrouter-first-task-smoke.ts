@@ -43,6 +43,12 @@ import {
 	OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG,
 	OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
 	OPENROUTER_FIRST_SMOKE_STANDARD_PRICING_MAX_INPUT_TOKENS,
+	OPENROUTER_GLM_5_2_DEEPINFRA_DOWNSTREAM_PROVIDER_NAME,
+	OPENROUTER_GLM_5_2_DEEPINFRA_DOWNSTREAM_PROVIDER_SLUG,
+	OPENROUTER_GLM_5_2_DEEPINFRA_INPUT_MICROUSD_PER_MILLION_TOKENS,
+	OPENROUTER_GLM_5_2_DEEPINFRA_OUTPUT_MICROUSD_PER_MILLION_TOKENS,
+	OPENROUTER_GLM_5_2_DEEPINFRA_PRICING_REVISION,
+	OPENROUTER_GLM_5_2_DEEPINFRA_PRICING_SOURCE,
 	OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME,
 	OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_SLUG,
 	OPENROUTER_GLM_5_2_INPUT_MICROUSD_PER_MILLION_TOKENS,
@@ -116,6 +122,7 @@ export interface OpenRouterFirstTaskSmokeResultV3 {
 function assertQualifiedSmokeRoute(
 	route: OpenRouterRouteQualificationV1,
 	reasoningEffort: string | null,
+	toolsChoice: string,
 ): void {
 	const qualifiedTuple =
 		(route.requestModel === OPENROUTER_FIRST_SMOKE_REQUEST_MODEL &&
@@ -135,6 +142,7 @@ function assertQualifiedSmokeRoute(
 				OPENROUTER_FIRST_SMOKE_STANDARD_PRICING_MAX_INPUT_TOKENS) ||
 		(route.requestModel === OPENROUTER_GLM_5_2_REQUEST_MODEL &&
 			reasoningEffort === "high" &&
+			toolsChoice === "required" &&
 			route.endpoint === OPENROUTER_CHAT_COMPLETIONS_ENDPOINT &&
 			route.endpointRevision === OPENROUTER_CHAT_COMPLETIONS_ENDPOINT_REVISION &&
 			route.adapterRevision === OPENROUTER_CHAT_COMPLETIONS_ADAPTER_REVISION &&
@@ -146,7 +154,22 @@ function assertQualifiedSmokeRoute(
 			route.pricing.inputMicrousdPerMillionTokens ===
 				OPENROUTER_GLM_5_2_INPUT_MICROUSD_PER_MILLION_TOKENS &&
 			route.pricing.outputMicrousdPerMillionTokens ===
-				OPENROUTER_GLM_5_2_OUTPUT_MICROUSD_PER_MILLION_TOKENS);
+				OPENROUTER_GLM_5_2_OUTPUT_MICROUSD_PER_MILLION_TOKENS) ||
+		(route.requestModel === OPENROUTER_GLM_5_2_REQUEST_MODEL &&
+			reasoningEffort === "high" &&
+			toolsChoice === "required" &&
+			route.endpoint === OPENROUTER_CHAT_COMPLETIONS_ENDPOINT &&
+			route.endpointRevision === OPENROUTER_CHAT_COMPLETIONS_ENDPOINT_REVISION &&
+			route.adapterRevision === OPENROUTER_CHAT_COMPLETIONS_ADAPTER_REVISION &&
+			route.bindingRevision === OPENROUTER_CHAT_COMPLETIONS_BINDING_REVISION &&
+			route.downstreamProviderSlug === OPENROUTER_GLM_5_2_DEEPINFRA_DOWNSTREAM_PROVIDER_SLUG &&
+			route.downstreamProviderName === OPENROUTER_GLM_5_2_DEEPINFRA_DOWNSTREAM_PROVIDER_NAME &&
+			route.pricing.sourceUrl === OPENROUTER_GLM_5_2_DEEPINFRA_PRICING_SOURCE &&
+			route.pricing.pricingRevision === OPENROUTER_GLM_5_2_DEEPINFRA_PRICING_REVISION &&
+			route.pricing.inputMicrousdPerMillionTokens ===
+				OPENROUTER_GLM_5_2_DEEPINFRA_INPUT_MICROUSD_PER_MILLION_TOKENS &&
+			route.pricing.outputMicrousdPerMillionTokens ===
+				OPENROUTER_GLM_5_2_DEEPINFRA_OUTPUT_MICROUSD_PER_MILLION_TOKENS);
 	if (!qualifiedTuple || route.usageRevision !== OPENROUTER_PROVIDER_USAGE_REVISION) {
 		throw new TypeError("B112 smoke route does not match its frozen exact route and pricing");
 	}
@@ -728,6 +751,7 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 	assertQualifiedSmokeRoute(
 		input.routeQualification,
 		selectedConfiguration.settings.reasoning.effort,
+		selectedConfiguration.settings.tools.choice,
 	);
 	if (
 		input.routeQualification.campaignRef !== input.host.frozen.manifest.campaignRef ||

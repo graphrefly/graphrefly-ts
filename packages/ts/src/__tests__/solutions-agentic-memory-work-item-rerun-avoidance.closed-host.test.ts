@@ -170,7 +170,11 @@ async function createClosedHostFixture(
 		argv: ["status", "--porcelain=v1"],
 	},
 	sourceContent = "broken-placeholder-value\n",
-	modelProfile: "gpt-5.6-sol-medium" | "glm-5.2-high" | "glm-5.2-medium" = "gpt-5.6-sol-medium",
+	modelProfile:
+		| "gpt-5.6-sol-medium"
+		| "glm-5.2-high"
+		| "glm-5.2-high-auto"
+		| "glm-5.2-medium" = "gpt-5.6-sol-medium",
 ): Promise<ClosedHostFixture> {
 	const sourceRoot = temporaryRoot("source");
 	git(sourceRoot, ["init", "--quiet", "--initial-branch=main"]);
@@ -298,13 +302,19 @@ async function createClosedHostFixture(
 			sampling: { temperature: null, topP: null, seed: null },
 			reasoning: {
 				mode: "provider-native" as const,
-				effort: modelProfile === "glm-5.2-high" ? "high" : "medium",
+				effort: modelProfile.startsWith("glm-5.2-high") ? "high" : "medium",
 			},
 			tools: {
 				...baseConfiguration.settings.tools,
 				schemaRevision: schemaCatalog.catalogRevision,
 				toolRefs: schemaCatalog.tools.map((tool) => tool.toolRef),
 				toolSetDigest: empiricalStrictJsonDigest(schemaCatalog.tools),
+				choice:
+					modelProfile === "glm-5.2-high-auto"
+						? ("auto" as const)
+						: glmProfile
+							? ("required" as const)
+							: baseConfiguration.settings.tools.choice,
 				maxSteps: 8,
 			},
 		},
@@ -1138,6 +1148,44 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		await fixture.materialization.cleanup();
 	});
 
+	it("rejects a GLM auto-tool profile before transport", async () => {
+		const fixture = await createClosedHostFixture(undefined, undefined, "glm-5.2-high-auto");
+		let transportCalls = 0;
+		await expect(
+			runOpenRouterFirstTaskSmoke({
+				host: {
+					frozen: fixture.frozen,
+					qualificationReport: fixture.report,
+					initialRequest: fixture.initialRequest,
+					taskProfile: fixture.taskProfile,
+					materialization: fixture.materialization,
+					verifier: fixture.verifier,
+				},
+				routeQualification: simulatedRouteQualification(fixture),
+				credential: {
+					credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+					credentialBindingRevision:
+						fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+					bearerToken: "openrouter-auto-tool-secret-sentinel-0123456789",
+				},
+				transport: {
+					request() {
+						transportCalls += 1;
+						throw new Error("transport must not run");
+					},
+				},
+				monotonicMeasurement: { readMs: () => 0 },
+				retryWait: immediateRetryWait,
+				executionClass: "simulated-contract",
+				privateRoot: temporaryRoot("auto-tool"),
+				generationRef: "auto-tool-generation",
+				signal: new AbortController().signal,
+			}),
+		).rejects.toThrow(/frozen exact route and pricing/);
+		expect(transportCalls).toBe(0);
+		await fixture.materialization.cleanup();
+	});
+
 	it("dry-runs injected OpenRouter bytes through host, verifier, canonical evidence, and atomic private persistence", async () => {
 		const fixture = await createClosedHostFixture();
 		const credentialSentinel = "openrouter-dry-run-secret-sentinel-0123456789";
@@ -1860,6 +1908,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				max_tokens: expect.any(Number),
 				reasoning: { effort: "high" },
 			});
+			expect(parsedWireBody).not.toHaveProperty("parallel_tool_calls");
 			if (wireIndex % 8 === 7) {
 				expect(parsedWireBody.response_format).toMatchObject({
 					type: "json_schema",
@@ -1870,7 +1919,6 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			}
 			expect(parsedWireBody).not.toHaveProperty("input");
 			expect(parsedWireBody).not.toHaveProperty("instructions");
-			expect(parsedWireBody).not.toHaveProperty("parallel_tool_calls");
 		}
 		expect(result.admissionRejection).toBeNull();
 		expect(fixture.verifierCalls.count).toBe(6);
