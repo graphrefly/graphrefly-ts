@@ -1688,6 +1688,10 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				if (userMessage === undefined) throw new TypeError("missing GLM Chat user message");
 				actorInputs.push(userMessage.content);
 				const userEnvelope = JSON.parse(userMessage.content) as {
+					readonly turn?: {
+						readonly stepIndex?: number;
+						readonly finalStep?: boolean;
+					};
 					readonly structuredInput?: {
 						readonly memoryContext?: {
 							readonly kind?: string;
@@ -1697,56 +1701,64 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 						};
 					};
 				};
+				const turn = userEnvelope.turn;
+				if (
+					turn === undefined ||
+					typeof turn.stepIndex !== "number" ||
+					!Number.isSafeInteger(turn.stepIndex) ||
+					typeof turn.finalStep !== "boolean"
+				) {
+					throw new TypeError("missing GLM Chat turn coordinates");
+				}
 				const memoryContext = userEnvelope.structuredInput?.memoryContext;
 				const hasValidatedGenericMemory = validatesGenericMemory(
 					memoryContext,
 					expectedRelevantMemoryDigest,
 				);
-				const output =
-					transportCalls === 1
+				const output = turn.finalStep
+					? [
+							{
+								type: "message",
+								role: "assistant",
+								status: "completed",
+								content: [
+									{
+										type: "output_text",
+										text: JSON.stringify({
+											kind: "model-turn-output-placeholder",
+											summary:
+												expectedRelevantMemoryDigest === null
+													? taskSpecificCorrectionSentinel
+													: "Bounded matched-block completion.",
+										}),
+									},
+								],
+							},
+						]
+					: hasValidatedGenericMemory && !correctionIssued
 						? [
 								{
 									type: "function_call",
 									status: "completed",
-									call_id: "call.matched-cold-read",
+									call_id: `call.matched-replace.${turn.stepIndex}`,
+									name: requestBody.tools[2]?.function.name,
+									arguments: JSON.stringify({
+										baseContentDigest,
+										newText: "fixed",
+										oldText: "broken-placeholder-value",
+										path: "README.md",
+									}),
+								},
+							]
+						: [
+								{
+									type: "function_call",
+									status: "completed",
+									call_id: `call.matched-read.${transportCalls}`,
 									name: requestBody.tools[0]?.function.name,
 									arguments: JSON.stringify({ path: "README.md" }),
 								},
-							]
-						: hasValidatedGenericMemory && !correctionIssued
-							? [
-									{
-										type: "function_call",
-										status: "completed",
-										call_id: "call.matched-replace",
-										name: requestBody.tools[2]?.function.name,
-										arguments: JSON.stringify({
-											baseContentDigest,
-											newText: "fixed",
-											oldText: "broken-placeholder-value",
-											path: "README.md",
-										}),
-									},
-								]
-							: [
-									{
-										type: "message",
-										role: "assistant",
-										status: "completed",
-										content: [
-											{
-												type: "output_text",
-												text: JSON.stringify({
-													kind: "model-turn-output-placeholder",
-													summary:
-														transportCalls === 2
-															? taskSpecificCorrectionSentinel
-															: "Bounded matched-block completion.",
-												}),
-											},
-										],
-									},
-								];
+							];
 				if (hasValidatedGenericMemory && !correctionIssued) correctionIssued = true;
 				return dryRunOpenRouterResponse(`response.matched.${transportCalls}`, output, undefined, {
 					requestModel: OPENROUTER_GLM_5_2_REQUEST_MODEL,
@@ -1833,8 +1845,8 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			},
 		});
 
-		expect(transportCalls).toBe(8);
-		for (const wireBody of wireBodies) {
+		expect(transportCalls).toBe(48);
+		for (const [wireIndex, wireBody] of wireBodies.entries()) {
 			const parsedWireBody = JSON.parse(wireBody) as Record<string, unknown>;
 			expect(parsedWireBody).toMatchObject({
 				model: OPENROUTER_GLM_5_2_REQUEST_MODEL,
@@ -1847,11 +1859,15 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				messages: [{ role: "system" }, { role: "user" }],
 				max_tokens: expect.any(Number),
 				reasoning: { effort: "high" },
-				response_format: {
+			});
+			if (wireIndex % 8 === 7) {
+				expect(parsedWireBody.response_format).toMatchObject({
 					type: "json_schema",
 					json_schema: { strict: true },
-				},
-			});
+				});
+			} else {
+				expect(parsedWireBody).not.toHaveProperty("response_format");
+			}
 			expect(parsedWireBody).not.toHaveProperty("input");
 			expect(parsedWireBody).not.toHaveProperty("instructions");
 			expect(parsedWireBody).not.toHaveProperty("parallel_tool_calls");
@@ -1866,8 +1882,8 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				verifierStatus: "failed",
 				coldRunsAttempted: 1,
 				warmRunsAttempted: 5,
-				requests: 8,
-				steps: 8,
+				requests: 48,
+				steps: 48,
 			},
 		});
 		expect(result.observation.warmBranches.map((branch) => branch.branchKind)).toEqual([
@@ -1938,8 +1954,8 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			prior_failure_route_avoided: true,
 			warm_run_passed: true,
 		});
-		expect(result.observation.cold.actionTrace).toHaveLength(1);
-		expect(result.observation.warmBranches[0]?.run?.actionTrace).toHaveLength(1);
+		expect(result.observation.cold.actionTrace).toHaveLength(7);
+		expect(result.observation.warmBranches[0]?.run?.actionTrace).toHaveLength(7);
 		expect(
 			result.observation.warmBranches
 				.slice(1)
@@ -2107,20 +2123,14 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				),
 			}),
 		).toThrow(/secondaryComparisons\[0\]/);
-		expect(actorInputs.map((body) => body.includes('"memoryContext"'))).toEqual([
-			false,
-			false,
-			true,
-			true,
-			false,
-			false,
-			false,
-			false,
-		]);
-		expect(actorInputs[2]).toContain("Previous bounded action route");
-		expect(actorInputs[2]).toContain(CLOSED_ACTOR_TOOL_REFS.readFile);
-		expect(actorInputs[2]).not.toMatch(/managed-compute|tool-provider-run-admission/);
-		expect(actorInputs[2]).not.toContain(taskSpecificCorrectionSentinel);
+		expect(actorInputs).toHaveLength(48);
+		expect(actorInputs.slice(0, 8).every((body) => !body.includes('"memoryContext"'))).toBe(true);
+		expect(actorInputs.slice(8, 16).every((body) => body.includes('"memoryContext"'))).toBe(true);
+		expect(actorInputs.slice(16).every((body) => !body.includes('"memoryContext"'))).toBe(true);
+		expect(actorInputs[8]).toContain("Previous bounded action route");
+		expect(actorInputs[8]).toContain(CLOSED_ACTOR_TOOL_REFS.readFile);
+		expect(actorInputs[8]).not.toMatch(/managed-compute|tool-provider-run-admission/);
+		expect(actorInputs[8]).not.toContain(taskSpecificCorrectionSentinel);
 		for (const body of wireBodies) {
 			expect(body).not.toContain(credentialSentinel);
 			expect(body).not.toMatch(
@@ -2172,26 +2182,52 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(() => readFileSync(join(fixture.workspaceRoot, "README.md"))).toThrow();
 		let boundedTransportCalls = 0;
 		const boundedTransport: OpenRouterResponsesByteTransportV1 = {
-			async request() {
+			async request(input) {
 				boundedTransportCalls += 1;
+				const requestBody = JSON.parse(new TextDecoder().decode(input.body)) as {
+					readonly tools: readonly {
+						readonly function: { readonly name: string };
+					}[];
+					readonly messages: readonly {
+						readonly role: string;
+						readonly content: string;
+					}[];
+				};
+				const userMessage = requestBody.messages.find((message) => message.role === "user");
+				if (userMessage === undefined) throw new TypeError("missing bounded GLM user message");
+				const envelope = JSON.parse(userMessage.content) as {
+					readonly turn?: { readonly finalStep?: boolean };
+				};
+				const output =
+					envelope.turn?.finalStep === true
+						? [
+								{
+									type: "message",
+									role: "assistant",
+									status: "completed",
+									content: [
+										{
+											type: "output_text",
+											text: JSON.stringify({
+												kind: "model-turn-output-placeholder",
+												summary: "Bounded control completion without a workspace correction.",
+											}),
+										},
+									],
+								},
+							]
+						: [
+								{
+									type: "function_call",
+									status: "completed",
+									call_id: `call.bounded.${boundedTransportCalls}`,
+									name: requestBody.tools[0]?.function.name,
+									arguments: JSON.stringify({ path: "README.md" }),
+								},
+							];
 				return dryRunOpenRouterResponse(
 					`response.bounded.${boundedTransportCalls}`,
-					[
-						{
-							type: "message",
-							role: "assistant",
-							status: "completed",
-							content: [
-								{
-									type: "output_text",
-									text: JSON.stringify({
-										kind: "model-turn-output-placeholder",
-										summary: "Bounded control completion without a workspace correction.",
-									}),
-								},
-							],
-						},
-					],
+					output,
 					undefined,
 					{
 						requestModel: OPENROUTER_GLM_5_2_REQUEST_MODEL,
@@ -2245,9 +2281,9 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			},
 			generationRef: "matched-preparation-failure-generation",
 		});
-		expect(boundedTransportCalls).toBe(4);
+		expect(boundedTransportCalls).toBe(11);
 		expect(preparationFailure.observation).toMatchObject({
-			result: { classification: "incomplete", requests: 1, warmRunsAttempted: 0 },
+			result: { classification: "incomplete", requests: 8, warmRunsAttempted: 0 },
 		});
 		expect(preparationFailure.observation.issueCodes).toContain("warm-host-preparation-failed");
 	}, 60_000);

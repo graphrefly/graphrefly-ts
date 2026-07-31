@@ -665,11 +665,10 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		const outcome = await binding.modelTurnPort.invoke(request, new AbortController().signal);
 
 		expect(outcome).toMatchObject({
-			status: "completed",
-			structuredOutput: {
-				kind: "model-turn-output-placeholder",
-				summary: "bounded-glm-placeholder",
-			},
+			status: "non-evaluable",
+			finishReason: null,
+			structuredOutput: null,
+			toolIntents: [],
 			usage: {
 				inputTokens: 100,
 				outputTokens: 20,
@@ -677,7 +676,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 				requests: 1,
 				providerCostMicrousd: 85,
 			},
-			issueCodes: [],
+			issueCodes: [OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse],
 		});
 		expect(transport).toHaveBeenCalledTimes(1);
 		const sent = transport.mock.calls[0]?.[0] as OpenRouterResponsesTransportRequestV1;
@@ -693,19 +692,22 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			messages: [{ role: "system" }, { role: "user" }],
 			max_tokens: request.remainingTurnBudget.maxOutputTokens,
 			reasoning: { effort: "high" },
-			response_format: {
-				type: "json_schema",
-				json_schema: {
-					strict: true,
-					schema: {
-						type: "object",
-						required: ["kind", "summary"],
-						additionalProperties: false,
-					},
-				},
-			},
 			tool_choice: "auto",
 		});
+		expect(body).not.toHaveProperty("response_format");
+		const messages = body.messages as readonly {
+			readonly role: string;
+			readonly content: string;
+		}[];
+		expect(messages[0]?.content).toContain(
+			"When turn.finalStep is false, call exactly one declared function tool and do not return the final response",
+		);
+		expect(messages[0]?.content).toContain(
+			"never batch, repeat, or parallelize tool calls. The host will return the result in a later turn",
+		);
+		expect(messages[0]?.content).toContain(
+			"When turn.finalStep is true, do not call a tool; return the final response",
+		);
 		expect(sent.endpoint).toBe(OPENROUTER_CHAT_COMPLETIONS_ENDPOINT);
 		expect(body).not.toHaveProperty("instructions");
 		expect(body).not.toHaveProperty("input");
@@ -795,12 +797,23 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		serializedWithoutCredential({ outcome, route });
 	});
 
-	it("maps GLM Chat Completions tool calls without changing the D652 semantic port", async () => {
+	it("maps exactly one GLM Chat tool call and rejects multiple calls on one non-final turn", async () => {
 		const authority = buildGlmAuthority();
 		const route = glmRouteQualification(authority);
 		const request = buildEmpiricalModelTurnRequestFixture(authority);
 		const toolRef = request.availableTools[0]?.toolRef;
 		if (toolRef === undefined) throw new TypeError("GLM tool fixture requires one tool");
+		const toolCall = {
+			id: "call_glm_placeholder_01",
+			type: "function",
+			function: {
+				name: toolRef,
+				arguments: JSON.stringify({
+					commandRef: "command-placeholder",
+					args: [],
+				}),
+			},
+		};
 		const response = responseBytes({
 			id: "chatcmpl_glm_tool_placeholder_01",
 			object: "chat.completion",
@@ -812,19 +825,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 					message: {
 						role: "assistant",
 						content: null,
-						tool_calls: [
-							{
-								id: "call_glm_placeholder_01",
-								type: "function",
-								function: {
-									name: toolRef,
-									arguments: JSON.stringify({
-										commandRef: "command-placeholder",
-										args: [],
-									}),
-								},
-							},
-						],
+						tool_calls: [toolCall],
 					},
 				},
 			],
@@ -903,6 +904,56 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		]);
 		expect(body).not.toHaveProperty("parallel_tool_calls");
 		serializedWithoutCredential({ body, outcome, route });
+
+		const duplicateResponse = JSON.parse(new TextDecoder().decode(response)) as Record<
+			string,
+			unknown
+		>;
+		const multipleToolHarness = createHarness(
+			authority,
+			responseBytes({
+				...duplicateResponse,
+				id: "chatcmpl_glm_multiple_tools_placeholder_01",
+				choices: [
+					{
+						index: 0,
+						finish_reason: "tool_calls",
+						message: {
+							role: "assistant",
+							content: null,
+							tool_calls: [
+								toolCall,
+								{
+									...toolCall,
+									id: "call_glm_placeholder_02",
+								},
+							],
+						},
+					},
+				],
+			}),
+			bearerToken,
+			route,
+		);
+		const multipleToolOutcome = await multipleToolHarness.binding.modelTurnPort.invoke(
+			multipleToolHarness.request,
+			new AbortController().signal,
+		);
+		expect(multipleToolOutcome).toMatchObject({
+			status: "non-evaluable",
+			finishReason: null,
+			structuredOutput: null,
+			toolIntents: [],
+			usage: {
+				inputTokens: 120,
+				outputTokens: 24,
+				totalTokens: 144,
+				providerCostMicrousd: 102,
+				requests: 1,
+			},
+			issueCodes: [OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse],
+		});
+		expect(multipleToolHarness.transport).toHaveBeenCalledTimes(1);
 	});
 
 	it("lowers the frozen final turn coordinate and requires final structured output", async () => {
