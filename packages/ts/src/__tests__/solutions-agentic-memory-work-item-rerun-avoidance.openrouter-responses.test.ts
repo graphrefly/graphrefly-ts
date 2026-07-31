@@ -28,6 +28,7 @@ import {
 	OPENROUTER_CHAT_COMPLETIONS_ENDPOINT_REVISION,
 	OPENROUTER_CHAT_COMPLETIONS_PROMPT_REVISION,
 	OPENROUTER_CHAT_COMPLETIONS_SYSTEM_PROMPT_REVISION,
+	OPENROUTER_RESPONSE_DIAGNOSTIC_CODES,
 	OPENROUTER_RESPONSES_ADAPTER_REVISION,
 	OPENROUTER_RESPONSES_BINDING_REVISION,
 	OPENROUTER_RESPONSES_DOWNSTREAM_PROVIDER,
@@ -683,7 +684,10 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 				requests: 1,
 				providerCostMicrousd: 85,
 			},
-			issueCodes: [OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse],
+			issueCodes: [
+				OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+				OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.nonFinalDirectOutput,
+			],
 		});
 		expect(transport).toHaveBeenCalledTimes(1);
 		const sent = transport.mock.calls[0]?.[0] as OpenRouterResponsesTransportRequestV1;
@@ -798,13 +802,16 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 				totalTokens: null,
 				requests: 1,
 			},
-			issueCodes: [OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse],
+			issueCodes: [
+				OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+				OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.usageInvalid,
+			],
 		});
 		expect(harness.transport).toHaveBeenCalledTimes(1);
 		serializedWithoutCredential({ outcome, route });
 	});
 
-	it("maps exactly one GLM Chat tool call and rejects multiple calls on one non-final turn", async () => {
+	it("maps one GLM Chat tool call and emits only bounded diagnostics for rejected calls", async () => {
 		const authority = buildGlmAuthority();
 		const route = glmRouteQualification(authority);
 		const request = buildEmpiricalModelTurnRequestFixture(authority);
@@ -958,9 +965,138 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 				providerCostMicrousd: 102,
 				requests: 1,
 			},
-			issueCodes: [OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse],
+			issueCodes: [
+				OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+				OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallCountMultiple,
+			],
 		});
 		expect(multipleToolHarness.transport).toHaveBeenCalledTimes(1);
+
+		const rawDiagnosticSentinel = "raw-provider-diagnostic-must-not-survive";
+		const diagnosticCases = [
+			{
+				id: "zero-tool-calls",
+				finishReason: "tool_calls",
+				message: { role: "assistant", content: null, tool_calls: [] },
+				expected: OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallCountZero,
+			},
+			{
+				id: "malformed-tool-call",
+				finishReason: "tool_calls",
+				message: {
+					role: "assistant",
+					content: null,
+					tool_calls: [{ ...toolCall, type: "unsupported" }],
+				},
+				expected: OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallMalformed,
+			},
+			{
+				id: "multiple-with-malformed-second-call",
+				finishReason: "tool_calls",
+				message: {
+					role: "assistant",
+					content: null,
+					tool_calls: [
+						toolCall,
+						{ ...toolCall, id: "call_glm_placeholder_02", type: "unsupported" },
+					],
+				},
+				expected: OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallCountMultiple,
+			},
+			{
+				id: "unknown-tool-name",
+				finishReason: "tool_calls",
+				message: {
+					role: "assistant",
+					content: null,
+					tool_calls: [
+						{
+							...toolCall,
+							function: { ...toolCall.function, name: rawDiagnosticSentinel },
+						},
+					],
+				},
+				expected: OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolNameUnknown,
+			},
+			{
+				id: "invalid-tool-call-id",
+				finishReason: "tool_calls",
+				message: {
+					role: "assistant",
+					content: null,
+					tool_calls: [{ ...toolCall, id: "invalid tool call id" }],
+				},
+				expected: OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallIdInvalid,
+			},
+			{
+				id: "invalid-tool-arguments",
+				finishReason: "tool_calls",
+				message: {
+					role: "assistant",
+					content: null,
+					tool_calls: [
+						{
+							...toolCall,
+							function: {
+								...toolCall.function,
+								arguments: `{"sentinel":"${rawDiagnosticSentinel}"`,
+							},
+						},
+					],
+				},
+				expected: OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolArgumentsInvalid,
+			},
+			{
+				id: "invalid-finish-reason",
+				finishReason: "length",
+				message: { role: "assistant", content: null, tool_calls: [toolCall] },
+				expected: OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.finishReasonInvalid,
+			},
+			{
+				id: "finish-content-conflict",
+				finishReason: "tool_calls",
+				message: { role: "assistant", content: rawDiagnosticSentinel, tool_calls: [toolCall] },
+				expected: OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.finishContentConflict,
+			},
+		] as const;
+		for (const diagnosticCase of diagnosticCases) {
+			const diagnosticHarness = createHarness(
+				authority,
+				responseBytes({
+					...duplicateResponse,
+					id: `chatcmpl_glm_${diagnosticCase.id}_placeholder`,
+					choices: [
+						{
+							index: 0,
+							finish_reason: diagnosticCase.finishReason,
+							message: diagnosticCase.message,
+						},
+					],
+				}),
+				bearerToken,
+				route,
+			);
+			const diagnosticOutcome = await diagnosticHarness.binding.modelTurnPort.invoke(
+				diagnosticHarness.request,
+				new AbortController().signal,
+			);
+			expect(diagnosticOutcome).toMatchObject({
+				status: "non-evaluable",
+				finishReason: null,
+				structuredOutput: null,
+				toolIntents: [],
+				usage: {
+					inputTokens: 120,
+					outputTokens: 24,
+					totalTokens: 144,
+					providerCostMicrousd: 102,
+					requests: 1,
+				},
+				issueCodes: [OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse, diagnosticCase.expected],
+			});
+			expect(diagnosticHarness.transport).toHaveBeenCalledTimes(1);
+			expect(JSON.stringify(diagnosticOutcome)).not.toContain(rawDiagnosticSentinel);
+		}
 	});
 
 	it("keeps the D673 capability probe to one simulated request and no efficacy evidence", async () => {

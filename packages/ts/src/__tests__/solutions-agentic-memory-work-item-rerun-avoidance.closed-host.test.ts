@@ -72,6 +72,7 @@ import {
 	OPENROUTER_CHAT_COMPLETIONS_ENDPOINT_REVISION,
 	OPENROUTER_CHAT_COMPLETIONS_PROMPT_REVISION,
 	OPENROUTER_CHAT_COMPLETIONS_SYSTEM_PROMPT_REVISION,
+	OPENROUTER_RESPONSE_DIAGNOSTIC_CODES,
 	OPENROUTER_RESPONSES_ADAPTER_REVISION,
 	OPENROUTER_RESPONSES_BINDING_REVISION,
 	OPENROUTER_RESPONSES_ENDPOINT,
@@ -2450,6 +2451,98 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			expect(readFileSync(join(result.persistence.generationPath, file), "utf8")).not.toContain(
 				rejectionCredentialSentinel,
 			);
+		}
+	});
+
+	it("persists a bounded GLM response diagnostic without raw tool-call material", async () => {
+		const fixture = await createClosedHostFixture(undefined, undefined, "glm-5.2-high");
+		const credentialSentinel = "openrouter-diagnostic-secret-0123456789";
+		const rawProviderSentinel = "raw-provider-tool-call-must-not-persist";
+		const privateRoot = join(
+			temporaryRoot("provider-response-diagnostic"),
+			".private",
+			"empirical-memory-rerun-avoidance",
+		);
+		mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
+		chmodSync(privateRoot, 0o700);
+		let transportCalls = 0;
+		const result = await runOpenRouterFirstTaskSmoke({
+			host: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: fixture.materialization,
+				verifier: fixture.verifier,
+			},
+			routeQualification: liveRouteQualification(fixture),
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: credentialSentinel,
+			},
+			transport: {
+				request(input) {
+					transportCalls += 1;
+					const requestBody = JSON.parse(new TextDecoder().decode(input.body)) as {
+						readonly tools: readonly {
+							readonly function: { readonly name: string };
+						}[];
+					};
+					const toolName = requestBody.tools[0]?.function.name;
+					if (toolName === undefined) throw new TypeError("missing bounded GLM tool");
+					return Promise.resolve(
+						dryRunOpenRouterResponse(
+							"response.bounded-diagnostic.1",
+							[
+								{
+									type: "function_call",
+									status: "completed",
+									call_id: "call.bounded-diagnostic.1",
+									name: toolName,
+									arguments: JSON.stringify({ path: "README.md" }),
+								},
+								{
+									type: "function_call",
+									status: "completed",
+									call_id: "call.bounded-diagnostic.2",
+									name: toolName,
+									arguments: JSON.stringify({ path: rawProviderSentinel }),
+								},
+							],
+							undefined,
+							{
+								requestModel: OPENROUTER_GLM_5_2_REQUEST_MODEL,
+								downstreamProviderName: OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME,
+							},
+						),
+					);
+				},
+			},
+			monotonicMeasurement: { readMs: () => 0 },
+			retryWait: immediateRetryWait,
+			executionClass: "live-provider",
+			privateRoot,
+			generationRef: "provider-response-diagnostic-generation",
+			signal: new AbortController().signal,
+		});
+		expect(transportCalls).toBe(1);
+		expect(result.observation).toMatchObject({
+			result: { classification: "non-evaluable", requests: 1 },
+		});
+		expect(result.observation.issueCodes).toContain(
+			OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallCountMultiple,
+		);
+		expect(result.scorecard.issueCodes).toEqual(result.observation.issueCodes);
+		const persistedArtifacts = readdirSync(result.persistence.generationPath).map((file) =>
+			readFileSync(join(result.persistence.generationPath, file), "utf8"),
+		);
+		expect(persistedArtifacts.join("\n")).toContain(
+			OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallCountMultiple,
+		);
+		for (const persisted of persistedArtifacts) {
+			expect(persisted).not.toContain(rawProviderSentinel);
+			expect(persisted).not.toContain(credentialSentinel);
 		}
 	});
 

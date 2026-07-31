@@ -82,6 +82,24 @@ export const OPENROUTER_RESPONSES_ISSUE_CODES = Object.freeze({
 	transportAdmissionRejected: "openrouter-transport-admission-rejected",
 });
 
+export const OPENROUTER_RESPONSE_DIAGNOSTIC_CODES = Object.freeze({
+	envelopeInvalid: "openrouter-response-envelope-invalid",
+	usageInvalid: "openrouter-response-usage-invalid",
+	choiceCountInvalid: "openrouter-response-choice-count-invalid",
+	messageInvalid: "openrouter-response-message-invalid",
+	finishReasonInvalid: "openrouter-response-finish-reason-invalid",
+	finishContentConflict: "openrouter-response-finish-content-conflict",
+	nonFinalDirectOutput: "openrouter-response-non-final-direct-output",
+	finalToolCall: "openrouter-response-final-tool-call",
+	toolCallCountZero: "openrouter-response-tool-call-count-zero",
+	toolCallCountMultiple: "openrouter-response-tool-call-count-multiple",
+	toolCallMalformed: "openrouter-response-tool-call-malformed",
+	toolNameUnknown: "openrouter-response-tool-name-unknown",
+	toolCallIdInvalid: "openrouter-response-tool-call-id-invalid",
+	toolArgumentsInvalid: "openrouter-response-tool-arguments-invalid",
+	postParseValidationFailed: "openrouter-response-post-parse-validation-failed",
+});
+
 const OPENROUTER_RESPONSES_USER_ENVELOPE_SCHEMA =
 	"graphrefly.private-solution-eval.openrouter-user-envelope.v2";
 const OPENROUTER_RESPONSES_SYSTEM_INSTRUCTIONS =
@@ -97,6 +115,8 @@ const typedArrayByteLengthGetter = Object.getOwnPropertyDescriptor(
 
 type OpenRouterResponsesIssueCode =
 	(typeof OPENROUTER_RESPONSES_ISSUE_CODES)[keyof typeof OPENROUTER_RESPONSES_ISSUE_CODES];
+type OpenRouterResponseDiagnosticCode =
+	(typeof OPENROUTER_RESPONSE_DIAGNOSTIC_CODES)[keyof typeof OPENROUTER_RESPONSE_DIAGNOSTIC_CODES];
 
 export interface OpenRouterResponsesCredentialCapabilityV1 {
 	readonly credentialBindingRef: string;
@@ -211,12 +231,61 @@ interface OpenRouterToolBinding {
 
 class BindingFailure extends Error {
 	readonly issueCode: OpenRouterResponsesIssueCode;
+	readonly diagnosticCode: OpenRouterResponseDiagnosticCode | null;
+	readonly providerUsage: ProviderUsageAccounting | null;
 
-	constructor(issueCode: OpenRouterResponsesIssueCode) {
+	constructor(
+		issueCode: OpenRouterResponsesIssueCode,
+		diagnosticCode: OpenRouterResponseDiagnosticCode | null = null,
+		providerUsage: ProviderUsageAccounting | null = null,
+	) {
 		super(issueCode);
 		this.name = "BindingFailure";
 		this.issueCode = issueCode;
+		this.diagnosticCode = diagnosticCode;
+		this.providerUsage = providerUsage;
 	}
+}
+
+function invalidResponse(
+	diagnosticCode: OpenRouterResponseDiagnosticCode,
+	providerUsage: ProviderUsageAccounting | null = null,
+): never {
+	throw new BindingFailure(
+		OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+		diagnosticCode,
+		providerUsage,
+	);
+}
+
+function withInvalidResponseDiagnostic<T>(
+	diagnosticCode: OpenRouterResponseDiagnosticCode,
+	run: () => T,
+	providerUsage: ProviderUsageAccounting | null = null,
+): T {
+	try {
+		return run();
+	} catch (error) {
+		if (
+			error instanceof BindingFailure &&
+			error.issueCode !== OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse
+		) {
+			throw error;
+		}
+		return invalidResponse(diagnosticCode, providerUsage);
+	}
+}
+
+function bindingFailureIssueCodes(
+	error: unknown,
+	fallbackDiagnosticCode: OpenRouterResponseDiagnosticCode,
+): readonly string[] {
+	if (!(error instanceof BindingFailure)) {
+		return [OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse, fallbackDiagnosticCode];
+	}
+	return error.diagnosticCode === null
+		? [error.issueCode]
+		: [error.issueCode, error.diagnosticCode];
 }
 
 function ownFunction<T extends (...args: never[]) => unknown>(
@@ -1021,58 +1090,96 @@ function parseChatCompletionsCandidate(
 	try {
 		text = decoder.decode(bytes);
 	} catch {
-		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse);
+		return invalidResponse(OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.envelopeInvalid);
 	}
-	const root = providerRecord(parseStrictJsonText(text));
+	const root = withInvalidResponseDiagnostic(
+		OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.envelopeInvalid,
+		() => providerRecord(parseStrictJsonText(text)),
+	);
 	if (root.object !== "chat.completion" || root.model !== route.requestModel) {
-		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse);
+		return invalidResponse(OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.envelopeInvalid);
 	}
 	const routeEvidence = validateDirectRouteEvidence(root, route);
-	const responseId = boundedProviderString(root.id, 256);
-	const usageRecord = providerRecord(root.usage);
-	const inputTokens = providerTokenCount(usageRecord.prompt_tokens);
-	const outputTokens = providerTokenCount(usageRecord.completion_tokens);
-	const totalTokens = providerTokenCount(usageRecord.total_tokens);
-	const completionTokenDetails = usageRecord.completion_tokens_details;
-	if (completionTokenDetails !== undefined && completionTokenDetails !== null) {
-		const details = providerRecord(completionTokenDetails);
-		const reasoningTokens = details.reasoning_tokens;
-		if (reasoningTokens !== undefined && providerTokenCount(reasoningTokens) > outputTokens) {
-			throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse);
-		}
-	}
-	if (inputTokens + outputTokens !== totalTokens) {
-		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse);
-	}
-	const usage = {
-		inputTokens,
-		outputTokens,
-		totalTokens,
-		providerCostMicrousd: providerCostMicrousd(usageRecord.cost),
-	};
-	const choices = providerArray(root.choices);
+	const responseId = withInvalidResponseDiagnostic(
+		OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.envelopeInvalid,
+		() => boundedProviderString(root.id, 256),
+	);
+	const usage = withInvalidResponseDiagnostic(
+		OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.usageInvalid,
+		() => {
+			const usageRecord = providerRecord(root.usage);
+			const inputTokens = providerTokenCount(usageRecord.prompt_tokens);
+			const outputTokens = providerTokenCount(usageRecord.completion_tokens);
+			const totalTokens = providerTokenCount(usageRecord.total_tokens);
+			const completionTokenDetails = usageRecord.completion_tokens_details;
+			if (completionTokenDetails !== undefined && completionTokenDetails !== null) {
+				const details = providerRecord(completionTokenDetails);
+				const reasoningTokens = details.reasoning_tokens;
+				if (reasoningTokens !== undefined && providerTokenCount(reasoningTokens) > outputTokens) {
+					return invalidResponse(OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.usageInvalid);
+				}
+			}
+			if (inputTokens + outputTokens !== totalTokens) {
+				return invalidResponse(OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.usageInvalid);
+			}
+			return {
+				inputTokens,
+				outputTokens,
+				totalTokens,
+				providerCostMicrousd: providerCostMicrousd(usageRecord.cost),
+			};
+		},
+	);
+	const choices = withInvalidResponseDiagnostic(
+		OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.choiceCountInvalid,
+		() => providerArray(root.choices),
+		usage,
+	);
 	if (choices.length !== 1) {
-		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse);
+		return invalidResponse(OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.choiceCountInvalid, usage);
 	}
-	const choice = providerRecord(choices[0]);
+	const choice = withInvalidResponseDiagnostic(
+		OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.messageInvalid,
+		() => providerRecord(choices[0]),
+		usage,
+	);
 	if (choice.index !== 0) {
-		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse);
+		return invalidResponse(OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.messageInvalid, usage);
 	}
-	const message = providerRecord(choice.message);
+	const message = withInvalidResponseDiagnostic(
+		OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.messageInvalid,
+		() => providerRecord(choice.message),
+		usage,
+	);
 	if (message.role !== "assistant") {
-		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse);
+		return invalidResponse(OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.messageInvalid, usage);
 	}
 	if (message.refusal !== undefined && message.refusal !== null) {
-		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.rejected);
+		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.rejected, null, usage);
 	}
 	if (choice.finish_reason === "stop") {
-		const toolCalls = message.tool_calls === undefined ? [] : providerArray(message.tool_calls);
+		const toolCalls =
+			message.tool_calls === undefined
+				? []
+				: withInvalidResponseDiagnostic(
+						OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.finishContentConflict,
+						() => providerArray(message.tool_calls),
+						usage,
+					);
 		if (toolCalls.length !== 0) {
-			throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse);
+			return invalidResponse(OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.finishContentConflict, usage);
 		}
-		const outputText = boundedProviderString(message.content);
+		const outputText = withInvalidResponseDiagnostic(
+			OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.messageInvalid,
+			() => boundedProviderString(message.content),
+			usage,
+		);
 		return {
-			structuredOutput: parseStrictJsonText(outputText),
+			structuredOutput: withInvalidResponseDiagnostic(
+				OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.postParseValidationFailed,
+				() => parseStrictJsonText(outputText),
+				usage,
+			),
 			toolIntents: [],
 			finishReason: "structured-output",
 			usage,
@@ -1085,27 +1192,40 @@ function parseChatCompletionsCandidate(
 			},
 		};
 	}
-	if (
-		choice.finish_reason !== "tool_calls" ||
-		(message.content !== null && message.content !== "")
-	) {
-		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse);
+	if (choice.finish_reason !== "tool_calls") {
+		return invalidResponse(OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.finishReasonInvalid, usage);
 	}
-	const rawCalls = providerArray(message.tool_calls).map((callValue) => {
-		const call = providerRecord(callValue);
-		const fn = providerRecord(call.function);
-		if (call.type !== "function") {
-			throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse);
-		}
-		return {
-			callId: boundedProviderString(call.id, 256),
-			name: boundedProviderString(fn.name, 64),
-			argumentsText: boundedProviderString(fn.arguments),
-		};
-	});
-	if (rawCalls.length === 0) {
-		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse);
+	if (message.content !== null && message.content !== "") {
+		return invalidResponse(OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.finishContentConflict, usage);
 	}
+	const rawCallValues = withInvalidResponseDiagnostic(
+		OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallMalformed,
+		() => providerArray(message.tool_calls),
+		usage,
+	);
+	if (rawCallValues.length === 0) {
+		return invalidResponse(OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallCountZero, usage);
+	}
+	if (rawCallValues.length > 1) {
+		return invalidResponse(OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallCountMultiple, usage);
+	}
+	const rawCalls = withInvalidResponseDiagnostic(
+		OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallMalformed,
+		() =>
+			rawCallValues.map((callValue) => {
+				const call = providerRecord(callValue);
+				const fn = providerRecord(call.function);
+				if (call.type !== "function") {
+					return invalidResponse(OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallMalformed);
+				}
+				return {
+					callId: boundedProviderString(call.id, 256),
+					name: boundedProviderString(fn.name, 64),
+					argumentsText: boundedProviderString(fn.arguments),
+				};
+			}),
+		usage,
+	);
 	const toolsByProviderName = new Map(
 		providerToolBindings(request.availableTools).map((binding) => [
 			binding.providerName,
@@ -1115,15 +1235,19 @@ function parseChatCompletionsCandidate(
 	const toolIntents = rawCalls.map((call) => {
 		const tool = toolsByProviderName.get(call.name);
 		if (tool === undefined) {
-			throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse);
+			return invalidResponse(OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolNameUnknown, usage);
 		}
 		let toolCallRef: string;
 		try {
 			toolCallRef = coordinate(call.callId, "provider.response.call_id");
 		} catch {
-			throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse);
+			return invalidResponse(OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallIdInvalid, usage);
 		}
-		const argumentsValue = parseStrictJsonText(call.argumentsText);
+		const argumentsValue = withInvalidResponseDiagnostic(
+			OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolArgumentsInvalid,
+			() => parseStrictJsonText(call.argumentsText),
+			usage,
+		);
 		return {
 			toolCallRef,
 			toolRef: tool.toolRef,
@@ -1711,12 +1835,15 @@ async function invokeOpenRouterResponses(
 		return failureOutcome(
 			config,
 			request,
-			error instanceof BindingFailure
-				? error.issueCode
-				: OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+			config.route.qualification.endpoint === OPENROUTER_CHAT_COMPLETIONS_ENDPOINT
+				? bindingFailureIssueCodes(error, OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.envelopeInvalid)
+				: error instanceof BindingFailure
+					? error.issueCode
+					: OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
 			1,
 			body.byteLength,
 			latencyMs,
+			error instanceof BindingFailure ? error.providerUsage : null,
 		);
 	}
 	let rawProtection: EmpiricalProtectionExecutionV1;
@@ -1780,6 +1907,22 @@ async function invokeOpenRouterResponses(
 		config.route.qualification.endpoint === OPENROUTER_CHAT_COMPLETIONS_ENDPOINT &&
 		((!preparedRequest.finalStep && candidate.finishReason !== "tool-intents") ||
 			(candidate.finishReason === "tool-intents" && candidate.toolIntents.length !== 1));
+	const chatTurnContractDiagnostic =
+		config.route.qualification.endpoint !== OPENROUTER_CHAT_COMPLETIONS_ENDPOINT
+			? null
+			: preparedRequest.finalStep && candidate.finishReason === "tool-intents"
+				? OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.finalToolCall
+				: !preparedRequest.finalStep && candidate.finishReason !== "tool-intents"
+					? OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.nonFinalDirectOutput
+					: candidate.finishReason === "tool-intents" && candidate.toolIntents.length === 0
+						? OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallCountZero
+						: candidate.finishReason === "tool-intents" && candidate.toolIntents.length > 1
+							? OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallCountMultiple
+							: null;
+	const chatTurnContractIssues =
+		chatTurnContractDiagnostic === null
+			? [OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse]
+			: [OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse, chatTurnContractDiagnostic];
 	if (
 		(preparedRequest.finalStep && candidate.finishReason === "tool-intents") ||
 		chatTurnContractViolated
@@ -1792,14 +1935,14 @@ async function invokeOpenRouterResponses(
 				toolIntents: [],
 				turnUsage: usage(request, 1, body.byteLength, 0, providerUsage),
 				latencyMs,
-				issueCodes: [OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse],
+				issueCodes: chatTurnContractIssues,
 				evidenceRefs,
 			});
 		} catch {
 			return failureOutcome(
 				config,
 				request,
-				OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+				chatTurnContractIssues,
 				1,
 				body.byteLength,
 				latencyMs,
@@ -1822,7 +1965,12 @@ async function invokeOpenRouterResponses(
 		return failureOutcome(
 			config,
 			request,
-			OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+			config.route.qualification.endpoint === OPENROUTER_CHAT_COMPLETIONS_ENDPOINT
+				? [
+						OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+						OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.postParseValidationFailed,
+					]
+				: OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
 			1,
 			body.byteLength,
 			latencyMs,
