@@ -92,11 +92,12 @@ export const OPENROUTER_RESPONSE_DIAGNOSTIC_CODES = Object.freeze({
 	nonFinalDirectOutput: "openrouter-response-non-final-direct-output",
 	finalToolCall: "openrouter-response-final-tool-call",
 	toolCallCountZero: "openrouter-response-tool-call-count-zero",
-	toolCallCountMultiple: "openrouter-response-tool-call-count-multiple",
 	toolCallMalformed: "openrouter-response-tool-call-malformed",
 	toolNameUnknown: "openrouter-response-tool-name-unknown",
 	toolCallIdInvalid: "openrouter-response-tool-call-id-invalid",
 	toolArgumentsInvalid: "openrouter-response-tool-arguments-invalid",
+	outputByteBudgetExceeded: "openrouter-response-output-byte-budget-exceeded",
+	outputTokenBudgetExceeded: "openrouter-response-output-token-budget-exceeded",
 	postParseValidationFailed: "openrouter-response-post-parse-validation-failed",
 });
 
@@ -1206,9 +1207,6 @@ function parseChatCompletionsCandidate(
 	if (rawCallValues.length === 0) {
 		return invalidResponse(OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallCountZero, usage);
 	}
-	if (rawCallValues.length > 1) {
-		return invalidResponse(OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallCountMultiple, usage);
-	}
 	const rawCalls = withInvalidResponseDiagnostic(
 		OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallMalformed,
 		() =>
@@ -1905,8 +1903,8 @@ async function invokeOpenRouterResponses(
 	];
 	const chatTurnContractViolated =
 		config.route.qualification.endpoint === OPENROUTER_CHAT_COMPLETIONS_ENDPOINT &&
-		((!preparedRequest.finalStep && candidate.finishReason !== "tool-intents") ||
-			(candidate.finishReason === "tool-intents" && candidate.toolIntents.length !== 1));
+		!preparedRequest.finalStep &&
+		candidate.finishReason !== "tool-intents";
 	const chatTurnContractDiagnostic =
 		config.route.qualification.endpoint !== OPENROUTER_CHAT_COMPLETIONS_ENDPOINT
 			? null
@@ -1914,11 +1912,31 @@ async function invokeOpenRouterResponses(
 				? OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.finalToolCall
 				: !preparedRequest.finalStep && candidate.finishReason !== "tool-intents"
 					? OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.nonFinalDirectOutput
-					: candidate.finishReason === "tool-intents" && candidate.toolIntents.length === 0
-						? OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallCountZero
-						: candidate.finishReason === "tool-intents" && candidate.toolIntents.length > 1
-							? OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallCountMultiple
-							: null;
+					: null;
+	const outputBudgetDiagnostic =
+		config.route.qualification.endpoint !== OPENROUTER_CHAT_COMPLETIONS_ENDPOINT
+			? null
+			: selectedBytes > request.remainingTurnBudget.maxOutputBytes
+				? OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.outputByteBudgetExceeded
+				: candidate.usage.outputTokens > request.remainingTurnBudget.maxOutputTokens
+					? OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.outputTokenBudgetExceeded
+					: null;
+	if (outputBudgetDiagnostic !== null) {
+		return allowedOutcome(config, request, {
+			status: "non-evaluable",
+			finishReason: null,
+			structuredOutput: null,
+			toolIntents: [],
+			turnUsage: usage(request, 1, body.byteLength, 0, providerUsage),
+			latencyMs,
+			issueCodes: [
+				OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+				...(chatTurnContractDiagnostic === null ? [] : [chatTurnContractDiagnostic]),
+				outputBudgetDiagnostic,
+			],
+			evidenceRefs,
+		});
+	}
 	const chatTurnContractIssues =
 		chatTurnContractDiagnostic === null
 			? [OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse]

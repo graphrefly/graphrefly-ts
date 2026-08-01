@@ -527,6 +527,7 @@ function completedOutcome(
 				readonly finishReason: "structured-output";
 				readonly structuredOutput: { readonly kind: string; readonly summary: string };
 		  },
+	hostOutputBytes = 2_048,
 ): EmpiricalModelTurnOutcomeV1 {
 	const structuredOutput = body.finishReason === "structured-output" ? body.structuredOutput : null;
 	const toolIntents = body.finishReason === "tool-intents" ? body.toolIntents : [];
@@ -575,7 +576,7 @@ function completedOutcome(
 				providerCostMicrousd: null,
 				requests: 1,
 				hostInputBytes: 128,
-				hostOutputBytes: 2_048,
+				hostOutputBytes,
 			},
 			latencyMs: 1,
 			issueCodes,
@@ -942,6 +943,138 @@ function dryRunOpenRouterResponse(
 }
 
 describe("B112 D659 deterministic closed task-profile host", () => {
+	it("executes one D674 multi-intent response serially before the next model turn", async () => {
+		const fixture = await createClosedHostFixture();
+		const baseContentDigest = empiricalSha256(encoder.encode("broken-placeholder-value\n"));
+		const observedToolResultRefs: string[] = [];
+		const port = scriptedPort(fixture, (request) => {
+			if (request.stepIndex === 0) {
+				return {
+					finishReason: "tool-intents",
+					toolIntents: [
+						intent(0, CLOSED_ACTOR_TOOL_REFS.replaceExact, {
+							baseContentDigest,
+							newText: "fixed",
+							oldText: "broken-placeholder-value",
+							path: "README.md",
+						}),
+						intent(1, CLOSED_ACTOR_TOOL_REFS.readFile, { path: "README.md" }),
+					],
+				};
+			}
+			observedToolResultRefs.push(...request.priorToolResults.map((result) => result.toolCallRef));
+			expect(JSON.stringify(request.priorToolResults[1]?.result)).toContain("fixed");
+			expect(JSON.stringify(request.priorToolResults[1]?.result)).not.toContain(
+				"broken-placeholder-value",
+			);
+			return {
+				finishReason: "structured-output",
+				structuredOutput: {
+					kind: "model-turn-output-placeholder",
+					summary: "bounded-placeholder",
+				},
+			};
+		});
+
+		const outcome = await runClosedTaskProfileHost({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			initialRequest: fixture.initialRequest,
+			taskProfile: fixture.taskProfile,
+			materialization: fixture.materialization,
+			modelTurnPort: port,
+			protectionExecutor: fixture.protectionExecutor,
+			verifier: fixture.verifier,
+			signal: new AbortController().signal,
+		});
+
+		expect(outcome.status).toBe("completed");
+		expect(outcome.toolActionCount).toBe(2);
+		expect(outcome.logicalStepCount).toBe(2);
+		expect(observedToolResultRefs).toEqual(["tool-call.0", "tool-call.1"]);
+	});
+
+	it("keeps D674 multi-intent execution ordered and non-transactional on a later tool failure", async () => {
+		const fixture = await createClosedHostFixture();
+		const port = scriptedPort(fixture, () => ({
+			finishReason: "tool-intents",
+			toolIntents: [
+				intent(0, CLOSED_ACTOR_TOOL_REFS.readFile, { path: "README.md" }),
+				intent(1, CLOSED_ACTOR_TOOL_REFS.runCommand, {
+					commandRef: "actor.not-registered",
+				}),
+			],
+		}));
+
+		const outcome = await runClosedTaskProfileHost({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			initialRequest: fixture.initialRequest,
+			taskProfile: fixture.taskProfile,
+			materialization: fixture.materialization,
+			modelTurnPort: port,
+			protectionExecutor: fixture.protectionExecutor,
+			verifier: fixture.verifier,
+			signal: new AbortController().signal,
+		});
+
+		expect(outcome.status).toBe("non-evaluable");
+		expect(outcome.issueCodes).toContain("command-ref-not-allowed");
+		expect(outcome.toolActionCount).toBe(1);
+		expect(outcome.toolEvidence).toHaveLength(1);
+		expect(fixture.verifierCalls.count).toBe(0);
+	});
+
+	it("rejects a D674 batch above the 16-intent host ceiling before executing any tool", async () => {
+		const fixture = await createClosedHostFixture();
+		const initialRequest = {
+			...fixture.initialRequest,
+			remainingTurnBudget: {
+				...fixture.initialRequest.remainingTurnBudget,
+				maxOutputBytes: 4_096,
+			},
+		};
+		let modelTurnCalls = 0;
+		const port: EmpiricalModelTurnPortV1 = {
+			async invoke(request) {
+				modelTurnCalls += 1;
+				return completedOutcome(
+					request,
+					fixture.frozen,
+					fixture.report,
+					fixture.protectionExecutor,
+					{
+						finishReason: "tool-intents",
+						toolIntents: Array.from({ length: 17 }, (_, index) =>
+							intent(index, CLOSED_ACTOR_TOOL_REFS.readFile, { path: "README.md" }),
+						),
+					},
+					4_096,
+				);
+			},
+		};
+
+		const outcome = await runClosedTaskProfileHost({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			initialRequest,
+			taskProfile: fixture.taskProfile,
+			materialization: fixture.materialization,
+			modelTurnPort: port,
+			protectionExecutor: fixture.protectionExecutor,
+			verifier: fixture.verifier,
+			signal: new AbortController().signal,
+		});
+
+		expect(outcome.status).toBe("non-evaluable");
+		expect(outcome.issueCodes).toContain("tool-intent-count-exceeded");
+		expect(outcome.toolActionCount).toBe(0);
+		expect(outcome.toolEvidence).toEqual([]);
+		expect(outcome.actionTrace).toEqual([]);
+		expect(fixture.verifierCalls.count).toBe(0);
+		expect(modelTurnCalls).toBe(1);
+	});
+
 	it("runs five code-closed actor tools in explicit turns, gates the diff, verifies, and cleans up", async () => {
 		const fixture = await createClosedHostFixture();
 		const baseContentDigest = empiricalSha256(encoder.encode("broken-placeholder-value\n"));
@@ -2506,8 +2639,8 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 									type: "function_call",
 									status: "completed",
 									call_id: "call.bounded-diagnostic.2",
-									name: toolName,
-									arguments: JSON.stringify({ path: rawProviderSentinel }),
+									name: rawProviderSentinel,
+									arguments: JSON.stringify({ path: "README.md" }),
 								},
 							],
 							undefined,
@@ -2531,14 +2664,14 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			result: { classification: "non-evaluable", requests: 1 },
 		});
 		expect(result.observation.issueCodes).toContain(
-			OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallCountMultiple,
+			OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolNameUnknown,
 		);
 		expect(result.scorecard.issueCodes).toEqual(result.observation.issueCodes);
 		const persistedArtifacts = readdirSync(result.persistence.generationPath).map((file) =>
 			readFileSync(join(result.persistence.generationPath, file), "utf8"),
 		);
 		expect(persistedArtifacts.join("\n")).toContain(
-			OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallCountMultiple,
+			OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolNameUnknown,
 		);
 		for (const persisted of persistedArtifacts) {
 			expect(persisted).not.toContain(rawProviderSentinel);

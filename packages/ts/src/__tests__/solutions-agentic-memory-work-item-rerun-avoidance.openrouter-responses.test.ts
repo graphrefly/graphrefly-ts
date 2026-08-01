@@ -616,7 +616,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		serializedWithoutCredential({ binding, outcome, body });
 	});
 
-	it("derives the exact GLM 5.2 high request and DeepInfra route from frozen D673 coordinates", async () => {
+	it("derives the exact GLM 5.2 high request and DeepInfra route from frozen D673/D674 coordinates", async () => {
 		const authority = buildGlmAuthority();
 		const route = glmRouteQualification(authority);
 		const response = responseBytes({
@@ -954,10 +954,13 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			new AbortController().signal,
 		);
 		expect(multipleToolOutcome).toMatchObject({
-			status: "non-evaluable",
-			finishReason: null,
+			status: "completed",
+			finishReason: "tool-intents",
 			structuredOutput: null,
-			toolIntents: [],
+			toolIntents: [
+				expect.objectContaining({ toolCallRef: "call_glm_placeholder_01", toolRef }),
+				expect.objectContaining({ toolCallRef: "call_glm_placeholder_02", toolRef }),
+			],
 			usage: {
 				inputTokens: 120,
 				outputTokens: 24,
@@ -965,12 +968,149 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 				providerCostMicrousd: 102,
 				requests: 1,
 			},
-			issueCodes: [
-				OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
-				OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallCountMultiple,
-			],
+			issueCodes: [],
 		});
 		expect(multipleToolHarness.transport).toHaveBeenCalledTimes(1);
+
+		const boundedToolCalls = Array.from({ length: 64 }, (_, index) => ({
+			...toolCall,
+			id: `call_glm_boundary_${String(index).padStart(2, "0")}`,
+		}));
+		const boundaryHarness = (count: 64 | 65) =>
+			createHarness(
+				authority,
+				responseBytes({
+					...duplicateResponse,
+					id: `chatcmpl_glm_${count}_tools_placeholder_01`,
+					choices: [
+						{
+							index: 0,
+							finish_reason: "tool_calls",
+							message: {
+								role: "assistant",
+								content: null,
+								tool_calls:
+									count === 64
+										? boundedToolCalls
+										: [...boundedToolCalls, { ...toolCall, id: "call_glm_boundary_64" }],
+							},
+						},
+					],
+				}),
+				bearerToken,
+				route,
+			);
+		const maximumHarness = boundaryHarness(64);
+		const maximumOutcome = await maximumHarness.binding.modelTurnPort.invoke(
+			maximumHarness.request,
+			new AbortController().signal,
+		);
+		expect(maximumOutcome).toMatchObject({
+			status: "completed",
+			finishReason: "tool-intents",
+			toolIntents: expect.arrayContaining([
+				expect.objectContaining({ toolCallRef: "call_glm_boundary_00" }),
+				expect.objectContaining({ toolCallRef: "call_glm_boundary_63" }),
+			]),
+			issueCodes: [],
+		});
+		expect(maximumOutcome.toolIntents).toHaveLength(64);
+		expect(maximumHarness.transport).toHaveBeenCalledTimes(1);
+
+		const overflowHarness = boundaryHarness(65);
+		const overflowOutcome = await overflowHarness.binding.modelTurnPort.invoke(
+			overflowHarness.request,
+			new AbortController().signal,
+		);
+		expect(overflowOutcome).toMatchObject({
+			status: "non-evaluable",
+			toolIntents: [],
+			issueCodes: [
+				OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+				OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.postParseValidationFailed,
+			],
+		});
+		expect(overflowHarness.transport).toHaveBeenCalledTimes(1);
+
+		const duplicateCallHarness = createHarness(
+			authority,
+			responseBytes({
+				...duplicateResponse,
+				id: "chatcmpl_glm_duplicate_call_placeholder_01",
+				choices: [
+					{
+						index: 0,
+						finish_reason: "tool_calls",
+						message: {
+							role: "assistant",
+							content: null,
+							tool_calls: [toolCall, toolCall],
+						},
+					},
+				],
+			}),
+			bearerToken,
+			route,
+		);
+		const duplicateCallOutcome = await duplicateCallHarness.binding.modelTurnPort.invoke(
+			duplicateCallHarness.request,
+			new AbortController().signal,
+		);
+		expect(duplicateCallOutcome).toMatchObject({
+			status: "non-evaluable",
+			toolIntents: [],
+			issueCodes: [
+				OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+				OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.postParseValidationFailed,
+			],
+		});
+		expect(duplicateCallHarness.transport).toHaveBeenCalledTimes(1);
+
+		const outputBudgetHarness = createHarness(authority, response, bearerToken, route);
+		const outputBudgetRequest = {
+			...outputBudgetHarness.request,
+			remainingTurnBudget: {
+				...outputBudgetHarness.request.remainingTurnBudget,
+				maxOutputBytes: 1,
+			},
+		};
+		const outputBudgetOutcome = await outputBudgetHarness.binding.modelTurnPort.invoke(
+			outputBudgetRequest,
+			new AbortController().signal,
+		);
+		expect(outputBudgetOutcome).toMatchObject({
+			status: "non-evaluable",
+			toolIntents: [],
+			usage: { requests: 1, hostOutputBytes: 0 },
+			issueCodes: [
+				OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+				OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.outputByteBudgetExceeded,
+			],
+		});
+		expect(outputBudgetHarness.transport).toHaveBeenCalledTimes(1);
+
+		const outputTokenBudgetHarness = createHarness(authority, response, bearerToken, route);
+		const outputTokenBudgetRequest = {
+			...outputTokenBudgetHarness.request,
+			remainingTurnBudget: {
+				...outputTokenBudgetHarness.request.remainingTurnBudget,
+				maxOutputTokens: 1,
+			},
+		};
+		const outputTokenBudgetOutcome = await outputTokenBudgetHarness.binding.modelTurnPort.invoke(
+			outputTokenBudgetRequest,
+			new AbortController().signal,
+		);
+		expect(outputTokenBudgetOutcome).toMatchObject({
+			status: "non-evaluable",
+			toolIntents: [],
+			usage: { requests: 1, outputTokens: null },
+			issueCodes: [
+				OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+				OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.outputTokenBudgetExceeded,
+			],
+		});
+		expect(outputTokenBudgetHarness.transport).toHaveBeenCalledTimes(1);
 
 		const rawDiagnosticSentinel = "raw-provider-diagnostic-must-not-survive";
 		const diagnosticCases = [
@@ -1001,7 +1141,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 						{ ...toolCall, id: "call_glm_placeholder_02", type: "unsupported" },
 					],
 				},
-				expected: OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallCountMultiple,
+				expected: OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.toolCallMalformed,
 			},
 			{
 				id: "unknown-tool-name",
@@ -1097,9 +1237,9 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			expect(diagnosticHarness.transport).toHaveBeenCalledTimes(1);
 			expect(JSON.stringify(diagnosticOutcome)).not.toContain(rawDiagnosticSentinel);
 		}
-	});
+	}, 15_000);
 
-	it("keeps the D673 capability probe to one simulated request and no efficacy evidence", async () => {
+	it("keeps the D674 multi-intent capability probe to one simulated request and no efficacy evidence", async () => {
 		const authority = buildGlmAuthority();
 		const route = glmRouteQualification(authority);
 		const request = buildEmpiricalModelTurnRequestFixture(authority);
@@ -1119,6 +1259,17 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 						tool_calls: [
 							{
 								id: "call_glm_probe_placeholder_01",
+								type: "function",
+								function: {
+									name: toolRef,
+									arguments: JSON.stringify({
+										commandRef: "command-placeholder",
+										args: [],
+									}),
+								},
+							},
+							{
+								id: "call_glm_probe_placeholder_02",
 								type: "function",
 								function: {
 									name: toolRef,
@@ -1196,7 +1347,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			efficacyClaim: "none",
 			status: "completed",
 			finishReason: "tool-intents",
-			toolIntentCount: 1,
+			toolIntentCount: 2,
 			requests: 1,
 			providerCostMicrousd: 102,
 			issueCodes: [],
@@ -1205,7 +1356,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		serializedWithoutCredential({ result, route });
 	});
 
-	it("rejects a non-first, final-step, or pricing-source-substituted D673 probe before transport", async () => {
+	it("rejects a non-first, final-step, or pricing-source-substituted D674 probe before transport", async () => {
 		const authority = buildGlmAuthority();
 		const route = glmRouteQualification(authority);
 		const request = buildEmpiricalModelTurnRequestFixture(authority);
@@ -1228,13 +1379,13 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			signal: new AbortController().signal,
 		};
 		const secondTaskRef = authority.frozen.manifest.catalog.tasks[1]?.taskRef;
-		if (secondTaskRef === undefined) throw new TypeError("missing second D673 fixture task");
+		if (secondTaskRef === undefined) throw new TypeError("missing second D674 fixture task");
 		await expect(
 			runOpenRouterFirstTaskCapabilityProbe({
 				...baseInput,
 				request: strictSnapshot({ ...request, taskRef: secondTaskRef }),
 			}),
-		).rejects.toThrow(/frozen D673 coordinates/);
+		).rejects.toThrow(/frozen D674 coordinates/);
 		await expect(
 			runOpenRouterFirstTaskCapabilityProbe({
 				...baseInput,
@@ -1243,7 +1394,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 					budget: { ...route.budget, maxRequests: 1, maxStepsPerRun: 1 },
 				}),
 			}),
-		).rejects.toThrow(/frozen D673 coordinates/);
+		).rejects.toThrow(/frozen D674 coordinates/);
 		await expect(
 			runOpenRouterFirstTaskCapabilityProbe({
 				...baseInput,
@@ -1252,7 +1403,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 					pricing: { ...route.pricing, sourceUrl: "https://example.invalid/pricing" },
 				}),
 			}),
-		).rejects.toThrow(/frozen D673 coordinates/);
+		).rejects.toThrow(/frozen D674 coordinates/);
 		expect(transport).not.toHaveBeenCalled();
 	});
 
