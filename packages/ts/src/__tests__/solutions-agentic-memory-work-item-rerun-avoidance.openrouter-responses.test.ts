@@ -365,6 +365,33 @@ function directRouteMetadata(overrides: Record<string, unknown> = {}): Record<st
 	};
 }
 
+function glmDirectRouteMetadata(): Record<string, unknown> {
+	return {
+		requested: OPENROUTER_GLM_5_2_REQUEST_MODEL,
+		strategy: "direct",
+		attempt: 1,
+		is_byok: false,
+		endpoints: {
+			total: 1,
+			available: [
+				{
+					provider: OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME,
+					model: `${OPENROUTER_GLM_5_2_REQUEST_MODEL}-20260616`,
+					selected: true,
+				},
+			],
+		},
+		attempts: [
+			{
+				provider: OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME,
+				model: `${OPENROUTER_GLM_5_2_REQUEST_MODEL}-20260616`,
+				status: 200,
+			},
+		],
+		pipeline: [],
+	};
+}
+
 function completedResponse(
 	output: readonly unknown[],
 	overrides: Record<string, unknown> = {},
@@ -735,7 +762,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		serializedWithoutCredential({ body, outcome, route });
 	});
 
-	it("treats GLM reasoning tokens as a bounded completion-token subset", async () => {
+	it("treats GLM reasoning tokens as bounded auxiliary metadata independent of completion usage", async () => {
 		const authority = buildGlmAuthority();
 		const route = glmRouteQualification(authority);
 		const response = responseBytes({
@@ -797,18 +824,172 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		expect(outcome).toMatchObject({
 			status: "non-evaluable",
 			usage: {
-				inputTokens: null,
-				outputTokens: null,
-				totalTokens: null,
+				inputTokens: 2,
+				outputTokens: 4,
+				totalTokens: 6,
 				requests: 1,
+				providerCostMicrousd: 6,
 			},
 			issueCodes: [
 				OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
-				OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.usageInvalid,
+				OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.nonFinalDirectOutput,
 			],
 		});
 		expect(harness.transport).toHaveBeenCalledTimes(1);
 		serializedWithoutCredential({ outcome, route });
+	});
+
+	it("emits bounded allowlisted Chat usage subtypes while retaining validated partial accounting", async () => {
+		const authority = buildGlmAuthority();
+		const route = glmRouteQualification(authority);
+		const fixtures = [
+			{
+				usage: null,
+				diagnostic: OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.usageEnvelopeInvalid,
+				expectedUsage: {
+					inputTokens: null,
+					outputTokens: null,
+					totalTokens: null,
+					providerCostMicrousd: null,
+				},
+			},
+			{
+				usage: {
+					prompt_tokens: "invalid",
+					completion_tokens: 4,
+					total_tokens: 6,
+					cost: 0.000_006,
+				},
+				diagnostic: OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.usagePromptTokensInvalid,
+				expectedUsage: {
+					inputTokens: null,
+					outputTokens: null,
+					totalTokens: null,
+					providerCostMicrousd: null,
+				},
+			},
+			{
+				usage: {
+					prompt_tokens: 2,
+					completion_tokens: "invalid",
+					total_tokens: 6,
+					cost: 0.000_006,
+				},
+				diagnostic: OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.usageCompletionTokensInvalid,
+				expectedUsage: {
+					inputTokens: 2,
+					outputTokens: null,
+					totalTokens: null,
+					providerCostMicrousd: null,
+				},
+			},
+			{
+				usage: {
+					prompt_tokens: 2,
+					completion_tokens: 4,
+					total_tokens: "invalid",
+					cost: 0.000_006,
+				},
+				diagnostic: OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.usageTotalTokensInvalid,
+				expectedUsage: {
+					inputTokens: 2,
+					outputTokens: 4,
+					totalTokens: null,
+					providerCostMicrousd: null,
+				},
+			},
+			{
+				usage: {
+					prompt_tokens: 2,
+					completion_tokens: 4,
+					total_tokens: 6,
+					cost: "invalid",
+				},
+				diagnostic: OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.usageCostInvalid,
+				expectedUsage: {
+					inputTokens: 2,
+					outputTokens: 4,
+					totalTokens: 6,
+					providerCostMicrousd: null,
+				},
+			},
+			{
+				usage: {
+					prompt_tokens: 2,
+					completion_tokens: 4,
+					total_tokens: 7,
+					cost: 0.000_006,
+				},
+				diagnostic: OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.usageTotalTokensMismatch,
+				expectedUsage: {
+					inputTokens: 2,
+					outputTokens: 4,
+					totalTokens: 7,
+					providerCostMicrousd: 6,
+				},
+			},
+			{
+				usage: {
+					prompt_tokens: 2,
+					completion_tokens: 4,
+					total_tokens: 6,
+					cost: 0.000_006,
+					completion_tokens_details: "invalid",
+				},
+				diagnostic: OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.usageReasoningDetailsInvalid,
+				expectedUsage: {
+					inputTokens: 2,
+					outputTokens: 4,
+					totalTokens: 6,
+					providerCostMicrousd: 6,
+				},
+			},
+			{
+				usage: {
+					prompt_tokens: 2,
+					completion_tokens: 4,
+					total_tokens: 6,
+					cost: 0.000_006,
+					completion_tokens_details: { reasoning_tokens: "invalid" },
+				},
+				diagnostic: OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.usageReasoningTokensInvalid,
+				expectedUsage: {
+					inputTokens: 2,
+					outputTokens: 4,
+					totalTokens: 6,
+					providerCostMicrousd: 6,
+				},
+			},
+		] as const;
+
+		for (const [index, fixture] of fixtures.entries()) {
+			const response = responseBytes({
+				id: `chatcmpl_glm_usage_failure_placeholder_${index}`,
+				object: "chat.completion",
+				model: OPENROUTER_GLM_5_2_REQUEST_MODEL,
+				choices: [],
+				usage: fixture.usage,
+				openrouter_metadata: glmDirectRouteMetadata(),
+			});
+			const harness = createHarness(authority, response, bearerToken, route);
+
+			const outcome = await harness.binding.modelTurnPort.invoke(
+				harness.request,
+				new AbortController().signal,
+			);
+
+			expect(outcome).toMatchObject({
+				status: "non-evaluable",
+				usage: { ...fixture.expectedUsage, requests: 1 },
+				issueCodes: [
+					OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+					OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.usageInvalid,
+					fixture.diagnostic,
+				],
+			});
+			expect(harness.transport).toHaveBeenCalledTimes(1);
+			serializedWithoutCredential({ outcome, route });
+		}
 	});
 
 	it("maps one GLM Chat tool call and emits only bounded diagnostics for rejected calls", async () => {

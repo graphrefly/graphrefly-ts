@@ -42,7 +42,7 @@ export const OPENROUTER_CHAT_COMPLETIONS_ENDPOINT_REVISION =
 export const OPENROUTER_CHAT_COMPLETIONS_ADAPTER_REVISION =
 	"graphrefly-openrouter-chat-completions-turn.v1";
 export const OPENROUTER_CHAT_COMPLETIONS_BINDING_REVISION =
-	"graphrefly-openrouter-chat-completions-wire.v16";
+	"graphrefly-openrouter-chat-completions-wire.v17";
 export const OPENROUTER_ROUTE_EVIDENCE_SCHEMA_REVISION = "openrouter-metadata-2026-07-29.v1";
 export const OPENROUTER_PROVIDER_USAGE_REVISION =
 	"openrouter-provider-reported-cost-microusd-2026-07-29.v2";
