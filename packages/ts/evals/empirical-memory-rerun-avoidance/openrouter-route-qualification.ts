@@ -36,13 +36,13 @@ export const OPENROUTER_GLM_5_2_DEEPINFRA_DOWNSTREAM_PROVIDER_SLUG = "deepinfra/
 export const OPENROUTER_GLM_5_2_DEEPINFRA_DOWNSTREAM_PROVIDER_NAME = "DeepInfra";
 export const OPENROUTER_RESPONSES_ENDPOINT_REVISION = "openrouter-responses-2026-07-29.v2";
 export const OPENROUTER_RESPONSES_ADAPTER_REVISION = "graphrefly-openrouter-responses-turn.v2";
-export const OPENROUTER_RESPONSES_BINDING_REVISION = "graphrefly-openrouter-responses-wire.v8";
+export const OPENROUTER_RESPONSES_BINDING_REVISION = "graphrefly-openrouter-responses-wire.v9";
 export const OPENROUTER_CHAT_COMPLETIONS_ENDPOINT_REVISION =
 	"openrouter-chat-completions-2026-07-30.v1";
 export const OPENROUTER_CHAT_COMPLETIONS_ADAPTER_REVISION =
 	"graphrefly-openrouter-chat-completions-turn.v1";
 export const OPENROUTER_CHAT_COMPLETIONS_BINDING_REVISION =
-	"graphrefly-openrouter-chat-completions-wire.v17";
+	"graphrefly-openrouter-chat-completions-wire.v18";
 export const OPENROUTER_ROUTE_EVIDENCE_SCHEMA_REVISION = "openrouter-metadata-2026-07-29.v1";
 export const OPENROUTER_PROVIDER_USAGE_REVISION =
 	"openrouter-provider-reported-cost-microusd-2026-07-29.v2";

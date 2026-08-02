@@ -15,6 +15,11 @@ import {
 	type OpenRouterResponsesTransportRequestV1,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-responses-model-turn.js";
 import type { OpenRouterRouteQualificationV1 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-route-qualification.js";
+import {
+	createOpenRouterTransportFailure,
+	OPENROUTER_TRANSPORT_FAILURE_DIAGNOSTIC_SCHEMA,
+	readOpenRouterTransportFailureDiagnostic,
+} from "../../evals/empirical-memory-rerun-avoidance/openrouter-transport-failure.js";
 
 const encoder = new TextEncoder();
 const credentialSentinel = "openrouter-transport-secret-sentinel-0123456789";
@@ -258,8 +263,11 @@ describe("B112 package-private OpenRouter live byte transport", () => {
 		).rejects.toMatchObject({ name: "AbortError" });
 		expect(cancelledFetch).not.toHaveBeenCalled();
 
+		const rawCause = Object.assign(new Error(`raw transport failure ${credentialSentinel}`), {
+			code: "UND_ERR_SOCKET",
+		});
 		const failedFetch = vi.fn<typeof fetch>(() =>
-			Promise.reject(new Error(`raw transport failure ${credentialSentinel}`)),
+			Promise.reject(new TypeError(`raw fetch wrapper ${credentialSentinel}`, { cause: rawCause })),
 		);
 		let failure: unknown;
 		try {
@@ -272,6 +280,118 @@ describe("B112 package-private OpenRouter live byte transport", () => {
 		expect(failure).toBeInstanceOf(TypeError);
 		expect(String(failure)).toContain("OpenRouter byte transport failed");
 		expect(String(failure)).not.toContain(credentialSentinel);
+		expect(readOpenRouterTransportFailureDiagnostic(failure)).toEqual({
+			schemaVersion: OPENROUTER_TRANSPORT_FAILURE_DIAGNOSTIC_SCHEMA,
+			phase: "request",
+			causeCode: "und-err-socket",
+		});
+		expect(JSON.stringify(readOpenRouterTransportFailureDiagnostic(failure))).not.toContain(
+			credentialSentinel,
+		);
 		expect(failedFetch).toHaveBeenCalledTimes(1);
+	});
+
+	it("distinguishes a bounded response-body failure without reflecting raw stream material", async () => {
+		const failedBody = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(encoder.encode('{"partial":'));
+				controller.error(
+					Object.assign(new Error(`raw body failure ${credentialSentinel}`), {
+						code: "ECONNRESET",
+					}),
+				);
+			},
+		});
+		const fetchCapability = vi.fn<typeof fetch>(() =>
+			Promise.resolve(new Response(failedBody, { status: 200 })),
+		);
+		let failure: unknown;
+		try {
+			await createOpenRouterResponsesFetchByteTransport({ fetch: fetchCapability }).request(
+				transportRequest(),
+			);
+		} catch (error) {
+			failure = error;
+		}
+
+		expect(readOpenRouterTransportFailureDiagnostic(failure)).toEqual({
+			schemaVersion: OPENROUTER_TRANSPORT_FAILURE_DIAGNOSTIC_SCHEMA,
+			phase: "response-body",
+			causeCode: "econnreset",
+		});
+		expect(JSON.stringify(failure)).not.toContain(credentialSentinel);
+		expect(fetchCapability).toHaveBeenCalledTimes(1);
+	});
+
+	it("preserves host cancellation while a response body read is pending", async () => {
+		const requestController = new AbortController();
+		let responseController: ReadableStreamDefaultController<Uint8Array> | undefined;
+		let markReadStarted: (() => void) | undefined;
+		const readStarted = new Promise<void>((resolve) => {
+			markReadStarted = resolve;
+		});
+		const pendingBody = new ReadableStream<Uint8Array>({
+			start(controller) {
+				responseController = controller;
+			},
+			pull() {
+				markReadStarted?.();
+				return new Promise<void>(() => undefined);
+			},
+		});
+		const fetchCapability = vi.fn<typeof fetch>(() =>
+			Promise.resolve(new Response(pendingBody, { status: 200 })),
+		);
+		const pendingRequest = createOpenRouterResponsesFetchByteTransport({
+			fetch: fetchCapability,
+		}).request(transportRequest({ signal: requestController.signal }));
+		await readStarted;
+		requestController.abort();
+		responseController?.error(new Error(`raw cancelled body ${credentialSentinel}`));
+		await expect(pendingRequest).rejects.toMatchObject({ name: "AbortError" });
+		expect(fetchCapability).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps diagnostic construction and reading closed under hostile runtime values", () => {
+		let invalidPhaseFailure: unknown;
+		try {
+			createOpenRouterTransportFailure(credentialSentinel, new Error("ignored"));
+		} catch (error) {
+			invalidPhaseFailure = error;
+		}
+		expect(invalidPhaseFailure).toBeInstanceOf(TypeError);
+		expect(String(invalidPhaseFailure)).not.toContain(credentialSentinel);
+
+		const hostileCause = new Proxy(
+			{},
+			{
+				getOwnPropertyDescriptor() {
+					throw new Error(`hostile cause ${credentialSentinel}`);
+				},
+			},
+		);
+		const failure = createOpenRouterTransportFailure("request", hostileCause);
+		expect(readOpenRouterTransportFailureDiagnostic(failure)).toEqual({
+			schemaVersion: OPENROUTER_TRANSPORT_FAILURE_DIAGNOSTIC_SCHEMA,
+			phase: "request",
+			causeCode: "unrecognized",
+		});
+		expect(
+			Reflect.set(failure, "diagnostic", {
+				schemaVersion: OPENROUTER_TRANSPORT_FAILURE_DIAGNOSTIC_SCHEMA,
+				phase: credentialSentinel,
+				causeCode: credentialSentinel,
+			}),
+		).toBe(false);
+
+		const hostileFailureProxy = new Proxy(failure, {
+			getPrototypeOf() {
+				throw new Error(`hostile prototype ${credentialSentinel}`);
+			},
+		});
+		expect(readOpenRouterTransportFailureDiagnostic(hostileFailureProxy)).toBeNull();
+		expect(JSON.stringify(readOpenRouterTransportFailureDiagnostic(failure))).not.toContain(
+			credentialSentinel,
+		);
 	});
 });

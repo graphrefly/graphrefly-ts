@@ -9,6 +9,7 @@ import {
 	OPENROUTER_CHAT_COMPLETIONS_ENDPOINT,
 	OPENROUTER_RESPONSES_ENDPOINT,
 } from "./openrouter-route-qualification.js";
+import { createOpenRouterTransportFailure } from "./openrouter-transport-failure.js";
 
 const typedArrayByteLengthGetter = Object.getOwnPropertyDescriptor(
 	Object.getPrototypeOf(Uint8Array.prototype),
@@ -37,6 +38,7 @@ function ownFetch(value: unknown): typeof fetch {
 async function readBoundedResponseBody(
 	response: Response,
 	maxResponseBytes: number,
+	signal: AbortSignal,
 ): Promise<Uint8Array> {
 	const declaredLength = response.headers.get("content-length");
 	if (declaredLength !== null) {
@@ -56,7 +58,15 @@ async function readBoundedResponseBody(
 	let byteLength = 0;
 	try {
 		for (;;) {
-			const next = await reader.read();
+			let next: Awaited<ReturnType<typeof reader.read>>;
+			try {
+				next = await reader.read();
+			} catch (error) {
+				if (signal.aborted) {
+					throw new DOMException("OpenRouter request cancelled by host", "AbortError");
+				}
+				throw createOpenRouterTransportFailure("response-body", error);
+			}
 			if (next.done) break;
 			if (!(next.value instanceof Uint8Array)) {
 				throw new TypeError("OpenRouter response stream yielded non-byte data");
@@ -152,11 +162,11 @@ export function createOpenRouterResponsesFetchByteTransport(
 					credentials: "omit",
 					referrerPolicy: "no-referrer",
 				});
-			} catch {
+			} catch (error) {
 				if (input.signal.aborted) {
 					throw new DOMException("OpenRouter request cancelled by host", "AbortError");
 				}
-				throw new TypeError("OpenRouter byte transport failed");
+				throw createOpenRouterTransportFailure("request", error);
 			}
 			let status: number;
 			try {
@@ -170,7 +180,7 @@ export function createOpenRouterResponsesFetchByteTransport(
 			}
 			return Object.freeze({
 				status,
-				body: await readBoundedResponseBody(response, maxResponseBytes),
+				body: await readBoundedResponseBody(response, maxResponseBytes, input.signal),
 				retryAfterMs: retryAfterMs(response),
 			});
 		},

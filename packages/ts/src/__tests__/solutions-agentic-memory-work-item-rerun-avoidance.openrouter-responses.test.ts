@@ -58,6 +58,7 @@ import {
 	OPENROUTER_ROUTE_QUALIFICATION_SCHEMA,
 	type OpenRouterRouteQualificationV1,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-route-qualification.js";
+import { createOpenRouterTransportFailure } from "../../evals/empirical-memory-rerun-avoidance/openrouter-transport-failure.js";
 import { freezeEmpiricalCampaignManifest } from "../../evals/empirical-memory-rerun-avoidance/qualification.js";
 import { strictJsonCodec } from "../json/codec.js";
 import { buildEmpiricalCampaignFixture } from "./eval-support/empirical-memory-rerun-avoidance/fixtures.js";
@@ -432,6 +433,7 @@ function createHarness(
 	),
 	credentialToken = bearerToken,
 	route: OpenRouterRouteQualificationV1 = routeQualification(authority),
+	measurements: readonly number[] = [1_000, 1_025],
 ): {
 	readonly binding: OpenRouterResponsesEmpiricalBindingV1;
 	readonly request: EmpiricalModelTurnRequestV1;
@@ -451,7 +453,6 @@ function createHarness(
 	);
 	const admission = vi.fn(() => true);
 	let measurementIndex = 0;
-	const measurements = [1_000, 1_025];
 	const binding = createOpenRouterResponsesEmpiricalBinding({
 		frozen: authority.frozen,
 		qualificationReport: authority.qualificationReport,
@@ -468,7 +469,7 @@ function createHarness(
 			readMs() {
 				const value = measurements[measurementIndex];
 				measurementIndex += 1;
-				return value ?? 1_025;
+				return value ?? measurements.at(-1) ?? 0;
 			},
 		},
 	});
@@ -2281,7 +2282,47 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		const outcome = await binding.modelTurnPort.invoke(request, new AbortController().signal);
 		expect(outcome.issueCodes).toEqual([OPENROUTER_RESPONSES_ISSUE_CODES.unavailableTransport]);
 		expect(outcome.usage.requests).toBe(1);
+		expect(outcome.latencyMs).toBe(25);
 		serializedWithoutCredential(outcome);
+
+		const diagnosticHarness = createHarness();
+		diagnosticHarness.transport.mockRejectedValueOnce(
+			createOpenRouterTransportFailure(
+				"response-body",
+				Object.assign(new Error(`raw response body ${bearerToken}`), { code: "ECONNRESET" }),
+			),
+		);
+		const diagnosticOutcome = await diagnosticHarness.binding.modelTurnPort.invoke(
+			diagnosticHarness.request,
+			new AbortController().signal,
+		);
+		expect(diagnosticOutcome.issueCodes).toEqual([
+			OPENROUTER_RESPONSES_ISSUE_CODES.unavailableTransport,
+			"openrouter-transport-phase:response-body",
+			"openrouter-transport-cause:econnreset",
+		]);
+		expect(diagnosticOutcome.latencyMs).toBe(25);
+		serializedWithoutCredential(diagnosticOutcome);
+		expect(JSON.stringify(diagnosticOutcome)).not.toContain("raw response body");
+
+		const invalidMeasurementHarness = createHarness(
+			buildAuthority(),
+			undefined,
+			undefined,
+			undefined,
+			[1_000, 999],
+		);
+		invalidMeasurementHarness.transport.mockRejectedValueOnce(new Error("transport failure"));
+		const invalidMeasurementOutcome = await invalidMeasurementHarness.binding.modelTurnPort.invoke(
+			invalidMeasurementHarness.request,
+			new AbortController().signal,
+		);
+		expect(invalidMeasurementOutcome).toMatchObject({
+			status: "non-evaluable",
+			latencyMs: 0,
+			issueCodes: [OPENROUTER_RESPONSES_ISSUE_CODES.measurementInvalid],
+			usage: { requests: 1 },
+		});
 	});
 
 	it("records only bounded allowlisted provider rejection diagnostics", async () => {

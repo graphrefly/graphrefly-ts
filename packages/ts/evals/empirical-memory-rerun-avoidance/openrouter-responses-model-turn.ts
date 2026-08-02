@@ -46,6 +46,7 @@ import {
 	type QualifiedOpenRouterRouteV1,
 	validateOpenRouterRouteQualification,
 } from "./openrouter-route-qualification.js";
+import { readOpenRouterTransportFailureDiagnostic } from "./openrouter-transport-failure.js";
 import { validateFrozenEmpiricalCampaignManifest } from "./qualification.js";
 
 export const OPENROUTER_RESPONSES_PROMPT_REVISION = "openrouter-responses-user-envelope.v2";
@@ -326,6 +327,17 @@ function bindingFailureIssueCodes(
 				error.issueCode,
 				error.diagnosticCode,
 				...(error.detailDiagnosticCode === null ? [] : [error.detailDiagnosticCode]),
+			];
+}
+
+function transportFailureIssueCodes(error: unknown): readonly string[] {
+	const diagnostic = readOpenRouterTransportFailureDiagnostic(error);
+	return diagnostic === null
+		? [OPENROUTER_RESPONSES_ISSUE_CODES.unavailableTransport]
+		: [
+				OPENROUTER_RESPONSES_ISSUE_CODES.unavailableTransport,
+				`openrouter-transport-phase:${diagnostic.phase}`,
+				`openrouter-transport-cause:${diagnostic.causeCode}`,
 			];
 }
 
@@ -1514,6 +1526,17 @@ function readMeasurement(readMs: OpenRouterResponsesMonotonicMeasurementV1["read
 	return value;
 }
 
+function elapsedMeasurementMs(
+	readMs: OpenRouterResponsesMonotonicMeasurementV1["readMs"],
+	startedAtMs: number,
+): number {
+	const finishedAtMs = readMeasurement(readMs);
+	if (finishedAtMs < startedAtMs || finishedAtMs - startedAtMs > 86_400_000) {
+		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.measurementInvalid);
+	}
+	return finishedAtMs - startedAtMs;
+}
+
 function usage(
 	request: EmpiricalModelTurnRequestV1,
 	requests: 0 | 1,
@@ -1797,14 +1820,27 @@ async function invokeOpenRouterResponses(
 			maxResponseBytes: MAX_OPENROUTER_RESPONSES_RESPONSE_BYTES,
 			signal,
 		});
-	} catch {
+	} catch (error) {
+		let latencyMs: number;
+		try {
+			latencyMs = elapsedMeasurementMs(config.readMs, startedAtMs);
+		} catch {
+			return failureOutcome(
+				config,
+				request,
+				OPENROUTER_RESPONSES_ISSUE_CODES.measurementInvalid,
+				1,
+				body.byteLength,
+				0,
+			);
+		}
 		return failureOutcome(
 			config,
 			request,
-			OPENROUTER_RESPONSES_ISSUE_CODES.unavailableTransport,
+			transportFailureIssueCodes(error),
 			1,
 			body.byteLength,
-			0,
+			latencyMs,
 		);
 	}
 	if (signal.aborted) {
@@ -1820,11 +1856,7 @@ async function invokeOpenRouterResponses(
 
 	let latencyMs = 0;
 	try {
-		const finishedAtMs = readMeasurement(config.readMs);
-		if (finishedAtMs < startedAtMs || finishedAtMs - startedAtMs > 86_400_000) {
-			throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.measurementInvalid);
-		}
-		latencyMs = finishedAtMs - startedAtMs;
+		latencyMs = elapsedMeasurementMs(config.readMs, startedAtMs);
 	} catch {
 		return failureOutcome(
 			config,
