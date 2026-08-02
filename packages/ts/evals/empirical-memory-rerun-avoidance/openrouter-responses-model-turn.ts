@@ -74,6 +74,7 @@ export const OPENROUTER_RESPONSES_ISSUE_CODES = Object.freeze({
 	authenticationPermission: "openrouter-authentication-permission",
 	quotaRateLimit: "openrouter-quota-rate-limit",
 	unavailableTransport: "openrouter-unavailable-transport",
+	hostCancelled: "openrouter-host-cancelled",
 	rejected: "openrouter-request-rejected",
 	invalidResponse: "openrouter-invalid-unsupported-response",
 	routingMismatch: "openrouter-routing-evidence-mismatch",
@@ -330,7 +331,13 @@ function bindingFailureIssueCodes(
 			];
 }
 
-function transportFailureIssueCodes(error: unknown): readonly string[] {
+function transportFailureIssueCodes(error: unknown, signal: AbortSignal): readonly string[] {
+	if (signal.aborted) {
+		return [
+			OPENROUTER_RESPONSES_ISSUE_CODES.unavailableTransport,
+			OPENROUTER_RESPONSES_ISSUE_CODES.hostCancelled,
+		];
+	}
 	const diagnostic = readOpenRouterTransportFailureDiagnostic(error);
 	return diagnostic === null
 		? [OPENROUTER_RESPONSES_ISSUE_CODES.unavailableTransport]
@@ -339,6 +346,34 @@ function transportFailureIssueCodes(error: unknown): readonly string[] {
 				`openrouter-transport-phase:${diagnostic.phase}`,
 				`openrouter-transport-cause:${diagnostic.causeCode}`,
 			];
+}
+
+function measuredTransportFailureOutcome(
+	config: RuntimeBindingConfig,
+	request: EmpiricalModelTurnRequestV1,
+	issues: readonly string[],
+	startedAtMs: number,
+	hostInputBytes: number,
+): EmpiricalModelTurnOutcomeV1 {
+	try {
+		return failureOutcome(
+			config,
+			request,
+			issues,
+			1,
+			hostInputBytes,
+			elapsedMeasurementMs(config.readMs, startedAtMs),
+		);
+	} catch {
+		return failureOutcome(
+			config,
+			request,
+			[...issues, OPENROUTER_RESPONSES_ISSUE_CODES.measurementInvalid],
+			1,
+			hostInputBytes,
+			0,
+		);
+	}
 }
 
 function ownFunction<T extends (...args: never[]) => unknown>(
@@ -1821,9 +1856,19 @@ async function invokeOpenRouterResponses(
 			signal,
 		});
 	} catch (error) {
-		let latencyMs: number;
+		const issues = transportFailureIssueCodes(error, signal);
+		if (signal.aborted) {
+			return measuredTransportFailureOutcome(config, request, issues, startedAtMs, body.byteLength);
+		}
 		try {
-			latencyMs = elapsedMeasurementMs(config.readMs, startedAtMs);
+			return failureOutcome(
+				config,
+				request,
+				issues,
+				1,
+				body.byteLength,
+				elapsedMeasurementMs(config.readMs, startedAtMs),
+			);
 		} catch {
 			return failureOutcome(
 				config,
@@ -1834,23 +1879,17 @@ async function invokeOpenRouterResponses(
 				0,
 			);
 		}
-		return failureOutcome(
-			config,
-			request,
-			transportFailureIssueCodes(error),
-			1,
-			body.byteLength,
-			latencyMs,
-		);
 	}
 	if (signal.aborted) {
-		return failureOutcome(
+		return measuredTransportFailureOutcome(
 			config,
 			request,
-			OPENROUTER_RESPONSES_ISSUE_CODES.unavailableTransport,
-			1,
+			[
+				OPENROUTER_RESPONSES_ISSUE_CODES.unavailableTransport,
+				OPENROUTER_RESPONSES_ISSUE_CODES.hostCancelled,
+			],
+			startedAtMs,
 			body.byteLength,
-			0,
 		);
 	}
 

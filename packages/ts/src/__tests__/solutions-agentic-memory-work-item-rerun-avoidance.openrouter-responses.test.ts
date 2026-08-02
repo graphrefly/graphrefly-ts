@@ -2676,7 +2676,67 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		);
 		expect(timeoutOutcome).toMatchObject({
 			status: "non-evaluable",
-			issueCodes: [OPENROUTER_RESPONSES_ISSUE_CODES.unavailableTransport],
+			latencyMs: 25,
+			issueCodes: [
+				OPENROUTER_RESPONSES_ISSUE_CODES.unavailableTransport,
+				OPENROUTER_RESPONSES_ISSUE_CODES.hostCancelled,
+			],
+			usage: { requests: 1 },
+		});
+
+		const resolvedAfterAbortHarness = createHarness();
+		const resolvedAfterAbortController = new AbortController();
+		resolvedAfterAbortHarness.transport.mockImplementationOnce(() => {
+			resolvedAfterAbortController.abort();
+			return Promise.resolve({
+				status: 200,
+				body: completedResponse(
+					messageOutput({
+						kind: "model-turn-output-placeholder",
+						summary: "must-not-be-observed",
+					}),
+				),
+				retryAfterMs: null,
+			});
+		});
+		const resolvedAfterAbortOutcome = await resolvedAfterAbortHarness.binding.modelTurnPort.invoke(
+			resolvedAfterAbortHarness.request,
+			resolvedAfterAbortController.signal,
+		);
+		expect(resolvedAfterAbortOutcome).toMatchObject({
+			status: "non-evaluable",
+			latencyMs: 25,
+			issueCodes: [
+				OPENROUTER_RESPONSES_ISSUE_CODES.unavailableTransport,
+				OPENROUTER_RESPONSES_ISSUE_CODES.hostCancelled,
+			],
+			usage: { requests: 1 },
+		});
+
+		const invalidMeasurementHarness = createHarness(
+			buildAuthority(),
+			undefined,
+			undefined,
+			undefined,
+			[1_000, 999],
+		);
+		const invalidMeasurementController = new AbortController();
+		invalidMeasurementHarness.transport.mockImplementationOnce(() => {
+			invalidMeasurementController.abort();
+			return Promise.reject(new DOMException("provider timeout", "AbortError"));
+		});
+		const invalidMeasurementOutcome = await invalidMeasurementHarness.binding.modelTurnPort.invoke(
+			invalidMeasurementHarness.request,
+			invalidMeasurementController.signal,
+		);
+		expect(invalidMeasurementOutcome).toMatchObject({
+			status: "non-evaluable",
+			latencyMs: 0,
+			issueCodes: [
+				OPENROUTER_RESPONSES_ISSUE_CODES.unavailableTransport,
+				OPENROUTER_RESPONSES_ISSUE_CODES.hostCancelled,
+				OPENROUTER_RESPONSES_ISSUE_CODES.measurementInvalid,
+			],
 			usage: { requests: 1 },
 		});
 
