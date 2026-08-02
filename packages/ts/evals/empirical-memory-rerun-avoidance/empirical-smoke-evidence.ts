@@ -1125,6 +1125,16 @@ function validateSmokeRunObservation(value: unknown, path: string): EmpiricalSmo
 		throw new TypeError(`${path}.attemptTrace must include every logical turn`);
 	}
 	const expectedRetryWaitForAttempt = (attempt: (typeof attemptTrace)[number], index: number) => {
+		const requestSocketIssueCodes = [
+			"openrouter-transport-cause:und-err-socket",
+			"openrouter-transport-phase:request",
+			"openrouter-unavailable-transport",
+		] as const;
+		const retryableRequestSocket =
+			attempt.status === "non-evaluable" &&
+			attempt.attemptOrdinal === 1 &&
+			attempt.issueCodes.length === requestSocketIssueCodes.length &&
+			requestSocketIssueCodes.every((issueCode) => attempt.issueCodes.includes(issueCode));
 		const retryable429 =
 			attempt.status === "non-evaluable" &&
 			attempt.issueCodes.includes("openrouter-http-status:429") &&
@@ -1133,7 +1143,7 @@ function validateSmokeRunObservation(value: unknown, path: string): EmpiricalSmo
 			attempt.status === "non-evaluable" &&
 			attempt.issueCodes.includes("openrouter-http-status:503") &&
 			attempt.issueCodes.includes("openrouter-error-type:provider_overloaded");
-		if (!retryable429 && !retryable503) {
+		if (!retryableRequestSocket && !retryable429 && !retryable503) {
 			throw new TypeError(`${path}.attemptTrace retries a non-allowlisted outcome`);
 		}
 		const retryAfterPrefix = "openrouter-retry-after-ms:";
@@ -2025,7 +2035,7 @@ function validateObservationRoute(value: unknown): EmpiricalTrialBlockObservatio
 		),
 		maxRequests: safeInteger(route.maxRequests, "trialBlockObservation.route.maxRequests", {
 			min: 1,
-			max: 48,
+			max: 192,
 		}),
 		maxStepsPerRun: safeInteger(
 			route.maxStepsPerRun,
@@ -2108,7 +2118,7 @@ function validateObservationResult(value: unknown): EmpiricalTrialBlockObservati
 		),
 		requests: safeInteger(result.requests, "trialBlockObservation.result.requests", {
 			min: 0,
-			max: 48,
+			max: 192,
 		}),
 		steps: safeInteger(result.steps, "trialBlockObservation.result.steps", {
 			min: 0,
@@ -2116,7 +2126,7 @@ function validateObservationResult(value: unknown): EmpiricalTrialBlockObservati
 		}),
 		attempts: safeInteger(result.attempts, "trialBlockObservation.result.attempts", {
 			min: 0,
-			max: 48,
+			max: 192,
 		}),
 		inputTokens: nullableTokens(result.inputTokens, "trialBlockObservation.result.inputTokens"),
 		outputTokens: nullableTokens(result.outputTokens, "trialBlockObservation.result.outputTokens"),
@@ -2602,7 +2612,7 @@ export function validateEmpiricalCampaignScorecard(value: unknown): EmpiricalCam
 		item === null ? null : safeInteger(item, path, { min: 0 });
 	const requests = safeInteger(scorecard.requests, "campaignScorecard.requests", {
 		min: 0,
-		max: 48,
+		max: 192,
 	});
 	const costBasis = oneOf(
 		scorecard.costBasis,
@@ -2656,7 +2666,7 @@ export function validateEmpiricalCampaignScorecard(value: unknown): EmpiricalCam
 		steps: safeInteger(scorecard.steps, "campaignScorecard.steps", { min: 0, max: 384 }),
 		attempts: safeInteger(scorecard.attempts, "campaignScorecard.attempts", {
 			min: 0,
-			max: 48,
+			max: 192,
 		}),
 		inputTokens: nullableTokens(scorecard.inputTokens, "campaignScorecard.inputTokens"),
 		outputTokens: nullableTokens(scorecard.outputTokens, "campaignScorecard.outputTokens"),

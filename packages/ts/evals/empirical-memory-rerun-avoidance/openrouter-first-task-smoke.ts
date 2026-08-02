@@ -39,6 +39,13 @@ import {
 	OPENROUTER_CHAT_COMPLETIONS_BINDING_REVISION,
 	OPENROUTER_CHAT_COMPLETIONS_ENDPOINT,
 	OPENROUTER_CHAT_COMPLETIONS_ENDPOINT_REVISION,
+	OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+	OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_SLUG,
+	OPENROUTER_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS,
+	OPENROUTER_DEEPSEEK_V4_FLASH_OUTPUT_MICROUSD_PER_MILLION_TOKENS,
+	OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_REVISION,
+	OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_SOURCE,
+	OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
 	OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
 	OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG,
 	OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
@@ -169,7 +176,22 @@ function assertQualifiedSmokeRoute(
 			route.pricing.inputMicrousdPerMillionTokens ===
 				OPENROUTER_GLM_5_2_DEEPINFRA_INPUT_MICROUSD_PER_MILLION_TOKENS &&
 			route.pricing.outputMicrousdPerMillionTokens ===
-				OPENROUTER_GLM_5_2_DEEPINFRA_OUTPUT_MICROUSD_PER_MILLION_TOKENS);
+				OPENROUTER_GLM_5_2_DEEPINFRA_OUTPUT_MICROUSD_PER_MILLION_TOKENS) ||
+		(route.requestModel === OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL &&
+			reasoningEffort === "high" &&
+			toolsChoice === "required" &&
+			route.endpoint === OPENROUTER_CHAT_COMPLETIONS_ENDPOINT &&
+			route.endpointRevision === OPENROUTER_CHAT_COMPLETIONS_ENDPOINT_REVISION &&
+			route.adapterRevision === OPENROUTER_CHAT_COMPLETIONS_ADAPTER_REVISION &&
+			route.bindingRevision === OPENROUTER_CHAT_COMPLETIONS_BINDING_REVISION &&
+			route.downstreamProviderSlug === OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_SLUG &&
+			route.downstreamProviderName === OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME &&
+			route.pricing.sourceUrl === OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_SOURCE &&
+			route.pricing.pricingRevision === OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_REVISION &&
+			route.pricing.inputMicrousdPerMillionTokens ===
+				OPENROUTER_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS &&
+			route.pricing.outputMicrousdPerMillionTokens ===
+				OPENROUTER_DEEPSEEK_V4_FLASH_OUTPUT_MICROUSD_PER_MILLION_TOKENS);
 	if (!qualifiedTuple || route.usageRevision !== OPENROUTER_PROVIDER_USAGE_REVISION) {
 		throw new TypeError("B112 smoke route does not match its frozen exact route and pricing");
 	}
@@ -242,6 +264,18 @@ export interface OpenRouterFirstTaskRetryWaitCapabilityV1 {
 
 const B112_OPENROUTER_MAX_ATTEMPTS_PER_TURN = 3;
 const B112_OPENROUTER_RETRY_FALLBACK_MS = Object.freeze([5_000, 10_000] as const);
+const B112_OPENROUTER_REQUEST_SOCKET_ISSUE_CODES = Object.freeze([
+	"openrouter-transport-cause:und-err-socket",
+	"openrouter-transport-phase:request",
+	"openrouter-unavailable-transport",
+] as const);
+
+function isExactRequestSocketFailure(issueCodes: readonly string[]): boolean {
+	return (
+		issueCodes.length === B112_OPENROUTER_REQUEST_SOCKET_ISSUE_CODES.length &&
+		B112_OPENROUTER_REQUEST_SOCKET_ISSUE_CODES.every((issueCode) => issueCodes.includes(issueCode))
+	);
+}
 
 function retryAfterMsFromIssues(issueCodes: readonly string[]): number | null {
 	const prefix = "openrouter-retry-after-ms:";
@@ -304,13 +338,15 @@ function createOpenRouterRetryCapability(
 		maxAttemptsPerTurn: B112_OPENROUTER_MAX_ATTEMPTS_PER_TURN,
 		retryDelayMs(outcome: EmpiricalModelTurnOutcomeV1, attemptOrdinal: number): number | null {
 			if (outcome.status !== "non-evaluable") return null;
+			const retryableRequestSocket =
+				attemptOrdinal === 1 && isExactRequestSocketFailure(outcome.issueCodes);
 			const retryable429 =
 				outcome.issueCodes.includes("openrouter-http-status:429") &&
 				outcome.issueCodes.includes("openrouter-error-type:rate_limit_exceeded");
 			const retryable503 =
 				outcome.issueCodes.includes("openrouter-http-status:503") &&
 				outcome.issueCodes.includes("openrouter-error-type:provider_overloaded");
-			if (!retryable429 && !retryable503) return null;
+			if (!retryableRequestSocket && !retryable429 && !retryable503) return null;
 			const fallback =
 				B112_OPENROUTER_RETRY_FALLBACK_MS[
 					Math.min(attemptOrdinal - 1, B112_OPENROUTER_RETRY_FALLBACK_MS.length - 1)

@@ -84,6 +84,13 @@ import {
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-responses-model-turn.js";
 import {
 	calculateOpenRouterCostMicrousd,
+	OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+	OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_SLUG,
+	OPENROUTER_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS,
+	OPENROUTER_DEEPSEEK_V4_FLASH_OUTPUT_MICROUSD_PER_MILLION_TOKENS,
+	OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_REVISION,
+	OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_SOURCE,
+	OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
 	OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
 	OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG,
 	OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
@@ -103,6 +110,7 @@ import {
 	type OpenRouterRouteQualificationV1,
 	validateOpenRouterRouteQualification,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-route-qualification.js";
+import { createOpenRouterTransportFailure } from "../../evals/empirical-memory-rerun-avoidance/openrouter-transport-failure.js";
 import { persistPrivateSmokeGeneration } from "../../evals/empirical-memory-rerun-avoidance/private-smoke-persistence.js";
 import {
 	createEmpiricalTaskQualificationReport,
@@ -173,6 +181,7 @@ async function createClosedHostFixture(
 	sourceContent = "broken-placeholder-value\n",
 	modelProfile:
 		| "gpt-5.6-sol-medium"
+		| "deepseek-v4-flash-high"
 		| "glm-5.2-high"
 		| "glm-5.2-high-auto"
 		| "glm-5.2-medium" = "gpt-5.6-sol-medium",
@@ -265,30 +274,37 @@ async function createClosedHostFixture(
 	const schemaCatalog = closedToolSchemaCatalog(baseManifest);
 	const baseConfiguration = baseManifest.modelConfigurations[0];
 	if (baseConfiguration === undefined) throw new Error("missing actor configuration fixture");
-	const glmProfile = modelProfile !== "gpt-5.6-sol-medium";
+	const chatProfile = modelProfile !== "gpt-5.6-sol-medium";
+	const deepSeekProfile = modelProfile === "deepseek-v4-flash-high";
 	const modelConfiguration = strictSnapshot({
 		...baseConfiguration,
-		configurationRef: glmProfile
-			? "actor.openrouter.z-ai.glm-5.2"
-			: "actor.openrouter.openai.gpt-5.6-sol",
+		configurationRef: deepSeekProfile
+			? "actor.openrouter.deepseek.deepseek-v4-flash"
+			: chatProfile
+				? "actor.openrouter.z-ai.glm-5.2"
+				: "actor.openrouter.openai.gpt-5.6-sol",
 		providerFamily: "openrouter",
 		provider: "openrouter",
-		model: glmProfile ? OPENROUTER_GLM_5_2_REQUEST_MODEL : OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
+		model: deepSeekProfile
+			? OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL
+			: chatProfile
+				? OPENROUTER_GLM_5_2_REQUEST_MODEL
+				: OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
 		modelIdentityKind: "alias-disclosed" as const,
-		endpoint: glmProfile ? OPENROUTER_CHAT_COMPLETIONS_ENDPOINT : OPENROUTER_RESPONSES_ENDPOINT,
-		endpointRevision: glmProfile
+		endpoint: chatProfile ? OPENROUTER_CHAT_COMPLETIONS_ENDPOINT : OPENROUTER_RESPONSES_ENDPOINT,
+		endpointRevision: chatProfile
 			? OPENROUTER_CHAT_COMPLETIONS_ENDPOINT_REVISION
 			: OPENROUTER_RESPONSES_ENDPOINT_REVISION,
-		adapterRevision: glmProfile
+		adapterRevision: chatProfile
 			? OPENROUTER_CHAT_COMPLETIONS_ADAPTER_REVISION
 			: OPENROUTER_RESPONSES_ADAPTER_REVISION,
-		bindingRevision: glmProfile
+		bindingRevision: chatProfile
 			? OPENROUTER_CHAT_COMPLETIONS_BINDING_REVISION
 			: OPENROUTER_RESPONSES_BINDING_REVISION,
-		promptRevision: glmProfile
+		promptRevision: chatProfile
 			? OPENROUTER_CHAT_COMPLETIONS_PROMPT_REVISION
 			: OPENROUTER_RESPONSES_PROMPT_REVISION,
-		systemPromptRevision: glmProfile
+		systemPromptRevision: chatProfile
 			? OPENROUTER_CHAT_COMPLETIONS_SYSTEM_PROMPT_REVISION
 			: OPENROUTER_RESPONSES_SYSTEM_PROMPT_REVISION,
 		capabilities: {
@@ -303,7 +319,7 @@ async function createClosedHostFixture(
 			sampling: { temperature: null, topP: null, seed: null },
 			reasoning: {
 				mode: "provider-native" as const,
-				effort: modelProfile.startsWith("glm-5.2-high") ? "high" : "medium",
+				effort: modelProfile.startsWith("glm-5.2-high") || deepSeekProfile ? "high" : "medium",
 			},
 			tools: {
 				...baseConfiguration.settings.tools,
@@ -313,19 +329,23 @@ async function createClosedHostFixture(
 				choice:
 					modelProfile === "glm-5.2-high-auto"
 						? ("auto" as const)
-						: glmProfile
+						: chatProfile
 							? ("required" as const)
 							: baseConfiguration.settings.tools.choice,
 				maxSteps: 8,
 			},
 		},
 		usageSource: "provider-reported" as const,
-		pricingRevision: glmProfile
-			? OPENROUTER_GLM_5_2_PRICING_REVISION
-			: OPENROUTER_OFFICIAL_PRICING_REVISION,
-		pricingScheduleRef: glmProfile
-			? OPENROUTER_GLM_5_2_PRICING_SOURCE
-			: OPENROUTER_OFFICIAL_PRICING_SOURCE,
+		pricingRevision: deepSeekProfile
+			? OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_REVISION
+			: chatProfile
+				? OPENROUTER_GLM_5_2_PRICING_REVISION
+				: OPENROUTER_OFFICIAL_PRICING_REVISION,
+		pricingScheduleRef: deepSeekProfile
+			? OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_SOURCE
+			: chatProfile
+				? OPENROUTER_GLM_5_2_PRICING_SOURCE
+				: OPENROUTER_OFFICIAL_PRICING_SOURCE,
 	});
 	const manifest: EmpiricalCampaignManifestV1 = strictSnapshot({
 		...baseManifest,
@@ -716,6 +736,7 @@ function simulatedRouteQualification(
 	const credentialBindingRef = fixture.frozen.manifest.policies.actorCredentialBindingRef;
 	const credentialBindingRevision = fixture.frozen.manifest.policies.actorCredentialBindingRevision;
 	const glmProfile = configuration.model === OPENROUTER_GLM_5_2_REQUEST_MODEL;
+	const deepSeekProfile = configuration.model === OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL;
 	const qualification: OpenRouterRouteQualificationV1 = {
 		schemaVersion: OPENROUTER_ROUTE_QUALIFICATION_SCHEMA,
 		qualificationRef: "b112-simulated-route-qualification",
@@ -729,12 +750,16 @@ function simulatedRouteQualification(
 		configurationDigest: empiricalStrictJsonDigest(configuration),
 		requestModel: configuration.model,
 		modelIdentityKind: configuration.modelIdentityKind,
-		downstreamProviderSlug: glmProfile
-			? OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_SLUG
-			: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG,
-		downstreamProviderName: glmProfile
-			? OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME
-			: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
+		downstreamProviderSlug: deepSeekProfile
+			? OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_SLUG
+			: glmProfile
+				? OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_SLUG
+				: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG,
+		downstreamProviderName: deepSeekProfile
+			? OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME
+			: glmProfile
+				? OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME
+				: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
 		endpoint: configuration.endpoint as OpenRouterRouteQualificationV1["endpoint"],
 		endpointRevision: configuration.endpointRevision,
 		adapterRevision: configuration.adapterRevision,
@@ -748,12 +773,16 @@ function simulatedRouteQualification(
 			sourceUrl: configuration.pricingScheduleRef,
 			pricingRevision: configuration.pricingRevision,
 			currency: "USD" as const,
-			inputMicrousdPerMillionTokens: glmProfile
-				? OPENROUTER_GLM_5_2_INPUT_MICROUSD_PER_MILLION_TOKENS
-				: 6_250_000,
-			outputMicrousdPerMillionTokens: glmProfile
-				? OPENROUTER_GLM_5_2_OUTPUT_MICROUSD_PER_MILLION_TOKENS
-				: 30_000_000,
+			inputMicrousdPerMillionTokens: deepSeekProfile
+				? OPENROUTER_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS
+				: glmProfile
+					? OPENROUTER_GLM_5_2_INPUT_MICROUSD_PER_MILLION_TOKENS
+					: 6_250_000,
+			outputMicrousdPerMillionTokens: deepSeekProfile
+				? OPENROUTER_DEEPSEEK_V4_FLASH_OUTPUT_MICROUSD_PER_MILLION_TOKENS
+				: glmProfile
+					? OPENROUTER_GLM_5_2_OUTPUT_MICROUSD_PER_MILLION_TOKENS
+					: 30_000_000,
 		},
 		budget: {
 			approvalRef: "b112-simulated-budget",
@@ -1242,6 +1271,47 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		).rejects.toThrow(/frozen exact route and pricing/);
 		expect(transportCalls).toBe(0);
 		await fixture.materialization.cleanup();
+	});
+
+	it("accepts the exact DeepSeek V4 Flash 0731 DeepInfra route before transport", async () => {
+		const fixture = await createClosedHostFixture(undefined, undefined, "deepseek-v4-flash-high");
+		let transportCalls = 0;
+		const artifactRoot = temporaryRoot("deepseek-route-accepted");
+		const privateRoot = join(artifactRoot, ".private", "empirical-memory-rerun-avoidance");
+		mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
+		chmodSync(privateRoot, 0o700);
+		const result = await runOpenRouterFirstTaskSmoke({
+			host: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: fixture.materialization,
+				verifier: fixture.verifier,
+			},
+			routeQualification: simulatedRouteQualification(fixture),
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: "openrouter-deepseek-secret-sentinel-0123456789",
+			},
+			transport: {
+				request() {
+					transportCalls += 1;
+					throw new Error("simulated DeepSeek transport failure");
+				},
+			},
+			monotonicMeasurement: { readMs: () => 0 },
+			retryWait: immediateRetryWait,
+			executionClass: "simulated-contract",
+			privateRoot,
+			generationRef: "deepseek-route-accepted-generation",
+			signal: new AbortController().signal,
+		});
+		expect(transportCalls).toBe(1);
+		expect(result.observation.cold.classification).toBe("non-evaluable");
+		expect(result.observation.issueCodes).toContain("openrouter-unavailable-transport");
+		expect(JSON.stringify(result)).not.toContain("openrouter-deepseek-secret-sentinel");
 	});
 
 	it("rejects a GLM medium-effort profile before transport", async () => {
@@ -3373,6 +3443,71 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			.join("\n");
 		expect(persisted).not.toContain(credentialSentinel);
 		expect(persisted).not.toContain(rawProviderSentinel);
+	});
+
+	it("retries an exact request-phase socket failure once and retains the ambiguous first attempt", async () => {
+		const fixture = await createClosedHostFixture();
+		const requestBodies: Uint8Array[] = [];
+		const waits: number[] = [];
+		let transportCalls = 0;
+		let measurement = 0;
+		const artifactRoot = temporaryRoot("request-socket-retry-private-artifacts");
+		const privateRoot = join(artifactRoot, ".private", "empirical-memory-rerun-avoidance");
+		mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
+		chmodSync(privateRoot, 0o700);
+
+		const result = await runOpenRouterFirstTaskSmoke({
+			host: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: fixture.materialization,
+				verifier: fixture.verifier,
+			},
+			routeQualification: simulatedRouteQualification(fixture),
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: "openrouter-request-socket-secret-sentinel-0123456789",
+			},
+			transport: {
+				async request(input) {
+					transportCalls += 1;
+					requestBodies.push(input.body.slice());
+					throw createOpenRouterTransportFailure(
+						"request",
+						Object.assign(new Error("raw socket provider material"), {
+							code: "UND_ERR_SOCKET",
+						}),
+					);
+				},
+			},
+			monotonicMeasurement: { readMs: () => measurement },
+			retryWait: {
+				async wait(input) {
+					waits.push(input.delayMs);
+					measurement += input.delayMs;
+				},
+			},
+			executionClass: "simulated-contract",
+			privateRoot,
+			generationRef: "request-socket-retry-dry-run-generation",
+			signal: new AbortController().signal,
+		});
+
+		expect(transportCalls).toBe(2);
+		expect(waits).toEqual([5_000]);
+		expect(requestBodies[0]).toEqual(requestBodies[1]);
+		expect(result.observation.cold).toMatchObject({
+			classification: "non-evaluable",
+			requests: 2,
+			steps: 1,
+			attempts: 2,
+			retryWaitMs: 5_000,
+		});
+		expect(result.observation.issueCodes).not.toContain("model-turn-retry-exhausted");
+		expect(JSON.stringify(result)).not.toContain("raw socket provider material");
 	});
 
 	it("bounds 503 fallback, never retries 409, and re-admits every retry against request budget", async () => {

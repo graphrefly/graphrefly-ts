@@ -3,6 +3,7 @@ import {
 	empiricalStrictJsonDigest,
 	strictSnapshot,
 } from "../../evals/empirical-memory-rerun-avoidance/canonical.js";
+import { CLOSED_ACTOR_TOOL_REFS } from "../../evals/empirical-memory-rerun-avoidance/closed-task-profile-host.js";
 import type {
 	EmpiricalCampaignManifestV1,
 	EmpiricalStrictJsonShapeV1,
@@ -32,6 +33,7 @@ import {
 	OPENROUTER_CHAT_COMPLETIONS_ENDPOINT_REVISION,
 	OPENROUTER_CHAT_COMPLETIONS_PROMPT_REVISION,
 	OPENROUTER_CHAT_COMPLETIONS_SYSTEM_PROMPT_REVISION,
+	OPENROUTER_DEEPSEEK_CHAT_COMPLETIONS_SYSTEM_PROMPT_REVISION,
 	OPENROUTER_RESPONSE_DIAGNOSTIC_CODES,
 	OPENROUTER_RESPONSES_ADAPTER_REVISION,
 	OPENROUTER_RESPONSES_BINDING_REVISION,
@@ -48,6 +50,14 @@ import {
 	type OpenRouterResponsesTransportRequestV1,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-responses-model-turn.js";
 import {
+	OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+	OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_SLUG,
+	OPENROUTER_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS,
+	OPENROUTER_DEEPSEEK_V4_FLASH_OUTPUT_MICROUSD_PER_MILLION_TOKENS,
+	OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_REVISION,
+	OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_SOURCE,
+	OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+	OPENROUTER_DEEPSEEK_V4_FLASH_SELECTED_MODEL,
 	OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG,
 	OPENROUTER_GLM_5_2_DEEPINFRA_DOWNSTREAM_PROVIDER_NAME as OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME,
 	OPENROUTER_GLM_5_2_DEEPINFRA_DOWNSTREAM_PROVIDER_SLUG as OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_SLUG,
@@ -288,6 +298,122 @@ function glmRouteQualification(
 	});
 }
 
+function buildDeepSeekAuthority(closedTools = false): OpenRouterAuthorityFixture {
+	const campaign = buildEmpiricalCampaignFixture();
+	const base = openRouterManifest(campaign.manifest);
+	const baseConfiguration = base.modelConfigurations[0];
+	if (baseConfiguration === undefined) {
+		throw new TypeError("DeepSeek OpenRouter fixture requires one configuration");
+	}
+	const stringShape = {
+		kind: "string" as const,
+		minLength: 1,
+		maxLength: 32_768,
+		enum: null,
+	};
+	const integerShape = { kind: "integer" as const, minimum: 1, maximum: 4_096 };
+	const objectShape = (
+		properties: readonly {
+			readonly name: string;
+			readonly required: boolean;
+			readonly shape: EmpiricalStrictJsonShapeV1;
+		}[],
+	): EmpiricalStrictJsonShapeV1 => ({ kind: "object", properties, additionalProperties: false });
+	const closedToolInputs = new Map<string, EmpiricalStrictJsonShapeV1>([
+		[
+			CLOSED_ACTOR_TOOL_REFS.readFile,
+			objectShape([{ name: "path", required: true, shape: stringShape }]),
+		],
+		[
+			CLOSED_ACTOR_TOOL_REFS.searchLiteral,
+			objectShape([
+				{ name: "maxMatches", required: true, shape: integerShape },
+				{ name: "path", required: true, shape: stringShape },
+				{ name: "query", required: true, shape: stringShape },
+			]),
+		],
+		[
+			CLOSED_ACTOR_TOOL_REFS.replaceExact,
+			objectShape([
+				{ name: "baseContentDigest", required: true, shape: stringShape },
+				{ name: "newText", required: true, shape: stringShape },
+				{ name: "oldText", required: true, shape: stringShape },
+				{ name: "path", required: true, shape: stringShape },
+			]),
+		],
+		[CLOSED_ACTOR_TOOL_REFS.workspaceDiff, objectShape([])],
+		[
+			CLOSED_ACTOR_TOOL_REFS.runCommand,
+			objectShape([{ name: "commandRef", required: true, shape: stringShape }]),
+		],
+	]);
+	const tools = closedTools
+		? Object.values(CLOSED_ACTOR_TOOL_REFS).map((toolRef) => {
+				const inputSchema = closedToolInputs.get(toolRef);
+				if (inputSchema === undefined) throw new TypeError(`missing closed schema for ${toolRef}`);
+				return strictSnapshot({
+					toolRef,
+					schemaRevision: "closed-task-tools.d659.v1",
+					inputSchema,
+					inputSchemaDigest: empiricalStrictJsonDigest(inputSchema),
+				});
+			})
+		: base.schemaCatalog.tools;
+	const configuration = strictSnapshot({
+		...baseConfiguration,
+		configurationRef: "actor.openrouter.deepseek.deepseek-v4-flash",
+		model: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+		endpoint: OPENROUTER_CHAT_COMPLETIONS_ENDPOINT,
+		endpointRevision: OPENROUTER_CHAT_COMPLETIONS_ENDPOINT_REVISION,
+		adapterRevision: OPENROUTER_CHAT_COMPLETIONS_ADAPTER_REVISION,
+		bindingRevision: OPENROUTER_CHAT_COMPLETIONS_BINDING_REVISION,
+		promptRevision: OPENROUTER_CHAT_COMPLETIONS_PROMPT_REVISION,
+		systemPromptRevision: OPENROUTER_DEEPSEEK_CHAT_COMPLETIONS_SYSTEM_PROMPT_REVISION,
+		settings: {
+			...baseConfiguration.settings,
+			reasoning: { mode: "provider-native" as const, effort: "high" },
+			tools: {
+				...baseConfiguration.settings.tools,
+				toolRefs: tools.map((tool) => tool.toolRef),
+				toolSetDigest: empiricalStrictJsonDigest(tools),
+				choice: "required" as const,
+			},
+		},
+		pricingRevision: OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_REVISION,
+		pricingScheduleRef: OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_SOURCE,
+	});
+	const manifest = strictSnapshot({
+		...base,
+		campaignRef: "b112-openrouter-deepseek-v4-flash-smoke-fixture",
+		schemaCatalog: { ...base.schemaCatalog, tools },
+		modelConfigurations: [configuration],
+	});
+	return Object.freeze({
+		manifest,
+		frozen: freezeEmpiricalCampaignManifest(manifest, campaign.report),
+		qualificationReport: campaign.report,
+	});
+}
+
+function deepSeekRouteQualification(
+	authority: OpenRouterAuthorityFixture,
+): OpenRouterRouteQualificationV1 {
+	const base = routeQualification(authority);
+	return strictSnapshot({
+		...base,
+		downstreamProviderSlug: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_SLUG,
+		downstreamProviderName: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+		pricing: {
+			sourceUrl: OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_SOURCE,
+			pricingRevision: OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_REVISION,
+			currency: "USD" as const,
+			inputMicrousdPerMillionTokens: OPENROUTER_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS,
+			outputMicrousdPerMillionTokens:
+				OPENROUTER_DEEPSEEK_V4_FLASH_OUTPUT_MICROUSD_PER_MILLION_TOKENS,
+		},
+	});
+}
+
 function buildDottedToolAuthority(): OpenRouterAuthorityFixture {
 	const campaign = buildEmpiricalCampaignFixture();
 	const base = openRouterManifest(campaign.manifest);
@@ -395,6 +521,38 @@ function glmDirectRouteMetadata(): Record<string, unknown> {
 		],
 		pipeline: [],
 	};
+}
+
+function deepSeekChatResponse(input: {
+	readonly id: string;
+	readonly finishReason: "stop" | "tool_calls";
+	readonly message: unknown;
+}): Uint8Array {
+	return responseBytes({
+		id: input.id,
+		object: "chat.completion",
+		model: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+		choices: [{ index: 0, finish_reason: input.finishReason, message: input.message }],
+		usage: { prompt_tokens: 120, completion_tokens: 24, total_tokens: 144, cost: 0.000_015_12 },
+		openrouter_metadata: {
+			requested: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+			strategy: "direct",
+			attempt: 1,
+			is_byok: false,
+			endpoints: {
+				total: 11,
+				available: [
+					{
+						provider: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+						model: OPENROUTER_DEEPSEEK_V4_FLASH_SELECTED_MODEL,
+						selected: true,
+					},
+				],
+			},
+			region: "SJC",
+			summary: "available=1, selected=DeepInfra",
+		},
+	});
 }
 
 function completedResponse(
@@ -743,10 +901,13 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			readonly content: string;
 		}[];
 		expect(messages[0]?.content).toContain(
-			"When turn.finalStep is false, call exactly one declared function tool and do not return the final response",
+			"When turn.finalStep is false, call one or more declared function tools for distinct actions and do not return the final response",
 		);
 		expect(messages[0]?.content).toContain(
-			"never batch, repeat, or parallelize tool calls. The host will return the result in a later turn",
+			"Never repeat a semantically equivalent tool call when its result is already present in priorToolResults",
+		);
+		expect(messages[0]?.content).toContain(
+			"The host executes tool calls serially and returns every result in a later turn",
 		);
 		expect(messages[0]?.content).toContain(
 			"When turn.finalStep is true, do not call a tool; return the final response",
@@ -765,6 +926,28 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		expect(body).not.toHaveProperty("plugins");
 		expect(body).not.toHaveProperty("transforms");
 		serializedWithoutCredential({ body, outcome, route });
+
+		const laterHarness = createHarness(authority, response, bearerToken, route);
+		const laterRequest = validateEmpiricalModelTurnRequest(
+			{
+				...withPriorToolResult(laterHarness.request, authority, laterHarness.binding),
+				requestRef: "glm-required-choice-after-tool-result",
+				stepIndex: 1,
+			},
+			authority.frozen,
+			authority.qualificationReport,
+		);
+		const laterOutcome = await laterHarness.binding.modelTurnPort.invoke(
+			laterRequest,
+			new AbortController().signal,
+		);
+		expect(laterOutcome.issueCodes).toEqual([
+			OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+			OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.nonFinalDirectOutput,
+		]);
+		const laterSent = laterHarness.transport.mock
+			.calls[0]?.[0] as OpenRouterResponsesTransportRequestV1;
+		expect(strictJsonCodec.decode(laterSent.body)).toMatchObject({ tool_choice: "required" });
 	});
 
 	it("treats GLM reasoning tokens as bounded auxiliary metadata independent of completion usage", async () => {
@@ -1424,6 +1607,376 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			expect(JSON.stringify(diagnosticOutcome)).not.toContain(rawDiagnosticSentinel);
 		}
 	}, 15_000);
+
+	it("maps the frozen DeepSeek V4 Flash high route through the existing Chat binding", async () => {
+		const authority = buildDeepSeekAuthority();
+		const route = deepSeekRouteQualification(authority);
+		const request = buildEmpiricalModelTurnRequestFixture(authority);
+		const toolRef = request.availableTools[0]?.toolRef;
+		if (toolRef === undefined) throw new TypeError("DeepSeek tool fixture requires one tool");
+		const harness = createHarness(
+			authority,
+			responseBytes({
+				id: "chatcmpl_deepseek_tool_placeholder_01",
+				object: "chat.completion",
+				model: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+				choices: [
+					{
+						index: 0,
+						finish_reason: "tool_calls",
+						message: {
+							role: "assistant",
+							content: null,
+							tool_calls: [
+								{
+									id: "call_deepseek_placeholder_01",
+									type: "function",
+									function: {
+										name: toolRef,
+										arguments: JSON.stringify({
+											commandRef: "command-placeholder",
+											args: [],
+										}),
+									},
+								},
+							],
+						},
+					},
+				],
+				usage: {
+					prompt_tokens: 120,
+					completion_tokens: 24,
+					total_tokens: 144,
+					cost: 0.000_015_12,
+				},
+				openrouter_metadata: {
+					requested: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+					strategy: "direct",
+					attempt: 1,
+					is_byok: false,
+					endpoints: {
+						total: 11,
+						available: [
+							{
+								provider: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+								model: OPENROUTER_DEEPSEEK_V4_FLASH_SELECTED_MODEL,
+								selected: true,
+							},
+						],
+					},
+					region: "SJC",
+					summary: "available=1, selected=DeepInfra",
+				},
+			}),
+			bearerToken,
+			route,
+		);
+
+		const outcome = await harness.binding.modelTurnPort.invoke(
+			harness.request,
+			new AbortController().signal,
+		);
+
+		expect(outcome).toMatchObject({
+			status: "completed",
+			finishReason: "tool-intents",
+			toolIntents: [
+				expect.objectContaining({ toolCallRef: "call_deepseek_placeholder_01", toolRef }),
+			],
+			usage: {
+				inputTokens: 120,
+				outputTokens: 24,
+				totalTokens: 144,
+				providerCostMicrousd: 16,
+				requests: 1,
+			},
+			issueCodes: [],
+		});
+		const sent = harness.transport.mock.calls[0]?.[0] as OpenRouterResponsesTransportRequestV1;
+		const body = strictJsonCodec.decode(sent.body) as Record<string, unknown>;
+		expect(body).toMatchObject({
+			model: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+			provider: {
+				order: [OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_SLUG],
+				only: [OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_SLUG],
+				allow_fallbacks: false,
+				require_parameters: true,
+			},
+			reasoning: { effort: "high" },
+			tool_choice: "required",
+		});
+		expect(body).toHaveProperty("response_format.json_schema.strict", true);
+		expect(body).not.toHaveProperty("parallel_tool_calls");
+		serializedWithoutCredential({ body, outcome, route });
+	});
+
+	it("accepts an early strict DeepSeek completion before the hard turn ceiling", async () => {
+		const authority = buildDeepSeekAuthority();
+		const route = deepSeekRouteQualification(authority);
+		const harness = createHarness(
+			authority,
+			responseBytes({
+				id: "chatcmpl_deepseek_early_final_01",
+				object: "chat.completion",
+				model: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+				choices: [
+					{
+						index: 0,
+						finish_reason: "stop",
+						message: {
+							role: "assistant",
+							content: JSON.stringify({
+								kind: "model-turn-output-placeholder",
+								summary: "bounded-deepseek-early-final",
+							}),
+						},
+					},
+				],
+				usage: { prompt_tokens: 120, completion_tokens: 24, total_tokens: 144, cost: 0.000_015_12 },
+				openrouter_metadata: {
+					requested: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+					strategy: "direct",
+					attempt: 1,
+					is_byok: false,
+					endpoints: {
+						total: 11,
+						available: [
+							{
+								provider: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+								model: OPENROUTER_DEEPSEEK_V4_FLASH_SELECTED_MODEL,
+								selected: true,
+							},
+						],
+					},
+					region: "SJC",
+					summary: "available=1, selected=DeepInfra",
+				},
+			}),
+			bearerToken,
+			route,
+		);
+		const request = validateEmpiricalModelTurnRequest(
+			{
+				...withPriorToolResult(harness.request, authority, harness.binding),
+				requestRef: "deepseek-early-final-after-tool-result",
+				stepIndex: 1,
+			},
+			authority.frozen,
+			authority.qualificationReport,
+		);
+
+		const outcome = await harness.binding.modelTurnPort.invoke(
+			request,
+			new AbortController().signal,
+		);
+
+		expect(request.stepIndex).toBe(1);
+		expect(outcome).toMatchObject({
+			status: "completed",
+			finishReason: "structured-output",
+			structuredOutput: {
+				kind: "model-turn-output-placeholder",
+				summary: "bounded-deepseek-early-final",
+			},
+			issueCodes: [],
+		});
+		const sent = harness.transport.mock.calls[0]?.[0] as OpenRouterResponsesTransportRequestV1;
+		expect(strictJsonCodec.decode(sent.body)).toMatchObject({ tool_choice: "auto" });
+	});
+
+	it("rejects a direct DeepSeek completion before any tool result", async () => {
+		const authority = buildDeepSeekAuthority();
+		const route = deepSeekRouteQualification(authority);
+		const harness = createHarness(
+			authority,
+			deepSeekChatResponse({
+				id: "chatcmpl_deepseek_initial_direct_01",
+				finishReason: "stop",
+				message: {
+					role: "assistant",
+					content: JSON.stringify({
+						kind: "model-turn-output-placeholder",
+						summary: "invalid-initial-direct-output",
+					}),
+				},
+			}),
+			bearerToken,
+			route,
+		);
+
+		const outcome = await harness.binding.modelTurnPort.invoke(
+			harness.request,
+			new AbortController().signal,
+		);
+
+		expect(outcome.issueCodes).toEqual([
+			OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+			OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.nonFinalDirectOutput,
+		]);
+		const sent = harness.transport.mock.calls[0]?.[0] as OpenRouterResponsesTransportRequestV1;
+		expect(strictJsonCodec.decode(sent.body)).toMatchObject({ tool_choice: "required" });
+	});
+
+	it("sends none and rejects a DeepSeek tool call on the hard-final turn", async () => {
+		const authority = buildDeepSeekAuthority();
+		const route = deepSeekRouteQualification(authority);
+		const toolRef = authority.manifest.schemaCatalog.tools[0]?.toolRef;
+		const configurationMaxSteps =
+			authority.manifest.modelConfigurations[0]?.settings.tools.maxSteps;
+		if (toolRef === undefined || configurationMaxSteps === undefined) {
+			throw new TypeError("DeepSeek hard-final fixture requires a tool and maxSteps");
+		}
+		const maxSteps = Math.min(
+			configurationMaxSteps,
+			authority.manifest.budgets.agentRun.maxSteps,
+			authority.manifest.budgets.agentRun.maxRequests,
+			route.budget.maxStepsPerRun,
+			route.budget.maxRequests,
+			256,
+		);
+		const harness = createHarness(
+			authority,
+			deepSeekChatResponse({
+				id: "chatcmpl_deepseek_hard_final_tool_01",
+				finishReason: "tool_calls",
+				message: {
+					role: "assistant",
+					content: null,
+					tool_calls: [
+						{
+							id: "call_deepseek_hard_final_01",
+							type: "function",
+							function: { name: toolRef, arguments: "{}" },
+						},
+					],
+				},
+			}),
+			bearerToken,
+			route,
+		);
+		const request = validateEmpiricalModelTurnRequest(
+			{
+				...harness.request,
+				requestRef: "deepseek-hard-final-tool-call",
+				stepIndex: maxSteps - 1,
+			},
+			authority.frozen,
+			authority.qualificationReport,
+		);
+
+		const outcome = await harness.binding.modelTurnPort.invoke(
+			request,
+			new AbortController().signal,
+		);
+
+		expect(outcome.issueCodes).toEqual([
+			OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+			OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.finalToolCall,
+		]);
+		const sent = harness.transport.mock.calls[0]?.[0] as OpenRouterResponsesTransportRequestV1;
+		expect(strictJsonCodec.decode(sent.body)).toMatchObject({ tool_choice: "none" });
+	});
+
+	it("lowers every closed D659 tool to a semantic Chat name and description", async () => {
+		const authority = buildDeepSeekAuthority(true);
+		const route = deepSeekRouteQualification(authority);
+		const harness = createHarness(authority, undefined, bearerToken, route);
+		let replaceProviderName = "";
+		harness.transport.mockImplementationOnce((input) => {
+			const body = strictJsonCodec.decode(input.body) as {
+				readonly tools: readonly {
+					readonly function: {
+						readonly name: string;
+						readonly description: string;
+					};
+				}[];
+			};
+			const functions = body.tools.map((tool) => tool.function);
+			expect(functions.map((fn) => fn.name)).toEqual([
+				"workspace_read_file",
+				"workspace_search_literal",
+				"workspace_replace_exact",
+				"workspace_diff",
+				"workspace_run_command_ref",
+			]);
+			expect(functions.every((fn) => fn.description.length > 20)).toBe(true);
+			replaceProviderName = functions[2]?.name ?? "";
+			return Promise.resolve({
+				status: 200,
+				retryAfterMs: null,
+				body: responseBytes({
+					id: "chatcmpl_deepseek_semantic_tools_01",
+					object: "chat.completion",
+					model: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+					choices: [
+						{
+							index: 0,
+							finish_reason: "tool_calls",
+							message: {
+								role: "assistant",
+								content: null,
+								tool_calls: [
+									{
+										id: "call_deepseek_replace_01",
+										type: "function",
+										function: {
+											name: replaceProviderName,
+											arguments: JSON.stringify({
+												baseContentDigest: `sha256:${"0".repeat(64)}`,
+												newText: "new",
+												oldText: "old",
+												path: "packages/ts/src/example.ts",
+											}),
+										},
+									},
+								],
+							},
+						},
+					],
+					usage: {
+						prompt_tokens: 120,
+						completion_tokens: 24,
+						total_tokens: 144,
+						cost: 0.000_015_12,
+					},
+					openrouter_metadata: {
+						requested: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+						strategy: "direct",
+						attempt: 1,
+						is_byok: false,
+						endpoints: {
+							total: 11,
+							available: [
+								{
+									provider: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+									model: OPENROUTER_DEEPSEEK_V4_FLASH_SELECTED_MODEL,
+									selected: true,
+								},
+							],
+						},
+						region: "SJC",
+						summary: "available=1, selected=DeepInfra",
+					},
+				}),
+			});
+		});
+
+		const outcome = await harness.binding.modelTurnPort.invoke(
+			harness.request,
+			new AbortController().signal,
+		);
+
+		expect(outcome).toMatchObject({
+			status: "completed",
+			finishReason: "tool-intents",
+			toolIntents: [
+				{
+					toolCallRef: "call_deepseek_replace_01",
+					toolRef: CLOSED_ACTOR_TOOL_REFS.replaceExact,
+				},
+			],
+		});
+	});
 
 	it("keeps the D674 multi-intent capability probe to one simulated request and no efficacy evidence", async () => {
 		const authority = buildGlmAuthority();

@@ -34,6 +34,10 @@ export const OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_SLUG = "decart/fp4";
 export const OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME = "Decart";
 export const OPENROUTER_GLM_5_2_DEEPINFRA_DOWNSTREAM_PROVIDER_SLUG = "deepinfra/fp4";
 export const OPENROUTER_GLM_5_2_DEEPINFRA_DOWNSTREAM_PROVIDER_NAME = "DeepInfra";
+export const OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL = "deepseek/deepseek-v4-flash-0731";
+export const OPENROUTER_DEEPSEEK_V4_FLASH_SELECTED_MODEL = "deepseek/deepseek-v4-flash-20260731";
+export const OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_SLUG = "deepinfra/fp4";
+export const OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME = "DeepInfra";
 export const OPENROUTER_RESPONSES_ENDPOINT_REVISION = "openrouter-responses-2026-07-29.v2";
 export const OPENROUTER_RESPONSES_ADAPTER_REVISION = "graphrefly-openrouter-responses-turn.v2";
 export const OPENROUTER_RESPONSES_BINDING_REVISION = "graphrefly-openrouter-responses-wire.v10";
@@ -42,7 +46,7 @@ export const OPENROUTER_CHAT_COMPLETIONS_ENDPOINT_REVISION =
 export const OPENROUTER_CHAT_COMPLETIONS_ADAPTER_REVISION =
 	"graphrefly-openrouter-chat-completions-turn.v1";
 export const OPENROUTER_CHAT_COMPLETIONS_BINDING_REVISION =
-	"graphrefly-openrouter-chat-completions-wire.v19";
+	"graphrefly-openrouter-chat-completions-wire.v24";
 export const OPENROUTER_ROUTE_EVIDENCE_SCHEMA_REVISION = "openrouter-metadata-2026-07-29.v1";
 export const OPENROUTER_PROVIDER_USAGE_REVISION =
 	"openrouter-provider-reported-cost-microusd-2026-07-29.v2";
@@ -63,6 +67,12 @@ export const OPENROUTER_GLM_5_2_DEEPINFRA_PRICING_REVISION =
 	"openrouter-z-ai-glm-5.2-deepinfra-fp4-2026-07-30.v1";
 export const OPENROUTER_GLM_5_2_DEEPINFRA_INPUT_MICROUSD_PER_MILLION_TOKENS = 750_000;
 export const OPENROUTER_GLM_5_2_DEEPINFRA_OUTPUT_MICROUSD_PER_MILLION_TOKENS = 2_400_000;
+export const OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_SOURCE =
+	"https://openrouter.ai/api/v1/models/deepseek/deepseek-v4-flash-0731/endpoints";
+export const OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_REVISION =
+	"openrouter-deepseek-v4-flash-0731-deepinfra-fp4-2026-08-02.v1";
+export const OPENROUTER_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS = 90_000;
+export const OPENROUTER_DEEPSEEK_V4_FLASH_OUTPUT_MICROUSD_PER_MILLION_TOKENS = 180_000;
 
 export type OpenRouterEndpointV1 =
 	| typeof OPENROUTER_RESPONSES_ENDPOINT
@@ -580,7 +590,7 @@ function validateBudget(value: unknown): OpenRouterRouteQualificationV1["budget"
 			"openRouter.routeQualification.budget.maxRequests",
 			{
 				min: 1,
-				max: 48,
+				max: 192,
 			},
 		),
 		maxStepsPerRun: safeInteger(
@@ -596,12 +606,12 @@ function validateBudget(value: unknown): OpenRouterRouteQualificationV1["budget"
 		maxInputTokens: safeInteger(
 			budget.maxInputTokens,
 			"openRouter.routeQualification.budget.maxInputTokens",
-			{ min: 1, max: 2_000_000 },
+			{ min: 1, max: 8_000_000 },
 		),
 		maxOutputTokens: safeInteger(
 			budget.maxOutputTokens,
 			"openRouter.routeQualification.budget.maxOutputTokens",
-			{ min: 1, max: 1_000_000 },
+			{ min: 1, max: 2_000_000 },
 		),
 		maxLatencyMs: safeInteger(
 			budget.maxLatencyMs,
