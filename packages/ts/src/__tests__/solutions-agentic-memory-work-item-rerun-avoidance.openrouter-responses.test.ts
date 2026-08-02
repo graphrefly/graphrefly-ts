@@ -18,7 +18,11 @@ import {
 } from "../../evals/empirical-memory-rerun-avoidance/model-execution.js";
 import { runOpenRouterFirstTaskCapabilityProbe } from "../../evals/empirical-memory-rerun-avoidance/openrouter-first-task-capability-probe.js";
 import { runLoadedOpenRouterFirstTaskCapabilityProbeOperator } from "../../evals/empirical-memory-rerun-avoidance/openrouter-first-task-capability-probe-operator.js";
-import type { OpenRouterFirstTaskSmokeOperatorInputV1 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-first-task-smoke-operator.js";
+import {
+	type OpenRouterFirstTaskSmokeOperatorInputV1,
+	runLoadedOpenRouterFirstTaskSmokeOperator,
+	runWithOpenRouterSmokeInitialMaterializationOwnership,
+} from "../../evals/empirical-memory-rerun-avoidance/openrouter-first-task-smoke-operator.js";
 import {
 	createOpenRouterResponsesEmpiricalBinding,
 	MAX_OPENROUTER_RESPONSES_RESPONSE_BYTES,
@@ -1605,6 +1609,65 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			}),
 		).rejects.toThrow(/changed private artifact ownership/);
 		expect(cleanup).toHaveBeenCalledTimes(1);
+	});
+
+	it("cleans a loaded smoke workspace when pre-transport validation fails", async () => {
+		const cleanup = vi.fn(() => Promise.resolve());
+		const operatorInput = {
+			privateRoot: "/operator-private/substituted",
+			host: { materialization: { cleanup } },
+		} as unknown as OpenRouterFirstTaskSmokeOperatorInputV1;
+		await expect(
+			runLoadedOpenRouterFirstTaskSmokeOperator({
+				operatorInput,
+				privateRoot: "/operator-private/expected",
+				environment: {},
+				fetch: globalThis.fetch,
+				monotonicNowMs: () => 0,
+			}),
+		).rejects.toThrow(/changed private artifact ownership/);
+		expect(cleanup).toHaveBeenCalledTimes(1);
+	});
+
+	it("cleans exactly once when the smoke execution rejects before or after host cleanup", async () => {
+		const preHostCleanup = vi.fn(() => Promise.resolve());
+		await expect(
+			runWithOpenRouterSmokeInitialMaterializationOwnership({
+				cleanup: preHostCleanup,
+				execute: async () => {
+					throw new TypeError("pre-host rejection");
+				},
+			}),
+		).rejects.toThrow(/pre-host rejection/);
+		expect(preHostCleanup).toHaveBeenCalledTimes(1);
+
+		const postHostCleanup = vi.fn(() => Promise.resolve());
+		await expect(
+			runWithOpenRouterSmokeInitialMaterializationOwnership({
+				cleanup: postHostCleanup,
+				execute: async (cleanupOnce) => {
+					await cleanupOnce();
+					throw new TypeError("post-host rejection");
+				},
+			}),
+		).rejects.toThrow(/post-host rejection/);
+		expect(postHostCleanup).toHaveBeenCalledTimes(1);
+
+		const throwingCleanup = vi.fn(() => {
+			throw new TypeError("synchronous cleanup failure");
+		});
+		await expect(
+			runWithOpenRouterSmokeInitialMaterializationOwnership({
+				cleanup: throwingCleanup,
+				execute: async (cleanupOnce) => {
+					try {
+						await cleanupOnce();
+					} catch {}
+					throw new TypeError("post-host rejection");
+				},
+			}),
+		).rejects.toThrow(/workspace cleanup failed/);
+		expect(throwingCleanup).toHaveBeenCalledTimes(1);
 	});
 
 	it("lowers the frozen final turn coordinate and requires final structured output", async () => {

@@ -88,29 +88,70 @@ export async function runOpenRouterFirstTaskSmokeOperator(input: {
 		input.modulePath,
 		input.privateRoot,
 	);
-	if (operatorInput.privateRoot !== input.privateRoot) {
-		throw new TypeError("OpenRouter smoke operator input changed private artifact ownership");
+	return runLoadedOpenRouterFirstTaskSmokeOperator({ ...input, operatorInput });
+}
+
+export async function runWithOpenRouterSmokeInitialMaterializationOwnership<T>(input: {
+	readonly cleanup: () => Promise<void>;
+	readonly execute: (cleanupOnce: () => Promise<void>) => Promise<T>;
+}): Promise<T> {
+	let cleanupPromise: Promise<void> | null = null;
+	const cleanupOnce = (): Promise<void> => {
+		cleanupPromise ??= Promise.resolve().then(() => input.cleanup());
+		return cleanupPromise;
+	};
+	try {
+		return await input.execute(cleanupOnce);
+	} catch (error) {
+		try {
+			await cleanupOnce();
+		} catch {
+			throw new TypeError("OpenRouter smoke workspace cleanup failed");
+		}
+		throw error;
 	}
-	const configurationRef = operatorInput.host.initialRequest.configurationRef;
-	const qualifiedRoute = validateOperatorSuppliedOpenRouterRouteQualification(
-		operatorInput.routeQualification,
-		operatorInput.host.frozen,
-		operatorInput.host.qualificationReport,
-		configurationRef,
-	);
-	const credential = createOpenRouterCredentialCapabilityFromOperatorEnvironment(
-		input.environment,
-		qualifiedRoute.qualification,
-	);
-	return runOpenRouterFirstTaskSmoke({
-		...operatorInput,
-		routeQualification: qualifiedRoute.qualification,
-		credential,
-		transport: createOpenRouterResponsesFetchByteTransport({ fetch: input.fetch }),
-		monotonicMeasurement: { readMs: input.monotonicNowMs },
-		retryWait: { wait: waitOpenRouterSmokeRetryDelay },
-		executionClass: "live-provider",
-		signal: AbortSignal.timeout(qualifiedRoute.qualification.budget.maxLatencyMs),
+}
+
+export async function runLoadedOpenRouterFirstTaskSmokeOperator(input: {
+	readonly operatorInput: OpenRouterFirstTaskSmokeOperatorInputV1;
+	readonly privateRoot: string;
+	readonly environment: Readonly<Record<string, string | undefined>>;
+	readonly fetch: typeof fetch;
+	readonly monotonicNowMs: () => number;
+}): Promise<Awaited<ReturnType<typeof runOpenRouterFirstTaskSmoke>>> {
+	const materialization = input.operatorInput.host.materialization;
+	return runWithOpenRouterSmokeInitialMaterializationOwnership({
+		cleanup: materialization.cleanup.bind(materialization),
+		execute: async (cleanupOnce) => {
+			if (input.operatorInput.privateRoot !== input.privateRoot) {
+				throw new TypeError("OpenRouter smoke operator input changed private artifact ownership");
+			}
+			const configurationRef = input.operatorInput.host.initialRequest.configurationRef;
+			const qualifiedRoute = validateOperatorSuppliedOpenRouterRouteQualification(
+				input.operatorInput.routeQualification,
+				input.operatorInput.host.frozen,
+				input.operatorInput.host.qualificationReport,
+				configurationRef,
+			);
+			const credential = createOpenRouterCredentialCapabilityFromOperatorEnvironment(
+				input.environment,
+				qualifiedRoute.qualification,
+			);
+			return await runOpenRouterFirstTaskSmoke({
+				...input.operatorInput,
+				host: {
+					...input.operatorInput.host,
+					materialization: { ...materialization, cleanup: cleanupOnce },
+				},
+				routeQualification: qualifiedRoute.qualification,
+				credential,
+				transport: createOpenRouterResponsesFetchByteTransport({ fetch: input.fetch }),
+				monotonicMeasurement: { readMs: input.monotonicNowMs },
+				retryWait: { wait: waitOpenRouterSmokeRetryDelay },
+				executionClass: "live-provider",
+				signal: AbortSignal.timeout(qualifiedRoute.qualification.budget.maxLatencyMs),
+			});
+		},
 	});
 }
 
