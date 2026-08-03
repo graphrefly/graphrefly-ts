@@ -7,8 +7,16 @@ import {
 } from "../../evals/empirical-memory-rerun-avoidance/canonical.js";
 import type {
 	EmpiricalCampaignManifestV1,
+	EmpiricalCampaignTaskV1,
 	EmpiricalTaskQualificationObservationV1,
+	FrozenEmpiricalCampaignManifestV1,
 } from "../../evals/empirical-memory-rerun-avoidance/contracts.js";
+import {
+	B112_CALIBRATION_SIMULATION_BLOCK_SCHEMA,
+	B112_EXHAUSTIVE_TASK_CLUSTER_INTERVAL_REVISION,
+	exhaustiveTaskClusterInterval95,
+	runB112CalibrationSimulation,
+} from "../../evals/empirical-memory-rerun-avoidance/empirical-calibration.js";
 import {
 	validateEmpiricalCampaignManifest,
 	validateEmpiricalCampaignManifestBytes,
@@ -760,6 +768,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			);
 			const allowsOfflineQualification = file.endsWith("exact-five-task-offline-qualification.ts");
 			const allowsPreliveOperatorDriver =
+				file.endsWith("empirical-calibration.ts") ||
 				file.endsWith("openrouter-first-task-smoke.ts") ||
 				file.endsWith("private-smoke-persistence.ts");
 			const allowsOneRequestFetchTransport = file.endsWith(
@@ -864,5 +873,465 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 		expect(() => freezeEmpiricalCampaignManifest(incompleteManifest, incompleteReport)).toThrow(
 			/catalog is not qualified/,
 		);
+	});
+});
+
+function buildCalibrationFixture(): ReturnType<typeof buildEmpiricalCampaignFixture> & {
+	readonly frozen: FrozenEmpiricalCampaignManifestV1;
+} {
+	const fixture = buildEmpiricalCampaignFixture();
+	const manifest: EmpiricalCampaignManifestV1 = {
+		...fixture.manifest,
+		trialPlan: {
+			profile: "calibration",
+			activeTaskRefs: fixture.catalog.tasks.map((task) => task.taskRef),
+			attemptedColdBlocksPerTask: 3,
+			branchOrderMode: "explicit",
+			branchOrder: fixture.manifest.trialPlan.branchOrder,
+		},
+		budgets: {
+			...fixture.manifest.budgets,
+			campaign: {
+				maxRequests: 360,
+				maxCostMicrousd: 5_000_000,
+				maxElapsedMs: 600_000,
+			},
+			taskModel: {
+				maxAttemptedColdBlocks: 3,
+				maxRequests: 72,
+				maxCostMicrousd: 1_000_000,
+			},
+		},
+		aggregation: {
+			...fixture.manifest.aggregation,
+			intervalRevision: B112_EXHAUSTIVE_TASK_CLUSTER_INTERVAL_REVISION,
+		},
+	};
+	return Object.freeze({
+		...fixture,
+		manifest,
+		frozen: freezeEmpiricalCampaignManifest(manifest, fixture.report),
+	});
+}
+
+function calibrationSimulationBlock(input: {
+	readonly frozen: FrozenEmpiricalCampaignManifestV1;
+	readonly task: EmpiricalCampaignTaskV1;
+	readonly blockIndex: 1 | 2 | 3;
+	readonly coldPassed?: boolean;
+}) {
+	const coldPassed = input.coldPassed ?? false;
+	const actorConfiguration = input.frozen.manifest.modelConfigurations.find(
+		(configuration) => configuration.role === "actor",
+	);
+	if (actorConfiguration === undefined) throw new TypeError("missing actor configuration fixture");
+	const warmArms = input.frozen.manifest.trialPlan.branchOrder.map((branchKind) => ({
+		branchKind,
+		outcome: coldPassed
+			? ("not-attempted" as const)
+			: branchKind === "relevant-applied"
+				? ("passed" as const)
+				: ("failed" as const),
+		simulatedRequests: coldPassed ? 0 : 1,
+		issueCodes: [],
+	}));
+	return {
+		schemaVersion: B112_CALIBRATION_SIMULATION_BLOCK_SCHEMA,
+		evidenceClass: "simulated-contract",
+		empiricalEvidence: false,
+		campaignRef: input.frozen.manifest.campaignRef,
+		manifestDigest: input.frozen.manifestDigest,
+		configurationRef: actorConfiguration.configurationRef,
+		configurationDigest: empiricalStrictJsonDigest(actorConfiguration),
+		taskRef: input.task.taskRef,
+		taskDigest: empiricalStrictJsonDigest(input.task),
+		blockIndex: input.blockIndex,
+		coldOutcome: coldPassed ? "passed" : "verified-failure",
+		coldSimulatedRequests: 1,
+		warmArms,
+		issueCodes: [],
+	};
+}
+
+describe("B112 D676 no-network calibration core", () => {
+	it("runs the frozen five tasks by three blocks serially and aggregates task clusters", async () => {
+		const fixture = buildCalibrationFixture();
+		const schedule: string[] = [];
+		let active = 0;
+		let maxActive = 0;
+		const execute = () =>
+			runB112CalibrationSimulation({
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				signal: new AbortController().signal,
+				runScriptedBlock: async ({ task, blockIndex, blockOrdinal }) => {
+					active += 1;
+					maxActive = Math.max(maxActive, active);
+					schedule.push(`${blockOrdinal}:${task.taskRef}:${blockIndex}`);
+					await Promise.resolve();
+					active -= 1;
+					return calibrationSimulationBlock({ frozen: fixture.frozen, task, blockIndex });
+				},
+			});
+
+		const first = await execute();
+		const second = await execute();
+		expect(maxActive).toBe(1);
+		expect(schedule.slice(0, 15)).toEqual(
+			fixture.catalog.tasks.flatMap((task, taskIndex) =>
+				([1, 2, 3] as const).map(
+					(blockIndex) => `${taskIndex * 3 + blockIndex}:${task.taskRef}:${blockIndex}`,
+				),
+			),
+		);
+		expect(first.blocks).toHaveLength(15);
+		expect(first.summary).toMatchObject({
+			evidenceClass: "simulated-contract",
+			empiricalEvidence: false,
+			profile: "calibration",
+			efficacyClaim: "none",
+			status: "simulation-complete",
+			plannedBlocks: 15,
+			attemptedBlocks: 15,
+			eligibleColdFailures: 15,
+			warmRunsAttempted: 75,
+			warmRunsEvaluable: 75,
+			primaryComparison: {
+				evaluableTaskClusters: 5,
+				evaluablePairs: 15,
+				relevantOnly: 15,
+				controlOnly: 0,
+				pointEstimate: 1,
+				interval95: {
+					lower: 1,
+					upper: 1,
+					resampleCount: 3_125,
+				},
+			},
+		});
+		expect(first.summary.secondaryComparisons).toHaveLength(3);
+		expect(first.summary.taskResults.map((task) => task.primaryEffect)).toEqual([1, 1, 1, 1, 1]);
+		expect(empiricalStrictJsonDigest(first.summary)).toBe(
+			empiricalStrictJsonDigest(second.summary),
+		);
+	});
+
+	it("keeps cold passes out of warm execution and reports task-first effects", async () => {
+		const fixture = buildCalibrationFixture();
+		const firstTaskRef = fixture.catalog.tasks[0]?.taskRef;
+		const result = await runB112CalibrationSimulation({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			signal: new AbortController().signal,
+			runScriptedBlock: async ({ task, blockIndex }) =>
+				calibrationSimulationBlock({
+					frozen: fixture.frozen,
+					task,
+					blockIndex,
+					coldPassed: task.taskRef === firstTaskRef && blockIndex === 1,
+				}),
+		});
+		expect(result.blocks[0]).toMatchObject({
+			coldOutcome: "passed",
+		});
+		expect(result.blocks[0]?.warmArms.every((arm) => arm.outcome === "not-attempted")).toBe(true);
+		expect(result.summary.warmRunsAttempted).toBe(70);
+		expect(result.summary.taskResults[0]).toMatchObject({
+			attemptedBlocks: 3,
+			eligibleColdFailures: 2,
+			evaluablePrimaryPairs: 2,
+			primaryEffect: 1,
+		});
+	});
+
+	it("fails closed when a scripted run crosses frozen request bounds or substitutes identity", async () => {
+		const fixture = buildCalibrationFixture();
+		await expect(
+			runB112CalibrationSimulation({
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				signal: new AbortController().signal,
+				runScriptedBlock: async ({ task, blockIndex }) => {
+					const block = calibrationSimulationBlock({ frozen: fixture.frozen, task, blockIndex });
+					return {
+						...block,
+						warmArms: block.warmArms.map((arm) =>
+							arm.branchKind === "relevant-applied" ? { ...arm, simulatedRequests: 5 } : arm,
+						),
+					};
+				},
+			}),
+		).rejects.toThrow(/expected safe integer/);
+
+		const task = fixture.catalog.tasks[0] as EmpiricalCampaignTaskV1;
+		const baseBlock = calibrationSimulationBlock({ frozen: fixture.frozen, task, blockIndex: 1 });
+		await expect(
+			runB112CalibrationSimulation({
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				signal: new AbortController().signal,
+				runScriptedBlock: async ({ task: scheduledTask, blockIndex }) => ({
+					...calibrationSimulationBlock({
+						frozen: fixture.frozen,
+						task: scheduledTask,
+						blockIndex,
+					}),
+					coldSimulatedRequests: 0,
+				}),
+			}),
+		).rejects.toThrow(/completed simulated cold run requires at least one request/);
+		const noWarmResult = await runB112CalibrationSimulation({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			signal: new AbortController().signal,
+			runScriptedBlock: async ({ task: scheduledTask, blockIndex }) => {
+				const block = calibrationSimulationBlock({
+					frozen: fixture.frozen,
+					task: scheduledTask,
+					blockIndex,
+				});
+				if (scheduledTask.taskRef !== task.taskRef || blockIndex !== 1) return block;
+				return {
+					...baseBlock,
+					warmArms: baseBlock.warmArms.map((arm) => ({
+						...arm,
+						outcome: "not-attempted" as const,
+						simulatedRequests: 0,
+					})),
+					issueCodes: ["budget-exhausted-after-cold"],
+				};
+			},
+		});
+		expect(noWarmResult.summary).toMatchObject({
+			status: "incomplete",
+			incompleteBlocks: 1,
+			warmRunsAttempted: 70,
+		});
+		await expect(
+			runB112CalibrationSimulation({
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				signal: new AbortController().signal,
+				runScriptedBlock: async ({ task: scheduledTask, blockIndex }) => ({
+					...calibrationSimulationBlock({
+						frozen: fixture.frozen,
+						task: scheduledTask,
+						blockIndex,
+					}),
+					taskRef: fixture.catalog.tasks[1]?.taskRef,
+				}),
+			}),
+		).rejects.toThrow(/scheduled frozen task block/);
+		await expect(
+			runB112CalibrationSimulation({
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				signal: new AbortController().signal,
+				runScriptedBlock: async ({ task: scheduledTask, blockIndex }) => ({
+					...calibrationSimulationBlock({
+						frozen: fixture.frozen,
+						task: scheduledTask,
+						blockIndex,
+					}),
+					issueCodes: ["simulation-request-budget-exhausted"],
+				}),
+			}),
+		).rejects.toThrow(/reserved for the scheduler/);
+		await expect(
+			runB112CalibrationSimulation({
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				signal: new AbortController().signal,
+				runScriptedBlock: async ({ task: scheduledTask, blockIndex }) => {
+					const block = calibrationSimulationBlock({
+						frozen: fixture.frozen,
+						task: scheduledTask,
+						blockIndex,
+					});
+					return {
+						...block,
+						warmArms: block.warmArms.map((arm) =>
+							arm.branchKind === "wrong-scope-applied"
+								? { ...arm, outcome: "not-attempted" as const, simulatedRequests: 0 }
+								: arm,
+						),
+					};
+				},
+			}),
+		).rejects.toThrow(/incomplete cold path requires an issue/);
+		expect(exhaustiveTaskClusterInterval95([1])).toBeNull();
+		expect(() => exhaustiveTaskClusterInterval95([Number.NaN])).toThrow(/finite number/);
+		expect(() =>
+			exhaustiveTaskClusterInterval95(["not-a-number"] as unknown as readonly number[]),
+		).toThrow(/finite number/);
+		expect(exhaustiveTaskClusterInterval95([1, 0, -1])).toMatchObject({
+			lower: -1,
+			upper: 1,
+			resampleCount: 27,
+		});
+	});
+
+	it("uses the frozen branch permutation and rejects custom array iteration", async () => {
+		const source = buildCalibrationFixture();
+		const branchOrder = [...source.manifest.trialPlan.branchOrder].reverse();
+		const manifest: EmpiricalCampaignManifestV1 = {
+			...source.manifest,
+			trialPlan: { ...source.manifest.trialPlan, branchOrder },
+		};
+		const frozen = freezeEmpiricalCampaignManifest(manifest, source.report);
+		const result = await runB112CalibrationSimulation({
+			frozen,
+			qualificationReport: source.report,
+			signal: new AbortController().signal,
+			runScriptedBlock: async ({ task, blockIndex }) =>
+				calibrationSimulationBlock({ frozen, task, blockIndex }),
+		});
+		expect(result.blocks[0]?.warmArms.map((arm) => arm.branchKind)).toEqual(branchOrder);
+		expect(result.summary.primaryComparison.pointEstimate).toBe(1);
+
+		const hostile = Object.setPrototypeOf([1, 0], {
+			[Symbol.iterator](): Iterator<number> {
+				throw new Error("caller iterator must not run");
+			},
+		});
+		expect(exhaustiveTaskClusterInterval95(hostile)).toMatchObject({ resampleCount: 4 });
+	});
+
+	it("fails closed instead of under-scheduling multiple actor configurations", async () => {
+		const source = buildCalibrationFixture();
+		const primary = source.manifest.modelConfigurations[0];
+		if (primary === undefined) throw new TypeError("missing primary actor configuration");
+		const manifest: EmpiricalCampaignManifestV1 = {
+			...source.manifest,
+			modelConfigurations: [
+				primary,
+				{
+					...primary,
+					configurationRef: "actor-model-secondary",
+					model: "model-secondary-snapshot",
+				},
+			],
+			budgets: {
+				...source.manifest.budgets,
+				campaign: {
+					...source.manifest.budgets.campaign,
+					maxRequests: 720,
+					maxCostMicrousd: 10_000_000,
+				},
+			},
+		};
+		const frozen = freezeEmpiricalCampaignManifest(manifest, source.report);
+		await expect(
+			runB112CalibrationSimulation({
+				frozen,
+				qualificationReport: source.report,
+				signal: new AbortController().signal,
+				runScriptedBlock: async ({ task, blockIndex }) =>
+					calibrationSimulationBlock({ frozen, task, blockIndex }),
+			}),
+		).rejects.toThrow(/exactly one frozen actor configuration/);
+	});
+
+	it("keeps simulated non-evaluable arms out of the D676 denominator", async () => {
+		const fixture = buildCalibrationFixture();
+		const firstTaskRef = fixture.catalog.tasks[0]?.taskRef;
+		const result = await runB112CalibrationSimulation({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			signal: new AbortController().signal,
+			runScriptedBlock: async ({ task, blockIndex }) => {
+				const block = calibrationSimulationBlock({ frozen: fixture.frozen, task, blockIndex });
+				if (task.taskRef !== firstTaskRef || blockIndex !== 1) return block;
+				return {
+					...block,
+					warmArms: block.warmArms.map((arm) =>
+						arm.branchKind === "relevant-applied"
+							? {
+									...arm,
+									outcome: "non-evaluable" as const,
+									issueCodes: ["provider-unavailable"],
+								}
+							: arm,
+					),
+				};
+			},
+		});
+		expect(result.summary).toMatchObject({
+			empiricalEvidence: false,
+			efficacyClaim: "none",
+			status: "incomplete",
+			nonEvaluableBlocks: 1,
+			primaryComparison: { evaluablePairs: 14 },
+		});
+		expect(result.summary.taskResults[0]).toMatchObject({
+			evaluablePrimaryPairs: 2,
+			nonEvaluableBlocks: 1,
+		});
+	});
+
+	it("weights task clusters equally instead of pooling their block counts", async () => {
+		const fixture = buildCalibrationFixture();
+		const positiveTaskRef = fixture.catalog.tasks[0]?.taskRef;
+		const negativeTaskRef = fixture.catalog.tasks[1]?.taskRef;
+		const result = await runB112CalibrationSimulation({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			signal: new AbortController().signal,
+			runScriptedBlock: async ({ task, blockIndex }) => {
+				const block = calibrationSimulationBlock({ frozen: fixture.frozen, task, blockIndex });
+				return {
+					...block,
+					warmArms: block.warmArms.map((arm) => {
+						if (task.taskRef === positiveTaskRef && blockIndex === 1) return arm;
+						if (task.taskRef === negativeTaskRef) {
+							if (arm.branchKind === "relevant-applied") {
+								return { ...arm, outcome: "failed" as const };
+							}
+							if (arm.branchKind === "proposal-only") {
+								return { ...arm, outcome: "passed" as const };
+							}
+							return arm;
+						}
+						if (arm.branchKind === "relevant-applied") {
+							return {
+								...arm,
+								outcome: "non-evaluable" as const,
+								issueCodes: ["provider-unavailable"],
+							};
+						}
+						return arm;
+					}),
+				};
+			},
+		});
+		expect(result.summary.primaryComparison).toMatchObject({
+			evaluableTaskClusters: 2,
+			evaluablePairs: 4,
+			pointEstimate: 0,
+			interval95: { lower: -1, upper: 1, resampleCount: 4 },
+		});
+		expect(result.summary.taskResults.map((task) => task.primaryEffect)).toEqual([
+			1,
+			-1,
+			null,
+			null,
+			null,
+		]);
+	});
+
+	it("rejects cancellation raised during the final scripted block", async () => {
+		const fixture = buildCalibrationFixture();
+		const controller = new AbortController();
+		await expect(
+			runB112CalibrationSimulation({
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				signal: controller.signal,
+				runScriptedBlock: async ({ task, blockIndex, blockOrdinal }) => {
+					if (blockOrdinal === 15) controller.abort();
+					return calibrationSimulationBlock({ frozen: fixture.frozen, task, blockIndex });
+				},
+			}),
+		).rejects.toMatchObject({ name: "AbortError" });
 	});
 });
