@@ -1614,6 +1614,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		const request = buildEmpiricalModelTurnRequestFixture(authority);
 		const toolRef = request.availableTools[0]?.toolRef;
 		if (toolRef === undefined) throw new TypeError("DeepSeek tool fixture requires one tool");
+		const auxiliaryContent = "bounded DeepSeek tool-call preface";
 		const harness = createHarness(
 			authority,
 			responseBytes({
@@ -1626,7 +1627,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 						finish_reason: "tool_calls",
 						message: {
 							role: "assistant",
-							content: null,
+							content: auxiliaryContent,
 							tool_calls: [
 								{
 									id: "call_deepseek_placeholder_01",
@@ -1705,9 +1706,84 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			reasoning: { effort: "high" },
 			tool_choice: "required",
 		});
-		expect(body).toHaveProperty("response_format.json_schema.strict", true);
+		expect(body).not.toHaveProperty("response_format");
 		expect(body).not.toHaveProperty("parallel_tool_calls");
+		expect(JSON.stringify(outcome)).not.toContain(auxiliaryContent);
 		serializedWithoutCredential({ body, outcome, route });
+	});
+
+	it("protects and bounds discarded DeepSeek tool-call auxiliary content", async () => {
+		const authority = buildDeepSeekAuthority();
+		const route = deepSeekRouteQualification(authority);
+		const request = buildEmpiricalModelTurnRequestFixture(authority);
+		const toolRef = request.availableTools[0]?.toolRef;
+		if (toolRef === undefined) throw new TypeError("DeepSeek tool fixture requires one tool");
+		const message = (content: unknown) => ({
+			role: "assistant",
+			content,
+			tool_calls: [
+				{
+					id: "call_deepseek_auxiliary_content_01",
+					type: "function",
+					function: {
+						name: toolRef,
+						arguments: JSON.stringify({ commandRef: "command-placeholder", args: [] }),
+					},
+				},
+			],
+		});
+
+		const secretHarness = createHarness(
+			authority,
+			deepSeekChatResponse({
+				id: "chatcmpl_deepseek_auxiliary_secret_01",
+				finishReason: "tool_calls",
+				message: message(`prefix-${bearerToken}-suffix`),
+			}),
+			bearerToken,
+			route,
+		);
+		const secretOutcome = await secretHarness.binding.modelTurnPort.invoke(
+			secretHarness.request,
+			new AbortController().signal,
+		);
+		expect(secretOutcome).toMatchObject({
+			status: "non-evaluable",
+			issueCodes: [EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES.blocked],
+			structuredOutput: null,
+			toolIntents: [],
+			protectionReceipt: { disposition: "blocked" },
+		});
+		serializedWithoutCredential(secretOutcome);
+
+		for (const [id, content] of [
+			["oversized", "x".repeat(32_769)],
+			["non-string", [{ type: "text", text: "unsupported" }]],
+		] as const) {
+			const harness = createHarness(
+				authority,
+				deepSeekChatResponse({
+					id: `chatcmpl_deepseek_auxiliary_${id}_01`,
+					finishReason: "tool_calls",
+					message: message(content),
+				}),
+				bearerToken,
+				route,
+			);
+			const outcome = await harness.binding.modelTurnPort.invoke(
+				harness.request,
+				new AbortController().signal,
+			);
+			expect(outcome).toMatchObject({
+				status: "non-evaluable",
+				issueCodes: [
+					OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+					OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.messageInvalid,
+				],
+				structuredOutput: null,
+				toolIntents: [],
+			});
+		}
 	});
 
 	it("accepts an early strict DeepSeek completion before the hard turn ceiling", async () => {
@@ -1782,6 +1858,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		});
 		const sent = harness.transport.mock.calls[0]?.[0] as OpenRouterResponsesTransportRequestV1;
 		expect(strictJsonCodec.decode(sent.body)).toMatchObject({ tool_choice: "auto" });
+		expect(strictJsonCodec.decode(sent.body)).not.toHaveProperty("response_format");
 	});
 
 	it("rejects a direct DeepSeek completion before any tool result", async () => {
@@ -1874,7 +1951,10 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.finalToolCall,
 		]);
 		const sent = harness.transport.mock.calls[0]?.[0] as OpenRouterResponsesTransportRequestV1;
-		expect(strictJsonCodec.decode(sent.body)).toMatchObject({ tool_choice: "none" });
+		expect(strictJsonCodec.decode(sent.body)).toMatchObject({
+			tool_choice: "none",
+			response_format: { json_schema: { strict: true } },
+		});
 	});
 
 	it("lowers every closed D659 tool to a semantic Chat name and description", async () => {

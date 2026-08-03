@@ -66,12 +66,14 @@ import {
 	runOpenRouterFirstTaskSmoke,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-first-task-smoke.js";
 import {
+	createOpenRouterResponsesEmpiricalBinding,
 	OPENROUTER_CHAT_COMPLETIONS_ADAPTER_REVISION,
 	OPENROUTER_CHAT_COMPLETIONS_BINDING_REVISION,
 	OPENROUTER_CHAT_COMPLETIONS_ENDPOINT,
 	OPENROUTER_CHAT_COMPLETIONS_ENDPOINT_REVISION,
 	OPENROUTER_CHAT_COMPLETIONS_PROMPT_REVISION,
 	OPENROUTER_CHAT_COMPLETIONS_SYSTEM_PROMPT_REVISION,
+	OPENROUTER_DEEPSEEK_CHAT_COMPLETIONS_SYSTEM_PROMPT_REVISION,
 	OPENROUTER_RESPONSE_DIAGNOSTIC_CODES,
 	OPENROUTER_RESPONSES_ADAPTER_REVISION,
 	OPENROUTER_RESPONSES_BINDING_REVISION,
@@ -91,6 +93,7 @@ import {
 	OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_REVISION,
 	OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_SOURCE,
 	OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+	OPENROUTER_DEEPSEEK_V4_FLASH_SELECTED_MODEL,
 	OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
 	OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_SLUG,
 	OPENROUTER_FIRST_SMOKE_REQUEST_MODEL,
@@ -305,7 +308,9 @@ async function createClosedHostFixture(
 			? OPENROUTER_CHAT_COMPLETIONS_PROMPT_REVISION
 			: OPENROUTER_RESPONSES_PROMPT_REVISION,
 		systemPromptRevision: chatProfile
-			? OPENROUTER_CHAT_COMPLETIONS_SYSTEM_PROMPT_REVISION
+			? deepSeekProfile
+				? OPENROUTER_DEEPSEEK_CHAT_COMPLETIONS_SYSTEM_PROMPT_REVISION
+				: OPENROUTER_CHAT_COMPLETIONS_SYSTEM_PROMPT_REVISION
 			: OPENROUTER_RESPONSES_SYSTEM_PROMPT_REVISION,
 		capabilities: {
 			toolCalling: true,
@@ -879,6 +884,10 @@ function dryRunOpenRouterResponse(
 		downstreamProviderName: OPENROUTER_FIRST_SMOKE_DOWNSTREAM_PROVIDER_NAME,
 	},
 ): { readonly status: 200; readonly body: Uint8Array; readonly retryAfterMs: null } {
+	const deepSeekProfile = route.requestModel === OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL;
+	const selectedModel = deepSeekProfile
+		? OPENROUTER_DEEPSEEK_V4_FLASH_SELECTED_MODEL
+		: route.requestModel;
 	const routeMetadata = {
 		requested: route.requestModel,
 		strategy: "direct",
@@ -889,7 +898,7 @@ function dryRunOpenRouterResponse(
 			available: [
 				{
 					provider: route.downstreamProviderName,
-					model: route.requestModel,
+					model: selectedModel,
 					selected: true,
 				},
 			],
@@ -897,14 +906,14 @@ function dryRunOpenRouterResponse(
 		attempts: [
 			{
 				provider: route.downstreamProviderName,
-				model: route.requestModel,
+				model: selectedModel,
 				status: 200,
 			},
 		],
 		pipeline: [],
 	};
 	let response: Record<string, unknown>;
-	if (route.requestModel === OPENROUTER_GLM_5_2_REQUEST_MODEL) {
+	if (route.requestModel === OPENROUTER_GLM_5_2_REQUEST_MODEL || deepSeekProfile) {
 		const functionCalls = output
 			.map((item) => item as Record<string, unknown>)
 			.filter((item) => item.type === "function_call");
@@ -1214,6 +1223,147 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(JSON.stringify(outcome)).not.toContain("broken");
 		expect(JSON.stringify(outcome)).not.toContain(fixture.workspaceRoot);
 		expect(() => readFileSync(join(fixture.workspaceRoot, "README.md"))).toThrow();
+	});
+
+	it("composes the DeepSeek Chat wire with the real closed mutation path and verifier", async () => {
+		const fixture = await createClosedHostFixture(undefined, undefined, "deepseek-v4-flash-high");
+		const routeQualification = simulatedRouteQualification(fixture, {
+			maxRequests: 8,
+			maxStepsPerRun: 8,
+			maxInputTokens: 600_000,
+			maxOutputTokens: 49_152,
+		});
+		const baseContentDigest = empiricalSha256(encoder.encode("broken-placeholder-value\n"));
+		const expectedToolChoices: unknown[] = ["required", "auto", "auto", "auto", "auto"];
+		let transportCalls = 0;
+		const transport: OpenRouterResponsesByteTransportV1 = {
+			async request(input) {
+				const callIndex = transportCalls;
+				transportCalls += 1;
+				const body = JSON.parse(new TextDecoder().decode(input.body)) as {
+					readonly tool_choice: unknown;
+					readonly tools: readonly {
+						readonly function: { readonly name: string };
+					}[];
+				};
+				expect(body.tool_choice).toEqual(expectedToolChoices[callIndex]);
+				const toolNames = body.tools.map((tool) => tool.function.name);
+				const output =
+					callIndex === 0
+						? [
+								{
+									type: "function_call",
+									status: "completed",
+									call_id: "call.deepseek.read",
+									name: toolNames[0],
+									arguments: JSON.stringify({ path: "README.md" }),
+								},
+							]
+						: callIndex === 1
+							? [
+									{
+										type: "function_call",
+										status: "completed",
+										call_id: "call.deepseek.replace",
+										name: toolNames[2],
+										arguments: JSON.stringify({
+											baseContentDigest,
+											newText: "fixed",
+											oldText: "broken-placeholder-value",
+											path: "README.md",
+										}),
+									},
+								]
+							: callIndex === 2
+								? [
+										{
+											type: "function_call",
+											status: "completed",
+											call_id: "call.deepseek.diff",
+											name: toolNames[3],
+											arguments: "{}",
+										},
+									]
+								: callIndex === 3
+									? [
+											{
+												type: "function_call",
+												status: "completed",
+												call_id: "call.deepseek.command",
+												name: toolNames[4],
+												arguments: JSON.stringify({ commandRef: "actor.status" }),
+											},
+										]
+									: [
+											{
+												type: "message",
+												role: "assistant",
+												status: "completed",
+												content: [
+													{
+														type: "output_text",
+														text: JSON.stringify({
+															kind: "model-turn-output-placeholder",
+															summary: "DeepSeek mutation path complete.",
+														}),
+													},
+												],
+											},
+										];
+				return dryRunOpenRouterResponse(
+					`response.deepseek.mutation-path.${transportCalls}`,
+					output,
+					undefined,
+					{
+						requestModel: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+						downstreamProviderName: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+					},
+				);
+			},
+		};
+		let measurement = 0;
+		const binding = createOpenRouterResponsesEmpiricalBinding({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			configurationRef: fixture.initialRequest.configurationRef,
+			routeQualification,
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: "deepseek-dry-run-credential-placeholder",
+			},
+			transport,
+			transportAdmission: { admit: () => true },
+			monotonicMeasurement: { readMs: () => (measurement += 1) },
+		});
+
+		const outcome = await runClosedTaskProfileHost({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			initialRequest: fixture.initialRequest,
+			taskProfile: fixture.taskProfile,
+			materialization: fixture.materialization,
+			modelTurnPort: binding.modelTurnPort,
+			protectionExecutor: binding.protectionExecutor,
+			verifier: fixture.verifier,
+			signal: new AbortController().signal,
+		});
+
+		expect(transportCalls).toBe(5);
+		expect(outcome).toMatchObject({
+			status: "completed",
+			logicalStepCount: 5,
+			toolActionCount: 4,
+			verifierVerdict: "passed",
+			workspaceChanged: true,
+			issueCodes: [],
+		});
+		expect(outcome.actionTrace.map((entry) => entry.toolRef)).toEqual([
+			CLOSED_ACTOR_TOOL_REFS.readFile,
+			CLOSED_ACTOR_TOOL_REFS.replaceExact,
+			CLOSED_ACTOR_TOOL_REFS.workspaceDiff,
+			CLOSED_ACTOR_TOOL_REFS.runCommand,
+		]);
 	});
 
 	it("rejects GLM downstream-provider or pricing substitution before transport", async () => {
