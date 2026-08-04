@@ -67,6 +67,22 @@ import {
 	validateEmpiricalModelTurnRequest,
 } from "../../evals/empirical-memory-rerun-avoidance/model-execution.js";
 import {
+	B112_D678_AGENT_MAX_STEPS,
+	B112_D678_BLOCK_MAX_COST_MICROUSD,
+	B112_D678_BLOCK_MAX_INPUT_TOKENS,
+	B112_D678_BLOCK_MAX_LATENCY_MS,
+	B112_D678_BLOCK_MAX_OUTPUT_TOKENS,
+	B112_D678_BLOCK_MAX_REQUESTS,
+	B112_D678_CAMPAIGN_MAX_COST_MICROUSD,
+	B112_D678_CAMPAIGN_MAX_ELAPSED_MS,
+	B112_D678_CAMPAIGN_MAX_REQUESTS,
+	B112_D678_MAX_CANONICAL_REQUEST_BYTES,
+	B112_D678_TASK_MAX_REQUESTS,
+	B112_D679_TASK_MAX_COST_MICROUSD,
+	runLoadedOpenRouterCalibrationOperator,
+	validateD678CalibrationRouteQualifications,
+} from "../../evals/empirical-memory-rerun-avoidance/openrouter-calibration-operator.js";
+import {
 	B112_FIRST_TASK_SMOKE_AGGREGATION_REVISION,
 	B112_SMOKE_BUDGET_ISSUE_CODE,
 	createOpenRouterCalibrationEmpiricalRunner,
@@ -345,7 +361,14 @@ async function createClosedHostFixture(
 						: chatProfile
 							? ("required" as const)
 							: baseConfiguration.settings.tools.choice,
-				maxSteps: 8,
+				maxSteps: trialProfile === "calibration" && deepSeekProfile ? B112_D678_AGENT_MAX_STEPS : 8,
+			},
+			output: {
+				...baseConfiguration.settings.output,
+				maxOutputTokens:
+					trialProfile === "calibration" && deepSeekProfile
+						? 65_536
+						: baseConfiguration.settings.output.maxOutputTokens,
 			},
 		},
 		usageSource: "provider-reported" as const,
@@ -378,21 +401,46 @@ async function createClosedHostFixture(
 			...baseManifest.budgets,
 			campaign: {
 				...baseManifest.budgets.campaign,
-				maxRequests: trialProfile === "calibration" ? 720 : 48,
+				maxRequests:
+					trialProfile === "calibration" && deepSeekProfile
+						? B112_D678_CAMPAIGN_MAX_REQUESTS
+						: trialProfile === "calibration"
+							? 720
+							: 48,
 				maxCostMicrousd:
-					trialProfile === "calibration"
-						? baseManifest.budgets.taskModel.maxCostMicrousd * catalog.tasks.length
-						: baseManifest.budgets.campaign.maxCostMicrousd,
+					trialProfile === "calibration" && deepSeekProfile
+						? B112_D678_CAMPAIGN_MAX_COST_MICROUSD
+						: trialProfile === "calibration"
+							? baseManifest.budgets.taskModel.maxCostMicrousd * catalog.tasks.length
+							: baseManifest.budgets.campaign.maxCostMicrousd,
+				maxElapsedMs:
+					trialProfile === "calibration" && deepSeekProfile
+						? B112_D678_CAMPAIGN_MAX_ELAPSED_MS
+						: baseManifest.budgets.campaign.maxElapsedMs,
 			},
 			taskModel: {
 				...baseManifest.budgets.taskModel,
 				maxAttemptedColdBlocks: trialProfile === "calibration" ? 3 : 1,
-				maxRequests: trialProfile === "calibration" ? 144 : 48,
+				maxRequests:
+					trialProfile === "calibration" && deepSeekProfile
+						? B112_D678_TASK_MAX_REQUESTS
+						: trialProfile === "calibration"
+							? 144
+							: 48,
+				maxCostMicrousd:
+					trialProfile === "calibration" && deepSeekProfile
+						? B112_D679_TASK_MAX_COST_MICROUSD
+						: baseManifest.budgets.taskModel.maxCostMicrousd,
 			},
 			agentRun: {
 				...baseManifest.budgets.agentRun,
-				maxSteps: 8,
-				maxRequests: 8,
+				maxSteps: trialProfile === "calibration" && deepSeekProfile ? B112_D678_AGENT_MAX_STEPS : 8,
+				maxRequests:
+					trialProfile === "calibration" && deepSeekProfile ? B112_D678_AGENT_MAX_STEPS : 8,
+				maxOutputBytes:
+					trialProfile === "calibration" && deepSeekProfile
+						? B112_D678_MAX_CANONICAL_REQUEST_BYTES
+						: baseManifest.budgets.agentRun.maxOutputBytes,
 			},
 		},
 		aggregation: {
@@ -906,6 +954,39 @@ function liveRouteQualification(
 			workspaceRevision,
 		},
 	});
+}
+
+function d678SimulatedCalibrationQualifications(
+	fixture: ClosedHostFixture,
+): readonly OpenRouterRouteQualificationV1[] {
+	const base = simulatedRouteQualification(fixture, {
+		maxSmokeSpendMicrousd: B112_D678_BLOCK_MAX_COST_MICROUSD,
+		maxRequests: B112_D678_BLOCK_MAX_REQUESTS,
+		maxStepsPerRun: B112_D678_AGENT_MAX_STEPS,
+		maxCanonicalRequestBytes: B112_D678_MAX_CANONICAL_REQUEST_BYTES,
+		maxInputTokens: B112_D678_BLOCK_MAX_INPUT_TOKENS,
+		maxOutputTokens: B112_D678_BLOCK_MAX_OUTPUT_TOKENS,
+		maxLatencyMs: B112_D678_BLOCK_MAX_LATENCY_MS,
+	});
+	return strictSnapshot(
+		fixture.frozen.manifest.trialPlan.activeTaskRefs.flatMap((taskRef, taskIndex) =>
+			([1, 2, 3] as const).map((blockIndex) => {
+				const block = createB112CalibrationTrialBlockIdentity(fixture.frozen, taskRef, blockIndex);
+				const ordinal = taskIndex * 3 + blockIndex;
+				return strictSnapshot({
+					...base,
+					qualificationRef: `b112-d678-simulated-route-${ordinal}`,
+					qualificationRevision: `b112-d678-simulated-route.v${ordinal}`,
+					...block,
+					keySpendLimit: {
+						...base.keySpendLimit,
+						limitMicrousd: B112_D678_CAMPAIGN_MAX_COST_MICROUSD,
+						remainingMicrousd: B112_D678_CAMPAIGN_MAX_COST_MICROUSD,
+					},
+				});
+			}),
+		),
+	);
 }
 
 function dryRunOpenRouterResponse(
@@ -4861,4 +4942,182 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		});
 		expect(observation.issueCodes).toContain(B112_SMOKE_BUDGET_ISSUE_CODE);
 	}, 60_000);
+});
+
+describe("B112 D678-D679 package-private calibration operator", () => {
+	it("runs the complete no-network outer chain and atomically persists sanitized evidence", async () => {
+		const fixture = await createClosedHostFixture(
+			undefined,
+			undefined,
+			"deepseek-v4-flash-high",
+			"calibration",
+		);
+		const routeQualifications = d678SimulatedCalibrationQualifications(fixture);
+		expect(
+			validateD678CalibrationRouteQualifications({
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				routeQualifications,
+			}),
+		).toHaveLength(15);
+		const privateParent = temporaryRoot("d678-private");
+		const privateRoot = join(privateParent, ".private", "empirical-memory-rerun-avoidance");
+		mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
+		const secretSentinel = "d678-injected-transport-secret-sentinel";
+		let prepareCalls = 0;
+		let transportCalls = 0;
+		let activeTransportCalls = 0;
+		let maxActiveTransportCalls = 0;
+		const decoder = new TextDecoder("utf-8", { fatal: true });
+		const transport: OpenRouterResponsesByteTransportV1 = {
+			async request(request) {
+				activeTransportCalls += 1;
+				maxActiveTransportCalls = Math.max(maxActiveTransportCalls, activeTransportCalls);
+				transportCalls += 1;
+				try {
+					const wire = JSON.parse(decoder.decode(request.body)) as {
+						readonly tools?: readonly {
+							readonly function?: {
+								readonly name?: string;
+								readonly parameters?: { readonly properties?: Readonly<Record<string, unknown>> };
+							};
+						}[];
+					};
+					if (transportCalls === 1) {
+						const replaceTool = wire.tools?.find((tool) =>
+							Object.hasOwn(tool.function?.parameters?.properties ?? {}, "oldText"),
+						);
+						if (typeof replaceTool?.function?.name !== "string") {
+							throw new TypeError("D678 fixture did not receive the closed replaceExact tool");
+						}
+						return dryRunOpenRouterResponse(
+							"response.d678.replace",
+							[
+								{
+									type: "function_call",
+									call_id: "call.d678.replace",
+									name: replaceTool.function.name,
+									arguments: JSON.stringify({
+										baseContentDigest: empiricalSha256(
+											encoder.encode("broken-placeholder-value\n"),
+										),
+										newText: "fixed",
+										oldText: "broken-placeholder-value",
+										path: "README.md",
+									}),
+								},
+							],
+							{ input_tokens: 100, output_tokens: 20, total_tokens: 120, cost: 0.000_01 },
+							{
+								requestModel: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+								downstreamProviderName: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+							},
+						);
+					}
+					return dryRunOpenRouterResponse(
+						"response.d678.final",
+						[
+							{
+								type: "message",
+								role: "assistant",
+								status: "completed",
+								content: [
+									{
+										type: "output_text",
+										text: JSON.stringify({
+											kind: "model-turn-output-placeholder",
+											summary: "D678 injected-transport dry run completed",
+										}),
+									},
+								],
+							},
+						],
+						{ input_tokens: 100, output_tokens: 20, total_tokens: 120, cost: 0.000_01 },
+						{
+							requestModel: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+							downstreamProviderName: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+						},
+					);
+				} finally {
+					activeTransportCalls -= 1;
+				}
+			},
+		};
+		const result = await runLoadedOpenRouterCalibrationOperator({
+			operatorInput: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				routeQualifications,
+				privateRoot,
+				generationRef: "d678-no-network-preflight",
+				async prepareTrialBlock(scheduled) {
+					prepareCalls += 1;
+					if (scheduled.blockOrdinal !== 1) {
+						throw new TypeError("bounded fixture terminalizes after its first authoritative block");
+					}
+					return {
+						host: {
+							frozen: fixture.frozen,
+							qualificationReport: fixture.report,
+							initialRequest: fixture.initialRequest,
+							taskProfile: fixture.taskProfile,
+							materialization: fixture.materialization,
+							verifier: fixture.verifier,
+						},
+						prepareWarmHost: ({ signal }) => fixture.prepareFreshMaterialization(signal),
+					};
+				},
+			},
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: secretSentinel,
+			},
+			transport,
+			monotonicMeasurement: { readMs: () => 0 },
+			retryWait: immediateRetryWait,
+			executionClass: "simulated-contract",
+			signal: new AbortController().signal,
+		});
+		expect({ prepareCalls, transportCalls, maxActiveTransportCalls }).toEqual({
+			prepareCalls: 2,
+			transportCalls: 2,
+			maxActiveTransportCalls: 1,
+		});
+		expect(result.terminalSlots).toHaveLength(15);
+		expect(result.scorecard).toMatchObject({
+			profile: "calibration",
+			evidenceClass: "simulated-contract",
+			empiricalLiveEvidence: false,
+			efficacyClaim: "none",
+			attemptedBlocks: 1,
+			status: "incomplete",
+		});
+		const persistedBytes = readdirSync(result.persistence.generationPath)
+			.map((file) => readFileSync(join(result.persistence.generationPath, file), "utf8"))
+			.join("\n");
+		expect(persistedBytes).not.toContain(secretSentinel);
+		for (const file of readdirSync(result.persistence.generationPath)) {
+			expect(statSync(join(result.persistence.generationPath, file)).mode & 0o777).toBe(0o600);
+		}
+	}, 60_000);
+
+	it("rejects a substituted qualification bundle before any transport call", async () => {
+		const fixture = await createClosedHostFixture(
+			undefined,
+			undefined,
+			"deepseek-v4-flash-high",
+			"calibration",
+		);
+		const qualifications = [...d678SimulatedCalibrationQualifications(fixture)];
+		qualifications[1] = qualifications[0] as OpenRouterRouteQualificationV1;
+		expect(() =>
+			validateD678CalibrationRouteQualifications({
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				routeQualifications: qualifications,
+			}),
+		).toThrow(/scheduled block|distinct per-block|does not match D678-D679/);
+		await fixture.materialization.cleanup();
+	});
 });

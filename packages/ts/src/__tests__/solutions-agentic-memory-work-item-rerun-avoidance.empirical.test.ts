@@ -790,7 +790,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			);
 			const allowsOutermostLiveOperator =
 				file.endsWith("openrouter-first-task-smoke-operator.ts") ||
-				file.endsWith("openrouter-first-task-capability-probe-operator.ts");
+				file.endsWith("openrouter-first-task-capability-probe-operator.ts") ||
+				file.endsWith("openrouter-calibration-operator.ts");
 			const allowsRetryTimerOperator = file.endsWith("openrouter-first-task-smoke-operator.ts");
 			const allowsMatchedBlockMemory = file.endsWith("matched-block-memory.ts");
 			const matchedBlockMemoryImports = new Set([
