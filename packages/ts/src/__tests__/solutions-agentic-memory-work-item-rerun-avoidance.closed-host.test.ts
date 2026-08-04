@@ -5168,6 +5168,7 @@ describe("B112 D678-D679 package-private calibration operator", () => {
 			stage: "campaign",
 			blockOrdinal: 1,
 			causeClass: "abort",
+			causeCode: "abort",
 		});
 		expect(JSON.stringify(diagnostic)).not.toContain(secretSentinel);
 		await fixture.materialization.cleanup();

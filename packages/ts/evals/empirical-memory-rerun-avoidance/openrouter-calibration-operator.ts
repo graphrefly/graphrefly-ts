@@ -90,6 +90,19 @@ export interface OpenRouterCalibrationOperatorFailureDiagnosticV1 {
 	readonly stage: "operator-init" | "campaign" | "persistence";
 	readonly blockOrdinal: number | null;
 	readonly causeClass: "abort" | "type-error" | "range-error" | "internal-error";
+	readonly causeCode:
+		| "abort"
+		| "calibration-budget-crossed"
+		| "calibration-validation"
+		| "campaign-schema-validation"
+		| "observation-schema-validation"
+		| "openrouter-matched-block-invariant"
+		| "b112-host-invariant"
+		| "closed-host-invariant"
+		| "private-host-invariant"
+		| "type-error-unclassified"
+		| "range-error"
+		| "internal-error";
 }
 
 class OpenRouterCalibrationOperatorStageFailure extends Error {
@@ -111,6 +124,28 @@ function failureCauseClass(
 	return "internal-error";
 }
 
+function failureCauseCode(
+	error: unknown,
+): OpenRouterCalibrationOperatorFailureDiagnosticV1["causeCode"] {
+	if (error instanceof DOMException && error.name === "AbortError") return "abort";
+	if (error instanceof TypeError) {
+		const message = error.message;
+		if (message.startsWith("calibration.budget:")) return "calibration-budget-crossed";
+		if (message.startsWith("calibration.")) return "calibration-validation";
+		if (message.startsWith("B112 empirical campaign")) return "campaign-schema-validation";
+		if (message.startsWith("empirical calibration")) return "observation-schema-validation";
+		if (message.startsWith("OpenRouter")) return "openrouter-matched-block-invariant";
+		if (message.startsWith("B112 ")) return "b112-host-invariant";
+		if (message.startsWith("closed") || message.startsWith("Closed")) {
+			return "closed-host-invariant";
+		}
+		if (message.startsWith("private ")) return "private-host-invariant";
+		return "type-error-unclassified";
+	}
+	if (error instanceof RangeError) return "range-error";
+	return "internal-error";
+}
+
 function operatorStageFailure(
 	stage: OpenRouterCalibrationOperatorFailureDiagnosticV1["stage"],
 	blockOrdinal: number | null,
@@ -122,6 +157,7 @@ function operatorStageFailure(
 			stage,
 			blockOrdinal,
 			causeClass: failureCauseClass(error),
+			causeCode: failureCauseCode(error),
 		}),
 	);
 }
@@ -135,6 +171,7 @@ export function classifyOpenRouterCalibrationOperatorFailure(
 		stage: "operator-init",
 		blockOrdinal: null,
 		causeClass: failureCauseClass(error),
+		causeCode: failureCauseCode(error),
 	});
 }
 
