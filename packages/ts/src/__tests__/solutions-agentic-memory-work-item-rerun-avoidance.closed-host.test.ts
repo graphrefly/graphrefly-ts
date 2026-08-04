@@ -79,6 +79,7 @@ import {
 	B112_D678_MAX_CANONICAL_REQUEST_BYTES,
 	B112_D678_TASK_MAX_REQUESTS,
 	B112_D679_TASK_MAX_COST_MICROUSD,
+	classifyOpenRouterCalibrationOperatorFailure,
 	runLoadedOpenRouterCalibrationOperator,
 	validateD678CalibrationRouteQualifications,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-calibration-operator.js";
@@ -5120,4 +5121,151 @@ describe("B112 D678-D679 package-private calibration operator", () => {
 		).toThrow(/scheduled block|distinct per-block|does not match D678-D679/);
 		await fixture.materialization.cleanup();
 	});
+
+	it("emits only allowlisted stage diagnostics for a live-path failure", async () => {
+		const fixture = await createClosedHostFixture(
+			undefined,
+			undefined,
+			"deepseek-v4-flash-high",
+			"calibration",
+		);
+		const secretSentinel = "d678-diagnostic-secret-must-not-escape";
+		let captured: unknown;
+		try {
+			await runLoadedOpenRouterCalibrationOperator({
+				operatorInput: {
+					frozen: fixture.frozen,
+					qualificationReport: fixture.report,
+					routeQualifications: d678SimulatedCalibrationQualifications(fixture),
+					privateRoot: temporaryRoot("d678-diagnostic-private"),
+					generationRef: "d678-diagnostic-generation",
+					async prepareTrialBlock() {
+						throw new DOMException(secretSentinel, "AbortError");
+					},
+				},
+				credential: {
+					credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+					credentialBindingRevision:
+						fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+					bearerToken: secretSentinel,
+				},
+				transport: {
+					async request() {
+						throw new TypeError("unexpected diagnostic transport call");
+					},
+				},
+				monotonicMeasurement: { readMs: () => 0 },
+				retryWait: immediateRetryWait,
+				executionClass: "simulated-contract",
+				signal: new AbortController().signal,
+			});
+		} catch (error) {
+			captured = error;
+		}
+		const diagnostic = classifyOpenRouterCalibrationOperatorFailure(captured);
+		expect(diagnostic).toEqual({
+			issueCode: "openrouter-calibration-operator-failed",
+			stage: "campaign",
+			blockOrdinal: 1,
+			causeClass: "abort",
+		});
+		expect(JSON.stringify(diagnostic)).not.toContain(secretSentinel);
+		await fixture.materialization.cleanup();
+	});
+
+	it("terminalizes an always-tool-calling matched block at the frozen step ceiling", async () => {
+		const fixture = await createClosedHostFixture(
+			undefined,
+			undefined,
+			"deepseek-v4-flash-high",
+			"calibration",
+		);
+		let prepareCalls = 0;
+		let transportCalls = 0;
+		const decoder = new TextDecoder("utf-8", { fatal: true });
+		const privateParent = temporaryRoot("d678-always-tool-private");
+		const privateRoot = join(privateParent, ".private", "empirical-memory-rerun-avoidance");
+		mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
+		const result = await runLoadedOpenRouterCalibrationOperator({
+			operatorInput: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				routeQualifications: d678SimulatedCalibrationQualifications(fixture),
+				privateRoot,
+				generationRef: "d678-always-tool-generation",
+				async prepareTrialBlock(scheduled) {
+					prepareCalls += 1;
+					if (scheduled.blockOrdinal !== 1) {
+						throw new TypeError("bounded always-tool fixture stops after one block");
+					}
+					return {
+						host: {
+							frozen: fixture.frozen,
+							qualificationReport: fixture.report,
+							initialRequest: fixture.initialRequest,
+							taskProfile: fixture.taskProfile,
+							materialization: fixture.materialization,
+							verifier: fixture.verifier,
+						},
+						prepareWarmHost: ({ signal }) => fixture.prepareFreshMaterialization(signal),
+					};
+				},
+			},
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: "d678-always-tool-secret-sentinel",
+			},
+			transport: {
+				async request(request) {
+					transportCalls += 1;
+					const wire = JSON.parse(decoder.decode(request.body)) as {
+						readonly tools?: readonly {
+							readonly function?: {
+								readonly name?: string;
+								readonly parameters?: {
+									readonly properties?: Readonly<Record<string, unknown>>;
+								};
+							};
+						}[];
+					};
+					const readTool = wire.tools?.find((tool) => {
+						const properties = tool.function?.parameters?.properties ?? {};
+						return Object.hasOwn(properties, "path") && !Object.hasOwn(properties, "oldText");
+					});
+					if (typeof readTool?.function?.name !== "string") {
+						throw new TypeError("always-tool fixture did not receive the closed read tool");
+					}
+					return dryRunOpenRouterResponse(
+						`response.d678.always-tool.${transportCalls}`,
+						[
+							{
+								type: "function_call",
+								call_id: `call.d678.always-tool.${transportCalls}`,
+								name: readTool.function.name,
+								arguments: JSON.stringify({ path: "README.md" }),
+							},
+						],
+						{ input_tokens: 100, output_tokens: 20, total_tokens: 120, cost: 0.000_01 },
+						{
+							requestModel: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+							downstreamProviderName: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+						},
+					);
+				},
+			},
+			monotonicMeasurement: { readMs: () => 0 },
+			retryWait: immediateRetryWait,
+			executionClass: "simulated-contract",
+			signal: new AbortController().signal,
+		});
+		expect(prepareCalls).toBe(1);
+		expect(transportCalls).toBeGreaterThan(0);
+		expect(transportCalls).toBeLessThanOrEqual(B112_D678_BLOCK_MAX_REQUESTS);
+		expect(result.scorecard).toMatchObject({
+			attemptedBlocks: 1,
+			status: "incomplete",
+			efficacyClaim: "none",
+		});
+	}, 120_000);
 });

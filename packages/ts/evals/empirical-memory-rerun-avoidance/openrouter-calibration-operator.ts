@@ -85,6 +85,59 @@ export interface OpenRouterCalibrationOperatorResultV4 {
 	readonly persistence: PersistedPrivateCalibrationGenerationV4;
 }
 
+export interface OpenRouterCalibrationOperatorFailureDiagnosticV1 {
+	readonly issueCode: "openrouter-calibration-operator-failed";
+	readonly stage: "operator-init" | "campaign" | "persistence";
+	readonly blockOrdinal: number | null;
+	readonly causeClass: "abort" | "type-error" | "range-error" | "internal-error";
+}
+
+class OpenRouterCalibrationOperatorStageFailure extends Error {
+	readonly diagnostic: OpenRouterCalibrationOperatorFailureDiagnosticV1;
+
+	constructor(diagnostic: OpenRouterCalibrationOperatorFailureDiagnosticV1) {
+		super("OpenRouter calibration operator failed closed");
+		this.name = "OpenRouterCalibrationOperatorStageFailure";
+		this.diagnostic = diagnostic;
+	}
+}
+
+function failureCauseClass(
+	error: unknown,
+): OpenRouterCalibrationOperatorFailureDiagnosticV1["causeClass"] {
+	if (error instanceof DOMException && error.name === "AbortError") return "abort";
+	if (error instanceof TypeError) return "type-error";
+	if (error instanceof RangeError) return "range-error";
+	return "internal-error";
+}
+
+function operatorStageFailure(
+	stage: OpenRouterCalibrationOperatorFailureDiagnosticV1["stage"],
+	blockOrdinal: number | null,
+	error: unknown,
+): OpenRouterCalibrationOperatorStageFailure {
+	return new OpenRouterCalibrationOperatorStageFailure(
+		Object.freeze({
+			issueCode: "openrouter-calibration-operator-failed" as const,
+			stage,
+			blockOrdinal,
+			causeClass: failureCauseClass(error),
+		}),
+	);
+}
+
+export function classifyOpenRouterCalibrationOperatorFailure(
+	error: unknown,
+): OpenRouterCalibrationOperatorFailureDiagnosticV1 {
+	if (error instanceof OpenRouterCalibrationOperatorStageFailure) return error.diagnostic;
+	return Object.freeze({
+		issueCode: "openrouter-calibration-operator-failed",
+		stage: "operator-init",
+		blockOrdinal: null,
+		causeClass: failureCauseClass(error),
+	});
+}
+
 function isSameOrDescendant(parent: string, candidate: string): boolean {
 	const nested = relative(parent, candidate);
 	return nested === "" || (nested !== ".." && !nested.startsWith(`..${sep}`));
@@ -266,27 +319,34 @@ export async function runLoadedOpenRouterCalibrationOperator(input: {
 	const routesByTrialBlock = new Map(
 		routes.map((route) => [route.qualification.trialBlockRef, route.qualification] as const),
 	);
-	const empirical = await runB112EmpiricalCalibration({
-		frozen,
-		qualificationReport: input.operatorInput.qualificationReport,
-		runEmpiricalBlock: createOpenRouterCalibrationEmpiricalRunner(async (scheduled) => {
-			const routeQualification = routesByTrialBlock.get(scheduled.trialBlockRef);
-			if (routeQualification === undefined) {
-				throw new TypeError("OpenRouter calibration received an unexpected scheduled block");
-			}
-			const prepared = await input.operatorInput.prepareTrialBlock(scheduled);
-			return Object.freeze({
-				...prepared,
-				routeQualification,
-				credential: input.credential,
-				transport: input.transport,
-				monotonicMeasurement: input.monotonicMeasurement,
-				retryWait: input.retryWait,
-				executionClass: input.executionClass,
-			});
-		}),
-		signal: input.signal,
-	});
+	let activeBlockOrdinal: number | null = null;
+	let empirical: Awaited<ReturnType<typeof runB112EmpiricalCalibration>>;
+	try {
+		empirical = await runB112EmpiricalCalibration({
+			frozen,
+			qualificationReport: input.operatorInput.qualificationReport,
+			runEmpiricalBlock: createOpenRouterCalibrationEmpiricalRunner(async (scheduled) => {
+				activeBlockOrdinal = scheduled.blockOrdinal;
+				const routeQualification = routesByTrialBlock.get(scheduled.trialBlockRef);
+				if (routeQualification === undefined) {
+					throw new TypeError("OpenRouter calibration received an unexpected scheduled block");
+				}
+				const prepared = await input.operatorInput.prepareTrialBlock(scheduled);
+				return Object.freeze({
+					...prepared,
+					routeQualification,
+					credential: input.credential,
+					transport: input.transport,
+					monotonicMeasurement: input.monotonicMeasurement,
+					retryWait: input.retryWait,
+					executionClass: input.executionClass,
+				});
+			}),
+			signal: input.signal,
+		});
+	} catch (error) {
+		throw operatorStageFailure("campaign", activeBlockOrdinal, error);
+	}
 	const protectionExecutor = createEmpiricalExactPrivateNeedleProtectionExecutor({
 		policyRef: frozen.manifest.policies.protectionPolicyRef,
 		policyRevision: frozen.manifest.policies.protectionPolicyRevision,
@@ -294,15 +354,20 @@ export async function runLoadedOpenRouterCalibrationOperator(input: {
 		protectedNeedleCapabilityRevision: input.credential.credentialBindingRevision,
 		protectedNeedles: [input.credential.bearerToken],
 	});
-	const persistence = await persistPrivateCalibrationGeneration({
-		privateRoot: input.operatorInput.privateRoot,
-		generationRef: input.operatorInput.generationRef,
-		frozen,
-		qualificationReport: input.operatorInput.qualificationReport,
-		terminalSlots: empirical.terminalSlots,
-		scorecard: empirical.scorecard,
-		protectionExecutor,
-	});
+	let persistence: PersistedPrivateCalibrationGenerationV4;
+	try {
+		persistence = await persistPrivateCalibrationGeneration({
+			privateRoot: input.operatorInput.privateRoot,
+			generationRef: input.operatorInput.generationRef,
+			frozen,
+			qualificationReport: input.operatorInput.qualificationReport,
+			terminalSlots: empirical.terminalSlots,
+			scorecard: empirical.scorecard,
+			protectionExecutor,
+		});
+	} catch (error) {
+		throw operatorStageFailure("persistence", null, error);
+	}
 	return Object.freeze({ ...empirical, persistence });
 }
 
@@ -370,8 +435,10 @@ async function main(): Promise<void> {
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-	main().catch(() => {
-		process.stderr.write("OpenRouter calibration failed closed\n");
+	main().catch((error: unknown) => {
+		process.stderr.write(
+			`${JSON.stringify(classifyOpenRouterCalibrationOperatorFailure(error))}\n`,
+		);
 		process.exitCode = 1;
 	});
 }
