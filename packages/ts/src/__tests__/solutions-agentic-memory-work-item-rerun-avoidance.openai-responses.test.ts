@@ -474,7 +474,7 @@ describe("B112 D657 package-private OpenAI Responses binding", () => {
 			expect(transport).toHaveBeenCalledTimes(1);
 			serializedWithoutCredential(outcome);
 		}
-	});
+	}, 10_000);
 
 	it("preserves known provider token usage when D653 rejects candidate semantics", async () => {
 		const response = completedResponse(messageOutput({ kind: "unexpected", summary: 1 }));

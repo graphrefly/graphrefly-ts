@@ -22,6 +22,10 @@ export const EMPIRICAL_TRIAL_BLOCK_OBSERVATION_SCHEMA =
 export const EMPIRICAL_CAMPAIGN_SCORECARD_SCHEMA =
 	"graphrefly.private-solution-eval.empirical-campaign-scorecard.v3";
 export const B112_SMOKE_NO_EFFICACY_CLAIM = "smoke-integration-no-efficacy-claim";
+export const EMPIRICAL_CALIBRATION_TRIAL_BLOCK_OBSERVATION_SCHEMA =
+	"graphrefly.private-solution-eval.empirical-trial-block-observation.v4";
+export const B112_CALIBRATION_EXPLORATORY_NO_EFFICACY_CLAIM =
+	"calibration-exploratory-no-efficacy-claim";
 
 export type EmpiricalSmokeEvidenceClassV1 =
 	| "simulated-contract"
@@ -216,6 +220,16 @@ export interface EmpiricalTrialBlockObservationV3 {
 	readonly issueCodes: readonly string[];
 }
 
+export type EmpiricalCalibrationTrialBlockObservationV4 = Omit<
+	EmpiricalTrialBlockObservationV3,
+	"schemaVersion" | "claimBoundary" | "profile"
+> & {
+	readonly schemaVersion: typeof EMPIRICAL_CALIBRATION_TRIAL_BLOCK_OBSERVATION_SCHEMA;
+	readonly claimBoundary: typeof B112_CALIBRATION_EXPLORATORY_NO_EFFICACY_CLAIM;
+	readonly profile: "calibration";
+	readonly blockIndex: 1 | 2 | 3;
+};
+
 export interface EmpiricalCampaignScorecardV3 {
 	readonly schemaVersion: typeof EMPIRICAL_CAMPAIGN_SCORECARD_SCHEMA;
 	readonly campaignRef: string;
@@ -307,7 +321,7 @@ function summedProviderUsage(
 	return observedProviderRequest ? total : null;
 }
 
-export function createEmpiricalTrialBlockObservation(input: {
+export interface EmpiricalTrialBlockObservationCreationInputV3 {
 	readonly frozen: FrozenEmpiricalCampaignManifestV1;
 	readonly route: QualifiedOpenRouterRouteV1;
 	readonly cold: {
@@ -333,19 +347,26 @@ export function createEmpiricalTrialBlockObservation(input: {
 	readonly executionClass: "simulated-contract" | "live-provider";
 	readonly trialBlockRef: string;
 	readonly trialBlockDigest: string;
-}): EmpiricalTrialBlockObservationV3 {
+}
+
+type EmpiricalTrialBlockObservationCommonV3 = Omit<
+	EmpiricalTrialBlockObservationV3,
+	"schemaVersion" | "claimBoundary" | "profile"
+>;
+
+function createEmpiricalTrialBlockObservationCommon(
+	input: EmpiricalTrialBlockObservationCreationInputV3,
+	taskRef: string,
+): EmpiricalTrialBlockObservationCommonV3 {
 	const manifest = input.frozen.manifest;
-	if (manifest.trialPlan.profile !== "smoke") {
-		throw new TypeError("B112 smoke observation requires the smoke trial plan");
-	}
-	const taskRef = manifest.trialPlan.activeTaskRefs[0];
 	const task = manifest.catalog.tasks.find((candidate) => candidate.taskRef === taskRef);
 	if (
 		task === undefined ||
+		!manifest.trialPlan.activeTaskRefs.includes(taskRef) ||
 		input.cold.hostOutcome.taskRef !== taskRef ||
 		input.cold.hostOutcome.taskDigest !== empiricalStrictJsonDigest(task)
 	) {
-		throw new TypeError("B112 smoke observation is not for the preregistered first task");
+		throw new TypeError("B112 observation is not for its exact frozen active task");
 	}
 	const route = input.route.qualification;
 	if ((input.executionClass === "live-provider") !== (route.dispatchMode === "live-approved")) {
@@ -512,13 +533,10 @@ export function createEmpiricalTrialBlockObservation(input: {
 		"smoke.protectionReceiptDigests",
 	);
 	const observation = strictSnapshot({
-		schemaVersion: EMPIRICAL_TRIAL_BLOCK_OBSERVATION_SCHEMA,
 		executionClass,
 		empiricalLiveEvidence: executionClass === "live-provider",
-		claimBoundary: B112_SMOKE_NO_EFFICACY_CLAIM,
 		campaignRef: manifest.campaignRef,
 		manifestDigest: input.frozen.manifestDigest,
-		profile: "smoke" as const,
 		taskRef,
 		taskDigest: input.cold.hostOutcome.taskDigest,
 		trialBlockRef: coordinate(input.trialBlockRef, "smoke.trialBlockRef"),
@@ -608,7 +626,46 @@ export function createEmpiricalTrialBlockObservation(input: {
 		familyPassed,
 		issueCodes,
 	});
-	return validateEmpiricalTrialBlockObservation(observation);
+	return observation;
+}
+
+export function createEmpiricalTrialBlockObservation(
+	input: EmpiricalTrialBlockObservationCreationInputV3,
+): EmpiricalTrialBlockObservationV3 {
+	if (input.frozen.manifest.trialPlan.profile !== "smoke") {
+		throw new TypeError("B112 smoke observation requires the smoke trial plan");
+	}
+	const taskRef = input.frozen.manifest.trialPlan.activeTaskRefs[0];
+	if (taskRef === undefined) {
+		throw new TypeError("B112 smoke observation requires the preregistered first task");
+	}
+	return validateEmpiricalTrialBlockObservation({
+		schemaVersion: EMPIRICAL_TRIAL_BLOCK_OBSERVATION_SCHEMA,
+		claimBoundary: B112_SMOKE_NO_EFFICACY_CLAIM,
+		profile: "smoke",
+		...createEmpiricalTrialBlockObservationCommon(input, taskRef),
+	});
+}
+
+export function createEmpiricalCalibrationTrialBlockObservation(
+	input: EmpiricalTrialBlockObservationCreationInputV3 & {
+		readonly taskRef: string;
+		readonly blockIndex: 1 | 2 | 3;
+	},
+): EmpiricalCalibrationTrialBlockObservationV4 {
+	if (input.frozen.manifest.trialPlan.profile !== "calibration") {
+		throw new TypeError("B112 calibration observation requires the calibration trial plan");
+	}
+	return validateEmpiricalCalibrationTrialBlockObservation({
+		schemaVersion: EMPIRICAL_CALIBRATION_TRIAL_BLOCK_OBSERVATION_SCHEMA,
+		claimBoundary: B112_CALIBRATION_EXPLORATORY_NO_EFFICACY_CLAIM,
+		profile: "calibration",
+		blockIndex: safeInteger(input.blockIndex, "calibration.blockIndex", {
+			min: 1,
+			max: 3,
+		}) as 1 | 2 | 3,
+		...createEmpiricalTrialBlockObservationCommon(input, input.taskRef),
+	});
 }
 
 function checkedSum(total: number, value: number, message: string): number {
@@ -1901,6 +1958,185 @@ export function validateEmpiricalTrialBlockObservation(
 		familyPassed,
 		issueCodes,
 	});
+}
+
+export function validateEmpiricalCalibrationTrialBlockObservation(
+	value: unknown,
+): EmpiricalCalibrationTrialBlockObservationV4 {
+	const observation = record(
+		calibrationStrictOwnJsonSnapshot(value, "calibrationTrialBlockObservation"),
+		"calibrationTrialBlockObservation",
+	);
+	exactKeys(
+		observation,
+		[
+			"blockIndex",
+			"campaignRef",
+			"claimBoundary",
+			"cold",
+			"empiricalLiveEvidence",
+			"executionClass",
+			"familyPassed",
+			"hostOutcomeDigest",
+			"issueCodes",
+			"manifestDigest",
+			"profile",
+			"protectionReceiptDigests",
+			"reflection",
+			"rerunEligible",
+			"result",
+			"route",
+			"routeEvidenceDigests",
+			"schemaVersion",
+			"taskDigest",
+			"taskRef",
+			"trialBlockDigest",
+			"trialBlockRef",
+			"verifierEvidenceDigests",
+			"warmBranches",
+		],
+		"calibrationTrialBlockObservation",
+	);
+	literal(
+		observation.schemaVersion,
+		EMPIRICAL_CALIBRATION_TRIAL_BLOCK_OBSERVATION_SCHEMA,
+		"calibrationTrialBlockObservation.schemaVersion",
+	);
+	literal(
+		observation.claimBoundary,
+		B112_CALIBRATION_EXPLORATORY_NO_EFFICACY_CLAIM,
+		"calibrationTrialBlockObservation.claimBoundary",
+	);
+	literal(observation.profile, "calibration", "calibrationTrialBlockObservation.profile");
+	const blockIndex = safeInteger(
+		observation.blockIndex,
+		"calibrationTrialBlockObservation.blockIndex",
+		{ min: 1, max: 3 },
+	) as 1 | 2 | 3;
+	const {
+		blockIndex: _blockIndex,
+		claimBoundary: _claimBoundary,
+		profile: _profile,
+		schemaVersion: _schemaVersion,
+		...common
+	} = observation;
+	const validated = validateEmpiricalTrialBlockObservation({
+		...common,
+		schemaVersion: EMPIRICAL_TRIAL_BLOCK_OBSERVATION_SCHEMA,
+		claimBoundary: B112_SMOKE_NO_EFFICACY_CLAIM,
+		profile: "smoke",
+	});
+	for (const [index, branch] of validated.warmBranches.entries()) {
+		const nestedIssues = [
+			...(branch.run?.issueCodes ?? []),
+			...(branch.lifecycle?.issueCodes ?? []),
+		];
+		if (nestedIssues.some((issueCode) => !branch.issueCodes.includes(issueCode))) {
+			throw new TypeError(
+				`B112 empirical campaign calibrationTrialBlockObservation.warmBranches[${index}].issueCodes: missing nested authoritative issue`,
+			);
+		}
+	}
+	const expectedIssueCodes = [
+		...new Set([
+			...validated.cold.issueCodes,
+			...validated.warmBranches.flatMap((branch) => branch.issueCodes),
+			...(validated.rerunEligible &&
+			validated.warmBranches.filter((branch) => branch.attempted).length <
+				validated.warmBranches.length
+				? ["smoke-cold-failed-warm-arms-incomplete"]
+				: []),
+		]),
+	].sort();
+	if (
+		validated.issueCodes.length !== expectedIssueCodes.length ||
+		validated.issueCodes.some((issueCode, index) => issueCode !== expectedIssueCodes[index])
+	) {
+		throw new TypeError(
+			"B112 empirical campaign calibrationTrialBlockObservation.issueCodes: must equal the canonical nested issue union",
+		);
+	}
+	return strictSnapshot({
+		...validated,
+		schemaVersion: EMPIRICAL_CALIBRATION_TRIAL_BLOCK_OBSERVATION_SCHEMA,
+		claimBoundary: B112_CALIBRATION_EXPLORATORY_NO_EFFICACY_CLAIM,
+		profile: "calibration" as const,
+		blockIndex,
+	});
+}
+
+const MAX_CALIBRATION_OBSERVATION_JSON_NODES = 50_000;
+const MAX_CALIBRATION_OBSERVATION_JSON_DEPTH = 64;
+
+/**
+ * V4-only descriptor-safe copy. Historical v1-v3 validation remains byte and
+ * behavior stable, while calibration evidence cannot substitute array methods,
+ * iterators, accessors, sparse entries, or custom prototypes during validation.
+ */
+function calibrationStrictOwnJsonSnapshot(
+	value: unknown,
+	path: string,
+	state: { nodes: number } = { nodes: 0 },
+	depth = 0,
+): unknown {
+	state.nodes += 1;
+	if (state.nodes > MAX_CALIBRATION_OBSERVATION_JSON_NODES) {
+		throw new TypeError(`B112 empirical campaign ${path}: strict JSON node bound exceeded`);
+	}
+	if (depth > MAX_CALIBRATION_OBSERVATION_JSON_DEPTH) {
+		throw new TypeError(`B112 empirical campaign ${path}: strict JSON depth bound exceeded`);
+	}
+	if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+	if (typeof value === "number") {
+		if (!Number.isFinite(value)) {
+			throw new TypeError(`B112 empirical campaign ${path}: expected finite JSON number`);
+		}
+		return value;
+	}
+	if (Array.isArray(value)) {
+		if (Object.getPrototypeOf(value) !== Array.prototype) {
+			throw new TypeError(`B112 empirical campaign ${path}: expected canonical array prototype`);
+		}
+		if (Object.getOwnPropertySymbols(value).length > 0) {
+			throw new TypeError(
+				`B112 empirical campaign ${path}: symbol-keyed array properties forbidden`,
+			);
+		}
+		const copy: unknown[] = [];
+		for (let index = 0; index < value.length; index += 1) {
+			const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+			if (descriptor === undefined || !("value" in descriptor) || !descriptor.enumerable) {
+				throw new TypeError(
+					`B112 empirical campaign ${path}[${index}]: expected dense own data entry`,
+				);
+			}
+			copy.push(
+				calibrationStrictOwnJsonSnapshot(descriptor.value, `${path}[${index}]`, state, depth + 1),
+			);
+		}
+		if (Object.getOwnPropertyNames(value).length !== value.length + 1) {
+			throw new TypeError(`B112 empirical campaign ${path}: unexpected array properties`);
+		}
+		return Object.freeze(copy);
+	}
+	if (typeof value === "object") {
+		const source = record(value, path);
+		const copy = Object.create(null) as Record<string, unknown>;
+		for (const key of Object.keys(source)) {
+			const descriptor = Object.getOwnPropertyDescriptor(source, key);
+			if (descriptor === undefined || !("value" in descriptor)) {
+				throw new TypeError(`B112 empirical campaign ${path}.${key}: expected own data property`);
+			}
+			copy[key] = calibrationStrictOwnJsonSnapshot(
+				descriptor.value,
+				`${path}.${key}`,
+				state,
+				depth + 1,
+			);
+		}
+		return Object.freeze(copy);
+	}
+	throw new TypeError(`B112 empirical campaign ${path}: expected strict JSON value`);
 }
 
 function validateObservationRoute(value: unknown): EmpiricalTrialBlockObservationV3["route"] {

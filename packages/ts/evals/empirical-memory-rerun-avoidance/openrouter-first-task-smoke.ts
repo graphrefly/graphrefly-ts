@@ -1,17 +1,32 @@
 import { type StrictJsonValue, strictJsonCodec } from "../../src/json/codec.js";
-import { empiricalStrictJsonDigest, safeInteger, strictSnapshot } from "./canonical.js";
+import {
+	empiricalStrictJsonDigest,
+	exactKeys,
+	record,
+	safeInteger,
+	strictSnapshot,
+} from "./canonical.js";
 import {
 	type ClosedTaskProfileHostRetryCapabilityV1,
 	type ClosedTaskProfileHostRunInputV1,
 	runClosedTaskProfileHost,
 } from "./closed-task-profile-host.js";
 import {
+	type B112CalibrationEmpiricalRunInputV4,
+	type B112CalibrationEmpiricalRunnerV4,
+	createB112CalibrationBlockPreparationFailure,
+	createB112CalibrationTrialBlockIdentity,
+} from "./empirical-calibration.js";
+import {
+	createEmpiricalCalibrationTrialBlockObservation,
 	createEmpiricalCampaignScorecard,
 	createEmpiricalTrialBlockObservation,
+	type EmpiricalCalibrationTrialBlockObservationV4,
 	type EmpiricalCampaignScorecardV3,
 	type EmpiricalSmokeCostLedgerV1,
 	type EmpiricalTrialBlockObservationV3,
 } from "./empirical-smoke-evidence.js";
+import type { EmpiricalExactPrivateNeedleProtectionExecutorV1 } from "./exact-private-needle-protection.js";
 import {
 	B112_MATCHED_BLOCK_MEMORY_REVISION,
 	prepareB112MatchedBlockReflection,
@@ -92,8 +107,11 @@ export const B112_SMOKE_ADMISSION_REJECTION_REASONS = Object.freeze({
 	costReservation: "cost-reservation",
 } as const);
 
+const B112_CALIBRATION_ELAPSED_ADMISSION_REJECTION_REASON = "elapsed-budget";
+
 type B112SmokeAdmissionRejectionReason =
-	(typeof B112_SMOKE_ADMISSION_REJECTION_REASONS)[keyof typeof B112_SMOKE_ADMISSION_REJECTION_REASONS];
+	| (typeof B112_SMOKE_ADMISSION_REJECTION_REASONS)[keyof typeof B112_SMOKE_ADMISSION_REJECTION_REASONS]
+	| typeof B112_CALIBRATION_ELAPSED_ADMISSION_REJECTION_REASON;
 
 export interface B112SmokeAdmissionRejectionV1 {
 	readonly schemaVersion: typeof B112_SMOKE_ADMISSION_REJECTION_SCHEMA;
@@ -125,6 +143,20 @@ export interface OpenRouterFirstTaskSmokeResultV3 {
 	 */
 	readonly admissionRejection: B112SmokeAdmissionRejectionV1 | null;
 }
+
+export type OpenRouterMatchedTrialBlockResultV4 =
+	| {
+			readonly profile: "smoke";
+			readonly observation: EmpiricalTrialBlockObservationV3;
+			readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
+			readonly admissionRejection: B112SmokeAdmissionRejectionV1 | null;
+	  }
+	| {
+			readonly profile: "calibration";
+			readonly observation: EmpiricalCalibrationTrialBlockObservationV4;
+			readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
+			readonly admissionRejection: B112SmokeAdmissionRejectionV1 | null;
+	  };
 
 function assertQualifiedSmokeRoute(
 	route: OpenRouterRouteQualificationV1,
@@ -287,6 +319,7 @@ function retryAfterMsFromIssues(issueCodes: readonly string[]): number | null {
 
 function createOpenRouterRetryCapability(
 	route: OpenRouterRouteQualificationV1,
+	ceilings: MatchedBlockBudgetCeilings,
 	ledger: MutableSmokeBudget,
 	waitCapability: OpenRouterFirstTaskRetryWaitCapabilityV1,
 	monotonicMeasurement: OpenRouterResponsesMonotonicMeasurementV1,
@@ -328,9 +361,9 @@ function createOpenRouterRetryCapability(
 		return Math.max(
 			0,
 			Math.min(
-				route.budget.maxLatencyMs - (current - blockStartedAtMs),
+				ceilings.maxLatencyMs - (current - blockStartedAtMs),
 				maxRunElapsedMs - (current - runStartedAtMs),
-				route.budget.maxLatencyMs - ledger.latencyMs,
+				ceilings.maxLatencyMs - ledger.latencyMs,
 			),
 		);
 	};
@@ -359,9 +392,9 @@ function createOpenRouterRetryCapability(
 			if (lastAdmission === null) {
 				throw new TypeError("B112 retry has no exact prior transport admission");
 			}
-			const evaluation = evaluateSmokeTransportAdmission(route, ledger, lastAdmission);
+			const evaluation = evaluateSmokeTransportAdmission(route, ceilings, ledger, lastAdmission);
 			if (evaluation.reasons.length === 0) return [];
-			recordSmokeAdmissionRejection(route, ledger, lastAdmission, evaluation);
+			recordSmokeAdmissionRejection(route, ceilings, ledger, lastAdmission, evaluation);
 			return [B112_SMOKE_BUDGET_ISSUE_CODE];
 		},
 		remainingElapsedMs,
@@ -433,6 +466,7 @@ function budgetExhaustedOutcome(
 function createBudgetedModelTurnPort(
 	delegate: EmpiricalModelTurnPortV1,
 	route: OpenRouterRouteQualificationV1,
+	ceilings: MatchedBlockBudgetCeilings,
 	protectionExecutor: ClosedTaskProfileHostRunInputV1["protectionExecutor"],
 	ledger: MutableSmokeBudget,
 ): EmpiricalModelTurnPortV1 {
@@ -474,10 +508,10 @@ function createBudgetedModelTurnPort(
 			ledger.pendingReservedCostMicrousd = 0;
 			ledger.latencyMs += outcome.latencyMs;
 			if (
-				ledger.latencyMs > route.budget.maxLatencyMs ||
+				ledger.latencyMs > ceilings.maxLatencyMs ||
 				ledger.reservedInputTokens > route.budget.maxInputTokens ||
 				ledger.reservedOutputTokens > route.budget.maxOutputTokens ||
-				ledger.reservedCostMicrousd > route.budget.maxSmokeSpendMicrousd
+				ledger.reservedCostMicrousd > ceilings.maxCostMicrousd
 			) {
 				ledger.exhausted = true;
 				return budgetExhaustedOutcome(
@@ -495,6 +529,7 @@ function createBudgetedModelTurnPort(
 
 function createSmokeTransportAdmission(
 	route: OpenRouterRouteQualificationV1,
+	ceilings: MatchedBlockBudgetCeilings,
 	ledger: MutableSmokeBudget,
 ): OpenRouterResponsesTransportAdmissionV1 {
 	return Object.freeze({
@@ -508,9 +543,9 @@ function createSmokeTransportAdmission(
 					min: 1,
 				}),
 			};
-			const evaluation = evaluateSmokeTransportAdmission(route, ledger, admission);
+			const evaluation = evaluateSmokeTransportAdmission(route, ceilings, ledger, admission);
 			if (evaluation.reasons.length > 0) {
-				recordSmokeAdmissionRejection(route, ledger, admission, evaluation);
+				recordSmokeAdmissionRejection(route, ceilings, ledger, admission, evaluation);
 				return false;
 			}
 			ledger.requests += 1;
@@ -533,6 +568,13 @@ interface SmokeTransportAdmissionInput {
 	readonly maxOutputTokens: number;
 }
 
+interface MatchedBlockBudgetCeilings {
+	readonly maxRequests: number;
+	readonly maxCostMicrousd: number;
+	readonly maxLatencyMs: number;
+	readonly enforceElapsedAdmission: boolean;
+}
+
 interface SmokeTransportAdmissionEvaluation {
 	readonly reasons: readonly B112SmokeAdmissionRejectionReason[];
 	readonly reservedInputTokens: number;
@@ -544,6 +586,7 @@ interface SmokeTransportAdmissionEvaluation {
 
 function evaluateSmokeTransportAdmission(
 	route: OpenRouterRouteQualificationV1,
+	ceilings: MatchedBlockBudgetCeilings,
 	ledger: MutableSmokeBudget,
 	input: SmokeTransportAdmissionInput,
 ): SmokeTransportAdmissionEvaluation {
@@ -562,7 +605,7 @@ function evaluateSmokeTransportAdmission(
 	if (ledger.pendingReservedInputTokens > 0 || ledger.pendingReservedOutputTokens > 0) {
 		reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.pendingReservation);
 	}
-	if (ledger.requests >= route.budget.maxRequests) {
+	if (ledger.requests >= ceilings.maxRequests) {
 		reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.requestLimit);
 	}
 	if (
@@ -580,8 +623,11 @@ function evaluateSmokeTransportAdmission(
 	if (prospectiveOutputTokens > route.budget.maxOutputTokens) {
 		reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.outputTokenReservation);
 	}
-	if (prospectiveCostMicrousd > route.budget.maxSmokeSpendMicrousd) {
+	if (prospectiveCostMicrousd > ceilings.maxCostMicrousd) {
 		reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.costReservation);
+	}
+	if (ceilings.enforceElapsedAdmission && ledger.latencyMs >= ceilings.maxLatencyMs) {
+		reasons.push(B112_CALIBRATION_ELAPSED_ADMISSION_REJECTION_REASON);
 	}
 	return Object.freeze({
 		reasons: Object.freeze(reasons),
@@ -595,6 +641,7 @@ function evaluateSmokeTransportAdmission(
 
 function recordSmokeAdmissionRejection(
 	route: OpenRouterRouteQualificationV1,
+	ceilings: MatchedBlockBudgetCeilings,
 	ledger: MutableSmokeBudget,
 	input: SmokeTransportAdmissionInput,
 	evaluation: SmokeTransportAdmissionEvaluation,
@@ -605,7 +652,7 @@ function recordSmokeAdmissionRejection(
 		requestRef: input.requestRef,
 		reasons: evaluation.reasons,
 		requests: ledger.requests,
-		maxRequests: route.budget.maxRequests,
+		maxRequests: ceilings.maxRequests,
 		maxStepsPerRun: route.budget.maxStepsPerRun,
 		wireRequestBytes: input.wireRequestBytes,
 		maxCanonicalRequestBytes: route.budget.maxCanonicalRequestBytes,
@@ -617,7 +664,7 @@ function recordSmokeAdmissionRejection(
 		maxOutputTokens: route.budget.maxOutputTokens,
 		reservedCostMicrousd: ledger.reservedCostMicrousd,
 		prospectiveCostMicrousd: evaluation.prospectiveCostMicrousd,
-		maxSmokeSpendMicrousd: route.budget.maxSmokeSpendMicrousd,
+		maxSmokeSpendMicrousd: ceilings.maxCostMicrousd,
 	});
 }
 
@@ -741,13 +788,7 @@ export type OpenRouterFirstTaskWarmHostFactoryV1 = (
 	input: OpenRouterFirstTaskWarmHostFactoryInputV1,
 ) => Promise<ClosedTaskProfileHostRunInputV1["materialization"]>;
 
-/**
- * Executes exactly the preregistered first task as one cold attempted smoke
- * block. When a fresh-host factory is supplied, a verified cold failure fans
- * into D639's exact five serial warm branches under one monotonic block ledger.
- * It emits no efficacy claim and never auto-runs calibration work.
- */
-export async function runOpenRouterFirstTaskSmoke(input: {
+export interface OpenRouterMatchedTrialBlockInputV4 {
 	readonly host: Omit<
 		ClosedTaskProfileHostRunInputV1,
 		"modelTurnPort" | "protectionExecutor" | "signal"
@@ -757,19 +798,55 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 	readonly transport: OpenRouterResponsesByteTransportV1;
 	readonly monotonicMeasurement: OpenRouterResponsesMonotonicMeasurementV1;
 	readonly executionClass: "simulated-contract" | "live-provider";
-	readonly privateRoot: string;
-	readonly generationRef: string;
 	readonly signal: AbortSignal;
 	readonly retryWait: OpenRouterFirstTaskRetryWaitCapabilityV1;
 	readonly prepareWarmHost?: OpenRouterFirstTaskWarmHostFactoryV1;
-}): Promise<OpenRouterFirstTaskSmokeResultV3> {
+	readonly blockIndex?: 1 | 2 | 3;
+	readonly remainingBudget?: B112CalibrationEmpiricalRunInputV4["remainingBudget"];
+}
+
+/**
+ * Executes one exact frozen matched trial block. Smoke remains first-task-only;
+ * calibration additionally binds the scheduled task's one-based block index.
+ */
+export async function runOpenRouterMatchedTrialBlock(
+	inputValue: OpenRouterMatchedTrialBlockInputV4,
+): Promise<OpenRouterMatchedTrialBlockResultV4> {
+	const request = record(inputValue, "matchedBlock.input");
+	const optionalKeys = ["blockIndex", "prepareWarmHost", "remainingBudget"].filter((key) =>
+		Object.hasOwn(request, key),
+	);
+	exactKeys(
+		request,
+		[
+			"credential",
+			"executionClass",
+			"host",
+			"monotonicMeasurement",
+			"retryWait",
+			"routeQualification",
+			"signal",
+			"transport",
+			...optionalKeys,
+		],
+		"matchedBlock.input",
+	);
+	record(request.host, "matchedBlock.input.host");
+	const input = request as unknown as OpenRouterMatchedTrialBlockInputV4;
 	const trialPlan = input.host.frozen.manifest.trialPlan;
 	if (
-		trialPlan.profile !== "smoke" ||
-		input.host.initialRequest.taskRef !== trialPlan.activeTaskRefs[0] ||
-		input.host.initialRequest.trialStage !== "cold"
+		input.host.initialRequest.trialStage !== "cold" ||
+		(trialPlan.profile === "smoke" &&
+			(input.host.initialRequest.taskRef !== trialPlan.activeTaskRefs[0] ||
+				input.blockIndex !== undefined ||
+				input.remainingBudget !== undefined)) ||
+		(trialPlan.profile === "calibration" &&
+			(!trialPlan.activeTaskRefs.includes(input.host.initialRequest.taskRef) ||
+				input.blockIndex === undefined ||
+				input.remainingBudget === undefined)) ||
+		(trialPlan.profile !== "smoke" && trialPlan.profile !== "calibration")
 	) {
-		throw new TypeError("OpenRouter smoke runner accepts only the preregistered first cold task");
+		throw new TypeError("OpenRouter matched-block runner received invalid frozen coordinates");
 	}
 	if (
 		(input.executionClass === "live-provider") !==
@@ -797,6 +874,19 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 	) {
 		throw new TypeError("OpenRouter smoke route does not qualify this frozen trial block");
 	}
+	if (trialPlan.profile === "calibration") {
+		const expectedTrialBlock = createB112CalibrationTrialBlockIdentity(
+			input.host.frozen,
+			input.host.initialRequest.taskRef,
+			input.blockIndex as 1 | 2 | 3,
+		);
+		if (
+			input.host.initialRequest.trialBlockRef !== expectedTrialBlock.trialBlockRef ||
+			input.host.initialRequest.trialBlockDigest !== expectedTrialBlock.trialBlockDigest
+		) {
+			throw new TypeError("OpenRouter calibration block identity is not its exact scheduled slot");
+		}
+	}
 	const manifestBudgets = input.host.frozen.manifest.budgets;
 	if (
 		input.routeQualification.budget.maxRequests >
@@ -814,6 +904,33 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 	}
 	safeInteger(input.routeQualification.budget.maxLatencyMs, "smoke.maxLatencyMs", {
 		min: 1,
+	});
+	const remainingBudget = input.remainingBudget;
+	const ceilings: MatchedBlockBudgetCeilings = Object.freeze({
+		enforceElapsedAdmission: remainingBudget !== undefined,
+		maxRequests:
+			remainingBudget === undefined
+				? input.routeQualification.budget.maxRequests
+				: Math.min(
+						input.routeQualification.budget.maxRequests,
+						safeInteger(remainingBudget.campaignRequests, "calibration.campaignRequests"),
+						safeInteger(remainingBudget.taskRequests, "calibration.taskRequests"),
+					),
+		maxCostMicrousd:
+			remainingBudget === undefined
+				? input.routeQualification.budget.maxSmokeSpendMicrousd
+				: Math.min(
+						input.routeQualification.budget.maxSmokeSpendMicrousd,
+						safeInteger(remainingBudget.campaignCostMicrousd, "calibration.campaignCostMicrousd"),
+						safeInteger(remainingBudget.taskCostMicrousd, "calibration.taskCostMicrousd"),
+					),
+		maxLatencyMs:
+			remainingBudget === undefined
+				? input.routeQualification.budget.maxLatencyMs
+				: Math.min(
+						input.routeQualification.budget.maxLatencyMs,
+						safeInteger(remainingBudget.campaignElapsedMs, "calibration.campaignElapsedMs"),
+					),
 	});
 	const ledger: MutableSmokeBudget = {
 		requests: 0,
@@ -838,7 +955,7 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 		routeQualification: input.routeQualification,
 		credential: input.credential,
 		transport: input.transport,
-		transportAdmission: createSmokeTransportAdmission(input.routeQualification, ledger),
+		transportAdmission: createSmokeTransportAdmission(input.routeQualification, ceilings, ledger),
 		monotonicMeasurement: input.monotonicMeasurement,
 	});
 	const route = Object.freeze({
@@ -869,12 +986,14 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 		modelTurnPort: createBudgetedModelTurnPort(
 			binding.modelTurnPort,
 			input.routeQualification,
+			ceilings,
 			binding.protectionExecutor,
 			ledger,
 		),
 		protectionExecutor: binding.protectionExecutor,
 		retry: createOpenRouterRetryCapability(
 			input.routeQualification,
+			ceilings,
 			ledger,
 			input.retryWait,
 			input.monotonicMeasurement,
@@ -894,8 +1013,8 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 					coldOutcome: outcome,
 				})
 			: null;
-	const createObservation = () =>
-		createEmpiricalTrialBlockObservation({
+	const createObservation = () => {
+		const observationInput = {
 			frozen: input.host.frozen,
 			route,
 			cold: {
@@ -916,7 +1035,15 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 			executionClass: input.executionClass,
 			trialBlockRef: input.host.initialRequest.trialBlockRef,
 			trialBlockDigest: input.host.initialRequest.trialBlockDigest,
-		});
+		};
+		return trialPlan.profile === "smoke"
+			? createEmpiricalTrialBlockObservation(observationInput)
+			: createEmpiricalCalibrationTrialBlockObservation({
+					...observationInput,
+					taskRef: input.host.initialRequest.taskRef,
+					blockIndex: input.blockIndex as 1 | 2 | 3,
+				});
+	};
 	let warmPreparationFailed = false;
 	if (reflection !== null && input.prepareWarmHost !== undefined) {
 		for (let index = 0; index < reflection.branches.length; index += 1) {
@@ -983,12 +1110,14 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 				modelTurnPort: createBudgetedModelTurnPort(
 					binding.modelTurnPort,
 					input.routeQualification,
+					ceilings,
 					binding.protectionExecutor,
 					ledger,
 				),
 				protectionExecutor: binding.protectionExecutor,
 				retry: createOpenRouterRetryCapability(
 					input.routeQualification,
+					ceilings,
 					ledger,
 					input.retryWait,
 					input.monotonicMeasurement,
@@ -1012,21 +1141,115 @@ export async function runOpenRouterFirstTaskSmoke(input: {
 		}
 	}
 	const observation = createObservation();
+	return Object.freeze({
+		profile: trialPlan.profile,
+		observation,
+		protectionExecutor: binding.protectionExecutor,
+		admissionRejection: ledger.admissionRejection,
+	}) as OpenRouterMatchedTrialBlockResultV4;
+}
+
+export type OpenRouterCalibrationPreparedTrialBlockV4 = Omit<
+	OpenRouterMatchedTrialBlockInputV4,
+	"blockIndex" | "remainingBudget" | "signal"
+>;
+
+export type OpenRouterCalibrationTrialBlockFactoryV4 = (
+	input: B112CalibrationEmpiricalRunInputV4,
+) => Promise<OpenRouterCalibrationPreparedTrialBlockV4>;
+
+/**
+ * Mechanical package-private bridge from the D677 serial scheduler to the
+ * same authoritative matched-block path used by smoke. Remaining campaign
+ * and task ceilings are supplied to transport admission before any request.
+ */
+export function createOpenRouterCalibrationEmpiricalRunner(
+	prepareTrialBlock: OpenRouterCalibrationTrialBlockFactoryV4,
+): B112CalibrationEmpiricalRunnerV4 {
+	if (typeof prepareTrialBlock !== "function") {
+		throw new TypeError("OpenRouter calibration requires an explicit trial-block factory");
+	}
+	return async (scheduled) => {
+		const blockIndex = scheduled.blockIndex;
+		const remainingBudget = strictSnapshot(scheduled.remainingBudget);
+		const signal = scheduled.signal;
+		const taskRef = scheduled.task.taskRef;
+		const trialBlockRef = scheduled.trialBlockRef;
+		const trialBlockDigest = scheduled.trialBlockDigest;
+		let preparedValue: unknown;
+		try {
+			preparedValue = await prepareTrialBlock(scheduled);
+		} catch (error) {
+			if (signal.aborted || (error instanceof DOMException && error.name === "AbortError")) {
+				throw error;
+			}
+			return createB112CalibrationBlockPreparationFailure(trialBlockRef, trialBlockDigest);
+		}
+		const prepared = record(
+			preparedValue,
+			"calibration.preparedTrialBlock",
+		) as unknown as OpenRouterCalibrationPreparedTrialBlockV4;
+		if (
+			prepared.host.initialRequest.trialBlockRef !== trialBlockRef ||
+			prepared.host.initialRequest.trialBlockDigest !== trialBlockDigest ||
+			prepared.host.initialRequest.taskRef !== taskRef
+		) {
+			throw new TypeError("OpenRouter calibration factory substituted scheduled coordinates");
+		}
+		const matched = await runOpenRouterMatchedTrialBlock({
+			...prepared,
+			blockIndex,
+			remainingBudget,
+			signal,
+		});
+		if (matched.profile !== "calibration") {
+			throw new TypeError("OpenRouter calibration bridge produced non-calibration evidence");
+		}
+		return matched.observation;
+	};
+}
+
+/**
+ * Executes exactly the preregistered first task as one cold attempted smoke
+ * block, then emits the historical v3 scorecard and atomic generation.
+ */
+export async function runOpenRouterFirstTaskSmoke(
+	inputValue: OpenRouterMatchedTrialBlockInputV4 & {
+		readonly privateRoot: string;
+		readonly generationRef: string;
+	},
+): Promise<OpenRouterFirstTaskSmokeResultV3> {
+	const input = record(
+		inputValue,
+		"firstTaskSmoke.input",
+	) as unknown as OpenRouterMatchedTrialBlockInputV4 & {
+		readonly privateRoot: string;
+		readonly generationRef: string;
+	};
+	if (input.host.frozen.manifest.trialPlan.profile !== "smoke" || input.blockIndex !== undefined) {
+		throw new TypeError("OpenRouter first-task smoke wrapper requires the frozen smoke profile");
+	}
+	const { generationRef, privateRoot, ...matchedInput } = input;
+	const matched = await runOpenRouterMatchedTrialBlock(matchedInput);
+	if (matched.profile !== "smoke") {
+		throw new TypeError("OpenRouter first-task smoke produced a non-smoke observation");
+	}
+	const observation = matched.observation;
 	const scorecard = createEmpiricalCampaignScorecard(
 		observation,
 		B112_FIRST_TASK_SMOKE_AGGREGATION_REVISION,
 	);
 	const persistence = await persistPrivateSmokeGeneration({
-		privateRoot: input.privateRoot,
-		generationRef: input.generationRef,
+		privateRoot,
+		generationRef,
 		observation,
 		scorecard,
-		protectionExecutor: binding.protectionExecutor,
+		protectionExecutor: matched.protectionExecutor,
 	});
 	return Object.freeze({
 		observation,
 		scorecard,
 		persistence,
-		admissionRejection: ledger.admissionRejection,
+		admissionRejection: matched.admissionRejection,
 	});
 }

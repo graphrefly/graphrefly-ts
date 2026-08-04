@@ -10,6 +10,7 @@ import {
 	record,
 	safeInteger,
 	strictSnapshot,
+	string,
 } from "./canonical.js";
 import type {
 	EmpiricalCampaignTaskV1,
@@ -17,6 +18,12 @@ import type {
 	EmpiricalWarmBranchKind,
 	FrozenEmpiricalCampaignManifestV1,
 } from "./contracts.js";
+import {
+	B112_CALIBRATION_EXPLORATORY_NO_EFFICACY_CLAIM,
+	type EmpiricalCalibrationTrialBlockObservationV4,
+	type EmpiricalSmokeEvidenceClassV1,
+	validateEmpiricalCalibrationTrialBlockObservation,
+} from "./empirical-smoke-evidence.js";
 import { validateFrozenEmpiricalCampaignManifest } from "./qualification.js";
 
 /**
@@ -748,5 +755,816 @@ export async function runB112CalibrationSimulation(input: {
 	return strictSnapshot({
 		blocks,
 		summary: aggregateB112CalibrationSimulation({ frozen, blocks, schedulerBudgetExhausted }),
+	});
+}
+
+export const B112_CALIBRATION_TERMINAL_SLOT_SCHEMA =
+	"graphrefly.private-solution-eval.empirical-calibration-terminal-slot.v4";
+export const B112_CALIBRATION_CAMPAIGN_SCORECARD_SCHEMA =
+	"graphrefly.private-solution-eval.empirical-calibration-campaign-scorecard.v4";
+export const B112_CALIBRATION_TRIAL_BLOCK_IDENTITY_REVISION =
+	"b112-calibration-trial-block-identity.v1";
+export const B112_CALIBRATION_BLOCK_PREPARATION_FAILURE_SCHEMA =
+	"graphrefly.private-solution-eval.empirical-calibration-block-preparation-failure.v4";
+
+const B112_CALIBRATION_BUDGET_ISSUE_CODES = Object.freeze([
+	"agent-output-byte-budget-exhausted",
+	"agent-request-budget-exhausted",
+	"agent-step-budget-exhausted",
+	"calibration-block-budget-exhausted",
+	"calibration-budget-exhausted",
+	"calibration-campaign-budget-exhausted",
+	"calibration-task-budget-exhausted",
+	"file-byte-budget-exhausted",
+	"model-turn-output-budget-exhausted",
+	"model-turn-retry-elapsed-budget-exhausted",
+	"replacement-file-byte-budget-exhausted",
+	"smoke-budget-exhausted",
+	"tool-action-budget-exhausted",
+	"tool-result-byte-budget-exhausted",
+	"workspace-snapshot-byte-budget-exhausted",
+] as const);
+
+type B112CalibrationNotAttemptedIssueCode =
+	| "calibration-block-preparation-failed"
+	| "calibration-budget-exhausted"
+	| "calibration-campaign-budget-exhausted"
+	| "calibration-task-budget-exhausted";
+
+export interface B112CalibrationBlockPreparationFailureV4 {
+	readonly schemaVersion: typeof B112_CALIBRATION_BLOCK_PREPARATION_FAILURE_SCHEMA;
+	readonly trialBlockRef: string;
+	readonly trialBlockDigest: string;
+	readonly issueCode: "calibration-block-preparation-failed";
+}
+
+export interface B112CalibrationTerminalSlotV4 {
+	readonly schemaVersion: typeof B112_CALIBRATION_TERMINAL_SLOT_SCHEMA;
+	readonly campaignRef: string;
+	readonly manifestDigest: string;
+	readonly taskRef: string;
+	readonly taskDigest: string;
+	readonly blockIndex: 1 | 2 | 3;
+	readonly blockOrdinal: number;
+	readonly status:
+		| "observed"
+		| "not-attempted-budget-exhausted"
+		| "not-attempted-preparation-failed";
+	readonly attempted: boolean;
+	readonly observation: EmpiricalCalibrationTrialBlockObservationV4 | null;
+	readonly observationDigest: string | null;
+	readonly issueCodes: readonly string[];
+}
+
+export interface B112CalibrationEmpiricalTaskResultV4 {
+	readonly taskRef: string;
+	readonly plannedBlocks: 3;
+	readonly attemptedBlocks: number;
+	readonly eligibleColdFailures: number;
+	readonly evaluablePrimaryPairs: number;
+	readonly primaryEffect: number | null;
+	readonly incompleteOrNonEvaluableBlocks: number;
+}
+
+export interface B112CalibrationCampaignScorecardV4 {
+	readonly schemaVersion: typeof B112_CALIBRATION_CAMPAIGN_SCORECARD_SCHEMA;
+	readonly campaignRef: string;
+	readonly manifestDigest: string;
+	readonly profile: "calibration";
+	readonly evidenceClass: EmpiricalSmokeEvidenceClassV1 | "not-attempted";
+	readonly empiricalLiveEvidence: boolean;
+	readonly efficacyClaim: "none";
+	readonly claimBoundary: typeof B112_CALIBRATION_EXPLORATORY_NO_EFFICACY_CLAIM;
+	readonly aggregationRevision: string;
+	readonly intervalRevision: typeof B112_EXHAUSTIVE_TASK_CLUSTER_INTERVAL_REVISION;
+	readonly aggregationSeed: string;
+	readonly configurationRef: string;
+	readonly configurationDigest: string;
+	readonly routeProfileDigest: string | null;
+	readonly routeQualificationDigests: readonly string[];
+	readonly pricingSourceUrl: string | null;
+	readonly pricingRevision: string | null;
+	readonly terminalSlotDigests: readonly string[];
+	readonly observationDigests: readonly string[];
+	readonly plannedBlocks: 15;
+	readonly attemptedBlocks: number;
+	readonly completeBlocks: number;
+	readonly incompleteBlocks: number;
+	readonly nonEvaluableBlocks: number;
+	readonly eligibleColdFailures: number;
+	readonly warmRunsAttempted: number;
+	readonly warmRunsEvaluable: number;
+	readonly taskResults: readonly B112CalibrationEmpiricalTaskResultV4[];
+	readonly primaryComparison: B112CalibrationSimulationComparisonV1;
+	readonly secondaryComparisons: readonly B112CalibrationSimulationComparisonV1[];
+	readonly requests: number;
+	readonly steps: number;
+	readonly attempts: number;
+	readonly inputTokens: number | null;
+	readonly outputTokens: number | null;
+	readonly totalTokens: number | null;
+	readonly hostInputBytes: number;
+	readonly hostOutputBytes: number;
+	readonly latencyMs: number;
+	readonly costMicrousd: number;
+	readonly costBasis: "simulated-contract" | "provider-usage" | "conservative-reservation";
+	readonly reservedInputTokens: number;
+	readonly reservedOutputTokens: number;
+	readonly status: "calibration-complete-exploratory-no-efficacy-claim" | "incomplete";
+	readonly issueCodes: readonly string[];
+}
+
+export interface B112CalibrationEmpiricalRunInputV4 {
+	readonly configurationRef: string;
+	readonly configurationDigest: string;
+	readonly task: EmpiricalCampaignTaskV1;
+	readonly taskDigest: string;
+	readonly blockIndex: 1 | 2 | 3;
+	readonly blockOrdinal: number;
+	readonly trialBlockRef: string;
+	readonly trialBlockDigest: string;
+	readonly remainingBudget: {
+		readonly campaignRequests: number;
+		readonly campaignCostMicrousd: number;
+		readonly campaignElapsedMs: number;
+		readonly taskRequests: number;
+		readonly taskCostMicrousd: number;
+	};
+	readonly signal: AbortSignal;
+}
+
+export type B112CalibrationEmpiricalRunnerV4 = (
+	input: B112CalibrationEmpiricalRunInputV4,
+) => Promise<unknown>;
+
+export function createB112CalibrationBlockPreparationFailure(
+	trialBlockRef: string,
+	trialBlockDigest: string,
+): B112CalibrationBlockPreparationFailureV4 {
+	return strictSnapshot({
+		schemaVersion: B112_CALIBRATION_BLOCK_PREPARATION_FAILURE_SCHEMA,
+		trialBlockRef: coordinate(trialBlockRef, "calibration.blockPreparationFailure.trialBlockRef"),
+		trialBlockDigest: string(
+			trialBlockDigest,
+			"calibration.blockPreparationFailure.trialBlockDigest",
+		),
+		issueCode: "calibration-block-preparation-failed" as const,
+	});
+}
+
+function validateB112CalibrationBlockPreparationFailure(
+	value: unknown,
+	expected: { readonly trialBlockRef: string; readonly trialBlockDigest: string },
+): B112CalibrationBlockPreparationFailureV4 {
+	const candidate = record(value, "calibration.blockPreparationFailure");
+	exactKeys(
+		candidate,
+		["issueCode", "schemaVersion", "trialBlockDigest", "trialBlockRef"],
+		"calibration.blockPreparationFailure",
+	);
+	literal(
+		candidate.schemaVersion,
+		B112_CALIBRATION_BLOCK_PREPARATION_FAILURE_SCHEMA,
+		"calibration.blockPreparationFailure.schemaVersion",
+	);
+	literal(
+		candidate.issueCode,
+		"calibration-block-preparation-failed",
+		"calibration.blockPreparationFailure.issueCode",
+	);
+	const normalized = createB112CalibrationBlockPreparationFailure(
+		string(candidate.trialBlockRef, "calibration.blockPreparationFailure.trialBlockRef"),
+		string(candidate.trialBlockDigest, "calibration.blockPreparationFailure.trialBlockDigest"),
+	);
+	if (
+		normalized.trialBlockRef !== expected.trialBlockRef ||
+		normalized.trialBlockDigest !== expected.trialBlockDigest
+	) {
+		fail("calibration.blockPreparationFailure", "substituted scheduled trial-block identity");
+	}
+	return normalized;
+}
+
+function isB112CalibrationBlockPreparationFailureCandidate(value: unknown): boolean {
+	if (typeof value !== "object" || value === null) return false;
+	const descriptor = Object.getOwnPropertyDescriptor(value, "schemaVersion");
+	return (
+		descriptor !== undefined &&
+		!("get" in descriptor) &&
+		!("set" in descriptor) &&
+		descriptor.value === B112_CALIBRATION_BLOCK_PREPARATION_FAILURE_SCHEMA
+	);
+}
+
+function hasB112CalibrationBudgetExhaustion(issueCodes: readonly string[]): boolean {
+	return issueCodes.some((issueCode) =>
+		(B112_CALIBRATION_BUDGET_ISSUE_CODES as readonly string[]).includes(issueCode),
+	);
+}
+
+export function createB112CalibrationTrialBlockIdentity(
+	frozen: FrozenEmpiricalCampaignManifestV1,
+	taskRef: string,
+	blockIndex: 1 | 2 | 3,
+): { readonly trialBlockRef: string; readonly trialBlockDigest: string } {
+	if (
+		frozen.manifest.trialPlan.profile !== "calibration" ||
+		!frozen.manifest.trialPlan.activeTaskRefs.includes(taskRef)
+	) {
+		fail("calibration.trialBlockIdentity", "requires one frozen active calibration task");
+	}
+	const identity = strictSnapshot({
+		revision: B112_CALIBRATION_TRIAL_BLOCK_IDENTITY_REVISION,
+		campaignRef: frozen.manifest.campaignRef,
+		manifestDigest: frozen.manifestDigest,
+		taskRef,
+		blockIndex: safeInteger(blockIndex, "calibration.blockIndex", { min: 1, max: 3 }),
+	});
+	const trialBlockDigest = empiricalStrictJsonDigest(identity);
+	return Object.freeze({
+		trialBlockRef: `b112-calibration:${trialBlockDigest.slice("sha256:".length)}`,
+		trialBlockDigest,
+	});
+}
+
+function calibrationSlot(
+	frozen: FrozenEmpiricalCampaignManifestV1,
+	task: EmpiricalCampaignTaskV1,
+	blockIndex: 1 | 2 | 3,
+	blockOrdinal: number,
+	observationValue: EmpiricalCalibrationTrialBlockObservationV4 | null,
+	notAttemptedIssueCode: B112CalibrationNotAttemptedIssueCode = "calibration-budget-exhausted",
+): B112CalibrationTerminalSlotV4 {
+	const taskDigest = empiricalStrictJsonDigest(task);
+	if (observationValue === null) {
+		return strictSnapshot({
+			schemaVersion: B112_CALIBRATION_TERMINAL_SLOT_SCHEMA,
+			campaignRef: frozen.manifest.campaignRef,
+			manifestDigest: frozen.manifestDigest,
+			taskRef: task.taskRef,
+			taskDigest,
+			blockIndex,
+			blockOrdinal,
+			status:
+				notAttemptedIssueCode === "calibration-block-preparation-failed"
+					? ("not-attempted-preparation-failed" as const)
+					: ("not-attempted-budget-exhausted" as const),
+			attempted: false,
+			observation: null,
+			observationDigest: null,
+			issueCodes: [notAttemptedIssueCode],
+		});
+	}
+	const observation = validateEmpiricalCalibrationTrialBlockObservation(observationValue);
+	const expectedTrialBlock = createB112CalibrationTrialBlockIdentity(
+		frozen,
+		task.taskRef,
+		blockIndex,
+	);
+	if (
+		observation.campaignRef !== frozen.manifest.campaignRef ||
+		observation.manifestDigest !== frozen.manifestDigest ||
+		observation.taskRef !== task.taskRef ||
+		observation.taskDigest !== taskDigest ||
+		observation.blockIndex !== blockIndex ||
+		observation.trialBlockRef !== expectedTrialBlock.trialBlockRef ||
+		observation.trialBlockDigest !== expectedTrialBlock.trialBlockDigest
+	) {
+		fail("calibration.observation", "does not match its exact scheduled task block");
+	}
+	return strictSnapshot({
+		schemaVersion: B112_CALIBRATION_TERMINAL_SLOT_SCHEMA,
+		campaignRef: frozen.manifest.campaignRef,
+		manifestDigest: frozen.manifestDigest,
+		taskRef: task.taskRef,
+		taskDigest,
+		blockIndex,
+		blockOrdinal,
+		status: "observed" as const,
+		attempted: true,
+		observation,
+		observationDigest: empiricalStrictJsonDigest(observation),
+		issueCodes: observation.issueCodes,
+	});
+}
+
+function validateB112CalibrationTerminalSlotsForFrozen(
+	frozen: FrozenEmpiricalCampaignManifestV1,
+	value: unknown,
+): readonly B112CalibrationTerminalSlotV4[] {
+	if (
+		frozen.manifest.trialPlan.profile !== "calibration" ||
+		frozen.manifest.trialPlan.activeTaskRefs.length !== 5 ||
+		frozen.manifest.trialPlan.attemptedColdBlocksPerTask !== 3
+	) {
+		fail("calibration.trialPlan", "requires the exact five-task by three-block calibration plan");
+	}
+	const values = canonicalArrayCopy(value, "calibration.terminalSlots");
+	if (values.length !== MAX_CALIBRATION_BLOCKS) {
+		fail("calibration.terminalSlots", "requires all fifteen planned terminal slots");
+	}
+	const slots: B112CalibrationTerminalSlotV4[] = [];
+	let ordinal = 0;
+	for (const taskRef of frozen.manifest.trialPlan.activeTaskRefs) {
+		const task = frozen.manifest.catalog.tasks.find((candidate) => candidate.taskRef === taskRef);
+		if (task === undefined) fail("calibration.taskRef", "missing frozen calibration task");
+		for (const blockIndex of [1, 2, 3] as const) {
+			ordinal += 1;
+			const candidate = record(values[ordinal - 1], `calibration.terminalSlots[${ordinal - 1}]`);
+			exactKeys(
+				candidate,
+				[
+					"attempted",
+					"blockIndex",
+					"blockOrdinal",
+					"campaignRef",
+					"issueCodes",
+					"manifestDigest",
+					"observation",
+					"observationDigest",
+					"schemaVersion",
+					"status",
+					"taskDigest",
+					"taskRef",
+				],
+				`calibration.terminalSlots[${ordinal - 1}]`,
+			);
+			literal(
+				candidate.schemaVersion,
+				B112_CALIBRATION_TERMINAL_SLOT_SCHEMA,
+				`calibration.terminalSlots[${ordinal - 1}].schemaVersion`,
+			);
+			literal(
+				candidate.blockOrdinal,
+				ordinal,
+				`calibration.terminalSlots[${ordinal - 1}].blockOrdinal`,
+			);
+			const status = oneOf(
+				candidate.status,
+				["observed", "not-attempted-budget-exhausted", "not-attempted-preparation-failed"],
+				`calibration.terminalSlots[${ordinal - 1}].status`,
+			);
+			const normalized = calibrationSlot(
+				frozen,
+				task,
+				blockIndex,
+				ordinal,
+				status === "observed"
+					? validateEmpiricalCalibrationTrialBlockObservation(candidate.observation)
+					: null,
+				status === "not-attempted-preparation-failed"
+					? "calibration-block-preparation-failed"
+					: status === "not-attempted-budget-exhausted"
+						? (oneOf(
+								canonicalArrayCopy(candidate.issueCodes, "calibration.terminalSlot.issueCodes")[0],
+								[
+									"calibration-budget-exhausted",
+									"calibration-campaign-budget-exhausted",
+									"calibration-task-budget-exhausted",
+								],
+								"calibration.terminalSlot.issueCode",
+							) as B112CalibrationNotAttemptedIssueCode)
+						: "calibration-budget-exhausted",
+			);
+			if (empiricalStrictJsonDigest(candidate) !== empiricalStrictJsonDigest(normalized)) {
+				fail("calibration.terminalSlots", "contains a non-canonical or substituted slot");
+			}
+			slots.push(normalized);
+		}
+	}
+	const observations = slots.flatMap((slot) =>
+		slot.observation === null ? [] : [slot.observation],
+	);
+	if (
+		new Set(observations.map((observation) => observation.trialBlockRef)).size !==
+			observations.length ||
+		new Set(observations.map((observation) => observation.trialBlockDigest)).size !==
+			observations.length
+	) {
+		fail("calibration.terminalSlots", "contains duplicate empirical trial-block identity");
+	}
+	return Object.freeze(slots);
+}
+
+export function validateB112CalibrationTerminalSlots(
+	frozenValue: FrozenEmpiricalCampaignManifestV1,
+	qualificationReport: EmpiricalTaskQualificationReportV1,
+	value: unknown,
+): readonly B112CalibrationTerminalSlotV4[] {
+	const frozen = validateFrozenEmpiricalCampaignManifest(frozenValue, qualificationReport);
+	return validateB112CalibrationTerminalSlotsForFrozen(frozen, value);
+}
+
+function empiricalComparison(
+	observations: readonly EmpiricalCalibrationTrialBlockObservationV4[],
+	taskRefs: readonly string[],
+	controlBranchKind: B112CalibrationSimulationComparisonV1["controlBranchKind"],
+): B112CalibrationSimulationComparisonV1 {
+	let evaluablePairs = 0;
+	let relevantOnly = 0;
+	let controlOnly = 0;
+	let concordantPass = 0;
+	let concordantFail = 0;
+	const taskEffects: number[] = [];
+	for (const taskRef of taskRefs) {
+		const differences: number[] = [];
+		for (const observation of observations) {
+			if (observation.taskRef !== taskRef || !observation.rerunEligible) continue;
+			const relevant = observation.warmBranches.find(
+				(branch) => branch.branchKind === "relevant-applied",
+			);
+			const control = observation.warmBranches.find(
+				(branch) => branch.branchKind === controlBranchKind,
+			);
+			const relevantEvaluable =
+				relevant?.run !== null && relevant?.run.classification !== "non-evaluable";
+			const controlEvaluable =
+				control?.run !== null && control?.run.classification !== "non-evaluable";
+			if (!relevantEvaluable || !controlEvaluable) continue;
+			const relevantPass = relevant?.run?.verifierStatus === "passed" ? 1 : 0;
+			const controlPass = control?.run?.verifierStatus === "passed" ? 1 : 0;
+			differences.push(relevantPass - controlPass);
+			evaluablePairs += 1;
+			if (relevantPass === 1 && controlPass === 0) relevantOnly += 1;
+			else if (relevantPass === 0 && controlPass === 1) controlOnly += 1;
+			else if (relevantPass === 1) concordantPass += 1;
+			else concordantFail += 1;
+		}
+		if (differences.length > 0) {
+			taskEffects.push(
+				normalizeZero(
+					differences.reduce((total, difference) => total + difference, 0) / differences.length,
+				),
+			);
+		}
+	}
+	return strictSnapshot({
+		controlBranchKind,
+		evaluableTaskClusters: taskEffects.length,
+		evaluablePairs,
+		relevantOnly,
+		controlOnly,
+		concordantPass,
+		concordantFail,
+		pointEstimate:
+			taskEffects.length === 0
+				? null
+				: normalizeZero(
+						taskEffects.reduce((total, effect) => total + effect, 0) / taskEffects.length,
+					),
+		interval95: exhaustiveTaskClusterInterval95(taskEffects),
+	});
+}
+
+export function createB112CalibrationCampaignScorecard(
+	frozenValue: FrozenEmpiricalCampaignManifestV1,
+	qualificationReport: EmpiricalTaskQualificationReportV1,
+	terminalSlotsValue: readonly B112CalibrationTerminalSlotV4[],
+): B112CalibrationCampaignScorecardV4 {
+	const frozen = validateFrozenEmpiricalCampaignManifest(frozenValue, qualificationReport);
+	return createB112CalibrationCampaignScorecardForFrozen(frozen, terminalSlotsValue);
+}
+
+function calibrationRouteProfileDigest(
+	route: EmpiricalCalibrationTrialBlockObservationV4["route"],
+): string {
+	const {
+		qualificationRef: _qualificationRef,
+		qualificationDigest: _qualificationDigest,
+		...stableRouteProfile
+	} = route;
+	return empiricalStrictJsonDigest(stableRouteProfile);
+}
+
+function createB112CalibrationCampaignScorecardForFrozen(
+	frozen: FrozenEmpiricalCampaignManifestV1,
+	terminalSlotsValue: readonly B112CalibrationTerminalSlotV4[],
+): B112CalibrationCampaignScorecardV4 {
+	const trialPlan = frozen.manifest.trialPlan;
+	if (trialPlan.profile !== "calibration")
+		fail("calibration.profile", "requires calibration manifest");
+	if (
+		frozen.manifest.aggregation.intervalRevision !== B112_EXHAUSTIVE_TASK_CLUSTER_INTERVAL_REVISION
+	) {
+		fail("calibration.intervalRevision", "does not select the D676 exhaustive interval");
+	}
+	const slots = validateB112CalibrationTerminalSlotsForFrozen(frozen, terminalSlotsValue);
+	const observations = slots.flatMap((slot) =>
+		slot.observation === null ? [] : [slot.observation],
+	);
+	const actorConfigurations = frozen.manifest.modelConfigurations.filter(
+		(configuration) => configuration.role === "actor",
+	);
+	if (actorConfigurations.length !== 1) fail("calibration.configuration", "expected one actor");
+	const actorConfiguration = actorConfigurations[0] as (typeof actorConfigurations)[number];
+	const configurationDigest = empiricalStrictJsonDigest(actorConfiguration);
+	const first = observations[0] ?? null;
+	const routeProfileDigest = first === null ? null : calibrationRouteProfileDigest(first.route);
+	const simulated = first?.executionClass === "simulated-contract";
+	if (
+		first !== null &&
+		observations.some(
+			(observation) =>
+				(observation.executionClass === "simulated-contract") !== simulated ||
+				observation.route.configurationRef !== actorConfiguration.configurationRef ||
+				observation.route.configurationDigest !== configurationDigest ||
+				calibrationRouteProfileDigest(observation.route) !== routeProfileDigest,
+		)
+	) {
+		fail("calibration.observations", "must share one frozen configuration and route profile");
+	}
+	const routeQualificationDigests = observations.map(
+		(observation) => observation.route.qualificationDigest,
+	);
+	if (new Set(routeQualificationDigests).size !== routeQualificationDigests.length) {
+		fail("calibration.observations", "requires one distinct qualification per observed block");
+	}
+	const empiricalLiveEvidence = observations.some(
+		(observation) => observation.executionClass === "live-provider",
+	);
+	const evidenceClass: EmpiricalSmokeEvidenceClassV1 | "not-attempted" =
+		first === null
+			? "not-attempted"
+			: simulated
+				? "simulated-contract"
+				: empiricalLiveEvidence
+					? "live-provider"
+					: "live-approved-no-provider-evidence";
+	const sum = (
+		field:
+			| "requests"
+			| "steps"
+			| "attempts"
+			| "hostInputBytes"
+			| "hostOutputBytes"
+			| "latencyMs"
+			| "costMicrousd"
+			| "reservedInputTokens"
+			| "reservedOutputTokens",
+	) =>
+		observations.reduce(
+			(total, observation) => addSafe(total, observation.result[field], `calibration.${field}`),
+			0,
+		);
+	const sumNullable = (field: "inputTokens" | "outputTokens" | "totalTokens") =>
+		observations.some((observation) => observation.result[field] === null)
+			? null
+			: observations.reduce(
+					(total, observation) =>
+						addSafe(total, observation.result[field] as number, `calibration.${field}`),
+					0,
+				);
+	const taskResults = trialPlan.activeTaskRefs.map((taskRef) => {
+		const taskObservations = observations.filter((observation) => observation.taskRef === taskRef);
+		const primary = empiricalComparison(taskObservations, [taskRef], "proposal-only");
+		return strictSnapshot({
+			taskRef,
+			plannedBlocks: 3 as const,
+			attemptedBlocks: taskObservations.length,
+			eligibleColdFailures: taskObservations.filter((observation) => observation.rerunEligible)
+				.length,
+			evaluablePrimaryPairs: primary.evaluablePairs,
+			primaryEffect: primary.pointEstimate,
+			incompleteOrNonEvaluableBlocks:
+				3 -
+				taskObservations.filter((observation) => observation.result.classification === "complete")
+					.length,
+		});
+	});
+	const issueList = slots.flatMap((slot) => slot.issueCodes);
+	const uniqueIssues = [...new Set(issueList)].sort();
+	if (uniqueIssues.length > MAX_ISSUE_CODES) fail("calibration.issueCodes", "too many issues");
+	const costBases = new Set(observations.map((observation) => observation.result.costBasis));
+	const costBasis =
+		observations.length > 0 && costBases.size === 1
+			? (observations[0] as EmpiricalCalibrationTrialBlockObservationV4).result.costBasis
+			: ("conservative-reservation" as const);
+	return strictSnapshot({
+		schemaVersion: B112_CALIBRATION_CAMPAIGN_SCORECARD_SCHEMA,
+		campaignRef: frozen.manifest.campaignRef,
+		manifestDigest: frozen.manifestDigest,
+		profile: "calibration" as const,
+		evidenceClass,
+		empiricalLiveEvidence,
+		efficacyClaim: "none" as const,
+		claimBoundary: B112_CALIBRATION_EXPLORATORY_NO_EFFICACY_CLAIM,
+		aggregationRevision: frozen.manifest.aggregation.aggregationRevision,
+		intervalRevision: B112_EXHAUSTIVE_TASK_CLUSTER_INTERVAL_REVISION,
+		aggregationSeed: frozen.manifest.aggregation.aggregationSeed,
+		configurationRef: actorConfiguration.configurationRef,
+		configurationDigest,
+		routeProfileDigest,
+		routeQualificationDigests,
+		pricingSourceUrl: first?.route.pricingSourceUrl ?? null,
+		pricingRevision: first?.route.pricingRevision ?? null,
+		terminalSlotDigests: slots.map(empiricalStrictJsonDigest),
+		observationDigests: observations.map(empiricalStrictJsonDigest),
+		plannedBlocks: MAX_CALIBRATION_BLOCKS as 15,
+		attemptedBlocks: observations.length,
+		completeBlocks: observations.filter(
+			(observation) => observation.result.classification === "complete",
+		).length,
+		incompleteBlocks:
+			slots.filter((slot) => slot.status !== "observed").length +
+			observations.filter((observation) => observation.result.classification === "incomplete")
+				.length,
+		nonEvaluableBlocks: observations.filter(
+			(observation) => observation.result.classification === "non-evaluable",
+		).length,
+		eligibleColdFailures: observations.filter((observation) => observation.rerunEligible).length,
+		warmRunsAttempted: observations.reduce(
+			(total, observation) =>
+				addSafe(total, observation.result.warmRunsAttempted, "calibration.warmRunsAttempted"),
+			0,
+		),
+		warmRunsEvaluable: observations.reduce(
+			(total, observation) =>
+				addSafe(
+					total,
+					observation.warmBranches.filter(
+						(branch) => branch.run !== null && branch.run.classification !== "non-evaluable",
+					).length,
+					"calibration.warmRunsEvaluable",
+				),
+			0,
+		),
+		taskResults,
+		primaryComparison: empiricalComparison(observations, trialPlan.activeTaskRefs, "proposal-only"),
+		secondaryComparisons: SECONDARY_BRANCH_KINDS.map((branchKind) =>
+			empiricalComparison(observations, trialPlan.activeTaskRefs, branchKind),
+		),
+		requests: sum("requests"),
+		steps: sum("steps"),
+		attempts: sum("attempts"),
+		inputTokens: sumNullable("inputTokens"),
+		outputTokens: sumNullable("outputTokens"),
+		totalTokens: sumNullable("totalTokens"),
+		hostInputBytes: sum("hostInputBytes"),
+		hostOutputBytes: sum("hostOutputBytes"),
+		latencyMs: sum("latencyMs"),
+		costMicrousd: sum("costMicrousd"),
+		costBasis,
+		reservedInputTokens: sum("reservedInputTokens"),
+		reservedOutputTokens: sum("reservedOutputTokens"),
+		status:
+			observations.length === MAX_CALIBRATION_BLOCKS &&
+			observations.every((observation) => observation.result.classification !== "incomplete") &&
+			!uniqueIssues.includes("calibration-block-preparation-failed") &&
+			!hasB112CalibrationBudgetExhaustion(uniqueIssues)
+				? ("calibration-complete-exploratory-no-efficacy-claim" as const)
+				: ("incomplete" as const),
+		issueCodes: uniqueIssues,
+	});
+}
+
+export async function runB112EmpiricalCalibration(input: {
+	readonly frozen: FrozenEmpiricalCampaignManifestV1;
+	readonly qualificationReport: EmpiricalTaskQualificationReportV1;
+	readonly runEmpiricalBlock: B112CalibrationEmpiricalRunnerV4;
+	readonly signal: AbortSignal;
+}): Promise<{
+	readonly terminalSlots: readonly B112CalibrationTerminalSlotV4[];
+	readonly scorecard: B112CalibrationCampaignScorecardV4;
+}> {
+	const request = record(input, "calibration.runnerInput");
+	exactKeys(
+		request,
+		["frozen", "qualificationReport", "runEmpiricalBlock", "signal"],
+		"calibration.runnerInput",
+	);
+	const runEmpiricalBlock = request.runEmpiricalBlock;
+	const signal = request.signal;
+	if (typeof runEmpiricalBlock !== "function") {
+		fail("calibration.runEmpiricalBlock", "expected function capability");
+	}
+	if (!(signal instanceof AbortSignal)) fail("calibration.signal", "expected AbortSignal");
+	const qualificationReport = request.qualificationReport as EmpiricalTaskQualificationReportV1;
+	const frozen = validateFrozenEmpiricalCampaignManifest(
+		request.frozen as FrozenEmpiricalCampaignManifestV1,
+		qualificationReport,
+	);
+	const trialPlan = frozen.manifest.trialPlan;
+	if (trialPlan.profile !== "calibration")
+		fail("calibration.profile", "requires calibration manifest");
+	if (
+		frozen.manifest.aggregation.intervalRevision !== B112_EXHAUSTIVE_TASK_CLUSTER_INTERVAL_REVISION
+	) {
+		fail("calibration.intervalRevision", "does not select the D676 exhaustive interval");
+	}
+	const actors = frozen.manifest.modelConfigurations.filter(
+		(configuration) => configuration.role === "actor",
+	);
+	if (actors.length !== 1) fail("calibration.configuration", "expected exactly one actor");
+	const actor = actors[0] as (typeof actors)[number];
+	const configurationDigest = empiricalStrictJsonDigest(actor);
+	const slots: B112CalibrationTerminalSlotV4[] = [];
+	let campaignRequests = 0;
+	let campaignCostMicrousd = 0;
+	let campaignElapsedMs = 0;
+	let ordinal = 0;
+	let terminalStopIssueCode: B112CalibrationNotAttemptedIssueCode | null = null;
+	for (const taskRef of trialPlan.activeTaskRefs) {
+		const task = frozen.manifest.catalog.tasks.find((candidate) => candidate.taskRef === taskRef);
+		if (task === undefined) fail("calibration.taskRef", "missing frozen calibration task");
+		const taskDigest = empiricalStrictJsonDigest(task);
+		let taskRequests = 0;
+		let taskCostMicrousd = 0;
+		for (const blockIndex of [1, 2, 3] as const) {
+			ordinal += 1;
+			if (signal.aborted) {
+				throw new DOMException(
+					"B112 empirical calibration cancelled between serial blocks",
+					"AbortError",
+				);
+			}
+			const campaignBudget = frozen.manifest.budgets.campaign;
+			const taskBudget = frozen.manifest.budgets.taskModel;
+			if (terminalStopIssueCode === null) {
+				if (
+					campaignRequests >= campaignBudget.maxRequests ||
+					campaignCostMicrousd >= campaignBudget.maxCostMicrousd ||
+					campaignElapsedMs >= campaignBudget.maxElapsedMs
+				) {
+					terminalStopIssueCode = "calibration-campaign-budget-exhausted";
+				} else if (
+					taskRequests >= taskBudget.maxRequests ||
+					taskCostMicrousd >= taskBudget.maxCostMicrousd
+				) {
+					terminalStopIssueCode = "calibration-task-budget-exhausted";
+				}
+			}
+			if (terminalStopIssueCode !== null) {
+				slots.push(calibrationSlot(frozen, task, blockIndex, ordinal, null, terminalStopIssueCode));
+				continue;
+			}
+			const trialBlock = createB112CalibrationTrialBlockIdentity(frozen, task.taskRef, blockIndex);
+			const rawResult = await (runEmpiricalBlock as B112CalibrationEmpiricalRunnerV4)({
+				configurationRef: actor.configurationRef,
+				configurationDigest,
+				task,
+				taskDigest,
+				blockIndex,
+				blockOrdinal: ordinal,
+				...trialBlock,
+				remainingBudget: {
+					campaignRequests: campaignBudget.maxRequests - campaignRequests,
+					campaignCostMicrousd: campaignBudget.maxCostMicrousd - campaignCostMicrousd,
+					campaignElapsedMs: campaignBudget.maxElapsedMs - campaignElapsedMs,
+					taskRequests: taskBudget.maxRequests - taskRequests,
+					taskCostMicrousd: taskBudget.maxCostMicrousd - taskCostMicrousd,
+				},
+				signal,
+			});
+			if (signal.aborted) {
+				throw new DOMException(
+					"B112 empirical calibration cancelled during serial block",
+					"AbortError",
+				);
+			}
+			if (isB112CalibrationBlockPreparationFailureCandidate(rawResult)) {
+				validateB112CalibrationBlockPreparationFailure(rawResult, trialBlock);
+				terminalStopIssueCode = "calibration-block-preparation-failed";
+				slots.push(calibrationSlot(frozen, task, blockIndex, ordinal, null, terminalStopIssueCode));
+				continue;
+			}
+			const observation = validateEmpiricalCalibrationTrialBlockObservation(rawResult);
+			const result = observation.result;
+			const crossedFrozenBudget =
+				result.requests > campaignBudget.maxRequests - campaignRequests ||
+				result.costMicrousd > campaignBudget.maxCostMicrousd - campaignCostMicrousd ||
+				result.latencyMs > campaignBudget.maxElapsedMs - campaignElapsedMs ||
+				result.requests > taskBudget.maxRequests - taskRequests ||
+				result.costMicrousd > taskBudget.maxCostMicrousd - taskCostMicrousd;
+			const observedBudgetExhaustion = hasB112CalibrationBudgetExhaustion(observation.issueCodes);
+			if (crossedFrozenBudget && !observedBudgetExhaustion) {
+				fail("calibration.budget", "empirical block crossed a frozen remaining budget");
+			}
+			slots.push(calibrationSlot(frozen, task, blockIndex, ordinal, observation));
+			campaignRequests = addSafe(campaignRequests, result.requests, "calibration.campaignRequests");
+			campaignCostMicrousd = addSafe(
+				campaignCostMicrousd,
+				result.costMicrousd,
+				"calibration.campaignCostMicrousd",
+			);
+			campaignElapsedMs = addSafe(
+				campaignElapsedMs,
+				result.latencyMs,
+				"calibration.campaignElapsedMs",
+			);
+			taskRequests = addSafe(taskRequests, result.requests, "calibration.taskRequests");
+			taskCostMicrousd = addSafe(
+				taskCostMicrousd,
+				result.costMicrousd,
+				"calibration.taskCostMicrousd",
+			);
+			if (crossedFrozenBudget || observedBudgetExhaustion) {
+				terminalStopIssueCode = "calibration-budget-exhausted";
+			}
+		}
+	}
+	const terminalSlots = validateB112CalibrationTerminalSlotsForFrozen(frozen, slots);
+	return strictSnapshot({
+		terminalSlots,
+		scorecard: createB112CalibrationCampaignScorecardForFrozen(frozen, terminalSlots),
 	});
 }

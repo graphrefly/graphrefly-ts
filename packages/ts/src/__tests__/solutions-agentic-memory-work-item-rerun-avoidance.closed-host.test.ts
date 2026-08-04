@@ -43,7 +43,12 @@ import type {
 } from "../../evals/empirical-memory-rerun-avoidance/contracts.js";
 import { EMPIRICAL_QUALIFICATION_EVIDENCE_KINDS } from "../../evals/empirical-memory-rerun-avoidance/contracts.js";
 import {
+	B112_EXHAUSTIVE_TASK_CLUSTER_INTERVAL_REVISION,
+	createB112CalibrationTrialBlockIdentity,
+} from "../../evals/empirical-memory-rerun-avoidance/empirical-calibration.js";
+import {
 	createEmpiricalCampaignScorecard,
+	validateEmpiricalCalibrationTrialBlockObservation,
 	validateEmpiricalCampaignScorecard,
 	validateEmpiricalTrialBlockObservation,
 } from "../../evals/empirical-memory-rerun-avoidance/empirical-smoke-evidence.js";
@@ -59,10 +64,12 @@ import {
 	type EmpiricalModelTurnRequestV1,
 	executeEmpiricalProtection,
 	validateEmpiricalModelTurnOutcome,
+	validateEmpiricalModelTurnRequest,
 } from "../../evals/empirical-memory-rerun-avoidance/model-execution.js";
 import {
 	B112_FIRST_TASK_SMOKE_AGGREGATION_REVISION,
 	B112_SMOKE_BUDGET_ISSUE_CODE,
+	createOpenRouterCalibrationEmpiricalRunner,
 	runOpenRouterFirstTaskSmoke,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-first-task-smoke.js";
 import {
@@ -188,6 +195,7 @@ async function createClosedHostFixture(
 		| "glm-5.2-high"
 		| "glm-5.2-high-auto"
 		| "glm-5.2-medium" = "gpt-5.6-sol-medium",
+	trialProfile: "smoke" | "calibration" = "smoke",
 ): Promise<ClosedHostFixture> {
 	const sourceRoot = temporaryRoot("source");
 	git(sourceRoot, ["init", "--quiet", "--initial-branch=main"]);
@@ -354,17 +362,32 @@ async function createClosedHostFixture(
 	});
 	const manifest: EmpiricalCampaignManifestV1 = strictSnapshot({
 		...baseManifest,
+		trialPlan:
+			trialProfile === "calibration"
+				? {
+						profile: "calibration" as const,
+						activeTaskRefs: catalog.tasks.map((candidate) => candidate.taskRef),
+						attemptedColdBlocksPerTask: 3 as const,
+						branchOrderMode: "explicit" as const,
+						branchOrder: baseManifest.trialPlan.branchOrder,
+					}
+				: baseManifest.trialPlan,
 		schemaCatalog,
 		modelConfigurations: [modelConfiguration],
 		budgets: {
 			...baseManifest.budgets,
 			campaign: {
 				...baseManifest.budgets.campaign,
-				maxRequests: 48,
+				maxRequests: trialProfile === "calibration" ? 720 : 48,
+				maxCostMicrousd:
+					trialProfile === "calibration"
+						? baseManifest.budgets.taskModel.maxCostMicrousd * catalog.tasks.length
+						: baseManifest.budgets.campaign.maxCostMicrousd,
 			},
 			taskModel: {
 				...baseManifest.budgets.taskModel,
-				maxRequests: 48,
+				maxAttemptedColdBlocks: trialProfile === "calibration" ? 3 : 1,
+				maxRequests: trialProfile === "calibration" ? 144 : 48,
 			},
 			agentRun: {
 				...baseManifest.budgets.agentRun,
@@ -372,12 +395,30 @@ async function createClosedHostFixture(
 				maxRequests: 8,
 			},
 		},
+		aggregation: {
+			...baseManifest.aggregation,
+			intervalRevision:
+				trialProfile === "calibration"
+					? B112_EXHAUSTIVE_TASK_CLUSTER_INTERVAL_REVISION
+					: baseManifest.aggregation.intervalRevision,
+		},
 	});
 	const frozen = freezeEmpiricalCampaignManifest(manifest, report);
-	const initialRequest = buildEmpiricalModelTurnRequestFixture({
+	const initialRequestBase = buildEmpiricalModelTurnRequestFixture({
 		frozen,
 		qualificationReport: report,
 	});
+	const initialRequest =
+		trialProfile === "calibration"
+			? validateEmpiricalModelTurnRequest(
+					{
+						...initialRequestBase,
+						...createB112CalibrationTrialBlockIdentity(frozen, initialRequestBase.taskRef, 1),
+					},
+					frozen,
+					report,
+				)
+			: initialRequestBase;
 	const protectionExecutor = createEmpiricalExactPrivateNeedleProtectionExecutor({
 		policyRef: initialRequest.protectionPolicyRef,
 		policyRevision: initialRequest.protectionPolicyRevision,
@@ -3361,7 +3402,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		);
 		expect(byteBound.admissionRejection?.reasons).toContain("canonical-request-bytes");
 		expect(byteBound.admissionRejection?.wireRequestBytes).toBeGreaterThan(1);
-	}, 15_000);
+	}, 30_000);
 
 	it("rejects a profile-digest mismatch before model invocation and still cleans the workspace", async () => {
 		const fixture = await createClosedHostFixture();
@@ -3849,7 +3890,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			retryWaitMs: 0,
 		});
 		expect(aborted.result.observation.issueCodes).toContain("host-cancelled");
-	}, 15_000);
+	}, 30_000);
 
 	it("retains every validated retry attempt when cumulative host output bytes exhaust", async () => {
 		const fixture = await createClosedHostFixture();
@@ -4670,4 +4711,154 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(readFileSync(join(fixture.workspaceRoot, "README.md"), "utf8")).toBe("fixed\n");
 		await fixture.materialization.cleanup();
 	});
+
+	it("routes a calibration slot through the shared injected transport and pre-admits remaining budget", async () => {
+		const fixture = await createClosedHostFixture(
+			undefined,
+			undefined,
+			"gpt-5.6-sol-medium",
+			"calibration",
+		);
+		const task = fixture.frozen.manifest.catalog.tasks[0] as EmpiricalCampaignTaskV1;
+		const configuration = fixture.frozen.manifest.modelConfigurations[0];
+		if (configuration === undefined) throw new TypeError("missing calibration actor fixture");
+		let transportCalls = 0;
+		const runner = createOpenRouterCalibrationEmpiricalRunner(async (scheduled) => {
+			expect(scheduled.trialBlockRef).toBe(fixture.initialRequest.trialBlockRef);
+			return {
+				host: {
+					frozen: fixture.frozen,
+					qualificationReport: fixture.report,
+					initialRequest: fixture.initialRequest,
+					taskProfile: fixture.taskProfile,
+					materialization: fixture.materialization,
+					verifier: fixture.verifier,
+				},
+				routeQualification: simulatedRouteQualification(fixture),
+				credential: {
+					credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+					credentialBindingRevision:
+						fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+					bearerToken: "calibration-injected-transport-secret",
+				},
+				transport: {
+					request() {
+						transportCalls += 1;
+						return Promise.resolve(
+							dryRunOpenRouterResponse("response.calibration.shared-core", [
+								{
+									type: "message",
+									role: "assistant",
+									status: "completed",
+									content: [
+										{
+											type: "output_text",
+											text: JSON.stringify({
+												kind: "model-turn-output-placeholder",
+												summary: "calibration injected-transport dry run",
+											}),
+										},
+									],
+								},
+							]),
+						);
+					},
+				},
+				monotonicMeasurement: { readMs: () => 0 },
+				retryWait: immediateRetryWait,
+				executionClass: "simulated-contract",
+			};
+		});
+		const trialBlock = createB112CalibrationTrialBlockIdentity(fixture.frozen, task.taskRef, 1);
+		const observation = validateEmpiricalCalibrationTrialBlockObservation(
+			await runner({
+				configurationRef: configuration.configurationRef,
+				configurationDigest: empiricalStrictJsonDigest(configuration),
+				task,
+				taskDigest: empiricalStrictJsonDigest(task),
+				blockIndex: 1,
+				blockOrdinal: 1,
+				...trialBlock,
+				remainingBudget: {
+					campaignRequests: 1,
+					campaignCostMicrousd: 1_000_000,
+					campaignElapsedMs: 600_000,
+					taskRequests: 1,
+					taskCostMicrousd: 1_000_000,
+				},
+				signal: new AbortController().signal,
+			}),
+		);
+		expect(transportCalls).toBe(1);
+		expect(observation).toMatchObject({
+			profile: "calibration",
+			blockIndex: 1,
+			trialBlockRef: trialBlock.trialBlockRef,
+			result: { requests: 1 },
+		});
+	}, 60_000);
+
+	it("rejects a calibration request before injected transport when campaign remainder is zero", async () => {
+		const fixture = await createClosedHostFixture(
+			undefined,
+			undefined,
+			"gpt-5.6-sol-medium",
+			"calibration",
+		);
+		const task = fixture.frozen.manifest.catalog.tasks[0] as EmpiricalCampaignTaskV1;
+		const configuration = fixture.frozen.manifest.modelConfigurations[0];
+		if (configuration === undefined) throw new TypeError("missing calibration actor fixture");
+		let transportCalls = 0;
+		const runner = createOpenRouterCalibrationEmpiricalRunner(async () => ({
+			host: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: fixture.materialization,
+				verifier: fixture.verifier,
+			},
+			routeQualification: simulatedRouteQualification(fixture),
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: "calibration-zero-remainder-secret",
+			},
+			transport: {
+				request() {
+					transportCalls += 1;
+					throw new TypeError("zero remainder must reject before transport");
+				},
+			},
+			monotonicMeasurement: { readMs: () => 0 },
+			retryWait: immediateRetryWait,
+			executionClass: "simulated-contract",
+		}));
+		const trialBlock = createB112CalibrationTrialBlockIdentity(fixture.frozen, task.taskRef, 1);
+		const observation = validateEmpiricalCalibrationTrialBlockObservation(
+			await runner({
+				configurationRef: configuration.configurationRef,
+				configurationDigest: empiricalStrictJsonDigest(configuration),
+				task,
+				taskDigest: empiricalStrictJsonDigest(task),
+				blockIndex: 1,
+				blockOrdinal: 1,
+				...trialBlock,
+				remainingBudget: {
+					campaignRequests: 0,
+					campaignCostMicrousd: 0,
+					campaignElapsedMs: 0,
+					taskRequests: 0,
+					taskCostMicrousd: 0,
+				},
+				signal: new AbortController().signal,
+			}),
+		);
+		expect(transportCalls).toBe(0);
+		expect(observation).toMatchObject({
+			profile: "calibration",
+			result: { classification: "non-evaluable", requests: 0 },
+		});
+		expect(observation.issueCodes).toContain(B112_SMOKE_BUDGET_ISSUE_CODE);
+	}, 60_000);
 });
