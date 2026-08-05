@@ -805,6 +805,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("openrouter-calibration-operator.ts");
 			const allowsRetryTimerOperator = file.endsWith("openrouter-first-task-smoke-operator.ts");
 			const allowsMatchedBlockMemory = file.endsWith("matched-block-memory.ts");
+			const allowsD682MechanicalRecipe = file.endsWith("execution-qualified-mechanical-recipe.ts");
 			const matchedBlockMemoryImports = new Set([
 				"../../src/graph/graph.js",
 				"../../src/node/node.js",
@@ -814,6 +815,16 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				"../../src/solutions/agentic-work-item-memory/index.js",
 				"../../src/solutions/agentic-work-item-memory-application/index.js",
 				"../../src/solutions/work-item/index.js",
+			]);
+			const d682MechanicalRecipeImports = new Set([
+				"../../src/ctx/types.js",
+				"../../src/data/index.js",
+				"../../src/graph/graph.js",
+				"../../src/json/codec.js",
+				"../../src/node/node.js",
+				"../../src/orchestration/agent-runtime.js",
+				"../../src/orchestration/work-item-runtime.js",
+				"../../src/solutions/work-item/scheduling.js",
 			]);
 			expect(source).not.toMatch(
 				allowsOutermostLiveOperator
@@ -864,6 +875,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 						(allowsOutermostLiveOperator && specifier === "node:url") ||
 						specifier === "../../src/json/codec.js" ||
 						(allowsMatchedBlockMemory && matchedBlockMemoryImports.has(specifier)) ||
+						(allowsD682MechanicalRecipe && d682MechanicalRecipeImports.has(specifier)) ||
 						specifier.startsWith("./"),
 				),
 			).toBe(true);

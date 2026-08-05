@@ -728,8 +728,15 @@ function runCostLedger(
 	});
 }
 
-function createPerRunSignal(signal: AbortSignal, maxElapsedMs: number): AbortSignal {
-	return AbortSignal.any([signal, AbortSignal.timeout(maxElapsedMs)]);
+function createPerRunSignal(
+	signal: AbortSignal,
+	maxElapsedMs: number,
+): {
+	readonly signal: AbortSignal;
+	readonly elapsedSignal: AbortSignal;
+} {
+	const elapsedSignal = AbortSignal.timeout(maxElapsedMs);
+	return Object.freeze({ signal: AbortSignal.any([signal, elapsedSignal]), elapsedSignal });
 }
 
 function createWarmInitialRequest(input: {
@@ -989,6 +996,7 @@ export async function runOpenRouterMatchedTrialBlock(
 	const coldRunStartedAtMs = safeInteger(readBlockMonotonicMs(), "smoke.coldRunStartedAtMs", {
 		min: blockStartedAtMs,
 	});
+	const coldSignal = createPerRunSignal(input.signal, manifestBudgets.agentRun.maxElapsedMs);
 	const outcome = await runClosedTaskProfileHost({
 		...input.host,
 		modelTurnPort: createBudgetedModelTurnPort(
@@ -1009,7 +1017,8 @@ export async function runOpenRouterMatchedTrialBlock(
 			coldRunStartedAtMs,
 			manifestBudgets.agentRun.maxElapsedMs,
 		),
-		signal: createPerRunSignal(input.signal, manifestBudgets.agentRun.maxElapsedMs),
+		agentRunElapsedSignal: coldSignal.elapsedSignal,
+		signal: coldSignal.signal,
 	});
 	const coldBudgetAfter = smokeBudgetSnapshot(ledger);
 	const coldCostLedger = runCostLedger(coldBudgetBefore, coldBudgetAfter, input.executionClass);
@@ -1078,10 +1087,6 @@ export async function runOpenRouterMatchedTrialBlock(
 				});
 				continue;
 			}
-			const warmRunStartedAtMs = safeInteger(readBlockMonotonicMs(), "smoke.warmRunStartedAtMs", {
-				min: blockStartedAtMs,
-			});
-			const warmSignal = createPerRunSignal(input.signal, manifestBudgets.agentRun.maxElapsedMs);
 			const initialRequest = createWarmInitialRequest({
 				cold: input.host.initialRequest,
 				runIndex: index + 2,
@@ -1092,9 +1097,12 @@ export async function runOpenRouterMatchedTrialBlock(
 			});
 			let warmMaterialization: Awaited<ReturnType<OpenRouterFirstTaskWarmHostFactoryV1>>;
 			try {
-				warmMaterialization = await input.prepareWarmHost({ initialRequest, signal: warmSignal });
+				warmMaterialization = await input.prepareWarmHost({
+					initialRequest,
+					signal: input.signal,
+				});
 			} catch {
-				if (input.signal.aborted || warmSignal.aborted) {
+				if (input.signal.aborted) {
 					throw new DOMException(
 						"B112 matched block cancelled during warm preparation",
 						"AbortError",
@@ -1109,6 +1117,10 @@ export async function runOpenRouterMatchedTrialBlock(
 				});
 				continue;
 			}
+			const warmRunStartedAtMs = safeInteger(readBlockMonotonicMs(), "smoke.warmRunStartedAtMs", {
+				min: blockStartedAtMs,
+			});
+			const warmSignal = createPerRunSignal(input.signal, manifestBudgets.agentRun.maxElapsedMs);
 			ledger.currentRunRequestRefs.clear();
 			const budgetBefore = smokeBudgetSnapshot(ledger);
 			const warmOutcome = await runClosedTaskProfileHost({
@@ -1133,7 +1145,8 @@ export async function runOpenRouterMatchedTrialBlock(
 					warmRunStartedAtMs,
 					manifestBudgets.agentRun.maxElapsedMs,
 				),
-				signal: warmSignal,
+				agentRunElapsedSignal: warmSignal.elapsedSignal,
+				signal: warmSignal.signal,
 			});
 			const budgetAfter = smokeBudgetSnapshot(ledger);
 			warmBranches.push({

@@ -60,6 +60,8 @@ export const CLOSED_ACTOR_TOOL_REFS = Object.freeze({
 	runCommand: "graphrefly.private-solution-eval.workspace.run-command-ref.v1",
 });
 
+export const D682_HOST_DERIVED_REPLACE_SCHEMA_REVISION = "closed-task-tools.d682.v2";
+
 export const CLOSED_TASK_PROFILE_HOST_MAX_ACTION_TRACE_ENTRIES = 256;
 
 const CLOSED_TOOL_ORDER = Object.freeze([
@@ -73,6 +75,7 @@ const MAX_PROFILE_FILES = 256;
 const MAX_PROFILE_COMMANDS = 32;
 const MAX_COMMAND_ARGUMENTS = 64;
 const MAX_LITERAL_CODE_UNITS = 65_536;
+const D682_PROGRESS_MAX_CANONICAL_BYTES = 512;
 const MAX_TOOL_INTENTS_PER_TURN = 16;
 const MAX_EVIDENCE_REFS = 32;
 const MAX_WORKSPACE_SNAPSHOT_ENTRIES = 100_000;
@@ -227,6 +230,8 @@ export interface ClosedTaskProfileHostRunInputV1 {
 	readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
 	readonly verifier: ClosedVerifierCapabilityV1;
 	readonly retry?: ClosedTaskProfileHostRetryCapabilityV1;
+	/** Separate ownership signal used only to classify the D682 per-run elapsed bound. */
+	readonly agentRunElapsedSignal?: AbortSignal;
 	readonly signal: AbortSignal;
 }
 
@@ -354,6 +359,15 @@ interface MutableRunEvidence {
 	readonly retryWaitEvidence: Array<ClosedTaskProfileHostRunOutcomeV3["retryWaitEvidence"][number]>;
 	readonly toolEvidence: Array<ClosedTaskProfileHostRunOutcomeV3["toolEvidence"][number]>;
 	readonly actionTrace: Array<ClosedTaskProfileHostRunOutcomeV3["actionTrace"][number]>;
+}
+
+interface D682ExecutionProgress {
+	readonly [key: string]: number | boolean;
+	readonly remainingSteps: number;
+	readonly remainingActions: number;
+	readonly mutationObserved: boolean;
+	readonly diffObserved: boolean;
+	readonly commandObserved: boolean;
 }
 
 class HostRunFailure extends Error {
@@ -908,7 +922,7 @@ async function runValidatedHost(
 ): Promise<ClosedTaskProfileHostRunOutcomeV3> {
 	const evidence = emptyEvidence();
 	try {
-		return await executeValidatedHost(
+		const outcome = await executeValidatedHost(
 			input,
 			frozen,
 			initialRequest,
@@ -917,14 +931,76 @@ async function runValidatedHost(
 			validateRetryCapability(input.retry),
 			evidence,
 		);
+		return classifyAgentRunElapsedOutcome(input, outcome);
 	} catch (error) {
 		if (error instanceof HostRunFailure) {
+			const issueCode =
+				error.issueCode === "host-cancelled" && agentRunElapsedBoundOwned(input)
+					? "agent-run-elapsed-budget-exhausted"
+					: error.issueCode;
 			return nonEvaluableOutcome(validated.task.taskRef, validated.taskDigest, evidence, [
-				error.issueCode,
+				issueCode,
 			]);
 		}
 		throw error;
 	}
+}
+
+function agentRunElapsedBoundOwned(input: ClosedTaskProfileHostRunInputV1): boolean {
+	return (
+		input.signal.aborted &&
+		input.agentRunElapsedSignal?.aborted === true &&
+		Object.is(input.signal.reason, input.agentRunElapsedSignal.reason)
+	);
+}
+
+function classifyAgentRunElapsedOutcome(
+	input: ClosedTaskProfileHostRunInputV1,
+	outcome: ClosedTaskProfileHostRunOutcomeV3,
+): ClosedTaskProfileHostRunOutcomeV3 {
+	if (
+		!agentRunElapsedBoundOwned(input) ||
+		outcome.status !== "non-evaluable" ||
+		(!outcome.issueCodes.includes("host-cancelled") &&
+			!outcome.issueCodes.includes("openrouter-host-cancelled"))
+	) {
+		return outcome;
+	}
+	const elapsedIssueCodes = (issueCodes: readonly string[]): readonly string[] =>
+		sortedIssueCodes([
+			...issueCodes.filter(
+				(code) =>
+					code !== "host-cancelled" &&
+					code !== "openrouter-host-cancelled" &&
+					code !== "openrouter-unavailable-transport",
+			),
+			"agent-run-elapsed-budget-exhausted",
+		]);
+	return strictSnapshot({
+		...outcome,
+		issueCodes: elapsedIssueCodes(outcome.issueCodes),
+		turnEvidence: outcome.turnEvidence.map((turn) =>
+			turn.issueCodes.includes("host-cancelled") ||
+			turn.issueCodes.includes("openrouter-host-cancelled")
+				? strictSnapshot({ ...turn, issueCodes: elapsedIssueCodes(turn.issueCodes) })
+				: turn,
+		),
+	});
+}
+
+function usesD682HostDerivedReplace(request: EmpiricalModelTurnRequestV1): boolean {
+	const d682Tools = request.availableTools.filter(
+		(tool) => tool.schemaRevision === D682_HOST_DERIVED_REPLACE_SCHEMA_REVISION,
+	);
+	if (d682Tools.length === 0) return false;
+	if (d682Tools.length !== request.availableTools.length) {
+		throw new HostRunFailure("d682-tool-catalog-revision-mixed");
+	}
+	const replacement = d682Tools.find(
+		(tool) => tool.toolRef === CLOSED_ACTOR_TOOL_REFS.replaceExact,
+	);
+	if (replacement === undefined) throw new HostRunFailure("d682-replace-tool-missing");
+	return true;
 }
 
 async function executeValidatedHost(
@@ -959,11 +1035,15 @@ async function executeValidatedHost(
 		frozen.manifest.budgets.agentRun.maxSteps,
 		configuration.settings.tools.maxSteps,
 	);
+	const hostDerivedReplace = usesD682HostDerivedReplace(initialRequest);
 	let request = initialRequest;
 	let pendingToolResults: EmpiricalModelToolResultV1[] = [];
 	let pendingToolResultBytes = 0;
 	const seenToolCallRefs = new Set<string>();
 	let remainingOutputBytes = initialRequest.remainingTurnBudget.maxOutputBytes;
+	let mutationObserved = false;
+	let diffObserved = false;
+	let commandObserved = false;
 
 	for (let stepIndex = 0; stepIndex < maximumTurns; stepIndex += 1) {
 		assertNotCancelled(input.signal);
@@ -1256,7 +1336,7 @@ async function executeValidatedHost(
 			seenToolCallRefs.add(intent.toolCallRef);
 			let maximumResultBytes: number;
 			try {
-				maximumResultBytes = preflightToolResultByteBound(intent, validated);
+				maximumResultBytes = preflightToolResultByteBound(intent, validated, hostDerivedReplace);
 			} catch (error) {
 				if (error instanceof HostRunFailure) throw error;
 				throw new HostRunFailure("tool-execution-invalid");
@@ -1267,6 +1347,20 @@ async function executeValidatedHost(
 			) {
 				throw new HostRunFailure("tool-result-byte-budget-exhausted");
 			}
+			const progress: D682ExecutionProgress | null = hostDerivedReplace
+				? strictSnapshot({
+						remainingSteps: Math.max(0, maximumTurns - (stepIndex + 1)),
+						remainingActions: Math.max(
+							0,
+							validated.profile.workspaceRecipe.maxToolActions - (evidence.toolActionCount + 1),
+						),
+						mutationObserved:
+							mutationObserved || intent.toolRef === CLOSED_ACTOR_TOOL_REFS.replaceExact,
+						diffObserved: diffObserved || intent.toolRef === CLOSED_ACTOR_TOOL_REFS.workspaceDiff,
+						commandObserved:
+							commandObserved || intent.toolRef === CLOSED_ACTOR_TOOL_REFS.runCommand,
+					})
+				: null;
 			const result = await executeToolIntent(
 				workspaceRoot,
 				intent,
@@ -1274,7 +1368,12 @@ async function executeValidatedHost(
 				input.protectionExecutor,
 				request,
 				input.signal,
+				hostDerivedReplace,
+				progress,
 			);
+			mutationObserved = progress?.mutationObserved ?? mutationObserved;
+			diffObserved = progress?.diffObserved ?? diffObserved;
+			commandObserved = progress?.commandObserved ?? commandObserved;
 			pendingToolResultBytes = checkedSum(
 				pendingToolResultBytes,
 				strictJsonCodec.encode(result.result).byteLength,
@@ -1373,6 +1472,22 @@ function nextTurnRequest(
 function preflightToolResultByteBound(
 	intent: EmpiricalModelToolIntentV1,
 	validated: ValidatedTaskProfile,
+	hostDerivedReplace: boolean,
+): number {
+	const payloadBound = preflightToolPayloadByteBound(intent, validated, hostDerivedReplace);
+	return hostDerivedReplace
+		? checkedSum(
+				payloadBound,
+				D682_PROGRESS_MAX_CANONICAL_BYTES,
+				"tool-result-byte-budget-overflow",
+			)
+		: payloadBound;
+}
+
+function preflightToolPayloadByteBound(
+	intent: EmpiricalModelToolIntentV1,
+	validated: ValidatedTaskProfile,
+	hostDerivedReplace: boolean,
 ): number {
 	switch (intent.toolRef) {
 		case CLOSED_ACTOR_TOOL_REFS.readFile: {
@@ -1397,11 +1512,15 @@ function preflightToolResultByteBound(
 		case CLOSED_ACTOR_TOOL_REFS.replaceExact: {
 			const args = exactArguments(
 				intent.arguments,
-				["baseContentDigest", "newText", "oldText", "path"],
+				hostDerivedReplace
+					? ["newText", "oldText", "path"]
+					: ["baseContentDigest", "newText", "oldText", "path"],
 				"tool.replaceExact",
 			);
 			allowedWritablePath(args.path, validated, "tool.replaceExact.path");
-			digest(args.baseContentDigest, "tool.replaceExact.baseContentDigest");
+			if (!hostDerivedReplace) {
+				digest(args.baseContentDigest, "tool.replaceExact.baseContentDigest");
+			}
 			string(args.oldText, "tool.replaceExact.oldText", MAX_LITERAL_CODE_UNITS);
 			if (typeof args.newText !== "string" || args.newText.length > MAX_LITERAL_CODE_UNITS) {
 				fail("tool.replaceExact.newText", "expected a bounded string");
@@ -1430,6 +1549,8 @@ async function executeToolIntent(
 	protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1,
 	request: EmpiricalModelTurnRequestV1,
 	signal: AbortSignal,
+	hostDerivedReplace: boolean,
+	progress: D682ExecutionProgress | null,
 ): Promise<EmpiricalModelToolResultV1> {
 	assertNotCancelled(signal);
 	let result: StrictJsonValue;
@@ -1442,7 +1563,13 @@ async function executeToolIntent(
 				result = await searchLiteralTool(workspaceRoot, intent.arguments, validated, signal);
 				break;
 			case CLOSED_ACTOR_TOOL_REFS.replaceExact:
-				result = await replaceExactTool(workspaceRoot, intent.arguments, validated, signal);
+				result = await replaceExactTool(
+					workspaceRoot,
+					intent.arguments,
+					validated,
+					signal,
+					hostDerivedReplace,
+				);
 				break;
 			case CLOSED_ACTOR_TOOL_REFS.workspaceDiff:
 				result = await workspaceDiffTool(workspaceRoot, intent.arguments, validated, signal);
@@ -1458,6 +1585,7 @@ async function executeToolIntent(
 		if (signal.aborted) throw new HostRunFailure("host-cancelled");
 		throw new HostRunFailure("tool-execution-invalid");
 	}
+	if (progress !== null) result = strictSnapshot({ ...record(result, "tool.result"), progress });
 	const resultBytes = strictJsonCodec.encode(result);
 	if (resultBytes.byteLength > validated.profile.workspaceRecipe.maxToolResultBytes) {
 		throw new HostRunFailure("tool-result-byte-budget-exhausted");
@@ -1557,14 +1685,16 @@ async function replaceExactTool(
 	value: StrictJsonValue,
 	validated: ValidatedTaskProfile,
 	signal: AbortSignal,
+	hostDerivedReplace: boolean,
 ): Promise<StrictJsonValue> {
 	const args = exactArguments(
 		value,
-		["baseContentDigest", "newText", "oldText", "path"],
+		hostDerivedReplace
+			? ["newText", "oldText", "path"]
+			: ["baseContentDigest", "newText", "oldText", "path"],
 		"tool.replaceExact",
 	);
 	const path = allowedWritablePath(args.path, validated, "tool.replaceExact.path");
-	const baseContentDigest = digest(args.baseContentDigest, "tool.replaceExact.baseContentDigest");
 	const oldText = string(args.oldText, "tool.replaceExact.oldText", MAX_LITERAL_CODE_UNITS);
 	const newText =
 		typeof args.newText === "string" && args.newText.length <= MAX_LITERAL_CODE_UNITS
@@ -1572,10 +1702,14 @@ async function replaceExactTool(
 			: fail("tool.replaceExact.newText", "expected a bounded string");
 	const target = await containedRegularFile(workspaceRoot, path);
 	const bytes = await readFile(target);
-	if (
-		bytes.byteLength > validated.profile.workspaceRecipe.maxFileBytes ||
-		empiricalSha256(bytes) !== baseContentDigest
-	) {
+	const currentContentDigest = empiricalSha256(bytes);
+	const suppliedBaseContentDigest = hostDerivedReplace
+		? currentContentDigest
+		: digest(args.baseContentDigest, "tool.replaceExact.baseContentDigest");
+	if (bytes.byteLength > validated.profile.workspaceRecipe.maxFileBytes) {
+		throw new HostRunFailure("workspace-file-byte-budget-exhausted");
+	}
+	if (!hostDerivedReplace && currentContentDigest !== suppliedBaseContentDigest) {
 		throw new HostRunFailure("stale-base-content-digest");
 	}
 	const content = decodeUtf8(bytes, "tool.replaceExact.content");
@@ -1596,7 +1730,7 @@ async function replaceExactTool(
 	return strictSnapshot({
 		kind: "replace-exact",
 		path,
-		previousContentDigest: baseContentDigest,
+		previousContentDigest: currentContentDigest,
 		nextContentDigest: empiricalSha256(nextBytes),
 		replacements: 1,
 	});

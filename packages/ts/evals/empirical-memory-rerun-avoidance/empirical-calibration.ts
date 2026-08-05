@@ -775,6 +775,7 @@ export const B112_CALIBRATION_AGGREGATE_STOP_AUTHORITY_SCHEMA =
 const B112_CALIBRATION_BUDGET_ISSUE_CODES = Object.freeze([
 	"agent-output-byte-budget-exhausted",
 	"agent-request-budget-exhausted",
+	"agent-run-elapsed-budget-exhausted",
 	"agent-step-budget-exhausted",
 	"calibration-block-budget-exhausted",
 	"calibration-budget-exhausted",

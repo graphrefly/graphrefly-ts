@@ -1856,7 +1856,8 @@ export function validateEmpiricalTrialBlockObservation(
 	);
 	const hasBudgetExhaustion =
 		(result.classification === "non-evaluable" || result.classification === "incomplete") &&
-		(issueCodes.includes("smoke-budget-exhausted") ||
+		(issueCodes.includes("agent-run-elapsed-budget-exhausted") ||
+			issueCodes.includes("smoke-budget-exhausted") ||
 			issueCodes.includes("model-turn-retry-elapsed-budget-exhausted"));
 	const postAttemptBudgetExceeded =
 		(result.inputTokens !== null && result.inputTokens > route.maxInputTokens) ||

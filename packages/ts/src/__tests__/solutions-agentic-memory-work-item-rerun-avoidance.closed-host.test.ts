@@ -27,6 +27,7 @@ import {
 	type ClosedVerifierProfileV1,
 	type ClosedVerifierRunCoordinatesV1,
 	type ClosedWorkspaceRecipeV1,
+	D682_HOST_DERIVED_REPLACE_SCHEMA_REVISION,
 	runClosedTaskProfileHost,
 } from "../../evals/empirical-memory-rerun-avoidance/closed-task-profile-host.js";
 import {
@@ -57,6 +58,12 @@ import {
 	createEmpiricalExactPrivateNeedleProtectionExecutor,
 	type EmpiricalExactPrivateNeedleProtectionExecutorV1,
 } from "../../evals/empirical-memory-rerun-avoidance/exact-private-needle-protection.js";
+import {
+	createD682EffectRunCompletionAdmission,
+	createD682ExecutionQualifiedMechanicalRecipe,
+	createD682SerialEffectPlanProposal,
+	type D682EffectRunCompletionV1,
+} from "../../evals/empirical-memory-rerun-avoidance/execution-qualified-mechanical-recipe.js";
 import {
 	EMPIRICAL_MODEL_EXECUTION_SCHEMAS,
 	type EmpiricalModelToolIntentV1,
@@ -160,7 +167,20 @@ import {
 	type SingleBaselineWorkspaceAllocationV1,
 	type SingleBaselineWorkspaceAllocatorCapabilityV1,
 } from "../../evals/empirical-memory-rerun-avoidance/single-baseline-repository-node.js";
+import { graph } from "../graph/graph.js";
 import { strictJsonCodec } from "../json/codec.js";
+import {
+	type AgentDecision,
+	type AgentRequestIssued,
+	type AgentRequestStatusChanged,
+	type EffectRunResult,
+	effectRunCompletionProjector,
+} from "../orchestration/agent-runtime.js";
+import type { WorkItemSeed } from "../orchestration/work-item-runtime.js";
+import type {
+	WorkItemEffectPlanProposed,
+	WorkItemProjection,
+} from "../solutions/work-item/scheduling.js";
 import {
 	buildEmpiricalCampaignManifestFixture,
 	buildEmpiricalQualificationCatalogFixture,
@@ -244,6 +264,7 @@ async function createClosedHostFixture(
 		| "glm-5.2-high-auto"
 		| "glm-5.2-medium" = "gpt-5.6-sol-medium",
 	trialProfile: "smoke" | "calibration" = "smoke",
+	hostDerivedReplace = false,
 ): Promise<ClosedHostFixture> {
 	const sourceRoot = temporaryRoot("source");
 	git(sourceRoot, ["init", "--quiet", "--initial-branch=main"]);
@@ -330,7 +351,7 @@ async function createClosedHostFixture(
 		catalog.tasks.map(buildEmpiricalQualificationObservationFixture),
 	);
 	const baseManifest = buildEmpiricalCampaignManifestFixture(catalog, report);
-	const schemaCatalog = closedToolSchemaCatalog(baseManifest);
+	const schemaCatalog = closedToolSchemaCatalog(baseManifest, hostDerivedReplace);
 	const baseConfiguration = baseManifest.modelConfigurations[0];
 	if (baseConfiguration === undefined) throw new Error("missing actor configuration fixture");
 	const chatProfile = modelProfile !== "gpt-5.6-sol-medium";
@@ -582,7 +603,10 @@ async function createClosedHostFixture(
 	};
 }
 
-function closedToolSchemaCatalog(baseManifest: EmpiricalCampaignManifestV1) {
+function closedToolSchemaCatalog(
+	baseManifest: EmpiricalCampaignManifestV1,
+	hostDerivedReplace = false,
+) {
 	const stringShape = {
 		kind: "string",
 		minLength: 1,
@@ -618,7 +642,9 @@ function closedToolSchemaCatalog(baseManifest: EmpiricalCampaignManifestV1) {
 		{
 			toolRef: CLOSED_ACTOR_TOOL_REFS.replaceExact,
 			inputSchema: objectShape([
-				{ name: "baseContentDigest", required: true, shape: stringShape },
+				...(hostDerivedReplace
+					? []
+					: [{ name: "baseContentDigest", required: true, shape: stringShape }]),
 				{ name: "newText", required: true, shape: stringShape },
 				{ name: "oldText", required: true, shape: stringShape },
 				{ name: "path", required: true, shape: stringShape },
@@ -635,13 +661,17 @@ function closedToolSchemaCatalog(baseManifest: EmpiricalCampaignManifestV1) {
 	].map((entry) =>
 		strictSnapshot({
 			...entry,
-			schemaRevision: "closed-task-tools.d659.v1",
+			schemaRevision: hostDerivedReplace
+				? D682_HOST_DERIVED_REPLACE_SCHEMA_REVISION
+				: "closed-task-tools.d659.v1",
 			inputSchemaDigest: empiricalStrictJsonDigest(entry.inputSchema),
 		}),
 	);
 	return strictSnapshot({
 		...baseManifest.schemaCatalog,
-		catalogRevision: "closed-task-tools.d659.v1",
+		catalogRevision: hostDerivedReplace
+			? D682_HOST_DERIVED_REPLACE_SCHEMA_REVISION
+			: "closed-task-tools.d659.v1",
 		tools: entries,
 	});
 }
@@ -1379,6 +1409,216 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(() => readFileSync(join(fixture.workspaceRoot, "README.md"))).toThrow();
 	});
 
+	it("derives D682 replace integrity from the current workspace and returns bounded generic progress", async () => {
+		const fixture = await createClosedHostFixture(
+			undefined,
+			undefined,
+			"gpt-5.6-sol-medium",
+			"smoke",
+			true,
+		);
+		const observedArguments: EmpiricalModelToolIntentV1["arguments"][] = [];
+		const observedResults: Array<EmpiricalModelTurnRequestV1["priorToolResults"][number]> = [];
+		const port = scriptedPort(fixture, (request) => {
+			observedResults.push(...request.priorToolResults);
+			const tool = (() => {
+				switch (request.stepIndex) {
+					case 0:
+						return intent(0, CLOSED_ACTOR_TOOL_REFS.readFile, { path: "README.md" });
+					case 1:
+						return intent(1, CLOSED_ACTOR_TOOL_REFS.replaceExact, {
+							newText: "fixed",
+							oldText: "broken-placeholder-value",
+							path: "README.md",
+						});
+					case 2:
+						return intent(2, CLOSED_ACTOR_TOOL_REFS.workspaceDiff, {});
+					case 3:
+						return intent(3, CLOSED_ACTOR_TOOL_REFS.runCommand, {
+							commandRef: "actor.status",
+						});
+					default:
+						return null;
+				}
+			})();
+			if (tool !== null) {
+				observedArguments.push(tool.arguments);
+				return { finishReason: "tool-intents", toolIntents: [tool] };
+			}
+			return {
+				finishReason: "structured-output",
+				structuredOutput: {
+					kind: "model-turn-output-placeholder",
+					summary: "bounded-placeholder",
+				},
+			};
+		});
+
+		const outcome = await runClosedTaskProfileHost({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			initialRequest: fixture.initialRequest,
+			taskProfile: fixture.taskProfile,
+			materialization: fixture.materialization,
+			modelTurnPort: port,
+			protectionExecutor: fixture.protectionExecutor,
+			verifier: fixture.verifier,
+			signal: new AbortController().signal,
+		});
+
+		expect(outcome).toMatchObject({
+			status: "completed",
+			toolActionCount: 4,
+			verifierVerdict: "passed",
+			issueCodes: [],
+		});
+		expect(
+			observedArguments.some(
+				(value) =>
+					typeof value === "object" &&
+					value !== null &&
+					!Array.isArray(value) &&
+					Object.hasOwn(value, "baseContentDigest"),
+			),
+		).toBe(false);
+		const progress = observedResults.map(
+			(entry) => (entry.result as { readonly progress?: unknown }).progress,
+		);
+		expect(progress).toHaveLength(4);
+		expect(progress).toEqual([
+			expect.objectContaining({
+				mutationObserved: false,
+				diffObserved: false,
+				commandObserved: false,
+			}),
+			expect.objectContaining({ mutationObserved: true }),
+			expect.objectContaining({ mutationObserved: true, diffObserved: true }),
+			expect.objectContaining({
+				mutationObserved: true,
+				diffObserved: true,
+				commandObserved: true,
+			}),
+		]);
+		expect(JSON.stringify(outcome)).not.toContain("progress");
+	});
+
+	it("fails a stale D682 exact-text proposal before mutation or verifier execution", async () => {
+		const fixture = await createClosedHostFixture(
+			undefined,
+			undefined,
+			"gpt-5.6-sol-medium",
+			"smoke",
+			true,
+		);
+		const outcome = await runClosedTaskProfileHost({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			initialRequest: fixture.initialRequest,
+			taskProfile: fixture.taskProfile,
+			materialization: fixture.materialization,
+			modelTurnPort: scriptedPort(fixture, () => ({
+				finishReason: "tool-intents",
+				toolIntents: [
+					intent(0, CLOSED_ACTOR_TOOL_REFS.replaceExact, {
+						newText: "fixed",
+						oldText: "stale-text-not-in-workspace",
+						path: "README.md",
+					}),
+				],
+			})),
+			protectionExecutor: fixture.protectionExecutor,
+			verifier: fixture.verifier,
+			signal: new AbortController().signal,
+		});
+
+		expect(outcome.status).toBe("non-evaluable");
+		expect(outcome.issueCodes).toContain("exact-replacement-match-count-invalid");
+		expect(outcome.toolActionCount).toBe(0);
+		expect(outcome.workspaceChanged).toBeNull();
+		expect(fixture.verifierCalls.count).toBe(0);
+	});
+
+	it("classifies the owned D682 per-run deadline separately from transport cancellation", async () => {
+		const fixture = await createClosedHostFixture();
+		const elapsed = new AbortController();
+		let invocations = 0;
+		const outcome = await runClosedTaskProfileHost({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			initialRequest: fixture.initialRequest,
+			taskProfile: fixture.taskProfile,
+			materialization: fixture.materialization,
+			modelTurnPort: {
+				async invoke(request) {
+					invocations += 1;
+					elapsed.abort();
+					return nonEvaluableOutcome(
+						request,
+						fixture.frozen,
+						fixture.report,
+						fixture.protectionExecutor,
+						["openrouter-host-cancelled", "openrouter-unavailable-transport"],
+						128,
+					);
+				},
+			},
+			protectionExecutor: fixture.protectionExecutor,
+			verifier: fixture.verifier,
+			agentRunElapsedSignal: elapsed.signal,
+			signal: elapsed.signal,
+		});
+
+		expect(invocations).toBe(1);
+		expect(outcome.status).toBe("non-evaluable");
+		expect(outcome.issueCodes).toEqual([
+			"agent-run-elapsed-budget-exhausted",
+			"model-turn-non-evaluable",
+		]);
+		expect(outcome.issueCodes).not.toContain("openrouter-unavailable-transport");
+		expect(outcome.turnEvidence).toHaveLength(1);
+		expect(outcome.turnEvidence[0]?.issueCodes).toEqual(["agent-run-elapsed-budget-exhausted"]);
+	});
+
+	it("keeps caller-first cancellation transport-owned after the elapsed signal follows", async () => {
+		const fixture = await createClosedHostFixture();
+		const caller = new AbortController();
+		const elapsed = new AbortController();
+		const signal = AbortSignal.any([caller.signal, elapsed.signal]);
+		const outcome = await runClosedTaskProfileHost({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			initialRequest: fixture.initialRequest,
+			taskProfile: fixture.taskProfile,
+			materialization: fixture.materialization,
+			modelTurnPort: {
+				async invoke(request) {
+					caller.abort("caller-owned");
+					elapsed.abort("elapsed-owned");
+					return nonEvaluableOutcome(
+						request,
+						fixture.frozen,
+						fixture.report,
+						fixture.protectionExecutor,
+						["openrouter-host-cancelled", "openrouter-unavailable-transport"],
+						128,
+					);
+				},
+			},
+			protectionExecutor: fixture.protectionExecutor,
+			verifier: fixture.verifier,
+			agentRunElapsedSignal: elapsed.signal,
+			signal,
+		});
+
+		expect(signal.reason).toBe("caller-owned");
+		expect(outcome.issueCodes).not.toContain("agent-run-elapsed-budget-exhausted");
+		expect(outcome.issueCodes).toEqual([
+			"model-turn-non-evaluable",
+			"openrouter-host-cancelled",
+			"openrouter-unavailable-transport",
+		]);
+	});
+
 	it("composes the DeepSeek Chat wire with the real closed mutation path and verifier", async () => {
 		const fixture = await createClosedHostFixture(undefined, undefined, "deepseek-v4-flash-high");
 		const routeQualification = simulatedRouteQualification(fixture, {
@@ -1695,34 +1935,221 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 	});
 
 	it("dry-runs injected OpenRouter bytes through host, verifier, canonical evidence, and atomic private persistence", async () => {
-		const fixture = await createClosedHostFixture();
+		const fixture = await createClosedHostFixture(
+			undefined,
+			undefined,
+			"gpt-5.6-sol-medium",
+			"smoke",
+			true,
+		);
 		const credentialSentinel = "openrouter-dry-run-secret-sentinel-0123456789";
-		const baseContentDigest = empiricalSha256(encoder.encode("broken-placeholder-value\n"));
+		const mechanicalGraph = graph();
+		const workItems = mechanicalGraph.node<WorkItemProjection<Record<string, unknown>>>([], null, {
+			name: "d682-integrated-work-items",
+		});
+		const workItemSeeds = mechanicalGraph.node<WorkItemSeed>([], null, {
+			name: "d682-integrated-work-item-seeds",
+		});
+		const planProposals = mechanicalGraph.node<WorkItemEffectPlanProposed<Record<string, unknown>>>(
+			[],
+			null,
+			{ name: "d682-integrated-plan-proposals" },
+		);
+		const effectRunCompletions = mechanicalGraph.node<D682EffectRunCompletionV1>([], null, {
+			name: "d682-integrated-effect-run-completions",
+		});
+		const requestStatuses = mechanicalGraph.node<AgentRequestStatusChanged>([], null, {
+			name: "d682-integrated-request-statuses",
+		});
+		const decisions = mechanicalGraph.node<AgentDecision>([], null, {
+			name: "d682-integrated-decisions",
+		});
+		const actionKinds = [
+			CLOSED_ACTOR_TOOL_REFS.readFile,
+			CLOSED_ACTOR_TOOL_REFS.replaceExact,
+			CLOSED_ACTOR_TOOL_REFS.workspaceDiff,
+			CLOSED_ACTOR_TOOL_REFS.runCommand,
+			"graphrefly.private-solution-eval.agent.final.v1",
+		] as const;
+		const mechanicalRecipe = createD682ExecutionQualifiedMechanicalRecipe(mechanicalGraph, {
+			workItems,
+			workItemSeeds,
+			proposals: planProposals,
+			effectRunCompletions,
+			completionAdmission: createD682EffectRunCompletionAdmission(),
+			allowedEffectKinds: actionKinds,
+		});
+		const completion = effectRunCompletionProjector(mechanicalGraph, {
+			effectRuns: mechanicalRecipe.effectRuns.effectRuns,
+			requestFacts: [mechanicalRecipe.requestFacts],
+			requestStatuses: [requestStatuses],
+			decisions: [decisions],
+			now: () => 0,
+		});
+		const completedResults: EffectRunResult[] = [];
+		completion.results.subscribe((message) => {
+			if (message[0] === "DATA") completedResults.push(message[1] as EffectRunResult);
+		});
+		const issuedRequests: AgentRequestIssued[] = [];
+		mechanicalRecipe.agentRequests.subscribe((message) => {
+			if (message[0] === "DATA") issuedRequests.push(message[1] as AgentRequestIssued);
+		});
+		const mechanicalResultIssues: unknown[] = [];
+		mechanicalRecipe.resultIssues.subscribe((message) => {
+			if (message[0] === "DATA") mechanicalResultIssues.push(message[1]);
+		});
+		const mechanicalPlanResults: unknown[] = [];
+		mechanicalRecipe.plan.results.subscribe((message) => {
+			if (message[0] === "DATA") mechanicalPlanResults.push(message[1]);
+		});
+		const workItemId = "wi-d682-integrated-dry-run";
+		workItemSeeds.down([["DATA", { kind: "work-item", workItemId }]]);
+		workItems.down([
+			[
+				"DATA",
+				{
+					workItemId,
+					summary: "D682 integrated no-network qualification",
+					authoringRevision: 1,
+					executionInputRevision: 1,
+					lastEventId: "event-d682-integrated",
+				},
+			],
+		]);
+		planProposals.down([
+			[
+				"DATA",
+				createD682SerialEffectPlanProposal({
+					planId: "plan-d682-integrated",
+					workItemId,
+					executionInputRevision: 1,
+					actions: actionKinds.map((effectKind) => ({
+						memberId: effectKind.split(".").at(-2) ?? effectKind,
+						effectKind,
+						input: { effectKind },
+					})),
+				}),
+			],
+		]);
+		expect(issuedRequests).toHaveLength(1);
+		const completeMechanicalRequest = (
+			request: AgentRequestIssued,
+			ordinal: number,
+			actualOutput: unknown,
+		): void => {
+			const decisionId = `d682-integrated-decision-${ordinal}`;
+			const outcomeId = `d682-integrated-outcome-${ordinal}`;
+			requestStatuses.down([
+				[
+					"DATA",
+					{
+						kind: "status",
+						requestId: request.requestId,
+						operationId: request.operationId,
+						effectRunId: request.effectRunId,
+						status: "completed",
+					},
+				],
+			]);
+			decisions.down([
+				[
+					"DATA",
+					{
+						kind: "final",
+						decisionId,
+						effectRunId: request.effectRunId,
+						agentRunId: request.agentRunId ?? "d682-integrated-agent-run",
+						source: { requestId: request.requestId, operationId: request.operationId, outcomeId },
+						output: { kind: "d682-integrated-actual-host-result", value: actualOutput },
+					},
+				],
+			]);
+			const result = completedResults.at(-1);
+			if (result === undefined || result.effectRunId !== request.effectRunId) {
+				throw new TypeError("D682 integrated completion projector did not bind the host result");
+			}
+			effectRunCompletions.down([
+				[
+					"DATA",
+					{
+						kind: "d682-effect-run-completion",
+						issuedRequest: request,
+						decisionId,
+						outcomeId,
+						result,
+					},
+				],
+			]);
+		};
 		let transportCalls = 0;
+		let finalMechanicalCompletedBeforeTransportReturn = false;
 		const transport: OpenRouterResponsesByteTransportV1 = {
 			async request(input) {
 				transportCalls += 1;
 				const requestBody = JSON.parse(new TextDecoder().decode(input.body)) as {
+					readonly input: string;
 					readonly tools: readonly { readonly name: string }[];
 				};
+				if (transportCalls > 1) {
+					const completedRequest = issuedRequests[transportCalls - 2];
+					if (completedRequest === undefined) {
+						throw new TypeError("D682 mechanical dependency did not release the expected request");
+					}
+					const userEnvelope = JSON.parse(requestBody.input) as {
+						readonly priorToolResults: readonly {
+							readonly toolCallRef: string;
+							readonly result: unknown;
+						}[];
+					};
+					const actualPriorResult = userEnvelope.priorToolResults.at(-1);
+					if (actualPriorResult === undefined) {
+						throw new TypeError("D682 integrated host did not carry its actual prior tool result");
+					}
+					completeMechanicalRequest(completedRequest, transportCalls - 1, actualPriorResult);
+				}
+				expect(issuedRequests).toHaveLength(Math.min(transportCalls, actionKinds.length));
+				const currentEffectKind = issuedRequests.at(-1)?.input?.inputKind;
+				expect(currentEffectKind).toBe(actionKinds[transportCalls - 1]);
+				const toolCalls = new Map<
+					string,
+					{
+						readonly toolIndex: number;
+						readonly callRef: string;
+						readonly arguments: Record<string, unknown>;
+					}
+				>([
+					[actionKinds[0], { toolIndex: 0, callRef: "read", arguments: { path: "README.md" } }],
+					[
+						actionKinds[1],
+						{
+							toolIndex: 2,
+							callRef: "replace-exact",
+							arguments: {
+								newText: "fixed",
+								oldText: "broken-placeholder-value",
+								path: "README.md",
+							},
+						},
+					],
+					[actionKinds[2], { toolIndex: 3, callRef: "diff", arguments: {} }],
+					[
+						actionKinds[3],
+						{
+							toolIndex: 4,
+							callRef: "command",
+							arguments: { commandRef: "actor.status" },
+						},
+					],
+				]);
+				const toolCall =
+					currentEffectKind === undefined ? undefined : toolCalls.get(currentEffectKind);
+				const finalStructuredOutput = {
+					kind: "model-turn-output-placeholder",
+					summary: "bounded-placeholder",
+				};
 				const output =
-					transportCalls === 1
+					toolCall === undefined
 						? [
-								{ type: "reasoning", summary: [] },
-								{
-									type: "function_call",
-									status: "completed",
-									call_id: "call.replace-exact",
-									name: requestBody.tools[2]?.name,
-									arguments: JSON.stringify({
-										baseContentDigest,
-										newText: "fixed",
-										oldText: "broken-placeholder-value",
-										path: "README.md",
-									}),
-								},
-							]
-						: [
 								{ type: "reasoning", summary: [] },
 								{
 									type: "message",
@@ -1731,14 +2158,37 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 									content: [
 										{
 											type: "output_text",
-											text: JSON.stringify({
-												kind: "model-turn-output-placeholder",
-												summary: "bounded-placeholder",
-											}),
+											text: JSON.stringify(finalStructuredOutput),
 										},
 									],
 								},
+							]
+						: [
+								{ type: "reasoning", summary: [] },
+								{
+									type: "function_call",
+									status: "completed",
+									call_id: `call.${toolCall.callRef}`,
+									name: requestBody.tools[toolCall.toolIndex]?.name,
+									arguments: JSON.stringify(toolCall.arguments),
+								},
 							];
+				if (toolCall === undefined) {
+					const finalRequest = issuedRequests.at(-1);
+					if (finalRequest === undefined) throw new TypeError("D682 final request missing");
+					completeMechanicalRequest(finalRequest, actionKinds.length, finalStructuredOutput);
+					const mechanicalPlanResult = mechanicalPlanResults[0];
+					if (
+						mechanicalPlanResults.length !== 1 ||
+						mechanicalPlanResult === null ||
+						typeof mechanicalPlanResult !== "object" ||
+						!("status" in mechanicalPlanResult) ||
+						mechanicalPlanResult.status !== "succeeded"
+					) {
+						throw new TypeError("D682 plan did not succeed before the final transport returned");
+					}
+					finalMechanicalCompletedBeforeTransportReturn = true;
+				}
 				return {
 					status: 200,
 					body: encoder.encode(
@@ -1814,15 +2264,21 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			signal: new AbortController().signal,
 		});
 
-		expect(transportCalls).toBe(2);
+		expect(transportCalls).toBe(5);
+		expect(issuedRequests).toHaveLength(5);
+		expect(finalMechanicalCompletedBeforeTransportReturn).toBe(true);
+		expect(mechanicalPlanResults).toEqual([
+			expect.objectContaining({ status: "succeeded", memberResults: expect.any(Array) }),
+		]);
+		expect(mechanicalResultIssues).toEqual([]);
 		expect(result.observation).toMatchObject({
 			executionClass: "simulated-contract",
 			empiricalLiveEvidence: false,
 			result: {
 				classification: "complete",
 				verifierStatus: "passed",
-				requests: 2,
-				steps: 2,
+				requests: 5,
+				steps: 5,
 				costMicrousd: 0,
 				costBasis: "simulated-contract",
 			},
@@ -1837,6 +2293,19 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			aggregationRevision: B112_FIRST_TASK_SMOKE_AGGREGATION_REVISION,
 		});
 		expect(validateEmpiricalTrialBlockObservation(result.observation)).toEqual(result.observation);
+		const providerInputTokens = 500;
+		const providerOutputTokens = 100;
+		const providerCostMicrousd = calculateOpenRouterCostMicrousd(
+			providerInputTokens,
+			providerOutputTokens,
+			{
+				currency: "USD",
+				inputMicrousdPerMillionTokens: result.observation.route.inputMicrousdPerMillionTokens,
+				outputMicrousdPerMillionTokens: result.observation.route.outputMicrousdPerMillionTokens,
+				pricingRevision: result.observation.route.pricingRevision,
+				sourceUrl: result.observation.route.pricingSourceUrl,
+			},
+		);
 		const providerReportedCostObservation = validateEmpiricalTrialBlockObservation({
 			...result.observation,
 			executionClass: "live-provider",
@@ -1844,16 +2313,16 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			result: {
 				...result.observation.result,
 				costBasis: "provider-usage",
-				costMicrousd: 2_452,
-				reservedInputTokens: 200,
-				reservedOutputTokens: 40,
+				costMicrousd: providerCostMicrousd,
+				reservedInputTokens: providerInputTokens,
+				reservedOutputTokens: providerOutputTokens,
 			},
 			cold: {
 				...result.observation.cold,
 				costBasis: "provider-usage",
-				costMicrousd: 2_452,
-				reservedInputTokens: 200,
-				reservedOutputTokens: 40,
+				costMicrousd: providerCostMicrousd,
+				reservedInputTokens: providerInputTokens,
+				reservedOutputTokens: providerOutputTokens,
 			},
 		});
 		expect(
@@ -1864,7 +2333,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				),
 			),
 		).toEqual(strictJsonCodec.encode(result.scorecard));
-		expect(providerReportedCostObservation.result.costMicrousd).toBe(2_452);
+		expect(providerReportedCostObservation.result.costMicrousd).toBe(providerCostMicrousd);
 		expect(validateEmpiricalCampaignScorecard(result.scorecard)).toEqual(result.scorecard);
 		const repeatedScorecard = createEmpiricalCampaignScorecard(
 			result.observation,
@@ -2356,11 +2825,14 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
 			bearerToken: credentialSentinel,
 		};
+		const operatorSignal = new AbortController().signal;
+		const warmPreparationSignals: AbortSignal[] = [];
 		const prepareWarmHost = async (
 			input: Parameters<
 				NonNullable<Parameters<typeof runOpenRouterFirstTaskSmoke>[0]["prepareWarmHost"]>
 			>[0],
 		) => {
+			warmPreparationSignals.push(input.signal);
 			const structuredInput = input.initialRequest.structuredInput;
 			if (
 				structuredInput !== null &&
@@ -2387,7 +2859,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			executionClass: "simulated-contract" as const,
 			privateRoot,
 			generationRef: "matched-dry-run-generation",
-			signal: new AbortController().signal,
+			signal: operatorSignal,
 		};
 		const result = await runOpenRouterFirstTaskSmoke({
 			...common,
@@ -2429,6 +2901,8 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			expect(parsedWireBody).not.toHaveProperty("instructions");
 		}
 		expect(result.admissionRejection).toBeNull();
+		expect(warmPreparationSignals).toHaveLength(5);
+		expect(warmPreparationSignals.every((signal) => signal === operatorSignal)).toBe(true);
 		expect(fixture.verifierCalls.count).toBe(6);
 		expect(result.observation).toMatchObject({
 			rerunEligible: true,
