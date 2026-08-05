@@ -17,10 +17,12 @@ import {
 	B112_CALIBRATION_SIMULATION_BLOCK_SCHEMA,
 	B112_EXHAUSTIVE_TASK_CLUSTER_INTERVAL_REVISION,
 	createB112CalibrationCampaignScorecard,
+	createB112CalibrationEmpiricalBlockResult,
 	createB112CalibrationTrialBlockIdentity,
 	exhaustiveTaskClusterInterval95,
 	runB112CalibrationSimulation,
 	runB112EmpiricalCalibration,
+	validateB112CalibrationTerminalSlots,
 } from "../../evals/empirical-memory-rerun-avoidance/empirical-calibration.js";
 import {
 	B112_CALIBRATION_EXPLORATORY_NO_EFFICACY_CLAIM,
@@ -28,13 +30,22 @@ import {
 	type EmpiricalCalibrationTrialBlockObservationV4,
 	validateEmpiricalCalibrationTrialBlockObservation,
 } from "../../evals/empirical-memory-rerun-avoidance/empirical-smoke-evidence.js";
-import { createEmpiricalExactPrivateNeedleProtectionExecutor } from "../../evals/empirical-memory-rerun-avoidance/exact-private-needle-protection.js";
+import {
+	createEmpiricalExactPrivateNeedleProtectionExecutor,
+	MAX_EMPIRICAL_PRIVATE_NEEDLE_CODE_UNITS,
+} from "../../evals/empirical-memory-rerun-avoidance/exact-private-needle-protection.js";
 import {
 	validateEmpiricalCampaignManifest,
 	validateEmpiricalCampaignManifestBytes,
 } from "../../evals/empirical-memory-rerun-avoidance/manifest.js";
-import { createOpenRouterCalibrationEmpiricalRunner } from "../../evals/empirical-memory-rerun-avoidance/openrouter-first-task-smoke.js";
-import { persistPrivateCalibrationGeneration } from "../../evals/empirical-memory-rerun-avoidance/private-smoke-persistence.js";
+import {
+	classifyOpenRouterCalibrationBudgetExhaustionScope,
+	createOpenRouterCalibrationEmpiricalRunner,
+} from "../../evals/empirical-memory-rerun-avoidance/openrouter-first-task-smoke.js";
+import {
+	assertPrivateArtifactProtection,
+	persistPrivateCalibrationGeneration,
+} from "../../evals/empirical-memory-rerun-avoidance/private-smoke-persistence.js";
 import {
 	createEmpiricalTaskQualificationReport,
 	freezeEmpiricalCampaignManifest,
@@ -785,9 +796,9 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("empirical-calibration.ts") ||
 				file.endsWith("openrouter-first-task-smoke.ts") ||
 				file.endsWith("private-smoke-persistence.ts");
-			const allowsOneRequestFetchTransport = file.endsWith(
-				"openrouter-responses-byte-transport.ts",
-			);
+			const allowsOneRequestFetchTransport =
+				file.endsWith("openrouter-responses-byte-transport.ts") ||
+				file.endsWith("openrouter-current-key-spend-admission.ts");
 			const allowsOutermostLiveOperator =
 				file.endsWith("openrouter-first-task-smoke-operator.ts") ||
 				file.endsWith("openrouter-first-task-capability-probe-operator.ts") ||
@@ -972,6 +983,8 @@ function calibrationEmpiricalObservation(input: {
 	readonly frozen: FrozenEmpiricalCampaignManifestV1;
 	readonly task: EmpiricalCampaignTaskV1;
 	readonly blockIndex: 1 | 2 | 3;
+	readonly aggregateLatencyMs?: number;
+	readonly qualificationRevision?: string;
 }): EmpiricalCalibrationTrialBlockObservationV4 {
 	const actor = input.frozen.manifest.modelConfigurations.find(
 		(configuration) => configuration.role === "actor",
@@ -984,7 +997,7 @@ function calibrationEmpiricalObservation(input: {
 	);
 	const route = {
 		qualificationRef: `qualification.${input.task.taskRef}.${input.blockIndex}`,
-		qualificationRevision: "qualification.calibration.v4.rev1",
+		qualificationRevision: input.qualificationRevision ?? "qualification.calibration.v4.rev1",
 		qualificationDigest: valueDigest(
 			`qualification.calibration.v4:${input.task.taskRef}:${input.blockIndex}`,
 		),
@@ -1027,44 +1040,69 @@ function calibrationEmpiricalObservation(input: {
 			| null,
 		verifierStatus: "passed" | "failed",
 		memoryContextRecordDigest: string | null,
-	) => ({
-		runRef,
-		trialStage,
-		branchKind,
-		classification: verifierStatus === "passed" ? ("complete" as const) : ("incomplete" as const),
-		verifierStatus,
-		requests: 0,
-		steps: 0,
-		attempts: 0,
-		retryWaitMs: 0,
-		inputTokens: null,
-		outputTokens: null,
-		totalTokens: null,
-		hostInputBytes: 0,
-		hostOutputBytes: 0,
-		latencyMs: 0,
-		costMicrousd: 0,
-		costBasis: "simulated-contract" as const,
-		reservedInputTokens: 0,
-		reservedOutputTokens: 0,
-		hostOutcomeDigest: valueDigest(`${input.task.taskRef}:${input.blockIndex}:${runRef}`),
-		initialRequestDigest: null,
-		memoryContextRecordDigest,
-		turnRequestDigests: [],
-		attemptTrace: [],
-		retryWaitTrace: [],
-		toolResultBindings: [],
-		workspaceBaselineDigest: null,
-		workspaceStateDigest: null,
-		workspaceChangeDigest: null,
-		workspaceChanged: null,
-		actionTraceDigest: emptyDigest,
-		actionTrace: [],
-		routeEvidenceDigests: [],
-		verifierEvidenceDigests: [],
-		protectionReceiptDigests: [],
-		issueCodes: [],
-	});
+	) => {
+		const syntheticAttempt = runRef === "cold" && input.aggregateLatencyMs !== undefined;
+		const requestDigest = valueDigest(
+			`${input.task.taskRef}:${input.blockIndex}:${runRef}:request`,
+		);
+		const protectionReceiptDigest = valueDigest(
+			`${input.task.taskRef}:${input.blockIndex}:${runRef}:protection`,
+		);
+		const routeEvidenceDigest = valueDigest(
+			`${input.task.taskRef}:${input.blockIndex}:${runRef}:route`,
+		);
+		return {
+			runRef,
+			trialStage,
+			branchKind,
+			classification: verifierStatus === "passed" ? ("complete" as const) : ("incomplete" as const),
+			verifierStatus,
+			requests: syntheticAttempt ? 1 : 0,
+			steps: syntheticAttempt ? 1 : 0,
+			attempts: syntheticAttempt ? 1 : 0,
+			retryWaitMs: 0,
+			inputTokens: null,
+			outputTokens: null,
+			totalTokens: null,
+			hostInputBytes: 0,
+			hostOutputBytes: 0,
+			latencyMs: runRef === "cold" ? (input.aggregateLatencyMs ?? 0) : 0,
+			costMicrousd: 0,
+			costBasis: "simulated-contract" as const,
+			reservedInputTokens: 0,
+			reservedOutputTokens: 0,
+			hostOutcomeDigest: valueDigest(`${input.task.taskRef}:${input.blockIndex}:${runRef}`),
+			initialRequestDigest: syntheticAttempt ? requestDigest : null,
+			memoryContextRecordDigest,
+			turnRequestDigests: syntheticAttempt ? [requestDigest] : [],
+			attemptTrace: syntheticAttempt
+				? [
+						{
+							stepIndex: 0,
+							attemptOrdinal: 1,
+							requestDigest,
+							status: "completed" as const,
+							requests: 1 as const,
+							latencyMs: input.aggregateLatencyMs ?? 0,
+							issueCodes: [],
+							protectionReceiptDigest,
+						},
+					]
+				: [],
+			retryWaitTrace: [],
+			toolResultBindings: [],
+			workspaceBaselineDigest: null,
+			workspaceStateDigest: null,
+			workspaceChangeDigest: null,
+			workspaceChanged: null,
+			actionTraceDigest: emptyDigest,
+			actionTrace: [],
+			routeEvidenceDigests: syntheticAttempt ? [routeEvidenceDigest] : [],
+			verifierEvidenceDigests: [],
+			protectionReceiptDigests: syntheticAttempt ? [protectionReceiptDigest] : [],
+			issueCodes: [],
+		};
+	};
 	const cold = run("cold", "cold", null, "failed", null);
 	const warmBranches = input.frozen.manifest.trialPlan.branchOrder.map((branchKind, index) => {
 		const relevant = branchKind === "relevant-applied";
@@ -1136,6 +1174,11 @@ function calibrationEmpiricalObservation(input: {
 		input.task.taskRef,
 		input.blockIndex,
 	);
+	const attemptedRuns = [
+		cold,
+		...warmBranches.flatMap((branch) => (branch.run === null ? [] : [branch.run])),
+	];
+	const syntheticRunCount = input.aggregateLatencyMs === undefined ? 0 : 1;
 	return validateEmpiricalCalibrationTrialBlockObservation({
 		schemaVersion: EMPIRICAL_CALIBRATION_TRIAL_BLOCK_OBSERVATION_SCHEMA,
 		executionClass: "simulated-contract",
@@ -1154,24 +1197,24 @@ function calibrationEmpiricalObservation(input: {
 			verifierStatus: "failed",
 			coldRunsAttempted: 1,
 			warmRunsAttempted: 5,
-			requests: 0,
-			steps: 0,
-			attempts: 0,
+			requests: syntheticRunCount,
+			steps: syntheticRunCount,
+			attempts: syntheticRunCount,
 			inputTokens: null,
 			outputTokens: null,
 			totalTokens: null,
 			hostInputBytes: 0,
 			hostOutputBytes: 0,
-			latencyMs: 0,
+			latencyMs: input.aggregateLatencyMs ?? 0,
 			costMicrousd: 0,
 			costBasis: "simulated-contract",
 			reservedInputTokens: 0,
 			reservedOutputTokens: 0,
 		},
 		hostOutcomeDigest: cold.hostOutcomeDigest,
-		routeEvidenceDigests: [],
+		routeEvidenceDigests: attemptedRuns.flatMap((run) => run.routeEvidenceDigests).sort(),
 		verifierEvidenceDigests: [],
-		protectionReceiptDigests: [],
+		protectionReceiptDigests: attemptedRuns.flatMap((run) => run.protectionReceiptDigests).sort(),
 		cold,
 		rerunEligible: true,
 		reflection: {
@@ -1214,9 +1257,9 @@ function incompleteCalibrationObservation(
 
 function budgetExhaustedCalibrationObservation(
 	observation: EmpiricalCalibrationTrialBlockObservationV4,
+	issueCode = "agent-step-budget-exhausted",
 ): EmpiricalCalibrationTrialBlockObservationV4 {
 	const incomplete = incompleteCalibrationObservation(observation);
-	const issueCode = "agent-step-budget-exhausted";
 	const warmBranches = incomplete.warmBranches.map((branch, index) =>
 		index === incomplete.warmBranches.length - 1
 			? { ...branch, issueCodes: [...branch.issueCodes, issueCode].sort() }
@@ -1227,6 +1270,42 @@ function budgetExhaustedCalibrationObservation(
 		warmBranches,
 		issueCodes: [...incomplete.issueCodes, issueCode].sort(),
 	});
+}
+
+function calibrationEmpiricalBlockResult(
+	observation: EmpiricalCalibrationTrialBlockObservationV4,
+	budgetExhaustionScope: "none" | "block" | "task" | "campaign" = "none",
+	costAdmissionRejection: Parameters<
+		typeof createB112CalibrationEmpiricalBlockResult
+	>[0]["costAdmissionRejection"] = null,
+) {
+	return createB112CalibrationEmpiricalBlockResult({
+		observation,
+		budgetExhaustionScope,
+		costAdmissionRejection,
+	});
+}
+
+function calibrationCostAdmissionRejection(limitMicrousd: number) {
+	return {
+		schemaVersion: "b112-smoke-admission-rejection.v1" as const,
+		requestRef: "calibration-cost-admission",
+		reasons: ["cost-reservation"],
+		requests: 0,
+		maxRequests: 64,
+		maxStepsPerRun: 8,
+		wireRequestBytes: 1,
+		maxCanonicalRequestBytes: 262_144,
+		reservedInputTokens: 0,
+		prospectiveInputTokens: 1,
+		maxInputTokens: 1_000_000,
+		reservedOutputTokens: 0,
+		prospectiveOutputTokens: 1,
+		maxOutputTokens: 65_536,
+		reservedCostMicrousd: 0,
+		prospectiveCostMicrousd: limitMicrousd + 1,
+		maxSmokeSpendMicrousd: limitMicrousd,
+	};
 }
 
 describe("B112 D676 no-network calibration core", () => {
@@ -1637,11 +1716,14 @@ describe("B112 D677 authoritative calibration evidence", () => {
 				);
 				await Promise.resolve();
 				active -= 1;
-				return calibrationEmpiricalObservation({
-					frozen: fixture.frozen,
-					task,
-					blockIndex,
-				});
+				return calibrationEmpiricalBlockResult(
+					calibrationEmpiricalObservation({
+						frozen: fixture.frozen,
+						task,
+						blockIndex,
+						qualificationRevision: `qualification.calibration.v4.block-${blockOrdinal}`,
+					}),
+				);
 			},
 		});
 		expect(maxActive).toBe(1);
@@ -1688,6 +1770,17 @@ describe("B112 D677 authoritative calibration evidence", () => {
 				),
 			),
 		).toBe(empiricalStrictJsonDigest(result.scorecard));
+		for (const issueCode of [
+			"calibration-task-budget-exhausted",
+			"calibration-campaign-budget-exhausted",
+		] as const) {
+			const impossibleSuffix = result.terminalSlots.map((slot, index) =>
+				index === 0 ? { ...slot, issueCodes: [...slot.issueCodes, issueCode].sort() } : slot,
+			);
+			expect(() =>
+				validateB112CalibrationTerminalSlots(fixture.frozen, fixture.report, impossibleSuffix),
+			).toThrow(/non-canonical|aggregate stop/i);
+		}
 	}, 20_000);
 
 	it("marks incomplete evidence without losing the fifteen-slot accounting ledger", async () => {
@@ -1702,7 +1795,9 @@ describe("B112 D677 authoritative calibration evidence", () => {
 					task,
 					blockIndex,
 				});
-				return blockOrdinal === 1 ? incompleteCalibrationObservation(observation) : observation;
+				return calibrationEmpiricalBlockResult(
+					blockOrdinal === 1 ? incompleteCalibrationObservation(observation) : observation,
+				);
 			},
 		});
 		expect(result.terminalSlots).toHaveLength(15);
@@ -1714,7 +1809,7 @@ describe("B112 D677 authoritative calibration evidence", () => {
 		});
 	}, 20_000);
 
-	it("terminalizes every remaining slot after one authoritative host budget exhaustion", async () => {
+	it("continues all preregistered blocks after block-local host budget exhaustion", async () => {
 		const fixture = buildCalibrationFixture();
 		let runnerCalls = 0;
 		const result = await runB112EmpiricalCalibration({
@@ -1723,27 +1818,130 @@ describe("B112 D677 authoritative calibration evidence", () => {
 			signal: new AbortController().signal,
 			runEmpiricalBlock: async ({ task, blockIndex }) => {
 				runnerCalls += 1;
-				return budgetExhaustedCalibrationObservation(
-					calibrationEmpiricalObservation({ frozen: fixture.frozen, task, blockIndex }),
+				return calibrationEmpiricalBlockResult(
+					budgetExhaustedCalibrationObservation(
+						calibrationEmpiricalObservation({ frozen: fixture.frozen, task, blockIndex }),
+					),
+					"block",
 				);
 			},
 		});
-		expect(runnerCalls).toBe(1);
+		expect(runnerCalls).toBe(15);
 		expect(result.terminalSlots).toHaveLength(15);
-		expect(result.terminalSlots[0]?.status).toBe("observed");
-		expect(
-			result.terminalSlots
-				.slice(1)
-				.every(
-					(slot) => slot.status === "not-attempted-budget-exhausted" && slot.attempted === false,
-				),
-		).toBe(true);
+		expect(result.terminalSlots.every((slot) => slot.status === "observed")).toBe(true);
 		expect(result.scorecard).toMatchObject({
-			attemptedBlocks: 1,
+			attemptedBlocks: 15,
 			incompleteBlocks: 15,
 			status: "incomplete",
 		});
 		expect(result.scorecard.issueCodes).toContain("agent-step-budget-exhausted");
+	}, 20_000);
+
+	it("scopes task aggregate exhaustion to the current task", async () => {
+		const fixture = buildCalibrationFixture();
+		const frozen = fixture.frozen;
+		let runnerCalls = 0;
+		const result = await runB112EmpiricalCalibration({
+			frozen,
+			qualificationReport: fixture.report,
+			signal: new AbortController().signal,
+			runEmpiricalBlock: async ({ task, blockIndex, blockOrdinal }) => {
+				runnerCalls += 1;
+				const observation = calibrationEmpiricalObservation({
+					frozen,
+					task,
+					blockIndex,
+				});
+				return blockOrdinal === 1
+					? calibrationEmpiricalBlockResult(
+							budgetExhaustedCalibrationObservation(observation),
+							"task",
+							calibrationCostAdmissionRejection(frozen.manifest.budgets.taskModel.maxCostMicrousd),
+						)
+					: calibrationEmpiricalBlockResult(observation);
+			},
+		});
+		expect(runnerCalls).toBe(13);
+		expect(result.terminalSlots.slice(1, 3)).toMatchObject([
+			{
+				status: "not-attempted-budget-exhausted",
+				issueCodes: ["calibration-task-budget-exhausted"],
+			},
+			{
+				status: "not-attempted-budget-exhausted",
+				issueCodes: ["calibration-task-budget-exhausted"],
+			},
+		]);
+		expect(result.terminalSlots[3]).toMatchObject({ status: "observed", attempted: true });
+		expect(result.scorecard).toMatchObject({ attemptedBlocks: 13, status: "incomplete" });
+		const forgedStringAuthority = result.terminalSlots.map((slot, index) =>
+			index === 0 ? { ...slot, aggregateStopAuthority: null } : slot,
+		);
+		expect(() =>
+			validateB112CalibrationTerminalSlots(frozen, fixture.report, forgedStringAuthority),
+		).toThrow(/non-canonical|aggregate stop/i);
+	}, 20_000);
+
+	it("terminalizes all later slots after campaign aggregate exhaustion", async () => {
+		const fixture = buildCalibrationFixture();
+		const frozen = fixture.frozen;
+		const firstTask = fixture.catalog.tasks[0] as EmpiricalCampaignTaskV1;
+		const postAttemptObservation = budgetExhaustedCalibrationObservation(
+			calibrationEmpiricalObservation({
+				frozen,
+				task: firstTask,
+				blockIndex: 1,
+				aggregateLatencyMs: frozen.manifest.budgets.campaign.maxElapsedMs,
+			}),
+		);
+		expect(
+			classifyOpenRouterCalibrationBudgetExhaustionScope({
+				observation: postAttemptObservation,
+				admissionRejection: null,
+				remainingBudget: {
+					campaignRequests: frozen.manifest.budgets.campaign.maxRequests,
+					campaignCostMicrousd: frozen.manifest.budgets.campaign.maxCostMicrousd,
+					campaignElapsedMs: frozen.manifest.budgets.campaign.maxElapsedMs,
+					taskRequests: frozen.manifest.budgets.taskModel.maxRequests,
+					taskCostMicrousd: frozen.manifest.budgets.taskModel.maxCostMicrousd,
+				},
+				blockBudget: {
+					maxRequests: postAttemptObservation.route.maxRequests,
+					maxSmokeSpendMicrousd: postAttemptObservation.route.maxSmokeSpendMicrousd,
+					maxLatencyMs: postAttemptObservation.route.maxLatencyMs,
+				},
+			}),
+		).toBe("campaign");
+		let runnerCalls = 0;
+		const result = await runB112EmpiricalCalibration({
+			frozen,
+			qualificationReport: fixture.report,
+			signal: new AbortController().signal,
+			runEmpiricalBlock: async ({ task, blockIndex }) => {
+				runnerCalls += 1;
+				return calibrationEmpiricalBlockResult(
+					budgetExhaustedCalibrationObservation(
+						calibrationEmpiricalObservation({
+							frozen,
+							task,
+							blockIndex,
+							aggregateLatencyMs: frozen.manifest.budgets.campaign.maxElapsedMs,
+						}),
+					),
+					"campaign",
+				);
+			},
+		});
+		expect(runnerCalls).toBe(1);
+		expect(
+			result.terminalSlots
+				.slice(1)
+				.every(
+					(slot) =>
+						slot.status === "not-attempted-budget-exhausted" &&
+						slot.issueCodes[0] === "calibration-campaign-budget-exhausted",
+				),
+		).toBe(true);
 	}, 20_000);
 
 	it("records a bounded setup failure and does not invoke later block factories", async () => {
@@ -1788,6 +1986,17 @@ describe("B112 D677 authoritative calibration evidence", () => {
 		expect(() =>
 			validateEmpiricalCalibrationTrialBlockObservation({ ...observation, issueCodes: [] }),
 		).toThrow(/canonical nested issue union/);
+		const forgedScopedObservation = budgetExhaustedCalibrationObservation(
+			calibrationEmpiricalObservation({ frozen: fixture.frozen, task, blockIndex: 1 }),
+			"calibration-task-budget-exhausted",
+		);
+		expect(() =>
+			createB112CalibrationEmpiricalBlockResult({
+				observation: forgedScopedObservation,
+				budgetExhaustionScope: "task",
+				costAdmissionRejection: null,
+			}),
+		).toThrow(/scheduler-owned aggregate scope/);
 
 		const hostileWarmBranches = [...observation.warmBranches];
 		Object.setPrototypeOf(hostileWarmBranches, {
@@ -1809,7 +2018,9 @@ describe("B112 D677 authoritative calibration evidence", () => {
 			qualificationReport: fixture.report,
 			signal: new AbortController().signal,
 			runEmpiricalBlock: async ({ task, blockIndex }) =>
-				calibrationEmpiricalObservation({ frozen: fixture.frozen, task, blockIndex }),
+				calibrationEmpiricalBlockResult(
+					calibrationEmpiricalObservation({ frozen: fixture.frozen, task, blockIndex }),
+				),
 		});
 		expect(() =>
 			createB112CalibrationCampaignScorecard(
@@ -1832,9 +2043,11 @@ describe("B112 D677 authoritative calibration evidence", () => {
 				qualificationReport: fixture.report,
 				signal: new AbortController().signal,
 				runEmpiricalBlock: async ({ task, blockIndex, blockOrdinal }) =>
-					blockOrdinal === 1
-						? substituted
-						: calibrationEmpiricalObservation({ frozen: fixture.frozen, task, blockIndex }),
+					calibrationEmpiricalBlockResult(
+						blockOrdinal === 1
+							? substituted
+							: calibrationEmpiricalObservation({ frozen: fixture.frozen, task, blockIndex }),
+					),
 			}),
 		).rejects.toThrow(/configuration and route/);
 		const firstTask = fixture.catalog.tasks[0] as EmpiricalCampaignTaskV1;
@@ -1854,13 +2067,15 @@ describe("B112 D677 authoritative calibration evidence", () => {
 						task,
 						blockIndex,
 					});
-					return blockOrdinal === 2
-						? {
-								...observation,
-								trialBlockRef: duplicateIdentity.trialBlockRef,
-								trialBlockDigest: duplicateIdentity.trialBlockDigest,
-							}
-						: observation;
+					return calibrationEmpiricalBlockResult(
+						blockOrdinal === 2
+							? {
+									...observation,
+									trialBlockRef: duplicateIdentity.trialBlockRef,
+									trialBlockDigest: duplicateIdentity.trialBlockDigest,
+								}
+							: observation,
+					);
 				},
 			}),
 		).rejects.toThrow(/exact scheduled task block/);
@@ -1873,7 +2088,9 @@ describe("B112 D677 authoritative calibration evidence", () => {
 			qualificationReport: fixture.report,
 			signal: new AbortController().signal,
 			runEmpiricalBlock: async ({ task, blockIndex }) =>
-				calibrationEmpiricalObservation({ frozen: fixture.frozen, task, blockIndex }),
+				calibrationEmpiricalBlockResult(
+					calibrationEmpiricalObservation({ frozen: fixture.frozen, task, blockIndex }),
+				),
 		});
 		const temporary = mkdtempSync(join(tmpdir(), "graphrefly-d677-persistence-"));
 		const privateRoot = join(temporary, ".private", "empirical-memory-rerun-avoidance");
@@ -1887,6 +2104,40 @@ describe("B112 D677 authoritative calibration evidence", () => {
 			protectedNeedles: [secretSentinel],
 		});
 		try {
+			const oversizedLiveShape = Array.from({ length: 4_097 }, (_, index) => ({
+				actionIndex: index,
+				toolRef: `bounded-tool-${index}`,
+			}));
+			expect(() =>
+				assertPrivateArtifactProtection({
+					subject: oversizedLiveShape,
+					label: "oversized-live-terminal-slot",
+					protectionExecutor,
+				}),
+			).not.toThrow();
+			expect(() =>
+				assertPrivateArtifactProtection({
+					subject: [...oversizedLiveShape, { material: secretSentinel }],
+					label: "oversized-live-terminal-slot",
+					protectionExecutor,
+				}),
+			).toThrow(/artifact-persistence protection/);
+			const maximumNeedle = "n".repeat(MAX_EMPIRICAL_PRIVATE_NEEDLE_CODE_UNITS);
+			const crossChunkProtectionExecutor = createEmpiricalExactPrivateNeedleProtectionExecutor({
+				policyRef: fixture.manifest.policies.protectionPolicyRef,
+				policyRevision: fixture.manifest.policies.protectionPolicyRevision,
+				protectedNeedleCapabilityRef: "d677-cross-chunk-persistence-test",
+				protectedNeedleCapabilityRevision: "d677-cross-chunk-persistence-test.v1",
+				protectedNeedles: [maximumNeedle],
+			});
+			const crossChunkValue = `${"a".repeat(32_768 - maximumNeedle.length / 2)}${maximumNeedle}${"z".repeat(32_768)}`;
+			expect(() =>
+				assertPrivateArtifactProtection({
+					subject: { material: crossChunkValue },
+					label: "cross-chunk-live-terminal-slot",
+					protectionExecutor: crossChunkProtectionExecutor,
+				}),
+			).toThrow(/artifact-persistence protection/);
 			await expect(
 				persistPrivateCalibrationGeneration({
 					privateRoot,

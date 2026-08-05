@@ -1,6 +1,7 @@
 import {
 	array,
 	coordinate,
+	digest,
 	empiricalStrictJsonDigest,
 	exactKeys,
 	fail,
@@ -766,6 +767,10 @@ export const B112_CALIBRATION_TRIAL_BLOCK_IDENTITY_REVISION =
 	"b112-calibration-trial-block-identity.v1";
 export const B112_CALIBRATION_BLOCK_PREPARATION_FAILURE_SCHEMA =
 	"graphrefly.private-solution-eval.empirical-calibration-block-preparation-failure.v4";
+export const B112_CALIBRATION_EMPIRICAL_BLOCK_RESULT_SCHEMA =
+	"graphrefly.private-solution-eval.empirical-calibration-block-result.v4";
+export const B112_CALIBRATION_AGGREGATE_STOP_AUTHORITY_SCHEMA =
+	"graphrefly.private-solution-eval.empirical-calibration-aggregate-stop-authority.v4";
 
 const B112_CALIBRATION_BUDGET_ISSUE_CODES = Object.freeze([
 	"agent-output-byte-budget-exhausted",
@@ -813,7 +818,43 @@ export interface B112CalibrationTerminalSlotV4 {
 	readonly attempted: boolean;
 	readonly observation: EmpiricalCalibrationTrialBlockObservationV4 | null;
 	readonly observationDigest: string | null;
+	readonly aggregateStopAuthority: B112CalibrationAggregateStopAuthorityV4 | null;
 	readonly issueCodes: readonly string[];
+}
+
+export interface B112CalibrationAggregateStopAuthorityV4 {
+	readonly schemaVersion: typeof B112_CALIBRATION_AGGREGATE_STOP_AUTHORITY_SCHEMA;
+	readonly scope: "task" | "campaign";
+	readonly basis:
+		| "observed-requests"
+		| "observed-cost"
+		| "observed-elapsed"
+		| "prospective-cost-reservation";
+	readonly observedValue: number;
+	readonly limit: number;
+	readonly prospectiveValue: number | null;
+	readonly admissionRejectionDigest: string | null;
+	readonly admissionRejection: B112CalibrationCostAdmissionRejectionV4 | null;
+}
+
+export interface B112CalibrationCostAdmissionRejectionV4 {
+	readonly schemaVersion: "b112-smoke-admission-rejection.v1";
+	readonly requestRef: string;
+	readonly reasons: readonly string[];
+	readonly requests: number;
+	readonly maxRequests: number;
+	readonly maxStepsPerRun: number;
+	readonly wireRequestBytes: number;
+	readonly maxCanonicalRequestBytes: number;
+	readonly reservedInputTokens: number;
+	readonly prospectiveInputTokens: number;
+	readonly maxInputTokens: number;
+	readonly reservedOutputTokens: number;
+	readonly prospectiveOutputTokens: number;
+	readonly maxOutputTokens: number;
+	readonly reservedCostMicrousd: number;
+	readonly prospectiveCostMicrousd: number;
+	readonly maxSmokeSpendMicrousd: number;
 }
 
 export interface B112CalibrationEmpiricalTaskResultV4 {
@@ -897,6 +938,159 @@ export type B112CalibrationEmpiricalRunnerV4 = (
 	input: B112CalibrationEmpiricalRunInputV4,
 ) => Promise<unknown>;
 
+export type B112CalibrationBudgetExhaustionScopeV4 = "none" | "block" | "task" | "campaign";
+
+export interface B112CalibrationEmpiricalBlockResultV4 {
+	readonly schemaVersion: typeof B112_CALIBRATION_EMPIRICAL_BLOCK_RESULT_SCHEMA;
+	readonly observation: EmpiricalCalibrationTrialBlockObservationV4;
+	readonly budgetExhaustionScope: B112CalibrationBudgetExhaustionScopeV4;
+	readonly costAdmissionRejection: B112CalibrationCostAdmissionRejectionV4 | null;
+}
+
+const B112_CALIBRATION_ADMISSION_REASONS = Object.freeze([
+	"pending-reservation",
+	"request-limit",
+	"step-limit",
+	"canonical-request-bytes",
+	"input-token-reservation",
+	"output-token-reservation",
+	"cost-reservation",
+	"elapsed-budget",
+] as const);
+
+function validateB112CalibrationCostAdmissionRejection(
+	value: unknown,
+	path: string,
+): B112CalibrationCostAdmissionRejectionV4 {
+	const candidate = record(value, path);
+	const keys = [
+		"maxCanonicalRequestBytes",
+		"maxInputTokens",
+		"maxOutputTokens",
+		"maxRequests",
+		"maxSmokeSpendMicrousd",
+		"maxStepsPerRun",
+		"prospectiveCostMicrousd",
+		"prospectiveInputTokens",
+		"prospectiveOutputTokens",
+		"reasons",
+		"requestRef",
+		"requests",
+		"reservedCostMicrousd",
+		"reservedInputTokens",
+		"reservedOutputTokens",
+		"schemaVersion",
+		"wireRequestBytes",
+	] as const;
+	exactKeys(candidate, keys, path);
+	const reasons = canonicalArrayCopy(candidate.reasons, `${path}.reasons`).map((reason, index) =>
+		oneOf(reason, B112_CALIBRATION_ADMISSION_REASONS, `${path}.reasons[${index}]`),
+	);
+	const reasonRanks = reasons.map((reason) => B112_CALIBRATION_ADMISSION_REASONS.indexOf(reason));
+	if (
+		new Set(reasons).size !== reasons.length ||
+		!reasons.includes("cost-reservation") ||
+		reasonRanks.some((rank, index) => index > 0 && rank <= (reasonRanks[index - 1] ?? -1))
+	) {
+		fail(`${path}.reasons`, "requires one unique cost-reservation reason");
+	}
+	const integer = (key: (typeof keys)[number]) => safeInteger(candidate[key], `${path}.${key}`);
+	return strictSnapshot({
+		schemaVersion: literal(
+			candidate.schemaVersion,
+			"b112-smoke-admission-rejection.v1",
+			`${path}.schemaVersion`,
+		),
+		requestRef: coordinate(candidate.requestRef, `${path}.requestRef`),
+		reasons: Object.freeze(reasons),
+		requests: integer("requests"),
+		maxRequests: integer("maxRequests"),
+		maxStepsPerRun: integer("maxStepsPerRun"),
+		wireRequestBytes: integer("wireRequestBytes"),
+		maxCanonicalRequestBytes: integer("maxCanonicalRequestBytes"),
+		reservedInputTokens: integer("reservedInputTokens"),
+		prospectiveInputTokens: integer("prospectiveInputTokens"),
+		maxInputTokens: integer("maxInputTokens"),
+		reservedOutputTokens: integer("reservedOutputTokens"),
+		prospectiveOutputTokens: integer("prospectiveOutputTokens"),
+		maxOutputTokens: integer("maxOutputTokens"),
+		reservedCostMicrousd: integer("reservedCostMicrousd"),
+		prospectiveCostMicrousd: integer("prospectiveCostMicrousd"),
+		maxSmokeSpendMicrousd: integer("maxSmokeSpendMicrousd"),
+	});
+}
+
+export function createB112CalibrationEmpiricalBlockResult(input: {
+	readonly observation: EmpiricalCalibrationTrialBlockObservationV4;
+	readonly budgetExhaustionScope: B112CalibrationBudgetExhaustionScopeV4;
+	readonly costAdmissionRejection: B112CalibrationCostAdmissionRejectionV4 | null;
+}): B112CalibrationEmpiricalBlockResultV4 {
+	const observation = validateEmpiricalCalibrationTrialBlockObservation(input.observation);
+	if (
+		observation.issueCodes.includes("calibration-task-budget-exhausted") ||
+		observation.issueCodes.includes("calibration-campaign-budget-exhausted")
+	) {
+		fail("calibration.blockResult.observation", "cannot supply scheduler-owned aggregate scope");
+	}
+	const budgetExhaustionScope = oneOf(
+		input.budgetExhaustionScope,
+		["none", "block", "task", "campaign"],
+		"calibration.blockResult.budgetExhaustionScope",
+	);
+	const hasBudgetExhaustion = hasB112CalibrationBudgetExhaustion(observation.issueCodes);
+	if ((budgetExhaustionScope === "none") === hasBudgetExhaustion) {
+		fail(
+			"calibration.blockResult.budgetExhaustionScope",
+			"must classify exactly one observed budget-exhaustion scope",
+		);
+	}
+	const costAdmissionRejection =
+		input.costAdmissionRejection === null
+			? null
+			: validateB112CalibrationCostAdmissionRejection(
+					input.costAdmissionRejection,
+					"calibration.blockResult.costAdmissionRejection",
+				);
+	if (
+		(budgetExhaustionScope === "none" || budgetExhaustionScope === "block") &&
+		costAdmissionRejection
+	) {
+		fail(
+			"calibration.blockResult.costAdmissionRejection",
+			"aggregate cost admission requires aggregate scope",
+		);
+	}
+	return strictSnapshot({
+		schemaVersion: B112_CALIBRATION_EMPIRICAL_BLOCK_RESULT_SCHEMA,
+		observation,
+		budgetExhaustionScope,
+		costAdmissionRejection,
+	});
+}
+
+export function validateB112CalibrationEmpiricalBlockResult(
+	value: unknown,
+): B112CalibrationEmpiricalBlockResultV4 {
+	const candidate = record(value, "calibration.blockResult");
+	exactKeys(
+		candidate,
+		["budgetExhaustionScope", "costAdmissionRejection", "observation", "schemaVersion"],
+		"calibration.blockResult",
+	);
+	literal(
+		candidate.schemaVersion,
+		B112_CALIBRATION_EMPIRICAL_BLOCK_RESULT_SCHEMA,
+		"calibration.blockResult.schemaVersion",
+	);
+	return createB112CalibrationEmpiricalBlockResult({
+		observation: candidate.observation as EmpiricalCalibrationTrialBlockObservationV4,
+		budgetExhaustionScope:
+			candidate.budgetExhaustionScope as B112CalibrationBudgetExhaustionScopeV4,
+		costAdmissionRejection:
+			candidate.costAdmissionRejection as B112CalibrationCostAdmissionRejectionV4 | null,
+	});
+}
+
 export function createB112CalibrationBlockPreparationFailure(
 	trialBlockRef: string,
 	trialBlockDigest: string,
@@ -962,6 +1156,79 @@ function hasB112CalibrationBudgetExhaustion(issueCodes: readonly string[]): bool
 	);
 }
 
+function deriveB112CalibrationAggregateStopAuthority(input: {
+	readonly scope: B112CalibrationBudgetExhaustionScopeV4;
+	readonly observation: EmpiricalCalibrationTrialBlockObservationV4;
+	readonly remainingBudget: B112CalibrationEmpiricalRunInputV4["remainingBudget"];
+	readonly costAdmissionRejection: B112CalibrationCostAdmissionRejectionV4 | null;
+}): B112CalibrationAggregateStopAuthorityV4 | null {
+	if (input.scope === "none" || input.scope === "block") return null;
+	const result = input.observation.result;
+	const remaining = input.remainingBudget;
+	const campaignCrossing =
+		result.requests >= remaining.campaignRequests ||
+		result.costMicrousd >= remaining.campaignCostMicrousd ||
+		result.latencyMs >= remaining.campaignElapsedMs;
+	if (input.scope === "task" && campaignCrossing) {
+		fail("calibration.aggregateStopAuthority", "task scope cannot supersede campaign exhaustion");
+	}
+	const candidates =
+		input.scope === "campaign"
+			? ([
+					["observed-requests", result.requests, remaining.campaignRequests],
+					["observed-cost", result.costMicrousd, remaining.campaignCostMicrousd],
+					["observed-elapsed", result.latencyMs, remaining.campaignElapsedMs],
+				] as const)
+			: ([
+					["observed-requests", result.requests, remaining.taskRequests],
+					["observed-cost", result.costMicrousd, remaining.taskCostMicrousd],
+				] as const);
+	for (const [basis, observedValue, limit] of candidates) {
+		if (observedValue >= limit) {
+			return strictSnapshot({
+				schemaVersion: B112_CALIBRATION_AGGREGATE_STOP_AUTHORITY_SCHEMA,
+				scope: input.scope,
+				basis,
+				observedValue,
+				limit,
+				prospectiveValue: null,
+				admissionRejectionDigest: null,
+				admissionRejection: null,
+			});
+		}
+	}
+	const costAdmissionRejection = input.costAdmissionRejection;
+	const selectedCostLimit =
+		input.scope === "campaign" ? remaining.campaignCostMicrousd : remaining.taskCostMicrousd;
+	const selectedAggregateOwnsMinimum =
+		input.scope === "campaign"
+			? remaining.campaignCostMicrousd <= remaining.taskCostMicrousd &&
+				remaining.campaignCostMicrousd <= input.observation.route.maxSmokeSpendMicrousd
+			: remaining.taskCostMicrousd < remaining.campaignCostMicrousd &&
+				remaining.taskCostMicrousd <= input.observation.route.maxSmokeSpendMicrousd;
+	if (
+		costAdmissionRejection === null ||
+		!selectedAggregateOwnsMinimum ||
+		costAdmissionRejection.maxSmokeSpendMicrousd !== selectedCostLimit ||
+		costAdmissionRejection.prospectiveCostMicrousd <= selectedCostLimit
+	) {
+		fail(
+			"calibration.aggregateStopAuthority",
+			"aggregate scope lacks matching totals or prospective cost admission",
+		);
+	}
+	return strictSnapshot({
+		schemaVersion: B112_CALIBRATION_AGGREGATE_STOP_AUTHORITY_SCHEMA,
+		scope: input.scope,
+		basis: "prospective-cost-reservation" as const,
+		observedValue: result.costMicrousd,
+		limit: selectedCostLimit,
+		prospectiveValue: costAdmissionRejection.prospectiveCostMicrousd,
+		admissionRejectionDigest: empiricalStrictJsonDigest(costAdmissionRejection),
+		admissionRejection: costAdmissionRejection,
+	});
+}
+
 export function createB112CalibrationTrialBlockIdentity(
 	frozen: FrozenEmpiricalCampaignManifestV1,
 	taskRef: string,
@@ -994,6 +1261,7 @@ function calibrationSlot(
 	blockOrdinal: number,
 	observationValue: EmpiricalCalibrationTrialBlockObservationV4 | null,
 	notAttemptedIssueCode: B112CalibrationNotAttemptedIssueCode = "calibration-budget-exhausted",
+	aggregateStopAuthority: B112CalibrationAggregateStopAuthorityV4 | null = null,
 ): B112CalibrationTerminalSlotV4 {
 	const taskDigest = empiricalStrictJsonDigest(task);
 	if (observationValue === null) {
@@ -1012,10 +1280,17 @@ function calibrationSlot(
 			attempted: false,
 			observation: null,
 			observationDigest: null,
+			aggregateStopAuthority: null,
 			issueCodes: [notAttemptedIssueCode],
 		});
 	}
 	const observation = validateEmpiricalCalibrationTrialBlockObservation(observationValue);
+	if (
+		observation.issueCodes.includes("calibration-task-budget-exhausted") ||
+		observation.issueCodes.includes("calibration-campaign-budget-exhausted")
+	) {
+		fail("calibration.observation", "cannot supply scheduler-owned aggregate scope");
+	}
 	const expectedTrialBlock = createB112CalibrationTrialBlockIdentity(
 		frozen,
 		task.taskRef,
@@ -1044,7 +1319,18 @@ function calibrationSlot(
 		attempted: true,
 		observation,
 		observationDigest: empiricalStrictJsonDigest(observation),
-		issueCodes: observation.issueCodes,
+		aggregateStopAuthority,
+		issueCodes:
+			aggregateStopAuthority === null
+				? observation.issueCodes
+				: Object.freeze(
+						[
+							...observation.issueCodes,
+							aggregateStopAuthority.scope === "campaign"
+								? "calibration-campaign-budget-exhausted"
+								: "calibration-task-budget-exhausted",
+						].sort(),
+					),
 	});
 }
 
@@ -1065,15 +1351,26 @@ function validateB112CalibrationTerminalSlotsForFrozen(
 	}
 	const slots: B112CalibrationTerminalSlotV4[] = [];
 	let ordinal = 0;
+	let campaignRequests = 0;
+	let campaignCostMicrousd = 0;
+	let campaignElapsedMs = 0;
+	let campaignStopIssueCode:
+		| "calibration-block-preparation-failed"
+		| "calibration-campaign-budget-exhausted"
+		| null = null;
 	for (const taskRef of frozen.manifest.trialPlan.activeTaskRefs) {
 		const task = frozen.manifest.catalog.tasks.find((candidate) => candidate.taskRef === taskRef);
 		if (task === undefined) fail("calibration.taskRef", "missing frozen calibration task");
+		let taskRequests = 0;
+		let taskCostMicrousd = 0;
+		let taskStopIssueCode: "calibration-task-budget-exhausted" | null = null;
 		for (const blockIndex of [1, 2, 3] as const) {
 			ordinal += 1;
 			const candidate = record(values[ordinal - 1], `calibration.terminalSlots[${ordinal - 1}]`);
 			exactKeys(
 				candidate,
 				[
+					"aggregateStopAuthority",
 					"attempted",
 					"blockIndex",
 					"blockOrdinal",
@@ -1104,14 +1401,112 @@ function validateB112CalibrationTerminalSlotsForFrozen(
 				["observed", "not-attempted-budget-exhausted", "not-attempted-preparation-failed"],
 				`calibration.terminalSlots[${ordinal - 1}].status`,
 			);
+			const observation =
+				status === "observed"
+					? validateEmpiricalCalibrationTrialBlockObservation(candidate.observation)
+					: null;
+			let aggregateStopAuthority: B112CalibrationAggregateStopAuthorityV4 | null = null;
+			if (status === "observed" && candidate.aggregateStopAuthority !== null) {
+				if (observation === null) fail("calibration.terminalSlots", "missing observation");
+				const authority = record(
+					candidate.aggregateStopAuthority,
+					`calibration.terminalSlots[${ordinal - 1}].aggregateStopAuthority`,
+				);
+				exactKeys(
+					authority,
+					[
+						"admissionRejection",
+						"admissionRejectionDigest",
+						"basis",
+						"limit",
+						"observedValue",
+						"prospectiveValue",
+						"schemaVersion",
+						"scope",
+					],
+					`calibration.terminalSlots[${ordinal - 1}].aggregateStopAuthority`,
+				);
+				literal(
+					authority.schemaVersion,
+					B112_CALIBRATION_AGGREGATE_STOP_AUTHORITY_SCHEMA,
+					"calibration.aggregateStopAuthority.schemaVersion",
+				);
+				const scope = oneOf(
+					authority.scope,
+					["task", "campaign"],
+					"calibration.aggregateStopAuthority.scope",
+				);
+				const basis = oneOf(
+					authority.basis,
+					[
+						"observed-requests",
+						"observed-cost",
+						"observed-elapsed",
+						"prospective-cost-reservation",
+					],
+					"calibration.aggregateStopAuthority.basis",
+				);
+				safeInteger(authority.limit, "calibration.aggregateStopAuthority.limit");
+				const prospectiveValue =
+					authority.prospectiveValue === null
+						? null
+						: safeInteger(
+								authority.prospectiveValue,
+								"calibration.aggregateStopAuthority.prospectiveValue",
+							);
+				const admissionRejectionDigest =
+					authority.admissionRejectionDigest === null
+						? null
+						: digest(
+								authority.admissionRejectionDigest,
+								"calibration.aggregateStopAuthority.admissionRejectionDigest",
+							);
+				const admissionRejection =
+					authority.admissionRejection === null
+						? null
+						: validateB112CalibrationCostAdmissionRejection(
+								authority.admissionRejection,
+								"calibration.aggregateStopAuthority.admissionRejection",
+							);
+				if (
+					(admissionRejection === null) !== (admissionRejectionDigest === null) ||
+					(admissionRejection !== null &&
+						empiricalStrictJsonDigest(admissionRejection) !== admissionRejectionDigest)
+				) {
+					fail("calibration.aggregateStopAuthority", "rejection record digest mismatch");
+				}
+				aggregateStopAuthority = deriveB112CalibrationAggregateStopAuthority({
+					scope,
+					observation,
+					remainingBudget: {
+						campaignRequests: frozen.manifest.budgets.campaign.maxRequests - campaignRequests,
+						campaignCostMicrousd:
+							frozen.manifest.budgets.campaign.maxCostMicrousd - campaignCostMicrousd,
+						campaignElapsedMs: frozen.manifest.budgets.campaign.maxElapsedMs - campaignElapsedMs,
+						taskRequests: frozen.manifest.budgets.taskModel.maxRequests - taskRequests,
+						taskCostMicrousd: frozen.manifest.budgets.taskModel.maxCostMicrousd - taskCostMicrousd,
+					},
+					costAdmissionRejection:
+						basis === "prospective-cost-reservation" && prospectiveValue !== null
+							? (admissionRejection ??
+								fail(
+									"calibration.aggregateStopAuthority.admissionRejection",
+									"prospective authority requires rejection record",
+								))
+							: null,
+				});
+				if (
+					empiricalStrictJsonDigest(authority) !== empiricalStrictJsonDigest(aggregateStopAuthority)
+				) {
+					fail("calibration.aggregateStopAuthority", "is non-canonical or substituted");
+				}
+			}
 			const normalized = calibrationSlot(
 				frozen,
 				task,
 				blockIndex,
 				ordinal,
-				status === "observed"
-					? validateEmpiricalCalibrationTrialBlockObservation(candidate.observation)
-					: null,
+				observation,
 				status === "not-attempted-preparation-failed"
 					? "calibration-block-preparation-failed"
 					: status === "not-attempted-budget-exhausted"
@@ -1125,9 +1520,72 @@ function validateB112CalibrationTerminalSlotsForFrozen(
 								"calibration.terminalSlot.issueCode",
 							) as B112CalibrationNotAttemptedIssueCode)
 						: "calibration-budget-exhausted",
+				aggregateStopAuthority,
 			);
 			if (empiricalStrictJsonDigest(candidate) !== empiricalStrictJsonDigest(normalized)) {
 				fail("calibration.terminalSlots", "contains a non-canonical or substituted slot");
+			}
+			const expectedStopIssueCode = campaignStopIssueCode ?? taskStopIssueCode;
+			if (expectedStopIssueCode !== null) {
+				const expectedStatus =
+					expectedStopIssueCode === "calibration-block-preparation-failed"
+						? "not-attempted-preparation-failed"
+						: "not-attempted-budget-exhausted";
+				if (
+					normalized.status !== expectedStatus ||
+					normalized.issueCodes.length !== 1 ||
+					normalized.issueCodes[0] !== expectedStopIssueCode
+				) {
+					fail("calibration.terminalSlots", "violates the frozen aggregate stop suffix");
+				}
+			} else if (normalized.status === "not-attempted-preparation-failed") {
+				campaignStopIssueCode = "calibration-block-preparation-failed";
+			} else if (normalized.status !== "observed") {
+				fail("calibration.terminalSlots", "budget stop has no preceding scheduler authority");
+			} else {
+				const result = normalized.observation?.result;
+				if (result === undefined) fail("calibration.terminalSlots", "observed slot lacks result");
+				campaignRequests = addSafe(
+					campaignRequests,
+					result.requests,
+					"calibration.terminalSlots.campaignRequests",
+				);
+				campaignCostMicrousd = addSafe(
+					campaignCostMicrousd,
+					result.costMicrousd,
+					"calibration.terminalSlots.campaignCostMicrousd",
+				);
+				campaignElapsedMs = addSafe(
+					campaignElapsedMs,
+					result.latencyMs,
+					"calibration.terminalSlots.campaignElapsedMs",
+				);
+				taskRequests = addSafe(
+					taskRequests,
+					result.requests,
+					"calibration.terminalSlots.taskRequests",
+				);
+				taskCostMicrousd = addSafe(
+					taskCostMicrousd,
+					result.costMicrousd,
+					"calibration.terminalSlots.taskCostMicrousd",
+				);
+				const campaignBudget = frozen.manifest.budgets.campaign;
+				const taskBudget = frozen.manifest.budgets.taskModel;
+				if (
+					campaignRequests >= campaignBudget.maxRequests ||
+					campaignCostMicrousd >= campaignBudget.maxCostMicrousd ||
+					campaignElapsedMs >= campaignBudget.maxElapsedMs ||
+					aggregateStopAuthority?.scope === "campaign"
+				) {
+					campaignStopIssueCode = "calibration-campaign-budget-exhausted";
+				} else if (
+					taskRequests >= taskBudget.maxRequests ||
+					taskCostMicrousd >= taskBudget.maxCostMicrousd ||
+					aggregateStopAuthority?.scope === "task"
+				) {
+					taskStopIssueCode = "calibration-task-budget-exhausted";
+				}
 			}
 			slots.push(normalized);
 		}
@@ -1230,6 +1688,7 @@ function calibrationRouteProfileDigest(
 ): string {
 	const {
 		qualificationRef: _qualificationRef,
+		qualificationRevision: _qualificationRevision,
 		qualificationDigest: _qualificationDigest,
 		...stableRouteProfile
 	} = route;
@@ -1462,13 +1921,14 @@ export async function runB112EmpiricalCalibration(input: {
 	let campaignCostMicrousd = 0;
 	let campaignElapsedMs = 0;
 	let ordinal = 0;
-	let terminalStopIssueCode: B112CalibrationNotAttemptedIssueCode | null = null;
+	let campaignStopIssueCode: B112CalibrationNotAttemptedIssueCode | null = null;
 	for (const taskRef of trialPlan.activeTaskRefs) {
 		const task = frozen.manifest.catalog.tasks.find((candidate) => candidate.taskRef === taskRef);
 		if (task === undefined) fail("calibration.taskRef", "missing frozen calibration task");
 		const taskDigest = empiricalStrictJsonDigest(task);
 		let taskRequests = 0;
 		let taskCostMicrousd = 0;
+		let taskStopIssueCode: B112CalibrationNotAttemptedIssueCode | null = null;
 		for (const blockIndex of [1, 2, 3] as const) {
 			ordinal += 1;
 			if (signal.aborted) {
@@ -1479,25 +1939,33 @@ export async function runB112EmpiricalCalibration(input: {
 			}
 			const campaignBudget = frozen.manifest.budgets.campaign;
 			const taskBudget = frozen.manifest.budgets.taskModel;
-			if (terminalStopIssueCode === null) {
+			if (campaignStopIssueCode === null) {
 				if (
 					campaignRequests >= campaignBudget.maxRequests ||
 					campaignCostMicrousd >= campaignBudget.maxCostMicrousd ||
 					campaignElapsedMs >= campaignBudget.maxElapsedMs
 				) {
-					terminalStopIssueCode = "calibration-campaign-budget-exhausted";
+					campaignStopIssueCode = "calibration-campaign-budget-exhausted";
 				} else if (
 					taskRequests >= taskBudget.maxRequests ||
 					taskCostMicrousd >= taskBudget.maxCostMicrousd
 				) {
-					terminalStopIssueCode = "calibration-task-budget-exhausted";
+					taskStopIssueCode = "calibration-task-budget-exhausted";
 				}
 			}
-			if (terminalStopIssueCode !== null) {
-				slots.push(calibrationSlot(frozen, task, blockIndex, ordinal, null, terminalStopIssueCode));
+			const stopIssueCode = campaignStopIssueCode ?? taskStopIssueCode;
+			if (stopIssueCode !== null) {
+				slots.push(calibrationSlot(frozen, task, blockIndex, ordinal, null, stopIssueCode));
 				continue;
 			}
 			const trialBlock = createB112CalibrationTrialBlockIdentity(frozen, task.taskRef, blockIndex);
+			const remainingBudget = strictSnapshot({
+				campaignRequests: campaignBudget.maxRequests - campaignRequests,
+				campaignCostMicrousd: campaignBudget.maxCostMicrousd - campaignCostMicrousd,
+				campaignElapsedMs: campaignBudget.maxElapsedMs - campaignElapsedMs,
+				taskRequests: taskBudget.maxRequests - taskRequests,
+				taskCostMicrousd: taskBudget.maxCostMicrousd - taskCostMicrousd,
+			});
 			const rawResult = await (runEmpiricalBlock as B112CalibrationEmpiricalRunnerV4)({
 				configurationRef: actor.configurationRef,
 				configurationDigest,
@@ -1506,13 +1974,7 @@ export async function runB112EmpiricalCalibration(input: {
 				blockIndex,
 				blockOrdinal: ordinal,
 				...trialBlock,
-				remainingBudget: {
-					campaignRequests: campaignBudget.maxRequests - campaignRequests,
-					campaignCostMicrousd: campaignBudget.maxCostMicrousd - campaignCostMicrousd,
-					campaignElapsedMs: campaignBudget.maxElapsedMs - campaignElapsedMs,
-					taskRequests: taskBudget.maxRequests - taskRequests,
-					taskCostMicrousd: taskBudget.maxCostMicrousd - taskCostMicrousd,
-				},
+				remainingBudget,
 				signal,
 			});
 			if (signal.aborted) {
@@ -1523,23 +1985,48 @@ export async function runB112EmpiricalCalibration(input: {
 			}
 			if (isB112CalibrationBlockPreparationFailureCandidate(rawResult)) {
 				validateB112CalibrationBlockPreparationFailure(rawResult, trialBlock);
-				terminalStopIssueCode = "calibration-block-preparation-failed";
-				slots.push(calibrationSlot(frozen, task, blockIndex, ordinal, null, terminalStopIssueCode));
+				campaignStopIssueCode = "calibration-block-preparation-failed";
+				slots.push(calibrationSlot(frozen, task, blockIndex, ordinal, null, campaignStopIssueCode));
 				continue;
 			}
-			const observation = validateEmpiricalCalibrationTrialBlockObservation(rawResult);
+			const blockResult = validateB112CalibrationEmpiricalBlockResult(rawResult);
+			const observation = blockResult.observation;
 			const result = observation.result;
-			const crossedFrozenBudget =
+			const crossedCampaignBudget =
 				result.requests > campaignBudget.maxRequests - campaignRequests ||
 				result.costMicrousd > campaignBudget.maxCostMicrousd - campaignCostMicrousd ||
-				result.latencyMs > campaignBudget.maxElapsedMs - campaignElapsedMs ||
+				result.latencyMs > campaignBudget.maxElapsedMs - campaignElapsedMs;
+			const crossedTaskBudget =
 				result.requests > taskBudget.maxRequests - taskRequests ||
 				result.costMicrousd > taskBudget.maxCostMicrousd - taskCostMicrousd;
-			const observedBudgetExhaustion = hasB112CalibrationBudgetExhaustion(observation.issueCodes);
-			if (crossedFrozenBudget && !observedBudgetExhaustion) {
-				fail("calibration.budget", "empirical block crossed a frozen remaining budget");
+			if (crossedCampaignBudget && blockResult.budgetExhaustionScope !== "campaign") {
+				fail("calibration.budget", "campaign crossing requires campaign-scoped exhaustion");
 			}
-			slots.push(calibrationSlot(frozen, task, blockIndex, ordinal, observation));
+			if (
+				!crossedCampaignBudget &&
+				crossedTaskBudget &&
+				blockResult.budgetExhaustionScope !== "task" &&
+				blockResult.budgetExhaustionScope !== "campaign"
+			) {
+				fail("calibration.budget", "task crossing requires task-scoped exhaustion");
+			}
+			const aggregateStopAuthority = deriveB112CalibrationAggregateStopAuthority({
+				scope: blockResult.budgetExhaustionScope,
+				observation,
+				remainingBudget,
+				costAdmissionRejection: blockResult.costAdmissionRejection,
+			});
+			slots.push(
+				calibrationSlot(
+					frozen,
+					task,
+					blockIndex,
+					ordinal,
+					observation,
+					"calibration-budget-exhausted",
+					aggregateStopAuthority,
+				),
+			);
 			campaignRequests = addSafe(campaignRequests, result.requests, "calibration.campaignRequests");
 			campaignCostMicrousd = addSafe(
 				campaignCostMicrousd,
@@ -1557,8 +2044,10 @@ export async function runB112EmpiricalCalibration(input: {
 				result.costMicrousd,
 				"calibration.taskCostMicrousd",
 			);
-			if (crossedFrozenBudget || observedBudgetExhaustion) {
-				terminalStopIssueCode = "calibration-budget-exhausted";
+			if (crossedCampaignBudget || blockResult.budgetExhaustionScope === "campaign") {
+				campaignStopIssueCode = "calibration-campaign-budget-exhausted";
+			} else if (crossedTaskBudget || blockResult.budgetExhaustionScope === "task") {
+				taskStopIssueCode = "calibration-task-budget-exhausted";
 			}
 		}
 	}

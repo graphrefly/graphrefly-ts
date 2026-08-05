@@ -45,10 +45,11 @@ import { EMPIRICAL_QUALIFICATION_EVIDENCE_KINDS } from "../../evals/empirical-me
 import {
 	B112_EXHAUSTIVE_TASK_CLUSTER_INTERVAL_REVISION,
 	createB112CalibrationTrialBlockIdentity,
+	validateB112CalibrationEmpiricalBlockResult,
 } from "../../evals/empirical-memory-rerun-avoidance/empirical-calibration.js";
 import {
 	createEmpiricalCampaignScorecard,
-	validateEmpiricalCalibrationTrialBlockObservation,
+	validateEmpiricalAggregateEvidenceDigestList,
 	validateEmpiricalCampaignScorecard,
 	validateEmpiricalTrialBlockObservation,
 } from "../../evals/empirical-memory-rerun-avoidance/empirical-smoke-evidence.js";
@@ -84,8 +85,17 @@ import {
 	validateD678CalibrationRouteQualifications,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-calibration-operator.js";
 import {
+	createOpenRouterCurrentKeySpendAdmissionCapability,
+	OPENROUTER_CURRENT_KEY_ENDPOINT,
+	OPENROUTER_CURRENT_KEY_SPEND_ADMISSION_SCHEMA,
+	type OpenRouterCurrentKeySpendAdmissionCapabilityV1,
+	type OpenRouterCurrentKeySpendAdmissionRequestV1,
+	type OpenRouterCurrentKeySpendAdmissionV1,
+} from "../../evals/empirical-memory-rerun-avoidance/openrouter-current-key-spend-admission.js";
+import {
 	B112_FIRST_TASK_SMOKE_AGGREGATION_REVISION,
 	B112_SMOKE_BUDGET_ISSUE_CODE,
+	canonicalMatchedWarmBranchIssueCodes,
 	createOpenRouterCalibrationEmpiricalRunner,
 	runOpenRouterFirstTaskSmoke,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-first-task-smoke.js";
@@ -162,6 +172,27 @@ const encoder = new TextEncoder();
 const immediateRetryWait = Object.freeze({
 	async wait(): Promise<void> {},
 });
+function simulatedCurrentKeySpendAdmission(
+	onRead: () => void = () => undefined,
+): OpenRouterCurrentKeySpendAdmissionCapabilityV1 {
+	return Object.freeze({
+		async read(input: OpenRouterCurrentKeySpendAdmissionRequestV1) {
+			onRead();
+			const admitted: Omit<OpenRouterCurrentKeySpendAdmissionV1, "admissionDigest"> = {
+				schemaVersion: OPENROUTER_CURRENT_KEY_SPEND_ADMISSION_SCHEMA,
+				limitMicrousd: input.expectedLimitMicrousd,
+				remainingMicrousd: input.expectedLimitMicrousd,
+				usageMicrousd: 0,
+				limitReset: "none" as const,
+				isManagementKey: false as const,
+			};
+			return Object.freeze({
+				...admitted,
+				admissionDigest: empiricalStrictJsonDigest(admitted),
+			});
+		},
+	});
+}
 const temporaryRoots: string[] = [];
 interface ClosedHostFixture {
 	readonly frozen: FrozenEmpiricalCampaignManifestV1;
@@ -4852,7 +4883,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			};
 		});
 		const trialBlock = createB112CalibrationTrialBlockIdentity(fixture.frozen, task.taskRef, 1);
-		const observation = validateEmpiricalCalibrationTrialBlockObservation(
+		const observation = validateB112CalibrationEmpiricalBlockResult(
 			await runner({
 				configurationRef: configuration.configurationRef,
 				configurationDigest: empiricalStrictJsonDigest(configuration),
@@ -4870,7 +4901,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				},
 				signal: new AbortController().signal,
 			}),
-		);
+		).observation;
 		expect(transportCalls).toBe(1);
 		expect(observation).toMatchObject({
 			profile: "calibration",
@@ -4917,7 +4948,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			executionClass: "simulated-contract",
 		}));
 		const trialBlock = createB112CalibrationTrialBlockIdentity(fixture.frozen, task.taskRef, 1);
-		const observation = validateEmpiricalCalibrationTrialBlockObservation(
+		const blockResult = validateB112CalibrationEmpiricalBlockResult(
 			await runner({
 				configurationRef: configuration.configurationRef,
 				configurationDigest: empiricalStrictJsonDigest(configuration),
@@ -4936,16 +4967,169 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				signal: new AbortController().signal,
 			}),
 		);
+		const observation = blockResult.observation;
 		expect(transportCalls).toBe(0);
 		expect(observation).toMatchObject({
 			profile: "calibration",
 			result: { classification: "non-evaluable", requests: 0 },
 		});
 		expect(observation.issueCodes).toContain(B112_SMOKE_BUDGET_ISSUE_CODE);
+		expect(blockResult.budgetExhaustionScope).toBe("campaign");
 	}, 60_000);
 });
 
 describe("B112 D678-D679 package-private calibration operator", () => {
+	it("reads bounded current-key metadata and admits exact conservative microUSD", async () => {
+		const secretSentinel = "d681-current-key-secret-sentinel";
+		let requestUrl: string | URL | Request | null = null;
+		let requestInit: RequestInit | undefined;
+		const responseBody = JSON.stringify({
+			data: {
+				limit: 32,
+				limit_remaining: 21.55725434,
+				limit_reset: null,
+				usage: 10.44274566,
+				is_management_key: false,
+				label: secretSentinel,
+			},
+		});
+		const capability = createOpenRouterCurrentKeySpendAdmissionCapability({
+			fetch: (async (url, init) => {
+				requestUrl = url;
+				requestInit = init;
+				return new Response(responseBody, {
+					status: 200,
+					headers: { "content-length": String(encoder.encode(responseBody).byteLength) },
+				});
+			}) as typeof fetch,
+		});
+		const admitted = await capability.read({
+			credential: {
+				credentialBindingRef: "d681-credential",
+				credentialBindingRevision: "d681-credential.v1",
+				bearerToken: secretSentinel,
+			},
+			expectedLimitMicrousd: 32_000_000,
+			requiredRemainingMicrousd: 18_000_000,
+			signal: new AbortController().signal,
+		});
+		expect(requestUrl).toBe(OPENROUTER_CURRENT_KEY_ENDPOINT);
+		expect(requestInit).toMatchObject({
+			method: "GET",
+			redirect: "error",
+			cache: "no-store",
+			credentials: "omit",
+			referrerPolicy: "no-referrer",
+		});
+		expect(admitted).toMatchObject({
+			limitMicrousd: 32_000_000,
+			remainingMicrousd: 21_557_254,
+			usageMicrousd: 10_442_746,
+			limitReset: "none",
+			isManagementKey: false,
+		});
+		expect(JSON.stringify(admitted)).not.toContain(secretSentinel);
+	});
+
+	it("fails closed on insufficient or oversized current-key metadata", async () => {
+		const insufficient = createOpenRouterCurrentKeySpendAdmissionCapability({
+			fetch: (async () =>
+				new Response(
+					JSON.stringify({
+						data: {
+							limit: 32,
+							limit_remaining: 17.999999,
+							limit_reset: null,
+							usage: 14.000001,
+							is_management_key: false,
+						},
+					}),
+					{ status: 200 },
+				)) as typeof fetch,
+		});
+		const input = {
+			credential: {
+				credentialBindingRef: "d681-credential",
+				credentialBindingRevision: "d681-credential.v1",
+				bearerToken: "d681-current-key-secret-sentinel",
+			},
+			expectedLimitMicrousd: 32_000_000,
+			requiredRemainingMicrousd: 18_000_000,
+			signal: new AbortController().signal,
+		};
+		await expect(insufficient.read(input)).rejects.toThrow(/failed spend admission/);
+
+		const oversized = createOpenRouterCurrentKeySpendAdmissionCapability({
+			fetch: (async () =>
+				new Response("{}", {
+					status: 200,
+					headers: { "content-length": "16385" },
+				})) as typeof fetch,
+		});
+		await expect(oversized.read(input)).rejects.toThrow(/byte bound/);
+	});
+
+	it("sanitizes a current-key response stream failure before it reaches diagnostics", async () => {
+		const secretSentinel = "d681-stream-private-sentinel";
+		const capability = createOpenRouterCurrentKeySpendAdmissionCapability({
+			fetch: (async () =>
+				new Response(
+					new ReadableStream<Uint8Array>({
+						start(controller) {
+							controller.error(new TypeError(secretSentinel));
+						},
+					}),
+					{ status: 200 },
+				)) as typeof fetch,
+		});
+		let diagnostic = "";
+		try {
+			await capability.read({
+				credential: {
+					credentialBindingRef: "d681-credential",
+					credentialBindingRevision: "d681-credential.v1",
+					bearerToken: secretSentinel,
+				},
+				expectedLimitMicrousd: 32_000_000,
+				requiredRemainingMicrousd: 18_000_000,
+				signal: new AbortController().signal,
+			});
+		} catch (error) {
+			diagnostic = String(error);
+		}
+		expect(diagnostic).toContain("response body was unreadable");
+		expect(diagnostic).not.toContain(secretSentinel);
+	});
+
+	it("accepts every frozen aggregate request digest and rejects the next one", () => {
+		const digests = Array.from({ length: B112_D678_BLOCK_MAX_REQUESTS }, (_, index) =>
+			empiricalSha256(encoder.encode(`aggregate-route-evidence-${index}`)),
+		).sort();
+		expect(
+			validateEmpiricalAggregateEvidenceDigestList(
+				digests,
+				"calibration.aggregateRouteEvidenceDigests",
+				B112_D678_BLOCK_MAX_REQUESTS,
+			),
+		).toEqual(digests);
+		expect(() =>
+			validateEmpiricalAggregateEvidenceDigestList(
+				[...digests, empiricalSha256(encoder.encode("aggregate-route-evidence-overflow"))].sort(),
+				"calibration.aggregateRouteEvidenceDigests",
+				B112_D678_BLOCK_MAX_REQUESTS,
+			),
+		).toThrow(/bounded item count/);
+	});
+
+	it("canonicalizes nested warm-arm issues before observation validation", () => {
+		expect(
+			canonicalMatchedWarmBranchIssueCodes(
+				["warm-memory-lifecycle-issue", "shared-issue"],
+				["tool-action-budget-exhausted", "shared-issue"],
+			),
+		).toEqual(["shared-issue", "tool-action-budget-exhausted", "warm-memory-lifecycle-issue"]);
+	});
+
 	it("runs the complete no-network outer chain and atomically persists sanitized evidence", async () => {
 		const fixture = await createClosedHostFixture(
 			undefined,
@@ -4967,6 +5151,7 @@ describe("B112 D678-D679 package-private calibration operator", () => {
 		const secretSentinel = "d678-injected-transport-secret-sentinel";
 		let prepareCalls = 0;
 		let transportCalls = 0;
+		let quotaAdmissionCalls = 0;
 		let activeTransportCalls = 0;
 		let maxActiveTransportCalls = 0;
 		const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -5075,13 +5260,17 @@ describe("B112 D678-D679 package-private calibration operator", () => {
 				bearerToken: secretSentinel,
 			},
 			transport,
+			currentKeySpendAdmission: simulatedCurrentKeySpendAdmission(() => {
+				quotaAdmissionCalls += 1;
+			}),
 			monotonicMeasurement: { readMs: () => 0 },
 			retryWait: immediateRetryWait,
 			executionClass: "simulated-contract",
 			signal: new AbortController().signal,
 		});
-		expect({ prepareCalls, transportCalls, maxActiveTransportCalls }).toEqual({
+		expect({ prepareCalls, quotaAdmissionCalls, transportCalls, maxActiveTransportCalls }).toEqual({
 			prepareCalls: 2,
+			quotaAdmissionCalls: 1,
 			transportCalls: 2,
 			maxActiveTransportCalls: 1,
 		});
@@ -5101,6 +5290,69 @@ describe("B112 D678-D679 package-private calibration operator", () => {
 		for (const file of readdirSync(result.persistence.generationPath)) {
 			expect(statSync(join(result.persistence.generationPath, file)).mode & 0o777).toBe(0o600);
 		}
+	}, 60_000);
+
+	it("cleans prepared materialization when current-key admission fails before transport", async () => {
+		const fixture = await createClosedHostFixture(
+			undefined,
+			undefined,
+			"deepseek-v4-flash-high",
+			"calibration",
+		);
+		const privateRoot = join(
+			temporaryRoot("d681-admission-cleanup-private"),
+			".private",
+			"empirical-memory-rerun-avoidance",
+		);
+		mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
+		let transportCalls = 0;
+		const result = await runLoadedOpenRouterCalibrationOperator({
+			operatorInput: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				routeQualifications: d678SimulatedCalibrationQualifications(fixture),
+				privateRoot,
+				generationRef: "d681-admission-cleanup",
+				async prepareTrialBlock() {
+					return {
+						host: {
+							frozen: fixture.frozen,
+							qualificationReport: fixture.report,
+							initialRequest: fixture.initialRequest,
+							taskProfile: fixture.taskProfile,
+							materialization: fixture.materialization,
+							verifier: fixture.verifier,
+						},
+						prepareWarmHost: ({ signal }) => fixture.prepareFreshMaterialization(signal),
+					};
+				},
+			},
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: "d681-admission-cleanup-secret",
+			},
+			transport: {
+				async request() {
+					transportCalls += 1;
+					throw new TypeError("transport must not run after admission failure");
+				},
+			},
+			currentKeySpendAdmission: {
+				async read() {
+					throw new TypeError("bounded current-key admission failure");
+				},
+			},
+			monotonicMeasurement: { readMs: () => 0 },
+			retryWait: immediateRetryWait,
+			executionClass: "simulated-contract",
+			signal: new AbortController().signal,
+		});
+		expect(transportCalls).toBe(0);
+		expect(
+			result.terminalSlots.every((slot) => slot.status === "not-attempted-preparation-failed"),
+		).toBe(true);
+		expect(() => statSync(fixture.workspaceRoot)).toThrow();
 	}, 60_000);
 
 	it("rejects a substituted qualification bundle before any transport call", async () => {
@@ -5154,6 +5406,7 @@ describe("B112 D678-D679 package-private calibration operator", () => {
 						throw new TypeError("unexpected diagnostic transport call");
 					},
 				},
+				currentKeySpendAdmission: simulatedCurrentKeySpendAdmission(),
 				monotonicMeasurement: { readMs: () => 0 },
 				retryWait: immediateRetryWait,
 				executionClass: "simulated-contract",
@@ -5169,12 +5422,45 @@ describe("B112 D678-D679 package-private calibration operator", () => {
 			blockOrdinal: 1,
 			causeClass: "abort",
 			causeCode: "abort",
+			causeDetailCode: "not-applicable",
 		});
 		expect(JSON.stringify(diagnostic)).not.toContain(secretSentinel);
 		await fixture.materialization.cleanup();
 	});
 
-	it("terminalizes an always-tool-calling matched block at the frozen step ceiling", async () => {
+	it("classifies observation validation failures without exposing their detail", () => {
+		const diagnostic = classifyOpenRouterCalibrationOperatorFailure(
+			new TypeError(
+				"trial observation cost does not match its frozen pricing: private detail must not escape",
+			),
+		);
+		expect(diagnostic).toEqual({
+			issueCode: "openrouter-calibration-operator-failed",
+			stage: "operator-init",
+			blockOrdinal: null,
+			causeClass: "type-error",
+			causeCode: "observation-schema-validation",
+			causeDetailCode: "observation-cost",
+		});
+		expect(JSON.stringify(diagnostic)).not.toContain("private detail");
+	});
+
+	it("classifies campaign node-bound failures without exposing their path", () => {
+		const diagnostic = classifyOpenRouterCalibrationOperatorFailure(
+			new TypeError("B112 empirical campaign private.path: strict JSON node bound exceeded"),
+		);
+		expect(diagnostic).toEqual({
+			issueCode: "openrouter-calibration-operator-failed",
+			stage: "operator-init",
+			blockOrdinal: null,
+			causeClass: "type-error",
+			causeCode: "campaign-schema-validation",
+			causeDetailCode: "campaign-node-bound",
+		});
+		expect(JSON.stringify(diagnostic)).not.toContain("private.path");
+	});
+
+	it("bounds an always-tool-calling block and mechanically reaches the next slot", async () => {
 		const fixture = await createClosedHostFixture(
 			undefined,
 			undefined,
@@ -5255,12 +5541,13 @@ describe("B112 D678-D679 package-private calibration operator", () => {
 					);
 				},
 			},
+			currentKeySpendAdmission: simulatedCurrentKeySpendAdmission(),
 			monotonicMeasurement: { readMs: () => 0 },
 			retryWait: immediateRetryWait,
 			executionClass: "simulated-contract",
 			signal: new AbortController().signal,
 		});
-		expect(prepareCalls).toBe(1);
+		expect(prepareCalls).toBe(2);
 		expect(transportCalls).toBeGreaterThan(0);
 		expect(transportCalls).toBeLessThanOrEqual(B112_D678_BLOCK_MAX_REQUESTS);
 		expect(result.scorecard).toMatchObject({

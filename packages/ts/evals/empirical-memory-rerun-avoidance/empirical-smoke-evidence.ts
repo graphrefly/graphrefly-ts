@@ -297,8 +297,12 @@ export interface EmpiricalCampaignScorecardV3 {
 	readonly issueCodes: readonly string[];
 }
 
-function sortedUniqueCoordinates(values: readonly string[], path: string): readonly string[] {
-	if (values.length > 128) throw new TypeError(`${path} exceeds its bounded item count`);
+function sortedUniqueCoordinates(
+	values: readonly string[],
+	path: string,
+	maxItems = 128,
+): readonly string[] {
+	if (values.length > maxItems) throw new TypeError(`${path} exceeds its bounded item count`);
 	return Object.freeze(
 		[...new Set(values.map((value, index) => coordinate(value, `${path}[${index}]`)))].sort(),
 	);
@@ -523,14 +527,17 @@ function createEmpiricalTrialBlockObservationCommon(
 	const routeEvidenceDigests = sortedUniqueCoordinates(
 		runs.flatMap((run) => run.routeEvidenceDigests),
 		"smoke.routeEvidenceDigests",
+		Math.max(128, route.budget.maxRequests),
 	);
 	const verifierEvidenceDigests = sortedUniqueCoordinates(
 		runs.flatMap((run) => run.verifierEvidenceDigests),
 		"smoke.verifierEvidenceDigests",
+		Math.max(128, route.budget.maxRequests),
 	);
 	const protectionReceiptDigests = sortedUniqueCoordinates(
 		runs.flatMap((run) => run.protectionReceiptDigests),
 		"smoke.protectionReceiptDigests",
+		Math.max(128, route.budget.maxRequests),
 	);
 	const observation = strictSnapshot({
 		executionClass,
@@ -1659,14 +1666,17 @@ export function validateEmpiricalTrialBlockObservation(
 	const routeEvidenceDigests = validateDigestList(
 		observation.routeEvidenceDigests,
 		"trialBlockObservation.routeEvidenceDigests",
+		Math.max(128, route.maxRequests),
 	);
 	const verifierEvidenceDigests = validateDigestList(
 		observation.verifierEvidenceDigests,
 		"trialBlockObservation.verifierEvidenceDigests",
+		Math.max(128, route.maxRequests),
 	);
 	const protectionReceiptDigests = validateDigestList(
 		observation.protectionReceiptDigests,
 		"trialBlockObservation.protectionReceiptDigests",
+		Math.max(128, route.maxRequests),
 	);
 	const cold = validateSmokeRunObservation(observation.cold, "trialBlockObservation.cold");
 	if (
@@ -2402,9 +2412,9 @@ function validateObservationResult(value: unknown): EmpiricalTrialBlockObservati
 	});
 }
 
-function validateDigestList(value: unknown, path: string): readonly string[] {
+function validateDigestList(value: unknown, path: string, maxItems = 128): readonly string[] {
 	const values = array(value, path);
-	if (values.length > 128) throw new TypeError(`${path} exceeds its bounded item count`);
+	if (values.length > maxItems) throw new TypeError(`${path} exceeds its bounded item count`);
 	const validated = values.map((item, index) => digest(item, `${path}[${index}]`));
 	if (
 		new Set(validated).size !== validated.length ||
@@ -2413,6 +2423,15 @@ function validateDigestList(value: unknown, path: string): readonly string[] {
 		throw new TypeError(`${path} must be unique and canonical-sort ordered`);
 	}
 	return Object.freeze(validated);
+}
+
+/** Package-private regression seam for frozen aggregate evidence bounds. */
+export function validateEmpiricalAggregateEvidenceDigestList(
+	value: unknown,
+	path: string,
+	maxItems: number,
+): readonly string[] {
+	return validateDigestList(value, path, safeInteger(maxItems, `${path}.maxItems`, { min: 1 }));
 }
 
 function validateOrderedDigestList(value: unknown, path: string): readonly string[] {

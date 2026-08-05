@@ -15,6 +15,7 @@ import {
 	type B112CalibrationEmpiricalRunInputV4,
 	type B112CalibrationEmpiricalRunnerV4,
 	createB112CalibrationBlockPreparationFailure,
+	createB112CalibrationEmpiricalBlockResult,
 	createB112CalibrationTrialBlockIdentity,
 } from "./empirical-calibration.js";
 import {
@@ -157,6 +158,13 @@ export type OpenRouterMatchedTrialBlockResultV4 =
 			readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
 			readonly admissionRejection: B112SmokeAdmissionRejectionV1 | null;
 	  };
+
+/** Package-private canonical union for nested matched warm-arm issues. */
+export function canonicalMatchedWarmBranchIssueCodes(
+	...groups: readonly (readonly string[])[]
+): readonly string[] {
+	return Object.freeze([...new Set(groups.flat())].sort());
+}
 
 function assertQualifiedSmokeRoute(
 	route: OpenRouterRouteQualificationV1,
@@ -1136,7 +1144,10 @@ export async function runOpenRouterMatchedTrialBlock(
 					hostOutcome: warmOutcome,
 					costLedger: runCostLedger(budgetBefore, budgetAfter, input.executionClass),
 				},
-				issueCodes: [],
+				issueCodes: canonicalMatchedWarmBranchIssueCodes(
+					branch.lifecycle.issueCodes,
+					warmOutcome.issueCodes,
+				),
 			});
 		}
 	}
@@ -1157,6 +1168,100 @@ export type OpenRouterCalibrationPreparedTrialBlockV4 = Omit<
 export type OpenRouterCalibrationTrialBlockFactoryV4 = (
 	input: B112CalibrationEmpiricalRunInputV4,
 ) => Promise<OpenRouterCalibrationPreparedTrialBlockV4>;
+
+type CalibrationBudgetScope = "block" | "task" | "campaign";
+
+function stricterCalibrationBudgetScope(
+	left: CalibrationBudgetScope,
+	right: CalibrationBudgetScope,
+): CalibrationBudgetScope {
+	const rank = { block: 0, task: 1, campaign: 2 } as const;
+	return rank[left] >= rank[right] ? left : right;
+}
+
+function minimumRequestScope(
+	blockLimit: number,
+	remaining: B112CalibrationEmpiricalRunInputV4["remainingBudget"],
+): CalibrationBudgetScope {
+	if (
+		remaining.campaignRequests <= remaining.taskRequests &&
+		remaining.campaignRequests <= blockLimit
+	) {
+		return "campaign";
+	}
+	if (remaining.taskRequests <= blockLimit) return "task";
+	return "block";
+}
+
+function minimumCostScope(
+	blockLimit: number,
+	remaining: B112CalibrationEmpiricalRunInputV4["remainingBudget"],
+): CalibrationBudgetScope {
+	if (
+		remaining.campaignCostMicrousd <= remaining.taskCostMicrousd &&
+		remaining.campaignCostMicrousd <= blockLimit
+	) {
+		return "campaign";
+	}
+	if (remaining.taskCostMicrousd <= blockLimit) return "task";
+	return "block";
+}
+
+/** Scheduler-owned scope classification; provider/model output cannot select it. */
+export function classifyOpenRouterCalibrationBudgetExhaustionScope(input: {
+	readonly observation: EmpiricalCalibrationTrialBlockObservationV4;
+	readonly admissionRejection: B112SmokeAdmissionRejectionV1 | null;
+	readonly remainingBudget: B112CalibrationEmpiricalRunInputV4["remainingBudget"];
+	readonly blockBudget: {
+		readonly maxRequests: number;
+		readonly maxSmokeSpendMicrousd: number;
+		readonly maxLatencyMs: number;
+	};
+}): "none" | CalibrationBudgetScope {
+	const hasBudgetIssue = input.observation.issueCodes.some(
+		(issueCode) =>
+			issueCode.endsWith("-budget-exhausted") || issueCode === B112_SMOKE_BUDGET_ISSUE_CODE,
+	);
+	if (!hasBudgetIssue) return "none";
+	const result = input.observation.result;
+	if (
+		result.requests >= input.remainingBudget.campaignRequests ||
+		result.costMicrousd >= input.remainingBudget.campaignCostMicrousd ||
+		result.latencyMs >= input.remainingBudget.campaignElapsedMs
+	) {
+		return "campaign";
+	}
+	if (
+		result.requests >= input.remainingBudget.taskRequests ||
+		result.costMicrousd >= input.remainingBudget.taskCostMicrousd
+	) {
+		return "task";
+	}
+	const rejection = input.admissionRejection;
+	if (rejection === null) return "block";
+	let scope: CalibrationBudgetScope = "block";
+	for (const reason of rejection.reasons) {
+		if (reason === B112_SMOKE_ADMISSION_REJECTION_REASONS.requestLimit) {
+			scope = stricterCalibrationBudgetScope(
+				scope,
+				minimumRequestScope(input.blockBudget.maxRequests, input.remainingBudget),
+			);
+		} else if (reason === B112_SMOKE_ADMISSION_REJECTION_REASONS.costReservation) {
+			scope = stricterCalibrationBudgetScope(
+				scope,
+				minimumCostScope(input.blockBudget.maxSmokeSpendMicrousd, input.remainingBudget),
+			);
+		} else if (reason === B112_CALIBRATION_ELAPSED_ADMISSION_REJECTION_REASON) {
+			scope = stricterCalibrationBudgetScope(
+				scope,
+				input.remainingBudget.campaignElapsedMs <= input.blockBudget.maxLatencyMs
+					? "campaign"
+					: "block",
+			);
+		}
+	}
+	return scope;
+}
 
 /**
  * Mechanical package-private bridge from the D677 serial scheduler to the
@@ -1205,7 +1310,24 @@ export function createOpenRouterCalibrationEmpiricalRunner(
 		if (matched.profile !== "calibration") {
 			throw new TypeError("OpenRouter calibration bridge produced non-calibration evidence");
 		}
-		return matched.observation;
+		const budgetExhaustionScope = classifyOpenRouterCalibrationBudgetExhaustionScope({
+			observation: matched.observation,
+			admissionRejection: matched.admissionRejection,
+			remainingBudget,
+			blockBudget: prepared.routeQualification.budget,
+		});
+		const costAdmissionRejection =
+			(budgetExhaustionScope === "task" || budgetExhaustionScope === "campaign") &&
+			matched.admissionRejection?.reasons.includes(
+				B112_SMOKE_ADMISSION_REJECTION_REASONS.costReservation,
+			)
+				? matched.admissionRejection
+				: null;
+		return createB112CalibrationEmpiricalBlockResult({
+			observation: matched.observation,
+			budgetExhaustionScope,
+			costAdmissionRejection,
+		});
 	};
 }
 

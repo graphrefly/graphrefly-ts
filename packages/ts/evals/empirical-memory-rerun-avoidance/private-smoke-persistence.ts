@@ -32,6 +32,7 @@ import {
 import {
 	type EmpiricalExactPrivateNeedleProtectionExecutorV1,
 	isEmpiricalExactPrivateNeedleProtectionExecutor,
+	MAX_EMPIRICAL_PRIVATE_NEEDLE_CODE_UNITS,
 } from "./exact-private-needle-protection.js";
 import { executeEmpiricalProtection } from "./model-execution.js";
 
@@ -47,6 +48,8 @@ const CALIBRATION_MANIFEST_FILE = "campaign-manifest.v1.json";
 const CALIBRATION_SLOTS_FILE = "terminal-slots.v4.json";
 const CALIBRATION_SCORECARD_FILE = "campaign-scorecard.v4.json";
 const CALIBRATION_GENERATION_FILE = "generation.v4.json";
+const PRIVATE_ARTIFACT_SCAN_CHUNK_CODE_UNITS = 32_768;
+const PRIVATE_ARTIFACT_SCAN_CHUNK_OVERLAP_CODE_UNITS = MAX_EMPIRICAL_PRIVATE_NEEDLE_CODE_UNITS - 1;
 
 export interface PersistedPrivateSmokeGenerationV3 {
 	readonly generationPath: string;
@@ -115,6 +118,65 @@ async function syncDirectory(path: string): Promise<void> {
 	}
 }
 
+function* privateArtifactStrings(value: StrictJsonValue): Generator<string> {
+	if (typeof value === "string") {
+		yield value;
+		return;
+	}
+	if (value === null || typeof value !== "object") return;
+	if (Array.isArray(value)) {
+		for (const entry of value) yield* privateArtifactStrings(entry);
+		return;
+	}
+	for (const [key, entry] of Object.entries(value)) {
+		yield key;
+		yield* privateArtifactStrings(entry);
+	}
+}
+
+function* boundedPrivateArtifactStringChunks(value: string): Generator<string> {
+	if (value.length <= PRIVATE_ARTIFACT_SCAN_CHUNK_CODE_UNITS) {
+		yield value;
+		return;
+	}
+	const stride =
+		PRIVATE_ARTIFACT_SCAN_CHUNK_CODE_UNITS - PRIVATE_ARTIFACT_SCAN_CHUNK_OVERLAP_CODE_UNITS;
+	for (let start = 0; start < value.length; start += stride) {
+		yield value.slice(start, start + PRIVATE_ARTIFACT_SCAN_CHUNK_CODE_UNITS);
+		if (start + PRIVATE_ARTIFACT_SCAN_CHUNK_CODE_UNITS >= value.length) return;
+	}
+}
+
+/**
+ * Applies the existing exact-known-needle policy to every string value and key
+ * in one canonical artifact without weakening D655's per-inspection bounds.
+ * The exact-needle policy itself compares strings independently, so this
+ * bounded projection preserves its semantics while allowing a valid aggregate
+ * artifact to contain more than 4,096 structural JSON nodes.
+ */
+export function assertPrivateArtifactProtection(input: {
+	readonly subject: unknown;
+	readonly label: string;
+	readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
+}): void {
+	const canonicalSubject = strictJsonCodec.decode(
+		strictJsonCodec.encode(input.subject),
+	) as StrictJsonValue;
+	for (const value of privateArtifactStrings(canonicalSubject)) {
+		for (const subject of boundedPrivateArtifactStringChunks(value)) {
+			const protection = executeEmpiricalProtection(input.protectionExecutor, {
+				policyRef: input.protectionExecutor.policyRef,
+				policyRevision: input.protectionExecutor.policyRevision,
+				stage: "model-egress",
+				subject,
+			});
+			if (protection.receipt.disposition !== "allowed" || protection.issueCode !== null) {
+				throw new TypeError(`${input.label} failed artifact-persistence protection`);
+			}
+		}
+	}
+}
+
 /**
  * Persists only validated, bounded evidence projections. A complete generation
  * becomes visible in one directory rename; failures never return a success
@@ -174,21 +236,11 @@ export async function persistPrivateSmokeGeneration(input: {
 		[scorecard, "scorecard"],
 		[generation, "generation"],
 	] as const) {
-		const protectedSubject = strictJsonCodec.decode(
-			strictJsonCodec.encode(subject),
-		) as StrictJsonValue;
-		const protection = executeEmpiricalProtection(input.protectionExecutor, {
-			policyRef: input.protectionExecutor.policyRef,
-			policyRevision: input.protectionExecutor.policyRevision,
-			// D655's closed stage set is unchanged; persistence reuses the
-			// already-locked model-egress inspection capability immediately
-			// before writing the sanitized projection.
-			stage: "model-egress",
-			subject: protectedSubject,
+		assertPrivateArtifactProtection({
+			subject,
+			label: `private smoke ${label}`,
+			protectionExecutor: input.protectionExecutor,
 		});
-		if (protection.receipt.disposition !== "allowed" || protection.issueCode !== null) {
-			throw new TypeError(`private smoke ${label} failed artifact-persistence protection`);
-		}
 	}
 	const generationBytes = strictJsonCodec.encode(generation);
 	const generationDigest = empiricalSha256(generationBytes);
@@ -329,18 +381,11 @@ export async function persistPrivateCalibrationGeneration(input: {
 		[generation, "generation"],
 	];
 	for (const [subject, label] of protectedSubjects) {
-		const protectedSubject = strictJsonCodec.decode(
-			strictJsonCodec.encode(subject),
-		) as StrictJsonValue;
-		const protection = executeEmpiricalProtection(protectionExecutor, {
-			policyRef: protectionExecutor.policyRef,
-			policyRevision: protectionExecutor.policyRevision,
-			stage: "model-egress",
-			subject: protectedSubject,
+		assertPrivateArtifactProtection({
+			subject,
+			label: `private calibration ${label}`,
+			protectionExecutor,
 		});
-		if (protection.receipt.disposition !== "allowed" || protection.issueCode !== null) {
-			throw new TypeError(`private calibration ${label} failed artifact-persistence protection`);
-		}
 	}
 	const privateRoot = await assertSafePrivateRoot(privateRootInput);
 	const generationBytes = strictJsonCodec.encode(generation);

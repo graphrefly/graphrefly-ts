@@ -14,6 +14,10 @@ import {
 } from "./empirical-calibration.js";
 import { createEmpiricalExactPrivateNeedleProtectionExecutor } from "./exact-private-needle-protection.js";
 import {
+	createOpenRouterCurrentKeySpendAdmissionCapability,
+	type OpenRouterCurrentKeySpendAdmissionCapabilityV1,
+} from "./openrouter-current-key-spend-admission.js";
+import {
 	createOpenRouterCalibrationEmpiricalRunner,
 	createOpenRouterCredentialCapabilityFromOperatorEnvironment,
 	type OpenRouterCalibrationPreparedTrialBlockV4,
@@ -103,6 +107,29 @@ export interface OpenRouterCalibrationOperatorFailureDiagnosticV1 {
 		| "type-error-unclassified"
 		| "range-error"
 		| "internal-error";
+	readonly causeDetailCode:
+		| "not-applicable"
+		| "observation-action-trace"
+		| "observation-attempt-trace"
+		| "observation-retry-trace"
+		| "observation-tool-result-binding"
+		| "observation-workspace-state"
+		| "observation-aggregate"
+		| "observation-evidence"
+		| "observation-route-budget"
+		| "observation-cost"
+		| "observation-family-pass"
+		| "observation-warm-branches"
+		| "observation-issue-union"
+		| "observation-coordinates"
+		| "observation-shape"
+		| "observation-unclassified"
+		| "campaign-nested-issue-union"
+		| "campaign-node-bound"
+		| "campaign-depth-bound"
+		| "campaign-strict-json-shape"
+		| "campaign-route-profile"
+		| "campaign-canonical-validation";
 }
 
 class OpenRouterCalibrationOperatorStageFailure extends Error {
@@ -133,7 +160,15 @@ function failureCauseCode(
 		if (message.startsWith("calibration.budget:")) return "calibration-budget-crossed";
 		if (message.startsWith("calibration.")) return "calibration-validation";
 		if (message.startsWith("B112 empirical campaign")) return "campaign-schema-validation";
-		if (message.startsWith("empirical calibration")) return "observation-schema-validation";
+		if (
+			message.startsWith("empirical calibration") ||
+			message.startsWith("calibrationTrialBlockObservation") ||
+			message.startsWith("trial observation") ||
+			message.startsWith("smoke ") ||
+			message.startsWith("smoke.")
+		) {
+			return "observation-schema-validation";
+		}
 		if (message.startsWith("OpenRouter")) return "openrouter-matched-block-invariant";
 		if (message.startsWith("B112 ")) return "b112-host-invariant";
 		if (message.startsWith("closed") || message.startsWith("Closed")) {
@@ -144,6 +179,70 @@ function failureCauseCode(
 	}
 	if (error instanceof RangeError) return "range-error";
 	return "internal-error";
+}
+
+function failureCauseDetailCode(
+	error: unknown,
+): OpenRouterCalibrationOperatorFailureDiagnosticV1["causeDetailCode"] {
+	if (!(error instanceof TypeError)) return "not-applicable";
+	const causeCode = failureCauseCode(error);
+	const message = error.message;
+	if (causeCode === "campaign-schema-validation") {
+		if (message.includes("issueCodes")) return "campaign-nested-issue-union";
+		if (message.includes("node bound") || message.includes("strict-JSON node limit")) {
+			return "campaign-node-bound";
+		}
+		if (message.includes("depth bound") || message.includes("strict-JSON depth limit")) {
+			return "campaign-depth-bound";
+		}
+		if (message.includes("route profile")) return "campaign-route-profile";
+		if (
+			message.includes("strict JSON") ||
+			message.includes("canonical array") ||
+			message.includes("own data") ||
+			message.includes("array properties")
+		) {
+			return "campaign-strict-json-shape";
+		}
+		return "campaign-canonical-validation";
+	}
+	if (causeCode !== "observation-schema-validation") return "not-applicable";
+	if (message.includes("actionTrace")) return "observation-action-trace";
+	if (message.includes("attemptTrace")) return "observation-attempt-trace";
+	if (message.includes("retryWaitTrace") || message.includes("retry attempts")) {
+		return "observation-retry-trace";
+	}
+	if (message.includes("toolResultBindings") || message.includes("tool result")) {
+		return "observation-tool-result-binding";
+	}
+	if (message.includes("workspace state")) return "observation-workspace-state";
+	if (message.includes("aggregate")) return "observation-aggregate";
+	if (message.includes("evidence") || message.includes("receipt")) {
+		return "observation-evidence";
+	}
+	if (message.includes("route budget")) return "observation-route-budget";
+	if (message.includes("cost") || message.includes("pricing")) return "observation-cost";
+	if (message.includes("familyPassed") || message.includes("family pass")) {
+		return "observation-family-pass";
+	}
+	if (message.includes("warm branch") || message.includes("warmBranches")) {
+		return "observation-warm-branches";
+	}
+	if (message.includes("issueCodes") || message.includes("issue union")) {
+		return "observation-issue-union";
+	}
+	if (message.includes("coordinate") || message.includes("taskRef")) {
+		return "observation-coordinates";
+	}
+	if (
+		message.includes("expected") ||
+		message.includes("must be") ||
+		message.includes("requires") ||
+		message.includes("exceeds its bounded")
+	) {
+		return "observation-shape";
+	}
+	return "observation-unclassified";
 }
 
 function operatorStageFailure(
@@ -158,6 +257,7 @@ function operatorStageFailure(
 			blockOrdinal,
 			causeClass: failureCauseClass(error),
 			causeCode: failureCauseCode(error),
+			causeDetailCode: failureCauseDetailCode(error),
 		}),
 	);
 }
@@ -172,6 +272,7 @@ export function classifyOpenRouterCalibrationOperatorFailure(
 		blockOrdinal: null,
 		causeClass: failureCauseClass(error),
 		causeCode: failureCauseCode(error),
+		causeDetailCode: failureCauseDetailCode(error),
 	});
 }
 
@@ -324,6 +425,7 @@ export async function runLoadedOpenRouterCalibrationOperator(input: {
 	readonly operatorInput: OpenRouterCalibrationOperatorInputV1;
 	readonly credential: OpenRouterResponsesCredentialCapabilityV1;
 	readonly transport: OpenRouterResponsesByteTransportV1;
+	readonly currentKeySpendAdmission: OpenRouterCurrentKeySpendAdmissionCapabilityV1;
 	readonly monotonicMeasurement: OpenRouterResponsesMonotonicMeasurementV1;
 	readonly retryWait: OpenRouterFirstTaskRetryWaitCapabilityV1;
 	readonly executionClass: "simulated-contract" | "live-provider";
@@ -369,6 +471,21 @@ export async function runLoadedOpenRouterCalibrationOperator(input: {
 					throw new TypeError("OpenRouter calibration received an unexpected scheduled block");
 				}
 				const prepared = await input.operatorInput.prepareTrialBlock(scheduled);
+				try {
+					await input.currentKeySpendAdmission.read({
+						credential: input.credential,
+						expectedLimitMicrousd: routeQualification.keySpendLimit.limitMicrousd,
+						requiredRemainingMicrousd: scheduled.remainingBudget.campaignCostMicrousd,
+						signal: scheduled.signal,
+					});
+				} catch (error) {
+					try {
+						await prepared.host.materialization.cleanup();
+					} catch {
+						throw new TypeError("OpenRouter current-key admission cleanup failed");
+					}
+					throw error;
+				}
 				return Object.freeze({
 					...prepared,
 					routeQualification,
@@ -437,6 +554,9 @@ export async function runOpenRouterCalibrationOperator(input: {
 		operatorInput,
 		credential,
 		transport: createOpenRouterResponsesFetchByteTransport({ fetch: input.fetch }),
+		currentKeySpendAdmission: createOpenRouterCurrentKeySpendAdmissionCapability({
+			fetch: input.fetch,
+		}),
 		monotonicMeasurement: { readMs: input.monotonicNowMs },
 		retryWait: { wait: waitOpenRouterSmokeRetryDelay },
 		executionClass: "live-provider",
