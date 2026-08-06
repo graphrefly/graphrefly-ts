@@ -1,0 +1,35 @@
+{
+	"schema": "graphrefly-orchestration-source-audit-preregistration.d683.v1",
+	"authority": "D683",
+	"preregisteredAt": "2026-08-05",
+	"parentPreregistration": {
+		"commit": "83ad010047efee7f36c35aedcdcb999cc3526542",
+		"path": "packages/ts/evals/empirical-memory-rerun-avoidance/d683-dependency-extension-preregistration.json",
+		"sha256": "6eb8583ae060ce19a7b8329d70f6241a5dd0855333bdb95955641352c0a637c5"
+	},
+	"coordinationAudit": {
+		"metricKind": "auxiliary-syntactic-proxy",
+		"policy": "ast-mutated-local-collection-bindings-and-conditional-syntax-nodes.v1",
+		"graphrefly": {
+			"path": "packages/ts/evals/empirical-memory-rerun-avoidance/orchestration-comparative-evidence.ts",
+			"functionNames": ["runGraphReFlyPath", "collectData", "blockedMembers"]
+		},
+		"plainTypescript": {
+			"path": "packages/ts/evals/empirical-memory-rerun-avoidance/orchestration-comparative-plain-typescript.ts",
+			"functionNames": ["runD683PlainTypescriptPath"]
+		},
+		"sourceLinesAreAuxiliary": true,
+		"doesNotMeasureSemanticComplexityOrDeveloperTime": true
+	},
+	"extensionDiff": {
+		"commandRevision": "git-diff-no-ext-no-textconv-unified0-myers-no-renames.v1",
+		"flags": ["--no-ext-diff", "--no-textconv", "--unified=0", "--diff-algorithm=myers", "--no-renames"],
+		"markers": {
+			"sharedContract": "D683_DEPENDENCY_EXTENSION:shared-contract",
+			"test": "D683_DEPENDENCY_EXTENSION:test"
+		},
+		"attributionBuckets": ["shared-contract-or-fixture", "graphrefly-coordinator", "plain-typescript-coordinator", "tests"],
+		"expectedUnchangedCoordinatorBuckets": ["graphrefly-coordinator", "plain-typescript-coordinator"]
+	},
+	"claimBoundary": "auxiliary-source-proxies-and-one-extension-surface-not-a-universal-ergonomics-claim"
+}
