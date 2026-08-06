@@ -1,0 +1,54 @@
+{
+	"schema": "graphrefly-work-item-execution-project-fit-qualified-evidence.d686.v1",
+	"authority": ["D685", "D686"],
+	"claimBoundary": "artifact-backed-comparative-project-fit-case-study-not-universal-superiority",
+	"preregistrationDigest": "sha256:02ebe7373166ebce38626b10b9a07e9ea9516a7dac094a3d705e74eab3edf9ef",
+	"scorecardVersion": "graphrefly-work-item-execution-project-fit-scorecard.d686.v1",
+	"scorecardDigest": "sha256:ed7aee5614c4062219958d9901d3e2cbc21f14fad36b87d600b92e17663dbb57",
+	"qualificationStatus": "partial-offline",
+	"missingEvidence": [
+		"independent-arm-provenance-implementations",
+		"committed-before-after-category-change-surfaces"
+	],
+	"networkCalls": 0,
+	"scenarioCount": 5,
+	"armCount": 3,
+	"observationCount": 15,
+	"allScenarioVerifiersPassed": true,
+	"allBehaviorallyEquivalent": true,
+	"coordinatorSurface": {
+		"measurementQualified": false,
+		"rawMarkerProxyOnly": true,
+		"defaultRecipe": {
+			"dependencyRichFanOutFanIn": 0,
+			"failedPrerequisiteIndependentBranchJoin": 0,
+			"provenanceAndFaultGovernance": 20
+		},
+		"plainTypescript": {
+			"dependencyRichFanOutFanIn": 20,
+			"failedPrerequisiteIndependentBranchJoin": 2,
+			"provenanceAndFaultGovernance": 18
+		},
+		"primaryMetric": "coordinationStatementCount",
+		"sourceLinesAreAuxiliary": true
+	},
+	"sourceCoordinates": {
+		"defaultRecipeArmAndSharedHarness": "sha256:f7f90b2dd4058a61745161ca634746fb0720f0c90feaf3e8faf03b4316dde019",
+		"manualGraphReFlyArmAndSharedHarness": "sha256:d3a601bb65a64678533c61a7f0af42dad0de038ca0a71179cca13d84466c7b84",
+		"plainTypescriptArm": "sha256:a0c7867774146eee1ecbfa33edb6a06514797278e2a874def9d8af08e51c0a7d",
+		"candidate": "sha256:55d683ed73d8e8e1250fe65da83cbf306389c5239f4d5605150ed9e293bf37f3"
+	},
+	"promotionGate": {
+		"allFavorableFinalOutcomeAndReadinessVerifiersPass": true,
+		"allFavorableBehaviorAndProvenanceInvariantsPass": false,
+		"armIndependenceQualified": false,
+		"sourceAuditQualified": false,
+		"strictlyLowerCategoryCount": 0,
+		"remainingFavorableCategoriesNonInferior": false,
+		"forbiddenRecipeMechanismsAbsent": true,
+		"linearNegativeControlPassed": true,
+		"promotionPassed": false
+	},
+	"exportDisposition": "blocked-by-preregistered-provenance-non-inferiority-gate",
+	"publicClaim": "comparative-project-fit-case-study"
+}
