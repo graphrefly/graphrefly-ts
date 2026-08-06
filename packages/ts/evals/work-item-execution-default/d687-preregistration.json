@@ -1,0 +1,108 @@
+{
+	"schema": "graphrefly-work-item-execution-default-preregistration.d687.v1",
+	"authority": ["D687"],
+	"preregisteredAt": "2026-08-06",
+	"baselineCommit": "963ab285",
+	"question": "Does the focused default preserve current GraphReFly behavior while removing repeated consumer wiring across the standard one-request-per-EffectRun DAG boundary?",
+	"arms": [
+		{
+			"id": "current-primitives-manual",
+			"description": "Manual composition using the current public GraphReFly plan, EffectRun, AgentRequest and ledger primitives"
+		},
+		{
+			"id": "default-recipe",
+			"description": "The focused workItemExecutionRecipe using one WorkItemProjection node"
+		}
+	],
+	"generalityMatrix": [
+		{
+			"id": "linear",
+			"requires": ["ordered admission", "one request per member", "successful join"]
+		},
+		{
+			"id": "fan-out-fan-in-diamond",
+			"requires": ["parallel-ready sibling facts", "join waits for every required branch"]
+		},
+		{
+			"id": "optional-and-failed-prerequisite",
+			"requires": ["required false reaches issued request", "failed prerequisite blocks dependent join", "independent optional member remains admissible"]
+		},
+		{
+			"id": "evidence-only-join",
+			"requires": ["evidence-only join policy remains projector-owned", "terminal facts match manual composition"]
+		},
+		{
+			"id": "multi-work-item-propagation-and-duplicate",
+			"requires": ["multiple WorkItem ids and revisions", "effect kind", "input", "limits", "policy refs", "source refs", "duplicate EffectRun suppression"]
+		}
+	],
+	"equivalence": {
+		"sameInputs": true,
+		"sameCanonicalOutputs": [
+			"plan results",
+			"EffectRuns",
+			"AgentRequest proposal/admission/issued facts",
+			"issued requests",
+			"request ledger",
+			"dependency terminal status",
+			"provenance bindings"
+		],
+		"sameGraphVisibleStages": true
+	},
+	"ergonomics": {
+		"measure": "consumer-owned static wiring calls and statements over exact frozen arm sources",
+		"manualRequiredStages": [
+			"WorkItemProjection-to-WorkItemSeed projection",
+			"WorkItemEffectPlan projection",
+			"WorkItem EffectRun projection",
+			"AgentRequest proposal/admission/issue projection",
+			"issued-request projection",
+			"request ledger projection"
+		],
+		"recipeRequiredFactoryCalls": 1,
+		"recipeMustBeStrictlyLower": true,
+		"sourceLinesAreAuxiliary": true
+	},
+	"recipeBoundaries": {
+		"forbiddenAuthority": [
+			"executor",
+			"tool-loop",
+			"provider",
+			"custom-admission",
+			"payload-policy",
+			"identifier-policy",
+			"retry",
+			"queue",
+			"rate-limit",
+			"parallel-scheduling",
+			"result-admission"
+		],
+		"advancedEscapeHatch": "all underlying primitives remain public",
+		"oneRequestPerEffectRunAtMost": true,
+		"callerOwnsExecutionAndResults": true
+	},
+	"promotionGate": {
+		"allGeneralityCasesEquivalent": true,
+		"requiredFalsePreservedEndToEnd": true,
+		"singleWorkItemProjectionInput": true,
+		"consumerWiringStrictlyReduced": true,
+		"noHiddenAuthority": true,
+		"noExtraCoordinatorStateMachine": true,
+		"packageEntrySmokePasses": true,
+		"rootAndAggregatesUnchanged": true
+	},
+	"excludedFromDefault": [
+		"multi-request-or-multi-turn-per-EffectRun",
+		"custom-request-reject-defer-merge",
+		"executor-or-tool-loop",
+		"provider-routing",
+		"custom-payload-or-identifier-policy",
+		"retry-queue-rate-limit-or-parallel-scheduling"
+	],
+	"scope": {
+		"offlineOnly": true,
+		"noProtocolOrConformanceChange": true,
+		"noCrossLanguageWork": true,
+		"independentOf": ["D686", "CSP-11", "B112", "AgenticMemory"]
+	}
+}
