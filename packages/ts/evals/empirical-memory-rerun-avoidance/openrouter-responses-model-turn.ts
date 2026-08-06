@@ -256,6 +256,7 @@ interface PreparedOpenRouterRequest {
 	readonly userEnvelope: StrictJsonValue;
 	readonly finalStep: boolean;
 	readonly terminalReady: boolean;
+	readonly toolContinuationRequired: boolean;
 }
 
 interface OpenRouterToolBinding {
@@ -374,9 +375,6 @@ function validateD682HostDerivedProviderToolSet(
 }
 
 function d682TerminalReady(request: EmpiricalModelTurnRequestV1): boolean {
-	if (!validateD682HostDerivedProviderToolSet(request.availableTools, request.structuredInput)) {
-		return false;
-	}
 	const latest = request.priorToolResults.at(-1);
 	if (latest === undefined) return false;
 	try {
@@ -849,7 +847,11 @@ function requestBody(
 			result: result.result,
 		};
 	});
-	const terminalReady = deepSeekEarlyCompletion ? d682TerminalReady(request) : false;
+	const exactD682HostDerivedToolSet = deepSeekEarlyCompletion
+		? validateD682HostDerivedProviderToolSet(request.availableTools, request.structuredInput)
+		: false;
+	const terminalReady = exactD682HostDerivedToolSet ? d682TerminalReady(request) : false;
+	const toolContinuationRequired = exactD682HostDerivedToolSet && !finalStep && !terminalReady;
 	const userEnvelope = strictSnapshot({
 		schemaVersion: OPENROUTER_RESPONSES_USER_ENVELOPE_SCHEMA,
 		turn: {
@@ -869,9 +871,11 @@ function requestBody(
 	const toolChoice =
 		request.availableTools.length === 0 || finalStep || terminalReady
 			? "none"
-			: deepSeekEarlyCompletion && request.priorToolResults.length > 0
-				? "auto"
-				: configuration.settings.tools.choice;
+			: toolContinuationRequired
+				? "required"
+				: deepSeekEarlyCompletion && request.priorToolResults.length > 0
+					? "auto"
+					: configuration.settings.tools.choice;
 	const outputName = providerOutputName(request.outputSchema);
 	const outputShape = lowerShape(request.outputSchema.schema);
 	const encodedEnvelope = decoder.decode(strictJsonCodec.encode(userEnvelope));
@@ -894,7 +898,9 @@ function requestBody(
 					reasoning: { effort: configuration.settings.reasoning.effort },
 					...(finalStep ||
 					terminalReady ||
-					(deepSeekEarlyCompletion && request.priorToolResults.length > 0)
+					(deepSeekEarlyCompletion &&
+						!exactD682HostDerivedToolSet &&
+						request.priorToolResults.length > 0)
 						? {
 								response_format: {
 									type: "json_schema",
@@ -949,7 +955,7 @@ function requestBody(
 	if (bytes.byteLength > MAX_EMPIRICAL_MODEL_TURN_REQUEST_BYTES) {
 		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.rejected);
 	}
-	return { body: bytes, userEnvelope, finalStep, terminalReady };
+	return { body: bytes, userEnvelope, finalStep, terminalReady, toolContinuationRequired };
 }
 
 function assertNoDuplicateJsonObjectKeys(text: string): void {
@@ -2283,10 +2289,10 @@ async function invokeOpenRouterResponses(
 			}),
 		},
 	];
-	const deepSeekInitialToolRequired =
+	const deepSeekToolRequired =
 		config.route.qualification.requestModel === OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL &&
-		request.priorToolResults.length === 0 &&
-		!preparedRequest.finalStep;
+		((request.priorToolResults.length === 0 && !preparedRequest.finalStep) ||
+			preparedRequest.toolContinuationRequired);
 	const terminalReadyToolCall =
 		preparedRequest.terminalReady && candidate.finishReason === "tool-intents";
 	const chatTurnContractViolated =
@@ -2295,7 +2301,7 @@ async function invokeOpenRouterResponses(
 			(!preparedRequest.finalStep &&
 				candidate.finishReason !== "tool-intents" &&
 				(config.route.qualification.requestModel !== OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL ||
-					deepSeekInitialToolRequired)));
+					deepSeekToolRequired)));
 	const chatTurnContractDiagnostic =
 		config.route.qualification.endpoint !== OPENROUTER_CHAT_COMPLETIONS_ENDPOINT
 			? null
@@ -2305,7 +2311,7 @@ async function invokeOpenRouterResponses(
 					? OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.finalToolCall
 					: (config.route.qualification.requestModel !==
 								OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL ||
-								deepSeekInitialToolRequired) &&
+								deepSeekToolRequired) &&
 							!preparedRequest.finalStep &&
 							candidate.finishReason !== "tool-intents"
 						? OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.nonFinalDirectOutput

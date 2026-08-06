@@ -2013,6 +2013,66 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		]);
 	});
 
+	it("requires another exact D682 tool after host progress is not terminal", async () => {
+		const authority = buildDeepSeekAuthority(true, true);
+		const route = deepSeekRouteQualification(authority);
+		const harness = createHarness(
+			authority,
+			deepSeekChatResponse({
+				id: "chatcmpl_deepseek_d682_premature_final_01",
+				finishReason: "stop",
+				message: {
+					role: "assistant",
+					content: JSON.stringify({
+						kind: "model-turn-output-placeholder",
+						summary: "premature-d682-final",
+					}),
+				},
+			}),
+			bearerToken,
+			route,
+		);
+		const rebound = rebindInput(harness.request, authority, d682ActorInput());
+		const request = validateEmpiricalModelTurnRequest(
+			{
+				...withPriorToolResultValue(rebound, authority, harness.binding, {
+					toolRef: CLOSED_ACTOR_TOOL_REFS.readFile,
+					result: strictSnapshot({
+						kind: "read-file",
+						progress: {
+							remainingSteps: 6,
+							remainingActions: 7,
+							mutationObserved: false,
+							diffObserved: false,
+							commandObserved: false,
+						},
+					}),
+				}),
+				requestRef: "deepseek-d682-premature-final",
+				stepIndex: 1,
+			},
+			authority.frozen,
+			authority.qualificationReport,
+		);
+
+		const outcome = await harness.binding.modelTurnPort.invoke(
+			request,
+			new AbortController().signal,
+		);
+
+		expect(outcome).toMatchObject({
+			status: "non-evaluable",
+			issueCodes: [
+				OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+				OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.nonFinalDirectOutput,
+			],
+		});
+		const sent = harness.transport.mock.calls[0]?.[0] as OpenRouterResponsesTransportRequestV1;
+		const body = strictJsonCodec.decode(sent.body);
+		expect(body).toMatchObject({ tool_choice: "required" });
+		expect(body).not.toHaveProperty("response_format");
+	});
+
 	it("mechanically closes exact D682 tools after host-derived terminal progress", async () => {
 		const authority = buildDeepSeekAuthority(true, true);
 		const route = deepSeekRouteQualification(authority);
