@@ -1,0 +1,144 @@
+{
+	"schema": "graphrefly-work-item-execution-project-fit-preregistration.d686.v1",
+	"authority": ["D685", "D686"],
+	"preregisteredAt": "2026-08-06",
+	"baselineCommit": "a2d57fd6ee4d8dfa81435f6fd69dc1c24b8f1fa9",
+	"claimBoundary": "artifact-backed-comparative-project-fit-case-study-not-universal-superiority",
+	"scope": {
+		"offlineOnly": true,
+		"independentOf": ["CSP-11", "B112", "AgenticMemory"],
+		"forbidden": [
+			"network",
+			"llm",
+			"provider",
+			"spend",
+			"protocol-change",
+			"conformance-change",
+			"cross-language",
+			"demo",
+			"ui",
+			"website"
+		]
+	},
+	"candidate": {
+		"symbol": "workItemExecutionRecipe",
+		"sourcePath": "packages/ts/src/solutions/work-item/execution.ts",
+		"conditionalSubpath": "@graphrefly/ts/solutions/work-item/execution",
+		"mustRemainUnexportedUntilPromotionPasses": true,
+		"mustNotEnter": ["package-root", "solutions-aggregate"],
+		"forbiddenAuthority": [
+			"executor",
+			"provider",
+			"tool-loop",
+			"queue",
+			"retry",
+			"timer",
+			"scheduler",
+			"concurrency",
+			"result-fabrication",
+			"callback-registry"
+		]
+	},
+	"arms": [
+		{
+			"id": "default-recipe",
+			"implementation": "D685 candidate",
+			"importsGraphReFly": true
+		},
+		{
+			"id": "manual-graphrefly",
+			"implementation": "manual composition of existing public primitives",
+			"importsGraphReFly": true
+		},
+		{
+			"id": "plain-typescript",
+			"implementation": "independent TypeScript coordinator",
+			"importsGraphReFly": false
+		}
+	],
+	"categories": [
+		{
+			"id": "dependency-rich-fan-out-fan-in",
+			"kind": "favorable",
+			"requiredCases": [
+				"fan-out members admit only after prerequisites",
+				"join admits only after every required branch succeeds",
+				"one preregistered branch extension changes dependencies without handwritten recipe scheduling"
+			]
+		},
+		{
+			"id": "failed-prerequisite-independent-branch-join",
+			"kind": "favorable",
+			"requiredCases": [
+				"failed prerequisite blocks its dependent branch",
+				"independent optional branch may still complete",
+				"join cannot admit when a required branch failed"
+			]
+		},
+		{
+			"id": "provenance-and-fault-governance",
+			"kind": "favorable",
+			"requiredCases": [
+				"duplicate completion rejected",
+				"stale completion rejected",
+				"wrong-operation completion rejected",
+				"late completion rejected"
+			]
+		},
+		{
+			"id": "simple-linear-negative-control",
+			"kind": "negative-control",
+			"requiredCases": [
+				"two-step linear workflow completes",
+				"recipe consumer adds no coordinator state machine beyond fixed construction ceremony"
+			]
+		}
+	],
+	"behavioralEvidence": {
+		"sameScenarioContractAcrossArms": true,
+		"sameIndependentVerifierAcrossArms": true,
+		"requiredFacts": [
+			"admitted-member-ids",
+			"issued-request-ids",
+			"terminal-member-statuses",
+			"blocked-member-ids",
+			"rejection-codes",
+			"dependency-binding",
+			"operation-provenance-binding"
+		],
+		"canonicalEvidence": "graphrefly-work-item-execution-project-fit-scorecard.d686.v1"
+	},
+	"changeSurfaceAudit": {
+		"metricKind": "preregistered-consumer-coordinator-syntactic-proxy",
+		"primaryMetric": "coordinationStatementCount",
+		"auxiliaryMetrics": ["nonBlankSourceLines", "mutableReadinessBindings", "executionLoops"],
+		"scopeRule": "count TypeScript statement nodes and auxiliary source facts only inside exact per-arm, per-category D686_COORDINATOR marker pairs; shared scenario fixtures, verifier code, tests and evidence infrastructure are excluded",
+		"markers": {
+			"start": "D686_COORDINATOR:<arm>:<category>:START",
+			"end": "D686_COORDINATOR:<arm>:<category>:END"
+		},
+		"everyFavorableCategoryAndArmMustHaveExactlyOneMarkerPair": true,
+		"sourceLinesAreAuxiliary": true,
+		"doesNotMeasureDeveloperTimeOrSemanticComplexity": true
+	},
+	"promotionGate": {
+		"allFavorableBehaviorAndProvenanceInvariantsPass": true,
+		"recipeForbiddenMechanisms": [
+			"handwritten-dependency-scheduler",
+			"mutable-readiness-table",
+			"execution-loop"
+		],
+		"strictlyLowerRecipeCoordinatorSurfaceThanPlainTypescriptInAtLeast": 2,
+		"favorableCategoryCount": 3,
+		"remainingFavorableCategoriesMustBeNonInferior": true,
+		"linearControlAllowsExtraRecipeStateMachine": false,
+		"publicExportOnlyAfterPass": true
+	},
+	"baselineInvariants": [
+		"existing WorkItemEffectPlan dependency readiness remains authoritative",
+		"caller owns admitted EffectRunResult facts and execution",
+		"one deterministic provider-neutral AgentRequest per EffectRun at most",
+		"no hidden execution, retry, scheduling, concurrency or result fabrication",
+		"advanced callers may compose primitives directly"
+	]
+}
