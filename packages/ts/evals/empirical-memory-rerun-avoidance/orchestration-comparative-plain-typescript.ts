@@ -60,6 +60,11 @@ export function runD683PlainTypescriptPath(scenario: D683PlainScenario): D683Pla
 		resultId: string,
 		executionInputRevision = 1,
 	): boolean => {
+		// D683_QA_CORRECTION:duplicate-admission reject an accepted result before terminal-state checks.
+		if (acceptedResultIds.has(resultId)) {
+			rejectedFaultCodes.push("duplicate-result");
+			return false;
+		}
 		if (states.get(memberId) !== "issued") {
 			rejectedFaultCodes.push("unissued-effect-run");
 			return false;
@@ -72,10 +77,7 @@ export function runD683PlainTypescriptPath(scenario: D683PlainScenario): D683Pla
 			rejectedFaultCodes.push("wrong-operation");
 			return false;
 		}
-		if (acceptedResultIds.has(resultId)) {
-			rejectedFaultCodes.push("duplicate-result");
-			return false;
-		}
+		// D683_QA_CORRECTION:duplicate-admission the former late duplicate check was removed here.
 		acceptedResultIds.add(resultId);
 		states.set(memberId, scenario.members.find((member) => member.memberId === memberId)!.outcome);
 		return true;
@@ -91,7 +93,8 @@ export function runD683PlainTypescriptPath(scenario: D683PlainScenario): D683Pla
 		const resultId = `plain-result:${memberId}`;
 		complete(memberId, operations.get(memberId)!, resultId);
 		if (scenario.injectFaults && cursor === 1 && acceptedResultIds.has(resultId)) {
-			rejectedFaultCodes.push("duplicate-result");
+			// D683_QA_CORRECTION:duplicate-admission resubmit through the real completion path.
+			complete(memberId, operations.get(memberId)!, resultId);
 		}
 		schedule();
 	}

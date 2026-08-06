@@ -1,0 +1,49 @@
+{
+	"schema": "graphrefly-orchestration-qualified-evidence-coordinates.d683.v1",
+	"authority": "D683",
+	"qualifiedAt": "2026-08-05",
+	"dependencyPreregistrationDigest": "sha256:21054de9c6c67f722653e572fde9d0fa81e1b4815d6983edc168de66b88a895e",
+	"sourceAuditPreregistrationDigest": "sha256:c67d62cffb24e46d26e0b8d582895961ec2dea0506216ffe7b5112819d1d9fd8",
+	"parserRevision": "typescript@5.9.3",
+	"coordinationPolicy": "ast-local-call-closure-syntactic-proxies.v2",
+	"metricKind": "auxiliary-syntactic-proxy",
+	"sourceAuditEvidenceDigest": "sha256:94d9a756ba6c176f8f7f338edc465fadf48fbd2acb783094a4bdd90183cd47b0",
+	"graphrefly": {
+		"path": "packages/ts/evals/empirical-memory-rerun-avoidance/orchestration-comparative-evidence.ts",
+		"entryFunctionNames": ["runGraphReFlyPath"],
+		"functionNames": [
+			"collectData",
+			"portableCoordinate",
+			"validateScenario",
+			"issuedForRun",
+			"resultFor",
+			"blockedMembers",
+			"runGraphReFlyPath"
+		],
+		"sourceDigest": "sha256:d753f7e5846b9df56dfc6bee1048fd0cf296fc701d978e6efb27e60b7183daf7",
+		"sourceLineCount": 255,
+		"mutatedLocalCollectionBindingCount": 8,
+		"conditionalSyntaxNodeCount": 17
+	},
+	"plainTypescript": {
+		"path": "packages/ts/evals/empirical-memory-rerun-avoidance/orchestration-comparative-plain-typescript.ts",
+		"entryFunctionNames": ["runD683PlainTypescriptPath"],
+		"functionNames": ["runD683PlainTypescriptPath"],
+		"sourceDigest": "sha256:d694cf63b8814e4c37a1baf941811e05a140f00f1d49dbd34aa26402ec7741ff",
+		"sourceLineCount": 98,
+		"mutatedLocalCollectionBindingCount": 5,
+		"conditionalSyntaxNodeCount": 10
+	},
+	"extensionPatchDigest": "sha256:2d8a08c77d37580378bb68106a135516bbd909c0bbc71f2fe8bca6bfbcf34813",
+	"extensionSurface": {
+		"preregisteredCoordinatorExpectationMet": true,
+		"total": { "fileCount": 2, "hunkCount": 2, "testCount": 1 },
+		"sharedContractOrFixture": { "fileCount": 1, "hunkCount": 1, "testCount": 0 },
+		"graphreflyCoordinator": { "fileCount": 0, "hunkCount": 0, "testCount": 0 },
+		"plainTypescriptCoordinator": { "fileCount": 0, "hunkCount": 0, "testCount": 0 },
+		"tests": { "fileCount": 1, "hunkCount": 1, "testCount": 1 },
+		"excludedMeasurementInfrastructure": { "fileCount": 2, "hunkCount": 13, "testCount": 0 },
+		"excludedQaCorrections": { "fileCount": 1, "hunkCount": 3, "testCount": 0 }
+	},
+	"claimBoundary": "complete-offline-exact-qualified-case-study-no-universal-ergonomics-or-superiority-claim"
+}

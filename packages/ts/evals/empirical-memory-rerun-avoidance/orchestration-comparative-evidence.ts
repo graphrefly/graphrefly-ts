@@ -21,8 +21,17 @@ import {
 } from "../../src/solutions/work-item/scheduling.js";
 import { empiricalStrictJsonDigest, strictSnapshot } from "./canonical.js";
 import { runD683PlainTypescriptPath } from "./orchestration-comparative-plain-typescript.js";
+import {
+	createD683SourceAuditEvidence,
+	type D683ChangeSurfaceBucket,
+	type D683CoordinatorSourceInput,
+	type D683DependencyExtensionPatchInput,
+	type D683SourceAuditEvidenceV1,
+	validateD683QualifiedEvidenceCoordinates,
+} from "./orchestration-comparative-source-audit.js";
 
 export const ORCHESTRATION_COMPARISON_VERSION = "graphrefly-orchestration-comparison.d683.v1";
+export const ORCHESTRATION_COMPARISON_VERSION_V2 = "graphrefly-orchestration-comparison.d683.v2";
 export const ORCHESTRATION_COMPARISON_CLAIM_BOUNDARY =
 	"exact-offline-comparative-case-study-no-universal-superiority-claim";
 
@@ -58,11 +67,21 @@ export interface D683PathObservation {
 		readonly edgeCount: number;
 		readonly namedNodeCount: number;
 	};
-	readonly observedCoordination: {
-		readonly measurementStatus: "not-collected";
-		readonly handwrittenMutableCollectionCount: null;
-		readonly transitionBranchCount: null;
-	};
+	readonly observedCoordination:
+		| {
+				readonly measurementStatus: "not-collected";
+				readonly handwrittenMutableCollectionCount: null;
+				readonly transitionBranchCount: null;
+		  }
+		| {
+				readonly measurementStatus: "collected";
+				readonly metricKind: "auxiliary-syntactic-proxy";
+				readonly functionNames: readonly string[];
+				readonly sourceLineCount: number;
+				readonly mutatedLocalCollectionBindingCount: number;
+				readonly conditionalSyntaxNodeCount: number;
+				readonly sourceDigest: string;
+		  };
 }
 
 export interface D683ScenarioEvidence {
@@ -78,12 +97,25 @@ export interface D683ScenarioEvidence {
 		readonly provenanceFaultCodes: readonly string[];
 		readonly provenanceFaultAuthority: "outer-completion-admission";
 	};
-	readonly extensionChangeSurface: {
-		readonly measurementStatus: "not-collected";
-		readonly fileCount: null;
-		readonly hunkCount: null;
-		readonly testCount: null;
-	};
+	readonly extensionChangeSurface:
+		| {
+				readonly measurementStatus: "not-applicable" | "not-collected";
+				readonly fileCount: null;
+				readonly hunkCount: null;
+				readonly testCount: null;
+		  }
+		| {
+				readonly measurementStatus: "collected";
+				readonly preregisteredCoordinatorExpectationMet: boolean;
+				readonly patchDigest: string;
+				readonly total: D683ChangeSurfaceBucket;
+				readonly sharedContractOrFixture: D683ChangeSurfaceBucket;
+				readonly graphreflyCoordinator: D683ChangeSurfaceBucket;
+				readonly plainTypescriptCoordinator: D683ChangeSurfaceBucket;
+				readonly tests: D683ChangeSurfaceBucket;
+				readonly excludedMeasurementInfrastructure: D683ChangeSurfaceBucket;
+				readonly excludedQaCorrections: D683ChangeSurfaceBucket;
+		  };
 }
 
 export interface D683ComparativeEvidenceV1 {
@@ -102,7 +134,40 @@ export interface D683ComparativeEvidenceV1 {
 	readonly evidenceDigest: string;
 }
 
-const SCENARIOS: readonly D683Scenario[] = Object.freeze([
+export interface D683ComparativeEvidenceV2 {
+	readonly version: typeof ORCHESTRATION_COMPARISON_VERSION_V2;
+	readonly claimBoundary: typeof ORCHESTRATION_COMPARISON_CLAIM_BOUNDARY;
+	readonly networkCalls: 0;
+	readonly qualificationStatus: "complete-offline";
+	readonly missingEvidence: readonly [];
+	readonly preregistration: {
+		readonly dependencyExtensionDigest: string;
+		readonly sourceAuditDigest: string;
+	};
+	readonly sourceAudit: D683SourceAuditEvidenceV1;
+	readonly qualificationCoordinatesDigest: string;
+	readonly scenarios: readonly D683ScenarioEvidence[];
+	readonly favorableCaseCount: number;
+	readonly negativeControlCount: number;
+	readonly allBehaviorallyEquivalent: boolean;
+	readonly evidenceDigest: string;
+}
+
+const D683_DEPENDENCY_PREREGISTRATION_DIGEST =
+	"sha256:21054de9c6c67f722653e572fde9d0fa81e1b4815d6983edc168de66b88a895e";
+const D683_SOURCE_AUDIT_PREREGISTRATION_DIGEST =
+	"sha256:c67d62cffb24e46d26e0b8d582895961ec2dea0506216ffe7b5112819d1d9fd8";
+const D683_BASELINE_COMMIT = "2a488bcc8867d4e400573fb93dcaf7f3b483eef4";
+const D683_GRAPHREFLY_SOURCE_PATH =
+	"packages/ts/evals/empirical-memory-rerun-avoidance/orchestration-comparative-evidence.ts";
+const D683_PLAIN_SOURCE_PATH =
+	"packages/ts/evals/empirical-memory-rerun-avoidance/orchestration-comparative-plain-typescript.ts";
+const D683_TEST_PATH =
+	"packages/ts/src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.d683-comparison.test.ts";
+const D683_GRAPHREFLY_AUDITED_FUNCTIONS = ["runGraphReFlyPath"] as const;
+const D683_PLAIN_AUDITED_FUNCTIONS = ["runD683PlainTypescriptPath"] as const;
+
+const SCENARIOS_V1: readonly D683Scenario[] = Object.freeze([
 	{
 		scenarioId: "d683-fan-out-fan-in",
 		category: "dependency-rich-fan-out-fan-in",
@@ -133,6 +198,26 @@ const SCENARIOS: readonly D683Scenario[] = Object.freeze([
 			{ memberId: "second", dependsOnMemberIds: ["first"], outcome: "completed" },
 		],
 	},
+]);
+
+const DEPENDENCY_EXTENSION_SCENARIO = Object.freeze({
+	scenarioId: "d683-fan-out-fan-in-extension",
+	category: "dependency-rich-fan-out-fan-in",
+	injectFaults: false,
+	members: [
+		{ memberId: "load", dependsOnMemberIds: [], outcome: "completed" },
+		{ memberId: "left", dependsOnMemberIds: ["load"], outcome: "completed" },
+		{ memberId: "right", dependsOnMemberIds: ["load"], outcome: "completed" },
+		{ memberId: "join", dependsOnMemberIds: ["left", "right"], outcome: "completed" },
+		// D683_DEPENDENCY_EXTENSION:shared-contract preregistered audit member after the existing fan-in.
+		{ memberId: "audit", dependsOnMemberIds: ["join"], outcome: "completed" },
+	],
+} satisfies D683Scenario);
+
+const SCENARIOS_V2: readonly D683Scenario[] = Object.freeze([
+	SCENARIOS_V1[0]!,
+	DEPENDENCY_EXTENSION_SCENARIO,
+	...SCENARIOS_V1.slice(1),
 ]);
 
 function collectData<T>(node: Node<T>): T[] {
@@ -447,46 +532,107 @@ function expectedBehavior(scenario: D683Scenario): unknown {
 	};
 }
 
-export function runD683OfflineComparativeEvidence(): D683ComparativeEvidenceV1 {
-	const scenarios = SCENARIOS.map((scenario) => {
-		const graphrefly = runGraphReFlyPath(scenario);
-		const plainTypescript = strictSnapshot(runD683PlainTypescriptPath(scenario));
-		const graphBehavior = behaviorProjection(graphrefly);
-		const plainBehavior = behaviorProjection(plainTypescript);
-		const expectedDigest = empiricalStrictJsonDigest(expectedBehavior(scenario));
-		const verifierPassed =
-			empiricalStrictJsonDigest(graphBehavior) === expectedDigest &&
-			empiricalStrictJsonDigest(plainBehavior) === expectedDigest;
-		return strictSnapshot({
-			scenarioId: scenario.scenarioId,
-			category: scenario.category,
-			verifierPassed,
-			behaviorDigest: empiricalStrictJsonDigest(graphBehavior),
-			graphrefly,
-			plainTypescript,
-			coverage: {
-				dependencyEdgeCount: scenario.members.reduce(
-					(sum, member) => sum + member.dependsOnMemberIds.length,
-					0,
+function runScenarioEvidence(
+	scenario: D683Scenario,
+	sourceAudit?: D683SourceAuditEvidenceV1,
+): D683ScenarioEvidence {
+	const rawGraphrefly = runGraphReFlyPath(scenario);
+	const rawPlainTypescript = strictSnapshot(runD683PlainTypescriptPath(scenario));
+	const graphrefly =
+		sourceAudit === undefined
+			? rawGraphrefly
+			: strictSnapshot({
+					...rawGraphrefly,
+					observedCoordination: {
+						measurementStatus: "collected" as const,
+						metricKind: sourceAudit.metricKind,
+						functionNames: sourceAudit.graphrefly.functionNames,
+						sourceLineCount: sourceAudit.graphrefly.sourceLineCount,
+						mutatedLocalCollectionBindingCount:
+							sourceAudit.graphrefly.mutatedLocalCollectionBindingCount,
+						conditionalSyntaxNodeCount: sourceAudit.graphrefly.conditionalSyntaxNodeCount,
+						sourceDigest: sourceAudit.graphrefly.sourceDigest,
+					},
+				});
+	const plainTypescript =
+		sourceAudit === undefined
+			? rawPlainTypescript
+			: strictSnapshot({
+					...rawPlainTypescript,
+					observedCoordination: {
+						measurementStatus: "collected" as const,
+						metricKind: sourceAudit.metricKind,
+						functionNames: sourceAudit.plainTypescript.functionNames,
+						sourceLineCount: sourceAudit.plainTypescript.sourceLineCount,
+						mutatedLocalCollectionBindingCount:
+							sourceAudit.plainTypescript.mutatedLocalCollectionBindingCount,
+						conditionalSyntaxNodeCount: sourceAudit.plainTypescript.conditionalSyntaxNodeCount,
+						sourceDigest: sourceAudit.plainTypescript.sourceDigest,
+					},
+				});
+	const graphBehavior = behaviorProjection(graphrefly);
+	const plainBehavior = behaviorProjection(plainTypescript);
+	const expectedDigest = empiricalStrictJsonDigest(expectedBehavior(scenario));
+	const verifierPassed =
+		empiricalStrictJsonDigest(graphBehavior) === expectedDigest &&
+		empiricalStrictJsonDigest(plainBehavior) === expectedDigest;
+	return strictSnapshot({
+		scenarioId: scenario.scenarioId,
+		category: scenario.category,
+		verifierPassed,
+		behaviorDigest: empiricalStrictJsonDigest(graphBehavior),
+		graphrefly,
+		plainTypescript,
+		coverage: {
+			dependencyEdgeCount: scenario.members.reduce(
+				(sum, member) => sum + member.dependsOnMemberIds.length,
+				0,
+			),
+			failedDependencyCovered: scenario.members.some((member) =>
+				member.dependsOnMemberIds.some(
+					(dependency) =>
+						scenario.members.find((candidate) => candidate.memberId === dependency)?.outcome ===
+						"failed",
 				),
-				failedDependencyCovered: scenario.members.some((member) =>
-					member.dependsOnMemberIds.some(
-						(dependency) =>
-							scenario.members.find((candidate) => candidate.memberId === dependency)?.outcome ===
-							"failed",
-					),
-				),
-				provenanceFaultCodes: graphrefly.rejectedFaultCodes,
-				provenanceFaultAuthority: graphrefly.faultAuthority,
-			},
-			extensionChangeSurface: {
-				measurementStatus: "not-collected" as const,
-				fileCount: null,
-				hunkCount: null,
-				testCount: null,
-			},
-		});
+			),
+			provenanceFaultCodes: graphrefly.rejectedFaultCodes,
+			provenanceFaultAuthority: graphrefly.faultAuthority,
+		},
+		extensionChangeSurface:
+			sourceAudit === undefined
+				? {
+						measurementStatus: "not-collected" as const,
+						fileCount: null,
+						hunkCount: null,
+						testCount: null,
+					}
+				: scenario.scenarioId === DEPENDENCY_EXTENSION_SCENARIO.scenarioId
+					? {
+							measurementStatus: "collected" as const,
+							patchDigest: sourceAudit.extensionChangeSurface.patchDigest,
+							preregisteredCoordinatorExpectationMet:
+								sourceAudit.extensionChangeSurface.preregisteredCoordinatorExpectationMet,
+							total: sourceAudit.extensionChangeSurface.total,
+							sharedContractOrFixture: sourceAudit.extensionChangeSurface.sharedContractOrFixture,
+							graphreflyCoordinator: sourceAudit.extensionChangeSurface.graphreflyCoordinator,
+							plainTypescriptCoordinator:
+								sourceAudit.extensionChangeSurface.plainTypescriptCoordinator,
+							tests: sourceAudit.extensionChangeSurface.tests,
+							excludedMeasurementInfrastructure:
+								sourceAudit.extensionChangeSurface.excludedMeasurementInfrastructure,
+							excludedQaCorrections: sourceAudit.extensionChangeSurface.excludedQaCorrections,
+						}
+					: {
+							measurementStatus: "not-applicable" as const,
+							fileCount: null,
+							hunkCount: null,
+							testCount: null,
+						},
 	});
+}
+
+export function runD683OfflineComparativeEvidence(): D683ComparativeEvidenceV1 {
+	const scenarios = SCENARIOS_V1.map((scenario) => runScenarioEvidence(scenario));
 	const withoutDigest: Omit<D683ComparativeEvidenceV1, "evidenceDigest"> = {
 		version: ORCHESTRATION_COMPARISON_VERSION,
 		claimBoundary: ORCHESTRATION_COMPARISON_CLAIM_BOUNDARY,
@@ -496,6 +642,110 @@ export function runD683OfflineComparativeEvidence(): D683ComparativeEvidenceV1 {
 			"handwritten-coordination-source-audit",
 			"preregistered-dependency-extension-change-surface",
 		] as const,
+		scenarios,
+		favorableCaseCount: scenarios.filter(
+			(scenario) => scenario.category !== "simple-linear-negative-control",
+		).length,
+		negativeControlCount: scenarios.filter(
+			(scenario) => scenario.category === "simple-linear-negative-control",
+		).length,
+		allBehaviorallyEquivalent: scenarios.every((scenario) => scenario.verifierPassed),
+	};
+	return strictSnapshot({
+		...withoutDigest,
+		evidenceDigest: empiricalStrictJsonDigest(withoutDigest),
+	});
+}
+
+function sameStrings(actual: readonly string[], expected: readonly string[], field: string): void {
+	if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+		throw new TypeError(`${field} does not match the frozen D683 preregistration`);
+	}
+}
+
+function validateD683CompleteCoordinates(input: {
+	readonly dependencyPreregistration: unknown;
+	readonly sourceAuditPreregistration: unknown;
+	readonly graphreflySource: D683CoordinatorSourceInput;
+	readonly plainTypescriptSource: D683CoordinatorSourceInput;
+	readonly extensionPatch: D683DependencyExtensionPatchInput;
+}): D683ComparativeEvidenceV2["preregistration"] {
+	const dependencyExtensionDigest = empiricalStrictJsonDigest(
+		strictSnapshot(input.dependencyPreregistration),
+	);
+	const sourceAuditDigest = empiricalStrictJsonDigest(
+		strictSnapshot(input.sourceAuditPreregistration),
+	);
+	if (dependencyExtensionDigest !== D683_DEPENDENCY_PREREGISTRATION_DIGEST) {
+		throw new TypeError("D683 dependency-extension preregistration digest mismatch");
+	}
+	if (sourceAuditDigest !== D683_SOURCE_AUDIT_PREREGISTRATION_DIGEST) {
+		throw new TypeError("D683 source-audit preregistration digest mismatch");
+	}
+	if (input.graphreflySource.path !== D683_GRAPHREFLY_SOURCE_PATH) {
+		throw new TypeError("D683 GraphReFly source path mismatch");
+	}
+	if (input.plainTypescriptSource.path !== D683_PLAIN_SOURCE_PATH) {
+		throw new TypeError("D683 plain-TypeScript source path mismatch");
+	}
+	sameStrings(
+		input.graphreflySource.functionNames,
+		D683_GRAPHREFLY_AUDITED_FUNCTIONS,
+		"D683 GraphReFly audited functions",
+	);
+	sameStrings(
+		input.plainTypescriptSource.functionNames,
+		D683_PLAIN_AUDITED_FUNCTIONS,
+		"D683 plain-TypeScript audited functions",
+	);
+	if (input.extensionPatch.baselineCommit !== D683_BASELINE_COMMIT) {
+		throw new TypeError("D683 extension baseline commit mismatch");
+	}
+	sameStrings(
+		[...input.extensionPatch.measuredTargetPaths].sort(),
+		[D683_GRAPHREFLY_SOURCE_PATH, D683_PLAIN_SOURCE_PATH, D683_TEST_PATH].sort(),
+		"D683 extension target paths",
+	);
+	const extensionMember = DEPENDENCY_EXTENSION_SCENARIO.members.at(-1);
+	if (
+		DEPENDENCY_EXTENSION_SCENARIO.scenarioId !== "d683-fan-out-fan-in-extension" ||
+		extensionMember?.memberId !== "audit" ||
+		extensionMember.outcome !== "completed" ||
+		JSON.stringify(extensionMember.dependsOnMemberIds) !== JSON.stringify(["join"])
+	) {
+		throw new TypeError("D683 dependency-extension scenario drifted from preregistration");
+	}
+	return strictSnapshot({ dependencyExtensionDigest, sourceAuditDigest });
+}
+
+export function runD683CompleteOfflineComparativeEvidence(input: {
+	readonly dependencyPreregistration: unknown;
+	readonly sourceAuditPreregistration: unknown;
+	readonly qualificationCoordinates: unknown;
+	readonly graphreflySource: D683CoordinatorSourceInput;
+	readonly plainTypescriptSource: D683CoordinatorSourceInput;
+	readonly extensionPatch: D683DependencyExtensionPatchInput;
+}): D683ComparativeEvidenceV2 {
+	const preregistration = validateD683CompleteCoordinates(input);
+	const sourceAudit = createD683SourceAuditEvidence({
+		graphrefly: input.graphreflySource,
+		plainTypescript: input.plainTypescriptSource,
+		extensionPatch: input.extensionPatch,
+	});
+	const qualificationCoordinatesDigest = validateD683QualifiedEvidenceCoordinates(
+		input.qualificationCoordinates,
+		sourceAudit,
+	);
+	const scenarios = SCENARIOS_V2.map((scenario) => runScenarioEvidence(scenario, sourceAudit));
+	const withoutDigest: Omit<D683ComparativeEvidenceV2, "evidenceDigest"> = {
+		version: ORCHESTRATION_COMPARISON_VERSION_V2,
+		claimBoundary: ORCHESTRATION_COMPARISON_CLAIM_BOUNDARY,
+		networkCalls: 0 as const,
+		qualificationStatus: "complete-offline" as const,
+		missingEvidence: [] as const,
+		preregistration,
+		sourceAudit,
+		qualificationCoordinatesDigest,
 		scenarios,
 		favorableCaseCount: scenarios.filter(
 			(scenario) => scenario.category !== "simple-linear-negative-control",

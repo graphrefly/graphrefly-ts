@@ -2,6 +2,8 @@
 	"schema": "graphrefly-orchestration-source-audit-preregistration.d683.v1",
 	"authority": "D683",
 	"preregisteredAt": "2026-08-05",
+	"qaAmendedAt": "2026-08-05",
+	"qaAmendment": "Replace asymmetric selected-function counting with a symmetric local-call-closure rule and classify every hunk in the frozen target diff; this correction was made before accepting the evidence and authorizes no directional simplicity claim.",
 	"parentPreregistration": {
 		"commit": "83ad010047efee7f36c35aedcdcb999cc3526542",
 		"path": "packages/ts/evals/empirical-memory-rerun-avoidance/d683-dependency-extension-preregistration.json",
@@ -9,27 +11,51 @@
 	},
 	"coordinationAudit": {
 		"metricKind": "auxiliary-syntactic-proxy",
-		"policy": "ast-mutated-local-collection-bindings-and-conditional-syntax-nodes.v1",
+		"policy": "ast-local-call-closure-syntactic-proxies.v2",
+		"scopeRule": "top-level local function declarations transitively called from each path entry; imported calls are excluded and nested functions remain inside their declaring function AST",
 		"graphrefly": {
 			"path": "packages/ts/evals/empirical-memory-rerun-avoidance/orchestration-comparative-evidence.ts",
-			"functionNames": ["runGraphReFlyPath", "collectData", "blockedMembers"]
+			"entryFunctionNames": ["runGraphReFlyPath"]
 		},
 		"plainTypescript": {
 			"path": "packages/ts/evals/empirical-memory-rerun-avoidance/orchestration-comparative-plain-typescript.ts",
-			"functionNames": ["runD683PlainTypescriptPath"]
+			"entryFunctionNames": ["runD683PlainTypescriptPath"]
 		},
 		"sourceLinesAreAuxiliary": true,
 		"doesNotMeasureSemanticComplexityOrDeveloperTime": true
 	},
 	"extensionDiff": {
 		"commandRevision": "git-diff-no-ext-no-textconv-unified0-myers-no-renames.v1",
-		"flags": ["--no-ext-diff", "--no-textconv", "--unified=0", "--diff-algorithm=myers", "--no-renames"],
+		"flags": [
+			"--no-ext-diff",
+			"--no-textconv",
+			"--unified=0",
+			"--diff-algorithm=myers",
+			"--no-renames"
+		],
 		"markers": {
 			"sharedContract": "D683_DEPENDENCY_EXTENSION:shared-contract",
-			"test": "D683_DEPENDENCY_EXTENSION:test"
+			"test": "D683_DEPENDENCY_EXTENSION:test",
+			"qaCorrection": "D683_QA_CORRECTION:duplicate-admission"
 		},
-		"attributionBuckets": ["shared-contract-or-fixture", "graphrefly-coordinator", "plain-typescript-coordinator", "tests"],
-		"expectedUnchangedCoordinatorBuckets": ["graphrefly-coordinator", "plain-typescript-coordinator"]
+		"attributionBuckets": [
+			"shared-contract-or-fixture",
+			"graphrefly-coordinator",
+			"plain-typescript-coordinator",
+			"tests",
+			"excluded-measurement-infrastructure",
+			"excluded-qa-corrections"
+		],
+		"expectedUnchangedCoordinatorBuckets": [
+			"graphrefly-coordinator",
+			"plain-typescript-coordinator"
+		],
+		"measuredTargetPaths": [
+			"packages/ts/evals/empirical-memory-rerun-avoidance/orchestration-comparative-evidence.ts",
+			"packages/ts/evals/empirical-memory-rerun-avoidance/orchestration-comparative-plain-typescript.ts",
+			"packages/ts/src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.d683-comparison.test.ts"
+		],
+		"everyDiffHunkMustBeAttributed": true
 	},
 	"claimBoundary": "auxiliary-source-proxies-and-one-extension-surface-not-a-universal-ergonomics-claim"
 }

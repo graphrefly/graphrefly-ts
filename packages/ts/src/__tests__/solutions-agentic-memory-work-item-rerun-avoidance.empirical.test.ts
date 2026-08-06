@@ -808,6 +808,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsMatchedBlockMemory = file.endsWith("matched-block-memory.ts");
 			const allowsD682MechanicalRecipe = file.endsWith("execution-qualified-mechanical-recipe.ts");
 			const allowsD683ComparativeEvidence = file.endsWith("orchestration-comparative-evidence.ts");
+			const allowsD683SourceAudit = file.endsWith("orchestration-comparative-source-audit.ts");
 			const matchedBlockMemoryImports = new Set([
 				"../../src/graph/graph.js",
 				"../../src/node/node.js",
@@ -887,6 +888,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 						(allowsMatchedBlockMemory && matchedBlockMemoryImports.has(specifier)) ||
 						(allowsD682MechanicalRecipe && d682MechanicalRecipeImports.has(specifier)) ||
 						(allowsD683ComparativeEvidence && d683ComparativeEvidenceImports.has(specifier)) ||
+						(allowsD683SourceAudit && specifier === "typescript") ||
 						specifier.startsWith("./"),
 				),
 			).toBe(true);
