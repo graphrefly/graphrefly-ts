@@ -7,7 +7,10 @@ import { pathToFileURL } from "node:url";
 import { strictJsonCodec } from "../../src/json/codec.js";
 import type { DeveloperGuidanceIndependentVerifierCapabilityV1 } from "./developer-guidance-utility.js";
 import type { OpenRouterCalibrationOperatorInputV1 } from "./openrouter-calibration-operator.js";
-import { B112_D678_CAMPAIGN_MAX_ELAPSED_MS } from "./openrouter-calibration-operator.js";
+import {
+	B112_D678_CAMPAIGN_MAX_ELAPSED_MS,
+	classifyOpenRouterCalibrationOperatorFailure,
+} from "./openrouter-calibration-operator.js";
 import { createOpenRouterCurrentKeySpendAdmissionCapability } from "./openrouter-current-key-spend-admission.js";
 import {
 	type D688MechanicalQualificationGateV1,
@@ -255,9 +258,12 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-	void main().catch(() => {
+	void main().catch((error: unknown) => {
 		process.stderr.write(
-			`${JSON.stringify({ issueCode: "openrouter-developer-guidance-runner-failed" })}\n`,
+			`${JSON.stringify({
+				issueCode: "openrouter-developer-guidance-runner-failed",
+				calibration: classifyOpenRouterCalibrationOperatorFailure(error),
+			})}\n`,
 		);
 		process.exitCode = 1;
 	});
