@@ -1,4 +1,15 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import {
+	chmodSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	statSync,
+	symlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -38,6 +49,7 @@ import {
 	validateEmpiricalCampaignManifest,
 	validateEmpiricalCampaignManifestBytes,
 } from "../../evals/empirical-memory-rerun-avoidance/manifest.js";
+import { readAndConsumeD688FreshRouteAttestation } from "../../evals/empirical-memory-rerun-avoidance/openrouter-developer-guidance-calibration-runner.js";
 import {
 	classifyOpenRouterCalibrationBudgetExhaustionScope,
 	createOpenRouterCalibrationEmpiricalRunner,
@@ -803,7 +815,12 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("openrouter-first-task-smoke-operator.ts") ||
 				file.endsWith("openrouter-first-task-capability-probe-operator.ts") ||
 				file.endsWith("openrouter-calibration-operator.ts") ||
-				file.endsWith("openrouter-d682-mechanical-qualification-operator.ts");
+				file.endsWith("openrouter-d682-mechanical-qualification-operator.ts") ||
+				file.endsWith("openrouter-developer-guidance-calibration-operator.ts") ||
+				file.endsWith("openrouter-developer-guidance-calibration-runner.ts");
+			const allowsDeveloperGuidanceRunner = file.endsWith(
+				"openrouter-developer-guidance-calibration-runner.ts",
+			);
 			const allowsRetryTimerOperator = file.endsWith("openrouter-first-task-smoke-operator.ts");
 			const allowsMatchedBlockMemory = file.endsWith("matched-block-memory.ts");
 			const allowsD682MechanicalRecipe = file.endsWith("execution-qualified-mechanical-recipe.ts");
@@ -876,6 +893,10 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				imports.every(
 					(specifier) =>
 						specifier === "node:crypto" ||
+						(allowsDeveloperGuidanceRunner &&
+							(specifier === "node:fs" ||
+								specifier === "node:readline/promises" ||
+								specifier === "node:url")) ||
 						((allowsRepositoryNodeDriver || allowsClosedHostNodeDriver) &&
 							specifier === "node:child_process") ||
 						((allowsRepositoryNodeDriver ||
@@ -892,6 +913,77 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 						specifier.startsWith("./"),
 				),
 			).toBe(true);
+		}
+	});
+
+	it("consumes one exact 0600 bounded D688 attestation and rejects unsafe files", async () => {
+		const root = mkdtempSync(join(tmpdir(), "graphrefly-d688-attestation-"));
+		try {
+			const validPath = join(root, "valid.json");
+			writeFileSync(validPath, '{"qualified":true}', { mode: 0o600 });
+			chmodSync(validPath, 0o600);
+			await expect(
+				readAndConsumeD688FreshRouteAttestation({
+					path: validPath,
+					signal: new AbortController().signal,
+				}),
+			).resolves.toEqual({ qualified: true });
+			expect(existsSync(validPath)).toBe(false);
+			await expect(
+				readAndConsumeD688FreshRouteAttestation({
+					path: validPath,
+					signal: new AbortController().signal,
+				}),
+			).rejects.toThrow();
+
+			const permissivePath = join(root, "permissive.json");
+			writeFileSync(permissivePath, '{"qualified":true}', { mode: 0o640 });
+			chmodSync(permissivePath, 0o640);
+			await expect(
+				readAndConsumeD688FreshRouteAttestation({
+					path: permissivePath,
+					signal: new AbortController().signal,
+				}),
+			).rejects.toThrow(/0600/);
+			expect(existsSync(permissivePath)).toBe(false);
+
+			const oversizedPath = join(root, "oversized.json");
+			writeFileSync(oversizedPath, "x".repeat(262_145), { mode: 0o600 });
+			chmodSync(oversizedPath, 0o600);
+			await expect(
+				readAndConsumeD688FreshRouteAttestation({
+					path: oversizedPath,
+					signal: new AbortController().signal,
+				}),
+			).rejects.toThrow(/bounded/);
+			expect(existsSync(oversizedPath)).toBe(false);
+
+			const targetPath = join(root, "target.json");
+			const symlinkPath = join(root, "symlink.json");
+			writeFileSync(targetPath, '{"secret":"must-not-read"}', { mode: 0o600 });
+			symlinkSync(targetPath, symlinkPath);
+			await expect(
+				readAndConsumeD688FreshRouteAttestation({
+					path: symlinkPath,
+					signal: new AbortController().signal,
+				}),
+			).rejects.toThrow();
+			expect(existsSync(symlinkPath)).toBe(false);
+			expect(readFileSync(targetPath, "utf8")).toContain("must-not-read");
+
+			const abortedPath = join(root, "aborted.json");
+			writeFileSync(abortedPath, '{"qualified":true}', { mode: 0o600 });
+			const aborted = new AbortController();
+			aborted.abort();
+			await expect(
+				readAndConsumeD688FreshRouteAttestation({
+					path: abortedPath,
+					signal: aborted.signal,
+				}),
+			).rejects.toMatchObject({ name: "AbortError" });
+			expect(existsSync(abortedPath)).toBe(true);
+		} finally {
+			rmSync(root, { recursive: true, force: true });
 		}
 	});
 

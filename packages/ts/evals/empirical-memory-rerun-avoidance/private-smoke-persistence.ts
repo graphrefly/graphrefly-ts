@@ -22,6 +22,14 @@ import {
 	validateD682MechanicalQualificationCatalog,
 } from "./d682-mechanical-qualification.js";
 import {
+	aggregateDeveloperGuidanceScorecard,
+	createDeveloperGuidanceRecommendation,
+	type DeveloperGuidanceObservationV2,
+	type DeveloperGuidanceRecommendationV1,
+	type DeveloperGuidanceScorecardV2,
+	validateDeveloperGuidanceObservation,
+} from "./developer-guidance-utility.js";
+import {
 	B112_CALIBRATION_CAMPAIGN_SCORECARD_SCHEMA,
 	type B112CalibrationCampaignScorecardV4,
 	type B112CalibrationTerminalSlotV4,
@@ -61,6 +69,15 @@ const D682_MECHANICAL_CATALOG_FILE = "mechanical-fixture-catalog.v1.json";
 const D682_MECHANICAL_OBSERVATIONS_FILE = "mechanical-observations.v1.json";
 const D682_MECHANICAL_SCORECARD_FILE = "mechanical-scorecard.v1.json";
 const D682_MECHANICAL_GENERATION_FILE = "generation.v1.json";
+export const PRIVATE_DEVELOPER_GUIDANCE_CALIBRATION_GENERATION_SCHEMA =
+	"graphrefly.private-solution-eval.developer-guidance-calibration-generation.v1";
+const GUIDANCE_CALIBRATION_MANIFEST_FILE = "campaign-manifest.v1.json";
+const GUIDANCE_CALIBRATION_SLOTS_FILE = "terminal-slots.v4.json";
+const GUIDANCE_CALIBRATION_SOURCE_SCORECARD_FILE = "source-campaign-scorecard.v4.json";
+const GUIDANCE_CALIBRATION_OBSERVATIONS_FILE = "developer-guidance-observations.v2.json";
+const GUIDANCE_CALIBRATION_SCORECARD_FILE = "developer-guidance-scorecard.v2.json";
+const GUIDANCE_CALIBRATION_RECOMMENDATION_FILE = "developer-guidance-recommendation.v1.json";
+const GUIDANCE_CALIBRATION_GENERATION_FILE = "generation.v1.json";
 const PRIVATE_ARTIFACT_SCAN_CHUNK_CODE_UNITS = 32_768;
 const PRIVATE_ARTIFACT_SCAN_CHUNK_OVERLAP_CODE_UNITS = MAX_EMPIRICAL_PRIVATE_NEEDLE_CODE_UNITS - 1;
 
@@ -85,6 +102,17 @@ export interface PersistedPrivateD682MechanicalQualificationGenerationV1 {
 	readonly catalogDigest: string;
 	readonly observationsDigest: string;
 	readonly scorecardDigest: string;
+}
+
+export interface PersistedPrivateDeveloperGuidanceCalibrationGenerationV1 {
+	readonly generationPath: string;
+	readonly generationDigest: string;
+	readonly manifestDigest: string;
+	readonly terminalSlotsDigest: string;
+	readonly sourceScorecardDigest: string;
+	readonly guidanceObservationsDigest: string;
+	readonly guidanceScorecardDigest: string;
+	readonly recommendationDigest: string;
 }
 
 async function assertSafePrivateRoot(privateRoot: string): Promise<string> {
@@ -530,6 +558,233 @@ export async function persistPrivateD682MechanicalQualificationGeneration(input:
 			catalogDigest,
 			observationsDigest,
 			scorecardDigest,
+		});
+	} finally {
+		if (!committed) {
+			await rm(stagingPath, { recursive: true, force: true }).catch(() => undefined);
+		}
+	}
+}
+
+/** Atomically persists one complete D688 source campaign and D684 guidance projection. */
+export async function persistPrivateDeveloperGuidanceCalibrationGeneration(input: {
+	readonly privateRoot: string;
+	readonly generationRef: string;
+	readonly frozen: FrozenEmpiricalCampaignManifestV1;
+	readonly qualificationReport: EmpiricalTaskQualificationReportV1;
+	readonly terminalSlots: readonly B112CalibrationTerminalSlotV4[];
+	readonly sourceScorecard: B112CalibrationCampaignScorecardV4;
+	readonly guidanceObservations: readonly DeveloperGuidanceObservationV2[];
+	readonly guidanceScorecard: DeveloperGuidanceScorecardV2;
+	readonly recommendation: DeveloperGuidanceRecommendationV1;
+	readonly expectedTaskIds: readonly [string, string, string, string, string];
+	readonly assessedActionCounts: readonly {
+		readonly observationId: string;
+		readonly actionCount: number;
+	}[];
+	readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
+}): Promise<PersistedPrivateDeveloperGuidanceCalibrationGenerationV1> {
+	const generationRef = coordinate(input.generationRef, "privateDeveloperGuidance.generationRef");
+	if (
+		basename(generationRef) !== generationRef ||
+		generationRef === "." ||
+		generationRef === ".."
+	) {
+		throw new TypeError(
+			"private developer guidance generation ref must be one path-free coordinate",
+		);
+	}
+	if (
+		input.frozen.manifest.trialPlan.profile !== "calibration" ||
+		empiricalStrictJsonDigest(input.frozen.manifest) !== input.frozen.manifestDigest ||
+		!isEmpiricalExactPrivateNeedleProtectionExecutor(input.protectionExecutor) ||
+		input.protectionExecutor.policyRef !== input.frozen.manifest.policies.protectionPolicyRef ||
+		input.protectionExecutor.policyRevision !==
+			input.frozen.manifest.policies.protectionPolicyRevision
+	) {
+		throw new TypeError("private developer guidance authority is invalid");
+	}
+	const terminalSlots = validateB112CalibrationTerminalSlots(
+		input.frozen,
+		input.qualificationReport,
+		input.terminalSlots,
+	);
+	const sourceScorecard = createB112CalibrationCampaignScorecard(
+		input.frozen,
+		input.qualificationReport,
+		terminalSlots,
+	);
+	if (
+		empiricalStrictJsonDigest(sourceScorecard) !== empiricalStrictJsonDigest(input.sourceScorecard)
+	) {
+		throw new TypeError("private developer guidance source scorecard is not canonical");
+	}
+	const guidanceObservations = input.guidanceObservations
+		.map(validateDeveloperGuidanceObservation)
+		.sort((left, right) =>
+			left.observationId < right.observationId
+				? -1
+				: left.observationId > right.observationId
+					? 1
+					: 0,
+		);
+	const assessedActionCounts = new Map(
+		input.assessedActionCounts.map((entry) => [entry.observationId, entry.actionCount] as const),
+	);
+	for (const observation of guidanceObservations) {
+		const sourceSlot = terminalSlots.find(
+			(slot) =>
+				slot.taskRef === observation.taskId &&
+				slot.observation?.trialBlockRef === observation.matchedBlockId,
+		);
+		const sourceObservation = sourceSlot?.observation;
+		const sourceBranch = sourceObservation?.warmBranches.find(
+			(branch) => branch.branchKind === observation.arm,
+		);
+		if (
+			sourceObservation === undefined ||
+			sourceBranch?.attempted !== true ||
+			sourceBranch.run === null ||
+			observation.evidence.sourceObservationDigest !==
+				empiricalStrictJsonDigest(sourceObservation) ||
+			observation.evidence.sourceRunDigest !== empiricalStrictJsonDigest(sourceBranch.run) ||
+			observation.evidence.actionTraceDigest !== sourceBranch.run.actionTraceDigest ||
+			assessedActionCounts.get(observation.observationId) !== sourceBranch.run.actionTrace.length
+		) {
+			throw new TypeError("private developer guidance observation is not source-run-bound");
+		}
+	}
+	const guidanceScorecard = aggregateDeveloperGuidanceScorecard(guidanceObservations);
+	if (
+		empiricalStrictJsonDigest(guidanceScorecard) !==
+		empiricalStrictJsonDigest(input.guidanceScorecard)
+	) {
+		throw new TypeError("private developer guidance scorecard is not canonical");
+	}
+	const recommendation = createDeveloperGuidanceRecommendation({
+		observations: guidanceObservations,
+		scorecard: guidanceScorecard,
+		expectedTaskIds: input.expectedTaskIds,
+		assessedActionCounts: input.assessedActionCounts,
+	});
+	if (
+		empiricalStrictJsonDigest(recommendation) !== empiricalStrictJsonDigest(input.recommendation)
+	) {
+		throw new TypeError("private developer guidance recommendation is not canonical");
+	}
+	const manifestBytes = strictJsonCodec.encode(input.frozen.manifest);
+	const terminalSlotsBytes = strictJsonCodec.encode(terminalSlots);
+	const sourceScorecardBytes = strictJsonCodec.encode(sourceScorecard);
+	const guidanceObservationsBytes = strictJsonCodec.encode(guidanceObservations);
+	const guidanceScorecardBytes = strictJsonCodec.encode(guidanceScorecard);
+	const recommendationBytes = strictJsonCodec.encode(recommendation);
+	const manifestDigest = empiricalSha256(manifestBytes);
+	const terminalSlotsDigest = empiricalSha256(terminalSlotsBytes);
+	const sourceScorecardDigest = empiricalSha256(sourceScorecardBytes);
+	const guidanceObservationsDigest = empiricalSha256(guidanceObservationsBytes);
+	const guidanceScorecardDigest = empiricalSha256(guidanceScorecardBytes);
+	const recommendationDigest = empiricalSha256(recommendationBytes);
+	if (manifestDigest !== input.frozen.manifestDigest) {
+		throw new TypeError("private developer guidance manifest bytes changed");
+	}
+	const generation = strictSnapshot({
+		schemaVersion: PRIVATE_DEVELOPER_GUIDANCE_CALIBRATION_GENERATION_SCHEMA,
+		generationRef,
+		manifest: {
+			file: GUIDANCE_CALIBRATION_MANIFEST_FILE,
+			digest: manifestDigest,
+			byteLength: manifestBytes.byteLength,
+		},
+		terminalSlots: {
+			file: GUIDANCE_CALIBRATION_SLOTS_FILE,
+			digest: terminalSlotsDigest,
+			byteLength: terminalSlotsBytes.byteLength,
+			count: terminalSlots.length,
+		},
+		sourceScorecard: {
+			file: GUIDANCE_CALIBRATION_SOURCE_SCORECARD_FILE,
+			digest: sourceScorecardDigest,
+			byteLength: sourceScorecardBytes.byteLength,
+		},
+		guidanceObservations: {
+			file: GUIDANCE_CALIBRATION_OBSERVATIONS_FILE,
+			digest: guidanceObservationsDigest,
+			byteLength: guidanceObservationsBytes.byteLength,
+			count: guidanceObservations.length,
+		},
+		guidanceScorecard: {
+			file: GUIDANCE_CALIBRATION_SCORECARD_FILE,
+			digest: guidanceScorecardDigest,
+			byteLength: guidanceScorecardBytes.byteLength,
+		},
+		recommendation: {
+			file: GUIDANCE_CALIBRATION_RECOMMENDATION_FILE,
+			digest: recommendationDigest,
+			byteLength: recommendationBytes.byteLength,
+		},
+	});
+	for (const [subject, label] of [
+		[input.frozen.manifest, "manifest"],
+		...terminalSlots.map((slot, index) => [slot, `terminal-slot-${index + 1}`]),
+		[sourceScorecard, "source-scorecard"],
+		...guidanceObservations.map((observation, index) => [
+			observation,
+			`guidance-observation-${index + 1}`,
+		]),
+		[guidanceScorecard, "guidance-scorecard"],
+		[recommendation, "recommendation"],
+		[generation, "generation"],
+	] as const) {
+		assertPrivateArtifactProtection({
+			subject,
+			label: `private developer guidance ${label}`,
+			protectionExecutor: input.protectionExecutor,
+		});
+	}
+	const privateRoot = await assertSafePrivateRoot(input.privateRoot);
+	const generationBytes = strictJsonCodec.encode(generation);
+	const generationDigest = empiricalSha256(generationBytes);
+	const finalPath = join(privateRoot, generationRef);
+	const stagingPath = join(privateRoot, `.staging-${randomUUID()}`);
+	await mkdir(stagingPath, { mode: 0o700 });
+	let committed = false;
+	try {
+		await chmod(stagingPath, 0o700);
+		await writePrivateFile(join(stagingPath, GUIDANCE_CALIBRATION_MANIFEST_FILE), manifestBytes);
+		await writePrivateFile(join(stagingPath, GUIDANCE_CALIBRATION_SLOTS_FILE), terminalSlotsBytes);
+		await writePrivateFile(
+			join(stagingPath, GUIDANCE_CALIBRATION_SOURCE_SCORECARD_FILE),
+			sourceScorecardBytes,
+		);
+		await writePrivateFile(
+			join(stagingPath, GUIDANCE_CALIBRATION_OBSERVATIONS_FILE),
+			guidanceObservationsBytes,
+		);
+		await writePrivateFile(
+			join(stagingPath, GUIDANCE_CALIBRATION_SCORECARD_FILE),
+			guidanceScorecardBytes,
+		);
+		await writePrivateFile(
+			join(stagingPath, GUIDANCE_CALIBRATION_RECOMMENDATION_FILE),
+			recommendationBytes,
+		);
+		await writePrivateFile(
+			join(stagingPath, GUIDANCE_CALIBRATION_GENERATION_FILE),
+			generationBytes,
+		);
+		await syncDirectory(stagingPath);
+		await rename(stagingPath, finalPath);
+		committed = true;
+		await syncDirectory(privateRoot).catch(() => undefined);
+		return Object.freeze({
+			generationPath: finalPath,
+			generationDigest,
+			manifestDigest,
+			terminalSlotsDigest,
+			sourceScorecardDigest,
+			guidanceObservationsDigest,
+			guidanceScorecardDigest,
+			recommendationDigest,
 		});
 	} finally {
 		if (!committed) {

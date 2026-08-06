@@ -74,6 +74,19 @@ export interface OpenRouterCalibrationOperatorInputV1 {
 	readonly generationRef: string;
 }
 
+export interface OpenRouterCalibrationFreshRouteQualificationCapabilityV1 {
+	readonly capabilityRef: string;
+	readonly capabilityRevision: string;
+	qualify(input: {
+		readonly blockOrdinal: number;
+		readonly taskRef: string;
+		readonly trialBlockRef: string;
+		readonly trialBlockDigest: string;
+		readonly preregisteredRoute: QualifiedOpenRouterRouteV1["qualification"];
+		readonly signal: AbortSignal;
+	}): Promise<unknown>;
+}
+
 export type OpenRouterCalibrationPrivateTrialBlockV1 = Pick<
 	OpenRouterCalibrationPreparedTrialBlockV4,
 	"host" | "prepareWarmHost"
@@ -87,6 +100,14 @@ export interface OpenRouterCalibrationOperatorResultV4 {
 	readonly terminalSlots: Awaited<ReturnType<typeof runB112EmpiricalCalibration>>["terminalSlots"];
 	readonly scorecard: Awaited<ReturnType<typeof runB112EmpiricalCalibration>>["scorecard"];
 	readonly persistence: PersistedPrivateCalibrationGenerationV4;
+}
+
+export interface OpenRouterCalibrationExecutionV4 {
+	readonly terminalSlots: Awaited<ReturnType<typeof runB112EmpiricalCalibration>>["terminalSlots"];
+	readonly scorecard: Awaited<ReturnType<typeof runB112EmpiricalCalibration>>["scorecard"];
+	readonly protectionExecutor: ReturnType<
+		typeof createEmpiricalExactPrivateNeedleProtectionExecutor
+	>;
 }
 
 export interface OpenRouterCalibrationOperatorFailureDiagnosticV1 {
@@ -421,7 +442,125 @@ export function validateD678CalibrationRouteQualifications(input: {
 	return Object.freeze(qualified);
 }
 
-export async function runLoadedOpenRouterCalibrationOperator(input: {
+function stableCalibrationRouteDigest(route: QualifiedOpenRouterRouteV1["qualification"]): string {
+	const {
+		qualificationRef: _qualificationRef,
+		qualificationRevision: _qualificationRevision,
+		keySpendLimit: _keySpendLimit,
+		sharedCapacityQualification: _sharedCapacityQualification,
+		...stable
+	} = route;
+	return empiricalStrictJsonDigest(stable);
+}
+
+/** Frozen provider/model/budget profile shared by every D678-D679 block. */
+export function openRouterCalibrationStableRouteProfileDigest(
+	input: OpenRouterCalibrationOperatorInputV1,
+): string {
+	const routes = validateD678CalibrationRouteQualifications(input);
+	const digests = routes.map(({ qualification: route }) =>
+		empiricalStrictJsonDigest({
+			configurationRef: route.configurationRef,
+			configurationDigest: route.configurationDigest,
+			requestModel: route.requestModel,
+			modelIdentityKind: route.modelIdentityKind,
+			downstreamProviderSlug: route.downstreamProviderSlug,
+			downstreamProviderName: route.downstreamProviderName,
+			endpoint: route.endpoint,
+			endpointRevision: route.endpointRevision,
+			adapterRevision: route.adapterRevision,
+			bindingRevision: route.bindingRevision,
+			capabilitiesDigest: route.capabilitiesDigest,
+			settingsDigest: route.settingsDigest,
+			usageSource: route.usageSource,
+			usageRevision: route.usageRevision,
+			routeEvidenceSchemaRevision: route.routeEvidenceSchemaRevision,
+			pricing: route.pricing,
+			budget: route.budget,
+		}),
+	);
+	if (digests.length !== B112_D678_CALIBRATION_BLOCK_COUNT || new Set(digests).size !== 1) {
+		throw new TypeError("OpenRouter calibration route profile changed between blocks");
+	}
+	return digests[0] as string;
+}
+
+/** Provider/model/pricing coordinates shared with prerequisite qualifications despite budget changes. */
+export function openRouterCalibrationModelProfileDigest(
+	input: OpenRouterCalibrationOperatorInputV1,
+): string {
+	const routes = validateD678CalibrationRouteQualifications(input);
+	const digests = routes.map(({ qualification: route }) =>
+		empiricalStrictJsonDigest({
+			requestModel: route.requestModel,
+			modelIdentityKind: route.modelIdentityKind,
+			downstreamProviderSlug: route.downstreamProviderSlug,
+			downstreamProviderName: route.downstreamProviderName,
+			endpoint: route.endpoint,
+			endpointRevision: route.endpointRevision,
+			adapterRevision: route.adapterRevision,
+			bindingRevision: route.bindingRevision,
+			usageSource: route.usageSource,
+			usageRevision: route.usageRevision,
+			routeEvidenceSchemaRevision: route.routeEvidenceSchemaRevision,
+			pricing: {
+				sourceUrl: route.pricing.sourceUrl,
+				currency: route.pricing.currency,
+				inputMicrousdPerMillionTokens: route.pricing.inputMicrousdPerMillionTokens,
+				outputMicrousdPerMillionTokens: route.pricing.outputMicrousdPerMillionTokens,
+			},
+		}),
+	);
+	if (digests.length !== B112_D678_CALIBRATION_BLOCK_COUNT || new Set(digests).size !== 1) {
+		throw new TypeError("OpenRouter calibration model profile changed between blocks");
+	}
+	return digests[0] as string;
+}
+
+export function validateOpenRouterCalibrationFreshRouteQualification(
+	value: unknown,
+	frozen: FrozenEmpiricalCampaignManifestV1,
+	qualificationReport: EmpiricalTaskQualificationReportV1,
+	preregisteredRoute: QualifiedOpenRouterRouteV1["qualification"],
+	credential: OpenRouterResponsesCredentialCapabilityV1,
+	seenQualificationRevisions: Set<string>,
+): QualifiedOpenRouterRouteV1["qualification"] {
+	const fresh = validateOperatorSuppliedOpenRouterRouteQualification(
+		value,
+		frozen,
+		qualificationReport,
+		preregisteredRoute.configurationRef,
+	).qualification;
+	const revisionCoordinate = empiricalStrictJsonDigest({
+		qualificationRef: fresh.qualificationRef,
+		qualificationRevision: fresh.qualificationRevision,
+		keySpendLimitRevision: fresh.keySpendLimit.qualificationRevision,
+		sharedCapacityRevision: fresh.sharedCapacityQualification.qualificationRevision,
+	});
+	if (
+		stableCalibrationRouteDigest(fresh) !== stableCalibrationRouteDigest(preregisteredRoute) ||
+		fresh.sharedCapacityQualification.credentialBindingRef !== credential.credentialBindingRef ||
+		fresh.sharedCapacityQualification.credentialBindingRevision !==
+			credential.credentialBindingRevision ||
+		fresh.sharedCapacityQualification.workspaceRef !==
+			preregisteredRoute.sharedCapacityQualification.workspaceRef ||
+		fresh.sharedCapacityQualification.workspaceRevision !==
+			preregisteredRoute.sharedCapacityQualification.workspaceRevision ||
+		fresh.keySpendLimit.credentialBindingRef !== credential.credentialBindingRef ||
+		fresh.keySpendLimit.credentialBindingRevision !== credential.credentialBindingRevision ||
+		fresh.keySpendLimit.workspaceRef !== preregisteredRoute.keySpendLimit.workspaceRef ||
+		fresh.keySpendLimit.workspaceRevision !== preregisteredRoute.keySpendLimit.workspaceRevision ||
+		seenQualificationRevisions.has(revisionCoordinate)
+	) {
+		throw new TypeError(
+			"OpenRouter calibration fresh route qualification was substituted or reused",
+		);
+	}
+	seenQualificationRevisions.add(revisionCoordinate);
+	return fresh;
+}
+
+export async function executeLoadedOpenRouterCalibrationCampaign(input: {
 	readonly operatorInput: OpenRouterCalibrationOperatorInputV1;
 	readonly credential: OpenRouterResponsesCredentialCapabilityV1;
 	readonly transport: OpenRouterResponsesByteTransportV1;
@@ -430,7 +569,8 @@ export async function runLoadedOpenRouterCalibrationOperator(input: {
 	readonly retryWait: OpenRouterFirstTaskRetryWaitCapabilityV1;
 	readonly executionClass: "simulated-contract" | "live-provider";
 	readonly signal: AbortSignal;
-}): Promise<OpenRouterCalibrationOperatorResultV4> {
+	readonly freshRouteQualification?: OpenRouterCalibrationFreshRouteQualificationCapabilityV1;
+}): Promise<OpenRouterCalibrationExecutionV4> {
 	const frozen = validateFrozenEmpiricalCampaignManifest(
 		input.operatorInput.frozen,
 		input.operatorInput.qualificationReport,
@@ -458,6 +598,7 @@ export async function runLoadedOpenRouterCalibrationOperator(input: {
 	const routesByTrialBlock = new Map(
 		routes.map((route) => [route.qualification.trialBlockRef, route.qualification] as const),
 	);
+	const freshQualificationRevisions = new Set<string>();
 	let activeBlockOrdinal: number | null = null;
 	let empirical: Awaited<ReturnType<typeof runB112EmpiricalCalibration>>;
 	try {
@@ -466,11 +607,35 @@ export async function runLoadedOpenRouterCalibrationOperator(input: {
 			qualificationReport: input.operatorInput.qualificationReport,
 			runEmpiricalBlock: createOpenRouterCalibrationEmpiricalRunner(async (scheduled) => {
 				activeBlockOrdinal = scheduled.blockOrdinal;
-				const routeQualification = routesByTrialBlock.get(scheduled.trialBlockRef);
-				if (routeQualification === undefined) {
+				const preregisteredRoute = routesByTrialBlock.get(scheduled.trialBlockRef);
+				if (preregisteredRoute === undefined) {
 					throw new TypeError("OpenRouter calibration received an unexpected scheduled block");
 				}
 				const prepared = await input.operatorInput.prepareTrialBlock(scheduled);
+				let routeQualification: QualifiedOpenRouterRouteV1["qualification"];
+				try {
+					routeQualification =
+						input.freshRouteQualification === undefined
+							? preregisteredRoute
+							: validateOpenRouterCalibrationFreshRouteQualification(
+									await input.freshRouteQualification.qualify({
+										blockOrdinal: scheduled.blockOrdinal,
+										taskRef: scheduled.task.taskRef,
+										trialBlockRef: scheduled.trialBlockRef,
+										trialBlockDigest: scheduled.trialBlockDigest,
+										preregisteredRoute,
+										signal: scheduled.signal,
+									}),
+									frozen,
+									input.operatorInput.qualificationReport,
+									preregisteredRoute,
+									input.credential,
+									freshQualificationRevisions,
+								);
+				} catch (error) {
+					await prepared.host.materialization.cleanup().catch(() => undefined);
+					throw error;
+				}
 				try {
 					await input.currentKeySpendAdmission.read({
 						credential: input.credential,
@@ -508,21 +673,39 @@ export async function runLoadedOpenRouterCalibrationOperator(input: {
 		protectedNeedleCapabilityRevision: input.credential.credentialBindingRevision,
 		protectedNeedles: [input.credential.bearerToken],
 	});
+	return Object.freeze({ ...empirical, protectionExecutor });
+}
+
+export async function runLoadedOpenRouterCalibrationOperator(input: {
+	readonly operatorInput: OpenRouterCalibrationOperatorInputV1;
+	readonly credential: OpenRouterResponsesCredentialCapabilityV1;
+	readonly transport: OpenRouterResponsesByteTransportV1;
+	readonly currentKeySpendAdmission: OpenRouterCurrentKeySpendAdmissionCapabilityV1;
+	readonly monotonicMeasurement: OpenRouterResponsesMonotonicMeasurementV1;
+	readonly retryWait: OpenRouterFirstTaskRetryWaitCapabilityV1;
+	readonly executionClass: "simulated-contract" | "live-provider";
+	readonly signal: AbortSignal;
+}): Promise<OpenRouterCalibrationOperatorResultV4> {
+	const execution = await executeLoadedOpenRouterCalibrationCampaign(input);
 	let persistence: PersistedPrivateCalibrationGenerationV4;
 	try {
 		persistence = await persistPrivateCalibrationGeneration({
 			privateRoot: input.operatorInput.privateRoot,
 			generationRef: input.operatorInput.generationRef,
-			frozen,
+			frozen: input.operatorInput.frozen,
 			qualificationReport: input.operatorInput.qualificationReport,
-			terminalSlots: empirical.terminalSlots,
-			scorecard: empirical.scorecard,
-			protectionExecutor,
+			terminalSlots: execution.terminalSlots,
+			scorecard: execution.scorecard,
+			protectionExecutor: execution.protectionExecutor,
 		});
 	} catch (error) {
 		throw operatorStageFailure("persistence", null, error);
 	}
-	return Object.freeze({ ...empirical, persistence });
+	return Object.freeze({
+		terminalSlots: execution.terminalSlots,
+		scorecard: execution.scorecard,
+		persistence,
+	});
 }
 
 export async function runOpenRouterCalibrationOperator(input: {

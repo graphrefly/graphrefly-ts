@@ -16,8 +16,12 @@ import {
 
 export const DEVELOPER_GUIDANCE_OBSERVATION_VERSION = "empirical-developer-guidance-observation.v2";
 export const DEVELOPER_GUIDANCE_SCORECARD_VERSION = "empirical-developer-guidance-scorecard.v2";
+export const DEVELOPER_GUIDANCE_RECOMMENDATION_VERSION =
+	"empirical-developer-guidance-recommendation.v1";
 export const DEVELOPER_GUIDANCE_CLAIM_BOUNDARY =
 	"developer-guidance-utility-no-full-task-efficacy-claim";
+export const DEVELOPER_GUIDANCE_ACTION_VALIDITY_BOUNDARY =
+	"executed-action-trace-only;rejected-intents-classify-source-non-evaluable";
 export const DEVELOPER_GUIDANCE_MAX_OBSERVATION_BYTES = 262_144;
 
 export type DeveloperGuidanceArm =
@@ -101,6 +105,7 @@ export interface DeveloperGuidanceIndependentVerifierCapabilityV1 {
 	readonly verifierRef: string;
 	readonly verifierRevision: string;
 	readonly assess: (input: {
+		readonly arm: DeveloperGuidanceArm;
 		readonly taskId: string;
 		readonly matchedBlockId: string;
 		readonly sourceObservationDigest: string;
@@ -157,6 +162,32 @@ export function developerGuidanceActionProgressEvidenceDigest(input: {
 	});
 }
 
+export function developerGuidanceComparisonCoordinatesDigest(input: {
+	readonly manifestDigest: string;
+	readonly taskId: string;
+	readonly matchedBlockId: string;
+	readonly configurationRef: string;
+	readonly stableRouteProfileDigest: string;
+	readonly maxRequests: number;
+	readonly maxActions: number;
+	readonly verifierRef: string;
+	readonly verifierRevision: string;
+}): string {
+	digest(input.manifestDigest, "developerGuidance.comparison.manifestDigest");
+	boundedCoordinate(input.taskId, "developerGuidance.comparison.taskId");
+	boundedCoordinate(input.matchedBlockId, "developerGuidance.comparison.matchedBlockId");
+	coordinate(input.configurationRef, "developerGuidance.comparison.configurationRef");
+	digest(input.stableRouteProfileDigest, "developerGuidance.comparison.routeProfileDigest");
+	boundedCount(input.maxRequests, "developerGuidance.comparison.maxRequests", 10_000);
+	boundedCount(input.maxActions, "developerGuidance.comparison.maxActions", 10_000);
+	coordinate(input.verifierRef, "developerGuidance.comparison.verifierRef");
+	coordinate(input.verifierRevision, "developerGuidance.comparison.verifierRevision");
+	return empiricalStrictJsonDigest({
+		kind: "developer-guidance-comparison-coordinates.v1",
+		...input,
+	});
+}
+
 export interface DeveloperGuidanceMatchedDifferenceV2 {
 	readonly taskId: string;
 	readonly matchedBlockId: string;
@@ -193,6 +224,32 @@ export interface DeveloperGuidanceScorecardV2 {
 		readonly finalTaskVerifierPassCount: number;
 	}[];
 	readonly observationsDigest: string;
+}
+
+export interface DeveloperGuidanceRecommendationV1 {
+	readonly version: typeof DEVELOPER_GUIDANCE_RECOMMENDATION_VERSION;
+	readonly claimBoundary: typeof DEVELOPER_GUIDANCE_CLAIM_BOUNDARY;
+	readonly actionValidityBoundary: typeof DEVELOPER_GUIDANCE_ACTION_VALIDITY_BOUNDARY;
+	readonly efficacyClaim: "none";
+	readonly plannedSourceBlocks: 15;
+	readonly attemptedSourceBlocks: number;
+	readonly plannedArmObservations: 75;
+	readonly actualArmObservations: number;
+	readonly evaluableRelevantProposalPairs: number;
+	readonly positiveTaskClusterCount: number;
+	readonly taskClusterCount: 5;
+	readonly relevantHarmfulActions: number;
+	readonly relevantAssessedActions: number;
+	readonly proposalOnlyHarmfulActions: number;
+	readonly proposalOnlyAssessedActions: number;
+	readonly relevantHarmfulRatePpm: number | null;
+	readonly proposalOnlyHarmfulRatePpm: number | null;
+	readonly minimumPairThresholdPassed: boolean;
+	readonly positiveTaskClusterThresholdPassed: boolean;
+	readonly noHarmfulActionIncreasePassed: boolean;
+	readonly recommendConfirmatoryDesign: boolean;
+	readonly observationsDigest: string;
+	readonly scorecardDigest: string;
 }
 
 const ARMS: readonly DeveloperGuidanceArm[] = [
@@ -666,6 +723,7 @@ export function createDeveloperGuidanceObservation(input: {
 		"developerGuidance.verifier.revision",
 	);
 	const rawAssessment = input.verifier.assess({
+		arm: input.arm,
 		taskId: source.taskRef,
 		matchedBlockId: source.trialBlockRef,
 		sourceObservationDigest,
@@ -806,8 +864,8 @@ function nullableDelta(relevant: number | null, proposalOnly: number | null): nu
 export function aggregateDeveloperGuidanceScorecard(
 	observations: readonly DeveloperGuidanceObservationV2[],
 ): DeveloperGuidanceScorecardV2 {
-	if (observations.length < 1 || observations.length > 10_000) {
-		throw new TypeError("developer guidance scorecard requires 1..10000 observations");
+	if (observations.length > 10_000) {
+		throw new TypeError("developer guidance scorecard accepts at most 10000 observations");
 	}
 	const frozen = observations
 		.map(validateDeveloperGuidanceObservation)
@@ -946,5 +1004,135 @@ export function aggregateDeveloperGuidanceScorecard(
 		matchedDifferences,
 		armSummaries,
 		observationsDigest: empiricalStrictJsonDigest(frozen),
+	});
+}
+
+export function createDeveloperGuidanceRecommendation(input: {
+	readonly observations: readonly DeveloperGuidanceObservationV2[];
+	readonly scorecard: DeveloperGuidanceScorecardV2;
+	readonly expectedTaskIds: readonly [string, string, string, string, string];
+	readonly assessedActionCounts: readonly {
+		readonly observationId: string;
+		readonly actionCount: number;
+	}[];
+}): DeveloperGuidanceRecommendationV1 {
+	const observations = input.observations
+		.map(validateDeveloperGuidanceObservation)
+		.sort((left, right) => compareText(left.observationId, right.observationId));
+	const scorecard = aggregateDeveloperGuidanceScorecard(observations);
+	if (empiricalStrictJsonDigest(scorecard) !== empiricalStrictJsonDigest(input.scorecard)) {
+		throw new TypeError("developer guidance recommendation scorecard is not canonical");
+	}
+	const expectedTaskIds = input.expectedTaskIds.map((taskId) => {
+		boundedCoordinate(taskId, "developerGuidance.recommendation.taskId");
+		return taskId;
+	});
+	if (new Set(expectedTaskIds).size !== 5) {
+		throw new TypeError("developer guidance recommendation requires five distinct task clusters");
+	}
+	if (observations.some((observation) => !expectedTaskIds.includes(observation.taskId))) {
+		throw new TypeError("developer guidance recommendation observed an unexpected task cluster");
+	}
+	const actionCounts = new Map<string, number>();
+	for (const entry of input.assessedActionCounts) {
+		boundedCoordinate(entry.observationId, "developerGuidance.recommendation.observationId");
+		boundedCount(entry.actionCount, "developerGuidance.recommendation.actionCount", 256);
+		if (actionCounts.has(entry.observationId)) {
+			throw new TypeError("developer guidance recommendation action count was duplicated");
+		}
+		actionCounts.set(entry.observationId, entry.actionCount);
+	}
+	if (
+		actionCounts.size !== observations.length ||
+		observations.some((observation) => !actionCounts.has(observation.observationId))
+	) {
+		throw new TypeError("developer guidance recommendation action counts are incomplete");
+	}
+	const matchedPairs = new Map<
+		string,
+		{ relevant?: DeveloperGuidanceObservationV2; proposal?: DeveloperGuidanceObservationV2 }
+	>();
+	for (const observation of observations) {
+		if (observation.arm !== "relevant-applied" && observation.arm !== "proposal-only") continue;
+		const key = matchedKey(observation);
+		const pair = matchedPairs.get(key) ?? {};
+		if (observation.arm === "relevant-applied") pair.relevant = observation;
+		else pair.proposal = observation;
+		matchedPairs.set(key, pair);
+	}
+	const clusterDirections = new Map<string, number>(expectedTaskIds.map((taskId) => [taskId, 0]));
+	let evaluablePairs = 0;
+	for (const pair of matchedPairs.values()) {
+		if (
+			pair.relevant === undefined ||
+			pair.proposal === undefined ||
+			!pair.relevant.evaluable ||
+			!pair.proposal.evaluable
+		) {
+			continue;
+		}
+		evaluablePairs += 1;
+		clusterDirections.set(
+			pair.relevant.taskId,
+			(clusterDirections.get(pair.relevant.taskId) ?? 0) +
+				Number(pair.relevant.evidence.verifierProgressObserved) -
+				Number(pair.proposal.evidence.verifierProgressObserved),
+		);
+	}
+	const positiveTaskClusterCount = [...clusterDirections.values()].filter(
+		(direction) => direction > 0,
+	).length;
+	const armAccounting = (arm: "relevant-applied" | "proposal-only") => {
+		const selected = observations.filter(
+			(observation) => observation.arm === arm && observation.evaluable,
+		);
+		return {
+			harmful: selected.reduce((sum, observation) => sum + observation.harmfulActionCount, 0),
+			actions: selected.reduce(
+				(sum, observation) => sum + (actionCounts.get(observation.observationId) ?? 0),
+				0,
+			),
+		};
+	};
+	const relevant = armAccounting("relevant-applied");
+	const proposal = armAccounting("proposal-only");
+	const ratePpm = (harmful: number, actions: number): number | null =>
+		actions === 0 ? null : Math.floor((harmful * 1_000_000) / actions);
+	const noHarmfulActionIncreasePassed =
+		relevant.actions > 0 &&
+		proposal.actions > 0 &&
+		relevant.harmful * proposal.actions <= proposal.harmful * relevant.actions;
+	const minimumPairThresholdPassed = evaluablePairs >= 10;
+	const positiveTaskClusterThresholdPassed = positiveTaskClusterCount >= 3;
+	const recommendConfirmatoryDesign =
+		minimumPairThresholdPassed &&
+		positiveTaskClusterThresholdPassed &&
+		noHarmfulActionIncreasePassed;
+	return strictSnapshot({
+		version: DEVELOPER_GUIDANCE_RECOMMENDATION_VERSION,
+		claimBoundary: DEVELOPER_GUIDANCE_CLAIM_BOUNDARY,
+		actionValidityBoundary: DEVELOPER_GUIDANCE_ACTION_VALIDITY_BOUNDARY,
+		efficacyClaim: "none" as const,
+		plannedSourceBlocks: 15 as const,
+		attemptedSourceBlocks: new Set(
+			observations.map((observation) => `${observation.taskId}\u0000${observation.matchedBlockId}`),
+		).size,
+		plannedArmObservations: 75 as const,
+		actualArmObservations: observations.length,
+		evaluableRelevantProposalPairs: evaluablePairs,
+		positiveTaskClusterCount,
+		taskClusterCount: 5 as const,
+		relevantHarmfulActions: relevant.harmful,
+		relevantAssessedActions: relevant.actions,
+		proposalOnlyHarmfulActions: proposal.harmful,
+		proposalOnlyAssessedActions: proposal.actions,
+		relevantHarmfulRatePpm: ratePpm(relevant.harmful, relevant.actions),
+		proposalOnlyHarmfulRatePpm: ratePpm(proposal.harmful, proposal.actions),
+		minimumPairThresholdPassed,
+		positiveTaskClusterThresholdPassed,
+		noHarmfulActionIncreasePassed,
+		recommendConfirmatoryDesign,
+		observationsDigest: empiricalStrictJsonDigest(observations),
+		scorecardDigest: empiricalStrictJsonDigest(scorecard),
 	});
 }

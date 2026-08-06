@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
 	aggregateDeveloperGuidanceScorecard,
+	createDeveloperGuidanceRecommendation,
+	DEVELOPER_GUIDANCE_ACTION_VALIDITY_BOUNDARY,
 	DEVELOPER_GUIDANCE_CLAIM_BOUNDARY,
 	DEVELOPER_GUIDANCE_OBSERVATION_VERSION,
 	DEVELOPER_GUIDANCE_SCORECARD_VERSION,
@@ -13,6 +15,7 @@ function observation(input: {
 	readonly id: string;
 	readonly arm: DeveloperGuidanceArm;
 	readonly block?: string;
+	readonly task?: string;
 	readonly evaluable?: boolean;
 	readonly exact?: boolean;
 	readonly validRequest?: number | null;
@@ -28,7 +31,7 @@ function observation(input: {
 	return {
 		version: DEVELOPER_GUIDANCE_OBSERVATION_VERSION,
 		observationId: input.id,
-		taskId: "task-guidance",
+		taskId: input.task ?? "task-guidance",
 		matchedBlockId: input.block ?? "block-1",
 		comparisonCoordinatesDigest: `sha256:${"a".repeat(64)}`,
 		arm: input.arm,
@@ -209,5 +212,77 @@ describe("D684 package-private developer guidance utility", () => {
 				},
 			]),
 		).toThrow(/changed frozen coordinates/);
+	});
+
+	it("represents an honestly empty guidance projection without an efficacy claim", () => {
+		const scorecard = aggregateDeveloperGuidanceScorecard([]);
+		expect(scorecard).toMatchObject({
+			observationCount: 0,
+			evaluableObservationCount: 0,
+			nonEvaluableObservationCount: 0,
+			matchedPairCount: 0,
+			efficacyClaim: "none",
+		});
+	});
+
+	it("applies D688 pair, task-cluster, and harmful-rate thresholds deterministically", () => {
+		const observations: DeveloperGuidanceObservationV2[] = [];
+		for (let taskIndex = 1; taskIndex <= 5; taskIndex += 1) {
+			for (let blockIndex = 1; blockIndex <= 3; blockIndex += 1) {
+				const task = `task-${taskIndex}`;
+				const block = `block-${blockIndex}`;
+				observations.push(
+					observation({
+						id: `${task}-${block}-relevant`,
+						task,
+						block,
+						arm: "relevant-applied",
+						progressRequest: taskIndex <= 3 ? 2 : null,
+					}),
+					observation({
+						id: `${task}-${block}-proposal`,
+						task,
+						block,
+						arm: "proposal-only",
+						progressRequest: null,
+					}),
+				);
+			}
+		}
+		const scorecard = aggregateDeveloperGuidanceScorecard(observations);
+		const recommendation = createDeveloperGuidanceRecommendation({
+			observations,
+			scorecard,
+			expectedTaskIds: ["task-1", "task-2", "task-3", "task-4", "task-5"],
+			assessedActionCounts: observations.map((item) => ({
+				observationId: item.observationId,
+				actionCount: 4,
+			})),
+		});
+		const reverseRecommendation = createDeveloperGuidanceRecommendation({
+			observations: [...observations].reverse(),
+			scorecard,
+			expectedTaskIds: ["task-1", "task-2", "task-3", "task-4", "task-5"],
+			assessedActionCounts: [...observations].reverse().map((item) => ({
+				observationId: item.observationId,
+				actionCount: 4,
+			})),
+		});
+
+		expect(recommendation).toMatchObject({
+			actionValidityBoundary: DEVELOPER_GUIDANCE_ACTION_VALIDITY_BOUNDARY,
+			efficacyClaim: "none",
+			plannedSourceBlocks: 15,
+			attemptedSourceBlocks: 15,
+			plannedArmObservations: 75,
+			actualArmObservations: 30,
+			evaluableRelevantProposalPairs: 15,
+			positiveTaskClusterCount: 3,
+			minimumPairThresholdPassed: true,
+			positiveTaskClusterThresholdPassed: true,
+			noHarmfulActionIncreasePassed: true,
+			recommendConfirmatoryDesign: true,
+		});
+		expect(reverseRecommendation).toEqual(recommendation);
 	});
 });

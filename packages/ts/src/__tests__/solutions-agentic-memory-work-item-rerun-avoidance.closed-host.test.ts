@@ -23,6 +23,7 @@ import {
 	CLOSED_TASK_PROFILE_HOST_SCHEMAS,
 	type ClosedCommandPolicyV1,
 	type ClosedTaskExecutionProfileV1,
+	type ClosedTaskProfileHostActionReceiptV1,
 	type ClosedVerifierCapabilityV1,
 	type ClosedVerifierProfileV1,
 	type ClosedVerifierRunCoordinatesV1,
@@ -106,6 +107,7 @@ import {
 	classifyOpenRouterCalibrationOperatorFailure,
 	runLoadedOpenRouterCalibrationOperator,
 	validateD678CalibrationRouteQualifications,
+	validateOpenRouterCalibrationFreshRouteQualification,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-calibration-operator.js";
 import {
 	createOpenRouterCurrentKeySpendAdmissionCapability,
@@ -119,6 +121,7 @@ import {
 	d682MechanicalRouteProfileDigest,
 	runLoadedOpenRouterD682MechanicalQualificationOperator,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-d682-mechanical-qualification-operator.js";
+import { runLoadedOpenRouterDeveloperGuidanceCalibration } from "../../evals/empirical-memory-rerun-avoidance/openrouter-developer-guidance-calibration-operator.js";
 import {
 	B112_FIRST_TASK_SMOKE_AGGREGATION_REVISION,
 	B112_SMOKE_BUDGET_ISSUE_CODE,
@@ -175,7 +178,10 @@ import {
 	validateOpenRouterRouteQualification,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-route-qualification.js";
 import { createOpenRouterTransportFailure } from "../../evals/empirical-memory-rerun-avoidance/openrouter-transport-failure.js";
-import { persistPrivateSmokeGeneration } from "../../evals/empirical-memory-rerun-avoidance/private-smoke-persistence.js";
+import {
+	persistPrivateDeveloperGuidanceCalibrationGeneration,
+	persistPrivateSmokeGeneration,
+} from "../../evals/empirical-memory-rerun-avoidance/private-smoke-persistence.js";
 import {
 	createEmpiricalTaskQualificationReport,
 	freezeEmpiricalCampaignManifest,
@@ -525,6 +531,10 @@ async function createClosedHostFixture(
 			},
 			agentRun: {
 				...baseManifest.budgets.agentRun,
+				maxElapsedMs:
+					trialProfile === "calibration" && deepSeekProfile
+						? 960_000
+						: baseManifest.budgets.agentRun.maxElapsedMs,
 				maxSteps: trialProfile === "calibration" && deepSeekProfile ? B112_D678_AGENT_MAX_STEPS : 8,
 				maxRequests:
 					trialProfile === "calibration" && deepSeekProfile ? B112_D678_AGENT_MAX_STEPS : 8,
@@ -3278,7 +3288,276 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				"d682-mechanical-secret-sentinel",
 			);
 		}
-	}, 30_000);
+
+		const calibrationFixture = await createClosedHostFixture(
+			undefined,
+			undefined,
+			"deepseek-v4-flash-high",
+			"calibration",
+		);
+		const calibrationRoutes = d678SimulatedCalibrationQualifications(calibrationFixture);
+		const guidancePrivateRoot = join(
+			temporaryRoot("d688-guidance-private"),
+			".private",
+			"empirical-memory-rerun-avoidance",
+		);
+		mkdirSync(guidancePrivateRoot, { recursive: true, mode: 0o700 });
+		let guidanceTransportCalls = 0;
+		let freshQualificationCalls = 0;
+		const guidanceActionReceipts: ClosedTaskProfileHostActionReceiptV1[] = [];
+		const rawArgumentSentinel = "d688-raw-action-argument-sentinel";
+		const guidanceResult = await runLoadedOpenRouterDeveloperGuidanceCalibration({
+			operatorInput: {
+				frozen: calibrationFixture.frozen,
+				qualificationReport: calibrationFixture.report,
+				routeQualifications: calibrationRoutes,
+				privateRoot: guidancePrivateRoot,
+				generationRef: "d688-no-network-preflight",
+				async prepareTrialBlock(scheduled) {
+					if (scheduled.blockOrdinal !== 1) {
+						throw new TypeError("D688 bounded fixture prepares only its first source block");
+					}
+					return {
+						host: {
+							frozen: calibrationFixture.frozen,
+							qualificationReport: calibrationFixture.report,
+							initialRequest: calibrationFixture.initialRequest,
+							taskProfile: calibrationFixture.taskProfile,
+							materialization: calibrationFixture.materialization,
+							verifier: calibrationFixture.verifier,
+							actionReceiptObserver: {
+								observerRef: "d688-no-network-action-receipts",
+								observerRevision: "d688-no-network-action-receipts.v1",
+								record(receipt) {
+									guidanceActionReceipts.push(receipt);
+								},
+							},
+						},
+						prepareWarmHost: ({ signal }) => calibrationFixture.prepareFreshMaterialization(signal),
+					};
+				},
+			},
+			mechanicalGate: {
+				catalog,
+				observations: result.observations,
+				scorecard: result.scorecard,
+			},
+			guidanceVerifier: {
+				verifierRef: "d688-no-network-verifier",
+				verifierRevision: "d688-no-network-verifier.v1",
+				assess(input) {
+					const receipts = guidanceActionReceipts.filter(
+						(receipt) =>
+							receipt.taskRef === input.taskId &&
+							receipt.trialBlockRef === input.matchedBlockId &&
+							receipt.trialStage === input.arm,
+					);
+					if (
+						receipts.length !== input.actions.length ||
+						receipts.some((receipt, index) => {
+							const action = input.actions[index];
+							return (
+								action === undefined ||
+								receipt.actionIndex !== action.actionIndex ||
+								receipt.intentDigest !== action.intentDigest ||
+								receipt.resultDigest !== action.resultDigest ||
+								receipt.toolRef !== action.toolRef
+							);
+						})
+					) {
+						throw new TypeError("D688 dry-run receipts do not bind the source action trace");
+					}
+					return strictSnapshot({
+						verifierRef: "d688-no-network-verifier",
+						verifierRevision: "d688-no-network-verifier.v1",
+						sourceObservationDigest: input.sourceObservationDigest,
+						sourceRunDigest: input.sourceRunDigest,
+						horizonStatus: "fully-observed" as const,
+						nonEvaluableReason: null,
+						coordinates: {
+							repositoryScopeCorrect: null,
+							targetFileCorrect: null,
+							targetSymbolCorrect: null,
+							targetTestCorrect: null,
+							failureClassCorrect: null,
+						},
+						coordinateEvidenceDigest: null,
+						actions: input.actions.map((action) => ({
+							...action,
+							valid: true,
+							repeatedKnownFailureRoute: false,
+							harmful: false,
+							verifierProgressEvidenceDigest: null,
+						})),
+						finalTaskVerifierEvidenceDigest:
+							input.finalTaskVerifierStatus === "passed" ||
+							input.finalTaskVerifierStatus === "failed"
+								? (input.finalTaskVerifierEvidenceDigests[0] ?? null)
+								: null,
+					});
+				},
+			},
+			freshRouteQualification: {
+				capabilityRef: "d688-no-network-fresh-zero-byok",
+				capabilityRevision: "d688-no-network-fresh-zero-byok.v1",
+				async qualify(input) {
+					freshQualificationCalls += 1;
+					return strictSnapshot({
+						...input.preregisteredRoute,
+						qualificationRef: `d688-no-network-fresh-route-${input.blockOrdinal}`,
+						qualificationRevision: `d688-no-network-fresh-route.v${input.blockOrdinal}`,
+						keySpendLimit: {
+							...input.preregisteredRoute.keySpendLimit,
+							qualificationRef: `d688-no-network-key-${input.blockOrdinal}`,
+							qualificationRevision: `d688-no-network-key.v${input.blockOrdinal}`,
+						},
+						sharedCapacityQualification: {
+							...input.preregisteredRoute.sharedCapacityQualification,
+							qualificationRef: `d688-no-network-shared-${input.blockOrdinal}`,
+							qualificationRevision: `d688-no-network-shared.v${input.blockOrdinal}`,
+						},
+					});
+				},
+			},
+			credential: {
+				credentialBindingRef:
+					calibrationRoutes[0]!.sharedCapacityQualification.credentialBindingRef,
+				credentialBindingRevision:
+					calibrationRoutes[0]!.sharedCapacityQualification.credentialBindingRevision,
+				bearerToken: "d688-no-network-secret-sentinel-0123456789",
+			},
+			transport: {
+				async request(input) {
+					guidanceTransportCalls += 1;
+					const request = JSON.parse(new TextDecoder().decode(input.body)) as {
+						readonly messages: readonly { readonly role: string; readonly content: string }[];
+						readonly tools: readonly { readonly function: { readonly name: string } }[];
+					};
+					const userMessage = request.messages.find((message) => message.role === "user");
+					if (userMessage === undefined) throw new TypeError("missing D688 dry-run user message");
+					const envelope = JSON.parse(userMessage.content) as {
+						readonly turn?: { readonly stepIndex?: number };
+					};
+					const stepIndex = envelope.turn?.stepIndex;
+					if (typeof stepIndex !== "number") {
+						throw new TypeError("missing D688 dry-run step index");
+					}
+					const searchToolName = request.tools[1]?.function.name;
+					if (searchToolName === undefined) throw new TypeError("missing D688 search tool");
+					const output =
+						stepIndex === 0
+							? [
+									{
+										type: "function_call",
+										status: "completed",
+										call_id: `call.d688.${guidanceTransportCalls}`,
+										name: searchToolName,
+										arguments: JSON.stringify({
+											maxMatches: 1,
+											path: "README.md",
+											query: rawArgumentSentinel,
+										}),
+									},
+								]
+							: [
+									{
+										type: "message",
+										role: "assistant",
+										status: "completed",
+										content: [
+											{
+												type: "output_text",
+												text: JSON.stringify({
+													kind: "model-turn-output-placeholder",
+													summary: "bounded D688 no-network terminal",
+												}),
+											},
+										],
+									},
+								];
+					return dryRunOpenRouterResponse(
+						`response.d688.${guidanceTransportCalls}`,
+						output,
+						{ input_tokens: 10, output_tokens: 10, total_tokens: 20, cost: 0.000_001 },
+						{
+							requestModel: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+							downstreamProviderName: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+						},
+					);
+				},
+			},
+			currentKeySpendAdmission: simulatedCurrentKeySpendAdmission(),
+			monotonicMeasurement: { readMs: () => (measurement += 1) },
+			retryWait: immediateRetryWait,
+			executionClass: "simulated-contract",
+			signal: new AbortController().signal,
+		});
+		expect(freshQualificationCalls).toBe(1);
+		expect(guidanceTransportCalls).toBeGreaterThan(0);
+		expect(guidanceActionReceipts).toHaveLength(6);
+		expect(
+			guidanceActionReceipts.every((receipt) =>
+				JSON.stringify(receipt.arguments).includes(rawArgumentSentinel),
+			),
+		).toBe(true);
+		expect(guidanceResult.guidanceObservations).toHaveLength(5);
+		expect(
+			guidanceResult.guidanceObservations.every(
+				(observation) =>
+					observation.evidence.validActionObserved &&
+					observation.progress.actionsToFirstValidAction === 1,
+			),
+		).toBe(true);
+		expect(guidanceResult.sourceScorecard).toMatchObject({ efficacyClaim: "none" });
+		expect(guidanceResult.guidanceScorecard.efficacyClaim).toBe("none");
+		expect(guidanceResult.recommendation.efficacyClaim).toBe("none");
+		for (const file of readdirSync(guidanceResult.persistence.generationPath)) {
+			expect(statSync(join(guidanceResult.persistence.generationPath, file)).mode & 0o777).toBe(
+				0o600,
+			);
+			expect(
+				readFileSync(join(guidanceResult.persistence.generationPath, file), "utf8"),
+			).not.toContain("d688-no-network-secret-sentinel");
+			expect(
+				readFileSync(join(guidanceResult.persistence.generationPath, file), "utf8"),
+			).not.toContain(rawArgumentSentinel);
+		}
+		const assessedActionCounts = guidanceResult.guidanceObservations.map((observation) => {
+			const slot = guidanceResult.terminalSlots.find(
+				(candidate) =>
+					candidate.taskRef === observation.taskId &&
+					candidate.observation?.trialBlockRef === observation.matchedBlockId,
+			);
+			const branch = slot?.observation?.warmBranches.find(
+				(candidate) => candidate.branchKind === observation.arm,
+			);
+			return {
+				observationId: observation.observationId,
+				actionCount: branch?.run?.actionTrace.length ?? 0,
+			};
+		});
+		await expect(
+			persistPrivateDeveloperGuidanceCalibrationGeneration({
+				privateRoot: guidancePrivateRoot,
+				generationRef: "d688-no-network-preflight",
+				frozen: calibrationFixture.frozen,
+				qualificationReport: calibrationFixture.report,
+				terminalSlots: guidanceResult.terminalSlots,
+				sourceScorecard: guidanceResult.sourceScorecard,
+				guidanceObservations: guidanceResult.guidanceObservations,
+				guidanceScorecard: guidanceResult.guidanceScorecard,
+				recommendation: guidanceResult.recommendation,
+				expectedTaskIds: calibrationFixture.frozen.manifest.catalog.tasks.map(
+					(task) => task.taskRef,
+				) as [string, string, string, string, string],
+				assessedActionCounts,
+				protectionExecutor: calibrationFixture.protectionExecutor,
+			}),
+		).rejects.toThrow();
+		expect(
+			readdirSync(guidancePrivateRoot).filter((entry) => entry.startsWith(".staging-")),
+		).toEqual([]);
+	}, 60_000);
 
 	it("dry-runs one failed cold run and the exact five fresh matched warm arms atomically", async () => {
 		const fixture = await createClosedHostFixture(undefined, undefined, "glm-5.2-high");
@@ -6246,6 +6525,78 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 });
 
 describe("B112 D678-D679 package-private calibration operator", () => {
+	it("accepts fifteen distinct fresh same-route attestations and rejects reuse or substitution", async () => {
+		const fixture = await createClosedHostFixture(
+			undefined,
+			undefined,
+			"deepseek-v4-flash-high",
+			"calibration",
+		);
+		const rawRoutes = d678SimulatedCalibrationQualifications(fixture);
+		const routes = validateD678CalibrationRouteQualifications({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			routeQualifications: rawRoutes,
+		});
+		const credential = {
+			credentialBindingRef: rawRoutes[0]!.sharedCapacityQualification.credentialBindingRef,
+			credentialBindingRevision:
+				rawRoutes[0]!.sharedCapacityQualification.credentialBindingRevision,
+			bearerToken: "d688-fresh-qualification-secret",
+		};
+		const seen = new Set<string>();
+		const freshValues = routes.map(({ qualification: route }, index) =>
+			strictSnapshot({
+				...route,
+				qualificationRef: `d688-fresh-${index + 1}`,
+				qualificationRevision: `d688-fresh.v${index + 1}`,
+				keySpendLimit: {
+					...route.keySpendLimit,
+					qualificationRef: `d688-fresh-key-${index + 1}`,
+					qualificationRevision: `d688-fresh-key.v${index + 1}`,
+				},
+				sharedCapacityQualification: {
+					...route.sharedCapacityQualification,
+					qualificationRef: `d688-fresh-shared-${index + 1}`,
+					qualificationRevision: `d688-fresh-shared.v${index + 1}`,
+				},
+			}),
+		);
+		for (const [index, fresh] of freshValues.entries()) {
+			expect(
+				validateOpenRouterCalibrationFreshRouteQualification(
+					fresh,
+					fixture.frozen,
+					fixture.report,
+					routes[index]!.qualification,
+					credential,
+					seen,
+				).qualificationRevision,
+			).toBe(`d688-fresh.v${index + 1}`);
+		}
+		expect(seen.size).toBe(15);
+		expect(() =>
+			validateOpenRouterCalibrationFreshRouteQualification(
+				freshValues[0],
+				fixture.frozen,
+				fixture.report,
+				routes[0]!.qualification,
+				credential,
+				seen,
+			),
+		).toThrow(/substituted or reused/);
+		expect(() =>
+			validateOpenRouterCalibrationFreshRouteQualification(
+				{ ...freshValues[0], requestModel: "substituted/model" },
+				fixture.frozen,
+				fixture.report,
+				routes[0]!.qualification,
+				credential,
+				new Set(),
+			),
+		).toThrow();
+	}, 30_000);
+
 	it("reads bounded current-key metadata and admits exact conservative microUSD", async () => {
 		const secretSentinel = "d681-current-key-secret-sentinel";
 		let requestUrl: string | URL | Request | null = null;
