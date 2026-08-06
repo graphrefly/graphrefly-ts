@@ -775,6 +775,40 @@ function withPriorToolResult(
 	);
 }
 
+function withPriorToolResultValue(
+	request: EmpiricalModelTurnRequestV1,
+	authority: OpenRouterAuthorityFixture,
+	binding: OpenRouterResponsesEmpiricalBindingV1,
+	input: {
+		readonly toolRef: string;
+		readonly result: EmpiricalModelTurnRequestV1["priorToolResults"][number]["result"];
+	},
+): EmpiricalModelTurnRequestV1 {
+	const resultDigest = empiricalStrictJsonDigest(input.result);
+	const protectionReceipt = executeEmpiricalProtection(binding.protectionExecutor, {
+		policyRef: request.protectionPolicyRef,
+		policyRevision: request.protectionPolicyRevision,
+		stage: "tool-ingress",
+		subject: input.result,
+	}).receipt;
+	return validateEmpiricalModelTurnRequest(
+		{
+			...request,
+			priorToolResults: [
+				{
+					toolCallRef: "call_prior_bounded_result",
+					toolRef: input.toolRef,
+					resultDigest,
+					result: input.result,
+					protectionReceipt,
+				},
+			],
+		},
+		authority.frozen,
+		authority.qualificationReport,
+	);
+}
+
 function serializedWithoutCredential(value: unknown): string {
 	const serialized = JSON.stringify(value);
 	expect(serialized).not.toContain(bearerToken);
@@ -1470,6 +1504,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			issueCodes: [
 				OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
 				OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.postParseValidationFailed,
+				OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.outcomeValidationFailed,
 			],
 		});
 		expect(overflowHarness.transport).toHaveBeenCalledTimes(1);
@@ -1504,6 +1539,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			issueCodes: [
 				OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
 				OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.postParseValidationFailed,
+				OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.outcomeValidationFailed,
 			],
 		});
 		expect(duplicateCallHarness.transport).toHaveBeenCalledTimes(1);
@@ -1931,7 +1967,201 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		});
 		const sent = harness.transport.mock.calls[0]?.[0] as OpenRouterResponsesTransportRequestV1;
 		expect(strictJsonCodec.decode(sent.body)).toMatchObject({ tool_choice: "auto" });
-		expect(strictJsonCodec.decode(sent.body)).not.toHaveProperty("response_format");
+		expect(strictJsonCodec.decode(sent.body)).toMatchObject({
+			response_format: { json_schema: { strict: true } },
+		});
+	});
+
+	it("keeps DeepSeek early-final JSON and schema diagnostics bounded and distinct", async () => {
+		const authority = buildDeepSeekAuthority();
+		const route = deepSeekRouteQualification(authority);
+		const invoke = async (content: string) => {
+			const harness = createHarness(
+				authority,
+				deepSeekChatResponse({
+					id: "chatcmpl_deepseek_invalid_early_final_01",
+					finishReason: "stop",
+					message: { role: "assistant", content },
+				}),
+				bearerToken,
+				route,
+			);
+			const request = validateEmpiricalModelTurnRequest(
+				{
+					...withPriorToolResult(harness.request, authority, harness.binding),
+					requestRef: "deepseek-invalid-early-final",
+					stepIndex: 1,
+				},
+				authority.frozen,
+				authority.qualificationReport,
+			);
+			return harness.binding.modelTurnPort.invoke(request, new AbortController().signal);
+		};
+
+		const invalidJson = await invoke("not-json");
+		expect(invalidJson.issueCodes).toEqual([
+			OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+			OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.postParseValidationFailed,
+			OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.outputJsonInvalid,
+		]);
+
+		const schemaMismatch = await invoke(JSON.stringify({ summary: "missing-kind" }));
+		expect(schemaMismatch.issueCodes).toEqual([
+			OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+			OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.postParseValidationFailed,
+			OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.outcomeValidationFailed,
+		]);
+	});
+
+	it("mechanically closes exact D682 tools after host-derived terminal progress", async () => {
+		const authority = buildDeepSeekAuthority(true, true);
+		const route = deepSeekRouteQualification(authority);
+		const harness = createHarness(
+			authority,
+			deepSeekChatResponse({
+				id: "chatcmpl_deepseek_d682_terminal_final_01",
+				finishReason: "stop",
+				message: {
+					role: "assistant",
+					content: JSON.stringify({
+						kind: "model-turn-output-placeholder",
+						summary: "bounded-d682-terminal-final",
+					}),
+				},
+			}),
+			bearerToken,
+			route,
+		);
+		const rebound = rebindInput(harness.request, authority, d682ActorInput());
+		const request = validateEmpiricalModelTurnRequest(
+			{
+				...withPriorToolResultValue(rebound, authority, harness.binding, {
+					toolRef: CLOSED_ACTOR_TOOL_REFS.runCommand,
+					result: strictSnapshot({
+						kind: "run-command",
+						progress: {
+							remainingSteps: 4,
+							remainingActions: 12,
+							mutationObserved: true,
+							diffObserved: true,
+							commandObserved: true,
+						},
+					}),
+				}),
+				requestRef: "deepseek-d682-terminal-final",
+				stepIndex: 2,
+			},
+			authority.frozen,
+			authority.qualificationReport,
+		);
+
+		const outcome = await harness.binding.modelTurnPort.invoke(
+			request,
+			new AbortController().signal,
+		);
+
+		expect(outcome).toMatchObject({ status: "completed", finishReason: "structured-output" });
+		const sent = harness.transport.mock.calls[0]?.[0] as OpenRouterResponsesTransportRequestV1;
+		expect(strictJsonCodec.decode(sent.body)).toMatchObject({
+			tool_choice: "none",
+			response_format: { json_schema: { strict: true } },
+		});
+	});
+
+	it("rejects a tool call after exact D682 host-derived terminal progress", async () => {
+		const authority = buildDeepSeekAuthority(true, true);
+		const route = deepSeekRouteQualification(authority);
+		const harness = createHarness(
+			authority,
+			deepSeekChatResponse({
+				id: "chatcmpl_deepseek_d682_terminal_tool_01",
+				finishReason: "tool_calls",
+				message: {
+					role: "assistant",
+					content: null,
+					tool_calls: [
+						{
+							id: "call_deepseek_d682_terminal_tool_01",
+							type: "function",
+							function: {
+								name: "workspace_read_file",
+								arguments: JSON.stringify({ path: "README.md" }),
+							},
+						},
+					],
+				},
+			}),
+			bearerToken,
+			route,
+		);
+		const rebound = rebindInput(harness.request, authority, d682ActorInput());
+		const request = validateEmpiricalModelTurnRequest(
+			{
+				...withPriorToolResultValue(rebound, authority, harness.binding, {
+					toolRef: CLOSED_ACTOR_TOOL_REFS.runCommand,
+					result: strictSnapshot({
+						kind: "run-command",
+						progress: {
+							remainingSteps: 4,
+							remainingActions: 12,
+							mutationObserved: true,
+							diffObserved: true,
+							commandObserved: true,
+						},
+					}),
+				}),
+				requestRef: "deepseek-d682-terminal-tool",
+				stepIndex: 2,
+			},
+			authority.frozen,
+			authority.qualificationReport,
+		);
+
+		const outcome = await harness.binding.modelTurnPort.invoke(
+			request,
+			new AbortController().signal,
+		);
+
+		expect(outcome).toMatchObject({
+			status: "non-evaluable",
+			issueCodes: [
+				OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
+				OPENROUTER_RESPONSE_DIAGNOSTIC_CODES.terminalReadyToolCall,
+			],
+		});
+	});
+
+	it("does not close tools for a non-D682 progress-shaped result", async () => {
+		const authority = buildDeepSeekAuthority();
+		const route = deepSeekRouteQualification(authority);
+		const harness = createHarness(authority, undefined, bearerToken, route);
+		const toolRef = harness.request.availableTools[0]?.toolRef;
+		if (toolRef === undefined) throw new TypeError("DeepSeek progress fixture requires one tool");
+		const request = validateEmpiricalModelTurnRequest(
+			{
+				...withPriorToolResultValue(harness.request, authority, harness.binding, {
+					toolRef,
+					result: strictSnapshot({
+						progress: {
+							remainingSteps: 1,
+							remainingActions: 1,
+							mutationObserved: true,
+							diffObserved: true,
+							commandObserved: true,
+						},
+					}),
+				}),
+				requestRef: "deepseek-non-d682-progress-shaped",
+				stepIndex: 1,
+			},
+			authority.frozen,
+			authority.qualificationReport,
+		);
+
+		await harness.binding.modelTurnPort.invoke(request, new AbortController().signal);
+
+		const sent = harness.transport.mock.calls[0]?.[0] as OpenRouterResponsesTransportRequestV1;
+		expect(strictJsonCodec.decode(sent.body)).toMatchObject({ tool_choice: "auto" });
 	});
 
 	it("rejects a direct DeepSeek completion before any tool result", async () => {

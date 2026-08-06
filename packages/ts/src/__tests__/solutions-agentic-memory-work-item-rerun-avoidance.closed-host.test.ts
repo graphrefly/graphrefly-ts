@@ -1396,6 +1396,14 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 
 	it("runs five code-closed actor tools in explicit turns, gates the diff, verifies, and cleans up", async () => {
 		const fixture = await createClosedHostFixture();
+		const actionReceipts: Array<{
+			readonly actionIndex: number;
+			readonly intentDigest: string;
+			readonly resultDigest: string;
+			readonly toolRef: string;
+			readonly arguments: unknown;
+			readonly result: unknown;
+		}> = [];
 		const baseContentDigest = empiricalSha256(encoder.encode("broken-placeholder-value\n"));
 		const port = scriptedPort(fixture, (request) => {
 			expect(request.priorToolResults).toHaveLength(request.stepIndex === 0 ? 0 : 1);
@@ -1462,6 +1470,13 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			modelTurnPort: port,
 			protectionExecutor: fixture.protectionExecutor,
 			verifier: fixture.verifier,
+			actionReceiptObserver: {
+				observerRef: "developer-guidance-action-observer",
+				observerRevision: "developer-guidance-action-observer.v1",
+				record(receipt) {
+					actionReceipts.push(receipt);
+				},
+			},
 			signal: new AbortController().signal,
 		});
 
@@ -1485,6 +1500,20 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		]);
 		expect(outcome.actionTrace.map((entry) => entry.actionIndex)).toEqual([0, 1, 2, 3, 4]);
 		expect(outcome.actionTrace.map((entry) => entry.stepIndex)).toEqual([0, 1, 2, 3, 4]);
+		expect(actionReceipts).toHaveLength(5);
+		expect(actionReceipts.map((entry) => entry.toolRef)).toEqual(
+			outcome.actionTrace.map((entry) => entry.toolRef),
+		);
+		expect(
+			actionReceipts.every(
+				(receipt, index) =>
+					receipt.actionIndex === index &&
+					receipt.intentDigest === outcome.actionTrace[index]?.intentDigest &&
+					receipt.resultDigest === outcome.actionTrace[index]?.resultDigest,
+			),
+		).toBe(true);
+		expect(actionReceipts[2]?.arguments).toMatchObject({ path: "README.md" });
+		expect(actionReceipts[2]?.result).toMatchObject({ kind: "replace-exact", replacements: 1 });
 		expect(
 			outcome.actionTrace.every(
 				(entry) =>
@@ -1504,6 +1533,42 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(JSON.stringify(outcome)).not.toContain("broken");
 		expect(JSON.stringify(outcome)).not.toContain(fixture.workspaceRoot);
 		expect(() => readFileSync(join(fixture.workspaceRoot, "README.md"))).toThrow();
+	});
+
+	it("fails closed without persisting a partial action receipt when its observer rejects", async () => {
+		const fixture = await createClosedHostFixture();
+		const port = scriptedPort(fixture, () => ({
+			finishReason: "tool-intents",
+			toolIntents: [intent(0, CLOSED_ACTOR_TOOL_REFS.readFile, { path: "README.md" })],
+		}));
+		const outcome = await runClosedTaskProfileHost({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			initialRequest: fixture.initialRequest,
+			taskProfile: fixture.taskProfile,
+			materialization: fixture.materialization,
+			modelTurnPort: port,
+			protectionExecutor: fixture.protectionExecutor,
+			verifier: fixture.verifier,
+			actionReceiptObserver: {
+				observerRef: "rejecting-action-observer",
+				observerRevision: "rejecting-action-observer.v1",
+				record() {
+					throw new Error("private-observer-sentinel");
+				},
+			},
+			signal: new AbortController().signal,
+		});
+
+		expect(outcome).toMatchObject({
+			status: "non-evaluable",
+			issueCodes: ["action-receipt-observer-failed"],
+			cleanupSucceeded: true,
+		});
+		expect(outcome.toolEvidence).toHaveLength(1);
+		expect(outcome.actionTrace).toEqual([]);
+		expect(JSON.stringify(outcome)).not.toContain("private-observer-sentinel");
+		expect(fixture.verifierCalls.count).toBe(0);
 	});
 
 	it("derives D682 replace integrity from the current workspace and returns bounded generic progress", async () => {

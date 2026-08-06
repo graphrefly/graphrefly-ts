@@ -229,10 +229,30 @@ export interface ClosedTaskProfileHostRunInputV1 {
 	readonly modelTurnPort: EmpiricalModelTurnPortV1;
 	readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
 	readonly verifier: ClosedVerifierCapabilityV1;
+	readonly actionReceiptObserver?: ClosedTaskProfileHostActionReceiptObserverV1;
 	readonly retry?: ClosedTaskProfileHostRetryCapabilityV1;
 	/** Separate ownership signal used only to classify the D682 per-run elapsed bound. */
 	readonly agentRunElapsedSignal?: AbortSignal;
 	readonly signal: AbortSignal;
+}
+
+export interface ClosedTaskProfileHostActionReceiptV1 {
+	readonly taskRef: string;
+	readonly trialBlockRef: string;
+	readonly trialStage: EmpiricalModelTurnRequestV1["trialStage"];
+	readonly stepIndex: number;
+	readonly actionIndex: number;
+	readonly toolRef: string;
+	readonly intentDigest: string;
+	readonly resultDigest: string;
+	readonly arguments: StrictJsonValue;
+	readonly result: StrictJsonValue;
+}
+
+export interface ClosedTaskProfileHostActionReceiptObserverV1 {
+	readonly observerRef: string;
+	readonly observerRevision: string;
+	record(receipt: ClosedTaskProfileHostActionReceiptV1): void;
 }
 
 export interface ClosedTaskProfileHostRetryCapabilityV1 {
@@ -913,6 +933,30 @@ function validateRetryCapability(
 	});
 }
 
+function validateActionReceiptObserver(
+	value: ClosedTaskProfileHostActionReceiptObserverV1 | undefined,
+): ClosedTaskProfileHostActionReceiptObserverV1 | null {
+	if (value === undefined) return null;
+	const capability = record(value, "host.actionReceiptObserver");
+	exactKeys(
+		capability,
+		["observerRef", "observerRevision", "record"],
+		"host.actionReceiptObserver",
+	);
+	return Object.freeze({
+		observerRef: coordinate(capability.observerRef, "host.actionReceiptObserver.observerRef"),
+		observerRevision: coordinate(
+			capability.observerRevision,
+			"host.actionReceiptObserver.observerRevision",
+		),
+		record: ownCapabilityFunction<ClosedTaskProfileHostActionReceiptObserverV1["record"]>(
+			capability,
+			"record",
+			"host.actionReceiptObserver.record",
+		),
+	});
+}
+
 async function runValidatedHost(
 	input: ClosedTaskProfileHostRunInputV1,
 	frozen: FrozenEmpiricalCampaignManifestV1,
@@ -928,6 +972,7 @@ async function runValidatedHost(
 			initialRequest,
 			validated,
 			verifier,
+			validateActionReceiptObserver(input.actionReceiptObserver),
 			validateRetryCapability(input.retry),
 			evidence,
 		);
@@ -1084,6 +1129,7 @@ async function executeValidatedHost(
 	initialRequest: EmpiricalModelTurnRequestV1,
 	validated: ValidatedTaskProfile,
 	verifier: ClosedVerifierCapabilityV1,
+	actionReceiptObserver: ClosedTaskProfileHostActionReceiptObserverV1 | null,
 	retry: ClosedTaskProfileHostRetryCapabilityV1 | null,
 	evidence: MutableRunEvidence,
 ): Promise<ClosedTaskProfileHostRunOutcomeV3> {
@@ -1471,22 +1517,44 @@ async function executeValidatedHost(
 					resultDigest: result.resultDigest,
 				}),
 			);
-			evidence.actionTrace.push(
-				strictSnapshot({
-					stepIndex,
-					actionIndex,
-					initialRequestDigest: empiricalStrictJsonDigest(initialRequest),
-					requestDigest: empiricalStrictJsonDigest(request),
-					toolCallRefDigest: empiricalStrictJsonDigest({ toolCallRef: result.toolCallRef }),
-					toolRef: result.toolRef,
-					intentDigest: empiricalStrictJsonDigest({
-						toolRef: intent.toolRef,
-						arguments: intent.arguments,
-					}),
-					resultDigest: result.resultDigest,
-					memoryContextRecordDigest: evidence.initialMemoryContextRecordDigest,
+			const action = strictSnapshot({
+				stepIndex,
+				actionIndex,
+				initialRequestDigest: empiricalStrictJsonDigest(initialRequest),
+				requestDigest: empiricalStrictJsonDigest(request),
+				toolCallRefDigest: empiricalStrictJsonDigest({ toolCallRef: result.toolCallRef }),
+				toolRef: result.toolRef,
+				intentDigest: empiricalStrictJsonDigest({
+					toolRef: intent.toolRef,
+					arguments: intent.arguments,
 				}),
-			);
+				resultDigest: result.resultDigest,
+				memoryContextRecordDigest: evidence.initialMemoryContextRecordDigest,
+			});
+			if (actionReceiptObserver !== null) {
+				try {
+					const observerResult = actionReceiptObserver.record(
+						strictSnapshot({
+							taskRef: request.taskRef,
+							trialBlockRef: request.trialBlockRef,
+							trialStage: request.trialStage,
+							stepIndex,
+							actionIndex,
+							toolRef: result.toolRef,
+							intentDigest: action.intentDigest,
+							resultDigest: result.resultDigest,
+							arguments: intent.arguments,
+							result: result.result,
+						}),
+					);
+					if (observerResult !== undefined) {
+						throw new HostRunFailure("action-receipt-observer-failed");
+					}
+				} catch {
+					throw new HostRunFailure("action-receipt-observer-failed");
+				}
+			}
+			evidence.actionTrace.push(action);
 		}
 	}
 	throw new HostRunFailure("agent-step-budget-exhausted");
