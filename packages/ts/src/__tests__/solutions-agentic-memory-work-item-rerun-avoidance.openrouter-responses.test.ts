@@ -3,13 +3,17 @@ import {
 	empiricalStrictJsonDigest,
 	strictSnapshot,
 } from "../../evals/empirical-memory-rerun-avoidance/canonical.js";
-import { CLOSED_ACTOR_TOOL_REFS } from "../../evals/empirical-memory-rerun-avoidance/closed-task-profile-host.js";
+import {
+	CLOSED_ACTOR_TOOL_REFS,
+	D682_HOST_DERIVED_REPLACE_SCHEMA_REVISION,
+} from "../../evals/empirical-memory-rerun-avoidance/closed-task-profile-host.js";
 import type {
 	EmpiricalCampaignManifestV1,
 	EmpiricalStrictJsonShapeV1,
 	EmpiricalTaskQualificationReportV1,
 	FrozenEmpiricalCampaignManifestV1,
 } from "../../evals/empirical-memory-rerun-avoidance/contracts.js";
+import { createD682MechanicalActorInput } from "../../evals/empirical-memory-rerun-avoidance/d682-mechanical-qualification.js";
 import {
 	EMPIRICAL_MODEL_EGRESS_BLOCKED_SUBJECT_EVIDENCE_KIND,
 	EMPIRICAL_MODEL_EGRESS_PROTECTION_ISSUE_CODES,
@@ -83,6 +87,22 @@ import {
 
 const bearerToken = "openrouter-bearer-placeholder-0123456789";
 const responseEncoder = new TextEncoder();
+
+function d682ActorInput(): EmpiricalModelTurnRequestV1["structuredInput"] {
+	const input = createD682MechanicalActorInput({
+		workItemRef: "work-item-d682-fixture",
+		instructionRef: "instruction-d682-fixture",
+		readablePaths: ["README.md"],
+		writablePaths: ["README.md"],
+		commandRefs: ["actor.status"],
+		path: "README.md",
+		oldText: "broken-placeholder-value",
+		newText: "fixed",
+	});
+	return strictJsonCodec.decode(
+		strictJsonCodec.encode(input),
+	) as EmpiricalModelTurnRequestV1["structuredInput"];
+}
 
 interface OpenRouterAuthorityFixture extends EmpiricalModelTurnAuthorityFixture {
 	readonly manifest: EmpiricalCampaignManifestV1;
@@ -298,20 +318,34 @@ function glmRouteQualification(
 	});
 }
 
-function buildDeepSeekAuthority(closedTools = false): OpenRouterAuthorityFixture {
+function buildDeepSeekAuthority(
+	closedTools = false,
+	hostDerivedReplace = false,
+	substitutedHostDerivedReplace = false,
+): OpenRouterAuthorityFixture {
 	const campaign = buildEmpiricalCampaignFixture();
 	const base = openRouterManifest(campaign.manifest);
 	const baseConfiguration = base.modelConfigurations[0];
 	if (baseConfiguration === undefined) {
 		throw new TypeError("DeepSeek OpenRouter fixture requires one configuration");
 	}
-	const stringShape = {
+	const stringShape = (enumValues: readonly string[] | null = null) => ({
 		kind: "string" as const,
 		minLength: 1,
 		maxLength: 32_768,
+		enum: enumValues,
+	});
+	const replacementStringShape = {
+		kind: "string" as const,
+		minLength: 0,
+		maxLength: 32_768,
 		enum: null,
 	};
-	const integerShape = { kind: "integer" as const, minimum: 1, maximum: 4_096 };
+	const integerShape = {
+		kind: "integer" as const,
+		minimum: 1,
+		maximum: hostDerivedReplace ? 32 : 4_096,
+	};
 	const objectShape = (
 		properties: readonly {
 			readonly name: string;
@@ -322,29 +356,57 @@ function buildDeepSeekAuthority(closedTools = false): OpenRouterAuthorityFixture
 	const closedToolInputs = new Map<string, EmpiricalStrictJsonShapeV1>([
 		[
 			CLOSED_ACTOR_TOOL_REFS.readFile,
-			objectShape([{ name: "path", required: true, shape: stringShape }]),
+			objectShape([
+				{
+					name: "path",
+					required: true,
+					shape: stringShape(hostDerivedReplace ? ["README.md"] : null),
+				},
+			]),
 		],
 		[
 			CLOSED_ACTOR_TOOL_REFS.searchLiteral,
 			objectShape([
 				{ name: "maxMatches", required: true, shape: integerShape },
-				{ name: "path", required: true, shape: stringShape },
-				{ name: "query", required: true, shape: stringShape },
+				{
+					name: "path",
+					required: true,
+					shape: stringShape(hostDerivedReplace ? ["README.md"] : null),
+				},
+				{ name: "query", required: true, shape: stringShape() },
 			]),
 		],
 		[
 			CLOSED_ACTOR_TOOL_REFS.replaceExact,
 			objectShape([
-				{ name: "baseContentDigest", required: true, shape: stringShape },
-				{ name: "newText", required: true, shape: stringShape },
-				{ name: "oldText", required: true, shape: stringShape },
-				{ name: "path", required: true, shape: stringShape },
+				...(hostDerivedReplace
+					? substitutedHostDerivedReplace
+						? [{ name: "baseContentDigest", required: false, shape: stringShape() }]
+						: []
+					: [{ name: "baseContentDigest", required: true, shape: stringShape() }]),
+				{
+					name: "newText",
+					required: true,
+					shape: hostDerivedReplace ? replacementStringShape : stringShape(),
+				},
+				{ name: "oldText", required: true, shape: stringShape() },
+				{
+					name: "path",
+					required: true,
+					shape: stringShape(hostDerivedReplace ? ["README.md"] : null),
+				},
 			]),
 		],
 		[CLOSED_ACTOR_TOOL_REFS.workspaceDiff, objectShape([])],
 		[
 			CLOSED_ACTOR_TOOL_REFS.runCommand,
-			objectShape([{ name: "commandRef", required: true, shape: stringShape }]),
+			objectShape([
+				{
+					name: "commandRef",
+					required: true,
+					shape: stringShape(hostDerivedReplace ? ["actor.status"] : null),
+				},
+			]),
 		],
 	]);
 	const tools = closedTools
@@ -353,7 +415,9 @@ function buildDeepSeekAuthority(closedTools = false): OpenRouterAuthorityFixture
 				if (inputSchema === undefined) throw new TypeError(`missing closed schema for ${toolRef}`);
 				return strictSnapshot({
 					toolRef,
-					schemaRevision: "closed-task-tools.d659.v1",
+					schemaRevision: hostDerivedReplace
+						? D682_HOST_DERIVED_REPLACE_SCHEMA_REVISION
+						: "closed-task-tools.d659.v1",
 					inputSchema,
 					inputSchemaDigest: empiricalStrictJsonDigest(inputSchema),
 				});
@@ -374,6 +438,9 @@ function buildDeepSeekAuthority(closedTools = false): OpenRouterAuthorityFixture
 			reasoning: { mode: "provider-native" as const, effort: "high" },
 			tools: {
 				...baseConfiguration.settings.tools,
+				schemaRevision: hostDerivedReplace
+					? D682_HOST_DERIVED_REPLACE_SCHEMA_REVISION
+					: baseConfiguration.settings.tools.schemaRevision,
 				toolRefs: tools.map((tool) => tool.toolRef),
 				toolSetDigest: empiricalStrictJsonDigest(tools),
 				choice: "required" as const,
@@ -385,7 +452,13 @@ function buildDeepSeekAuthority(closedTools = false): OpenRouterAuthorityFixture
 	const manifest = strictSnapshot({
 		...base,
 		campaignRef: "b112-openrouter-deepseek-v4-flash-smoke-fixture",
-		schemaCatalog: { ...base.schemaCatalog, tools },
+		schemaCatalog: {
+			...base.schemaCatalog,
+			catalogRevision: hostDerivedReplace
+				? D682_HOST_DERIVED_REPLACE_SCHEMA_REVISION
+				: base.schemaCatalog.catalogRevision,
+			tools,
+		},
 		modelConfigurations: [configuration],
 	});
 	return Object.freeze({
@@ -2056,6 +2129,85 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 				},
 			],
 		});
+	});
+
+	it("keeps the D682 host-derived mutation description aligned with its exact declared arguments", async () => {
+		const authority = buildDeepSeekAuthority(true, true);
+		const route = deepSeekRouteQualification(authority);
+		const harness = createHarness(authority, undefined, bearerToken, route);
+		const request = rebindInput(harness.request, authority, d682ActorInput());
+		harness.transport.mockImplementationOnce((input) => {
+			const body = strictJsonCodec.decode(input.body) as {
+				readonly messages: readonly { readonly role: string; readonly content: string }[];
+				readonly tools: readonly {
+					readonly function: {
+						readonly name: string;
+						readonly description: string;
+						readonly parameters: {
+							readonly properties: Readonly<Record<string, unknown>>;
+							readonly required: readonly string[];
+						};
+					};
+				}[];
+			};
+			const replace = body.tools.find(
+				(tool) => tool.function.name === "workspace_replace_exact",
+			)?.function;
+			const system = body.messages.find((message) => message.role === "system")?.content;
+			expect(replace?.parameters.required).toEqual(["newText", "oldText", "path"]);
+			expect(replace?.parameters.properties).not.toHaveProperty("baseContentDigest");
+			expect(replace?.description).toContain("sealed host binds the current file digest");
+			expect(replace?.description).not.toContain("baseContentDigest");
+			expect(system).toContain("Use only argument fields declared by each tool schema");
+			expect(system).not.toContain("baseContentDigest");
+			return Promise.resolve({
+				status: 200,
+				retryAfterMs: null,
+				body: deepSeekChatResponse({
+					id: "chatcmpl_deepseek_d682_contract_01",
+					finishReason: "tool_calls",
+					message: {
+						role: "assistant",
+						content: null,
+						tool_calls: [
+							{
+								id: "call_deepseek_d682_read_01",
+								type: "function",
+								function: {
+									name: "workspace_read_file",
+									arguments: JSON.stringify({ path: "README.md" }),
+								},
+							},
+						],
+					},
+				}),
+			});
+		});
+
+		const outcome = await harness.binding.modelTurnPort.invoke(
+			request,
+			new AbortController().signal,
+		);
+
+		expect(outcome).toMatchObject({
+			status: "completed",
+			finishReason: "tool-intents",
+			toolIntents: [{ toolRef: CLOSED_ACTOR_TOOL_REFS.readFile }],
+		});
+	});
+
+	it("does not grant D682 host-derived semantics to a substituted optional digest schema", async () => {
+		const authority = buildDeepSeekAuthority(true, true, true);
+		const route = deepSeekRouteQualification(authority);
+		const harness = createHarness(authority, undefined, bearerToken, route);
+		const request = rebindInput(harness.request, authority, d682ActorInput());
+		await expect(
+			harness.binding.modelTurnPort.invoke(request, new AbortController().signal),
+		).resolves.toMatchObject({
+			status: "non-evaluable",
+			issueCodes: ["openrouter-request-rejected"],
+		});
+		expect(harness.transport).not.toHaveBeenCalled();
 	});
 
 	it("keeps the D674 multi-intent capability probe to one simulated request and no efficacy evidence", async () => {

@@ -52,13 +52,21 @@ import {
 	validateD682MechanicalQualificationCatalog,
 } from "../../evals/empirical-memory-rerun-avoidance/d682-mechanical-qualification.js";
 import {
+	createDeveloperGuidanceObservation,
+	developerGuidanceActionProgressEvidenceDigest,
+	developerGuidanceCoordinateEvidenceDigest,
+} from "../../evals/empirical-memory-rerun-avoidance/developer-guidance-utility.js";
+import {
 	B112_EXHAUSTIVE_TASK_CLUSTER_INTERVAL_REVISION,
 	createB112CalibrationTrialBlockIdentity,
 	validateB112CalibrationEmpiricalBlockResult,
 } from "../../evals/empirical-memory-rerun-avoidance/empirical-calibration.js";
 import {
+	B112_CALIBRATION_EXPLORATORY_NO_EFFICACY_CLAIM,
 	createEmpiricalCampaignScorecard,
+	EMPIRICAL_CALIBRATION_TRIAL_BLOCK_OBSERVATION_SCHEMA,
 	validateEmpiricalAggregateEvidenceDigestList,
+	validateEmpiricalCalibrationTrialBlockObservation,
 	validateEmpiricalCampaignScorecard,
 	validateEmpiricalTrialBlockObservation,
 } from "../../evals/empirical-memory-rerun-avoidance/empirical-smoke-evidence.js";
@@ -365,7 +373,23 @@ async function createClosedHostFixture(
 		catalog.tasks.map(buildEmpiricalQualificationObservationFixture),
 	);
 	const baseManifest = buildEmpiricalCampaignManifestFixture(catalog, report);
-	const schemaCatalog = closedToolSchemaCatalog(baseManifest, hostDerivedReplace);
+	const hostDerivedActorInput = hostDerivedReplace
+		? createD682MechanicalActorInput({
+				workItemRef: task.workItemRef,
+				instructionRef: `instruction.${taskRef}`,
+				readablePaths: workspaceRecipe.readableFiles,
+				writablePaths: workspaceRecipe.writableFiles.map((rule) => rule.path),
+				commandRefs: commandPolicy.commands.map((candidate) => candidate.commandRef),
+				path: "README.md",
+				oldText: sourceContent.trim(),
+				newText: expectedContent.trim(),
+			})
+		: null;
+	const schemaCatalog = closedToolSchemaCatalog(
+		baseManifest,
+		hostDerivedReplace,
+		hostDerivedActorInput,
+	);
 	const baseConfiguration = baseManifest.modelConfigurations[0];
 	if (baseConfiguration === undefined) throw new Error("missing actor configuration fixture");
 	const chatProfile = modelProfile !== "gpt-5.6-sol-medium";
@@ -523,7 +547,7 @@ async function createClosedHostFixture(
 		frozen,
 		qualificationReport: report,
 	});
-	const initialRequest =
+	const requestWithoutActorInput =
 		trialProfile === "calibration"
 			? validateEmpiricalModelTurnRequest(
 					{
@@ -535,12 +559,31 @@ async function createClosedHostFixture(
 				)
 			: initialRequestBase;
 	const protectionExecutor = createEmpiricalExactPrivateNeedleProtectionExecutor({
-		policyRef: initialRequest.protectionPolicyRef,
-		policyRevision: initialRequest.protectionPolicyRevision,
+		policyRef: requestWithoutActorInput.protectionPolicyRef,
+		policyRevision: requestWithoutActorInput.protectionPolicyRevision,
 		protectedNeedleCapabilityRef: "protected-needles.d659",
 		protectedNeedleCapabilityRevision: "protected-needles.d659.v1",
 		protectedNeedles: ["private-secret-placeholder"],
 	});
+	const initialRequest =
+		hostDerivedActorInput === null
+			? requestWithoutActorInput
+			: validateEmpiricalModelTurnRequest(
+					{
+						...requestWithoutActorInput,
+						structuredInput: hostDerivedActorInput,
+						structuredInputDigest: empiricalStrictJsonDigest(hostDerivedActorInput),
+						inputProtectionReceipt: executeEmpiricalProtection(protectionExecutor, {
+							policyRef: requestWithoutActorInput.protectionPolicyRef,
+							policyRevision: requestWithoutActorInput.protectionPolicyRevision,
+							stage: "source-ingress",
+							subject:
+								hostDerivedActorInput as unknown as EmpiricalModelTurnRequestV1["structuredInput"],
+						}).receipt,
+					},
+					frozen,
+					report,
+				);
 
 	const allocationRoot = temporaryRoot("allocation");
 	const allocator: SingleBaselineWorkspaceAllocatorCapabilityV1 = {
@@ -621,19 +664,34 @@ async function createClosedHostFixture(
 function closedToolSchemaCatalog(
 	baseManifest: EmpiricalCampaignManifestV1,
 	hostDerivedReplace = false,
+	actorInput: ReturnType<typeof createD682MechanicalActorInput> | null = null,
 ) {
-	const stringShape = {
+	const stringShape = (enumValues: readonly string[] | null = null) =>
+		({
+			kind: "string",
+			minLength: 1,
+			maxLength: 32_768,
+			enum: enumValues,
+		}) as const;
+	const replacementStringShape = {
 		kind: "string",
-		minLength: 1,
+		minLength: 0,
 		maxLength: 32_768,
 		enum: null,
 	} as const;
-	const integerShape = { kind: "integer", minimum: 1, maximum: 4_096 } as const;
+	const integerShape = {
+		kind: "integer",
+		minimum: 1,
+		maximum: hostDerivedReplace ? 32 : 4_096,
+	} as const;
 	const objectShape = (
 		properties: readonly {
 			readonly name: string;
 			readonly required: boolean;
-			readonly shape: typeof stringShape | typeof integerShape;
+			readonly shape:
+				| ReturnType<typeof stringShape>
+				| typeof replacementStringShape
+				| typeof integerShape;
 		}[],
 	) =>
 		strictSnapshot({
@@ -644,14 +702,24 @@ function closedToolSchemaCatalog(
 	const entries = [
 		{
 			toolRef: CLOSED_ACTOR_TOOL_REFS.readFile,
-			inputSchema: objectShape([{ name: "path", required: true, shape: stringShape }]),
+			inputSchema: objectShape([
+				{
+					name: "path",
+					required: true,
+					shape: stringShape(hostDerivedReplace ? (actorInput?.readablePaths ?? null) : null),
+				},
+			]),
 		},
 		{
 			toolRef: CLOSED_ACTOR_TOOL_REFS.searchLiteral,
 			inputSchema: objectShape([
 				{ name: "maxMatches", required: true, shape: integerShape },
-				{ name: "path", required: true, shape: stringShape },
-				{ name: "query", required: true, shape: stringShape },
+				{
+					name: "path",
+					required: true,
+					shape: stringShape(hostDerivedReplace ? (actorInput?.readablePaths ?? null) : null),
+				},
+				{ name: "query", required: true, shape: stringShape() },
 			]),
 		},
 		{
@@ -659,10 +727,18 @@ function closedToolSchemaCatalog(
 			inputSchema: objectShape([
 				...(hostDerivedReplace
 					? []
-					: [{ name: "baseContentDigest", required: true, shape: stringShape }]),
-				{ name: "newText", required: true, shape: stringShape },
-				{ name: "oldText", required: true, shape: stringShape },
-				{ name: "path", required: true, shape: stringShape },
+					: [{ name: "baseContentDigest", required: true, shape: stringShape() }]),
+				{
+					name: "newText",
+					required: true,
+					shape: hostDerivedReplace ? replacementStringShape : stringShape(),
+				},
+				{ name: "oldText", required: true, shape: stringShape() },
+				{
+					name: "path",
+					required: true,
+					shape: stringShape(hostDerivedReplace ? (actorInput?.writablePaths ?? null) : null),
+				},
 			]),
 		},
 		{
@@ -671,7 +747,13 @@ function closedToolSchemaCatalog(
 		},
 		{
 			toolRef: CLOSED_ACTOR_TOOL_REFS.runCommand,
-			inputSchema: objectShape([{ name: "commandRef", required: true, shape: stringShape }]),
+			inputSchema: objectShape([
+				{
+					name: "commandRef",
+					required: true,
+					shape: stringShape(hostDerivedReplace ? (actorInput?.commandRefs ?? null) : null),
+				},
+			]),
 		},
 	].map((entry) =>
 		strictSnapshot({
@@ -3061,6 +3143,63 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(strictJsonCodec.encode(repeatedScorecard)).toEqual(
 			strictJsonCodec.encode(result.scorecard),
 		);
+		const withTrace = (
+			observation: (typeof result.observations)[number],
+			actionTrace: (typeof observation)["cold"]["actionTrace"],
+			toolResultBindings: (typeof observation)["cold"]["toolResultBindings"],
+		) =>
+			strictSnapshot({
+				...observation,
+				cold: strictSnapshot({
+					...observation.cold,
+					actionTrace,
+					actionTraceDigest: empiricalStrictJsonDigest(actionTrace),
+					toolResultBindings,
+				}),
+			});
+		const firstTrace = result.observations[0].cold.actionTrace;
+		const firstBindings = result.observations[0].cold.toolResultBindings;
+		const skippedCommand = withTrace(
+			result.observations[0],
+			firstTrace.slice(0, -1),
+			firstBindings.slice(0, -1),
+		);
+		expect(
+			createD682MechanicalQualificationScorecard({
+				catalog,
+				observations: [skippedCommand, result.observations[1], result.observations[2]],
+			}),
+		).toMatchObject({ status: "not-qualified", passedFixtures: 2 });
+		const firstAction = firstTrace[0];
+		const secondAction = firstTrace[1];
+		if (firstAction === undefined || secondAction === undefined) {
+			throw new TypeError("D682 dry-run action trace is incomplete");
+		}
+		const reorderedTrace = strictSnapshot([
+			strictSnapshot({ ...firstAction, toolRef: secondAction.toolRef }),
+			strictSnapshot({ ...secondAction, toolRef: firstAction.toolRef }),
+			...firstTrace.slice(2),
+		]);
+		const firstBinding = firstBindings[0];
+		const secondBinding = firstBindings[1];
+		if (firstBinding === undefined || secondBinding === undefined) {
+			throw new TypeError("D682 dry-run tool bindings are incomplete");
+		}
+		const reordered = withTrace(
+			result.observations[0],
+			reorderedTrace,
+			strictSnapshot([
+				strictSnapshot({ ...firstBinding, toolRef: secondBinding.toolRef }),
+				strictSnapshot({ ...secondBinding, toolRef: firstBinding.toolRef }),
+				...firstBindings.slice(2),
+			]),
+		);
+		expect(
+			createD682MechanicalQualificationScorecard({
+				catalog,
+				observations: [reordered, result.observations[1], result.observations[2]],
+			}),
+		).toMatchObject({ status: "not-qualified", passedFixtures: 2 });
 		const generationFiles = readdirSync(result.persistence.generationPath).sort();
 		expect(generationFiles).toEqual([
 			"generation.v1.json",
@@ -3407,6 +3546,174 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		});
 		expect(result.observation.cold.actionTrace).toHaveLength(7);
 		expect(result.observation.warmBranches[0]?.run?.actionTrace).toHaveLength(7);
+		const calibrationSource = validateEmpiricalCalibrationTrialBlockObservation({
+			...result.observation,
+			schemaVersion: EMPIRICAL_CALIBRATION_TRIAL_BLOCK_OBSERVATION_SCHEMA,
+			claimBoundary: B112_CALIBRATION_EXPLORATORY_NO_EFFICACY_CLAIM,
+			profile: "calibration",
+			blockIndex: 1,
+		});
+		const sourceObservationDigest = empiricalStrictJsonDigest(calibrationSource);
+		const sourceRunDigest = empiricalStrictJsonDigest(relevantRun);
+		const guidanceVerifierRef = "guidance-verifier.d684";
+		const guidanceVerifierRevision = "guidance-verifier.d684.v1";
+		const guidanceCoordinates = {
+			repositoryScopeCorrect: true,
+			targetFileCorrect: true,
+			targetSymbolCorrect: null,
+			targetTestCorrect: true,
+			failureClassCorrect: true,
+		};
+		const guidanceAssessment = {
+			verifierRef: guidanceVerifierRef,
+			verifierRevision: guidanceVerifierRevision,
+			sourceObservationDigest,
+			sourceRunDigest,
+			horizonStatus: "progress-observed" as const,
+			nonEvaluableReason: null,
+			coordinates: guidanceCoordinates,
+			coordinateEvidenceDigest: developerGuidanceCoordinateEvidenceDigest({
+				verifierRef: guidanceVerifierRef,
+				verifierRevision: guidanceVerifierRevision,
+				sourceObservationDigest,
+				sourceRunDigest,
+				coordinates: guidanceCoordinates,
+			}),
+			actions: relevantRun.actionTrace.map((action, index) => ({
+				actionIndex: index,
+				intentDigest: action.intentDigest,
+				resultDigest: action.resultDigest,
+				toolRef: action.toolRef,
+				valid: true,
+				repeatedKnownFailureRoute: false,
+				harmful: false,
+				verifierProgressEvidenceDigest:
+					index === relevantRun.actionTrace.length - 1
+						? developerGuidanceActionProgressEvidenceDigest({
+								verifierRef: guidanceVerifierRef,
+								verifierRevision: guidanceVerifierRevision,
+								sourceObservationDigest,
+								sourceRunDigest,
+								actionIndex: index,
+								intentDigest: action.intentDigest,
+								resultDigest: action.resultDigest,
+								toolRef: action.toolRef,
+							})
+						: null,
+			})),
+			finalTaskVerifierEvidenceDigest: relevantRun.verifierEvidenceDigests[0] ?? null,
+		};
+		let invalidHorizonVerifierCalls = 0;
+		expect(() =>
+			createDeveloperGuidanceObservation({
+				sourceObservation: calibrationSource,
+				arm: "relevant-applied",
+				observationId: "guidance.relevant.invalid-horizon",
+				comparisonCoordinatesDigest: empiricalStrictJsonDigest({
+					taskRef: calibrationSource.taskRef,
+					manifestDigest: calibrationSource.manifestDigest,
+				}),
+				horizon: { maxRequests: 8, maxActions: 6 },
+				verifier: {
+					verifierRef: guidanceVerifierRef,
+					verifierRevision: guidanceVerifierRevision,
+					assess: () => {
+						invalidHorizonVerifierCalls += 1;
+						return guidanceAssessment;
+					},
+				},
+			}),
+		).toThrow(/source run exceeded its frozen horizon/);
+		expect(invalidHorizonVerifierCalls).toBe(0);
+		expect(() =>
+			createDeveloperGuidanceObservation({
+				sourceObservation: calibrationSource,
+				arm: "relevant-applied",
+				observationId: "guidance.relevant.oversized-assessment",
+				comparisonCoordinatesDigest: empiricalStrictJsonDigest({
+					taskRef: calibrationSource.taskRef,
+					manifestDigest: calibrationSource.manifestDigest,
+				}),
+				horizon: { maxRequests: 8, maxActions: 8 },
+				verifier: {
+					verifierRef: guidanceVerifierRef,
+					verifierRevision: guidanceVerifierRevision,
+					assess: () => ({
+						...guidanceAssessment,
+						actions: [...guidanceAssessment.actions, guidanceAssessment.actions[0]],
+					}),
+				},
+			}),
+		).toThrow(/escaped its frozen action horizon/);
+		const guidance = createDeveloperGuidanceObservation({
+			sourceObservation: calibrationSource,
+			arm: "relevant-applied",
+			observationId: "guidance.relevant.block-1",
+			comparisonCoordinatesDigest: empiricalStrictJsonDigest({
+				taskRef: calibrationSource.taskRef,
+				manifestDigest: calibrationSource.manifestDigest,
+			}),
+			horizon: { maxRequests: 8, maxActions: 8 },
+			verifier: {
+				verifierRef: guidanceVerifierRef,
+				verifierRevision: guidanceVerifierRevision,
+				assess: () => guidanceAssessment,
+			},
+		});
+		expect(() =>
+			createDeveloperGuidanceObservation({
+				sourceObservation: calibrationSource,
+				arm: "relevant-applied",
+				observationId: "guidance.relevant.substituted",
+				comparisonCoordinatesDigest: guidance.comparisonCoordinatesDigest,
+				horizon: guidance.horizon,
+				verifier: {
+					verifierRef: guidanceVerifierRef,
+					verifierRevision: guidanceVerifierRevision,
+					assess: () => ({
+						...guidanceAssessment,
+						sourceRunDigest: `sha256:${"0".repeat(64)}`,
+					}),
+				},
+			}),
+		).toThrow(/source-bound|not bound to its source observation/);
+		const finalProgressDigest = guidanceAssessment.actions.at(-1)?.verifierProgressEvidenceDigest;
+		if (finalProgressDigest === undefined || finalProgressDigest === null) {
+			throw new TypeError("guidance progress receipt is missing");
+		}
+		expect(() =>
+			createDeveloperGuidanceObservation({
+				sourceObservation: calibrationSource,
+				arm: "relevant-applied",
+				observationId: "guidance.relevant.early-progress-substitution",
+				comparisonCoordinatesDigest: guidance.comparisonCoordinatesDigest,
+				horizon: guidance.horizon,
+				verifier: {
+					verifierRef: guidanceVerifierRef,
+					verifierRevision: guidanceVerifierRevision,
+					assess: () => ({
+						...guidanceAssessment,
+						actions: guidanceAssessment.actions.map((action, index) => ({
+							...action,
+							verifierProgressEvidenceDigest: index === 0 ? finalProgressDigest : null,
+						})),
+					}),
+				},
+			}),
+		).toThrow(/progress evidence is not action-bound/);
+		expect(guidance).toMatchObject({
+			arm: "relevant-applied",
+			evaluable: true,
+			finalTaskVerifierPassed: true,
+			evidence: {
+				sourceObservationDigest,
+				sourceRunDigest,
+				memoryDelivered: true,
+				modelAttributedMemory: false,
+				validActionObserved: true,
+				verifierProgressObserved: true,
+			},
+		});
 		expect(
 			result.observation.warmBranches
 				.slice(1)

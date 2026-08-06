@@ -60,7 +60,7 @@ export const CLOSED_ACTOR_TOOL_REFS = Object.freeze({
 	runCommand: "graphrefly.private-solution-eval.workspace.run-command-ref.v1",
 });
 
-export const D682_HOST_DERIVED_REPLACE_SCHEMA_REVISION = "closed-task-tools.d682.v2";
+export const D682_HOST_DERIVED_REPLACE_SCHEMA_REVISION = "closed-task-tools.d682.v3";
 
 export const CLOSED_TASK_PROFILE_HOST_MAX_ACTION_TRACE_ENTRIES = 256;
 
@@ -988,7 +988,10 @@ function classifyAgentRunElapsedOutcome(
 	});
 }
 
-function usesD682HostDerivedReplace(request: EmpiricalModelTurnRequestV1): boolean {
+function usesD682HostDerivedReplace(
+	request: EmpiricalModelTurnRequestV1,
+	maxSearchMatches: number,
+): boolean {
 	const d682Tools = request.availableTools.filter(
 		(tool) => tool.schemaRevision === D682_HOST_DERIVED_REPLACE_SCHEMA_REVISION,
 	);
@@ -996,10 +999,82 @@ function usesD682HostDerivedReplace(request: EmpiricalModelTurnRequestV1): boole
 	if (d682Tools.length !== request.availableTools.length) {
 		throw new HostRunFailure("d682-tool-catalog-revision-mixed");
 	}
-	const replacement = d682Tools.find(
-		(tool) => tool.toolRef === CLOSED_ACTOR_TOOL_REFS.replaceExact,
-	);
-	if (replacement === undefined) throw new HostRunFailure("d682-replace-tool-missing");
+	const structuredInput = record(request.structuredInput, "host.d682.structuredInput");
+	const enumValues = (key: "readablePaths" | "writablePaths" | "commandRefs") =>
+		array(structuredInput[key], `host.d682.structuredInput.${key}`).map((value, index) =>
+			string(value, `host.d682.structuredInput.${key}[${index}]`, 32_768),
+		);
+	const readablePaths = enumValues("readablePaths");
+	const writablePaths = enumValues("writablePaths");
+	const commandRefs = enumValues("commandRefs");
+	const stringShape = (values: readonly string[] | null) =>
+		strictSnapshot({
+			kind: "string" as const,
+			minLength: 1,
+			maxLength: 32_768,
+			enum: values,
+		});
+	const replacementStringShape = strictSnapshot({
+		kind: "string" as const,
+		minLength: 0,
+		maxLength: 32_768,
+		enum: null,
+	});
+	const objectShape = (
+		properties: readonly {
+			readonly name: string;
+			readonly required: true;
+			readonly shape: EmpiricalModelTurnRequestV1["availableTools"][number]["inputSchema"];
+		}[],
+	) =>
+		strictSnapshot({ kind: "object" as const, properties, additionalProperties: false as const });
+	const expectedSchemas = new Map<
+		string,
+		EmpiricalModelTurnRequestV1["availableTools"][number]["inputSchema"]
+	>([
+		[
+			CLOSED_ACTOR_TOOL_REFS.readFile,
+			objectShape([{ name: "path", required: true, shape: stringShape(readablePaths) }]),
+		],
+		[
+			CLOSED_ACTOR_TOOL_REFS.searchLiteral,
+			objectShape([
+				{
+					name: "maxMatches",
+					required: true,
+					shape: { kind: "integer" as const, minimum: 1, maximum: maxSearchMatches },
+				},
+				{ name: "path", required: true, shape: stringShape(readablePaths) },
+				{ name: "query", required: true, shape: stringShape(null) },
+			]),
+		],
+		[
+			CLOSED_ACTOR_TOOL_REFS.replaceExact,
+			objectShape([
+				{ name: "newText", required: true, shape: replacementStringShape },
+				{ name: "oldText", required: true, shape: stringShape(null) },
+				{ name: "path", required: true, shape: stringShape(writablePaths) },
+			]),
+		],
+		[CLOSED_ACTOR_TOOL_REFS.workspaceDiff, objectShape([])],
+		[
+			CLOSED_ACTOR_TOOL_REFS.runCommand,
+			objectShape([{ name: "commandRef", required: true, shape: stringShape(commandRefs) }]),
+		],
+	]);
+	if (d682Tools.length !== expectedSchemas.size) {
+		throw new HostRunFailure("d682-tool-catalog-invalid");
+	}
+	for (const tool of d682Tools) {
+		const expected = expectedSchemas.get(tool.toolRef);
+		if (
+			expected === undefined ||
+			tool.inputSchemaDigest !== empiricalStrictJsonDigest(tool.inputSchema) ||
+			empiricalStrictJsonDigest(tool.inputSchema) !== empiricalStrictJsonDigest(expected)
+		) {
+			throw new HostRunFailure("d682-tool-catalog-invalid");
+		}
+	}
 	return true;
 }
 
@@ -1035,7 +1110,10 @@ async function executeValidatedHost(
 		frozen.manifest.budgets.agentRun.maxSteps,
 		configuration.settings.tools.maxSteps,
 	);
-	const hostDerivedReplace = usesD682HostDerivedReplace(initialRequest);
+	const hostDerivedReplace = usesD682HostDerivedReplace(
+		initialRequest,
+		validated.profile.workspaceRecipe.maxSearchMatches,
+	);
 	let request = initialRequest;
 	let pendingToolResults: EmpiricalModelToolResultV1[] = [];
 	let pendingToolResultBytes = 0;

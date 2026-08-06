@@ -11,10 +11,16 @@ import {
 	strictSnapshot,
 } from "./canonical.js";
 import { assertPortableRepositoryPath } from "./canonical-repository-tree.js";
+import type {
+	EmpiricalSchemaCatalogV1,
+	EmpiricalStrictJsonShapeV1,
+	EmpiricalToolSchemaCatalogEntryV1,
+} from "./contracts.js";
 import {
 	type EmpiricalCalibrationTrialBlockObservationV4,
 	validateEmpiricalCalibrationTrialBlockObservation,
 } from "./empirical-smoke-evidence.js";
+import { validateEmpiricalSchemaCatalog } from "./strict-json-shape.js";
 
 export const D682_MECHANICAL_QUALIFICATION_CATALOG_SCHEMA =
 	"graphrefly.private-solution-eval.d682-mechanical-qualification-catalog.v1";
@@ -28,6 +34,20 @@ export const D682_MECHANICAL_QUALIFICATION_FIXTURE_COUNT = 3;
 export const D682_MECHANICAL_QUALIFICATION_MAX_COST_MICROUSD = 500_000;
 export const D682_MECHANICAL_QUALIFICATION_MAX_CATALOG_BYTES = 65_536;
 export const D682_MECHANICAL_ACTOR_INPUT_MAX_BYTES = 131_072;
+const D682_MECHANICAL_REQUIRED_ACTION_TOOL_REFS = Object.freeze([
+	"graphrefly.private-solution-eval.workspace.read-file.v1",
+	"graphrefly.private-solution-eval.workspace.replace-exact.v1",
+	"graphrefly.private-solution-eval.workspace.diff.v1",
+	"graphrefly.private-solution-eval.workspace.run-command-ref.v1",
+] as const);
+
+export interface D682MechanicalToolRefsV1 {
+	readonly readFile: string;
+	readonly searchLiteral: string;
+	readonly replaceExact: string;
+	readonly workspaceDiff: string;
+	readonly runCommand: string;
+}
 
 export interface D682MechanicalActorInputV1 {
 	readonly schemaVersion: typeof D682_MECHANICAL_ACTOR_INPUT_SCHEMA;
@@ -184,6 +204,206 @@ export function validateD682MechanicalActorInput(value: unknown): D682Mechanical
 	return validated;
 }
 
+const D682_STRING_SHAPE = strictSnapshot({
+	kind: "string" as const,
+	minLength: 1,
+	maxLength: 32_768,
+	enum: null,
+});
+const D682_REPLACEMENT_STRING_SHAPE = strictSnapshot({
+	kind: "string" as const,
+	minLength: 0,
+	maxLength: 32_768,
+	enum: null,
+});
+
+function d682StringShape(values: readonly string[] | null): EmpiricalStrictJsonShapeV1 {
+	return strictSnapshot({ ...D682_STRING_SHAPE, enum: values });
+}
+
+function d682ObjectShape(
+	properties: readonly {
+		readonly name: string;
+		readonly required: true;
+		readonly shape: EmpiricalStrictJsonShapeV1;
+	}[],
+): EmpiricalStrictJsonShapeV1 {
+	return strictSnapshot({
+		kind: "object" as const,
+		properties,
+		additionalProperties: false as const,
+	});
+}
+
+function expectedD682ToolSchemas(input: {
+	readonly actorInput: D682MechanicalActorInputV1;
+	readonly toolRefs: D682MechanicalToolRefsV1;
+	readonly specialized: boolean;
+	readonly maxSearchMatches: number;
+}): ReadonlyMap<string, EmpiricalStrictJsonShapeV1> {
+	const path = (values: readonly string[]) => d682StringShape(input.specialized ? values : null);
+	const commandRef = d682StringShape(input.specialized ? input.actorInput.commandRefs : null);
+	const maximumSearchMatches = input.specialized
+		? safeInteger(input.maxSearchMatches, "d682ToolCatalog.maxSearchMatches", {
+				min: 1,
+				max: 4_096,
+			})
+		: 4_096;
+	return new Map([
+		[
+			input.toolRefs.readFile,
+			d682ObjectShape([
+				{ name: "path", required: true, shape: path(input.actorInput.readablePaths) },
+			]),
+		],
+		[
+			input.toolRefs.searchLiteral,
+			d682ObjectShape([
+				{
+					name: "maxMatches",
+					required: true,
+					shape: strictSnapshot({
+						kind: "integer" as const,
+						minimum: 1,
+						maximum: maximumSearchMatches,
+					}),
+				},
+				{ name: "path", required: true, shape: path(input.actorInput.readablePaths) },
+				{ name: "query", required: true, shape: D682_STRING_SHAPE },
+			]),
+		],
+		[
+			input.toolRefs.replaceExact,
+			d682ObjectShape([
+				{
+					name: "newText",
+					required: true,
+					shape: input.specialized ? D682_REPLACEMENT_STRING_SHAPE : D682_STRING_SHAPE,
+				},
+				{ name: "oldText", required: true, shape: D682_STRING_SHAPE },
+				{ name: "path", required: true, shape: path(input.actorInput.writablePaths) },
+			]),
+		],
+		[input.toolRefs.workspaceDiff, d682ObjectShape([])],
+		[
+			input.toolRefs.runCommand,
+			d682ObjectShape([{ name: "commandRef", required: true, shape: commandRef }]),
+		],
+	]);
+}
+
+function validateD682ToolSet(input: {
+	readonly tools: readonly EmpiricalToolSchemaCatalogEntryV1[];
+	readonly actorInput: D682MechanicalActorInputV1;
+	readonly toolRefs: D682MechanicalToolRefsV1;
+	readonly schemaRevision: string;
+	readonly specialized: boolean;
+	readonly maxSearchMatches: number;
+}): readonly EmpiricalToolSchemaCatalogEntryV1[] {
+	const schemaRevision = coordinate(input.schemaRevision, "d682ToolCatalog.schemaRevision");
+	const refs = Object.values(input.toolRefs).map((value, index) =>
+		coordinate(value, `d682ToolCatalog.toolRefs[${index}]`),
+	);
+	if (new Set(refs).size !== refs.length || input.tools.length !== refs.length) {
+		throw new TypeError("D682 tool catalog must contain the exact closed tool set");
+	}
+	const expectedSchemas = expectedD682ToolSchemas(input);
+	const seen = new Set<string>();
+	for (const tool of input.tools) {
+		const expectedSchema = expectedSchemas.get(tool.toolRef);
+		if (expectedSchema === undefined || seen.has(tool.toolRef)) {
+			throw new TypeError("D682 tool catalog contains a substituted or duplicate tool");
+		}
+		seen.add(tool.toolRef);
+		if (
+			tool.schemaRevision !== schemaRevision ||
+			tool.inputSchemaDigest !== empiricalStrictJsonDigest(tool.inputSchema) ||
+			empiricalStrictJsonDigest(tool.inputSchema) !== empiricalStrictJsonDigest(expectedSchema)
+		) {
+			throw new TypeError(`D682 tool schema does not match ${tool.toolRef}`);
+		}
+	}
+	return input.tools;
+}
+
+/** Fail-closed check shared by the operator, host, and provider binding. */
+export function validateD682MechanicalToolContract(input: {
+	readonly tools: readonly EmpiricalToolSchemaCatalogEntryV1[];
+	readonly actorInput: D682MechanicalActorInputV1;
+	readonly toolRefs: D682MechanicalToolRefsV1;
+	readonly schemaRevision: string;
+	readonly maxSearchMatches: number;
+}): readonly EmpiricalToolSchemaCatalogEntryV1[] {
+	return validateD682ToolSet({
+		...input,
+		actorInput: validateD682MechanicalActorInput(input.actorInput),
+		specialized: true,
+	});
+}
+
+/**
+ * Package-private D682 provider-contract specialization. The provider and the
+ * closed host receive the same frozen readable, writable, and command values;
+ * the binding still validates model-authored arguments and never coerces them.
+ */
+export function specializeD682MechanicalToolSchemaCatalog(input: {
+	readonly catalog: EmpiricalSchemaCatalogV1;
+	readonly actorInput: D682MechanicalActorInputV1;
+	readonly toolRefs: D682MechanicalToolRefsV1;
+	readonly sourceSchemaRevision: string;
+	readonly schemaRevision: string;
+	readonly maxSearchMatches: number;
+}): EmpiricalSchemaCatalogV1 {
+	const actorInput = validateD682MechanicalActorInput(input.actorInput);
+	const catalog = validateEmpiricalSchemaCatalog(input.catalog);
+	const sourceSchemaRevision = coordinate(
+		input.sourceSchemaRevision,
+		"d682ToolCatalog.sourceSchemaRevision",
+	);
+	if (catalog.catalogRevision !== sourceSchemaRevision) {
+		throw new TypeError("D682 source catalog revision does not match its tool schemas");
+	}
+	validateD682ToolSet({
+		tools: catalog.tools,
+		actorInput,
+		toolRefs: input.toolRefs,
+		schemaRevision: sourceSchemaRevision,
+		specialized: false,
+		maxSearchMatches: input.maxSearchMatches,
+	});
+	const schemaRevision = coordinate(input.schemaRevision, "d682ToolCatalog.schemaRevision");
+	const expectedSchemas = expectedD682ToolSchemas({
+		actorInput,
+		toolRefs: input.toolRefs,
+		specialized: true,
+		maxSearchMatches: input.maxSearchMatches,
+	});
+	const tools = catalog.tools.map((tool): EmpiricalToolSchemaCatalogEntryV1 => {
+		const inputSchema = expectedSchemas.get(tool.toolRef);
+		if (inputSchema === undefined)
+			throw new TypeError("D682 tool catalog contains a substituted tool");
+		return strictSnapshot({
+			...tool,
+			schemaRevision,
+			inputSchema,
+			inputSchemaDigest: empiricalStrictJsonDigest(inputSchema),
+		});
+	});
+	const specialized = validateEmpiricalSchemaCatalog({
+		...catalog,
+		catalogRevision: schemaRevision,
+		tools,
+	});
+	validateD682MechanicalToolContract({
+		tools: specialized.tools,
+		actorInput,
+		toolRefs: input.toolRefs,
+		schemaRevision,
+		maxSearchMatches: input.maxSearchMatches,
+	});
+	return specialized;
+}
+
 export interface D682MechanicalQualificationFixtureV1 {
 	readonly fixtureRef: string;
 	readonly fixtureRevision: string;
@@ -329,6 +549,28 @@ function nullableSum(values: readonly (number | null)[], label: string): number 
 		: checkedSum(values as readonly number[], label);
 }
 
+export function hasQualifiedD682ActionSequence(toolRefs: readonly string[]): boolean {
+	let requiredIndex = 0;
+	for (const toolRef of toolRefs) {
+		if (toolRef === D682_MECHANICAL_REQUIRED_ACTION_TOOL_REFS[requiredIndex]) {
+			requiredIndex += 1;
+			continue;
+		}
+		const knownIndex = D682_MECHANICAL_REQUIRED_ACTION_TOOL_REFS.indexOf(
+			toolRef as (typeof D682_MECHANICAL_REQUIRED_ACTION_TOOL_REFS)[number],
+		);
+		if (knownIndex > requiredIndex) return false;
+		if (
+			knownIndex >= 0 &&
+			knownIndex < requiredIndex &&
+			toolRef !== D682_MECHANICAL_REQUIRED_ACTION_TOOL_REFS[0]
+		) {
+			return false;
+		}
+	}
+	return requiredIndex === D682_MECHANICAL_REQUIRED_ACTION_TOOL_REFS.length;
+}
+
 export function createD682MechanicalQualificationScorecard(input: {
 	readonly catalog: D682MechanicalQualificationCatalogV1;
 	readonly observations: readonly EmpiricalCalibrationTrialBlockObservationV4[];
@@ -362,6 +604,7 @@ export function createD682MechanicalQualificationScorecard(input: {
 		(observation, index) =>
 			observation.result.classification === "complete" &&
 			observation.result.verifierStatus === "passed" &&
+			hasQualifiedD682ActionSequence(observation.cold.actionTrace.map((entry) => entry.toolRef)) &&
 			observation.cold.workspaceChanged === true &&
 			observation.cold.workspaceStateDigest ===
 				catalog.fixtures[index]?.expectedWorkspaceStateDigest,

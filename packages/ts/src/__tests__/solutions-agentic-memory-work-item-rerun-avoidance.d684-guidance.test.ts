@@ -5,7 +5,8 @@ import {
 	DEVELOPER_GUIDANCE_OBSERVATION_VERSION,
 	DEVELOPER_GUIDANCE_SCORECARD_VERSION,
 	type DeveloperGuidanceArm,
-	type DeveloperGuidanceObservationV1,
+	type DeveloperGuidanceObservationV2,
+	isDeveloperGuidanceEvaluable,
 } from "../../evals/empirical-memory-rerun-avoidance/developer-guidance-utility.js";
 
 function observation(input: {
@@ -20,7 +21,7 @@ function observation(input: {
 	readonly invalid?: number;
 	readonly harmful?: number;
 	readonly final?: boolean | null;
-}): DeveloperGuidanceObservationV1 {
+}): DeveloperGuidanceObservationV2 {
 	const evaluable = input.evaluable ?? true;
 	const validRequest = input.validRequest === undefined ? 1 : input.validRequest;
 	const progressRequest = input.progressRequest === undefined ? 2 : input.progressRequest;
@@ -52,12 +53,16 @@ function observation(input: {
 		harmfulActionCount: input.harmful ?? 0,
 		finalTaskVerifierPassed: input.final ?? null,
 		evidence: {
+			sourceObservationDigest: `sha256:${"f".repeat(64)}`,
+			sourceRunDigest: `sha256:${"b".repeat(64)}`,
+			assessmentDigest: `sha256:${"1".repeat(64)}`,
+			assessmentVerifierRef: "guidance-verifier",
+			assessmentVerifierRevision: "guidance-verifier.v1",
 			actionTraceDigest: `sha256:${"c".repeat(64)}`,
 			coordinateEvidenceDigest: `sha256:${"d".repeat(64)}`,
-			verifierEvidenceDigest:
-				progressRequest !== null || (input.final ?? null) !== null
-					? `sha256:${"e".repeat(64)}`
-					: null,
+			guidanceVerifierEvidenceDigest: progressRequest !== null ? `sha256:${"e".repeat(64)}` : null,
+			finalTaskVerifierEvidenceDigest:
+				(input.final ?? null) !== null ? `sha256:${"8".repeat(64)}` : null,
 			memoryDelivered: input.arm.endsWith("applied"),
 			modelAttributedMemory: false,
 			validActionObserved: validRequest !== null,
@@ -68,6 +73,20 @@ function observation(input: {
 }
 
 describe("D684 package-private developer guidance utility", () => {
+	it("never launders a non-evaluable source run into guidance evidence", () => {
+		expect(
+			isDeveloperGuidanceEvaluable({
+				horizonStatus: "progress-observed",
+				sourceRunClassification: "non-evaluable",
+			}),
+		).toBe(false);
+		expect(
+			isDeveloperGuidanceEvaluable({
+				horizonStatus: "fully-observed",
+				sourceRunClassification: "incomplete",
+			}),
+		).toBe(true);
+	});
 	it("aggregates only evaluable relevant/proposal matched pairs into differences", () => {
 		const scorecard = aggregateDeveloperGuidanceScorecard([
 			observation({
@@ -162,13 +181,31 @@ describe("D684 package-private developer guidance utility", () => {
 				observation({ id: "duplicate-a", arm: "relevant-applied" }),
 				observation({ id: "duplicate-b", arm: "relevant-applied" }),
 			]),
-		).toThrow(/matched arm must be unique/);
+		).toThrow(/arm must be unique/);
+		expect(() =>
+			aggregateDeveloperGuidanceScorecard([
+				observation({ id: "control-a", arm: "irrelevant-applied" }),
+				observation({ id: "control-b", arm: "irrelevant-applied" }),
+			]),
+		).toThrow(/arm must be unique/);
 		expect(() =>
 			aggregateDeveloperGuidanceScorecard([
 				observation({ id: "coordinate-a", arm: "relevant-applied" }),
 				{
 					...observation({ id: "coordinate-b", arm: "proposal-only" }),
 					comparisonCoordinatesDigest: `sha256:${"b".repeat(64)}`,
+				},
+			]),
+		).toThrow(/changed frozen coordinates/);
+		expect(() =>
+			aggregateDeveloperGuidanceScorecard([
+				observation({ id: "source-a", arm: "relevant-applied" }),
+				{
+					...observation({ id: "source-b", arm: "proposal-only" }),
+					evidence: {
+						...observation({ id: "source-b", arm: "proposal-only" }).evidence,
+						sourceObservationDigest: `sha256:${"9".repeat(64)}`,
+					},
 				},
 			]),
 		).toThrow(/changed frozen coordinates/);

@@ -2,7 +2,11 @@ import { realpath } from "node:fs/promises";
 import { isAbsolute, relative, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { empiricalStrictJsonDigest } from "./canonical.js";
-import type { ClosedTaskProfileHostRunInputV1 } from "./closed-task-profile-host.js";
+import {
+	CLOSED_ACTOR_TOOL_REFS,
+	type ClosedTaskProfileHostRunInputV1,
+	D682_HOST_DERIVED_REPLACE_SCHEMA_REVISION,
+} from "./closed-task-profile-host.js";
 import {
 	createD682MechanicalQualificationScorecard,
 	D682_MECHANICAL_QUALIFICATION_MAX_COST_MICROUSD,
@@ -10,6 +14,7 @@ import {
 	type D682MechanicalQualificationScorecardV1,
 	validateD682MechanicalActorInput,
 	validateD682MechanicalQualificationCatalog,
+	validateD682MechanicalToolContract,
 } from "./d682-mechanical-qualification.js";
 import type { EmpiricalCalibrationTrialBlockObservationV4 } from "./empirical-smoke-evidence.js";
 import {
@@ -200,6 +205,13 @@ export async function runLoadedOpenRouterD682MechanicalQualificationOperator(inp
 			const actorInput = validateD682MechanicalActorInput(
 				prepared.host.initialRequest.structuredInput,
 			);
+			validateD682MechanicalToolContract({
+				tools: prepared.host.initialRequest.availableTools,
+				actorInput,
+				toolRefs: CLOSED_ACTOR_TOOL_REFS,
+				schemaRevision: D682_HOST_DERIVED_REPLACE_SCHEMA_REVISION,
+				maxSearchMatches: prepared.host.taskProfile.workspaceRecipe.maxSearchMatches,
+			});
 			const actorPathsMatch =
 				empiricalStrictJsonDigest(actorInput.readablePaths) ===
 					empiricalStrictJsonDigest(prepared.host.taskProfile.workspaceRecipe.readableFiles) &&
