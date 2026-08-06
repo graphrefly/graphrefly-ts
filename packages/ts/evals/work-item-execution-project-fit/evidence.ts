@@ -11,7 +11,7 @@ import {
 } from "./source-audit.js";
 
 export const D686_SCORECARD_VERSION =
-	"graphrefly-work-item-execution-project-fit-scorecard.d686.v1";
+	"graphrefly-work-item-execution-project-fit-scorecard.d686.v2";
 export const D686_CLAIM_BOUNDARY =
 	"artifact-backed-comparative-project-fit-case-study-not-universal-superiority";
 
@@ -187,7 +187,7 @@ export function runD686ProjectFitEvidence(input: D686EvidenceInput) {
 			?.verifierPassed === true;
 	const withoutDigest = {
 		version: D686_SCORECARD_VERSION,
-		authority: ["D685", "D686"],
+		authority: ["D686", "D687"],
 		claimBoundary: D686_CLAIM_BOUNDARY,
 		preregistrationDigest,
 		qualificationStatus: "partial-offline" as const,
@@ -200,6 +200,7 @@ export function runD686ProjectFitEvidence(input: D686EvidenceInput) {
 		sourceAudit,
 		recipeBoundaries,
 		promotionGate: {
+			apiPromotionAuthority: false,
 			allFavorableFinalOutcomeAndReadinessVerifiersPass,
 			allFavorableBehaviorAndProvenanceInvariantsPass,
 			armIndependenceQualified,
@@ -213,6 +214,7 @@ export function runD686ProjectFitEvidence(input: D686EvidenceInput) {
 					?.verifierPassed === true,
 			promotionPassed,
 		},
+		exportDisposition: "showcase-only-no-api-promotion-authority",
 		publicClaim: "comparative-project-fit-case-study",
 	};
 	return Object.freeze({ ...withoutDigest, evidenceDigest: digest(withoutDigest) });

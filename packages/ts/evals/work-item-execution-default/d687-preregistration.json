@@ -25,15 +25,30 @@
 		},
 		{
 			"id": "optional-and-failed-prerequisite",
-			"requires": ["required false reaches issued request", "failed prerequisite blocks dependent join", "independent optional member remains admissible"]
+			"requires": [
+				"required false reaches issued request",
+				"failed prerequisite blocks dependent join",
+				"independent optional member remains admissible"
+			]
 		},
 		{
 			"id": "evidence-only-join",
-			"requires": ["evidence-only join policy remains projector-owned", "terminal facts match manual composition"]
+			"requires": [
+				"evidence-only join policy remains projector-owned",
+				"terminal facts match manual composition"
+			]
 		},
 		{
 			"id": "multi-work-item-propagation-and-duplicate",
-			"requires": ["multiple WorkItem ids and revisions", "effect kind", "input", "limits", "policy refs", "source refs", "duplicate EffectRun suppression"]
+			"requires": [
+				"multiple WorkItem ids and revisions",
+				"effect kind",
+				"input",
+				"limits",
+				"policy refs",
+				"source refs",
+				"duplicate EffectRun suppression"
+			]
 		}
 	],
 	"equivalence": {

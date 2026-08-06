@@ -1,5 +1,5 @@
 /**
- * Default WorkItem execution composition (D685).
+ * Default WorkItem execution composition (D687).
  *
  * The recipe lowers admitted WorkItem plan members into provider-neutral
  * AgentRequest facts. It deliberately does not execute requests or admit
@@ -38,7 +38,6 @@ import {
 export interface WorkItemExecutionRecipeOptions<TInput = unknown> {
 	readonly name?: string;
 	readonly workItems: Node<WorkItemProjection<TInput>>;
-	readonly workItemSeeds: Node<WorkItemSeed>;
 	readonly effectPlanProposals: Node<WorkItemEffectPlanProposed<TInput>>;
 	/** Caller-owned, already-admitted execution results. */
 	readonly effectRunResults: Node<EffectRunResult>;
@@ -48,11 +47,62 @@ export interface WorkItemExecutionRecipeOptions<TInput = unknown> {
 }
 
 export interface WorkItemExecutionRecipeBundle<TInput = unknown> {
+	readonly workItemSeeds: Node<WorkItemSeed>;
 	readonly plan: WorkItemEffectPlanProjectorBundle<TInput>;
 	readonly effectRuns: WorkItemEffectRunBundle;
 	readonly requestFacts: Node<AgentRequestFact<TInput>>;
 	readonly requests: Node<AgentRequestIssued<TInput>>;
 	readonly requestLedger: AgentRequestLedgerBundle;
+}
+
+export interface WorkItemSeedProjectorOptions<TInput = unknown> {
+	readonly name?: string;
+	readonly workItems: Node<WorkItemProjection<TInput>>;
+}
+
+/**
+ * Projects solution-level WorkItem revisions into orchestration WorkItem seeds.
+ *
+ * This graph-visible boundary keeps orchestration independent of solution types
+ * while avoiding a second caller-maintained WorkItem input for execution.
+ *
+ * @param graph - Graph that owns the projection.
+ * @param opts - WorkItem projection node and optional topology name.
+ * @returns A graph-visible WorkItem seed node.
+ * @category solutions
+ */
+export function workItemSeedProjector<TInput = unknown>(
+	graph: Graph,
+	opts: WorkItemSeedProjectorOptions<TInput>,
+): Node<WorkItemSeed> {
+	return graph.node<WorkItemSeed>(
+		[opts.workItems],
+		(ctx) => {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const workItem = raw as WorkItemProjection<TInput>;
+				ctx.down([
+					[
+						"DATA",
+						Object.freeze({
+							kind: "work-item",
+							workItemId: workItem.workItemId,
+							summary: workItem.summary,
+							sourceRefs: workItem.revisionSourceRefs,
+							metadata: Object.freeze({
+								authoringRevision: workItem.authoringRevision,
+								executionInputRevision: workItem.executionInputRevision,
+								lastEventId: workItem.lastEventId,
+							}),
+						} satisfies WorkItemSeed),
+					],
+				]);
+			}
+		},
+		{
+			name: opts.name ?? "workItemSeeds",
+			factory: "workItemSeedProjector",
+		},
+	);
 }
 
 /**
@@ -68,7 +118,6 @@ export interface WorkItemExecutionRecipeBundle<TInput = unknown> {
  * @param opts - Explicit WorkItem, plan, result, policy, and request options.
  * @returns Graph-visible plan, EffectRun, request-fact, issued-request, and ledger nodes.
  * @category solutions
- * @internal Candidate remains outside package exports until the D686 promotion gate passes.
  */
 export function workItemExecutionRecipe<TInput = unknown>(
 	graph: Graph,
@@ -77,6 +126,10 @@ export function workItemExecutionRecipe<TInput = unknown>(
 	const name = opts.name ?? "workItemExecution";
 	const now = opts.now ?? Date.now;
 	const requestKind = opts.requestKind ?? "executor";
+	const workItemSeeds = workItemSeedProjector(graph, {
+		name: `${name}/workItemSeeds`,
+		workItems: opts.workItems,
+	});
 	const plan = workItemEffectPlanProjector(graph, {
 		name: `${name}/plan`,
 		workItems: opts.workItems,
@@ -87,7 +140,7 @@ export function workItemExecutionRecipe<TInput = unknown>(
 	});
 	const effectRuns = workItemEffectRunProjector(graph, {
 		name: `${name}/effectRuns`,
-		workItems: opts.workItemSeeds,
+		workItems: workItemSeeds,
 		effectRequests: plan.effectRequests,
 	});
 	const requestFacts = graph.node<AgentRequestFact<TInput>>(
@@ -108,7 +161,7 @@ export function workItemExecutionRecipe<TInput = unknown>(
 					effectRunId: run.effectRunId,
 					agentRunId: run.agentRunId,
 					requestKind,
-					required: true,
+					required: run.required,
 					input: run.goal.input,
 					payload: run.goal.input?.value,
 					reason: "Default WorkItem effect execution",
@@ -158,5 +211,5 @@ export function workItemExecutionRecipe<TInput = unknown>(
 	const requestLedger = agentRequestLedgerViews(graph, requestFacts, {
 		name: `${name}/requestLedger`,
 	});
-	return Object.freeze({ plan, effectRuns, requestFacts, requests, requestLedger });
+	return Object.freeze({ workItemSeeds, plan, effectRuns, requestFacts, requests, requestLedger });
 }

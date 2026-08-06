@@ -61,6 +61,7 @@ export function requestFromPlanMember<T>(
 		workItemId: admitted.workItemId,
 		effectRunId: `effect-run:${requestId}`,
 		effectKind: member.effectKind,
+		required: member.required,
 		executionInputRevision: admitted.executionInputRevision,
 		planId: admitted.planId,
 		planMemberId: member.memberId,

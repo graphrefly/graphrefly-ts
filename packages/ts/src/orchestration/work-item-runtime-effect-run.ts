@@ -125,6 +125,7 @@ export function workItemEffectRunProjector(
 				const run = effectRun({
 					effectRunId: request.effectRunId,
 					agentRunId: request.agentRunId,
+					required: request.required,
 					subjectRefs: [ref("work-item", request.workItemId)],
 					goal: request.goal,
 					sourceRefs: [

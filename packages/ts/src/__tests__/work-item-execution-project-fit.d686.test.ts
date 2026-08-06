@@ -68,6 +68,7 @@ describe("D686 WorkItem execution project-fit evidence", () => {
 				"committed-before-after-category-change-surfaces",
 			],
 			promotionGate: {
+				apiPromotionAuthority: false,
 				allFavorableFinalOutcomeAndReadinessVerifiersPass: true,
 				allFavorableBehaviorAndProvenanceInvariantsPass: false,
 				armIndependenceQualified: false,
@@ -121,7 +122,7 @@ describe("D686 WorkItem execution project-fit evidence", () => {
 		}
 	});
 
-	it("blocks the focused export when caller-owned provenance admission is not non-inferior", () => {
+	it("reports comparative limitations without owning the focused export decision", () => {
 		const scorecard = evidence();
 		const recipe = scorecard.sourceAudit.surfaces.find(
 			(surface) =>
@@ -137,7 +138,9 @@ describe("D686 WorkItem execution project-fit evidence", () => {
 		) as { readonly exports?: Record<string, unknown> };
 
 		expect(recipe.coordinationStatementCount).toBeGreaterThan(plain.coordinationStatementCount);
-		expect(packageJson.exports?.["./solutions/work-item/execution"]).toBeUndefined();
+		expect(packageJson.exports?.["./solutions/work-item/execution"]).toBeDefined();
+		expect(scorecard.promotionGate.apiPromotionAuthority).toBe(false);
+		expect(scorecard.exportDisposition).toBe("showcase-only-no-api-promotion-authority");
 	});
 
 	it("keeps the plain TypeScript arm independent of GraphReFly imports", () => {
@@ -152,7 +155,7 @@ describe("D686 WorkItem execution project-fit evidence", () => {
 		const qualified = JSON.parse(
 			readFileSync(
 				new URL(
-					"../../evals/work-item-execution-project-fit/d686-qualified-evidence.json",
+					"../../evals/work-item-execution-project-fit/d686-showcase-evidence-v2.json",
 					import.meta.url,
 				),
 				"utf8",
@@ -166,7 +169,11 @@ describe("D686 WorkItem execution project-fit evidence", () => {
 				readonly plainTypescriptArm: string;
 				readonly candidate: string;
 			};
-			readonly promotionGate: { readonly promotionPassed: boolean };
+			readonly promotionGate: {
+				readonly apiPromotionAuthority: false;
+				readonly promotionPassed: boolean;
+			};
+			readonly exportDisposition: string;
 		};
 		const sourceDigestFor = (arm: "default-recipe" | "manual-graphrefly" | "plain-typescript") =>
 			scorecard.sourceAudit.sources.find((source) => source.arm === arm)?.sourceDigest;
@@ -187,5 +194,7 @@ describe("D686 WorkItem execution project-fit evidence", () => {
 			qualified.sourceCoordinates.candidate,
 		);
 		expect(scorecard.promotionGate.promotionPassed).toBe(qualified.promotionGate.promotionPassed);
+		expect(qualified.promotionGate.apiPromotionAuthority).toBe(false);
+		expect(qualified.exportDisposition).toBe("showcase-only-no-api-promotion-authority");
 	});
 });

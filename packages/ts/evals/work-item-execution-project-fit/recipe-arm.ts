@@ -11,7 +11,6 @@ export function runD686RecipeArm(scenario: D686Scenario): D686PathObservation {
 		const recipe = workItemExecutionRecipe(graph, {
 			name: "d686/defaultRecipe",
 			workItems: sources.workItems,
-			workItemSeeds: sources.workItemSeeds,
 			effectPlanProposals: sources.proposals,
 			effectRunResults: sources.admittedResults,
 			policy: { allowedEffectKinds: ["d686-offline-effect"] },

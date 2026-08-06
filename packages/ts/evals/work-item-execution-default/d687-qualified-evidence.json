@@ -1,0 +1,51 @@
+{
+	"schema": "graphrefly-work-item-execution-default-qualified-evidence.d687.v1",
+	"authority": ["D687"],
+	"claimBoundary": "graphrefly-current-library-versus-focused-default-qualification",
+	"preregistrationDigest": "sha256:5cfd4c67117f703ec7796fa7f642f103788d7e6b4df659797e554c9f4bf9eefc",
+	"scorecardVersion": "graphrefly-work-item-execution-default-scorecard.d687.v1",
+	"scorecardDigest": "sha256:cc8daee161fcdbe041fe2ce336ee9fa17b4af4164eb2477f758b5b8c6bfc7c61",
+	"networkCalls": 0,
+	"sourceCoordinates": {
+		"manualArm": "sha256:21bb489629a0b6a6d6200df0584a1f8aff351e22c0bf0884e13317396ddcdf3a",
+		"recipeArm": "sha256:1c12d7bd7e8df7fa86282cd448dc75b0c1cfc3eb9f50e5bb801b1aa070531e0b",
+		"candidate": "sha256:b7794db7446250828a265ca6238b5aedb2b72b2517c309c744ff50e962b3fe09"
+	},
+	"generality": {
+		"caseCount": 5,
+		"allGeneralityCasesEquivalent": true,
+		"allGeneralityCasesExpectedOutcomeVerified": true,
+		"requiredFalsePreservedEndToEnd": true,
+		"propagationPassed": true,
+		"duplicateEffectRunSuppressionPassed": true
+	},
+	"ergonomics": {
+		"manualStatements": 36,
+		"manualCalls": 31,
+		"recipeStatements": 0,
+		"recipeCalls": 1,
+		"consumerWiringStrictlyReduced": true,
+		"sourceLinesAreAuxiliary": true
+	},
+	"boundaries": {
+		"noHiddenAuthority": true,
+		"noExtraCoordinatorStateMachine": true,
+		"singleWorkItemProjectionInput": true,
+		"packageEntryDeclarationAuditPassed": true,
+		"rootAndAggregatesUnchanged": true,
+		"manualArmUsesOnlyPublicPrimitiveModules": true,
+		"advancedPrimitiveEscapeHatchPreserved": true
+	},
+	"promotionGate": {
+		"offlineQualificationPassed": true,
+		"packageEntrySmoke": {
+			"command": "NODE_OPTIONS=--max-old-space-size=8192 pnpm run build",
+			"esmImportPassed": true,
+			"cjsRequirePassed": true,
+			"declarationSmokePassed": true,
+			"passed": true
+		},
+		"promotionPassed": true
+	},
+	"exportDisposition": "focused-subpath-only"
+}

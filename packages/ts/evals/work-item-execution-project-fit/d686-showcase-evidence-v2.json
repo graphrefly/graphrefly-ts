@@ -1,0 +1,55 @@
+{
+	"schema": "graphrefly-work-item-execution-project-fit-showcase-evidence.d686.v2",
+	"authority": ["D686", "D687"],
+	"claimBoundary": "artifact-backed-comparative-project-fit-case-study-not-universal-superiority",
+	"preregistrationDigest": "sha256:02ebe7373166ebce38626b10b9a07e9ea9516a7dac094a3d705e74eab3edf9ef",
+	"scorecardVersion": "graphrefly-work-item-execution-project-fit-scorecard.d686.v2",
+	"scorecardDigest": "sha256:7b2e62a9a0e67983679c66b5d17485ebc6badef8fc1d7ff890c597e84408334b",
+	"qualificationStatus": "partial-offline",
+	"missingEvidence": [
+		"independent-arm-provenance-implementations",
+		"committed-before-after-category-change-surfaces"
+	],
+	"networkCalls": 0,
+	"scenarioCount": 5,
+	"armCount": 3,
+	"observationCount": 15,
+	"allScenarioVerifiersPassed": true,
+	"allBehaviorallyEquivalent": true,
+	"coordinatorSurface": {
+		"measurementQualified": false,
+		"rawMarkerProxyOnly": true,
+		"defaultRecipe": {
+			"dependencyRichFanOutFanIn": 0,
+			"failedPrerequisiteIndependentBranchJoin": 0,
+			"provenanceAndFaultGovernance": 20
+		},
+		"plainTypescript": {
+			"dependencyRichFanOutFanIn": 20,
+			"failedPrerequisiteIndependentBranchJoin": 2,
+			"provenanceAndFaultGovernance": 18
+		},
+		"primaryMetric": "coordinationStatementCount",
+		"sourceLinesAreAuxiliary": true
+	},
+	"sourceCoordinates": {
+		"defaultRecipeArmAndSharedHarness": "sha256:da8a12f7cdc34988d02e74acc5146c6bdac5c6891703939f8b9b123e124f2d21",
+		"manualGraphReFlyArmAndSharedHarness": "sha256:d3a601bb65a64678533c61a7f0af42dad0de038ca0a71179cca13d84466c7b84",
+		"plainTypescriptArm": "sha256:a0c7867774146eee1ecbfa33edb6a06514797278e2a874def9d8af08e51c0a7d",
+		"candidate": "sha256:d8fbd48327b9c40c50a736499f85c5919b91bf639acb4f82970918c02f839718"
+	},
+	"promotionGate": {
+		"apiPromotionAuthority": false,
+		"allFavorableFinalOutcomeAndReadinessVerifiersPass": true,
+		"allFavorableBehaviorAndProvenanceInvariantsPass": false,
+		"armIndependenceQualified": false,
+		"sourceAuditQualified": false,
+		"strictlyLowerCategoryCount": 0,
+		"remainingFavorableCategoriesNonInferior": false,
+		"forbiddenRecipeMechanismsAbsent": true,
+		"linearNegativeControlPassed": true,
+		"promotionPassed": false
+	},
+	"exportDisposition": "showcase-only-no-api-promotion-authority",
+	"publicClaim": "comparative-project-fit-case-study"
+}

@@ -41,6 +41,7 @@ export interface EffectRun<TInput = unknown> {
 	readonly kind: "effect-run";
 	readonly effectRunId: string;
 	readonly agentRunId?: string;
+	readonly required?: boolean;
 	readonly subjectRefs?: readonly SourceRef[];
 	readonly goal: EffectRunGoal<TInput>;
 	readonly sourceRefs?: readonly SourceRef[];
@@ -54,6 +55,7 @@ export interface EffectRun<TInput = unknown> {
 export interface EffectRunOptions<TInput = unknown> {
 	readonly effectRunId: string;
 	readonly agentRunId?: string;
+	readonly required?: boolean;
 	readonly subjectRefs?: readonly SourceRef[];
 	readonly goal: EffectRunGoal<TInput>;
 	readonly sourceRefs?: readonly SourceRef[];
@@ -80,6 +82,7 @@ export function effectRun<TInput = unknown>(opts: EffectRunOptions<TInput>): Eff
 		kind: "effect-run",
 		effectRunId: opts.effectRunId,
 		agentRunId: opts.agentRunId,
+		required: opts.required,
 		subjectRefs: opts.subjectRefs,
 		goal: opts.goal,
 		sourceRefs: opts.sourceRefs,

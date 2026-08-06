@@ -688,6 +688,16 @@
 				"default": "./dist/solutions/work-item/actions.cjs"
 			}
 		},
+		"./solutions/work-item/execution": {
+			"import": {
+				"types": "./dist/solutions/work-item/execution.d.ts",
+				"default": "./dist/solutions/work-item/execution.js"
+			},
+			"require": {
+				"types": "./dist/solutions/work-item/execution.d.cts",
+				"default": "./dist/solutions/work-item/execution.cjs"
+			}
+		},
 		"./solutions/work-item/scheduling": {
 			"import": {
 				"types": "./dist/solutions/work-item/scheduling.d.ts",

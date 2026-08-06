@@ -63,6 +63,7 @@ export default defineConfig({
 		"src/solutions/index.ts",
 		"src/solutions/work-item/index.ts",
 		"src/solutions/work-item/actions.ts",
+		"src/solutions/work-item/execution.ts",
 		"src/solutions/work-item/scheduling.ts",
 		"src/solutions/work-item/work-queue.ts",
 		"src/solutions/reactive-layout/index.ts",

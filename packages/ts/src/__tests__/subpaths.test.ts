@@ -203,6 +203,7 @@ import * as reactiveLayoutReactNative from "../solutions/reactive-layout/react-n
 import * as reactiveLayoutSkia from "../solutions/reactive-layout/skia/index.js";
 import * as sharedControlPanelAuthority from "../solutions/shared-control-panel-authority.js";
 import * as workItemActions from "../solutions/work-item/actions.js";
+import * as workItemExecution from "../solutions/work-item/execution.js";
 import * as workItemSolution from "../solutions/work-item/index.js";
 import type {
 	WorkspaceProposalFamilyApplicationReadModelQuery,
@@ -303,6 +304,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./solutions/shared-control-panel-authority",
 			"./solutions/work-item",
 			"./solutions/work-item/actions",
+			"./solutions/work-item/execution",
 			"./solutions/work-item/scheduling",
 			"./solutions/work-item/work-queue",
 			"./sources",
@@ -331,25 +333,28 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(exportsJson.exports?.["./storage/wal"]).toBeUndefined();
 	});
 
-	it("keeps the integration matrix aligned with published package subpaths", () => {
+	it("keeps owned package docs aligned with published package subpaths", () => {
 		const matrix = readFileSync(
 			docsPath("src", "content", "docs", "integrations", "matrix.md"),
 			"utf8",
 		);
+		const packageReadme = readFileSync(join(dirname(packageJsonPath), "README.md"), "utf8");
 		const matrixEntries = matrix
 			.split("\n")
 			.filter((line) => line.startsWith("|"))
 			.map((line) => line.split("|").map((cell) => cell.trim())[3])
 			.filter((cell): cell is string => cell !== undefined);
-		const documentedSubpaths = Array.from(
-			matrixEntries
-				.filter((entry) => /^`@graphrefly\/ts(?:\/[\w./-]+)?`$/.test(entry))
-				.join("\n")
-				.matchAll(/`(@graphrefly\/ts(?:\/[\w./-]+)?)`/g),
-			(match) => match[1],
-		).map((specifier) =>
-			specifier === "@graphrefly/ts" ? "." : `.${specifier.slice("@graphrefly/ts".length)}`,
-		);
+		const documentedSubpaths = [
+			...new Set(
+				Array.from(
+					`${matrixEntries
+						.filter((entry) => /^`@graphrefly\/ts(?:\/[\w./-]+)?`$/.test(entry))
+						.join("\n")}\n${packageReadme}`.matchAll(/`(@graphrefly\/ts(?:\/[\w./-]+)?)`/g),
+					(match) =>
+						match[1] === "@graphrefly/ts" ? "." : `.${match[1].slice("@graphrefly/ts".length)}`,
+				),
+			),
+		];
 
 		expect(documentedSubpaths.length).toBeGreaterThan(0);
 		for (const subpath of documentedSubpaths) {
@@ -537,6 +542,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof workItemActions.workItemDomainActionProposalIntakeProjector).toBe("function");
 		expect(typeof workItemActions.workItemDomainActionAdmissionProjector).toBe("function");
 		expect(typeof workItemActions.workItemDomainActionApplicationProjector).toBe("function");
+		expect(typeof workItemExecution.workItemExecutionRecipe).toBe("function");
+		expect(typeof workItemExecution.workItemSeedProjector).toBe("function");
 		expect(typeof workItemScheduling.workItemAuthoringProjector).toBe("function");
 		expect(typeof workItemScheduling.workItemEffectPlanProjector).toBe("function");
 		expect(typeof workItemScheduling.workItemVerificationRequestLowerer).toBe("function");
@@ -1656,6 +1663,12 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof workItemSolution.workItemDomainActionProposalIntakeProjector).toBe("function");
 		expect(typeof workItemSolution.workItemDomainActionAdmissionProjector).toBe("function");
 		expect(typeof workItemSolution.workItemWorkQueueRecipe).toBe("function");
+		expect(Object.hasOwn(workItemSolution, "workItemExecutionRecipe")).toBe(false);
+		expect(Object.hasOwn(workItemSolution, "workItemSeedProjector")).toBe(false);
+		expect(Object.hasOwn(solutions, "workItemExecutionRecipe")).toBe(false);
+		expect(Object.hasOwn(solutions, "workItemSeedProjector")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "workItemExecutionRecipe")).toBe(false);
+		expect(Object.hasOwn(rootPackage, "workItemSeedProjector")).toBe(false);
 		expect(Object.hasOwn(workItemSolution, "agenticMemoryBundle")).toBe(false);
 		expect(Object.hasOwn(workItemSolution, "workItemEffectRunProjector")).toBe(false);
 		expect(typeof graphLayer.workerDerived).toBe("function");

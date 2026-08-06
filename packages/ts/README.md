@@ -191,6 +191,7 @@ Other focused surfaces include:
 - `@graphrefly/ts/solutions/reactive-layout`
 - `@graphrefly/ts/solutions/work-item`
 - `@graphrefly/ts/solutions/work-item/actions`
+- `@graphrefly/ts/solutions/work-item/execution`
 - `@graphrefly/ts/solutions/work-item/scheduling`
 - `@graphrefly/ts/solutions/work-item/work-queue`
 
