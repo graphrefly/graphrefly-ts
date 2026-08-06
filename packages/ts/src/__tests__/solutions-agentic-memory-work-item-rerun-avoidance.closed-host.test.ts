@@ -44,6 +44,13 @@ import type {
 } from "../../evals/empirical-memory-rerun-avoidance/contracts.js";
 import { EMPIRICAL_QUALIFICATION_EVIDENCE_KINDS } from "../../evals/empirical-memory-rerun-avoidance/contracts.js";
 import {
+	createD682MechanicalQualificationScorecard,
+	D682_MECHANICAL_QUALIFICATION_CATALOG_SCHEMA,
+	D682_MECHANICAL_QUALIFICATION_MAX_COST_MICROUSD,
+	type D682MechanicalQualificationCatalogV1,
+	validateD682MechanicalQualificationCatalog,
+} from "../../evals/empirical-memory-rerun-avoidance/d682-mechanical-qualification.js";
+import {
 	B112_EXHAUSTIVE_TASK_CLUSTER_INTERVAL_REVISION,
 	createB112CalibrationTrialBlockIdentity,
 	validateB112CalibrationEmpiricalBlockResult,
@@ -99,6 +106,10 @@ import {
 	type OpenRouterCurrentKeySpendAdmissionRequestV1,
 	type OpenRouterCurrentKeySpendAdmissionV1,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-current-key-spend-admission.js";
+import {
+	d682MechanicalRouteProfileDigest,
+	runLoadedOpenRouterD682MechanicalQualificationOperator,
+} from "../../evals/empirical-memory-rerun-avoidance/openrouter-d682-mechanical-qualification-operator.js";
 import {
 	B112_FIRST_TASK_SMOKE_AGGREGATION_REVISION,
 	B112_SMOKE_BUDGET_ISSUE_CODE,
@@ -265,6 +276,8 @@ async function createClosedHostFixture(
 		| "glm-5.2-medium" = "gpt-5.6-sol-medium",
 	trialProfile: "smoke" | "calibration" = "smoke",
 	hostDerivedReplace = false,
+	taskRef = "task.d659",
+	expectedContent = "fixed\n",
 ): Promise<ClosedHostFixture> {
 	const sourceRoot = temporaryRoot("source");
 	git(sourceRoot, ["init", "--quiet", "--initial-branch=main"]);
@@ -327,7 +340,7 @@ async function createClosedHostFixture(
 	const fixtureTask = fixtureCatalog.tasks[0] as EmpiricalCampaignTaskV1;
 	const task: EmpiricalCampaignTaskV1 = strictSnapshot({
 		...fixtureTask,
-		taskRef: "task.d659",
+		taskRef,
 		originalCommitSha: sourceCommitSha,
 		originalTreeDigest: sourceMaterial.treeDigest,
 		actorTreeDigest: sourceMaterial.treeDigest,
@@ -568,7 +581,8 @@ async function createClosedHostFixture(
 				fixtureSuiteDigest: verifierProfile.fixtureSuiteDigest,
 				harnessRevision: verifierProfile.harnessRevision,
 			});
-			const targetAccepted = readFileSync(join(workspaceRoot, "README.md"), "utf8") === "fixed\n";
+			const targetAccepted =
+				readFileSync(join(workspaceRoot, "README.md"), "utf8") === expectedContent;
 			return strictSnapshot({
 				schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.verifierResult,
 				verdict: targetAccepted ? "passed" : "failed",
@@ -2654,6 +2668,356 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		).rejects.toThrow(/generation failed artifact-persistence protection/);
 		expect(readdirSync(privateRoot)).not.toContain(credentialSentinel);
 	});
+
+	it("dry-runs the D682 three-fixture serial qualification with one aggregate budget", async () => {
+		const sourceValues = [
+			"alpha broken-placeholder-value omega\n",
+			"broken-placeholder-value follows a heading\n",
+			"prefix\nbroken-placeholder-value\nsuffix\n",
+		] as const;
+		const replacementValues = [
+			"alpha fixed omega",
+			"fixed follows a heading",
+			"prefix\nfixed\nsuffix",
+		] as const;
+		const fixtures: ClosedHostFixture[] = [];
+		const expectedWorkspaceStateDigests: string[] = [];
+		for (const [index, sourceContent] of sourceValues.entries()) {
+			const fixture = await createClosedHostFixture(
+				undefined,
+				sourceContent,
+				"deepseek-v4-flash-high",
+				"calibration",
+				true,
+				`task.d682.mechanical.${index + 1}`,
+				`${replacementValues[index]}\n`,
+			);
+			const oldText = index === 0 ? "alpha broken-placeholder-value omega" : sourceContent.trim();
+			const offline = await runClosedTaskProfileHost({
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: fixture.materialization,
+				modelTurnPort: scriptedPort(fixture, (request) => {
+					switch (request.stepIndex) {
+						case 0:
+							return {
+								finishReason: "tool-intents",
+								toolIntents: [intent(0, CLOSED_ACTOR_TOOL_REFS.readFile, { path: "README.md" })],
+							};
+						case 1:
+							return {
+								finishReason: "tool-intents",
+								toolIntents: [
+									intent(1, CLOSED_ACTOR_TOOL_REFS.replaceExact, {
+										path: "README.md",
+										oldText,
+										newText: replacementValues[index],
+									}),
+								],
+							};
+						case 2:
+							return {
+								finishReason: "tool-intents",
+								toolIntents: [intent(2, CLOSED_ACTOR_TOOL_REFS.workspaceDiff, {})],
+							};
+						case 3:
+							return {
+								finishReason: "tool-intents",
+								toolIntents: [
+									intent(3, CLOSED_ACTOR_TOOL_REFS.runCommand, {
+										commandRef: "actor.status",
+									}),
+								],
+							};
+						default:
+							return {
+								finishReason: "structured-output",
+								structuredOutput: {
+									kind: "model-turn-output-placeholder",
+									summary: "mechanical fixture complete",
+								},
+							};
+					}
+				}),
+				protectionExecutor: fixture.protectionExecutor,
+				verifier: fixture.verifier,
+				signal: new AbortController().signal,
+			});
+			expect(offline).toMatchObject({ status: "completed", verifierVerdict: "passed" });
+			expect(offline.workspaceStateDigest).toMatch(/^sha256:/);
+			expectedWorkspaceStateDigests.push(offline.workspaceStateDigest!);
+			fixtures.push(fixture);
+		}
+		const routes = fixtures.map((fixture) =>
+			simulatedRouteQualification(fixture, {
+				maxSmokeSpendMicrousd: D682_MECHANICAL_QUALIFICATION_MAX_COST_MICROUSD,
+				maxRequests: 8,
+				maxStepsPerRun: 8,
+				maxInputTokens: 500_000,
+				maxOutputTokens: 524_288,
+				maxLatencyMs: 600_000,
+			}),
+		) as unknown as readonly [
+			OpenRouterRouteQualificationV1,
+			OpenRouterRouteQualificationV1,
+			OpenRouterRouteQualificationV1,
+		];
+		const catalog = strictSnapshot({
+			schemaVersion: D682_MECHANICAL_QUALIFICATION_CATALOG_SCHEMA,
+			catalogRevision: "b112.d682.mechanical-fixtures.2026-08-05.v1",
+			routeProfileDigest: d682MechanicalRouteProfileDigest(routes[0]),
+			fixtures: fixtures.map((fixture, index) => {
+				const task = fixture.frozen.manifest.catalog.tasks[0]!;
+				return {
+					fixtureRef: `b112.d682.mechanical-fixture.${index + 1}`,
+					fixtureRevision: "b112.d682.mechanical-fixture.2026-08-05.v1",
+					taskRef: task.taskRef,
+					taskDigest: empiricalStrictJsonDigest(task),
+					actorTreeDigest: task.actorTreeDigest,
+					workItemDigest: task.workItemDigest,
+					acceptanceDigest: task.acceptanceDigest,
+					workspaceRecipeDigest: task.workspaceRecipeDigest,
+					verifierProfileDigest: task.verifierProfileDigest,
+					expectedWorkspaceStateDigest: expectedWorkspaceStateDigests[index]!,
+				};
+			}),
+		}) as unknown as D682MechanicalQualificationCatalogV1;
+		expect(() =>
+			validateD682MechanicalQualificationCatalog({
+				...catalog,
+				rawProviderResponse: "private-material-must-not-survive",
+			}),
+		).toThrow(/unexpected keys/);
+		expect(() =>
+			validateD682MechanicalQualificationCatalog({
+				...catalog,
+				fixtures: catalog.fixtures.map((fixture, index) =>
+					index === 0 ? { ...fixture, hiddenMaterial: "must-not-survive" } : fixture,
+				),
+			}),
+		).toThrow(/unexpected keys/);
+		const materializations = await Promise.all(
+			fixtures.map((fixture) => fixture.prepareFreshMaterialization(new AbortController().signal)),
+		);
+		let transportCalls = 0;
+		const transport: OpenRouterResponsesByteTransportV1 = {
+			async request(input) {
+				const fixtureIndex = Math.floor(transportCalls / 5);
+				const stepIndex = transportCalls % 5;
+				transportCalls += 1;
+				const requestBody = JSON.parse(new TextDecoder().decode(input.body)) as {
+					readonly tools: readonly { readonly function: { readonly name: string } }[];
+				};
+				const functionCall = (
+					toolIndex: number,
+					callRef: string,
+					argumentsValue: Record<string, unknown>,
+				) => ({
+					type: "function_call",
+					status: "completed",
+					call_id: `call.${fixtureIndex}.${callRef}`,
+					name: requestBody.tools[toolIndex]?.function.name,
+					arguments: JSON.stringify(argumentsValue),
+				});
+				const output =
+					stepIndex === 0
+						? [functionCall(0, "read", { path: "README.md" })]
+						: stepIndex === 1
+							? [
+									functionCall(2, "replace", {
+										path: "README.md",
+										oldText:
+											fixtureIndex === 0
+												? "alpha broken-placeholder-value omega"
+												: sourceValues[fixtureIndex]!.trim(),
+										newText: replacementValues[fixtureIndex]!,
+									}),
+								]
+							: stepIndex === 2
+								? [functionCall(3, "diff", {})]
+								: stepIndex === 3
+									? [functionCall(4, "command", { commandRef: "actor.status" })]
+									: [
+											{
+												type: "message",
+												role: "assistant",
+												status: "completed",
+												content: [
+													{
+														type: "output_text",
+														text: JSON.stringify({
+															kind: "model-turn-output-placeholder",
+															summary: "mechanical fixture complete",
+														}),
+													},
+												],
+											},
+										];
+				return dryRunOpenRouterResponse(
+					`response.d682.${transportCalls}`,
+					output,
+					{ input_tokens: 100, output_tokens: 20, total_tokens: 120, cost: 0.000_012 },
+					{
+						requestModel: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+						downstreamProviderName: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+					},
+				);
+			},
+		};
+		const privateRoot = join(
+			temporaryRoot("d682-mechanical-private"),
+			".private",
+			"empirical-memory-rerun-avoidance",
+		);
+		mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
+		chmodSync(privateRoot, 0o700);
+		let measurement = 0;
+		let currentKeyReads = 0;
+		const baseCredential = {
+			credentialBindingRef: routes[0].sharedCapacityQualification.credentialBindingRef,
+			credentialBindingRevision: routes[0].sharedCapacityQualification.credentialBindingRevision,
+			bearerToken: "d682-mechanical-secret-sentinel-0123456789",
+		};
+		await expect(
+			runLoadedOpenRouterD682MechanicalQualificationOperator({
+				operatorInput: {
+					catalog: validateD682MechanicalQualificationCatalog({
+						...catalog,
+						routeProfileDigest: empiricalSha256(encoder.encode("wrong-route-profile")),
+					}),
+					routeQualifications: routes,
+					async prepareFixture() {
+						throw new TypeError("route mismatch must fail before fixture preparation");
+					},
+					privateRoot,
+					generationRef: "d682-route-mismatch-must-not-persist",
+				},
+				credential: baseCredential,
+				transport,
+				currentKeySpendAdmission: simulatedCurrentKeySpendAdmission(() => {
+					throw new TypeError("route mismatch must fail before current-key admission");
+				}),
+				monotonicMeasurement: { readMs: () => (measurement += 1) },
+				retryWait: immediateRetryWait,
+				executionClass: "simulated-contract",
+				signal: new AbortController().signal,
+			}),
+		).rejects.toThrow(/frozen route/);
+		const mismatchedMaterialization = materializations[0]!;
+		await expect(
+			runLoadedOpenRouterD682MechanicalQualificationOperator({
+				operatorInput: {
+					catalog: validateD682MechanicalQualificationCatalog({
+						...catalog,
+						fixtures: catalog.fixtures.map((fixture, index) =>
+							index === 0
+								? {
+										...fixture,
+										workItemDigest: empiricalSha256(encoder.encode("wrong-work-item")),
+									}
+								: fixture,
+						),
+					}),
+					routeQualifications: routes,
+					async prepareFixture(fixtureIndex) {
+						if (fixtureIndex !== 0) throw new TypeError("unexpected fixture preparation");
+						const fixture = fixtures[0]!;
+						return {
+							host: {
+								frozen: fixture.frozen,
+								qualificationReport: fixture.report,
+								initialRequest: fixture.initialRequest,
+								taskProfile: fixture.taskProfile,
+								materialization: mismatchedMaterialization,
+								verifier: fixture.verifier,
+							},
+						};
+					},
+					privateRoot,
+					generationRef: "d682-fixture-mismatch-must-not-persist",
+				},
+				credential: baseCredential,
+				transport,
+				currentKeySpendAdmission: simulatedCurrentKeySpendAdmission(() => {
+					throw new TypeError("fixture mismatch must fail before current-key admission");
+				}),
+				monotonicMeasurement: { readMs: () => (measurement += 1) },
+				retryWait: immediateRetryWait,
+				executionClass: "simulated-contract",
+				signal: new AbortController().signal,
+			}),
+		).rejects.toThrow(/preregistration/);
+		materializations[0] = await fixtures[0]!.prepareFreshMaterialization(
+			new AbortController().signal,
+		);
+		const result = await runLoadedOpenRouterD682MechanicalQualificationOperator({
+			operatorInput: {
+				catalog,
+				routeQualifications: routes,
+				async prepareFixture(fixtureIndex) {
+					const fixture = fixtures[fixtureIndex]!;
+					return {
+						host: {
+							frozen: fixture.frozen,
+							qualificationReport: fixture.report,
+							initialRequest: fixture.initialRequest,
+							taskProfile: fixture.taskProfile,
+							materialization: materializations[fixtureIndex]!,
+							verifier: fixture.verifier,
+						},
+					};
+				},
+				privateRoot,
+				generationRef: "d682-mechanical-dry-run-generation",
+			},
+			credential: baseCredential,
+			transport,
+			currentKeySpendAdmission: simulatedCurrentKeySpendAdmission(() => {
+				currentKeyReads += 1;
+			}),
+			monotonicMeasurement: { readMs: () => (measurement += 1) },
+			retryWait: immediateRetryWait,
+			executionClass: "simulated-contract",
+			signal: new AbortController().signal,
+		});
+
+		expect(result.observations.map((observation) => observation.issueCodes)).toEqual([[], [], []]);
+		expect(transportCalls).toBe(15);
+		expect(currentKeyReads).toBe(3);
+		expect(result.scorecard).toMatchObject({
+			status: "simulated-contract-passed",
+			evidenceClass: "simulated-contract",
+			empiricalLiveEvidence: false,
+			efficacyClaim: "none",
+			attemptedFixtures: 3,
+			passedFixtures: 3,
+			requests: 15,
+			costMicrousd: 0,
+			hardCapMicrousd: 500_000,
+		});
+		const repeatedScorecard = createD682MechanicalQualificationScorecard({
+			catalog,
+			observations: result.observations,
+		});
+		expect(strictJsonCodec.encode(repeatedScorecard)).toEqual(
+			strictJsonCodec.encode(result.scorecard),
+		);
+		const generationFiles = readdirSync(result.persistence.generationPath).sort();
+		expect(generationFiles).toEqual([
+			"generation.v1.json",
+			"mechanical-fixture-catalog.v1.json",
+			"mechanical-observations.v1.json",
+			"mechanical-scorecard.v1.json",
+		]);
+		for (const file of generationFiles) {
+			expect(statSync(join(result.persistence.generationPath, file)).mode & 0o777).toBe(0o600);
+			expect(readFileSync(join(result.persistence.generationPath, file), "utf8")).not.toContain(
+				"d682-mechanical-secret-sentinel",
+			);
+		}
+	}, 30_000);
 
 	it("dry-runs one failed cold run and the exact five fresh matched warm arms atomically", async () => {
 		const fixture = await createClosedHostFixture(undefined, undefined, "glm-5.2-high");

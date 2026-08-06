@@ -70,7 +70,7 @@ export const OPENROUTER_GLM_5_2_DEEPINFRA_OUTPUT_MICROUSD_PER_MILLION_TOKENS = 2
 export const OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_SOURCE =
 	"https://openrouter.ai/api/v1/models/deepseek/deepseek-v4-flash-0731/endpoints";
 export const OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_REVISION =
-	"openrouter-deepseek-v4-flash-0731-deepinfra-fp4-2026-08-02.v1";
+	"openrouter-deepseek-v4-flash-0731-deepinfra-fp4-2026-08-05.v2";
 export const OPENROUTER_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS = 90_000;
 export const OPENROUTER_DEEPSEEK_V4_FLASH_OUTPUT_MICROUSD_PER_MILLION_TOKENS = 180_000;
 

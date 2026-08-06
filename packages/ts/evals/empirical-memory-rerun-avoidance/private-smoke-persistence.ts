@@ -16,6 +16,12 @@ import type {
 	FrozenEmpiricalCampaignManifestV1,
 } from "./contracts.js";
 import {
+	createD682MechanicalQualificationScorecard,
+	type D682MechanicalQualificationCatalogV1,
+	type D682MechanicalQualificationScorecardV1,
+	validateD682MechanicalQualificationCatalog,
+} from "./d682-mechanical-qualification.js";
+import {
 	B112_CALIBRATION_CAMPAIGN_SCORECARD_SCHEMA,
 	type B112CalibrationCampaignScorecardV4,
 	type B112CalibrationTerminalSlotV4,
@@ -24,6 +30,7 @@ import {
 } from "./empirical-calibration.js";
 import {
 	createEmpiricalCampaignScorecard,
+	type EmpiricalCalibrationTrialBlockObservationV4,
 	type EmpiricalCampaignScorecardV3,
 	type EmpiricalTrialBlockObservationV3,
 	validateEmpiricalCampaignScorecard,
@@ -48,6 +55,12 @@ const CALIBRATION_MANIFEST_FILE = "campaign-manifest.v1.json";
 const CALIBRATION_SLOTS_FILE = "terminal-slots.v4.json";
 const CALIBRATION_SCORECARD_FILE = "campaign-scorecard.v4.json";
 const CALIBRATION_GENERATION_FILE = "generation.v4.json";
+export const PRIVATE_D682_MECHANICAL_QUALIFICATION_GENERATION_SCHEMA =
+	"graphrefly.private-solution-eval.d682-mechanical-qualification-generation.v1";
+const D682_MECHANICAL_CATALOG_FILE = "mechanical-fixture-catalog.v1.json";
+const D682_MECHANICAL_OBSERVATIONS_FILE = "mechanical-observations.v1.json";
+const D682_MECHANICAL_SCORECARD_FILE = "mechanical-scorecard.v1.json";
+const D682_MECHANICAL_GENERATION_FILE = "generation.v1.json";
 const PRIVATE_ARTIFACT_SCAN_CHUNK_CODE_UNITS = 32_768;
 const PRIVATE_ARTIFACT_SCAN_CHUNK_OVERLAP_CODE_UNITS = MAX_EMPIRICAL_PRIVATE_NEEDLE_CODE_UNITS - 1;
 
@@ -63,6 +76,14 @@ export interface PersistedPrivateCalibrationGenerationV4 {
 	readonly generationDigest: string;
 	readonly manifestDigest: string;
 	readonly terminalSlotsDigest: string;
+	readonly scorecardDigest: string;
+}
+
+export interface PersistedPrivateD682MechanicalQualificationGenerationV1 {
+	readonly generationPath: string;
+	readonly generationDigest: string;
+	readonly catalogDigest: string;
+	readonly observationsDigest: string;
 	readonly scorecardDigest: string;
 }
 
@@ -409,6 +430,105 @@ export async function persistPrivateCalibrationGeneration(input: {
 			generationDigest,
 			manifestDigest,
 			terminalSlotsDigest,
+			scorecardDigest,
+		});
+	} finally {
+		if (!committed) {
+			await rm(stagingPath, { recursive: true, force: true }).catch(() => undefined);
+		}
+	}
+}
+
+/** Persists one complete D682 three-fixture mechanical qualification atomically. */
+export async function persistPrivateD682MechanicalQualificationGeneration(input: {
+	readonly privateRoot: string;
+	readonly generationRef: string;
+	readonly catalog: D682MechanicalQualificationCatalogV1;
+	readonly observations: readonly EmpiricalCalibrationTrialBlockObservationV4[];
+	readonly scorecard: D682MechanicalQualificationScorecardV1;
+	readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
+}): Promise<PersistedPrivateD682MechanicalQualificationGenerationV1> {
+	const generationRef = coordinate(input.generationRef, "privateD682Mechanical.generationRef");
+	if (
+		basename(generationRef) !== generationRef ||
+		generationRef === "." ||
+		generationRef === ".."
+	) {
+		throw new TypeError("private D682 mechanical generation ref must be one path-free coordinate");
+	}
+	if (!isEmpiricalExactPrivateNeedleProtectionExecutor(input.protectionExecutor)) {
+		throw new TypeError("private D682 mechanical generation requires the D656 protection executor");
+	}
+	const catalog = validateD682MechanicalQualificationCatalog(input.catalog);
+	const deterministicScorecard = createD682MechanicalQualificationScorecard({
+		catalog,
+		observations: input.observations,
+	});
+	if (
+		empiricalStrictJsonDigest(deterministicScorecard) !== empiricalStrictJsonDigest(input.scorecard)
+	) {
+		throw new TypeError("private D682 mechanical scorecard is not its canonical aggregate");
+	}
+	const catalogBytes = strictJsonCodec.encode(catalog);
+	const observationsBytes = strictJsonCodec.encode(input.observations);
+	const scorecardBytes = strictJsonCodec.encode(deterministicScorecard);
+	const catalogDigest = empiricalSha256(catalogBytes);
+	const observationsDigest = empiricalSha256(observationsBytes);
+	const scorecardDigest = empiricalSha256(scorecardBytes);
+	const generation = strictSnapshot({
+		schemaVersion: PRIVATE_D682_MECHANICAL_QUALIFICATION_GENERATION_SCHEMA,
+		generationRef,
+		catalog: {
+			file: D682_MECHANICAL_CATALOG_FILE,
+			digest: catalogDigest,
+			byteLength: catalogBytes.byteLength,
+		},
+		observations: {
+			file: D682_MECHANICAL_OBSERVATIONS_FILE,
+			digest: observationsDigest,
+			byteLength: observationsBytes.byteLength,
+			count: 3,
+		},
+		scorecard: {
+			file: D682_MECHANICAL_SCORECARD_FILE,
+			digest: scorecardDigest,
+			byteLength: scorecardBytes.byteLength,
+		},
+	});
+	for (const [subject, label] of [
+		[catalog, "catalog"],
+		...input.observations.map((observation, index) => [observation, `observation-${index + 1}`]),
+		[deterministicScorecard, "scorecard"],
+		[generation, "generation"],
+	] as const) {
+		assertPrivateArtifactProtection({
+			subject,
+			label: `private D682 mechanical ${label}`,
+			protectionExecutor: input.protectionExecutor,
+		});
+	}
+	const privateRoot = await assertSafePrivateRoot(input.privateRoot);
+	const generationBytes = strictJsonCodec.encode(generation);
+	const generationDigest = empiricalSha256(generationBytes);
+	const finalPath = join(privateRoot, generationRef);
+	const stagingPath = join(privateRoot, `.staging-${randomUUID()}`);
+	await mkdir(stagingPath, { mode: 0o700 });
+	let committed = false;
+	try {
+		await chmod(stagingPath, 0o700);
+		await writePrivateFile(join(stagingPath, D682_MECHANICAL_CATALOG_FILE), catalogBytes);
+		await writePrivateFile(join(stagingPath, D682_MECHANICAL_OBSERVATIONS_FILE), observationsBytes);
+		await writePrivateFile(join(stagingPath, D682_MECHANICAL_SCORECARD_FILE), scorecardBytes);
+		await writePrivateFile(join(stagingPath, D682_MECHANICAL_GENERATION_FILE), generationBytes);
+		await syncDirectory(stagingPath);
+		await rename(stagingPath, finalPath);
+		committed = true;
+		await syncDirectory(privateRoot).catch(() => undefined);
+		return Object.freeze({
+			generationPath: finalPath,
+			generationDigest,
+			catalogDigest,
+			observationsDigest,
 			scorecardDigest,
 		});
 	} finally {
