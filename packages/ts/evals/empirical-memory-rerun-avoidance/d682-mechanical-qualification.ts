@@ -10,6 +10,7 @@ import {
 	safeInteger,
 	strictSnapshot,
 } from "./canonical.js";
+import { assertPortableRepositoryPath } from "./canonical-repository-tree.js";
 import {
 	type EmpiricalCalibrationTrialBlockObservationV4,
 	validateEmpiricalCalibrationTrialBlockObservation,
@@ -17,6 +18,8 @@ import {
 
 export const D682_MECHANICAL_QUALIFICATION_CATALOG_SCHEMA =
 	"graphrefly.private-solution-eval.d682-mechanical-qualification-catalog.v1";
+export const D682_MECHANICAL_ACTOR_INPUT_SCHEMA =
+	"graphrefly.private-solution-eval.d682-mechanical-actor-input.v1";
 export const D682_MECHANICAL_QUALIFICATION_SCORECARD_SCHEMA =
 	"graphrefly.private-solution-eval.d682-mechanical-qualification-scorecard.v1";
 export const D682_MECHANICAL_QUALIFICATION_CLAIM_BOUNDARY =
@@ -24,6 +27,162 @@ export const D682_MECHANICAL_QUALIFICATION_CLAIM_BOUNDARY =
 export const D682_MECHANICAL_QUALIFICATION_FIXTURE_COUNT = 3;
 export const D682_MECHANICAL_QUALIFICATION_MAX_COST_MICROUSD = 500_000;
 export const D682_MECHANICAL_QUALIFICATION_MAX_CATALOG_BYTES = 65_536;
+export const D682_MECHANICAL_ACTOR_INPUT_MAX_BYTES = 131_072;
+
+export interface D682MechanicalActorInputV1 {
+	readonly schemaVersion: typeof D682_MECHANICAL_ACTOR_INPUT_SCHEMA;
+	readonly workItemRef: string;
+	readonly instructionRef: string;
+	readonly taskKind: "replace-exact-workspace-text";
+	readonly pathMode: "workspace-relative";
+	readonly readablePaths: readonly string[];
+	readonly writablePaths: readonly string[];
+	readonly commandRefs: readonly string[];
+	readonly replacementProposal: {
+		readonly path: string;
+		readonly oldText: string;
+		readonly newText: string;
+	};
+	readonly requiredExecutionOrder: readonly [
+		"read-file",
+		"replace-exact",
+		"workspace-diff",
+		"run-command",
+		"final",
+	];
+}
+
+/** Package-private D682 actor contract; it carries synthetic fixture intent, never a hidden task patch. */
+export function createD682MechanicalActorInput(input: {
+	readonly workItemRef: string;
+	readonly instructionRef: string;
+	readonly readablePaths: readonly string[];
+	readonly writablePaths: readonly string[];
+	readonly commandRefs: readonly string[];
+	readonly path: string;
+	readonly oldText: string;
+	readonly newText: string;
+}): D682MechanicalActorInputV1 {
+	const readablePaths = [...input.readablePaths]
+		.map((value, index) => assertPortableRepositoryPath(value, `d682Actor.readablePaths[${index}]`))
+		.sort();
+	const writablePaths = [...input.writablePaths]
+		.map((value, index) => assertPortableRepositoryPath(value, `d682Actor.writablePaths[${index}]`))
+		.sort();
+	if (
+		readablePaths.length < 1 ||
+		readablePaths.length > 32 ||
+		writablePaths.length < 1 ||
+		writablePaths.length > 32 ||
+		new Set(readablePaths).size !== readablePaths.length ||
+		new Set(writablePaths).size !== writablePaths.length ||
+		writablePaths.some((value) => !readablePaths.includes(value))
+	) {
+		throw new TypeError("D682 actor paths must be bounded, unique, and writable-implies-readable");
+	}
+	const commandRefs = [...input.commandRefs].map((value, index) =>
+		coordinate(value, `d682Actor.commandRefs[${index}]`),
+	);
+	if (
+		commandRefs.length < 1 ||
+		commandRefs.length > 32 ||
+		new Set(commandRefs).size !== commandRefs.length
+	) {
+		throw new TypeError("D682 actor command refs must be bounded and unique");
+	}
+	const path = assertPortableRepositoryPath(input.path, "d682Actor.replacementProposal.path");
+	if (!writablePaths.includes(path)) {
+		throw new TypeError("D682 actor replacement path must be an exact declared writable path");
+	}
+	if (
+		input.oldText.length === 0 ||
+		input.oldText.length > 32_768 ||
+		input.newText.length > 32_768
+	) {
+		throw new TypeError("D682 actor replacement text exceeds its bounded generic fixture contract");
+	}
+	const value: D682MechanicalActorInputV1 = strictSnapshot({
+		schemaVersion: "graphrefly.private-solution-eval.d682-mechanical-actor-input.v1" as const,
+		workItemRef: coordinate(input.workItemRef, "d682Actor.workItemRef"),
+		instructionRef: coordinate(input.instructionRef, "d682Actor.instructionRef"),
+		taskKind: "replace-exact-workspace-text" as const,
+		pathMode: "workspace-relative" as const,
+		readablePaths,
+		writablePaths,
+		commandRefs,
+		replacementProposal: { path, oldText: input.oldText, newText: input.newText },
+		requiredExecutionOrder: [
+			"read-file",
+			"replace-exact",
+			"workspace-diff",
+			"run-command",
+			"final",
+		] as const,
+	});
+	if (strictJsonCodec.encode(value).byteLength > D682_MECHANICAL_ACTOR_INPUT_MAX_BYTES) {
+		throw new TypeError("D682 actor input exceeded its canonical byte bound");
+	}
+	return value;
+}
+
+export function validateD682MechanicalActorInput(value: unknown): D682MechanicalActorInputV1 {
+	const actor = record(value, "d682Actor");
+	exactKeys(
+		actor,
+		[
+			"commandRefs",
+			"instructionRef",
+			"pathMode",
+			"readablePaths",
+			"replacementProposal",
+			"requiredExecutionOrder",
+			"schemaVersion",
+			"taskKind",
+			"workItemRef",
+			"writablePaths",
+		],
+		"d682Actor",
+	);
+	const replacement = record(actor.replacementProposal, "d682Actor.replacementProposal");
+	exactKeys(replacement, ["newText", "oldText", "path"], "d682Actor.replacementProposal");
+	const paths = (field: "readablePaths" | "writablePaths"): string[] =>
+		array(actor[field], `d682Actor.${field}`).map((entry, index) =>
+			assertPortableRepositoryPath(entry, `d682Actor.${field}[${index}]`),
+		);
+	const commandRefs = array(actor.commandRefs, "d682Actor.commandRefs").map((entry, index) =>
+		coordinate(entry, `d682Actor.commandRefs[${index}]`),
+	);
+	const order = array(actor.requiredExecutionOrder, "d682Actor.requiredExecutionOrder");
+	const requiredOrder = ["read-file", "replace-exact", "workspace-diff", "run-command", "final"];
+	if (
+		order.length !== requiredOrder.length ||
+		order.some((entry, index) => entry !== requiredOrder[index])
+	) {
+		throw new TypeError("D682 actor required execution order does not match its frozen contract");
+	}
+	if (typeof replacement.oldText !== "string" || typeof replacement.newText !== "string") {
+		throw new TypeError("D682 actor replacement text must be strings");
+	}
+	const validated = createD682MechanicalActorInput({
+		workItemRef: coordinate(actor.workItemRef, "d682Actor.workItemRef"),
+		instructionRef: coordinate(actor.instructionRef, "d682Actor.instructionRef"),
+		readablePaths: paths("readablePaths"),
+		writablePaths: paths("writablePaths"),
+		commandRefs,
+		path: assertPortableRepositoryPath(replacement.path, "d682Actor.replacementProposal.path"),
+		oldText: replacement.oldText,
+		newText: replacement.newText,
+	});
+	if (
+		actor.schemaVersion !== D682_MECHANICAL_ACTOR_INPUT_SCHEMA ||
+		actor.taskKind !== "replace-exact-workspace-text" ||
+		actor.pathMode !== "workspace-relative" ||
+		empiricalStrictJsonDigest(actor) !== empiricalStrictJsonDigest(validated)
+	) {
+		throw new TypeError("D682 actor input does not match its exact canonical contract");
+	}
+	return validated;
+}
 
 export interface D682MechanicalQualificationFixtureV1 {
 	readonly fixtureRef: string;

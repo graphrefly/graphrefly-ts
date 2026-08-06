@@ -8,6 +8,7 @@ import {
 	D682_MECHANICAL_QUALIFICATION_MAX_COST_MICROUSD,
 	type D682MechanicalQualificationCatalogV1,
 	type D682MechanicalQualificationScorecardV1,
+	validateD682MechanicalActorInput,
 	validateD682MechanicalQualificationCatalog,
 } from "./d682-mechanical-qualification.js";
 import type { EmpiricalCalibrationTrialBlockObservationV4 } from "./empirical-smoke-evidence.js";
@@ -196,9 +197,25 @@ export async function runLoadedOpenRouterD682MechanicalQualificationOperator(inp
 			const task = prepared.host.frozen.manifest.catalog.tasks.find(
 				(candidate) => candidate.taskRef === prepared.host.initialRequest.taskRef,
 			);
+			const actorInput = validateD682MechanicalActorInput(
+				prepared.host.initialRequest.structuredInput,
+			);
+			const actorPathsMatch =
+				empiricalStrictJsonDigest(actorInput.readablePaths) ===
+					empiricalStrictJsonDigest(prepared.host.taskProfile.workspaceRecipe.readableFiles) &&
+				empiricalStrictJsonDigest(actorInput.writablePaths) ===
+					empiricalStrictJsonDigest(
+						prepared.host.taskProfile.workspaceRecipe.writableFiles.map((rule) => rule.path),
+					) &&
+				empiricalStrictJsonDigest(actorInput.commandRefs) ===
+					empiricalStrictJsonDigest(
+						prepared.host.taskProfile.commandPolicy.commands.map((command) => command.commandRef),
+					);
 			if (
 				descriptor === undefined ||
 				task === undefined ||
+				actorInput.workItemRef !== task.workItemRef ||
+				!actorPathsMatch ||
 				prepared.host.initialRequest.taskRef !== descriptor.taskRef ||
 				prepared.host.initialRequest.taskDigest !== descriptor.taskDigest ||
 				empiricalStrictJsonDigest(task) !== descriptor.taskDigest ||

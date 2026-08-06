@@ -44,6 +44,7 @@ import type {
 } from "../../evals/empirical-memory-rerun-avoidance/contracts.js";
 import { EMPIRICAL_QUALIFICATION_EVIDENCE_KINDS } from "../../evals/empirical-memory-rerun-avoidance/contracts.js";
 import {
+	createD682MechanicalActorInput,
 	createD682MechanicalQualificationScorecard,
 	D682_MECHANICAL_QUALIFICATION_CATALOG_SCHEMA,
 	D682_MECHANICAL_QUALIFICATION_MAX_COST_MICROUSD,
@@ -2683,7 +2684,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		const fixtures: ClosedHostFixture[] = [];
 		const expectedWorkspaceStateDigests: string[] = [];
 		for (const [index, sourceContent] of sourceValues.entries()) {
-			const fixture = await createClosedHostFixture(
+			const baseFixture = await createClosedHostFixture(
 				undefined,
 				sourceContent,
 				"deepseek-v4-flash-high",
@@ -2693,6 +2694,40 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				`${replacementValues[index]}\n`,
 			);
 			const oldText = index === 0 ? "alpha broken-placeholder-value omega" : sourceContent.trim();
+			const structuredInput = createD682MechanicalActorInput({
+				workItemRef: baseFixture.frozen.manifest.catalog.tasks[0]!.workItemRef,
+				instructionRef: `instruction.d682.mechanical.${index + 1}`,
+				readablePaths: baseFixture.taskProfile.workspaceRecipe.readableFiles,
+				writablePaths: baseFixture.taskProfile.workspaceRecipe.writableFiles.map(
+					(rule) => rule.path,
+				),
+				commandRefs: baseFixture.taskProfile.commandPolicy.commands.map(
+					(command) => command.commandRef,
+				),
+				path: "README.md",
+				oldText,
+				newText: replacementValues[index]!,
+			});
+			const inputProtectionReceipt = executeEmpiricalProtection(baseFixture.protectionExecutor, {
+				policyRef: baseFixture.initialRequest.protectionPolicyRef,
+				policyRevision: baseFixture.initialRequest.protectionPolicyRevision,
+				stage: "source-ingress",
+				subject: structuredInput as unknown as EmpiricalModelTurnRequestV1["structuredInput"],
+			}).receipt;
+			const fixture: ClosedHostFixture = {
+				...baseFixture,
+				initialRequest: validateEmpiricalModelTurnRequest(
+					{
+						...baseFixture.initialRequest,
+						structuredInput:
+							structuredInput as unknown as EmpiricalModelTurnRequestV1["structuredInput"],
+						structuredInputDigest: empiricalStrictJsonDigest(structuredInput),
+						inputProtectionReceipt,
+					},
+					baseFixture.frozen,
+					baseFixture.report,
+				),
+			};
 			const offline = await runClosedTaskProfileHost({
 				frozen: fixture.frozen,
 				qualificationReport: fixture.report,
@@ -2809,7 +2844,29 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				transportCalls += 1;
 				const requestBody = JSON.parse(new TextDecoder().decode(input.body)) as {
 					readonly tools: readonly { readonly function: { readonly name: string } }[];
+					readonly messages: readonly { readonly role: string; readonly content: string }[];
 				};
+				if (stepIndex === 0) {
+					const userMessage = requestBody.messages.find((message) => message.role === "user");
+					const envelope = JSON.parse(userMessage?.content ?? "null") as {
+						readonly structuredInput?: {
+							readonly schemaVersion?: string;
+							readonly pathMode?: string;
+							readonly readablePaths?: readonly string[];
+							readonly writablePaths?: readonly string[];
+							readonly commandRefs?: readonly string[];
+							readonly replacementProposal?: { readonly path?: string };
+						};
+					};
+					expect(envelope.structuredInput).toMatchObject({
+						schemaVersion: "graphrefly.private-solution-eval.d682-mechanical-actor-input.v1",
+						pathMode: "workspace-relative",
+						readablePaths: ["README.md"],
+						writablePaths: ["README.md"],
+						commandRefs: ["actor.status"],
+						replacementProposal: { path: "README.md" },
+					});
+				}
 				const functionCall = (
 					toolIndex: number,
 					callRef: string,
