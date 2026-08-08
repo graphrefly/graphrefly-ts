@@ -810,9 +810,13 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsD691HistoricalTransferOperator = file.endsWith(
 				"d691-historical-transfer-live.ts",
 			);
+			const allowsD692OfflineForensicOperator = file.endsWith(
+				"d692-historical-transfer-forensic.ts",
+			);
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
+				allowsD692OfflineForensicOperator ||
 				file.endsWith("openrouter-first-task-smoke.ts") ||
 				file.endsWith("private-smoke-persistence.ts");
 			const allowsOneRequestFetchTransport =

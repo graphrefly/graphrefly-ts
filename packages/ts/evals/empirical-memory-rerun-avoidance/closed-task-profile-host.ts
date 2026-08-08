@@ -78,6 +78,29 @@ const MAX_LITERAL_CODE_UNITS = 65_536;
 const D682_PROGRESS_MAX_CANONICAL_BYTES = 512;
 const MAX_TOOL_INTENTS_PER_TURN = 16;
 const MAX_EVIDENCE_REFS = 32;
+
+export function classifyClosedHostStructuredTerminal(input: {
+	readonly finishReason: "structured-output" | "tool-intents" | null;
+	readonly structuredOutputPresent: boolean;
+	readonly requireObjectiveProgress: boolean;
+	readonly mutationObserved: boolean;
+	readonly diffObserved: boolean;
+	readonly commandObserved: boolean;
+}):
+	| "continue-tool-intents"
+	| "verify-structured-output"
+	| "reject-structured-output-before-verifier" {
+	if (input.finishReason !== "structured-output" || !input.structuredOutputPresent) {
+		return "continue-tool-intents";
+	}
+	if (
+		input.requireObjectiveProgress &&
+		!(input.mutationObserved && input.diffObserved && input.commandObserved)
+	) {
+		return "reject-structured-output-before-verifier";
+	}
+	return "verify-structured-output";
+}
 const MAX_WORKSPACE_SNAPSHOT_ENTRIES = 100_000;
 const MAX_WORKSPACE_SNAPSHOT_BYTES = 512 * 1024 * 1024;
 const FORBIDDEN_SHELL_EXECUTABLE_NAMES = new Set([
@@ -1360,7 +1383,15 @@ async function executeValidatedHost(
 		if (outcome === null || outcome.status === "non-evaluable") {
 			throw new HostRunFailure("model-turn-retry-outcome-missing");
 		}
-		if (outcome.finishReason === "structured-output" && outcome.structuredOutput !== null) {
+		const structuredTerminal = classifyClosedHostStructuredTerminal({
+			finishReason: outcome.finishReason,
+			structuredOutputPresent: outcome.structuredOutput !== null,
+			requireObjectiveProgress: false,
+			mutationObserved,
+			diffObserved,
+			commandObserved,
+		});
+		if (structuredTerminal === "verify-structured-output") {
 			let workspaceStateDigest: string;
 			let workspaceChangeDigest: string;
 			try {
@@ -1443,6 +1474,9 @@ async function executeValidatedHost(
 				issueCodes: verifierResult.issueCodes,
 				cleanupSucceeded: false,
 			});
+		}
+		if (structuredTerminal === "reject-structured-output-before-verifier") {
+			throw new HostRunFailure("structured-output-objective-progress-required");
 		}
 		if (outcome.finishReason !== "tool-intents" || outcome.toolIntents.length === 0) {
 			throw new HostRunFailure("model-turn-outcome-shape-invalid");

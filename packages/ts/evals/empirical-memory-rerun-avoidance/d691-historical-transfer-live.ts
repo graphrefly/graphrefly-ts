@@ -435,7 +435,7 @@ export function createD691Scorecard(
 	return strictSnapshot({ ...material, scorecardDigest: empiricalStrictJsonDigest(material) });
 }
 
-function validateD691Observation(
+export function validateD691Observation(
 	value: D691HistoricalTransferObservationV1,
 ): D691HistoricalTransferObservationV1 {
 	const candidate = record(value, "d691.observation");
