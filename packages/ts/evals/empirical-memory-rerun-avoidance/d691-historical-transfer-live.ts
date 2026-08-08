@@ -158,8 +158,8 @@ export async function runD691HistoricalTransferBlock(input: {
 	const outer = record(input, "d691.input");
 	exactKeys(outer, ["block", "d690OfflineEvidence"], "d691.input");
 	const block = captureD691Block(outer.block);
-	validateD691BlockCoordinates(block);
-	const d690OfflineEvidence = validateD690OfflineEvidence(
+	validateD691HistoricalTransferBlockCoordinates(block);
+	const d690OfflineEvidence = validateD691D690OfflineEvidence(
 		outer.d690OfflineEvidence,
 		block.executionClass,
 	);
@@ -177,7 +177,7 @@ export async function runD691HistoricalTransferBlock(input: {
 	if (result.profile !== "smoke") {
 		throw new TypeError("D691 requires the one-block smoke profile");
 	}
-	assertD691UnderlyingCoordinates(result.observation, block);
+	assertD691HistoricalTransferUnderlyingCoordinates(result.observation, block);
 	const observation = createD691Observation(
 		result.observation,
 		d690OfflineEvidence,
@@ -218,7 +218,9 @@ function captureD691Block(value: unknown): OpenRouterMatchedTrialBlockInputV4 {
 	}) as unknown as OpenRouterMatchedTrialBlockInputV4;
 }
 
-function validateD691BlockCoordinates(block: OpenRouterMatchedTrialBlockInputV4): void {
+export function validateD691HistoricalTransferBlockCoordinates(
+	block: OpenRouterMatchedTrialBlockInputV4,
+): void {
 	if (
 		block.historicalReflectionCapability !== undefined ||
 		block.host.initialRequest.taskRef !== D690_TARGET_TASK_REF ||
@@ -262,7 +264,7 @@ function validateD691BlockCoordinates(block: OpenRouterMatchedTrialBlockInputV4)
 	}
 }
 
-function validateD690OfflineEvidence(
+export function validateD691D690OfflineEvidence(
 	value: unknown,
 	executionClass: OpenRouterMatchedTrialBlockInputV4["executionClass"],
 ): D690HistoricalPairOfflineEvidenceV1 {
@@ -344,7 +346,7 @@ function validateD690OfflineEvidence(
 	return strictSnapshot(candidate) as unknown as D690HistoricalPairOfflineEvidenceV1;
 }
 
-function d691DerivedPattern(underlying: EmpiricalTrialBlockObservationV3): {
+export function deriveD691HistoricalTransferPattern(underlying: EmpiricalTrialBlockObservationV3): {
 	readonly relevantActionTraceBoundToMemory: boolean;
 	readonly positiveExploratoryTransferPattern: boolean;
 } {
@@ -382,7 +384,7 @@ function createD691Observation(
 ): D691HistoricalTransferObservationV1 {
 	const validatedUnderlying = validateEmpiricalTrialBlockObservation(underlying);
 	const { relevantActionTraceBoundToMemory, positiveExploratoryTransferPattern } =
-		d691DerivedPattern(validatedUnderlying);
+		deriveD691HistoricalTransferPattern(validatedUnderlying);
 	const material = strictSnapshot({
 		schemaVersion: D691_HISTORICAL_TRANSFER_OBSERVATION_VERSION,
 		claimBoundary: D691_CLAIM_BOUNDARY,
@@ -482,7 +484,7 @@ export function validateD691Observation(
 		"d691.observation.transferMemoryDigest",
 	);
 	const underlying = validateEmpiricalTrialBlockObservation(candidate.underlying);
-	assertFrozenD691UnderlyingCoordinates(underlying);
+	assertFrozenD691HistoricalTransferUnderlyingCoordinates(underlying);
 	literal(candidate.executionClass, underlying.executionClass, "d691.observation.executionClass");
 	if (
 		underlying.executionClass === "live-provider" &&
@@ -503,7 +505,7 @@ export function validateD691Observation(
 	if (underlyingObservationDigest !== empiricalStrictJsonDigest(underlying)) {
 		throw new TypeError("D691 underlying observation digest does not bind its canonical bytes");
 	}
-	const derived = d691DerivedPattern(underlying);
+	const derived = deriveD691HistoricalTransferPattern(underlying);
 	literal(
 		candidate.relevantActionTraceBoundToMemory,
 		derived.relevantActionTraceBoundToMemory,
@@ -525,7 +527,7 @@ export function validateD691Observation(
 	return strictSnapshot(candidate) as unknown as D691HistoricalTransferObservationV1;
 }
 
-function assertFrozenD691UnderlyingCoordinates(
+export function assertFrozenD691HistoricalTransferUnderlyingCoordinates(
 	observation: EmpiricalTrialBlockObservationV3,
 ): void {
 	const route = observation.route;
@@ -559,12 +561,12 @@ function assertFrozenD691UnderlyingCoordinates(
 	}
 }
 
-function assertD691UnderlyingCoordinates(
+export function assertD691HistoricalTransferUnderlyingCoordinates(
 	value: EmpiricalTrialBlockObservationV3,
 	block: OpenRouterMatchedTrialBlockInputV4,
 ): void {
 	const observation = validateEmpiricalTrialBlockObservation(value);
-	assertFrozenD691UnderlyingCoordinates(observation);
+	assertFrozenD691HistoricalTransferUnderlyingCoordinates(observation);
 	const route = observation.route;
 	const qualified = block.routeQualification;
 	if (
