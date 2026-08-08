@@ -807,8 +807,12 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				"d690-historical-pair-qualification.ts",
 			);
 			const allowsOfflineQualification = file.endsWith("exact-five-task-offline-qualification.ts");
+			const allowsD691HistoricalTransferOperator = file.endsWith(
+				"d691-historical-transfer-live.ts",
+			);
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
+				allowsD691HistoricalTransferOperator ||
 				file.endsWith("openrouter-first-task-smoke.ts") ||
 				file.endsWith("private-smoke-persistence.ts");
 			const allowsOneRequestFetchTransport =
@@ -914,7 +918,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							(specifier === "node:fs/promises" || specifier === "node:path")) ||
 						(allowsD690SealedOfflineOperator &&
 							(specifier === "node:fs" || specifier === "node:os")) ||
-						(allowsOutermostLiveOperator && specifier === "node:url") ||
+						((allowsD691HistoricalTransferOperator || allowsOutermostLiveOperator) &&
+							specifier === "node:url") ||
 						specifier === "../../src/json/codec.js" ||
 						(allowsMatchedBlockMemory && matchedBlockMemoryImports.has(specifier)) ||
 						(allowsD682MechanicalRecipe && d682MechanicalRecipeImports.has(specifier)) ||

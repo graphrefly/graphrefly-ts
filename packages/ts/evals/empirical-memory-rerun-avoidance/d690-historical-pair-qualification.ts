@@ -24,6 +24,7 @@ import {
 	record,
 	safeInteger,
 	strictSnapshot,
+	string,
 } from "./canonical.js";
 import {
 	buildD689OfflineEvidence,
@@ -38,6 +39,7 @@ import {
 	validateD689TransferMemory,
 } from "./cross-work-item-memory-transfer.js";
 import {
+	type HistoryFreeSingleBaselineRepositoryMaterializationV1,
 	materializeHistoryFreeSingleBaselineRepository,
 	type SingleBaselineWorkspaceAllocationV1,
 	type SingleBaselineWorkspaceAllocatorCapabilityV1,
@@ -105,6 +107,25 @@ const D690_TARGET_VERIFIER = Object.freeze({
 });
 
 export const D690_TARGET_TASK_REF = D690_TARGET.taskRef;
+
+export interface D690HistoricalTargetOperatorCapabilityV1 {
+	readonly revision: "d690-historical-target-operator.2026-08-07.v1";
+	readonly taskRef: typeof D690_TARGET.taskRef;
+	readonly sourceCommitSha: string;
+	readonly sourceTreeObjectId: string;
+	readonly verifierRef: string;
+	readonly verifierRevision: string;
+	readonly hiddenFixtureDigest: string;
+	readonly verifierToolchainBindingDigest: string;
+	createMaterialization(
+		signal: AbortSignal,
+	): Promise<HistoryFreeSingleBaselineRepositoryMaterializationV1>;
+	verify(input: { readonly actorWorkspaceRoot: string; readonly signal: AbortSignal }): Promise<{
+		readonly verdict: "passed" | "failed" | "unverifiable";
+		readonly evidenceDigest: string;
+		readonly networkCallCount: 0;
+	}>;
+}
 
 const REQUIRED_PROTECTED_MATERIAL_CLASSES = Object.freeze([
 	"credential",
@@ -639,6 +660,151 @@ async function materializeAndCalibrateExactD690Target(signal: AbortSignal) {
 	}
 }
 
+/**
+ * Constructs the package-private D691 operator boundary for the exact D690
+ * history-free target. Hidden fixed bytes and verifier tooling stay inside the
+ * closure; actor workspaces contain only the pre-fix source tree.
+ */
+export async function createD690HistoricalTargetOperatorCapability(
+	signal: AbortSignal,
+): Promise<D690HistoricalTargetOperatorCapabilityV1> {
+	assertNotCancelled(signal);
+	const fixed = await materializeHistoryFreeSingleBaselineRepository(
+		{ repositoryRef: "graphrefly-ts", rootPath: D690_REPOSITORY_ROOT },
+		createD690WorkspaceAllocator("fixed"),
+		{
+			sourceCommitSha: D690_TARGET.fixedCommitSha,
+			sourceTreeObjectId: D690_TARGET.fixedTreeObjectId,
+			overlay: null,
+			signal,
+		},
+	);
+	let hiddenFixtureBytes: Uint8Array;
+	try {
+		hiddenFixtureBytes = await readFile(
+			join(fixed.workspace.rootPathForHostRunner(), TARGET_TEST_PATH),
+		);
+		if (empiricalSha256(hiddenFixtureBytes) !== D690_TARGET_VERIFIER.hiddenFixtureDigest) {
+			fail("d690.operator", "hidden verifier fixture digest drift");
+		}
+	} finally {
+		await fixed.cleanup();
+	}
+	const nodeModulesPath = join(D690_REPOSITORY_ROOT, "node_modules");
+	const verifierToolchain = await verifyD690VerifierToolchain(nodeModulesPath);
+	const ownedActorRoots = new Set<string>();
+	const createMaterialization = async (
+		materializationSignal: AbortSignal,
+	): Promise<HistoryFreeSingleBaselineRepositoryMaterializationV1> => {
+		assertNotCancelled(materializationSignal);
+		const materialization = await materializeHistoryFreeSingleBaselineRepository(
+			{ repositoryRef: "graphrefly-ts", rootPath: D690_REPOSITORY_ROOT },
+			createD690WorkspaceAllocator("baseline"),
+			{
+				sourceCommitSha: D690_TARGET.preFixCommitSha,
+				sourceTreeObjectId: D690_TARGET.preFixTreeObjectId,
+				overlay: null,
+				signal: materializationSignal,
+			},
+		);
+		try {
+			validateTargetMaterializationEvidence(materialization.evidence);
+			ownedActorRoots.add(await realpath(materialization.workspace.rootPathForHostRunner()));
+			return materialization;
+		} catch (error) {
+			await materialization.cleanup().catch(() => undefined);
+			throw error;
+		}
+	};
+	return Object.freeze({
+		revision: "d690-historical-target-operator.2026-08-07.v1" as const,
+		taskRef: D690_TARGET.taskRef,
+		sourceCommitSha: D690_TARGET.preFixCommitSha,
+		sourceTreeObjectId: D690_TARGET.preFixTreeObjectId,
+		verifierRef: D690_TARGET_VERIFIER.verifierRef,
+		verifierRevision: D690_TARGET_VERIFIER.verifierRevision,
+		hiddenFixtureDigest: D690_TARGET_VERIFIER.hiddenFixtureDigest,
+		verifierToolchainBindingDigest: verifierToolchain.bindingDigest,
+		createMaterialization,
+		async verify(verificationInput: {
+			readonly actorWorkspaceRoot: string;
+			readonly signal: AbortSignal;
+		}) {
+			const request = record(verificationInput, "d690.operator.verify");
+			exactKeys(request, ["actorWorkspaceRoot", "signal"], "d690.operator.verify");
+			if (!(request.signal instanceof AbortSignal)) {
+				fail("d690.operator.verify.signal", "expected AbortSignal");
+			}
+			assertNotCancelled(request.signal);
+			const actorWorkspaceRoot = await realpath(
+				string(request.actorWorkspaceRoot, "d690.operator.verify.actorWorkspaceRoot", 1_024),
+			);
+			if (!ownedActorRoots.has(actorWorkspaceRoot)) {
+				fail("d690.operator.verify", "actor workspace is not an operator-owned D690 baseline");
+			}
+			const actorFileBytes = await readFile(
+				join(actorWorkspaceRoot, "packages/ts/src/executors/managed-cloud-postgresql.ts"),
+			);
+			if (actorFileBytes.byteLength > 128 * 1024) {
+				fail("d690.operator.verify", "actor target file exceeds its frozen byte bound");
+			}
+			const verification = await materializeHistoryFreeSingleBaselineRepository(
+				{ repositoryRef: "graphrefly-ts", rootPath: D690_REPOSITORY_ROOT },
+				createD690WorkspaceAllocator("baseline"),
+				{
+					sourceCommitSha: D690_TARGET.preFixCommitSha,
+					sourceTreeObjectId: D690_TARGET.preFixTreeObjectId,
+					overlay: null,
+					signal: request.signal,
+				},
+			);
+			try {
+				validateTargetMaterializationEvidence(verification.evidence);
+				const root = verification.workspace.rootPathForHostRunner();
+				await writeFile(
+					join(root, "packages/ts/src/executors/managed-cloud-postgresql.ts"),
+					actorFileBytes,
+					{ mode: 0o600 },
+				);
+				await writeFile(join(root, TARGET_TEST_PATH), hiddenFixtureBytes, { mode: 0o600 });
+				await symlink(nodeModulesPath, join(root, "node_modules"));
+				const exitCode = await runExactFocusedVerifier({
+					root,
+					signal: request.signal,
+					vitestEntryPath: verifierToolchain.vitestEntryPath,
+				});
+				if (
+					(await d690VerifierRuntimeClosureDigest(verifierToolchain.runtimeRootPackagePath))
+						.digest !== verifierToolchain.runtimeClosureDigest
+				) {
+					fail("d690.operator.verify", "verifier runtime closure changed during execution");
+				}
+				const verdict =
+					exitCode === 0
+						? ("passed" as const)
+						: exitCode === 1
+							? ("failed" as const)
+							: ("unverifiable" as const);
+				return Object.freeze({
+					verdict,
+					evidenceDigest: empiricalStrictJsonDigest({
+						kind: "d690-historical-target-operator-verifier-run.v1",
+						verdict,
+						actorFileDigest: empiricalSha256(actorFileBytes),
+						hiddenFixtureDigest: D690_TARGET_VERIFIER.hiddenFixtureDigest,
+						materializationEvidenceDigest: empiricalStrictJsonDigest(verification.evidence),
+						verifierToolchainBindingDigest: verifierToolchain.bindingDigest,
+						networkIsolationProfile: "macos-sandbox-exec-deny-network.v1",
+					}),
+					networkCallCount: 0 as const,
+				});
+			} finally {
+				await verification.cleanup();
+			}
+		},
+	});
+}
+
 async function verifyD690VerifierToolchain(nodeModulesPath: string) {
 	const realNodeModulesPath = await realpath(nodeModulesPath);
 	const vitestEntryPath = await realpath(join(realNodeModulesPath, "vitest", "vitest.mjs"));
@@ -852,7 +1018,15 @@ function createD690WorkspaceAllocator(
 		},
 		async cleanup(allocation: SingleBaselineWorkspaceAllocationV1): Promise<boolean> {
 			if (!allocation.rootPath.startsWith(prefix)) return false;
-			await rm(allocation.rootPath, { recursive: true });
+			// A failing Vitest worker can release its last filesystem handle just after
+			// the sealed CLI exits. Keep this operator-local cleanup bounded while
+			// preserving fail-closed evidence if the directory cannot be removed.
+			await rm(allocation.rootPath, {
+				force: true,
+				maxRetries: 4,
+				recursive: true,
+				retryDelay: 25,
+			});
 			return true;
 		},
 	});

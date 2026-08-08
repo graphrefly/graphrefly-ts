@@ -53,6 +53,21 @@ import {
 	validateD682MechanicalQualificationCatalog,
 } from "../../evals/empirical-memory-rerun-avoidance/d682-mechanical-qualification.js";
 import {
+	createD690HistoricalTransferMemory,
+	D690_CLAIM_BOUNDARY,
+	D690_FAILURE_MECHANISM_REF,
+	D690_HISTORICAL_PAIR_EVIDENCE_VERSION,
+	D690_SOURCE,
+	D690_TARGET_TASK_REF,
+} from "../../evals/empirical-memory-rerun-avoidance/d690-historical-pair-qualification.js";
+import {
+	createD691Scorecard,
+	D691_BUDGET,
+	D691_PRIVATE_PERSISTENCE_ROOT,
+	persistD691PrivateGeneration,
+	runD691HistoricalTransferBlock,
+} from "../../evals/empirical-memory-rerun-avoidance/d691-historical-transfer-live.js";
+import {
 	createDeveloperGuidanceObservation,
 	developerGuidanceActionProgressEvidenceDigest,
 	developerGuidanceCoordinateEvidenceDigest,
@@ -294,6 +309,7 @@ async function createClosedHostFixture(
 	taskRef = "task.d659",
 	expectedContent = "fixed\n",
 ): Promise<ClosedHostFixture> {
+	const d691Profile = taskRef === D690_TARGET_TASK_REF;
 	const sourceRoot = temporaryRoot("source");
 	git(sourceRoot, ["init", "--quiet", "--initial-branch=main"]);
 	git(sourceRoot, ["config", "user.name", "D659 Test"]);
@@ -324,7 +340,7 @@ async function createClosedHostFixture(
 		maxSearchMatches: 32,
 		maxDiffBytes: 64 * 1024,
 		maxToolResultBytes: 1024 * 1024,
-		maxToolActions: 8,
+		maxToolActions: d691Profile ? D691_BUDGET.maxActionsPerRun : 8,
 	});
 	const commandPolicy: ClosedCommandPolicyV1 = strictSnapshot({
 		schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.commandPolicy,
@@ -458,13 +474,16 @@ async function createClosedHostFixture(
 						: chatProfile
 							? ("required" as const)
 							: baseConfiguration.settings.tools.choice,
-				maxSteps: trialProfile === "calibration" && deepSeekProfile ? B112_D678_AGENT_MAX_STEPS : 8,
+				maxSteps:
+					deepSeekProfile && (trialProfile === "calibration" || d691Profile)
+						? D691_BUDGET.maxStepsPerRun
+						: 8,
 			},
 			output: {
 				...baseConfiguration.settings.output,
 				maxOutputTokens:
-					trialProfile === "calibration" && deepSeekProfile
-						? 65_536
+					deepSeekProfile && (trialProfile === "calibration" || d691Profile)
+						? D691_BUDGET.maxOutputTokensPerTurn
 						: baseConfiguration.settings.output.maxOutputTokens,
 			},
 		},
@@ -498,48 +517,59 @@ async function createClosedHostFixture(
 			...baseManifest.budgets,
 			campaign: {
 				...baseManifest.budgets.campaign,
-				maxRequests:
-					trialProfile === "calibration" && deepSeekProfile
+				maxRequests: d691Profile
+					? D691_BUDGET.maxHttpAttempts
+					: trialProfile === "calibration" && deepSeekProfile
 						? B112_D678_CAMPAIGN_MAX_REQUESTS
 						: trialProfile === "calibration"
 							? 720
 							: 48,
-				maxCostMicrousd:
-					trialProfile === "calibration" && deepSeekProfile
+				maxCostMicrousd: d691Profile
+					? D691_BUDGET.maxSpendMicrousd
+					: trialProfile === "calibration" && deepSeekProfile
 						? B112_D678_CAMPAIGN_MAX_COST_MICROUSD
 						: trialProfile === "calibration"
 							? baseManifest.budgets.taskModel.maxCostMicrousd * catalog.tasks.length
 							: baseManifest.budgets.campaign.maxCostMicrousd,
-				maxElapsedMs:
-					trialProfile === "calibration" && deepSeekProfile
+				maxElapsedMs: d691Profile
+					? D691_BUDGET.maxElapsedMs
+					: trialProfile === "calibration" && deepSeekProfile
 						? B112_D678_CAMPAIGN_MAX_ELAPSED_MS
 						: baseManifest.budgets.campaign.maxElapsedMs,
 			},
 			taskModel: {
 				...baseManifest.budgets.taskModel,
 				maxAttemptedColdBlocks: trialProfile === "calibration" ? 3 : 1,
-				maxRequests:
-					trialProfile === "calibration" && deepSeekProfile
+				maxRequests: d691Profile
+					? D691_BUDGET.maxHttpAttempts
+					: trialProfile === "calibration" && deepSeekProfile
 						? B112_D678_TASK_MAX_REQUESTS
 						: trialProfile === "calibration"
 							? 144
 							: 48,
-				maxCostMicrousd:
-					trialProfile === "calibration" && deepSeekProfile
+				maxCostMicrousd: d691Profile
+					? D691_BUDGET.maxSpendMicrousd
+					: trialProfile === "calibration" && deepSeekProfile
 						? B112_D679_TASK_MAX_COST_MICROUSD
 						: baseManifest.budgets.taskModel.maxCostMicrousd,
 			},
 			agentRun: {
 				...baseManifest.budgets.agentRun,
-				maxElapsedMs:
-					trialProfile === "calibration" && deepSeekProfile
+				maxElapsedMs: d691Profile
+					? Math.floor(D691_BUDGET.maxElapsedMs / 6)
+					: trialProfile === "calibration" && deepSeekProfile
 						? 960_000
 						: baseManifest.budgets.agentRun.maxElapsedMs,
-				maxSteps: trialProfile === "calibration" && deepSeekProfile ? B112_D678_AGENT_MAX_STEPS : 8,
+				maxSteps:
+					deepSeekProfile && (trialProfile === "calibration" || d691Profile)
+						? D691_BUDGET.maxStepsPerRun
+						: 8,
 				maxRequests:
-					trialProfile === "calibration" && deepSeekProfile ? B112_D678_AGENT_MAX_STEPS : 8,
+					deepSeekProfile && (trialProfile === "calibration" || d691Profile)
+						? D691_BUDGET.maxStepsPerRun
+						: 8,
 				maxOutputBytes:
-					trialProfile === "calibration" && deepSeekProfile
+					deepSeekProfile && (trialProfile === "calibration" || d691Profile)
 						? B112_D678_MAX_CANONICAL_REQUEST_BYTES
 						: baseManifest.budgets.agentRun.maxOutputBytes,
 			},
@@ -1000,6 +1030,7 @@ function simulatedRouteQualification(
 	const credentialBindingRevision = fixture.frozen.manifest.policies.actorCredentialBindingRevision;
 	const glmProfile = configuration.model === OPENROUTER_GLM_5_2_REQUEST_MODEL;
 	const deepSeekProfile = configuration.model === OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL;
+	const simulatedKeyLimitMicrousd = Math.max(1_000_000, budgetOverrides.maxSmokeSpendMicrousd ?? 0);
 	const qualification: OpenRouterRouteQualificationV1 = {
 		schemaVersion: OPENROUTER_ROUTE_QUALIFICATION_SCHEMA,
 		qualificationRef: "b112-simulated-route-qualification",
@@ -1067,8 +1098,8 @@ function simulatedRouteQualification(
 			qualificationRevision: "b112-simulated-key-limit.v1",
 			readOnlyQualified: false,
 			limitReset: "none" as const,
-			limitMicrousd: 1_000_000,
-			remainingMicrousd: 1_000_000,
+			limitMicrousd: simulatedKeyLimitMicrousd,
+			remainingMicrousd: simulatedKeyLimitMicrousd,
 			credentialBindingRef,
 			credentialBindingRevision,
 			workspaceRef: "b112-dedicated-openrouter-workspace",
@@ -1088,6 +1119,44 @@ function simulatedRouteQualification(
 		},
 	};
 	return strictSnapshot(qualification);
+}
+
+function d690OfflineEvidenceFixture() {
+	const transferMemory = createD690HistoricalTransferMemory();
+	const marker = (name: string) => empiricalStrictJsonDigest({ kind: `d690-test-${name}` });
+	const material = strictSnapshot({
+		version: D690_HISTORICAL_PAIR_EVIDENCE_VERSION,
+		claimBoundary: D690_CLAIM_BOUNDARY,
+		efficacyClaim: "none" as const,
+		sourceTaskRef: D690_SOURCE.taskRef,
+		targetTaskRef: D690_TARGET_TASK_REF,
+		failureMechanismRef: D690_FAILURE_MECHANISM_REF,
+		sourceObservationDigest: D690_SOURCE.observationDigest,
+		targetMaterializationEvidenceDigest: marker("target-materialization"),
+		verifierCalibrationDigest: marker("verifier-calibration"),
+		verifierToolchainBindingDigest: marker("verifier-toolchain"),
+		verifierRuntimeClosurePackageCount: 149,
+		networkIsolationProfile: "macos-sandbox-exec-deny-network.v1" as const,
+		transferMemoryDigest: empiricalStrictJsonDigest(transferMemory),
+		pairQualificationDigest: marker("pair-qualification"),
+		d689OfflineEvidenceDigest: marker("d689-offline"),
+		d689OfflineCaseCount: 9,
+		privateMaterialProtectionSetBindingDigest: marker("protection-set"),
+		leakageProbeSetDigest: marker("leakage-probes"),
+		protectionCoverageClaim: "exact-frozen-needle-set-plus-exact-memory-digest" as const,
+		protectedLeakageClassCount: 5 as const,
+		historyFreeTargetQualified: true as const,
+		hiddenVerifierQualified: true as const,
+		preProviderQualityGatePassed: true as const,
+		providerCallCount: 0 as const,
+		networkCallCount: 0 as const,
+		chargedCostMicrousd: 0 as const,
+		historicalEvidenceRewritten: false as const,
+		naturalChronologyClaimed: false as const,
+		targetExpectedMaterialPersisted: false as const,
+		publicExportDelta: false as const,
+	});
+	return strictSnapshot({ ...material, evidenceDigest: empiricalStrictJsonDigest(material) });
 }
 
 function liveRouteQualification(
@@ -7173,5 +7242,822 @@ describe("B112 D678-D679 package-private calibration operator", () => {
 			status: "incomplete",
 			efficacyClaim: "none",
 		});
+	}, 120_000);
+
+	it("runs D691 cold plus five serial historical-transfer arms through observation and atomic private persistence", async () => {
+		const credentialSentinel = "D691_PRIVATE_CREDENTIAL_SENTINEL_DO_NOT_PERSIST";
+		const decoder = new TextDecoder("utf-8", { fatal: true });
+		const fixture = await createClosedHostFixture(
+			undefined,
+			"broken-placeholder-value\n",
+			"deepseek-v4-flash-high",
+			"smoke",
+			false,
+			D690_TARGET_TASK_REF,
+			"fixed\n",
+		);
+		const routeQualification = simulatedRouteQualification(fixture, {
+			maxSmokeSpendMicrousd: D691_BUDGET.maxSpendMicrousd,
+			maxRequests: D691_BUDGET.maxHttpAttempts,
+			maxStepsPerRun: D691_BUDGET.maxStepsPerRun,
+			maxCanonicalRequestBytes: D691_BUDGET.maxCanonicalRequestBytes,
+			maxInputTokens: D691_BUDGET.maxInputTokens,
+			maxOutputTokens: D691_BUDGET.maxOutputTokens,
+			maxLatencyMs: D691_BUDGET.maxElapsedMs,
+		});
+		let transportCalls = 0;
+		let activeRequests = 0;
+		let maximumConcurrentRequests = 0;
+		const wireBodies: string[] = [];
+		const transport: OpenRouterResponsesByteTransportV1 = {
+			async request(request) {
+				activeRequests += 1;
+				maximumConcurrentRequests = Math.max(maximumConcurrentRequests, activeRequests);
+				try {
+					transportCalls += 1;
+					if (transportCalls > 12) throw new TypeError("unexpected D691 dry-run request");
+					const wireText = decoder.decode(request.body);
+					wireBodies.push(wireText);
+					const wire = JSON.parse(wireText) as {
+						readonly model?: string;
+						readonly messages?: readonly { readonly role?: string; readonly content?: string }[];
+						readonly tools?: readonly {
+							readonly function?: {
+								readonly name?: string;
+								readonly parameters?: { readonly properties?: Readonly<Record<string, unknown>> };
+							};
+						}[];
+					};
+					if (wire.model !== OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL) {
+						throw new TypeError("unexpected D691 dry-run model");
+					}
+					const user = [...(wire.messages ?? [])]
+						.reverse()
+						.find((message) => message.role === "user");
+					if (typeof user?.content !== "string") throw new TypeError("missing D691 user envelope");
+					const envelope = JSON.parse(user.content) as {
+						readonly turn?: { readonly stepIndex?: number };
+						readonly structuredInput?: { readonly memoryContext?: unknown };
+					};
+					const stepIndex = envelope.turn?.stepIndex ?? -1;
+					const memoryDelivered = envelope.structuredInput?.memoryContext !== undefined;
+					const toolBy = (key: string, excluded?: string) =>
+						wire.tools?.find((tool) => {
+							const properties = tool.function?.parameters?.properties ?? {};
+							return (
+								Object.hasOwn(properties, key) &&
+								(excluded === undefined || !Object.hasOwn(properties, excluded))
+							);
+						})?.function?.name;
+					if (stepIndex === 0) {
+						const toolName = memoryDelivered ? toolBy("oldText") : toolBy("path", "oldText");
+						if (typeof toolName !== "string")
+							throw new TypeError("missing D691 closed tool mapping");
+						return dryRunOpenRouterResponse(
+							`response.d691.${transportCalls}`,
+							[
+								{
+									type: "function_call",
+									call_id: `call.d691.${transportCalls}`,
+									name: toolName,
+									arguments: JSON.stringify(
+										memoryDelivered
+											? {
+													path: "README.md",
+													baseContentDigest: empiricalSha256(
+														encoder.encode("broken-placeholder-value\n"),
+													),
+													oldText: "broken-placeholder-value",
+													newText: "fixed",
+												}
+											: { path: "README.md" },
+									),
+								},
+							],
+							{ input_tokens: 100, output_tokens: 20, total_tokens: 120, cost: 0.000_01 },
+							{
+								requestModel: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+								downstreamProviderName: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+							},
+						);
+					}
+					return dryRunOpenRouterResponse(
+						`response.d691.${transportCalls}`,
+						[
+							{
+								type: "message",
+								role: "assistant",
+								status: "completed",
+								content: [
+									{
+										type: "output_text",
+										text: JSON.stringify({
+											kind: "model-turn-output-placeholder",
+											summary: "D691 bounded dry-run completion.",
+										}),
+									},
+								],
+							},
+						],
+						{ input_tokens: 100, output_tokens: 20, total_tokens: 120, cost: 0.000_01 },
+						{
+							requestModel: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+							downstreamProviderName: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+						},
+					);
+				} finally {
+					activeRequests -= 1;
+				}
+			},
+		};
+		let measurement = 0;
+		const result = await runD691HistoricalTransferBlock({
+			d690OfflineEvidence: d690OfflineEvidenceFixture(),
+			block: {
+				host: {
+					frozen: fixture.frozen,
+					qualificationReport: fixture.report,
+					initialRequest: fixture.initialRequest,
+					taskProfile: fixture.taskProfile,
+					materialization: fixture.materialization,
+					verifier: fixture.verifier,
+				},
+				prepareWarmHost: ({ signal }) => fixture.prepareFreshMaterialization(signal),
+				routeQualification,
+				credential: {
+					credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+					credentialBindingRevision:
+						fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+					bearerToken: credentialSentinel,
+				},
+				transport,
+				monotonicMeasurement: { readMs: () => (measurement += 1) },
+				retryWait: immediateRetryWait,
+				executionClass: "simulated-contract",
+				signal: new AbortController().signal,
+			},
+		});
+
+		expect(transportCalls).toBe(12);
+		expect(maximumConcurrentRequests).toBe(1);
+		expect(result.admissionRejection).toBeNull();
+		expect(result.observation).toMatchObject({
+			efficacyClaim: "none",
+			positiveExploratoryTransferPattern: true,
+			relevantActionTraceBoundToMemory: true,
+		});
+		expect(result.scorecard).toMatchObject({
+			status: "complete-positive-exploratory-signal",
+			efficacyClaim: "none",
+			positiveExploratoryTransferPatterns: 1,
+		});
+		expect(createD691Scorecard(result.observation)).toEqual(result.scorecard);
+		const { observationDigest: ignoredObservationDigest, ...forgedMaterial } = {
+			...result.observation,
+			positiveExploratoryTransferPattern: false,
+		};
+		void ignoredObservationDigest;
+		const forgedObservation = strictSnapshot({
+			...forgedMaterial,
+			observationDigest: empiricalStrictJsonDigest(forgedMaterial),
+		});
+		expect(() => createD691Scorecard(forgedObservation as typeof result.observation)).toThrow(
+			"positiveExploratoryTransferPattern",
+		);
+		const relevant = result.observation.underlying.warmBranches[0];
+		if (relevant?.lifecycle === null || relevant === undefined) {
+			throw new TypeError("D691 relevant lifecycle fixture missing");
+		}
+		const unmatchedLifecycle = strictSnapshot({
+			...relevant.lifecycle,
+			caseConforms: false,
+			stagePredicates: {
+				...relevant.lifecycle.stagePredicates,
+				same_work_item_input: false,
+			},
+		});
+		const unmatchedUnderlying = strictSnapshot({
+			...result.observation.underlying,
+			familyPassed: false,
+			warmBranches: [
+				strictSnapshot({ ...relevant, lifecycle: unmatchedLifecycle }),
+				...result.observation.underlying.warmBranches.slice(1),
+			],
+		});
+		const {
+			observationDigest: ignoredUnmatchedObservationDigest,
+			...unmatchedObservationWithoutDigest
+		} = {
+			...result.observation,
+			underlying: unmatchedUnderlying,
+			underlyingObservationDigest: empiricalStrictJsonDigest(unmatchedUnderlying),
+		};
+		void ignoredUnmatchedObservationDigest;
+		const unmatchedMaterial = strictSnapshot(unmatchedObservationWithoutDigest);
+		const unmatchedObservation = strictSnapshot({
+			...unmatchedMaterial,
+			observationDigest: empiricalStrictJsonDigest(unmatchedMaterial),
+		});
+		expect(() => createD691Scorecard(unmatchedObservation as typeof result.observation)).toThrow(
+			"matched cold-failure transfer block",
+		);
+		const serialized = JSON.stringify({
+			observation: result.observation,
+			scorecard: result.scorecard,
+		});
+		expect(serialized).not.toContain(credentialSentinel);
+		expect(wireBodies.some((body) => body.includes("producer"))).toBe(true);
+
+		const privateRoot = D691_PRIVATE_PERSISTENCE_ROOT;
+		const generationRef = `d691-dry-run-test-${process.pid}-${Date.now()}`;
+		const generationRoot = join(privateRoot, generationRef);
+		temporaryRoots.push(generationRoot);
+		const persistenceProtection = createEmpiricalExactPrivateNeedleProtectionExecutor({
+			policyRef: fixture.initialRequest.protectionPolicyRef,
+			policyRevision: fixture.initialRequest.protectionPolicyRevision,
+			protectedNeedleCapabilityRef: "protected-needles.d691.persistence-test",
+			protectedNeedleCapabilityRevision: "protected-needles.d691.persistence-test.v1",
+			protectedNeedles: [credentialSentinel],
+		});
+		const persisted = await persistD691PrivateGeneration({
+			privateRoot,
+			generationRef,
+			observation: result.observation,
+			scorecard: result.scorecard,
+			protectionExecutor: persistenceProtection,
+		});
+		expect(persisted.observationDigest).toBe(result.observation.observationDigest);
+		for (const file of readdirSync(generationRoot)) {
+			const path = join(generationRoot, file);
+			expect(statSync(path).mode & 0o777).toBe(0o600);
+			expect(readFileSync(path, "utf8")).not.toContain(credentialSentinel);
+		}
+		await expect(
+			persistD691PrivateGeneration({
+				privateRoot,
+				generationRef,
+				observation: result.observation,
+				scorecard: result.scorecard,
+				protectionExecutor: persistenceProtection,
+			}),
+		).rejects.toThrow();
+		let forgedProtectionCalls = 0;
+		const forgedGenerationRef = `d691-forged-protection-${process.pid}-${Date.now()}`;
+		const forgedGenerationRoot = join(privateRoot, forgedGenerationRef);
+		temporaryRoots.push(forgedGenerationRoot);
+		await expect(
+			persistD691PrivateGeneration({
+				privateRoot,
+				generationRef: forgedGenerationRef,
+				observation: result.observation,
+				scorecard: result.scorecard,
+				protectionExecutor: {
+					policyRef: fixture.initialRequest.protectionPolicyRef,
+					policyRevision: fixture.initialRequest.protectionPolicyRevision,
+					inspect() {
+						forgedProtectionCalls += 1;
+						return { disposition: "allowed" as const, issueCodes: [] };
+					},
+				} as unknown as EmpiricalExactPrivateNeedleProtectionExecutorV1,
+			}),
+		).rejects.toThrow("constructed exact private-needle executor");
+		expect(forgedProtectionCalls).toBe(0);
+		expect(readdirSync(privateRoot)).not.toContain(forgedGenerationRef);
+		expect(readdirSync(privateRoot).filter((name) => name.startsWith(".d691-staging-"))).toEqual(
+			[],
+		);
+	}, 120_000);
+
+	it("bounds D691 bad loops and fails an unexpected transport request without retry or live evidence", async () => {
+		const makeFixture = () =>
+			createClosedHostFixture(
+				undefined,
+				"broken-placeholder-value\n",
+				"deepseek-v4-flash-high",
+				"smoke",
+				false,
+				D690_TARGET_TASK_REF,
+				"fixed\n",
+			);
+		const route = (fixture: ClosedHostFixture) =>
+			simulatedRouteQualification(fixture, {
+				maxSmokeSpendMicrousd: D691_BUDGET.maxSpendMicrousd,
+				maxRequests: D691_BUDGET.maxHttpAttempts,
+				maxStepsPerRun: D691_BUDGET.maxStepsPerRun,
+				maxCanonicalRequestBytes: D691_BUDGET.maxCanonicalRequestBytes,
+				maxInputTokens: D691_BUDGET.maxInputTokens,
+				maxOutputTokens: D691_BUDGET.maxOutputTokens,
+				maxLatencyMs: D691_BUDGET.maxElapsedMs,
+			});
+		const block = (fixture: ClosedHostFixture, transport: OpenRouterResponsesByteTransportV1) => ({
+			host: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: fixture.materialization,
+				verifier: fixture.verifier,
+			},
+			prepareWarmHost: ({ signal }: { readonly signal: AbortSignal }) =>
+				fixture.prepareFreshMaterialization(signal),
+			routeQualification: route(fixture),
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: "d691-bounded-private-secret",
+			},
+			transport,
+			monotonicMeasurement: { readMs: () => 0 },
+			retryWait: immediateRetryWait,
+			executionClass: "simulated-contract" as const,
+			signal: new AbortController().signal,
+		});
+
+		const loopingFixture = await makeFixture();
+		let loopCalls = 0;
+		const loopResult = await runD691HistoricalTransferBlock({
+			d690OfflineEvidence: d690OfflineEvidenceFixture(),
+			block: block(loopingFixture, {
+				async request(request) {
+					loopCalls += 1;
+					const wire = JSON.parse(new TextDecoder().decode(request.body)) as {
+						readonly tools?: readonly {
+							readonly function?: {
+								readonly name?: string;
+								readonly parameters?: { readonly properties?: Readonly<Record<string, unknown>> };
+							};
+						}[];
+					};
+					const readTool = wire.tools?.find((tool) => {
+						const properties = tool.function?.parameters?.properties ?? {};
+						return Object.hasOwn(properties, "path") && !Object.hasOwn(properties, "oldText");
+					})?.function?.name;
+					if (typeof readTool !== "string") throw new TypeError("unexpected D691 tool catalog");
+					return dryRunOpenRouterResponse(
+						`response.d691.loop.${loopCalls}`,
+						[
+							{
+								type: "function_call",
+								call_id: `call.d691.loop.${loopCalls}`,
+								name: readTool,
+								arguments: JSON.stringify({ path: "README.md" }),
+							},
+						],
+						{ input_tokens: 100, output_tokens: 20, total_tokens: 120, cost: 0.000_01 },
+						{
+							requestModel: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+							downstreamProviderName: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+						},
+					);
+				},
+			}),
+		});
+		expect(loopCalls).toBe(D691_BUDGET.maxStepsPerRun);
+		expect(loopResult.observation.underlying.result).toMatchObject({
+			classification: "non-evaluable",
+			requests: D691_BUDGET.maxStepsPerRun,
+			attempts: D691_BUDGET.maxStepsPerRun,
+			costMicrousd: 0,
+		});
+		expect(loopResult.observation.underlying.empiricalLiveEvidence).toBe(false);
+		expect(loopResult.scorecard.status).toBe("incomplete");
+
+		const rejectedFixture = await makeFixture();
+		let rejectedCalls = 0;
+		const rejected = await runD691HistoricalTransferBlock({
+			d690OfflineEvidence: d690OfflineEvidenceFixture(),
+			block: block(rejectedFixture, {
+				async request() {
+					rejectedCalls += 1;
+					throw new TypeError("unexpected injected transport request");
+				},
+			}),
+		});
+		expect(rejectedCalls).toBe(1);
+		expect(rejected.observation.underlying.result).toMatchObject({
+			classification: "non-evaluable",
+			requests: 1,
+			attempts: 1,
+		});
+		expect(rejected.observation.underlying.cold.retryWaitTrace).toEqual([]);
+		expect(rejected.observation.underlying.warmBranches).toHaveLength(5);
+		expect(rejected.observation.underlying.warmBranches.every((branch) => !branch.attempted)).toBe(
+			true,
+		);
+	}, 120_000);
+
+	it("rejects forged live D690 receipts and nested block accessors before byte transport", async () => {
+		const fixture = await createClosedHostFixture(
+			undefined,
+			"broken-placeholder-value\n",
+			"deepseek-v4-flash-high",
+			"smoke",
+			false,
+			D690_TARGET_TASK_REF,
+			"fixed\n",
+		);
+		let transportCalls = 0;
+		const routeQualification = liveRouteQualification(fixture, {
+			maxSmokeSpendMicrousd: D691_BUDGET.maxSpendMicrousd,
+			maxRequests: D691_BUDGET.maxHttpAttempts,
+			maxStepsPerRun: D691_BUDGET.maxStepsPerRun,
+			maxCanonicalRequestBytes: D691_BUDGET.maxCanonicalRequestBytes,
+			maxInputTokens: D691_BUDGET.maxInputTokens,
+			maxOutputTokens: D691_BUDGET.maxOutputTokens,
+			maxLatencyMs: D691_BUDGET.maxElapsedMs,
+		});
+		const baseBlock = {
+			host: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: fixture.materialization,
+				verifier: fixture.verifier,
+			},
+			prepareWarmHost: ({ signal }: { readonly signal: AbortSignal }) =>
+				fixture.prepareFreshMaterialization(signal),
+			routeQualification,
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: "d691-forged-receipt-secret",
+			},
+			transport: {
+				async request() {
+					transportCalls += 1;
+					throw new TypeError("forged D690 receipt reached transport");
+				},
+			},
+			monotonicMeasurement: { readMs: () => 0 },
+			retryWait: immediateRetryWait,
+			executionClass: "live-provider" as const,
+			signal: new AbortController().signal,
+		};
+		await expect(
+			runD691HistoricalTransferBlock({
+				d690OfflineEvidence: d690OfflineEvidenceFixture(),
+				block: baseBlock,
+			}),
+		).rejects.toThrow("exact qualified D690 evidence receipt");
+		expect(transportCalls).toBe(0);
+
+		let routeGetterHits = 0;
+		const accessorBlock = Object.defineProperty({ ...baseBlock }, "routeQualification", {
+			enumerable: true,
+			get() {
+				routeGetterHits += 1;
+				return routeQualification;
+			},
+		});
+		await expect(
+			runD691HistoricalTransferBlock({
+				d690OfflineEvidence: d690OfflineEvidenceFixture(),
+				block: accessorBlock as unknown as typeof baseBlock,
+			}),
+		).rejects.toThrow("expected an own data property");
+		expect(routeGetterHits).toBe(0);
+		expect(transportCalls).toBe(0);
+	}, 120_000);
+
+	it("marks the six-arm block incomplete when aggregate monotonic time is exhausted", async () => {
+		const fixture = await createClosedHostFixture(
+			undefined,
+			"broken-placeholder-value\n",
+			"deepseek-v4-flash-high",
+			"smoke",
+			false,
+			D690_TARGET_TASK_REF,
+			"fixed\n",
+		);
+		let now = 0;
+		let calls = 0;
+		const result = await runD691HistoricalTransferBlock({
+			d690OfflineEvidence: d690OfflineEvidenceFixture(),
+			block: {
+				host: {
+					frozen: fixture.frozen,
+					qualificationReport: fixture.report,
+					initialRequest: fixture.initialRequest,
+					taskProfile: fixture.taskProfile,
+					materialization: fixture.materialization,
+					verifier: fixture.verifier,
+				},
+				prepareWarmHost: ({ signal }) => fixture.prepareFreshMaterialization(signal),
+				routeQualification: simulatedRouteQualification(fixture, {
+					maxSmokeSpendMicrousd: D691_BUDGET.maxSpendMicrousd,
+					maxRequests: D691_BUDGET.maxHttpAttempts,
+					maxStepsPerRun: D691_BUDGET.maxStepsPerRun,
+					maxCanonicalRequestBytes: D691_BUDGET.maxCanonicalRequestBytes,
+					maxInputTokens: D691_BUDGET.maxInputTokens,
+					maxOutputTokens: D691_BUDGET.maxOutputTokens,
+					maxLatencyMs: D691_BUDGET.maxElapsedMs,
+				}),
+				credential: {
+					credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+					credentialBindingRevision:
+						fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+					bearerToken: "d691-elapsed-secret",
+				},
+				transport: {
+					async request() {
+						calls += 1;
+						now = D691_BUDGET.maxElapsedMs;
+						return dryRunOpenRouterResponse(
+							"response.d691.elapsed",
+							[
+								{
+									type: "message",
+									role: "assistant",
+									status: "completed",
+									content: [
+										{
+											type: "output_text",
+											text: JSON.stringify({
+												kind: "model-turn-output-placeholder",
+												summary: "D691 elapsed preparation fixture.",
+											}),
+										},
+									],
+								},
+							],
+							{ input_tokens: 10, output_tokens: 1, total_tokens: 11, cost: 0 },
+							{
+								requestModel: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+								downstreamProviderName: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+							},
+						);
+					},
+				},
+				monotonicMeasurement: { readMs: () => now },
+				retryWait: immediateRetryWait,
+				executionClass: "simulated-contract",
+				signal: new AbortController().signal,
+			},
+		});
+		expect(calls).toBe(1);
+		expect(result.observation.underlying.warmBranches.every((branch) => !branch.attempted)).toBe(
+			true,
+		);
+		expect(result.scorecard.status).toBe("incomplete");
+	}, 120_000);
+
+	it("cleans a prepared D691 warm workspace when aggregate time crosses before host handoff", async () => {
+		const fixture = await createClosedHostFixture(
+			undefined,
+			"broken-placeholder-value\n",
+			"deepseek-v4-flash-high",
+			"smoke",
+			false,
+			D690_TARGET_TASK_REF,
+			"fixed\n",
+		);
+		let now = 0;
+		let cleanupCalls = 0;
+		let prepareCalls = 0;
+		let transportCalls = 0;
+		const result = await runD691HistoricalTransferBlock({
+			d690OfflineEvidence: d690OfflineEvidenceFixture(),
+			block: {
+				host: {
+					frozen: fixture.frozen,
+					qualificationReport: fixture.report,
+					initialRequest: fixture.initialRequest,
+					taskProfile: fixture.taskProfile,
+					materialization: fixture.materialization,
+					verifier: fixture.verifier,
+				},
+				prepareWarmHost: async ({ signal }) => {
+					prepareCalls += 1;
+					const prepared = await fixture.prepareFreshMaterialization(signal);
+					now = D691_BUDGET.maxElapsedMs;
+					return Object.freeze({
+						...prepared,
+						async cleanup() {
+							cleanupCalls += 1;
+							await prepared.cleanup();
+						},
+					});
+				},
+				routeQualification: simulatedRouteQualification(fixture, {
+					maxSmokeSpendMicrousd: D691_BUDGET.maxSpendMicrousd,
+					maxRequests: D691_BUDGET.maxHttpAttempts,
+					maxStepsPerRun: D691_BUDGET.maxStepsPerRun,
+					maxCanonicalRequestBytes: D691_BUDGET.maxCanonicalRequestBytes,
+					maxInputTokens: D691_BUDGET.maxInputTokens,
+					maxOutputTokens: D691_BUDGET.maxOutputTokens,
+					maxLatencyMs: D691_BUDGET.maxElapsedMs,
+				}),
+				credential: {
+					credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+					credentialBindingRevision:
+						fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+					bearerToken: "d691-preparation-elapsed-secret",
+				},
+				transport: {
+					async request(request) {
+						transportCalls += 1;
+						const wire = JSON.parse(new TextDecoder().decode(request.body)) as {
+							readonly messages?: readonly { readonly role?: string; readonly content?: string }[];
+							readonly tools?: readonly {
+								readonly function?: {
+									readonly name?: string;
+									readonly parameters?: {
+										readonly properties?: Readonly<Record<string, unknown>>;
+									};
+								};
+							}[];
+						};
+						const user = [...(wire.messages ?? [])]
+							.reverse()
+							.find((message) => message.role === "user");
+						const envelope = JSON.parse(user?.content ?? "null") as {
+							readonly turn?: { readonly stepIndex?: number };
+						};
+						if (envelope.turn?.stepIndex === 0) {
+							const readTool = wire.tools?.find((tool) => {
+								const properties = tool.function?.parameters?.properties ?? {};
+								return Object.hasOwn(properties, "path") && !Object.hasOwn(properties, "oldText");
+							})?.function?.name;
+							if (typeof readTool !== "string") throw new TypeError("D691 read tool missing");
+							return dryRunOpenRouterResponse(
+								"response.d691.preparation-elapsed.read",
+								[
+									{
+										type: "function_call",
+										call_id: "call.d691.preparation-elapsed.read",
+										name: readTool,
+										arguments: JSON.stringify({ path: "README.md" }),
+									},
+								],
+								{ input_tokens: 10, output_tokens: 1, total_tokens: 11, cost: 0 },
+								{
+									requestModel: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+									downstreamProviderName: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+								},
+							);
+						}
+						return dryRunOpenRouterResponse(
+							"response.d691.preparation-elapsed",
+							[
+								{
+									type: "message",
+									content: [
+										{
+											type: "output_text",
+											text: JSON.stringify({
+												kind: "model-turn-output-placeholder",
+												summary: "D691 elapsed preparation fixture.",
+											}),
+										},
+									],
+								},
+							],
+							{ input_tokens: 10, output_tokens: 1, total_tokens: 11, cost: 0 },
+							{
+								requestModel: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+								downstreamProviderName: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+							},
+						);
+					},
+				},
+				monotonicMeasurement: { readMs: () => now },
+				retryWait: immediateRetryWait,
+				executionClass: "simulated-contract",
+				signal: new AbortController().signal,
+			},
+		});
+		expect(transportCalls).toBe(2);
+		expect(prepareCalls).toBe(1);
+		expect(cleanupCalls).toBe(1);
+		expect(result.observation.underlying.warmBranches[0]).toMatchObject({
+			attempted: false,
+			issueCodes: expect.arrayContaining([B112_SMOKE_BUDGET_ISSUE_CODE]),
+		});
+		expect(result.scorecard.status).toBe("incomplete");
+	}, 120_000);
+
+	it("rejects a completed final D691 arm when aggregate time crosses before aggregation", async () => {
+		const fixture = await createClosedHostFixture(
+			undefined,
+			"broken-placeholder-value\n",
+			"deepseek-v4-flash-high",
+			"smoke",
+			false,
+			D690_TARGET_TASK_REF,
+			"fixed\n",
+		);
+		let now = 0;
+		let transportCalls = 0;
+		const result = await runD691HistoricalTransferBlock({
+			d690OfflineEvidence: d690OfflineEvidenceFixture(),
+			block: {
+				host: {
+					frozen: fixture.frozen,
+					qualificationReport: fixture.report,
+					initialRequest: fixture.initialRequest,
+					taskProfile: fixture.taskProfile,
+					materialization: fixture.materialization,
+					verifier: fixture.verifier,
+				},
+				prepareWarmHost: ({ signal }) => fixture.prepareFreshMaterialization(signal),
+				routeQualification: simulatedRouteQualification(fixture, {
+					maxSmokeSpendMicrousd: D691_BUDGET.maxSpendMicrousd,
+					maxRequests: D691_BUDGET.maxHttpAttempts,
+					maxStepsPerRun: D691_BUDGET.maxStepsPerRun,
+					maxCanonicalRequestBytes: D691_BUDGET.maxCanonicalRequestBytes,
+					maxInputTokens: D691_BUDGET.maxInputTokens,
+					maxOutputTokens: D691_BUDGET.maxOutputTokens,
+					maxLatencyMs: D691_BUDGET.maxElapsedMs,
+				}),
+				credential: {
+					credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+					credentialBindingRevision:
+						fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+					bearerToken: "d691-final-elapsed-secret",
+				},
+				transport: {
+					async request(request) {
+						transportCalls += 1;
+						const wire = JSON.parse(new TextDecoder().decode(request.body)) as {
+							readonly messages?: readonly { readonly role?: string; readonly content?: string }[];
+							readonly tools?: readonly {
+								readonly function?: {
+									readonly name?: string;
+									readonly parameters?: {
+										readonly properties?: Readonly<Record<string, unknown>>;
+									};
+								};
+							}[];
+						};
+						const user = [...(wire.messages ?? [])]
+							.reverse()
+							.find((message) => message.role === "user");
+						const envelope = JSON.parse(user?.content ?? "null") as {
+							readonly turn?: { readonly stepIndex?: number };
+						};
+						if (envelope.turn?.stepIndex === 0) {
+							const readTool = wire.tools?.find((tool) => {
+								const properties = tool.function?.parameters?.properties ?? {};
+								return Object.hasOwn(properties, "path") && !Object.hasOwn(properties, "oldText");
+							})?.function?.name;
+							if (typeof readTool !== "string") throw new TypeError("D691 read tool missing");
+							return dryRunOpenRouterResponse(
+								`response.d691.final-elapsed.read.${transportCalls}`,
+								[
+									{
+										type: "function_call",
+										call_id: `call.d691.final-elapsed.read.${transportCalls}`,
+										name: readTool,
+										arguments: JSON.stringify({ path: "README.md" }),
+									},
+								],
+								{ input_tokens: 10, output_tokens: 1, total_tokens: 11, cost: 0 },
+								{
+									requestModel: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+									downstreamProviderName: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+								},
+							);
+						}
+						if (transportCalls === 12) now = D691_BUDGET.maxElapsedMs;
+						return dryRunOpenRouterResponse(
+							`response.d691.final-elapsed.${transportCalls}`,
+							[
+								{
+									type: "message",
+									role: "assistant",
+									status: "completed",
+									content: [
+										{
+											type: "output_text",
+											text: JSON.stringify({
+												kind: "model-turn-output-placeholder",
+												summary: "D691 elapsed final-arm fixture.",
+											}),
+										},
+									],
+								},
+							],
+							{ input_tokens: 10, output_tokens: 1, total_tokens: 11, cost: 0 },
+							{
+								requestModel: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+								downstreamProviderName: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+							},
+						);
+					},
+				},
+				monotonicMeasurement: { readMs: () => now },
+				retryWait: immediateRetryWait,
+				executionClass: "simulated-contract",
+				signal: new AbortController().signal,
+			},
+		});
+		expect(transportCalls).toBe(12);
+		expect(result.observation.underlying.warmBranches[4]?.run).toMatchObject({
+			classification: "non-evaluable",
+			verifierStatus: "not-run",
+			issueCodes: expect.arrayContaining([B112_SMOKE_BUDGET_ISSUE_CODE]),
+		});
+		expect(result.scorecard.status).toBe("incomplete");
 	}, 120_000);
 });

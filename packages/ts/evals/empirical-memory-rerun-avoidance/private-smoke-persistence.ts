@@ -115,7 +115,7 @@ export interface PersistedPrivateDeveloperGuidanceCalibrationGenerationV1 {
 	readonly recommendationDigest: string;
 }
 
-async function assertSafePrivateRoot(privateRoot: string): Promise<string> {
+export async function assertSafePrivateRoot(privateRoot: string): Promise<string> {
 	if (!isAbsolute(privateRoot)) throw new TypeError("private smoke root must be absolute");
 	if (
 		basename(privateRoot) !== PRIVATE_OWNERSHIP_DIRECTORY ||
@@ -140,7 +140,7 @@ async function assertSafePrivateRoot(privateRoot: string): Promise<string> {
 	return canonicalRoot;
 }
 
-async function writePrivateFile(path: string, bytes: Uint8Array): Promise<void> {
+export async function writePrivateFile(path: string, bytes: Uint8Array): Promise<void> {
 	const handle = await open(path, "wx", 0o600);
 	try {
 		await handle.writeFile(bytes);
@@ -158,7 +158,7 @@ async function writePrivateFile(path: string, bytes: Uint8Array): Promise<void> 
 	}
 }
 
-async function syncDirectory(path: string): Promise<void> {
+export async function syncDirectory(path: string): Promise<void> {
 	const handle = await open(path, "r");
 	try {
 		await handle.sync();

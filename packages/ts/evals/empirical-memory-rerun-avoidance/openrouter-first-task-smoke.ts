@@ -9,6 +9,7 @@ import {
 import {
 	type ClosedTaskProfileHostRetryCapabilityV1,
 	type ClosedTaskProfileHostRunInputV1,
+	type ClosedTaskProfileHostRunOutcomeV3,
 	runClosedTaskProfileHost,
 } from "./closed-task-profile-host.js";
 import {
@@ -30,7 +31,9 @@ import {
 import type { EmpiricalExactPrivateNeedleProtectionExecutorV1 } from "./exact-private-needle-protection.js";
 import {
 	B112_MATCHED_BLOCK_MEMORY_REVISION,
+	type D691HistoricalReflectionCapabilityV1,
 	prepareB112MatchedBlockReflection,
+	prepareConstructedD691HistoricalReflection,
 } from "./matched-block-memory.js";
 import {
 	EMPIRICAL_MODEL_EXECUTION_SCHEMAS,
@@ -816,6 +819,7 @@ export interface OpenRouterMatchedTrialBlockInputV4 {
 	readonly signal: AbortSignal;
 	readonly retryWait: OpenRouterFirstTaskRetryWaitCapabilityV1;
 	readonly prepareWarmHost?: OpenRouterFirstTaskWarmHostFactoryV1;
+	readonly historicalReflectionCapability?: D691HistoricalReflectionCapabilityV1;
 	readonly blockIndex?: 1 | 2 | 3;
 	readonly remainingBudget?: B112CalibrationEmpiricalRunInputV4["remainingBudget"];
 }
@@ -828,9 +832,12 @@ export async function runOpenRouterMatchedTrialBlock(
 	inputValue: OpenRouterMatchedTrialBlockInputV4,
 ): Promise<OpenRouterMatchedTrialBlockResultV4> {
 	const request = record(inputValue, "matchedBlock.input");
-	const optionalKeys = ["blockIndex", "prepareWarmHost", "remainingBudget"].filter((key) =>
-		Object.hasOwn(request, key),
-	);
+	const optionalKeys = [
+		"blockIndex",
+		"historicalReflectionCapability",
+		"prepareWarmHost",
+		"remainingBudget",
+	].filter((key) => Object.hasOwn(request, key));
 	exactKeys(
 		request,
 		[
@@ -848,6 +855,10 @@ export async function runOpenRouterMatchedTrialBlock(
 	);
 	record(request.host, "matchedBlock.input.host");
 	const input = request as unknown as OpenRouterMatchedTrialBlockInputV4;
+	const historicalReflectionCapability = input.historicalReflectionCapability;
+	if (historicalReflectionCapability !== undefined && input.prepareWarmHost === undefined) {
+		throw new TypeError("D691 historical reflection requires a warm host factory");
+	}
 	const trialPlan = input.host.frozen.manifest.trialPlan;
 	if (
 		input.host.initialRequest.trialStage !== "cold" ||
@@ -922,7 +933,8 @@ export async function runOpenRouterMatchedTrialBlock(
 	});
 	const remainingBudget = input.remainingBudget;
 	const ceilings: MatchedBlockBudgetCeilings = Object.freeze({
-		enforceElapsedAdmission: remainingBudget !== undefined,
+		enforceElapsedAdmission:
+			remainingBudget !== undefined || historicalReflectionCapability !== undefined,
 		maxRequests:
 			remainingBudget === undefined
 				? input.routeQualification.budget.maxRequests
@@ -947,6 +959,14 @@ export async function runOpenRouterMatchedTrialBlock(
 						safeInteger(remainingBudget.campaignElapsedMs, "calibration.campaignElapsedMs"),
 					),
 	});
+	const aggregateElapsedSignal =
+		historicalReflectionCapability !== undefined
+			? AbortSignal.timeout(ceilings.maxLatencyMs)
+			: null;
+	const blockSignal =
+		aggregateElapsedSignal === null
+			? input.signal
+			: AbortSignal.any([input.signal, aggregateElapsedSignal]);
 	const ledger: MutableSmokeBudget = {
 		requests: 0,
 		currentRunRequestRefs: new Set<string>(),
@@ -987,16 +1007,50 @@ export async function runOpenRouterMatchedTrialBlock(
 		} | null;
 		readonly issueCodes: readonly string[];
 	}[] = [];
-	const readBlockMonotonicMs = input.monotonicMeasurement.readMs.bind(input.monotonicMeasurement);
-	const blockStartedAtMs = safeInteger(readBlockMonotonicMs(), "smoke.blockStartedAtMs", {
+	const rawReadBlockMonotonicMs = input.monotonicMeasurement.readMs.bind(
+		input.monotonicMeasurement,
+	);
+	const blockStartedAtMs = safeInteger(rawReadBlockMonotonicMs(), "smoke.blockStartedAtMs", {
 		min: 0,
 	});
+	let lastBlockMonotonicMs = blockStartedAtMs;
+	const readBlockMonotonicMs = (): number => {
+		const current = safeInteger(rawReadBlockMonotonicMs(), "smoke.blockMonotonicMs", {
+			min: lastBlockMonotonicMs,
+		});
+		lastBlockMonotonicMs = current;
+		return current;
+	};
+	const markBlockElapsedExhausted = (): boolean => {
+		if (!ceilings.enforceElapsedAdmission) return false;
+		if (readBlockMonotonicMs() - blockStartedAtMs < ceilings.maxLatencyMs) return false;
+		ledger.exhausted = true;
+		return true;
+	};
+	const markAggregateElapsedExhausted = (): boolean => {
+		if (aggregateElapsedSignal?.aborted) {
+			ledger.exhausted = true;
+			return true;
+		}
+		return markBlockElapsedExhausted();
+	};
 	ledger.currentRunRequestRefs.clear();
 	const coldBudgetBefore = smokeBudgetSnapshot(ledger);
 	const coldRunStartedAtMs = safeInteger(readBlockMonotonicMs(), "smoke.coldRunStartedAtMs", {
 		min: blockStartedAtMs,
 	});
-	const coldSignal = createPerRunSignal(input.signal, manifestBudgets.agentRun.maxElapsedMs);
+	const coldSignal = createPerRunSignal(
+		blockSignal,
+		historicalReflectionCapability === undefined
+			? manifestBudgets.agentRun.maxElapsedMs
+			: Math.max(
+					1,
+					Math.min(
+						manifestBudgets.agentRun.maxElapsedMs,
+						ceilings.maxLatencyMs - (coldRunStartedAtMs - blockStartedAtMs),
+					),
+				),
+	);
 	const outcome = await runClosedTaskProfileHost({
 		...input.host,
 		modelTurnPort: createBudgetedModelTurnPort(
@@ -1022,13 +1076,19 @@ export async function runOpenRouterMatchedTrialBlock(
 	});
 	const coldBudgetAfter = smokeBudgetSnapshot(ledger);
 	const coldCostLedger = runCostLedger(coldBudgetBefore, coldBudgetAfter, input.executionClass);
+	markBlockElapsedExhausted();
 	const rerunEligible = outcome.status === "completed" && outcome.verifierVerdict === "failed";
 	const reflection =
 		rerunEligible && input.prepareWarmHost !== undefined
-			? prepareB112MatchedBlockReflection({
-					coldRequest: input.host.initialRequest,
-					coldOutcome: outcome,
-				})
+			? historicalReflectionCapability === undefined
+				? prepareB112MatchedBlockReflection({
+						coldRequest: input.host.initialRequest,
+						coldOutcome: outcome,
+					})
+				: prepareConstructedD691HistoricalReflection(historicalReflectionCapability, {
+						coldRequest: input.host.initialRequest,
+						coldOutcome: outcome,
+					})
 			: null;
 	const createObservation = () => {
 		const observationInput = {
@@ -1069,6 +1129,7 @@ export async function runOpenRouterMatchedTrialBlock(
 			if (input.signal.aborted) {
 				throw new DOMException("B112 matched block cancelled between serial arms", "AbortError");
 			}
+			markBlockElapsedExhausted();
 			if (ledger.exhausted) {
 				warmBranches.push({
 					branchKind: branch.branchKind,
@@ -1099,7 +1160,7 @@ export async function runOpenRouterMatchedTrialBlock(
 			try {
 				warmMaterialization = await input.prepareWarmHost({
 					initialRequest,
-					signal: input.signal,
+					signal: blockSignal,
 				});
 			} catch {
 				if (input.signal.aborted) {
@@ -1108,7 +1169,11 @@ export async function runOpenRouterMatchedTrialBlock(
 						"AbortError",
 					);
 				}
-				warmPreparationFailed = true;
+				if (markAggregateElapsedExhausted()) {
+					ledger.exhausted = true;
+				} else {
+					warmPreparationFailed = true;
+				}
 				warmBranches.push({
 					branchKind: branch.branchKind,
 					lifecycle: null,
@@ -1117,38 +1182,95 @@ export async function runOpenRouterMatchedTrialBlock(
 				});
 				continue;
 			}
-			const warmRunStartedAtMs = safeInteger(readBlockMonotonicMs(), "smoke.warmRunStartedAtMs", {
-				min: blockStartedAtMs,
-			});
-			const warmSignal = createPerRunSignal(input.signal, manifestBudgets.agentRun.maxElapsedMs);
-			ledger.currentRunRequestRefs.clear();
-			const budgetBefore = smokeBudgetSnapshot(ledger);
-			const warmOutcome = await runClosedTaskProfileHost({
-				...input.host,
-				initialRequest,
-				materialization: warmMaterialization,
-				modelTurnPort: createBudgetedModelTurnPort(
-					binding.modelTurnPort,
-					input.routeQualification,
-					ceilings,
-					binding.protectionExecutor,
-					ledger,
-				),
-				protectionExecutor: binding.protectionExecutor,
-				retry: createOpenRouterRetryCapability(
-					input.routeQualification,
-					ceilings,
-					ledger,
-					input.retryWait,
-					input.monotonicMeasurement,
-					blockStartedAtMs,
-					warmRunStartedAtMs,
-					manifestBudgets.agentRun.maxElapsedMs,
-				),
-				agentRunElapsedSignal: warmSignal.elapsedSignal,
-				signal: warmSignal.signal,
-			});
+			if (markAggregateElapsedExhausted()) {
+				let cleanupSucceeded = true;
+				try {
+					await warmMaterialization.cleanup();
+				} catch {
+					cleanupSucceeded = false;
+				}
+				warmBranches.push({
+					branchKind: branch.branchKind,
+					lifecycle: null,
+					run: null,
+					issueCodes: [
+						B112_SMOKE_BUDGET_ISSUE_CODE,
+						"warm-branch-not-attempted",
+						...(cleanupSucceeded ? [] : ["workspace-cleanup-failed"]),
+					].sort(),
+				});
+				continue;
+			}
+			let hostOwnsMaterialization = false;
+			let rawWarmOutcome: ClosedTaskProfileHostRunOutcomeV3;
+			let budgetBefore: SmokeBudgetSnapshot;
+			try {
+				const warmRunStartedAtMs = safeInteger(readBlockMonotonicMs(), "smoke.warmRunStartedAtMs", {
+					min: blockStartedAtMs,
+				});
+				const remainingAggregateMs = Math.max(
+					1,
+					ceilings.maxLatencyMs - (warmRunStartedAtMs - blockStartedAtMs),
+				);
+				const warmSignal = createPerRunSignal(
+					blockSignal,
+					historicalReflectionCapability === undefined
+						? manifestBudgets.agentRun.maxElapsedMs
+						: Math.min(manifestBudgets.agentRun.maxElapsedMs, remainingAggregateMs),
+				);
+				ledger.currentRunRequestRefs.clear();
+				budgetBefore = smokeBudgetSnapshot(ledger);
+				hostOwnsMaterialization = true;
+				rawWarmOutcome = await runClosedTaskProfileHost({
+					...input.host,
+					initialRequest,
+					materialization: warmMaterialization,
+					modelTurnPort: createBudgetedModelTurnPort(
+						binding.modelTurnPort,
+						input.routeQualification,
+						ceilings,
+						binding.protectionExecutor,
+						ledger,
+					),
+					protectionExecutor: binding.protectionExecutor,
+					retry: createOpenRouterRetryCapability(
+						input.routeQualification,
+						ceilings,
+						ledger,
+						input.retryWait,
+						input.monotonicMeasurement,
+						blockStartedAtMs,
+						warmRunStartedAtMs,
+						manifestBudgets.agentRun.maxElapsedMs,
+					),
+					agentRunElapsedSignal: warmSignal.elapsedSignal,
+					signal: warmSignal.signal,
+				});
+			} catch (error) {
+				if (!hostOwnsMaterialization) {
+					try {
+						await warmMaterialization.cleanup();
+					} catch {
+						throw new TypeError("B112 warm workspace cleanup failed before host handoff");
+					}
+				}
+				throw error;
+			}
 			const budgetAfter = smokeBudgetSnapshot(ledger);
+			const elapsedAfterRun = markAggregateElapsedExhausted();
+			const warmOutcome = elapsedAfterRun
+				? strictSnapshot({
+						...rawWarmOutcome,
+						status: "non-evaluable" as const,
+						finalOutput: null,
+						finalOutputDigest: null,
+						verifierVerdict: null,
+						verifierEvidenceRefs: [],
+						issueCodes: Array.from(
+							new Set([...rawWarmOutcome.issueCodes, B112_SMOKE_BUDGET_ISSUE_CODE]),
+						).sort(),
+					})
+				: rawWarmOutcome;
 			warmBranches.push({
 				branchKind: branch.branchKind,
 				lifecycle: branch.lifecycle,

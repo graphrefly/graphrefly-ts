@@ -15,9 +15,19 @@ import {
 import type { AgenticWorkItemMemoryMappingPolicy } from "../../src/solutions/agentic-work-item-memory/index.js";
 import { mapAgenticWorkItemMemoryApplicationRecipe } from "../../src/solutions/agentic-work-item-memory-application/index.js";
 import type { WorkItemProjection } from "../../src/solutions/work-item/index.js";
-import { empiricalStrictJsonDigest, strictSnapshot } from "./canonical.js";
+import {
+	digest,
+	empiricalStrictJsonDigest,
+	exactKeys,
+	record,
+	strictSnapshot,
+} from "./canonical.js";
 import type { ClosedTaskProfileHostRunOutcomeV3 } from "./closed-task-profile-host.js";
 import type { EmpiricalWarmBranchKind } from "./contracts.js";
+import {
+	type D689TransferMemoryV1,
+	validateD689TransferMemory,
+} from "./cross-work-item-memory-transfer.js";
 import type {
 	EmpiricalWarmBranchLifecycleV2,
 	EmpiricalWarmBranchObservationV3,
@@ -34,6 +44,9 @@ const BRANCHES = Object.freeze([
 	"irrelevant-applied",
 	"wrong-scope-applied",
 ] as const);
+export const D691_HISTORICAL_REFLECTION_CAPABILITY_REVISION =
+	"d691-historical-transfer-reflection-capability.2026-08-07.v1" as const;
+const constructedD691HistoricalReflectionCapabilities = new WeakSet<object>();
 
 export interface B112PreparedWarmBranchV2 {
 	readonly branchKind: EmpiricalWarmBranchKind;
@@ -49,6 +62,64 @@ export interface B112MatchedBlockReflectionV2 {
 	readonly candidateRecordDigests: readonly string[];
 	readonly issueCodes: readonly string[];
 	readonly branches: readonly B112PreparedWarmBranchV2[];
+}
+
+export interface D691HistoricalReflectionCapabilityV1 {
+	readonly revision: typeof D691_HISTORICAL_REFLECTION_CAPABILITY_REVISION;
+	prepare(input: {
+		readonly coldRequest: EmpiricalModelTurnRequestV1;
+		readonly coldOutcome: ClosedTaskProfileHostRunOutcomeV3;
+	}): B112MatchedBlockReflectionV2;
+}
+
+export function createD691HistoricalReflectionCapability(input: {
+	readonly transferMemory: unknown;
+	readonly d690OfflineEvidenceDigest: string;
+}): D691HistoricalReflectionCapabilityV1 {
+	const candidate = record(input, "d691.historicalReflectionCapability");
+	exactKeys(
+		candidate,
+		["d690OfflineEvidenceDigest", "transferMemory"],
+		"d691.historicalReflectionCapability",
+	);
+	const transferMemory = validateD689TransferMemory(candidate.transferMemory);
+	const d690OfflineEvidenceDigest = digest(
+		candidate.d690OfflineEvidenceDigest,
+		"d691.d690OfflineEvidenceDigest",
+	);
+	const capability = Object.freeze({
+		revision: D691_HISTORICAL_REFLECTION_CAPABILITY_REVISION,
+		prepare(preparation: {
+			readonly coldRequest: EmpiricalModelTurnRequestV1;
+			readonly coldOutcome: ClosedTaskProfileHostRunOutcomeV3;
+		}) {
+			return prepareD691HistoricalTransferReflection({
+				...preparation,
+				transferMemory,
+				d690OfflineEvidenceDigest,
+			});
+		},
+	});
+	constructedD691HistoricalReflectionCapabilities.add(capability);
+	return capability;
+}
+
+export function prepareConstructedD691HistoricalReflection(
+	capability: D691HistoricalReflectionCapabilityV1,
+	input: {
+		readonly coldRequest: EmpiricalModelTurnRequestV1;
+		readonly coldOutcome: ClosedTaskProfileHostRunOutcomeV3;
+	},
+): B112MatchedBlockReflectionV2 {
+	if (
+		!constructedD691HistoricalReflectionCapabilities.has(capability) ||
+		capability.revision !== D691_HISTORICAL_REFLECTION_CAPABILITY_REVISION
+	) {
+		throw new TypeError(
+			"D691 historical reflection capability is not constructed by the eval host",
+		);
+	}
+	return capability.prepare(input);
 }
 
 function collectLatest<T>(node: Node<T>): { readonly latest: () => T | undefined; close(): void } {
@@ -481,6 +552,264 @@ export function prepareB112MatchedBlockReflection(input: {
 			candidateRecordDigests: Object.values(records).map(memoryRecordDigest).sort(),
 		}),
 		candidateRecordDigests: Object.freeze(Object.values(records).map(memoryRecordDigest).sort()),
+		issueCodes: [],
+		branches,
+	});
+}
+
+function historicalTransferText(memory: D689TransferMemoryV1): string {
+	const section = (label: string, rules: D689TransferMemoryV1["triggerConditions"]) =>
+		`${label}: ${rules.map((rule) => rule.statement).join(" ")}`;
+	const text = [
+		"A separately verified source WorkItem established the following transferable guidance.",
+		section("Trigger conditions", memory.triggerConditions),
+		section("Diagnostic discriminators", memory.diagnosticDiscriminators),
+		section("Correction principles", memory.correctionPrinciples),
+		section("Validation strategy", memory.validationStrategy),
+		section("Known bad routes", memory.knownBadRouteContraindications),
+		section("Applicability", memory.applicabilityScope),
+		"Treat this as bounded generalized evidence: inspect the current target and independently validate every action.",
+	].join(" ");
+	if (text.length > MAX_MEMORY_TEXT_CHARS) {
+		throw new TypeError("D691 actor-visible transfer memory exceeds its frozen text bound");
+	}
+	return text;
+}
+
+function historicalRecord(
+	variant: "relevant" | "irrelevant" | "wrong-scope",
+	request: EmpiricalModelTurnRequestV1,
+	memory: D689TransferMemoryV1,
+	offlineEvidenceDigest: string,
+): AgenticMemoryRecord<string> {
+	const relevant = variant !== "irrelevant";
+	const projectId =
+		variant === "wrong-scope" ? `${request.campaignRef}-unrelated-project` : request.campaignRef;
+	return Object.freeze({
+		id: `d691-memory-record-${variant}`,
+		kind: "procedural" as const,
+		persistenceLevel: "project" as const,
+		artifactKind: "procedure" as const,
+		scope: Object.freeze({ projectId }),
+		fragment: Object.freeze({
+			id: `d691-memory-fragment-${variant}`,
+			payload: relevant
+				? historicalTransferText(memory)
+				: "For an unrelated presentation task, keep headings parallel and the final summary concise.",
+			tNs: 1n,
+			confidence: 1,
+			tags: Object.freeze([
+				RETRIEVAL_TAG,
+				relevant ? "b112-relevant" : "b112-irrelevant",
+				`d691-source-work-item:${memory.sourceTaskRef}`,
+			]),
+			sources: Object.freeze([
+				`d690-offline-evidence:${offlineEvidenceDigest}`,
+				...memory.sourceEvidenceDigests.map((entry) => `d690-source-evidence:${entry}`),
+			]),
+			provenance: memory.memoryRevision,
+		}),
+	});
+}
+
+function historicalCandidateMaterial(
+	record: AgenticMemoryRecord<string>,
+	memory: D689TransferMemoryV1,
+	offlineEvidenceDigest: string,
+): AgenticMemoryRecordCandidateMaterial<string> {
+	return Object.freeze({
+		kind: "agentic-memory-record-candidate-material" as const,
+		operation: "create" as const,
+		operationVersion: 1 as const,
+		record,
+		sourceRefs: Object.freeze([
+			Object.freeze({ kind: "d690-source-work-item", id: memory.sourceTaskRef }),
+		]),
+		evidenceRefs: Object.freeze([
+			Object.freeze({ kind: "d690-offline-qualification", id: offlineEvidenceDigest }),
+			...memory.sourceEvidenceDigests.map((id) =>
+				Object.freeze({ kind: "verified-source-evidence", id }),
+			),
+		]),
+		metadata: Object.freeze({ reflectionRevision: memory.memoryRevision }),
+	});
+}
+
+/** Builds D691's five warm branches through the existing AgenticMemory lifecycle. */
+export function prepareD691HistoricalTransferReflection(input: {
+	readonly coldRequest: EmpiricalModelTurnRequestV1;
+	readonly coldOutcome: ClosedTaskProfileHostRunOutcomeV3;
+	readonly transferMemory: D689TransferMemoryV1;
+	readonly d690OfflineEvidenceDigest: string;
+}): B112MatchedBlockReflectionV2 {
+	if (input.coldOutcome.verifierVerdict !== "failed") {
+		throw new TypeError("D691 warm branches require a verified cold target failure");
+	}
+	const records = {
+		relevant: historicalRecord(
+			"relevant",
+			input.coldRequest,
+			input.transferMemory,
+			input.d690OfflineEvidenceDigest,
+		),
+		irrelevant: historicalRecord(
+			"irrelevant",
+			input.coldRequest,
+			input.transferMemory,
+			input.d690OfflineEvidenceDigest,
+		),
+		wrongScope: historicalRecord(
+			"wrong-scope",
+			input.coldRequest,
+			input.transferMemory,
+			input.d690OfflineEvidenceDigest,
+		),
+	};
+	const materials = {
+		relevant: historicalCandidateMaterial(
+			records.relevant,
+			input.transferMemory,
+			input.d690OfflineEvidenceDigest,
+		),
+		irrelevant: historicalCandidateMaterial(
+			records.irrelevant,
+			input.transferMemory,
+			input.d690OfflineEvidenceDigest,
+		),
+		wrongScope: historicalCandidateMaterial(
+			records.wrongScope,
+			input.transferMemory,
+			input.d690OfflineEvidenceDigest,
+		),
+	};
+	const evidenceId = `d691-source-success-${input.transferMemory.sourceTaskRef}`;
+	const sourceEvidence: WorkItemEvidenceRecorded = Object.freeze({
+		kind: "work-item-evidence-recorded",
+		evidenceId,
+		// The bridge is intentionally WorkItem-local. D691 therefore records a target-scoped
+		// transfer-admission fact whose source refs remain bound to the distinct verified source.
+		workItemId: input.coldRequest.taskRef,
+		effectRunId: `d691-transfer-effect-${input.coldRequest.taskRef}`,
+		effectRunResultId: `d691-transfer-result-${input.coldRequest.taskRef}`,
+		executionInputRevision: 1,
+		status: "completed",
+		sourceRefs: Object.freeze(
+			input.transferMemory.sourceEvidenceDigests.map((id) =>
+				Object.freeze({ kind: "verified-source-evidence", id }),
+			),
+		),
+		metadata: { reflectedCandidateMaterials: Object.freeze(materials) },
+	});
+	const branches = BRANCHES.map((branchKind): B112PreparedWarmBranchV2 => {
+		const definition = branchDefinition(branchKind);
+		const selectedMaterial = materials[definition.variant];
+		const recipeInput = {
+			workItem: workItem(input.coldRequest),
+			policy: mappingPolicy(branchKind, definition.variant, evidenceId),
+			evidence: Object.freeze([sourceEvidence]),
+			outcomes: Object.freeze([]),
+			records: Object.freeze([]),
+			evaluation: 1,
+		} as const;
+		const recipe =
+			definition.mode === "proposal-only"
+				? mapAgenticWorkItemMemoryApplicationRecipe<unknown, string>(recipeInput)
+				: mapAgenticWorkItemMemoryApplicationRecipe<unknown, string>({
+						...recipeInput,
+						admissionPolicy: admissionPolicy(branchKind, definition.mode === "admit"),
+						applicationPolicy: applicationPolicy(branchKind),
+					});
+		const proposed = recipe.proposals.map((proposal) => proposal.candidateMaterial.record);
+		const admitted = recipe.admission?.admitted.map((item) => item.candidateMaterial.record) ?? [];
+		const rejected = recipe.admission?.rejected.map((item) => item.candidateMaterial.record) ?? [];
+		const applied = recipe.application?.appliedRecords ?? [];
+		const retrieval = graphRetrieval(branchKind, applied, input.coldRequest);
+		const selected = selectedMaterial.record;
+		const retrievedSelected = retrieval.retrieved.some((record) => record.id === selected.id);
+		const wrongScope = selected.scope?.projectId !== input.coldRequest.campaignRef;
+		const irrelevant = !selected.fragment.tags.includes("b112-relevant");
+		const used = retrievedSelected && !wrongScope && !irrelevant;
+		const digestRecords = (items: readonly AgenticMemoryRecord<string>[]) =>
+			Object.freeze(items.map(memoryRecordDigest).sort());
+		const proposalState = proposed.some((record) => record.id === selected.id)
+			? ("emitted" as const)
+			: ("not-emitted" as const);
+		const admissionState =
+			recipe.admission === undefined
+				? ("not-run" as const)
+				: admitted.some((record) => record.id === selected.id)
+					? ("admitted" as const)
+					: rejected.some((record) => record.id === selected.id)
+						? ("rejected" as const)
+						: ("not-run" as const);
+		const applicationState =
+			recipe.application === undefined
+				? ("not-run" as const)
+				: applied.some((record) => record.id === selected.id)
+					? ("applied" as const)
+					: ("not-applied" as const);
+		const lifecycle = strictSnapshot({
+			branchKind,
+			selectedRecordDigest: memoryRecordDigest(selected),
+			proposalState,
+			admissionState,
+			applicationState,
+			retrievalState: retrievedSelected ? ("retrieved" as const) : ("not-retrieved" as const),
+			plannerRoute: used ? ("memory-guided" as const) : ("baseline" as const),
+			traceMemoryDisposition: used
+				? ("delivered" as const)
+				: retrievedSelected && wrongScope
+					? ("rejected-scope" as const)
+					: retrievedSelected && irrelevant
+						? ("rejected-irrelevant" as const)
+						: ("none" as const),
+			mapperExplicitCandidates: 0 as const,
+			proposalRecordDigests: digestRecords(proposed),
+			admissionRecordDigests: digestRecords(admitted),
+			applicationRecordDigests: digestRecords(applied),
+			retrievalRecordDigests: digestRecords(retrieval.retrieved),
+			topologyDigest: retrieval.topologyDigest,
+			stagePredicates: {
+				cold_run_failed: true,
+				memory_record_proposed: proposalState === "emitted",
+				memory_record_admitted: admissionState === "admitted",
+				memory_record_applied: applicationState === "applied",
+				memory_record_retrieved: retrievedSelected,
+				warm_run_passed: false,
+				warm_decision_trace_includes_memory: false,
+				warm_action_trace_bound_to_memory_context: false,
+				// Cold and warm execute the same target WorkItem input. The historical
+				// source remains distinct through D690 source/evidence coordinates.
+				same_work_item_input: true,
+				prior_failure_route_avoided: false,
+			},
+			caseConforms: false,
+			issueCodes: [],
+		}) satisfies EmpiricalWarmBranchLifecycleV2;
+		return strictSnapshot({
+			branchKind,
+			lifecycle,
+			actorMemoryContext: used
+				? {
+						recordDigest: memoryRecordDigest(selected),
+						text: selected.fragment.payload,
+					}
+				: null,
+		});
+	});
+	const candidateRecordDigests = Object.freeze(
+		Object.values(records).map(memoryRecordDigest).sort(),
+	);
+	return strictSnapshot({
+		evidenceDigest: empiricalStrictJsonDigest({
+			evidenceId,
+			sourceTaskRef: input.transferMemory.sourceTaskRef,
+			targetTaskRef: input.coldRequest.taskRef,
+			transferMemoryDigest: empiricalStrictJsonDigest(input.transferMemory),
+			d690OfflineEvidenceDigest: input.d690OfflineEvidenceDigest,
+			candidateRecordDigests,
+		}),
+		candidateRecordDigests,
 		issueCodes: [],
 		branches,
 	});

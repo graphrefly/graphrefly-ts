@@ -590,7 +590,8 @@ function validateBudget(value: unknown): OpenRouterRouteQualificationV1["budget"
 			"openRouter.routeQualification.budget.maxRequests",
 			{
 				min: 1,
-				max: 192,
+				// D691's six serial 32-step runs retain the complete three-attempt D671/D675 envelope.
+				max: 576,
 			},
 		),
 		maxStepsPerRun: safeInteger(
@@ -606,12 +607,12 @@ function validateBudget(value: unknown): OpenRouterRouteQualificationV1["budget"
 		maxInputTokens: safeInteger(
 			budget.maxInputTokens,
 			"openRouter.routeQualification.budget.maxInputTokens",
-			{ min: 1, max: 8_000_000 },
+			{ min: 1, max: 40_000_000 },
 		),
 		maxOutputTokens: safeInteger(
 			budget.maxOutputTokens,
 			"openRouter.routeQualification.budget.maxOutputTokens",
-			{ min: 1, max: 2_000_000 },
+			{ min: 1, max: 12_582_912 },
 		),
 		maxLatencyMs: safeInteger(
 			budget.maxLatencyMs,

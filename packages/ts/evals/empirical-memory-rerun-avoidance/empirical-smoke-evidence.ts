@@ -1024,9 +1024,9 @@ function validateSmokeRunObservation(value: unknown, path: string): EmpiricalSmo
 	);
 	const runIssueCodes = validateCoordinateList(run.issueCodes, `${path}.issueCodes`);
 	const steps = safeInteger(run.steps, `${path}.steps`, { min: 0, max: 64 });
-	const attempts = safeInteger(run.attempts, `${path}.attempts`, { min: 0, max: 64 });
+	const attempts = safeInteger(run.attempts, `${path}.attempts`, { min: 0, max: 96 });
 	const attemptValues = array(run.attemptTrace, `${path}.attemptTrace`);
-	if (attemptValues.length > 64) {
+	if (attemptValues.length > 96) {
 		throw new TypeError(`${path}.attemptTrace exceeds its bounded item count`);
 	}
 	const attemptTrace = Object.freeze(
@@ -1319,7 +1319,7 @@ function validateSmokeRunObservation(value: unknown, path: string): EmpiricalSmo
 	) {
 		throw new TypeError(`${path} workspace state classification is inconsistent`);
 	}
-	const requests = safeInteger(run.requests, `${path}.requests`, { min: 0, max: 64 });
+	const requests = safeInteger(run.requests, `${path}.requests`, { min: 0, max: 96 });
 	const latencyMs = safeInteger(run.latencyMs, `${path}.latencyMs`, {
 		min: 0,
 		max: 86_400_000,
@@ -2282,7 +2282,7 @@ function validateObservationRoute(value: unknown): EmpiricalTrialBlockObservatio
 		),
 		maxRequests: safeInteger(route.maxRequests, "trialBlockObservation.route.maxRequests", {
 			min: 1,
-			max: 192,
+			max: 576,
 		}),
 		maxStepsPerRun: safeInteger(
 			route.maxStepsPerRun,
@@ -2365,7 +2365,7 @@ function validateObservationResult(value: unknown): EmpiricalTrialBlockObservati
 		),
 		requests: safeInteger(result.requests, "trialBlockObservation.result.requests", {
 			min: 0,
-			max: 192,
+			max: 576,
 		}),
 		steps: safeInteger(result.steps, "trialBlockObservation.result.steps", {
 			min: 0,
@@ -2373,7 +2373,7 @@ function validateObservationResult(value: unknown): EmpiricalTrialBlockObservati
 		}),
 		attempts: safeInteger(result.attempts, "trialBlockObservation.result.attempts", {
 			min: 0,
-			max: 192,
+			max: 576,
 		}),
 		inputTokens: nullableTokens(result.inputTokens, "trialBlockObservation.result.inputTokens"),
 		outputTokens: nullableTokens(result.outputTokens, "trialBlockObservation.result.outputTokens"),
@@ -2868,7 +2868,7 @@ export function validateEmpiricalCampaignScorecard(value: unknown): EmpiricalCam
 		item === null ? null : safeInteger(item, path, { min: 0 });
 	const requests = safeInteger(scorecard.requests, "campaignScorecard.requests", {
 		min: 0,
-		max: 192,
+		max: 576,
 	});
 	const costBasis = oneOf(
 		scorecard.costBasis,
@@ -2922,7 +2922,7 @@ export function validateEmpiricalCampaignScorecard(value: unknown): EmpiricalCam
 		steps: safeInteger(scorecard.steps, "campaignScorecard.steps", { min: 0, max: 384 }),
 		attempts: safeInteger(scorecard.attempts, "campaignScorecard.attempts", {
 			min: 0,
-			max: 192,
+			max: 576,
 		}),
 		inputTokens: nullableTokens(scorecard.inputTokens, "campaignScorecard.inputTokens"),
 		outputTokens: nullableTokens(scorecard.outputTokens, "campaignScorecard.outputTokens"),
