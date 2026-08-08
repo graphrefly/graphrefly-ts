@@ -46,6 +46,7 @@ import type { HistoryFreeSingleBaselineRepositoryMaterializationV1 } from "./sin
 export const CLOSED_TASK_PROFILE_HOST_SCHEMAS = Object.freeze({
 	workspaceRecipe: "graphrefly.private-solution-eval.closed-workspace-recipe.v1",
 	commandPolicy: "graphrefly.private-solution-eval.closed-command-policy.v1",
+	objectiveProgressPolicy: "graphrefly.private-solution-eval.closed-objective-progress-policy.v1",
 	verifierProfile: "graphrefly.private-solution-eval.closed-verifier-profile.v1",
 	taskProfile: "graphrefly.private-solution-eval.closed-task-execution-profile.v1",
 	verifierResult: "graphrefly.private-solution-eval.closed-verifier-result.v1",
@@ -173,6 +174,13 @@ export interface ClosedCommandPolicyV1 {
 	readonly commands: readonly ClosedCommandSpecV1[];
 }
 
+export interface ClosedObjectiveProgressPolicyV1 {
+	readonly schemaVersion: typeof CLOSED_TASK_PROFILE_HOST_SCHEMAS.objectiveProgressPolicy;
+	readonly policyRef: string;
+	readonly policyRevision: string;
+	readonly validationCommandRef: string;
+}
+
 export interface ClosedVerifierProfileV1 {
 	readonly schemaVersion: typeof CLOSED_TASK_PROFILE_HOST_SCHEMAS.verifierProfile;
 	readonly verifierProfileRef: string;
@@ -252,6 +260,7 @@ export interface ClosedTaskProfileHostRunInputV1 {
 	readonly modelTurnPort: EmpiricalModelTurnPortV1;
 	readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
 	readonly verifier: ClosedVerifierCapabilityV1;
+	readonly objectiveProgressPolicy?: ClosedObjectiveProgressPolicyV1;
 	readonly actionReceiptObserver?: ClosedTaskProfileHostActionReceiptObserverV1;
 	readonly retry?: ClosedTaskProfileHostRetryCapabilityV1;
 	/** Separate ownership signal used only to classify the D682 per-run elapsed bound. */
@@ -435,6 +444,7 @@ export async function runClosedTaskProfileHost(
 	let internalOutcome: ClosedTaskProfileHostRunOutcomeV3 | null = null;
 	let configurationError: unknown = null;
 	try {
+		const objectiveProgressPolicy = inputObjectiveProgressPolicy(input);
 		const frozen = validateFrozenEmpiricalCampaignManifest(input.frozen, input.qualificationReport);
 		const initialRequest = validateEmpiricalModelTurnRequest(
 			input.initialRequest,
@@ -447,7 +457,14 @@ export async function runClosedTaskProfileHost(
 		const validated = validateTaskProfile(input.taskProfile, frozen, initialRequest);
 		validateMaterialization(input.materialization, validated);
 		const verifier = validateVerifierCapability(input.verifier, validated);
-		internalOutcome = await runValidatedHost(input, frozen, initialRequest, validated, verifier);
+		internalOutcome = await runValidatedHost(
+			input,
+			frozen,
+			initialRequest,
+			validated,
+			verifier,
+			objectiveProgressPolicy,
+		);
 	} catch (error) {
 		if (error instanceof HostRunFailure) {
 			internalOutcome = nonEvaluableOutcome(taskRef, taskDigest, emptyEvidence(), [
@@ -487,6 +504,17 @@ export async function runClosedTaskProfileHost(
 		});
 	}
 	return strictSnapshot({ ...internalOutcome, cleanupSucceeded: true });
+}
+
+function inputObjectiveProgressPolicy(
+	input: ClosedTaskProfileHostRunInputV1,
+): ClosedObjectiveProgressPolicyV1 | undefined {
+	const descriptor = Object.getOwnPropertyDescriptor(input, "objectiveProgressPolicy");
+	if (descriptor === undefined) return undefined;
+	if (!("value" in descriptor) || !descriptor.enumerable) {
+		fail("host.objectiveProgressPolicy", "expected an own enumerable data property");
+	}
+	return descriptor.value as ClosedObjectiveProgressPolicyV1 | undefined;
 }
 
 function validateProtectionExecutor(
@@ -742,6 +770,42 @@ function validateCommandPolicy(
 	return validated;
 }
 
+function validateObjectiveProgressPolicy(
+	value: ClosedObjectiveProgressPolicyV1 | undefined,
+	validated: ValidatedTaskProfile,
+): ClosedObjectiveProgressPolicyV1 | null {
+	if (value === undefined) return null;
+	const policy = record(value, "host.objectiveProgressPolicy");
+	if (!Object.isFrozen(policy)) {
+		fail("host.objectiveProgressPolicy", "must be an explicit frozen policy");
+	}
+	exactKeys(
+		policy,
+		["policyRef", "policyRevision", "schemaVersion", "validationCommandRef"],
+		"host.objectiveProgressPolicy",
+	);
+	const normalized = strictSnapshot({
+		schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.objectiveProgressPolicy,
+		policyRef: coordinate(policy.policyRef, "host.objectiveProgressPolicy.policyRef"),
+		policyRevision: coordinate(
+			policy.policyRevision,
+			"host.objectiveProgressPolicy.policyRevision",
+		),
+		validationCommandRef: coordinate(
+			policy.validationCommandRef,
+			"host.objectiveProgressPolicy.validationCommandRef",
+		),
+	});
+	if (
+		policy.schemaVersion !== CLOSED_TASK_PROFILE_HOST_SCHEMAS.objectiveProgressPolicy ||
+		!validated.commandByRef.has(normalized.validationCommandRef) ||
+		validated.profile.verifierProfile.verifierCommandRefs.includes(normalized.validationCommandRef)
+	) {
+		fail("host.objectiveProgressPolicy", "does not bind one actor-visible command");
+	}
+	return normalized;
+}
+
 function validateCommand(value: unknown, path: string): ClosedCommandSpecV1 {
 	const command = record(value, path);
 	exactKeys(
@@ -986,6 +1050,7 @@ async function runValidatedHost(
 	initialRequest: EmpiricalModelTurnRequestV1,
 	validated: ValidatedTaskProfile,
 	verifier: ClosedVerifierCapabilityV1,
+	objectiveProgressPolicyValue: ClosedObjectiveProgressPolicyV1 | undefined,
 ): Promise<ClosedTaskProfileHostRunOutcomeV3> {
 	const evidence = emptyEvidence();
 	try {
@@ -995,6 +1060,7 @@ async function runValidatedHost(
 			initialRequest,
 			validated,
 			verifier,
+			objectiveProgressPolicyValue,
 			validateActionReceiptObserver(input.actionReceiptObserver),
 			validateRetryCapability(input.retry),
 			evidence,
@@ -1146,12 +1212,27 @@ function usesD682HostDerivedReplace(
 	return true;
 }
 
+function recordObjectiveProgressRejection(evidence: MutableRunEvidence): void {
+	const lastTurn = evidence.turnEvidence.pop();
+	if (lastTurn === undefined) throw new HostRunFailure("host-turn-evidence-missing");
+	evidence.turnEvidence.push(
+		strictSnapshot({
+			...lastTurn,
+			issueCodes: sortedIssueCodes([
+				...lastTurn.issueCodes,
+				"structured-output-objective-progress-required",
+			]),
+		}),
+	);
+}
+
 async function executeValidatedHost(
 	input: ClosedTaskProfileHostRunInputV1,
 	frozen: FrozenEmpiricalCampaignManifestV1,
 	initialRequest: EmpiricalModelTurnRequestV1,
 	validated: ValidatedTaskProfile,
 	verifier: ClosedVerifierCapabilityV1,
+	objectiveProgressPolicyValue: ClosedObjectiveProgressPolicyV1 | undefined,
 	actionReceiptObserver: ClosedTaskProfileHostActionReceiptObserverV1 | null,
 	retry: ClosedTaskProfileHostRetryCapabilityV1 | null,
 	evidence: MutableRunEvidence,
@@ -1183,6 +1264,10 @@ async function executeValidatedHost(
 		initialRequest,
 		validated.profile.workspaceRecipe.maxSearchMatches,
 	);
+	const objectiveProgressPolicy = validateObjectiveProgressPolicy(
+		objectiveProgressPolicyValue,
+		validated,
+	);
 	let request = initialRequest;
 	let pendingToolResults: EmpiricalModelToolResultV1[] = [];
 	let pendingToolResultBytes = 0;
@@ -1191,6 +1276,9 @@ async function executeValidatedHost(
 	let mutationObserved = false;
 	let diffObserved = false;
 	let commandObserved = false;
+	let objectiveMutationStateDigest: string | null = null;
+	let objectiveDiffStateDigest: string | null = null;
+	let objectiveValidationStateDigest: string | null = null;
 
 	for (let stepIndex = 0; stepIndex < maximumTurns; stepIndex += 1) {
 		assertNotCancelled(input.signal);
@@ -1386,10 +1474,14 @@ async function executeValidatedHost(
 		const structuredTerminal = classifyClosedHostStructuredTerminal({
 			finishReason: outcome.finishReason,
 			structuredOutputPresent: outcome.structuredOutput !== null,
-			requireObjectiveProgress: false,
-			mutationObserved,
-			diffObserved,
-			commandObserved,
+			requireObjectiveProgress: objectiveProgressPolicy !== null,
+			mutationObserved: objectiveMutationStateDigest !== null,
+			diffObserved:
+				objectiveMutationStateDigest !== null &&
+				objectiveDiffStateDigest === objectiveMutationStateDigest,
+			commandObserved:
+				objectiveDiffStateDigest !== null &&
+				objectiveValidationStateDigest === objectiveDiffStateDigest,
 		});
 		if (structuredTerminal === "verify-structured-output") {
 			let workspaceStateDigest: string;
@@ -1403,6 +1495,13 @@ async function executeValidatedHost(
 				);
 				workspaceStateDigest = workspaceEvidence.workspaceStateDigest;
 				workspaceChangeDigest = workspaceEvidence.workspaceChangeDigest;
+				if (
+					objectiveProgressPolicy !== null &&
+					workspaceEvidence.objectiveStateDigest !== objectiveValidationStateDigest
+				) {
+					recordObjectiveProgressRejection(evidence);
+					continue;
+				}
 			} catch (error) {
 				if (error instanceof HostRunFailure) throw error;
 				if (input.signal.aborted) throw new HostRunFailure("host-cancelled");
@@ -1476,7 +1575,8 @@ async function executeValidatedHost(
 			});
 		}
 		if (structuredTerminal === "reject-structured-output-before-verifier") {
-			throw new HostRunFailure("structured-output-objective-progress-required");
+			recordObjectiveProgressRejection(evidence);
+			continue;
 		}
 		if (outcome.finishReason !== "tool-intents" || outcome.toolIntents.length === 0) {
 			throw new HostRunFailure("model-turn-outcome-shape-invalid");
@@ -1519,6 +1619,12 @@ async function executeValidatedHost(
 							commandObserved || intent.toolRef === CLOSED_ACTOR_TOOL_REFS.runCommand,
 					})
 				: null;
+			const objectiveCommandStateBefore =
+				objectiveProgressPolicy !== null && intent.toolRef === CLOSED_ACTOR_TOOL_REFS.runCommand
+					? objectiveWorkspaceStateDigest(
+							await captureWorkspaceSnapshot(workspaceRoot, input.signal),
+						)
+					: null;
 			const result = await executeToolIntent(
 				workspaceRoot,
 				intent,
@@ -1528,10 +1634,72 @@ async function executeValidatedHost(
 				input.signal,
 				hostDerivedReplace,
 				progress,
+				objectiveProgressPolicy,
 			);
 			mutationObserved = progress?.mutationObserved ?? mutationObserved;
 			diffObserved = progress?.diffObserved ?? diffObserved;
 			commandObserved = progress?.commandObserved ?? commandObserved;
+			if (objectiveProgressPolicy !== null) {
+				if (intent.toolRef === CLOSED_ACTOR_TOOL_REFS.replaceExact) {
+					const resultValue = record(result.result, "host.objectiveProgress.replaceResult");
+					const previousContentDigest = digest(
+						resultValue.previousContentDigest,
+						"host.objectiveProgress.replaceResult.previousContentDigest",
+					);
+					const nextContentDigest = digest(
+						resultValue.nextContentDigest,
+						"host.objectiveProgress.replaceResult.nextContentDigest",
+					);
+					if (previousContentDigest !== nextContentDigest) {
+						objectiveMutationStateDigest = objectiveWorkspaceStateDigest(
+							await captureWorkspaceSnapshot(workspaceRoot, input.signal),
+						);
+						objectiveDiffStateDigest = null;
+						objectiveValidationStateDigest = null;
+					}
+				} else if (intent.toolRef === CLOSED_ACTOR_TOOL_REFS.workspaceDiff) {
+					const currentStateDigest = objectiveWorkspaceStateDigest(
+						await captureWorkspaceSnapshot(workspaceRoot, input.signal),
+					);
+					if (objectiveMutationStateDigest === currentStateDigest) {
+						const resultValue = record(result.result, "host.objectiveProgress.diffResult");
+						const byteLength = safeInteger(
+							resultValue.byteLength,
+							"host.objectiveProgress.diffResult.byteLength",
+						);
+						objectiveDiffStateDigest = byteLength > 0 ? currentStateDigest : null;
+						objectiveValidationStateDigest = null;
+					} else {
+						objectiveMutationStateDigest = null;
+						objectiveDiffStateDigest = null;
+						objectiveValidationStateDigest = null;
+					}
+				} else if (intent.toolRef === CLOSED_ACTOR_TOOL_REFS.runCommand) {
+					if (objectiveCommandStateBefore === null) {
+						throw new HostRunFailure("objective-progress-command-state-missing");
+					}
+					const stateAfter = objectiveWorkspaceStateDigest(
+						await captureWorkspaceSnapshot(workspaceRoot, input.signal),
+					);
+					if (stateAfter !== objectiveCommandStateBefore) {
+						objectiveMutationStateDigest = null;
+						objectiveDiffStateDigest = null;
+						objectiveValidationStateDigest = null;
+					} else {
+						const argumentsValue = record(intent.arguments, "host.objectiveProgress.command");
+						if (
+							argumentsValue.commandRef === objectiveProgressPolicy.validationCommandRef &&
+							objectiveMutationStateDigest !== null &&
+							objectiveDiffStateDigest === objectiveMutationStateDigest &&
+							objectiveDiffStateDigest === stateAfter
+						) {
+							const resultValue = record(result.result, "host.objectiveProgress.result");
+							objectiveValidationStateDigest =
+								resultValue.validationStatus === "passed" ? stateAfter : null;
+						}
+					}
+				}
+			}
 			pendingToolResultBytes = checkedSum(
 				pendingToolResultBytes,
 				strictJsonCodec.encode(result.result).byteLength,
@@ -1731,6 +1899,7 @@ async function executeToolIntent(
 	signal: AbortSignal,
 	hostDerivedReplace: boolean,
 	progress: D682ExecutionProgress | null,
+	objectiveProgressPolicy: ClosedObjectiveProgressPolicyV1 | null,
 ): Promise<EmpiricalModelToolResultV1> {
 	assertNotCancelled(signal);
 	let result: StrictJsonValue;
@@ -1755,7 +1924,13 @@ async function executeToolIntent(
 				result = await workspaceDiffTool(workspaceRoot, intent.arguments, validated, signal);
 				break;
 			case CLOSED_ACTOR_TOOL_REFS.runCommand:
-				result = await runCommandTool(workspaceRoot, intent.arguments, validated, signal);
+				result = await runCommandTool(
+					workspaceRoot,
+					intent.arguments,
+					validated,
+					signal,
+					objectiveProgressPolicy,
+				);
 				break;
 			default:
 				throw new HostRunFailure("unsupported-tool-ref");
@@ -1946,6 +2121,7 @@ async function runCommandTool(
 	value: StrictJsonValue,
 	validated: ValidatedTaskProfile,
 	signal: AbortSignal,
+	objectiveProgressPolicy: ClosedObjectiveProgressPolicyV1 | null,
 ): Promise<StrictJsonValue> {
 	const args = exactArguments(value, ["commandRef"], "tool.runCommand");
 	const commandRef = coordinate(args.commandRef, "tool.runCommand.commandRef");
@@ -1959,6 +2135,19 @@ async function runCommandTool(
 		command.maxStderrBytes,
 		signal,
 	);
+	const isFocusedValidation = objectiveProgressPolicy?.validationCommandRef === commandRef;
+	if (isFocusedValidation) {
+		return strictSnapshot({
+			kind: "focused-validation-command",
+			commandRef,
+			validationStatus: process.exitCode === 0 ? ("passed" as const) : ("failed" as const),
+			exitCode: process.exitCode,
+			stdoutByteLength: process.stdout.byteLength,
+			stderrByteLength: process.stderr.byteLength,
+			stdoutDigest: empiricalSha256(process.stdout),
+			stderrDigest: empiricalSha256(process.stderr),
+		});
+	}
 	if (process.exitCode !== 0) throw new HostRunFailure("command-nonzero-exit");
 	const stdout = decodeUtf8(process.stdout, "tool.runCommand.stdout");
 	const stderr = decodeUtf8(process.stderr, "tool.runCommand.stderr");
@@ -1981,6 +2170,7 @@ async function assertAllowedWorkspaceDiff(
 ): Promise<{
 	readonly workspaceStateDigest: string;
 	readonly workspaceChangeDigest: string;
+	readonly objectiveStateDigest: string;
 }> {
 	const process = await runProcess(
 		workspaceRoot,
@@ -2014,6 +2204,7 @@ async function assertAllowedWorkspaceDiff(
 	return Object.freeze({
 		workspaceStateDigest: workspaceSnapshotDigest(finalSnapshot),
 		workspaceChangeDigest: workspaceSnapshotDifferenceDigest(baselineSnapshot, finalSnapshot),
+		objectiveStateDigest: objectiveWorkspaceStateDigest(finalSnapshot),
 	});
 }
 
@@ -2162,6 +2353,24 @@ function workspaceSnapshotDigest(snapshot: WorkspaceSnapshot): string {
 						digest: entry.digest,
 					},
 		),
+	);
+}
+
+function objectiveWorkspaceStateDigest(snapshot: WorkspaceSnapshot): string {
+	return empiricalStrictJsonDigest(
+		[...snapshot.entries]
+			.filter(([path]) => path !== ".git" && !path.startsWith(".git/"))
+			.map(([path, entry]) =>
+				entry.kind === "directory"
+					? { path, kind: entry.kind, mode: entry.mode }
+					: {
+							path,
+							kind: entry.kind,
+							mode: entry.mode,
+							byteLength: entry.byteLength,
+							digest: entry.digest,
+						},
+			),
 	);
 }
 
