@@ -803,6 +803,9 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsClosedVerifierCalibration = file.endsWith(
 				"closed-task-profile-verifier-calibration.ts",
 			);
+			const allowsD690SealedOfflineOperator = file.endsWith(
+				"d690-historical-pair-qualification.ts",
+			);
 			const allowsOfflineQualification = file.endsWith("exact-five-task-offline-qualification.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
@@ -855,21 +858,23 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				"../../src/solutions/work-item/scheduling.js",
 			]);
 			expect(source).not.toMatch(
-				allowsOutermostLiveOperator
-					? /\b(?:WebSocket|setInterval|setImmediate|queueMicrotask)\b|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
-					: allowsRepositoryNodeDriver ||
-							allowsClosedHostNodeDriver ||
-							allowsClosedVerifierCalibration ||
-							allowsOfflineQualification ||
-							allowsPreliveOperatorDriver
-						? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls)|(?:from|import)\s+["'](?:http|https|net|tls|undici|ws)["']/
-						: allowsOneRequestFetchTransport
-							? /\b(?:Date\.now|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
-							: allowsFocusedTransportAsync
-								? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
-								: allowsOneTurnPromise
-									? /\b(?:async|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
-									: /\b(?:async|Promise|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/,
+				allowsD690SealedOfflineOperator
+					? /\b(?:Date\.now|fetch\s*\(|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b/
+					: allowsOutermostLiveOperator
+						? /\b(?:WebSocket|setInterval|setImmediate|queueMicrotask)\b|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
+						: allowsRepositoryNodeDriver ||
+								allowsClosedHostNodeDriver ||
+								allowsClosedVerifierCalibration ||
+								allowsOfflineQualification ||
+								allowsPreliveOperatorDriver
+							? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls)|(?:from|import)\s+["'](?:http|https|net|tls|undici|ws)["']/
+							: allowsOneRequestFetchTransport
+								? /\b(?:Date\.now|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
+								: allowsFocusedTransportAsync
+									? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
+									: allowsOneTurnPromise
+										? /\b(?:async|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
+										: /\b(?:async|Promise|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/,
 			);
 			if (allowsRetryTimerOperator) {
 				expect(source.match(/\bsetTimeout\b/g)).toHaveLength(1);
@@ -897,13 +902,18 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							(specifier === "node:fs" ||
 								specifier === "node:readline/promises" ||
 								specifier === "node:url")) ||
-						((allowsRepositoryNodeDriver || allowsClosedHostNodeDriver) &&
+						((allowsRepositoryNodeDriver ||
+							allowsClosedHostNodeDriver ||
+							allowsD690SealedOfflineOperator) &&
 							specifier === "node:child_process") ||
 						((allowsRepositoryNodeDriver ||
 							allowsClosedHostNodeDriver ||
+							allowsD690SealedOfflineOperator ||
 							allowsPreliveOperatorDriver ||
 							allowsOutermostLiveOperator) &&
 							(specifier === "node:fs/promises" || specifier === "node:path")) ||
+						(allowsD690SealedOfflineOperator &&
+							(specifier === "node:fs" || specifier === "node:os")) ||
 						(allowsOutermostLiveOperator && specifier === "node:url") ||
 						specifier === "../../src/json/codec.js" ||
 						(allowsMatchedBlockMemory && matchedBlockMemoryImports.has(specifier)) ||
