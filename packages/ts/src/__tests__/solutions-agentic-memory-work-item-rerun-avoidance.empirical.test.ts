@@ -838,6 +838,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsD705SingleUseDispatchOperator = file.endsWith(
 				"d705-single-use-dispatch-claim.ts",
 			);
+			const allowsD707OfficialPricingReadOperator = file.endsWith("d707-official-pricing-read.ts");
+			const allowsD707PreLiveOperator = file.endsWith("d707-fresh-pricing-preflight.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -853,6 +855,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD704SingleUseDispatchOperator ||
 				allowsD705MutationFirstLiveOperator ||
 				allowsD705SingleUseDispatchOperator ||
+				allowsD707OfficialPricingReadOperator ||
+				allowsD707PreLiveOperator ||
 				file.endsWith("openrouter-first-task-smoke.ts") ||
 				file.endsWith("private-smoke-persistence.ts");
 			const allowsOneRequestFetchTransport =
