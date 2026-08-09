@@ -240,6 +240,8 @@ export interface D703ConsumedPreflightForD704V1 {
 	readonly d702Qualification: D702OfflineQualificationV1;
 }
 
+export type D703ConsumedPreflightForD705V1 = D703ConsumedPreflightForD704V1;
+
 const constructedPreflights = new WeakMap<object, D703PreflightState>();
 const constructedObservations = new WeakSet<object>();
 const constructedScorecards = new WeakSet<object>();
@@ -551,6 +553,20 @@ export function consumeD703PreflightForD704(value: unknown): D703ConsumedPreflig
 	}
 	const state = constructedPreflights.get(value);
 	if (state === undefined) throw new TypeError("D704 requires a fresh D703 preflight");
+	constructedPreflights.delete(value);
+	return Object.freeze({
+		d690OfflineEvidence: state.d690OfflineEvidence,
+		historicalObservation: state.historicalObservation,
+		d702Qualification: state.d702Qualification,
+	});
+}
+
+export function consumeD703PreflightForD705(value: unknown): D703ConsumedPreflightForD705V1 {
+	if (value === null || typeof value !== "object") {
+		throw new TypeError("D705 requires a constructed D703 preflight");
+	}
+	const state = constructedPreflights.get(value);
+	if (state === undefined) throw new TypeError("D705 requires a fresh D703 preflight");
 	constructedPreflights.delete(value);
 	return Object.freeze({
 		d690OfflineEvidence: state.d690OfflineEvidence,

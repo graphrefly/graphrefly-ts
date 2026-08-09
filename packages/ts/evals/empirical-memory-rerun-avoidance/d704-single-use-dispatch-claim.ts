@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { strictJsonCodec } from "../../src/json/codec.js";
@@ -16,6 +17,10 @@ export const D704_SINGLE_USE_DISPATCH_CLAIM_REF =
 export const D704_SINGLE_USE_DISPATCH_CLAIM_DIRECTORY =
 	`.${D704_SINGLE_USE_DISPATCH_CLAIM_REF}` as const;
 export const D704_LIVE_GENERATION_REF = "d704-d703-mutation-first-live-2026-08-09-v1" as const;
+export const D704_CONSUMED_DISPATCH_CLAIM_ARTIFACT_DIGEST =
+	"sha256:55f34171855353a53ddc6e29c514a429acad64e12c1bb0a564a479a616e6ef0d" as const;
+export const D704_CONSUMED_DISPATCH_CLAIM_DIGEST =
+	"sha256:f6f5a8c077816b6842f3a19d12bc864cfa33935cae9e55d5f975e71e131682c4" as const;
 const D704_CLAIM_FILE = "dispatch-claim.v1.json";
 const D704_EXECUTION_DIRECTORY = ".execution-started";
 
@@ -38,6 +43,15 @@ export interface AcquiredD704SingleUseDispatchClaimV1 {
 }
 
 const acquiredClaims = new WeakSet<object>();
+const constructedConsumedHistories = new WeakSet<object>();
+
+export interface D704ConsumedDispatchHistoryCapabilityV1 {
+	readonly capabilityRef: "d704-consumed-dispatch-history";
+	readonly capabilityRevision: "decision.D705.2026-08-09.v1";
+	readonly claimArtifactDigest: typeof D704_CONSUMED_DISPATCH_CLAIM_ARTIFACT_DIGEST;
+	readonly claimDigest: typeof D704_CONSUMED_DISPATCH_CLAIM_DIGEST;
+	readonly executionLeaseConsumed: true;
+}
 
 function createClaim(): D704SingleUseDispatchClaimV1 {
 	const material = strictSnapshot({
@@ -155,4 +169,63 @@ export async function consumePersistedD704DispatchClaimForExecutionAtPrivateRoot
 	const acquired = Object.freeze({ claimPath, claimDigest: expected.claimDigest });
 	acquiredClaims.add(acquired);
 	return acquired;
+}
+
+export async function createD704ConsumedDispatchHistoryCapabilityAtPrivateRoot(
+	privateRootInput: string,
+): Promise<D704ConsumedDispatchHistoryCapabilityV1> {
+	const privateRoot = await assertSafePrivateRoot(privateRootInput);
+	const claimPath = join(privateRoot, D704_SINGLE_USE_DISPATCH_CLAIM_DIRECTORY);
+	const claimFile = join(claimPath, D704_CLAIM_FILE);
+	const executionPath = join(claimPath, D704_EXECUTION_DIRECTORY);
+	const claimStatus = await lstat(claimPath);
+	const claimFileStatus = await lstat(claimFile);
+	const executionStatus = await lstat(executionPath);
+	if (
+		!claimStatus.isDirectory() ||
+		claimStatus.isSymbolicLink() ||
+		(claimStatus.mode & 0o777) !== 0o700 ||
+		!claimFileStatus.isFile() ||
+		claimFileStatus.isSymbolicLink() ||
+		(claimFileStatus.mode & 0o777) !== 0o600 ||
+		!executionStatus.isDirectory() ||
+		executionStatus.isSymbolicLink() ||
+		(executionStatus.mode & 0o777) !== 0o700 ||
+		(await realpath(claimPath)) !== claimPath ||
+		(await realpath(claimFile)) !== claimFile ||
+		(await realpath(executionPath)) !== executionPath
+	) {
+		throw new TypeError("D704 consumed dispatch history ownership is invalid");
+	}
+	const persistedBytes = new Uint8Array(await readFile(claimFile));
+	const expectedBytes = strictJsonCodec.encode(createClaim());
+	if (
+		!Buffer.from(persistedBytes).equals(expectedBytes) ||
+		`sha256:${createHash("sha256").update(persistedBytes).digest("hex")}` !==
+			D704_CONSUMED_DISPATCH_CLAIM_ARTIFACT_DIGEST
+	) {
+		throw new TypeError("D704 consumed dispatch history bytes are not exact");
+	}
+	const capability = Object.freeze({
+		capabilityRef: "d704-consumed-dispatch-history" as const,
+		capabilityRevision: "decision.D705.2026-08-09.v1" as const,
+		claimArtifactDigest: D704_CONSUMED_DISPATCH_CLAIM_ARTIFACT_DIGEST,
+		claimDigest: D704_CONSUMED_DISPATCH_CLAIM_DIGEST,
+		executionLeaseConsumed: true as const,
+	});
+	constructedConsumedHistories.add(capability);
+	return capability;
+}
+
+export async function createD704ConsumedDispatchHistoryCapability(): Promise<D704ConsumedDispatchHistoryCapabilityV1> {
+	return createD704ConsumedDispatchHistoryCapabilityAtPrivateRoot(D691_PRIVATE_PERSISTENCE_ROOT);
+}
+
+export function consumeD704ConsumedDispatchHistoryCapability(
+	value: unknown,
+): D704ConsumedDispatchHistoryCapabilityV1 {
+	if (value === null || typeof value !== "object" || !constructedConsumedHistories.delete(value)) {
+		throw new TypeError("D705 requires exact same-process D704 consumed dispatch history");
+	}
+	return value as D704ConsumedDispatchHistoryCapabilityV1;
 }

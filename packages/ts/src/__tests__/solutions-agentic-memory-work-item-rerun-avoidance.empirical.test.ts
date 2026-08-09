@@ -834,6 +834,10 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsD704SingleUseDispatchOperator = file.endsWith(
 				"d704-single-use-dispatch-claim.ts",
 			);
+			const allowsD705MutationFirstLiveOperator = file.endsWith("d705-mutation-first-live.ts");
+			const allowsD705SingleUseDispatchOperator = file.endsWith(
+				"d705-single-use-dispatch-claim.ts",
+			);
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -847,6 +851,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD703MutationFirstOperator ||
 				allowsD704MutationFirstLiveOperator ||
 				allowsD704SingleUseDispatchOperator ||
+				allowsD705MutationFirstLiveOperator ||
+				allowsD705SingleUseDispatchOperator ||
 				file.endsWith("openrouter-first-task-smoke.ts") ||
 				file.endsWith("private-smoke-persistence.ts");
 			const allowsOneRequestFetchTransport =
