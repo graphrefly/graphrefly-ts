@@ -23,8 +23,8 @@ describe("D696 continuation-assisted historical transfer evidence", () => {
 			D696_D695_POLICY_DIGEST,
 		);
 		expect(D696_D695_IMPLEMENTATION_COMMIT).toBe("69a20d0d");
-		expect(D696_LIVE_SPEND_APPROVAL_REF).toBe("decision.D698");
-		expect(D696_LIVE_SPEND_APPROVAL_REVISION).toBe("decision.D698.2026-08-08.v1");
+		expect(D696_LIVE_SPEND_APPROVAL_REF).toBe("decision.D699");
+		expect(D696_LIVE_SPEND_APPROVAL_REVISION).toBe("decision.D699.2026-08-08.v1");
 	});
 
 	it("fails closed on missing historical and integrated dry-run bytes", () => {
