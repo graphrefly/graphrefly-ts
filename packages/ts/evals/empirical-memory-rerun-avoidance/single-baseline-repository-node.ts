@@ -75,6 +75,89 @@ export interface SingleBaselineWorkspaceAllocatorCapabilityV1 {
 	cleanup(allocation: SingleBaselineWorkspaceAllocationV1): Promise<boolean>;
 }
 
+const trustedLocalSingleBaselineAllocators = new WeakSet<object>();
+
+export function createLocalSingleBaselineWorkspaceAllocator(input: {
+	readonly allocationRoot: string;
+	readonly workspaceDirectoryName: string;
+}): SingleBaselineWorkspaceAllocatorCapabilityV1 {
+	const descriptors = Object.getOwnPropertyDescriptors(input);
+	if (
+		Reflect.ownKeys(descriptors).length !== 2 ||
+		descriptors.allocationRoot === undefined ||
+		!("value" in descriptors.allocationRoot) ||
+		descriptors.workspaceDirectoryName === undefined ||
+		!("value" in descriptors.workspaceDirectoryName)
+	) {
+		throw new TypeError("local single-baseline allocator requires exact own data coordinates");
+	}
+	const allocationRoot = descriptors.allocationRoot.value;
+	const workspaceDirectoryName = descriptors.workspaceDirectoryName.value;
+	if (
+		typeof allocationRoot !== "string" ||
+		!isAbsolute(allocationRoot) ||
+		typeof workspaceDirectoryName !== "string" ||
+		workspaceDirectoryName.length === 0 ||
+		workspaceDirectoryName === "." ||
+		workspaceDirectoryName === ".." ||
+		workspaceDirectoryName.includes(sep)
+	) {
+		throw new TypeError("local single-baseline allocator coordinates are invalid");
+	}
+	const ownedAllocations = new WeakMap<object, string>();
+	const allocator: SingleBaselineWorkspaceAllocatorCapabilityV1 = Object.freeze({
+		async allocate(signal: AbortSignal): Promise<SingleBaselineWorkspaceAllocationV1> {
+			if (signal.aborted) throw new SingleBaselineRepositoryMaterializationError("cancelled");
+			const parentMetadata = await lstat(allocationRoot);
+			if (
+				!parentMetadata.isDirectory() ||
+				parentMetadata.isSymbolicLink() ||
+				(parentMetadata.mode & 0o777) !== 0o700
+			) {
+				throw new SingleBaselineRepositoryMaterializationError("invalid-allocation");
+			}
+			const rootPath = join(await realpath(allocationRoot), workspaceDirectoryName);
+			let created = false;
+			try {
+				await mkdir(rootPath, { mode: 0o700 });
+				created = true;
+				const metadata = await lstat(rootPath);
+				if (
+					!metadata.isDirectory() ||
+					metadata.isSymbolicLink() ||
+					(metadata.mode & 0o777) !== 0o700
+				) {
+					throw new SingleBaselineRepositoryMaterializationError("invalid-allocation");
+				}
+				const allocation = Object.freeze({
+					rootPath,
+					ownershipToken: Object.freeze({ kind: "local-single-baseline-allocation.v1" }),
+				});
+				ownedAllocations.set(allocation, rootPath);
+				return allocation;
+			} catch (error) {
+				if (created) {
+					try {
+						await rm(rootPath, { recursive: true, force: true });
+					} catch {
+						throw new SingleBaselineRepositoryMaterializationError("cleanup-failed");
+					}
+				}
+				throw error;
+			}
+		},
+		async cleanup(allocation: SingleBaselineWorkspaceAllocationV1): Promise<boolean> {
+			const rootPath = ownedAllocations.get(allocation);
+			if (rootPath === undefined || allocation.rootPath !== rootPath) return false;
+			ownedAllocations.delete(allocation);
+			await rm(rootPath, { recursive: true, force: false });
+			return true;
+		},
+	});
+	trustedLocalSingleBaselineAllocators.add(allocator);
+	return allocator;
+}
+
 export interface HistoryFreeSingleBaselineRepositoryRequestV1 {
 	readonly sourceCommitSha: string;
 	readonly sourceTreeObjectId: string;
@@ -116,6 +199,21 @@ export interface HistoryFreeSingleBaselineRepositoryMaterializationV1 {
 	readonly workspace: SingleBaselineRepositoryWorkspaceCapabilityV1;
 	readonly evidence: HistoryFreeSingleBaselineRepositoryEvidenceV1;
 	cleanup(): Promise<void>;
+}
+
+const constructedSingleBaselineMaterializations = new WeakMap<
+	object,
+	{ readonly rootPath: string; readonly trustedLocalAllocator: boolean }
+>();
+
+export function constructedSingleBaselineMaterializationRoot(value: unknown): string | null {
+	if (typeof value !== "object" || value === null) return null;
+	return constructedSingleBaselineMaterializations.get(value)?.rootPath ?? null;
+}
+
+export function isTrustedLocalSingleBaselineMaterialization(value: unknown): boolean {
+	if (typeof value !== "object" || value === null) return false;
+	return constructedSingleBaselineMaterializations.get(value)?.trustedLocalAllocator === true;
 }
 
 interface GitProcessCounter {
@@ -181,7 +279,13 @@ export async function materializeHistoryFreeSingleBaselineRepository(
 	let allocation: SingleBaselineWorkspaceAllocationV1;
 	try {
 		allocation = await allocator.allocate(requestSnapshot.signal);
-	} catch {
+	} catch (error) {
+		if (
+			error instanceof SingleBaselineRepositoryMaterializationError &&
+			error.code === "cleanup-failed"
+		) {
+			throw error;
+		}
 		throw new SingleBaselineRepositoryMaterializationError("allocation-failed");
 	}
 	try {
@@ -898,7 +1002,7 @@ function createMaterializationResult(
 			}
 		})(),
 	);
-	return Object.freeze({
+	const materialization = Object.freeze({
 		workspace,
 		evidence,
 		async cleanup(): Promise<void> {
@@ -911,6 +1015,14 @@ function createMaterializationResult(
 			}
 		},
 	});
+	constructedSingleBaselineMaterializations.set(
+		materialization,
+		Object.freeze({
+			rootPath: workspaceRoot,
+			trustedLocalAllocator: trustedLocalSingleBaselineAllocators.has(allocator),
+		}),
+	);
+	return materialization;
 }
 
 async function attemptCleanupOnce(

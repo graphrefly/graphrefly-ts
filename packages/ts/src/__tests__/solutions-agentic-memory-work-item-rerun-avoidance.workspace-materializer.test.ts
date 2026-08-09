@@ -529,6 +529,29 @@ describe("B112 D658 history-free single-baseline repository materialization", ()
 		expect(transactionalCleanupCalled).toBe(false);
 		expect(() => readFileSync(transactionalRootPath)).toThrow();
 
+		let rollbackFailureCleanupCalled = false;
+		await expect(
+			materializeHistoryFreeSingleBaselineRepository(
+				sourceCapability(source),
+				{
+					async allocate() {
+						throw new SingleBaselineRepositoryMaterializationError("cleanup-failed");
+					},
+					async cleanup() {
+						rollbackFailureCleanupCalled = true;
+						return true;
+					},
+				},
+				{
+					sourceCommitSha: source.commitSha,
+					sourceTreeObjectId: source.treeObjectId,
+					overlay: null,
+					signal: new AbortController().signal,
+				},
+			),
+		).rejects.toMatchObject({ code: "cleanup-failed" });
+		expect(rollbackFailureCleanupCalled).toBe(false);
+
 		const cleanupFailure = trackingAllocator({ prepopulate: true, cleanupResult: false });
 		await expect(
 			materializeHistoryFreeSingleBaselineRepository(sourceCapability(source), cleanupFailure, {

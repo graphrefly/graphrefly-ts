@@ -5,6 +5,8 @@ import {
 } from "../../evals/empirical-memory-rerun-avoidance/canonical.js";
 import {
 	CLOSED_ACTOR_TOOL_REFS,
+	CLOSED_TASK_PROFILE_HOST_SCHEMAS,
+	type ClosedHostContinuationV1,
 	D682_HOST_DERIVED_REPLACE_SCHEMA_REVISION,
 } from "../../evals/empirical-memory-rerun-avoidance/closed-task-profile-host.js";
 import type {
@@ -3231,6 +3233,34 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		};
 		expect(dottedEnvelope.priorToolResults[0]?.toolRef).toBe(dottedBody.tools[0]?.name);
 		expect(dottedEnvelope.priorToolResults[0]?.toolRef).toMatch(/^grf_tool_0_[a-f0-9]{24}$/);
+	});
+
+	it("rejects caller-authored D695 continuation capsules before transport", async () => {
+		const authority = buildAuthority();
+		const harness = createHarness(authority);
+		const request = withPriorToolResult(harness.request, authority, harness.binding);
+		const continuation = strictSnapshot({
+			schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.hostContinuation,
+			policyRef: "no-progress.d695.historical-transfer",
+			policyRevision: "decision.D695.2026-08-08.v1",
+			reason: "premature-structured-output",
+			requiredDisposition: "tool-intents",
+			missingObjectivePhases: ["exact-mutation", "workspace-diff", "focused-validation"],
+			rejectedTerminalCount: 1,
+			remainingSteps: 6,
+			remainingActions: 31,
+			retainedToolResultCount: request.priorToolResults.length,
+			retainedToolResultsDigest: empiricalStrictJsonDigest(request.priorToolResults),
+			workspaceStateDigest: empiricalStrictJsonDigest({ workspace: "frozen" }),
+		}) satisfies ClosedHostContinuationV1;
+		await expect(
+			harness.binding.continuationModelTurnPort.invoke(
+				request,
+				continuation,
+				new AbortController().signal,
+			),
+		).rejects.toThrow("not issued by the closed host");
+		expect(harness.transport).not.toHaveBeenCalled();
 	});
 
 	it("fails closed on ambiguous, malformed, refusal, mismatched, or schema-invalid responses", async () => {

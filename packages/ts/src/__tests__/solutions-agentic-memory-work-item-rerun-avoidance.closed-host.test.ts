@@ -5,6 +5,7 @@ import {
 	mkdtempSync,
 	readdirSync,
 	readFileSync,
+	renameSync,
 	rmSync,
 	statSync,
 	writeFileSync,
@@ -22,6 +23,10 @@ import {
 	CLOSED_ACTOR_TOOL_REFS,
 	CLOSED_TASK_PROFILE_HOST_SCHEMAS,
 	type ClosedCommandPolicyV1,
+	type ClosedContinuationModelTurnPortV1,
+	type ClosedHostContinuationV1,
+	type ClosedNoProgressContinuationPolicyV1,
+	type ClosedNoProgressReceiptV1,
 	type ClosedTaskExecutionProfileV1,
 	type ClosedTaskProfileHostActionReceiptV1,
 	type ClosedTaskProfileHostRunInputV1,
@@ -31,6 +36,7 @@ import {
 	type ClosedWorkspaceRecipeV1,
 	D682_HOST_DERIVED_REPLACE_SCHEMA_REVISION,
 	runClosedTaskProfileHost,
+	sameClosedInspectionBatch,
 } from "../../evals/empirical-memory-rerun-avoidance/closed-task-profile-host.js";
 import {
 	CLOSED_VERIFIER_CALIBRATION_SCHEMAS,
@@ -76,6 +82,15 @@ import {
 	runD693AssistedProgressCase,
 	validateD693AssistedProgressQualification,
 } from "../../evals/empirical-memory-rerun-avoidance/d693-assisted-progress-qualification.js";
+import {
+	commitD695PrivateGenerationAtomically,
+	createD695OfflineQualification,
+	D695_CASE_ORDER,
+	D695_NO_PROGRESS_CONTINUATION_POLICY,
+	persistD695OfflineQualification,
+	runD695OfflineCase,
+	validateD695OfflineQualification,
+} from "../../evals/empirical-memory-rerun-avoidance/d695-no-progress-continuation-qualification.js";
 import {
 	createDeveloperGuidanceObservation,
 	developerGuidanceActionProgressEvidenceDigest,
@@ -211,11 +226,10 @@ import {
 	freezeEmpiricalCampaignManifest,
 } from "../../evals/empirical-memory-rerun-avoidance/qualification.js";
 import {
+	createLocalSingleBaselineWorkspaceAllocator,
 	type ExactLocalSourceRepositoryCapabilityV1,
 	type HistoryFreeSingleBaselineRepositoryMaterializationV1,
 	materializeHistoryFreeSingleBaselineRepository,
-	type SingleBaselineWorkspaceAllocationV1,
-	type SingleBaselineWorkspaceAllocatorCapabilityV1,
 } from "../../evals/empirical-memory-rerun-avoidance/single-baseline-repository-node.js";
 import { graph } from "../graph/graph.js";
 import { strictJsonCodec } from "../json/codec.js";
@@ -643,17 +657,10 @@ async function createClosedHostFixture(
 				);
 
 	const allocationRoot = temporaryRoot("allocation");
-	const allocator: SingleBaselineWorkspaceAllocatorCapabilityV1 = {
-		async allocate(): Promise<SingleBaselineWorkspaceAllocationV1> {
-			const rootPath = join(allocationRoot, "workspace");
-			mkdirSync(rootPath, { mode: 0o700 });
-			return Object.freeze({ rootPath, ownershipToken: Object.freeze({ task: "d659" }) });
-		},
-		async cleanup(allocation): Promise<boolean> {
-			rmSync(allocation.rootPath, { recursive: true, force: true });
-			return true;
-		},
-	};
+	const allocator = createLocalSingleBaselineWorkspaceAllocator({
+		allocationRoot,
+		workspaceDirectoryName: "workspace",
+	});
 	const source: ExactLocalSourceRepositoryCapabilityV1 = {
 		repositoryRef: "graphrefly-ts",
 		rootPath: sourceRoot,
@@ -2281,6 +2288,1132 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(nested.verifierCalls.count).toBe(0);
 		expect(() => statSync(nested.workspaceRoot)).toThrow();
 	});
+
+	it("qualifies D695 host feedback recovery and rejects same-state inspection before duplicate execution", async () => {
+		const policy = strictSnapshot({
+			schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.noProgressContinuationPolicy,
+			policyRef: "no-progress.d695.historical-transfer",
+			policyRevision: "decision.D695.2026-08-08.v1",
+			maxRetainedToolResults: 16,
+			maxRetainedBytes: 131_072,
+			maxRejectedTerminals: 2,
+			maxSemanticDuplicateRejections: 1,
+			maxInspectionBatchesPerState: 16,
+		}) satisfies ClosedNoProgressContinuationPolicyV1;
+		const validationCommand = {
+			commandRef: D693_ASSISTED_PROGRESS_POLICY.validationCommandRef,
+			executable: "/usr/bin/grep",
+			argv: ["-q", "fixed", "README.md"],
+		} as const;
+		const fixture = await createClosedHostFixture([validationCommand]);
+		const baseContentDigest = empiricalSha256(encoder.encode("broken-placeholder-value\n"));
+		const capsules: ClosedHostContinuationV1[] = [];
+		const initialPort = scriptedPort(fixture, (request) =>
+			request.stepIndex === 0
+				? {
+						finishReason: "tool-intents",
+						toolIntents: [intent(0, CLOSED_ACTOR_TOOL_REFS.readFile, { path: "README.md" })],
+					}
+				: {
+						finishReason: "structured-output",
+						structuredOutput: {
+							kind: "model-turn-output-placeholder",
+							summary: "premature",
+						},
+					},
+		);
+		const continuationPort: ClosedContinuationModelTurnPortV1 = Object.freeze({
+			async invoke(
+				request: EmpiricalModelTurnRequestV1,
+				continuation: ClosedHostContinuationV1,
+				signal: AbortSignal,
+			) {
+				if (signal.aborted) throw new DOMException("cancelled", "AbortError");
+				capsules.push(continuation);
+				const body =
+					request.stepIndex === 2
+						? {
+								finishReason: "tool-intents" as const,
+								toolIntents: [
+									intent(2, CLOSED_ACTOR_TOOL_REFS.replaceExact, {
+										baseContentDigest,
+										newText: "fixed",
+										oldText: "broken-placeholder-value",
+										path: "README.md",
+									}),
+								],
+							}
+						: request.stepIndex === 3
+							? {
+									finishReason: "tool-intents" as const,
+									toolIntents: [intent(3, CLOSED_ACTOR_TOOL_REFS.workspaceDiff, {})],
+								}
+							: request.stepIndex === 4
+								? {
+										finishReason: "tool-intents" as const,
+										toolIntents: [
+											intent(4, CLOSED_ACTOR_TOOL_REFS.runCommand, {
+												commandRef: validationCommand.commandRef,
+											}),
+										],
+									}
+								: {
+										finishReason: "structured-output" as const,
+										structuredOutput: {
+											kind: "model-turn-output-placeholder",
+											summary: "verified",
+										},
+									};
+				return completedOutcome(
+					request,
+					fixture.frozen,
+					fixture.report,
+					fixture.protectionExecutor,
+					body,
+				);
+			},
+		});
+		const recovered = await runClosedTaskProfileHost({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			initialRequest: fixture.initialRequest,
+			taskProfile: fixture.taskProfile,
+			materialization: fixture.materialization,
+			modelTurnPort: initialPort,
+			continuationModelTurnPort: continuationPort,
+			protectionExecutor: fixture.protectionExecutor,
+			verifier: fixture.verifier,
+			objectiveProgressPolicy: D693_ASSISTED_PROGRESS_POLICY,
+			noProgressContinuationPolicy: policy,
+			signal: new AbortController().signal,
+		});
+		expect(recovered.status).toBe("completed");
+		expect(recovered.verifierVerdict).toBe("passed");
+		expect(capsules[0]).toMatchObject({
+			reason: "premature-structured-output",
+			retainedToolResultCount: 1,
+			requiredDisposition: "tool-intents",
+		});
+		expect(capsules.at(-1)?.requiredDisposition).toBe("final-allowed");
+
+		const duplicateFixture = await createClosedHostFixture([validationCommand]);
+		const receipts: ClosedNoProgressReceiptV1[] = [];
+		const duplicateContinuation: ClosedContinuationModelTurnPortV1 = Object.freeze({
+			async invoke(
+				request: EmpiricalModelTurnRequestV1,
+				_continuation: ClosedHostContinuationV1,
+				_signal: AbortSignal,
+			) {
+				return completedOutcome(
+					request,
+					duplicateFixture.frozen,
+					duplicateFixture.report,
+					duplicateFixture.protectionExecutor,
+					request.stepIndex === 1
+						? {
+								finishReason: "structured-output",
+								structuredOutput: {
+									kind: "model-turn-output-placeholder",
+									summary: "premature",
+								},
+							}
+						: {
+								finishReason: "tool-intents",
+								toolIntents: [intent(10, CLOSED_ACTOR_TOOL_REFS.readFile, { path: "README.md" })],
+							},
+				);
+			},
+		});
+		const duplicate = await runClosedTaskProfileHost({
+			frozen: duplicateFixture.frozen,
+			qualificationReport: duplicateFixture.report,
+			initialRequest: duplicateFixture.initialRequest,
+			taskProfile: duplicateFixture.taskProfile,
+			materialization: duplicateFixture.materialization,
+			modelTurnPort: scriptedPort(duplicateFixture, (request) =>
+				request.stepIndex === 0
+					? {
+							finishReason: "tool-intents",
+							toolIntents: [intent(0, CLOSED_ACTOR_TOOL_REFS.readFile, { path: "README.md" })],
+						}
+					: {
+							finishReason: "structured-output",
+							structuredOutput: {
+								kind: "model-turn-output-placeholder",
+								summary: "premature",
+							},
+						},
+			),
+			continuationModelTurnPort: duplicateContinuation,
+			protectionExecutor: duplicateFixture.protectionExecutor,
+			verifier: duplicateFixture.verifier,
+			objectiveProgressPolicy: D693_ASSISTED_PROGRESS_POLICY,
+			noProgressContinuationPolicy: policy,
+			noProgressReceiptObserver: Object.freeze({
+				observerRef: "observer.d695.test",
+				observerRevision: "observer.d695.test.v1",
+				record(receipt: ClosedNoProgressReceiptV1) {
+					receipts.push(receipt);
+				},
+			}),
+			signal: new AbortController().signal,
+		});
+		expect(duplicate.status).toBe("non-evaluable");
+		expect(duplicate.issueCodes).toEqual(["repeated-inspection-turn-no-progress"]);
+		expect(duplicate.toolActionCount).toBe(1);
+		expect(receipts).toHaveLength(1);
+		expect(receipts[0]?.disposition).toBe("rejected-before-tool-execution");
+	}, 30_000);
+
+	it("fails D695 multiple-intent duplicates before side effects and compares collision buckets by bytes", async () => {
+		const policy = strictSnapshot({
+			schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.noProgressContinuationPolicy,
+			policyRef: "no-progress.d695.historical-transfer",
+			policyRevision: "decision.D695.2026-08-08.v1",
+			maxRetainedToolResults: 16,
+			maxRetainedBytes: 131_072,
+			maxRejectedTerminals: 2,
+			maxSemanticDuplicateRejections: 1,
+			maxInspectionBatchesPerState: 16,
+		}) satisfies ClosedNoProgressContinuationPolicyV1;
+		const fixture = await createClosedHostFixture({
+			commandRef: D693_ASSISTED_PROGRESS_POLICY.validationCommandRef,
+			executable: "/usr/bin/true",
+			argv: [],
+		});
+		const outcome = await runClosedTaskProfileHost({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			initialRequest: fixture.initialRequest,
+			taskProfile: fixture.taskProfile,
+			materialization: fixture.materialization,
+			modelTurnPort: scriptedPort(fixture, () => ({
+				finishReason: "tool-intents",
+				toolIntents: [
+					intent(0, CLOSED_ACTOR_TOOL_REFS.readFile, { path: "README.md" }),
+					intent(1, CLOSED_ACTOR_TOOL_REFS.readFile, { path: "README.md" }),
+				],
+			})),
+			continuationModelTurnPort: Object.freeze({
+				async invoke() {
+					throw new TypeError("must reject before continuation");
+				},
+			}),
+			protectionExecutor: fixture.protectionExecutor,
+			verifier: fixture.verifier,
+			objectiveProgressPolicy: D693_ASSISTED_PROGRESS_POLICY,
+			noProgressContinuationPolicy: policy,
+			signal: new AbortController().signal,
+		});
+		expect(outcome.issueCodes).toEqual(["duplicate-inspection-intent-in-turn"]);
+		expect(outcome.toolActionCount).toBe(0);
+		expect(
+			sameClosedInspectionBatch(
+				{ digest: "sha256:collision", canonicalBytes: encoder.encode("left") },
+				{ digest: "sha256:collision", canonicalBytes: encoder.encode("right") },
+			),
+		).toBe(false);
+		expect(
+			sameClosedInspectionBatch(
+				{ digest: "sha256:left-evidence", canonicalBytes: encoder.encode("same") },
+				{ digest: "sha256:right-evidence", canonicalBytes: encoder.encode("same") },
+			),
+		).toBe(true);
+
+		const mixedFixture = await createClosedHostFixture({
+			commandRef: D693_ASSISTED_PROGRESS_POLICY.validationCommandRef,
+			executable: "/usr/bin/true",
+			argv: [],
+		});
+		const mixedReceipts: ClosedNoProgressReceiptV1[] = [];
+		const mixed = await runClosedTaskProfileHost({
+			frozen: mixedFixture.frozen,
+			qualificationReport: mixedFixture.report,
+			initialRequest: mixedFixture.initialRequest,
+			taskProfile: mixedFixture.taskProfile,
+			materialization: mixedFixture.materialization,
+			modelTurnPort: scriptedPort(mixedFixture, () => ({
+				finishReason: "tool-intents",
+				toolIntents: [
+					intent(10, CLOSED_ACTOR_TOOL_REFS.readFile, { path: "README.md" }),
+					intent(11, CLOSED_ACTOR_TOOL_REFS.replaceExact, {
+						baseContentDigest: empiricalSha256(encoder.encode("broken-placeholder-value\n")),
+						newText: "fixed",
+						oldText: "broken-placeholder-value",
+						path: "README.md",
+					}),
+				],
+			})),
+			continuationModelTurnPort: Object.freeze({
+				async invoke() {
+					throw new TypeError("D695 mixed-state results must stop before continuation");
+				},
+			}),
+			protectionExecutor: mixedFixture.protectionExecutor,
+			verifier: mixedFixture.verifier,
+			objectiveProgressPolicy: D693_ASSISTED_PROGRESS_POLICY,
+			noProgressContinuationPolicy: policy,
+			noProgressReceiptObserver: Object.freeze({
+				observerRef: "observer.d695.mixed-effect",
+				observerRevision: "observer.d695.mixed-effect.v1",
+				record(receipt: ClosedNoProgressReceiptV1) {
+					mixedReceipts.push(receipt);
+				},
+			}),
+			signal: new AbortController().signal,
+		});
+		expect(mixed.issueCodes).toEqual(["no-progress-stale-result-intent-batch"]);
+		expect(mixed.toolActionCount).toBe(0);
+		expect(mixed.actionTrace).toEqual([]);
+		expect(mixed.workspaceChanged).toBeNull();
+		expect(mixedReceipts).toMatchObject([
+			{
+				kind: "stale-result-intent-batch",
+				disposition: "rejected-before-tool-execution",
+			},
+		]);
+		expect(mixedFixture.verifierCalls.count).toBe(0);
+
+		const safeFixture = await createClosedHostFixture({
+			commandRef: D693_ASSISTED_PROGRESS_POLICY.validationCommandRef,
+			executable: "/usr/bin/grep",
+			argv: ["-q", "fixed", "README.md"],
+		});
+		const safe = await runClosedTaskProfileHost({
+			frozen: safeFixture.frozen,
+			qualificationReport: safeFixture.report,
+			initialRequest: safeFixture.initialRequest,
+			taskProfile: safeFixture.taskProfile,
+			materialization: safeFixture.materialization,
+			modelTurnPort: scriptedPort(safeFixture, (request) =>
+				request.stepIndex === 0
+					? {
+							finishReason: "tool-intents",
+							toolIntents: [
+								intent(20, CLOSED_ACTOR_TOOL_REFS.replaceExact, {
+									baseContentDigest: empiricalSha256(encoder.encode("broken-placeholder-value\n")),
+									newText: "fixed",
+									oldText: "broken-placeholder-value",
+									path: "README.md",
+								}),
+								intent(21, CLOSED_ACTOR_TOOL_REFS.workspaceDiff, {}),
+								intent(22, CLOSED_ACTOR_TOOL_REFS.runCommand, {
+									commandRef: D693_ASSISTED_PROGRESS_POLICY.validationCommandRef,
+								}),
+							],
+						}
+					: {
+							finishReason: "structured-output",
+							structuredOutput: {
+								kind: "model-turn-output-placeholder",
+								summary: "safe ordered D695 multi-intent",
+							},
+						},
+			),
+			continuationModelTurnPort: Object.freeze({
+				async invoke() {
+					throw new TypeError("safe D695 multi-intent must not require continuation");
+				},
+			}),
+			protectionExecutor: safeFixture.protectionExecutor,
+			verifier: safeFixture.verifier,
+			objectiveProgressPolicy: D693_ASSISTED_PROGRESS_POLICY,
+			noProgressContinuationPolicy: policy,
+			signal: new AbortController().signal,
+		});
+		expect(safe).toMatchObject({ status: "completed", verifierVerdict: "passed" });
+		expect(safe.toolActionCount).toBe(3);
+	}, 30_000);
+
+	it("retains exact D695 inspection history across A-B-A and same-state commands", async () => {
+		const validationCommand = {
+			commandRef: D693_ASSISTED_PROGRESS_POLICY.validationCommandRef,
+			executable: "/usr/bin/true",
+			argv: [],
+		} as const;
+		const policy = strictSnapshot({
+			schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.noProgressContinuationPolicy,
+			policyRef: "no-progress.d695.historical-transfer",
+			policyRevision: "decision.D695.2026-08-08.v1",
+			maxRetainedToolResults: 16,
+			maxRetainedBytes: 131_072,
+			maxRejectedTerminals: 2,
+			maxSemanticDuplicateRejections: 1,
+			maxInspectionBatchesPerState: 16,
+		}) satisfies ClosedNoProgressContinuationPolicyV1;
+		const aBaFixture = await createClosedHostFixture(validationCommand);
+		const aBa = await runClosedTaskProfileHost({
+			frozen: aBaFixture.frozen,
+			qualificationReport: aBaFixture.report,
+			initialRequest: aBaFixture.initialRequest,
+			taskProfile: aBaFixture.taskProfile,
+			materialization: aBaFixture.materialization,
+			modelTurnPort: scriptedPort(aBaFixture, (request) =>
+				request.stepIndex === 0 || request.stepIndex === 2
+					? {
+							finishReason: "tool-intents",
+							toolIntents: [
+								intent(request.stepIndex, CLOSED_ACTOR_TOOL_REFS.readFile, {
+									path: "README.md",
+								}),
+							],
+						}
+					: {
+							finishReason: "tool-intents",
+							toolIntents: [
+								intent(1, CLOSED_ACTOR_TOOL_REFS.searchLiteral, {
+									maxMatches: 8,
+									path: "README.md",
+									query: "broken",
+								}),
+							],
+						},
+			),
+			continuationModelTurnPort: Object.freeze({
+				async invoke() {
+					throw new TypeError("D695 A-B-A must stop before continuation");
+				},
+			}),
+			protectionExecutor: aBaFixture.protectionExecutor,
+			verifier: aBaFixture.verifier,
+			objectiveProgressPolicy: D693_ASSISTED_PROGRESS_POLICY,
+			noProgressContinuationPolicy: policy,
+			signal: new AbortController().signal,
+		});
+		expect(aBa.issueCodes).toEqual(["repeated-inspection-turn-no-progress"]);
+		expect(aBa.toolActionCount).toBe(2);
+
+		const commandFixture = await createClosedHostFixture([
+			validationCommand,
+			{ commandRef: "actor.noop", executable: "/usr/bin/true", argv: [] },
+		]);
+		const command = await runClosedTaskProfileHost({
+			frozen: commandFixture.frozen,
+			qualificationReport: commandFixture.report,
+			initialRequest: commandFixture.initialRequest,
+			taskProfile: commandFixture.taskProfile,
+			materialization: commandFixture.materialization,
+			modelTurnPort: scriptedPort(commandFixture, (request) =>
+				request.stepIndex === 1
+					? {
+							finishReason: "tool-intents",
+							toolIntents: [
+								intent(1, CLOSED_ACTOR_TOOL_REFS.runCommand, {
+									commandRef: "actor.noop",
+								}),
+							],
+						}
+					: {
+							finishReason: "tool-intents",
+							toolIntents: [
+								intent(request.stepIndex, CLOSED_ACTOR_TOOL_REFS.readFile, {
+									path: "README.md",
+								}),
+							],
+						},
+			),
+			continuationModelTurnPort: Object.freeze({
+				async invoke() {
+					throw new TypeError("D695 same-state command must not clear inspection history");
+				},
+			}),
+			protectionExecutor: commandFixture.protectionExecutor,
+			verifier: commandFixture.verifier,
+			objectiveProgressPolicy: D693_ASSISTED_PROGRESS_POLICY,
+			noProgressContinuationPolicy: policy,
+			signal: new AbortController().signal,
+		});
+		expect(command.issueCodes).toEqual(["repeated-inspection-turn-no-progress"]);
+		expect(command.toolActionCount).toBe(2);
+	}, 30_000);
+
+	it("fails D695 accessor and retained-result bounds before continuation dispatch", async () => {
+		const validationCommand = {
+			commandRef: D693_ASSISTED_PROGRESS_POLICY.validationCommandRef,
+			executable: "/usr/bin/true",
+			argv: [],
+		} as const;
+		const fixture = await createClosedHostFixture(validationCommand);
+		let getterHits = 0;
+		let modelInvocations = 0;
+		const accessorPolicy: Record<string, unknown> = {
+			schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.noProgressContinuationPolicy,
+			policyRef: "no-progress.d695.historical-transfer",
+			policyRevision: "decision.D695.2026-08-08.v1",
+			maxRetainedToolResults: 16,
+			maxRetainedBytes: 131_072,
+			maxRejectedTerminals: 2,
+			maxSemanticDuplicateRejections: 1,
+		};
+		Object.defineProperty(accessorPolicy, "maxInspectionBatchesPerState", {
+			enumerable: true,
+			get() {
+				getterHits += 1;
+				return 16;
+			},
+		});
+		Object.freeze(accessorPolicy);
+		await expect(
+			runClosedTaskProfileHost({
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: fixture.materialization,
+				modelTurnPort: {
+					async invoke() {
+						modelInvocations += 1;
+						throw new TypeError("unexpected D695 accessor model invocation");
+					},
+				},
+				continuationModelTurnPort: Object.freeze({
+					async invoke() {
+						throw new TypeError("unexpected D695 accessor continuation");
+					},
+				}),
+				protectionExecutor: fixture.protectionExecutor,
+				verifier: fixture.verifier,
+				objectiveProgressPolicy: D693_ASSISTED_PROGRESS_POLICY,
+				noProgressContinuationPolicy:
+					accessorPolicy as unknown as ClosedNoProgressContinuationPolicyV1,
+				signal: new AbortController().signal,
+			}),
+		).rejects.toThrow("expected an own data property");
+		expect(getterHits).toBe(0);
+		expect(modelInvocations).toBe(0);
+
+		const boundedFixture = await createClosedHostFixture(validationCommand);
+		let continuationInvocations = 0;
+		const boundedPolicy = strictSnapshot({
+			schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.noProgressContinuationPolicy,
+			policyRef: "no-progress.d695.historical-transfer",
+			policyRevision: "decision.D695.2026-08-08.v1",
+			maxRetainedToolResults: 16,
+			maxRetainedBytes: 1,
+			maxRejectedTerminals: 2,
+			maxSemanticDuplicateRejections: 1,
+			maxInspectionBatchesPerState: 16,
+		}) satisfies ClosedNoProgressContinuationPolicyV1;
+		const bounded = await runClosedTaskProfileHost({
+			frozen: boundedFixture.frozen,
+			qualificationReport: boundedFixture.report,
+			initialRequest: boundedFixture.initialRequest,
+			taskProfile: boundedFixture.taskProfile,
+			materialization: boundedFixture.materialization,
+			modelTurnPort: scriptedPort(boundedFixture, (request) =>
+				request.stepIndex === 0
+					? {
+							finishReason: "tool-intents",
+							toolIntents: [intent(0, CLOSED_ACTOR_TOOL_REFS.readFile, { path: "README.md" })],
+						}
+					: {
+							finishReason: "structured-output",
+							structuredOutput: {
+								kind: "model-turn-output-placeholder",
+								summary: "premature",
+							},
+						},
+			),
+			continuationModelTurnPort: Object.freeze({
+				async invoke() {
+					continuationInvocations += 1;
+					throw new TypeError("D695 retained bound must stop before continuation");
+				},
+			}),
+			protectionExecutor: boundedFixture.protectionExecutor,
+			verifier: boundedFixture.verifier,
+			objectiveProgressPolicy: D693_ASSISTED_PROGRESS_POLICY,
+			noProgressContinuationPolicy: boundedPolicy,
+			signal: new AbortController().signal,
+		});
+		expect(bounded.issueCodes).toEqual(["no-progress-retained-result-byte-budget-exhausted"]);
+		expect(continuationInvocations).toBe(0);
+
+		const postRejectionFixture = await createClosedHostFixture(validationCommand);
+		let postRejectionInvocations = 0;
+		const postRejectionPolicy = strictSnapshot({
+			...boundedPolicy,
+			maxRetainedBytes: 64,
+		}) satisfies ClosedNoProgressContinuationPolicyV1;
+		const postRejection = await runClosedTaskProfileHost({
+			frozen: postRejectionFixture.frozen,
+			qualificationReport: postRejectionFixture.report,
+			initialRequest: postRejectionFixture.initialRequest,
+			taskProfile: postRejectionFixture.taskProfile,
+			materialization: postRejectionFixture.materialization,
+			modelTurnPort: scriptedPort(postRejectionFixture, () => ({
+				finishReason: "structured-output",
+				structuredOutput: {
+					kind: "model-turn-output-placeholder",
+					summary: "premature without results",
+				},
+			})),
+			continuationModelTurnPort: Object.freeze({
+				async invoke(request: EmpiricalModelTurnRequestV1) {
+					postRejectionInvocations += 1;
+					return completedOutcome(
+						request,
+						postRejectionFixture.frozen,
+						postRejectionFixture.report,
+						postRejectionFixture.protectionExecutor,
+						{
+							finishReason: "tool-intents",
+							toolIntents: [intent(1, CLOSED_ACTOR_TOOL_REFS.readFile, { path: "README.md" })],
+						},
+					);
+				},
+			}),
+			protectionExecutor: postRejectionFixture.protectionExecutor,
+			verifier: postRejectionFixture.verifier,
+			objectiveProgressPolicy: D693_ASSISTED_PROGRESS_POLICY,
+			noProgressContinuationPolicy: postRejectionPolicy,
+			signal: new AbortController().signal,
+		});
+		expect(postRejection.issueCodes).toEqual(["no-progress-retained-result-byte-budget-exhausted"]);
+		expect(postRejectionInvocations).toBe(1);
+	}, 30_000);
+
+	it("rejects D695 workspace drift during rejection and continuation model turns", async () => {
+		const validationCommand = {
+			commandRef: D693_ASSISTED_PROGRESS_POLICY.validationCommandRef,
+			executable: "/usr/bin/true",
+			argv: [],
+		} as const;
+		const policy = strictSnapshot({
+			schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.noProgressContinuationPolicy,
+			policyRef: "no-progress.d695.historical-transfer",
+			policyRevision: "decision.D695.2026-08-08.v1",
+			maxRetainedToolResults: 16,
+			maxRetainedBytes: 131_072,
+			maxRejectedTerminals: 2,
+			maxSemanticDuplicateRejections: 1,
+			maxInspectionBatchesPerState: 16,
+		}) satisfies ClosedNoProgressContinuationPolicyV1;
+		const rejectionFixture = await createClosedHostFixture(validationCommand);
+		let rejectionContinuationInvocations = 0;
+		const rejectionDrift = await runClosedTaskProfileHost({
+			frozen: rejectionFixture.frozen,
+			qualificationReport: rejectionFixture.report,
+			initialRequest: rejectionFixture.initialRequest,
+			taskProfile: rejectionFixture.taskProfile,
+			materialization: rejectionFixture.materialization,
+			modelTurnPort: scriptedPort(rejectionFixture, (request) => {
+				if (request.stepIndex === 0) {
+					return {
+						finishReason: "tool-intents",
+						toolIntents: [intent(0, CLOSED_ACTOR_TOOL_REFS.readFile, { path: "README.md" })],
+					};
+				}
+				writeFileSync(join(rejectionFixture.workspaceRoot, "README.md"), "external-drift\n");
+				return {
+					finishReason: "structured-output",
+					structuredOutput: {
+						kind: "model-turn-output-placeholder",
+						summary: "premature",
+					},
+				};
+			}),
+			continuationModelTurnPort: Object.freeze({
+				async invoke() {
+					rejectionContinuationInvocations += 1;
+					throw new TypeError("D695 rejection drift must stop before continuation");
+				},
+			}),
+			protectionExecutor: rejectionFixture.protectionExecutor,
+			verifier: rejectionFixture.verifier,
+			objectiveProgressPolicy: D693_ASSISTED_PROGRESS_POLICY,
+			noProgressContinuationPolicy: policy,
+			signal: new AbortController().signal,
+		});
+		expect(rejectionDrift.issueCodes).toEqual(["no-progress-retained-result-state-mismatch"]);
+		expect(rejectionContinuationInvocations).toBe(0);
+
+		const continuationFixture = await createClosedHostFixture(validationCommand);
+		const continuationDrift = await runClosedTaskProfileHost({
+			frozen: continuationFixture.frozen,
+			qualificationReport: continuationFixture.report,
+			initialRequest: continuationFixture.initialRequest,
+			taskProfile: continuationFixture.taskProfile,
+			materialization: continuationFixture.materialization,
+			modelTurnPort: scriptedPort(continuationFixture, (request) =>
+				request.stepIndex === 0
+					? {
+							finishReason: "tool-intents",
+							toolIntents: [intent(0, CLOSED_ACTOR_TOOL_REFS.readFile, { path: "README.md" })],
+						}
+					: {
+							finishReason: "structured-output",
+							structuredOutput: {
+								kind: "model-turn-output-placeholder",
+								summary: "premature",
+							},
+						},
+			),
+			continuationModelTurnPort: Object.freeze({
+				async invoke(request: EmpiricalModelTurnRequestV1) {
+					writeFileSync(join(continuationFixture.workspaceRoot, "README.md"), "external-drift\n");
+					return completedOutcome(
+						request,
+						continuationFixture.frozen,
+						continuationFixture.report,
+						continuationFixture.protectionExecutor,
+						{
+							finishReason: "tool-intents",
+							toolIntents: [intent(2, CLOSED_ACTOR_TOOL_REFS.readFile, { path: "README.md" })],
+						},
+					);
+				},
+			}),
+			protectionExecutor: continuationFixture.protectionExecutor,
+			verifier: continuationFixture.verifier,
+			objectiveProgressPolicy: D693_ASSISTED_PROGRESS_POLICY,
+			noProgressContinuationPolicy: policy,
+			signal: new AbortController().signal,
+		});
+		expect(continuationDrift.issueCodes).toEqual(["no-progress-continuation-state-mismatch"]);
+		expect(continuationDrift.toolActionCount).toBe(1);
+		expect(continuationFixture.verifierCalls.count).toBe(0);
+
+		const retryFixture = await createClosedHostFixture(validationCommand);
+		let retryContinuationInvocations = 0;
+		const retryDrift = await runClosedTaskProfileHost({
+			frozen: retryFixture.frozen,
+			qualificationReport: retryFixture.report,
+			initialRequest: retryFixture.initialRequest,
+			taskProfile: retryFixture.taskProfile,
+			materialization: retryFixture.materialization,
+			modelTurnPort: scriptedPort(retryFixture, (request) =>
+				request.stepIndex === 0
+					? {
+							finishReason: "tool-intents",
+							toolIntents: [intent(0, CLOSED_ACTOR_TOOL_REFS.readFile, { path: "README.md" })],
+						}
+					: {
+							finishReason: "structured-output",
+							structuredOutput: {
+								kind: "model-turn-output-placeholder",
+								summary: "premature",
+							},
+						},
+			),
+			continuationModelTurnPort: Object.freeze({
+				async invoke(request: EmpiricalModelTurnRequestV1) {
+					retryContinuationInvocations += 1;
+					return nonEvaluableOutcome(
+						request,
+						retryFixture.frozen,
+						retryFixture.report,
+						retryFixture.protectionExecutor,
+						["openrouter-error-type:provider_overloaded", "openrouter-http-status:503"],
+						256,
+					);
+				},
+			}),
+			protectionExecutor: retryFixture.protectionExecutor,
+			verifier: retryFixture.verifier,
+			objectiveProgressPolicy: D693_ASSISTED_PROGRESS_POLICY,
+			noProgressContinuationPolicy: policy,
+			retry: {
+				maxAttemptsPerTurn: 2,
+				retryDelayMs: () => 1,
+				retryAdmissionIssueCodes: () => [],
+				remainingElapsedMs: () => 10_000,
+				wait: async () => {
+					writeFileSync(join(retryFixture.workspaceRoot, "README.md"), "retry-drift\n");
+					return 1;
+				},
+			},
+			signal: new AbortController().signal,
+		});
+		expect(retryDrift.issueCodes).toEqual(["no-progress-continuation-state-mismatch"]);
+		expect(retryContinuationInvocations).toBe(1);
+		expect(retryFixture.verifierCalls.count).toBe(0);
+	}, 30_000);
+
+	it("lowers only host-issued D695 capsules through the actual OpenRouter wire", async () => {
+		const validationCommand = {
+			commandRef: D693_ASSISTED_PROGRESS_POLICY.validationCommandRef,
+			executable: "/usr/bin/grep",
+			argv: ["-q", "fixed", "README.md"],
+		} as const;
+		const fixture = await createClosedHostFixture(
+			validationCommand,
+			undefined,
+			"deepseek-v4-flash-high",
+		);
+		const routeQualification = simulatedRouteQualification(fixture, {
+			maxRequests: 8,
+			maxStepsPerRun: 8,
+			maxInputTokens: 600_000,
+			maxOutputTokens: 49_152,
+		});
+		const baseContentDigest = empiricalSha256(encoder.encode("broken-placeholder-value\n"));
+		const expectedToolChoices = ["required", "auto", "required", "required", "required", "none"];
+		const envelopeSchemas: string[] = [];
+		let transportCalls = 0;
+		const transport: OpenRouterResponsesByteTransportV1 = {
+			async request(input) {
+				const callIndex = transportCalls;
+				transportCalls += 1;
+				const body = JSON.parse(new TextDecoder().decode(input.body)) as {
+					readonly tool_choice: string;
+					readonly messages: readonly { readonly role: string; readonly content: string }[];
+					readonly tools: readonly { readonly function: { readonly name: string } }[];
+				};
+				expect(body.tool_choice).toBe(expectedToolChoices[callIndex]);
+				const userMessage = body.messages.find((message) => message.role === "user");
+				if (userMessage === undefined) throw new TypeError("missing D695 user envelope");
+				const envelope = JSON.parse(userMessage.content) as {
+					readonly schemaVersion: string;
+					readonly hostContinuation?: {
+						readonly reason: string;
+						readonly requiredDisposition: string;
+						readonly retainedToolResultCount: number;
+					};
+				};
+				envelopeSchemas.push(envelope.schemaVersion);
+				if (callIndex < 2) {
+					expect(envelope).not.toHaveProperty("hostContinuation");
+				} else {
+					expect(envelope.hostContinuation?.reason).toBe("premature-structured-output");
+				}
+				const toolNames = body.tools.map((tool) => tool.function.name);
+				const output =
+					callIndex === 0
+						? [
+								{
+									type: "function_call",
+									status: "completed",
+									call_id: "call.d695.read",
+									name: toolNames[0],
+									arguments: JSON.stringify({ path: "README.md" }),
+								},
+							]
+						: callIndex === 1
+							? [
+									{
+										type: "message",
+										role: "assistant",
+										status: "completed",
+										content: [
+											{
+												type: "output_text",
+												text: JSON.stringify({
+													kind: "model-turn-output-placeholder",
+													summary: "premature",
+												}),
+											},
+										],
+									},
+								]
+							: callIndex === 2
+								? [
+										{
+											type: "function_call",
+											status: "completed",
+											call_id: "call.d695.replace",
+											name: toolNames[2],
+											arguments: JSON.stringify({
+												baseContentDigest,
+												newText: "fixed",
+												oldText: "broken-placeholder-value",
+												path: "README.md",
+											}),
+										},
+									]
+								: callIndex === 3
+									? [
+											{
+												type: "function_call",
+												status: "completed",
+												call_id: "call.d695.diff",
+												name: toolNames[3],
+												arguments: "{}",
+											},
+										]
+									: callIndex === 4
+										? [
+												{
+													type: "function_call",
+													status: "completed",
+													call_id: "call.d695.command",
+													name: toolNames[4],
+													arguments: JSON.stringify({
+														commandRef: validationCommand.commandRef,
+													}),
+												},
+											]
+										: [
+												{
+													type: "message",
+													role: "assistant",
+													status: "completed",
+													content: [
+														{
+															type: "output_text",
+															text: JSON.stringify({
+																kind: "model-turn-output-placeholder",
+																summary: "verified",
+															}),
+														},
+													],
+												},
+											];
+				return dryRunOpenRouterResponse(`response.d695.${transportCalls}`, output, undefined, {
+					requestModel: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+					downstreamProviderName: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+				});
+			},
+		};
+		let measurement = 0;
+		const binding = createOpenRouterResponsesEmpiricalBinding({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			configurationRef: fixture.initialRequest.configurationRef,
+			routeQualification,
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: "d695-wire-credential-placeholder",
+			},
+			transport,
+			transportAdmission: { admit: () => true },
+			monotonicMeasurement: { readMs: () => (measurement += 1) },
+		});
+		const continuationCaptures: {
+			readonly request: EmpiricalModelTurnRequestV1;
+			readonly continuation: ClosedHostContinuationV1;
+		}[] = [];
+		const forwardingContinuationPort: ClosedContinuationModelTurnPortV1 = Object.freeze({
+			async invoke(
+				request: EmpiricalModelTurnRequestV1,
+				continuation: ClosedHostContinuationV1,
+				signal: AbortSignal,
+			) {
+				if (continuationCaptures.length === 0) {
+					continuationCaptures.push({ request, continuation });
+				}
+				return binding.continuationModelTurnPort.invoke(request, continuation, signal);
+			},
+		});
+		const outcome = await runClosedTaskProfileHost({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			initialRequest: fixture.initialRequest,
+			taskProfile: fixture.taskProfile,
+			materialization: fixture.materialization,
+			modelTurnPort: binding.modelTurnPort,
+			continuationModelTurnPort: forwardingContinuationPort,
+			protectionExecutor: binding.protectionExecutor,
+			verifier: fixture.verifier,
+			objectiveProgressPolicy: D693_ASSISTED_PROGRESS_POLICY,
+			noProgressContinuationPolicy: D695_NO_PROGRESS_CONTINUATION_POLICY,
+			signal: new AbortController().signal,
+		});
+		expect(outcome).toMatchObject({ status: "completed", verifierVerdict: "passed" });
+		expect(transportCalls).toBe(6);
+		expect(envelopeSchemas.slice(0, 2)).toEqual([
+			"graphrefly.private-solution-eval.openrouter-user-envelope.v2",
+			"graphrefly.private-solution-eval.openrouter-user-envelope.v2",
+		]);
+		expect(new Set(envelopeSchemas.slice(2))).toEqual(
+			new Set(["graphrefly.private-solution-eval.openrouter-user-envelope.d695.v1"]),
+		);
+		const captured = continuationCaptures[0];
+		if (captured === undefined) {
+			throw new TypeError("D695 host did not issue a continuation request");
+		}
+		const substitutedRequest = validateEmpiricalModelTurnRequest(
+			{
+				...captured.request,
+				requestRef: `${captured.request.requestRef}.substituted`,
+			},
+			fixture.frozen,
+			fixture.report,
+		);
+		await expect(
+			binding.continuationModelTurnPort.invoke(
+				substitutedRequest,
+				captured.continuation,
+				new AbortController().signal,
+			),
+		).rejects.toThrow("OpenRouter continuation was not issued by the closed host");
+		expect(transportCalls).toBe(6);
+	}, 30_000);
+
+	it("persists one canonical material-free D695 no-network qualification atomically", async () => {
+		const validationCommand = {
+			commandRef: D693_ASSISTED_PROGRESS_POLICY.validationCommandRef,
+			executable: "/usr/bin/grep",
+			argv: ["-q", "fixed", "README.md"],
+		} as const;
+		const otherCommand = {
+			commandRef: "actor.status",
+			executable: "/usr/bin/git",
+			argv: ["status", "--porcelain=v1"],
+		} as const;
+		const fixture = await createClosedHostFixture([validationCommand, otherCommand]);
+		const plan = strictSnapshot({
+			readPaths: ["README.md"],
+			writablePath: "README.md",
+			initialContentDigest: empiricalSha256(encoder.encode("broken-placeholder-value\n")),
+			initialOldText: "broken-placeholder-value",
+			acceptedNewText: "fixed",
+			rejectedNewText: "still-broken",
+			acceptedContentDigest: empiricalSha256(encoder.encode("fixed\n")),
+			validationCommandRef: validationCommand.commandRef,
+			otherCommandRef: otherCommand.commandRef,
+		});
+		let forgedRootGetterHits = 0;
+		let forgedCleanupHits = 0;
+		const forgedWorkspace = { kind: fixture.materialization.workspace.kind } as Record<
+			string,
+			unknown
+		>;
+		Object.defineProperty(forgedWorkspace, "rootPathForHostRunner", {
+			enumerable: true,
+			get() {
+				forgedRootGetterHits += 1;
+				return () => fixture.workspaceRoot;
+			},
+		});
+		await expect(
+			runD695OfflineCase({
+				caseRef: D695_CASE_ORDER[0],
+				host: {
+					frozen: fixture.frozen,
+					qualificationReport: fixture.report,
+					initialRequest: fixture.initialRequest,
+					taskProfile: fixture.taskProfile,
+					materialization: {
+						workspace:
+							forgedWorkspace as unknown as HistoryFreeSingleBaselineRepositoryMaterializationV1["workspace"],
+						evidence: fixture.materialization.evidence,
+						async cleanup() {
+							forgedCleanupHits += 1;
+						},
+					},
+					protectionExecutor: fixture.protectionExecutor,
+				},
+				plan,
+				signal: new AbortController().signal,
+			}),
+		).rejects.toThrow("trusted local single-baseline materialization");
+		expect(forgedRootGetterHits).toBe(0);
+		expect(forgedCleanupHits).toBe(0);
+		const reports: Awaited<ReturnType<typeof runD695OfflineCase>>[] = [];
+		for (const [index, caseRef] of D695_CASE_ORDER.entries()) {
+			const materialization =
+				index === 0
+					? fixture.materialization
+					: await fixture.prepareFreshMaterialization(new AbortController().signal);
+			reports.push(
+				await runD695OfflineCase({
+					caseRef,
+					host: {
+						frozen: fixture.frozen,
+						qualificationReport: fixture.report,
+						initialRequest: fixture.initialRequest,
+						taskProfile: fixture.taskProfile,
+						materialization,
+						protectionExecutor: fixture.protectionExecutor,
+					},
+					plan,
+					signal: new AbortController().signal,
+				}),
+			);
+		}
+		const qualification = createD695OfflineQualification(reports);
+		expect(qualification).toMatchObject({
+			qualified: true,
+			feedbackRecoveryPassed: true,
+			retainedResultsBound: true,
+			repeatedInspectionStoppedBeforeExecution: true,
+			multipleIntentStoppedBeforeExecution: true,
+			mutationStateResetPassed: true,
+			providerCallCount: 0,
+			networkCallCount: 0,
+			chargedCostMicrousd: 0,
+			causalAttribution: "undetermined",
+			efficacyClaim: "none",
+		});
+		expect(
+			validateD695OfflineQualification(
+				strictJsonCodec.decode(strictJsonCodec.encode(qualification)),
+			),
+		).toEqual(qualification);
+		expect(() =>
+			createD695OfflineQualification(reports.map((report) => strictSnapshot(report))),
+		).toThrow("closed-host-produced reports");
+		expect(() =>
+			validateD695OfflineQualification({ ...qualification, efficacyClaim: "positive" }),
+		).toThrow('expected "none"');
+
+		const operatorRoot = temporaryRoot("d695-private");
+		const privateParent = join(operatorRoot, ".private");
+		const privateRoot = join(privateParent, "empirical-memory-rerun-avoidance");
+		mkdirSync(privateParent, { mode: 0o700 });
+		mkdirSync(privateRoot, { mode: 0o700 });
+		chmodSync(privateRoot, 0o700);
+		const persisted = await persistD695OfflineQualification({
+			privateRoot,
+			generationRef: "d695-no-progress-offline-v1",
+			qualification,
+			protectionExecutor: fixture.protectionExecutor,
+		});
+		expect(readdirSync(persisted.generationPath).sort()).toEqual([
+			"generation.v1.json",
+			"no-progress-continuation-qualification.v1.json",
+		]);
+		for (const file of readdirSync(persisted.generationPath)) {
+			expect(statSync(join(persisted.generationPath, file)).mode & 0o777).toBe(0o600);
+		}
+		const serialized = JSON.stringify(
+			JSON.parse(
+				readFileSync(
+					join(persisted.generationPath, "no-progress-continuation-qualification.v1.json"),
+					"utf8",
+				),
+			),
+		);
+		expect(serialized).not.toContain("broken-placeholder-value");
+		expect(serialized).not.toContain("fixed\n");
+		await expect(
+			persistD695OfflineQualification({
+				privateRoot,
+				generationRef: "d695-replay-forgery",
+				qualification: validateD695OfflineQualification(
+					strictJsonCodec.decode(strictJsonCodec.encode(qualification)),
+				),
+				protectionExecutor: fixture.protectionExecutor,
+			}),
+		).rejects.toThrow("same-process qualification");
+		expect(() => statSync(join(privateRoot, "d695-replay-forgery"))).toThrow();
+
+		const atomicRoot = temporaryRoot("d695-atomic");
+		const stagingPath = join(atomicRoot, ".d695-staging-test");
+		const finalPath = join(atomicRoot, "d695-final-test");
+		mkdirSync(stagingPath, { mode: 0o700 });
+		writeFileSync(join(stagingPath, "generation.v1.json"), "{}", { mode: 0o600 });
+		let parentSyncCount = 0;
+		await expect(
+			commitD695PrivateGenerationAtomically(stagingPath, finalPath, atomicRoot, {
+				rename: async (from, to) => {
+					renameSync(from, to);
+				},
+				remove: async (path) => {
+					rmSync(path, { recursive: true, force: true });
+				},
+				syncParent: async () => {
+					parentSyncCount += 1;
+					if (parentSyncCount === 1) throw new TypeError("injected D695 parent fsync failure");
+				},
+			}),
+		).rejects.toThrow("injected D695 parent fsync failure");
+		expect(parentSyncCount).toBe(2);
+		expect(() => statSync(stagingPath)).toThrow();
+		expect(() => statSync(finalPath)).toThrow();
+	}, 30_000);
 
 	it("fails a stale D682 exact-text proposal before mutation or verifier execution", async () => {
 		const fixture = await createClosedHostFixture(

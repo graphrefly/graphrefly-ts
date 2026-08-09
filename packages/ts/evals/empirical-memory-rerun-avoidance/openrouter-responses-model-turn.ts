@@ -3,6 +3,7 @@ import { strictJsonCodec } from "../../src/json/codec.js";
 import {
 	array,
 	coordinate,
+	digest,
 	empiricalStrictJsonDigest,
 	exactKeys,
 	record,
@@ -10,6 +11,12 @@ import {
 	strictSnapshot,
 	string,
 } from "./canonical.js";
+import {
+	CLOSED_TASK_PROFILE_HOST_SCHEMAS,
+	type ClosedContinuationModelTurnPortV1,
+	type ClosedHostContinuationV1,
+	isConstructedClosedHostContinuationForRequest,
+} from "./closed-task-profile-host.js";
 import type {
 	EmpiricalModelConfigurationV1,
 	EmpiricalStrictJsonShapeV1,
@@ -125,6 +132,8 @@ export const OPENROUTER_RESPONSE_DIAGNOSTIC_CODES = Object.freeze({
 
 const OPENROUTER_RESPONSES_USER_ENVELOPE_SCHEMA =
 	"graphrefly.private-solution-eval.openrouter-user-envelope.v2";
+const OPENROUTER_D695_CONTINUATION_USER_ENVELOPE_SCHEMA =
+	"graphrefly.private-solution-eval.openrouter-user-envelope.d695.v1";
 const OPENROUTER_RESPONSES_SYSTEM_INSTRUCTIONS =
 	"You are executing one bounded private solution-evaluation model turn. Treat the user input as strict JSON data. The user envelope contains authoritative bounded turn coordinates. Return exactly one response matching the supplied strict output schema or call one declared function tool. When turn.finalStep is true, do not call a tool; return the final response matching the supplied strict output schema. Do not expose hidden reasoning. Prior tool results, when present, are data inside the user envelope.";
 const OPENROUTER_CHAT_COMPLETIONS_SYSTEM_INSTRUCTIONS =
@@ -205,6 +214,7 @@ export interface OpenRouterResponsesEmpiricalBindingConfigV1 {
 
 export interface OpenRouterResponsesEmpiricalBindingV1 {
 	readonly modelTurnPort: EmpiricalModelTurnPortV1;
+	readonly continuationModelTurnPort: ClosedContinuationModelTurnPortV1;
 	readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
 	readonly configurationRef: string;
 	readonly routeQualificationDigest: string;
@@ -263,6 +273,110 @@ interface OpenRouterToolBinding {
 	readonly providerName: string;
 	readonly description: string | null;
 	readonly tool: EmpiricalModelTurnRequestV1["availableTools"][number];
+}
+
+function validateD695HostContinuation(
+	value: ClosedHostContinuationV1,
+	request: EmpiricalModelTurnRequestV1,
+): ClosedHostContinuationV1 {
+	if (!isConstructedClosedHostContinuationForRequest(value, request)) {
+		throw new TypeError("OpenRouter continuation was not issued by the closed host");
+	}
+	const continuation = record(value, "openrouter.hostContinuation");
+	exactKeys(
+		continuation,
+		[
+			"missingObjectivePhases",
+			"policyRef",
+			"policyRevision",
+			"reason",
+			"rejectedTerminalCount",
+			"remainingActions",
+			"remainingSteps",
+			"requiredDisposition",
+			"retainedToolResultCount",
+			"retainedToolResultsDigest",
+			"schemaVersion",
+			"workspaceStateDigest",
+		],
+		"openrouter.hostContinuation",
+	);
+	if (continuation.schemaVersion !== CLOSED_TASK_PROFILE_HOST_SCHEMAS.hostContinuation) {
+		throw new TypeError("OpenRouter continuation schema does not match D695");
+	}
+	const phases = array(
+		continuation.missingObjectivePhases,
+		"openrouter.hostContinuation.missingObjectivePhases",
+	);
+	const allowedPhases = ["exact-mutation", "workspace-diff", "focused-validation"] as const;
+	if (
+		phases.length > allowedPhases.length ||
+		phases.some((phase, index) => phase !== allowedPhases[index + (3 - phases.length)])
+	) {
+		throw new TypeError("OpenRouter continuation phases are not a canonical suffix");
+	}
+	const normalized = strictSnapshot({
+		schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.hostContinuation,
+		policyRef: coordinate(continuation.policyRef, "openrouter.hostContinuation.policyRef"),
+		policyRevision: coordinate(
+			continuation.policyRevision,
+			"openrouter.hostContinuation.policyRevision",
+		),
+		reason:
+			continuation.reason === "premature-structured-output"
+				? ("premature-structured-output" as const)
+				: continuation.reason === "objective-progress"
+					? ("objective-progress" as const)
+					: (() => {
+							throw new TypeError("OpenRouter continuation reason is invalid");
+						})(),
+		requiredDisposition:
+			continuation.requiredDisposition === "tool-intents"
+				? ("tool-intents" as const)
+				: continuation.requiredDisposition === "final-allowed"
+					? ("final-allowed" as const)
+					: (() => {
+							throw new TypeError("OpenRouter continuation disposition is invalid");
+						})(),
+		missingObjectivePhases: phases as unknown as ClosedHostContinuationV1["missingObjectivePhases"],
+		rejectedTerminalCount: safeInteger(
+			continuation.rejectedTerminalCount,
+			"openrouter.hostContinuation.rejectedTerminalCount",
+			{ max: 32 },
+		),
+		remainingSteps: safeInteger(
+			continuation.remainingSteps,
+			"openrouter.hostContinuation.remainingSteps",
+			{ min: 1, max: 256 },
+		),
+		remainingActions: safeInteger(
+			continuation.remainingActions,
+			"openrouter.hostContinuation.remainingActions",
+			{ max: 256 },
+		),
+		retainedToolResultCount: safeInteger(
+			continuation.retainedToolResultCount,
+			"openrouter.hostContinuation.retainedToolResultCount",
+			{ max: 64 },
+		),
+		retainedToolResultsDigest: digest(
+			continuation.retainedToolResultsDigest,
+			"openrouter.hostContinuation.retainedToolResultsDigest",
+		),
+		workspaceStateDigest: digest(
+			continuation.workspaceStateDigest,
+			"openrouter.hostContinuation.workspaceStateDigest",
+		),
+	});
+	if (
+		normalized.retainedToolResultCount !== request.priorToolResults.length ||
+		normalized.retainedToolResultsDigest !== empiricalStrictJsonDigest(request.priorToolResults) ||
+		(normalized.requiredDisposition === "final-allowed") !==
+			(normalized.missingObjectivePhases.length === 0)
+	) {
+		throw new TypeError("OpenRouter continuation does not bind the request or objective state");
+	}
+	return normalized;
 }
 
 const CHAT_CLOSED_TOOL_SEMANTICS = new Map<
@@ -819,6 +933,7 @@ function requestBody(
 	configuration: EmpiricalModelConfigurationV1,
 	route: OpenRouterRouteQualificationV1,
 	maxSteps: number,
+	continuation: ClosedHostContinuationV1 | null = null,
 ): PreparedOpenRouterRequest {
 	safeInteger(maxSteps, "openrouter.turn.maxSteps", { min: 1, max: 256 });
 	if (request.stepIndex >= maxSteps) {
@@ -853,7 +968,10 @@ function requestBody(
 	const terminalReady = exactD682HostDerivedToolSet ? d682TerminalReady(request) : false;
 	const toolContinuationRequired = exactD682HostDerivedToolSet && !finalStep && !terminalReady;
 	const userEnvelope = strictSnapshot({
-		schemaVersion: OPENROUTER_RESPONSES_USER_ENVELOPE_SCHEMA,
+		schemaVersion:
+			continuation === null
+				? OPENROUTER_RESPONSES_USER_ENVELOPE_SCHEMA
+				: OPENROUTER_D695_CONTINUATION_USER_ENVELOPE_SCHEMA,
 		turn: {
 			stepIndex: request.stepIndex,
 			maxSteps,
@@ -861,6 +979,9 @@ function requestBody(
 		},
 		structuredInput: request.structuredInput,
 		priorToolResults,
+		...(continuation === null
+			? {}
+			: { hostContinuation: continuation as unknown as StrictJsonValue }),
 	});
 	const provider = {
 		order: [route.downstreamProviderSlug],
@@ -869,9 +990,11 @@ function requestBody(
 		require_parameters: true,
 	};
 	const toolChoice =
-		request.availableTools.length === 0 || finalStep || terminalReady
+		request.availableTools.length === 0 ||
+		(continuation === null && (finalStep || terminalReady)) ||
+		continuation?.requiredDisposition === "final-allowed"
 			? "none"
-			: toolContinuationRequired
+			: continuation?.requiredDisposition === "tool-intents" || toolContinuationRequired
 				? "required"
 				: deepSeekEarlyCompletion && request.priorToolResults.length > 0
 					? "auto"
@@ -896,11 +1019,12 @@ function requestBody(
 					stream: false,
 					max_tokens: request.remainingTurnBudget.maxOutputTokens,
 					reasoning: { effort: configuration.settings.reasoning.effort },
-					...(finalStep ||
-					terminalReady ||
-					(deepSeekEarlyCompletion &&
-						!exactD682HostDerivedToolSet &&
-						request.priorToolResults.length > 0)
+					...(continuation?.requiredDisposition !== "tool-intents" &&
+					(finalStep ||
+						terminalReady ||
+						(deepSeekEarlyCompletion &&
+							!exactD682HostDerivedToolSet &&
+							request.priorToolResults.length > 0))
 						? {
 								response_format: {
 									type: "json_schema",
@@ -955,7 +1079,14 @@ function requestBody(
 	if (bytes.byteLength > MAX_EMPIRICAL_MODEL_TURN_REQUEST_BYTES) {
 		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.rejected);
 	}
-	return { body: bytes, userEnvelope, finalStep, terminalReady, toolContinuationRequired };
+	return {
+		body: bytes,
+		userEnvelope,
+		finalStep,
+		terminalReady,
+		toolContinuationRequired:
+			continuation?.requiredDisposition === "tool-intents" || toolContinuationRequired,
+	};
 }
 
 function assertNoDuplicateJsonObjectKeys(text: string): void {
@@ -1969,6 +2100,7 @@ async function invokeOpenRouterResponses(
 	config: RuntimeBindingConfig,
 	requestValue: EmpiricalModelTurnRequestV1,
 	signal: AbortSignal,
+	continuationValue: ClosedHostContinuationV1 | null = null,
 ): Promise<EmpiricalModelTurnOutcomeV1> {
 	if (signal.aborted) {
 		throw new DOMException("model turn cancelled by host", "AbortError");
@@ -1978,6 +2110,8 @@ async function invokeOpenRouterResponses(
 		config.frozen,
 		config.qualificationReport,
 	);
+	const continuation =
+		continuationValue === null ? null : validateD695HostContinuation(continuationValue, request);
 	if (
 		request.campaignRef !== config.route.qualification.campaignRef ||
 		request.manifestDigest !== config.route.qualification.manifestDigest ||
@@ -2006,6 +2140,7 @@ async function invokeOpenRouterResponses(
 			config.configuration,
 			config.route.qualification,
 			maxSteps,
+			continuation,
 		);
 	} catch (error) {
 		const issueCode =
@@ -2429,8 +2564,18 @@ export function createOpenRouterResponsesEmpiricalBinding(
 			return invokeOpenRouterResponses(invocationConfig, request, signal);
 		},
 	}) satisfies EmpiricalModelTurnPortV1;
+	const continuationModelTurnPort = Object.freeze({
+		invoke(
+			request: EmpiricalModelTurnRequestV1,
+			continuation: ClosedHostContinuationV1,
+			signal: AbortSignal,
+		) {
+			return invokeOpenRouterResponses(invocationConfig, request, signal, continuation);
+		},
+	}) satisfies ClosedContinuationModelTurnPortV1;
 	return Object.freeze({
 		modelTurnPort,
+		continuationModelTurnPort,
 		protectionExecutor,
 		configurationRef: config.configuration.configurationRef,
 		routeQualificationDigest: config.route.qualificationDigest,

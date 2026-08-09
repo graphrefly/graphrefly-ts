@@ -174,7 +174,7 @@ export function createD693ObjectiveProgressPolicy(input: {
 	return D693_ASSISTED_PROGRESS_POLICY;
 }
 
-function assertD693OfflineCommandFixture(
+export function assertD693OfflineCommandFixture(
 	host: D693PreparedHostV1,
 	plan: D693ScriptedMutationPlanV1,
 ): void {

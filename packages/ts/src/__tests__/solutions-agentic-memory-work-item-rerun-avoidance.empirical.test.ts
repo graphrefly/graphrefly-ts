@@ -817,12 +817,16 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				"d693-assisted-progress-qualification.ts",
 			);
 			const allowsD694AssistedTransferOperator = file.endsWith("d694-assisted-progress-live.ts");
+			const allowsD695OfflineQualificationOperator = file.endsWith(
+				"d695-no-progress-continuation-qualification.ts",
+			);
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
 				allowsD692OfflineForensicOperator ||
 				allowsD693OfflineQualificationOperator ||
 				allowsD694AssistedTransferOperator ||
+				allowsD695OfflineQualificationOperator ||
 				file.endsWith("openrouter-first-task-smoke.ts") ||
 				file.endsWith("private-smoke-persistence.ts");
 			const allowsOneRequestFetchTransport =
