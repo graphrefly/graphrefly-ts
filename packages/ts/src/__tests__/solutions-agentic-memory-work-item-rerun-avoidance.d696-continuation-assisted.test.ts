@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rename, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -15,6 +15,22 @@ import {
 	validateD696D694HistoricalArtifacts,
 	validateD696DryRunArtifactBytes,
 } from "../../evals/empirical-memory-rerun-avoidance/d696-continuation-assisted-live.js";
+import {
+	acquireD699SingleUseDispatchClaimAtPrivateRoot,
+	D699_LIVE_GENERATION_REF,
+	D699_SINGLE_USE_DISPATCH_CLAIM_DIRECTORY,
+} from "../../evals/empirical-memory-rerun-avoidance/d699-single-use-dispatch-claim.js";
+
+async function createPrivateTestRoot(prefix: string): Promise<{
+	readonly container: string;
+	readonly privateRoot: string;
+}> {
+	const container = await mkdtemp(join(tmpdir(), prefix));
+	const privateRoot = join(container, ".private", "empirical-memory-rerun-avoidance");
+	await mkdir(privateRoot, { recursive: true, mode: 0o700 });
+	await chmod(privateRoot, 0o700);
+	return { container, privateRoot };
+}
 
 describe("D696 continuation-assisted historical transfer evidence", () => {
 	it("binds the D697-qualified bounded continuation policy", () => {
@@ -25,6 +41,52 @@ describe("D696 continuation-assisted historical transfer evidence", () => {
 		expect(D696_D695_IMPLEMENTATION_COMMIT).toBe("69a20d0d");
 		expect(D696_LIVE_SPEND_APPROVAL_REF).toBe("decision.D699");
 		expect(D696_LIVE_SPEND_APPROVAL_REVISION).toBe("decision.D699.2026-08-08.v1");
+		expect(D699_LIVE_GENERATION_REF).toBe("d696-continuation-assisted-live-2026-08-08-d699-v2");
+	});
+
+	it("atomically permits only one D699 paid dispatch contender", async () => {
+		const { container, privateRoot } = await createPrivateTestRoot("graphrefly-d699-claim-");
+		try {
+			let downstreamAdmissions = 0;
+			const contender = async () => {
+				await acquireD699SingleUseDispatchClaimAtPrivateRoot(privateRoot);
+				downstreamAdmissions += 1;
+			};
+			const results = await Promise.allSettled([contender(), contender()]);
+			expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+			expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+			expect(downstreamAdmissions).toBe(1);
+			await expect(acquireD699SingleUseDispatchClaimAtPrivateRoot(privateRoot)).rejects.toThrow(
+				/already claimed/,
+			);
+			const claimPath = join(privateRoot, D699_SINGLE_USE_DISPATCH_CLAIM_DIRECTORY);
+			expect((await stat(claimPath)).mode & 0o777).toBe(0o700);
+			const claimFile = join(claimPath, "dispatch-claim.v1.json");
+			expect((await stat(claimFile)).mode & 0o777).toBe(0o600);
+			expect(JSON.parse(await readFile(claimFile, "utf8"))).toMatchObject({
+				decisionRef: "decision.D699",
+				generationRef: D699_LIVE_GENERATION_REF,
+				disposition: "consumed-before-credential-or-network",
+			});
+		} finally {
+			await rm(container, { recursive: true, force: true });
+		}
+	});
+
+	it("treats a partial D699 claim as permanently consumed", async () => {
+		const { container, privateRoot } = await createPrivateTestRoot(
+			"graphrefly-d699-partial-claim-",
+		);
+		try {
+			await mkdir(join(privateRoot, D699_SINGLE_USE_DISPATCH_CLAIM_DIRECTORY), {
+				mode: 0o700,
+			});
+			await expect(acquireD699SingleUseDispatchClaimAtPrivateRoot(privateRoot)).rejects.toThrow(
+				/already claimed/,
+			);
+		} finally {
+			await rm(container, { recursive: true, force: true });
+		}
 	});
 
 	it("fails closed on missing historical and integrated dry-run bytes", () => {
