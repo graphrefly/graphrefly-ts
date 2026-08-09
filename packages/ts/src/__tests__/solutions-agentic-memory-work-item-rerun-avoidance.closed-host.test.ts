@@ -3499,6 +3499,197 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(outcome.turnEvidence[0]?.issueCodes).toEqual(["agent-run-elapsed-budget-exhausted"]);
 	});
 
+	it("accounts for a completed charged turn before classifying its owned elapsed deadline", async () => {
+		const fixture = await createClosedHostFixture();
+		const elapsed = new AbortController();
+		const outcome = await runClosedTaskProfileHost({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			initialRequest: fixture.initialRequest,
+			taskProfile: fixture.taskProfile,
+			materialization: fixture.materialization,
+			modelTurnPort: {
+				async invoke(request) {
+					elapsed.abort();
+					return completedOutcome(
+						request,
+						fixture.frozen,
+						fixture.report,
+						fixture.protectionExecutor,
+						{
+							finishReason: "structured-output",
+							structuredOutput: {
+								kind: "model-turn-output-placeholder",
+								summary: "bounded-placeholder",
+							},
+						},
+					);
+				},
+			},
+			protectionExecutor: fixture.protectionExecutor,
+			verifier: fixture.verifier,
+			agentRunElapsedSignal: elapsed.signal,
+			signal: elapsed.signal,
+		});
+
+		expect(outcome.status).toBe("non-evaluable");
+		expect(outcome.issueCodes).toEqual(["agent-run-elapsed-budget-exhausted"]);
+		expect(outcome.remoteRequests).toBe(1);
+		expect(outcome.logicalStepCount).toBe(1);
+		expect(outcome.attemptCount).toBe(1);
+		expect(outcome.turnEvidence).toHaveLength(1);
+		expect(outcome.turnEvidence[0]).toMatchObject({
+			inputTokens: 10,
+			outputTokens: 10,
+			totalTokens: 20,
+			requests: 1,
+		});
+		expect(fixture.verifierCalls.count).toBe(0);
+	});
+
+	it("accounts for a completed charged continuation before its owned elapsed deadline", async () => {
+		const fixture = await createClosedHostFixture([
+			{
+				commandRef: D693_ASSISTED_PROGRESS_POLICY.validationCommandRef,
+				executable: "/usr/bin/grep",
+				argv: ["-q", "fixed", "README.md"],
+			},
+		]);
+		const elapsed = new AbortController();
+		const policy = strictSnapshot({
+			schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.noProgressContinuationPolicy,
+			policyRef: "no-progress.d695.elapsed-accounting",
+			policyRevision: "decision.D695.2026-08-08.v1",
+			maxRetainedToolResults: 16,
+			maxRetainedBytes: 240_000,
+			maxRejectedTerminals: 2,
+			maxSemanticDuplicateRejections: 1,
+			maxInspectionBatchesPerState: 16,
+		}) satisfies ClosedNoProgressContinuationPolicyV1;
+		let continuationInvocations = 0;
+		const outcome = await runClosedTaskProfileHost({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			initialRequest: fixture.initialRequest,
+			taskProfile: fixture.taskProfile,
+			materialization: fixture.materialization,
+			modelTurnPort: scriptedPort(fixture, () => ({
+				finishReason: "structured-output",
+				structuredOutput: {
+					kind: "model-turn-output-placeholder",
+					summary: "premature",
+				},
+			})),
+			continuationModelTurnPort: Object.freeze({
+				async invoke(request: EmpiricalModelTurnRequestV1) {
+					continuationInvocations += 1;
+					elapsed.abort();
+					return completedOutcome(
+						request,
+						fixture.frozen,
+						fixture.report,
+						fixture.protectionExecutor,
+						{
+							finishReason: "structured-output",
+							structuredOutput: {
+								kind: "model-turn-output-placeholder",
+								summary: "still-premature",
+							},
+						},
+					);
+				},
+			}),
+			protectionExecutor: fixture.protectionExecutor,
+			verifier: fixture.verifier,
+			objectiveProgressPolicy: D693_ASSISTED_PROGRESS_POLICY,
+			noProgressContinuationPolicy: policy,
+			agentRunElapsedSignal: elapsed.signal,
+			signal: elapsed.signal,
+		});
+
+		expect(continuationInvocations).toBe(1);
+		expect(outcome.status).toBe("non-evaluable");
+		expect(outcome.issueCodes).toEqual(["agent-run-elapsed-budget-exhausted"]);
+		expect(outcome.remoteRequests).toBe(2);
+		expect(outcome.logicalStepCount).toBe(2);
+		expect(outcome.attemptCount).toBe(2);
+		expect(outcome.turnEvidence).toHaveLength(2);
+		expect(outcome.turnEvidence.map((entry) => entry.requests)).toEqual([1, 1]);
+		expect(outcome.turnEvidence.map((entry) => entry.inputTokens)).toEqual([10, 10]);
+		expect(outcome.toolActionCount).toBe(0);
+		expect(outcome.actionTrace).toEqual([]);
+		expect(fixture.verifierCalls.count).toBe(0);
+	});
+
+	it("keeps owned elapsed cancellation ahead of cumulative output exhaustion after accounting", async () => {
+		const fixture = await createClosedHostFixture();
+		const elapsed = new AbortController();
+		const initialRequest = {
+			...fixture.initialRequest,
+			remainingTurnBudget: {
+				...fixture.initialRequest.remainingTurnBudget,
+				maxOutputBytes: 4_096,
+			},
+		};
+		let invocations = 0;
+		const outcome = await runClosedTaskProfileHost({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			initialRequest,
+			taskProfile: fixture.taskProfile,
+			materialization: fixture.materialization,
+			modelTurnPort: {
+				async invoke(request: EmpiricalModelTurnRequestV1) {
+					invocations += 1;
+					if (invocations === 1) {
+						return nonEvaluableOutcome(
+							request,
+							fixture.frozen,
+							fixture.report,
+							fixture.protectionExecutor,
+							["openrouter-error-type:provider_overloaded", "openrouter-http-status:503"],
+							2_500,
+						);
+					}
+					elapsed.abort();
+					return completedOutcome(
+						request,
+						fixture.frozen,
+						fixture.report,
+						fixture.protectionExecutor,
+						{
+							finishReason: "structured-output",
+							structuredOutput: {
+								kind: "model-turn-output-placeholder",
+								summary: "bounded-placeholder",
+							},
+						},
+					);
+				},
+			},
+			protectionExecutor: fixture.protectionExecutor,
+			verifier: fixture.verifier,
+			retry: {
+				maxAttemptsPerTurn: 3,
+				retryDelayMs: () => 1,
+				retryAdmissionIssueCodes: () => [],
+				remainingElapsedMs: () => 10_000,
+				wait: async () => 1,
+			},
+			agentRunElapsedSignal: elapsed.signal,
+			signal: elapsed.signal,
+		});
+
+		expect(invocations).toBe(2);
+		expect(outcome.status).toBe("non-evaluable");
+		expect(outcome.issueCodes).toEqual(["agent-run-elapsed-budget-exhausted"]);
+		expect(outcome.remoteRequests).toBe(2);
+		expect(outcome.attemptCount).toBe(2);
+		expect(outcome.turnEvidence).toHaveLength(2);
+		expect(outcome.hostOutputBytes).toBe(4_548);
+		expect(fixture.verifierCalls.count).toBe(0);
+	});
+
 	it("keeps caller-first cancellation transport-owned after the elapsed signal follows", async () => {
 		const fixture = await createClosedHostFixture();
 		const caller = new AbortController();

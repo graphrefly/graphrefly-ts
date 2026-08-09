@@ -1656,14 +1656,6 @@ async function executeValidatedHost(
 				if (input.signal.aborted) throw new HostRunFailure("host-cancelled");
 				throw new HostRunFailure("model-turn-invocation-failed");
 			}
-			if (
-				continuation !== null &&
-				objectiveWorkspaceStateDigest(
-					await captureWorkspaceSnapshot(workspaceRoot, input.signal),
-				) !== continuation.workspaceStateDigest
-			) {
-				throw new HostRunFailure("no-progress-continuation-state-mismatch");
-			}
 			const cancelledAfterInvocation = input.signal.aborted;
 			try {
 				outcome = validateEmpiricalModelTurnOutcome(
@@ -1677,9 +1669,6 @@ async function executeValidatedHost(
 			}
 			evidence.logicalStepCount = stepIndex + 1;
 			evidence.attemptCount += 1;
-			if (cancelledAfterInvocation && outcome.status !== "non-evaluable") {
-				throw new HostRunFailure("host-cancelled");
-			}
 			evidence.remoteRequests += outcome.usage.requests;
 			evidence.hostInputBytes = checkedSum(
 				evidence.hostInputBytes,
@@ -1712,8 +1701,20 @@ async function executeValidatedHost(
 					protectionReceipt: outcome.protectionReceipt,
 				}),
 			);
+			if (cancelledAfterInvocation && outcome.status !== "non-evaluable") {
+				throw new HostRunFailure("host-cancelled");
+			}
 			if (remainingOutputBytes < 0) {
 				throw new HostRunFailure("agent-output-byte-budget-exhausted");
+			}
+			if (
+				!cancelledAfterInvocation &&
+				continuation !== null &&
+				objectiveWorkspaceStateDigest(
+					await captureWorkspaceSnapshot(workspaceRoot, input.signal),
+				) !== continuation.workspaceStateDigest
+			) {
+				throw new HostRunFailure("no-progress-continuation-state-mismatch");
 			}
 			if (outcome.status !== "non-evaluable") break;
 			let delayMs: number | null = null;
