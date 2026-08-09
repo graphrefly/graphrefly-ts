@@ -8,6 +8,8 @@ import {
 } from "./canonical.js";
 import {
 	type ClosedContinuationModelTurnPortV1,
+	type ClosedMutationFirstContinuationModelTurnPortV1,
+	type ClosedMutationFirstContinuationV1,
 	type ClosedTaskProfileHostRetryCapabilityV1,
 	type ClosedTaskProfileHostRunInputV1,
 	type ClosedTaskProfileHostRunOutcomeV3,
@@ -159,6 +161,17 @@ export interface OpenRouterContinuationInvocationFactV1 {
 	readonly providerRequestCount: number;
 }
 
+export interface OpenRouterMutationFirstInvocationFactV1 {
+	readonly trialStage: EmpiricalModelTurnRequestV1["trialStage"];
+	readonly stepIndex: number;
+	readonly attemptOrdinal: number;
+	readonly requestDigest: string;
+	readonly continuationDigest: string;
+	readonly staleResultReceiptDigest: string;
+	readonly requiredFirstToolRef: ClosedMutationFirstContinuationV1["requiredFirstToolRef"];
+	readonly providerRequestCount: number;
+}
+
 export type OpenRouterMatchedTrialBlockResultV4 =
 	| {
 			readonly profile: "smoke";
@@ -166,6 +179,7 @@ export type OpenRouterMatchedTrialBlockResultV4 =
 			readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
 			readonly admissionRejection: B112SmokeAdmissionRejectionV1 | null;
 			readonly continuationInvocations?: readonly OpenRouterContinuationInvocationFactV1[];
+			readonly mutationFirstInvocations?: readonly OpenRouterMutationFirstInvocationFactV1[];
 	  }
 	| {
 			readonly profile: "calibration";
@@ -173,6 +187,7 @@ export type OpenRouterMatchedTrialBlockResultV4 =
 			readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
 			readonly admissionRejection: B112SmokeAdmissionRejectionV1 | null;
 			readonly continuationInvocations?: readonly OpenRouterContinuationInvocationFactV1[];
+			readonly mutationFirstInvocations?: readonly OpenRouterMutationFirstInvocationFactV1[];
 	  };
 
 /** Package-private canonical union for nested matched warm-arm issues. */
@@ -540,6 +555,53 @@ function createBudgetedContinuationModelTurnPort(
 					requestDigest,
 					continuationDigest: empiricalStrictJsonDigest(continuation),
 					requiredDisposition: continuation.requiredDisposition,
+					providerRequestCount: outcome.usage.requests,
+				}),
+			);
+			return observeBudgetedModelTurnOutcome(
+				request,
+				outcome,
+				route,
+				ceilings,
+				protectionExecutor,
+				ledger,
+			);
+		},
+	});
+}
+
+function createBudgetedMutationFirstContinuationModelTurnPort(
+	delegate: ClosedMutationFirstContinuationModelTurnPortV1,
+	route: OpenRouterRouteQualificationV1,
+	ceilings: MatchedBlockBudgetCeilings,
+	protectionExecutor: ClosedTaskProfileHostRunInputV1["protectionExecutor"],
+	ledger: MutableSmokeBudget,
+	invocations: OpenRouterMutationFirstInvocationFactV1[],
+): ClosedMutationFirstContinuationModelTurnPortV1 {
+	const attemptOrdinals = new Map<string, number>();
+	return Object.freeze({
+		async invoke(
+			request: EmpiricalModelTurnRequestV1,
+			continuation: Parameters<ClosedMutationFirstContinuationModelTurnPortV1["invoke"]>[1],
+			signal: AbortSignal,
+		) {
+			if (invocations.length >= route.budget.maxRequests) {
+				throw new TypeError("OpenRouter mutation-first invocation evidence bound exhausted");
+			}
+			const requestDigest = empiricalStrictJsonDigest(request);
+			const attemptKey = `${request.trialStage}\u0000${request.stepIndex}\u0000${requestDigest}`;
+			const attemptOrdinal = (attemptOrdinals.get(attemptKey) ?? 0) + 1;
+			attemptOrdinals.set(attemptKey, attemptOrdinal);
+			const outcome = await delegate.invoke(request, continuation, signal);
+			invocations.push(
+				strictSnapshot({
+					trialStage: request.trialStage,
+					stepIndex: request.stepIndex,
+					attemptOrdinal,
+					requestDigest,
+					continuationDigest: empiricalStrictJsonDigest(continuation),
+					staleResultReceiptDigest: continuation.staleResultReceiptDigest,
+					requiredFirstToolRef: continuation.requiredFirstToolRef,
 					providerRequestCount: outcome.usage.requests,
 				}),
 			);
@@ -930,6 +992,11 @@ export async function runOpenRouterMatchedTrialBlock(
 	if (Object.hasOwn(hostRecord, "continuationModelTurnPort")) {
 		throw new TypeError("OpenRouter matched-block runner owns the continuation model-turn port");
 	}
+	if (Object.hasOwn(hostRecord, "mutationFirstContinuationModelTurnPort")) {
+		throw new TypeError(
+			"OpenRouter matched-block runner owns the mutation-first continuation model-turn port",
+		);
+	}
 	const noProgressPolicyDescriptor = Object.getOwnPropertyDescriptor(
 		hostRecord,
 		"noProgressContinuationPolicy",
@@ -943,6 +1010,19 @@ export async function runOpenRouterMatchedTrialBlock(
 		);
 	}
 	const hasNoProgressContinuationPolicy = noProgressPolicyDescriptor?.value !== undefined;
+	const staleRecoveryPolicyDescriptor = Object.getOwnPropertyDescriptor(
+		hostRecord,
+		"staleResultRecoveryPolicy",
+	);
+	if (
+		staleRecoveryPolicyDescriptor !== undefined &&
+		(!staleRecoveryPolicyDescriptor.enumerable || !("value" in staleRecoveryPolicyDescriptor))
+	) {
+		throw new TypeError(
+			"OpenRouter matched-block stale-result recovery policy must be an own enumerable data property",
+		);
+	}
+	const hasStaleResultRecoveryPolicy = staleRecoveryPolicyDescriptor?.value !== undefined;
 	const input = request as unknown as OpenRouterMatchedTrialBlockInputV4;
 	const historicalReflectionCapability = input.historicalReflectionCapability;
 	if (historicalReflectionCapability !== undefined && input.prepareWarmHost === undefined) {
@@ -1124,6 +1204,7 @@ export async function runOpenRouterMatchedTrialBlock(
 		return markBlockElapsedExhausted();
 	};
 	const continuationInvocations: OpenRouterContinuationInvocationFactV1[] = [];
+	const mutationFirstInvocations: OpenRouterMutationFirstInvocationFactV1[] = [];
 	ledger.currentRunRequestRefs.clear();
 	const coldBudgetBefore = smokeBudgetSnapshot(ledger);
 	const coldRunStartedAtMs = safeInteger(readBlockMonotonicMs(), "smoke.coldRunStartedAtMs", {
@@ -1160,6 +1241,19 @@ export async function runOpenRouterMatchedTrialBlock(
 						ledger,
 						continuationInvocations,
 					),
+				}
+			: {}),
+		...(hasStaleResultRecoveryPolicy
+			? {
+					mutationFirstContinuationModelTurnPort:
+						createBudgetedMutationFirstContinuationModelTurnPort(
+							binding.mutationFirstContinuationModelTurnPort,
+							input.routeQualification,
+							ceilings,
+							binding.protectionExecutor,
+							ledger,
+							mutationFirstInvocations,
+						),
 				}
 			: {}),
 		protectionExecutor: binding.protectionExecutor,
@@ -1346,6 +1440,19 @@ export async function runOpenRouterMatchedTrialBlock(
 								),
 							}
 						: {}),
+					...(hasStaleResultRecoveryPolicy
+						? {
+								mutationFirstContinuationModelTurnPort:
+									createBudgetedMutationFirstContinuationModelTurnPort(
+										binding.mutationFirstContinuationModelTurnPort,
+										input.routeQualification,
+										ceilings,
+										binding.protectionExecutor,
+										ledger,
+										mutationFirstInvocations,
+									),
+							}
+						: {}),
 					protectionExecutor: binding.protectionExecutor,
 					retry: createOpenRouterRetryCapability(
 						input.routeQualification,
@@ -1408,6 +1515,9 @@ export async function runOpenRouterMatchedTrialBlock(
 		admissionRejection: ledger.admissionRejection,
 		...(hasNoProgressContinuationPolicy
 			? { continuationInvocations: strictSnapshot(continuationInvocations) }
+			: {}),
+		...(hasStaleResultRecoveryPolicy
+			? { mutationFirstInvocations: strictSnapshot(mutationFirstInvocations) }
 			: {}),
 	}) as OpenRouterMatchedTrialBlockResultV4;
 }

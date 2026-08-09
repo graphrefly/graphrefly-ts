@@ -829,6 +829,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsD702OfflineQualificationOperator = file.endsWith(
 				"d702-mutation-first-recovery-qualification.ts",
 			);
+			const allowsD703MutationFirstOperator = file.endsWith("d703-mutation-first-recovery-live.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -839,6 +840,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD696ContinuationAssistedOperator ||
 				allowsD699SingleUseDispatchOperator ||
 				allowsD702OfflineQualificationOperator ||
+				allowsD703MutationFirstOperator ||
 				file.endsWith("openrouter-first-task-smoke.ts") ||
 				file.endsWith("private-smoke-persistence.ts");
 			const allowsOneRequestFetchTransport =
@@ -890,22 +892,28 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			expect(source).not.toMatch(
 				allowsD690SealedOfflineOperator
 					? /\b(?:Date\.now|fetch\s*\(|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b/
-					: allowsOutermostLiveOperator
-						? /\b(?:WebSocket|setInterval|setImmediate|queueMicrotask)\b|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
-						: allowsRepositoryNodeDriver ||
-								allowsClosedHostNodeDriver ||
-								allowsClosedVerifierCalibration ||
-								allowsOfflineQualification ||
-								allowsPreliveOperatorDriver
-							? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls)|(?:from|import)\s+["'](?:http|https|net|tls|undici|ws)["']/
-							: allowsOneRequestFetchTransport
-								? /\b(?:Date\.now|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
-								: allowsFocusedTransportAsync
-									? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
-									: allowsOneTurnPromise
-										? /\b(?:async|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
-										: /\b(?:async|Promise|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/,
+					: allowsD703MutationFirstOperator
+						? /\b(?:Date\.now|fetch|WebSocket|setInterval|setImmediate|queueMicrotask)\b|node:(?:http|https|tls)|(?:from|import)\s+["'](?:http|https|tls|undici|ws)["']/
+						: allowsOutermostLiveOperator
+							? /\b(?:WebSocket|setInterval|setImmediate|queueMicrotask)\b|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
+							: allowsRepositoryNodeDriver ||
+									allowsClosedHostNodeDriver ||
+									allowsClosedVerifierCalibration ||
+									allowsOfflineQualification ||
+									allowsPreliveOperatorDriver
+								? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls)|(?:from|import)\s+["'](?:http|https|net|tls|undici|ws)["']/
+								: allowsOneRequestFetchTransport
+									? /\b(?:Date\.now|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
+									: allowsFocusedTransportAsync
+										? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
+										: allowsOneTurnPromise
+											? /\b(?:async|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
+											: /\b(?:async|Promise|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/,
 			);
+			if (allowsD703MutationFirstOperator) {
+				expect(source.match(/require\('node:net'\)/g)).toHaveLength(1);
+				expect(source).toContain("e.code==='EPERM'");
+			}
 			if (allowsRetryTimerOperator) {
 				expect(source.match(/\bsetTimeout\b/g)).toHaveLength(1);
 				expect(source.match(/\bclearTimeout\b/g)).toHaveLength(1);
@@ -934,8 +942,11 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 								specifier === "node:url")) ||
 						((allowsRepositoryNodeDriver ||
 							allowsClosedHostNodeDriver ||
-							allowsD690SealedOfflineOperator) &&
+							allowsD690SealedOfflineOperator ||
+							allowsD703MutationFirstOperator) &&
 							specifier === "node:child_process") ||
+						(allowsD703MutationFirstOperator &&
+							(specifier === "node:net" || specifier === "node:util")) ||
 						((allowsRepositoryNodeDriver ||
 							allowsClosedHostNodeDriver ||
 							allowsD690SealedOfflineOperator ||

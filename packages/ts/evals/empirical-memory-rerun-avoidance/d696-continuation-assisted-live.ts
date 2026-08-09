@@ -205,6 +205,8 @@ function captureBlock(value: unknown): OpenRouterMatchedTrialBlockInputV4 {
 		"noProgressContinuationPolicy",
 		"continuationModelTurnPort",
 		"noProgressReceiptObserver",
+		"staleResultRecoveryPolicy",
+		"mutationFirstContinuationModelTurnPort",
 	] as const) {
 		if (Object.hasOwn(host, key)) throw new TypeError(`D696 owns host.${key}`);
 	}
