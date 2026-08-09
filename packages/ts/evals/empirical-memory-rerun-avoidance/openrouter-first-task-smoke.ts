@@ -7,6 +7,7 @@ import {
 	strictSnapshot,
 } from "./canonical.js";
 import {
+	type ClosedContinuationModelTurnPortV1,
 	type ClosedTaskProfileHostRetryCapabilityV1,
 	type ClosedTaskProfileHostRunInputV1,
 	type ClosedTaskProfileHostRunOutcomeV3,
@@ -148,18 +149,30 @@ export interface OpenRouterFirstTaskSmokeResultV3 {
 	readonly admissionRejection: B112SmokeAdmissionRejectionV1 | null;
 }
 
+export interface OpenRouterContinuationInvocationFactV1 {
+	readonly trialStage: EmpiricalModelTurnRequestV1["trialStage"];
+	readonly stepIndex: number;
+	readonly attemptOrdinal: number;
+	readonly requestDigest: string;
+	readonly continuationDigest: string;
+	readonly requiredDisposition: "tool-intents" | "final-allowed";
+	readonly providerRequestCount: number;
+}
+
 export type OpenRouterMatchedTrialBlockResultV4 =
 	| {
 			readonly profile: "smoke";
 			readonly observation: EmpiricalTrialBlockObservationV3;
 			readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
 			readonly admissionRejection: B112SmokeAdmissionRejectionV1 | null;
+			readonly continuationInvocations?: readonly OpenRouterContinuationInvocationFactV1[];
 	  }
 	| {
 			readonly profile: "calibration";
 			readonly observation: EmpiricalCalibrationTrialBlockObservationV4;
 			readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
 			readonly admissionRejection: B112SmokeAdmissionRejectionV1 | null;
+			readonly continuationInvocations?: readonly OpenRouterContinuationInvocationFactV1[];
 	  };
 
 /** Package-private canonical union for nested matched warm-arm issues. */
@@ -484,58 +497,118 @@ function createBudgetedModelTurnPort(
 	return Object.freeze({
 		async invoke(request: EmpiricalModelTurnRequestV1, signal: AbortSignal) {
 			const outcome = await delegate.invoke(request, signal);
-			if (
-				ledger.exhausted &&
-				outcome.issueCodes.includes(OPENROUTER_RESPONSES_ISSUE_CODES.transportAdmissionRejected)
-			) {
-				return budgetExhaustedOutcome(request, protectionExecutor);
-			}
-			const hasPendingReservation =
-				ledger.pendingReservedInputTokens > 0 || ledger.pendingReservedOutputTokens > 0;
-			if (
-				hasPendingReservation &&
-				outcome.usage.inputTokens !== null &&
-				outcome.usage.outputTokens !== null &&
-				outcome.usage.providerCostMicrousd !== null
-			) {
-				ledger.reservedInputTokens =
-					ledger.reservedInputTokens -
-					ledger.pendingReservedInputTokens +
-					outcome.usage.inputTokens;
-				ledger.reservedOutputTokens =
-					ledger.reservedOutputTokens -
-					ledger.pendingReservedOutputTokens +
-					outcome.usage.outputTokens;
-				ledger.reservedCostMicrousd =
-					ledger.reservedCostMicrousd -
-					ledger.pendingReservedCostMicrousd +
-					outcome.usage.providerCostMicrousd;
-				ledger.providerCostMicrousd += outcome.usage.providerCostMicrousd;
-			} else if (hasPendingReservation) {
-				ledger.unknownProviderUsageRequests += 1;
-			}
-			ledger.pendingReservedInputTokens = 0;
-			ledger.pendingReservedOutputTokens = 0;
-			ledger.pendingReservedCostMicrousd = 0;
-			ledger.latencyMs += outcome.latencyMs;
-			if (
-				ledger.latencyMs > ceilings.maxLatencyMs ||
-				ledger.reservedInputTokens > route.budget.maxInputTokens ||
-				ledger.reservedOutputTokens > route.budget.maxOutputTokens ||
-				ledger.reservedCostMicrousd > ceilings.maxCostMicrousd
-			) {
-				ledger.exhausted = true;
-				return budgetExhaustedOutcome(
-					request,
-					protectionExecutor,
-					outcome.usage,
-					outcome.latencyMs,
-					outcome.evidenceRefs,
-				);
-			}
-			return outcome;
+			return observeBudgetedModelTurnOutcome(
+				request,
+				outcome,
+				route,
+				ceilings,
+				protectionExecutor,
+				ledger,
+			);
 		},
 	});
+}
+
+function createBudgetedContinuationModelTurnPort(
+	delegate: ClosedContinuationModelTurnPortV1,
+	route: OpenRouterRouteQualificationV1,
+	ceilings: MatchedBlockBudgetCeilings,
+	protectionExecutor: ClosedTaskProfileHostRunInputV1["protectionExecutor"],
+	ledger: MutableSmokeBudget,
+	invocations: OpenRouterContinuationInvocationFactV1[],
+): ClosedContinuationModelTurnPortV1 {
+	const attemptOrdinals = new Map<string, number>();
+	return Object.freeze({
+		async invoke(
+			request: EmpiricalModelTurnRequestV1,
+			continuation: Parameters<ClosedContinuationModelTurnPortV1["invoke"]>[1],
+			signal: AbortSignal,
+		) {
+			if (invocations.length >= route.budget.maxRequests) {
+				throw new TypeError("OpenRouter continuation invocation evidence bound exhausted");
+			}
+			const requestDigest = empiricalStrictJsonDigest(request);
+			const attemptKey = `${request.trialStage}\u0000${request.stepIndex}\u0000${requestDigest}`;
+			const attemptOrdinal = (attemptOrdinals.get(attemptKey) ?? 0) + 1;
+			attemptOrdinals.set(attemptKey, attemptOrdinal);
+			const outcome = await delegate.invoke(request, continuation, signal);
+			invocations.push(
+				strictSnapshot({
+					trialStage: request.trialStage,
+					stepIndex: request.stepIndex,
+					attemptOrdinal,
+					requestDigest,
+					continuationDigest: empiricalStrictJsonDigest(continuation),
+					requiredDisposition: continuation.requiredDisposition,
+					providerRequestCount: outcome.usage.requests,
+				}),
+			);
+			return observeBudgetedModelTurnOutcome(
+				request,
+				outcome,
+				route,
+				ceilings,
+				protectionExecutor,
+				ledger,
+			);
+		},
+	});
+}
+
+function observeBudgetedModelTurnOutcome(
+	request: EmpiricalModelTurnRequestV1,
+	outcome: EmpiricalModelTurnOutcomeV1,
+	route: OpenRouterRouteQualificationV1,
+	ceilings: MatchedBlockBudgetCeilings,
+	protectionExecutor: ClosedTaskProfileHostRunInputV1["protectionExecutor"],
+	ledger: MutableSmokeBudget,
+): EmpiricalModelTurnOutcomeV1 {
+	if (
+		ledger.exhausted &&
+		outcome.issueCodes.includes(OPENROUTER_RESPONSES_ISSUE_CODES.transportAdmissionRejected)
+	) {
+		return budgetExhaustedOutcome(request, protectionExecutor);
+	}
+	const hasPendingReservation =
+		ledger.pendingReservedInputTokens > 0 || ledger.pendingReservedOutputTokens > 0;
+	if (
+		hasPendingReservation &&
+		outcome.usage.inputTokens !== null &&
+		outcome.usage.outputTokens !== null &&
+		outcome.usage.providerCostMicrousd !== null
+	) {
+		ledger.reservedInputTokens =
+			ledger.reservedInputTokens - ledger.pendingReservedInputTokens + outcome.usage.inputTokens;
+		ledger.reservedOutputTokens =
+			ledger.reservedOutputTokens - ledger.pendingReservedOutputTokens + outcome.usage.outputTokens;
+		ledger.reservedCostMicrousd =
+			ledger.reservedCostMicrousd -
+			ledger.pendingReservedCostMicrousd +
+			outcome.usage.providerCostMicrousd;
+		ledger.providerCostMicrousd += outcome.usage.providerCostMicrousd;
+	} else if (hasPendingReservation) {
+		ledger.unknownProviderUsageRequests += 1;
+	}
+	ledger.pendingReservedInputTokens = 0;
+	ledger.pendingReservedOutputTokens = 0;
+	ledger.pendingReservedCostMicrousd = 0;
+	ledger.latencyMs += outcome.latencyMs;
+	if (
+		ledger.latencyMs > ceilings.maxLatencyMs ||
+		ledger.reservedInputTokens > route.budget.maxInputTokens ||
+		ledger.reservedOutputTokens > route.budget.maxOutputTokens ||
+		ledger.reservedCostMicrousd > ceilings.maxCostMicrousd
+	) {
+		ledger.exhausted = true;
+		return budgetExhaustedOutcome(
+			request,
+			protectionExecutor,
+			outcome.usage,
+			outcome.latencyMs,
+			outcome.evidenceRefs,
+		);
+	}
+	return outcome;
 }
 
 function createSmokeTransportAdmission(
@@ -853,7 +926,23 @@ export async function runOpenRouterMatchedTrialBlock(
 		],
 		"matchedBlock.input",
 	);
-	record(request.host, "matchedBlock.input.host");
+	const hostRecord = record(request.host, "matchedBlock.input.host");
+	if (Object.hasOwn(hostRecord, "continuationModelTurnPort")) {
+		throw new TypeError("OpenRouter matched-block runner owns the continuation model-turn port");
+	}
+	const noProgressPolicyDescriptor = Object.getOwnPropertyDescriptor(
+		hostRecord,
+		"noProgressContinuationPolicy",
+	);
+	if (
+		noProgressPolicyDescriptor !== undefined &&
+		(!noProgressPolicyDescriptor.enumerable || !("value" in noProgressPolicyDescriptor))
+	) {
+		throw new TypeError(
+			"OpenRouter matched-block no-progress policy must be an own enumerable data property",
+		);
+	}
+	const hasNoProgressContinuationPolicy = noProgressPolicyDescriptor?.value !== undefined;
 	const input = request as unknown as OpenRouterMatchedTrialBlockInputV4;
 	const historicalReflectionCapability = input.historicalReflectionCapability;
 	if (historicalReflectionCapability !== undefined && input.prepareWarmHost === undefined) {
@@ -1034,6 +1123,7 @@ export async function runOpenRouterMatchedTrialBlock(
 		}
 		return markBlockElapsedExhausted();
 	};
+	const continuationInvocations: OpenRouterContinuationInvocationFactV1[] = [];
 	ledger.currentRunRequestRefs.clear();
 	const coldBudgetBefore = smokeBudgetSnapshot(ledger);
 	const coldRunStartedAtMs = safeInteger(readBlockMonotonicMs(), "smoke.coldRunStartedAtMs", {
@@ -1060,6 +1150,18 @@ export async function runOpenRouterMatchedTrialBlock(
 			binding.protectionExecutor,
 			ledger,
 		),
+		...(hasNoProgressContinuationPolicy
+			? {
+					continuationModelTurnPort: createBudgetedContinuationModelTurnPort(
+						binding.continuationModelTurnPort,
+						input.routeQualification,
+						ceilings,
+						binding.protectionExecutor,
+						ledger,
+						continuationInvocations,
+					),
+				}
+			: {}),
 		protectionExecutor: binding.protectionExecutor,
 		retry: createOpenRouterRetryCapability(
 			input.routeQualification,
@@ -1232,6 +1334,18 @@ export async function runOpenRouterMatchedTrialBlock(
 						binding.protectionExecutor,
 						ledger,
 					),
+					...(hasNoProgressContinuationPolicy
+						? {
+								continuationModelTurnPort: createBudgetedContinuationModelTurnPort(
+									binding.continuationModelTurnPort,
+									input.routeQualification,
+									ceilings,
+									binding.protectionExecutor,
+									ledger,
+									continuationInvocations,
+								),
+							}
+						: {}),
 					protectionExecutor: binding.protectionExecutor,
 					retry: createOpenRouterRetryCapability(
 						input.routeQualification,
@@ -1292,6 +1406,9 @@ export async function runOpenRouterMatchedTrialBlock(
 		observation,
 		protectionExecutor: binding.protectionExecutor,
 		admissionRejection: ledger.admissionRejection,
+		...(hasNoProgressContinuationPolicy
+			? { continuationInvocations: strictSnapshot(continuationInvocations) }
+			: {}),
 	}) as OpenRouterMatchedTrialBlockResultV4;
 }
 

@@ -180,7 +180,7 @@ function d694Stage(value: unknown, path: string): D694Stage {
 	return oneOf(value, D694_STAGE_ORDER, path);
 }
 
-function validateD693EvidenceBytes(input: {
+export function validateD694D693EvidenceBytes(input: {
 	readonly qualificationBytes: unknown;
 	readonly generationBytes: unknown;
 }): D693AssistedProgressQualificationV1 {
@@ -261,7 +261,13 @@ function validateD693EvidenceBytes(input: {
 function captureBlock(value: unknown): OpenRouterMatchedTrialBlockInputV4 {
 	const block = record(value, "d694.block");
 	const host = record(block.host, "d694.block.host");
-	if (host.objectiveProgressPolicy !== undefined || host.actionReceiptObserver !== undefined) {
+	if (
+		host.objectiveProgressPolicy !== undefined ||
+		host.actionReceiptObserver !== undefined ||
+		host.noProgressContinuationPolicy !== undefined ||
+		host.continuationModelTurnPort !== undefined ||
+		host.noProgressReceiptObserver !== undefined
+	) {
 		throw new TypeError("D694 owns the objective-progress policy and receipt observer");
 	}
 	return Object.freeze({
@@ -374,7 +380,7 @@ export function validateD694FocusedValidationReceipt(
 	return validated;
 }
 
-function createReceiptObserver(
+export function createD694FocusedReceiptObserver(
 	receipts: D694FocusedValidationReceiptV1[],
 ): ClosedTaskProfileHostActionReceiptObserverV1 {
 	return Object.freeze({
@@ -489,7 +495,7 @@ function orderedProgressObserved(
 	});
 }
 
-function deriveD694(
+export function deriveD694AssistedProgress(
 	underlying: EmpiricalTrialBlockObservationV3,
 	receiptsInput: readonly unknown[],
 ): {
@@ -546,7 +552,7 @@ export async function runD694AssistedTransferBlock(input: {
 	const block = captureBlock(outer.block);
 	validateD694Block(block);
 	const d690 = validateD691D690OfflineEvidence(outer.d690OfflineEvidence, block.executionClass);
-	const d693 = validateD693EvidenceBytes({
+	const d693 = validateD694D693EvidenceBytes({
 		qualificationBytes: outer.d693QualificationBytes,
 		generationBytes: outer.d693GenerationBytes,
 	});
@@ -561,7 +567,7 @@ export async function runD694AssistedTransferBlock(input: {
 		host: {
 			...block.host,
 			objectiveProgressPolicy: D693_ASSISTED_PROGRESS_POLICY,
-			actionReceiptObserver: createReceiptObserver(focusedReceipts),
+			actionReceiptObserver: createD694FocusedReceiptObserver(focusedReceipts),
 		},
 		historicalReflectionCapability: createD691HistoricalReflectionCapability({
 			transferMemory,
@@ -571,7 +577,7 @@ export async function runD694AssistedTransferBlock(input: {
 	if (result.profile !== "smoke") throw new TypeError("D694 requires the smoke evidence profile");
 	assertD691HistoricalTransferUnderlyingCoordinates(result.observation, block);
 	const underlying = validateEmpiricalTrialBlockObservation(result.observation);
-	const derived = deriveD694(underlying, focusedReceipts);
+	const derived = deriveD694AssistedProgress(underlying, focusedReceipts);
 	const material = strictSnapshot({
 		schemaVersion: D694_ASSISTED_TRANSFER_OBSERVATION_VERSION,
 		claimBoundary: D694_CLAIM_BOUNDARY,
@@ -699,7 +705,7 @@ export function validateD694Observation(value: unknown): D694AssistedTransferObs
 	if (underlyingDigest !== empiricalStrictJsonDigest(underlying)) {
 		throw new TypeError("D694 underlying observation digest mismatch");
 	}
-	const derived = deriveD694(
+	const derived = deriveD694AssistedProgress(
 		underlying,
 		array(candidate.focusedValidationReceipts, "d694.focusedValidationReceipts"),
 	);

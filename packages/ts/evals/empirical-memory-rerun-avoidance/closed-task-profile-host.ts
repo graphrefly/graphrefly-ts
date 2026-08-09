@@ -263,6 +263,7 @@ export interface ClosedContinuationModelTurnPortV1 {
 export type ClosedNoProgressReceiptV1 =
 	| {
 			readonly kind: "duplicate-inspection-batch" | "duplicate-inspection-intent";
+			readonly trialStage: EmpiricalModelTurnRequestV1["trialStage"];
 			readonly stepIndex: number;
 			readonly workspaceStateDigest: string;
 			readonly inspectionBatchDigest: string;
@@ -270,6 +271,7 @@ export type ClosedNoProgressReceiptV1 =
 	  }
 	| {
 			readonly kind: "stale-result-intent-batch";
+			readonly trialStage: EmpiricalModelTurnRequestV1["trialStage"];
 			readonly stepIndex: number;
 			readonly workspaceStateDigest: string;
 			readonly intentBatchDigest: string;
@@ -1963,6 +1965,7 @@ async function executeValidatedHost(
 			);
 			recordNoProgressReceipt(noProgressReceiptObserver, {
 				kind: "stale-result-intent-batch",
+				trialStage: input.initialRequest.trialStage,
 				stepIndex,
 				workspaceStateDigest,
 				intentBatchDigest: empiricalStrictJsonDigest(
@@ -1983,6 +1986,7 @@ async function executeValidatedHost(
 						workspaceRoot,
 						input.signal,
 						stepIndex,
+						input.initialRequest.trialStage,
 						inspectionBatchHistory,
 						noProgressContinuationPolicy.maxInspectionBatchesPerState,
 						noProgressReceiptObserver,
@@ -2288,6 +2292,7 @@ async function inspectNoProgressBatch(
 	workspaceRoot: string,
 	signal: AbortSignal,
 	stepIndex: number,
+	trialStage: EmpiricalModelTurnRequestV1["trialStage"],
 	history: readonly {
 		readonly workspaceStateDigest: string;
 		readonly canonicalBytes: Uint8Array;
@@ -2325,6 +2330,7 @@ async function inspectNoProgressBatch(
 			);
 			recordNoProgressReceipt(observer, {
 				kind: "duplicate-inspection-intent",
+				trialStage,
 				stepIndex,
 				workspaceStateDigest,
 				inspectionBatchDigest: digestValue,
@@ -2343,6 +2349,7 @@ async function inspectNoProgressBatch(
 	if (stateHistory.some((entry) => sameClosedInspectionBatch(entry, candidate))) {
 		recordNoProgressReceipt(observer, {
 			kind: "duplicate-inspection-batch",
+			trialStage,
 			stepIndex,
 			workspaceStateDigest,
 			inspectionBatchDigest: digestValue,
