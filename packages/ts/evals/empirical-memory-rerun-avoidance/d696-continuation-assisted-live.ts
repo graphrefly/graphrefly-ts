@@ -91,9 +91,9 @@ export const D696_D695_POLICY_DIGEST =
 	"sha256:8796fcc6dfb0cad8fe319bc7321f7ef1f0484751053d79a06d27088d75b04a77" as const;
 export const D696_D695_IMPLEMENTATION_COMMIT = "69a20d0d" as const;
 /** Set only after a later authority decision records the user's final numeric live approval. */
-export const D696_LIVE_SPEND_APPROVAL_REF: string | null = null;
-/** Set only with D696_LIVE_SPEND_APPROVAL_REF; D696 v1 is intentionally pre-live only. */
-export const D696_LIVE_SPEND_APPROVAL_REVISION: string | null = null;
+export const D696_LIVE_SPEND_APPROVAL_REF: string | null = "decision.D698";
+/** D698 is the distinct post-qualification numeric spend approval; D696 v1 remains pre-live only. */
+export const D696_LIVE_SPEND_APPROVAL_REVISION: string | null = "decision.D698.2026-08-08.v1";
 export const D696_D694_LIVE_OBSERVATION_ARTIFACT_DIGEST =
 	"sha256:5bb86a20447b72ede94ef65e1420ac6ea0e34981cff11933d5c2d60b2116de11" as const;
 export const D696_D694_LIVE_SCORECARD_ARTIFACT_DIGEST =
