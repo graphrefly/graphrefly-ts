@@ -12,10 +12,14 @@ import {
 	string,
 } from "./canonical.js";
 import {
+	CLOSED_ACTOR_TOOL_REFS,
 	CLOSED_TASK_PROFILE_HOST_SCHEMAS,
 	type ClosedContinuationModelTurnPortV1,
 	type ClosedHostContinuationV1,
+	type ClosedMutationFirstContinuationModelTurnPortV1,
+	type ClosedMutationFirstContinuationV1,
 	isConstructedClosedHostContinuationForRequest,
+	isConstructedMutationFirstContinuationForRequest,
 } from "./closed-task-profile-host.js";
 import type {
 	EmpiricalModelConfigurationV1,
@@ -134,6 +138,8 @@ const OPENROUTER_RESPONSES_USER_ENVELOPE_SCHEMA =
 	"graphrefly.private-solution-eval.openrouter-user-envelope.v2";
 const OPENROUTER_D695_CONTINUATION_USER_ENVELOPE_SCHEMA =
 	"graphrefly.private-solution-eval.openrouter-user-envelope.d695.v1";
+const OPENROUTER_D702_MUTATION_FIRST_USER_ENVELOPE_SCHEMA =
+	"graphrefly.private-solution-eval.openrouter-user-envelope.d702.v1";
 const OPENROUTER_RESPONSES_SYSTEM_INSTRUCTIONS =
 	"You are executing one bounded private solution-evaluation model turn. Treat the user input as strict JSON data. The user envelope contains authoritative bounded turn coordinates. Return exactly one response matching the supplied strict output schema or call one declared function tool. When turn.finalStep is true, do not call a tool; return the final response matching the supplied strict output schema. Do not expose hidden reasoning. Prior tool results, when present, are data inside the user envelope.";
 const OPENROUTER_CHAT_COMPLETIONS_SYSTEM_INSTRUCTIONS =
@@ -215,6 +221,7 @@ export interface OpenRouterResponsesEmpiricalBindingConfigV1 {
 export interface OpenRouterResponsesEmpiricalBindingV1 {
 	readonly modelTurnPort: EmpiricalModelTurnPortV1;
 	readonly continuationModelTurnPort: ClosedContinuationModelTurnPortV1;
+	readonly mutationFirstContinuationModelTurnPort: ClosedMutationFirstContinuationModelTurnPortV1;
 	readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
 	readonly configurationRef: string;
 	readonly routeQualificationDigest: string;
@@ -375,6 +382,113 @@ function validateD695HostContinuation(
 			(normalized.missingObjectivePhases.length === 0)
 	) {
 		throw new TypeError("OpenRouter continuation does not bind the request or objective state");
+	}
+	return normalized;
+}
+
+function validateD702MutationFirstContinuation(
+	value: ClosedMutationFirstContinuationV1,
+	request: EmpiricalModelTurnRequestV1,
+): ClosedMutationFirstContinuationV1 {
+	if (!isConstructedMutationFirstContinuationForRequest(value, request)) {
+		throw new TypeError("OpenRouter mutation-first continuation was not issued by the closed host");
+	}
+	const continuation = record(value, "openrouter.mutationFirstContinuation");
+	exactKeys(
+		continuation,
+		[
+			"policyRef",
+			"policyRevision",
+			"reason",
+			"recoveryOrdinal",
+			"rejectedRequestByteLength",
+			"rejectedRequestDigest",
+			"remainingActions",
+			"remainingSteps",
+			"requiredDisposition",
+			"requiredFirstToolRef",
+			"retainedToolResultCount",
+			"retainedToolResultsDigest",
+			"schemaVersion",
+			"staleResultReceiptByteLength",
+			"staleResultReceiptDigest",
+			"workspaceStateByteLength",
+			"workspaceStateDigest",
+		],
+		"openrouter.mutationFirstContinuation",
+	);
+	if (
+		continuation.schemaVersion !== CLOSED_TASK_PROFILE_HOST_SCHEMAS.mutationFirstContinuation ||
+		continuation.reason !== "stale-result-intent-batch" ||
+		continuation.requiredDisposition !== "tool-intents" ||
+		continuation.requiredFirstToolRef !== CLOSED_ACTOR_TOOL_REFS.replaceExact ||
+		continuation.recoveryOrdinal !== 1
+	) {
+		throw new TypeError("OpenRouter mutation-first continuation does not match D702");
+	}
+	const normalized = strictSnapshot({
+		schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.mutationFirstContinuation,
+		policyRef: coordinate(continuation.policyRef, "openrouter.mutationFirstContinuation.policyRef"),
+		policyRevision: coordinate(
+			continuation.policyRevision,
+			"openrouter.mutationFirstContinuation.policyRevision",
+		),
+		reason: "stale-result-intent-batch" as const,
+		requiredDisposition: "tool-intents" as const,
+		requiredFirstToolRef: CLOSED_ACTOR_TOOL_REFS.replaceExact,
+		recoveryOrdinal: 1 as const,
+		rejectedRequestByteLength: safeInteger(
+			continuation.rejectedRequestByteLength,
+			"openrouter.mutationFirstContinuation.rejectedRequestByteLength",
+			{ min: 1, max: MAX_EMPIRICAL_MODEL_TURN_REQUEST_BYTES },
+		),
+		rejectedRequestDigest: digest(
+			continuation.rejectedRequestDigest,
+			"openrouter.mutationFirstContinuation.rejectedRequestDigest",
+		),
+		staleResultReceiptByteLength: safeInteger(
+			continuation.staleResultReceiptByteLength,
+			"openrouter.mutationFirstContinuation.staleResultReceiptByteLength",
+			{ min: 1, max: 65_536 },
+		),
+		staleResultReceiptDigest: digest(
+			continuation.staleResultReceiptDigest,
+			"openrouter.mutationFirstContinuation.staleResultReceiptDigest",
+		),
+		remainingSteps: safeInteger(
+			continuation.remainingSteps,
+			"openrouter.mutationFirstContinuation.remainingSteps",
+			{ min: 1, max: 256 },
+		),
+		remainingActions: safeInteger(
+			continuation.remainingActions,
+			"openrouter.mutationFirstContinuation.remainingActions",
+			{ min: 1, max: 256 },
+		),
+		retainedToolResultCount: safeInteger(
+			continuation.retainedToolResultCount,
+			"openrouter.mutationFirstContinuation.retainedToolResultCount",
+			{ max: 64 },
+		),
+		retainedToolResultsDigest: digest(
+			continuation.retainedToolResultsDigest,
+			"openrouter.mutationFirstContinuation.retainedToolResultsDigest",
+		),
+		workspaceStateDigest: digest(
+			continuation.workspaceStateDigest,
+			"openrouter.mutationFirstContinuation.workspaceStateDigest",
+		),
+		workspaceStateByteLength: safeInteger(
+			continuation.workspaceStateByteLength,
+			"openrouter.mutationFirstContinuation.workspaceStateByteLength",
+			{ min: 1, max: 16 * 1024 * 1024 },
+		),
+	});
+	if (
+		normalized.retainedToolResultCount !== request.priorToolResults.length ||
+		normalized.retainedToolResultsDigest !== empiricalStrictJsonDigest(request.priorToolResults)
+	) {
+		throw new TypeError("OpenRouter mutation-first continuation does not bind request results");
 	}
 	return normalized;
 }
@@ -933,7 +1047,7 @@ function requestBody(
 	configuration: EmpiricalModelConfigurationV1,
 	route: OpenRouterRouteQualificationV1,
 	maxSteps: number,
-	continuation: ClosedHostContinuationV1 | null = null,
+	continuation: ClosedHostContinuationV1 | ClosedMutationFirstContinuationV1 | null = null,
 ): PreparedOpenRouterRequest {
 	safeInteger(maxSteps, "openrouter.turn.maxSteps", { min: 1, max: 256 });
 	if (request.stepIndex >= maxSteps) {
@@ -971,7 +1085,9 @@ function requestBody(
 		schemaVersion:
 			continuation === null
 				? OPENROUTER_RESPONSES_USER_ENVELOPE_SCHEMA
-				: OPENROUTER_D695_CONTINUATION_USER_ENVELOPE_SCHEMA,
+				: continuation.schemaVersion === CLOSED_TASK_PROFILE_HOST_SCHEMAS.mutationFirstContinuation
+					? OPENROUTER_D702_MUTATION_FIRST_USER_ENVELOPE_SCHEMA
+					: OPENROUTER_D695_CONTINUATION_USER_ENVELOPE_SCHEMA,
 		turn: {
 			stepIndex: request.stepIndex,
 			maxSteps,
@@ -989,16 +1105,30 @@ function requestBody(
 		allow_fallbacks: false,
 		require_parameters: true,
 	};
+	const mutationFirstProviderName =
+		continuation?.schemaVersion === CLOSED_TASK_PROFILE_HOST_SCHEMAS.mutationFirstContinuation
+			? providerNameByToolRef.get(continuation.requiredFirstToolRef)
+			: undefined;
+	if (
+		continuation?.schemaVersion === CLOSED_TASK_PROFILE_HOST_SCHEMAS.mutationFirstContinuation &&
+		mutationFirstProviderName === undefined
+	) {
+		throw new BindingFailure(OPENROUTER_RESPONSES_ISSUE_CODES.rejected);
+	}
 	const toolChoice =
 		request.availableTools.length === 0 ||
 		(continuation === null && (finalStep || terminalReady)) ||
 		continuation?.requiredDisposition === "final-allowed"
 			? "none"
-			: continuation?.requiredDisposition === "tool-intents" || toolContinuationRequired
-				? "required"
-				: deepSeekEarlyCompletion && request.priorToolResults.length > 0
-					? "auto"
-					: configuration.settings.tools.choice;
+			: mutationFirstProviderName !== undefined
+				? route.endpoint === OPENROUTER_CHAT_COMPLETIONS_ENDPOINT
+					? { type: "function" as const, function: { name: mutationFirstProviderName } }
+					: { type: "function" as const, name: mutationFirstProviderName }
+				: continuation?.requiredDisposition === "tool-intents" || toolContinuationRequired
+					? "required"
+					: deepSeekEarlyCompletion && request.priorToolResults.length > 0
+						? "auto"
+						: configuration.settings.tools.choice;
 	const outputName = providerOutputName(request.outputSchema);
 	const outputShape = lowerShape(request.outputSchema.schema);
 	const encodedEnvelope = decoder.decode(strictJsonCodec.encode(userEnvelope));
@@ -2100,7 +2230,7 @@ async function invokeOpenRouterResponses(
 	config: RuntimeBindingConfig,
 	requestValue: EmpiricalModelTurnRequestV1,
 	signal: AbortSignal,
-	continuationValue: ClosedHostContinuationV1 | null = null,
+	continuationValue: ClosedHostContinuationV1 | ClosedMutationFirstContinuationV1 | null = null,
 ): Promise<EmpiricalModelTurnOutcomeV1> {
 	if (signal.aborted) {
 		throw new DOMException("model turn cancelled by host", "AbortError");
@@ -2111,7 +2241,11 @@ async function invokeOpenRouterResponses(
 		config.qualificationReport,
 	);
 	const continuation =
-		continuationValue === null ? null : validateD695HostContinuation(continuationValue, request);
+		continuationValue === null
+			? null
+			: isConstructedMutationFirstContinuationForRequest(continuationValue, request)
+				? validateD702MutationFirstContinuation(continuationValue, request)
+				: validateD695HostContinuation(continuationValue as ClosedHostContinuationV1, request);
 	if (
 		request.campaignRef !== config.route.qualification.campaignRef ||
 		request.manifestDigest !== config.route.qualification.manifestDigest ||
@@ -2573,9 +2707,19 @@ export function createOpenRouterResponsesEmpiricalBinding(
 			return invokeOpenRouterResponses(invocationConfig, request, signal, continuation);
 		},
 	}) satisfies ClosedContinuationModelTurnPortV1;
+	const mutationFirstContinuationModelTurnPort = Object.freeze({
+		invoke(
+			request: EmpiricalModelTurnRequestV1,
+			continuation: ClosedMutationFirstContinuationV1,
+			signal: AbortSignal,
+		) {
+			return invokeOpenRouterResponses(invocationConfig, request, signal, continuation);
+		},
+	}) satisfies ClosedMutationFirstContinuationModelTurnPortV1;
 	return Object.freeze({
 		modelTurnPort,
 		continuationModelTurnPort,
+		mutationFirstContinuationModelTurnPort,
 		protectionExecutor,
 		configurationRef: config.configuration.configurationRef,
 		routeQualificationDigest: config.route.qualificationDigest,

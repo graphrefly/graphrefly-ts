@@ -51,6 +51,10 @@ export const CLOSED_TASK_PROFILE_HOST_SCHEMAS = Object.freeze({
 	noProgressContinuationPolicy:
 		"graphrefly.private-solution-eval.closed-no-progress-continuation-policy.v1",
 	hostContinuation: "graphrefly.private-solution-eval.closed-host-continuation.v1",
+	staleResultRecoveryPolicy:
+		"graphrefly.private-solution-eval.closed-stale-result-recovery-policy.v1",
+	mutationFirstContinuation:
+		"graphrefly.private-solution-eval.closed-mutation-first-continuation.v1",
 	verifierProfile: "graphrefly.private-solution-eval.closed-verifier-profile.v1",
 	taskProfile: "graphrefly.private-solution-eval.closed-task-execution-profile.v1",
 	verifierResult: "graphrefly.private-solution-eval.closed-verifier-result.v1",
@@ -215,9 +219,77 @@ export interface ClosedHostContinuationV1 {
 	readonly workspaceStateDigest: string;
 }
 
+export interface ClosedStaleResultRecoveryPolicyV1 {
+	readonly schemaVersion: typeof CLOSED_TASK_PROFILE_HOST_SCHEMAS.staleResultRecoveryPolicy;
+	readonly policyRef: string;
+	readonly policyRevision: string;
+	readonly requiredFirstToolRef: typeof CLOSED_ACTOR_TOOL_REFS.replaceExact;
+	readonly objectiveProgressPolicyDigest: string;
+	readonly noProgressContinuationPolicyDigest: string;
+	readonly maxRecoveryContinuations: 1;
+	readonly maxWorkspaceStateBytes: number;
+}
+
+export interface ClosedMutationFirstContinuationV1 {
+	readonly schemaVersion: typeof CLOSED_TASK_PROFILE_HOST_SCHEMAS.mutationFirstContinuation;
+	readonly policyRef: string;
+	readonly policyRevision: string;
+	readonly reason: "stale-result-intent-batch";
+	readonly requiredDisposition: "tool-intents";
+	readonly requiredFirstToolRef: typeof CLOSED_ACTOR_TOOL_REFS.replaceExact;
+	readonly recoveryOrdinal: 1;
+	readonly rejectedRequestByteLength: number;
+	readonly rejectedRequestDigest: string;
+	readonly staleResultReceiptByteLength: number;
+	readonly staleResultReceiptDigest: string;
+	readonly remainingSteps: number;
+	readonly remainingActions: number;
+	readonly retainedToolResultCount: number;
+	readonly retainedToolResultsDigest: string;
+	readonly workspaceStateDigest: string;
+	readonly workspaceStateByteLength: number;
+}
+
+const D702_REQUIRED_OBJECTIVE_PROGRESS_POLICY_DIGEST = empiricalStrictJsonDigest(
+	strictSnapshot({
+		schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.objectiveProgressPolicy,
+		policyRef: "objective-progress.d693.historical-transfer",
+		policyRevision: "decision.D693.2026-08-08.v1",
+		validationCommandRef: "actor.d693.focused-validation",
+	}),
+);
+
+const D702_REQUIRED_NO_PROGRESS_CONTINUATION_POLICY_DIGEST = empiricalStrictJsonDigest(
+	strictSnapshot({
+		schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.noProgressContinuationPolicy,
+		policyRef: "no-progress.d695.historical-transfer",
+		policyRevision: "decision.D695.2026-08-08.v1",
+		maxRetainedToolResults: 16,
+		maxRetainedBytes: 240_000,
+		maxRejectedTerminals: 2,
+		maxSemanticDuplicateRejections: 1,
+		maxInspectionBatchesPerState: 16,
+	}),
+);
+
 const constructedClosedHostContinuations = new WeakMap<
 	object,
-	{ readonly requestBytes: Uint8Array; readonly toolResultBytes: Uint8Array }
+	{
+		readonly requestBytes: Uint8Array;
+		readonly toolResultBytes: Uint8Array;
+		readonly workspaceStateBytes: Uint8Array | null;
+	}
+>();
+
+const constructedMutationFirstContinuations = new WeakMap<
+	object,
+	{
+		readonly requestBytes: Uint8Array;
+		readonly toolResultBytes: Uint8Array;
+		readonly rejectedRequestBytes: Uint8Array;
+		readonly staleResultReceiptBytes: Uint8Array;
+		readonly workspaceStateBytes: Uint8Array;
+	}
 >();
 
 export function isConstructedClosedHostContinuation(
@@ -252,10 +324,57 @@ export function isConstructedClosedHostContinuationForRequest(
 	);
 }
 
+function isConstructedClosedHostContinuationForWorkspaceState(
+	value: ClosedHostContinuationV1,
+	workspaceStateBytes: Uint8Array,
+): boolean {
+	const attestation = constructedClosedHostContinuations.get(value);
+	return (
+		attestation?.workspaceStateBytes !== null &&
+		attestation?.workspaceStateBytes !== undefined &&
+		sameBytes(attestation.workspaceStateBytes, workspaceStateBytes)
+	);
+}
+
 export interface ClosedContinuationModelTurnPortV1 {
 	invoke(
 		request: EmpiricalModelTurnRequestV1,
 		continuation: ClosedHostContinuationV1,
+		signal: AbortSignal,
+	): Promise<EmpiricalModelTurnOutcomeV1>;
+}
+
+export function isConstructedMutationFirstContinuationForRequest(
+	value: unknown,
+	request: EmpiricalModelTurnRequestV1,
+): value is ClosedMutationFirstContinuationV1 {
+	if (typeof value !== "object" || value === null) return false;
+	const attestation = constructedMutationFirstContinuations.get(value);
+	return (
+		attestation !== undefined &&
+		sameBytes(attestation.requestBytes, strictJsonCodec.encode(request)) &&
+		sameBytes(attestation.toolResultBytes, strictJsonCodec.encode(request.priorToolResults))
+	);
+}
+
+export function isConstructedMutationFirstContinuationForPriorRejection(
+	value: unknown,
+	rejectedRequest: EmpiricalModelTurnRequestV1,
+	receipt: ClosedNoProgressReceiptV1,
+): value is ClosedMutationFirstContinuationV1 {
+	if (typeof value !== "object" || value === null) return false;
+	const attestation = constructedMutationFirstContinuations.get(value);
+	return (
+		attestation !== undefined &&
+		sameBytes(attestation.rejectedRequestBytes, strictJsonCodec.encode(rejectedRequest)) &&
+		sameBytes(attestation.staleResultReceiptBytes, strictJsonCodec.encode(receipt))
+	);
+}
+
+export interface ClosedMutationFirstContinuationModelTurnPortV1 {
+	invoke(
+		request: EmpiricalModelTurnRequestV1,
+		continuation: ClosedMutationFirstContinuationV1,
 		signal: AbortSignal,
 	): Promise<EmpiricalModelTurnOutcomeV1>;
 }
@@ -366,6 +485,8 @@ export interface ClosedTaskProfileHostRunInputV1 {
 	readonly objectiveProgressPolicy?: ClosedObjectiveProgressPolicyV1;
 	readonly noProgressContinuationPolicy?: ClosedNoProgressContinuationPolicyV1;
 	readonly continuationModelTurnPort?: ClosedContinuationModelTurnPortV1;
+	readonly staleResultRecoveryPolicy?: ClosedStaleResultRecoveryPolicyV1;
+	readonly mutationFirstContinuationModelTurnPort?: ClosedMutationFirstContinuationModelTurnPortV1;
 	readonly noProgressReceiptObserver?: ClosedNoProgressReceiptObserverV1;
 	readonly actionReceiptObserver?: ClosedTaskProfileHostActionReceiptObserverV1;
 	readonly retry?: ClosedTaskProfileHostRetryCapabilityV1;
@@ -552,6 +673,7 @@ export async function runClosedTaskProfileHost(
 	try {
 		const objectiveProgressPolicy = inputObjectiveProgressPolicy(input);
 		const noProgressContinuationPolicy = inputNoProgressContinuationPolicy(input);
+		const staleResultRecoveryPolicy = inputStaleResultRecoveryPolicy(input);
 		const frozen = validateFrozenEmpiricalCampaignManifest(input.frozen, input.qualificationReport);
 		const initialRequest = validateEmpiricalModelTurnRequest(
 			input.initialRequest,
@@ -572,6 +694,7 @@ export async function runClosedTaskProfileHost(
 			verifier,
 			objectiveProgressPolicy,
 			noProgressContinuationPolicy,
+			staleResultRecoveryPolicy,
 		);
 	} catch (error) {
 		if (error instanceof HostRunFailure) {
@@ -625,9 +748,23 @@ function inputNoProgressContinuationPolicy(
 	return descriptor.value as ClosedNoProgressContinuationPolicyV1 | undefined;
 }
 
+function inputStaleResultRecoveryPolicy(
+	input: ClosedTaskProfileHostRunInputV1,
+): ClosedStaleResultRecoveryPolicyV1 | undefined {
+	const descriptor = Object.getOwnPropertyDescriptor(input, "staleResultRecoveryPolicy");
+	if (descriptor === undefined) return undefined;
+	if (!("value" in descriptor) || !descriptor.enumerable) {
+		fail("host.staleResultRecoveryPolicy", "expected an own enumerable data property");
+	}
+	return descriptor.value as ClosedStaleResultRecoveryPolicyV1 | undefined;
+}
+
 function inputOptionalOwnData<T>(
 	input: ClosedTaskProfileHostRunInputV1,
-	key: "continuationModelTurnPort" | "noProgressReceiptObserver",
+	key:
+		| "continuationModelTurnPort"
+		| "mutationFirstContinuationModelTurnPort"
+		| "noProgressReceiptObserver",
 	path: string,
 ): T | undefined {
 	const descriptor = Object.getOwnPropertyDescriptor(input, key);
@@ -1048,6 +1185,98 @@ function validateNoProgressContinuationPolicy(
 	});
 }
 
+function validateStaleResultRecoveryPolicy(
+	value: ClosedStaleResultRecoveryPolicyV1 | undefined,
+	objectiveProgressPolicy: ClosedObjectiveProgressPolicyV1 | null,
+	noProgressContinuationPolicy: ClosedNoProgressContinuationPolicyV1 | null,
+): ClosedStaleResultRecoveryPolicyV1 | null {
+	if (value === undefined) return null;
+	if (objectiveProgressPolicy === null || noProgressContinuationPolicy === null) {
+		fail("host.staleResultRecoveryPolicy", "requires D693 and D695 policies");
+	}
+	const policy = record(value, "host.staleResultRecoveryPolicy");
+	if (!Object.isFrozen(policy)) {
+		fail("host.staleResultRecoveryPolicy", "must be an explicit frozen policy");
+	}
+	exactKeys(
+		policy,
+		[
+			"maxRecoveryContinuations",
+			"maxWorkspaceStateBytes",
+			"noProgressContinuationPolicyDigest",
+			"objectiveProgressPolicyDigest",
+			"policyRef",
+			"policyRevision",
+			"requiredFirstToolRef",
+			"schemaVersion",
+		],
+		"host.staleResultRecoveryPolicy",
+	);
+	if (
+		policy.schemaVersion !== CLOSED_TASK_PROFILE_HOST_SCHEMAS.staleResultRecoveryPolicy ||
+		policy.policyRef !== "stale-result-recovery.d702.mutation-first" ||
+		policy.policyRevision !== "decision.D702.2026-08-09.v1" ||
+		policy.requiredFirstToolRef !== CLOSED_ACTOR_TOOL_REFS.replaceExact ||
+		policy.maxRecoveryContinuations !== 1 ||
+		policy.maxWorkspaceStateBytes !== 1_048_576 ||
+		policy.objectiveProgressPolicyDigest !== D702_REQUIRED_OBJECTIVE_PROGRESS_POLICY_DIGEST ||
+		policy.noProgressContinuationPolicyDigest !==
+			D702_REQUIRED_NO_PROGRESS_CONTINUATION_POLICY_DIGEST ||
+		policy.objectiveProgressPolicyDigest !== empiricalStrictJsonDigest(objectiveProgressPolicy) ||
+		policy.noProgressContinuationPolicyDigest !==
+			empiricalStrictJsonDigest(noProgressContinuationPolicy)
+	) {
+		fail("host.staleResultRecoveryPolicy", "does not match D702");
+	}
+	return strictSnapshot({
+		schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.staleResultRecoveryPolicy,
+		policyRef: coordinate(policy.policyRef, "host.staleResultRecoveryPolicy.policyRef"),
+		policyRevision: coordinate(
+			policy.policyRevision,
+			"host.staleResultRecoveryPolicy.policyRevision",
+		),
+		requiredFirstToolRef: CLOSED_ACTOR_TOOL_REFS.replaceExact,
+		objectiveProgressPolicyDigest: digest(
+			policy.objectiveProgressPolicyDigest,
+			"host.staleResultRecoveryPolicy.objectiveProgressPolicyDigest",
+		),
+		noProgressContinuationPolicyDigest: digest(
+			policy.noProgressContinuationPolicyDigest,
+			"host.staleResultRecoveryPolicy.noProgressContinuationPolicyDigest",
+		),
+		maxRecoveryContinuations: 1 as const,
+		maxWorkspaceStateBytes: safeInteger(
+			policy.maxWorkspaceStateBytes,
+			"host.staleResultRecoveryPolicy.maxWorkspaceStateBytes",
+			{ min: 1, max: 16 * 1024 * 1024 },
+		),
+	});
+}
+
+function validateMutationFirstContinuationPort(
+	value: ClosedMutationFirstContinuationModelTurnPortV1 | undefined,
+	policy: ClosedStaleResultRecoveryPolicyV1 | null,
+): ClosedMutationFirstContinuationModelTurnPortV1 | null {
+	if (value === undefined) {
+		if (policy !== null) {
+			fail("host.mutationFirstContinuationModelTurnPort", "is required by the policy");
+		}
+		return null;
+	}
+	if (policy === null) {
+		fail("host.mutationFirstContinuationModelTurnPort", "requires the recovery policy");
+	}
+	const capability = record(value, "host.mutationFirstContinuationModelTurnPort");
+	exactKeys(capability, ["invoke"], "host.mutationFirstContinuationModelTurnPort");
+	return Object.freeze({
+		invoke: ownCapabilityFunction<ClosedMutationFirstContinuationModelTurnPortV1["invoke"]>(
+			capability,
+			"invoke",
+			"host.mutationFirstContinuationModelTurnPort.invoke",
+		),
+	});
+}
+
 function validateCommand(value: unknown, path: string): ClosedCommandSpecV1 {
 	const command = record(value, path);
 	exactKeys(
@@ -1294,6 +1523,7 @@ async function runValidatedHost(
 	verifier: ClosedVerifierCapabilityV1,
 	objectiveProgressPolicyValue: ClosedObjectiveProgressPolicyV1 | undefined,
 	noProgressContinuationPolicyValue: ClosedNoProgressContinuationPolicyV1 | undefined,
+	staleResultRecoveryPolicyValue: ClosedStaleResultRecoveryPolicyV1 | undefined,
 ): Promise<ClosedTaskProfileHostRunOutcomeV3> {
 	const evidence = emptyEvidence();
 	try {
@@ -1305,6 +1535,7 @@ async function runValidatedHost(
 			verifier,
 			objectiveProgressPolicyValue,
 			noProgressContinuationPolicyValue,
+			staleResultRecoveryPolicyValue,
 			validateActionReceiptObserver(input.actionReceiptObserver),
 			validateRetryCapability(input.retry),
 			evidence,
@@ -1478,6 +1709,7 @@ async function executeValidatedHost(
 	verifier: ClosedVerifierCapabilityV1,
 	objectiveProgressPolicyValue: ClosedObjectiveProgressPolicyV1 | undefined,
 	noProgressContinuationPolicyValue: ClosedNoProgressContinuationPolicyV1 | undefined,
+	staleResultRecoveryPolicyValue: ClosedStaleResultRecoveryPolicyV1 | undefined,
 	actionReceiptObserver: ClosedTaskProfileHostActionReceiptObserverV1 | null,
 	retry: ClosedTaskProfileHostRetryCapabilityV1 | null,
 	evidence: MutableRunEvidence,
@@ -1525,6 +1757,19 @@ async function executeValidatedHost(
 		),
 		noProgressContinuationPolicy,
 	);
+	const staleResultRecoveryPolicy = validateStaleResultRecoveryPolicy(
+		staleResultRecoveryPolicyValue,
+		objectiveProgressPolicy,
+		noProgressContinuationPolicy,
+	);
+	const mutationFirstContinuationModelTurnPort = validateMutationFirstContinuationPort(
+		inputOptionalOwnData<ClosedMutationFirstContinuationModelTurnPortV1>(
+			input,
+			"mutationFirstContinuationModelTurnPort",
+			"host.mutationFirstContinuationModelTurnPort",
+		),
+		staleResultRecoveryPolicy,
+	);
 	const noProgressReceiptObserver = validateNoProgressReceiptObserver(
 		inputOptionalOwnData<ClosedNoProgressReceiptObserverV1>(
 			input,
@@ -1543,6 +1788,12 @@ async function executeValidatedHost(
 	let retainedToolResultsStateDigest: string | null = null;
 	let rejectedTerminalCount = 0;
 	let continuation: ClosedHostContinuationV1 | null = null;
+	let mutationFirstContinuation: ClosedMutationFirstContinuationV1 | null = null;
+	let mutationFirstRecoveryPending = false;
+	let mutationFirstRecoveryCount = 0;
+	let staleResultReceiptBytes: Uint8Array | null = null;
+	let staleRejectedRequestBytes: Uint8Array | null = null;
+	let staleWorkspaceStateBytes: Uint8Array | null = null;
 	let inspectionBatchHistory: Array<{
 		readonly workspaceStateDigest: string;
 		readonly canonicalBytes: Uint8Array;
@@ -1565,6 +1816,7 @@ async function executeValidatedHost(
 			}
 			try {
 				continuation = null;
+				mutationFirstContinuation = null;
 				let nextToolResults =
 					pendingToolResults.length > 0 ? pendingToolResults : retainedToolResults;
 				if (noProgressContinuationPolicy !== null && rejectedTerminalCount > 0) {
@@ -1577,12 +1829,14 @@ async function executeValidatedHost(
 					pendingToolResults.length > 0
 						? pendingToolResultsStateDigest
 						: retainedToolResultsStateDigest;
-				const currentWorkspaceStateDigest =
+				const currentWorkspaceSnapshot =
 					noProgressContinuationPolicy !== null && rejectedTerminalCount > 0
-						? objectiveWorkspaceStateDigest(
-								await captureWorkspaceSnapshot(workspaceRoot, input.signal),
-							)
+						? await captureWorkspaceSnapshot(workspaceRoot, input.signal)
 						: null;
+				const currentWorkspaceStateDigest =
+					currentWorkspaceSnapshot === null
+						? null
+						: objectiveWorkspaceStateDigest(currentWorkspaceSnapshot);
 				if (
 					nextToolResults.length > 0 &&
 					currentWorkspaceStateDigest !== null &&
@@ -1604,20 +1858,60 @@ async function executeValidatedHost(
 					rejectedTerminalCount > 0 &&
 					currentWorkspaceStateDigest !== null
 				) {
-					continuation = createHostContinuation({
-						policy: noProgressContinuationPolicy,
-						request,
-						workspaceStateDigest: currentWorkspaceStateDigest,
-						rejectedTerminalCount,
-						remainingSteps: maximumTurns - stepIndex,
-						remainingActions:
-							validated.profile.workspaceRecipe.maxToolActions - evidence.toolActionCount,
-						mutationStateDigest: objectiveMutationStateDigest,
-						diffStateDigest: objectiveDiffStateDigest,
-						validationStateDigest: objectiveValidationStateDigest,
-					});
+					if (mutationFirstRecoveryPending) {
+						if (
+							staleResultRecoveryPolicy === null ||
+							staleResultReceiptBytes === null ||
+							staleRejectedRequestBytes === null ||
+							staleWorkspaceStateBytes === null ||
+							currentWorkspaceSnapshot === null ||
+							objectiveMutationStateDigest === currentWorkspaceStateDigest
+						) {
+							throw new HostRunFailure("stale-result-recovery-state-invalid");
+						}
+						const currentWorkspaceStateBytes = boundedObjectiveWorkspaceStateBytes(
+							currentWorkspaceSnapshot,
+							staleResultRecoveryPolicy.maxWorkspaceStateBytes,
+						);
+						if (!sameBytes(currentWorkspaceStateBytes, staleWorkspaceStateBytes)) {
+							throw new HostRunFailure("stale-result-recovery-state-mismatch");
+						}
+						mutationFirstContinuation = createMutationFirstContinuation({
+							policy: staleResultRecoveryPolicy,
+							request,
+							workspaceStateBytes: staleWorkspaceStateBytes,
+							staleResultReceiptBytes,
+							rejectedRequestBytes: staleRejectedRequestBytes,
+							remainingSteps: maximumTurns - stepIndex,
+							remainingActions:
+								validated.profile.workspaceRecipe.maxToolActions - evidence.toolActionCount,
+						});
+						mutationFirstRecoveryPending = false;
+					} else {
+						const d702WorkspaceStateBytes =
+							staleResultRecoveryPolicy !== null && currentWorkspaceSnapshot !== null
+								? boundedObjectiveWorkspaceStateBytes(
+										currentWorkspaceSnapshot,
+										staleResultRecoveryPolicy.maxWorkspaceStateBytes,
+									)
+								: null;
+						continuation = createHostContinuation({
+							policy: noProgressContinuationPolicy,
+							request,
+							workspaceStateDigest: currentWorkspaceStateDigest,
+							workspaceStateBytes: d702WorkspaceStateBytes,
+							rejectedTerminalCount,
+							remainingSteps: maximumTurns - stepIndex,
+							remainingActions:
+								validated.profile.workspaceRecipe.maxToolActions - evidence.toolActionCount,
+							mutationStateDigest: objectiveMutationStateDigest,
+							diffStateDigest: objectiveDiffStateDigest,
+							validationStateDigest: objectiveValidationStateDigest,
+						});
+					}
 					if (
-						continuation.requiredDisposition === "tool-intents" &&
+						(continuation?.requiredDisposition === "tool-intents" ||
+							mutationFirstContinuation !== null) &&
 						stepIndex + 1 >= maximumTurns
 					) {
 						throw new HostRunFailure("no-progress-continuation-step-budget-exhausted");
@@ -1638,20 +1932,40 @@ async function executeValidatedHost(
 			if (evidence.attemptCount >= frozen.manifest.budgets.agentRun.maxRequests) {
 				throw new HostRunFailure("agent-request-budget-exhausted");
 			}
+			const continuationStateDigest = continuation?.workspaceStateDigest ?? null;
+			const preAttemptSnapshot =
+				mutationFirstContinuation !== null || continuationStateDigest !== null
+					? await captureWorkspaceSnapshot(workspaceRoot, input.signal)
+					: null;
 			if (
-				continuation !== null &&
-				objectiveWorkspaceStateDigest(
-					await captureWorkspaceSnapshot(workspaceRoot, input.signal),
-				) !== continuation.workspaceStateDigest
+				mutationFirstContinuation !== null &&
+				(preAttemptSnapshot === null ||
+					!mutationFirstContinuationMatchesWorkspaceSnapshot(
+						mutationFirstContinuation,
+						preAttemptSnapshot,
+					))
+			) {
+				throw new HostRunFailure("no-progress-continuation-state-mismatch");
+			}
+			if (
+				continuationStateDigest !== null &&
+				(preAttemptSnapshot === null ||
+					objectiveWorkspaceStateDigest(preAttemptSnapshot) !== continuationStateDigest)
 			) {
 				throw new HostRunFailure("no-progress-continuation-state-mismatch");
 			}
 			let outcomeValue: unknown;
 			try {
 				outcomeValue =
-					continuation !== null && continuationModelTurnPort !== null
-						? await continuationModelTurnPort.invoke(request, continuation, input.signal)
-						: await input.modelTurnPort.invoke(request, input.signal);
+					mutationFirstContinuation !== null && mutationFirstContinuationModelTurnPort !== null
+						? await mutationFirstContinuationModelTurnPort.invoke(
+								request,
+								mutationFirstContinuation,
+								input.signal,
+							)
+						: continuation !== null && continuationModelTurnPort !== null
+							? await continuationModelTurnPort.invoke(request, continuation, input.signal)
+							: await input.modelTurnPort.invoke(request, input.signal);
 			} catch {
 				if (input.signal.aborted) throw new HostRunFailure("host-cancelled");
 				throw new HostRunFailure("model-turn-invocation-failed");
@@ -1707,12 +2021,22 @@ async function executeValidatedHost(
 			if (remainingOutputBytes < 0) {
 				throw new HostRunFailure("agent-output-byte-budget-exhausted");
 			}
-			if (
+			if (!cancelledAfterInvocation && mutationFirstContinuation !== null) {
+				const postInvocationSnapshot = await captureWorkspaceSnapshot(workspaceRoot, input.signal);
+				if (
+					!mutationFirstContinuationMatchesWorkspaceSnapshot(
+						mutationFirstContinuation,
+						postInvocationSnapshot,
+					)
+				) {
+					throw new HostRunFailure("no-progress-continuation-state-mismatch");
+				}
+			} else if (
 				!cancelledAfterInvocation &&
-				continuation !== null &&
+				continuationStateDigest !== null &&
 				objectiveWorkspaceStateDigest(
 					await captureWorkspaceSnapshot(workspaceRoot, input.signal),
-				) !== continuation.workspaceStateDigest
+				) !== continuationStateDigest
 			) {
 				throw new HostRunFailure("no-progress-continuation-state-mismatch");
 			}
@@ -1821,6 +2145,14 @@ async function executeValidatedHost(
 		}
 		if (outcome === null || outcome.status === "non-evaluable") {
 			throw new HostRunFailure("model-turn-retry-outcome-missing");
+		}
+		if (
+			mutationFirstContinuation !== null &&
+			(outcome.finishReason !== "tool-intents" ||
+				outcome.toolIntents.length === 0 ||
+				outcome.toolIntents[0]?.toolRef !== CLOSED_ACTOR_TOOL_REFS.replaceExact)
+		) {
+			throw new HostRunFailure("stale-result-mutation-first-required");
 		}
 		const structuredTerminal = classifyClosedHostStructuredTerminal({
 			finishReason: outcome.finishReason,
@@ -1961,10 +2293,16 @@ async function executeValidatedHost(
 				.slice(1)
 				.some((intent) => intent.toolRef === CLOSED_ACTOR_TOOL_REFS.replaceExact)
 		) {
-			const workspaceStateDigest = objectiveWorkspaceStateDigest(
-				await captureWorkspaceSnapshot(workspaceRoot, input.signal),
-			);
-			recordNoProgressReceipt(noProgressReceiptObserver, {
+			const staleWorkspaceSnapshot = await captureWorkspaceSnapshot(workspaceRoot, input.signal);
+			const workspaceStateDigest = objectiveWorkspaceStateDigest(staleWorkspaceSnapshot);
+			const candidateStaleWorkspaceStateBytes =
+				staleResultRecoveryPolicy === null
+					? null
+					: boundedObjectiveWorkspaceStateBytes(
+							staleWorkspaceSnapshot,
+							staleResultRecoveryPolicy.maxWorkspaceStateBytes,
+						);
+			const staleReceipt = strictSnapshot({
 				kind: "stale-result-intent-batch",
 				trialStage: input.initialRequest.trialStage,
 				stepIndex,
@@ -1976,7 +2314,33 @@ async function executeValidatedHost(
 					})),
 				),
 				disposition: "rejected-before-tool-execution",
-			});
+			}) satisfies ClosedNoProgressReceiptV1;
+			recordNoProgressReceipt(noProgressReceiptObserver, staleReceipt);
+			if (
+				staleResultRecoveryPolicy !== null &&
+				continuation !== null &&
+				mutationFirstContinuation === null &&
+				objectiveMutationStateDigest !== workspaceStateDigest &&
+				mutationFirstRecoveryCount < staleResultRecoveryPolicy.maxRecoveryContinuations
+			) {
+				if (
+					!isConstructedClosedHostContinuationForRequest(continuation, request) ||
+					workspaceStateDigest !== continuation.workspaceStateDigest ||
+					candidateStaleWorkspaceStateBytes === null ||
+					!isConstructedClosedHostContinuationForWorkspaceState(
+						continuation,
+						candidateStaleWorkspaceStateBytes,
+					)
+				) {
+					throw new HostRunFailure("stale-result-recovery-state-mismatch");
+				}
+				mutationFirstRecoveryCount += 1;
+				staleResultReceiptBytes = strictJsonCodec.encode(staleReceipt);
+				staleRejectedRequestBytes = strictJsonCodec.encode(request);
+				staleWorkspaceStateBytes = candidateStaleWorkspaceStateBytes;
+				mutationFirstRecoveryPending = true;
+				continue;
+			}
 			throw new HostRunFailure("no-progress-stale-result-intent-batch");
 		}
 		const inspectionBatch: Awaited<ReturnType<typeof inspectNoProgressBatch>> =
@@ -1994,6 +2358,15 @@ async function executeValidatedHost(
 					);
 		if (inspectionBatch?.rejected === true) {
 			throw new HostRunFailure(inspectionBatch.issueCode);
+		}
+		if (
+			mutationFirstContinuation !== null &&
+			!mutationFirstContinuationMatchesWorkspaceSnapshot(
+				mutationFirstContinuation,
+				await captureWorkspaceSnapshot(workspaceRoot, input.signal),
+			)
+		) {
+			throw new HostRunFailure("stale-result-recovery-state-mismatch");
 		}
 		for (const intent of outcome.toolIntents) {
 			if (evidence.toolActionCount >= validated.profile.workspaceRecipe.maxToolActions) {
@@ -2226,6 +2599,7 @@ function createHostContinuation(input: {
 	readonly policy: ClosedNoProgressContinuationPolicyV1;
 	readonly request: EmpiricalModelTurnRequestV1;
 	readonly workspaceStateDigest: string;
+	readonly workspaceStateBytes: Uint8Array | null;
 	readonly rejectedTerminalCount: number;
 	readonly remainingSteps: number;
 	readonly remainingActions: number;
@@ -2270,9 +2644,74 @@ function createHostContinuation(input: {
 		Object.freeze({
 			requestBytes: strictJsonCodec.encode(input.request),
 			toolResultBytes: strictJsonCodec.encode(input.request.priorToolResults),
+			workspaceStateBytes: input.workspaceStateBytes?.slice() ?? null,
 		}),
 	);
 	return continuation;
+}
+
+function createMutationFirstContinuation(input: {
+	readonly policy: ClosedStaleResultRecoveryPolicyV1;
+	readonly request: EmpiricalModelTurnRequestV1;
+	readonly workspaceStateBytes: Uint8Array;
+	readonly staleResultReceiptBytes: Uint8Array;
+	readonly rejectedRequestBytes: Uint8Array;
+	readonly remainingSteps: number;
+	readonly remainingActions: number;
+}): ClosedMutationFirstContinuationV1 {
+	if (input.workspaceStateBytes.byteLength > input.policy.maxWorkspaceStateBytes) {
+		throw new HostRunFailure("stale-result-recovery-state-byte-budget-exhausted");
+	}
+	const continuation = strictSnapshot({
+		schemaVersion: CLOSED_TASK_PROFILE_HOST_SCHEMAS.mutationFirstContinuation,
+		policyRef: input.policy.policyRef,
+		policyRevision: input.policy.policyRevision,
+		reason: "stale-result-intent-batch" as const,
+		requiredDisposition: "tool-intents" as const,
+		requiredFirstToolRef: CLOSED_ACTOR_TOOL_REFS.replaceExact,
+		recoveryOrdinal: 1 as const,
+		rejectedRequestByteLength: input.rejectedRequestBytes.byteLength,
+		rejectedRequestDigest: empiricalSha256(input.rejectedRequestBytes),
+		staleResultReceiptByteLength: input.staleResultReceiptBytes.byteLength,
+		staleResultReceiptDigest: empiricalSha256(input.staleResultReceiptBytes),
+		remainingSteps: input.remainingSteps,
+		remainingActions: input.remainingActions,
+		retainedToolResultCount: input.request.priorToolResults.length,
+		retainedToolResultsDigest: empiricalStrictJsonDigest(input.request.priorToolResults),
+		workspaceStateDigest: empiricalSha256(input.workspaceStateBytes),
+		workspaceStateByteLength: input.workspaceStateBytes.byteLength,
+	});
+	constructedMutationFirstContinuations.set(
+		continuation,
+		Object.freeze({
+			requestBytes: strictJsonCodec.encode(input.request),
+			toolResultBytes: strictJsonCodec.encode(input.request.priorToolResults),
+			rejectedRequestBytes: input.rejectedRequestBytes.slice(),
+			staleResultReceiptBytes: input.staleResultReceiptBytes.slice(),
+			workspaceStateBytes: input.workspaceStateBytes.slice(),
+		}),
+	);
+	return continuation;
+}
+
+function mutationFirstContinuationMatchesWorkspaceSnapshot(
+	continuation: ClosedMutationFirstContinuationV1,
+	snapshot: WorkspaceSnapshot,
+): boolean {
+	const attestation = constructedMutationFirstContinuations.get(continuation);
+	if (attestation === undefined) return false;
+	const bytes = objectiveWorkspaceStateBytes(snapshot);
+	return (
+		bytes.byteLength === continuation.workspaceStateByteLength &&
+		empiricalSha256(bytes) === continuation.workspaceStateDigest &&
+		sameClosedMutationFirstState(
+			{
+				digest: continuation.workspaceStateDigest,
+				canonicalBytes: attestation.workspaceStateBytes,
+			},
+			{ digest: empiricalSha256(bytes), canonicalBytes: bytes },
+		)
+	);
 }
 
 const NO_PROGRESS_INSPECTION_TOOL_REFS: ReadonlySet<string> = new Set([
@@ -2282,6 +2721,13 @@ const NO_PROGRESS_INSPECTION_TOOL_REFS: ReadonlySet<string> = new Set([
 ]);
 
 export function sameClosedInspectionBatch(
+	left: { readonly digest: string; readonly canonicalBytes: Uint8Array },
+	right: { readonly digest: string; readonly canonicalBytes: Uint8Array },
+): boolean {
+	return sameBytes(left.canonicalBytes, right.canonicalBytes);
+}
+
+export function sameClosedMutationFirstState(
 	left: { readonly digest: string; readonly canonicalBytes: Uint8Array },
 	right: { readonly digest: string; readonly canonicalBytes: Uint8Array },
 ): boolean {
@@ -2971,22 +3417,42 @@ function workspaceSnapshotDigest(snapshot: WorkspaceSnapshot): string {
 	);
 }
 
+function objectiveWorkspaceStateValue(snapshot: WorkspaceSnapshot): StrictJsonValue {
+	const values: StrictJsonValue[] = [];
+	for (const [path, entry] of snapshot.entries) {
+		if (path === ".git" || path.startsWith(".git/")) continue;
+		values.push(
+			entry.kind === "directory"
+				? strictSnapshot({ path, kind: entry.kind, mode: entry.mode })
+				: strictSnapshot({
+						path,
+						kind: entry.kind,
+						mode: entry.mode,
+						byteLength: entry.byteLength,
+						digest: entry.digest,
+					}),
+		);
+	}
+	return values;
+}
+
+function objectiveWorkspaceStateBytes(snapshot: WorkspaceSnapshot): Uint8Array {
+	return strictJsonCodec.encode(objectiveWorkspaceStateValue(snapshot));
+}
+
+function boundedObjectiveWorkspaceStateBytes(
+	snapshot: WorkspaceSnapshot,
+	maxBytes: number,
+): Uint8Array {
+	const bytes = objectiveWorkspaceStateBytes(snapshot);
+	if (bytes.byteLength > maxBytes) {
+		throw new HostRunFailure("stale-result-recovery-state-byte-budget-exhausted");
+	}
+	return bytes;
+}
+
 function objectiveWorkspaceStateDigest(snapshot: WorkspaceSnapshot): string {
-	return empiricalStrictJsonDigest(
-		[...snapshot.entries]
-			.filter(([path]) => path !== ".git" && !path.startsWith(".git/"))
-			.map(([path, entry]) =>
-				entry.kind === "directory"
-					? { path, kind: entry.kind, mode: entry.mode }
-					: {
-							path,
-							kind: entry.kind,
-							mode: entry.mode,
-							byteLength: entry.byteLength,
-							digest: entry.digest,
-						},
-			),
-	);
+	return empiricalSha256(objectiveWorkspaceStateBytes(snapshot));
 }
 
 function workspaceSnapshotDifferenceDigest(
