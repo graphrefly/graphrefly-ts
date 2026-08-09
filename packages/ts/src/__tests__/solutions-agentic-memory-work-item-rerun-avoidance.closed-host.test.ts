@@ -3323,6 +3323,11 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 				}),
 			);
 		}
+		expect(reports[3]).toMatchObject({
+			caseRef: "safe-ordered-multiple-intent",
+			hostStatus: "completed",
+			verifierVerdict: "passed",
+		});
 		const qualification = createD695OfflineQualification(reports);
 		expect(qualification).toMatchObject({
 			qualified: true,
@@ -3330,6 +3335,8 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			retainedResultsBound: true,
 			repeatedInspectionStoppedBeforeExecution: true,
 			multipleIntentStoppedBeforeExecution: true,
+			safeOrderedMultipleIntentPassed: true,
+			staleResultMultipleIntentStoppedBeforeExecution: true,
 			mutationStateResetPassed: true,
 			providerCallCount: 0,
 			networkCallCount: 0,

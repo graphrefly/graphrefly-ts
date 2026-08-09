@@ -60,7 +60,7 @@ export const D695_NO_PROGRESS_CONTINUATION_POLICY = strictSnapshot({
 	policyRef: "no-progress.d695.historical-transfer",
 	policyRevision: "decision.D695.2026-08-08.v1",
 	maxRetainedToolResults: 16,
-	maxRetainedBytes: 131_072,
+	maxRetainedBytes: 240_000,
 	maxRejectedTerminals: 2,
 	maxSemanticDuplicateRejections: 1,
 	maxInspectionBatchesPerState: 16,
@@ -72,11 +72,13 @@ export const D695_OFFLINE_GENERATION_SCHEMA =
 	"graphrefly.private-solution-eval.d695-no-progress-continuation-generation.v1" as const;
 export const D695_CLAIM_BOUNDARY =
 	"offline-provider-neutral-continuation-contract-no-provider-no-efficacy-claim" as const;
-export const D695_SCRIPTED_MECHANISM_REVISION = "d695-scripted-full-host.v2" as const;
+export const D695_SCRIPTED_MECHANISM_REVISION = "d695-scripted-full-host.v3" as const;
 export const D695_CASE_ORDER = Object.freeze([
 	"feedback-recovery",
 	"repeated-inspection",
 	"duplicate-multiple-intent",
+	"safe-ordered-multiple-intent",
+	"stale-result-multiple-intent",
 	"mutation-state-reset",
 ] as const);
 export type D695CaseRef = (typeof D695_CASE_ORDER)[number];
@@ -120,6 +122,8 @@ export interface D695OfflineQualificationV1 {
 	readonly retainedResultsBound: boolean;
 	readonly repeatedInspectionStoppedBeforeExecution: boolean;
 	readonly multipleIntentStoppedBeforeExecution: boolean;
+	readonly safeOrderedMultipleIntentPassed: boolean;
+	readonly staleResultMultipleIntentStoppedBeforeExecution: boolean;
 	readonly mutationStateResetPassed: boolean;
 	readonly providerCallCount: 0;
 	readonly networkCallCount: 0;
@@ -283,6 +287,7 @@ function replaceIntent(
 	request: EmpiricalModelTurnRequestV1,
 	step: number,
 	plan: D693ScriptedMutationPlanV1,
+	index = 0,
 ): EmpiricalModelToolIntentV1 {
 	const schema = request.availableTools.find(
 		(candidate) => candidate.toolRef === CLOSED_ACTOR_TOOL_REFS.replaceExact,
@@ -293,7 +298,7 @@ function replaceIntent(
 	const hostDerivesDigest = !schema.inputSchema.properties.some(
 		(property) => property.name === "baseContentDigest",
 	);
-	return toolIntent(caseRef, step, 0, CLOSED_ACTOR_TOOL_REFS.replaceExact, {
+	return toolIntent(caseRef, step, index, CLOSED_ACTOR_TOOL_REFS.replaceExact, {
 		...(hostDerivesDigest ? {} : { baseContentDigest: plan.initialContentDigest }),
 		newText: plan.acceptedNewText,
 		oldText: plan.initialOldText,
@@ -328,6 +333,29 @@ function scriptedBody(
 	if (step === 1 && caseRef !== "mutation-state-reset") return finalBody(caseRef);
 	if (caseRef === "repeated-inspection") {
 		return { finishReason: "tool-intents", toolIntents: reads() };
+	}
+	if (step === 2 && caseRef === "safe-ordered-multiple-intent") {
+		return {
+			finishReason: "tool-intents",
+			toolIntents: [
+				replaceIntent(caseRef, request, step, plan),
+				toolIntent(caseRef, step, 1, CLOSED_ACTOR_TOOL_REFS.workspaceDiff, {}),
+				toolIntent(caseRef, step, 2, CLOSED_ACTOR_TOOL_REFS.runCommand, {
+					commandRef: plan.validationCommandRef,
+				}),
+			],
+		};
+	}
+	if (step === 2 && caseRef === "stale-result-multiple-intent") {
+		return {
+			finishReason: "tool-intents",
+			toolIntents: [
+				toolIntent(caseRef, step, 0, CLOSED_ACTOR_TOOL_REFS.readFile, {
+					path: plan.readPaths[0]!,
+				}),
+				replaceIntent(caseRef, request, step, plan, 1),
+			],
+		};
 	}
 	const mutationStep = caseRef === "mutation-state-reset" ? 1 : 2;
 	if (step === mutationStep) {
@@ -451,7 +479,10 @@ export async function runD695OfflineCase(input: {
 			if (
 				body.finishReason === "structured-output" &&
 				request.stepIndex === 1 &&
-				(caseRef === "feedback-recovery" || caseRef === "repeated-inspection")
+				(caseRef === "feedback-recovery" ||
+					caseRef === "repeated-inspection" ||
+					caseRef === "safe-ordered-multiple-intent" ||
+					caseRef === "stale-result-multiple-intent")
 			) {
 				rejectionPriorToolResultsBytes = strictJsonCodec.encode(request.priorToolResults);
 				rejectionPriorToolResultCount = request.priorToolResults.length;
@@ -706,7 +737,7 @@ function createQualification(
 	requireConstructed: boolean,
 ): D695OfflineQualificationV1 {
 	const values = array(reportsInput, "d695.qualification.reports");
-	if (values.length !== D695_CASE_ORDER.length) throw new TypeError("D695 requires four cases");
+	if (values.length !== D695_CASE_ORDER.length) throw new TypeError("D695 requires six cases");
 	if (
 		requireConstructed &&
 		values.some(
@@ -716,7 +747,9 @@ function createQualification(
 		throw new TypeError("D695 qualification requires closed-host-produced reports");
 	}
 	const cases = values.map((entry, index) => validateCase(entry, D695_CASE_ORDER[index]!));
-	const [recovery, repeated, multiple, reset] = cases as [
+	const [recovery, repeated, multiple, safeMultiple, staleMultiple, reset] = cases as [
+		D695CaseReportV1,
+		D695CaseReportV1,
 		D695CaseReportV1,
 		D695CaseReportV1,
 		D695CaseReportV1,
@@ -735,6 +768,8 @@ function createQualification(
 		recovery.retainedResultsApplicable &&
 		repeated.retainedResultsApplicable &&
 		!multiple.retainedResultsApplicable &&
+		safeMultiple.retainedResultsApplicable &&
+		staleMultiple.retainedResultsApplicable &&
 		!reset.retainedResultsApplicable;
 	const repeatedInspectionStoppedBeforeExecution =
 		repeated.issueCodes.includes("repeated-inspection-turn-no-progress") &&
@@ -747,6 +782,27 @@ function createQualification(
 		multiple.toolActionCount === 0 &&
 		multiple.duplicateReceiptCount === 1 &&
 		multiple.duplicateRejectedBeforeExecution;
+	const safeReplaceIndex = safeMultiple.actionToolRefs.indexOf(CLOSED_ACTOR_TOOL_REFS.replaceExact);
+	const safeDiffIndex = safeMultiple.actionToolRefs.indexOf(
+		CLOSED_ACTOR_TOOL_REFS.workspaceDiff,
+		safeReplaceIndex + 1,
+	);
+	const safeCommandIndex = safeMultiple.actionToolRefs.indexOf(
+		CLOSED_ACTOR_TOOL_REFS.runCommand,
+		safeDiffIndex + 1,
+	);
+	const safeOrderedMultipleIntentPassed =
+		safeMultiple.hostStatus === "completed" &&
+		safeMultiple.verifierVerdict === "passed" &&
+		safeReplaceIndex >= 0 &&
+		safeDiffIndex > safeReplaceIndex &&
+		safeCommandIndex > safeDiffIndex;
+	const staleResultMultipleIntentStoppedBeforeExecution =
+		staleMultiple.issueCodes.includes("no-progress-stale-result-intent-batch") &&
+		staleMultiple.toolActionCount ===
+			recovery.actionToolRefs.filter((ref) => ref === CLOSED_ACTOR_TOOL_REFS.readFile).length &&
+		staleMultiple.duplicateReceiptCount === 1 &&
+		staleMultiple.duplicateRejectedBeforeExecution;
 	const mutationStateResetPassed =
 		reset.hostStatus === "completed" &&
 		reset.verifierVerdict === "passed" &&
@@ -757,6 +813,8 @@ function createQualification(
 		retainedResultsBound &&
 		repeatedInspectionStoppedBeforeExecution &&
 		multipleIntentStoppedBeforeExecution &&
+		safeOrderedMultipleIntentPassed &&
+		staleResultMultipleIntentStoppedBeforeExecution &&
 		mutationStateResetPassed;
 	const withoutDigest = strictSnapshot({
 		schemaVersion: D695_OFFLINE_QUALIFICATION_SCHEMA,
@@ -770,6 +828,8 @@ function createQualification(
 		retainedResultsBound,
 		repeatedInspectionStoppedBeforeExecution,
 		multipleIntentStoppedBeforeExecution,
+		safeOrderedMultipleIntentPassed,
+		staleResultMultipleIntentStoppedBeforeExecution,
 		mutationStateResetPassed,
 		providerCallCount: 0 as const,
 		networkCallCount: 0 as const,
@@ -809,7 +869,9 @@ export function validateD695OfflineQualification(value: unknown): D695OfflineQua
 			"qualified",
 			"repeatedInspectionStoppedBeforeExecution",
 			"retainedResultsBound",
+			"safeOrderedMultipleIntentPassed",
 			"schemaVersion",
+			"staleResultMultipleIntentStoppedBeforeExecution",
 		],
 		"d695.qualification",
 	);
