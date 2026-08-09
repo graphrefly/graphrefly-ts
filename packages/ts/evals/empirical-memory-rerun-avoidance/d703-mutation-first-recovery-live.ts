@@ -234,6 +234,12 @@ interface D703PreflightState {
 	readonly d702Qualification: D702OfflineQualificationV1;
 }
 
+export interface D703ConsumedPreflightForD704V1 {
+	readonly d690OfflineEvidence: ReturnType<typeof validateD691D690OfflineEvidence>;
+	readonly historicalObservation: D696ContinuationAssistedObservationV1;
+	readonly d702Qualification: D702OfflineQualificationV1;
+}
+
 const constructedPreflights = new WeakMap<object, D703PreflightState>();
 const constructedObservations = new WeakSet<object>();
 const constructedScorecards = new WeakSet<object>();
@@ -537,6 +543,20 @@ export async function createD703PreflightCapability(
 		d702Qualification,
 	});
 	return capability;
+}
+
+export function consumeD703PreflightForD704(value: unknown): D703ConsumedPreflightForD704V1 {
+	if (value === null || typeof value !== "object") {
+		throw new TypeError("D704 requires a constructed D703 preflight");
+	}
+	const state = constructedPreflights.get(value);
+	if (state === undefined) throw new TypeError("D704 requires a fresh D703 preflight");
+	constructedPreflights.delete(value);
+	return Object.freeze({
+		d690OfflineEvidence: state.d690OfflineEvidence,
+		historicalObservation: state.historicalObservation,
+		d702Qualification: state.d702Qualification,
+	});
 }
 
 function captureBlock(value: unknown): OpenRouterMatchedTrialBlockInputV4 {
