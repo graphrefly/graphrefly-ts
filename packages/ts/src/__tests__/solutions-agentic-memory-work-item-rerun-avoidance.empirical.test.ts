@@ -846,6 +846,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsD708ZeroByokOperator = file.endsWith("d708-zero-byok-qualification.ts");
 			const allowsD708AttemptReceiptOperator = file.endsWith("d708-live-attempt-receipt.ts");
 			const allowsD708LiveOrchestration = file.endsWith("d708-live-orchestration.ts");
+			const allowsD708QualifiedEntrypoint = file.endsWith("d708-qualified-live-entrypoint.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -920,7 +921,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			expect(source).not.toMatch(
 				allowsD690SealedOfflineOperator
 					? /\b(?:Date\.now|fetch\s*\(|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b/
-					: allowsD703MutationFirstOperator
+					: allowsD703MutationFirstOperator || allowsD708QualifiedEntrypoint
 						? /\b(?:Date\.now|fetch|WebSocket|setInterval|setImmediate|queueMicrotask)\b|node:(?:http|https|tls)|(?:from|import)\s+["'](?:http|https|tls|undici|ws)["']/
 						: allowsOutermostLiveOperator
 							? /\b(?:WebSocket|setInterval|setImmediate|queueMicrotask)\b|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
@@ -973,18 +974,22 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD690SealedOfflineOperator ||
 							allowsD703MutationFirstOperator) &&
 							specifier === "node:child_process") ||
+						(allowsD708QualifiedEntrypoint &&
+							(specifier === "node:child_process" ||
+								specifier === "node:url" ||
+								specifier === "node:util")) ||
 						(allowsD703MutationFirstOperator &&
 							(specifier === "node:net" || specifier === "node:util")) ||
 						((allowsRepositoryNodeDriver ||
 							allowsClosedHostNodeDriver ||
 							allowsD690SealedOfflineOperator ||
 							allowsPreliveOperatorDriver ||
-							allowsOutermostLiveOperator) &&
+							allowsOutermostLiveOperator ||
+							allowsD708QualifiedEntrypoint) &&
 							(specifier === "node:fs/promises" || specifier === "node:path")) ||
 						(allowsD690SealedOfflineOperator &&
 							(specifier === "node:fs" || specifier === "node:os")) ||
-						((allowsD708ZeroByokOperator || allowsD708ClaimOperator) &&
-							specifier === "node:fs") ||
+						((allowsD708ZeroByokOperator || allowsD708ClaimOperator) && specifier === "node:fs") ||
 						((allowsD691HistoricalTransferOperator || allowsOutermostLiveOperator) &&
 							specifier === "node:url") ||
 						specifier === "../../src/json/codec.js" ||
