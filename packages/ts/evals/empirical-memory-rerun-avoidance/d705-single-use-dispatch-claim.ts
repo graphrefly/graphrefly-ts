@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { strictJsonCodec } from "../../src/json/codec.js";
@@ -16,6 +17,10 @@ export const D705_SINGLE_USE_DISPATCH_CLAIM_REF =
 export const D705_SINGLE_USE_DISPATCH_CLAIM_DIRECTORY =
 	`.${D705_SINGLE_USE_DISPATCH_CLAIM_REF}` as const;
 export const D705_LIVE_GENERATION_REF = "d705-d704-exact-replacement-2026-08-09-v1" as const;
+export const D705_CONSUMED_DISPATCH_CLAIM_ARTIFACT_DIGEST =
+	"sha256:44d3b01ebaf295e3701402973f91143648cfc083f17fa0d49e47230a748d6a98" as const;
+export const D705_CONSUMED_DISPATCH_CLAIM_DIGEST =
+	"sha256:b534d4642d490a22b93371201cf8614671af9afeabf221e502a685fc4c78bab8" as const;
 const D705_CLAIM_FILE = "dispatch-claim.v1.json";
 const D705_EXECUTION_DIRECTORY = ".execution-started";
 
@@ -38,6 +43,16 @@ export interface AcquiredD705SingleUseDispatchClaimV1 {
 }
 
 const acquiredClaims = new WeakSet<object>();
+const constructedConsumedHistories = new WeakSet<object>();
+
+export interface D705ConsumedDispatchHistoryCapabilityV1 {
+	readonly capabilityRef: "d705-consumed-dispatch-history";
+	readonly capabilityRevision: "decision.D708.2026-08-09.v1";
+	readonly claimArtifactDigest: typeof D705_CONSUMED_DISPATCH_CLAIM_ARTIFACT_DIGEST;
+	readonly claimDigest: typeof D705_CONSUMED_DISPATCH_CLAIM_DIGEST;
+	readonly executionLeaseConsumed: true;
+	readonly liveGenerationAbsent: true;
+}
 
 function createClaim(): D705SingleUseDispatchClaimV1 {
 	const material = strictSnapshot({
@@ -155,4 +170,73 @@ export async function consumePersistedD705DispatchClaimForExecutionAtPrivateRoot
 	const acquired = Object.freeze({ claimPath, claimDigest: expected.claimDigest });
 	acquiredClaims.add(acquired);
 	return acquired;
+}
+
+export async function createD705ConsumedDispatchHistoryCapabilityAtPrivateRoot(
+	privateRootInput: string,
+): Promise<D705ConsumedDispatchHistoryCapabilityV1> {
+	const privateRoot = await assertSafePrivateRoot(privateRootInput);
+	const claimPath = join(privateRoot, D705_SINGLE_USE_DISPATCH_CLAIM_DIRECTORY);
+	const claimFile = join(claimPath, D705_CLAIM_FILE);
+	const executionPath = join(claimPath, D705_EXECUTION_DIRECTORY);
+	const generationPath = join(privateRoot, D705_LIVE_GENERATION_REF);
+	const [claimStatus, claimFileStatus, executionStatus] = await Promise.all([
+		lstat(claimPath),
+		lstat(claimFile),
+		lstat(executionPath),
+	]);
+	if (
+		!claimStatus.isDirectory() ||
+		claimStatus.isSymbolicLink() ||
+		(claimStatus.mode & 0o777) !== 0o700 ||
+		!claimFileStatus.isFile() ||
+		claimFileStatus.isSymbolicLink() ||
+		(claimFileStatus.mode & 0o777) !== 0o600 ||
+		!executionStatus.isDirectory() ||
+		executionStatus.isSymbolicLink() ||
+		(executionStatus.mode & 0o777) !== 0o700 ||
+		(await realpath(claimPath)) !== claimPath ||
+		(await realpath(claimFile)) !== claimFile ||
+		(await realpath(executionPath)) !== executionPath
+	) {
+		throw new TypeError("D705 consumed dispatch history ownership is invalid");
+	}
+	try {
+		await lstat(generationPath);
+		throw new TypeError("D705 consumed history unexpectedly has a live generation");
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+	}
+	const persistedBytes = new Uint8Array(await readFile(claimFile));
+	const expectedBytes = strictJsonCodec.encode(createClaim());
+	if (
+		!Buffer.from(persistedBytes).equals(expectedBytes) ||
+		`sha256:${createHash("sha256").update(persistedBytes).digest("hex")}` !==
+			D705_CONSUMED_DISPATCH_CLAIM_ARTIFACT_DIGEST
+	) {
+		throw new TypeError("D705 consumed dispatch history bytes are not exact");
+	}
+	const capability = Object.freeze({
+		capabilityRef: "d705-consumed-dispatch-history" as const,
+		capabilityRevision: "decision.D708.2026-08-09.v1" as const,
+		claimArtifactDigest: D705_CONSUMED_DISPATCH_CLAIM_ARTIFACT_DIGEST,
+		claimDigest: D705_CONSUMED_DISPATCH_CLAIM_DIGEST,
+		executionLeaseConsumed: true as const,
+		liveGenerationAbsent: true as const,
+	});
+	constructedConsumedHistories.add(capability);
+	return capability;
+}
+
+export async function createD705ConsumedDispatchHistoryCapability(): Promise<D705ConsumedDispatchHistoryCapabilityV1> {
+	return createD705ConsumedDispatchHistoryCapabilityAtPrivateRoot(D691_PRIVATE_PERSISTENCE_ROOT);
+}
+
+export function consumeD705ConsumedDispatchHistoryCapability(
+	value: unknown,
+): D705ConsumedDispatchHistoryCapabilityV1 {
+	if (value === null || typeof value !== "object" || !constructedConsumedHistories.delete(value)) {
+		throw new TypeError("D708 requires exact same-process D705 consumed dispatch history");
+	}
+	return value as D705ConsumedDispatchHistoryCapabilityV1;
 }

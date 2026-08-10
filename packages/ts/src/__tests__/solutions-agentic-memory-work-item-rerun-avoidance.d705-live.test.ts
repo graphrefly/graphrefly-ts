@@ -18,8 +18,10 @@ import {
 } from "../../evals/empirical-memory-rerun-avoidance/d705-mutation-first-live.js";
 import {
 	acquireD705SingleUseDispatchClaimAtPrivateRoot,
+	consumeD705ConsumedDispatchHistoryCapability,
 	consumeD705SingleUseDispatchClaim,
 	consumePersistedD705DispatchClaimForExecutionAtPrivateRoot,
+	createD705ConsumedDispatchHistoryCapabilityAtPrivateRoot,
 	D705_LIVE_GENERATION_REF,
 	D705_SINGLE_USE_DISPATCH_CLAIM_DIRECTORY,
 } from "../../evals/empirical-memory-rerun-avoidance/d705-single-use-dispatch-claim.js";
@@ -69,6 +71,11 @@ describe("D705 mutation-first live authority", () => {
 			await expect(
 				consumePersistedD705DispatchClaimForExecutionAtPrivateRoot(privateRoot),
 			).rejects.toThrow(/already consumed/);
+			const history = await createD705ConsumedDispatchHistoryCapabilityAtPrivateRoot(privateRoot);
+			expect(consumeD705ConsumedDispatchHistoryCapability(history)).toMatchObject({
+				executionLeaseConsumed: true,
+				liveGenerationAbsent: true,
+			});
 			const claimPath = join(privateRoot, D705_SINGLE_USE_DISPATCH_CLAIM_DIRECTORY);
 			expect((await stat(claimPath)).mode & 0o777).toBe(0o700);
 			const claimFile = join(claimPath, "dispatch-claim.v1.json");

@@ -840,6 +840,12 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			);
 			const allowsD707OfficialPricingReadOperator = file.endsWith("d707-official-pricing-read.ts");
 			const allowsD707PreLiveOperator = file.endsWith("d707-fresh-pricing-preflight.ts");
+			const allowsD708OfficialPricingReadOperator = file.endsWith("d708-official-pricing-live.ts");
+			const allowsD708LiveOperator = file.endsWith("d708-fresh-pricing-live.ts");
+			const allowsD708ClaimOperator = file.endsWith("d708-single-use-dispatch-claim.ts");
+			const allowsD708ZeroByokOperator = file.endsWith("d708-zero-byok-qualification.ts");
+			const allowsD708AttemptReceiptOperator = file.endsWith("d708-live-attempt-receipt.ts");
+			const allowsD708LiveOrchestration = file.endsWith("d708-live-orchestration.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -857,11 +863,17 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD705SingleUseDispatchOperator ||
 				allowsD707OfficialPricingReadOperator ||
 				allowsD707PreLiveOperator ||
+				allowsD708LiveOperator ||
+				allowsD708ClaimOperator ||
+				allowsD708ZeroByokOperator ||
+				allowsD708AttemptReceiptOperator ||
+				allowsD708LiveOrchestration ||
 				file.endsWith("openrouter-first-task-smoke.ts") ||
 				file.endsWith("private-smoke-persistence.ts");
 			const allowsOneRequestFetchTransport =
 				file.endsWith("openrouter-responses-byte-transport.ts") ||
-				file.endsWith("openrouter-current-key-spend-admission.ts");
+				file.endsWith("openrouter-current-key-spend-admission.ts") ||
+				allowsD708OfficialPricingReadOperator;
 			const allowsOutermostLiveOperator =
 				file.endsWith("openrouter-first-task-smoke-operator.ts") ||
 				file.endsWith("openrouter-first-task-capability-probe-operator.ts") ||
@@ -971,6 +983,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							(specifier === "node:fs/promises" || specifier === "node:path")) ||
 						(allowsD690SealedOfflineOperator &&
 							(specifier === "node:fs" || specifier === "node:os")) ||
+						((allowsD708ZeroByokOperator || allowsD708ClaimOperator) &&
+							specifier === "node:fs") ||
 						((allowsD691HistoricalTransferOperator || allowsOutermostLiveOperator) &&
 							specifier === "node:url") ||
 						specifier === "../../src/json/codec.js" ||

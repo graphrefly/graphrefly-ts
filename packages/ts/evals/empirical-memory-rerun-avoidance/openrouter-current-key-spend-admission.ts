@@ -29,6 +29,17 @@ export interface OpenRouterCurrentKeySpendAdmissionCapabilityV1 {
 	): Promise<OpenRouterCurrentKeySpendAdmissionV1>;
 }
 
+const constructedAdmissions = new WeakSet<object>();
+
+export function consumeOpenRouterCurrentKeySpendAdmission(
+	value: unknown,
+): OpenRouterCurrentKeySpendAdmissionV1 {
+	if (value === null || typeof value !== "object" || !constructedAdmissions.delete(value)) {
+		throw new TypeError("OpenRouter current-key admission must be same-process and single-use");
+	}
+	return value as OpenRouterCurrentKeySpendAdmissionV1;
+}
+
 function ownFetch(value: unknown): typeof fetch {
 	const capability = record(value, "openRouter.currentKey.fetchCapability");
 	exactKeys(capability, ["fetch"], "openRouter.currentKey.fetchCapability");
@@ -229,10 +240,12 @@ export function createOpenRouterCurrentKeySpendAdmissionCapability(value: {
 				limitReset: "none" as const,
 				isManagementKey: false as const,
 			});
-			return Object.freeze({
+			const result = Object.freeze({
 				...admitted,
 				admissionDigest: empiricalStrictJsonDigest(admitted),
 			});
+			constructedAdmissions.add(result);
+			return result;
 		},
 	});
 }
