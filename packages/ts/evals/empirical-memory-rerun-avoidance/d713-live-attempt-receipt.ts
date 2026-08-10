@@ -11,32 +11,32 @@ import {
 	strictSnapshot,
 } from "./canonical.js";
 import {
-	D708_SINGLE_USE_DISPATCH_CLAIM_DIRECTORY,
-	markPersistedD708DispatchClaimFailedAtPrivateRoot,
-	type PersistedD708SingleUseDispatchClaimV1,
-	validateD708ExecutionStartedMarker,
-	validatePersistedD708DispatchClaimAtPrivateRoot,
-} from "./d708-single-use-dispatch-claim.js";
+	D713_SINGLE_USE_DISPATCH_CLAIM_DIRECTORY,
+	markPersistedD713DispatchClaimFailedAtPrivateRoot,
+	type PersistedD713SingleUseDispatchClaimV1,
+	validateD713ExecutionStartedMarker,
+	validatePersistedD713DispatchClaimAtPrivateRoot,
+} from "./d713-single-use-dispatch-claim.js";
 import type { OpenRouterCurrentKeySpendAdmissionV1 } from "./openrouter-current-key-spend-admission.js";
 import { syncDirectory, writePrivateFile } from "./private-smoke-persistence.js";
 
-export const D708_LIVE_ATTEMPT_RECEIPT_SCHEMA =
-	"graphrefly.private-solution-eval.d708-live-attempt-receipt.v1" as const;
-export const D708_LIVE_ATTEMPT_RECEIPT_FILE = "terminal-attempt.v1.json" as const;
+export const D713_LIVE_ATTEMPT_RECEIPT_SCHEMA =
+	"graphrefly.private-solution-eval.d713-live-attempt-receipt.v1" as const;
+export const D713_LIVE_ATTEMPT_RECEIPT_FILE = "terminal-attempt.v1.json" as const;
 
-export type D708LiveAttemptPhase =
+export type D713LiveAttemptPhase =
 	| "claim-acquired"
 	| "current-key-admitted"
 	| "provider-block"
 	| "generation-persistence";
 
-export interface D708LiveAttemptReceiptV1 {
-	readonly schemaVersion: typeof D708_LIVE_ATTEMPT_RECEIPT_SCHEMA;
-	readonly decisionRef: "decision.D708";
-	readonly decisionRevision: "decision.D708.2026-08-09.v1";
+export interface D713LiveAttemptReceiptV1 {
+	readonly schemaVersion: typeof D713_LIVE_ATTEMPT_RECEIPT_SCHEMA;
+	readonly decisionRef: "decision.D713";
+	readonly decisionRevision: "decision.D713.2026-08-10.v1";
 	readonly claimDigest: string;
 	readonly terminalStatus: "success" | "failed";
-	readonly terminalPhase: D708LiveAttemptPhase;
+	readonly terminalPhase: D713LiveAttemptPhase;
 	readonly failureClass: "none" | "bounded-operator-failure";
 	readonly officialPricingNetworkCalls: 1;
 	readonly currentKeyNetworkCalls: 0 | 1;
@@ -50,15 +50,15 @@ export interface D708LiveAttemptReceiptV1 {
 	readonly receiptDigest: string;
 }
 
-export async function persistD708LiveAttemptReceipt(input: {
-	readonly claim: PersistedD708SingleUseDispatchClaimV1;
+export async function persistD713LiveAttemptReceipt(input: {
+	readonly claim: PersistedD713SingleUseDispatchClaimV1;
 	readonly terminalStatus: "success" | "failed";
-	readonly terminalPhase: D708LiveAttemptPhase;
+	readonly terminalPhase: D713LiveAttemptPhase;
 	readonly currentKeyNetworkCalls: 0 | 1;
 	readonly currentKeyAdmission: OpenRouterCurrentKeySpendAdmissionV1 | null;
 	readonly providerTransportCalls: number;
-}): Promise<D708LiveAttemptReceiptV1> {
-	const candidate = record(input, "d708.attemptReceiptInput");
+}): Promise<D713LiveAttemptReceiptV1> {
+	const candidate = record(input, "d713.attemptReceiptInput");
 	exactKeys(
 		candidate,
 		[
@@ -69,19 +69,19 @@ export async function persistD708LiveAttemptReceipt(input: {
 			"terminalPhase",
 			"terminalStatus",
 		],
-		"d708.attemptReceiptInput",
+		"d713.attemptReceiptInput",
 	);
-	const claim = record(candidate.claim, "d708.attemptReceipt.claim");
-	exactKeys(claim, ["claimDigest", "claimPath"], "d708.attemptReceipt.claim");
+	const claim = record(candidate.claim, "d713.attemptReceipt.claim");
+	exactKeys(claim, ["claimDigest", "claimPath"], "d713.attemptReceipt.claim");
 	if (
 		typeof claim.claimPath !== "string" ||
 		claim.claimPath.length === 0 ||
-		claim.claimPath !== join(dirname(claim.claimPath), D708_SINGLE_USE_DISPATCH_CLAIM_DIRECTORY)
+		claim.claimPath !== join(dirname(claim.claimPath), D713_SINGLE_USE_DISPATCH_CLAIM_DIRECTORY)
 	) {
-		throw new TypeError("D708 attempt receipt claim path is not exact");
+		throw new TypeError("D713 attempt receipt claim path is not exact");
 	}
 	if (typeof claim.claimDigest !== "string" || !/^sha256:[0-9a-f]{64}$/.test(claim.claimDigest)) {
-		throw new TypeError("D708 attempt receipt claim digest is invalid");
+		throw new TypeError("D713 attempt receipt claim digest is invalid");
 	}
 	const claimStatus = await lstat(claim.claimPath);
 	if (
@@ -90,36 +90,36 @@ export async function persistD708LiveAttemptReceipt(input: {
 		(claimStatus.mode & 0o777) !== 0o700 ||
 		(await realpath(claim.claimPath)) !== claim.claimPath
 	) {
-		throw new TypeError("D708 attempt receipt claim ownership is invalid");
+		throw new TypeError("D713 attempt receipt claim ownership is invalid");
 	}
 	const privateRoot = dirname(claim.claimPath);
-	await validatePersistedD708DispatchClaimAtPrivateRoot(
+	await validatePersistedD713DispatchClaimAtPrivateRoot(
 		privateRoot,
-		claim as unknown as PersistedD708SingleUseDispatchClaimV1,
+		claim as unknown as PersistedD713SingleUseDispatchClaimV1,
 	);
 	const terminalStatus = oneOf(
 		candidate.terminalStatus,
 		["success", "failed"] as const,
-		"d708.attemptReceipt.status",
+		"d713.attemptReceipt.status",
 	);
 	const terminalPhase = oneOf(
 		candidate.terminalPhase,
 		["claim-acquired", "current-key-admitted", "provider-block", "generation-persistence"] as const,
-		"d708.attemptReceipt.phase",
+		"d713.attemptReceipt.phase",
 	);
 	const currentKeyNetworkCalls = literal(
 		candidate.currentKeyNetworkCalls,
 		candidate.currentKeyNetworkCalls === 0 ? 0 : 1,
-		"d708.attemptReceipt.currentKeyCalls",
+		"d713.attemptReceipt.currentKeyCalls",
 	) as 0 | 1;
 	const providerTransportCalls = safeInteger(
 		candidate.providerTransportCalls,
-		"d708.attemptReceipt.providerCalls",
+		"d713.attemptReceipt.providerCalls",
 		{ min: 0, max: 576 },
 	);
 	let currentKeyAdmission: OpenRouterCurrentKeySpendAdmissionV1 | null = null;
 	if (candidate.currentKeyAdmission !== null) {
-		const current = record(candidate.currentKeyAdmission, "d708.attemptReceipt.currentKey");
+		const current = record(candidate.currentKeyAdmission, "d713.attemptReceipt.currentKey");
 		exactKeys(
 			current,
 			[
@@ -131,40 +131,40 @@ export async function persistD708LiveAttemptReceipt(input: {
 				"schemaVersion",
 				"usageMicrousd",
 			],
-			"d708.attemptReceipt.currentKey",
+			"d713.attemptReceipt.currentKey",
 		);
 		literal(
 			current.schemaVersion,
 			"graphrefly.private-solution-eval.openrouter-current-key-spend-admission.v1",
-			"d708.attemptReceipt.currentKey.schema",
+			"d713.attemptReceipt.currentKey.schema",
 		);
 		const currentMaterial = strictSnapshot({
 			schemaVersion:
 				"graphrefly.private-solution-eval.openrouter-current-key-spend-admission.v1" as const,
-			limitMicrousd: safeInteger(current.limitMicrousd, "d708.attemptReceipt.currentKey.limit", {
+			limitMicrousd: safeInteger(current.limitMicrousd, "d713.attemptReceipt.currentKey.limit", {
 				min: 32_000_000,
 				max: 32_000_000,
 			}),
 			remainingMicrousd: safeInteger(
 				current.remainingMicrousd,
-				"d708.attemptReceipt.currentKey.remaining",
+				"d713.attemptReceipt.currentKey.remaining",
 				{ min: 6_000_000, max: 32_000_000 },
 			),
-			usageMicrousd: safeInteger(current.usageMicrousd, "d708.attemptReceipt.currentKey.usage", {
+			usageMicrousd: safeInteger(current.usageMicrousd, "d713.attemptReceipt.currentKey.usage", {
 				min: 0,
 				max: 32_000_000,
 			}),
-			limitReset: literal(current.limitReset, "none", "d708.attemptReceipt.currentKey.reset"),
+			limitReset: literal(current.limitReset, "none", "d713.attemptReceipt.currentKey.reset"),
 			isManagementKey: literal(
 				current.isManagementKey,
 				false,
-				"d708.attemptReceipt.currentKey.management",
+				"d713.attemptReceipt.currentKey.management",
 			),
 		});
 		literal(
 			current.admissionDigest,
 			empiricalStrictJsonDigest(currentMaterial),
-			"d708.attemptReceipt.currentKey.digest",
+			"d713.attemptReceipt.currentKey.digest",
 		);
 		currentKeyAdmission = strictSnapshot({
 			...currentMaterial,
@@ -178,23 +178,23 @@ export async function persistD708LiveAttemptReceipt(input: {
 		(terminalPhase !== "claim-acquired" && currentKeyAdmission === null) ||
 		(terminalPhase !== "claim-acquired" && currentKeyNetworkCalls !== 1)
 	) {
-		throw new TypeError("D708 terminal receipt status/phase evidence is inconsistent");
+		throw new TypeError("D713 terminal receipt status/phase evidence is inconsistent");
 	}
 	if (terminalPhase === "claim-acquired") {
-		await markPersistedD708DispatchClaimFailedAtPrivateRoot(
+		await markPersistedD713DispatchClaimFailedAtPrivateRoot(
 			privateRoot,
-			claim as unknown as PersistedD708SingleUseDispatchClaimV1,
+			claim as unknown as PersistedD713SingleUseDispatchClaimV1,
 		);
 	} else {
-		await validateD708ExecutionStartedMarker(
+		await validateD713ExecutionStartedMarker(
 			claim.claimPath as string,
 			currentKeyAdmission!.admissionDigest,
 		);
 	}
 	const material = strictSnapshot({
-		schemaVersion: D708_LIVE_ATTEMPT_RECEIPT_SCHEMA,
-		decisionRef: "decision.D708" as const,
-		decisionRevision: "decision.D708.2026-08-09.v1" as const,
+		schemaVersion: D713_LIVE_ATTEMPT_RECEIPT_SCHEMA,
+		decisionRef: "decision.D713" as const,
+		decisionRevision: "decision.D713.2026-08-10.v1" as const,
 		claimDigest: claim.claimDigest,
 		terminalStatus,
 		terminalPhase,
@@ -217,7 +217,7 @@ export async function persistD708LiveAttemptReceipt(input: {
 		...material,
 		receiptDigest: empiricalStrictJsonDigest(material),
 	});
-	const receiptPath = join(claim.claimPath, D708_LIVE_ATTEMPT_RECEIPT_FILE);
+	const receiptPath = join(claim.claimPath, D713_LIVE_ATTEMPT_RECEIPT_FILE);
 	await writePrivateFile(receiptPath, strictJsonCodec.encode(receipt));
 	await syncDirectory(claim.claimPath);
 	await syncDirectory(dirname(claim.claimPath));

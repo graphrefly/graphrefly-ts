@@ -813,6 +813,11 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsD692OfflineForensicOperator = file.endsWith(
 				"d692-historical-transfer-forensic.ts",
 			);
+			const allowsD709OfflineForensicOperator = file.endsWith("d709-untyped-http-429-forensic.ts");
+			const allowsD710OfflineQualificationOperator = file.endsWith(
+				"d710-untyped-http-429-retry-qualification.ts",
+			);
+			const allowsD712OfflineQualificationOperator = file.endsWith("d712-pricing-qualification.ts");
 			const allowsD693OfflineQualificationOperator = file.endsWith(
 				"d693-assisted-progress-qualification.ts",
 			);
@@ -847,10 +852,37 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsD708AttemptReceiptOperator = file.endsWith("d708-live-attempt-receipt.ts");
 			const allowsD708LiveOrchestration = file.endsWith("d708-live-orchestration.ts");
 			const allowsD708QualifiedEntrypoint = file.endsWith("d708-qualified-live-entrypoint.ts");
+			const allowsD711OfficialPricingReadOperator = file.endsWith("d711-official-pricing-live.ts");
+			const allowsD711LiveOperator = file.endsWith("d711-fresh-pricing-live.ts");
+			const allowsD711ClaimOperator = file.endsWith("d711-single-use-dispatch-claim.ts");
+			const allowsD711ZeroByokOperator = file.endsWith("d711-zero-byok-qualification.ts");
+			const allowsD711AttemptReceiptOperator = file.endsWith("d711-live-attempt-receipt.ts");
+			const allowsD711LiveOrchestration = file.endsWith("d711-live-orchestration.ts");
+			const allowsD711QualifiedEntrypoint = file.endsWith("d711-qualified-live-entrypoint.ts");
+			const allowsD713OfficialPricingReadOperator = file.endsWith("d713-official-pricing-live.ts");
+			const allowsD713LiveOperator = file.endsWith("d713-fresh-pricing-live.ts");
+			const allowsD713ClaimOperator = file.endsWith("d713-single-use-dispatch-claim.ts");
+			const allowsD713ZeroByokOperator = file.endsWith("d713-zero-byok-qualification.ts");
+			const allowsD713AttemptReceiptOperator = file.endsWith("d713-live-attempt-receipt.ts");
+			const allowsD713LiveOrchestration = file.endsWith("d713-live-orchestration.ts");
+			const allowsD713QualifiedEntrypoint = file.endsWith("d713-qualified-live-entrypoint.ts");
+			const allowsD714D715GraphNativeOperator = file.endsWith(
+				"d714-d715-graph-native-qualification.ts",
+			);
+			const allowsD716GraphNativeCoordinator = file.endsWith(
+				"d716-graph-native-live-coordinator.ts",
+			);
+			const allowsD716GraphNativeQualification = file.endsWith(
+				"d716-graph-native-live-qualification.ts",
+			);
+			const allowsD717GraphNativePreLive = file.endsWith("d717-graph-native-prelive.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
 				allowsD692OfflineForensicOperator ||
+				allowsD709OfflineForensicOperator ||
+				allowsD710OfflineQualificationOperator ||
+				allowsD712OfflineQualificationOperator ||
 				allowsD693OfflineQualificationOperator ||
 				allowsD694AssistedTransferOperator ||
 				allowsD695OfflineQualificationOperator ||
@@ -869,12 +901,27 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD708ZeroByokOperator ||
 				allowsD708AttemptReceiptOperator ||
 				allowsD708LiveOrchestration ||
+				allowsD711LiveOperator ||
+				allowsD711ClaimOperator ||
+				allowsD711ZeroByokOperator ||
+				allowsD711AttemptReceiptOperator ||
+				allowsD711LiveOrchestration ||
+				allowsD713LiveOperator ||
+				allowsD713ClaimOperator ||
+				allowsD713ZeroByokOperator ||
+				allowsD713AttemptReceiptOperator ||
+				allowsD713LiveOrchestration ||
+				allowsD714D715GraphNativeOperator ||
+				allowsD716GraphNativeQualification ||
+				allowsD717GraphNativePreLive ||
 				file.endsWith("openrouter-first-task-smoke.ts") ||
 				file.endsWith("private-smoke-persistence.ts");
 			const allowsOneRequestFetchTransport =
 				file.endsWith("openrouter-responses-byte-transport.ts") ||
 				file.endsWith("openrouter-current-key-spend-admission.ts") ||
-				allowsD708OfficialPricingReadOperator;
+				allowsD708OfficialPricingReadOperator ||
+				allowsD711OfficialPricingReadOperator ||
+				allowsD713OfficialPricingReadOperator;
 			const allowsOutermostLiveOperator =
 				file.endsWith("openrouter-first-task-smoke-operator.ts") ||
 				file.endsWith("openrouter-first-task-capability-probe-operator.ts") ||
@@ -918,10 +965,29 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				"../../src/orchestration/work-item-runtime.js",
 				"../../src/solutions/work-item/scheduling.js",
 			]);
+			const d714D715GraphNativeImports = new Set([
+				"../../src/ctx/types.js",
+				"../../src/graph/graph.js",
+				"../../src/node/node.js",
+				"../../src/orchestration/agent-runtime.js",
+				"../../src/solutions/work-item/execution.js",
+				"../../src/solutions/work-item/scheduling.js",
+			]);
+			const d716GraphNativeImports = new Set([
+				"../../src/ctx/types.js",
+				"../../src/graph/graph.js",
+				"../../src/orchestration/agent-runtime.js",
+				"../../src/orchestration/agent-runtime-request-ledger.js",
+				"../../src/solutions/work-item/execution.js",
+				"../../src/solutions/work-item/scheduling.js",
+			]);
 			expect(source).not.toMatch(
 				allowsD690SealedOfflineOperator
 					? /\b(?:Date\.now|fetch\s*\(|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b/
-					: allowsD703MutationFirstOperator || allowsD708QualifiedEntrypoint
+					: allowsD703MutationFirstOperator ||
+							allowsD708QualifiedEntrypoint ||
+							allowsD711QualifiedEntrypoint ||
+							allowsD713QualifiedEntrypoint
 						? /\b(?:Date\.now|fetch|WebSocket|setInterval|setImmediate|queueMicrotask)\b|node:(?:http|https|tls)|(?:from|import)\s+["'](?:http|https|tls|undici|ws)["']/
 						: allowsOutermostLiveOperator
 							? /\b(?:WebSocket|setInterval|setImmediate|queueMicrotask)\b|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
@@ -974,7 +1040,9 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD690SealedOfflineOperator ||
 							allowsD703MutationFirstOperator) &&
 							specifier === "node:child_process") ||
-						(allowsD708QualifiedEntrypoint &&
+						((allowsD708QualifiedEntrypoint ||
+							allowsD711QualifiedEntrypoint ||
+							allowsD713QualifiedEntrypoint) &&
 							(specifier === "node:child_process" ||
 								specifier === "node:url" ||
 								specifier === "node:util")) ||
@@ -985,17 +1053,28 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD690SealedOfflineOperator ||
 							allowsPreliveOperatorDriver ||
 							allowsOutermostLiveOperator ||
-							allowsD708QualifiedEntrypoint) &&
+							allowsD708QualifiedEntrypoint ||
+							allowsD711QualifiedEntrypoint ||
+							allowsD713QualifiedEntrypoint) &&
 							(specifier === "node:fs/promises" || specifier === "node:path")) ||
 						(allowsD690SealedOfflineOperator &&
 							(specifier === "node:fs" || specifier === "node:os")) ||
-						((allowsD708ZeroByokOperator || allowsD708ClaimOperator) && specifier === "node:fs") ||
+						((allowsD708ZeroByokOperator ||
+							allowsD708ClaimOperator ||
+							allowsD711ZeroByokOperator ||
+							allowsD711ClaimOperator ||
+							allowsD713ZeroByokOperator ||
+							allowsD713ClaimOperator) &&
+							specifier === "node:fs") ||
 						((allowsD691HistoricalTransferOperator || allowsOutermostLiveOperator) &&
 							specifier === "node:url") ||
 						specifier === "../../src/json/codec.js" ||
 						(allowsMatchedBlockMemory && matchedBlockMemoryImports.has(specifier)) ||
 						(allowsD682MechanicalRecipe && d682MechanicalRecipeImports.has(specifier)) ||
 						(allowsD683ComparativeEvidence && d683ComparativeEvidenceImports.has(specifier)) ||
+						(allowsD714D715GraphNativeOperator && d714D715GraphNativeImports.has(specifier)) ||
+						((allowsD716GraphNativeCoordinator || allowsD716GraphNativeQualification) &&
+							d716GraphNativeImports.has(specifier)) ||
 						(allowsD683SourceAudit && specifier === "typescript") ||
 						specifier.startsWith("./"),
 				),

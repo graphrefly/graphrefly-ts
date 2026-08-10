@@ -15,6 +15,7 @@ import {
 	type ClosedTaskProfileHostRunOutcomeV3,
 } from "./closed-task-profile-host.js";
 import type { EmpiricalWarmBranchKind, FrozenEmpiricalCampaignManifestV1 } from "./contracts.js";
+import { d710UntypedHttp429RetryDelayMs } from "./d710-untyped-http-429-retry-policy.js";
 import type { QualifiedOpenRouterRouteV1 } from "./openrouter-route-qualification.js";
 
 export const EMPIRICAL_TRIAL_BLOCK_OBSERVATION_SCHEMA =
@@ -1189,6 +1190,7 @@ function validateSmokeRunObservation(value: unknown, path: string): EmpiricalSmo
 		throw new TypeError(`${path}.attemptTrace must include every logical turn`);
 	}
 	const expectedRetryWaitForAttempt = (attempt: (typeof attemptTrace)[number], index: number) => {
+		const d710Untyped429DelayMs = d710UntypedHttp429RetryDelayMs(attempt, attempt.attemptOrdinal);
 		const requestSocketIssueCodes = [
 			"openrouter-transport-cause:und-err-socket",
 			"openrouter-transport-phase:request",
@@ -1207,8 +1209,20 @@ function validateSmokeRunObservation(value: unknown, path: string): EmpiricalSmo
 			attempt.status === "non-evaluable" &&
 			attempt.issueCodes.includes("openrouter-http-status:503") &&
 			attempt.issueCodes.includes("openrouter-error-type:provider_overloaded");
-		if (!retryableRequestSocket && !retryable429 && !retryable503) {
+		if (
+			d710Untyped429DelayMs === null &&
+			!retryableRequestSocket &&
+			!retryable429 &&
+			!retryable503
+		) {
 			throw new TypeError(`${path}.attemptTrace retries a non-allowlisted outcome`);
+		}
+		if (d710Untyped429DelayMs !== null) {
+			return {
+				stepIndex: attempt.stepIndex,
+				afterAttemptOrdinal: attempt.attemptOrdinal,
+				scheduledDelayMs: d710Untyped429DelayMs,
+			};
 		}
 		const retryAfterPrefix = "openrouter-retry-after-ms:";
 		const encodedRetryAfter = attempt.issueCodes.find((issueCode) =>

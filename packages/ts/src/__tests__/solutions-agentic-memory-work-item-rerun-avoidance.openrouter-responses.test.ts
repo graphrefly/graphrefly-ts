@@ -90,6 +90,29 @@ import {
 const bearerToken = "openrouter-bearer-placeholder-0123456789";
 const responseEncoder = new TextEncoder();
 
+function d709ErrorDiscriminator(input: {
+	readonly bodyShape:
+		| "empty"
+		| "json-object"
+		| "json-non-object"
+		| "non-json-text"
+		| "invalid-utf8";
+	readonly mediaClass: "empty" | "json" | "text" | "binary";
+	readonly recognizedType: boolean;
+	readonly recognizedCode: boolean;
+	readonly retryPresence: "present" | "absent" | "unavailable";
+	readonly retryParse: "parsed" | "invalid" | "absent" | "unavailable";
+}): readonly string[] {
+	return [
+		`openrouter-error-body-shape:${input.bodyShape}`,
+		`openrouter-error-media-class:${input.mediaClass}`,
+		`openrouter-error-recognized-type:${input.recognizedType ? "present" : "absent"}`,
+		`openrouter-error-recognized-code:${input.recognizedCode ? "present" : "absent"}`,
+		`openrouter-retry-after-presence:${input.retryPresence}`,
+		`openrouter-retry-after-parse:${input.retryParse}`,
+	];
+}
+
 function d682ActorInput(): EmpiricalModelTurnRequestV1["structuredInput"] {
 	const input = createD682MechanicalActorInput({
 		workItemRef: "work-item-d682-fixture",
@@ -3437,9 +3460,21 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 				status,
 				body: responseEncoder.encode(rawBody),
 				retryAfterMs: null,
+				retryAfterDisposition: "absent",
 			});
 			const outcome = await binding.modelTurnPort.invoke(request, new AbortController().signal);
-			expect(outcome.issueCodes).toEqual([issueCode, `openrouter-http-status:${status}`]);
+			expect(outcome.issueCodes).toEqual([
+				issueCode,
+				`openrouter-http-status:${status}`,
+				...d709ErrorDiscriminator({
+					bodyShape: "non-json-text",
+					mediaClass: "text",
+					recognizedType: false,
+					recognizedCode: false,
+					retryPresence: "absent",
+					retryParse: "absent",
+				}),
+			]);
 			expect(outcome.usage.requests).toBe(1);
 			serializedWithoutCredential(outcome);
 			expect(JSON.stringify(outcome)).not.toContain("raw-provider-error");
@@ -3512,6 +3547,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 					error_type: errorType,
 				}),
 				retryAfterMs: null,
+				retryAfterDisposition: "absent",
 			});
 			const typedOutcome = await typedHarness.binding.modelTurnPort.invoke(
 				typedHarness.request,
@@ -3526,6 +3562,14 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 				"openrouter-http-status:500",
 				errorTypeDiagnostic,
 				"openrouter-error-code:server_error",
+				...d709ErrorDiscriminator({
+					bodyShape: "json-object",
+					mediaClass: "json",
+					recognizedType: errorType !== "unknown-type" && errorType !== bearerToken,
+					recognizedCode: true,
+					retryPresence: "absent",
+					retryParse: "absent",
+				}),
 			]);
 			serializedWithoutCredential(typedOutcome);
 		}
@@ -3541,6 +3585,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 				},
 			}),
 			retryAfterMs: 7_000,
+			retryAfterDisposition: "parsed",
 		});
 		const chatRateLimitOutcome = await chatRateLimitHarness.binding.modelTurnPort.invoke(
 			chatRateLimitHarness.request,
@@ -3552,6 +3597,14 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			"openrouter-error-type:rate_limit_exceeded",
 			"openrouter-error-code:rate_limit_exceeded",
 			"openrouter-retry-after-ms:7000",
+			...d709ErrorDiscriminator({
+				bodyShape: "json-object",
+				mediaClass: "json",
+				recognizedType: true,
+				recognizedCode: true,
+				retryPresence: "present",
+				retryParse: "parsed",
+			}),
 		]);
 		serializedWithoutCredential(chatRateLimitOutcome);
 
@@ -3563,6 +3616,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 				metadata: null,
 			}),
 			retryAfterMs: null,
+			retryAfterDisposition: "absent",
 		});
 		const nativeCodeOutcome = await nativeCodeHarness.binding.modelTurnPort.invoke(
 			nativeCodeHarness.request,
@@ -3572,6 +3626,14 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			OPENROUTER_RESPONSES_ISSUE_CODES.rejected,
 			"openrouter-http-status:400",
 			"openrouter-error-code:invalid_prompt",
+			...d709ErrorDiscriminator({
+				bodyShape: "json-object",
+				mediaClass: "json",
+				recognizedType: false,
+				recognizedCode: true,
+				retryPresence: "absent",
+				retryParse: "absent",
+			}),
 		]);
 		serializedWithoutCredential(nativeCodeOutcome);
 	});
@@ -3584,6 +3646,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 				error: { code: bearerToken, message: `raw-${bearerToken}` },
 			}),
 			retryAfterMs: null,
+			retryAfterDisposition: "absent",
 		});
 		const unknownCodeOutcome = await unknownCodeHarness.binding.modelTurnPort.invoke(
 			unknownCodeHarness.request,
@@ -3593,6 +3656,14 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			OPENROUTER_RESPONSES_ISSUE_CODES.rejected,
 			"openrouter-http-status:400",
 			"openrouter-error-code:unrecognized",
+			...d709ErrorDiscriminator({
+				bodyShape: "json-object",
+				mediaClass: "json",
+				recognizedType: false,
+				recognizedCode: false,
+				retryPresence: "absent",
+				retryParse: "absent",
+			}),
 		]);
 		serializedWithoutCredential(unknownCodeOutcome);
 
@@ -3601,6 +3672,7 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 			status: 422,
 			body: new Uint8Array([0xc3, 0x28]),
 			retryAfterMs: null,
+			retryAfterDisposition: "invalid",
 		});
 		const malformedUtf8Outcome = await malformedUtf8Harness.binding.modelTurnPort.invoke(
 			malformedUtf8Harness.request,
@@ -3609,8 +3681,64 @@ describe("B112 D669-qualified package-private OpenRouter Responses binding", () 
 		expect(malformedUtf8Outcome.issueCodes).toEqual([
 			OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
 			"openrouter-http-status:422",
+			...d709ErrorDiscriminator({
+				bodyShape: "invalid-utf8",
+				mediaClass: "binary",
+				recognizedType: false,
+				recognizedCode: false,
+				retryPresence: "present",
+				retryParse: "invalid",
+			}),
 		]);
 		serializedWithoutCredential(malformedUtf8Outcome);
+
+		const jsonNonObjectHarness = createHarness();
+		jsonNonObjectHarness.transport.mockResolvedValueOnce({
+			status: 400,
+			body: responseBytes(["bounded", "shape"]),
+			retryAfterMs: null,
+			retryAfterDisposition: "absent",
+		});
+		const jsonNonObjectOutcome = await jsonNonObjectHarness.binding.modelTurnPort.invoke(
+			jsonNonObjectHarness.request,
+			new AbortController().signal,
+		);
+		expect(jsonNonObjectOutcome.issueCodes).toEqual([
+			OPENROUTER_RESPONSES_ISSUE_CODES.rejected,
+			"openrouter-http-status:400",
+			...d709ErrorDiscriminator({
+				bodyShape: "json-non-object",
+				mediaClass: "json",
+				recognizedType: false,
+				recognizedCode: false,
+				retryPresence: "absent",
+				retryParse: "absent",
+			}),
+		]);
+
+		const emptyHarness = createHarness();
+		emptyHarness.transport.mockResolvedValueOnce({
+			status: 429,
+			body: new Uint8Array(),
+			retryAfterMs: null,
+			retryAfterDisposition: "absent",
+		});
+		const emptyOutcome = await emptyHarness.binding.modelTurnPort.invoke(
+			emptyHarness.request,
+			new AbortController().signal,
+		);
+		expect(emptyOutcome.issueCodes).toEqual([
+			OPENROUTER_RESPONSES_ISSUE_CODES.quotaRateLimit,
+			"openrouter-http-status:429",
+			...d709ErrorDiscriminator({
+				bodyShape: "empty",
+				mediaClass: "empty",
+				recognizedType: false,
+				recognizedCode: false,
+				retryPresence: "absent",
+				retryParse: "absent",
+			}),
+		]);
 	});
 
 	it("blocks forged credential-bearing request material before transport", async () => {

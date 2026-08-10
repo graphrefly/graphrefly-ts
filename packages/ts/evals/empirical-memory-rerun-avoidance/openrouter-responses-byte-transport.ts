@@ -92,17 +92,27 @@ async function readBoundedResponseBody(
 	return body;
 }
 
-function retryAfterMs(response: Response): number | null {
+function retryAfterObservation(response: Response): Readonly<{
+	retryAfterMs: number | null;
+	retryAfterDisposition: "absent" | "parsed" | "invalid" | "unavailable";
+}> {
 	let raw: string | null;
 	try {
 		raw = response.headers.get("retry-after");
 	} catch {
-		return null;
+		return Object.freeze({ retryAfterMs: null, retryAfterDisposition: "unavailable" });
 	}
-	if (raw === null || !/^[1-9]\d{0,2}$/.test(raw)) return null;
+	if (raw === null) {
+		return Object.freeze({ retryAfterMs: null, retryAfterDisposition: "absent" });
+	}
+	if (!/^[1-9]\d{0,2}$/.test(raw)) {
+		return Object.freeze({ retryAfterMs: null, retryAfterDisposition: "invalid" });
+	}
 	const seconds = Number(raw);
-	if (!Number.isSafeInteger(seconds) || seconds > 600) return null;
-	return seconds * 1_000;
+	if (!Number.isSafeInteger(seconds) || seconds > 600) {
+		return Object.freeze({ retryAfterMs: null, retryAfterDisposition: "invalid" });
+	}
+	return Object.freeze({ retryAfterMs: seconds * 1_000, retryAfterDisposition: "parsed" });
 }
 
 /**
@@ -178,10 +188,11 @@ export function createOpenRouterResponsesFetchByteTransport(
 				await response.body?.cancel().catch(() => undefined);
 				throw error;
 			}
+			const retryAfter = retryAfterObservation(response);
 			return Object.freeze({
 				status,
 				body: await readBoundedResponseBody(response, maxResponseBytes, input.signal),
-				retryAfterMs: retryAfterMs(response),
+				...retryAfter,
 			});
 		},
 	});

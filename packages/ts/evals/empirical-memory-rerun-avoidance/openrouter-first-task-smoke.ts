@@ -7,6 +7,7 @@ import {
 	strictSnapshot,
 } from "./canonical.js";
 import {
+	CLOSED_ACTOR_TOOL_REFS,
 	type ClosedContinuationModelTurnPortV1,
 	type ClosedMutationFirstContinuationModelTurnPortV1,
 	type ClosedMutationFirstContinuationV1,
@@ -15,6 +16,33 @@ import {
 	type ClosedTaskProfileHostRunOutcomeV3,
 	runClosedTaskProfileHost,
 } from "./closed-task-profile-host.js";
+import {
+	assertD710UntypedHttp429RetryRoute,
+	type D710UntypedHttp429RetryPolicyV1,
+	d710UntypedHttp429RetryDelayMs,
+	validateD710UntypedHttp429RetryPolicy,
+} from "./d710-untyped-http-429-retry-policy.js";
+import {
+	D712_APPROVAL_REF,
+	D712_APPROVAL_REVISION,
+	D712_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS,
+	D712_DEEPSEEK_V4_FLASH_OUTPUT_MICROUSD_PER_MILLION_TOKENS,
+	D712_DEEPSEEK_V4_FLASH_PRICING_REVISION,
+} from "./d712-pricing-schedule.js";
+import {
+	type D716ArmCompletionFact,
+	type D716GraphNativeCoordinationEvidenceV1,
+	type D716GraphNativeSixArmCoordinatorV1,
+	d716IndependentWarmReflection,
+	isConstructedD716GraphNativeSixArmCoordinator,
+	recordD716GraphNativeArmCompletion,
+	snapshotD716GraphNativeCoordination,
+	takeNextD716GraphNativeArmRequest,
+} from "./d716-graph-native-live-coordinator.js";
+import {
+	consumeD717GraphNativeLiveProviderCapability,
+	type D717GraphNativeLiveProviderCapabilityV1,
+} from "./d717-graph-native-live-capability.js";
 import {
 	type B112CalibrationEmpiricalRunInputV4,
 	type B112CalibrationEmpiricalRunnerV4,
@@ -180,6 +208,8 @@ export type OpenRouterMatchedTrialBlockResultV4 =
 			readonly admissionRejection: B112SmokeAdmissionRejectionV1 | null;
 			readonly continuationInvocations?: readonly OpenRouterContinuationInvocationFactV1[];
 			readonly mutationFirstInvocations?: readonly OpenRouterMutationFirstInvocationFactV1[];
+			readonly graphNativeCoordination?: D716GraphNativeCoordinationEvidenceV1;
+			readonly graphNativeLiveProviderQualificationDigest?: string;
 	  }
 	| {
 			readonly profile: "calibration";
@@ -188,6 +218,8 @@ export type OpenRouterMatchedTrialBlockResultV4 =
 			readonly admissionRejection: B112SmokeAdmissionRejectionV1 | null;
 			readonly continuationInvocations?: readonly OpenRouterContinuationInvocationFactV1[];
 			readonly mutationFirstInvocations?: readonly OpenRouterMutationFirstInvocationFactV1[];
+			readonly graphNativeCoordination?: D716GraphNativeCoordinationEvidenceV1;
+			readonly graphNativeLiveProviderQualificationDigest?: string;
 	  };
 
 /** Package-private canonical union for nested matched warm-arm issues. */
@@ -258,11 +290,20 @@ function assertQualifiedSmokeRoute(
 			route.downstreamProviderSlug === OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_SLUG &&
 			route.downstreamProviderName === OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME &&
 			route.pricing.sourceUrl === OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_SOURCE &&
-			route.pricing.pricingRevision === OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_REVISION &&
-			route.pricing.inputMicrousdPerMillionTokens ===
-				OPENROUTER_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS &&
-			route.pricing.outputMicrousdPerMillionTokens ===
-				OPENROUTER_DEEPSEEK_V4_FLASH_OUTPUT_MICROUSD_PER_MILLION_TOKENS);
+			((route.pricing.pricingRevision === OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_REVISION &&
+				route.pricing.inputMicrousdPerMillionTokens ===
+					OPENROUTER_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS &&
+				route.pricing.outputMicrousdPerMillionTokens ===
+					OPENROUTER_DEEPSEEK_V4_FLASH_OUTPUT_MICROUSD_PER_MILLION_TOKENS) ||
+				(((route.budget.approvalRef === D712_APPROVAL_REF &&
+					route.budget.approvalRevision === D712_APPROVAL_REVISION) ||
+					(route.budget.approvalRef === "decision.D713" &&
+						route.budget.approvalRevision === "decision.D713.2026-08-10.v1")) &&
+					route.pricing.pricingRevision === D712_DEEPSEEK_V4_FLASH_PRICING_REVISION &&
+					route.pricing.inputMicrousdPerMillionTokens ===
+						D712_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS &&
+					route.pricing.outputMicrousdPerMillionTokens ===
+						D712_DEEPSEEK_V4_FLASH_OUTPUT_MICROUSD_PER_MILLION_TOKENS)));
 	if (!qualifiedTuple || route.usageRevision !== OPENROUTER_PROVIDER_USAGE_REVISION) {
 		throw new TypeError("B112 smoke route does not match its frozen exact route and pricing");
 	}
@@ -365,7 +406,11 @@ function createOpenRouterRetryCapability(
 	blockStartedAtMs: number,
 	runStartedAtMs: number,
 	maxRunElapsedMs: number,
+	untypedHttp429RetryPolicy: D710UntypedHttp429RetryPolicyV1 | null,
 ): ClosedTaskProfileHostRetryCapabilityV1 {
+	if (untypedHttp429RetryPolicy !== null) {
+		assertD710UntypedHttp429RetryRoute(untypedHttp429RetryPolicy, route);
+	}
 	const waitDescriptor = Object.getOwnPropertyDescriptor(waitCapability, "wait");
 	if (
 		waitDescriptor === undefined ||
@@ -406,10 +451,21 @@ function createOpenRouterRetryCapability(
 			),
 		);
 	};
+	let d710RetryConsumed = false;
 	return Object.freeze({
 		maxAttemptsPerTurn: B112_OPENROUTER_MAX_ATTEMPTS_PER_TURN,
 		retryDelayMs(outcome: EmpiricalModelTurnOutcomeV1, attemptOrdinal: number): number | null {
 			if (outcome.status !== "non-evaluable") return null;
+			if (attemptOrdinal === 1) d710RetryConsumed = false;
+			if (d710RetryConsumed) return null;
+			const untyped429Delay =
+				untypedHttp429RetryPolicy === null
+					? null
+					: d710UntypedHttp429RetryDelayMs(outcome, attemptOrdinal);
+			if (untyped429Delay !== null) {
+				d710RetryConsumed = true;
+				return untyped429Delay;
+			}
 			const retryableRequestSocket =
 				attemptOrdinal === 1 && isExactRequestSocketFailure(outcome.issueCodes);
 			const retryable429 =
@@ -932,6 +988,70 @@ function createWarmInitialRequest(input: {
 	);
 }
 
+const D716_INSPECTION_TOOL_REFS = new Set<string>([
+	CLOSED_ACTOR_TOOL_REFS.readFile,
+	CLOSED_ACTOR_TOOL_REFS.searchLiteral,
+	CLOSED_ACTOR_TOOL_REFS.workspaceDiff,
+]);
+
+function d716CompletionFact(input: {
+	readonly request: ReturnType<typeof takeNextD716GraphNativeArmRequest>;
+	readonly outcome: ClosedTaskProfileHostRunOutcomeV3 | null;
+	readonly costLedger: EmpiricalSmokeCostLedgerV1 | null;
+	readonly stoppedReason: D716ArmCompletionFact["stoppedReason"];
+	readonly classifyD717HostBudgetExhaustion: boolean;
+}): D716ArmCompletionFact {
+	const coordinates = input.request.input?.value;
+	if (coordinates === undefined || coordinates.authority !== "D716") {
+		throw new TypeError("D716 issued request omitted exact graph coordinates");
+	}
+	const actionTrace = input.outcome?.actionTrace ?? [];
+	let lastMutationIndex = -1;
+	for (let index = 0; index < actionTrace.length; index += 1) {
+		if (actionTrace[index]?.toolRef === CLOSED_ACTOR_TOOL_REFS.replaceExact) {
+			lastMutationIndex = index;
+		}
+	}
+	const diffAfterLatestMutation =
+		lastMutationIndex >= 0 &&
+		actionTrace
+			.slice(lastMutationIndex + 1)
+			.some((action) => action.toolRef === CLOSED_ACTOR_TOOL_REFS.workspaceDiff);
+	const focusedValidationAttempted =
+		diffAfterLatestMutation &&
+		actionTrace
+			.slice(lastMutationIndex + 1)
+			.some((action) => action.toolRef === CLOSED_ACTOR_TOOL_REFS.runCommand);
+	const hiddenVerifierAttempted = input.outcome?.verifierVerdict !== null && input.outcome !== null;
+	const stoppedReason =
+		input.stoppedReason === null &&
+		input.classifyD717HostBudgetExhaustion &&
+		input.outcome?.issueCodes.some((issueCode) => issueCode.endsWith("-budget-exhausted"))
+			? ("budget-exhausted" as const)
+			: input.stoppedReason;
+	return strictSnapshot({
+		arm: coordinates.arm,
+		sequence: coordinates.sequence,
+		workItemId: `d716-arm-${coordinates.arm}`,
+		executionInputRevision: coordinates.sequence + 1,
+		issuedRequestDigest: empiricalStrictJsonDigest(input.request),
+		traceComplete: input.outcome?.cleanupSucceeded ?? true,
+		inspectionObserved: actionTrace.some((action) => D716_INSPECTION_TOOL_REFS.has(action.toolRef)),
+		contentChangingMutationObserved: lastMutationIndex >= 0,
+		nonEmptyDiffAfterLatestMutation: diffAfterLatestMutation,
+		focusedValidationAttempted,
+		focusedValidationPassed: hiddenVerifierAttempted,
+		hiddenVerifierAttempted,
+		hiddenVerifierPassed: input.outcome?.verifierVerdict === "passed",
+		requests: input.outcome?.remoteRequests ?? 0,
+		costMicrousd: input.costLedger?.costMicrousd ?? 0,
+		elapsedMs:
+			(input.outcome?.turnEvidence.reduce((sum, turn) => sum + turn.latencyMs, 0) ?? 0) +
+			(input.outcome?.retryWaitMs ?? 0),
+		stoppedReason,
+	});
+}
+
 export interface OpenRouterFirstTaskWarmHostFactoryInputV1 {
 	readonly initialRequest: EmpiricalModelTurnRequestV1;
 	readonly signal: AbortSignal;
@@ -955,6 +1075,9 @@ export interface OpenRouterMatchedTrialBlockInputV4 {
 	readonly retryWait: OpenRouterFirstTaskRetryWaitCapabilityV1;
 	readonly prepareWarmHost?: OpenRouterFirstTaskWarmHostFactoryV1;
 	readonly historicalReflectionCapability?: D691HistoricalReflectionCapabilityV1;
+	readonly untypedHttp429RetryPolicy?: D710UntypedHttp429RetryPolicyV1;
+	readonly graphNativeSixArmCoordinator?: D716GraphNativeSixArmCoordinatorV1;
+	readonly graphNativeLiveProviderCapability?: D717GraphNativeLiveProviderCapabilityV1;
 	readonly blockIndex?: 1 | 2 | 3;
 	readonly remainingBudget?: B112CalibrationEmpiricalRunInputV4["remainingBudget"];
 }
@@ -969,9 +1092,12 @@ export async function runOpenRouterMatchedTrialBlock(
 	const request = record(inputValue, "matchedBlock.input");
 	const optionalKeys = [
 		"blockIndex",
+		"graphNativeLiveProviderCapability",
+		"graphNativeSixArmCoordinator",
 		"historicalReflectionCapability",
 		"prepareWarmHost",
 		"remainingBudget",
+		"untypedHttp429RetryPolicy",
 	].filter((key) => Object.hasOwn(request, key));
 	exactKeys(
 		request,
@@ -1023,7 +1149,73 @@ export async function runOpenRouterMatchedTrialBlock(
 		);
 	}
 	const hasStaleResultRecoveryPolicy = staleRecoveryPolicyDescriptor?.value !== undefined;
+	const untypedRetryPolicyDescriptor = Object.getOwnPropertyDescriptor(
+		request,
+		"untypedHttp429RetryPolicy",
+	);
+	if (
+		untypedRetryPolicyDescriptor !== undefined &&
+		(!untypedRetryPolicyDescriptor.enumerable || !("value" in untypedRetryPolicyDescriptor))
+	) {
+		throw new TypeError(
+			"OpenRouter matched-block D710 retry policy must be an own enumerable data property",
+		);
+	}
+	const untypedHttp429RetryPolicy =
+		untypedRetryPolicyDescriptor === undefined
+			? null
+			: validateD710UntypedHttp429RetryPolicy(untypedRetryPolicyDescriptor.value);
 	const input = request as unknown as OpenRouterMatchedTrialBlockInputV4;
+	const graphCoordinatorDescriptor = Object.getOwnPropertyDescriptor(
+		request,
+		"graphNativeSixArmCoordinator",
+	);
+	if (
+		graphCoordinatorDescriptor !== undefined &&
+		(!graphCoordinatorDescriptor.enumerable || !("value" in graphCoordinatorDescriptor))
+	) {
+		throw new TypeError(
+			"OpenRouter matched-block D716 coordinator must be an own enumerable data property",
+		);
+	}
+	const graphNativeSixArmCoordinator = graphCoordinatorDescriptor?.value;
+	if (
+		graphNativeSixArmCoordinator !== undefined &&
+		!isConstructedD716GraphNativeSixArmCoordinator(graphNativeSixArmCoordinator)
+	) {
+		throw new TypeError("OpenRouter matched-block D716 coordinator is not constructed");
+	}
+	const graphLiveCapabilityDescriptor = Object.getOwnPropertyDescriptor(
+		request,
+		"graphNativeLiveProviderCapability",
+	);
+	if (
+		graphLiveCapabilityDescriptor !== undefined &&
+		(!graphLiveCapabilityDescriptor.enumerable || !("value" in graphLiveCapabilityDescriptor))
+	) {
+		throw new TypeError(
+			"OpenRouter matched-block D717 capability must be an own enumerable data property",
+		);
+	}
+	if (graphNativeSixArmCoordinator !== undefined && input.prepareWarmHost === undefined) {
+		throw new TypeError("D716 Graph-native integration requires warm materialization");
+	}
+	let graphNativeLiveProviderQualificationDigest: string | undefined;
+	if (graphNativeSixArmCoordinator === undefined) {
+		if (graphLiveCapabilityDescriptor !== undefined) {
+			throw new TypeError("D717 live capability requires the D716 Graph coordinator");
+		}
+	} else if (input.executionClass === "live-provider") {
+		if (graphLiveCapabilityDescriptor === undefined) {
+			throw new TypeError("D717 live-provider Graph integration requires its exact capability");
+		}
+		graphNativeLiveProviderQualificationDigest = consumeD717GraphNativeLiveProviderCapability(
+			graphLiveCapabilityDescriptor.value,
+			graphNativeSixArmCoordinator,
+		).d716QualificationDigest;
+	} else if (graphLiveCapabilityDescriptor !== undefined) {
+		throw new TypeError("D717 live capability cannot enter simulated-contract execution");
+	}
 	const historicalReflectionCapability = input.historicalReflectionCapability;
 	if (historicalReflectionCapability !== undefined && input.prepareWarmHost === undefined) {
 		throw new TypeError("D691 historical reflection requires a warm host factory");
@@ -1101,9 +1293,10 @@ export async function runOpenRouterMatchedTrialBlock(
 		min: 1,
 	});
 	const remainingBudget = input.remainingBudget;
+	const requiresAggregateElapsedBoundary =
+		historicalReflectionCapability !== undefined || graphNativeSixArmCoordinator !== undefined;
 	const ceilings: MatchedBlockBudgetCeilings = Object.freeze({
-		enforceElapsedAdmission:
-			remainingBudget !== undefined || historicalReflectionCapability !== undefined,
+		enforceElapsedAdmission: remainingBudget !== undefined || requiresAggregateElapsedBoundary,
 		maxRequests:
 			remainingBudget === undefined
 				? input.routeQualification.budget.maxRequests
@@ -1128,10 +1321,9 @@ export async function runOpenRouterMatchedTrialBlock(
 						safeInteger(remainingBudget.campaignElapsedMs, "calibration.campaignElapsedMs"),
 					),
 	});
-	const aggregateElapsedSignal =
-		historicalReflectionCapability !== undefined
-			? AbortSignal.timeout(ceilings.maxLatencyMs)
-			: null;
+	const aggregateElapsedSignal = requiresAggregateElapsedBoundary
+		? AbortSignal.timeout(ceilings.maxLatencyMs)
+		: null;
 	const blockSignal =
 		aggregateElapsedSignal === null
 			? input.signal
@@ -1205,6 +1397,13 @@ export async function runOpenRouterMatchedTrialBlock(
 	};
 	const continuationInvocations: OpenRouterContinuationInvocationFactV1[] = [];
 	const mutationFirstInvocations: OpenRouterMutationFirstInvocationFactV1[] = [];
+	const d716ColdRequest =
+		graphNativeSixArmCoordinator === undefined
+			? null
+			: takeNextD716GraphNativeArmRequest(graphNativeSixArmCoordinator);
+	if (d716ColdRequest !== null && d716ColdRequest.input?.value?.arm !== "cold") {
+		throw new TypeError("D716 graph must issue cold as the first arm");
+	}
 	ledger.currentRunRequestRefs.clear();
 	const coldBudgetBefore = smokeBudgetSnapshot(ledger);
 	const coldRunStartedAtMs = safeInteger(readBlockMonotonicMs(), "smoke.coldRunStartedAtMs", {
@@ -1212,7 +1411,7 @@ export async function runOpenRouterMatchedTrialBlock(
 	});
 	const coldSignal = createPerRunSignal(
 		blockSignal,
-		historicalReflectionCapability === undefined
+		!requiresAggregateElapsedBoundary
 			? manifestBudgets.agentRun.maxElapsedMs
 			: Math.max(
 					1,
@@ -1266,26 +1465,45 @@ export async function runOpenRouterMatchedTrialBlock(
 			blockStartedAtMs,
 			coldRunStartedAtMs,
 			manifestBudgets.agentRun.maxElapsedMs,
+			untypedHttp429RetryPolicy,
 		),
 		agentRunElapsedSignal: coldSignal.elapsedSignal,
 		signal: coldSignal.signal,
 	});
 	const coldBudgetAfter = smokeBudgetSnapshot(ledger);
 	const coldCostLedger = runCostLedger(coldBudgetBefore, coldBudgetAfter, input.executionClass);
-	markBlockElapsedExhausted();
+	const coldElapsedExhausted = markBlockElapsedExhausted();
+	if (graphNativeSixArmCoordinator !== undefined && d716ColdRequest !== null) {
+		recordD716GraphNativeArmCompletion(
+			graphNativeSixArmCoordinator,
+			d716CompletionFact({
+				request: d716ColdRequest,
+				outcome,
+				costLedger: coldCostLedger,
+				stoppedReason: coldElapsedExhausted
+					? "budget-exhausted"
+					: outcome.cleanupSucceeded
+						? null
+						: "workspace-cleanup-failed",
+				classifyD717HostBudgetExhaustion: graphNativeLiveProviderQualificationDigest !== undefined,
+			}),
+		);
+	}
 	const rerunEligible = outcome.status === "completed" && outcome.verifierVerdict === "failed";
 	const reflection =
-		rerunEligible && input.prepareWarmHost !== undefined
-			? historicalReflectionCapability === undefined
-				? prepareB112MatchedBlockReflection({
-						coldRequest: input.host.initialRequest,
-						coldOutcome: outcome,
-					})
-				: prepareConstructedD691HistoricalReflection(historicalReflectionCapability, {
-						coldRequest: input.host.initialRequest,
-						coldOutcome: outcome,
-					})
-			: null;
+		graphNativeSixArmCoordinator !== undefined
+			? d716IndependentWarmReflection(graphNativeSixArmCoordinator)
+			: rerunEligible && input.prepareWarmHost !== undefined
+				? historicalReflectionCapability === undefined
+					? prepareB112MatchedBlockReflection({
+							coldRequest: input.host.initialRequest,
+							coldOutcome: outcome,
+						})
+					: prepareConstructedD691HistoricalReflection(historicalReflectionCapability, {
+							coldRequest: input.host.initialRequest,
+							coldOutcome: outcome,
+						})
+				: null;
 	const createObservation = () => {
 		const observationInput = {
 			frozen: input.host.frozen,
@@ -1322,7 +1540,42 @@ export async function runOpenRouterMatchedTrialBlock(
 		for (let index = 0; index < reflection.branches.length; index += 1) {
 			const branch = reflection.branches[index];
 			if (branch === undefined) throw new TypeError("B112 warm branch order is incomplete");
+			const d716WarmRequest =
+				graphNativeSixArmCoordinator === undefined
+					? null
+					: takeNextD716GraphNativeArmRequest(graphNativeSixArmCoordinator);
+			if (d716WarmRequest !== null && d716WarmRequest.input?.value?.arm !== branch.branchKind) {
+				throw new TypeError("D716 graph-issued warm arm order drifted");
+			}
+			const completeD716WarmArm = (
+				hostOutcome: ClosedTaskProfileHostRunOutcomeV3 | null,
+				costLedger: EmpiricalSmokeCostLedgerV1 | null,
+				stoppedReason: D716ArmCompletionFact["stoppedReason"],
+			) => {
+				if (graphNativeSixArmCoordinator === undefined || d716WarmRequest === null) return;
+				recordD716GraphNativeArmCompletion(
+					graphNativeSixArmCoordinator,
+					d716CompletionFact({
+						request: d716WarmRequest,
+						outcome: hostOutcome,
+						costLedger,
+						stoppedReason,
+						classifyD717HostBudgetExhaustion:
+							graphNativeLiveProviderQualificationDigest !== undefined,
+					}),
+				);
+			};
 			if (input.signal.aborted) {
+				if (graphNativeSixArmCoordinator !== undefined) {
+					warmBranches.push({
+						branchKind: branch.branchKind,
+						lifecycle: null,
+						run: null,
+						issueCodes: ["host-cancelled", "warm-branch-not-attempted"].sort(),
+					});
+					completeD716WarmArm(null, null, "cancelled");
+					continue;
+				}
 				throw new DOMException("B112 matched block cancelled between serial arms", "AbortError");
 			}
 			markBlockElapsedExhausted();
@@ -1333,6 +1586,7 @@ export async function runOpenRouterMatchedTrialBlock(
 					run: null,
 					issueCodes: [B112_SMOKE_BUDGET_ISSUE_CODE, "warm-branch-not-attempted"].sort(),
 				});
+				completeD716WarmArm(null, null, "budget-exhausted");
 				continue;
 			}
 			if (warmPreparationFailed) {
@@ -1342,6 +1596,7 @@ export async function runOpenRouterMatchedTrialBlock(
 					run: null,
 					issueCodes: ["warm-branch-not-attempted", "warm-host-preparation-failed"].sort(),
 				});
+				completeD716WarmArm(null, null, "warm-preparation-failed");
 				continue;
 			}
 			const initialRequest = createWarmInitialRequest({
@@ -1360,6 +1615,16 @@ export async function runOpenRouterMatchedTrialBlock(
 				});
 			} catch {
 				if (input.signal.aborted) {
+					if (graphNativeSixArmCoordinator !== undefined) {
+						warmBranches.push({
+							branchKind: branch.branchKind,
+							lifecycle: null,
+							run: null,
+							issueCodes: ["host-cancelled", "warm-branch-not-attempted"].sort(),
+						});
+						completeD716WarmArm(null, null, "cancelled");
+						continue;
+					}
 					throw new DOMException(
 						"B112 matched block cancelled during warm preparation",
 						"AbortError",
@@ -1376,6 +1641,11 @@ export async function runOpenRouterMatchedTrialBlock(
 					run: null,
 					issueCodes: ["warm-branch-not-attempted", "warm-host-preparation-failed"].sort(),
 				});
+				completeD716WarmArm(
+					null,
+					null,
+					ledger.exhausted ? "budget-exhausted" : "warm-preparation-failed",
+				);
 				continue;
 			}
 			if (markAggregateElapsedExhausted()) {
@@ -1395,6 +1665,11 @@ export async function runOpenRouterMatchedTrialBlock(
 						...(cleanupSucceeded ? [] : ["workspace-cleanup-failed"]),
 					].sort(),
 				});
+				completeD716WarmArm(
+					null,
+					null,
+					cleanupSucceeded ? "budget-exhausted" : "workspace-cleanup-failed",
+				);
 				continue;
 			}
 			let hostOwnsMaterialization = false;
@@ -1410,7 +1685,7 @@ export async function runOpenRouterMatchedTrialBlock(
 				);
 				const warmSignal = createPerRunSignal(
 					blockSignal,
-					historicalReflectionCapability === undefined
+					!requiresAggregateElapsedBoundary
 						? manifestBudgets.agentRun.maxElapsedMs
 						: Math.min(manifestBudgets.agentRun.maxElapsedMs, remainingAggregateMs),
 				);
@@ -1463,6 +1738,7 @@ export async function runOpenRouterMatchedTrialBlock(
 						blockStartedAtMs,
 						warmRunStartedAtMs,
 						manifestBudgets.agentRun.maxElapsedMs,
+						untypedHttp429RetryPolicy,
 					),
 					agentRunElapsedSignal: warmSignal.elapsedSignal,
 					signal: warmSignal.signal,
@@ -1505,6 +1781,15 @@ export async function runOpenRouterMatchedTrialBlock(
 					warmOutcome.issueCodes,
 				),
 			});
+			completeD716WarmArm(
+				warmOutcome,
+				runCostLedger(budgetBefore, budgetAfter, input.executionClass),
+				elapsedAfterRun
+					? "budget-exhausted"
+					: warmOutcome.cleanupSucceeded
+						? null
+						: "workspace-cleanup-failed",
+			);
 		}
 	}
 	const observation = createObservation();
@@ -1519,6 +1804,16 @@ export async function runOpenRouterMatchedTrialBlock(
 		...(hasStaleResultRecoveryPolicy
 			? { mutationFirstInvocations: strictSnapshot(mutationFirstInvocations) }
 			: {}),
+		...(graphNativeSixArmCoordinator === undefined
+			? {}
+			: {
+					graphNativeCoordination: snapshotD716GraphNativeCoordination(
+						graphNativeSixArmCoordinator,
+					),
+					...(graphNativeLiveProviderQualificationDigest === undefined
+						? {}
+						: { graphNativeLiveProviderQualificationDigest }),
+				}),
 	}) as OpenRouterMatchedTrialBlockResultV4;
 }
 

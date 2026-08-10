@@ -104,6 +104,28 @@ import {
 	validateD702OfflineQualification,
 } from "../../evals/empirical-memory-rerun-avoidance/d702-mutation-first-recovery-qualification.js";
 import {
+	D710_UNTYPED_HTTP_429_RETRY_POLICY,
+	d710UntypedHttp429RetryDelayMs,
+	validateD710UntypedHttp429RetryPolicy,
+} from "../../evals/empirical-memory-rerun-avoidance/d710-untyped-http-429-retry-policy.js";
+import { D714_D713_SOURCE_OBSERVATION_DIGEST } from "../../evals/empirical-memory-rerun-avoidance/d714-d715-graph-native-qualification.js";
+import {
+	createD716GraphNativeSixArmCoordinator,
+	D716_GRAPH_NATIVE_ARM_ORDER,
+	D716_GRAPH_NATIVE_COORDINATOR_REVISION,
+	D716_REQUIRED_D714_D715_QUALIFICATION_DIGEST,
+} from "../../evals/empirical-memory-rerun-avoidance/d716-graph-native-live-coordinator.js";
+import {
+	createD716GraphNativeLiveQualification,
+	createD716GraphNativeLiveScorecard,
+	persistD716GraphNativePrivateGeneration,
+} from "../../evals/empirical-memory-rerun-avoidance/d716-graph-native-live-qualification.js";
+import {
+	createD717InjectedHistoricalBaselineReceipt,
+	persistD717GraphNativePrivateGeneration,
+	runD717GraphNativePreLiveBlock,
+} from "../../evals/empirical-memory-rerun-avoidance/d717-graph-native-prelive.js";
+import {
 	createDeveloperGuidanceObservation,
 	developerGuidanceActionProgressEvidenceDigest,
 	developerGuidanceCoordinateEvidenceDigest,
@@ -132,6 +154,7 @@ import {
 	createD682SerialEffectPlanProposal,
 	type D682EffectRunCompletionV1,
 } from "../../evals/empirical-memory-rerun-avoidance/execution-qualified-mechanical-recipe.js";
+import { prepareB112MatchedBlockReflection } from "../../evals/empirical-memory-rerun-avoidance/matched-block-memory.js";
 import {
 	EMPIRICAL_MODEL_EXECUTION_SCHEMAS,
 	type EmpiricalModelToolIntentV1,
@@ -178,7 +201,9 @@ import {
 	B112_SMOKE_BUDGET_ISSUE_CODE,
 	canonicalMatchedWarmBranchIssueCodes,
 	createOpenRouterCalibrationEmpiricalRunner,
+	type OpenRouterFirstTaskRetryWaitCapabilityV1,
 	runOpenRouterFirstTaskSmoke,
+	runOpenRouterMatchedTrialBlock,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-first-task-smoke.js";
 import {
 	createOpenRouterResponsesEmpiricalBinding,
@@ -7053,6 +7078,545 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(preparationFailure.observation.issueCodes).toContain("warm-host-preparation-failed");
 	}, 60_000);
 
+	it("lets the D716 Graph schedule all warm arms after a passing cold run", async () => {
+		const fixture = await createClosedHostFixture(
+			undefined,
+			"broken-placeholder-value\n",
+			"deepseek-v4-flash-high",
+		);
+		const failedCold = await runClosedTaskProfileHost({
+			frozen: fixture.frozen,
+			qualificationReport: fixture.report,
+			initialRequest: fixture.initialRequest,
+			taskProfile: fixture.taskProfile,
+			materialization: fixture.materialization,
+			modelTurnPort: scriptedPort(fixture, () => ({
+				finishReason: "structured-output",
+				structuredOutput: {
+					kind: "model-turn-output-placeholder",
+					summary: "independent D716 arm definitions",
+				},
+			})),
+			protectionExecutor: fixture.protectionExecutor,
+			verifier: fixture.verifier,
+			signal: new AbortController().signal,
+		});
+		expect(failedCold.verifierVerdict).toBe("failed");
+		const warmReflection = prepareB112MatchedBlockReflection({
+			coldRequest: fixture.initialRequest,
+			coldOutcome: failedCold,
+		});
+		const coordinator = createD716GraphNativeSixArmCoordinator({
+			qualificationDigest: D716_REQUIRED_D714_D715_QUALIFICATION_DIGEST,
+			infrastructureEvidenceDigest: empiricalStrictJsonDigest({
+				kind: "d716-simulated-infrastructure",
+				taskRef: fixture.initialRequest.taskRef,
+			}),
+			warmReflection,
+		});
+		let transportCalls = 0;
+		let monotonicMs = 0;
+		const baseContentDigest = empiricalSha256(encoder.encode("broken-placeholder-value\n"));
+		const transport: OpenRouterResponsesByteTransportV1 = {
+			async request(request) {
+				transportCalls += 1;
+				const body = JSON.parse(new TextDecoder().decode(request.body)) as {
+					readonly messages: readonly { readonly role: string; readonly content: string }[];
+					readonly tools: readonly { readonly function: { readonly name: string } }[];
+				};
+				const user = body.messages.find((message) => message.role === "user");
+				if (user === undefined) throw new TypeError("D716 Chat fixture omitted the user turn");
+				const envelope = JSON.parse(user.content) as {
+					readonly turn: { readonly stepIndex: number; readonly finalStep: boolean };
+				};
+				const step = envelope.turn.stepIndex;
+				const output = envelope.turn.finalStep
+					? [
+							{
+								type: "message",
+								role: "assistant",
+								status: "completed",
+								content: [
+									{
+										type: "output_text",
+										text: JSON.stringify({
+											kind: "model-turn-output-placeholder",
+											summary: "D716 arm completed",
+										}),
+									},
+								],
+							},
+						]
+					: step === 0
+						? [
+								{
+									type: "function_call",
+									status: "completed",
+									call_id: `call.d716.replace.${transportCalls}`,
+									name: body.tools[2]?.function.name,
+									arguments: JSON.stringify({
+										baseContentDigest,
+										newText: "fixed",
+										oldText: "broken-placeholder-value",
+										path: "README.md",
+									}),
+								},
+							]
+						: step === 1
+							? [
+									{
+										type: "function_call",
+										status: "completed",
+										call_id: `call.d716.diff.${transportCalls}`,
+										name: body.tools[3]?.function.name,
+										arguments: "{}",
+									},
+								]
+							: step === 2
+								? [
+										{
+											type: "function_call",
+											status: "completed",
+											call_id: `call.d716.command.${transportCalls}`,
+											name: body.tools[4]?.function.name,
+											arguments: JSON.stringify({ commandRef: "actor.status" }),
+										},
+									]
+								: [
+										{
+											type: "function_call",
+											status: "completed",
+											call_id: `call.d716.read.${transportCalls}`,
+											name: body.tools[0]?.function.name,
+											arguments: JSON.stringify({ path: "README.md" }),
+										},
+									];
+				return dryRunOpenRouterResponse(`response.d716.${transportCalls}`, output, undefined, {
+					requestModel: OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
+					downstreamProviderName: OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME,
+				});
+			},
+		};
+		const matched = await runOpenRouterMatchedTrialBlock({
+			host: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: await fixture.prepareFreshMaterialization(new AbortController().signal),
+				verifier: fixture.verifier,
+			},
+			routeQualification: simulatedRouteQualification(fixture, {
+				maxRequests: 48,
+				maxStepsPerRun: 8,
+			}),
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: "D716_SIMULATED_CREDENTIAL_SENTINEL",
+			},
+			transport,
+			monotonicMeasurement: { readMs: () => (monotonicMs += 1) },
+			executionClass: "simulated-contract",
+			signal: new AbortController().signal,
+			retryWait: immediateRetryWait,
+			prepareWarmHost: ({ signal }) => fixture.prepareFreshMaterialization(signal),
+			graphNativeSixArmCoordinator: coordinator,
+		});
+		expect(matched.profile).toBe("smoke");
+		expect(transportCalls).toBe(48);
+		expect(matched.observation).toMatchObject({
+			rerunEligible: false,
+			cold: { verifierStatus: "passed" },
+			result: { coldRunsAttempted: 1, warmRunsAttempted: 5 },
+		});
+		expect(matched.graphNativeCoordination).toMatchObject({
+			coordinatorRevision: D716_GRAPH_NATIVE_COORDINATOR_REVISION,
+			issuedArms: [
+				"cold",
+				"relevant-applied",
+				"proposal-only",
+				"admission-rejected",
+				"irrelevant-applied",
+				"wrong-scope-applied",
+			],
+			completedArms: [
+				"cold",
+				"relevant-applied",
+				"proposal-only",
+				"admission-rejected",
+				"irrelevant-applied",
+				"wrong-scope-applied",
+			],
+			maxActiveArms: 1,
+			warmArmsIndependentOfCold: true,
+			causalAttribution: "undetermined",
+			efficacyClaim: "none",
+		});
+		expect(matched.graphNativeCoordination?.progress).toHaveLength(6);
+		expect(matched.graphNativeCoordination?.progress.map((progress) => progress.phase)).toEqual(
+			Array.from({ length: 6 }, () => "hidden-verifier-passed"),
+		);
+		const qualification = createD716GraphNativeLiveQualification({
+			result: matched,
+			warmReflection,
+		});
+		expect(qualification.gates).toEqual({
+			exactSixArmOrder: true,
+			allSixArmsCompleted: true,
+			warmArmsIndependentOfCold: true,
+			oneActiveArm: true,
+			workItemExecutionRecipeUsed: true,
+			nonEvaluableColdStillAdvances: true,
+			wrongProvenanceRejected: true,
+			duplicateOrStaleCompletionRejected: true,
+			accessorRejectedBeforeRead: true,
+			failureFactsRemainMaterialFree: true,
+			noNetwork: true,
+			providerCallCount: 0,
+			chargedCostMicrousd: 0,
+		});
+		let d717RetryInjected = false;
+		const d717RetryingTransport: OpenRouterResponsesByteTransportV1 = {
+			request(request) {
+				if (!d717RetryInjected) {
+					d717RetryInjected = true;
+					return Promise.resolve({
+						status: 429,
+						body: encoder.encode(
+							JSON.stringify({ error: { message: "bounded D717 injected untyped 429" } }),
+						),
+						retryAfterMs: 7_000,
+					});
+				}
+				return transport.request(request);
+			},
+		};
+		const d717RetryWait: OpenRouterFirstTaskRetryWaitCapabilityV1 = {
+			async wait(request) {
+				monotonicMs += request.delayMs;
+			},
+		};
+		const d717 = await runD717GraphNativePreLiveBlock({
+			d716Qualification: qualification,
+			historicalBaseline: createD717InjectedHistoricalBaselineReceipt({
+				sourceObservationDigest: D714_D713_SOURCE_OBSERVATION_DIGEST,
+			}),
+			warmReflection,
+			block: {
+				host: {
+					frozen: fixture.frozen,
+					qualificationReport: fixture.report,
+					initialRequest: fixture.initialRequest,
+					taskProfile: fixture.taskProfile,
+					materialization: await fixture.prepareFreshMaterialization(new AbortController().signal),
+					verifier: fixture.verifier,
+				},
+				routeQualification: liveRouteQualification(fixture, {
+					maxRequests: 48,
+					maxStepsPerRun: 8,
+				}),
+				credential: {
+					credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+					credentialBindingRevision:
+						fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+					bearerToken: "D717_INJECTED_CREDENTIAL_SENTINEL",
+				},
+				transport,
+				monotonicMeasurement: { readMs: () => (monotonicMs += 1) },
+				executionClass: "live-provider",
+				signal: new AbortController().signal,
+				retryWait: immediateRetryWait,
+				untypedHttp429RetryPolicy: D710_UNTYPED_HTTP_429_RETRY_POLICY,
+				prepareWarmHost: ({ signal }) => fixture.prepareFreshMaterialization(signal),
+			},
+		});
+		expect(d717.observation).toMatchObject({
+			executionClass: "live-provider",
+			issuedArms: D716_GRAPH_NATIVE_ARM_ORDER,
+			completedArms: D716_GRAPH_NATIVE_ARM_ORDER,
+			transportCalls: 48,
+			retryWaitCalls: 0,
+			maximumConcurrentTransportCalls: 1,
+			nextArmAuthority: "graph-only",
+			callerRole: "execute-and-present-immutable-completion-fact",
+			decisionEvidenceSource: "graph-projected-completion-facts",
+			graphSelectedArmCount: 6,
+			callerSelectedArmCount: 0,
+			workspaceCleanupComplete: true,
+			coldOutcomeCensoredWarmArms: false,
+			causalAttribution: "undetermined",
+			efficacyClaim: "none",
+		});
+		expect(d717.scorecard).toMatchObject({
+			qualified: false,
+			graphIntegrationQualified: true,
+			historicalBaselineBytesQualified: false,
+			completedArmCount: 6,
+			firstHarnessFindingArm: null,
+			harnessFindingCode: "no-harness-blocker-observed",
+		});
+		const d717Retry = await runD717GraphNativePreLiveBlock({
+			d716Qualification: qualification,
+			historicalBaseline: createD717InjectedHistoricalBaselineReceipt({
+				sourceObservationDigest: D714_D713_SOURCE_OBSERVATION_DIGEST,
+			}),
+			warmReflection,
+			block: {
+				host: {
+					frozen: fixture.frozen,
+					qualificationReport: fixture.report,
+					initialRequest: fixture.initialRequest,
+					taskProfile: fixture.taskProfile,
+					materialization: await fixture.prepareFreshMaterialization(new AbortController().signal),
+					verifier: fixture.verifier,
+				},
+				routeQualification: liveRouteQualification(fixture, {
+					maxRequests: 48,
+					maxStepsPerRun: 8,
+				}),
+				credential: {
+					credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+					credentialBindingRevision:
+						fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+					bearerToken: "D717_RETRY_CREDENTIAL_SENTINEL",
+				},
+				transport: d717RetryingTransport,
+				monotonicMeasurement: { readMs: () => (monotonicMs += 1) },
+				executionClass: "live-provider",
+				signal: new AbortController().signal,
+				retryWait: d717RetryWait,
+				untypedHttp429RetryPolicy: D710_UNTYPED_HTTP_429_RETRY_POLICY,
+				prepareWarmHost: ({ signal }) => fixture.prepareFreshMaterialization(signal),
+			},
+		});
+		expect(d717Retry.observation).toMatchObject({
+			completedArms: D716_GRAPH_NATIVE_ARM_ORDER,
+			retryWaitCalls: 1,
+			maximumConcurrentTransportCalls: 1,
+			workspaceCleanupComplete: true,
+			coldOutcomeCensoredWarmArms: false,
+			causalAttribution: "undetermined",
+			efficacyClaim: "none",
+		});
+		expect(d717Retry.observation.transportCalls).toBe(d717Retry.observation.underlyingAttempts);
+		expect(d717Retry.observation.graphRequests).toBe(d717Retry.observation.underlyingRequests);
+		expect(JSON.stringify(d717Retry)).not.toContain("D717_RETRY_CREDENTIAL_SENTINEL");
+		expect(d717Retry.scorecard.harnessFindingCode).toBe(
+			"review-budget-admission-or-request-efficiency",
+		);
+		const d717PrivateRoot = join(temporaryRoot("d717-private"), ".private");
+		const d717Persisted = await persistD717GraphNativePrivateGeneration({
+			privateRoot: d717PrivateRoot,
+			generationRef: "d717-injected-live-provider-full-six-arm",
+			observation: d717.observation,
+			scorecard: d717.scorecard,
+		});
+		for (const file of [
+			"graph-native-prelive-observation.v1.json",
+			"graph-native-prelive-scorecard.v1.json",
+			"generation.v1.json",
+		]) {
+			expect(statSync(join(d717Persisted.generationPath, file)).mode & 0o777).toBe(0o600);
+			expect(readFileSync(join(d717Persisted.generationPath, file), "utf8")).not.toContain(
+				"D717_INJECTED_CREDENTIAL_SENTINEL",
+			);
+		}
+		await expect(
+			persistD717GraphNativePrivateGeneration({
+				privateRoot: d717PrivateRoot,
+				generationRef: "d717-injected-live-provider-full-six-arm",
+				observation: d717.observation,
+				scorecard: d717.scorecard,
+			}),
+		).rejects.toThrow(/same-process|already exists/);
+		const forgedMaterialization = await fixture.prepareFreshMaterialization(
+			new AbortController().signal,
+		);
+		try {
+			await expect(
+				runOpenRouterMatchedTrialBlock({
+					host: {
+						frozen: fixture.frozen,
+						qualificationReport: fixture.report,
+						initialRequest: fixture.initialRequest,
+						taskProfile: fixture.taskProfile,
+						materialization: forgedMaterialization,
+						verifier: fixture.verifier,
+					},
+					routeQualification: liveRouteQualification(fixture),
+					credential: {
+						credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+						credentialBindingRevision:
+							fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+						bearerToken: "D717_FORGED_CAPABILITY_SENTINEL",
+					},
+					transport,
+					monotonicMeasurement: { readMs: () => (monotonicMs += 1) },
+					executionClass: "live-provider",
+					signal: new AbortController().signal,
+					retryWait: immediateRetryWait,
+					prepareWarmHost: ({ signal }) => fixture.prepareFreshMaterialization(signal),
+					graphNativeSixArmCoordinator: createD716GraphNativeSixArmCoordinator({
+						qualificationDigest: D716_REQUIRED_D714_D715_QUALIFICATION_DIGEST,
+						infrastructureEvidenceDigest: empiricalStrictJsonDigest({ forged: true }),
+						warmReflection,
+					}),
+					graphNativeLiveProviderCapability: {
+						capabilityRevision: "d717.graph-native-live-provider-capability.v1",
+					},
+				}),
+			).rejects.toThrow(/not constructed|does not bind/);
+		} finally {
+			await forgedMaterialization.cleanup();
+		}
+		const scorecard = createD716GraphNativeLiveScorecard(qualification);
+		const d716PrivateRoot = join(temporaryRoot("d716-private"), ".private");
+		const persisted = await persistD716GraphNativePrivateGeneration({
+			privateRoot: d716PrivateRoot,
+			generationRef: "d716-simulated-full-six-arm",
+			qualification,
+			scorecard,
+		});
+		for (const file of ["qualification.v1.json", "scorecard.v1.json", "generation.v1.json"]) {
+			expect(statSync(join(persisted.generationPath, file)).mode & 0o777).toBe(0o600);
+			expect(readFileSync(join(persisted.generationPath, file), "utf8")).not.toContain(
+				"D716_SIMULATED_CREDENTIAL_SENTINEL",
+			);
+		}
+		const failureCoordinator = createD716GraphNativeSixArmCoordinator({
+			qualificationDigest: D716_REQUIRED_D714_D715_QUALIFICATION_DIGEST,
+			infrastructureEvidenceDigest: empiricalStrictJsonDigest({
+				kind: "d716-simulated-infrastructure",
+				taskRef: fixture.initialRequest.taskRef,
+				failurePath: true,
+			}),
+			warmReflection,
+		});
+		let failureTransportCalls = 0;
+		const failureTransport: OpenRouterResponsesByteTransportV1 = {
+			async request() {
+				failureTransportCalls += 1;
+				throw new TypeError("D716 injected simulated transport failure");
+			},
+		};
+		const failureResult = await runOpenRouterMatchedTrialBlock({
+			host: {
+				frozen: fixture.frozen,
+				qualificationReport: fixture.report,
+				initialRequest: fixture.initialRequest,
+				taskProfile: fixture.taskProfile,
+				materialization: await fixture.prepareFreshMaterialization(new AbortController().signal),
+				verifier: fixture.verifier,
+			},
+			routeQualification: simulatedRouteQualification(fixture, {
+				maxRequests: 48,
+				maxStepsPerRun: 8,
+			}),
+			credential: {
+				credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+				credentialBindingRevision: fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+				bearerToken: "D716_FAILURE_CREDENTIAL_SENTINEL",
+			},
+			transport: failureTransport,
+			monotonicMeasurement: { readMs: () => (monotonicMs += 1) },
+			executionClass: "simulated-contract",
+			signal: new AbortController().signal,
+			retryWait: immediateRetryWait,
+			untypedHttp429RetryPolicy: D710_UNTYPED_HTTP_429_RETRY_POLICY,
+			prepareWarmHost: async () => {
+				throw new TypeError("D716 injected warm materialization failure");
+			},
+			graphNativeSixArmCoordinator: failureCoordinator,
+		});
+		expect(failureTransportCalls).toBe(1);
+		expect(failureResult.observation.cold.classification).toBe("non-evaluable");
+		expect(failureResult.graphNativeCoordination?.completedArms).toEqual(
+			D716_GRAPH_NATIVE_ARM_ORDER,
+		);
+		expect(failureResult.graphNativeCoordination?.progress.slice(1)).toEqual(
+			Array.from({ length: 5 }, () =>
+				expect.objectContaining({
+					phase: "none",
+					stoppedReason: "warm-preparation-failed",
+				}),
+			),
+		);
+		expect(JSON.stringify(failureResult.graphNativeCoordination)).not.toContain(
+			"D716_FAILURE_CREDENTIAL_SENTINEL",
+		);
+		const failureQualification = createD716GraphNativeLiveQualification({
+			result: failureResult,
+			warmReflection,
+		});
+		const d717Failure = await runD717GraphNativePreLiveBlock({
+			d716Qualification: failureQualification,
+			historicalBaseline: createD717InjectedHistoricalBaselineReceipt({
+				sourceObservationDigest: D714_D713_SOURCE_OBSERVATION_DIGEST,
+			}),
+			warmReflection,
+			block: {
+				host: {
+					frozen: fixture.frozen,
+					qualificationReport: fixture.report,
+					initialRequest: fixture.initialRequest,
+					taskProfile: fixture.taskProfile,
+					materialization: await fixture.prepareFreshMaterialization(new AbortController().signal),
+					verifier: fixture.verifier,
+				},
+				routeQualification: liveRouteQualification(fixture, {
+					maxRequests: 48,
+					maxStepsPerRun: 8,
+				}),
+				credential: {
+					credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+					credentialBindingRevision:
+						fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+					bearerToken: "D717_FAILURE_CREDENTIAL_SENTINEL",
+				},
+				transport: failureTransport,
+				monotonicMeasurement: { readMs: () => (monotonicMs += 1) },
+				executionClass: "live-provider",
+				signal: new AbortController().signal,
+				retryWait: immediateRetryWait,
+				untypedHttp429RetryPolicy: D710_UNTYPED_HTTP_429_RETRY_POLICY,
+				prepareWarmHost: async () => {
+					throw new TypeError("D717 injected warm materialization failure");
+				},
+			},
+		});
+		expect(d717Failure.observation).toMatchObject({
+			completedArms: D716_GRAPH_NATIVE_ARM_ORDER,
+			transportCalls: 1,
+			underlyingWarmRunsAttempted: 0,
+			workspaceCleanupComplete: true,
+			workspaceResidueCount: 0,
+			coldOutcomeCensoredWarmArms: false,
+			causalAttribution: "undetermined",
+			efficacyClaim: "none",
+		});
+		expect(d717Failure.observation.graphProgressPhases).toEqual(
+			Array.from({ length: 6 }, () => "none"),
+		);
+		expect(JSON.stringify(d717Failure)).not.toContain("D717_FAILURE_CREDENTIAL_SENTINEL");
+		expect(d717Failure.scorecard).toMatchObject({
+			firstHarnessFindingArm: "cold",
+			harnessFindingCode: "inspect-provider-or-pre-tool-failure",
+		});
+		const failureScorecard = createD716GraphNativeLiveScorecard(failureQualification);
+		await expect(
+			persistD716GraphNativePrivateGeneration({
+				privateRoot: d716PrivateRoot,
+				generationRef: "d716-simulated-full-six-arm",
+				qualification: failureQualification,
+				scorecard: failureScorecard,
+			}),
+		).rejects.toThrow("generation already exists");
+		expect(readdirSync(d716PrivateRoot).some((entry) => entry.startsWith(".d716-staging-"))).toBe(
+			false,
+		);
+	}, 60_000);
+
 	it("persists a sanitized non-evaluable generation after one transport attempt fails", async () => {
 		const fixture = await createClosedHostFixture();
 		const failureCredentialSentinel = "openrouter-transport-failure-secret-0123456789";
@@ -7157,10 +7721,16 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		});
 		expect(result.observation.issueCodes).toEqual([
 			"model-turn-non-evaluable",
+			"openrouter-error-body-shape:json-object",
 			"openrouter-error-code:invalid_prompt",
+			"openrouter-error-media-class:json",
+			"openrouter-error-recognized-code:present",
+			"openrouter-error-recognized-type:absent",
 			"openrouter-error-type:unrecognized",
 			"openrouter-http-status:400",
 			"openrouter-invalid-unsupported-response",
+			"openrouter-retry-after-parse:unavailable",
+			"openrouter-retry-after-presence:unavailable",
 		]);
 		expect(result.scorecard.issueCodes).toEqual(result.observation.issueCodes);
 		for (const file of readdirSync(result.persistence.generationPath)) {
@@ -7957,6 +8527,295 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(persisted).not.toContain(credentialSentinel);
 		expect(persisted).not.toContain(rawProviderSentinel);
 	});
+
+	it("qualifies only a first untyped D710 429 and freezes Retry-After or the 60-second fallback", () => {
+		const baseIssues = [
+			"openrouter-error-body-shape:json-object",
+			"openrouter-error-media-class:json",
+			"openrouter-error-recognized-code:absent",
+			"openrouter-error-recognized-type:absent",
+			"openrouter-http-status:429",
+			"openrouter-quota-rate-limit",
+		] as const;
+		const outcome = (retryIssues: readonly string[]) => ({
+			status: "non-evaluable" as const,
+			issueCodes: [...baseIssues, ...retryIssues].sort(),
+		});
+		expect(
+			d710UntypedHttp429RetryDelayMs(
+				outcome(["openrouter-retry-after-parse:absent", "openrouter-retry-after-presence:absent"]),
+				1,
+			),
+		).toBe(60_000);
+		expect(
+			d710UntypedHttp429RetryDelayMs(
+				outcome([
+					"openrouter-retry-after-ms:7000",
+					"openrouter-retry-after-parse:parsed",
+					"openrouter-retry-after-presence:present",
+				]),
+				1,
+			),
+		).toBe(7_000);
+		expect(
+			d710UntypedHttp429RetryDelayMs(
+				outcome([
+					"openrouter-retry-after-parse:invalid",
+					"openrouter-retry-after-presence:present",
+				]),
+				1,
+			),
+		).toBe(60_000);
+		expect(
+			d710UntypedHttp429RetryDelayMs(
+				{
+					...outcome([
+						"openrouter-retry-after-parse:absent",
+						"openrouter-retry-after-presence:absent",
+					]),
+					issueCodes: [
+						...outcome([
+							"openrouter-retry-after-parse:absent",
+							"openrouter-retry-after-presence:absent",
+						]).issueCodes,
+						"openrouter-error-type:payment_required",
+					],
+				},
+				1,
+			),
+		).toBeNull();
+		expect(
+			d710UntypedHttp429RetryDelayMs(
+				outcome(["openrouter-retry-after-parse:absent", "openrouter-retry-after-presence:absent"]),
+				2,
+			),
+		).toBeNull();
+
+		let getterHits = 0;
+		const accessorPolicy = Object.defineProperty(
+			{ ...D710_UNTYPED_HTTP_429_RETRY_POLICY },
+			"policyRevision",
+			{
+				enumerable: true,
+				get() {
+					getterHits += 1;
+					return D710_UNTYPED_HTTP_429_RETRY_POLICY.policyRevision;
+				},
+			},
+		);
+		expect(() => validateD710UntypedHttp429RetryPolicy(accessorPolicy)).toThrow();
+		expect(getterHits).toBe(0);
+	});
+
+	it("retries one exact DeepSeek untyped 429 through the shared ledger and stops a repeated untyped 429", async () => {
+		const runCase = async (
+			terminalRetryOutcome: "recover" | "double-recover" | "untyped-429" | "typed-503",
+		) => {
+			const fixture = await createClosedHostFixture(undefined, undefined, "deepseek-v4-flash-high");
+			const route = simulatedRouteQualification(fixture, { maxLatencyMs: 180_000 });
+			const routeIdentity = {
+				requestModel: route.requestModel,
+				downstreamProviderName: route.downstreamProviderName,
+			};
+			const baseContentDigest = empiricalSha256(encoder.encode("broken-placeholder-value\n"));
+			const requestBodies: Uint8Array[] = [];
+			const waits: number[] = [];
+			let transportCalls = 0;
+			let activeCalls = 0;
+			let maximumActiveCalls = 0;
+			let measurement = 0;
+			const artifactRoot = temporaryRoot(`d710-untyped-${terminalRetryOutcome}`);
+			const privateRoot = join(artifactRoot, ".private", "empirical-memory-rerun-avoidance");
+			mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
+			chmodSync(privateRoot, 0o700);
+			const result = await runOpenRouterFirstTaskSmoke({
+				host: {
+					frozen: fixture.frozen,
+					qualificationReport: fixture.report,
+					initialRequest: fixture.initialRequest,
+					taskProfile: fixture.taskProfile,
+					materialization: fixture.materialization,
+					verifier: fixture.verifier,
+				},
+				routeQualification: route,
+				credential: {
+					credentialBindingRef: fixture.frozen.manifest.policies.actorCredentialBindingRef,
+					credentialBindingRevision:
+						fixture.frozen.manifest.policies.actorCredentialBindingRevision,
+					bearerToken: "d710-offline-secret-sentinel-0123456789",
+				},
+				transport: {
+					async request(input) {
+						activeCalls += 1;
+						maximumActiveCalls = Math.max(maximumActiveCalls, activeCalls);
+						transportCalls += 1;
+						requestBodies.push(input.body.slice());
+						try {
+							if (
+								transportCalls === 1 ||
+								(terminalRetryOutcome === "double-recover" && transportCalls === 3) ||
+								(terminalRetryOutcome === "untyped-429" && transportCalls === 2)
+							) {
+								return {
+									status: 429,
+									body: encoder.encode(
+										JSON.stringify({ error: { message: "bounded simulated untyped 429" } }),
+									),
+									retryAfterMs: 7_000,
+									retryAfterDisposition: "parsed" as const,
+								};
+							}
+							if (terminalRetryOutcome === "typed-503" && transportCalls === 2) {
+								return {
+									status: 503,
+									body: encoder.encode(
+										JSON.stringify({
+											error: {
+												code: "server_error",
+												message: "bounded simulated typed 503",
+												metadata: { error_type: "provider_overloaded" },
+											},
+										}),
+									),
+									retryAfterMs: 1_000,
+								};
+							}
+							if (transportCalls >= 3) {
+								return dryRunOpenRouterResponse(
+									"response.d710.final",
+									[
+										{
+											type: "message",
+											role: "assistant",
+											status: "completed",
+											content: [
+												{
+													type: "output_text",
+													text: JSON.stringify({
+														kind: "model-turn-output-placeholder",
+														summary: "D710 offline retry recovered",
+													}),
+												},
+											],
+										},
+									],
+									undefined,
+									routeIdentity,
+								);
+							}
+							const wire = JSON.parse(new TextDecoder().decode(input.body)) as {
+								readonly tools?: readonly {
+									readonly function?: {
+										readonly name?: string;
+										readonly parameters?: {
+											readonly properties?: Readonly<Record<string, unknown>>;
+										};
+									};
+								}[];
+							};
+							const replaceTool = wire.tools?.find((tool) =>
+								Object.hasOwn(tool.function?.parameters?.properties ?? {}, "oldText"),
+							)?.function?.name;
+							if (replaceTool === undefined) throw new TypeError("D710 replace tool is missing");
+							return dryRunOpenRouterResponse(
+								"response.d710.replace",
+								[
+									{
+										type: "function_call",
+										status: "completed",
+										call_id: "call.d710.replace",
+										name: replaceTool,
+										arguments: JSON.stringify({
+											baseContentDigest,
+											newText: "fixed",
+											oldText: "broken-placeholder-value",
+											path: "README.md",
+										}),
+									},
+								],
+								undefined,
+								routeIdentity,
+							);
+						} finally {
+							activeCalls -= 1;
+						}
+					},
+				},
+				monotonicMeasurement: { readMs: () => measurement },
+				retryWait: {
+					async wait(input) {
+						waits.push(input.delayMs);
+						measurement += input.delayMs;
+					},
+				},
+				untypedHttp429RetryPolicy: D710_UNTYPED_HTTP_429_RETRY_POLICY,
+				executionClass: "simulated-contract",
+				privateRoot,
+				generationRef: `d710-untyped-${terminalRetryOutcome}-generation`,
+				signal: new AbortController().signal,
+			});
+			return { maximumActiveCalls, requestBodies, result, transportCalls, waits };
+		};
+
+		const recovered = await runCase("recover");
+		expect(recovered.transportCalls).toBe(3);
+		expect(recovered.maximumActiveCalls).toBe(1);
+		expect(recovered.waits).toEqual([7_000]);
+		expect(recovered.requestBodies[0]).toEqual(recovered.requestBodies[1]);
+		expect(recovered.result.observation.cold).toMatchObject({
+			classification: "complete",
+			requests: 3,
+			attempts: 3,
+			steps: 2,
+			retryWaitMs: 7_000,
+			verifierStatus: "passed",
+		});
+
+		const recoveredTwiceAcrossLogicalTurns = await runCase("double-recover");
+		expect(recoveredTwiceAcrossLogicalTurns.transportCalls).toBe(4);
+		expect(recoveredTwiceAcrossLogicalTurns.maximumActiveCalls).toBe(1);
+		expect(recoveredTwiceAcrossLogicalTurns.waits).toEqual([7_000, 7_000]);
+		expect(recoveredTwiceAcrossLogicalTurns.requestBodies[0]).toEqual(
+			recoveredTwiceAcrossLogicalTurns.requestBodies[1],
+		);
+		expect(recoveredTwiceAcrossLogicalTurns.requestBodies[2]).toEqual(
+			recoveredTwiceAcrossLogicalTurns.requestBodies[3],
+		);
+		expect(recoveredTwiceAcrossLogicalTurns.result.observation.cold).toMatchObject({
+			classification: "complete",
+			requests: 4,
+			attempts: 4,
+			steps: 2,
+			retryWaitMs: 14_000,
+			verifierStatus: "passed",
+		});
+
+		const repeated = await runCase("untyped-429");
+		expect(repeated.transportCalls).toBe(2);
+		expect(repeated.maximumActiveCalls).toBe(1);
+		expect(repeated.waits).toEqual([7_000]);
+		expect(repeated.requestBodies[0]).toEqual(repeated.requestBodies[1]);
+		expect(repeated.result.observation.cold).toMatchObject({
+			classification: "non-evaluable",
+			requests: 2,
+			attempts: 2,
+			steps: 1,
+			retryWaitMs: 7_000,
+			verifierStatus: "not-run",
+		});
+		expect(repeated.result.observation.issueCodes).not.toContain("model-turn-retry-exhausted");
+
+		const typedAfterD710 = await runCase("typed-503");
+		expect(typedAfterD710.transportCalls).toBe(2);
+		expect(typedAfterD710.waits).toEqual([7_000]);
+		expect(typedAfterD710.result.observation.cold).toMatchObject({
+			classification: "non-evaluable",
+			requests: 2,
+			attempts: 2,
+			steps: 1,
+			verifierStatus: "not-run",
+		});
+	}, 30_000);
 
 	it("retries an exact request-phase socket failure once and retains the ambiguous first attempt", async () => {
 		const fixture = await createClosedHostFixture();

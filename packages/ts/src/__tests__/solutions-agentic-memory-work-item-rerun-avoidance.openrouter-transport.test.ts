@@ -150,9 +150,19 @@ describe("B112 package-private OpenRouter live byte transport", () => {
 		});
 		expect(new TextDecoder().decode(response.body)).toBe('{"ok":true}');
 		expect(response.retryAfterMs).toBeNull();
+		expect(response.retryAfterDisposition).toBe("absent");
 	});
 
 	it("extracts only a bounded Retry-After delta without exposing other headers", async () => {
+		const unreadableHeaders = new Response('{"error":true}', { status: 429 });
+		Object.defineProperty(unreadableHeaders, "headers", {
+			value: Object.freeze({
+				get(name: string) {
+					if (name === "retry-after") throw new TypeError("header access unavailable");
+					return null;
+				},
+			}),
+		});
 		const fetchCapability = vi
 			.fn<typeof fetch>()
 			.mockResolvedValueOnce(
@@ -166,16 +176,31 @@ describe("B112 package-private OpenRouter live byte transport", () => {
 					status: 429,
 					headers: { "retry-after": "601" },
 				}),
-			);
+			)
+			.mockResolvedValueOnce(unreadableHeaders);
 		const transport = createOpenRouterResponsesFetchByteTransport({ fetch: fetchCapability });
 
 		const bounded = await transport.request(transportRequest());
 		const rejected = await transport.request(transportRequest());
+		const unavailable = await transport.request(transportRequest());
 
-		expect(bounded).toMatchObject({ status: 429, retryAfterMs: 7_000 });
-		expect(rejected).toMatchObject({ status: 429, retryAfterMs: null });
-		expect(JSON.stringify({ bounded, rejected })).not.toContain(credentialSentinel);
-		expect(fetchCapability).toHaveBeenCalledTimes(2);
+		expect(bounded).toMatchObject({
+			status: 429,
+			retryAfterMs: 7_000,
+			retryAfterDisposition: "parsed",
+		});
+		expect(rejected).toMatchObject({
+			status: 429,
+			retryAfterMs: null,
+			retryAfterDisposition: "invalid",
+		});
+		expect(unavailable).toMatchObject({
+			status: 429,
+			retryAfterMs: null,
+			retryAfterDisposition: "unavailable",
+		});
+		expect(JSON.stringify({ bounded, rejected, unavailable })).not.toContain(credentialSentinel);
+		expect(fetchCapability).toHaveBeenCalledTimes(3);
 	});
 
 	it("allows only the separately qualified Chat Completions wire endpoint", async () => {

@@ -54,6 +54,14 @@ import {
 	type D702OfflineQualificationV1,
 	validateD702OfflineQualification,
 } from "./d702-mutation-first-recovery-qualification.js";
+import { D710_UNTYPED_HTTP_429_RETRY_POLICY } from "./d710-untyped-http-429-retry-policy.js";
+import {
+	D712_APPROVAL_REF,
+	D712_APPROVAL_REVISION,
+	D712_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS,
+	D712_DEEPSEEK_V4_FLASH_OUTPUT_MICROUSD_PER_MILLION_TOKENS,
+	D712_DEEPSEEK_V4_FLASH_PRICING_REVISION,
+} from "./d712-pricing-schedule.js";
 import {
 	type EmpiricalTrialBlockObservationV3,
 	validateEmpiricalTrialBlockObservation,
@@ -62,6 +70,7 @@ import {
 	type EmpiricalExactPrivateNeedleProtectionExecutorV1,
 	isEmpiricalExactPrivateNeedleProtectionExecutor,
 } from "./exact-private-needle-protection.js";
+import { validateEmpiricalCampaignManifest } from "./manifest.js";
 import { createD691HistoricalReflectionCapability } from "./matched-block-memory.js";
 import {
 	type OpenRouterContinuationInvocationFactV1,
@@ -71,6 +80,10 @@ import {
 	runOpenRouterMatchedTrialBlock,
 } from "./openrouter-first-task-smoke.js";
 import type { OpenRouterResponsesByteTransportV1 } from "./openrouter-responses-model-turn.js";
+import {
+	OPENROUTER_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS,
+	OPENROUTER_DEEPSEEK_V4_FLASH_OUTPUT_MICROUSD_PER_MILLION_TOKENS,
+} from "./openrouter-route-qualification.js";
 import {
 	assertPrivateArtifactProtection,
 	assertSafePrivateRoot,
@@ -477,8 +490,9 @@ export function validateD703ImplementationMeasurements(value: unknown): void {
 	}
 }
 
-export async function createD703PreflightCapability(
+async function createD703PreflightCapabilityInternal(
 	value: unknown,
+	validateHistoricalImplementation: boolean,
 ): Promise<D703PreflightCapabilityV1> {
 	const input = record(value, "d703.preflight");
 	exactKeys(
@@ -521,7 +535,11 @@ export async function createD703PreflightCapability(
 	const historicalObservation = validateD699Artifacts(input.d699Artifacts);
 	validateD699DispatchClaim(input.d699DispatchClaimBytes);
 	const d702Qualification = validateD702Artifacts(input.d702Artifacts);
-	await validateCurrentD702Implementation();
+	if (validateHistoricalImplementation) {
+		await validateCurrentD702Implementation();
+	} else {
+		literal(process.version, D703_NODE_RUNTIME_VERSION, "d710.runtime.nodeVersion");
+	}
 	if (
 		empiricalStrictJsonDigest(D702_STALE_RESULT_RECOVERY_POLICY) !==
 			d702Qualification.d702PolicyDigest ||
@@ -545,6 +563,19 @@ export async function createD703PreflightCapability(
 		d702Qualification,
 	});
 	return capability;
+}
+
+export async function createD703PreflightCapability(
+	value: unknown,
+): Promise<D703PreflightCapabilityV1> {
+	return createD703PreflightCapabilityInternal(value, true);
+}
+
+/** D710 reuses the durable historical coordinates but qualifies the current retry implementation. */
+export async function createD703PreflightCapabilityForD710Offline(
+	value: unknown,
+): Promise<D703PreflightCapabilityV1> {
+	return createD703PreflightCapabilityInternal(value, false);
 }
 
 export function consumeD703PreflightForD704(value: unknown): D703ConsumedPreflightForD704V1 {
@@ -604,14 +635,43 @@ function captureBlock(value: unknown): OpenRouterMatchedTrialBlockInputV4 {
 	}) as unknown as OpenRouterMatchedTrialBlockInputV4;
 }
 
-function validateBlock(block: OpenRouterMatchedTrialBlockInputV4): void {
-	validateD691HistoricalTransferBlockCoordinates(block);
+type D703RunMode = "d703" | "d710" | "d712";
+
+function validateBlock(block: OpenRouterMatchedTrialBlockInputV4, mode: D703RunMode): void {
+	validateD691HistoricalTransferBlockCoordinates(
+		mode === "d712"
+			? ({
+					...block,
+					routeQualification: {
+						...block.routeQualification,
+						pricing: {
+							...block.routeQualification.pricing,
+							inputMicrousdPerMillionTokens:
+								OPENROUTER_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS,
+							outputMicrousdPerMillionTokens:
+								OPENROUTER_DEEPSEEK_V4_FLASH_OUTPUT_MICROUSD_PER_MILLION_TOKENS,
+						},
+					},
+				} as OpenRouterMatchedTrialBlockInputV4)
+			: block,
+	);
+	const route = block.routeQualification;
+	const pricingQualified =
+		mode === "d712"
+			? route.budget.approvalRef === D712_APPROVAL_REF &&
+				route.budget.approvalRevision === D712_APPROVAL_REVISION &&
+				route.pricing.pricingRevision === D712_DEEPSEEK_V4_FLASH_PRICING_REVISION &&
+				route.pricing.inputMicrousdPerMillionTokens ===
+					D712_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS &&
+				route.pricing.outputMicrousdPerMillionTokens ===
+					D712_DEEPSEEK_V4_FLASH_OUTPUT_MICROUSD_PER_MILLION_TOKENS
+			: route.budget.approvalRef === "decision.D703" &&
+				route.budget.approvalRevision === "decision.D703.2026-08-09.v1" &&
+				route.pricing.pricingRevision === D694_PRICING_REVISION;
 	if (
 		block.executionClass !== "simulated-contract" ||
-		block.routeQualification.dispatchMode !== "simulated" ||
-		block.routeQualification.budget.approvalRef !== "decision.D703" ||
-		block.routeQualification.budget.approvalRevision !== "decision.D703.2026-08-09.v1" ||
-		block.routeQualification.pricing.pricingRevision !== D694_PRICING_REVISION ||
+		route.dispatchMode !== "simulated" ||
+		!pricingQualified ||
 		empiricalStrictJsonDigest(
 			block.host.taskProfile.commandPolicy.commands.find(
 				(command) => command.commandRef === D693_ASSISTED_PROGRESS_POLICY.validationCommandRef,
@@ -619,6 +679,13 @@ function validateBlock(block: OpenRouterMatchedTrialBlockInputV4): void {
 		) !== D694_FOCUSED_VALIDATION_COMMAND_DIGEST
 	) {
 		throw new TypeError("D703 block drifted from its frozen simulated baseline");
+	}
+	if (
+		mode !== "d703"
+			? block.untypedHttp429RetryPolicy !== D710_UNTYPED_HTTP_429_RETRY_POLICY
+			: block.untypedHttp429RetryPolicy !== undefined
+	) {
+		throw new TypeError("D703/D710 retry treatment boundary drifted");
 	}
 }
 
@@ -1010,10 +1077,13 @@ export function deriveD703MutationFirstRecoveryLifecycle(
 	);
 }
 
-export async function runD703MutationFirstBlock(input: {
-	readonly preflight: D703PreflightCapabilityV1;
-	readonly block: OpenRouterMatchedTrialBlockInputV4;
-}): Promise<{
+async function runD703MutationFirstBlockInternal(
+	input: {
+		readonly preflight: D703PreflightCapabilityV1;
+		readonly block: OpenRouterMatchedTrialBlockInputV4;
+	},
+	mode: D703RunMode,
+): Promise<{
 	readonly observation: D703MutationFirstObservationV1;
 	readonly scorecard: D703MutationFirstScorecardV1;
 	readonly operationalQualification: D703PreLiveOperationalQualificationV1;
@@ -1022,26 +1092,52 @@ export async function runD703MutationFirstBlock(input: {
 	const outer = record(input, "d703.input");
 	exactKeys(outer, ["block", "preflight"], "d703.input");
 	const block = captureBlock(outer.block);
-	validateBlock(block);
+	validateBlock(block, mode);
 	const state = constructedPreflights.get(outer.preflight as object);
 	if (state === undefined) throw new TypeError("D703 requires its same-process preflight");
 	constructedPreflights.delete(outer.preflight as object);
 	const historical = state.historicalObservation.underlying;
+	const currentConfiguration = block.host.frozen.manifest.modelConfigurations.find(
+		(configuration) => configuration.configurationRef === block.routeQualification.configurationRef,
+	);
+	if (currentConfiguration === undefined) {
+		throw new TypeError("D703 current actor configuration is missing");
+	}
+	const normalizedConfiguration =
+		mode === "d712"
+			? strictSnapshot({ ...currentConfiguration, pricingRevision: D694_PRICING_REVISION })
+			: currentConfiguration;
+	const normalizedManifest =
+		mode === "d712"
+			? validateEmpiricalCampaignManifest(
+					strictSnapshot({
+						...block.host.frozen.manifest,
+						modelConfigurations: block.host.frozen.manifest.modelConfigurations.map(
+							(configuration) =>
+								configuration.configurationRef === currentConfiguration.configurationRef
+									? normalizedConfiguration
+									: configuration,
+						),
+					}),
+				)
+			: block.host.frozen.manifest;
+	const normalizedManifestDigest = empiricalStrictJsonDigest(normalizedManifest);
+	const normalizedConfigurationDigest = empiricalStrictJsonDigest(normalizedConfiguration);
 	if (
 		historical.campaignRef !== block.host.frozen.manifest.campaignRef ||
-		historical.manifestDigest !== block.host.frozen.manifestDigest ||
+		historical.manifestDigest !== normalizedManifestDigest ||
 		historical.taskRef !== block.host.initialRequest.taskRef ||
 		historical.taskDigest !== block.host.initialRequest.taskDigest ||
 		historical.trialBlockRef !== block.host.initialRequest.trialBlockRef ||
 		historical.trialBlockDigest !== block.host.initialRequest.trialBlockDigest ||
 		historical.route.configurationRef !== block.routeQualification.configurationRef ||
-		historical.route.configurationDigest !== block.routeQualification.configurationDigest
+		historical.route.configurationDigest !== normalizedConfigurationDigest
 	) {
 		throw new TypeError(
 			`D703 block drifted from exact D699 historical coordinates ${JSON.stringify({
 				campaign: historical.campaignRef === block.host.frozen.manifest.campaignRef,
-				manifest: historical.manifestDigest === block.host.frozen.manifestDigest,
-				currentManifestDigest: block.host.frozen.manifestDigest,
+				manifest: historical.manifestDigest === normalizedManifestDigest,
+				currentManifestDigest: normalizedManifestDigest,
 				taskRef: historical.taskRef === block.host.initialRequest.taskRef,
 				taskDigest: historical.taskDigest === block.host.initialRequest.taskDigest,
 				currentTaskDigest: block.host.initialRequest.taskDigest,
@@ -1050,8 +1146,7 @@ export async function runD703MutationFirstBlock(input: {
 					historical.trialBlockDigest === block.host.initialRequest.trialBlockDigest,
 				configurationRef:
 					historical.route.configurationRef === block.routeQualification.configurationRef,
-				configurationDigest:
-					historical.route.configurationDigest === block.routeQualification.configurationDigest,
+				configurationDigest: historical.route.configurationDigest === normalizedConfigurationDigest,
 			})}`,
 		);
 	}
@@ -1120,7 +1215,37 @@ export async function runD703MutationFirstBlock(input: {
 		}),
 	});
 	if (result.profile !== "smoke") throw new TypeError("D703 requires smoke evidence");
-	assertD691HistoricalTransferUnderlyingCoordinates(result.observation, block);
+	if (mode === "d712") {
+		const historicalBlock = {
+			...block,
+			routeQualification: {
+				...block.routeQualification,
+				pricing: {
+					...block.routeQualification.pricing,
+					inputMicrousdPerMillionTokens:
+						OPENROUTER_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS,
+					outputMicrousdPerMillionTokens:
+						OPENROUTER_DEEPSEEK_V4_FLASH_OUTPUT_MICROUSD_PER_MILLION_TOKENS,
+				},
+			},
+		} as OpenRouterMatchedTrialBlockInputV4;
+		assertD691HistoricalTransferUnderlyingCoordinates(
+			{
+				...result.observation,
+				route: {
+					...result.observation.route,
+					inputMicrousdPerMillionTokens:
+						OPENROUTER_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS,
+					outputMicrousdPerMillionTokens:
+						OPENROUTER_DEEPSEEK_V4_FLASH_OUTPUT_MICROUSD_PER_MILLION_TOKENS,
+					qualificationDigest: empiricalStrictJsonDigest(historicalBlock.routeQualification),
+				},
+			},
+			historicalBlock,
+		);
+	} else {
+		assertD691HistoricalTransferUnderlyingCoordinates(result.observation, block);
+	}
 	const underlying = validateEmpiricalTrialBlockObservation(result.observation);
 	const derived = deriveD694AssistedProgress(underlying, focusedReceipts);
 	if (
@@ -1193,6 +1318,74 @@ export async function runD703MutationFirstBlock(input: {
 		operationalQualification,
 		protectionExecutor: result.protectionExecutor,
 	});
+}
+
+export async function runD703MutationFirstBlock(input: {
+	readonly preflight: D703PreflightCapabilityV1;
+	readonly block: OpenRouterMatchedTrialBlockInputV4;
+}): Promise<{
+	readonly observation: D703MutationFirstObservationV1;
+	readonly scorecard: D703MutationFirstScorecardV1;
+	readonly operationalQualification: D703PreLiveOperationalQualificationV1;
+	readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
+}> {
+	return runD703MutationFirstBlockInternal(input, "d703");
+}
+
+/** Package-private D710 seam. The policy is host-owned and cannot be caller-substituted. */
+export async function runD703MutationFirstBlockForD710Qualification(input: {
+	readonly preflight: D703PreflightCapabilityV1;
+	readonly block: OpenRouterMatchedTrialBlockInputV4;
+}): Promise<{
+	readonly observation: D703MutationFirstObservationV1;
+	readonly scorecard: D703MutationFirstScorecardV1;
+	readonly operationalQualification: D703PreLiveOperationalQualificationV1;
+	readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
+}> {
+	const candidate = record(input, "d710.d703Input");
+	exactKeys(candidate, ["block", "preflight"], "d710.d703Input");
+	const block = record(candidate.block, "d710.d703Input.block");
+	if (Object.hasOwn(block, "untypedHttp429RetryPolicy")) {
+		throw new TypeError("D710 owns its retry policy injection");
+	}
+	return runD703MutationFirstBlockInternal(
+		{
+			preflight: candidate.preflight as D703PreflightCapabilityV1,
+			block: {
+				...(block as unknown as OpenRouterMatchedTrialBlockInputV4),
+				untypedHttp429RetryPolicy: D710_UNTYPED_HTTP_429_RETRY_POLICY,
+			},
+		},
+		"d710",
+	);
+}
+
+/** Package-private D712 seam. It preserves D710 and admits only the exact v4 price delta. */
+export async function runD703MutationFirstBlockForD712Qualification(input: {
+	readonly preflight: D703PreflightCapabilityV1;
+	readonly block: OpenRouterMatchedTrialBlockInputV4;
+}): Promise<{
+	readonly observation: D703MutationFirstObservationV1;
+	readonly scorecard: D703MutationFirstScorecardV1;
+	readonly operationalQualification: D703PreLiveOperationalQualificationV1;
+	readonly protectionExecutor: EmpiricalExactPrivateNeedleProtectionExecutorV1;
+}> {
+	const candidate = record(input, "d712.d703Input");
+	exactKeys(candidate, ["block", "preflight"], "d712.d703Input");
+	const block = record(candidate.block, "d712.d703Input.block");
+	if (Object.hasOwn(block, "untypedHttp429RetryPolicy")) {
+		throw new TypeError("D712 owns its exact D710 retry policy injection");
+	}
+	return runD703MutationFirstBlockInternal(
+		{
+			preflight: candidate.preflight as D703PreflightCapabilityV1,
+			block: {
+				...(block as unknown as OpenRouterMatchedTrialBlockInputV4),
+				untypedHttp429RetryPolicy: D710_UNTYPED_HTTP_429_RETRY_POLICY,
+			},
+		},
+		"d712",
+	);
 }
 
 export function validateD703Observation(value: unknown): D703MutationFirstObservationV1 {
@@ -1597,7 +1790,7 @@ async function buildD703PreLiveOperationalQualification(input: {
 	return qualification;
 }
 
-function validateD703PreLiveOperationalQualification(
+export function validateD703PreLiveOperationalQualification(
 	value: unknown,
 	observation: D703MutationFirstObservationV1,
 ): D703PreLiveOperationalQualificationV1 {

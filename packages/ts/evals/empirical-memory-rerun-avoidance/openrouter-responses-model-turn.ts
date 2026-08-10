@@ -187,6 +187,7 @@ export interface OpenRouterResponsesTransportResponseV1 {
 	readonly status: number;
 	readonly body: Uint8Array;
 	readonly retryAfterMs: number | null;
+	readonly retryAfterDisposition?: "absent" | "parsed" | "invalid" | "unavailable";
 }
 
 export interface OpenRouterResponsesByteTransportV1 {
@@ -1976,14 +1977,88 @@ function errorTypeFromResponse(root: Record<string, unknown>): unknown {
 	return providerRecord(error.metadata).error_type;
 }
 
+type OpenRouterHttpErrorBodyShape =
+	| "empty"
+	| "json-object"
+	| "json-non-object"
+	| "non-json-text"
+	| "invalid-utf8";
+
+type OpenRouterHttpErrorMediaClass = "empty" | "json" | "text" | "binary";
+
+function httpErrorDiscriminator(
+	bytes: Uint8Array,
+	retryAfterMs: number | null,
+	retryAfterDisposition: OpenRouterResponsesTransportResponseV1["retryAfterDisposition"],
+): readonly string[] {
+	let bodyShape: OpenRouterHttpErrorBodyShape;
+	let mediaClass: OpenRouterHttpErrorMediaClass;
+	let recognizedType = false;
+	let recognizedCode = false;
+	try {
+		const text = decoder.decode(bytes);
+		if (text.trim().length === 0) {
+			bodyShape = "empty";
+			mediaClass = "empty";
+		} else {
+			try {
+				const parsed = parseStrictJsonText(text);
+				mediaClass = "json";
+				if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+					bodyShape = "json-non-object";
+				} else {
+					bodyShape = "json-object";
+					const root = parsed as Record<string, unknown>;
+					const code = diagnosticErrorCode(root);
+					recognizedCode = code !== null && code !== "openrouter-error-code:unrecognized";
+					const rawType = errorTypeFromResponse(root);
+					if (rawType !== undefined) {
+						try {
+							const type = boundedProviderString(rawType, 64);
+							recognizedType = diagnosticErrorType(type) !== "openrouter-error-type:unrecognized";
+						} catch {
+							recognizedType = false;
+						}
+					}
+				}
+			} catch {
+				bodyShape = "non-json-text";
+				mediaClass = "text";
+			}
+		}
+	} catch {
+		bodyShape = "invalid-utf8";
+		mediaClass = "binary";
+	}
+	const retryPresence =
+		retryAfterDisposition === "parsed" || retryAfterDisposition === "invalid"
+			? "present"
+			: retryAfterDisposition === "absent"
+				? "absent"
+				: retryAfterMs === null
+					? "unavailable"
+					: "present";
+	const retryParse = retryAfterDisposition ?? (retryAfterMs === null ? "unavailable" : "parsed");
+	return Object.freeze([
+		`openrouter-error-body-shape:${bodyShape}`,
+		`openrouter-error-media-class:${mediaClass}`,
+		`openrouter-error-recognized-type:${recognizedType ? "present" : "absent"}`,
+		`openrouter-error-recognized-code:${recognizedCode ? "present" : "absent"}`,
+		`openrouter-retry-after-presence:${retryPresence}`,
+		`openrouter-retry-after-parse:${retryParse}`,
+	]);
+}
+
 function issuesForErrorResponse(
 	status: number,
 	bytes: Uint8Array,
 	retryAfterMs: number | null,
+	retryAfterDisposition: OpenRouterResponsesTransportResponseV1["retryAfterDisposition"],
 ): readonly string[] {
 	const statusDiagnostic = diagnosticHttpStatus(status);
 	const retryAfterDiagnostic =
 		retryAfterMs === null ? [] : [`openrouter-retry-after-ms:${retryAfterMs}`];
+	const discriminator = httpErrorDiscriminator(bytes, retryAfterMs, retryAfterDisposition);
 	let text: string;
 	try {
 		text = decoder.decode(bytes);
@@ -1992,10 +2067,11 @@ function issuesForErrorResponse(
 			OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
 			statusDiagnostic,
 			...retryAfterDiagnostic,
+			...discriminator,
 		];
 	}
 	if (!text.trimStart().startsWith("{")) {
-		return [issueForStatus(status), statusDiagnostic, ...retryAfterDiagnostic];
+		return [issueForStatus(status), statusDiagnostic, ...retryAfterDiagnostic, ...discriminator];
 	}
 	let errorType: string;
 	let errorCodeDiagnostic: string | null;
@@ -2009,6 +2085,7 @@ function issuesForErrorResponse(
 				statusDiagnostic,
 				...(errorCodeDiagnostic === null ? [] : [errorCodeDiagnostic]),
 				...retryAfterDiagnostic,
+				...discriminator,
 			];
 		}
 		errorType = boundedProviderString(rawErrorType, 64);
@@ -2017,6 +2094,7 @@ function issuesForErrorResponse(
 			OPENROUTER_RESPONSES_ISSUE_CODES.invalidResponse,
 			statusDiagnostic,
 			...retryAfterDiagnostic,
+			...discriminator,
 		];
 	}
 	let issueCode: OpenRouterResponsesIssueCode;
@@ -2053,6 +2131,7 @@ function issuesForErrorResponse(
 		diagnosticErrorType(errorType),
 		...(errorCodeDiagnostic === null ? [] : [errorCodeDiagnostic]),
 		...retryAfterDiagnostic,
+		...discriminator,
 	];
 }
 
@@ -2421,7 +2500,14 @@ async function invokeOpenRouterResponses(
 	let response: OpenRouterResponsesTransportResponseV1;
 	try {
 		const raw = record(transportResponse, "provider.transport.response");
-		exactKeys(raw, ["body", "retryAfterMs", "status"], "provider.transport.response");
+		const hasRetryAfterDisposition = Object.hasOwn(raw, "retryAfterDisposition");
+		exactKeys(
+			raw,
+			hasRetryAfterDisposition
+				? ["body", "retryAfterDisposition", "retryAfterMs", "status"]
+				: ["body", "retryAfterMs", "status"],
+			"provider.transport.response",
+		);
 		const status = safeInteger(raw.status, "provider.transport.response.status", {
 			min: 100,
 			max: 599,
@@ -2433,6 +2519,24 @@ async function invokeOpenRouterResponses(
 						min: 1,
 						max: 600_000,
 					});
+		const retryAfterDisposition = hasRetryAfterDisposition
+			? raw.retryAfterDisposition === "absent" ||
+				raw.retryAfterDisposition === "parsed" ||
+				raw.retryAfterDisposition === "invalid" ||
+				raw.retryAfterDisposition === "unavailable"
+				? raw.retryAfterDisposition
+				: (() => {
+						throw new TypeError("response retry-after disposition is invalid");
+					})()
+			: undefined;
+		if (
+			(retryAfterDisposition === "parsed" && retryAfterMs === null) ||
+			(retryAfterDisposition !== undefined &&
+				retryAfterDisposition !== "parsed" &&
+				retryAfterMs !== null)
+		) {
+			throw new TypeError("response retry-after evidence is inconsistent");
+		}
 		if (!(raw.body instanceof Uint8Array)) throw new TypeError("response body must be bytes");
 		if (
 			typedArrayByteLengthGetter === undefined ||
@@ -2451,6 +2555,7 @@ async function invokeOpenRouterResponses(
 			status,
 			body: responseBody,
 			retryAfterMs,
+			...(retryAfterDisposition === undefined ? {} : { retryAfterDisposition }),
 		};
 	} catch {
 		return failureOutcome(
@@ -2466,7 +2571,12 @@ async function invokeOpenRouterResponses(
 		return failureOutcome(
 			config,
 			request,
-			issuesForErrorResponse(response.status, response.body, response.retryAfterMs),
+			issuesForErrorResponse(
+				response.status,
+				response.body,
+				response.retryAfterMs,
+				response.retryAfterDisposition,
+			),
 			1,
 			body.byteLength,
 			latencyMs,
