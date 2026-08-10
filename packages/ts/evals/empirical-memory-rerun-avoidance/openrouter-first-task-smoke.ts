@@ -44,6 +44,18 @@ import {
 	type D717GraphNativeLiveProviderCapabilityV1,
 } from "./d717-graph-native-live-capability.js";
 import {
+	beginD719GraphNativeBudgetArm,
+	type D719BudgetLimitsFactV1,
+	type D719BudgetStateFactV1,
+	type D719GraphNativeBudgetEvidenceV1,
+	type D719GraphNativeEvalAuthorityV1,
+	d719GraphNativeBudgetStoppedReasonForArm,
+	decideD719GraphNativeBudget,
+	endD719GraphNativeBudgetArm,
+	isConstructedD719GraphNativeEvalAuthorityForCoordinator,
+	snapshotD719GraphNativeBudgetEvidence,
+} from "./d719-graph-native-eval-authority.js";
+import {
 	type B112CalibrationEmpiricalRunInputV4,
 	type B112CalibrationEmpiricalRunnerV4,
 	createB112CalibrationBlockPreparationFailure,
@@ -210,6 +222,7 @@ export type OpenRouterMatchedTrialBlockResultV4 =
 			readonly mutationFirstInvocations?: readonly OpenRouterMutationFirstInvocationFactV1[];
 			readonly graphNativeCoordination?: D716GraphNativeCoordinationEvidenceV1;
 			readonly graphNativeLiveProviderQualificationDigest?: string;
+			readonly graphNativeBudgetEvidence?: D719GraphNativeBudgetEvidenceV1;
 	  }
 	| {
 			readonly profile: "calibration";
@@ -220,6 +233,7 @@ export type OpenRouterMatchedTrialBlockResultV4 =
 			readonly mutationFirstInvocations?: readonly OpenRouterMutationFirstInvocationFactV1[];
 			readonly graphNativeCoordination?: D716GraphNativeCoordinationEvidenceV1;
 			readonly graphNativeLiveProviderQualificationDigest?: string;
+			readonly graphNativeBudgetEvidence?: D719GraphNativeBudgetEvidenceV1;
 	  };
 
 /** Package-private canonical union for nested matched warm-arm issues. */
@@ -407,6 +421,7 @@ function createOpenRouterRetryCapability(
 	runStartedAtMs: number,
 	maxRunElapsedMs: number,
 	untypedHttp429RetryPolicy: D710UntypedHttp429RetryPolicyV1 | null,
+	graphNativeEvalAuthority: D719GraphNativeEvalAuthorityV1 | null,
 ): ClosedTaskProfileHostRetryCapabilityV1 {
 	if (untypedHttp429RetryPolicy !== null) {
 		assertD710UntypedHttp429RetryRoute(untypedHttp429RetryPolicy, route);
@@ -487,7 +502,14 @@ function createOpenRouterRetryCapability(
 			if (lastAdmission === null) {
 				throw new TypeError("B112 retry has no exact prior transport admission");
 			}
-			const evaluation = evaluateSmokeTransportAdmission(route, ceilings, ledger, lastAdmission);
+			const evaluation = evaluateSmokeTransportAdmission(
+				route,
+				ceilings,
+				ledger,
+				lastAdmission,
+				graphNativeEvalAuthority,
+				"retry-admission",
+			);
 			if (evaluation.reasons.length === 0) return [];
 			recordSmokeAdmissionRejection(route, ceilings, ledger, lastAdmission, evaluation);
 			return [B112_SMOKE_BUDGET_ISSUE_CODE];
@@ -501,6 +523,20 @@ function createOpenRouterRetryCapability(
 				throw new TypeError("B112 retry wait completed before its scheduled floor");
 			}
 			ledger.latencyMs += elapsedMs;
+			if (graphNativeEvalAuthority !== null) {
+				const requestRef = ledger.lastAdmission?.requestRef;
+				if (requestRef === undefined) {
+					throw new TypeError("D719 retry wait omitted its admitted request");
+				}
+				const decision = decideD719GraphNativeBudget(graphNativeEvalAuthority, {
+					kind: "retry-wait",
+					requestRef,
+					waitedMs: elapsedMs,
+					state: d719BudgetStateFact(ledger, requestRef),
+					limits: d719BudgetLimitsFact(route, ceilings),
+				});
+				if (decision.exhausted) ledger.exhausted = true;
+			}
 			return elapsedMs;
 		},
 	});
@@ -564,6 +600,7 @@ function createBudgetedModelTurnPort(
 	ceilings: MatchedBlockBudgetCeilings,
 	protectionExecutor: ClosedTaskProfileHostRunInputV1["protectionExecutor"],
 	ledger: MutableSmokeBudget,
+	graphNativeEvalAuthority: D719GraphNativeEvalAuthorityV1 | null,
 ): EmpiricalModelTurnPortV1 {
 	return Object.freeze({
 		async invoke(request: EmpiricalModelTurnRequestV1, signal: AbortSignal) {
@@ -575,6 +612,7 @@ function createBudgetedModelTurnPort(
 				ceilings,
 				protectionExecutor,
 				ledger,
+				graphNativeEvalAuthority,
 			);
 		},
 	});
@@ -587,6 +625,7 @@ function createBudgetedContinuationModelTurnPort(
 	protectionExecutor: ClosedTaskProfileHostRunInputV1["protectionExecutor"],
 	ledger: MutableSmokeBudget,
 	invocations: OpenRouterContinuationInvocationFactV1[],
+	graphNativeEvalAuthority: D719GraphNativeEvalAuthorityV1 | null,
 ): ClosedContinuationModelTurnPortV1 {
 	const attemptOrdinals = new Map<string, number>();
 	return Object.freeze({
@@ -621,6 +660,7 @@ function createBudgetedContinuationModelTurnPort(
 				ceilings,
 				protectionExecutor,
 				ledger,
+				graphNativeEvalAuthority,
 			);
 		},
 	});
@@ -633,6 +673,7 @@ function createBudgetedMutationFirstContinuationModelTurnPort(
 	protectionExecutor: ClosedTaskProfileHostRunInputV1["protectionExecutor"],
 	ledger: MutableSmokeBudget,
 	invocations: OpenRouterMutationFirstInvocationFactV1[],
+	graphNativeEvalAuthority: D719GraphNativeEvalAuthorityV1 | null,
 ): ClosedMutationFirstContinuationModelTurnPortV1 {
 	const attemptOrdinals = new Map<string, number>();
 	return Object.freeze({
@@ -668,6 +709,7 @@ function createBudgetedMutationFirstContinuationModelTurnPort(
 				ceilings,
 				protectionExecutor,
 				ledger,
+				graphNativeEvalAuthority,
 			);
 		},
 	});
@@ -680,6 +722,7 @@ function observeBudgetedModelTurnOutcome(
 	ceilings: MatchedBlockBudgetCeilings,
 	protectionExecutor: ClosedTaskProfileHostRunInputV1["protectionExecutor"],
 	ledger: MutableSmokeBudget,
+	graphNativeEvalAuthority: D719GraphNativeEvalAuthorityV1 | null,
 ): EmpiricalModelTurnOutcomeV1 {
 	if (
 		ledger.exhausted &&
@@ -711,12 +754,22 @@ function observeBudgetedModelTurnOutcome(
 	ledger.pendingReservedOutputTokens = 0;
 	ledger.pendingReservedCostMicrousd = 0;
 	ledger.latencyMs += outcome.latencyMs;
-	if (
-		ledger.latencyMs > ceilings.maxLatencyMs ||
-		ledger.reservedInputTokens > route.budget.maxInputTokens ||
-		ledger.reservedOutputTokens > route.budget.maxOutputTokens ||
-		ledger.reservedCostMicrousd > ceilings.maxCostMicrousd
-	) {
+	const graphDecision =
+		graphNativeEvalAuthority === null
+			? null
+			: decideD719GraphNativeBudget(graphNativeEvalAuthority, {
+					kind: "outcome-reconciliation",
+					requestRef: request.requestRef,
+					state: d719BudgetStateFact(ledger, request.requestRef),
+					limits: d719BudgetLimitsFact(route, ceilings),
+				});
+	const exhausted =
+		graphDecision?.exhausted ??
+		(ledger.latencyMs > ceilings.maxLatencyMs ||
+			ledger.reservedInputTokens > route.budget.maxInputTokens ||
+			ledger.reservedOutputTokens > route.budget.maxOutputTokens ||
+			ledger.reservedCostMicrousd > ceilings.maxCostMicrousd);
+	if (exhausted) {
 		ledger.exhausted = true;
 		return budgetExhaustedOutcome(
 			request,
@@ -733,6 +786,7 @@ function createSmokeTransportAdmission(
 	route: OpenRouterRouteQualificationV1,
 	ceilings: MatchedBlockBudgetCeilings,
 	ledger: MutableSmokeBudget,
+	graphNativeEvalAuthority: D719GraphNativeEvalAuthorityV1 | null,
 ): OpenRouterResponsesTransportAdmissionV1 {
 	return Object.freeze({
 		admit(input: Parameters<OpenRouterResponsesTransportAdmissionV1["admit"]>[0]) {
@@ -745,7 +799,13 @@ function createSmokeTransportAdmission(
 					min: 1,
 				}),
 			};
-			const evaluation = evaluateSmokeTransportAdmission(route, ceilings, ledger, admission);
+			const evaluation = evaluateSmokeTransportAdmission(
+				route,
+				ceilings,
+				ledger,
+				admission,
+				graphNativeEvalAuthority,
+			);
 			if (evaluation.reasons.length > 0) {
 				recordSmokeAdmissionRejection(route, ceilings, ledger, admission, evaluation);
 				return false;
@@ -777,6 +837,39 @@ interface MatchedBlockBudgetCeilings {
 	readonly enforceElapsedAdmission: boolean;
 }
 
+function d719BudgetStateFact(
+	ledger: MutableSmokeBudget,
+	requestRef: string,
+): D719BudgetStateFactV1 {
+	return Object.freeze({
+		requests: ledger.requests,
+		currentRunRequestCount: ledger.currentRunRequestRefs.size,
+		requestAlreadySeen: ledger.currentRunRequestRefs.has(requestRef),
+		pendingReservation:
+			ledger.pendingReservedInputTokens > 0 || ledger.pendingReservedOutputTokens > 0,
+		reservedInputTokens: ledger.reservedInputTokens,
+		reservedOutputTokens: ledger.reservedOutputTokens,
+		reservedCostMicrousd: ledger.reservedCostMicrousd,
+		latencyMs: ledger.latencyMs,
+	});
+}
+
+function d719BudgetLimitsFact(
+	route: OpenRouterRouteQualificationV1,
+	ceilings: MatchedBlockBudgetCeilings,
+): D719BudgetLimitsFactV1 {
+	return Object.freeze({
+		maxRequests: ceilings.maxRequests,
+		maxStepsPerRun: route.budget.maxStepsPerRun,
+		maxCanonicalRequestBytes: route.budget.maxCanonicalRequestBytes,
+		maxInputTokens: route.budget.maxInputTokens,
+		maxOutputTokens: route.budget.maxOutputTokens,
+		maxCostMicrousd: ceilings.maxCostMicrousd,
+		maxLatencyMs: ceilings.maxLatencyMs,
+		enforceElapsedAdmission: ceilings.enforceElapsedAdmission,
+	});
+}
+
 interface SmokeTransportAdmissionEvaluation {
 	readonly reasons: readonly B112SmokeAdmissionRejectionReason[];
 	readonly reservedInputTokens: number;
@@ -791,6 +884,8 @@ function evaluateSmokeTransportAdmission(
 	ceilings: MatchedBlockBudgetCeilings,
 	ledger: MutableSmokeBudget,
 	input: SmokeTransportAdmissionInput,
+	graphNativeEvalAuthority: D719GraphNativeEvalAuthorityV1 | null = null,
+	decisionKind: "transport-admission" | "retry-admission" = "transport-admission",
 ): SmokeTransportAdmissionEvaluation {
 	const reservedInputTokens =
 		input.wireRequestBytes * route.budget.inputTokensPerCanonicalByteUpperBound +
@@ -803,6 +898,29 @@ function evaluateSmokeTransportAdmission(
 		route.pricing,
 	);
 	const prospectiveCostMicrousd = ledger.reservedCostMicrousd + reservedCostMicrousd;
+	if (graphNativeEvalAuthority !== null) {
+		const decision = decideD719GraphNativeBudget(graphNativeEvalAuthority, {
+			kind: decisionKind,
+			requestRef: input.requestRef,
+			wireRequestBytes: input.wireRequestBytes,
+			maxOutputTokens: input.maxOutputTokens,
+			reservedInputTokens,
+			reservedCostMicrousd,
+			prospectiveInputTokens,
+			prospectiveOutputTokens,
+			prospectiveCostMicrousd,
+			state: d719BudgetStateFact(ledger, input.requestRef),
+			limits: d719BudgetLimitsFact(route, ceilings),
+		});
+		return Object.freeze({
+			reasons: decision.reasons as readonly B112SmokeAdmissionRejectionReason[],
+			reservedInputTokens,
+			reservedCostMicrousd,
+			prospectiveInputTokens,
+			prospectiveOutputTokens,
+			prospectiveCostMicrousd,
+		});
+	}
 	const reasons: B112SmokeAdmissionRejectionReason[] = [];
 	if (ledger.pendingReservedInputTokens > 0 || ledger.pendingReservedOutputTokens > 0) {
 		reasons.push(B112_SMOKE_ADMISSION_REJECTION_REASONS.pendingReservation);
@@ -1078,6 +1196,7 @@ export interface OpenRouterMatchedTrialBlockInputV4 {
 	readonly untypedHttp429RetryPolicy?: D710UntypedHttp429RetryPolicyV1;
 	readonly graphNativeSixArmCoordinator?: D716GraphNativeSixArmCoordinatorV1;
 	readonly graphNativeLiveProviderCapability?: D717GraphNativeLiveProviderCapabilityV1;
+	readonly graphNativeEvalAuthority?: D719GraphNativeEvalAuthorityV1;
 	readonly blockIndex?: 1 | 2 | 3;
 	readonly remainingBudget?: B112CalibrationEmpiricalRunInputV4["remainingBudget"];
 }
@@ -1092,6 +1211,7 @@ export async function runOpenRouterMatchedTrialBlock(
 	const request = record(inputValue, "matchedBlock.input");
 	const optionalKeys = [
 		"blockIndex",
+		"graphNativeEvalAuthority",
 		"graphNativeLiveProviderCapability",
 		"graphNativeSixArmCoordinator",
 		"historicalReflectionCapability",
@@ -1184,6 +1304,31 @@ export async function runOpenRouterMatchedTrialBlock(
 		!isConstructedD716GraphNativeSixArmCoordinator(graphNativeSixArmCoordinator)
 	) {
 		throw new TypeError("OpenRouter matched-block D716 coordinator is not constructed");
+	}
+	const graphEvalAuthorityDescriptor = Object.getOwnPropertyDescriptor(
+		request,
+		"graphNativeEvalAuthority",
+	);
+	if (
+		graphEvalAuthorityDescriptor !== undefined &&
+		(!graphEvalAuthorityDescriptor.enumerable || !("value" in graphEvalAuthorityDescriptor))
+	) {
+		throw new TypeError(
+			"OpenRouter matched-block D719 authority must be an own enumerable data property",
+		);
+	}
+	const graphNativeEvalAuthority = graphEvalAuthorityDescriptor?.value;
+	if (
+		graphNativeEvalAuthority !== undefined &&
+		(graphNativeSixArmCoordinator === undefined ||
+			!isConstructedD719GraphNativeEvalAuthorityForCoordinator(
+				graphNativeEvalAuthority,
+				graphNativeSixArmCoordinator,
+			))
+	) {
+		throw new TypeError(
+			"OpenRouter matched-block D719 authority does not bind the D716 coordinator",
+		);
 	}
 	const graphLiveCapabilityDescriptor = Object.getOwnPropertyDescriptor(
 		request,
@@ -1351,7 +1496,12 @@ export async function runOpenRouterMatchedTrialBlock(
 		routeQualification: input.routeQualification,
 		credential: input.credential,
 		transport: input.transport,
-		transportAdmission: createSmokeTransportAdmission(input.routeQualification, ceilings, ledger),
+		transportAdmission: createSmokeTransportAdmission(
+			input.routeQualification,
+			ceilings,
+			ledger,
+			graphNativeEvalAuthority ?? null,
+		),
 		monotonicMeasurement: input.monotonicMeasurement,
 	});
 	const route = Object.freeze({
@@ -1382,18 +1532,32 @@ export async function runOpenRouterMatchedTrialBlock(
 		lastBlockMonotonicMs = current;
 		return current;
 	};
-	const markBlockElapsedExhausted = (): boolean => {
+	const markBlockElapsedExhausted = (deadlineSignalAborted = false): boolean => {
 		if (!ceilings.enforceElapsedAdmission) return false;
-		if (readBlockMonotonicMs() - blockStartedAtMs < ceilings.maxLatencyMs) return false;
+		const measuredElapsedMs = readBlockMonotonicMs() - blockStartedAtMs;
+		const graphDecision =
+			graphNativeEvalAuthority === undefined
+				? null
+				: decideD719GraphNativeBudget(graphNativeEvalAuthority, {
+						kind: "elapsed-check",
+						requestRef: "block",
+						measuredElapsedMs,
+						deadlineSignalAborted,
+						state: d719BudgetStateFact(ledger, "block"),
+						limits: d719BudgetLimitsFact(input.routeQualification, ceilings),
+					});
+		if (
+			!(
+				graphDecision?.exhausted ??
+				(deadlineSignalAborted || measuredElapsedMs >= ceilings.maxLatencyMs)
+			)
+		)
+			return false;
 		ledger.exhausted = true;
 		return true;
 	};
 	const markAggregateElapsedExhausted = (): boolean => {
-		if (aggregateElapsedSignal?.aborted) {
-			ledger.exhausted = true;
-			return true;
-		}
-		return markBlockElapsedExhausted();
+		return markBlockElapsedExhausted(aggregateElapsedSignal?.aborted ?? false);
 	};
 	const continuationInvocations: OpenRouterContinuationInvocationFactV1[] = [];
 	const mutationFirstInvocations: OpenRouterMutationFirstInvocationFactV1[] = [];
@@ -1403,6 +1567,9 @@ export async function runOpenRouterMatchedTrialBlock(
 			: takeNextD716GraphNativeArmRequest(graphNativeSixArmCoordinator);
 	if (d716ColdRequest !== null && d716ColdRequest.input?.value?.arm !== "cold") {
 		throw new TypeError("D716 graph must issue cold as the first arm");
+	}
+	if (graphNativeEvalAuthority !== undefined && d716ColdRequest !== null) {
+		beginD719GraphNativeBudgetArm(graphNativeEvalAuthority, d716ColdRequest);
 	}
 	ledger.currentRunRequestRefs.clear();
 	const coldBudgetBefore = smokeBudgetSnapshot(ledger);
@@ -1429,6 +1596,7 @@ export async function runOpenRouterMatchedTrialBlock(
 			ceilings,
 			binding.protectionExecutor,
 			ledger,
+			graphNativeEvalAuthority ?? null,
 		),
 		...(hasNoProgressContinuationPolicy
 			? {
@@ -1439,6 +1607,7 @@ export async function runOpenRouterMatchedTrialBlock(
 						binding.protectionExecutor,
 						ledger,
 						continuationInvocations,
+						graphNativeEvalAuthority ?? null,
 					),
 				}
 			: {}),
@@ -1452,6 +1621,7 @@ export async function runOpenRouterMatchedTrialBlock(
 							binding.protectionExecutor,
 							ledger,
 							mutationFirstInvocations,
+							graphNativeEvalAuthority ?? null,
 						),
 				}
 			: {}),
@@ -1466,6 +1636,7 @@ export async function runOpenRouterMatchedTrialBlock(
 			coldRunStartedAtMs,
 			manifestBudgets.agentRun.maxElapsedMs,
 			untypedHttp429RetryPolicy,
+			graphNativeEvalAuthority ?? null,
 		),
 		agentRunElapsedSignal: coldSignal.elapsedSignal,
 		signal: coldSignal.signal,
@@ -1480,14 +1651,21 @@ export async function runOpenRouterMatchedTrialBlock(
 				request: d716ColdRequest,
 				outcome,
 				costLedger: coldCostLedger,
-				stoppedReason: coldElapsedExhausted
-					? "budget-exhausted"
-					: outcome.cleanupSucceeded
+				stoppedReason:
+					(graphNativeEvalAuthority === undefined
 						? null
-						: "workspace-cleanup-failed",
+						: d719GraphNativeBudgetStoppedReasonForArm(graphNativeEvalAuthority, "cold")) ??
+					(coldElapsedExhausted
+						? "budget-exhausted"
+						: outcome.cleanupSucceeded
+							? null
+							: "workspace-cleanup-failed"),
 				classifyD717HostBudgetExhaustion: graphNativeLiveProviderQualificationDigest !== undefined,
 			}),
 		);
+		if (graphNativeEvalAuthority !== undefined) {
+			endD719GraphNativeBudgetArm(graphNativeEvalAuthority, "cold");
+		}
 	}
 	const rerunEligible = outcome.status === "completed" && outcome.verifierVerdict === "failed";
 	const reflection =
@@ -1547,6 +1725,9 @@ export async function runOpenRouterMatchedTrialBlock(
 			if (d716WarmRequest !== null && d716WarmRequest.input?.value?.arm !== branch.branchKind) {
 				throw new TypeError("D716 graph-issued warm arm order drifted");
 			}
+			if (graphNativeEvalAuthority !== undefined && d716WarmRequest !== null) {
+				beginD719GraphNativeBudgetArm(graphNativeEvalAuthority, d716WarmRequest);
+			}
 			const completeD716WarmArm = (
 				hostOutcome: ClosedTaskProfileHostRunOutcomeV3 | null,
 				costLedger: EmpiricalSmokeCostLedgerV1 | null,
@@ -1559,11 +1740,20 @@ export async function runOpenRouterMatchedTrialBlock(
 						request: d716WarmRequest,
 						outcome: hostOutcome,
 						costLedger,
-						stoppedReason,
+						stoppedReason:
+							(graphNativeEvalAuthority === undefined
+								? null
+								: d719GraphNativeBudgetStoppedReasonForArm(
+										graphNativeEvalAuthority,
+										branch.branchKind,
+									)) ?? stoppedReason,
 						classifyD717HostBudgetExhaustion:
 							graphNativeLiveProviderQualificationDigest !== undefined,
 					}),
 				);
+				if (graphNativeEvalAuthority !== undefined) {
+					endD719GraphNativeBudgetArm(graphNativeEvalAuthority, branch.branchKind);
+				}
 			};
 			if (input.signal.aborted) {
 				if (graphNativeSixArmCoordinator !== undefined) {
@@ -1702,6 +1892,7 @@ export async function runOpenRouterMatchedTrialBlock(
 						ceilings,
 						binding.protectionExecutor,
 						ledger,
+						graphNativeEvalAuthority ?? null,
 					),
 					...(hasNoProgressContinuationPolicy
 						? {
@@ -1712,6 +1903,7 @@ export async function runOpenRouterMatchedTrialBlock(
 									binding.protectionExecutor,
 									ledger,
 									continuationInvocations,
+									graphNativeEvalAuthority ?? null,
 								),
 							}
 						: {}),
@@ -1725,6 +1917,7 @@ export async function runOpenRouterMatchedTrialBlock(
 										binding.protectionExecutor,
 										ledger,
 										mutationFirstInvocations,
+										graphNativeEvalAuthority ?? null,
 									),
 							}
 						: {}),
@@ -1739,6 +1932,7 @@ export async function runOpenRouterMatchedTrialBlock(
 						warmRunStartedAtMs,
 						manifestBudgets.agentRun.maxElapsedMs,
 						untypedHttp429RetryPolicy,
+						graphNativeEvalAuthority ?? null,
 					),
 					agentRunElapsedSignal: warmSignal.elapsedSignal,
 					signal: warmSignal.signal,
@@ -1793,6 +1987,35 @@ export async function runOpenRouterMatchedTrialBlock(
 		}
 	}
 	const observation = createObservation();
+	const graphNativeBudgetEvidence =
+		graphNativeEvalAuthority === undefined
+			? undefined
+			: snapshotD719GraphNativeBudgetEvidence(graphNativeEvalAuthority);
+	if (graphNativeBudgetEvidence !== undefined) {
+		const admittedTransportRequests = graphNativeBudgetEvidence.decisions.filter(
+			(decision) => decision.kind === "transport-admission" && decision.admitted,
+		).length;
+		if (observation.result.attempts !== admittedTransportRequests) {
+			throw new TypeError(
+				"D719 legacy observation request count is not the mechanical Graph projection",
+			);
+		}
+		const lastRejectedAdmission = Array.from(graphNativeBudgetEvidence.decisions)
+			.reverse()
+			.find(
+				(decision) =>
+					(decision.kind === "transport-admission" || decision.kind === "retry-admission") &&
+					!decision.admitted,
+			);
+		if (
+			(lastRejectedAdmission === undefined) !== (ledger.admissionRejection === null) ||
+			(lastRejectedAdmission !== undefined &&
+				ledger.admissionRejection !== null &&
+				lastRejectedAdmission.reasons.join("|") !== ledger.admissionRejection.reasons.join("|"))
+		) {
+			throw new TypeError("D719 legacy admission rejection is not the mechanical Graph projection");
+		}
+	}
 	return Object.freeze({
 		profile: trialPlan.profile,
 		observation,
@@ -1814,6 +2037,7 @@ export async function runOpenRouterMatchedTrialBlock(
 						? {}
 						: { graphNativeLiveProviderQualificationDigest }),
 				}),
+		...(graphNativeBudgetEvidence === undefined ? {} : { graphNativeBudgetEvidence }),
 	}) as OpenRouterMatchedTrialBlockResultV4;
 }
 

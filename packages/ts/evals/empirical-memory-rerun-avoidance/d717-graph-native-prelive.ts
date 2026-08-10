@@ -33,6 +33,10 @@ import {
 	validateD716GraphNativeLiveQualification,
 } from "./d716-graph-native-live-qualification.js";
 import { createD717GraphNativeLiveProviderCapability } from "./d717-graph-native-live-capability.js";
+import {
+	createD719GraphNativeEvalAuthority,
+	validateD719GraphNativeBudgetEvidence,
+} from "./d719-graph-native-eval-authority.js";
 import { validateEmpiricalTrialBlockObservation } from "./empirical-smoke-evidence.js";
 import type { B112MatchedBlockReflectionV2 } from "./matched-block-memory.js";
 import {
@@ -280,9 +284,10 @@ export async function runD717GraphNativePreLiveBlock(inputValue: {
 	}
 	if (
 		Object.hasOwn(block, "graphNativeSixArmCoordinator") ||
-		Object.hasOwn(block, "graphNativeLiveProviderCapability")
+		Object.hasOwn(block, "graphNativeLiveProviderCapability") ||
+		Object.hasOwn(block, "graphNativeEvalAuthority")
 	) {
-		throw new TypeError("D717 owns the Graph coordinator and live-provider capability");
+		throw new TypeError("D717 owns the Graph coordinator, budget authority, and live capability");
 	}
 	const historicalBaseline = input.historicalBaseline as D717HistoricalBaselineReceiptV1;
 	const warmReflection = input.warmReflection as B112MatchedBlockReflectionV2;
@@ -299,6 +304,7 @@ export async function runD717GraphNativePreLiveBlock(inputValue: {
 		coordinator,
 		d716Qualification: constructedD716Qualification,
 	});
+	const graphNativeEvalAuthority = createD719GraphNativeEvalAuthority({ coordinator });
 	const roots = [block.host.materialization.workspace.rootPathForHostRunner()];
 	let transportCalls = 0;
 	let activeTransportCalls = 0;
@@ -340,8 +346,13 @@ export async function runD717GraphNativePreLiveBlock(inputValue: {
 		prepareWarmHost,
 		graphNativeSixArmCoordinator: coordinator,
 		graphNativeLiveProviderCapability: liveCapability,
+		graphNativeEvalAuthority,
 	});
-	if (result.profile !== "smoke" || result.graphNativeCoordination === undefined) {
+	if (
+		result.profile !== "smoke" ||
+		result.graphNativeCoordination === undefined ||
+		result.graphNativeBudgetEvidence === undefined
+	) {
 		throw new TypeError("D717 requires integrated smoke Graph evidence");
 	}
 	if (result.graphNativeLiveProviderQualificationDigest !== d716Qualification.evidenceDigest) {
@@ -349,6 +360,18 @@ export async function runD717GraphNativePreLiveBlock(inputValue: {
 	}
 	const underlying = validateEmpiricalTrialBlockObservation(result.observation);
 	const graph = validateD716GraphNativeCoordinationEvidence(result.graphNativeCoordination);
+	const graphBudget = validateD719GraphNativeBudgetEvidence(result.graphNativeBudgetEvidence);
+	for (const arm of D716_GRAPH_NATIVE_ARM_ORDER) {
+		const budgetExhausted = graphBudget.decisions.some(
+			(decision) => decision.arm === arm && decision.exhausted,
+		);
+		if (
+			budgetExhausted &&
+			graph.progress.find((progress) => progress.arm === arm)?.stoppedReason !== "budget-exhausted"
+		) {
+			throw new TypeError("D717 compatibility progress omitted a Graph budget stopping decision");
+		}
+	}
 	await assertRootsClean(roots);
 	if (
 		graph.issuedArms.join("|") !== D716_GRAPH_NATIVE_ARM_ORDER.join("|") ||

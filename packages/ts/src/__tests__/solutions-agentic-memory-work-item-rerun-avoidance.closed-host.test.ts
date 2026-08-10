@@ -114,6 +114,7 @@ import {
 	D716_GRAPH_NATIVE_ARM_ORDER,
 	D716_GRAPH_NATIVE_COORDINATOR_REVISION,
 	D716_REQUIRED_D714_D715_QUALIFICATION_DIGEST,
+	takeNextD716GraphNativeArmRequest,
 } from "../../evals/empirical-memory-rerun-avoidance/d716-graph-native-live-coordinator.js";
 import {
 	createD716GraphNativeLiveQualification,
@@ -125,6 +126,14 @@ import {
 	persistD717GraphNativePrivateGeneration,
 	runD717GraphNativePreLiveBlock,
 } from "../../evals/empirical-memory-rerun-avoidance/d717-graph-native-prelive.js";
+import {
+	beginD719GraphNativeBudgetArm,
+	createD719GraphNativeEvalAuthority,
+	D719_GRAPH_NATIVE_EVAL_AUTHORITY_REVISION,
+	decideD719GraphNativeBudget,
+	snapshotD719GraphNativeBudgetEvidence,
+	validateD719GraphNativeBudgetEvidence,
+} from "../../evals/empirical-memory-rerun-avoidance/d719-graph-native-eval-authority.js";
 import {
 	createDeveloperGuidanceObservation,
 	developerGuidanceActionProgressEvidenceDigest,
@@ -7114,6 +7123,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			}),
 			warmReflection,
 		});
+		const graphNativeEvalAuthority = createD719GraphNativeEvalAuthority({ coordinator });
 		let transportCalls = 0;
 		let monotonicMs = 0;
 		const baseContentDigest = empiricalSha256(encoder.encode("broken-placeholder-value\n"));
@@ -7222,6 +7232,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 			retryWait: immediateRetryWait,
 			prepareWarmHost: ({ signal }) => fixture.prepareFreshMaterialization(signal),
 			graphNativeSixArmCoordinator: coordinator,
+			graphNativeEvalAuthority,
 		});
 		expect(matched.profile).toBe("smoke");
 		expect(transportCalls).toBe(48);
@@ -7257,6 +7268,146 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(matched.graphNativeCoordination?.progress.map((progress) => progress.phase)).toEqual(
 			Array.from({ length: 6 }, () => "hidden-verifier-passed"),
 		);
+		const graphBudgetEvidence = validateD719GraphNativeBudgetEvidence(
+			matched.graphNativeBudgetEvidence,
+		);
+		expect(graphBudgetEvidence).toMatchObject({
+			authorityRevision: D719_GRAPH_NATIVE_EVAL_AUTHORITY_REVISION,
+			exhausted: false,
+			causalAttribution: "undetermined",
+			efficacyClaim: "none",
+		});
+		expect(
+			graphBudgetEvidence.decisions.filter((decision) => decision.kind === "transport-admission"),
+		).toHaveLength(48);
+		expect(graphBudgetEvidence.decisions.every((decision) => decision.reasons.length === 0)).toBe(
+			true,
+		);
+		const boundaryCoordinator = createD716GraphNativeSixArmCoordinator({
+			qualificationDigest: D716_REQUIRED_D714_D715_QUALIFICATION_DIGEST,
+			infrastructureEvidenceDigest: empiricalStrictJsonDigest({
+				kind: "d719-budget-boundary-fixture",
+			}),
+			warmReflection,
+		});
+		const boundaryAuthority = createD719GraphNativeEvalAuthority({
+			coordinator: boundaryCoordinator,
+		});
+		let d719AccessorHits = 0;
+		const accessorRequest = {};
+		Object.defineProperty(accessorRequest, "input", {
+			enumerable: true,
+			get() {
+				d719AccessorHits += 1;
+				return { value: { arm: "cold" } };
+			},
+		});
+		expect(() =>
+			beginD719GraphNativeBudgetArm(boundaryAuthority, accessorRequest as never),
+		).toThrow("exact active D716 arm request");
+		expect(d719AccessorHits).toBe(0);
+		beginD719GraphNativeBudgetArm(
+			boundaryAuthority,
+			takeNextD716GraphNativeArmRequest(boundaryCoordinator),
+		);
+		const boundaryDecision = decideD719GraphNativeBudget(boundaryAuthority, {
+			kind: "transport-admission",
+			requestRef: "d719.boundary.request",
+			wireRequestBytes: 128,
+			maxOutputTokens: 64,
+			reservedInputTokens: 128,
+			reservedCostMicrousd: 1,
+			prospectiveInputTokens: 128,
+			prospectiveOutputTokens: 64,
+			prospectiveCostMicrousd: 1,
+			state: {
+				requests: 1,
+				currentRunRequestCount: 1,
+				requestAlreadySeen: false,
+				pendingReservation: false,
+				reservedInputTokens: 0,
+				reservedOutputTokens: 0,
+				reservedCostMicrousd: 0,
+				latencyMs: 0,
+			},
+			limits: {
+				maxRequests: 1,
+				maxStepsPerRun: 8,
+				maxCanonicalRequestBytes: 1_024,
+				maxInputTokens: 1_024,
+				maxOutputTokens: 1_024,
+				maxCostMicrousd: 1_024,
+				maxLatencyMs: 1_024,
+				enforceElapsedAdmission: true,
+			},
+		});
+		expect(boundaryDecision).toMatchObject({
+			arm: "cold",
+			admitted: false,
+			exhausted: true,
+			reasons: ["request-limit"],
+		});
+		const boundaryEvidence = validateD719GraphNativeBudgetEvidence(
+			snapshotD719GraphNativeBudgetEvidence(boundaryAuthority),
+		);
+		expect(boundaryEvidence).toMatchObject({ exhausted: true });
+		const forgedDecision = {
+			...boundaryEvidence.decisions[0],
+			reasons: [],
+			exhausted: false,
+			admitted: true,
+		};
+		const forgedMaterial = {
+			...boundaryEvidence,
+			decisions: [forgedDecision],
+			exhausted: false,
+		};
+		const { evidenceDigest: _evidenceDigest, ...forgedWithoutDigest } = forgedMaterial;
+		expect(() =>
+			validateD719GraphNativeBudgetEvidence({
+				...forgedWithoutDigest,
+				evidenceDigest: empiricalStrictJsonDigest(forgedWithoutDigest),
+			}),
+		).toThrow("not the canonical Graph projection");
+		expect(() =>
+			decideD719GraphNativeBudget(boundaryAuthority, {
+				kind: "elapsed-check",
+				requestRef: "block",
+				measuredElapsedMs: 0,
+				deadlineSignalAborted: false,
+				state: boundaryEvidence.facts[0]!.state,
+				limits: { ...boundaryEvidence.facts[0]!.limits, maxRequests: 2 },
+			}),
+		).toThrow("budget limits drifted");
+		expect(() =>
+			decideD719GraphNativeBudget(boundaryAuthority, {
+				kind: "elapsed-check",
+				requestRef: "block",
+				measuredElapsedMs: 0,
+				deadlineSignalAborted: false,
+				state: {
+					requests: 0,
+					currentRunRequestCount: 0,
+					requestAlreadySeen: false,
+					pendingReservation: false,
+					reservedInputTokens: 0,
+					reservedOutputTokens: 0,
+					reservedCostMicrousd: 0,
+					latencyMs: 0,
+				},
+				limits: {
+					maxRequests: 1,
+					maxStepsPerRun: 1,
+					maxCanonicalRequestBytes: 1,
+					maxInputTokens: 1,
+					maxOutputTokens: 1,
+					maxCostMicrousd: 1,
+					maxLatencyMs: 1,
+					enforceElapsedAdmission: true,
+				},
+				sequence: 99,
+			} as never),
+		).toThrow("provenance coordinates are Graph-owned");
 		const qualification = createD716GraphNativeLiveQualification({
 			result: matched,
 			warmReflection,

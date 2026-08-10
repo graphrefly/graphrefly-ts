@@ -163,6 +163,7 @@ interface D716CoordinatorState {
 	readonly requestByArm: Map<D716Arm, AgentRequestIssued<D716RequestInput>>;
 	readonly owner: ReturnType<typeof graph>;
 	activeTaken: D716Arm | null;
+	activeTakenRequest: AgentRequestIssued<D716RequestInput> | null;
 }
 
 const constructedCoordinators = new WeakMap<object, D716CoordinatorState>();
@@ -572,6 +573,7 @@ export function createD716GraphNativeSixArmCoordinator(inputValue: {
 		requestByArm,
 		owner,
 		activeTaken: null,
+		activeTakenRequest: null,
 	});
 	return capability;
 }
@@ -608,7 +610,32 @@ export function takeNextD716GraphNativeArmRequest(
 	if (request === undefined || arm === undefined)
 		throw new TypeError("D716 next request is invalid");
 	state.activeTaken = arm;
-	return strictSnapshot(request) as AgentRequestIssued<D716RequestInput>;
+	const taken = strictSnapshot(request) as AgentRequestIssued<D716RequestInput>;
+	state.activeTakenRequest = taken;
+	return taken;
+}
+
+export function isD716ActiveGraphNativeArmRequest(
+	coordinator: D716GraphNativeSixArmCoordinatorV1,
+	request: AgentRequestIssued<D716RequestInput>,
+): boolean {
+	const state = coordinatorState(coordinator);
+	return state.activeTakenRequest === request;
+}
+
+export function isD716GraphNativeArmCompletionAccepted(
+	coordinator: D716GraphNativeSixArmCoordinatorV1,
+	arm: D716Arm,
+	issuedRequestDigest: string,
+): boolean {
+	const state = coordinatorState(coordinator);
+	const issued = state.requestByArm.get(arm);
+	return (
+		state.activeTaken === null &&
+		state.completed.includes(arm) &&
+		issued !== undefined &&
+		empiricalStrictJsonDigest(issued) === issuedRequestDigest
+	);
 }
 
 export function d716IndependentWarmReflection(
@@ -639,6 +666,7 @@ export function recordD716GraphNativeArmCompletion(
 	const projection = state.progress[beforeProgress];
 	if (projection === undefined) throw new TypeError("D716 graph omitted completion projection");
 	state.activeTaken = null;
+	state.activeTakenRequest = null;
 	state.resultNode.down([
 		[
 			"DATA",
