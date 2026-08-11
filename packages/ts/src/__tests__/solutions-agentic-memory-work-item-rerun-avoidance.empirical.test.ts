@@ -882,6 +882,10 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsD720GraphNativeEffectRuntime = file.endsWith(
 				"d720-graph-native-effect-runtime.ts",
 			);
+			const allowsD721ProviderCapableAdapter = file.endsWith(
+				"d721-provider-capable-effect-adapter.ts",
+			);
+			const allowsD721ProviderCapablePreLive = file.endsWith("d721-provider-capable-pre-live.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -921,6 +925,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD716GraphNativeQualification ||
 				allowsD717GraphNativePreLive ||
 				allowsD720CleanGraphNativeEval ||
+				allowsD721ProviderCapablePreLive ||
 				file.endsWith("openrouter-first-task-smoke.ts") ||
 				file.endsWith("private-smoke-persistence.ts");
 			const allowsOneRequestFetchTransport =
@@ -1010,7 +1015,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 									allowsClosedHostNodeDriver ||
 									allowsClosedVerifierCalibration ||
 									allowsOfflineQualification ||
-									allowsPreliveOperatorDriver
+									allowsPreliveOperatorDriver ||
+									allowsD721ProviderCapableAdapter
 								? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls)|(?:from|import)\s+["'](?:http|https|net|tls|undici|ws)["']/
 								: allowsOneRequestFetchTransport
 									? /\b(?:Date\.now|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
@@ -1080,7 +1086,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD711ClaimOperator ||
 							allowsD713ZeroByokOperator ||
 							allowsD713ClaimOperator ||
-							allowsD720CleanGraphNativeEval) &&
+							allowsD720CleanGraphNativeEval ||
+							allowsD721ProviderCapablePreLive) &&
 							specifier === "node:fs") ||
 						((allowsD691HistoricalTransferOperator || allowsOutermostLiveOperator) &&
 							specifier === "node:url") ||
