@@ -876,6 +876,9 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				"d716-graph-native-live-qualification.ts",
 			);
 			const allowsD717GraphNativePreLive = file.endsWith("d717-graph-native-prelive.ts");
+			const allowsD719GraphNativeAuthority = file.endsWith("d719-graph-native-eval-authority.ts");
+			const allowsD719CleanGraphLedger = file.endsWith("d719-clean-graph-ledger.ts");
+			const allowsD720CleanGraphNativeEval = file.endsWith("d720-graph-native-eval.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -914,6 +917,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD714D715GraphNativeOperator ||
 				allowsD716GraphNativeQualification ||
 				allowsD717GraphNativePreLive ||
+				allowsD720CleanGraphNativeEval ||
 				file.endsWith("openrouter-first-task-smoke.ts") ||
 				file.endsWith("private-smoke-persistence.ts");
 			const allowsOneRequestFetchTransport =
@@ -975,11 +979,16 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			]);
 			const d716GraphNativeImports = new Set([
 				"../../src/ctx/types.js",
+				"../../src/data/index.js",
 				"../../src/graph/graph.js",
 				"../../src/orchestration/agent-runtime.js",
 				"../../src/orchestration/agent-runtime-request-ledger.js",
 				"../../src/solutions/work-item/execution.js",
 				"../../src/solutions/work-item/scheduling.js",
+			]);
+			const d720CleanGraphNativeImports = new Set([
+				"../../src/json/codec.js",
+				"../../src/orchestration/agent-runtime.js",
 			]);
 			expect(source).not.toMatch(
 				allowsD690SealedOfflineOperator
@@ -1027,9 +1036,9 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				...source.matchAll(/(?:from|import)\s+["']([^"']+)["']/g),
 				...source.matchAll(/require\s*\(\s*["']([^"']+)["']\s*\)/g),
 			].map((match) => match[1] as string);
-			expect(
-				imports.every(
-					(specifier) =>
+			const invalidImports = imports.filter(
+				(specifier) =>
+					!(
 						specifier === "node:crypto" ||
 						(allowsDeveloperGuidanceRunner &&
 							(specifier === "node:fs" ||
@@ -1064,7 +1073,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD711ZeroByokOperator ||
 							allowsD711ClaimOperator ||
 							allowsD713ZeroByokOperator ||
-							allowsD713ClaimOperator) &&
+							allowsD713ClaimOperator ||
+							allowsD720CleanGraphNativeEval) &&
 							specifier === "node:fs") ||
 						((allowsD691HistoricalTransferOperator || allowsOutermostLiveOperator) &&
 							specifier === "node:url") ||
@@ -1075,10 +1085,14 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 						(allowsD714D715GraphNativeOperator && d714D715GraphNativeImports.has(specifier)) ||
 						((allowsD716GraphNativeCoordinator || allowsD716GraphNativeQualification) &&
 							d716GraphNativeImports.has(specifier)) ||
+						((allowsD719GraphNativeAuthority || allowsD719CleanGraphLedger) &&
+							d716GraphNativeImports.has(specifier)) ||
+						(allowsD720CleanGraphNativeEval && d720CleanGraphNativeImports.has(specifier)) ||
 						(allowsD683SourceAudit && specifier === "typescript") ||
-						specifier.startsWith("./"),
-				),
-			).toBe(true);
+						specifier.startsWith("./")
+					),
+			);
+			expect(invalidImports, file).toEqual([]);
 		}
 	});
 
