@@ -897,6 +897,9 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				"d722-graph-native-effect-runtime.ts",
 			);
 			const allowsD722InjectedModelFixture = file.endsWith("d722-injected-model-fixture.ts");
+			const allowsD723RealProviderAdapter = file.endsWith("d723-graph-native-real-provider.ts");
+			const allowsD723OpenRouterGraphTurn = file.endsWith("d723-openrouter-graph-turn.ts");
+			const allowsD723DispatchClaim = file.endsWith("d723-single-use-dispatch-claim.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -939,6 +942,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD721ProviderCapablePreLive ||
 				allowsD722CompletionMemoryInsight ||
 				allowsD722GraphNativeEval ||
+				allowsD723DispatchClaim ||
 				file.endsWith("openrouter-first-task-smoke.ts") ||
 				file.endsWith("private-smoke-persistence.ts");
 			const allowsOneRequestFetchTransport =
@@ -1031,7 +1035,9 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 									allowsPreliveOperatorDriver ||
 									allowsD721ProviderCapableAdapter ||
 									allowsD722ProviderCapableAdapter ||
-									allowsD722InjectedModelFixture
+									allowsD722InjectedModelFixture ||
+									allowsD723RealProviderAdapter ||
+									allowsD723OpenRouterGraphTurn
 								? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls)|(?:from|import)\s+["'](?:http|https|net|tls|undici|ws)["']/
 								: allowsOneRequestFetchTransport
 									? /\b(?:Date\.now|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
@@ -1104,7 +1110,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD720CleanGraphNativeEval ||
 							allowsD721ProviderCapablePreLive ||
 							allowsD722CompletionMemoryInsight ||
-							allowsD722GraphNativeEval) &&
+							allowsD722GraphNativeEval ||
+							allowsD723DispatchClaim) &&
 							specifier === "node:fs") ||
 						((allowsD691HistoricalTransferOperator || allowsOutermostLiveOperator) &&
 							specifier === "node:url") ||
