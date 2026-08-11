@@ -14,6 +14,7 @@ import {
 } from "./d722-graph-completion-memory-insight.js";
 import {
 	createD726ArmLocalTerminalProviderPolicy,
+	type D720ExecutorFailureClassificationV1,
 	validateD720GraphEffectResult,
 } from "./d722-graph-native-effect-runtime.js";
 import {
@@ -104,10 +105,17 @@ interface AdapterState {
 	consumed: boolean;
 }
 
-interface ProviderTurnState {
-	readonly turn: D725OpenRouterTurnV1;
-	readonly usageBasis: "measured" | "conservative-reservation";
-}
+type ProviderTurnState =
+	| {
+			readonly kind: "provider-turn";
+			readonly turn: D725OpenRouterTurnV1;
+			readonly usageBasis: "measured" | "conservative-reservation";
+	  }
+	| {
+			readonly kind: "executor-failure";
+			readonly classification: D720ExecutorFailureClassificationV1;
+			readonly evidenceDigest: string;
+	  };
 
 const adapterStates = new WeakMap<object, AdapterState>();
 const providerTurns = new WeakMap<object, ProviderTurnState>();
@@ -124,7 +132,34 @@ export function createD726ProviderTurn(
 	const capability = Object.freeze({
 		revision: "graphrefly.b112.d726.provider-turn.v1" as const,
 	});
-	providerTurns.set(capability, { turn, usageBasis });
+	providerTurns.set(capability, { kind: "provider-turn", turn, usageBasis });
+	return capability;
+}
+
+export function createD726ExecutorFailureProviderTurn(inputValue: {
+	readonly classification:
+		| "executor-threw"
+		| "transport-failure"
+		| "route-evidence-failure"
+		| "response-decode-failure";
+	readonly evidenceDigest: string;
+}): D726ProviderTurnV1 {
+	const input = record(inputValue, "d726.executorFailureTurn");
+	exactKeys(input, ["classification", "evidenceDigest"], "d726.executorFailureTurn");
+	oneOf(
+		input.classification,
+		["executor-threw", "transport-failure", "route-evidence-failure", "response-decode-failure"],
+		"d726.executorFailureTurn.classification",
+	);
+	digest(input.evidenceDigest, "d726.executorFailureTurn.evidenceDigest");
+	const capability = Object.freeze({
+		revision: "graphrefly.b112.d726.provider-turn.v1" as const,
+	});
+	providerTurns.set(capability, {
+		kind: "executor-failure",
+		classification: input.classification as D720ExecutorFailureClassificationV1,
+		evidenceDigest: input.evidenceDigest as string,
+	});
 	return capability;
 }
 
@@ -271,24 +306,32 @@ function usageFromGraph(graphEvidence: D722CanonicalGraphEvidenceV1) {
 	);
 }
 
-function validateTerminalCoverage(
+export function validateD726TerminalProviderCoverage(
 	graphEvidence: D722CanonicalGraphEvidenceV1,
 	terminalHttpGraphEvidence: D724TerminalHttpGraphEvidenceV1,
 ): void {
-	const expected = graphEvidence.effectRuns.flatMap((run) =>
+	const terminalResults = graphEvidence.effectRuns.flatMap((run) =>
 		run.facts.flatMap((fact) =>
 			fact.kind === "graph-effect-result-admitted" &&
 			fact.result.effectKind === "provider-request" &&
 			fact.result.status === "terminal-failure"
-				? [
-						{
-							request: fact.request.requestDigest,
-							admission: fact.admissionDigest,
-							result: fact.resultDigest,
-						},
-					]
+				? [{ fact, provenance: fact.result.failureProvenance }]
 				: [],
 		),
+	);
+	for (const terminal of terminalResults)
+		if (terminal.provenance !== "http-terminal" && terminal.provenance !== "executor-failure")
+			throw new TypeError("D726 terminal provider result lacks Graph provenance");
+	const expected = terminalResults.flatMap(({ fact, provenance }) =>
+		provenance === "http-terminal"
+			? [
+					{
+						request: fact.request.requestDigest,
+						admission: fact.admissionDigest,
+						result: fact.resultDigest,
+					},
+				]
+			: [],
 	);
 	if (terminalHttpGraphEvidence.facts.length !== expected.length)
 		throw new TypeError("D726 terminal HTTP coverage drifted");
@@ -394,12 +437,48 @@ async function runBlock(input: {
 			if (turnState === undefined)
 				throw new TypeError("D726 provider turn is unconstructed or reused");
 			providerTurns.delete(capability);
+			if (turnState.kind === "executor-failure") {
+				const result = validateD720GraphEffectResult(
+					{
+						effectKind: "provider-request",
+						status: "terminal-failure",
+						toolIntents: [],
+						failureDiscriminator: "none",
+						retryAfterMs: null,
+						workspaceStateDigest: executionInput.effectRequest.workspaceStateDigest,
+						evidenceDigest: turnState.evidenceDigest,
+						failureProvenance: "executor-failure",
+						executorFailureClassification: turnState.classification,
+					},
+					executionInput.effectRequest,
+				);
+				return Object.freeze({
+					result,
+					actualCostMicrousd: D726_EFFECT_CEILINGS.providerMaxCostMicrousd,
+					actualElapsedMs: D726_EFFECT_CEILINGS.providerMaxElapsedMs,
+					usageBasis: "conservative-reservation" as const,
+				});
+			}
 			const { turn, usageBasis } = turnState;
-			const result = validateD720GraphEffectResult(turn.result, executionInput.effectRequest);
+			const validatedResult = validateD720GraphEffectResult(
+				turn.result,
+				executionInput.effectRequest,
+			);
 			const terminal =
-				result.effectKind === "provider-request" && result.status === "terminal-failure";
+				validatedResult.effectKind === "provider-request" &&
+				validatedResult.status === "terminal-failure";
 			if (terminal !== (turn.terminalHttpEvidence !== null))
 				throw new TypeError("D726 terminal HTTP evidence coverage drifted");
+			const result = terminal
+				? validateD720GraphEffectResult(
+						{
+							...validatedResult,
+							failureProvenance: "http-terminal",
+							executorFailureClassification: null,
+						},
+						executionInput.effectRequest,
+					)
+				: validatedResult;
 			if (terminal)
 				admitD724TerminalHttpEvidence(terminalAuthority, {
 					effectRequestDigest: executionInput.effectRequest.requestDigest,
@@ -460,7 +539,7 @@ async function runBlock(input: {
 	if (operational.maxActiveInvocations !== 1)
 		throw new TypeError("D726 block was not strictly serial");
 	const graphEvidence = canonicalGraphEvidence(core);
-	validateTerminalCoverage(graphEvidence, terminalHttpGraphEvidence);
+	validateD726TerminalProviderCoverage(graphEvidence, terminalHttpGraphEvidence);
 	return Object.freeze({
 		graphEvidence,
 		terminalHttpGraphEvidence,
@@ -771,7 +850,7 @@ export function validateD726LiveBundle(value: unknown): D726LiveBundleV1 {
 	const terminalHttpGraphEvidence = validateD724TerminalHttpGraphEvidence(
 		candidate.terminalHttpGraphEvidence,
 	);
-	validateTerminalCoverage(graphEvidence, terminalHttpGraphEvidence);
+	validateD726TerminalProviderCoverage(graphEvidence, terminalHttpGraphEvidence);
 	const liveQualification = validateQualification(candidate.qualification);
 	literal(liveQualification.executionClass, "live-provider", "d726.qualification.live");
 	literal(

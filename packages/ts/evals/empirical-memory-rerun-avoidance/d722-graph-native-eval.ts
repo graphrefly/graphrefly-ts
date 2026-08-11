@@ -43,6 +43,7 @@ import {
 	createD722GraphCompletionContextPolicy,
 	createD722GraphEffectRuntime,
 	type D720EffectResultV1,
+	type D720ExecutorFailureClassificationV1,
 	type D720GraphEffectEvidenceV1,
 	type D720GraphEffectRequestV1,
 	type D722GraphEffectEvidenceV1,
@@ -223,7 +224,7 @@ function validateExecutedEffect(value: unknown): D720CallerEffectExecutionV2 {
 
 function failedEffectResult(
 	request: D720GraphEffectRequestV1,
-	cause: "graph-admission-denied" | "executor-threw" | "invalid-executor-result",
+	cause: D720ExecutorFailureClassificationV1,
 ): D720EffectResultV1 {
 	const evidenceDigest = empiricalStrictJsonDigest({
 		requestDigest: request.requestDigest,
@@ -242,6 +243,8 @@ function failedEffectResult(
 			status: "terminal-failure",
 			toolIntents: Object.freeze([]),
 			failureDiscriminator: "none",
+			failureProvenance: "executor-failure",
+			executorFailureClassification: cause,
 			retryAfterMs: null,
 			workspaceStateDigest:
 				request.workspaceStateDigest ??

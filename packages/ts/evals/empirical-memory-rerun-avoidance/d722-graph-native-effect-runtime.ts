@@ -105,6 +105,15 @@ export interface D722GraphCompletionContextV1 {
 	readonly contextDigest: string;
 }
 
+export type D720ProviderFailureProvenanceV1 = "http-terminal" | "executor-failure";
+export type D720ExecutorFailureClassificationV1 =
+	| "graph-admission-denied"
+	| "executor-threw"
+	| "invalid-executor-result"
+	| "transport-failure"
+	| "route-evidence-failure"
+	| "response-decode-failure";
+
 export type D720EffectResultV1 =
 	| {
 			readonly effectKind: "materialization";
@@ -124,6 +133,8 @@ export type D720EffectResultV1 =
 			readonly retryAfterMs: number | null;
 			readonly workspaceStateDigest: string;
 			readonly evidenceDigest: string;
+			readonly failureProvenance?: D720ProviderFailureProvenanceV1;
+			readonly executorFailureClassification?: D720ExecutorFailureClassificationV1 | null;
 	  }
 	| {
 			readonly effectKind: "retry-wait";
@@ -981,12 +992,18 @@ export function validateD720GraphEffectResult(
 		else if (candidate.workspaceStateDigest !== null)
 			throw new TypeError("D720 failed materialization cannot claim workspace state");
 	} else if (candidate.effectKind === "provider-request") {
+		const hasFailureProvenance = Object.hasOwn(candidate, "failureProvenance");
+		const hasExecutorClassification = Object.hasOwn(candidate, "executorFailureClassification");
+		if (hasFailureProvenance !== hasExecutorClassification)
+			throw new TypeError("D720 provider failure provenance fields must be paired");
 		exactKeys(
 			candidate,
 			[
 				"effectKind",
 				"evidenceDigest",
+				...(hasExecutorClassification ? ["executorFailureClassification" as const] : []),
 				"failureDiscriminator",
+				...(hasFailureProvenance ? ["failureProvenance" as const] : []),
 				"retryAfterMs",
 				"status",
 				"toolIntents",
@@ -1028,6 +1045,32 @@ export function validateD720GraphEffectResult(
 			(candidate.failureDiscriminator !== "none" || candidate.retryAfterMs !== null)
 		)
 			throw new TypeError("D720 non-retry result cannot carry retry material");
+		if (hasFailureProvenance) {
+			if (candidate.status !== "terminal-failure")
+				throw new TypeError("D720 failure provenance requires terminal failure");
+			const provenance = oneOf(
+				candidate.failureProvenance,
+				["http-terminal", "executor-failure"],
+				"d720.effectResult.failureProvenance",
+			);
+			if (provenance === "http-terminal") {
+				if (candidate.executorFailureClassification !== null)
+					throw new TypeError("D720 HTTP terminal cannot claim executor failure");
+			} else {
+				oneOf(
+					candidate.executorFailureClassification,
+					[
+						"graph-admission-denied",
+						"executor-threw",
+						"invalid-executor-result",
+						"transport-failure",
+						"route-evidence-failure",
+						"response-decode-failure",
+					],
+					"d720.effectResult.executorFailureClassification",
+				);
+			}
+		}
 		digest(candidate.workspaceStateDigest, "d720.effectResult.workspaceStateDigest");
 		if (candidate.workspaceStateDigest !== request.workspaceStateDigest)
 			throw new TypeError("D720 provider result workspace state drifted during the effect");
