@@ -3,10 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { D703_PRIVATE_PERSISTENCE_ROOT } from "../../evals/empirical-memory-rerun-avoidance/d703-mutation-first-recovery-live.js";
 import {
-	D712_GENERATION_ARTIFACT_DIGEST,
-	D712_PRICING_OBSERVATION_ARTIFACT_DIGEST,
 	D712_PRIVATE_GENERATION_REF,
-	D712_QUALIFICATION_ARTIFACT_DIGEST,
 	validateD712QualifiedArtifactBytes,
 } from "../../evals/empirical-memory-rerun-avoidance/d712-pricing-qualification.js";
 import {
@@ -46,17 +43,17 @@ function officialResponse(overrides: Record<string, unknown> = {}): Uint8Array {
 	return encoder.encode(
 		JSON.stringify({
 			data: {
-				id: "deepseek/deepseek-v4-flash-0731",
-				name: "DeepSeek: V4 Flash 0731",
+				id: "deepseek/deepseek-v4-flash",
+				name: "DeepSeek: V4 Flash",
 				endpoints: [
 					{
 						provider_name: "DeepInfra",
 						tag: "deepinfra/fp4",
 						quantization: "fp4",
 						pricing: {
-							prompt: "0.00000008",
+							prompt: "0.00000009",
 							completion: "0.00000018",
-							input_cache_read: "0.000000016",
+							input_cache_read: "0.000000018",
 						},
 						...overrides,
 					},
@@ -74,7 +71,7 @@ function observe(responseBytes = officialResponse()) {
 }
 
 describe("D712 v4 pricing schedule", () => {
-	it("binds the exact new DeepInfra fp4 schedule without mutating v3", () => {
+	it("binds the current DeepInfra fp4 schedule as the only active schedule", () => {
 		const observation = observe();
 		expect(validateD712FreshPricingObservation(structuredClone(observation))).toEqual(observation);
 		expect(observation).toMatchObject({
@@ -95,7 +92,7 @@ describe("D712 v4 pricing schedule", () => {
 			},
 		});
 		expect(match.observationDigest).toBe(observation.observationDigest);
-		expect(OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_REVISION).not.toBe(
+		expect(OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_REVISION).toBe(
 			D712_DEEPSEEK_V4_FLASH_PRICING_REVISION,
 		);
 		expect(OPENROUTER_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS).toBe(90_000);
@@ -106,16 +103,16 @@ describe("D712 v4 pricing schedule", () => {
 		for (const response of [
 			officialResponse({
 				pricing: {
-					prompt: "0.00000009",
+					prompt: "0.00000008",
 					completion: "0.00000018",
-					input_cache_read: "0.000000016",
+					input_cache_read: "0.000000018",
 				},
 			}),
 			officialResponse({
 				pricing: {
-					prompt: "0.00000008",
+					prompt: "0.00000009",
 					completion: "0.00000018",
-					input_cache_read: "0.000000018",
+					input_cache_read: "0.000000016",
 				},
 			}),
 			officialResponse({ provider_name: "Another Provider" }),
@@ -137,13 +134,9 @@ describe("D712 v4 pricing schedule", () => {
 	});
 });
 
-describe.skipIf(!hasQualification)("D712 canonical no-network qualification", () => {
-	it("replays the exact frozen artifacts with 0600 material-free files", () => {
-		expect(validateD712QualifiedArtifactBytes(artifacts())).toEqual({
-			pricingObservationArtifactDigest: D712_PRICING_OBSERVATION_ARTIFACT_DIGEST,
-			qualificationArtifactDigest: D712_QUALIFICATION_ARTIFACT_DIGEST,
-			generationArtifactDigest: D712_GENERATION_ARTIFACT_DIGEST,
-		});
+describe.skipIf(!hasQualification)("retired D712 no-network artifacts", () => {
+	it("keeps retired files private while the current validator rejects their stale route", () => {
+		expect(() => validateD712QualifiedArtifactBytes(artifacts())).toThrow();
 		expect(statSync(artifactRoot).mode & 0o777).toBe(0o700);
 		for (const file of [
 			"v4-pricing-observation.v1.json",

@@ -25,8 +25,8 @@ function officialResponse(overrides: Record<string, unknown> = {}): Uint8Array {
 	return encoder.encode(
 		JSON.stringify({
 			data: {
-				id: "deepseek/deepseek-v4-flash-0731",
-				name: "DeepSeek: V4 Flash 0731",
+				id: "deepseek/deepseek-v4-flash",
+				name: "DeepSeek: V4 Flash",
 				endpoints: [
 					{
 						provider_name: "DeepInfra",
@@ -121,7 +121,7 @@ describe("D706 fresh-pricing observation separation", () => {
 		const duplicate = encoder.encode(
 			JSON.stringify({
 				data: {
-					id: "deepseek/deepseek-v4-flash-0731",
+					id: "deepseek/deepseek-v4-flash",
 					endpoints: [endpoint, endpoint],
 				},
 			}),

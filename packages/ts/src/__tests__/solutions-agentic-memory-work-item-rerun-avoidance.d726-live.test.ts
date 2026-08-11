@@ -142,7 +142,7 @@ describe("D726 Graph-native terminal HTTP live replacement", () => {
 														available: [
 															{
 																provider: "DeepInfra",
-																model: "deepseek/deepseek-v4-flash-20260731",
+																model: "deepseek/deepseek-v4-flash-20260423",
 																selected: true,
 															},
 														],

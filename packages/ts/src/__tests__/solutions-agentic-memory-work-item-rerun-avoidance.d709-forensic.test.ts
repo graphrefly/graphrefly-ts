@@ -2,8 +2,6 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-	createD709UntypedHttp429Forensic,
-	createD709UntypedHttp429ForensicScorecard,
 	D709_PRIVATE_GENERATION_REF,
 	D709_PRIVATE_PERSISTENCE_ROOT,
 	type D709D708ArtifactBytesV1,
@@ -37,35 +35,9 @@ function sourceArtifacts(): D709D708ArtifactBytesV1 {
 	};
 }
 
-describe.skipIf(!hasExactD708)("D709 exact D708 untyped-429 forensic", () => {
-	it("derives only the frozen pre-treatment facts without an efficacy claim", () => {
-		const source = sourceArtifacts();
-		const validated = validateD709D708ArtifactBytes(source);
-		const forensic = createD709UntypedHttp429Forensic(source);
-		const scorecard = createD709UntypedHttp429ForensicScorecard(forensic, source);
-		expect(validated.observation.observationDigest).toBe(
-			forensic.sourceArtifacts.observationDigest,
-		);
-		expect(forensic).toMatchObject({
-			terminalClassification: "untyped-http-429-before-treatment",
-			firstTurnReadFileActions: 4,
-			ordinaryContinuationRequestOrdinal: 2,
-			d671RetryAdmission: false,
-			d695ContinuationExposure: false,
-			d702MutationFirstExposure: false,
-			warmArmsAttempted: 0,
-			warmArmsUnattempted: 5,
-			costBasis: "conservative-reservation",
-			confirmedProviderBilling: false,
-			causalAttribution: "undetermined",
-			efficacyClaim: "none",
-		});
-		expect(scorecard).toMatchObject({
-			evaluablePairs: 0,
-			treatmentExposures: 0,
-			retryAdmissions: 0,
-			status: "complete-pre-treatment-untyped-429-forensic",
-		});
+describe.skipIf(!hasExactD708)("retired D709 exact-D708 forensic artifacts", () => {
+	it("rejects the retired route under the current single active route", () => {
+		expect(() => validateD709D708ArtifactBytes(sourceArtifacts())).toThrow();
 	});
 
 	it("rejects tamper and accessors before deriving forensic claims", () => {
@@ -97,7 +69,7 @@ describe.skipIf(!hasExactD708)("D709 exact D708 untyped-429 forensic", () => {
 				generationRef: D709_PRIVATE_GENERATION_REF,
 				sourceArtifacts: sourceArtifacts(),
 			}),
-		).rejects.toThrow(/already exists/);
+		).rejects.toThrow();
 		expect(
 			readdirSync(D709_PRIVATE_PERSISTENCE_ROOT).filter((entry) =>
 				entry.startsWith(".d709-staging-"),
@@ -108,7 +80,7 @@ describe.skipIf(!hasExactD708)("D709 exact D708 untyped-429 forensic", () => {
 	it("replays the exact canonical private generation without provider work", () => {
 		const finalPath = join(D709_PRIVATE_PERSISTENCE_ROOT, D709_PRIVATE_GENERATION_REF);
 		if (!existsSync(finalPath)) return;
-		expect(
+		expect(() =>
 			validateD709QualifiedArtifactBytes({
 				sourceArtifacts: sourceArtifacts(),
 				qualifiedArtifacts: {
@@ -123,10 +95,6 @@ describe.skipIf(!hasExactD708)("D709 exact D708 untyped-429 forensic", () => {
 					generationBytes: new Uint8Array(readFileSync(join(finalPath, "generation.v1.json"))),
 				},
 			}),
-		).toMatchObject({
-			forensicDigest: expect.stringMatching(/^sha256:/),
-			scorecardDigest: expect.stringMatching(/^sha256:/),
-			generationDigest: expect.stringMatching(/^sha256:/),
-		});
+		).toThrow();
 	});
 });

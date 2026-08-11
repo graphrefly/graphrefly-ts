@@ -56,16 +56,16 @@ function pricingBytes(overrides: Record<string, unknown> = {}): Uint8Array {
 	return encoder.encode(
 		JSON.stringify({
 			data: {
-				id: "deepseek/deepseek-v4-flash-0731",
+				id: "deepseek/deepseek-v4-flash",
 				endpoints: [
 					{
 						provider_name: "DeepInfra",
 						tag: "deepinfra/fp4",
 						quantization: "fp4",
 						pricing: {
-							prompt: "0.00000008",
+							prompt: "0.00000009",
 							completion: "0.00000018",
-							input_cache_read: "0.000000016",
+							input_cache_read: "0.000000018",
 						},
 						...overrides,
 					},
@@ -194,7 +194,7 @@ describe("D713 fresh-pricing-separated live authority", () => {
 		});
 		expect(validateD713OfficialPricingRead(structuredClone(read))).toEqual(read);
 		expect(JSON.stringify(read)).not.toContain("provider_name");
-		expect(JSON.stringify(read)).not.toContain("0.00000008");
+		expect(JSON.stringify(read)).not.toContain("0.00000009");
 		expect(consumeD713OfficialPricingRead(read).match.frozenScheduleRevision).toBe(
 			D712_DEEPSEEK_V4_FLASH_PRICING_REVISION,
 		);

@@ -17,46 +17,47 @@ import { createD726ArmLocalTerminalProviderPolicy } from "./d722-graph-native-ef
 import type { D724TerminalHttpGraphEvidenceV1 } from "./d724-terminal-http-evidence.js";
 import { validateD724TerminalHttpGraphEvidence } from "./d724-terminal-http-evidence.js";
 import {
-	D728_BUDGET_LIMITS,
-	D728_COORDINATES_DIGEST,
-	D728_DECISION_REF,
-	D728_DECISION_REVISION,
-	D728_EFFECT_CEILINGS,
-	D728_GENERATION_REF,
-} from "./d728-coordinates.js";
+	D729_BUDGET_LIMITS,
+	D729_COORDINATES_DIGEST,
+	D729_DECISION_REF,
+	D729_DECISION_REVISION,
+	D729_EFFECT_CEILINGS,
+	D729_GENERATION_REF,
+	D729_MODEL_SLUG,
+} from "./d729-coordinates.js";
 import {
-	consumeD728PrivateImplementationAttestation,
-	D728_IMPLEMENTATION_MANIFEST_DIGEST,
-	type D728PrivateImplementationAttestationV1,
-} from "./d728-implementation-manifest.js";
+	consumeD729PrivateImplementationAttestation,
+	D729_IMPLEMENTATION_MANIFEST_DIGEST,
+	type D729PrivateImplementationAttestationV1,
+} from "./d729-implementation-manifest.js";
 import {
 	type D726ProviderAdapterV1,
 	runD726GraphProviderBlockCore,
 	validateD726TerminalProviderCoverage,
-} from "./d728-provider-block-core.js";
+} from "./d729-provider-block-core.js";
 import {
-	consumeD728ExecutionAuthority,
-	type D728ExecutionAuthorityV1,
-} from "./d728-single-use-dispatch-claim.js";
+	consumeD729ExecutionAuthority,
+	type D729ExecutionAuthorityV1,
+} from "./d729-single-use-dispatch-claim.js";
 
-export const D728_QUALIFICATION_SCHEMA =
-	"graphrefly.b112.d728.failure-safe-live-qualification.v1" as const;
-export const D728_BUNDLE_SCHEMA = "graphrefly.b112.d728.failure-safe-live-bundle.v1" as const;
-export const D728_OBSERVATION_SCHEMA =
-	"graphrefly.b112.d728.failure-safe-live-observation.v1" as const;
-export const D728_GENERATION_SCHEMA =
-	"graphrefly.b112.d728.failure-safe-success-generation.v1" as const;
-export const D728_PARTIAL_FAILURE_SCHEMA =
-	"graphrefly.b112.d728.partial-graph-failure-generation.v1" as const;
-export const D728_TERMINAL_RECEIPT_SCHEMA =
-	"graphrefly.b112.d728.atomic-terminal-receipt.v1" as const;
+export const D729_QUALIFICATION_SCHEMA =
+	"graphrefly.b112.d729.failure-safe-live-qualification.v1" as const;
+export const D729_BUNDLE_SCHEMA = "graphrefly.b112.d729.failure-safe-live-bundle.v1" as const;
+export const D729_OBSERVATION_SCHEMA =
+	"graphrefly.b112.d729.failure-safe-live-observation.v1" as const;
+export const D729_GENERATION_SCHEMA =
+	"graphrefly.b112.d729.failure-safe-success-generation.v1" as const;
+export const D729_PARTIAL_FAILURE_SCHEMA =
+	"graphrefly.b112.d729.partial-graph-failure-generation.v1" as const;
+export const D729_TERMINAL_RECEIPT_SCHEMA =
+	"graphrefly.b112.d729.atomic-terminal-receipt.v1" as const;
 
-export interface D728LiveAdapterBindingV1 {
-	readonly revision: "graphrefly.b112.d728.live-adapter-binding.v1";
+export interface D729LiveAdapterBindingV1 {
+	readonly revision: "graphrefly.b112.d729.live-adapter-binding.v1";
 }
 
-export interface D728LiveBundleV1 {
-	readonly schemaVersion: typeof D728_BUNDLE_SCHEMA;
+export interface D729LiveBundleV1 {
+	readonly schemaVersion: typeof D729_BUNDLE_SCHEMA;
 	readonly disposition: "success" | "partial-failure";
 	readonly qualification: Readonly<Record<string, unknown>>;
 	readonly graphEvidence: D722CanonicalGraphEvidenceV1;
@@ -71,13 +72,13 @@ export interface D728LiveBundleV1 {
 const adapterBindings = new WeakMap<object, D726ProviderAdapterV1>();
 const constructedBundles = new WeakSet<object>();
 
-export function createD728LiveAdapterBinding(inputValue: {
+export function createD729LiveAdapterBinding(inputValue: {
 	readonly adapter: D726ProviderAdapterV1;
-	readonly privateImplementationAttestation: D728PrivateImplementationAttestationV1;
+	readonly privateImplementationAttestation: D729PrivateImplementationAttestationV1;
 	readonly implementationManifestDigest: string;
 	readonly coordinatesDigest: string;
-}): D728LiveAdapterBindingV1 {
-	const input = record(inputValue, "d728.adapterBinding");
+}): D729LiveAdapterBindingV1 {
+	const input = record(inputValue, "d729.adapterBinding");
 	exactKeys(
 		input,
 		[
@@ -86,21 +87,21 @@ export function createD728LiveAdapterBinding(inputValue: {
 			"implementationManifestDigest",
 			"privateImplementationAttestation",
 		],
-		"d728.adapterBinding",
+		"d729.adapterBinding",
 	);
 	literal(
-		digest(input.implementationManifestDigest, "d728.adapterBinding.implementation"),
-		D728_IMPLEMENTATION_MANIFEST_DIGEST,
-		"d728.adapterBinding.implementation",
+		digest(input.implementationManifestDigest, "d729.adapterBinding.implementation"),
+		D729_IMPLEMENTATION_MANIFEST_DIGEST,
+		"d729.adapterBinding.implementation",
 	);
 	literal(
-		digest(input.coordinatesDigest, "d728.adapterBinding.coordinates"),
-		D728_COORDINATES_DIGEST,
-		"d728.adapterBinding.coordinates",
+		digest(input.coordinatesDigest, "d729.adapterBinding.coordinates"),
+		D729_COORDINATES_DIGEST,
+		"d729.adapterBinding.coordinates",
 	);
-	consumeD728PrivateImplementationAttestation(input.privateImplementationAttestation);
+	consumeD729PrivateImplementationAttestation(input.privateImplementationAttestation);
 	const binding = Object.freeze({
-		revision: "graphrefly.b112.d728.live-adapter-binding.v1" as const,
+		revision: "graphrefly.b112.d729.live-adapter-binding.v1" as const,
 	});
 	adapterBindings.set(binding, input.adapter as D726ProviderAdapterV1);
 	return binding;
@@ -126,7 +127,7 @@ function executorFailureFacts(graphEvidence: D722CanonicalGraphEvidenceV1) {
 					"route-evidence-failure",
 					"response-decode-failure",
 				],
-				"d728.executorFailure.classification",
+				"d729.executorFailure.classification",
 			);
 			const material = strictSnapshot({
 				runSequence: run.runSequence,
@@ -139,7 +140,7 @@ function executorFailureFacts(graphEvidence: D722CanonicalGraphEvidenceV1) {
 			return [strictSnapshot({ ...material, factDigest: empiricalStrictJsonDigest(material) })];
 		}),
 	);
-	if (facts.length > 256) throw new TypeError("D728 executor failure fact bound exceeded");
+	if (facts.length > 256) throw new TypeError("D729 executor failure fact bound exceeded");
 	return Object.freeze(facts);
 }
 
@@ -150,10 +151,10 @@ function cleanupFacts(graphEvidence: D722CanonicalGraphEvidenceV1) {
 				(fact) =>
 					fact.kind === "graph-effect-result-admitted" && fact.result.effectKind === "cleanup",
 			);
-			if (cleanups.length !== 1) throw new TypeError("D728 requires one cleanup fact per arm");
+			if (cleanups.length !== 1) throw new TypeError("D729 requires one cleanup fact per arm");
 			const cleanup = cleanups[0]!;
 			if (cleanup.kind !== "graph-effect-result-admitted")
-				throw new TypeError("D728 cleanup fact drifted");
+				throw new TypeError("D729 cleanup fact drifted");
 			return strictSnapshot({
 				runSequence: run.runSequence,
 				status: cleanup.result.status,
@@ -166,9 +167,9 @@ function cleanupFacts(graphEvidence: D722CanonicalGraphEvidenceV1) {
 }
 
 function replayGraph(value: unknown) {
-	const candidate = record(value, "d728.graphEvidence");
-	const runs = array(candidate.effectRuns, "d728.graphEvidence.effectRuns");
-	if (runs.length > 12) throw new TypeError("D728 graph run bound exceeded");
+	const candidate = record(value, "d729.graphEvidence");
+	const runs = array(candidate.effectRuns, "d729.graphEvidence.effectRuns");
+	if (runs.length > 12) throw new TypeError("D729 graph run bound exceeded");
 	const replay = deriveD722CanonicalGraphEvidence(
 		candidate.ledger,
 		runs as D722CanonicalGraphEvidenceV1["effectRuns"],
@@ -177,7 +178,7 @@ function replayGraph(value: unknown) {
 	literal(
 		empiricalStrictJsonDigest(replay),
 		empiricalStrictJsonDigest(candidate),
-		"d728.graph.replay",
+		"d729.graph.replay",
 	);
 	return replay;
 }
@@ -190,8 +191,8 @@ async function execute(
 ) {
 	const run = await runD726GraphProviderBlockCore({
 		sourceDigest,
-		budgetLimits: D728_BUDGET_LIMITS,
-		effectCeilings: D728_EFFECT_CEILINGS,
+		budgetLimits: D729_BUDGET_LIMITS,
+		effectCeilings: D729_EFFECT_CEILINGS,
 		adapter,
 		executionClass,
 		signal,
@@ -231,29 +232,29 @@ function buildBundle(
 		readonly currentKeyAdmissionDigest: string;
 		readonly providerTransportCalls: number;
 	},
-): D728LiveBundleV1 {
+): D729LiveBundleV1 {
 	const usage = run.usage;
 	literal(
 		usage.requests,
-		safeInteger(input.providerTransportCalls, "d728.providerTransportCalls", { max: 96 }),
-		"d728.providerTransportCalls",
+		safeInteger(input.providerTransportCalls, "d729.providerTransportCalls", { max: 96 }),
+		"d729.providerTransportCalls",
 	);
 	const qualificationMaterial = strictSnapshot({
-		schemaVersion: D728_QUALIFICATION_SCHEMA,
-		decisionRef: D728_DECISION_REF,
-		decisionRevision: D728_DECISION_REVISION,
+		schemaVersion: D729_QUALIFICATION_SCHEMA,
+		decisionRef: D729_DECISION_REF,
+		decisionRevision: D729_DECISION_REVISION,
 		executionClass: input.executionClass,
-		coordinatesDigest: D728_COORDINATES_DIGEST,
-		implementationManifestDigest: D728_IMPLEMENTATION_MANIFEST_DIGEST,
+		coordinatesDigest: D729_COORDINATES_DIGEST,
+		implementationManifestDigest: D729_IMPLEMENTATION_MANIFEST_DIGEST,
 		graphEvidenceDigest: run.graphEvidence.evidenceDigest,
 		terminalHttpGraphEvidenceDigest: run.terminalHttpGraphEvidence.evidenceDigest,
 		executorFailureFactDigest: empiricalStrictJsonDigest(run.executorFailureFacts),
 		cleanupFactDigest: empiricalStrictJsonDigest(run.cleanupFacts),
-		pricingReadDigest: digest(input.pricingReadDigest, "d728.pricingRead"),
-		pricingObservationDigest: digest(input.pricingObservationDigest, "d728.pricingObservation"),
-		zeroByokObservationDigest: digest(input.zeroByokObservationDigest, "d728.zeroByok"),
-		currentKeyAdmissionDigest: digest(input.currentKeyAdmissionDigest, "d728.currentKey"),
-		claimDigest: digest(input.claimDigest, "d728.claim"),
+		pricingReadDigest: digest(input.pricingReadDigest, "d729.pricingRead"),
+		pricingObservationDigest: digest(input.pricingObservationDigest, "d729.pricingObservation"),
+		zeroByokObservationDigest: digest(input.zeroByokObservationDigest, "d729.zeroByok"),
+		currentKeyAdmissionDigest: digest(input.currentKeyAdmissionDigest, "d729.currentKey"),
+		claimDigest: digest(input.claimDigest, "d729.claim"),
 		providerTransportCalls: input.providerTransportCalls,
 		causalAttribution: "undetermined" as const,
 		efficacyClaim: "none" as const,
@@ -263,9 +264,9 @@ function buildBundle(
 		qualificationDigest: empiricalStrictJsonDigest(qualificationMaterial),
 	});
 	const observationMaterial = strictSnapshot({
-		schemaVersion: D728_OBSERVATION_SCHEMA,
+		schemaVersion: D729_OBSERVATION_SCHEMA,
 		disposition: run.disposition,
-		model: "deepseek/deepseek-v4-flash-0731",
+		model: D729_MODEL_SLUG,
 		provider: "DeepInfra",
 		providerSlug: "deepinfra",
 		quantization: "fp4",
@@ -292,8 +293,8 @@ function buildBundle(
 	});
 	const generationMaterial = strictSnapshot({
 		schemaVersion:
-			run.disposition === "success" ? D728_GENERATION_SCHEMA : D728_PARTIAL_FAILURE_SCHEMA,
-		generationRef: D728_GENERATION_REF,
+			run.disposition === "success" ? D729_GENERATION_SCHEMA : D729_PARTIAL_FAILURE_SCHEMA,
+		generationRef: D729_GENERATION_REF,
 		disposition: run.disposition,
 		qualificationDigest: qualification.qualificationDigest,
 		observationDigest: observation.observationDigest,
@@ -310,7 +311,7 @@ function buildBundle(
 		generationDigest: empiricalStrictJsonDigest(generationMaterial),
 	});
 	const terminalMaterial = strictSnapshot({
-		schemaVersion: D728_TERMINAL_RECEIPT_SCHEMA,
+		schemaVersion: D729_TERMINAL_RECEIPT_SCHEMA,
 		status: run.disposition,
 		claimDigest: input.claimDigest,
 		currentKeyAdmissionDigest: input.currentKeyAdmissionDigest,
@@ -328,7 +329,7 @@ function buildBundle(
 		terminalReceiptDigest: empiricalStrictJsonDigest(terminalMaterial),
 	});
 	const material = strictSnapshot({
-		schemaVersion: D728_BUNDLE_SCHEMA,
+		schemaVersion: D729_BUNDLE_SCHEMA,
 		disposition: run.disposition,
 		qualification,
 		graphEvidence: run.graphEvidence,
@@ -340,18 +341,18 @@ function buildBundle(
 	});
 	const bundle = strictSnapshot({ ...material, bundleDigest: empiricalStrictJsonDigest(material) });
 	constructedBundles.add(bundle);
-	return bundle as unknown as D728LiveBundleV1;
+	return bundle as unknown as D729LiveBundleV1;
 }
 
-export async function runD728InjectedNoNetworkQualification(input: {
+export async function runD729InjectedNoNetworkQualification(input: {
 	readonly adapter: D726ProviderAdapterV1;
 	readonly providerTransportCalls: () => number;
 	readonly signal: AbortSignal;
-}): Promise<D728LiveBundleV1> {
+}): Promise<D729LiveBundleV1> {
 	const run = await execute(
 		input.adapter,
 		"injected-no-network",
-		empiricalStrictJsonDigest({ decisionRef: D728_DECISION_REF, executionClass: "injected" }),
+		empiricalStrictJsonDigest({ decisionRef: D729_DECISION_REF, executionClass: "injected" }),
 		input.signal,
 	);
 	return buildBundle(run, {
@@ -365,23 +366,23 @@ export async function runD728InjectedNoNetworkQualification(input: {
 	});
 }
 
-export async function runD728LiveReplacement(input: {
+export async function runD729LiveReplacement(input: {
 	readonly sourceDigest: string;
-	readonly adapterBinding: D728LiveAdapterBindingV1;
-	readonly executionAuthority: D728ExecutionAuthorityV1;
+	readonly adapterBinding: D729LiveAdapterBindingV1;
+	readonly executionAuthority: D729ExecutionAuthorityV1;
 	readonly pricingReadDigest: string;
 	readonly pricingObservationDigest: string;
 	readonly providerTransportCalls: () => number;
 	readonly signal: AbortSignal;
-}): Promise<D728LiveBundleV1> {
+}): Promise<D729LiveBundleV1> {
 	const adapter = adapterBindings.get(input.adapterBinding);
 	if (adapter === undefined)
-		throw new TypeError("D728 live adapter binding is invalid or consumed");
+		throw new TypeError("D729 live adapter binding is invalid or consumed");
 	adapterBindings.delete(input.adapterBinding);
-	const authority = consumeD728ExecutionAuthority(input.executionAuthority);
+	const authority = consumeD729ExecutionAuthority(input.executionAuthority);
 	if (authority.scope !== "live-fixed-root")
-		throw new TypeError("D728 live execution requires the fixed-root claim");
-	literal(authority.claim.pricingReadDigest, input.pricingReadDigest, "d728.live.pricing");
+		throw new TypeError("D729 live execution requires the fixed-root claim");
+	literal(authority.claim.pricingReadDigest, input.pricingReadDigest, "d729.live.pricing");
 	const run = await execute(adapter, "live-provider", input.sourceDigest, input.signal);
 	return buildBundle(run, {
 		executionClass: "live-provider",
@@ -394,8 +395,8 @@ export async function runD728LiveReplacement(input: {
 	});
 }
 
-export function validateD728LiveBundle(value: unknown): D728LiveBundleV1 {
-	const candidate = record(value, "d728.bundle");
+export function validateD729LiveBundle(value: unknown): D729LiveBundleV1 {
+	const candidate = record(value, "d729.bundle");
 	exactKeys(
 		candidate,
 		[
@@ -410,13 +411,13 @@ export function validateD728LiveBundle(value: unknown): D728LiveBundleV1 {
 			"terminalHttpGraphEvidence",
 			"terminalReceipt",
 		],
-		"d728.bundle",
+		"d729.bundle",
 	);
-	literal(candidate.schemaVersion, D728_BUNDLE_SCHEMA, "d728.bundle.schema");
+	literal(candidate.schemaVersion, D729_BUNDLE_SCHEMA, "d729.bundle.schema");
 	const disposition = oneOf(
 		candidate.disposition,
 		["success", "partial-failure"],
-		"d728.disposition",
+		"d729.disposition",
 	);
 	const graphEvidence = replayGraph(candidate.graphEvidence);
 	const terminalHttpGraphEvidence = validateD724TerminalHttpGraphEvidence(
@@ -427,7 +428,7 @@ export function validateD728LiveBundle(value: unknown): D728LiveBundleV1 {
 	literal(
 		empiricalStrictJsonDigest(candidate.executorFailureFacts),
 		empiricalStrictJsonDigest(expectedExecutorFailures),
-		"d728.executorFailures",
+		"d729.executorFailures",
 	);
 	const expectedPartial =
 		graphEvidence.runStatus !== "complete" ||
@@ -435,8 +436,8 @@ export function validateD728LiveBundle(value: unknown): D728LiveBundleV1 {
 		terminalHttpGraphEvidence.facts.length > 0 ||
 		expectedExecutorFailures.length > 0 ||
 		cleanupFacts(graphEvidence).some((fact) => fact.status !== "succeeded");
-	literal(disposition, expectedPartial ? "partial-failure" : "success", "d728.disposition");
-	const qualification = record(candidate.qualification, "d728.qualification");
+	literal(disposition, expectedPartial ? "partial-failure" : "success", "d729.disposition");
+	const qualification = record(candidate.qualification, "d729.qualification");
 	exactKeys(
 		qualification,
 		[
@@ -460,44 +461,44 @@ export function validateD728LiveBundle(value: unknown): D728LiveBundleV1 {
 			"terminalHttpGraphEvidenceDigest",
 			"zeroByokObservationDigest",
 		],
-		"d728.qualification",
+		"d729.qualification",
 	);
 	const { qualificationDigest, ...qualificationBody } = qualification;
-	const qualificationDigestValue = digest(qualificationDigest, "d728.qualification.digest");
-	literal(qualification.schemaVersion, D728_QUALIFICATION_SCHEMA, "d728.qualification.schema");
-	literal(qualification.decisionRef, D728_DECISION_REF, "d728.qualification.decision");
-	literal(qualification.decisionRevision, D728_DECISION_REVISION, "d728.qualification.revision");
+	const qualificationDigestValue = digest(qualificationDigest, "d729.qualification.digest");
+	literal(qualification.schemaVersion, D729_QUALIFICATION_SCHEMA, "d729.qualification.schema");
+	literal(qualification.decisionRef, D729_DECISION_REF, "d729.qualification.decision");
+	literal(qualification.decisionRevision, D729_DECISION_REVISION, "d729.qualification.revision");
 	literal(
 		qualification.coordinatesDigest,
-		D728_COORDINATES_DIGEST,
-		"d728.qualification.coordinates",
+		D729_COORDINATES_DIGEST,
+		"d729.qualification.coordinates",
 	);
 	literal(
 		qualification.implementationManifestDigest,
-		D728_IMPLEMENTATION_MANIFEST_DIGEST,
-		"d728.qualification.implementation",
+		D729_IMPLEMENTATION_MANIFEST_DIGEST,
+		"d729.qualification.implementation",
 	);
 	literal(
 		qualification.graphEvidenceDigest,
 		graphEvidence.evidenceDigest,
-		"d728.qualification.graph",
+		"d729.qualification.graph",
 	);
 	literal(
 		qualification.terminalHttpGraphEvidenceDigest,
 		terminalHttpGraphEvidence.evidenceDigest,
-		"d728.qualification.http",
+		"d729.qualification.http",
 	);
 	literal(
 		qualification.executorFailureFactDigest,
 		empiricalStrictJsonDigest(expectedExecutorFailures),
-		"d728.qualification.executorFailures",
+		"d729.qualification.executorFailures",
 	);
 	literal(
 		qualificationDigestValue,
 		empiricalStrictJsonDigest(qualificationBody),
-		"d728.qualification.digest",
+		"d729.qualification.digest",
 	);
-	const observation = record(candidate.observation, "d728.observation");
+	const observation = record(candidate.observation, "d729.observation");
 	exactKeys(
 		observation,
 		[
@@ -525,25 +526,25 @@ export function validateD728LiveBundle(value: unknown): D728LiveBundleV1 {
 			"terminalHttpGraphEvidenceDigest",
 			"usage",
 		],
-		"d728.observation",
+		"d729.observation",
 	);
-	literal(observation.schemaVersion, D728_OBSERVATION_SCHEMA, "d728.observation.schema");
-	literal(observation.disposition, disposition, "d728.observation.disposition");
+	literal(observation.schemaVersion, D729_OBSERVATION_SCHEMA, "d729.observation.schema");
+	literal(observation.disposition, disposition, "d729.observation.disposition");
 	literal(
 		observation.qualificationDigest,
 		qualificationDigestValue,
-		"d728.observation.qualification",
+		"d729.observation.qualification",
 	);
-	literal(observation.graphEvidenceDigest, graphEvidence.evidenceDigest, "d728.observation.graph");
+	literal(observation.graphEvidenceDigest, graphEvidence.evidenceDigest, "d729.observation.graph");
 	literal(
 		observation.terminalHttpGraphEvidenceDigest,
 		terminalHttpGraphEvidence.evidenceDigest,
-		"d728.observation.http",
+		"d729.observation.http",
 	);
-	const observationDigest = digest(observation.observationDigest, "d728.observation.digest");
+	const observationDigest = digest(observation.observationDigest, "d729.observation.digest");
 	const { observationDigest: _observationDigest, ...observationBody } = observation;
-	literal(observationDigest, empiricalStrictJsonDigest(observationBody), "d728.observation.digest");
-	const generation = record(candidate.generation, "d728.generation");
+	literal(observationDigest, empiricalStrictJsonDigest(observationBody), "d729.observation.digest");
+	const generation = record(candidate.generation, "d729.generation");
 	exactKeys(
 		generation,
 		[
@@ -561,25 +562,25 @@ export function validateD728LiveBundle(value: unknown): D728LiveBundleV1 {
 			"schemaVersion",
 			"terminalHttpGraphEvidenceDigest",
 		],
-		"d728.generation",
+		"d729.generation",
 	);
 	literal(
 		generation.schemaVersion,
-		disposition === "success" ? D728_GENERATION_SCHEMA : D728_PARTIAL_FAILURE_SCHEMA,
-		"d728.generation.schema",
+		disposition === "success" ? D729_GENERATION_SCHEMA : D729_PARTIAL_FAILURE_SCHEMA,
+		"d729.generation.schema",
 	);
-	literal(generation.disposition, disposition, "d728.generation.disposition");
+	literal(generation.disposition, disposition, "d729.generation.disposition");
 	literal(
 		generation.qualificationDigest,
 		qualificationDigestValue,
-		"d728.generation.qualification",
+		"d729.generation.qualification",
 	);
-	literal(generation.observationDigest, observationDigest, "d728.generation.observation");
-	literal(generation.graphEvidenceDigest, graphEvidence.evidenceDigest, "d728.generation.graph");
-	const generationDigest = digest(generation.generationDigest, "d728.generation.digest");
+	literal(generation.observationDigest, observationDigest, "d729.generation.observation");
+	literal(generation.graphEvidenceDigest, graphEvidence.evidenceDigest, "d729.generation.graph");
+	const generationDigest = digest(generation.generationDigest, "d729.generation.digest");
 	const { generationDigest: _generationDigest, ...generationBody } = generation;
-	literal(generationDigest, empiricalStrictJsonDigest(generationBody), "d728.generation.digest");
-	const terminalReceipt = record(candidate.terminalReceipt, "d728.terminalReceipt");
+	literal(generationDigest, empiricalStrictJsonDigest(generationBody), "d729.generation.digest");
+	const terminalReceipt = record(candidate.terminalReceipt, "d729.terminalReceipt");
 	exactKeys(
 		terminalReceipt,
 		[
@@ -597,24 +598,24 @@ export function validateD728LiveBundle(value: unknown): D728LiveBundleV1 {
 			"terminalHttpGraphEvidenceDigest",
 			"terminalReceiptDigest",
 		],
-		"d728.terminalReceipt",
+		"d729.terminalReceipt",
 	);
-	literal(terminalReceipt.schemaVersion, D728_TERMINAL_RECEIPT_SCHEMA, "d728.terminal.schema");
-	literal(terminalReceipt.status, disposition, "d728.terminal.status");
-	literal(terminalReceipt.graphEvidenceDigest, graphEvidence.evidenceDigest, "d728.terminal.graph");
+	literal(terminalReceipt.schemaVersion, D729_TERMINAL_RECEIPT_SCHEMA, "d729.terminal.schema");
+	literal(terminalReceipt.status, disposition, "d729.terminal.status");
+	literal(terminalReceipt.graphEvidenceDigest, graphEvidence.evidenceDigest, "d729.terminal.graph");
 	literal(
 		terminalReceipt.terminalHttpGraphEvidenceDigest,
 		terminalHttpGraphEvidence.evidenceDigest,
-		"d728.terminal.http",
+		"d729.terminal.http",
 	);
 	const terminalReceiptDigest = digest(
 		terminalReceipt.terminalReceiptDigest,
-		"d728.terminal.digest",
+		"d729.terminal.digest",
 	);
 	const { terminalReceiptDigest: _terminalReceiptDigest, ...terminalBody } = terminalReceipt;
-	literal(terminalReceiptDigest, empiricalStrictJsonDigest(terminalBody), "d728.terminal.digest");
+	literal(terminalReceiptDigest, empiricalStrictJsonDigest(terminalBody), "d729.terminal.digest");
 	const material = strictSnapshot({
-		schemaVersion: D728_BUNDLE_SCHEMA,
+		schemaVersion: D729_BUNDLE_SCHEMA,
 		disposition,
 		qualification,
 		graphEvidence,
@@ -625,18 +626,18 @@ export function validateD728LiveBundle(value: unknown): D728LiveBundleV1 {
 		terminalReceipt,
 	});
 	literal(
-		digest(candidate.bundleDigest, "d728.bundle.digest"),
+		digest(candidate.bundleDigest, "d729.bundle.digest"),
 		empiricalStrictJsonDigest(material),
-		"d728.bundle.digest",
+		"d729.bundle.digest",
 	);
 	return strictSnapshot({
 		...material,
 		bundleDigest: candidate.bundleDigest,
-	}) as unknown as D728LiveBundleV1;
+	}) as unknown as D729LiveBundleV1;
 }
 
-export function consumeConstructedD728LiveBundle(value: unknown): D728LiveBundleV1 {
+export function consumeConstructedD729LiveBundle(value: unknown): D729LiveBundleV1 {
 	if (typeof value !== "object" || value === null || !constructedBundles.delete(value))
-		throw new TypeError("D728 persistence requires the exact constructed bundle");
-	return validateD728LiveBundle(value);
+		throw new TypeError("D729 persistence requires the exact constructed bundle");
+	return validateD729LiveBundle(value);
 }

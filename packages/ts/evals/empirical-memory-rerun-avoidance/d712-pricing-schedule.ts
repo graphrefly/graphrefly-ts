@@ -23,20 +23,20 @@ export const D712_FRESH_PRICING_QUALIFICATION_SCHEMA =
 	"graphrefly.private-solution-eval.d712-fresh-pricing-qualification.v1" as const;
 export const D712_APPROVAL_REF = "decision.D712" as const;
 export const D712_APPROVAL_REVISION = "decision.D712.2026-08-10.v1" as const;
-export const D712_PRICING_OBSERVATION_REF = "d712-deepseek-v4-flash-0731-deepinfra-fp4" as const;
+export const D712_PRICING_OBSERVATION_REF = "d729-deepseek-v4-flash-deepinfra-fp4" as const;
 export const D712_PRICING_OBSERVATION_REVISION =
-	"openrouter-deepseek-v4-flash-0731-deepinfra-fp4-observed-2026-08-10.v1" as const;
-export const D712_MODEL_SLUG = "deepseek/deepseek-v4-flash-0731" as const;
+	"openrouter-deepseek-v4-flash-deepinfra-fp4-observed-2026-08-11.v1" as const;
+export const D712_MODEL_SLUG = "deepseek/deepseek-v4-flash" as const;
 export const D712_PROVIDER_TAG = "deepinfra/fp4" as const;
 export const D712_QUANTIZATION = "fp4" as const;
 export const D712_DEEPSEEK_V4_FLASH_PRICING_REVISION =
-	"openrouter-deepseek-v4-flash-0731-deepinfra-fp4-2026-08-10.v4" as const;
-export const D712_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS = 80_000 as const;
+	"openrouter-deepseek-v4-flash-deepinfra-fp4-2026-08-11.v1" as const;
+export const D712_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS = 90_000 as const;
 export const D712_DEEPSEEK_V4_FLASH_OUTPUT_MICROUSD_PER_MILLION_TOKENS = 180_000 as const;
-export const D712_PROMPT_USD_PER_TOKEN = "0.00000008" as const;
+export const D712_PROMPT_USD_PER_TOKEN = "0.00000009" as const;
 export const D712_COMPLETION_USD_PER_TOKEN = "0.00000018" as const;
-export const D712_CACHE_READ_USD_PER_TOKEN = "0.000000016" as const;
-export const D712_CACHE_READ_MICROUSD_PER_MILLION_TOKENS = 16_000 as const;
+export const D712_CACHE_READ_USD_PER_TOKEN = "0.000000018" as const;
+export const D712_CACHE_READ_MICROUSD_PER_MILLION_TOKENS = 18_000 as const;
 export const D712_MAX_OFFICIAL_RESPONSE_BYTES = 1_048_576 as const;
 
 export interface D712FreshPricingObservationV1 {

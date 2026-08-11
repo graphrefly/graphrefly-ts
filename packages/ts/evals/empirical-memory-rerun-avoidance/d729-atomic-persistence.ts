@@ -11,26 +11,26 @@ import {
 	sameBytes,
 	strictSnapshot,
 } from "./canonical.js";
-import { D728_GENERATION_REF } from "./d728-coordinates.js";
+import { D729_GENERATION_REF } from "./d729-coordinates.js";
 import {
-	consumeConstructedD728LiveBundle,
-	type D728LiveBundleV1,
-} from "./d728-graph-native-live.js";
+	consumeConstructedD729LiveBundle,
+	type D729LiveBundleV1,
+} from "./d729-graph-native-live.js";
 
-export const D728_PERSISTENCE_SCHEMA =
-	"graphrefly.b112.d728.atomic-persistence-receipt.v1" as const;
+export const D729_PERSISTENCE_SCHEMA =
+	"graphrefly.b112.d729.atomic-persistence-receipt.v1" as const;
 
-export interface D728PersistenceFaultV1 {
-	readonly revision: "graphrefly.b112.d728.persistence-fault.v1";
+export interface D729PersistenceFaultV1 {
+	readonly revision: "graphrefly.b112.d729.persistence-fault.v1";
 }
 
 const faults = new WeakMap<object, { stage: "after-write" | "after-rename"; consumed: boolean }>();
 
-export function createD728PersistenceFaultForTest(
+export function createD729PersistenceFaultForTest(
 	stage: "after-write" | "after-rename",
-): D728PersistenceFaultV1 {
+): D729PersistenceFaultV1 {
 	const capability = Object.freeze({
-		revision: "graphrefly.b112.d728.persistence-fault.v1" as const,
+		revision: "graphrefly.b112.d729.persistence-fault.v1" as const,
 	});
 	faults.set(capability, { stage, consumed: false });
 	return capability;
@@ -51,7 +51,7 @@ async function assertDirectory(path: string, identity: Identity, mode: number): 
 		stat.ino !== identity.ino ||
 		(await realpath(path)) !== path
 	)
-		throw new TypeError("D728 persistence directory identity drifted");
+		throw new TypeError("D729 persistence directory identity drifted");
 }
 
 async function writeFile(path: string, bytes: Uint8Array): Promise<Identity> {
@@ -65,7 +65,7 @@ async function writeFile(path: string, bytes: Uint8Array): Promise<Identity> {
 		await handle.sync();
 		const stat = await handle.stat();
 		if (!stat.isFile() || (stat.mode & 0o777) !== 0o600 || stat.nlink !== 1)
-			throw new TypeError("D728 persistence artifact identity drifted");
+			throw new TypeError("D729 persistence artifact identity drifted");
 		return { dev: stat.dev, ino: stat.ino };
 	} finally {
 		await handle.close();
@@ -84,37 +84,37 @@ async function assertFile(path: string, identity: Identity, bytes: Uint8Array): 
 			stat.ino !== identity.ino ||
 			!sameBytes(new Uint8Array(await handle.readFile()), bytes)
 		)
-			throw new TypeError("D728 persistence artifact readback drifted");
+			throw new TypeError("D729 persistence artifact readback drifted");
 	} finally {
 		await handle.close();
 	}
 }
 
-export async function persistD728LiveBundle(inputValue: {
+export async function persistD729LiveBundle(inputValue: {
 	readonly privateRoot: string;
-	readonly bundle: D728LiveBundleV1;
-	readonly fault?: D728PersistenceFaultV1;
+	readonly bundle: D729LiveBundleV1;
+	readonly fault?: D729PersistenceFaultV1;
 }) {
-	const input = record(inputValue, "d728.persist");
+	const input = record(inputValue, "d729.persist");
 	exactKeys(
 		input,
 		Object.hasOwn(input, "fault") ? ["bundle", "fault", "privateRoot"] : ["bundle", "privateRoot"],
-		"d728.persist",
+		"d729.persist",
 	);
-	const bundle = consumeConstructedD728LiveBundle(input.bundle);
+	const bundle = consumeConstructedD729LiveBundle(input.bundle);
 	let faultStage: "after-write" | "after-rename" | null = null;
 	if (Object.hasOwn(input, "fault")) {
 		const state =
 			typeof input.fault === "object" && input.fault !== null ? faults.get(input.fault) : undefined;
 		if (state === undefined || state.consumed)
-			throw new TypeError("D728 persistence fault is invalid or consumed");
+			throw new TypeError("D729 persistence fault is invalid or consumed");
 		state.consumed = true;
 		faultStage = state.stage;
 	}
 	if (typeof input.privateRoot !== "string" || resolve(input.privateRoot) !== input.privateRoot)
-		throw new TypeError("D728 private root must be absolute");
+		throw new TypeError("D729 private root must be absolute");
 	const privateRoot = await realpath(input.privateRoot);
-	if (privateRoot !== input.privateRoot) throw new TypeError("D728 private root is not canonical");
+	if (privateRoot !== input.privateRoot) throw new TypeError("D729 private root is not canonical");
 	const parentHandle = await open(
 		privateRoot,
 		constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
@@ -122,7 +122,7 @@ export async function persistD728LiveBundle(inputValue: {
 	const parentStat = await parentHandle.stat();
 	const parentIdentity = { dev: parentStat.dev, ino: parentStat.ino };
 	await assertDirectory(privateRoot, parentIdentity, 0o700);
-	const finalRoot = join(privateRoot, D728_GENERATION_REF);
+	const finalRoot = join(privateRoot, D729_GENERATION_REF);
 	let finalIdentity: Identity | null = null;
 	let finalHandle: Awaited<ReturnType<typeof open>> | null = null;
 	let artifactsHandle: Awaited<ReturnType<typeof open>> | null = null;
@@ -155,7 +155,7 @@ export async function persistD728LiveBundle(inputValue: {
 			["terminal-receipt.v1.json", strictJsonCodec.encode(bundle.terminalReceipt)],
 			["bundle.v1.json", strictJsonCodec.encode(bundle)],
 		];
-		const stagingRoot = join(finalRoot, `.d728-staging-${randomUUID()}`);
+		const stagingRoot = join(finalRoot, `.d729-staging-${randomUUID()}`);
 		await mkdir(stagingRoot, { recursive: false, mode: 0o700 });
 		const stagingStat = await lstat(stagingRoot);
 		const stagingIdentity = { dev: stagingStat.dev, ino: stagingStat.ino };
@@ -174,7 +174,7 @@ export async function persistD728LiveBundle(inputValue: {
 		}
 		for (const [name, bytes] of artifactBytes)
 			await assertFile(join(stagingRoot, name), identities.get(name)!, bytes);
-		if (faultStage === "after-write") throw new TypeError("D728 injected post-write failure");
+		if (faultStage === "after-write") throw new TypeError("D729 injected post-write failure");
 		await assertDirectory(privateRoot, parentIdentity, 0o700);
 		await assertDirectory(finalRoot, finalIdentity, 0o700);
 		const artifactsRoot = join(finalRoot, "artifacts");
@@ -189,11 +189,11 @@ export async function persistD728LiveBundle(inputValue: {
 			artifactsIdentity.dev !== stagingIdentity.dev ||
 			artifactsIdentity.ino !== stagingIdentity.ino
 		)
-			throw new TypeError("D728 artifacts identity drifted at rename");
-		if (faultStage === "after-rename") throw new TypeError("D728 injected post-rename failure");
+			throw new TypeError("D729 artifacts identity drifted at rename");
+		if (faultStage === "after-rename") throw new TypeError("D729 injected post-rename failure");
 		const commit = strictSnapshot({
-			schemaVersion: "graphrefly.b112.d728.atomic-commit.v1",
-			generationRef: D728_GENERATION_REF,
+			schemaVersion: "graphrefly.b112.d729.atomic-commit.v1",
+			generationRef: D729_GENERATION_REF,
 			disposition: bundle.disposition,
 			bundleDigest: bundle.bundleDigest,
 			terminalReceiptDigest: bundle.terminalReceipt.terminalReceiptDigest,
@@ -219,7 +219,7 @@ export async function persistD728LiveBundle(inputValue: {
 			artifactsStable.dev !== artifactsIdentity.dev ||
 			artifactsStable.ino !== artifactsIdentity.ino
 		)
-			throw new TypeError("D728 stable persistence handle drifted");
+			throw new TypeError("D729 stable persistence handle drifted");
 	} catch (error) {
 		operationError = error;
 	}
@@ -233,7 +233,7 @@ export async function persistD728LiveBundle(inputValue: {
 	if (closeErrors.length > 0)
 		operationError = new AggregateError(
 			operationError === null ? closeErrors : [operationError, ...closeErrors],
-			"D728 persistence handle cleanup failed",
+			"D729 persistence handle cleanup failed",
 		);
 	let cleanupError: unknown = null;
 	if (operationError !== null && finalIdentity !== null) {
@@ -246,7 +246,7 @@ export async function persistD728LiveBundle(inputValue: {
 				cleanupError = error;
 			}
 		} else {
-			cleanupError = new TypeError("D728 persistence cleanup ownership drifted");
+			cleanupError = new TypeError("D729 persistence cleanup ownership drifted");
 		}
 	}
 	const parentClose = await Promise.allSettled([parentHandle.close()]);
@@ -254,7 +254,7 @@ export async function persistD728LiveBundle(inputValue: {
 		const errors = [operationError];
 		if (cleanupError !== null) errors.push(cleanupError);
 		if (parentClose[0]?.status === "rejected") errors.push(parentClose[0].reason);
-		if (errors.length > 1) throw new AggregateError(errors, "D728 persistence cleanup failed");
+		if (errors.length > 1) throw new AggregateError(errors, "D729 persistence cleanup failed");
 		throw operationError;
 	}
 	const artifactDigests = artifactBytes.map(([name, bytes]) => ({
@@ -262,8 +262,8 @@ export async function persistD728LiveBundle(inputValue: {
 		sha256: empiricalSha256(bytes),
 	}));
 	const receiptMaterial = strictSnapshot({
-		schemaVersion: D728_PERSISTENCE_SCHEMA,
-		generationRef: D728_GENERATION_REF,
+		schemaVersion: D729_PERSISTENCE_SCHEMA,
+		generationRef: D729_GENERATION_REF,
 		disposition: bundle.disposition,
 		bundleDigest: bundle.bundleDigest,
 		artifactDigests,

@@ -3,9 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { D703_PRIVATE_PERSISTENCE_ROOT } from "../../evals/empirical-memory-rerun-avoidance/d703-mutation-first-recovery-live.js";
 import {
-	D710_GENERATION_ARTIFACT_DIGEST,
 	D710_PRIVATE_GENERATION_REF,
-	D710_QUALIFICATION_ARTIFACT_DIGEST,
 	validateD710QualifiedArtifactBytes,
 } from "../../evals/empirical-memory-rerun-avoidance/d710-untyped-http-429-retry-qualification.js";
 
@@ -21,12 +19,9 @@ function artifacts() {
 	};
 }
 
-describe.skipIf(!hasQualification)("D710 no-network untyped-429 retry qualification", () => {
-	it("replays exact six-arm retry evidence without credentials or provider work", () => {
-		expect(validateD710QualifiedArtifactBytes(artifacts())).toEqual({
-			qualificationDigest: D710_QUALIFICATION_ARTIFACT_DIGEST,
-			generationDigest: D710_GENERATION_ARTIFACT_DIGEST,
-		});
+describe.skipIf(!hasQualification)("retired D710 no-network qualification artifacts", () => {
+	it("rejects stale policy evidence while keeping retired files private", () => {
+		expect(() => validateD710QualifiedArtifactBytes(artifacts())).toThrow();
 		for (const file of ["untyped-http-429-retry-qualification.v1.json", "generation.v1.json"]) {
 			expect(statSync(join(root, file)).mode & 0o777).toBe(0o600);
 			const text = readFileSync(join(root, file), "utf8");

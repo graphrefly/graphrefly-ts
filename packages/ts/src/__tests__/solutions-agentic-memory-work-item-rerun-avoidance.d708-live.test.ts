@@ -52,7 +52,7 @@ function pricingBytes(overrides: Record<string, unknown> = {}): Uint8Array {
 	return encoder.encode(
 		JSON.stringify({
 			data: {
-				id: "deepseek/deepseek-v4-flash-0731",
+				id: "deepseek/deepseek-v4-flash",
 				endpoints: [
 					{
 						provider_name: "DeepInfra",

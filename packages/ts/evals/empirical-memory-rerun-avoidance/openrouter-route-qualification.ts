@@ -34,8 +34,8 @@ export const OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_SLUG = "decart/fp4";
 export const OPENROUTER_GLM_5_2_DOWNSTREAM_PROVIDER_NAME = "Decart";
 export const OPENROUTER_GLM_5_2_DEEPINFRA_DOWNSTREAM_PROVIDER_SLUG = "deepinfra/fp4";
 export const OPENROUTER_GLM_5_2_DEEPINFRA_DOWNSTREAM_PROVIDER_NAME = "DeepInfra";
-export const OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL = "deepseek/deepseek-v4-flash-0731";
-export const OPENROUTER_DEEPSEEK_V4_FLASH_SELECTED_MODEL = "deepseek/deepseek-v4-flash-20260731";
+export const OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL = "deepseek/deepseek-v4-flash";
+export const OPENROUTER_DEEPSEEK_V4_FLASH_SELECTED_MODEL = "deepseek/deepseek-v4-flash-20260423";
 export const OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_SLUG = "deepinfra/fp4";
 export const OPENROUTER_DEEPSEEK_V4_FLASH_DOWNSTREAM_PROVIDER_NAME = "DeepInfra";
 export const OPENROUTER_RESPONSES_ENDPOINT_REVISION = "openrouter-responses-2026-07-29.v2";
@@ -68,9 +68,9 @@ export const OPENROUTER_GLM_5_2_DEEPINFRA_PRICING_REVISION =
 export const OPENROUTER_GLM_5_2_DEEPINFRA_INPUT_MICROUSD_PER_MILLION_TOKENS = 750_000;
 export const OPENROUTER_GLM_5_2_DEEPINFRA_OUTPUT_MICROUSD_PER_MILLION_TOKENS = 2_400_000;
 export const OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_SOURCE =
-	"https://openrouter.ai/api/v1/models/deepseek/deepseek-v4-flash-0731/endpoints";
+	"https://openrouter.ai/api/v1/models/deepseek/deepseek-v4-flash/endpoints";
 export const OPENROUTER_DEEPSEEK_V4_FLASH_PRICING_REVISION =
-	"openrouter-deepseek-v4-flash-0731-deepinfra-fp4-2026-08-06.v3";
+	"openrouter-deepseek-v4-flash-deepinfra-fp4-2026-08-11.v1";
 export const OPENROUTER_DEEPSEEK_V4_FLASH_INPUT_MICROUSD_PER_MILLION_TOKENS = 90_000;
 export const OPENROUTER_DEEPSEEK_V4_FLASH_OUTPUT_MICROUSD_PER_MILLION_TOKENS = 180_000;
 

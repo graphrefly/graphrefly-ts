@@ -9,24 +9,33 @@ import {
 } from "../../evals/empirical-memory-rerun-avoidance/d722-injected-model-fixture.js";
 import { invokeD725OpenRouterGraphTurn } from "../../evals/empirical-memory-rerun-avoidance/d725-terminal-http-real-provider.js";
 import {
-	createD728PersistenceFaultForTest,
-	persistD728LiveBundle,
-} from "../../evals/empirical-memory-rerun-avoidance/d728-atomic-persistence.js";
-import { D728_GENERATION_REF } from "../../evals/empirical-memory-rerun-avoidance/d728-coordinates.js";
+	createD729PersistenceFaultForTest,
+	persistD729LiveBundle,
+} from "../../evals/empirical-memory-rerun-avoidance/d729-atomic-persistence.js";
 import {
-	runD728InjectedNoNetworkQualification,
-	validateD728LiveBundle,
-} from "../../evals/empirical-memory-rerun-avoidance/d728-graph-native-live.js";
+	D729_CACHE_READ_MICROUSD_PER_MILLION_TOKENS,
+	D729_GENERATION_REF,
+	D729_INPUT_MICROUSD_PER_MILLION_TOKENS,
+	D729_MODEL_SLUG,
+	D729_OUTPUT_MICROUSD_PER_MILLION_TOKENS,
+	D729_PRICING_SOURCE,
+	D729_PROVIDER_TAG,
+	D729_SELECTED_ENDPOINT_MODEL,
+} from "../../evals/empirical-memory-rerun-avoidance/d729-coordinates.js";
 import {
-	createD726ExecutorFailureProviderTurn,
+	runD729InjectedNoNetworkQualification,
+	validateD729LiveBundle,
+} from "../../evals/empirical-memory-rerun-avoidance/d729-graph-native-live.js";
+import {
 	createD726ProviderAdapter,
 	createD726ProviderTurn,
-} from "../../evals/empirical-memory-rerun-avoidance/d728-provider-block-core.js";
+	createD729SanitizedExecutorFailureProviderTurn,
+} from "../../evals/empirical-memory-rerun-avoidance/d729-provider-block-core.js";
 import {
-	acquireD728SingleUseDispatchClaimAtRoot,
-	consumeD728DispatchClaimForExecution,
-	consumeD728ExecutionAuthority,
-} from "../../evals/empirical-memory-rerun-avoidance/d728-single-use-dispatch-claim.js";
+	acquireD729SingleUseDispatchClaimAtRoot,
+	consumeD729DispatchClaimForExecution,
+	consumeD729ExecutionAuthority,
+} from "../../evals/empirical-memory-rerun-avoidance/d729-single-use-dispatch-claim.js";
 import { createOpenRouterCurrentKeySpendAdmissionCapability } from "../../evals/empirical-memory-rerun-avoidance/openrouter-current-key-spend-admission.js";
 
 const sha = (label: string) => empiricalStrictJsonDigest({ label });
@@ -49,8 +58,8 @@ async function currentKeyAdmission() {
 		},
 	}).read({
 		credential: {
-			bearerToken: "not-a-live-d728-test-credential",
-			credentialBindingRef: "d728.test",
+			bearerToken: "not-a-live-d729-test-credential",
+			credentialBindingRef: "d729.test",
 			credentialBindingRevision: "v1",
 		},
 		expectedLimitMicrousd: 32_000_000,
@@ -66,7 +75,7 @@ function successfulAdapter() {
 	const adapter = createD726ProviderAdapter({
 		executionClass: "injected-no-network",
 		async materialization({ effectRequest }) {
-			const workspace = sha(`d728-workspace-${effectRequest.runSequence}`);
+			const workspace = sha(`d729-workspace-${effectRequest.runSequence}`);
 			workspaces.set(effectRequest.runSequence, workspace);
 			return {
 				actualCostMicrousd: 0,
@@ -75,7 +84,7 @@ function successfulAdapter() {
 					effectKind: "materialization",
 					status: "ready",
 					workspaceStateDigest: workspace,
-					evidenceDigest: sha(`d728-materialization-${effectRequest.runSequence}`),
+					evidenceDigest: sha(`d729-materialization-${effectRequest.runSequence}`),
 				},
 			};
 		},
@@ -92,15 +101,23 @@ function successfulAdapter() {
 				await invokeD725OpenRouterGraphTurn({
 					effectRequest: input.effectRequest,
 					credential: {
-						bearerToken: "not-a-live-d728-test-credential",
-						credentialBindingRef: "d728.test",
+						bearerToken: "not-a-live-d729-test-credential",
+						credentialBindingRef: "d729.test",
 						credentialBindingRevision: "v1",
 					},
 					transport: {
-						async request() {
+						async request(request) {
 							calls += 1;
+							const body = JSON.parse(new TextDecoder().decode(request.body));
+							expect(body.model).toBe("deepseek/deepseek-v4-flash");
+							expect(body.provider).toEqual({
+								order: ["deepinfra/fp4"],
+								only: ["deepinfra/fp4"],
+								allow_fallbacks: false,
+								require_parameters: true,
+							});
 							const toolCalls = scripted.toolIntents.map((intent, index) => ({
-								id: `d728-tool-${calls}-${index}`,
+								id: `d729-tool-${calls}-${index}`,
 								type: "function",
 								function: { name: names[intent.toolRef], arguments: "{}" },
 							}));
@@ -108,7 +125,7 @@ function successfulAdapter() {
 								status: 200,
 								body: new TextEncoder().encode(
 									JSON.stringify({
-										id: `d728-response-${calls}`,
+										id: `d729-response-${calls}`,
 										usage: { prompt_tokens: 1, completion_tokens: 1, cost: 0.000001 },
 										choices: [
 											toolCalls.length > 0
@@ -123,7 +140,7 @@ function successfulAdapter() {
 												available: [
 													{
 														provider: "DeepInfra",
-														model: "deepseek/deepseek-v4-flash-20260731",
+														model: "deepseek/deepseek-v4-flash-20260423",
 														selected: true,
 													},
 												],
@@ -136,7 +153,7 @@ function successfulAdapter() {
 							};
 						},
 					},
-					taskStatement: "D728 injected six-arm qualification",
+					taskStatement: "D729 injected six-arm qualification",
 					conversation: { messages: [] },
 					signal: input.signal ?? new AbortController().signal,
 					monotonicNowMs: () => calls,
@@ -144,7 +161,7 @@ function successfulAdapter() {
 			);
 		},
 		async retryWait() {
-			throw new TypeError("D728 happy path cannot retry");
+			throw new TypeError("D729 happy path cannot retry");
 		},
 		async toolAction({ effectRequest }) {
 			const intent = effectRequest.toolIntent!;
@@ -163,7 +180,7 @@ function successfulAdapter() {
 					nonEmptyDiff: intent.toolRef === "workspace-diff",
 					workspaceStateBeforeDigest: before,
 					workspaceStateAfterDigest: after,
-					evidenceDigest: sha(`d728-tool-${effectRequest.effectSequence}`),
+					evidenceDigest: sha(`d729-tool-${effectRequest.effectSequence}`),
 				},
 			};
 		},
@@ -175,7 +192,7 @@ function successfulAdapter() {
 					effectKind: "hidden-verifier",
 					status: "passed",
 					workspaceStateDigest: workspaces.get(effectRequest.runSequence)!,
-					evidenceDigest: sha(`d728-verifier-${effectRequest.runSequence}`),
+					evidenceDigest: sha(`d729-verifier-${effectRequest.runSequence}`),
 				},
 			};
 		},
@@ -187,7 +204,7 @@ function successfulAdapter() {
 				result: {
 					effectKind: "cleanup",
 					status: "succeeded",
-					evidenceDigest: sha(`d728-cleanup-${effectRequest.runSequence}`),
+					evidenceDigest: sha(`d729-cleanup-${effectRequest.runSequence}`),
 				},
 			};
 		},
@@ -208,26 +225,26 @@ function executorFailureAdapter() {
 				result: {
 					effectKind: "materialization",
 					status: "ready",
-					workspaceStateDigest: sha(`d728-failure-workspace-${effectRequest.runSequence}`),
-					evidenceDigest: sha(`d728-failure-materialization-${effectRequest.runSequence}`),
+					workspaceStateDigest: sha(`d729-failure-workspace-${effectRequest.runSequence}`),
+					evidenceDigest: sha(`d729-failure-materialization-${effectRequest.runSequence}`),
 				},
 			};
 		},
 		async providerRequest({ effectRequest }) {
 			calls += 1;
-			return createD726ExecutorFailureProviderTurn({
-				classification: "transport-failure",
-				evidenceDigest: sha(`d728-transport-${effectRequest.requestDigest}`),
-			});
+			return createD729SanitizedExecutorFailureProviderTurn(
+				new TypeError("D723 provider returned an invalid choice count"),
+				effectRequest.requestDigest,
+			);
 		},
 		async retryWait() {
-			throw new TypeError("D728 executor failure cannot retry");
+			throw new TypeError("D729 executor failure cannot retry");
 		},
 		async toolAction() {
-			throw new TypeError("D728 executor failure cannot use tools");
+			throw new TypeError("D729 executor failure cannot use tools");
 		},
 		async hiddenVerifier() {
-			throw new TypeError("D728 executor failure cannot verify");
+			throw new TypeError("D729 executor failure cannot verify");
 		},
 		async cleanup({ effectRequest }) {
 			workspaces.delete(effectRequest.runSequence);
@@ -237,7 +254,7 @@ function executorFailureAdapter() {
 				result: {
 					effectKind: "cleanup",
 					status: "succeeded",
-					evidenceDigest: sha(`d728-failure-cleanup-${effectRequest.runSequence}`),
+					evidenceDigest: sha(`d729-failure-cleanup-${effectRequest.runSequence}`),
 				},
 			};
 		},
@@ -245,25 +262,37 @@ function executorFailureAdapter() {
 	return { adapter, calls: () => calls, workspaces };
 }
 
-describe("D728 failure-safe Graph-native live replacement", () => {
+describe("D729 failure-safe Graph-native live replacement", () => {
+	it("freezes the current OpenRouter alias, exact DeepInfra endpoint and current prices", () => {
+		expect(D729_MODEL_SLUG).toBe("deepseek/deepseek-v4-flash");
+		expect(D729_SELECTED_ENDPOINT_MODEL).toBe("deepseek/deepseek-v4-flash-20260423");
+		expect(D729_PROVIDER_TAG).toBe("deepinfra/fp4");
+		expect(D729_PRICING_SOURCE).toBe(
+			"https://openrouter.ai/api/v1/models/deepseek/deepseek-v4-flash/endpoints",
+		);
+		expect(D729_INPUT_MICROUSD_PER_MILLION_TOKENS).toBe(90_000);
+		expect(D729_OUTPUT_MICROUSD_PER_MILLION_TOKENS).toBe(180_000);
+		expect(D729_CACHE_READ_MICROUSD_PER_MILLION_TOKENS).toBe(18_000);
+	});
+
 	it("keeps the durable dispatch authority fixed-root and single-use", async () => {
-		const root = await mkdtemp(join(tmpdir(), "graphrefly-d728-claim-"));
+		const root = await mkdtemp(join(tmpdir(), "graphrefly-d729-claim-"));
 		await chmod(root, 0o700);
 		try {
-			const claim = await acquireD728SingleUseDispatchClaimAtRoot(await realpath(root), {
-				d728PreLiveBundleDigest: sha("prelive"),
+			const claim = await acquireD729SingleUseDispatchClaimAtRoot(await realpath(root), {
+				d729PreLiveBundleDigest: sha("prelive"),
 				pricingReadDigest: sha("pricing"),
 				zeroByokObservationDigest: sha("zero-byok"),
 			});
-			const authority = await consumeD728DispatchClaimForExecution({
+			const authority = await consumeD729DispatchClaimForExecution({
 				claim,
 				currentKeyAdmission: await currentKeyAdmission(),
 			});
-			expect(consumeD728ExecutionAuthority(authority).scope).toBe("injected-test-root");
-			expect(() => consumeD728ExecutionAuthority(authority)).toThrow(/single-use/);
+			expect(consumeD729ExecutionAuthority(authority).scope).toBe("injected-test-root");
+			expect(() => consumeD729ExecutionAuthority(authority)).toThrow(/single-use/);
 			await expect(
-				acquireD728SingleUseDispatchClaimAtRoot(await realpath(root), {
-					d728PreLiveBundleDigest: sha("prelive"),
+				acquireD729SingleUseDispatchClaimAtRoot(await realpath(root), {
+					d729PreLiveBundleDigest: sha("prelive"),
 					pricingReadDigest: sha("pricing"),
 					zeroByokObservationDigest: sha("zero-byok"),
 				}),
@@ -275,7 +304,7 @@ describe("D728 failure-safe Graph-native live replacement", () => {
 
 	it("qualifies a complete six-arm success from canonical Graph facts", async () => {
 		const fixture = successfulAdapter();
-		const bundle = await runD728InjectedNoNetworkQualification({
+		const bundle = await runD729InjectedNoNetworkQualification({
 			adapter: fixture.adapter,
 			providerTransportCalls: fixture.calls,
 			signal: new AbortController().signal,
@@ -291,12 +320,12 @@ describe("D728 failure-safe Graph-native live replacement", () => {
 		expect(bundle.graphEvidence.ledger.completedArms).toHaveLength(6);
 		expect(bundle.executorFailureFacts).toEqual([]);
 		expect(fixture.workspaces.size).toBe(0);
-		expect(validateD728LiveBundle(bundle).bundleDigest).toBe(bundle.bundleDigest);
+		expect(validateD729LiveBundle(bundle).bundleDigest).toBe(bundle.bundleDigest);
 	});
 
 	it("persists executor provenance only as partial failure while still cleaning all arms", async () => {
 		const fixture = executorFailureAdapter();
-		const bundle = await runD728InjectedNoNetworkQualification({
+		const bundle = await runD729InjectedNoNetworkQualification({
 			adapter: fixture.adapter,
 			providerTransportCalls: fixture.calls,
 			signal: new AbortController().signal,
@@ -305,21 +334,25 @@ describe("D728 failure-safe Graph-native live replacement", () => {
 		expect(bundle.graphEvidence.ledger.completedArms).toHaveLength(6);
 		expect(bundle.terminalHttpGraphEvidence.facts).toEqual([]);
 		expect(bundle.executorFailureFacts).toHaveLength(6);
+		expect(bundle.executorFailureFacts.map((fact) => fact.classification)).toEqual([
+			...Array(5).fill("response-decode-failure"),
+			"graph-admission-denied",
+		]);
 		expect(fixture.workspaces.size).toBe(0);
 		expect(bundle.generation.schemaVersion).toBe(
-			"graphrefly.b112.d728.partial-graph-failure-generation.v1",
+			"graphrefly.b112.d729.partial-graph-failure-generation.v1",
 		);
 	});
 
 	it("rejects coordinated outer-digest tampering", async () => {
 		const fixture = executorFailureAdapter();
-		const bundle = await runD728InjectedNoNetworkQualification({
+		const bundle = await runD729InjectedNoNetworkQualification({
 			adapter: fixture.adapter,
 			providerTransportCalls: fixture.calls,
 			signal: new AbortController().signal,
 		});
 		expect(() =>
-			validateD728LiveBundle({
+			validateD729LiveBundle({
 				...bundle,
 				disposition: "success",
 				bundleDigest: empiricalStrictJsonDigest({ forged: true }),
@@ -329,39 +362,39 @@ describe("D728 failure-safe Graph-native live replacement", () => {
 
 	it("publishes exactly one atomic success-or-failure generation and cleans injected failures", async () => {
 		for (const stage of ["after-write", "after-rename"] as const) {
-			const root = await mkdtemp(join(tmpdir(), `graphrefly-d728-persist-${stage}-`));
+			const root = await mkdtemp(join(tmpdir(), `graphrefly-d729-persist-${stage}-`));
 			await chmod(root, 0o700);
 			try {
 				const fixture = executorFailureAdapter();
-				const bundle = await runD728InjectedNoNetworkQualification({
+				const bundle = await runD729InjectedNoNetworkQualification({
 					adapter: fixture.adapter,
 					providerTransportCalls: fixture.calls,
 					signal: new AbortController().signal,
 				});
 				await expect(
-					persistD728LiveBundle({
+					persistD729LiveBundle({
 						privateRoot: await realpath(root),
 						bundle,
-						fault: createD728PersistenceFaultForTest(stage),
+						fault: createD729PersistenceFaultForTest(stage),
 					}),
 				).rejects.toThrow(/injected/);
-				await expect(lstat(join(root, D728_GENERATION_REF))).rejects.toMatchObject({
+				await expect(lstat(join(root, D729_GENERATION_REF))).rejects.toMatchObject({
 					code: "ENOENT",
 				});
 			} finally {
 				await rm(root, { recursive: true, force: true });
 			}
 		}
-		const root = await mkdtemp(join(tmpdir(), "graphrefly-d728-persist-success-"));
+		const root = await mkdtemp(join(tmpdir(), "graphrefly-d729-persist-success-"));
 		await chmod(root, 0o700);
 		try {
 			const fixture = executorFailureAdapter();
-			const bundle = await runD728InjectedNoNetworkQualification({
+			const bundle = await runD729InjectedNoNetworkQualification({
 				adapter: fixture.adapter,
 				providerTransportCalls: fixture.calls,
 				signal: new AbortController().signal,
 			});
-			const receipt = await persistD728LiveBundle({
+			const receipt = await persistD729LiveBundle({
 				privateRoot: await realpath(root),
 				bundle,
 			});
@@ -370,7 +403,7 @@ describe("D728 failure-safe Graph-native live replacement", () => {
 				receipt.artifactDigests.some((entry) => entry.name === "success-generation.v1.json"),
 			).toBe(false);
 			await expect(
-				persistD728LiveBundle({
+				persistD729LiveBundle({
 					privateRoot: await realpath(root),
 					bundle,
 				}),

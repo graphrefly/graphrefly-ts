@@ -54,6 +54,8 @@ import {
 	consumeD726ExecutionAuthority,
 	type D726ExecutionAuthorityV1,
 } from "./d726-single-use-dispatch-claim.js";
+import { D729_MODEL_SLUG } from "./d729-coordinates.js";
+import { readOpenRouterTransportFailureDiagnostic } from "./openrouter-transport-failure.js";
 
 export const D726_QUALIFICATION_SCHEMA =
 	"graphrefly.b112.d726.graph-native-live-qualification.v2" as const;
@@ -161,6 +163,37 @@ export function createD726ExecutorFailureProviderTurn(inputValue: {
 		evidenceDigest: input.evidenceDigest as string,
 	});
 	return capability;
+}
+
+export function createD729SanitizedExecutorFailureProviderTurn(
+	error: unknown,
+	requestDigestValue: string,
+): D726ProviderTurnV1 {
+	const requestDigest = digest(requestDigestValue, "d729.executorFailure.requestDigest");
+	const name = error instanceof Error ? error.name : "unknown";
+	const message = error instanceof Error ? error.message : "unknown";
+	const bounded = `${name}:${message}`.slice(0, 4_096);
+	const transportDiagnostic = readOpenRouterTransportFailureDiagnostic(error);
+	const classification: D720ExecutorFailureClassificationV1 =
+		transportDiagnostic !== null
+			? "transport-failure"
+			: /response|choice|tool call|tool arguments|usage|utf-8 json|choice count|finish reason/i.test(
+						bounded,
+					)
+				? "response-decode-failure"
+				: /route|selected model|provider evidence|provider metadata/i.test(bounded)
+					? "route-evidence-failure"
+					: "executor-threw";
+	return createD726ExecutorFailureProviderTurn({
+		classification,
+		evidenceDigest: empiricalStrictJsonDigest({
+			boundary: "d729.provider-request",
+			classification,
+			errorName: name.slice(0, 128),
+			requestDigest,
+			transportDiagnostic,
+		}),
+	});
 }
 
 export function createD726ProviderAdapter(inputValue: {
@@ -652,7 +685,7 @@ export async function runD726LiveReplacement(input: {
 		decisionRef: D726_DECISION_REF,
 		decisionRevision: D726_DECISION_REVISION,
 		executionClass: "live-provider" as const,
-		model: "deepseek/deepseek-v4-flash-0731",
+		model: D729_MODEL_SLUG,
 		provider: "DeepInfra",
 		providerSlug: "deepinfra",
 		quantization: "fp4",

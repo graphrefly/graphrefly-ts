@@ -24,10 +24,10 @@ export const OPENROUTER_FRESH_PRICING_OBSERVATION_SCHEMA =
 	"graphrefly.private-solution-eval.openrouter-fresh-pricing-observation.v1" as const;
 export const D706_FRESH_PRICING_QUALIFICATION_SCHEMA =
 	"graphrefly.private-solution-eval.d706-fresh-pricing-qualification.v1" as const;
-export const D706_PRICING_OBSERVATION_REF = "d706-deepseek-v4-flash-0731-deepinfra-fp4" as const;
+export const D706_PRICING_OBSERVATION_REF = "d729-deepseek-v4-flash-deepinfra-fp4" as const;
 export const D706_PRICING_OBSERVATION_REVISION =
-	"openrouter-deepseek-v4-flash-0731-deepinfra-fp4-observed-2026-08-09.v6" as const;
-export const D706_MODEL_SLUG = "deepseek/deepseek-v4-flash-0731" as const;
+	"openrouter-deepseek-v4-flash-deepinfra-fp4-observed-2026-08-11.v1" as const;
+export const D706_MODEL_SLUG = "deepseek/deepseek-v4-flash" as const;
 export const D706_PROVIDER_TAG = "deepinfra/fp4" as const;
 export const D706_QUANTIZATION = "fp4" as const;
 export const D706_PROMPT_USD_PER_TOKEN = "0.00000009" as const;
