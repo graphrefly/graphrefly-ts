@@ -912,6 +912,10 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsD726GraphNativeLive = file.endsWith("d726-graph-native-live.ts");
 			const allowsD727ExecutorFailurePreLive = file.endsWith("d727-executor-failure-pre-live.ts");
 			const allowsD727ImplementationManifest = file.endsWith("d727-implementation-manifest.ts");
+			const allowsD728GraphNativeLive = file.endsWith("d728-graph-native-live.ts");
+			const allowsD728ProviderBlockCore = file.endsWith("d728-provider-block-core.ts");
+			const allowsD728AtomicPersistence = file.endsWith("d728-atomic-persistence.ts");
+			const allowsD728DispatchClaim = file.endsWith("d728-single-use-dispatch-claim.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -952,6 +956,10 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD717GraphNativePreLive ||
 				allowsD727ExecutorFailurePreLive ||
 				allowsD727ImplementationManifest ||
+				allowsD728GraphNativeLive ||
+				allowsD728ProviderBlockCore ||
+				allowsD728AtomicPersistence ||
+				allowsD728DispatchClaim ||
 				allowsD720CleanGraphNativeEval ||
 				allowsD721ProviderCapablePreLive ||
 				allowsD722CompletionMemoryInsight ||
@@ -1133,7 +1141,9 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD723DispatchClaim ||
 							allowsD725PreLivePersistence ||
 							allowsD726DispatchClaim ||
-							allowsD727ExecutorFailurePreLive) &&
+							allowsD727ExecutorFailurePreLive ||
+							allowsD728AtomicPersistence ||
+							allowsD728DispatchClaim) &&
 							specifier === "node:fs") ||
 						((allowsD691HistoricalTransferOperator || allowsOutermostLiveOperator) &&
 							specifier === "node:url") ||
