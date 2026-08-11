@@ -29,6 +29,7 @@ import {
 	D722_COMPLETION_CONTEXT_SCHEMA,
 	type D722GraphCompletionContextV1,
 	type D722GraphEffectEvidenceV1,
+	type D726ArmLocalTerminalProviderPolicyV1,
 	deriveD722GraphArmResultFromEvidence,
 	validateD722GraphEffectEvidence,
 } from "./d722-graph-native-effect-runtime.js";
@@ -55,15 +56,16 @@ export const D722_PERSISTENCE_SCHEMA =
 	"graphrefly.b112.d722.completion-memory-insight-persistence.v1" as const;
 export const D722_GENERATION_REF = "d722-graph-completion-memory-insight-v1" as const;
 export const D722_EXPECTED_RUNTIME_SOURCE_DIGEST =
-	"sha256:7e26f5632e60699e684cb87f60b1ee067a4ed53d18de5bf0375b8229a92e9b95" as const;
+	"sha256:24a19323fd28114ce10b6b4e5d8c5a5bb357b68467c3c2b1baba8bccb0b34ff5" as const;
 export const D722_EXPECTED_EVAL_SOURCE_DIGEST =
-	"sha256:2e0bde5e48e0d9069813acaa7807d0cbe438947c16ae02b7c67c4a4be3621070" as const;
+	"sha256:c1c624d9b8c517ed4e32cadb1a356685a704cd8c2fe0133444e75d2fef61b7da" as const;
 export const D722_EXPECTED_ADAPTER_SOURCE_DIGEST =
 	"sha256:c0c5faead095c8a0cc290dee9734a460cf9138768bf68183ef5ce940ffb6f9ba" as const;
 export const D722_EXPECTED_MODEL_FIXTURE_SOURCE_DIGEST =
 	"sha256:dc1bcbfa3eb6005b5811b711a48478c322f182fbb4c40a1475df5d58894fae70" as const;
 
 const MAX_ARMS = 6;
+const MAX_RUNS = 12;
 const MAX_ARTIFACT_BYTES = 8 * 1024 * 1024;
 
 export interface D722MemoryInsightProposalV1 {
@@ -295,6 +297,7 @@ function completionContext(value: unknown, path: string): D722GraphCompletionCon
 function deriveContexts(
 	ledger: D719CleanGraphEvidenceV1,
 	effectRuns: readonly D722GraphEffectEvidenceV1[],
+	armLocalTerminalPolicy?: D726ArmLocalTerminalProviderPolicyV1,
 ): readonly D722GraphCompletionContextV1[] {
 	const contexts: D722GraphCompletionContextV1[] = [];
 	for (const [runIndex, run] of effectRuns.entries()) {
@@ -302,8 +305,18 @@ function deriveContexts(
 		const armFact = ledger.facts[runIndex];
 		if (issued === undefined || armFact === undefined)
 			throw new TypeError("D722 Graph run/arm coverage drifted");
-		const validatedRun = validateD722GraphEffectEvidence(run, issued, runIndex);
-		const derivedArm = deriveD722GraphArmResultFromEvidence(validatedRun, issued, runIndex);
+		const validatedRun = validateD722GraphEffectEvidence(
+			run,
+			issued,
+			runIndex,
+			armLocalTerminalPolicy,
+		);
+		const derivedArm = deriveD722GraphArmResultFromEvidence(
+			validatedRun,
+			issued,
+			runIndex,
+			armLocalTerminalPolicy,
+		);
 		if (
 			empiricalStrictJsonDigest(derivedArm.materialization) !==
 				empiricalStrictJsonDigest(armFact.materialization) ||
@@ -557,21 +570,22 @@ function validateInsight(value: unknown, path: string): D722MemoryInsightV1 {
 	return strictSnapshot(candidate) as unknown as D722MemoryInsightV1;
 }
 
-function canonicalEvidence(
+export function deriveD722CanonicalGraphEvidence(
 	ledgerValue: unknown,
 	effectRunsValue: readonly D722GraphEffectEvidenceV1[],
+	armLocalTerminalPolicy?: D726ArmLocalTerminalProviderPolicyV1,
 ): D722CanonicalGraphEvidenceV1 {
 	const ledger = validateD719CleanGraphEvidence(ledgerValue);
-	if (effectRunsValue.length !== ledger.issuedRequests.length || effectRunsValue.length > MAX_ARMS)
+	if (effectRunsValue.length !== ledger.issuedRequests.length || effectRunsValue.length > MAX_RUNS)
 		throw new TypeError("D722 effect-run coverage drifted");
 	const effectRuns = Object.freeze(
 		effectRunsValue.map((run, index) => {
 			const request = ledger.issuedRequests[index];
 			if (request === undefined) throw new TypeError("D722 issued request is missing");
-			return validateD722GraphEffectEvidence(run, request, index);
+			return validateD722GraphEffectEvidence(run, request, index, armLocalTerminalPolicy);
 		}),
 	);
-	const completionContexts = deriveContexts(ledger, effectRuns);
+	const completionContexts = deriveContexts(ledger, effectRuns, armLocalTerminalPolicy);
 	const insightProjection = admitInsights(ledger, completionContexts);
 	const material = strictSnapshot({
 		schemaVersion: D722_GRAPH_EVIDENCE_SCHEMA,
@@ -661,7 +675,10 @@ export async function runD722PreLiveQualification(inputValue: {
 		empiricalStrictJsonDigest(sourceDigestsBefore) !== empiricalStrictJsonDigest(sourceDigestsAfter)
 	)
 		throw new TypeError("D722 implementation changed during qualification");
-	const graphEvidence = canonicalEvidence(adapterRun.core.ledger, adapterRun.core.effectRuns);
+	const graphEvidence = deriveD722CanonicalGraphEvidence(
+		adapterRun.core.ledger,
+		adapterRun.core.effectRuns,
+	);
 	const admittedEffects = graphEvidence.ledger.effectAdmissions.filter(
 		(fact) => fact.admitted,
 	).length;
@@ -791,7 +808,7 @@ export function validateD722PreLiveBundle(value: unknown): D722PreLiveBundleV1 {
 		throw new TypeError("D722 insight topology bound exceeded");
 	array(rawTopology.nodes, "d722.graphEvidence.insightTopology.nodes");
 	array(rawTopology.edges, "d722.graphEvidence.insightTopology.edges");
-	const replayedEvidence = canonicalEvidence(
+	const replayedEvidence = deriveD722CanonicalGraphEvidence(
 		graphCandidate.ledger,
 		array(
 			graphCandidate.effectRuns,

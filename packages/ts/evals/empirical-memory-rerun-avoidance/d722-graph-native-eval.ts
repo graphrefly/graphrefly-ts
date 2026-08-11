@@ -10,6 +10,7 @@ import {
 	empiricalSha256,
 	empiricalStrictJsonDigest,
 	exactKeys,
+	literal,
 	oneOf,
 	record,
 	safeInteger,
@@ -45,6 +46,7 @@ import {
 	type D720GraphEffectEvidenceV1,
 	type D720GraphEffectRequestV1,
 	type D722GraphEffectEvidenceV1,
+	type D726ArmLocalTerminalProviderPolicyV1,
 	deriveD720GraphArmResult,
 	deriveD720GraphArmResultFromEvidence,
 	nextD720GraphEffectDecision,
@@ -74,6 +76,7 @@ export interface D720CallerEffectExecutionV2 {
 	readonly result: D720EffectResultV1;
 	readonly actualCostMicrousd: number;
 	readonly actualElapsedMs: number;
+	readonly usageBasis?: "conservative-reservation";
 }
 
 export interface D720CallerExecutorV2 {
@@ -184,7 +187,18 @@ function reservationFor(request: D720GraphEffectRequestV1, ceilings: D720EffectC
 
 function validateExecutedEffect(value: unknown): D720CallerEffectExecutionV2 {
 	const candidate = record(value, "d720.executedEffect");
-	exactKeys(candidate, ["actualCostMicrousd", "actualElapsedMs", "result"], "d720.executedEffect");
+	exactKeys(
+		candidate,
+		[
+			"actualCostMicrousd",
+			"actualElapsedMs",
+			"result",
+			...(Object.hasOwn(candidate, "usageBasis") ? ["usageBasis" as const] : []),
+		],
+		"d720.executedEffect",
+	);
+	if (Object.hasOwn(candidate, "usageBasis"))
+		literal(candidate.usageBasis, "conservative-reservation", "d720.executedEffect.usageBasis");
 	safeInteger(candidate.actualCostMicrousd, "d720.executedEffect.actualCostMicrousd", {
 		max: 1_000_000_000,
 	});
@@ -433,20 +447,29 @@ export async function runD720GraphNativeEval(inputValue: {
 			const retryable =
 				execution.result.effectKind === "provider-request" &&
 				execution.result.status === "retryable-failure";
-			reconcileD719CleanGraphEffect(effects, admission, {
-				actualCostMicrousd: execution.actualCostMicrousd,
-				actualElapsedMs: execution.actualElapsedMs,
-				outcome:
-					execution.result.effectKind === "provider-request" &&
-					(execution.result.status === "terminal-failure" || retryable)
-						? "failed"
-						: "completed",
-				failureDiscriminator:
-					execution.result.effectKind === "provider-request" &&
-					execution.result.status === "retryable-failure"
-						? execution.result.failureDiscriminator
-						: "none",
-			});
+			if (execution.usageBasis === "conservative-reservation") {
+				if (
+					execution.actualCostMicrousd !== reservation.maxCostMicrousd ||
+					execution.actualElapsedMs !== reservation.maxElapsedMs
+				)
+					throw new TypeError("D722 conservative execution must equal its Graph reservation");
+				reconcileD719CleanGraphEffectConservatively(effects, admission);
+			} else {
+				reconcileD719CleanGraphEffect(effects, admission, {
+					actualCostMicrousd: execution.actualCostMicrousd,
+					actualElapsedMs: execution.actualElapsedMs,
+					outcome:
+						execution.result.effectKind === "provider-request" &&
+						(execution.result.status === "terminal-failure" || retryable)
+							? "failed"
+							: "completed",
+					failureDiscriminator:
+						execution.result.effectKind === "provider-request" &&
+						execution.result.status === "retryable-failure"
+							? execution.result.failureDiscriminator
+							: "none",
+				});
+			}
 			admitD720GraphEffectResult(
 				runtime,
 				effectRequest,
@@ -524,14 +547,22 @@ export async function runD722GraphNativeEvalCore(inputValue: {
 	readonly budgetLimits: D719CleanBudgetLimitsV1;
 	readonly effectCeilings: D720EffectCeilingsV2;
 	readonly executor: D720CallerExecutorV2;
+	readonly armLocalTerminalPolicy?: D726ArmLocalTerminalProviderPolicyV1;
 	readonly signal?: AbortSignal;
 }): Promise<D722GraphNativeEvalCoreV1> {
 	const input = record(inputValue, "d722.coreRun");
 	exactKeys(
 		input,
-		Object.hasOwn(input, "signal")
-			? ["budgetLimits", "effectCeilings", "executor", "signal", "sourceDigest"]
-			: ["budgetLimits", "effectCeilings", "executor", "sourceDigest"],
+		[
+			"budgetLimits",
+			"effectCeilings",
+			"executor",
+			"sourceDigest",
+			...(Object.hasOwn(input, "armLocalTerminalPolicy")
+				? ["armLocalTerminalPolicy" as const]
+				: []),
+			...(Object.hasOwn(input, "signal") ? ["signal" as const] : []),
+		],
 		"d722.coreRun",
 	);
 	const sourceDigest = digest(input.sourceDigest, "d722.coreRun.sourceDigest");
@@ -560,6 +591,12 @@ export async function runD722GraphNativeEvalCore(inputValue: {
 				providerMaxCostMicrousd: effectCeilings.providerMaxCostMicrousd,
 				providerMaxElapsedMs: effectCeilings.providerMaxElapsedMs,
 			},
+			...(Object.hasOwn(input, "armLocalTerminalPolicy")
+				? {
+						armLocalTerminalPolicy:
+							input.armLocalTerminalPolicy as D726ArmLocalTerminalProviderPolicyV1,
+					}
+				: {}),
 		});
 		if (signalIsAborted(signal)) {
 			admitD720GraphCancellation(

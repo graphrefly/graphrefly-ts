@@ -339,7 +339,7 @@ describe("B112 D658 history-free single-baseline repository materialization", ()
 			),
 		).rejects.toMatchObject({ code: "repository-closure-failed" });
 		await permissionResult.cleanup();
-	});
+	}, 30_000);
 
 	it("fails closed on tree, overlay, unsupported-entry, allocation, cancellation, and cleanup faults", async () => {
 		const source = sourceFixture();

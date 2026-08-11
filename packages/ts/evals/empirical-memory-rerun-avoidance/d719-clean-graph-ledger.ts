@@ -100,6 +100,7 @@ export interface D719CallerArmResultV1 {
 	readonly execution: {
 		readonly traceComplete: boolean;
 		readonly executorFailed: boolean;
+		readonly terminalProviderFailure?: true;
 		readonly inspectionObserved: boolean;
 		readonly contentChangingMutationObserved: boolean;
 		readonly nonEmptyDiffAfterLatestMutation: boolean;
@@ -538,7 +539,8 @@ function stoppedReasonFor(fact: D719AdmittedArmFactV1): D719CleanStoppedReason {
 	if (fact.reservationOverrunRefs.length > 0) return "budget-exhausted";
 	if (fact.budgetDenialRefs.length > 0) return "budget-exhausted";
 	if (fact.retryDenialRefs.length > 0) return "retry-denied";
-	if (fact.execution.executorFailed) return "executor-failed";
+	if (fact.execution.executorFailed && fact.execution.terminalProviderFailure !== true)
+		return "executor-failed";
 	return null;
 }
 
@@ -546,11 +548,13 @@ function decisionFor(fact: D719AdmittedArmFactV1, limits: D719CleanBudgetLimitsV
 	const phase = phaseFor(fact.execution);
 	const stoppedReason = stoppedReasonFor(fact);
 	const disposition: D719CleanDisposition =
-		stoppedReason !== null
-			? "stop"
-			: fact.runKind === "primary" && phase !== "hidden-verifier-passed"
-				? "recover-current"
-				: "admit-next";
+		fact.execution.terminalProviderFailure === true
+			? "admit-next"
+			: stoppedReason !== null
+				? "stop"
+				: fact.runKind === "primary" && phase !== "hidden-verifier-passed"
+					? "recover-current"
+					: "admit-next";
 	const material = strictSnapshot({
 		kind: "arm-decision" as const,
 		runSequence: fact.runSequence,
@@ -565,6 +569,7 @@ function decisionFor(fact: D719AdmittedArmFactV1, limits: D719CleanBudgetLimitsV
 			fact.materialization.status === "ready" &&
 			fact.cleanup.status === "succeeded" &&
 			fact.execution.traceComplete &&
+			fact.execution.terminalProviderFailure !== true &&
 			phase !== "none",
 		fullTaskCompleted: fact.execution.hiddenVerifierPassed,
 		budgetState: fact.budgetState,
@@ -692,12 +697,20 @@ function validateCallerResult(value: unknown): D719CallerArmResultV1 {
 			"inspectionObserved",
 			"nonEmptyDiffAfterLatestMutation",
 			"traceComplete",
+			...(Object.hasOwn(execution, "terminalProviderFailure")
+				? ["terminalProviderFailure" as const]
+				: []),
 		],
 		"d719.clean.execution",
 	);
 	for (const key of Object.keys(execution)) {
 		if (typeof execution[key] !== "boolean") throw new TypeError(`D719 ${key} is invalid`);
 	}
+	if (
+		Object.hasOwn(execution, "terminalProviderFailure") &&
+		execution.terminalProviderFailure !== true
+	)
+		throw new TypeError("D719 terminal provider failure marker is invalid");
 	if (
 		(execution.hiddenVerifierPassed && !execution.hiddenVerifierAttempted) ||
 		(execution.hiddenVerifierAttempted && !execution.focusedValidationPassed) ||

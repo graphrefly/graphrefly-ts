@@ -908,6 +908,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				"d725-injected-no-network-qualification.ts",
 			);
 			const allowsD725PreLivePersistence = file.endsWith("d725-pre-live-persistence.ts");
+			const allowsD726DispatchClaim = file.endsWith("d726-single-use-dispatch-claim.ts");
+			const allowsD726GraphNativeLive = file.endsWith("d726-graph-native-live.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -952,6 +954,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD722GraphNativeEval ||
 				allowsD723DispatchClaim ||
 				allowsD725PreLivePersistence ||
+				allowsD726DispatchClaim ||
+				allowsD726GraphNativeLive ||
 				file.endsWith("openrouter-first-task-smoke.ts") ||
 				file.endsWith("private-smoke-persistence.ts");
 			const allowsOneRequestFetchTransport =
@@ -1123,7 +1127,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD722CompletionMemoryInsight ||
 							allowsD722GraphNativeEval ||
 							allowsD723DispatchClaim ||
-							allowsD725PreLivePersistence) &&
+							allowsD725PreLivePersistence ||
+							allowsD726DispatchClaim) &&
 							specifier === "node:fs") ||
 						((allowsD691HistoricalTransferOperator || allowsOutermostLiveOperator) &&
 							specifier === "node:url") ||

@@ -264,6 +264,10 @@ export interface D722GraphCompletionContextPolicyV1 {
 	readonly revision: typeof D722_COMPLETION_CONTEXT_POLICY_REVISION;
 }
 
+export interface D726ArmLocalTerminalProviderPolicyV1 {
+	readonly revision: "graphrefly.b112.d726.arm-local-terminal-provider.v1";
+}
+
 export interface D722GraphEffectRuntimeV1 {
 	readonly revision: typeof D722_EFFECT_RUNTIME_REVISION;
 }
@@ -288,6 +292,7 @@ interface RuntimeState {
 	completed: boolean;
 	readonly mode: "d720" | "d722";
 	readonly budgetContext: D722GraphBudgetContextV1 | null;
+	readonly armLocalTerminalProviderFailure: boolean;
 }
 
 interface ProjectionState {
@@ -317,11 +322,14 @@ interface ProjectionState {
 	decisionSequence: number;
 	completionContextsIssued: number;
 	activeCompletionContext: D722GraphCompletionContextV1 | null;
+	terminalProviderFailure: boolean;
+	armLocalTerminalProviderFailure: boolean;
 	budgetState: D719CleanBudgetStateV1;
 }
 
 const constructedRuntimes = new WeakMap<object, RuntimeState>();
 const constructedCompletionPolicies = new WeakSet<object>();
+const constructedArmLocalTerminalPolicies = new WeakSet<object>();
 
 function nextRequiredPhase(state: ProjectionState): D720EffectDecisionV1["nextRequiredPhase"] {
 	if (!state.inspectionObserved) return "inspection";
@@ -591,6 +599,11 @@ function nextEffect(
 				retryReason: result.failureDiscriminator,
 				retryAfterMs: result.retryAfterMs,
 			});
+		} else if (result.status === "terminal-failure" && state.armLocalTerminalProviderFailure) {
+			state.terminalProviderFailure = true;
+			request = requestMaterial(state, runSequence, issuedRequestDigest, "cleanup", {
+				logicalMaterial: { issuedRequestDigest, effect: "terminal-provider-cleanup" },
+			});
 		} else {
 			state.executorFailed = true;
 			state.stoppedReason = "executor-failed";
@@ -752,6 +765,8 @@ function initialProjectionState(): ProjectionState {
 		decisionSequence: 0,
 		completionContextsIssued: D722_MAX_COMPLETION_CONTEXTS_PER_RUN,
 		activeCompletionContext: null,
+		terminalProviderFailure: false,
+		armLocalTerminalProviderFailure: false,
 		budgetState: Object.freeze({ requests: 0, retryWaits: 0, costMicrousd: 0, elapsedMs: 0 }),
 	};
 }
@@ -771,13 +786,23 @@ function createGraphEffectRuntime(
 		readonly request: AgentRequestIssued<D719CleanRequestInput>;
 		readonly runSequence: number;
 		readonly budgetContext?: D722GraphBudgetContextV1;
+		readonly armLocalTerminalProviderFailure?: boolean;
 	},
 	mode: "d720" | "d722",
 ): D720GraphEffectRuntimeV1 | D722GraphEffectRuntimeV1 {
 	const input = record(inputValue, "d720.effectRuntime.create");
 	exactKeys(
 		input,
-		mode === "d722" ? ["budgetContext", "request", "runSequence"] : ["request", "runSequence"],
+		mode === "d722"
+			? [
+					"budgetContext",
+					"request",
+					"runSequence",
+					...(Object.hasOwn(input, "armLocalTerminalProviderFailure")
+						? ["armLocalTerminalProviderFailure" as const]
+						: []),
+				]
+			: ["request", "runSequence"],
 		"d720.effectRuntime.create",
 	);
 	const request = strictSnapshot(input.request) as AgentRequestIssued<D719CleanRequestInput>;
@@ -793,6 +818,7 @@ function createGraphEffectRuntime(
 		name: `${namespace}/external-effect-facts`,
 	});
 	const projectionState = mode === "d720" ? initialProjectionState() : initialD722ProjectionState();
+	projectionState.armLocalTerminalProviderFailure = input.armLocalTerminalProviderFailure === true;
 	if (budgetContext !== null) projectionState.budgetState = budgetContext.initialState;
 	const decisions: D720EffectDecisionV1[] = [];
 	const decisionNode = owner.node<D720EffectDecisionV1>(
@@ -847,6 +873,7 @@ function createGraphEffectRuntime(
 		completed: false,
 		mode,
 		budgetContext,
+		armLocalTerminalProviderFailure: input.armLocalTerminalProviderFailure === true,
 	});
 	return runtime;
 }
@@ -863,11 +890,20 @@ export function createD722GraphEffectRuntime(inputValue: {
 	readonly runSequence: number;
 	readonly completionContextPolicy: D722GraphCompletionContextPolicyV1;
 	readonly budgetContext: D722GraphBudgetContextV1;
+	readonly armLocalTerminalPolicy?: D726ArmLocalTerminalProviderPolicyV1;
 }): D722GraphEffectRuntimeV1 {
 	const input = record(inputValue, "d722.effectRuntime.create");
 	exactKeys(
 		input,
-		["budgetContext", "completionContextPolicy", "request", "runSequence"],
+		[
+			"budgetContext",
+			"completionContextPolicy",
+			"request",
+			"runSequence",
+			...(Object.hasOwn(input, "armLocalTerminalPolicy")
+				? ["armLocalTerminalPolicy" as const]
+				: []),
+		],
 		"d722.effectRuntime.create",
 	);
 	if (
@@ -876,14 +912,30 @@ export function createD722GraphEffectRuntime(inputValue: {
 		!constructedCompletionPolicies.has(input.completionContextPolicy)
 	)
 		throw new TypeError("D722 completion context policy must be Graph-constructed");
+	if (
+		Object.hasOwn(input, "armLocalTerminalPolicy") &&
+		(typeof input.armLocalTerminalPolicy !== "object" ||
+			input.armLocalTerminalPolicy === null ||
+			!constructedArmLocalTerminalPolicies.has(input.armLocalTerminalPolicy))
+	)
+		throw new TypeError("D726 arm-local terminal policy must be Graph-constructed");
 	return createGraphEffectRuntime(
 		{
 			request: input.request as AgentRequestIssued<D719CleanRequestInput>,
 			runSequence: input.runSequence as number,
 			budgetContext: strictSnapshot(input.budgetContext) as unknown as D722GraphBudgetContextV1,
+			armLocalTerminalProviderFailure: Object.hasOwn(input, "armLocalTerminalPolicy"),
 		},
 		"d722",
 	) as D722GraphEffectRuntimeV1;
+}
+
+export function createD726ArmLocalTerminalProviderPolicy(): D726ArmLocalTerminalProviderPolicyV1 {
+	const policy = Object.freeze({
+		revision: "graphrefly.b112.d726.arm-local-terminal-provider.v1" as const,
+	});
+	constructedArmLocalTerminalPolicies.add(policy);
+	return policy;
 }
 
 function runtimeState(runtime: D720GraphEffectRuntimeV1 | D722GraphEffectRuntimeV1): RuntimeState {
@@ -1231,6 +1283,7 @@ function validateGraphEffectEvidence(
 	requestValue: AgentRequestIssued<D719CleanRequestInput>,
 	expectedRunSequence?: number,
 	mode: "d720" | "d722" = "d720",
+	armLocalTerminalPolicy?: D726ArmLocalTerminalProviderPolicyV1,
 ): D720GraphEffectEvidenceV1 | D722GraphEffectEvidenceV1 {
 	const candidate = record(value, "d720.effectEvidence");
 	exactKeys(
@@ -1371,6 +1424,7 @@ function validateGraphEffectEvidence(
 					runSequence,
 					completionContextPolicy: createD722GraphCompletionContextPolicy(),
 					budgetContext: budgetContext!,
+					...(armLocalTerminalPolicy === undefined ? {} : { armLocalTerminalPolicy }),
 				});
 	if (
 		empiricalStrictJsonDigest(nextD720GraphEffectDecision(runtime)) !==
@@ -1497,12 +1551,14 @@ export function validateD722GraphEffectEvidence(
 	value: unknown,
 	requestValue: AgentRequestIssued<D719CleanRequestInput>,
 	expectedRunSequence?: number,
+	armLocalTerminalPolicy?: D726ArmLocalTerminalProviderPolicyV1,
 ): D722GraphEffectEvidenceV1 {
 	return validateGraphEffectEvidence(
 		value,
 		requestValue,
 		expectedRunSequence,
 		"d722",
+		armLocalTerminalPolicy,
 	) as D722GraphEffectEvidenceV1;
 }
 
@@ -1531,13 +1587,20 @@ export function deriveD722GraphArmResultFromEvidence(
 	value: unknown,
 	request: AgentRequestIssued<D719CleanRequestInput>,
 	expectedRunSequence: number,
+	armLocalTerminalPolicy?: D726ArmLocalTerminalProviderPolicyV1,
 ): D719CallerArmResultV1 {
-	const evidence = validateD722GraphEffectEvidence(value, request, expectedRunSequence);
+	const evidence = validateD722GraphEffectEvidence(
+		value,
+		request,
+		expectedRunSequence,
+		armLocalTerminalPolicy,
+	);
 	const runtime = createD722GraphEffectRuntime({
 		request,
 		runSequence: expectedRunSequence,
 		completionContextPolicy: createD722GraphCompletionContextPolicy(),
 		budgetContext: evidence.budgetContext,
+		...(armLocalTerminalPolicy === undefined ? {} : { armLocalTerminalPolicy }),
 	});
 	for (const fact of evidence.facts) {
 		if (fact.kind === "graph-cancellation-admitted") {
@@ -1582,6 +1645,9 @@ export function deriveD720GraphArmResult(
 		execution: {
 			traceComplete: lastDecision.traceComplete,
 			executorFailed: state.projectionState.executorFailed,
+			...(state.projectionState.terminalProviderFailure
+				? { terminalProviderFailure: true as const }
+				: {}),
 			inspectionObserved: state.projectionState.inspectionObserved,
 			contentChangingMutationObserved: state.projectionState.mutationObserved,
 			nonEmptyDiffAfterLatestMutation: state.projectionState.diffObserved,
