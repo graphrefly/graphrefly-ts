@@ -900,6 +900,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsD723RealProviderAdapter = file.endsWith("d723-graph-native-real-provider.ts");
 			const allowsD723OpenRouterGraphTurn = file.endsWith("d723-openrouter-graph-turn.ts");
 			const allowsD723DispatchClaim = file.endsWith("d723-single-use-dispatch-claim.ts");
+			const allowsD724TerminalHttpEvidence = file.endsWith("d724-terminal-http-evidence.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -1129,7 +1130,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD722GraphNativeEval ||
 							allowsD722GraphNativeEffectRuntime ||
 							allowsD722ProviderCapableAdapter ||
-							allowsD722CompletionMemoryInsight) &&
+							allowsD722CompletionMemoryInsight ||
+							allowsD724TerminalHttpEvidence) &&
 							d720CleanGraphNativeImports.has(specifier)) ||
 						(allowsD683SourceAudit && specifier === "typescript") ||
 						specifier.startsWith("./")

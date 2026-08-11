@@ -64,11 +64,15 @@ export async function assertD713QualifiedLiveImplementation(input: {
 	if (input.nodeVersion !== D713_QUALIFIED_NODE_VERSION) {
 		throw new TypeError("D713 live operator requires the exact qualified Node toolchain");
 	}
-	await execFileAsync(
-		"git",
-		["merge-base", "--is-ancestor", D713_QUALIFIED_IMPLEMENTATION_ANCESTOR, "HEAD"],
-		{ cwd: input.repositoryRoot },
-	);
+	try {
+		await execFileAsync(
+			"git",
+			["merge-base", "--is-ancestor", D713_QUALIFIED_IMPLEMENTATION_ANCESTOR, "HEAD"],
+			{ cwd: input.repositoryRoot },
+		);
+	} catch {
+		throw new TypeError("D713 package-private eval source tree drifted after qualification");
+	}
 	const evalSourceRoot = join(
 		input.repositoryRoot,
 		"packages/ts/evals/empirical-memory-rerun-avoidance",

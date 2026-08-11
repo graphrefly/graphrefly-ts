@@ -163,7 +163,9 @@ describe("D723 Graph-native real-provider adapter boundary", () => {
 		try {
 			const canonicalPrivateRoot = await realpath(privateRoot);
 			const claim = await acquireD723SingleUseDispatchClaimAtRoot(canonicalPrivateRoot);
-			await expect(acquireD723SingleUseDispatchClaimAtRoot(canonicalPrivateRoot)).rejects.toMatchObject({
+			await expect(
+				acquireD723SingleUseDispatchClaimAtRoot(canonicalPrivateRoot),
+			).rejects.toMatchObject({
 				code: "EEXIST",
 			});
 			const authority = await consumeD723DispatchClaimForExecution({
