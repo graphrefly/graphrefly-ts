@@ -1291,6 +1291,12 @@ function currentBudget(state: LedgerState): D719CleanBudgetStateV1 {
 	return Object.freeze({ requests, retryWaits, costMicrousd, elapsedMs });
 }
 
+export function snapshotD719CleanGraphBudgetState(
+	ledger: D719CleanGraphLedgerV1,
+): D719CleanBudgetStateV1 {
+	return currentBudget(ledgerState(ledger));
+}
+
 function conservativeReconcileOutstanding(
 	state: LedgerState,
 	request: AgentRequestIssued<D719CleanRequestInput>,

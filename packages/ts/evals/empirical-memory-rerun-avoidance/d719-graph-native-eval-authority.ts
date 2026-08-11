@@ -435,7 +435,9 @@ function decisionFor(fact: D719BudgetFactV1): D719BudgetDecisionProjectionV1 {
 		arm: fact.arm,
 		issuedArmRequestDigest: fact.issuedArmRequestDigest,
 		requestRef: fact.requestRef,
-		admitted: fact.kind === "transport-admission" && reasons.length === 0,
+		admitted:
+			(fact.kind === "transport-admission" || fact.kind === "retry-admission") &&
+			reasons.length === 0,
 		exhausted: reasons.length > 0,
 		reasons,
 		factDigest: empiricalStrictJsonDigest(fact),

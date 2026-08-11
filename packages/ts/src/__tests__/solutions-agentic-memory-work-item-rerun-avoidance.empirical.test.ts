@@ -886,6 +886,17 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				"d721-provider-capable-effect-adapter.ts",
 			);
 			const allowsD721ProviderCapablePreLive = file.endsWith("d721-provider-capable-pre-live.ts");
+			const allowsD722CompletionMemoryInsight = file.endsWith(
+				"d722-graph-completion-memory-insight.ts",
+			);
+			const allowsD722ProviderCapableAdapter = file.endsWith(
+				"d722-provider-capable-effect-adapter.ts",
+			);
+			const allowsD722GraphNativeEval = file.endsWith("d722-graph-native-eval.ts");
+			const allowsD722GraphNativeEffectRuntime = file.endsWith(
+				"d722-graph-native-effect-runtime.ts",
+			);
+			const allowsD722InjectedModelFixture = file.endsWith("d722-injected-model-fixture.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -926,6 +937,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD717GraphNativePreLive ||
 				allowsD720CleanGraphNativeEval ||
 				allowsD721ProviderCapablePreLive ||
+				allowsD722CompletionMemoryInsight ||
+				allowsD722GraphNativeEval ||
 				file.endsWith("openrouter-first-task-smoke.ts") ||
 				file.endsWith("private-smoke-persistence.ts");
 			const allowsOneRequestFetchTransport =
@@ -1016,7 +1029,9 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 									allowsClosedVerifierCalibration ||
 									allowsOfflineQualification ||
 									allowsPreliveOperatorDriver ||
-									allowsD721ProviderCapableAdapter
+									allowsD721ProviderCapableAdapter ||
+									allowsD722ProviderCapableAdapter ||
+									allowsD722InjectedModelFixture
 								? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls)|(?:from|import)\s+["'](?:http|https|net|tls|undici|ws)["']/
 								: allowsOneRequestFetchTransport
 									? /\b(?:Date\.now|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
@@ -1087,7 +1102,9 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD713ZeroByokOperator ||
 							allowsD713ClaimOperator ||
 							allowsD720CleanGraphNativeEval ||
-							allowsD721ProviderCapablePreLive) &&
+							allowsD721ProviderCapablePreLive ||
+							allowsD722CompletionMemoryInsight ||
+							allowsD722GraphNativeEval) &&
 							specifier === "node:fs") ||
 						((allowsD691HistoricalTransferOperator || allowsOutermostLiveOperator) &&
 							specifier === "node:url") ||
@@ -1100,7 +1117,12 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							d716GraphNativeImports.has(specifier)) ||
 						((allowsD719GraphNativeAuthority || allowsD719CleanGraphLedger) &&
 							d716GraphNativeImports.has(specifier)) ||
-						((allowsD720CleanGraphNativeEval || allowsD720GraphNativeEffectRuntime) &&
+						((allowsD720CleanGraphNativeEval ||
+							allowsD720GraphNativeEffectRuntime ||
+							allowsD722GraphNativeEval ||
+							allowsD722GraphNativeEffectRuntime ||
+							allowsD722ProviderCapableAdapter ||
+							allowsD722CompletionMemoryInsight) &&
 							d720CleanGraphNativeImports.has(specifier)) ||
 						(allowsD683SourceAudit && specifier === "typescript") ||
 						specifier.startsWith("./")
