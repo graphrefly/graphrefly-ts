@@ -1,0 +1,1120 @@
+import { depBatch } from "../../src/ctx/types.js";
+import { graph } from "../../src/graph/graph.js";
+import type { Node } from "../../src/node/node.js";
+import type { AgentRequestIssued } from "../../src/orchestration/agent-runtime.js";
+import {
+	array,
+	digest,
+	empiricalStrictJsonDigest,
+	exactKeys,
+	oneOf,
+	record,
+	safeInteger,
+	strictSnapshot,
+} from "./canonical.js";
+import type {
+	D719CallerArmResultV1,
+	D719CleanPhase,
+	D719CleanRequestInput,
+	D719EffectKind,
+	D719RetryReason,
+} from "./d719-clean-graph-ledger.js";
+
+export const D720_EFFECT_RUNTIME_REVISION =
+	"graphrefly.b112.d720.graph-native-effect-runtime.v1" as const;
+export const D720_EFFECT_EVIDENCE_SCHEMA =
+	"graphrefly.b112.d720.graph-native-effect-evidence.v1" as const;
+export const D720_MAX_EFFECT_FACTS_PER_RUN = 512;
+export const D720_MAX_TOOL_INTENTS_PER_TURN = 32;
+
+function boundedArray(value: unknown, path: string, max: number): readonly unknown[] {
+	if (!Array.isArray(value) || value.length > max)
+		throw new TypeError(`${path} exceeds its canonical bound`);
+	return array(value, path);
+}
+
+function assertBoundedEvidenceTree(
+	value: unknown,
+	path: string,
+	depth = 0,
+	budget: { nodes: number } = { nodes: 0 },
+): void {
+	budget.nodes += 1;
+	if (budget.nodes > 512 || depth > 10)
+		throw new TypeError(`${path} exceeds the bounded evidence tree`);
+	if (typeof value === "string") {
+		if (value.length > 4_096) throw new TypeError(`${path} contains an oversized string`);
+		return;
+	}
+	if (value === null || typeof value === "number" || typeof value === "boolean") return;
+	if (Array.isArray(value)) {
+		for (const [index, item] of boundedArray(value, path, 64).entries())
+			assertBoundedEvidenceTree(item, `${path}[${index}]`, depth + 1, budget);
+		return;
+	}
+	const candidate = record(value, path);
+	const keys = Object.keys(candidate);
+	if (keys.length > 32) throw new TypeError(`${path} contains too many fields`);
+	if (keys.some((key) => key.length > 128))
+		throw new TypeError(`${path} contains an oversized field name`);
+	for (const key of keys)
+		assertBoundedEvidenceTree(candidate[key], `${path}.${key}`, depth + 1, budget);
+}
+
+export type D720ToolRef =
+	| "read-file"
+	| "search-repository"
+	| "replace-exact"
+	| "workspace-diff"
+	| "focused-validation";
+
+export interface D720ToolIntentV1 {
+	readonly toolRef: D720ToolRef;
+	readonly intentDigest: string;
+}
+
+export type D720EffectResultV1 =
+	| {
+			readonly effectKind: "materialization";
+			readonly status: "ready" | "failed";
+			readonly workspaceStateDigest: string | null;
+			readonly evidenceDigest: string;
+	  }
+	| {
+			readonly effectKind: "provider-request";
+			readonly status:
+				| "tool-intents"
+				| "structured-final"
+				| "retryable-failure"
+				| "terminal-failure";
+			readonly toolIntents: readonly D720ToolIntentV1[];
+			readonly failureDiscriminator: D719RetryReason;
+			readonly retryAfterMs: number | null;
+			readonly workspaceStateDigest: string;
+			readonly evidenceDigest: string;
+	  }
+	| {
+			readonly effectKind: "retry-wait";
+			readonly status: "completed" | "failed";
+			readonly evidenceDigest: string;
+	  }
+	| {
+			readonly effectKind: "tool-action";
+			readonly toolRef: D720ToolRef;
+			readonly intentDigest: string;
+			readonly status: "succeeded" | "failed";
+			readonly nonEmptyDiff: boolean;
+			readonly workspaceStateBeforeDigest: string;
+			readonly workspaceStateAfterDigest: string;
+			readonly evidenceDigest: string;
+	  }
+	| {
+			readonly effectKind: "hidden-verifier";
+			readonly status: "passed" | "failed";
+			readonly workspaceStateDigest: string;
+			readonly evidenceDigest: string;
+	  }
+	| {
+			readonly effectKind: "cleanup";
+			readonly status: "succeeded" | "failed";
+			readonly evidenceDigest: string;
+	  };
+
+export interface D720GraphEffectRequestV1 {
+	readonly kind: "graph-effect-request";
+	readonly runSequence: number;
+	readonly issuedRequestDigest: string;
+	readonly effectSequence: number;
+	readonly effectKind: D719EffectKind;
+	readonly logicalRequestDigest: string;
+	readonly attemptOrdinal: number;
+	readonly retryReason: D719RetryReason;
+	readonly retryAfterMs: number | null;
+	readonly toolIntent: D720ToolIntentV1 | null;
+	readonly phaseBefore: D719CleanPhase;
+	readonly workspaceStateDigest: string | null;
+	readonly requestDigest: string;
+}
+
+export interface D720AdmittedEffectFactV1 {
+	readonly kind: "graph-effect-result-admitted";
+	readonly request: D720GraphEffectRequestV1;
+	readonly admissionDigest: string;
+	readonly result: D720EffectResultV1;
+	readonly resultDigest: string;
+	readonly factDigest: string;
+}
+
+export interface D720CancellationFactV1 {
+	readonly kind: "graph-cancellation-admitted";
+	readonly evidenceDigest: string;
+	readonly factDigest: string;
+}
+
+export interface D720EffectBoundExhaustionFactV1 {
+	readonly kind: "graph-effect-bound-exhausted";
+	readonly evidenceDigest: string;
+	readonly factDigest: string;
+}
+
+export type D720RuntimeFactV1 =
+	| D720AdmittedEffectFactV1
+	| D720CancellationFactV1
+	| D720EffectBoundExhaustionFactV1;
+
+export interface D720EffectDecisionV1 {
+	readonly kind: "graph-effect-decision";
+	readonly decisionSequence: number;
+	readonly phase: D719CleanPhase;
+	readonly nextRequiredPhase:
+		| "inspection"
+		| "exact-mutation"
+		| "workspace-diff"
+		| "focused-validation"
+		| "hidden-verifier"
+		| "complete";
+	readonly disposition: "execute-effect" | "complete-arm";
+	readonly effectRequest: D720GraphEffectRequestV1 | null;
+	readonly traceComplete: boolean;
+	readonly stoppedReason: "materialization-failed" | "executor-failed" | null;
+	readonly decisionDigest: string;
+}
+
+export interface D720GraphEffectEvidenceV1 {
+	readonly schemaVersion: typeof D720_EFFECT_EVIDENCE_SCHEMA;
+	readonly runtimeRevision: typeof D720_EFFECT_RUNTIME_REVISION;
+	readonly runSequence: number;
+	readonly issuedRequestDigest: string;
+	readonly runtimeStatus: "complete" | "cancelled" | "stopped";
+	readonly facts: readonly D720RuntimeFactV1[];
+	readonly decisions: readonly D720EffectDecisionV1[];
+	readonly topology: {
+		readonly nodes: readonly {
+			readonly id: string;
+			readonly factory: string;
+			readonly deps: readonly string[];
+		}[];
+		readonly edges: readonly { readonly from: string; readonly to: string }[];
+	};
+	readonly topologyDigest: string;
+	readonly evidenceDigest: string;
+}
+
+export interface D720GraphEffectRuntimeV1 {
+	readonly revision: typeof D720_EFFECT_RUNTIME_REVISION;
+}
+
+interface RuntimeState {
+	readonly owner: ReturnType<typeof graph>;
+	readonly request: AgentRequestIssued<D719CleanRequestInput>;
+	readonly requestDigest: string;
+	readonly runSequence: number;
+	readonly factNode: Node<D720RuntimeFactV1>;
+	readonly facts: D720RuntimeFactV1[];
+	readonly decisions: D720EffectDecisionV1[];
+	readonly projectionState: ProjectionState;
+	nextDecision: D720EffectDecisionV1;
+	completed: boolean;
+}
+
+interface ProjectionState {
+	phase: D719CleanPhase;
+	inspectionObserved: boolean;
+	mutationObserved: boolean;
+	diffObserved: boolean;
+	validationAttempted: boolean;
+	validationPassed: boolean;
+	verifierAttempted: boolean;
+	verifierPassed: boolean;
+	materializationStatus: "unknown" | "ready" | "failed";
+	materializationEvidenceDigest: string | null;
+	cleanupStatus: "unknown" | "succeeded" | "failed";
+	cleanupEvidenceDigest: string | null;
+	pendingTools: D720ToolIntentV1[];
+	providerAttemptOrdinal: number;
+	providerTurnSequence: number;
+	providerLogicalRequestDigest: string | null;
+	workspaceStateDigest: string | null;
+	validationWorkspaceStateDigest: string | null;
+	traceComplete: boolean;
+	executorFailed: boolean;
+	cancelled: boolean;
+	stoppedReason: "materialization-failed" | "executor-failed" | null;
+	effectSequence: number;
+	decisionSequence: number;
+}
+
+const constructedRuntimes = new WeakMap<object, RuntimeState>();
+
+function nextRequiredPhase(state: ProjectionState): D720EffectDecisionV1["nextRequiredPhase"] {
+	if (!state.inspectionObserved) return "inspection";
+	if (!state.mutationObserved) return "exact-mutation";
+	if (!state.diffObserved) return "workspace-diff";
+	if (!state.validationPassed) return "focused-validation";
+	if (!state.verifierPassed) return "hidden-verifier";
+	return "complete";
+}
+
+function requestMaterial(
+	state: ProjectionState,
+	runSequence: number,
+	issuedRequestDigest: string,
+	effectKind: D719EffectKind,
+	input: {
+		readonly logicalMaterial: unknown;
+		readonly logicalRequestDigest?: string;
+		readonly retryReason?: D719RetryReason;
+		readonly retryAfterMs?: number | null;
+		readonly attemptOrdinal?: number;
+		readonly toolIntent?: D720ToolIntentV1 | null;
+	},
+): D720GraphEffectRequestV1 {
+	const effectSequence = state.effectSequence++;
+	const material = strictSnapshot({
+		kind: "graph-effect-request" as const,
+		runSequence,
+		issuedRequestDigest,
+		effectSequence,
+		effectKind,
+		logicalRequestDigest:
+			input.logicalRequestDigest ??
+			empiricalStrictJsonDigest({ effectSequence, material: input.logicalMaterial }),
+		attemptOrdinal: input.attemptOrdinal ?? 1,
+		retryReason: input.retryReason ?? ("none" as const),
+		retryAfterMs: input.retryAfterMs ?? null,
+		toolIntent: input.toolIntent ?? null,
+		phaseBefore: state.phase,
+		workspaceStateDigest: state.workspaceStateDigest,
+	});
+	return Object.freeze({ ...material, requestDigest: empiricalStrictJsonDigest(material) });
+}
+
+function decisionMaterial(
+	state: ProjectionState,
+	effectRequest: D720GraphEffectRequestV1 | null,
+): D720EffectDecisionV1 {
+	const material = strictSnapshot({
+		kind: "graph-effect-decision" as const,
+		decisionSequence: state.decisionSequence++,
+		phase: state.phase,
+		nextRequiredPhase: nextRequiredPhase(state),
+		disposition: effectRequest === null ? ("complete-arm" as const) : ("execute-effect" as const),
+		effectRequest,
+		traceComplete: state.traceComplete,
+		stoppedReason: state.stoppedReason,
+	});
+	return Object.freeze({ ...material, decisionDigest: empiricalStrictJsonDigest(material) });
+}
+
+function toolIntentAllowed(state: ProjectionState, intent: D720ToolIntentV1): boolean {
+	if (intent.toolRef === "read-file" || intent.toolRef === "search-repository") return true;
+	if (intent.toolRef === "replace-exact") return state.inspectionObserved;
+	if (intent.toolRef === "workspace-diff") return state.mutationObserved;
+	return state.diffObserved;
+}
+
+function nextToolOrStop(
+	state: ProjectionState,
+	runSequence: number,
+	issuedRequestDigest: string,
+	toolIntent: D720ToolIntentV1 | undefined,
+): D720GraphEffectRequestV1 {
+	if (toolIntent === undefined) {
+		return requestMaterial(state, runSequence, issuedRequestDigest, "cleanup", {
+			logicalMaterial: { issuedRequestDigest, effect: "empty-tool-batch-cleanup" },
+		});
+	}
+	if (!toolIntentAllowed(state, toolIntent)) {
+		state.executorFailed = true;
+		state.stoppedReason = "executor-failed";
+		state.pendingTools = [];
+		return requestMaterial(state, runSequence, issuedRequestDigest, "cleanup", {
+			logicalMaterial: {
+				issuedRequestDigest,
+				effect: "out-of-order-tool-intent-cleanup",
+				intentDigest: toolIntent.intentDigest,
+			},
+		});
+	}
+	return requestMaterial(state, runSequence, issuedRequestDigest, "tool-action", {
+		logicalMaterial: { issuedRequestDigest, toolIntent },
+		toolIntent,
+	});
+}
+
+function nextEffect(
+	state: ProjectionState,
+	runSequence: number,
+	issuedRequestDigest: string,
+	lastFact: D720AdmittedEffectFactV1 | null,
+): D720EffectDecisionV1 {
+	let request: D720GraphEffectRequestV1 | null;
+	if (lastFact === null) {
+		request = requestMaterial(state, runSequence, issuedRequestDigest, "materialization", {
+			logicalMaterial: { issuedRequestDigest, effect: "materialization" },
+		});
+	} else if (lastFact.result.effectKind === "materialization") {
+		if (lastFact.result.status === "ready") {
+			state.materializationStatus = "ready";
+			state.materializationEvidenceDigest = lastFact.result.evidenceDigest;
+			state.workspaceStateDigest = lastFact.result.workspaceStateDigest;
+			state.providerAttemptOrdinal = 1;
+			state.providerTurnSequence += 1;
+			state.providerLogicalRequestDigest = empiricalStrictJsonDigest({
+				issuedRequestDigest,
+				providerTurn: state.providerTurnSequence,
+			});
+			request = requestMaterial(state, runSequence, issuedRequestDigest, "provider-request", {
+				logicalMaterial: { issuedRequestDigest, providerTurn: state.providerTurnSequence },
+				logicalRequestDigest: state.providerLogicalRequestDigest,
+			});
+		} else {
+			state.materializationStatus = "failed";
+			state.materializationEvidenceDigest = lastFact.result.evidenceDigest;
+			state.stoppedReason = "materialization-failed";
+			request = requestMaterial(state, runSequence, issuedRequestDigest, "cleanup", {
+				logicalMaterial: { issuedRequestDigest, effect: "cleanup" },
+			});
+		}
+	} else if (lastFact.result.effectKind === "provider-request") {
+		const result = lastFact.result;
+		if (result.status === "tool-intents") {
+			state.pendingTools = [...result.toolIntents];
+			const toolIntent = state.pendingTools.shift();
+			request = nextToolOrStop(state, runSequence, issuedRequestDigest, toolIntent);
+		} else if (result.status === "structured-final") {
+			request = state.validationPassed
+				? requestMaterial(state, runSequence, issuedRequestDigest, "hidden-verifier", {
+						logicalMaterial: { issuedRequestDigest, effect: "hidden-verifier" },
+					})
+				: requestMaterial(state, runSequence, issuedRequestDigest, "cleanup", {
+						logicalMaterial: { issuedRequestDigest, effect: "cleanup" },
+					});
+		} else if (
+			result.status === "retryable-failure" &&
+			state.providerAttemptOrdinal <
+				(result.failureDiscriminator === "d675-und-err-socket" ||
+				result.failureDiscriminator === "d710-untyped-http-429"
+					? 2
+					: 3)
+		) {
+			request = requestMaterial(state, runSequence, issuedRequestDigest, "retry-wait", {
+				logicalMaterial: { issuedRequestDigest, providerTurn: state.providerTurnSequence },
+				logicalRequestDigest:
+					state.providerLogicalRequestDigest ??
+					empiricalStrictJsonDigest({
+						issuedRequestDigest,
+						providerTurn: state.providerTurnSequence,
+					}),
+				attemptOrdinal: state.providerAttemptOrdinal + 1,
+				retryReason: result.failureDiscriminator,
+				retryAfterMs: result.retryAfterMs,
+			});
+		} else {
+			state.executorFailed = true;
+			state.stoppedReason = "executor-failed";
+			request = requestMaterial(state, runSequence, issuedRequestDigest, "cleanup", {
+				logicalMaterial: { issuedRequestDigest, effect: "cleanup" },
+			});
+		}
+	} else if (lastFact.result.effectKind === "retry-wait") {
+		if (lastFact.result.status === "completed") {
+			state.providerAttemptOrdinal += 1;
+			request = requestMaterial(state, runSequence, issuedRequestDigest, "provider-request", {
+				logicalMaterial: { issuedRequestDigest, providerTurn: state.providerTurnSequence },
+				logicalRequestDigest:
+					state.providerLogicalRequestDigest ??
+					empiricalStrictJsonDigest({
+						issuedRequestDigest,
+						providerTurn: state.providerTurnSequence,
+					}),
+				attemptOrdinal: state.providerAttemptOrdinal,
+				retryReason: lastFact.request.retryReason,
+			});
+		} else {
+			state.executorFailed = true;
+			state.stoppedReason = "executor-failed";
+			request = requestMaterial(state, runSequence, issuedRequestDigest, "cleanup", {
+				logicalMaterial: { issuedRequestDigest, effect: "cleanup" },
+			});
+		}
+	} else if (lastFact.result.effectKind === "tool-action") {
+		const result = lastFact.result;
+		if (result.status === "failed") {
+			state.executorFailed = true;
+			state.stoppedReason = "executor-failed";
+			request = requestMaterial(state, runSequence, issuedRequestDigest, "cleanup", {
+				logicalMaterial: { issuedRequestDigest, effect: "cleanup" },
+			});
+		} else {
+			state.workspaceStateDigest = result.workspaceStateAfterDigest;
+			if (result.toolRef === "read-file" || result.toolRef === "search-repository") {
+				state.inspectionObserved = true;
+				if (state.phase === "none") state.phase = "inspection";
+			} else if (result.toolRef === "replace-exact") {
+				state.mutationObserved = true;
+				state.diffObserved = false;
+				state.validationAttempted = false;
+				state.validationPassed = false;
+				state.phase = "exact-mutation";
+			} else if (result.toolRef === "workspace-diff" && result.nonEmptyDiff) {
+				state.diffObserved = true;
+				state.validationAttempted = false;
+				state.validationPassed = false;
+				state.phase = "workspace-diff";
+			} else if (result.toolRef === "focused-validation") {
+				state.validationAttempted = true;
+				state.validationPassed = state.diffObserved;
+				state.validationWorkspaceStateDigest = state.validationPassed
+					? result.workspaceStateAfterDigest
+					: null;
+				state.phase = state.validationPassed
+					? "focused-validation-passed"
+					: "focused-validation-attempted";
+			}
+			const toolIntent = state.pendingTools.shift();
+			request =
+				toolIntent === undefined
+					? (() => {
+							state.providerAttemptOrdinal = 1;
+							state.providerTurnSequence += 1;
+							state.providerLogicalRequestDigest = empiricalStrictJsonDigest({
+								issuedRequestDigest,
+								providerTurn: state.providerTurnSequence,
+							});
+							return requestMaterial(state, runSequence, issuedRequestDigest, "provider-request", {
+								logicalMaterial: {
+									issuedRequestDigest,
+									providerTurn: state.providerTurnSequence,
+								},
+								logicalRequestDigest: state.providerLogicalRequestDigest,
+							});
+						})()
+					: nextToolOrStop(state, runSequence, issuedRequestDigest, toolIntent);
+		}
+	} else if (lastFact.result.effectKind === "hidden-verifier") {
+		state.verifierAttempted = true;
+		state.verifierPassed = lastFact.result.status === "passed";
+		state.phase = state.verifierPassed ? "hidden-verifier-passed" : "hidden-verifier-attempted";
+		request = requestMaterial(state, runSequence, issuedRequestDigest, "cleanup", {
+			logicalMaterial: { issuedRequestDigest, effect: "cleanup" },
+		});
+	} else {
+		state.cleanupStatus = lastFact.result.status;
+		state.cleanupEvidenceDigest = lastFact.result.evidenceDigest;
+		state.traceComplete = state.cleanupStatus === "succeeded";
+		request = null;
+	}
+	return decisionMaterial(state, request);
+}
+
+function cancellationDecision(
+	state: ProjectionState,
+	runSequence: number,
+	issuedRequestDigest: string,
+): D720EffectDecisionV1 {
+	state.cancelled = true;
+	state.pendingTools = [];
+	const request =
+		state.materializationStatus !== "unknown" && state.cleanupStatus === "unknown"
+			? requestMaterial(state, runSequence, issuedRequestDigest, "cleanup", {
+					logicalMaterial: { issuedRequestDigest, effect: "cancellation-cleanup" },
+				})
+			: null;
+	return decisionMaterial(state, request);
+}
+
+function effectBoundExhaustionDecision(
+	state: ProjectionState,
+	runSequence: number,
+	issuedRequestDigest: string,
+): D720EffectDecisionV1 {
+	state.executorFailed = true;
+	state.stoppedReason = "executor-failed";
+	state.pendingTools = [];
+	const request =
+		state.materializationStatus === "ready" && state.cleanupStatus === "unknown"
+			? requestMaterial(state, runSequence, issuedRequestDigest, "cleanup", {
+					logicalMaterial: { issuedRequestDigest, effect: "effect-bound-cleanup" },
+				})
+			: null;
+	return decisionMaterial(state, request);
+}
+
+function initialProjectionState(): ProjectionState {
+	return {
+		phase: "none",
+		inspectionObserved: false,
+		mutationObserved: false,
+		diffObserved: false,
+		validationAttempted: false,
+		validationPassed: false,
+		verifierAttempted: false,
+		verifierPassed: false,
+		materializationStatus: "unknown",
+		materializationEvidenceDigest: null,
+		cleanupStatus: "unknown",
+		cleanupEvidenceDigest: null,
+		pendingTools: [],
+		providerAttemptOrdinal: 1,
+		providerTurnSequence: 0,
+		providerLogicalRequestDigest: null,
+		workspaceStateDigest: null,
+		validationWorkspaceStateDigest: null,
+		traceComplete: false,
+		executorFailed: false,
+		cancelled: false,
+		stoppedReason: null,
+		effectSequence: 0,
+		decisionSequence: 0,
+	};
+}
+
+export function createD720GraphEffectRuntime(inputValue: {
+	readonly request: AgentRequestIssued<D719CleanRequestInput>;
+	readonly runSequence: number;
+}): D720GraphEffectRuntimeV1 {
+	const input = record(inputValue, "d720.effectRuntime.create");
+	exactKeys(input, ["request", "runSequence"], "d720.effectRuntime.create");
+	const request = strictSnapshot(input.request) as AgentRequestIssued<D719CleanRequestInput>;
+	const runSequence = safeInteger(input.runSequence, "d720.effectRuntime.runSequence", {
+		min: 0,
+		max: 11,
+	});
+	const requestDigest = empiricalStrictJsonDigest(request);
+	const owner = graph({ name: `d720/effect-runtime/${runSequence}` });
+	const factNode = owner.node<D720RuntimeFactV1>([], null, {
+		name: "d720/external-effect-facts",
+	});
+	const projectionState = initialProjectionState();
+	const decisions: D720EffectDecisionV1[] = [];
+	const decisionNode = owner.node<D720EffectDecisionV1>(
+		[factNode],
+		(ctx) => {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const fact = raw as D720RuntimeFactV1;
+				const decision =
+					fact.kind === "graph-cancellation-admitted"
+						? cancellationDecision(projectionState, runSequence, requestDigest)
+						: fact.kind === "graph-effect-bound-exhausted"
+							? effectBoundExhaustionDecision(projectionState, runSequence, requestDigest)
+							: nextEffect(projectionState, runSequence, requestDigest, fact);
+				ctx.down([["DATA", decision]]);
+			}
+		},
+		{ name: "d720/effect-decisions", factory: "d720GraphEffectDecision" },
+	);
+	decisionNode.subscribe((message) => {
+		if (message[0] === "DATA") decisions.push(message[1] as D720EffectDecisionV1);
+	});
+	const initial = nextEffect(projectionState, runSequence, requestDigest, null);
+	decisions.push(initial);
+	const runtime = Object.freeze({ revision: D720_EFFECT_RUNTIME_REVISION });
+	constructedRuntimes.set(runtime, {
+		owner,
+		request,
+		requestDigest,
+		runSequence,
+		factNode,
+		facts: [],
+		decisions,
+		projectionState,
+		nextDecision: initial,
+		completed: false,
+	});
+	return runtime;
+}
+
+function runtimeState(runtime: D720GraphEffectRuntimeV1): RuntimeState {
+	const state = constructedRuntimes.get(runtime);
+	if (state === undefined) throw new TypeError("D720 effect runtime is not Graph-constructed");
+	return state;
+}
+
+export function nextD720GraphEffectDecision(
+	runtime: D720GraphEffectRuntimeV1,
+): D720EffectDecisionV1 {
+	return runtimeState(runtime).nextDecision;
+}
+
+function validateToolIntent(value: unknown, path: string): D720ToolIntentV1 {
+	const candidate = record(value, path);
+	exactKeys(candidate, ["intentDigest", "toolRef"], path);
+	oneOf(
+		candidate.toolRef,
+		["read-file", "search-repository", "replace-exact", "workspace-diff", "focused-validation"],
+		`${path}.toolRef`,
+	);
+	digest(candidate.intentDigest, `${path}.intentDigest`);
+	return strictSnapshot(candidate) as unknown as D720ToolIntentV1;
+}
+
+export function validateD720GraphEffectResult(
+	value: unknown,
+	request: D720GraphEffectRequestV1,
+): D720EffectResultV1 {
+	const candidate = record(value, "d720.effectResult");
+	if (candidate.effectKind !== request.effectKind)
+		throw new TypeError("D720 executor result does not match the Graph effect request");
+	if (candidate.effectKind === "materialization") {
+		exactKeys(
+			candidate,
+			["effectKind", "evidenceDigest", "status", "workspaceStateDigest"],
+			"d720.effectResult",
+		);
+		oneOf(candidate.status, ["ready", "failed"], "d720.effectResult.status");
+		if (candidate.status === "ready")
+			digest(candidate.workspaceStateDigest, "d720.effectResult.workspaceStateDigest");
+		else if (candidate.workspaceStateDigest !== null)
+			throw new TypeError("D720 failed materialization cannot claim workspace state");
+	} else if (candidate.effectKind === "provider-request") {
+		exactKeys(
+			candidate,
+			[
+				"effectKind",
+				"evidenceDigest",
+				"failureDiscriminator",
+				"retryAfterMs",
+				"status",
+				"toolIntents",
+				"workspaceStateDigest",
+			],
+			"d720.effectResult",
+		);
+		oneOf(
+			candidate.status,
+			["tool-intents", "structured-final", "retryable-failure", "terminal-failure"],
+			"d720.effectResult.status",
+		);
+		oneOf(
+			candidate.failureDiscriminator,
+			[
+				"none",
+				"d671-rate-limit-exceeded",
+				"d671-provider-overloaded",
+				"d675-und-err-socket",
+				"d710-untyped-http-429",
+			],
+			"d720.effectResult.failureDiscriminator",
+		);
+		if (candidate.retryAfterMs !== null)
+			safeInteger(candidate.retryAfterMs, "d720.effectResult.retryAfterMs", { max: 86_400_000 });
+		const toolIntents = boundedArray(
+			candidate.toolIntents,
+			"d720.effectResult.toolIntents",
+			D720_MAX_TOOL_INTENTS_PER_TURN,
+		);
+		for (const [index, intent] of toolIntents.entries())
+			validateToolIntent(intent, `d720.effectResult.toolIntents[${index}]`);
+		if ((candidate.status === "tool-intents") !== toolIntents.length > 0)
+			throw new TypeError("D720 provider tool-intent disposition is inconsistent");
+		if (candidate.status === "retryable-failure" && candidate.failureDiscriminator === "none")
+			throw new TypeError("D720 retryable failure requires a discriminator");
+		if (
+			candidate.status !== "retryable-failure" &&
+			(candidate.failureDiscriminator !== "none" || candidate.retryAfterMs !== null)
+		)
+			throw new TypeError("D720 non-retry result cannot carry retry material");
+		digest(candidate.workspaceStateDigest, "d720.effectResult.workspaceStateDigest");
+		if (candidate.workspaceStateDigest !== request.workspaceStateDigest)
+			throw new TypeError("D720 provider result workspace state drifted during the effect");
+	} else if (candidate.effectKind === "retry-wait") {
+		exactKeys(candidate, ["effectKind", "evidenceDigest", "status"], "d720.effectResult");
+		oneOf(candidate.status, ["completed", "failed"], "d720.effectResult.status");
+	} else if (candidate.effectKind === "tool-action") {
+		exactKeys(
+			candidate,
+			[
+				"effectKind",
+				"evidenceDigest",
+				"intentDigest",
+				"nonEmptyDiff",
+				"status",
+				"toolRef",
+				"workspaceStateAfterDigest",
+				"workspaceStateBeforeDigest",
+			],
+			"d720.effectResult",
+		);
+		oneOf(candidate.status, ["succeeded", "failed"], "d720.effectResult.status");
+		if (typeof candidate.nonEmptyDiff !== "boolean")
+			throw new TypeError("D720 tool diff evidence must be boolean");
+		const expected = request.toolIntent;
+		if (
+			expected === null ||
+			candidate.toolRef !== expected.toolRef ||
+			candidate.intentDigest !== expected.intentDigest
+		)
+			throw new TypeError("D720 tool result is not bound to the Graph-issued intent");
+		digest(candidate.workspaceStateBeforeDigest, "d720.effectResult.workspaceStateBeforeDigest");
+		digest(candidate.workspaceStateAfterDigest, "d720.effectResult.workspaceStateAfterDigest");
+		if (candidate.workspaceStateBeforeDigest !== request.workspaceStateDigest)
+			throw new TypeError("D720 tool result used a stale workspace state");
+		if (candidate.toolRef !== "workspace-diff" && candidate.nonEmptyDiff)
+			throw new TypeError("D720 non-diff tool cannot claim a non-empty diff");
+		const changed = candidate.workspaceStateBeforeDigest !== candidate.workspaceStateAfterDigest;
+		if ((candidate.status === "succeeded" && candidate.toolRef === "replace-exact") !== changed)
+			throw new TypeError("D720 tool state transition does not match its Graph phase");
+	} else if (candidate.effectKind === "hidden-verifier") {
+		exactKeys(
+			candidate,
+			["effectKind", "evidenceDigest", "status", "workspaceStateDigest"],
+			"d720.effectResult",
+		);
+		oneOf(candidate.status, ["passed", "failed"], "d720.effectResult.status");
+		digest(candidate.workspaceStateDigest, "d720.effectResult.workspaceStateDigest");
+		if (candidate.workspaceStateDigest !== request.workspaceStateDigest)
+			throw new TypeError("D720 verifier did not observe the Graph-authorized workspace state");
+	} else {
+		exactKeys(candidate, ["effectKind", "evidenceDigest", "status"], "d720.effectResult");
+		oneOf(candidate.status, ["succeeded", "failed"], "d720.effectResult.status");
+	}
+	digest(candidate.evidenceDigest, "d720.effectResult.evidenceDigest");
+	return strictSnapshot(candidate) as unknown as D720EffectResultV1;
+}
+
+export function admitD720GraphEffectResult(
+	runtime: D720GraphEffectRuntimeV1,
+	request: D720GraphEffectRequestV1,
+	value: D720EffectResultV1,
+	admissionDigestValue: string,
+): D720EffectDecisionV1 {
+	const state = runtimeState(runtime);
+	if (state.completed) throw new TypeError("D720 effect runtime already completed");
+	if (state.nextDecision.effectRequest !== request)
+		throw new TypeError("D720 effect result requires the exact active Graph request");
+	if (state.facts.length >= D720_MAX_EFFECT_FACTS_PER_RUN)
+		throw new TypeError("D720 effect fact bound exhausted");
+	const result = validateD720GraphEffectResult(value, request);
+	const admissionDigest = digest(admissionDigestValue, "d720.effectResult.admissionDigest");
+	const material = strictSnapshot({
+		kind: "graph-effect-result-admitted" as const,
+		request,
+		admissionDigest,
+		result,
+		resultDigest: empiricalStrictJsonDigest(result),
+	});
+	const fact = Object.freeze({ ...material, factDigest: empiricalStrictJsonDigest(material) });
+	const before = state.decisions.length;
+	state.facts.push(fact);
+	state.factNode.down([["DATA", fact]]);
+	const decision = state.decisions[before];
+	if (decision === undefined) throw new TypeError("D720 Graph omitted the next effect decision");
+	state.nextDecision = decision;
+	state.completed = decision.disposition === "complete-arm";
+	return decision;
+}
+
+export function admitD720GraphCancellation(
+	runtime: D720GraphEffectRuntimeV1,
+	evidenceDigestValue: string,
+): D720EffectDecisionV1 {
+	const state = runtimeState(runtime);
+	if (state.projectionState.cancelled)
+		throw new TypeError("D720 effect runtime already admitted cancellation");
+	if (
+		state.completed &&
+		!state.facts.some(
+			(fact) =>
+				fact.kind === "graph-effect-result-admitted" && fact.result.effectKind === "cleanup",
+		)
+	)
+		throw new TypeError("D720 completed runtime cannot admit cancellation");
+	if (state.facts.length >= D720_MAX_EFFECT_FACTS_PER_RUN)
+		throw new TypeError("D720 effect fact bound exhausted");
+	const evidenceDigest = digest(evidenceDigestValue, "d720.cancellation.evidenceDigest");
+	const material = strictSnapshot({
+		kind: "graph-cancellation-admitted" as const,
+		evidenceDigest,
+	});
+	const fact = Object.freeze({ ...material, factDigest: empiricalStrictJsonDigest(material) });
+	const before = state.decisions.length;
+	state.facts.push(fact);
+	state.factNode.down([["DATA", fact]]);
+	const decision = state.decisions[before];
+	if (decision === undefined) throw new TypeError("D720 Graph omitted cancellation decision");
+	state.nextDecision = decision;
+	state.completed = decision.disposition === "complete-arm";
+	return decision;
+}
+
+export function admitD720GraphEffectBoundExhaustion(
+	runtime: D720GraphEffectRuntimeV1,
+	evidenceDigestValue: string,
+): D720EffectDecisionV1 {
+	const state = runtimeState(runtime);
+	if (state.completed) throw new TypeError("D720 effect runtime already completed");
+	if (
+		state.facts.length !== D720_MAX_EFFECT_FACTS_PER_RUN - 3 ||
+		state.projectionState.cancelled ||
+		state.facts.some((fact) => fact.kind === "graph-effect-bound-exhausted") ||
+		state.nextDecision.effectRequest?.effectKind === "cleanup"
+	)
+		throw new TypeError("D720 effect bound is not Graph-eligible");
+	const evidenceDigest = digest(evidenceDigestValue, "d720.effectBound.evidenceDigest");
+	const material = strictSnapshot({
+		kind: "graph-effect-bound-exhausted" as const,
+		evidenceDigest,
+	});
+	const fact = Object.freeze({ ...material, factDigest: empiricalStrictJsonDigest(material) });
+	const before = state.decisions.length;
+	state.facts.push(fact);
+	state.factNode.down([["DATA", fact]]);
+	const decision = state.decisions[before];
+	if (decision === undefined) throw new TypeError("D720 Graph omitted effect-bound decision");
+	state.nextDecision = decision;
+	state.completed = decision.disposition === "complete-arm";
+	return decision;
+}
+
+export function snapshotD720GraphEffectEvidence(
+	runtime: D720GraphEffectRuntimeV1,
+	runtimeStatus: "complete" | "cancelled" | "stopped" = "complete",
+): D720GraphEffectEvidenceV1 {
+	const state = runtimeState(runtime);
+	if (runtimeStatus === "complete" && !state.completed)
+		throw new TypeError("D720 cannot snapshot an active effect runtime as complete");
+	const topologyRaw = state.owner.topology();
+	const topology = strictSnapshot({
+		nodes: topologyRaw.nodes.map((node) => ({
+			id: node.id,
+			factory: node.factory,
+			deps: Object.freeze([...node.deps]),
+		})),
+		edges: topologyRaw.edges,
+	});
+	const material = strictSnapshot({
+		schemaVersion: D720_EFFECT_EVIDENCE_SCHEMA,
+		runtimeRevision: D720_EFFECT_RUNTIME_REVISION,
+		runSequence: state.runSequence,
+		issuedRequestDigest: state.requestDigest,
+		runtimeStatus,
+		facts: state.facts,
+		decisions: state.decisions,
+		topology,
+		topologyDigest: empiricalStrictJsonDigest(topology),
+	});
+	return Object.freeze({ ...material, evidenceDigest: empiricalStrictJsonDigest(material) });
+}
+
+export function validateD720GraphEffectEvidence(
+	value: unknown,
+	requestValue: AgentRequestIssued<D719CleanRequestInput>,
+	expectedRunSequence?: number,
+): D720GraphEffectEvidenceV1 {
+	const candidate = record(value, "d720.effectEvidence");
+	exactKeys(
+		candidate,
+		[
+			"decisions",
+			"evidenceDigest",
+			"facts",
+			"issuedRequestDigest",
+			"runtimeStatus",
+			"runSequence",
+			"runtimeRevision",
+			"schemaVersion",
+			"topology",
+			"topologyDigest",
+		],
+		"d720.effectEvidence",
+	);
+	const facts = boundedArray(
+		candidate.facts,
+		"d720.effectEvidence.facts",
+		D720_MAX_EFFECT_FACTS_PER_RUN,
+	);
+	const decisions = boundedArray(
+		candidate.decisions,
+		"d720.effectEvidence.decisions",
+		D720_MAX_EFFECT_FACTS_PER_RUN + 1,
+	);
+	if (facts.length > D720_MAX_EFFECT_FACTS_PER_RUN || decisions.length !== facts.length + 1)
+		throw new TypeError("D720 effect evidence cardinality is invalid");
+	const topology = record(candidate.topology, "d720.effectEvidence.topology");
+	exactKeys(topology, ["edges", "nodes"], "d720.effectEvidence.topology");
+	const topologyNodes = boundedArray(topology.nodes, "d720.effectEvidence.topology.nodes", 4);
+	const topologyEdges = boundedArray(topology.edges, "d720.effectEvidence.topology.edges", 4);
+	for (const [index, rawNode] of topologyNodes.entries()) {
+		const node = record(rawNode, `d720.effectEvidence.topology.nodes[${index}]`);
+		exactKeys(node, ["deps", "factory", "id"], `d720.effectEvidence.topology.nodes[${index}]`);
+		if (
+			typeof node.id !== "string" ||
+			node.id.length > 128 ||
+			typeof node.factory !== "string" ||
+			node.factory.length > 128
+		)
+			throw new TypeError("D720 topology node coordinate is unbounded");
+		const deps = boundedArray(node.deps, `d720.effectEvidence.topology.nodes[${index}].deps`, 4);
+		if (deps.some((dep) => typeof dep !== "string" || dep.length > 128))
+			throw new TypeError("D720 topology dependency coordinate is unbounded");
+	}
+	for (const [index, rawEdge] of topologyEdges.entries()) {
+		const edge = record(rawEdge, `d720.effectEvidence.topology.edges[${index}]`);
+		exactKeys(edge, ["from", "to"], `d720.effectEvidence.topology.edges[${index}]`);
+		if (
+			typeof edge.from !== "string" ||
+			edge.from.length > 128 ||
+			typeof edge.to !== "string" ||
+			edge.to.length > 128
+		)
+			throw new TypeError("D720 topology edge coordinate is unbounded");
+	}
+	const request = strictSnapshot(requestValue) as AgentRequestIssued<D719CleanRequestInput>;
+	const requestDigest = empiricalStrictJsonDigest(request);
+	if (candidate.issuedRequestDigest !== requestDigest)
+		throw new TypeError("D720 effect evidence request provenance drifted");
+	const runSequence = safeInteger(candidate.runSequence, "d720.effectEvidence.runSequence", {
+		min: 0,
+		max: 11,
+	});
+	if (expectedRunSequence !== undefined && runSequence !== expectedRunSequence)
+		throw new TypeError("D720 effect evidence run sequence drifted");
+	if (
+		candidate.schemaVersion !== D720_EFFECT_EVIDENCE_SCHEMA ||
+		candidate.runtimeRevision !== D720_EFFECT_RUNTIME_REVISION ||
+		!(["complete", "cancelled", "stopped"] as const).includes(
+			candidate.runtimeStatus as "complete" | "cancelled" | "stopped",
+		)
+	)
+		throw new TypeError("D720 effect evidence coordinates drifted");
+	for (const [index, decision] of decisions.entries())
+		assertBoundedEvidenceTree(decision, `d720.effectEvidence.decisions[${index}]`);
+	const runtime = createD720GraphEffectRuntime({ request, runSequence });
+	if (
+		empiricalStrictJsonDigest(nextD720GraphEffectDecision(runtime)) !==
+		empiricalStrictJsonDigest(decisions[0])
+	)
+		throw new TypeError("D720 initial effect decision is not Graph-derived");
+	for (const [index, rawFact] of facts.entries()) {
+		assertBoundedEvidenceTree(rawFact, `d720.effectEvidence.facts[${index}]`);
+		const fact = record(rawFact, `d720.effectEvidence.facts[${index}]`);
+		if (fact.kind === "graph-effect-bound-exhausted") {
+			exactKeys(
+				fact,
+				["evidenceDigest", "factDigest", "kind"],
+				`d720.effectEvidence.facts[${index}]`,
+			);
+			const next = admitD720GraphEffectBoundExhaustion(runtime, fact.evidenceDigest as string);
+			const replayedFact = runtimeState(runtime).facts[index];
+			if (
+				replayedFact === undefined ||
+				empiricalStrictJsonDigest(replayedFact) !== empiricalStrictJsonDigest(fact) ||
+				empiricalStrictJsonDigest(next) !== empiricalStrictJsonDigest(decisions[index + 1])
+			)
+				throw new TypeError("D720 effect-bound evidence is not a canonical Graph replay");
+			continue;
+		}
+		if (fact.kind === "graph-cancellation-admitted") {
+			exactKeys(
+				fact,
+				["evidenceDigest", "factDigest", "kind"],
+				`d720.effectEvidence.facts[${index}]`,
+			);
+			const next = admitD720GraphCancellation(runtime, fact.evidenceDigest as string);
+			const replayedFact = runtimeState(runtime).facts[index];
+			if (
+				replayedFact === undefined ||
+				empiricalStrictJsonDigest(replayedFact) !== empiricalStrictJsonDigest(fact) ||
+				empiricalStrictJsonDigest(next) !== empiricalStrictJsonDigest(decisions[index + 1])
+			)
+				throw new TypeError("D720 cancellation evidence is not a canonical Graph replay");
+			continue;
+		}
+		exactKeys(
+			fact,
+			["admissionDigest", "factDigest", "kind", "request", "result", "resultDigest"],
+			`d720.effectEvidence.facts[${index}]`,
+		);
+		if (fact.kind !== "graph-effect-result-admitted")
+			throw new TypeError("D720 effect fact kind drifted");
+		const active = nextD720GraphEffectDecision(runtime).effectRequest;
+		if (
+			active === null ||
+			empiricalStrictJsonDigest(active) !== empiricalStrictJsonDigest(fact.request)
+		)
+			throw new TypeError("D720 effect fact does not bind the active Graph request");
+		const next = admitD720GraphEffectResult(
+			runtime,
+			active,
+			fact.result as D720EffectResultV1,
+			fact.admissionDigest as string,
+		);
+		const replayedFact = runtimeState(runtime).facts[index];
+		if (
+			replayedFact === undefined ||
+			empiricalStrictJsonDigest(replayedFact) !== empiricalStrictJsonDigest(fact) ||
+			empiricalStrictJsonDigest(next) !== empiricalStrictJsonDigest(decisions[index + 1])
+		)
+			throw new TypeError("D720 effect evidence is not a canonical Graph replay");
+	}
+	const replayed = snapshotD720GraphEffectEvidence(
+		runtime,
+		candidate.runtimeStatus as "complete" | "cancelled" | "stopped",
+	);
+	const snapshot = strictSnapshot(candidate) as unknown as D720GraphEffectEvidenceV1;
+	if (empiricalStrictJsonDigest(replayed) !== empiricalStrictJsonDigest(snapshot))
+		throw new TypeError("D720 effect evidence digest does not match canonical Graph replay");
+	return snapshot;
+}
+
+export function deriveD720GraphArmResultFromEvidence(
+	value: unknown,
+	request: AgentRequestIssued<D719CleanRequestInput>,
+	expectedRunSequence: number,
+): D719CallerArmResultV1 {
+	const evidence = validateD720GraphEffectEvidence(value, request, expectedRunSequence);
+	const runtime = createD720GraphEffectRuntime({ request, runSequence: expectedRunSequence });
+	for (const fact of evidence.facts) {
+		if (fact.kind === "graph-cancellation-admitted") {
+			admitD720GraphCancellation(runtime, fact.evidenceDigest);
+		} else if (fact.kind === "graph-effect-bound-exhausted") {
+			admitD720GraphEffectBoundExhaustion(runtime, fact.evidenceDigest);
+		} else {
+			const active = nextD720GraphEffectDecision(runtime).effectRequest;
+			if (active === null) throw new TypeError("D720 replay omitted an active effect request");
+			admitD720GraphEffectResult(runtime, active, fact.result, fact.admissionDigest);
+		}
+	}
+	return deriveD720GraphArmResult(runtime);
+}
+
+export function deriveD720GraphArmResult(runtime: D720GraphEffectRuntimeV1): D719CallerArmResultV1 {
+	const state = runtimeState(runtime);
+	if (!state.completed) throw new TypeError("D720 cannot derive an active arm result");
+	const facts = state.facts.flatMap((fact) =>
+		fact.kind === "graph-effect-result-admitted" ? [fact.result] : [],
+	);
+	const materialization = facts.find((fact) => fact.effectKind === "materialization");
+	const cleanup = [...facts].reverse().find((fact) => fact.effectKind === "cleanup");
+	const lastDecision = state.decisions.at(-1);
+	if (
+		materialization?.effectKind !== "materialization" ||
+		cleanup?.effectKind !== "cleanup" ||
+		lastDecision === undefined
+	)
+		throw new TypeError("D720 completed runtime lacks ownership evidence");
+	const verifier = [...facts].reverse().find((fact) => fact.effectKind === "hidden-verifier");
+	return strictSnapshot({
+		materialization: {
+			status: materialization.status,
+			evidenceDigest: materialization.evidenceDigest,
+		},
+		execution: {
+			traceComplete: lastDecision.traceComplete,
+			executorFailed: state.projectionState.executorFailed,
+			inspectionObserved: state.projectionState.inspectionObserved,
+			contentChangingMutationObserved: state.projectionState.mutationObserved,
+			nonEmptyDiffAfterLatestMutation: state.projectionState.diffObserved,
+			focusedValidationAttempted: state.projectionState.validationAttempted,
+			focusedValidationPassed: state.projectionState.validationPassed,
+			hiddenVerifierAttempted: state.projectionState.verifierAttempted && verifier !== undefined,
+			hiddenVerifierPassed: state.projectionState.verifierPassed,
+			cancelled: state.projectionState.cancelled,
+		},
+		cleanup: {
+			status: cleanup.status,
+			evidenceDigest: cleanup.evidenceDigest,
+		},
+	}) as unknown as D719CallerArmResultV1;
+}

@@ -20,9 +20,9 @@ import {
 } from "./canonical.js";
 
 export const D719_CLEAN_GRAPH_LEDGER_REVISION =
-	"graphrefly.b112.d719.clean-eval-ledger.v2" as const;
+	"graphrefly.b112.d719.clean-eval-ledger.v3" as const;
 export const D719_CLEAN_GRAPH_EVIDENCE_SCHEMA =
-	"graphrefly.b112.d719.clean-eval-evidence.v2" as const;
+	"graphrefly.b112.d719.clean-eval-evidence.v3" as const;
 export const D719_CLEAN_GRAPH_ARM_ORDER = Object.freeze([
 	"cold",
 	"relevant-applied",
@@ -99,6 +99,7 @@ export interface D719CallerArmResultV1 {
 	};
 	readonly execution: {
 		readonly traceComplete: boolean;
+		readonly executorFailed: boolean;
 		readonly inspectionObserved: boolean;
 		readonly contentChangingMutationObserved: boolean;
 		readonly nonEmptyDiffAfterLatestMutation: boolean;
@@ -114,7 +115,13 @@ export interface D719CallerArmResultV1 {
 	};
 }
 
-export type D719EffectKind = "provider-request" | "retry-wait";
+export type D719EffectKind =
+	| "materialization"
+	| "provider-request"
+	| "retry-wait"
+	| "tool-action"
+	| "hidden-verifier"
+	| "cleanup";
 export type D719RetryReason =
 	| "none"
 	| "d671-rate-limit-exceeded"
@@ -172,7 +179,7 @@ export interface D719EffectReconciliationV1 {
 }
 
 export interface D719CleanEffectControllerV1 {
-	readonly revision: "graphrefly.b112.d719.effect-controller.v1";
+	readonly revision: "graphrefly.b112.d719.effect-controller.v2";
 }
 
 export interface D719AdmittedArmFactV1 {
@@ -469,9 +476,10 @@ function findReconciledProposal(
 
 function validateRetryForLedger(state: LedgerState, proposal: D719EffectProposalV1): boolean {
 	if (proposal.attemptOrdinal === 1) {
-		return proposal.effectKind === "provider-request" && proposal.retryReason === "none";
+		return proposal.retryReason === "none";
 	}
 	if (
+		(proposal.effectKind !== "provider-request" && proposal.effectKind !== "retry-wait") ||
 		proposal.attemptOrdinal > D719_MAX_ATTEMPTS_PER_LOGICAL_REQUEST ||
 		proposal.retryReason === "none"
 	)
@@ -521,12 +529,16 @@ function requiredRetryWaitMs(proposal: D719EffectProposalV1): number {
 function stoppedReasonFor(fact: D719AdmittedArmFactV1): D719CleanStoppedReason {
 	if (fact.kind === "arm-executor-failed") return "executor-failed";
 	if (fact.materialization.status === "failed") return "materialization-failed";
+	if (
+		fact.cleanup.status === "failed" ||
+		(fact.cleanup.status === "unknown" && fact.materialization.status === "ready")
+	)
+		return "workspace-cleanup-failed";
 	if (fact.execution.cancelled) return "cancelled";
 	if (fact.reservationOverrunRefs.length > 0) return "budget-exhausted";
 	if (fact.budgetDenialRefs.length > 0) return "budget-exhausted";
 	if (fact.retryDenialRefs.length > 0) return "retry-denied";
-	if (fact.cleanup.status === "failed" || fact.cleanup.status === "unknown")
-		return "workspace-cleanup-failed";
+	if (fact.execution.executorFailed) return "executor-failed";
 	return null;
 }
 
@@ -672,6 +684,7 @@ function validateCallerResult(value: unknown): D719CallerArmResultV1 {
 		[
 			"cancelled",
 			"contentChangingMutationObserved",
+			"executorFailed",
 			"focusedValidationAttempted",
 			"focusedValidationPassed",
 			"hiddenVerifierAttempted",
@@ -768,7 +781,12 @@ export function createD719CleanGraphLedger(inputValue: {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const proposal = raw as D719EffectProposalV1;
 				const budgetStateIfReserved = reservedState(state, proposal);
-				const budgetReasons = budgetReasonsFor(budgetStateIfReserved, budgetLimits);
+				// Cleanup is a compensating ownership effect. Once an arm has acquired resources,
+				// budget exhaustion must stop new work but may not prevent release of those resources.
+				const budgetReasons =
+					proposal.effectKind === "cleanup"
+						? Object.freeze([] as D719CleanBudgetReason[])
+						: budgetReasonsFor(budgetStateIfReserved, budgetLimits);
 				const retryOk = validateRetryForLedger(
 					currentLedgerForNode.get(effectAdmissionNode) as LedgerState,
 					proposal,
@@ -1004,7 +1022,7 @@ export function createD719CleanEffectController(
 	if (state.activeRequest !== request)
 		throw new TypeError("D719 controller requires the exact active request");
 	const controller = Object.freeze({
-		revision: "graphrefly.b112.d719.effect-controller.v1" as const,
+		revision: "graphrefly.b112.d719.effect-controller.v2" as const,
 	});
 	constructedControllers.set(controller, { ledger: state, request });
 	return controller;
@@ -1028,7 +1046,14 @@ function validateReservation(value: unknown): D719EffectReservationV1 {
 	);
 	oneOf(
 		candidate.effectKind,
-		["provider-request", "retry-wait"],
+		[
+			"materialization",
+			"provider-request",
+			"retry-wait",
+			"tool-action",
+			"hidden-verifier",
+			"cleanup",
+		],
 		"d719.effectReservation.effectKind",
 	);
 	if (candidate.retryAfterMs !== null)
@@ -1060,6 +1085,15 @@ function validateReservation(value: unknown): D719EffectReservationV1 {
 	});
 	if (candidate.effectKind === "retry-wait" && candidate.maxCostMicrousd !== 0)
 		throw new TypeError("D719 retry wait cannot reserve provider cost");
+	if (
+		candidate.effectKind !== "provider-request" &&
+		candidate.effectKind !== "retry-wait" &&
+		(candidate.attemptOrdinal !== 1 ||
+			candidate.retryReason !== "none" ||
+			candidate.retryAfterMs !== null ||
+			candidate.maxCostMicrousd !== 0)
+	)
+		throw new TypeError("D719 local effects cannot carry provider retry or cost coordinates");
 	return strictSnapshot(candidate) as unknown as D719EffectReservationV1;
 }
 
@@ -1071,7 +1105,9 @@ export function requestD719CleanGraphEffect(
 	if (ledger.activeRequest !== request) throw new TypeError("D719 effect controller is stale");
 	if (ledger.effectProposals.length >= D719_MAX_EFFECT_FACTS)
 		throw new TypeError("D719 effect fact bound exhausted");
+	const reservation = validateReservation(value);
 	if (
+		reservation.effectKind !== "cleanup" &&
 		ledger.effectAdmissions.some(
 			(fact) =>
 				!fact.admitted &&
@@ -1092,7 +1128,6 @@ export function requestD719CleanGraphEffect(
 	) {
 		throw new TypeError("D719 serial eval permits one outstanding effect admission");
 	}
-	const reservation = validateReservation(value);
 	const requestInput = request.input?.value;
 	if (requestInput === undefined) throw new TypeError("D719 active request input is missing");
 	if (
@@ -1212,6 +1247,29 @@ export function reconcileD719CleanGraphEffect(
 		reconciliationDigest: empiricalStrictJsonDigest(material),
 	}) as D719EffectReconciliationV1;
 	ledger.effectReconciliationNode.down([["DATA", reconciliation]]);
+	return reconciliation;
+}
+
+export function reconcileD719CleanGraphEffectConservatively(
+	controller: D719CleanEffectControllerV1,
+	admission: D719EffectAdmissionV1,
+): D719EffectReconciliationV1 {
+	const { ledger, request } = controllerState(controller);
+	if (ledger.activeRequest !== request) throw new TypeError("D719 effect controller is stale");
+	const expected = ledger.effectAdmissions.find((candidate) => candidate === admission);
+	if (expected === undefined || !expected.admitted)
+		throw new TypeError("D719 conservative reconciliation requires exact admitted effect");
+	if (
+		ledger.effectReconciliations.some(
+			(candidate) => candidate.effectSequence === admission.effectSequence,
+		)
+	)
+		throw new TypeError("D719 effect was already reconciled");
+	const before = ledger.effectReconciliations.length;
+	conservativeReconcileOutstanding(ledger, request);
+	const reconciliation = ledger.effectReconciliations[before];
+	if (reconciliation === undefined || reconciliation.effectSequence !== admission.effectSequence)
+		throw new TypeError("D719 Graph omitted conservative reconciliation");
 	return reconciliation;
 }
 
@@ -1434,6 +1492,7 @@ export function admitD719CleanGraphExecutorFailure(
 			materialization: { status: "unknown", evidenceDigest },
 			execution: {
 				traceComplete: false,
+				executorFailed: true,
 				inspectionObserved: false,
 				contentChangingMutationObserved: false,
 				nonEmptyDiffAfterLatestMutation: false,
@@ -1468,6 +1527,7 @@ export function admitD719CleanGraphCancellation(
 			materialization: { status: "unknown", evidenceDigest },
 			execution: {
 				traceComplete: false,
+				executorFailed: false,
 				inspectionObserved: false,
 				contentChangingMutationObserved: false,
 				nonEmptyDiffAfterLatestMutation: false,
@@ -1734,6 +1794,10 @@ export function validateD719CleanGraphEvidence(value: unknown): D719CleanGraphEv
 					});
 					if (empiricalStrictJsonDigest(replayed) !== empiricalStrictJsonDigest(rawReconciliation))
 						throw new TypeError("D719 reconciliation is not Graph-derived");
+				} else {
+					const replayed = reconcileD719CleanGraphEffectConservatively(controller, admission);
+					if (empiricalStrictJsonDigest(replayed) !== empiricalStrictJsonDigest(rawReconciliation))
+						throw new TypeError("D719 conservative reconciliation is not Graph-derived");
 				}
 			}
 			proposalIndex += 1;

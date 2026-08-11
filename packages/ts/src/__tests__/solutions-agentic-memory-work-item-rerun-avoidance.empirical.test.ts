@@ -879,6 +879,9 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsD719GraphNativeAuthority = file.endsWith("d719-graph-native-eval-authority.ts");
 			const allowsD719CleanGraphLedger = file.endsWith("d719-clean-graph-ledger.ts");
 			const allowsD720CleanGraphNativeEval = file.endsWith("d720-graph-native-eval.ts");
+			const allowsD720GraphNativeEffectRuntime = file.endsWith(
+				"d720-graph-native-effect-runtime.ts",
+			);
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -987,7 +990,10 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				"../../src/solutions/work-item/scheduling.js",
 			]);
 			const d720CleanGraphNativeImports = new Set([
+				"../../src/ctx/types.js",
+				"../../src/graph/graph.js",
 				"../../src/json/codec.js",
+				"../../src/node/node.js",
 				"../../src/orchestration/agent-runtime.js",
 			]);
 			expect(source).not.toMatch(
@@ -1087,7 +1093,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							d716GraphNativeImports.has(specifier)) ||
 						((allowsD719GraphNativeAuthority || allowsD719CleanGraphLedger) &&
 							d716GraphNativeImports.has(specifier)) ||
-						(allowsD720CleanGraphNativeEval && d720CleanGraphNativeImports.has(specifier)) ||
+						((allowsD720CleanGraphNativeEval || allowsD720GraphNativeEffectRuntime) &&
+							d720CleanGraphNativeImports.has(specifier)) ||
 						(allowsD683SourceAudit && specifier === "typescript") ||
 						specifier.startsWith("./")
 					),
