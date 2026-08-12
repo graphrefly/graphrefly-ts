@@ -873,14 +873,14 @@ describe("D737 Graph objective-phase recovery", () => {
 		);
 	}, 30_000);
 
-	it("keeps the D749 durable claim exclusive and test-root authority non-executable", async () => {
-		const root = await mkdtemp(join(tmpdir(), "graphrefly-d749-claim-"));
+	it("keeps the D750 durable claim exclusive and test-root authority non-executable", async () => {
+		const root = await mkdtemp(join(tmpdir(), "graphrefly-d750-claim-"));
 		try {
 			await chmod(root, 0o700);
 			const inputs = {
-				pricingReadDigest: sha("d749-pricing"),
-				zeroByokObservationDigest: sha("d749-zero-byok"),
-				implementationManifestDigest: sha("d749-implementation"),
+				pricingReadDigest: sha("d750-pricing"),
+				zeroByokObservationDigest: sha("d750-zero-byok"),
+				implementationManifestDigest: sha("d750-implementation"),
 			};
 			const canonicalRoot = await realpath(root);
 			const claim = await acquireD738SingleUseDispatchClaimAtRootForTest(canonicalRoot, inputs);

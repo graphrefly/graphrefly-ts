@@ -5,11 +5,11 @@ import {
 	D733_DEEPSEEK_V4_FLASH_0731_PROFILE_DIGEST,
 } from "./d733-coordinates.js";
 
-export const D738_DECISION_REF = "decision.D749" as const;
+export const D738_DECISION_REF = "decision.D750" as const;
 export const D738_DECISION_REVISION = "2026-08-12.v1" as const;
-export const D738_GENERATION_REF = "d749-forward-phase-continuation-live-2026-08-12-v1" as const;
+export const D738_GENERATION_REF = "d750-forward-phase-continuation-live-2026-08-12-v1" as const;
 export const D738_DISPATCH_CLAIM_REF =
-	"d749-forward-phase-continuation-dispatch-2026-08-12-v1" as const;
+	"d750-forward-phase-continuation-dispatch-2026-08-12-v1" as const;
 export const D738_HISTORICAL_ARTIFACT_SHA256 =
 	"sha256:7ab2807c15ccf70a3413c4519d206a211b7d26a3fe8f0aabfc344387d2a23c68" as const;
 export const D738_HISTORICAL_BUNDLE_DIGEST =
@@ -41,7 +41,7 @@ export const D738_COORDINATES = strictSnapshot({
 	previousDispatchClaimArtifactSha256: D738_PREVIOUS_DISPATCH_CLAIM_ARTIFACT_SHA256,
 	previousDispatchClaimDigest: D738_PREVIOUS_DISPATCH_CLAIM_DIGEST,
 	previousCurrentKeyMarkerSha256: D738_PREVIOUS_CURRENT_KEY_MARKER_SHA256,
-	previousFailureCode: "graph-forward-phase-context-not-issued-after-progress",
+	previousFailureCode: "graph-canonical-replay-phase-trigger-mismatch",
 	transportFailurePolicy: {
 		nestedDiagnosticCauseCode: "und-err-socket",
 		nestedDiagnosticDisposition: "d675-und-err-socket",

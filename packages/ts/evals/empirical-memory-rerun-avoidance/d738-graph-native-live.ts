@@ -48,12 +48,12 @@ import {
 } from "./d738-single-use-dispatch-claim.js";
 import { validateD748QualificationBundle } from "./d748-forward-phase-continuation-qualification.js";
 
-export const D738_QUALIFICATION_SCHEMA = "graphrefly.b112.d749.live-qualification.v1" as const;
-export const D738_OBSERVATION_SCHEMA = "graphrefly.b112.d749.live-observation.v1" as const;
-export const D738_GENERATION_SCHEMA = "graphrefly.b112.d749.success-generation.v1" as const;
-export const D738_PARTIAL_SCHEMA = "graphrefly.b112.d749.partial-failure-generation.v1" as const;
-export const D738_TERMINAL_SCHEMA = "graphrefly.b112.d749.terminal-receipt.v1" as const;
-export const D738_BUNDLE_SCHEMA = "graphrefly.b112.d749.live-bundle.v1" as const;
+export const D738_QUALIFICATION_SCHEMA = "graphrefly.b112.d750.live-qualification.v1" as const;
+export const D738_OBSERVATION_SCHEMA = "graphrefly.b112.d750.live-observation.v1" as const;
+export const D738_GENERATION_SCHEMA = "graphrefly.b112.d750.success-generation.v1" as const;
+export const D738_PARTIAL_SCHEMA = "graphrefly.b112.d750.partial-failure-generation.v1" as const;
+export const D738_TERMINAL_SCHEMA = "graphrefly.b112.d750.terminal-receipt.v1" as const;
+export const D738_BUNDLE_SCHEMA = "graphrefly.b112.d750.live-bundle.v1" as const;
 
 export interface D738LiveBundleV1 {
 	readonly schemaVersion: typeof D738_BUNDLE_SCHEMA;
@@ -705,7 +705,7 @@ export async function persistD738LiveBundle(inputValue: {
 		)
 			throw new TypeError("D738 persistence rename identity drifted");
 		const commit = strictSnapshot({
-			schemaVersion: "graphrefly.b112.d749.atomic-commit.v1",
+			schemaVersion: "graphrefly.b112.d750.atomic-commit.v1",
 			generationRef: D738_GENERATION_REF,
 			disposition: bundle.disposition,
 			bundleDigest: bundle.bundleDigest,
