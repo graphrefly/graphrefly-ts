@@ -31,7 +31,6 @@ import {
 	runD734RouteProfileSixArmLiveIntegration,
 	validateD734RouteGraphEvidence,
 } from "./d734-route-profile-provider-integration.js";
-import { validateD736LiveBundle } from "./d736-graph-native-live.js";
 import {
 	D738_COORDINATES_DIGEST,
 	D738_D736_PARTIAL_ARTIFACT_SHA256,
@@ -48,12 +47,12 @@ import {
 	type D738ExecutionAuthorityV1,
 } from "./d738-single-use-dispatch-claim.js";
 
-export const D738_QUALIFICATION_SCHEMA = "graphrefly.b112.d738.live-qualification.v1" as const;
-export const D738_OBSERVATION_SCHEMA = "graphrefly.b112.d738.live-observation.v1" as const;
-export const D738_GENERATION_SCHEMA = "graphrefly.b112.d738.success-generation.v1" as const;
-export const D738_PARTIAL_SCHEMA = "graphrefly.b112.d738.partial-failure-generation.v1" as const;
-export const D738_TERMINAL_SCHEMA = "graphrefly.b112.d738.terminal-receipt.v1" as const;
-export const D738_BUNDLE_SCHEMA = "graphrefly.b112.d738.live-bundle.v1" as const;
+export const D738_QUALIFICATION_SCHEMA = "graphrefly.b112.d739.live-qualification.v1" as const;
+export const D738_OBSERVATION_SCHEMA = "graphrefly.b112.d739.live-observation.v1" as const;
+export const D738_GENERATION_SCHEMA = "graphrefly.b112.d739.success-generation.v1" as const;
+export const D738_PARTIAL_SCHEMA = "graphrefly.b112.d739.partial-failure-generation.v1" as const;
+export const D738_TERMINAL_SCHEMA = "graphrefly.b112.d739.terminal-receipt.v1" as const;
+export const D738_BUNDLE_SCHEMA = "graphrefly.b112.d739.live-bundle.v1" as const;
 
 export interface D738LiveBundleV1 {
 	readonly schemaVersion: typeof D738_BUNDLE_SCHEMA;
@@ -139,11 +138,12 @@ function validateHistoricalD736Partial(bytes: Uint8Array): void {
 	if (!(bytes instanceof Uint8Array) || bytes.byteLength < 1 || bytes.byteLength > 16 * 1_048_576)
 		throw new TypeError("D738 D736 partial artifact bytes are invalid");
 	literal(empiricalSha256(bytes), D738_D736_PARTIAL_ARTIFACT_SHA256, "d738.d736Partial.artifact");
-	const bundle = validateD736LiveBundle(strictJsonCodec.decode(new Uint8Array(bytes)));
+	const bundle = record(strictJsonCodec.decode(new Uint8Array(bytes)), "d739.d738Partial");
 	literal(bundle.disposition, "partial-failure", "d738.d736Partial.disposition");
 	literal(bundle.bundleDigest, D738_D736_PARTIAL_BUNDLE_DIGEST, "d738.d736Partial.bundle");
+	const generation = record(bundle.generation, "d739.d738Partial.generation");
 	literal(
-		bundle.generation.generationDigest,
+		generation.generationDigest,
 		D738_D736_PARTIAL_GENERATION_DIGEST,
 		"d738.d736Partial.generation",
 	);
@@ -704,7 +704,7 @@ export async function persistD738LiveBundle(inputValue: {
 		)
 			throw new TypeError("D738 persistence rename identity drifted");
 		const commit = strictSnapshot({
-			schemaVersion: "graphrefly.b112.d738.atomic-commit.v1",
+			schemaVersion: "graphrefly.b112.d739.atomic-commit.v1",
 			generationRef: D738_GENERATION_REF,
 			disposition: bundle.disposition,
 			bundleDigest: bundle.bundleDigest,

@@ -28,7 +28,7 @@ export const D723_OPENROUTER_GRAPH_TURN_REVISION =
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
-const MAX_WIRE_BYTES = 262_144;
+export const D739_MAX_OPENROUTER_CHAT_REQUEST_BYTES = 1_048_576;
 const TOOL_NAMES = Object.freeze({
 	"read-file": "read_file",
 	"search-repository": "search_repository",
@@ -256,7 +256,7 @@ export async function invokeD723OpenRouterGraphTurn(input: {
 		stream: false,
 	});
 	const body = encoder.encode(JSON.stringify(bodyValue));
-	if (body.byteLength > MAX_WIRE_BYTES)
+	if (body.byteLength > D739_MAX_OPENROUTER_CHAT_REQUEST_BYTES)
 		throw new TypeError("D723 provider request exceeds the wire bound");
 	const started = input.monotonicNowMs();
 	let response: Awaited<ReturnType<OpenRouterResponsesByteTransportV1["request"]>>;

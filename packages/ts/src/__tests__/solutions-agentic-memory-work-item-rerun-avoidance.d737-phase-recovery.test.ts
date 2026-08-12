@@ -173,6 +173,45 @@ describe("D737 Graph objective-phase recovery", () => {
 		expect(fixture.activeWorkspaceCount()).toBe(0);
 	}, 30_000);
 
+	it("preflights every ordered intent and rejects a later phase violation before all tool effects", async () => {
+		const fixture = createD734InjectedRouteProfileFixture({
+			profile: D733_DEEPSEEK_V4_FLASH_0731_PROFILE,
+			routeAdmission: routeAdmission(),
+			executionClass: "live-provider",
+			objectivePhaseViolationBeforeMutation: true,
+			objectivePhaseViolationAfterInspectionPrefix: true,
+		});
+		const result = await runD734RouteProfileSixArmLiveIntegration({
+			sourceDigest: sha("d739-later-phase-violation"),
+			adapter: fixture.adapter,
+			objectivePhaseRecoveryPolicy: createD737GraphObjectivePhaseRecoveryPolicy(),
+			signal: AbortSignal.timeout(30_000),
+		});
+		expect(result.run.graphEvidence.runStatus).toBe("complete");
+		expect(result.run.graphEvidence.ledger.completedArms).toHaveLength(6);
+		for (const run of result.run.graphEvidence.effectRuns) {
+			const rejected = run.facts.find(
+				(fact) =>
+					fact.result.effectKind === "provider-request" &&
+					fact.result.status === "tool-intents" &&
+					fact.result.toolIntents[0]?.toolRef === "search-repository" &&
+					fact.result.toolIntents[1]?.toolRef === "workspace-diff",
+			);
+			expect(rejected).toBeDefined();
+			expect(
+				run.facts.some(
+					(fact) =>
+						fact.result.effectKind === "tool-action" &&
+						rejected?.result.effectKind === "provider-request" &&
+						rejected.result.toolIntents.some(
+							(intent) => intent.intentDigest === fact.result.intentDigest,
+						),
+				),
+			).toBe(false);
+		}
+		expect(fixture.activeWorkspaceCount()).toBe(0);
+	}, 30_000);
+
 	it("constructs and canonically replays the full no-network six-arm qualification", async () => {
 		const fixture = createD734InjectedRouteProfileFixture({
 			profile: D733_DEEPSEEK_V4_FLASH_0731_PROFILE,
@@ -250,7 +289,7 @@ describe("D737 Graph objective-phase recovery", () => {
 			await readFile(
 				join(
 					import.meta.dirname,
-					"../../evals/.private/empirical-memory-rerun-avoidance/.d736-live-private/d736-d735-qualified-route-profile-live-2026-08-11-v1/artifacts/bundle.v1.json",
+					"../../evals/.private/empirical-memory-rerun-avoidance/.d738-live-private/d738-graph-provider-attempt-evidence-repair-live-2026-08-12-v1/artifacts/bundle.v1.json",
 				),
 			),
 		);

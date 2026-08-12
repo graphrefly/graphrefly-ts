@@ -535,6 +535,34 @@ function toolIntentAllowed(state: ProjectionState, intent: D720ToolIntentV1): bo
 	return state.diffObserved;
 }
 
+function toolIntentBatchAllowed(
+	state: ProjectionState,
+	intents: readonly D720ToolIntentV1[],
+): boolean {
+	let inspectionObserved = state.inspectionObserved;
+	let mutationObserved = state.mutationObserved;
+	let diffObserved = state.diffObserved;
+	for (const intent of intents) {
+		if (intent.toolRef === "read-file" || intent.toolRef === "search-repository") {
+			inspectionObserved = true;
+			continue;
+		}
+		if (intent.toolRef === "replace-exact") {
+			if (!inspectionObserved) return false;
+			mutationObserved = true;
+			diffObserved = false;
+			continue;
+		}
+		if (intent.toolRef === "workspace-diff") {
+			if (!mutationObserved) return false;
+			diffObserved = true;
+			continue;
+		}
+		if (!diffObserved) return false;
+	}
+	return true;
+}
+
 function nextToolOrStop(
 	state: ProjectionState,
 	runSequence: number,
@@ -603,10 +631,8 @@ function nextEffect(
 	} else if (lastFact.result.effectKind === "provider-request") {
 		const result = lastFact.result;
 		if (result.status === "tool-intents") {
-			const firstIntent = result.toolIntents[0];
 			if (
-				firstIntent !== undefined &&
-				!toolIntentAllowed(state, firstIntent) &&
+				!toolIntentBatchAllowed(state, result.toolIntents) &&
 				state.objectivePhaseRecoveryEnabled &&
 				state.completionContextsIssued < D722_MAX_COMPLETION_CONTEXTS_PER_RUN
 			) {

@@ -58,7 +58,7 @@ export const D722_PERSISTENCE_SCHEMA =
 	"graphrefly.b112.d722.completion-memory-insight-persistence.v1" as const;
 export const D722_GENERATION_REF = "d722-graph-completion-memory-insight-v1" as const;
 export const D722_EXPECTED_RUNTIME_SOURCE_DIGEST =
-	"sha256:e5fc205ca00e654e968e3efbb17d496021f2fa4f6ba58c07070c2a1f7d15e2e8" as const;
+	"sha256:a4eba03a7cd1ad6f87ed974d8a992dce329548d3bf3acfabb55787671bd2e59c" as const;
 export const D722_EXPECTED_EVAL_SOURCE_DIGEST =
 	"sha256:9e82c5a992c9d95ead48f871b371c9875c3dcd510d2eef9d30e655a2d95590d2" as const;
 export const D722_EXPECTED_ADAPTER_SOURCE_DIGEST =

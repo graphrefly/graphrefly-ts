@@ -12,6 +12,7 @@ import type { D720EffectResultV1 } from "./d722-graph-native-effect-runtime.js";
 import {
 	type D723OpenRouterConversationV1,
 	type D723OpenRouterTurnV1,
+	D739_MAX_OPENROUTER_CHAT_REQUEST_BYTES,
 	invokeD723OpenRouterGraphTurn,
 } from "./d723-openrouter-graph-turn.js";
 import {
@@ -114,7 +115,8 @@ function lowerRequestBody(
 		reasoning: { effort: profile.reasoningEffort },
 	}) as StrictJsonValue;
 	const encoded = encoder.encode(JSON.stringify(lowered));
-	if (encoded.byteLength > 262_144) throw new TypeError("D733 lowered request exceeds the bound");
+	if (encoded.byteLength > D739_MAX_OPENROUTER_CHAT_REQUEST_BYTES)
+		throw new TypeError("D733 lowered request exceeds the bound");
 	return encoded;
 }
 

@@ -2,11 +2,11 @@ import { empiricalSha256, empiricalStrictJsonDigest, strictSnapshot } from "./ca
 
 export const D731_TRACKED_SOURCE_SHA256 = Object.freeze({
 	graphLedger: "sha256:0a2a3ba1ee53a99f1db3f07fb82e5232c58d9646b803b48be9920e5102b2f53b",
-	graphRuntime: "sha256:2c34b3a582b1d78a3f10e8eb1103c08d266c76f7cd65b59e04a3b00a855dae21",
-	graphEval: "sha256:2541f0210125e03e84395b1834f178f6001c8dd8e5ac867381e69d9f91bc89cf",
-	providerTurn: "sha256:c3abe6a305dcd7f09848900b2a5993bd93dd58ab0ca6a6edc5eefa8612421c37",
+	graphRuntime: "sha256:a4eba03a7cd1ad6f87ed974d8a992dce329548d3bf3acfabb55787671bd2e59c",
+	graphEval: "sha256:9e82c5a992c9d95ead48f871b371c9875c3dcd510d2eef9d30e655a2d95590d2",
+	providerTurn: "sha256:e5a75ac4ba5114cc6e18b7948c70241ff425ec0a9d2fc32be3375368beba13f2",
 	terminalHttp: "sha256:46c450b1ce057568db79fa5eb595e7c22024833ec034d899c78e9789e690e0e2",
-	providerCore: "sha256:4d36b7595b9164f45d4e8b1421f179122b49bf5a7248ee3b90ae243029aa1c0b",
+	providerCore: "sha256:ec1a644edb5989315a4a3ec5e6e621786f89b1c9e9493026a91ad7568e1f7cd5",
 	liveBundle: "sha256:acd1c6187353b51ca0436fb1124f132f54c7393abbe1f4911aed57b3cc08e876",
 	routeEligibility: "sha256:17df57953e82bdcc2ffcc4401e1aea4e1134e98f9159c3df203499fcf0d0a28c",
 	injectedFixture: "sha256:e0b9b9e9540ab6a45b015957a4b7ce8064d94515c4bc633d31c8f5c9842462f6",

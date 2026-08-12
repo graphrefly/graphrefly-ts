@@ -7,25 +7,25 @@ import {
 } from "./canonical.js";
 
 export const D738_TRACKED_SOURCE_SHA256 = Object.freeze({
-	graphRuntime: "sha256:e5fc205ca00e654e968e3efbb17d496021f2fa4f6ba58c07070c2a1f7d15e2e8",
-	graphProjection: "sha256:754082e5378e1a4c06d984c38b339fcd097582d507c070d70530d37f0f4250c8",
+	graphRuntime: "sha256:a4eba03a7cd1ad6f87ed974d8a992dce329548d3bf3acfabb55787671bd2e59c",
+	graphProjection: "sha256:1c5e0b92a623cc59f6bfcc64b2c0af00dd9f72f334ad53e89dc80e602b55b8af",
 	graphEval: "sha256:9e82c5a992c9d95ead48f871b371c9875c3dcd510d2eef9d30e655a2d95590d2",
 	providerCore: "sha256:ec1a644edb5989315a4a3ec5e6e621786f89b1c9e9493026a91ad7568e1f7cd5",
 	routeIntegration: "sha256:56bc2d7d961b790d3e39cafde32ded3419bdc1892b7dfffb5754e07bc5b21154",
-	coordinates: "sha256:71184752820301953e387146e1369d2e949abb408f3345b491edb370698efabc",
-	claim: "sha256:c3dd779309022c35d6ff662ec553267675f0a171f7d89dff7b59fe5c4ba765d7",
-	live: "sha256:494bf6f48f51ca0603370a9f622be8476fdafe8c7e86961f7bbdf00b301a7191",
+	coordinates: "sha256:3cbadae7abd08a3959b7ad4b8a524fd76665557c94e8281153dc9db06b57d6f8",
+	claim: "sha256:7d8702ee1758c682d50dc09545740d25225060d8e31d15fc08afca8d396decf0",
+	live: "sha256:cf88bf63ccdd9ff60b9a050281404d9ac9b38a33607effb16381d54da75d0849",
 });
 
 export const D738_PRIVATE_SOURCE_SHA256 = Object.freeze({
 	realRouteAdapter: "sha256:de277ef03e787e6ad94b6760abdc145ae968b2ec95d444d4d4226e99a6ef258e",
-	noNetworkRunner: "sha256:009d0ab90ade542beba9c7d4ed280b9c3c7bf1a1c7a3a78f22976e418f434cbe",
-	liveRunner: "sha256:10e87b327668cb6b31b47114a8d177a672ced0f88f7e2c896047b123f0d9b691",
+	noNetworkRunner: "sha256:cccc0fe4f032c1c8139d100b67838200658648da5790dd8534fdb8dfcb175dee",
+	liveRunner: "sha256:3d5bbeaa494674065ee897d5323ca6491c5a817730856953cb48319aba491fb8",
 });
 
 export const D738_IMPLEMENTATION_MANIFEST = strictSnapshot({
-	revision: "graphrefly.b112.d738.implementation-manifest.v1",
-	decisionRef: "decision.D738",
+	revision: "graphrefly.b112.d739.implementation-manifest.v1",
+	decisionRef: "decision.D739",
 	decisionRevision: "2026-08-12.v1",
 	trackedSourceSha256: D738_TRACKED_SOURCE_SHA256,
 	privateSourceSha256: D738_PRIVATE_SOURCE_SHA256,

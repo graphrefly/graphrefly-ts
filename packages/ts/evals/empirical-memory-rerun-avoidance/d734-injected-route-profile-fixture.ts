@@ -136,6 +136,7 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 	readonly routeAdmission: D733GraphNativeRouteAdmissionV1;
 	readonly executionClass?: "injected-no-network" | "live-provider";
 	readonly objectivePhaseViolationBeforeMutation?: boolean;
+	readonly objectivePhaseViolationAfterInspectionPrefix?: boolean;
 }): D734InjectedRouteProfileFixtureV1 {
 	const profile = inputValue.profile;
 	const model = createD722InjectedModelFixture();
@@ -162,7 +163,9 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 				: request.completionContext?.reason === "objective-phase-policy-violation"
 					? ["replace-exact", "workspace-diff", "focused-validation"]
 					: turn === 2
-						? ["workspace-diff", "focused-validation"]
+						? inputValue.objectivePhaseViolationAfterInspectionPrefix
+							? ["search-repository", "workspace-diff"]
+							: ["workspace-diff", "focused-validation"]
 						: [];
 		return Object.freeze({
 			effectKind: "provider-request" as const,

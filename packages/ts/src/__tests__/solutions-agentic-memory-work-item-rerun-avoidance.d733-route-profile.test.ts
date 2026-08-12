@@ -92,6 +92,7 @@ function alternateProfile(): D733GraphNativeRouteProfileV1 {
 async function capturedWire(
 	profile: D733GraphNativeRouteProfileV1,
 	routeAdmission: D733GraphNativeRouteAdmissionV1,
+	conversation: readonly unknown[] = [],
 ): Promise<Record<string, unknown>> {
 	let body: Record<string, unknown> | null = null;
 	await invokeD733OpenRouterGraphTurn({
@@ -143,7 +144,7 @@ async function capturedWire(
 			},
 		},
 		taskStatement: "D733 injected test",
-		conversation: { messages: [] },
+		conversation: { messages: conversation as never[] },
 		signal: new AbortController().signal,
 		monotonicNowMs: () => 1,
 		routeAdmission,
@@ -205,6 +206,52 @@ describe("D733 Graph-native route profile", () => {
 		});
 		expect(primaryBody).not.toHaveProperty("parallel_tool_calls");
 		expect(alternateBody).not.toHaveProperty("parallel_tool_calls");
+	});
+
+	it("admits bounded Graph conversations above 256 KiB and rejects more than one MiB before transport", async () => {
+		const profile = D733_DEEPSEEK_V4_FLASH_0731_PROFILE;
+		const route = admission(profile);
+		const body = await capturedWire(profile, route, [
+			{ role: "user", content: "x".repeat(300_000) },
+		]);
+		expect(encoder.encode(JSON.stringify(body)).byteLength).toBeGreaterThan(262_144);
+		let transportCalls = 0;
+		await expect(
+			invokeD733OpenRouterGraphTurn({
+				effectRequest: {
+					kind: "graph-effect-request",
+					runSequence: 0,
+					issuedRequestDigest: empiricalStrictJsonDigest({ issued: "d739-over-bound" }),
+					effectSequence: 1,
+					effectKind: "provider-request",
+					logicalRequestDigest: empiricalStrictJsonDigest({ logical: "d739-over-bound" }),
+					attemptOrdinal: 1,
+					retryReason: "none",
+					retryAfterMs: null,
+					toolIntent: null,
+					phaseBefore: "none",
+					workspaceStateDigest: empiricalStrictJsonDigest({ workspace: "d739-over-bound" }),
+					requestDigest: empiricalStrictJsonDigest({ request: "d739-over-bound" }),
+				},
+				credential: {
+					bearerToken: "not-a-live-d739-test-credential",
+					credentialBindingRef: "d739.test",
+					credentialBindingRevision: "v1",
+				},
+				transport: {
+					async request() {
+						transportCalls += 1;
+						throw new Error("unreachable");
+					},
+				},
+				taskStatement: "D739 over-bound request test",
+				conversation: { messages: [{ role: "user", content: "x".repeat(1_100_000) }] },
+				signal: new AbortController().signal,
+				monotonicNowMs: () => 1,
+				routeAdmission: route,
+			}),
+		).rejects.toThrow(/wire bound/);
+		expect(transportCalls).toBe(0);
 	});
 
 	it("fails closed on guardrail, pricing, forged admission, and accessor input", async () => {
