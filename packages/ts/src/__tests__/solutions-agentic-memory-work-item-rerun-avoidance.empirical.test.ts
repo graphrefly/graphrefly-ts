@@ -983,6 +983,11 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsD756ImplementationManifest = file.endsWith("d756-implementation-manifest.ts");
 			const allowsD756Qualification =
 				allowsD756NamedToolLowering || allowsD756ImplementationManifest;
+			const allowsD757NamedToolPreLive = file.endsWith("d757-named-tool-pre-live.ts");
+			const allowsD757ImplementationManifest = file.endsWith("d757-implementation-manifest.ts");
+			const allowsD757PrivateRunner = file.endsWith("run-d757-no-network-pre-live.ts");
+			const allowsD757Qualification =
+				allowsD757NamedToolPreLive || allowsD757ImplementationManifest || allowsD757PrivateRunner;
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -1043,6 +1048,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD753LiveQualification ||
 				allowsD754LiveQualification ||
 				allowsD756ImplementationManifest ||
+				allowsD757Qualification ||
 				allowsD732DispatchClaim ||
 				allowsD720CleanGraphNativeEval ||
 				allowsD721ProviderCapablePreLive ||
@@ -1151,6 +1157,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 									allowsD734RouteIntegration ||
 									allowsD734InjectedFixture ||
 									allowsD756Qualification ||
+									allowsD757Qualification ||
 									allowsD735ProviderPreflight ||
 									allowsD725RealProviderIntegration ||
 									allowsD725InjectedQualification ||
@@ -1250,6 +1257,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD752PrivateRunner ||
 							allowsD753GraphNativeLive ||
 							allowsD754GraphNativeLive ||
+							allowsD757NamedToolPreLive ||
 							allowsD732DispatchClaim) &&
 							specifier === "node:fs") ||
 						((allowsD691HistoricalTransferOperator ||
