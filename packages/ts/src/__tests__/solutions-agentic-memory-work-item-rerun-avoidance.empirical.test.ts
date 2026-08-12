@@ -979,6 +979,10 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD754GraphNativeLive ||
 				allowsD754TransportDiagnosticAdapter ||
 				allowsD754ImplementationManifest;
+			const allowsD756NamedToolLowering = file.endsWith("d756-graph-named-tool-continuation.ts");
+			const allowsD756ImplementationManifest = file.endsWith("d756-implementation-manifest.ts");
+			const allowsD756Qualification =
+				allowsD756NamedToolLowering || allowsD756ImplementationManifest;
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -1038,6 +1042,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD752TransportDiagnosticQualification ||
 				allowsD753LiveQualification ||
 				allowsD754LiveQualification ||
+				allowsD756ImplementationManifest ||
 				allowsD732DispatchClaim ||
 				allowsD720CleanGraphNativeEval ||
 				allowsD721ProviderCapablePreLive ||
@@ -1145,6 +1150,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 									allowsD733OpenRouterGraphTurn ||
 									allowsD734RouteIntegration ||
 									allowsD734InjectedFixture ||
+									allowsD756Qualification ||
 									allowsD735ProviderPreflight ||
 									allowsD725RealProviderIntegration ||
 									allowsD725InjectedQualification ||

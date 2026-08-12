@@ -2,6 +2,10 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { empiricalStrictJsonDigest } from "../../evals/empirical-memory-rerun-avoidance/canonical.js";
 import {
+	type D722GraphCompletionContextV1,
+	D748_FORWARD_PHASE_CONTEXT_SCHEMA,
+} from "../../evals/empirical-memory-rerun-avoidance/d722-graph-native-effect-runtime.js";
+import {
 	D733_DEEPSEEK_V4_FLASH_0731_PROFILE,
 	D733_DEEPSEEK_V4_FLASH_0731_PROFILE_BYTES,
 } from "../../evals/empirical-memory-rerun-avoidance/d733-coordinates.js";
@@ -17,6 +21,7 @@ import {
 } from "../../evals/empirical-memory-rerun-avoidance/d733-graph-native-route-profile.js";
 import { validateD733TrackedImplementationBytes } from "../../evals/empirical-memory-rerun-avoidance/d733-implementation-manifest.js";
 import { invokeD733OpenRouterGraphTurn } from "../../evals/empirical-memory-rerun-avoidance/d733-openrouter-graph-turn.js";
+import { invokeD756RouteBoundOpenRouterTurn } from "../../evals/empirical-memory-rerun-avoidance/d756-graph-named-tool-continuation.js";
 
 const encoder = new TextEncoder();
 
@@ -93,9 +98,14 @@ async function capturedWire(
 	profile: D733GraphNativeRouteProfileV1,
 	routeAdmission: D733GraphNativeRouteAdmissionV1,
 	conversation: readonly unknown[] = [],
+	completionContext?: D722GraphCompletionContextV1,
+	useNamedToolLowering = false,
 ): Promise<Record<string, unknown>> {
 	let body: Record<string, unknown> | null = null;
-	await invokeD733OpenRouterGraphTurn({
+	const invoke = useNamedToolLowering
+		? invokeD756RouteBoundOpenRouterTurn
+		: invokeD733OpenRouterGraphTurn;
+	await invoke({
 		effectRequest: {
 			kind: "graph-effect-request",
 			runSequence: 0,
@@ -110,6 +120,7 @@ async function capturedWire(
 			phaseBefore: "none",
 			workspaceStateDigest: empiricalStrictJsonDigest({ workspace: profile.profileDigest }),
 			requestDigest: empiricalStrictJsonDigest({ request: profile.profileDigest }),
+			...(completionContext === undefined ? {} : { completionContext }),
 		},
 		credential: {
 			bearerToken: "not-a-live-d733-test-credential",
@@ -206,6 +217,58 @@ describe("D733 Graph-native route profile", () => {
 		});
 		expect(primaryBody).not.toHaveProperty("parallel_tool_calls");
 		expect(alternateBody).not.toHaveProperty("parallel_tool_calls");
+	});
+
+	it("lowers each Graph phase to one exact Chat tool without changing the Graph request", async () => {
+		const profile = D733_DEEPSEEK_V4_FLASH_0731_PROFILE;
+		const phases = [
+			["inspection", "tool-intents", { type: "function", function: { name: "read_file" } }],
+			["exact-mutation", "tool-intents", { type: "function", function: { name: "replace_exact" } }],
+			[
+				"workspace-diff",
+				"tool-intents",
+				{ type: "function", function: { name: "workspace_diff" } },
+			],
+			[
+				"focused-validation",
+				"tool-intents",
+				{ type: "function", function: { name: "focused_validation" } },
+			],
+			["hidden-verifier", "structured-final", "none"],
+		] as const;
+		for (const [nextRequiredPhase, requiredDisposition, expectedChoice] of phases) {
+			const material = {
+				schemaVersion: D748_FORWARD_PHASE_CONTEXT_SCHEMA,
+				reason: "objective-phase-advanced" as const,
+				runSequence: 0,
+				issuedRequestDigest: empiricalStrictJsonDigest({ issued: nextRequiredPhase }),
+				rejectedRequestDigest: empiricalStrictJsonDigest({ rejected: nextRequiredPhase }),
+				workspaceStateDigest: empiricalStrictJsonDigest({ workspace: nextRequiredPhase }),
+				nextRequiredPhase,
+				missingObjectivePhases:
+					nextRequiredPhase === "hidden-verifier" ? ([] as const) : ([nextRequiredPhase] as const),
+				evidenceFreshnessRefs: [
+					empiricalStrictJsonDigest({ result: nextRequiredPhase }),
+					empiricalStrictJsonDigest({ fact: nextRequiredPhase }),
+				] as const,
+				requiredDisposition,
+				remainingEffectFacts: 10,
+				remainingCompletionContexts: 2,
+				remainingAdmittedBounds: {
+					requests: 10,
+					retryWaits: 1,
+					costMicrousd: 100,
+					elapsedMs: 100,
+				},
+				budgetProjectionDigest: empiricalStrictJsonDigest({ budget: nextRequiredPhase }),
+			};
+			const context = {
+				...material,
+				contextDigest: empiricalStrictJsonDigest(material),
+			} as D722GraphCompletionContextV1;
+			const body = await capturedWire(profile, admission(profile), [], context, true);
+			expect(body.tool_choice).toEqual(expectedChoice);
+		}
 	});
 
 	it("admits bounded Graph conversations above 256 KiB and rejects more than one MiB before transport", async () => {
