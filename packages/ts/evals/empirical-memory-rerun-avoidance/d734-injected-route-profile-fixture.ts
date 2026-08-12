@@ -137,6 +137,9 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 	readonly executionClass?: "injected-no-network" | "live-provider";
 	readonly objectivePhaseViolationBeforeMutation?: boolean;
 	readonly objectivePhaseViolationAfterInspectionPrefix?: boolean;
+	readonly inspectionSaturationBeforeMutation?: boolean;
+	readonly inspectionOverflowBeforeMutation?: boolean;
+	readonly wrongRecoveryFirstTool?: boolean;
 }): D734InjectedRouteProfileFixtureV1 {
 	const profile = inputValue.profile;
 	const model = createD722InjectedModelFixture();
@@ -158,15 +161,27 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 		const turn = (providerTurnsByRun.get(request.runSequence) ?? 0) + 1;
 		providerTurnsByRun.set(request.runSequence, turn);
 		const toolRefs: readonly D720ToolRef[] =
-			turn === 1
-				? ["read-file"]
-				: request.completionContext?.reason === "objective-phase-policy-violation"
-					? ["replace-exact", "workspace-diff", "focused-validation"]
+			inputValue.inspectionSaturationBeforeMutation || inputValue.inspectionOverflowBeforeMutation
+				? turn === 1
+					? ["read-file", "read-file", "read-file", "read-file"]
 					: turn === 2
-						? inputValue.objectivePhaseViolationAfterInspectionPrefix
-							? ["search-repository", "workspace-diff"]
-							: ["workspace-diff", "focused-validation"]
-						: [];
+						? inputValue.inspectionOverflowBeforeMutation
+							? ["search-repository", "search-repository", "search-repository"]
+							: ["search-repository", "search-repository"]
+						: request.completionContext?.reason === "objective-phase-policy-violation"
+							? inputValue.wrongRecoveryFirstTool
+								? ["search-repository"]
+								: ["replace-exact", "workspace-diff", "focused-validation"]
+							: []
+				: turn === 1
+					? ["read-file"]
+					: request.completionContext?.reason === "objective-phase-policy-violation"
+						? ["replace-exact", "workspace-diff", "focused-validation"]
+						: turn === 2
+							? inputValue.objectivePhaseViolationAfterInspectionPrefix
+								? ["search-repository", "workspace-diff"]
+								: ["workspace-diff", "focused-validation"]
+							: [];
 		return Object.freeze({
 			effectKind: "provider-request" as const,
 			status: toolRefs.length === 0 ? ("structured-final" as const) : ("tool-intents" as const),
@@ -222,9 +237,12 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 						async request(request) {
 							providerCalls += 1;
 							wireBodies.push(new Uint8Array(request.body));
-							const result = inputValue.objectivePhaseViolationBeforeMutation
-								? phaseRecoveryResult(executionInput.effectRequest)
-								: await invokeD722InjectedModelFixture(model, executionInput.effectRequest);
+							const result =
+								inputValue.objectivePhaseViolationBeforeMutation ||
+								inputValue.inspectionSaturationBeforeMutation ||
+								inputValue.inspectionOverflowBeforeMutation
+									? phaseRecoveryResult(executionInput.effectRequest)
+									: await invokeD722InjectedModelFixture(model, executionInput.effectRequest);
 							return result.effectKind === "provider-request" &&
 								result.status === "retryable-failure"
 								? retryResponse(executionInput.effectRequest, result)

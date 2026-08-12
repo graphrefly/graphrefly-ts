@@ -34,6 +34,7 @@ export const D722_COMPLETION_CONTEXT_SCHEMA =
 	"graphrefly.b112.d722.graph-completion-context.v1" as const;
 export const D737_OBJECTIVE_PHASE_RECOVERY_POLICY_REVISION =
 	"graphrefly.b112.d737.objective-phase-recovery-policy.v1" as const;
+export const D740_MAX_PRE_MUTATION_INSPECTION_EFFECTS = 6;
 export const D737_OBJECTIVE_PHASE_CONTEXT_SCHEMA =
 	"graphrefly.b112.d737.objective-phase-completion-context.v1" as const;
 export const D722_EFFECT_RUNTIME_REVISION =
@@ -320,6 +321,7 @@ interface RuntimeState {
 interface ProjectionState {
 	phase: D719CleanPhase;
 	inspectionObserved: boolean;
+	inspectionEffectCount: number;
 	mutationObserved: boolean;
 	diffObserved: boolean;
 	validationAttempted: boolean;
@@ -540,11 +542,16 @@ function toolIntentBatchAllowed(
 	intents: readonly D720ToolIntentV1[],
 ): boolean {
 	let inspectionObserved = state.inspectionObserved;
+	let inspectionEffectCount = state.inspectionEffectCount;
 	let mutationObserved = state.mutationObserved;
 	let diffObserved = state.diffObserved;
 	for (const intent of intents) {
 		if (intent.toolRef === "read-file" || intent.toolRef === "search-repository") {
 			inspectionObserved = true;
+			if (!mutationObserved) {
+				inspectionEffectCount += 1;
+				if (inspectionEffectCount > D740_MAX_PRE_MUTATION_INSPECTION_EFFECTS) return false;
+			}
 			continue;
 		}
 		if (intent.toolRef === "replace-exact") {
@@ -561,6 +568,15 @@ function toolIntentBatchAllowed(
 		if (!diffObserved) return false;
 	}
 	return true;
+}
+
+function requiredToolForPhase(
+	phase: D722GraphCompletionContextV1["nextRequiredPhase"],
+): D720ToolRef {
+	if (phase === "inspection") return "read-file";
+	if (phase === "exact-mutation") return "replace-exact";
+	if (phase === "workspace-diff") return "workspace-diff";
+	return "focused-validation";
 }
 
 function nextToolOrStop(
@@ -631,7 +647,20 @@ function nextEffect(
 	} else if (lastFact.result.effectKind === "provider-request") {
 		const result = lastFact.result;
 		if (result.status === "tool-intents") {
-			if (
+			const recoveryToolMismatch =
+				state.activeCompletionContext?.reason === "objective-phase-policy-violation" &&
+				result.toolIntents[0]?.toolRef !==
+					requiredToolForPhase(state.activeCompletionContext.nextRequiredPhase);
+			if (recoveryToolMismatch) {
+				state.pendingTools = [];
+				state.activeCompletionContext = null;
+				request = requestMaterial(state, runSequence, issuedRequestDigest, "cleanup", {
+					logicalMaterial: {
+						issuedRequestDigest,
+						effect: "objective-phase-recovery-tool-mismatch",
+					},
+				});
+			} else if (
 				!toolIntentBatchAllowed(state, result.toolIntents) &&
 				state.objectivePhaseRecoveryEnabled &&
 				state.completionContextsIssued < D722_MAX_COMPLETION_CONTEXTS_PER_RUN
@@ -738,6 +767,7 @@ function nextEffect(
 			state.workspaceStateDigest = result.workspaceStateAfterDigest;
 			if (result.toolRef === "read-file" || result.toolRef === "search-repository") {
 				state.inspectionObserved = true;
+				if (!state.mutationObserved) state.inspectionEffectCount += 1;
 				if (state.phase === "none") state.phase = "inspection";
 			} else if (result.toolRef === "replace-exact") {
 				state.mutationObserved = true;
@@ -763,22 +793,44 @@ function nextEffect(
 			const toolIntent = state.pendingTools.shift();
 			request =
 				toolIntent === undefined
-					? (() => {
-							state.providerAttemptOrdinal = 1;
-							state.activeCompletionContext = null;
-							state.providerTurnSequence += 1;
-							state.providerLogicalRequestDigest = empiricalStrictJsonDigest({
-								issuedRequestDigest,
-								providerTurn: state.providerTurnSequence,
-							});
-							return requestMaterial(state, runSequence, issuedRequestDigest, "provider-request", {
-								logicalMaterial: {
+					? state.objectivePhaseRecoveryEnabled &&
+						!state.mutationObserved &&
+						state.inspectionEffectCount >= D740_MAX_PRE_MUTATION_INSPECTION_EFFECTS &&
+						state.completionContextsIssued < D722_MAX_COMPLETION_CONTEXTS_PER_RUN
+						? (() => {
+								if (budgetContext === null)
+									throw new TypeError("D740 inspection saturation requires Graph budget context");
+								return objectiveContinuationRequest(
+									state,
+									budgetContext,
+									runSequence,
+									issuedRequestDigest,
+									lastFact,
+									"objective-phase-policy-violation",
+								);
+							})()
+						: (() => {
+								state.providerAttemptOrdinal = 1;
+								state.activeCompletionContext = null;
+								state.providerTurnSequence += 1;
+								state.providerLogicalRequestDigest = empiricalStrictJsonDigest({
 									issuedRequestDigest,
 									providerTurn: state.providerTurnSequence,
-								},
-								logicalRequestDigest: state.providerLogicalRequestDigest,
-							});
-						})()
+								});
+								return requestMaterial(
+									state,
+									runSequence,
+									issuedRequestDigest,
+									"provider-request",
+									{
+										logicalMaterial: {
+											issuedRequestDigest,
+											providerTurn: state.providerTurnSequence,
+										},
+										logicalRequestDigest: state.providerLogicalRequestDigest,
+									},
+								);
+							})()
 					: nextToolOrStop(state, runSequence, issuedRequestDigest, toolIntent);
 		}
 	} else if (lastFact.result.effectKind === "hidden-verifier") {
@@ -834,6 +886,7 @@ function initialProjectionState(): ProjectionState {
 	return {
 		phase: "none",
 		inspectionObserved: false,
+		inspectionEffectCount: 0,
 		mutationObserved: false,
 		diffObserved: false,
 		validationAttempted: false,

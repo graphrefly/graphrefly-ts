@@ -7,8 +7,8 @@ import {
 } from "./canonical.js";
 
 export const D737_TRACKED_SOURCE_SHA256 = Object.freeze({
-	graphRuntime: "sha256:a4eba03a7cd1ad6f87ed974d8a992dce329548d3bf3acfabb55787671bd2e59c",
-	graphProjection: "sha256:1c5e0b92a623cc59f6bfcc64b2c0af00dd9f72f334ad53e89dc80e602b55b8af",
+	graphRuntime: "sha256:1d2c0ecdf2805bf69852aee81da910c27dcffde10b13981c30064d23f0f43cd0",
+	graphProjection: "sha256:5bda61694c2242b40c91d7fadea4861b0a76ab17b3b4333ce0515b501b3e0281",
 	graphEval: "sha256:9e82c5a992c9d95ead48f871b371c9875c3dcd510d2eef9d30e655a2d95590d2",
 	providerCore: "sha256:ec1a644edb5989315a4a3ec5e6e621786f89b1c9e9493026a91ad7568e1f7cd5",
 	routeIntegration: "sha256:56bc2d7d961b790d3e39cafde32ded3419bdc1892b7dfffb5754e07bc5b21154",

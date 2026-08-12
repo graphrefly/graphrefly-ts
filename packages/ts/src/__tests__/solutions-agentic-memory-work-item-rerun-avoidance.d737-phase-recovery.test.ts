@@ -212,6 +212,110 @@ describe("D737 Graph objective-phase recovery", () => {
 		expect(fixture.activeWorkspaceCount()).toBe(0);
 	}, 30_000);
 
+	it("turns exact inspection saturation into a Graph-authored mutation continuation", async () => {
+		const fixture = createD734InjectedRouteProfileFixture({
+			profile: D733_DEEPSEEK_V4_FLASH_0731_PROFILE,
+			routeAdmission: routeAdmission(),
+			executionClass: "live-provider",
+			inspectionSaturationBeforeMutation: true,
+		});
+		const result = await runD734RouteProfileSixArmLiveIntegration({
+			sourceDigest: sha("d740-inspection-saturation"),
+			adapter: fixture.adapter,
+			objectivePhaseRecoveryPolicy: createD737GraphObjectivePhaseRecoveryPolicy(),
+			signal: AbortSignal.timeout(30_000),
+		});
+		expect(result.run.graphEvidence.runStatus).toBe("complete");
+		expect(result.run.graphEvidence.ledger.completedArms).toHaveLength(6);
+		expect(result.run.graphEvidence.completionContexts).toHaveLength(6);
+		for (const [index, run] of result.run.graphEvidence.effectRuns.entries()) {
+			const inspectionFacts = run.facts.filter(
+				(fact) =>
+					fact.result.effectKind === "tool-action" &&
+					(fact.result.toolRef === "read-file" || fact.result.toolRef === "search-repository"),
+			);
+			expect(inspectionFacts).toHaveLength(6);
+			const context = result.run.graphEvidence.completionContexts[index];
+			expect(context?.reason).toBe("objective-phase-policy-violation");
+			expect(context?.nextRequiredPhase).toBe("exact-mutation");
+			const contextFact = run.facts.find(
+				(fact) => fact.request.completionContext?.contextDigest === context?.contextDigest,
+			);
+			expect(contextFact?.result.effectKind).toBe("provider-request");
+			if (contextFact?.result.effectKind === "provider-request")
+				expect(contextFact.result.toolIntents[0]?.toolRef).toBe("replace-exact");
+		}
+		expect(fixture.activeWorkspaceCount()).toBe(0);
+	}, 30_000);
+
+	it("rejects a saturated recovery response whose first tool does not match the Graph phase", async () => {
+		const fixture = createD734InjectedRouteProfileFixture({
+			profile: D733_DEEPSEEK_V4_FLASH_0731_PROFILE,
+			routeAdmission: routeAdmission(),
+			executionClass: "live-provider",
+			inspectionSaturationBeforeMutation: true,
+			wrongRecoveryFirstTool: true,
+		});
+		const result = await runD734RouteProfileSixArmLiveIntegration({
+			sourceDigest: sha("d740-wrong-recovery-tool"),
+			adapter: fixture.adapter,
+			objectivePhaseRecoveryPolicy: createD737GraphObjectivePhaseRecoveryPolicy(),
+			signal: AbortSignal.timeout(30_000),
+		});
+		expect(result.run.graphEvidence.runStatus).toBe("complete");
+		expect(result.run.graphEvidence.ledger.completedArms).toHaveLength(6);
+		expect(result.run.graphEvidence.ledger.findings).toHaveLength(12);
+		for (const run of result.run.graphEvidence.effectRuns) {
+			expect(
+				run.facts.some(
+					(fact) =>
+						fact.result.effectKind === "tool-action" && fact.result.toolRef === "replace-exact",
+				),
+			).toBe(false);
+			expect(
+				run.facts.filter(
+					(fact) =>
+						fact.result.effectKind === "tool-action" &&
+						(fact.result.toolRef === "read-file" || fact.result.toolRef === "search-repository"),
+				),
+			).toHaveLength(6);
+		}
+		expect(fixture.activeWorkspaceCount()).toBe(0);
+	}, 30_000);
+
+	it("rejects an overflowing inspection batch before effects and recovers from the retained prefix", async () => {
+		const fixture = createD734InjectedRouteProfileFixture({
+			profile: D733_DEEPSEEK_V4_FLASH_0731_PROFILE,
+			routeAdmission: routeAdmission(),
+			executionClass: "live-provider",
+			inspectionOverflowBeforeMutation: true,
+		});
+		const result = await runD734RouteProfileSixArmLiveIntegration({
+			sourceDigest: sha("d740-overflow-recovery"),
+			adapter: fixture.adapter,
+			objectivePhaseRecoveryPolicy: createD737GraphObjectivePhaseRecoveryPolicy(),
+			signal: AbortSignal.timeout(30_000),
+		});
+		expect(result.run.graphEvidence.runStatus).toBe("complete");
+		expect(result.run.graphEvidence.completionContexts).toHaveLength(6);
+		for (const run of result.run.graphEvidence.effectRuns) {
+			expect(
+				run.facts.filter(
+					(fact) =>
+						fact.result.effectKind === "tool-action" &&
+						(fact.result.toolRef === "read-file" || fact.result.toolRef === "search-repository"),
+				),
+			).toHaveLength(4);
+			expect(
+				run.facts.some(
+					(fact) =>
+						fact.result.effectKind === "tool-action" && fact.result.toolRef === "replace-exact",
+				),
+			).toBe(true);
+		}
+		expect(fixture.activeWorkspaceCount()).toBe(0);
+	}, 30_000);
+
 	it("constructs and canonically replays the full no-network six-arm qualification", async () => {
 		const fixture = createD734InjectedRouteProfileFixture({
 			profile: D733_DEEPSEEK_V4_FLASH_0731_PROFILE,
@@ -289,7 +393,7 @@ describe("D737 Graph objective-phase recovery", () => {
 			await readFile(
 				join(
 					import.meta.dirname,
-					"../../evals/.private/empirical-memory-rerun-avoidance/.d738-live-private/d738-graph-provider-attempt-evidence-repair-live-2026-08-12-v1/artifacts/bundle.v1.json",
+					"../../evals/.private/empirical-memory-rerun-avoidance/.d739-live-private/d739-bounded-provider-context-live-2026-08-12-v1/artifacts/bundle.v1.json",
 				),
 			),
 		);
