@@ -33,12 +33,12 @@ import {
 } from "./d734-route-profile-provider-integration.js";
 import {
 	D738_COORDINATES_DIGEST,
-	D738_D736_PARTIAL_ARTIFACT_SHA256,
-	D738_D736_PARTIAL_BUNDLE_DIGEST,
-	D738_D736_PARTIAL_GENERATION_DIGEST,
 	D738_DECISION_REF,
 	D738_DECISION_REVISION,
 	D738_GENERATION_REF,
+	D738_HISTORICAL_ARTIFACT_SHA256,
+	D738_HISTORICAL_BUNDLE_DIGEST,
+	D738_HISTORICAL_GENERATION_DIGEST,
 	D738_ROUTE_PROFILE,
 	D738_ROUTE_PROFILE_DIGEST,
 } from "./d738-coordinates.js";
@@ -47,12 +47,12 @@ import {
 	type D738ExecutionAuthorityV1,
 } from "./d738-single-use-dispatch-claim.js";
 
-export const D738_QUALIFICATION_SCHEMA = "graphrefly.b112.d745.live-qualification.v1" as const;
-export const D738_OBSERVATION_SCHEMA = "graphrefly.b112.d745.live-observation.v1" as const;
-export const D738_GENERATION_SCHEMA = "graphrefly.b112.d745.success-generation.v1" as const;
-export const D738_PARTIAL_SCHEMA = "graphrefly.b112.d745.partial-failure-generation.v1" as const;
-export const D738_TERMINAL_SCHEMA = "graphrefly.b112.d745.terminal-receipt.v1" as const;
-export const D738_BUNDLE_SCHEMA = "graphrefly.b112.d745.live-bundle.v1" as const;
+export const D738_QUALIFICATION_SCHEMA = "graphrefly.b112.d746.live-qualification.v1" as const;
+export const D738_OBSERVATION_SCHEMA = "graphrefly.b112.d746.live-observation.v1" as const;
+export const D738_GENERATION_SCHEMA = "graphrefly.b112.d746.success-generation.v1" as const;
+export const D738_PARTIAL_SCHEMA = "graphrefly.b112.d746.partial-failure-generation.v1" as const;
+export const D738_TERMINAL_SCHEMA = "graphrefly.b112.d746.terminal-receipt.v1" as const;
+export const D738_BUNDLE_SCHEMA = "graphrefly.b112.d746.live-bundle.v1" as const;
 
 export interface D738LiveBundleV1 {
 	readonly schemaVersion: typeof D738_BUNDLE_SCHEMA;
@@ -134,18 +134,18 @@ function cleanupFacts(graph: D722CanonicalGraphEvidenceV1) {
 	);
 }
 
-function validateHistoricalD736Partial(bytes: Uint8Array): void {
+function validateHistoricalBundle(bytes: Uint8Array): void {
 	if (!(bytes instanceof Uint8Array) || bytes.byteLength < 1 || bytes.byteLength > 16 * 1_048_576)
 		throw new TypeError("D738 D736 partial artifact bytes are invalid");
-	literal(empiricalSha256(bytes), D738_D736_PARTIAL_ARTIFACT_SHA256, "d738.d736Partial.artifact");
+	literal(empiricalSha256(bytes), D738_HISTORICAL_ARTIFACT_SHA256, "d738.historical.artifact");
 	const bundle = record(strictJsonCodec.decode(new Uint8Array(bytes)), "d739.d738Partial");
-	literal(bundle.disposition, "success", "d738.d736Partial.disposition");
-	literal(bundle.bundleDigest, D738_D736_PARTIAL_BUNDLE_DIGEST, "d738.d736Partial.bundle");
+	literal(bundle.disposition, "partial-failure", "d738.historical.disposition");
+	literal(bundle.bundleDigest, D738_HISTORICAL_BUNDLE_DIGEST, "d738.historical.bundle");
 	const generation = record(bundle.generation, "d739.d738Partial.generation");
 	literal(
 		generation.generationDigest,
-		D738_D736_PARTIAL_GENERATION_DIGEST,
-		"d738.d736Partial.generation",
+		D738_HISTORICAL_GENERATION_DIGEST,
+		"d738.historical.generation",
 	);
 }
 
@@ -196,9 +196,9 @@ function buildBundle(
 		decisionRef: D738_DECISION_REF,
 		decisionRevision: D738_DECISION_REVISION,
 		coordinatesDigest: D738_COORDINATES_DIGEST,
-		d736PartialArtifactSha256: D738_D736_PARTIAL_ARTIFACT_SHA256,
-		d736PartialBundleDigest: D738_D736_PARTIAL_BUNDLE_DIGEST,
-		d736PartialGenerationDigest: D738_D736_PARTIAL_GENERATION_DIGEST,
+		historicalArtifactSha256: D738_HISTORICAL_ARTIFACT_SHA256,
+		historicalBundleDigest: D738_HISTORICAL_BUNDLE_DIGEST,
+		historicalGenerationDigest: D738_HISTORICAL_GENERATION_DIGEST,
 		implementationManifestDigest: digest(input.implementationManifestDigest, "d738.implementation"),
 		routeProfileDigest: D738_ROUTE_PROFILE_DIGEST,
 		graphEvidenceDigest: graphEvidence.evidenceDigest,
@@ -309,7 +309,7 @@ function buildBundle(
 }
 
 export async function runD738LiveReplacement(inputValue: {
-	readonly d736PartialBundleBytes: Uint8Array;
+	readonly historicalBundleBytes: Uint8Array;
 	readonly implementationManifestDigest: string;
 	readonly adapter: D734RouteBoundProviderAdapterV1;
 	readonly executionAuthority: D738ExecutionAuthorityV1;
@@ -323,7 +323,7 @@ export async function runD738LiveReplacement(inputValue: {
 		input,
 		[
 			"adapter",
-			"d736PartialBundleBytes",
+			"historicalBundleBytes",
 			"executionAuthority",
 			"implementationManifestDigest",
 			"pricingObservationDigest",
@@ -333,7 +333,7 @@ export async function runD738LiveReplacement(inputValue: {
 		],
 		"d738.run",
 	);
-	validateHistoricalD736Partial(input.d736PartialBundleBytes as Uint8Array);
+	validateHistoricalBundle(input.historicalBundleBytes as Uint8Array);
 	const authority = consumeD738ExecutionAuthority(input.executionAuthority);
 	const pricingReadDigest = digest(input.pricingReadDigest, "d738.run.pricingReadDigest");
 	const implementationManifestDigest = digest(
@@ -341,9 +341,9 @@ export async function runD738LiveReplacement(inputValue: {
 		"d738.run.implementationManifestDigest",
 	);
 	literal(
-		authority.claim.d736PartialBundleDigest,
-		D738_D736_PARTIAL_BUNDLE_DIGEST,
-		"d738.authority.d736Partial",
+		authority.claim.historicalBundleDigest,
+		D738_HISTORICAL_BUNDLE_DIGEST,
+		"d738.authority.historical",
 	);
 	literal(authority.claim.routeProfileDigest, D738_ROUTE_PROFILE_DIGEST, "d738.authority.route");
 	literal(authority.claim.pricingReadDigest, pricingReadDigest, "d738.authority.pricing");
@@ -377,7 +377,7 @@ export async function runD738LiveReplacement(inputValue: {
 }
 
 export async function runD738InjectedNoNetworkQualification(inputValue: {
-	readonly d736PartialBundleBytes: Uint8Array;
+	readonly historicalBundleBytes: Uint8Array;
 	readonly implementationManifestDigest: string;
 	readonly adapter: D734RouteBoundProviderAdapterV1;
 	readonly providerTransportCalls: () => number;
@@ -388,14 +388,14 @@ export async function runD738InjectedNoNetworkQualification(inputValue: {
 		input,
 		[
 			"adapter",
-			"d736PartialBundleBytes",
+			"historicalBundleBytes",
 			"implementationManifestDigest",
 			"providerTransportCalls",
 			"signal",
 		],
 		"d738.injectedRun",
 	);
-	validateHistoricalD736Partial(input.d736PartialBundleBytes as Uint8Array);
+	validateHistoricalBundle(input.historicalBundleBytes as Uint8Array);
 	const implementationManifestDigest = digest(
 		input.implementationManifestDigest,
 		"d738.injectedRun.implementation",
@@ -530,19 +530,19 @@ export function validateD738LiveBundle(value: unknown): D738LiveBundleV1 {
 		"d738.qualification.coordinates",
 	);
 	literal(
-		qualification.d736PartialArtifactSha256,
-		D738_D736_PARTIAL_ARTIFACT_SHA256,
-		"d738.qualification.d736PartialArtifact",
+		qualification.historicalArtifactSha256,
+		D738_HISTORICAL_ARTIFACT_SHA256,
+		"d738.qualification.historicalArtifact",
 	);
 	literal(
-		qualification.d736PartialBundleDigest,
-		D738_D736_PARTIAL_BUNDLE_DIGEST,
-		"d738.qualification.d736PartialBundle",
+		qualification.historicalBundleDigest,
+		D738_HISTORICAL_BUNDLE_DIGEST,
+		"d738.qualification.historicalBundle",
 	);
 	literal(
-		qualification.d736PartialGenerationDigest,
-		D738_D736_PARTIAL_GENERATION_DIGEST,
-		"d738.qualification.d736PartialGeneration",
+		qualification.historicalGenerationDigest,
+		D738_HISTORICAL_GENERATION_DIGEST,
+		"d738.qualification.historicalGeneration",
 	);
 	literal(qualification.routeProfileDigest, D738_ROUTE_PROFILE_DIGEST, "d738.qualification.route");
 	literal(qualification.graphEvidenceDigest, graph.evidenceDigest, "d738.qualification.graph");
@@ -706,7 +706,7 @@ export async function persistD738LiveBundle(inputValue: {
 		)
 			throw new TypeError("D738 persistence rename identity drifted");
 		const commit = strictSnapshot({
-			schemaVersion: "graphrefly.b112.d745.atomic-commit.v1",
+			schemaVersion: "graphrefly.b112.d746.atomic-commit.v1",
 			generationRef: D738_GENERATION_REF,
 			disposition: bundle.disposition,
 			bundleDigest: bundle.bundleDigest,

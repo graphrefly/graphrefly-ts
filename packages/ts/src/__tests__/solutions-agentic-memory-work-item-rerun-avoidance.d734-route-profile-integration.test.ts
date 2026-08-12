@@ -85,6 +85,16 @@ describe("D734 route-profile six-arm integration", () => {
 			result.routeEvidence.facts.filter((fact) => fact.actualRouteEvidenceDigest === null),
 		).toHaveLength(6);
 		expect(
+			result.run.graphEvidence.effectRuns.flatMap((run) =>
+				run.facts.filter(
+					(fact) =>
+						fact.kind === "graph-effect-result-admitted" &&
+						fact.result.effectKind === "provider-request" &&
+						fact.result.failureDiscriminator === "d675-und-err-socket",
+				),
+			),
+		).toHaveLength(2);
+		expect(
 			result.routeEvidence.facts.filter((fact) => fact.actualRouteEvidenceDigest !== null).length,
 		).toBeGreaterThanOrEqual(6);
 		expect(fixture.maxActiveInvocations()).toBe(1);
@@ -103,6 +113,44 @@ describe("D734 route-profile six-arm integration", () => {
 		(forged.facts[0] as { providerResultDigest: string }).providerResultDigest =
 			D733_DEEPSEEK_V4_FLASH_0731_PROFILE.profileDigest;
 		expect(() => validateD734RouteGraphEvidence(forged)).toThrow(/factDigest/);
+	}, 30_000);
+
+	it("keeps non-socket transport failures separate from D675 and continues later arms", async () => {
+		const fixture = createD734InjectedRouteProfileFixture({
+			profile: D733_DEEPSEEK_V4_FLASH_0731_PROFILE,
+			routeAdmission: admission(),
+			nonRetryableTransportFailureAtRunSequence: 0,
+		});
+		const result = await runD734RouteProfileSixArmIntegration({
+			sourceDigest: D733_DEEPSEEK_V4_FLASH_0731_PROFILE.profileDigest,
+			adapter: fixture.adapter,
+			signal: new AbortController().signal,
+		});
+		const providerResults = result.run.graphEvidence.effectRuns.flatMap((run) =>
+			run.facts.filter(
+				(fact) =>
+					fact.kind === "graph-effect-result-admitted" &&
+					fact.result.effectKind === "provider-request",
+			),
+		);
+		expect(result.run.graphEvidence.ledger.completedArms).toHaveLength(6);
+		expect(
+			providerResults.filter(
+				(fact) =>
+					fact.kind === "graph-effect-result-admitted" &&
+					fact.result.failureProvenance === "executor-failure" &&
+					fact.result.executorFailureClassification === "transport-failure",
+			),
+		).toHaveLength(1);
+		expect(
+			providerResults.filter(
+				(fact) =>
+					fact.kind === "graph-effect-result-admitted" &&
+					fact.result.failureDiscriminator === "d675-und-err-socket",
+			),
+		).toHaveLength(2);
+		expect(fixture.activeWorkspaceCount()).toBe(0);
+		expect(fixture.networkCalls()).toBe(0);
 	}, 30_000);
 
 	it("rejects route-admission accessors without evaluating them", () => {

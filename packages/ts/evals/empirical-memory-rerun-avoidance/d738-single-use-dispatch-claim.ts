@@ -14,11 +14,11 @@ import {
 import {
 	D738_BUDGET_LIMITS,
 	D738_COORDINATES_DIGEST,
-	D738_D736_PARTIAL_BUNDLE_DIGEST,
 	D738_DECISION_REF,
 	D738_DECISION_REVISION,
 	D738_DISPATCH_CLAIM_REF,
 	D738_GENERATION_REF,
+	D738_HISTORICAL_BUNDLE_DIGEST,
 	D738_ROUTE_PROFILE_DIGEST,
 } from "./d738-coordinates.js";
 import {
@@ -27,7 +27,7 @@ import {
 } from "./openrouter-current-key-spend-admission.js";
 
 export const D738_DISPATCH_CLAIM_SCHEMA =
-	"graphrefly.b112.d745.single-use-dispatch-claim.v1" as const;
+	"graphrefly.b112.d746.single-use-dispatch-claim.v1" as const;
 export const D738_PRIVATE_ROOT = resolve(
 	import.meta.dirname,
 	"../.private/empirical-memory-rerun-avoidance",
@@ -43,7 +43,7 @@ export interface D738PersistedDispatchClaimV1 {
 	readonly generationRef: typeof D738_GENERATION_REF;
 	readonly scope: Scope;
 	readonly coordinatesDigest: string;
-	readonly d736PartialBundleDigest: string;
+	readonly historicalBundleDigest: string;
 	readonly routeProfileDigest: string;
 	readonly pricingReadDigest: string;
 	readonly zeroByokObservationDigest: string;
@@ -55,7 +55,7 @@ export interface D738PersistedDispatchClaimV1 {
 }
 
 export interface D738ExecutionAuthorityV1 {
-	readonly revision: "graphrefly.b112.d745.execution-authority.v1";
+	readonly revision: "graphrefly.b112.d746.execution-authority.v1";
 	readonly claim: D738PersistedDispatchClaimV1;
 	readonly currentKeyAdmission: OpenRouterCurrentKeySpendAdmissionV1;
 }
@@ -106,7 +106,7 @@ function claimMaterial(
 		generationRef: D738_GENERATION_REF,
 		scope,
 		coordinatesDigest: D738_COORDINATES_DIGEST,
-		d736PartialBundleDigest: D738_D736_PARTIAL_BUNDLE_DIGEST,
+		historicalBundleDigest: D738_HISTORICAL_BUNDLE_DIGEST,
 		routeProfileDigest: D738_ROUTE_PROFILE_DIGEST,
 		pricingReadDigest: digest(input.pricingReadDigest, "d738.claim.pricing"),
 		zeroByokObservationDigest: digest(input.zeroByokObservationDigest, "d738.claim.zeroByok"),
@@ -278,7 +278,7 @@ export async function consumeD738DispatchClaimForExecution(inputValue: {
 	await syncDirectory(executionRoot);
 	await syncDirectory(state.root);
 	const authority = Object.freeze({
-		revision: "graphrefly.b112.d745.execution-authority.v1" as const,
+		revision: "graphrefly.b112.d746.execution-authority.v1" as const,
 		claim,
 		currentKeyAdmission: admission,
 	});

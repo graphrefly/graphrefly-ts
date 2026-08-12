@@ -572,16 +572,16 @@ describe("D737 Graph objective-phase recovery", () => {
 			executionClass: "live-provider",
 			objectivePhaseViolationBeforeMutation: true,
 		});
-		const d736PartialBundleBytes = new Uint8Array(
+		const historicalBundleBytes = new Uint8Array(
 			await readFile(
 				join(
 					import.meta.dirname,
-					"../../evals/.private/empirical-memory-rerun-avoidance/.d744-live-private/d744-arm-local-policy-live-2026-08-12-v1/artifacts/bundle.v1.json",
+					"../../evals/.private/empirical-memory-rerun-avoidance/.d745-live-private/d745-phase-scoped-recovery-live-2026-08-12-v1/artifacts/bundle.v1.json",
 				),
 			),
 		);
 		const bundle = await runD738InjectedNoNetworkQualification({
-			d736PartialBundleBytes,
+			historicalBundleBytes,
 			implementationManifestDigest: sha("d738-test-implementation"),
 			adapter: fixture.adapter,
 			providerTransportCalls: () => fixture.providerCalls() - 1,

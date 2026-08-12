@@ -30,6 +30,7 @@ import { D729_BUDGET_LIMITS, D729_EFFECT_CEILINGS } from "./d729-coordinates.js"
 import {
 	createD726ProviderAdapter,
 	createD726ProviderTurn,
+	createD729SanitizedExecutorFailureProviderTurn,
 	type D726ProviderAdapterV1,
 	type D726ProviderTurnV1,
 	runD726GraphProviderBlockCore,
@@ -415,11 +416,17 @@ export function createD734RouteBoundProviderAdapter(inputValue: {
 		hiddenVerifier: input.hiddenVerifier as EffectPort,
 		cleanup: input.cleanup as EffectPort,
 		async providerRequest(executionInput): Promise<D726ProviderTurnV1> {
-			const capability = await Reflect.apply(
-				input.providerRequest as RouteProviderPort,
-				undefined,
-				[executionInput],
-			);
+			let capability: D734RouteBoundProviderTurnV1;
+			try {
+				capability = await Reflect.apply(input.providerRequest as RouteProviderPort, undefined, [
+					executionInput,
+				]);
+			} catch (error) {
+				return createD729SanitizedExecutorFailureProviderTurn(
+					error,
+					executionInput.effectRequest.requestDigest,
+				);
+			}
 			const turn = turnStates.get(capability);
 			if (turn === undefined)
 				throw new TypeError("D734 route-bound provider turn is invalid or reused");

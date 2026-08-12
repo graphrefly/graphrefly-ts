@@ -12,23 +12,24 @@ export const D738_TRACKED_SOURCE_SHA256 = Object.freeze({
 	graphProjection: "sha256:d44837e4cefbd57a76d6c00e8d61582857d0adce56425bee2b2b73140ba93aa0",
 	graphEval: "sha256:9e82c5a992c9d95ead48f871b371c9875c3dcd510d2eef9d30e655a2d95590d2",
 	providerCore: "sha256:ec1a644edb5989315a4a3ec5e6e621786f89b1c9e9493026a91ad7568e1f7cd5",
-	routeIntegration: "sha256:56bc2d7d961b790d3e39cafde32ded3419bdc1892b7dfffb5754e07bc5b21154",
-	injectedFixture: "sha256:a568e1065ca22a75a163bb4ba8d209bae923fd93b80ad3dd8f4be98a98ace445",
+	providerTurn: "sha256:6fac7319b4dc57b5751bf2e823b6bd2fb88143de84046fbda2f128f48084c926",
+	routeIntegration: "sha256:d7ebc60e6c94e12f120b6f77d40ca84116f43f2cab2fe288bed82f92b010b3f2",
+	injectedFixture: "sha256:beb05d593a02626edbea7d6f5fe48c3a535dd1ee1493450f4df0f7a10ecf2f40",
 	byteTransport: "sha256:55f735c9b616102280922bc627f942b25886f1e72366a5d2c3c69e2c9ac068f4",
-	coordinates: "sha256:12de96452ce14f3ae5b577dcf985e74b9c56994a08d36f246473efe91ab49568",
-	claim: "sha256:d525b499adaeb5798b40f80a994ece8d7471101c33f633d208676208161836fa",
-	live: "sha256:51bfdf748779c21941845cd559b5d5b69875377f212177451af6f6126df27ac6",
+	coordinates: "sha256:e233de787ae9cd222cdca4a66b4070ea5b0f965363c3c67a73f11c95def45b32",
+	claim: "sha256:25728d885de675d8499cb9ec645de4b4e9ae3ef0e2bd00b5e727b8d2eb0d3bba",
+	live: "sha256:e6f5e2895d95bf13c60d0246f42f872a428506f985db17bc658125c86ea6f821",
 });
 
 export const D738_PRIVATE_SOURCE_SHA256 = Object.freeze({
 	realRouteAdapter: "sha256:a9fcea415fbddaad4bb2492048824ce8124daf2aa940c17525932ab9d1bbf19b",
-	noNetworkRunner: "sha256:85e6c4060a2858c21dad69516a40f601371386809bc4e437132b8d4be35a653a",
-	liveRunner: "sha256:f1a62d0196943fae5224e58045fc80852b640e5d0fbe025639299553174cf40e",
+	noNetworkRunner: "sha256:11c25135b50db62e9d6ac956aea0b40d786fa7f6cb68c067d715510c3ef6b14f",
+	liveRunner: "sha256:7ad7e193f34f0b1ffcbeb0f920b5859ce9fe0ee35863390a0cd00cbe762285b0",
 });
 
 export const D738_IMPLEMENTATION_MANIFEST = strictSnapshot({
-	revision: "graphrefly.b112.d745.implementation-manifest.v1",
-	decisionRef: "decision.D745",
+	revision: "graphrefly.b112.d746.implementation-manifest.v1",
+	decisionRef: "decision.D746",
 	decisionRevision: "2026-08-12.v1",
 	trackedSourceSha256: D738_TRACKED_SOURCE_SHA256,
 	privateSourceSha256: D738_PRIVATE_SOURCE_SHA256,

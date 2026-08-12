@@ -22,6 +22,7 @@ import {
 	OPENROUTER_DEEPSEEK_V4_FLASH_REQUEST_MODEL,
 	OPENROUTER_DEEPSEEK_V4_FLASH_SELECTED_MODEL,
 } from "./openrouter-route-qualification.js";
+import { readOpenRouterTransportFailureDiagnostic } from "./openrouter-transport-failure.js";
 
 export const D723_OPENROUTER_GRAPH_TURN_REVISION =
 	"graphrefly.b112.d723.openrouter-graph-turn.v1" as const;
@@ -272,9 +273,9 @@ export async function invokeD723OpenRouterGraphTurn(input: {
 			signal: input.signal,
 		});
 	} catch (error) {
+		const transportDiagnostic = readOpenRouterTransportFailureDiagnostic(error);
 		const name = error instanceof Error ? error.name : "unknown";
-		const message = error instanceof Error ? error.message : "unknown";
-		if (/socket|UND_ERR_SOCKET/i.test(`${name}:${message}`)) {
+		if (transportDiagnostic?.causeCode === "und-err-socket") {
 			const result: D720EffectResultV1 = Object.freeze({
 				effectKind: "provider-request",
 				status: "retryable-failure",
@@ -282,7 +283,11 @@ export async function invokeD723OpenRouterGraphTurn(input: {
 				failureDiscriminator: "d675-und-err-socket",
 				retryAfterMs: null,
 				workspaceStateDigest: input.effectRequest.workspaceStateDigest,
-				evidenceDigest: empiricalStrictJsonDigest({ name, message: "bounded-socket-failure" }),
+				evidenceDigest: empiricalStrictJsonDigest({
+					name,
+					message: "bounded-socket-failure",
+					transportDiagnostic,
+				}),
 			});
 			return Object.freeze({
 				result,

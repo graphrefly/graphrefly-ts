@@ -8,7 +8,7 @@ export const D725_IMPLEMENTATION_SOURCE_SHA256 = Object.freeze({
 		"sha256:619d7210c6ce596d9f8e33aee66631d67e78f23373dc174ec30af30a2281dd07",
 	terminalHttpEvidence: "sha256:46c450b1ce057568db79fa5eb595e7c22024833ec034d899c78e9789e690e0e2",
 	underlyingOpenRouterTurn:
-		"sha256:e5a75ac4ba5114cc6e18b7948c70241ff425ec0a9d2fc32be3375368beba13f2",
+		"sha256:6fac7319b4dc57b5751bf2e823b6bd2fb88143de84046fbda2f128f48084c926",
 	underlyingRealProviderAdapter:
 		"sha256:2e71a6c8bc1e607f2b9e787c8ff8acefa6487346813946faaa8a37645841984a",
 });

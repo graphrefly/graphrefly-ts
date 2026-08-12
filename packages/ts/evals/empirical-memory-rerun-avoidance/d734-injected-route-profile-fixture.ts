@@ -20,6 +20,7 @@ import {
 	invokeD734RouteBoundOpenRouterTurn,
 } from "./d734-route-profile-provider-integration.js";
 import type { OpenRouterResponsesTransportResponseV1 } from "./openrouter-responses-model-turn.js";
+import { createOpenRouterTransportFailure } from "./openrouter-transport-failure.js";
 
 const encoder = new TextEncoder();
 const toolNames: Readonly<Record<D720ToolRef, string>> = Object.freeze({
@@ -116,7 +117,10 @@ function retryResponse(
 				body: encoder.encode('{"error":{"message":"bounded retry"}}'),
 			});
 		case "d675-und-err-socket":
-			throw new Error(`UND_ERR_SOCKET:d734-injected-${request.runSequence}`);
+			throw createOpenRouterTransportFailure(
+				"request",
+				Object.freeze({ code: "UND_ERR_SOCKET", runSequence: request.runSequence }),
+			);
 		default:
 			throw new TypeError("D734 injected retry discriminator is invalid");
 	}
@@ -145,6 +149,7 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 	readonly providerTurnLoopAfterInspection?: boolean;
 	readonly phaseScopedObjectiveRecovery?: boolean;
 	readonly repeatedPhaseScopedRecovery?: boolean;
+	readonly nonRetryableTransportFailureAtRunSequence?: number;
 }): D734InjectedRouteProfileFixtureV1 {
 	const profile = inputValue.profile;
 	const model = createD722InjectedModelFixture();
@@ -153,6 +158,7 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 	const providerTurnsByRun = new Map<number, number>();
 	const mutatedRuns = new Set<number>();
 	const rejectedToolRuns = new Set<number>();
+	const injectedTransportFailures = new Set<number>();
 	let providerCalls = 0;
 	let active = 0;
 	let maxActive: 0 | 1 = 0;
@@ -282,6 +288,20 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 						async request(request) {
 							providerCalls += 1;
 							wireBodies.push(new Uint8Array(request.body));
+							if (
+								inputValue.nonRetryableTransportFailureAtRunSequence ===
+									executionInput.effectRequest.runSequence &&
+								!injectedTransportFailures.has(executionInput.effectRequest.runSequence)
+							) {
+								injectedTransportFailures.add(executionInput.effectRequest.runSequence);
+								throw createOpenRouterTransportFailure(
+									"request",
+									Object.freeze({
+										code: "ECONNRESET",
+										runSequence: executionInput.effectRequest.runSequence,
+									}),
+								);
+							}
 							const result =
 								inputValue.objectivePhaseViolationBeforeMutation ||
 								inputValue.phaseScopedObjectiveRecovery ||
