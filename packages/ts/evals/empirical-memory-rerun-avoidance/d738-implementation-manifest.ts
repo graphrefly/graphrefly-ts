@@ -24,7 +24,7 @@ export const D738_TRACKED_SOURCE_SHA256 = Object.freeze({
 export const D738_PRIVATE_SOURCE_SHA256 = Object.freeze({
 	realRouteAdapter: "sha256:a9fcea415fbddaad4bb2492048824ce8124daf2aa940c17525932ab9d1bbf19b",
 	noNetworkRunner: "sha256:e95c82cce2764b926e24ff508cf81a373a967dc4481972e7a445643e95bf3a49",
-	liveRunner: "sha256:94314004977c7fb3404313de522c862765b5d8ac97e6f81e27b5ecdbb72d9485",
+	liveRunner: "sha256:7e192955697ee40f74dc51629a356b96ecf3452519fe25828170de521b4011fd",
 });
 
 export const D738_IMPLEMENTATION_MANIFEST = strictSnapshot({
