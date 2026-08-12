@@ -3,7 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { empiricalStrictJsonDigest } from "../../evals/empirical-memory-rerun-avoidance/canonical.js";
-import { createD737GraphObjectivePhaseRecoveryPolicy } from "../../evals/empirical-memory-rerun-avoidance/d722-graph-native-effect-runtime.js";
+import {
+	createD737GraphObjectivePhaseRecoveryPolicy,
+	createD745GraphPhaseScopedRecoveryPolicy,
+} from "../../evals/empirical-memory-rerun-avoidance/d722-graph-native-effect-runtime.js";
 import { D733_DEEPSEEK_V4_FLASH_0731_PROFILE } from "../../evals/empirical-memory-rerun-avoidance/d733-coordinates.js";
 import {
 	createD733GraphNativeRouteAdmission,
@@ -222,6 +225,103 @@ describe("D737 Graph objective-phase recovery", () => {
 				(finding) => finding.code === "arm-provider-turn-bound-exhausted",
 			),
 		).toBe(true);
+		expect(fixture.activeWorkspaceCount()).toBe(0);
+	}, 30_000);
+
+	it("recovers each distinct forward objective phase under the same eight-turn bound", async () => {
+		const fixture = createD734InjectedRouteProfileFixture({
+			profile: D733_DEEPSEEK_V4_FLASH_0731_PROFILE,
+			routeAdmission: routeAdmission(),
+			executionClass: "live-provider",
+			phaseScopedObjectiveRecovery: true,
+		});
+		const result = await runD734RouteProfileSixArmLiveIntegration({
+			sourceDigest: sha("d745-phase-scoped-objective-recovery"),
+			adapter: fixture.adapter,
+			objectivePhaseRecoveryPolicy: createD745GraphPhaseScopedRecoveryPolicy(),
+			signal: AbortSignal.timeout(30_000),
+		});
+		expect(result.run.graphEvidence.runStatus).toBe("complete");
+		expect(result.run.graphEvidence.ledger.completedArms).toHaveLength(6);
+		expect(result.run.graphEvidence.effectRuns).toHaveLength(6);
+		expect(result.run.graphEvidence.completionContexts).toHaveLength(18);
+		expect(result.run.usage.requests).toBe(48);
+		expect(fixture.providerCalls()).toBe(48);
+		for (const run of result.run.graphEvidence.effectRuns) {
+			const contexts = result.run.graphEvidence.completionContexts.filter(
+				(context) => context.runSequence === run.runSequence,
+			);
+			expect(contexts.map((context) => context.nextRequiredPhase)).toEqual([
+				"exact-mutation",
+				"workspace-diff",
+				"focused-validation",
+			]);
+			expect(contexts.map((context) => context.remainingCompletionContexts)).toEqual([3, 2, 1]);
+			expect(
+				run.facts.filter(
+					(fact) =>
+						fact.result.effectKind === "tool-action" &&
+						fact.result.toolRef === "focused-validation",
+				),
+			).toHaveLength(1);
+			expect(
+				run.facts.some(
+					(fact) => fact.result.effectKind === "hidden-verifier" && fact.result.status === "passed",
+				),
+			).toBe(true);
+		}
+		expect(fixture.maxActiveInvocations()).toBe(1);
+		expect(fixture.networkCalls()).toBe(0);
+		expect(fixture.activeWorkspaceCount()).toBe(0);
+	}, 30_000);
+
+	it("rejects a second recovery request for the same objective phase without executing its batch", async () => {
+		const fixture = createD734InjectedRouteProfileFixture({
+			profile: D733_DEEPSEEK_V4_FLASH_0731_PROFILE,
+			routeAdmission: routeAdmission(),
+			executionClass: "live-provider",
+			repeatedPhaseScopedRecovery: true,
+		});
+		const result = await runD734RouteProfileSixArmLiveIntegration({
+			sourceDigest: sha("d745-repeated-phase-recovery"),
+			adapter: fixture.adapter,
+			objectivePhaseRecoveryPolicy: createD745GraphPhaseScopedRecoveryPolicy(),
+			signal: AbortSignal.timeout(30_000),
+		});
+		expect(result.run.graphEvidence.runStatus).toBe("complete");
+		expect(result.run.graphEvidence.ledger.completedArms).toHaveLength(6);
+		expect(result.run.graphEvidence.effectRuns).toHaveLength(12);
+		expect(
+			result.run.graphEvidence.ledger.findings.filter(
+				(finding) => finding.code === "arm-policy-violated",
+			),
+		).toHaveLength(12);
+		for (const run of result.run.graphEvidence.effectRuns) {
+			const contexts = result.run.graphEvidence.completionContexts.filter(
+				(context) => context.runSequence === run.runSequence,
+			);
+			expect(contexts.map((context) => context.nextRequiredPhase)).toEqual([
+				"exact-mutation",
+				"workspace-diff",
+			]);
+			const rejected = run.facts.findLast(
+				(fact) =>
+					fact.result.effectKind === "provider-request" &&
+					fact.result.status === "tool-intents" &&
+					fact.result.toolIntents[0]?.toolRef === "focused-validation",
+			);
+			expect(rejected).toBeDefined();
+			expect(
+				run.facts.some(
+					(fact) =>
+						fact.result.effectKind === "tool-action" &&
+						rejected?.result.effectKind === "provider-request" &&
+						rejected.result.toolIntents.some(
+							(intent) => intent.intentDigest === fact.result.intentDigest,
+						),
+				),
+			).toBe(false);
+		}
 		expect(fixture.activeWorkspaceCount()).toBe(0);
 	}, 30_000);
 
@@ -476,7 +576,7 @@ describe("D737 Graph objective-phase recovery", () => {
 			await readFile(
 				join(
 					import.meta.dirname,
-					"../../evals/.private/empirical-memory-rerun-avoidance/.d743-live-private/d743-byte-transport-envelope-live-2026-08-12-v1/artifacts/bundle.v1.json",
+					"../../evals/.private/empirical-memory-rerun-avoidance/.d744-live-private/d744-arm-local-policy-live-2026-08-12-v1/artifacts/bundle.v1.json",
 				),
 			),
 		);

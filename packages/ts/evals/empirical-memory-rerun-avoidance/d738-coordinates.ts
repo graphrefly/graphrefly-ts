@@ -5,24 +5,24 @@ import {
 	D733_DEEPSEEK_V4_FLASH_0731_PROFILE_DIGEST,
 } from "./d733-coordinates.js";
 
-export const D738_DECISION_REF = "decision.D744" as const;
+export const D738_DECISION_REF = "decision.D745" as const;
 export const D738_DECISION_REVISION = "2026-08-12.v1" as const;
-export const D738_GENERATION_REF = "d744-arm-local-policy-live-2026-08-12-v1" as const;
-export const D738_DISPATCH_CLAIM_REF = "d744-arm-local-policy-dispatch-2026-08-12-v1" as const;
+export const D738_GENERATION_REF = "d745-phase-scoped-recovery-live-2026-08-12-v1" as const;
+export const D738_DISPATCH_CLAIM_REF = "d745-phase-scoped-recovery-dispatch-2026-08-12-v1" as const;
 export const D738_D736_PARTIAL_ARTIFACT_SHA256 =
-	"sha256:502ee02f5393d72c26c157d88d1f990668024c6b035bc76a655f8dbe502d1d53" as const;
+	"sha256:ef8833fe33d30e32fee26492708d50c155e8ede948f768f8807fbc0855c2f47e" as const;
 export const D738_D736_PARTIAL_BUNDLE_DIGEST =
-	"sha256:b7bb9d14e8c46b778c788067b13248b8ce3f08e167d738b4361dc805e2890d25" as const;
+	"sha256:159c2ce60e882c73d4e72778c629ba8b373ba2be62be17662168ab3170fca6de" as const;
 export const D738_D736_PARTIAL_GENERATION_DIGEST =
-	"sha256:9c293172b0ea2c067714b4afd0f8f9229f7a000a978c4cf265db46d05cd9fa59" as const;
+	"sha256:f88a2e0a1479b8209f1d1d31a178a2e4fd779cae31d898dc397e04671a3682d1" as const;
 export const D738_D737_PHASE_RECOVERY_POLICY_DIGEST =
-	"sha256:838ae89f15dcdb80fef0281db727463fe8ee1fee5a36fe4ac0b27194d728e798" as const;
+	"sha256:f3b5eb7f690c466c14b44160b49c81d74a96568dd4152a946c7e26a4df93ba5d" as const;
 export const D738_D737_DISPATCH_CLAIM_ARTIFACT_SHA256 =
-	"sha256:175e0728d108a1ed3af4c9d9846da4dd62c411f591773c5403d5b14de2855acc" as const;
+	"sha256:47f78f9354ae6940af3435987aed242721c6dfb925d6a42e1c1b5402d6039c88" as const;
 export const D738_D737_DISPATCH_CLAIM_DIGEST =
-	"sha256:84513db038076eef040b0a9eedca3bff4bdcaef2ee4eb7ac3b9d41aadff335fe" as const;
+	"sha256:b2d211c4f0cd157c61a1cf76b74d887869dba6bae1d6354cfcd6ea080e697f56" as const;
 export const D738_D737_CURRENT_KEY_MARKER_SHA256 =
-	"sha256:58b5b48d760664c5510f641b07a28de2208fe28611feae8128e1305d609b198c" as const;
+	"sha256:1fce17d5016a3ff3fd47cae11ebc3a01b06d6603e86cf9209d3b798c1cf70245" as const;
 export const D738_BUDGET_LIMITS = D729_BUDGET_LIMITS;
 export const D738_EFFECT_CEILINGS = D729_EFFECT_CEILINGS;
 export const D738_ROUTE_PROFILE = D733_DEEPSEEK_V4_FLASH_0731_PROFILE;
@@ -40,10 +40,12 @@ export const D738_COORDINATES = strictSnapshot({
 	d737DispatchClaimArtifactSha256: D738_D737_DISPATCH_CLAIM_ARTIFACT_SHA256,
 	d737DispatchClaimDigest: D738_D737_DISPATCH_CLAIM_DIGEST,
 	d737CurrentKeyMarkerSha256: D738_D737_CURRENT_KEY_MARKER_SHA256,
-	d737FailureCode: "arm-local-tool-policy-was-global-executor-failure",
+	d737FailureCode: "run-level-context-budget-blocked-next-objective-phase",
 	maxProviderRequestBytes: 1_048_576,
 	maxPreMutationInspectionEffects: 6,
 	maxProviderRequestsPerRun: 8,
+	maxCompletionContextsPerRun: 4,
+	maxCompletionContextsPerPhase: 1,
 	routeProfileDigest: D738_ROUTE_PROFILE_DIGEST,
 	budgetLimits: D738_BUDGET_LIMITS,
 	effectCeilings: D738_EFFECT_CEILINGS,

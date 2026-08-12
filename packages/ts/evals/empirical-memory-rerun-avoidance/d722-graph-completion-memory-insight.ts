@@ -32,6 +32,8 @@ import {
 	type D726ArmLocalTerminalProviderPolicyV1,
 	D737_OBJECTIVE_PHASE_CONTEXT_SCHEMA,
 	type D737GraphObjectivePhaseRecoveryPolicyV1,
+	D745_MAX_COMPLETION_CONTEXTS_PER_RUN,
+	D745_PHASE_SCOPED_CONTEXT_SCHEMA,
 	deriveD722GraphArmResultFromEvidence,
 	validateD722GraphEffectEvidence,
 } from "./d722-graph-native-effect-runtime.js";
@@ -58,7 +60,7 @@ export const D722_PERSISTENCE_SCHEMA =
 	"graphrefly.b112.d722.completion-memory-insight-persistence.v1" as const;
 export const D722_GENERATION_REF = "d722-graph-completion-memory-insight-v1" as const;
 export const D722_EXPECTED_RUNTIME_SOURCE_DIGEST =
-	"sha256:9d8133ec8585a057b3ee1ce5b09cc4592095abbc388e36d5e4ee09bb92b8be44" as const;
+	"sha256:25be41e2e8b39afa4898ae32572a80a4f6165d4482816a97d070ec61bf1dfeac" as const;
 export const D722_EXPECTED_EVAL_SOURCE_DIGEST =
 	"sha256:9e82c5a992c9d95ead48f871b371c9875c3dcd510d2eef9d30e655a2d95590d2" as const;
 export const D722_EXPECTED_ADAPTER_SOURCE_DIGEST =
@@ -220,13 +222,22 @@ function completionContext(value: unknown, path: string): D722GraphCompletionCon
 		(candidate.schemaVersion === D722_COMPLETION_CONTEXT_SCHEMA &&
 			candidate.reason === "premature-structured-final") ||
 		(candidate.schemaVersion === D737_OBJECTIVE_PHASE_CONTEXT_SCHEMA &&
-			candidate.reason === "objective-phase-policy-violation");
-	if (
-		!contextCoordinatesValid ||
-		candidate.requiredDisposition !== "tool-intents" ||
-		candidate.remainingCompletionContexts !== 0
-	)
+			candidate.reason === "objective-phase-policy-violation") ||
+		(candidate.schemaVersion === D745_PHASE_SCOPED_CONTEXT_SCHEMA &&
+			(candidate.reason === "premature-structured-final" ||
+				candidate.reason === "objective-phase-policy-violation"));
+	if (!contextCoordinatesValid || candidate.requiredDisposition !== "tool-intents")
 		throw new TypeError("D722 completion context coordinates drifted");
+	const remainingCompletionContexts = safeInteger(
+		candidate.remainingCompletionContexts,
+		`${path}.remainingCompletionContexts`,
+		{ max: D745_MAX_COMPLETION_CONTEXTS_PER_RUN - 1 },
+	);
+	if (
+		candidate.schemaVersion !== D745_PHASE_SCOPED_CONTEXT_SCHEMA &&
+		remainingCompletionContexts !== 0
+	)
+		throw new TypeError("D722 legacy completion context count drifted");
 	const runSequence = safeInteger(candidate.runSequence, `${path}.runSequence`, {
 		min: 0,
 		max: 11,
@@ -286,7 +297,7 @@ function completionContext(value: unknown, path: string): D722GraphCompletionCon
 		evidenceFreshnessRefs: Object.freeze(refs),
 		requiredDisposition: "tool-intents" as const,
 		remainingEffectFacts: candidate.remainingEffectFacts as number,
-		remainingCompletionContexts: 0 as const,
+		remainingCompletionContexts,
 		remainingAdmittedBounds: strictSnapshot(remaining),
 		budgetProjectionDigest: candidate.budgetProjectionDigest as string,
 	});
@@ -345,14 +356,24 @@ function deriveContexts(
 		const runContexts = [
 			...new Map(contextOccurrences.map((context) => [context.contextDigest, context])).values(),
 		];
-		if (runContexts.length > 1)
+		const phaseScoped = runContexts.some(
+			(context) => context.schemaVersion === D745_PHASE_SCOPED_CONTEXT_SCHEMA,
+		);
+		if (runContexts.length > (phaseScoped ? D745_MAX_COMPLETION_CONTEXTS_PER_RUN : 1))
 			throw new TypeError("D722 completion context per-run bound exceeded");
+		if (
+			phaseScoped &&
+			new Set(runContexts.map((context) => context.nextRequiredPhase)).size !== runContexts.length
+		)
+			throw new TypeError("D745 completion context phase was reused");
 		for (const context of runContexts) {
 			if (
-				contextOccurrences.some(
-					(candidate) =>
-						empiricalStrictJsonDigest(candidate) !== empiricalStrictJsonDigest(context),
-				)
+				contextOccurrences
+					.filter((candidate) => candidate.contextDigest === context.contextDigest)
+					.some(
+						(candidate) =>
+							empiricalStrictJsonDigest(candidate) !== empiricalStrictJsonDigest(context),
+					)
 			)
 				throw new TypeError("D722 completion context retry bytes drifted");
 			const contextFactIndex = admittedFacts.findIndex(

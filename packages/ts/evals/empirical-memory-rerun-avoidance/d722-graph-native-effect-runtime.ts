@@ -35,14 +35,19 @@ export const D722_COMPLETION_CONTEXT_SCHEMA =
 	"graphrefly.b112.d722.graph-completion-context.v1" as const;
 export const D737_OBJECTIVE_PHASE_RECOVERY_POLICY_REVISION =
 	"graphrefly.b112.d737.objective-phase-recovery-policy.v1" as const;
+export const D745_PHASE_SCOPED_RECOVERY_POLICY_REVISION =
+	"graphrefly.b112.d745.phase-scoped-objective-recovery-policy.v1" as const;
 export const D740_MAX_PRE_MUTATION_INSPECTION_EFFECTS = 6;
 export const D737_OBJECTIVE_PHASE_CONTEXT_SCHEMA =
 	"graphrefly.b112.d737.objective-phase-completion-context.v1" as const;
+export const D745_PHASE_SCOPED_CONTEXT_SCHEMA =
+	"graphrefly.b112.d745.phase-scoped-objective-completion-context.v1" as const;
 export const D722_EFFECT_RUNTIME_REVISION =
 	"graphrefly.b112.d722.graph-native-effect-runtime.v1" as const;
 export const D722_EFFECT_EVIDENCE_SCHEMA =
 	"graphrefly.b112.d722.graph-native-effect-evidence.v1" as const;
 export const D722_MAX_COMPLETION_CONTEXTS_PER_RUN = 1;
+export const D745_MAX_COMPLETION_CONTEXTS_PER_RUN = 4;
 
 function boundedArray(value: unknown, path: string, max: number): readonly unknown[] {
 	if (!Array.isArray(value) || value.length > max)
@@ -93,7 +98,8 @@ export interface D720ToolIntentV1 {
 export interface D722GraphCompletionContextV1 {
 	readonly schemaVersion:
 		| typeof D722_COMPLETION_CONTEXT_SCHEMA
-		| typeof D737_OBJECTIVE_PHASE_CONTEXT_SCHEMA;
+		| typeof D737_OBJECTIVE_PHASE_CONTEXT_SCHEMA
+		| typeof D745_PHASE_SCOPED_CONTEXT_SCHEMA;
 	readonly reason: "premature-structured-final" | "objective-phase-policy-violation";
 	readonly runSequence: number;
 	readonly issuedRequestDigest: string;
@@ -107,7 +113,7 @@ export interface D722GraphCompletionContextV1 {
 	readonly evidenceFreshnessRefs: readonly string[];
 	readonly requiredDisposition: "tool-intents";
 	readonly remainingEffectFacts: number;
-	readonly remainingCompletionContexts: 0;
+	readonly remainingCompletionContexts: number;
 	readonly remainingAdmittedBounds: D719CleanBudgetStateV1;
 	readonly budgetProjectionDigest: string;
 	readonly contextDigest: string;
@@ -289,7 +295,9 @@ export interface D722GraphCompletionContextPolicyV1 {
 }
 
 export interface D737GraphObjectivePhaseRecoveryPolicyV1 {
-	readonly revision: typeof D737_OBJECTIVE_PHASE_RECOVERY_POLICY_REVISION;
+	readonly revision:
+		| typeof D737_OBJECTIVE_PHASE_RECOVERY_POLICY_REVISION
+		| typeof D745_PHASE_SCOPED_RECOVERY_POLICY_REVISION;
 }
 
 export interface D726ArmLocalTerminalProviderPolicyV1 {
@@ -322,6 +330,7 @@ interface RuntimeState {
 	readonly budgetContext: D722GraphBudgetContextV1 | null;
 	readonly armLocalTerminalProviderFailure: boolean;
 	readonly objectivePhaseRecoveryEnabled: boolean;
+	readonly phaseScopedRecoveryEnabled: boolean;
 }
 
 interface ProjectionState {
@@ -357,10 +366,14 @@ interface ProjectionState {
 	effectSequence: number;
 	decisionSequence: number;
 	completionContextsIssued: number;
+	completionContextPhasesIssued: Set<
+		Exclude<D720EffectDecisionV1["nextRequiredPhase"], "complete" | "hidden-verifier">
+	>;
 	activeCompletionContext: D722GraphCompletionContextV1 | null;
 	terminalProviderFailure: boolean;
 	armLocalTerminalProviderFailure: boolean;
 	objectivePhaseRecoveryEnabled: boolean;
+	phaseScopedRecoveryEnabled: boolean;
 	budgetState: D719CleanBudgetStateV1;
 }
 
@@ -368,6 +381,11 @@ const constructedRuntimes = new WeakMap<object, RuntimeState>();
 const constructedCompletionPolicies = new WeakSet<object>();
 const constructedArmLocalTerminalPolicies = new WeakSet<object>();
 const constructedObjectivePhaseRecoveryPolicies = new WeakSet<object>();
+
+type RecoverableObjectivePhase = Exclude<
+	D720EffectDecisionV1["nextRequiredPhase"],
+	"complete" | "hidden-verifier"
+>;
 
 function nextRequiredPhase(state: ProjectionState): D720EffectDecisionV1["nextRequiredPhase"] {
 	if (!state.inspectionObserved) return "inspection";
@@ -429,6 +447,19 @@ function missingObjectivePhases(
 	return Object.freeze(phases);
 }
 
+function completionContextLimit(state: ProjectionState): number {
+	return state.phaseScopedRecoveryEnabled
+		? D745_MAX_COMPLETION_CONTEXTS_PER_RUN
+		: D722_MAX_COMPLETION_CONTEXTS_PER_RUN;
+}
+
+function canIssueCompletionContext(state: ProjectionState): boolean {
+	const required = nextRequiredPhase(state);
+	if (required === "complete" || required === "hidden-verifier") return false;
+	if (state.completionContextsIssued >= completionContextLimit(state)) return false;
+	return !(state.phaseScopedRecoveryEnabled && state.completionContextPhasesIssued.has(required));
+}
+
 function graphCompletionContext(
 	state: ProjectionState,
 	budgetContext: D722GraphBudgetContextV1,
@@ -467,8 +498,9 @@ function graphCompletionContext(
 		remainingAdmittedBounds,
 	});
 	const material = strictSnapshot({
-		schemaVersion:
-			reason === "premature-structured-final"
+		schemaVersion: state.phaseScopedRecoveryEnabled
+			? D745_PHASE_SCOPED_CONTEXT_SCHEMA
+			: reason === "premature-structured-final"
 				? D722_COMPLETION_CONTEXT_SCHEMA
 				: D737_OBJECTIVE_PHASE_CONTEXT_SCHEMA,
 		reason,
@@ -481,7 +513,10 @@ function graphCompletionContext(
 		evidenceFreshnessRefs: Object.freeze([lastFact.resultDigest, lastFact.factDigest]),
 		requiredDisposition: "tool-intents" as const,
 		remainingEffectFacts: Math.max(0, D720_MAX_EFFECT_FACTS_PER_RUN - state.effectSequence - 1),
-		remainingCompletionContexts: 0 as const,
+		remainingCompletionContexts: Math.max(
+			0,
+			completionContextLimit(state) - state.completionContextsIssued - 1,
+		),
 		remainingAdmittedBounds,
 		budgetProjectionDigest,
 	});
@@ -505,6 +540,9 @@ function objectiveContinuationRequest(
 		reason,
 	);
 	state.completionContextsIssued += 1;
+	state.completionContextPhasesIssued.add(
+		completionContext.nextRequiredPhase as RecoverableObjectivePhase,
+	);
 	state.activeCompletionContext = completionContext;
 	state.pendingTools = [];
 	state.providerAttemptOrdinal = 1;
@@ -671,6 +709,7 @@ function nextEffect(
 			if (recoveryToolMismatch) {
 				state.pendingTools = [];
 				state.activeCompletionContext = null;
+				if (state.phaseScopedRecoveryEnabled) state.stoppedReason = "arm-policy-violated";
 				request = requestMaterial(state, runSequence, issuedRequestDigest, "cleanup", {
 					logicalMaterial: {
 						issuedRequestDigest,
@@ -680,7 +719,7 @@ function nextEffect(
 			} else if (
 				!toolIntentBatchAllowed(state, result.toolIntents) &&
 				state.objectivePhaseRecoveryEnabled &&
-				state.completionContextsIssued < D722_MAX_COMPLETION_CONTEXTS_PER_RUN
+				canIssueCompletionContext(state)
 			) {
 				if (budgetContext === null)
 					throw new TypeError("D737 objective phase recovery requires Graph budget context");
@@ -692,6 +731,22 @@ function nextEffect(
 					lastFact,
 					"objective-phase-policy-violation",
 				);
+			} else if (
+				!toolIntentBatchAllowed(state, result.toolIntents) &&
+				state.phaseScopedRecoveryEnabled
+			) {
+				state.pendingTools = [];
+				state.activeCompletionContext = null;
+				state.stoppedReason = state.objectivePhaseRecoveryEnabled
+					? "arm-policy-violated"
+					: "executor-failed";
+				state.executorFailed = !state.objectivePhaseRecoveryEnabled;
+				request = requestMaterial(state, runSequence, issuedRequestDigest, "cleanup", {
+					logicalMaterial: {
+						issuedRequestDigest,
+						effect: "objective-phase-policy-violation-cleanup",
+					},
+				});
 			} else {
 				state.pendingTools = [...result.toolIntents];
 				const toolIntent = state.pendingTools.shift();
@@ -702,7 +757,7 @@ function nextEffect(
 				request = requestMaterial(state, runSequence, issuedRequestDigest, "hidden-verifier", {
 					logicalMaterial: { issuedRequestDigest, effect: "hidden-verifier" },
 				});
-			} else if (state.completionContextsIssued < D722_MAX_COMPLETION_CONTEXTS_PER_RUN) {
+			} else if (canIssueCompletionContext(state)) {
 				if (budgetContext === null)
 					throw new TypeError("D722 completion context requires Graph budget context");
 				request = objectiveContinuationRequest(
@@ -813,7 +868,7 @@ function nextEffect(
 					? state.objectivePhaseRecoveryEnabled &&
 						!state.mutationObserved &&
 						state.inspectionEffectCount >= D740_MAX_PRE_MUTATION_INSPECTION_EFFECTS &&
-						state.completionContextsIssued < D722_MAX_COMPLETION_CONTEXTS_PER_RUN
+						canIssueCompletionContext(state)
 						? (() => {
 								if (budgetContext === null)
 									throw new TypeError("D740 inspection saturation requires Graph budget context");
@@ -943,10 +998,12 @@ function initialProjectionState(): ProjectionState {
 		effectSequence: 0,
 		decisionSequence: 0,
 		completionContextsIssued: D722_MAX_COMPLETION_CONTEXTS_PER_RUN,
+		completionContextPhasesIssued: new Set<RecoverableObjectivePhase>(),
 		activeCompletionContext: null,
 		terminalProviderFailure: false,
 		armLocalTerminalProviderFailure: false,
 		objectivePhaseRecoveryEnabled: false,
+		phaseScopedRecoveryEnabled: false,
 		budgetState: Object.freeze({ requests: 0, retryWaits: 0, costMicrousd: 0, elapsedMs: 0 }),
 	};
 }
@@ -967,6 +1024,12 @@ export function createD737GraphObjectivePhaseRecoveryPolicy(): D737GraphObjectiv
 	return policy;
 }
 
+export function createD745GraphPhaseScopedRecoveryPolicy(): D737GraphObjectivePhaseRecoveryPolicyV1 {
+	const policy = Object.freeze({ revision: D745_PHASE_SCOPED_RECOVERY_POLICY_REVISION });
+	constructedObjectivePhaseRecoveryPolicies.add(policy);
+	return policy;
+}
+
 function createGraphEffectRuntime(
 	inputValue: {
 		readonly request: AgentRequestIssued<D719CleanRequestInput>;
@@ -974,6 +1037,7 @@ function createGraphEffectRuntime(
 		readonly budgetContext?: D722GraphBudgetContextV1;
 		readonly armLocalTerminalProviderFailure?: boolean;
 		readonly objectivePhaseRecoveryEnabled?: boolean;
+		readonly phaseScopedRecoveryEnabled?: boolean;
 	},
 	mode: "d720" | "d722",
 ): D720GraphEffectRuntimeV1 | D722GraphEffectRuntimeV1 {
@@ -990,6 +1054,9 @@ function createGraphEffectRuntime(
 						: []),
 					...(Object.hasOwn(input, "objectivePhaseRecoveryEnabled")
 						? ["objectivePhaseRecoveryEnabled" as const]
+						: []),
+					...(Object.hasOwn(input, "phaseScopedRecoveryEnabled")
+						? ["phaseScopedRecoveryEnabled" as const]
 						: []),
 				]
 			: ["request", "runSequence"],
@@ -1010,6 +1077,7 @@ function createGraphEffectRuntime(
 	const projectionState = mode === "d720" ? initialProjectionState() : initialD722ProjectionState();
 	projectionState.armLocalTerminalProviderFailure = input.armLocalTerminalProviderFailure === true;
 	projectionState.objectivePhaseRecoveryEnabled = input.objectivePhaseRecoveryEnabled === true;
+	projectionState.phaseScopedRecoveryEnabled = input.phaseScopedRecoveryEnabled === true;
 	if (budgetContext !== null) projectionState.budgetState = budgetContext.initialState;
 	const decisions: D720EffectDecisionV1[] = [];
 	const decisionNode = owner.node<D720EffectDecisionV1>(
@@ -1066,6 +1134,7 @@ function createGraphEffectRuntime(
 		budgetContext,
 		armLocalTerminalProviderFailure: input.armLocalTerminalProviderFailure === true,
 		objectivePhaseRecoveryEnabled: input.objectivePhaseRecoveryEnabled === true,
+		phaseScopedRecoveryEnabled: input.phaseScopedRecoveryEnabled === true,
 	});
 	return runtime;
 }
@@ -1129,6 +1198,9 @@ export function createD722GraphEffectRuntime(inputValue: {
 			budgetContext: strictSnapshot(input.budgetContext) as unknown as D722GraphBudgetContextV1,
 			armLocalTerminalProviderFailure: Object.hasOwn(input, "armLocalTerminalPolicy"),
 			objectivePhaseRecoveryEnabled: Object.hasOwn(input, "objectivePhaseRecoveryPolicy"),
+			phaseScopedRecoveryEnabled:
+				(input.objectivePhaseRecoveryPolicy as D737GraphObjectivePhaseRecoveryPolicyV1 | undefined)
+					?.revision === D745_PHASE_SCOPED_RECOVERY_POLICY_REVISION,
 		},
 		"d722",
 	) as D722GraphEffectRuntimeV1;

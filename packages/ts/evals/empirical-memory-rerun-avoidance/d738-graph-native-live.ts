@@ -23,7 +23,7 @@ import {
 } from "./d722-graph-completion-memory-insight.js";
 import {
 	createD726ArmLocalTerminalProviderPolicy,
-	createD737GraphObjectivePhaseRecoveryPolicy,
+	createD745GraphPhaseScopedRecoveryPolicy,
 } from "./d722-graph-native-effect-runtime.js";
 import { validateD724TerminalHttpGraphEvidence } from "./d724-terminal-http-evidence.js";
 import {
@@ -47,12 +47,12 @@ import {
 	type D738ExecutionAuthorityV1,
 } from "./d738-single-use-dispatch-claim.js";
 
-export const D738_QUALIFICATION_SCHEMA = "graphrefly.b112.d744.live-qualification.v1" as const;
-export const D738_OBSERVATION_SCHEMA = "graphrefly.b112.d744.live-observation.v1" as const;
-export const D738_GENERATION_SCHEMA = "graphrefly.b112.d744.success-generation.v1" as const;
-export const D738_PARTIAL_SCHEMA = "graphrefly.b112.d744.partial-failure-generation.v1" as const;
-export const D738_TERMINAL_SCHEMA = "graphrefly.b112.d744.terminal-receipt.v1" as const;
-export const D738_BUNDLE_SCHEMA = "graphrefly.b112.d744.live-bundle.v1" as const;
+export const D738_QUALIFICATION_SCHEMA = "graphrefly.b112.d745.live-qualification.v1" as const;
+export const D738_OBSERVATION_SCHEMA = "graphrefly.b112.d745.live-observation.v1" as const;
+export const D738_GENERATION_SCHEMA = "graphrefly.b112.d745.success-generation.v1" as const;
+export const D738_PARTIAL_SCHEMA = "graphrefly.b112.d745.partial-failure-generation.v1" as const;
+export const D738_TERMINAL_SCHEMA = "graphrefly.b112.d745.terminal-receipt.v1" as const;
+export const D738_BUNDLE_SCHEMA = "graphrefly.b112.d745.live-bundle.v1" as const;
 
 export interface D738LiveBundleV1 {
 	readonly schemaVersion: typeof D738_BUNDLE_SCHEMA;
@@ -79,7 +79,7 @@ function replayGraph(value: unknown): D722CanonicalGraphEvidenceV1 {
 		candidate.ledger,
 		runs as D722CanonicalGraphEvidenceV1["effectRuns"],
 		createD726ArmLocalTerminalProviderPolicy(),
-		createD737GraphObjectivePhaseRecoveryPolicy(),
+		createD745GraphPhaseScopedRecoveryPolicy(),
 	);
 	literal(
 		empiricalStrictJsonDigest(replay),
@@ -139,7 +139,7 @@ function validateHistoricalD736Partial(bytes: Uint8Array): void {
 		throw new TypeError("D738 D736 partial artifact bytes are invalid");
 	literal(empiricalSha256(bytes), D738_D736_PARTIAL_ARTIFACT_SHA256, "d738.d736Partial.artifact");
 	const bundle = record(strictJsonCodec.decode(new Uint8Array(bytes)), "d739.d738Partial");
-	literal(bundle.disposition, "partial-failure", "d738.d736Partial.disposition");
+	literal(bundle.disposition, "success", "d738.d736Partial.disposition");
 	literal(bundle.bundleDigest, D738_D736_PARTIAL_BUNDLE_DIGEST, "d738.d736Partial.bundle");
 	const generation = record(bundle.generation, "d739.d738Partial.generation");
 	literal(
@@ -362,7 +362,7 @@ export async function runD738LiveReplacement(inputValue: {
 			implementationManifestDigest,
 		}),
 		adapter: input.adapter as D734RouteBoundProviderAdapterV1,
-		objectivePhaseRecoveryPolicy: createD737GraphObjectivePhaseRecoveryPolicy(),
+		objectivePhaseRecoveryPolicy: createD745GraphPhaseScopedRecoveryPolicy(),
 		signal: input.signal as AbortSignal,
 	});
 	return buildBundle(integration, {
@@ -409,7 +409,7 @@ export async function runD738InjectedNoNetworkQualification(inputValue: {
 			implementationManifestDigest,
 		}),
 		adapter: input.adapter as D734RouteBoundProviderAdapterV1,
-		objectivePhaseRecoveryPolicy: createD737GraphObjectivePhaseRecoveryPolicy(),
+		objectivePhaseRecoveryPolicy: createD745GraphPhaseScopedRecoveryPolicy(),
 		signal: input.signal as AbortSignal,
 	});
 	return buildBundle(integration, {
@@ -706,7 +706,7 @@ export async function persistD738LiveBundle(inputValue: {
 		)
 			throw new TypeError("D738 persistence rename identity drifted");
 		const commit = strictSnapshot({
-			schemaVersion: "graphrefly.b112.d744.atomic-commit.v1",
+			schemaVersion: "graphrefly.b112.d745.atomic-commit.v1",
 			generationRef: D738_GENERATION_REF,
 			disposition: bundle.disposition,
 			bundleDigest: bundle.bundleDigest,
