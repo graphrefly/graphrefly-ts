@@ -27,7 +27,7 @@ import {
 } from "./openrouter-current-key-spend-admission.js";
 
 export const D738_DISPATCH_CLAIM_SCHEMA =
-	"graphrefly.b112.d743.single-use-dispatch-claim.v1" as const;
+	"graphrefly.b112.d744.single-use-dispatch-claim.v1" as const;
 export const D738_PRIVATE_ROOT = resolve(
 	import.meta.dirname,
 	"../.private/empirical-memory-rerun-avoidance",
@@ -55,7 +55,7 @@ export interface D738PersistedDispatchClaimV1 {
 }
 
 export interface D738ExecutionAuthorityV1 {
-	readonly revision: "graphrefly.b112.d743.execution-authority.v1";
+	readonly revision: "graphrefly.b112.d744.execution-authority.v1";
 	readonly claim: D738PersistedDispatchClaimV1;
 	readonly currentKeyAdmission: OpenRouterCurrentKeySpendAdmissionV1;
 }
@@ -278,7 +278,7 @@ export async function consumeD738DispatchClaimForExecution(inputValue: {
 	await syncDirectory(executionRoot);
 	await syncDirectory(state.root);
 	const authority = Object.freeze({
-		revision: "graphrefly.b112.d743.execution-authority.v1" as const,
+		revision: "graphrefly.b112.d744.execution-authority.v1" as const,
 		claim,
 		currentKeyAdmission: admission,
 	});

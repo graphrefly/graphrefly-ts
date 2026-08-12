@@ -141,6 +141,8 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 	readonly inspectionOverflowBeforeMutation?: boolean;
 	readonly wrongRecoveryFirstTool?: boolean;
 	readonly armLocalToolRejectionAfterMutation?: boolean;
+	readonly armLocalOutOfOrderAfterMutation?: boolean;
+	readonly providerTurnLoopAfterInspection?: boolean;
 }): D734InjectedRouteProfileFixtureV1 {
 	const profile = inputValue.profile;
 	const model = createD722InjectedModelFixture();
@@ -163,32 +165,44 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 	const phaseRecoveryResult = (request: D720GraphEffectRequestV1): D720EffectResultV1 => {
 		const turn = (providerTurnsByRun.get(request.runSequence) ?? 0) + 1;
 		providerTurnsByRun.set(request.runSequence, turn);
-		const toolRefs: readonly D720ToolRef[] =
-			inputValue.inspectionSaturationBeforeMutation || inputValue.inspectionOverflowBeforeMutation
+		const toolRefs: readonly D720ToolRef[] = inputValue.providerTurnLoopAfterInspection
+			? turn === 1
+				? ["read-file"]
+				: ["replace-exact"]
+			: inputValue.armLocalOutOfOrderAfterMutation
 				? turn === 1
-					? ["read-file", "read-file", "read-file", "read-file"]
-					: turn === 2
-						? inputValue.inspectionOverflowBeforeMutation
-							? ["search-repository", "search-repository", "search-repository"]
-							: ["search-repository", "search-repository"]
-						: request.completionContext?.reason === "objective-phase-policy-violation"
-							? inputValue.wrongRecoveryFirstTool
-								? ["search-repository"]
-								: inputValue.armLocalToolRejectionAfterMutation
-									? ["replace-exact"]
-									: ["replace-exact", "workspace-diff", "focused-validation"]
-							: inputValue.armLocalToolRejectionAfterMutation && turn === 4
-								? ["read-file"]
-								: []
-				: turn === 1
 					? ["read-file"]
 					: request.completionContext?.reason === "objective-phase-policy-violation"
-						? ["replace-exact", "workspace-diff", "focused-validation"]
+						? ["replace-exact"]
 						: turn === 2
-							? inputValue.objectivePhaseViolationAfterInspectionPrefix
-								? ["search-repository", "workspace-diff"]
-								: ["workspace-diff", "focused-validation"]
-							: [];
+							? ["workspace-diff"]
+							: ["focused-validation"]
+				: inputValue.inspectionSaturationBeforeMutation ||
+						inputValue.inspectionOverflowBeforeMutation
+					? turn === 1
+						? ["read-file", "read-file", "read-file", "read-file"]
+						: turn === 2
+							? inputValue.inspectionOverflowBeforeMutation
+								? ["search-repository", "search-repository", "search-repository"]
+								: ["search-repository", "search-repository"]
+							: request.completionContext?.reason === "objective-phase-policy-violation"
+								? inputValue.wrongRecoveryFirstTool
+									? ["search-repository"]
+									: inputValue.armLocalToolRejectionAfterMutation
+										? ["replace-exact"]
+										: ["replace-exact", "workspace-diff", "focused-validation"]
+								: inputValue.armLocalToolRejectionAfterMutation && turn === 4
+									? ["read-file"]
+									: []
+					: turn === 1
+						? ["read-file"]
+						: request.completionContext?.reason === "objective-phase-policy-violation"
+							? ["replace-exact", "workspace-diff", "focused-validation"]
+							: turn === 2
+								? inputValue.objectivePhaseViolationAfterInspectionPrefix
+									? ["search-repository", "workspace-diff"]
+									: ["workspace-diff", "focused-validation"]
+								: [];
 		return Object.freeze({
 			effectKind: "provider-request" as const,
 			status: toolRefs.length === 0 ? ("structured-final" as const) : ("tool-intents" as const),
@@ -246,6 +260,8 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 							wireBodies.push(new Uint8Array(request.body));
 							const result =
 								inputValue.objectivePhaseViolationBeforeMutation ||
+								inputValue.armLocalOutOfOrderAfterMutation ||
+								inputValue.providerTurnLoopAfterInspection ||
 								inputValue.inspectionSaturationBeforeMutation ||
 								inputValue.inspectionOverflowBeforeMutation
 									? phaseRecoveryResult(executionInput.effectRequest)

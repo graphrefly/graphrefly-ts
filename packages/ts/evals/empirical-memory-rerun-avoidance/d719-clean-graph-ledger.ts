@@ -59,6 +59,8 @@ export type D719CleanStoppedReason =
 	| "cancelled"
 	| "executor-failed"
 	| "retry-denied"
+	| "arm-policy-violated"
+	| "arm-provider-turn-bound-exhausted"
 	| null;
 export type D719CleanDisposition = "recover-current" | "admit-next" | "stop";
 
@@ -101,6 +103,7 @@ export interface D719CallerArmResultV1 {
 		readonly traceComplete: boolean;
 		readonly executorFailed: boolean;
 		readonly terminalProviderFailure?: true;
+		readonly armLocalStoppedReason?: "arm-policy-violated" | "arm-provider-turn-bound-exhausted";
 		readonly inspectionObserved: boolean;
 		readonly contentChangingMutationObserved: boolean;
 		readonly nonEmptyDiffAfterLatestMutation: boolean;
@@ -248,6 +251,8 @@ export interface D719HarnessFindingV1 {
 		| "cancelled"
 		| "executor-failed"
 		| "retry-denied"
+		| "arm-policy-violated"
+		| "arm-provider-turn-bound-exhausted"
 		| "objective-progress-missing"
 		| "workspace-diff-missing"
 		| "focused-validation-missing"
@@ -536,6 +541,8 @@ function stoppedReasonFor(fact: D719AdmittedArmFactV1): D719CleanStoppedReason {
 	)
 		return "workspace-cleanup-failed";
 	if (fact.execution.cancelled) return "cancelled";
+	if (fact.execution.armLocalStoppedReason !== undefined)
+		return fact.execution.armLocalStoppedReason;
 	if (fact.reservationOverrunRefs.length > 0) return "budget-exhausted";
 	if (fact.budgetDenialRefs.length > 0) return "budget-exhausted";
 	if (fact.retryDenialRefs.length > 0) return "retry-denied";
@@ -547,10 +554,13 @@ function stoppedReasonFor(fact: D719AdmittedArmFactV1): D719CleanStoppedReason {
 function decisionFor(fact: D719AdmittedArmFactV1, limits: D719CleanBudgetLimitsV1) {
 	const phase = phaseFor(fact.execution);
 	const stoppedReason = stoppedReasonFor(fact);
+	const armLocalStop =
+		stoppedReason === "arm-policy-violated" ||
+		stoppedReason === "arm-provider-turn-bound-exhausted";
 	const disposition: D719CleanDisposition =
 		fact.execution.terminalProviderFailure === true
 			? "admit-next"
-			: stoppedReason !== null
+			: stoppedReason !== null && !armLocalStop
 				? "stop"
 				: fact.runKind === "primary" && phase !== "hidden-verifier-passed"
 					? "recover-current"
@@ -570,6 +580,7 @@ function decisionFor(fact: D719AdmittedArmFactV1, limits: D719CleanBudgetLimitsV
 			fact.cleanup.status === "succeeded" &&
 			fact.execution.traceComplete &&
 			fact.execution.terminalProviderFailure !== true &&
+			fact.execution.armLocalStoppedReason === undefined &&
 			phase !== "none",
 		fullTaskCompleted: fact.execution.hiddenVerifierPassed,
 		budgetState: fact.budgetState,
@@ -591,6 +602,9 @@ function findingFor(decision: D719ArmDecisionProjectionV1): D719HarnessFindingV1
 	else if (decision.stoppedReason === "cancelled") code = "cancelled";
 	else if (decision.stoppedReason === "executor-failed") code = "executor-failed";
 	else if (decision.stoppedReason === "retry-denied") code = "retry-denied";
+	else if (decision.stoppedReason === "arm-policy-violated") code = "arm-policy-violated";
+	else if (decision.stoppedReason === "arm-provider-turn-bound-exhausted")
+		code = "arm-provider-turn-bound-exhausted";
 	else if (decision.phase === "none" || decision.phase === "inspection")
 		code = "objective-progress-missing";
 	else if (decision.phase === "exact-mutation") code = "workspace-diff-missing";
@@ -700,12 +714,21 @@ function validateCallerResult(value: unknown): D719CallerArmResultV1 {
 			...(Object.hasOwn(execution, "terminalProviderFailure")
 				? ["terminalProviderFailure" as const]
 				: []),
+			...(Object.hasOwn(execution, "armLocalStoppedReason")
+				? ["armLocalStoppedReason" as const]
+				: []),
 		],
 		"d719.clean.execution",
 	);
-	for (const key of Object.keys(execution)) {
+	for (const key of Object.keys(execution).filter((key) => key !== "armLocalStoppedReason")) {
 		if (typeof execution[key] !== "boolean") throw new TypeError(`D719 ${key} is invalid`);
 	}
+	if (Object.hasOwn(execution, "armLocalStoppedReason"))
+		oneOf(
+			execution.armLocalStoppedReason,
+			["arm-policy-violated", "arm-provider-turn-bound-exhausted"],
+			"d719.clean.execution.armLocalStoppedReason",
+		);
 	if (
 		Object.hasOwn(execution, "terminalProviderFailure") &&
 		execution.terminalProviderFailure !== true
@@ -1581,7 +1604,11 @@ export function snapshotD719CleanGraphEvidence(
 	if (state.activeRequest !== null) throw new TypeError("D719 cannot snapshot an active arm");
 	const topology = topologyMaterial(state);
 	const last = state.decisions.at(-1);
-	const complete = state.completedArms.length === 6 && last?.stoppedReason === null;
+	const finalArmLocalStop =
+		last?.stoppedReason === "arm-policy-violated" ||
+		last?.stoppedReason === "arm-provider-turn-bound-exhausted";
+	const complete =
+		state.completedArms.length === 6 && (last?.stoppedReason === null || finalArmLocalStop);
 	const material = strictSnapshot({
 		schemaVersion: D719_CLEAN_GRAPH_EVIDENCE_SCHEMA,
 		ledgerRevision: D719_CLEAN_GRAPH_LEDGER_REVISION,

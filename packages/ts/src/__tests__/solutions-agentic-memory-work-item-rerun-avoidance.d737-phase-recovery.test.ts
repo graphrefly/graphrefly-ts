@@ -173,6 +173,58 @@ describe("D737 Graph objective-phase recovery", () => {
 		expect(fixture.activeWorkspaceCount()).toBe(0);
 	}, 30_000);
 
+	it("keeps an out-of-order post-mutation tool intent arm-local and admits every frozen arm", async () => {
+		const fixture = createD734InjectedRouteProfileFixture({
+			profile: D733_DEEPSEEK_V4_FLASH_0731_PROFILE,
+			routeAdmission: routeAdmission(),
+			executionClass: "live-provider",
+			armLocalOutOfOrderAfterMutation: true,
+		});
+		const result = await runD734RouteProfileSixArmLiveIntegration({
+			sourceDigest: sha("d744-arm-local-policy"),
+			adapter: fixture.adapter,
+			objectivePhaseRecoveryPolicy: createD737GraphObjectivePhaseRecoveryPolicy(),
+			signal: AbortSignal.timeout(30_000),
+		});
+		expect(result.run.graphEvidence.runStatus).toBe("complete");
+		expect(result.run.graphEvidence.ledger.completedArms).toHaveLength(6);
+		expect(result.run.graphEvidence.effectRuns).toHaveLength(12);
+		expect(result.run.graphEvidence.ledger.findings).toHaveLength(12);
+		expect(
+			result.run.graphEvidence.ledger.findings.every(
+				(finding) => finding.code === "arm-policy-violated",
+			),
+		).toBe(true);
+		expect(fixture.providerCalls()).toBe(48);
+		expect(fixture.activeWorkspaceCount()).toBe(0);
+	}, 30_000);
+
+	it("bounds every recovery run to eight provider attempts and preserves six-arm scheduling", async () => {
+		const fixture = createD734InjectedRouteProfileFixture({
+			profile: D733_DEEPSEEK_V4_FLASH_0731_PROFILE,
+			routeAdmission: routeAdmission(),
+			executionClass: "live-provider",
+			providerTurnLoopAfterInspection: true,
+		});
+		const result = await runD734RouteProfileSixArmLiveIntegration({
+			sourceDigest: sha("d744-provider-turn-bound"),
+			adapter: fixture.adapter,
+			objectivePhaseRecoveryPolicy: createD737GraphObjectivePhaseRecoveryPolicy(),
+			signal: AbortSignal.timeout(30_000),
+		});
+		expect(result.run.graphEvidence.runStatus).toBe("complete");
+		expect(result.run.graphEvidence.ledger.completedArms).toHaveLength(6);
+		expect(result.run.graphEvidence.effectRuns).toHaveLength(12);
+		expect(result.run.usage.requests).toBe(96);
+		expect(fixture.providerCalls()).toBe(96);
+		expect(
+			result.run.graphEvidence.ledger.findings.every(
+				(finding) => finding.code === "arm-provider-turn-bound-exhausted",
+			),
+		).toBe(true);
+		expect(fixture.activeWorkspaceCount()).toBe(0);
+	}, 30_000);
+
 	it("preflights every ordered intent and rejects a later phase violation before all tool effects", async () => {
 		const fixture = createD734InjectedRouteProfileFixture({
 			profile: D733_DEEPSEEK_V4_FLASH_0731_PROFILE,
@@ -424,7 +476,7 @@ describe("D737 Graph objective-phase recovery", () => {
 			await readFile(
 				join(
 					import.meta.dirname,
-					"../../evals/.private/empirical-memory-rerun-avoidance/.d742-live-private/d742-graph-provider-count-repair-live-2026-08-12-v1/artifacts/bundle.v1.json",
+					"../../evals/.private/empirical-memory-rerun-avoidance/.d743-live-private/d743-byte-transport-envelope-live-2026-08-12-v1/artifacts/bundle.v1.json",
 				),
 			),
 		);

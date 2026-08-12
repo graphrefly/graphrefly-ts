@@ -28,6 +28,7 @@ export const D720_EFFECT_EVIDENCE_SCHEMA =
 	"graphrefly.b112.d720.graph-native-effect-evidence.v1" as const;
 export const D720_MAX_EFFECT_FACTS_PER_RUN = 512;
 export const D720_MAX_TOOL_INTENTS_PER_TURN = 32;
+export const D744_MAX_PROVIDER_REQUESTS_PER_RUN = 8;
 export const D722_COMPLETION_CONTEXT_POLICY_REVISION =
 	"graphrefly.b112.d722.graph-completion-context-policy.v1" as const;
 export const D722_COMPLETION_CONTEXT_SCHEMA =
@@ -236,7 +237,12 @@ export interface D720EffectDecisionV1 {
 	readonly disposition: "execute-effect" | "complete-arm";
 	readonly effectRequest: D720GraphEffectRequestV1 | null;
 	readonly traceComplete: boolean;
-	readonly stoppedReason: "materialization-failed" | "executor-failed" | null;
+	readonly stoppedReason:
+		| "materialization-failed"
+		| "executor-failed"
+		| "arm-policy-violated"
+		| "arm-provider-turn-bound-exhausted"
+		| null;
 	readonly decisionDigest: string;
 }
 
@@ -334,6 +340,7 @@ interface ProjectionState {
 	cleanupEvidenceDigest: string | null;
 	pendingTools: D720ToolIntentV1[];
 	providerAttemptOrdinal: number;
+	providerRequestCount: number;
 	providerTurnSequence: number;
 	providerLogicalRequestDigest: string | null;
 	workspaceStateDigest: string | null;
@@ -341,7 +348,12 @@ interface ProjectionState {
 	traceComplete: boolean;
 	executorFailed: boolean;
 	cancelled: boolean;
-	stoppedReason: "materialization-failed" | "executor-failed" | null;
+	stoppedReason:
+		| "materialization-failed"
+		| "executor-failed"
+		| "arm-policy-violated"
+		| "arm-provider-turn-bound-exhausted"
+		| null;
 	effectSequence: number;
 	decisionSequence: number;
 	completionContextsIssued: number;
@@ -591,8 +603,12 @@ function nextToolOrStop(
 		});
 	}
 	if (!toolIntentAllowed(state, toolIntent)) {
-		state.executorFailed = true;
-		state.stoppedReason = "executor-failed";
+		if (state.objectivePhaseRecoveryEnabled) {
+			state.stoppedReason = "arm-policy-violated";
+		} else {
+			state.executorFailed = true;
+			state.stoppedReason = "executor-failed";
+		}
 		state.pendingTools = [];
 		return requestMaterial(state, runSequence, issuedRequestDigest, "cleanup", {
 			logicalMaterial: {
@@ -645,6 +661,7 @@ function nextEffect(
 			});
 		}
 	} else if (lastFact.result.effectKind === "provider-request") {
+		state.providerRequestCount += 1;
 		const result = lastFact.result;
 		if (result.status === "tool-intents") {
 			const recoveryToolMismatch =
@@ -846,6 +863,21 @@ function nextEffect(
 		state.traceComplete = state.cleanupStatus === "succeeded";
 		request = null;
 	}
+	if (
+		request?.effectKind === "provider-request" &&
+		state.objectivePhaseRecoveryEnabled &&
+		state.providerRequestCount >= D744_MAX_PROVIDER_REQUESTS_PER_RUN
+	) {
+		state.stoppedReason = "arm-provider-turn-bound-exhausted";
+		state.pendingTools = [];
+		request = requestMaterial(state, runSequence, issuedRequestDigest, "cleanup", {
+			logicalMaterial: {
+				issuedRequestDigest,
+				effect: "arm-provider-turn-bound-cleanup",
+				providerRequestCount: state.providerRequestCount,
+			},
+		});
+	}
 	return decisionMaterial(state, request);
 }
 
@@ -899,6 +931,7 @@ function initialProjectionState(): ProjectionState {
 		cleanupEvidenceDigest: null,
 		pendingTools: [],
 		providerAttemptOrdinal: 1,
+		providerRequestCount: 0,
 		providerTurnSequence: 0,
 		providerLogicalRequestDigest: null,
 		workspaceStateDigest: null,
@@ -1860,6 +1893,10 @@ export function deriveD720GraphArmResult(
 		execution: {
 			traceComplete: lastDecision.traceComplete,
 			executorFailed: state.projectionState.executorFailed,
+			...(state.projectionState.stoppedReason === "arm-policy-violated" ||
+			state.projectionState.stoppedReason === "arm-provider-turn-bound-exhausted"
+				? { armLocalStoppedReason: state.projectionState.stoppedReason }
+				: {}),
 			...(state.projectionState.terminalProviderFailure
 				? { terminalProviderFailure: true as const }
 				: {}),
