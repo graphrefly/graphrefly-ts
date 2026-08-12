@@ -758,10 +758,10 @@ function nextEffect(
 	} else if (lastFact.result.effectKind === "tool-action") {
 		const result = lastFact.result;
 		if (result.status === "failed") {
-			state.executorFailed = true;
-			state.stoppedReason = "executor-failed";
+			state.workspaceStateDigest = result.workspaceStateAfterDigest;
+			state.pendingTools = [];
 			request = requestMaterial(state, runSequence, issuedRequestDigest, "cleanup", {
-				logicalMaterial: { issuedRequestDigest, effect: "cleanup" },
+				logicalMaterial: { issuedRequestDigest, effect: "arm-local-tool-rejection" },
 			});
 		} else {
 			state.workspaceStateDigest = result.workspaceStateAfterDigest;
@@ -1253,6 +1253,11 @@ export function validateD720GraphEffectResult(
 			"d720.effectResult",
 		);
 		oneOf(candidate.status, ["succeeded", "failed"], "d720.effectResult.status");
+		if (
+			candidate.status === "failed" &&
+			candidate.workspaceStateBeforeDigest !== candidate.workspaceStateAfterDigest
+		)
+			throw new TypeError("D720 failed tool action cannot change workspace state");
 		if (typeof candidate.nonEmptyDiff !== "boolean")
 			throw new TypeError("D720 tool diff evidence must be boolean");
 		const expected = request.toolIntent;

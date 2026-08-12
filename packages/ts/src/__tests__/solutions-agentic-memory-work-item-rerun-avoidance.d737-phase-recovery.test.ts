@@ -316,6 +316,37 @@ describe("D737 Graph objective-phase recovery", () => {
 		expect(fixture.activeWorkspaceCount()).toBe(0);
 	}, 30_000);
 
+	it("admits a bounded failed tool fact without censoring later arms", async () => {
+		const fixture = createD734InjectedRouteProfileFixture({
+			profile: D733_DEEPSEEK_V4_FLASH_0731_PROFILE,
+			routeAdmission: routeAdmission(),
+			executionClass: "live-provider",
+			inspectionSaturationBeforeMutation: true,
+			armLocalToolRejectionAfterMutation: true,
+		});
+		const result = await runD734RouteProfileSixArmLiveIntegration({
+			sourceDigest: sha("d741-arm-local-tool-rejection"),
+			adapter: fixture.adapter,
+			objectivePhaseRecoveryPolicy: createD737GraphObjectivePhaseRecoveryPolicy(),
+			signal: AbortSignal.timeout(30_000),
+		});
+		expect(result.run.graphEvidence.runStatus).toBe("complete");
+		expect(result.run.graphEvidence.ledger.completedArms).toHaveLength(6);
+		expect(
+			result.run.graphEvidence.ledger.findings.some(
+				(finding) => finding.code === "executor-failed",
+			),
+		).toBe(false);
+		expect(
+			result.run.graphEvidence.effectRuns.flatMap((run) =>
+				run.facts.filter(
+					(fact) => fact.result.effectKind === "tool-action" && fact.result.status === "failed",
+				),
+			),
+		).toHaveLength(12);
+		expect(fixture.activeWorkspaceCount()).toBe(0);
+	}, 30_000);
+
 	it("constructs and canonically replays the full no-network six-arm qualification", async () => {
 		const fixture = createD734InjectedRouteProfileFixture({
 			profile: D733_DEEPSEEK_V4_FLASH_0731_PROFILE,
@@ -393,7 +424,7 @@ describe("D737 Graph objective-phase recovery", () => {
 			await readFile(
 				join(
 					import.meta.dirname,
-					"../../evals/.private/empirical-memory-rerun-avoidance/.d739-live-private/d739-bounded-provider-context-live-2026-08-12-v1/artifacts/bundle.v1.json",
+					"../../evals/.private/empirical-memory-rerun-avoidance/.d740-live-private/d740-inspection-saturation-recovery-live-2026-08-12-v1/artifacts/bundle.v1.json",
 				),
 			),
 		);

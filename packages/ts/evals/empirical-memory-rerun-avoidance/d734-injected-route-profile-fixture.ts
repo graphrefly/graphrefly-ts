@@ -140,12 +140,15 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 	readonly inspectionSaturationBeforeMutation?: boolean;
 	readonly inspectionOverflowBeforeMutation?: boolean;
 	readonly wrongRecoveryFirstTool?: boolean;
+	readonly armLocalToolRejectionAfterMutation?: boolean;
 }): D734InjectedRouteProfileFixtureV1 {
 	const profile = inputValue.profile;
 	const model = createD722InjectedModelFixture();
 	const workspaces = new Map<number, string>();
 	const wireBodies: Uint8Array[] = [];
 	const providerTurnsByRun = new Map<number, number>();
+	const mutatedRuns = new Set<number>();
+	const rejectedToolRuns = new Set<number>();
 	let providerCalls = 0;
 	let active = 0;
 	let maxActive: 0 | 1 = 0;
@@ -171,8 +174,12 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 						: request.completionContext?.reason === "objective-phase-policy-violation"
 							? inputValue.wrongRecoveryFirstTool
 								? ["search-repository"]
-								: ["replace-exact", "workspace-diff", "focused-validation"]
-							: []
+								: inputValue.armLocalToolRejectionAfterMutation
+									? ["replace-exact"]
+									: ["replace-exact", "workspace-diff", "focused-validation"]
+							: inputValue.armLocalToolRejectionAfterMutation && turn === 4
+								? ["read-file"]
+								: []
 				: turn === 1
 					? ["read-file"]
 					: request.completionContext?.reason === "objective-phase-policy-violation"
@@ -282,10 +289,33 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 				if (intent === null) throw new TypeError("D734 tool action omitted its intent");
 				const before = workspaces.get(effectRequest.runSequence);
 				if (before === undefined) throw new TypeError("D734 tool action omitted its workspace");
+				if (
+					inputValue.armLocalToolRejectionAfterMutation &&
+					intent.toolRef === "read-file" &&
+					mutatedRuns.has(effectRequest.runSequence) &&
+					!rejectedToolRuns.has(effectRequest.runSequence)
+				) {
+					rejectedToolRuns.add(effectRequest.runSequence);
+					return {
+						actualCostMicrousd: 0,
+						actualElapsedMs: 1,
+						result: {
+							effectKind: "tool-action" as const,
+							toolRef: intent.toolRef,
+							intentDigest: intent.intentDigest,
+							status: "failed" as const,
+							nonEmptyDiff: false,
+							workspaceStateBeforeDigest: before,
+							workspaceStateAfterDigest: before,
+							evidenceDigest: digest({ effectRequest, boundedToolRejection: true }),
+						},
+					};
+				}
 				const after =
 					intent.toolRef === "replace-exact"
 						? digest({ before, mutation: intent.intentDigest })
 						: before;
+				if (intent.toolRef === "replace-exact") mutatedRuns.add(effectRequest.runSequence);
 				workspaces.set(effectRequest.runSequence, after);
 				return {
 					actualCostMicrousd: 0,

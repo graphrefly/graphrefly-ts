@@ -5,26 +5,25 @@ import {
 	D733_DEEPSEEK_V4_FLASH_0731_PROFILE_DIGEST,
 } from "./d733-coordinates.js";
 
-export const D738_DECISION_REF = "decision.D740" as const;
+export const D738_DECISION_REF = "decision.D741" as const;
 export const D738_DECISION_REVISION = "2026-08-12.v1" as const;
-export const D738_GENERATION_REF =
-	"d740-inspection-saturation-recovery-live-2026-08-12-v1" as const;
+export const D738_GENERATION_REF = "d741-arm-local-tool-rejection-live-2026-08-12-v1" as const;
 export const D738_DISPATCH_CLAIM_REF =
-	"d740-inspection-saturation-recovery-dispatch-2026-08-12-v1" as const;
+	"d741-arm-local-tool-rejection-dispatch-2026-08-12-v1" as const;
 export const D738_D736_PARTIAL_ARTIFACT_SHA256 =
-	"sha256:1dfb42f1a4ca092229ba279956c9970fc67be2c7a5fb130c32ca9b345a048647" as const;
+	"sha256:affa381c30fa375b9e8d6acc5a5097fec93d6fb7ff95c29bc3efa4a8c314e486" as const;
 export const D738_D736_PARTIAL_BUNDLE_DIGEST =
-	"sha256:08ef56d24e994fd0c9c3df9273d8cc49d5485a3a840333affb376530c148a728" as const;
+	"sha256:59d3e5565b985ba2cbb304980a27dab77a1903eda44cee5eb02a9af1ea241e55" as const;
 export const D738_D736_PARTIAL_GENERATION_DIGEST =
-	"sha256:d4eecfb29720d332bd511694dc61c15b25d35498afdec5f0d218e36d3662a7a7" as const;
+	"sha256:594c42e6e085301507b06bab9cdee46a65b076d91d4023557d22ce85ce5c69fc" as const;
 export const D738_D737_PHASE_RECOVERY_POLICY_DIGEST =
 	"sha256:838ae89f15dcdb80fef0281db727463fe8ee1fee5a36fe4ac0b27194d728e798" as const;
 export const D738_D737_DISPATCH_CLAIM_ARTIFACT_SHA256 =
-	"sha256:c36131e551142a317af7bc157df486c9ddc430fc9164c9bd40444b2e0096936e" as const;
+	"sha256:325a8302e003ee1b97429ddb3e257ddcd77947f38f8f1e1ac16539b9067afb94" as const;
 export const D738_D737_DISPATCH_CLAIM_DIGEST =
-	"sha256:c64664c34f383fdcc2dac653b6488b40f9b4abfcb0e3aaf6ef3faedd2516462d" as const;
+	"sha256:dcb97494534eb526f6b4d7880b34c642a7ee3c09e893cacf533c303cb2b75d3c" as const;
 export const D738_D737_CURRENT_KEY_MARKER_SHA256 =
-	"sha256:c04b14de59d2f87ac29e6d412c8a6880716d738a8af0fbcaf1c6796b04c1f7d7" as const;
+	"sha256:624c06ac49e674e3d179b7d1e13682341350f35929bf4e847bc9c44d63dd4bde" as const;
 export const D738_BUDGET_LIMITS = D729_BUDGET_LIMITS;
 export const D738_EFFECT_CEILINGS = D729_EFFECT_CEILINGS;
 export const D738_ROUTE_PROFILE = D733_DEEPSEEK_V4_FLASH_0731_PROFILE;
@@ -42,7 +41,7 @@ export const D738_COORDINATES = strictSnapshot({
 	d737DispatchClaimArtifactSha256: D738_D737_DISPATCH_CLAIM_ARTIFACT_SHA256,
 	d737DispatchClaimDigest: D738_D737_DISPATCH_CLAIM_DIGEST,
 	d737CurrentKeyMarkerSha256: D738_D737_CURRENT_KEY_MARKER_SHA256,
-	d737FailureCode: "inspection-saturation-before-exact-mutation",
+	d737FailureCode: "bounded-tool-rejection-misclassified-executor-failure",
 	maxProviderRequestBytes: 1_048_576,
 	maxPreMutationInspectionEffects: 6,
 	routeProfileDigest: D738_ROUTE_PROFILE_DIGEST,
