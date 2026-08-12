@@ -8,7 +8,7 @@ import {
 
 export const D734_TRACKED_SOURCE_SHA256 = Object.freeze({
 	providerIntegration: "sha256:d7ebc60e6c94e12f120b6f77d40ca84116f43f2cab2fe288bed82f92b010b3f2",
-	injectedFixture: "sha256:91363e3faacf914eeba15a3ecf7e59ecc14d9fa6eba8570d195ca945584da763",
+	injectedFixture: "sha256:83734cce5bd07459e60b7aaf2f2ae7e2691b32d6f5f290f0265c233bb0d1bf5a",
 	preLive: "sha256:cab126bc10d3061889674491ffb4c77b2a1cc5fc52adeaff38e5fcb9386dd843",
 });
 

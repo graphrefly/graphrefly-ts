@@ -183,7 +183,7 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 				: ["replace-exact"]
 			: inputValue.forwardPhaseContinuation
 				? request.completionContext === undefined
-					? ["read-file"]
+					? ["read-file", "search-repository"]
 					: request.completionContext.requiredDisposition === "structured-final"
 						? []
 						: inputValue.wrongForwardPhaseTool &&

@@ -45,14 +45,14 @@ import {
 export const D748_DECISION_REF = "decision.D748" as const;
 export const D748_DECISION_REVISION = "2026-08-12.v1" as const;
 export const D748_QUALIFICATION_SCHEMA =
-	"graphrefly.b112.d748.forward-phase-continuation-qualification.v1" as const;
+	"graphrefly.b112.d748.forward-phase-continuation-qualification.v2" as const;
 export const D748_GENERATION_SCHEMA =
-	"graphrefly.b112.d748.forward-phase-continuation-generation.v1" as const;
+	"graphrefly.b112.d748.forward-phase-continuation-generation.v2" as const;
 export const D748_BUNDLE_SCHEMA =
-	"graphrefly.b112.d748.forward-phase-continuation-bundle.v1" as const;
+	"graphrefly.b112.d748.forward-phase-continuation-bundle.v2" as const;
 export const D748_PERSISTENCE_SCHEMA =
-	"graphrefly.b112.d748.forward-phase-continuation-persistence.v1" as const;
-export const D748_GENERATION_REF = "d748-forward-phase-continuation-no-network-v1" as const;
+	"graphrefly.b112.d748.forward-phase-continuation-persistence.v2" as const;
+export const D748_GENERATION_REF = "d748-forward-phase-continuation-no-network-v2" as const;
 
 export interface D748ForwardPhaseQualificationBundleV1 {
 	readonly schemaVersion: typeof D748_BUNDLE_SCHEMA;
@@ -92,6 +92,33 @@ function providerEffectCount(graph: D722CanonicalGraphEvidenceV1): number {
 	return graph.ledger.effectProposals.filter(
 		(proposal) => proposal.effectKind === "provider-request",
 	).length;
+}
+
+function multiInspectionTriggerBinding(graph: D722CanonicalGraphEvidenceV1): boolean {
+	return graph.effectRuns.every((run) => {
+		const facts = run.facts.filter((fact) => fact.kind === "graph-effect-result-admitted");
+		const contextIndex = facts.findIndex(
+			(fact) =>
+				fact.request.completionContext?.reason === "objective-phase-advanced" &&
+				fact.request.completionContext.nextRequiredPhase === "exact-mutation",
+		);
+		if (contextIndex < 2) return false;
+		const context = facts[contextIndex]?.request.completionContext;
+		const triggerIndex = facts.findIndex(
+			(fact) => fact.request.requestDigest === context?.rejectedRequestDigest,
+		);
+		if (triggerIndex < 0 || triggerIndex >= contextIndex - 1) return false;
+		const trigger = facts[triggerIndex];
+		const intervening = facts.slice(triggerIndex + 1, contextIndex);
+		return (
+			trigger?.result.effectKind === "tool-action" &&
+			trigger.result.toolRef === "read-file" &&
+			intervening.some(
+				(fact) =>
+					fact.result.effectKind === "tool-action" && fact.result.toolRef === "search-repository",
+			)
+		);
+	});
 }
 
 function retryIdentity(graph: D722CanonicalGraphEvidenceV1): {
@@ -308,6 +335,8 @@ export async function runD748InjectedNoNetworkQualification(inputValue: {
 		).length !== 24 ||
 		retryProof.retryWaitCount !== 1 ||
 		!retryProof.exactIdentity ||
+		!multiInspectionTriggerBinding(graphEvidence) ||
+		!multiInspectionTriggerBinding(retryGraphEvidence) ||
 		mainFixture.providerCalls() !== 30 ||
 		retryFixture.providerCalls() !== 31 ||
 		mainFixture.networkCalls() !== 0 ||
@@ -333,6 +362,7 @@ export async function runD748InjectedNoNetworkQualification(inputValue: {
 		retryWaitCount: retryProof.retryWaitCount,
 		retriedContextAttemptCount: retryProof.retriedContextAttemptCount,
 		retryIdentityDisposition: "exact" as const,
+		multiInspectionTriggerBindingDisposition: "exact-phase-advancing-fact" as const,
 		conservativeReconciliation,
 		conservativeUsageBasis: "conservative-reservation" as const,
 		maxActiveArms: graphEvidence.ledger.maxActiveArms,
@@ -422,6 +452,7 @@ export function validateD748QualificationBundle(
 			"forwardContextCount",
 			"graphEvidenceDigest",
 			"maxActiveArms",
+			"multiInspectionTriggerBindingDisposition",
 			"policyRevision",
 			"providerEffectCount",
 			"qualificationDigest",
@@ -519,6 +550,16 @@ export function validateD748QualificationBundle(
 	);
 	if (!retryProof.exactIdentity) throw new TypeError("D748 retry identity replay failed");
 	literal(qualification.retryIdentityDisposition, "exact", "d748.qualification.retryIdentity");
+	if (
+		!multiInspectionTriggerBinding(graphEvidence) ||
+		!multiInspectionTriggerBinding(retryGraphEvidence)
+	)
+		throw new TypeError("D748 multi-inspection trigger binding replay failed");
+	literal(
+		qualification.multiInspectionTriggerBindingDisposition,
+		"exact-phase-advancing-fact",
+		"d748.qualification.multiInspectionTriggerBinding",
+	);
 	literal(
 		qualification.conservativeUsageBasis,
 		"conservative-reservation",
@@ -562,6 +603,8 @@ export function validateD748QualificationBundle(
 		retryWaitCount: qualification.retryWaitCount,
 		retriedContextAttemptCount: qualification.retriedContextAttemptCount,
 		retryIdentityDisposition: qualification.retryIdentityDisposition,
+		multiInspectionTriggerBindingDisposition:
+			qualification.multiInspectionTriggerBindingDisposition,
 		conservativeReconciliation: strictSnapshot(conservative),
 		conservativeUsageBasis: qualification.conservativeUsageBasis,
 		maxActiveArms: qualification.maxActiveArms,

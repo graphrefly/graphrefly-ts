@@ -312,6 +312,28 @@ describe("D737 Graph objective-phase recovery", () => {
 			const contexts = result.run.graphEvidence.completionContexts.filter(
 				(context) => context.runSequence === run.runSequence,
 			);
+			const admitted = run.facts.filter((fact) => fact.kind === "graph-effect-result-admitted");
+			const firstContextFactIndex = admitted.findIndex(
+				(fact) => fact.request.completionContext?.contextDigest === contexts[0]?.contextDigest,
+			);
+			const triggerFactIndex = admitted.findIndex(
+				(fact) => fact.request.requestDigest === contexts[0]?.rejectedRequestDigest,
+			);
+			expect(triggerFactIndex).toBeGreaterThanOrEqual(0);
+			expect(firstContextFactIndex - triggerFactIndex).toBeGreaterThan(1);
+			expect(admitted[triggerFactIndex]?.result).toMatchObject({
+				effectKind: "tool-action",
+				toolRef: "read-file",
+			});
+			expect(
+				admitted
+					.slice(triggerFactIndex + 1, firstContextFactIndex)
+					.some(
+						(fact) =>
+							fact.result.effectKind === "tool-action" &&
+							fact.result.toolRef === "search-repository",
+					),
+			).toBe(true);
 			expect(contexts.map((context) => context.reason)).toEqual([
 				"objective-phase-advanced",
 				"objective-phase-advanced",
@@ -519,7 +541,7 @@ describe("D737 Graph objective-phase recovery", () => {
 			const canonicalRoot = await realpath(root);
 			const receipt = await persistD748QualificationBundle({ privateRoot: canonicalRoot, bundle });
 			expect(receipt).toMatchObject({
-				generationRef: "d748-forward-phase-continuation-no-network-v1",
+				generationRef: "d748-forward-phase-continuation-no-network-v2",
 			});
 			await expect(
 				persistD748QualificationBundle({ privateRoot: canonicalRoot, bundle }),
@@ -830,7 +852,7 @@ describe("D737 Graph objective-phase recovery", () => {
 			await readFile(
 				join(
 					import.meta.dirname,
-					"../../evals/.private/empirical-memory-rerun-avoidance/.d748-pre-live-private/d748-forward-phase-continuation-no-network-v1/bundle.v1.json",
+					"../../evals/.private/empirical-memory-rerun-avoidance/.d748-pre-live-private/d748-forward-phase-continuation-no-network-v2/bundle.v1.json",
 				),
 			),
 		);

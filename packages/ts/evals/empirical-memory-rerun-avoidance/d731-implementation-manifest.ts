@@ -2,7 +2,7 @@ import { empiricalSha256, empiricalStrictJsonDigest, strictSnapshot } from "./ca
 
 export const D731_TRACKED_SOURCE_SHA256 = Object.freeze({
 	graphLedger: "sha256:a63894f692c5748130cc4f3aace34428522aa7eb08a73605ff1f68499aad5593",
-	graphRuntime: "sha256:56e59694b4a98cd8403eb1b314169cab0e0b97dcf40b231db982ae252912be90",
+	graphRuntime: "sha256:99bfc21474240234843562a65c7cbe760ebb178bccca8b621ea292e565255172",
 	graphEval: "sha256:f50fea949840d72ff1e53fad634543e991375eb031cbe9fbb8ac57f527c5f209",
 	providerTurn: "sha256:6fac7319b4dc57b5751bf2e823b6bd2fb88143de84046fbda2f128f48084c926",
 	terminalHttp: "sha256:46c450b1ce057568db79fa5eb595e7c22024833ec034d899c78e9789e690e0e2",

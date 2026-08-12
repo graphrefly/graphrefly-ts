@@ -387,6 +387,7 @@ interface ProjectionState {
 	phaseScopedRecoveryEnabled: boolean;
 	forwardPhaseContinuationEnabled: boolean;
 	pendingForwardPhaseContext: boolean;
+	pendingForwardPhaseTriggerFact: D720AdmittedEffectFactV1 | null;
 	budgetState: D719CleanBudgetStateV1;
 }
 
@@ -568,6 +569,7 @@ function objectiveContinuationRequest(
 			completionContext.nextRequiredPhase as RecoverableObjectivePhase,
 		);
 	state.pendingForwardPhaseContext = false;
+	state.pendingForwardPhaseTriggerFact = null;
 	state.activeCompletionContext = completionContext;
 	state.pendingTools = [];
 	state.providerAttemptOrdinal = 1;
@@ -899,8 +901,13 @@ function nextEffect(
 					? "focused-validation-passed"
 					: "focused-validation-attempted";
 			}
-			if (state.forwardPhaseContinuationEnabled && requiredBeforeTool !== nextRequiredPhase(state))
+			if (
+				state.forwardPhaseContinuationEnabled &&
+				requiredBeforeTool !== nextRequiredPhase(state)
+			) {
 				state.pendingForwardPhaseContext = true;
+				state.pendingForwardPhaseTriggerFact = lastFact;
+			}
 			const toolIntent = state.pendingTools.shift();
 			request =
 				toolIntent === undefined
@@ -918,7 +925,7 @@ function nextEffect(
 									budgetContext,
 									runSequence,
 									issuedRequestDigest,
-									lastFact,
+									state.pendingForwardPhaseTriggerFact ?? lastFact,
 									"objective-phase-advanced",
 								);
 							})()
@@ -1063,6 +1070,7 @@ function initialProjectionState(): ProjectionState {
 		phaseScopedRecoveryEnabled: false,
 		forwardPhaseContinuationEnabled: false,
 		pendingForwardPhaseContext: false,
+		pendingForwardPhaseTriggerFact: null,
 		budgetState: Object.freeze({ requests: 0, retryWaits: 0, costMicrousd: 0, elapsedMs: 0 }),
 	};
 }

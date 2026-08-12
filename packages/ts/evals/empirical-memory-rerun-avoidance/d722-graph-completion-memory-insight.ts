@@ -62,7 +62,7 @@ export const D722_PERSISTENCE_SCHEMA =
 	"graphrefly.b112.d722.completion-memory-insight-persistence.v1" as const;
 export const D722_GENERATION_REF = "d722-graph-completion-memory-insight-v1" as const;
 export const D722_EXPECTED_RUNTIME_SOURCE_DIGEST =
-	"sha256:56e59694b4a98cd8403eb1b314169cab0e0b97dcf40b231db982ae252912be90" as const;
+	"sha256:99bfc21474240234843562a65c7cbe760ebb178bccca8b621ea292e565255172" as const;
 export const D722_EXPECTED_EVAL_SOURCE_DIGEST =
 	"sha256:f50fea949840d72ff1e53fad634543e991375eb031cbe9fbb8ac57f527c5f209" as const;
 export const D722_EXPECTED_ADAPTER_SOURCE_DIGEST =
@@ -417,8 +417,12 @@ function deriveContexts(
 			const contextFactIndex = admittedFacts.findIndex(
 				(fact) => fact.request.completionContext?.contextDigest === context.contextDigest,
 			);
-			const rejected = admittedFacts[contextFactIndex - 1];
 			const contextFact = admittedFacts[contextFactIndex];
+			const rejected = admittedFacts.find(
+				(fact, factIndex) =>
+					factIndex < contextFactIndex &&
+					fact.request.requestDigest === context.rejectedRequestDigest,
+			);
 			const contextAdmission =
 				contextFact === undefined
 					? undefined
