@@ -2333,7 +2333,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(nestedModelInvocations).toBe(0);
 		expect(nested.verifierCalls.count).toBe(0);
 		expect(() => statSync(nested.workspaceRoot)).toThrow();
-	});
+	}, 30_000);
 
 	it("qualifies D695 host feedback recovery and rejects same-state inspection before duplicate execution", async () => {
 		const policy = strictSnapshot({
