@@ -928,6 +928,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			);
 			const allowsD734InjectedFixture = file.endsWith("d734-injected-route-profile-fixture.ts");
 			const allowsD734PreLive = file.endsWith("d734-route-profile-integration-pre-live.ts");
+			const allowsD735ProviderPreflight = file.endsWith("d735-provider-capable-route-preflight.ts");
+			const allowsD735PreLive = file.endsWith("d735-provider-capable-pre-live.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -975,6 +977,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD731RouteRepairPreLive ||
 				allowsD733RouteProfilePreLive ||
 				allowsD734PreLive ||
+				allowsD735PreLive ||
 				allowsD732DispatchClaim ||
 				allowsD720CleanGraphNativeEval ||
 				allowsD721ProviderCapablePreLive ||
@@ -1082,6 +1085,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 									allowsD733OpenRouterGraphTurn ||
 									allowsD734RouteIntegration ||
 									allowsD734InjectedFixture ||
+									allowsD735ProviderPreflight ||
 									allowsD725RealProviderIntegration ||
 									allowsD725InjectedQualification ||
 									allowsD731InjectedRouteRepairFixture
@@ -1167,6 +1171,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD731RouteRepairPreLive ||
 							allowsD733RouteProfilePreLive ||
 							allowsD734PreLive ||
+							allowsD735PreLive ||
 							allowsD732DispatchClaim) &&
 							specifier === "node:fs") ||
 						((allowsD691HistoricalTransferOperator || allowsOutermostLiveOperator) &&
@@ -1187,7 +1192,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD722ProviderCapableAdapter ||
 							allowsD722CompletionMemoryInsight ||
 							allowsD724TerminalHttpEvidence ||
-							allowsD734RouteIntegration) &&
+							allowsD734RouteIntegration ||
+							allowsD735ProviderPreflight) &&
 							d720CleanGraphNativeImports.has(specifier)) ||
 						(allowsD683SourceAudit && specifier === "typescript") ||
 						specifier.startsWith("./")
