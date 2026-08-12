@@ -920,6 +920,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				"d731-injected-route-repair-fixture.ts",
 			);
 			const allowsD731RouteRepairPreLive = file.endsWith("d731-route-repair-pre-live.ts");
+			const allowsD732DispatchClaim = file.endsWith("d732-single-use-dispatch-claim.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -965,6 +966,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD729AtomicPersistence ||
 				allowsD729DispatchClaim ||
 				allowsD731RouteRepairPreLive ||
+				allowsD732DispatchClaim ||
 				allowsD720CleanGraphNativeEval ||
 				allowsD721ProviderCapablePreLive ||
 				allowsD722CompletionMemoryInsight ||
@@ -1150,7 +1152,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD727ExecutorFailurePreLive ||
 							allowsD729AtomicPersistence ||
 							allowsD729DispatchClaim ||
-							allowsD731RouteRepairPreLive) &&
+							allowsD731RouteRepairPreLive ||
+							allowsD732DispatchClaim) &&
 							specifier === "node:fs") ||
 						((allowsD691HistoricalTransferOperator || allowsOutermostLiveOperator) &&
 							specifier === "node:url") ||

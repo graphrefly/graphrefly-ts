@@ -11,57 +11,54 @@ import {
 	sameBytes,
 	strictSnapshot,
 } from "./canonical.js";
+import { D731_IMPLEMENTATION_MANIFEST_DIGEST } from "./d731-implementation-manifest.js";
 import {
-	D729_BUDGET_LIMITS,
-	D729_COORDINATES_DIGEST,
-	D729_D727_QUALIFICATION_COORDINATES,
-	D729_DECISION_REF,
-	D729_DECISION_REVISION,
-	D729_DISPATCH_CLAIM_REF,
-	D729_GENERATION_REF,
-} from "./d729-coordinates.js";
-import { D729_IMPLEMENTATION_MANIFEST_DIGEST } from "./d729-implementation-manifest.js";
-import {
-	consumeD732ExecutionAuthority,
-	type D732ExecutionAuthorityV1,
-} from "./d732-single-use-dispatch-claim.js";
+	D732_BUDGET_LIMITS,
+	D732_COORDINATES_DIGEST,
+	D732_D731_QUALIFICATION_COORDINATES,
+	D732_DECISION_REF,
+	D732_DECISION_REVISION,
+	D732_DISPATCH_CLAIM_REF,
+	D732_GENERATION_REF,
+} from "./d732-coordinates.js";
 import {
 	consumeOpenRouterCurrentKeySpendAdmission,
 	type OpenRouterCurrentKeySpendAdmissionV1,
 } from "./openrouter-current-key-spend-admission.js";
 
-export const D729_DISPATCH_CLAIM_SCHEMA =
-	"graphrefly.b112.d729.single-use-dispatch-claim.v1" as const;
-export const D729_PRIVATE_ROOT = resolve(
+export const D732_DISPATCH_CLAIM_SCHEMA =
+	"graphrefly.b112.d732.single-use-dispatch-claim.v1" as const;
+export const D732_PRIVATE_ROOT = resolve(
 	import.meta.dirname,
 	"../.private/empirical-memory-rerun-avoidance",
 );
 
 type ClaimScope = "live-fixed-root" | "injected-test-root";
 
-export interface D729PersistedDispatchClaimV1 {
-	readonly schemaVersion: typeof D729_DISPATCH_CLAIM_SCHEMA;
-	readonly claimRef: typeof D729_DISPATCH_CLAIM_REF;
-	readonly decisionRef: typeof D729_DECISION_REF;
-	readonly decisionRevision: typeof D729_DECISION_REVISION;
-	readonly generationRef: typeof D729_GENERATION_REF;
+export interface D732PersistedDispatchClaimV1 {
+	readonly schemaVersion: typeof D732_DISPATCH_CLAIM_SCHEMA;
+	readonly claimRef: typeof D732_DISPATCH_CLAIM_REF;
+	readonly decisionRef: typeof D732_DECISION_REF;
+	readonly decisionRevision: typeof D732_DECISION_REVISION;
+	readonly generationRef: typeof D732_GENERATION_REF;
 	readonly scope: ClaimScope;
 	readonly blockCount: 1;
 	readonly blockHardCapMicrousd: 6_000_000;
 	readonly localEvalNoResetLimitMicrousd: 32_000_000;
 	readonly coordinatesDigest: string;
 	readonly implementationManifestDigest: string;
-	readonly d727QualificationBundleDigest: string;
-	readonly d729PreLiveBundleDigest: string;
+	readonly d731QualificationBundleDigest: string;
+	readonly d731PreLiveBundleDigest: string;
 	readonly pricingReadDigest: string;
+	readonly routeEligibilityDigest: string;
 	readonly zeroByokObservationDigest: string;
 	readonly claimDigest: string;
 }
 
-export interface D729ExecutionAuthorityV1 {
-	readonly revision: "graphrefly.b112.d729.execution-authority.v1";
+export interface D732ExecutionAuthorityV1 {
+	readonly revision: "graphrefly.b112.d732.execution-authority.v1";
 	readonly scope: ClaimScope;
-	readonly claim: D729PersistedDispatchClaimV1;
+	readonly claim: D732PersistedDispatchClaimV1;
 	readonly currentKeyAdmission: OpenRouterCurrentKeySpendAdmissionV1;
 }
 
@@ -93,32 +90,39 @@ function material(
 	scope: ClaimScope,
 	input: {
 		readonly pricingReadDigest: string;
+		readonly routeEligibilityDigest: string;
 		readonly zeroByokObservationDigest: string;
-		readonly d729PreLiveBundleDigest: string;
+		readonly d731PreLiveBundleDigest: string;
 	},
 ) {
-	const candidate = record(input, "d729.claim.input");
+	const candidate = record(input, "d732.claim.input");
 	exactKeys(
 		candidate,
-		["d729PreLiveBundleDigest", "pricingReadDigest", "zeroByokObservationDigest"],
-		"d729.claim.input",
+		[
+			"d731PreLiveBundleDigest",
+			"pricingReadDigest",
+			"routeEligibilityDigest",
+			"zeroByokObservationDigest",
+		],
+		"d732.claim.input",
 	);
 	return strictSnapshot({
-		schemaVersion: D729_DISPATCH_CLAIM_SCHEMA,
-		claimRef: D729_DISPATCH_CLAIM_REF,
-		decisionRef: D729_DECISION_REF,
-		decisionRevision: D729_DECISION_REVISION,
-		generationRef: D729_GENERATION_REF,
+		schemaVersion: D732_DISPATCH_CLAIM_SCHEMA,
+		claimRef: D732_DISPATCH_CLAIM_REF,
+		decisionRef: D732_DECISION_REF,
+		decisionRevision: D732_DECISION_REVISION,
+		generationRef: D732_GENERATION_REF,
 		scope,
 		blockCount: 1 as const,
-		blockHardCapMicrousd: D729_BUDGET_LIMITS.maxCostMicrousd,
+		blockHardCapMicrousd: D732_BUDGET_LIMITS.maxCostMicrousd,
 		localEvalNoResetLimitMicrousd: 32_000_000 as const,
-		coordinatesDigest: D729_COORDINATES_DIGEST,
-		implementationManifestDigest: D729_IMPLEMENTATION_MANIFEST_DIGEST,
-		d727QualificationBundleDigest: D729_D727_QUALIFICATION_COORDINATES.bundleDigest,
-		d729PreLiveBundleDigest: digest(candidate.d729PreLiveBundleDigest, "d729.claim.preLive"),
-		pricingReadDigest: digest(candidate.pricingReadDigest, "d729.claim.pricing"),
-		zeroByokObservationDigest: digest(candidate.zeroByokObservationDigest, "d729.claim.zeroByok"),
+		coordinatesDigest: D732_COORDINATES_DIGEST,
+		implementationManifestDigest: D731_IMPLEMENTATION_MANIFEST_DIGEST,
+		d731QualificationBundleDigest: D732_D731_QUALIFICATION_COORDINATES.bundleDigest,
+		d731PreLiveBundleDigest: digest(candidate.d731PreLiveBundleDigest, "d732.claim.preLive"),
+		pricingReadDigest: digest(candidate.pricingReadDigest, "d732.claim.pricing"),
+		routeEligibilityDigest: digest(candidate.routeEligibilityDigest, "d732.claim.eligibility"),
+		zeroByokObservationDigest: digest(candidate.zeroByokObservationDigest, "d732.claim.zeroByok"),
 	});
 }
 
@@ -127,17 +131,18 @@ async function acquire(
 	scope: ClaimScope,
 	input: {
 		readonly pricingReadDigest: string;
+		readonly routeEligibilityDigest: string;
 		readonly zeroByokObservationDigest: string;
-		readonly d729PreLiveBundleDigest: string;
+		readonly d731PreLiveBundleDigest: string;
 	},
-): Promise<D729PersistedDispatchClaimV1> {
+): Promise<D732PersistedDispatchClaimV1> {
 	const requestedRoot = resolve(privateRootValue);
 	const privateRoot = await realpath(requestedRoot);
-	if (privateRoot !== requestedRoot) throw new TypeError("D729 private root is not canonical");
+	if (privateRoot !== requestedRoot) throw new TypeError("D732 private root is not canonical");
 	const rootStat = await lstat(privateRoot);
 	if (!rootStat.isDirectory() || rootStat.isSymbolicLink() || (rootStat.mode & 0o777) !== 0o700)
-		throw new TypeError("D729 private root ownership or mode is invalid");
-	const claimRoot = join(privateRoot, `.${D729_DISPATCH_CLAIM_REF}`);
+		throw new TypeError("D732 private root ownership or mode is invalid");
+	const claimRoot = join(privateRoot, `.${D732_DISPATCH_CLAIM_REF}`);
 	await mkdir(claimRoot, { recursive: false, mode: 0o700 });
 	await chmod(claimRoot, 0o700);
 	const claimRootStat = await lstat(claimRoot);
@@ -145,7 +150,7 @@ async function acquire(
 	const claim = strictSnapshot({
 		...claimMaterial,
 		claimDigest: empiricalStrictJsonDigest(claimMaterial),
-	}) as D729PersistedDispatchClaimV1;
+	}) as D732PersistedDispatchClaimV1;
 	const bytes = strictJsonCodec.encode(claim);
 	const claimFile = join(claimRoot, "dispatch-claim.v1.json");
 	const writer = await open(
@@ -173,7 +178,7 @@ async function acquire(
 			fileStat.size !== bytes.byteLength ||
 			!sameBytes(new Uint8Array(await reader.readFile()), bytes)
 		)
-			throw new TypeError("D729 dispatch claim readback drifted");
+			throw new TypeError("D732 dispatch claim readback drifted");
 	} finally {
 		await reader.close();
 	}
@@ -188,26 +193,28 @@ async function acquire(
 	return claim;
 }
 
-export async function acquireD729SingleUseDispatchClaim(input: {
+export async function acquireD732SingleUseDispatchClaim(input: {
 	readonly pricingReadDigest: string;
+	readonly routeEligibilityDigest: string;
 	readonly zeroByokObservationDigest: string;
-	readonly d729PreLiveBundleDigest: string;
-}): Promise<D729PersistedDispatchClaimV1> {
-	return acquire(D729_PRIVATE_ROOT, "live-fixed-root", input);
+	readonly d731PreLiveBundleDigest: string;
+}): Promise<D732PersistedDispatchClaimV1> {
+	return acquire(D732_PRIVATE_ROOT, "live-fixed-root", input);
 }
 
-export async function acquireD729SingleUseDispatchClaimAtRoot(
+export async function acquireD732SingleUseDispatchClaimAtRoot(
 	privateRoot: string,
 	input: {
 		readonly pricingReadDigest: string;
+		readonly routeEligibilityDigest: string;
 		readonly zeroByokObservationDigest: string;
-		readonly d729PreLiveBundleDigest: string;
+		readonly d731PreLiveBundleDigest: string;
 	},
-): Promise<D729PersistedDispatchClaimV1> {
+): Promise<D732PersistedDispatchClaimV1> {
 	return acquire(privateRoot, "injected-test-root", input);
 }
 
-async function revalidate(claim: D729PersistedDispatchClaimV1, state: ClaimState): Promise<void> {
+async function revalidate(claim: D732PersistedDispatchClaimV1, state: ClaimState): Promise<void> {
 	const rootStat = await lstat(state.root);
 	if (
 		!rootStat.isDirectory() ||
@@ -217,7 +224,7 @@ async function revalidate(claim: D729PersistedDispatchClaimV1, state: ClaimState
 		rootStat.ino !== state.rootIdentity.ino ||
 		(await realpath(state.root)) !== state.root
 	)
-		throw new TypeError("D729 durable claim directory drifted");
+		throw new TypeError("D732 durable claim directory drifted");
 	const reader = await open(state.file, constants.O_RDONLY | constants.O_NOFOLLOW);
 	try {
 		const stat = await reader.stat();
@@ -229,7 +236,7 @@ async function revalidate(claim: D729PersistedDispatchClaimV1, state: ClaimState
 			stat.ino !== state.fileIdentity.ino ||
 			!sameBytes(new Uint8Array(await reader.readFile()), state.bytes)
 		)
-			throw new TypeError("D729 durable claim file drifted");
+			throw new TypeError("D732 durable claim file drifted");
 	} finally {
 		await reader.close();
 	}
@@ -237,24 +244,25 @@ async function revalidate(claim: D729PersistedDispatchClaimV1, state: ClaimState
 		claim.claimDigest,
 		empiricalStrictJsonDigest(
 			material(state.scope, {
-				d729PreLiveBundleDigest: claim.d729PreLiveBundleDigest,
+				d731PreLiveBundleDigest: claim.d731PreLiveBundleDigest,
 				pricingReadDigest: claim.pricingReadDigest,
+				routeEligibilityDigest: claim.routeEligibilityDigest,
 				zeroByokObservationDigest: claim.zeroByokObservationDigest,
 			}),
 		),
-		"d729.claim.digest",
+		"d732.claim.digest",
 	);
 }
 
-export async function consumeD729DispatchClaimForExecution(input: {
-	readonly claim: D729PersistedDispatchClaimV1;
+export async function consumeD732DispatchClaimForExecution(input: {
+	readonly claim: D732PersistedDispatchClaimV1;
 	readonly currentKeyAdmission: OpenRouterCurrentKeySpendAdmissionV1;
-}): Promise<D729ExecutionAuthorityV1> {
-	const candidate = record(input, "d729.execution.input");
-	exactKeys(candidate, ["claim", "currentKeyAdmission"], "d729.execution.input");
-	const claim = candidate.claim as D729PersistedDispatchClaimV1;
+}): Promise<D732ExecutionAuthorityV1> {
+	const candidate = record(input, "d732.execution.input");
+	exactKeys(candidate, ["claim", "currentKeyAdmission"], "d732.execution.input");
+	const claim = candidate.claim as D732PersistedDispatchClaimV1;
 	const state = typeof claim === "object" && claim !== null ? claims.get(claim) : undefined;
-	if (state === undefined) throw new TypeError("D729 claim is not fresh and constructed");
+	if (state === undefined) throw new TypeError("D732 claim is not fresh and constructed");
 	claims.delete(claim);
 	await revalidate(claim, state);
 	const admission = consumeOpenRouterCurrentKeySpendAdmission(
@@ -262,11 +270,11 @@ export async function consumeD729DispatchClaimForExecution(input: {
 	);
 	if (
 		admission.limitMicrousd !== 32_000_000 ||
-		admission.remainingMicrousd < D729_BUDGET_LIMITS.maxCostMicrousd ||
+		admission.remainingMicrousd < D732_BUDGET_LIMITS.maxCostMicrousd ||
 		admission.limitReset !== "none" ||
 		admission.isManagementKey
 	)
-		throw new TypeError("D729 current-key admission is outside authority");
+		throw new TypeError("D732 current-key admission is outside authority");
 	const executionRoot = join(state.root, "execution-started");
 	await mkdir(executionRoot, { recursive: false, mode: 0o700 });
 	await chmod(executionRoot, 0o700);
@@ -291,7 +299,7 @@ export async function consumeD729DispatchClaimForExecution(input: {
 	await syncDirectory(executionRoot);
 	await syncDirectory(state.root);
 	const authority = Object.freeze({
-		revision: "graphrefly.b112.d729.execution-authority.v1" as const,
+		revision: "graphrefly.b112.d732.execution-authority.v1" as const,
 		scope: state.scope,
 		claim,
 		currentKeyAdmission: admission,
@@ -300,24 +308,8 @@ export async function consumeD729DispatchClaimForExecution(input: {
 	return authority;
 }
 
-export function consumeD729ExecutionAuthority(value: unknown): D729ExecutionAuthorityV1 {
+export function consumeD732ExecutionAuthority(value: unknown): D732ExecutionAuthorityV1 {
 	if (typeof value !== "object" || value === null || !authorities.delete(value))
-		throw new TypeError("D729 execution authority must be same-process and single-use");
-	return value as D729ExecutionAuthorityV1;
-}
-
-export function bridgeD732ExecutionAuthorityToD729(
-	value: D732ExecutionAuthorityV1,
-): D729ExecutionAuthorityV1 {
-	const external = consumeD732ExecutionAuthority(value);
-	if (external.scope !== "live-fixed-root")
-		throw new TypeError("D732 live execution requires the fixed-root claim");
-	const authority = Object.freeze({
-		revision: "graphrefly.b112.d729.execution-authority.v1" as const,
-		scope: external.scope,
-		claim: external.claim as unknown as D729PersistedDispatchClaimV1,
-		currentKeyAdmission: external.currentKeyAdmission,
-	});
-	authorities.add(authority);
-	return authority;
+		throw new TypeError("D732 execution authority must be same-process and single-use");
+	return value as D732ExecutionAuthorityV1;
 }

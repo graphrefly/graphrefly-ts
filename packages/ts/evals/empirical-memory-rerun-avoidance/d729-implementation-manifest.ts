@@ -11,7 +11,7 @@ export const D729_TRACKED_SOURCE_SHA256 = Object.freeze({
 	executorFailureBoundary:
 		"sha256:f624f14beb36999f7cc2bea1f2753111b774cdff572cc4fd142c9fe42ee62e75",
 	coordinates: "sha256:871a9e061f7aa794a376c5526ef888824376877edfeff30d7fe2a9e05c4a23c5",
-	claim: "sha256:cc5d2cb41f2aab5b427961ce29ec2f5d8680144eada4cc7b6f717381b0a3fb8a",
+	claim: "sha256:75c27b82f085cbae02a4f4f1fedeb70a9ef0b4beaa7af231be3dbfb8148d32de",
 	live: "sha256:acd1c6187353b51ca0436fb1124f132f54c7393abbe1f4911aed57b3cc08e876",
 	atomicPersistence: "sha256:2c77036b1a02cdd1f4ccc10a2a781dee8b7298caa2ad51762153816442e77ce5",
 	routeQualification: "sha256:077851bc7b4fbf80318fa6e1a2f8ded07bd385cf86303f9bfc4f97cce5409306",
