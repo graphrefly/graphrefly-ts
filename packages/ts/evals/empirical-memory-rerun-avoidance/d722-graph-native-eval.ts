@@ -737,20 +737,29 @@ export async function runD722GraphNativeEvalCore(inputValue: {
 			const retryable =
 				execution.result.effectKind === "provider-request" &&
 				execution.result.status === "retryable-failure";
-			reconcileD719CleanGraphEffect(effects, admission, {
-				actualCostMicrousd: execution.actualCostMicrousd,
-				actualElapsedMs: execution.actualElapsedMs,
-				outcome:
-					execution.result.effectKind === "provider-request" &&
-					(execution.result.status === "terminal-failure" || retryable)
-						? "failed"
-						: "completed",
-				failureDiscriminator:
-					execution.result.effectKind === "provider-request" &&
-					execution.result.status === "retryable-failure"
-						? execution.result.failureDiscriminator
-						: "none",
-			});
+			if (execution.usageBasis === "conservative-reservation") {
+				if (
+					execution.actualCostMicrousd !== reservation.maxCostMicrousd ||
+					execution.actualElapsedMs !== reservation.maxElapsedMs
+				)
+					throw new TypeError("D722 conservative execution must equal its Graph reservation");
+				reconcileD719CleanGraphEffectConservatively(effects, admission);
+			} else {
+				reconcileD719CleanGraphEffect(effects, admission, {
+					actualCostMicrousd: execution.actualCostMicrousd,
+					actualElapsedMs: execution.actualElapsedMs,
+					outcome:
+						execution.result.effectKind === "provider-request" &&
+						(execution.result.status === "terminal-failure" || retryable)
+							? "failed"
+							: "completed",
+					failureDiscriminator:
+						execution.result.effectKind === "provider-request" &&
+						execution.result.status === "retryable-failure"
+							? execution.result.failureDiscriminator
+							: "none",
+				});
+			}
 			admitD722GraphEffectResult(
 				runtime,
 				effectRequest,

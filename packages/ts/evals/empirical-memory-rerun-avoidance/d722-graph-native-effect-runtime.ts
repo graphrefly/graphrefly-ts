@@ -37,17 +37,22 @@ export const D737_OBJECTIVE_PHASE_RECOVERY_POLICY_REVISION =
 	"graphrefly.b112.d737.objective-phase-recovery-policy.v1" as const;
 export const D745_PHASE_SCOPED_RECOVERY_POLICY_REVISION =
 	"graphrefly.b112.d745.phase-scoped-objective-recovery-policy.v1" as const;
+export const D748_FORWARD_PHASE_CONTINUATION_POLICY_REVISION =
+	"graphrefly.b112.d748.forward-phase-continuation-policy.v1" as const;
 export const D740_MAX_PRE_MUTATION_INSPECTION_EFFECTS = 6;
 export const D737_OBJECTIVE_PHASE_CONTEXT_SCHEMA =
 	"graphrefly.b112.d737.objective-phase-completion-context.v1" as const;
 export const D745_PHASE_SCOPED_CONTEXT_SCHEMA =
 	"graphrefly.b112.d745.phase-scoped-objective-completion-context.v1" as const;
+export const D748_FORWARD_PHASE_CONTEXT_SCHEMA =
+	"graphrefly.b112.d748.forward-phase-completion-context.v1" as const;
 export const D722_EFFECT_RUNTIME_REVISION =
 	"graphrefly.b112.d722.graph-native-effect-runtime.v1" as const;
 export const D722_EFFECT_EVIDENCE_SCHEMA =
 	"graphrefly.b112.d722.graph-native-effect-evidence.v1" as const;
 export const D722_MAX_COMPLETION_CONTEXTS_PER_RUN = 1;
 export const D745_MAX_COMPLETION_CONTEXTS_PER_RUN = 4;
+export const D748_MAX_COMPLETION_CONTEXTS_PER_RUN = 8;
 
 function boundedArray(value: unknown, path: string, max: number): readonly unknown[] {
 	if (!Array.isArray(value) || value.length > max)
@@ -99,8 +104,12 @@ export interface D722GraphCompletionContextV1 {
 	readonly schemaVersion:
 		| typeof D722_COMPLETION_CONTEXT_SCHEMA
 		| typeof D737_OBJECTIVE_PHASE_CONTEXT_SCHEMA
-		| typeof D745_PHASE_SCOPED_CONTEXT_SCHEMA;
-	readonly reason: "premature-structured-final" | "objective-phase-policy-violation";
+		| typeof D745_PHASE_SCOPED_CONTEXT_SCHEMA
+		| typeof D748_FORWARD_PHASE_CONTEXT_SCHEMA;
+	readonly reason:
+		| "premature-structured-final"
+		| "objective-phase-policy-violation"
+		| "objective-phase-advanced";
 	readonly runSequence: number;
 	readonly issuedRequestDigest: string;
 	readonly rejectedRequestDigest: string;
@@ -111,7 +120,7 @@ export interface D722GraphCompletionContextV1 {
 		"complete" | "hidden-verifier"
 	>[];
 	readonly evidenceFreshnessRefs: readonly string[];
-	readonly requiredDisposition: "tool-intents";
+	readonly requiredDisposition: "tool-intents" | "structured-final";
 	readonly remainingEffectFacts: number;
 	readonly remainingCompletionContexts: number;
 	readonly remainingAdmittedBounds: D719CleanBudgetStateV1;
@@ -297,7 +306,8 @@ export interface D722GraphCompletionContextPolicyV1 {
 export interface D737GraphObjectivePhaseRecoveryPolicyV1 {
 	readonly revision:
 		| typeof D737_OBJECTIVE_PHASE_RECOVERY_POLICY_REVISION
-		| typeof D745_PHASE_SCOPED_RECOVERY_POLICY_REVISION;
+		| typeof D745_PHASE_SCOPED_RECOVERY_POLICY_REVISION
+		| typeof D748_FORWARD_PHASE_CONTINUATION_POLICY_REVISION;
 }
 
 export interface D726ArmLocalTerminalProviderPolicyV1 {
@@ -331,6 +341,7 @@ interface RuntimeState {
 	readonly armLocalTerminalProviderFailure: boolean;
 	readonly objectivePhaseRecoveryEnabled: boolean;
 	readonly phaseScopedRecoveryEnabled: boolean;
+	readonly forwardPhaseContinuationEnabled: boolean;
 }
 
 interface ProjectionState {
@@ -374,6 +385,8 @@ interface ProjectionState {
 	armLocalTerminalProviderFailure: boolean;
 	objectivePhaseRecoveryEnabled: boolean;
 	phaseScopedRecoveryEnabled: boolean;
+	forwardPhaseContinuationEnabled: boolean;
+	pendingForwardPhaseContext: boolean;
 	budgetState: D719CleanBudgetStateV1;
 }
 
@@ -448,6 +461,7 @@ function missingObjectivePhases(
 }
 
 function completionContextLimit(state: ProjectionState): number {
+	if (state.forwardPhaseContinuationEnabled) return D748_MAX_COMPLETION_CONTEXTS_PER_RUN;
 	return state.phaseScopedRecoveryEnabled
 		? D745_MAX_COMPLETION_CONTEXTS_PER_RUN
 		: D722_MAX_COMPLETION_CONTEXTS_PER_RUN;
@@ -471,7 +485,10 @@ function graphCompletionContext(
 	if (state.workspaceStateDigest === null)
 		throw new TypeError("D722 completion context requires Graph-visible workspace state");
 	const required = nextRequiredPhase(state);
-	if (required === "complete" || required === "hidden-verifier")
+	if (
+		required === "complete" ||
+		(required === "hidden-verifier" && reason !== "objective-phase-advanced")
+	)
 		throw new TypeError("D722 completion context requires an incomplete objective phase");
 	const remainingAdmittedBounds = Object.freeze({
 		requests: Math.max(0, budgetContext.limits.maxRequests - state.budgetState.requests - 1),
@@ -498,11 +515,13 @@ function graphCompletionContext(
 		remainingAdmittedBounds,
 	});
 	const material = strictSnapshot({
-		schemaVersion: state.phaseScopedRecoveryEnabled
-			? D745_PHASE_SCOPED_CONTEXT_SCHEMA
-			: reason === "premature-structured-final"
-				? D722_COMPLETION_CONTEXT_SCHEMA
-				: D737_OBJECTIVE_PHASE_CONTEXT_SCHEMA,
+		schemaVersion: state.forwardPhaseContinuationEnabled
+			? D748_FORWARD_PHASE_CONTEXT_SCHEMA
+			: state.phaseScopedRecoveryEnabled
+				? D745_PHASE_SCOPED_CONTEXT_SCHEMA
+				: reason === "premature-structured-final"
+					? D722_COMPLETION_CONTEXT_SCHEMA
+					: D737_OBJECTIVE_PHASE_CONTEXT_SCHEMA,
 		reason,
 		runSequence,
 		issuedRequestDigest,
@@ -511,7 +530,8 @@ function graphCompletionContext(
 		nextRequiredPhase: required,
 		missingObjectivePhases: missingObjectivePhases(state),
 		evidenceFreshnessRefs: Object.freeze([lastFact.resultDigest, lastFact.factDigest]),
-		requiredDisposition: "tool-intents" as const,
+		requiredDisposition:
+			required === "hidden-verifier" ? ("structured-final" as const) : ("tool-intents" as const),
 		remainingEffectFacts: Math.max(0, D720_MAX_EFFECT_FACTS_PER_RUN - state.effectSequence - 1),
 		remainingCompletionContexts: Math.max(
 			0,
@@ -540,9 +560,14 @@ function objectiveContinuationRequest(
 		reason,
 	);
 	state.completionContextsIssued += 1;
-	state.completionContextPhasesIssued.add(
-		completionContext.nextRequiredPhase as RecoverableObjectivePhase,
-	);
+	if (
+		reason !== "objective-phase-advanced" &&
+		completionContext.nextRequiredPhase !== "hidden-verifier"
+	)
+		state.completionContextPhasesIssued.add(
+			completionContext.nextRequiredPhase as RecoverableObjectivePhase,
+		);
+	state.pendingForwardPhaseContext = false;
 	state.activeCompletionContext = completionContext;
 	state.pendingTools = [];
 	state.providerAttemptOrdinal = 1;
@@ -703,9 +728,10 @@ function nextEffect(
 		const result = lastFact.result;
 		if (result.status === "tool-intents") {
 			const recoveryToolMismatch =
-				state.activeCompletionContext?.reason === "objective-phase-policy-violation" &&
-				result.toolIntents[0]?.toolRef !==
-					requiredToolForPhase(state.activeCompletionContext.nextRequiredPhase);
+				state.activeCompletionContext !== null &&
+				(state.activeCompletionContext.requiredDisposition !== "tool-intents" ||
+					result.toolIntents[0]?.toolRef !==
+						requiredToolForPhase(state.activeCompletionContext.nextRequiredPhase));
 			if (recoveryToolMismatch) {
 				state.pendingTools = [];
 				state.activeCompletionContext = null;
@@ -753,7 +779,17 @@ function nextEffect(
 				request = nextToolOrStop(state, runSequence, issuedRequestDigest, toolIntent);
 			}
 		} else if (result.status === "structured-final") {
-			if (state.validationPassed) {
+			if (state.activeCompletionContext?.requiredDisposition === "tool-intents") {
+				state.activeCompletionContext = null;
+				state.stoppedReason = "arm-policy-violated";
+				request = requestMaterial(state, runSequence, issuedRequestDigest, "cleanup", {
+					logicalMaterial: {
+						issuedRequestDigest,
+						effect: "forward-phase-disposition-mismatch",
+					},
+				});
+			} else if (state.validationPassed) {
+				state.activeCompletionContext = null;
 				request = requestMaterial(state, runSequence, issuedRequestDigest, "hidden-verifier", {
 					logicalMaterial: { issuedRequestDigest, effect: "hidden-verifier" },
 				});
@@ -836,6 +872,7 @@ function nextEffect(
 				logicalMaterial: { issuedRequestDigest, effect: "arm-local-tool-rejection" },
 			});
 		} else {
+			const requiredBeforeTool = nextRequiredPhase(state);
 			state.workspaceStateDigest = result.workspaceStateAfterDigest;
 			if (result.toolRef === "read-file" || result.toolRef === "search-repository") {
 				state.inspectionObserved = true;
@@ -862,47 +899,67 @@ function nextEffect(
 					? "focused-validation-passed"
 					: "focused-validation-attempted";
 			}
+			if (state.forwardPhaseContinuationEnabled && requiredBeforeTool !== nextRequiredPhase(state))
+				state.pendingForwardPhaseContext = true;
 			const toolIntent = state.pendingTools.shift();
 			request =
 				toolIntent === undefined
-					? state.objectivePhaseRecoveryEnabled &&
-						!state.mutationObserved &&
-						state.inspectionEffectCount >= D740_MAX_PRE_MUTATION_INSPECTION_EFFECTS &&
-						canIssueCompletionContext(state)
+					? state.forwardPhaseContinuationEnabled &&
+						state.pendingForwardPhaseContext &&
+						state.completionContextsIssued < completionContextLimit(state) &&
+						nextRequiredPhase(state) !== "complete"
 						? (() => {
 								if (budgetContext === null)
-									throw new TypeError("D740 inspection saturation requires Graph budget context");
+									throw new TypeError(
+										"D748 forward phase continuation requires Graph budget context",
+									);
 								return objectiveContinuationRequest(
 									state,
 									budgetContext,
 									runSequence,
 									issuedRequestDigest,
 									lastFact,
-									"objective-phase-policy-violation",
+									"objective-phase-advanced",
 								);
 							})()
-						: (() => {
-								state.providerAttemptOrdinal = 1;
-								state.activeCompletionContext = null;
-								state.providerTurnSequence += 1;
-								state.providerLogicalRequestDigest = empiricalStrictJsonDigest({
-									issuedRequestDigest,
-									providerTurn: state.providerTurnSequence,
-								});
-								return requestMaterial(
-									state,
-									runSequence,
-									issuedRequestDigest,
-									"provider-request",
-									{
-										logicalMaterial: {
-											issuedRequestDigest,
-											providerTurn: state.providerTurnSequence,
+						: state.objectivePhaseRecoveryEnabled &&
+								!state.mutationObserved &&
+								state.inspectionEffectCount >= D740_MAX_PRE_MUTATION_INSPECTION_EFFECTS &&
+								canIssueCompletionContext(state)
+							? (() => {
+									if (budgetContext === null)
+										throw new TypeError("D740 inspection saturation requires Graph budget context");
+									return objectiveContinuationRequest(
+										state,
+										budgetContext,
+										runSequence,
+										issuedRequestDigest,
+										lastFact,
+										"objective-phase-policy-violation",
+									);
+								})()
+							: (() => {
+									state.providerAttemptOrdinal = 1;
+									state.activeCompletionContext = null;
+									state.providerTurnSequence += 1;
+									state.providerLogicalRequestDigest = empiricalStrictJsonDigest({
+										issuedRequestDigest,
+										providerTurn: state.providerTurnSequence,
+									});
+									return requestMaterial(
+										state,
+										runSequence,
+										issuedRequestDigest,
+										"provider-request",
+										{
+											logicalMaterial: {
+												issuedRequestDigest,
+												providerTurn: state.providerTurnSequence,
+											},
+											logicalRequestDigest: state.providerLogicalRequestDigest,
 										},
-										logicalRequestDigest: state.providerLogicalRequestDigest,
-									},
-								);
-							})()
+									);
+								})()
 					: nextToolOrStop(state, runSequence, issuedRequestDigest, toolIntent);
 		}
 	} else if (lastFact.result.effectKind === "hidden-verifier") {
@@ -1004,6 +1061,8 @@ function initialProjectionState(): ProjectionState {
 		armLocalTerminalProviderFailure: false,
 		objectivePhaseRecoveryEnabled: false,
 		phaseScopedRecoveryEnabled: false,
+		forwardPhaseContinuationEnabled: false,
+		pendingForwardPhaseContext: false,
 		budgetState: Object.freeze({ requests: 0, retryWaits: 0, costMicrousd: 0, elapsedMs: 0 }),
 	};
 }
@@ -1030,6 +1089,12 @@ export function createD745GraphPhaseScopedRecoveryPolicy(): D737GraphObjectivePh
 	return policy;
 }
 
+export function createD748GraphForwardPhaseContinuationPolicy(): D737GraphObjectivePhaseRecoveryPolicyV1 {
+	const policy = Object.freeze({ revision: D748_FORWARD_PHASE_CONTINUATION_POLICY_REVISION });
+	constructedObjectivePhaseRecoveryPolicies.add(policy);
+	return policy;
+}
+
 function createGraphEffectRuntime(
 	inputValue: {
 		readonly request: AgentRequestIssued<D719CleanRequestInput>;
@@ -1038,6 +1103,7 @@ function createGraphEffectRuntime(
 		readonly armLocalTerminalProviderFailure?: boolean;
 		readonly objectivePhaseRecoveryEnabled?: boolean;
 		readonly phaseScopedRecoveryEnabled?: boolean;
+		readonly forwardPhaseContinuationEnabled?: boolean;
 	},
 	mode: "d720" | "d722",
 ): D720GraphEffectRuntimeV1 | D722GraphEffectRuntimeV1 {
@@ -1057,6 +1123,9 @@ function createGraphEffectRuntime(
 						: []),
 					...(Object.hasOwn(input, "phaseScopedRecoveryEnabled")
 						? ["phaseScopedRecoveryEnabled" as const]
+						: []),
+					...(Object.hasOwn(input, "forwardPhaseContinuationEnabled")
+						? ["forwardPhaseContinuationEnabled" as const]
 						: []),
 				]
 			: ["request", "runSequence"],
@@ -1078,6 +1147,7 @@ function createGraphEffectRuntime(
 	projectionState.armLocalTerminalProviderFailure = input.armLocalTerminalProviderFailure === true;
 	projectionState.objectivePhaseRecoveryEnabled = input.objectivePhaseRecoveryEnabled === true;
 	projectionState.phaseScopedRecoveryEnabled = input.phaseScopedRecoveryEnabled === true;
+	projectionState.forwardPhaseContinuationEnabled = input.forwardPhaseContinuationEnabled === true;
 	if (budgetContext !== null) projectionState.budgetState = budgetContext.initialState;
 	const decisions: D720EffectDecisionV1[] = [];
 	const decisionNode = owner.node<D720EffectDecisionV1>(
@@ -1135,6 +1205,7 @@ function createGraphEffectRuntime(
 		armLocalTerminalProviderFailure: input.armLocalTerminalProviderFailure === true,
 		objectivePhaseRecoveryEnabled: input.objectivePhaseRecoveryEnabled === true,
 		phaseScopedRecoveryEnabled: input.phaseScopedRecoveryEnabled === true,
+		forwardPhaseContinuationEnabled: input.forwardPhaseContinuationEnabled === true,
 	});
 	return runtime;
 }
@@ -1200,7 +1271,12 @@ export function createD722GraphEffectRuntime(inputValue: {
 			objectivePhaseRecoveryEnabled: Object.hasOwn(input, "objectivePhaseRecoveryPolicy"),
 			phaseScopedRecoveryEnabled:
 				(input.objectivePhaseRecoveryPolicy as D737GraphObjectivePhaseRecoveryPolicyV1 | undefined)
-					?.revision === D745_PHASE_SCOPED_RECOVERY_POLICY_REVISION,
+					?.revision === D745_PHASE_SCOPED_RECOVERY_POLICY_REVISION ||
+				(input.objectivePhaseRecoveryPolicy as D737GraphObjectivePhaseRecoveryPolicyV1 | undefined)
+					?.revision === D748_FORWARD_PHASE_CONTINUATION_POLICY_REVISION,
+			forwardPhaseContinuationEnabled:
+				(input.objectivePhaseRecoveryPolicy as D737GraphObjectivePhaseRecoveryPolicyV1 | undefined)
+					?.revision === D748_FORWARD_PHASE_CONTINUATION_POLICY_REVISION,
 		},
 		"d722",
 	) as D722GraphEffectRuntimeV1;

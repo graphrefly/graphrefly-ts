@@ -936,6 +936,9 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsD737GraphNativeLive = file.endsWith("d737-graph-native-live.ts");
 			const allowsD738DispatchClaim = file.endsWith("d738-single-use-dispatch-claim.ts");
 			const allowsD738GraphNativeLive = file.endsWith("d738-graph-native-live.ts");
+			const allowsD748ForwardPhaseQualification =
+				file.endsWith("d748-forward-phase-continuation-qualification.ts") ||
+				file.endsWith("run-d748-no-network-pre-live.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -990,6 +993,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD737GraphNativeLive ||
 				allowsD738DispatchClaim ||
 				allowsD738GraphNativeLive ||
+				allowsD748ForwardPhaseQualification ||
 				allowsD732DispatchClaim ||
 				allowsD720CleanGraphNativeEval ||
 				allowsD721ProviderCapablePreLive ||
@@ -1190,6 +1194,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD737GraphNativeLive ||
 							allowsD738DispatchClaim ||
 							allowsD738GraphNativeLive ||
+							allowsD748ForwardPhaseQualification ||
 							allowsD732DispatchClaim) &&
 							specifier === "node:fs") ||
 						((allowsD691HistoricalTransferOperator || allowsOutermostLiveOperator) &&

@@ -6,7 +6,12 @@ import { empiricalStrictJsonDigest } from "../../evals/empirical-memory-rerun-av
 import {
 	createD737GraphObjectivePhaseRecoveryPolicy,
 	createD745GraphPhaseScopedRecoveryPolicy,
+	createD748GraphForwardPhaseContinuationPolicy,
 } from "../../evals/empirical-memory-rerun-avoidance/d722-graph-native-effect-runtime.js";
+import {
+	createD720SimulatedCallerExecutor,
+	runD722GraphNativeEvalCore,
+} from "../../evals/empirical-memory-rerun-avoidance/d722-graph-native-eval.js";
 import { D733_DEEPSEEK_V4_FLASH_0731_PROFILE } from "../../evals/empirical-memory-rerun-avoidance/d733-coordinates.js";
 import {
 	createD733GraphNativeRouteAdmission,
@@ -29,6 +34,11 @@ import {
 	runD738InjectedNoNetworkQualification,
 	validateD738LiveBundle,
 } from "../../evals/empirical-memory-rerun-avoidance/d738-graph-native-live.js";
+import {
+	persistD748QualificationBundle,
+	runD748InjectedNoNetworkQualification,
+	validateD748QualificationBundle,
+} from "../../evals/empirical-memory-rerun-avoidance/d748-forward-phase-continuation-qualification.js";
 import { createOpenRouterCurrentKeySpendAdmissionCapability } from "../../evals/empirical-memory-rerun-avoidance/openrouter-current-key-spend-admission.js";
 
 const encoder = new TextEncoder();
@@ -273,6 +283,245 @@ describe("D737 Graph objective-phase recovery", () => {
 		expect(fixture.maxActiveInvocations()).toBe(1);
 		expect(fixture.networkCalls()).toBe(0);
 		expect(fixture.activeWorkspaceCount()).toBe(0);
+	}, 30_000);
+
+	it("uses Graph-authored forward-phase contexts through verification across all six arms", async () => {
+		const fixture = createD734InjectedRouteProfileFixture({
+			profile: D733_DEEPSEEK_V4_FLASH_0731_PROFILE,
+			routeAdmission: routeAdmission(),
+			executionClass: "live-provider",
+			forwardPhaseContinuation: true,
+		});
+		const result = await runD734RouteProfileSixArmLiveIntegration({
+			sourceDigest: sha("d748-forward-phase-continuation"),
+			adapter: fixture.adapter,
+			objectivePhaseRecoveryPolicy: createD748GraphForwardPhaseContinuationPolicy(),
+			signal: AbortSignal.timeout(30_000),
+		});
+		expect(result.run.graphEvidence.runStatus).toBe("complete");
+		expect(result.run.graphEvidence.ledger.completedArms).toHaveLength(6);
+		expect(result.run.graphEvidence.effectRuns).toHaveLength(6);
+		expect(result.run.graphEvidence.completionContexts).toHaveLength(24);
+		expect(result.run.usage.requests).toBe(30);
+		for (const run of result.run.graphEvidence.effectRuns) {
+			const contexts = result.run.graphEvidence.completionContexts.filter(
+				(context) => context.runSequence === run.runSequence,
+			);
+			expect(contexts.map((context) => context.reason)).toEqual([
+				"objective-phase-advanced",
+				"objective-phase-advanced",
+				"objective-phase-advanced",
+				"objective-phase-advanced",
+			]);
+			expect(contexts.map((context) => context.nextRequiredPhase)).toEqual([
+				"exact-mutation",
+				"workspace-diff",
+				"focused-validation",
+				"hidden-verifier",
+			]);
+			expect(contexts.map((context) => context.requiredDisposition)).toEqual([
+				"tool-intents",
+				"tool-intents",
+				"tool-intents",
+				"structured-final",
+			]);
+			expect(
+				run.facts.some(
+					(fact) => fact.result.effectKind === "hidden-verifier" && fact.result.status === "passed",
+				),
+			).toBe(true);
+		}
+		expect(fixture.providerCalls()).toBe(30);
+		expect(fixture.maxActiveInvocations()).toBe(1);
+		expect(fixture.networkCalls()).toBe(0);
+		expect(fixture.activeWorkspaceCount()).toBe(0);
+	}, 30_000);
+
+	it("preserves conservative reservation provenance in the D722 core ledger", async () => {
+		const workspace = sha("d748-conservative-workspace");
+		const providerMaxCostMicrousd = 100_000;
+		const providerMaxElapsedMs = 1_200_000;
+		const result = await runD722GraphNativeEvalCore({
+			sourceDigest: sha("d748-conservative-reconciliation"),
+			budgetLimits: {
+				maxRequests: 96,
+				maxRetryWaits: 12,
+				maxCostMicrousd: 6_000_000,
+				maxElapsedMs: 7_200_000,
+			},
+			effectCeilings: {
+				routeDigest: sha("d748-conservative-route"),
+				providerMaxCostMicrousd,
+				providerMaxElapsedMs,
+				localEffectMaxElapsedMs: 10_000,
+			},
+			executor: createD720SimulatedCallerExecutor(async ({ effectRequest }) => {
+				if (effectRequest.effectKind === "materialization")
+					return {
+						actualCostMicrousd: 0,
+						actualElapsedMs: 1,
+						result: {
+							effectKind: "materialization",
+							status: "ready",
+							workspaceStateDigest: workspace,
+							evidenceDigest: sha("d748-materialized"),
+						},
+					};
+				if (effectRequest.effectKind === "provider-request")
+					return {
+						actualCostMicrousd: providerMaxCostMicrousd,
+						actualElapsedMs: providerMaxElapsedMs,
+						usageBasis: "conservative-reservation",
+						result: {
+							effectKind: "provider-request",
+							status: "terminal-failure",
+							toolIntents: Object.freeze([]),
+							failureDiscriminator: "none",
+							retryAfterMs: null,
+							workspaceStateDigest: workspace,
+							failureProvenance: "executor-failure",
+							executorFailureClassification: "transport-failure",
+							evidenceDigest: sha("d748-provider-failed"),
+						},
+					};
+				return {
+					actualCostMicrousd: 0,
+					actualElapsedMs: 1,
+					result: {
+						effectKind: "cleanup",
+						status: "succeeded",
+						evidenceDigest: sha("d748-cleanup"),
+					},
+				};
+			}),
+		});
+		const providerProposal = result.ledger.effectProposals.find(
+			(proposal) => proposal.effectKind === "provider-request",
+		);
+		const reconciliation = result.ledger.effectReconciliations.find(
+			(candidate) => candidate.proposalDigest === providerProposal?.proposalDigest,
+		);
+		expect(reconciliation?.basis).toBe("conservative-reservation");
+		expect(reconciliation?.actualCostMicrousd).toBe(providerMaxCostMicrousd);
+		expect(reconciliation?.actualElapsedMs).toBe(providerMaxElapsedMs);
+	}, 30_000);
+
+	it("retries the exact Graph-authored forward context without reissuing it", async () => {
+		const fixture = createD734InjectedRouteProfileFixture({
+			profile: D733_DEEPSEEK_V4_FLASH_0731_PROFILE,
+			routeAdmission: routeAdmission(),
+			executionClass: "live-provider",
+			forwardPhaseContinuation: true,
+			retryForwardPhaseOnce: true,
+		});
+		const result = await runD734RouteProfileSixArmLiveIntegration({
+			sourceDigest: sha("d748-forward-context-retry"),
+			adapter: fixture.adapter,
+			objectivePhaseRecoveryPolicy: createD748GraphForwardPhaseContinuationPolicy(),
+			signal: AbortSignal.timeout(30_000),
+		});
+		const run = result.run.graphEvidence.effectRuns[0];
+		const retryWaits = run?.facts.filter((fact) => fact.result.effectKind === "retry-wait");
+		const retriedContextFacts = run?.facts.filter(
+			(fact) =>
+				fact.result.effectKind === "provider-request" &&
+				fact.request.completionContext?.reason === "objective-phase-advanced" &&
+				fact.request.completionContext.nextRequiredPhase === "exact-mutation",
+		);
+		expect(retryWaits).toHaveLength(1);
+		expect(retriedContextFacts).toHaveLength(2);
+		expect(retriedContextFacts?.map((fact) => fact.request.attemptOrdinal)).toEqual([1, 2]);
+		expect(
+			new Set(retriedContextFacts?.map((fact) => fact.request.logicalRequestDigest)).size,
+		).toBe(1);
+		expect(
+			new Set(retriedContextFacts?.map((fact) => fact.request.completionContext?.contextDigest))
+				.size,
+		).toBe(1);
+		expect(result.run.graphEvidence.completionContexts).toHaveLength(24);
+		expect(result.run.graphEvidence.ledger.completedArms).toHaveLength(6);
+		expect(fixture.providerCalls()).toBe(31);
+		expect(fixture.activeWorkspaceCount()).toBe(0);
+	}, 30_000);
+
+	it("rejects a wrong forward-phase response before mutation side effects", async () => {
+		const fixture = createD734InjectedRouteProfileFixture({
+			profile: D733_DEEPSEEK_V4_FLASH_0731_PROFILE,
+			routeAdmission: routeAdmission(),
+			executionClass: "live-provider",
+			forwardPhaseContinuation: true,
+			wrongForwardPhaseTool: true,
+		});
+		const result = await runD734RouteProfileSixArmLiveIntegration({
+			sourceDigest: sha("d748-wrong-forward-phase-tool"),
+			adapter: fixture.adapter,
+			objectivePhaseRecoveryPolicy: createD748GraphForwardPhaseContinuationPolicy(),
+			signal: AbortSignal.timeout(30_000),
+		});
+		expect(result.run.graphEvidence.ledger.completedArms).toHaveLength(6);
+		expect(
+			result.run.graphEvidence.ledger.findings.every(
+				(finding) => finding.code === "arm-policy-violated",
+			),
+		).toBe(true);
+		for (const run of result.run.graphEvidence.effectRuns)
+			expect(
+				run.facts.some(
+					(fact) =>
+						fact.kind === "graph-effect-result-admitted" &&
+						fact.result.effectKind === "tool-action" &&
+						fact.result.toolRef === "replace-exact",
+				),
+			).toBe(false);
+		expect(fixture.activeWorkspaceCount()).toBe(0);
+	}, 30_000);
+
+	it("persists and replays the material-free D748 no-network qualification atomically", async () => {
+		const bundle = await runD748InjectedNoNetworkQualification({
+			sourceDigest: sha("d748-no-network-qualification"),
+		});
+		const replay = validateD748QualificationBundle(bundle);
+		expect(replay.graphEvidence.ledger.completedArms).toHaveLength(6);
+		expect(replay.retryGraphEvidence.ledger.completedArms).toHaveLength(6);
+		expect(replay.qualification).toMatchObject({
+			forwardContextCount: 24,
+			providerEffectCount: 30,
+			retryWaitCount: 1,
+			retryIdentityDisposition: "exact",
+			conservativeUsageBasis: "conservative-reservation",
+		});
+		const forged = structuredClone(bundle) as any;
+		forged.qualification.forwardContextCount = 23;
+		expect(() => validateD748QualificationBundle(forged)).toThrow();
+		const contextForgery = structuredClone(bundle) as any;
+		contextForgery.graphEvidence.completionContexts[0].nextRequiredPhase = "inspection";
+		expect(() => validateD748QualificationBundle(contextForgery)).toThrow();
+		let getterHits = 0;
+		await expect(
+			runD748InjectedNoNetworkQualification(
+				Object.freeze({
+					get sourceDigest() {
+						getterHits += 1;
+						return sha("d748-accessor");
+					},
+				}),
+			),
+		).rejects.toThrow();
+		expect(getterHits).toBe(0);
+		const root = await mkdtemp(join(tmpdir(), "graphrefly-d748-persist-"));
+		try {
+			await chmod(root, 0o700);
+			const canonicalRoot = await realpath(root);
+			const receipt = await persistD748QualificationBundle({ privateRoot: canonicalRoot, bundle });
+			expect(receipt).toMatchObject({
+				generationRef: "d748-forward-phase-continuation-no-network-v1",
+			});
+			await expect(
+				persistD748QualificationBundle({ privateRoot: canonicalRoot, bundle }),
+			).rejects.toThrow(/already exists/);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	}, 30_000);
 
 	it("rejects a second recovery request for the same objective phase without executing its batch", async () => {

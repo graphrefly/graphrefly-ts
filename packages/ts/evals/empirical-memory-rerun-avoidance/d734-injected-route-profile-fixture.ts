@@ -149,6 +149,9 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 	readonly providerTurnLoopAfterInspection?: boolean;
 	readonly phaseScopedObjectiveRecovery?: boolean;
 	readonly repeatedPhaseScopedRecovery?: boolean;
+	readonly forwardPhaseContinuation?: boolean;
+	readonly retryForwardPhaseOnce?: boolean;
+	readonly wrongForwardPhaseTool?: boolean;
 	readonly nonRetryableTransportFailureAtRunSequence?: number;
 }): D734InjectedRouteProfileFixtureV1 {
 	const profile = inputValue.profile;
@@ -160,6 +163,7 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 	const rejectedToolRuns = new Set<number>();
 	const injectedTransportFailures = new Set<number>();
 	let providerCalls = 0;
+	let forwardPhaseRetryInjected = false;
 	let active = 0;
 	let maxActive: 0 | 1 = 0;
 	const enter = (): void => {
@@ -177,62 +181,79 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 			? turn === 1
 				? ["read-file"]
 				: ["replace-exact"]
-			: inputValue.phaseScopedObjectiveRecovery || inputValue.repeatedPhaseScopedRecovery
+			: inputValue.forwardPhaseContinuation
 				? request.completionContext === undefined
-					? request.phaseBefore === "none"
-						? ["read-file", "read-file", "read-file", "read-file"]
-						: request.phaseBefore === "inspection"
-							? ["search-repository", "search-repository"]
-							: request.phaseBefore === "exact-mutation"
-								? ["focused-validation"]
-								: request.phaseBefore === "workspace-diff"
-									? inputValue.repeatedPhaseScopedRecovery
-										? ["replace-exact"]
-										: []
-									: []
-					: [
-							request.completionContext.nextRequiredPhase === "inspection"
-								? "read-file"
-								: request.completionContext.nextRequiredPhase === "exact-mutation"
-									? "replace-exact"
-									: request.completionContext.nextRequiredPhase === "workspace-diff"
-										? "workspace-diff"
-										: "focused-validation",
-						]
-				: inputValue.armLocalOutOfOrderAfterMutation
-					? turn === 1
-						? ["read-file"]
-						: request.completionContext?.reason === "objective-phase-policy-violation"
-							? ["replace-exact"]
-							: turn === 2
-								? ["workspace-diff"]
-								: ["focused-validation"]
-					: inputValue.inspectionSaturationBeforeMutation ||
-							inputValue.inspectionOverflowBeforeMutation
-						? turn === 1
+					? ["read-file"]
+					: request.completionContext.requiredDisposition === "structured-final"
+						? []
+						: inputValue.wrongForwardPhaseTool &&
+								request.completionContext.nextRequiredPhase === "exact-mutation"
+							? ["search-repository"]
+							: [
+									request.completionContext.nextRequiredPhase === "inspection"
+										? "read-file"
+										: request.completionContext.nextRequiredPhase === "exact-mutation"
+											? "replace-exact"
+											: request.completionContext.nextRequiredPhase === "workspace-diff"
+												? "workspace-diff"
+												: "focused-validation",
+								]
+				: inputValue.phaseScopedObjectiveRecovery || inputValue.repeatedPhaseScopedRecovery
+					? request.completionContext === undefined
+						? request.phaseBefore === "none"
 							? ["read-file", "read-file", "read-file", "read-file"]
-							: turn === 2
-								? inputValue.inspectionOverflowBeforeMutation
-									? ["search-repository", "search-repository", "search-repository"]
-									: ["search-repository", "search-repository"]
-								: request.completionContext?.reason === "objective-phase-policy-violation"
-									? inputValue.wrongRecoveryFirstTool
-										? ["search-repository"]
-										: inputValue.armLocalToolRejectionAfterMutation
+							: request.phaseBefore === "inspection"
+								? ["search-repository", "search-repository"]
+								: request.phaseBefore === "exact-mutation"
+									? ["focused-validation"]
+									: request.phaseBefore === "workspace-diff"
+										? inputValue.repeatedPhaseScopedRecovery
 											? ["replace-exact"]
-											: ["replace-exact", "workspace-diff", "focused-validation"]
-									: inputValue.armLocalToolRejectionAfterMutation && turn === 4
-										? ["read-file"]
+											: []
 										: []
-						: turn === 1
+						: [
+								request.completionContext.nextRequiredPhase === "inspection"
+									? "read-file"
+									: request.completionContext.nextRequiredPhase === "exact-mutation"
+										? "replace-exact"
+										: request.completionContext.nextRequiredPhase === "workspace-diff"
+											? "workspace-diff"
+											: "focused-validation",
+							]
+					: inputValue.armLocalOutOfOrderAfterMutation
+						? turn === 1
 							? ["read-file"]
 							: request.completionContext?.reason === "objective-phase-policy-violation"
-								? ["replace-exact", "workspace-diff", "focused-validation"]
+								? ["replace-exact"]
 								: turn === 2
-									? inputValue.objectivePhaseViolationAfterInspectionPrefix
-										? ["search-repository", "workspace-diff"]
-										: ["workspace-diff", "focused-validation"]
-									: [];
+									? ["workspace-diff"]
+									: ["focused-validation"]
+						: inputValue.inspectionSaturationBeforeMutation ||
+								inputValue.inspectionOverflowBeforeMutation
+							? turn === 1
+								? ["read-file", "read-file", "read-file", "read-file"]
+								: turn === 2
+									? inputValue.inspectionOverflowBeforeMutation
+										? ["search-repository", "search-repository", "search-repository"]
+										: ["search-repository", "search-repository"]
+									: request.completionContext?.reason === "objective-phase-policy-violation"
+										? inputValue.wrongRecoveryFirstTool
+											? ["search-repository"]
+											: inputValue.armLocalToolRejectionAfterMutation
+												? ["replace-exact"]
+												: ["replace-exact", "workspace-diff", "focused-validation"]
+										: inputValue.armLocalToolRejectionAfterMutation && turn === 4
+											? ["read-file"]
+											: []
+							: turn === 1
+								? ["read-file"]
+								: request.completionContext?.reason === "objective-phase-policy-violation"
+									? ["replace-exact", "workspace-diff", "focused-validation"]
+									: turn === 2
+										? inputValue.objectivePhaseViolationAfterInspectionPrefix
+											? ["search-repository", "workspace-diff"]
+											: ["workspace-diff", "focused-validation"]
+										: [];
 		return Object.freeze({
 			effectKind: "provider-request" as const,
 			status: toolRefs.length === 0 ? ("structured-final" as const) : ("tool-intents" as const),
@@ -289,6 +310,26 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 							providerCalls += 1;
 							wireBodies.push(new Uint8Array(request.body));
 							if (
+								inputValue.retryForwardPhaseOnce === true &&
+								!forwardPhaseRetryInjected &&
+								executionInput.effectRequest.completionContext?.reason ===
+									"objective-phase-advanced"
+							) {
+								forwardPhaseRetryInjected = true;
+								return retryResponse(executionInput.effectRequest, {
+									effectKind: "provider-request",
+									status: "retryable-failure",
+									toolIntents: Object.freeze([]),
+									failureDiscriminator: "d710-untyped-http-429",
+									retryAfterMs: 1,
+									workspaceStateDigest: executionInput.effectRequest.workspaceStateDigest!,
+									evidenceDigest: digest({
+										requestDigest: executionInput.effectRequest.requestDigest,
+										forwardPhaseRetry: true,
+									}),
+								});
+							}
+							if (
 								inputValue.nonRetryableTransportFailureAtRunSequence ===
 									executionInput.effectRequest.runSequence &&
 								!injectedTransportFailures.has(executionInput.effectRequest.runSequence)
@@ -306,6 +347,7 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 								inputValue.objectivePhaseViolationBeforeMutation ||
 								inputValue.phaseScopedObjectiveRecovery ||
 								inputValue.repeatedPhaseScopedRecovery ||
+								inputValue.forwardPhaseContinuation ||
 								inputValue.armLocalOutOfOrderAfterMutation ||
 								inputValue.providerTurnLoopAfterInspection ||
 								inputValue.inspectionSaturationBeforeMutation ||

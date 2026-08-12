@@ -34,6 +34,8 @@ import {
 	type D737GraphObjectivePhaseRecoveryPolicyV1,
 	D745_MAX_COMPLETION_CONTEXTS_PER_RUN,
 	D745_PHASE_SCOPED_CONTEXT_SCHEMA,
+	D748_FORWARD_PHASE_CONTEXT_SCHEMA,
+	D748_MAX_COMPLETION_CONTEXTS_PER_RUN,
 	deriveD722GraphArmResultFromEvidence,
 	validateD722GraphEffectEvidence,
 } from "./d722-graph-native-effect-runtime.js";
@@ -60,9 +62,9 @@ export const D722_PERSISTENCE_SCHEMA =
 	"graphrefly.b112.d722.completion-memory-insight-persistence.v1" as const;
 export const D722_GENERATION_REF = "d722-graph-completion-memory-insight-v1" as const;
 export const D722_EXPECTED_RUNTIME_SOURCE_DIGEST =
-	"sha256:25be41e2e8b39afa4898ae32572a80a4f6165d4482816a97d070ec61bf1dfeac" as const;
+	"sha256:56e59694b4a98cd8403eb1b314169cab0e0b97dcf40b231db982ae252912be90" as const;
 export const D722_EXPECTED_EVAL_SOURCE_DIGEST =
-	"sha256:9e82c5a992c9d95ead48f871b371c9875c3dcd510d2eef9d30e655a2d95590d2" as const;
+	"sha256:f50fea949840d72ff1e53fad634543e991375eb031cbe9fbb8ac57f527c5f209" as const;
 export const D722_EXPECTED_ADAPTER_SOURCE_DIGEST =
 	"sha256:c0c5faead095c8a0cc290dee9734a460cf9138768bf68183ef5ce940ffb6f9ba" as const;
 export const D722_EXPECTED_MODEL_FIXTURE_SOURCE_DIGEST =
@@ -225,16 +227,33 @@ function completionContext(value: unknown, path: string): D722GraphCompletionCon
 			candidate.reason === "objective-phase-policy-violation") ||
 		(candidate.schemaVersion === D745_PHASE_SCOPED_CONTEXT_SCHEMA &&
 			(candidate.reason === "premature-structured-final" ||
-				candidate.reason === "objective-phase-policy-violation"));
-	if (!contextCoordinatesValid || candidate.requiredDisposition !== "tool-intents")
+				candidate.reason === "objective-phase-policy-violation")) ||
+		(candidate.schemaVersion === D748_FORWARD_PHASE_CONTEXT_SCHEMA &&
+			(candidate.reason === "premature-structured-final" ||
+				candidate.reason === "objective-phase-policy-violation" ||
+				candidate.reason === "objective-phase-advanced"));
+	if (
+		!contextCoordinatesValid ||
+		(candidate.requiredDisposition !== "tool-intents" &&
+			candidate.requiredDisposition !== "structured-final") ||
+		(candidate.requiredDisposition === "structured-final" &&
+			(candidate.schemaVersion !== D748_FORWARD_PHASE_CONTEXT_SCHEMA ||
+				candidate.nextRequiredPhase !== "hidden-verifier"))
+	)
 		throw new TypeError("D722 completion context coordinates drifted");
 	const remainingCompletionContexts = safeInteger(
 		candidate.remainingCompletionContexts,
 		`${path}.remainingCompletionContexts`,
-		{ max: D745_MAX_COMPLETION_CONTEXTS_PER_RUN - 1 },
+		{
+			max:
+				candidate.schemaVersion === D748_FORWARD_PHASE_CONTEXT_SCHEMA
+					? D748_MAX_COMPLETION_CONTEXTS_PER_RUN - 1
+					: D745_MAX_COMPLETION_CONTEXTS_PER_RUN - 1,
+		},
 	);
 	if (
 		candidate.schemaVersion !== D745_PHASE_SCOPED_CONTEXT_SCHEMA &&
+		candidate.schemaVersion !== D748_FORWARD_PHASE_CONTEXT_SCHEMA &&
 		remainingCompletionContexts !== 0
 	)
 		throw new TypeError("D722 legacy completion context count drifted");
@@ -250,12 +269,13 @@ function completionContext(value: unknown, path: string): D722GraphCompletionCon
 		digest(candidate[key], `${path}.${key}`);
 	oneOf(
 		candidate.nextRequiredPhase,
-		["inspection", "exact-mutation", "workspace-diff", "focused-validation"],
+		["inspection", "exact-mutation", "workspace-diff", "focused-validation", "hidden-verifier"],
 		`${path}.nextRequiredPhase`,
 	);
 	if (
 		!Array.isArray(candidate.missingObjectivePhases) ||
-		candidate.missingObjectivePhases.length < 1 ||
+		(candidate.missingObjectivePhases.length < 1 &&
+			candidate.nextRequiredPhase !== "hidden-verifier") ||
 		candidate.missingObjectivePhases.length > 4
 	)
 		throw new TypeError("D722 completion context missing-phase bound drifted");
@@ -295,7 +315,7 @@ function completionContext(value: unknown, path: string): D722GraphCompletionCon
 		nextRequiredPhase: candidate.nextRequiredPhase,
 		missingObjectivePhases: Object.freeze(missing),
 		evidenceFreshnessRefs: Object.freeze(refs),
-		requiredDisposition: "tool-intents" as const,
+		requiredDisposition: candidate.requiredDisposition as "tool-intents" | "structured-final",
 		remainingEffectFacts: candidate.remainingEffectFacts as number,
 		remainingCompletionContexts,
 		remainingAdmittedBounds: strictSnapshot(remaining),
@@ -357,13 +377,31 @@ function deriveContexts(
 			...new Map(contextOccurrences.map((context) => [context.contextDigest, context])).values(),
 		];
 		const phaseScoped = runContexts.some(
-			(context) => context.schemaVersion === D745_PHASE_SCOPED_CONTEXT_SCHEMA,
+			(context) =>
+				context.schemaVersion === D745_PHASE_SCOPED_CONTEXT_SCHEMA ||
+				context.schemaVersion === D748_FORWARD_PHASE_CONTEXT_SCHEMA,
 		);
-		if (runContexts.length > (phaseScoped ? D745_MAX_COMPLETION_CONTEXTS_PER_RUN : 1))
+		const forwardPhase = runContexts.some(
+			(context) => context.schemaVersion === D748_FORWARD_PHASE_CONTEXT_SCHEMA,
+		);
+		if (
+			runContexts.length >
+			(forwardPhase
+				? D748_MAX_COMPLETION_CONTEXTS_PER_RUN
+				: phaseScoped
+					? D745_MAX_COMPLETION_CONTEXTS_PER_RUN
+					: 1)
+		)
 			throw new TypeError("D722 completion context per-run bound exceeded");
 		if (
 			phaseScoped &&
-			new Set(runContexts.map((context) => context.nextRequiredPhase)).size !== runContexts.length
+			new Set(
+				runContexts.map((context) =>
+					forwardPhase
+						? `${context.reason}:${context.nextRequiredPhase}`
+						: context.nextRequiredPhase,
+				),
+			).size !== runContexts.length
 		)
 			throw new TypeError("D745 completion context phase was reused");
 		for (const context of runContexts) {
@@ -452,9 +490,26 @@ function deriveContexts(
 				context.reason === "premature-structured-final"
 					? rejected?.result.effectKind === "provider-request" &&
 						rejected.result.status === "structured-final"
-					: (rejected?.result.effectKind === "provider-request" &&
-							rejected.result.status === "tool-intents") ||
-						saturationTrigger;
+					: context.reason === "objective-phase-policy-violation"
+						? (rejected?.result.effectKind === "provider-request" &&
+								rejected.result.status === "tool-intents") ||
+							saturationTrigger
+						: rejected?.result.effectKind === "tool-action" &&
+							rejected.result.status === "succeeded" &&
+							((rejected.request.phaseBefore === "none" &&
+								(rejected.result.toolRef === "read-file" ||
+									rejected.result.toolRef === "search-repository") &&
+								context.nextRequiredPhase === "exact-mutation") ||
+								(rejected.request.phaseBefore === "inspection" &&
+									rejected.result.toolRef === "replace-exact" &&
+									context.nextRequiredPhase === "workspace-diff") ||
+								(rejected.request.phaseBefore === "exact-mutation" &&
+									rejected.result.toolRef === "workspace-diff" &&
+									rejected.result.nonEmptyDiff &&
+									context.nextRequiredPhase === "focused-validation") ||
+								(rejected.request.phaseBefore === "workspace-diff" &&
+									rejected.result.toolRef === "focused-validation" &&
+									context.nextRequiredPhase === "hidden-verifier"));
 			if (
 				rejected === undefined ||
 				contextFact === undefined ||

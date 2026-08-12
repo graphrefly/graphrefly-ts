@@ -2,8 +2,8 @@ import { readFile } from "node:fs/promises";
 import { empiricalSha256, empiricalStrictJsonDigest, strictSnapshot } from "./canonical.js";
 
 export const D727_IMPLEMENTATION_SOURCE_SHA256 = Object.freeze({
-	graphRuntime: "sha256:25be41e2e8b39afa4898ae32572a80a4f6165d4482816a97d070ec61bf1dfeac",
-	graphEval: "sha256:9e82c5a992c9d95ead48f871b371c9875c3dcd510d2eef9d30e655a2d95590d2",
+	graphRuntime: "sha256:56e59694b4a98cd8403eb1b314169cab0e0b97dcf40b231db982ae252912be90",
+	graphEval: "sha256:f50fea949840d72ff1e53fad634543e991375eb031cbe9fbb8ac57f527c5f209",
 	providerBoundary: "sha256:25066e15cfebbcda5583134cb182ab97d72288288f99e033124749a24b941598",
 	partialFailureBoundary: "sha256:f624f14beb36999f7cc2bea1f2753111b774cdff572cc4fd142c9fe42ee62e75",
 });
