@@ -5,11 +5,11 @@ import {
 	D733_DEEPSEEK_V4_FLASH_0731_PROFILE_DIGEST,
 } from "./d733-coordinates.js";
 
-export const D738_DECISION_REF = "decision.D741" as const;
+export const D738_DECISION_REF = "decision.D742" as const;
 export const D738_DECISION_REVISION = "2026-08-12.v1" as const;
-export const D738_GENERATION_REF = "d741-arm-local-tool-rejection-live-2026-08-12-v1" as const;
+export const D738_GENERATION_REF = "d742-graph-provider-count-repair-live-2026-08-12-v1" as const;
 export const D738_DISPATCH_CLAIM_REF =
-	"d741-arm-local-tool-rejection-dispatch-2026-08-12-v1" as const;
+	"d742-graph-provider-count-repair-dispatch-2026-08-12-v1" as const;
 export const D738_D736_PARTIAL_ARTIFACT_SHA256 =
 	"sha256:affa381c30fa375b9e8d6acc5a5097fec93d6fb7ff95c29bc3efa4a8c314e486" as const;
 export const D738_D736_PARTIAL_BUNDLE_DIGEST =
@@ -19,11 +19,11 @@ export const D738_D736_PARTIAL_GENERATION_DIGEST =
 export const D738_D737_PHASE_RECOVERY_POLICY_DIGEST =
 	"sha256:838ae89f15dcdb80fef0281db727463fe8ee1fee5a36fe4ac0b27194d728e798" as const;
 export const D738_D737_DISPATCH_CLAIM_ARTIFACT_SHA256 =
-	"sha256:325a8302e003ee1b97429ddb3e257ddcd77947f38f8f1e1ac16539b9067afb94" as const;
+	"sha256:0451000484a33fcd0e665a7649b043e1303a39a020f058793fdde980fbea2eac" as const;
 export const D738_D737_DISPATCH_CLAIM_DIGEST =
-	"sha256:dcb97494534eb526f6b4d7880b34c642a7ee3c09e893cacf533c303cb2b75d3c" as const;
+	"sha256:4d6e1d407d17c109928018d32a4beee0ae8575880494cc32a5716732f07e7ccf" as const;
 export const D738_D737_CURRENT_KEY_MARKER_SHA256 =
-	"sha256:624c06ac49e674e3d179b7d1e13682341350f35929bf4e847bc9c44d63dd4bde" as const;
+	"sha256:b2b435baa05d6bb58bb7111554a64709baca837b8bb9c58cb9dfa95c8615763c" as const;
 export const D738_BUDGET_LIMITS = D729_BUDGET_LIMITS;
 export const D738_EFFECT_CEILINGS = D729_EFFECT_CEILINGS;
 export const D738_ROUTE_PROFILE = D733_DEEPSEEK_V4_FLASH_0731_PROFILE;
@@ -41,7 +41,7 @@ export const D738_COORDINATES = strictSnapshot({
 	d737DispatchClaimArtifactSha256: D738_D737_DISPATCH_CLAIM_ARTIFACT_SHA256,
 	d737DispatchClaimDigest: D738_D737_DISPATCH_CLAIM_DIGEST,
 	d737CurrentKeyMarkerSha256: D738_D737_CURRENT_KEY_MARKER_SHA256,
-	d737FailureCode: "bounded-tool-rejection-misclassified-executor-failure",
+	d737FailureCode: "graph-provider-count-sourced-from-aggregate-usage",
 	maxProviderRequestBytes: 1_048_576,
 	maxPreMutationInspectionEffects: 6,
 	routeProfileDigest: D738_ROUTE_PROFILE_DIGEST,

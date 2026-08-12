@@ -47,12 +47,12 @@ import {
 	type D738ExecutionAuthorityV1,
 } from "./d738-single-use-dispatch-claim.js";
 
-export const D738_QUALIFICATION_SCHEMA = "graphrefly.b112.d741.live-qualification.v1" as const;
-export const D738_OBSERVATION_SCHEMA = "graphrefly.b112.d741.live-observation.v1" as const;
-export const D738_GENERATION_SCHEMA = "graphrefly.b112.d741.success-generation.v1" as const;
-export const D738_PARTIAL_SCHEMA = "graphrefly.b112.d741.partial-failure-generation.v1" as const;
-export const D738_TERMINAL_SCHEMA = "graphrefly.b112.d741.terminal-receipt.v1" as const;
-export const D738_BUNDLE_SCHEMA = "graphrefly.b112.d741.live-bundle.v1" as const;
+export const D738_QUALIFICATION_SCHEMA = "graphrefly.b112.d742.live-qualification.v1" as const;
+export const D738_OBSERVATION_SCHEMA = "graphrefly.b112.d742.live-observation.v1" as const;
+export const D738_GENERATION_SCHEMA = "graphrefly.b112.d742.success-generation.v1" as const;
+export const D738_PARTIAL_SCHEMA = "graphrefly.b112.d742.partial-failure-generation.v1" as const;
+export const D738_TERMINAL_SCHEMA = "graphrefly.b112.d742.terminal-receipt.v1" as const;
+export const D738_BUNDLE_SCHEMA = "graphrefly.b112.d742.live-bundle.v1" as const;
 
 export interface D738LiveBundleV1 {
 	readonly schemaVersion: typeof D738_BUNDLE_SCHEMA;
@@ -173,7 +173,9 @@ function buildBundle(
 	const providerTransportCalls = safeInteger(input.providerTransportCalls, "d738.providerCalls", {
 		max: 96,
 	});
-	const graphProviderEffectCount = integration.run.usage.requests;
+	const graphProviderEffectCount = graphEvidence.ledger.effectProposals.filter(
+		(proposal) => proposal.effectKind === "provider-request",
+	).length;
 	const routeFactCount = routeEvidence.facts.length;
 	const providerAttemptEvidenceDisposition =
 		providerTransportCalls === graphProviderEffectCount
@@ -704,7 +706,7 @@ export async function persistD738LiveBundle(inputValue: {
 		)
 			throw new TypeError("D738 persistence rename identity drifted");
 		const commit = strictSnapshot({
-			schemaVersion: "graphrefly.b112.d741.atomic-commit.v1",
+			schemaVersion: "graphrefly.b112.d742.atomic-commit.v1",
 			generationRef: D738_GENERATION_REF,
 			disposition: bundle.disposition,
 			bundleDigest: bundle.bundleDigest,
