@@ -968,6 +968,17 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD753GraphNativeLive ||
 				allowsD753TransportDiagnosticAdapter ||
 				allowsD753ImplementationManifest;
+			const allowsD754GraphNativeLive =
+				file.endsWith("d754-graph-native-live.ts") ||
+				file.endsWith("d754-single-use-dispatch-claim.ts");
+			const allowsD754TransportDiagnosticAdapter = file.endsWith(
+				"d754-transport-diagnostic-route-adapter.ts",
+			);
+			const allowsD754ImplementationManifest = file.endsWith("d754-implementation-manifest.ts");
+			const allowsD754LiveQualification =
+				allowsD754GraphNativeLive ||
+				allowsD754TransportDiagnosticAdapter ||
+				allowsD754ImplementationManifest;
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -1026,6 +1037,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD751TransportDiagnosticQualification ||
 				allowsD752TransportDiagnosticQualification ||
 				allowsD753LiveQualification ||
+				allowsD754LiveQualification ||
 				allowsD732DispatchClaim ||
 				allowsD720CleanGraphNativeEval ||
 				allowsD721ProviderCapablePreLive ||
@@ -1231,6 +1243,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD752TransportDiagnosticIntegration ||
 							allowsD752PrivateRunner ||
 							allowsD753GraphNativeLive ||
+							allowsD754GraphNativeLive ||
 							allowsD732DispatchClaim) &&
 							specifier === "node:fs") ||
 						((allowsD691HistoricalTransferOperator ||
@@ -1258,7 +1271,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD735ProviderPreflight ||
 							allowsD751TransportDiagnosticQualification ||
 							allowsD752TransportDiagnosticQualification ||
-							allowsD753LiveQualification) &&
+							allowsD753LiveQualification ||
+							allowsD754LiveQualification) &&
 							d720CleanGraphNativeImports.has(specifier)) ||
 						(allowsD683SourceAudit && specifier === "typescript") ||
 						specifier.startsWith("./")
