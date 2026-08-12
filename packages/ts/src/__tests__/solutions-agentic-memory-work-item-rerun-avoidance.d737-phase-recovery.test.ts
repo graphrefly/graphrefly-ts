@@ -576,7 +576,7 @@ describe("D737 Graph objective-phase recovery", () => {
 			await readFile(
 				join(
 					import.meta.dirname,
-					"../../evals/.private/empirical-memory-rerun-avoidance/.d745-live-private/d745-phase-scoped-recovery-live-2026-08-12-v1/artifacts/bundle.v1.json",
+					"../../evals/.private/empirical-memory-rerun-avoidance/.d746-pre-live-private/d746-transport-provenance-live-2026-08-12-v1/artifacts/bundle.v1.json",
 				),
 			),
 		);

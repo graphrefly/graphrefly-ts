@@ -5,16 +5,16 @@ import {
 	D733_DEEPSEEK_V4_FLASH_0731_PROFILE_DIGEST,
 } from "./d733-coordinates.js";
 
-export const D738_DECISION_REF = "decision.D746" as const;
+export const D738_DECISION_REF = "decision.D747" as const;
 export const D738_DECISION_REVISION = "2026-08-12.v1" as const;
-export const D738_GENERATION_REF = "d746-transport-provenance-live-2026-08-12-v1" as const;
-export const D738_DISPATCH_CLAIM_REF = "d746-transport-provenance-dispatch-2026-08-12-v1" as const;
+export const D738_GENERATION_REF = "d747-transport-provenance-live-2026-08-12-v1" as const;
+export const D738_DISPATCH_CLAIM_REF = "d747-transport-provenance-dispatch-2026-08-12-v1" as const;
 export const D738_HISTORICAL_ARTIFACT_SHA256 =
-	"sha256:7a66ad67c9b64fe07eb8d74e4ac4aefbbf4d6f165eac83f82c9550a89a7003f8" as const;
+	"sha256:358f3d700a7d5d73b36f669c64f0197d7a4992f77cde887d4365731f2a4e9f20" as const;
 export const D738_HISTORICAL_BUNDLE_DIGEST =
-	"sha256:9737d3f58a4fbd33bbac9c2822293c95023c4d3c93735837e82867849be53e1d" as const;
+	"sha256:2016211fa7d2b0b5e93a1016b5dbf59ebbe1cedc6c1fc610c48621c08bda3e96" as const;
 export const D738_HISTORICAL_GENERATION_DIGEST =
-	"sha256:3b82948b921f2c046ddc06bb477b1b878b29da95fa0325b9fa5563031894d0f9" as const;
+	"sha256:38b89a9eb585c5501a84b8c38a4acd49e2c40e46592357e9ac12d1deffc02619" as const;
 export const D738_D737_PHASE_RECOVERY_POLICY_DIGEST =
 	"sha256:f3b5eb7f690c466c14b44160b49c81d74a96568dd4152a946c7e26a4df93ba5d" as const;
 export const D738_PREVIOUS_DISPATCH_CLAIM_ARTIFACT_SHA256 =

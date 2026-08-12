@@ -47,12 +47,12 @@ import {
 	type D738ExecutionAuthorityV1,
 } from "./d738-single-use-dispatch-claim.js";
 
-export const D738_QUALIFICATION_SCHEMA = "graphrefly.b112.d746.live-qualification.v1" as const;
-export const D738_OBSERVATION_SCHEMA = "graphrefly.b112.d746.live-observation.v1" as const;
-export const D738_GENERATION_SCHEMA = "graphrefly.b112.d746.success-generation.v1" as const;
-export const D738_PARTIAL_SCHEMA = "graphrefly.b112.d746.partial-failure-generation.v1" as const;
-export const D738_TERMINAL_SCHEMA = "graphrefly.b112.d746.terminal-receipt.v1" as const;
-export const D738_BUNDLE_SCHEMA = "graphrefly.b112.d746.live-bundle.v1" as const;
+export const D738_QUALIFICATION_SCHEMA = "graphrefly.b112.d747.live-qualification.v1" as const;
+export const D738_OBSERVATION_SCHEMA = "graphrefly.b112.d747.live-observation.v1" as const;
+export const D738_GENERATION_SCHEMA = "graphrefly.b112.d747.success-generation.v1" as const;
+export const D738_PARTIAL_SCHEMA = "graphrefly.b112.d747.partial-failure-generation.v1" as const;
+export const D738_TERMINAL_SCHEMA = "graphrefly.b112.d747.terminal-receipt.v1" as const;
+export const D738_BUNDLE_SCHEMA = "graphrefly.b112.d747.live-bundle.v1" as const;
 
 export interface D738LiveBundleV1 {
 	readonly schemaVersion: typeof D738_BUNDLE_SCHEMA;
@@ -139,7 +139,7 @@ function validateHistoricalBundle(bytes: Uint8Array): void {
 		throw new TypeError("D738 D736 partial artifact bytes are invalid");
 	literal(empiricalSha256(bytes), D738_HISTORICAL_ARTIFACT_SHA256, "d738.historical.artifact");
 	const bundle = record(strictJsonCodec.decode(new Uint8Array(bytes)), "d739.d738Partial");
-	literal(bundle.disposition, "partial-failure", "d738.historical.disposition");
+	literal(bundle.disposition, "success", "d738.historical.disposition");
 	literal(bundle.bundleDigest, D738_HISTORICAL_BUNDLE_DIGEST, "d738.historical.bundle");
 	const generation = record(bundle.generation, "d739.d738Partial.generation");
 	literal(
@@ -706,7 +706,7 @@ export async function persistD738LiveBundle(inputValue: {
 		)
 			throw new TypeError("D738 persistence rename identity drifted");
 		const commit = strictSnapshot({
-			schemaVersion: "graphrefly.b112.d746.atomic-commit.v1",
+			schemaVersion: "graphrefly.b112.d747.atomic-commit.v1",
 			generationRef: D738_GENERATION_REF,
 			disposition: bundle.disposition,
 			bundleDigest: bundle.bundleDigest,
