@@ -134,6 +134,7 @@ export interface D734InjectedRouteProfileFixtureV1 {
 export function createD734InjectedRouteProfileFixture(inputValue: {
 	readonly profile: D733GraphNativeRouteProfileV1;
 	readonly routeAdmission: D733GraphNativeRouteAdmissionV1;
+	readonly executionClass?: "injected-no-network" | "live-provider";
 }): D734InjectedRouteProfileFixtureV1 {
 	const profile = inputValue.profile;
 	const model = createD722InjectedModelFixture();
@@ -151,6 +152,9 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 		active = 0;
 	};
 	const adapter = createD734RouteBoundProviderAdapter({
+		...(inputValue.executionClass === undefined
+			? {}
+			: { executionClass: inputValue.executionClass }),
 		routeAdmission: inputValue.routeAdmission,
 		async materialization({ effectRequest }) {
 			enter();

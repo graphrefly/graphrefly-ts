@@ -23,11 +23,13 @@ import {
 	D725_OPENROUTER_TURN_REVISION,
 	type D725OpenRouterTurnV1,
 } from "./d725-terminal-http-real-provider.js";
+import { D729_BUDGET_LIMITS, D729_EFFECT_CEILINGS } from "./d729-coordinates.js";
 import {
 	createD726ProviderAdapter,
 	createD726ProviderTurn,
 	type D726ProviderAdapterV1,
 	type D726ProviderTurnV1,
+	runD726GraphProviderBlockCore,
 	runD726InjectedNoNetworkQualification,
 } from "./d729-provider-block-core.js";
 import {
@@ -74,6 +76,14 @@ export interface D734RouteBoundProviderTurnV1 {
 
 export interface D734RouteBoundProviderAdapterV1 {
 	readonly revision: "graphrefly.b112.d734.route-bound-provider-adapter.v1";
+}
+
+export interface D734RouteBoundProviderTurnSnapshotV1 {
+	readonly turn: D725OpenRouterTurnV1;
+	readonly routeProfileDigest: string;
+	readonly routeAdmissionDigest: string;
+	readonly actualRouteEvidenceDigest: string | null;
+	readonly usageBasis: "measured" | "conservative-reservation";
 }
 
 type EffectPort = (
@@ -345,8 +355,17 @@ export async function invokeD734RouteBoundOpenRouterTurn(input: {
 	return capability;
 }
 
+export function readD734RouteBoundProviderTurn(
+	value: D734RouteBoundProviderTurnV1,
+): D734RouteBoundProviderTurnSnapshotV1 {
+	const state = turnStates.get(value);
+	if (state === undefined) throw new TypeError("D734 route-bound provider turn is invalid");
+	return Object.freeze({ ...state });
+}
+
 export function createD734RouteBoundProviderAdapter(inputValue: {
 	readonly routeAdmission: D733GraphNativeRouteAdmissionV1;
+	readonly executionClass?: "injected-no-network" | "live-provider";
 	readonly materialization: EffectPort;
 	readonly providerRequest: RouteProviderPort;
 	readonly retryWait: EffectPort;
@@ -359,6 +378,7 @@ export function createD734RouteBoundProviderAdapter(inputValue: {
 		input,
 		[
 			"cleanup",
+			...(Object.hasOwn(input, "executionClass") ? ["executionClass" as const] : []),
 			"hiddenVerifier",
 			"materialization",
 			"providerRequest",
@@ -379,8 +399,13 @@ export function createD734RouteBoundProviderAdapter(inputValue: {
 	] as const)
 		if (typeof input[key] !== "function") throw new TypeError(`D734 ${key} port is invalid`);
 	const authority = createRouteAuthority();
+	const executionClass = Object.hasOwn(input, "executionClass")
+		? input.executionClass
+		: "injected-no-network";
+	if (executionClass !== "injected-no-network" && executionClass !== "live-provider")
+		throw new TypeError("D734 adapter execution class is invalid");
 	const adapter = createD726ProviderAdapter({
-		executionClass: "injected-no-network",
+		executionClass,
 		materialization: input.materialization as EffectPort,
 		retryWait: input.retryWait as EffectPort,
 		toolAction: input.toolAction as EffectPort,
@@ -443,7 +468,9 @@ function validateBijection(
 ): void {
 	const providerFacts = graphEvidence.effectRuns.flatMap((run) =>
 		run.facts.flatMap((fact) =>
-			fact.kind === "graph-effect-result-admitted" && fact.result.effectKind === "provider-request"
+			fact.kind === "graph-effect-result-admitted" &&
+			fact.result.effectKind === "provider-request" &&
+			fact.result.failureProvenance !== "executor-failure"
 				? [fact]
 				: [],
 		),
@@ -491,5 +518,39 @@ export async function runD734RouteProfileSixArmIntegration(inputValue: {
 	}
 	if (run.graphEvidence.ledger.completedArms.length !== 6)
 		throw new TypeError("D734 integration did not complete all six Graph arms");
+	return Object.freeze({ run, routeEvidence });
+}
+
+export async function runD734RouteProfileSixArmLiveIntegration(inputValue: {
+	readonly sourceDigest: string;
+	readonly adapter: D734RouteBoundProviderAdapterV1;
+	readonly signal: AbortSignal;
+}) {
+	const input = record(inputValue, "d734.liveRun");
+	exactKeys(input, ["adapter", "signal", "sourceDigest"], "d734.liveRun");
+	const sourceDigest = digest(input.sourceDigest, "d734.liveRun.sourceDigest");
+	if (!(input.signal instanceof AbortSignal)) throw new TypeError("D734 live signal is invalid");
+	const state = adapterStates.get(input.adapter as D734RouteBoundProviderAdapterV1);
+	if (state === undefined || state.consumed)
+		throw new TypeError("D734 live adapter is invalid or consumed");
+	state.consumed = true;
+	const run = await runD726GraphProviderBlockCore({
+		sourceDigest,
+		budgetLimits: D729_BUDGET_LIMITS,
+		effectCeilings: D729_EFFECT_CEILINGS,
+		adapter: state.adapter,
+		executionClass: "live-provider",
+		signal: input.signal as AbortSignal,
+	});
+	const routeEvidence = validateD734RouteGraphEvidence(snapshotRouteEvidence(state.authority));
+	validateBijection(routeEvidence, run.graphEvidence);
+	for (const fact of routeEvidence.facts) {
+		literal(fact.routeProfileDigest, state.profileDigest, "d734.live.routeFact.profileDigest");
+		literal(
+			fact.routeAdmissionDigest,
+			state.routeAdmissionDigest,
+			"d734.live.routeFact.routeAdmissionDigest",
+		);
+	}
 	return Object.freeze({ run, routeEvidence });
 }

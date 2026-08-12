@@ -8,7 +8,7 @@ import {
 
 export const D735_TRACKED_SOURCE_SHA256 = Object.freeze({
 	providerPreflight: "sha256:594a13a340aac44420beda86542868a082ae6d9f67f63d2b6c128b1b3c836383",
-	preLive: "sha256:fd9f0851618252e216c20d01af7b581e5cf04e55a831408be9d7daa66543b6b5",
+	preLive: "sha256:1c738df96c0791d2e3cb483bcc0afbf6430a4975844b773f7ab2cfa891747802",
 });
 
 export const D735_PRIVATE_SOURCE_SHA256 = Object.freeze({

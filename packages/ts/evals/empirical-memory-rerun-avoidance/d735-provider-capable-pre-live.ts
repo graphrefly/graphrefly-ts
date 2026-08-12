@@ -32,7 +32,6 @@ import {
 	readD733AdmittedRouteProfile,
 	validateD733GraphNativeRouteProfile,
 } from "./d733-graph-native-route-profile.js";
-import { D734_IMPLEMENTATION_MANIFEST_DIGEST } from "./d734-implementation-manifest.js";
 import { createD734InjectedRouteProfileFixture } from "./d734-injected-route-profile-fixture.js";
 import {
 	D734_BUNDLE_SCHEMA,
@@ -458,7 +457,7 @@ export async function runD735InjectedNoNetworkQualification(inputValue: {
 		executionClass: "injected-no-network",
 		historicalD734ArtifactSha256: D735_D734_ARTIFACT_SHA256,
 		historicalD734BundleDigest: D735_D734_BUNDLE_DIGEST,
-		d734ImplementationManifestDigest: D734_IMPLEMENTATION_MANIFEST_DIGEST,
+		d734ImplementationManifestDigest: D735_FROZEN_D734_IMPLEMENTATION_MANIFEST_DIGEST,
 		implementationManifestDigest,
 		runDigests: runs.map(empiricalStrictJsonDigest),
 		profileDigests: runs.map((run) => run.profileDigest),
@@ -581,7 +580,7 @@ export function validateD735ProviderCapablePreLiveBundle(
 	);
 	literal(
 		qualification.d734ImplementationManifestDigest,
-		D734_IMPLEMENTATION_MANIFEST_DIGEST,
+		D735_FROZEN_D734_IMPLEMENTATION_MANIFEST_DIGEST,
 		"d735.qualification.d734Implementation",
 	);
 	digest(qualification.implementationManifestDigest, "d735.qualification.implementation");
@@ -778,3 +777,6 @@ export async function persistD735ProviderCapablePreLiveBundle(inputValue: {
 		throw error;
 	}
 }
+
+const D735_FROZEN_D734_IMPLEMENTATION_MANIFEST_DIGEST =
+	"sha256:2904159b917f2e677f0357f034b30bec9e9fca207dfca8ca891010b9c508a5a3" as const;

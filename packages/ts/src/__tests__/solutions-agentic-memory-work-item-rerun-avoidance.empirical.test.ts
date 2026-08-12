@@ -930,6 +930,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsD734PreLive = file.endsWith("d734-route-profile-integration-pre-live.ts");
 			const allowsD735ProviderPreflight = file.endsWith("d735-provider-capable-route-preflight.ts");
 			const allowsD735PreLive = file.endsWith("d735-provider-capable-pre-live.ts");
+			const allowsD736DispatchClaim = file.endsWith("d736-single-use-dispatch-claim.ts");
+			const allowsD736GraphNativeLive = file.endsWith("d736-graph-native-live.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -978,6 +980,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD733RouteProfilePreLive ||
 				allowsD734PreLive ||
 				allowsD735PreLive ||
+				allowsD736DispatchClaim ||
+				allowsD736GraphNativeLive ||
 				allowsD732DispatchClaim ||
 				allowsD720CleanGraphNativeEval ||
 				allowsD721ProviderCapablePreLive ||
@@ -1172,6 +1176,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD733RouteProfilePreLive ||
 							allowsD734PreLive ||
 							allowsD735PreLive ||
+							allowsD736DispatchClaim ||
+							allowsD736GraphNativeLive ||
 							allowsD732DispatchClaim) &&
 							specifier === "node:fs") ||
 						((allowsD691HistoricalTransferOperator || allowsOutermostLiveOperator) &&
