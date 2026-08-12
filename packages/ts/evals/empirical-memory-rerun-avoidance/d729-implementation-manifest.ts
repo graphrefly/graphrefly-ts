@@ -6,7 +6,7 @@ export const D729_TRACKED_SOURCE_SHA256 = Object.freeze({
 	effectRuntime: "sha256:2c34b3a582b1d78a3f10e8eb1103c08d266c76f7cd65b59e04a3b00a855dae21",
 	graphEval: "sha256:2541f0210125e03e84395b1834f178f6001c8dd8e5ac867381e69d9f91bc89cf",
 	completionProjection: "sha256:50f5b76222916f92dc105fb076e4ef7f7975bd0ebeb16473df58167543f4b33b",
-	terminalHttp: "sha256:7b044628bd815b60f07600c948c70a243a088787ec90c18db5ea4327b340b0f2",
+	terminalHttp: "sha256:46c450b1ce057568db79fa5eb595e7c22024833ec034d899c78e9789e690e0e2",
 	providerBoundary: "sha256:4d36b7595b9164f45d4e8b1421f179122b49bf5a7248ee3b90ae243029aa1c0b",
 	executorFailureBoundary:
 		"sha256:f624f14beb36999f7cc2bea1f2753111b774cdff572cc4fd142c9fe42ee62e75",
