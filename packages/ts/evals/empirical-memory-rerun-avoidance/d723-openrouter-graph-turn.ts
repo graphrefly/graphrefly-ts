@@ -252,7 +252,6 @@ export async function invokeD723OpenRouterGraphTurn(input: {
 		messages,
 		tools: tools(),
 		tool_choice: input.effectRequest.completionContext === undefined ? "auto" : "required",
-		parallel_tool_calls: false,
 		reasoning: { effort: "high" },
 		stream: false,
 	});

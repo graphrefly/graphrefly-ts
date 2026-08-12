@@ -110,6 +110,7 @@ function successfulAdapter() {
 							calls += 1;
 							const body = JSON.parse(new TextDecoder().decode(request.body));
 							expect(body.model).toBe("deepseek/deepseek-v4-flash");
+							expect(body).not.toHaveProperty("parallel_tool_calls");
 							expect(body.provider).toEqual({
 								order: ["deepinfra/fp4"],
 								only: ["deepinfra/fp4"],

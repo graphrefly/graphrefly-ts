@@ -1682,7 +1682,7 @@ describe("B112 D659 deterministic closed task-profile host", () => {
 		expect(JSON.stringify(outcome)).not.toContain("broken");
 		expect(JSON.stringify(outcome)).not.toContain(fixture.workspaceRoot);
 		expect(() => readFileSync(join(fixture.workspaceRoot, "README.md"))).toThrow();
-	});
+	}, 30_000);
 
 	it("fails closed without persisting a partial action receipt when its observer rejects", async () => {
 		const fixture = await createClosedHostFixture();

@@ -916,6 +916,10 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsD729ProviderBlockCore = file.endsWith("d729-provider-block-core.ts");
 			const allowsD729AtomicPersistence = file.endsWith("d729-atomic-persistence.ts");
 			const allowsD729DispatchClaim = file.endsWith("d729-single-use-dispatch-claim.ts");
+			const allowsD731InjectedRouteRepairFixture = file.endsWith(
+				"d731-injected-route-repair-fixture.ts",
+			);
+			const allowsD731RouteRepairPreLive = file.endsWith("d731-route-repair-pre-live.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -960,6 +964,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD729ProviderBlockCore ||
 				allowsD729AtomicPersistence ||
 				allowsD729DispatchClaim ||
+				allowsD731RouteRepairPreLive ||
 				allowsD720CleanGraphNativeEval ||
 				allowsD721ProviderCapablePreLive ||
 				allowsD722CompletionMemoryInsight ||
@@ -1064,7 +1069,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 									allowsD723RealProviderAdapter ||
 									allowsD723OpenRouterGraphTurn ||
 									allowsD725RealProviderIntegration ||
-									allowsD725InjectedQualification
+									allowsD725InjectedQualification ||
+									allowsD731InjectedRouteRepairFixture
 								? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls)|(?:from|import)\s+["'](?:http|https|net|tls|undici|ws)["']/
 								: allowsOneRequestFetchTransport
 									? /\b(?:Date\.now|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
@@ -1143,7 +1149,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD726DispatchClaim ||
 							allowsD727ExecutorFailurePreLive ||
 							allowsD729AtomicPersistence ||
-							allowsD729DispatchClaim) &&
+							allowsD729DispatchClaim ||
+							allowsD731RouteRepairPreLive) &&
 							specifier === "node:fs") ||
 						((allowsD691HistoricalTransferOperator || allowsOutermostLiveOperator) &&
 							specifier === "node:url") ||

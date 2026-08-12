@@ -288,13 +288,7 @@ export function createD724TerminalHttpAuthority(): D724TerminalHttpAuthorityV1 {
 		if (facts.length >= D724_MAX_TERMINAL_HTTP_FACTS)
 			throw new TypeError("D724 terminal HTTP fact bound exhausted");
 		const fact = message[1] as D724TerminalHttpAdmissionV1;
-		if (
-			facts.some(
-				(candidate) =>
-					candidate.effectAdmissionDigest === fact.effectAdmissionDigest ||
-					candidate.providerResultDigest === fact.providerResultDigest,
-			)
-		)
+		if (facts.some((candidate) => candidate.effectAdmissionDigest === fact.effectAdmissionDigest))
 			throw new TypeError("D724 terminal HTTP fact was already admitted");
 		facts.push(fact);
 	});
@@ -373,10 +367,7 @@ export function validateD724TerminalHttpGraphEvidence(
 	if (rawFacts.length > D724_MAX_TERMINAL_HTTP_FACTS)
 		throw new TypeError("D724 terminal HTTP graph facts are invalid");
 	const facts = rawFacts.map(validateD724TerminalHttpAdmission);
-	if (
-		new Set(facts.map((fact) => fact.effectAdmissionDigest)).size !== facts.length ||
-		new Set(facts.map((fact) => fact.providerResultDigest)).size !== facts.length
-	)
+	if (new Set(facts.map((fact) => fact.effectAdmissionDigest)).size !== facts.length)
 		throw new TypeError("D724 terminal HTTP graph facts are duplicated");
 	const evidenceDigest = digest(candidate.evidenceDigest, "d724.graphEvidence.evidenceDigest");
 	const material = strictSnapshot({
