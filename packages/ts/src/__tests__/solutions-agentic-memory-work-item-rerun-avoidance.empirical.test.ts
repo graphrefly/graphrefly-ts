@@ -948,6 +948,15 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD751TransportDiagnosticAuthority ||
 				allowsD751ImplementationManifest ||
 				allowsD751PrivateRunner;
+			const allowsD752TransportDiagnosticIntegration = file.endsWith(
+				"d752-provider-transport-diagnostic-integration.ts",
+			);
+			const allowsD752ImplementationManifest = file.endsWith("d752-implementation-manifest.ts");
+			const allowsD752PrivateRunner = file.endsWith("run-d752-no-network-pre-live.ts");
+			const allowsD752TransportDiagnosticQualification =
+				allowsD752TransportDiagnosticIntegration ||
+				allowsD752ImplementationManifest ||
+				allowsD752PrivateRunner;
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -1004,6 +1013,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD738GraphNativeLive ||
 				allowsD748ForwardPhaseQualification ||
 				allowsD751TransportDiagnosticQualification ||
+				allowsD752TransportDiagnosticQualification ||
 				allowsD732DispatchClaim ||
 				allowsD720CleanGraphNativeEval ||
 				allowsD721ProviderCapablePreLive ||
@@ -1206,11 +1216,14 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD738GraphNativeLive ||
 							allowsD748ForwardPhaseQualification ||
 							allowsD751TransportDiagnosticAuthority ||
+							allowsD752TransportDiagnosticIntegration ||
+							allowsD752PrivateRunner ||
 							allowsD732DispatchClaim) &&
 							specifier === "node:fs") ||
 						((allowsD691HistoricalTransferOperator ||
 							allowsOutermostLiveOperator ||
-							allowsD751PrivateRunner) &&
+							allowsD751PrivateRunner ||
+							allowsD752PrivateRunner) &&
 							specifier === "node:url") ||
 						specifier === "../../src/json/codec.js" ||
 						(allowsMatchedBlockMemory && matchedBlockMemoryImports.has(specifier)) ||
@@ -1230,7 +1243,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD724TerminalHttpEvidence ||
 							allowsD734RouteIntegration ||
 							allowsD735ProviderPreflight ||
-							allowsD751TransportDiagnosticQualification) &&
+							allowsD751TransportDiagnosticQualification ||
+							allowsD752TransportDiagnosticQualification) &&
 							d720CleanGraphNativeImports.has(specifier)) ||
 						(allowsD683SourceAudit && specifier === "typescript") ||
 						specifier.startsWith("./")
