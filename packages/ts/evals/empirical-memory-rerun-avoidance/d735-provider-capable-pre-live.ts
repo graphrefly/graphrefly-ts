@@ -16,6 +16,13 @@ import {
 } from "./canonical.js";
 import { deriveD722CanonicalGraphEvidence } from "./d722-graph-completion-memory-insight.js";
 import { createD726ArmLocalTerminalProviderPolicy } from "./d722-graph-native-effect-runtime.js";
+import { invokeD725OpenRouterGraphTurn } from "./d725-terminal-http-real-provider.js";
+import {
+	createD726ExecutorFailureProviderTurn,
+	createD726ProviderAdapter,
+	createD726ProviderTurn,
+} from "./d726-graph-native-live.js";
+import { runD727InjectedNoNetworkQualification } from "./d727-executor-failure-pre-live.js";
 import { D733_DEEPSEEK_V4_FLASH_0731_PROFILE_DIGEST } from "./d733-coordinates.js";
 import type {
 	D733GraphNativeRouteAdmissionV1,
@@ -216,20 +223,145 @@ function validateRun(value: unknown, expectedProfileDigest: string): D735RunEvid
 	}) as unknown as D735RunEvidenceV1;
 }
 
-function failureCoverage() {
-	const cases = Object.freeze(
-		["terminal-http", "response-decode-failure", "transport-failure", "route-evidence-failure"].map(
-			(classification) =>
-				strictSnapshot({
-					classification: validateD735FailureClassification(classification),
-					graphAdmitted: true,
-					partialFailureOnly: true,
-					cleanupRequired: true,
-					evidenceDigest: empiricalStrictJsonDigest({ classification, disposition: "injected" }),
+function createFailureAdapter(
+	classification:
+		| "terminal-http"
+		| "response-decode-failure"
+		| "transport-failure"
+		| "route-evidence-failure",
+) {
+	const workspaces = new Set<number>();
+	let providerCalls = 0;
+	const evidence = (label: string) => empiricalStrictJsonDigest({ classification, label });
+	const adapter = createD726ProviderAdapter({
+		executionClass: "injected-no-network",
+		async materialization({ effectRequest }) {
+			workspaces.add(effectRequest.runSequence);
+			return {
+				actualCostMicrousd: 0,
+				actualElapsedMs: 1,
+				result: {
+					effectKind: "materialization" as const,
+					status: "ready" as const,
+					workspaceStateDigest: evidence(`workspace-${effectRequest.runSequence}`),
+					evidenceDigest: evidence(`materialization-${effectRequest.runSequence}`),
+				},
+			};
+		},
+		async providerRequest({ effectRequest, signal }) {
+			providerCalls += 1;
+			if (classification !== "terminal-http")
+				return createD726ExecutorFailureProviderTurn({
+					classification,
+					evidenceDigest: evidence(`provider-${effectRequest.requestDigest}`),
+				});
+			return createD726ProviderTurn(
+				await invokeD725OpenRouterGraphTurn({
+					effectRequest,
+					credential: {
+						bearerToken: "not-a-live-d735-injected-credential",
+						credentialBindingRef: "d735.injected-no-network",
+						credentialBindingRevision: "v1",
+					},
+					transport: {
+						async request() {
+							return {
+								status: 400,
+								retryAfterMs: null,
+								retryAfterDisposition: "absent" as const,
+								body: new TextEncoder().encode(
+									JSON.stringify({ error: { code: "invalid_request" } }),
+								),
+							};
+						},
+					},
+					taskStatement: "D735 injected terminal HTTP qualification",
+					conversation: { messages: [] },
+					signal: signal ?? new AbortController().signal,
+					monotonicNowMs: () => providerCalls,
 				}),
-		),
-	);
-	return cases;
+			);
+		},
+		async retryWait() {
+			throw new TypeError("D735 terminal failure cannot retry");
+		},
+		async toolAction() {
+			throw new TypeError("D735 terminal failure cannot execute tools");
+		},
+		async hiddenVerifier() {
+			throw new TypeError("D735 terminal failure cannot verify");
+		},
+		async cleanup({ effectRequest }) {
+			workspaces.delete(effectRequest.runSequence);
+			return {
+				actualCostMicrousd: 0,
+				actualElapsedMs: 1,
+				result: {
+					effectKind: "cleanup" as const,
+					status: "succeeded" as const,
+					evidenceDigest: evidence(`cleanup-${effectRequest.runSequence}`),
+				},
+			};
+		},
+	});
+	return { adapter, workspaces, providerCalls: () => providerCalls };
+}
+
+async function failureCoverage() {
+	const cases = [];
+	for (const classification of [
+		"terminal-http",
+		"response-decode-failure",
+		"transport-failure",
+		"route-evidence-failure",
+	] as const) {
+		const fixture = createFailureAdapter(classification);
+		const bundle = await runD727InjectedNoNetworkQualification({
+			adapter: fixture.adapter,
+			signal: new AbortController().signal,
+		});
+		const executorFacts = bundle.executorFailureFacts;
+		const terminalFacts = bundle.terminalHttpGraphEvidence.facts;
+		const providerCalls = fixture.providerCalls();
+		if (
+			fixture.workspaces.size !== 0 ||
+			providerCalls < 1 ||
+			providerCalls > 6 ||
+			bundle.cleanupFacts.length !== 6
+		)
+			throw new TypeError(
+				`D735 injected failure cleanup coverage failed:${classification}:${fixture.workspaces.size}:${providerCalls}:${bundle.cleanupFacts.length}`,
+			);
+		if (
+			classification === "terminal-http"
+				? terminalFacts.length !== providerCalls ||
+					executorFacts.some((fact) => fact.classification !== "graph-admission-denied")
+				: terminalFacts.length !== 0 ||
+					executorFacts.filter((fact) => fact.classification === classification).length !==
+						providerCalls ||
+					executorFacts.some(
+						(fact) =>
+							fact.classification !== classification &&
+							fact.classification !== "graph-admission-denied",
+					)
+		)
+			throw new TypeError(`D735 ${classification} provenance coverage failed`);
+		const material = strictSnapshot({
+			classification: validateD735FailureClassification(classification),
+			graphAdmitted: true,
+			partialFailureOnly: true,
+			cleanupRequired: true,
+			graphEvidenceDigest: bundle.graphEvidence.evidenceDigest,
+			provenanceEvidenceDigest:
+				classification === "terminal-http"
+					? bundle.terminalHttpGraphEvidence.evidenceDigest
+					: empiricalStrictJsonDigest(bundle.executorFailureFacts),
+		});
+		cases.push(
+			strictSnapshot({ ...material, evidenceDigest: empiricalStrictJsonDigest(material) }),
+		);
+	}
+	return Object.freeze(cases);
 }
 
 function validateFailureCoverage(value: unknown): readonly Readonly<Record<string, unknown>>[] {
@@ -251,7 +383,9 @@ function validateFailureCoverage(value: unknown): readonly Readonly<Record<strin
 					"cleanupRequired",
 					"evidenceDigest",
 					"graphAdmitted",
+					"graphEvidenceDigest",
 					"partialFailureOnly",
+					"provenanceEvidenceDigest",
 				],
 				`d735.failureCoverage[${index}]`,
 			);
@@ -260,6 +394,15 @@ function validateFailureCoverage(value: unknown): readonly Readonly<Record<strin
 			literal(candidate.partialFailureOnly, true, `d735.failureCoverage[${index}].partial`);
 			literal(candidate.cleanupRequired, true, `d735.failureCoverage[${index}].cleanup`);
 			digest(candidate.evidenceDigest, `d735.failureCoverage[${index}].digest`);
+			digest(candidate.graphEvidenceDigest, `d735.failureCoverage[${index}].graphDigest`);
+			digest(candidate.provenanceEvidenceDigest, `d735.failureCoverage[${index}].provenanceDigest`);
+			const evidenceDigest = candidate.evidenceDigest;
+			const { evidenceDigest: _evidenceDigest, ...material } = candidate;
+			literal(
+				evidenceDigest,
+				empiricalStrictJsonDigest(material),
+				`d735.failureCoverage[${index}].digest`,
+			);
 			return strictSnapshot(candidate);
 		}),
 	);
@@ -307,7 +450,7 @@ export async function runD735InjectedNoNetworkQualification(inputValue: {
 			sourceDigest: implementationManifestDigest,
 		}),
 	]) as readonly [D735RunEvidenceV1, D735RunEvidenceV1];
-	const failures = failureCoverage();
+	const failures = await failureCoverage();
 	const qualificationMaterial = strictSnapshot({
 		schemaVersion: D735_QUALIFICATION_SCHEMA,
 		decisionRef: D735_DECISION_REF,
