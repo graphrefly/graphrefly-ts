@@ -7,7 +7,10 @@ import {
 	readOpenRouterSmokeOperatorMonotonicMs,
 	waitOpenRouterSmokeRetryDelay,
 } from "../../evals/empirical-memory-rerun-avoidance/openrouter-first-task-smoke-operator.js";
-import { createOpenRouterResponsesFetchByteTransport } from "../../evals/empirical-memory-rerun-avoidance/openrouter-responses-byte-transport.js";
+import {
+	createOpenRouterResponsesFetchByteTransport,
+	MAX_OPENROUTER_BYTE_TRANSPORT_REQUEST_BYTES,
+} from "../../evals/empirical-memory-rerun-avoidance/openrouter-responses-byte-transport.js";
 import {
 	MAX_OPENROUTER_RESPONSES_RESPONSE_BYTES,
 	OPENROUTER_CHAT_COMPLETIONS_ENDPOINT,
@@ -215,6 +218,21 @@ describe("B112 package-private OpenRouter live byte transport", () => {
 		expect(fetchCapability.mock.calls[0]?.[0]).toBe(OPENROUTER_CHAT_COMPLETIONS_ENDPOINT);
 	});
 
+	it("carries the qualified one-MiB Graph-native Chat envelope through the real byte transport", async () => {
+		const fetchCapability = vi.fn<typeof fetch>(() =>
+			Promise.resolve(new Response('{"ok":true}', { status: 200 })),
+		);
+		const transport = createOpenRouterResponsesFetchByteTransport({ fetch: fetchCapability });
+		const body = new Uint8Array(300_000);
+
+		await transport.request(
+			transportRequest({ endpoint: OPENROUTER_CHAT_COMPLETIONS_ENDPOINT, body }),
+		);
+
+		expect(fetchCapability).toHaveBeenCalledTimes(1);
+		expect((fetchCapability.mock.calls[0]?.[1]?.body as Uint8Array).byteLength).toBe(300_000);
+	});
+
 	it("fails closed on declared or streamed overflow without retry", async () => {
 		const declaredBody = new ReadableStream<Uint8Array>({
 			start(controller) {
@@ -269,7 +287,9 @@ describe("B112 package-private OpenRouter live byte transport", () => {
 		for (const request of [
 			transportRequest({ endpoint: "https://example.invalid/responses" as never }),
 			transportRequest({ method: "GET" as never }),
-			transportRequest({ body: new Uint8Array(262_145) }),
+			transportRequest({
+				body: new Uint8Array(MAX_OPENROUTER_BYTE_TRANSPORT_REQUEST_BYTES + 1),
+			}),
 			transportRequest({ body: new (class extends Uint8Array {})(1) }),
 		]) {
 			await expect(transport.request(request)).rejects.toThrow(/qualified/);

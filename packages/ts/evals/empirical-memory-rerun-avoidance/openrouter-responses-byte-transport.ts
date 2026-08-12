@@ -1,5 +1,4 @@
 import { exactKeys, record, safeInteger } from "./canonical.js";
-import { MAX_EMPIRICAL_MODEL_TURN_REQUEST_BYTES } from "./model-execution.js";
 import type {
 	OpenRouterResponsesByteTransportV1,
 	OpenRouterResponsesTransportRequestV1,
@@ -15,6 +14,11 @@ const typedArrayByteLengthGetter = Object.getOwnPropertyDescriptor(
 	Object.getPrototypeOf(Uint8Array.prototype),
 	"byteLength",
 )?.get;
+
+// The Graph-native Chat route has a separately qualified one-MiB wire envelope.
+// Legacy model-turn callers still enforce their smaller canonical request bound
+// before reaching this byte transport.
+export const MAX_OPENROUTER_BYTE_TRANSPORT_REQUEST_BYTES = 1_048_576;
 
 export interface OpenRouterResponsesFetchCapabilityV1 {
 	readonly fetch: typeof fetch;
@@ -145,7 +149,7 @@ export function createOpenRouterResponsesFetchByteTransport(
 				throw new TypeError("OpenRouter transport request is outside the qualified route");
 			}
 			const bodyByteLength = typedArrayByteLengthGetter.call(input.body) as number;
-			if (bodyByteLength > MAX_EMPIRICAL_MODEL_TURN_REQUEST_BYTES) {
+			if (bodyByteLength > MAX_OPENROUTER_BYTE_TRANSPORT_REQUEST_BYTES) {
 				throw new TypeError("OpenRouter transport request exceeds the qualified byte bound");
 			}
 			if (input.signal.aborted) {

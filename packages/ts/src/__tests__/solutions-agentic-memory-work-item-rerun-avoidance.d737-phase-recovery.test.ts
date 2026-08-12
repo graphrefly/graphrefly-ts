@@ -424,7 +424,7 @@ describe("D737 Graph objective-phase recovery", () => {
 			await readFile(
 				join(
 					import.meta.dirname,
-					"../../evals/.private/empirical-memory-rerun-avoidance/.d740-live-private/d740-inspection-saturation-recovery-live-2026-08-12-v1/artifacts/bundle.v1.json",
+					"../../evals/.private/empirical-memory-rerun-avoidance/.d742-live-private/d742-graph-provider-count-repair-live-2026-08-12-v1/artifacts/bundle.v1.json",
 				),
 			),
 		);
