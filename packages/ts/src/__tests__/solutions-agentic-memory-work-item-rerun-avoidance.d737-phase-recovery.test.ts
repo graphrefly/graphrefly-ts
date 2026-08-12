@@ -22,6 +22,10 @@ import {
 	consumeD737DispatchClaimForExecution,
 	consumeD737ExecutionAuthority,
 } from "../../evals/empirical-memory-rerun-avoidance/d737-single-use-dispatch-claim.js";
+import {
+	runD738InjectedNoNetworkQualification,
+	validateD738LiveBundle,
+} from "../../evals/empirical-memory-rerun-avoidance/d738-graph-native-live.js";
 import { createOpenRouterCurrentKeySpendAdmissionCapability } from "../../evals/empirical-memory-rerun-avoidance/openrouter-current-key-spend-admission.js";
 
 const encoder = new TextEncoder();
@@ -233,5 +237,37 @@ describe("D737 Graph objective-phase recovery", () => {
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
+	}, 30_000);
+
+	it("keeps the outer transport observation non-authoritative while preserving exact Graph counts", async () => {
+		const fixture = createD734InjectedRouteProfileFixture({
+			profile: D733_DEEPSEEK_V4_FLASH_0731_PROFILE,
+			routeAdmission: routeAdmission(),
+			executionClass: "live-provider",
+			objectivePhaseViolationBeforeMutation: true,
+		});
+		const d736PartialBundleBytes = new Uint8Array(
+			await readFile(
+				join(
+					import.meta.dirname,
+					"../../evals/.private/empirical-memory-rerun-avoidance/.d736-live-private/d736-d735-qualified-route-profile-live-2026-08-11-v1/artifacts/bundle.v1.json",
+				),
+			),
+		);
+		const bundle = await runD738InjectedNoNetworkQualification({
+			d736PartialBundleBytes,
+			implementationManifestDigest: sha("d738-test-implementation"),
+			adapter: fixture.adapter,
+			providerTransportCalls: () => fixture.providerCalls() - 1,
+			signal: AbortSignal.timeout(30_000),
+		});
+		const replay = validateD738LiveBundle(bundle);
+		expect(replay.disposition).toBe("success");
+		expect(replay.qualification.graphProviderEffectCount).toBe(fixture.providerCalls());
+		expect(replay.qualification.routeFactCount).toBe(fixture.providerCalls());
+		expect(replay.qualification.providerTransportCalls).toBe(fixture.providerCalls() - 1);
+		expect(replay.qualification.providerAttemptEvidenceDisposition).toBe(
+			"pre-transport-failure-observed",
+		);
 	}, 30_000);
 });
