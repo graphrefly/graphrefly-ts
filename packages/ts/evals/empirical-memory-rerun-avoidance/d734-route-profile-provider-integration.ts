@@ -10,7 +10,10 @@ import {
 	record,
 	strictSnapshot,
 } from "./canonical.js";
-import { validateD720GraphEffectResult } from "./d722-graph-native-effect-runtime.js";
+import {
+	type D737GraphObjectivePhaseRecoveryPolicyV1,
+	validateD720GraphEffectResult,
+} from "./d722-graph-native-effect-runtime.js";
 import type {
 	D720CallerEffectExecutionInputV2,
 	D720CallerEffectExecutionV2,
@@ -525,9 +528,21 @@ export async function runD734RouteProfileSixArmLiveIntegration(inputValue: {
 	readonly sourceDigest: string;
 	readonly adapter: D734RouteBoundProviderAdapterV1;
 	readonly signal: AbortSignal;
+	readonly objectivePhaseRecoveryPolicy?: D737GraphObjectivePhaseRecoveryPolicyV1;
 }) {
 	const input = record(inputValue, "d734.liveRun");
-	exactKeys(input, ["adapter", "signal", "sourceDigest"], "d734.liveRun");
+	exactKeys(
+		input,
+		[
+			"adapter",
+			...(Object.hasOwn(input, "objectivePhaseRecoveryPolicy")
+				? ["objectivePhaseRecoveryPolicy" as const]
+				: []),
+			"signal",
+			"sourceDigest",
+		],
+		"d734.liveRun",
+	);
 	const sourceDigest = digest(input.sourceDigest, "d734.liveRun.sourceDigest");
 	if (!(input.signal instanceof AbortSignal)) throw new TypeError("D734 live signal is invalid");
 	const state = adapterStates.get(input.adapter as D734RouteBoundProviderAdapterV1);
@@ -540,6 +555,12 @@ export async function runD734RouteProfileSixArmLiveIntegration(inputValue: {
 		effectCeilings: D729_EFFECT_CEILINGS,
 		adapter: state.adapter,
 		executionClass: "live-provider",
+		...(Object.hasOwn(input, "objectivePhaseRecoveryPolicy")
+			? {
+					objectivePhaseRecoveryPolicy:
+						input.objectivePhaseRecoveryPolicy as D737GraphObjectivePhaseRecoveryPolicyV1,
+				}
+			: {}),
 		signal: input.signal as AbortSignal,
 	});
 	const routeEvidence = validateD734RouteGraphEvidence(snapshotRouteEvidence(state.authority));

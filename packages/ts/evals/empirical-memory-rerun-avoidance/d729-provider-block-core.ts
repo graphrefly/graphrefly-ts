@@ -15,6 +15,7 @@ import {
 import {
 	createD726ArmLocalTerminalProviderPolicy,
 	type D720ExecutorFailureClassificationV1,
+	type D737GraphObjectivePhaseRecoveryPolicyV1,
 	validateD720GraphEffectResult,
 } from "./d722-graph-native-effect-runtime.js";
 import {
@@ -302,7 +303,10 @@ function exactCoordinates(input: {
 		throw new TypeError("D726 execution coordinates drifted");
 }
 
-function canonicalGraphEvidence(core: D722GraphNativeEvalCoreV1): D722CanonicalGraphEvidenceV1 {
+function canonicalGraphEvidence(
+	core: D722GraphNativeEvalCoreV1,
+	objectivePhaseRecoveryPolicy?: D737GraphObjectivePhaseRecoveryPolicyV1,
+): D722CanonicalGraphEvidenceV1 {
 	if (core.ledger.issuedRequests.length !== core.effectRuns.length)
 		throw new TypeError(
 			`D726 Graph run coverage drifted: ${core.ledger.issuedRequests.length}/${core.effectRuns.length}`,
@@ -311,6 +315,7 @@ function canonicalGraphEvidence(core: D722GraphNativeEvalCoreV1): D722CanonicalG
 		core.ledger,
 		core.effectRuns,
 		createD726ArmLocalTerminalProviderPolicy(),
+		objectivePhaseRecoveryPolicy,
 	);
 }
 
@@ -439,7 +444,24 @@ export async function runD726GraphProviderBlockCore(input: {
 	readonly adapter: D726ProviderAdapterV1;
 	readonly executionClass: "injected-no-network" | "live-provider";
 	readonly signal: AbortSignal;
+	readonly objectivePhaseRecoveryPolicy?: D737GraphObjectivePhaseRecoveryPolicyV1;
 }) {
+	const inputRecord = record(input, "d726.providerBlock");
+	exactKeys(
+		inputRecord,
+		[
+			"adapter",
+			"budgetLimits",
+			"effectCeilings",
+			"executionClass",
+			...(Object.hasOwn(inputRecord, "objectivePhaseRecoveryPolicy")
+				? ["objectivePhaseRecoveryPolicy" as const]
+				: []),
+			"signal",
+			"sourceDigest",
+		],
+		"d726.providerBlock",
+	);
 	exactCoordinates(input);
 	const state = adapterStates.get(input.adapter);
 	if (state === undefined || state.consumed)
@@ -545,6 +567,9 @@ export async function runD726GraphProviderBlockCore(input: {
 		effectCeilings: input.effectCeilings,
 		executor,
 		armLocalTerminalPolicy: createD726ArmLocalTerminalProviderPolicy(),
+		...(Object.hasOwn(input, "objectivePhaseRecoveryPolicy")
+			? { objectivePhaseRecoveryPolicy: input.objectivePhaseRecoveryPolicy }
+			: {}),
 		signal: input.signal,
 	});
 	const terminalHttpGraphEvidence = snapshotD724TerminalHttpGraphEvidence(terminalAuthority);
@@ -571,7 +596,7 @@ export async function runD726GraphProviderBlockCore(input: {
 	);
 	if (operational.maxActiveInvocations !== 1)
 		throw new TypeError("D726 block was not strictly serial");
-	const graphEvidence = canonicalGraphEvidence(core);
+	const graphEvidence = canonicalGraphEvidence(core, input.objectivePhaseRecoveryPolicy);
 	validateD726TerminalProviderCoverage(graphEvidence, terminalHttpGraphEvidence);
 	return Object.freeze({
 		graphEvidence,

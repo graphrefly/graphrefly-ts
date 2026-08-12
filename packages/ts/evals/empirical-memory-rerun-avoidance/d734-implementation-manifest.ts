@@ -7,8 +7,8 @@ import {
 } from "./canonical.js";
 
 export const D734_TRACKED_SOURCE_SHA256 = Object.freeze({
-	providerIntegration: "sha256:ac8896d7533de32091d507011d26a41019e47ffcf32747b53631ca3f5488e517",
-	injectedFixture: "sha256:340b0f829a8db5391f1870798ba9de8f27a1272c07476cb73d4926bacecc2906",
+	providerIntegration: "sha256:56bc2d7d961b790d3e39cafde32ded3419bdc1892b7dfffb5754e07bc5b21154",
+	injectedFixture: "sha256:f8d9b38e0c3ad078f000b8105adaaa18f32c48738e17d1639da8722558a46bb8",
 	preLive: "sha256:cab126bc10d3061889674491ffb4c77b2a1cc5fc52adeaff38e5fcb9386dd843",
 });
 

@@ -30,6 +30,8 @@ import {
 	type D722GraphCompletionContextV1,
 	type D722GraphEffectEvidenceV1,
 	type D726ArmLocalTerminalProviderPolicyV1,
+	D737_OBJECTIVE_PHASE_CONTEXT_SCHEMA,
+	type D737GraphObjectivePhaseRecoveryPolicyV1,
 	deriveD722GraphArmResultFromEvidence,
 	validateD722GraphEffectEvidence,
 } from "./d722-graph-native-effect-runtime.js";
@@ -56,9 +58,9 @@ export const D722_PERSISTENCE_SCHEMA =
 	"graphrefly.b112.d722.completion-memory-insight-persistence.v1" as const;
 export const D722_GENERATION_REF = "d722-graph-completion-memory-insight-v1" as const;
 export const D722_EXPECTED_RUNTIME_SOURCE_DIGEST =
-	"sha256:2c34b3a582b1d78a3f10e8eb1103c08d266c76f7cd65b59e04a3b00a855dae21" as const;
+	"sha256:e5fc205ca00e654e968e3efbb17d496021f2fa4f6ba58c07070c2a1f7d15e2e8" as const;
 export const D722_EXPECTED_EVAL_SOURCE_DIGEST =
-	"sha256:2541f0210125e03e84395b1834f178f6001c8dd8e5ac867381e69d9f91bc89cf" as const;
+	"sha256:9e82c5a992c9d95ead48f871b371c9875c3dcd510d2eef9d30e655a2d95590d2" as const;
 export const D722_EXPECTED_ADAPTER_SOURCE_DIGEST =
 	"sha256:c0c5faead095c8a0cc290dee9734a460cf9138768bf68183ef5ce940ffb6f9ba" as const;
 export const D722_EXPECTED_MODEL_FIXTURE_SOURCE_DIGEST =
@@ -214,9 +216,13 @@ function completionContext(value: unknown, path: string): D722GraphCompletionCon
 		],
 		path,
 	);
+	const contextCoordinatesValid =
+		(candidate.schemaVersion === D722_COMPLETION_CONTEXT_SCHEMA &&
+			candidate.reason === "premature-structured-final") ||
+		(candidate.schemaVersion === D737_OBJECTIVE_PHASE_CONTEXT_SCHEMA &&
+			candidate.reason === "objective-phase-policy-violation");
 	if (
-		candidate.schemaVersion !== D722_COMPLETION_CONTEXT_SCHEMA ||
-		candidate.reason !== "premature-structured-final" ||
+		!contextCoordinatesValid ||
 		candidate.requiredDisposition !== "tool-intents" ||
 		candidate.remainingCompletionContexts !== 0
 	)
@@ -269,8 +275,8 @@ function completionContext(value: unknown, path: string): D722GraphCompletionCon
 		});
 	digest(candidate.budgetProjectionDigest, `${path}.budgetProjectionDigest`);
 	const material = strictSnapshot({
-		schemaVersion: D722_COMPLETION_CONTEXT_SCHEMA,
-		reason: "premature-structured-final" as const,
+		schemaVersion: candidate.schemaVersion,
+		reason: candidate.reason,
 		runSequence,
 		issuedRequestDigest: candidate.issuedRequestDigest as string,
 		rejectedRequestDigest: candidate.rejectedRequestDigest as string,
@@ -298,6 +304,7 @@ function deriveContexts(
 	ledger: D719CleanGraphEvidenceV1,
 	effectRuns: readonly D722GraphEffectEvidenceV1[],
 	armLocalTerminalPolicy?: D726ArmLocalTerminalProviderPolicyV1,
+	objectivePhaseRecoveryPolicy?: D737GraphObjectivePhaseRecoveryPolicyV1,
 ): readonly D722GraphCompletionContextV1[] {
 	const contexts: D722GraphCompletionContextV1[] = [];
 	for (const [runIndex, run] of effectRuns.entries()) {
@@ -310,12 +317,14 @@ function deriveContexts(
 			issued,
 			runIndex,
 			armLocalTerminalPolicy,
+			objectivePhaseRecoveryPolicy,
 		);
 		const derivedArm = deriveD722GraphArmResultFromEvidence(
 			validatedRun,
 			issued,
 			runIndex,
 			armLocalTerminalPolicy,
+			objectivePhaseRecoveryPolicy,
 		);
 		if (
 			empiricalStrictJsonDigest(derivedArm.materialization) !==
@@ -403,7 +412,9 @@ function deriveContexts(
 				rejected === undefined ||
 				contextFact === undefined ||
 				rejected.result.effectKind !== "provider-request" ||
-				rejected.result.status !== "structured-final" ||
+				(context.reason === "premature-structured-final"
+					? rejected.result.status !== "structured-final"
+					: rejected.result.status !== "tool-intents") ||
 				context.rejectedRequestDigest !== rejected.request.requestDigest ||
 				context.workspaceStateDigest !== contextFact.request.workspaceStateDigest ||
 				context.issuedRequestDigest !== validatedRun.issuedRequestDigest ||
@@ -574,6 +585,7 @@ export function deriveD722CanonicalGraphEvidence(
 	ledgerValue: unknown,
 	effectRunsValue: readonly D722GraphEffectEvidenceV1[],
 	armLocalTerminalPolicy?: D726ArmLocalTerminalProviderPolicyV1,
+	objectivePhaseRecoveryPolicy?: D737GraphObjectivePhaseRecoveryPolicyV1,
 ): D722CanonicalGraphEvidenceV1 {
 	const ledger = validateD719CleanGraphEvidence(ledgerValue);
 	if (effectRunsValue.length !== ledger.issuedRequests.length || effectRunsValue.length > MAX_RUNS)
@@ -582,10 +594,21 @@ export function deriveD722CanonicalGraphEvidence(
 		effectRunsValue.map((run, index) => {
 			const request = ledger.issuedRequests[index];
 			if (request === undefined) throw new TypeError("D722 issued request is missing");
-			return validateD722GraphEffectEvidence(run, request, index, armLocalTerminalPolicy);
+			return validateD722GraphEffectEvidence(
+				run,
+				request,
+				index,
+				armLocalTerminalPolicy,
+				objectivePhaseRecoveryPolicy,
+			);
 		}),
 	);
-	const completionContexts = deriveContexts(ledger, effectRuns, armLocalTerminalPolicy);
+	const completionContexts = deriveContexts(
+		ledger,
+		effectRuns,
+		armLocalTerminalPolicy,
+		objectivePhaseRecoveryPolicy,
+	);
 	const insightProjection = admitInsights(ledger, completionContexts);
 	const material = strictSnapshot({
 		schemaVersion: D722_GRAPH_EVIDENCE_SCHEMA,

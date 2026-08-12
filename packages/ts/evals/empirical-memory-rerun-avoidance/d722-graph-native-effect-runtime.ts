@@ -32,6 +32,10 @@ export const D722_COMPLETION_CONTEXT_POLICY_REVISION =
 	"graphrefly.b112.d722.graph-completion-context-policy.v1" as const;
 export const D722_COMPLETION_CONTEXT_SCHEMA =
 	"graphrefly.b112.d722.graph-completion-context.v1" as const;
+export const D737_OBJECTIVE_PHASE_RECOVERY_POLICY_REVISION =
+	"graphrefly.b112.d737.objective-phase-recovery-policy.v1" as const;
+export const D737_OBJECTIVE_PHASE_CONTEXT_SCHEMA =
+	"graphrefly.b112.d737.objective-phase-completion-context.v1" as const;
 export const D722_EFFECT_RUNTIME_REVISION =
 	"graphrefly.b112.d722.graph-native-effect-runtime.v1" as const;
 export const D722_EFFECT_EVIDENCE_SCHEMA =
@@ -85,8 +89,10 @@ export interface D720ToolIntentV1 {
 }
 
 export interface D722GraphCompletionContextV1 {
-	readonly schemaVersion: typeof D722_COMPLETION_CONTEXT_SCHEMA;
-	readonly reason: "premature-structured-final";
+	readonly schemaVersion:
+		| typeof D722_COMPLETION_CONTEXT_SCHEMA
+		| typeof D737_OBJECTIVE_PHASE_CONTEXT_SCHEMA;
+	readonly reason: "premature-structured-final" | "objective-phase-policy-violation";
 	readonly runSequence: number;
 	readonly issuedRequestDigest: string;
 	readonly rejectedRequestDigest: string;
@@ -275,6 +281,10 @@ export interface D722GraphCompletionContextPolicyV1 {
 	readonly revision: typeof D722_COMPLETION_CONTEXT_POLICY_REVISION;
 }
 
+export interface D737GraphObjectivePhaseRecoveryPolicyV1 {
+	readonly revision: typeof D737_OBJECTIVE_PHASE_RECOVERY_POLICY_REVISION;
+}
+
 export interface D726ArmLocalTerminalProviderPolicyV1 {
 	readonly revision: "graphrefly.b112.d726.arm-local-terminal-provider.v1";
 }
@@ -304,6 +314,7 @@ interface RuntimeState {
 	readonly mode: "d720" | "d722";
 	readonly budgetContext: D722GraphBudgetContextV1 | null;
 	readonly armLocalTerminalProviderFailure: boolean;
+	readonly objectivePhaseRecoveryEnabled: boolean;
 }
 
 interface ProjectionState {
@@ -335,12 +346,14 @@ interface ProjectionState {
 	activeCompletionContext: D722GraphCompletionContextV1 | null;
 	terminalProviderFailure: boolean;
 	armLocalTerminalProviderFailure: boolean;
+	objectivePhaseRecoveryEnabled: boolean;
 	budgetState: D719CleanBudgetStateV1;
 }
 
 const constructedRuntimes = new WeakMap<object, RuntimeState>();
 const constructedCompletionPolicies = new WeakSet<object>();
 const constructedArmLocalTerminalPolicies = new WeakSet<object>();
+const constructedObjectivePhaseRecoveryPolicies = new WeakSet<object>();
 
 function nextRequiredPhase(state: ProjectionState): D720EffectDecisionV1["nextRequiredPhase"] {
 	if (!state.inspectionObserved) return "inspection";
@@ -408,6 +421,7 @@ function graphCompletionContext(
 	runSequence: number,
 	issuedRequestDigest: string,
 	lastFact: D720AdmittedEffectFactV1,
+	reason: D722GraphCompletionContextV1["reason"] = "premature-structured-final",
 ): D722GraphCompletionContextV1 {
 	if (state.workspaceStateDigest === null)
 		throw new TypeError("D722 completion context requires Graph-visible workspace state");
@@ -439,8 +453,11 @@ function graphCompletionContext(
 		remainingAdmittedBounds,
 	});
 	const material = strictSnapshot({
-		schemaVersion: D722_COMPLETION_CONTEXT_SCHEMA,
-		reason: "premature-structured-final" as const,
+		schemaVersion:
+			reason === "premature-structured-final"
+				? D722_COMPLETION_CONTEXT_SCHEMA
+				: D737_OBJECTIVE_PHASE_CONTEXT_SCHEMA,
+		reason,
 		runSequence,
 		issuedRequestDigest,
 		rejectedRequestDigest: lastFact.request.requestDigest,
@@ -455,6 +472,43 @@ function graphCompletionContext(
 		budgetProjectionDigest,
 	});
 	return Object.freeze({ ...material, contextDigest: empiricalStrictJsonDigest(material) });
+}
+
+function objectiveContinuationRequest(
+	state: ProjectionState,
+	budgetContext: D722GraphBudgetContextV1,
+	runSequence: number,
+	issuedRequestDigest: string,
+	lastFact: D720AdmittedEffectFactV1,
+	reason: D722GraphCompletionContextV1["reason"],
+): D720GraphEffectRequestV1 {
+	const completionContext = graphCompletionContext(
+		state,
+		budgetContext,
+		runSequence,
+		issuedRequestDigest,
+		lastFact,
+		reason,
+	);
+	state.completionContextsIssued += 1;
+	state.activeCompletionContext = completionContext;
+	state.pendingTools = [];
+	state.providerAttemptOrdinal = 1;
+	state.providerTurnSequence += 1;
+	state.providerLogicalRequestDigest = empiricalStrictJsonDigest({
+		issuedRequestDigest,
+		providerTurn: state.providerTurnSequence,
+		completionContextDigest: completionContext.contextDigest,
+	});
+	return requestMaterial(state, runSequence, issuedRequestDigest, "provider-request", {
+		logicalMaterial: {
+			issuedRequestDigest,
+			providerTurn: state.providerTurnSequence,
+			completionContextDigest: completionContext.contextDigest,
+		},
+		logicalRequestDigest: state.providerLogicalRequestDigest,
+		completionContext,
+	});
 }
 
 function decisionMaterial(
@@ -549,9 +603,28 @@ function nextEffect(
 	} else if (lastFact.result.effectKind === "provider-request") {
 		const result = lastFact.result;
 		if (result.status === "tool-intents") {
-			state.pendingTools = [...result.toolIntents];
-			const toolIntent = state.pendingTools.shift();
-			request = nextToolOrStop(state, runSequence, issuedRequestDigest, toolIntent);
+			const firstIntent = result.toolIntents[0];
+			if (
+				firstIntent !== undefined &&
+				!toolIntentAllowed(state, firstIntent) &&
+				state.objectivePhaseRecoveryEnabled &&
+				state.completionContextsIssued < D722_MAX_COMPLETION_CONTEXTS_PER_RUN
+			) {
+				if (budgetContext === null)
+					throw new TypeError("D737 objective phase recovery requires Graph budget context");
+				request = objectiveContinuationRequest(
+					state,
+					budgetContext,
+					runSequence,
+					issuedRequestDigest,
+					lastFact,
+					"objective-phase-policy-violation",
+				);
+			} else {
+				state.pendingTools = [...result.toolIntents];
+				const toolIntent = state.pendingTools.shift();
+				request = nextToolOrStop(state, runSequence, issuedRequestDigest, toolIntent);
+			}
 		} else if (result.status === "structured-final") {
 			if (state.validationPassed) {
 				request = requestMaterial(state, runSequence, issuedRequestDigest, "hidden-verifier", {
@@ -560,31 +633,14 @@ function nextEffect(
 			} else if (state.completionContextsIssued < D722_MAX_COMPLETION_CONTEXTS_PER_RUN) {
 				if (budgetContext === null)
 					throw new TypeError("D722 completion context requires Graph budget context");
-				const completionContext = graphCompletionContext(
+				request = objectiveContinuationRequest(
 					state,
 					budgetContext,
 					runSequence,
 					issuedRequestDigest,
 					lastFact,
+					"premature-structured-final",
 				);
-				state.completionContextsIssued += 1;
-				state.activeCompletionContext = completionContext;
-				state.providerAttemptOrdinal = 1;
-				state.providerTurnSequence += 1;
-				state.providerLogicalRequestDigest = empiricalStrictJsonDigest({
-					issuedRequestDigest,
-					providerTurn: state.providerTurnSequence,
-					completionContextDigest: completionContext.contextDigest,
-				});
-				request = requestMaterial(state, runSequence, issuedRequestDigest, "provider-request", {
-					logicalMaterial: {
-						issuedRequestDigest,
-						providerTurn: state.providerTurnSequence,
-						completionContextDigest: completionContext.contextDigest,
-					},
-					logicalRequestDigest: state.providerLogicalRequestDigest,
-					completionContext,
-				});
 			} else {
 				request = requestMaterial(state, runSequence, issuedRequestDigest, "cleanup", {
 					logicalMaterial: { issuedRequestDigest, effect: "cleanup" },
@@ -778,6 +834,7 @@ function initialProjectionState(): ProjectionState {
 		activeCompletionContext: null,
 		terminalProviderFailure: false,
 		armLocalTerminalProviderFailure: false,
+		objectivePhaseRecoveryEnabled: false,
 		budgetState: Object.freeze({ requests: 0, retryWaits: 0, costMicrousd: 0, elapsedMs: 0 }),
 	};
 }
@@ -792,12 +849,19 @@ export function createD722GraphCompletionContextPolicy(): D722GraphCompletionCon
 	return policy;
 }
 
+export function createD737GraphObjectivePhaseRecoveryPolicy(): D737GraphObjectivePhaseRecoveryPolicyV1 {
+	const policy = Object.freeze({ revision: D737_OBJECTIVE_PHASE_RECOVERY_POLICY_REVISION });
+	constructedObjectivePhaseRecoveryPolicies.add(policy);
+	return policy;
+}
+
 function createGraphEffectRuntime(
 	inputValue: {
 		readonly request: AgentRequestIssued<D719CleanRequestInput>;
 		readonly runSequence: number;
 		readonly budgetContext?: D722GraphBudgetContextV1;
 		readonly armLocalTerminalProviderFailure?: boolean;
+		readonly objectivePhaseRecoveryEnabled?: boolean;
 	},
 	mode: "d720" | "d722",
 ): D720GraphEffectRuntimeV1 | D722GraphEffectRuntimeV1 {
@@ -811,6 +875,9 @@ function createGraphEffectRuntime(
 					"runSequence",
 					...(Object.hasOwn(input, "armLocalTerminalProviderFailure")
 						? ["armLocalTerminalProviderFailure" as const]
+						: []),
+					...(Object.hasOwn(input, "objectivePhaseRecoveryEnabled")
+						? ["objectivePhaseRecoveryEnabled" as const]
 						: []),
 				]
 			: ["request", "runSequence"],
@@ -830,6 +897,7 @@ function createGraphEffectRuntime(
 	});
 	const projectionState = mode === "d720" ? initialProjectionState() : initialD722ProjectionState();
 	projectionState.armLocalTerminalProviderFailure = input.armLocalTerminalProviderFailure === true;
+	projectionState.objectivePhaseRecoveryEnabled = input.objectivePhaseRecoveryEnabled === true;
 	if (budgetContext !== null) projectionState.budgetState = budgetContext.initialState;
 	const decisions: D720EffectDecisionV1[] = [];
 	const decisionNode = owner.node<D720EffectDecisionV1>(
@@ -885,6 +953,7 @@ function createGraphEffectRuntime(
 		mode,
 		budgetContext,
 		armLocalTerminalProviderFailure: input.armLocalTerminalProviderFailure === true,
+		objectivePhaseRecoveryEnabled: input.objectivePhaseRecoveryEnabled === true,
 	});
 	return runtime;
 }
@@ -902,6 +971,7 @@ export function createD722GraphEffectRuntime(inputValue: {
 	readonly completionContextPolicy: D722GraphCompletionContextPolicyV1;
 	readonly budgetContext: D722GraphBudgetContextV1;
 	readonly armLocalTerminalPolicy?: D726ArmLocalTerminalProviderPolicyV1;
+	readonly objectivePhaseRecoveryPolicy?: D737GraphObjectivePhaseRecoveryPolicyV1;
 }): D722GraphEffectRuntimeV1 {
 	const input = record(inputValue, "d722.effectRuntime.create");
 	exactKeys(
@@ -913,6 +983,9 @@ export function createD722GraphEffectRuntime(inputValue: {
 			"runSequence",
 			...(Object.hasOwn(input, "armLocalTerminalPolicy")
 				? ["armLocalTerminalPolicy" as const]
+				: []),
+			...(Object.hasOwn(input, "objectivePhaseRecoveryPolicy")
+				? ["objectivePhaseRecoveryPolicy" as const]
 				: []),
 		],
 		"d722.effectRuntime.create",
@@ -930,12 +1003,20 @@ export function createD722GraphEffectRuntime(inputValue: {
 			!constructedArmLocalTerminalPolicies.has(input.armLocalTerminalPolicy))
 	)
 		throw new TypeError("D726 arm-local terminal policy must be Graph-constructed");
+	if (
+		Object.hasOwn(input, "objectivePhaseRecoveryPolicy") &&
+		(typeof input.objectivePhaseRecoveryPolicy !== "object" ||
+			input.objectivePhaseRecoveryPolicy === null ||
+			!constructedObjectivePhaseRecoveryPolicies.has(input.objectivePhaseRecoveryPolicy))
+	)
+		throw new TypeError("D737 objective phase recovery policy must be Graph-constructed");
 	return createGraphEffectRuntime(
 		{
 			request: input.request as AgentRequestIssued<D719CleanRequestInput>,
 			runSequence: input.runSequence as number,
 			budgetContext: strictSnapshot(input.budgetContext) as unknown as D722GraphBudgetContextV1,
 			armLocalTerminalProviderFailure: Object.hasOwn(input, "armLocalTerminalPolicy"),
+			objectivePhaseRecoveryEnabled: Object.hasOwn(input, "objectivePhaseRecoveryPolicy"),
 		},
 		"d722",
 	) as D722GraphEffectRuntimeV1;
@@ -1327,6 +1408,7 @@ function validateGraphEffectEvidence(
 	expectedRunSequence?: number,
 	mode: "d720" | "d722" = "d720",
 	armLocalTerminalPolicy?: D726ArmLocalTerminalProviderPolicyV1,
+	objectivePhaseRecoveryPolicy?: D737GraphObjectivePhaseRecoveryPolicyV1,
 ): D720GraphEffectEvidenceV1 | D722GraphEffectEvidenceV1 {
 	const candidate = record(value, "d720.effectEvidence");
 	exactKeys(
@@ -1468,6 +1550,7 @@ function validateGraphEffectEvidence(
 					completionContextPolicy: createD722GraphCompletionContextPolicy(),
 					budgetContext: budgetContext!,
 					...(armLocalTerminalPolicy === undefined ? {} : { armLocalTerminalPolicy }),
+					...(objectivePhaseRecoveryPolicy === undefined ? {} : { objectivePhaseRecoveryPolicy }),
 				});
 	if (
 		empiricalStrictJsonDigest(nextD720GraphEffectDecision(runtime)) !==
@@ -1595,6 +1678,7 @@ export function validateD722GraphEffectEvidence(
 	requestValue: AgentRequestIssued<D719CleanRequestInput>,
 	expectedRunSequence?: number,
 	armLocalTerminalPolicy?: D726ArmLocalTerminalProviderPolicyV1,
+	objectivePhaseRecoveryPolicy?: D737GraphObjectivePhaseRecoveryPolicyV1,
 ): D722GraphEffectEvidenceV1 {
 	return validateGraphEffectEvidence(
 		value,
@@ -1602,6 +1686,7 @@ export function validateD722GraphEffectEvidence(
 		expectedRunSequence,
 		"d722",
 		armLocalTerminalPolicy,
+		objectivePhaseRecoveryPolicy,
 	) as D722GraphEffectEvidenceV1;
 }
 
@@ -1631,12 +1716,14 @@ export function deriveD722GraphArmResultFromEvidence(
 	request: AgentRequestIssued<D719CleanRequestInput>,
 	expectedRunSequence: number,
 	armLocalTerminalPolicy?: D726ArmLocalTerminalProviderPolicyV1,
+	objectivePhaseRecoveryPolicy?: D737GraphObjectivePhaseRecoveryPolicyV1,
 ): D719CallerArmResultV1 {
 	const evidence = validateD722GraphEffectEvidence(
 		value,
 		request,
 		expectedRunSequence,
 		armLocalTerminalPolicy,
+		objectivePhaseRecoveryPolicy,
 	);
 	const runtime = createD722GraphEffectRuntime({
 		request,
@@ -1644,6 +1731,7 @@ export function deriveD722GraphArmResultFromEvidence(
 		completionContextPolicy: createD722GraphCompletionContextPolicy(),
 		budgetContext: evidence.budgetContext,
 		...(armLocalTerminalPolicy === undefined ? {} : { armLocalTerminalPolicy }),
+		...(objectivePhaseRecoveryPolicy === undefined ? {} : { objectivePhaseRecoveryPolicy }),
 	});
 	for (const fact of evidence.facts) {
 		if (fact.kind === "graph-cancellation-admitted") {

@@ -135,11 +135,13 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 	readonly profile: D733GraphNativeRouteProfileV1;
 	readonly routeAdmission: D733GraphNativeRouteAdmissionV1;
 	readonly executionClass?: "injected-no-network" | "live-provider";
+	readonly objectivePhaseViolationBeforeMutation?: boolean;
 }): D734InjectedRouteProfileFixtureV1 {
 	const profile = inputValue.profile;
 	const model = createD722InjectedModelFixture();
 	const workspaces = new Map<number, string>();
 	const wireBodies: Uint8Array[] = [];
+	const providerTurnsByRun = new Map<number, number>();
 	let providerCalls = 0;
 	let active = 0;
 	let maxActive: 0 | 1 = 0;
@@ -150,6 +152,34 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 	};
 	const leave = (): void => {
 		active = 0;
+	};
+	const phaseRecoveryResult = (request: D720GraphEffectRequestV1): D720EffectResultV1 => {
+		const turn = (providerTurnsByRun.get(request.runSequence) ?? 0) + 1;
+		providerTurnsByRun.set(request.runSequence, turn);
+		const toolRefs: readonly D720ToolRef[] =
+			turn === 1
+				? ["read-file"]
+				: request.completionContext?.reason === "objective-phase-policy-violation"
+					? ["replace-exact", "workspace-diff", "focused-validation"]
+					: turn === 2
+						? ["workspace-diff", "focused-validation"]
+						: [];
+		return Object.freeze({
+			effectKind: "provider-request" as const,
+			status: toolRefs.length === 0 ? ("structured-final" as const) : ("tool-intents" as const),
+			toolIntents: Object.freeze(
+				toolRefs.map((toolRef, index) =>
+					Object.freeze({
+						toolRef,
+						intentDigest: digest({ run: request.runSequence, turn, index, toolRef }),
+					}),
+				),
+			),
+			failureDiscriminator: "none" as const,
+			retryAfterMs: null,
+			workspaceStateDigest: request.workspaceStateDigest!,
+			evidenceDigest: digest({ run: request.runSequence, turn, toolRefs }),
+		});
 	};
 	const adapter = createD734RouteBoundProviderAdapter({
 		...(inputValue.executionClass === undefined
@@ -189,10 +219,9 @@ export function createD734InjectedRouteProfileFixture(inputValue: {
 						async request(request) {
 							providerCalls += 1;
 							wireBodies.push(new Uint8Array(request.body));
-							const result = await invokeD722InjectedModelFixture(
-								model,
-								executionInput.effectRequest,
-							);
+							const result = inputValue.objectivePhaseViolationBeforeMutation
+								? phaseRecoveryResult(executionInput.effectRequest)
+								: await invokeD722InjectedModelFixture(model, executionInput.effectRequest);
 							return result.effectKind === "provider-request" &&
 								result.status === "retryable-failure"
 								? retryResponse(executionInput.effectRequest, result)

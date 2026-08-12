@@ -48,6 +48,7 @@ import {
 	type D720GraphEffectRequestV1,
 	type D722GraphEffectEvidenceV1,
 	type D726ArmLocalTerminalProviderPolicyV1,
+	type D737GraphObjectivePhaseRecoveryPolicyV1,
 	deriveD720GraphArmResult,
 	deriveD720GraphArmResultFromEvidence,
 	nextD720GraphEffectDecision,
@@ -551,6 +552,7 @@ export async function runD722GraphNativeEvalCore(inputValue: {
 	readonly effectCeilings: D720EffectCeilingsV2;
 	readonly executor: D720CallerExecutorV2;
 	readonly armLocalTerminalPolicy?: D726ArmLocalTerminalProviderPolicyV1;
+	readonly objectivePhaseRecoveryPolicy?: D737GraphObjectivePhaseRecoveryPolicyV1;
 	readonly signal?: AbortSignal;
 }): Promise<D722GraphNativeEvalCoreV1> {
 	const input = record(inputValue, "d722.coreRun");
@@ -563,6 +565,9 @@ export async function runD722GraphNativeEvalCore(inputValue: {
 			"sourceDigest",
 			...(Object.hasOwn(input, "armLocalTerminalPolicy")
 				? ["armLocalTerminalPolicy" as const]
+				: []),
+			...(Object.hasOwn(input, "objectivePhaseRecoveryPolicy")
+				? ["objectivePhaseRecoveryPolicy" as const]
 				: []),
 			...(Object.hasOwn(input, "signal") ? ["signal" as const] : []),
 		],
@@ -598,6 +603,12 @@ export async function runD722GraphNativeEvalCore(inputValue: {
 				? {
 						armLocalTerminalPolicy:
 							input.armLocalTerminalPolicy as D726ArmLocalTerminalProviderPolicyV1,
+					}
+				: {}),
+			...(Object.hasOwn(input, "objectivePhaseRecoveryPolicy")
+				? {
+						objectivePhaseRecoveryPolicy:
+							input.objectivePhaseRecoveryPolicy as D737GraphObjectivePhaseRecoveryPolicyV1,
 					}
 				: {}),
 		});
