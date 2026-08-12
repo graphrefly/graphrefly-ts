@@ -35,6 +35,11 @@ import {
 	validateD738LiveBundle,
 } from "../../evals/empirical-memory-rerun-avoidance/d738-graph-native-live.js";
 import {
+	acquireD738SingleUseDispatchClaimAtRootForTest,
+	consumeD738DispatchClaimForExecution,
+	consumeD738ExecutionAuthority,
+} from "../../evals/empirical-memory-rerun-avoidance/d738-single-use-dispatch-claim.js";
+import {
 	persistD748QualificationBundle,
 	runD748InjectedNoNetworkQualification,
 	validateD748QualificationBundle,
@@ -819,13 +824,13 @@ describe("D737 Graph objective-phase recovery", () => {
 			profile: D733_DEEPSEEK_V4_FLASH_0731_PROFILE,
 			routeAdmission: routeAdmission(),
 			executionClass: "live-provider",
-			objectivePhaseViolationBeforeMutation: true,
+			forwardPhaseContinuation: true,
 		});
 		const historicalBundleBytes = new Uint8Array(
 			await readFile(
 				join(
 					import.meta.dirname,
-					"../../evals/.private/empirical-memory-rerun-avoidance/.d746-pre-live-private/d746-transport-provenance-live-2026-08-12-v1/artifacts/bundle.v1.json",
+					"../../evals/.private/empirical-memory-rerun-avoidance/.d748-pre-live-private/d748-forward-phase-continuation-no-network-v1/bundle.v1.json",
 				),
 			),
 		);
@@ -844,5 +849,29 @@ describe("D737 Graph objective-phase recovery", () => {
 		expect(replay.qualification.providerAttemptEvidenceDisposition).toBe(
 			"pre-transport-failure-observed",
 		);
+	}, 30_000);
+
+	it("keeps the D749 durable claim exclusive and test-root authority non-executable", async () => {
+		const root = await mkdtemp(join(tmpdir(), "graphrefly-d749-claim-"));
+		try {
+			await chmod(root, 0o700);
+			const inputs = {
+				pricingReadDigest: sha("d749-pricing"),
+				zeroByokObservationDigest: sha("d749-zero-byok"),
+				implementationManifestDigest: sha("d749-implementation"),
+			};
+			const canonicalRoot = await realpath(root);
+			const claim = await acquireD738SingleUseDispatchClaimAtRootForTest(canonicalRoot, inputs);
+			await expect(
+				acquireD738SingleUseDispatchClaimAtRootForTest(canonicalRoot, inputs),
+			).rejects.toThrow();
+			const authority = await consumeD738DispatchClaimForExecution({
+				claim,
+				currentKeyAdmission: await currentKey(),
+			});
+			expect(() => consumeD738ExecutionAuthority(authority)).toThrow(/fixed-root/);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	}, 30_000);
 });

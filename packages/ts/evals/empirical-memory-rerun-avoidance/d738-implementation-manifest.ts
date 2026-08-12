@@ -8,28 +8,28 @@ import {
 
 export const D738_TRACKED_SOURCE_SHA256 = Object.freeze({
 	cleanGraphLedger: "sha256:a63894f692c5748130cc4f3aace34428522aa7eb08a73605ff1f68499aad5593",
-	graphRuntime: "sha256:25be41e2e8b39afa4898ae32572a80a4f6165d4482816a97d070ec61bf1dfeac",
-	graphProjection: "sha256:d44837e4cefbd57a76d6c00e8d61582857d0adce56425bee2b2b73140ba93aa0",
-	graphEval: "sha256:9e82c5a992c9d95ead48f871b371c9875c3dcd510d2eef9d30e655a2d95590d2",
+	graphRuntime: "sha256:56e59694b4a98cd8403eb1b314169cab0e0b97dcf40b231db982ae252912be90",
+	graphProjection: "sha256:93a80ac6caf854139b6243d34d4f763addfad79ce9970a288b1320ee2f3696c2",
+	graphEval: "sha256:f50fea949840d72ff1e53fad634543e991375eb031cbe9fbb8ac57f527c5f209",
 	providerCore: "sha256:ec1a644edb5989315a4a3ec5e6e621786f89b1c9e9493026a91ad7568e1f7cd5",
 	providerTurn: "sha256:6fac7319b4dc57b5751bf2e823b6bd2fb88143de84046fbda2f128f48084c926",
 	routeIntegration: "sha256:d7ebc60e6c94e12f120b6f77d40ca84116f43f2cab2fe288bed82f92b010b3f2",
-	injectedFixture: "sha256:beb05d593a02626edbea7d6f5fe48c3a535dd1ee1493450f4df0f7a10ecf2f40",
+	injectedFixture: "sha256:91363e3faacf914eeba15a3ecf7e59ecc14d9fa6eba8570d195ca945584da763",
 	byteTransport: "sha256:55f735c9b616102280922bc627f942b25886f1e72366a5d2c3c69e2c9ac068f4",
-	coordinates: "sha256:9b029c51bd838227a61878e3bcc6a7f1b90c8c547b5e5c165d129d034ac649de",
-	claim: "sha256:b85ffb4954d19f4013ab14f441bd87749bb236b089721720d2992f3a1a75b263",
-	live: "sha256:998cc32e64e8f231c97a1718dc2e40bfd2d704eb1efbeb33c5edfe466a1a8c69",
+	coordinates: "sha256:3e4ac1e2ddac91f625313154bce169a3f31ef4cf2841961e6b341849ccb0905c",
+	claim: "sha256:c4923c77c20a29e548e8689e0f3b58ab54ea752d1a75afb9ba2caddc8bb2b031",
+	live: "sha256:51d0d28a1cdc73b4f67bd9e37be7fc18bf0550132c462303041d0054cb059151",
 });
 
 export const D738_PRIVATE_SOURCE_SHA256 = Object.freeze({
 	realRouteAdapter: "sha256:a9fcea415fbddaad4bb2492048824ce8124daf2aa940c17525932ab9d1bbf19b",
 	noNetworkRunner: "sha256:e95c82cce2764b926e24ff508cf81a373a967dc4481972e7a445643e95bf3a49",
-	liveRunner: "sha256:64fe2dae122ea14006e42807af9b32c6d3db1fde33287f6c65c27779cd1408fc",
+	liveRunner: "sha256:94314004977c7fb3404313de522c862765b5d8ac97e6f81e27b5ecdbb72d9485",
 });
 
 export const D738_IMPLEMENTATION_MANIFEST = strictSnapshot({
-	revision: "graphrefly.b112.d747.implementation-manifest.v1",
-	decisionRef: "decision.D747",
+	revision: "graphrefly.b112.d749.implementation-manifest.v1",
+	decisionRef: "decision.D749",
 	decisionRevision: "2026-08-12.v1",
 	trackedSourceSha256: D738_TRACKED_SOURCE_SHA256,
 	privateSourceSha256: D738_PRIVATE_SOURCE_SHA256,
