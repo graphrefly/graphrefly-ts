@@ -14,6 +14,7 @@ import {
 	type D720GraphEffectRequestV1,
 	type D720ToolRef,
 	D748_FORWARD_PHASE_CONTEXT_SCHEMA,
+	D759_HIDDEN_VERIFIER_CORRECTION_CONTEXT_SCHEMA,
 } from "./d722-graph-native-effect-runtime.js";
 import type {
 	D720CallerEffectExecutionInputV2,
@@ -92,7 +93,22 @@ function validateContext(
 		],
 		"d756.completionContext",
 	);
-	literal(context.schemaVersion, D748_FORWARD_PHASE_CONTEXT_SCHEMA, "d756.context.schema");
+	oneOf(
+		context.schemaVersion,
+		[D748_FORWARD_PHASE_CONTEXT_SCHEMA, D759_HIDDEN_VERIFIER_CORRECTION_CONTEXT_SCHEMA],
+		"d756.context.schema",
+	);
+	if (
+		context.schemaVersion === D759_HIDDEN_VERIFIER_CORRECTION_CONTEXT_SCHEMA &&
+		context.reason !== "hidden-verifier-failed" &&
+		context.reason !== "objective-phase-advanced"
+	)
+		throw new TypeError("D759 correction context reason drifted");
+	if (
+		context.schemaVersion !== D759_HIDDEN_VERIFIER_CORRECTION_CONTEXT_SCHEMA &&
+		context.reason === "hidden-verifier-failed"
+	)
+		throw new TypeError("D759 correction reason requires the D759 context schema");
 	oneOf(
 		context.nextRequiredPhase,
 		["inspection", "exact-mutation", "workspace-diff", "focused-validation", "hidden-verifier"],

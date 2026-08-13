@@ -36,6 +36,7 @@ import {
 	D745_PHASE_SCOPED_CONTEXT_SCHEMA,
 	D748_FORWARD_PHASE_CONTEXT_SCHEMA,
 	D748_MAX_COMPLETION_CONTEXTS_PER_RUN,
+	D759_HIDDEN_VERIFIER_CORRECTION_CONTEXT_SCHEMA,
 	deriveD722GraphArmResultFromEvidence,
 	validateD722GraphEffectEvidence,
 } from "./d722-graph-native-effect-runtime.js";
@@ -231,13 +232,17 @@ function completionContext(value: unknown, path: string): D722GraphCompletionCon
 		(candidate.schemaVersion === D748_FORWARD_PHASE_CONTEXT_SCHEMA &&
 			(candidate.reason === "premature-structured-final" ||
 				candidate.reason === "objective-phase-policy-violation" ||
+				candidate.reason === "objective-phase-advanced")) ||
+		(candidate.schemaVersion === D759_HIDDEN_VERIFIER_CORRECTION_CONTEXT_SCHEMA &&
+			(candidate.reason === "hidden-verifier-failed" ||
 				candidate.reason === "objective-phase-advanced"));
 	if (
 		!contextCoordinatesValid ||
 		(candidate.requiredDisposition !== "tool-intents" &&
 			candidate.requiredDisposition !== "structured-final") ||
 		(candidate.requiredDisposition === "structured-final" &&
-			(candidate.schemaVersion !== D748_FORWARD_PHASE_CONTEXT_SCHEMA ||
+			((candidate.schemaVersion !== D748_FORWARD_PHASE_CONTEXT_SCHEMA &&
+				candidate.schemaVersion !== D759_HIDDEN_VERIFIER_CORRECTION_CONTEXT_SCHEMA) ||
 				candidate.nextRequiredPhase !== "hidden-verifier"))
 	)
 		throw new TypeError("D722 completion context coordinates drifted");
@@ -246,7 +251,8 @@ function completionContext(value: unknown, path: string): D722GraphCompletionCon
 		`${path}.remainingCompletionContexts`,
 		{
 			max:
-				candidate.schemaVersion === D748_FORWARD_PHASE_CONTEXT_SCHEMA
+				candidate.schemaVersion === D748_FORWARD_PHASE_CONTEXT_SCHEMA ||
+				candidate.schemaVersion === D759_HIDDEN_VERIFIER_CORRECTION_CONTEXT_SCHEMA
 					? D748_MAX_COMPLETION_CONTEXTS_PER_RUN - 1
 					: D745_MAX_COMPLETION_CONTEXTS_PER_RUN - 1,
 		},
@@ -254,6 +260,7 @@ function completionContext(value: unknown, path: string): D722GraphCompletionCon
 	if (
 		candidate.schemaVersion !== D745_PHASE_SCOPED_CONTEXT_SCHEMA &&
 		candidate.schemaVersion !== D748_FORWARD_PHASE_CONTEXT_SCHEMA &&
+		candidate.schemaVersion !== D759_HIDDEN_VERIFIER_CORRECTION_CONTEXT_SCHEMA &&
 		remainingCompletionContexts !== 0
 	)
 		throw new TypeError("D722 legacy completion context count drifted");
@@ -379,10 +386,13 @@ function deriveContexts(
 		const phaseScoped = runContexts.some(
 			(context) =>
 				context.schemaVersion === D745_PHASE_SCOPED_CONTEXT_SCHEMA ||
-				context.schemaVersion === D748_FORWARD_PHASE_CONTEXT_SCHEMA,
+				context.schemaVersion === D748_FORWARD_PHASE_CONTEXT_SCHEMA ||
+				context.schemaVersion === D759_HIDDEN_VERIFIER_CORRECTION_CONTEXT_SCHEMA,
 		);
 		const forwardPhase = runContexts.some(
-			(context) => context.schemaVersion === D748_FORWARD_PHASE_CONTEXT_SCHEMA,
+			(context) =>
+				context.schemaVersion === D748_FORWARD_PHASE_CONTEXT_SCHEMA ||
+				context.schemaVersion === D759_HIDDEN_VERIFIER_CORRECTION_CONTEXT_SCHEMA,
 		);
 		if (
 			runContexts.length >
@@ -398,7 +408,7 @@ function deriveContexts(
 			new Set(
 				runContexts.map((context) =>
 					forwardPhase
-						? `${context.reason}:${context.nextRequiredPhase}`
+						? `${context.schemaVersion}:${context.reason}:${context.nextRequiredPhase}`
 						: context.nextRequiredPhase,
 				),
 			).size !== runContexts.length
@@ -498,22 +508,26 @@ function deriveContexts(
 						? (rejected?.result.effectKind === "provider-request" &&
 								rejected.result.status === "tool-intents") ||
 							saturationTrigger
-						: rejected?.result.effectKind === "tool-action" &&
-							rejected.result.status === "succeeded" &&
-							((rejected.request.phaseBefore === "none" &&
-								(rejected.result.toolRef === "read-file" ||
-									rejected.result.toolRef === "search-repository") &&
-								context.nextRequiredPhase === "exact-mutation") ||
-								(rejected.request.phaseBefore === "inspection" &&
-									rejected.result.toolRef === "replace-exact" &&
-									context.nextRequiredPhase === "workspace-diff") ||
-								(rejected.request.phaseBefore === "exact-mutation" &&
-									rejected.result.toolRef === "workspace-diff" &&
-									rejected.result.nonEmptyDiff &&
-									context.nextRequiredPhase === "focused-validation") ||
-								(rejected.request.phaseBefore === "workspace-diff" &&
-									rejected.result.toolRef === "focused-validation" &&
-									context.nextRequiredPhase === "hidden-verifier"));
+						: context.reason === "hidden-verifier-failed"
+							? rejected?.result.effectKind === "hidden-verifier" &&
+								rejected.result.status === "failed" &&
+								context.nextRequiredPhase === "exact-mutation"
+							: rejected?.result.effectKind === "tool-action" &&
+								rejected.result.status === "succeeded" &&
+								((rejected.request.phaseBefore === "none" &&
+									(rejected.result.toolRef === "read-file" ||
+										rejected.result.toolRef === "search-repository") &&
+									context.nextRequiredPhase === "exact-mutation") ||
+									(rejected.request.phaseBefore === "inspection" &&
+										rejected.result.toolRef === "replace-exact" &&
+										context.nextRequiredPhase === "workspace-diff") ||
+									(rejected.request.phaseBefore === "exact-mutation" &&
+										rejected.result.toolRef === "workspace-diff" &&
+										rejected.result.nonEmptyDiff &&
+										context.nextRequiredPhase === "focused-validation") ||
+									(rejected.request.phaseBefore === "workspace-diff" &&
+										rejected.result.toolRef === "focused-validation" &&
+										context.nextRequiredPhase === "hidden-verifier"));
 			if (
 				rejected === undefined ||
 				contextFact === undefined ||

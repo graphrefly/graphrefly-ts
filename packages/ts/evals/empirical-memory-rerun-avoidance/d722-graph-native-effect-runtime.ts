@@ -39,6 +39,8 @@ export const D745_PHASE_SCOPED_RECOVERY_POLICY_REVISION =
 	"graphrefly.b112.d745.phase-scoped-objective-recovery-policy.v1" as const;
 export const D748_FORWARD_PHASE_CONTINUATION_POLICY_REVISION =
 	"graphrefly.b112.d748.forward-phase-continuation-policy.v1" as const;
+export const D759_HIDDEN_VERIFIER_CORRECTION_POLICY_REVISION =
+	"graphrefly.b112.d759.hidden-verifier-correction-policy.v1" as const;
 export const D740_MAX_PRE_MUTATION_INSPECTION_EFFECTS = 6;
 export const D737_OBJECTIVE_PHASE_CONTEXT_SCHEMA =
 	"graphrefly.b112.d737.objective-phase-completion-context.v1" as const;
@@ -46,6 +48,8 @@ export const D745_PHASE_SCOPED_CONTEXT_SCHEMA =
 	"graphrefly.b112.d745.phase-scoped-objective-completion-context.v1" as const;
 export const D748_FORWARD_PHASE_CONTEXT_SCHEMA =
 	"graphrefly.b112.d748.forward-phase-completion-context.v1" as const;
+export const D759_HIDDEN_VERIFIER_CORRECTION_CONTEXT_SCHEMA =
+	"graphrefly.b112.d759.hidden-verifier-correction-context.v1" as const;
 export const D722_EFFECT_RUNTIME_REVISION =
 	"graphrefly.b112.d722.graph-native-effect-runtime.v1" as const;
 export const D722_EFFECT_EVIDENCE_SCHEMA =
@@ -53,6 +57,8 @@ export const D722_EFFECT_EVIDENCE_SCHEMA =
 export const D722_MAX_COMPLETION_CONTEXTS_PER_RUN = 1;
 export const D745_MAX_COMPLETION_CONTEXTS_PER_RUN = 4;
 export const D748_MAX_COMPLETION_CONTEXTS_PER_RUN = 8;
+export const D759_MAX_HIDDEN_VERIFIER_CORRECTIONS_PER_RUN = 1;
+export const D759_MAX_PROVIDER_REQUESTS_PER_RUN = 10;
 
 function boundedArray(value: unknown, path: string, max: number): readonly unknown[] {
 	if (!Array.isArray(value) || value.length > max)
@@ -105,11 +111,13 @@ export interface D722GraphCompletionContextV1 {
 		| typeof D722_COMPLETION_CONTEXT_SCHEMA
 		| typeof D737_OBJECTIVE_PHASE_CONTEXT_SCHEMA
 		| typeof D745_PHASE_SCOPED_CONTEXT_SCHEMA
-		| typeof D748_FORWARD_PHASE_CONTEXT_SCHEMA;
+		| typeof D748_FORWARD_PHASE_CONTEXT_SCHEMA
+		| typeof D759_HIDDEN_VERIFIER_CORRECTION_CONTEXT_SCHEMA;
 	readonly reason:
 		| "premature-structured-final"
 		| "objective-phase-policy-violation"
-		| "objective-phase-advanced";
+		| "objective-phase-advanced"
+		| "hidden-verifier-failed";
 	readonly runSequence: number;
 	readonly issuedRequestDigest: string;
 	readonly rejectedRequestDigest: string;
@@ -307,7 +315,8 @@ export interface D737GraphObjectivePhaseRecoveryPolicyV1 {
 	readonly revision:
 		| typeof D737_OBJECTIVE_PHASE_RECOVERY_POLICY_REVISION
 		| typeof D745_PHASE_SCOPED_RECOVERY_POLICY_REVISION
-		| typeof D748_FORWARD_PHASE_CONTINUATION_POLICY_REVISION;
+		| typeof D748_FORWARD_PHASE_CONTINUATION_POLICY_REVISION
+		| typeof D759_HIDDEN_VERIFIER_CORRECTION_POLICY_REVISION;
 }
 
 export interface D726ArmLocalTerminalProviderPolicyV1 {
@@ -342,6 +351,7 @@ interface RuntimeState {
 	readonly objectivePhaseRecoveryEnabled: boolean;
 	readonly phaseScopedRecoveryEnabled: boolean;
 	readonly forwardPhaseContinuationEnabled: boolean;
+	readonly hiddenVerifierCorrectionEnabled: boolean;
 }
 
 interface ProjectionState {
@@ -386,6 +396,8 @@ interface ProjectionState {
 	objectivePhaseRecoveryEnabled: boolean;
 	phaseScopedRecoveryEnabled: boolean;
 	forwardPhaseContinuationEnabled: boolean;
+	hiddenVerifierCorrectionEnabled: boolean;
+	hiddenVerifierCorrectionsIssued: number;
 	pendingForwardPhaseContext: boolean;
 	pendingForwardPhaseTriggerFact: D720AdmittedEffectFactV1 | null;
 	budgetState: D719CleanBudgetStateV1;
@@ -468,6 +480,28 @@ function completionContextLimit(state: ProjectionState): number {
 		: D722_MAX_COMPLETION_CONTEXTS_PER_RUN;
 }
 
+function providerRequestLimit(state: ProjectionState): number {
+	return state.hiddenVerifierCorrectionEnabled
+		? D759_MAX_PROVIDER_REQUESTS_PER_RUN
+		: D744_MAX_PROVIDER_REQUESTS_PER_RUN;
+}
+
+function hasHiddenVerifierCorrectionHeadroom(
+	state: ProjectionState,
+	budgetContext: D722GraphBudgetContextV1 | null,
+): budgetContext is D722GraphBudgetContextV1 {
+	if (budgetContext === null) return false;
+	const remainingRequests = budgetContext.limits.maxRequests - state.budgetState.requests;
+	const remainingCost = budgetContext.limits.maxCostMicrousd - state.budgetState.costMicrousd;
+	const remainingElapsed = budgetContext.limits.maxElapsedMs - state.budgetState.elapsedMs;
+	return (
+		remainingRequests >= 4 &&
+		remainingCost >= budgetContext.providerMaxCostMicrousd * 4 &&
+		remainingElapsed >= budgetContext.providerMaxElapsedMs * 4 &&
+		state.effectSequence + 9 < D720_MAX_EFFECT_FACTS_PER_RUN
+	);
+}
+
 function canIssueCompletionContext(state: ProjectionState): boolean {
 	const required = nextRequiredPhase(state);
 	if (required === "complete" || required === "hidden-verifier") return false;
@@ -516,13 +550,16 @@ function graphCompletionContext(
 		remainingAdmittedBounds,
 	});
 	const material = strictSnapshot({
-		schemaVersion: state.forwardPhaseContinuationEnabled
-			? D748_FORWARD_PHASE_CONTEXT_SCHEMA
-			: state.phaseScopedRecoveryEnabled
-				? D745_PHASE_SCOPED_CONTEXT_SCHEMA
-				: reason === "premature-structured-final"
-					? D722_COMPLETION_CONTEXT_SCHEMA
-					: D737_OBJECTIVE_PHASE_CONTEXT_SCHEMA,
+		schemaVersion:
+			state.hiddenVerifierCorrectionsIssued > 0
+				? D759_HIDDEN_VERIFIER_CORRECTION_CONTEXT_SCHEMA
+				: state.forwardPhaseContinuationEnabled
+					? D748_FORWARD_PHASE_CONTEXT_SCHEMA
+					: state.phaseScopedRecoveryEnabled
+						? D745_PHASE_SCOPED_CONTEXT_SCHEMA
+						: reason === "premature-structured-final"
+							? D722_COMPLETION_CONTEXT_SCHEMA
+							: D737_OBJECTIVE_PHASE_CONTEXT_SCHEMA,
 		reason,
 		runSequence,
 		issuedRequestDigest,
@@ -973,9 +1010,36 @@ function nextEffect(
 		state.verifierAttempted = true;
 		state.verifierPassed = lastFact.result.status === "passed";
 		state.phase = state.verifierPassed ? "hidden-verifier-passed" : "hidden-verifier-attempted";
-		request = requestMaterial(state, runSequence, issuedRequestDigest, "cleanup", {
-			logicalMaterial: { issuedRequestDigest, effect: "cleanup" },
-		});
+		if (
+			!state.verifierPassed &&
+			state.hiddenVerifierCorrectionEnabled &&
+			state.hiddenVerifierCorrectionsIssued < D759_MAX_HIDDEN_VERIFIER_CORRECTIONS_PER_RUN &&
+			state.completionContextsIssued < completionContextLimit(state) &&
+			state.providerRequestCount + 4 <= providerRequestLimit(state) &&
+			hasHiddenVerifierCorrectionHeadroom(state, budgetContext)
+		) {
+			state.hiddenVerifierCorrectionsIssued += 1;
+			state.mutationObserved = false;
+			state.diffObserved = false;
+			state.validationAttempted = false;
+			state.validationPassed = false;
+			state.validationWorkspaceStateDigest = null;
+			state.verifierAttempted = false;
+			state.verifierPassed = false;
+			state.phase = state.inspectionObserved ? "inspection" : "none";
+			request = objectiveContinuationRequest(
+				state,
+				budgetContext,
+				runSequence,
+				issuedRequestDigest,
+				lastFact,
+				"hidden-verifier-failed",
+			);
+		} else {
+			request = requestMaterial(state, runSequence, issuedRequestDigest, "cleanup", {
+				logicalMaterial: { issuedRequestDigest, effect: "cleanup" },
+			});
+		}
 	} else {
 		state.cleanupStatus = lastFact.result.status;
 		state.cleanupEvidenceDigest = lastFact.result.evidenceDigest;
@@ -985,7 +1049,7 @@ function nextEffect(
 	if (
 		request?.effectKind === "provider-request" &&
 		state.objectivePhaseRecoveryEnabled &&
-		state.providerRequestCount >= D744_MAX_PROVIDER_REQUESTS_PER_RUN
+		state.providerRequestCount >= providerRequestLimit(state)
 	) {
 		state.stoppedReason = "arm-provider-turn-bound-exhausted";
 		state.pendingTools = [];
@@ -1069,6 +1133,8 @@ function initialProjectionState(): ProjectionState {
 		objectivePhaseRecoveryEnabled: false,
 		phaseScopedRecoveryEnabled: false,
 		forwardPhaseContinuationEnabled: false,
+		hiddenVerifierCorrectionEnabled: false,
+		hiddenVerifierCorrectionsIssued: 0,
 		pendingForwardPhaseContext: false,
 		pendingForwardPhaseTriggerFact: null,
 		budgetState: Object.freeze({ requests: 0, retryWaits: 0, costMicrousd: 0, elapsedMs: 0 }),
@@ -1103,6 +1169,12 @@ export function createD748GraphForwardPhaseContinuationPolicy(): D737GraphObject
 	return policy;
 }
 
+export function createD759GraphHiddenVerifierCorrectionPolicy(): D737GraphObjectivePhaseRecoveryPolicyV1 {
+	const policy = Object.freeze({ revision: D759_HIDDEN_VERIFIER_CORRECTION_POLICY_REVISION });
+	constructedObjectivePhaseRecoveryPolicies.add(policy);
+	return policy;
+}
+
 function createGraphEffectRuntime(
 	inputValue: {
 		readonly request: AgentRequestIssued<D719CleanRequestInput>;
@@ -1112,6 +1184,7 @@ function createGraphEffectRuntime(
 		readonly objectivePhaseRecoveryEnabled?: boolean;
 		readonly phaseScopedRecoveryEnabled?: boolean;
 		readonly forwardPhaseContinuationEnabled?: boolean;
+		readonly hiddenVerifierCorrectionEnabled?: boolean;
 	},
 	mode: "d720" | "d722",
 ): D720GraphEffectRuntimeV1 | D722GraphEffectRuntimeV1 {
@@ -1135,6 +1208,9 @@ function createGraphEffectRuntime(
 					...(Object.hasOwn(input, "forwardPhaseContinuationEnabled")
 						? ["forwardPhaseContinuationEnabled" as const]
 						: []),
+					...(Object.hasOwn(input, "hiddenVerifierCorrectionEnabled")
+						? ["hiddenVerifierCorrectionEnabled" as const]
+						: []),
 				]
 			: ["request", "runSequence"],
 		"d720.effectRuntime.create",
@@ -1156,6 +1232,7 @@ function createGraphEffectRuntime(
 	projectionState.objectivePhaseRecoveryEnabled = input.objectivePhaseRecoveryEnabled === true;
 	projectionState.phaseScopedRecoveryEnabled = input.phaseScopedRecoveryEnabled === true;
 	projectionState.forwardPhaseContinuationEnabled = input.forwardPhaseContinuationEnabled === true;
+	projectionState.hiddenVerifierCorrectionEnabled = input.hiddenVerifierCorrectionEnabled === true;
 	if (budgetContext !== null) projectionState.budgetState = budgetContext.initialState;
 	const decisions: D720EffectDecisionV1[] = [];
 	const decisionNode = owner.node<D720EffectDecisionV1>(
@@ -1214,6 +1291,7 @@ function createGraphEffectRuntime(
 		objectivePhaseRecoveryEnabled: input.objectivePhaseRecoveryEnabled === true,
 		phaseScopedRecoveryEnabled: input.phaseScopedRecoveryEnabled === true,
 		forwardPhaseContinuationEnabled: input.forwardPhaseContinuationEnabled === true,
+		hiddenVerifierCorrectionEnabled: input.hiddenVerifierCorrectionEnabled === true,
 	});
 	return runtime;
 }
@@ -1281,10 +1359,17 @@ export function createD722GraphEffectRuntime(inputValue: {
 				(input.objectivePhaseRecoveryPolicy as D737GraphObjectivePhaseRecoveryPolicyV1 | undefined)
 					?.revision === D745_PHASE_SCOPED_RECOVERY_POLICY_REVISION ||
 				(input.objectivePhaseRecoveryPolicy as D737GraphObjectivePhaseRecoveryPolicyV1 | undefined)
-					?.revision === D748_FORWARD_PHASE_CONTINUATION_POLICY_REVISION,
+					?.revision === D748_FORWARD_PHASE_CONTINUATION_POLICY_REVISION ||
+				(input.objectivePhaseRecoveryPolicy as D737GraphObjectivePhaseRecoveryPolicyV1 | undefined)
+					?.revision === D759_HIDDEN_VERIFIER_CORRECTION_POLICY_REVISION,
 			forwardPhaseContinuationEnabled:
 				(input.objectivePhaseRecoveryPolicy as D737GraphObjectivePhaseRecoveryPolicyV1 | undefined)
-					?.revision === D748_FORWARD_PHASE_CONTINUATION_POLICY_REVISION,
+					?.revision === D748_FORWARD_PHASE_CONTINUATION_POLICY_REVISION ||
+				(input.objectivePhaseRecoveryPolicy as D737GraphObjectivePhaseRecoveryPolicyV1 | undefined)
+					?.revision === D759_HIDDEN_VERIFIER_CORRECTION_POLICY_REVISION,
+			hiddenVerifierCorrectionEnabled:
+				(input.objectivePhaseRecoveryPolicy as D737GraphObjectivePhaseRecoveryPolicyV1 | undefined)
+					?.revision === D759_HIDDEN_VERIFIER_CORRECTION_POLICY_REVISION,
 		},
 		"d722",
 	) as D722GraphEffectRuntimeV1;

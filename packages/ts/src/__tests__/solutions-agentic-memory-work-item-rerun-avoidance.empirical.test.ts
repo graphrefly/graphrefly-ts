@@ -999,6 +999,15 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD758GraphNativeLive ||
 				allowsD758TransportDiagnosticAdapter ||
 				allowsD758ImplementationManifest;
+			const allowsD759HiddenVerifierCorrection = file.endsWith(
+				"d759-hidden-verifier-correction-qualification.ts",
+			);
+			const allowsD759ImplementationManifest = file.endsWith("d759-implementation-manifest.ts");
+			const allowsD759PrivateRunner = file.endsWith("run-d759-no-network-pre-live.ts");
+			const allowsD759Qualification =
+				allowsD759HiddenVerifierCorrection ||
+				allowsD759ImplementationManifest ||
+				allowsD759PrivateRunner;
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -1061,6 +1070,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD756ImplementationManifest ||
 				allowsD757Qualification ||
 				allowsD758LiveQualification ||
+				allowsD759Qualification ||
 				allowsD732DispatchClaim ||
 				allowsD720CleanGraphNativeEval ||
 				allowsD721ProviderCapablePreLive ||
@@ -1170,6 +1180,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 									allowsD734InjectedFixture ||
 									allowsD756Qualification ||
 									allowsD757Qualification ||
+									allowsD759Qualification ||
 									allowsD735ProviderPreflight ||
 									allowsD725RealProviderIntegration ||
 									allowsD725InjectedQualification ||
@@ -1270,6 +1281,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD753GraphNativeLive ||
 							allowsD754GraphNativeLive ||
 							allowsD758GraphNativeLive ||
+							allowsD759HiddenVerifierCorrection ||
 							allowsD757NamedToolPreLive ||
 							allowsD732DispatchClaim) &&
 							specifier === "node:fs") ||
@@ -1300,7 +1312,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD752TransportDiagnosticQualification ||
 							allowsD753LiveQualification ||
 							allowsD754LiveQualification ||
-							allowsD758LiveQualification) &&
+							allowsD758LiveQualification ||
+							allowsD759Qualification) &&
 							d720CleanGraphNativeImports.has(specifier)) ||
 						(allowsD683SourceAudit && specifier === "typescript") ||
 						specifier.startsWith("./")
