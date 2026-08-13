@@ -1047,6 +1047,19 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d767-retry-exhaustion-qualification.ts") ||
 				file.endsWith("d767-implementation-manifest.ts") ||
 				file.endsWith("run-d767-no-network-pre-live.ts");
+			const allowsD771CriterionLowering = file.endsWith("d771-criterion-continuation-lowering.ts");
+			const allowsD771LoweringEvidence = file.endsWith("d771-lowering-evidence-authority.ts");
+			const allowsD771ImplementationManifest = file.endsWith("d771-implementation-manifest.ts");
+			const allowsD771PrelivePersistence =
+				file.endsWith("d771-pre-live-qualification.ts") ||
+				file.endsWith("d771-graph-completion-memory-insight.ts") ||
+				allowsD771ImplementationManifest ||
+				file.endsWith("run-d771-no-network-pre-live.ts");
+			const allowsD771Qualification =
+				allowsD771CriterionLowering ||
+				allowsD771LoweringEvidence ||
+				file.endsWith("d771-arm-aware-positive-gate.ts") ||
+				allowsD771PrelivePersistence;
 			const allowsD766GraphNativeLive =
 				file.endsWith("d766-graph-native-live.ts") ||
 				file.endsWith("d766-single-use-dispatch-claim.ts");
@@ -1123,6 +1136,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD759Qualification ||
 				allowsD761Qualification ||
 				allowsD767Qualification ||
+				allowsD771PrelivePersistence ||
 				allowsD766GraphNativeLive ||
 				allowsD768GraphNativeLive ||
 				allowsD732DispatchClaim ||
@@ -1237,6 +1251,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 									allowsD757Qualification ||
 									allowsD759Qualification ||
 									allowsD761Qualification ||
+									allowsD771Qualification ||
 									allowsD735ProviderPreflight ||
 									allowsD725RealProviderIntegration ||
 									allowsD725InjectedQualification ||
@@ -1343,6 +1358,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD761PublicSemanticValidation ||
 							allowsD767GraphClosure ||
 							allowsD767Qualification ||
+							allowsD771PrelivePersistence ||
 							allowsD766GraphNativeLive ||
 							allowsD768GraphNativeLive ||
 							allowsD757NamedToolPreLive ||
@@ -1352,7 +1368,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsOutermostLiveOperator ||
 							allowsD751PrivateRunner ||
 							allowsD752PrivateRunner ||
-							file.endsWith("run-d767-no-network-pre-live.ts")) &&
+							file.endsWith("run-d767-no-network-pre-live.ts") ||
+							allowsD771ImplementationManifest) &&
 							specifier === "node:url") ||
 						specifier === "../../src/json/codec.js" ||
 						(allowsMatchedBlockMemory && matchedBlockMemoryImports.has(specifier)) ||
@@ -1384,6 +1401,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD759Qualification ||
 							allowsD761Qualification ||
 							allowsD767Qualification ||
+							allowsD771Qualification ||
 							allowsD766GraphNativeLive ||
 							allowsD768GraphNativeLive) &&
 							d720CleanGraphNativeImports.has(specifier)) ||
