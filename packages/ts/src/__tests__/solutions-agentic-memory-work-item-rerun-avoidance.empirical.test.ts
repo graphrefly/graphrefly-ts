@@ -1036,6 +1036,9 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD761GraphClosure ||
 				allowsD761ImplementationManifest ||
 				allowsD761PrivateRunner;
+			const allowsD766GraphNativeLive =
+				file.endsWith("d766-graph-native-live.ts") ||
+				file.endsWith("d766-single-use-dispatch-claim.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -1101,6 +1104,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD760LiveQualification ||
 				allowsD759Qualification ||
 				allowsD761Qualification ||
+				allowsD766GraphNativeLive ||
 				allowsD732DispatchClaim ||
 				allowsD720CleanGraphNativeEval ||
 				allowsD721ProviderCapablePreLive ||
@@ -1317,6 +1321,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD759HiddenVerifierCorrection ||
 							allowsD761GraphClosure ||
 							allowsD761PublicSemanticValidation ||
+							allowsD766GraphNativeLive ||
 							allowsD757NamedToolPreLive ||
 							allowsD732DispatchClaim) &&
 							specifier === "node:fs") ||
@@ -1352,7 +1357,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD758LiveQualification ||
 							allowsD760LiveQualification ||
 							allowsD759Qualification ||
-							allowsD761Qualification) &&
+							allowsD761Qualification ||
+							allowsD766GraphNativeLive) &&
 							d720CleanGraphNativeImports.has(specifier)) ||
 						(allowsD683SourceAudit && specifier === "typescript") ||
 						specifier.startsWith("./")
