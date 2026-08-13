@@ -1079,6 +1079,12 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d773-private-real-route-adapter.ts") ||
 				file.endsWith("d773-single-use-dispatch-claim.ts") ||
 				file.endsWith("run-d773-live.ts");
+			const allowsD774PreLive =
+				file.endsWith("d774-provider-result-route-authority.ts") ||
+				file.endsWith("d774-graph-native-eval.ts") ||
+				file.endsWith("d774-pre-live-qualification.ts") ||
+				file.endsWith("d774-implementation-manifest.ts") ||
+				file.endsWith("run-d774-no-network-pre-live.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -1262,6 +1268,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 									allowsD759Qualification ||
 									allowsD761Qualification ||
 									allowsD771Qualification ||
+									allowsD774PreLive ||
 									allowsD735ProviderPreflight ||
 									allowsD725RealProviderIntegration ||
 									allowsD725InjectedQualification ||
@@ -1369,6 +1376,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD767GraphClosure ||
 							allowsD767Qualification ||
 							allowsD771PrelivePersistence ||
+							allowsD774PreLive ||
 							allowsD766GraphNativeLive ||
 							allowsD768GraphNativeLive ||
 							allowsD773GraphNativeLive ||
@@ -1380,8 +1388,11 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD751PrivateRunner ||
 							allowsD752PrivateRunner ||
 							file.endsWith("run-d767-no-network-pre-live.ts") ||
-							allowsD771ImplementationManifest) &&
+							allowsD771ImplementationManifest ||
+							allowsD774PreLive) &&
 							specifier === "node:url") ||
+						(allowsD774PreLive &&
+							(specifier === "node:fs/promises" || specifier === "node:path")) ||
 						specifier === "../../src/json/codec.js" ||
 						(allowsMatchedBlockMemory && matchedBlockMemoryImports.has(specifier)) ||
 						(allowsD682MechanicalRecipe && d682MechanicalRecipeImports.has(specifier)) ||
@@ -1413,6 +1424,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD761Qualification ||
 							allowsD767Qualification ||
 							allowsD771Qualification ||
+							allowsD774PreLive ||
 							allowsD766GraphNativeLive ||
 							allowsD768GraphNativeLive ||
 							allowsD773GraphNativeLive) &&
