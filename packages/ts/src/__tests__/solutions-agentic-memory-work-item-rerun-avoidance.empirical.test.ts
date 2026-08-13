@@ -1036,6 +1036,17 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD761GraphClosure ||
 				allowsD761ImplementationManifest ||
 				allowsD761PrivateRunner;
+			const allowsD767CleanGraphLedger = file.endsWith("d767-clean-graph-ledger.ts");
+			const allowsD767GraphClosure =
+				allowsD767CleanGraphLedger ||
+				file.endsWith("d767-graph-native-effect-runtime.ts") ||
+				file.endsWith("d767-graph-completion-memory-insight.ts") ||
+				file.endsWith("d767-graph-native-eval.ts");
+			const allowsD767Qualification =
+				allowsD767GraphClosure ||
+				file.endsWith("d767-retry-exhaustion-qualification.ts") ||
+				file.endsWith("d767-implementation-manifest.ts") ||
+				file.endsWith("run-d767-no-network-pre-live.ts");
 			const allowsD766GraphNativeLive =
 				file.endsWith("d766-graph-native-live.ts") ||
 				file.endsWith("d766-single-use-dispatch-claim.ts");
@@ -1104,6 +1115,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD760LiveQualification ||
 				allowsD759Qualification ||
 				allowsD761Qualification ||
+				allowsD767Qualification ||
 				allowsD766GraphNativeLive ||
 				allowsD732DispatchClaim ||
 				allowsD720CleanGraphNativeEval ||
@@ -1321,6 +1333,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD759HiddenVerifierCorrection ||
 							allowsD761GraphClosure ||
 							allowsD761PublicSemanticValidation ||
+							allowsD767GraphClosure ||
+							allowsD767Qualification ||
 							allowsD766GraphNativeLive ||
 							allowsD757NamedToolPreLive ||
 							allowsD732DispatchClaim) &&
@@ -1328,7 +1342,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 						((allowsD691HistoricalTransferOperator ||
 							allowsOutermostLiveOperator ||
 							allowsD751PrivateRunner ||
-							allowsD752PrivateRunner) &&
+							allowsD752PrivateRunner ||
+							file.endsWith("run-d767-no-network-pre-live.ts")) &&
 							specifier === "node:url") ||
 						specifier === "../../src/json/codec.js" ||
 						(allowsMatchedBlockMemory && matchedBlockMemoryImports.has(specifier)) ||
@@ -1339,7 +1354,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							d716GraphNativeImports.has(specifier)) ||
 						((allowsD719GraphNativeAuthority ||
 							allowsD719CleanGraphLedger ||
-							allowsD761CleanGraphLedger) &&
+							allowsD761CleanGraphLedger ||
+							allowsD767CleanGraphLedger) &&
 							d716GraphNativeImports.has(specifier)) ||
 						((allowsD720CleanGraphNativeEval ||
 							allowsD720GraphNativeEffectRuntime ||
@@ -1358,6 +1374,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD760LiveQualification ||
 							allowsD759Qualification ||
 							allowsD761Qualification ||
+							allowsD767Qualification ||
 							allowsD766GraphNativeLive) &&
 							d720CleanGraphNativeImports.has(specifier)) ||
 						(allowsD683SourceAudit && specifier === "typescript") ||
