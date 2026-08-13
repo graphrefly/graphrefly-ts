@@ -1070,6 +1070,15 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d768-private-real-route-adapter.ts") ||
 				file.endsWith("d768-single-use-dispatch-claim.ts") ||
 				file.endsWith("run-d768-live.ts");
+			const allowsD773GraphNativeLive =
+				file.endsWith("d773-coordinates.ts") ||
+				file.endsWith("d773-graph-native-live.ts") ||
+				file.endsWith("d773-implementation-manifest.ts") ||
+				file.endsWith("d773-live-positive-gate.ts") ||
+				file.endsWith("d773-live-route-authority.ts") ||
+				file.endsWith("d773-private-real-route-adapter.ts") ||
+				file.endsWith("d773-single-use-dispatch-claim.ts") ||
+				file.endsWith("run-d773-live.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -1139,6 +1148,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD771PrelivePersistence ||
 				allowsD766GraphNativeLive ||
 				allowsD768GraphNativeLive ||
+				allowsD773GraphNativeLive ||
 				allowsD732DispatchClaim ||
 				allowsD720CleanGraphNativeEval ||
 				allowsD721ProviderCapablePreLive ||
@@ -1361,6 +1371,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD771PrelivePersistence ||
 							allowsD766GraphNativeLive ||
 							allowsD768GraphNativeLive ||
+							allowsD773GraphNativeLive ||
 							allowsD757NamedToolPreLive ||
 							allowsD732DispatchClaim) &&
 							specifier === "node:fs") ||
@@ -1403,7 +1414,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD767Qualification ||
 							allowsD771Qualification ||
 							allowsD766GraphNativeLive ||
-							allowsD768GraphNativeLive) &&
+							allowsD768GraphNativeLive ||
+							allowsD773GraphNativeLive) &&
 							d720CleanGraphNativeImports.has(specifier)) ||
 						(allowsD683SourceAudit && specifier === "typescript") ||
 						specifier.startsWith("./")
