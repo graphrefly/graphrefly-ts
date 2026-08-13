@@ -927,6 +927,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				"d734-route-profile-provider-integration.ts",
 			);
 			const allowsD734InjectedFixture = file.endsWith("d734-injected-route-profile-fixture.ts");
+			const allowsD760InjectedFixture = file.endsWith("d760-injected-route-profile-fixture.ts");
 			const allowsD734PreLive = file.endsWith("d734-route-profile-integration-pre-live.ts");
 			const allowsD735ProviderPreflight = file.endsWith("d735-provider-capable-route-preflight.ts");
 			const allowsD735PreLive = file.endsWith("d735-provider-capable-pre-live.ts");
@@ -999,6 +1000,17 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD758GraphNativeLive ||
 				allowsD758TransportDiagnosticAdapter ||
 				allowsD758ImplementationManifest;
+			const allowsD760GraphNativeLive =
+				file.endsWith("d760-graph-native-live.ts") ||
+				file.endsWith("d760-single-use-dispatch-claim.ts");
+			const allowsD760TransportDiagnosticAdapter = file.endsWith(
+				"d760-transport-diagnostic-route-adapter.ts",
+			);
+			const allowsD760ImplementationManifest = file.endsWith("d760-implementation-manifest.ts");
+			const allowsD760LiveQualification =
+				allowsD760GraphNativeLive ||
+				allowsD760TransportDiagnosticAdapter ||
+				allowsD760ImplementationManifest;
 			const allowsD759HiddenVerifierCorrection = file.endsWith(
 				"d759-hidden-verifier-correction-qualification.ts",
 			);
@@ -1070,6 +1082,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD756ImplementationManifest ||
 				allowsD757Qualification ||
 				allowsD758LiveQualification ||
+				allowsD760LiveQualification ||
 				allowsD759Qualification ||
 				allowsD732DispatchClaim ||
 				allowsD720CleanGraphNativeEval ||
@@ -1178,6 +1191,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 									allowsD733OpenRouterGraphTurn ||
 									allowsD734RouteIntegration ||
 									allowsD734InjectedFixture ||
+									allowsD760InjectedFixture ||
 									allowsD756Qualification ||
 									allowsD757Qualification ||
 									allowsD759Qualification ||
@@ -1281,6 +1295,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD753GraphNativeLive ||
 							allowsD754GraphNativeLive ||
 							allowsD758GraphNativeLive ||
+							allowsD760GraphNativeLive ||
 							allowsD759HiddenVerifierCorrection ||
 							allowsD757NamedToolPreLive ||
 							allowsD732DispatchClaim) &&
@@ -1313,6 +1328,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD753LiveQualification ||
 							allowsD754LiveQualification ||
 							allowsD758LiveQualification ||
+							allowsD760LiveQualification ||
 							allowsD759Qualification) &&
 							d720CleanGraphNativeImports.has(specifier)) ||
 						(allowsD683SourceAudit && specifier === "typescript") ||
