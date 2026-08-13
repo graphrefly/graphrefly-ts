@@ -1020,6 +1020,22 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD759HiddenVerifierCorrection ||
 				allowsD759ImplementationManifest ||
 				allowsD759PrivateRunner;
+			const allowsD761PublicSemanticValidation = file.endsWith(
+				"d761-public-semantic-validation-qualification.ts",
+			);
+			const allowsD761CleanGraphLedger = file.endsWith("d761-clean-graph-ledger.ts");
+			const allowsD761GraphClosure =
+				allowsD761CleanGraphLedger ||
+				file.endsWith("d761-graph-native-effect-runtime.ts") ||
+				file.endsWith("d761-graph-completion-memory-insight.ts") ||
+				file.endsWith("d761-graph-native-eval.ts");
+			const allowsD761ImplementationManifest = file.endsWith("d761-implementation-manifest.ts");
+			const allowsD761PrivateRunner = file.endsWith("run-d761-no-network-pre-live.ts");
+			const allowsD761Qualification =
+				allowsD761PublicSemanticValidation ||
+				allowsD761GraphClosure ||
+				allowsD761ImplementationManifest ||
+				allowsD761PrivateRunner;
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -1084,6 +1100,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD758LiveQualification ||
 				allowsD760LiveQualification ||
 				allowsD759Qualification ||
+				allowsD761Qualification ||
 				allowsD732DispatchClaim ||
 				allowsD720CleanGraphNativeEval ||
 				allowsD721ProviderCapablePreLive ||
@@ -1195,6 +1212,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 									allowsD756Qualification ||
 									allowsD757Qualification ||
 									allowsD759Qualification ||
+									allowsD761Qualification ||
 									allowsD735ProviderPreflight ||
 									allowsD725RealProviderIntegration ||
 									allowsD725InjectedQualification ||
@@ -1297,6 +1315,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD758GraphNativeLive ||
 							allowsD760GraphNativeLive ||
 							allowsD759HiddenVerifierCorrection ||
+							allowsD761GraphClosure ||
+							allowsD761PublicSemanticValidation ||
 							allowsD757NamedToolPreLive ||
 							allowsD732DispatchClaim) &&
 							specifier === "node:fs") ||
@@ -1312,7 +1332,9 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 						(allowsD714D715GraphNativeOperator && d714D715GraphNativeImports.has(specifier)) ||
 						((allowsD716GraphNativeCoordinator || allowsD716GraphNativeQualification) &&
 							d716GraphNativeImports.has(specifier)) ||
-						((allowsD719GraphNativeAuthority || allowsD719CleanGraphLedger) &&
+						((allowsD719GraphNativeAuthority ||
+							allowsD719CleanGraphLedger ||
+							allowsD761CleanGraphLedger) &&
 							d716GraphNativeImports.has(specifier)) ||
 						((allowsD720CleanGraphNativeEval ||
 							allowsD720GraphNativeEffectRuntime ||
@@ -1329,7 +1351,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD754LiveQualification ||
 							allowsD758LiveQualification ||
 							allowsD760LiveQualification ||
-							allowsD759Qualification) &&
+							allowsD759Qualification ||
+							allowsD761Qualification) &&
 							d720CleanGraphNativeImports.has(specifier)) ||
 						(allowsD683SourceAudit && specifier === "typescript") ||
 						specifier.startsWith("./")
