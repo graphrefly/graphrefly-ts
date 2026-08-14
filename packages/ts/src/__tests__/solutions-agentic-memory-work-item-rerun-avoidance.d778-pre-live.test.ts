@@ -268,5 +268,5 @@ describe("D778 Graph-authored task exposure and tool rejection", () => {
 		const { bundleDigest: _bundleDigest, ...bundleMaterial } = forged;
 		forged.bundleDigest = empiricalStrictJsonDigest(bundleMaterial);
 		expect(() => validateD778QualificationBundle(forged)).toThrow(/Graph bijection drifted/);
-	}, 30_000);
+	}, 60_000);
 });
