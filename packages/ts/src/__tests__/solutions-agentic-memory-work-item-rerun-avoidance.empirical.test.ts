@@ -1087,12 +1087,17 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d775-private-real-route-adapter.ts") ||
 				file.endsWith("d775-single-use-dispatch-claim.ts") ||
 				file.endsWith("run-d775-live.ts");
-			const allowsD774PreLive =
+			const allowsD774D776PreLive =
 				file.endsWith("d774-provider-result-route-authority.ts") ||
 				file.endsWith("d774-graph-native-eval.ts") ||
 				file.endsWith("d774-pre-live-qualification.ts") ||
 				file.endsWith("d774-implementation-manifest.ts") ||
-				file.endsWith("run-d774-no-network-pre-live.ts");
+				file.endsWith("run-d774-no-network-pre-live.ts") ||
+				file.endsWith("d776-provider-result-route-authority.ts") ||
+				file.endsWith("d776-graph-native-eval.ts") ||
+				file.endsWith("d776-pre-live-qualification.ts") ||
+				file.endsWith("d776-implementation-manifest.ts") ||
+				file.endsWith("run-d776-no-network-pre-live.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -1277,7 +1282,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 									allowsD759Qualification ||
 									allowsD761Qualification ||
 									allowsD771Qualification ||
-									allowsD774PreLive ||
+									allowsD774D776PreLive ||
 									allowsD735ProviderPreflight ||
 									allowsD725RealProviderIntegration ||
 									allowsD725InjectedQualification ||
@@ -1385,7 +1390,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD767GraphClosure ||
 							allowsD767Qualification ||
 							allowsD771PrelivePersistence ||
-							allowsD774PreLive ||
+							allowsD774D776PreLive ||
 							allowsD766GraphNativeLive ||
 							allowsD768GraphNativeLive ||
 							allowsD773GraphNativeLive ||
@@ -1399,9 +1404,9 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD752PrivateRunner ||
 							file.endsWith("run-d767-no-network-pre-live.ts") ||
 							allowsD771ImplementationManifest ||
-							allowsD774PreLive) &&
+							allowsD774D776PreLive) &&
 							specifier === "node:url") ||
-						(allowsD774PreLive &&
+						(allowsD774D776PreLive &&
 							(specifier === "node:fs/promises" || specifier === "node:path")) ||
 						specifier === "../../src/json/codec.js" ||
 						(allowsMatchedBlockMemory && matchedBlockMemoryImports.has(specifier)) ||
@@ -1434,7 +1439,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD761Qualification ||
 							allowsD767Qualification ||
 							allowsD771Qualification ||
-							allowsD774PreLive ||
+							allowsD774D776PreLive ||
 							allowsD766GraphNativeLive ||
 							allowsD768GraphNativeLive ||
 							allowsD773GraphNativeLive ||
