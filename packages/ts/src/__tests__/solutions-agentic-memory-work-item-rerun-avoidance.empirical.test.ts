@@ -1110,6 +1110,12 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d778-pre-live-qualification.ts") ||
 				file.endsWith("d778-implementation-manifest.ts") ||
 				file.endsWith("run-d778-no-network-pre-live.ts");
+			const allowsD779PreLive =
+				file.endsWith("d779-provider-capable-composition.ts") ||
+				file.endsWith("d779-graph-native-eval.ts") ||
+				file.endsWith("d779-pre-live-qualification.ts") ||
+				file.endsWith("d779-implementation-manifest.ts") ||
+				file.endsWith("run-d779-no-network-pre-live.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -1297,6 +1303,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 									allowsD771Qualification ||
 									allowsD774D776PreLive ||
 									allowsD778PreLive ||
+									allowsD779PreLive ||
 									allowsD735ProviderPreflight ||
 									allowsD725RealProviderIntegration ||
 									allowsD725InjectedQualification ||
@@ -1406,6 +1413,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD771PrelivePersistence ||
 							allowsD774D776PreLive ||
 							allowsD778PreLive ||
+							allowsD779PreLive ||
 							allowsD766GraphNativeLive ||
 							allowsD768GraphNativeLive ||
 							allowsD773GraphNativeLive ||
@@ -1422,7 +1430,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD771ImplementationManifest ||
 							allowsD774D776PreLive) &&
 							specifier === "node:url") ||
-						((allowsD774D776PreLive || allowsD778PreLive) &&
+						((allowsD774D776PreLive || allowsD778PreLive || allowsD779PreLive) &&
 							(specifier === "node:fs/promises" || specifier === "node:path")) ||
 						specifier === "../../src/json/codec.js" ||
 						(allowsMatchedBlockMemory && matchedBlockMemoryImports.has(specifier)) ||
@@ -1457,6 +1465,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD771Qualification ||
 							allowsD774D776PreLive ||
 							allowsD778PreLive ||
+							allowsD779PreLive ||
 							allowsD766GraphNativeLive ||
 							allowsD768GraphNativeLive ||
 							allowsD773GraphNativeLive ||
