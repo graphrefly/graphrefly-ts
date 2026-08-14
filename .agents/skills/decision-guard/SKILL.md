@@ -1,6 +1,6 @@
 ---
 name: decision-guard
-description: "GraphReFly clean-slate decision-consistency check. Loads the user's locked values/principles + the unified D-numbered decision log (decisions.jsonl) + recurring decision-process patterns. Use BEFORE answering any question of the form 'is this consistent with our decisions?', 'should I pick option A/B/C?', 'what about this proposed fix?', 'is X part of our scope?', 'is this a regression on a prior decision?'. Triggers: 'decision check', 'drift check', 'align check', 'is this consistent', 'should I pick', 'what about this', 'is this in scope', 'consistency review'."
+description: "GraphReFly clean-slate decision-consistency check. Resolves the federated owner ledgers plus the user's locked values/principles and recurring decision-process patterns. Use BEFORE answering consistency, scope, choice, or regression questions."
 ---
 
 # decision-guard — recall and apply locked decisions, values, invariants (clean-slate)
@@ -20,7 +20,8 @@ expanding a locked slice, or builds on a premise that may be stale.
 
 | Source | Role |
 |---|---|
-| `~/src/graphrefly/decisions/decisions.jsonl` | **Unified D# log** (D1–D33 + DR-*). Canonical record: `{id, layer, question, decision, rationale, supersedes, status}`. |
+| `~/src/graphrefly/authority/ledgers.jsonl` + `authority/federation.mjs` | Owner/class locator and origin-qualified resolver. Run `npm --prefix ~/src/graphrefly run authority:check:workspace` when sibling ledgers matter. |
+| Governing owner ledger | Root durable `~/src/graphrefly/decisions/decisions.jsonl`, root eval/execution `decisions/execution.jsonl`, or the Canvas/Stack/package-local ledger selected by concern ownership. |
 | `~/src/graphrefly/sessions/active/SESSION-clean-slate-redesign.md` (DS-1) | Full design narrative + 8 forced constraints + spec-amendment list + conformance hard scenarios. |
 | `~/src/graphrefly/plan/antipatterns.jsonl` | Lessons / anti-patterns to flag against. |
 | `~/src/graphrefly/spec/rules.jsonl` | Protocol rules — for "does the spec already pin this?". |
@@ -54,7 +55,7 @@ graph-level shared mutable state accessed implicitly (must be explicit node + de
 
 ## Decision-process patterns (apply in order)
 
-1. **Identify the governing D#.** Grep `decisions.jsonl` by `layer`/keyword. Is the proposal within a locked D's scope? Mid-implementation scope expansion = anti-pattern unless promoted to a NEW D#.
+1. **Identify the governing origin-qualified D#.** Resolve through `authority/ledgers.jsonl`, then search the unique owner ledger. Bare historical refs resolve in their ledger origin; new cross-repo refs must use `origin:D#`. Mid-implementation scope expansion = anti-pattern unless promoted to a NEW owner-local record.
 2. **Check the spec.** Does `rules.jsonl` pin the behavior? If yes, follow it — divergence is a bug, not a design call. If silent/ambiguous → real design HALT.
 3. **Verify premise (value 6).** Has the symbol/surface already landed? In a repository with a live
    `.codegraph` index, call `codegraph_explore` first for the exact source, callers/dependents, tests,
@@ -82,9 +83,14 @@ after a decision locks. Invoke when the question is "what should I decide?", not
 
 ## Update protocol
 
-When a new D# locks (after user approval): append to `~/src/graphrefly/decisions/decisions.jsonl`
-(`{id, layer, date, question, decision, rationale, supersedes, status:"locked", session}`), update the
-session's `locks` in `sessions.jsonl`, and run `node ~/src/graphrefly/dashboard/build.mjs --check`.
+When a new D# locks (after user approval): first classify durable vs execution/receipt and select the unique
+owner. Append only to that ledger; use qualified cross-repo refs and never copy the record body upstream.
+Update a root session lock only for a root-owned decision. Run
+`npm --prefix ~/src/graphrefly run authority:check:workspace` and
+`node ~/src/graphrefly/dashboard/build.mjs --check`.
 When a new anti-pattern recurs: append to `~/src/graphrefly/plan/antipatterns.jsonl` (+ a `feedback_*`
 memory if generalizable). When a new durable value surfaces: add a `feedback_<name>.md` memory + a
 pointer line here.
+
+Admission reminder: an approved new record uses the normal owner ledger and must satisfy
+~/src/graphrefly/authority/README.md; historical-only ledgers are relocation destinations.

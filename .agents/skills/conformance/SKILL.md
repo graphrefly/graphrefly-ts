@@ -15,7 +15,7 @@ each runtime passes the same language-agnostic scenarios.
 
 | Source | Role |
 |---|---|
-| `~/src/graphrefly/spec/conformance.jsonl` | The scenario registry: `{id, name, covers:[rule-id], runtimes:{ts,rust,py}, status, note}`. |
+| `~/src/graphrefly/spec/conformance.jsonl` | The scenario definitions and canonical forward `covers` edges. Existing `runtimes` fields are legacy claims, not authoritative evidence under D784. |
 | `~/src/graphrefly/spec/rules.jsonl` | The rules scenarios pin (`covers` must resolve here). |
 | `~/src/graphrefly/spec/protocol.proto` | Protocol-contract IDL (DR-2) — the light structural anchor codegen'd into each runtime's interface stub. |
 | `~/src/graphrefly/formal/*.tla` | TLA+ model (γ); property tests mirror its invariants. |
@@ -47,7 +47,7 @@ conformance.
 For each in-scope `(scenario, runtime)`:
 1. Locate/author the scenario harness in that runtime's conformance test dir (language-agnostic spec → per-runtime adapter; the scenario describes observable wave behavior, not a symbol call).
 2. Run it. Record outcome.
-3. Update `conformance.jsonl` `runtimes.<rt>`: `"todo" | "poc-pass" | "pass" | "fail"`.
+3. Capture the exact runtime, test command, result and source commit. Until the D784 evidence-receipt ledger is separately designed and approved, report that evidence without treating mutable `conformance.jsonl.runtimes.<rt>` as authority or inventing a receipt path.
 4. Mirror the invariant as a property test (fast-check ts ↔ proptest rust ↔ hypothesis py) where the rule is property-shaped (L5-Q2 / D14).
 
 ## Phase 3 — report
@@ -56,13 +56,14 @@ For each in-scope `(scenario, runtime)`:
 |---|---|---|---|---|---|
 
 - **Behavior drift** = same scenario, different observable outcome across runtimes → this is the ONLY kind of parity gap. File it as a substrate bug in the lagging runtime (route fix via `/dev-dispatch` on that package).
-- **Missing scenario** for a rule (rule's `covers_by` empty) → author it (this is the real risk under behavioral parity: untested behavior can drift silently — D24 residual). Flag via `/dashboard` Gaps (uncoveredRules).
+- **Missing scenario** for a current rule (no conformance record whose forward `covers` includes the rule id) → author it (this is the real risk under behavioral parity: untested behavior can drift silently — D24 residual). Coverage is derived; never add a reverse `covers_by` field to the rule. Flag via `/dashboard` Gaps (`uncoveredRules`).
 - **NOT a gap:** a runtime having a different operator set / different sugar / different inspection ergonomics. Those are per-language by design — do not report them.
 
 ## Phase 4 — gate
 
-Run `node ~/src/graphrefly/dashboard/build.mjs --check` (scenario↔rule links intact). For a runtime
-to be declared "conformant", all `status:"required"` scenarios must be `"pass"` on its arm.
+Run `node ~/src/graphrefly/dashboard/build.mjs --check` (scenario↔rule links intact). Do not declare a
+runtime conformant from legacy mutable arm fields alone; authoritative status requires the separately
+approved D784 commit-bound receipt projection.
 
 ## Boundaries
 

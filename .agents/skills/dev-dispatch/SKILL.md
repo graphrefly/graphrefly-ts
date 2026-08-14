@@ -36,7 +36,7 @@ Apply the global `repository-ownership-practice` skill unless `$ARGUMENTS` expli
 three-layer verification, or ownership handoff. Label such work `delivered, not yet ownership-verified`.
 
 ### Workflow floor (non-negotiable)
-- **decision-first**: any architectural lock needs a `D#` in `~/src/graphrefly/decisions/decisions.jsonl` BEFORE code (`/design-review` → user approval → append). Decisions locked ≠ implementation approved — wait for an explicit "implement".
+- **decision-first and owner-first**: any architectural lock needs an origin-qualified `D#` in its unique owner ledger from `~/src/graphrefly/authority/ledgers.jsonl` BEFORE code (`/design-review` → user approval → append). Cross-project/protocol locks stay in root; TypeScript-only product or implementation locks live in `graphrefly-ts:decisions/decisions.jsonl`. Decisions locked ≠ implementation approved — wait for an explicit "implement".
 - **spec-first** (F-NO-IMPL-DEFINED): any wave-protocol behavior change amends `spec/rules.jsonl` + `formal/*.tla` + `spec/conformance.jsonl` FIRST (`/spec-amend`), THEN code. Operators/sugar/inspection are per-language (D6/D24) — NOT spec, skip spec-amend.
 - **no autonomous decisions**: surface spec↔code conflicts; don't silently pick. File-by-file review for multi-file rewrites.
 - **verify premise**: design tables lag code — inspect the named symbols + check landed markers (`plan/phases.jsonl` status/notes) before designing new surface; a stale premise is a HALT.
@@ -66,7 +66,7 @@ merely because it is available.
 Read in parallel (clean-slate authority):
 - `~/src/graphrefly/AGENTS.md` — the single-source authority index (read FIRST).
 - `~/src/graphrefly/spec/rules.jsonl` — the protocol 宪法 (R-* rules); deep-read the rules your change touches.
-- `~/src/graphrefly/decisions/decisions.jsonl` — the unified D# log (or invoke `/decision-guard` to recall the governing D#/values/floor).
+- `~/src/graphrefly/authority/ledgers.jsonl` + the resolved owner ledger — the federated decision authority (or invoke `/decision-guard` to recall the governing origin-qualified D#/values/floor).
 - `~/src/graphrefly/plan/phases.jsonl` — the CSP-* sequencer: find the phase this task belongs to, its `status` (done/impl/design), deps, and note. Read this FIRST among the plan files so you know whether you're on a ready phase or one still gated.
 - `~/src/graphrefly/plan/backlog.jsonl` + `plan/antipatterns.jsonl` — deferred carries (B#) with triggers; anti-patterns to flag against.
 - `~/src/graphrefly/spec/conformance.jsonl` — the behavioral scenarios (C-*) your change must keep green; check the `runtimes` status for the arm you target.

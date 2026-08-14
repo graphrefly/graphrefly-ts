@@ -13,12 +13,12 @@ Per-language packages (`graphrefly-{ts,rust,py}`) implement it; they NEVER defin
 Protocol behavior is **spec-first**. No "implementation defines what happens." Order is fixed:
 
 1. **Amend the spec data** (before any code):
-   - `~/src/graphrefly/spec/rules.jsonl` — add/edit the normative rule (`{id, area, tier?, statement, rationale, status, since:"D#", covers_by:[]}`). Mark `status:"draft"` until conformance + code land, then `"active"`.
+   - `~/src/graphrefly/spec/rules.jsonl` — append a normative rule revision (`{id, revision, area, tier?, statement, rationale, introduced_by:["D#"], activated_by?:["D#"], transition?}`). Rule decision refs are root-context refs because protocol locks are root-owned. Never edit a published revision in place. Use an explicit `transition` (`replace`/`retire`) from a later revision when the trace set changes. Coverage is derived from conformance records' forward `covers` refs; rules do not carry `covers_by`.
    - `~/src/graphrefly/formal/*.tla` (+ MC config) — model the behavior; add the invariant; run TLC. (formalization γ, D14.)
    - `~/src/graphrefly/spec/conformance.jsonl` — add the behavioral scenario(s) that pin the new rule (`covers:[rule-id]`, `runtimes:{ts:"todo",rust:"todo",py:"todo"}`, `status:"required"`).
-2. **Record the decision** if this is a new architectural lock: append a `D#` to `~/src/graphrefly/decisions/decisions.jsonl` (or reference the existing one in `since`).
+2. **Record the decision** if this is a new architectural lock: protocol/cross-project locks are root-owned, so append the approved root `D#` and reference its root-context id from `introduced_by`/`activated_by`. Use `~/src/graphrefly/authority/ledgers.jsonl` to verify the owner rather than copying the decision elsewhere.
 3. **Run the consistency gate:** `node ~/src/graphrefly/dashboard/build.mjs --check` (no broken links/orphans).
-4. **THEN implement** in each language package to make the conformance scenarios pass; flip `runtimes.<lang>` → `"pass"` as each lands. Use `/dev-dispatch` per package.
+4. **THEN implement** in each language package to make the conformance scenarios pass. Use `/dev-dispatch` per package. Until the D784 commit-bound evidence-receipt ledger is separately designed and approved, report exact test/commit evidence but do not present mutable `runtimes.<lang>` fields as authoritative conformance status or invent a receipt path.
 
 ## Closed-set guardrails (do not bypass)
 

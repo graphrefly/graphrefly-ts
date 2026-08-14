@@ -3,7 +3,7 @@
 > **Historical / non-canonical after clean-slate.** Current clean-slate
 > sequencing lives in `~/src/graphrefly/plan/phases.jsonl` and
 > `~/src/graphrefly/plan/backlog.jsonl`; current decisions live in
-> `~/src/graphrefly/decisions/decisions.jsonl`. This file may mention retired
+> the owner ledger resolved by `~/src/graphrefly/authority/ledgers.jsonl`. This file may mention retired
 > root/pure-ts packages, the old port model, structural `Impl` parity, and
 > TS-owned website plans; treat those as history, not current guidance.
 > Retainable Phase 15/16/Parked items were migrated on 2026-07-09 to

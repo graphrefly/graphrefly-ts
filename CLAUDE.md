@@ -5,7 +5,7 @@ not LLM-limited, D1). This repo is the **TypeScript implementation** (`@graphref
 self-contained package (substrate + sugar + operators), **no cross-language peer-deps** (D32).
 
 > **This file points, it does not host.** The language-neutral authority — protocol spec,
-> decisions, design sessions, conformance, formal model — lives in `~/src/graphrefly` (branch
+> cross-project decisions, design sessions, conformance, formal model — lives in `~/src/graphrefly` (branch
 > `clean-slate`). When anything here disagrees with that repo, **that repo wins.** Do not
 > duplicate its content back into this file.
 
@@ -15,7 +15,10 @@ Read `~/src/graphrefly/CLAUDE.md` first — it is the single-source index for th
 
 | Concern | Source of truth |
 |---|---|
-| **Decisions (why)** — unified D# log | `~/src/graphrefly/decisions/decisions.jsonl` (read via `/decision-guard`) |
+| **Decision locator / global resolver** | `~/src/graphrefly/authority/ledgers.jsonl` + `authority/federation.mjs` |
+| **Root language-neutral / cross-project decisions** | `~/src/graphrefly/decisions/decisions.jsonl` |
+| **TypeScript package-local decisions** | `decisions/decisions.jsonl` (`graphrefly-ts:<D#>`) |
+| **Relocated root-origin TypeScript history** | `decisions/root-origin-history.jsonl` (`graphrefly:<D#>`, locator-owned; never for new records) |
 | **Design narrative** — full L0–L6 locks, F-* constraints, flags, spec-amendment list | `~/src/graphrefly/sessions/active/SESSION-clean-slate-redesign.md` (DS-1) |
 | **Protocol rules (宪法)** | `~/src/graphrefly/spec/rules.jsonl` (changed via `/spec-amend`) |
 | **Conformance scenarios (parity)** | `~/src/graphrefly/spec/conformance.jsonl` (driven via `/conformance`) |
@@ -70,10 +73,12 @@ no implement without explicit approval · verify premise before greenfield.
 
 - **spec-first** (F-NO-IMPL-DEFINED): any protocol behavior change → amend `~/src/graphrefly`
   `spec/rules.jsonl` + `formal/*.tla` + `spec/conformance.jsonl` **before** code (`/spec-amend`).
-- **decision-first**: any architectural lock → a `D#` in `~/src/graphrefly/decisions/decisions.jsonl`
-  before code (`/design-review` → user approval → append).
+- **decision-first + owner-first**: `/design-review` → approval → append to the unique owner ledger.
+  Protocol, cross-runtime and cross-project locks stay in `graphrefly`; TypeScript-only package or
+  implementation locks go to `graphrefly-ts:decisions/decisions.jsonl`. Never copy the body between ledgers.
 - **consistency gate**: `node ~/src/graphrefly/dashboard/build.mjs --check` (non-zero on broken
   links / orphans) after touching any spec/decision/plan jsonl.
+  Run `npm --prefix ~/src/graphrefly run authority:check:workspace` after any owner-ledger change.
 
 ## Commands
 
@@ -96,3 +101,6 @@ Project-local skills under `.agents/skills/`:
 - **dev-dispatch** — plan, align with spec, implement, self-test.
 - **qa** — adversarial review, fixes, test + lint + build, doc touch-ups.
 - **design-review** — Q5–Q9 design lens before coding new primitives.
+
+New TypeScript-local decisions must satisfy ~/src/graphrefly/authority/README.md. The
+root-origin-history ledger is relocation-only.

@@ -35,7 +35,7 @@ autonomously. Codegraph does not replace diff review, compiler/typecheck, tests,
 
 Also load the clean-slate context the review must NOT contradict:
 - `~/src/graphrefly/spec/rules.jsonl` — the protocol 宪法 (R-* rules); the behavior authority. Cite R-ids in findings.
-- `~/src/graphrefly/decisions/decisions.jsonl` — the governing D# (or `/decision-guard`); the F-* floor + durable values.
+- `~/src/graphrefly/authority/ledgers.jsonl` + the resolved owner ledger — the governing origin-qualified D# (or `/decision-guard`); the F-* floor + durable values.
 - `~/src/graphrefly/plan/backlog.jsonl` + `plan/antipatterns.jsonl` — **already-acknowledged deferred concerns (B#) and known anti-patterns. DO NOT raise a finding that matches an existing deferred B# or antipattern** — those are accepted. DO raise a finding that *contradicts* a deferred entry's stated scope.
 - `~/src/graphrefly/spec/conformance.jsonl` — the C-* scenarios the change must keep green (+ their `runtimes` status).
 - `~/src/graphrefly/formal/*.tla` — when the change implements a formally-modeled rule, cross-check the impl against the TLC-verified model.
@@ -48,7 +48,7 @@ Launch as parallel Agent calls. Each receives the diff + the context from $ARGUM
 > You are a Blind Hunter code reviewer. Review this diff for: logic errors, off-by-one, race/re-entrancy hazards, resource leaks (unclosed subscriptions, unbounded registries), stale-closure / index-desync bugs, missing error handling, dead/unreachable code, sparse-array holes, security issues. For Python, also check thread/free-threaded safety. Be adversarial — assume bugs exist; trace the suspicious paths concretely. If a suspicious path is actually correct, say so in one line rather than raising noise. Output each finding as: **title** | **severity** (critical/major/minor) | **location** (file:line) | **detail** (trigger + consequence + suggested fix).
 
 **Subagent 2: Edge Case Hunter** — clean-slate spec-aware:
-> You are an Edge Case Hunter reviewing a change against the GraphReFly clean-slate SPEC. The authority is `~/src/graphrefly` jsonl (branch clean-slate) — NOT any docs/*.md or packages/pure-ts (retired port-model; ignore). Read the relevant `spec/rules.jsonl` R-* rules + `decisions/decisions.jsonl` D# for the area under review, and the matching `spec/conformance.jsonl` C-* + `formal/*.tla` model if the change implements a spec-locked behavior.
+> You are an Edge Case Hunter reviewing a change against the GraphReFly clean-slate SPEC. The authority is the root spec plus the federated owner ledgers indexed by `~/src/graphrefly/authority/ledgers.jsonl` (branch clean-slate) — NOT any docs/*.md or packages/pure-ts (retired port-model; ignore). Read the relevant `spec/rules.jsonl` R-* rules + uniquely resolved origin-qualified D# for the area under review, and the matching `spec/conformance.jsonl` C-* + `formal/*.tla` model if the change implements a spec-locked behavior.
 >
 > Check protocol/wave invariants against the rules: message tuples `[[Type,Data?]]`, one array = one wave (R-msg-format); DIRTY-before-DATA in the same wave (R-dirty-before-data); two-phase glitch-free diamond, recompute-once (R-two-phase/R-diamond); ctx.up control-tier-only (R-ctx-up); SENTINEL = absence-of-DATA, never-emitted detector `prevData===undefined` (R-sentinel); equals DATA→RESOLVED only on a single-DATA wave (R-equals); first-run gate (R-first-run-gate); INVALIDATE idempotent + lifecycle-continue (R-invalidate-idempotent); terminal-is-forever / resubscribable reset (R-terminal); ROM/RAM cache (R-rom-ram); PAUSE lockset + modes (R-pause-lockset/R-pause-modes); reentrancy reject (R-reentrancy/D37).
 >
@@ -102,8 +102,8 @@ If a failure exposes a design question, **HALT** and raise it before fixing.
 **Skip if `--skip-docs` was passed.** Update only what behavior/API actually changed; clean-slate docs are jsonl (single source of truth):
 
 - **`spec/rules.jsonl`** — only if the protocol itself was intentionally revised → that is a `/spec-amend`, not a casual edit (amend rules + `formal/*.tla` + `spec/conformance.jsonl` together). Flip a conformance-backed rule `draft → active` once its scenario is green on the reference arm + formal lands (cite the precedent).
-- **`decisions/decisions.jsonl`** — a new architectural lock surfaced by QA → `/design-review` → user approval → append a `D#` (update the DS-1 `locks` in `sessions/sessions.jsonl`).
-- **`spec/conformance.jsonl`** — flip `runtimes.<arm>` → `pass` when an arm lands green; add a new C-* scenario for a new behavioral rule; keep `covers` ↔ rule `covers_by` bidirectionally consistent.
+- **Owner decision ledger** — a new architectural lock surfaced by QA → `/design-review` → user approval → resolve the owner from `authority/ledgers.jsonl` and append an origin-qualified `D#`; update a session's `locks` only when that session owns the narrative.
+- **`spec/conformance.jsonl`** — add a new C-* scenario for a new behavioral rule; `covers` is the sole canonical coverage edge and dashboard views derive the reverse relation. Record exact runtime/test/commit evidence, but until the D784 receipt-ledger design is separately approved do not treat mutable `runtimes.<arm>` fields as authoritative status.
 - **`plan/phases.jsonl`** — update the CSP-* phase `status`/`note` the change advances.
 - **`plan/backlog.jsonl`** — add new deferred items (B# + concrete trigger) surfaced by QA.
 - **`plan/antipatterns.jsonl`** — a recurring anti-pattern (+ a `feedback_*` memory if generalizable).

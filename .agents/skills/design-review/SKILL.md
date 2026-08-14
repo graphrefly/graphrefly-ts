@@ -38,7 +38,7 @@ Codegraph is design evidence, not a correctness gate.
 Read in parallel before reviewing (clean-slate authority):
 
 - `~/src/graphrefly/spec/rules.jsonl` — the R-* rules your target touches (the design invariants).
-- `~/src/graphrefly/decisions/decisions.jsonl` — the governing D# (or `/decision-guard` to recall the floor/values).
+- `~/src/graphrefly/authority/ledgers.jsonl` + the uniquely resolved owner ledger — the governing origin-qualified D# (or `/decision-guard` to recall the floor/values).
 - `~/src/graphrefly/plan/phases.jsonl` — the CSP-* phase the target belongs to (locked vs open-design); if the target isn't sequenced yet, the review's output may need a new phase / backlog entry.
 - `~/src/graphrefly/guide/guide.jsonl` (G-composition) — composition patterns (lazy activation, subscription order, SENTINEL/prevData guards, feedback cycles).
 - `~/src/graphrefly/sessions/active/SESSION-clean-slate-redesign.md` (DS-1) — the F-* constraints + the why behind locks.
@@ -115,7 +115,7 @@ Output a numbered list, each finding with the pattern, where it appears (file:li
 
 ## Phase 3: Decisions log
 
-- **Architectural lock** (clear) → draft a `D#` for `~/src/graphrefly/decisions/decisions.jsonl`; append only after user approval, then update the DS-1 `locks` in `sessions/sessions.jsonl` and run `node ~/src/graphrefly/dashboard/build.mjs --check`.
+- **Architectural lock** (clear) → resolve the owner first, then draft a `D#` for that owner's ledger from `~/src/graphrefly/authority/ledgers.jsonl`; append only after user approval. Update a session's `locks` only when that session actually owns the narrative, use the origin-qualified id when cross-repo, and run `npm --prefix ~/src/graphrefly run authority:check:workspace` plus the dashboard gate.
 - **Deferred / no clear answer** → append to `~/src/graphrefly/plan/backlog.jsonl` (B# + concrete trigger).
 - **Recurring anti-pattern** → `~/src/graphrefly/plan/antipatterns.jsonl` (+ a `feedback_*` memory if generalizable).
 - **Protocol-behavior change** surfaced → route to `/spec-amend` (spec-first), not a direct code change.
@@ -135,7 +135,7 @@ Output a numbered list, each finding with the pattern, where it appears (file:li
 ## Authority hierarchy
 
 1. `~/src/graphrefly/spec/rules.jsonl` — the protocol 宪法.
-2. `~/src/graphrefly/decisions/decisions.jsonl` (+ DS-1 narrative) — locked decisions + F-* floor + durable values.
+2. `~/src/graphrefly/authority/ledgers.jsonl` + the resolved owner ledger (+ the relevant indexed session narrative) — locked decisions + F-* floor + durable values.
 3. `~/src/graphrefly/plan/phases.jsonl` — the CSP-* sequencer (phase locks).
 4. `~/src/graphrefly/guide/guide.jsonl` (G-test / G-composition) — testability + composition shape.
 5. Existing patterns in `packages/ts/src/` — only when the above are silent.
@@ -151,3 +151,6 @@ If a finding conflicts with a higher-authority doc, surface it explicitly — DO
 - Needs more thought → HALT, summarize, let the user think.
 
 This skill produces a report; it modifies no implementation files (it only appends to `~/src/graphrefly` jsonl after explicit user approval of a `D#`).
+
+Decision drafts must include the canonical admission metadata required by
+~/src/graphrefly/authority/README.md before approval; never target a historical-only ledger.

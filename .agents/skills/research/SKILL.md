@@ -45,7 +45,7 @@ For each search, read 2-3 promising results using `mcp__searxng__web_url_read` o
 Read `~/src/graphrefly/CLAUDE.md` first as the authority index, then load only relevant rows from:
 
 - `~/src/graphrefly/plan/phases.jsonl` and `plan/backlog.jsonl` for current sequence and deferred triggers;
-- `~/src/graphrefly/decisions/decisions.jsonl` and the indexed active session for locked rationale;
+- `~/src/graphrefly/authority/ledgers.jsonl`, the resolved governing owner ledger, and the indexed active session for locked rationale;
 - `~/src/graphrefly/spec/rules.jsonl`, `spec/conformance.jsonl`, and `guide/guide.jsonl` when the topic
   touches protocol, behavioral parity, composition, or public guidance;
 - package-local `docs/docs.jsonl` for TypeScript documentation ownership and public package positioning.

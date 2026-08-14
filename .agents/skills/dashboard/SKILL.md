@@ -5,7 +5,7 @@ description: "Build / check the GraphReFly internal docs dashboard (jsonl single
 
 You are executing **dashboard** for the clean-slate GraphReFly redesign.
 
-**Repo:** `~/src/graphrefly` (clean-slate branch). All structured docs are jsonl (single source of truth, decision 2); the dashboard renders them into one searchable HTML view for the maintainer (decision 3). Schema contract: `~/src/graphrefly/dashboard/README.md`.
+**Repo:** `~/src/graphrefly` (clean-slate branch). Canonical JSONL is federated by owner/class under D783; the dashboard resolves root ledgers and renders generated current/ownership views. Schema contract: `~/src/graphrefly/dashboard/README.md`.
 
 ## Code-intelligence routing
 
@@ -22,7 +22,8 @@ autonomously. The generator and consistency gate remain the correctness evidence
    - `node ~/src/graphrefly/dashboard/build.mjs` → writes `dashboard/dashboard.html` + prints counts / gaps / broken-links / orphans report.
    - `node ~/src/graphrefly/dashboard/build.mjs --check` → consistency gate only; **non-zero exit on broken links** (use as a pre-commit / CI gate).
 2. **Interpret the report** for the user:
-   - **counts** — per-jsonl row counts (decisions/phases/rules/conformance/...).
+   - **counts** — aggregate root-ledger decision counts plus phases/rules/conformance/...
+   - **authority** — ledger ownership, relocated-record integrity, current protocol, unresolved classification, supersession cycles and duplicate-current metrics.
    - **gaps** — designPhases (status=design|gap) · openDecisions · deferredBacklog · uncoveredRules (no conformance) · todoConformance (runtimes=todo). This answers "哪里还有缺口".
    - **broken links** — must be zero (session.locks → decision; phase.sessions → session; conformance.covers → rule; flowchart.explains → rule|D#). Legacy 3-digit D### / R# refs are external (old main), reported separately as OK.
    - **orphans** — decisions referenced by no session (informational).
@@ -30,7 +31,9 @@ autonomously. The generator and consistency gate remain the correctness evidence
 
 ## When the jsonl changed
 
-After any edit to `decisions/`, `plan/`, `spec/`, `sessions/`, `guide/` jsonl — run `--check` to catch dangling references immediately (fixes P4 stale-premise + P6 link-rot). The generator is the enforcement mechanism for "single canonical, no broken cross-refs."
+After any root JSONL edit run `--check`. After any owner-ledger edit also run
+`npm --prefix ~/src/graphrefly run authority:check:workspace` to verify qualified identities,
+relocation integrity and available sibling ledgers.
 
 ## UI styling
 

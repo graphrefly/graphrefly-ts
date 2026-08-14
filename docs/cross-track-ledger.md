@@ -3,8 +3,8 @@
 > **Retired clean-slate history.** Structural `Impl` parity, the old
 > cross-track-ledger workflow, and the old port model are retired by D24/D32/D563.
 > Current parity means behavioral conformance scenarios in
-> `~/src/graphrefly/spec/conformance.jsonl`; current decisions live in
-> `~/src/graphrefly/decisions/decisions.jsonl`.
+> `~/src/graphrefly/spec/conformance.jsonl`; current decision locations resolve through
+> `~/src/graphrefly/authority/ledgers.jsonl`.
 >
 > **Historical single source of truth** for old-main changes that coupled two parallel tracks:
 > the **presentation track** (`@graphrefly/graphrefly`, this repo, `src/`) and the
@@ -25,7 +25,7 @@
 
 Do not add new clean-slate rows here. For current work, route behavioral parity
 through `~/src/graphrefly/spec/conformance.jsonl` and architectural decisions
-through `~/src/graphrefly/decisions/decisions.jsonl`.
+through the unique owner ledger resolved by `~/src/graphrefly/authority/ledgers.jsonl`.
 
 Historical rows below were added before landing a change when:
 
