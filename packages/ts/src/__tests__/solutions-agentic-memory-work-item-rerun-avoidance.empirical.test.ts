@@ -1117,21 +1117,21 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d782-private-real-route-adapter.ts") ||
 				file.endsWith("d782-single-use-dispatch-claim.ts") ||
 				file.endsWith("run-d782-live.ts");
-			const allowsCurrentGraphNativeAuthority = file.endsWith(
-				"current-graph-native-eval-authority.ts",
-			);
+			const allowsCurrentGraphNativeAuthority =
+				file.endsWith("current-graph-native-eval-authority.ts") ||
+				file.endsWith("current-graph-native-provider-authority.ts");
 			const allowsCurrentGraphPublicSemanticValidation = file.endsWith(
 				"current-managed-cloud-public-semantic-validation.ts",
 			);
-			const allowsCurrentGraphQualification = file.endsWith(
-				"current-graph-native-eval-qualification.ts",
-			);
-			const allowsCurrentGraphImplementationManifest = file.endsWith(
-				"current-graph-native-eval-implementation-manifest.ts",
-			);
-			const allowsCurrentGraphPrivateRunner = file.endsWith(
-				"run-current-graph-native-no-network.ts",
-			);
+			const allowsCurrentGraphQualification =
+				file.endsWith("current-graph-native-eval-qualification.ts") ||
+				file.endsWith("current-graph-native-provider-qualification.ts");
+			const allowsCurrentGraphImplementationManifest =
+				file.endsWith("current-graph-native-eval-implementation-manifest.ts") ||
+				file.endsWith("current-graph-native-provider-implementation-manifest.ts");
+			const allowsCurrentGraphPrivateRunner =
+				file.endsWith("run-current-graph-native-no-network.ts") ||
+				file.endsWith("run-current-graph-native-provider-no-network.ts");
 			const allowsCurrentGraphOfflineQualification =
 				allowsCurrentGraphNativeAuthority ||
 				allowsCurrentGraphPublicSemanticValidation ||
