@@ -12,7 +12,6 @@ export default defineConfig({
 		__GRAPHREFLY_TS_PACKAGE_REVISION__: JSON.stringify(packageRevision),
 	},
 	test: {
-		include: ["src/**/*.test.ts"],
-		exclude: historicalEvalTestFiles,
+		include: historicalEvalTestFiles,
 	},
 });

@@ -1117,6 +1117,27 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d782-private-real-route-adapter.ts") ||
 				file.endsWith("d782-single-use-dispatch-claim.ts") ||
 				file.endsWith("run-d782-live.ts");
+			const allowsCurrentGraphNativeAuthority = file.endsWith(
+				"current-graph-native-eval-authority.ts",
+			);
+			const allowsCurrentGraphPublicSemanticValidation = file.endsWith(
+				"current-managed-cloud-public-semantic-validation.ts",
+			);
+			const allowsCurrentGraphQualification = file.endsWith(
+				"current-graph-native-eval-qualification.ts",
+			);
+			const allowsCurrentGraphImplementationManifest = file.endsWith(
+				"current-graph-native-eval-implementation-manifest.ts",
+			);
+			const allowsCurrentGraphPrivateRunner = file.endsWith(
+				"run-current-graph-native-no-network.ts",
+			);
+			const allowsCurrentGraphOfflineQualification =
+				allowsCurrentGraphNativeAuthority ||
+				allowsCurrentGraphPublicSemanticValidation ||
+				allowsCurrentGraphQualification ||
+				allowsCurrentGraphImplementationManifest ||
+				allowsCurrentGraphPrivateRunner;
 			const allowsD774D776PreLive =
 				file.endsWith("d774-provider-result-route-authority.ts") ||
 				file.endsWith("d774-graph-native-eval.ts") ||
@@ -1214,6 +1235,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD780GraphNativeLive ||
 				allowsD781GraphNativeLive ||
 				allowsD782GraphNativeLive ||
+				allowsCurrentGraphOfflineQualification ||
 				allowsD732DispatchClaim ||
 				allowsD720CleanGraphNativeEval ||
 				allowsD721ProviderCapablePreLive ||
@@ -1297,6 +1319,13 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				"../../src/json/codec.js",
 				"../../src/node/node.js",
 				"../../src/orchestration/agent-runtime.js",
+			]);
+			const currentGraphPublicSemanticImports = new Set([
+				"../../src/executors/managed-cloud-postgresql.js",
+				"../../src/executors/postgresql-tool-provider.js",
+				"../../src/graph/graph.js",
+				"../../src/identity.js",
+				"../../src/orchestration/index.js",
 			]);
 			expect(source).not.toMatch(
 				allowsD690SealedOfflineOperator
@@ -1448,11 +1477,13 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD780GraphNativeLive ||
 							allowsD781GraphNativeLive ||
 							allowsD782GraphNativeLive ||
+							allowsCurrentGraphQualification ||
 							allowsD757NamedToolPreLive ||
 							allowsD732DispatchClaim) &&
 							specifier === "node:fs") ||
 						((allowsD691HistoricalTransferOperator ||
 							allowsOutermostLiveOperator ||
+							allowsCurrentGraphPrivateRunner ||
 							allowsD751PrivateRunner ||
 							allowsD752PrivateRunner ||
 							file.endsWith("run-d767-no-network-pre-live.ts") ||
@@ -1471,7 +1502,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 						((allowsD719GraphNativeAuthority ||
 							allowsD719CleanGraphLedger ||
 							allowsD761CleanGraphLedger ||
-							allowsD767CleanGraphLedger) &&
+							allowsD767CleanGraphLedger ||
+							allowsCurrentGraphNativeAuthority) &&
 							d716GraphNativeImports.has(specifier)) ||
 						((allowsD720CleanGraphNativeEval ||
 							allowsD720GraphNativeEffectRuntime ||
@@ -1504,6 +1536,9 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD781GraphNativeLive ||
 							allowsD782GraphNativeLive) &&
 							d720CleanGraphNativeImports.has(specifier)) ||
+						(allowsCurrentGraphQualification && d720CleanGraphNativeImports.has(specifier)) ||
+						(allowsCurrentGraphPublicSemanticValidation &&
+							currentGraphPublicSemanticImports.has(specifier)) ||
 						(allowsD683SourceAudit && specifier === "typescript") ||
 						specifier.startsWith("./")
 					),
