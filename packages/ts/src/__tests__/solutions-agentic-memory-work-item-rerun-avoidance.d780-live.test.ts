@@ -16,6 +16,11 @@ import {
 	D780_QUALIFIED_IMPLEMENTATION_MANIFEST_DIGEST,
 } from "../../evals/empirical-memory-rerun-avoidance/d780-coordinates.js";
 import {
+	isD780GraphSynthesizedToolFailureForTest,
+	validateD780TaskToolFactsForTest,
+	validateD780ToolRejectionFactsForTest,
+} from "../../evals/empirical-memory-rerun-avoidance/d780-graph-native-live.js";
+import {
 	D780_IMPLEMENTATION_MANIFEST_DIGEST,
 	measureD780Implementation,
 } from "../../evals/empirical-memory-rerun-avoidance/d780-implementation-manifest.js";
@@ -47,6 +52,20 @@ describe("D780 D779-qualified Graph-native live boundary", () => {
 		expect(bundle.qualification.providerNetworkCalls).toBe(0);
 		expect(bundle.qualification.credentialReads).toBe(0);
 		expect(bundle.qualification.workspaceResidueCount).toBe(0);
+		validateD780TaskToolFactsForTest({
+			taskExposureFacts: bundle.taskExposureFacts,
+			toolRejectionFacts: bundle.toolRejectionFacts,
+			graphEvidence: bundle.graphEvidence,
+			routeEvidence: bundle.routeEvidence,
+		});
+		validateD780ToolRejectionFactsForTest({
+			toolRejectionFacts: bundle.diagnosticToolRejectionFacts,
+			graphEvidence: bundle.toolRejectionGraphEvidence,
+		});
+		validateD780ToolRejectionFactsForTest({
+			toolRejectionFacts: [],
+			graphEvidence: bundle.wrongToolGraphEvidence,
+		});
 	}, 30_000);
 
 	it("binds the current implementation and makes the durable claim exclusive", async () => {
@@ -66,5 +85,34 @@ describe("D780 D779-qualified Graph-native live boundary", () => {
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
+	});
+
+	it("keeps Graph-synthesized failed tool effects separate from sanitized tool rejections", () => {
+		for (const cause of ["executor-threw", "graph-admission-denied"] as const) {
+			const requestDigest = sha(`request-${cause}`);
+			expect(
+				isD780GraphSynthesizedToolFailureForTest({
+					kind: "graph-effect-result-admitted",
+					request: { effectKind: "tool-action", requestDigest },
+					result: {
+						effectKind: "tool-action",
+						status: "failed",
+						evidenceDigest: empiricalStrictJsonDigest({ requestDigest, cause }),
+					},
+				}),
+			).toBe(true);
+		}
+		const requestDigest = sha("sanitized-rejection");
+		expect(
+			isD780GraphSynthesizedToolFailureForTest({
+				kind: "graph-effect-result-admitted",
+				request: { effectKind: "tool-action", requestDigest },
+				result: {
+					effectKind: "tool-action",
+					status: "failed",
+					evidenceDigest: sha("sanitized-rejection-evidence"),
+				},
+			}),
+		).toBe(false);
 	});
 });

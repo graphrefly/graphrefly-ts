@@ -25,7 +25,7 @@ export const D780_IMPLEMENTATION_SOURCE_SHA256 = Object.freeze({
 	coordinates: "sha256:3428689a615cc4c09ffdd426a09620df3a979084f805802c38f34e3c466089aa",
 	claim: "sha256:99719f5da9b8e704b10d110bcbce4eb69236e31ed43b67a5bd6e485cdb89a440",
 	positiveGate: "sha256:d6e01f250ef79922aa3f1e8002b8a63513f96f116691d29a93f7a37dbf2483cd",
-	liveBoundary: "sha256:ab601b639c32e03619b4b7739f44707d093543533dba7a020cc0dcf678e2bf76",
+	liveBoundary: "sha256:640210a9a6507a0d44d8051651e6721b744fd72a003b65db77a5da626b22064e",
 	privateAdapter: "sha256:35021a6b6efca477c315dd0cc5ea4d9b34d3554144c91a9c28f0dc72eafae10f",
 	privateRunner: "sha256:d2f12448090ebe69f2088b6b6795caf4d76afacf8fab7ca7e96149ed7af75d27",
 } as const);

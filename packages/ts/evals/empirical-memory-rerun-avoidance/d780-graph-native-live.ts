@@ -71,6 +71,104 @@ export interface D780LiveBundleV1 {
 
 const constructed = new WeakSet<object>();
 
+type D780AdmittedEffectFact = D771CanonicalGraphEvidenceV1["effectRuns"][number]["facts"][number];
+
+function isD780GraphSynthesizedToolFailure(fact: D780AdmittedEffectFact): boolean {
+	if (
+		fact.kind !== "graph-effect-result-admitted" ||
+		fact.request.effectKind !== "tool-action" ||
+		fact.result.effectKind !== "tool-action" ||
+		fact.result.status !== "failed"
+	)
+		return false;
+	return (["executor-threw", "graph-admission-denied"] as const).some(
+		(cause) =>
+			fact.result.evidenceDigest ===
+			empiricalStrictJsonDigest({ requestDigest: fact.request.requestDigest, cause }),
+	);
+}
+
+export function isD780GraphSynthesizedToolFailureForTest(value: unknown): boolean {
+	return isD780GraphSynthesizedToolFailure(value as D780AdmittedEffectFact);
+}
+
+function validateD780ToolRejectionFacts(
+	toolValue: unknown,
+	graphEvidence: D771CanonicalGraphEvidenceV1,
+): readonly D778ToolRejectionFactV1[] {
+	if (!Array.isArray(toolValue) || toolValue.length > 64)
+		throw new TypeError("D780 tool rejection facts are outside the bound");
+	const graphFacts = graphEvidence.effectRuns.flatMap((run) =>
+		run.facts.flatMap((fact) => (fact.kind === "graph-effect-result-admitted" ? [fact] : [])),
+	);
+	const toolRejectionFacts = toolValue.map((value, index) => {
+		const fact = record(value, `d780.toolRejectionFacts[${index}]`);
+		exactKeys(
+			fact,
+			[
+				"admissionDigest",
+				"causeCode",
+				"factDigest",
+				"reconciliationDigest",
+				"requestDigest",
+				"resultFactDigest",
+				"runSequence",
+				"schemaVersion",
+				"toolRef",
+				"workspaceStateAfterDigest",
+				"workspaceStateBeforeDigest",
+			],
+			`d780.toolRejectionFacts[${index}]`,
+		);
+		literal(
+			fact.schemaVersion,
+			D778_TOOL_REJECTION_FACT_SCHEMA,
+			`d780.toolRejectionFacts[${index}].schema`,
+		);
+		const { factDigest, ...material } = fact;
+		literal(
+			factDigest,
+			empiricalStrictJsonDigest(material),
+			`d780.toolRejectionFacts[${index}].digest`,
+		);
+		if (fact.workspaceStateBeforeDigest !== fact.workspaceStateAfterDigest)
+			throw new TypeError("D780 rejected tool changed workspace state");
+		const matches = graphFacts.filter(
+			(candidate) =>
+				candidate.request.effectKind === "tool-action" &&
+				candidate.result.effectKind === "tool-action" &&
+				candidate.result.status === "failed" &&
+				candidate.result.toolRef === fact.toolRef &&
+				candidate.request.requestDigest === fact.requestDigest &&
+				candidate.admissionDigest === fact.admissionDigest &&
+				candidate.factDigest === fact.resultFactDigest,
+		);
+		const reconciliationMatches = graphEvidence.ledger.effectReconciliations.filter(
+			(candidate) =>
+				candidate.admissionDigest === fact.admissionDigest &&
+				candidate.reconciliationDigest === fact.reconciliationDigest,
+		);
+		if (matches.length !== 1 || reconciliationMatches.length !== 1)
+			throw new TypeError("D780 tool rejection fact is not bijective with Graph evidence");
+		return strictSnapshot(fact) as unknown as D778ToolRejectionFactV1;
+	});
+	const toolKeys = toolRejectionFacts.map(
+		(fact) => `${fact.requestDigest}:${fact.admissionDigest}:${fact.resultFactDigest}`,
+	);
+	if (new Set(toolKeys).size !== toolKeys.length)
+		throw new TypeError("D780 tool rejection fact replayed");
+	const rejectedToolFacts = graphFacts.filter(
+		(fact) =>
+			fact.request.effectKind === "tool-action" &&
+			fact.result.effectKind === "tool-action" &&
+			fact.result.status === "failed" &&
+			!isD780GraphSynthesizedToolFailure(fact),
+	);
+	if (toolRejectionFacts.length !== rejectedToolFacts.length)
+		throw new TypeError("D780 tool rejection/failed effect coverage drifted");
+	return Object.freeze(toolRejectionFacts);
+}
+
 function hasOperationalFailure(graphEvidence: D771CanonicalGraphEvidenceV1): boolean {
 	return graphEvidence.effectRuns.some(
 		(run) =>
@@ -273,8 +371,6 @@ function validateD780TaskToolFacts(
 }> {
 	if (!Array.isArray(taskValue) || taskValue.length > 128)
 		throw new TypeError("D780 task exposure facts are outside the bound");
-	if (!Array.isArray(toolValue) || toolValue.length > 64)
-		throw new TypeError("D780 tool rejection facts are outside the bound");
 	const graphFacts = graphEvidence.effectRuns.flatMap((run) =>
 		run.facts.flatMap((fact) => (fact.kind === "graph-effect-result-admitted" ? [fact] : [])),
 	);
@@ -356,74 +452,32 @@ function validateD780TaskToolFacts(
 	);
 	if (new Set(taskKeys).size !== taskKeys.length)
 		throw new TypeError("D780 task exposure fact replayed");
-	const toolRejectionFacts = toolValue.map((value, index) => {
-		const fact = record(value, `d780.toolRejectionFacts[${index}]`);
-		exactKeys(
-			fact,
-			[
-				"admissionDigest",
-				"causeCode",
-				"factDigest",
-				"reconciliationDigest",
-				"requestDigest",
-				"resultFactDigest",
-				"runSequence",
-				"schemaVersion",
-				"toolRef",
-				"workspaceStateAfterDigest",
-				"workspaceStateBeforeDigest",
-			],
-			`d780.toolRejectionFacts[${index}]`,
-		);
-		literal(
-			fact.schemaVersion,
-			D778_TOOL_REJECTION_FACT_SCHEMA,
-			`d780.toolRejectionFacts[${index}].schema`,
-		);
-		const { factDigest, ...material } = fact;
-		literal(
-			factDigest,
-			empiricalStrictJsonDigest(material),
-			`d780.toolRejectionFacts[${index}].digest`,
-		);
-		if (fact.workspaceStateBeforeDigest !== fact.workspaceStateAfterDigest)
-			throw new TypeError("D780 rejected tool changed workspace state");
-		const matches = graphFacts.filter(
-			(candidate) =>
-				candidate.request.effectKind === "tool-action" &&
-				candidate.result.effectKind === "tool-action" &&
-				candidate.result.status === "failed" &&
-				candidate.result.toolRef === fact.toolRef &&
-				candidate.request.requestDigest === fact.requestDigest &&
-				candidate.admissionDigest === fact.admissionDigest &&
-				candidate.factDigest === fact.resultFactDigest,
-		);
-		const reconciliationMatches = graphEvidence.ledger.effectReconciliations.filter(
-			(candidate) =>
-				candidate.admissionDigest === fact.admissionDigest &&
-				candidate.reconciliationDigest === fact.reconciliationDigest,
-		);
-		if (matches.length !== 1 || reconciliationMatches.length !== 1)
-			throw new TypeError("D780 tool rejection fact is not bijective with Graph evidence");
-		return strictSnapshot(fact) as unknown as D778ToolRejectionFactV1;
-	});
-	const toolKeys = toolRejectionFacts.map(
-		(fact) => `${fact.requestDigest}:${fact.admissionDigest}:${fact.resultFactDigest}`,
-	);
-	if (new Set(toolKeys).size !== toolKeys.length)
-		throw new TypeError("D780 tool rejection fact replayed");
-	const failedToolFacts = graphFacts.filter(
-		(fact) =>
-			fact.request.effectKind === "tool-action" &&
-			fact.result.effectKind === "tool-action" &&
-			fact.result.status === "failed",
-	);
-	if (toolRejectionFacts.length !== failedToolFacts.length)
-		throw new TypeError("D780 tool rejection/failed effect coverage drifted");
+	const toolRejectionFacts = validateD780ToolRejectionFacts(toolValue, graphEvidence);
 	return Object.freeze({
 		taskExposureFacts: Object.freeze(taskExposureFacts),
 		toolRejectionFacts: Object.freeze(toolRejectionFacts),
 	});
+}
+
+export function validateD780ToolRejectionFactsForTest(input: {
+	readonly toolRejectionFacts: unknown;
+	readonly graphEvidence: D771CanonicalGraphEvidenceV1;
+}): void {
+	validateD780ToolRejectionFacts(input.toolRejectionFacts, input.graphEvidence);
+}
+
+export function validateD780TaskToolFactsForTest(input: {
+	readonly taskExposureFacts: unknown;
+	readonly toolRejectionFacts: unknown;
+	readonly graphEvidence: D771CanonicalGraphEvidenceV1;
+	readonly routeEvidence: D776RouteEvidenceV1;
+}): void {
+	validateD780TaskToolFacts(
+		input.taskExposureFacts,
+		input.toolRejectionFacts,
+		input.graphEvidence,
+		input.routeEvidence,
+	);
 }
 
 export function validateD780LiveBundle(value: unknown): D780LiveBundleV1 {
