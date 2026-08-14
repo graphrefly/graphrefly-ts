@@ -46,6 +46,7 @@ import {
 	D781_GENERATION_REF,
 	D781_HISTORICAL_ARTIFACT_SHA256,
 	D781_HISTORICAL_BUNDLE_DIGEST,
+	D781_HISTORICAL_IMPLEMENTATION_MANIFEST_DIGEST,
 	D781_QUALIFIED_IMPLEMENTATION_MANIFEST_DIGEST,
 } from "./d781-coordinates.js";
 import { D781_IMPLEMENTATION_MANIFEST_DIGEST } from "./d781-implementation-manifest.js";
@@ -190,7 +191,7 @@ function hasOperationalFailure(graphEvidence: D771CanonicalGraphEvidenceV1): boo
 	);
 }
 
-function validateHistorical(bytes: Uint8Array): void {
+export function validateD781HistoricalBundleBytes(bytes: Uint8Array): void {
 	if (!(bytes instanceof Uint8Array) || bytes.byteLength < 1 || bytes.byteLength > 16 * 1_048_576)
 		throw new TypeError("D781 historical artifact bytes are invalid");
 	literal(empiricalSha256(bytes), D781_HISTORICAL_ARTIFACT_SHA256, "d781.historical.sha256");
@@ -198,7 +199,7 @@ function validateHistorical(bytes: Uint8Array): void {
 	literal(bundle.bundleDigest, D781_HISTORICAL_BUNDLE_DIGEST, "d781.historical.bundle");
 	literal(
 		bundle.qualification.implementationManifestDigest,
-		D781_QUALIFIED_IMPLEMENTATION_MANIFEST_DIGEST,
+		D781_HISTORICAL_IMPLEMENTATION_MANIFEST_DIGEST,
 		"d781.historical.implementation",
 	);
 }
@@ -317,7 +318,7 @@ export async function runD781LiveMeasurement(inputValue: {
 		],
 		"d781.live.input",
 	);
-	validateHistorical(input.historicalBundleBytes as Uint8Array);
+	validateD781HistoricalBundleBytes(input.historicalBundleBytes as Uint8Array);
 	validateD781D780ForensicBytes(input.d780ForensicBytes as Uint8Array);
 	literal(
 		input.implementationManifestDigest,
@@ -385,6 +386,7 @@ export async function runD781LiveMeasurement(inputValue: {
 		coordinatesDigest: D781_COORDINATES_DIGEST,
 		historicalArtifactSha256: D781_HISTORICAL_ARTIFACT_SHA256,
 		historicalBundleDigest: D781_HISTORICAL_BUNDLE_DIGEST,
+		historicalImplementationManifestDigest: D781_HISTORICAL_IMPLEMENTATION_MANIFEST_DIGEST,
 		d780ForensicArtifactSha256: D781_D780_FORENSIC_ARTIFACT_SHA256,
 		d780ForensicDigest: D781_D780_FORENSIC_DIGEST,
 		baselineImplementationManifestDigest: D781_QUALIFIED_IMPLEMENTATION_MANIFEST_DIGEST,
@@ -644,6 +646,7 @@ export function validateD781LiveBundle(value: unknown): D781LiveBundleV1 {
 			"decisionRevision",
 			"historicalArtifactSha256",
 			"historicalBundleDigest",
+			"historicalImplementationManifestDigest",
 			"implementationManifestDigest",
 			"pricingObservationDigest",
 			"pricingReadDigest",
@@ -679,6 +682,11 @@ export function validateD781LiveBundle(value: unknown): D781LiveBundleV1 {
 		qualification.historicalBundleDigest,
 		D781_HISTORICAL_BUNDLE_DIGEST,
 		"d781.bundle.qualification.historicalBundle",
+	);
+	literal(
+		qualification.historicalImplementationManifestDigest,
+		D781_HISTORICAL_IMPLEMENTATION_MANIFEST_DIGEST,
+		"d781.bundle.qualification.historicalImplementation",
 	);
 	literal(
 		qualification.d780ForensicArtifactSha256,

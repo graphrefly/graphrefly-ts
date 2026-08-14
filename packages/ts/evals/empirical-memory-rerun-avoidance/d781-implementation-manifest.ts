@@ -23,13 +23,13 @@ const SOURCES = strictSnapshot({
 });
 
 export const D781_IMPLEMENTATION_SOURCE_SHA256 = Object.freeze({
-	coordinates: "sha256:bf95f3bcef42230671a624e50b6b8452ae872e8626d3b2bdebf7f4e20e5e5259",
+	coordinates: "sha256:5a0aa0a8b384e1378ea5ce7740c1b3544af561e6eef5e75cef36d92aec44b806",
 	claim: "sha256:1969f332abda781482e8ca6f166c36baa82e0dd0674e208fa7f014c92974913c",
 	positiveGate: "sha256:d6e01f250ef79922aa3f1e8002b8a63513f96f116691d29a93f7a37dbf2483cd",
 	preLiveQualification: "sha256:a343a5a5baabd2aaa030958119ec2dd31d1a048bde9b1ff43dd874caa6d8b9f2",
-	liveBoundary: "sha256:7606075d91018e4682ff4d090aabdd5b95e897ab74ea00bbb4169b7983c9cc0c",
+	liveBoundary: "sha256:8a5789be4ddf0f98f9d1cd2dcebce8c356abbd1c302f9ce181897d7b301ed9e7",
 	privateAdapter: "sha256:b64ea24f6979bf24daabac0868607b052e02b7e4082a8a408eafbcf59afcbe34",
-	privateRunner: "sha256:baf31f18d140fffa3726cc012ff6936975039451769c96daf4360d5707ae1c70",
+	privateRunner: "sha256:085fe8d1f8bb73bfe74379d537c499a52b80659d8bccad65d062174452427fb3",
 } as const);
 
 export const D781_IMPLEMENTATION_MANIFEST_DIGEST = empiricalStrictJsonDigest({
