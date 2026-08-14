@@ -1105,6 +1105,11 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d776-pre-live-qualification.ts") ||
 				file.endsWith("d776-implementation-manifest.ts") ||
 				file.endsWith("run-d776-no-network-pre-live.ts");
+			const allowsD778PreLive =
+				file.endsWith("d778-graph-task-tool-authority.ts") ||
+				file.endsWith("d778-pre-live-qualification.ts") ||
+				file.endsWith("d778-implementation-manifest.ts") ||
+				file.endsWith("run-d778-no-network-pre-live.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
 				allowsD691HistoricalTransferOperator ||
@@ -1291,6 +1296,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 									allowsD761Qualification ||
 									allowsD771Qualification ||
 									allowsD774D776PreLive ||
+									allowsD778PreLive ||
 									allowsD735ProviderPreflight ||
 									allowsD725RealProviderIntegration ||
 									allowsD725InjectedQualification ||
@@ -1399,6 +1405,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD767Qualification ||
 							allowsD771PrelivePersistence ||
 							allowsD774D776PreLive ||
+							allowsD778PreLive ||
 							allowsD766GraphNativeLive ||
 							allowsD768GraphNativeLive ||
 							allowsD773GraphNativeLive ||
@@ -1415,7 +1422,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD771ImplementationManifest ||
 							allowsD774D776PreLive) &&
 							specifier === "node:url") ||
-						(allowsD774D776PreLive &&
+						((allowsD774D776PreLive || allowsD778PreLive) &&
 							(specifier === "node:fs/promises" || specifier === "node:path")) ||
 						specifier === "../../src/json/codec.js" ||
 						(allowsMatchedBlockMemory && matchedBlockMemoryImports.has(specifier)) ||
@@ -1449,6 +1456,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD767Qualification ||
 							allowsD771Qualification ||
 							allowsD774D776PreLive ||
+							allowsD778PreLive ||
 							allowsD766GraphNativeLive ||
 							allowsD768GraphNativeLive ||
 							allowsD773GraphNativeLive ||
