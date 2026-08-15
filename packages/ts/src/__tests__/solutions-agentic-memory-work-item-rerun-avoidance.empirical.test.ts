@@ -1120,7 +1120,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsCurrentGraphNativeAuthority =
 				file.endsWith("current-graph-native-eval-authority.ts") ||
 				file.endsWith("current-graph-native-provider-authority.ts") ||
-				file.endsWith("d5-graph-native-eval-authority.ts");
+				file.endsWith("d5-graph-native-eval-authority.ts") ||
+				file.endsWith("d6-current-provider-authority.ts");
 			const allowsCurrentGraphPublicSemanticValidation = file.endsWith(
 				"current-managed-cloud-public-semantic-validation.ts",
 			);
@@ -1131,14 +1132,16 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsCurrentGraphImplementationManifest =
 				file.endsWith("current-graph-native-eval-implementation-manifest.ts") ||
 				file.endsWith("current-graph-native-provider-implementation-manifest.ts") ||
-				file.endsWith("d5-inspection-batch-implementation-manifest.ts");
+				file.endsWith("d5-inspection-batch-implementation-manifest.ts") ||
+				file.endsWith("d6-current-implementation-manifest.ts");
 			const allowsCurrentGraphPrivateRunner =
 				file.endsWith("run-current-graph-native-no-network.ts") ||
 				file.endsWith("run-current-graph-native-provider-no-network.ts") ||
-				file.endsWith("run-d5-inspection-batch-no-network.ts");
-			const allowsCurrentGraphLiveAdapter = file.endsWith(
-				"current-graph-native-openrouter-adapter.ts",
-			);
+				file.endsWith("run-d5-inspection-batch-no-network.ts") ||
+				file.endsWith("run-d6-current-no-network.ts");
+			const allowsCurrentGraphLiveAdapter =
+				file.endsWith("current-graph-native-openrouter-adapter.ts") ||
+				file.endsWith("d6-current-openrouter-adapter.ts");
 			const allowsCurrentGraphLiveOperator =
 				file.endsWith("current-graph-native-live-coordinates.ts") ||
 				file.endsWith("current-graph-native-live-preflight.ts") ||
@@ -1149,10 +1152,21 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("current-graph-native-live-qualification.ts") ||
 				file.endsWith("current-graph-native-live-implementation-manifest.ts") ||
 				file.endsWith("run-current-graph-native-live-no-network.ts") ||
-				file.endsWith("run-current-graph-native-live.ts");
+				file.endsWith("run-current-graph-native-live.ts") ||
+				file.endsWith("d6-current-live-coordinates.ts") ||
+				file.endsWith("d6-current-live-preflight.ts") ||
+				file.endsWith("d6-current-live-claim.ts") ||
+				file.endsWith("d6-current-live.ts") ||
+				file.endsWith("d6-current-private-persistence.ts") ||
+				file.endsWith("d6-current-openrouter-adapter.ts") ||
+				file.endsWith("d6-current-pre-live-qualification.ts") ||
+				file.endsWith("d6-current-implementation-manifest.ts") ||
+				file.endsWith("run-d6-current-no-network.ts");
 			const allowsCurrentGraphLiveOneRequest =
 				file.endsWith("current-graph-native-live-preflight.ts") ||
-				file.endsWith("current-graph-native-live-qualification.ts");
+				file.endsWith("current-graph-native-live-qualification.ts") ||
+				file.endsWith("d6-current-live-preflight.ts") ||
+				file.endsWith("d6-current-pre-live-qualification.ts");
 			const allowsCurrentGraphLiveAsync =
 				allowsCurrentGraphLiveOperator && !allowsCurrentGraphLiveOneRequest;
 			const allowsCurrentGraphOfflineQualification =
