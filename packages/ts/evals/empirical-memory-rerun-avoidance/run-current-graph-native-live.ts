@@ -188,8 +188,23 @@ async function offlinePreflight() {
 		d2BundleBytes,
 		implementationManifestDigest,
 	});
-	if (rerun.bundleDigest !== qualification.bundleDigest)
-		throw new TypeError("current live no-network qualification replay drifted");
+	if (
+		rerun.qualification.implementationManifestDigest !== implementationManifestDigest ||
+		rerun.qualification.d2BundleArtifactDigest !==
+			qualification.qualification.d2BundleArtifactDigest ||
+		rerun.qualification.d2BundleDigest !== qualification.qualification.d2BundleDigest ||
+		rerun.qualification.providerAttempts !== qualification.qualification.providerAttempts ||
+		rerun.qualification.retryWaits !== qualification.qualification.retryWaits ||
+		rerun.qualification.maxActiveTransport !== qualification.qualification.maxActiveTransport ||
+		rerun.qualification.fullSixArmIntegrationPassed !== true ||
+		rerun.qualification.retryRequestIdentityPassed !== true ||
+		rerun.qualification.publicSemanticValidationPassed !== true ||
+		rerun.qualification.hiddenVerifierPassed !== true ||
+		rerun.qualification.cleanupPassed !== true ||
+		rerun.qualification.providerNetworkCalls !== 0 ||
+		rerun.qualification.workspaceResidueCount !== 0
+	)
+		throw new TypeError("current live no-network qualification projection drifted");
 	await runCommand("pnpm", [
 		"exec",
 		"vitest",
