@@ -6,17 +6,22 @@ import {
 	createCurrentGraphProviderTaskProfile,
 } from "./current-graph-native-provider-authority.js";
 
-export const CURRENT_GRAPH_LIVE_DECISION_REF = "graphrefly-ts:D3" as const;
+export const CURRENT_GRAPH_LIVE_DECISION_REF = "graphrefly-ts:D4" as const;
 export const CURRENT_GRAPH_LIVE_DECISION_REVISION = "2026-08-14.v1" as const;
 export const CURRENT_GRAPH_LIVE_BASELINE_COMMIT =
-	"cc2ed5b69ba6800cde4097a0837c772c4e07991f" as const;
-export const CURRENT_GRAPH_LIVE_D2_BUNDLE_ARTIFACT_DIGEST =
-	"sha256:5c375ee32d7764ef191f9e98c063342bf2efbfdde67effc7fc7707b4e73230b8" as const;
-export const CURRENT_GRAPH_LIVE_D2_IMPLEMENTATION_MANIFEST_DIGEST =
-	"sha256:c2400160f22a932cd0ccd6389c7e68b7df13c51bca0667a8f8f2c0a8217ad1cd" as const;
-export const CURRENT_GRAPH_LIVE_GENERATION_REF = "current-graph-native-live-2026-08-14-v1" as const;
+	"0817b3eff89f7a64222e3d6011550ce25a53db59" as const;
+export const CURRENT_GRAPH_LIVE_D3_QUALIFICATION_ARTIFACT_DIGEST =
+	"sha256:05c521c5392000e444e0bcbadd4d1e8dfe8fc918338285a77044e8f66f6f2171" as const;
+export const CURRENT_GRAPH_LIVE_D3_QUALIFICATION_BUNDLE_DIGEST =
+	"sha256:f99085bf42d82d5b5a06938387b94163968196f41bbb1fdf17749419582cc6d3" as const;
+export const CURRENT_GRAPH_LIVE_D3_QUALIFICATION_DIGEST =
+	"sha256:55928c373f78fd4f2362d134070cf08489e6c886eb73caaca2728428bf13ca34" as const;
+export const CURRENT_GRAPH_LIVE_D3_IMPLEMENTATION_MANIFEST_DIGEST =
+	"sha256:3f3260c8d1cbe606fa6bae7b6f2ac59d3bbc32d61635c2498b34e2fc3e0d9efb" as const;
+export const CURRENT_GRAPH_LIVE_GENERATION_REF =
+	"current-graph-native-live-2026-08-14-d4-v1" as const;
 export const CURRENT_GRAPH_LIVE_DISPATCH_CLAIM_REF =
-	"current-graph-native-live-dispatch-2026-08-14-v1" as const;
+	"current-graph-native-live-dispatch-2026-08-14-d4-v1" as const;
 
 export const CURRENT_GRAPH_LIVE_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions" as const;
 export const CURRENT_GRAPH_LIVE_PRICING_SOURCE =
@@ -41,7 +46,7 @@ export const CURRENT_GRAPH_LIVE_PRICING = Object.freeze({
 
 export const CURRENT_GRAPH_LIVE_ROUTE = createCurrentGraphProviderRouteProfile({
 	profileRef: "current-provider.deepseek-v4-flash-0731.deepinfra-fp4-chat.live.v1",
-	// D2 names the qualified architecture, while D3 separately binds the live execution class.
+	// D2 names the qualified architecture, while D4 separately binds this repaired live execution.
 	executionClass: "provider-capable-pre-live",
 	endpointKind: "chat-completions",
 	providerRef: CURRENT_GRAPH_LIVE_PROVIDER_NAME,
@@ -91,8 +96,10 @@ export const CURRENT_GRAPH_LIVE_COORDINATES = strictSnapshot({
 	decisionRef: CURRENT_GRAPH_LIVE_DECISION_REF,
 	decisionRevision: CURRENT_GRAPH_LIVE_DECISION_REVISION,
 	baselineCommit: CURRENT_GRAPH_LIVE_BASELINE_COMMIT,
-	d2BundleArtifactDigest: CURRENT_GRAPH_LIVE_D2_BUNDLE_ARTIFACT_DIGEST,
-	d2ImplementationManifestDigest: CURRENT_GRAPH_LIVE_D2_IMPLEMENTATION_MANIFEST_DIGEST,
+	d3QualificationArtifactDigest: CURRENT_GRAPH_LIVE_D3_QUALIFICATION_ARTIFACT_DIGEST,
+	d3QualificationBundleDigest: CURRENT_GRAPH_LIVE_D3_QUALIFICATION_BUNDLE_DIGEST,
+	d3QualificationDigest: CURRENT_GRAPH_LIVE_D3_QUALIFICATION_DIGEST,
+	d3ImplementationManifestDigest: CURRENT_GRAPH_LIVE_D3_IMPLEMENTATION_MANIFEST_DIGEST,
 	generationRef: CURRENT_GRAPH_LIVE_GENERATION_REF,
 	dispatchClaimRef: CURRENT_GRAPH_LIVE_DISPATCH_CLAIM_REF,
 	routeDigest: CURRENT_GRAPH_LIVE_ROUTE.routeDigest,

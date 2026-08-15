@@ -23,12 +23,12 @@ import type { OpenRouterCurrentKeySpendAdmissionV1 } from "./openrouter-current-
 import { consumeOpenRouterCurrentKeySpendAdmission } from "./openrouter-current-key-spend-admission.js";
 
 export const CURRENT_GRAPH_LIVE_DISPATCH_CLAIM_SCHEMA =
-	"graphrefly-ts.d3.current-graph-live-dispatch-claim.v1" as const;
+	"graphrefly-ts.d4.current-graph-live-dispatch-claim.v1" as const;
 export const CURRENT_GRAPH_LIVE_EXECUTION_AUTHORITY_REVISION =
-	"graphrefly-ts.d3.current-graph-live-execution-authority.v1" as const;
+	"graphrefly-ts.d4.current-graph-live-execution-authority.v1" as const;
 export const CURRENT_GRAPH_LIVE_PRIVATE_ROOT = resolve(
 	import.meta.dirname,
-	"../.private/empirical-memory-rerun-avoidance/current-graph-native-d3",
+	"../.private/empirical-memory-rerun-avoidance/current-graph-native-d4",
 );
 
 type ClaimScope = "live-fixed-root" | "injected-test-root";

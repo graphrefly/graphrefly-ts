@@ -16,7 +16,7 @@ import {
 } from "./current-graph-native-live-claim.js";
 import {
 	CURRENT_GRAPH_LIVE_BASELINE_COMMIT,
-	CURRENT_GRAPH_LIVE_D2_BUNDLE_ARTIFACT_DIGEST,
+	CURRENT_GRAPH_LIVE_D3_QUALIFICATION_ARTIFACT_DIGEST,
 	CURRENT_GRAPH_LIVE_GENERATION_REF,
 } from "./current-graph-native-live-coordinates.js";
 import {
@@ -34,7 +34,6 @@ import {
 	validateCurrentGraphLiveQualificationBundle,
 } from "./current-graph-native-live-qualification.js";
 import { createCurrentGraphOpenRouterExecutor } from "./current-graph-native-openrouter-adapter.js";
-import { validateCurrentGraphProviderQualificationBundle } from "./current-graph-native-provider-qualification.js";
 import { createOpenRouterCurrentKeySpendAdmissionCapability } from "./openrouter-current-key-spend-admission.js";
 
 const repositoryRoot = resolve(import.meta.dirname, "../../../..");
@@ -43,10 +42,10 @@ const privateOperatorRoot = resolve(
 	"../.private/empirical-memory-rerun-avoidance",
 );
 const credentialPath = join(privateOperatorRoot, "openrouter.env");
-const zeroByokPath = join(privateOperatorRoot, "current-graph-native-d3-zero-byok.v1.json");
-const d2BundlePath = join(
+const zeroByokPath = join(privateOperatorRoot, "current-graph-native-d4-zero-byok.v1.json");
+const d3QualificationBundlePath = join(
 	privateOperatorRoot,
-	"current-graph-native-d2/current-graph-native-provider-no-network-qualification-2026-08-14-v3/artifacts/bundle.v1.json",
+	"current-graph-native-d3/current-graph-native-live-no-network-qualification-2026-08-14-v4/artifacts/bundle.v1.json",
 );
 const qualificationBundlePath = join(
 	CURRENT_GRAPH_LIVE_PRIVATE_ROOT,
@@ -173,10 +172,15 @@ async function offlinePreflight() {
 		CURRENT_GRAPH_LIVE_BASELINE_COMMIT,
 		"HEAD",
 	]);
-	const d2BundleBytes = await boundedPrivateFile(d2BundlePath, MAX_ARTIFACT_BYTES);
-	if (empiricalSha256(d2BundleBytes) !== CURRENT_GRAPH_LIVE_D2_BUNDLE_ARTIFACT_DIGEST)
-		throw new TypeError("current live D2 artifact drifted");
-	validateCurrentGraphProviderQualificationBundle(strictJsonCodec.decode(d2BundleBytes));
+	const d3QualificationBundleBytes = await boundedPrivateFile(
+		d3QualificationBundlePath,
+		MAX_ARTIFACT_BYTES,
+	);
+	if (
+		empiricalSha256(d3QualificationBundleBytes) !==
+		CURRENT_GRAPH_LIVE_D3_QUALIFICATION_ARTIFACT_DIGEST
+	)
+		throw new TypeError("current live D3 qualification artifact drifted");
 	const qualificationBytes = await boundedPrivateFile(qualificationBundlePath, MAX_ARTIFACT_BYTES);
 	const qualification = validateCurrentGraphLiveQualificationBundle(
 		strictJsonCodec.decode(qualificationBytes),
@@ -185,14 +189,17 @@ async function offlinePreflight() {
 		throw new TypeError("current live qualification implementation drifted");
 	const rerun = await runCurrentGraphLiveNoNetworkQualification({
 		repositoryRoot,
-		d2BundleBytes,
+		d3QualificationBundleBytes,
 		implementationManifestDigest,
 	});
 	if (
 		rerun.qualification.implementationManifestDigest !== implementationManifestDigest ||
-		rerun.qualification.d2BundleArtifactDigest !==
-			qualification.qualification.d2BundleArtifactDigest ||
-		rerun.qualification.d2BundleDigest !== qualification.qualification.d2BundleDigest ||
+		rerun.qualification.d3QualificationArtifactDigest !==
+			qualification.qualification.d3QualificationArtifactDigest ||
+		rerun.qualification.d3QualificationBundleDigest !==
+			qualification.qualification.d3QualificationBundleDigest ||
+		rerun.qualification.d3QualificationDigest !==
+			qualification.qualification.d3QualificationDigest ||
 		rerun.qualification.providerAttempts !== qualification.qualification.providerAttempts ||
 		rerun.qualification.retryWaits !== qualification.qualification.retryWaits ||
 		rerun.qualification.maxActiveTransport !== qualification.qualification.maxActiveTransport ||
@@ -216,7 +223,7 @@ async function offlinePreflight() {
 	await assertAbsent(liveGenerationRoot, "generation");
 	return Object.freeze({
 		implementationManifestDigest,
-		d2BundleBytes,
+		d3QualificationBundleBytes,
 		qualification,
 		qualificationArtifactDigest: empiricalSha256(qualificationBytes),
 	});
@@ -276,7 +283,7 @@ const constructedBundle = await runCurrentGraphLiveMeasurement({
 	executionClass: "live-provider",
 	executor,
 	implementationManifestDigest: offline.implementationManifestDigest,
-	d2QualificationArtifactDigest: CURRENT_GRAPH_LIVE_D2_BUNDLE_ARTIFACT_DIGEST,
+	d3QualificationArtifactDigest: CURRENT_GRAPH_LIVE_D3_QUALIFICATION_ARTIFACT_DIGEST,
 	pricingObservationDigest: pricing.observationDigest,
 	zeroByokObservationDigest: zeroByok.observationDigest,
 });

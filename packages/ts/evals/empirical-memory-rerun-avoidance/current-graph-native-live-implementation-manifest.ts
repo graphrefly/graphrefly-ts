@@ -1,27 +1,27 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { empiricalSha256, empiricalStrictJsonDigest } from "./canonical.js";
-import { CURRENT_GRAPH_LIVE_D2_IMPLEMENTATION_MANIFEST_DIGEST } from "./current-graph-native-live-coordinates.js";
+import { CURRENT_GRAPH_LIVE_D3_IMPLEMENTATION_MANIFEST_DIGEST } from "./current-graph-native-live-coordinates.js";
 
 export const CURRENT_GRAPH_LIVE_IMPLEMENTATION_SOURCE_HASHES = Object.freeze({
 	canonical: "sha256:87423a4ca6d27a1334bd920325a6ac75108d6e88a5cd09d951165ef3717ba22a",
 	d1Authority: "sha256:e4f04d8fcca638fa9f4e4e8a074662050728e87724714179ab6816366417f2d3",
 	d2Authority: "sha256:49b530f1d927ad2f6628edfb5d93e590eaecf614508af2ff53dd8530bdd64bdf",
 	d2Qualification: "sha256:aa7f6abb5c32f042f186d3e380f2b97eabee44238e23ebfb12b932f4b2a0d4c7",
-	coordinates: "sha256:30d1a02c3d7d39c77dda8faabe4f8affd3f328abb35742d594f86f62a75b7b3d",
-	preflight: "sha256:4d40564feda92e30f07c58d4fdb037deb8753814b82c72fd74f032875866dd6b",
-	claim: "sha256:b629695bc940b6d24466fc9a7ac49e06fabdf3df11fa2742fff39f0e5ec45b81",
-	liveAuthority: "sha256:60eee720506859130998a2d1f6af036a88c5d823eb0be93b716ca395381b5fb9",
+	coordinates: "sha256:24e4cde05ef4a1c84e37036877c1c48c817d4f4717f0c8bdaac0876c504e8aa1",
+	preflight: "sha256:0a87ca245e1929cb3f51c7d65f5b967c9f697101f0f1aee595a9c9acca6b21fe",
+	claim: "sha256:bab5d079ac4643f8a95a2cb61bcdda9705090674971c35295930530885c8fbce",
+	liveAuthority: "sha256:71b92a264eefc7bd09eb65be2ce04a2fd1f9ce652a48c53e875c5ed3234cfec7",
 	openRouterAdapter: "sha256:d409c57294fd6ab56af8ac8e475f4462d88b6de43721e5f4d91ee079e056bcbf",
-	qualification: "sha256:79b4ca5b1fbcaf297356106837a9b22507a1db784b815fa0fe63e88f2451ad43",
-	runner: "sha256:87ff8fcc0b647b5cc9189661f1f1516499afc8d3ecb3897e66a11a25b4fd18d8",
-	liveRunner: "sha256:99c1c7427ff1e1f3c2e70b486af12d966020b0eab3e2819f23a736b9eef263df",
+	qualification: "sha256:81101a66bf618d1d0355cc85f41201699c6ee15af7db2dc0a1d06cd71b410787",
+	runner: "sha256:8a4adb0934bb928080af66985e20a5b9b16cd37d63f614462593e5f3bc4b106a",
+	liveRunner: "sha256:774551b024bc0f911dfda12cdce5e41f1c0da463215b1aa8e158d3ede69a0bfa",
 	privatePersistence: "sha256:a4b5f95750747226edd1ea8a1a81c1c7c0a9e5eb0734f97f07f6604fd46c908e",
 });
 
 export const CURRENT_GRAPH_LIVE_IMPLEMENTATION_MANIFEST_DIGEST = empiricalStrictJsonDigest({
-	revision: "graphrefly-ts.d3.current-graph-live-implementation-manifest.v1",
-	d2BaselineManifestDigest: CURRENT_GRAPH_LIVE_D2_IMPLEMENTATION_MANIFEST_DIGEST,
+	revision: "graphrefly-ts.d4.current-graph-live-implementation-manifest.v1",
+	d3BaselineManifestDigest: CURRENT_GRAPH_LIVE_D3_IMPLEMENTATION_MANIFEST_DIGEST,
 	sources: CURRENT_GRAPH_LIVE_IMPLEMENTATION_SOURCE_HASHES,
 });
 
@@ -56,8 +56,8 @@ export async function measureCurrentGraphLiveImplementation(
 	if (JSON.stringify(measured) !== JSON.stringify(CURRENT_GRAPH_LIVE_IMPLEMENTATION_SOURCE_HASHES))
 		throw new TypeError("current live implementation source drifted");
 	return empiricalStrictJsonDigest({
-		revision: "graphrefly-ts.d3.current-graph-live-implementation-manifest.v1",
-		d2BaselineManifestDigest: CURRENT_GRAPH_LIVE_D2_IMPLEMENTATION_MANIFEST_DIGEST,
+		revision: "graphrefly-ts.d4.current-graph-live-implementation-manifest.v1",
+		d3BaselineManifestDigest: CURRENT_GRAPH_LIVE_D3_IMPLEMENTATION_MANIFEST_DIGEST,
 		sources: measured,
 	});
 }

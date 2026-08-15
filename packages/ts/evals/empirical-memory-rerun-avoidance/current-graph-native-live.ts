@@ -33,15 +33,15 @@ import {
 } from "./current-graph-native-provider-authority.js";
 
 export const CURRENT_GRAPH_LIVE_BUNDLE_SCHEMA =
-	"graphrefly-ts.d3.current-graph-live-bundle.v1" as const;
+	"graphrefly-ts.d4.current-graph-live-bundle.v1" as const;
 export const CURRENT_GRAPH_LIVE_PARTIAL_GRAPH_SCHEMA =
-	"graphrefly-ts.d3.current-graph-live-partial-graph.v1" as const;
+	"graphrefly-ts.d4.current-graph-live-partial-graph.v1" as const;
 export const CURRENT_GRAPH_LIVE_GENERATION_SCHEMA =
-	"graphrefly-ts.d3.current-graph-live-generation.v1" as const;
+	"graphrefly-ts.d4.current-graph-live-generation.v1" as const;
 export const CURRENT_GRAPH_LIVE_TERMINAL_RECEIPT_SCHEMA =
-	"graphrefly-ts.d3.current-graph-live-terminal-receipt.v1" as const;
+	"graphrefly-ts.d4.current-graph-live-terminal-receipt.v1" as const;
 export const CURRENT_GRAPH_LIVE_PERSISTENCE_SCHEMA =
-	"graphrefly-ts.d3.current-graph-live-persistence.v1" as const;
+	"graphrefly-ts.d4.current-graph-live-persistence.v1" as const;
 export const CURRENT_GRAPH_LIVE_MAX_BUNDLE_BYTES = 4_194_304;
 
 type CurrentGraphLiveFactV1 = CurrentGraphProviderEvidenceV1["facts"][number];
@@ -67,7 +67,7 @@ export interface CurrentGraphLiveBundleV1 {
 	readonly implementationManifestDigest: string;
 	readonly qualificationArtifactDigest: string;
 	readonly qualificationDigest: string;
-	readonly d2QualificationArtifactDigest: string;
+	readonly d3QualificationArtifactDigest: string;
 	readonly pricingObservationDigest: string;
 	readonly zeroByokObservationDigest: string;
 	readonly claimDigest: string;
@@ -202,7 +202,7 @@ export async function runCurrentGraphLiveMeasurement(inputValue: {
 	readonly executionClass: "live-provider" | "injected-no-network";
 	readonly executor: CurrentGraphLiveExecutorV1;
 	readonly implementationManifestDigest: string;
-	readonly d2QualificationArtifactDigest: string;
+	readonly d3QualificationArtifactDigest: string;
 	readonly pricingObservationDigest: string;
 	readonly zeroByokObservationDigest: string;
 }): Promise<CurrentGraphLiveBundleV1> {
@@ -210,7 +210,7 @@ export async function runCurrentGraphLiveMeasurement(inputValue: {
 	exactKeys(
 		input,
 		[
-			"d2QualificationArtifactDigest",
+			"d3QualificationArtifactDigest",
 			"executionAuthority",
 			"executionClass",
 			"executor",
@@ -351,9 +351,9 @@ export async function runCurrentGraphLiveMeasurement(inputValue: {
 		),
 		qualificationArtifactDigest: authority.claim.qualificationArtifactDigest,
 		qualificationDigest: authority.claim.qualificationDigest,
-		d2QualificationArtifactDigest: digest(
-			input.d2QualificationArtifactDigest,
-			"current.live.d2QualificationArtifactDigest",
+		d3QualificationArtifactDigest: digest(
+			input.d3QualificationArtifactDigest,
+			"current.live.d3QualificationArtifactDigest",
 		),
 		pricingObservationDigest: digest(
 			input.pricingObservationDigest,
@@ -430,7 +430,7 @@ export function validateCurrentGraphLiveBundle(value: unknown): CurrentGraphLive
 			"claimDigest",
 			"coordinatesDigest",
 			"currentKeyAdmissionDigest",
-			"d2QualificationArtifactDigest",
+			"d3QualificationArtifactDigest",
 			"decisionRef",
 			"disposition",
 			"executionClass",
@@ -458,7 +458,7 @@ export function validateCurrentGraphLiveBundle(value: unknown): CurrentGraphLive
 	for (const key of [
 		"claimDigest",
 		"currentKeyAdmissionDigest",
-		"d2QualificationArtifactDigest",
+		"d3QualificationArtifactDigest",
 		"implementationManifestDigest",
 		"pricingObservationDigest",
 		"qualificationArtifactDigest",
@@ -585,7 +585,7 @@ export async function persistCurrentGraphLiveBundle(inputValue: {
 	if (bundle.generation !== null)
 		artifacts["generation.v1.json"] = strictJsonCodec.encode(bundle.generation as StrictJsonValue);
 	const commitMaterial = strictSnapshot({
-		schemaVersion: "graphrefly-ts.d3.current-graph-live-commit.v1",
+		schemaVersion: "graphrefly-ts.d4.current-graph-live-commit.v1",
 		generationRef: CURRENT_GRAPH_LIVE_GENERATION_REF,
 		disposition: bundle.disposition,
 		bundleDigest: bundle.bundleDigest,

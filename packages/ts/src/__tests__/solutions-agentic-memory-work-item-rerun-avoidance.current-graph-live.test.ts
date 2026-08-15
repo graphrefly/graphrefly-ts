@@ -13,7 +13,7 @@ import {
 	consumeCurrentGraphLiveDispatchClaim,
 } from "../../evals/empirical-memory-rerun-avoidance/current-graph-native-live-claim.js";
 import {
-	CURRENT_GRAPH_LIVE_D2_BUNDLE_ARTIFACT_DIGEST,
+	CURRENT_GRAPH_LIVE_D3_QUALIFICATION_ARTIFACT_DIGEST,
 	CURRENT_GRAPH_LIVE_GENERATION_REF,
 	CURRENT_GRAPH_LIVE_PRICING_SOURCE,
 	CURRENT_GRAPH_LIVE_PROVIDER_NAME,
@@ -67,7 +67,7 @@ function pricingResponse() {
 	return response;
 }
 
-describe("current Graph-native D3 live composition", () => {
+describe("current Graph-native D4 live composition", () => {
 	it("preserves the same-process constructed bundle identity through live persistence wiring", async () => {
 		const repositoryRoot = resolve(import.meta.dirname, "../../../..");
 		const runnerSource = await readFile(
@@ -87,7 +87,7 @@ describe("current Graph-native D3 live composition", () => {
 	});
 
 	it("runs the admitted six-arm path through the real adapter with injected no-network transport", async () => {
-		const root = await mkdtemp(join(tmpdir(), "graphrefly-d3-"));
+		const root = await mkdtemp(join(tmpdir(), "graphrefly-d4-"));
 		roots.push(root);
 		const repositoryRoot = resolve(import.meta.dirname, "../../../..");
 		const credential = {
@@ -102,8 +102,8 @@ describe("current Graph-native D3 live composition", () => {
 		});
 		const zeroByokBytes = Buffer.from(
 			JSON.stringify({
-				schemaVersion: "graphrefly-ts.d3.current-graph-live-zero-byok-observation.v1",
-				decisionRef: "graphrefly-ts:D3",
+				schemaVersion: "graphrefly-ts.d4.current-graph-live-zero-byok-observation.v1",
+				decisionRef: "graphrefly-ts:D4",
 				decisionRevision: "2026-08-14.v1",
 				workspaceName: "GraphReFly",
 				workspaceSlug: "graph-re-fly",
@@ -123,7 +123,7 @@ describe("current Graph-native D3 live composition", () => {
 			zeroByokObservation: zeroByok,
 			credential,
 		});
-		const implementationManifestDigest = empiricalStrictJsonDigest({ fixture: "d3-injected-v1" });
+		const implementationManifestDigest = empiricalStrictJsonDigest({ fixture: "d4-injected-v1" });
 		const privateRoot = join(root, "private");
 		await mkdir(privateRoot, { mode: 0o700 });
 		const claim = await acquireCurrentGraphLiveDispatchClaimAtRootForTest(
@@ -131,8 +131,8 @@ describe("current Graph-native D3 live composition", () => {
 			{
 				preclaim,
 				implementationManifestDigest,
-				qualificationArtifactDigest: empiricalStrictJsonDigest({ injected: "d3" }),
-				qualificationDigest: empiricalStrictJsonDigest({ injected: "d3-qualification" }),
+				qualificationArtifactDigest: empiricalStrictJsonDigest({ injected: "d4" }),
+				qualificationDigest: empiricalStrictJsonDigest({ injected: "d4-qualification" }),
 			},
 		);
 		const admission = await createOpenRouterCurrentKeySpendAdmissionCapability({
@@ -257,7 +257,7 @@ describe("current Graph-native D3 live composition", () => {
 			executionClass: "injected-no-network",
 			executor,
 			implementationManifestDigest,
-			d2QualificationArtifactDigest: CURRENT_GRAPH_LIVE_D2_BUNDLE_ARTIFACT_DIGEST,
+			d3QualificationArtifactDigest: CURRENT_GRAPH_LIVE_D3_QUALIFICATION_ARTIFACT_DIGEST,
 			pricingObservationDigest: pricing.observationDigest,
 			zeroByokObservationDigest: zeroByok.observationDigest,
 		});
@@ -298,7 +298,7 @@ describe("current Graph-native D3 live composition", () => {
 	}, 300_000);
 
 	it("admits executor failure as partial Graph evidence and never publishes success generation", async () => {
-		const root = await mkdtemp(join(tmpdir(), "graphrefly-d3-failure-"));
+		const root = await mkdtemp(join(tmpdir(), "graphrefly-d4-failure-"));
 		roots.push(root);
 		const credential = {
 			bearerToken: "sk-or-v1-test-current-graph-live-failure-xyz",
@@ -313,8 +313,8 @@ describe("current Graph-native D3 live composition", () => {
 		const zeroByok = admitCurrentGraphLiveZeroByok({
 			bytes: Buffer.from(
 				JSON.stringify({
-					schemaVersion: "graphrefly-ts.d3.current-graph-live-zero-byok-observation.v1",
-					decisionRef: "graphrefly-ts:D3",
+					schemaVersion: "graphrefly-ts.d4.current-graph-live-zero-byok-observation.v1",
+					decisionRef: "graphrefly-ts:D4",
 					decisionRevision: "2026-08-14.v1",
 					workspaceName: "GraphReFly",
 					workspaceSlug: "graph-re-fly",
@@ -338,7 +338,7 @@ describe("current Graph-native D3 live composition", () => {
 		});
 		const privateRoot = join(root, "private");
 		await mkdir(privateRoot, { mode: 0o700 });
-		const implementationManifestDigest = empiricalStrictJsonDigest({ fixture: "d3-failure" });
+		const implementationManifestDigest = empiricalStrictJsonDigest({ fixture: "d4-failure" });
 		const claim = await acquireCurrentGraphLiveDispatchClaimAtRootForTest(
 			await realpath(privateRoot),
 			{
@@ -383,7 +383,7 @@ describe("current Graph-native D3 live composition", () => {
 				dispose: async () => undefined,
 			},
 			implementationManifestDigest,
-			d2QualificationArtifactDigest: CURRENT_GRAPH_LIVE_D2_BUNDLE_ARTIFACT_DIGEST,
+			d3QualificationArtifactDigest: CURRENT_GRAPH_LIVE_D3_QUALIFICATION_ARTIFACT_DIGEST,
 			pricingObservationDigest: pricing.observationDigest,
 			zeroByokObservationDigest: zeroByok.observationDigest,
 		});

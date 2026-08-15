@@ -20,11 +20,11 @@ import {
 } from "./current-graph-native-live-coordinates.js";
 
 export const CURRENT_GRAPH_LIVE_PRICING_OBSERVATION_SCHEMA =
-	"graphrefly-ts.d3.current-graph-live-pricing-observation.v1" as const;
+	"graphrefly-ts.d4.current-graph-live-pricing-observation.v1" as const;
 export const CURRENT_GRAPH_LIVE_ZERO_BYOK_SCHEMA =
-	"graphrefly-ts.d3.current-graph-live-zero-byok-observation.v1" as const;
+	"graphrefly-ts.d4.current-graph-live-zero-byok-observation.v1" as const;
 export const CURRENT_GRAPH_LIVE_PRECLAIM_SCHEMA =
-	"graphrefly-ts.d3.current-graph-live-preclaim.v1" as const;
+	"graphrefly-ts.d4.current-graph-live-preclaim.v1" as const;
 export const CURRENT_GRAPH_LIVE_MAX_OFFICIAL_BYTES = 1_048_576 as const;
 export const CURRENT_GRAPH_LIVE_MAX_ZERO_BYOK_BYTES = 16_384 as const;
 export const CURRENT_GRAPH_LIVE_ZERO_BYOK_MAX_AGE_MS = 3_600_000;
@@ -297,7 +297,7 @@ export function admitCurrentGraphLiveZeroByok(inputValue: {
 	);
 	if (
 		value.schemaVersion !== CURRENT_GRAPH_LIVE_ZERO_BYOK_SCHEMA ||
-		value.decisionRef !== "graphrefly-ts:D3" ||
+		value.decisionRef !== "graphrefly-ts:D4" ||
 		value.decisionRevision !== "2026-08-14.v1" ||
 		value.workspaceName !== "GraphReFly" ||
 		value.workspaceSlug !== "graph-re-fly" ||

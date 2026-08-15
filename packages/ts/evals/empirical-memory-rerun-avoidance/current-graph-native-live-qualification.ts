@@ -20,7 +20,10 @@ import {
 	consumeCurrentGraphLiveDispatchClaim,
 } from "./current-graph-native-live-claim.js";
 import {
-	CURRENT_GRAPH_LIVE_D2_BUNDLE_ARTIFACT_DIGEST,
+	CURRENT_GRAPH_LIVE_D3_IMPLEMENTATION_MANIFEST_DIGEST,
+	CURRENT_GRAPH_LIVE_D3_QUALIFICATION_ARTIFACT_DIGEST,
+	CURRENT_GRAPH_LIVE_D3_QUALIFICATION_BUNDLE_DIGEST,
+	CURRENT_GRAPH_LIVE_D3_QUALIFICATION_DIGEST,
 	CURRENT_GRAPH_LIVE_DECISION_REF,
 	CURRENT_GRAPH_LIVE_PROVIDER_NAME,
 	CURRENT_GRAPH_LIVE_PROVIDER_TAG,
@@ -39,20 +42,19 @@ import {
 	createCurrentGraphOpenRouterExecutor,
 } from "./current-graph-native-openrouter-adapter.js";
 import { persistCurrentGraphPrivateGeneration } from "./current-graph-native-private-persistence.js";
-import { validateCurrentGraphProviderQualificationBundle } from "./current-graph-native-provider-qualification.js";
 import { createOpenRouterCurrentKeySpendAdmissionCapability } from "./openrouter-current-key-spend-admission.js";
 
 export const CURRENT_GRAPH_LIVE_QUALIFICATION_SCHEMA =
-	"graphrefly-ts.d3.current-graph-live-no-network-qualification.v1" as const;
+	"graphrefly-ts.d4.current-graph-live-no-network-qualification.v1" as const;
 export const CURRENT_GRAPH_LIVE_QUALIFICATION_GENERATION_SCHEMA =
-	"graphrefly-ts.d3.current-graph-live-no-network-generation.v1" as const;
+	"graphrefly-ts.d4.current-graph-live-no-network-generation.v1" as const;
 export const CURRENT_GRAPH_LIVE_QUALIFICATION_BUNDLE_SCHEMA =
-	"graphrefly-ts.d3.current-graph-live-no-network-bundle.v1" as const;
+	"graphrefly-ts.d4.current-graph-live-no-network-bundle.v1" as const;
 export const CURRENT_GRAPH_LIVE_QUALIFICATION_GENERATION_REF =
-	"current-graph-native-live-no-network-qualification-2026-08-14-v4" as const;
+	"current-graph-native-live-no-network-qualification-2026-08-14-d4-v1" as const;
 export const CURRENT_GRAPH_LIVE_MAX_QUALIFICATION_BYTES = 4_194_304;
 export const CURRENT_GRAPH_LIVE_QUALIFICATION_PERSISTENCE_SCHEMA =
-	"graphrefly-ts.d3.current-graph-live-no-network-persistence.v1" as const;
+	"graphrefly-ts.d4.current-graph-live-no-network-persistence.v1" as const;
 
 export interface CurrentGraphLiveQualificationBundleV1 {
 	readonly schemaVersion: typeof CURRENT_GRAPH_LIVE_QUALIFICATION_BUNDLE_SCHEMA;
@@ -60,8 +62,9 @@ export interface CurrentGraphLiveQualificationBundleV1 {
 		schemaVersion: typeof CURRENT_GRAPH_LIVE_QUALIFICATION_SCHEMA;
 		decisionRef: typeof CURRENT_GRAPH_LIVE_DECISION_REF;
 		implementationManifestDigest: string;
-		d2BundleArtifactDigest: typeof CURRENT_GRAPH_LIVE_D2_BUNDLE_ARTIFACT_DIGEST;
-		d2BundleDigest: string;
+		d3QualificationArtifactDigest: typeof CURRENT_GRAPH_LIVE_D3_QUALIFICATION_ARTIFACT_DIGEST;
+		d3QualificationBundleDigest: typeof CURRENT_GRAPH_LIVE_D3_QUALIFICATION_BUNDLE_DIGEST;
+		d3QualificationDigest: typeof CURRENT_GRAPH_LIVE_D3_QUALIFICATION_DIGEST;
 		graphBundleDigest: string;
 		fullSixArmIntegrationPassed: true;
 		providerAttempts: number;
@@ -132,33 +135,55 @@ function officialPricingResponse() {
 	return response;
 }
 
-function validateD2Bytes(bytesValue: Uint8Array) {
+function validateD3QualificationBytes(bytesValue: Uint8Array) {
 	const bytes = new Uint8Array(bytesValue);
-	if (empiricalSha256(bytes) !== CURRENT_GRAPH_LIVE_D2_BUNDLE_ARTIFACT_DIGEST)
-		throw new TypeError("current live D2 qualification artifact drifted");
-	return validateCurrentGraphProviderQualificationBundle(strictJsonCodec.decode(bytes));
+	if (empiricalSha256(bytes) !== CURRENT_GRAPH_LIVE_D3_QUALIFICATION_ARTIFACT_DIGEST)
+		throw new TypeError("current live D3 qualification artifact drifted");
+	const bundle = record(strictJsonCodec.decode(bytes), "current.live.d3Qualification");
+	exactKeys(
+		bundle,
+		["bundleDigest", "generation", "graphBundle", "qualification", "schemaVersion"],
+		"current.live.d3Qualification",
+	);
+	const qualification = record(bundle.qualification, "current.live.d3Qualification.qualification");
+	const generation = record(bundle.generation, "current.live.d3Qualification.generation");
+	if (
+		bundle.schemaVersion !== "graphrefly-ts.d3.current-graph-live-no-network-bundle.v1" ||
+		bundle.bundleDigest !== CURRENT_GRAPH_LIVE_D3_QUALIFICATION_BUNDLE_DIGEST ||
+		qualification.implementationManifestDigest !==
+			CURRENT_GRAPH_LIVE_D3_IMPLEMENTATION_MANIFEST_DIGEST ||
+		qualification.qualificationDigest !== CURRENT_GRAPH_LIVE_D3_QUALIFICATION_DIGEST ||
+		generation.generationRef !==
+			"current-graph-native-live-no-network-qualification-2026-08-14-v4" ||
+		generation.qualificationDigest !== CURRENT_GRAPH_LIVE_D3_QUALIFICATION_DIGEST
+	)
+		throw new TypeError("current live D3 qualification coordinates drifted");
+	return Object.freeze({
+		bundleDigest: CURRENT_GRAPH_LIVE_D3_QUALIFICATION_BUNDLE_DIGEST,
+		qualificationDigest: CURRENT_GRAPH_LIVE_D3_QUALIFICATION_DIGEST,
+	});
 }
 
 export async function runCurrentGraphLiveNoNetworkQualification(inputValue: {
 	readonly repositoryRoot: string;
-	readonly d2BundleBytes: Uint8Array;
+	readonly d3QualificationBundleBytes: Uint8Array;
 	readonly implementationManifestDigest: string;
 }): Promise<CurrentGraphLiveQualificationBundleV1> {
 	const input = record(inputValue, "current.live.qualification.input");
 	exactKeys(
 		input,
-		["d2BundleBytes", "implementationManifestDigest", "repositoryRoot"],
+		["d3QualificationBundleBytes", "implementationManifestDigest", "repositoryRoot"],
 		"current.live.qualification.input",
 	);
-	if (!(input.d2BundleBytes instanceof Uint8Array))
-		throw new TypeError("current live D2 qualification bytes are invalid");
-	const d2 = validateD2Bytes(input.d2BundleBytes);
+	if (!(input.d3QualificationBundleBytes instanceof Uint8Array))
+		throw new TypeError("current live D3 qualification bytes are invalid");
+	const d3 = validateD3QualificationBytes(input.d3QualificationBundleBytes);
 	const implementationManifestDigest = digest(
 		input.implementationManifestDigest,
 		"current.live.qualification.implementationManifestDigest",
 	);
 	const repositoryRoot = await realpath(resolve(String(input.repositoryRoot)));
-	const temporaryRoot = await mkdtemp(join(tmpdir(), "graphrefly-current-live-d3-"));
+	const temporaryRoot = await mkdtemp(join(tmpdir(), "graphrefly-current-live-d4-"));
 	await chmod(temporaryRoot, 0o700);
 	try {
 		const credential = Object.freeze({
@@ -173,8 +198,8 @@ export async function runCurrentGraphLiveNoNetworkQualification(inputValue: {
 		});
 		const zeroByokBytes = Buffer.from(
 			JSON.stringify({
-				schemaVersion: "graphrefly-ts.d3.current-graph-live-zero-byok-observation.v1",
-				decisionRef: "graphrefly-ts:D3",
+				schemaVersion: "graphrefly-ts.d4.current-graph-live-zero-byok-observation.v1",
+				decisionRef: "graphrefly-ts:D4",
 				decisionRevision: "2026-08-14.v1",
 				workspaceName: "GraphReFly",
 				workspaceSlug: "graph-re-fly",
@@ -205,8 +230,8 @@ export async function runCurrentGraphLiveNoNetworkQualification(inputValue: {
 			{
 				preclaim,
 				implementationManifestDigest,
-				qualificationArtifactDigest: empiricalStrictJsonDigest({ injected: "d3" }),
-				qualificationDigest: empiricalStrictJsonDigest({ injected: "d3-qualification" }),
+				qualificationArtifactDigest: empiricalStrictJsonDigest({ injected: "d4" }),
+				qualificationDigest: empiricalStrictJsonDigest({ injected: "d4-qualification" }),
 			},
 		);
 		const currentKeyAdmission = await createOpenRouterCurrentKeySpendAdmissionCapability({
@@ -329,7 +354,7 @@ export async function runCurrentGraphLiveNoNetworkQualification(inputValue: {
 					sleep: async () => undefined,
 				}),
 				implementationManifestDigest,
-				d2QualificationArtifactDigest: CURRENT_GRAPH_LIVE_D2_BUNDLE_ARTIFACT_DIGEST,
+				d3QualificationArtifactDigest: CURRENT_GRAPH_LIVE_D3_QUALIFICATION_ARTIFACT_DIGEST,
 				pricingObservationDigest: pricing.observationDigest,
 				zeroByokObservationDigest: zeroByok.observationDigest,
 			}),
@@ -372,8 +397,9 @@ export async function runCurrentGraphLiveNoNetworkQualification(inputValue: {
 			schemaVersion: CURRENT_GRAPH_LIVE_QUALIFICATION_SCHEMA,
 			decisionRef: CURRENT_GRAPH_LIVE_DECISION_REF,
 			implementationManifestDigest,
-			d2BundleArtifactDigest: CURRENT_GRAPH_LIVE_D2_BUNDLE_ARTIFACT_DIGEST,
-			d2BundleDigest: d2.bundleDigest,
+			d3QualificationArtifactDigest: CURRENT_GRAPH_LIVE_D3_QUALIFICATION_ARTIFACT_DIGEST,
+			d3QualificationBundleDigest: d3.bundleDigest,
+			d3QualificationDigest: d3.qualificationDigest,
 			graphBundleDigest: graphBundle.bundleDigest,
 			fullSixArmIntegrationPassed: true as const,
 			providerAttempts: graph.budget.providerAttempts,
@@ -447,8 +473,9 @@ export function validateCurrentGraphLiveQualificationBundle(
 		[
 			"causalAttribution",
 			"cleanupPassed",
-			"d2BundleArtifactDigest",
-			"d2BundleDigest",
+			"d3QualificationArtifactDigest",
+			"d3QualificationBundleDigest",
+			"d3QualificationDigest",
 			"decisionRef",
 			"efficacyClaim",
 			"fullSixArmIntegrationPassed",
@@ -471,7 +498,11 @@ export function validateCurrentGraphLiveQualificationBundle(
 	if (
 		qualification.schemaVersion !== CURRENT_GRAPH_LIVE_QUALIFICATION_SCHEMA ||
 		qualification.decisionRef !== CURRENT_GRAPH_LIVE_DECISION_REF ||
-		qualification.d2BundleArtifactDigest !== CURRENT_GRAPH_LIVE_D2_BUNDLE_ARTIFACT_DIGEST ||
+		qualification.d3QualificationArtifactDigest !==
+			CURRENT_GRAPH_LIVE_D3_QUALIFICATION_ARTIFACT_DIGEST ||
+		qualification.d3QualificationBundleDigest !==
+			CURRENT_GRAPH_LIVE_D3_QUALIFICATION_BUNDLE_DIGEST ||
+		qualification.d3QualificationDigest !== CURRENT_GRAPH_LIVE_D3_QUALIFICATION_DIGEST ||
 		qualification.graphBundleDigest !== graphBundle.bundleDigest ||
 		qualification.fullSixArmIntegrationPassed !== true ||
 		qualification.retryWaits !== 1 ||
@@ -547,7 +578,7 @@ export async function persistCurrentGraphLiveQualification(inputValue: {
 	);
 	const generationBytes = strictJsonCodec.encode(bundle.generation as unknown as StrictJsonValue);
 	const commitMaterial = strictSnapshot({
-		schemaVersion: "graphrefly-ts.d3.current-graph-live-no-network-commit.v1",
+		schemaVersion: "graphrefly-ts.d4.current-graph-live-no-network-commit.v1",
 		generationRef: CURRENT_GRAPH_LIVE_QUALIFICATION_GENERATION_REF,
 		bundleArtifactDigest: empiricalSha256(bundleBytes),
 		bundleDigest: bundle.bundleDigest,
