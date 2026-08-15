@@ -68,6 +68,24 @@ function pricingResponse() {
 }
 
 describe("current Graph-native D3 live composition", () => {
+	it("preserves the same-process constructed bundle identity through live persistence wiring", async () => {
+		const repositoryRoot = resolve(import.meta.dirname, "../../../..");
+		const runnerSource = await readFile(
+			join(
+				repositoryRoot,
+				"packages/ts/evals/empirical-memory-rerun-avoidance/run-current-graph-native-live.ts",
+			),
+			"utf8",
+		);
+		expect(runnerSource).toContain(
+			"const constructedBundle = await runCurrentGraphLiveMeasurement({",
+		);
+		expect(runnerSource).toContain(
+			"const bundle = validateCurrentGraphLiveBundle(constructedBundle);",
+		);
+		expect(runnerSource).toContain("bundle: constructedBundle,");
+	});
+
 	it("runs the admitted six-arm path through the real adapter with injected no-network transport", async () => {
 		const root = await mkdtemp(join(tmpdir(), "graphrefly-d3-"));
 		roots.push(root);

@@ -271,20 +271,19 @@ const executor = createCurrentGraphOpenRouterExecutor({
 		return await globalThis.fetch(request, init);
 	},
 });
-const bundle = validateCurrentGraphLiveBundle(
-	await runCurrentGraphLiveMeasurement({
-		executionAuthority,
-		executionClass: "live-provider",
-		executor,
-		implementationManifestDigest: offline.implementationManifestDigest,
-		d2QualificationArtifactDigest: CURRENT_GRAPH_LIVE_D2_BUNDLE_ARTIFACT_DIGEST,
-		pricingObservationDigest: pricing.observationDigest,
-		zeroByokObservationDigest: zeroByok.observationDigest,
-	}),
-);
+const constructedBundle = await runCurrentGraphLiveMeasurement({
+	executionAuthority,
+	executionClass: "live-provider",
+	executor,
+	implementationManifestDigest: offline.implementationManifestDigest,
+	d2QualificationArtifactDigest: CURRENT_GRAPH_LIVE_D2_BUNDLE_ARTIFACT_DIGEST,
+	pricingObservationDigest: pricing.observationDigest,
+	zeroByokObservationDigest: zeroByok.observationDigest,
+});
+const bundle = validateCurrentGraphLiveBundle(constructedBundle);
 const persistence = await persistCurrentGraphLiveBundle({
 	privateRoot: CURRENT_GRAPH_LIVE_PRIVATE_ROOT,
-	bundle,
+	bundle: constructedBundle,
 });
 process.stdout.write(
 	`${JSON.stringify({

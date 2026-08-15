@@ -49,7 +49,7 @@ export const CURRENT_GRAPH_LIVE_QUALIFICATION_GENERATION_SCHEMA =
 export const CURRENT_GRAPH_LIVE_QUALIFICATION_BUNDLE_SCHEMA =
 	"graphrefly-ts.d3.current-graph-live-no-network-bundle.v1" as const;
 export const CURRENT_GRAPH_LIVE_QUALIFICATION_GENERATION_REF =
-	"current-graph-native-live-no-network-qualification-2026-08-14-v3" as const;
+	"current-graph-native-live-no-network-qualification-2026-08-14-v4" as const;
 export const CURRENT_GRAPH_LIVE_MAX_QUALIFICATION_BYTES = 4_194_304;
 export const CURRENT_GRAPH_LIVE_QUALIFICATION_PERSISTENCE_SCHEMA =
 	"graphrefly-ts.d3.current-graph-live-no-network-persistence.v1" as const;
