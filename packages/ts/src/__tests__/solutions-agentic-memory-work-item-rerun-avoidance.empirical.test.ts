@@ -1132,6 +1132,25 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsCurrentGraphPrivateRunner =
 				file.endsWith("run-current-graph-native-no-network.ts") ||
 				file.endsWith("run-current-graph-native-provider-no-network.ts");
+			const allowsCurrentGraphLiveAdapter = file.endsWith(
+				"current-graph-native-openrouter-adapter.ts",
+			);
+			const allowsCurrentGraphLiveOperator =
+				file.endsWith("current-graph-native-live-coordinates.ts") ||
+				file.endsWith("current-graph-native-live-preflight.ts") ||
+				file.endsWith("current-graph-native-live-claim.ts") ||
+				file.endsWith("current-graph-native-live.ts") ||
+				file.endsWith("current-graph-native-private-persistence.ts") ||
+				allowsCurrentGraphLiveAdapter ||
+				file.endsWith("current-graph-native-live-qualification.ts") ||
+				file.endsWith("current-graph-native-live-implementation-manifest.ts") ||
+				file.endsWith("run-current-graph-native-live-no-network.ts") ||
+				file.endsWith("run-current-graph-native-live.ts");
+			const allowsCurrentGraphLiveOneRequest =
+				file.endsWith("current-graph-native-live-preflight.ts") ||
+				file.endsWith("current-graph-native-live-qualification.ts");
+			const allowsCurrentGraphLiveAsync =
+				allowsCurrentGraphLiveOperator && !allowsCurrentGraphLiveOneRequest;
 			const allowsCurrentGraphOfflineQualification =
 				allowsCurrentGraphNativeAuthority ||
 				allowsCurrentGraphPublicSemanticValidation ||
@@ -1236,6 +1255,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD781GraphNativeLive ||
 				allowsD782GraphNativeLive ||
 				allowsCurrentGraphOfflineQualification ||
+				allowsCurrentGraphLiveAsync ||
 				allowsD732DispatchClaim ||
 				allowsD720CleanGraphNativeEval ||
 				allowsD721ProviderCapablePreLive ||
@@ -1250,6 +1270,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			const allowsOneRequestFetchTransport =
 				file.endsWith("openrouter-responses-byte-transport.ts") ||
 				file.endsWith("openrouter-current-key-spend-admission.ts") ||
+				allowsCurrentGraphLiveOneRequest ||
 				allowsD708OfficialPricingReadOperator ||
 				allowsD711OfficialPricingReadOperator ||
 				allowsD713OfficialPricingReadOperator;
@@ -1337,40 +1358,42 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 						? /\b(?:Date\.now|fetch|WebSocket|setInterval|setImmediate|queueMicrotask)\b|node:(?:http|https|tls)|(?:from|import)\s+["'](?:http|https|tls|undici|ws)["']/
 						: allowsOutermostLiveOperator
 							? /\b(?:WebSocket|setInterval|setImmediate|queueMicrotask)\b|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
-							: allowsRepositoryNodeDriver ||
-									allowsClosedHostNodeDriver ||
-									allowsClosedVerifierCalibration ||
-									allowsOfflineQualification ||
-									allowsPreliveOperatorDriver ||
-									allowsD721ProviderCapableAdapter ||
-									allowsD722ProviderCapableAdapter ||
-									allowsD722InjectedModelFixture ||
-									allowsD723RealProviderAdapter ||
-									allowsD723OpenRouterGraphTurn ||
-									allowsD733OpenRouterGraphTurn ||
-									allowsD734RouteIntegration ||
-									allowsD734InjectedFixture ||
-									allowsD760InjectedFixture ||
-									allowsD756Qualification ||
-									allowsD757Qualification ||
-									allowsD759Qualification ||
-									allowsD761Qualification ||
-									allowsD771Qualification ||
-									allowsD774D776PreLive ||
-									allowsD778PreLive ||
-									allowsD779PreLive ||
-									allowsD735ProviderPreflight ||
-									allowsD725RealProviderIntegration ||
-									allowsD725InjectedQualification ||
-									allowsD731InjectedRouteRepairFixture
-								? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls)|(?:from|import)\s+["'](?:http|https|net|tls|undici|ws)["']/
-								: allowsOneRequestFetchTransport
-									? /\b(?:Date\.now|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
-									: allowsFocusedTransportAsync
-										? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
-										: allowsOneTurnPromise
-											? /\b(?:async|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
-											: /\b(?:async|Promise|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/,
+							: allowsCurrentGraphLiveAsync
+								? /\b(?:WebSocket|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls)|(?:from|import)\s+["'](?:http|https|net|tls|undici|ws)["']/
+								: allowsRepositoryNodeDriver ||
+										allowsClosedHostNodeDriver ||
+										allowsClosedVerifierCalibration ||
+										allowsOfflineQualification ||
+										allowsPreliveOperatorDriver ||
+										allowsD721ProviderCapableAdapter ||
+										allowsD722ProviderCapableAdapter ||
+										allowsD722InjectedModelFixture ||
+										allowsD723RealProviderAdapter ||
+										allowsD723OpenRouterGraphTurn ||
+										allowsD733OpenRouterGraphTurn ||
+										allowsD734RouteIntegration ||
+										allowsD734InjectedFixture ||
+										allowsD760InjectedFixture ||
+										allowsD756Qualification ||
+										allowsD757Qualification ||
+										allowsD759Qualification ||
+										allowsD761Qualification ||
+										allowsD771Qualification ||
+										allowsD774D776PreLive ||
+										allowsD778PreLive ||
+										allowsD779PreLive ||
+										allowsD735ProviderPreflight ||
+										allowsD725RealProviderIntegration ||
+										allowsD725InjectedQualification ||
+										allowsD731InjectedRouteRepairFixture
+									? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls)|(?:from|import)\s+["'](?:http|https|net|tls|undici|ws)["']/
+									: allowsOneRequestFetchTransport
+										? /\b(?:Date\.now|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
+										: allowsFocusedTransportAsync
+											? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
+											: allowsOneTurnPromise
+												? /\b(?:async|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
+												: /\b(?:async|Promise|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/,
 			);
 			if (allowsD703MutationFirstOperator) {
 				expect(source.match(/require\('node:net'\)/g)).toHaveLength(1);
@@ -1405,7 +1428,9 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 						((allowsRepositoryNodeDriver ||
 							allowsClosedHostNodeDriver ||
 							allowsD690SealedOfflineOperator ||
-							allowsD703MutationFirstOperator) &&
+							allowsD703MutationFirstOperator ||
+							allowsCurrentGraphLiveAdapter ||
+							file.endsWith("run-current-graph-native-live.ts")) &&
 							specifier === "node:child_process") ||
 						((allowsD708QualifiedEntrypoint ||
 							allowsD711QualifiedEntrypoint ||
@@ -1419,12 +1444,15 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsClosedHostNodeDriver ||
 							allowsD690SealedOfflineOperator ||
 							allowsPreliveOperatorDriver ||
+							allowsCurrentGraphLiveOperator ||
 							allowsOutermostLiveOperator ||
 							allowsD708QualifiedEntrypoint ||
 							allowsD711QualifiedEntrypoint ||
 							allowsD713QualifiedEntrypoint) &&
 							(specifier === "node:fs/promises" || specifier === "node:path")) ||
 						(allowsD690SealedOfflineOperator &&
+							(specifier === "node:fs" || specifier === "node:os")) ||
+						(allowsCurrentGraphLiveOperator &&
 							(specifier === "node:fs" || specifier === "node:os")) ||
 						((allowsD708ZeroByokOperator ||
 							allowsD708ClaimOperator ||
