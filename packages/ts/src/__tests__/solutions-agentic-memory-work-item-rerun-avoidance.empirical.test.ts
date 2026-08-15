@@ -1134,16 +1134,20 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("current-graph-native-provider-implementation-manifest.ts") ||
 				file.endsWith("d5-inspection-batch-implementation-manifest.ts") ||
 				file.endsWith("d6-current-implementation-manifest.ts") ||
-				file.endsWith("d7-current-implementation-manifest.ts");
+				file.endsWith("d7-current-implementation-manifest.ts") ||
+				file.endsWith("d8-current-implementation-manifest.ts");
 			const allowsCurrentGraphPrivateRunner =
 				file.endsWith("run-current-graph-native-no-network.ts") ||
 				file.endsWith("run-current-graph-native-provider-no-network.ts") ||
 				file.endsWith("run-d5-inspection-batch-no-network.ts") ||
 				file.endsWith("run-d6-current-no-network.ts") ||
-				file.endsWith("run-d7-live.ts");
+				file.endsWith("run-d7-live.ts") ||
+				file.endsWith("run-d8-current-no-network.ts") ||
+				file.endsWith("run-d8-live.ts");
 			const allowsCurrentGraphLiveAdapter =
 				file.endsWith("current-graph-native-openrouter-adapter.ts") ||
-				file.endsWith("d6-current-openrouter-adapter.ts");
+				file.endsWith("d6-current-openrouter-adapter.ts") ||
+				file.endsWith("d8-current-openrouter-adapter.ts");
 			const allowsCurrentGraphLiveOperator =
 				file.endsWith("current-graph-native-live-coordinates.ts") ||
 				file.endsWith("current-graph-native-live-preflight.ts") ||
@@ -1169,13 +1173,24 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d7-current-live-claim.ts") ||
 				file.endsWith("d7-current-live.ts") ||
 				file.endsWith("d7-current-implementation-manifest.ts") ||
-				file.endsWith("run-d7-live.ts");
+				file.endsWith("run-d7-live.ts") ||
+				file.endsWith("d8-current-live-coordinates.ts") ||
+				file.endsWith("d8-current-live-preflight.ts") ||
+				file.endsWith("d8-current-live-claim.ts") ||
+				file.endsWith("d8-current-live.ts") ||
+				file.endsWith("d8-current-openrouter-adapter.ts") ||
+				file.endsWith("d8-current-pre-live-qualification.ts") ||
+				file.endsWith("d8-current-implementation-manifest.ts") ||
+				file.endsWith("run-d8-current-no-network.ts") ||
+				file.endsWith("run-d8-live.ts");
 			const allowsCurrentGraphLiveOneRequest =
 				file.endsWith("current-graph-native-live-preflight.ts") ||
 				file.endsWith("current-graph-native-live-qualification.ts") ||
 				file.endsWith("d6-current-live-preflight.ts") ||
 				file.endsWith("d6-current-pre-live-qualification.ts") ||
-				file.endsWith("d7-current-live-preflight.ts");
+				file.endsWith("d7-current-live-preflight.ts") ||
+				file.endsWith("d8-current-live-preflight.ts") ||
+				file.endsWith("d8-current-pre-live-qualification.ts");
 			const allowsCurrentGraphLiveAsync =
 				allowsCurrentGraphLiveOperator && !allowsCurrentGraphLiveOneRequest;
 			const allowsCurrentGraphOfflineQualification =
@@ -1458,7 +1473,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD703MutationFirstOperator ||
 							allowsCurrentGraphLiveAdapter ||
 							file.endsWith("run-current-graph-native-live.ts") ||
-							file.endsWith("run-d7-live.ts")) &&
+							file.endsWith("run-d7-live.ts") ||
+							file.endsWith("run-d8-live.ts")) &&
 							specifier === "node:child_process") ||
 						((allowsD708QualifiedEntrypoint ||
 							allowsD711QualifiedEntrypoint ||
