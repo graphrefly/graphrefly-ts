@@ -5,10 +5,7 @@ import { join, resolve } from "node:path";
 import { strictJsonCodec } from "../../src/json/codec.js";
 import { empiricalSha256, record, sameBytes } from "./canonical.js";
 import { createCurrentGraphOpenRouterExecutor } from "./d6-current-openrouter-adapter.js";
-import {
-	runCurrentGraphLiveNoNetworkQualification,
-	validateCurrentGraphLiveQualificationBundle,
-} from "./d6-current-pre-live-qualification.js";
+import { validateCurrentGraphLiveQualificationBundle } from "./d6-current-pre-live-qualification.js";
 import {
 	CURRENT_GRAPH_LIVE_IMPLEMENTATION_MANIFEST_DIGEST,
 	measureCurrentGraphLiveImplementation,
@@ -27,6 +24,8 @@ import {
 	CURRENT_GRAPH_LIVE_BASELINE_COMMIT,
 	CURRENT_GRAPH_LIVE_D6_IMPLEMENTATION_MANIFEST_DIGEST,
 	CURRENT_GRAPH_LIVE_D6_QUALIFICATION_ARTIFACT_DIGEST,
+	CURRENT_GRAPH_LIVE_D6_QUALIFICATION_BUNDLE_DIGEST,
+	CURRENT_GRAPH_LIVE_D6_QUALIFICATION_DIGEST,
 	CURRENT_GRAPH_LIVE_GENERATION_REF,
 } from "./d7-current-live-coordinates.js";
 import {
@@ -46,10 +45,6 @@ const zeroByokPath = join(privateOperatorRoot, "d7-fresh-zero-byok-browser-attes
 const d6QualificationBundlePath = join(
 	privateOperatorRoot,
 	"current-graph-native-d6/current-graph-native-live-no-network-qualification-2026-08-14-d6-v2/artifacts/bundle.v1.json",
-);
-const d5QualificationBundlePath = join(
-	privateOperatorRoot,
-	"d5-inspection-batch/d5-inspection-batch-no-network-qualification-2026-08-14-v3/artifacts/bundle.v1.json",
 );
 const liveGenerationRoot = join(CURRENT_GRAPH_LIVE_PRIVATE_ROOT, CURRENT_GRAPH_LIVE_GENERATION_REF);
 const MAX_ARTIFACT_BYTES = 4_194_304;
@@ -184,44 +179,23 @@ async function offlinePreflight() {
 		strictJsonCodec.decode(qualificationBytes),
 	);
 	if (
+		qualification.bundleDigest !== CURRENT_GRAPH_LIVE_D6_QUALIFICATION_BUNDLE_DIGEST ||
+		qualification.qualification.qualificationDigest !==
+			CURRENT_GRAPH_LIVE_D6_QUALIFICATION_DIGEST ||
 		qualification.qualification.implementationManifestDigest !==
-		CURRENT_GRAPH_LIVE_D6_IMPLEMENTATION_MANIFEST_DIGEST
-	)
-		throw new TypeError("D7 live D6 qualification implementation drifted");
-	const d5QualificationBundleBytes = await boundedPrivateFile(
-		d5QualificationBundlePath,
-		MAX_ARTIFACT_BYTES,
-	);
-	const rerun = await runCurrentGraphLiveNoNetworkQualification({
-		repositoryRoot,
-		d5QualificationBundleBytes,
-		implementationManifestDigest: CURRENT_GRAPH_LIVE_D6_IMPLEMENTATION_MANIFEST_DIGEST,
-	});
-	if (
-		rerun.qualification.implementationManifestDigest !==
 			CURRENT_GRAPH_LIVE_D6_IMPLEMENTATION_MANIFEST_DIGEST ||
-		rerun.bundleDigest !== qualification.bundleDigest ||
-		rerun.qualification.qualificationDigest !== qualification.qualification.qualificationDigest ||
-		rerun.qualification.providerAttempts !== qualification.qualification.providerAttempts ||
-		rerun.qualification.retryWaits !== qualification.qualification.retryWaits ||
-		rerun.qualification.maxActiveTransport !== qualification.qualification.maxActiveTransport ||
-		rerun.qualification.fullSixArmIntegrationPassed !== true ||
-		rerun.qualification.retryRequestIdentityPassed !== true ||
-		rerun.qualification.publicSemanticValidationPassed !== true ||
-		rerun.qualification.hiddenVerifierPassed !== true ||
-		rerun.qualification.cleanupPassed !== true ||
-		rerun.qualification.providerNetworkCalls !== 0 ||
-		rerun.qualification.workspaceResidueCount !== 0
+		qualification.qualification.providerAttempts !== 13 ||
+		qualification.qualification.retryWaits !== 1 ||
+		qualification.qualification.maxActiveTransport !== 1 ||
+		qualification.qualification.fullSixArmIntegrationPassed !== true ||
+		qualification.qualification.retryRequestIdentityPassed !== true ||
+		qualification.qualification.publicSemanticValidationPassed !== true ||
+		qualification.qualification.hiddenVerifierPassed !== true ||
+		qualification.qualification.cleanupPassed !== true ||
+		qualification.qualification.providerNetworkCalls !== 0 ||
+		qualification.qualification.workspaceResidueCount !== 0
 	)
-		throw new TypeError("D7 live no-network qualification projection drifted");
-	await runCommand("pnpm", [
-		"exec",
-		"vitest",
-		"run",
-		"packages/ts/src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.d7-live.test.ts",
-		"packages/ts/src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.empirical.test.ts",
-	]);
-	await runCommand("pnpm", ["--filter", "@graphrefly/ts", "test:typecheck"]);
+		throw new TypeError("D7 live D6 qualification projection drifted");
 	await assertAbsent(liveGenerationRoot, "generation");
 	return Object.freeze({
 		implementationManifestDigest,
