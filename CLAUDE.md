@@ -23,7 +23,8 @@ Read `~/src/graphrefly/CLAUDE.md` first — it is the single-source index for th
 | **Protocol rules (宪法)** | `~/src/graphrefly/spec/rules.jsonl` (changed via `/spec-amend`) |
 | **Conformance scenarios (parity)** | `~/src/graphrefly/spec/conformance.jsonl` (driven via `/conformance`) |
 | **Formal model** | `~/src/graphrefly/formal/*.tla` (+ MC configs) |
-| **Sequencer (what next) / backlog / anti-patterns** | `~/src/graphrefly/plan/{phases,backlog,antipatterns}.jsonl` |
+| **Cross-project program / backlog / anti-patterns** | `~/src/graphrefly/plan/{phases,backlog,antipatterns}.jsonl` |
+| **TypeScript implementation sequencer** | `plan/work.jsonl` (`graphrefly-ts:<work-id>`; registered by root `authority/work-ledgers.jsonl`) |
 | **Guides (composition / docs / test / contribute)** | `~/src/graphrefly/guide/guide.jsonl` |
 | **Rendered view** (progress / structure / gaps / search) | `~/src/graphrefly/dashboard/` (`node dashboard/build.mjs`) |
 
