@@ -51,6 +51,7 @@ const d2BundlePath = join(
 const qualificationBundlePath = join(
 	CURRENT_GRAPH_LIVE_PRIVATE_ROOT,
 	CURRENT_GRAPH_LIVE_QUALIFICATION_GENERATION_REF,
+	"artifacts",
 	"bundle.v1.json",
 );
 const liveGenerationRoot = join(CURRENT_GRAPH_LIVE_PRIVATE_ROOT, CURRENT_GRAPH_LIVE_GENERATION_REF);
