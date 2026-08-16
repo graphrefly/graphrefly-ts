@@ -6,6 +6,7 @@ import {
 	D15_IMPLEMENTATION_MANIFEST_DIGEST,
 	measureD15Implementation,
 } from "../../evals/empirical-memory-rerun-avoidance/d15-current-implementation-manifest.js";
+import { isD15CompleteSixArmMeasurementForTest } from "../../evals/empirical-memory-rerun-avoidance/d15-current-live.js";
 import { D15_CURRENT_GRAPH_LIVE_LIMITS } from "../../evals/empirical-memory-rerun-avoidance/d15-current-live-coordinates.js";
 import {
 	createD15InjectedD6BaselineForTest,
@@ -47,6 +48,18 @@ describe("graphrefly-ts:D15 D6-v4 repaired live composition", () => {
 		const facts = evidence.transportFacts as Array<Record<string, unknown>>;
 		facts[0] = { ...facts[0], causeCode: "headers-timeout" };
 		expect(() => validateD15QualificationBundle(forged)).toThrow();
+	});
+
+	it("treats six cleaned Graph arms as orchestration-complete without claiming arm efficacy", () => {
+		const graphEvidence = structuredClone(qualifiedBundle.graphBundle.graphEvidence);
+		expect(graphEvidence).not.toBeNull();
+		for (const run of graphEvidence!.d9Evidence.providerEvidence.workflowEvidence.runs)
+			(run as { status: "incomplete" }).status = "incomplete";
+		expect(
+			isD15CompleteSixArmMeasurementForTest(
+				graphEvidence as Parameters<typeof isD15CompleteSixArmMeasurementForTest>[0],
+			),
+		).toBe(true);
 	});
 
 	it("persists injected qualification atomically and rejects replay", async () => {

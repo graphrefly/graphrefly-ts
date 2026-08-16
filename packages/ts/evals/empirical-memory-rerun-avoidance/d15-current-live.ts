@@ -214,22 +214,10 @@ export async function persistD15CurrentGraphLivePreexecutionFailure(inputValue: 
 
 function completeSixArms(evidence: D11TransportFailureEvidenceV1): boolean {
 	const provider = evidence.d9Evidence.providerEvidence;
-	const failedRuns = new Set([
-		...evidence.d9Evidence.rejectionFacts.map((fact) => `${fact.arm}:${fact.runSequence}`),
-		...evidence.transportFacts.map((fact) => `${fact.arm}:${fact.runSequence}`),
-	]);
 	return (
 		provider.runStatus === "complete" &&
 		provider.workflowEvidence.runs.length === 6 &&
-		failedRuns.size ===
-			evidence.d9Evidence.rejectionFacts.length + evidence.transportFacts.length &&
-		provider.workflowEvidence.runs.every((run) => {
-			const failed = failedRuns.has(`${run.arm}:${run.runSequence}`);
-			return (
-				run.cleanupStatus === "completed" &&
-				((run.status === "completed" && !failed) || (run.status === "incomplete" && failed))
-			);
-		})
+		provider.workflowEvidence.runs.every((run) => run.cleanupStatus === "completed")
 	);
 }
 

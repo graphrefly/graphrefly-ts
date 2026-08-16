@@ -35,7 +35,7 @@ export const D15_D6_QUALIFICATION_DIGEST =
 export const D15_D6_QUALIFICATION_GENERATION_DIGEST =
 	"sha256:24da5c0598e19c611ef9360f478301ee857f8ac1460393626abb80f3836820cb" as const;
 export const D15_CURRENT_GRAPH_LIVE_QUALIFICATION_GENERATION_REF =
-	"current-graph-native-live-no-network-qualification-2026-08-16-d15-v3" as const;
+	"current-graph-native-live-no-network-qualification-2026-08-16-d15-v4" as const;
 export const D15_CURRENT_GRAPH_LIVE_GENERATION_REF =
 	"current-graph-native-live-2026-08-16-d15-v1" as const;
 export const D15_CURRENT_GRAPH_LIVE_DISPATCH_CLAIM_REF =

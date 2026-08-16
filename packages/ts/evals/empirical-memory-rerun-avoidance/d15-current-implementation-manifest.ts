@@ -11,9 +11,9 @@ import {
 } from "./d14-current-implementation-manifest.js";
 
 export const D15_IMPLEMENTATION_SOURCE_HASHES = Object.freeze({
-	d15Coordinates: "sha256:f389df1d8297a42f802b7a12c7e2623a465d428ce0cc0db6a12eb51c21b7b97a",
+	d15Coordinates: "sha256:f550b7e8dad3d94d0fafc2a221c38b4cf75a2b335dea13eff1b791f36c600a31",
 	d15Claim: "sha256:4658769496cb7bebcba3ff196cdf23f88f7df55006b221137a902617bb72bd08",
-	d15Live: "sha256:19f09107f1a5c4dd6da699fcc6fa5d37500da54804f1f12ee641ddc04ef64039",
+	d15Live: "sha256:e150df8ce633071d339604b00384432f70236d7ba21f327156869b92442bb724",
 	d15Qualification: "sha256:e98aa4acc547d77f1aa9e636a1fa9b003b299df286640da9442b0d3fef8d795c",
 	d15NoNetworkRunner: "sha256:ecbb686d37bf8ea28bada1e9049678f952f9788e8830d3b126997cb36bb53496",
 	d15LiveRunner: "sha256:d5dcfb5e6a6a12d4fcd7c0dcfe419b2e67c56a2269b91d62f54585ca8a69468a",
