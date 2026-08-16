@@ -305,11 +305,27 @@ function failedResultFor(
 
 function completeSixArms(evidence: D9ProviderRejectionEvidenceV1): boolean {
 	const provider = evidence.providerEvidence;
+	const rejectedRuns = new Set(
+		evidence.rejectionFacts.map((fact) => `${fact.arm}:${fact.runSequence}`),
+	);
 	return (
 		provider.runStatus === "complete" &&
 		provider.workflowEvidence.runs.length === 6 &&
-		provider.workflowEvidence.runs.every((run) => run.cleanupStatus === "completed")
+		rejectedRuns.size === evidence.rejectionFacts.length &&
+		provider.workflowEvidence.runs.every((run) => {
+			const rejected = rejectedRuns.has(`${run.arm}:${run.runSequence}`);
+			return (
+				run.cleanupStatus === "completed" &&
+				((run.status === "completed" && !rejected) || (run.status === "incomplete" && rejected))
+			);
+		})
 	);
+}
+
+export function isD10CompleteSixArmMeasurementForTest(
+	evidence: D9ProviderRejectionEvidenceV1,
+): boolean {
+	return completeSixArms(evidence);
 }
 
 export async function runD10CurrentGraphLiveMeasurement(inputValue: {

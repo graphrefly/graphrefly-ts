@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { isD10CompleteSixArmMeasurementForTest } from "../../evals/empirical-memory-rerun-avoidance/d10-current-live.js";
 import {
 	createD10InjectedD9BaselineForTest,
 	runD10CurrentGraphLiveNoNetworkQualification,
@@ -23,6 +24,13 @@ describe("D10 Graph-native provider-rejection live composition", () => {
 		).toHaveLength(6);
 		expect(validated.qualification.conservativeRejectionAccountingPassed).toBe(true);
 		expect(validated.qualification.rejectionCleanupAndNextArmPassed).toBe(true);
+		expect(isD10CompleteSixArmMeasurementForTest(validated.graphBundle.graphEvidence!)).toBe(true);
+		const rejectionRemoved = {
+			...validated.graphBundle.graphEvidence!,
+			rejectionFacts: [],
+			rejectionCount: 0,
+		};
+		expect(isD10CompleteSixArmMeasurementForTest(rejectionRemoved)).toBe(false);
 	}, 120_000);
 
 	test("rejects a redigested provider-rejection projection substitution", async () => {
