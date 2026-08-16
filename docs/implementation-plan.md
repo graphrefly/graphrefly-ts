@@ -793,7 +793,7 @@ Parked: PY parity (until 1.0); Path X (blocked); G10 (rewire-gap dependent); cod
 
 ### Phase 11 — Cleanup batch (deferred-item roll-up) ✅ landed (2026-04-30) — DONE items archived
 
-DONE items from §11.1–§11.10 archived to [archive/roadmap/phase-11-cleanup.jsonl](../archive/roadmap/phase-11-cleanup.jsonl) (ids `phase-11.1-class-ab-migration-qa-carries` … `phase-11.10-operator-layer-resolved`). Headline landings: bridge `=== undefined` migration + topic-empty SENTINEL fix (EC2/EC7); `${name}-state` separator (EC17); `TopicGraph` self-resolve fix; partial:false withLatestFrom regression tests (P11.5-D1); `maxInflight` per-stage cap (R3.1); `Graph._destroyClearOnly` disposer drain (EH-2); `wrapMutation` migration for `processManager` + messaging (γ-7-A, R2.6); rateLimiter/breaker/timeout/retry/fallback reactive-options widening (R3.2) + `meta` forwarding (D8) + `rateLimitState` companion (D7); Wave 2B DF1–DF13 cluster; Tier 1.5.3 F15/F18/F24/F25; Wave AM AM.0–AM.3 + `memoryWithTiers` refactor; DS-11.10 operator-layer review resolved by spec §1.3.3 + COMPOSITION-GUIDE §41.
+DONE items from §11.1–§11.10 were preserved under retired ids `phase-11.1-class-ab-migration-qa-carries` … `phase-11.10-operator-layer-resolved`; their removed roadmap records remain available in Git history. Headline landings: bridge `=== undefined` migration + topic-empty SENTINEL fix (EC2/EC7); `${name}-state` separator (EC17); `TopicGraph` self-resolve fix; partial:false withLatestFrom regression tests (P11.5-D1); `maxInflight` per-stage cap (R3.1); `Graph._destroyClearOnly` disposer drain (EH-2); `wrapMutation` migration for `processManager` + messaging (γ-7-A, R2.6); rateLimiter/breaker/timeout/retry/fallback reactive-options widening (R3.2) + `meta` forwarding (D8) + `rateLimitState` companion (D7); Wave 2B DF1–DF13 cluster; Tier 1.5.3 F15/F18/F24/F25; Wave AM AM.0–AM.3 + `memoryWithTiers` refactor; DS-11.10 operator-layer review resolved by spec §1.3.3 + COMPOSITION-GUIDE §41.
 
 `optimizations.md` remains the source of truth for per-item context. The list below is the **WAIT / POST-1.0 carries that remain open** — i.e. consumer-driven follow-ups that did NOT land in the cleanup batch and stay in flight. New WAIT items added here should map to a fresh sub-bullet OR file under Phase 14.5 / Parked.
 
@@ -836,7 +836,7 @@ DONE items from §11.1–§11.10 archived to [archive/roadmap/phase-11-cleanup.j
 
 ### Phase 12 — Consolidation closure (cross-cutting refactors) ✅ landed (2026-04-30) — archived
 
-Body archived to [archive/roadmap/phase-12-consolidation.jsonl](../archive/roadmap/phase-12-consolidation.jsonl) (ids `phase-12-consolidation-batch`, `phase-12-qa-pass`).
+The removed roadmap body remains available in Git history (ids `phase-12-consolidation-batch`, `phase-12-qa-pass`).
 
 Single batch covering 12.A `io/` body extraction (markup-only — `extra/io/index.ts` now a 98-LOC barrel + 30+ per-protocol sub-files; landed in commit `0dc5f9e`); 12.B sibling-file relocation (18 files moved into `composition/` / `data-structures/` / `storage/` / `io/` / `resilience/` with 1-line re-export shims at top level); 12.C `promptNode` B.3 widening (verify-only — `::messages` / `::output` / `::response` topology already in code); 12.D `extends Graph` sweep (`RefineLoopGraph` + `AgentMemoryGraph` migrated to `class extends Graph`; unblocks Phase 13.G `AgentBundle.graph: AgentGraph<TIn, TOut>` with `instanceof` narrowing). 2646 tests passing; build green; lint clean.
 
@@ -846,7 +846,7 @@ Single batch covering 12.A `io/` body extraction (markup-only — `extra/io/inde
 
 ### Phase 13 — Multi-agent + intervention substrate ✅ closed (2026-05-01) — archived
 
-Body archived to [archive/roadmap/phase-13-multi-agent.jsonl](../archive/roadmap/phase-13-multi-agent.jsonl) (ids `phase-13-multi-agent-batch`, `phase-13-qa-pass`).
+The removed roadmap body remains available in Git history (ids `phase-13-multi-agent-batch`, `phase-13-qa-pass`).
 
 All 13 sub-units (A–M) shipped in one batch: 13.A recovered the multi-agent gap-analysis design doc; 13.B `Message<T>` envelope + standard topic constants (`PROMPTS_TOPIC` / `RESPONSES_TOPIC` / `INJECTIONS_TOPIC` / `DEFERRED_TOPIC` / `SPAWNS_TOPIC`); 13.C `selector` + `materialize` composers in `extra/composition/`; 13.D recipe docs (cross-repo edits to COMPOSITION-GUIDE-PATTERNS.md §41–§43 — criteria-grid verifier, cost-bubble, boundaryDrain); 13.E `valve` `abortInFlight` opt; 13.F `humanInput<T>` + `tracker` sibling presets (orchestration/); 13.G `AgentBundle<TIn, TOut>` interface + `class AgentGraph extends Graph`; 13.H `agent(spec)` preset + `presetRegistry` sugar; 13.I `spawnable()` harness preset + strategy-key axis extension (`StrategyKey = ${PresetId}|${RootCause}→${Intervention}` with `DEFAULT_PRESET_ID = "default"`); 13.J `boundaryDrain` locked as recipe; 13.K G6 cross-graph `explain()` validation (5 tests; topicBridge end-to-end gap filed in optimizations.md); 13.L `settle<T>` operator (reactive form of `awaitSettled`); 13.M worked multi-agent example test (lock-test). 2734 tests pass (+88 over Phase 12 baseline); build green; lint clean.
 

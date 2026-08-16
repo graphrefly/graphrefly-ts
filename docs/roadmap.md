@@ -15,7 +15,7 @@
 
 > **This file was originally the single source of truth** for roadmap tracking across both graphrefly-ts and graphrefly-py. Per the canonical-source migration above, item-level state is no longer maintained here — the residuals have been folded into `implementation-plan.md` Phase 14.5 (refineLoop tail, mockLLM promotion, demo deck, etc.) or the Parked table (post-1.0 distributed, content-addressing depth, memory optimization).
 >
-> **Completed phases and items have been archived to `archive/roadmap/*.jsonl`.** See `docs/docs.jsonl` § "Roadmap archive" for the archive structure and workflow.
+> **Retired roadmap records were removed during clean-slate consolidation.** Git history preserves their item identities and provenance.
 >
 > **Historical spec reference:** old prose `~/src/graphrefly/GRAPHREFLY-SPEC.md`; current protocol authority is `~/src/graphrefly/spec/rules.jsonl`.
 >
@@ -33,17 +33,17 @@
 
 ### Phase 1–3: Spec + prototype + test migration (TS)
 
-> **DONE — archived to `archive/roadmap/push-model-migration.jsonl`** (ids: `push-model-phase1`, `push-model-phase2`, `push-model-phase3`).
+> **DONE — retired roadmap records removed** (ids: `push-model-phase1`, `push-model-phase2`, `push-model-phase3`; preserved in Git history).
 
 ### Phase 4: Python parity
 
-> **DONE — archived to `archive/roadmap/push-model-migration.jsonl`** (id: `push-model-phase4`).
+> **DONE — retired roadmap record removed** (id: `push-model-phase4`; preserved in Git history).
 >
 > Summary: Full v0.2 push-on-subscribe + v5 architecture (START message, tier shift, NodeBase extraction, ROM/RAM cache rule, first-run gate, at-most-once `_active` deactivation guard) ported to graphrefly-py. QA pass fixed terminal replay (reverted to match TS/spec), first-run gate, RAM cache clear, adapter test race conditions, initial status for compute nodes. `_connected` field removed — connect guards use `_upstream_unsubs`/`_dep_unsubs` directly. All 1156 PY tests pass, lint + mypy clean.
 
 ### Phase 5: LLM composition validation
 
-> **DONE — archived to `archive/roadmap/push-model-migration.jsonl`** (id: `push-model-phase5`).
+> **DONE — retired roadmap record removed** (id: `push-model-phase5`; preserved in Git history).
 >
 > Summary: 10 scenarios, 11 tests, all passing. Push model highly LLM-compatible (9/11 first-attempt). Fixed connection-time diamond spec-impl gap, documented two-phase source protocol (COMPOSITION-GUIDE §9), SENTINEL vs null-guard cascading (§10), SENTINEL indicator in describe(). Test file: `src/__tests__/phase5-llm-composition.test.ts`.
 
@@ -63,9 +63,9 @@ Goal: build the reactive collaboration harness and use it to manage the Wave 1 e
 
 #### 9.0 — Reactive Collaboration Loop
 
-> **Primitives:** DONE — archived to `archive/roadmap/phase-9-harness-sprint.jsonl` (id: `9.0-primitives`).
+> **Primitives:** DONE — retired roadmap record removed (id: `9.0-primitives`; preserved in Git history).
 >
-> **Wiring:** DONE — archived to `archive/roadmap/phase-9-harness-sprint.jsonl` (id: `9.0-wiring`).
+> **Wiring:** DONE — retired roadmap record removed (id: `9.0-wiring`; preserved in Git history).
 
 ##### Dual composition mode
 
@@ -205,7 +205,7 @@ This connects §9.0 (harness) with §9.8 (refineLoop) — the harness routes ite
 
 ### §9.0b — Mid-Level Harness Blocks
 
-> **DONE — archived to `archive/roadmap/phase-9-harness-sprint.jsonl`** (id: `9.0b-mid-level-harness-blocks`, resolved 2026-04-19).
+> **DONE — retired roadmap record removed** (id: `9.0b-mid-level-harness-blocks`, resolved 2026-04-19; preserved in Git history).
 >
 > Shipped in this wave: `graphLens()` ([src/patterns/lens.ts](../src/patterns/lens.ts)), `resilientPipeline()` ([src/patterns/resilient-pipeline.ts](../src/patterns/resilient-pipeline.ts)), `guardedExecution()` ([src/patterns/guarded-execution.ts](../src/patterns/guarded-execution.ts)), plus the `Graph.topology` event companion and `watchTopologyTree()` helper ([src/graph/topology-tree.ts](../src/graph/topology-tree.ts)) — the transitive structural-change subscription used by graphLens and by policyEnforcer's dynamic-coverage upgrade. `persistentState()` retired (superseded by `Graph.attachStorage()`). Design reference: `archive/docs/SESSION-mid-level-harness-blocks.md`.
 
@@ -265,13 +265,13 @@ Four treatments, same 12 tasks, measuring delta at each automation step.
 
 **Treatment B/C/D enablement (DONE):**
 
-> Authoring of `CatalogFnEntry` data, Treatment-D templates, the 5 Run-4 gap fixes, the `EVAL_TREATMENT` env var, and contrastive-runner wiring archived to `archive/roadmap/phase-9-harness-sprint.jsonl` (id: `9.1.2-portable-catalog-and-templates`). Files: [evals/lib/portable-catalog.ts](../archive/evals/lib/portable-catalog.ts), [evals/lib/portable-templates.ts](../archive/evals/lib/portable-templates.ts), [evals/lib/contrastive.ts](../archive/evals/lib/contrastive.ts).
+> Authoring of `CatalogFnEntry` data, Treatment-D templates, the 5 Run-4 gap fixes, the `EVAL_TREATMENT` env var, and contrastive-runner wiring completed under retired record `9.1.2-portable-catalog-and-templates` (preserved in Git history). Files: [evals/lib/portable-catalog.ts](../archive/evals/lib/portable-catalog.ts), [evals/lib/portable-templates.ts](../archive/evals/lib/portable-templates.ts), [evals/lib/contrastive.ts](../archive/evals/lib/contrastive.ts).
 
 **Treatment B/C/D — execution remaining:**
 
 - [ ] Future CSP-8 eval design should decide which of these experiments still matter and rebuild them on current `@graphrefly/ts` surfaces.
 
-> **Rich catalog types** (`CatalogFnEntry` schema, `generateCatalogPrompt()`): DONE — archived to `archive/roadmap/phase-9-harness-sprint.jsonl` (id: `9.1b-rich-catalog`).
+> **Rich catalog types** (`CatalogFnEntry` schema, `generateCatalogPrompt()`): DONE — retired roadmap record removed (id: `9.1b-rich-catalog`; preserved in Git history).
 
 **Decision framework — when to add vs when to prune:**
 
@@ -546,7 +546,7 @@ Goal: reduce the inspection surface from 14+ exported tools to 9 with clear, non
 
 #### TS consolidation (breaking)
 
-> **DONE — archived to `archive/roadmap/push-model-migration.jsonl`** (id: `inspection-ts-consolidation`).
+> **DONE — retired roadmap record removed** (id: `inspection-ts-consolidation`; preserved in Git history).
 >
 > Merged: spy()→observe(format=), annotate()+traceLog()→trace(), 4 RxJS bridges→toObservable(source, opts?), unexported describeNode/metaSnapshot, implemented harnessTrace().
 
@@ -834,7 +834,7 @@ Items that were not done when their parent phase shipped. Tracked here for visib
 
 ### Phase 8.4 — Audit & accountability
 
-> **DONE — archived to `archive/roadmap/phase-8-reduction-layer.jsonl`** (id: `phase-8.4-audit-accountability`). All four items (`auditTrail`, `explainPath`, `policyEnforcer`, `complianceSnapshot`) shipped under §9.2.
+> **DONE — retired roadmap record removed** (id: `phase-8.4-audit-accountability`; preserved in Git history). All four items (`auditTrail`, `explainPath`, `policyEnforcer`, `complianceSnapshot`) shipped under §9.2.
 
 ### Phase 8.5 — Performance & scale (remaining)
 
