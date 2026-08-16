@@ -1209,7 +1209,10 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d12-current-pre-live-qualification.ts") ||
 				file.endsWith("d12-current-implementation-manifest.ts") ||
 				file.endsWith("run-d12-current-no-network.ts") ||
-				file.endsWith("run-d12-live.ts");
+				file.endsWith("run-d12-live.ts") ||
+				file.endsWith("d13-current-provider-deadline-qualification.ts") ||
+				file.endsWith("d13-current-implementation-manifest.ts") ||
+				file.endsWith("run-d13-current-no-network.ts");
 			const allowsCurrentGraphLiveOneRequest =
 				file.endsWith("current-graph-native-live-preflight.ts") ||
 				file.endsWith("current-graph-native-live-qualification.ts") ||
