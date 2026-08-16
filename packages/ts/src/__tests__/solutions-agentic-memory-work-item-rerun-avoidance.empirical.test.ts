@@ -1136,7 +1136,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d9-current-pre-live-qualification.ts") ||
 				file.endsWith("d11-current-pre-live-qualification.ts") ||
 				file.endsWith("d17-current-pre-live-qualification.ts") ||
-				file.endsWith("d18-current-provider-composition-qualification.ts");
+				file.endsWith("d18-current-provider-composition-qualification.ts") ||
+				file.endsWith("d19-current-real-provider-qualification.ts");
 			const allowsCurrentGraphImplementationManifest =
 				file.endsWith("current-graph-native-eval-implementation-manifest.ts") ||
 				file.endsWith("current-graph-native-provider-implementation-manifest.ts") ||
@@ -1147,7 +1148,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d9-current-implementation-manifest.ts") ||
 				file.endsWith("d11-current-implementation-manifest.ts") ||
 				file.endsWith("d17-current-implementation-manifest.ts") ||
-				file.endsWith("d18-current-provider-composition-implementation-manifest.ts");
+				file.endsWith("d18-current-provider-composition-implementation-manifest.ts") ||
+				file.endsWith("d19-current-real-provider-implementation-manifest.ts");
 			const allowsD9PrivateRunner = file.endsWith("run-d9-current-no-network.ts");
 			const allowsD11PrivateRunner = file.endsWith("run-d11-current-no-network.ts");
 			const allowsCurrentGraphPrivateRunner =
@@ -1161,12 +1163,14 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD9PrivateRunner ||
 				allowsD11PrivateRunner ||
 				file.endsWith("run-d17-current-no-network.ts") ||
-				file.endsWith("run-d18-current-provider-no-network.ts");
+				file.endsWith("run-d18-current-provider-no-network.ts") ||
+				file.endsWith("run-d19-current-real-provider-no-network.ts");
 			const allowsCurrentGraphLiveAdapter =
 				file.endsWith("current-graph-native-openrouter-adapter.ts") ||
 				file.endsWith("d6-current-openrouter-adapter.ts") ||
 				file.endsWith("d8-current-openrouter-adapter.ts") ||
 				file.endsWith("d12-current-openrouter-adapter.ts") ||
+				file.endsWith("d19-current-real-provider-adapter.ts") ||
 				file.endsWith("d11-current-transport-boundary.ts");
 			const allowsD17InjectedAdapter = file.endsWith("d17-current-injected-adapter.ts");
 			const allowsD18InjectedAdapter = file.endsWith("d18-current-injected-provider-adapter.ts");
@@ -1245,7 +1249,10 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("run-d16-current-no-network.ts") ||
 				file.endsWith("run-d16-live.ts") ||
 				file.endsWith("d17-current-implementation-manifest.ts") ||
-				file.endsWith("run-d17-current-no-network.ts");
+				file.endsWith("run-d17-current-no-network.ts") ||
+				file.endsWith("d19-current-real-provider-qualification.ts") ||
+				file.endsWith("d19-current-real-provider-implementation-manifest.ts") ||
+				file.endsWith("run-d19-current-real-provider-no-network.ts");
 			const allowsCurrentGraphLiveOneRequest =
 				file.endsWith("current-graph-native-live-preflight.ts") ||
 				file.endsWith("current-graph-native-live-qualification.ts") ||
