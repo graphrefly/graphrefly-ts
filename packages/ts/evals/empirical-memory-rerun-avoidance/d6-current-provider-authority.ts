@@ -704,9 +704,11 @@ function schedule(
 function scheduleWorkflowEffect(state: ProviderAuthorityState): void {
 	const workflowEffect = takeCurrentGraphAdmittedEffect(state.workflow);
 	if (workflowEffect === null) {
+		state.pendingToolArguments = [];
 		state.finished = true;
 		return;
 	}
+	if (workflowEffect.request.effectKind !== "tool-action") state.pendingToolArguments = [];
 	if (workflowEffect.request.effectKind === "provider-request") {
 		const modelEnvelope = taskEnvelope(state, workflowEffect);
 		const logicalMaterial = strictSnapshot({
@@ -1194,18 +1196,24 @@ function applyRuntimeFact(state: ProviderAuthorityState, fact: RuntimeAdmittedFa
 						actualCostMicrousd: logical.totalCostMicrousd,
 						actualElapsedMs: logical.totalElapsedMs,
 					};
-		if (projection.result.status === "completed") {
-			const raw = rawResult as Extract<
-				CurrentGraphProviderEffectResultInputV1,
-				{ effectKind: "provider-request" }
-			>;
-			state.pendingToolArguments.push(...raw.toolCalls);
-		}
 		admitCurrentGraphEffectResult(
 			state.workflow,
 			logical.workflowEffect.request.requestDigest,
 			workflowResult,
 		);
+		const admittedWorkflowEffect = takeCurrentGraphAdmittedEffect(state.workflow);
+		if (
+			projection.result.status === "completed" &&
+			admittedWorkflowEffect?.request.effectKind === "tool-action"
+		) {
+			const raw = rawResult as Extract<
+				CurrentGraphProviderEffectResultInputV1,
+				{ effectKind: "provider-request" }
+			>;
+			state.pendingToolArguments = [...raw.toolCalls];
+		} else {
+			state.pendingToolArguments = [];
+		}
 		state.providerLogical = null;
 		scheduleWorkflowEffect(state);
 		return;

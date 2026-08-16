@@ -8,20 +8,20 @@ export const CURRENT_GRAPH_LIVE_IMPLEMENTATION_SOURCE_HASHES = Object.freeze({
 	d5Authority: "sha256:a3d17b9d96138a2a90dd8ecc265d803c4234bf145bfebc32b8778b8851e01189",
 	publicSemanticValidation:
 		"sha256:5707b5dffaae53f566ba89987a59dc1da62fca5c03bb2fa020a1b8d018de8b50",
-	providerAuthority: "sha256:5449763f7f5214ef6089a0705791b382ed4854445ee4ff6f22fa2e9dcd78d3d2",
+	providerAuthority: "sha256:d40fac8743dff42463aa8bc43c958b9b03da4855e57a5bc28a599fd109b3279b",
 	coordinates: "sha256:992cea545a8fa414d68711185bfb86e7c90d2567c82e7c0eb2c9f92454647bbb",
 	preflight: "sha256:23288472643be11af217a4f2e4de22bea758e0873717dc1ae9815aeedffdd731",
 	claim: "sha256:3b2481ca18bd809d24a436d3ee6da1ac89cdd1f5bce59baf948eed96eb853d32",
 	liveAuthority: "sha256:a0869bf9c681d188f5060b0d32b82323b5cf8c3c542d05772a539d239da5769c",
 	openRouterAdapter: "sha256:386554b90cb8c8038b11216bd148ef460af9aa421f78eaac3c1ad055cbc9622e",
-	qualification: "sha256:f7159da20794b5b3dba27c5e82fd961e9801f006e4df1cba6047812f256d104f",
+	qualification: "sha256:d74c3237c2854518e3a9390d622cd80aade174fc6815f4fa8e84e0f978673676",
 	runner: "sha256:44385f70dde7c11200965d62a335d947b6f11ac1b5f02e3f969319d6e4cb871f",
 	privatePersistence: "sha256:0563c15908914694df6d2b80aba11840ce8f91f2c63f6ed2c97c2e5f3dc8a113",
 	currentKeyAdmission: "sha256:d14dd8ad79843b8327cdab521db8e67a098077feb272237c9b965a6e6ae5cc6d",
 });
 
 export const CURRENT_GRAPH_LIVE_IMPLEMENTATION_MANIFEST_DIGEST = empiricalStrictJsonDigest({
-	revision: "graphrefly-ts.d6.current-graph-live-implementation-manifest.v1",
+	revision: "graphrefly-ts.d6.current-graph-live-implementation-manifest.v2",
 	d5BaselineManifestDigest: CURRENT_GRAPH_LIVE_D5_IMPLEMENTATION_MANIFEST_DIGEST,
 	sources: CURRENT_GRAPH_LIVE_IMPLEMENTATION_SOURCE_HASHES,
 });
@@ -57,7 +57,7 @@ export async function measureCurrentGraphLiveImplementation(
 	if (JSON.stringify(measured) !== JSON.stringify(CURRENT_GRAPH_LIVE_IMPLEMENTATION_SOURCE_HASHES))
 		throw new TypeError("current D6 live implementation source drifted");
 	return empiricalStrictJsonDigest({
-		revision: "graphrefly-ts.d6.current-graph-live-implementation-manifest.v1",
+		revision: "graphrefly-ts.d6.current-graph-live-implementation-manifest.v2",
 		d5BaselineManifestDigest: CURRENT_GRAPH_LIVE_D5_IMPLEMENTATION_MANIFEST_DIGEST,
 		sources: measured,
 	});

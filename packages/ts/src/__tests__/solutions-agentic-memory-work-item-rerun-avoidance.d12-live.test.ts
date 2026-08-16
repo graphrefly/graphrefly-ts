@@ -84,7 +84,7 @@ describe("graphrefly-ts:D12 D11-qualified live composition", () => {
 		}
 	}, 20_000);
 
-	it("freezes the complete D12 decision-bearing source closure", async () => {
+	it("freezes the complete D12 historical decision-bearing source closure", async () => {
 		expect(await measureD12Implementation(repositoryRoot)).toBe(D12_IMPLEMENTATION_MANIFEST_DIGEST);
 	});
 });

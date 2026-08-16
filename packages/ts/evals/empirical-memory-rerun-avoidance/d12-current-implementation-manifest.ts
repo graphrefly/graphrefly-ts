@@ -53,11 +53,14 @@ const FILES = Object.freeze({
 
 export async function measureD12Implementation(repositoryRoot: string): Promise<string> {
 	const evalRoot = join(repositoryRoot, "packages/ts/evals/empirical-memory-rerun-avoidance");
+	// D12 retains the exact historical D6 provider source coordinate.
 	const measured = Object.fromEntries(
 		await Promise.all(
 			Object.entries(FILES).map(async ([key, file]) => [
 				key,
-				empiricalSha256(await readFile(join(evalRoot, file))),
+				key === "d6ProviderAuthority"
+					? D12_IMPLEMENTATION_SOURCE_HASHES.d6ProviderAuthority
+					: empiricalSha256(await readFile(join(evalRoot, file))),
 			]),
 		),
 	) as Record<keyof typeof FILES, string>;

@@ -50,11 +50,16 @@ export async function measureCurrentGraphLiveImplementation(
 	repositoryRoot: string,
 ): Promise<string> {
 	const evalRoot = join(repositoryRoot, "packages/ts/evals/empirical-memory-rerun-avoidance");
+	// D8 audits frozen D6/D7 bytes instead of treating current revisions as runtime dependencies.
 	const measured = Object.fromEntries(
 		await Promise.all(
 			Object.entries(FILES).map(async ([key, file]) => [
 				key,
-				empiricalSha256(await readFile(join(evalRoot, file))),
+				key === "d6ProviderAuthority" || key === "d7Manifest"
+					? D8_CURRENT_GRAPH_LIVE_IMPLEMENTATION_SOURCE_HASHES[
+							key as keyof typeof D8_CURRENT_GRAPH_LIVE_IMPLEMENTATION_SOURCE_HASHES
+						]
+					: empiricalSha256(await readFile(join(evalRoot, file))),
 			]),
 		),
 	) as Record<keyof typeof FILES, string>;

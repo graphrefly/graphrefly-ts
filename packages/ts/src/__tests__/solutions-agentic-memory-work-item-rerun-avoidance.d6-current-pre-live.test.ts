@@ -2,7 +2,10 @@ import { chmod, mkdtemp, readFile, realpath, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { empiricalSha256 } from "../../evals/empirical-memory-rerun-avoidance/canonical.js";
+import {
+	empiricalSha256,
+	empiricalStrictJsonDigest,
+} from "../../evals/empirical-memory-rerun-avoidance/canonical.js";
 import { runCurrentGraphNativeNoNetworkQualification as runD5Qualification } from "../../evals/empirical-memory-rerun-avoidance/d5-inspection-batch-qualification.js";
 import {
 	CURRENT_GRAPH_LIVE_IMPLEMENTATION_MANIFEST_DIGEST as D6_IMPLEMENTATION_MANIFEST_DIGEST,
@@ -14,6 +17,14 @@ import {
 	runCurrentGraphLiveNoNetworkQualification as runD6Qualification,
 	validateCurrentGraphLiveQualificationBundle as validateD6Qualification,
 } from "../../evals/empirical-memory-rerun-avoidance/d6-current-pre-live-qualification.js";
+import {
+	admitCurrentGraphProviderEffectResult,
+	CURRENT_GRAPH_PROVIDER_INJECTED_ROUTE,
+	CURRENT_GRAPH_PROVIDER_INJECTED_TASK,
+	CURRENT_GRAPH_PROVIDER_QUALIFICATION_LIMITS,
+	createCurrentGraphProviderAuthority,
+	takeCurrentGraphProviderEffect,
+} from "../../evals/empirical-memory-rerun-avoidance/d6-current-provider-authority.js";
 import { strictJsonCodec } from "../../src/json/codec.js";
 
 const roots: string[] = [];
@@ -23,6 +34,123 @@ afterEach(async () => {
 });
 
 describe("graphrefly-ts:D6 current Graph-native provider pre-live", () => {
+	it("discards a phase-rejected raw tool batch before admitting the next arm", () => {
+		const authority = createCurrentGraphProviderAuthority({
+			limits: CURRENT_GRAPH_PROVIDER_QUALIFICATION_LIMITS,
+			routeProfile: CURRENT_GRAPH_PROVIDER_INJECTED_ROUTE,
+			taskProfile: CURRENT_GRAPH_PROVIDER_INJECTED_TASK,
+		});
+		const workspaceStateDigest = empiricalStrictJsonDigest({ workspace: "d14-regression" });
+		const providerUsage = {
+			requests: 1 as const,
+			inputTokens: 1,
+			outputTokens: 1,
+			cacheReadTokens: 0,
+			actualCostMicrousd: 1,
+			actualElapsedMs: 1,
+			costBasis: "reported" as const,
+		};
+		const completeMaterialization = () => {
+			const effect = takeCurrentGraphProviderEffect(authority)!;
+			expect(effect.request.effectKind).toBe("materialization");
+			admitCurrentGraphProviderEffectResult(authority, effect.request.requestDigest, {
+				effectKind: "materialization",
+				status: "completed",
+				workspaceStateDigest,
+				evidenceDigest: empiricalStrictJsonDigest({ effect: effect.request.requestDigest }),
+				actualCostMicrousd: 0,
+				actualElapsedMs: 1,
+			});
+		};
+		const admitReadBatch = (prefix: string) => {
+			const effect = takeCurrentGraphProviderEffect(authority)!;
+			expect(effect.request.effectKind).toBe("provider-request");
+			const toolCalls = ["a", "b", "c", "d"].map((suffix) => ({
+				toolRef: "read-file" as const,
+				path: `src/${prefix}-${suffix}.ts`,
+			}));
+			const fact = admitCurrentGraphProviderEffectResult(authority, effect.request.requestDigest, {
+				effectKind: "provider-request",
+				status: "completed",
+				toolCalls,
+				failureCode: null,
+				retryProposal: null,
+				usage: providerUsage,
+				evidenceDigest: empiricalStrictJsonDigest({
+					request: effect.request.requestDigest,
+					toolCalls,
+				}),
+			});
+			return { fact, toolCalls };
+		};
+
+		completeMaterialization();
+		const firstBatch = admitReadBatch("cold");
+		for (const expected of firstBatch.toolCalls) {
+			const effect = takeCurrentGraphProviderEffect(authority)!;
+			expect(effect.request).toMatchObject({ effectKind: "tool-action", toolRef: "read-file" });
+			expect(effect.runtime.toolArguments).toEqual(expected);
+			admitCurrentGraphProviderEffectResult(authority, effect.request.requestDigest, {
+				effectKind: "tool-action",
+				toolRef: "read-file",
+				status: "succeeded",
+				causeCode: null,
+				workspaceStateBeforeDigest: workspaceStateDigest,
+				workspaceStateAfterDigest: workspaceStateDigest,
+				nonEmptyDiff: false,
+				evidenceDigest: empiricalStrictJsonDigest({ read: expected.path }),
+				actualCostMicrousd: 0,
+				actualElapsedMs: 1,
+			});
+		}
+
+		const invalidMutation = takeCurrentGraphProviderEffect(authority)!;
+		expect(invalidMutation.request.effectKind).toBe("provider-request");
+		const invalidMutationFact = admitCurrentGraphProviderEffectResult(
+			authority,
+			invalidMutation.request.requestDigest,
+			{
+				effectKind: "provider-request",
+				status: "completed",
+				toolCalls: [
+					{
+						toolRef: "replace-exact",
+						path: "src/current.ts",
+						oldText: "old",
+						newText: "new",
+					},
+				],
+				failureCode: null,
+				retryProposal: null,
+				usage: providerUsage,
+				evidenceDigest: empiricalStrictJsonDigest({ invalid: "phase-batch" }),
+			},
+		);
+		expect(invalidMutationFact.result.effectKind).toBe("provider-request");
+		const cleanup = takeCurrentGraphProviderEffect(authority)!;
+		expect(cleanup.request.effectKind).toBe("cleanup");
+		expect(cleanup.runtime.toolArguments).toBeNull();
+		admitCurrentGraphProviderEffectResult(authority, cleanup.request.requestDigest, {
+			effectKind: "cleanup",
+			status: "completed",
+			workspaceStateDigest: null,
+			evidenceDigest: empiricalStrictJsonDigest({ cleanup: cleanup.request.requestDigest }),
+			actualCostMicrousd: 0,
+			actualElapsedMs: 1,
+		});
+
+		completeMaterialization();
+		const nextBatch = admitReadBatch("relevant");
+		expect(nextBatch.fact.sequence).toBe(invalidMutationFact.sequence + 3);
+		const nextRead = takeCurrentGraphProviderEffect(authority)!;
+		expect(nextRead.request).toMatchObject({
+			arm: "relevant-applied",
+			effectKind: "tool-action",
+			toolRef: "read-file",
+		});
+		expect(nextRead.runtime.toolArguments).toEqual(nextBatch.toolCalls[0]);
+	});
+
 	it("qualifies the D5 four-read Graph through the provider-capable six-arm composition", async () => {
 		const repositoryRoot = resolve(import.meta.dirname, "../../../..");
 		const d5Bundle = await runD5Qualification();
@@ -56,6 +184,7 @@ describe("graphrefly-ts:D6 current Graph-native provider pre-live", () => {
 			maxActiveTransport: 1,
 			providerNetworkCalls: 0,
 			workspaceResidueCount: 0,
+			phaseRejectedBatchIsolationPassed: true,
 			causalAttribution: "undetermined",
 			efficacyClaim: "none",
 		});

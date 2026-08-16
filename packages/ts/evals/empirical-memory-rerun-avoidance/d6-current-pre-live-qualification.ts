@@ -43,6 +43,15 @@ import {
 	createCurrentGraphOpenRouterExecutor,
 } from "./d6-current-openrouter-adapter.js";
 import { persistCurrentGraphPrivateGeneration } from "./d6-current-private-persistence.js";
+import {
+	CURRENT_GRAPH_PROVIDER_INJECTED_ROUTE,
+	CURRENT_GRAPH_PROVIDER_INJECTED_TASK,
+	CURRENT_GRAPH_PROVIDER_QUALIFICATION_LIMITS,
+	type CurrentGraphProviderAdmittedEffectV1,
+	type CurrentGraphProviderEvidenceV1,
+	runCurrentGraphProviderEval,
+	validateCurrentGraphProviderEvidence as validatePhaseIsolationEvidence,
+} from "./d6-current-provider-authority.js";
 import { createOpenRouterCurrentKeySpendAdmissionCapability } from "./openrouter-current-key-spend-admission.js";
 
 export const CURRENT_GRAPH_LIVE_QUALIFICATION_SCHEMA =
@@ -52,7 +61,7 @@ export const CURRENT_GRAPH_LIVE_QUALIFICATION_GENERATION_SCHEMA =
 export const CURRENT_GRAPH_LIVE_QUALIFICATION_BUNDLE_SCHEMA =
 	"graphrefly-ts.d6.current-graph-live-no-network-bundle.v1" as const;
 export const CURRENT_GRAPH_LIVE_QUALIFICATION_GENERATION_REF =
-	"current-graph-native-live-no-network-qualification-2026-08-14-d6-v2" as const;
+	"current-graph-native-live-no-network-qualification-2026-08-16-d6-v4" as const;
 export const CURRENT_GRAPH_LIVE_MAX_QUALIFICATION_BYTES = 4_194_304;
 export const CURRENT_GRAPH_LIVE_QUALIFICATION_PERSISTENCE_SCHEMA =
 	"graphrefly-ts.d6.current-graph-live-no-network-persistence.v1" as const;
@@ -67,6 +76,8 @@ export interface CurrentGraphLiveQualificationBundleV1 {
 		d5QualificationBundleDigest: typeof CURRENT_GRAPH_LIVE_D5_QUALIFICATION_BUNDLE_DIGEST;
 		d5QualificationDigest: typeof CURRENT_GRAPH_LIVE_D5_QUALIFICATION_DIGEST;
 		graphBundleDigest: string;
+		phaseRejectedBatchIsolationEvidenceDigest: string;
+		phaseRejectedBatchIsolationPassed: true;
 		fullSixArmIntegrationPassed: true;
 		fourReadInspectionBatchCount: 6;
 		serialReadEffectCount: 24;
@@ -84,11 +95,13 @@ export interface CurrentGraphLiveQualificationBundleV1 {
 		qualificationDigest: string;
 	}>;
 	readonly graphBundle: CurrentGraphLiveBundleV1;
+	readonly phaseRejectedBatchIsolationEvidence: CurrentGraphProviderEvidenceV1;
 	readonly generation: Readonly<{
 		schemaVersion: typeof CURRENT_GRAPH_LIVE_QUALIFICATION_GENERATION_SCHEMA;
 		generationRef: typeof CURRENT_GRAPH_LIVE_QUALIFICATION_GENERATION_REF;
 		qualificationDigest: string;
 		graphBundleDigest: string;
+		phaseRejectedBatchIsolationEvidenceDigest: string;
 		implementationManifestDigest: string;
 		causalAttribution: "undetermined";
 		efficacyClaim: "none";
@@ -173,6 +186,177 @@ function validateD5QualificationBytes(bytesValue: Uint8Array) {
 	});
 }
 
+function phaseIsolationResult(
+	effect: CurrentGraphProviderAdmittedEffectV1,
+	workspaceStates: Map<string, string>,
+) {
+	const runKey = `${effect.request.arm}-${effect.request.runSequence}`;
+	const evidenceDigest = empiricalStrictJsonDigest({ requestDigest: effect.request.requestDigest });
+	if (effect.request.effectKind === "materialization") {
+		const workspaceStateDigest = empiricalStrictJsonDigest({ runKey, state: "materialized" });
+		workspaceStates.set(runKey, workspaceStateDigest);
+		return {
+			effectKind: "materialization" as const,
+			status: "completed" as const,
+			workspaceStateDigest,
+			evidenceDigest,
+			actualCostMicrousd: 0 as const,
+			actualElapsedMs: 1,
+		};
+	}
+	if (effect.request.effectKind === "provider-request") {
+		const phase = effect.runtime.modelEnvelope?.phaseBefore;
+		const toolCalls =
+			phase === "none"
+				? ["a", "b", "c", "d"].map((suffix) => ({
+						toolRef: "read-file" as const,
+						path: `src/${effect.request.arm}-${suffix}.ts`,
+					}))
+				: effect.request.arm === "cold"
+					? [
+							{
+								toolRef: "replace-exact" as const,
+								path: "src/current.ts",
+								oldText: "old",
+								newText: "new",
+							},
+						]
+					: [
+							{
+								toolRef: "replace-exact" as const,
+								path: "src/current.ts",
+								oldText: "old",
+								newText: "new",
+							},
+							{ toolRef: "workspace-diff" as const },
+							{ toolRef: "focused-validation" as const },
+						];
+		return {
+			effectKind: "provider-request" as const,
+			status: "completed" as const,
+			toolCalls,
+			failureCode: null,
+			retryProposal: null,
+			usage: {
+				requests: 1 as const,
+				inputTokens: 1,
+				outputTokens: 1,
+				cacheReadTokens: 0,
+				actualCostMicrousd: 1,
+				actualElapsedMs: 1,
+				costBasis: "reported" as const,
+			},
+			evidenceDigest,
+		};
+	}
+	if (effect.request.effectKind === "tool-action") {
+		const before = workspaceStates.get(runKey);
+		if (before === undefined) throw new TypeError("phase isolation workspace state is missing");
+		const after =
+			effect.request.toolRef === "replace-exact"
+				? empiricalStrictJsonDigest({ before, requestDigest: effect.request.requestDigest })
+				: before;
+		workspaceStates.set(runKey, after);
+		return {
+			effectKind: "tool-action" as const,
+			toolRef: effect.request.toolRef!,
+			status: "succeeded" as const,
+			causeCode: null,
+			workspaceStateBeforeDigest: before,
+			workspaceStateAfterDigest: after,
+			nonEmptyDiff: effect.request.toolRef === "workspace-diff",
+			evidenceDigest,
+			actualCostMicrousd: 0 as const,
+			actualElapsedMs: 1,
+		};
+	}
+	const workspaceStateDigest = workspaceStates.get(runKey);
+	if (effect.request.effectKind === "public-semantic-validation")
+		return {
+			effectKind: "public-semantic-validation" as const,
+			status: "passed" as const,
+			criterionFailures: [],
+			workspaceStateDigest: workspaceStateDigest!,
+			evidenceDigest,
+			actualCostMicrousd: 0 as const,
+			actualElapsedMs: 1,
+		};
+	if (effect.request.effectKind === "hidden-verifier")
+		return {
+			effectKind: "hidden-verifier" as const,
+			status: "passed" as const,
+			workspaceStateDigest: workspaceStateDigest!,
+			evidenceDigest,
+			actualCostMicrousd: 0 as const,
+			actualElapsedMs: 1,
+		};
+	workspaceStates.delete(runKey);
+	return {
+		effectKind: "cleanup" as const,
+		status: "completed" as const,
+		workspaceStateDigest: null,
+		evidenceDigest,
+		actualCostMicrousd: 0 as const,
+		actualElapsedMs: 1,
+	};
+}
+
+function validatePhaseRejectedBatchIsolationEvidence(value: unknown) {
+	const evidence = validatePhaseIsolationEvidence(value);
+	const cold = evidence.workflowEvidence.runs.find((run) => run.arm === "cold");
+	const relevant = evidence.workflowEvidence.runs.find((run) => run.arm === "relevant-applied");
+	const rejectedColdFact = evidence.facts.find(
+		(fact) =>
+			fact.request.arm === "cold" &&
+			fact.result.effectKind === "provider-request" &&
+			fact.result.status === "completed" &&
+			fact.result.toolCalls.length === 1 &&
+			fact.result.toolCalls[0]?.toolRef === "replace-exact",
+	);
+	const coldMutationEffect = evidence.facts.find(
+		(fact) =>
+			fact.request.arm === "cold" &&
+			fact.result.effectKind === "tool-action" &&
+			fact.result.toolRef === "replace-exact",
+	);
+	const relevantFirstRead = evidence.facts.find(
+		(fact) =>
+			fact.request.arm === "relevant-applied" &&
+			fact.result.effectKind === "tool-action" &&
+			fact.result.toolRef === "read-file",
+	);
+	const expectedRelevantArgumentsDigest = empiricalStrictJsonDigest({
+		toolRef: "read-file",
+		path: "src/relevant-applied-a.ts",
+	});
+	if (
+		evidence.workflowEvidence.runs.length !== 6 ||
+		cold?.status !== "incomplete" ||
+		cold.cleanupStatus !== "completed" ||
+		relevant?.status !== "completed" ||
+		rejectedColdFact === undefined ||
+		coldMutationEffect !== undefined ||
+		relevantFirstRead?.request.toolArgumentsDigest !== expectedRelevantArgumentsDigest
+	)
+		throw new TypeError("current live phase-rejected tool batch isolation drifted");
+	return evidence;
+}
+
+async function qualifyPhaseRejectedBatchIsolation() {
+	const workspaceStates = new Map<string, string>();
+	const evidence = validatePhaseRejectedBatchIsolationEvidence(
+		await runCurrentGraphProviderEval({
+			limits: CURRENT_GRAPH_PROVIDER_QUALIFICATION_LIMITS,
+			routeProfile: CURRENT_GRAPH_PROVIDER_INJECTED_ROUTE,
+			taskProfile: CURRENT_GRAPH_PROVIDER_INJECTED_TASK,
+			execute: async (effect) => phaseIsolationResult(effect, workspaceStates),
+		}),
+	);
+	if (workspaceStates.size !== 0)
+		throw new TypeError("current live phase isolation left workspace state residue");
+	return evidence;
+}
+
 export async function runCurrentGraphLiveNoNetworkQualification(inputValue: {
 	readonly repositoryRoot: string;
 	readonly d5QualificationBundleBytes: Uint8Array;
@@ -187,6 +371,7 @@ export async function runCurrentGraphLiveNoNetworkQualification(inputValue: {
 	if (!(input.d5QualificationBundleBytes instanceof Uint8Array))
 		throw new TypeError("current live D5 qualification bytes are invalid");
 	const d5 = validateD5QualificationBytes(input.d5QualificationBundleBytes);
+	const phaseRejectedBatchIsolationEvidence = await qualifyPhaseRejectedBatchIsolation();
 	const implementationManifestDigest = digest(
 		input.implementationManifestDigest,
 		"current.live.qualification.implementationManifestDigest",
@@ -423,6 +608,8 @@ export async function runCurrentGraphLiveNoNetworkQualification(inputValue: {
 			d5QualificationBundleDigest: d5.bundleDigest,
 			d5QualificationDigest: d5.qualificationDigest,
 			graphBundleDigest: graphBundle.bundleDigest,
+			phaseRejectedBatchIsolationEvidenceDigest: phaseRejectedBatchIsolationEvidence.evidenceDigest,
+			phaseRejectedBatchIsolationPassed: true as const,
 			fullSixArmIntegrationPassed: true as const,
 			fourReadInspectionBatchCount: 6 as const,
 			serialReadEffectCount: 24 as const,
@@ -447,6 +634,7 @@ export async function runCurrentGraphLiveNoNetworkQualification(inputValue: {
 			generationRef: CURRENT_GRAPH_LIVE_QUALIFICATION_GENERATION_REF,
 			qualificationDigest: qualification.qualificationDigest,
 			graphBundleDigest: graphBundle.bundleDigest,
+			phaseRejectedBatchIsolationEvidenceDigest: phaseRejectedBatchIsolationEvidence.evidenceDigest,
 			implementationManifestDigest,
 			causalAttribution: "undetermined" as const,
 			efficacyClaim: "none" as const,
@@ -459,6 +647,7 @@ export async function runCurrentGraphLiveNoNetworkQualification(inputValue: {
 			schemaVersion: CURRENT_GRAPH_LIVE_QUALIFICATION_BUNDLE_SCHEMA,
 			qualification,
 			graphBundle,
+			phaseRejectedBatchIsolationEvidence,
 			generation,
 		});
 		const bundle = Object.freeze({
@@ -483,12 +672,22 @@ export function validateCurrentGraphLiveQualificationBundle(
 	const candidate = record(value, "current.live.qualification.bundle");
 	exactKeys(
 		candidate,
-		["bundleDigest", "generation", "graphBundle", "qualification", "schemaVersion"],
+		[
+			"bundleDigest",
+			"generation",
+			"graphBundle",
+			"phaseRejectedBatchIsolationEvidence",
+			"qualification",
+			"schemaVersion",
+		],
 		"current.live.qualification.bundle",
 	);
 	if (candidate.schemaVersion !== CURRENT_GRAPH_LIVE_QUALIFICATION_BUNDLE_SCHEMA)
 		throw new TypeError("current live qualification bundle schema drifted");
 	const graphBundle = validateCurrentGraphLiveBundle(candidate.graphBundle);
+	const phaseRejectedBatchIsolationEvidence = validatePhaseRejectedBatchIsolationEvidence(
+		candidate.phaseRejectedBatchIsolationEvidence,
+	);
 	if (graphBundle.executionClass !== "injected-no-network" || graphBundle.disposition !== "success")
 		throw new TypeError("current live qualification Graph bundle drifted");
 	const qualification = record(candidate.qualification, "current.live.qualification");
@@ -508,6 +707,8 @@ export function validateCurrentGraphLiveQualificationBundle(
 			"hiddenVerifierPassed",
 			"implementationManifestDigest",
 			"maxActiveTransport",
+			"phaseRejectedBatchIsolationEvidenceDigest",
+			"phaseRejectedBatchIsolationPassed",
 			"providerAttempts",
 			"providerNetworkCalls",
 			"publicSemanticValidationPassed",
@@ -547,6 +748,9 @@ export function validateCurrentGraphLiveQualificationBundle(
 			CURRENT_GRAPH_LIVE_D5_QUALIFICATION_BUNDLE_DIGEST ||
 		qualification.d5QualificationDigest !== CURRENT_GRAPH_LIVE_D5_QUALIFICATION_DIGEST ||
 		qualification.graphBundleDigest !== graphBundle.bundleDigest ||
+		qualification.phaseRejectedBatchIsolationEvidenceDigest !==
+			phaseRejectedBatchIsolationEvidence.evidenceDigest ||
+		qualification.phaseRejectedBatchIsolationPassed !== true ||
 		qualification.fullSixArmIntegrationPassed !== true ||
 		qualification.fourReadInspectionBatchCount !== fourReadInspectionBatchCount ||
 		fourReadInspectionBatchCount !== 6 ||
@@ -576,6 +780,7 @@ export function validateCurrentGraphLiveQualificationBundle(
 			"generationRef",
 			"graphBundleDigest",
 			"implementationManifestDigest",
+			"phaseRejectedBatchIsolationEvidenceDigest",
 			"qualificationDigest",
 			"schemaVersion",
 		],
@@ -587,6 +792,8 @@ export function validateCurrentGraphLiveQualificationBundle(
 		generation.generationRef !== CURRENT_GRAPH_LIVE_QUALIFICATION_GENERATION_REF ||
 		generation.qualificationDigest !== qualificationDigest ||
 		generation.graphBundleDigest !== graphBundle.bundleDigest ||
+		generation.phaseRejectedBatchIsolationEvidenceDigest !==
+			phaseRejectedBatchIsolationEvidence.evidenceDigest ||
 		generation.implementationManifestDigest !== qualification.implementationManifestDigest ||
 		generation.causalAttribution !== "undetermined" ||
 		generation.efficacyClaim !== "none" ||

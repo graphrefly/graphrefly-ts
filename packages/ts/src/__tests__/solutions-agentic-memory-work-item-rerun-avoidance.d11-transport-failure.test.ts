@@ -259,7 +259,7 @@ describe("graphrefly-ts:D11 Graph-admitted transport failure", () => {
 		}
 	}, 20_000);
 
-	it("binds qualification to the exact current implementation closure", async () => {
+	it("binds qualification to the exact historical implementation closure", async () => {
 		const repositoryRoot = resolve(import.meta.dirname, "../../../..");
 		expect(await measureD11Implementation(repositoryRoot)).toBe(D11_IMPLEMENTATION_MANIFEST_DIGEST);
 	});

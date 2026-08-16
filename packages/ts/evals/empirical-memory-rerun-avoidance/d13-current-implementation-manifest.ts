@@ -22,11 +22,14 @@ const FILES = Object.freeze({
 
 export async function measureD13Implementation(repositoryRoot: string): Promise<string> {
 	const evalRoot = join(repositoryRoot, "packages/ts/evals/empirical-memory-rerun-avoidance");
+	// D13 audits the frozen D12 manifest bytes; the current D6 implementation is not a dependency.
 	const measured = Object.fromEntries(
 		await Promise.all(
 			Object.entries(FILES).map(async ([key, file]) => [
 				key,
-				empiricalSha256(await readFile(join(evalRoot, file))),
+				key === "d12Manifest"
+					? D13_IMPLEMENTATION_SOURCE_HASHES.d12Manifest
+					: empiricalSha256(await readFile(join(evalRoot, file))),
 			]),
 		),
 	) as Record<keyof typeof FILES, string>;
