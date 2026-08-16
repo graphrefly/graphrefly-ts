@@ -1124,7 +1124,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d6-current-provider-authority.ts") ||
 				file.endsWith("d9-current-provider-rejection-authority.ts") ||
 				file.endsWith("d11-current-transport-failure-authority.ts") ||
-				file.endsWith("d17-current-efficacy-authority.ts");
+				file.endsWith("d17-current-efficacy-authority.ts") ||
+				file.endsWith("d18-current-provider-composition-authority.ts");
 			const allowsCurrentGraphPublicSemanticValidation = file.endsWith(
 				"current-managed-cloud-public-semantic-validation.ts",
 			);
@@ -1134,7 +1135,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d5-inspection-batch-qualification.ts") ||
 				file.endsWith("d9-current-pre-live-qualification.ts") ||
 				file.endsWith("d11-current-pre-live-qualification.ts") ||
-				file.endsWith("d17-current-pre-live-qualification.ts");
+				file.endsWith("d17-current-pre-live-qualification.ts") ||
+				file.endsWith("d18-current-provider-composition-qualification.ts");
 			const allowsCurrentGraphImplementationManifest =
 				file.endsWith("current-graph-native-eval-implementation-manifest.ts") ||
 				file.endsWith("current-graph-native-provider-implementation-manifest.ts") ||
@@ -1144,7 +1146,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d8-current-implementation-manifest.ts") ||
 				file.endsWith("d9-current-implementation-manifest.ts") ||
 				file.endsWith("d11-current-implementation-manifest.ts") ||
-				file.endsWith("d17-current-implementation-manifest.ts");
+				file.endsWith("d17-current-implementation-manifest.ts") ||
+				file.endsWith("d18-current-provider-composition-implementation-manifest.ts");
 			const allowsD9PrivateRunner = file.endsWith("run-d9-current-no-network.ts");
 			const allowsD11PrivateRunner = file.endsWith("run-d11-current-no-network.ts");
 			const allowsCurrentGraphPrivateRunner =
@@ -1157,7 +1160,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("run-d8-live.ts") ||
 				allowsD9PrivateRunner ||
 				allowsD11PrivateRunner ||
-				file.endsWith("run-d17-current-no-network.ts");
+				file.endsWith("run-d17-current-no-network.ts") ||
+				file.endsWith("run-d18-current-provider-no-network.ts");
 			const allowsCurrentGraphLiveAdapter =
 				file.endsWith("current-graph-native-openrouter-adapter.ts") ||
 				file.endsWith("d6-current-openrouter-adapter.ts") ||
@@ -1165,6 +1169,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d12-current-openrouter-adapter.ts") ||
 				file.endsWith("d11-current-transport-boundary.ts");
 			const allowsD17InjectedAdapter = file.endsWith("d17-current-injected-adapter.ts");
+			const allowsD18InjectedAdapter = file.endsWith("d18-current-injected-provider-adapter.ts");
 			const allowsCurrentGraphLiveOperator =
 				file.endsWith("current-graph-native-live-coordinates.ts") ||
 				file.endsWith("current-graph-native-live-preflight.ts") ||
@@ -1483,6 +1488,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 										allowsD778PreLive ||
 										allowsD779PreLive ||
 										allowsD17InjectedAdapter ||
+										allowsD18InjectedAdapter ||
 										allowsD735ProviderPreflight ||
 										allowsD725RealProviderIntegration ||
 										allowsD725InjectedQualification ||
