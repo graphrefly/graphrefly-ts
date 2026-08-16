@@ -1212,7 +1212,14 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("run-d12-live.ts") ||
 				file.endsWith("d13-current-provider-deadline-qualification.ts") ||
 				file.endsWith("d13-current-implementation-manifest.ts") ||
-				file.endsWith("run-d13-current-no-network.ts");
+				file.endsWith("run-d13-current-no-network.ts") ||
+				file.endsWith("d14-current-live-coordinates.ts") ||
+				file.endsWith("d14-current-live-claim.ts") ||
+				file.endsWith("d14-current-live.ts") ||
+				file.endsWith("d14-current-pre-live-qualification.ts") ||
+				file.endsWith("d14-current-implementation-manifest.ts") ||
+				file.endsWith("run-d14-current-no-network.ts") ||
+				file.endsWith("run-d14-live.ts");
 			const allowsCurrentGraphLiveOneRequest =
 				file.endsWith("current-graph-native-live-preflight.ts") ||
 				file.endsWith("current-graph-native-live-qualification.ts") ||
@@ -1506,7 +1513,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							file.endsWith("run-d7-live.ts") ||
 							file.endsWith("run-d8-live.ts") ||
 							file.endsWith("run-d10-live.ts") ||
-							file.endsWith("run-d12-live.ts")) &&
+							file.endsWith("run-d12-live.ts") ||
+							file.endsWith("run-d14-live.ts")) &&
 							specifier === "node:child_process") ||
 						((allowsD708QualifiedEntrypoint ||
 							allowsD711QualifiedEntrypoint ||
