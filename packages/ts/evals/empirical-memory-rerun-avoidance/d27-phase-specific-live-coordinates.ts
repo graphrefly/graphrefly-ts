@@ -16,8 +16,8 @@ import {
 	D21_POSITIVE_DIFFERENTIAL_GATE_DEFINITION_DIGEST,
 } from "./d21-current-efficacy-recovery-authority.js";
 
-export const D27_DECISION_REF = "graphrefly-ts:D29" as const;
-export const D27_BASELINE_COMMIT = "2d00c3e8add339642cbf9dcabdb591c943d700d4" as const;
+export const D27_DECISION_REF = "graphrefly-ts:D30" as const;
+export const D27_BASELINE_COMMIT = "86f3cf9ecef4a16c239f501eaa13210c70f48bc0" as const;
 export const D27_D26_ARTIFACT_DIGEST =
 	"sha256:8bb49cd5f725a0a5c70b3a0906a506d41473fca46f6c660e89422ea5636172e0" as const;
 export const D27_D26_BUNDLE_DIGEST =
@@ -29,11 +29,16 @@ export const D27_D26_GENERATION_DIGEST =
 export const D27_D26_IMPLEMENTATION_MANIFEST_DIGEST =
 	"sha256:58dbe33cd14cfa26095df5505d436090488c2157e0706a562eb3f479baee5b41" as const;
 export const D27_GENERATION_REF =
-	"current-graph-native-phase-specific-live-2026-08-17-d29-v1" as const;
+	"current-graph-native-phase-specific-live-2026-08-17-d30-v1" as const;
 export const D27_QUALIFICATION_GENERATION_REF =
-	"current-graph-native-phase-specific-live-no-network-2026-08-17-d29-v1" as const;
+	"current-graph-native-phase-specific-live-no-network-2026-08-17-d30-v1" as const;
 export const D27_DISPATCH_CLAIM_REF =
-	"current-graph-native-phase-specific-live-dispatch-2026-08-17-d29-v1" as const;
+	"current-graph-native-phase-specific-live-dispatch-2026-08-17-d30-v1" as const;
+
+export const D27_LIMITS = Object.freeze({
+	...D21_LIMITS,
+	providerMaxElapsedMs: 120_000,
+});
 
 export const D27_COORDINATES = strictSnapshot({
 	decisionRef: D27_DECISION_REF,
@@ -52,7 +57,7 @@ export const D27_COORDINATES = strictSnapshot({
 	pricingSource: CURRENT_GRAPH_LIVE_PRICING_SOURCE,
 	pricing: CURRENT_GRAPH_LIVE_PRICING,
 	routeDigest: CURRENT_GRAPH_LIVE_ROUTE.routeDigest,
-	limits: D21_LIMITS,
+	limits: D27_LIMITS,
 	armOrder: D17_ARMS,
 	maxActiveArms: 1,
 	coldCensorsWarm: false,

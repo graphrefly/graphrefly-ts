@@ -12,7 +12,6 @@ import type { CurrentGraphProviderFactV1 } from "./d6-current-provider-authority
 import { CURRENT_GRAPH_LIVE_ROUTE } from "./d8-current-live-coordinates.js";
 import type { D9ProviderRejectionFactV1 } from "./d9-current-provider-rejection-authority.js";
 import {
-	D21_LIMITS,
 	D21_POSITIVE_DIFFERENTIAL_GATE_DEFINITION_DIGEST,
 	D21_TASK_PROFILE,
 } from "./d21-current-efficacy-recovery-authority.js";
@@ -42,16 +41,17 @@ import {
 	D27_D26_QUALIFICATION_DIGEST,
 	D27_DECISION_REF,
 	D27_GENERATION_REF,
+	D27_LIMITS,
 } from "./d27-phase-specific-live-coordinates.js";
 import type { D27CredentialV1 } from "./d27-phase-specific-live-preflight.js";
 
 export const D27_BASELINE_ADMISSION_REVISION =
-	"graphrefly-ts.d29.d26-baseline-admission.v1" as const;
-export const D27_BUNDLE_SCHEMA = "graphrefly-ts.d29.phase-specific-live-bundle.v1" as const;
-export const D27_GATE_SCHEMA = "graphrefly-ts.d29.positive-differential-gate.v1" as const;
-export const D27_PARTIAL_SCHEMA = "graphrefly-ts.d29.partial-graph-evidence.v1" as const;
-export const D27_GENERATION_SCHEMA = "graphrefly-ts.d29.live-generation.v1" as const;
-export const D27_TERMINAL_SCHEMA = "graphrefly-ts.d29.live-terminal-receipt.v1" as const;
+	"graphrefly-ts.d30.d26-baseline-admission.v1" as const;
+export const D27_BUNDLE_SCHEMA = "graphrefly-ts.d30.phase-specific-live-bundle.v1" as const;
+export const D27_GATE_SCHEMA = "graphrefly-ts.d30.positive-differential-gate.v1" as const;
+export const D27_PARTIAL_SCHEMA = "graphrefly-ts.d30.partial-graph-evidence.v1" as const;
+export const D27_GENERATION_SCHEMA = "graphrefly-ts.d30.live-generation.v1" as const;
+export const D27_TERMINAL_SCHEMA = "graphrefly-ts.d30.live-terminal-receipt.v1" as const;
 export const D27_MAX_BUNDLE_BYTES = 4_194_304;
 
 export interface D27D26BaselineAdmissionV1 {
@@ -253,7 +253,7 @@ async function drive(input: {
 	if (executionAuthority.claim.implementationManifestDigest !== input.implementationManifestDigest)
 		throw new TypeError("D27 implementation authority drifted");
 	const authority = createD25PhaseAuthority({
-		limits: D21_LIMITS,
+		limits: D27_LIMITS,
 		routeProfile: CURRENT_GRAPH_LIVE_ROUTE,
 		taskProfile: D21_TASK_PROFILE,
 	});
@@ -264,7 +264,7 @@ async function drive(input: {
 	let graphEvidence: D25PhaseEvidenceV1 | null = null;
 	let failureCode: D27PartialGraphEvidenceV1["failureCode"] | null = null;
 	try {
-		for (let guard = 0; guard < D21_LIMITS.maxEffectFacts; guard += 1) {
+		for (let guard = 0; guard < D27_LIMITS.maxEffectFacts; guard += 1) {
 			let execution: Awaited<ReturnType<D26PhaseSpecificExecutorV1["executeNext"]>>;
 			try {
 				execution = await executor.executeNext();
@@ -529,7 +529,7 @@ export async function persistD27LiveBundle(input: {
 	const bundleBytes = strictJsonCodec.encode(bundle as unknown as StrictJsonValue);
 	const terminalBytes = strictJsonCodec.encode(bundle.terminalReceipt as StrictJsonValue);
 	const commitMaterial = strictSnapshot({
-		schemaVersion: "graphrefly-ts.d29.live-commit.v1",
+		schemaVersion: "graphrefly-ts.d30.live-commit.v1",
 		generationRef: D27_GENERATION_REF,
 		bundleDigest: bundle.bundleDigest,
 		terminalReceiptDigest: digest(
@@ -561,7 +561,7 @@ export async function persistD27PreexecutionFailure(input: {
 	if (input.claim.scope !== "live-fixed-root")
 		throw new TypeError("D27 preexecution failure rejected a non-live claim");
 	const material = strictSnapshot({
-		schemaVersion: "graphrefly-ts.d29.live-preexecution-failure.v1",
+		schemaVersion: "graphrefly-ts.d30.live-preexecution-failure.v1",
 		decisionRef: D27_DECISION_REF,
 		generationRef: D27_GENERATION_REF,
 		coordinatesDigest: D27_COORDINATES_DIGEST,
@@ -581,7 +581,7 @@ export async function persistD27PreexecutionFailure(input: {
 	});
 	const bytes = strictJsonCodec.encode(failure);
 	const commitMaterial = strictSnapshot({
-		schemaVersion: "graphrefly-ts.d29.live-preexecution-commit.v1",
+		schemaVersion: "graphrefly-ts.d30.live-preexecution-commit.v1",
 		generationRef: D27_GENERATION_REF,
 		failureDigest: failure.failureDigest,
 		claimDigest: input.claim.claimDigest,

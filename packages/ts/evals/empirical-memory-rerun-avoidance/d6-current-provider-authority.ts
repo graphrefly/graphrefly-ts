@@ -1912,8 +1912,12 @@ function replayProviderEvidence(
 			providerLogical.cost += fact.result.usage.actualCostMicrousd;
 			providerLogical.elapsed += fact.result.usage.actualElapsedMs;
 			providerLogical.factDigests.push(fact.factDigest);
-			if (fact.result.status === "failed" && fact.result.retryProposal !== null) {
-				if (fact.request.attemptOrdinal !== 1 || pendingRetry !== null)
+			if (
+				fact.result.status === "failed" &&
+				fact.result.retryProposal !== null &&
+				fact.request.attemptOrdinal === 1
+			) {
+				if (pendingRetry !== null)
 					throw new TypeError("current provider replay admitted an extra retry");
 				const expectedProposal = empiricalStrictJsonDigest({
 					retryClass: fact.result.retryProposal.retryClass,

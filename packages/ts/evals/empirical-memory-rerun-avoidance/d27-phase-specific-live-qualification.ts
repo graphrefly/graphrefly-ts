@@ -56,11 +56,11 @@ import {
 } from "./d27-phase-specific-live-preflight.js";
 
 export const D27_QUALIFICATION_SCHEMA =
-	"graphrefly-ts.d29.phase-specific-live-qualification.v1" as const;
+	"graphrefly-ts.d30.phase-specific-live-qualification.v1" as const;
 export const D27_QUALIFICATION_BUNDLE_SCHEMA =
-	"graphrefly-ts.d29.phase-specific-live-qualification-bundle.v1" as const;
+	"graphrefly-ts.d30.phase-specific-live-qualification-bundle.v1" as const;
 export const D27_QUALIFICATION_GENERATION_SCHEMA =
-	"graphrefly-ts.d29.phase-specific-live-qualification-generation.v1" as const;
+	"graphrefly-ts.d30.phase-specific-live-qualification-generation.v1" as const;
 
 export interface D27QualificationBundleV1 {
 	readonly schemaVersion: typeof D27_QUALIFICATION_BUNDLE_SCHEMA;
@@ -240,6 +240,7 @@ function injectedTransport() {
 		["cold", "D710"],
 		["relevant-applied", "D671"],
 		["proposal-only", "D675"],
+		["admission-rejected", "D710"],
 	]);
 	const retried = new Set<string>();
 	const noOpMutationInjected = new Set<string>();
@@ -280,6 +281,11 @@ function injectedTransport() {
 			if (prior !== undefined) {
 				if (!sameBytes(prior, bytes)) throw new TypeError("D27 injected retry wire drifted");
 				pending.delete(arm);
+				if (arm === "admission-rejected")
+					return new Response(JSON.stringify({ error: { message: "bounded-terminal-retry" } }), {
+						status: 429,
+						headers: { "content-type": "application/json" },
+					});
 			} else if (!retried.has(arm) && retryPolicy.has(arm)) {
 				retried.add(arm);
 				pending.set(arm, bytes.slice());
@@ -341,7 +347,7 @@ export async function runD27InjectedNoNetworkQualification(inputValue: {
 	const input = record(inputValue, "D27 qualification input");
 	exactKeys(input, ["baseline", "baselineBasis", "repositoryRoot"], "D27 qualification input");
 	const repositoryRoot = await realpath(resolve(String(input.repositoryRoot)));
-	const temporaryRoot = await realpath(await mkdtemp(join(tmpdir(), "graphrefly-d29-")));
+	const temporaryRoot = await realpath(await mkdtemp(join(tmpdir(), "graphrefly-d30-")));
 	await chmod(temporaryRoot, 0o700);
 	const credential = Object.freeze({
 		bearerToken: "sk-or-v1-test-current-graph-d27-key",
@@ -552,7 +558,7 @@ export async function persistD27Qualification(input: {
 	const bundle = validateD27QualificationBundle(input.bundle);
 	const bundleBytes = strictJsonCodec.encode(bundle as unknown as StrictJsonValue);
 	const commitMaterial = strictSnapshot({
-		schemaVersion: "graphrefly-ts.d29.phase-specific-live-qualification-commit.v1",
+		schemaVersion: "graphrefly-ts.d30.phase-specific-live-qualification-commit.v1",
 		generationRef: D27_QUALIFICATION_GENERATION_REF,
 		bundleDigest: bundle.bundleDigest,
 		qualificationDigest: bundle.qualification.qualificationDigest,
