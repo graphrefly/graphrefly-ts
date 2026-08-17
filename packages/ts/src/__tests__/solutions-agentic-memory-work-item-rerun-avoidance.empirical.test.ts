@@ -1139,7 +1139,11 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d17-current-pre-live-qualification.ts") ||
 				file.endsWith("d18-current-provider-composition-qualification.ts") ||
 				file.endsWith("d19-current-real-provider-qualification.ts") ||
-				file.endsWith("d20-current-live-qualification.ts");
+				file.endsWith("d20-current-live-qualification.ts") ||
+				file.endsWith("d22-current-efficacy-real-provider-qualification.ts");
+			const allowsD22RealProviderQualification = file.endsWith(
+				"d22-current-efficacy-real-provider-qualification.ts",
+			);
 			const allowsCurrentGraphImplementationManifest =
 				file.endsWith("current-graph-native-eval-implementation-manifest.ts") ||
 				file.endsWith("current-graph-native-provider-implementation-manifest.ts") ||
@@ -1153,7 +1157,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d18-current-provider-composition-implementation-manifest.ts") ||
 				file.endsWith("d19-current-real-provider-implementation-manifest.ts") ||
 				file.endsWith("d20-current-live-implementation-manifest.ts") ||
-				file.endsWith("d21-current-efficacy-recovery-implementation-manifest.ts");
+				file.endsWith("d21-current-efficacy-recovery-implementation-manifest.ts") ||
+				file.endsWith("d22-current-efficacy-real-provider-implementation-manifest.ts");
 			const allowsD9PrivateRunner = file.endsWith("run-d9-current-no-network.ts");
 			const allowsD11PrivateRunner = file.endsWith("run-d11-current-no-network.ts");
 			const allowsCurrentGraphPrivateRunner =
@@ -1170,7 +1175,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("run-d18-current-provider-no-network.ts") ||
 				file.endsWith("run-d19-current-real-provider-no-network.ts") ||
 				file.endsWith("run-d20-current-no-network.ts") ||
-				file.endsWith("run-d21-current-no-network.ts");
+				file.endsWith("run-d21-current-no-network.ts") ||
+				file.endsWith("run-d22-current-efficacy-real-provider-no-network.ts");
 			const allowsCurrentGraphLiveAdapter =
 				file.endsWith("current-graph-native-openrouter-adapter.ts") ||
 				file.endsWith("d6-current-openrouter-adapter.ts") ||
@@ -1480,51 +1486,53 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			expect(source).not.toMatch(
 				allowsD690SealedOfflineOperator
 					? /\b(?:Date\.now|fetch\s*\(|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b/
-					: allowsD703MutationFirstOperator ||
-							allowsD708QualifiedEntrypoint ||
-							allowsD711QualifiedEntrypoint ||
-							allowsD713QualifiedEntrypoint
-						? /\b(?:Date\.now|fetch|WebSocket|setInterval|setImmediate|queueMicrotask)\b|node:(?:http|https|tls)|(?:from|import)\s+["'](?:http|https|tls|undici|ws)["']/
-						: allowsOutermostLiveOperator
-							? /\b(?:WebSocket|setInterval|setImmediate|queueMicrotask)\b|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
-							: allowsCurrentGraphLiveAsync
-								? /\b(?:WebSocket|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls)|(?:from|import)\s+["'](?:http|https|net|tls|undici|ws)["']/
-								: allowsRepositoryNodeDriver ||
-										allowsClosedHostNodeDriver ||
-										allowsClosedVerifierCalibration ||
-										allowsOfflineQualification ||
-										allowsPreliveOperatorDriver ||
-										allowsD721ProviderCapableAdapter ||
-										allowsD722ProviderCapableAdapter ||
-										allowsD722InjectedModelFixture ||
-										allowsD723RealProviderAdapter ||
-										allowsD723OpenRouterGraphTurn ||
-										allowsD733OpenRouterGraphTurn ||
-										allowsD734RouteIntegration ||
-										allowsD734InjectedFixture ||
-										allowsD760InjectedFixture ||
-										allowsD756Qualification ||
-										allowsD757Qualification ||
-										allowsD759Qualification ||
-										allowsD761Qualification ||
-										allowsD771Qualification ||
-										allowsD774D776PreLive ||
-										allowsD778PreLive ||
-										allowsD779PreLive ||
-										allowsD17InjectedAdapter ||
-										allowsD18InjectedAdapter ||
-										allowsD735ProviderPreflight ||
-										allowsD725RealProviderIntegration ||
-										allowsD725InjectedQualification ||
-										allowsD731InjectedRouteRepairFixture
-									? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls)|(?:from|import)\s+["'](?:http|https|net|tls|undici|ws)["']/
-									: allowsOneRequestFetchTransport
-										? /\b(?:Date\.now|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
-										: allowsFocusedTransportAsync
-											? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
-											: allowsOneTurnPromise
-												? /\b(?:async|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
-												: /\b(?:async|Promise|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/,
+					: allowsD22RealProviderQualification
+						? /\b(?:Date\.now|fetch\s*\(|WebSocket|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls)|(?:from|import)\s+["'](?:http|https|net|tls|undici|ws)["']/
+						: allowsD703MutationFirstOperator ||
+								allowsD708QualifiedEntrypoint ||
+								allowsD711QualifiedEntrypoint ||
+								allowsD713QualifiedEntrypoint
+							? /\b(?:Date\.now|fetch|WebSocket|setInterval|setImmediate|queueMicrotask)\b|node:(?:http|https|tls)|(?:from|import)\s+["'](?:http|https|tls|undici|ws)["']/
+							: allowsOutermostLiveOperator
+								? /\b(?:WebSocket|setInterval|setImmediate|queueMicrotask)\b|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
+								: allowsCurrentGraphLiveAsync
+									? /\b(?:WebSocket|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls)|(?:from|import)\s+["'](?:http|https|net|tls|undici|ws)["']/
+									: allowsRepositoryNodeDriver ||
+											allowsClosedHostNodeDriver ||
+											allowsClosedVerifierCalibration ||
+											allowsOfflineQualification ||
+											allowsPreliveOperatorDriver ||
+											allowsD721ProviderCapableAdapter ||
+											allowsD722ProviderCapableAdapter ||
+											allowsD722InjectedModelFixture ||
+											allowsD723RealProviderAdapter ||
+											allowsD723OpenRouterGraphTurn ||
+											allowsD733OpenRouterGraphTurn ||
+											allowsD734RouteIntegration ||
+											allowsD734InjectedFixture ||
+											allowsD760InjectedFixture ||
+											allowsD756Qualification ||
+											allowsD757Qualification ||
+											allowsD759Qualification ||
+											allowsD761Qualification ||
+											allowsD771Qualification ||
+											allowsD774D776PreLive ||
+											allowsD778PreLive ||
+											allowsD779PreLive ||
+											allowsD17InjectedAdapter ||
+											allowsD18InjectedAdapter ||
+											allowsD735ProviderPreflight ||
+											allowsD725RealProviderIntegration ||
+											allowsD725InjectedQualification ||
+											allowsD731InjectedRouteRepairFixture
+										? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls)|(?:from|import)\s+["'](?:http|https|net|tls|undici|ws)["']/
+										: allowsOneRequestFetchTransport
+											? /\b(?:Date\.now|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
+											: allowsFocusedTransportAsync
+												? /\b(?:Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
+												: allowsOneTurnPromise
+													? /\b(?:async|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/
+													: /\b(?:async|Promise|Date\.now|fetch|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls|child_process)|(?:from|import)\s+["'](?:http|https|net|tls|child_process|undici|ws)["']/,
 			);
 			if (allowsD703MutationFirstOperator) {
 				expect(source.match(/require\('node:net'\)/g)).toHaveLength(1);
@@ -1560,6 +1568,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsClosedHostNodeDriver ||
 							allowsD690SealedOfflineOperator ||
 							allowsD703MutationFirstOperator ||
+							allowsD22RealProviderQualification ||
 							allowsCurrentGraphLiveAdapter ||
 							file.endsWith("run-current-graph-native-live.ts") ||
 							file.endsWith("run-d7-live.ts") ||
@@ -1592,6 +1601,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							(specifier === "node:fs/promises" || specifier === "node:path")) ||
 						(allowsD690SealedOfflineOperator &&
 							(specifier === "node:fs" || specifier === "node:os")) ||
+						(allowsD22RealProviderQualification && specifier === "node:os") ||
 						(allowsCurrentGraphLiveOperatorWithD20 &&
 							(specifier === "node:fs" || specifier === "node:os")) ||
 						((allowsD9PrivateRunner || allowsD11PrivateRunner) && specifier === "node:fs") ||
