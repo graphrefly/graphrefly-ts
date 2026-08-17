@@ -120,17 +120,6 @@ function mutationCanProject(value: unknown): boolean {
 	}
 }
 
-function syntheticToolCall(input: {
-	readonly id: string;
-	readonly name: "workspace_diff" | "focused_validation";
-}) {
-	return Object.freeze({
-		id: input.id,
-		type: "function" as const,
-		function: Object.freeze({ name: input.name, arguments: "{}" }),
-	});
-}
-
 async function projectMutationResponse(
 	response: Response,
 	active: ActiveProviderExecution,
@@ -179,37 +168,11 @@ async function projectMutationResponse(
 			statusText: response.statusText,
 			headers: response.headers,
 		});
-	const root = value as Record<string, unknown>;
-	const choices = root.choices as Array<Record<string, unknown>>;
-	const message = choices[0]?.message as Record<string, unknown>;
-	const calls = message.tool_calls as unknown[];
-	const coordinate = active.admitted.effect.request.requestDigest.slice("sha256:".length, 30);
-	const projected = strictSnapshot({
-		...root,
-		choices: [
-			{
-				...choices[0],
-				message: {
-					...message,
-					tool_calls: [
-						...calls,
-						syntheticToolCall({ id: `d26-${coordinate}-diff`, name: "workspace_diff" }),
-						syntheticToolCall({
-							id: `d26-${coordinate}-focused`,
-							name: "focused_validation",
-						}),
-					],
-				},
-			},
-		],
-	});
-	const headers = new Headers(response.headers);
-	headers.delete("content-length");
 	active.mutationProjectionApplied = true;
-	return new Response(JSON.stringify(projected), {
+	return new Response(bytes, {
 		status: response.status,
 		statusText: response.statusText,
-		headers,
+		headers: response.headers,
 	});
 }
 
@@ -221,10 +184,8 @@ function oneMutationProposal(
 	if (
 		result.effectKind !== "provider-request" ||
 		result.status !== "completed" ||
-		result.toolCalls.length !== 3 ||
-		result.toolCalls[0]?.toolRef !== "replace-exact" ||
-		result.toolCalls[1]?.toolRef !== "workspace-diff" ||
-		result.toolCalls[2]?.toolRef !== "focused-validation"
+		result.toolCalls.length !== 1 ||
+		result.toolCalls[0]?.toolRef !== "replace-exact"
 	)
 		throw new TypeError("D26 Graph-authored deterministic tool projection drifted");
 	return Object.freeze({
@@ -396,6 +357,14 @@ export function createD26PhaseSpecificRealProviderExecutor(
 					directive === null
 						? null
 						: { admitted, directive, mutationProjectionApplied: false, loweredBodyDigest: null };
+				if (
+					admitted.effect.request.effectKind === "tool-action" &&
+					admitted.effect.request.toolRef === "workspace-diff"
+				)
+					base.admitGraphAuthoredToolCalls(admitted.effect, [
+						"workspace-diff",
+						"focused-validation",
+					]);
 				const result = await base.execute(admitted.effect);
 				return Object.freeze({
 					admitted,

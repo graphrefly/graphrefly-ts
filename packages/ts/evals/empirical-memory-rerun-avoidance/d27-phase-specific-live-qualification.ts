@@ -56,11 +56,11 @@ import {
 } from "./d27-phase-specific-live-preflight.js";
 
 export const D27_QUALIFICATION_SCHEMA =
-	"graphrefly-ts.d28.phase-specific-live-qualification.v1" as const;
+	"graphrefly-ts.d29.phase-specific-live-qualification.v1" as const;
 export const D27_QUALIFICATION_BUNDLE_SCHEMA =
-	"graphrefly-ts.d28.phase-specific-live-qualification-bundle.v1" as const;
+	"graphrefly-ts.d29.phase-specific-live-qualification-bundle.v1" as const;
 export const D27_QUALIFICATION_GENERATION_SCHEMA =
-	"graphrefly-ts.d28.phase-specific-live-qualification-generation.v1" as const;
+	"graphrefly-ts.d29.phase-specific-live-qualification-generation.v1" as const;
 
 export interface D27QualificationBundleV1 {
 	readonly schemaVersion: typeof D27_QUALIFICATION_BUNDLE_SCHEMA;
@@ -242,6 +242,7 @@ function injectedTransport() {
 		["proposal-only", "D675"],
 	]);
 	const retried = new Set<string>();
+	const noOpMutationInjected = new Set<string>();
 	const pending = new Map<string, Uint8Array>();
 	const retryDelays = new Set<number>();
 	const fetchImpl: typeof fetch = async (_url, init) => {
@@ -308,6 +309,16 @@ function injectedTransport() {
 			const correction = body.messages.some((message) =>
 				message.content?.includes("correction=semantic-correction"),
 			);
+			if (arm === "relevant-applied" && !noOpMutationInjected.has(arm)) {
+				noOpMutationInjected.add(arm);
+				return providerResponse([
+					toolCall(`replace-noop-${calls}`, "replace_exact", {
+						path: CURRENT_GRAPH_LIVE_WRITABLE_FILE,
+						oldText: D22_INITIAL_ADMISSION_BLOCK,
+						newText: D22_INITIAL_ADMISSION_BLOCK,
+					}),
+				]);
+			}
 			return providerResponse([
 				toolCall(`replace-${calls}`, "replace_exact", {
 					path: CURRENT_GRAPH_LIVE_WRITABLE_FILE,
@@ -330,7 +341,7 @@ export async function runD27InjectedNoNetworkQualification(inputValue: {
 	const input = record(inputValue, "D27 qualification input");
 	exactKeys(input, ["baseline", "baselineBasis", "repositoryRoot"], "D27 qualification input");
 	const repositoryRoot = await realpath(resolve(String(input.repositoryRoot)));
-	const temporaryRoot = await realpath(await mkdtemp(join(tmpdir(), "graphrefly-d28-")));
+	const temporaryRoot = await realpath(await mkdtemp(join(tmpdir(), "graphrefly-d29-")));
 	await chmod(temporaryRoot, 0o700);
 	const credential = Object.freeze({
 		bearerToken: "sk-or-v1-test-current-graph-d27-key",
@@ -347,13 +358,14 @@ export async function runD27InjectedNoNetworkQualification(inputValue: {
 		});
 		const transport = injectedTransport();
 		const materializationRoot = join(temporaryRoot, "workspaces");
+		let executorFailureMessage: string | null = null;
 		const mainBundle = await runD27InjectedMeasurementForTest({
 			executionAuthority,
 			baseline: input.baseline as D27D26BaselineAdmissionV1,
 			implementationManifestDigest: D27_IMPLEMENTATION_MANIFEST_DIGEST,
 			allowConsumedBaselineForQualification: input.baselineBasis === "consumed-d26-artifact",
-			executorFactory: (authority) =>
-				createD26PhaseSpecificRealProviderExecutor({
+			executorFactory: (authority) => {
+				const executor = createD26PhaseSpecificRealProviderExecutor({
 					authority,
 					repositoryRoot,
 					materializationRoot,
@@ -367,7 +379,19 @@ export async function runD27InjectedNoNetworkQualification(inputValue: {
 						if ([1_000, 7_000, 60_000].includes(milliseconds))
 							transport.retryDelays.add(milliseconds);
 					},
-				}),
+				});
+				return Object.freeze({
+					async executeNext() {
+						try {
+							return await executor.executeNext();
+						} catch (error) {
+							executorFailureMessage = error instanceof Error ? error.message : "unknown";
+							throw error;
+						}
+					},
+					dispose: () => executor.dispose(),
+				});
+			},
 		});
 		await lstat(materializationRoot).then(
 			() => {
@@ -393,7 +417,17 @@ export async function runD27InjectedNoNetworkQualification(inputValue: {
 				Buffer.from("1000,7000,60000"),
 			)
 		)
-			throw new TypeError("D27 injected qualification projection drifted");
+			throw new TypeError(
+				`D27 injected qualification projection drifted: ${JSON.stringify({
+					disposition: validatedMain.disposition,
+					failureCode: validatedMain.partialGraphEvidence?.failureCode ?? null,
+					runStatus: workflow?.runStatus ?? null,
+					runCount: workflow?.runs.length ?? null,
+					transportCalls: transport.calls(),
+					retryDelays: [...transport.retryDelays].sort((left, right) => left - right),
+					executorFailureMessage,
+				})}`,
+			);
 		const qualificationMaterial = strictSnapshot({
 			schemaVersion: D27_QUALIFICATION_SCHEMA,
 			decisionRef: D27_DECISION_REF,
@@ -518,7 +552,7 @@ export async function persistD27Qualification(input: {
 	const bundle = validateD27QualificationBundle(input.bundle);
 	const bundleBytes = strictJsonCodec.encode(bundle as unknown as StrictJsonValue);
 	const commitMaterial = strictSnapshot({
-		schemaVersion: "graphrefly-ts.d28.phase-specific-live-qualification-commit.v1",
+		schemaVersion: "graphrefly-ts.d29.phase-specific-live-qualification-commit.v1",
 		generationRef: D27_QUALIFICATION_GENERATION_REF,
 		bundleDigest: bundle.bundleDigest,
 		qualificationDigest: bundle.qualification.qualificationDigest,

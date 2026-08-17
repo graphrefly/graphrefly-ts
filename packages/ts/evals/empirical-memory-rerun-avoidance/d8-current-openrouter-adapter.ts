@@ -53,6 +53,13 @@ interface WorkspaceState {
 	cleaned: boolean;
 }
 
+export interface CurrentGraphOpenRouterExecutorV1 extends CurrentGraphLiveExecutorV1 {
+	admitGraphAuthoredToolCalls(
+		effect: CurrentGraphProviderAdmittedEffectV1,
+		toolRefs: readonly ["workspace-diff", "focused-validation"],
+	): void;
+}
+
 interface ProcessResult {
 	readonly code: number;
 	readonly stdout: Uint8Array;
@@ -457,7 +464,7 @@ function parseToolCalls(value: unknown) {
 
 export function createCurrentGraphOpenRouterExecutor(
 	options: CurrentGraphOpenRouterAdapterOptionsV1,
-): CurrentGraphLiveExecutorV1 {
+): CurrentGraphOpenRouterExecutorV1 {
 	const repositoryRoot = resolve(options.repositoryRoot);
 	const materializationRoot = resolve(options.materializationRoot);
 	const now = options.now ?? (() => performance.now());
@@ -476,6 +483,34 @@ export function createCurrentGraphOpenRouterExecutor(
 		return state;
 	};
 	return Object.freeze({
+		admitGraphAuthoredToolCalls(
+			effect: CurrentGraphProviderAdmittedEffectV1,
+			toolRefs: readonly ["workspace-diff", "focused-validation"],
+		) {
+			if (disposed || active !== 0)
+				throw new TypeError("current live Graph-authored transcript admission is unavailable");
+			const state = stateFor(effect);
+			if (
+				effect.request.effectKind !== "tool-action" ||
+				effect.request.toolRef !== "workspace-diff" ||
+				toolRefs.join(",") !== "workspace-diff,focused-validation" ||
+				state.pendingToolCalls.length !== 0
+			)
+				throw new TypeError("current live Graph-authored transcript admission drifted");
+			const coordinate = effect.request.requestDigest.slice("sha256:".length, 30);
+			const calls = toolRefs.map((toolRef, index) => {
+				const id = `graph-${coordinate}-${index}`;
+				return Object.freeze({
+					id,
+					type: "function" as const,
+					function: Object.freeze({ name: TOOL_NAME_BY_REF[toolRef], arguments: "{}" }),
+				});
+			});
+			state.messages.push({ role: "assistant", content: null, tool_calls: calls });
+			state.pendingToolCalls.push(
+				...toolRefs.map((toolRef, index) => ({ id: calls[index]!.id, toolRef })),
+			);
+		},
 		async execute(effect: CurrentGraphProviderAdmittedEffectV1) {
 			if (disposed) throw new TypeError("current live executor is disposed");
 			active += 1;
@@ -660,7 +695,7 @@ export function createCurrentGraphOpenRouterExecutor(
 						const text = await readFile(path, "utf8");
 						const first = text.indexOf(args.oldText);
 						const second = first < 0 ? -1 : text.indexOf(args.oldText, first + args.oldText.length);
-						if (first < 0 || second >= 0) {
+						if (args.oldText === args.newText || first < 0 || second >= 0) {
 							succeeded = false;
 							causeCode = "exact-replacement-not-applicable";
 							output = "Exact replacement was not applicable with exactly one occurrence.";
