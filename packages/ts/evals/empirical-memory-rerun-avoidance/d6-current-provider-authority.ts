@@ -31,7 +31,7 @@ export const CURRENT_GRAPH_PROVIDER_ROUTE_SCHEMA =
 export const CURRENT_GRAPH_PROVIDER_TASK_SCHEMA =
 	"graphrefly-ts.d6.current-graph-native-task-profile.v1" as const;
 export const CURRENT_GRAPH_PROVIDER_ENVELOPE_SCHEMA =
-	"graphrefly-ts.d6.current-graph-native-model-envelope.v1" as const;
+	"graphrefly-ts.d31.current-graph-native-model-envelope.v1" as const;
 
 const TOOL_REFS = Object.freeze([
 	"read-file",
@@ -153,7 +153,16 @@ export interface CurrentGraphModelEnvelopeV1 {
 	readonly taskStatement: string;
 	readonly armContext: string;
 	readonly correctionDigest: string | null;
+	readonly correctionReason:
+		| "exact-replacement-not-applicable"
+		| "public-semantic-validation-failed"
+		| null;
 	readonly correctionStage: "reinspect" | "fresh-mutation" | "semantic-correction" | null;
+	readonly requiredDisposition:
+		| "reinspect-current-workspace"
+		| "fresh-byte-different-exact-replacement"
+		| "address-public-criterion-failures"
+		| null;
 	readonly requiredFirstToolRef: "read-file" | "replace-exact" | null;
 	readonly allowedTools: readonly CurrentGraphProviderToolRef[];
 	readonly envelopeDigest: string;
@@ -566,6 +575,18 @@ function taskEnvelope(state: ProviderAuthorityState, effect: CurrentGraphAdmitte
 	const armIndex = CURRENT_GRAPH_ARMS.indexOf(effect.request.arm);
 	const armContext = state.task.armContexts[armIndex];
 	if (armContext === undefined) throw new TypeError("current provider arm context is missing");
+	const correction = effect.request.correctionDirective;
+	let requiredDisposition: CurrentGraphModelEnvelopeV1["requiredDisposition"] = null;
+	if (correction?.reason === "exact-replacement-not-applicable") {
+		if (correction.stage === "reinspect") requiredDisposition = "reinspect-current-workspace";
+		else if (correction.stage === "fresh-mutation")
+			requiredDisposition = "fresh-byte-different-exact-replacement";
+		else throw new TypeError("current provider exact-replacement correction stage drifted");
+	} else if (correction?.reason === "public-semantic-validation-failed") {
+		if (correction.stage !== "semantic-correction")
+			throw new TypeError("current provider semantic correction stage drifted");
+		requiredDisposition = "address-public-criterion-failures";
+	}
 	const material = strictSnapshot({
 		schemaVersion: CURRENT_GRAPH_PROVIDER_ENVELOPE_SCHEMA,
 		arm: effect.request.arm,
@@ -574,9 +595,11 @@ function taskEnvelope(state: ProviderAuthorityState, effect: CurrentGraphAdmitte
 		systemInstruction: state.task.systemInstruction,
 		taskStatement: state.task.taskStatement,
 		armContext,
-		correctionDigest: effect.request.correctionDirective?.contextDigest ?? null,
-		correctionStage: effect.request.correctionDirective?.stage ?? null,
-		requiredFirstToolRef: effect.request.correctionDirective?.requiredFirstToolRef ?? null,
+		correctionDigest: correction?.contextDigest ?? null,
+		correctionReason: correction?.reason ?? null,
+		correctionStage: correction?.stage ?? null,
+		requiredDisposition,
+		requiredFirstToolRef: correction?.requiredFirstToolRef ?? null,
 		allowedTools: TOOL_REFS,
 	});
 	if (canonicalBytes(material) > 32_768)

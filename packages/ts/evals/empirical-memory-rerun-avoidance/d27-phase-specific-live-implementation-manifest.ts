@@ -4,22 +4,22 @@ import { empiricalSha256, empiricalStrictJsonDigest, strictSnapshot } from "./ca
 import { D26_IMPLEMENTATION_MANIFEST_DIGEST } from "./d26-phase-specific-real-provider-implementation-manifest.js";
 
 export const D27_IMPLEMENTATION_SOURCE_DIGESTS = Object.freeze({
-	coordinates: "sha256:24713e58da19dbc74c8761b80ee11ee63c65f8fe534d3f98410a91cab1e28708",
-	preflight: "sha256:1f6c474351d7df81e5af310c73760cd4846dcab18608bd924106d04b610c90ea",
-	claim: "sha256:224b213a799077471e505e638c2618c2ae8d23e8540a441616ce1bab14ac74b0",
-	live: "sha256:5c2da7dd670763d3979c290a484e46357e2c634233f2a440fdc292c228070875",
-	qualification: "sha256:4edebac526faca3e4b145665429e846dcbb05decb501a937390229e051912ae5",
-	runner: "sha256:4c91bc5d885fc153b4d996e25e904907a4043c8b939bf505fa540d70a0b0865e",
-	providerReplayRepair: "sha256:10041feb0735732a317787392623afbca7f01adf31377431d5cfd8ad5dc8cfd9",
+	coordinates: "sha256:912f342c9210670096297b96baf1bb27eb0b63a45ee24f1609022f37f3f8be72",
+	preflight: "sha256:cffec8bd6aa49a38e8958200c4a318c6e7a0c69f7481b98dfdcd2e5a41ca08a7",
+	claim: "sha256:a77dfa9a0d73cf403a66cb5582908da317ca7a80fbd5cb2993326925f695a728",
+	live: "sha256:c1b1d26b01a8d88d010b2ddf825c90cb386bf43a93e99a9c30d837e8dc529cfc",
+	qualification: "sha256:9414ac565ffa8e035487bf854d6f152050b7f691aad9ec92b8b9fed06b84e137",
+	runner: "sha256:177a3dff2bb8bd463d4717add24866048d9d44454a50aa6c7ed70486940b15e7",
+	providerReplayRepair: "sha256:8928f66b990088e7eeaab20e15916ef9d2a2ca1c97145301a7dbf4ade5804541",
 	phaseAuthorityRepair: "sha256:e660343b2132b0adcd58518d2857d29762910390a51e2c479ea6b7ec82509296",
 	providerCompositionRepair:
 		"sha256:e133d11ec777099337e89d7fdaa1bac064e5942a2d9bb1e46f44692bd33b8dd3",
-	noOpReplacementRepair: "sha256:54418dc61628118d327b08fe2c8d7631ef11ca1707c9bfe91489aaf3d22dcaae",
+	noOpReplacementRepair: "sha256:dc9acb881021576d19c07b0fc33bbe997a976e27e58f755adc48e34fc7a61e85",
 });
 
 export const D27_IMPLEMENTATION_MANIFEST = strictSnapshot({
-	revision: "graphrefly-ts.d30.phase-specific-live-implementation-manifest.v1",
-	baselineCommit: "86f3cf9ecef4a16c239f501eaa13210c70f48bc0",
+	revision: "graphrefly-ts.d31.phase-specific-live-implementation-manifest.v1",
+	baselineCommit: "71ba77d5773c5fe3a57fbe1d8bc25af6640f1f52",
 	d26ImplementationManifestDigest: D26_IMPLEMENTATION_MANIFEST_DIGEST,
 	sources: D27_IMPLEMENTATION_SOURCE_DIGESTS,
 });

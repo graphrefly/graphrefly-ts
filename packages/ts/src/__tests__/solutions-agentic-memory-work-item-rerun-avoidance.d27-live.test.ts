@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
 	D27_IMPLEMENTATION_MANIFEST_DIGEST,
@@ -9,9 +10,9 @@ import {
 	validateD27QualificationBundle,
 } from "../../evals/empirical-memory-rerun-avoidance/d27-phase-specific-live-qualification.js";
 
-describe("graphrefly-ts:D27 phase-specific live qualification", () => {
+describe("graphrefly-ts:D31 Graph correction-context live qualification", () => {
 	it("keeps Graph admission authoritative across six injected no-network arms", async () => {
-		const repositoryRoot = process.cwd();
+		const repositoryRoot = resolve(import.meta.dirname, "../../../..");
 		expect(await measureD27Implementation(repositoryRoot)).toBe(D27_IMPLEMENTATION_MANIFEST_DIGEST);
 		const bundle = validateD27QualificationBundle(
 			await runD27InjectedNoNetworkQualification({

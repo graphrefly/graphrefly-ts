@@ -43,7 +43,7 @@ const privateEvidenceRoot = resolve(
 	"../.private/empirical-memory-rerun-avoidance",
 );
 const credentialFile = join(privateEvidenceRoot, "openrouter.env");
-const zeroByokFile = join(privateEvidenceRoot, "d30-fresh-zero-byok-browser-attestation.v1.json");
+const zeroByokFile = join(privateEvidenceRoot, "d31-fresh-zero-byok-browser-attestation.v1.json");
 const d26ArtifactFile = join(
 	privateEvidenceRoot,
 	"current-graph-native-d26/current-graph-native-phase-specific-real-provider-no-network-2026-08-17-d26-v2/artifacts/bundle.v1.json",
@@ -178,7 +178,7 @@ try {
 	throw error;
 }
 
-const materializationRoot = await mkdtemp(join(tmpdir(), "graphrefly-d30-live-"));
+const materializationRoot = await mkdtemp(join(tmpdir(), "graphrefly-d31-live-"));
 await chmod(materializationRoot, 0o700);
 let bundle: D27LiveBundleV1;
 try {

@@ -46,12 +46,12 @@ import {
 import type { D27CredentialV1 } from "./d27-phase-specific-live-preflight.js";
 
 export const D27_BASELINE_ADMISSION_REVISION =
-	"graphrefly-ts.d30.d26-baseline-admission.v1" as const;
-export const D27_BUNDLE_SCHEMA = "graphrefly-ts.d30.phase-specific-live-bundle.v1" as const;
-export const D27_GATE_SCHEMA = "graphrefly-ts.d30.positive-differential-gate.v1" as const;
-export const D27_PARTIAL_SCHEMA = "graphrefly-ts.d30.partial-graph-evidence.v1" as const;
-export const D27_GENERATION_SCHEMA = "graphrefly-ts.d30.live-generation.v1" as const;
-export const D27_TERMINAL_SCHEMA = "graphrefly-ts.d30.live-terminal-receipt.v1" as const;
+	"graphrefly-ts.d31.d26-baseline-admission.v1" as const;
+export const D27_BUNDLE_SCHEMA = "graphrefly-ts.d31.phase-specific-live-bundle.v1" as const;
+export const D27_GATE_SCHEMA = "graphrefly-ts.d31.positive-differential-gate.v1" as const;
+export const D27_PARTIAL_SCHEMA = "graphrefly-ts.d31.partial-graph-evidence.v1" as const;
+export const D27_GENERATION_SCHEMA = "graphrefly-ts.d31.live-generation.v1" as const;
+export const D27_TERMINAL_SCHEMA = "graphrefly-ts.d31.live-terminal-receipt.v1" as const;
 export const D27_MAX_BUNDLE_BYTES = 4_194_304;
 
 export interface D27D26BaselineAdmissionV1 {
@@ -529,7 +529,7 @@ export async function persistD27LiveBundle(input: {
 	const bundleBytes = strictJsonCodec.encode(bundle as unknown as StrictJsonValue);
 	const terminalBytes = strictJsonCodec.encode(bundle.terminalReceipt as StrictJsonValue);
 	const commitMaterial = strictSnapshot({
-		schemaVersion: "graphrefly-ts.d30.live-commit.v1",
+		schemaVersion: "graphrefly-ts.d31.live-commit.v1",
 		generationRef: D27_GENERATION_REF,
 		bundleDigest: bundle.bundleDigest,
 		terminalReceiptDigest: digest(
@@ -561,7 +561,7 @@ export async function persistD27PreexecutionFailure(input: {
 	if (input.claim.scope !== "live-fixed-root")
 		throw new TypeError("D27 preexecution failure rejected a non-live claim");
 	const material = strictSnapshot({
-		schemaVersion: "graphrefly-ts.d30.live-preexecution-failure.v1",
+		schemaVersion: "graphrefly-ts.d31.live-preexecution-failure.v1",
 		decisionRef: D27_DECISION_REF,
 		generationRef: D27_GENERATION_REF,
 		coordinatesDigest: D27_COORDINATES_DIGEST,
@@ -581,7 +581,7 @@ export async function persistD27PreexecutionFailure(input: {
 	});
 	const bytes = strictJsonCodec.encode(failure);
 	const commitMaterial = strictSnapshot({
-		schemaVersion: "graphrefly-ts.d30.live-preexecution-commit.v1",
+		schemaVersion: "graphrefly-ts.d31.live-preexecution-commit.v1",
 		generationRef: D27_GENERATION_REF,
 		failureDigest: failure.failureDigest,
 		claimDigest: input.claim.claimDigest,

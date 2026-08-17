@@ -56,11 +56,11 @@ import {
 } from "./d27-phase-specific-live-preflight.js";
 
 export const D27_QUALIFICATION_SCHEMA =
-	"graphrefly-ts.d30.phase-specific-live-qualification.v1" as const;
+	"graphrefly-ts.d31.phase-specific-live-qualification.v1" as const;
 export const D27_QUALIFICATION_BUNDLE_SCHEMA =
-	"graphrefly-ts.d30.phase-specific-live-qualification-bundle.v1" as const;
+	"graphrefly-ts.d31.phase-specific-live-qualification-bundle.v1" as const;
 export const D27_QUALIFICATION_GENERATION_SCHEMA =
-	"graphrefly-ts.d30.phase-specific-live-qualification-generation.v1" as const;
+	"graphrefly-ts.d31.phase-specific-live-qualification-generation.v1" as const;
 
 export interface D27QualificationBundleV1 {
 	readonly schemaVersion: typeof D27_QUALIFICATION_BUNDLE_SCHEMA;
@@ -312,8 +312,14 @@ function injectedTransport() {
 						toolCall(`read-${calls}-${index}`, "read_file", { path }),
 					),
 				);
-			const correction = body.messages.some((message) =>
-				message.content?.includes("correction=semantic-correction"),
+			const semanticCorrection = body.messages.some((message) =>
+				message.content?.includes("correctionStage=semantic-correction"),
+			);
+			const freshMutationCorrection = body.messages.some(
+				(message) =>
+					message.content?.includes("correctionReason=exact-replacement-not-applicable") &&
+					message.content?.includes("correctionStage=fresh-mutation") &&
+					message.content?.includes("requiredDisposition=fresh-byte-different-exact-replacement"),
 			);
 			if (arm === "relevant-applied" && !noOpMutationInjected.has(arm)) {
 				noOpMutationInjected.add(arm);
@@ -325,11 +331,13 @@ function injectedTransport() {
 					}),
 				]);
 			}
+			if (arm === "relevant-applied" && !freshMutationCorrection)
+				throw new TypeError("D31 injected fresh mutation omitted Graph correction context");
 			return providerResponse([
 				toolCall(`replace-${calls}`, "replace_exact", {
 					path: CURRENT_GRAPH_LIVE_WRITABLE_FILE,
-					oldText: correction ? D22_WRONG_ADMISSION_BLOCK : D22_INITIAL_ADMISSION_BLOCK,
-					newText: correction ? D22_FIXED_ADMISSION_BLOCK : D22_WRONG_ADMISSION_BLOCK,
+					oldText: semanticCorrection ? D22_WRONG_ADMISSION_BLOCK : D22_INITIAL_ADMISSION_BLOCK,
+					newText: semanticCorrection ? D22_FIXED_ADMISSION_BLOCK : D22_WRONG_ADMISSION_BLOCK,
 				}),
 			]);
 		} finally {
@@ -347,7 +355,7 @@ export async function runD27InjectedNoNetworkQualification(inputValue: {
 	const input = record(inputValue, "D27 qualification input");
 	exactKeys(input, ["baseline", "baselineBasis", "repositoryRoot"], "D27 qualification input");
 	const repositoryRoot = await realpath(resolve(String(input.repositoryRoot)));
-	const temporaryRoot = await realpath(await mkdtemp(join(tmpdir(), "graphrefly-d30-")));
+	const temporaryRoot = await realpath(await mkdtemp(join(tmpdir(), "graphrefly-d31-")));
 	await chmod(temporaryRoot, 0o700);
 	const credential = Object.freeze({
 		bearerToken: "sk-or-v1-test-current-graph-d27-key",
@@ -558,7 +566,7 @@ export async function persistD27Qualification(input: {
 	const bundle = validateD27QualificationBundle(input.bundle);
 	const bundleBytes = strictJsonCodec.encode(bundle as unknown as StrictJsonValue);
 	const commitMaterial = strictSnapshot({
-		schemaVersion: "graphrefly-ts.d30.phase-specific-live-qualification-commit.v1",
+		schemaVersion: "graphrefly-ts.d31.phase-specific-live-qualification-commit.v1",
 		generationRef: D27_QUALIFICATION_GENERATION_REF,
 		bundleDigest: bundle.bundleDigest,
 		qualificationDigest: bundle.qualification.qualificationDigest,

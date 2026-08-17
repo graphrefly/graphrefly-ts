@@ -262,7 +262,8 @@ function toolDefinitions(allowed: readonly CurrentGraphProviderToolRef[]) {
 				type: "function",
 				function: {
 					name: TOOL_NAME_BY_REF[toolRef],
-					description: "Replace one exact occurrence in the admitted file.",
+					description:
+						"Replace one exact occurrence in the admitted file. oldText must match the latest admitted read evidence exactly once, and newText must be byte-different from oldText.",
 					parameters: {
 						type: "object",
 						additionalProperties: false,
@@ -303,7 +304,7 @@ function bodyFor(effect: CurrentGraphProviderAdmittedEffectV1, state: WorkspaceS
 	}
 	const correction = {
 		role: "system",
-		content: `Graph admission: phase=${envelope.phaseBefore}; correction=${envelope.correctionStage ?? "none"}; requiredFirstTool=${envelope.requiredFirstToolRef ?? "none"}.`,
+		content: `Graph admission: phase=${envelope.phaseBefore}; correction=${envelope.correctionStage ?? "none"}; correctionReason=${envelope.correctionReason ?? "none"}; correctionStage=${envelope.correctionStage ?? "none"}; requiredDisposition=${envelope.requiredDisposition ?? "none"}; requiredFirstTool=${envelope.requiredFirstToolRef ?? "none"}.`,
 	};
 	const messages = [...state.messages, correction];
 	const requiredName = envelope.requiredFirstToolRef

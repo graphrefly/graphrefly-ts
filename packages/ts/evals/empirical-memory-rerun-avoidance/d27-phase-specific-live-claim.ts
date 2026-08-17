@@ -27,13 +27,13 @@ import {
 	type OpenRouterCurrentKeySpendAdmissionV1,
 } from "./openrouter-current-key-spend-admission.js";
 
-export const D27_CLAIM_SCHEMA = "graphrefly-ts.d30.live-dispatch-claim.v1" as const;
-export const D27_CURRENT_KEY_SCHEMA = "graphrefly-ts.d30.current-key-admission.v1" as const;
+export const D27_CLAIM_SCHEMA = "graphrefly-ts.d31.live-dispatch-claim.v1" as const;
+export const D27_CURRENT_KEY_SCHEMA = "graphrefly-ts.d31.current-key-admission.v1" as const;
 export const D27_EXECUTION_AUTHORITY_REVISION =
-	"graphrefly-ts.d30.live-execution-authority.v1" as const;
+	"graphrefly-ts.d31.live-execution-authority.v1" as const;
 export const D27_PRIVATE_ROOT = resolve(
 	import.meta.dirname,
-	"../.private/empirical-memory-rerun-avoidance/current-graph-native-d30",
+	"../.private/empirical-memory-rerun-avoidance/current-graph-native-d31",
 );
 
 type ClaimScope = "live-fixed-root" | "injected-test-root";
