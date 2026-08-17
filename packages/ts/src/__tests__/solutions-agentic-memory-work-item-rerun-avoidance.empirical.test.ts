@@ -1143,10 +1143,14 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d20-current-live-qualification.ts") ||
 				file.endsWith("d22-current-efficacy-real-provider-qualification.ts") ||
 				file.endsWith("d23-current-efficacy-live-qualification.ts") ||
-				file.endsWith("d25-phase-specific-tool-qualification.ts");
+				file.endsWith("d25-phase-specific-tool-qualification.ts") ||
+				file.endsWith("d26-phase-specific-real-provider-qualification.ts");
 			const allowsD22RealProviderQualification = file.endsWith(
 				"d22-current-efficacy-real-provider-qualification.ts",
 			);
+			const allowsD26RealProviderQualification =
+				file.endsWith("d26-phase-specific-real-provider-composition.ts") ||
+				file.endsWith("d26-phase-specific-real-provider-qualification.ts");
 			const allowsD23LiveQualification = file.endsWith(
 				"d23-current-efficacy-live-qualification.ts",
 			);
@@ -1166,7 +1170,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d21-current-efficacy-recovery-implementation-manifest.ts") ||
 				file.endsWith("d22-current-efficacy-real-provider-implementation-manifest.ts") ||
 				file.endsWith("d23-current-efficacy-live-implementation-manifest.ts") ||
-				file.endsWith("d25-phase-specific-tool-implementation-manifest.ts");
+				file.endsWith("d25-phase-specific-tool-implementation-manifest.ts") ||
+				file.endsWith("d26-phase-specific-real-provider-implementation-manifest.ts");
 			const allowsD9PrivateRunner = file.endsWith("run-d9-current-no-network.ts");
 			const allowsD11PrivateRunner = file.endsWith("run-d11-current-no-network.ts");
 			const allowsCurrentGraphPrivateRunner =
@@ -1186,7 +1191,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("run-d21-current-no-network.ts") ||
 				file.endsWith("run-d22-current-efficacy-real-provider-no-network.ts") ||
 				file.endsWith("run-d23-current-efficacy-live-no-network.ts") ||
-				file.endsWith("run-d25-phase-specific-tool-no-network.ts");
+				file.endsWith("run-d25-phase-specific-tool-no-network.ts") ||
+				file.endsWith("run-d26-phase-specific-real-provider-no-network.ts");
 			const allowsCurrentGraphLiveAdapter =
 				file.endsWith("current-graph-native-openrouter-adapter.ts") ||
 				file.endsWith("d6-current-openrouter-adapter.ts") ||
@@ -1335,6 +1341,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("run-d779-no-network-pre-live.ts");
 			const allowsPreliveOperatorDriver =
 				file.endsWith("empirical-calibration.ts") ||
+				allowsD26RealProviderQualification ||
 				allowsD691HistoricalTransferOperator ||
 				allowsD692OfflineForensicOperator ||
 				allowsD709OfflineForensicOperator ||
@@ -1505,7 +1512,9 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 			expect(source).not.toMatch(
 				allowsD690SealedOfflineOperator
 					? /\b(?:Date\.now|fetch\s*\(|WebSocket|setTimeout|setInterval|setImmediate|queueMicrotask)\b/
-					: allowsD22RealProviderQualification || allowsD23LiveQualification
+					: allowsD22RealProviderQualification ||
+							allowsD26RealProviderQualification ||
+							allowsD23LiveQualification
 						? /\b(?:Date\.now|fetch\s*\(|WebSocket|setInterval|setImmediate|queueMicrotask)\b|\b(?:require|import)\s*\(|node:(?:http|https|net|tls)|(?:from|import)\s+["'](?:http|https|net|tls|undici|ws)["']/
 						: allowsD703MutationFirstOperator ||
 								allowsD708QualifiedEntrypoint ||
@@ -1588,6 +1597,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsD690SealedOfflineOperator ||
 							allowsD703MutationFirstOperator ||
 							allowsD22RealProviderQualification ||
+							allowsD26RealProviderQualification ||
 							allowsD23LiveQualification ||
 							allowsCurrentGraphLiveAdapter ||
 							file.endsWith("run-current-graph-native-live.ts") ||
@@ -1624,7 +1634,9 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							(specifier === "node:fs/promises" || specifier === "node:path")) ||
 						(allowsD690SealedOfflineOperator &&
 							(specifier === "node:fs" || specifier === "node:os")) ||
-						((allowsD22RealProviderQualification || allowsD23LiveQualification) &&
+						((allowsD22RealProviderQualification ||
+							allowsD26RealProviderQualification ||
+							allowsD23LiveQualification) &&
 							specifier === "node:os") ||
 						(allowsCurrentGraphLiveOperatorWithD20 &&
 							(specifier === "node:fs" || specifier === "node:os")) ||
