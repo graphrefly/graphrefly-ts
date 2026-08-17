@@ -1125,7 +1125,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d9-current-provider-rejection-authority.ts") ||
 				file.endsWith("d11-current-transport-failure-authority.ts") ||
 				file.endsWith("d17-current-efficacy-authority.ts") ||
-				file.endsWith("d18-current-provider-composition-authority.ts");
+				file.endsWith("d18-current-provider-composition-authority.ts") ||
+				file.endsWith("d21-current-efficacy-recovery-authority.ts");
 			const allowsCurrentGraphPublicSemanticValidation = file.endsWith(
 				"current-managed-cloud-public-semantic-validation.ts",
 			);
@@ -1151,7 +1152,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d17-current-implementation-manifest.ts") ||
 				file.endsWith("d18-current-provider-composition-implementation-manifest.ts") ||
 				file.endsWith("d19-current-real-provider-implementation-manifest.ts") ||
-				file.endsWith("d20-current-live-implementation-manifest.ts");
+				file.endsWith("d20-current-live-implementation-manifest.ts") ||
+				file.endsWith("d21-current-efficacy-recovery-implementation-manifest.ts");
 			const allowsD9PrivateRunner = file.endsWith("run-d9-current-no-network.ts");
 			const allowsD11PrivateRunner = file.endsWith("run-d11-current-no-network.ts");
 			const allowsCurrentGraphPrivateRunner =
@@ -1167,7 +1169,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("run-d17-current-no-network.ts") ||
 				file.endsWith("run-d18-current-provider-no-network.ts") ||
 				file.endsWith("run-d19-current-real-provider-no-network.ts") ||
-				file.endsWith("run-d20-current-no-network.ts");
+				file.endsWith("run-d20-current-no-network.ts") ||
+				file.endsWith("run-d21-current-no-network.ts");
 			const allowsCurrentGraphLiveAdapter =
 				file.endsWith("current-graph-native-openrouter-adapter.ts") ||
 				file.endsWith("d6-current-openrouter-adapter.ts") ||
