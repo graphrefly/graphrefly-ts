@@ -26,7 +26,7 @@ export const D22_IMPLEMENTATION_FILES = Object.freeze({
 } as const);
 
 export const D22_IMPLEMENTATION_SOURCE_DIGESTS = Object.freeze({
-	qualification: "sha256:2c5597207543ddf1fa9f09e776b17038e3924109f4463b06db8686e38795d6a3",
+	qualification: "sha256:1536e9d0f69f2ab845680c9a799264d19b59b451bc50af87d022efc71bd2c8f3",
 	runner: "sha256:f4631368e6c205e3352e2475422273f2f8ce3f9de11f5b3b0a1c7809285e810e",
 	d21Authority: "sha256:60c3462b86c592365166b5919e25d75fbf4659352710c4aea12e2f03d6db4542",
 	graphAuthority: "sha256:a3d17b9d96138a2a90dd8ecc265d803c4234bf145bfebc32b8778b8851e01189",
@@ -40,7 +40,7 @@ export const D22_IMPLEMENTATION_SOURCE_DIGESTS = Object.freeze({
 } as const);
 
 export const D22_IMPLEMENTATION_MANIFEST_DIGEST =
-	"sha256:40a717c842f98db42c8fb4f4ab21a1713a600c867975114437fae18d0399ef09" as const;
+	"sha256:131e279b0d280c83c9bb6f194d57cf47f16e89301792d00e38000885ff1c332a" as const;
 
 export async function measureD22Implementation(repositoryRootValue: string): Promise<string> {
 	const repositoryRoot = resolve(repositoryRootValue);

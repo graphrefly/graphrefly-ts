@@ -54,9 +54,9 @@ export const D22_BUNDLE_SCHEMA =
 export const D22_GENERATION_SCHEMA =
 	"graphrefly-ts.d22.current-efficacy-real-provider-generation.v1" as const;
 export const D22_GENERATION_REF =
-	"current-graph-native-efficacy-real-provider-no-network-2026-08-16-d22-v1" as const;
+	"current-graph-native-efficacy-real-provider-no-network-2026-08-16-d22-v2" as const;
 export const D22_INJECTED_TEST_GENERATION_REF =
-	"current-graph-native-efficacy-real-provider-injected-test-d22-v1" as const;
+	"current-graph-native-efficacy-real-provider-injected-test-d22-v2" as const;
 export const D22_MAX_BUNDLE_BYTES = 4_194_304 as const;
 
 export const D22_D21_BASELINE = Object.freeze({
@@ -127,8 +127,9 @@ export interface D22QualificationBundleV1 {
 		providerResultRejectionContinuedNextArm: true;
 		conservativeReservationAccountingPassed: true;
 		retryIdentityPassed: true;
+		retryDelayCoverageMs: readonly [1_000, 7_000, 60_000];
 		providerAttempts: number;
-		retryWaits: 1;
+		retryWaits: 3;
 		providerNetworkCalls: 0;
 		workspaceResidueCount: 0;
 		maxActiveEffects: 1;
@@ -308,8 +309,13 @@ function functionCall(id: string, name: string, args: unknown) {
 
 function createD22InjectedFetch(mode: "recovery" | "rejection") {
 	let providerCalls = 0;
-	let retryInjected = false;
-	let pendingRetryBodyDigest: string | null = null;
+	const retryPolicyByArm = new Map<string, "D671" | "D675" | "D710">([
+		["cold", "D710"],
+		["relevant-applied", "D671"],
+		["proposal-only", "D675"],
+	]);
+	const retryInjected = new Set<string>();
+	const pendingRetryBodyDigests = new Map<string, string>();
 	let rejectionInjected = false;
 	const fetchImpl: typeof fetch = async (_url, init) => {
 		providerCalls += 1;
@@ -318,18 +324,39 @@ function createD22InjectedFetch(mode: "recovery" | "rejection") {
 		const body = JSON.parse(bodyBytes.toString("utf8")) as {
 			readonly messages: readonly { readonly role?: string; readonly content?: string }[];
 		};
-		if (mode === "recovery" && !retryInjected) {
-			retryInjected = true;
-			pendingRetryBodyDigest = bodyDigest;
-			return new Response(JSON.stringify({ error: { message: "bounded" } }), {
-				status: 429,
-				headers: { "content-type": "application/json", "retry-after": "0" },
-			});
-		}
-		if (pendingRetryBodyDigest !== null) {
+		const arm = Object.keys(D21_EXPOSURE_MATRIX).find((candidate) =>
+			body.messages.some((message) =>
+				message.content?.includes(`Frozen evaluation arm: ${candidate}.`),
+			),
+		);
+		if (arm === undefined) throw new TypeError("D22 injected request arm is missing");
+		const pendingRetryBodyDigest = pendingRetryBodyDigests.get(arm);
+		if (pendingRetryBodyDigest !== undefined) {
 			if (pendingRetryBodyDigest !== bodyDigest)
 				throw new TypeError("D22 injected retry body drifted");
-			pendingRetryBodyDigest = null;
+			pendingRetryBodyDigests.delete(arm);
+		} else if (mode === "recovery" && !retryInjected.has(arm)) {
+			const policy = retryPolicyByArm.get(arm);
+			if (policy !== undefined) {
+				retryInjected.add(arm);
+				pendingRetryBodyDigests.set(arm, bodyDigest);
+				if (policy === "D675") {
+					throw new TypeError("D22 injected socket reset", {
+						cause: Object.freeze({ code: "UND_ERR_SOCKET" }),
+					});
+				}
+				return new Response(
+					JSON.stringify(
+						policy === "D710"
+							? { error: { message: "bounded" } }
+							: { error: { message: "bounded", type: "rate_limit", code: "rate_limit" } },
+					),
+					{
+						status: policy === "D710" ? 429 : 503,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
 		}
 		if (mode === "rejection" && !rejectionInjected) {
 			rejectionInjected = true;
@@ -432,6 +459,27 @@ function semanticCorrectionContexts(evidence: D9ProviderRejectionEvidenceV1) {
 		.filter(
 			(context): context is NonNullable<typeof context> => context?.stage === "semantic-correction",
 		);
+}
+
+function retryDelayCoverage(evidence: D9ProviderRejectionEvidenceV1): readonly number[] {
+	return Object.freeze(
+		evidence.providerEvidence.facts
+			.filter((fact) => fact.request.effectKind === "retry-wait")
+			.map((fact) => fact.request.retryDelayMs)
+			.sort((left, right) => left - right),
+	);
+}
+
+function assertRetryCoverage(evidence: D9ProviderRejectionEvidenceV1): void {
+	const coverage = retryDelayCoverage(evidence);
+	if (
+		coverage.length !== 3 ||
+		coverage[0] !== 1_000 ||
+		coverage[1] !== 7_000 ||
+		coverage[2] !== 60_000 ||
+		evidence.providerEvidence.budget.retryWaits !== 3
+	)
+		throw new TypeError("D22 D671/D675/D710 retry coverage drifted");
 }
 
 function assertRecoveryEvidence(evidence: D9ProviderRejectionEvidenceV1): void {
@@ -594,9 +642,10 @@ export async function runD22InjectedNoNetworkQualification(input: {
 		const recovery = await runInjectedEvidence(repositoryRoot, temporaryRoot, "recovery");
 		const rejection = await runInjectedEvidence(repositoryRoot, temporaryRoot, "rejection");
 		assertRecoveryEvidence(recovery.evidence);
+		assertRetryCoverage(recovery.evidence);
 		assertRejectionEvidence(rejection.evidence);
 		const retryWaits = recovery.evidence.providerEvidence.budget.retryWaits;
-		if (retryWaits !== 1) throw new TypeError("D22 retry identity qualification drifted");
+		if (retryWaits !== 3) throw new TypeError("D22 retry identity qualification drifted");
 		const qualificationMaterial = strictSnapshot({
 			schemaVersion: D22_QUALIFICATION_SCHEMA,
 			decisionRef: D22_DECISION_REF,
@@ -617,8 +666,9 @@ export async function runD22InjectedNoNetworkQualification(input: {
 			providerResultRejectionContinuedNextArm: true as const,
 			conservativeReservationAccountingPassed: true as const,
 			retryIdentityPassed: true as const,
+			retryDelayCoverageMs: Object.freeze([1_000, 7_000, 60_000] as const),
 			providerAttempts: recovery.evidence.providerEvidence.budget.providerAttempts,
-			retryWaits: 1 as const,
+			retryWaits: 3 as const,
 			providerNetworkCalls: 0 as const,
 			workspaceResidueCount: 0 as const,
 			maxActiveEffects: 1 as const,
@@ -693,6 +743,7 @@ export function validateD22QualificationBundle(value: unknown): D22Qualification
 	const recoveryEvidence = validateD9ProviderRejectionEvidence(candidate.recoveryEvidence);
 	const rejectionEvidence = validateD9ProviderRejectionEvidence(candidate.rejectionEvidence);
 	assertRecoveryEvidence(recoveryEvidence);
+	assertRetryCoverage(recoveryEvidence);
 	assertRejectionEvidence(rejectionEvidence);
 	const q = record(
 		candidate.qualification,
@@ -723,6 +774,7 @@ export function validateD22QualificationBundle(value: unknown): D22Qualification
 			"recoveryEvidenceDigest",
 			"rejectionEvidenceDigest",
 			"retryIdentityPassed",
+			"retryDelayCoverageMs",
 			"retryWaits",
 			"routeDigest",
 			"schemaVersion",
@@ -754,8 +806,10 @@ export function validateD22QualificationBundle(value: unknown): D22Qualification
 		q.providerResultRejectionContinuedNextArm !== true ||
 		q.conservativeReservationAccountingPassed !== true ||
 		q.retryIdentityPassed !== true ||
+		empiricalStrictJsonDigest(q.retryDelayCoverageMs) !==
+			empiricalStrictJsonDigest(Object.freeze([1_000, 7_000, 60_000])) ||
 		q.providerAttempts !== recoveryEvidence.providerEvidence.budget.providerAttempts ||
-		q.retryWaits !== 1 ||
+		q.retryWaits !== 3 ||
 		q.providerNetworkCalls !== 0 ||
 		q.workspaceResidueCount !== 0 ||
 		q.maxActiveEffects !== 1 ||
