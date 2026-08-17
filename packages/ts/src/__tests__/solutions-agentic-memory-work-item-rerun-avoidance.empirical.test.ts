@@ -1137,7 +1137,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d11-current-pre-live-qualification.ts") ||
 				file.endsWith("d17-current-pre-live-qualification.ts") ||
 				file.endsWith("d18-current-provider-composition-qualification.ts") ||
-				file.endsWith("d19-current-real-provider-qualification.ts");
+				file.endsWith("d19-current-real-provider-qualification.ts") ||
+				file.endsWith("d20-current-live-qualification.ts");
 			const allowsCurrentGraphImplementationManifest =
 				file.endsWith("current-graph-native-eval-implementation-manifest.ts") ||
 				file.endsWith("current-graph-native-provider-implementation-manifest.ts") ||
@@ -1149,7 +1150,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d11-current-implementation-manifest.ts") ||
 				file.endsWith("d17-current-implementation-manifest.ts") ||
 				file.endsWith("d18-current-provider-composition-implementation-manifest.ts") ||
-				file.endsWith("d19-current-real-provider-implementation-manifest.ts");
+				file.endsWith("d19-current-real-provider-implementation-manifest.ts") ||
+				file.endsWith("d20-current-live-implementation-manifest.ts");
 			const allowsD9PrivateRunner = file.endsWith("run-d9-current-no-network.ts");
 			const allowsD11PrivateRunner = file.endsWith("run-d11-current-no-network.ts");
 			const allowsCurrentGraphPrivateRunner =
@@ -1164,7 +1166,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				allowsD11PrivateRunner ||
 				file.endsWith("run-d17-current-no-network.ts") ||
 				file.endsWith("run-d18-current-provider-no-network.ts") ||
-				file.endsWith("run-d19-current-real-provider-no-network.ts");
+				file.endsWith("run-d19-current-real-provider-no-network.ts") ||
+				file.endsWith("run-d20-current-no-network.ts");
 			const allowsCurrentGraphLiveAdapter =
 				file.endsWith("current-graph-native-openrouter-adapter.ts") ||
 				file.endsWith("d6-current-openrouter-adapter.ts") ||
@@ -1253,6 +1256,17 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d19-current-real-provider-qualification.ts") ||
 				file.endsWith("d19-current-real-provider-implementation-manifest.ts") ||
 				file.endsWith("run-d19-current-real-provider-no-network.ts");
+			const allowsD20CurrentGraphLive =
+				file.endsWith("d20-current-live-coordinates.ts") ||
+				file.endsWith("d20-current-live-preflight.ts") ||
+				file.endsWith("d20-current-live-claim.ts") ||
+				file.endsWith("d20-current-live.ts") ||
+				file.endsWith("d20-current-live-qualification.ts") ||
+				file.endsWith("d20-current-live-implementation-manifest.ts") ||
+				file.endsWith("run-d20-current-no-network.ts") ||
+				file.endsWith("run-d20-live.ts");
+			const allowsCurrentGraphLiveOperatorWithD20 =
+				allowsCurrentGraphLiveOperator || allowsD20CurrentGraphLive;
 			const allowsCurrentGraphLiveOneRequest =
 				file.endsWith("current-graph-native-live-preflight.ts") ||
 				file.endsWith("current-graph-native-live-qualification.ts") ||
@@ -1262,7 +1276,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d8-current-live-preflight.ts") ||
 				file.endsWith("d8-current-pre-live-qualification.ts");
 			const allowsCurrentGraphLiveAsync =
-				allowsCurrentGraphLiveOperator && !allowsCurrentGraphLiveOneRequest;
+				allowsCurrentGraphLiveOperatorWithD20 && !allowsCurrentGraphLiveOneRequest;
 			const allowsCurrentGraphOfflineQualification =
 				allowsCurrentGraphNativeAuthority ||
 				allowsCurrentGraphPublicSemanticValidation ||
@@ -1551,8 +1565,10 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							file.endsWith("run-d12-live.ts") ||
 							file.endsWith("run-d14-live.ts") ||
 							file.endsWith("run-d15-live.ts") ||
-							file.endsWith("run-d16-live.ts")) &&
+							file.endsWith("run-d16-live.ts") ||
+							file.endsWith("run-d20-live.ts")) &&
 							specifier === "node:child_process") ||
+						(file.endsWith("run-d20-live.ts") && specifier === "node:util") ||
 						((allowsD708QualifiedEntrypoint ||
 							allowsD711QualifiedEntrypoint ||
 							allowsD713QualifiedEntrypoint) &&
@@ -1565,7 +1581,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							allowsClosedHostNodeDriver ||
 							allowsD690SealedOfflineOperator ||
 							allowsPreliveOperatorDriver ||
-							allowsCurrentGraphLiveOperator ||
+							allowsCurrentGraphLiveOperatorWithD20 ||
 							allowsOutermostLiveOperator ||
 							allowsD708QualifiedEntrypoint ||
 							allowsD711QualifiedEntrypoint ||
@@ -1573,7 +1589,7 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							(specifier === "node:fs/promises" || specifier === "node:path")) ||
 						(allowsD690SealedOfflineOperator &&
 							(specifier === "node:fs" || specifier === "node:os")) ||
-						(allowsCurrentGraphLiveOperator &&
+						(allowsCurrentGraphLiveOperatorWithD20 &&
 							(specifier === "node:fs" || specifier === "node:os")) ||
 						((allowsD9PrivateRunner || allowsD11PrivateRunner) && specifier === "node:fs") ||
 						((allowsD708ZeroByokOperator ||
