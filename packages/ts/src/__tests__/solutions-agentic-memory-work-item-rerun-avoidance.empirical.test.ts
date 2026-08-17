@@ -1126,7 +1126,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d11-current-transport-failure-authority.ts") ||
 				file.endsWith("d17-current-efficacy-authority.ts") ||
 				file.endsWith("d18-current-provider-composition-authority.ts") ||
-				file.endsWith("d21-current-efficacy-recovery-authority.ts");
+				file.endsWith("d21-current-efficacy-recovery-authority.ts") ||
+				file.endsWith("d25-phase-specific-tool-admission.ts");
 			const allowsCurrentGraphPublicSemanticValidation = file.endsWith(
 				"current-managed-cloud-public-semantic-validation.ts",
 			);
@@ -1141,7 +1142,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d19-current-real-provider-qualification.ts") ||
 				file.endsWith("d20-current-live-qualification.ts") ||
 				file.endsWith("d22-current-efficacy-real-provider-qualification.ts") ||
-				file.endsWith("d23-current-efficacy-live-qualification.ts");
+				file.endsWith("d23-current-efficacy-live-qualification.ts") ||
+				file.endsWith("d25-phase-specific-tool-qualification.ts");
 			const allowsD22RealProviderQualification = file.endsWith(
 				"d22-current-efficacy-real-provider-qualification.ts",
 			);
@@ -1163,7 +1165,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d20-current-live-implementation-manifest.ts") ||
 				file.endsWith("d21-current-efficacy-recovery-implementation-manifest.ts") ||
 				file.endsWith("d22-current-efficacy-real-provider-implementation-manifest.ts") ||
-				file.endsWith("d23-current-efficacy-live-implementation-manifest.ts");
+				file.endsWith("d23-current-efficacy-live-implementation-manifest.ts") ||
+				file.endsWith("d25-phase-specific-tool-implementation-manifest.ts");
 			const allowsD9PrivateRunner = file.endsWith("run-d9-current-no-network.ts");
 			const allowsD11PrivateRunner = file.endsWith("run-d11-current-no-network.ts");
 			const allowsCurrentGraphPrivateRunner =
@@ -1182,7 +1185,8 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("run-d20-current-no-network.ts") ||
 				file.endsWith("run-d21-current-no-network.ts") ||
 				file.endsWith("run-d22-current-efficacy-real-provider-no-network.ts") ||
-				file.endsWith("run-d23-current-efficacy-live-no-network.ts");
+				file.endsWith("run-d23-current-efficacy-live-no-network.ts") ||
+				file.endsWith("run-d25-phase-specific-tool-no-network.ts");
 			const allowsCurrentGraphLiveAdapter =
 				file.endsWith("current-graph-native-openrouter-adapter.ts") ||
 				file.endsWith("d6-current-openrouter-adapter.ts") ||
