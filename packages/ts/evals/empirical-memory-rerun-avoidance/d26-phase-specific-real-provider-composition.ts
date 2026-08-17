@@ -344,8 +344,30 @@ export function createD26PhaseSpecificRealProviderExecutor(
 				throw new TypeError("D26 final retry wire bytes drifted");
 			retryBodies.set(request.logicalRequestDigest, lowered.bytes);
 			current.loweredBodyDigest = lowered.digest;
-			const response = await fetchImpl(url, { ...init, body: lowered.bytes });
-			return projectMutationResponse(response, current);
+			const deadline = new AbortController();
+			const upstream = init?.signal;
+			const forwardAbort = () => deadline.abort(upstream?.reason);
+			if (upstream?.aborted === true) forwardAbort();
+			else upstream?.addEventListener("abort", forwardAbort, { once: true });
+			const timer = setTimeout(
+				() =>
+					deadline.abort(
+						new DOMException("Graph provider effect deadline elapsed", "TimeoutError"),
+					),
+				request.reservation.maxElapsedMs,
+			);
+			timer.unref();
+			try {
+				const response = await fetchImpl(url, {
+					...init,
+					body: lowered.bytes,
+					signal: deadline.signal,
+				});
+				return await projectMutationResponse(response, current);
+			} finally {
+				clearTimeout(timer);
+				upstream?.removeEventListener("abort", forwardAbort);
+			}
 		},
 	});
 	return Object.freeze({

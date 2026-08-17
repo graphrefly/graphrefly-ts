@@ -725,16 +725,23 @@ export function validateD25PhaseEvidence(value: unknown): D25PhaseEvidenceV1 {
 			)
 				throw new TypeError("D25 mutation proposal lost its Graph tool admission");
 			if (mutation.result.status === "succeeded") {
-				const expectedTools = ["workspace-diff", "focused-validation"] as const;
-				for (const [offset, expectedTool] of expectedTools.entries()) {
-					const local = allProviderFacts[position + offset + 2];
+				const diff = allProviderFacts[position + 2];
+				if (
+					diff?.arm !== fact.arm ||
+					diff.runSequence !== fact.runSequence ||
+					diff.request.effectKind !== "tool-action" ||
+					diff.request.toolRef !== "workspace-diff" ||
+					diff.result.effectKind !== "tool-action"
+				)
+					throw new TypeError("D25 deterministic mutation lifecycle lost serial Graph admission");
+				if (diff.result.status === "succeeded") {
+					const focused = allProviderFacts[position + 3];
 					if (
-						local?.arm !== fact.arm ||
-						local.runSequence !== fact.runSequence ||
-						local.request.effectKind !== "tool-action" ||
-						local.request.toolRef !== expectedTool ||
-						local.result.effectKind !== "tool-action" ||
-						local.result.status !== "succeeded"
+						focused?.arm !== fact.arm ||
+						focused.runSequence !== fact.runSequence ||
+						focused.request.effectKind !== "tool-action" ||
+						focused.request.toolRef !== "focused-validation" ||
+						focused.result.effectKind !== "tool-action"
 					)
 						throw new TypeError("D25 deterministic mutation lifecycle lost serial Graph admission");
 				}
