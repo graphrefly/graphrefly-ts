@@ -21,7 +21,7 @@ import {
 	validateD27QualificationBundle,
 } from "../../evals/empirical-memory-rerun-avoidance/d27-phase-specific-live-qualification.js";
 
-describe("graphrefly-ts:D32 Graph replacement and validation recovery qualification", () => {
+describe("graphrefly-ts:D33 Graph replacement and validation recovery live qualification", () => {
 	it("keeps Graph admission authoritative across six injected no-network arms", async () => {
 		const repositoryRoot = resolve(import.meta.dirname, "../../../..");
 		expect(await measureD27Implementation(repositoryRoot)).toBe(D27_IMPLEMENTATION_MANIFEST_DIGEST);

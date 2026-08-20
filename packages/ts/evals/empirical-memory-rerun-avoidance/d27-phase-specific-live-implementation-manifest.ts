@@ -4,12 +4,12 @@ import { empiricalSha256, empiricalStrictJsonDigest, strictSnapshot } from "./ca
 import { D27_D31_IMPLEMENTATION_MANIFEST_DIGEST } from "./d27-phase-specific-live-coordinates.js";
 
 export const D27_IMPLEMENTATION_SOURCE_DIGESTS = Object.freeze({
-	coordinates: "sha256:440c231717de64f060d0ef657cb9c392766c1ce979c514f4433fe7fe63f816d4",
-	preflight: "sha256:64a43c7083c4ca5c983b8ae1fa4416ef1d5364781aed2a52aeeffa2b9d4438c4",
-	claim: "sha256:7ba894f2777c9c4a42c1d49eb603f0a5102167ba15d77c531c633e5144fdf1ef",
-	live: "sha256:5a34bffe0975dac6581ed57d328059e2840e8d1597b06bb6babdff252dcbc0ec",
-	qualification: "sha256:41ff0ee107986fc0112d2dfaec9d6c2bc54336f71fce6ccd6d33d322ce9d9fc0",
-	runner: "sha256:b2eaa5de87a0076cd2e25f4115d6b00d404ae338bc31bdfe36e591a0f11643e0",
+	coordinates: "sha256:7c3e38e749e2621c4b72c9f06eb4111b05342daa04eae86053c575dfb9b6fc80",
+	preflight: "sha256:f4cd61c8a7f0f08236687958d66b5149d7a497295eb2437595d9b216f73f734f",
+	claim: "sha256:a6d3fea46e0e95fba3805473b0bd639b2324b83d392eb52d7fbf7160ad8954e3",
+	live: "sha256:08304c431943e9ecd245ae58d7527da8527831706156f41994e39be84a9cdc41",
+	qualification: "sha256:e7f610d0355762b413c5a559bfed5cda4296e6d7bf291de60b703406e174ef77",
+	runner: "sha256:8a62b761472af5ebf754adb49bc0296543b9ae2391373e838a0e64fac1b0a0dd",
 	qualificationRunner: "sha256:c75df3b8f5236f3d16905cf63e58c78204052628dad4821fedf77260fc2a2927",
 	privatePersistence: "sha256:0563c15908914694df6d2b80aba11840ce8f91f2c63f6ed2c97c2e5f3dc8a113",
 	graphRecoveryAuthority: "sha256:2dc2a7d677d6b56cc4100932b639b0ec4732ef50986af39e4c0370590754f97c",
@@ -21,8 +21,8 @@ export const D27_IMPLEMENTATION_SOURCE_DIGESTS = Object.freeze({
 });
 
 export const D27_IMPLEMENTATION_MANIFEST = strictSnapshot({
-	revision: "graphrefly-ts.d32.phase-specific-live-implementation-manifest.v1",
-	baselineCommit: "0cd03df9db631da8afcf1b05e4e14133607d6bac",
+	revision: "graphrefly-ts.d33.phase-specific-live-implementation-manifest.v1",
+	baselineCommit: "75bb74d5b4d44ac45cf8a373d948d44bff802a3e",
 	d31ImplementationManifestDigest: D27_D31_IMPLEMENTATION_MANIFEST_DIGEST,
 	sources: D27_IMPLEMENTATION_SOURCE_DIGESTS,
 });

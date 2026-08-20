@@ -11,7 +11,7 @@ import {
 } from "./d20-current-live-preflight.js";
 import { D27_COORDINATES_DIGEST } from "./d27-phase-specific-live-coordinates.js";
 
-export const D27_PRECLAIM_SCHEMA = "graphrefly-ts.d32.live-preclaim.v1" as const;
+export const D27_PRECLAIM_SCHEMA = "graphrefly-ts.d33.live-preclaim.v1" as const;
 
 export type D27CredentialV1 = D20CredentialV1;
 export type D27PricingObservationV1 = D20PricingObservationV1;

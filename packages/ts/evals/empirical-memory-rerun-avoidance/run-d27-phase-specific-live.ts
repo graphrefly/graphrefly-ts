@@ -22,6 +22,11 @@ import {
 import {
 	D27_BASELINE_COMMIT,
 	D27_D31_ARTIFACT_DIGEST,
+	D27_D32_ARTIFACT_DIGEST,
+	D27_D32_BUNDLE_DIGEST,
+	D27_D32_GENERATION_DIGEST,
+	D27_D32_IMPLEMENTATION_MANIFEST_DIGEST,
+	D27_D32_QUALIFICATION_DIGEST,
 	D27_LIVE_APPROVAL_REVISION,
 	D27_QUALIFICATION_GENERATION_REF,
 } from "./d27-phase-specific-live-coordinates.js";
@@ -44,10 +49,14 @@ const privateEvidenceRoot = resolve(
 	"../.private/empirical-memory-rerun-avoidance",
 );
 const credentialFile = join(privateEvidenceRoot, "openrouter.env");
-const zeroByokFile = join(privateEvidenceRoot, "d32-fresh-zero-byok-browser-attestation.v1.json");
+const zeroByokFile = join(privateEvidenceRoot, "d33-fresh-zero-byok-browser-attestation.v1.json");
 const d31ArtifactFile = join(
 	privateEvidenceRoot,
 	"current-graph-native-d31/current-graph-native-phase-specific-live-2026-08-17-d31-v1/artifacts/bundle.v1.json",
+);
+const d32ArtifactFile = join(
+	privateEvidenceRoot,
+	"current-graph-native-d32/current-graph-native-phase-specific-live-no-network-2026-08-19-d32-v4/artifacts/bundle.v1.json",
 );
 const d27QualificationFile = join(
 	D27_PRIVATE_ROOT,
@@ -117,9 +126,27 @@ function loadCredential(bytes: Uint8Array): D27CredentialV1 {
 }
 
 const implementationManifestDigest = await assertImplementation();
+const d32Bytes = await readPrivateFile(d32ArtifactFile, 8_388_608);
+if (empiricalSha256(d32Bytes) !== D27_D32_ARTIFACT_DIGEST)
+	throw new TypeError("D33 live D32 qualification artifact drifted");
+const d32 = strictJsonCodec.decode(d32Bytes) as {
+	readonly bundleDigest?: unknown;
+	readonly qualification?: {
+		readonly qualificationDigest?: unknown;
+		readonly implementationManifestDigest?: unknown;
+	};
+	readonly generation?: { readonly generationDigest?: unknown };
+};
+if (
+	d32.bundleDigest !== D27_D32_BUNDLE_DIGEST ||
+	d32.qualification?.qualificationDigest !== D27_D32_QUALIFICATION_DIGEST ||
+	d32.qualification?.implementationManifestDigest !== D27_D32_IMPLEMENTATION_MANIFEST_DIGEST ||
+	d32.generation?.generationDigest !== D27_D32_GENERATION_DIGEST
+)
+	throw new TypeError("D33 live D32 qualification coordinates drifted");
 const d31Bytes = await readPrivateFile(d31ArtifactFile, 8_388_608);
 if (empiricalSha256(d31Bytes) !== D27_D31_ARTIFACT_DIGEST)
-	throw new TypeError("D32 live D31 immutable artifact drifted");
+	throw new TypeError("D33 live D31 immutable artifact drifted");
 const baseline = admitD27D31Baseline(d31Bytes);
 const qualificationBytes = await readPrivateFile(d27QualificationFile, 8_388_608);
 const qualification = validateD27QualificationBundle(strictJsonCodec.decode(qualificationBytes));
@@ -131,8 +158,7 @@ if (
 	qualification.qualification.efficacyClaim !== "none"
 )
 	throw new TypeError("D27 live qualification projection drifted");
-if (D27_LIVE_APPROVAL_REVISION === null)
-	throw new TypeError("D32 pre-live authority does not authorize credential or network access");
+if (D27_LIVE_APPROVAL_REVISION === null) throw new TypeError("D33 live authority is unavailable");
 
 const pricing = await readD27OfficialPricing({
 	fetch: globalThis.fetch,
@@ -181,7 +207,7 @@ try {
 	throw error;
 }
 
-const materializationRoot = await mkdtemp(join(tmpdir(), "graphrefly-d32-live-"));
+const materializationRoot = await mkdtemp(join(tmpdir(), "graphrefly-d33-live-"));
 await chmod(materializationRoot, 0o700);
 let bundle: D27LiveBundleV1;
 try {

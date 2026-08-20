@@ -60,11 +60,11 @@ import {
 } from "./d27-phase-specific-live-preflight.js";
 
 export const D27_QUALIFICATION_SCHEMA =
-	"graphrefly-ts.d32.phase-specific-live-qualification.v1" as const;
+	"graphrefly-ts.d33.phase-specific-live-qualification.v1" as const;
 export const D27_QUALIFICATION_BUNDLE_SCHEMA =
-	"graphrefly-ts.d32.phase-specific-live-qualification-bundle.v1" as const;
+	"graphrefly-ts.d33.phase-specific-live-qualification-bundle.v1" as const;
 export const D27_QUALIFICATION_GENERATION_SCHEMA =
-	"graphrefly-ts.d32.phase-specific-live-qualification-generation.v1" as const;
+	"graphrefly-ts.d33.phase-specific-live-qualification-generation.v1" as const;
 
 const D32_FORMAT_INVALID_ADMISSION_BLOCK = D22_WRONG_ADMISSION_BLOCK.replaceAll("\t", "  ");
 if (D32_FORMAT_INVALID_ADMISSION_BLOCK === D22_WRONG_ADMISSION_BLOCK)
@@ -818,7 +818,7 @@ export async function persistD27Qualification(input: {
 		throw new TypeError("D32 production qualification requires consumed D31 artifact bytes");
 	const bundleBytes = strictJsonCodec.encode(bundle as unknown as StrictJsonValue);
 	const commitMaterial = strictSnapshot({
-		schemaVersion: "graphrefly-ts.d32.phase-specific-live-qualification-commit.v1",
+		schemaVersion: "graphrefly-ts.d33.phase-specific-live-qualification-commit.v1",
 		generationRef: D27_QUALIFICATION_GENERATION_REF,
 		bundleDigest: bundle.bundleDigest,
 		qualificationDigest: bundle.qualification.qualificationDigest,
