@@ -28,13 +28,13 @@ import {
 	type OpenRouterCurrentKeySpendAdmissionV1,
 } from "./openrouter-current-key-spend-admission.js";
 
-export const D38_CLAIM_SCHEMA = "graphrefly-ts.d38.live-dispatch-claim.v2" as const;
-export const D38_CURRENT_KEY_SCHEMA = "graphrefly-ts.d38.current-key-admission.v2" as const;
+export const D38_CLAIM_SCHEMA = "graphrefly-ts.d39.live-dispatch-claim.v1" as const;
+export const D38_CURRENT_KEY_SCHEMA = "graphrefly-ts.d39.current-key-admission.v1" as const;
 export const D38_EXECUTION_AUTHORITY_REVISION =
-	"graphrefly-ts.d38.live-execution-authority.v2" as const;
+	"graphrefly-ts.d39.live-execution-authority.v1" as const;
 export const D38_PRIVATE_ROOT = resolve(
 	import.meta.dirname,
-	"../.private/empirical-memory-rerun-avoidance/current-graph-native-d38",
+	"../.private/empirical-memory-rerun-avoidance/current-graph-native-d39",
 );
 
 type ClaimScope = "live-fixed-root" | "injected-test-root";
@@ -81,7 +81,7 @@ export interface D38ExecutionAuthorityV1 {
 }
 
 export interface D38PreexecutionFailureAuthorityV1 {
-	readonly revision: "graphrefly-ts.d38.preexecution-failure-authority.v2";
+	readonly revision: "graphrefly-ts.d39.preexecution-failure-authority.v1";
 	readonly claim: D38DispatchClaimV1;
 	readonly currentKeyAdmissionDigest: string | null;
 	readonly executionAuthorityDigest: string | null;
@@ -258,7 +258,7 @@ async function acquire(
 		claimDigest: empiricalStrictJsonDigest(material),
 	}) as D38DispatchClaimV1;
 	const bytes = strictJsonCodec.encode(claim);
-	const file = join(claimRoot, "dispatch-claim.v2.json");
+	const file = join(claimRoot, "dispatch-claim.v1.json");
 	const writer = await open(
 		file,
 		constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
@@ -464,7 +464,7 @@ function preexecutionFailureAuthority(
 	failurePhase: D38PreexecutionFailureAuthorityV1["failurePhase"],
 ): D38PreexecutionFailureAuthorityV1 {
 	const material = strictSnapshot({
-		revision: "graphrefly-ts.d38.preexecution-failure-authority.v2" as const,
+		revision: "graphrefly-ts.d39.preexecution-failure-authority.v1" as const,
 		claim,
 		currentKeyAdmissionDigest,
 		executionAuthorityDigest,

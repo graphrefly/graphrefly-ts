@@ -43,7 +43,10 @@ import {
 	D38_GENERATION_REF,
 	D38_REPAIRED_LIVE_LIMITS,
 } from "./d38-premature-final-live-coordinates.js";
-import { D38_IMPLEMENTATION_MANIFEST_DIGEST } from "./d38-premature-final-live-implementation-manifest.js";
+import {
+	D38_IMPLEMENTATION_MANIFEST_DIGEST,
+	measureD38Implementation,
+} from "./d38-premature-final-live-implementation-manifest.js";
 import type { D38CredentialV1 } from "./d38-premature-final-live-preflight.js";
 import {
 	createD38PrematureFinalRealProviderExecutor,
@@ -51,12 +54,12 @@ import {
 } from "./d38-premature-final-real-provider-composition.js";
 
 export const D38_BASELINE_ADMISSION_REVISION =
-	"graphrefly-ts.d38.d37-baseline-admission.v2" as const;
-export const D38_BUNDLE_SCHEMA = "graphrefly-ts.d38.premature-final-live-bundle.v2" as const;
-export const D38_GATE_SCHEMA = "graphrefly-ts.d38.positive-differential-gate.v2" as const;
-export const D38_PARTIAL_SCHEMA = "graphrefly-ts.d38.partial-graph-evidence.v2" as const;
-export const D38_GENERATION_SCHEMA = "graphrefly-ts.d38.live-generation.v2" as const;
-export const D38_TERMINAL_SCHEMA = "graphrefly-ts.d38.live-terminal-receipt.v2" as const;
+	"graphrefly-ts.d39.d37-baseline-admission.v1" as const;
+export const D38_BUNDLE_SCHEMA = "graphrefly-ts.d39.premature-final-live-bundle.v1" as const;
+export const D38_GATE_SCHEMA = "graphrefly-ts.d39.positive-differential-gate.v1" as const;
+export const D38_PARTIAL_SCHEMA = "graphrefly-ts.d39.partial-graph-evidence.v1" as const;
+export const D38_GENERATION_SCHEMA = "graphrefly-ts.d39.live-generation.v1" as const;
+export const D38_TERMINAL_SCHEMA = "graphrefly-ts.d39.live-terminal-receipt.v1" as const;
 export const D38_MAX_BUNDLE_BYTES = 8_388_608;
 
 export interface D38D37BaselineAdmissionV1 {
@@ -256,6 +259,7 @@ async function drive(input: {
 	) => D38PrematureFinalRealProviderExecutorV1;
 	readonly implementationManifestDigest: string;
 	readonly allowConsumedBaselineForQualification?: boolean;
+	readonly beforeProviderEffect?: () => Promise<void>;
 }): Promise<D38LiveBundleV1> {
 	consumeBaseline(
 		input.baseline,
@@ -297,6 +301,7 @@ async function drive(input: {
 			activeEffectKind = request.effectKind;
 			let execution: Awaited<ReturnType<D38PrematureFinalRealProviderExecutorV1["execute"]>>;
 			try {
+				if (request.effectKind === "provider-request") await input.beforeProviderEffect?.();
 				execution = await executor.execute(admitted);
 			} catch {
 				failureCode = "executor-boundary-failed";
@@ -447,6 +452,13 @@ export async function runD38LiveMeasurement(input: {
 		baseline: input.baseline,
 		executionClass: "live-provider",
 		implementationManifestDigest: input.implementationManifestDigest,
+		beforeProviderEffect: async () => {
+			if (
+				(await measureD38Implementation(input.repositoryRoot)) !==
+				input.implementationManifestDigest
+			)
+				throw new TypeError("D38 implementation drifted before admitted provider effect");
+		},
 		executorFactory: (authority) =>
 			createD38PrematureFinalRealProviderExecutor({
 				authority,
@@ -799,7 +811,7 @@ export async function persistD38LiveBundle(input: {
 	constructed.delete(input.bundle as object);
 	const bundle = validateD38LiveBundle(input.bundle);
 	const commitMaterial = strictSnapshot({
-		schemaVersion: "graphrefly-ts.d38.live-commit.v1",
+		schemaVersion: "graphrefly-ts.d39.live-commit.v1",
 		generationRef: D38_GENERATION_REF,
 		bundleDigest: bundle.bundleDigest,
 		terminalReceiptDigest: digest(
@@ -831,7 +843,7 @@ export async function persistD38PreexecutionFailure(input: {
 	if (authority.claim.scope !== "live-fixed-root")
 		throw new TypeError("D38 preexecution failure rejected a non-live claim");
 	const material = strictSnapshot({
-		schemaVersion: "graphrefly-ts.d38.live-preexecution-failure.v2",
+		schemaVersion: "graphrefly-ts.d39.live-preexecution-failure.v1",
 		decisionRef: D38_DECISION_REF,
 		generationRef: D38_GENERATION_REF,
 		coordinatesDigest: D38_COORDINATES_DIGEST,
@@ -853,7 +865,7 @@ export async function persistD38PreexecutionFailure(input: {
 		failureDigest: empiricalStrictJsonDigest(material),
 	});
 	const commitMaterial = strictSnapshot({
-		schemaVersion: "graphrefly-ts.d38.live-preexecution-commit.v2",
+		schemaVersion: "graphrefly-ts.d39.live-preexecution-commit.v1",
 		generationRef: D38_GENERATION_REF,
 		failureDigest: failure.failureDigest,
 		claimDigest: authority.claim.claimDigest,

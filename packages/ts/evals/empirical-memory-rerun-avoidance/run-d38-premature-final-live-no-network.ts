@@ -13,6 +13,7 @@ import {
 } from "./d38-premature-final-live-implementation-manifest.js";
 import {
 	admitD38QualificationBaseline,
+	admitD39D38V5Baseline,
 	persistD38Qualification,
 	runD38InjectedNoNetworkQualification,
 } from "./d38-premature-final-live-qualification.js";
@@ -24,6 +25,10 @@ const repositoryRoot = resolve(import.meta.dirname, "../../../..");
 const d37Artifact = resolve(
 	import.meta.dirname,
 	"../.private/empirical-memory-rerun-avoidance/current-graph-native-d37/current-graph-native-premature-final-no-network-2026-08-20-d37-v7/artifacts/bundle.v1.json",
+);
+const d38V5Artifact = resolve(
+	import.meta.dirname,
+	"../.private/empirical-memory-rerun-avoidance/current-graph-native-d38/current-graph-native-premature-final-live-no-network-2026-08-20-d38-v5/artifacts/bundle.v1.json",
 );
 
 const measured = await measureD38Implementation(repositoryRoot);
@@ -40,6 +45,7 @@ try {
 	const bundle = await runD38InjectedNoNetworkQualification({
 		baseline: admitD38QualificationBaseline(bytes),
 		baselineBasis: "consumed-d37-artifact",
+		replacementBaseline: admitD39D38V5Baseline(new Uint8Array(await readFile(d38V5Artifact))),
 		repositoryRoot,
 		materializationRoot,
 	});

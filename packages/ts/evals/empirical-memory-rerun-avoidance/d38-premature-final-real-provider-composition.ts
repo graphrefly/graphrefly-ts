@@ -14,9 +14,9 @@ import type {
 	D34RetainedSpanAuthorityV1,
 } from "./d34-retained-span-mutation-authority.js";
 
-export const D38_DECISION_REF = "graphrefly-ts:D38" as const;
+export const D38_DECISION_REF = "graphrefly-ts:D39" as const;
 export const D38_ADAPTER_REVISION =
-	"graphrefly-ts.d38.premature-final-real-provider-composition.v1" as const;
+	"graphrefly-ts.d39.premature-final-real-provider-composition.v1" as const;
 export const D38_MAX_PROVIDER_BYTES = 2 * 1_048_576;
 
 export interface D38PrematureFinalRealProviderOptionsV1

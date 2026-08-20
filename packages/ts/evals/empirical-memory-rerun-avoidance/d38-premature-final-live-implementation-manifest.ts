@@ -27,22 +27,22 @@ export const D38_IMPLEMENTATION_FILES = Object.freeze({
 } as const);
 
 export const D38_IMPLEMENTATION_SOURCE_DIGESTS = Object.freeze({
-	coordinates: "sha256:3002f8dc0ac342270fdccd22aeaf2007897061f0ee0e61693efd7b8d99ac3d99",
-	preflight: "sha256:2a282d04a4ff6cb4bce31409ed2be634a411a63c3d23e7cba30a838e649bb423",
-	claim: "sha256:ed6fd785c3a9667d414b26369baabc1dc98bdae0818c1d19ed3489ba4b217181",
+	coordinates: "sha256:4cfc060dcd54f2a912970431bd661cbda88c711fea96bf3f8615169af8dd22c6",
+	preflight: "sha256:2c5ed0e91ba18f872393f408951e13db2deb732563b6c89a29f8b21d6e96fdda",
+	claim: "sha256:8675527dd7b2810ab1db90e59201fa5d59c41286daadd9e3821a45a302cbff38",
 	realProviderComposition:
-		"sha256:b4f80b00781b22a6b1c338277ca48d2d57f99f1a6d7675c4fbb432a4730dbee1",
-	live: "sha256:c3fea732480b76f94316b007bd5608f4bcbd48081d77ac0d090d60941e965f69",
-	qualification: "sha256:24cf20ef3d2d89ddf7d0251ed6d8b32140fafca95258722c0980f0a51430ffe4",
-	qualificationRunner: "sha256:0c5225a669cfc9ed94c6da4d45e614c48d51e75c23bcc14ca9369f3dc9f2b363",
-	liveRunner: "sha256:45fa2f8be921a4b1456d956743074446afce0b141b9d2fe1ec082cc4d0af3d20",
+		"sha256:c617457d098994476185af9e370449e39f18bda726351f0814793a72a7585557",
+	live: "sha256:b35b4a1632a4161bbc214b3c5d099bbdee4d938b3e9be3a80cd300b4a60a2387",
+	qualification: "sha256:c109ef3284ef99eadf848ef193fceabbcdad67c357aabdfcfd72386acec217df",
+	qualificationRunner: "sha256:d3f52aec7ea7d3ccafcce2481ea48027667e94dfa6b54ebceeeae8f0983e8c8a",
+	liveRunner: "sha256:94122844abaf1ecbde6ce500f052018d45a4f5b33c7a1fcfdc4e367c942a91a3",
 	currentLivePreflight: "sha256:d0791cd7dc6a4d774d1049d39764f346b9d75d0b75082e234f20ee8289ed1c07",
 	currentKeyAdmission: "sha256:d14dd8ad79843b8327cdab521db8e67a098077feb272237c9b965a6e6ae5cc6d",
 } as const);
 
 export const D38_IMPLEMENTATION_MANIFEST = strictSnapshot({
-	revision: "graphrefly-ts.d38.premature-final-live-implementation-manifest.v5",
-	baselineCommit: "205a0fb332b5c5bd1d8631c88031f8b361492249",
+	revision: "graphrefly-ts.d39.premature-final-live-implementation-manifest.v2",
+	baselineCommit: "91f30ca7fde3d5d91b62e6e574bbdeab60636ebd",
 	d37ImplementationManifestDigest: D37_IMPLEMENTATION_MANIFEST_DIGEST,
 	sources: D38_IMPLEMENTATION_SOURCE_DIGESTS,
 });

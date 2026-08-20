@@ -16,9 +16,11 @@ import {
 } from "./d8-current-live-coordinates.js";
 import { D21_POSITIVE_DIFFERENTIAL_GATE_DEFINITION_DIGEST } from "./d21-current-efficacy-recovery-authority.js";
 
-export const D38_DECISION_REF = "graphrefly-ts:D38" as const;
-export const D38_LIVE_APPROVAL_REVISION = "graphrefly-ts:D38.2026-08-20.v2" as const;
-export const D38_BASELINE_COMMIT = "4e3b57b95db3ee52acf77b7d32527f0b74c08f53" as const;
+export const D38_DECISION_REF = "graphrefly-ts:D39" as const;
+export const D38_LIVE_APPROVAL_REVISION = "graphrefly-ts:D39.2026-08-20.v1" as const;
+export const D38_BASELINE_COMMIT = "91f30ca7fde3d5d91b62e6e574bbdeab60636ebd" as const;
+export const D39_D38_V5_ARTIFACT_DIGEST =
+	"sha256:23bc3690dcb48bad993bc8954567b568cbb4f5798d9eb4c93b3382071dc85e2e" as const;
 export const D38_D37_ARTIFACT_DIGEST =
 	"sha256:7c2a4329ffd738d768c803ae319320b6cb10d33211b2306db62f5945ffaa333a" as const;
 export const D38_D37_BUNDLE_DIGEST =
@@ -32,11 +34,11 @@ export const D38_D37_EVIDENCE_DIGEST =
 export const D38_D37_IMPLEMENTATION_MANIFEST_DIGEST =
 	"sha256:6b317d45be7d80435d68ad000f333049b3c802418c8db8d7e20c211533c77b23" as const;
 export const D38_GENERATION_REF =
-	"current-graph-native-premature-final-live-2026-08-20-d38-v2" as const;
+	"current-graph-native-premature-final-live-2026-08-20-d39-v2" as const;
 export const D38_QUALIFICATION_GENERATION_REF =
-	"current-graph-native-premature-final-live-no-network-2026-08-20-d38-v5" as const;
+	"current-graph-native-premature-final-live-no-network-2026-08-20-d39-v2" as const;
 export const D38_DISPATCH_CLAIM_REF =
-	"current-graph-native-premature-final-live-dispatch-2026-08-20-d38-v2" as const;
+	"current-graph-native-premature-final-live-dispatch-2026-08-20-d39-v2" as const;
 
 /** D13's exact provider-effect deadline, isolated from historical/current D8 coordinates. */
 export const D38_REPAIRED_LIVE_LIMITS = Object.freeze({
@@ -48,6 +50,7 @@ export const D38_COORDINATES = strictSnapshot({
 	decisionRef: D38_DECISION_REF,
 	liveApprovalRevision: D38_LIVE_APPROVAL_REVISION,
 	baselineCommit: D38_BASELINE_COMMIT,
+	d38V5ArtifactDigest: D39_D38_V5_ARTIFACT_DIGEST,
 	d37ArtifactDigest: D38_D37_ARTIFACT_DIGEST,
 	d37BundleDigest: D38_D37_BUNDLE_DIGEST,
 	d37QualificationDigest: D38_D37_QUALIFICATION_DIGEST,

@@ -11,7 +11,7 @@ import {
 } from "./d20-current-live-preflight.js";
 import { D38_COORDINATES_DIGEST } from "./d38-premature-final-live-coordinates.js";
 
-export const D38_PRECLAIM_SCHEMA = "graphrefly-ts.d38.live-preclaim.v1" as const;
+export const D38_PRECLAIM_SCHEMA = "graphrefly-ts.d39.live-preclaim.v1" as const;
 
 export type D38CredentialV1 = D20CredentialV1;
 export type D38PricingObservationV1 = D20PricingObservationV1;

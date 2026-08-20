@@ -30,6 +30,7 @@ import {
 } from "../../evals/empirical-memory-rerun-avoidance/d38-premature-final-live-implementation-manifest.js";
 import {
 	createD38QualificationInjectedBaselineForTest,
+	createD39InjectedD38V5BaselineForTest,
 	persistD38Qualification,
 	runD38InjectedNoNetworkQualification,
 	validateD38QualificationBundle,
@@ -510,6 +511,7 @@ describe("graphrefly-ts:D38 premature-final live replacement", () => {
 			const constructed = await runD38InjectedNoNetworkQualification({
 				baseline: createD38QualificationInjectedBaselineForTest(),
 				baselineBasis: "injected-test",
+				replacementBaseline: createD39InjectedD38V5BaselineForTest(),
 				repositoryRoot,
 				materializationRoot,
 			});
@@ -530,7 +532,7 @@ describe("graphrefly-ts:D38 premature-final live replacement", () => {
 			expect(serialized).not.toContain(CURRENT_GRAPH_LIVE_FIXED_ADMISSION_BLOCK);
 			await expect(
 				persistD38Qualification({ privateRoot: join(root, "private"), bundle: constructed }),
-			).rejects.toThrow("requires consumed D37 artifact bytes");
+			).rejects.toThrow("requires consumed D37 and D38-v5 bytes");
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -538,7 +540,7 @@ describe("graphrefly-ts:D38 premature-final live replacement", () => {
 
 	it("rejects a redigested live-gate substitution", () => {
 		const forgedGateBase = strictSnapshot({
-			schemaVersion: "graphrefly-ts.d38.positive-differential-gate.v1",
+			schemaVersion: "graphrefly-ts.d39.positive-differential-gate.v1",
 			definitionDigest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
 			evaluated: true,
 			passed: true,

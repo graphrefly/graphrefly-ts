@@ -2,7 +2,13 @@ import { chmod, mkdir, mkdtemp, readdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type StrictJsonValue, strictJsonCodec } from "../../src/json/codec.js";
-import { empiricalStrictJsonDigest, exactKeys, record, strictSnapshot } from "./canonical.js";
+import {
+	empiricalSha256,
+	empiricalStrictJsonDigest,
+	exactKeys,
+	record,
+	strictSnapshot,
+} from "./canonical.js";
 import { CURRENT_GRAPH_ARMS } from "./d5-graph-native-eval-authority.js";
 import { persistCurrentGraphPrivateGeneration } from "./d6-current-private-persistence.js";
 import {
@@ -50,6 +56,7 @@ import {
 	D38_DECISION_REF,
 	D38_QUALIFICATION_GENERATION_REF,
 	D38_REPAIRED_LIVE_LIMITS,
+	D39_D38_V5_ARTIFACT_DIGEST,
 } from "./d38-premature-final-live-coordinates.js";
 import { D38_IMPLEMENTATION_MANIFEST_DIGEST } from "./d38-premature-final-live-implementation-manifest.js";
 import {
@@ -61,15 +68,22 @@ import {
 import { createD38PrematureFinalRealProviderExecutor } from "./d38-premature-final-real-provider-composition.js";
 
 export const D38_QUALIFICATION_SCHEMA =
-	"graphrefly-ts.d38.premature-final-live-qualification.v5" as const;
+	"graphrefly-ts.d39.premature-final-live-qualification.v1" as const;
 export const D38_QUALIFICATION_BUNDLE_SCHEMA =
-	"graphrefly-ts.d38.premature-final-live-qualification-bundle.v5" as const;
+	"graphrefly-ts.d39.premature-final-live-qualification-bundle.v1" as const;
 export const D38_QUALIFICATION_GENERATION_SCHEMA =
-	"graphrefly-ts.d38.premature-final-live-qualification-generation.v5" as const;
+	"graphrefly-ts.d39.premature-final-live-qualification-generation.v1" as const;
+export const D39_D38_V5_BASELINE_REVISION =
+	"graphrefly-ts.d39.d38-v5-baseline-admission.v1" as const;
+
+export interface D39D38V5BaselineAdmissionV1 {
+	readonly revision: typeof D39_D38_V5_BASELINE_REVISION;
+}
 
 export interface D38QualificationBundleV1 {
 	readonly schemaVersion: typeof D38_QUALIFICATION_BUNDLE_SCHEMA;
 	readonly baselineBasis: "consumed-d37-artifact" | "injected-test";
+	readonly replacementBaselineBasis: "consumed-d38-v5-artifact" | "injected-test";
 	readonly mainBundle: D38LiveBundleV1;
 	readonly qualification: Readonly<{
 		readonly schemaVersion: typeof D38_QUALIFICATION_SCHEMA;
@@ -80,6 +94,7 @@ export interface D38QualificationBundleV1 {
 		readonly d37GenerationDigest: typeof D38_D37_GENERATION_DIGEST;
 		readonly d37EvidenceDigest: typeof D38_D37_EVIDENCE_DIGEST;
 		readonly d37ImplementationManifestDigest: typeof D38_D37_IMPLEMENTATION_MANIFEST_DIGEST;
+		readonly d38V5ArtifactDigest: typeof D39_D38_V5_ARTIFACT_DIGEST;
 		readonly implementationManifestDigest: typeof D38_IMPLEMENTATION_MANIFEST_DIGEST;
 		readonly mainBundleDigest: string;
 		readonly exactSixArmsCompleted: true;
@@ -119,6 +134,38 @@ export interface D38QualificationBundleV1 {
 }
 
 const constructed = new WeakSet<object>();
+const replacementBaselines = new WeakMap<object, "consumed-d38-v5-artifact" | "injected-test">();
+
+function makeReplacementBaseline(
+	basis: "consumed-d38-v5-artifact" | "injected-test",
+): D39D38V5BaselineAdmissionV1 {
+	const admission = Object.freeze({ revision: D39_D38_V5_BASELINE_REVISION });
+	replacementBaselines.set(admission, basis);
+	return admission;
+}
+
+export function admitD39D38V5Baseline(bytesValue: Uint8Array): D39D38V5BaselineAdmissionV1 {
+	if (!(bytesValue instanceof Uint8Array))
+		throw new TypeError("D39 D38-v5 baseline bytes are invalid");
+	const bytes = new Uint8Array(bytesValue);
+	if (empiricalSha256(bytes) !== D39_D38_V5_ARTIFACT_DIGEST)
+		throw new TypeError("D39 D38-v5 immutable artifact drifted");
+	return makeReplacementBaseline("consumed-d38-v5-artifact");
+}
+
+export function createD39InjectedD38V5BaselineForTest(): D39D38V5BaselineAdmissionV1 {
+	return makeReplacementBaseline("injected-test");
+}
+
+function consumeReplacementBaseline(value: unknown): "consumed-d38-v5-artifact" | "injected-test" {
+	if (value === null || typeof value !== "object")
+		throw new TypeError("D39 D38-v5 baseline admission is invalid");
+	const basis = replacementBaselines.get(value);
+	replacementBaselines.delete(value);
+	if (basis === undefined)
+		throw new TypeError("D39 D38-v5 baseline admission is forged or replayed");
+	return basis;
+}
 
 export function admitD38QualificationBaseline(bytes: Uint8Array) {
 	return admitD38D37Baseline(bytes);
@@ -270,6 +317,9 @@ async function qualifyPartialFailure(input: {
 		partial.graphEvidence !== null ||
 		partial.generation !== null ||
 		partial.partialGraphEvidence?.failureCode !== "executor-boundary-failed" ||
+		partial.partialGraphEvidence.activeRequestDigest === null ||
+		partial.partialGraphEvidence.activeAdmissionDigest === null ||
+		partial.partialGraphEvidence.activeEffectKind !== "materialization" ||
 		partial.gate.evaluated !== false ||
 		partial.efficacyClaim !== "none"
 	)
@@ -692,9 +742,16 @@ async function runMain(input: {
 export async function runD38InjectedNoNetworkQualification(input: {
 	readonly baseline: D38D37BaselineAdmissionV1;
 	readonly baselineBasis: D38QualificationBundleV1["baselineBasis"];
+	readonly replacementBaseline: D39D38V5BaselineAdmissionV1;
 	readonly repositoryRoot: string;
 	readonly materializationRoot: string;
 }): Promise<D38QualificationBundleV1> {
+	const replacementBaselineBasis = consumeReplacementBaseline(input.replacementBaseline);
+	if (
+		(input.baselineBasis === "consumed-d37-artifact") !==
+		(replacementBaselineBasis === "consumed-d38-v5-artifact")
+	)
+		throw new TypeError("D39 replacement and D37 baseline classes drifted");
 	const testRoot = await mkdtemp(join(tmpdir(), "graphrefly-d38-qualification-"));
 	await chmod(testRoot, 0o700);
 	const claimRoot = join(testRoot, "claim");
@@ -786,6 +843,7 @@ export async function runD38InjectedNoNetworkQualification(input: {
 			d37GenerationDigest: D38_D37_GENERATION_DIGEST,
 			d37EvidenceDigest: D38_D37_EVIDENCE_DIGEST,
 			d37ImplementationManifestDigest: D38_D37_IMPLEMENTATION_MANIFEST_DIGEST,
+			d38V5ArtifactDigest: D39_D38_V5_ARTIFACT_DIGEST,
 			implementationManifestDigest: D38_IMPLEMENTATION_MANIFEST_DIGEST,
 			mainBundleDigest: validatedMain.bundleDigest,
 			exactSixArmsCompleted: true as const,
@@ -830,6 +888,7 @@ export async function runD38InjectedNoNetworkQualification(input: {
 		const material = strictSnapshot({
 			schemaVersion: D38_QUALIFICATION_BUNDLE_SCHEMA,
 			baselineBasis: input.baselineBasis,
+			replacementBaselineBasis,
 			mainBundle: validatedMain,
 			qualification,
 			generation,
@@ -849,13 +908,25 @@ export function validateD38QualificationBundle(value: unknown): D38Qualification
 	const candidate = record(value, "D38 qualification bundle");
 	exactKeys(
 		candidate,
-		["baselineBasis", "bundleDigest", "generation", "mainBundle", "qualification", "schemaVersion"],
+		[
+			"baselineBasis",
+			"bundleDigest",
+			"generation",
+			"mainBundle",
+			"qualification",
+			"replacementBaselineBasis",
+			"schemaVersion",
+		],
 		"D38 qualification bundle",
 	);
 	if (
 		candidate.schemaVersion !== D38_QUALIFICATION_BUNDLE_SCHEMA ||
 		(candidate.baselineBasis !== "consumed-d37-artifact" &&
-			candidate.baselineBasis !== "injected-test")
+			candidate.baselineBasis !== "injected-test") ||
+		(candidate.replacementBaselineBasis !== "consumed-d38-v5-artifact" &&
+			candidate.replacementBaselineBasis !== "injected-test") ||
+		(candidate.baselineBasis === "consumed-d37-artifact") !==
+			(candidate.replacementBaselineBasis === "consumed-d38-v5-artifact")
 	)
 		throw new TypeError("D38 qualification bundle coordinates drifted");
 	const mainBundle = validateD38LiveBundle(candidate.mainBundle);
@@ -871,6 +942,7 @@ export function validateD38QualificationBundle(value: unknown): D38Qualification
 			"d37GenerationDigest",
 			"d37ImplementationManifestDigest",
 			"d37QualificationDigest",
+			"d38V5ArtifactDigest",
 			"decisionRef",
 			"duplicateClaimRejected",
 			"efficacyClaim",
@@ -924,6 +996,7 @@ export function validateD38QualificationBundle(value: unknown): D38Qualification
 		qualification.d37GenerationDigest !== D38_D37_GENERATION_DIGEST ||
 		qualification.d37EvidenceDigest !== D38_D37_EVIDENCE_DIGEST ||
 		qualification.d37ImplementationManifestDigest !== D38_D37_IMPLEMENTATION_MANIFEST_DIGEST ||
+		qualification.d38V5ArtifactDigest !== D39_D38_V5_ARTIFACT_DIGEST ||
 		qualification.implementationManifestDigest !== D38_IMPLEMENTATION_MANIFEST_DIGEST ||
 		qualification.mainBundleDigest !== mainBundle.bundleDigest ||
 		qualification.exactSixArmsCompleted !== true ||
@@ -967,6 +1040,7 @@ export function validateD38QualificationBundle(value: unknown): D38Qualification
 	const material = strictSnapshot({
 		schemaVersion: D38_QUALIFICATION_BUNDLE_SCHEMA,
 		baselineBasis: candidate.baselineBasis,
+		replacementBaselineBasis: candidate.replacementBaselineBasis,
 		mainBundle,
 		qualification: strictSnapshot(qualification),
 		generation: strictSnapshot(generation),
@@ -984,8 +1058,11 @@ export async function persistD38Qualification(input: {
 		throw new TypeError("D38 qualification bundle was not constructed in this process");
 	constructed.delete(input.bundle as object);
 	const bundle = validateD38QualificationBundle(input.bundle);
-	if (bundle.baselineBasis !== "consumed-d37-artifact")
-		throw new TypeError("D38 production qualification requires consumed D37 artifact bytes");
+	if (
+		bundle.baselineBasis !== "consumed-d37-artifact" ||
+		bundle.replacementBaselineBasis !== "consumed-d38-v5-artifact"
+	)
+		throw new TypeError("D39 production qualification requires consumed D37 and D38-v5 bytes");
 	return persistCurrentGraphPrivateGeneration({
 		privateRoot: input.privateRoot,
 		generationRef: D38_QUALIFICATION_GENERATION_REF,
@@ -998,7 +1075,7 @@ export async function persistD38Qualification(input: {
 		},
 		commitBytes: strictJsonCodec.encode(
 			strictSnapshot({
-				schemaVersion: "graphrefly-ts.d38.premature-final-live-qualification-commit.v1",
+				schemaVersion: "graphrefly-ts.d39.premature-final-live-qualification-commit.v1",
 				generationRef: D38_QUALIFICATION_GENERATION_REF,
 				bundleDigest: bundle.bundleDigest,
 				qualificationDigest: bundle.qualification.qualificationDigest,
