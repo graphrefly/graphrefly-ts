@@ -11,6 +11,7 @@ import {
 	CURRENT_GRAPH_LIVE_QUANTIZATION,
 	CURRENT_GRAPH_LIVE_READABLE_FILES,
 	CURRENT_GRAPH_LIVE_REQUEST_MODEL,
+	CURRENT_GRAPH_LIVE_ROUTE,
 	CURRENT_GRAPH_LIVE_SELECTED_ENDPOINT_MODEL,
 	CURRENT_GRAPH_LIVE_WRITABLE_FILE,
 } from "./d8-current-live-coordinates.js";
@@ -18,7 +19,13 @@ import {
 	CURRENT_GRAPH_LIVE_BUGGY_ADMISSION_BLOCK,
 	CURRENT_GRAPH_LIVE_FIXED_ADMISSION_BLOCK,
 } from "./d8-current-openrouter-adapter.js";
-import type { D34AdmittedEffectV1 } from "./d34-retained-span-mutation-authority.js";
+import { D21_TASK_PROFILE } from "./d21-current-efficacy-recovery-authority.js";
+import {
+	admitD34EffectResult,
+	createD34RetainedSpanAuthority,
+	type D34AdmittedEffectV1,
+	takeD34AdmittedEffect,
+} from "./d34-retained-span-mutation-authority.js";
 import {
 	admitD38D37Baseline,
 	createD38InjectedBaselineForTest,
@@ -42,6 +49,7 @@ import {
 	D38_D37_QUALIFICATION_DIGEST,
 	D38_DECISION_REF,
 	D38_QUALIFICATION_GENERATION_REF,
+	D38_REPAIRED_LIVE_LIMITS,
 } from "./d38-premature-final-live-coordinates.js";
 import { D38_IMPLEMENTATION_MANIFEST_DIGEST } from "./d38-premature-final-live-implementation-manifest.js";
 import {
@@ -53,11 +61,11 @@ import {
 import { createD38PrematureFinalRealProviderExecutor } from "./d38-premature-final-real-provider-composition.js";
 
 export const D38_QUALIFICATION_SCHEMA =
-	"graphrefly-ts.d38.premature-final-live-qualification.v2" as const;
+	"graphrefly-ts.d38.premature-final-live-qualification.v5" as const;
 export const D38_QUALIFICATION_BUNDLE_SCHEMA =
-	"graphrefly-ts.d38.premature-final-live-qualification-bundle.v2" as const;
+	"graphrefly-ts.d38.premature-final-live-qualification-bundle.v5" as const;
 export const D38_QUALIFICATION_GENERATION_SCHEMA =
-	"graphrefly-ts.d38.premature-final-live-qualification-generation.v2" as const;
+	"graphrefly-ts.d38.premature-final-live-qualification-generation.v5" as const;
 
 export interface D38QualificationBundleV1 {
 	readonly schemaVersion: typeof D38_QUALIFICATION_BUNDLE_SCHEMA;
@@ -79,6 +87,8 @@ export interface D38QualificationBundleV1 {
 		readonly exactNamedNewTextOnlyWire: true;
 		readonly prematureFinalRecoveryCount: 6;
 		readonly retryIdentityPassed: true;
+		readonly providerDeadlineMs: 120_000;
+		readonly responseBodyFailureAccountingPassed: true;
 		readonly providerTransportCalls: number;
 		readonly retainedSpanTransportCalls: number;
 		readonly retryWaitCount: 1;
@@ -413,6 +423,97 @@ function assertGraphAuthoredPrematureFinalRecovery(bundle: D38LiveBundleV1): 6 {
 	return 6;
 }
 
+function assertProviderDeadlineProfile(bundle: D38LiveBundleV1): 120_000 {
+	const evidence = bundle.graphEvidence;
+	if (evidence === null) throw new TypeError("D38 phase deadline proof requires complete evidence");
+	const phaseFacts = evidence.phaseEvidence.phaseFacts;
+	const providerFacts = evidence.phaseEvidence.workflowEvidence.providerEvidence.facts.filter(
+		(fact) => fact.request.effectKind === "provider-request",
+	);
+	const providerByDigest = new Map(providerFacts.map((fact) => [fact.factDigest, fact]));
+	let inspectionCount = 0;
+	let laterPhaseCount = 0;
+	for (const phaseFact of phaseFacts) {
+		const providerFact = providerByDigest.get(phaseFact.providerFactDigest);
+		if (providerFact === undefined)
+			throw new TypeError("D38 phase fact lost its provider-fact deadline binding");
+		const logical = providerFact.request.logicalRequestDigest;
+		if (logical === null) throw new TypeError("D38 phase provider logical request is missing");
+		const attempts = providerFacts.filter((fact) => fact.request.logicalRequestDigest === logical);
+		if (
+			attempts.length === 0 ||
+			attempts.some((fact) => fact.request.reservation.maxElapsedMs !== 120_000)
+		)
+			throw new TypeError("D38 Graph phase deadline reservation drifted across attempts");
+		if (phaseFact.phaseBefore === "none") inspectionCount += 1;
+		else laterPhaseCount += 1;
+	}
+	if (inspectionCount < 6 || laterPhaseCount < 6)
+		throw new TypeError("D38 phase deadline coverage is incomplete");
+	return 120_000;
+}
+
+async function qualifyResponseBodyFailureAccounting(input: {
+	readonly repositoryRoot: string;
+	readonly materializationRoot: string;
+}): Promise<true> {
+	const authority = createD34RetainedSpanAuthority({
+		limits: D38_REPAIRED_LIVE_LIMITS,
+		routeProfile: CURRENT_GRAPH_LIVE_ROUTE,
+		taskProfile: D21_TASK_PROFILE,
+	});
+	const executor = createD38PrematureFinalRealProviderExecutor({
+		authority,
+		repositoryRoot: input.repositoryRoot,
+		materializationRoot: input.materializationRoot,
+		credential: {
+			bearerToken: "d38-injected-no-network-credential",
+			credentialBindingRef: "openrouter.local-eval-2",
+			credentialBindingRevision: "2026-08-14.v1",
+		},
+		fetchImpl: async () =>
+			new Response(
+				new ReadableStream({
+					pull(controller) {
+						controller.error(new DOMException("bounded injected body failure", "AbortError"));
+					},
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			),
+	});
+	try {
+		for (const expected of ["materialization", "provider-request", "cleanup"] as const) {
+			const admitted = takeD34AdmittedEffect(authority);
+			if (admitted === null || admitted.effect.effect.request.effectKind !== expected)
+				throw new TypeError(`D38 body-failure ${expected} admission drifted`);
+			const execution = await executor.execute(admitted);
+			if (expected === "provider-request") {
+				const result = record(execution.result, "D38 body-failure provider result");
+				const usage = record(result.usage, "D38 body-failure provider usage");
+				if (
+					result.status !== "failed" ||
+					result.failureCode !== "provider-failed" ||
+					usage.costBasis !== "conservative-reservation" ||
+					usage.requests !== 1 ||
+					usage.actualCostMicrousd !== admitted.effect.effect.request.reservation.maxCostMicrousd
+				)
+					throw new TypeError("D38 response-body failure accounting drifted");
+			}
+			admitD34EffectResult(authority, execution.admitted, execution.result);
+		}
+		const next = takeD34AdmittedEffect(authority);
+		if (
+			next === null ||
+			next.effect.effect.request.effectKind !== "materialization" ||
+			next.effect.effect.request.arm !== "relevant-applied"
+		)
+			throw new TypeError("D38 response-body failure censored the next arm");
+		return true;
+	} finally {
+		await executor.dispose();
+	}
+}
+
 async function runMain(input: {
 	readonly baseline: D38D37BaselineAdmissionV1;
 	readonly baselineBasis: D38QualificationBundleV1["baselineBasis"];
@@ -644,6 +745,11 @@ export async function runD38InjectedNoNetworkQualification(input: {
 		const waits = retryWaitCount(validatedMain);
 		const attempts = providerAttemptCount(validatedMain);
 		const graphRecoveryCount = assertGraphAuthoredPrematureFinalRecovery(validatedMain);
+		const providerDeadlineMs = assertProviderDeadlineProfile(validatedMain);
+		const responseBodyFailureAccountingPassed = await qualifyResponseBodyFailureAccounting({
+			repositoryRoot: input.repositoryRoot,
+			materializationRoot: `${input.materializationRoot}-body-failure`,
+		});
 		let workspaceResidueCount: number;
 		try {
 			workspaceResidueCount = (await readdir(input.materializationRoot)).length;
@@ -687,6 +793,8 @@ export async function runD38InjectedNoNetworkQualification(input: {
 			exactNamedNewTextOnlyWire: true as const,
 			prematureFinalRecoveryCount: graphRecoveryCount,
 			retryIdentityPassed: true as const,
+			providerDeadlineMs,
+			responseBodyFailureAccountingPassed,
 			providerTransportCalls: main.transportCalls,
 			retainedSpanTransportCalls: main.retainedCalls,
 			retryWaitCount: 1 as const,
@@ -778,9 +886,11 @@ export function validateD38QualificationBundle(value: unknown): D38Qualification
 			"partialFailurePersistencePassed",
 			"prematureFinalRecoveryCount",
 			"providerNetworkCalls",
+			"providerDeadlineMs",
 			"providerTransportCalls",
 			"qualificationDigest",
 			"qualified",
+			"responseBodyFailureAccountingPassed",
 			"retainedSpanTransportCalls",
 			"retryIdentityPassed",
 			"retryWaitCount",
@@ -804,6 +914,7 @@ export function validateD38QualificationBundle(value: unknown): D38Qualification
 		"D38 qualification generation",
 	);
 	const graphRecoveryCount = assertGraphAuthoredPrematureFinalRecovery(mainBundle);
+	const providerDeadlineMs = assertProviderDeadlineProfile(mainBundle);
 	if (
 		qualification.schemaVersion !== D38_QUALIFICATION_SCHEMA ||
 		qualification.decisionRef !== D38_DECISION_REF ||
@@ -820,6 +931,8 @@ export function validateD38QualificationBundle(value: unknown): D38Qualification
 		qualification.exactNamedNewTextOnlyWire !== true ||
 		qualification.prematureFinalRecoveryCount !== graphRecoveryCount ||
 		qualification.retryIdentityPassed !== true ||
+		qualification.providerDeadlineMs !== providerDeadlineMs ||
+		qualification.responseBodyFailureAccountingPassed !== true ||
 		qualification.retryWaitCount !== 1 ||
 		qualification.maxActiveEffects !== 1 ||
 		qualification.maxActiveTransport !== 1 ||

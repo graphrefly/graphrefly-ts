@@ -19,9 +19,11 @@ import { D21_TASK_PROFILE } from "../../evals/empirical-memory-rerun-avoidance/d
 import {
 	admitD34EffectResult,
 	createD34RetainedSpanAuthority,
+	takeD34AdmittedEffect,
 } from "../../evals/empirical-memory-rerun-avoidance/d34-retained-span-mutation-authority.js";
 import { createD35RetainedSpanRealProviderExecutor } from "../../evals/empirical-memory-rerun-avoidance/d35-retained-span-real-provider-composition.js";
 import { validateD38LiveBundle } from "../../evals/empirical-memory-rerun-avoidance/d38-premature-final-live.js";
+import { D38_REPAIRED_LIVE_LIMITS } from "../../evals/empirical-memory-rerun-avoidance/d38-premature-final-live-coordinates.js";
 import {
 	D38_IMPLEMENTATION_MANIFEST,
 	D38_IMPLEMENTATION_MANIFEST_DIGEST,
@@ -32,8 +34,141 @@ import {
 	runD38InjectedNoNetworkQualification,
 	validateD38QualificationBundle,
 } from "../../evals/empirical-memory-rerun-avoidance/d38-premature-final-live-qualification.js";
+import { createD38PrematureFinalRealProviderExecutor } from "../../evals/empirical-memory-rerun-avoidance/d38-premature-final-real-provider-composition.js";
 
 describe("graphrefly-ts:D38 premature-final live replacement", () => {
+	it("uses the frozen D13 120s deadline for every D38 provider effect", async () => {
+		const repositoryRoot = resolve(import.meta.dirname, "../../../..");
+		const root = await mkdtemp(join(tmpdir(), "graphrefly-d38-phase-deadline-"));
+		const authority = createD34RetainedSpanAuthority({
+			limits: D38_REPAIRED_LIVE_LIMITS,
+			routeProfile: CURRENT_GRAPH_LIVE_ROUTE,
+			taskProfile: D21_TASK_PROFILE,
+		});
+		const executor = createD38PrematureFinalRealProviderExecutor({
+			authority,
+			repositoryRoot,
+			materializationRoot: join(root, "workspaces"),
+			credential: {
+				bearerToken: "injected",
+				credentialBindingRef: "openrouter.local-eval-2",
+				credentialBindingRevision: "2026-08-14.v1",
+			},
+			fetchImpl: async () =>
+				new Response(
+					JSON.stringify({
+						choices: [
+							{
+								message: {
+									role: "assistant",
+									content: null,
+									tool_calls: CURRENT_GRAPH_LIVE_READABLE_FILES.map((path, index) => ({
+										id: `read-${index}`,
+										type: "function",
+										function: { name: "read_file", arguments: JSON.stringify({ path }) },
+									})),
+								},
+							},
+						],
+						usage: {
+							prompt_tokens: 100,
+							completion_tokens: 20,
+							prompt_tokens_details: { cached_tokens: 0 },
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				),
+		});
+		try {
+			const materialization = takeD34AdmittedEffect(authority);
+			if (materialization === null) throw new TypeError("missing materialization");
+			const materialized = await executor.execute(materialization);
+			admitD34EffectResult(authority, materialized.admitted, materialized.result);
+
+			const inspection = takeD34AdmittedEffect(authority);
+			if (inspection === null) throw new TypeError("missing inspection provider request");
+			expect(inspection.effect.effect.request.reservation.maxElapsedMs).toBe(120_000);
+			const inspected = await executor.execute(inspection);
+			admitD34EffectResult(authority, inspected.admitted, inspected.result);
+
+			for (let index = 0; index < CURRENT_GRAPH_LIVE_READABLE_FILES.length; index += 1) {
+				const read = takeD34AdmittedEffect(authority);
+				if (read === null) throw new TypeError("missing admitted read");
+				const result = await executor.execute(read);
+				admitD34EffectResult(authority, result.admitted, result.result);
+			}
+
+			const mutation = takeD34AdmittedEffect(authority);
+			if (mutation === null) throw new TypeError("missing mutation provider request");
+			expect(mutation.effect.effect.request.phaseBefore).not.toBe("none");
+			expect(mutation.effect.effect.request.reservation.maxElapsedMs).toBe(120_000);
+		} finally {
+			await executor.dispose();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 120_000);
+
+	it("returns response-body failures to Graph with conservative reservation accounting", async () => {
+		const repositoryRoot = resolve(import.meta.dirname, "../../../..");
+		const root = await mkdtemp(join(tmpdir(), "graphrefly-d38-body-failure-"));
+		const authority = createD34RetainedSpanAuthority({
+			limits: D38_REPAIRED_LIVE_LIMITS,
+			routeProfile: CURRENT_GRAPH_LIVE_ROUTE,
+			taskProfile: D21_TASK_PROFILE,
+		});
+		const executor = createD38PrematureFinalRealProviderExecutor({
+			authority,
+			repositoryRoot,
+			materializationRoot: join(root, "workspaces"),
+			credential: {
+				bearerToken: "injected",
+				credentialBindingRef: "openrouter.local-eval-2",
+				credentialBindingRevision: "2026-08-14.v1",
+			},
+			fetchImpl: async () =>
+				new Response(
+					new ReadableStream({
+						pull(controller) {
+							controller.error(new DOMException("bounded injected body failure", "AbortError"));
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				),
+		});
+		try {
+			const materialization = takeD34AdmittedEffect(authority);
+			if (materialization === null) throw new TypeError("missing materialization");
+			const materialized = await executor.execute(materialization);
+			admitD34EffectResult(authority, materialized.admitted, materialized.result);
+
+			const provider = takeD34AdmittedEffect(authority);
+			if (provider === null) throw new TypeError("missing provider request");
+			const execution = await executor.execute(provider);
+			const result = execution.result as {
+				readonly status: string;
+				readonly failureCode: string;
+				readonly usage: {
+					readonly requests: number;
+					readonly actualCostMicrousd: number;
+					readonly costBasis: string;
+				};
+			};
+			expect(result.status).toBe("failed");
+			expect(result.failureCode).toBe("provider-failed");
+			expect(result.usage).toMatchObject({
+				requests: 1,
+				actualCostMicrousd: provider.effect.effect.request.reservation.maxCostMicrousd,
+				costBasis: "conservative-reservation",
+			});
+			admitD34EffectResult(authority, execution.admitted, execution.result);
+			const cleanup = takeD34AdmittedEffect(authority);
+			expect(cleanup?.effect.effect.request.effectKind).toBe("cleanup");
+		} finally {
+			await executor.dispose();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 120_000);
+
 	it("classifies a post-inspection structured final without losing its boundary cause", async () => {
 		const repositoryRoot = resolve(import.meta.dirname, "../../../..");
 		const root = await mkdtemp(join(tmpdir(), "graphrefly-d38-structured-final-"));

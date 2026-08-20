@@ -44,6 +44,32 @@ interface PendingRetainedMutation {
 	readonly newText: string;
 }
 
+class D38ResponseBodyFailure extends Error {
+	constructor() {
+		super("D38 provider response body could not be read");
+		this.name = "D38ResponseBodyFailure";
+	}
+}
+
+async function readResponseBytes(response: Response): Promise<Uint8Array> {
+	try {
+		return new Uint8Array(await response.arrayBuffer());
+	} catch {
+		throw new D38ResponseBodyFailure();
+	}
+}
+
+function guardResponseBody(response: Response): Response {
+	return new Proxy(response, {
+		get(target, property) {
+			if (property === "arrayBuffer")
+				return async () => readResponseBytes(target).then((v) => v.buffer);
+			const value = Reflect.get(target, property, target);
+			return typeof value === "function" ? value.bind(target) : value;
+		},
+	});
+}
+
 function bodyBytes(value: unknown): Uint8Array {
 	if (typeof value === "string") return Buffer.from(value, "utf8");
 	if (value instanceof Uint8Array) return new Uint8Array(value);
@@ -58,7 +84,7 @@ async function projectSuccessfulResponse(
 	const declared = response.headers.get("content-length");
 	if (declared !== null && (!/^\d+$/u.test(declared) || Number(declared) > D38_MAX_PROVIDER_BYTES))
 		throw new TypeError("D38 provider response exceeded its declared bound");
-	const bytes = new Uint8Array(await response.arrayBuffer());
+	const bytes = await readResponseBytes(response);
 	if (bytes.byteLength > D38_MAX_PROVIDER_BYTES)
 		throw new TypeError("D38 provider response exceeded its byte bound");
 	const passThrough = () => {
@@ -172,7 +198,7 @@ export function createD38PrematureFinalRealProviderExecutor(
 		...baseOptions,
 		fetchImpl: async (url, init) => {
 			const current = active;
-			if (current === null) return fetchImpl(url, init);
+			if (current === null) return guardResponseBody(await fetchImpl(url, init));
 			const request = current.admitted.effect.effect.request;
 			const directive = current.admitted.retainedSpanDirective;
 			if (
@@ -232,7 +258,40 @@ export function createD38PrematureFinalRealProviderExecutor(
 					throw new TypeError("D38 retained mutation was not the next Graph-admitted effect");
 				}
 				active = admitted.retainedSpanDirective === null ? null : { admitted, projection: null };
-				const baseResult = await base.execute(admitted.effect.effect);
+				let baseResult: Awaited<ReturnType<typeof base.execute>>;
+				try {
+					baseResult = await base.execute(admitted.effect.effect);
+				} catch (error) {
+					if (
+						!(error instanceof D38ResponseBodyFailure) ||
+						request.effectKind !== "provider-request"
+					)
+						throw error;
+					return Object.freeze({
+						admitted,
+						result: Object.freeze({
+							effectKind: "provider-request" as const,
+							status: "failed" as const,
+							toolCalls: [] as const,
+							failureCode: "provider-failed" as const,
+							retryProposal: null,
+							usage: Object.freeze({
+								requests: 1 as const,
+								inputTokens: 0,
+								outputTokens: 0,
+								cacheReadTokens: 0,
+								actualCostMicrousd: request.reservation.maxCostMicrousd,
+								actualElapsedMs: request.reservation.maxElapsedMs,
+								costBasis: "conservative-reservation" as const,
+							}),
+							evidenceDigest: empiricalStrictJsonDigest({
+								revision: D38_ADAPTER_REVISION,
+								requestDigest: request.requestDigest,
+								disposition: "provider-response-body-read-failed",
+							}),
+						}),
+					});
+				}
 				if (active === null || baseResult.effectKind !== "provider-request")
 					return Object.freeze({ admitted, result: baseResult });
 				if (baseResult.status !== "completed")

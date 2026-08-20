@@ -11,10 +11,7 @@ import {
 } from "./canonical.js";
 import { persistCurrentGraphPrivateGeneration } from "./d6-current-private-persistence.js";
 import type { CurrentGraphProviderFactV1 } from "./d6-current-provider-authority.js";
-import {
-	CURRENT_GRAPH_LIVE_LIMITS,
-	CURRENT_GRAPH_LIVE_ROUTE,
-} from "./d8-current-live-coordinates.js";
+import { CURRENT_GRAPH_LIVE_ROUTE } from "./d8-current-live-coordinates.js";
 import {
 	D21_POSITIVE_DIFFERENTIAL_GATE_DEFINITION_DIGEST,
 	D21_TASK_PROFILE,
@@ -44,6 +41,7 @@ import {
 	D38_D37_QUALIFICATION_DIGEST,
 	D38_DECISION_REF,
 	D38_GENERATION_REF,
+	D38_REPAIRED_LIVE_LIMITS,
 } from "./d38-premature-final-live-coordinates.js";
 import { D38_IMPLEMENTATION_MANIFEST_DIGEST } from "./d38-premature-final-live-implementation-manifest.js";
 import type { D38CredentialV1 } from "./d38-premature-final-live-preflight.js";
@@ -269,7 +267,7 @@ async function drive(input: {
 	if (executionAuthority.claim.implementationManifestDigest !== input.implementationManifestDigest)
 		throw new TypeError("D38 implementation authority drifted");
 	const graphAuthority = createD34RetainedSpanAuthority({
-		limits: CURRENT_GRAPH_LIVE_LIMITS,
+		limits: D38_REPAIRED_LIVE_LIMITS,
 		routeProfile: CURRENT_GRAPH_LIVE_ROUTE,
 		taskProfile: D21_TASK_PROFILE,
 	});
@@ -281,7 +279,7 @@ async function drive(input: {
 	let graphEvidence: D34RetainedSpanEvidenceV1 | null = null;
 	let failureCode: D38PartialGraphEvidenceV1["failureCode"] | null = null;
 	try {
-		for (let guard = 0; guard < CURRENT_GRAPH_LIVE_LIMITS.maxEffectFacts; guard += 1) {
+		for (let guard = 0; guard < D38_REPAIRED_LIVE_LIMITS.maxEffectFacts; guard += 1) {
 			const admitted = takeD34AdmittedEffect(graphAuthority);
 			if (admitted === null) {
 				try {
@@ -527,7 +525,7 @@ function validateD38PartialGraphEvidence(value: unknown): D38PartialGraphEvidenc
 	)
 		throw new TypeError("D38 partial active effect kind drifted");
 	const providerFacts = array(candidate.providerFacts, "D38 partial provider facts");
-	if (providerFacts.length > CURRENT_GRAPH_LIVE_LIMITS.maxEffectFacts)
+	if (providerFacts.length > D38_REPAIRED_LIVE_LIMITS.maxEffectFacts)
 		throw new TypeError("D38 partial provider fact bound exceeded");
 	const completedGraphEvidence =
 		candidate.completedGraphEvidence === null

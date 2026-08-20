@@ -1,5 +1,6 @@
 import { empiricalStrictJsonDigest, strictSnapshot } from "./canonical.js";
 import { CURRENT_GRAPH_ARMS } from "./d5-graph-native-eval-authority.js";
+import type { CurrentGraphProviderBudgetLimitsV1 } from "./d6-current-provider-authority.js";
 import {
 	CURRENT_GRAPH_LIVE_ENDPOINT,
 	CURRENT_GRAPH_LIVE_LIMITS,
@@ -33,9 +34,15 @@ export const D38_D37_IMPLEMENTATION_MANIFEST_DIGEST =
 export const D38_GENERATION_REF =
 	"current-graph-native-premature-final-live-2026-08-20-d38-v2" as const;
 export const D38_QUALIFICATION_GENERATION_REF =
-	"current-graph-native-premature-final-live-no-network-2026-08-20-d38-v2" as const;
+	"current-graph-native-premature-final-live-no-network-2026-08-20-d38-v5" as const;
 export const D38_DISPATCH_CLAIM_REF =
 	"current-graph-native-premature-final-live-dispatch-2026-08-20-d38-v2" as const;
+
+/** D13's exact provider-effect deadline, isolated from historical/current D8 coordinates. */
+export const D38_REPAIRED_LIVE_LIMITS = Object.freeze({
+	...CURRENT_GRAPH_LIVE_LIMITS,
+	providerMaxElapsedMs: 120_000,
+}) satisfies CurrentGraphProviderBudgetLimitsV1;
 
 export const D38_COORDINATES = strictSnapshot({
 	decisionRef: D38_DECISION_REF,
@@ -57,7 +64,7 @@ export const D38_COORDINATES = strictSnapshot({
 	pricingSource: CURRENT_GRAPH_LIVE_PRICING_SOURCE,
 	pricing: CURRENT_GRAPH_LIVE_PRICING,
 	routeDigest: CURRENT_GRAPH_LIVE_ROUTE.routeDigest,
-	limits: CURRENT_GRAPH_LIVE_LIMITS,
+	limits: D38_REPAIRED_LIVE_LIMITS,
 	armOrder: CURRENT_GRAPH_ARMS,
 	maxActiveArms: 1,
 	coldCensorsWarm: false,
