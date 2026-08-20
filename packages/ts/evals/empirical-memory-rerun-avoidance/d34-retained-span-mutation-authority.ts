@@ -262,6 +262,12 @@ function normalizeProposal(
 			result: value as CurrentGraphProviderEffectResultInputV1,
 			proposal: null,
 		});
+	const candidate = record(value, "D34 retained-span provider result");
+	if (candidate.effectKind === "provider-request" && candidate.status === "failed")
+		return Object.freeze({
+			result: value as CurrentGraphProviderEffectResultInputV1,
+			proposal: null,
+		});
 	const proposal = validateProposalResult(value);
 	const span = state.retainedSpan;
 	if (

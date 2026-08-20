@@ -58,6 +58,14 @@ export interface CurrentGraphOpenRouterExecutorV1 extends CurrentGraphLiveExecut
 		effect: CurrentGraphProviderAdmittedEffectV1,
 		toolRefs: readonly ["workspace-diff", "focused-validation"],
 	): void;
+	discardMechanicalProviderToolCalls(
+		effect: CurrentGraphProviderAdmittedEffectV1,
+		toolRefs: readonly CurrentGraphProviderToolRef[],
+	): void;
+	admitGraphAuthoredRetainedMutation(
+		effect: CurrentGraphProviderAdmittedEffectV1,
+		input: Readonly<{ toolName: "propose_replacement_text"; newText: string }>,
+	): void;
 }
 
 interface ProcessResult {
@@ -484,6 +492,65 @@ export function createCurrentGraphOpenRouterExecutor(
 		return state;
 	};
 	return Object.freeze({
+		discardMechanicalProviderToolCalls(
+			effect: CurrentGraphProviderAdmittedEffectV1,
+			toolRefs: readonly CurrentGraphProviderToolRef[],
+		) {
+			if (disposed || active !== 0)
+				throw new TypeError("current live mechanical transcript discard is unavailable");
+			const state = stateFor(effect);
+			if (effect.request.effectKind !== "provider-request" || toolRefs.length < 1)
+				throw new TypeError("current live mechanical transcript discard drifted");
+			const message = state.messages.at(-1);
+			if (
+				message?.role !== "assistant" ||
+				!Array.isArray(message.tool_calls) ||
+				message.tool_calls.length !== toolRefs.length ||
+				state.pendingToolCalls.length < toolRefs.length
+			)
+				throw new TypeError("current live mechanical provider transcript is missing");
+			const pending = state.pendingToolCalls.slice(-toolRefs.length);
+			if (pending.some((entry, index) => entry.toolRef !== toolRefs[index]))
+				throw new TypeError("current live mechanical provider transcript identity drifted");
+			state.pendingToolCalls.splice(-toolRefs.length, toolRefs.length);
+			state.messages.pop();
+		},
+		admitGraphAuthoredRetainedMutation(
+			effect: CurrentGraphProviderAdmittedEffectV1,
+			input: Readonly<{ toolName: "propose_replacement_text"; newText: string }>,
+		) {
+			if (disposed || active !== 0)
+				throw new TypeError("current live retained-mutation transcript admission is unavailable");
+			const state = stateFor(effect);
+			const args = effect.runtime.toolArguments;
+			if (
+				effect.request.effectKind !== "tool-action" ||
+				effect.request.toolRef !== "replace-exact" ||
+				args?.toolRef !== "replace-exact" ||
+				args.newText !== input.newText ||
+				input.toolName !== "propose_replacement_text" ||
+				input.newText.length === 0 ||
+				Buffer.byteLength(input.newText, "utf8") > 131_072 ||
+				state.pendingToolCalls.length !== 0
+			)
+				throw new TypeError("current live retained-mutation transcript admission drifted");
+			const id = `graph-${effect.request.requestDigest.slice("sha256:".length, 30)}-retained`;
+			state.messages.push({
+				role: "assistant",
+				content: null,
+				tool_calls: [
+					Object.freeze({
+						id,
+						type: "function" as const,
+						function: Object.freeze({
+							name: input.toolName,
+							arguments: JSON.stringify({ newText: input.newText }),
+						}),
+					}),
+				],
+			});
+			state.pendingToolCalls.push({ id, toolRef: "replace-exact" });
+		},
 		admitGraphAuthoredToolCalls(
 			effect: CurrentGraphProviderAdmittedEffectV1,
 			toolRefs: readonly ["workspace-diff", "focused-validation"],
