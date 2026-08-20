@@ -51,6 +51,7 @@ const TOOL_REJECTION_CAUSES = Object.freeze([
 ] as const);
 const FINDING_CODES = Object.freeze([
 	"exact-replacement-rejected",
+	"mutation-proposal-cardinality",
 	"focused-validation-failed",
 	"public-semantic-validation-failed",
 	"hidden-verifier-failed",
@@ -105,11 +106,13 @@ export interface CurrentGraphCorrectionDirectiveV1 {
 		| "exact-replacement-unchanged"
 		| "exact-replacement-old-text-not-found"
 		| "exact-replacement-old-text-not-unique"
+		| "mutation-proposal-cardinality"
 		| "focused-validation-failed"
 		| "public-semantic-validation-failed";
 	readonly stage:
 		| "reinspect"
 		| "fresh-mutation"
+		| "retained-span-mutation"
 		| "validation-reinspect"
 		| "validation-mutation"
 		| "semantic-correction";
@@ -171,7 +174,11 @@ export type CurrentGraphEffectResultInputV1 =
 			status: "completed" | "failed";
 			disposition: "tool-intents" | "structured-final" | null;
 			toolIntents: readonly CurrentGraphToolRef[];
-			failureCode: "provider-failed" | null;
+			failureCode:
+				| "provider-failed"
+				| "mutation-proposal-cardinality"
+				| "mutation-proposal-content"
+				| null;
 			evidenceDigest: string;
 			actualCostMicrousd: number;
 			actualElapsedMs: number;
@@ -312,6 +319,7 @@ interface MutableRunState {
 	workspaceStateDigest: string | null;
 	pendingTools: CurrentGraphToolRef[];
 	replacementRecoveryUsed: boolean;
+	cardinalityRecoveryUsed: boolean;
 	validationRecoveryUsed: boolean;
 	semanticRecoveryUsed: boolean;
 	publicSemanticValidationAttempted: boolean;
@@ -443,6 +451,7 @@ function initialRun(): MutableRunState {
 		workspaceStateDigest: null,
 		pendingTools: [],
 		replacementRecoveryUsed: false,
+		cardinalityRecoveryUsed: false,
 		validationRecoveryUsed: false,
 		semanticRecoveryUsed: false,
 		publicSemanticValidationAttempted: false,
@@ -507,9 +516,9 @@ function remainingBounds(state: AuthorityState) {
 
 function hasCorrectionHeadroom(
 	state: AuthorityState,
-	kind: "replacement" | "validation" | "semantic",
+	kind: "replacement" | "validation" | "semantic" | "cardinality",
 ): boolean {
-	const providerRequests = kind === "semantic" ? 1 : 2;
+	const providerRequests = kind === "semantic" || kind === "cardinality" ? 1 : 2;
 	const localEffects = kind === "replacement" || kind === "validation" ? 10 : 6;
 	const remaining = remainingBounds(state);
 	return (
@@ -680,6 +689,32 @@ function applyFact(state: AuthorityState, fact: CurrentGraphAdmittedFactV1): voi
 	}
 	if (result.effectKind === "provider-request") {
 		if (result.status === "failed") {
+			if (result.failureCode === "mutation-proposal-content") {
+				state.run.stopped = true;
+				finding(state, "exact-replacement-rejected", fact.factDigest);
+				scheduleCleanup(state);
+				return;
+			}
+			if (
+				result.failureCode === "mutation-proposal-cardinality" &&
+				(state.run.activeCorrection?.stage === "fresh-mutation" ||
+					state.run.activeCorrection?.stage === "retained-span-mutation") &&
+				!state.run.cardinalityRecoveryUsed &&
+				hasCorrectionHeadroom(state, "cardinality")
+			) {
+				state.run.cardinalityRecoveryUsed = true;
+				finding(state, "mutation-proposal-cardinality", fact.factDigest);
+				const correction = state.run.activeCorrection;
+				state.run.activeCorrection = correctionDirective(state, {
+					reason: "mutation-proposal-cardinality",
+					stage: "retained-span-mutation",
+					sourceFactDigest: fact.factDigest,
+					recoveryDigest: correction.recoveryDigest,
+					requiredFirstToolRef: "replace-exact",
+				});
+				schedule(state, "provider-request");
+				return;
+			}
 			state.run.stopped = true;
 			finding(state, "executor-failed", fact.factDigest);
 			scheduleCleanup(state);
@@ -927,7 +962,9 @@ function validateResult(
 			if (
 				candidate.disposition !== null ||
 				tools.length !== 0 ||
-				candidate.failureCode !== "provider-failed"
+				(candidate.failureCode !== "provider-failed" &&
+					candidate.failureCode !== "mutation-proposal-cardinality" &&
+					candidate.failureCode !== "mutation-proposal-content")
 			)
 				throw new TypeError("current failed provider result cardinality drifted");
 		} else if (

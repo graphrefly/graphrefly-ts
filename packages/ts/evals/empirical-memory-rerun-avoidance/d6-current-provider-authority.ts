@@ -157,12 +157,14 @@ export interface CurrentGraphModelEnvelopeV1 {
 		| "exact-replacement-unchanged"
 		| "exact-replacement-old-text-not-found"
 		| "exact-replacement-old-text-not-unique"
+		| "mutation-proposal-cardinality"
 		| "focused-validation-failed"
 		| "public-semantic-validation-failed"
 		| null;
 	readonly correctionStage:
 		| "reinspect"
 		| "fresh-mutation"
+		| "retained-span-mutation"
 		| "validation-reinspect"
 		| "validation-mutation"
 		| "semantic-correction"
@@ -221,7 +223,12 @@ export type CurrentGraphProviderEffectResultInputV1 =
 			effectKind: "provider-request";
 			status: "completed" | "failed";
 			toolCalls: readonly CurrentGraphRuntimeToolArgumentsV1[];
-			failureCode: "retryable-transient" | "provider-failed" | null;
+			failureCode:
+				| "retryable-transient"
+				| "provider-failed"
+				| "mutation-proposal-cardinality"
+				| "mutation-proposal-content"
+				| null;
 			retryProposal: Readonly<{
 				retryClass: CurrentGraphProviderRetryClass;
 				retryAfterMs: number;
@@ -256,7 +263,12 @@ type ProviderResultProjection = Readonly<{
 		argumentsDigest: string;
 		argumentsBytes: number;
 	}>[];
-	failureCode: "retryable-transient" | "provider-failed" | null;
+	failureCode:
+		| "retryable-transient"
+		| "provider-failed"
+		| "mutation-proposal-cardinality"
+		| "mutation-proposal-content"
+		| null;
 	retryProposal: Readonly<{
 		retryClass: CurrentGraphProviderRetryClass;
 		retryAfterMs: number;
@@ -614,6 +626,10 @@ function taskEnvelope(state: ProviderAuthorityState, effect: CurrentGraphAdmitte
 		if (correction.stage !== "semantic-correction")
 			throw new TypeError("current provider semantic correction stage drifted");
 		requiredDisposition = "address-public-criterion-failures";
+	} else if (correction?.reason === "mutation-proposal-cardinality") {
+		if (correction.stage !== "retained-span-mutation")
+			throw new TypeError("current provider mutation-cardinality correction stage drifted");
+		requiredDisposition = "fresh-byte-different-exact-replacement";
 	}
 	const material = strictSnapshot({
 		schemaVersion: CURRENT_GRAPH_PROVIDER_ENVELOPE_SCHEMA,
@@ -859,7 +875,12 @@ function validateProviderResult(
 	const toolCalls = rawCalls.map(validateToolArguments);
 	digest(candidate.evidenceDigest, "current.provider.result.evidenceDigest");
 	const usage = validateUsage(candidate.usage, request);
-	let failureCode: "retryable-transient" | "provider-failed" | null = null;
+	let failureCode:
+		| "retryable-transient"
+		| "provider-failed"
+		| "mutation-proposal-cardinality"
+		| "mutation-proposal-content"
+		| null = null;
 	let retryProposal: ProviderResultProjection["retryProposal"] = null;
 	if (status === "completed") {
 		if (
@@ -873,9 +894,18 @@ function validateProviderResult(
 			throw new TypeError("current failed provider result cannot carry tool calls");
 		failureCode = oneOf(
 			candidate.failureCode,
-			["retryable-transient", "provider-failed"],
+			[
+				"retryable-transient",
+				"provider-failed",
+				"mutation-proposal-cardinality",
+				"mutation-proposal-content",
+			],
 			"current.provider.result.failureCode",
-		) as "retryable-transient" | "provider-failed";
+		) as
+			| "retryable-transient"
+			| "provider-failed"
+			| "mutation-proposal-cardinality"
+			| "mutation-proposal-content";
 		if (failureCode === "retryable-transient") {
 			const proposal = record(candidate.retryProposal, "current.provider.result.retryProposal");
 			exactKeys(
@@ -1244,7 +1274,11 @@ function applyRuntimeFact(state: ProviderAuthorityState, fact: RuntimeAdmittedFa
 						status: "failed",
 						disposition: null,
 						toolIntents: [],
-						failureCode: "provider-failed",
+						failureCode:
+							projection.result.failureCode === "mutation-proposal-cardinality" ||
+							projection.result.failureCode === "mutation-proposal-content"
+								? projection.result.failureCode
+								: "provider-failed",
 						evidenceDigest: empiricalStrictJsonDigest(logical.attemptFactDigests),
 						actualCostMicrousd: logical.totalCostMicrousd,
 						actualElapsedMs: logical.totalElapsedMs,
@@ -1710,7 +1744,12 @@ function validateResultProjection(
 				throw new TypeError("current provider projected failure carried tool calls");
 			oneOf(
 				candidate.failureCode,
-				["retryable-transient", "provider-failed"],
+				[
+					"retryable-transient",
+					"provider-failed",
+					"mutation-proposal-cardinality",
+					"mutation-proposal-content",
+				],
 				`${path}.failureCode`,
 			);
 			if (candidate.failureCode === "retryable-transient") {
@@ -2012,7 +2051,11 @@ function replayProviderEvidence(
 							status: "failed",
 							disposition: null,
 							toolIntents: [],
-							failureCode: "provider-failed",
+							failureCode:
+								fact.result.failureCode === "mutation-proposal-cardinality" ||
+								fact.result.failureCode === "mutation-proposal-content"
+									? fact.result.failureCode
+									: "provider-failed",
 							evidenceDigest: empiricalStrictJsonDigest(providerLogical.factDigests),
 							actualCostMicrousd: providerLogical.cost,
 							actualElapsedMs: providerLogical.elapsed,

@@ -369,7 +369,10 @@ function classifyProviderResult(
 	} else {
 		if (
 			cloned.toolCalls.length !== 0 ||
-			(cloned.failureCode !== "retryable-transient" && cloned.failureCode !== "provider-failed")
+			(cloned.failureCode !== "retryable-transient" &&
+				cloned.failureCode !== "provider-failed" &&
+				cloned.failureCode !== "mutation-proposal-cardinality" &&
+				cloned.failureCode !== "mutation-proposal-content")
 		)
 			return Object.freeze({
 				accepted: false,

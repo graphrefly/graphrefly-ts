@@ -700,14 +700,14 @@ export function createCurrentGraphOpenRouterExecutor(
 						const text = await readFile(path, "utf8");
 						const first = text.indexOf(args.oldText);
 						const second = first < 0 ? -1 : text.indexOf(args.oldText, first + args.oldText.length);
-						if (args.oldText === args.newText || first < 0 || second >= 0) {
+						if (first < 0 || second >= 0 || args.oldText === args.newText) {
 							succeeded = false;
 							causeCode =
-								args.oldText === args.newText
-									? "exact-replacement-unchanged"
-									: first < 0
-										? "exact-replacement-old-text-not-found"
-										: "exact-replacement-old-text-not-unique";
+								first < 0
+									? "exact-replacement-old-text-not-found"
+									: second >= 0
+										? "exact-replacement-old-text-not-unique"
+										: "exact-replacement-unchanged";
 							output = `Exact replacement rejected: ${causeCode}.`;
 						} else {
 							const next = `${text.slice(0, first)}${args.newText}${text.slice(first + args.oldText.length)}`;

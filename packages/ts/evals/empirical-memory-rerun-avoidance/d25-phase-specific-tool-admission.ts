@@ -410,7 +410,10 @@ function failedPhaseResult(
 		effectKind: "provider-request" as const,
 		status: "failed" as const,
 		toolCalls: [] as const,
-		failureCode: "provider-failed" as const,
+		failureCode:
+			cause === "mutation-proposal-cardinality"
+				? ("mutation-proposal-cardinality" as const)
+				: ("provider-failed" as const),
 		retryProposal: null,
 		usage,
 		evidenceDigest: empiricalStrictJsonDigest({
