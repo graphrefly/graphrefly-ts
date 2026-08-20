@@ -645,8 +645,12 @@ export function createCurrentGraphOpenRouterExecutor(
 						throw new TypeError("current live admitted tool arguments drifted");
 					const before = state.digest;
 					let succeeded = true;
-					let causeCode: "exact-replacement-not-applicable" | "focused-validation-failed" | null =
-						null;
+					let causeCode:
+						| "exact-replacement-unchanged"
+						| "exact-replacement-old-text-not-found"
+						| "exact-replacement-old-text-not-unique"
+						| "focused-validation-failed"
+						| null = null;
 					let nonEmptyDiff = false;
 					let output = "completed";
 					if (args.toolRef === "read-file") {
@@ -660,9 +664,14 @@ export function createCurrentGraphOpenRouterExecutor(
 						const text = await readFile(path, "utf8");
 						const first = text.indexOf(args.oldText);
 						const second = first < 0 ? -1 : text.indexOf(args.oldText, first + args.oldText.length);
-						if (first < 0 || second >= 0) {
+						if (args.oldText === args.newText || first < 0 || second >= 0) {
 							succeeded = false;
-							causeCode = "exact-replacement-not-applicable";
+							causeCode =
+								args.oldText === args.newText
+									? "exact-replacement-unchanged"
+									: first < 0
+										? "exact-replacement-old-text-not-found"
+										: "exact-replacement-old-text-not-unique";
 							output = "Exact replacement was not applicable with exactly one occurrence.";
 						} else {
 							const next = `${text.slice(0, first)}${args.newText}${text.slice(first + args.oldText.length)}`;

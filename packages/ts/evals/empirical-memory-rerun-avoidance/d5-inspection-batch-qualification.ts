@@ -153,7 +153,7 @@ function createInjectedExecutor() {
 					effectKind: "tool-action" as const,
 					toolRef: request.toolRef,
 					status: "failed" as const,
-					causeCode: "exact-replacement-not-applicable" as const,
+					causeCode: "exact-replacement-unchanged" as const,
 					workspaceStateBeforeDigest: before,
 					workspaceStateAfterDigest: before,
 					nonEmptyDiff: false,

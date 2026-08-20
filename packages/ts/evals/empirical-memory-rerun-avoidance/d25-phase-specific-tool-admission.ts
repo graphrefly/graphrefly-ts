@@ -746,7 +746,13 @@ export function validateD25PhaseEvidence(value: unknown): D25PhaseEvidenceV1 {
 						throw new TypeError("D25 deterministic mutation lifecycle lost serial Graph admission");
 				}
 			} else if (
-				mutation.result.causeCode !== "exact-replacement-not-applicable" ||
+				!(
+					[
+						"exact-replacement-unchanged",
+						"exact-replacement-old-text-not-found",
+						"exact-replacement-old-text-not-unique",
+					] as const
+				).includes(mutation.result.causeCode as never) ||
 				mutation.result.workspaceStateBeforeDigest !== mutation.result.workspaceStateAfterDigest
 			) {
 				throw new TypeError("D25 failed mutation lifecycle drifted");

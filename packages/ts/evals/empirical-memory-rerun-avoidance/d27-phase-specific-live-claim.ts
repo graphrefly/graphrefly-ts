@@ -15,6 +15,7 @@ import {
 	D27_DECISION_REF,
 	D27_DISPATCH_CLAIM_REF,
 	D27_GENERATION_REF,
+	D27_LIVE_APPROVAL_REVISION,
 } from "./d27-phase-specific-live-coordinates.js";
 import {
 	consumeD27Preclaim,
@@ -27,13 +28,13 @@ import {
 	type OpenRouterCurrentKeySpendAdmissionV1,
 } from "./openrouter-current-key-spend-admission.js";
 
-export const D27_CLAIM_SCHEMA = "graphrefly-ts.d31.live-dispatch-claim.v1" as const;
-export const D27_CURRENT_KEY_SCHEMA = "graphrefly-ts.d31.current-key-admission.v1" as const;
+export const D27_CLAIM_SCHEMA = "graphrefly-ts.d32.live-dispatch-claim.v1" as const;
+export const D27_CURRENT_KEY_SCHEMA = "graphrefly-ts.d32.current-key-admission.v1" as const;
 export const D27_EXECUTION_AUTHORITY_REVISION =
-	"graphrefly-ts.d31.live-execution-authority.v1" as const;
+	"graphrefly-ts.d32.live-execution-authority.v1" as const;
 export const D27_PRIVATE_ROOT = resolve(
 	import.meta.dirname,
-	"../.private/empirical-memory-rerun-avoidance/current-graph-native-d31",
+	"../.private/empirical-memory-rerun-avoidance/current-graph-native-d32",
 );
 
 type ClaimScope = "live-fixed-root" | "injected-test-root";
@@ -284,6 +285,8 @@ async function acquire(
 }
 
 export function acquireD27DispatchClaim(input: Parameters<typeof acquire>[2]) {
+	if (D27_LIVE_APPROVAL_REVISION === null)
+		throw new TypeError("D32 pre-live authority does not authorize a dispatch claim");
 	return acquire(D27_PRIVATE_ROOT, "live-fixed-root", input);
 }
 

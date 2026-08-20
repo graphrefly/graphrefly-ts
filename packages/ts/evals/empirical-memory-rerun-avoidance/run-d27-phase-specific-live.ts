@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { strictJsonCodec } from "../../src/json/codec.js";
 import { empiricalSha256 } from "./canonical.js";
 import {
-	admitD27D26Baseline,
+	admitD27D31Baseline,
 	type D27LiveBundleV1,
 	persistD27LiveBundle,
 	persistD27PreexecutionFailure,
@@ -21,7 +21,8 @@ import {
 } from "./d27-phase-specific-live-claim.js";
 import {
 	D27_BASELINE_COMMIT,
-	D27_D26_ARTIFACT_DIGEST,
+	D27_D31_ARTIFACT_DIGEST,
+	D27_LIVE_APPROVAL_REVISION,
 	D27_QUALIFICATION_GENERATION_REF,
 } from "./d27-phase-specific-live-coordinates.js";
 import {
@@ -43,10 +44,10 @@ const privateEvidenceRoot = resolve(
 	"../.private/empirical-memory-rerun-avoidance",
 );
 const credentialFile = join(privateEvidenceRoot, "openrouter.env");
-const zeroByokFile = join(privateEvidenceRoot, "d31-fresh-zero-byok-browser-attestation.v1.json");
-const d26ArtifactFile = join(
+const zeroByokFile = join(privateEvidenceRoot, "d32-fresh-zero-byok-browser-attestation.v1.json");
+const d31ArtifactFile = join(
 	privateEvidenceRoot,
-	"current-graph-native-d26/current-graph-native-phase-specific-real-provider-no-network-2026-08-17-d26-v2/artifacts/bundle.v1.json",
+	"current-graph-native-d31/current-graph-native-phase-specific-live-2026-08-17-d31-v1/artifacts/bundle.v1.json",
 );
 const d27QualificationFile = join(
 	D27_PRIVATE_ROOT,
@@ -116,20 +117,22 @@ function loadCredential(bytes: Uint8Array): D27CredentialV1 {
 }
 
 const implementationManifestDigest = await assertImplementation();
-const d26Bytes = await readPrivateFile(d26ArtifactFile, 8_388_608);
-if (empiricalSha256(d26Bytes) !== D27_D26_ARTIFACT_DIGEST)
-	throw new TypeError("D27 live D26 artifact drifted");
-const baseline = admitD27D26Baseline(d26Bytes);
+const d31Bytes = await readPrivateFile(d31ArtifactFile, 8_388_608);
+if (empiricalSha256(d31Bytes) !== D27_D31_ARTIFACT_DIGEST)
+	throw new TypeError("D32 live D31 immutable artifact drifted");
+const baseline = admitD27D31Baseline(d31Bytes);
 const qualificationBytes = await readPrivateFile(d27QualificationFile, 8_388_608);
 const qualification = validateD27QualificationBundle(strictJsonCodec.decode(qualificationBytes));
 if (
-	qualification.baselineBasis !== "consumed-d26-artifact" ||
+	qualification.baselineBasis !== "consumed-d31-artifact" ||
 	qualification.qualification.implementationManifestDigest !== implementationManifestDigest ||
 	qualification.qualification.providerNetworkCalls !== 0 ||
 	qualification.qualification.liveGateEvaluated !== false ||
 	qualification.qualification.efficacyClaim !== "none"
 )
 	throw new TypeError("D27 live qualification projection drifted");
+if (D27_LIVE_APPROVAL_REVISION === null)
+	throw new TypeError("D32 pre-live authority does not authorize credential or network access");
 
 const pricing = await readD27OfficialPricing({
 	fetch: globalThis.fetch,
@@ -178,7 +181,7 @@ try {
 	throw error;
 }
 
-const materializationRoot = await mkdtemp(join(tmpdir(), "graphrefly-d31-live-"));
+const materializationRoot = await mkdtemp(join(tmpdir(), "graphrefly-d32-live-"));
 await chmod(materializationRoot, 0o700);
 let bundle: D27LiveBundleV1;
 try {

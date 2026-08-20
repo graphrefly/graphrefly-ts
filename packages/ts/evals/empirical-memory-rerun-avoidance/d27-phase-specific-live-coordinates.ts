@@ -16,24 +16,29 @@ import {
 	D21_POSITIVE_DIFFERENTIAL_GATE_DEFINITION_DIGEST,
 } from "./d21-current-efficacy-recovery-authority.js";
 
-export const D27_DECISION_REF = "graphrefly-ts:D31" as const;
-export const D27_BASELINE_COMMIT = "71ba77d5773c5fe3a57fbe1d8bc25af6640f1f52" as const;
-export const D27_D26_ARTIFACT_DIGEST =
-	"sha256:8bb49cd5f725a0a5c70b3a0906a506d41473fca46f6c660e89422ea5636172e0" as const;
-export const D27_D26_BUNDLE_DIGEST =
-	"sha256:46283ca783c76135a8a3f74b628898c13ccea615b9bd244657716a520bf61170" as const;
-export const D27_D26_QUALIFICATION_DIGEST =
-	"sha256:3ff05c0be128acac7750b734e481fd09b06e2b8d9ee374150158d9c9db1056a3" as const;
-export const D27_D26_GENERATION_DIGEST =
-	"sha256:40813743eaa19e1f26251437ba06e3491e62546edeeebbd89dcf05668d2ec935" as const;
-export const D27_D26_IMPLEMENTATION_MANIFEST_DIGEST =
-	"sha256:58dbe33cd14cfa26095df5505d436090488c2157e0706a562eb3f479baee5b41" as const;
+export const D27_DECISION_REF = "graphrefly-ts:D32" as const;
+export const D27_BASELINE_COMMIT = "0cd03df9db631da8afcf1b05e4e14133607d6bac" as const;
+export const D27_LIVE_APPROVAL_REVISION: null = null;
+export const D27_D31_ARTIFACT_DIGEST =
+	"sha256:017ce5894619fa08c853ea54f26d1f8216fbb55891db73da6f9b69b9b3c5841d" as const;
+export const D27_D31_BUNDLE_DIGEST =
+	"sha256:6ae7584d2babf6012cc06944d15aa3cfc84deba13aef40c250f22b109c1f7cb3" as const;
+export const D27_D31_GRAPH_EVIDENCE_DIGEST =
+	"sha256:b134a0d0d93962792b0917b1ad7c7f67d0f875940caa0e9ee665aafcd769b627" as const;
+export const D27_D31_QUALIFICATION_ARTIFACT_DIGEST =
+	"sha256:f1215f5968678f7f521b7161bb6519a71067a4ad5bde09ab0083291d0f5d1a20" as const;
+export const D27_D31_QUALIFICATION_DIGEST =
+	"sha256:cb382d96e71f5b6fb0ff207255a63affa4b4be6061736ec270ca617d45be3697" as const;
+export const D27_D31_GENERATION_DIGEST =
+	"sha256:50c995034c9560eeefccaf78c599e48a5e9595ab0fd0523c73b2399fb6e18b10" as const;
+export const D27_D31_IMPLEMENTATION_MANIFEST_DIGEST =
+	"sha256:260d9777ed7d5bc580d4cc79841cd5443bc8cb396d8019f09ac41278b4d6c847" as const;
 export const D27_GENERATION_REF =
-	"current-graph-native-phase-specific-live-2026-08-17-d31-v1" as const;
+	"current-graph-native-phase-specific-live-2026-08-19-d32-v4" as const;
 export const D27_QUALIFICATION_GENERATION_REF =
-	"current-graph-native-phase-specific-live-no-network-2026-08-17-d31-v1" as const;
+	"current-graph-native-phase-specific-live-no-network-2026-08-19-d32-v4" as const;
 export const D27_DISPATCH_CLAIM_REF =
-	"current-graph-native-phase-specific-live-dispatch-2026-08-17-d31-v1" as const;
+	"current-graph-native-phase-specific-live-dispatch-2026-08-19-d32-v4" as const;
 
 export const D27_LIMITS = Object.freeze({
 	...D21_LIMITS,
@@ -42,12 +47,15 @@ export const D27_LIMITS = Object.freeze({
 
 export const D27_COORDINATES = strictSnapshot({
 	decisionRef: D27_DECISION_REF,
+	liveApprovalRevision: D27_LIVE_APPROVAL_REVISION,
 	baselineCommit: D27_BASELINE_COMMIT,
-	d26ArtifactDigest: D27_D26_ARTIFACT_DIGEST,
-	d26BundleDigest: D27_D26_BUNDLE_DIGEST,
-	d26QualificationDigest: D27_D26_QUALIFICATION_DIGEST,
-	d26GenerationDigest: D27_D26_GENERATION_DIGEST,
-	d26ImplementationManifestDigest: D27_D26_IMPLEMENTATION_MANIFEST_DIGEST,
+	d31ArtifactDigest: D27_D31_ARTIFACT_DIGEST,
+	d31BundleDigest: D27_D31_BUNDLE_DIGEST,
+	d31GraphEvidenceDigest: D27_D31_GRAPH_EVIDENCE_DIGEST,
+	d31QualificationArtifactDigest: D27_D31_QUALIFICATION_ARTIFACT_DIGEST,
+	d31QualificationDigest: D27_D31_QUALIFICATION_DIGEST,
+	d31GenerationDigest: D27_D31_GENERATION_DIGEST,
+	d31ImplementationManifestDigest: D27_D31_IMPLEMENTATION_MANIFEST_DIGEST,
 	requestModel: CURRENT_GRAPH_LIVE_REQUEST_MODEL,
 	selectedEndpointModel: CURRENT_GRAPH_LIVE_SELECTED_ENDPOINT_MODEL,
 	provider: CURRENT_GRAPH_LIVE_PROVIDER_NAME,

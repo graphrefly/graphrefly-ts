@@ -41,7 +41,9 @@ const TOOL_REFS = Object.freeze([
 	"focused-validation",
 ] as const);
 const TOOL_REJECTION_CAUSES = Object.freeze([
-	"exact-replacement-not-applicable",
+	"exact-replacement-unchanged",
+	"exact-replacement-old-text-not-found",
+	"exact-replacement-old-text-not-unique",
 	"malformed-arguments",
 	"unexpected-arguments",
 	"path-not-allowed",
@@ -49,6 +51,7 @@ const TOOL_REJECTION_CAUSES = Object.freeze([
 ] as const);
 const FINDING_CODES = Object.freeze([
 	"exact-replacement-rejected",
+	"focused-validation-failed",
 	"public-semantic-validation-failed",
 	"hidden-verifier-failed",
 	"inspection-batch-policy-violated",
@@ -98,8 +101,18 @@ export interface CurrentGraphBudgetStateV1 {
 
 export interface CurrentGraphCorrectionDirectiveV1 {
 	readonly schemaVersion: typeof CURRENT_GRAPH_CORRECTION_SCHEMA;
-	readonly reason: "exact-replacement-not-applicable" | "public-semantic-validation-failed";
-	readonly stage: "reinspect" | "fresh-mutation" | "semantic-correction";
+	readonly reason:
+		| "exact-replacement-unchanged"
+		| "exact-replacement-old-text-not-found"
+		| "exact-replacement-old-text-not-unique"
+		| "focused-validation-failed"
+		| "public-semantic-validation-failed";
+	readonly stage:
+		| "reinspect"
+		| "fresh-mutation"
+		| "validation-reinspect"
+		| "validation-mutation"
+		| "semantic-correction";
 	readonly recoveryDigest: string;
 	readonly sourceFactDigest: string;
 	readonly workspaceStateDigest: string;
@@ -257,6 +270,7 @@ export interface CurrentGraphRunProjectionV1 {
 	readonly runSequence: number;
 	readonly phase: CurrentGraphPhase;
 	readonly replacementRecoveryUsed: boolean;
+	readonly validationRecoveryUsed: boolean;
 	readonly semanticRecoveryUsed: boolean;
 	readonly publicSemanticValidationAttempted: boolean;
 	readonly publicSemanticValidationPassed: boolean;
@@ -298,6 +312,7 @@ interface MutableRunState {
 	workspaceStateDigest: string | null;
 	pendingTools: CurrentGraphToolRef[];
 	replacementRecoveryUsed: boolean;
+	validationRecoveryUsed: boolean;
 	semanticRecoveryUsed: boolean;
 	publicSemanticValidationAttempted: boolean;
 	publicSemanticValidationPassed: boolean;
@@ -428,6 +443,7 @@ function initialRun(): MutableRunState {
 		workspaceStateDigest: null,
 		pendingTools: [],
 		replacementRecoveryUsed: false,
+		validationRecoveryUsed: false,
 		semanticRecoveryUsed: false,
 		publicSemanticValidationAttempted: false,
 		publicSemanticValidationPassed: false,
@@ -489,9 +505,12 @@ function remainingBounds(state: AuthorityState) {
 	};
 }
 
-function hasCorrectionHeadroom(state: AuthorityState, kind: "replacement" | "semantic"): boolean {
-	const providerRequests = kind === "replacement" ? 2 : 1;
-	const localEffects = kind === "replacement" ? 10 : 6;
+function hasCorrectionHeadroom(
+	state: AuthorityState,
+	kind: "replacement" | "validation" | "semantic",
+): boolean {
+	const providerRequests = kind === "semantic" ? 1 : 2;
+	const localEffects = kind === "replacement" || kind === "validation" ? 10 : 6;
 	const remaining = remainingBounds(state);
 	return (
 		remaining.remainingProviderRequests >= providerRequests &&
@@ -633,6 +652,7 @@ function runProjection(state: AuthorityState): CurrentGraphRunProjectionV1 {
 		runSequence: state.run.runSequence,
 		phase: state.run.phase,
 		replacementRecoveryUsed: state.run.replacementRecoveryUsed,
+		validationRecoveryUsed: state.run.validationRecoveryUsed,
 		semanticRecoveryUsed: state.run.semanticRecoveryUsed,
 		publicSemanticValidationAttempted: state.run.publicSemanticValidationAttempted,
 		publicSemanticValidationPassed: state.run.publicSemanticValidationPassed,
@@ -695,17 +715,27 @@ function applyFact(state: AuthorityState, fact: CurrentGraphAdmittedFactV1): voi
 			state.run.pendingTools = [];
 			const exactReplacementRejected =
 				result.toolRef === "replace-exact" &&
-				result.causeCode === "exact-replacement-not-applicable" &&
+				(result.causeCode === "exact-replacement-unchanged" ||
+					result.causeCode === "exact-replacement-old-text-not-found" ||
+					result.causeCode === "exact-replacement-old-text-not-unique") &&
+				result.workspaceStateBeforeDigest === result.workspaceStateAfterDigest;
+			const focusedValidationRejected =
+				result.toolRef === "focused-validation" &&
+				result.causeCode === "focused-validation-failed" &&
 				result.workspaceStateBeforeDigest === result.workspaceStateAfterDigest;
 			if (exactReplacementRejected) finding(state, "exact-replacement-rejected", fact.factDigest);
 			if (
 				exactReplacementRejected &&
+				state.run.activeCorrection?.reason !== "focused-validation-failed" &&
 				!state.run.replacementRecoveryUsed &&
 				hasCorrectionHeadroom(state, "replacement")
 			) {
 				state.run.replacementRecoveryUsed = true;
 				state.run.activeCorrection = correctionDirective(state, {
-					reason: "exact-replacement-not-applicable",
+					reason: result.causeCode as Extract<
+						CurrentGraphCorrectionDirectiveV1["reason"],
+						`exact-replacement-${string}`
+					>,
 					stage: "reinspect",
 					sourceFactDigest: fact.factDigest,
 					requiredFirstToolRef: "read-file",
@@ -713,6 +743,21 @@ function applyFact(state: AuthorityState, fact: CurrentGraphAdmittedFactV1): voi
 				state.run.phase = "none";
 				schedule(state, "provider-request");
 				return;
+			}
+			if (focusedValidationRejected) {
+				finding(state, "focused-validation-failed", fact.factDigest);
+				if (!state.run.validationRecoveryUsed && hasCorrectionHeadroom(state, "validation")) {
+					state.run.validationRecoveryUsed = true;
+					state.run.activeCorrection = correctionDirective(state, {
+						reason: "focused-validation-failed",
+						stage: "validation-reinspect",
+						sourceFactDigest: fact.factDigest,
+						requiredFirstToolRef: "read-file",
+					});
+					state.run.phase = "none";
+					schedule(state, "provider-request");
+					return;
+				}
 			}
 			state.run.stopped = true;
 			scheduleCleanup(state);
@@ -722,11 +767,21 @@ function applyFact(state: AuthorityState, fact: CurrentGraphAdmittedFactV1): voi
 		if (result.toolRef === "read-file") {
 			state.run.phase = "inspection";
 			if (state.run.activeCorrection?.stage === "reinspect") {
+				const correction = state.run.activeCorrection;
 				state.run.activeCorrection = correctionDirective(state, {
-					reason: "exact-replacement-not-applicable",
+					reason: correction.reason,
 					stage: "fresh-mutation",
-					sourceFactDigest: state.run.activeCorrection.sourceFactDigest,
-					recoveryDigest: state.run.activeCorrection.recoveryDigest,
+					sourceFactDigest: correction.sourceFactDigest,
+					recoveryDigest: correction.recoveryDigest,
+					requiredFirstToolRef: "replace-exact",
+				});
+			} else if (state.run.activeCorrection?.stage === "validation-reinspect") {
+				const correction = state.run.activeCorrection;
+				state.run.activeCorrection = correctionDirective(state, {
+					reason: "focused-validation-failed",
+					stage: "validation-mutation",
+					sourceFactDigest: correction.sourceFactDigest,
+					recoveryDigest: correction.recoveryDigest,
 					requiredFirstToolRef: "replace-exact",
 				});
 			}

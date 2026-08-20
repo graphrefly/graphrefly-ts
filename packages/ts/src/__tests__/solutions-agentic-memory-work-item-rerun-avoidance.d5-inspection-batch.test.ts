@@ -214,7 +214,7 @@ describe("graphrefly-ts:D5 Graph-native inspection-batch admission", () => {
 			effectKind: "tool-action",
 			toolRef: "replace-exact",
 			status: "failed",
-			causeCode: "exact-replacement-not-applicable",
+			causeCode: "exact-replacement-unchanged",
 			workspaceStateBeforeDigest: workspaceStateDigest,
 			workspaceStateAfterDigest: workspaceStateDigest,
 			nonEmptyDiff: false,

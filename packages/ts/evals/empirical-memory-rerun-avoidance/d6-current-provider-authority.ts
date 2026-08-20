@@ -31,7 +31,7 @@ export const CURRENT_GRAPH_PROVIDER_ROUTE_SCHEMA =
 export const CURRENT_GRAPH_PROVIDER_TASK_SCHEMA =
 	"graphrefly-ts.d6.current-graph-native-task-profile.v1" as const;
 export const CURRENT_GRAPH_PROVIDER_ENVELOPE_SCHEMA =
-	"graphrefly-ts.d31.current-graph-native-model-envelope.v1" as const;
+	"graphrefly-ts.d32.current-graph-native-model-envelope.v1" as const;
 
 const TOOL_REFS = Object.freeze([
 	"read-file",
@@ -154,13 +154,26 @@ export interface CurrentGraphModelEnvelopeV1 {
 	readonly armContext: string;
 	readonly correctionDigest: string | null;
 	readonly correctionReason:
-		| "exact-replacement-not-applicable"
+		| "exact-replacement-unchanged"
+		| "exact-replacement-old-text-not-found"
+		| "exact-replacement-old-text-not-unique"
+		| "focused-validation-failed"
 		| "public-semantic-validation-failed"
 		| null;
-	readonly correctionStage: "reinspect" | "fresh-mutation" | "semantic-correction" | null;
+	readonly correctionStage:
+		| "reinspect"
+		| "fresh-mutation"
+		| "validation-reinspect"
+		| "validation-mutation"
+		| "semantic-correction"
+		| null;
 	readonly requiredDisposition:
 		| "reinspect-current-workspace"
 		| "fresh-byte-different-exact-replacement"
+		| "fresh-current-source-exact-replacement"
+		| "fresh-unique-span-exact-replacement"
+		| "reinspect-validation-failing-workspace"
+		| "repair-focused-validation-failure"
 		| "address-public-criterion-failures"
 		| null;
 	readonly requiredFirstToolRef: "read-file" | "replace-exact" | null;
@@ -577,11 +590,26 @@ function taskEnvelope(state: ProviderAuthorityState, effect: CurrentGraphAdmitte
 	if (armContext === undefined) throw new TypeError("current provider arm context is missing");
 	const correction = effect.request.correctionDirective;
 	let requiredDisposition: CurrentGraphModelEnvelopeV1["requiredDisposition"] = null;
-	if (correction?.reason === "exact-replacement-not-applicable") {
+	if (
+		correction?.reason === "exact-replacement-unchanged" ||
+		correction?.reason === "exact-replacement-old-text-not-found" ||
+		correction?.reason === "exact-replacement-old-text-not-unique"
+	) {
 		if (correction.stage === "reinspect") requiredDisposition = "reinspect-current-workspace";
-		else if (correction.stage === "fresh-mutation")
-			requiredDisposition = "fresh-byte-different-exact-replacement";
-		else throw new TypeError("current provider exact-replacement correction stage drifted");
+		else if (correction.stage === "fresh-mutation") {
+			requiredDisposition =
+				correction.reason === "exact-replacement-unchanged"
+					? "fresh-byte-different-exact-replacement"
+					: correction.reason === "exact-replacement-old-text-not-found"
+						? "fresh-current-source-exact-replacement"
+						: "fresh-unique-span-exact-replacement";
+		} else throw new TypeError("current provider exact-replacement correction stage drifted");
+	} else if (correction?.reason === "focused-validation-failed") {
+		if (correction.stage === "validation-reinspect")
+			requiredDisposition = "reinspect-validation-failing-workspace";
+		else if (correction.stage === "validation-mutation")
+			requiredDisposition = "repair-focused-validation-failure";
+		else throw new TypeError("current provider focused-validation correction stage drifted");
 	} else if (correction?.reason === "public-semantic-validation-failed") {
 		if (correction.stage !== "semantic-correction")
 			throw new TypeError("current provider semantic correction stage drifted");
@@ -1004,7 +1032,9 @@ function validateLocalResult(
 			oneOf(
 				candidate.causeCode,
 				[
-					"exact-replacement-not-applicable",
+					"exact-replacement-unchanged",
+					"exact-replacement-old-text-not-found",
+					"exact-replacement-old-text-not-unique",
 					"malformed-arguments",
 					"unexpected-arguments",
 					"path-not-allowed",

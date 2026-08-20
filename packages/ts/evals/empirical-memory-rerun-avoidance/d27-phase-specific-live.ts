@@ -26,7 +26,6 @@ import {
 	createD26PhaseSpecificRealProviderExecutor,
 	type D26PhaseSpecificExecutorV1,
 } from "./d26-phase-specific-real-provider-composition.js";
-import { validateD26QualificationBundle } from "./d26-phase-specific-real-provider-qualification.js";
 import {
 	consumeD27ExecutionAuthority,
 	type D27DispatchClaimV1,
@@ -34,11 +33,13 @@ import {
 } from "./d27-phase-specific-live-claim.js";
 import {
 	D27_COORDINATES_DIGEST,
-	D27_D26_ARTIFACT_DIGEST,
-	D27_D26_BUNDLE_DIGEST,
-	D27_D26_GENERATION_DIGEST,
-	D27_D26_IMPLEMENTATION_MANIFEST_DIGEST,
-	D27_D26_QUALIFICATION_DIGEST,
+	D27_D31_ARTIFACT_DIGEST,
+	D27_D31_BUNDLE_DIGEST,
+	D27_D31_GENERATION_DIGEST,
+	D27_D31_GRAPH_EVIDENCE_DIGEST,
+	D27_D31_IMPLEMENTATION_MANIFEST_DIGEST,
+	D27_D31_QUALIFICATION_ARTIFACT_DIGEST,
+	D27_D31_QUALIFICATION_DIGEST,
 	D27_DECISION_REF,
 	D27_GENERATION_REF,
 	D27_LIMITS,
@@ -46,15 +47,15 @@ import {
 import type { D27CredentialV1 } from "./d27-phase-specific-live-preflight.js";
 
 export const D27_BASELINE_ADMISSION_REVISION =
-	"graphrefly-ts.d31.d26-baseline-admission.v1" as const;
-export const D27_BUNDLE_SCHEMA = "graphrefly-ts.d31.phase-specific-live-bundle.v1" as const;
-export const D27_GATE_SCHEMA = "graphrefly-ts.d31.positive-differential-gate.v1" as const;
-export const D27_PARTIAL_SCHEMA = "graphrefly-ts.d31.partial-graph-evidence.v1" as const;
-export const D27_GENERATION_SCHEMA = "graphrefly-ts.d31.live-generation.v1" as const;
-export const D27_TERMINAL_SCHEMA = "graphrefly-ts.d31.live-terminal-receipt.v1" as const;
+	"graphrefly-ts.d32.d31-immutable-audit-admission.v1" as const;
+export const D27_BUNDLE_SCHEMA = "graphrefly-ts.d32.phase-specific-live-bundle.v1" as const;
+export const D27_GATE_SCHEMA = "graphrefly-ts.d32.positive-differential-gate.v1" as const;
+export const D27_PARTIAL_SCHEMA = "graphrefly-ts.d32.partial-graph-evidence.v1" as const;
+export const D27_GENERATION_SCHEMA = "graphrefly-ts.d32.live-generation.v1" as const;
+export const D27_TERMINAL_SCHEMA = "graphrefly-ts.d32.live-terminal-receipt.v1" as const;
 export const D27_MAX_BUNDLE_BYTES = 4_194_304;
 
-export interface D27D26BaselineAdmissionV1 {
+export interface D27D31BaselineAdmissionV1 {
 	readonly revision: typeof D27_BASELINE_ADMISSION_REVISION;
 }
 
@@ -89,11 +90,13 @@ export interface D27LiveBundleV1 {
 	readonly disposition: "success" | "partial-failure";
 	readonly coordinatesDigest: string;
 	readonly implementationManifestDigest: string;
-	readonly d26ArtifactDigest: typeof D27_D26_ARTIFACT_DIGEST;
-	readonly d26BundleDigest: typeof D27_D26_BUNDLE_DIGEST;
-	readonly d26QualificationDigest: typeof D27_D26_QUALIFICATION_DIGEST;
-	readonly d26GenerationDigest: typeof D27_D26_GENERATION_DIGEST;
-	readonly d26ImplementationManifestDigest: typeof D27_D26_IMPLEMENTATION_MANIFEST_DIGEST;
+	readonly d31ArtifactDigest: typeof D27_D31_ARTIFACT_DIGEST;
+	readonly d31BundleDigest: typeof D27_D31_BUNDLE_DIGEST;
+	readonly d31GraphEvidenceDigest: typeof D27_D31_GRAPH_EVIDENCE_DIGEST;
+	readonly d31QualificationArtifactDigest: typeof D27_D31_QUALIFICATION_ARTIFACT_DIGEST;
+	readonly d31QualificationDigest: typeof D27_D31_QUALIFICATION_DIGEST;
+	readonly d31GenerationDigest: typeof D27_D31_GENERATION_DIGEST;
+	readonly d31ImplementationManifestDigest: typeof D27_D31_IMPLEMENTATION_MANIFEST_DIGEST;
 	readonly qualificationArtifactDigest: string;
 	readonly qualificationDigest: string;
 	readonly pricingObservationDigest: string;
@@ -110,39 +113,44 @@ export interface D27LiveBundleV1 {
 	readonly bundleDigest: string;
 }
 
-const baselines = new WeakMap<object, "consumed-d26-artifact" | "injected-test">();
+const baselines = new WeakMap<object, "consumed-d31-artifact" | "injected-test">();
 const constructed = new WeakSet<object>();
 
-function makeBaseline(basis: "consumed-d26-artifact" | "injected-test") {
+function makeBaseline(basis: "consumed-d31-artifact" | "injected-test") {
 	const value = Object.freeze({ revision: D27_BASELINE_ADMISSION_REVISION });
 	baselines.set(value, basis);
 	return value;
 }
 
-export function admitD27D26Baseline(bytesValue: Uint8Array): D27D26BaselineAdmissionV1 {
+export function admitD27D31Baseline(bytesValue: Uint8Array): D27D31BaselineAdmissionV1 {
 	const bytes = new Uint8Array(bytesValue);
-	if (empiricalSha256(bytes) !== D27_D26_ARTIFACT_DIGEST)
-		throw new TypeError("D27 D26 artifact drifted");
-	const bundle = validateD26QualificationBundle(strictJsonCodec.decode(bytes));
+	if (empiricalSha256(bytes) !== D27_D31_ARTIFACT_DIGEST)
+		throw new TypeError("D32 D31 immutable artifact drifted");
+	const bundle = record(strictJsonCodec.decode(bytes), "D32 D31 immutable audit bundle");
+	const graphEvidence = record(bundle.graphEvidence, "D32 D31 immutable Graph evidence");
+	const generation = record(bundle.generation, "D32 D31 immutable generation");
 	if (
-		bundle.basis !== "consumed-d25-artifact" ||
-		bundle.bundleDigest !== D27_D26_BUNDLE_DIGEST ||
-		bundle.qualification.qualificationDigest !== D27_D26_QUALIFICATION_DIGEST ||
-		bundle.generation.generationDigest !== D27_D26_GENERATION_DIGEST ||
-		bundle.qualification.implementationManifestDigest !== D27_D26_IMPLEMENTATION_MANIFEST_DIGEST ||
-		bundle.qualification.providerNetworkCalls !== 0 ||
-		bundle.qualification.liveGateEvaluated !== false ||
-		bundle.qualification.efficacyClaim !== "none"
+		bundle.schemaVersion !== "graphrefly-ts.d31.phase-specific-live-bundle.v1" ||
+		bundle.decisionRef !== "graphrefly-ts:D31" ||
+		bundle.executionClass !== "live-provider" ||
+		bundle.disposition !== "success" ||
+		bundle.bundleDigest !== D27_D31_BUNDLE_DIGEST ||
+		bundle.implementationManifestDigest !== D27_D31_IMPLEMENTATION_MANIFEST_DIGEST ||
+		bundle.qualificationArtifactDigest !== D27_D31_QUALIFICATION_ARTIFACT_DIGEST ||
+		bundle.qualificationDigest !== D27_D31_QUALIFICATION_DIGEST ||
+		graphEvidence.evidenceDigest !== D27_D31_GRAPH_EVIDENCE_DIGEST ||
+		generation.generationDigest !== D27_D31_GENERATION_DIGEST ||
+		bundle.efficacyClaim !== "none"
 	)
-		throw new TypeError("D27 D26 canonical coordinates drifted");
-	return makeBaseline("consumed-d26-artifact");
+		throw new TypeError("D32 D31 immutable audit coordinates drifted");
+	return makeBaseline("consumed-d31-artifact");
 }
 
-export function createD27InjectedBaselineForTest(): D27D26BaselineAdmissionV1 {
+export function createD27InjectedBaselineForTest(): D27D31BaselineAdmissionV1 {
 	return makeBaseline("injected-test");
 }
 
-function consumeBaseline(value: unknown, expected: "consumed-d26-artifact" | "injected-test") {
+function consumeBaseline(value: unknown, expected: "consumed-d31-artifact" | "injected-test") {
 	if (value === null || typeof value !== "object") throw new TypeError("D27 baseline is invalid");
 	const basis = baselines.get(value);
 	baselines.delete(value);
@@ -235,7 +243,7 @@ function partialEvidence(input: {
 
 async function drive(input: {
 	readonly executionAuthority: D27ExecutionAuthorityV1;
-	readonly baseline: D27D26BaselineAdmissionV1;
+	readonly baseline: D27D31BaselineAdmissionV1;
 	readonly executionClass: D27LiveBundleV1["executionClass"];
 	readonly executorFactory: (
 		authority: ReturnType<typeof createD25PhaseAuthority>,
@@ -246,7 +254,7 @@ async function drive(input: {
 	consumeBaseline(
 		input.baseline,
 		input.executionClass === "live-provider" || input.allowConsumedBaselineForQualification === true
-			? "consumed-d26-artifact"
+			? "consumed-d31-artifact"
 			: "injected-test",
 	);
 	const executionAuthority = consumeD27ExecutionAuthority(input.executionAuthority);
@@ -366,11 +374,13 @@ async function drive(input: {
 		disposition: success ? ("success" as const) : ("partial-failure" as const),
 		coordinatesDigest: D27_COORDINATES_DIGEST,
 		implementationManifestDigest: input.implementationManifestDigest,
-		d26ArtifactDigest: D27_D26_ARTIFACT_DIGEST,
-		d26BundleDigest: D27_D26_BUNDLE_DIGEST,
-		d26QualificationDigest: D27_D26_QUALIFICATION_DIGEST,
-		d26GenerationDigest: D27_D26_GENERATION_DIGEST,
-		d26ImplementationManifestDigest: D27_D26_IMPLEMENTATION_MANIFEST_DIGEST,
+		d31ArtifactDigest: D27_D31_ARTIFACT_DIGEST,
+		d31BundleDigest: D27_D31_BUNDLE_DIGEST,
+		d31GraphEvidenceDigest: D27_D31_GRAPH_EVIDENCE_DIGEST,
+		d31QualificationArtifactDigest: D27_D31_QUALIFICATION_ARTIFACT_DIGEST,
+		d31QualificationDigest: D27_D31_QUALIFICATION_DIGEST,
+		d31GenerationDigest: D27_D31_GENERATION_DIGEST,
+		d31ImplementationManifestDigest: D27_D31_IMPLEMENTATION_MANIFEST_DIGEST,
 		qualificationArtifactDigest: executionAuthority.claim.qualificationArtifactDigest,
 		qualificationDigest: executionAuthority.claim.qualificationDigest,
 		pricingObservationDigest: executionAuthority.claim.pricingObservationDigest,
@@ -399,7 +409,7 @@ async function drive(input: {
 
 export async function runD27LiveMeasurement(input: {
 	readonly executionAuthority: D27ExecutionAuthorityV1;
-	readonly baseline: D27D26BaselineAdmissionV1;
+	readonly baseline: D27D31BaselineAdmissionV1;
 	readonly credential: D27CredentialV1;
 	readonly repositoryRoot: string;
 	readonly materializationRoot: string;
@@ -432,7 +442,7 @@ export async function runD27LiveMeasurement(input: {
 
 export async function runD27InjectedMeasurementForTest(input: {
 	readonly executionAuthority: D27ExecutionAuthorityV1;
-	readonly baseline: D27D26BaselineAdmissionV1;
+	readonly baseline: D27D31BaselineAdmissionV1;
 	readonly implementationManifestDigest: string;
 	readonly executorFactory: (
 		authority: ReturnType<typeof createD25PhaseAuthority>,
@@ -452,11 +462,13 @@ export function validateD27LiveBundle(value: unknown): D27LiveBundleV1 {
 			"claimDigest",
 			"coordinatesDigest",
 			"currentKeyAdmissionDigest",
-			"d26ArtifactDigest",
-			"d26BundleDigest",
-			"d26GenerationDigest",
-			"d26ImplementationManifestDigest",
-			"d26QualificationDigest",
+			"d31ArtifactDigest",
+			"d31BundleDigest",
+			"d31GenerationDigest",
+			"d31GraphEvidenceDigest",
+			"d31ImplementationManifestDigest",
+			"d31QualificationArtifactDigest",
+			"d31QualificationDigest",
 			"decisionRef",
 			"disposition",
 			"efficacyClaim",
@@ -482,13 +494,15 @@ export function validateD27LiveBundle(value: unknown): D27LiveBundleV1 {
 	)
 		throw new TypeError("D27 live bundle coordinates drifted");
 	if (
-		candidate.d26ArtifactDigest !== D27_D26_ARTIFACT_DIGEST ||
-		candidate.d26BundleDigest !== D27_D26_BUNDLE_DIGEST ||
-		candidate.d26QualificationDigest !== D27_D26_QUALIFICATION_DIGEST ||
-		candidate.d26GenerationDigest !== D27_D26_GENERATION_DIGEST ||
-		candidate.d26ImplementationManifestDigest !== D27_D26_IMPLEMENTATION_MANIFEST_DIGEST
+		candidate.d31ArtifactDigest !== D27_D31_ARTIFACT_DIGEST ||
+		candidate.d31BundleDigest !== D27_D31_BUNDLE_DIGEST ||
+		candidate.d31GraphEvidenceDigest !== D27_D31_GRAPH_EVIDENCE_DIGEST ||
+		candidate.d31QualificationArtifactDigest !== D27_D31_QUALIFICATION_ARTIFACT_DIGEST ||
+		candidate.d31QualificationDigest !== D27_D31_QUALIFICATION_DIGEST ||
+		candidate.d31GenerationDigest !== D27_D31_GENERATION_DIGEST ||
+		candidate.d31ImplementationManifestDigest !== D27_D31_IMPLEMENTATION_MANIFEST_DIGEST
 	)
-		throw new TypeError("D27 D26 baseline drifted");
+		throw new TypeError("D32 D31 immutable audit baseline drifted");
 	const graphEvidence =
 		candidate.graphEvidence === null ? null : validateD25PhaseEvidence(candidate.graphEvidence);
 	if (
@@ -529,7 +543,7 @@ export async function persistD27LiveBundle(input: {
 	const bundleBytes = strictJsonCodec.encode(bundle as unknown as StrictJsonValue);
 	const terminalBytes = strictJsonCodec.encode(bundle.terminalReceipt as StrictJsonValue);
 	const commitMaterial = strictSnapshot({
-		schemaVersion: "graphrefly-ts.d31.live-commit.v1",
+		schemaVersion: "graphrefly-ts.d32.live-commit.v1",
 		generationRef: D27_GENERATION_REF,
 		bundleDigest: bundle.bundleDigest,
 		terminalReceiptDigest: digest(
@@ -561,7 +575,7 @@ export async function persistD27PreexecutionFailure(input: {
 	if (input.claim.scope !== "live-fixed-root")
 		throw new TypeError("D27 preexecution failure rejected a non-live claim");
 	const material = strictSnapshot({
-		schemaVersion: "graphrefly-ts.d31.live-preexecution-failure.v1",
+		schemaVersion: "graphrefly-ts.d32.live-preexecution-failure.v1",
 		decisionRef: D27_DECISION_REF,
 		generationRef: D27_GENERATION_REF,
 		coordinatesDigest: D27_COORDINATES_DIGEST,
@@ -581,7 +595,7 @@ export async function persistD27PreexecutionFailure(input: {
 	});
 	const bytes = strictJsonCodec.encode(failure);
 	const commitMaterial = strictSnapshot({
-		schemaVersion: "graphrefly-ts.d31.live-preexecution-commit.v1",
+		schemaVersion: "graphrefly-ts.d32.live-preexecution-commit.v1",
 		generationRef: D27_GENERATION_REF,
 		failureDigest: failure.failureDigest,
 		claimDigest: input.claim.claimDigest,

@@ -2,7 +2,7 @@ import { chmod, lstat, mkdir, readFile, realpath } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { empiricalSha256 } from "./canonical.js";
 import { D27_PRIVATE_ROOT } from "./d27-phase-specific-live-claim.js";
-import { D27_D26_ARTIFACT_DIGEST } from "./d27-phase-specific-live-coordinates.js";
+import { D27_D31_ARTIFACT_DIGEST } from "./d27-phase-specific-live-coordinates.js";
 import {
 	D27_IMPLEMENTATION_MANIFEST_DIGEST,
 	measureD27Implementation,
@@ -18,12 +18,12 @@ const privateEvidenceRoot = resolve(
 	import.meta.dirname,
 	"../.private/empirical-memory-rerun-avoidance",
 );
-const d26ArtifactFile = join(
+const d31ArtifactFile = join(
 	privateEvidenceRoot,
-	"current-graph-native-d26/current-graph-native-phase-specific-real-provider-no-network-2026-08-17-d26-v2/artifacts/bundle.v1.json",
+	"current-graph-native-d31/current-graph-native-phase-specific-live-2026-08-17-d31-v1/artifacts/bundle.v1.json",
 );
 
-const stat = await lstat(d26ArtifactFile);
+const stat = await lstat(d31ArtifactFile);
 if (
 	!stat.isFile() ||
 	stat.isSymbolicLink() ||
@@ -32,18 +32,18 @@ if (
 	stat.size < 1 ||
 	stat.size > 8_388_608
 )
-	throw new TypeError("D27 D26 qualification artifact ownership drifted");
-const d26Bytes = new Uint8Array(await readFile(d26ArtifactFile));
-if (empiricalSha256(d26Bytes) !== D27_D26_ARTIFACT_DIGEST)
-	throw new TypeError("D27 D26 artifact drifted");
+	throw new TypeError("D32 D31 immutable artifact ownership drifted");
+const d31Bytes = new Uint8Array(await readFile(d31ArtifactFile));
+if (empiricalSha256(d31Bytes) !== D27_D31_ARTIFACT_DIGEST)
+	throw new TypeError("D32 D31 immutable artifact drifted");
 if ((await measureD27Implementation(repositoryRoot)) !== D27_IMPLEMENTATION_MANIFEST_DIGEST)
 	throw new TypeError("D27 implementation manifest drifted");
 await mkdir(D27_PRIVATE_ROOT, { recursive: true, mode: 0o700 });
 await chmod(D27_PRIVATE_ROOT, 0o700);
 const bundle = await runD27InjectedNoNetworkQualification({
 	repositoryRoot,
-	baseline: admitD27QualificationBaseline(d26Bytes),
-	baselineBasis: "consumed-d26-artifact",
+	baseline: admitD27QualificationBaseline(d31Bytes),
+	baselineBasis: "consumed-d31-artifact",
 });
 const receipt = await persistD27Qualification({
 	privateRoot: await realpath(D27_PRIVATE_ROOT),
