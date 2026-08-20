@@ -137,6 +137,7 @@ export function createD35RetainedSpanRealProviderExecutor(
 	let pendingMutation: PendingRetainedMutation | null = null;
 	let executing = false;
 	const retryBodies = new Map<string, Uint8Array>();
+	const discardedRejectedTranscripts = new Set<string>();
 	const base = createCurrentGraphOpenRouterExecutor({
 		...baseOptions,
 		fetchImpl: async (url, init) => {
@@ -170,6 +171,15 @@ export function createD35RetainedSpanRealProviderExecutor(
 			executing = true;
 			const request = admitted.effect.effect.request;
 			try {
+				if (admitted.retainedSpanDirective !== null) {
+					const logicalRequestDigest = request.logicalRequestDigest;
+					if (logicalRequestDigest === null)
+						throw new TypeError("D35 retained logical request digest is missing");
+					if (!discardedRejectedTranscripts.has(logicalRequestDigest)) {
+						base.discardRejectedUnchangedReplacementTranscript(admitted.effect.effect);
+						discardedRejectedTranscripts.add(logicalRequestDigest);
+					}
+				}
 				if (
 					request.effectKind === "tool-action" &&
 					request.toolRef === "replace-exact" &&
@@ -228,6 +238,7 @@ export function createD35RetainedSpanRealProviderExecutor(
 			active = null;
 			pendingMutation = null;
 			retryBodies.clear();
+			discardedRejectedTranscripts.clear();
 			await base.dispose();
 		},
 	});

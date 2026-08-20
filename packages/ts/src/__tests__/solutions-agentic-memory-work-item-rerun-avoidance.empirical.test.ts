@@ -1323,7 +1323,15 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d27-phase-specific-live-qualification.ts") ||
 				file.endsWith("d27-phase-specific-live-implementation-manifest.ts") ||
 				file.endsWith("run-d27-phase-specific-live-no-network.ts") ||
-				file.endsWith("run-d27-phase-specific-live.ts");
+				file.endsWith("run-d27-phase-specific-live.ts") ||
+				file.endsWith("d36-retained-span-live-coordinates.ts") ||
+				file.endsWith("d36-retained-span-live-preflight.ts") ||
+				file.endsWith("d36-retained-span-live-claim.ts") ||
+				file.endsWith("d36-retained-span-live.ts") ||
+				file.endsWith("d36-retained-span-live-qualification.ts") ||
+				file.endsWith("d36-retained-span-live-implementation-manifest.ts") ||
+				file.endsWith("run-d36-retained-span-live-no-network.ts") ||
+				file.endsWith("run-d36-retained-span-live.ts");
 			const allowsCurrentGraphLiveOperatorWithD20 =
 				allowsCurrentGraphLiveOperator || allowsD20CurrentGraphLive;
 			const allowsCurrentGraphLiveOneRequest =
@@ -1640,11 +1648,13 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 							file.endsWith("run-d16-live.ts") ||
 							file.endsWith("run-d20-live.ts") ||
 							file.endsWith("run-d23-current-efficacy-live.ts") ||
-							file.endsWith("run-d27-phase-specific-live.ts")) &&
+							file.endsWith("run-d27-phase-specific-live.ts") ||
+							file.endsWith("run-d36-retained-span-live.ts")) &&
 							specifier === "node:child_process") ||
 						((file.endsWith("run-d20-live.ts") ||
 							file.endsWith("run-d23-current-efficacy-live.ts") ||
-							file.endsWith("run-d27-phase-specific-live.ts")) &&
+							file.endsWith("run-d27-phase-specific-live.ts") ||
+							file.endsWith("run-d36-retained-span-live.ts")) &&
 							specifier === "node:util") ||
 						((allowsD708QualifiedEntrypoint ||
 							allowsD711QualifiedEntrypoint ||

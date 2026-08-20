@@ -62,6 +62,7 @@ export interface CurrentGraphOpenRouterExecutorV1 extends CurrentGraphLiveExecut
 		effect: CurrentGraphProviderAdmittedEffectV1,
 		toolRefs: readonly CurrentGraphProviderToolRef[],
 	): void;
+	discardRejectedUnchangedReplacementTranscript(effect: CurrentGraphProviderAdmittedEffectV1): void;
 	admitGraphAuthoredRetainedMutation(
 		effect: CurrentGraphProviderAdmittedEffectV1,
 		input: Readonly<{ toolName: "propose_replacement_text"; newText: string }>,
@@ -492,6 +493,46 @@ export function createCurrentGraphOpenRouterExecutor(
 		return state;
 	};
 	return Object.freeze({
+		discardRejectedUnchangedReplacementTranscript(effect: CurrentGraphProviderAdmittedEffectV1) {
+			if (disposed || active !== 0)
+				throw new TypeError("current live rejected transcript discard is unavailable");
+			const state = stateFor(effect);
+			const rejectedIndexes: number[] = [];
+			for (let index = 0; index + 1 < state.messages.length; index += 1) {
+				const assistantMessage = state.messages[index];
+				const toolMessage = state.messages[index + 1];
+				const calls = assistantMessage?.tool_calls;
+				const call = Array.isArray(calls) && calls.length === 1 ? calls[0] : null;
+				const fn = call?.function;
+				if (
+					assistantMessage?.role !== "assistant" ||
+					toolMessage?.role !== "tool" ||
+					call === null ||
+					call.type !== "function" ||
+					typeof call.id !== "string" ||
+					toolMessage.tool_call_id !== call.id ||
+					fn?.name !== "replace_exact" ||
+					typeof fn.arguments !== "string"
+				)
+					continue;
+				try {
+					const argumentsValue = JSON.parse(fn.arguments) as Record<string, unknown>;
+					if (
+						typeof argumentsValue.path === "string" &&
+						typeof argumentsValue.oldText === "string" &&
+						argumentsValue.oldText === argumentsValue.newText
+					)
+						rejectedIndexes.push(index);
+				} catch {}
+			}
+			if (
+				effect.request.effectKind !== "provider-request" ||
+				state.pendingToolCalls.length !== 0 ||
+				rejectedIndexes.length !== 1
+			)
+				throw new TypeError("current live rejected unchanged transcript drifted");
+			state.messages.splice(rejectedIndexes[0]!, 2);
+		},
 		discardMechanicalProviderToolCalls(
 			effect: CurrentGraphProviderAdmittedEffectV1,
 			toolRefs: readonly CurrentGraphProviderToolRef[],
