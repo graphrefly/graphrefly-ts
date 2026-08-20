@@ -52,6 +52,7 @@ const TOOL_REJECTION_CAUSES = Object.freeze([
 const FINDING_CODES = Object.freeze([
 	"exact-replacement-rejected",
 	"mutation-proposal-cardinality",
+	"premature-structured-final",
 	"focused-validation-failed",
 	"public-semantic-validation-failed",
 	"hidden-verifier-failed",
@@ -107,6 +108,7 @@ export interface CurrentGraphCorrectionDirectiveV1 {
 		| "exact-replacement-old-text-not-found"
 		| "exact-replacement-old-text-not-unique"
 		| "mutation-proposal-cardinality"
+		| "premature-structured-final"
 		| "focused-validation-failed"
 		| "public-semantic-validation-failed";
 	readonly stage:
@@ -115,7 +117,8 @@ export interface CurrentGraphCorrectionDirectiveV1 {
 		| "retained-span-mutation"
 		| "validation-reinspect"
 		| "validation-mutation"
-		| "semantic-correction";
+		| "semantic-correction"
+		| "phase-retry";
 	readonly recoveryDigest: string;
 	readonly sourceFactDigest: string;
 	readonly workspaceStateDigest: string;
@@ -178,6 +181,7 @@ export type CurrentGraphEffectResultInputV1 =
 				| "provider-failed"
 				| "mutation-proposal-cardinality"
 				| "mutation-proposal-content"
+				| "premature-structured-final"
 				| null;
 			evidenceDigest: string;
 			actualCostMicrousd: number;
@@ -320,6 +324,7 @@ interface MutableRunState {
 	pendingTools: CurrentGraphToolRef[];
 	replacementRecoveryUsed: boolean;
 	cardinalityRecoveryUsed: boolean;
+	prematureFinalRecoveryUsed: boolean;
 	validationRecoveryUsed: boolean;
 	semanticRecoveryUsed: boolean;
 	publicSemanticValidationAttempted: boolean;
@@ -452,6 +457,7 @@ function initialRun(): MutableRunState {
 		pendingTools: [],
 		replacementRecoveryUsed: false,
 		cardinalityRecoveryUsed: false,
+		prematureFinalRecoveryUsed: false,
 		validationRecoveryUsed: false,
 		semanticRecoveryUsed: false,
 		publicSemanticValidationAttempted: false,
@@ -516,10 +522,24 @@ function remainingBounds(state: AuthorityState) {
 
 function hasCorrectionHeadroom(
 	state: AuthorityState,
-	kind: "replacement" | "validation" | "semantic" | "cardinality",
+	kind: "replacement" | "validation" | "semantic" | "cardinality" | "phase-retry",
 ): boolean {
-	const providerRequests = kind === "semantic" || kind === "cardinality" ? 1 : 2;
-	const localEffects = kind === "replacement" || kind === "validation" ? 10 : 6;
+	const providerRequests =
+		kind === "phase-retry"
+			? state.run.phase === "none"
+				? 2
+				: 1
+			: kind === "semantic" || kind === "cardinality"
+				? 1
+				: 2;
+	const localEffects =
+		kind === "phase-retry"
+			? state.run.phase === "none"
+				? 10
+				: 6
+			: kind === "replacement" || kind === "validation"
+				? 10
+				: 6;
 	const remaining = remainingBounds(state);
 	return (
 		remaining.remainingProviderRequests >= providerRequests &&
@@ -689,6 +709,23 @@ function applyFact(state: AuthorityState, fact: CurrentGraphAdmittedFactV1): voi
 	}
 	if (result.effectKind === "provider-request") {
 		if (result.status === "failed") {
+			if (result.failureCode === "premature-structured-final") {
+				finding(state, "premature-structured-final", fact.factDigest);
+				if (!state.run.prematureFinalRecoveryUsed && hasCorrectionHeadroom(state, "phase-retry")) {
+					state.run.prematureFinalRecoveryUsed = true;
+					state.run.activeCorrection = correctionDirective(state, {
+						reason: "premature-structured-final",
+						stage: "phase-retry",
+						sourceFactDigest: fact.factDigest,
+						requiredFirstToolRef: state.run.phase === "none" ? "read-file" : "replace-exact",
+					});
+					schedule(state, "provider-request");
+					return;
+				}
+				state.run.stopped = true;
+				scheduleCleanup(state);
+				return;
+			}
 			if (result.failureCode === "mutation-proposal-content") {
 				state.run.stopped = true;
 				finding(state, "exact-replacement-rejected", fact.factDigest);
@@ -841,7 +878,15 @@ function applyFact(state: AuthorityState, fact: CurrentGraphAdmittedFactV1): voi
 		else if (state.run.phase === "focused-validation-passed") {
 			state.run.activeCorrection = null;
 			schedule(state, "public-semantic-validation");
-		} else schedule(state, "provider-request");
+		} else {
+			if (
+				state.run.phase === "inspection" &&
+				state.run.activeCorrection?.stage === "phase-retry" &&
+				state.run.activeCorrection.requiredFirstToolRef === "read-file"
+			)
+				state.run.activeCorrection = null;
+			schedule(state, "provider-request");
+		}
 		return;
 	}
 	if (result.effectKind === "public-semantic-validation") {
@@ -964,7 +1009,8 @@ function validateResult(
 				tools.length !== 0 ||
 				(candidate.failureCode !== "provider-failed" &&
 					candidate.failureCode !== "mutation-proposal-cardinality" &&
-					candidate.failureCode !== "mutation-proposal-content")
+					candidate.failureCode !== "mutation-proposal-content" &&
+					candidate.failureCode !== "premature-structured-final")
 			)
 				throw new TypeError("current failed provider result cardinality drifted");
 		} else if (

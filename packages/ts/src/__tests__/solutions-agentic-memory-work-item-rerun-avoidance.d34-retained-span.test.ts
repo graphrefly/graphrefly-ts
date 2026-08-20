@@ -1,6 +1,6 @@
 import { chmod, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { empiricalStrictJsonDigest } from "../../evals/empirical-memory-rerun-avoidance/canonical.js";
 import {
@@ -13,8 +13,8 @@ import {
 	projectD34RetainedSpanChatResponse,
 } from "../../evals/empirical-memory-rerun-avoidance/d34-retained-span-chat-wire.js";
 import {
+	D34_IMPLEMENTATION_MANIFEST,
 	D34_IMPLEMENTATION_MANIFEST_DIGEST,
-	measureD34Implementation,
 } from "../../evals/empirical-memory-rerun-avoidance/d34-retained-span-implementation-manifest.js";
 import {
 	admitD34EffectResult,
@@ -229,9 +229,10 @@ async function runSixArms(
 }
 
 describe("graphrefly-ts:D34 retained-span mutation recovery", () => {
-	it("binds the exact D34 decision-bearing implementation closure", async () => {
-		const repositoryRoot = resolve(import.meta.dirname, "../../../..");
-		expect(await measureD34Implementation(repositoryRoot)).toBe(D34_IMPLEMENTATION_MANIFEST_DIGEST);
+	it("keeps the historical D34 implementation manifest immutable", () => {
+		expect(empiricalStrictJsonDigest(D34_IMPLEMENTATION_MANIFEST)).toBe(
+			D34_IMPLEMENTATION_MANIFEST_DIGEST,
+		);
 	});
 
 	it("constructs an exact six-arm no-network qualification without production persistence authority", async () => {

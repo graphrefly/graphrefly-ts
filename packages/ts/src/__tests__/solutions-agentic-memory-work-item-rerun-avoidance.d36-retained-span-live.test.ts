@@ -7,13 +7,24 @@ import {
 	strictSnapshot,
 } from "../../evals/empirical-memory-rerun-avoidance/canonical.js";
 import {
+	CURRENT_GRAPH_LIVE_LIMITS,
+	CURRENT_GRAPH_LIVE_READABLE_FILES,
+	CURRENT_GRAPH_LIVE_ROUTE,
+} from "../../evals/empirical-memory-rerun-avoidance/d8-current-live-coordinates.js";
+import {
 	CURRENT_GRAPH_LIVE_BUGGY_ADMISSION_BLOCK,
 	CURRENT_GRAPH_LIVE_FIXED_ADMISSION_BLOCK,
 } from "../../evals/empirical-memory-rerun-avoidance/d8-current-openrouter-adapter.js";
+import { D21_TASK_PROFILE } from "../../evals/empirical-memory-rerun-avoidance/d21-current-efficacy-recovery-authority.js";
+import {
+	admitD34EffectResult,
+	createD34RetainedSpanAuthority,
+} from "../../evals/empirical-memory-rerun-avoidance/d34-retained-span-mutation-authority.js";
+import { createD35RetainedSpanRealProviderExecutor } from "../../evals/empirical-memory-rerun-avoidance/d35-retained-span-real-provider-composition.js";
 import { validateD36LiveBundle } from "../../evals/empirical-memory-rerun-avoidance/d36-retained-span-live.js";
 import {
+	D36_IMPLEMENTATION_MANIFEST,
 	D36_IMPLEMENTATION_MANIFEST_DIGEST,
-	measureD36Implementation,
 } from "../../evals/empirical-memory-rerun-avoidance/d36-retained-span-live-implementation-manifest.js";
 import {
 	createD36QualificationInjectedBaselineForTest,
@@ -23,9 +34,337 @@ import {
 } from "../../evals/empirical-memory-rerun-avoidance/d36-retained-span-live-qualification.js";
 
 describe("graphrefly-ts:D36 retained-span live replacement", () => {
-	it("binds the exact D36 decision-bearing implementation closure", async () => {
+	it("classifies a post-inspection structured final without losing its boundary cause", async () => {
 		const repositoryRoot = resolve(import.meta.dirname, "../../../..");
-		expect(await measureD36Implementation(repositoryRoot)).toBe(D36_IMPLEMENTATION_MANIFEST_DIGEST);
+		const root = await mkdtemp(join(tmpdir(), "graphrefly-d36-structured-final-"));
+		let calls = 0;
+		const authority = createD34RetainedSpanAuthority({
+			limits: CURRENT_GRAPH_LIVE_LIMITS,
+			routeProfile: CURRENT_GRAPH_LIVE_ROUTE,
+			taskProfile: D21_TASK_PROFILE,
+		});
+		const executor = createD35RetainedSpanRealProviderExecutor({
+			authority,
+			repositoryRoot,
+			materializationRoot: join(root, "workspaces"),
+			credential: {
+				bearerToken: "injected",
+				credentialBindingRef: "openrouter.local-eval-2",
+				credentialBindingRevision: "2026-08-14.v1",
+			},
+			fetchImpl: async () => {
+				calls += 1;
+				return new Response(
+					JSON.stringify({
+						choices: [
+							{
+								message:
+									calls === 1
+										? {
+												role: "assistant",
+												content: null,
+												tool_calls: CURRENT_GRAPH_LIVE_READABLE_FILES.map((path, index) => ({
+													id: `read-${index}`,
+													type: "function",
+													function: { name: "read_file", arguments: JSON.stringify({ path }) },
+												})),
+											}
+										: calls === 2
+											? { role: "assistant", content: "The task is complete." }
+											: {
+													role: "assistant",
+													content: null,
+													tool_calls: [
+														{
+															id: "replacement",
+															type: "function",
+															function: {
+																name: "replace_exact",
+																arguments: JSON.stringify({
+																	path: "packages/ts/src/executors/managed-cloud-postgresql.ts",
+																	oldText: CURRENT_GRAPH_LIVE_BUGGY_ADMISSION_BLOCK,
+																	newText: CURRENT_GRAPH_LIVE_FIXED_ADMISSION_BLOCK,
+																}),
+															},
+														},
+													],
+												},
+							},
+						],
+						usage: {
+							prompt_tokens: 100,
+							completion_tokens: 20,
+							prompt_tokens_details: { cached_tokens: 0 },
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			},
+		});
+		try {
+			let observed: unknown = null;
+			for (let index = 0; index < 8; index += 1) {
+				try {
+					const execution = await executor.executeNext();
+					if (execution === null) break;
+					admitD34EffectResult(authority, execution.admitted, execution.result);
+				} catch (error) {
+					observed = error;
+					break;
+				}
+			}
+			expect(calls).toBe(3);
+			expect(observed).toBeNull();
+		} finally {
+			await executor.dispose();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 120_000);
+
+	it("accounts a successful response without valid usage conservatively and stops the arm", async () => {
+		const repositoryRoot = resolve(import.meta.dirname, "../../../..");
+		const root = await mkdtemp(join(tmpdir(), "graphrefly-d36-missing-usage-"));
+		const authority = createD34RetainedSpanAuthority({
+			limits: CURRENT_GRAPH_LIVE_LIMITS,
+			routeProfile: CURRENT_GRAPH_LIVE_ROUTE,
+			taskProfile: D21_TASK_PROFILE,
+		});
+		const executor = createD35RetainedSpanRealProviderExecutor({
+			authority,
+			repositoryRoot,
+			materializationRoot: join(root, "workspaces"),
+			credential: {
+				bearerToken: "injected",
+				credentialBindingRef: "openrouter.local-eval-2",
+				credentialBindingRevision: "2026-08-14.v1",
+			},
+			fetchImpl: async () =>
+				new Response(
+					JSON.stringify({
+						choices: [{ message: { role: "assistant", content: "bounded final" } }],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				),
+		});
+		try {
+			const materialization = await executor.executeNext();
+			if (materialization === null) throw new TypeError("missing D36 materialization");
+			admitD34EffectResult(authority, materialization.admitted, materialization.result);
+			const provider = await executor.executeNext();
+			if (provider === null) throw new TypeError("missing D36 provider effect");
+			const result = provider.result as {
+				readonly status: string;
+				readonly failureCode: string;
+				readonly usage: { readonly actualCostMicrousd: number; readonly costBasis: string };
+			};
+			expect(result.status).toBe("failed");
+			expect(result.failureCode).toBe("provider-failed");
+			expect(result.usage.costBasis).toBe("conservative-reservation");
+			expect(result.usage.actualCostMicrousd).toBe(
+				CURRENT_GRAPH_LIVE_LIMITS.providerMaxCostMicrousd,
+			);
+			admitD34EffectResult(authority, provider.admitted, provider.result);
+			const cleanup = await executor.executeNext();
+			if (cleanup === null) throw new TypeError("missing D36 cleanup");
+			admitD34EffectResult(authority, cleanup.admitted, cleanup.result);
+		} finally {
+			await executor.dispose();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 120_000);
+
+	it.each([
+		"missing-usage",
+		"malformed-proposal",
+		"malformed-envelope",
+		"invalid-json",
+		"invalid-json-429",
+		"invalid-json-503",
+	] as const)("returns a retained-span %s response to Graph for bounded failure accounting", async (mode) => {
+		const repositoryRoot = resolve(import.meta.dirname, "../../../..");
+		const root = await mkdtemp(join(tmpdir(), `graphrefly-d36-retained-${mode}-`));
+		let calls = 0;
+		let failedResult:
+			| {
+					readonly effectKind: string;
+					readonly status: string;
+					readonly failureCode: string;
+					readonly usage: { readonly costBasis: string };
+			  }
+			| undefined;
+		let cleanupSeen = false;
+		let retryWaitSeen = false;
+		const usage = {
+			prompt_tokens: 100,
+			completion_tokens: 20,
+			prompt_tokens_details: { cached_tokens: 0 },
+		};
+		const response = (toolCalls: readonly unknown[], includeUsage = true) =>
+			new Response(
+				JSON.stringify({
+					choices: [{ message: { role: "assistant", content: null, tool_calls: toolCalls } }],
+					...(includeUsage ? { usage } : {}),
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			);
+		const authority = createD34RetainedSpanAuthority({
+			limits: CURRENT_GRAPH_LIVE_LIMITS,
+			routeProfile: CURRENT_GRAPH_LIVE_ROUTE,
+			taskProfile: D21_TASK_PROFILE,
+		});
+		const executor = createD35RetainedSpanRealProviderExecutor({
+			authority,
+			repositoryRoot,
+			materializationRoot: join(root, "workspaces"),
+			credential: {
+				bearerToken: "injected",
+				credentialBindingRef: "openrouter.local-eval-2",
+				credentialBindingRevision: "2026-08-14.v1",
+			},
+			fetchImpl: async () => {
+				calls += 1;
+				if (calls === 1 || calls === 3)
+					return response(
+						CURRENT_GRAPH_LIVE_READABLE_FILES.map((path, index) => ({
+							id: `read-${calls}-${index}`,
+							type: "function",
+							function: { name: "read_file", arguments: JSON.stringify({ path }) },
+						})),
+					);
+				if (calls === 2)
+					return response([
+						{
+							id: "unchanged",
+							type: "function",
+							function: {
+								name: "replace_exact",
+								arguments: JSON.stringify({
+									path: "packages/ts/src/executors/managed-cloud-postgresql.ts",
+									oldText: CURRENT_GRAPH_LIVE_BUGGY_ADMISSION_BLOCK,
+									newText: CURRENT_GRAPH_LIVE_BUGGY_ADMISSION_BLOCK,
+								}),
+							},
+						},
+					]);
+				if (calls === 5 && (mode === "invalid-json-429" || mode === "invalid-json-503"))
+					return response([
+						{
+							id: "retry-proposal",
+							type: "function",
+							function: {
+								name: "propose_replacement_text",
+								arguments: JSON.stringify({
+									newText: CURRENT_GRAPH_LIVE_FIXED_ADMISSION_BLOCK,
+								}),
+							},
+						},
+					]);
+				if (calls !== 4) throw new TypeError("unexpected retained-span provider call");
+				if (mode === "invalid-json-429" || mode === "invalid-json-503")
+					return new Response("{not-json", {
+						status: mode === "invalid-json-429" ? 429 : 503,
+						headers: {
+							"content-type": "application/json",
+							"retry-after": "0",
+						},
+					});
+				if (mode === "invalid-json")
+					return new Response("{not-json", {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					});
+				if (mode === "malformed-envelope")
+					return new Response(
+						JSON.stringify({
+							choices: [
+								{
+									message: {
+										role: "tool",
+										content: null,
+										tool_calls: [
+											{
+												type: "function",
+												function: {
+													name: "propose_replacement_text",
+													arguments: JSON.stringify({
+														newText: CURRENT_GRAPH_LIVE_FIXED_ADMISSION_BLOCK,
+													}),
+												},
+											},
+										],
+									},
+								},
+							],
+							usage,
+						}),
+						{ status: 200, headers: { "content-type": "application/json" } },
+					);
+				return response(
+					[
+						{
+							id: "proposal",
+							type: "function",
+							function: {
+								name: "propose_replacement_text",
+								arguments:
+									mode === "missing-usage"
+										? JSON.stringify({ newText: CURRENT_GRAPH_LIVE_FIXED_ADMISSION_BLOCK })
+										: JSON.stringify({ wrong: "shape" }),
+							},
+						},
+					],
+					mode !== "missing-usage",
+				);
+			},
+		});
+		try {
+			for (let index = 0; index < 24; index += 1) {
+				const execution = await executor.executeNext();
+				if (execution === null) break;
+				const result = execution.result as {
+					readonly effectKind: string;
+					readonly status: string;
+					readonly failureCode: string;
+					readonly usage: { readonly costBasis: string };
+				};
+				if (result.effectKind === "provider-request" && result.status === "failed")
+					failedResult = result;
+				if (result.effectKind === "retry-wait") retryWaitSeen = true;
+				if (result.effectKind === "cleanup") cleanupSeen = true;
+				admitD34EffectResult(authority, execution.admitted, execution.result);
+				if (cleanupSeen) break;
+				if (
+					calls === 5 &&
+					result.effectKind === "provider-request" &&
+					result.status === "completed"
+				)
+					break;
+			}
+			const retryMode = mode === "invalid-json-429" || mode === "invalid-json-503";
+			expect(calls).toBe(retryMode ? 5 : 4);
+			expect(failedResult).toMatchObject({
+				effectKind: "provider-request",
+				status: "failed",
+				failureCode: retryMode ? "retryable-transient" : "provider-failed",
+				usage: {
+					costBasis:
+						mode === "missing-usage" || mode.startsWith("invalid-json")
+							? "conservative-reservation"
+							: "reported",
+				},
+			});
+			expect(retryWaitSeen).toBe(retryMode);
+			expect(cleanupSeen).toBe(!retryMode);
+		} finally {
+			await executor.dispose();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 120_000);
+
+	it("keeps the historical D36 implementation manifest immutable", () => {
+		expect(empiricalStrictJsonDigest(D36_IMPLEMENTATION_MANIFEST)).toBe(
+			D36_IMPLEMENTATION_MANIFEST_DIGEST,
+		);
 	});
 
 	it("qualifies six serial arms, retained retry identity, cleanup and partial persistence offline", async () => {

@@ -1,4 +1,4 @@
-import { empiricalStrictJsonDigest, record, strictSnapshot } from "./canonical.js";
+import { empiricalStrictJsonDigest, record } from "./canonical.js";
 import {
 	type CurrentGraphOpenRouterAdapterOptionsV1,
 	createCurrentGraphOpenRouterExecutor,
@@ -60,35 +60,67 @@ async function projectSuccessfulResponse(
 	const bytes = new Uint8Array(await response.arrayBuffer());
 	if (bytes.byteLength > D35_MAX_PROVIDER_BYTES)
 		throw new TypeError("D35 provider response exceeded its byte bound");
+	const passThrough = () => {
+		const headers = new Headers(response.headers);
+		headers.delete("content-length");
+		return new Response(bytes, {
+			status: response.status,
+			statusText: response.statusText,
+			headers,
+		});
+	};
 	const directive = active.admitted.retainedSpanDirective;
 	if (directive === null) throw new TypeError("D35 retained-span directive is missing");
-	active.projection = projectD34RetainedSpanChatResponse({ responseBytes: bytes, directive });
 	let value: unknown;
 	try {
 		value = JSON.parse(new TextDecoder("utf8", { fatal: true }).decode(bytes));
-	} catch (error) {
-		throw new TypeError("D35 provider response is not JSON", { cause: error });
+	} catch {
+		return passThrough();
 	}
-	const root = record(value, "D35 provider response");
-	if (!Array.isArray(root.choices) || root.choices.length !== 1)
-		throw new TypeError("D35 provider response choices drifted");
-	record(record(root.choices[0], "D35 provider response choice").message, "D35 response message");
-	const usage = record(root.usage, "D35 provider response usage");
-	const promptTokens = usage.prompt_tokens;
-	const completionTokens = usage.completion_tokens;
-	const details = record(usage.prompt_tokens_details, "D35 provider response usage details");
-	const cachedTokens = details.cached_tokens;
+	let root: Record<string, unknown>;
+	let message: Record<string, unknown>;
+	try {
+		root = record(value, "D35 provider response");
+		if (!Array.isArray(root.choices) || root.choices.length !== 1) return passThrough();
+		message = record(
+			record(root.choices[0], "D35 provider response choice").message,
+			"D35 response message",
+		);
+	} catch {
+		return passThrough();
+	}
+	const calls = message.tool_calls;
 	if (
-		!Number.isSafeInteger(promptTokens) ||
-		(promptTokens as number) < 0 ||
-		!Number.isSafeInteger(completionTokens) ||
-		(completionTokens as number) < 0 ||
-		!Number.isSafeInteger(cachedTokens) ||
-		(cachedTokens as number) < 0 ||
-		(cachedTokens as number) > (promptTokens as number)
-	)
-		throw new TypeError("D35 provider response usage drifted");
-	const compatibility = strictSnapshot({
+		message.role === "assistant" &&
+		(calls === undefined || (Array.isArray(calls) && calls.length === 0)) &&
+		typeof message.content === "string" &&
+		Buffer.byteLength(message.content, "utf8") <= 262_144
+	) {
+		return passThrough();
+	}
+	if (message.role !== "assistant" || !Array.isArray(calls) || calls.length === 0)
+		return passThrough();
+	try {
+		for (const [index, value] of calls.entries()) {
+			const call = record(value, `D35 response tool_calls[${index}]`);
+			if (
+				typeof call.id !== "string" ||
+				call.id.length === 0 ||
+				Buffer.byteLength(call.id, "utf8") > 256 ||
+				call.type !== "function"
+			)
+				return passThrough();
+			record(call.function, `D35 response tool_calls[${index}].function`);
+		}
+	} catch {
+		return passThrough();
+	}
+	try {
+		active.projection = projectD34RetainedSpanChatResponse({ responseBytes: bytes, directive });
+	} catch {
+		return passThrough();
+	}
+	const compatibility = {
 		choices: [
 			{
 				message: {
@@ -111,12 +143,8 @@ async function projectSuccessfulResponse(
 				},
 			},
 		],
-		usage: {
-			prompt_tokens: promptTokens as number,
-			completion_tokens: completionTokens as number,
-			prompt_tokens_details: { cached_tokens: cachedTokens as number },
-		},
-	});
+		...(Object.hasOwn(root, "usage") ? { usage: root.usage } : {}),
+	};
 	const compatibilityBytes = Buffer.from(JSON.stringify(compatibility), "utf8");
 	if (compatibilityBytes.byteLength > D35_MAX_PROVIDER_BYTES)
 		throw new TypeError("D35 compatibility response exceeded its byte bound");
@@ -175,9 +203,10 @@ export function createD35RetainedSpanRealProviderExecutor(
 					const logicalRequestDigest = request.logicalRequestDigest;
 					if (logicalRequestDigest === null)
 						throw new TypeError("D35 retained logical request digest is missing");
-					if (!discardedRejectedTranscripts.has(logicalRequestDigest)) {
+					const retainedSpanDigest = admitted.retainedSpanDirective.spanFactDigest;
+					if (!discardedRejectedTranscripts.has(retainedSpanDigest)) {
 						base.discardRejectedUnchangedReplacementTranscript(admitted.effect.effect);
-						discardedRejectedTranscripts.add(logicalRequestDigest);
+						discardedRejectedTranscripts.add(retainedSpanDigest);
 					}
 				}
 				if (
@@ -209,8 +238,29 @@ export function createD35RetainedSpanRealProviderExecutor(
 				if (baseResult.status !== "completed")
 					return Object.freeze({ admitted, result: baseResult });
 				const projection = active.projection;
-				if (projection === null)
-					throw new TypeError("D35 retained-span response projection is missing");
+				if (projection === null) {
+					base.discardMechanicalProviderToolCalls(
+						admitted.effect.effect,
+						baseResult.toolCalls.map((call) => call.toolRef),
+					);
+					return Object.freeze({
+						admitted,
+						result: Object.freeze({
+							effectKind: "provider-request" as const,
+							status: "failed" as const,
+							toolCalls: [] as const,
+							failureCode: "provider-failed" as const,
+							retryProposal: null,
+							usage: baseResult.usage,
+							evidenceDigest: empiricalStrictJsonDigest({
+								revision: D35_ADAPTER_REVISION,
+								requestDigest: request.requestDigest,
+								providerEvidenceDigest: baseResult.evidenceDigest,
+								disposition: "retained-span-proposal-malformed",
+							}),
+						}),
+					});
+				}
 				base.discardMechanicalProviderToolCalls(admitted.effect.effect, ["replace-exact"]);
 				pendingMutation =
 					projection.proposalCount === 1 ? { newText: projection.newTextProposals[0]! } : null;

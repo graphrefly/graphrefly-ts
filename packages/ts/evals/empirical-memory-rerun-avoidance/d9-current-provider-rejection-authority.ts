@@ -372,7 +372,8 @@ function classifyProviderResult(
 			(cloned.failureCode !== "retryable-transient" &&
 				cloned.failureCode !== "provider-failed" &&
 				cloned.failureCode !== "mutation-proposal-cardinality" &&
-				cloned.failureCode !== "mutation-proposal-content")
+				cloned.failureCode !== "mutation-proposal-content" &&
+				cloned.failureCode !== "premature-structured-final")
 		)
 			return Object.freeze({
 				accepted: false,

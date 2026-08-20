@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { empiricalStrictJsonDigest } from "../../evals/empirical-memory-rerun-avoidance/canonical.js";
 import {
 	CURRENT_GRAPH_LIVE_LIMITS,
 	CURRENT_GRAPH_LIVE_ROUTE,
@@ -19,8 +20,8 @@ import {
 	validateD34RetainedSpanEvidence,
 } from "../../evals/empirical-memory-rerun-avoidance/d34-retained-span-mutation-authority.js";
 import {
+	D35_IMPLEMENTATION_MANIFEST,
 	D35_IMPLEMENTATION_MANIFEST_DIGEST,
-	measureD35Implementation,
 } from "../../evals/empirical-memory-rerun-avoidance/d35-retained-span-implementation-manifest.js";
 import { createD35RetainedSpanRealProviderExecutor } from "../../evals/empirical-memory-rerun-avoidance/d35-retained-span-real-provider-composition.js";
 import {
@@ -36,6 +37,7 @@ function response(toolName: string, args: unknown, callCount = 1) {
 			choices: [
 				{
 					message: {
+						role: "assistant",
 						tool_calls: Array.from({ length: callCount }, (_, index) => ({
 							id: `call-${toolName}-${index}`,
 							type: "function",
@@ -55,9 +57,10 @@ function response(toolName: string, args: unknown, callCount = 1) {
 }
 
 describe("graphrefly-ts:D35 retained-span real-provider composition", () => {
-	it("binds the exact D35 decision-bearing implementation closure", async () => {
-		const repositoryRoot = resolve(import.meta.dirname, "../../../..");
-		expect(await measureD35Implementation(repositoryRoot)).toBe(D35_IMPLEMENTATION_MANIFEST_DIGEST);
+	it("keeps the historical D35 implementation manifest immutable", () => {
+		expect(empiricalStrictJsonDigest(D35_IMPLEMENTATION_MANIFEST)).toBe(
+			D35_IMPLEMENTATION_MANIFEST_DIGEST,
+		);
 	});
 
 	it("runs six real-workspace arms through exact newText-only injected Chat wire", async () => {

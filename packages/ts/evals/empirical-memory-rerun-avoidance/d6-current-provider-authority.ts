@@ -158,6 +158,7 @@ export interface CurrentGraphModelEnvelopeV1 {
 		| "exact-replacement-old-text-not-found"
 		| "exact-replacement-old-text-not-unique"
 		| "mutation-proposal-cardinality"
+		| "premature-structured-final"
 		| "focused-validation-failed"
 		| "public-semantic-validation-failed"
 		| null;
@@ -168,6 +169,7 @@ export interface CurrentGraphModelEnvelopeV1 {
 		| "validation-reinspect"
 		| "validation-mutation"
 		| "semantic-correction"
+		| "phase-retry"
 		| null;
 	readonly requiredDisposition:
 		| "reinspect-current-workspace"
@@ -177,6 +179,7 @@ export interface CurrentGraphModelEnvelopeV1 {
 		| "reinspect-validation-failing-workspace"
 		| "repair-focused-validation-failure"
 		| "address-public-criterion-failures"
+		| "retry-required-phase"
 		| null;
 	readonly requiredFirstToolRef: "read-file" | "replace-exact" | null;
 	readonly allowedTools: readonly CurrentGraphProviderToolRef[];
@@ -228,6 +231,7 @@ export type CurrentGraphProviderEffectResultInputV1 =
 				| "provider-failed"
 				| "mutation-proposal-cardinality"
 				| "mutation-proposal-content"
+				| "premature-structured-final"
 				| null;
 			retryProposal: Readonly<{
 				retryClass: CurrentGraphProviderRetryClass;
@@ -268,6 +272,7 @@ type ProviderResultProjection = Readonly<{
 		| "provider-failed"
 		| "mutation-proposal-cardinality"
 		| "mutation-proposal-content"
+		| "premature-structured-final"
 		| null;
 	retryProposal: Readonly<{
 		retryClass: CurrentGraphProviderRetryClass;
@@ -630,6 +635,10 @@ function taskEnvelope(state: ProviderAuthorityState, effect: CurrentGraphAdmitte
 		if (correction.stage !== "retained-span-mutation")
 			throw new TypeError("current provider mutation-cardinality correction stage drifted");
 		requiredDisposition = "fresh-byte-different-exact-replacement";
+	} else if (correction?.reason === "premature-structured-final") {
+		if (correction.stage !== "phase-retry")
+			throw new TypeError("current provider premature-final correction stage drifted");
+		requiredDisposition = "retry-required-phase";
 	}
 	const material = strictSnapshot({
 		schemaVersion: CURRENT_GRAPH_PROVIDER_ENVELOPE_SCHEMA,
@@ -880,6 +889,7 @@ function validateProviderResult(
 		| "provider-failed"
 		| "mutation-proposal-cardinality"
 		| "mutation-proposal-content"
+		| "premature-structured-final"
 		| null = null;
 	let retryProposal: ProviderResultProjection["retryProposal"] = null;
 	if (status === "completed") {
@@ -899,13 +909,15 @@ function validateProviderResult(
 				"provider-failed",
 				"mutation-proposal-cardinality",
 				"mutation-proposal-content",
+				"premature-structured-final",
 			],
 			"current.provider.result.failureCode",
 		) as
 			| "retryable-transient"
 			| "provider-failed"
 			| "mutation-proposal-cardinality"
-			| "mutation-proposal-content";
+			| "mutation-proposal-content"
+			| "premature-structured-final";
 		if (failureCode === "retryable-transient") {
 			const proposal = record(candidate.retryProposal, "current.provider.result.retryProposal");
 			exactKeys(
@@ -1276,7 +1288,8 @@ function applyRuntimeFact(state: ProviderAuthorityState, fact: RuntimeAdmittedFa
 						toolIntents: [],
 						failureCode:
 							projection.result.failureCode === "mutation-proposal-cardinality" ||
-							projection.result.failureCode === "mutation-proposal-content"
+							projection.result.failureCode === "mutation-proposal-content" ||
+							projection.result.failureCode === "premature-structured-final"
 								? projection.result.failureCode
 								: "provider-failed",
 						evidenceDigest: empiricalStrictJsonDigest(logical.attemptFactDigests),
@@ -1749,6 +1762,7 @@ function validateResultProjection(
 					"provider-failed",
 					"mutation-proposal-cardinality",
 					"mutation-proposal-content",
+					"premature-structured-final",
 				],
 				`${path}.failureCode`,
 			);
@@ -2053,7 +2067,8 @@ function replayProviderEvidence(
 							toolIntents: [],
 							failureCode:
 								fact.result.failureCode === "mutation-proposal-cardinality" ||
-								fact.result.failureCode === "mutation-proposal-content"
+								fact.result.failureCode === "mutation-proposal-content" ||
+								fact.result.failureCode === "premature-structured-final"
 									? fact.result.failureCode
 									: "provider-failed",
 							evidenceDigest: empiricalStrictJsonDigest(providerLogical.factDigests),

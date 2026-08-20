@@ -337,10 +337,6 @@ function bodyFor(effect: CurrentGraphProviderAdmittedEffectV1, state: WorkspaceS
 	return Buffer.from(JSON.stringify(material), "utf8");
 }
 
-function number(value: unknown): number {
-	return Number.isSafeInteger(value) && (value as number) >= 0 ? (value as number) : 0;
-}
-
 function retryAfterMs(headers: Headers): number | null {
 	const raw = headers.get("retry-after");
 	if (raw === null || !/^\d{1,5}$/.test(raw.trim())) return null;
@@ -372,16 +368,26 @@ function retryProposal(input: {
 	});
 }
 
-async function parseBoundedJson(
-	response: Response,
-): Promise<{ readonly bytes: Uint8Array; readonly value: unknown }> {
+async function parseBoundedJson(response: Response): Promise<{
+	readonly bytes: Uint8Array;
+	readonly value: unknown;
+	readonly parsed: boolean;
+}> {
 	const declared = response.headers.get("content-length");
 	if (declared !== null && (!/^\d+$/.test(declared) || Number(declared) > MAX_PROVIDER_BYTES))
 		throw new TypeError("current live provider response exceeded its declared bound");
 	const bytes = new Uint8Array(await response.arrayBuffer());
 	if (bytes.byteLength > MAX_PROVIDER_BYTES)
 		throw new TypeError("current live provider response exceeded its byte bound");
-	return { bytes, value: JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) };
+	try {
+		return {
+			bytes,
+			value: JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)),
+			parsed: true,
+		};
+	} catch {
+		return { bytes, value: null, parsed: false };
+	}
 }
 
 function explicitErrorType(value: unknown): boolean {
@@ -400,29 +406,56 @@ function explicitErrorType(value: unknown): boolean {
 	return false;
 }
 
-function usageFrom(value: unknown, elapsed: number) {
+function usageFrom(value: unknown, elapsed: number, reservationMaxCostMicrousd: number) {
 	const root = value as Record<string, unknown>;
 	const usage = root?.usage as Record<string, unknown> | undefined;
-	const inputTokens = number(usage?.prompt_tokens);
-	const outputTokens = number(usage?.completion_tokens);
+	const rawInputTokens = usage?.prompt_tokens;
+	const rawOutputTokens = usage?.completion_tokens;
 	const details = usage?.prompt_tokens_details as Record<string, unknown> | undefined;
-	const cacheReadTokens = Math.min(inputTokens, number(details?.cached_tokens));
+	const rawCacheReadTokens = details?.cached_tokens ?? 0;
+	if (
+		!Number.isSafeInteger(rawInputTokens) ||
+		(rawInputTokens as number) < 0 ||
+		!Number.isSafeInteger(rawOutputTokens) ||
+		(rawOutputTokens as number) < 0 ||
+		!Number.isSafeInteger(rawCacheReadTokens) ||
+		(rawCacheReadTokens as number) < 0 ||
+		(rawCacheReadTokens as number) > (rawInputTokens as number)
+	)
+		return Object.freeze({
+			reported: false as const,
+			usage: Object.freeze({
+				requests: 1 as const,
+				inputTokens: 0,
+				outputTokens: 0,
+				cacheReadTokens: 0,
+				actualCostMicrousd: reservationMaxCostMicrousd,
+				actualElapsedMs: elapsed,
+				costBasis: "conservative-reservation" as const,
+			}),
+		});
+	const inputTokens = rawInputTokens as number;
+	const outputTokens = rawOutputTokens as number;
+	const cacheReadTokens = rawCacheReadTokens as number;
 	const noncache = Math.max(0, inputTokens - cacheReadTokens);
 	const numerator =
 		noncache * CURRENT_GRAPH_LIVE_PRICING.inputMicrousdPerMillionTokens +
 		outputTokens * CURRENT_GRAPH_LIVE_PRICING.outputMicrousdPerMillionTokens +
 		cacheReadTokens * CURRENT_GRAPH_LIVE_PRICING.cacheReadMicrousdPerMillionTokens;
 	return Object.freeze({
-		requests: 1 as const,
-		inputTokens,
-		outputTokens,
-		cacheReadTokens,
-		actualCostMicrousd: Math.min(
-			CURRENT_GRAPH_LIVE_LIMITS.providerMaxCostMicrousd,
-			Math.ceil(numerator / 1_000_000),
-		),
-		actualElapsedMs: elapsed,
-		costBasis: "reported" as const,
+		reported: true as const,
+		usage: Object.freeze({
+			requests: 1 as const,
+			inputTokens,
+			outputTokens,
+			cacheReadTokens,
+			actualCostMicrousd: Math.min(
+				CURRENT_GRAPH_LIVE_LIMITS.providerMaxCostMicrousd,
+				Math.ceil(numerator / 1_000_000),
+			),
+			actualElapsedMs: elapsed,
+			costBasis: "reported" as const,
+		}),
 	});
 }
 
@@ -432,8 +465,26 @@ function parseToolCalls(value: unknown) {
 	if (!Array.isArray(choices) || choices.length !== 1)
 		throw new TypeError("current live provider choices drifted");
 	const message = (choices[0] as Record<string, unknown>)?.message as Record<string, unknown>;
+	if (message?.role !== "assistant")
+		throw new TypeError("current live provider message role drifted");
 	const calls = message?.tool_calls;
-	if (!Array.isArray(calls) || calls.length < 1 || calls.length > 16)
+	if (!Array.isArray(calls)) {
+		if (
+			typeof message?.content === "string" &&
+			Buffer.byteLength(message.content, "utf8") <= 262_144
+		)
+			return [];
+		throw new TypeError("current live provider did not return bounded tool calls");
+	}
+	if (calls.length === 0) {
+		if (
+			typeof message?.content === "string" &&
+			Buffer.byteLength(message.content, "utf8") <= 262_144
+		)
+			return [];
+		throw new TypeError("current live provider did not return bounded tool calls");
+	}
+	if (calls.length > 16)
 		throw new TypeError("current live provider did not return bounded tool calls");
 	return calls.map((raw, index) => {
 		if (raw === null || typeof raw !== "object" || Array.isArray(raw))
@@ -762,7 +813,75 @@ export function createCurrentGraphOpenRouterExecutor(
 								}),
 							};
 						}
-						const calls = parseToolCalls(parsed.value);
+						if (!parsed.parsed)
+							return {
+								effectKind: "provider-request" as const,
+								status: "failed" as const,
+								toolCalls: [] as const,
+								failureCode: "provider-failed" as const,
+								retryProposal: null,
+								usage: {
+									requests: 1 as const,
+									inputTokens: 0,
+									outputTokens: 0,
+									cacheReadTokens: 0,
+									actualCostMicrousd: request.reservation.maxCostMicrousd,
+									actualElapsedMs: elapsed,
+									costBasis: "conservative-reservation" as const,
+								},
+								evidenceDigest: empiricalStrictJsonDigest({
+									request: request.requestDigest,
+									responseDigest: empiricalSha256(parsed.bytes),
+									disposition: "provider-response-not-json",
+								}),
+							};
+						const usage = usageFrom(parsed.value, elapsed, request.reservation.maxCostMicrousd);
+						if (!usage.reported)
+							return {
+								effectKind: "provider-request" as const,
+								status: "failed" as const,
+								toolCalls: [] as const,
+								failureCode: "provider-failed" as const,
+								retryProposal: null,
+								usage: usage.usage,
+								evidenceDigest: empiricalStrictJsonDigest({
+									request: request.requestDigest,
+									responseDigest: empiricalSha256(parsed.bytes),
+									disposition: "provider-usage-unavailable",
+								}),
+							};
+						let calls: ReturnType<typeof parseToolCalls>;
+						try {
+							calls = parseToolCalls(parsed.value);
+						} catch {
+							return {
+								effectKind: "provider-request" as const,
+								status: "failed" as const,
+								toolCalls: [] as const,
+								failureCode: "provider-failed" as const,
+								retryProposal: null,
+								usage: usage.usage,
+								evidenceDigest: empiricalStrictJsonDigest({
+									request: request.requestDigest,
+									responseDigest: empiricalSha256(parsed.bytes),
+									disposition: "provider-response-malformed",
+								}),
+							};
+						}
+						if (calls.length === 0)
+							return {
+								effectKind: "provider-request" as const,
+								status: "failed" as const,
+								toolCalls: [] as const,
+								failureCode: "premature-structured-final" as const,
+								retryProposal: null,
+								usage: usage.usage,
+								evidenceDigest: empiricalStrictJsonDigest({
+									request: request.requestDigest,
+									responseDigest: empiricalSha256(parsed.bytes),
+									disposition: "premature-structured-final",
+								}),
+							};
 						const assistantCalls = calls.map((call) => call.raw);
 						state.messages.push({ role: "assistant", content: null, tool_calls: assistantCalls });
 						state.pendingToolCalls.push(...calls.map(({ id, toolRef }) => ({ id, toolRef })));
@@ -772,7 +891,7 @@ export function createCurrentGraphOpenRouterExecutor(
 							toolCalls: calls.map((call) => call.toolCall),
 							failureCode: null,
 							retryProposal: null,
-							usage: usageFrom(parsed.value, elapsed),
+							usage: usage.usage,
 							evidenceDigest: empiricalStrictJsonDigest({
 								request: request.requestDigest,
 								responseDigest: empiricalSha256(parsed.bytes),
