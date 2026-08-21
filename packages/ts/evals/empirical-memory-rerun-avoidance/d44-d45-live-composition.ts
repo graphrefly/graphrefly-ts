@@ -27,6 +27,7 @@ import {
 	D45_WRITABLE_PATH,
 } from "./d45-graph-tool-qualification.js";
 import {
+	classifyD45ChatExecutorFailure,
 	classifyD45ChatTransportFailure,
 	lowerD45ProviderEffect,
 	parseD45ChatProviderResponse,
@@ -359,6 +360,8 @@ export function createD44LiveExecutor(input: {
 								retryDelayMs: 0,
 							};
 						}
+						if (bytes.byteLength > 2 * 1_048_576)
+							throw new TypeError("D44 provider response exceeded its actual byte bound");
 						const result = parseD45ChatProviderResponse({
 							status: response.status,
 							bytes,
@@ -383,6 +386,14 @@ export function createD44LiveExecutor(input: {
 									: result.retryClass === "D671"
 										? Math.max(5_000, retryAfterMs)
 										: 0,
+						};
+					} catch {
+						return {
+							result: classifyD45ChatExecutorFailure({
+								elapsedMs: boundedElapsed(started, effect.elapsedReservationMs),
+								wireDigest: wire.wireDigest,
+							}),
+							retryDelayMs: 0,
 						};
 					} finally {
 						clearTimeout(timer);

@@ -48,6 +48,26 @@ export function classifyD45ChatTransportFailure(input: {
 			: null;
 	const code = ownString(cause, "code") ?? ownString(input.error, "code");
 	const d675 = code === "UND_ERR_SOCKET";
+	const abort =
+		(typeof DOMException !== "undefined" &&
+			input.error instanceof DOMException &&
+			input.error.name === "AbortError") ||
+		ownString(input.error, "name") === "AbortError";
+	const recognizedTransport =
+		d675 ||
+		abort ||
+		code === "ECONNRESET" ||
+		code === "ENOTFOUND" ||
+		code === "EAI_AGAIN" ||
+		code === "ETIMEDOUT" ||
+		code === "UND_ERR_CONNECT_TIMEOUT" ||
+		code === "UND_ERR_HEADERS_TIMEOUT" ||
+		code === "UND_ERR_BODY_TIMEOUT";
+	if (!recognizedTransport)
+		return classifyD45ChatExecutorFailure({
+			elapsedMs: input.elapsedMs,
+			wireDigest: input.wireDigest,
+		});
 	return Object.freeze({
 		effectKind: "provider-proposal",
 		outcome: d675 ? "retryable-provider-failure" : "transport-failed",
@@ -56,6 +76,23 @@ export function classifyD45ChatTransportFailure(input: {
 		usage: null,
 		wireDigest: input.wireDigest,
 		retryClass: d675 ? "D675" : null,
+		proposal: null,
+	});
+}
+
+/** Contains an unclassified post-wire boundary exception without retaining its material. */
+export function classifyD45ChatExecutorFailure(input: {
+	readonly elapsedMs: number;
+	readonly wireDigest: string;
+}): D45ProviderProposalResultInputV1 {
+	return Object.freeze({
+		effectKind: "provider-proposal",
+		outcome: "executor-failed",
+		elapsedMs: input.elapsedMs,
+		costMicrousd: 0,
+		usage: null,
+		wireDigest: input.wireDigest,
+		retryClass: null,
 		proposal: null,
 	});
 }
@@ -142,17 +179,69 @@ function parseD45ChatProviderResponseUnchecked(
 			cacheReadTokens * input.pricing.cacheReadMicrousdPerMillionTokens) /
 			1_000_000,
 	);
-	const choices = root.choices;
-	if (!Array.isArray(choices) || choices.length !== 1)
-		throw new TypeError("D45 Chat response must contain exactly one choice");
-	const choice = object(choices[0], "D45 Chat choice");
-	const finishReason = choice.finish_reason;
-	const message = object(choice.message, "D45 Chat assistant message");
-	const rawCalls = message.tool_calls;
-	if (finishReason === "length")
+	try {
+		const choices = root.choices;
+		if (!Array.isArray(choices) || choices.length !== 1)
+			throw new TypeError("D45 Chat response must contain exactly one choice");
+		const choice = object(choices[0], "D45 Chat choice");
+		const finishReason = choice.finish_reason;
+		const message = object(choice.message, "D45 Chat assistant message");
+		const rawCalls = message.tool_calls;
+		if (finishReason === "length")
+			return Object.freeze({
+				effectKind: "provider-proposal",
+				outcome: "length",
+				elapsedMs: input.elapsedMs,
+				costMicrousd,
+				usage: { inputTokens, outputTokens, cacheReadTokens },
+				wireDigest: input.wireDigest,
+				retryClass: null,
+				proposal: null,
+			});
+		if (!Array.isArray(rawCalls) || rawCalls.length === 0)
+			return Object.freeze({
+				effectKind: "provider-proposal",
+				outcome: "premature-final",
+				elapsedMs: input.elapsedMs,
+				costMicrousd,
+				usage: { inputTokens, outputTokens, cacheReadTokens },
+				wireDigest: input.wireDigest,
+				retryClass: null,
+				proposal: null,
+			});
+		const toolCalls = rawCalls.map((raw, index) => {
+			const call = object(raw, `D45 Chat tool call[${index}]`);
+			const fn = object(call.function, `D45 Chat tool call[${index}].function`);
+			if (typeof fn.name !== "string" || typeof fn.arguments !== "string")
+				throw new TypeError("D45 Chat tool call omitted bounded function coordinates");
+			if (Buffer.byteLength(fn.arguments, "utf8") > 131_072)
+				throw new TypeError("D45 Chat tool arguments exceeded their wire bound");
+			const args = object(JSON.parse(fn.arguments), `D45 Chat tool call[${index}].arguments`);
+			return fn.name === "read_file"
+				? { toolRef: "read-file" as const, path: args.path }
+				: fn.name === "replace_exact"
+					? {
+							toolRef: "replace-exact" as const,
+							path: args.path,
+							oldText: args.oldText,
+							newText: args.newText,
+						}
+					: ({ toolRef: fn.name, path: args.path } as unknown);
+		});
 		return Object.freeze({
 			effectKind: "provider-proposal",
-			outcome: "length",
+			outcome: "success",
+			elapsedMs: input.elapsedMs,
+			costMicrousd,
+			usage: { inputTokens, outputTokens, cacheReadTokens },
+			wireDigest: input.wireDigest,
+			retryClass: null,
+			proposal: { toolCalls: toolCalls as unknown as readonly D45ToolArgumentsV1[] },
+		});
+	} catch {
+		return Object.freeze({
+			effectKind: "provider-proposal",
+			outcome: "schema-rejected",
 			elapsedMs: input.elapsedMs,
 			costMicrousd,
 			usage: { inputTokens, outputTokens, cacheReadTokens },
@@ -160,46 +249,7 @@ function parseD45ChatProviderResponseUnchecked(
 			retryClass: null,
 			proposal: null,
 		});
-	if (!Array.isArray(rawCalls) || rawCalls.length === 0)
-		return Object.freeze({
-			effectKind: "provider-proposal",
-			outcome: "premature-final",
-			elapsedMs: input.elapsedMs,
-			costMicrousd,
-			usage: { inputTokens, outputTokens, cacheReadTokens },
-			wireDigest: input.wireDigest,
-			retryClass: null,
-			proposal: null,
-		});
-	const toolCalls = rawCalls.map((raw, index) => {
-		const call = object(raw, `D45 Chat tool call[${index}]`);
-		const fn = object(call.function, `D45 Chat tool call[${index}].function`);
-		if (typeof fn.name !== "string" || typeof fn.arguments !== "string")
-			throw new TypeError("D45 Chat tool call omitted bounded function coordinates");
-		if (Buffer.byteLength(fn.arguments, "utf8") > 131_072)
-			throw new TypeError("D45 Chat tool arguments exceeded their wire bound");
-		const args = object(JSON.parse(fn.arguments), `D45 Chat tool call[${index}].arguments`);
-		return fn.name === "read_file"
-			? { toolRef: "read-file" as const, path: args.path }
-			: fn.name === "replace_exact"
-				? {
-						toolRef: "replace-exact" as const,
-						path: args.path,
-						oldText: args.oldText,
-						newText: args.newText,
-					}
-				: ({ toolRef: fn.name, path: args.path } as unknown);
-	});
-	return Object.freeze({
-		effectKind: "provider-proposal",
-		outcome: "success",
-		elapsedMs: input.elapsedMs,
-		costMicrousd,
-		usage: { inputTokens, outputTokens, cacheReadTokens },
-		wireDigest: input.wireDigest,
-		retryClass: null,
-		proposal: { toolCalls: toolCalls as unknown as readonly D45ToolArgumentsV1[] },
-	});
+	}
 }
 
 export function parseD45ChatProviderResponse(
@@ -208,15 +258,9 @@ export function parseD45ChatProviderResponse(
 	try {
 		return parseD45ChatProviderResponseUnchecked(input);
 	} catch {
-		return Object.freeze({
-			effectKind: "provider-proposal",
-			outcome: "schema-rejected",
+		return classifyD45ChatExecutorFailure({
 			elapsedMs: input.elapsedMs,
-			costMicrousd: 0,
-			usage: null,
 			wireDigest: input.wireDigest,
-			retryClass: null,
-			proposal: null,
 		});
 	}
 }
