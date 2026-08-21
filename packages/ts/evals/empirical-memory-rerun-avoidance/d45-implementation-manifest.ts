@@ -4,10 +4,10 @@ import { empiricalSha256, empiricalStrictJsonDigest } from "./canonical.js";
 
 export const D45_IMPLEMENTATION_SOURCE_HASHES = Object.freeze({
 	policy: "sha256:c08e6377b1e8a6280325d6b99f43a201b1ae851b57a941cfe72992799797a9b9",
-	lifecycleAuthority: "sha256:fe36cb8ebc0e01f1fd6288586245aaa2c6f71bf5cf7d51211641921c69e1c874",
-	toolAuthority: "sha256:dc3c69fbe2bdb343a952a5d95efbe9947e444fdc56c289de1b77e925c54df87b",
-	adapter: "sha256:50e3b0bfb6d7e510303ea0ecac9ae4633859034b552d29bee382eb81690e7ed1",
-	qualification: "sha256:7efc95aaf892f5cb8371fad5ec2217d25785a7828d0f74c1193ceb364d1f04e2",
+	lifecycleAuthority: "sha256:d80c6ca67dddd5ba3ac20c53d50d6bd565f551b40b00d9566aadc7139b645b92",
+	toolAuthority: "sha256:e666dcf803b0d09b5b5756174f6f1fa15e69c010fbe306a4d87b3c7a58989329",
+	adapter: "sha256:f3734719cf21d4e398c17734af152d6001d2ef3b4bbcdc8987d8a2e678fa4711",
+	qualification: "sha256:b94a7acf88b90776fc39afa53b0602cffc9b8a5d4787adb56fad194e32fee55c",
 });
 
 export const D45_IMPLEMENTATION_MANIFEST_DIGEST = empiricalStrictJsonDigest({

@@ -245,6 +245,7 @@ interface MutableArmState {
 	findingCount: number;
 	phaseCycle: number;
 	pendingFreshMutation: boolean;
+	initialInspectionReads: number;
 }
 
 interface AuthorityState {
@@ -290,6 +291,7 @@ function armState(arm: D43Arm): MutableArmState {
 		findingCount: 0,
 		phaseCycle: 0,
 		pendingFreshMutation: false,
+		initialInspectionReads: 0,
 	};
 }
 
@@ -510,7 +512,11 @@ function applyResult(
 				if (arm.pendingFreshMutation) {
 					arm.pendingFreshMutation = false;
 					queue(state, "mutation", "fresh-mutation");
-				} else queue(state, "mutation");
+				} else {
+					arm.initialInspectionReads += 1;
+					if (arm.initialInspectionReads < 4) queue(state, "inspection");
+					else queue(state, "mutation");
+				}
 				return;
 			}
 			if (

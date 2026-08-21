@@ -18,11 +18,7 @@ import {
 	D44_FIXED_ADMISSION_BLOCK,
 	type D44LiveExecutorV1,
 } from "./d44-d45-live-composition.js";
-import {
-	D45_READABLE_PATHS,
-	D45_TASK_MATERIAL,
-	D45_WRITABLE_PATH,
-} from "./d45-graph-tool-qualification.js";
+import { D45_TASK_MATERIAL, D45_WRITABLE_PATH } from "./d45-graph-tool-qualification.js";
 import {
 	D46_CONTEXT_LINES,
 	D46_MAX_PROJECTED_BYTES,
@@ -42,11 +38,11 @@ import {
 } from "./d46-bounded-inspection-composition.js";
 
 export const D46_QUALIFICATION_SCHEMA =
-	"graphrefly-ts.d48.bounded-inspection-deadline-qualification.v1" as const;
+	"graphrefly-ts.d50.phase-composite-qualification.v1" as const;
 export const D46_QUALIFICATION_BUNDLE_SCHEMA =
-	"graphrefly-ts.d48.bounded-inspection-deadline-qualification-bundle.v1" as const;
+	"graphrefly-ts.d50.phase-composite-qualification-bundle.v1" as const;
 export const D46_QUALIFICATION_GENERATION_REF =
-	"current-graph-native-bounded-inspection-deadline-2026-08-21-d48-v1" as const;
+	"current-graph-native-phase-composite-2026-08-21-d50-v1" as const;
 
 export interface D46QualificationBundleV1 {
 	readonly schemaVersion: typeof D46_QUALIFICATION_BUNDLE_SCHEMA;
@@ -55,7 +51,7 @@ export interface D46QualificationBundleV1 {
 	readonly qualification: Readonly<{
 		readonly schemaVersion: typeof D46_QUALIFICATION_SCHEMA;
 		readonly decisionRef: "graphrefly-ts:D46";
-		readonly profileDecisionRef: "graphrefly-ts:D48";
+		readonly profileDecisionRef: "graphrefly-ts:D50";
 		readonly compositionRevision: typeof D46_COMPOSITION_REVISION;
 		readonly evidenceDigest: string;
 		readonly partialEvidenceDigest: string;
@@ -67,8 +63,8 @@ export interface D46QualificationBundleV1 {
 		readonly projectionBound: typeof D46_MAX_PROJECTED_BYTES;
 		readonly windowBound: typeof D46_MAX_WINDOWS;
 		readonly contextLines: typeof D46_CONTEXT_LINES;
-		readonly providerCalls: 13;
-		readonly providerDeadlineMs: 300_000;
+		readonly providerCalls: 31;
+		readonly providerDeadlineMs: 600_000;
 		readonly exactD710RetryIdentity: true;
 		readonly providerNetworkCalls: 0;
 		readonly credentialReads: 0;
@@ -108,9 +104,9 @@ function deriveD46QualificationClaims(evidence: D46CanonicalEvidenceV1) {
 	const providerDeadlineMs =
 		providerAdmissions.length === providerResults.length &&
 		providerAdmissions.every(
-			(fact) => fact.factKind === "effect-admitted" && fact.effect.elapsedReservationMs === 300_000,
+			(fact) => fact.factKind === "effect-admitted" && fact.effect.elapsedReservationMs === 600_000,
 		)
-			? 300_000
+			? 600_000
 			: 0;
 	const retryResults = providerResults.filter((fact) => fact.result.retryClass === "D710");
 	let exactD710RetryIdentity = false;
@@ -168,13 +164,31 @@ function injectedProviderResponse(body: RequestInit["body"], retryable429 = fals
 		});
 	const request = JSON.parse(body) as {
 		readonly tool_choice: Readonly<{ readonly function: Readonly<{ readonly name: string }> }>;
+		readonly tools: readonly [
+			Readonly<{
+				readonly function: Readonly<{
+					readonly parameters: Readonly<{
+						readonly properties: Readonly<{
+							readonly path: Readonly<{ readonly enum: readonly string[] }>;
+						}>;
+					}>;
+				}>;
+			}>,
+		];
 	};
 	const name = request.tool_choice.function.name;
 	const calls =
 		name === "read_file"
-			? D45_READABLE_PATHS.map((path) => ({
-					function: { name: "read_file", arguments: JSON.stringify({ path }) },
-				}))
+			? [
+					{
+						function: {
+							name: "read_file",
+							arguments: JSON.stringify({
+								path: request.tools[0].function.parameters.properties.path.enum[0],
+							}),
+						},
+					},
+				]
 			: [
 					{
 						function: {
@@ -253,11 +267,23 @@ export async function runD46InjectedNoNetworkQualification(input?: {
 				fact.projectedBytes > D46_MAX_PROJECTED_BYTES || fact.windows.length > D46_MAX_WINDOWS,
 		) ||
 		!derived.exactD710RetryIdentity ||
-		derived.providerCalls !== 13 ||
+		derived.providerCalls !== 31 ||
 		providerCalls !== derived.providerCalls ||
 		measurement.providerCalls !== providerCalls
 	)
-		throw new TypeError("D46 injected six-arm invariants failed");
+		throw new TypeError(
+			`D46 injected six-arm invariants failed: ${JSON.stringify({
+				exactSixArmsCompleted: evidence.exactSixArmsCompleted,
+				evaluableArms: derived.evaluableArms,
+				boundedReadFacts: derived.boundedReadFacts,
+				providerCalls: derived.providerCalls,
+				observedProviderCalls: providerCalls,
+				measurementProviderCalls: measurement.providerCalls,
+				exactD710RetryIdentity: derived.exactD710RetryIdentity,
+				arms: evidence.d45Evidence.lifecycle.arms,
+				findings: evidence.d45Evidence.lifecycle.findings,
+			})}`,
+		);
 	const serializedEvidence = JSON.stringify(evidence);
 	if (
 		serializedEvidence.includes(D44_BUGGY_ADMISSION_BLOCK) ||
@@ -330,7 +356,7 @@ export async function runD46InjectedNoNetworkQualification(input?: {
 	const qualificationMaterial = strictSnapshot({
 		schemaVersion: D46_QUALIFICATION_SCHEMA,
 		decisionRef: "graphrefly-ts:D46" as const,
-		profileDecisionRef: "graphrefly-ts:D48" as const,
+		profileDecisionRef: "graphrefly-ts:D50" as const,
 		compositionRevision: D46_COMPOSITION_REVISION,
 		evidenceDigest: evidence.evidenceDigest,
 		partialEvidenceDigest: partialEvidence.evidenceDigest,
@@ -342,8 +368,8 @@ export async function runD46InjectedNoNetworkQualification(input?: {
 		projectionBound: D46_MAX_PROJECTED_BYTES,
 		windowBound: D46_MAX_WINDOWS,
 		contextLines: D46_CONTEXT_LINES,
-		providerCalls: 13 as const,
-		providerDeadlineMs: 300_000 as const,
+		providerCalls: 31 as const,
+		providerDeadlineMs: 600_000 as const,
 		exactD710RetryIdentity: true as const,
 		providerNetworkCalls: 0 as const,
 		credentialReads: 0 as const,
@@ -421,7 +447,7 @@ export function validateD46QualificationBundle(
 		value.schemaVersion !== D46_QUALIFICATION_BUNDLE_SCHEMA ||
 		value.qualification.schemaVersion !== D46_QUALIFICATION_SCHEMA ||
 		value.qualification.decisionRef !== "graphrefly-ts:D46" ||
-		value.qualification.profileDecisionRef !== "graphrefly-ts:D48" ||
+		value.qualification.profileDecisionRef !== "graphrefly-ts:D50" ||
 		value.qualification.compositionRevision !== D46_COMPOSITION_REVISION ||
 		value.qualification.evidenceDigest !== evidence.evidenceDigest ||
 		value.qualification.partialEvidenceDigest !== partialEvidence.evidenceDigest ||

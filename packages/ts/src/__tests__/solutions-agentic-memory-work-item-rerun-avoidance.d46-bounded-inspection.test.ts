@@ -72,7 +72,7 @@ describe("graphrefly-ts:D46 Graph-owned bounded inspection projection", () => {
 		expect(bundle.qualification.exactSixArmsCompleted).toBe(true);
 		expect(bundle.qualification.evaluableArms).toBe(6);
 		expect(bundle.qualification.boundedReadFacts).toBe(24);
-		expect(bundle.qualification.providerCalls).toBe(13);
+		expect(bundle.qualification.providerCalls).toBe(31);
 		expect(bundle.qualification.exactD710RetryIdentity).toBe(true);
 		expect(
 			bundle.evidence.d45Evidence.facts
@@ -83,7 +83,7 @@ describe("graphrefly-ts:D46 Graph-owned bounded inspection projection", () => {
 				.map((fact) =>
 					fact.factKind === "effect-admitted" ? fact.effect.elapsedReservationMs : 0,
 				),
-		).toEqual(Array(13).fill(300_000));
+		).toEqual(Array(31).fill(600_000));
 		expect(bundle.partialEvidence.d45PartialEvidence.terminalCauseCode).toBe(
 			"provider-interrupted",
 		);

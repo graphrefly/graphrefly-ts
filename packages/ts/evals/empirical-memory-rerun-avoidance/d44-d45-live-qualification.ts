@@ -17,7 +17,7 @@ import {
 	type D45CanonicalEvidenceV1,
 	validateD45CanonicalEvidence,
 } from "./d45-graph-tool-authority.js";
-import { D45_READABLE_PATHS, D45_WRITABLE_PATH } from "./d45-graph-tool-qualification.js";
+import { D45_WRITABLE_PATH } from "./d45-graph-tool-qualification.js";
 import {
 	D45_IMPLEMENTATION_MANIFEST_DIGEST,
 	measureD45Implementation,
@@ -68,13 +68,31 @@ function injectedProviderResponse(body: RequestInit["body"]): Response {
 	if (typeof body !== "string") throw new TypeError("D44 qualification expected strict JSON wire");
 	const request = JSON.parse(body) as {
 		readonly tool_choice: Readonly<{ readonly function: Readonly<{ readonly name: string }> }>;
+		readonly tools: readonly [
+			Readonly<{
+				readonly function: Readonly<{
+					readonly parameters: Readonly<{
+						readonly properties: Readonly<{
+							readonly path: Readonly<{ readonly enum: readonly string[] }>;
+						}>;
+					}>;
+				}>;
+			}>,
+		];
 	};
 	const name = request.tool_choice.function.name;
 	const calls =
 		name === "read_file"
-			? D45_READABLE_PATHS.map((path) => ({
-					function: { name: "read_file", arguments: JSON.stringify({ path }) },
-				}))
+			? [
+					{
+						function: {
+							name: "read_file",
+							arguments: JSON.stringify({
+								path: request.tools[0].function.parameters.properties.path.enum[0],
+							}),
+						},
+					},
+				]
 			: [
 					{
 						function: {
@@ -127,7 +145,7 @@ export async function runD44D45InjectedNoNetworkQualification(input?: {
 			evidence.lifecycle.arms.some((arm) => !arm.evaluable) ||
 			!evidence.proposalToolBijection ||
 			measurement.providerCalls !== providerCalls ||
-			providerCalls < 12
+			providerCalls < 30
 		)
 			throw new TypeError("D44 injected six-arm composition invariants failed");
 		const measuredD45Manifest = await measureD45Implementation();

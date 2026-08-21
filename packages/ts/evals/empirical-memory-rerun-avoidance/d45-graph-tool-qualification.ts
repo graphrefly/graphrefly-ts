@@ -132,7 +132,7 @@ export function createD45QualificationPolicy() {
 			supportsNamedToolChoice: true,
 			supportsParallelToolCalls: false,
 			inspectionMaxOutputTokens: 65_536,
-			mutationMaxOutputTokens: 8_192,
+			mutationMaxOutputTokens: 16_384,
 		},
 		provider: {
 			bindingRef: "provider-binding.deepinfra-fp8-chat.d45-v1",
@@ -142,7 +142,7 @@ export function createD45QualificationPolicy() {
 			allowFallback: false,
 			allowProviderSwitch: false,
 			allowParallelEffects: false,
-			providerDeadlineMs: 300_000,
+			providerDeadlineMs: 600_000,
 		},
 		campaign: {
 			campaignRef: D45_ASSIGNMENT.campaignRef,
@@ -340,6 +340,25 @@ const RECOVERY_BY_ARM = Object.freeze({
 	"wrong-scope-applied": "cardinality",
 } satisfies Record<(typeof D43_ARMS)[number], RecoveryKind>);
 
+function nextInjectedReadPath(body: string): string {
+	const request = JSON.parse(body) as {
+		readonly tools: readonly [
+			Readonly<{
+				readonly function: Readonly<{
+					readonly parameters: Readonly<{
+						readonly properties: Readonly<{
+							readonly path: Readonly<{ readonly enum: readonly string[] }>;
+						}>;
+					}>;
+				}>;
+			}>,
+		];
+	};
+	const path = request.tools[0].function.parameters.properties.path.enum[0];
+	if (path === undefined) throw new TypeError("D50 injected inspection omitted unread path");
+	return path;
+}
+
 async function runScenario(
 	mode: "main" | "recovery" | "retry" | "failure",
 ): Promise<D45CanonicalEvidenceV1> {
@@ -422,9 +441,7 @@ async function runScenario(
 					else if (attempt === 1 && recovery === "path-not-allowed")
 						toolCalls = [{ toolRef: "read-file", path: "packages/ts/src/not-allowlisted.ts" }];
 					else if (attempt === 1 && recovery === "cardinality") toolCalls = [];
-					else if (mode === "retry" && effect.arm === "cold")
-						toolCalls = [{ toolRef: "read-file", path: D45_WRITABLE_PATH }];
-					else toolCalls = D45_READABLE_PATHS.map((path) => ({ toolRef: "read-file", path }));
+					else toolCalls = [{ toolRef: "read-file", path: nextInjectedReadPath(wire.body) }];
 				} else if (attempt === 1 && recovery === "unchanged") {
 					toolCalls = [
 						{
@@ -729,9 +746,6 @@ export async function runD45InjectedNoNetworkQualification(): Promise<D45Qualifi
 	const mainToolEffects = mainEvidence.facts.filter(
 		(item) => item.factKind === "effect-admitted" && item.effect.effectKind === "tool-action",
 	);
-	const retryToolEffects = retryEvidence.facts.filter(
-		(item) => item.factKind === "effect-admitted" && item.effect.effectKind === "tool-action",
-	);
 	const retryWiresByLogical = new Map<string, string[]>();
 	for (const item of retryEvidence.facts) {
 		if (item.factKind !== "provider-wire-admitted") continue;
@@ -755,12 +769,21 @@ export async function runD45InjectedNoNetworkQualification(): Promise<D45Qualifi
 		exactSixArmScenarios: 4 as const,
 		mainFrozenGateWouldPass: true as const,
 		proposalToolBijection: true as const,
-		oneToFourInspectionReadsObserved: (mainToolEffects.some(
-			(item) => item.factKind === "effect-admitted" && item.effect.toolCount === 4,
-		) &&
-			retryToolEffects.some(
-				(item) => item.factKind === "effect-admitted" && item.effect.toolCount === 1,
-			)) as true,
+		oneToFourInspectionReadsObserved: D43_ARMS.every((arm) => {
+			const reads = mainToolEffects.filter(
+				(item) =>
+					item.factKind === "effect-admitted" &&
+					item.effect.arm === arm &&
+					item.effect.phase === "inspection",
+			);
+			return (
+				reads.length === 4 &&
+				reads.every((item) => item.factKind === "effect-admitted" && item.effect.toolCount === 1) &&
+				new Set(
+					reads.map((item) => (item.factKind === "effect-admitted" ? item.effect.path : null)),
+				).size === 4
+			);
+		}) as true,
 		exactSingleMutationObserved: mainToolEffects.some(
 			(item) =>
 				item.factKind === "effect-admitted" &&

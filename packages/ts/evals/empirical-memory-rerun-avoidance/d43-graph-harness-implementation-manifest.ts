@@ -4,7 +4,7 @@ import { empiricalSha256, empiricalStrictJsonDigest } from "./canonical.js";
 
 export const D43_IMPLEMENTATION_SOURCE_HASHES = Object.freeze({
 	policy: "sha256:c08e6377b1e8a6280325d6b99f43a201b1ae851b57a941cfe72992799797a9b9",
-	authority: "sha256:fe36cb8ebc0e01f1fd6288586245aaa2c6f71bf5cf7d51211641921c69e1c874",
+	authority: "sha256:d80c6ca67dddd5ba3ac20c53d50d6bd565f551b40b00d9566aadc7139b645b92",
 	qualification: "sha256:e6e8e8ca24b899810c9dc38a11e2905b60c12fc8bbc5d058460a77fa3dbea9c0",
 	adapter: "sha256:1fbf757eca0e04ce7082d2fe9366172de2d007f0beebebfbdd6e83fbbeaf1a77",
 	runner: "sha256:6de991193aa160873c2238f0fbe89ceb823c067dc96444d04dfb714ff7dfc4e8",

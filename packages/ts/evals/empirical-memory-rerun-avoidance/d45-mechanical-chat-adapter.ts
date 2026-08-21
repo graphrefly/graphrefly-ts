@@ -4,6 +4,7 @@ import {
 	admitD45ProviderWire,
 	type D45AdmittedEffectV1,
 	type D45GraphToolAuthorityV1,
+	type D45ProviderMaterialV1,
 	type D45ProviderProposalResultInputV1,
 	type D45ToolArgumentsV1,
 	readD45ProviderMaterial,
@@ -269,6 +270,19 @@ function retainedContext(
 		.join("");
 }
 
+function graphIntentInstruction(intent: D45ProviderMaterialV1["intent"]): string {
+	if (intent === "phase-correction")
+		return "Graph rejected the previous phase response. Return exactly one named tool call now; do not emit a final answer or additional tool calls.";
+	if (intent === "fresh-mutation")
+		return "Graph rejected the previous exact replacement against current workspace state. Use the retained fresh sources and propose one different, unique exact replacement.";
+	if (intent === "semantic-correction")
+		return "Graph validation rejected the current workspace. Inspect the retained current sources, repair the TypeScript and public acceptance criteria, and propose one different exact replacement.";
+	if (intent === "reinspection")
+		return "Graph requires one fresh read of the writable file before another mutation.";
+	if (intent === "same-request-retry") return "Graph admitted the initial phase effect.";
+	return "Graph admitted the initial phase effect.";
+}
+
 export function lowerD45ProviderEffect(
 	authority: D45GraphToolAuthorityV1,
 	effect: D45AdmittedEffectV1,
@@ -282,10 +296,13 @@ export function lowerD45ProviderEffect(
 		throw new TypeError("D45 Chat adapter requires one admitted provider proposal effect");
 	const material = readD45ProviderMaterial(authority, effect);
 	const toolName = effect.phase === "inspection" ? "read_file" : "replace_exact";
+	const retainedPaths = new Set(material.retainedReads.map(({ path }) => path));
+	const readablePaths =
+		retainedPaths.size < material.readablePaths.length
+			? material.readablePaths.filter((path) => !retainedPaths.has(path))
+			: [material.writablePath];
 	const tool =
-		effect.phase === "inspection"
-			? readTool(material.readablePaths)
-			: replaceTool(material.writablePath);
+		effect.phase === "inspection" ? readTool(readablePaths) : replaceTool(material.writablePath);
 	const toolChoice =
 		effect.namedToolChoiceEncoding === "function-object"
 			? Object.freeze({ type: "function" as const, function: Object.freeze({ name: toolName }) })
@@ -300,7 +317,7 @@ export function lowerD45ProviderEffect(
 			},
 			{
 				role: "system",
-				content: `Graph admission requires phase=${effect.phase}; return only the named ${toolName} tool proposal.`,
+				content: `Graph admission requires phase=${effect.phase}; return only the named ${toolName} tool proposal. ${graphIntentInstruction(material.intent)}`,
 			},
 		],
 		tools: [tool],

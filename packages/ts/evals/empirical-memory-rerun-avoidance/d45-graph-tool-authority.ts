@@ -345,6 +345,7 @@ export interface D45ProviderMaterialV1 {
 	readonly systemInstruction: string;
 	readonly taskStatement: string;
 	readonly armContext: string;
+	readonly intent: D43AdmittedEffectV1["intent"];
 	readonly readablePaths: readonly string[];
 	readonly writablePath: string;
 	readonly retainedReads: readonly Readonly<{
@@ -713,10 +714,7 @@ function validateProviderResult(
 		const proposal = record(candidate.proposal, "D45 provider proposal");
 		exactKeys(proposal, ["toolCalls"], "D45 provider proposal");
 		const rawCalls = array(proposal.toolCalls, "D45 provider toolCalls");
-		const validCardinality =
-			effect.phase === "inspection"
-				? rawCalls.length >= 1 && rawCalls.length <= 4
-				: rawCalls.length === 1;
+		const validCardinality = rawCalls.length === 1;
 		if (!validCardinality) proposalRejectionCode = "cardinality";
 		if (proposalRejectionCode === null) {
 			try {
@@ -733,7 +731,10 @@ function validateProviderResult(
 			if (
 				toolCalls.some((call) =>
 					effect.phase === "inspection"
-						? !state.readablePaths.has(call.path)
+						? !state.readablePaths.has(call.path) ||
+							(state.retainedReads.size < state.readablePaths.size
+								? state.retainedReads.has(call.path)
+								: call.path !== state.writablePath)
 						: call.path !== state.writablePath,
 				)
 			)
@@ -1434,6 +1435,7 @@ export function readD45ProviderMaterial(
 		systemInstruction: state.systemInstruction,
 		taskStatement: state.taskStatement,
 		armContext: state.armContexts[effect.arm],
+		intent: state.innerActive?.intent ?? "initial",
 		readablePaths: Object.freeze([...state.readablePaths]),
 		writablePath: state.writablePath,
 		retainedReads: Object.freeze(
