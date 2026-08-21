@@ -39,9 +39,9 @@ import {
 export const D45_QUALIFICATION_SCHEMA = "graphrefly-ts.d45.qualification.v1" as const;
 export const D45_QUALIFICATION_BUNDLE_SCHEMA = "graphrefly-ts.d45.qualification-bundle.v1" as const;
 export const D45_QUALIFICATION_GENERATION_REF =
-	"current-graph-native-tool-admission-2026-08-21-d45-v1" as const;
+	"current-graph-native-tool-admission-2026-08-21-d45-v2" as const;
 export const D45_PARTIAL_GENERATION_REF =
-	"current-graph-native-tool-admission-partial-2026-08-21-d45-v1" as const;
+	"current-graph-native-tool-admission-partial-2026-08-21-d45-v2" as const;
 
 export const D45_READABLE_PATHS = Object.freeze([
 	"packages/ts/src/executors/managed-cloud-postgresql.ts",
@@ -82,7 +82,7 @@ export const D45_TASK_ENVELOPE_DIGEST = d45TaskEnvelopeDigest(D45_TASK_MATERIAL)
 export const D45_ASSIGNMENT = Object.freeze({
 	assignmentRef: "assignment.deepseek-deepinfra-fp8.d45",
 	modelRef: "deepseek/deepseek-v4-flash-0731",
-	providerRef: "deepinfra/fp8/chat",
+	providerRef: "deepinfra/fp8",
 	campaignRef: "campaign.memory-rerun-avoidance.six-arm.d45-v1",
 });
 
@@ -962,14 +962,29 @@ async function persistAtomicArtifact(input: {
 			materialDigest: input.materialDigest,
 		}),
 	);
+	let published = false;
 	try {
 		await writeExclusive(join(staging, input.fileName), input.bytes);
 		await writeExclusive(join(staging, "commit.v1.json"), commitBytes);
 		await syncDirectory(staging);
 		await rename(staging, target);
-		await syncDirectory(root);
+		published = true;
+		try {
+			await syncDirectory(root);
+		} catch {
+			const [publishedArtifact, publishedCommit] = await Promise.all([
+				readFile(join(target, input.fileName)),
+				readFile(join(target, "commit.v1.json")),
+			]);
+			if (
+				empiricalSha256(publishedArtifact) !== artifactDigest ||
+				empiricalSha256(publishedCommit) !== empiricalSha256(commitBytes)
+			)
+				throw new TypeError("D45 published artifact verification failed after directory sync");
+			await syncDirectory(root);
+		}
 	} catch (error) {
-		await rm(staging, { recursive: true, force: true });
+		if (!published) await rm(staging, { recursive: true, force: true });
 		throw error;
 	}
 	return Object.freeze({ artifactDigest, commitArtifactDigest: empiricalSha256(commitBytes) });

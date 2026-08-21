@@ -26,6 +26,38 @@ export interface D45ChatPricingV1 {
 
 const MAX_CHAT_RESPONSE_BYTES = 2 * 1024 * 1024;
 
+function ownString(value: unknown, key: string): string | null {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+	const descriptor = Object.getOwnPropertyDescriptor(value, key);
+	return descriptor !== undefined && "value" in descriptor && typeof descriptor.value === "string"
+		? descriptor.value
+		: null;
+}
+
+/** Maps only D675's exact pre-response socket class to a retry proposal. */
+export function classifyD45ChatTransportFailure(input: {
+	readonly error: unknown;
+	readonly elapsedMs: number;
+	readonly wireDigest: string;
+}): D45ProviderProposalResultInputV1 {
+	const cause =
+		input.error !== null && typeof input.error === "object"
+			? Object.getOwnPropertyDescriptor(input.error, "cause")?.value
+			: null;
+	const code = ownString(cause, "code") ?? ownString(input.error, "code");
+	const d675 = code === "UND_ERR_SOCKET";
+	return Object.freeze({
+		effectKind: "provider-proposal",
+		outcome: d675 ? "retryable-provider-failure" : "transport-failed",
+		elapsedMs: input.elapsedMs,
+		costMicrousd: 0,
+		usage: null,
+		wireDigest: input.wireDigest,
+		retryClass: d675 ? "D675" : null,
+		proposal: null,
+	});
+}
+
 function object(value: unknown, path: string): Record<string, unknown> {
 	if (value === null || typeof value !== "object" || Array.isArray(value))
 		throw new TypeError(`${path} must be an object`);
@@ -38,29 +70,31 @@ function nonnegativeInteger(value: unknown, path: string): number {
 	return value as number;
 }
 
-function explicitProviderCode(value: unknown): boolean {
-	if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+function providerCodes(value: unknown): readonly string[] {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) return [];
 	const root = value as Record<string, unknown>;
+	const result: string[] = [];
 	for (const item of [root, root.error]) {
 		if (item === null || typeof item !== "object" || Array.isArray(item)) continue;
 		const candidate = item as Record<string, unknown>;
-		if (
-			(typeof candidate.type === "string" && candidate.type.length > 0) ||
-			(typeof candidate.code === "string" && candidate.code.length > 0)
-		)
-			return true;
+		for (const code of [candidate.type, candidate.code])
+			if (typeof code === "string" && code.length > 0) result.push(code);
 	}
-	return false;
+	return Object.freeze(result);
 }
 
 /** Mechanically turns one bounded raw Chat response into a proposal result; Graph still admits it. */
-export function parseD45ChatProviderResponse(input: {
+export interface D45ChatProviderResponseInputV1 {
 	readonly status: number;
 	readonly bytes: Uint8Array;
 	readonly elapsedMs: number;
 	readonly wireDigest: string;
 	readonly pricing: D45ChatPricingV1;
-}): D45ProviderProposalResultInputV1 {
+}
+
+function parseD45ChatProviderResponseUnchecked(
+	input: D45ChatProviderResponseInputV1,
+): D45ProviderProposalResultInputV1 {
 	if (input.bytes.byteLength > MAX_CHAT_RESPONSE_BYTES)
 		throw new TypeError("D45 Chat response exceeded its byte bound");
 	if (!Number.isSafeInteger(input.status) || input.status < 100 || input.status > 599)
@@ -73,17 +107,19 @@ export function parseD45ChatProviderResponse(input: {
 		decoded = null;
 	}
 	if (input.status < 200 || input.status >= 300) {
-		const untyped429 = input.status === 429 && !explicitProviderCode(decoded);
-		const boundedRetryStatus = [408, 502, 503, 504].includes(input.status);
+		const codes = providerCodes(decoded);
+		const untyped429 = input.status === 429 && codes.length === 0;
+		const d671 =
+			(input.status === 429 && codes.includes("rate_limit_exceeded")) ||
+			(input.status === 503 && codes.includes("provider_overloaded"));
 		return Object.freeze({
 			effectKind: "provider-proposal",
-			outcome:
-				untyped429 || boundedRetryStatus ? "retryable-provider-failure" : "provider-rejected",
+			outcome: untyped429 || d671 ? "retryable-provider-failure" : "provider-rejected",
 			elapsedMs: input.elapsedMs,
 			costMicrousd: 0,
 			usage: null,
 			wireDigest: input.wireDigest,
-			retryClass: untyped429 ? "D710" : boundedRetryStatus ? "D671" : null,
+			retryClass: untyped429 ? "D710" : d671 ? "D671" : null,
 			proposal: null,
 		});
 	}
@@ -133,7 +169,6 @@ export function parseD45ChatProviderResponse(input: {
 			retryClass: null,
 			proposal: null,
 		});
-	if (rawCalls.length > 4) throw new TypeError("D45 Chat tool call count exceeded its wire bound");
 	const toolCalls = rawCalls.map((raw, index) => {
 		const call = object(raw, `D45 Chat tool call[${index}]`);
 		const fn = object(call.function, `D45 Chat tool call[${index}].function`);
@@ -163,6 +198,25 @@ export function parseD45ChatProviderResponse(input: {
 		retryClass: null,
 		proposal: { toolCalls: toolCalls as unknown as readonly D45ToolArgumentsV1[] },
 	});
+}
+
+export function parseD45ChatProviderResponse(
+	input: D45ChatProviderResponseInputV1,
+): D45ProviderProposalResultInputV1 {
+	try {
+		return parseD45ChatProviderResponseUnchecked(input);
+	} catch {
+		return Object.freeze({
+			effectKind: "provider-proposal",
+			outcome: "schema-rejected",
+			elapsedMs: input.elapsedMs,
+			costMicrousd: 0,
+			usage: null,
+			wireDigest: input.wireDigest,
+			retryClass: null,
+			proposal: null,
+		});
+	}
 }
 
 function readTool(readablePaths: readonly string[]) {

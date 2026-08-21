@@ -593,6 +593,73 @@ function validatePersistedProviderProjection(value: unknown, path: string): void
 	digest(result.reconciliationDigest, `${path}.reconciliationDigest`);
 }
 
+function validatePersistedResultProjection(
+	factKind: "workspace-freshness-result" | "tool-result" | "local-result",
+	value: unknown,
+	effect: D45AdmittedEffectV1,
+	path: string,
+): void {
+	const result = record(value, path);
+	if (factKind === "workspace-freshness-result") {
+		if (effect.effectKind !== "workspace-freshness")
+			throw new TypeError(`${path} bound the wrong admitted effect`);
+		safeInteger(result.elapsedMs, `${path}.elapsedMs`, { max: effect.elapsedReservationMs });
+		for (const key of [
+			"evidenceDigest",
+			"argumentsDigest",
+			"proposalDigest",
+			"expectedWorkspaceStateDigest",
+			"observedWorkspaceStateDigest",
+		] as const)
+			digest(result[key], `${path}.${key}`);
+		if (
+			result.argumentsDigest !== effect.argumentsDigest ||
+			result.expectedWorkspaceStateDigest !== effect.workspaceStateDigest ||
+			typeof result.fresh !== "boolean" ||
+			result.fresh !== (result.expectedWorkspaceStateDigest === result.observedWorkspaceStateDigest)
+		)
+			throw new TypeError(`${path} freshness coordinates drifted`);
+		return;
+	}
+	if (factKind === "tool-result") {
+		if (effect.effectKind !== "tool-action")
+			throw new TypeError(`${path} bound the wrong admitted effect`);
+		const status = oneOf(result.status, ["success", "failed"] as const, `${path}.status`);
+		const causeCode =
+			result.causeCode === null
+				? null
+				: oneOf(result.causeCode, TOOL_FAILURES, `${path}.causeCode`);
+		if ((status === "success") !== (causeCode === null))
+			throw new TypeError(`${path} status/cause coordinates drifted`);
+		safeInteger(result.elapsedMs, `${path}.elapsedMs`, { max: effect.elapsedReservationMs });
+		digest(result.evidenceDigest, `${path}.evidenceDigest`);
+		const before = digest(result.workspaceStateBeforeDigest, `${path}.workspaceBefore`);
+		const after = digest(result.workspaceStateAfterDigest, `${path}.workspaceAfter`);
+		const contentBytes = safeInteger(result.contentBytes, `${path}.contentBytes`, {
+			max: 131_072,
+		});
+		if (result.contentDigest !== null) digest(result.contentDigest, `${path}.contentDigest`);
+		if (
+			(status === "failed" && before !== after) ||
+			(effect.toolRef === "read-file" && status === "success" && before !== after) ||
+			(effect.toolRef === "read-file" && status === "success") !==
+				(result.contentDigest !== null || contentBytes > 0) ||
+			(effect.toolRef !== "read-file" && (result.contentDigest !== null || contentBytes !== 0))
+		)
+			throw new TypeError(`${path} tool-result material-free coordinates drifted`);
+		return;
+	}
+	if (effect.effectKind !== "local-effect")
+		throw new TypeError(`${path} bound the wrong admitted effect`);
+	oneOf(result.outcome, LOCAL_OUTCOMES, `${path}.outcome`);
+	safeInteger(result.elapsedMs, `${path}.elapsedMs`, { max: effect.elapsedReservationMs });
+	digest(result.evidenceDigest, `${path}.evidenceDigest`);
+	if (result.workspaceStateDigest !== null)
+		digest(result.workspaceStateDigest, `${path}.workspaceStateDigest`);
+	if ((effect.sourceD43EffectKind === "public-semantic-validation") !== (result.criteria !== null))
+		throw new TypeError(`${path} public-semantic criteria coordinates drifted`);
+}
+
 function validateProviderResult(
 	state: State,
 	effect: D45AdmittedEffectV1,
@@ -632,6 +699,7 @@ function validateProviderResult(
 	if ((outcome === "retryable-provider-failure") !== (retryClass !== null))
 		throw new TypeError("D45 retry classification drifted");
 	const usageMayBeUnavailable =
+		outcome === "schema-rejected" ||
 		outcome === "provider-rejected" ||
 		outcome === "transport-failed" ||
 		outcome === "retryable-provider-failure" ||
@@ -1568,6 +1636,14 @@ function deriveD45Findings(facts: readonly D45FactV1[]) {
 					causeCode: `provider-proposal-${item.result.proposalRejectionCode}`,
 				}),
 			);
+		else if (item.factKind === "provider-result" && item.result.outcome !== "success")
+			findings.push(
+				Object.freeze({
+					factSequence: item.sequence,
+					effectDigest: item.effectDigest,
+					causeCode: `provider-result-${item.result.outcome}`,
+				}),
+			);
 		else if (item.factKind === "workspace-freshness-result" && !item.result.fresh)
 			findings.push(
 				Object.freeze({
@@ -1724,6 +1800,7 @@ export function validateD45PartialCanonicalEvidence(value: unknown): D45PartialC
 	const seenResults = new Set<string>();
 	let temporalActive: D45AdmittedEffectV1 | null = null;
 	let temporalWire: string | null = null;
+	let pendingToolCount = 0;
 	for (const [index, factValue] of facts.entries()) {
 		const item = record(factValue, `D45 partial fact[${index}]`);
 		if (item.sequence !== index + 1 || item.schemaVersion !== D45_FACT_SCHEMA)
@@ -1909,6 +1986,7 @@ export function validateD45PartialCanonicalEvidence(value: unknown): D45PartialC
 		if (item.factKind === "provider-result") {
 			const result = record(item.result, "D45 partial provider result");
 			validatePersistedProviderProjection(result, "D45 partial provider result");
+			pendingToolCount = array(result.toolCalls, "D45 partial provider tools").length;
 			if (temporalWire !== result.wireDigest)
 				throw new TypeError("D45 partial provider result lost final-wire binding");
 			if (
@@ -1926,6 +2004,12 @@ export function validateD45PartialCanonicalEvidence(value: unknown): D45PartialC
 				throw new TypeError("D45 partial provider reconciliation drifted");
 		} else if (item.factKind === "workspace-freshness-result") {
 			const result = resultShape;
+			validatePersistedResultProjection(
+				"workspace-freshness-result",
+				result,
+				temporalActive,
+				"D45 partial workspace freshness result",
+			);
 			if (
 				temporalActive.effectKind !== "workspace-freshness" ||
 				result.argumentsDigest !== temporalActive.argumentsDigest ||
@@ -1934,6 +2018,23 @@ export function validateD45PartialCanonicalEvidence(value: unknown): D45PartialC
 					(result.expectedWorkspaceStateDigest === result.observedWorkspaceStateDigest)
 			)
 				throw new TypeError("D45 partial workspace freshness provenance drifted");
+			if (result.fresh === false) pendingToolCount = 0;
+		} else if (item.factKind === "tool-result") {
+			validatePersistedResultProjection(
+				"tool-result",
+				resultShape,
+				temporalActive,
+				"D45 partial tool result",
+			);
+			if (resultShape.status === "failed") pendingToolCount = 0;
+			else pendingToolCount = Math.max(0, pendingToolCount - 1);
+		} else {
+			validatePersistedResultProjection(
+				"local-result",
+				resultShape,
+				temporalActive,
+				"D45 partial local result",
+			);
 		}
 		seenResults.add(effectDigest);
 		temporalActive = null;
@@ -1956,7 +2057,8 @@ export function validateD45PartialCanonicalEvidence(value: unknown): D45PartialC
 		temporalActive?.effectKind === "provider-proposal"
 			? "provider-interrupted"
 			: temporalActive?.effectKind === "workspace-freshness" ||
-					temporalActive?.effectKind === "tool-action"
+					temporalActive?.effectKind === "tool-action" ||
+					pendingToolCount > 0
 				? "tool-interrupted"
 				: temporalActive?.effectKind === "local-effect"
 					? "local-effect-interrupted"
@@ -2224,6 +2326,12 @@ function validateD45LifecycleBijection(
 			if (item.result.outcome !== "success" && lifecycleResult.outcome !== item.result.outcome)
 				throw new TypeError("D45 terminal provider outcome drifted from lifecycle evidence");
 		} else if (item.factKind === "workspace-freshness-result") {
+			validatePersistedResultProjection(
+				"workspace-freshness-result",
+				item.result,
+				effect,
+				"D45 workspace freshness result",
+			);
 			if (
 				effect.effectKind !== "workspace-freshness" ||
 				item.result.argumentsDigest !== effect.argumentsDigest ||
@@ -2233,9 +2341,11 @@ function validateD45LifecycleBijection(
 			)
 				throw new TypeError("D45 workspace freshness result lost exact effect provenance");
 		} else if (item.factKind === "tool-result") {
+			validatePersistedResultProjection("tool-result", item.result, effect, "D45 tool result");
 			if (effect.effectKind !== "tool-action")
 				throw new TypeError("D45 tool result bound a non-tool effect");
 		} else {
+			validatePersistedResultProjection("local-result", item.result, effect, "D45 local result");
 			if (effect.effectKind !== "local-effect")
 				throw new TypeError("D45 local result bound a non-local effect");
 			const lifecycleResult = lifecycleResults.get(effect.sourceD43EffectDigest);

@@ -32,6 +32,7 @@ import {
 	measureD45Implementation,
 } from "../../evals/empirical-memory-rerun-avoidance/d45-implementation-manifest.js";
 import {
+	classifyD45ChatTransportFailure,
 	lowerD45ProviderEffect,
 	parseD45ChatProviderResponse,
 } from "../../evals/empirical-memory-rerun-avoidance/d45-mechanical-chat-adapter.js";
@@ -239,6 +240,24 @@ describe("graphrefly-ts:D45 Graph-owned provider proposal and exact tool admissi
 		});
 		expect(typed.outcome).toBe("provider-rejected");
 		expect(typed.retryClass).toBeNull();
+		const overloaded = parseD45ChatProviderResponse({
+			status: 503,
+			bytes: new TextEncoder().encode(JSON.stringify({ error: { type: "provider_overloaded" } })),
+			elapsedMs: 3,
+			wireDigest: empiricalStrictJsonDigest("overloaded-wire"),
+			pricing,
+		});
+		expect(overloaded.retryClass).toBe("D671");
+		const socket = Object.assign(new TypeError("sanitized"), {
+			cause: Object.assign(new Error("sanitized"), { code: "UND_ERR_SOCKET" }),
+		});
+		expect(
+			classifyD45ChatTransportFailure({
+				error: socket,
+				elapsedMs: 3,
+				wireDigest: empiricalStrictJsonDigest("socket-wire"),
+			}).retryClass,
+		).toBe("D675");
 	});
 
 	it("derives interrupted-effect causes and conservative active reservations from Graph state", () => {
