@@ -12,7 +12,7 @@ import {
 	validateD55PersistedQualification,
 } from "./d55-provider-boundary-qualification.js";
 
-const GENERATION_REF = "current-graph-native-provider-boundary-2026-08-21-d55-v6" as const;
+const GENERATION_REF = "current-graph-native-provider-boundary-2026-08-21-d55-v8" as const;
 
 async function persist(directory: string, value: unknown) {
 	if (!isAbsolute(directory)) throw new TypeError("D55 qualification directory must be absolute");
@@ -69,7 +69,7 @@ const directory = resolve(
 	process.argv[2] ??
 		join(
 			import.meta.dirname,
-			"../.private/empirical-memory-rerun-avoidance/current-graph-native-d55-qualified-v6",
+			"../.private/empirical-memory-rerun-avoidance/current-graph-native-d55-qualified-v8",
 		),
 );
 if ((await measureD55Implementation()) !== D55_IMPLEMENTATION_MANIFEST_DIGEST)

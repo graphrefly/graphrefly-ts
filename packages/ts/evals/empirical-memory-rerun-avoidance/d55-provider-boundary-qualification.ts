@@ -285,13 +285,10 @@ async function runSingleBoundaryScenario(input: {
 		)
 			throw new TypeError(`D55 ${input.scenario} Graph binding drifted`);
 		const conservativeReconciliation =
-			input.scenario === "d675-retry" || input.scenario === "schema-rejection"
-				? true
-				: executed.result.outcome === "transport-failed"
-					? result.result.reconciledCostMicrousd === provider.providerReservationMicrousd &&
-						result.result.reconciledElapsedMs <= provider.elapsedReservationMs
-					: result.result.reconciledCostMicrousd === provider.providerReservationMicrousd &&
-						result.result.reconciledElapsedMs === provider.elapsedReservationMs;
+			result.result.reconciledCostMicrousd === provider.providerReservationMicrousd &&
+			(executed.result.outcome === "executor-failed"
+				? result.result.reconciledElapsedMs === provider.elapsedReservationMs
+				: result.result.reconciledElapsedMs <= provider.elapsedReservationMs);
 		const armLocalCleanupAndContinuation = input.scenario === "d675-retry" ? null : true;
 		if (
 			!conservativeReconciliation ||
@@ -315,7 +312,7 @@ async function runSingleBoundaryScenario(input: {
 			providerCalls,
 			exactGraphBinding: true as const,
 			conservativeReconciliation: true as const,
-			armLocalCleanupAndContinuation: true as const,
+			armLocalCleanupAndContinuation,
 			exactRetryIdentity,
 			evidence,
 		});
@@ -549,6 +546,13 @@ export function validateD55Qualification(value: unknown): unknown {
 	const canonicalEvidence = validateD46CanonicalEvidence(candidate.canonicalEvidence as never);
 	if (empiricalStrictJsonDigest(canonicalEvidence) !== candidate.canonicalEvidenceDigest)
 		throw new TypeError("D55 canonical evidence digest drifted");
+	let derivedPostWireExecutorFailures = 0;
+	let derivedTransportFailures = 0;
+	let derivedSchemaRejections = 0;
+	let derivedD675Retries = 0;
+	let derivedProviderCalls = canonicalEvidence.d45Evidence.facts.filter(
+		(fact) => fact.factKind === "provider-result",
+	).length;
 	for (const [index, scenario] of D55_SCENARIOS.entries()) {
 		const digestEntry = record(candidate.scenarioEvidenceDigests[index], "D55 scenario digest");
 		const evidenceEntry = record(candidate.scenarioEvidence[index], "D55 scenario evidence");
@@ -560,6 +564,10 @@ export function validateD55Qualification(value: unknown): unknown {
 		exactKeys(evidenceEntry, ["evidence", "scenario"], "D55 scenario evidence");
 		if (digestEntry.scenario !== scenario || evidenceEntry.scenario !== scenario)
 			throw new TypeError("D55 scenario order drifted");
+		const expected = expectedOutcome(scenario);
+		const expectedRetryClass = scenario === "d675-retry" ? "D675" : null;
+		if (digestEntry.outcome !== expected || digestEntry.retryClass !== expectedRetryClass)
+			throw new TypeError(`D55 ${scenario} classification claim drifted`);
 		const evidence =
 			scenario === "schema-rejection"
 				? validateD46CanonicalEvidence(evidenceEntry.evidence as never)
@@ -569,7 +577,105 @@ export function validateD55Qualification(value: unknown): unknown {
 			empiricalStrictJsonDigest(evidence) !== digestEntry.evidenceDigest
 		)
 			throw new TypeError("D55 scenario evidence digest drifted");
+		const d45Evidence =
+			scenario === "schema-rejection"
+				? validateD46CanonicalEvidence(evidenceEntry.evidence as never).d45Evidence
+				: validateD45PartialCanonicalEvidence(evidenceEntry.evidence as never);
+		const providerResults = d45Evidence.facts.filter((fact) => fact.factKind === "provider-result");
+		derivedProviderCalls += providerResults.length;
+		const target =
+			scenario === "schema-rejection"
+				? providerResults.find((fact) => fact.result.outcome === "schema-rejected")
+				: providerResults[0];
+		if (target === undefined || target.result.outcome !== expected)
+			throw new TypeError(`D55 ${scenario} canonical outcome drifted`);
+		if (target.result.retryClass !== expectedRetryClass)
+			throw new TypeError(`D55 ${scenario} canonical retry class drifted`);
+		const admission = d45Evidence.facts.find(
+			(fact) =>
+				fact.factKind === "effect-admitted" && fact.effect.effectDigest === target.effectDigest,
+		);
+		const wire = d45Evidence.facts.find(
+			(fact) =>
+				fact.factKind === "provider-wire-admitted" && fact.effectDigest === target.effectDigest,
+		);
+		if (
+			admission?.factKind !== "effect-admitted" ||
+			admission.effect.effectKind !== "provider-proposal" ||
+			wire?.factKind !== "provider-wire-admitted" ||
+			target.requestDigest !== admission.effect.requestDigest ||
+			target.admissionDigest !== admission.effect.admissionDigest ||
+			wire.requestDigest !== target.requestDigest ||
+			wire.admissionDigest !== target.admissionDigest ||
+			wire.wireDigest !== target.result.wireDigest ||
+			target.result.reconciledCostMicrousd !== admission.effect.providerReservationMicrousd ||
+			(target.result.outcome === "executor-failed"
+				? target.result.reconciledElapsedMs !== admission.effect.elapsedReservationMs
+				: target.result.reconciledElapsedMs > admission.effect.elapsedReservationMs)
+		)
+			throw new TypeError(`D55 ${scenario} canonical binding or reconciliation drifted`);
+		if (scenario === "d675-retry") {
+			const retried = providerResults[1];
+			const retryAdmission =
+				retried === undefined
+					? undefined
+					: d45Evidence.facts.find(
+							(fact) =>
+								fact.factKind === "effect-admitted" &&
+								fact.effect.effectDigest === retried.effectDigest,
+						);
+			if (
+				providerResults.length !== 2 ||
+				retried?.result.outcome !== "success" ||
+				retried.result.retryClass !== null ||
+				retryAdmission?.factKind !== "effect-admitted" ||
+				retryAdmission.effect.logicalRequestDigest !== admission.effect.logicalRequestDigest ||
+				retried.result.wireDigest !== target.result.wireDigest
+			)
+				throw new TypeError("D55 D675 canonical retry identity drifted");
+			derivedD675Retries += 1;
+		} else {
+			const cleanupAdmission = d45Evidence.facts.find(
+				(fact) =>
+					fact.sequence > target.sequence &&
+					fact.factKind === "effect-admitted" &&
+					fact.effect.sourceD43EffectKind === "cleanup",
+			);
+			const cleanupResult =
+				cleanupAdmission?.factKind === "effect-admitted"
+					? d45Evidence.facts.find(
+							(fact) =>
+								fact.sequence > cleanupAdmission.sequence &&
+								fact.factKind === "local-result" &&
+								fact.effectDigest === cleanupAdmission.effect.effectDigest,
+						)
+					: undefined;
+			const nextMaterialization = d45Evidence.facts.find(
+				(fact) =>
+					fact.sequence > (cleanupResult?.sequence ?? Number.MAX_SAFE_INTEGER) &&
+					fact.factKind === "effect-admitted" &&
+					fact.effect.arm === "relevant-applied" &&
+					fact.effect.sourceD43EffectKind === "materialization",
+			);
+			if (
+				cleanupAdmission?.factKind !== "effect-admitted" ||
+				cleanupResult?.factKind !== "local-result" ||
+				nextMaterialization?.factKind !== "effect-admitted"
+			)
+				throw new TypeError(`D55 ${scenario} canonical cleanup continuation drifted`);
+		}
+		if (target.result.outcome === "executor-failed") derivedPostWireExecutorFailures += 1;
+		else if (target.result.outcome === "transport-failed") derivedTransportFailures += 1;
+		else if (target.result.outcome === "schema-rejected") derivedSchemaRejections += 1;
 	}
+	if (
+		candidate.postWireExecutorFailureScenarios !== derivedPostWireExecutorFailures ||
+		candidate.transportFailureScenarios !== derivedTransportFailures ||
+		candidate.schemaRejectionScenarios !== derivedSchemaRejections ||
+		candidate.d675RetryScenarios !== derivedD675Retries ||
+		candidate.providerCalls !== derivedProviderCalls
+	)
+		throw new TypeError("D55 qualification counters are not derived from canonical Graph facts");
 	const claims = strictSnapshot({
 		schemaVersion: candidate.schemaVersion,
 		decisionRef: candidate.decisionRef,
