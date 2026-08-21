@@ -546,6 +546,8 @@ export function validateD55Qualification(value: unknown): unknown {
 	const canonicalEvidence = validateD46CanonicalEvidence(candidate.canonicalEvidence as never);
 	if (empiricalStrictJsonDigest(canonicalEvidence) !== candidate.canonicalEvidenceDigest)
 		throw new TypeError("D55 canonical evidence digest drifted");
+	if (!canonicalEvidence.exactSixArmsCompleted)
+		throw new TypeError("D55 primary canonical evidence did not complete exactly six arms");
 	let derivedPostWireExecutorFailures = 0;
 	let derivedTransportFailures = 0;
 	let derivedSchemaRejections = 0;
@@ -577,6 +579,11 @@ export function validateD55Qualification(value: unknown): unknown {
 			empiricalStrictJsonDigest(evidence) !== digestEntry.evidenceDigest
 		)
 			throw new TypeError("D55 scenario evidence digest drifted");
+		if (
+			scenario === "schema-rejection" &&
+			!validateD46CanonicalEvidence(evidenceEntry.evidence as never).exactSixArmsCompleted
+		)
+			throw new TypeError("D55 schema canonical evidence did not complete exactly six arms");
 		const d45Evidence =
 			scenario === "schema-rejection"
 				? validateD46CanonicalEvidence(evidenceEntry.evidence as never).d45Evidence
@@ -609,6 +616,8 @@ export function validateD55Qualification(value: unknown): unknown {
 			wire.admissionDigest !== target.admissionDigest ||
 			wire.wireDigest !== target.result.wireDigest ||
 			target.result.reconciledCostMicrousd !== admission.effect.providerReservationMicrousd ||
+			admission.effect.providerReservationMicrousd !== candidate.conservativeCostMicrousd ||
+			admission.effect.elapsedReservationMs !== candidate.conservativeElapsedMs ||
 			(target.result.outcome === "executor-failed"
 				? target.result.reconciledElapsedMs !== admission.effect.elapsedReservationMs
 				: target.result.reconciledElapsedMs > admission.effect.elapsedReservationMs)
@@ -630,6 +639,8 @@ export function validateD55Qualification(value: unknown): unknown {
 				retried.result.retryClass !== null ||
 				retryAdmission?.factKind !== "effect-admitted" ||
 				retryAdmission.effect.logicalRequestDigest !== admission.effect.logicalRequestDigest ||
+				retryAdmission.effect.providerReservationMicrousd !== candidate.conservativeCostMicrousd ||
+				retryAdmission.effect.elapsedReservationMs !== candidate.conservativeElapsedMs ||
 				retried.result.wireDigest !== target.result.wireDigest
 			)
 				throw new TypeError("D55 D675 canonical retry identity drifted");
