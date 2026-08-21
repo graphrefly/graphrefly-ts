@@ -116,7 +116,11 @@ async function runProcess(input: {
 		child.once("close", (code) => finish(undefined, code ?? 1));
 		timer = setTimeout(() => {
 			child.kill("SIGKILL");
-			finish(new TypeError("D44 subprocess exceeded its Graph reservation"));
+			finish(
+				new TypeError(
+					`D44 subprocess exceeded its Graph reservation (${input.command}:${input.args.slice(0, 3).join(" ")})`,
+				),
+			);
 		}, input.timeoutMs);
 	});
 }
@@ -198,8 +202,11 @@ async function materializeWorkspace(input: {
 				"user.name=GraphReFly Eval",
 				"-c",
 				"user.email=eval@invalid.local",
+				"-c",
+				"core.hooksPath=/dev/null",
 				"commit",
 				"--no-gpg-sign",
+				"--no-verify",
 				"-m",
 				`D44 frozen ${input.arm} task fixture`,
 			],

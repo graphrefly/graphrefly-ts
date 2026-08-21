@@ -24,10 +24,11 @@ import {
 	validateD43ModelHarnessPolicy,
 } from "./d43-model-harness-policy.js";
 
-export const D43_AUTHORITY_REVISION = "graphrefly-ts.d43.graph-harness-authority.v1" as const;
-export const D43_EVIDENCE_SCHEMA = "graphrefly-ts.d43.graph-harness-evidence.v1" as const;
+export const D43_AUTHORITY_REVISION = "graphrefly-ts.d52.graph-harness-authority.v2" as const;
+export const D43_EVIDENCE_SCHEMA = "graphrefly-ts.d52.graph-harness-evidence.v2" as const;
 export const D43_FACT_SCHEMA = "graphrefly-ts.d43.graph-harness-fact.v1" as const;
 export const D43_EFFECT_SCHEMA = "graphrefly-ts.d43.graph-harness-effect.v1" as const;
+export const D53_LOCAL_VALIDATION_RESERVATION_MS = 60_000 as const;
 
 export const D43_EFFECT_KINDS = Object.freeze([
 	"materialization",
@@ -60,6 +61,7 @@ export const D43_RESULT_OUTCOMES = Object.freeze([
 
 export type D43EffectKind = (typeof D43_EFFECT_KINDS)[number];
 export type D43ResultOutcome = (typeof D43_RESULT_OUTCOMES)[number];
+export type D43TaskOutcome = "passed" | "failed" | "non-evaluable";
 export type D43EffectIntent =
 	| "initial"
 	| "same-request-retry"
@@ -185,6 +187,7 @@ export interface D43ArmProjectionV1 {
 	readonly completed: boolean;
 	readonly cleanupCompleted: boolean;
 	readonly evaluable: boolean;
+	readonly taskOutcome: D43TaskOutcome;
 	readonly hiddenVerifierPassed: boolean | null;
 	readonly inspectionCorrections: number;
 	readonly mutationCorrections: number;
@@ -236,6 +239,7 @@ interface MutableArmState {
 	completed: boolean;
 	cleanupCompleted: boolean;
 	evaluable: boolean;
+	taskOutcome: D43TaskOutcome;
 	hiddenVerifierPassed: boolean | null;
 	inspectionCorrections: number;
 	mutationCorrections: number;
@@ -282,6 +286,7 @@ function armState(arm: D43Arm): MutableArmState {
 		completed: false,
 		cleanupCompleted: false,
 		evaluable: false,
+		taskOutcome: "non-evaluable",
 		hiddenVerifierPassed: null,
 		inspectionCorrections: 0,
 		mutationCorrections: 0,
@@ -317,6 +322,13 @@ function isProviderKind(kind: D43EffectKind): boolean {
 	return kind === "inspection" || kind === "mutation";
 }
 
+function elapsedReservationMs(state: AuthorityState, kind: D43EffectKind): number {
+	if (isProviderKind(kind)) return state.policy.provider.providerDeadlineMs;
+	if (kind === "focused-validation" || kind === "public-semantic-validation")
+		return D53_LOCAL_VALIDATION_RESERVATION_MS;
+	return state.policy.campaign.localEffectReservationMs;
+}
+
 function nextLogicalRequestDigest(
 	state: AuthorityState,
 	kind: D43EffectKind,
@@ -340,12 +352,10 @@ function queue(
 ): void {
 	if (state.pending !== null || state.active !== null || state.finished)
 		throw new TypeError("D43 Graph attempted to overlap effects");
-	const elapsedReservationMs = isProviderKind(kind)
-		? state.policy.provider.providerDeadlineMs
-		: state.policy.campaign.localEffectReservationMs;
+	const reservationMs = elapsedReservationMs(state, kind);
 	if (
 		kind !== "cleanup" &&
-		state.budget.confirmedElapsedMs + elapsedReservationMs > state.policy.campaign.maxElapsedMs
+		state.budget.confirmedElapsedMs + reservationMs > state.policy.campaign.maxElapsedMs
 	) {
 		addFinding(state, "budget-exhausted", "elapsed-headroom-insufficient", null);
 		state.pending = {
@@ -449,6 +459,11 @@ function scheduleCleanup(state: AuthorityState): void {
 	queue(state, "cleanup");
 }
 
+function markTaskFailed(arm: MutableArmState): void {
+	arm.evaluable = true;
+	arm.taskOutcome = "failed";
+}
+
 function applyResult(
 	state: AuthorityState,
 	effect: D43AdmittedEffectV1,
@@ -468,6 +483,8 @@ function applyResult(
 
 	if (effect.kind === "cleanup") {
 		if (result.outcome !== "success") {
+			arm.evaluable = false;
+			arm.taskOutcome = "non-evaluable";
 			addFinding(state, "executor-failed", "cleanup-failed", effect.requestDigest);
 			state.finished = true;
 			return;
@@ -530,6 +547,7 @@ function applyResult(
 				return;
 			}
 			addFinding(state, "phase-policy-violation", result.outcome, effect.requestDigest);
+			markTaskFailed(arm);
 			scheduleCleanup(state);
 			return;
 		case "mutation":
@@ -568,6 +586,7 @@ function applyResult(
 				result.outcome,
 				effect.requestDigest,
 			);
+			markTaskFailed(arm);
 			scheduleCleanup(state);
 			return;
 		case "workspace-diff":
@@ -588,6 +607,7 @@ function applyResult(
 					result.outcome,
 					effect.requestDigest,
 				);
+				if (result.outcome === "wrong-scope") markTaskFailed(arm);
 				scheduleCleanup(state);
 			}
 			return;
@@ -614,6 +634,7 @@ function applyResult(
 					result.outcome,
 					effect.requestDigest,
 				);
+				if (result.outcome === "failed") markTaskFailed(arm);
 				scheduleCleanup(state);
 			}
 			return;
@@ -635,6 +656,7 @@ function applyResult(
 				queue(state, "mutation", "semantic-correction");
 			} else {
 				addFinding(state, "semantic-validation-failed", result.outcome, effect.requestDigest);
+				if (result.outcome === "failed") markTaskFailed(arm);
 				scheduleCleanup(state);
 			}
 			return;
@@ -646,6 +668,7 @@ function applyResult(
 			}
 			arm.evaluable = true;
 			arm.hiddenVerifierPassed = result.outcome === "passed";
+			arm.taskOutcome = arm.hiddenVerifierPassed ? "passed" : "failed";
 			if (!arm.hiddenVerifierPassed)
 				addFinding(state, "hidden-verifier-failed", "hidden-verifier-failed", effect.requestDigest);
 			scheduleCleanup(state);
@@ -831,9 +854,7 @@ function effectFromPending(state: AuthorityState, pending: PendingDirective): D4
 			? state.policy.campaign.providerReservationMicrousd
 			: 0,
 		providerDeadlineMs: providerEffect ? state.policy.provider.providerDeadlineMs : 0,
-		elapsedReservationMs: providerEffect
-			? state.policy.provider.providerDeadlineMs
-			: state.policy.campaign.localEffectReservationMs,
+		elapsedReservationMs: elapsedReservationMs(state, pending.kind),
 		publicSemanticScenarioSetDigest:
 			pending.kind === "public-semantic-validation"
 				? state.policy.campaign.publicSemanticScenarioSetDigest
@@ -1109,6 +1130,7 @@ function armProjection(value: MutableArmState): D43ArmProjectionV1 {
 		completed: value.completed,
 		cleanupCompleted: value.cleanupCompleted,
 		evaluable: value.evaluable,
+		taskOutcome: value.taskOutcome,
 		hiddenVerifierPassed: value.hiddenVerifierPassed,
 		inspectionCorrections: value.inspectionCorrections,
 		mutationCorrections: value.mutationCorrections,
@@ -1116,6 +1138,67 @@ function armProjection(value: MutableArmState): D43ArmProjectionV1 {
 		semanticCorrections: value.semanticCorrections,
 		providerAttempts: value.providerAttempts,
 		findingCount: value.findingCount,
+	});
+}
+
+function validateArmProjection(value: unknown, index: number): D43ArmProjectionV1 {
+	const path = `D43 evidence.arms[${index}]`;
+	const candidate = record(value, path);
+	exactKeys(
+		candidate,
+		[
+			"arm",
+			"cleanupCompleted",
+			"completed",
+			"evaluable",
+			"exactReplacementRecoveries",
+			"findingCount",
+			"hiddenVerifierPassed",
+			"inspectionCorrections",
+			"mutationCorrections",
+			"providerAttempts",
+			"semanticCorrections",
+			"taskOutcome",
+		],
+		path,
+	);
+	const taskOutcome = oneOf(
+		candidate.taskOutcome,
+		["passed", "failed", "non-evaluable"] as const,
+		`${path}.taskOutcome`,
+	);
+	const hiddenVerifierPassed =
+		candidate.hiddenVerifierPassed === null
+			? null
+			: boolean(candidate.hiddenVerifierPassed, `${path}.hiddenVerifierPassed`);
+	const evaluable = boolean(candidate.evaluable, `${path}.evaluable`);
+	if (
+		evaluable !== (taskOutcome !== "non-evaluable") ||
+		(taskOutcome === "passed" && hiddenVerifierPassed !== true) ||
+		(hiddenVerifierPassed === true && taskOutcome !== "passed") ||
+		(hiddenVerifierPassed === false && taskOutcome !== "failed") ||
+		(taskOutcome === "non-evaluable" && hiddenVerifierPassed !== null)
+	)
+		throw new TypeError(`${path} task outcome provenance drifted`);
+	return Object.freeze({
+		arm: oneOf(candidate.arm, D43_ARMS, `${path}.arm`),
+		completed: boolean(candidate.completed, `${path}.completed`),
+		cleanupCompleted: boolean(candidate.cleanupCompleted, `${path}.cleanupCompleted`),
+		evaluable,
+		taskOutcome,
+		hiddenVerifierPassed,
+		inspectionCorrections: safeInteger(
+			candidate.inspectionCorrections,
+			`${path}.inspectionCorrections`,
+		),
+		mutationCorrections: safeInteger(candidate.mutationCorrections, `${path}.mutationCorrections`),
+		exactReplacementRecoveries: safeInteger(
+			candidate.exactReplacementRecoveries,
+			`${path}.exactReplacementRecoveries`,
+		),
+		semanticCorrections: safeInteger(candidate.semanticCorrections, `${path}.semanticCorrections`),
+		providerAttempts: safeInteger(candidate.providerAttempts, `${path}.providerAttempts`),
+		findingCount: safeInteger(candidate.findingCount, `${path}.findingCount`),
 	});
 }
 
@@ -1130,10 +1213,10 @@ function gateWouldPass(
 		budget.confirmedElapsedMs <= campaign.maxElapsedMs &&
 		arms.length === D43_ARMS.length &&
 		arms.every((arm) => arm.completed && arm.cleanupCompleted && arm.evaluable) &&
-		arms.find((arm) => arm.arm === "relevant-applied")?.hiddenVerifierPassed === true &&
+		arms.find((arm) => arm.arm === "relevant-applied")?.taskOutcome === "passed" &&
 		arms
 			.filter((arm) => arm.arm !== "relevant-applied")
-			.every((arm) => arm.hiddenVerifierPassed === false)
+			.every((arm) => arm.taskOutcome === "failed")
 	);
 }
 
@@ -1265,7 +1348,7 @@ export function validateD43GraphHarnessEvidence(value: unknown): D43GraphHarness
 		if (digest(factDigest, "D43 fact digest") !== empiricalStrictJsonDigest(material))
 			throw new TypeError("D43 evidence fact digest drifted");
 	}
-	const arms = array(candidate.arms, "D43 evidence.arms") as readonly D43ArmProjectionV1[];
+	const arms = Object.freeze(array(candidate.arms, "D43 evidence.arms").map(validateArmProjection));
 	if (
 		arms.length !== D43_ARMS.length ||
 		arms.some((arm, index) => arm.arm !== D43_ARMS[index]) ||

@@ -31,12 +31,14 @@ import {
 } from "./d43-model-harness-policy.js";
 
 export const D45_AUTHORITY_REVISION =
-	"graphrefly-ts.d45.graph-tool-admission-authority.v1" as const;
+	"graphrefly-ts.d52.graph-tool-admission-authority.v2" as const;
 export const D45_EFFECT_SCHEMA = "graphrefly-ts.d45.admitted-effect.v1" as const;
 export const D45_FACT_SCHEMA = "graphrefly-ts.d45.canonical-fact.v1" as const;
-export const D45_EVIDENCE_SCHEMA = "graphrefly-ts.d45.canonical-evidence.v1" as const;
+export const D45_EVIDENCE_SCHEMA = "graphrefly-ts.d52.canonical-evidence.v2" as const;
 export const D45_PARTIAL_EVIDENCE_SCHEMA =
-	"graphrefly-ts.d45.partial-canonical-evidence.v1" as const;
+	"graphrefly-ts.d52.partial-canonical-evidence.v2" as const;
+export const D52_REPLACE_TEXT_MAX_BYTES = 512 as const;
+export const D52_REPLACE_EXPANSION_MAX_BYTES = 128 as const;
 
 const PROVIDER_OUTCOMES = Object.freeze([
 	"success",
@@ -348,6 +350,22 @@ export interface D45ProviderMaterialV1 {
 	readonly intent: D43AdmittedEffectV1["intent"];
 	readonly readablePaths: readonly string[];
 	readonly writablePath: string;
+	readonly correctionContext:
+		| Readonly<{
+				kind: "focused-validation";
+				causeCode: "focused-validation-failed";
+				sourceFactDigest: string;
+		  }>
+		| Readonly<{
+				kind: "public-semantic-validation";
+				sourceFactDigest: string;
+				scenarioSetDigest: string;
+				observations: readonly Readonly<{
+					scenarioRef: string;
+					passed: boolean;
+				}>[];
+		  }>
+		| null;
 	readonly retainedReads: readonly Readonly<{
 		readonly path: string;
 		readonly content: string;
@@ -417,6 +435,10 @@ interface State {
 	readonly requireParameters: true;
 	readonly facts: D45FactV1[];
 	readonly retainedReads: Map<string, string>;
+	readonly correctionContexts: Map<
+		D43AdmittedEffectV1["arm"],
+		Exclude<D45ProviderMaterialV1["correctionContext"], null>
+	>;
 	active: D45AdmittedEffectV1 | null;
 	innerActive: D43AdmittedEffectV1 | null;
 	pendingProvider: PendingProvider | null;
@@ -504,11 +526,24 @@ function validateToolArguments(value: unknown): D45ToolArgumentsV1 {
 		});
 	}
 	exactKeys(candidate, ["newText", "oldText", "path", "toolRef"], "D45 replace arguments");
+	const oldText = boundedString(
+		candidate.oldText,
+		"D45 replace oldText",
+		D52_REPLACE_TEXT_MAX_BYTES,
+	);
+	const newText = boundedString(
+		candidate.newText,
+		"D45 replace newText",
+		D52_REPLACE_TEXT_MAX_BYTES,
+		true,
+	);
+	if (bytes(newText) > bytes(oldText) + D52_REPLACE_EXPANSION_MAX_BYTES)
+		throw new TypeError("D45 replace expansion exceeded its byte bound");
 	return Object.freeze({
 		toolRef,
 		path: coordinate(candidate.path, "D45 replace path"),
-		oldText: boundedString(candidate.oldText, "D45 replace oldText", 32_768),
-		newText: boundedString(candidate.newText, "D45 replace newText", 32_768, true),
+		oldText,
+		newText,
 	});
 }
 
@@ -575,15 +610,17 @@ function validatePersistedProviderProjection(value: unknown, path: string): void
 			max: 66_000,
 		});
 		const oldTextBytes = safeInteger(call.oldTextBytes, `${path}.oldTextBytes`, {
-			max: 32_768,
+			max: D52_REPLACE_TEXT_MAX_BYTES,
 		});
 		const newTextBytes = safeInteger(call.newTextBytes, `${path}.newTextBytes`, {
-			max: 32_768,
+			max: D52_REPLACE_TEXT_MAX_BYTES,
 		});
 		if (
 			(toolRef === "read-file" && (oldTextBytes !== 0 || newTextBytes !== 0)) ||
 			(toolRef === "replace-exact" &&
-				(oldTextBytes === 0 || argumentsBytes < oldTextBytes + newTextBytes))
+				(oldTextBytes === 0 ||
+					newTextBytes > oldTextBytes + D52_REPLACE_EXPANSION_MAX_BYTES ||
+					argumentsBytes < oldTextBytes + newTextBytes))
 		)
 			throw new TypeError(`${path} tool projection byte coordinates drifted`);
 		return call;
@@ -1087,7 +1124,7 @@ function localToD43(runtime: LocalRuntimeResult): D43EffectResultInputV1 {
 	});
 }
 
-function applyLocalFact(state: State, runtime: LocalRuntimeResult) {
+function applyLocalFact(state: State, runtime: LocalRuntimeResult, sourceFactDigest: string) {
 	const inner = state.innerActive;
 	if (inner === null) throw new TypeError("D45 local fact lost its D43 effect");
 	if (inner.kind === "materialization" && runtime.input.outcome === "success") {
@@ -1102,8 +1139,38 @@ function applyLocalFact(state: State, runtime: LocalRuntimeResult) {
 	)
 		throw new TypeError("D45 local result used stale workspace state");
 	admitD43EffectResult(state.inner, inner, localToD43(runtime));
+	if (runtime.input.outcome === "failed" && inner.kind === "focused-validation") {
+		state.correctionContexts.set(
+			inner.arm,
+			Object.freeze({
+				kind: "focused-validation",
+				causeCode: "focused-validation-failed",
+				sourceFactDigest,
+			}),
+		);
+	}
+	if (
+		runtime.input.outcome === "failed" &&
+		inner.kind === "public-semantic-validation" &&
+		runtime.input.criteria !== null
+	) {
+		state.correctionContexts.set(
+			inner.arm,
+			Object.freeze({
+				kind: "public-semantic-validation",
+				sourceFactDigest,
+				scenarioSetDigest: runtime.input.criteria.scenarioSetDigest,
+				observations: Object.freeze(
+					runtime.input.criteria.observations.map(({ scenarioRef, passed }) =>
+						Object.freeze({ scenarioRef, passed }),
+					),
+				),
+			}),
+		);
+	}
 	if (inner.kind === "cleanup") {
 		state.retainedReads.clear();
+		state.correctionContexts.delete(inner.arm);
 		state.workspaceStateDigest = null;
 	}
 	state.innerActive = null;
@@ -1138,7 +1205,7 @@ function applyFact(state: State, value: RuntimeFact) {
 		else finishComposite(state, "executor-failed");
 	} else if (value.projection.factKind === "tool-result")
 		applyToolFact(state, value.runtime as ToolRuntimeResult);
-	else applyLocalFact(state, value.runtime as LocalRuntimeResult);
+	else applyLocalFact(state, value.runtime as LocalRuntimeResult, value.projection.factDigest);
 	state.facts.push(value.projection);
 	state.active = null;
 	state.activeWireDigest = null;
@@ -1244,6 +1311,7 @@ export function createD45GraphToolAuthority(input: {
 		requireParameters: input.routeProfile.requireParameters,
 		facts: [],
 		retainedReads: new Map(),
+		correctionContexts: new Map(),
 		active: null,
 		innerActive: null,
 		pendingProvider: null,
@@ -1438,6 +1506,10 @@ export function readD45ProviderMaterial(
 		intent: state.innerActive?.intent ?? "initial",
 		readablePaths: Object.freeze([...state.readablePaths]),
 		writablePath: state.writablePath,
+		correctionContext:
+			state.innerActive?.intent === "semantic-correction"
+				? (state.correctionContexts.get(effect.arm) ?? null)
+				: null,
 		retainedReads: Object.freeze(
 			[...state.retainedReads.entries()].map(([path, content]) => Object.freeze({ path, content })),
 		),

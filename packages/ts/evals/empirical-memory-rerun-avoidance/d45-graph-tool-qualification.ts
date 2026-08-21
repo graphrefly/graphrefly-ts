@@ -58,7 +58,7 @@ export const D45_TASK_STATEMENT =
 const ARM_CONTEXTS = Object.freeze({
 	cold: "Frozen evaluation arm: cold. Memory disposition: none. No admitted memory insight content.",
 	"relevant-applied":
-		"Frozen evaluation arm: relevant-applied. Memory disposition: admitted-applied. When accepting a producer-owned canonical proposal, preserve its proposal coordinate separately from the later admission coordinate and reject any locally reconstructed or mismatched provenance before mutation.",
+		"Frozen evaluation arm: relevant-applied. Memory disposition: admitted-applied. When accepting a producer-owned canonical proposal, preserve its proposal coordinate separately from the later admission coordinate and reject any locally reconstructed or mismatched provenance before mutation. A producer proposal identifier is a bounded compound authority identifier, not an ordinary safe string; validate it with the canonical compound-authority boundary before comparing it to sourceRefs.",
 	"proposal-only":
 		"Frozen evaluation arm: proposal-only. Memory disposition: proposal-unadmitted. No admitted memory insight content.",
 	"admission-rejected":

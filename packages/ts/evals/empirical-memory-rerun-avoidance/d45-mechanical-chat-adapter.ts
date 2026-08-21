@@ -7,10 +7,11 @@ import {
 	type D45ProviderMaterialV1,
 	type D45ProviderProposalResultInputV1,
 	type D45ToolArgumentsV1,
+	D52_REPLACE_TEXT_MAX_BYTES,
 	readD45ProviderMaterial,
 } from "./d45-graph-tool-authority.js";
 
-export const D45_CHAT_ADAPTER_REVISION = "graphrefly-ts.d45.mechanical-chat-adapter.v1" as const;
+export const D45_CHAT_ADAPTER_REVISION = "graphrefly-ts.d52.mechanical-chat-adapter.v2" as const;
 
 export interface D45LoweredChatWireV1 {
 	readonly adapterRevision: typeof D45_CHAT_ADAPTER_REVISION;
@@ -250,8 +251,15 @@ function replaceTool(writablePath: string) {
 				required: Object.freeze(["path", "oldText", "newText"]),
 				properties: Object.freeze({
 					path: Object.freeze({ type: "string" as const, enum: Object.freeze([writablePath]) }),
-					oldText: Object.freeze({ type: "string" as const, minLength: 1, maxLength: 32_768 }),
-					newText: Object.freeze({ type: "string" as const, maxLength: 32_768 }),
+					oldText: Object.freeze({
+						type: "string" as const,
+						minLength: 1,
+						maxLength: D52_REPLACE_TEXT_MAX_BYTES,
+					}),
+					newText: Object.freeze({
+						type: "string" as const,
+						maxLength: D52_REPLACE_TEXT_MAX_BYTES,
+					}),
 				}),
 			}),
 		}),
@@ -270,13 +278,23 @@ function retainedContext(
 		.join("");
 }
 
-function graphIntentInstruction(intent: D45ProviderMaterialV1["intent"]): string {
+function graphCorrectionInstruction(context: D45ProviderMaterialV1["correctionContext"]): string {
+	if (context === null) return "Graph admitted no additional public correction evidence.";
+	if (context.kind === "focused-validation")
+		return `Graph admitted focused validation outcome=${context.causeCode}; repair the candidate so repository TypeScript validation passes.`;
+	return `Graph admitted public semantic observations: ${context.observations
+		.map(({ scenarioRef, passed }) => `${scenarioRef}=${passed ? "passed" : "failed"}`)
+		.join(", ")}. Repair only the failed public scenarios while preserving the passed scenarios.`;
+}
+
+function graphIntentInstruction(material: D45ProviderMaterialV1): string {
+	const { intent } = material;
 	if (intent === "phase-correction")
 		return "Graph rejected the previous phase response. Return exactly one named tool call now; do not emit a final answer or additional tool calls.";
 	if (intent === "fresh-mutation")
 		return "Graph rejected the previous exact replacement against current workspace state. Use the retained fresh sources and propose one different, unique exact replacement.";
 	if (intent === "semantic-correction")
-		return "Graph validation rejected the current workspace. Inspect the retained current sources, repair the TypeScript and public acceptance criteria, and propose one different exact replacement.";
+		return `Graph validation rejected the current workspace. ${graphCorrectionInstruction(material.correctionContext)} Inspect the retained current sources and propose one different smallest exact replacement.`;
 	if (intent === "reinspection")
 		return "Graph requires one fresh read of the writable file before another mutation.";
 	if (intent === "same-request-retry") return "Graph admitted the initial phase effect.";
@@ -317,7 +335,7 @@ export function lowerD45ProviderEffect(
 			},
 			{
 				role: "system",
-				content: `Graph admission requires phase=${effect.phase}; return only the named ${toolName} tool proposal. ${graphIntentInstruction(material.intent)}`,
+				content: `Graph admission requires phase=${effect.phase}; return only the named ${toolName} tool proposal. ${graphIntentInstruction(material)}`,
 			},
 		],
 		tools: [tool],
