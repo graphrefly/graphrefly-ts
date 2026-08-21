@@ -35,7 +35,7 @@ import {
 export const D44_D45_LIVE_REVISION = "graphrefly-ts.d44.d45-live-composition.v1" as const;
 export const D44_OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions" as const;
 export const D44_PROVIDER_TAG = "deepinfra/fp8" as const;
-export const D44_PROVIDER_DEADLINE_MS = 120_000 as const;
+export const D44_PROVIDER_DEADLINE_MS = 300_000 as const;
 export const D44_D45_BASELINE_COMMIT = "dea57bdeb4b370dddbbe2505bd05f9e3551b26c6" as const;
 
 export const D44_FIXED_ADMISSION_BLOCK = `\t\tadmissionId,\n\t\tprincipalId,\n\t\tprincipalSessionRevision,\n\t\ttenantId,\n\t\tworkspaceId,\n\t\tresourceKind,\n\t\tresourceId,\n\t\tresourceRevision,\n\t\tpolicyRevision,\n\t\tmodelRevision,\n\t])\n\t\tassertSafe(value, "admitted coordinate");\n\tassertBoundedAuthorityId(admissionProposalId, "admission proposal coordinate");`;

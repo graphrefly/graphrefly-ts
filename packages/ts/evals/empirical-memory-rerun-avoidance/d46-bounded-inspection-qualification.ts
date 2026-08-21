@@ -42,11 +42,11 @@ import {
 } from "./d46-bounded-inspection-composition.js";
 
 export const D46_QUALIFICATION_SCHEMA =
-	"graphrefly-ts.d46.bounded-inspection-qualification.v2" as const;
+	"graphrefly-ts.d48.bounded-inspection-deadline-qualification.v1" as const;
 export const D46_QUALIFICATION_BUNDLE_SCHEMA =
-	"graphrefly-ts.d46.bounded-inspection-qualification-bundle.v2" as const;
+	"graphrefly-ts.d48.bounded-inspection-deadline-qualification-bundle.v1" as const;
 export const D46_QUALIFICATION_GENERATION_REF =
-	"current-graph-native-bounded-inspection-2026-08-21-d46-v2" as const;
+	"current-graph-native-bounded-inspection-deadline-2026-08-21-d48-v1" as const;
 
 export interface D46QualificationBundleV1 {
 	readonly schemaVersion: typeof D46_QUALIFICATION_BUNDLE_SCHEMA;
@@ -55,6 +55,7 @@ export interface D46QualificationBundleV1 {
 	readonly qualification: Readonly<{
 		readonly schemaVersion: typeof D46_QUALIFICATION_SCHEMA;
 		readonly decisionRef: "graphrefly-ts:D46";
+		readonly profileDecisionRef: "graphrefly-ts:D48";
 		readonly compositionRevision: typeof D46_COMPOSITION_REVISION;
 		readonly evidenceDigest: string;
 		readonly partialEvidenceDigest: string;
@@ -67,6 +68,7 @@ export interface D46QualificationBundleV1 {
 		readonly windowBound: typeof D46_MAX_WINDOWS;
 		readonly contextLines: typeof D46_CONTEXT_LINES;
 		readonly providerCalls: 13;
+		readonly providerDeadlineMs: 300_000;
 		readonly exactD710RetryIdentity: true;
 		readonly providerNetworkCalls: 0;
 		readonly credentialReads: 0;
@@ -100,6 +102,16 @@ function deriveD46QualificationClaims(evidence: D46CanonicalEvidenceV1) {
 	const providerResults = evidence.d45Evidence.facts.filter(
 		(fact) => fact.factKind === "provider-result",
 	);
+	const providerAdmissions = evidence.d45Evidence.facts.filter(
+		(fact) => fact.factKind === "effect-admitted" && fact.effect.effectKind === "provider-proposal",
+	);
+	const providerDeadlineMs =
+		providerAdmissions.length === providerResults.length &&
+		providerAdmissions.every(
+			(fact) => fact.factKind === "effect-admitted" && fact.effect.elapsedReservationMs === 300_000,
+		)
+			? 300_000
+			: 0;
 	const retryResults = providerResults.filter((fact) => fact.result.retryClass === "D710");
 	let exactD710RetryIdentity = false;
 	if (retryResults.length === 1) {
@@ -142,6 +154,7 @@ function deriveD46QualificationClaims(evidence: D46CanonicalEvidenceV1) {
 		evaluableArms: evidence.d45Evidence.lifecycle.arms.filter((arm) => arm.evaluable).length,
 		boundedReadFacts: evidence.sliceFacts.length,
 		providerCalls: providerResults.length,
+		providerDeadlineMs,
 		exactD710RetryIdentity,
 	});
 }
@@ -317,6 +330,7 @@ export async function runD46InjectedNoNetworkQualification(input?: {
 	const qualificationMaterial = strictSnapshot({
 		schemaVersion: D46_QUALIFICATION_SCHEMA,
 		decisionRef: "graphrefly-ts:D46" as const,
+		profileDecisionRef: "graphrefly-ts:D48" as const,
 		compositionRevision: D46_COMPOSITION_REVISION,
 		evidenceDigest: evidence.evidenceDigest,
 		partialEvidenceDigest: partialEvidence.evidenceDigest,
@@ -329,6 +343,7 @@ export async function runD46InjectedNoNetworkQualification(input?: {
 		windowBound: D46_MAX_WINDOWS,
 		contextLines: D46_CONTEXT_LINES,
 		providerCalls: 13 as const,
+		providerDeadlineMs: 300_000 as const,
 		exactD710RetryIdentity: true as const,
 		providerNetworkCalls: 0 as const,
 		credentialReads: 0 as const,
@@ -369,6 +384,7 @@ export function validateD46QualificationBundle(
 		[
 			"schemaVersion",
 			"decisionRef",
+			"profileDecisionRef",
 			"compositionRevision",
 			"evidenceDigest",
 			"partialEvidenceDigest",
@@ -381,6 +397,7 @@ export function validateD46QualificationBundle(
 			"windowBound",
 			"contextLines",
 			"providerCalls",
+			"providerDeadlineMs",
 			"exactD710RetryIdentity",
 			"providerNetworkCalls",
 			"credentialReads",
@@ -404,6 +421,7 @@ export function validateD46QualificationBundle(
 		value.schemaVersion !== D46_QUALIFICATION_BUNDLE_SCHEMA ||
 		value.qualification.schemaVersion !== D46_QUALIFICATION_SCHEMA ||
 		value.qualification.decisionRef !== "graphrefly-ts:D46" ||
+		value.qualification.profileDecisionRef !== "graphrefly-ts:D48" ||
 		value.qualification.compositionRevision !== D46_COMPOSITION_REVISION ||
 		value.qualification.evidenceDigest !== evidence.evidenceDigest ||
 		value.qualification.partialEvidenceDigest !== partialEvidence.evidenceDigest ||
@@ -416,6 +434,7 @@ export function validateD46QualificationBundle(
 		value.qualification.windowBound !== D46_MAX_WINDOWS ||
 		value.qualification.contextLines !== D46_CONTEXT_LINES ||
 		value.qualification.providerCalls !== derived.providerCalls ||
+		value.qualification.providerDeadlineMs !== derived.providerDeadlineMs ||
 		value.qualification.exactD710RetryIdentity !== derived.exactD710RetryIdentity ||
 		value.qualification.providerNetworkCalls !== 0 ||
 		value.qualification.credentialReads !== 0 ||

@@ -142,7 +142,7 @@ export function createD45QualificationPolicy() {
 			allowFallback: false,
 			allowProviderSwitch: false,
 			allowParallelEffects: false,
-			providerDeadlineMs: 120_000,
+			providerDeadlineMs: 300_000,
 		},
 		campaign: {
 			campaignRef: D45_ASSIGNMENT.campaignRef,

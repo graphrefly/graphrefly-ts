@@ -8,7 +8,7 @@ export const D44_D45_LIVE_IMPLEMENTATION_SOURCE_HASHES = Object.freeze({
 	lifecycleAuthority: "sha256:fe36cb8ebc0e01f1fd6288586245aaa2c6f71bf5cf7d51211641921c69e1c874",
 	toolAuthority: "sha256:dc3c69fbe2bdb343a952a5d95efbe9947e444fdc56c289de1b77e925c54df87b",
 	adapter: "sha256:50e3b0bfb6d7e510303ea0ecac9ae4633859034b552d29bee382eb81690e7ed1",
-	liveComposition: "sha256:6fe5e127ecd6694656c2fb4e574b5912fdb8b07e9979df9dbfb46d38f6bb8601",
+	liveComposition: "sha256:7e01f5de17e97bc9e33269c3737d2c6f156df4a40edd4660b34eb518cd727ae5",
 	liveQualification: "sha256:ba6cf1b4c9f14848e5908d1a86e8d114cb571118eeeac9963e27aa7d49a445c3",
 	liveGates: "sha256:39bf56f1a0364b9c1e1b1e7097e05f00f2eeab67761c100070033ee9bb6e1a8e",
 	liveRunner: "sha256:90e1f9f58e085fc500def69fe425f4bf1df65e54083a14c894041a73e1dc22d8",
