@@ -10,6 +10,8 @@ export const D44_D45_LIVE_IMPLEMENTATION_SOURCE_HASHES = Object.freeze({
 	adapter: "sha256:50e3b0bfb6d7e510303ea0ecac9ae4633859034b552d29bee382eb81690e7ed1",
 	liveComposition: "sha256:5e093fa1a06aac1f02be4a4dd8d59b15e295ece8974262be3e135a68c3f1f0c7",
 	liveQualification: "sha256:ba6cf1b4c9f14848e5908d1a86e8d114cb571118eeeac9963e27aa7d49a445c3",
+	liveGates: "sha256:39bf56f1a0364b9c1e1b1e7097e05f00f2eeab67761c100070033ee9bb6e1a8e",
+	liveRunner: "sha256:90e1f9f58e085fc500def69fe425f4bf1df65e54083a14c894041a73e1dc22d8",
 });
 
 export const D44_D45_LIVE_IMPLEMENTATION_MANIFEST_DIGEST = empiricalStrictJsonDigest({
@@ -38,6 +40,8 @@ export async function measureD44D45LiveImplementation(): Promise<string> {
 		liveQualification: empiricalSha256(
 			await readFile(join(import.meta.dirname, "d44-d45-live-qualification.ts")),
 		),
+		liveGates: empiricalSha256(await readFile(join(import.meta.dirname, "d44-d45-live-gates.ts"))),
+		liveRunner: empiricalSha256(await readFile(join(import.meta.dirname, "run-d44-d45-live.ts"))),
 	});
 	if (JSON.stringify(measured) !== JSON.stringify(D44_D45_LIVE_IMPLEMENTATION_SOURCE_HASHES))
 		throw new TypeError("D44/D45 live implementation source drifted");
