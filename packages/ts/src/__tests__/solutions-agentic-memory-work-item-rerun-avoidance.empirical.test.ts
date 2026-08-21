@@ -1354,7 +1354,12 @@ describe("B112.6.1 private empirical campaign qualification", () => {
 				file.endsWith("d40-phase-specific-inference-live-qualification.ts") ||
 				file.endsWith("d40-phase-specific-inference-live-implementation-manifest.ts") ||
 				file.endsWith("run-d40-phase-specific-inference-live-no-network.ts") ||
-				file.endsWith("run-d40-phase-specific-inference-live.ts");
+				file.endsWith("run-d40-phase-specific-inference-live.ts") ||
+				file.endsWith("d41-phase-specific-inference-authority.ts") ||
+				file.endsWith("d41-phase-specific-real-provider-composition.ts") ||
+				file.endsWith("d41-phase-specific-inference-qualification.ts") ||
+				file.endsWith("d41-phase-specific-inference-implementation-manifest.ts") ||
+				file.endsWith("run-d41-phase-specific-inference-no-network.ts");
 			const allowsCurrentGraphLiveOperatorWithD20 =
 				allowsCurrentGraphLiveOperator || allowsD20CurrentGraphLive;
 			const allowsCurrentGraphLiveOneRequest =
