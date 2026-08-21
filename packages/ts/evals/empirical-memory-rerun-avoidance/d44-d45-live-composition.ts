@@ -55,7 +55,7 @@ interface WorkspaceState {
 export interface D44LiveExecutorV1 {
 	readonly revision: typeof D44_D45_LIVE_REVISION;
 	readonly execute: (
-		authority: D45GraphToolAuthorityV1,
+		authority: object,
 		effect: D45AdmittedEffectV1,
 	) => Promise<{
 		readonly result: D45EffectResultInputV1;
@@ -252,10 +252,28 @@ export function createD44LiveExecutor(input: {
 	readonly baselineCommit: string;
 	readonly bearerToken: string;
 	readonly fetchImpl: typeof fetch;
+	readonly authorityAccess?: Readonly<{
+		readonly lowerProviderEffect: (
+			authority: object,
+			effect: D45AdmittedEffectV1,
+		) => ReturnType<typeof lowerD45ProviderEffect>;
+		readonly readToolArguments: (
+			authority: object,
+			effect: D45AdmittedEffectV1,
+		) => ReturnType<typeof readD45ToolArguments>;
+	}>;
 }): D44LiveExecutorV1 {
 	const repositoryRoot = resolve(input.repositoryRoot);
 	const materializationRoot = resolve(input.materializationRoot);
 	const states = new Map<D45AdmittedEffectV1["arm"], WorkspaceState>();
+	const lowerProviderEffect =
+		input.authorityAccess?.lowerProviderEffect ??
+		((authority: object, effect: D45AdmittedEffectV1) =>
+			lowerD45ProviderEffect(authority as D45GraphToolAuthorityV1, effect));
+	const readToolArguments =
+		input.authorityAccess?.readToolArguments ??
+		((authority: object, effect: D45AdmittedEffectV1) =>
+			readD45ToolArguments(authority as D45GraphToolAuthorityV1, effect));
 	let active = false;
 	let disposed = false;
 	const stateFor = (effect: D45AdmittedEffectV1) => {
@@ -268,7 +286,7 @@ export function createD44LiveExecutor(input: {
 	const executor: D44LiveExecutorV1 = {
 		revision: D44_D45_LIVE_REVISION,
 		async execute(
-			authority: D45GraphToolAuthorityV1,
+			authority: object,
 			effect: D45AdmittedEffectV1,
 		): Promise<{
 			readonly result: D45EffectResultInputV1;
@@ -281,7 +299,7 @@ export function createD44LiveExecutor(input: {
 				if (effect.effectKind === "provider-proposal") {
 					if (effect.providerRef !== D44_PROVIDER_TAG)
 						throw new TypeError("D44 provider tag drifted before dispatch");
-					const wire = lowerD45ProviderEffect(authority, effect);
+					const wire = lowerProviderEffect(authority, effect);
 					const controller = new AbortController();
 					const timer = setTimeout(() => controller.abort(), effect.elapsedReservationMs);
 					try {
@@ -404,7 +422,7 @@ export function createD44LiveExecutor(input: {
 					};
 				}
 				if (effect.effectKind === "tool-action") {
-					const argumentsValue = readD45ToolArguments(authority, effect);
+					const argumentsValue = readToolArguments(authority, effect);
 					const before = await workspaceDigest(state);
 					if (before !== state.digest)
 						return {
