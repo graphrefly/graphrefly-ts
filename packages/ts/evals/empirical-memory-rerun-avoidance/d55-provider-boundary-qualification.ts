@@ -34,7 +34,7 @@ import {
 import { runD46BoundedInspectionMeasurement } from "./d46-bounded-inspection-composition.js";
 
 export const D55_QUALIFICATION_SCHEMA =
-	"graphrefly-ts.d55.provider-boundary-qualification.v2" as const;
+	"graphrefly-ts.d55.provider-boundary-qualification.v3" as const;
 
 const PRIVATE_HEADER_SENTINEL = "d55-private-header-sentinel" as const;
 const PRIVATE_BODY_SENTINEL = "d55-private-body-sentinel" as const;
@@ -51,6 +51,7 @@ type D55Scenario =
 	| "fetch-dns"
 	| "fetch-timeout"
 	| "schema-rejection"
+	| "malformed-tool-arguments"
 	| "d675-retry";
 
 function successfulProviderResponse(body: RequestInit["body"]): Response {
@@ -107,7 +108,11 @@ function throwingBody(error: unknown): Response {
 	return response;
 }
 
-function scenarioResponse(scenario: D55Scenario, body: RequestInit["body"]): Response {
+function scenarioResponse(
+	scenario: D55Scenario,
+	body: RequestInit["body"],
+	malformedVariant: "missing" | "extra" = "missing",
+): Response {
 	if (scenario === "invalid-metadata")
 		return new Response("{}", {
 			status: 200,
@@ -140,6 +145,41 @@ function scenarioResponse(scenario: D55Scenario, body: RequestInit["body"]): Res
 				headers: { "content-type": "application/json" },
 			},
 		);
+	if (scenario === "malformed-tool-arguments") {
+		const request = JSON.parse(String(body)) as {
+			readonly tool_choice: { readonly function: { readonly name: string } };
+		};
+		return new Response(
+			JSON.stringify({
+				choices: [
+					{
+						finish_reason: "tool_calls",
+						message: {
+							tool_calls: [
+								{
+									function: {
+										name: request.tool_choice.function.name,
+										arguments: JSON.stringify(
+											malformedVariant === "missing"
+												? { path: D45_WRITABLE_PATH }
+												: {
+														path: D45_WRITABLE_PATH,
+														oldText: D44_BUGGY_ADMISSION_BLOCK,
+														newText: D44_FIXED_ADMISSION_BLOCK,
+														unexpected: "must-be-rejected",
+													},
+										),
+									},
+								},
+							],
+						},
+					},
+				],
+				usage: { prompt_tokens: 8_795, completion_tokens: 9_252 },
+			}),
+			{ status: 200, headers: { "content-type": "application/json" } },
+		);
+	}
 	return successfulProviderResponse(body);
 }
 
@@ -152,7 +192,8 @@ function expectedOutcome(scenario: D55Scenario) {
 	)
 		return "transport-failed" as const;
 	if (scenario === "d675-retry") return "retryable-provider-failure" as const;
-	if (scenario === "schema-rejection") return "schema-rejected" as const;
+	if (scenario === "schema-rejection" || scenario === "malformed-tool-arguments")
+		return "schema-rejected" as const;
 	return "executor-failed" as const;
 }
 
@@ -323,7 +364,7 @@ async function runSingleBoundaryScenario(input: {
 
 async function runFullSixArmContinuation(
 	repositoryRoot: string,
-	scenario: "invalid-metadata" | "schema-rejection",
+	scenario: "invalid-metadata" | "schema-rejection" | "malformed-tool-arguments",
 ) {
 	let providerCalls = 0;
 	const executor = createD44LiveExecutor({
@@ -338,8 +379,8 @@ async function runFullSixArmContinuation(
 		},
 		fetchImpl: async (_request, init) => {
 			providerCalls += 1;
-			return providerCalls === 5
-				? scenarioResponse(scenario, init?.body)
+			return providerCalls === 5 || (scenario === "malformed-tool-arguments" && providerCalls === 6)
+				? scenarioResponse(scenario, init?.body, providerCalls === 6 ? "extra" : "missing")
 				: successfulProviderResponse(init?.body);
 		},
 	});
@@ -380,6 +421,7 @@ export async function runD55InjectedNoNetworkQualification(input?: {
 	const frozenScenarios = Object.freeze(scenarios);
 	const full = await runFullSixArmContinuation(repositoryRoot, "invalid-metadata");
 	const schemaFull = await runFullSixArmContinuation(repositoryRoot, "schema-rejection");
+	const malformedFull = await runFullSixArmContinuation(repositoryRoot, "malformed-tool-arguments");
 	const replay = validateD46CanonicalEvidence(strictSnapshot(full.evidence));
 	if (empiricalStrictJsonDigest(replay) !== empiricalStrictJsonDigest(full.evidence))
 		throw new TypeError("D55 canonical replay drifted");
@@ -388,9 +430,13 @@ export async function runD55InjectedNoNetworkQualification(input?: {
 	const schemaResults = schemaFull.evidence.d45Evidence.facts.filter(
 		(fact) => fact.factKind === "provider-result" && fact.result.outcome === "schema-rejected",
 	);
+	const malformedResults = malformedFull.evidence.d45Evidence.facts.filter(
+		(fact) => fact.factKind === "provider-result" && fact.result.outcome === "schema-rejected",
+	);
 	const serialized = JSON.stringify({
 		evidence: full.evidence,
 		schemaEvidence: schemaFull.evidence,
+		malformedEvidence: malformedFull.evidence,
 		scenarios: frozenScenarios,
 	});
 	if (
@@ -404,6 +450,8 @@ export async function runD55InjectedNoNetworkQualification(input?: {
 		laterArms.some((arm) => !arm.completed || !arm.cleanupCompleted) ||
 		!schemaFull.evidence.exactSixArmsCompleted ||
 		schemaResults.length !== 1 ||
+		!malformedFull.evidence.exactSixArmsCompleted ||
+		malformedResults.length !== 2 ||
 		serialized.includes(PRIVATE_HEADER_SENTINEL) ||
 		serialized.includes(PRIVATE_BODY_SENTINEL) ||
 		frozenScenarios.some(
@@ -426,6 +474,12 @@ export async function runD55InjectedNoNetworkQualification(input?: {
 			retryClass: null,
 			evidenceDigest: empiricalStrictJsonDigest(schemaFull.evidence),
 		}),
+		Object.freeze({
+			scenario: "malformed-tool-arguments" as const,
+			outcome: "schema-rejected" as const,
+			retryClass: null,
+			evidenceDigest: empiricalStrictJsonDigest(malformedFull.evidence),
+		}),
 	]);
 	const claims = Object.freeze({
 		schemaVersion: D55_QUALIFICATION_SCHEMA,
@@ -435,7 +489,7 @@ export async function runD55InjectedNoNetworkQualification(input?: {
 		exactSixArmsCompleted: true as const,
 		postWireExecutorFailureScenarios: 5 as const,
 		transportFailureScenarios: 4 as const,
-		schemaRejectionScenarios: 1 as const,
+		schemaRejectionScenarios: 2 as const,
 		d675RetryScenarios: 1 as const,
 		conservativeCostMicrousd: 100_000 as const,
 		conservativeElapsedMs: 600_000 as const,
@@ -446,6 +500,7 @@ export async function runD55InjectedNoNetworkQualification(input?: {
 		providerCalls:
 			full.providerCalls +
 			schemaFull.providerCalls +
+			malformedFull.providerCalls +
 			frozenScenarios.reduce((sum, scenario) => sum + scenario.providerCalls, 0),
 		providerNetworkCalls: 0 as const,
 		credentialReads: 0 as const,
@@ -462,6 +517,10 @@ export async function runD55InjectedNoNetworkQualification(input?: {
 				Object.freeze({ scenario: scenario.scenario, evidence: scenario.evidence }),
 			),
 			Object.freeze({ scenario: "schema-rejection" as const, evidence: schemaFull.evidence }),
+			Object.freeze({
+				scenario: "malformed-tool-arguments" as const,
+				evidence: malformedFull.evidence,
+			}),
 		]),
 		qualificationDigest: empiricalStrictJsonDigest(claims),
 	});
@@ -479,6 +538,7 @@ const D55_SCENARIOS = Object.freeze([
 	"fetch-timeout",
 	"d675-retry",
 	"schema-rejection",
+	"malformed-tool-arguments",
 ] as const);
 
 export function validateD55Qualification(value: unknown): unknown {
@@ -520,7 +580,7 @@ export function validateD55Qualification(value: unknown): unknown {
 		candidate.exactSixArmsCompleted !== true ||
 		candidate.postWireExecutorFailureScenarios !== 5 ||
 		candidate.transportFailureScenarios !== 4 ||
-		candidate.schemaRejectionScenarios !== 1 ||
+		candidate.schemaRejectionScenarios !== 2 ||
 		candidate.d675RetryScenarios !== 1 ||
 		candidate.conservativeCostMicrousd !== 100_000 ||
 		candidate.conservativeElapsedMs !== 600_000 ||
@@ -528,7 +588,8 @@ export function validateD55Qualification(value: unknown): unknown {
 		candidate.transportClassificationPreserved !== true ||
 		candidate.d675RetryPreserved !== true ||
 		candidate.canonicalReplayQualified !== true ||
-		candidate.providerCalls !== 72 ||
+		!Number.isSafeInteger(candidate.providerCalls) ||
+		(candidate.providerCalls as number) < D55_SCENARIOS.length ||
 		candidate.providerNetworkCalls !== 0 ||
 		candidate.credentialReads !== 0 ||
 		candidate.dispatchClaims !== 0 ||
@@ -570,30 +631,38 @@ export function validateD55Qualification(value: unknown): unknown {
 		const expectedRetryClass = scenario === "d675-retry" ? "D675" : null;
 		if (digestEntry.outcome !== expected || digestEntry.retryClass !== expectedRetryClass)
 			throw new TypeError(`D55 ${scenario} classification claim drifted`);
-		const evidence =
-			scenario === "schema-rejection"
-				? validateD46CanonicalEvidence(evidenceEntry.evidence as never)
-				: validateD45PartialCanonicalEvidence(evidenceEntry.evidence as never);
+		const fullCanonicalScenario =
+			scenario === "schema-rejection" || scenario === "malformed-tool-arguments";
+		const evidence = fullCanonicalScenario
+			? validateD46CanonicalEvidence(evidenceEntry.evidence as never)
+			: validateD45PartialCanonicalEvidence(evidenceEntry.evidence as never);
 		if (
 			typeof digestEntry.evidenceDigest !== "string" ||
 			empiricalStrictJsonDigest(evidence) !== digestEntry.evidenceDigest
 		)
 			throw new TypeError("D55 scenario evidence digest drifted");
 		if (
-			scenario === "schema-rejection" &&
+			fullCanonicalScenario &&
 			!validateD46CanonicalEvidence(evidenceEntry.evidence as never).exactSixArmsCompleted
 		)
 			throw new TypeError("D55 schema canonical evidence did not complete exactly six arms");
-		const d45Evidence =
-			scenario === "schema-rejection"
-				? validateD46CanonicalEvidence(evidenceEntry.evidence as never).d45Evidence
-				: validateD45PartialCanonicalEvidence(evidenceEntry.evidence as never);
+		const d45Evidence = fullCanonicalScenario
+			? validateD46CanonicalEvidence(evidenceEntry.evidence as never).d45Evidence
+			: validateD45PartialCanonicalEvidence(evidenceEntry.evidence as never);
 		const providerResults = d45Evidence.facts.filter((fact) => fact.factKind === "provider-result");
 		derivedProviderCalls += providerResults.length;
-		const target =
-			scenario === "schema-rejection"
-				? providerResults.find((fact) => fact.result.outcome === "schema-rejected")
-				: providerResults[0];
+		const expectedTargetCount = scenario === "malformed-tool-arguments" ? 2 : 1;
+		const targetResults = providerResults.filter((fact) => fact.result.outcome === expected);
+		if (
+			targetResults.length !== expectedTargetCount ||
+			(fullCanonicalScenario &&
+				providerResults.some(
+					(fact) => fact.result.outcome !== expected && fact.result.outcome !== "success",
+				)) ||
+			(!fullCanonicalScenario && providerResults.length !== (scenario === "d675-retry" ? 2 : 1))
+		)
+			throw new TypeError(`D55 ${scenario} canonical result cardinality drifted`);
+		const target = targetResults[0];
 		if (target === undefined || target.result.outcome !== expected)
 			throw new TypeError(`D55 ${scenario} canonical outcome drifted`);
 		if (target.result.retryClass !== expectedRetryClass)

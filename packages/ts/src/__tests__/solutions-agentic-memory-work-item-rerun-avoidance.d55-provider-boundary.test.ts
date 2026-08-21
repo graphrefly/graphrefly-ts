@@ -3,12 +3,12 @@ import { runD55InjectedNoNetworkQualification } from "../../evals/empirical-memo
 
 it("contains an invalid post-wire response header as a Graph executor failure", async () => {
 	await expect(runD55InjectedNoNetworkQualification()).resolves.toMatchObject({
-		schemaVersion: "graphrefly-ts.d55.provider-boundary-qualification.v2",
+		schemaVersion: "graphrefly-ts.d55.provider-boundary-qualification.v3",
 		decisionRef: "graphrefly-ts:D55",
 		exactSixArmsCompleted: true,
 		postWireExecutorFailureScenarios: 5,
 		transportFailureScenarios: 4,
-		schemaRejectionScenarios: 1,
+		schemaRejectionScenarios: 2,
 		d675RetryScenarios: 1,
 		conservativeCostMicrousd: 100_000,
 		conservativeElapsedMs: 600_000,

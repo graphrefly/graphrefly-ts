@@ -248,6 +248,70 @@ describe("graphrefly-ts:D45 Graph-owned provider proposal and exact tool admissi
 			pricing,
 		});
 		expect(overloaded.retryClass).toBe("D671");
+		const malformedMutation = parseD45ChatProviderResponse({
+			status: 200,
+			bytes: new TextEncoder().encode(
+				JSON.stringify({
+					choices: [
+						{
+							finish_reason: "tool_calls",
+							message: {
+								tool_calls: [
+									{
+										function: {
+											name: "replace_exact",
+											arguments: JSON.stringify({ path: D45_WRITABLE_PATH }),
+										},
+									},
+								],
+							},
+						},
+					],
+					usage: { prompt_tokens: 8_795, completion_tokens: 9_252 },
+				}),
+			),
+			elapsedMs: 111_800,
+			wireDigest: empiricalStrictJsonDigest("malformed-mutation-wire"),
+			pricing,
+		});
+		expect(malformedMutation).toMatchObject({
+			outcome: "schema-rejected",
+			proposal: null,
+			usage: { inputTokens: 8_795, outputTokens: 9_252, cacheReadTokens: 0 },
+		});
+		expect(() => JSON.stringify(malformedMutation)).not.toThrow();
+		const extraMutation = parseD45ChatProviderResponse({
+			status: 200,
+			bytes: new TextEncoder().encode(
+				JSON.stringify({
+					choices: [
+						{
+							finish_reason: "tool_calls",
+							message: {
+								tool_calls: [
+									{
+										function: {
+											name: "replace_exact",
+											arguments: JSON.stringify({
+												path: D45_WRITABLE_PATH,
+												oldText: "old",
+												newText: "new",
+												unexpected: true,
+											}),
+										},
+									},
+								],
+							},
+						},
+					],
+					usage: { prompt_tokens: 100, completion_tokens: 20 },
+				}),
+			),
+			elapsedMs: 20,
+			wireDigest: empiricalStrictJsonDigest("extra-mutation-wire"),
+			pricing,
+		});
+		expect(extraMutation).toMatchObject({ outcome: "schema-rejected", proposal: null });
 		const socket = Object.assign(new TypeError("sanitized"), {
 			cause: Object.assign(new Error("sanitized"), { code: "UND_ERR_SOCKET" }),
 		});

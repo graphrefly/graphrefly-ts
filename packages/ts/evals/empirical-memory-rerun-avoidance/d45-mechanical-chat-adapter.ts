@@ -1,5 +1,5 @@
 import { strictJsonCodec } from "../../src/json/codec.js";
-import { empiricalSha256, strictSnapshot } from "./canonical.js";
+import { empiricalSha256, exactKeys, strictSnapshot } from "./canonical.js";
 import {
 	admitD45ProviderWire,
 	type D45AdmittedEffectV1,
@@ -109,6 +109,12 @@ function nonnegativeInteger(value: unknown, path: string): number {
 	return value as number;
 }
 
+function requiredString(value: Record<string, unknown>, key: string, path: string): string {
+	const candidate = value[key];
+	if (typeof candidate !== "string") throw new TypeError(`${path}.${key} must be a string`);
+	return candidate;
+}
+
 function providerCodes(value: unknown): readonly string[] {
 	if (value === null || typeof value !== "object" || Array.isArray(value)) return [];
 	const root = value as Record<string, unknown>;
@@ -216,17 +222,24 @@ function parseD45ChatProviderResponseUnchecked(
 				throw new TypeError("D45 Chat tool call omitted bounded function coordinates");
 			if (Buffer.byteLength(fn.arguments, "utf8") > 131_072)
 				throw new TypeError("D45 Chat tool arguments exceeded their wire bound");
-			const args = object(JSON.parse(fn.arguments), `D45 Chat tool call[${index}].arguments`);
-			return fn.name === "read_file"
-				? { toolRef: "read-file" as const, path: args.path }
-				: fn.name === "replace_exact"
-					? {
-							toolRef: "replace-exact" as const,
-							path: args.path,
-							oldText: args.oldText,
-							newText: args.newText,
-						}
-					: ({ toolRef: fn.name, path: args.path } as unknown);
+			const argumentPath = `D45 Chat tool call[${index}].arguments`;
+			const args = object(JSON.parse(fn.arguments), argumentPath);
+			const path = requiredString(args, "path", argumentPath);
+			if (fn.name === "read_file") {
+				exactKeys(args, ["path"], argumentPath);
+				return { toolRef: "read-file" as const, path };
+			}
+			if (fn.name === "replace_exact") {
+				exactKeys(args, ["newText", "oldText", "path"], argumentPath);
+				return {
+					toolRef: "replace-exact" as const,
+					path,
+					oldText: requiredString(args, "oldText", argumentPath),
+					newText: requiredString(args, "newText", argumentPath),
+				};
+			}
+			exactKeys(args, ["path"], argumentPath);
+			return { toolRef: fn.name, path } as unknown;
 		});
 		return Object.freeze({
 			effectKind: "provider-proposal",
