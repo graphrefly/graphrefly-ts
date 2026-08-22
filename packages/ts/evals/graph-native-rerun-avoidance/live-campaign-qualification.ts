@@ -41,7 +41,7 @@ import { D65_REPLICATE_COUNT } from "./replicated-campaign-authority.js";
 import { runD66RetryIdentityQualification } from "./retry-identity-qualification.js";
 
 export const CURRENT_LIVE_QUALIFICATION_SCHEMA =
-	"graphrefly-ts.d68.current-live-qualification.v1" as const;
+	"graphrefly-ts.d69.current-live-qualification.v1" as const;
 
 function qualifyCurrentResponseSchemaRejections(): void {
 	const pricing = Object.freeze({

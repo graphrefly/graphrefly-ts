@@ -2,7 +2,7 @@ import { empiricalSha256, empiricalStrictJsonDigest, strictSnapshot } from "./ca
 
 export const CURRENT_PRICING_SOURCE =
 	"https://openrouter.ai/api/v1/models/deepseek/deepseek-v4-flash-0731/endpoints" as const;
-export const CURRENT_ZERO_BYOK_SCHEMA = "graphrefly-ts.d68.zero-byok-observation.v1" as const;
+export const CURRENT_ZERO_BYOK_SCHEMA = "graphrefly-ts.d69.zero-byok-observation.v1" as const;
 
 export interface D44D45CredentialV1 {
 	readonly bearerToken: string;
@@ -134,7 +134,7 @@ export function admitD44D45FreshZeroByok(input: {
 	const observedAtMs = Date.parse(String(value.observedAt));
 	if (
 		value.schemaVersion !== CURRENT_ZERO_BYOK_SCHEMA ||
-		value.decisionRef !== "graphrefly-ts:D68" ||
+		value.decisionRef !== "graphrefly-ts:D69" ||
 		value.workspaceName !== "GraphReFly" ||
 		value.workspaceSlug !== "graph-re-fly" ||
 		value.keyName !== "Local Eval 2" ||

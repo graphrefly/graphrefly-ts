@@ -3,13 +3,13 @@ import { join } from "node:path";
 import { empiricalSha256, empiricalStrictJsonDigest } from "./canonical.js";
 
 export const CURRENT_QUALIFICATION_DIGEST =
-	"sha256:e10578d548f6e4fa7d21975882bd372dd964f68ccd4cd89d83261a135cd8fc9f" as const;
+	"sha256:e54428e6e5867ce20acdbd5347136155c40a4ef69b2011e1cb2a4bb4de8d2e5a" as const;
 export const CURRENT_QUALIFICATION_ARTIFACT_DIGEST =
-	"sha256:a984c0cf404d3343a6c72131aa4262fd431256c98a205b71eed626a07ed3df4f" as const;
+	"sha256:ddd4411ba58605f01c3a58e7ec3bb1d15c38e2f768f81c3feb73eaf79e2a0174" as const;
 
 // Updated only after the current closure and its no-network qualification are both frozen.
 export const CURRENT_IMPLEMENTATION_MANIFEST_DIGEST =
-	"sha256:a47402cbeb7b50b10914f167196b1f6cae42f1654e51c8eb3383404f3c384d13" as const;
+	"sha256:0ab803d42dac1addbcf205f40bdb02b1b605f51e8027bdcce97be7cc277e016b" as const;
 
 export async function measureCurrentImplementation(): Promise<string> {
 	const names = (await readdir(import.meta.dirname))
@@ -31,7 +31,7 @@ export async function measureCurrentImplementation(): Promise<string> {
 		),
 	);
 	return empiricalStrictJsonDigest({
-		revision: "graphrefly-ts.d68.current-implementation-manifest.v1",
+		revision: "graphrefly-ts.d69.current-implementation-manifest.v1",
 		qualificationArtifactDigest: CURRENT_QUALIFICATION_ARTIFACT_DIGEST,
 		qualificationDigest: CURRENT_QUALIFICATION_DIGEST,
 		sources,

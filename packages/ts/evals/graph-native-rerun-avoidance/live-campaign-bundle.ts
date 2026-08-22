@@ -24,7 +24,7 @@ import {
 import type { D44D45PricingObservationV1, D44D45ZeroByokObservationV1 } from "./live-preflight.js";
 import type { OpenRouterCurrentKeySpendAdmissionV1 } from "./openrouter-current-key-spend-admission.js";
 
-export const CURRENT_LIVE_BUNDLE_SCHEMA = "graphrefly-ts.d68.live-campaign-bundle.v1" as const;
+export const CURRENT_LIVE_BUNDLE_SCHEMA = "graphrefly-ts.d69.live-campaign-bundle.v1" as const;
 
 export type CurrentLiveCampaignBundleV1 = Readonly<{
 	schemaVersion: typeof CURRENT_LIVE_BUNDLE_SCHEMA;
