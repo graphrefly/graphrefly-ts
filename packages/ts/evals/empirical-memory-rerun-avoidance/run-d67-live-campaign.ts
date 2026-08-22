@@ -50,7 +50,7 @@ import { createOpenRouterCurrentKeySpendAdmissionCapability } from "./openrouter
 const repositoryRoot = resolve(import.meta.dirname, "../../../..");
 const operatorRoot = resolve(import.meta.dirname, "../.private/empirical-memory-rerun-avoidance");
 const credentialPath = join(operatorRoot, "openrouter.env");
-const zeroByokPath = join(operatorRoot, "d67-fresh-zero-byok-browser-attestation.v1.json");
+const zeroByokPath = join(operatorRoot, "d65-fresh-zero-byok-browser-attestation.v1.json");
 const baselinePath = join(
 	operatorRoot,
 	"current-graph-native-d64-live",

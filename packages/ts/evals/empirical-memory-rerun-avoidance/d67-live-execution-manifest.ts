@@ -25,7 +25,7 @@ export const D67_LIVE_EXECUTION_SOURCE_HASHES = Object.freeze({
 	bundle: "sha256:cf6c67cc0c22d220864070c450b759983cc68a988156efe20c3125aed6147846",
 	liveQualification: "sha256:c05e337d9f16511e50b9f3e4106672db85ac961dada6dad71582b34039937ac4",
 	currentKeyAdmission: "sha256:d14dd8ad79843b8327cdab521db8e67a098077feb272237c9b965a6e6ae5cc6d",
-	liveRunner: "sha256:571de5cb50c6c338e16790167e098e7abac2a4f98e18f3ca8c4e65481d0db853",
+	liveRunner: "sha256:0a4ae2755b33ed292bcdc56cf4b345040e7eba5c096b78c463a9707a0262ea5f",
 	liveTest: "sha256:a08a343e59212c4cc94be2fa4d6caaa53b59047a388882d9ef3ff7619a166546",
 });
 
