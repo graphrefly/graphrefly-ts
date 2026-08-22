@@ -28,6 +28,11 @@ export const D61_PUBLIC_SEMANTIC_SCENARIO_IDS = Object.freeze([
 
 export type D61PublicSemanticScenarioId = (typeof D61_PUBLIC_SEMANTIC_SCENARIO_IDS)[number];
 
+export const D63_WITHHELD_SEMANTIC_SCENARIO_ID = "withheld-canonical-variant" as const;
+export type D61WorkerSemanticScenarioId =
+	| D61PublicSemanticScenarioId
+	| typeof D63_WITHHELD_SEMANTIC_SCENARIO_ID;
+
 const D61_PUBLIC_SEMANTIC_CAUSES = Object.freeze([
 	"canonical-proposal-not-admitted",
 	"malformed-provenance-mutated-store",
@@ -41,7 +46,7 @@ export interface D61PublicSemanticScenarioResultV1 {
 }
 
 export function validateD61PublicSemanticObservation(
-	scenarioId: D61PublicSemanticScenarioId,
+	scenarioId: D61WorkerSemanticScenarioId,
 	value: unknown,
 ): D61PublicSemanticObservationV1 {
 	if (
@@ -53,7 +58,9 @@ export function validateD61PublicSemanticObservation(
 	)
 		throw new TypeError("D61 isolated semantic worker result shape drifted");
 	const expectedCause =
-		D61_PUBLIC_SEMANTIC_CAUSES[D61_PUBLIC_SEMANTIC_SCENARIO_IDS.indexOf(scenarioId)]!;
+		scenarioId === D63_WITHHELD_SEMANTIC_SCENARIO_ID
+			? "canonical-proposal-not-admitted"
+			: D61_PUBLIC_SEMANTIC_CAUSES[D61_PUBLIC_SEMANTIC_SCENARIO_IDS.indexOf(scenarioId)]!;
 	const passed = (value as { passed: boolean }).passed;
 	const causeCode = (value as { causeCode?: unknown }).causeCode;
 	if ((passed && causeCode !== null) || (!passed && causeCode !== expectedCause))
@@ -181,7 +188,7 @@ export async function executeD61PublicSemanticScenarioWithModules(
 		readonly workspaceRoot: string;
 		readonly workspaceStateDigest: string;
 		readonly writeScopePreserved: boolean;
-		readonly scenarioId: D61PublicSemanticScenarioId;
+		readonly scenarioId: D61WorkerSemanticScenarioId;
 	},
 	modules: Readonly<{
 		readonly runtime: D61RuntimeModule;
@@ -193,7 +200,9 @@ export async function executeD61PublicSemanticScenarioWithModules(
 	const { runtime, graphModule, identity, providerInput } = modules;
 
 	const canonicalProposalId = identity.compoundTupleKey("tool-provider-run-admission-proposal", [
-		"candidate:run:1",
+		input.scenarioId === D63_WITHHELD_SEMANTIC_SCENARIO_ID
+			? "candidate:run:withheld:2"
+			: "candidate:run:1",
 	]);
 	const adapterInput = providerInput.postgresqlToolProviderInputFromIntent(
 		{
@@ -414,7 +423,11 @@ export async function executeD61PublicSemanticScenarioWithModules(
 		data(inputs, adapterInput);
 		data(manifests, manifest);
 		data(postures, readiness);
-		if (input.scenarioId === "canonical-proposal" || input.scenarioId === "claim-invariants")
+		if (
+			input.scenarioId === "canonical-proposal" ||
+			input.scenarioId === "claim-invariants" ||
+			input.scenarioId === D63_WITHHELD_SEMANTIC_SCENARIO_ID
+		)
 			data(admitted, run());
 		else if (input.scenarioId === "malformed-provenance") {
 			const malformedProposalId =
@@ -443,7 +456,10 @@ export async function executeD61PublicSemanticScenarioWithModules(
 			});
 		}
 		await settle();
-		if (input.scenarioId === "canonical-proposal") {
+		if (
+			input.scenarioId === "canonical-proposal" ||
+			input.scenarioId === D63_WITHHELD_SEMANTIC_SCENARIO_ID
+		) {
 			const freshEnvelope = envelopes[0] as Record<string, unknown> | undefined;
 			return observation(
 				envelopes.length === 1 &&
@@ -548,7 +564,7 @@ async function runIsolatedScenario(input: {
 	readonly workerRoot: string;
 	readonly sourceSnapshotDigest: string;
 	readonly writeScopePreserved: boolean;
-	readonly scenarioId: D61PublicSemanticScenarioId;
+	readonly scenarioId: D61WorkerSemanticScenarioId;
 	readonly deadlineAt: number;
 }): Promise<D61PublicSemanticObservationV1> {
 	if (/["\\\n\r]/u.test(process.execPath) || /["\\\n\r]/u.test(input.workerRoot))
@@ -724,6 +740,7 @@ async function executeD61PublicSemanticScenariosInCoordinator(input: {
 	readonly writeScopePreserved: boolean;
 	readonly timeoutMs: number;
 	readonly temporaryRoot: string;
+	readonly scenarioMode: "public" | "withheld";
 }): Promise<D61PublicSemanticScenarioResultV1> {
 	if (!Number.isSafeInteger(input.timeoutMs) || input.timeoutMs < 1_000)
 		throw new TypeError("D61 public semantic deadline is invalid");
@@ -756,8 +773,12 @@ async function executeD61PublicSemanticScenariosInCoordinator(input: {
 			outputPath: workerBundlePath,
 			deadlineAt,
 		});
+		const scenarioIds: readonly D61WorkerSemanticScenarioId[] =
+			input.scenarioMode === "public"
+				? D61_PUBLIC_SEMANTIC_SCENARIO_IDS
+				: [D63_WITHHELD_SEMANTIC_SCENARIO_ID];
 		const observations: D61PublicSemanticObservationV1[] = [];
-		for (const scenarioId of D61_PUBLIC_SEMANTIC_SCENARIO_IDS)
+		for (const scenarioId of scenarioIds)
 			observations.push(
 				await runIsolatedScenario({
 					workerBundlePath,
@@ -810,8 +831,9 @@ function validateCoordinatorTemporaryRoot(value: unknown): string {
 	return temporaryRoot;
 }
 
-function validateD61PublicSemanticScenarioResult(
+function validateD61SemanticScenarioResult(
 	value: unknown,
+	scenarioIds: readonly D61WorkerSemanticScenarioId[],
 ): D61PublicSemanticScenarioResultV1 {
 	if (
 		value === null ||
@@ -826,7 +848,7 @@ function validateD61PublicSemanticScenarioResult(
 	};
 	if (
 		!Array.isArray(candidate.observations) ||
-		candidate.observations.length !== D61_PUBLIC_SEMANTIC_SCENARIO_IDS.length ||
+		candidate.observations.length !== scenarioIds.length ||
 		typeof candidate.sourceSnapshotDigest !== "string" ||
 		!/^sha256:[0-9a-f]{64}$/u.test(candidate.sourceSnapshotDigest)
 	)
@@ -834,7 +856,7 @@ function validateD61PublicSemanticScenarioResult(
 	const observations = candidate.observations as readonly unknown[];
 	return Object.freeze({
 		observations: Object.freeze(
-			D61_PUBLIC_SEMANTIC_SCENARIO_IDS.map((scenarioId, index) =>
+			scenarioIds.map((scenarioId, index) =>
 				validateD61PublicSemanticObservation(scenarioId, observations[index]),
 			),
 		),
@@ -871,11 +893,12 @@ async function cleanupCoordinatorTemporaryRoot(temporaryRoot: string): Promise<v
 	}
 }
 
-export async function executeD61PublicSemanticScenarios(input: {
+async function executeD61SemanticScenarios(input: {
 	readonly workspaceRoot: string;
 	readonly workspaceStateDigest: string;
 	readonly writeScopePreserved: boolean;
 	readonly timeoutMs: number;
+	readonly scenarioMode: "public" | "withheld";
 }): Promise<D61PublicSemanticScenarioResultV1> {
 	if (!Number.isSafeInteger(input.timeoutMs) || input.timeoutMs < 1_000)
 		throw new TypeError("D61 public semantic deadline is invalid");
@@ -941,7 +964,14 @@ export async function executeD61PublicSemanticScenarios(input: {
 						return;
 					}
 					try {
-						resolvePromise(validateD61PublicSemanticScenarioResult(JSON.parse(lines[0]!)));
+						resolvePromise(
+							validateD61SemanticScenarioResult(
+								JSON.parse(lines[0]!),
+								input.scenarioMode === "public"
+									? D61_PUBLIC_SEMANTIC_SCENARIO_IDS
+									: [D63_WITHHELD_SEMANTIC_SCENARIO_ID],
+							),
+						);
 					} catch (error) {
 						rejectPromise(error);
 					}
@@ -953,6 +983,36 @@ export async function executeD61PublicSemanticScenarios(input: {
 	}
 }
 
+export async function executeD61PublicSemanticScenarios(input: {
+	readonly workspaceRoot: string;
+	readonly workspaceStateDigest: string;
+	readonly writeScopePreserved: boolean;
+	readonly timeoutMs: number;
+}): Promise<D61PublicSemanticScenarioResultV1> {
+	return executeD61SemanticScenarios({ ...input, scenarioMode: "public" });
+}
+
+export async function executeD63WithheldSemanticScenario(input: {
+	readonly workspaceRoot: string;
+	readonly workspaceStateDigest: string;
+	readonly writeScopePreserved: boolean;
+	readonly timeoutMs: number;
+}): Promise<
+	Readonly<{
+		readonly passed: boolean;
+		readonly sourceSnapshotDigest: string;
+	}>
+> {
+	const result = await executeD61SemanticScenarios({ ...input, scenarioMode: "withheld" });
+	const observation = result.observations[0];
+	if (observation === undefined)
+		throw new TypeError("D63 withheld semantic observation was absent");
+	return Object.freeze({
+		passed: observation.passed,
+		sourceSnapshotDigest: result.sourceSnapshotDigest,
+	});
+}
+
 if (process.env.GRAPHREFLY_D61_SEMANTIC_COORDINATOR === D61_COORDINATOR_MARKER) {
 	const payload = process.argv[2];
 	if (payload === undefined) throw new TypeError("D61 semantic coordinator input was absent");
@@ -962,7 +1022,10 @@ if (process.env.GRAPHREFLY_D61_SEMANTIC_COORDINATOR === D61_COORDINATOR_MARKER) 
 		readonly writeScopePreserved: boolean;
 		readonly timeoutMs: number;
 		readonly temporaryRoot: string;
+		readonly scenarioMode: "public" | "withheld";
 	};
+	if (candidate.scenarioMode !== "public" && candidate.scenarioMode !== "withheld")
+		throw new TypeError("D61 semantic coordinator mode drifted");
 	const temporaryRoot = validateCoordinatorTemporaryRoot({
 		temporaryRoot: candidate.temporaryRoot,
 	});

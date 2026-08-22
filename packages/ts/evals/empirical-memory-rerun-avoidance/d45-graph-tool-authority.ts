@@ -785,9 +785,12 @@ function validatePersistedResultProjection(
 	}
 	if (effect.effectKind !== "local-effect")
 		throw new TypeError(`${path} bound the wrong admitted effect`);
+	const carriesSemanticSnapshot =
+		effect.sourceD43EffectKind === "public-semantic-validation" ||
+		effect.sourceD43EffectKind === "hidden-verifier";
 	exactKeys(
 		result,
-		effect.sourceD43EffectKind === "public-semantic-validation"
+		carriesSemanticSnapshot
 			? [
 					"criteria",
 					"effectKind",
@@ -817,13 +820,13 @@ function validatePersistedResultProjection(
 		result.outcome !== "executor-failed";
 	if (publicSemanticSucceeded !== (result.criteria !== null))
 		throw new TypeError(`${path} public-semantic criteria coordinates drifted`);
-	if (effect.sourceD43EffectKind === "public-semantic-validation") {
+	if (carriesSemanticSnapshot) {
 		const sourceSnapshotDigest =
 			result.sourceSnapshotDigest === null
 				? null
 				: digest(result.sourceSnapshotDigest, `${path}.sourceSnapshotDigest`);
-		if (publicSemanticSucceeded !== (sourceSnapshotDigest !== null))
-			throw new TypeError(`${path} public-semantic snapshot disposition drifted`);
+		if ((result.outcome !== "executor-failed") !== (sourceSnapshotDigest !== null))
+			throw new TypeError(`${path} semantic snapshot disposition drifted`);
 		if (result.criteria !== null) validateCriteriaProjection(result.criteria, effect, path);
 		if (
 			result.evidenceDigest !==
@@ -837,7 +840,7 @@ function validatePersistedResultProjection(
 					result.criteria === null ? null : empiricalStrictJsonDigest(result.criteria),
 			})
 		)
-			throw new TypeError(`${path} public-semantic Graph evidence binding drifted`);
+			throw new TypeError(`${path} semantic Graph evidence binding drifted`);
 	}
 }
 
@@ -1106,9 +1109,12 @@ function validateWorkspaceFreshnessResult(
 
 function validateLocalResult(effect: D45AdmittedEffectV1, value: unknown): LocalRuntimeResult {
 	const candidate = record(value, "D45 local result");
+	const carriesSemanticSnapshot =
+		effect.sourceD43EffectKind === "public-semantic-validation" ||
+		effect.sourceD43EffectKind === "hidden-verifier";
 	exactKeys(
 		candidate,
-		effect.sourceD43EffectKind === "public-semantic-validation"
+		carriesSemanticSnapshot
 			? [
 					"criteria",
 					"effectKind",
@@ -1140,15 +1146,20 @@ function validateLocalResult(effect: D45AdmittedEffectV1, value: unknown): Local
 			: digest(candidate.workspaceStateDigest, "D45 local workspace state");
 	const criteria = candidate.criteria as D43EffectResultInputV1["criteria"];
 	let sourceSnapshotDigest: string | null | undefined;
-	if (effect.sourceD43EffectKind === "public-semantic-validation") {
-		if ((outcome === "executor-failed") === (criteria !== null))
+	if (carriesSemanticSnapshot) {
+		if (
+			effect.sourceD43EffectKind === "public-semantic-validation" &&
+			(outcome === "executor-failed") === (criteria !== null)
+		)
 			throw new TypeError("D45 public semantic result criteria disposition drifted");
+		if (effect.sourceD43EffectKind === "hidden-verifier" && criteria !== null)
+			throw new TypeError("D45 withheld semantic result exposed criteria");
 		sourceSnapshotDigest =
 			candidate.sourceSnapshotDigest === null
 				? null
 				: digest(candidate.sourceSnapshotDigest, "D45 public semantic source snapshot");
 		if ((outcome !== "executor-failed") !== (sourceSnapshotDigest !== null))
-			throw new TypeError("D45 public semantic snapshot disposition drifted");
+			throw new TypeError("D45 semantic snapshot disposition drifted");
 		if (criteria !== null) validateCriteriaProjection(criteria, effect, "D45 local result");
 		if (
 			evidenceDigest !==
@@ -1161,7 +1172,7 @@ function validateLocalResult(effect: D45AdmittedEffectV1, value: unknown): Local
 				criteriaDigest: criteria === null ? null : empiricalStrictJsonDigest(criteria),
 			})
 		)
-			throw new TypeError("D45 public semantic Graph evidence binding drifted");
+			throw new TypeError("D45 semantic Graph evidence binding drifted");
 	} else if (criteria !== null)
 		throw new TypeError("D45 non-semantic local result carried criteria");
 	const input = Object.freeze({
@@ -2228,7 +2239,8 @@ export function validateD45PartialCanonicalEvidence(value: unknown): D45PartialC
 		else
 			exactKeys(
 				resultShape,
-				temporalActive.sourceD43EffectKind === "public-semantic-validation"
+				temporalActive.sourceD43EffectKind === "public-semantic-validation" ||
+					temporalActive.sourceD43EffectKind === "hidden-verifier"
 					? [
 							"criteria",
 							"effectKind",

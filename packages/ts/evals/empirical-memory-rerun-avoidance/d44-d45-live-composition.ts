@@ -35,6 +35,7 @@ import {
 import {
 	type D61PublicSemanticObservationV1,
 	executeD61PublicSemanticScenarios,
+	executeD63WithheldSemanticScenario,
 } from "./d61-public-semantic-scenarios.js";
 
 export const D44_D45_LIVE_REVISION = "graphrefly-ts.d44.d45-live-composition.v1" as const;
@@ -275,6 +276,8 @@ export function createD44LiveExecutor(input: {
 	readonly baselineCommit: string;
 	readonly bearerToken: string;
 	readonly fetchImpl: typeof fetch;
+	readonly executePublicSemanticScenarios?: typeof executeD61PublicSemanticScenarios;
+	readonly executeWithheldSemanticScenario?: typeof executeD63WithheldSemanticScenario;
 	readonly authorityAccess?: Readonly<{
 		readonly lowerProviderEffect: (
 			authority: object,
@@ -589,7 +592,9 @@ export function createD44LiveExecutor(input: {
 						.split(/\r?\n/u)
 						.filter(Boolean);
 					try {
-						const semantic = await executeD61PublicSemanticScenarios({
+						const semantic = await (
+							input.executePublicSemanticScenarios ?? executeD61PublicSemanticScenarios
+						)({
 							workspaceRoot: state.root,
 							workspaceStateDigest: state.digest,
 							writeScopePreserved:
@@ -658,16 +663,56 @@ export function createD44LiveExecutor(input: {
 						};
 					}
 				} else if (effect.sourceD43EffectKind === "hidden-verifier") {
-					const source = await readFile(
-						await assertWorkspaceFile(state.root, D45_WRITABLE_PATH),
-						"utf8",
-					);
-					const exact =
-						source.includes(D44_FIXED_ADMISSION_BLOCK) &&
-						!source.includes(D44_BUGGY_ADMISSION_BLOCK) &&
-						source.indexOf(D44_FIXED_ADMISSION_BLOCK) ===
-							source.lastIndexOf(D44_FIXED_ADMISSION_BLOCK);
-					outcome = exact ? "passed" : "failed";
+					try {
+						const hidden = await (
+							input.executeWithheldSemanticScenario ?? executeD63WithheldSemanticScenario
+						)({
+							workspaceRoot: state.root,
+							workspaceStateDigest: state.digest,
+							writeScopePreserved: true,
+							timeoutMs: effect.elapsedReservationMs,
+						});
+						outcome = hidden.passed ? "passed" : "failed";
+						return {
+							result: {
+								effectKind: "local-effect",
+								outcome,
+								elapsedMs: boundedElapsed(started, effect.elapsedReservationMs),
+								evidenceDigest: empiricalStrictJsonDigest({
+									request: effect.requestDigest,
+									admission: effect.admissionDigest,
+									outcome,
+									workspace: state.digest,
+									sourceSnapshotDigest: hidden.sourceSnapshotDigest,
+									criteriaDigest: null,
+								}),
+								workspaceStateDigest: state.digest,
+								criteria: null,
+								sourceSnapshotDigest: hidden.sourceSnapshotDigest,
+							},
+							retryDelayMs: 0,
+						};
+					} catch {
+						return {
+							result: {
+								effectKind: "local-effect",
+								outcome: "executor-failed",
+								elapsedMs: effect.elapsedReservationMs,
+								evidenceDigest: empiricalStrictJsonDigest({
+									request: effect.requestDigest,
+									admission: effect.admissionDigest,
+									outcome: "executor-failed",
+									workspace: state.digest,
+									sourceSnapshotDigest: null,
+									criteriaDigest: null,
+								}),
+								workspaceStateDigest: state.digest,
+								criteria: null,
+								sourceSnapshotDigest: null,
+							},
+							retryDelayMs: 0,
+						};
+					}
 				} else if (effect.sourceD43EffectKind === "cleanup") {
 					const removed = await runProcess({
 						command: "/usr/bin/git",

@@ -9,6 +9,7 @@ import {
 	D44_D45_BASELINE_COMMIT,
 	D44_FIXED_ADMISSION_BLOCK,
 } from "./d44-d45-live-composition.js";
+
 import {
 	admitD45EffectResult,
 	createD45GraphToolAuthority,
@@ -32,6 +33,37 @@ import {
 	validateD46CanonicalEvidence,
 } from "./d46-bounded-inspection-authority.js";
 import { runD46BoundedInspectionMeasurement } from "./d46-bounded-inspection-composition.js";
+import type { D61PublicSemanticScenarioResultV1 } from "./d61-public-semantic-scenarios.js";
+
+async function injectedPublicSemantic(input: {
+	readonly workspaceStateDigest: string;
+}): Promise<D61PublicSemanticScenarioResultV1> {
+	return Object.freeze({
+		observations: Object.freeze([
+			Object.freeze({ passed: true, causeCode: null }),
+			Object.freeze({ passed: true, causeCode: null }),
+			Object.freeze({ passed: true, causeCode: null }),
+			Object.freeze({ passed: true, causeCode: null }),
+		]),
+		sourceSnapshotDigest: empiricalStrictJsonDigest({
+			workspaceStateDigest: input.workspaceStateDigest,
+			qualification: "D55 injected public semantic boundary",
+		}),
+	});
+}
+
+async function injectedWithheldSemantic(input: {
+	readonly workspaceRoot: string;
+	readonly workspaceStateDigest: string;
+}): Promise<Readonly<{ passed: boolean; sourceSnapshotDigest: string }>> {
+	return Object.freeze({
+		passed: input.workspaceRoot.endsWith("/relevant-applied"),
+		sourceSnapshotDigest: empiricalStrictJsonDigest({
+			workspaceStateDigest: input.workspaceStateDigest,
+			qualification: "D55 injected withheld semantic boundary",
+		}),
+	});
+}
 
 export const D55_QUALIFICATION_SCHEMA =
 	"graphrefly-ts.d55.provider-boundary-qualification.v3" as const;
@@ -219,6 +251,8 @@ async function runSingleBoundaryScenario(input: {
 		materializationRoot: await mkdtemp(join(tmpdir(), `graphrefly-d55-${input.scenario}-`)),
 		baselineCommit: D44_D45_BASELINE_COMMIT,
 		bearerToken: "injected-no-network",
+		executePublicSemanticScenarios: injectedPublicSemantic,
+		executeWithheldSemanticScenario: injectedWithheldSemantic,
 		authorityAccess: {
 			lowerProviderEffect: (authority, effect) =>
 				lowerD45ProviderEffect(authority as never, effect),
@@ -372,6 +406,8 @@ async function runFullSixArmContinuation(
 		materializationRoot: await mkdtemp(join(tmpdir(), `graphrefly-d55-six-arm-${scenario}-`)),
 		baselineCommit: D44_D45_BASELINE_COMMIT,
 		bearerToken: "injected-no-network",
+		executePublicSemanticScenarios: injectedPublicSemantic,
+		executeWithheldSemanticScenario: injectedWithheldSemantic,
 		authorityAccess: {
 			lowerProviderEffect: (authority, effect) =>
 				lowerD46ProviderEffect(authority as never, effect),

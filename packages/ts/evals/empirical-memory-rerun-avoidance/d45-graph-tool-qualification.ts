@@ -751,8 +751,10 @@ async function runScenario(
 								? "passed"
 								: "success";
 			const isPublicSemantic = effect.sourceD43EffectKind === "public-semantic-validation";
+			const isSemanticSnapshot =
+				isPublicSemantic || effect.sourceD43EffectKind === "hidden-verifier";
 			const admittedCriteria = outcome === "executor-failed" ? null : criteria;
-			const sourceSnapshotDigest = isPublicSemantic
+			const sourceSnapshotDigest = isSemanticSnapshot
 				? outcome === "executor-failed"
 					? null
 					: empiricalStrictJsonDigest({
@@ -764,7 +766,7 @@ async function runScenario(
 				effectKind: "local-effect",
 				outcome,
 				elapsedMs: 1,
-				evidenceDigest: isPublicSemantic
+				evidenceDigest: isSemanticSnapshot
 					? empiricalStrictJsonDigest({
 							request: effect.requestDigest,
 							admission: effect.admissionDigest,

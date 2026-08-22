@@ -8,7 +8,8 @@ import * as providerInput from "d61-candidate-provider-input";
 import * as runtime from "d61-candidate-runtime";
 import {
 	D61_PUBLIC_SEMANTIC_SCENARIO_IDS,
-	type D61PublicSemanticScenarioId,
+	type D61WorkerSemanticScenarioId,
+	D63_WITHHELD_SEMANTIC_SCENARIO_ID,
 	executeD61PublicSemanticScenarioWithModules,
 } from "./d61-public-semantic-scenarios.js";
 
@@ -17,7 +18,8 @@ async function main(): Promise<void> {
 	if (
 		workspaceStateDigest === undefined ||
 		(writeScope !== "0" && writeScope !== "1") ||
-		!D61_PUBLIC_SEMANTIC_SCENARIO_IDS.includes(scenarioIdValue as D61PublicSemanticScenarioId)
+		(!D61_PUBLIC_SEMANTIC_SCENARIO_IDS.includes(scenarioIdValue as never) &&
+			scenarioIdValue !== D63_WITHHELD_SEMANTIC_SCENARIO_ID)
 	)
 		throw new TypeError("D61 isolated semantic worker arguments drifted");
 	const result = await executeD61PublicSemanticScenarioWithModules(
@@ -25,7 +27,7 @@ async function main(): Promise<void> {
 			workspaceRoot: "isolated-bundle",
 			workspaceStateDigest,
 			writeScopePreserved: writeScope === "1",
-			scenarioId: scenarioIdValue as D61PublicSemanticScenarioId,
+			scenarioId: scenarioIdValue as D61WorkerSemanticScenarioId,
 		},
 		{ runtime, graphModule, identity, providerInput },
 	);

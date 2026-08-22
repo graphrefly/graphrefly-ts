@@ -6,12 +6,12 @@ import { D45_IMPLEMENTATION_MANIFEST_DIGEST } from "./d45-implementation-manifes
 export const D44_D45_LIVE_IMPLEMENTATION_SOURCE_HASHES = Object.freeze({
 	policy: "sha256:c08e6377b1e8a6280325d6b99f43a201b1ae851b57a941cfe72992799797a9b9",
 	lifecycleAuthority: "sha256:6a3448d208e2df31d05b78d92c26336f59d6414254e233e65be8c58a454ea513",
-	toolAuthority: "sha256:21d3c01e0fe14617e331666ba7a24a874764497cb772a8cdbd2f60ad592adc09",
+	toolAuthority: "sha256:0d6c43723fc7704732d27c1800eb022e3f4aef0369340bed017f3f8f9f05c1c2",
 	adapter: "sha256:7ac371036c82cba6a7f74867f4e02936b3223dbc53102e83871b003e3c909f41",
-	liveComposition: "sha256:46b61099293f9b1f3c0aca4fd8a2f963a0a57a4a863885b43ba07103c2192cb8",
-	semanticScenarios: "sha256:c105af727adba7dd53ca5c33f9ddc640a17beda58342f314d5a05f817d8f92b1",
-	semanticBundleEntry: "sha256:5fec8f81a967301f18e6be18ebc0dedef29ef12cf5eaa29eeae9b0a49a258d19",
-	liveQualification: "sha256:907e8d04b490fd7fd7bbb13d7431de6cab7e956aeb45ce2364dad07363b88a64",
+	liveComposition: "sha256:eefa1e9dbebd09363e3ab508443673f31153a4c17380ca42eb7ffaf463680b86",
+	semanticScenarios: "sha256:511f430395e27d7920b0c9bd9ea8853993f244c93563630179af1ab0bf9c8076",
+	semanticBundleEntry: "sha256:158db76edd3133c1768c7dea5384c9031e7dfe2c3af9feb750e07ba2035536e8",
+	liveQualification: "sha256:e49e6555ae91d99f5695cd55864d65c8d8a4a441d718ab71de5edc0914c8f63b",
 });
 
 export const D44_D45_LIVE_IMPLEMENTATION_MANIFEST_DIGEST = empiricalStrictJsonDigest({

@@ -71,7 +71,7 @@ export interface D44D45QualificationReceiptV1 {
 	readonly receiptDigest: string;
 }
 
-function injectedProviderResponse(body: RequestInit["body"]): Response {
+export function injectedProviderResponse(body: RequestInit["body"]): Response {
 	if (typeof body !== "string") throw new TypeError("D44 qualification expected strict JSON wire");
 	const request = JSON.parse(body) as {
 		readonly tool_choice: Readonly<{ readonly function: Readonly<{ readonly name: string }> }>;
