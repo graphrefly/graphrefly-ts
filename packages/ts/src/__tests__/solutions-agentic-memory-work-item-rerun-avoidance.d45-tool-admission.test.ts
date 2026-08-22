@@ -66,6 +66,7 @@ describe("graphrefly-ts:D45 Graph-owned provider proposal and exact tool admissi
 		const bundle = validateD45QualificationBundle(await runD45InjectedNoNetworkQualification());
 		expect(bundle.qualification.exactSixArmScenarios).toBe(5);
 		expect(bundle.qualification.boundedSemanticCorrectionQualified).toBe(true);
+		expect(bundle.qualification.mutationProposalContractQualified).toBe(true);
 		expect(bundle.qualification.mainFrozenGateWouldPass).toBe(true);
 		expect(bundle.qualification.proposalToolBijection).toBe(true);
 		expect(bundle.qualification.allProposalRejectionCodesObserved).toBe(true);

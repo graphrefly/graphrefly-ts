@@ -36,10 +36,10 @@ import {
 	parseD45ChatProviderResponse,
 } from "./d45-mechanical-chat-adapter.js";
 
-export const D45_QUALIFICATION_SCHEMA = "graphrefly-ts.d59.qualification.v2" as const;
-export const D45_QUALIFICATION_BUNDLE_SCHEMA = "graphrefly-ts.d59.qualification-bundle.v2" as const;
+export const D45_QUALIFICATION_SCHEMA = "graphrefly-ts.d60.qualification.v3" as const;
+export const D45_QUALIFICATION_BUNDLE_SCHEMA = "graphrefly-ts.d60.qualification-bundle.v3" as const;
 export const D45_QUALIFICATION_GENERATION_REF =
-	"current-graph-native-tool-admission-2026-08-21-d59-v1" as const;
+	"current-graph-native-tool-admission-2026-08-21-d60-v1" as const;
 export const D45_PARTIAL_GENERATION_REF =
 	"current-graph-native-tool-admission-partial-2026-08-21-d45-v2" as const;
 
@@ -180,6 +180,7 @@ export interface D45QualificationBundleV1 {
 		readonly partialEvidenceDigest: string;
 		readonly exactSixArmScenarios: 5;
 		readonly boundedSemanticCorrectionQualified: true;
+		readonly mutationProposalContractQualified: true;
 		readonly mainFrozenGateWouldPass: true;
 		readonly proposalToolBijection: true;
 		readonly oneToFourInspectionReadsObserved: true;
@@ -387,26 +388,23 @@ async function runScenario(
 		let result: D45EffectResultInputV1;
 		if (effect.effectKind === "provider-proposal") {
 			const wire = lowerD45ProviderEffect(authority, effect);
-			const key = `${effect.arm}:${effect.phase}`;
-			const attempt = (providerAttempts.get(key) ?? 0) + 1;
-			providerAttempts.set(key, attempt);
-			if (
-				mode === "semantic-correction" &&
-				effect.arm === "relevant-applied" &&
-				effect.phase === "mutation" &&
-				attempt === 2
-			) {
+			if (effect.phase === "mutation") {
 				const lowered = JSON.parse(wire.body) as {
 					readonly messages: readonly Readonly<{ readonly content: string }>[];
 				};
 				const instruction = lowered.messages.at(-1)?.content ?? "";
 				if (
+					!instruction.includes("exactly one named replace_exact tool call") ||
+					!instruction.includes("exactly the keys path, oldText, and newText") ||
 					!instruction.includes("512 UTF-8 bytes") ||
 					!instruction.includes("128 UTF-8 bytes") ||
 					!instruction.includes("smallest unique contiguous local span")
 				)
-					throw new TypeError("D59 semantic correction omitted bounded Graph instruction");
+					throw new TypeError("D60 mutation proposal contract omitted from wire");
 			}
+			const key = `${effect.arm}:${effect.phase}`;
+			const attempt = (providerAttempts.get(key) ?? 0) + 1;
+			providerAttempts.set(key, attempt);
 			if (
 				mode === "failure" &&
 				((effect.arm === "cold" && effect.phase === "inspection") ||
@@ -725,7 +723,7 @@ export async function runD45InjectedNoNetworkQualification(): Promise<D45Qualifi
 				finding.arm === "relevant-applied" && finding.kind === "semantic-validation-failed",
 		)
 	)
-		throw new TypeError("D59 bounded semantic correction qualification did not recover");
+		throw new TypeError("D60 bounded semantic correction qualification did not recover");
 	const rejections = new Set([
 		...observedRejections(recoveryEvidence),
 		...observedRejections(failureEvidence),
@@ -825,6 +823,7 @@ export async function runD45InjectedNoNetworkQualification(): Promise<D45Qualifi
 		partialEvidenceDigest: partialEvidence.evidenceDigest,
 		exactSixArmScenarios: 5 as const,
 		boundedSemanticCorrectionQualified: true as const,
+		mutationProposalContractQualified: true as const,
 		mainFrozenGateWouldPass: true as const,
 		proposalToolBijection: true as const,
 		oneToFourInspectionReadsObserved: D43_ARMS.every((arm) => {
@@ -914,6 +913,7 @@ export function validateD45QualificationBundle(value: D45QualificationBundleV1) 
 		[
 			"allProposalRejectionCodesObserved",
 			"boundedSemanticCorrectionQualified",
+			"mutationProposalContractQualified",
 			"causalAttribution",
 			"cleanupCompletedAfterFailure",
 			"conservativeReservationObserved",
@@ -968,6 +968,7 @@ export function validateD45QualificationBundle(value: D45QualificationBundleV1) 
 		value.qualification.partialEvidenceDigest !== partial.evidenceDigest ||
 		value.qualification.exactSixArmScenarios !== 5 ||
 		value.qualification.boundedSemanticCorrectionQualified !== true ||
+		value.qualification.mutationProposalContractQualified !== true ||
 		value.qualification.mainFrozenGateWouldPass !== true ||
 		value.qualification.proposalToolBijection !== true ||
 		value.qualification.oneToFourInspectionReadsObserved !== true ||

@@ -11,7 +11,7 @@ import {
 	readD45ProviderMaterial,
 } from "./d45-graph-tool-authority.js";
 
-export const D45_CHAT_ADAPTER_REVISION = "graphrefly-ts.d59.mechanical-chat-adapter.v3" as const;
+export const D45_CHAT_ADAPTER_REVISION = "graphrefly-ts.d60.mechanical-chat-adapter.v4" as const;
 
 export interface D45LoweredChatWireV1 {
 	readonly adapterRevision: typeof D45_CHAT_ADAPTER_REVISION;
@@ -344,23 +344,26 @@ function graphCorrectionInstruction(context: D45ProviderMaterialV1["correctionCo
 		.join(", ")}. Repair only the failed public scenarios while preserving the passed scenarios.`;
 }
 
-const BOUNDED_CORRECTION_INSTRUCTION =
-	"Keep oldText and newText at or below 512 UTF-8 bytes each, keep newText at most 128 UTF-8 bytes longer than oldText, and quote only the smallest unique contiguous local span. Do not replace an entire function or file." as const;
+const MUTATION_PROPOSAL_CONTRACT =
+	"Return exactly one named replace_exact tool call with exactly the keys path, oldText, and newText; do not emit a final answer or any additional tool call. Keep oldText and newText at or below 512 UTF-8 bytes each, keep newText at most 128 UTF-8 bytes longer than oldText, and quote only the smallest unique contiguous local span. Do not replace an entire function or file." as const;
 
-function graphIntentInstruction(material: D45ProviderMaterialV1): string {
+function graphIntentInstruction(
+	material: D45ProviderMaterialV1,
+	phase: "inspection" | "mutation",
+): string {
 	const { intent } = material;
+	const phaseContract = phase === "mutation" ? `${MUTATION_PROPOSAL_CONTRACT} ` : "";
 	if (intent === "phase-correction")
-		return `Graph rejected the previous phase response. Return exactly one named tool call now; do not emit a final answer or additional tool calls.${
-			material.correctionContext === null ? "" : ` ${BOUNDED_CORRECTION_INSTRUCTION}`
-		}`;
+		return `${phaseContract}Graph rejected the previous phase response. Return exactly one named tool call now; do not emit a final answer or additional tool calls.`;
 	if (intent === "fresh-mutation")
-		return "Graph rejected the previous exact replacement against current workspace state. Use the retained fresh sources and propose one different, unique exact replacement.";
+		return `${phaseContract}Graph rejected the previous exact replacement against current workspace state. Use the retained fresh sources and propose one different, unique exact replacement.`;
 	if (intent === "semantic-correction")
-		return `Graph validation rejected the current workspace. ${graphCorrectionInstruction(material.correctionContext)} Inspect the retained current sources and propose one different smallest exact replacement. ${BOUNDED_CORRECTION_INSTRUCTION}`;
+		return `${phaseContract}Graph validation rejected the current workspace. ${graphCorrectionInstruction(material.correctionContext)} Inspect the retained current sources and propose one different smallest exact replacement.`;
 	if (intent === "reinspection")
-		return "Graph requires one fresh read of the writable file before another mutation.";
-	if (intent === "same-request-retry") return "Graph admitted the initial phase effect.";
-	return "Graph admitted the initial phase effect.";
+		return `${phaseContract}Graph requires one fresh read of the writable file before another mutation.`;
+	if (intent === "same-request-retry")
+		return `${phaseContract}Graph admitted the initial phase effect.`;
+	return `${phaseContract}Graph admitted the initial phase effect.`;
 }
 
 export function lowerD45ProviderEffect(
@@ -397,7 +400,7 @@ export function lowerD45ProviderEffect(
 			},
 			{
 				role: "system",
-				content: `Graph admission requires phase=${effect.phase}; return only the named ${toolName} tool proposal. ${graphIntentInstruction(material)}`,
+				content: `Graph admission requires phase=${effect.phase}; return only the named ${toolName} tool proposal. ${graphIntentInstruction(material, effect.phase)}`,
 			},
 		],
 		tools: [tool],
