@@ -24,11 +24,11 @@ export const D44_D45_PRICING_SOURCE =
 export const D44_D45_ZERO_BYOK_SCHEMA = "graphrefly-ts.d44.d45-zero-byok-observation.v1" as const;
 export const D44_D45_CLAIM_SCHEMA = "graphrefly-ts.d44.d45-live-claim.v1" as const;
 export const D44_D45_LIVE_BUNDLE_SCHEMA = "graphrefly-ts.d44.d45-live-bundle.v1" as const;
-export const D44_D45_LIVE_GENERATION_REF = "current-graph-native-live-2026-08-21-d62-v1" as const;
-export const D44_D45_LIVE_CLAIM_REF = "current-graph-native-live-claim-2026-08-21-d62-v1" as const;
+export const D44_D45_LIVE_GENERATION_REF = "current-graph-native-live-2026-08-22-d64-v1" as const;
+export const D44_D45_LIVE_CLAIM_REF = "current-graph-native-live-claim-2026-08-22-d64-v1" as const;
 export const D44_D45_LIVE_PRIVATE_ROOT = resolve(
 	import.meta.dirname,
-	"../.private/empirical-memory-rerun-avoidance/current-graph-native-d62-live",
+	"../.private/empirical-memory-rerun-avoidance/current-graph-native-d64-live",
 );
 
 export interface D44D45CredentialV1 {
@@ -73,8 +73,8 @@ export interface D44D45PreclaimV1 {
 export interface D44D45DispatchClaimV1 {
 	readonly schemaVersion: typeof D44_D45_CLAIM_SCHEMA;
 	readonly claimRef: typeof D44_D45_LIVE_CLAIM_REF;
-	readonly authorityRef: "graphrefly-ts:D61";
-	readonly architectureRef: "graphrefly-ts:D61";
+	readonly authorityRef: "graphrefly-ts:D63";
+	readonly architectureRef: "graphrefly-ts:D63";
 	readonly generationRef: typeof D44_D45_LIVE_GENERATION_REF;
 	readonly preclaimDigest: string;
 	readonly implementationCommit: string;
@@ -278,8 +278,8 @@ export async function acquireD44D45DispatchClaim(input: {
 	const material = strictSnapshot({
 		schemaVersion: D44_D45_CLAIM_SCHEMA,
 		claimRef: D44_D45_LIVE_CLAIM_REF,
-		authorityRef: "graphrefly-ts:D61" as const,
-		architectureRef: "graphrefly-ts:D61" as const,
+		authorityRef: "graphrefly-ts:D63" as const,
+		architectureRef: "graphrefly-ts:D63" as const,
 		generationRef: D44_D45_LIVE_GENERATION_REF,
 		preclaimDigest: input.preclaim.preclaimDigest,
 		implementationCommit: input.implementationCommit,

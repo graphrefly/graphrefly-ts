@@ -23,16 +23,16 @@ import {
 	readD44D45FreshPricing,
 } from "./d44-d45-live-gates.js";
 import {
-	D61_IMPLEMENTATION_MANIFEST_DIGEST,
-	measureD61Implementation,
-} from "./d61-implementation-manifest.js";
-import { validateD61QualificationBundle } from "./d61-semantic-recovery-qualification.js";
+	D63_IMPLEMENTATION_MANIFEST_DIGEST,
+	measureD63Implementation,
+} from "./d63-implementation-manifest.js";
+import { validateD63QualificationBundle } from "./d63-withheld-semantic-qualification.js";
 import {
-	D62_LIVE_EXECUTION_MANIFEST_DIGEST,
-	D62_QUALIFICATION_ARTIFACT_DIGEST,
-	D62_QUALIFICATION_DIGEST,
-	measureD62LiveExecution,
-} from "./d62-live-execution-manifest.js";
+	D64_LIVE_EXECUTION_MANIFEST_DIGEST,
+	D64_QUALIFICATION_ARTIFACT_DIGEST,
+	D64_QUALIFICATION_DIGEST,
+	measureD64LiveExecution,
+} from "./d64-live-execution-manifest.js";
 import { createOpenRouterCurrentKeySpendAdmissionCapability } from "./openrouter-current-key-spend-admission.js";
 
 const repositoryRoot = resolve(import.meta.dirname, "../../../..");
@@ -41,10 +41,10 @@ const credentialPath = join(operatorRoot, "openrouter.env");
 const zeroByokPath = join(operatorRoot, "d44-d45-zero-byok-2026-08-21.v1.json");
 const qualificationPath = join(
 	operatorRoot,
-	"current-graph-native-d61-qualified-v8/current-graph-native-semantic-recovery-2026-08-21-d61-v8.json",
+	"current-graph-native-d63-qualified-v2/current-graph-native-withheld-semantic-2026-08-22-d63-v2.json",
 );
-const QUALIFICATION_ARTIFACT_DIGEST = D62_QUALIFICATION_ARTIFACT_DIGEST;
-const QUALIFICATION_DIGEST = D62_QUALIFICATION_DIGEST;
+const QUALIFICATION_ARTIFACT_DIGEST = D64_QUALIFICATION_ARTIFACT_DIGEST;
+const QUALIFICATION_DIGEST = D64_QUALIFICATION_DIGEST;
 
 async function runGit(args: readonly string[]): Promise<string> {
 	return await new Promise((resolvePromise, rejectPromise) => {
@@ -142,10 +142,10 @@ async function assertGenerationAbsent(): Promise<void> {
 }
 
 await prepareD44D45PrivateRoot(D44_D45_LIVE_PRIVATE_ROOT);
-if ((await measureD61Implementation()) !== D61_IMPLEMENTATION_MANIFEST_DIGEST)
-	throw new TypeError("D44 qualified D61 implementation closure drifted");
-const implementationManifestDigest = await measureD62LiveExecution();
-if (implementationManifestDigest !== D62_LIVE_EXECUTION_MANIFEST_DIGEST)
+if ((await measureD63Implementation()) !== D63_IMPLEMENTATION_MANIFEST_DIGEST)
+	throw new TypeError("D44 qualified D63 implementation closure drifted");
+const implementationManifestDigest = await measureD64LiveExecution();
+if (implementationManifestDigest !== D64_LIVE_EXECUTION_MANIFEST_DIGEST)
 	throw new TypeError("D44 live implementation manifest drifted");
 const implementationCommit = await runGit(["rev-parse", "HEAD"]);
 await runGit(["merge-base", "--is-ancestor", D44_D45_BASELINE_COMMIT, implementationCommit]);
@@ -165,7 +165,9 @@ const implementationPaths = [
 	"packages/ts/evals/empirical-memory-rerun-avoidance/d61-public-semantic-bundle-entry.ts",
 	"packages/ts/evals/empirical-memory-rerun-avoidance/d61-semantic-recovery-qualification.ts",
 	"packages/ts/evals/empirical-memory-rerun-avoidance/d61-implementation-manifest.ts",
-	"packages/ts/evals/empirical-memory-rerun-avoidance/d62-live-execution-manifest.ts",
+	"packages/ts/evals/empirical-memory-rerun-avoidance/d63-implementation-manifest.ts",
+	"packages/ts/evals/empirical-memory-rerun-avoidance/d63-withheld-semantic-qualification.ts",
+	"packages/ts/evals/empirical-memory-rerun-avoidance/d64-live-execution-manifest.ts",
 	"packages/ts/evals/empirical-memory-rerun-avoidance/run-d44-d45-live.ts",
 ];
 if ((await runGit(["status", "--porcelain=v1", "--", ...implementationPaths])) !== "")
@@ -174,7 +176,7 @@ await assertGenerationAbsent();
 const qualificationBytes = await readPrivate(qualificationPath, 16 * 1_048_576);
 if (empiricalSha256(qualificationBytes) !== QUALIFICATION_ARTIFACT_DIGEST)
 	throw new TypeError("D44 qualification artifact drifted");
-const qualification = validateD61QualificationBundle(strictJsonCodec.decode(qualificationBytes));
+const qualification = validateD63QualificationBundle(strictJsonCodec.decode(qualificationBytes));
 if (qualification.qualification.qualificationDigest !== QUALIFICATION_DIGEST)
 	throw new TypeError("D44 qualification digest drifted");
 const credential = parseCredential(await readPrivate(credentialPath, 16_384));
