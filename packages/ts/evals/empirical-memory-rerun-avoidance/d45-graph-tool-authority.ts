@@ -440,6 +440,7 @@ interface State {
 	readonly reasoningEffort: "high";
 	readonly requireParameters: true;
 	readonly facts: D45FactV1[];
+	readonly providerWireByLogicalRequest: Map<string, string>;
 	readonly retainedReads: Map<string, string>;
 	readonly correctionContexts: Map<
 		D43AdmittedEffectV1["arm"],
@@ -1386,6 +1387,13 @@ function applyFact(state: State, value: RuntimeFact) {
 			state.activeWireDigest !== null
 		)
 			throw new TypeError("D45 provider wire admission lost its exact active effect");
+		const priorWire = state.providerWireByLogicalRequest.get(value.projection.logicalRequestDigest);
+		if (priorWire !== undefined && priorWire !== value.projection.wireDigest)
+			throw new TypeError("D45 same-logical-request wire identity drifted before dispatch");
+		state.providerWireByLogicalRequest.set(
+			value.projection.logicalRequestDigest,
+			value.projection.wireDigest,
+		);
 		state.activeWireDigest = value.projection.wireDigest;
 		state.facts.push(value.projection);
 		return;
@@ -1503,6 +1511,7 @@ export function createD45GraphToolAuthority(input: {
 		reasoningEffort: input.routeProfile.reasoningEffort,
 		requireParameters: input.routeProfile.requireParameters,
 		facts: [],
+		providerWireByLogicalRequest: new Map(),
 		retainedReads: new Map(),
 		correctionContexts: new Map(),
 		active: null,
@@ -1723,6 +1732,9 @@ export function admitD45ProviderWire(
 	)
 		throw new TypeError("D45 provider wire admission is forged, substituted, or premature");
 	const wireDigest = digest(wireDigestValue, "D45 admitted wire digest");
+	const priorWire = state.providerWireByLogicalRequest.get(effect.logicalRequestDigest);
+	if (priorWire !== undefined && priorWire !== wireDigest)
+		throw new TypeError("D45 same-logical-request wire identity drifted before dispatch");
 	const projection = fact({
 		schemaVersion: D45_FACT_SCHEMA,
 		sequence: state.nextFactSequence++,
@@ -2677,6 +2689,7 @@ function validateD45LifecycleBijection(
 	}
 	let activeEffect: D45AdmittedEffectV1 | null = null;
 	let activeWireSeen = false;
+	const providerWireByLogicalRequest = new Map<string, string>();
 	let freshnessArgumentsDigest: string | null = null;
 	let freshnessWorkspaceStateDigest: string | null = null;
 	for (const item of facts) {
@@ -2706,6 +2719,10 @@ function validateD45LifecycleBijection(
 				activeWireSeen
 			)
 				throw new TypeError("D45 final-wire fact was out of canonical order");
+			const priorWire = providerWireByLogicalRequest.get(item.logicalRequestDigest);
+			if (priorWire !== undefined && priorWire !== item.wireDigest)
+				throw new TypeError("D45 canonical same-logical-request wire identity drifted");
+			providerWireByLogicalRequest.set(item.logicalRequestDigest, item.wireDigest);
 			activeWireSeen = true;
 			continue;
 		}

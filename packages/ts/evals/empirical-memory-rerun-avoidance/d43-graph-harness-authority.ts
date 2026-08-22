@@ -64,7 +64,6 @@ export type D43ResultOutcome = (typeof D43_RESULT_OUTCOMES)[number];
 export type D43TaskOutcome = "passed" | "failed" | "non-evaluable";
 export type D43EffectIntent =
 	| "initial"
-	| "same-request-retry"
 	| "phase-correction"
 	| "reinspection"
 	| "fresh-mutation"
@@ -480,7 +479,7 @@ function scheduleRetry(state: AuthorityState, effect: D43AdmittedEffectV1): bool
 	const used = state.retriesByLogicalRequest.get(effect.logicalRequestDigest) ?? 0;
 	if (used >= state.policy.campaign.maxSameLogicalRequestRetries) return false;
 	state.retriesByLogicalRequest.set(effect.logicalRequestDigest, used + 1);
-	queue(state, effect.kind, "same-request-retry", {
+	queue(state, effect.kind, effect.intent, {
 		logicalRequestDigest: effect.logicalRequestDigest,
 		attempt: effect.attempt + 1,
 	});

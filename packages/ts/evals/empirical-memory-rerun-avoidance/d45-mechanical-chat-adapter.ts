@@ -364,8 +364,6 @@ function graphIntentInstruction(
 		return `${phaseContract}Graph validation rejected the current workspace. ${graphCorrectionInstruction(material.correctionContext)} Inspect the retained current sources and propose one different smallest exact replacement.`;
 	if (intent === "reinspection")
 		return `${phaseContract}Graph requires one fresh read of the writable file before another mutation.`;
-	if (intent === "same-request-retry")
-		return `${phaseContract}Graph admitted the initial phase effect.`;
 	return `${phaseContract}Graph admitted the initial phase effect.`;
 }
 
