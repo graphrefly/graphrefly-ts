@@ -41,6 +41,7 @@ archive/evals/results/harness-retrospective/
 # default. Repository inclusion requires a separately approved sanitized,
 # protection-checked complete evidence bundle.
 packages/ts/evals/.private/empirical-memory-rerun-avoidance/
+packages/ts/evals/.private/graph-native-rerun-avoidance/
 
 # Environment (keep examples)
 .env

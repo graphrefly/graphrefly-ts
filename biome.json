@@ -21,6 +21,7 @@
 			"!benchmarks",
 			"!packages/ts/runners/local-untrusted-js/local-untrusted-js-runner.mjs",
 			"!packages/ts/evals/.private/empirical-memory-rerun-avoidance",
+			"!packages/ts/evals/.private/graph-native-rerun-avoidance",
 			"!website",
 			"!examples/nestjs"
 		]

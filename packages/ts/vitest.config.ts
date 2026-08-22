@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { defineConfig } from "vitest/config";
-import { historicalEvalTestFiles } from "./vitest.historical-eval-files.js";
 
 const packageMetadata = JSON.parse(
 	readFileSync(new URL("./package.json", import.meta.url), "utf8"),
@@ -13,6 +12,5 @@ export default defineConfig({
 	},
 	test: {
 		include: ["src/**/*.test.ts"],
-		exclude: historicalEvalTestFiles,
 	},
 });
