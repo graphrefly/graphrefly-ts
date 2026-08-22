@@ -36,10 +36,10 @@ import {
 	parseD45ChatProviderResponse,
 } from "./d45-mechanical-chat-adapter.js";
 
-export const D45_QUALIFICATION_SCHEMA = "graphrefly-ts.d45.qualification.v1" as const;
-export const D45_QUALIFICATION_BUNDLE_SCHEMA = "graphrefly-ts.d45.qualification-bundle.v1" as const;
+export const D45_QUALIFICATION_SCHEMA = "graphrefly-ts.d59.qualification.v2" as const;
+export const D45_QUALIFICATION_BUNDLE_SCHEMA = "graphrefly-ts.d59.qualification-bundle.v2" as const;
 export const D45_QUALIFICATION_GENERATION_REF =
-	"current-graph-native-tool-admission-2026-08-21-d45-v2" as const;
+	"current-graph-native-tool-admission-2026-08-21-d59-v1" as const;
 export const D45_PARTIAL_GENERATION_REF =
 	"current-graph-native-tool-admission-partial-2026-08-21-d45-v2" as const;
 
@@ -164,6 +164,7 @@ export function createD45QualificationPolicy() {
 export interface D45QualificationBundleV1 {
 	readonly schemaVersion: typeof D45_QUALIFICATION_BUNDLE_SCHEMA;
 	readonly mainEvidence: D45CanonicalEvidenceV1;
+	readonly semanticCorrectionEvidence: D45CanonicalEvidenceV1;
 	readonly recoveryEvidence: D45CanonicalEvidenceV1;
 	readonly retryEvidence: D45CanonicalEvidenceV1;
 	readonly failureEvidence: D45CanonicalEvidenceV1;
@@ -172,11 +173,13 @@ export interface D45QualificationBundleV1 {
 		readonly schemaVersion: typeof D45_QUALIFICATION_SCHEMA;
 		readonly decisionRef: "graphrefly-ts:D45";
 		readonly mainEvidenceDigest: string;
+		readonly semanticCorrectionEvidenceDigest: string;
 		readonly recoveryEvidenceDigest: string;
 		readonly retryEvidenceDigest: string;
 		readonly failureEvidenceDigest: string;
 		readonly partialEvidenceDigest: string;
-		readonly exactSixArmScenarios: 4;
+		readonly exactSixArmScenarios: 5;
+		readonly boundedSemanticCorrectionQualified: true;
 		readonly mainFrozenGateWouldPass: true;
 		readonly proposalToolBijection: true;
 		readonly oneToFourInspectionReadsObserved: true;
@@ -223,6 +226,8 @@ export interface D45PartialPersistenceReceiptV1 {
 const ORIGINAL = "const canonicalProposal = candidate.proposalRef;";
 const REPLACEMENT =
 	"const canonicalProposal = candidate.proposalRef;\n\tassertProducerOwnedCanonicalProposal(canonicalProposal);";
+const SEMANTICALLY_WRONG_REPLACEMENT =
+	"const canonicalProposal = candidate.proposalRef;\n\tvoid canonicalProposal;";
 
 function initialFiles() {
 	return new Map<string, string>([
@@ -360,7 +365,7 @@ function nextInjectedReadPath(body: string): string {
 }
 
 async function runScenario(
-	mode: "main" | "recovery" | "retry" | "failure",
+	mode: "main" | "semantic-correction" | "recovery" | "retry" | "failure",
 ): Promise<D45CanonicalEvidenceV1> {
 	const policy = createD45QualificationPolicy();
 	const authority = createD45GraphToolAuthority({
@@ -385,6 +390,23 @@ async function runScenario(
 			const key = `${effect.arm}:${effect.phase}`;
 			const attempt = (providerAttempts.get(key) ?? 0) + 1;
 			providerAttempts.set(key, attempt);
+			if (
+				mode === "semantic-correction" &&
+				effect.arm === "relevant-applied" &&
+				effect.phase === "mutation" &&
+				attempt === 2
+			) {
+				const lowered = JSON.parse(wire.body) as {
+					readonly messages: readonly Readonly<{ readonly content: string }>[];
+				};
+				const instruction = lowered.messages.at(-1)?.content ?? "";
+				if (
+					!instruction.includes("512 UTF-8 bytes") ||
+					!instruction.includes("128 UTF-8 bytes") ||
+					!instruction.includes("smallest unique contiguous local span")
+				)
+					throw new TypeError("D59 semantic correction omitted bounded Graph instruction");
+			}
 			if (
 				mode === "failure" &&
 				((effect.arm === "cold" && effect.phase === "inspection") ||
@@ -442,6 +464,19 @@ async function runScenario(
 						toolCalls = [{ toolRef: "read-file", path: "packages/ts/src/not-allowlisted.ts" }];
 					else if (attempt === 1 && recovery === "cardinality") toolCalls = [];
 					else toolCalls = [{ toolRef: "read-file", path: nextInjectedReadPath(wire.body) }];
+				} else if (
+					mode === "semantic-correction" &&
+					effect.arm === "relevant-applied" &&
+					attempt === 1
+				) {
+					toolCalls = [
+						{
+							toolRef: "replace-exact",
+							path: D45_WRITABLE_PATH,
+							oldText: ORIGINAL,
+							newText: SEMANTICALLY_WRONG_REPLACEMENT,
+						},
+					];
 				} else if (attempt === 1 && recovery === "unchanged") {
 					toolCalls = [
 						{
@@ -564,15 +599,25 @@ async function runScenario(
 						effect.sourceD43EffectKind === "focused-validation") ||
 					(effect.arm === "irrelevant-applied" &&
 						effect.sourceD43EffectKind === "hidden-verifier"));
+			const criteria =
+				effect.sourceD43EffectKind === "public-semantic-validation"
+					? semanticCriteria(effect, files)
+					: null;
+			const publicSemanticPassed =
+				criteria?.observations.every((observation) => observation.passed) ?? false;
 			const outcome = injectedExecutorFailure
 				? "executor-failed"
 				: effect.sourceD43EffectKind === "hidden-verifier"
 					? effect.arm === "relevant-applied"
 						? "passed"
 						: "failed"
-					: isValidation
-						? "passed"
-						: "success";
+					: effect.sourceD43EffectKind === "public-semantic-validation"
+						? publicSemanticPassed
+							? "passed"
+							: "failed"
+						: isValidation
+							? "passed"
+							: "success";
 			result = {
 				effectKind: "local-effect",
 				outcome,
@@ -583,10 +628,7 @@ async function runScenario(
 					(effect.sourceD43EffectKind === "materialization" && injectedExecutorFailure)
 						? null
 						: stateDigest,
-				criteria:
-					effect.sourceD43EffectKind === "public-semantic-validation"
-						? semanticCriteria(effect, files)
-						: null,
+				criteria,
 			};
 			if (effect.sourceD43EffectKind === "cleanup") {
 				files = initialFiles();
@@ -649,6 +691,7 @@ function observedRejections(evidence: D45CanonicalEvidenceV1): Set<string> {
 
 export async function runD45InjectedNoNetworkQualification(): Promise<D45QualificationBundleV1> {
 	const mainEvidence = await runScenario("main");
+	const semanticCorrectionEvidence = await runScenario("semantic-correction");
 	const recoveryEvidence = await runScenario("recovery");
 	const retryEvidence = await runScenario("retry");
 	const failureEvidence = await runScenario("failure");
@@ -670,6 +713,19 @@ export async function runD45InjectedNoNetworkQualification(): Promise<D45Qualifi
 		throw new TypeError("D45 partial evidence atomic persistence qualification failed");
 	if (!mainEvidence.frozenGateWouldPass || !mainEvidence.proposalToolBijection)
 		throw new TypeError("D45 main six-arm qualification did not reach the frozen gate");
+	const relevantCorrection = semanticCorrectionEvidence.lifecycle.arms.find(
+		(arm) => arm.arm === "relevant-applied",
+	);
+	if (
+		!semanticCorrectionEvidence.frozenGateWouldPass ||
+		relevantCorrection?.semanticCorrections !== 1 ||
+		relevantCorrection.taskOutcome !== "passed" ||
+		!semanticCorrectionEvidence.lifecycle.findings.some(
+			(finding) =>
+				finding.arm === "relevant-applied" && finding.kind === "semantic-validation-failed",
+		)
+	)
+		throw new TypeError("D59 bounded semantic correction qualification did not recover");
 	const rejections = new Set([
 		...observedRejections(recoveryEvidence),
 		...observedRejections(failureEvidence),
@@ -762,11 +818,13 @@ export async function runD45InjectedNoNetworkQualification(): Promise<D45Qualifi
 		schemaVersion: D45_QUALIFICATION_SCHEMA,
 		decisionRef: "graphrefly-ts:D45" as const,
 		mainEvidenceDigest: mainEvidence.evidenceDigest,
+		semanticCorrectionEvidenceDigest: semanticCorrectionEvidence.evidenceDigest,
 		recoveryEvidenceDigest: recoveryEvidence.evidenceDigest,
 		retryEvidenceDigest: retryEvidence.evidenceDigest,
 		failureEvidenceDigest: failureEvidence.evidenceDigest,
 		partialEvidenceDigest: partialEvidence.evidenceDigest,
-		exactSixArmScenarios: 4 as const,
+		exactSixArmScenarios: 5 as const,
+		boundedSemanticCorrectionQualified: true as const,
 		mainFrozenGateWouldPass: true as const,
 		proposalToolBijection: true as const,
 		oneToFourInspectionReadsObserved: D43_ARMS.every((arm) => {
@@ -823,6 +881,7 @@ export async function runD45InjectedNoNetworkQualification(): Promise<D45Qualifi
 	const material = strictSnapshot({
 		schemaVersion: D45_QUALIFICATION_BUNDLE_SCHEMA,
 		mainEvidence,
+		semanticCorrectionEvidence,
 		recoveryEvidence,
 		retryEvidence,
 		failureEvidence,
@@ -837,6 +896,7 @@ export function validateD45QualificationBundle(value: D45QualificationBundleV1) 
 	exactKeys(
 		candidate,
 		[
+			"semanticCorrectionEvidence",
 			"bundleDigest",
 			"failureEvidence",
 			"mainEvidence",
@@ -853,6 +913,7 @@ export function validateD45QualificationBundle(value: D45QualificationBundleV1) 
 		qualificationCandidate,
 		[
 			"allProposalRejectionCodesObserved",
+			"boundedSemanticCorrectionQualified",
 			"causalAttribution",
 			"cleanupCompletedAfterFailure",
 			"conservativeReservationObserved",
@@ -869,6 +930,7 @@ export function validateD45QualificationBundle(value: D45QualificationBundleV1) 
 			"historicalRuntimeDependencies",
 			"liveGateEvaluated",
 			"mainEvidenceDigest",
+			"semanticCorrectionEvidenceDigest",
 			"mainFrozenGateWouldPass",
 			"oneToFourInspectionReadsObserved",
 			"partialAtomicPersistenceQualified",
@@ -889,6 +951,7 @@ export function validateD45QualificationBundle(value: D45QualificationBundleV1) 
 		"D45 qualification",
 	);
 	const main = validateD45CanonicalEvidence(value.mainEvidence);
+	const semanticCorrection = validateD45CanonicalEvidence(value.semanticCorrectionEvidence);
 	const recovery = validateD45CanonicalEvidence(value.recoveryEvidence);
 	const retry = validateD45CanonicalEvidence(value.retryEvidence);
 	const failure = validateD45CanonicalEvidence(value.failureEvidence);
@@ -898,11 +961,13 @@ export function validateD45QualificationBundle(value: D45QualificationBundleV1) 
 		value.qualification.schemaVersion !== D45_QUALIFICATION_SCHEMA ||
 		value.qualification.decisionRef !== "graphrefly-ts:D45" ||
 		value.qualification.mainEvidenceDigest !== main.evidenceDigest ||
+		value.qualification.semanticCorrectionEvidenceDigest !== semanticCorrection.evidenceDigest ||
 		value.qualification.recoveryEvidenceDigest !== recovery.evidenceDigest ||
 		value.qualification.retryEvidenceDigest !== retry.evidenceDigest ||
 		value.qualification.failureEvidenceDigest !== failure.evidenceDigest ||
 		value.qualification.partialEvidenceDigest !== partial.evidenceDigest ||
-		value.qualification.exactSixArmScenarios !== 4 ||
+		value.qualification.exactSixArmScenarios !== 5 ||
+		value.qualification.boundedSemanticCorrectionQualified !== true ||
 		value.qualification.mainFrozenGateWouldPass !== true ||
 		value.qualification.proposalToolBijection !== true ||
 		value.qualification.oneToFourInspectionReadsObserved !== true ||
