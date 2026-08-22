@@ -656,7 +656,7 @@ async function buildIsolatedWorkerBundle(input: {
 	readonly outputPath: string;
 	readonly deadlineAt: number;
 }): Promise<void> {
-	const entry = fileURLToPath(new URL("./d61-public-semantic-bundle-entry.ts", import.meta.url));
+	const entry = fileURLToPath(new URL("./public-semantic-bundle-entry.ts", import.meta.url));
 	const esbuild = await realpath(join(input.repositoryRoot, "node_modules/.bin/esbuild"));
 	const metafilePath = `${input.outputPath}.meta.json`;
 	const args = [

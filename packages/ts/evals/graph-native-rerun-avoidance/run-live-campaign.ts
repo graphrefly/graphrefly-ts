@@ -165,6 +165,7 @@ if (
 	liveQualification.providerNetworkCalls !== 0 ||
 	!liveQualification.responseSchemaRejectionsQualified ||
 	!liveQualification.materialFreeProgressQualified ||
+	!liveQualification.publicSemanticRuntimeClosureQualified ||
 	!liveQualification.liveCapabilityReplayRejected ||
 	!liveQualification.forgedLiveCapabilityRejected ||
 	!liveQualification.partialCampaignEvidenceQualified

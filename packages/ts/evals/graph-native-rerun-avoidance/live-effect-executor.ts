@@ -646,7 +646,7 @@ export function createD44LiveExecutor(input: {
 							result: {
 								effectKind: "local-effect",
 								outcome: "executor-failed",
-								elapsedMs: effect.elapsedReservationMs,
+								elapsedMs: boundedElapsed(started, effect.elapsedReservationMs),
 								evidenceDigest: empiricalStrictJsonDigest({
 									request: effect.requestDigest,
 									admission: effect.admissionDigest,
@@ -697,7 +697,7 @@ export function createD44LiveExecutor(input: {
 							result: {
 								effectKind: "local-effect",
 								outcome: "executor-failed",
-								elapsedMs: effect.elapsedReservationMs,
+								elapsedMs: boundedElapsed(started, effect.elapsedReservationMs),
 								evidenceDigest: empiricalStrictJsonDigest({
 									request: effect.requestDigest,
 									admission: effect.admissionDigest,

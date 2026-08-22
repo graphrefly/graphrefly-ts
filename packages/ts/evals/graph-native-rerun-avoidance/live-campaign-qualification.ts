@@ -1,7 +1,7 @@
 import { constants } from "node:fs";
 import { chmod, mkdir, mkdtemp, open, realpath, rename, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { strictJsonCodec } from "../../src/json/codec.js";
 import { empiricalStrictJsonDigest, strictSnapshot } from "./canonical.js";
 import { D68_RESPONSE_REJECTION_CODES, type D68GraphProgressV1 } from "./graph-tool-authority.js";
@@ -36,12 +36,13 @@ import type {
 } from "./live-preflight.js";
 import { parseD45ChatProviderResponse } from "./mechanical-chat-adapter.js";
 import { createOpenRouterCurrentKeySpendAdmissionCapability } from "./openrouter-current-key-spend-admission.js";
+import { executeD61PublicSemanticScenarios } from "./public-semantic-scenarios.js";
 import { runD65ReplicateMeasurement } from "./replicate-measurement.js";
 import { D65_REPLICATE_COUNT } from "./replicated-campaign-authority.js";
 import { runD66RetryIdentityQualification } from "./retry-identity-qualification.js";
 
 export const CURRENT_LIVE_QUALIFICATION_SCHEMA =
-	"graphrefly-ts.d69.current-live-qualification.v1" as const;
+	"graphrefly-ts.d70.current-live-qualification.v1" as const;
 
 function qualifyCurrentResponseSchemaRejections(): void {
 	const pricing = Object.freeze({
@@ -129,6 +130,17 @@ function fakeLiveCoordinates(): {
 export async function runCurrentLiveInjectedNoNetworkQualification() {
 	qualifyCurrentResponseSchemaRejections();
 	const d66Qualification = runD66RetryIdentityQualification();
+	const publicSemantic = await executeD61PublicSemanticScenarios({
+		workspaceRoot: resolve(import.meta.dirname, "../../../.."),
+		workspaceStateDigest: empiricalStrictJsonDigest("current-public-semantic-runtime-closure"),
+		writeScopePreserved: true,
+		timeoutMs: 60_000,
+	});
+	if (
+		publicSemantic.observations.length !== 4 ||
+		publicSemantic.observations.some((observation) => !observation.passed)
+	)
+		throw new TypeError("Current public-semantic runtime closure qualification failed");
 	const root = await realpath(await mkdtemp(join(tmpdir(), "graphrefly-current-live-")));
 	await chmod(root, 0o700);
 	try {
@@ -346,6 +358,8 @@ export async function runCurrentLiveInjectedNoNetworkQualification() {
 			schemaVersion: CURRENT_LIVE_QUALIFICATION_SCHEMA,
 			responseSchemaRejectionsQualified: true as const,
 			materialFreeProgressQualified: true as const,
+			publicSemanticRuntimeClosureQualified: true as const,
+			publicSemanticSourceSnapshotDigest: publicSemantic.sourceSnapshotDigest,
 			d66QualificationDigest: d66Qualification.qualificationDigest,
 			currentKeyCalls,
 			providerNetworkCalls: 0 as const,
@@ -360,6 +374,7 @@ export async function runCurrentLiveInjectedNoNetworkQualification() {
 			receiptDigest: persistence.receiptDigest,
 			efficacyClaim: evidence.efficacyClaim,
 			qualificationDigest: empiricalStrictJsonDigest({
+				publicSemanticSourceSnapshotDigest: publicSemantic.sourceSnapshotDigest,
 				claimDigest: claim.claimDigest,
 				campaignEvidenceDigest: evidence.evidenceDigest,
 				bundleDigest: bundle.bundleDigest,

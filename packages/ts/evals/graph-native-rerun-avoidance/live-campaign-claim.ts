@@ -13,12 +13,12 @@ import {
 	type OpenRouterCurrentKeySpendAdmissionV1,
 } from "./openrouter-current-key-spend-admission.js";
 
-export const CURRENT_LIVE_CLAIM_SCHEMA = "graphrefly-ts.d69.live-campaign-claim.v1" as const;
-export const CURRENT_LIVE_CLAIM_REF = "graph-native-live-claim-2026-08-22-d69-v1" as const;
-export const CURRENT_LIVE_GENERATION_REF = "graph-native-live-2026-08-22-d69-v1" as const;
+export const CURRENT_LIVE_CLAIM_SCHEMA = "graphrefly-ts.d71.live-campaign-claim.v1" as const;
+export const CURRENT_LIVE_CLAIM_REF = "graph-native-live-claim-2026-08-22-d71-v1" as const;
+export const CURRENT_LIVE_GENERATION_REF = "graph-native-live-2026-08-22-d71-v1" as const;
 export const CURRENT_LIVE_PRIVATE_ROOT = resolve(
 	import.meta.dirname,
-	"../.private/graph-native-rerun-avoidance/current-live-d69",
+	"../.private/graph-native-rerun-avoidance/current-live-d71",
 );
 
 export interface CurrentLivePreclaimV1 {
@@ -31,7 +31,7 @@ export interface CurrentLivePreclaimV1 {
 export interface CurrentLiveDispatchClaimV1 {
 	readonly schemaVersion: typeof CURRENT_LIVE_CLAIM_SCHEMA;
 	readonly claimRef: typeof CURRENT_LIVE_CLAIM_REF;
-	readonly decisionRef: "graphrefly-ts:D69";
+	readonly decisionRef: "graphrefly-ts:D71";
 	readonly generationRef: typeof CURRENT_LIVE_GENERATION_REF;
 	readonly preclaimDigest: string;
 	readonly implementationCommit: string;
@@ -100,7 +100,7 @@ export async function acquireCurrentLiveDispatchClaim(input: {
 	const material = strictSnapshot({
 		schemaVersion: CURRENT_LIVE_CLAIM_SCHEMA,
 		claimRef: CURRENT_LIVE_CLAIM_REF,
-		decisionRef: "graphrefly-ts:D69" as const,
+		decisionRef: "graphrefly-ts:D71" as const,
 		generationRef: CURRENT_LIVE_GENERATION_REF,
 		preclaimDigest: input.preclaim.preclaimDigest,
 		implementationCommit: input.implementationCommit,
