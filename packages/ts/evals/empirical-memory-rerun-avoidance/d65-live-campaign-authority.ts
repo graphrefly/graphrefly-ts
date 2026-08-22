@@ -30,6 +30,11 @@ import {
 	validateD65CampaignEvidenceWithBaseline,
 	validateD65PartialCampaignEvidenceWithBaseline,
 } from "./d65-replicated-campaign-authority.js";
+import {
+	consumeD67LiveCampaignCapability,
+	D67_LIVE_CLAIM_SCHEMA,
+	type D67LiveCampaignCapabilityV1,
+} from "./d67-live-campaign-claim.js";
 
 export const D65_LIVE_AUTHORITY_REVISION = "graphrefly-ts.d65.live-campaign-authority.v1" as const;
 export const D65_LIVE_FACT_SCHEMA = "graphrefly-ts.d65.live-campaign-fact.v1" as const;
@@ -107,6 +112,12 @@ interface LiveState {
 
 const states = new WeakMap<object, LiveState>();
 
+function isD67LiveCapability(
+	value: D65LiveCampaignCapabilityV1 | D67LiveCampaignCapabilityV1,
+): value is D67LiveCampaignCapabilityV1 {
+	return value.claim.schemaVersion === D67_LIVE_CLAIM_SCHEMA;
+}
+
 function createFactNode(owner: ReturnType<typeof graph>) {
 	return owner.node<D65LiveCampaignFactV1>([], null, { name: "d65/live-canonical-facts" });
 }
@@ -149,9 +160,11 @@ function emit(state: LiveState, fact: D65LiveCampaignFactV1): void {
 }
 
 export function createD65LiveGraphCampaignAuthority(input: {
-	readonly liveCampaignCapability: D65LiveCampaignCapabilityV1;
+	readonly liveCampaignCapability: D65LiveCampaignCapabilityV1 | D67LiveCampaignCapabilityV1;
 }): D65LiveGraphCampaignAuthorityV1 {
-	const capability = consumeD65LiveCampaignCapability(input.liveCampaignCapability);
+	const capability = isD67LiveCapability(input.liveCampaignCapability)
+		? consumeD67LiveCampaignCapability(input.liveCampaignCapability)
+		: consumeD65LiveCampaignCapability(input.liveCampaignCapability);
 	const binding = strictSnapshot({
 		liveClaimDigest: capability.claim.claimDigest,
 		preclaimDigest: capability.claim.preclaimDigest,
