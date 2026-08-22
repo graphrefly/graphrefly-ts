@@ -22,34 +22,34 @@ import {
 } from "./d55-provider-boundary-implementation-manifest.js";
 import { validateD55PersistedQualification } from "./d55-provider-boundary-qualification.js";
 import {
-	acquireD58DispatchClaim,
-	composeD58Preclaim,
-	constructD58LiveBundle,
-	consumeD58DispatchClaim,
-	D58_LIVE_GENERATION_REF,
-	D58_LIVE_PRIVATE_ROOT,
-	persistD58LiveBundle,
-	prepareD58PrivateRoot,
-} from "./d58-provider-boundary-live-gates.js";
+	acquireD59DispatchClaim,
+	composeD59Preclaim,
+	constructD59LiveBundle,
+	consumeD59DispatchClaim,
+	D59_LIVE_GENERATION_REF,
+	D59_LIVE_PRIVATE_ROOT,
+	persistD59LiveBundle,
+	prepareD59PrivateRoot,
+} from "./d59-semantic-correction-live-gates.js";
 import {
-	D58_LIVE_IMPLEMENTATION_MANIFEST_DIGEST,
-	measureD58LiveImplementation,
-} from "./d58-provider-boundary-live-implementation-manifest.js";
+	D59_LIVE_IMPLEMENTATION_MANIFEST_DIGEST,
+	measureD59LiveImplementation,
+} from "./d59-semantic-correction-live-implementation-manifest.js";
 import { createOpenRouterCurrentKeySpendAdmissionCapability } from "./openrouter-current-key-spend-admission.js";
 
-const D55_BASELINE_COMMIT = "cbe2ada147a7a1764388bc273b91858be90b4eae";
+const D55_BASELINE_COMMIT = "f7a511983e22f332769bd7cb453b8869c352747c";
 const D55_QUALIFICATION_ARTIFACT_DIGEST =
-	"sha256:4ff61a3776c43ad067185f7a33f581d9eedb3138359b0b5a367c2a23587b08d8";
+	"sha256:35be33ce82a1d0c2c77c1a94fa2de1be57c19eba550d60ab99d785bc93ee53ed";
 const D55_QUALIFICATION_DIGEST =
-	"sha256:c2e48c4055bc7837f75c50cb28eed828b81b7efab7f2828dcaa86bc80a365cc8";
+	"sha256:2127cf1580dd7f81e33c279ec1aa9c0ede8179d8f901090ff8f60bfe09209597";
 const repositoryRoot = resolve(import.meta.dirname, "../../../..");
 const operatorRoot = resolve(import.meta.dirname, "../.private/empirical-memory-rerun-avoidance");
 const credentialPath = join(operatorRoot, "openrouter.env");
-const zeroByokPath = join(operatorRoot, "d58-fresh-zero-byok-browser-attestation.v1.json");
+const zeroByokPath = join(operatorRoot, "d59-fresh-zero-byok-browser-attestation.v1.json");
 const qualificationPath = join(
 	operatorRoot,
-	"current-graph-native-d55-qualified-v11",
-	"current-graph-native-provider-boundary-2026-08-21-d55-v11.json",
+	"current-graph-native-d55-qualified-v12",
+	"current-graph-native-provider-boundary-2026-08-21-d55-v12.json",
 );
 
 async function runGit(args: readonly string[]): Promise<string> {
@@ -77,7 +77,7 @@ async function runGit(args: readonly string[]): Promise<string> {
 			else
 				rejectPromise(
 					new TypeError(
-						`D58 git gate failed: ${Buffer.concat(stderr).toString("utf8").slice(0, 2_048)}`,
+						`D59 git gate failed: ${Buffer.concat(stderr).toString("utf8").slice(0, 2_048)}`,
 					),
 				);
 		});
@@ -96,14 +96,14 @@ async function readPrivate(path: string, maxBytes: number): Promise<Uint8Array> 
 			stat.size > maxBytes ||
 			(await realpath(path)) !== path
 		)
-			throw new TypeError("D58 private input identity failed");
+			throw new TypeError("D59 private input identity failed");
 		const first = new Uint8Array(await handle.readFile());
 		const secondHandle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
 		try {
 			const secondStat = await secondHandle.stat();
 			const second = new Uint8Array(await secondHandle.readFile());
 			if (secondStat.dev !== stat.dev || secondStat.ino !== stat.ino || !sameBytes(first, second))
-				throw new TypeError("D58 private input changed during read");
+				throw new TypeError("D59 private input changed during read");
 		} finally {
 			await secondHandle.close();
 		}
@@ -119,7 +119,7 @@ function parseCredential(bytes: Uint8Array): D44D45CredentialV1 {
 	for (const line of text.split(/\r?\n/u)) {
 		const match = /^OPENROUTER_API_KEY=(.*)$/u.exec(line);
 		if (match === null) continue;
-		if (token !== null) throw new TypeError("D58 credential contains duplicate keys");
+		if (token !== null) throw new TypeError("D59 credential contains duplicate keys");
 		const raw = (match[1] ?? "").trim();
 		token =
 			(raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))
@@ -127,7 +127,7 @@ function parseCredential(bytes: Uint8Array): D44D45CredentialV1 {
 				: raw;
 	}
 	if (token === null || token.length < 16 || token.length > 4_096)
-		throw new TypeError("D58 credential is unavailable");
+		throw new TypeError("D59 credential is unavailable");
 	return Object.freeze({
 		bearerToken: token,
 		credentialBindingRef: "openrouter.local-eval-2" as const,
@@ -155,14 +155,14 @@ function validateD55QualificationArtifact(bytes: Uint8Array): void {
 		decoded.qualification.credentialReads !== 0 ||
 		decoded.qualification.dispatchClaims !== 0
 	)
-		throw new TypeError("D58 D55 qualification gate failed");
+		throw new TypeError("D59 D55 qualification gate failed");
 }
 
 async function assertGenerationAbsent(): Promise<void> {
-	const path = join(D58_LIVE_PRIVATE_ROOT, D58_LIVE_GENERATION_REF);
+	const path = join(D59_LIVE_PRIVATE_ROOT, D59_LIVE_GENERATION_REF);
 	await lstat(path).then(
 		() => {
-			throw new TypeError("D58 live generation already exists");
+			throw new TypeError("D59 live generation already exists");
 		},
 		(error: unknown) => {
 			if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
@@ -170,12 +170,12 @@ async function assertGenerationAbsent(): Promise<void> {
 	);
 }
 
-await prepareD58PrivateRoot(D58_LIVE_PRIVATE_ROOT);
+await prepareD59PrivateRoot(D59_LIVE_PRIVATE_ROOT);
 if ((await measureD55Implementation()) !== D55_IMPLEMENTATION_MANIFEST_DIGEST)
-	throw new TypeError("D58 D55 implementation manifest drifted");
-const liveImplementationManifestDigest = await measureD58LiveImplementation();
-if (liveImplementationManifestDigest !== D58_LIVE_IMPLEMENTATION_MANIFEST_DIGEST)
-	throw new TypeError("D58 live implementation manifest drifted");
+	throw new TypeError("D59 D55 implementation manifest drifted");
+const liveImplementationManifestDigest = await measureD59LiveImplementation();
+if (liveImplementationManifestDigest !== D59_LIVE_IMPLEMENTATION_MANIFEST_DIGEST)
+	throw new TypeError("D59 live implementation manifest drifted");
 const implementationCommit = await runGit(["rev-parse", "HEAD"]);
 await runGit(["merge-base", "--is-ancestor", D55_BASELINE_COMMIT, implementationCommit]);
 const implementationPaths = [
@@ -188,16 +188,16 @@ const implementationPaths = [
 	"packages/ts/evals/empirical-memory-rerun-avoidance/d46-bounded-inspection-composition.ts",
 	"packages/ts/evals/empirical-memory-rerun-avoidance/d55-provider-boundary-implementation-manifest.ts",
 	"packages/ts/evals/empirical-memory-rerun-avoidance/d55-provider-boundary-qualification.ts",
-	"packages/ts/evals/empirical-memory-rerun-avoidance/d58-provider-boundary-live-gates.ts",
-	"packages/ts/evals/empirical-memory-rerun-avoidance/d58-provider-boundary-live-implementation-manifest.ts",
-	"packages/ts/evals/empirical-memory-rerun-avoidance/run-d58-provider-boundary-live.ts",
+	"packages/ts/evals/empirical-memory-rerun-avoidance/d59-semantic-correction-live-gates.ts",
+	"packages/ts/evals/empirical-memory-rerun-avoidance/d59-semantic-correction-live-implementation-manifest.ts",
+	"packages/ts/evals/empirical-memory-rerun-avoidance/run-d59-semantic-correction-live.ts",
 ];
 if ((await runGit(["status", "--porcelain=v1", "--", ...implementationPaths])) !== "")
-	throw new TypeError("D58 live implementation worktree drifted");
+	throw new TypeError("D59 live implementation worktree drifted");
 await assertGenerationAbsent();
 const qualificationBytes = await readPrivate(qualificationPath, 16 * 1_048_576);
 if (empiricalSha256(qualificationBytes) !== D55_QUALIFICATION_ARTIFACT_DIGEST)
-	throw new TypeError("D58 qualification artifact drifted");
+	throw new TypeError("D59 qualification artifact drifted");
 validateD55QualificationArtifact(qualificationBytes);
 const credential = parseCredential(await readPrivate(credentialPath, 16_384));
 const pricing = await readD44D45FreshPricing({ fetchImpl: globalThis.fetch, nowMs: Date.now() });
@@ -206,9 +206,9 @@ const zeroByok = admitD44D45FreshZeroByok({
 	credential,
 	nowMs: Date.now(),
 });
-const preclaim = composeD58Preclaim({ pricing, zeroByok, credential });
-const claim = await acquireD58DispatchClaim({
-	privateRoot: D58_LIVE_PRIVATE_ROOT,
+const preclaim = composeD59Preclaim({ pricing, zeroByok, credential });
+const claim = await acquireD59DispatchClaim({
+	privateRoot: D59_LIVE_PRIVATE_ROOT,
 	preclaim,
 	implementationCommit,
 	implementationManifestDigest: liveImplementationManifestDigest,
@@ -227,11 +227,11 @@ const currentKeyAdmission = await createOpenRouterCurrentKeySpendAdmissionCapabi
 	requiredRemainingMicrousd: 6_000_000,
 	signal: AbortSignal.timeout(30_000),
 });
-const executionAuthority = await consumeD58DispatchClaim({ claim, currentKeyAdmission });
+const executionAuthority = await consumeD59DispatchClaim({ claim, currentKeyAdmission });
 let providerCalls = 0;
 const executor = createD44LiveExecutor({
 	repositoryRoot,
-	materializationRoot: join(D58_LIVE_PRIVATE_ROOT, ".workspaces"),
+	materializationRoot: join(D59_LIVE_PRIVATE_ROOT, ".workspaces"),
 	baselineCommit: D44_D45_BASELINE_COMMIT,
 	bearerToken: credential.bearerToken,
 	fetchImpl: async (request, init) => {
@@ -250,8 +250,8 @@ const measurement = await runD46BoundedInspectionMeasurement({
 	injectedNoNetwork: false,
 });
 if (measurement.providerCalls !== providerCalls)
-	throw new TypeError("D58 provider call accounting drifted");
-const bundle = constructD58LiveBundle({
+	throw new TypeError("D59 provider call accounting drifted");
+const bundle = constructD59LiveBundle({
 	authority: executionAuthority,
 	pricing,
 	zeroByok,
@@ -262,7 +262,7 @@ const bundle = constructD58LiveBundle({
 	providerCalls,
 	measurement,
 });
-const persistence = await persistD58LiveBundle({ privateRoot: D58_LIVE_PRIVATE_ROOT, bundle });
+const persistence = await persistD59LiveBundle({ privateRoot: D59_LIVE_PRIVATE_ROOT, bundle });
 process.stdout.write(
 	`${JSON.stringify({
 		disposition: bundle.disposition,

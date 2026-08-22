@@ -14,17 +14,17 @@ import {
 } from "../../evals/empirical-memory-rerun-avoidance/d55-provider-boundary-implementation-manifest.js";
 import { runD55InjectedNoNetworkQualification } from "../../evals/empirical-memory-rerun-avoidance/d55-provider-boundary-qualification.js";
 import {
-	acquireD58DispatchClaim,
-	composeD58Preclaim,
-	constructD58LiveBundle,
-	consumeD58DispatchClaim,
-	persistD58LiveBundle,
-	prepareD58PrivateRoot,
-} from "../../evals/empirical-memory-rerun-avoidance/d58-provider-boundary-live-gates.js";
+	acquireD59DispatchClaim,
+	composeD59Preclaim,
+	constructD59LiveBundle,
+	consumeD59DispatchClaim,
+	persistD59LiveBundle,
+	prepareD59PrivateRoot,
+} from "../../evals/empirical-memory-rerun-avoidance/d59-semantic-correction-live-gates.js";
 import {
-	D58_LIVE_IMPLEMENTATION_MANIFEST_DIGEST,
-	measureD58LiveImplementation,
-} from "../../evals/empirical-memory-rerun-avoidance/d58-provider-boundary-live-implementation-manifest.js";
+	D59_LIVE_IMPLEMENTATION_MANIFEST_DIGEST,
+	measureD59LiveImplementation,
+} from "../../evals/empirical-memory-rerun-avoidance/d59-semantic-correction-live-implementation-manifest.js";
 import { createOpenRouterCurrentKeySpendAdmissionCapability } from "../../evals/empirical-memory-rerun-avoidance/openrouter-current-key-spend-admission.js";
 
 const roots: string[] = [];
@@ -79,22 +79,22 @@ function fixtures(): Readonly<{
 	});
 }
 
-describe("graphrefly-ts:D58 provider-boundary live gates", () => {
-	it("qualifies one durable D58 claim and publishes only the Graph-derived efficacy gate", async () => {
-		const root = await realpath(await mkdtemp(join(tmpdir(), "graphrefly-d58-live-gates-")));
+describe("graphrefly-ts:D59 provider-boundary live gates", () => {
+	it("qualifies one durable D59 claim and publishes only the Graph-derived efficacy gate", async () => {
+		const root = await realpath(await mkdtemp(join(tmpdir(), "graphrefly-d59-live-gates-")));
 		roots.push(root);
-		await prepareD58PrivateRoot(root);
+		await prepareD59PrivateRoot(root);
 		const { credential, pricing, zeroByok } = fixtures();
-		const preclaim = composeD58Preclaim({ credential, pricing, zeroByok });
-		const claim = await acquireD58DispatchClaim({
+		const preclaim = composeD59Preclaim({ credential, pricing, zeroByok });
+		const claim = await acquireD59DispatchClaim({
 			privateRoot: root,
 			preclaim,
-			implementationCommit: "cbe2ada147a7a1764388bc273b91858be90b4eae",
-			implementationManifestDigest: D58_LIVE_IMPLEMENTATION_MANIFEST_DIGEST,
+			implementationCommit: "f7a511983e22f332769bd7cb453b8869c352747c",
+			implementationManifestDigest: D59_LIVE_IMPLEMENTATION_MANIFEST_DIGEST,
 			qualificationArtifactDigest:
-				"sha256:4ff61a3776c43ad067185f7a33f581d9eedb3138359b0b5a367c2a23587b08d8",
+				"sha256:35be33ce82a1d0c2c77c1a94fa2de1be57c19eba550d60ab99d785bc93ee53ed",
 			qualificationDigest:
-				"sha256:c2e48c4055bc7837f75c50cb28eed828b81b7efab7f2828dcaa86bc80a365cc8",
+				"sha256:2127cf1580dd7f81e33c279ec1aa9c0ede8179d8f901090ff8f60bfe09209597",
 		});
 		const currentKeyAdmission = await createOpenRouterCurrentKeySpendAdmissionCapability({
 			fetch: async () =>
@@ -116,33 +116,33 @@ describe("graphrefly-ts:D58 provider-boundary live gates", () => {
 			requiredRemainingMicrousd: 6_000_000,
 			signal: AbortSignal.timeout(1_000),
 		});
-		const authority = await consumeD58DispatchClaim({ claim, currentKeyAdmission });
-		await expect(consumeD58DispatchClaim({ claim, currentKeyAdmission })).rejects.toThrow();
+		const authority = await consumeD59DispatchClaim({ claim, currentKeyAdmission });
+		await expect(consumeD59DispatchClaim({ claim, currentKeyAdmission })).rejects.toThrow();
 		const qualification = await runD55InjectedNoNetworkQualification();
 		const evidence = qualification.canonicalEvidence;
 		expect(qualification.exactSixArmsCompleted).toBe(true);
 		expect(evidence.frozenGateWouldPass).toBe(false);
-		const bundle = constructD58LiveBundle({
+		const bundle = constructD59LiveBundle({
 			authority,
 			pricing,
 			zeroByok,
-			implementationCommit: "cbe2ada147a7a1764388bc273b91858be90b4eae",
-			implementationManifestDigest: D58_LIVE_IMPLEMENTATION_MANIFEST_DIGEST,
+			implementationCommit: "f7a511983e22f332769bd7cb453b8869c352747c",
+			implementationManifestDigest: D59_LIVE_IMPLEMENTATION_MANIFEST_DIGEST,
 			qualificationArtifactDigest:
-				"sha256:4ff61a3776c43ad067185f7a33f581d9eedb3138359b0b5a367c2a23587b08d8",
+				"sha256:35be33ce82a1d0c2c77c1a94fa2de1be57c19eba550d60ab99d785bc93ee53ed",
 			qualificationDigest:
-				"sha256:c2e48c4055bc7837f75c50cb28eed828b81b7efab7f2828dcaa86bc80a365cc8",
+				"sha256:2127cf1580dd7f81e33c279ec1aa9c0ede8179d8f901090ff8f60bfe09209597",
 			providerCalls: qualification.providerCalls,
 			measurement: { disposition: "success", evidence },
 		});
 		expect(bundle.efficacyClaim).toBe("none");
-		const receipt = await persistD58LiveBundle({ privateRoot: root, bundle });
+		const receipt = await persistD59LiveBundle({ privateRoot: root, bundle });
 		expect(receipt.artifactDigest).toMatch(/^sha256:[a-f0-9]{64}$/u);
-		await expect(persistD58LiveBundle({ privateRoot: root, bundle })).rejects.toThrow();
+		await expect(persistD59LiveBundle({ privateRoot: root, bundle })).rejects.toThrow();
 	}, 300_000);
 
-	it("binds the exact D55 implementation and D58 live closure", async () => {
+	it("binds the exact D55 implementation and D59 live closure", async () => {
 		expect(await measureD55Implementation()).toBe(D55_IMPLEMENTATION_MANIFEST_DIGEST);
-		expect(await measureD58LiveImplementation()).toBe(D58_LIVE_IMPLEMENTATION_MANIFEST_DIGEST);
+		expect(await measureD59LiveImplementation()).toBe(D59_LIVE_IMPLEMENTATION_MANIFEST_DIGEST);
 	});
 });

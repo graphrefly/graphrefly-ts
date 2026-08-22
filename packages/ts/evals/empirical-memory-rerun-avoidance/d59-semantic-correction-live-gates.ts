@@ -24,29 +24,29 @@ import {
 	type OpenRouterCurrentKeySpendAdmissionV1,
 } from "./openrouter-current-key-spend-admission.js";
 
-export const D58_LIVE_CLAIM_SCHEMA = "graphrefly-ts.d58.dispatch-claim.v1" as const;
-export const D58_LIVE_BUNDLE_SCHEMA = "graphrefly-ts.d58.live-bundle.v1" as const;
-export const D58_LIVE_GENERATION_REF =
-	"current-graph-native-provider-boundary-live-d58-v1" as const;
-export const D58_LIVE_CLAIM_REF = "current-graph-native-provider-boundary-claim-d58-v1" as const;
-export const D58_LIVE_PRIVATE_ROOT = resolve(
+export const D59_LIVE_CLAIM_SCHEMA = "graphrefly-ts.d59.dispatch-claim.v1" as const;
+export const D59_LIVE_BUNDLE_SCHEMA = "graphrefly-ts.d59.live-bundle.v1" as const;
+export const D59_LIVE_GENERATION_REF =
+	"current-graph-native-semantic-correction-live-d59-v1" as const;
+export const D59_LIVE_CLAIM_REF = "current-graph-native-semantic-correction-claim-d59-v1" as const;
+export const D59_LIVE_PRIVATE_ROOT = resolve(
 	import.meta.dirname,
-	"../.private/empirical-memory-rerun-avoidance/current-graph-native-d58-live",
+	"../.private/empirical-memory-rerun-avoidance/current-graph-native-d59-live",
 );
 
-export interface D58PreclaimV1 {
+export interface D59PreclaimV1 {
 	readonly pricingObservationDigest: string;
 	readonly zeroByokObservationDigest: string;
 	readonly credentialBindingDigest: string;
 	readonly preclaimDigest: string;
 }
 
-export interface D58DispatchClaimV1 {
-	readonly schemaVersion: typeof D58_LIVE_CLAIM_SCHEMA;
-	readonly claimRef: typeof D58_LIVE_CLAIM_REF;
-	readonly authorityRef: "graphrefly-ts:D58";
+export interface D59DispatchClaimV1 {
+	readonly schemaVersion: typeof D59_LIVE_CLAIM_SCHEMA;
+	readonly claimRef: typeof D59_LIVE_CLAIM_REF;
+	readonly authorityRef: "graphrefly-ts:D59";
 	readonly architectureRef: "graphrefly-ts:D55";
-	readonly generationRef: typeof D58_LIVE_GENERATION_REF;
+	readonly generationRef: typeof D59_LIVE_GENERATION_REF;
 	readonly preclaimDigest: string;
 	readonly implementationCommit: string;
 	readonly implementationManifestDigest: string;
@@ -57,15 +57,15 @@ export interface D58DispatchClaimV1 {
 	readonly claimDigest: string;
 }
 
-export interface D58ExecutionAuthorityV1 {
-	readonly claim: D58DispatchClaimV1;
+export interface D59ExecutionAuthorityV1 {
+	readonly claim: D59DispatchClaimV1;
 	readonly currentKeyAdmission: OpenRouterCurrentKeySpendAdmissionV1;
 	readonly authorityDigest: string;
 }
 
-export type D58LiveBundleV1 = Readonly<{
-	schemaVersion: typeof D58_LIVE_BUNDLE_SCHEMA;
-	generationRef: typeof D58_LIVE_GENERATION_REF;
+export type D59LiveBundleV1 = Readonly<{
+	schemaVersion: typeof D59_LIVE_BUNDLE_SCHEMA;
+	generationRef: typeof D59_LIVE_GENERATION_REF;
 	disposition: "success" | "partial-failure";
 	claimDigest: string;
 	currentKeyAdmissionDigest: string;
@@ -86,11 +86,11 @@ export type D58LiveBundleV1 = Readonly<{
 const preclaims = new WeakSet<object>();
 const claims = new WeakMap<object, Readonly<{ file: string; bytes: Uint8Array }>>();
 
-export function composeD58Preclaim(input: {
+export function composeD59Preclaim(input: {
 	readonly pricing: D44D45PricingObservationV1;
 	readonly zeroByok: D44D45ZeroByokObservationV1;
 	readonly credential: D44D45CredentialV1;
-}): D58PreclaimV1 {
+}): D59PreclaimV1 {
 	const material = strictSnapshot({
 		pricingObservationDigest: input.pricing.observationDigest,
 		zeroByokObservationDigest: input.zeroByok.observationDigest,
@@ -107,27 +107,27 @@ export function composeD58Preclaim(input: {
 	return preclaim;
 }
 
-export async function acquireD58DispatchClaim(input: {
+export async function acquireD59DispatchClaim(input: {
 	readonly privateRoot: string;
-	readonly preclaim: D58PreclaimV1;
+	readonly preclaim: D59PreclaimV1;
 	readonly implementationCommit: string;
 	readonly implementationManifestDigest: string;
 	readonly qualificationArtifactDigest: string;
 	readonly qualificationDigest: string;
-}): Promise<D58DispatchClaimV1> {
-	if (!preclaims.delete(input.preclaim)) throw new TypeError("D58 preclaim is absent or consumed");
+}): Promise<D59DispatchClaimV1> {
+	if (!preclaims.delete(input.preclaim)) throw new TypeError("D59 preclaim is absent or consumed");
 	const privateRoot = resolve(input.privateRoot);
 	if ((await realpath(privateRoot)) !== privateRoot)
-		throw new TypeError("D58 private root drifted");
-	const claimRoot = join(privateRoot, `.${D58_LIVE_CLAIM_REF}`);
+		throw new TypeError("D59 private root drifted");
+	const claimRoot = join(privateRoot, `.${D59_LIVE_CLAIM_REF}`);
 	await mkdir(claimRoot, { mode: 0o700 });
 	await chmod(claimRoot, 0o700);
 	const material = strictSnapshot({
-		schemaVersion: D58_LIVE_CLAIM_SCHEMA,
-		claimRef: D58_LIVE_CLAIM_REF,
-		authorityRef: "graphrefly-ts:D58" as const,
+		schemaVersion: D59_LIVE_CLAIM_SCHEMA,
+		claimRef: D59_LIVE_CLAIM_REF,
+		authorityRef: "graphrefly-ts:D59" as const,
 		architectureRef: "graphrefly-ts:D55" as const,
-		generationRef: D58_LIVE_GENERATION_REF,
+		generationRef: D59_LIVE_GENERATION_REF,
 		preclaimDigest: input.preclaim.preclaimDigest,
 		implementationCommit: input.implementationCommit,
 		implementationManifestDigest: input.implementationManifestDigest,
@@ -160,16 +160,16 @@ export async function acquireD58DispatchClaim(input: {
 	return claim;
 }
 
-export async function consumeD58DispatchClaim(input: {
-	readonly claim: D58DispatchClaimV1;
+export async function consumeD59DispatchClaim(input: {
+	readonly claim: D59DispatchClaimV1;
 	readonly currentKeyAdmission: OpenRouterCurrentKeySpendAdmissionV1;
-}): Promise<D58ExecutionAuthorityV1> {
+}): Promise<D59ExecutionAuthorityV1> {
 	const state = claims.get(input.claim);
-	if (state === undefined) throw new TypeError("D58 dispatch claim is absent or consumed");
+	if (state === undefined) throw new TypeError("D59 dispatch claim is absent or consumed");
 	const reader = await open(state.file, constants.O_RDONLY | constants.O_NOFOLLOW);
 	try {
 		if (!sameBytes(new Uint8Array(await reader.readFile()), state.bytes))
-			throw new TypeError("D58 durable dispatch claim drifted");
+			throw new TypeError("D59 durable dispatch claim drifted");
 	} finally {
 		await reader.close();
 	}
@@ -186,8 +186,8 @@ export async function consumeD58DispatchClaim(input: {
 	});
 }
 
-export function constructD58LiveBundle(input: {
-	readonly authority: D58ExecutionAuthorityV1;
+export function constructD59LiveBundle(input: {
+	readonly authority: D59ExecutionAuthorityV1;
 	readonly pricing: D44D45PricingObservationV1;
 	readonly zeroByok: D44D45ZeroByokObservationV1;
 	readonly implementationCommit: string;
@@ -201,7 +201,7 @@ export function constructD58LiveBundle(input: {
 				disposition: "partial-failure";
 				partialEvidence: D46PartialCanonicalEvidenceV1;
 		  }>;
-}): D58LiveBundleV1 {
+}): D59LiveBundleV1 {
 	const graphEvidence =
 		input.measurement.disposition === "success"
 			? validateD46CanonicalEvidence(input.measurement.evidence)
@@ -211,8 +211,8 @@ export function constructD58LiveBundle(input: {
 			? validateD46PartialCanonicalEvidence(input.measurement.partialEvidence)
 			: null;
 	const material = strictSnapshot({
-		schemaVersion: D58_LIVE_BUNDLE_SCHEMA,
-		generationRef: D58_LIVE_GENERATION_REF,
+		schemaVersion: D59_LIVE_BUNDLE_SCHEMA,
+		generationRef: D59_LIVE_GENERATION_REF,
 		disposition: input.measurement.disposition,
 		claimDigest: input.authority.claim.claimDigest,
 		currentKeyAdmissionDigest: input.authority.currentKeyAdmission.admissionDigest,
@@ -234,12 +234,12 @@ export function constructD58LiveBundle(input: {
 	return Object.freeze({ ...material, bundleDigest: empiricalStrictJsonDigest(material) });
 }
 
-export async function persistD58LiveBundle(input: {
+export async function persistD59LiveBundle(input: {
 	readonly privateRoot: string;
-	readonly bundle: D58LiveBundleV1;
+	readonly bundle: D59LiveBundleV1;
 }): Promise<Readonly<{ artifactDigest: string; receiptDigest: string }>> {
-	if (!isAbsolute(input.privateRoot)) throw new TypeError("D58 persistence root must be absolute");
-	const generationRoot = join(input.privateRoot, D58_LIVE_GENERATION_REF);
+	if (!isAbsolute(input.privateRoot)) throw new TypeError("D59 persistence root must be absolute");
+	const generationRoot = join(input.privateRoot, D59_LIVE_GENERATION_REF);
 	await mkdir(generationRoot, { mode: 0o700 });
 	await chmod(generationRoot, 0o700);
 	const target = join(generationRoot, "bundle.v1.json");
@@ -277,10 +277,10 @@ export async function persistD58LiveBundle(input: {
 	});
 }
 
-export async function prepareD58PrivateRoot(path: string): Promise<void> {
+export async function prepareD59PrivateRoot(path: string): Promise<void> {
 	await mkdir(path, { recursive: true, mode: 0o700 });
 	await chmod(path, 0o700);
 	const stat = await lstat(path);
 	if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o777) !== 0o700)
-		throw new TypeError("D58 private root identity failed");
+		throw new TypeError("D59 private root identity failed");
 }
