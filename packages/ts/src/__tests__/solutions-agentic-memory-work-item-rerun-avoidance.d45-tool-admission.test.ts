@@ -61,11 +61,13 @@ function localSuccess(state: string) {
 	};
 }
 
-describe("graphrefly-ts:D45 Graph-owned provider proposal and exact tool admission", () => {
-	it("qualifies three complete six-arm scenarios with material-free canonical evidence", async () => {
+describe("graphrefly-ts:D61 Graph-owned semantic evidence and tool admission", () => {
+	it("qualifies six complete six-arm scenarios with material-free canonical evidence", async () => {
 		const bundle = validateD45QualificationBundle(await runD45InjectedNoNetworkQualification());
-		expect(bundle.qualification.exactSixArmScenarios).toBe(5);
+		expect(bundle.qualification.exactSixArmScenarios).toBe(6);
 		expect(bundle.qualification.boundedSemanticCorrectionQualified).toBe(true);
+		expect(bundle.qualification.independentPublicSemanticEvidenceQualified).toBe(true);
+		expect(bundle.qualification.boundedFreshMutationCorrectionQualified).toBe(true);
 		expect(bundle.qualification.mutationProposalContractQualified).toBe(true);
 		expect(bundle.qualification.mainFrozenGateWouldPass).toBe(true);
 		expect(bundle.qualification.proposalToolBijection).toBe(true);

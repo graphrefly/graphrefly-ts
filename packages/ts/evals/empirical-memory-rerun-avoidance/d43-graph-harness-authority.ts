@@ -24,8 +24,8 @@ import {
 	validateD43ModelHarnessPolicy,
 } from "./d43-model-harness-policy.js";
 
-export const D43_AUTHORITY_REVISION = "graphrefly-ts.d52.graph-harness-authority.v2" as const;
-export const D43_EVIDENCE_SCHEMA = "graphrefly-ts.d52.graph-harness-evidence.v2" as const;
+export const D43_AUTHORITY_REVISION = "graphrefly-ts.d61.graph-harness-authority.v1" as const;
+export const D43_EVIDENCE_SCHEMA = "graphrefly-ts.d61.graph-harness-evidence.v1" as const;
 export const D43_FACT_SCHEMA = "graphrefly-ts.d43.graph-harness-fact.v1" as const;
 export const D43_EFFECT_SCHEMA = "graphrefly-ts.d43.graph-harness-effect.v1" as const;
 export const D53_LOCAL_VALIDATION_RESERVATION_MS = 60_000 as const;
@@ -89,6 +89,12 @@ export interface D43PublicSemanticCriteriaV1 {
 		readonly observationDigest: string;
 		readonly freshnessDigest: string;
 		readonly passed: boolean;
+		readonly causeCode:
+			| "canonical-proposal-not-admitted"
+			| "malformed-provenance-mutated-store"
+			| "reconstructed-provenance-admitted"
+			| "claim-invariant-regression"
+			| null;
 	}>[];
 }
 
@@ -249,6 +255,11 @@ interface MutableArmState {
 	findingCount: number;
 	phaseCycle: number;
 	pendingFreshMutation: boolean;
+	postSemanticNoopRecoveryStage:
+		| "none"
+		| "awaiting-reinspection"
+		| "awaiting-fresh-mutation"
+		| "awaiting-focused-validation";
 	initialInspectionReads: number;
 }
 
@@ -296,6 +307,7 @@ function armState(arm: D43Arm): MutableArmState {
 		findingCount: 0,
 		phaseCycle: 0,
 		pendingFreshMutation: false,
+		postSemanticNoopRecoveryStage: "none",
 		initialInspectionReads: 0,
 	};
 }
@@ -436,6 +448,26 @@ function hasRecipe(
 	return state.policy.enhancementRecipes.includes(recipe);
 }
 
+function hasCompleteSemanticCorrectionHeadroom(state: AuthorityState): boolean {
+	const campaign = state.policy.campaign;
+	const pendingEffectRecipeMs = [
+		elapsedReservationMs(state, "mutation"),
+		10_000, // D45 workspace-freshness admission
+		30_000, // D45 exact tool admission
+		elapsedReservationMs(state, "workspace-diff"),
+		elapsedReservationMs(state, "focused-validation"),
+		elapsedReservationMs(state, "public-semantic-validation"),
+		elapsedReservationMs(state, "hidden-verifier"),
+		elapsedReservationMs(state, "cleanup"),
+	].reduce((total, reservation) => total + reservation, 0);
+	return (
+		state.budget.providerAttempts + 1 <= campaign.maxProviderAttempts &&
+		state.budget.confirmedCostMicrousd + campaign.providerReservationMicrousd <=
+			campaign.maxCostMicrousd &&
+		state.budget.confirmedElapsedMs + pendingEffectRecipeMs <= campaign.maxElapsedMs
+	);
+}
+
 function exactReplacementRejection(outcome: D43ResultOutcome): boolean {
 	return (
 		outcome === "replacement-not-found" ||
@@ -527,6 +559,8 @@ function applyResult(
 		case "inspection":
 			if (result.outcome === "success") {
 				if (arm.pendingFreshMutation) {
+					if (arm.postSemanticNoopRecoveryStage === "awaiting-reinspection")
+						arm.postSemanticNoopRecoveryStage = "awaiting-fresh-mutation";
 					arm.pendingFreshMutation = false;
 					queue(state, "mutation", "fresh-mutation");
 				} else {
@@ -552,6 +586,11 @@ function applyResult(
 			return;
 		case "mutation":
 			if (result.outcome === "success") {
+				if (
+					effect.intent === "fresh-mutation" &&
+					arm.postSemanticNoopRecoveryStage === "awaiting-fresh-mutation"
+				)
+					arm.postSemanticNoopRecoveryStage = "awaiting-focused-validation";
 				queue(state, "workspace-diff");
 				return;
 			}
@@ -561,6 +600,12 @@ function applyResult(
 				hasRecipe(state, "fresh-mutation-after-exact-replacement-rejection")
 			) {
 				arm.exactReplacementRecoveries = 1;
+				arm.postSemanticNoopRecoveryStage =
+					result.outcome === "replacement-unchanged" &&
+					effect.intent === "semantic-correction" &&
+					arm.semanticCorrections === 1
+						? "awaiting-reinspection"
+						: "none";
 				arm.pendingFreshMutation = true;
 				arm.phaseCycle += 1;
 				addFinding(state, "exact-replacement-rejected", result.outcome, effect.requestDigest);
@@ -594,7 +639,8 @@ function applyResult(
 			else if (
 				result.outcome === "wrong-scope" &&
 				arm.semanticCorrections === 0 &&
-				hasRecipe(state, "actor-visible-semantic-correction")
+				hasRecipe(state, "actor-visible-semantic-correction") &&
+				hasCompleteSemanticCorrectionHeadroom(state)
 			) {
 				arm.semanticCorrections = 1;
 				arm.phaseCycle += 1;
@@ -615,10 +661,14 @@ function applyResult(
 			if (result.outcome === "passed") queue(state, "public-semantic-validation");
 			else if (
 				result.outcome === "failed" &&
-				arm.semanticCorrections === 0 &&
-				hasRecipe(state, "actor-visible-semantic-correction")
+				(arm.semanticCorrections === 0 ||
+					(arm.semanticCorrections === 1 &&
+						arm.postSemanticNoopRecoveryStage === "awaiting-focused-validation")) &&
+				hasRecipe(state, "actor-visible-semantic-correction") &&
+				hasCompleteSemanticCorrectionHeadroom(state)
 			) {
-				arm.semanticCorrections = 1;
+				arm.semanticCorrections += 1;
+				arm.postSemanticNoopRecoveryStage = "none";
 				arm.phaseCycle += 1;
 				addFinding(
 					state,
@@ -643,7 +693,8 @@ function applyResult(
 			else if (
 				result.outcome === "failed" &&
 				arm.semanticCorrections === 0 &&
-				hasRecipe(state, "actor-visible-semantic-correction")
+				hasRecipe(state, "actor-visible-semantic-correction") &&
+				hasCompleteSemanticCorrectionHeadroom(state)
 			) {
 				arm.semanticCorrections = 1;
 				arm.phaseCycle += 1;
@@ -925,12 +976,19 @@ function validateCriteria(
 		"scope-preserved",
 		"regression-free",
 	] as const;
+	const causeCodes = [
+		"canonical-proposal-not-admitted",
+		"malformed-provenance-mutated-store",
+		"reconstructed-provenance-admitted",
+		"claim-invariant-regression",
+	] as const;
 	const observations = array(candidate.observations, "D43 result.criteria.observations").map(
 		(value, index) => {
 			const observation = record(value, `D43 result.criteria.observations[${index}]`);
 			exactKeys(
 				observation,
 				[
+					"causeCode",
 					"criterion",
 					"freshnessDigest",
 					"observationDigest",
@@ -942,25 +1000,55 @@ function validateCriteria(
 			);
 			if (observation.criterion !== criteria[index])
 				throw new TypeError("D43 public semantic criterion order drifted");
+			const causeCode =
+				observation.causeCode === null
+					? null
+					: oneOf(
+							observation.causeCode,
+							causeCodes,
+							`D43 result.criteria.observations[${index}].causeCode`,
+						);
+			const passed = boolean(
+				observation.passed,
+				`D43 result.criteria.observations[${index}].passed`,
+			);
+			if (passed === (causeCode !== null))
+				throw new TypeError("D43 public semantic cause disagrees with disposition");
+			if (!passed && causeCode !== causeCodes[index])
+				throw new TypeError("D43 public semantic cause changed its admitted criterion");
+			const scenarioRef = coordinate(
+				observation.scenarioRef,
+				`D43 result.criteria.observations[${index}].scenarioRef`,
+			);
+			const scenarioDigest = digest(
+				observation.scenarioDigest,
+				`D43 result.criteria.observations[${index}].scenarioDigest`,
+			);
+			const observationDigest = digest(
+				observation.observationDigest,
+				`D43 result.criteria.observations[${index}].observationDigest`,
+			);
+			if (
+				observationDigest !==
+				empiricalStrictJsonDigest({
+					requestDigest: effect.requestDigest,
+					scenarioDigest,
+					passed,
+					causeCode,
+				})
+			)
+				throw new TypeError("D43 public semantic observation lost exact Graph provenance");
 			return Object.freeze({
 				criterion: criteria[index]!,
-				scenarioRef: coordinate(
-					observation.scenarioRef,
-					`D43 result.criteria.observations[${index}].scenarioRef`,
-				),
-				scenarioDigest: digest(
-					observation.scenarioDigest,
-					`D43 result.criteria.observations[${index}].scenarioDigest`,
-				),
-				observationDigest: digest(
-					observation.observationDigest,
-					`D43 result.criteria.observations[${index}].observationDigest`,
-				),
+				causeCode,
+				scenarioRef,
+				scenarioDigest,
+				observationDigest,
 				freshnessDigest: digest(
 					observation.freshnessDigest,
 					`D43 result.criteria.observations[${index}].freshnessDigest`,
 				),
-				passed: boolean(observation.passed, `D43 result.criteria.observations[${index}].passed`),
+				passed,
 			});
 		},
 	);
@@ -1068,10 +1156,15 @@ function validateResult(
 	if ((outcome === "retryable-provider-failure") !== (retryClass !== null))
 		throw new TypeError("D43 retry proposal classification drifted");
 	if (effect.kind === "public-semantic-validation") {
-		if (criteria === null) throw new TypeError("D43 public semantic result omitted criteria");
-		const allPassed = criteria.observations.every((entry) => entry.passed);
-		if ((outcome === "passed") !== allPassed)
-			throw new TypeError("D43 public semantic disposition disagrees with criteria");
+		if (outcome === "executor-failed") {
+			if (criteria !== null)
+				throw new TypeError("D43 failed public semantic executor supplied criteria");
+		} else {
+			if (criteria === null) throw new TypeError("D43 public semantic result omitted criteria");
+			const allPassed = criteria.observations.every((entry) => entry.passed);
+			if ((outcome === "passed") !== allPassed)
+				throw new TypeError("D43 public semantic disposition disagrees with criteria");
+		}
 	} else if (criteria !== null) {
 		throw new TypeError("D43 non-public effect supplied semantic criteria");
 	}

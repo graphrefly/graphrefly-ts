@@ -160,15 +160,24 @@ function semanticCriteria(
 		observations: Object.freeze(
 			D43_QUALIFICATION_PUBLIC_SEMANTIC_SCENARIOS.map((scenario) => {
 				const passed = scenario.criterion !== failingCriterion;
+				const causeCode =
+					scenario.criterion === "actor-visible-behavior-changed"
+						? "canonical-proposal-not-admitted"
+						: scenario.criterion === "acceptance-criteria-satisfied"
+							? "malformed-provenance-mutated-store"
+							: scenario.criterion === "scope-preserved"
+								? "reconstructed-provenance-admitted"
+								: "claim-invariant-regression";
 				return Object.freeze({
+					causeCode: passed ? null : causeCode,
 					criterion: scenario.criterion,
 					scenarioRef: scenario.scenarioRef,
 					scenarioDigest: scenario.scenarioDigest,
 					observationDigest: empiricalStrictJsonDigest({
-						arm: effect.arm,
-						phaseCycle: effect.phaseCycle,
+						requestDigest: effect.requestDigest,
 						scenarioDigest: scenario.scenarioDigest,
 						passed,
+						causeCode: passed ? null : causeCode,
 					}),
 					freshnessDigest: empiricalStrictJsonDigest({
 						requestDigest: effect.requestDigest,

@@ -2,6 +2,7 @@ import { depBatch } from "../../src/ctx/types.js";
 import { graph } from "../../src/graph/graph.js";
 import {
 	array,
+	boolean,
 	coordinate,
 	digest,
 	empiricalStrictJsonDigest,
@@ -18,6 +19,7 @@ import {
 	type D43EffectResultInputV1,
 	type D43FactV1,
 	type D43GraphHarnessEvidenceV1,
+	type D43PublicSemanticCriteriaV1,
 	snapshotD43GraphHarnessEvidence,
 	takeD43AdmittedEffect,
 	validateD43GraphHarnessEvidence,
@@ -31,12 +33,12 @@ import {
 } from "./d43-model-harness-policy.js";
 
 export const D45_AUTHORITY_REVISION =
-	"graphrefly-ts.d52.graph-tool-admission-authority.v2" as const;
+	"graphrefly-ts.d61.graph-tool-admission-authority.v1" as const;
 export const D45_EFFECT_SCHEMA = "graphrefly-ts.d45.admitted-effect.v1" as const;
 export const D45_FACT_SCHEMA = "graphrefly-ts.d45.canonical-fact.v1" as const;
-export const D45_EVIDENCE_SCHEMA = "graphrefly-ts.d52.canonical-evidence.v2" as const;
+export const D45_EVIDENCE_SCHEMA = "graphrefly-ts.d61.canonical-evidence.v1" as const;
 export const D45_PARTIAL_EVIDENCE_SCHEMA =
-	"graphrefly-ts.d52.partial-canonical-evidence.v2" as const;
+	"graphrefly-ts.d61.partial-canonical-evidence.v1" as const;
 export const D52_REPLACE_TEXT_MAX_BYTES = 512 as const;
 export const D52_REPLACE_EXPANSION_MAX_BYTES = 128 as const;
 
@@ -160,6 +162,7 @@ export interface D45LocalResultInputV1 {
 	readonly evidenceDigest: string;
 	readonly workspaceStateDigest: string | null;
 	readonly criteria: D43EffectResultInputV1["criteria"];
+	readonly sourceSnapshotDigest?: string | null;
 }
 
 export type D45EffectResultInputV1 =
@@ -232,6 +235,7 @@ interface LocalResultProjection {
 	readonly evidenceDigest: string;
 	readonly workspaceStateDigest: string | null;
 	readonly criteria: D43EffectResultInputV1["criteria"];
+	readonly sourceSnapshotDigest?: string | null;
 }
 
 export type D45FactV1 =
@@ -296,7 +300,7 @@ export type D45FactV1 =
 
 export interface D45CanonicalEvidenceV1 {
 	readonly schemaVersion: typeof D45_EVIDENCE_SCHEMA;
-	readonly decisionRef: "graphrefly-ts:D45";
+	readonly decisionRef: "graphrefly-ts:D61";
 	readonly authorityRevision: typeof D45_AUTHORITY_REVISION;
 	readonly facts: readonly D45FactV1[];
 	readonly lifecycle: D43GraphHarnessEvidenceV1;
@@ -321,7 +325,7 @@ export interface D45CanonicalEvidenceV1 {
 
 export interface D45PartialCanonicalEvidenceV1 {
 	readonly schemaVersion: typeof D45_PARTIAL_EVIDENCE_SCHEMA;
-	readonly decisionRef: "graphrefly-ts:D45";
+	readonly decisionRef: "graphrefly-ts:D61";
 	readonly authorityRevision: typeof D45_AUTHORITY_REVISION;
 	readonly terminalCauseCode:
 		| "provider-interrupted"
@@ -361,8 +365,10 @@ export interface D45ProviderMaterialV1 {
 				sourceFactDigest: string;
 				scenarioSetDigest: string;
 				observations: readonly Readonly<{
+					criterion: D43PublicSemanticCriteriaV1["observations"][number]["criterion"];
 					scenarioRef: string;
 					passed: boolean;
+					causeCode: D43PublicSemanticCriteriaV1["observations"][number]["causeCode"];
 				}>[];
 		  }>
 		| null;
@@ -598,6 +604,11 @@ function validatePersistedProviderProjection(value: unknown, path: string): void
 		);
 	const calls = array(result.toolCalls, `${path}.toolCalls`).map((callValue, index) => {
 		const call = record(callValue, `${path}.toolCalls[${index}]`);
+		exactKeys(
+			call,
+			["argumentsBytes", "argumentsDigest", "newTextBytes", "oldTextBytes", "path", "toolRef"],
+			`${path}.toolCalls[${index}]`,
+		);
 		const toolRef = oneOf(
 			call.toolRef,
 			["read-file", "replace-exact"] as const,
@@ -629,6 +640,91 @@ function validatePersistedProviderProjection(value: unknown, path: string): void
 	if (result.proposalDigest !== expectedProposalDigest)
 		throw new TypeError(`${path} proposal digest drifted from bounded projections`);
 	digest(result.reconciliationDigest, `${path}.reconciliationDigest`);
+}
+
+function validateCriteriaProjection(
+	value: unknown,
+	effect: D45AdmittedEffectV1,
+	path: string,
+): void {
+	const criteria = record(value, `${path}.criteria`);
+	exactKeys(criteria, ["observations", "scenarioSetDigest"], `${path}.criteria`);
+	const scenarioSetDigest = digest(
+		criteria.scenarioSetDigest,
+		`${path}.criteria.scenarioSetDigest`,
+	);
+	const criterionOrder = [
+		"actor-visible-behavior-changed",
+		"acceptance-criteria-satisfied",
+		"scope-preserved",
+		"regression-free",
+	] as const;
+	const causeOrder = [
+		"canonical-proposal-not-admitted",
+		"malformed-provenance-mutated-store",
+		"reconstructed-provenance-admitted",
+		"claim-invariant-regression",
+	] as const;
+	const observations = array(criteria.observations, `${path}.criteria.observations`);
+	if (observations.length !== criterionOrder.length)
+		throw new TypeError(`${path} public-semantic observation cardinality drifted`);
+	const scenarioProjection = observations.map((value, index) => {
+		const item = record(value, `${path}.criteria.observations[${index}]`);
+		exactKeys(
+			item,
+			[
+				"causeCode",
+				"criterion",
+				"freshnessDigest",
+				"observationDigest",
+				"passed",
+				"scenarioDigest",
+				"scenarioRef",
+			],
+			`${path}.criteria.observations[${index}]`,
+		);
+		if (item.criterion !== criterionOrder[index])
+			throw new TypeError(`${path} public-semantic criterion order drifted`);
+		const passed = boolean(item.passed, `${path}.criteria.observations[${index}].passed`);
+		const causeCode =
+			item.causeCode === null
+				? null
+				: oneOf(item.causeCode, causeOrder, `${path}.criteria.observations[${index}].causeCode`);
+		if (passed === (causeCode !== null) || (!passed && causeCode !== causeOrder[index]))
+			throw new TypeError(`${path} public-semantic disposition/cause drifted`);
+		const scenarioRef = coordinate(
+			item.scenarioRef,
+			`${path}.criteria.observations[${index}].scenarioRef`,
+		);
+		const scenarioDigest = digest(
+			item.scenarioDigest,
+			`${path}.criteria.observations[${index}].scenarioDigest`,
+		);
+		if (
+			digest(
+				item.observationDigest,
+				`${path}.criteria.observations[${index}].observationDigest`,
+			) !==
+			empiricalStrictJsonDigest({
+				requestDigest: effect.sourceD43RequestDigest,
+				scenarioDigest,
+				passed,
+				causeCode,
+			})
+		)
+			throw new TypeError(`${path} public-semantic observation provenance drifted`);
+		if (
+			digest(item.freshnessDigest, `${path}.criteria.observations[${index}].freshnessDigest`) !==
+			empiricalStrictJsonDigest({
+				requestDigest: effect.sourceD43RequestDigest,
+				sequence: effect.sourceD43Sequence,
+			})
+		)
+			throw new TypeError(`${path} public-semantic freshness provenance drifted`);
+		return { criterion: criterionOrder[index], scenarioRef, scenarioDigest };
+	});
+	if (empiricalStrictJsonDigest(scenarioProjection) !== scenarioSetDigest)
+		throw new TypeError(`${path} public-semantic scenario set drifted`);
 }
 
 function validatePersistedResultProjection(
@@ -689,13 +785,60 @@ function validatePersistedResultProjection(
 	}
 	if (effect.effectKind !== "local-effect")
 		throw new TypeError(`${path} bound the wrong admitted effect`);
+	exactKeys(
+		result,
+		effect.sourceD43EffectKind === "public-semantic-validation"
+			? [
+					"criteria",
+					"effectKind",
+					"elapsedMs",
+					"evidenceDigest",
+					"outcome",
+					"sourceSnapshotDigest",
+					"workspaceStateDigest",
+				]
+			: [
+					"criteria",
+					"effectKind",
+					"elapsedMs",
+					"evidenceDigest",
+					"outcome",
+					"workspaceStateDigest",
+				],
+		path,
+	);
 	oneOf(result.outcome, LOCAL_OUTCOMES, `${path}.outcome`);
 	safeInteger(result.elapsedMs, `${path}.elapsedMs`, { max: effect.elapsedReservationMs });
 	digest(result.evidenceDigest, `${path}.evidenceDigest`);
 	if (result.workspaceStateDigest !== null)
 		digest(result.workspaceStateDigest, `${path}.workspaceStateDigest`);
-	if ((effect.sourceD43EffectKind === "public-semantic-validation") !== (result.criteria !== null))
+	const publicSemanticSucceeded =
+		effect.sourceD43EffectKind === "public-semantic-validation" &&
+		result.outcome !== "executor-failed";
+	if (publicSemanticSucceeded !== (result.criteria !== null))
 		throw new TypeError(`${path} public-semantic criteria coordinates drifted`);
+	if (effect.sourceD43EffectKind === "public-semantic-validation") {
+		const sourceSnapshotDigest =
+			result.sourceSnapshotDigest === null
+				? null
+				: digest(result.sourceSnapshotDigest, `${path}.sourceSnapshotDigest`);
+		if (publicSemanticSucceeded !== (sourceSnapshotDigest !== null))
+			throw new TypeError(`${path} public-semantic snapshot disposition drifted`);
+		if (result.criteria !== null) validateCriteriaProjection(result.criteria, effect, path);
+		if (
+			result.evidenceDigest !==
+			empiricalStrictJsonDigest({
+				request: effect.requestDigest,
+				admission: effect.admissionDigest,
+				outcome: result.outcome,
+				workspace: result.workspaceStateDigest,
+				sourceSnapshotDigest,
+				criteriaDigest:
+					result.criteria === null ? null : empiricalStrictJsonDigest(result.criteria),
+			})
+		)
+			throw new TypeError(`${path} public-semantic Graph evidence binding drifted`);
+	}
 }
 
 function validateProviderResult(
@@ -965,7 +1108,24 @@ function validateLocalResult(effect: D45AdmittedEffectV1, value: unknown): Local
 	const candidate = record(value, "D45 local result");
 	exactKeys(
 		candidate,
-		["criteria", "effectKind", "elapsedMs", "evidenceDigest", "outcome", "workspaceStateDigest"],
+		effect.sourceD43EffectKind === "public-semantic-validation"
+			? [
+					"criteria",
+					"effectKind",
+					"elapsedMs",
+					"evidenceDigest",
+					"outcome",
+					"sourceSnapshotDigest",
+					"workspaceStateDigest",
+				]
+			: [
+					"criteria",
+					"effectKind",
+					"elapsedMs",
+					"evidenceDigest",
+					"outcome",
+					"workspaceStateDigest",
+				],
 		"D45 local result",
 	);
 	if (candidate.effectKind !== "local-effect") throw new TypeError("D45 local result kind drifted");
@@ -979,8 +1139,29 @@ function validateLocalResult(effect: D45AdmittedEffectV1, value: unknown): Local
 			? null
 			: digest(candidate.workspaceStateDigest, "D45 local workspace state");
 	const criteria = candidate.criteria as D43EffectResultInputV1["criteria"];
+	let sourceSnapshotDigest: string | null | undefined;
 	if (effect.sourceD43EffectKind === "public-semantic-validation") {
-		if (criteria === null) throw new TypeError("D45 public semantic result omitted criteria");
+		if ((outcome === "executor-failed") === (criteria !== null))
+			throw new TypeError("D45 public semantic result criteria disposition drifted");
+		sourceSnapshotDigest =
+			candidate.sourceSnapshotDigest === null
+				? null
+				: digest(candidate.sourceSnapshotDigest, "D45 public semantic source snapshot");
+		if ((outcome !== "executor-failed") !== (sourceSnapshotDigest !== null))
+			throw new TypeError("D45 public semantic snapshot disposition drifted");
+		if (criteria !== null) validateCriteriaProjection(criteria, effect, "D45 local result");
+		if (
+			evidenceDigest !==
+			empiricalStrictJsonDigest({
+				request: effect.requestDigest,
+				admission: effect.admissionDigest,
+				outcome,
+				workspace: workspaceStateDigest,
+				sourceSnapshotDigest,
+				criteriaDigest: criteria === null ? null : empiricalStrictJsonDigest(criteria),
+			})
+		)
+			throw new TypeError("D45 public semantic Graph evidence binding drifted");
 	} else if (criteria !== null)
 		throw new TypeError("D45 non-semantic local result carried criteria");
 	const input = Object.freeze({
@@ -990,6 +1171,7 @@ function validateLocalResult(effect: D45AdmittedEffectV1, value: unknown): Local
 		evidenceDigest,
 		workspaceStateDigest,
 		criteria,
+		...(sourceSnapshotDigest === undefined ? {} : { sourceSnapshotDigest }),
 	});
 	return { input, projection: input };
 }
@@ -1161,8 +1343,8 @@ function applyLocalFact(state: State, runtime: LocalRuntimeResult, sourceFactDig
 				sourceFactDigest,
 				scenarioSetDigest: runtime.input.criteria.scenarioSetDigest,
 				observations: Object.freeze(
-					runtime.input.criteria.observations.map(({ scenarioRef, passed }) =>
-						Object.freeze({ scenarioRef, passed }),
+					runtime.input.criteria.observations.map(({ criterion, scenarioRef, passed, causeCode }) =>
+						Object.freeze({ criterion, scenarioRef, passed, causeCode }),
 					),
 				),
 			}),
@@ -1755,7 +1937,7 @@ function evidenceMaterial(state: State) {
 	const completedToolCount = state.facts.filter((item) => item.factKind === "tool-result").length;
 	return strictSnapshot({
 		schemaVersion: D45_EVIDENCE_SCHEMA,
-		decisionRef: "graphrefly-ts:D45" as const,
+		decisionRef: "graphrefly-ts:D61" as const,
 		authorityRevision: D45_AUTHORITY_REVISION,
 		facts: state.facts,
 		lifecycle,
@@ -1795,7 +1977,7 @@ export function snapshotD45PartialCanonicalEvidence(
 					: "persistence-interrupted";
 	const material = strictSnapshot({
 		schemaVersion: D45_PARTIAL_EVIDENCE_SCHEMA,
-		decisionRef: "graphrefly-ts:D45" as const,
+		decisionRef: "graphrefly-ts:D61" as const,
 		authorityRevision: D45_AUTHORITY_REVISION,
 		terminalCauseCode,
 		facts: state.facts,
@@ -1850,7 +2032,7 @@ export function validateD45PartialCanonicalEvidence(value: unknown): D45PartialC
 	);
 	if (
 		candidate.schemaVersion !== D45_PARTIAL_EVIDENCE_SCHEMA ||
-		candidate.decisionRef !== "graphrefly-ts:D45" ||
+		candidate.decisionRef !== "graphrefly-ts:D61" ||
 		candidate.authorityRevision !== D45_AUTHORITY_REVISION ||
 		candidate.lifecycleComplete !== false ||
 		candidate.rawMaterialPersisted !== false ||
@@ -2046,14 +2228,24 @@ export function validateD45PartialCanonicalEvidence(value: unknown): D45PartialC
 		else
 			exactKeys(
 				resultShape,
-				[
-					"criteria",
-					"effectKind",
-					"elapsedMs",
-					"evidenceDigest",
-					"outcome",
-					"workspaceStateDigest",
-				],
+				temporalActive.sourceD43EffectKind === "public-semantic-validation"
+					? [
+							"criteria",
+							"effectKind",
+							"elapsedMs",
+							"evidenceDigest",
+							"outcome",
+							"sourceSnapshotDigest",
+							"workspaceStateDigest",
+						]
+					: [
+							"criteria",
+							"effectKind",
+							"elapsedMs",
+							"evidenceDigest",
+							"outcome",
+							"workspaceStateDigest",
+						],
 				`D45 partial fact[${index}].result`,
 			);
 		if (seenResults.has(effectDigest)) throw new TypeError("D45 partial duplicated a result");
@@ -2617,7 +2809,7 @@ export function validateD45CanonicalEvidence(value: unknown): D45CanonicalEviden
 	);
 	if (
 		candidate.schemaVersion !== D45_EVIDENCE_SCHEMA ||
-		candidate.decisionRef !== "graphrefly-ts:D45" ||
+		candidate.decisionRef !== "graphrefly-ts:D61" ||
 		candidate.authorityRevision !== D45_AUTHORITY_REVISION ||
 		candidate.maxActiveEffectsObserved !== 1 ||
 		candidate.rawMaterialPersisted !== false ||
@@ -2796,14 +2988,24 @@ export function validateD45CanonicalEvidence(value: unknown): D45CanonicalEviden
 			} else {
 				exactKeys(
 					result,
-					[
-						"criteria",
-						"effectKind",
-						"elapsedMs",
-						"evidenceDigest",
-						"outcome",
-						"workspaceStateDigest",
-					],
+					Object.hasOwn(result, "sourceSnapshotDigest")
+						? [
+								"criteria",
+								"effectKind",
+								"elapsedMs",
+								"evidenceDigest",
+								"outcome",
+								"sourceSnapshotDigest",
+								"workspaceStateDigest",
+							]
+						: [
+								"criteria",
+								"effectKind",
+								"elapsedMs",
+								"evidenceDigest",
+								"outcome",
+								"workspaceStateDigest",
+							],
 					`D45 fact[${index}].result`,
 				);
 			}

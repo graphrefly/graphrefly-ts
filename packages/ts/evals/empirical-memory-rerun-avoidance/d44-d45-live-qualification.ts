@@ -3,7 +3,13 @@ import { chmod, mkdir, mkdtemp, open, rename, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { strictJsonCodec } from "../../src/json/codec.js";
-import { empiricalSha256, empiricalStrictJsonDigest, strictSnapshot } from "./canonical.js";
+import {
+	empiricalSha256,
+	empiricalStrictJsonDigest,
+	exactKeys,
+	record,
+	strictSnapshot,
+} from "./canonical.js";
 import {
 	createD44LiveExecutor,
 	D44_BUGGY_ADMISSION_BLOCK,
@@ -23,18 +29,18 @@ import {
 	measureD45Implementation,
 } from "./d45-implementation-manifest.js";
 
-export const D44_D45_QUALIFICATION_SCHEMA = "graphrefly-ts.d44.d45-live-qualification.v1" as const;
+export const D44_D45_QUALIFICATION_SCHEMA = "graphrefly-ts.d61.live-qualification.v1" as const;
 export const D44_D45_QUALIFICATION_BUNDLE_SCHEMA =
-	"graphrefly-ts.d44.d45-live-qualification-bundle.v1" as const;
+	"graphrefly-ts.d61.live-qualification-bundle.v1" as const;
 export const D44_D45_QUALIFICATION_GENERATION_REF =
-	"current-graph-native-live-composition-2026-08-21-d45-v1" as const;
+	"current-graph-native-live-composition-2026-08-21-d61-v1" as const;
 
 export interface D44D45LiveQualificationBundleV1 {
 	readonly schemaVersion: typeof D44_D45_QUALIFICATION_BUNDLE_SCHEMA;
 	readonly evidence: D45CanonicalEvidenceV1;
 	readonly qualification: Readonly<{
 		readonly schemaVersion: typeof D44_D45_QUALIFICATION_SCHEMA;
-		readonly decisionRef: "graphrefly-ts:D45";
+		readonly decisionRef: "graphrefly-ts:D61";
 		readonly d45BaselineCommit: typeof D44_D45_BASELINE_COMMIT;
 		readonly d45ImplementationManifestDigest: string;
 		readonly compositionRevision: typeof D44_D45_LIVE_REVISION;
@@ -43,6 +49,7 @@ export interface D44D45LiveQualificationBundleV1 {
 		readonly exactSixArmsCompleted: true;
 		readonly evaluableArms: 6;
 		readonly proposalToolBijection: true;
+		readonly independentPublicSemanticEvidenceQualified: true;
 		readonly providerCalls: number;
 		readonly providerNetworkCalls: 0;
 		readonly credentialReads: 0;
@@ -139,13 +146,21 @@ export async function runD44D45InjectedNoNetworkQualification(input?: {
 		if (measurement.disposition !== "success")
 			throw new TypeError("D44 injected composition did not produce canonical success");
 		const evidence = validateD45CanonicalEvidence(measurement.evidence);
+		const independentPublicSemanticEvidenceQualified = evidence.facts.some(
+			(item) =>
+				item.factKind === "local-result" &&
+				item.result.criteria?.observations.every(
+					(observation) => observation.passed === (observation.causeCode === null),
+				) === true,
+		);
 		if (
 			!evidence.exactSixArmsCompleted ||
 			evidence.lifecycle.arms.length !== 6 ||
 			evidence.lifecycle.arms.some((arm) => !arm.evaluable) ||
 			!evidence.proposalToolBijection ||
 			measurement.providerCalls !== providerCalls ||
-			providerCalls < 30
+			providerCalls < 30 ||
+			!independentPublicSemanticEvidenceQualified
 		)
 			throw new TypeError("D44 injected six-arm composition invariants failed");
 		const measuredD45Manifest = await measureD45Implementation();
@@ -159,7 +174,7 @@ export async function runD44D45InjectedNoNetworkQualification(input?: {
 		});
 		const qualificationMaterial = strictSnapshot({
 			schemaVersion: D44_D45_QUALIFICATION_SCHEMA,
-			decisionRef: "graphrefly-ts:D45" as const,
+			decisionRef: "graphrefly-ts:D61" as const,
 			d45BaselineCommit: D44_D45_BASELINE_COMMIT,
 			d45ImplementationManifestDigest: D45_IMPLEMENTATION_MANIFEST_DIGEST,
 			compositionRevision: D44_D45_LIVE_REVISION,
@@ -168,6 +183,7 @@ export async function runD44D45InjectedNoNetworkQualification(input?: {
 			exactSixArmsCompleted: true as const,
 			evaluableArms: 6 as const,
 			proposalToolBijection: true as const,
+			independentPublicSemanticEvidenceQualified: true as const,
 			providerCalls,
 			providerNetworkCalls: 0 as const,
 			credentialReads: 0 as const,
@@ -196,29 +212,86 @@ export async function runD44D45InjectedNoNetworkQualification(input?: {
 	}
 }
 
-export function validateD44D45QualificationBundle(
-	value: D44D45LiveQualificationBundleV1,
-): D44D45LiveQualificationBundleV1 {
-	const evidence = validateD45CanonicalEvidence(value.evidence);
-	const { qualificationDigest: _qualificationDigest, ...qualificationMaterial } =
-		value.qualification;
+export function validateD44D45QualificationBundle(value: unknown): D44D45LiveQualificationBundleV1 {
+	const candidate = record(value, "D44 qualification bundle");
+	exactKeys(
+		candidate,
+		["bundleDigest", "evidence", "qualification", "schemaVersion"],
+		"D44 qualification bundle",
+	);
+	const qualification = record(candidate.qualification, "D44 qualification");
+	exactKeys(
+		qualification,
+		[
+			"causalAttribution",
+			"compositionDigest",
+			"compositionRevision",
+			"credentialReads",
+			"d45BaselineCommit",
+			"d45ImplementationManifestDigest",
+			"decisionRef",
+			"dispatchClaims",
+			"efficacyClaim",
+			"evaluableArms",
+			"evidenceDigest",
+			"exactSixArmsCompleted",
+			"fallbackOrSwitchCalls",
+			"historicalRuntimeDependencies",
+			"independentPublicSemanticEvidenceQualified",
+			"maxActiveEffects",
+			"proposalToolBijection",
+			"providerCalls",
+			"providerNetworkCalls",
+			"qualificationDigest",
+			"schemaVersion",
+		],
+		"D44 qualification",
+	);
+	const evidence = validateD45CanonicalEvidence(candidate.evidence);
+	const expectedCompositionDigest = d44LiveCompositionDigest({
+		d45Commit: D44_D45_BASELINE_COMMIT,
+		d45QualificationArtifactDigest:
+			"sha256:349b43839b169b1fa2c3a4389440a2bda8cc5e99c908b5ab02fd7abf37df06e2",
+		d45ImplementationManifestDigest: D45_IMPLEMENTATION_MANIFEST_DIGEST,
+	});
+	const providerCalls = evidence.facts.filter(
+		(item) => item.factKind === "provider-wire-admitted",
+	).length;
+	const { qualificationDigest, ...qualificationMaterial } = qualification;
+	const material = strictSnapshot({
+		schemaVersion: candidate.schemaVersion,
+		evidence,
+		qualification,
+	});
 	if (
-		value.schemaVersion !== D44_D45_QUALIFICATION_BUNDLE_SCHEMA ||
-		value.qualification.schemaVersion !== D44_D45_QUALIFICATION_SCHEMA ||
-		value.qualification.evidenceDigest !== evidence.evidenceDigest ||
-		value.qualification.qualificationDigest !==
-			empiricalStrictJsonDigest(strictSnapshot(qualificationMaterial)) ||
-		value.bundleDigest !==
-			empiricalStrictJsonDigest(
-				strictSnapshot({
-					schemaVersion: value.schemaVersion,
-					evidence,
-					qualification: value.qualification,
-				}),
-			)
+		candidate.schemaVersion !== D44_D45_QUALIFICATION_BUNDLE_SCHEMA ||
+		qualification.schemaVersion !== D44_D45_QUALIFICATION_SCHEMA ||
+		qualification.decisionRef !== "graphrefly-ts:D61" ||
+		qualification.d45BaselineCommit !== D44_D45_BASELINE_COMMIT ||
+		qualification.d45ImplementationManifestDigest !== D45_IMPLEMENTATION_MANIFEST_DIGEST ||
+		qualification.compositionRevision !== D44_D45_LIVE_REVISION ||
+		qualification.compositionDigest !== expectedCompositionDigest ||
+		qualification.evidenceDigest !== evidence.evidenceDigest ||
+		qualification.exactSixArmsCompleted !== true ||
+		qualification.evaluableArms !== 6 ||
+		qualification.proposalToolBijection !== true ||
+		qualification.independentPublicSemanticEvidenceQualified !== true ||
+		typeof qualification.providerCalls !== "number" ||
+		!Number.isSafeInteger(qualification.providerCalls) ||
+		qualification.providerCalls !== providerCalls ||
+		qualification.providerNetworkCalls !== 0 ||
+		qualification.credentialReads !== 0 ||
+		qualification.dispatchClaims !== 0 ||
+		qualification.fallbackOrSwitchCalls !== 0 ||
+		qualification.maxActiveEffects !== 1 ||
+		qualification.historicalRuntimeDependencies !== 0 ||
+		qualification.causalAttribution !== "undetermined" ||
+		qualification.efficacyClaim !== "none" ||
+		qualificationDigest !== empiricalStrictJsonDigest(strictSnapshot(qualificationMaterial)) ||
+		candidate.bundleDigest !== empiricalStrictJsonDigest(material)
 	)
 		throw new TypeError("D44 qualification bundle failed canonical replay");
-	return value;
+	return strictSnapshot(candidate) as unknown as D44D45LiveQualificationBundleV1;
 }
 
 export async function persistD44D45Qualification(input: {

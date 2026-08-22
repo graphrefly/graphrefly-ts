@@ -32,6 +32,10 @@ import {
 	lowerD45ProviderEffect,
 	parseD45ChatProviderResponse,
 } from "./d45-mechanical-chat-adapter.js";
+import {
+	type D61PublicSemanticObservationV1,
+	executeD61PublicSemanticScenarios,
+} from "./d61-public-semantic-scenarios.js";
 
 export const D44_D45_LIVE_REVISION = "graphrefly-ts.d44.d45-live-composition.v1" as const;
 export const D44_OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions" as const;
@@ -42,8 +46,6 @@ export const D44_D45_BASELINE_COMMIT = "dea57bdeb4b370dddbbe2505bd05f9e3551b26c6
 export const D44_FIXED_ADMISSION_BLOCK = `\t\tadmissionId,\n\t\tprincipalId,\n\t\tprincipalSessionRevision,\n\t\ttenantId,\n\t\tworkspaceId,\n\t\tresourceKind,\n\t\tresourceId,\n\t\tresourceRevision,\n\t\tpolicyRevision,\n\t\tmodelRevision,\n\t])\n\t\tassertSafe(value, "admitted coordinate");\n\tassertBoundedAuthorityId(admissionProposalId, "admission proposal coordinate");`;
 export const D44_BUGGY_ADMISSION_BLOCK = `\t\tadmissionId,\n\t\tadmissionProposalId,\n\t\tprincipalId,\n\t\tprincipalSessionRevision,\n\t\ttenantId,\n\t\tworkspaceId,\n\t\tresourceKind,\n\t\tresourceId,\n\t\tresourceRevision,\n\t\tpolicyRevision,\n\t\tmodelRevision,\n\t])\n\t\tassertSafe(value, "admitted coordinate");`;
 
-const TARGET_TEST =
-	"admits only a fresh D419 managed remote run, then atomically claims with a fresh fenced session";
 const MAX_PROCESS_BYTES = 2 * 1_048_576;
 
 interface WorkspaceState {
@@ -67,6 +69,12 @@ export interface D44LiveExecutorV1 {
 
 function boundedElapsed(started: number, reservation: number): number {
 	return Math.max(0, Math.min(reservation, Math.ceil(performance.now() - started)));
+}
+
+function remainingElapsed(started: number, reservation: number): number {
+	const remaining = Math.floor(reservation - (performance.now() - started));
+	if (remaining < 1) throw new TypeError("D44 admitted effect deadline elapsed");
+	return remaining;
 }
 
 async function runProcess(input: {
@@ -229,25 +237,32 @@ async function materializeWorkspace(input: {
 	}
 }
 
-function semanticCriteria(effect: D45AdmittedEffectV1, passed: boolean) {
+function semanticCriteria(
+	effect: D45AdmittedEffectV1,
+	outcomes: readonly D61PublicSemanticObservationV1[],
+) {
+	if (outcomes.length !== D45_PUBLIC_SEMANTIC_SCENARIOS.length)
+		throw new TypeError("D61 public semantic observation cardinality drifted");
 	return Object.freeze({
 		scenarioSetDigest: D45_PUBLIC_SEMANTIC_SCENARIO_SET_DIGEST,
 		observations: Object.freeze(
-			D45_PUBLIC_SEMANTIC_SCENARIOS.map((scenario) =>
+			D45_PUBLIC_SEMANTIC_SCENARIOS.map((scenario, index) =>
 				Object.freeze({
+					causeCode: outcomes[index]!.causeCode,
 					criterion: scenario.criterion,
 					scenarioRef: scenario.scenarioRef,
 					scenarioDigest: scenario.scenarioDigest,
 					observationDigest: empiricalStrictJsonDigest({
-						requestDigest: effect.requestDigest,
+						requestDigest: effect.sourceD43RequestDigest,
 						scenarioDigest: scenario.scenarioDigest,
-						passed,
+						passed: outcomes[index]!.passed,
+						causeCode: outcomes[index]!.causeCode,
 					}),
 					freshnessDigest: empiricalStrictJsonDigest({
 						requestDigest: effect.sourceD43RequestDigest,
 						sequence: effect.sourceD43Sequence,
 					}),
-					passed,
+					passed: outcomes[index]!.passed,
 				}),
 			),
 		),
@@ -562,20 +577,86 @@ export function createD44LiveExecutor(input: {
 					});
 					outcome = validation.code === 0 ? "passed" : "failed";
 				} else if (effect.sourceD43EffectKind === "public-semantic-validation") {
-					const validation = await runProcess({
-						command: join(repositoryRoot, "node_modules/.bin/vitest"),
-						args: [
-							"run",
-							"packages/ts/src/__tests__/managed-cloud-postgresql.test.ts",
-							"-t",
-							TARGET_TEST,
-						],
+					const names = await runProcess({
+						command: "/usr/bin/git",
+						args: ["diff", "--name-only"],
 						cwd: state.root,
-						timeoutMs: effect.elapsedReservationMs,
+						timeoutMs: remainingElapsed(started, effect.elapsedReservationMs),
 					});
-					const passed = validation.code === 0;
-					outcome = passed ? "passed" : "failed";
-					criteria = semanticCriteria(effect, passed);
+					const changed = new TextDecoder()
+						.decode(names.stdout)
+						.trim()
+						.split(/\r?\n/u)
+						.filter(Boolean);
+					try {
+						const semantic = await executeD61PublicSemanticScenarios({
+							workspaceRoot: state.root,
+							workspaceStateDigest: state.digest,
+							writeScopePreserved:
+								names.code === 0 && changed.length === 1 && changed[0] === D45_WRITABLE_PATH,
+							timeoutMs: remainingElapsed(started, effect.elapsedReservationMs),
+						});
+						const namesAfter = await runProcess({
+							command: "/usr/bin/git",
+							args: ["diff", "--name-only"],
+							cwd: state.root,
+							timeoutMs: remainingElapsed(started, effect.elapsedReservationMs),
+						});
+						const changedAfter = new TextDecoder()
+							.decode(namesAfter.stdout)
+							.trim()
+							.split(/\r?\n/u)
+							.filter(Boolean);
+						if (
+							namesAfter.code !== 0 ||
+							changedAfter.length !== 1 ||
+							changedAfter[0] !== D45_WRITABLE_PATH ||
+							changedAfter.join("\n") !== changed.join("\n")
+						)
+							throw new TypeError("D61 public semantic write scope drifted during execution");
+						const passed = semantic.observations.every((observation) => observation.passed);
+						outcome = passed ? "passed" : "failed";
+						criteria = semanticCriteria(effect, semantic.observations);
+						return {
+							result: {
+								effectKind: "local-effect",
+								outcome,
+								elapsedMs: boundedElapsed(started, effect.elapsedReservationMs),
+								evidenceDigest: empiricalStrictJsonDigest({
+									request: effect.requestDigest,
+									admission: effect.admissionDigest,
+									outcome,
+									workspace: state.digest,
+									sourceSnapshotDigest: semantic.sourceSnapshotDigest,
+									criteriaDigest: empiricalStrictJsonDigest(criteria),
+								}),
+								workspaceStateDigest: state.digest,
+								criteria,
+								sourceSnapshotDigest: semantic.sourceSnapshotDigest,
+							},
+							retryDelayMs: 0,
+						};
+					} catch {
+						return {
+							result: {
+								effectKind: "local-effect",
+								outcome: "executor-failed",
+								elapsedMs: effect.elapsedReservationMs,
+								evidenceDigest: empiricalStrictJsonDigest({
+									request: effect.requestDigest,
+									admission: effect.admissionDigest,
+									outcome: "executor-failed",
+									workspace: state.digest,
+									sourceSnapshotDigest: null,
+									criteriaDigest: null,
+								}),
+								workspaceStateDigest: state.digest,
+								criteria: null,
+								sourceSnapshotDigest: null,
+							},
+							retryDelayMs: 0,
+						};
+					}
 				} else if (effect.sourceD43EffectKind === "hidden-verifier") {
 					const source = await readFile(
 						await assertWorkspaceFile(state.root, D45_WRITABLE_PATH),

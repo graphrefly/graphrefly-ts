@@ -23,13 +23,16 @@ import {
 	readD44D45FreshPricing,
 } from "./d44-d45-live-gates.js";
 import {
-	D44_D45_LIVE_IMPLEMENTATION_MANIFEST_DIGEST,
-	measureD44D45LiveImplementation,
-} from "./d44-d45-live-implementation-manifest.js";
+	D61_IMPLEMENTATION_MANIFEST_DIGEST,
+	measureD61Implementation,
+} from "./d61-implementation-manifest.js";
+import { validateD61QualificationBundle } from "./d61-semantic-recovery-qualification.js";
 import {
-	type D44D45LiveQualificationBundleV1,
-	validateD44D45QualificationBundle,
-} from "./d44-d45-live-qualification.js";
+	D62_LIVE_EXECUTION_MANIFEST_DIGEST,
+	D62_QUALIFICATION_ARTIFACT_DIGEST,
+	D62_QUALIFICATION_DIGEST,
+	measureD62LiveExecution,
+} from "./d62-live-execution-manifest.js";
 import { createOpenRouterCurrentKeySpendAdmissionCapability } from "./openrouter-current-key-spend-admission.js";
 
 const repositoryRoot = resolve(import.meta.dirname, "../../../..");
@@ -38,12 +41,10 @@ const credentialPath = join(operatorRoot, "openrouter.env");
 const zeroByokPath = join(operatorRoot, "d44-d45-zero-byok-2026-08-21.v1.json");
 const qualificationPath = join(
 	operatorRoot,
-	"current-graph-native-d45/current-graph-native-live-composition-2026-08-21-d45-v1.json",
+	"current-graph-native-d61-qualified-v8/current-graph-native-semantic-recovery-2026-08-21-d61-v8.json",
 );
-const QUALIFICATION_ARTIFACT_DIGEST =
-	"sha256:3d9fa4e28af95692c6696f2f7079cfd2162af6c6cba15fb02f7214f353596232";
-const QUALIFICATION_DIGEST =
-	"sha256:66956a9acef1047ad8708f26b534d153a9871119b99f09544747ed7907f9758b";
+const QUALIFICATION_ARTIFACT_DIGEST = D62_QUALIFICATION_ARTIFACT_DIGEST;
+const QUALIFICATION_DIGEST = D62_QUALIFICATION_DIGEST;
 
 async function runGit(args: readonly string[]): Promise<string> {
 	return await new Promise((resolvePromise, rejectPromise) => {
@@ -141,8 +142,10 @@ async function assertGenerationAbsent(): Promise<void> {
 }
 
 await prepareD44D45PrivateRoot(D44_D45_LIVE_PRIVATE_ROOT);
-const implementationManifestDigest = await measureD44D45LiveImplementation();
-if (implementationManifestDigest !== D44_D45_LIVE_IMPLEMENTATION_MANIFEST_DIGEST)
+if ((await measureD61Implementation()) !== D61_IMPLEMENTATION_MANIFEST_DIGEST)
+	throw new TypeError("D44 qualified D61 implementation closure drifted");
+const implementationManifestDigest = await measureD62LiveExecution();
+if (implementationManifestDigest !== D62_LIVE_EXECUTION_MANIFEST_DIGEST)
 	throw new TypeError("D44 live implementation manifest drifted");
 const implementationCommit = await runGit(["rev-parse", "HEAD"]);
 await runGit(["merge-base", "--is-ancestor", D44_D45_BASELINE_COMMIT, implementationCommit]);
@@ -151,8 +154,18 @@ const implementationPaths = [
 	"packages/ts/evals/empirical-memory-rerun-avoidance/d43-graph-harness-authority.ts",
 	"packages/ts/evals/empirical-memory-rerun-avoidance/d45-graph-tool-authority.ts",
 	"packages/ts/evals/empirical-memory-rerun-avoidance/d45-mechanical-chat-adapter.ts",
+	"packages/ts/evals/empirical-memory-rerun-avoidance/d45-graph-tool-qualification.ts",
 	"packages/ts/evals/empirical-memory-rerun-avoidance/d44-d45-live-composition.ts",
 	"packages/ts/evals/empirical-memory-rerun-avoidance/d44-d45-live-gates.ts",
+	"packages/ts/evals/empirical-memory-rerun-avoidance/d44-d45-live-qualification.ts",
+	"packages/ts/evals/empirical-memory-rerun-avoidance/d45-implementation-manifest.ts",
+	"packages/ts/evals/empirical-memory-rerun-avoidance/d44-d45-live-implementation-manifest.ts",
+	"packages/ts/evals/empirical-memory-rerun-avoidance/d55-provider-boundary-implementation-manifest.ts",
+	"packages/ts/evals/empirical-memory-rerun-avoidance/d61-public-semantic-scenarios.ts",
+	"packages/ts/evals/empirical-memory-rerun-avoidance/d61-public-semantic-bundle-entry.ts",
+	"packages/ts/evals/empirical-memory-rerun-avoidance/d61-semantic-recovery-qualification.ts",
+	"packages/ts/evals/empirical-memory-rerun-avoidance/d61-implementation-manifest.ts",
+	"packages/ts/evals/empirical-memory-rerun-avoidance/d62-live-execution-manifest.ts",
 	"packages/ts/evals/empirical-memory-rerun-avoidance/run-d44-d45-live.ts",
 ];
 if ((await runGit(["status", "--porcelain=v1", "--", ...implementationPaths])) !== "")
@@ -161,9 +174,7 @@ await assertGenerationAbsent();
 const qualificationBytes = await readPrivate(qualificationPath, 16 * 1_048_576);
 if (empiricalSha256(qualificationBytes) !== QUALIFICATION_ARTIFACT_DIGEST)
 	throw new TypeError("D44 qualification artifact drifted");
-const qualification = validateD44D45QualificationBundle(
-	strictJsonCodec.decode(qualificationBytes) as D44D45LiveQualificationBundleV1,
-);
+const qualification = validateD61QualificationBundle(strictJsonCodec.decode(qualificationBytes));
 if (qualification.qualification.qualificationDigest !== QUALIFICATION_DIGEST)
 	throw new TypeError("D44 qualification digest drifted");
 const credential = parseCredential(await readPrivate(credentialPath, 16_384));

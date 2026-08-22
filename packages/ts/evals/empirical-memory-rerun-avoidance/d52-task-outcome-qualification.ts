@@ -63,23 +63,33 @@ function localResult(
 			? Object.freeze({
 					scenarioSetDigest: D45_PUBLIC_SEMANTIC_SCENARIO_SET_DIGEST,
 					observations: Object.freeze(
-						D45_PUBLIC_SEMANTIC_SCENARIOS.map((scenario) =>
-							Object.freeze({
+						D45_PUBLIC_SEMANTIC_SCENARIOS.map((scenario) => {
+							const causeCode =
+								scenario.criterion === "actor-visible-behavior-changed"
+									? "canonical-proposal-not-admitted"
+									: scenario.criterion === "acceptance-criteria-satisfied"
+										? "malformed-provenance-mutated-store"
+										: scenario.criterion === "scope-preserved"
+											? "reconstructed-provenance-admitted"
+											: "claim-invariant-regression";
+							return Object.freeze({
+								causeCode: outcome === "passed" ? null : causeCode,
 								criterion: scenario.criterion,
 								scenarioRef: scenario.scenarioRef,
 								scenarioDigest: scenario.scenarioDigest,
 								observationDigest: empiricalStrictJsonDigest({
-									request: effect.requestDigest,
-									scenario: scenario.scenarioDigest,
+									requestDigest: effect.requestDigest,
+									scenarioDigest: scenario.scenarioDigest,
 									passed: outcome === "passed",
+									causeCode: outcome === "passed" ? null : causeCode,
 								}),
 								freshnessDigest: empiricalStrictJsonDigest({
 									requestDigest: effect.requestDigest,
 									sequence: effect.sequence,
 								}),
 								passed: outcome === "passed",
-							}),
-						),
+							});
+						}),
 					),
 				})
 			: null;
@@ -314,12 +324,15 @@ function publicCriteria(effect: D45AdmittedEffectV1) {
 		observations: Object.freeze(
 			D45_PUBLIC_SEMANTIC_SCENARIOS.map((scenario, index) =>
 				Object.freeze({
+					causeCode: index === 0 ? "canonical-proposal-not-admitted" : null,
 					criterion: scenario.criterion,
 					scenarioRef: scenario.scenarioRef,
 					scenarioDigest: scenario.scenarioDigest,
 					observationDigest: empiricalStrictJsonDigest({
-						scenario: scenario.scenarioDigest,
+						requestDigest: effect.sourceD43RequestDigest,
+						scenarioDigest: scenario.scenarioDigest,
 						passed: index !== 0,
+						causeCode: index === 0 ? "canonical-proposal-not-admitted" : null,
 					}),
 					freshnessDigest: empiricalStrictJsonDigest({
 						requestDigest: effect.sourceD43RequestDigest,

@@ -27,6 +27,7 @@ describe("graphrefly-ts:D44/D45 live composition", () => {
 		);
 		expect(bundle.qualification.exactSixArmsCompleted).toBe(true);
 		expect(bundle.qualification.evaluableArms).toBe(6);
+		expect(bundle.qualification.independentPublicSemanticEvidenceQualified).toBe(true);
 		expect(bundle.qualification.providerCalls).toBeGreaterThanOrEqual(12);
 		expect(bundle.qualification.providerNetworkCalls).toBe(0);
 		expect(bundle.qualification.credentialReads).toBe(0);
@@ -34,7 +35,7 @@ describe("graphrefly-ts:D44/D45 live composition", () => {
 		expect(await measureD44D45LiveImplementation()).toBe(
 			D44_D45_LIVE_IMPLEMENTATION_MANIFEST_DIGEST,
 		);
-	}, 180_000);
+	}, 300_000);
 
 	it("admits fresh fp8 pricing, same-credential zero-BYOK, and one durable claim without network", async () => {
 		const nowMs = Date.now();

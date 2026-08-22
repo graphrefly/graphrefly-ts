@@ -36,10 +36,10 @@ import {
 	parseD45ChatProviderResponse,
 } from "./d45-mechanical-chat-adapter.js";
 
-export const D45_QUALIFICATION_SCHEMA = "graphrefly-ts.d60.qualification.v3" as const;
-export const D45_QUALIFICATION_BUNDLE_SCHEMA = "graphrefly-ts.d60.qualification-bundle.v3" as const;
+export const D45_QUALIFICATION_SCHEMA = "graphrefly-ts.d61.qualification.v1" as const;
+export const D45_QUALIFICATION_BUNDLE_SCHEMA = "graphrefly-ts.d61.qualification-bundle.v1" as const;
 export const D45_QUALIFICATION_GENERATION_REF =
-	"current-graph-native-tool-admission-2026-08-21-d60-v1" as const;
+	"current-graph-native-tool-admission-2026-08-21-d61-v1" as const;
 export const D45_PARTIAL_GENERATION_REF =
 	"current-graph-native-tool-admission-partial-2026-08-21-d45-v2" as const;
 
@@ -165,21 +165,31 @@ export interface D45QualificationBundleV1 {
 	readonly schemaVersion: typeof D45_QUALIFICATION_BUNDLE_SCHEMA;
 	readonly mainEvidence: D45CanonicalEvidenceV1;
 	readonly semanticCorrectionEvidence: D45CanonicalEvidenceV1;
+	readonly d61RecoveryEvidence: D45CanonicalEvidenceV1;
+	readonly d61FinalFailureEvidence: D45CanonicalEvidenceV1;
+	readonly d61OutOfOrderEvidence: D45CanonicalEvidenceV1;
+	readonly d61NoHeadroomEvidence: D45CanonicalEvidenceV1;
 	readonly recoveryEvidence: D45CanonicalEvidenceV1;
 	readonly retryEvidence: D45CanonicalEvidenceV1;
 	readonly failureEvidence: D45CanonicalEvidenceV1;
 	readonly partialEvidence: D45PartialCanonicalEvidenceV1;
 	readonly qualification: Readonly<{
 		readonly schemaVersion: typeof D45_QUALIFICATION_SCHEMA;
-		readonly decisionRef: "graphrefly-ts:D45";
+		readonly decisionRef: "graphrefly-ts:D61";
 		readonly mainEvidenceDigest: string;
 		readonly semanticCorrectionEvidenceDigest: string;
+		readonly d61RecoveryEvidenceDigest: string;
+		readonly d61FinalFailureEvidenceDigest: string;
+		readonly d61OutOfOrderEvidenceDigest: string;
+		readonly d61NoHeadroomEvidenceDigest: string;
 		readonly recoveryEvidenceDigest: string;
 		readonly retryEvidenceDigest: string;
 		readonly failureEvidenceDigest: string;
 		readonly partialEvidenceDigest: string;
-		readonly exactSixArmScenarios: 5;
+		readonly exactSixArmScenarios: 6;
 		readonly boundedSemanticCorrectionQualified: true;
+		readonly independentPublicSemanticEvidenceQualified: true;
+		readonly boundedFreshMutationCorrectionQualified: true;
 		readonly mutationProposalContractQualified: true;
 		readonly mainFrozenGateWouldPass: true;
 		readonly proposalToolBijection: true;
@@ -229,6 +239,10 @@ const REPLACEMENT =
 	"const canonicalProposal = candidate.proposalRef;\n\tassertProducerOwnedCanonicalProposal(canonicalProposal);";
 const SEMANTICALLY_WRONG_REPLACEMENT =
 	"const canonicalProposal = candidate.proposalRef;\n\tvoid canonicalProposal;";
+const FOCUSED_INVALID_REPLACEMENT =
+	"const canonicalProposal = candidate.proposalRef;\n\tconst broken: = canonicalProposal;";
+const SECOND_FOCUSED_INVALID_REPLACEMENT =
+	"const canonicalProposal = candidate.proposalRef;\n\tconst brokenAgain: = canonicalProposal;";
 
 function initialFiles() {
 	return new Map<string, string>([
@@ -304,19 +318,26 @@ function executeInjectedPublicSemanticScenarios(
 
 function semanticCriteria(effect: D45AdmittedEffectV1, files: ReadonlyMap<string, string>) {
 	const outcomes = executeInjectedPublicSemanticScenarios(files);
+	const causeCodes = [
+		"canonical-proposal-not-admitted",
+		"malformed-provenance-mutated-store",
+		"reconstructed-provenance-admitted",
+		"claim-invariant-regression",
+	] as const;
 	return Object.freeze({
 		scenarioSetDigest: D45_PUBLIC_SEMANTIC_SCENARIO_SET_DIGEST,
 		observations: Object.freeze(
 			D45_PUBLIC_SEMANTIC_SCENARIOS.map((scenario, index) =>
 				Object.freeze({
+					causeCode: outcomes[index] === true ? null : causeCodes[index]!,
 					criterion: scenario.criterion,
 					scenarioRef: scenario.scenarioRef,
 					scenarioDigest: scenario.scenarioDigest,
 					observationDigest: empiricalStrictJsonDigest({
-						arm: effect.arm,
-						phase: effect.phase,
+						requestDigest: effect.sourceD43RequestDigest,
 						scenarioDigest: scenario.scenarioDigest,
 						passed: outcomes[index] === true,
+						causeCode: outcomes[index] === true ? null : causeCodes[index]!,
 					}),
 					freshnessDigest: empiricalStrictJsonDigest({
 						requestDigest: effect.sourceD43RequestDigest,
@@ -366,9 +387,56 @@ function nextInjectedReadPath(body: string): string {
 }
 
 async function runScenario(
-	mode: "main" | "semantic-correction" | "recovery" | "retry" | "failure",
+	mode:
+		| "main"
+		| "semantic-correction"
+		| "d61-recovery"
+		| "d61-final-failure"
+		| "d61-out-of-order"
+		| "d61-no-headroom"
+		| "recovery"
+		| "retry"
+		| "failure",
 ): Promise<D45CanonicalEvidenceV1> {
-	const policy = createD45QualificationPolicy();
+	const basePolicy = createD45QualificationPolicy();
+	const policy =
+		mode === "d61-no-headroom"
+			? createD43ModelHarnessPolicy({
+					policyRef: "model-policy.deepseek-v4-flash-0731.deepinfra-fp8.d61-headroom-v1",
+					model: {
+						profileRef: basePolicy.model.profileRef,
+						modelRef: basePolicy.model.modelRef,
+						supportsNamedToolChoice: true,
+						supportsParallelToolCalls: basePolicy.model.supportsParallelToolCalls,
+						inspectionMaxOutputTokens: basePolicy.model.inspectionMaxOutputTokens,
+						mutationMaxOutputTokens: basePolicy.model.mutationMaxOutputTokens,
+					},
+					provider: {
+						bindingRef: basePolicy.provider.bindingRef,
+						providerRef: basePolicy.provider.providerRef,
+						endpointProtocol: basePolicy.provider.endpointProtocol,
+						namedToolChoiceEncoding: basePolicy.provider.namedToolChoiceEncoding,
+						allowFallback: false,
+						allowProviderSwitch: false,
+						allowParallelEffects: false,
+						providerDeadlineMs: basePolicy.provider.providerDeadlineMs,
+					},
+					campaign: {
+						campaignRef: basePolicy.campaign.campaignRef,
+						arms: D43_ARMS,
+						maxProviderAttempts: basePolicy.campaign.maxProviderAttempts,
+						maxCostMicrousd: basePolicy.campaign.maxCostMicrousd,
+						maxElapsedMs: 6_700_000,
+						localEffectReservationMs: basePolicy.campaign.localEffectReservationMs,
+						providerReservationMicrousd: basePolicy.campaign.providerReservationMicrousd,
+						publicSemanticScenarioSetDigest: basePolicy.campaign.publicSemanticScenarioSetDigest,
+						taskEnvelopeDigest: basePolicy.campaign.taskEnvelopeDigest,
+						maxSameLogicalRequestRetries: 1,
+						retryClasses: ["D671", "D675", "D710"],
+					},
+					enhancementRecipes: D43_ENHANCEMENT_RECIPES,
+				})
+			: basePolicy;
 	const authority = createD45GraphToolAuthority({
 		catalog: createD43PolicyCatalog([policy]),
 		assignment: D45_ASSIGNMENT,
@@ -398,6 +466,7 @@ async function runScenario(
 					!instruction.includes("exactly the keys path, oldText, and newText") ||
 					!instruction.includes("512 UTF-8 bytes") ||
 					!instruction.includes("128 UTF-8 bytes") ||
+					!instruction.includes("byte-different") ||
 					!instruction.includes("smallest unique contiguous local span")
 				)
 					throw new TypeError("D60 mutation proposal contract omitted from wire");
@@ -463,7 +532,11 @@ async function runScenario(
 					else if (attempt === 1 && recovery === "cardinality") toolCalls = [];
 					else toolCalls = [{ toolRef: "read-file", path: nextInjectedReadPath(wire.body) }];
 				} else if (
-					mode === "semantic-correction" &&
+					(mode === "semantic-correction" ||
+						mode === "d61-recovery" ||
+						mode === "d61-final-failure" ||
+						mode === "d61-out-of-order" ||
+						mode === "d61-no-headroom") &&
 					effect.arm === "relevant-applied" &&
 					attempt === 1
 				) {
@@ -473,6 +546,59 @@ async function runScenario(
 							path: D45_WRITABLE_PATH,
 							oldText: ORIGINAL,
 							newText: SEMANTICALLY_WRONG_REPLACEMENT,
+						},
+					];
+				} else if (
+					(mode === "d61-recovery" || mode === "d61-final-failure") &&
+					effect.arm === "relevant-applied" &&
+					attempt === 2
+				) {
+					toolCalls = [
+						{
+							toolRef: "replace-exact",
+							path: D45_WRITABLE_PATH,
+							oldText: SEMANTICALLY_WRONG_REPLACEMENT,
+							newText: SEMANTICALLY_WRONG_REPLACEMENT,
+						},
+					];
+				} else if (
+					mode === "d61-out-of-order" &&
+					effect.arm === "relevant-applied" &&
+					attempt === 2
+				) {
+					toolCalls = [
+						{
+							toolRef: "replace-exact",
+							path: D45_WRITABLE_PATH,
+							oldText: SEMANTICALLY_WRONG_REPLACEMENT,
+							newText: FOCUSED_INVALID_REPLACEMENT,
+						},
+					];
+				} else if (
+					(mode === "d61-recovery" || mode === "d61-final-failure") &&
+					effect.arm === "relevant-applied" &&
+					attempt === 3
+				) {
+					toolCalls = [
+						{
+							toolRef: "replace-exact",
+							path: D45_WRITABLE_PATH,
+							oldText: SEMANTICALLY_WRONG_REPLACEMENT,
+							newText: FOCUSED_INVALID_REPLACEMENT,
+						},
+					];
+				} else if (
+					(mode === "d61-recovery" || mode === "d61-final-failure") &&
+					effect.arm === "relevant-applied" &&
+					attempt === 4
+				) {
+					toolCalls = [
+						{
+							toolRef: "replace-exact",
+							path: D45_WRITABLE_PATH,
+							oldText: FOCUSED_INVALID_REPLACEMENT,
+							newText:
+								mode === "d61-final-failure" ? SECOND_FOCUSED_INVALID_REPLACEMENT : REPLACEMENT,
 						},
 					];
 				} else if (attempt === 1 && recovery === "unchanged") {
@@ -515,7 +641,7 @@ async function runScenario(
 				result = {
 					effectKind: "provider-proposal",
 					outcome: "success",
-					elapsedMs: 10,
+					elapsedMs: mode === "d61-no-headroom" ? 600_000 : 10,
 					costMicrousd: 10,
 					usage: { inputTokens: 100, outputTokens: 20, cacheReadTokens: 5 },
 					wireDigest: wire.wireDigest,
@@ -603,30 +729,59 @@ async function runScenario(
 					: null;
 			const publicSemanticPassed =
 				criteria?.observations.every((observation) => observation.passed) ?? false;
+			const d61FocusedFailure =
+				(mode === "d61-recovery" || mode === "d61-final-failure" || mode === "d61-out-of-order") &&
+				effect.arm === "relevant-applied" &&
+				effect.sourceD43EffectKind === "focused-validation" &&
+				((files.get(D45_WRITABLE_PATH) ?? "").includes(FOCUSED_INVALID_REPLACEMENT) ||
+					(files.get(D45_WRITABLE_PATH) ?? "").includes(SECOND_FOCUSED_INVALID_REPLACEMENT));
 			const outcome = injectedExecutorFailure
 				? "executor-failed"
-				: effect.sourceD43EffectKind === "hidden-verifier"
-					? effect.arm === "relevant-applied"
-						? "passed"
-						: "failed"
-					: effect.sourceD43EffectKind === "public-semantic-validation"
-						? publicSemanticPassed
+				: d61FocusedFailure
+					? "failed"
+					: effect.sourceD43EffectKind === "hidden-verifier"
+						? effect.arm === "relevant-applied"
 							? "passed"
 							: "failed"
-						: isValidation
-							? "passed"
-							: "success";
+						: effect.sourceD43EffectKind === "public-semantic-validation"
+							? publicSemanticPassed
+								? "passed"
+								: "failed"
+							: isValidation
+								? "passed"
+								: "success";
+			const isPublicSemantic = effect.sourceD43EffectKind === "public-semantic-validation";
+			const admittedCriteria = outcome === "executor-failed" ? null : criteria;
+			const sourceSnapshotDigest = isPublicSemantic
+				? outcome === "executor-failed"
+					? null
+					: empiricalStrictJsonDigest({
+							workspaceStateDigest: stateDigest,
+							sourceTreeDigest: workspaceDigest(files),
+						})
+				: undefined;
 			result = {
 				effectKind: "local-effect",
 				outcome,
 				elapsedMs: 1,
-				evidenceDigest: empiricalStrictJsonDigest({ effect: effect.effectDigest, outcome }),
+				evidenceDigest: isPublicSemantic
+					? empiricalStrictJsonDigest({
+							request: effect.requestDigest,
+							admission: effect.admissionDigest,
+							outcome,
+							workspace: stateDigest,
+							sourceSnapshotDigest,
+							criteriaDigest:
+								admittedCriteria === null ? null : empiricalStrictJsonDigest(admittedCriteria),
+						})
+					: empiricalStrictJsonDigest({ effect: effect.effectDigest, outcome }),
 				workspaceStateDigest:
 					effect.sourceD43EffectKind === "cleanup" ||
 					(effect.sourceD43EffectKind === "materialization" && injectedExecutorFailure)
 						? null
 						: stateDigest,
-				criteria,
+				criteria: admittedCriteria,
+				...(sourceSnapshotDigest === undefined ? {} : { sourceSnapshotDigest }),
 			};
 			if (effect.sourceD43EffectKind === "cleanup") {
 				files = initialFiles();
@@ -690,6 +845,10 @@ function observedRejections(evidence: D45CanonicalEvidenceV1): Set<string> {
 export async function runD45InjectedNoNetworkQualification(): Promise<D45QualificationBundleV1> {
 	const mainEvidence = await runScenario("main");
 	const semanticCorrectionEvidence = await runScenario("semantic-correction");
+	const d61RecoveryEvidence = await runScenario("d61-recovery");
+	const d61FinalFailureEvidence = await runScenario("d61-final-failure");
+	const d61OutOfOrderEvidence = await runScenario("d61-out-of-order");
+	const d61NoHeadroomEvidence = await runScenario("d61-no-headroom");
 	const recoveryEvidence = await runScenario("recovery");
 	const retryEvidence = await runScenario("retry");
 	const failureEvidence = await runScenario("failure");
@@ -724,6 +883,54 @@ export async function runD45InjectedNoNetworkQualification(): Promise<D45Qualifi
 		)
 	)
 		throw new TypeError("D60 bounded semantic correction qualification did not recover");
+	const d61Relevant = d61RecoveryEvidence.lifecycle.arms.find(
+		(arm) => arm.arm === "relevant-applied",
+	);
+	if (
+		!d61RecoveryEvidence.frozenGateWouldPass ||
+		d61Relevant?.semanticCorrections !== 2 ||
+		d61Relevant.exactReplacementRecoveries !== 1 ||
+		d61Relevant.taskOutcome !== "passed" ||
+		!d61RecoveryEvidence.lifecycle.findings.some(
+			(finding) =>
+				finding.arm === "relevant-applied" && finding.causeCode === "focused-validation-failed",
+		)
+	)
+		throw new TypeError(
+			`D61 bounded fresh-mutation correction qualification did not recover: ${JSON.stringify({ arm: d61Relevant, findings: d61RecoveryEvidence.lifecycle.findings.filter((item) => item.arm === "relevant-applied"), results: d61RecoveryEvidence.facts.filter((item) => item.factKind === "local-result" && item.result.criteria !== null).map((item) => (item.factKind === "local-result" ? item.result.criteria : null)) })}`,
+		);
+	const finalFailureArm = d61FinalFailureEvidence.lifecycle.arms.find(
+		(arm) => arm.arm === "relevant-applied",
+	);
+	const outOfOrderArm = d61OutOfOrderEvidence.lifecycle.arms.find(
+		(arm) => arm.arm === "relevant-applied",
+	);
+	const noHeadroomArm = d61NoHeadroomEvidence.lifecycle.arms.find(
+		(arm) => arm.arm === "relevant-applied",
+	);
+	if (
+		finalFailureArm?.semanticCorrections !== 2 ||
+		finalFailureArm.taskOutcome !== "failed" ||
+		!finalFailureArm.cleanupCompleted ||
+		outOfOrderArm?.semanticCorrections !== 1 ||
+		outOfOrderArm.taskOutcome !== "failed" ||
+		!outOfOrderArm.cleanupCompleted ||
+		noHeadroomArm?.semanticCorrections !== 0 ||
+		noHeadroomArm.taskOutcome !== "failed" ||
+		!noHeadroomArm.cleanupCompleted
+	)
+		throw new TypeError(
+			`D61 final-failure or out-of-order recovery was not bounded: ${JSON.stringify({ finalFailureArm, outOfOrderArm, noHeadroomArm, noHeadroomFindings: d61NoHeadroomEvidence.lifecycle.findings.filter((item) => item.arm === "relevant-applied") })}`,
+		);
+	const independentPublicSemanticEvidenceQualified = d61RecoveryEvidence.facts.some(
+		(item) =>
+			item.factKind === "local-result" &&
+			item.result.criteria?.observations.some(
+				(observation) => !observation.passed && observation.causeCode !== null,
+			),
+	);
+	if (!independentPublicSemanticEvidenceQualified)
+		throw new TypeError("D61 independent public semantic evidence was not load-bearing");
 	const rejections = new Set([
 		...observedRejections(recoveryEvidence),
 		...observedRejections(failureEvidence),
@@ -814,15 +1021,21 @@ export async function runD45InjectedNoNetworkQualification(): Promise<D45Qualifi
 		throw new TypeError("D45 retry qualification did not preserve exact final-wire identity");
 	const qualificationMaterial = strictSnapshot({
 		schemaVersion: D45_QUALIFICATION_SCHEMA,
-		decisionRef: "graphrefly-ts:D45" as const,
+		decisionRef: "graphrefly-ts:D61" as const,
 		mainEvidenceDigest: mainEvidence.evidenceDigest,
 		semanticCorrectionEvidenceDigest: semanticCorrectionEvidence.evidenceDigest,
+		d61RecoveryEvidenceDigest: d61RecoveryEvidence.evidenceDigest,
+		d61FinalFailureEvidenceDigest: d61FinalFailureEvidence.evidenceDigest,
+		d61OutOfOrderEvidenceDigest: d61OutOfOrderEvidence.evidenceDigest,
+		d61NoHeadroomEvidenceDigest: d61NoHeadroomEvidence.evidenceDigest,
 		recoveryEvidenceDigest: recoveryEvidence.evidenceDigest,
 		retryEvidenceDigest: retryEvidence.evidenceDigest,
 		failureEvidenceDigest: failureEvidence.evidenceDigest,
 		partialEvidenceDigest: partialEvidence.evidenceDigest,
-		exactSixArmScenarios: 5 as const,
+		exactSixArmScenarios: 6 as const,
 		boundedSemanticCorrectionQualified: true as const,
+		independentPublicSemanticEvidenceQualified: true as const,
+		boundedFreshMutationCorrectionQualified: true as const,
 		mutationProposalContractQualified: true as const,
 		mainFrozenGateWouldPass: true as const,
 		proposalToolBijection: true as const,
@@ -881,6 +1094,10 @@ export async function runD45InjectedNoNetworkQualification(): Promise<D45Qualifi
 		schemaVersion: D45_QUALIFICATION_BUNDLE_SCHEMA,
 		mainEvidence,
 		semanticCorrectionEvidence,
+		d61RecoveryEvidence,
+		d61FinalFailureEvidence,
+		d61OutOfOrderEvidence,
+		d61NoHeadroomEvidence,
 		recoveryEvidence,
 		retryEvidence,
 		failureEvidence,
@@ -895,6 +1112,10 @@ export function validateD45QualificationBundle(value: D45QualificationBundleV1) 
 	exactKeys(
 		candidate,
 		[
+			"d61FinalFailureEvidence",
+			"d61OutOfOrderEvidence",
+			"d61NoHeadroomEvidence",
+			"d61RecoveryEvidence",
 			"semanticCorrectionEvidence",
 			"bundleDigest",
 			"failureEvidence",
@@ -912,7 +1133,13 @@ export function validateD45QualificationBundle(value: D45QualificationBundleV1) 
 		qualificationCandidate,
 		[
 			"allProposalRejectionCodesObserved",
+			"boundedFreshMutationCorrectionQualified",
 			"boundedSemanticCorrectionQualified",
+			"d61RecoveryEvidenceDigest",
+			"d61FinalFailureEvidenceDigest",
+			"d61OutOfOrderEvidenceDigest",
+			"d61NoHeadroomEvidenceDigest",
+			"independentPublicSemanticEvidenceQualified",
 			"mutationProposalContractQualified",
 			"causalAttribution",
 			"cleanupCompletedAfterFailure",
@@ -952,6 +1179,10 @@ export function validateD45QualificationBundle(value: D45QualificationBundleV1) 
 	);
 	const main = validateD45CanonicalEvidence(value.mainEvidence);
 	const semanticCorrection = validateD45CanonicalEvidence(value.semanticCorrectionEvidence);
+	const d61Recovery = validateD45CanonicalEvidence(value.d61RecoveryEvidence);
+	const d61FinalFailure = validateD45CanonicalEvidence(value.d61FinalFailureEvidence);
+	const d61OutOfOrder = validateD45CanonicalEvidence(value.d61OutOfOrderEvidence);
+	const d61NoHeadroom = validateD45CanonicalEvidence(value.d61NoHeadroomEvidence);
 	const recovery = validateD45CanonicalEvidence(value.recoveryEvidence);
 	const retry = validateD45CanonicalEvidence(value.retryEvidence);
 	const failure = validateD45CanonicalEvidence(value.failureEvidence);
@@ -959,15 +1190,21 @@ export function validateD45QualificationBundle(value: D45QualificationBundleV1) 
 	if (
 		value.schemaVersion !== D45_QUALIFICATION_BUNDLE_SCHEMA ||
 		value.qualification.schemaVersion !== D45_QUALIFICATION_SCHEMA ||
-		value.qualification.decisionRef !== "graphrefly-ts:D45" ||
+		value.qualification.decisionRef !== "graphrefly-ts:D61" ||
 		value.qualification.mainEvidenceDigest !== main.evidenceDigest ||
 		value.qualification.semanticCorrectionEvidenceDigest !== semanticCorrection.evidenceDigest ||
+		value.qualification.d61RecoveryEvidenceDigest !== d61Recovery.evidenceDigest ||
+		value.qualification.d61FinalFailureEvidenceDigest !== d61FinalFailure.evidenceDigest ||
+		value.qualification.d61OutOfOrderEvidenceDigest !== d61OutOfOrder.evidenceDigest ||
+		value.qualification.d61NoHeadroomEvidenceDigest !== d61NoHeadroom.evidenceDigest ||
 		value.qualification.recoveryEvidenceDigest !== recovery.evidenceDigest ||
 		value.qualification.retryEvidenceDigest !== retry.evidenceDigest ||
 		value.qualification.failureEvidenceDigest !== failure.evidenceDigest ||
 		value.qualification.partialEvidenceDigest !== partial.evidenceDigest ||
-		value.qualification.exactSixArmScenarios !== 5 ||
+		value.qualification.exactSixArmScenarios !== 6 ||
 		value.qualification.boundedSemanticCorrectionQualified !== true ||
+		value.qualification.independentPublicSemanticEvidenceQualified !== true ||
+		value.qualification.boundedFreshMutationCorrectionQualified !== true ||
 		value.qualification.mutationProposalContractQualified !== true ||
 		value.qualification.mainFrozenGateWouldPass !== true ||
 		value.qualification.proposalToolBijection !== true ||

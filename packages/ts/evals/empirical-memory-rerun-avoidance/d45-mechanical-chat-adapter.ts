@@ -340,12 +340,15 @@ function graphCorrectionInstruction(context: D45ProviderMaterialV1["correctionCo
 	if (context.kind === "focused-validation")
 		return `Graph admitted focused validation outcome=${context.causeCode}; repair the candidate so repository TypeScript validation passes.`;
 	return `Graph admitted public semantic observations: ${context.observations
-		.map(({ scenarioRef, passed }) => `${scenarioRef}=${passed ? "passed" : "failed"}`)
+		.map(
+			({ criterion, scenarioRef, passed, causeCode }) =>
+				`${criterion}:${scenarioRef}=${passed ? "passed" : `failed(${causeCode})`}`,
+		)
 		.join(", ")}. Repair only the failed public scenarios while preserving the passed scenarios.`;
 }
 
 const MUTATION_PROPOSAL_CONTRACT =
-	"Return exactly one named replace_exact tool call with exactly the keys path, oldText, and newText; do not emit a final answer or any additional tool call. Keep oldText and newText at or below 512 UTF-8 bytes each, keep newText at most 128 UTF-8 bytes longer than oldText, and quote only the smallest unique contiguous local span. Do not replace an entire function or file." as const;
+	"Return exactly one named replace_exact tool call with exactly the keys path, oldText, and newText; do not emit a final answer or any additional tool call. oldText and newText must be byte-different. Keep oldText and newText at or below 512 UTF-8 bytes each, keep newText at most 128 UTF-8 bytes longer than oldText, and quote only the smallest unique contiguous local span. Do not replace an entire function or file." as const;
 
 function graphIntentInstruction(
 	material: D45ProviderMaterialV1,
