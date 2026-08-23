@@ -1,6 +1,10 @@
 import { depBatch } from "../../src/ctx/types.js";
 import { graph } from "../../src/graph/graph.js";
 import { digest, empiricalStrictJsonDigest, record, strictSnapshot } from "./canonical.js";
+import {
+	createCurrentProfilePolicyAuthority,
+	readCurrentProfilePolicyResolution,
+} from "./current-profile-policy-authority.js";
 import { D65_D64_BASELINE_PROJECTION } from "./frozen-baseline-fixture.js";
 import type { D43TaskOutcome } from "./graph-harness-authority.js";
 import {
@@ -11,22 +15,26 @@ import {
 	validateD45PartialCanonicalEvidence,
 } from "./graph-tool-authority.js";
 import {
+	createExactModelHarnessProfileInput,
 	D45_ASSIGNMENT,
 	D45_PUBLIC_SEMANTIC_SCENARIO_SET_DIGEST,
 	D45_TASK_ENVELOPE_DIGEST,
 } from "./graph-tool-qualification.js";
 import {
-	createD43ModelHarnessPolicy,
-	D43_ARMS,
-	D43_ENHANCEMENT_RECIPES,
-	type D43Arm,
-} from "./model-harness-policy.js";
+	createHarnessCampaignPolicy,
+	HARNESS_ARMS,
+	type HarnessArm,
+} from "./harness-campaign-policy.js";
 
-export const D65_AUTHORITY_REVISION = "graphrefly-ts.d65.replicated-campaign-authority.v1" as const;
+export const D65_AUTHORITY_REVISION = "graphrefly-ts.replicated-campaign-authority.d74.v2" as const;
 export const D65_EFFECT_SCHEMA = "graphrefly-ts.d65.replicate-effect.v1" as const;
 export const D65_EXECUTION_SCHEMA = "graphrefly-ts.d65.replicate-execution.v1" as const;
-export const D65_FACT_SCHEMA = "graphrefly-ts.d65.campaign-fact.v1" as const;
-export const D65_EVIDENCE_SCHEMA = "graphrefly-ts.d65.campaign-evidence.v1" as const;
+export const D65_FACT_SCHEMA = "graphrefly-ts.replicated-campaign-fact.d74.v2" as const;
+export const D65_EVIDENCE_SCHEMA = "graphrefly-ts.replicated-campaign-evidence.d74.v2" as const;
+export const D65_PARTIAL_EVIDENCE_SCHEMA =
+	"graphrefly-ts.partial-replicated-campaign-evidence.d74.v2" as const;
+export const EXECUTION_SHAPE_TRANSITION_SCHEMA =
+	"graphrefly-ts.execution-shape-transition.d74.v1" as const;
 export const D65_REPLICATE_COUNT = 5 as const;
 export const D65_CONTINUATION_HARD_CAP_MICROUSD = 6_000_000 as const;
 export const D65_D64_ARTIFACT_DIGEST =
@@ -42,7 +50,7 @@ export interface D65ReplicateProjectionV1 {
 	readonly evidenceDigest: string;
 	readonly executionShapeDigest: string;
 	readonly arms: readonly Readonly<{
-		readonly arm: D43Arm;
+		readonly arm: HarnessArm;
 		readonly completed: boolean;
 		readonly cleanupCompleted: boolean;
 		readonly evaluable: boolean;
@@ -62,7 +70,8 @@ export interface D65AdmittedReplicateV1 {
 	readonly runBindingDigest: string;
 	readonly assignmentRef: string;
 	readonly campaignRef: string;
-	readonly policyDigest: string;
+	readonly profileResolutionDigest: string;
+	readonly campaignDigest: string;
 	readonly admissionDigest: string;
 }
 
@@ -72,12 +81,34 @@ export interface D65ReplicateExecutionV1 {
 	readonly executionDigest: string;
 }
 
+export interface ExecutionShapeTransition {
+	readonly schemaVersion: typeof EXECUTION_SHAPE_TRANSITION_SCHEMA;
+	readonly decisionRef: "graphrefly-ts:D74";
+	readonly fromExecutionShapeDigest: string;
+	readonly toExecutionShapeDigest: string;
+	readonly targetDigest: string;
+	readonly profileDigest: string;
+	readonly bindingDigest: string;
+	readonly qualificationDigest: string;
+	readonly eligibilityDigest: string;
+	readonly profileResolutionDigest: string;
+	readonly providerSemanticsDigest: string;
+	readonly transitionDigest: string;
+}
+
 export type D65CampaignModeV1 = Readonly<{
 	executionClass: "qualification";
 	liveClaimDigest: null;
 }>;
 
 type D65CampaignFactV1 =
+	| Readonly<{
+			schemaVersion: typeof D65_FACT_SCHEMA;
+			sequence: number;
+			factKind: "execution-shape-transition-admitted";
+			transition: ExecutionShapeTransition;
+			factDigest: string;
+	  }>
 	| Readonly<{
 			schemaVersion: typeof D65_FACT_SCHEMA;
 			sequence: number;
@@ -138,6 +169,7 @@ export interface D65CampaignEvidenceV1 {
 	readonly baselineArtifactDigest: string;
 	readonly baselineBundleDigest: string;
 	readonly executionShapeDigest: string;
+	readonly executionShapeTransitionDigest: string;
 	readonly campaignMode: D65CampaignModeV1;
 	readonly facts: readonly D65CampaignFactV1[];
 	readonly replicates: readonly D65ReplicateProjectionV1[];
@@ -147,7 +179,7 @@ export interface D65CampaignEvidenceV1 {
 	readonly exactFiveReplicatesCompleted: true;
 	readonly exactThirtyArmsEvaluable: boolean;
 	readonly relevantPassCount: number;
-	readonly controlPassCounts: Readonly<Record<Exclude<D43Arm, "relevant-applied">, number>>;
+	readonly controlPassCounts: Readonly<Record<Exclude<HarnessArm, "relevant-applied">, number>>;
 	readonly optionalStoppingAllowed: false;
 	readonly selectiveDiscardAllowed: false;
 	readonly maxActiveReplicatesObserved: 1;
@@ -158,12 +190,13 @@ export interface D65CampaignEvidenceV1 {
 }
 
 export interface D65PartialCampaignEvidenceV1 {
-	readonly schemaVersion: "graphrefly-ts.d65.partial-campaign-evidence.v1";
+	readonly schemaVersion: typeof D65_PARTIAL_EVIDENCE_SCHEMA;
 	readonly decisionRef: "graphrefly-ts:D65";
 	readonly authorityRevision: typeof D65_AUTHORITY_REVISION;
 	readonly baselineArtifactDigest: string;
 	readonly baselineBundleDigest: string;
 	readonly executionShapeDigest: string;
+	readonly executionShapeTransitionDigest: string | null;
 	readonly campaignMode: D65CampaignModeV1;
 	readonly facts: readonly D65CampaignFactV1[];
 	readonly completedReplicates: readonly D65ReplicateProjectionV1[];
@@ -188,7 +221,8 @@ interface AuthorityState {
 	readonly factNode: ReturnType<typeof createFactNode>;
 	readonly baselineArtifactDigest: string;
 	readonly baselineBundleDigest: string;
-	readonly executionShapeDigest: string;
+	executionShapeDigest: string;
+	executionShapeTransitionDigest: string | null;
 	readonly campaignMode: D65CampaignModeV1;
 	readonly facts: D65CampaignFactV1[];
 	readonly replicates: D65ReplicateProjectionV1[];
@@ -236,7 +270,7 @@ export function d65ReplicateAssignmentRef(effect: D65ReplicateBinding): string {
 	return `assignment.deepseek-deepinfra-fp8.d65-r${effect.replicateIndex}-${effect.runBindingDigest.slice(7, 23)}`;
 }
 
-export function createD65ReplicatePolicy(admission: D65ReplicateBinding) {
+export function createD65ReplicateCampaign(admission: D65ReplicateBinding) {
 	const maxCostMicrousd = admission.remainingContinuationCostMicrousd;
 	if (
 		!Number.isSafeInteger(maxCostMicrousd) ||
@@ -244,40 +278,22 @@ export function createD65ReplicatePolicy(admission: D65ReplicateBinding) {
 		maxCostMicrousd > D65_CONTINUATION_HARD_CAP_MICROUSD
 	)
 		throw new TypeError("D65 replicate cost headroom is outside its admitted range");
-	return createD43ModelHarnessPolicy({
-		policyRef: `model-policy.deepseek-v4-flash-0731.deepinfra-fp8.d65-r${admission.replicateIndex}-${admission.runBindingDigest.slice(7, 23)}`,
-		model: {
-			profileRef: "model-profile.deepseek-v4-flash-0731.d45-v1",
-			modelRef: D45_ASSIGNMENT.modelRef,
-			supportsNamedToolChoice: true,
-			supportsParallelToolCalls: false,
-			inspectionMaxOutputTokens: 65_536,
-			mutationMaxOutputTokens: 16_384,
-		},
-		provider: {
-			bindingRef: "provider-binding.deepinfra-fp8-chat.d45-v1",
-			providerRef: D45_ASSIGNMENT.providerRef,
-			endpointProtocol: "chat-completions",
-			namedToolChoiceEncoding: "function-object",
-			allowFallback: false,
-			allowProviderSwitch: false,
-			allowParallelEffects: false,
-			providerDeadlineMs: 600_000,
-		},
-		campaign: {
-			campaignRef: d65ReplicateCampaignRef(admission),
-			arms: D43_ARMS,
-			maxProviderAttempts: 96,
-			maxCostMicrousd,
-			maxElapsedMs: 7_200_000,
-			localEffectReservationMs: 10_000,
-			providerReservationMicrousd: 100_000,
-			publicSemanticScenarioSetDigest: D45_PUBLIC_SEMANTIC_SCENARIO_SET_DIGEST,
-			taskEnvelopeDigest: D45_TASK_ENVELOPE_DIGEST,
-			maxSameLogicalRequestRetries: 1,
-			retryClasses: ["D671", "D675", "D710"],
-		},
-		enhancementRecipes: D43_ENHANCEMENT_RECIPES,
+	return createHarnessCampaignPolicy({
+		campaignRef: d65ReplicateCampaignRef(admission),
+		arms: HARNESS_ARMS,
+		maxProviderAttempts: 96,
+		maxCostMicrousd,
+		maxElapsedMs: 7_200_000,
+		localEffectReservationMs: 10_000,
+		providerReservationMicrousd: 100_000,
+		providerDeadlineMs: 600_000,
+		publicSemanticScenarioSetDigest: D45_PUBLIC_SEMANTIC_SCENARIO_SET_DIGEST,
+		taskEnvelopeDigest: D45_TASK_ENVELOPE_DIGEST,
+		maxSameLogicalRequestRetries: 1,
+		retryClasses: ["D671", "D675", "D710"],
+		allowFallback: false,
+		allowProviderSwitch: false,
+		allowParallelEffects: false,
 	});
 }
 
@@ -290,9 +306,9 @@ function projectReplicate(
 	const evidence = validateD45CanonicalEvidence(evidenceValue);
 	if (
 		!evidence.exactSixArmsCompleted ||
-		evidence.lifecycle.arms.length !== D43_ARMS.length ||
+		evidence.lifecycle.arms.length !== HARNESS_ARMS.length ||
 		evidence.lifecycle.arms.some(
-			(arm, index) => arm.arm !== D43_ARMS[index] || !arm.completed || !arm.cleanupCompleted,
+			(arm, index) => arm.arm !== HARNESS_ARMS[index] || !arm.completed || !arm.cleanupCompleted,
 		)
 	)
 		throw new TypeError("D65 replicate is not an exact complete cleaned six-arm measurement");
@@ -303,22 +319,23 @@ function projectReplicate(
 		if (expectedAdmission === null || expectedAdmission.replicateIndex !== replicateIndex)
 			throw new TypeError("D65 continuation lost its exact replicate admission");
 		if (
-			evidence.lifecycle.policy.campaign.maxCostMicrousd !==
+			evidence.lifecycle.campaign.maxCostMicrousd !==
 				expectedAdmission.remainingContinuationCostMicrousd ||
-			evidence.lifecycle.policy.policyDigest !== expectedAdmission.policyDigest ||
-			evidence.lifecycle.policy.campaign.campaignRef !== expectedAdmission.campaignRef ||
+			evidence.lifecycle.profileResolution.resolutionDigest !==
+				expectedAdmission.profileResolutionDigest ||
+			evidence.lifecycle.campaign.campaignDigest !== expectedAdmission.campaignDigest ||
+			evidence.lifecycle.campaign.campaignRef !== expectedAdmission.campaignRef ||
 			evidence.lifecycle.plan.campaignRef !== expectedAdmission.campaignRef ||
 			evidence.lifecycle.plan.assignmentRef !== expectedAdmission.assignmentRef
 		)
 			throw new TypeError("D65 continuation policy was not bound to its exact Graph admission");
 	}
-	const policy = evidence.lifecycle.policy;
 	const {
 		maxCostMicrousd: _maxCostMicrousd,
 		campaignRef: _campaignRef,
 		campaignDigest: _campaignDigest,
 		...campaign
-	} = policy.campaign;
+	} = evidence.lifecycle.campaign;
 	const providerAdmissions = evidence.facts.filter(
 		(fact): fact is Extract<D45FactV1, { factKind: "effect-admitted" }> =>
 			fact.factKind === "effect-admitted" && fact.effect.effectKind === "provider-proposal",
@@ -330,6 +347,7 @@ function projectReplicate(
 		providerRef: providerAdmissions[0]!.effect.providerRef,
 		endpointProtocol: providerAdmissions[0]!.effect.endpointProtocol,
 		namedToolChoiceEncoding: providerAdmissions[0]!.effect.namedToolChoiceEncoding,
+		responseContractRevision: providerAdmissions[0]!.effect.responseContractRevision,
 		reasoningEffort: providerAdmissions[0]!.effect.reasoningEffort,
 		requireParameters: providerAdmissions[0]!.effect.requireParameters,
 		taskEnvelopeDigest: providerAdmissions[0]!.effect.taskEnvelopeDigest,
@@ -342,6 +360,7 @@ function projectReplicate(
 					providerRef: fact.effect.providerRef,
 					endpointProtocol: fact.effect.endpointProtocol,
 					namedToolChoiceEncoding: fact.effect.namedToolChoiceEncoding,
+					responseContractRevision: fact.effect.responseContractRevision,
 					reasoningEffort: fact.effect.reasoningEffort,
 					requireParameters: fact.effect.requireParameters,
 					taskEnvelopeDigest: fact.effect.taskEnvelopeDigest,
@@ -350,10 +369,10 @@ function projectReplicate(
 	)
 		throw new TypeError("D65 provider route-profile coordinates changed within a replicate");
 	const executionShapeDigest = empiricalStrictJsonDigest({
-		model: policy.model,
-		provider: policy.provider,
+		modelTarget: evidence.lifecycle.modelTarget,
+		enhancementProfile: evidence.lifecycle.enhancementProfile,
+		providerBinding: evidence.lifecycle.providerBinding,
 		campaign,
-		enhancementRecipes: policy.enhancementRecipes,
 		providerAdmissionProfile,
 		plan: {
 			modelRef: evidence.lifecycle.plan.modelRef,
@@ -402,6 +421,43 @@ function exactBaselineProjection(value: unknown): D65ReplicateProjectionV1 {
 	return D65_D64_BASELINE_PROJECTION;
 }
 
+function executionShapeTransition(
+	fromExecutionShapeDigest: string,
+	toExecutionShapeDigest: string,
+	evidence: D45CanonicalEvidenceV1,
+): ExecutionShapeTransition {
+	if (fromExecutionShapeDigest !== D65_D64_BASELINE_PROJECTION.executionShapeDigest)
+		throw new TypeError("D74 execution-shape transition source is not immutable D64");
+	const {
+		maxCostMicrousd: _maxCost,
+		campaignRef: _campaignRef,
+		campaignDigest: _digest,
+		...campaign
+	} = evidence.lifecycle.campaign;
+	const material = strictSnapshot({
+		schemaVersion: EXECUTION_SHAPE_TRANSITION_SCHEMA,
+		decisionRef: "graphrefly-ts:D74" as const,
+		fromExecutionShapeDigest,
+		toExecutionShapeDigest,
+		targetDigest: evidence.lifecycle.modelTarget.targetDigest,
+		profileDigest: evidence.lifecycle.enhancementProfile.profileDigest,
+		bindingDigest: evidence.lifecycle.providerBinding.bindingDigest,
+		qualificationDigest: evidence.lifecycle.profileQualification.qualificationDigest,
+		eligibilityDigest: evidence.lifecycle.currentProfileEligibility.eligibilityDigest,
+		profileResolutionDigest: evidence.lifecycle.profileResolution.resolutionDigest,
+		providerSemanticsDigest: empiricalStrictJsonDigest({
+			providerModelRef: evidence.lifecycle.providerBinding.providerModelRef,
+			providerRef: evidence.lifecycle.providerBinding.providerRef,
+			endpointProtocol: evidence.lifecycle.providerBinding.endpointProtocol,
+			namedToolChoiceEncoding: evidence.lifecycle.providerBinding.namedToolChoiceEncoding,
+			responseContractRevision: evidence.lifecycle.providerBinding.responseContractRevision,
+			enhancementRecipes: evidence.lifecycle.enhancementProfile.enhancementRecipes,
+			campaign,
+		}),
+	});
+	return Object.freeze({ ...material, transitionDigest: empiricalStrictJsonDigest(material) });
+}
+
 function applyFact(state: AuthorityState, fact: D65CampaignFactV1): void {
 	if (fact.sequence !== state.facts.length + 1)
 		throw new TypeError("D65 campaign fact sequence drifted");
@@ -411,6 +467,21 @@ function applyFact(state: AuthorityState, fact: D65CampaignFactV1): void {
 		if (state.facts.length !== 0 || fact.replicate.replicateIndex !== 1)
 			throw new TypeError("D65 baseline admission order drifted");
 		state.replicates.push(fact.replicate);
+	} else if (fact.factKind === "execution-shape-transition-admitted") {
+		if (
+			state.replicates.length !== 1 ||
+			state.active?.replicateIndex !== 2 ||
+			state.execution === null ||
+			state.executionShapeTransitionDigest !== null ||
+			fact.transition.fromExecutionShapeDigest !== state.executionShapeDigest ||
+			fact.transition.toExecutionShapeDigest === state.executionShapeDigest
+		)
+			throw new TypeError("D74 execution-shape transition admission drifted");
+		const { transitionDigest, ...transitionMaterial } = fact.transition;
+		if (transitionDigest !== empiricalStrictJsonDigest(transitionMaterial))
+			throw new TypeError("D74 execution-shape transition digest drifted");
+		state.executionShapeDigest = fact.transition.toExecutionShapeDigest;
+		state.executionShapeTransitionDigest = transitionDigest;
 	} else if (fact.factKind === "replicate-admitted") {
 		if (
 			state.terminalCauseCode !== null ||
@@ -512,6 +583,7 @@ export function createD65GraphCampaignAuthority(input: {
 		baselineArtifactDigest,
 		baselineBundleDigest,
 		executionShapeDigest: baseline.executionShapeDigest,
+		executionShapeTransitionDigest: null,
 		campaignMode,
 		facts: [],
 		replicates: [],
@@ -581,7 +653,12 @@ export function takeD65AdmittedReplicate(
 		remainingContinuationCostMicrousd,
 		runBindingDigest,
 	});
-	const policy = createD65ReplicatePolicy(binding);
+	const campaign = createD65ReplicateCampaign(binding);
+	const profileResolution = readCurrentProfilePolicyResolution(
+		createCurrentProfilePolicyAuthority(createExactModelHarnessProfileInput()),
+	);
+	if (profileResolution.resolution.status !== "eligible")
+		throw new TypeError("D65 exact profile is not currently eligible");
 	const material = strictSnapshot({
 		schemaVersion: D65_EFFECT_SCHEMA,
 		replicateIndex: binding.replicateIndex,
@@ -590,7 +667,8 @@ export function takeD65AdmittedReplicate(
 		runBindingDigest,
 		assignmentRef: d65ReplicateAssignmentRef(binding),
 		campaignRef: d65ReplicateCampaignRef(binding),
-		policyDigest: policy.policyDigest,
+		profileResolutionDigest: profileResolution.resolution.resolutionDigest,
+		campaignDigest: campaign.campaignDigest,
 	});
 	const effect = Object.freeze({
 		...material,
@@ -697,8 +775,24 @@ export function admitD65ReplicateResult(
 		...cleanProjectionMaterial,
 		projectionDigest: empiricalStrictJsonDigest(cleanProjectionMaterial),
 	}) as D65ReplicateProjectionV1;
-	if (reconciledProjection.executionShapeDigest !== state.executionShapeDigest)
-		throw new TypeError("D65 replicate execution shape drifted from D64");
+	if (state.replicates.length === 1) {
+		const transition = executionShapeTransition(
+			state.executionShapeDigest,
+			reconciledProjection.executionShapeDigest,
+			replicate.evidence,
+		);
+		emit(
+			state,
+			campaignFact({
+				schemaVersion: D65_FACT_SCHEMA,
+				sequence: state.nextFactSequence++,
+				factKind: "execution-shape-transition-admitted",
+				transition,
+			}),
+		);
+	} else if (reconciledProjection.executionShapeDigest !== state.executionShapeDigest) {
+		throw new TypeError("D65 continuation execution shape drifted from D72-native shape");
+	}
 	if (reconciledProjection.confirmedCostMicrousd > effect.remainingContinuationCostMicrousd)
 		throw new TypeError("D65 replicate exceeded its Graph-admitted aggregate cost headroom");
 	if (state.replicates.some((item) => item.evidenceDigest === reconciledProjection.evidenceDigest))
@@ -718,19 +812,28 @@ export function admitD65ReplicateResult(
 	);
 }
 
-const CONTROL_ARMS = D43_ARMS.filter(
-	(arm): arm is Exclude<D43Arm, "relevant-applied"> => arm !== "relevant-applied",
+const CONTROL_ARMS = HARNESS_ARMS.filter(
+	(arm): arm is Exclude<HarnessArm, "relevant-applied"> => arm !== "relevant-applied",
 );
 
-export function deriveD65ReplicatedGate(replicates: readonly D65ReplicateProjectionV1[]) {
-	const expectedExecutionShapeDigest = replicates[0]?.executionShapeDigest;
+export function deriveD65ReplicatedGate(
+	replicates: readonly D65ReplicateProjectionV1[],
+	executionShapeTransitionAdmitted: boolean,
+) {
+	const baselineExecutionShapeDigest = replicates[0]?.executionShapeDigest;
+	const currentExecutionShapeDigest = replicates[1]?.executionShapeDigest;
 	const exactThirtyArmsEvaluable =
+		executionShapeTransitionAdmitted &&
 		replicates.length === D65_REPLICATE_COUNT &&
+		baselineExecutionShapeDigest === D65_D64_BASELINE_PROJECTION.executionShapeDigest &&
+		currentExecutionShapeDigest !== undefined &&
+		currentExecutionShapeDigest !== baselineExecutionShapeDigest &&
 		replicates.every(
 			(replicate, index) =>
 				replicate.replicateIndex === index + 1 &&
 				replicate.source === (index === 0 ? "d64-preincluded" : "d65-continuation") &&
-				replicate.executionShapeDigest === expectedExecutionShapeDigest &&
+				replicate.executionShapeDigest ===
+					(index === 0 ? baselineExecutionShapeDigest : currentExecutionShapeDigest) &&
 				replicate.projectionDigest ===
 					empiricalStrictJsonDigest(
 						strictSnapshot({
@@ -744,10 +847,10 @@ export function deriveD65ReplicatedGate(replicates: readonly D65ReplicateProject
 							confirmedElapsedMs: replicate.confirmedElapsedMs,
 						}),
 					) &&
-				replicate.arms.length === D43_ARMS.length &&
+				replicate.arms.length === HARNESS_ARMS.length &&
 				replicate.arms.every(
 					(arm, armIndex) =>
-						arm.arm === D43_ARMS[armIndex] &&
+						arm.arm === HARNESS_ARMS[armIndex] &&
 						arm.completed &&
 						arm.cleanupCompleted &&
 						arm.evaluable &&
@@ -767,7 +870,7 @@ export function deriveD65ReplicatedGate(replicates: readonly D65ReplicateProject
 						replicate.arms.find((arm) => arm.arm === control)?.taskOutcome === "passed",
 				).length,
 			]),
-		) as Record<Exclude<D43Arm, "relevant-applied">, number>,
+		) as Record<Exclude<HarnessArm, "relevant-applied">, number>,
 	);
 	const frozenGatePassed =
 		exactThirtyArmsEvaluable &&
@@ -795,7 +898,9 @@ export function snapshotD65CampaignEvidence(
 	const continuation = state.replicates.filter(
 		(replicate) => replicate.source === "d65-continuation",
 	);
-	const gate = deriveD65ReplicatedGate(state.replicates);
+	if (state.executionShapeTransitionDigest === null)
+		throw new TypeError("D65 campaign omitted the D74 execution-shape transition");
+	const gate = deriveD65ReplicatedGate(state.replicates, true);
 	const material = strictSnapshot({
 		schemaVersion: D65_EVIDENCE_SCHEMA,
 		decisionRef: "graphrefly-ts:D65" as const,
@@ -803,6 +908,7 @@ export function snapshotD65CampaignEvidence(
 		baselineArtifactDigest: state.baselineArtifactDigest,
 		baselineBundleDigest: state.baselineBundleDigest,
 		executionShapeDigest: state.executionShapeDigest,
+		executionShapeTransitionDigest: state.executionShapeTransitionDigest,
 		campaignMode: state.campaignMode,
 		facts: state.facts,
 		replicates: state.replicates,
@@ -850,9 +956,10 @@ export function admitD65PartialReplicateResult(
 		admittedEffects.length < 1 ||
 		admittedEffects.some(
 			(fact) =>
-				fact.effect.policyDigest !== effect.policyDigest ||
+				fact.effect.profileResolutionDigest !== effect.profileResolutionDigest ||
 				fact.effect.modelRef !== D45_ASSIGNMENT.modelRef ||
 				fact.effect.providerRef !== D45_ASSIGNMENT.providerRef ||
+				fact.effect.responseContractRevision !== "bounded-chat-response.v1" ||
 				fact.effect.reasoningEffort !== "high" ||
 				fact.effect.requireParameters !== true,
 		) ||
@@ -891,12 +998,13 @@ export function snapshotD65PartialCampaignEvidence(
 		(state.partialReplicateEvidence?.budget.confirmedElapsedMs ?? 0) +
 		state.partialRetryWaitElapsedMs;
 	const material = strictSnapshot({
-		schemaVersion: "graphrefly-ts.d65.partial-campaign-evidence.v1" as const,
+		schemaVersion: D65_PARTIAL_EVIDENCE_SCHEMA,
 		decisionRef: "graphrefly-ts:D65" as const,
 		authorityRevision: D65_AUTHORITY_REVISION,
 		baselineArtifactDigest: state.baselineArtifactDigest,
 		baselineBundleDigest: state.baselineBundleDigest,
 		executionShapeDigest: state.executionShapeDigest,
+		executionShapeTransitionDigest: state.executionShapeTransitionDigest,
 		campaignMode: state.campaignMode,
 		facts: state.facts,
 		completedReplicates: state.replicates,
@@ -923,9 +1031,9 @@ export function validateD65CampaignEvidenceWithBaseline(input: {
 	if (empiricalStrictJsonDigest(material) !== suppliedDigest)
 		throw new TypeError("D65 evidence digest drifted");
 	const facts = candidate.facts;
-	if (!Array.isArray(facts) || facts.length !== 13)
+	if (!Array.isArray(facts) || facts.length !== 14)
 		throw new TypeError(
-			"D65 evidence must contain one baseline plus four admission/start/result triples",
+			"D65 evidence must contain one baseline, one D74 transition and four replicate triples",
 		);
 	const baseline = facts[0] as D65CampaignFactV1;
 	if (baseline.factKind !== "baseline-admitted")
@@ -936,13 +1044,15 @@ export function validateD65CampaignEvidenceWithBaseline(input: {
 		baselineProjection: input.baselineProjection,
 		campaignMode: candidate.campaignMode as D65CampaignModeV1,
 	});
-	for (let index = 1; index < facts.length; index += 3) {
+	for (let index = 1, continuationIndex = 0; index < facts.length; continuationIndex += 1) {
 		const admitted = facts[index] as D65CampaignFactV1;
 		const started = facts[index + 1] as D65CampaignFactV1;
-		const result = facts[index + 2] as D65CampaignFactV1;
+		const transition = continuationIndex === 0 ? (facts[index + 2] as D65CampaignFactV1) : null;
+		const result = facts[index + (transition === null ? 2 : 3)] as D65CampaignFactV1;
 		if (
 			admitted.factKind !== "replicate-admitted" ||
 			started.factKind !== "replicate-execution-started" ||
+			(transition !== null && transition.factKind !== "execution-shape-transition-admitted") ||
 			result.factKind !== "replicate-result"
 		)
 			throw new TypeError("D65 evidence fact order drifted");
@@ -958,6 +1068,7 @@ export function validateD65CampaignEvidenceWithBaseline(input: {
 			throw new TypeError("D65 evidence execution replay drifted");
 		consumeD65ReplicateExecution(execution);
 		admitD65ReplicateResult(authority, execution, result.evidence, result.retryWaitElapsedMs);
+		index += transition === null ? 3 : 4;
 	}
 	const replayed = snapshotD65CampaignEvidence(authority);
 	if (empiricalStrictJsonDigest(replayed) !== empiricalStrictJsonDigest(candidate))
@@ -1006,10 +1117,13 @@ export function validateD65PartialCampaignEvidenceWithBaseline(input: {
 		if (execution.executionDigest !== started.execution.executionDigest)
 			throw new TypeError("D65 partial evidence execution replay drifted");
 		consumeD65ReplicateExecution(execution);
-		const result = facts[index + 2] as D65CampaignFactV1 | undefined;
+		let resultIndex = index + 2;
+		const possibleTransition = facts[resultIndex] as D65CampaignFactV1 | undefined;
+		if (possibleTransition?.factKind === "execution-shape-transition-admitted") resultIndex += 1;
+		const result = facts[resultIndex] as D65CampaignFactV1 | undefined;
 		if (result?.factKind === "replicate-result") {
 			admitD65ReplicateResult(authority, execution, result.evidence, result.retryWaitElapsedMs);
-			index += 3;
+			index = resultIndex + 1;
 			continue;
 		}
 		if (result?.factKind === "replicate-partial-result") {
@@ -1019,7 +1133,7 @@ export function validateD65PartialCampaignEvidenceWithBaseline(input: {
 				result.partialEvidence,
 				result.retryWaitElapsedMs,
 			);
-			index += 3;
+			index = resultIndex + 1;
 			continue;
 		}
 		throw new TypeError("D65 partial evidence result order drifted");

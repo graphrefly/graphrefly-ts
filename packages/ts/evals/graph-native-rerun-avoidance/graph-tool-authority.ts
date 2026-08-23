@@ -14,31 +14,30 @@ import {
 } from "./canonical.js";
 import {
 	admitD43EffectResult,
-	createD43GraphHarnessAuthority,
+	createGraphHarnessAuthority,
 	type D43AdmittedEffectV1,
 	type D43EffectResultInputV1,
 	type D43FactV1,
-	type D43GraphHarnessEvidenceV1,
 	type D43PublicSemanticCriteriaV1,
-	snapshotD43GraphHarnessEvidence,
+	type GraphHarnessEvidence,
+	snapshotGraphHarnessEvidence,
 	takeD43AdmittedEffect,
-	validateD43GraphHarnessEvidence,
+	validateGraphHarnessEvidence,
 } from "./graph-harness-authority.js";
 import {
-	createD43PolicyCatalog,
-	D43_ARMS,
-	type D43CampaignPolicyV1,
-	type D43PolicyCatalogV1,
-	resolveD43HarnessPlan,
-} from "./model-harness-policy.js";
+	HARNESS_ARMS,
+	type HarnessCampaignPolicy,
+	validateHarnessCampaignPolicy,
+} from "./harness-campaign-policy.js";
+import type { QualifiedProfileCatalogInput } from "./model-harness-profile.js";
 
 export const D45_AUTHORITY_REVISION =
-	"graphrefly-ts.d61.graph-tool-admission-authority.v1" as const;
-export const D45_EFFECT_SCHEMA = "graphrefly-ts.d45.admitted-effect.v1" as const;
-export const D45_FACT_SCHEMA = "graphrefly-ts.d45.canonical-fact.v1" as const;
-export const D45_EVIDENCE_SCHEMA = "graphrefly-ts.d61.canonical-evidence.v1" as const;
+	"graphrefly-ts.graph-tool-admission-authority.d74.v2" as const;
+export const D45_EFFECT_SCHEMA = "graphrefly-ts.graph-tool-admitted-effect.d74.v2" as const;
+export const D45_FACT_SCHEMA = "graphrefly-ts.graph-tool-canonical-fact.d74.v2" as const;
+export const D45_EVIDENCE_SCHEMA = "graphrefly-ts.graph-tool-canonical-evidence.d74.v2" as const;
 export const D45_PARTIAL_EVIDENCE_SCHEMA =
-	"graphrefly-ts.d61.partial-canonical-evidence.v1" as const;
+	"graphrefly-ts.graph-tool-partial-canonical-evidence.d74.v2" as const;
 export const D52_REPLACE_TEXT_MAX_BYTES = 512 as const;
 export const D52_REPLACE_EXPANSION_MAX_BYTES = 128 as const;
 
@@ -122,11 +121,12 @@ export interface D45AdmittedEffectV1 {
 	readonly workspaceStateDigest: string | null;
 	readonly logicalRequestDigest: string;
 	readonly planDigest: string;
-	readonly policyDigest: string;
+	readonly profileResolutionDigest: string;
 	readonly modelRef: string;
 	readonly providerRef: string;
 	readonly endpointProtocol: "chat-completions" | "responses";
 	readonly namedToolChoiceEncoding: "function-object" | "tool-name";
+	readonly responseContractRevision: string;
 	readonly reasoningEffort: "high";
 	readonly requireParameters: true;
 	readonly taskEnvelopeDigest: string;
@@ -318,7 +318,7 @@ export interface D45CanonicalEvidenceV1 {
 	readonly decisionRef: "graphrefly-ts:D61";
 	readonly authorityRevision: typeof D45_AUTHORITY_REVISION;
 	readonly facts: readonly D45FactV1[];
-	readonly lifecycle: D43GraphHarnessEvidenceV1;
+	readonly lifecycle: GraphHarnessEvidence;
 	readonly findings: readonly Readonly<{
 		readonly factSequence: number;
 		readonly effectDigest: string;
@@ -461,14 +461,14 @@ interface PendingProvider {
 interface State {
 	readonly owner: ReturnType<typeof graph>;
 	readonly factNode: ReturnType<typeof createFactNode>;
-	readonly inner: ReturnType<typeof createD43GraphHarnessAuthority>;
+	readonly inner: ReturnType<typeof createGraphHarnessAuthority>;
 	readonly readablePaths: ReadonlySet<string>;
 	readonly writablePath: string;
 	readonly systemInstruction: string;
 	readonly taskStatement: string;
 	readonly armContexts: Readonly<Record<D43AdmittedEffectV1["arm"], string>>;
 	readonly taskEnvelopeDigest: string;
-	readonly campaign: D43CampaignPolicyV1;
+	readonly campaign: HarnessCampaignPolicy;
 	readonly reasoningEffort: "high";
 	readonly requireParameters: true;
 	readonly facts: D45FactV1[];
@@ -1482,13 +1482,8 @@ function applyFact(state: State, value: RuntimeFact) {
 }
 
 export function createD45GraphToolAuthority(input: {
-	readonly catalog: D43PolicyCatalogV1;
-	readonly assignment: {
-		readonly assignmentRef: string;
-		readonly modelRef: string;
-		readonly providerRef: string;
-		readonly campaignRef: string;
-	};
+	readonly profileInput: QualifiedProfileCatalogInput;
+	readonly assignmentRef: string;
 	readonly readablePaths: readonly string[];
 	readonly writablePath: string;
 	readonly taskMaterial: {
@@ -1500,19 +1495,14 @@ export function createD45GraphToolAuthority(input: {
 		readonly reasoningEffort: "high";
 		readonly requireParameters: true;
 	};
-	readonly campaign: D43CampaignPolicyV1;
+	readonly campaign: HarnessCampaignPolicy;
 }): D45GraphToolAuthorityV1 {
-	const resolvedPlan = resolveD43HarnessPlan(input.catalog, input.assignment);
 	if (
 		input.routeProfile.reasoningEffort !== "high" ||
 		input.routeProfile.requireParameters !== true
 	)
 		throw new TypeError("D45 route profile drifted from the admitted route");
-	const { campaignDigest: suppliedCampaignDigest, ...campaignMaterial } = input.campaign;
-	if (empiricalStrictJsonDigest(campaignMaterial) !== suppliedCampaignDigest)
-		throw new TypeError("D45 campaign material digest drifted");
-	if (resolvedPlan.campaignDigest !== input.campaign.campaignDigest)
-		throw new TypeError("D45 campaign bounds drifted from the admitted Graph plan");
+	const campaign = validateHarnessCampaignPolicy(input.campaign);
 	const readablePaths = new Set(
 		input.readablePaths.map((item) => coordinate(item, "D45 readable path")),
 	);
@@ -1530,7 +1520,7 @@ export function createD45GraphToolAuthority(input: {
 	);
 	if (
 		Object.keys(input.taskMaterial.armContexts).sort().join("\n") !==
-		[...D43_ARMS].sort().join("\n")
+		[...HARNESS_ARMS].sort().join("\n")
 	)
 		throw new TypeError("D45 task material arm contexts drifted");
 	const armContexts = Object.freeze(
@@ -1550,9 +1540,10 @@ export function createD45GraphToolAuthority(input: {
 	});
 	const owner = graph({ name: "d45/provider-proposal-tool-admission" });
 	const factNode = createFactNode(owner);
-	const inner = createD43GraphHarnessAuthority({
-		catalog: input.catalog,
-		assignment: input.assignment,
+	const inner = createGraphHarnessAuthority({
+		profileInput: input.profileInput,
+		campaign,
+		assignmentRef: input.assignmentRef,
 	});
 	const authority = Object.freeze({ revision: D45_AUTHORITY_REVISION });
 	let state!: State;
@@ -1576,7 +1567,7 @@ export function createD45GraphToolAuthority(input: {
 		taskStatement,
 		armContexts,
 		taskEnvelopeDigest,
-		campaign: strictSnapshot(input.campaign) as D43CampaignPolicyV1,
+		campaign,
 		reasoningEffort: input.routeProfile.reasoningEffort,
 		requireParameters: input.routeProfile.requireParameters,
 		facts: [],
@@ -1623,11 +1614,12 @@ function effectFromInner(state: State, inner: D43AdmittedEffectV1): D45AdmittedE
 		workspaceStateDigest: state.workspaceStateDigest,
 		logicalRequestDigest: inner.logicalRequestDigest,
 		planDigest: inner.planDigest,
-		policyDigest: inner.policyDigest,
+		profileResolutionDigest: inner.profileResolutionDigest,
 		modelRef: inner.modelRef,
 		providerRef: inner.providerRef,
 		endpointProtocol: inner.endpointProtocol,
 		namedToolChoiceEncoding: inner.namedToolChoiceEncoding,
+		responseContractRevision: inner.responseContractRevision,
 		reasoningEffort: state.reasoningEffort,
 		requireParameters: state.requireParameters,
 		taskEnvelopeDigest: inner.taskEnvelopeDigest,
@@ -1680,11 +1672,12 @@ function effectFromPendingTool(
 		workspaceStateDigest: state.workspaceStateDigest,
 		logicalRequestDigest: inner.logicalRequestDigest,
 		planDigest: inner.planDigest,
-		policyDigest: inner.policyDigest,
+		profileResolutionDigest: inner.profileResolutionDigest,
 		modelRef: inner.modelRef,
 		providerRef: inner.providerRef,
 		endpointProtocol: inner.endpointProtocol,
 		namedToolChoiceEncoding: inner.namedToolChoiceEncoding,
+		responseContractRevision: inner.responseContractRevision,
 		reasoningEffort: state.reasoningEffort,
 		requireParameters: state.requireParameters,
 		taskEnvelopeDigest: inner.taskEnvelopeDigest,
@@ -2021,7 +2014,7 @@ function deriveD45Findings(facts: readonly D45FactV1[]) {
 }
 
 function evidenceMaterial(state: State) {
-	const lifecycle = snapshotD43GraphHarnessEvidence(state.inner);
+	const lifecycle = snapshotGraphHarnessEvidence(state.inner);
 	const budget = deriveD45Budget(state.facts);
 	const proposalCount = state.facts
 		.filter((item) => item.factKind === "provider-result")
@@ -2053,9 +2046,9 @@ function evidenceMaterial(state: State) {
 		exactSixArmsCompleted: lifecycle.exactSixArmsCompleted,
 		frozenGateWouldPass:
 			lifecycle.frozenGateWouldPass &&
-			budget.providerAttempts <= lifecycle.policy.campaign.maxProviderAttempts &&
-			budget.confirmedCostMicrousd <= lifecycle.policy.campaign.maxCostMicrousd &&
-			budget.confirmedElapsedMs <= lifecycle.policy.campaign.maxElapsedMs,
+			budget.providerAttempts <= lifecycle.campaign.maxProviderAttempts &&
+			budget.confirmedCostMicrousd <= lifecycle.campaign.maxCostMicrousd &&
+			budget.confirmedElapsedMs <= lifecycle.campaign.maxElapsedMs,
 		causalAttribution: "undetermined" as const,
 		efficacyClaim: "none" as const,
 	});
@@ -2226,10 +2219,11 @@ export function validateD45PartialCanonicalEvidence(value: unknown): D45PartialC
 					"maxOutputTokens",
 					"modelRef",
 					"namedToolChoiceEncoding",
+					"responseContractRevision",
 					"path",
 					"phase",
 					"planDigest",
-					"policyDigest",
+					"profileResolutionDigest",
 					"providerRef",
 					"providerReservationMicrousd",
 					"reasoningEffort",
@@ -2489,64 +2483,13 @@ export function snapshotD45CanonicalEvidence(
 	return Object.freeze({ ...material, evidenceDigest: empiricalStrictJsonDigest(material) });
 }
 
-function replayD43Lifecycle(value: unknown): D43GraphHarnessEvidenceV1 {
-	const supplied = validateD43GraphHarnessEvidence(value);
-	const assignment = Object.freeze({
-		assignmentRef: supplied.plan.assignmentRef,
-		modelRef: supplied.plan.modelRef,
-		providerRef: supplied.plan.providerRef,
-		campaignRef: supplied.plan.campaignRef,
-	});
-	const catalog = createD43PolicyCatalog([supplied.policy]);
-	const resolvedPlan = resolveD43HarnessPlan(catalog, assignment);
-	if (empiricalStrictJsonDigest(resolvedPlan) !== empiricalStrictJsonDigest(supplied.plan))
-		throw new TypeError("D45 lifecycle plan was not derived from its admitted policy");
-	const authority = createD43GraphHarnessAuthority({ catalog, assignment });
-	let active: D43AdmittedEffectV1 | null = null;
-	for (const [index, factValue] of supplied.facts.entries()) {
-		const item = factValue as D43FactV1;
-		if (index === 0) {
-			if (
-				item.factKind !== "plan-selected" ||
-				empiricalStrictJsonDigest(item.plan) !== empiricalStrictJsonDigest(resolvedPlan)
-			)
-				throw new TypeError("D45 lifecycle plan fact drifted");
-			continue;
-		}
-		if (item.factKind === "effect-admitted") {
-			if (active !== null) throw new TypeError("D45 lifecycle admitted overlapping effects");
-			active = takeD43AdmittedEffect(authority);
-			if (
-				active === null ||
-				empiricalStrictJsonDigest(active) !== empiricalStrictJsonDigest(item.effect)
-			)
-				throw new TypeError("D45 lifecycle effect admission replay drifted");
-			continue;
-		}
-		if (item.factKind !== "effect-result" || active === null)
-			throw new TypeError("D45 lifecycle result lost its replay admission");
-		const result = item.result;
-		admitD43EffectResult(authority, active, {
-			outcome: result.outcome,
-			elapsedMs: result.elapsedMs,
-			costMicrousd: result.costMicrousd,
-			usage: result.usage,
-			wireDigest: result.wireDigest,
-			retryClass: result.retryClass,
-			criteria: result.criteria,
-		});
-		active = null;
-	}
-	if (active !== null) throw new TypeError("D45 lifecycle replay ended with an active effect");
-	const replayed = snapshotD43GraphHarnessEvidence(authority);
-	if (empiricalStrictJsonDigest(replayed) !== empiricalStrictJsonDigest(supplied))
-		throw new TypeError("D45 lifecycle canonical replay drifted");
-	return replayed;
+function replayD43Lifecycle(value: unknown): GraphHarnessEvidence {
+	return validateGraphHarnessEvidence(value);
 }
 
 function validateD45LifecycleBijection(
 	facts: readonly D45FactV1[],
-	lifecycle: D43GraphHarnessEvidenceV1,
+	lifecycle: GraphHarnessEvidence,
 ) {
 	const admittedByDigest = new Map<string, D45AdmittedEffectV1>();
 	for (const item of facts) {
@@ -2611,11 +2554,12 @@ function validateD45LifecycleBijection(
 			workspaceStateDigest: effect.workspaceStateDigest,
 			logicalRequestDigest: effect.logicalRequestDigest,
 			planDigest: effect.planDigest,
-			policyDigest: effect.policyDigest,
+			profileResolutionDigest: effect.profileResolutionDigest,
 			modelRef: effect.modelRef,
 			providerRef: effect.providerRef,
 			endpointProtocol: effect.endpointProtocol,
 			namedToolChoiceEncoding: effect.namedToolChoiceEncoding,
+			responseContractRevision: effect.responseContractRevision,
 			reasoningEffort: effect.reasoningEffort,
 			requireParameters: effect.requireParameters,
 			taskEnvelopeDigest: effect.taskEnvelopeDigest,
@@ -2673,11 +2617,12 @@ function validateD45LifecycleBijection(
 					? lifecycleEffect.effect.kind
 					: null) ||
 			outer.planDigest !== lifecycleEffect.effect.planDigest ||
-			outer.policyDigest !== lifecycleEffect.effect.policyDigest ||
+			outer.profileResolutionDigest !== lifecycleEffect.effect.profileResolutionDigest ||
 			outer.modelRef !== lifecycleEffect.effect.modelRef ||
 			outer.providerRef !== lifecycleEffect.effect.providerRef ||
 			outer.endpointProtocol !== lifecycleEffect.effect.endpointProtocol ||
 			outer.namedToolChoiceEncoding !== lifecycleEffect.effect.namedToolChoiceEncoding ||
+			outer.responseContractRevision !== lifecycleEffect.effect.responseContractRevision ||
 			outer.taskEnvelopeDigest !== lifecycleEffect.effect.taskEnvelopeDigest ||
 			outer.retainsInspectionSpan !== lifecycleEffect.effect.retainsInspectionSpan ||
 			outer.maxOutputTokens !== lifecycleEffect.effect.maxOutputTokens ||
@@ -2908,11 +2853,12 @@ function validateD45LifecycleBijection(
 				tool.argumentsBytes !== proposed.argumentsBytes ||
 				tool.phase !== provider.phase ||
 				tool.planDigest !== provider.planDigest ||
-				tool.policyDigest !== provider.policyDigest ||
+				tool.profileResolutionDigest !== provider.profileResolutionDigest ||
 				tool.modelRef !== provider.modelRef ||
 				tool.providerRef !== provider.providerRef ||
 				tool.endpointProtocol !== provider.endpointProtocol ||
 				tool.namedToolChoiceEncoding !== provider.namedToolChoiceEncoding ||
+				tool.responseContractRevision !== provider.responseContractRevision ||
 				tool.reasoningEffort !== provider.reasoningEffort ||
 				tool.requireParameters !== provider.requireParameters ||
 				tool.taskEnvelopeDigest !== provider.taskEnvelopeDigest
@@ -2999,10 +2945,11 @@ export function validateD45CanonicalEvidence(value: unknown): D45CanonicalEviden
 					"maxOutputTokens",
 					"modelRef",
 					"namedToolChoiceEncoding",
+					"responseContractRevision",
 					"path",
 					"phase",
 					"planDigest",
-					"policyDigest",
+					"profileResolutionDigest",
 					"providerRef",
 					"providerReservationMicrousd",
 					"reasoningEffort",
@@ -3210,9 +3157,9 @@ export function validateD45CanonicalEvidence(value: unknown): D45CanonicalEviden
 		candidate.exactSixArmsCompleted !== lifecycle.exactSixArmsCompleted ||
 		candidate.frozenGateWouldPass !==
 			(lifecycle.frozenGateWouldPass &&
-				budget.providerAttempts <= lifecycle.policy.campaign.maxProviderAttempts &&
-				budget.confirmedCostMicrousd <= lifecycle.policy.campaign.maxCostMicrousd &&
-				budget.confirmedElapsedMs <= lifecycle.policy.campaign.maxElapsedMs)
+				budget.providerAttempts <= lifecycle.campaign.maxProviderAttempts &&
+				budget.confirmedCostMicrousd <= lifecycle.campaign.maxCostMicrousd &&
+				budget.confirmedElapsedMs <= lifecycle.campaign.maxElapsedMs)
 	)
 		throw new TypeError("D45 evidence derived projection drifted");
 	const { evidenceDigest: supplied, ...material } = candidate;

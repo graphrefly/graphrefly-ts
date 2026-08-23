@@ -132,6 +132,7 @@ function providerCodes(value: unknown): readonly string[] {
 
 /** Mechanically turns one bounded raw Chat response into a proposal result; Graph still admits it. */
 export interface D45ChatProviderResponseInputV1 {
+	readonly responseContractRevision: string;
 	readonly status: number;
 	readonly bytes: Uint8Array;
 	readonly elapsedMs: number;
@@ -315,6 +316,8 @@ function responseSchemaRejection(
 export function parseD45ChatProviderResponse(
 	input: D45ChatProviderResponseInputV1,
 ): D45ProviderProposalResultInputV1 {
+	if (input.responseContractRevision !== "bounded-chat-response.v1")
+		throw new TypeError("chat response contract revision is not admitted");
 	return parseD45ChatProviderResponseUnchecked(input);
 }
 
@@ -415,7 +418,8 @@ export function lowerD45ProviderEffect(
 		effect.effectKind !== "provider-proposal" ||
 		(effect.phase !== "inspection" && effect.phase !== "mutation") ||
 		effect.maxOutputTokens === null ||
-		effect.endpointProtocol !== "chat-completions"
+		effect.endpointProtocol !== "chat-completions" ||
+		effect.responseContractRevision !== "bounded-chat-response.v1"
 	)
 		throw new TypeError("D45 Chat adapter requires one admitted provider proposal effect");
 	const material = readD45ProviderMaterial(authority, effect);

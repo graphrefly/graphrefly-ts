@@ -28,9 +28,9 @@ import {
 } from "./replicated-campaign-authority.js";
 
 export const D65_QUALIFICATION_SCHEMA =
-	"graphrefly-ts.d65.replicated-campaign-qualification.v1" as const;
+	"graphrefly-ts.replicated-campaign-qualification.d74.v2" as const;
 export const D65_QUALIFICATION_BUNDLE_SCHEMA =
-	"graphrefly-ts.d65.replicated-campaign-qualification-bundle.v1" as const;
+	"graphrefly-ts.replicated-campaign-qualification-bundle.d74.v2" as const;
 export const D65_QUALIFICATION_GENERATION_REF =
 	"current-graph-native-replicated-campaign-2026-08-22-d65-v5" as const;
 
@@ -53,6 +53,7 @@ export interface D65QualificationBundleV1 {
 		readonly retryWaitReconciled: true;
 		readonly cleanupFailureCanonicalized: true;
 		readonly canonicalReplayQualified: true;
+		readonly executionShapeTransitionTamperRejected: true;
 		readonly partialCampaignEvidenceQualified: true;
 		readonly aggregateBudgetTerminalQualified: true;
 		readonly frozenPositiveGateQualified: true;
@@ -199,7 +200,7 @@ export async function runD65InjectedNoNetworkQualification(): Promise<D65Qualifi
 			measurement.providerCalls !== observation.providerCalls ||
 			!observation.disposed ||
 			observation.maxActiveEffects !== 1 ||
-			measurement.evidence.lifecycle.policy.campaign.maxCostMicrousd !==
+			measurement.evidence.lifecycle.campaign.maxCostMicrousd !==
 				effect.remainingContinuationCostMicrousd
 		)
 			throw new TypeError("D65 injected replicate runner integration drifted");
@@ -257,6 +258,54 @@ export async function runD65InjectedNoNetworkQualification(): Promise<D65Qualifi
 	});
 	if (replayed.evidenceDigest !== campaignEvidence.evidenceDigest)
 		throw new TypeError("D65 qualification canonical replay changed evidence identity");
+	const transitionFactIndex = campaignEvidence.facts.findIndex(
+		(fact) => fact.factKind === "execution-shape-transition-admitted",
+	);
+	if (transitionFactIndex < 0)
+		throw new TypeError("D65 qualification omitted its execution-shape transition fact");
+	const transitionFact = record(
+		campaignEvidence.facts[transitionFactIndex],
+		"D65 execution-shape transition fact",
+	);
+	const transition = record(transitionFact.transition, "D65 execution-shape transition");
+	const { transitionDigest: _transitionDigest, ...transitionMaterial } = transition;
+	const tamperedTransitionMaterial = strictSnapshot({
+		...transitionMaterial,
+		providerSemanticsDigest:
+			"sha256:0000000000000000000000000000000000000000000000000000000000000000",
+	});
+	const tamperedTransition = Object.freeze({
+		...tamperedTransitionMaterial,
+		transitionDigest: empiricalStrictJsonDigest(tamperedTransitionMaterial),
+	});
+	const { factDigest: _factDigest, ...transitionFactMaterial } = transitionFact;
+	const tamperedFactMaterial = strictSnapshot({
+		...transitionFactMaterial,
+		transition: tamperedTransition,
+	});
+	const tamperedFact = Object.freeze({
+		...tamperedFactMaterial,
+		factDigest: empiricalStrictJsonDigest(tamperedFactMaterial),
+	});
+	const tamperedFacts = campaignEvidence.facts.map((fact, index) =>
+		index === transitionFactIndex ? tamperedFact : fact,
+	);
+	const { evidenceDigest: _evidenceDigest, ...campaignMaterial } = campaignEvidence;
+	const tamperedEvidenceMaterial = strictSnapshot({
+		...campaignMaterial,
+		facts: tamperedFacts,
+	});
+	expectThrows(
+		() =>
+			validateD65CampaignEvidenceWithBaseline({
+				evidence: Object.freeze({
+					...tamperedEvidenceMaterial,
+					evidenceDigest: empiricalStrictJsonDigest(tamperedEvidenceMaterial),
+				}),
+				baselineProjection,
+			}),
+		"D65 qualification accepted a canonically re-digested transition tamper",
+	);
 
 	const partialAuthority = createD65GraphCampaignAuthority({
 		baselineArtifactDigest,
@@ -393,9 +442,9 @@ export async function runD65InjectedNoNetworkQualification(): Promise<D65Qualifi
 		index === 4 ? withOutcome(replicate, "relevant-applied", "failed") : replicate,
 	);
 	if (
-		!deriveD65ReplicatedGate(oneWrongScope).frozenGatePassed ||
-		deriveD65ReplicatedGate(twoWrongScope).frozenGatePassed ||
-		deriveD65ReplicatedGate(relevantFour).frozenGatePassed
+		!deriveD65ReplicatedGate(oneWrongScope, true).frozenGatePassed ||
+		deriveD65ReplicatedGate(twoWrongScope, true).frozenGatePassed ||
+		deriveD65ReplicatedGate(relevantFour, true).frozenGatePassed
 	)
 		throw new TypeError("D65 qualification frozen efficacy threshold drifted");
 
@@ -489,6 +538,7 @@ export async function runD65InjectedNoNetworkQualification(): Promise<D65Qualifi
 		retryWaitReconciled: true as const,
 		cleanupFailureCanonicalized: true as const,
 		canonicalReplayQualified: true as const,
+		executionShapeTransitionTamperRejected: true as const,
 		partialCampaignEvidenceQualified: true as const,
 		aggregateBudgetTerminalQualified: true as const,
 		frozenPositiveGateQualified: true as const,
@@ -619,6 +669,7 @@ export function validateD65QualificationBundle(
 		retryWaitReconciled: true as const,
 		cleanupFailureCanonicalized: true as const,
 		canonicalReplayQualified: true as const,
+		executionShapeTransitionTamperRejected: true as const,
 		partialCampaignEvidenceQualified: true as const,
 		aggregateBudgetTerminalQualified: true as const,
 		frozenPositiveGateQualified: true as const,

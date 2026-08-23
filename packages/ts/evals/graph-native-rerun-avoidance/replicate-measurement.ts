@@ -10,16 +10,15 @@ import {
 	validateD45PartialCanonicalEvidence,
 } from "./graph-tool-authority.js";
 import {
-	D45_ASSIGNMENT,
+	createExactModelHarnessProfileInput,
 	D45_READABLE_PATHS,
 	D45_TASK_MATERIAL,
 	D45_WRITABLE_PATH,
 } from "./graph-tool-qualification.js";
 import type { D44LiveExecutorV1 } from "./live-effect-executor.js";
-import { createD43PolicyCatalog } from "./model-harness-policy.js";
 import {
 	consumeD65ReplicateExecution,
-	createD65ReplicatePolicy,
+	createD65ReplicateCampaign,
 	type D65AdmittedReplicateV1,
 	type D65ReplicateExecutionV1,
 } from "./replicated-campaign-authority.js";
@@ -53,20 +52,15 @@ export async function runD65ReplicateMeasurement(input: {
 		await input.executor.dispose();
 		throw error;
 	}
-	const policy = createD65ReplicatePolicy(replicateAdmission);
-	const assignment = Object.freeze({
-		...D45_ASSIGNMENT,
-		assignmentRef: replicateAdmission.assignmentRef,
-		campaignRef: replicateAdmission.campaignRef,
-	});
+	const campaign = createD65ReplicateCampaign(replicateAdmission);
 	const authority = createD45GraphToolAuthority({
-		catalog: createD43PolicyCatalog([policy]),
-		assignment,
+		profileInput: createExactModelHarnessProfileInput(),
+		assignmentRef: replicateAdmission.assignmentRef,
 		readablePaths: D45_READABLE_PATHS,
 		writablePath: D45_WRITABLE_PATH,
 		taskMaterial: D45_TASK_MATERIAL,
 		routeProfile: { reasoningEffort: "high", requireParameters: true },
-		campaign: policy.campaign,
+		campaign,
 	});
 	let providerCalls = 0;
 	let retryWaitElapsedMs = 0;
@@ -92,7 +86,7 @@ export async function runD65ReplicateMeasurement(input: {
 			if (
 				snapshotD45PartialCanonicalEvidence(authority).budget.confirmedElapsedMs +
 					retryWaitElapsedMs >
-				policy.campaign.maxElapsedMs
+				campaign.maxElapsedMs
 			)
 				throw new TypeError("D65 admitted effect exceeded retry-adjusted elapsed headroom");
 			if (effect.effectKind === "provider-proposal") {
@@ -101,10 +95,7 @@ export async function runD65ReplicateMeasurement(input: {
 						throw new TypeError("D65 Graph retry identity drifted");
 					const currentElapsed =
 						snapshotD45PartialCanonicalEvidence(authority).budget.confirmedElapsedMs;
-					if (
-						currentElapsed + retryWaitElapsedMs + pendingRetry.delayMs >
-						policy.campaign.maxElapsedMs
-					)
+					if (currentElapsed + retryWaitElapsedMs + pendingRetry.delayMs > campaign.maxElapsedMs)
 						throw new TypeError("D65 retry wait exceeded its Graph-admitted elapsed headroom");
 					if (!input.injectedNoNetwork && pendingRetry.delayMs > 0)
 						await new Promise((resolvePromise) =>

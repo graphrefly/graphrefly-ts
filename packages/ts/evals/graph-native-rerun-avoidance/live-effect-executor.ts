@@ -17,7 +17,8 @@ import {
 	validateD45PartialCanonicalEvidence,
 } from "./graph-tool-authority.js";
 import {
-	createD45QualificationPolicy,
+	createD45QualificationCampaign,
+	createExactModelHarnessProfileInput,
 	D45_ASSIGNMENT,
 	D45_PUBLIC_SEMANTIC_SCENARIO_SET_DIGEST,
 	D45_PUBLIC_SEMANTIC_SCENARIOS,
@@ -31,7 +32,6 @@ import {
 	lowerD45ProviderEffect,
 	parseD45ChatProviderResponse,
 } from "./mechanical-chat-adapter.js";
-import { createD43PolicyCatalog } from "./model-harness-policy.js";
 import {
 	type D61PublicSemanticObservationV1,
 	executeD61PublicSemanticScenarios,
@@ -381,6 +381,7 @@ export function createD44LiveExecutor(input: {
 						if (bytes.byteLength > 2 * 1_048_576)
 							throw new TypeError("D44 provider response exceeded its actual byte bound");
 						const result = parseD45ChatProviderResponse({
+							responseContractRevision: effect.responseContractRevision,
 							status: response.status,
 							bytes,
 							elapsedMs: boundedElapsed(started, effect.elapsedReservationMs),
@@ -772,15 +773,16 @@ export async function runD44D45Measurement(input: {
 			providerCalls: number;
 	  }>
 > {
-	const policy = createD45QualificationPolicy();
+	const profileInput = createExactModelHarnessProfileInput();
+	const campaign = createD45QualificationCampaign();
 	const authority = createD45GraphToolAuthority({
-		catalog: createD43PolicyCatalog([policy]),
-		assignment: D45_ASSIGNMENT,
+		profileInput,
+		assignmentRef: D45_ASSIGNMENT.assignmentRef,
 		readablePaths: D45_READABLE_PATHS,
 		writablePath: D45_WRITABLE_PATH,
 		taskMaterial: D45_TASK_MATERIAL,
 		routeProfile: { reasoningEffort: "high", requireParameters: true },
-		campaign: policy.campaign,
+		campaign,
 	});
 	let providerCalls = 0;
 	let pendingRetry: Readonly<{ logicalRequestDigest: string; delayMs: number }> | null = null;

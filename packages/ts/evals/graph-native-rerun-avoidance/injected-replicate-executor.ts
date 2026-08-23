@@ -12,10 +12,10 @@ import {
 	D45_READABLE_PATHS,
 	D45_WRITABLE_PATH,
 } from "./graph-tool-qualification.js";
+import type { HarnessArm } from "./harness-campaign-policy.js";
 import type { D44LiveExecutorV1 } from "./live-effect-executor.js";
 import { D44_BUGGY_ADMISSION_BLOCK, D44_FIXED_ADMISSION_BLOCK } from "./live-effect-executor.js";
 import { lowerD45ProviderEffect } from "./mechanical-chat-adapter.js";
-import type { D43Arm } from "./model-harness-policy.js";
 
 export interface D65InjectedExecutorObservationV1 {
 	readonly providerCalls: number;
@@ -25,8 +25,8 @@ export interface D65InjectedExecutorObservationV1 {
 
 export function createD65InjectedReplicateExecutor(input?: {
 	readonly providerCostMicrousd?: number;
-	readonly rejectArm?: D43Arm;
-	readonly providerFailureArm?: D43Arm;
+	readonly rejectArm?: HarnessArm;
+	readonly providerFailureArm?: HarnessArm;
 	readonly retryOnceDelayMs?: number;
 	readonly failDispose?: boolean;
 }): Readonly<{

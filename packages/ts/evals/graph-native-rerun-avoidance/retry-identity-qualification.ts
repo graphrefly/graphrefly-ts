@@ -1,13 +1,13 @@
 import { empiricalSha256, empiricalStrictJsonDigest, strictSnapshot } from "./canonical.js";
 import {
 	admitD43EffectResult,
-	createD43GraphHarnessAuthority,
+	createGraphHarnessAuthority,
 	type D43AdmittedEffectV1,
 	type D43EffectIntent,
 	type D43EffectResultInputV1,
-	snapshotD43GraphHarnessEvidence,
+	snapshotGraphHarnessEvidence,
 	takeD43AdmittedEffect,
-	validateD43GraphHarnessEvidence,
+	validateGraphHarnessEvidence,
 } from "./graph-harness-authority.js";
 import {
 	admitD45EffectResult,
@@ -20,18 +20,21 @@ import {
 	validateD45PartialCanonicalEvidence,
 } from "./graph-tool-authority.js";
 import {
-	createD45QualificationPolicy,
+	createD45QualificationCampaign,
 	D45_ASSIGNMENT,
 	D45_READABLE_PATHS,
 	D45_TASK_MATERIAL,
 	D45_WRITABLE_PATH,
 } from "./graph-tool-qualification.js";
+import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifest.js";
 import { lowerD45ProviderEffect } from "./mechanical-chat-adapter.js";
 import {
-	createD43ModelHarnessPolicy,
-	createD43PolicyCatalog,
-	type D43EnhancementRecipe,
-} from "./model-harness-policy.js";
+	createDeepSeekV4Flash0731DeepInfraFp8ProfileDefinition,
+	createInjectedNoNetworkProfileQualification,
+	exactQualifiedProfileCatalogInput,
+	HARNESS_ENHANCEMENT_RECIPES,
+} from "./model-harness-profile.js";
+import { MODEL_HARNESS_PROFILE_NO_NETWORK_QA_ARTIFACT_DIGEST } from "./model-harness-profile-qualification.js";
 
 export const D66_QUALIFICATION_SCHEMA =
 	"graphrefly-ts.d66.retry-identity-qualification.v1" as const;
@@ -43,46 +46,21 @@ const RETRY_CASES = Object.freeze([
 	Object.freeze({ intent: "semantic-correction" as const, retryClass: "D675" as const }),
 ]);
 
-function policyWithoutProviderContinuation() {
-	const base = createD45QualificationPolicy();
-	return createD43ModelHarnessPolicy({
-		policyRef: "model-policy.deepseek-v4-flash-0731.deepinfra-fp8.d66-v1",
-		model: {
-			profileRef: base.model.profileRef,
-			modelRef: base.model.modelRef,
-			supportsNamedToolChoice: true,
-			supportsParallelToolCalls: false,
-			inspectionMaxOutputTokens: base.model.inspectionMaxOutputTokens,
-			mutationMaxOutputTokens: base.model.mutationMaxOutputTokens,
-		},
-		provider: {
-			bindingRef: base.provider.bindingRef,
-			providerRef: base.provider.providerRef,
-			endpointProtocol: base.provider.endpointProtocol,
-			namedToolChoiceEncoding: base.provider.namedToolChoiceEncoding,
-			allowFallback: false,
-			allowProviderSwitch: false,
-			allowParallelEffects: false,
-			providerDeadlineMs: base.provider.providerDeadlineMs,
-		},
-		campaign: {
-			campaignRef: base.campaign.campaignRef,
-			arms: base.campaign.arms,
-			maxProviderAttempts: base.campaign.maxProviderAttempts,
-			maxCostMicrousd: base.campaign.maxCostMicrousd,
-			maxElapsedMs: base.campaign.maxElapsedMs,
-			localEffectReservationMs: base.campaign.localEffectReservationMs,
-			providerReservationMicrousd: base.campaign.providerReservationMicrousd,
-			publicSemanticScenarioSetDigest: base.campaign.publicSemanticScenarioSetDigest,
-			taskEnvelopeDigest: base.campaign.taskEnvelopeDigest,
-			maxSameLogicalRequestRetries: 1,
-			retryClasses: ["D671", "D675", "D710"],
-		},
-		enhancementRecipes: base.enhancementRecipes.filter(
-			(recipe): recipe is D43EnhancementRecipe =>
-				recipe !== "sanitized-provider-failure-continuation",
+function profileInputWithoutProviderContinuation() {
+	const definition = createDeepSeekV4Flash0731DeepInfraFp8ProfileDefinition({
+		enhancementRecipes: HARNESS_ENHANCEMENT_RECIPES.filter(
+			(recipe) => recipe !== "sanitized-provider-failure-continuation",
 		),
 	});
+	const qualification = createInjectedNoNetworkProfileQualification({
+		definition,
+		implementationManifestDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
+		qualificationArtifactDigest: MODEL_HARNESS_PROFILE_NO_NETWORK_QA_ARTIFACT_DIGEST,
+	});
+	return exactQualifiedProfileCatalogInput(
+		{ ...definition, qualification },
+		CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
+	);
 }
 
 function localResult(outcome: "success" | "passed" | "failed"): D43EffectResultInputV1 {
@@ -122,10 +100,12 @@ function providerResult(
 }
 
 function driveD43RetryCase(targetIntent: D43EffectIntent, retryClass: "D671" | "D675" | "D710") {
-	const policy = policyWithoutProviderContinuation();
-	const authority = createD43GraphHarnessAuthority({
-		catalog: createD43PolicyCatalog([policy]),
-		assignment: D45_ASSIGNMENT,
+	const profileInput = profileInputWithoutProviderContinuation();
+	const campaign = createD45QualificationCampaign();
+	const authority = createGraphHarnessAuthority({
+		profileInput,
+		campaign,
+		assignmentRef: D45_ASSIGNMENT.assignmentRef,
 	});
 	let injected = false;
 	let initialEffect: D43AdmittedEffectV1 | null = null;
@@ -201,7 +181,7 @@ function driveD43RetryCase(targetIntent: D43EffectIntent, retryClass: "D671" | "
 	}
 	if (!injected || initialEffect === null || retryEffect === null)
 		throw new TypeError(`D66 ${targetIntent} retry scenario did not reach its target`);
-	const evidence = validateD43GraphHarnessEvidence(snapshotD43GraphHarnessEvidence(authority));
+	const evidence = validateGraphHarnessEvidence(snapshotGraphHarnessEvidence(authority));
 	if (!evidence.arms[0]?.cleanupCompleted || evidence.budget.providerAttempts < 2)
 		throw new TypeError(`D66 ${targetIntent} retry cleanup or accounting drifted`);
 	return Object.freeze({
@@ -218,15 +198,16 @@ function driveD43RetryCase(targetIntent: D43EffectIntent, retryClass: "D671" | "
 }
 
 function createD45Authority(): D45GraphToolAuthorityV1 {
-	const policy = policyWithoutProviderContinuation();
+	const profileInput = profileInputWithoutProviderContinuation();
+	const campaign = createD45QualificationCampaign();
 	return createD45GraphToolAuthority({
-		catalog: createD43PolicyCatalog([policy]),
-		assignment: D45_ASSIGNMENT,
+		profileInput,
+		assignmentRef: D45_ASSIGNMENT.assignmentRef,
 		readablePaths: D45_READABLE_PATHS,
 		writablePath: D45_WRITABLE_PATH,
 		taskMaterial: D45_TASK_MATERIAL,
 		routeProfile: { reasoningEffort: "high", requireParameters: true },
-		campaign: policy.campaign,
+		campaign,
 	});
 }
 

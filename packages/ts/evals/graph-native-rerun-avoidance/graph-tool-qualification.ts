@@ -25,13 +25,15 @@ import {
 	validateD45CanonicalEvidence,
 	validateD45PartialCanonicalEvidence,
 } from "./graph-tool-authority.js";
+import { createHarnessCampaignPolicy, HARNESS_ARMS } from "./harness-campaign-policy.js";
+import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifest.js";
 import { lowerD45ProviderEffect, parseD45ChatProviderResponse } from "./mechanical-chat-adapter.js";
 import {
-	createD43ModelHarnessPolicy,
-	createD43PolicyCatalog,
-	D43_ARMS,
-	D43_ENHANCEMENT_RECIPES,
-} from "./model-harness-policy.js";
+	createDeepSeekV4Flash0731DeepInfraFp8ProfileDefinition,
+	createInjectedNoNetworkProfileQualification,
+	exactQualifiedProfileCatalogInput,
+} from "./model-harness-profile.js";
+import { MODEL_HARNESS_PROFILE_NO_NETWORK_QA_ARTIFACT_DIGEST } from "./model-harness-profile-qualification.js";
 
 export const D45_QUALIFICATION_SCHEMA = "graphrefly-ts.d61.qualification.v1" as const;
 export const D45_QUALIFICATION_BUNDLE_SCHEMA = "graphrefly-ts.d61.qualification-bundle.v1" as const;
@@ -64,7 +66,7 @@ const ARM_CONTEXTS = Object.freeze({
 		"Frozen evaluation arm: irrelevant-applied. Memory disposition: admitted-applied. When a bounded retry is admitted, reconcile every transport attempt independently and retain the original logical-request coordinate across the serial retry.",
 	"wrong-scope-applied":
 		"Frozen evaluation arm: wrong-scope-applied. Memory disposition: admitted-applied. For managed untrusted compute, cancellation ownership must be established before releasing executor capacity to a replacement task.",
-} satisfies Record<(typeof D43_ARMS)[number], string>);
+} satisfies Record<(typeof HARNESS_ARMS)[number], string>);
 
 export const D45_TASK_MATERIAL = Object.freeze({
 	systemInstruction: D45_SYSTEM_INSTRUCTION,
@@ -120,41 +122,36 @@ export const D45_PUBLIC_SEMANTIC_SCENARIO_SET_DIGEST = empiricalStrictJsonDigest
 	})),
 );
 
-export function createD45QualificationPolicy() {
-	return createD43ModelHarnessPolicy({
-		policyRef: "model-policy.deepseek-v4-flash-0731.deepinfra-fp8.d45-v1",
-		model: {
-			profileRef: "model-profile.deepseek-v4-flash-0731.d45-v1",
-			modelRef: D45_ASSIGNMENT.modelRef,
-			supportsNamedToolChoice: true,
-			supportsParallelToolCalls: false,
-			inspectionMaxOutputTokens: 65_536,
-			mutationMaxOutputTokens: 16_384,
-		},
-		provider: {
-			bindingRef: "provider-binding.deepinfra-fp8-chat.d45-v1",
-			providerRef: D45_ASSIGNMENT.providerRef,
-			endpointProtocol: "chat-completions",
-			namedToolChoiceEncoding: "function-object",
-			allowFallback: false,
-			allowProviderSwitch: false,
-			allowParallelEffects: false,
-			providerDeadlineMs: 600_000,
-		},
-		campaign: {
-			campaignRef: D45_ASSIGNMENT.campaignRef,
-			arms: D43_ARMS,
-			maxProviderAttempts: 96,
-			maxCostMicrousd: 6_000_000,
-			maxElapsedMs: 7_200_000,
-			localEffectReservationMs: 10_000,
-			providerReservationMicrousd: 100_000,
-			publicSemanticScenarioSetDigest: D45_PUBLIC_SEMANTIC_SCENARIO_SET_DIGEST,
-			taskEnvelopeDigest: D45_TASK_ENVELOPE_DIGEST,
-			maxSameLogicalRequestRetries: 1,
-			retryClasses: ["D671", "D675", "D710"],
-		},
-		enhancementRecipes: D43_ENHANCEMENT_RECIPES,
+export function createExactModelHarnessProfileInput() {
+	const definition = createDeepSeekV4Flash0731DeepInfraFp8ProfileDefinition();
+	const qualification = createInjectedNoNetworkProfileQualification({
+		definition,
+		implementationManifestDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
+		qualificationArtifactDigest: MODEL_HARNESS_PROFILE_NO_NETWORK_QA_ARTIFACT_DIGEST,
+	});
+	return exactQualifiedProfileCatalogInput(
+		{ ...definition, qualification },
+		CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
+	);
+}
+
+export function createD45QualificationCampaign(input: { readonly maxElapsedMs?: number } = {}) {
+	return createHarnessCampaignPolicy({
+		campaignRef: D45_ASSIGNMENT.campaignRef,
+		arms: HARNESS_ARMS,
+		maxProviderAttempts: 96,
+		maxCostMicrousd: 6_000_000,
+		maxElapsedMs: input.maxElapsedMs ?? 7_200_000,
+		localEffectReservationMs: 10_000,
+		providerReservationMicrousd: 100_000,
+		providerDeadlineMs: 600_000,
+		publicSemanticScenarioSetDigest: D45_PUBLIC_SEMANTIC_SCENARIO_SET_DIGEST,
+		taskEnvelopeDigest: D45_TASK_ENVELOPE_DIGEST,
+		maxSameLogicalRequestRetries: 1,
+		retryClasses: ["D671", "D675", "D710"],
+		allowFallback: false,
+		allowProviderSwitch: false,
+		allowParallelEffects: false,
 	});
 }
 
@@ -362,7 +359,7 @@ const RECOVERY_BY_ARM = Object.freeze({
 	"admission-rejected": "wrong-tool",
 	"irrelevant-applied": "path-not-allowed",
 	"wrong-scope-applied": "cardinality",
-} satisfies Record<(typeof D43_ARMS)[number], RecoveryKind>);
+} satisfies Record<(typeof HARNESS_ARMS)[number], RecoveryKind>);
 
 function nextInjectedReadPath(body: string): string {
 	const request = JSON.parse(body) as {
@@ -395,53 +392,18 @@ async function runScenario(
 		| "retry"
 		| "failure",
 ): Promise<D45CanonicalEvidenceV1> {
-	const basePolicy = createD45QualificationPolicy();
-	const policy =
-		mode === "d61-no-headroom"
-			? createD43ModelHarnessPolicy({
-					policyRef: "model-policy.deepseek-v4-flash-0731.deepinfra-fp8.d61-headroom-v1",
-					model: {
-						profileRef: basePolicy.model.profileRef,
-						modelRef: basePolicy.model.modelRef,
-						supportsNamedToolChoice: true,
-						supportsParallelToolCalls: basePolicy.model.supportsParallelToolCalls,
-						inspectionMaxOutputTokens: basePolicy.model.inspectionMaxOutputTokens,
-						mutationMaxOutputTokens: basePolicy.model.mutationMaxOutputTokens,
-					},
-					provider: {
-						bindingRef: basePolicy.provider.bindingRef,
-						providerRef: basePolicy.provider.providerRef,
-						endpointProtocol: basePolicy.provider.endpointProtocol,
-						namedToolChoiceEncoding: basePolicy.provider.namedToolChoiceEncoding,
-						allowFallback: false,
-						allowProviderSwitch: false,
-						allowParallelEffects: false,
-						providerDeadlineMs: basePolicy.provider.providerDeadlineMs,
-					},
-					campaign: {
-						campaignRef: basePolicy.campaign.campaignRef,
-						arms: D43_ARMS,
-						maxProviderAttempts: basePolicy.campaign.maxProviderAttempts,
-						maxCostMicrousd: basePolicy.campaign.maxCostMicrousd,
-						maxElapsedMs: 6_700_000,
-						localEffectReservationMs: basePolicy.campaign.localEffectReservationMs,
-						providerReservationMicrousd: basePolicy.campaign.providerReservationMicrousd,
-						publicSemanticScenarioSetDigest: basePolicy.campaign.publicSemanticScenarioSetDigest,
-						taskEnvelopeDigest: basePolicy.campaign.taskEnvelopeDigest,
-						maxSameLogicalRequestRetries: 1,
-						retryClasses: ["D671", "D675", "D710"],
-					},
-					enhancementRecipes: D43_ENHANCEMENT_RECIPES,
-				})
-			: basePolicy;
+	const profileInput = createExactModelHarnessProfileInput();
+	const campaign = createD45QualificationCampaign(
+		mode === "d61-no-headroom" ? { maxElapsedMs: 6_700_000 } : {},
+	);
 	const authority = createD45GraphToolAuthority({
-		catalog: createD43PolicyCatalog([policy]),
-		assignment: D45_ASSIGNMENT,
+		profileInput,
+		assignmentRef: D45_ASSIGNMENT.assignmentRef,
 		readablePaths: D45_READABLE_PATHS,
 		writablePath: D45_WRITABLE_PATH,
 		taskMaterial: D45_TASK_MATERIAL,
 		routeProfile: { reasoningEffort: "high", requireParameters: true },
-		campaign: policy.campaign,
+		campaign,
 	});
 	let files = initialFiles();
 	let stateDigest = workspaceDigest(files);
@@ -796,15 +758,16 @@ async function runScenario(
 }
 
 function runPartialScenario(): D45PartialCanonicalEvidenceV1 {
-	const policy = createD45QualificationPolicy();
+	const profileInput = createExactModelHarnessProfileInput();
+	const campaign = createD45QualificationCampaign();
 	const authority = createD45GraphToolAuthority({
-		catalog: createD43PolicyCatalog([policy]),
-		assignment: D45_ASSIGNMENT,
+		profileInput,
+		assignmentRef: D45_ASSIGNMENT.assignmentRef,
 		readablePaths: D45_READABLE_PATHS,
 		writablePath: D45_WRITABLE_PATH,
 		taskMaterial: D45_TASK_MATERIAL,
 		routeProfile: { reasoningEffort: "high", requireParameters: true },
-		campaign: policy.campaign,
+		campaign,
 	});
 	const stateDigest = workspaceDigest(initialFiles());
 	const materialization = takeD45AdmittedEffect(authority)!;
@@ -976,6 +939,7 @@ export async function runD45InjectedNoNetworkQualification(): Promise<D45Qualifi
 		throw new TypeError("D45 adversarial failure qualification omitted a required Graph path");
 	const rawChatAdapterQualified =
 		parseD45ChatProviderResponse({
+			responseContractRevision: "bounded-chat-response.v1",
 			status: 200,
 			bytes: new TextEncoder().encode(
 				JSON.stringify({
@@ -1042,7 +1006,7 @@ export async function runD45InjectedNoNetworkQualification(): Promise<D45Qualifi
 		mutationProposalContractQualified: true as const,
 		mainFrozenGateWouldPass: true as const,
 		proposalToolBijection: true as const,
-		oneToFourInspectionReadsObserved: D43_ARMS.every((arm) => {
+		oneToFourInspectionReadsObserved: HARNESS_ARMS.every((arm) => {
 			const reads = mainToolEffects.filter(
 				(item) =>
 					item.factKind === "effect-admitted" &&

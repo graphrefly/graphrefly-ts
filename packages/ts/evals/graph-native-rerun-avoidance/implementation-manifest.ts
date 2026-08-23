@@ -9,7 +9,7 @@ export const CURRENT_QUALIFICATION_ARTIFACT_DIGEST =
 
 // Updated only after the current closure and its no-network qualification are both frozen.
 export const CURRENT_IMPLEMENTATION_MANIFEST_DIGEST =
-	"sha256:b72f7c4c0e473d40378337259c70713ab90a0a7af567f8db4f0620ac266c3e8b" as const;
+	"sha256:649ca33cff219bc7dbe431a2fb88f741508ce1ecff51cc9e5c46696597d7d941" as const;
 
 export async function measureCurrentImplementation(): Promise<string> {
 	const names = (await readdir(import.meta.dirname))
@@ -31,7 +31,7 @@ export async function measureCurrentImplementation(): Promise<string> {
 		),
 	);
 	return empiricalStrictJsonDigest({
-		revision: "graphrefly-ts.d70.current-implementation-manifest.v1",
+		revision: "graphrefly-ts.d74.current-implementation-manifest.v3",
 		qualificationArtifactDigest: CURRENT_QUALIFICATION_ARTIFACT_DIGEST,
 		qualificationDigest: CURRENT_QUALIFICATION_DIGEST,
 		sources,

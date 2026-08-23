@@ -53,6 +53,7 @@ function qualifyCurrentResponseSchemaRejections(): void {
 	const wireDigest = empiricalStrictJsonDigest("d68-response-schema-wire");
 	const parse = (status: number, value: string | Uint8Array) =>
 		parseD45ChatProviderResponse({
+			responseContractRevision: "bounded-chat-response.v1",
 			status,
 			bytes: typeof value === "string" ? new TextEncoder().encode(value) : value,
 			elapsedMs: 1,
