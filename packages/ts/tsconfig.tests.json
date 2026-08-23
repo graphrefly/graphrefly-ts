@@ -17,19 +17,8 @@
 		"src/testing/production-evaluation-memory-persistence.ts",
 		"src/__tests__/production-evaluation-authority.test.ts",
 		"src/__tests__/solutions-agentic-memory-record-use.d643.test.ts",
-		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.eval.test.ts",
-		"src/__tests__/eval-support/memory-rerun-avoidance/**/*.ts",
-		"src/__tests__/eval-support/empirical-memory-rerun-avoidance/**/*.ts",
-		"evals/memory-rerun-avoidance/**/*.ts",
-		"evals/empirical-memory-rerun-avoidance/**/*.ts",
-		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.empirical.test.ts",
-		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.workspace-materializer.test.ts",
-		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.closed-host.test.ts",
-		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.offline-qualification.test.ts",
-		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.model-execution.test.ts",
-		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.openai-responses.test.ts",
-		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.openrouter-responses.test.ts",
-		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.protection-policy.test.ts"
+		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.current.test.ts",
+		"evals/graph-native-rerun-avoidance/**/*.ts"
 	],
 	"exclude": ["node_modules", "dist"]
 }
