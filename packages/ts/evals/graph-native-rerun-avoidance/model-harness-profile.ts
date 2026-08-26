@@ -13,14 +13,14 @@ import {
 
 export const MODEL_TARGET_SCHEMA = "graphrefly-ts.model-target.v1" as const;
 export const HARNESS_ENHANCEMENT_PROFILE_SCHEMA =
-	"graphrefly-ts.harness-enhancement-profile.v1" as const;
-export const PROVIDER_BINDING_SCHEMA = "graphrefly-ts.provider-binding.v1" as const;
+	"graphrefly-ts.harness-enhancement-profile.v2" as const;
+export const PROVIDER_BINDING_SCHEMA = "graphrefly-ts.provider-binding.v2" as const;
 export const PROFILE_QUALIFICATION_SCHEMA = "graphrefly-ts.profile-qualification.v1" as const;
 export const CURRENT_PROFILE_ELIGIBILITY_SCHEMA =
 	"graphrefly-ts.current-profile-eligibility.v1" as const;
 export const PROFILE_RESOLUTION_SCHEMA = "graphrefly-ts.profile-resolution.v1" as const;
 export const PROFILE_RESOLVER_REVISION = "graphrefly-ts.profile-resolver.v1" as const;
-export const PROFILE_DECISION_REF = "graphrefly-ts:D72" as const;
+export const PROFILE_DECISION_REF = "graphrefly-ts:D96" as const;
 
 export const HARNESS_ENHANCEMENT_RECIPES = Object.freeze([
 	"named-phase-tool-binding",
@@ -48,6 +48,7 @@ export interface HarnessEnhancementProfile {
 	readonly targetDigest: string;
 	readonly inspectionMaxOutputTokens: number;
 	readonly mutationMaxOutputTokens: number;
+	readonly reasoningEffort: "medium";
 	readonly enhancementRecipes: readonly HarnessEnhancementRecipe[];
 	readonly profileDigest: string;
 }
@@ -60,7 +61,7 @@ export interface ProviderBinding {
 	readonly providerRef: string;
 	readonly providerModelRef: string;
 	readonly endpointProtocol: "chat-completions" | "responses";
-	readonly namedToolChoiceEncoding: "function-object" | "tool-name";
+	readonly proposalEncoding: "strict-json-schema";
 	readonly responseContractRevision: string;
 	readonly bindingDigest: string;
 }
@@ -204,6 +205,7 @@ export function validateHarnessEnhancementProfile(value: unknown): HarnessEnhanc
 			"enhancementRecipes",
 			"inspectionMaxOutputTokens",
 			"mutationMaxOutputTokens",
+			"reasoningEffort",
 			"profileDigest",
 			"profileRef",
 			"schemaVersion",
@@ -249,6 +251,11 @@ export function validateHarnessEnhancementProfile(value: unknown): HarnessEnhanc
 			"harness enhancement profile.mutationMaxOutputTokens",
 			{ min: 1, max: 32_768 },
 		),
+		reasoningEffort: literal(
+			candidate.reasoningEffort,
+			"medium",
+			"harness enhancement profile.reasoningEffort",
+		),
 		enhancementRecipes,
 	});
 	const profileDigest = digest(
@@ -277,7 +284,7 @@ export function validateProviderBinding(value: unknown): ProviderBinding {
 			"bindingDigest",
 			"bindingRef",
 			"endpointProtocol",
-			"namedToolChoiceEncoding",
+			"proposalEncoding",
 			"providerModelRef",
 			"providerRef",
 			"responseContractRevision",
@@ -300,10 +307,10 @@ export function validateProviderBinding(value: unknown): ProviderBinding {
 			["chat-completions", "responses"] as const,
 			"provider binding.endpointProtocol",
 		),
-		namedToolChoiceEncoding: oneOf(
-			candidate.namedToolChoiceEncoding,
-			["function-object", "tool-name"] as const,
-			"provider binding.namedToolChoiceEncoding",
+		proposalEncoding: oneOf(
+			candidate.proposalEncoding,
+			["strict-json-schema"] as const,
+			"provider binding.proposalEncoding",
 		),
 		responseContractRevision: coordinate(
 			candidate.responseContractRevision,
@@ -671,11 +678,12 @@ export function exactQualifiedProfileCatalogInput(
 	});
 }
 
-export function createDeepSeekV4Flash0731DeepInfraFp8ProfileDefinition(
+export function createDeepSeekV4Flash0731FireworksStructuredProfileDefinition(
 	input: {
 		readonly enhancementRecipes?: readonly HarnessEnhancementRecipe[];
 		readonly inspectionMaxOutputTokens?: number;
 		readonly mutationMaxOutputTokens?: number;
+		readonly reasoningEffort?: "medium";
 	} = {},
 ): ExactProfileDefinition {
 	const target = createModelTarget({
@@ -686,23 +694,24 @@ export function createDeepSeekV4Flash0731DeepInfraFp8ProfileDefinition(
 	});
 	const profile = createHarnessEnhancementProfile({
 		schemaVersion: HARNESS_ENHANCEMENT_PROFILE_SCHEMA,
-		profileRef: "harness-profile.deepseek-v4-flash-0731.v1",
+		profileRef: "harness-profile.deepseek-v4-flash-0731.v2",
 		targetRef: target.targetRef,
 		targetDigest: target.targetDigest,
 		inspectionMaxOutputTokens: input.inspectionMaxOutputTokens ?? 65_536,
 		mutationMaxOutputTokens: input.mutationMaxOutputTokens ?? 16_384,
+		reasoningEffort: input.reasoningEffort ?? "medium",
 		enhancementRecipes: input.enhancementRecipes ?? HARNESS_ENHANCEMENT_RECIPES,
 	});
 	const binding = createProviderBinding({
 		schemaVersion: PROVIDER_BINDING_SCHEMA,
-		bindingRef: "provider-binding.deepinfra-fp8-chat.v1",
+		bindingRef: "provider-binding.fireworks-structured-chat.v2",
 		targetRef: target.targetRef,
 		targetDigest: target.targetDigest,
-		providerRef: "deepinfra/fp8",
+		providerRef: "fireworks",
 		providerModelRef: target.modelRef,
 		endpointProtocol: "chat-completions",
-		namedToolChoiceEncoding: "function-object",
-		responseContractRevision: "bounded-chat-response.v1",
+		proposalEncoding: "strict-json-schema",
+		responseContractRevision: "bounded-structured-proposal.v3",
 	});
 	return Object.freeze({ target, profile, binding });
 }
@@ -728,7 +737,7 @@ export function createInjectedNoNetworkProfileQualification(input: {
 	);
 	const qualification = createProfileQualification({
 		schemaVersion: PROFILE_QUALIFICATION_SCHEMA,
-		qualificationRef: "profile-qualification.deepseek-v4-flash-0731.deepinfra-fp8.v1",
+		qualificationRef: "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 		targetRef: target.targetRef,
 		targetDigest: target.targetDigest,
 		profileRef: profile.profileRef,

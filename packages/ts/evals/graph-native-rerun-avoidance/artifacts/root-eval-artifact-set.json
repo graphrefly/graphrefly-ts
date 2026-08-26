@@ -1,0 +1,22 @@
+{
+	"format": "graphrefly.rootEvalArtifactSet",
+	"version": 1,
+	"publication": "commit-marker-written-last",
+	"implementationManifestDigest": "sha256:558dd06bcad4ffa9f88982da4c661280dbcb82341b99ba7cf54a3230bb3a6465",
+	"files": {
+		"root-eval-describe.json": "sha256:2a3bf11c5571acee745ae8a09424f11e50aa0421b44d1e3261f4f365e044a9b9",
+		"root-eval-observe-events.jsonl": "sha256:fb5600fa171f3e5cf5a69432595ab6282433501680d71d247193327bb1338e94",
+		"root-eval-run-summary.json": "sha256:38c2a81c0dedb762bb53ab31f9f5531758f711a0d3f2f8695e4fb2eb59096d9b",
+		"root-eval-topology-qualification.json": "sha256:8405316478c2259488f533b1adf12a4b401b8c434bb72616e3b871af2d78e3de",
+		"root-eval-live-qualification.json": "sha256:d7b4c283f858ad9607654fff88f08a96e749846e7ac018508761cfa759fd6473",
+		"root-eval-topology.mmd": "sha256:193f393ee67f8259bdc678ed182070d70108779598312498154a960ea4e9200a",
+		"history/d120-root-eval-topology-qualification.json": "sha256:afe7528e510006c2afe35315ded6edf00830df40af3d2d96878c5ee8ee6bc23e",
+		"history/d120-root-eval-live-qualification.json": "sha256:b79f03e45490a6d728b933fe7bc2aa4f6fd1f622c8ebd02afdb6111004132aa9",
+		"history/d124-root-eval-describe.json": "sha256:91fc8d290eeecb70d281a86fcc3dc2437d6840e9fbaa88b20184d04757ffda54",
+		"history/d124-root-eval-observe-events.jsonl": "sha256:fb5600fa171f3e5cf5a69432595ab6282433501680d71d247193327bb1338e94",
+		"history/d124-root-eval-run-summary.json": "sha256:38c2a81c0dedb762bb53ab31f9f5531758f711a0d3f2f8695e4fb2eb59096d9b",
+		"history/d124-root-eval-topology-qualification.json": "sha256:66df4bc2853ece5b96449939c002521079d31aebe0989e6966b7ec5dbbf93c12",
+		"history/d124-root-eval-live-qualification.json": "sha256:4e83b0f797775e5c5dcb311a112f18fdd29ccb8ccf22380c34d8cf0816d8dfdc",
+		"history/d124-root-eval-topology.mmd": "sha256:193f393ee67f8259bdc678ed182070d70108779598312498154a960ea4e9200a"
+	}
+}

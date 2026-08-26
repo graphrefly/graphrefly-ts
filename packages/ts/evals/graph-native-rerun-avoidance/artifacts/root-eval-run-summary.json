@@ -1,0 +1,394 @@
+{
+	"format": "graphrefly.rootEvalRunSummary",
+	"version": 1,
+	"authority": "derived-no-network-qa",
+	"observation": {
+		"accountedUpperBoundMicrousd": 300,
+		"activeAdmittedEffects": 0,
+		"activeBillingEffects": 0,
+		"activeProviderEffects": 0,
+		"activeReservedMicrousd": 0,
+		"activeRetryEffects": 0,
+		"activeToolEffects": 0,
+		"admittedAttempts": 30,
+		"admittedRetryAttempts": 0,
+		"armOrder": [
+			"cold",
+			"relevant-applied",
+			"proposal-only",
+			"admission-rejected",
+			"irrelevant-applied",
+			"wrong-scope-applied"
+		],
+		"billingDisposition": "reconciled",
+		"billingObservationCount": 4,
+		"billingStableIntervals": 3,
+		"campaignRef": "graphrefly-efficacy-eval",
+		"completedArms": 6,
+		"finding": "positive-differential",
+		"kind": "eval-observation",
+		"memoryProvenance": {
+			"admission-rejected": "admission-rejected",
+			"cold": "none",
+			"irrelevant-applied": "irrelevant-applied",
+			"proposal-only": "proposal-only",
+			"relevant-applied": "relevant-applied",
+			"wrong-scope-applied": "wrong-scope-applied"
+		},
+		"observedBilledMicrousd": 300,
+		"pendingRetryProposalCount": 0,
+		"pricingRoundingAllowanceMicrousd": 0,
+		"providerCallCount": 30,
+		"providerOutcomeReasonCounts": {
+			"executor-failed": 0,
+			"http-429-retryable": 0,
+			"http-failed": 0,
+			"response-bounds-invalid": 0,
+			"response-choice-invalid": 0,
+			"response-json-invalid": 0,
+			"response-output-truncated": 0,
+			"response-proposal-arguments-invalid": 0,
+			"response-proposal-invalid": 0,
+			"response-proposal-legacy-shape": 0,
+			"response-proposal-missing": 0,
+			"response-route-invalid": 0,
+			"response-usage-invalid": 0,
+			"tool-proposed": 30,
+			"transport-failed": 0,
+			"transport-retryable": 0
+		},
+		"providerReportedLowerBoundMicrousd": 300,
+		"providerReportedMicrousd": 300,
+		"reconciledBilledMicrousd": 300,
+		"rejectedRetryProposalCount": 0,
+		"replicate": 5,
+		"retryProposalCount": 0,
+		"settledRetryAttemptCount": 0,
+		"solutionIdentities": [
+			"work-item-execution",
+			"agentic-work-item-memory-application",
+			"agentic-memory-record-use",
+			"agentic-memory-retrieval"
+		],
+		"stoppingReason": "campaign-complete",
+		"topologyRevision": "graphrefly-ts.root-eval-topology.v8",
+		"unreportedSettledUpperBoundMicrousd": 0,
+		"verificationDiagnostics": {
+			"armOrder": [
+				"cold",
+				"relevant-applied",
+				"proposal-only",
+				"admission-rejected",
+				"irrelevant-applied",
+				"wrong-scope-applied"
+			],
+			"completedWorkItems": 30,
+			"kind": "eval-verification-diagnostics",
+			"stageCounts": {
+				"admission-rejected": {
+					"cleanupCompleted": 5,
+					"completedWorkItems": 5,
+					"exactToolAdmitted": 5,
+					"hiddenVerifierPassed": 0,
+					"passed": 0,
+					"publicSemanticPassed": 0,
+					"scopedChange": 0
+				},
+				"cold": {
+					"cleanupCompleted": 5,
+					"completedWorkItems": 5,
+					"exactToolAdmitted": 5,
+					"hiddenVerifierPassed": 0,
+					"passed": 0,
+					"publicSemanticPassed": 0,
+					"scopedChange": 0
+				},
+				"irrelevant-applied": {
+					"cleanupCompleted": 5,
+					"completedWorkItems": 5,
+					"exactToolAdmitted": 5,
+					"hiddenVerifierPassed": 0,
+					"passed": 0,
+					"publicSemanticPassed": 0,
+					"scopedChange": 0
+				},
+				"proposal-only": {
+					"cleanupCompleted": 5,
+					"completedWorkItems": 5,
+					"exactToolAdmitted": 5,
+					"hiddenVerifierPassed": 0,
+					"passed": 0,
+					"publicSemanticPassed": 0,
+					"scopedChange": 0
+				},
+				"relevant-applied": {
+					"cleanupCompleted": 5,
+					"completedWorkItems": 5,
+					"exactToolAdmitted": 5,
+					"hiddenVerifierPassed": 5,
+					"passed": 5,
+					"publicSemanticPassed": 5,
+					"scopedChange": 5
+				},
+				"wrong-scope-applied": {
+					"cleanupCompleted": 5,
+					"completedWorkItems": 5,
+					"exactToolAdmitted": 5,
+					"hiddenVerifierPassed": 0,
+					"passed": 0,
+					"publicSemanticPassed": 0,
+					"scopedChange": 0
+				}
+			},
+			"terminalReasonCounts": {
+				"admission-rejected": {
+					"cleanup-incomplete": 0,
+					"exact-tool-failed": 0,
+					"hidden-verifier-failed": 0,
+					"no-change": 5,
+					"passed": 0,
+					"provider-failed": 0,
+					"public-semantic-failed": 0,
+					"wrong-scope": 0
+				},
+				"cold": {
+					"cleanup-incomplete": 0,
+					"exact-tool-failed": 0,
+					"hidden-verifier-failed": 0,
+					"no-change": 5,
+					"passed": 0,
+					"provider-failed": 0,
+					"public-semantic-failed": 0,
+					"wrong-scope": 0
+				},
+				"irrelevant-applied": {
+					"cleanup-incomplete": 0,
+					"exact-tool-failed": 0,
+					"hidden-verifier-failed": 0,
+					"no-change": 5,
+					"passed": 0,
+					"provider-failed": 0,
+					"public-semantic-failed": 0,
+					"wrong-scope": 0
+				},
+				"proposal-only": {
+					"cleanup-incomplete": 0,
+					"exact-tool-failed": 0,
+					"hidden-verifier-failed": 0,
+					"no-change": 5,
+					"passed": 0,
+					"provider-failed": 0,
+					"public-semantic-failed": 0,
+					"wrong-scope": 0
+				},
+				"relevant-applied": {
+					"cleanup-incomplete": 0,
+					"exact-tool-failed": 0,
+					"hidden-verifier-failed": 0,
+					"no-change": 0,
+					"passed": 5,
+					"provider-failed": 0,
+					"public-semantic-failed": 0,
+					"wrong-scope": 0
+				},
+				"wrong-scope-applied": {
+					"cleanup-incomplete": 0,
+					"exact-tool-failed": 0,
+					"hidden-verifier-failed": 0,
+					"no-change": 5,
+					"passed": 0,
+					"provider-failed": 0,
+					"public-semantic-failed": 0,
+					"wrong-scope": 0
+				}
+			}
+		}
+	},
+	"finding": {
+		"kind": "eval-efficacy-finding",
+		"campaignRef": "graphrefly-efficacy-eval",
+		"replicateCount": 5,
+		"armOrder": [
+			"cold",
+			"relevant-applied",
+			"proposal-only",
+			"admission-rejected",
+			"irrelevant-applied",
+			"wrong-scope-applied"
+		],
+		"passCounts": {
+			"cold": 0,
+			"relevant-applied": 5,
+			"proposal-only": 0,
+			"admission-rejected": 0,
+			"irrelevant-applied": 0,
+			"wrong-scope-applied": 0
+		},
+		"verificationDiagnostics": {
+			"armOrder": [
+				"cold",
+				"relevant-applied",
+				"proposal-only",
+				"admission-rejected",
+				"irrelevant-applied",
+				"wrong-scope-applied"
+			],
+			"completedWorkItems": 30,
+			"kind": "eval-verification-diagnostics",
+			"stageCounts": {
+				"admission-rejected": {
+					"cleanupCompleted": 5,
+					"completedWorkItems": 5,
+					"exactToolAdmitted": 5,
+					"hiddenVerifierPassed": 0,
+					"passed": 0,
+					"publicSemanticPassed": 0,
+					"scopedChange": 0
+				},
+				"cold": {
+					"cleanupCompleted": 5,
+					"completedWorkItems": 5,
+					"exactToolAdmitted": 5,
+					"hiddenVerifierPassed": 0,
+					"passed": 0,
+					"publicSemanticPassed": 0,
+					"scopedChange": 0
+				},
+				"irrelevant-applied": {
+					"cleanupCompleted": 5,
+					"completedWorkItems": 5,
+					"exactToolAdmitted": 5,
+					"hiddenVerifierPassed": 0,
+					"passed": 0,
+					"publicSemanticPassed": 0,
+					"scopedChange": 0
+				},
+				"proposal-only": {
+					"cleanupCompleted": 5,
+					"completedWorkItems": 5,
+					"exactToolAdmitted": 5,
+					"hiddenVerifierPassed": 0,
+					"passed": 0,
+					"publicSemanticPassed": 0,
+					"scopedChange": 0
+				},
+				"relevant-applied": {
+					"cleanupCompleted": 5,
+					"completedWorkItems": 5,
+					"exactToolAdmitted": 5,
+					"hiddenVerifierPassed": 5,
+					"passed": 5,
+					"publicSemanticPassed": 5,
+					"scopedChange": 5
+				},
+				"wrong-scope-applied": {
+					"cleanupCompleted": 5,
+					"completedWorkItems": 5,
+					"exactToolAdmitted": 5,
+					"hiddenVerifierPassed": 0,
+					"passed": 0,
+					"publicSemanticPassed": 0,
+					"scopedChange": 0
+				}
+			},
+			"terminalReasonCounts": {
+				"admission-rejected": {
+					"cleanup-incomplete": 0,
+					"exact-tool-failed": 0,
+					"hidden-verifier-failed": 0,
+					"no-change": 5,
+					"passed": 0,
+					"provider-failed": 0,
+					"public-semantic-failed": 0,
+					"wrong-scope": 0
+				},
+				"cold": {
+					"cleanup-incomplete": 0,
+					"exact-tool-failed": 0,
+					"hidden-verifier-failed": 0,
+					"no-change": 5,
+					"passed": 0,
+					"provider-failed": 0,
+					"public-semantic-failed": 0,
+					"wrong-scope": 0
+				},
+				"irrelevant-applied": {
+					"cleanup-incomplete": 0,
+					"exact-tool-failed": 0,
+					"hidden-verifier-failed": 0,
+					"no-change": 5,
+					"passed": 0,
+					"provider-failed": 0,
+					"public-semantic-failed": 0,
+					"wrong-scope": 0
+				},
+				"proposal-only": {
+					"cleanup-incomplete": 0,
+					"exact-tool-failed": 0,
+					"hidden-verifier-failed": 0,
+					"no-change": 5,
+					"passed": 0,
+					"provider-failed": 0,
+					"public-semantic-failed": 0,
+					"wrong-scope": 0
+				},
+				"relevant-applied": {
+					"cleanup-incomplete": 0,
+					"exact-tool-failed": 0,
+					"hidden-verifier-failed": 0,
+					"no-change": 0,
+					"passed": 5,
+					"provider-failed": 0,
+					"public-semantic-failed": 0,
+					"wrong-scope": 0
+				},
+				"wrong-scope-applied": {
+					"cleanup-incomplete": 0,
+					"exact-tool-failed": 0,
+					"hidden-verifier-failed": 0,
+					"no-change": 5,
+					"passed": 0,
+					"provider-failed": 0,
+					"public-semantic-failed": 0,
+					"wrong-scope": 0
+				}
+			}
+		},
+		"completedWorkItems": 30,
+		"admittedAttempts": 30,
+		"providerCallCount": 30,
+		"activeReservedMicrousd": 0,
+		"providerReportedMicrousd": 300,
+		"pricingRoundingAllowanceMicrousd": 0,
+		"providerReportedLowerBoundMicrousd": 300,
+		"unreportedSettledUpperBoundMicrousd": 0,
+		"accountedUpperBoundMicrousd": 300,
+		"observedBilledMicrousd": 300,
+		"billingObservationCount": 4,
+		"billingStableIntervals": 3,
+		"reconciledBilledMicrousd": 300,
+		"billingDisposition": "reconciled",
+		"providerOutcomeReasonCounts": {
+			"tool-proposed": 30,
+			"http-failed": 0,
+			"http-429-retryable": 0,
+			"transport-failed": 0,
+			"transport-retryable": 0,
+			"response-bounds-invalid": 0,
+			"response-json-invalid": 0,
+			"response-route-invalid": 0,
+			"response-usage-invalid": 0,
+			"response-choice-invalid": 0,
+			"response-output-truncated": 0,
+			"response-proposal-missing": 0,
+			"response-proposal-legacy-shape": 0,
+			"response-proposal-invalid": 0,
+			"response-proposal-arguments-invalid": 0,
+			"executor-failed": 0
+		},
+		"finding": "positive-differential",
+		"stoppingReason": "campaign-complete"
+	},
+	"peakConcurrentEffects": 6,
+	"executedAdmissionCount": 30
+}

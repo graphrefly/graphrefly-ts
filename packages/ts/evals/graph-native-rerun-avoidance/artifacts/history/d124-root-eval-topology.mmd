@@ -1,0 +1,116 @@
+%% DERIVED EXPLANATORY VIEW — NOT graph.describe() OUTPUT OR TOPOLOGY AUTHORITY.
+%% Layout position does not imply causal primacy; raw describe nodes/edges are canonical.
+flowchart TD
+  subgraph ROOT["one root Eval Graph: eval/root"]
+    PROFILE["D72/D74 exact profile catalog"] --> PADMIT["Graph profile admission"]
+    KEYBEFORE["current-key before DATA\nsame credential binding"]
+    START["campaign start"] --> CTRL["replicate controller state\n5 ordered replicate barriers"]
+    START -. "initialize empty Graph lifecycle snapshots" .-> PREG
+    START -. "initialize empty Graph lifecycle snapshots" .-> TREG
+    START -. "initialize empty Graph lifecycle snapshots" .-> RREG
+    START -. "initialize empty Graph lifecycle snapshots" .-> BREG
+    CLEAN --> CTRL
+    CTRL --> BATCH["active replicate batch\n6 fixed arms"]
+    BATCH --> WI["30 independent WorkItem DATA\n6 per active replicate"]
+
+    WI --> WISEED["real Work Item solution\nobjective + progress"]
+    WI --> BRIDGE["real WorkItem → Agentic Memory bridge"]
+    BRIDGE --> MPROP["memory proposal"]
+    MPROP --> MADMIT["memory admission"]
+    MADMIT --> MAPPLY["memory application"]
+    MAPPLY --> EXPOSE["exact-use exposure gate"]
+    EXPOSE --> AM["real Agentic Memory projection + retrieval"]
+    AM --> MCTX["exposed memory binding + digest + provenance"]
+
+    MCTX --> PLAN["Work Item attempt/resource plan"]
+    PADMIT --> PLAN
+    PLAN --> WIRUN["real Work Item effect run + request facts"]
+    WIRUN --> PPROPOSE["provider proposal"]
+    PADMIT -->|"exact model/provider/protocol binding"| PPROPOSE
+    PPROPOSE --> SIX["six-proposal replicate barrier"]
+    SIX --> BUDGET["Graph atomic budget + retry admission state"]
+    RPROPOSE["bounded same-WorkItem attempt-2 proposal"] --> BUDGET
+    BUDGET --> PADMISSION["provider admission"]
+    PADMISSION --> PEXEC["current-provider-effect boundary"]
+    PEXEC --> PREG["provider effect lifecycle registry\nGraph state: admitted → settled"]
+    PREG --> PGATE["caller-admitted provider gate"]
+    PREG --> PACTIVE["Graph-native active-provider-effects output"]
+    PREG --> PCOUNT["provider lifecycle count\nactive = admitted - settled"]
+    PTERMINAL["correlated terminal provider result DATA"] --> TADMIT["Graph terminal-result admission"]
+    PRETRY["correlated retryable provider result DATA"] --> RADMIT["Graph retryable-result admission\nattempt-2 retry fails closed here"]
+    TADMIT --> BUDGET
+    RADMIT --> BUDGET
+    TADMIT --> PREG
+    RADMIT --> PREG
+    TADMIT --> RBATCH["read-only provider cohort progress\nnot settlement authority"]
+    RADMIT --> RBATCH
+    TADMIT --> TOOL["Graph exact-tool admission\nactual path + old/new digest"]
+    RBATCH --> DELAY["Graph retry-delay admission"]
+    DELAY --> RBOUND["current-retry-delay boundary"]
+    RBOUND --> RREG["retry-delay lifecycle registry\nGraph state: admitted → settled"]
+    RREG --> RGATE["caller-admitted retry gate"]
+    RREG --> RACTIVE["Graph-native active-retry-effects output"]
+    RREG --> RCOUNT["retry lifecycle count\nactive = admitted - settled"]
+    RRESULT["correlated retry-delay result DATA"] --> RREG
+    RRESULT --> RPROPOSE
+    TOOL --> TBOUND["current-tool-effect boundary"]
+    TBOUND --> TREG["exact-tool effect lifecycle registry\nGraph state: admitted → settled"]
+    TREG --> TGATE["caller-admitted exact-tool gate"]
+    TREG --> TACTIVE["Graph-native active-tool-effects output"]
+    TREG --> TCOUNT["tool lifecycle count\nactive = admitted - settled"]
+
+    TOUTCOME["correlated exact-tool result DATA"] --> RECON["provider/tool reconciliation\n→ Work Item progress"]
+    TOUTCOME --> TREG
+    TADMIT --> RECON
+    TOUTCOME --> TRESULT["exact tool result"]
+    TOUTCOME --> DIFF["diff decision"]
+    DIFF --> PUBLIC["public semantic decision"]
+    PUBLIC --> HIDDEN["hidden verifier decision"]
+    HIDDEN --> CLEAN["cleanup fact"]
+
+    CLEAN --> BILLPROPOSE["Graph billing observation proposal\nmax 8; 3 stable intervals"]
+    BUDGET --> BILLPROPOSE
+    KEYBEFORE --> BILLPROPOSE
+    BILLRESULT["correlated current-key result DATA"] --> BILLPROPOSE
+    BILLPROPOSE --> BILLADMIT["Graph billing observation admission"]
+    BILLADMIT --> BBOUND["current-billing-observation boundary"]
+    BBOUND --> BREG["billing effect lifecycle registry\nGraph state: admitted → settled"]
+    BREG --> BGATE["caller-admitted billing gate"]
+    BREG --> BACTIVE["Graph-native active-billing-effects output"]
+    BREG --> BCOUNT["billing lifecycle count\nactive = admitted - settled"]
+    BILLRESULT --> BREG
+    BILLRESULT --> BILLRECON["Graph billing reconciliation\nreported ≤ billed ≤ accounted upper bound"]
+    BILLPROPOSE --> BILLRECON
+
+    CLEAN --> DIAG["Graph verification diagnostics\nstage + terminal-reason conservation"]
+    DIAG --> FSTATE["deterministic efficacy + current-effect state\nGraph facts only"]
+    CTRL --> FSTATE
+    BUDGET --> FSTATE
+    BILLPROPOSE --> FSTATE
+    FSTATE --> FINDING["terminal efficacy finding"]
+    BILLRECON -->|"terminal audit join; cannot change efficacy class"| FINDING
+    PCOUNT --> ACTIVITY["material-free lifecycle stable cut\nregistry counts + exact budget epoch"]
+    TCOUNT --> ACTIVITY
+    RCOUNT --> ACTIVITY
+    BCOUNT --> ACTIVITY
+    BUDGET --> ACTIVITY
+    ACTIVITY -->|"only zero active + matching budget digest"| FINDING
+    FSTATE --> OBS["canonical Graph-native eval observation\nper-class + total active admitted effects"]
+    ACTIVITY --> OBS
+    FINDING --> OBS
+    FINDING --> TERMINAL["terminal lifecycle consistency\nzero activity + exact conservation"]
+    ACTIVITY --> TERMINAL
+    BUDGET --> TERMINAL
+    START --> TERMINAL
+    TERMINAL --> OBS
+  end
+
+  PGATE -. "caller executes only admitted provider effect" .-> PROVIDER["exact Fireworks structured provider boundary"]
+  PROVIDER -. "terminal outcome; no mutation yet" .-> PTERMINAL
+  PROVIDER -. "retryable outcome; no mutation yet" .-> PRETRY
+  RGATE -. "caller waits only for admitted delay" .-> TIMER["bounded delay boundary"]
+  TIMER -. "exact delay receipt" .-> RRESULT
+  TGATE -. "caller applies only Graph-admitted actual arguments" .-> TOOLRUN["exact local tool + independent verifiers + cleanup"]
+  TOOLRUN -. "exact receipt + material-free evidence" .-> TOUTCOME
+  BGATE -. "caller performs exactly one admitted current-key read" .-> KEYREAD["same-key control-plane observation boundary"]
+  KEYREAD -. "bounded coordinate result only" .-> BILLRESULT
