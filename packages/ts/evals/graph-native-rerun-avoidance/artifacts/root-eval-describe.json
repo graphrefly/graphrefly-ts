@@ -1,6 +1,151 @@
 {
 	"nodes": [
 		{
+			"id": "eval/campaign/contract",
+			"factory": "state",
+			"status": "settled",
+			"deps": [],
+			"name": "eval/campaign/contract",
+			"value": {
+				"kind": "eval-campaign-contract",
+				"campaignPurpose": "confirmatory",
+				"taskSetRef": "root-eval-d145-transfer-qualification-v1",
+				"generationRef": "root-eval-confirmatory-2026-08-27-d145-v1",
+				"replicateCount": 5,
+				"heldOutSealDigest": "sha256:3ccbca4701877bb96781eab2f92e16600dafe5aa0f85e1b756bb997e8d447982",
+				"budgetPartition": "confirmatory-usd-6",
+				"partitionHardCapMicrousd": 6000000,
+				"partitionSpentBeforeMicrousd": 0,
+				"partitionLedgerDigest": "sha256:8117d347156e536f96f996d31dd3586a8b747e80132058f34ebdb4cfd34a8587",
+				"developmentQualificationStreakBefore": 2
+			},
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"authority": "campaign-input",
+				"budgetPartition": "confirmatory-usd-6",
+				"campaignPurpose": "confirmatory",
+				"decisionRefs": [
+					"graphrefly-ts:D145"
+				],
+				"developmentQualificationStreakBefore": 2,
+				"generationRef": "root-eval-confirmatory-2026-08-27-d145-v1",
+				"heldOutSealDigest": "sha256:3ccbca4701877bb96781eab2f92e16600dafe5aa0f85e1b756bb997e8d447982",
+				"materialFree": true,
+				"partitionHardCapMicrousd": 6000000,
+				"partitionLedgerDigest": "sha256:8117d347156e536f96f996d31dd3586a8b747e80132058f34ebdb4cfd34a8587",
+				"partitionSpentBeforeMicrousd": 0,
+				"replicateCount": 5,
+				"taskSetRef": "root-eval-d145-transfer-qualification-v1"
+			}
+		},
+		{
+			"id": "eval/campaign/task-bindings",
+			"factory": "state",
+			"status": "settled",
+			"deps": [],
+			"name": "eval/campaign/task-bindings",
+			"value": [
+				{
+					"replicate": 1,
+					"taskInstanceRef": "root-eval-d145-transfer-qualification-v1/instance-1",
+					"sourceWorkItemId": "root-eval-d145-transfer-qualification-v1/instance-1/source-work-item",
+					"sourceEvidenceDigest": "sha256:691e0ffafb823667b573d80229416f70be468b9340e54f4ffa94cb742a901eae",
+					"sourceInsightDigest": "sha256:b1e7e529a2ff9cd0c06d887aca9215047a1b4056a0df114ddd4a6316a8e46402",
+					"irrelevantTaskInstanceRef": "root-eval-d145-transfer-qualification-v1/instance-2",
+					"irrelevantSourceWorkItemId": "root-eval-d145-transfer-qualification-v1/instance-2/source-work-item",
+					"irrelevantSourceEvidenceDigest": "sha256:9c9ae80c85449c0f18fb2b43a1dab349d9291ca5c580aaf5ef17e1fdbde9d631",
+					"irrelevantSourceInsightDigest": "sha256:39d03c05fa2c7b3cf496a98e741e2024e3d04731e16d4112bc74ab75500001f4"
+				},
+				{
+					"replicate": 2,
+					"taskInstanceRef": "root-eval-d145-transfer-qualification-v1/instance-2",
+					"sourceWorkItemId": "root-eval-d145-transfer-qualification-v1/instance-2/source-work-item",
+					"sourceEvidenceDigest": "sha256:9c9ae80c85449c0f18fb2b43a1dab349d9291ca5c580aaf5ef17e1fdbde9d631",
+					"sourceInsightDigest": "sha256:39d03c05fa2c7b3cf496a98e741e2024e3d04731e16d4112bc74ab75500001f4",
+					"irrelevantTaskInstanceRef": "root-eval-d145-transfer-qualification-v1/instance-3",
+					"irrelevantSourceWorkItemId": "root-eval-d145-transfer-qualification-v1/instance-3/source-work-item",
+					"irrelevantSourceEvidenceDigest": "sha256:260bdc933bff5c825fd00a40efd568f80ed30abb5fc2ba6b41cc469aed3fc7ac",
+					"irrelevantSourceInsightDigest": "sha256:6d66c60c88d4be9591a48d9edcd6c707c04960ff4c560b2482140a1392b66935"
+				},
+				{
+					"replicate": 3,
+					"taskInstanceRef": "root-eval-d145-transfer-qualification-v1/instance-3",
+					"sourceWorkItemId": "root-eval-d145-transfer-qualification-v1/instance-3/source-work-item",
+					"sourceEvidenceDigest": "sha256:260bdc933bff5c825fd00a40efd568f80ed30abb5fc2ba6b41cc469aed3fc7ac",
+					"sourceInsightDigest": "sha256:6d66c60c88d4be9591a48d9edcd6c707c04960ff4c560b2482140a1392b66935",
+					"irrelevantTaskInstanceRef": "root-eval-d145-transfer-qualification-v1/instance-4",
+					"irrelevantSourceWorkItemId": "root-eval-d145-transfer-qualification-v1/instance-4/source-work-item",
+					"irrelevantSourceEvidenceDigest": "sha256:9086bdbe3f58ed35cbf078cae99248d8c6ce6c9a07fbed123d4b15b62e3bfc9c",
+					"irrelevantSourceInsightDigest": "sha256:f32828bcce07a10db0111179cdb4c92342a418ca8376c9302d7497a4bd93840f"
+				},
+				{
+					"replicate": 4,
+					"taskInstanceRef": "root-eval-d145-transfer-qualification-v1/instance-4",
+					"sourceWorkItemId": "root-eval-d145-transfer-qualification-v1/instance-4/source-work-item",
+					"sourceEvidenceDigest": "sha256:9086bdbe3f58ed35cbf078cae99248d8c6ce6c9a07fbed123d4b15b62e3bfc9c",
+					"sourceInsightDigest": "sha256:f32828bcce07a10db0111179cdb4c92342a418ca8376c9302d7497a4bd93840f",
+					"irrelevantTaskInstanceRef": "root-eval-d145-transfer-qualification-v1/instance-5",
+					"irrelevantSourceWorkItemId": "root-eval-d145-transfer-qualification-v1/instance-5/source-work-item",
+					"irrelevantSourceEvidenceDigest": "sha256:3976062dc1fad381937846e8f580fe6e5a68208b7908ec0788e74cbed5dab69e",
+					"irrelevantSourceInsightDigest": "sha256:09ac6e02cd4e73f7519c63aff75d85e0d9b3ec349fb60276b6cedd3dbf7aac23"
+				},
+				{
+					"replicate": 5,
+					"taskInstanceRef": "root-eval-d145-transfer-qualification-v1/instance-5",
+					"sourceWorkItemId": "root-eval-d145-transfer-qualification-v1/instance-5/source-work-item",
+					"sourceEvidenceDigest": "sha256:3976062dc1fad381937846e8f580fe6e5a68208b7908ec0788e74cbed5dab69e",
+					"sourceInsightDigest": "sha256:09ac6e02cd4e73f7519c63aff75d85e0d9b3ec349fb60276b6cedd3dbf7aac23",
+					"irrelevantTaskInstanceRef": "root-eval-d145-transfer-qualification-v1/instance-1",
+					"irrelevantSourceWorkItemId": "root-eval-d145-transfer-qualification-v1/instance-1/source-work-item",
+					"irrelevantSourceEvidenceDigest": "sha256:691e0ffafb823667b573d80229416f70be468b9340e54f4ffa94cb742a901eae",
+					"irrelevantSourceInsightDigest": "sha256:b1e7e529a2ff9cd0c06d887aca9215047a1b4056a0df114ddd4a6316a8e46402"
+				}
+			],
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"authority": "sealed-task-manifest",
+				"materialFree": true,
+				"taskManifestDigest": "sha256:70ab40ba4061cc9aeee9b8cf73bd81f755530c45a5e9aa7c598ed842f319241c"
+			}
+		},
+		{
+			"id": "eval/controls/memory-provenance",
+			"factory": "state",
+			"status": "settled",
+			"deps": [],
+			"name": "eval/controls/memory-provenance",
+			"value": {
+				"cold": "none",
+				"relevant-applied": "relevant-applied",
+				"proposal-only": "proposal-only",
+				"admission-rejected": "admission-rejected",
+				"irrelevant-applied": "irrelevant-applied",
+				"wrong-scope-applied": "wrong-scope-applied"
+			},
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"armOrder": [
+					"cold",
+					"relevant-applied",
+					"proposal-only",
+					"admission-rejected",
+					"irrelevant-applied",
+					"wrong-scope-applied"
+				],
+				"controls": 5,
+				"treatment": "relevant-applied"
+			}
+		},
+		{
 			"id": "eval/billing/current-key-before",
 			"factory": "state",
 			"status": "settled",
@@ -33,7 +178,7 @@
 			"name": "eval/profile/qualified-catalog",
 			"value": {
 				"requestedTargetRef": "model-target.deepseek-v4-flash-0731",
-				"currentImplementationManifestDigest": "sha256:558dd06bcad4ffa9f88982da4c661280dbcb82341b99ba7cf54a3230bb3a6465",
+				"currentImplementationManifestDigest": "sha256:686547b5d25f016787caee68c0de77889e5b5219e56cf04e74b8bb0850e3b615",
 				"targets": [
 					{
 						"modelRef": "deepseek/deepseek-v4-flash-0731",
@@ -82,19 +227,19 @@
 						"bindingDigest": "sha256:2163c9f0da40a602408c54076cd5eb81a43d6154467a233b1d5d5dd56d2b388d",
 						"bindingRef": "provider-binding.fireworks-structured-chat.v2",
 						"credentialAccessed": false,
-						"implementationManifestDigest": "sha256:558dd06bcad4ffa9f88982da4c661280dbcb82341b99ba7cf54a3230bb3a6465",
+						"implementationManifestDigest": "sha256:686547b5d25f016787caee68c0de77889e5b5219e56cf04e74b8bb0850e3b615",
 						"liveEvaluationExecuted": false,
 						"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 						"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
 						"providerNetworkAccessed": false,
-						"qualificationArtifactDigest": "sha256:117c826990481d86c7854ed180b79b53eec6579312db90ec0cebfb22084b9030",
+						"qualificationArtifactDigest": "sha256:6176ae42662d080d7d89a85730ddfa9178da85d9830a77b280a40068b6e51ba9",
 						"qualificationMode": "injected-no-network",
 						"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 						"qualified": true,
 						"schemaVersion": "graphrefly-ts.profile-qualification.v1",
 						"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 						"targetRef": "model-target.deepseek-v4-flash-0731",
-						"qualificationDigest": "sha256:dfa05d1d197cc46613bb41ed5030ad62fb080f16b9632d07d1c7cdd3d7905115"
+						"qualificationDigest": "sha256:082df6ea4699c5a13df74b23bc65ab354c1849cc968e92190d1a16f14261231d"
 					}
 				]
 			},
@@ -124,28 +269,28 @@
 					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
 					"decisionRef": "graphrefly-ts:D96",
 					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
-					"implementationManifestDigest": "sha256:558dd06bcad4ffa9f88982da4c661280dbcb82341b99ba7cf54a3230bb3a6465",
+					"implementationManifestDigest": "sha256:686547b5d25f016787caee68c0de77889e5b5219e56cf04e74b8bb0850e3b615",
 					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
-					"qualificationDigest": "sha256:dfa05d1d197cc46613bb41ed5030ad62fb080f16b9632d07d1c7cdd3d7905115",
+					"qualificationDigest": "sha256:082df6ea4699c5a13df74b23bc65ab354c1849cc968e92190d1a16f14261231d",
 					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 					"reasonCode": "root-graph-exact-profile-current",
 					"schemaVersion": "graphrefly-ts.current-profile-eligibility.v1",
 					"status": "eligible",
 					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 					"targetRef": "model-target.deepseek-v4-flash-0731",
-					"eligibilityDigest": "sha256:07152160217f36642b1d4d168afbbf05d9be1ba3a7ad5d4be4d96d4faf0b32ca"
+					"eligibilityDigest": "sha256:9320322159bb65c1ad3b7375e247d4e4222fa7c3321738f27f252383aa7ca2ba"
 				},
 				"resolution": {
 					"bindingDigest": "sha256:2163c9f0da40a602408c54076cd5eb81a43d6154467a233b1d5d5dd56d2b388d",
 					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
-					"eligibilityDigest": "sha256:07152160217f36642b1d4d168afbbf05d9be1ba3a7ad5d4be4d96d4faf0b32ca",
+					"eligibilityDigest": "sha256:9320322159bb65c1ad3b7375e247d4e4222fa7c3321738f27f252383aa7ca2ba",
 					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
-					"implementationManifestDigest": "sha256:558dd06bcad4ffa9f88982da4c661280dbcb82341b99ba7cf54a3230bb3a6465",
+					"implementationManifestDigest": "sha256:686547b5d25f016787caee68c0de77889e5b5219e56cf04e74b8bb0850e3b615",
 					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
 					"providerRef": "fireworks",
-					"qualificationDigest": "sha256:dfa05d1d197cc46613bb41ed5030ad62fb080f16b9632d07d1c7cdd3d7905115",
+					"qualificationDigest": "sha256:082df6ea4699c5a13df74b23bc65ab354c1849cc968e92190d1a16f14261231d",
 					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 					"requestedTargetRef": "model-target.deepseek-v4-flash-0731",
 					"resolverRevision": "graphrefly-ts.profile-resolver.v1",
@@ -153,7 +298,7 @@
 					"status": "eligible",
 					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 					"targetRef": "model-target.deepseek-v4-flash-0731",
-					"resolutionDigest": "sha256:d3a634e3d791a2b93c6eb65935670b5970a28ee9f948de99a1f93e44e59166e1"
+					"resolutionDigest": "sha256:19f6da7ac160c80377afb5c41ff3aecfa21257b4cdaa13944759432c8421038d"
 				},
 				"profile": {
 					"enhancementRecipes": [
@@ -215,12 +360,197 @@
 					"wrong-scope-applied"
 				],
 				"replicateCount": 5,
-				"topologyRevision": "graphrefly-ts.root-eval-topology.v8"
+				"topologyRevision": "graphrefly-ts.root-eval-topology.v13"
+			}
+		},
+		{
+			"id": "eval/time/elapsed-budget/schedule",
+			"factory": "rootEvalElapsedBudgetSchedule",
+			"status": "sentinel",
+			"deps": [
+				"eval/campaign/start"
+			],
+			"name": "eval/time/elapsed-budget/schedule",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"authority": "root-graph",
+				"materialFree": true
+			}
+		},
+		{
+			"id": "eval/time/elapsed-budget/timer-source",
+			"factory": "rootEvalCampaignElapsedTimerSource",
+			"status": "sentinel",
+			"deps": [
+				"eval/campaign/start"
+			],
+			"name": "eval/time/elapsed-budget/timer-source",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"armedBy": "eval/campaign/start",
+				"asyncPool": true,
+				"authority": "root-graph-async-source-boundary",
+				"boundaryEmission": "new-external-data-wave",
+				"decisionRefs": [
+					"graphrefly-ts:D129",
+					"graphrefly-ts:D131"
+				],
+				"delayMs": 4500000,
+				"materialFree": true,
+				"pausable": false,
+				"startWaveSettlement": "immediate-resolved"
+			}
+		},
+		{
+			"id": "eval/time/elapsed-budget/clock",
+			"factory": "rootEvalElapsedBudgetClock",
+			"status": "sentinel",
+			"deps": [
+				"eval/time/elapsed-budget/timer-source"
+			],
+			"name": "eval/time/elapsed-budget/clock",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"authority": "root-graph-timer-source",
+				"materialFree": true
+			}
+		},
+		{
+			"id": "eval/time/elapsed-budget/readiness/runtime",
+			"factory": "scheduledReadinessProjector",
+			"status": "sentinel",
+			"deps": [
+				"eval/time/elapsed-budget/schedule",
+				"eval/time/elapsed-budget/clock"
+			],
+			"name": "eval/time/elapsed-budget/readiness/runtime",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/time/elapsed-budget/readiness/pending",
+			"factory": "scheduledReadinessPending",
+			"status": "sentinel",
+			"deps": [
+				"eval/time/elapsed-budget/readiness/runtime"
+			],
+			"name": "eval/time/elapsed-budget/readiness/pending",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/time/elapsed-budget/readiness/ready",
+			"factory": "scheduledReadinessReady",
+			"status": "sentinel",
+			"deps": [
+				"eval/time/elapsed-budget/readiness/runtime"
+			],
+			"name": "eval/time/elapsed-budget/readiness/ready",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/time/elapsed-budget/readiness/overdue",
+			"factory": "scheduledReadinessOverdue",
+			"status": "sentinel",
+			"deps": [
+				"eval/time/elapsed-budget/readiness/runtime"
+			],
+			"name": "eval/time/elapsed-budget/readiness/overdue",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/time/elapsed-budget/readiness/status",
+			"factory": "scheduledReadinessStatus",
+			"status": "sentinel",
+			"deps": [
+				"eval/time/elapsed-budget/readiness/runtime"
+			],
+			"name": "eval/time/elapsed-budget/readiness/status",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/time/elapsed-budget/readiness/issues",
+			"factory": "scheduledReadinessIssues",
+			"status": "sentinel",
+			"deps": [
+				"eval/time/elapsed-budget/readiness/runtime"
+			],
+			"name": "eval/time/elapsed-budget/readiness/issues",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/time/elapsed-budget/readiness/audit",
+			"factory": "scheduledReadinessAudit",
+			"status": "sentinel",
+			"deps": [
+				"eval/time/elapsed-budget/readiness/runtime"
+			],
+			"name": "eval/time/elapsed-budget/readiness/audit",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/time/elapsed-budget/readiness/views",
+			"factory": "scheduledReadinessViews",
+			"status": "sentinel",
+			"deps": [
+				"eval/time/elapsed-budget/readiness/runtime"
+			],
+			"name": "eval/time/elapsed-budget/readiness/views",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/time/elapsed-budget/state",
+			"factory": "rootEvalElapsedBudgetState",
+			"status": "sentinel",
+			"deps": [
+				"eval/time/elapsed-budget/schedule",
+				"eval/time/elapsed-budget/readiness/ready"
+			],
+			"name": "eval/time/elapsed-budget/state",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"callerAuthority": "none",
+				"domainAuthority": "root-graph",
+				"materialFree": true
 			}
 		},
 		{
 			"id": "eval/provider/result-input",
-			"factory": "rootEvalTerminalProviderResultInput",
+			"factory": "rootEvalProviderResultInput",
 			"status": "sentinel",
 			"deps": [],
 			"name": "eval/provider/result-input",
@@ -229,59 +559,13 @@
 				"counter": 0
 			},
 			"meta": {
-				"acceptedStatus": "non-retryable",
+				"acceptedStatuses": [
+					"tool-proposed",
+					"failed",
+					"retryable"
+				],
+				"authority": "single-canonical-provider-result-ingress",
 				"materialPolicy": "digest-and-coordinate-only"
-			}
-		},
-		{
-			"id": "eval/provider/retryable-result-input",
-			"factory": "rootEvalRetryableProviderResultInput",
-			"status": "sentinel",
-			"deps": [],
-			"name": "eval/provider/retryable-result-input",
-			"version": {
-				"level": 0,
-				"counter": 0
-			},
-			"meta": {
-				"acceptedStatus": "retryable",
-				"materialPolicy": "digest-and-coordinate-only"
-			}
-		},
-		{
-			"id": "eval/provider/result-admission",
-			"factory": "rootEvalProviderResultAdmission",
-			"status": "sentinel",
-			"deps": [
-				"eval/provider/result-input"
-			],
-			"name": "eval/provider/result-admission",
-			"version": {
-				"level": 0,
-				"counter": 0
-			},
-			"meta": {
-				"authority": "root-graph",
-				"callerAuthority": "submit-correlated-result-data-only",
-				"maxAttemptsPerWorkItem": 2
-			}
-		},
-		{
-			"id": "eval/provider/retryable-result-admission",
-			"factory": "rootEvalRetryableProviderResultAdmission",
-			"status": "sentinel",
-			"deps": [
-				"eval/provider/retryable-result-input"
-			],
-			"name": "eval/provider/retryable-result-admission",
-			"version": {
-				"level": 0,
-				"counter": 0
-			},
-			"meta": {
-				"authority": "root-graph",
-				"callerAuthority": "submit-correlated-result-data-only",
-				"maxAttemptsPerWorkItem": 2
 			}
 		},
 		{
@@ -289,8 +573,7 @@
 			"factory": "rootEvalAllProviderResultAdmissions",
 			"status": "sentinel",
 			"deps": [
-				"eval/provider/result-admission",
-				"eval/provider/retryable-result-admission"
+				"eval/provider/result-input"
 			],
 			"name": "eval/provider/all-result-admissions",
 			"version": {
@@ -299,7 +582,80 @@
 			},
 			"meta": {
 				"authority": "root-graph",
-				"resultIngresses": "closed-status-partition"
+				"callerAuthority": "submit-correlated-result-data-only",
+				"maxAttemptsPerWorkItem": 2,
+				"resultIngresses": "single-canonical-status-union"
+			}
+		},
+		{
+			"id": "eval/provider/result-admission",
+			"factory": "rootEvalProviderResultAdmission",
+			"status": "sentinel",
+			"deps": [
+				"eval/provider/all-result-admissions"
+			],
+			"name": "eval/provider/result-admission",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"acceptedStatus": "tool-proposed",
+				"authority": "canonical-status-demux"
+			}
+		},
+		{
+			"id": "eval/provider/failed-result-admission",
+			"factory": "rootEvalFailedProviderResultAdmission",
+			"status": "sentinel",
+			"deps": [
+				"eval/provider/all-result-admissions"
+			],
+			"name": "eval/provider/failed-result-admission",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"acceptedStatus": "failed",
+				"authority": "canonical-status-demux"
+			}
+		},
+		{
+			"id": "eval/provider/retryable-result-admission",
+			"factory": "rootEvalRetryableProviderResultAdmission",
+			"status": "sentinel",
+			"deps": [
+				"eval/provider/all-result-admissions"
+			],
+			"name": "eval/provider/retryable-result-admission",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"acceptedStatus": "retryable",
+				"authority": "canonical-status-demux",
+				"maxAttemptsPerWorkItem": 2
+			}
+		},
+		{
+			"id": "eval/provider/result-status-release-controller",
+			"factory": "rootEvalProviderResultStatusReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/provider/all-result-admissions",
+				"eval/provider/result-admission",
+				"eval/provider/failed-result-admission",
+				"eval/provider/retryable-result-admission"
+			],
+			"name": "eval/provider/result-status-release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"role": "quiet-provider-result-status-demux"
 			}
 		},
 		{
@@ -308,6 +664,7 @@
 			"status": "sentinel",
 			"deps": [
 				"eval/provider/result-admission",
+				"eval/provider/failed-result-admission",
 				"eval/provider/retryable-result-admission"
 			],
 			"name": "eval/provider/result-batches",
@@ -338,7 +695,37 @@
 				"counter": 0
 			},
 			"meta": {
-				"materialPolicy": "digest-and-coordinate-only"
+				"materialPolicy": "digest-and-coordinate-only",
+				"workItemRole": "target"
+			}
+		},
+		{
+			"id": "eval/source-work-item/tool-result-input",
+			"factory": "rootEvalSourceExactToolResultInput",
+			"status": "sentinel",
+			"deps": [],
+			"name": "eval/source-work-item/tool-result-input",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"materialPolicy": "digest-and-coordinate-only",
+				"workItemRole": "source"
+			}
+		},
+		{
+			"id": "eval/tool/all-result-inputs",
+			"factory": "rootEvalAllExactToolResults",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/tool-result-input",
+				"eval/tool/result-input"
+			],
+			"name": "eval/tool/all-result-inputs",
+			"version": {
+				"level": 0,
+				"counter": 0
 			}
 		},
 		{
@@ -374,10 +761,24 @@
 			"factory": "rootEvalTerminalOutcomes",
 			"status": "sentinel",
 			"deps": [
-				"eval/provider/result-admission",
+				"eval/provider/failed-result-admission",
 				"eval/tool/result-input"
 			],
 			"name": "eval/effect/terminal-outcomes",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/source-work-item/terminal-outcomes",
+			"factory": "rootEvalSourceTerminalOutcomes",
+			"status": "sentinel",
+			"deps": [
+				"eval/provider/failed-result-admission",
+				"eval/source-work-item/tool-result-input"
+			],
+			"name": "eval/source-work-item/terminal-outcomes",
 			"version": {
 				"level": 0,
 				"counter": 0
@@ -400,11 +801,423 @@
 			}
 		},
 		{
+			"id": "eval/source-work-item/reconciliation",
+			"factory": "rootEvalSourceWorkItemReconciliation",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/terminal-outcomes"
+			],
+			"name": "eval/source-work-item/reconciliation",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"correlation": "admissionId+effectRunId+attempt",
+				"workItemRole": "source"
+			}
+		},
+		{
+			"id": "eval/source-work-item/request-authority",
+			"factory": "rootEvalSourceWorkItemRequestAuthority",
+			"status": "settled",
+			"deps": [
+				"eval/campaign/task-bindings",
+				"eval/campaign/contract"
+			],
+			"name": "eval/source-work-item/request-authority",
+			"value": [
+				{
+					"kind": "eval-source-work-item-request",
+					"campaignRef": "root-eval-confirmatory-2026-08-27-d145-v1",
+					"taskSetRef": "root-eval-d145-transfer-qualification-v1",
+					"replicate": 1,
+					"taskInstanceRef": "root-eval-d145-transfer-qualification-v1/instance-1",
+					"sourceWorkItemId": "root-eval-d145-transfer-qualification-v1/instance-1/source-work-item",
+					"sourceEvidenceDigest": "sha256:691e0ffafb823667b573d80229416f70be468b9340e54f4ffa94cb742a901eae",
+					"sourceInsightDigest": "sha256:b1e7e529a2ff9cd0c06d887aca9215047a1b4056a0df114ddd4a6316a8e46402",
+					"taskManifestDigest": "sha256:70ab40ba4061cc9aeee9b8cf73bd81f755530c45a5e9aa7c598ed842f319241c"
+				},
+				{
+					"kind": "eval-source-work-item-request",
+					"campaignRef": "root-eval-confirmatory-2026-08-27-d145-v1",
+					"taskSetRef": "root-eval-d145-transfer-qualification-v1",
+					"replicate": 2,
+					"taskInstanceRef": "root-eval-d145-transfer-qualification-v1/instance-2",
+					"sourceWorkItemId": "root-eval-d145-transfer-qualification-v1/instance-2/source-work-item",
+					"sourceEvidenceDigest": "sha256:9c9ae80c85449c0f18fb2b43a1dab349d9291ca5c580aaf5ef17e1fdbde9d631",
+					"sourceInsightDigest": "sha256:39d03c05fa2c7b3cf496a98e741e2024e3d04731e16d4112bc74ab75500001f4",
+					"taskManifestDigest": "sha256:70ab40ba4061cc9aeee9b8cf73bd81f755530c45a5e9aa7c598ed842f319241c"
+				},
+				{
+					"kind": "eval-source-work-item-request",
+					"campaignRef": "root-eval-confirmatory-2026-08-27-d145-v1",
+					"taskSetRef": "root-eval-d145-transfer-qualification-v1",
+					"replicate": 3,
+					"taskInstanceRef": "root-eval-d145-transfer-qualification-v1/instance-3",
+					"sourceWorkItemId": "root-eval-d145-transfer-qualification-v1/instance-3/source-work-item",
+					"sourceEvidenceDigest": "sha256:260bdc933bff5c825fd00a40efd568f80ed30abb5fc2ba6b41cc469aed3fc7ac",
+					"sourceInsightDigest": "sha256:6d66c60c88d4be9591a48d9edcd6c707c04960ff4c560b2482140a1392b66935",
+					"taskManifestDigest": "sha256:70ab40ba4061cc9aeee9b8cf73bd81f755530c45a5e9aa7c598ed842f319241c"
+				},
+				{
+					"kind": "eval-source-work-item-request",
+					"campaignRef": "root-eval-confirmatory-2026-08-27-d145-v1",
+					"taskSetRef": "root-eval-d145-transfer-qualification-v1",
+					"replicate": 4,
+					"taskInstanceRef": "root-eval-d145-transfer-qualification-v1/instance-4",
+					"sourceWorkItemId": "root-eval-d145-transfer-qualification-v1/instance-4/source-work-item",
+					"sourceEvidenceDigest": "sha256:9086bdbe3f58ed35cbf078cae99248d8c6ce6c9a07fbed123d4b15b62e3bfc9c",
+					"sourceInsightDigest": "sha256:f32828bcce07a10db0111179cdb4c92342a418ca8376c9302d7497a4bd93840f",
+					"taskManifestDigest": "sha256:70ab40ba4061cc9aeee9b8cf73bd81f755530c45a5e9aa7c598ed842f319241c"
+				},
+				{
+					"kind": "eval-source-work-item-request",
+					"campaignRef": "root-eval-confirmatory-2026-08-27-d145-v1",
+					"taskSetRef": "root-eval-d145-transfer-qualification-v1",
+					"replicate": 5,
+					"taskInstanceRef": "root-eval-d145-transfer-qualification-v1/instance-5",
+					"sourceWorkItemId": "root-eval-d145-transfer-qualification-v1/instance-5/source-work-item",
+					"sourceEvidenceDigest": "sha256:3976062dc1fad381937846e8f580fe6e5a68208b7908ec0788e74cbed5dab69e",
+					"sourceInsightDigest": "sha256:09ac6e02cd4e73f7519c63aff75d85e0d9b3ec349fb60276b6cedd3dbf7aac23",
+					"taskManifestDigest": "sha256:70ab40ba4061cc9aeee9b8cf73bd81f755530c45a5e9aa7c598ed842f319241c"
+				}
+			],
+			"version": {
+				"level": 0,
+				"counter": 1
+			},
+			"meta": {
+				"authority": "sealed-task-manifest",
+				"taskManifestDigest": "sha256:70ab40ba4061cc9aeee9b8cf73bd81f755530c45a5e9aa7c598ed842f319241c"
+			}
+		},
+		{
+			"id": "eval/source-work-item/schedule",
+			"factory": "rootEvalSourceWorkItemSchedule",
+			"status": "sentinel",
+			"deps": [
+				"eval/campaign/start",
+				"eval/source-work-item/request-authority",
+				"eval/campaign/contract"
+			],
+			"name": "eval/source-work-item/schedule",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"authority": "five-real-source-work-items-before-targets",
+				"boundaryEmission": "new-external-data-wave",
+				"startWaveSettlement": "immediate-resolved",
+				"taskManifestDigest": "sha256:70ab40ba4061cc9aeee9b8cf73bd81f755530c45a5e9aa7c598ed842f319241c"
+			}
+		},
+		{
+			"id": "eval/source-work-item/objective-data",
+			"factory": "rootEvalSourceWorkItemData",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/schedule"
+			],
+			"name": "eval/source-work-item/objective-data",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"role": "causally-prior-source",
+				"solutionIdentity": "work-item"
+			}
+		},
+		{
+			"id": "eval/source-work-item/attempt-resource-plan",
+			"factory": "rootEvalSourceWorkItemPlan",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/schedule",
+				"eval/profile/graph-admission"
+			],
+			"name": "eval/source-work-item/attempt-resource-plan",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"sourceBeforeMemory": true,
+				"timeoutAuthority": "work-item-effect-plan"
+			}
+		},
+		{
+			"id": "eval/solution/source-work-item-execution/workItemSeeds",
+			"factory": "workItemSeedProjector",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/objective-data"
+			],
+			"name": "eval/solution/source-work-item-execution/workItemSeeds",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/source-work-item-execution/plan/runtime",
+			"factory": "workItemEffectPlanProjector",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/objective-data",
+				"eval/source-work-item/attempt-resource-plan",
+				"eval/source-work-item/reconciliation"
+			],
+			"name": "eval/solution/source-work-item-execution/plan/runtime",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/source-work-item-execution/plan/admitted",
+			"factory": "workItemEffectPlansAdmitted",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/source-work-item-execution/plan/runtime"
+			],
+			"name": "eval/solution/source-work-item-execution/plan/admitted",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/source-work-item-execution/plan/rejected",
+			"factory": "workItemEffectPlansRejected",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/source-work-item-execution/plan/runtime"
+			],
+			"name": "eval/solution/source-work-item-execution/plan/rejected",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/source-work-item-execution/plan/effectRequests",
+			"factory": "workItemEffectPlanEffectRequests",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/source-work-item-execution/plan/runtime"
+			],
+			"name": "eval/solution/source-work-item-execution/plan/effectRequests",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/source-work-item-execution/plan/results",
+			"factory": "workItemEffectPlanResults",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/source-work-item-execution/plan/runtime"
+			],
+			"name": "eval/solution/source-work-item-execution/plan/results",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/source-work-item-execution/plan/status",
+			"factory": "workItemEffectPlanStatus",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/source-work-item-execution/plan/runtime"
+			],
+			"name": "eval/solution/source-work-item-execution/plan/status",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/source-work-item-execution/plan/issues",
+			"factory": "workItemEffectPlanIssues",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/source-work-item-execution/plan/runtime"
+			],
+			"name": "eval/solution/source-work-item-execution/plan/issues",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/source-work-item-execution/plan/audit",
+			"factory": "workItemEffectPlanAudit",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/source-work-item-execution/plan/runtime"
+			],
+			"name": "eval/solution/source-work-item-execution/plan/audit",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/source-work-item-execution/effectRuns/runtime",
+			"factory": "workItemEffectRunProjector",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/source-work-item-execution/workItemSeeds",
+				"eval/solution/source-work-item-execution/plan/effectRequests"
+			],
+			"name": "eval/solution/source-work-item-execution/effectRuns/runtime",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/source-work-item-execution/effectRuns/effectRuns",
+			"factory": "workItemEffectRuns",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/source-work-item-execution/effectRuns/runtime"
+			],
+			"name": "eval/solution/source-work-item-execution/effectRuns/effectRuns",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/source-work-item-execution/effectRuns/status",
+			"factory": "workItemEffectRunStatus",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/source-work-item-execution/effectRuns/runtime"
+			],
+			"name": "eval/solution/source-work-item-execution/effectRuns/status",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/source-work-item-execution/effectRuns/issues",
+			"factory": "workItemEffectRunIssues",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/source-work-item-execution/effectRuns/runtime"
+			],
+			"name": "eval/solution/source-work-item-execution/effectRuns/issues",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/source-work-item-execution/effectRuns/audit",
+			"factory": "workItemEffectRunAudit",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/source-work-item-execution/effectRuns/runtime"
+			],
+			"name": "eval/solution/source-work-item-execution/effectRuns/audit",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/source-work-item-execution/effectRuns/views",
+			"factory": "workItemEffectRequestViews",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/source-work-item-execution/plan/effectRequests",
+				"eval/solution/source-work-item-execution/effectRuns/runtime"
+			],
+			"name": "eval/solution/source-work-item-execution/effectRuns/views",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/source-work-item-execution/requestFacts",
+			"factory": "workItemExecutionRequestFacts",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/source-work-item-execution/effectRuns/effectRuns"
+			],
+			"name": "eval/solution/source-work-item-execution/requestFacts",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/source-work-item-execution/requests",
+			"factory": "workItemExecutionRequests",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/source-work-item-execution/requestFacts"
+			],
+			"name": "eval/solution/source-work-item-execution/requests",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/source-work-item-execution/requestLedger/views",
+			"factory": "agentRequestLedgerViews",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/source-work-item-execution/requestFacts"
+			],
+			"name": "eval/solution/source-work-item-execution/requestLedger/views",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/source-work-item-execution/requestLedger/issues",
+			"factory": "agentRequestLedgerIssues",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/source-work-item-execution/requestFacts"
+			],
+			"name": "eval/solution/source-work-item-execution/requestLedger/issues",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/source-work-item-execution/requestLedger/audit",
+			"factory": "agentRequestLedgerAudit",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/source-work-item-execution/requestFacts"
+			],
+			"name": "eval/solution/source-work-item-execution/requestLedger/audit",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
 			"id": "eval/tool/result",
 			"factory": "rootEvalExactToolResult",
 			"status": "sentinel",
 			"deps": [
-				"eval/effect/terminal-outcomes"
+				"eval/source-work-item/tool-result-input"
 			],
 			"name": "eval/tool/result",
 			"version": {
@@ -413,11 +1226,202 @@
 			}
 		},
 		{
+			"id": "eval/source-work-item/outcome-evidence-verification",
+			"factory": "rootEvalSourceWorkItemVerification",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/request-authority",
+				"eval/source-work-item/terminal-outcomes"
+			],
+			"name": "eval/source-work-item/outcome-evidence-verification",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"cleanupRequired": true,
+				"failClosed": true,
+				"independentExecutorReceiptRequired": true,
+				"materialFree": true
+			}
+		},
+		{
+			"id": "eval/source-work-item/memory-handoff-candidate",
+			"factory": "rootEvalSourceMemoryHandoffCandidate",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/outcome-evidence-verification"
+			],
+			"name": "eval/source-work-item/memory-handoff-candidate",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"materialFree": true,
+				"role": "work-item-terminal-candidate"
+			}
+		},
+		{
+			"id": "eval/source-work-item/memory-handoff-decision",
+			"factory": "rootEvalSourceMemoryHandoffDecision",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/outcome-evidence-verification"
+			],
+			"name": "eval/source-work-item/memory-handoff-decision",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"failClosed": true,
+				"materialFree": true,
+				"role": "source-verification-admission"
+			}
+		},
+		{
+			"id": "eval/source-work-item/memory-handoff/correlation",
+			"factory": "admissionHandoffCorrelation",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/memory-handoff-candidate",
+				"eval/source-work-item/memory-handoff-decision"
+			],
+			"name": "eval/source-work-item/memory-handoff/correlation",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"maxPending": 5,
+				"maxRecent": 10,
+				"pattern": "admission-handoff",
+				"role": "correlation-authority"
+			}
+		},
+		{
+			"id": "eval/source-work-item/memory-handoff/admitted",
+			"factory": "admissionHandoffAdmitted",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/memory-handoff/correlation"
+			],
+			"name": "eval/source-work-item/memory-handoff/admitted",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/source-work-item/memory-handoff/accepted",
+			"factory": "admissionHandoffAccepted",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/memory-handoff/admitted"
+			],
+			"name": "eval/source-work-item/memory-handoff/accepted",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"pattern": "admission-handoff",
+				"role": "quiet-causal-boundary"
+			}
+		},
+		{
+			"id": "eval/source-work-item/memory-handoff/release-controller",
+			"factory": "admissionHandoffReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/memory-handoff/admitted",
+				"eval/source-work-item/memory-handoff/accepted"
+			],
+			"name": "eval/source-work-item/memory-handoff/release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"pattern": "admission-handoff",
+				"role": "admission-release"
+			}
+		},
+		{
+			"id": "eval/source-work-item/memory-handoff/rejected",
+			"factory": "admissionHandoffRejected",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/memory-handoff/correlation"
+			],
+			"name": "eval/source-work-item/memory-handoff/rejected",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/source-work-item/memory-handoff/status",
+			"factory": "admissionHandoffStatus",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/memory-handoff/correlation"
+			],
+			"name": "eval/source-work-item/memory-handoff/status",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/source-work-item/memory-handoff/issues",
+			"factory": "admissionHandoffIssues",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/memory-handoff/correlation"
+			],
+			"name": "eval/source-work-item/memory-handoff/issues",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/source-work-item/memory-handoff/cursor",
+			"factory": "admissionHandoffCursor",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/memory-handoff/correlation"
+			],
+			"name": "eval/source-work-item/memory-handoff/cursor",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/source-work-item/verified-solution",
+			"factory": "rootEvalVerifiedSourceWorkItem",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/memory-handoff/accepted"
+			],
+			"name": "eval/source-work-item/verified-solution",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"source": "real-work-item-execution-result"
+			}
+		},
+		{
 			"id": "eval/verification/diff",
 			"factory": "rootEvalDiffVerification",
 			"status": "sentinel",
 			"deps": [
-				"eval/tool/result"
+				"eval/effect/terminal-outcomes"
 			],
 			"name": "eval/verification/diff",
 			"version": {
@@ -497,8 +1501,12 @@
 			"factory": "rootEvalReplicateController",
 			"status": "sentinel",
 			"deps": [
-				"eval/campaign/start",
-				"eval/cleanup/completed"
+				"eval/cleanup/completed",
+				"eval/source-work-item/memory-handoff/status",
+				"eval/source-work-item/request-authority",
+				"eval/campaign/contract",
+				"eval/campaign/task-bindings",
+				"eval/controls/memory-provenance"
 			],
 			"name": "eval/campaign/replicate-controller",
 			"version": {
@@ -506,9 +1514,16 @@
 				"counter": 0
 			},
 			"meta": {
+				"adaptiveRetryMayRebind": false,
 				"armsPerReplicate": 6,
+				"budgetPartition": "confirmatory-usd-6",
+				"campaignPurpose": "confirmatory",
+				"generationRef": "root-eval-confirmatory-2026-08-27-d145-v1",
+				"heldOutSealDigest": "sha256:3ccbca4701877bb96781eab2f92e16600dafe5aa0f85e1b756bb997e8d447982",
 				"parallelism": "six-admitted-effects-per-replicate",
-				"replicates": 5
+				"replicates": 5,
+				"sourceFailurePolicy": "fail-closed-dependency-closure",
+				"taskSetRef": "root-eval-d145-transfer-qualification-v1"
 			}
 		},
 		{
@@ -522,6 +1537,26 @@
 			"version": {
 				"level": 0,
 				"counter": 0
+			},
+			"meta": {
+				"role": "quiet-campaign-batch-boundary"
+			}
+		},
+		{
+			"id": "eval/campaign/replicate-batch-release-controller",
+			"factory": "rootEvalReplicateBatchReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/campaign/replicate-controller",
+				"eval/campaign/replicate-batches"
+			],
+			"name": "eval/campaign/replicate-batch-release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"role": "campaign-batch-release"
 			}
 		},
 		{
@@ -555,39 +1590,224 @@
 			}
 		},
 		{
+			"id": "eval/memory/six-arm-batch-candidate",
+			"factory": "rootEvalMemoryBatchHandoffCandidate",
+			"status": "sentinel",
+			"deps": [
+				"eval/campaign/replicate-batches"
+			],
+			"name": "eval/memory/six-arm-batch-candidate",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"arms": 6,
+				"cardinality": "one-candidate-per-replicate"
+			}
+		},
+		{
+			"id": "eval/memory/six-arm-source-readiness-decision",
+			"factory": "rootEvalMemoryBatchSourceReadinessDecision",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/verified-solution",
+				"eval/campaign/replicate-batches"
+			],
+			"name": "eval/memory/six-arm-source-readiness-decision",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"correlation": "replicate/relevant-source/irrelevant-source",
+				"role": "source-readiness-admission-authority"
+			}
+		},
+		{
+			"id": "eval/memory/six-arm-source-readiness-handoff/correlation",
+			"factory": "admissionHandoffCorrelation",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/six-arm-batch-candidate",
+				"eval/memory/six-arm-source-readiness-decision"
+			],
+			"name": "eval/memory/six-arm-source-readiness-handoff/correlation",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"maxPending": 5,
+				"maxRecent": 10,
+				"pattern": "admission-handoff",
+				"role": "correlation-authority"
+			}
+		},
+		{
+			"id": "eval/memory/six-arm-source-readiness-handoff/admitted",
+			"factory": "admissionHandoffAdmitted",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/six-arm-source-readiness-handoff/correlation"
+			],
+			"name": "eval/memory/six-arm-source-readiness-handoff/admitted",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/six-arm-source-readiness-handoff/accepted",
+			"factory": "admissionHandoffAccepted",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/six-arm-source-readiness-handoff/admitted"
+			],
+			"name": "eval/memory/six-arm-source-readiness-handoff/accepted",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"pattern": "admission-handoff",
+				"role": "quiet-causal-boundary"
+			}
+		},
+		{
+			"id": "eval/memory/six-arm-source-readiness-handoff/release-controller",
+			"factory": "admissionHandoffReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/six-arm-source-readiness-handoff/admitted",
+				"eval/memory/six-arm-source-readiness-handoff/accepted"
+			],
+			"name": "eval/memory/six-arm-source-readiness-handoff/release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"pattern": "admission-handoff",
+				"role": "admission-release"
+			}
+		},
+		{
+			"id": "eval/memory/six-arm-source-readiness-handoff/rejected",
+			"factory": "admissionHandoffRejected",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/six-arm-source-readiness-handoff/correlation"
+			],
+			"name": "eval/memory/six-arm-source-readiness-handoff/rejected",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/six-arm-source-readiness-handoff/status",
+			"factory": "admissionHandoffStatus",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/six-arm-source-readiness-handoff/correlation"
+			],
+			"name": "eval/memory/six-arm-source-readiness-handoff/status",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/six-arm-source-readiness-handoff/issues",
+			"factory": "admissionHandoffIssues",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/six-arm-source-readiness-handoff/correlation"
+			],
+			"name": "eval/memory/six-arm-source-readiness-handoff/issues",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/six-arm-source-readiness-handoff/cursor",
+			"factory": "admissionHandoffCursor",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/six-arm-source-readiness-handoff/correlation"
+			],
+			"name": "eval/memory/six-arm-source-readiness-handoff/cursor",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/correlated-six-arm-data",
+			"factory": "rootEvalCorrelatedMemoryBatch",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/six-arm-source-readiness-handoff/accepted"
+			],
+			"name": "eval/memory/correlated-six-arm-data",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"correlation": "task-instance/source-work-item/target-work-item",
+				"dataCardinality": "six-arms",
+				"lifecycleCardinality": "one-fixed-lifecycle"
+			}
+		},
+		{
+			"id": "eval/memory/source-record-data",
+			"factory": "rootEvalMemorySourceRecordData",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/correlated-six-arm-data"
+			],
+			"name": "eval/memory/source-record-data",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"dataWaveOrder": [
+					"relevant",
+					"irrelevant"
+				],
+				"lifecycleCardinality": "one",
+				"recordSources": [
+					"relevant",
+					"irrelevant"
+				],
+				"startWaveSettlement": "immediate-resolved"
+			}
+		},
+		{
+			"id": "eval/memory/source-work-item-data",
+			"factory": "rootEvalMemorySourceWorkItemData",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/source-record-data"
+			],
+			"name": "eval/memory/source-work-item-data",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
 			"id": "eval/memory/mapping-policy",
 			"factory": "rootEvalMemoryMappingPolicy",
 			"status": "sentinel",
 			"deps": [
-				"eval/work-item/objective-data"
+				"eval/memory/source-record-data"
 			],
 			"name": "eval/memory/mapping-policy",
-			"version": {
-				"level": 0,
-				"counter": 0
-			}
-		},
-		{
-			"id": "eval/memory/admission-policy",
-			"factory": "rootEvalMemoryAdmissionPolicy",
-			"status": "sentinel",
-			"deps": [
-				"eval/memory/mapping-policy"
-			],
-			"name": "eval/memory/admission-policy",
-			"version": {
-				"level": 0,
-				"counter": 0
-			}
-		},
-		{
-			"id": "eval/memory/candidate-frame",
-			"factory": "rootEvalMemoryCandidateFrame",
-			"status": "sentinel",
-			"deps": [
-				"eval/memory/admission-policy"
-			],
-			"name": "eval/memory/candidate-frame",
 			"version": {
 				"level": 0,
 				"counter": 0
@@ -598,7 +1818,7 @@
 			"factory": "rootEvalMemoryCandidates",
 			"status": "sentinel",
 			"deps": [
-				"eval/memory/candidate-frame"
+				"eval/memory/source-record-data"
 			],
 			"name": "eval/memory/candidates",
 			"version": {
@@ -607,27 +1827,13 @@
 			}
 		},
 		{
-			"id": "eval/memory/application-policy",
-			"factory": "state",
-			"status": "settled",
-			"deps": [],
-			"name": "eval/memory/application-policy",
-			"value": {
-				"kind": "agentic-memory-record-application-policy",
-				"policyId": "root-eval-memory-application-policy"
-			},
-			"version": {
-				"level": 0,
-				"counter": 0
-			}
-		},
-		{
 			"id": "eval/memory/initial-records",
-			"factory": "state",
-			"status": "settled",
-			"deps": [],
+			"factory": "rootEvalInitialMemoryRecords",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/correlated-six-arm-data"
+			],
 			"name": "eval/memory/initial-records",
-			"value": [],
 			"version": {
 				"level": 0,
 				"counter": 0
@@ -638,7 +1844,7 @@
 			"factory": "agenticWorkItemMemoryBridge",
 			"status": "sentinel",
 			"deps": [
-				"eval/work-item/objective-data",
+				"eval/memory/source-work-item-data",
 				"eval/memory/mapping-policy",
 				"eval/memory/candidates"
 			],
@@ -727,241 +1933,306 @@
 			}
 		},
 		{
-			"id": "eval/solution/agentic-work-item-memory-application/admission/projection",
+			"id": "eval/memory/proposal-admission-boundary",
+			"factory": "rootEvalMemoryProposalAdmissionBoundary",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-work-item-memory-application/bridge/proposals"
+			],
+			"name": "eval/memory/proposal-admission-boundary",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"proposalOnlyRemainsProposalOnly": true
+			}
+		},
+		{
+			"id": "eval/memory/admission-policy",
+			"factory": "state",
+			"status": "settled",
+			"deps": [],
+			"name": "eval/memory/admission-policy",
+			"value": {
+				"kind": "agentic-memory-record-admission-policy",
+				"policyId": "root-eval-memory-admission-policy",
+				"defaultState": "admitted",
+				"rejectDuplicateRecordIds": true
+			},
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-memory-admission/projection",
 			"factory": "agenticMemoryRecordAdmission",
 			"status": "sentinel",
 			"deps": [
 				"eval/memory/initial-records",
-				"eval/solution/agentic-work-item-memory-application/bridge/proposals",
+				"eval/memory/proposal-admission-boundary",
 				"eval/memory/admission-policy"
 			],
-			"name": "eval/solution/agentic-work-item-memory-application/admission/projection",
+			"name": "eval/solution/agentic-memory-admission/projection",
 			"version": {
 				"level": 0,
 				"counter": 0
 			}
 		},
 		{
-			"id": "eval/solution/agentic-work-item-memory-application/admission/admissions",
+			"id": "eval/solution/agentic-memory-admission/admissions",
 			"factory": "agenticMemoryRecordAdmissions",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-work-item-memory-application/admission/projection"
+				"eval/solution/agentic-memory-admission/projection"
 			],
-			"name": "eval/solution/agentic-work-item-memory-application/admission/admissions",
+			"name": "eval/solution/agentic-memory-admission/admissions",
 			"version": {
 				"level": 0,
 				"counter": 0
 			}
 		},
 		{
-			"id": "eval/solution/agentic-work-item-memory-application/admission/admitted",
+			"id": "eval/solution/agentic-memory-admission/admitted",
 			"factory": "agenticMemoryRecordAdmissionsAdmitted",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-work-item-memory-application/admission/projection"
+				"eval/solution/agentic-memory-admission/projection"
 			],
-			"name": "eval/solution/agentic-work-item-memory-application/admission/admitted",
+			"name": "eval/solution/agentic-memory-admission/admitted",
 			"version": {
 				"level": 0,
 				"counter": 0
 			}
 		},
 		{
-			"id": "eval/solution/agentic-work-item-memory-application/admission/rejected",
+			"id": "eval/solution/agentic-memory-admission/rejected",
 			"factory": "agenticMemoryRecordAdmissionsRejected",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-work-item-memory-application/admission/projection"
+				"eval/solution/agentic-memory-admission/projection"
 			],
-			"name": "eval/solution/agentic-work-item-memory-application/admission/rejected",
+			"name": "eval/solution/agentic-memory-admission/rejected",
 			"version": {
 				"level": 0,
 				"counter": 0
 			}
 		},
 		{
-			"id": "eval/solution/agentic-work-item-memory-application/admission/needsReview",
+			"id": "eval/solution/agentic-memory-admission/needsReview",
 			"factory": "agenticMemoryRecordAdmissionsNeedsReview",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-work-item-memory-application/admission/projection"
+				"eval/solution/agentic-memory-admission/projection"
 			],
-			"name": "eval/solution/agentic-work-item-memory-application/admission/needsReview",
+			"name": "eval/solution/agentic-memory-admission/needsReview",
 			"version": {
 				"level": 0,
 				"counter": 0
 			}
 		},
 		{
-			"id": "eval/solution/agentic-work-item-memory-application/admission/status",
+			"id": "eval/solution/agentic-memory-admission/status",
 			"factory": "agenticMemoryRecordAdmissionStatus",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-work-item-memory-application/admission/projection"
+				"eval/solution/agentic-memory-admission/projection"
 			],
-			"name": "eval/solution/agentic-work-item-memory-application/admission/status",
+			"name": "eval/solution/agentic-memory-admission/status",
 			"version": {
 				"level": 0,
 				"counter": 0
 			}
 		},
 		{
-			"id": "eval/solution/agentic-work-item-memory-application/admission/issues",
+			"id": "eval/solution/agentic-memory-admission/issues",
 			"factory": "agenticMemoryRecordAdmissionIssues",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-work-item-memory-application/admission/projection"
+				"eval/solution/agentic-memory-admission/projection"
 			],
-			"name": "eval/solution/agentic-work-item-memory-application/admission/issues",
+			"name": "eval/solution/agentic-memory-admission/issues",
 			"version": {
 				"level": 0,
 				"counter": 0
 			}
 		},
 		{
-			"id": "eval/solution/agentic-work-item-memory-application/admission/audit",
+			"id": "eval/solution/agentic-memory-admission/audit",
 			"factory": "agenticMemoryRecordAdmissionAudit",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-work-item-memory-application/admission/projection"
+				"eval/solution/agentic-memory-admission/projection"
 			],
-			"name": "eval/solution/agentic-work-item-memory-application/admission/audit",
+			"name": "eval/solution/agentic-memory-admission/audit",
 			"version": {
 				"level": 0,
 				"counter": 0
 			}
 		},
 		{
-			"id": "eval/solution/agentic-work-item-memory-application/admission/cursor",
+			"id": "eval/solution/agentic-memory-admission/cursor",
 			"factory": "agenticMemoryRecordAdmissionCursor",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-work-item-memory-application/admission/projection"
+				"eval/solution/agentic-memory-admission/projection"
 			],
-			"name": "eval/solution/agentic-work-item-memory-application/admission/cursor",
+			"name": "eval/solution/agentic-memory-admission/cursor",
 			"version": {
 				"level": 0,
 				"counter": 0
 			}
 		},
 		{
-			"id": "eval/solution/agentic-work-item-memory-application/application/projection",
+			"id": "eval/memory/application-policy",
+			"factory": "state",
+			"status": "settled",
+			"deps": [],
+			"name": "eval/memory/application-policy",
+			"value": {
+				"kind": "agentic-memory-record-application-policy",
+				"policyId": "root-eval-memory-application-policy"
+			},
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-memory-application/projection",
 			"factory": "agenticMemoryRecordApplication",
 			"status": "sentinel",
 			"deps": [
 				"eval/memory/initial-records",
-				"eval/solution/agentic-work-item-memory-application/admission/admissions",
+				"eval/solution/agentic-memory-admission/admissions",
 				"eval/memory/application-policy"
 			],
-			"name": "eval/solution/agentic-work-item-memory-application/application/projection",
+			"name": "eval/solution/agentic-memory-application/projection",
 			"version": {
 				"level": 0,
 				"counter": 0
 			}
 		},
 		{
-			"id": "eval/solution/agentic-work-item-memory-application/application/records",
+			"id": "eval/solution/agentic-memory-application/records",
 			"factory": "agenticMemoryRecordApplicationRecords",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-work-item-memory-application/application/projection"
+				"eval/solution/agentic-memory-application/projection"
 			],
-			"name": "eval/solution/agentic-work-item-memory-application/application/records",
+			"name": "eval/solution/agentic-memory-application/records",
 			"version": {
 				"level": 0,
 				"counter": 0
 			}
 		},
 		{
-			"id": "eval/solution/agentic-work-item-memory-application/application/appliedRecords",
+			"id": "eval/solution/agentic-memory-application/appliedRecords",
 			"factory": "agenticMemoryRecordApplicationAppliedRecords",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-work-item-memory-application/application/projection"
+				"eval/solution/agentic-memory-application/projection"
 			],
-			"name": "eval/solution/agentic-work-item-memory-application/application/appliedRecords",
+			"name": "eval/solution/agentic-memory-application/appliedRecords",
 			"version": {
 				"level": 0,
 				"counter": 0
 			}
 		},
 		{
-			"id": "eval/solution/agentic-work-item-memory-application/application/applicationDecisions",
+			"id": "eval/solution/agentic-memory-application/applicationDecisions",
 			"factory": "agenticMemoryRecordApplicationDecisions",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-work-item-memory-application/application/projection"
+				"eval/solution/agentic-memory-application/projection"
 			],
-			"name": "eval/solution/agentic-work-item-memory-application/application/applicationDecisions",
+			"name": "eval/solution/agentic-memory-application/applicationDecisions",
 			"version": {
 				"level": 0,
 				"counter": 0
 			}
 		},
 		{
-			"id": "eval/solution/agentic-work-item-memory-application/application/status",
+			"id": "eval/solution/agentic-memory-application/status",
 			"factory": "agenticMemoryRecordApplicationStatus",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-work-item-memory-application/application/projection"
+				"eval/solution/agentic-memory-application/projection"
 			],
-			"name": "eval/solution/agentic-work-item-memory-application/application/status",
+			"name": "eval/solution/agentic-memory-application/status",
 			"version": {
 				"level": 0,
 				"counter": 0
 			}
 		},
 		{
-			"id": "eval/solution/agentic-work-item-memory-application/application/operationStatuses",
+			"id": "eval/solution/agentic-memory-application/operationStatuses",
 			"factory": "agenticMemoryRecordApplicationOperationStatuses",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-work-item-memory-application/application/projection"
+				"eval/solution/agentic-memory-application/projection"
 			],
-			"name": "eval/solution/agentic-work-item-memory-application/application/operationStatuses",
+			"name": "eval/solution/agentic-memory-application/operationStatuses",
 			"version": {
 				"level": 0,
 				"counter": 0
 			}
 		},
 		{
-			"id": "eval/solution/agentic-work-item-memory-application/application/issues",
+			"id": "eval/solution/agentic-memory-application/issues",
 			"factory": "agenticMemoryRecordApplicationIssues",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-work-item-memory-application/application/projection"
+				"eval/solution/agentic-memory-application/projection"
 			],
-			"name": "eval/solution/agentic-work-item-memory-application/application/issues",
+			"name": "eval/solution/agentic-memory-application/issues",
 			"version": {
 				"level": 0,
 				"counter": 0
 			}
 		},
 		{
-			"id": "eval/solution/agentic-work-item-memory-application/application/audit",
+			"id": "eval/solution/agentic-memory-application/audit",
 			"factory": "agenticMemoryRecordApplicationAudit",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-work-item-memory-application/application/projection"
+				"eval/solution/agentic-memory-application/projection"
 			],
-			"name": "eval/solution/agentic-work-item-memory-application/application/audit",
+			"name": "eval/solution/agentic-memory-application/audit",
 			"version": {
 				"level": 0,
 				"counter": 0
 			}
 		},
 		{
-			"id": "eval/solution/agentic-work-item-memory-application/application/cursor",
+			"id": "eval/solution/agentic-memory-application/cursor",
 			"factory": "agenticMemoryRecordApplicationCursor",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-work-item-memory-application/application/projection"
+				"eval/solution/agentic-memory-application/projection"
 			],
-			"name": "eval/solution/agentic-work-item-memory-application/application/cursor",
+			"name": "eval/solution/agentic-memory-application/cursor",
 			"version": {
 				"level": 0,
 				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/applied-record-state",
+			"factory": "rootEvalAppliedMemoryRecordState",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory-application/records"
+			],
+			"name": "eval/memory/applied-record-state",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"authority": "real-agentic-memory-application-output",
+				"cumulative": true
 			}
 		},
 		{
@@ -969,13 +2240,24 @@
 			"factory": "rootEvalMemoryExposureFrame",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-work-item-memory-application/application/records",
-				"eval/memory/candidate-frame"
+				"eval/memory/applied-record-state",
+				"eval/memory/correlated-six-arm-data"
 			],
 			"name": "eval/memory/exposure-frame",
 			"version": {
 				"level": 0,
 				"counter": 0
+			},
+			"meta": {
+				"dataWaveOrder": [
+					"cold",
+					"relevant-applied",
+					"proposal-only",
+					"admission-rejected",
+					"irrelevant-applied",
+					"wrong-scope-applied"
+				],
+				"lifecycleCardinality": "one"
 			}
 		},
 		{
@@ -1009,7 +2291,7 @@
 			"factory": "agenticMemoryRecordUseGate",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-work-item-memory-application/application/records",
+				"eval/memory/applied-record-state",
 				"eval/memory/exposure-request",
 				"eval/memory/exposure-decisions"
 			],
@@ -1099,15 +2381,12 @@
 		},
 		{
 			"id": "eval/memory/query",
-			"factory": "state",
-			"status": "settled",
-			"deps": [],
+			"factory": "rootEvalMemoryQuery",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/exposure-frame"
+			],
 			"name": "eval/memory/query",
-			"value": {
-				"tags": [
-					"relevant"
-				]
-			},
 			"version": {
 				"level": 0,
 				"counter": 0
@@ -1302,13 +2581,17 @@
 			"factory": "rootEvalMemoryContextForWorkItem",
 			"status": "sentinel",
 			"deps": [
-				"eval/memory/candidate-frame",
+				"eval/memory/exposure-frame",
 				"eval/solution/agentic-memory/retrieval/ranked"
 			],
 			"name": "eval/memory/context-for-work-item",
 			"version": {
 				"level": 0,
 				"counter": 0
+			},
+			"meta": {
+				"dataCardinality": "six-arms",
+				"lifecycleCardinality": "one"
 			}
 		},
 		{
@@ -1598,6 +2881,7 @@
 			"factory": "rootEvalWorkItemAdmittedPlanAuthority",
 			"status": "sentinel",
 			"deps": [
+				"eval/solution/source-work-item-execution/plan/admitted",
 				"eval/solution/work-item-execution/plan/admitted"
 			],
 			"name": "eval/work-item/admitted-plan-authority",
@@ -1610,13 +2894,31 @@
 			}
 		},
 		{
+			"id": "eval/provider/proposal-candidate",
+			"factory": "rootEvalProviderProposalCandidate",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/source-work-item-execution/requests",
+				"eval/solution/work-item-execution/requests",
+				"eval/work-item/admitted-plan-authority",
+				"eval/profile/graph-admission"
+			],
+			"name": "eval/provider/proposal-candidate",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"role": "admitted-plan-candidate",
+				"timeoutAuthority": "reads-work-item-plan-data"
+			}
+		},
+		{
 			"id": "eval/provider/proposal",
 			"factory": "rootEvalProviderProposal",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/work-item-execution/requests",
-				"eval/work-item/admitted-plan-authority",
-				"eval/profile/graph-admission"
+				"eval/provider/proposal-candidate"
 			],
 			"name": "eval/provider/proposal",
 			"version": {
@@ -1624,7 +2926,24 @@
 				"counter": 0
 			},
 			"meta": {
-				"timeoutAuthority": "reads-work-item-plan-data"
+				"role": "quiet-admitted-plan-proposal-boundary"
+			}
+		},
+		{
+			"id": "eval/provider/proposal-release-controller",
+			"factory": "rootEvalProviderProposalReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/provider/proposal-candidate",
+				"eval/provider/proposal"
+			],
+			"name": "eval/provider/proposal-release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"role": "admitted-plan-proposal-release"
 			}
 		},
 		{
@@ -1638,6 +2957,9 @@
 			"version": {
 				"level": 0,
 				"counter": 0
+			},
+			"meta": {
+				"readinessAuthority": "one-correlated-delay-outcome-per-retry"
 			}
 		},
 		{
@@ -1696,36 +3018,50 @@
 			"factory": "rootEvalRetryDelayAdmission",
 			"status": "sentinel",
 			"deps": [
-				"eval/provider/result-batches"
+				"eval/provider/retryable-result-admission",
+				"eval/time/elapsed-budget/state"
 			],
 			"name": "eval/retry/delay-admission",
 			"version": {
 				"level": 0,
 				"counter": 0
+			},
+			"meta": {
+				"admission": "per-correlated-retryable-result",
+				"batchBarrier": false
 			}
 		},
 		{
 			"id": "eval/provider/graph-admission-and-budget",
 			"factory": "rootEvalProviderGraphAdmission",
-			"status": "sentinel",
+			"status": "settled",
 			"deps": [
 				"eval/provider/replicate-proposal-batches",
 				"eval/retry/proposal-fact",
-				"eval/provider/result-admission",
-				"eval/provider/retryable-result-admission",
-				"eval/work-item/admitted-plan-authority"
+				"eval/provider/all-result-admissions",
+				"eval/retry/delay-result-input",
+				"eval/time/elapsed-budget/state",
+				"eval/profile/graph-admission"
 			],
 			"name": "eval/provider/graph-admission-and-budget",
+			"value": {
+				"kind": "eval-active-provider-effects",
+				"effects": []
+			},
 			"version": {
 				"level": 0,
-				"counter": 0
+				"counter": 3
 			},
 			"meta": {
-				"maxConcurrentEffects": 6,
+				"capacityPolicy": "adaptive-downshift-only",
+				"cooldownReadiness": "exact-correlated-retry-delay-outcome",
+				"initialMaxConcurrentEffects": 2,
 				"maxOutputTokens": 16384,
+				"proposalAuthority": "direct-dependency-with-graph-state-conservation",
+				"proposalOrder": "replicate-fixed-arm-attempt",
+				"rateLimitedMaxConcurrentEffects": 1,
 				"reasoningEffort": "medium",
 				"reservation": "atomic-before-admission",
-				"retryProposalAuthority": "direct-dependency-with-graph-state-conservation",
 				"timeoutAuthority": "copied-from-work-item-plan"
 			}
 		},
@@ -1740,6 +3076,24 @@
 			"version": {
 				"level": 0,
 				"counter": 0
+			}
+		},
+		{
+			"id": "eval/provider/adaptive-capacity-state",
+			"factory": "rootEvalAdaptiveProviderCapacityState",
+			"status": "sentinel",
+			"deps": [
+				"eval/provider/graph-admission-and-budget"
+			],
+			"name": "eval/provider/adaptive-capacity-state",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"domainAuthority": "graph-state",
+				"materialFree": true,
+				"rebound": false
 			}
 		},
 		{
@@ -1760,7 +3114,10 @@
 			"factory": "rootEvalExactToolAdmission",
 			"status": "sentinel",
 			"deps": [
-				"eval/provider/result-admission"
+				"eval/provider/result-admission",
+				"eval/provider/failed-result-admission",
+				"eval/source-work-item/tool-result-input",
+				"eval/campaign/task-bindings"
 			],
 			"name": "eval/tool/exact-admission",
 			"version": {
@@ -1769,6 +3126,8 @@
 			},
 			"meta": {
 				"arguments": "graph-admitted",
+				"sourceBarrier": "all-five-provider-outcomes-before-source-tools",
+				"sourceToolCapacity": 1,
 				"toolRef": "graphrefly.eval.exact-tool.v1"
 			}
 		},
@@ -1819,7 +3178,8 @@
 				"eval/cleanup/completed",
 				"eval/budget/state",
 				"eval/billing/observation-result-input",
-				"eval/billing/current-key-before"
+				"eval/billing/current-key-before",
+				"eval/campaign/state"
 			],
 			"name": "eval/billing/observation-proposal-and-stopping",
 			"value": {
@@ -1943,7 +3303,7 @@
 			"status": "sentinel",
 			"deps": [
 				"eval/executor/current-tool-effect",
-				"eval/tool/result-input",
+				"eval/tool/all-result-inputs",
 				"eval/campaign/start"
 			],
 			"name": "eval/executor/tool-effect-lifecycle-registry",
@@ -2202,34 +3562,24 @@
 			}
 		},
 		{
-			"id": "eval/controls/memory-provenance",
-			"factory": "state",
-			"status": "settled",
-			"deps": [],
-			"name": "eval/controls/memory-provenance",
-			"value": {
-				"cold": "none",
-				"relevant-applied": "relevant-applied",
-				"proposal-only": "proposal-only",
-				"admission-rejected": "admission-rejected",
-				"irrelevant-applied": "irrelevant-applied",
-				"wrong-scope-applied": "wrong-scope-applied"
-			},
+			"id": "eval/findings/matched-source-target-evidence",
+			"factory": "rootEvalMatchedSourceTargetEvidence",
+			"status": "sentinel",
+			"deps": [
+				"eval/cleanup/completed",
+				"eval/provider/all-result-admissions",
+				"eval/source-work-item/memory-handoff/status",
+				"eval/source-work-item/request-authority",
+				"eval/campaign/start"
+			],
+			"name": "eval/findings/matched-source-target-evidence",
 			"version": {
 				"level": 0,
 				"counter": 0
 			},
 			"meta": {
-				"armOrder": [
-					"cold",
-					"relevant-applied",
-					"proposal-only",
-					"admission-rejected",
-					"irrelevant-applied",
-					"wrong-scope-applied"
-				],
-				"controls": 5,
-				"treatment": "relevant-applied"
+				"domainAuthority": "graph-state",
+				"materialFree": true
 			}
 		},
 		{
@@ -2259,7 +3609,8 @@
 			"deps": [
 				"eval/findings/efficacy-state",
 				"eval/billing/reconciliation",
-				"eval/observation/effect-activity"
+				"eval/observation/effect-activity",
+				"eval/findings/matched-source-target-evidence"
 			],
 			"name": "eval/findings/efficacy",
 			"version": {
@@ -2269,6 +3620,35 @@
 			"meta": {
 				"billingAuditAffectsConclusion": false,
 				"semanticAuthority": "verification-diagnostics-stage-counts"
+			}
+		},
+		{
+			"id": "eval/development/qualification",
+			"factory": "rootEvalDevelopmentQualification",
+			"status": "settled",
+			"deps": [
+				"eval/campaign/contract",
+				"eval/findings/efficacy"
+			],
+			"name": "eval/development/qualification",
+			"value": {
+				"kind": "eval-development-qualification-state",
+				"campaignPurpose": "confirmatory",
+				"generationRef": "root-eval-confirmatory-2026-08-27-d145-v1",
+				"status": "not-applicable",
+				"generationQualified": null,
+				"consecutiveQualifyingGenerations": 2,
+				"requiredConsecutiveGenerations": 2,
+				"heldOutEligible": true
+			},
+			"version": {
+				"level": 0,
+				"counter": 1
+			},
+			"meta": {
+				"authority": "d145-two-consecutive-five-replicate-development-generations",
+				"materialFree": true,
+				"requiredConsecutiveGenerations": 2
 			}
 		},
 		{
@@ -2299,7 +3679,8 @@
 			"deps": [
 				"eval/campaign/state",
 				"eval/controls/memory-provenance",
-				"eval/findings/efficacy-state"
+				"eval/findings/efficacy-state",
+				"eval/development/qualification"
 			],
 			"name": "eval/observation/inputs",
 			"version": {
@@ -2336,7 +3717,9 @@
 			"deps": [
 				"eval/observation/events",
 				"eval/observation/effect-activity",
-				"eval/observation/terminal-lifecycle-consistency"
+				"eval/observation/terminal-lifecycle-consistency",
+				"eval/provider/adaptive-capacity-state",
+				"eval/time/elapsed-budget/state"
 			],
 			"name": "eval/observation",
 			"version": {
@@ -2358,23 +3741,99 @@
 			"to": "eval/profile/graph-admission"
 		},
 		{
+			"from": "eval/campaign/start",
+			"to": "eval/time/elapsed-budget/schedule"
+		},
+		{
+			"from": "eval/campaign/start",
+			"to": "eval/time/elapsed-budget/timer-source"
+		},
+		{
+			"from": "eval/time/elapsed-budget/timer-source",
+			"to": "eval/time/elapsed-budget/clock"
+		},
+		{
+			"from": "eval/time/elapsed-budget/schedule",
+			"to": "eval/time/elapsed-budget/readiness/runtime"
+		},
+		{
+			"from": "eval/time/elapsed-budget/clock",
+			"to": "eval/time/elapsed-budget/readiness/runtime"
+		},
+		{
+			"from": "eval/time/elapsed-budget/readiness/runtime",
+			"to": "eval/time/elapsed-budget/readiness/pending"
+		},
+		{
+			"from": "eval/time/elapsed-budget/readiness/runtime",
+			"to": "eval/time/elapsed-budget/readiness/ready"
+		},
+		{
+			"from": "eval/time/elapsed-budget/readiness/runtime",
+			"to": "eval/time/elapsed-budget/readiness/overdue"
+		},
+		{
+			"from": "eval/time/elapsed-budget/readiness/runtime",
+			"to": "eval/time/elapsed-budget/readiness/status"
+		},
+		{
+			"from": "eval/time/elapsed-budget/readiness/runtime",
+			"to": "eval/time/elapsed-budget/readiness/issues"
+		},
+		{
+			"from": "eval/time/elapsed-budget/readiness/runtime",
+			"to": "eval/time/elapsed-budget/readiness/audit"
+		},
+		{
+			"from": "eval/time/elapsed-budget/readiness/runtime",
+			"to": "eval/time/elapsed-budget/readiness/views"
+		},
+		{
+			"from": "eval/time/elapsed-budget/schedule",
+			"to": "eval/time/elapsed-budget/state"
+		},
+		{
+			"from": "eval/time/elapsed-budget/readiness/ready",
+			"to": "eval/time/elapsed-budget/state"
+		},
+		{
 			"from": "eval/provider/result-input",
+			"to": "eval/provider/all-result-admissions"
+		},
+		{
+			"from": "eval/provider/all-result-admissions",
 			"to": "eval/provider/result-admission"
 		},
 		{
-			"from": "eval/provider/retryable-result-input",
+			"from": "eval/provider/all-result-admissions",
+			"to": "eval/provider/failed-result-admission"
+		},
+		{
+			"from": "eval/provider/all-result-admissions",
 			"to": "eval/provider/retryable-result-admission"
 		},
 		{
+			"from": "eval/provider/all-result-admissions",
+			"to": "eval/provider/result-status-release-controller"
+		},
+		{
 			"from": "eval/provider/result-admission",
-			"to": "eval/provider/all-result-admissions"
+			"to": "eval/provider/result-status-release-controller"
+		},
+		{
+			"from": "eval/provider/failed-result-admission",
+			"to": "eval/provider/result-status-release-controller"
 		},
 		{
 			"from": "eval/provider/retryable-result-admission",
-			"to": "eval/provider/all-result-admissions"
+			"to": "eval/provider/result-status-release-controller"
 		},
 		{
 			"from": "eval/provider/result-admission",
+			"to": "eval/provider/result-batches"
+		},
+		{
+			"from": "eval/provider/failed-result-admission",
 			"to": "eval/provider/result-batches"
 		},
 		{
@@ -2382,7 +3841,15 @@
 			"to": "eval/provider/result-batches"
 		},
 		{
-			"from": "eval/provider/result-admission",
+			"from": "eval/source-work-item/tool-result-input",
+			"to": "eval/tool/all-result-inputs"
+		},
+		{
+			"from": "eval/tool/result-input",
+			"to": "eval/tool/all-result-inputs"
+		},
+		{
+			"from": "eval/provider/failed-result-admission",
 			"to": "eval/effect/terminal-outcomes"
 		},
 		{
@@ -2390,15 +3857,215 @@
 			"to": "eval/effect/terminal-outcomes"
 		},
 		{
+			"from": "eval/provider/failed-result-admission",
+			"to": "eval/source-work-item/terminal-outcomes"
+		},
+		{
+			"from": "eval/source-work-item/tool-result-input",
+			"to": "eval/source-work-item/terminal-outcomes"
+		},
+		{
 			"from": "eval/effect/terminal-outcomes",
 			"to": "eval/provider/reconciliation"
 		},
 		{
-			"from": "eval/effect/terminal-outcomes",
+			"from": "eval/source-work-item/terminal-outcomes",
+			"to": "eval/source-work-item/reconciliation"
+		},
+		{
+			"from": "eval/campaign/task-bindings",
+			"to": "eval/source-work-item/request-authority"
+		},
+		{
+			"from": "eval/campaign/contract",
+			"to": "eval/source-work-item/request-authority"
+		},
+		{
+			"from": "eval/campaign/start",
+			"to": "eval/source-work-item/schedule"
+		},
+		{
+			"from": "eval/source-work-item/request-authority",
+			"to": "eval/source-work-item/schedule"
+		},
+		{
+			"from": "eval/campaign/contract",
+			"to": "eval/source-work-item/schedule"
+		},
+		{
+			"from": "eval/source-work-item/schedule",
+			"to": "eval/source-work-item/objective-data"
+		},
+		{
+			"from": "eval/source-work-item/schedule",
+			"to": "eval/source-work-item/attempt-resource-plan"
+		},
+		{
+			"from": "eval/profile/graph-admission",
+			"to": "eval/source-work-item/attempt-resource-plan"
+		},
+		{
+			"from": "eval/source-work-item/objective-data",
+			"to": "eval/solution/source-work-item-execution/workItemSeeds"
+		},
+		{
+			"from": "eval/source-work-item/objective-data",
+			"to": "eval/solution/source-work-item-execution/plan/runtime"
+		},
+		{
+			"from": "eval/source-work-item/attempt-resource-plan",
+			"to": "eval/solution/source-work-item-execution/plan/runtime"
+		},
+		{
+			"from": "eval/source-work-item/reconciliation",
+			"to": "eval/solution/source-work-item-execution/plan/runtime"
+		},
+		{
+			"from": "eval/solution/source-work-item-execution/plan/runtime",
+			"to": "eval/solution/source-work-item-execution/plan/admitted"
+		},
+		{
+			"from": "eval/solution/source-work-item-execution/plan/runtime",
+			"to": "eval/solution/source-work-item-execution/plan/rejected"
+		},
+		{
+			"from": "eval/solution/source-work-item-execution/plan/runtime",
+			"to": "eval/solution/source-work-item-execution/plan/effectRequests"
+		},
+		{
+			"from": "eval/solution/source-work-item-execution/plan/runtime",
+			"to": "eval/solution/source-work-item-execution/plan/results"
+		},
+		{
+			"from": "eval/solution/source-work-item-execution/plan/runtime",
+			"to": "eval/solution/source-work-item-execution/plan/status"
+		},
+		{
+			"from": "eval/solution/source-work-item-execution/plan/runtime",
+			"to": "eval/solution/source-work-item-execution/plan/issues"
+		},
+		{
+			"from": "eval/solution/source-work-item-execution/plan/runtime",
+			"to": "eval/solution/source-work-item-execution/plan/audit"
+		},
+		{
+			"from": "eval/solution/source-work-item-execution/workItemSeeds",
+			"to": "eval/solution/source-work-item-execution/effectRuns/runtime"
+		},
+		{
+			"from": "eval/solution/source-work-item-execution/plan/effectRequests",
+			"to": "eval/solution/source-work-item-execution/effectRuns/runtime"
+		},
+		{
+			"from": "eval/solution/source-work-item-execution/effectRuns/runtime",
+			"to": "eval/solution/source-work-item-execution/effectRuns/effectRuns"
+		},
+		{
+			"from": "eval/solution/source-work-item-execution/effectRuns/runtime",
+			"to": "eval/solution/source-work-item-execution/effectRuns/status"
+		},
+		{
+			"from": "eval/solution/source-work-item-execution/effectRuns/runtime",
+			"to": "eval/solution/source-work-item-execution/effectRuns/issues"
+		},
+		{
+			"from": "eval/solution/source-work-item-execution/effectRuns/runtime",
+			"to": "eval/solution/source-work-item-execution/effectRuns/audit"
+		},
+		{
+			"from": "eval/solution/source-work-item-execution/plan/effectRequests",
+			"to": "eval/solution/source-work-item-execution/effectRuns/views"
+		},
+		{
+			"from": "eval/solution/source-work-item-execution/effectRuns/runtime",
+			"to": "eval/solution/source-work-item-execution/effectRuns/views"
+		},
+		{
+			"from": "eval/solution/source-work-item-execution/effectRuns/effectRuns",
+			"to": "eval/solution/source-work-item-execution/requestFacts"
+		},
+		{
+			"from": "eval/solution/source-work-item-execution/requestFacts",
+			"to": "eval/solution/source-work-item-execution/requests"
+		},
+		{
+			"from": "eval/solution/source-work-item-execution/requestFacts",
+			"to": "eval/solution/source-work-item-execution/requestLedger/views"
+		},
+		{
+			"from": "eval/solution/source-work-item-execution/requestFacts",
+			"to": "eval/solution/source-work-item-execution/requestLedger/issues"
+		},
+		{
+			"from": "eval/solution/source-work-item-execution/requestFacts",
+			"to": "eval/solution/source-work-item-execution/requestLedger/audit"
+		},
+		{
+			"from": "eval/source-work-item/tool-result-input",
 			"to": "eval/tool/result"
 		},
 		{
-			"from": "eval/tool/result",
+			"from": "eval/source-work-item/request-authority",
+			"to": "eval/source-work-item/outcome-evidence-verification"
+		},
+		{
+			"from": "eval/source-work-item/terminal-outcomes",
+			"to": "eval/source-work-item/outcome-evidence-verification"
+		},
+		{
+			"from": "eval/source-work-item/outcome-evidence-verification",
+			"to": "eval/source-work-item/memory-handoff-candidate"
+		},
+		{
+			"from": "eval/source-work-item/outcome-evidence-verification",
+			"to": "eval/source-work-item/memory-handoff-decision"
+		},
+		{
+			"from": "eval/source-work-item/memory-handoff-candidate",
+			"to": "eval/source-work-item/memory-handoff/correlation"
+		},
+		{
+			"from": "eval/source-work-item/memory-handoff-decision",
+			"to": "eval/source-work-item/memory-handoff/correlation"
+		},
+		{
+			"from": "eval/source-work-item/memory-handoff/correlation",
+			"to": "eval/source-work-item/memory-handoff/admitted"
+		},
+		{
+			"from": "eval/source-work-item/memory-handoff/admitted",
+			"to": "eval/source-work-item/memory-handoff/accepted"
+		},
+		{
+			"from": "eval/source-work-item/memory-handoff/admitted",
+			"to": "eval/source-work-item/memory-handoff/release-controller"
+		},
+		{
+			"from": "eval/source-work-item/memory-handoff/accepted",
+			"to": "eval/source-work-item/memory-handoff/release-controller"
+		},
+		{
+			"from": "eval/source-work-item/memory-handoff/correlation",
+			"to": "eval/source-work-item/memory-handoff/rejected"
+		},
+		{
+			"from": "eval/source-work-item/memory-handoff/correlation",
+			"to": "eval/source-work-item/memory-handoff/status"
+		},
+		{
+			"from": "eval/source-work-item/memory-handoff/correlation",
+			"to": "eval/source-work-item/memory-handoff/issues"
+		},
+		{
+			"from": "eval/source-work-item/memory-handoff/correlation",
+			"to": "eval/source-work-item/memory-handoff/cursor"
+		},
+		{
+			"from": "eval/source-work-item/memory-handoff/accepted",
+			"to": "eval/source-work-item/verified-solution"
+		},
+		{
+			"from": "eval/effect/terminal-outcomes",
 			"to": "eval/verification/diff"
 		},
 		{
@@ -2422,16 +4089,40 @@
 			"to": "eval/verification/diagnostics"
 		},
 		{
-			"from": "eval/campaign/start",
+			"from": "eval/cleanup/completed",
 			"to": "eval/campaign/replicate-controller"
 		},
 		{
-			"from": "eval/cleanup/completed",
+			"from": "eval/source-work-item/memory-handoff/status",
+			"to": "eval/campaign/replicate-controller"
+		},
+		{
+			"from": "eval/source-work-item/request-authority",
+			"to": "eval/campaign/replicate-controller"
+		},
+		{
+			"from": "eval/campaign/contract",
+			"to": "eval/campaign/replicate-controller"
+		},
+		{
+			"from": "eval/campaign/task-bindings",
+			"to": "eval/campaign/replicate-controller"
+		},
+		{
+			"from": "eval/controls/memory-provenance",
 			"to": "eval/campaign/replicate-controller"
 		},
 		{
 			"from": "eval/campaign/replicate-controller",
 			"to": "eval/campaign/replicate-batches"
+		},
+		{
+			"from": "eval/campaign/replicate-controller",
+			"to": "eval/campaign/replicate-batch-release-controller"
+		},
+		{
+			"from": "eval/campaign/replicate-batches",
+			"to": "eval/campaign/replicate-batch-release-controller"
 		},
 		{
 			"from": "eval/campaign/replicate-controller",
@@ -2442,23 +4133,83 @@
 			"to": "eval/work-item/objective-data"
 		},
 		{
-			"from": "eval/work-item/objective-data",
+			"from": "eval/campaign/replicate-batches",
+			"to": "eval/memory/six-arm-batch-candidate"
+		},
+		{
+			"from": "eval/source-work-item/verified-solution",
+			"to": "eval/memory/six-arm-source-readiness-decision"
+		},
+		{
+			"from": "eval/campaign/replicate-batches",
+			"to": "eval/memory/six-arm-source-readiness-decision"
+		},
+		{
+			"from": "eval/memory/six-arm-batch-candidate",
+			"to": "eval/memory/six-arm-source-readiness-handoff/correlation"
+		},
+		{
+			"from": "eval/memory/six-arm-source-readiness-decision",
+			"to": "eval/memory/six-arm-source-readiness-handoff/correlation"
+		},
+		{
+			"from": "eval/memory/six-arm-source-readiness-handoff/correlation",
+			"to": "eval/memory/six-arm-source-readiness-handoff/admitted"
+		},
+		{
+			"from": "eval/memory/six-arm-source-readiness-handoff/admitted",
+			"to": "eval/memory/six-arm-source-readiness-handoff/accepted"
+		},
+		{
+			"from": "eval/memory/six-arm-source-readiness-handoff/admitted",
+			"to": "eval/memory/six-arm-source-readiness-handoff/release-controller"
+		},
+		{
+			"from": "eval/memory/six-arm-source-readiness-handoff/accepted",
+			"to": "eval/memory/six-arm-source-readiness-handoff/release-controller"
+		},
+		{
+			"from": "eval/memory/six-arm-source-readiness-handoff/correlation",
+			"to": "eval/memory/six-arm-source-readiness-handoff/rejected"
+		},
+		{
+			"from": "eval/memory/six-arm-source-readiness-handoff/correlation",
+			"to": "eval/memory/six-arm-source-readiness-handoff/status"
+		},
+		{
+			"from": "eval/memory/six-arm-source-readiness-handoff/correlation",
+			"to": "eval/memory/six-arm-source-readiness-handoff/issues"
+		},
+		{
+			"from": "eval/memory/six-arm-source-readiness-handoff/correlation",
+			"to": "eval/memory/six-arm-source-readiness-handoff/cursor"
+		},
+		{
+			"from": "eval/memory/six-arm-source-readiness-handoff/accepted",
+			"to": "eval/memory/correlated-six-arm-data"
+		},
+		{
+			"from": "eval/memory/correlated-six-arm-data",
+			"to": "eval/memory/source-record-data"
+		},
+		{
+			"from": "eval/memory/source-record-data",
+			"to": "eval/memory/source-work-item-data"
+		},
+		{
+			"from": "eval/memory/source-record-data",
 			"to": "eval/memory/mapping-policy"
 		},
 		{
-			"from": "eval/memory/mapping-policy",
-			"to": "eval/memory/admission-policy"
-		},
-		{
-			"from": "eval/memory/admission-policy",
-			"to": "eval/memory/candidate-frame"
-		},
-		{
-			"from": "eval/memory/candidate-frame",
+			"from": "eval/memory/source-record-data",
 			"to": "eval/memory/candidates"
 		},
 		{
-			"from": "eval/work-item/objective-data",
+			"from": "eval/memory/correlated-six-arm-data",
+			"to": "eval/memory/initial-records"
+		},
+		{
+			"from": "eval/memory/source-work-item-data",
 			"to": "eval/solution/agentic-work-item-memory-application/bridge/projection"
 		},
 		{
@@ -2494,99 +4245,107 @@
 			"to": "eval/solution/agentic-work-item-memory-application/bridge/cursor"
 		},
 		{
-			"from": "eval/memory/initial-records",
-			"to": "eval/solution/agentic-work-item-memory-application/admission/projection"
+			"from": "eval/solution/agentic-work-item-memory-application/bridge/proposals",
+			"to": "eval/memory/proposal-admission-boundary"
 		},
 		{
-			"from": "eval/solution/agentic-work-item-memory-application/bridge/proposals",
-			"to": "eval/solution/agentic-work-item-memory-application/admission/projection"
+			"from": "eval/memory/initial-records",
+			"to": "eval/solution/agentic-memory-admission/projection"
+		},
+		{
+			"from": "eval/memory/proposal-admission-boundary",
+			"to": "eval/solution/agentic-memory-admission/projection"
 		},
 		{
 			"from": "eval/memory/admission-policy",
-			"to": "eval/solution/agentic-work-item-memory-application/admission/projection"
+			"to": "eval/solution/agentic-memory-admission/projection"
 		},
 		{
-			"from": "eval/solution/agentic-work-item-memory-application/admission/projection",
-			"to": "eval/solution/agentic-work-item-memory-application/admission/admissions"
+			"from": "eval/solution/agentic-memory-admission/projection",
+			"to": "eval/solution/agentic-memory-admission/admissions"
 		},
 		{
-			"from": "eval/solution/agentic-work-item-memory-application/admission/projection",
-			"to": "eval/solution/agentic-work-item-memory-application/admission/admitted"
+			"from": "eval/solution/agentic-memory-admission/projection",
+			"to": "eval/solution/agentic-memory-admission/admitted"
 		},
 		{
-			"from": "eval/solution/agentic-work-item-memory-application/admission/projection",
-			"to": "eval/solution/agentic-work-item-memory-application/admission/rejected"
+			"from": "eval/solution/agentic-memory-admission/projection",
+			"to": "eval/solution/agentic-memory-admission/rejected"
 		},
 		{
-			"from": "eval/solution/agentic-work-item-memory-application/admission/projection",
-			"to": "eval/solution/agentic-work-item-memory-application/admission/needsReview"
+			"from": "eval/solution/agentic-memory-admission/projection",
+			"to": "eval/solution/agentic-memory-admission/needsReview"
 		},
 		{
-			"from": "eval/solution/agentic-work-item-memory-application/admission/projection",
-			"to": "eval/solution/agentic-work-item-memory-application/admission/status"
+			"from": "eval/solution/agentic-memory-admission/projection",
+			"to": "eval/solution/agentic-memory-admission/status"
 		},
 		{
-			"from": "eval/solution/agentic-work-item-memory-application/admission/projection",
-			"to": "eval/solution/agentic-work-item-memory-application/admission/issues"
+			"from": "eval/solution/agentic-memory-admission/projection",
+			"to": "eval/solution/agentic-memory-admission/issues"
 		},
 		{
-			"from": "eval/solution/agentic-work-item-memory-application/admission/projection",
-			"to": "eval/solution/agentic-work-item-memory-application/admission/audit"
+			"from": "eval/solution/agentic-memory-admission/projection",
+			"to": "eval/solution/agentic-memory-admission/audit"
 		},
 		{
-			"from": "eval/solution/agentic-work-item-memory-application/admission/projection",
-			"to": "eval/solution/agentic-work-item-memory-application/admission/cursor"
+			"from": "eval/solution/agentic-memory-admission/projection",
+			"to": "eval/solution/agentic-memory-admission/cursor"
 		},
 		{
 			"from": "eval/memory/initial-records",
-			"to": "eval/solution/agentic-work-item-memory-application/application/projection"
+			"to": "eval/solution/agentic-memory-application/projection"
 		},
 		{
-			"from": "eval/solution/agentic-work-item-memory-application/admission/admissions",
-			"to": "eval/solution/agentic-work-item-memory-application/application/projection"
+			"from": "eval/solution/agentic-memory-admission/admissions",
+			"to": "eval/solution/agentic-memory-application/projection"
 		},
 		{
 			"from": "eval/memory/application-policy",
-			"to": "eval/solution/agentic-work-item-memory-application/application/projection"
+			"to": "eval/solution/agentic-memory-application/projection"
 		},
 		{
-			"from": "eval/solution/agentic-work-item-memory-application/application/projection",
-			"to": "eval/solution/agentic-work-item-memory-application/application/records"
+			"from": "eval/solution/agentic-memory-application/projection",
+			"to": "eval/solution/agentic-memory-application/records"
 		},
 		{
-			"from": "eval/solution/agentic-work-item-memory-application/application/projection",
-			"to": "eval/solution/agentic-work-item-memory-application/application/appliedRecords"
+			"from": "eval/solution/agentic-memory-application/projection",
+			"to": "eval/solution/agentic-memory-application/appliedRecords"
 		},
 		{
-			"from": "eval/solution/agentic-work-item-memory-application/application/projection",
-			"to": "eval/solution/agentic-work-item-memory-application/application/applicationDecisions"
+			"from": "eval/solution/agentic-memory-application/projection",
+			"to": "eval/solution/agentic-memory-application/applicationDecisions"
 		},
 		{
-			"from": "eval/solution/agentic-work-item-memory-application/application/projection",
-			"to": "eval/solution/agentic-work-item-memory-application/application/status"
+			"from": "eval/solution/agentic-memory-application/projection",
+			"to": "eval/solution/agentic-memory-application/status"
 		},
 		{
-			"from": "eval/solution/agentic-work-item-memory-application/application/projection",
-			"to": "eval/solution/agentic-work-item-memory-application/application/operationStatuses"
+			"from": "eval/solution/agentic-memory-application/projection",
+			"to": "eval/solution/agentic-memory-application/operationStatuses"
 		},
 		{
-			"from": "eval/solution/agentic-work-item-memory-application/application/projection",
-			"to": "eval/solution/agentic-work-item-memory-application/application/issues"
+			"from": "eval/solution/agentic-memory-application/projection",
+			"to": "eval/solution/agentic-memory-application/issues"
 		},
 		{
-			"from": "eval/solution/agentic-work-item-memory-application/application/projection",
-			"to": "eval/solution/agentic-work-item-memory-application/application/audit"
+			"from": "eval/solution/agentic-memory-application/projection",
+			"to": "eval/solution/agentic-memory-application/audit"
 		},
 		{
-			"from": "eval/solution/agentic-work-item-memory-application/application/projection",
-			"to": "eval/solution/agentic-work-item-memory-application/application/cursor"
+			"from": "eval/solution/agentic-memory-application/projection",
+			"to": "eval/solution/agentic-memory-application/cursor"
 		},
 		{
-			"from": "eval/solution/agentic-work-item-memory-application/application/records",
+			"from": "eval/solution/agentic-memory-application/records",
+			"to": "eval/memory/applied-record-state"
+		},
+		{
+			"from": "eval/memory/applied-record-state",
 			"to": "eval/memory/exposure-frame"
 		},
 		{
-			"from": "eval/memory/candidate-frame",
+			"from": "eval/memory/correlated-six-arm-data",
 			"to": "eval/memory/exposure-frame"
 		},
 		{
@@ -2598,7 +4357,7 @@
 			"to": "eval/memory/exposure-decisions"
 		},
 		{
-			"from": "eval/solution/agentic-work-item-memory-application/application/records",
+			"from": "eval/memory/applied-record-state",
 			"to": "eval/solution/agentic-memory-exposure/snapshot"
 		},
 		{
@@ -2632,6 +4391,10 @@
 		{
 			"from": "eval/solution/agentic-memory-exposure/snapshot",
 			"to": "eval/solution/agentic-memory-exposure/cursor"
+		},
+		{
+			"from": "eval/memory/exposure-frame",
+			"to": "eval/memory/query"
 		},
 		{
 			"from": "eval/solution/agentic-memory-exposure/allowedRecords",
@@ -2698,7 +4461,7 @@
 			"to": "eval/solution/agentic-memory/context"
 		},
 		{
-			"from": "eval/memory/candidate-frame",
+			"from": "eval/memory/exposure-frame",
 			"to": "eval/memory/context-for-work-item"
 		},
 		{
@@ -2810,20 +4573,40 @@
 			"to": "eval/solution/work-item-execution/requestLedger/audit"
 		},
 		{
+			"from": "eval/solution/source-work-item-execution/plan/admitted",
+			"to": "eval/work-item/admitted-plan-authority"
+		},
+		{
 			"from": "eval/solution/work-item-execution/plan/admitted",
 			"to": "eval/work-item/admitted-plan-authority"
 		},
 		{
+			"from": "eval/solution/source-work-item-execution/requests",
+			"to": "eval/provider/proposal-candidate"
+		},
+		{
 			"from": "eval/solution/work-item-execution/requests",
-			"to": "eval/provider/proposal"
+			"to": "eval/provider/proposal-candidate"
 		},
 		{
 			"from": "eval/work-item/admitted-plan-authority",
-			"to": "eval/provider/proposal"
+			"to": "eval/provider/proposal-candidate"
 		},
 		{
 			"from": "eval/profile/graph-admission",
+			"to": "eval/provider/proposal-candidate"
+		},
+		{
+			"from": "eval/provider/proposal-candidate",
 			"to": "eval/provider/proposal"
+		},
+		{
+			"from": "eval/provider/proposal-candidate",
+			"to": "eval/provider/proposal-release-controller"
+		},
+		{
+			"from": "eval/provider/proposal",
+			"to": "eval/provider/proposal-release-controller"
 		},
 		{
 			"from": "eval/retry/delay-result-input",
@@ -2846,7 +4629,11 @@
 			"to": "eval/provider/proposals"
 		},
 		{
-			"from": "eval/provider/result-batches",
+			"from": "eval/provider/retryable-result-admission",
+			"to": "eval/retry/delay-admission"
+		},
+		{
+			"from": "eval/time/elapsed-budget/state",
 			"to": "eval/retry/delay-admission"
 		},
 		{
@@ -2858,15 +4645,19 @@
 			"to": "eval/provider/graph-admission-and-budget"
 		},
 		{
-			"from": "eval/provider/result-admission",
+			"from": "eval/provider/all-result-admissions",
 			"to": "eval/provider/graph-admission-and-budget"
 		},
 		{
-			"from": "eval/provider/retryable-result-admission",
+			"from": "eval/retry/delay-result-input",
 			"to": "eval/provider/graph-admission-and-budget"
 		},
 		{
-			"from": "eval/work-item/admitted-plan-authority",
+			"from": "eval/time/elapsed-budget/state",
+			"to": "eval/provider/graph-admission-and-budget"
+		},
+		{
+			"from": "eval/profile/graph-admission",
 			"to": "eval/provider/graph-admission-and-budget"
 		},
 		{
@@ -2875,10 +4666,26 @@
 		},
 		{
 			"from": "eval/provider/graph-admission-and-budget",
+			"to": "eval/provider/adaptive-capacity-state"
+		},
+		{
+			"from": "eval/provider/graph-admission-and-budget",
 			"to": "eval/budget/state"
 		},
 		{
 			"from": "eval/provider/result-admission",
+			"to": "eval/tool/exact-admission"
+		},
+		{
+			"from": "eval/provider/failed-result-admission",
+			"to": "eval/tool/exact-admission"
+		},
+		{
+			"from": "eval/source-work-item/tool-result-input",
+			"to": "eval/tool/exact-admission"
+		},
+		{
+			"from": "eval/campaign/task-bindings",
 			"to": "eval/tool/exact-admission"
 		},
 		{
@@ -2907,6 +4714,10 @@
 		},
 		{
 			"from": "eval/billing/current-key-before",
+			"to": "eval/billing/observation-proposal-and-stopping"
+		},
+		{
+			"from": "eval/campaign/state",
 			"to": "eval/billing/observation-proposal-and-stopping"
 		},
 		{
@@ -2958,7 +4769,7 @@
 			"to": "eval/executor/tool-effect-lifecycle-registry"
 		},
 		{
-			"from": "eval/tool/result-input",
+			"from": "eval/tool/all-result-inputs",
 			"to": "eval/executor/tool-effect-lifecycle-registry"
 		},
 		{
@@ -3046,6 +4857,26 @@
 			"to": "eval/executor/caller-admitted-billing-effect"
 		},
 		{
+			"from": "eval/cleanup/completed",
+			"to": "eval/findings/matched-source-target-evidence"
+		},
+		{
+			"from": "eval/provider/all-result-admissions",
+			"to": "eval/findings/matched-source-target-evidence"
+		},
+		{
+			"from": "eval/source-work-item/memory-handoff/status",
+			"to": "eval/findings/matched-source-target-evidence"
+		},
+		{
+			"from": "eval/source-work-item/request-authority",
+			"to": "eval/findings/matched-source-target-evidence"
+		},
+		{
+			"from": "eval/campaign/start",
+			"to": "eval/findings/matched-source-target-evidence"
+		},
+		{
 			"from": "eval/verification/diagnostics",
 			"to": "eval/findings/efficacy-state"
 		},
@@ -3072,6 +4903,18 @@
 		{
 			"from": "eval/observation/effect-activity",
 			"to": "eval/findings/efficacy"
+		},
+		{
+			"from": "eval/findings/matched-source-target-evidence",
+			"to": "eval/findings/efficacy"
+		},
+		{
+			"from": "eval/campaign/contract",
+			"to": "eval/development/qualification"
+		},
+		{
+			"from": "eval/findings/efficacy",
+			"to": "eval/development/qualification"
 		},
 		{
 			"from": "eval/findings/efficacy",
@@ -3102,6 +4945,10 @@
 			"to": "eval/observation/inputs"
 		},
 		{
+			"from": "eval/development/qualification",
+			"to": "eval/observation/inputs"
+		},
+		{
 			"from": "eval/observation/inputs",
 			"to": "eval/observation/events"
 		},
@@ -3119,6 +4966,14 @@
 		},
 		{
 			"from": "eval/observation/terminal-lifecycle-consistency",
+			"to": "eval/observation"
+		},
+		{
+			"from": "eval/provider/adaptive-capacity-state",
+			"to": "eval/observation"
+		},
+		{
+			"from": "eval/time/elapsed-budget/state",
 			"to": "eval/observation"
 		}
 	],

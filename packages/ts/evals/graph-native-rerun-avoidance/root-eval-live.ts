@@ -35,48 +35,55 @@ import type {
 	EvalRetryDelayEffect,
 	EvalRetryDelayOutcome,
 } from "./eval-topology.js";
+import { ROOT_EVAL_CALLER_SAFETY_LEASE_MS } from "./eval-topology.js";
 import type { RootEvalLiveClaimCommit } from "./root-eval-live-authority.js";
+import {
+	ROOT_EVAL_D145_TASK_SET_BINDING_DIGEST,
+	ROOT_EVAL_DEVELOPMENT_TASK_SET_DIGEST,
+	ROOT_EVAL_DEVELOPMENT_TASKS,
+	ROOT_EVAL_HELD_OUT_SEAL_DIGEST,
+	type RootEvalTaskDefinition,
+	type RootEvalTaskKind,
+	type RootEvalTaskManifest,
+	type RootEvalTaskManifestSlot,
+	readRootEvalTaskManifest,
+	rootEvalTask,
+} from "./root-eval-task.js";
 
-export const ROOT_EVAL_LIVE_DECISION_REF = "graphrefly-ts:D125" as const;
+export const ROOT_EVAL_LIVE_DECISION_REF = "graphrefly-ts:D145" as const;
 export const ROOT_EVAL_LIVE_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions" as const;
-export const ROOT_EVAL_FROZEN_BASELINE_COMMIT = "dea57bdeb4b370dddbbe2505bd05f9e3551b26c6" as const;
-export const ROOT_EVAL_LIVE_WRITABLE_PATH =
-	"packages/ts/src/executors/managed-cloud-postgresql.ts" as const;
-export const ROOT_EVAL_LIVE_PUBLIC_TEST =
-	"packages/ts/src/__tests__/managed-cloud-postgresql.test.ts" as const;
+export const ROOT_EVAL_FROZEN_BASELINE_COMMIT = ROOT_EVAL_DEVELOPMENT_TASKS[0]!.baselineCommit;
+export const ROOT_EVAL_LIVE_WRITABLE_PATH = ROOT_EVAL_DEVELOPMENT_TASKS[0]!.writablePath;
 const ROOT_EVAL_LIVE_PROVIDER_FETCH = globalThis.fetch;
 
-const READABLE_PATHS = Object.freeze([
-	ROOT_EVAL_LIVE_WRITABLE_PATH,
-	"packages/ts/src/identity.ts",
-	"packages/ts/src/orchestration/agent-runtime-tool-provider-run-admission.ts",
-] as const);
-export const ROOT_EVAL_LIVE_CORRECT_REPLACEMENT = `\t\tadmissionId,\n\t\tprincipalId,\n\t\tprincipalSessionRevision,\n\t\ttenantId,\n\t\tworkspaceId,\n\t\tresourceKind,\n\t\tresourceId,\n\t\tresourceRevision,\n\t\tpolicyRevision,\n\t\tmodelRevision,\n\t])\n\t\tassertSafe(value, "admitted coordinate");\n\tassertBoundedAuthorityId(admissionProposalId, "admission proposal coordinate");`;
-export const ROOT_EVAL_LIVE_BUGGY_REPLACEMENT = `\t\tadmissionId,\n\t\tadmissionProposalId,\n\t\tprincipalId,\n\t\tprincipalSessionRevision,\n\t\ttenantId,\n\t\tworkspaceId,\n\t\tresourceKind,\n\t\tresourceId,\n\t\tresourceRevision,\n\t\tpolicyRevision,\n\t\tmodelRevision,\n\t])\n\t\tassertSafe(value, "admitted coordinate");`;
-const TASK_STATEMENT = `Managed cloud PostgreSQL must admit only producer-owned canonical run-admission proposal provenance before a worker claim. Inspect the producer contract and canonical identity helpers, then make the smallest consumer change that accepts the valid canonical proposal and rejects malformed or locally reconstructed proposal provenance.
-
-Acceptance criteria:
-1. A fresh producer-owned canonical run-admission proposal is admitted before worker claim.
-2. Malformed and non-canonical proposal provenance is rejected before store mutation.
-3. Locally reconstructed proposal provenance that disagrees with the producer ref is rejected.
-4. Authorization, fencing, lease, credential and claim invariants remain intact.
-5. Only packages/ts/src/executors/managed-cloud-postgresql.ts changes.`;
+export const ROOT_EVAL_LIVE_CORRECT_REPLACEMENT =
+	ROOT_EVAL_DEVELOPMENT_TASKS[0]!.fixtureCorrectText;
+export const ROOT_EVAL_LIVE_BUGGY_REPLACEMENT = ROOT_EVAL_DEVELOPMENT_TASKS[0]!.fixtureBuggyText;
 const NO_ADMITTED_MEMORY_CONTEXT = "No admitted memory insight content.";
-const RELEVANT_MEMORY_CONTENT =
-	"Preserve the producer proposal coordinate separately from the later admission coordinate. A producer proposal identifier is a bounded compound authority identifier, not an ordinary safe string; validate it with the canonical compound-authority boundary before comparing it to sourceRefs.";
-const PRIVATE_MEMORY_BINDINGS = new Map(
-	Array.from({ length: 5 }, (_, index) => {
-		const replicate = index + 1;
-		const digest = empiricalStrictJsonDigest({
-			kind: "eval-private-memory-binding",
-			replicate,
-			arm: "relevant-applied",
-		});
-		return [digest, RELEVANT_MEMORY_CONTENT] as const;
-	}),
-);
 const MAX_PROCESS_BYTES = 4 * 1_048_576;
 const MAX_RESPONSE_BYTES = 2 * 1_048_576;
+
+function executionTask(
+	task: RootEvalTaskDefinition,
+	workItemRole: "source" | "target",
+): RootEvalTaskDefinition {
+	if (workItemRole === "target") return task;
+	return Object.freeze({
+		...task,
+		writablePath: task.sourceWritablePath,
+		taskStatement: task.sourceTaskStatement,
+		fixtureCorrectText: task.sourceFixtureCorrectText,
+		fixtureBuggyText: task.sourceFixtureBuggyText,
+		readonlyFixtureFiles: task.sourceReadonlyFixtureFiles,
+		actorContext: task.sourceActorContext,
+		publicVerifierPath: task.sourcePublicVerifierPath,
+		hiddenVerifierPath: task.sourceHiddenVerifierPath,
+		publicVerifierName: task.sourcePublicVerifierName,
+		hiddenVerifierName: task.sourceHiddenVerifierName,
+		publicVerifierSource: task.sourcePublicVerifierSource,
+		hiddenVerifierSource: task.sourceHiddenVerifierSource,
+	});
+}
 class RootEvalEffectLeaseExpired extends Error {
 	constructor(readonly timeoutMs: number) {
 		super(`root eval admitted provider effect exceeded ${timeoutMs}ms`);
@@ -84,7 +91,33 @@ class RootEvalEffectLeaseExpired extends Error {
 	}
 }
 
-export const ROOT_EVAL_CALLER_SETTLEMENT_DEADLINE_MS = 4_500_000 as const;
+class RootEvalSettlementLeaseExpired extends Error {
+	constructor(
+		readonly effectClass:
+			| "provider"
+			| "exact-tool"
+			| "retry-delay"
+			| "billing-observation"
+			| "cleanup-finalizer",
+		readonly timeoutMs: number,
+	) {
+		super(`root eval admitted ${effectClass} settlement exceeded ${timeoutMs}ms`);
+		this.name = "RootEvalSettlementLeaseExpired";
+	}
+}
+
+export const ROOT_EVAL_CALLER_SETTLEMENT_DEADLINE_MS = ROOT_EVAL_CALLER_SAFETY_LEASE_MS;
+export const ROOT_EVAL_PROVIDER_SETTLEMENT_LEASE_MS = 600_000 as const;
+export const ROOT_EVAL_TOOL_SETTLEMENT_LEASE_MS = 600_000 as const;
+export const ROOT_EVAL_BILLING_SETTLEMENT_LEASE_MS = 32_000 as const;
+export const ROOT_EVAL_MAX_RETRY_DELAY_MS = 120_000 as const;
+export const ROOT_EVAL_RETRY_SETTLEMENT_LEASE_MS = 121_000 as const;
+export const ROOT_EVAL_MAX_BILLING_OBSERVATIONS = 8 as const;
+export const ROOT_EVAL_MAX_POST_CUTOFF_CAUSAL_TAIL_MS =
+	ROOT_EVAL_PROVIDER_SETTLEMENT_LEASE_MS +
+	ROOT_EVAL_TOOL_SETTLEMENT_LEASE_MS +
+	ROOT_EVAL_RETRY_SETTLEMENT_LEASE_MS +
+	ROOT_EVAL_BILLING_SETTLEMENT_LEASE_MS * ROOT_EVAL_MAX_BILLING_OBSERVATIONS;
 
 export class RootEvalCallerSettlementDeadlineExpired extends Error {
 	readonly code = "caller-settlement-deadline-expired" as const;
@@ -104,13 +137,62 @@ function createRootEvalEffectLease(
 }> {
 	if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 300_000)
 		throw new TypeError("root eval admitted effect timeout was invalid");
+	return createRootEvalAbortLease(
+		timeoutMs,
+		parentSignal,
+		() => new RootEvalEffectLeaseExpired(timeoutMs),
+	);
+}
+
+function createRootEvalSettlementLease(
+	effectClass: RootEvalSettlementLeaseExpired["effectClass"],
+	timeoutMs: number,
+	parentSignal?: AbortSignal,
+): Readonly<{
+	readonly signal: AbortSignal;
+	dispose(): void;
+}> {
+	if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 600_000)
+		throw new TypeError("root eval admitted settlement timeout was invalid");
+	return createRootEvalAbortLease(
+		timeoutMs,
+		parentSignal,
+		() => new RootEvalSettlementLeaseExpired(effectClass, timeoutMs),
+	);
+}
+
+async function awaitRootEvalAbortable<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
+	return await new Promise<T>((resolvePromise, rejectPromise) => {
+		let settled = false;
+		const finish = (outcome: { readonly value: T } | { readonly error: unknown }) => {
+			if (settled) return;
+			settled = true;
+			signal.removeEventListener("abort", onAbort);
+			if ("error" in outcome) rejectPromise(outcome.error);
+			else resolvePromise(outcome.value);
+		};
+		const onAbort = () => finish({ error: signal.reason ?? new Error("root eval lease expired") });
+		signal.addEventListener("abort", onAbort, { once: true });
+		if (signal.aborted) onAbort();
+		void operation.then(
+			(value) => finish({ value }),
+			(error: unknown) => finish({ error }),
+		);
+	});
+}
+
+function createRootEvalAbortLease(
+	timeoutMs: number,
+	parentSignal: AbortSignal | undefined,
+	expired: () => Error,
+): Readonly<{
+	readonly signal: AbortSignal;
+	dispose(): void;
+}> {
 	const controller = new AbortController();
 	// AbortSignal.timeout() uses an unref'ed timer and cannot keep an admitted
 	// async effect alive long enough to return its correlated outcome to Graph.
-	const timer = setTimeout(
-		() => controller.abort(new RootEvalEffectLeaseExpired(timeoutMs)),
-		timeoutMs,
-	);
+	const timer = setTimeout(() => controller.abort(expired()), timeoutMs);
 	const abortFromParent = () => controller.abort(parentSignal?.reason);
 	parentSignal?.addEventListener("abort", abortFromParent, { once: true });
 	if (parentSignal?.aborted) abortFromParent();
@@ -154,7 +236,11 @@ export async function awaitRootEvalCallerSettlement<T>(
 	if (typeof settle !== "function")
 		throw new TypeError("root eval caller settlement requires one async operation");
 	const deadlineMs = options.deadlineMs ?? ROOT_EVAL_CALLER_SETTLEMENT_DEADLINE_MS;
-	if (!Number.isSafeInteger(deadlineMs) || deadlineMs < 1 || deadlineMs > 4_500_000)
+	if (
+		!Number.isSafeInteger(deadlineMs) ||
+		deadlineMs < 1 ||
+		deadlineMs > ROOT_EVAL_CALLER_SETTLEMENT_DEADLINE_MS
+	)
 		throw new TypeError("root eval caller settlement deadline was invalid");
 	// Both handles are caller-runtime safety boundaries only. They inject no Graph
 	// DATA and cannot choose retries, stopping, findings, or evidence admission.
@@ -176,10 +262,6 @@ export async function awaitRootEvalCallerSettlement<T>(
 		if (deadline !== undefined) clearTimeout(deadline);
 	}
 }
-const WITHHELD_TEST_NAME = "withheld accepts a second producer-shaped canonical proposal";
-const WITHHELD_TEST_PATH = "packages/ts/src/__tests__/.root-eval-withheld-managed-cloud.test.ts";
-export const ROOT_EVAL_LIVE_EQUIVALENT_REPLACEMENT = `${ROOT_EVAL_LIVE_CORRECT_REPLACEMENT}\n\tvoid admissionProposalId;`;
-export const ROOT_EVAL_LIVE_PUBLIC_FIXTURE_SPECIAL_CASE = `${ROOT_EVAL_LIVE_CORRECT_REPLACEMENT}\n\tif (admissionProposalId !== 'tool-provider-run-admission-proposal:["candidate:run:1"]')\n\t\tthrow new TypeError("non-public proposal fixture");`;
 
 export interface RootEvalLivePricing {
 	readonly inputMicrousdPerMillionTokens: number;
@@ -204,6 +286,12 @@ async function syncDirectory(path: string): Promise<void> {
 	}
 }
 
+class RootEvalProviderDispatchAuthorityConsumed extends TypeError {
+	constructor(readonly failure: unknown) {
+		super("root eval D145 provider dispatch authority was consumed before durable settlement");
+	}
+}
+
 async function consumeCurrentProviderDispatch(input: {
 	readonly privateRoot: string;
 	readonly claimCommit: RootEvalLiveClaimCommit;
@@ -211,6 +299,7 @@ async function consumeCurrentProviderDispatch(input: {
 	readonly executionMode: "live" | "no-network-qualification";
 	readonly effect: EvalAdmittedEffect;
 	readonly signal?: AbortSignal;
+	readonly removeStage?: (stage: string) => Promise<void>;
 }): Promise<void> {
 	input.signal?.throwIfAborted();
 	const privateRoot = resolve(input.privateRoot);
@@ -222,15 +311,15 @@ async function consumeCurrentProviderDispatch(input: {
 		credentialFingerprintDigest: empiricalSha256(new TextEncoder().encode(input.bearerToken)),
 	});
 	if ((await realpath(privateRoot)) !== privateRoot)
-		throw new TypeError("root eval D125 dispatch private root drifted");
+		throw new TypeError("root eval D145 dispatch private root drifted");
 	input.signal?.throwIfAborted();
-	const claimPath = join(privateRoot, ".root-eval-live-2026-08-26-d125-v1.disposition.v15.json");
+	const claimPath = join(privateRoot, `.${claim.generationRef}.disposition.v20.json`);
 	const claimHandle = await open(claimPath, constants.O_RDONLY | constants.O_NOFOLLOW);
 	let claimBytes: Uint8Array;
 	try {
 		const stat = await claimHandle.stat();
 		if (!stat.isFile() || stat.nlink !== 1 || (stat.mode & 0o777) !== 0o600 || stat.size > 65_536)
-			throw new TypeError("root eval D125 committed claim identity invalid");
+			throw new TypeError("root eval D145 committed claim identity invalid");
 		claimBytes = new Uint8Array(await claimHandle.readFile());
 	} finally {
 		await claimHandle.close();
@@ -238,10 +327,10 @@ async function consumeCurrentProviderDispatch(input: {
 	input.signal?.throwIfAborted();
 	const decoded = strictJsonCodec.decode(claimBytes);
 	if (!sameBytes(strictJsonCodec.encode(decoded), claimBytes))
-		throw new TypeError("root eval D125 committed claim bytes were not canonical");
+		throw new TypeError("root eval D145 committed claim bytes were not canonical");
 	if (!sameBytes(strictJsonCodec.encode(claim), claimBytes))
-		throw new TypeError("root eval D125 executor requires the committed claim");
-	const dispatchRoot = join(privateRoot, ".d125-provider-dispatches");
+		throw new TypeError("root eval D145 executor requires the committed claim");
+	const dispatchRoot = join(privateRoot, ".d145-provider-dispatches");
 	await mkdir(dispatchRoot, { recursive: true, mode: 0o700 });
 	await chmod(dispatchRoot, 0o700);
 	await syncDirectory(privateRoot);
@@ -274,13 +363,24 @@ async function consumeCurrentProviderDispatch(input: {
 	} finally {
 		await handle.close();
 	}
+	let linked = false;
+	let dispatchFailure: unknown;
 	try {
 		input.signal?.throwIfAborted();
 		await link(stage, target);
+		linked = true;
 		await syncDirectory(dispatchRoot);
-	} finally {
-		await rm(stage, { force: true });
+	} catch (error) {
+		dispatchFailure = linked ? new RootEvalProviderDispatchAuthorityConsumed(error) : error;
 	}
+	try {
+		if (input.removeStage === undefined) await rm(stage, { force: true });
+		else await input.removeStage(stage);
+	} catch (error) {
+		if (linked) dispatchFailure = new RootEvalProviderDispatchAuthorityConsumed(error);
+		else dispatchFailure ??= error;
+	}
+	if (dispatchFailure !== undefined) throw dispatchFailure;
 }
 
 export interface RootEvalNoNetworkQualificationExecutor extends RootEvalLiveExecutor {
@@ -291,6 +391,71 @@ interface ProcessResult {
 	readonly code: number;
 	readonly stdout: Uint8Array;
 	readonly stderr: Uint8Array;
+}
+
+type RootEvalPrivateDiagnosticKind = "provider-response" | "public-verifier" | "hidden-verifier";
+
+async function persistRootEvalPrivateDiagnostic(input: {
+	readonly enabled: boolean;
+	readonly privateRoot: string;
+	readonly generationRef: string;
+	readonly effect: EvalAdmittedEffect;
+	readonly kind: RootEvalPrivateDiagnosticKind;
+	readonly material: Readonly<Record<string, unknown>>;
+}): Promise<void> {
+	if (!input.enabled) return;
+	const directory = join(resolve(input.privateRoot), ".d145-development-diagnostics");
+	await mkdir(directory, { recursive: true, mode: 0o700 });
+	await chmod(directory, 0o700);
+	const material = strictSnapshot({
+		schemaVersion: "graphrefly-ts.root-eval-development-private-diagnostic.v1",
+		decisionRef: ROOT_EVAL_LIVE_DECISION_REF,
+		generationRef: input.generationRef,
+		kind: input.kind,
+		executionId: input.effect.executionId,
+		admissionId: input.effect.admissionId,
+		workItemId: input.effect.workItemId,
+		replicate: input.effect.replicate,
+		arm: input.effect.arm,
+		attempt: input.effect.attempt,
+		material: input.material,
+	});
+	const bytes = strictJsonCodec.encode({
+		...material,
+		diagnosticDigest: empiricalStrictJsonDigest(material),
+	});
+	if (bytes.byteLength > 9 * 1_048_576)
+		throw new TypeError("root eval private diagnostic exceeded its exact byte bound");
+	const coordinate = empiricalStrictJsonDigest({
+		executionId: input.effect.executionId,
+		kind: input.kind,
+	}).slice(7);
+	const target = join(directory, `${coordinate}.json`);
+	const stage = join(directory, `.stage-${randomUUID()}`);
+	const handle = await open(
+		stage,
+		constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+		0o600,
+	);
+	try {
+		await handle.writeFile(bytes);
+		await handle.sync();
+	} finally {
+		await handle.close();
+	}
+	try {
+		await link(stage, target);
+		await syncDirectory(directory);
+	} catch (error) {
+		try {
+			const existing = await readFile(target);
+			if (!sameBytes(existing, bytes)) throw error;
+		} catch {
+			throw error;
+		}
+	} finally {
+		await rm(stage, { force: true });
+	}
 }
 
 interface ProviderResult {
@@ -619,13 +784,35 @@ function safeInteger(value: unknown, path: string): number {
 	return value as number;
 }
 
-function providerCost(
-	root: Record<string, unknown>,
-	pricing: RootEvalLivePricing,
-): Readonly<{
+function providerReportedCost(root: Record<string, unknown>): Readonly<{
+	readonly exactProviderCostMicrousd: number;
 	readonly costMicrousd: number;
 	readonly pricingRoundingAllowanceMicrousd: number;
 }> {
+	const usage = object(root.usage, "provider usage");
+	if (typeof usage.cost !== "number" || !Number.isFinite(usage.cost) || usage.cost < 0)
+		throw new TypeError("provider usage.cost must be a non-negative finite number");
+	const exactProviderCostMicrousd = usage.cost * 1_000_000;
+	if (
+		!Number.isFinite(exactProviderCostMicrousd) ||
+		exactProviderCostMicrousd < 0 ||
+		exactProviderCostMicrousd > Number.MAX_SAFE_INTEGER
+	)
+		throw new TypeError("provider usage.cost exceeded safe microusd bounds");
+	const costMicrousd = Math.ceil(exactProviderCostMicrousd);
+	return Object.freeze({
+		exactProviderCostMicrousd,
+		costMicrousd,
+		pricingRoundingAllowanceMicrousd:
+			costMicrousd === Math.floor(exactProviderCostMicrousd) ? 0 : 1,
+	});
+}
+
+function auditProviderReportedCost(
+	root: Record<string, unknown>,
+	pricing: RootEvalLivePricing,
+	cost: ReturnType<typeof providerReportedCost>,
+): void {
 	const usage = object(root.usage, "provider usage");
 	const input = safeInteger(usage.prompt_tokens, "provider usage.prompt_tokens");
 	const output = safeInteger(usage.completion_tokens, "provider usage.completion_tokens");
@@ -640,15 +827,6 @@ function providerCost(
 			? 0
 			: safeInteger(details.cached_tokens, "provider usage.cached_tokens");
 	if (cached > input) throw new TypeError("provider cached token usage exceeded input usage");
-	if (typeof usage.cost !== "number" || !Number.isFinite(usage.cost) || usage.cost < 0)
-		throw new TypeError("provider usage.cost must be a non-negative finite number");
-	const exactProviderCostMicrousd = usage.cost * 1_000_000;
-	if (
-		!Number.isFinite(exactProviderCostMicrousd) ||
-		exactProviderCostMicrousd < 0 ||
-		exactProviderCostMicrousd > Number.MAX_SAFE_INTEGER
-	)
-		throw new TypeError("provider usage.cost exceeded safe microusd bounds");
 	const numerators = [
 		(input - cached) * pricing.inputMicrousdPerMillionTokens,
 		cached * pricing.cacheReadMicrousdPerMillionTokens,
@@ -658,14 +836,8 @@ function providerCost(
 		throw new TypeError("provider usage pricing arithmetic exceeded safe integer bounds");
 	const tokenPricingAuditMicrousd =
 		numerators.reduce((total, numerator) => total + numerator, 0) / 1_000_000;
-	if (Math.abs(tokenPricingAuditMicrousd - exactProviderCostMicrousd) > 1e-6)
+	if (Math.abs(tokenPricingAuditMicrousd - cost.exactProviderCostMicrousd) > 1e-6)
 		throw new TypeError("provider usage.cost disagreed with the admitted route pricing audit");
-	const costMicrousd = Math.ceil(exactProviderCostMicrousd);
-	return Object.freeze({
-		costMicrousd,
-		pricingRoundingAllowanceMicrousd:
-			costMicrousd === Math.floor(exactProviderCostMicrousd) ? 0 : 1,
-	});
 }
 
 export function parseRootEvalLiveProviderResponse(input: {
@@ -674,6 +846,7 @@ export function parseRootEvalLiveProviderResponse(input: {
 	readonly retryAfter: string | null;
 	readonly pricing: RootEvalLivePricing;
 	readonly reservationMicrousd: number;
+	readonly writablePath?: string;
 }): ProviderResult {
 	if (!Number.isSafeInteger(input.reservationMicrousd) || input.reservationMicrousd < 1)
 		throw new TypeError("root eval live provider reservation was invalid");
@@ -701,8 +874,8 @@ export function parseRootEvalLiveProviderResponse(input: {
 	let errorPricingRoundingAllowanceMicrousd = 0;
 	if (root.usage !== undefined) {
 		try {
-			const cost = providerCost(root, input.pricing);
-			errorCostMicrousd = Math.min(input.reservationMicrousd, cost.costMicrousd);
+			const cost = providerReportedCost(root);
+			errorCostMicrousd = cost.costMicrousd;
 			errorCostEvidence = "provider-reported";
 			errorPricingRoundingAllowanceMicrousd = cost.pricingRoundingAllowanceMicrousd;
 		} catch {
@@ -741,11 +914,22 @@ export function parseRootEvalLiveProviderResponse(input: {
 			"response-route-invalid",
 			"root eval live provider response lost its exact route identity",
 		);
-	let cost: ReturnType<typeof providerCost>;
+	let cost: ReturnType<typeof providerReportedCost>;
 	try {
-		cost = providerCost(root, input.pricing);
+		cost = providerReportedCost(root);
 	} catch {
 		responseError("response-usage-invalid", "root eval live provider response usage was invalid");
+	}
+	try {
+		auditProviderReportedCost(root, input.pricing, cost);
+	} catch {
+		responseError(
+			"response-usage-invalid",
+			"root eval live provider response usage pricing audit was invalid",
+			cost.costMicrousd,
+			"provider-reported",
+			cost.pricingRoundingAllowanceMicrousd,
+		);
 	}
 	const choices = root.choices;
 	if (!Array.isArray(choices) || choices.length !== 1)
@@ -815,8 +999,9 @@ export function parseRootEvalLiveProviderResponse(input: {
 			cost.pricingRoundingAllowanceMicrousd,
 		);
 	}
+	const writablePath = input.writablePath ?? ROOT_EVAL_LIVE_WRITABLE_PATH;
 	if (
-		args.path !== ROOT_EVAL_LIVE_WRITABLE_PATH ||
+		args.path !== writablePath ||
 		typeof args.oldText !== "string" ||
 		typeof args.newText !== "string" ||
 		args.oldText.length < 1 ||
@@ -868,7 +1053,12 @@ export function parseRootEvalLiveProviderResponse(input: {
 	});
 }
 
-function admittedPayload(effect: EvalAdmittedEffect): Readonly<{
+function admittedPayload(
+	effect: EvalAdmittedEffect,
+	task: RootEvalTaskDefinition,
+	tasks: readonly RootEvalTaskDefinition[],
+	taskManifestDigest: string,
+): Readonly<{
 	readonly material: Record<string, unknown>;
 	readonly memoryContent: string;
 }> {
@@ -876,22 +1066,68 @@ function admittedPayload(effect: EvalAdmittedEffect): Readonly<{
 	if (payload === null || typeof payload !== "object" || Array.isArray(payload))
 		throw new TypeError("root eval live effect lost its admitted provider payload");
 	const value = payload as Record<string, unknown>;
-	const relevant = effect.arm === "relevant-applied";
+	if (effect.workItemRole === "source") {
+		if (
+			effect.arm !== "source" ||
+			value.bindingRef !== `${effect.workItemId}/private-input` ||
+			value.digest !==
+				empiricalStrictJsonDigest({
+					kind: "eval-private-source-input-binding",
+					replicate: effect.replicate,
+					taskManifestDigest,
+				}) ||
+			value.memoryProvenance !== "none" ||
+			value.memoryExposureCount !== 0 ||
+			!Array.isArray(value.memoryBindings) ||
+			value.memoryBindings.length !== 0 ||
+			value.memoryContextDigest !==
+				empiricalStrictJsonDigest({
+					kind: "eval-source-memory-context",
+					taskInstanceRef: task.instanceRef,
+					taskManifestDigest,
+				})
+		)
+			throw new TypeError("root eval live source effect lost its exact manifest binding");
+		return Object.freeze({ material: value, memoryContent: NO_ADMITTED_MEMORY_CONTEXT });
+	}
+	const exposed = effect.arm === "relevant-applied" || effect.arm === "irrelevant-applied";
 	const expectedProvenance = effect.arm === "cold" ? "none" : effect.arm;
+	const replicateMarker = `/replicate-${effect.replicate}/`;
+	const markerIndex = effect.workItemId.indexOf(replicateMarker);
+	if (markerIndex < 1 || task.replicate !== effect.replicate)
+		throw new TypeError("root eval live task instance lost its replicate binding");
+	const memoryTask =
+		effect.arm === "irrelevant-applied" ? tasks[effect.replicate % tasks.length]! : task;
+	const sourceWorkItemId = memoryTask.sourceWorkItemRef;
+	const sourceEvidenceDigest = memoryTask.sourceVerifierEvidenceDigest;
+	if (
+		task.instanceRef !== `${task.taskSetRef}/instance-${effect.replicate}` ||
+		task.sourceWorkItemRef !== `${task.instanceRef}/source-work-item` ||
+		memoryTask.sourceWorkItemRef !== `${memoryTask.instanceRef}/source-work-item`
+	)
+		throw new TypeError("root eval live task lost its verified source Work Item authority");
+	const sourceInsightDigest = memoryTask.sourceInsightDigest;
+	const expectedBindingDigest = empiricalStrictJsonDigest({
+		kind: "eval-private-memory-binding",
+		taskInstanceRef: memoryTask.instanceRef,
+		sourceWorkItemId,
+		sourceEvidenceDigest,
+		sourceInsightDigest,
+		arm: effect.arm,
+	});
 	const expectedContextDigest = empiricalStrictJsonDigest({
 		kind: "eval-memory-context",
-		replicate: effect.replicate,
+		taskInstanceRef: task.instanceRef,
+		sourceWorkItemId,
+		sourceEvidenceDigest,
+		sourceInsightDigest,
 		arm: effect.arm,
-		exposedRecordIds: relevant ? [`${effect.workItemId}/memory-fragment`] : [],
-		bindings: relevant
+		exposedRecordIds: exposed ? [`${effect.workItemId}/memory-fragment`] : [],
+		bindings: exposed
 			? [
 					{
 						bindingRef: `${effect.workItemId}/private-memory`,
-						digest: empiricalStrictJsonDigest({
-							kind: "eval-private-memory-binding",
-							replicate: effect.replicate,
-							arm: effect.arm,
-						}),
+						digest: expectedBindingDigest,
 					},
 				]
 			: [],
@@ -914,24 +1150,23 @@ function admittedPayload(effect: EvalAdmittedEffect): Readonly<{
 				arm: effect.arm,
 			}) ||
 		value.memoryProvenance !== expectedProvenance ||
-		value.memoryExposureCount !== (relevant ? 1 : 0) ||
+		value.memoryExposureCount !== (exposed ? 1 : 0) ||
 		memoryBindings === null ||
-		memoryBindings.length !== (relevant ? 1 : 0) ||
+		memoryBindings.length !== (exposed ? 1 : 0) ||
 		value.memoryContextDigest !== expectedContextDigest
 	)
 		throw new TypeError("root eval live effect lost its exact qualified profile binding");
-	if (!relevant)
+	if (!exposed)
 		return Object.freeze({ material: value, memoryContent: NO_ADMITTED_MEMORY_CONTEXT });
 	const binding = object(memoryBindings[0], "admitted memory binding");
 	if (
 		binding.bindingRef !== `${effect.workItemId}/private-memory` ||
-		typeof binding.digest !== "string" ||
-		PRIVATE_MEMORY_BINDINGS.get(binding.digest) === undefined
+		binding.digest !== expectedBindingDigest
 	)
 		throw new TypeError("root eval live memory binding was not exactly dereferenceable");
 	return Object.freeze({
 		material: value,
-		memoryContent: PRIVATE_MEMORY_BINDINGS.get(binding.digest)!,
+		memoryContent: memoryTask.sourceInsightContent,
 	});
 }
 
@@ -945,17 +1180,25 @@ function excerpt(source: string, start: string, end: string): string {
 async function liveWire(
 	effect: EvalAdmittedEffect,
 	root: string,
+	task: RootEvalTaskDefinition,
+	tasks: readonly RootEvalTaskDefinition[],
+	taskManifestDigest: string,
 	signal?: AbortSignal,
 ): Promise<string> {
 	signal?.throwIfAborted();
-	const admitted = admittedPayload(effect);
-	const writable = await readFile(join(root, ROOT_EVAL_LIVE_WRITABLE_PATH), "utf8");
-	signal?.throwIfAborted();
-	const identity = await readFile(join(root, READABLE_PATHS[1]), "utf8");
-	signal?.throwIfAborted();
-	const producer = await readFile(join(root, READABLE_PATHS[2]), "utf8");
-	signal?.throwIfAborted();
-	const target = excerpt(writable, "function admittedEnvelope(", "function readyManifest(");
+	const admitted = admittedPayload(effect, task, tasks, taskManifestDigest);
+	const actorSections: string[] = [];
+	for (const source of task.actorContext) {
+		const material = await readFile(join(root, source.path), "utf8");
+		signal?.throwIfAborted();
+		actorSections.push(
+			`### ${source.heading}\n${
+				source.excerptStart === undefined || source.excerptEnd === undefined
+					? material
+					: excerpt(material, source.excerptStart, source.excerptEnd)
+			}`,
+		);
+	}
 	return JSON.stringify({
 		model: effect.providerModelRef,
 		messages: [
@@ -966,7 +1209,7 @@ async function liveWire(
 			},
 			{
 				role: "user",
-				content: `${TASK_STATEMENT}\n\n${admitted.memoryContent}\n\n### Current target function\n${target}\n\n### Canonical identity helper\n${identity}\n\n### Producer admission contract\n${producer}`,
+				content: `${task.taskStatement}\n\n### Admitted memory context\n${admitted.memoryContent}\n\n${actorSections.join("\n\n")}`,
 			},
 		],
 		response_format: {
@@ -979,7 +1222,7 @@ async function liveWire(
 					additionalProperties: false,
 					required: ["path", "oldText", "newText"],
 					properties: {
-						path: { type: "string", enum: [ROOT_EVAL_LIVE_WRITABLE_PATH] },
+						path: { type: "string", enum: [task.writablePath] },
 						oldText: { type: "string", minLength: 1, maxLength: 32_768 },
 						newText: { type: "string", maxLength: 32_768 },
 					},
@@ -1003,9 +1246,11 @@ async function materialize(input: {
 	readonly repositoryRoot: string;
 	readonly materializationRoot: string;
 	readonly effect: EvalAdmittedEffect;
+	readonly task?: RootEvalTaskDefinition;
 	readonly signal?: AbortSignal;
 }): Promise<string> {
 	input.signal?.throwIfAborted();
+	const task = input.task ?? rootEvalTask("development-transfer", input.effect.replicate);
 	const root = workspaceFor(input.materializationRoot, input.effect);
 	await mkdir(dirname(root), { recursive: true, mode: 0o700 });
 	input.signal?.throwIfAborted();
@@ -1019,7 +1264,7 @@ async function materialize(input: {
 	if (clone.code !== 0) throw new TypeError("root eval frozen workspace clone failed");
 	const checkout = await runProcess({
 		command: "/usr/bin/git",
-		args: ["checkout", "--detach", ROOT_EVAL_FROZEN_BASELINE_COMMIT],
+		args: ["checkout", "--detach", task.baselineCommit],
 		cwd: root,
 		timeoutMs: 120_000,
 		signal: input.signal,
@@ -1031,21 +1276,24 @@ async function materialize(input: {
 		await mkdir(dirname(link), { recursive: true });
 		await symlink(join(input.repositoryRoot, relative), link, "dir");
 	}
-	const target = join(root, ROOT_EVAL_LIVE_WRITABLE_PATH);
+	const target = join(root, task.writablePath);
 	input.signal?.throwIfAborted();
-	const fixed = await readFile(target, "utf8");
-	const first = fixed.indexOf(ROOT_EVAL_LIVE_CORRECT_REPLACEMENT);
-	if (first < 0 || fixed.indexOf(ROOT_EVAL_LIVE_CORRECT_REPLACEMENT, first + 1) >= 0)
-		throw new TypeError("root eval frozen task fixture drifted");
-	await writeFile(
-		target,
-		`${fixed.slice(0, first)}${ROOT_EVAL_LIVE_BUGGY_REPLACEMENT}${fixed.slice(first + ROOT_EVAL_LIVE_CORRECT_REPLACEMENT.length)}`,
-		"utf8",
-	);
+	for (const fixture of task.readonlyFixtureFiles) {
+		const fixturePath = join(root, fixture.path);
+		await mkdir(dirname(fixturePath), { recursive: true, mode: 0o700 });
+		await writeFile(fixturePath, fixture.text, { encoding: "utf8", mode: 0o600 });
+	}
+	await mkdir(dirname(target), { recursive: true, mode: 0o700 });
+	await writeFile(target, task.fixtureBuggyText, { encoding: "utf8", mode: 0o600 });
 	input.signal?.throwIfAborted();
 	const stage = await runProcess({
 		command: "/usr/bin/git",
-		args: ["add", "--", ROOT_EVAL_LIVE_WRITABLE_PATH],
+		args: [
+			"add",
+			"--",
+			...task.readonlyFixtureFiles.map((fixture) => fixture.path),
+			task.writablePath,
+		],
 		cwd: root,
 		timeoutMs: 30_000,
 		signal: input.signal,
@@ -1081,9 +1329,10 @@ function workspaceFor(root: string, effect: EvalAdmittedEffect): string {
 async function applyExactTool(
 	root: string,
 	tool: NonNullable<ProviderResult["tool"]>,
+	task: RootEvalTaskDefinition,
 ): Promise<"scoped-change" | "no-change" | "wrong-scope"> {
 	const path = resolve(root, tool.path);
-	if (!path.startsWith(`${resolve(root)}/`) || tool.path !== ROOT_EVAL_LIVE_WRITABLE_PATH)
+	if (!path.startsWith(`${resolve(root)}/`) || tool.path !== task.writablePath)
 		throw new TypeError("root eval exact tool escaped its admitted path");
 	const stat = await lstat(path);
 	if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1)
@@ -1108,7 +1357,7 @@ async function applyExactTool(
 		timeoutMs: 30_000,
 	});
 	const changed = new TextDecoder().decode(diff.stdout).trim().split(/\r?\n/u).filter(Boolean);
-	return diff.code === 0 && changed.length === 1 && changed[0] === ROOT_EVAL_LIVE_WRITABLE_PATH
+	return diff.code === 0 && changed.length === 1 && changed[0] === task.writablePath
 		? "scoped-change"
 		: "wrong-scope";
 }
@@ -1116,184 +1365,115 @@ async function applyExactTool(
 async function verify(
 	root: string,
 	diff: "scoped-change" | "no-change" | "wrong-scope",
+	task: RootEvalTaskDefinition,
 	signal?: AbortSignal,
+	onDiagnostic?: (
+		kind: "public-verifier" | "hidden-verifier",
+		result: ProcessResult,
+	) => Promise<void>,
 ) {
 	if (diff !== "scoped-change")
 		return Object.freeze({ publicSemantic: false, hiddenVerifier: false });
+	await mkdir(dirname(join(root, task.publicVerifierPath)), { recursive: true });
+	await writeFile(join(root, task.publicVerifierPath), task.publicVerifierSource, "utf8");
 	const focused = await runProcess({
 		command: join(root, "node_modules/.bin/vitest"),
 		args: [
 			"run",
 			"--config",
 			"vitest.config.ts",
-			"src/__tests__/managed-cloud-postgresql.test.ts",
+			task.publicVerifierPath.slice("packages/ts/".length),
 			"-t",
-			"admits only a fresh D419 managed remote run, then atomically claims with a fresh fenced session",
+			task.publicVerifierName,
 		],
 		cwd: join(root, "packages/ts"),
 		timeoutMs: 120_000,
 		signal,
 	});
+	await onDiagnostic?.("public-verifier", focused);
 	if (focused.code !== 0) return Object.freeze({ publicSemantic: false, hiddenVerifier: false });
-	await installWithheldTest(root);
+	await mkdir(dirname(join(root, task.hiddenVerifierPath)), { recursive: true });
+	await writeFile(join(root, task.hiddenVerifierPath), task.hiddenVerifierSource, "utf8");
 	const hidden = await runProcess({
 		command: join(root, "node_modules/.bin/vitest"),
 		args: [
 			"run",
 			"--config",
 			"vitest.config.ts",
-			"src/__tests__/.root-eval-withheld-managed-cloud.test.ts",
+			task.hiddenVerifierPath.slice("packages/ts/".length),
 			"-t",
-			WITHHELD_TEST_NAME,
+			task.hiddenVerifierName,
 		],
 		cwd: join(root, "packages/ts"),
 		timeoutMs: 300_000,
 		signal,
 	});
+	await onDiagnostic?.("hidden-verifier", hidden);
 	return Object.freeze({ publicSemantic: true, hiddenVerifier: hidden.code === 0 });
 }
 
-async function installWithheldTest(root: string): Promise<void> {
-	const source = await readFile(join(root, ROOT_EVAL_LIVE_PUBLIC_TEST), "utf8");
-	const insertion = source.lastIndexOf("\n});");
-	if (insertion < 0) throw new TypeError("root eval withheld verifier host drifted");
-	const scenario = `
-\tit("${WITHHELD_TEST_NAME}", async () => {
-\t\tconst g = graph();
-\t\tconst inputs = g.node([], null);
-\t\tconst admitted = g.node<ToolProviderAdapterRunRequested>([], null);
-\t\tconst manifests = g.node<ManagedCloudPostgresqlManifest>([], null);
-\t\tconst postures = g.node<ManagedCloudPostgresqlReadiness>([], null);
-\t\tconst store = new Store();
-\t\tconst transport = new Transport();
-\t\tconst runtime = managedCloudPostgresqlRuntime(g, {
-\t\t\tinputs: inputs as never,
-\t\t\tadmittedRunRequests: [admitted],
-\t\t\tmanifests: [manifests],
-\t\t\treadiness: [postures],
-\t\t\tstore,
-\t\t\ttransport,
-\t\t\tauthorizationRecheck: allowAuthorizationRecheckDriver(),
-\t\t\tnow: () => 10,
-\t\t});
-\t\tconst envelopes = collect(runtime.admittedEnvelopes);
-\t\tconst secondProposalId = compoundTupleKey("tool-provider-run-admission-proposal", [
-\t\t\t"candidate:run:withheld-second",
-\t\t]);
-\t\tconst request = {
-\t\t\t...run(),
-\t\t\trunId: "run:withheld-second",
-\t\t\tsourceRefs: [
-\t\t\t\t{ kind: "tool-provider-run-admission-proposal", id: secondProposalId },
-\t\t\t\t{ kind: "tool-provider-run-admission", id: "admission:1" },
-\t\t\t\t{ kind: "tool-provider-run-admission-decision", id: "admission-decision:1" },
-\t\t\t],
-\t\t\tmetadata: { ...run().metadata, proposalId: secondProposalId },
-\t\t} satisfies ToolProviderAdapterRunRequested;
-\t\tinputs.down([["DATA", input()]]);
-\t\tmanifests.down([["DATA", manifest()]]);
-\t\tpostures.down([["DATA", readiness()]]);
-\t\tadmitted.down([["DATA", request]]);
-\t\tawait settle();
-\t\texpect(envelopes).toHaveLength(1);
-\t\texpect(envelopes[0]).toMatchObject({
-\t\t\trunId: "run:withheld-second",
-\t\t\tadmissionProposalId: secondProposalId,
-\t\t});
-\t\tawait runtime.dispose();
-\t});
-`;
-	await writeFile(
-		join(root, WITHHELD_TEST_PATH),
-		`${source.slice(0, insertion)}${scenario}${source.slice(insertion)}`,
-		"utf8",
-	);
-}
-
-async function runVerifierCase(
-	root: string,
-): Promise<Readonly<{ public: boolean; hidden: boolean }>> {
-	const publicResult = await runProcess({
-		command: join(root, "node_modules/.bin/vitest"),
-		args: [
-			"run",
-			"--config",
-			"vitest.config.ts",
-			"src/__tests__/managed-cloud-postgresql.test.ts",
-			"-t",
-			"admits only a fresh D419 managed remote run, then atomically claims with a fresh fenced session",
-		],
-		cwd: join(root, "packages/ts"),
-		timeoutMs: 120_000,
-	});
-	const hiddenResult = await runProcess({
-		command: join(root, "node_modules/.bin/vitest"),
-		args: [
-			"run",
-			"--config",
-			"vitest.config.ts",
-			"src/__tests__/.root-eval-withheld-managed-cloud.test.ts",
-			"-t",
-			WITHHELD_TEST_NAME,
-		],
-		cwd: join(root, "packages/ts"),
-		timeoutMs: 120_000,
-	});
-	return Object.freeze({ public: publicResult.code === 0, hidden: hiddenResult.code === 0 });
-}
-
-export async function qualifyRootEvalWithheldVerifier(input: {
+export async function qualifyRootEvalTransferTaskFamily(input: {
 	readonly repositoryRoot: string;
 	readonly materializationRoot: string;
 }): Promise<
-	Readonly<{
-		readonly correct: Readonly<{ public: true; hidden: true }>;
-		readonly equivalent: Readonly<{ public: true; hidden: true }>;
-		readonly bug: Readonly<{ public: false; hidden: false }>;
-		readonly publicFixtureSpecialCase: Readonly<{ public: true; hidden: false }>;
-	}>
+	readonly Readonly<{
+		readonly replicate: 1 | 2 | 3 | 4 | 5;
+		readonly publicAllowsAmbiguousBug: true;
+		readonly hiddenRejectsAmbiguousBug: true;
+		readonly exactScopedChange: true;
+		readonly correctPassesPublicAndHidden: true;
+	}>[]
 > {
 	const materializationRoot = resolve(input.materializationRoot);
-	const root = await materialize({
-		repositoryRoot: resolve(input.repositoryRoot),
-		materializationRoot,
-		effect: { replicate: 1, arm: "relevant-applied", attempt: 1 } as EvalAdmittedEffect,
-	});
-	try {
-		await installWithheldTest(root);
-		const target = join(root, ROOT_EVAL_LIVE_WRITABLE_PATH);
-		const buggySource = await readFile(target, "utf8");
-		const cases = [
-			["correct", ROOT_EVAL_LIVE_CORRECT_REPLACEMENT],
-			["equivalent", ROOT_EVAL_LIVE_EQUIVALENT_REPLACEMENT],
-			["bug", ROOT_EVAL_LIVE_BUGGY_REPLACEMENT],
-			["publicFixtureSpecialCase", ROOT_EVAL_LIVE_PUBLIC_FIXTURE_SPECIAL_CASE],
-		] as const;
-		const results: Record<string, Readonly<{ public: boolean; hidden: boolean }>> = {};
-		for (const [name, replacement] of cases) {
-			await writeFile(
-				target,
-				buggySource.replace(ROOT_EVAL_LIVE_BUGGY_REPLACEMENT, replacement),
-				"utf8",
+	const results = [];
+	for (const task of ROOT_EVAL_DEVELOPMENT_TASKS) {
+		const effect = {
+			replicate: task.replicate,
+			arm: "relevant-applied",
+			attempt: 1,
+		} as EvalAdmittedEffect;
+		const root = await materialize({
+			repositoryRoot: resolve(input.repositoryRoot),
+			materializationRoot,
+			effect,
+			task,
+		});
+		try {
+			const ambiguousBug = await verify(root, "scoped-change", task);
+			const diff = await applyExactTool(
+				root,
+				{
+					path: task.writablePath,
+					oldText: task.fixtureBuggyText,
+					newText: task.fixtureCorrectText,
+				},
+				task,
 			);
-			results[name] = await runVerifierCase(root);
+			const correct = await verify(root, diff, task);
+			if (
+				!ambiguousBug.publicSemantic ||
+				ambiguousBug.hiddenVerifier ||
+				diff !== "scoped-change" ||
+				!correct.publicSemantic ||
+				!correct.hiddenVerifier
+			)
+				throw new TypeError(
+					`root eval transfer task ${task.replicate} failed closed: ${JSON.stringify({ ambiguousBug, diff, correct })}`,
+				);
+			results.push(
+				Object.freeze({
+					replicate: task.replicate,
+					publicAllowsAmbiguousBug: true as const,
+					hiddenRejectsAmbiguousBug: true as const,
+					exactScopedChange: true as const,
+					correctPassesPublicAndHidden: true as const,
+				}),
+			);
+		} finally {
+			await rm(root, { recursive: true, force: true });
 		}
-		if (
-			JSON.stringify(results) !==
-			JSON.stringify({
-				correct: { public: true, hidden: true },
-				equivalent: { public: true, hidden: true },
-				bug: { public: false, hidden: false },
-				publicFixtureSpecialCase: { public: true, hidden: false },
-			})
-		)
-			throw new TypeError(
-				`root eval withheld verifier qualification failed closed: ${JSON.stringify(results)}`,
-			);
-		return Object.freeze(results) as never;
-	} finally {
-		await rm(root, { recursive: true, force: true });
 	}
+	return Object.freeze(results);
 }
 
 function providerOutcome(
@@ -1333,6 +1513,7 @@ function providerOutcome(
 		workItemId: effect.workItemId,
 		replicate: effect.replicate,
 		arm: effect.arm,
+		workItemRole: effect.workItemRole,
 		attempt: effect.attempt,
 		status: input.status,
 		reason: input.reason,
@@ -1354,6 +1535,7 @@ function toolOutcome(
 		readonly status: EvalEffectOutcome["status"];
 		readonly elapsedMs: number;
 		readonly resultDigest: string;
+		readonly expectedDigest: string;
 		readonly actualDigest: string;
 		readonly diff: EvalEffectOutcome["evidence"]["diff"];
 		readonly cleanupCompleted: boolean;
@@ -1373,16 +1555,14 @@ function toolOutcome(
 		workItemId: effect.workItemId,
 		replicate: effect.replicate,
 		arm: effect.arm,
+		workItemRole: effect.workItemRole,
 		attempt: effect.attempt,
 		status: input.status,
 		costMicrousd: 0 as const,
 		elapsedMs: input.elapsedMs,
 		resultDigest: input.resultDigest,
 		evidence: Object.freeze({
-			expectedDigest: empiricalStrictJsonDigest({
-				kind: "root-eval-actor-visible-acceptance",
-				task: "managed-cloud-postgresql-canonical-proposal",
-			}),
+			expectedDigest: input.expectedDigest,
 			actualDigest: input.actualDigest,
 			diff: input.diff,
 			cleanupCompleted: input.cleanupCompleted,
@@ -1399,13 +1579,22 @@ export interface RootEvalLiveExecutorInput {
 	readonly claimCommit: RootEvalLiveClaimCommit;
 	readonly bearerToken: string;
 	readonly pricing: RootEvalLivePricing;
+	readonly taskKind?: RootEvalTaskKind;
+	readonly taskManifestSlot?: RootEvalTaskManifestSlot;
+	readonly taskManifest?: RootEvalTaskManifest;
+	readonly diagnosticMode?: "none" | "development-private";
 	readonly onProviderCall?: (effect: EvalAdmittedEffect) => void;
 	readonly wait?: (delayMs: number, signal?: AbortSignal) => Promise<void>;
 	readonly observeCurrentKey?: (
 		effect: EvalBillingObservationEffect,
 		signal?: AbortSignal,
 	) => Promise<EvalCurrentKeySnapshot>;
+	readonly removeWorkspace?: (root: string, signal: AbortSignal) => Promise<void>;
+	readonly removeDispatchStage?: (stage: string) => Promise<void>;
 }
+
+const ROOT_EVAL_REMOVE_WORKSPACE_SCRIPT =
+	'import { rm } from "node:fs/promises"; await rm(process.argv[1], { recursive: true, force: true });';
 
 function createRootEvalLiveExecutorInternal(
 	input: RootEvalLiveExecutorInput,
@@ -1414,22 +1603,63 @@ function createRootEvalLiveExecutorInternal(
 ): RootEvalLiveExecutor {
 	const repositoryRoot = resolve(input.repositoryRoot);
 	const materializationRoot = resolve(input.materializationRoot);
+	const taskKind = input.taskKind ?? "development-transfer";
+	const taskManifest =
+		input.taskManifest ??
+		(input.taskManifestSlot === undefined
+			? undefined
+			: readRootEvalTaskManifest(input.taskManifestSlot));
+	if (
+		taskManifest !== undefined &&
+		(taskManifest.slot !== input.taskManifestSlot ||
+			taskManifest.taskSetRef !== input.claimCommit.claim.taskSetRef ||
+			taskManifest.manifestDigest !== input.claimCommit.claim.taskManifestDigest)
+	)
+		throw new TypeError("root eval claim-bound task manifest drifted before executor creation");
+	const tasks = taskManifest?.tasks ?? ROOT_EVAL_DEVELOPMENT_TASKS;
+	const taskManifestDigest = taskManifest?.manifestDigest ?? ROOT_EVAL_DEVELOPMENT_TASK_SET_DIGEST;
+	const taskForEffect = (effect: Pick<EvalAdmittedEffect, "replicate" | "workItemRole">) => {
+		const task = tasks[effect.replicate - 1];
+		if (task === undefined || task.kind !== taskKind)
+			throw new TypeError("root eval claim-bound task was unavailable");
+		return executionTask(task, effect.workItemRole);
+	};
+	const privateDiagnostics = input.diagnosticMode === "development-private";
+	if (privateDiagnostics && taskKind !== "development-transfer")
+		throw new TypeError("root eval private proposal diagnostics are development-only");
 	if (input.bearerToken.length < 16 || input.bearerToken.length > 4_096)
-		throw new TypeError("root eval D125 credential was invalid");
+		throw new TypeError("root eval D145 credential was invalid");
 	let disposed = false;
 	const cancellation = new AbortController();
 	const active = new Map<string, Promise<EvalExecutorOutcome>>();
-	const cleanup = async (root: string): Promise<boolean> => {
+	const cleanup = async (root: string, signal: AbortSignal): Promise<boolean> => {
 		try {
-			await rm(root, { recursive: true, force: true });
+			const operation: Promise<unknown> =
+				input.removeWorkspace === undefined
+					? runProcess({
+							command: process.execPath,
+							args: ["--input-type=module", "--eval", ROOT_EVAL_REMOVE_WORKSPACE_SCRIPT, root],
+							cwd: repositoryRoot,
+							timeoutMs: ROOT_EVAL_TOOL_SETTLEMENT_LEASE_MS,
+							signal,
+						})
+					: input.removeWorkspace(root, signal);
+			await awaitRootEvalAbortable(operation, signal);
+			signal.throwIfAborted();
 			return true;
 		} catch {
 			return false;
 		}
 	};
 	const executeProvider = async (effect: EvalAdmittedEffect): Promise<EvalProviderOutcome> => {
+		const task = taskForEffect(effect);
 		const started = performance.now();
-		const lease = createRootEvalEffectLease(effect.timeoutMs, cancellation.signal);
+		const settlementLease = createRootEvalSettlementLease(
+			"provider",
+			ROOT_EVAL_PROVIDER_SETTLEMENT_LEASE_MS,
+			cancellation.signal,
+		);
+		const lease = createRootEvalEffectLease(effect.timeoutMs, settlementLease.signal);
 		const root = workspaceFor(materializationRoot, effect);
 		let postDispatch = false;
 		let confirmedCostMicrousd = 0;
@@ -1439,11 +1669,12 @@ function createRootEvalLiveExecutorInternal(
 				repositoryRoot,
 				materializationRoot,
 				effect,
+				task,
 				signal: lease.signal,
 			});
 			if (materializedRoot !== root)
 				throw new TypeError("root eval materialized workspace identity drifted");
-			const body = await liveWire(effect, root, lease.signal);
+			const body = await liveWire(effect, root, task, tasks, taskManifestDigest, lease.signal);
 			lease.signal.throwIfAborted();
 			await consumeCurrentProviderDispatch({
 				privateRoot: input.privateRoot,
@@ -1452,10 +1683,11 @@ function createRootEvalLiveExecutorInternal(
 				executionMode,
 				effect,
 				signal: lease.signal,
+				removeStage: input.removeDispatchStage,
 			});
-			lease.signal.throwIfAborted();
-			input.onProviderCall?.(effect);
 			postDispatch = true;
+			input.onProviderCall?.(effect);
+			lease.signal.throwIfAborted();
 			const response = await providerFetch(ROOT_EVAL_LIVE_ENDPOINT, {
 				method: "POST",
 				redirect: "error",
@@ -1471,23 +1703,36 @@ function createRootEvalLiveExecutorInternal(
 				signal: lease.signal,
 			});
 			if (response.redirected || response.url !== ROOT_EVAL_LIVE_ENDPOINT)
-				throw new TypeError("root eval D125 provider response route drifted");
+				throw new TypeError("root eval D145 provider response route drifted");
 			const bytes = await readRootEvalBoundedResponseBytes(
 				response,
 				MAX_RESPONSE_BYTES,
 				"root eval live provider response",
 			);
+			await persistRootEvalPrivateDiagnostic({
+				enabled: privateDiagnostics,
+				privateRoot: input.privateRoot,
+				generationRef: input.claimCommit.claim.generationRef,
+				effect,
+				kind: "provider-response",
+				material: Object.freeze({
+					status: response.status,
+					retryAfter: response.headers.get("retry-after"),
+					responseByteLength: bytes.byteLength,
+					responseDigest: empiricalSha256(bytes),
+					responseBase64: Buffer.from(bytes).toString("base64"),
+				}),
+			});
 			const provider = parseRootEvalLiveProviderResponse({
 				status: response.status,
 				bytes,
 				retryAfter: response.headers.get("retry-after"),
 				pricing: input.pricing,
 				reservationMicrousd: effect.reservationMicrousd,
+				writablePath: task.writablePath,
 			});
 			confirmedCostMicrousd = provider.costMicrousd;
 			confirmedPricingRoundingAllowanceMicrousd = provider.pricingRoundingAllowanceMicrousd;
-			if (provider.costMicrousd > effect.reservationMicrousd)
-				throw new TypeError("root eval D125 provider cost exceeded its Graph reservation");
 			if (provider.disposition === "tool")
 				return providerOutcome(effect, {
 					status: "tool-proposed",
@@ -1502,7 +1747,7 @@ function createRootEvalLiveExecutorInternal(
 					cleanupCompleted: false,
 					tool: provider.tool,
 				});
-			const cleanupCompleted = await cleanup(root);
+			const cleanupCompleted = await cleanup(root, settlementLease.signal);
 			return providerOutcome(effect, {
 				status:
 					provider.disposition === "retryable" && effect.attempt === 1 ? "retryable" : "failed",
@@ -1522,15 +1767,22 @@ function createRootEvalLiveExecutorInternal(
 				tool: null,
 			});
 		} catch (error) {
+			if (error instanceof RootEvalProviderDispatchAuthorityConsumed && !postDispatch) {
+				postDispatch = true;
+				input.onProviderCall?.(effect);
+			}
 			const leaseExpired =
 				error instanceof RootEvalEffectLeaseExpired ||
-				(lease.signal.aborted && lease.signal.reason instanceof RootEvalEffectLeaseExpired);
+				error instanceof RootEvalSettlementLeaseExpired ||
+				(lease.signal.aborted &&
+					(lease.signal.reason instanceof RootEvalEffectLeaseExpired ||
+						lease.signal.reason instanceof RootEvalSettlementLeaseExpired));
 			const digest = empiricalStrictJsonDigest({
-				kind: "root-eval-d125-provider-failure",
+				kind: "root-eval-d145-provider-failure",
 				admissionId: effect.admissionId,
 				message: error instanceof Error ? error.message : String(error),
 			});
-			const cleanupCompleted = await cleanup(root);
+			const cleanupCompleted = await cleanup(root, settlementLease.signal);
 			return providerOutcome(effect, {
 				status: "failed",
 				reason:
@@ -1569,99 +1821,162 @@ function createRootEvalLiveExecutorInternal(
 			});
 		} finally {
 			lease.dispose();
+			settlementLease.dispose();
 		}
 	};
 	const executeTool = async (effect: EvalAdmittedToolEffect): Promise<EvalEffectOutcome> => {
+		const task = taskForEffect(effect);
+		const expectedDigest =
+			effect.workItemRole === "source"
+				? task.sourceVerifierEvidenceDigest
+				: empiricalStrictJsonDigest({
+						kind: "root-eval-actor-visible-acceptance",
+						task: "d145-prior-work-item-transfer-acceptance",
+					});
 		const started = performance.now();
 		const root = workspaceFor(materializationRoot, effect.providerAdmission);
-		let result: EvalEffectOutcome;
+		const lease = createRootEvalSettlementLease(
+			"exact-tool",
+			ROOT_EVAL_TOOL_SETTLEMENT_LEASE_MS,
+			cancellation.signal,
+		);
 		try {
-			cancellation.signal.throwIfAborted();
-			const diff = await applyExactTool(root, {
-				path: effect.path,
-				oldText: effect.oldText,
-				newText: effect.newText,
-			});
-			const verification = await verify(root, diff, cancellation.signal);
-			cancellation.signal.throwIfAborted();
-			const actualDigest = empiricalSha256(
-				await readFile(join(root, ROOT_EVAL_LIVE_WRITABLE_PATH)),
-			);
-			result = toolOutcome(effect, {
-				status: "completed",
-				elapsedMs: elapsed(started),
-				resultDigest: empiricalStrictJsonDigest({
-					providerResultDigest: effect.providerOutcome.resultDigest,
+			let result: EvalEffectOutcome;
+			try {
+				lease.signal.throwIfAborted();
+				const diff = await applyExactTool(
+					root,
+					{
+						path: effect.path,
+						oldText: effect.oldText,
+						newText: effect.newText,
+					},
+					task,
+				);
+				const verification = await verify(
+					root,
+					diff,
+					task,
+					lease.signal,
+					async (kind, processResult) =>
+						persistRootEvalPrivateDiagnostic({
+							enabled: privateDiagnostics,
+							privateRoot: input.privateRoot,
+							generationRef: input.claimCommit.claim.generationRef,
+							effect: effect.providerAdmission,
+							kind,
+							material: Object.freeze({
+								code: processResult.code,
+								stdoutByteLength: processResult.stdout.byteLength,
+								stderrByteLength: processResult.stderr.byteLength,
+								stdout: new TextDecoder().decode(processResult.stdout.slice(0, 65_536)),
+								stderr: new TextDecoder().decode(processResult.stderr.slice(0, 65_536)),
+							}),
+						}),
+				);
+				lease.signal.throwIfAborted();
+				const actualDigest = empiricalSha256(await readFile(join(root, task.writablePath)));
+				result = toolOutcome(effect, {
+					status: "completed",
+					elapsedMs: elapsed(started),
+					resultDigest: empiricalStrictJsonDigest({
+						providerResultDigest: effect.providerOutcome.resultDigest,
+						actualDigest,
+						diff,
+						verification,
+					}),
+					expectedDigest,
 					actualDigest,
 					diff,
-					verification,
-				}),
-				actualDigest,
-				diff,
-				cleanupCompleted: true,
-				publicSemantic: verification.publicSemantic,
-				hiddenVerifier: verification.hiddenVerifier,
-			});
-		} catch (error) {
-			const digest = empiricalStrictJsonDigest({
-				kind: "root-eval-d125-tool-failure",
-				toolAdmissionId: effect.toolAdmissionId,
-				message: error instanceof Error ? error.message : String(error),
-			});
-			result = toolOutcome(effect, {
-				status: "failed",
-				elapsedMs: elapsed(started),
-				resultDigest: digest,
-				actualDigest: digest,
-				diff: "no-change",
-				cleanupCompleted: true,
-				publicSemantic: false,
-				hiddenVerifier: false,
-			});
-		}
-		if (!(await cleanup(root)))
-			return toolOutcome(effect, {
-				status: "failed",
-				elapsedMs: elapsed(started),
-				resultDigest: empiricalStrictJsonDigest({
-					kind: "root-eval-d125-cleanup-failure",
+					cleanupCompleted: true,
+					publicSemantic: verification.publicSemantic,
+					hiddenVerifier: verification.hiddenVerifier,
+				});
+			} catch (error) {
+				const digest = empiricalStrictJsonDigest({
+					kind: "root-eval-d145-tool-failure",
 					toolAdmissionId: effect.toolAdmissionId,
-				}),
-				actualDigest: result.evidence.actualDigest,
-				diff: result.evidence.diff,
-				cleanupCompleted: false,
-				publicSemantic: false,
-				hiddenVerifier: false,
-			});
-		return result;
+					message: error instanceof Error ? error.message : String(error),
+				});
+				result = toolOutcome(effect, {
+					status: "failed",
+					elapsedMs: elapsed(started),
+					resultDigest: digest,
+					expectedDigest,
+					actualDigest: digest,
+					diff: "no-change",
+					cleanupCompleted: true,
+					publicSemantic: false,
+					hiddenVerifier: false,
+				});
+			}
+			if (!(await cleanup(root, lease.signal)))
+				return toolOutcome(effect, {
+					status: "failed",
+					elapsedMs: elapsed(started),
+					resultDigest: empiricalStrictJsonDigest({
+						kind: "root-eval-d145-cleanup-failure",
+						toolAdmissionId: effect.toolAdmissionId,
+					}),
+					expectedDigest,
+					actualDigest: result.evidence.actualDigest,
+					diff: result.evidence.diff,
+					cleanupCompleted: false,
+					publicSemantic: false,
+					hiddenVerifier: false,
+				});
+			return result;
+		} finally {
+			lease.dispose();
+		}
 	};
 	const executeDelay = async (effect: EvalRetryDelayEffect): Promise<EvalRetryDelayOutcome> => {
-		const wait = input.wait ?? waitForRootEvalDelay;
-		await wait(effect.delayMs, cancellation.signal);
-		cancellation.signal.throwIfAborted();
-		return Object.freeze({
-			kind: "eval-retry-delay-outcome" as const,
-			admission: effect,
-			executionId: effect.executionId,
-			elapsedMs: effect.delayMs,
-			status: "completed" as const,
-			resultDigest: empiricalStrictJsonDigest({
-				kind: "root-eval-d125-retry-delay-complete",
+		if (effect.delayMs > ROOT_EVAL_MAX_RETRY_DELAY_MS)
+			throw new TypeError("root eval admitted retry delay exceeded its settlement bound");
+		const lease = createRootEvalSettlementLease(
+			"retry-delay",
+			ROOT_EVAL_RETRY_SETTLEMENT_LEASE_MS,
+			cancellation.signal,
+		);
+		try {
+			const wait = input.wait ?? waitForRootEvalDelay;
+			await awaitRootEvalAbortable(wait(effect.delayMs, lease.signal), lease.signal);
+			lease.signal.throwIfAborted();
+			return Object.freeze({
+				kind: "eval-retry-delay-outcome" as const,
+				admission: effect,
 				executionId: effect.executionId,
-				delayMs: effect.delayMs,
-			}),
-		});
+				elapsedMs: effect.delayMs,
+				status: "completed" as const,
+				resultDigest: empiricalStrictJsonDigest({
+					kind: "root-eval-d145-retry-delay-complete",
+					executionId: effect.executionId,
+					delayMs: effect.delayMs,
+				}),
+			});
+		} finally {
+			lease.dispose();
+		}
 	};
 	const executeBillingObservation = async (
 		effect: EvalBillingObservationEffect,
 	): Promise<EvalBillingObservationOutcome> => {
-		const wait = input.wait ?? waitForRootEvalDelay;
-		if (effect.delayMs > 0) await wait(effect.delayMs, cancellation.signal);
-		cancellation.signal.throwIfAborted();
-		let currentKeyAfter: EvalCurrentKeySnapshot;
+		const lease = createRootEvalSettlementLease(
+			"billing-observation",
+			ROOT_EVAL_BILLING_SETTLEMENT_LEASE_MS,
+			cancellation.signal,
+		);
 		try {
+			const wait = input.wait ?? waitForRootEvalDelay;
+			if (effect.delayMs > 0)
+				await awaitRootEvalAbortable(wait(effect.delayMs, lease.signal), lease.signal);
+			lease.signal.throwIfAborted();
+			let currentKeyAfter: EvalCurrentKeySnapshot;
 			if (input.observeCurrentKey !== undefined)
-				currentKeyAfter = await input.observeCurrentKey(effect, cancellation.signal);
+				currentKeyAfter = await awaitRootEvalAbortable(
+					input.observeCurrentKey(effect, lease.signal),
+					lease.signal,
+				);
 			else if (executionMode === "no-network-qualification") {
 				const delta = effect.accountedUpperBoundMicrousd;
 				const material = {
@@ -1705,12 +2020,14 @@ function createRootEvalLiveExecutorInternal(
 					message: error instanceof Error ? error.message : String(error),
 				}),
 			});
+		} finally {
+			lease.dispose();
 		}
 	};
 	return Object.freeze({
 		async execute(effect: EvalExecutableEffect): Promise<EvalExecutorOutcome> {
 			if (disposed || active.has(effect.executionId))
-				throw new TypeError("root eval D125 executor rejected replay or disposal");
+				throw new TypeError("root eval D145 executor rejected replay or disposal");
 			cancellation.signal.throwIfAborted();
 			const execution = (async (): Promise<EvalExecutorOutcome> => {
 				if (effect.kind === "eval-admitted-effect") return await executeProvider(effect);
@@ -1730,7 +2047,15 @@ function createRootEvalLiveExecutorInternal(
 			if (!cancellation.signal.aborted)
 				cancellation.abort(reason ?? new Error("root eval executor disposed"));
 			await Promise.allSettled([...active.values()]);
-			await rm(materializationRoot, { recursive: true, force: true });
+			const finalizer = createRootEvalSettlementLease(
+				"cleanup-finalizer",
+				ROOT_EVAL_TOOL_SETTLEMENT_LEASE_MS,
+			);
+			try {
+				await cleanup(materializationRoot, finalizer.signal);
+			} finally {
+				finalizer.dispose();
+			}
 		},
 	});
 }
@@ -1750,6 +2075,9 @@ export function createRootEvalLiveTransportQualificationExecutor(input: {
 	readonly claimCommit: RootEvalLiveClaimCommit;
 	readonly bearerToken: string;
 	readonly pricing: RootEvalLivePricing;
+	readonly taskKind?: RootEvalTaskKind;
+	readonly taskManifestSlot?: RootEvalTaskManifestSlot;
+	readonly diagnosticMode?: "none" | "development-private";
 	readonly providerResponses: readonly Readonly<{
 		readonly status: number;
 		readonly bytes: Uint8Array;
@@ -1757,6 +2085,18 @@ export function createRootEvalLiveTransportQualificationExecutor(input: {
 		readonly stallUntilAbort?: boolean;
 		readonly stallBodyUntilAbort?: boolean;
 	}>[];
+	readonly providerResponseForRequest?: (
+		request: Readonly<Record<string, unknown>>,
+		ordinal: number,
+	) => Readonly<{
+		readonly status: number;
+		readonly bytes: Uint8Array;
+		readonly retryAfter?: string | null;
+		readonly stallUntilAbort?: boolean;
+		readonly stallBodyUntilAbort?: boolean;
+	}>;
+	readonly onProviderCall?: (effect: EvalAdmittedEffect) => void;
+	readonly removeDispatchStage?: (stage: string) => Promise<void>;
 }): RootEvalLiveTransportQualificationExecutor {
 	const responses = input.providerResponses.map((response) =>
 		Object.freeze({
@@ -1784,7 +2124,18 @@ export function createRootEvalLiveTransportQualificationExecutor(input: {
 		);
 		const { messages: _messages, ...materialFreeSummary } = request;
 		summaries.push(strictSnapshot(materialFreeSummary));
-		const frozen = responses[responseIndex++];
+		const selected = input.providerResponseForRequest?.(request, responseIndex);
+		const frozen =
+			selected === undefined
+				? responses[responseIndex]
+				: Object.freeze({
+						status: selected.status,
+						bytes: selected.bytes.slice(),
+						retryAfter: selected.retryAfter ?? null,
+						stallUntilAbort: selected.stallUntilAbort === true,
+						stallBodyUntilAbort: selected.stallBodyUntilAbort === true,
+					});
+		responseIndex += 1;
 		if (frozen === undefined)
 			throw new TypeError("root eval frozen transport response was unavailable");
 		if (frozen.stallUntilAbort)
@@ -1827,6 +2178,11 @@ export function createRootEvalLiveTransportQualificationExecutor(input: {
 			claimCommit: input.claimCommit,
 			bearerToken: input.bearerToken,
 			pricing: input.pricing,
+			taskKind: input.taskKind,
+			taskManifestSlot: input.taskManifestSlot,
+			diagnosticMode: input.diagnosticMode,
+			onProviderCall: input.onProviderCall,
+			removeDispatchStage: input.removeDispatchStage,
 		},
 		"no-network-qualification",
 		frozenResponseFetch as typeof fetch,
@@ -1842,14 +2198,37 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 	readonly repositoryRoot: string;
 	readonly materializationRoot: string;
 	readonly pricing: RootEvalLivePricing;
+	readonly taskKind?: RootEvalTaskKind;
+	readonly taskManifestSlot?: RootEvalTaskManifestSlot;
 	readonly providerResponses: readonly Readonly<{
 		readonly status: number;
 		readonly bytes: Uint8Array;
 		readonly retryAfter?: string | null;
 	}>[];
+	readonly providerResponseForEffect?: (
+		effect: EvalAdmittedEffect,
+		ordinal: number,
+	) => Readonly<{
+		readonly status: number;
+		readonly bytes: Uint8Array;
+		readonly retryAfter?: string | null;
+	}>;
 }): RootEvalNoNetworkQualificationExecutor {
 	const repositoryRoot = resolve(input.repositoryRoot);
 	const materializationRoot = resolve(input.materializationRoot);
+	const taskKind = input.taskKind ?? "development-transfer";
+	const taskManifest =
+		input.taskManifestSlot === undefined
+			? undefined
+			: readRootEvalTaskManifest(input.taskManifestSlot);
+	const tasks = taskManifest?.tasks ?? ROOT_EVAL_DEVELOPMENT_TASKS;
+	const taskManifestDigest = taskManifest?.manifestDigest ?? ROOT_EVAL_DEVELOPMENT_TASK_SET_DIGEST;
+	const taskForEffect = (effect: Pick<EvalAdmittedEffect, "replicate" | "workItemRole">) => {
+		const task = tasks[effect.replicate - 1];
+		if (task === undefined || task.kind !== taskKind)
+			throw new TypeError("root eval no-network task snapshot was unavailable");
+		return executionTask(task, effect.workItemRole);
+	};
 	const providerResponses = input.providerResponses.map((response) =>
 		Object.freeze({
 			status: response.status,
@@ -1862,16 +2241,33 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 	let disposed = false;
 	const cancellation = new AbortController();
 	const active = new Map<string, Promise<EvalExecutorOutcome>>();
-	const cleanup = async (root: string): Promise<boolean> => {
+	const cleanup = async (root: string, signal: AbortSignal): Promise<boolean> => {
 		try {
-			await rm(root, { recursive: true, force: true });
+			await awaitRootEvalAbortable(
+				runProcess({
+					command: process.execPath,
+					args: ["--input-type=module", "--eval", ROOT_EVAL_REMOVE_WORKSPACE_SCRIPT, root],
+					cwd: repositoryRoot,
+					timeoutMs: ROOT_EVAL_TOOL_SETTLEMENT_LEASE_MS,
+					signal,
+				}),
+				signal,
+			);
+			signal.throwIfAborted();
 			return true;
 		} catch {
 			return false;
 		}
 	};
 	const executeProvider = async (effect: EvalAdmittedEffect): Promise<EvalProviderOutcome> => {
+		const task = taskForEffect(effect);
 		const started = performance.now();
+		const settlementLease = createRootEvalSettlementLease(
+			"provider",
+			ROOT_EVAL_PROVIDER_SETTLEMENT_LEASE_MS,
+			cancellation.signal,
+		);
+		const lease = createRootEvalEffectLease(effect.timeoutMs, settlementLease.signal);
 		let root: string | undefined;
 		let postDispatch = false;
 		let confirmedCostMicrousd = 0;
@@ -1881,10 +2277,11 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 				repositoryRoot,
 				materializationRoot,
 				effect,
-				signal: cancellation.signal,
+				task,
+				signal: lease.signal,
 			});
-			const body = await liveWire(effect, root, cancellation.signal);
-			cancellation.signal.throwIfAborted();
+			const body = await liveWire(effect, root, task, tasks, taskManifestDigest, lease.signal);
+			lease.signal.throwIfAborted();
 			const request = object(JSON.parse(body), "root eval no-network provider request");
 			providerRequestSummaries.push(
 				strictSnapshot({
@@ -1899,7 +2296,15 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 					},
 				}),
 			);
-			const response = providerResponses[responseIndex];
+			const selected = input.providerResponseForEffect?.(effect, responseIndex);
+			const response =
+				selected === undefined
+					? providerResponses[responseIndex]
+					: Object.freeze({
+							status: selected.status,
+							bytes: selected.bytes.slice(),
+							retryAfter: selected.retryAfter ?? null,
+						});
 			if (response === undefined)
 				throw new TypeError("root eval no-network qualification response sequence exhausted");
 			responseIndex += 1;
@@ -1910,11 +2315,10 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 				retryAfter: response.retryAfter,
 				pricing: input.pricing,
 				reservationMicrousd: effect.reservationMicrousd,
+				writablePath: task.writablePath,
 			});
 			confirmedCostMicrousd = provider.costMicrousd;
 			confirmedPricingRoundingAllowanceMicrousd = provider.pricingRoundingAllowanceMicrousd;
-			if (provider.costMicrousd > effect.reservationMicrousd)
-				throw new TypeError("root eval provider cost exceeded its Graph reservation");
 			if (provider.disposition === "tool")
 				return providerOutcome(effect, {
 					status: "tool-proposed",
@@ -1929,7 +2333,7 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 					cleanupCompleted: false,
 					tool: provider.tool,
 				});
-			const cleanupCompleted = await cleanup(root);
+			const cleanupCompleted = await cleanup(root, settlementLease.signal);
 			return providerOutcome(effect, {
 				status:
 					provider.disposition === "retryable" && effect.attempt === 1 ? "retryable" : "failed",
@@ -1954,7 +2358,8 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 				admissionId: effect.admissionId,
 				message: error instanceof Error ? error.message : String(error),
 			});
-			const cleanupCompleted = root === undefined ? true : await cleanup(root);
+			const cleanupCompleted =
+				root === undefined ? true : await cleanup(root, settlementLease.signal);
 			return providerOutcome(effect, {
 				status: "failed",
 				reason: error instanceof RootEvalProviderResponseError ? error.reason : "executor-failed",
@@ -1986,24 +2391,42 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 				cleanupCompleted,
 				tool: null,
 			});
+		} finally {
+			lease.dispose();
+			settlementLease.dispose();
 		}
 	};
 	const executeTool = async (effect: EvalAdmittedToolEffect): Promise<EvalEffectOutcome> => {
+		const task = taskForEffect(effect);
+		const expectedDigest =
+			effect.workItemRole === "source"
+				? task.sourceVerifierEvidenceDigest
+				: empiricalStrictJsonDigest({
+						kind: "root-eval-actor-visible-acceptance",
+						task: "d145-prior-work-item-transfer-acceptance",
+					});
 		const started = performance.now();
 		const root = workspaceFor(materializationRoot, effect.providerAdmission);
+		const lease = createRootEvalSettlementLease(
+			"exact-tool",
+			ROOT_EVAL_TOOL_SETTLEMENT_LEASE_MS,
+			cancellation.signal,
+		);
 		let result: EvalEffectOutcome;
 		try {
-			cancellation.signal.throwIfAborted();
-			const diff = await applyExactTool(root, {
-				path: effect.path,
-				oldText: effect.oldText,
-				newText: effect.newText,
-			});
-			const verification = await verify(root, diff, cancellation.signal);
-			cancellation.signal.throwIfAborted();
-			const actualDigest = empiricalSha256(
-				await readFile(join(root, ROOT_EVAL_LIVE_WRITABLE_PATH)),
+			lease.signal.throwIfAborted();
+			const diff = await applyExactTool(
+				root,
+				{
+					path: effect.path,
+					oldText: effect.oldText,
+					newText: effect.newText,
+				},
+				task,
 			);
+			const verification = await verify(root, diff, task, lease.signal);
+			lease.signal.throwIfAborted();
+			const actualDigest = empiricalSha256(await readFile(join(root, task.writablePath)));
 			result = toolOutcome(effect, {
 				status: "completed",
 				elapsedMs: elapsed(started),
@@ -2013,6 +2436,7 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 					diff,
 					verification,
 				}),
+				expectedDigest,
 				actualDigest,
 				diff,
 				cleanupCompleted: true,
@@ -2029,6 +2453,7 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 				status: "failed",
 				elapsedMs: elapsed(started),
 				resultDigest: digest,
+				expectedDigest,
 				actualDigest: digest,
 				diff: "no-change",
 				cleanupCompleted: true,
@@ -2036,41 +2461,60 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 				hiddenVerifier: false,
 			});
 		}
-		if (!(await cleanup(root)))
-			return toolOutcome(effect, {
-				status: "failed",
-				elapsedMs: elapsed(started),
-				resultDigest: empiricalStrictJsonDigest({
-					kind: "root-eval-live-cleanup-failure",
-					toolAdmissionId: effect.toolAdmissionId,
-				}),
-				actualDigest: result.evidence.actualDigest,
-				diff: result.evidence.diff,
-				cleanupCompleted: false,
-				publicSemantic: false,
-				hiddenVerifier: false,
-			});
-		return result;
+		try {
+			if (!(await cleanup(root, lease.signal)))
+				return toolOutcome(effect, {
+					status: "failed",
+					elapsedMs: elapsed(started),
+					resultDigest: empiricalStrictJsonDigest({
+						kind: "root-eval-live-cleanup-failure",
+						toolAdmissionId: effect.toolAdmissionId,
+					}),
+					expectedDigest,
+					actualDigest: result.evidence.actualDigest,
+					diff: result.evidence.diff,
+					cleanupCompleted: false,
+					publicSemantic: false,
+					hiddenVerifier: false,
+				});
+			return result;
+		} finally {
+			lease.dispose();
+		}
 	};
 	const executeDelay = async (effect: EvalRetryDelayEffect): Promise<EvalRetryDelayOutcome> => {
-		cancellation.signal.throwIfAborted();
-		return Object.freeze({
-			kind: "eval-retry-delay-outcome" as const,
-			admission: effect,
-			executionId: effect.executionId,
-			elapsedMs: effect.delayMs,
-			status: "completed" as const,
-			resultDigest: empiricalStrictJsonDigest({
-				kind: "root-eval-retry-delay-complete",
+		const lease = createRootEvalSettlementLease(
+			"retry-delay",
+			ROOT_EVAL_RETRY_SETTLEMENT_LEASE_MS,
+			cancellation.signal,
+		);
+		try {
+			lease.signal.throwIfAborted();
+			return Object.freeze({
+				kind: "eval-retry-delay-outcome" as const,
+				admission: effect,
 				executionId: effect.executionId,
-				delayMs: effect.delayMs,
-			}),
-		});
+				elapsedMs: effect.delayMs,
+				status: "completed" as const,
+				resultDigest: empiricalStrictJsonDigest({
+					kind: "root-eval-retry-delay-complete",
+					executionId: effect.executionId,
+					delayMs: effect.delayMs,
+				}),
+			});
+		} finally {
+			lease.dispose();
+		}
 	};
 	const executeBillingObservation = async (
 		effect: EvalBillingObservationEffect,
 	): Promise<EvalBillingObservationOutcome> => {
-		cancellation.signal.throwIfAborted();
+		const lease = createRootEvalSettlementLease(
+			"billing-observation",
+			ROOT_EVAL_BILLING_SETTLEMENT_LEASE_MS,
+			cancellation.signal,
+		);
+		lease.signal.throwIfAborted();
 		const delta = effect.accountedUpperBoundMicrousd;
 		const material = {
 			kind: "eval-current-key-snapshot" as const,
@@ -2085,19 +2529,23 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 			...material,
 			admissionDigest: empiricalStrictJsonDigest(material),
 		});
-		return Object.freeze({
-			kind: "eval-billing-observation-outcome" as const,
-			admission: effect,
-			executionId: effect.executionId,
-			observation: effect.observation,
-			status: "completed" as const,
-			currentKeyAfter,
-			resultDigest: empiricalStrictJsonDigest({
-				kind: "root-eval-no-network-billing-observation",
+		try {
+			return Object.freeze({
+				kind: "eval-billing-observation-outcome" as const,
+				admission: effect,
 				executionId: effect.executionId,
-				admissionDigest: currentKeyAfter.admissionDigest,
-			}),
-		});
+				observation: effect.observation,
+				status: "completed" as const,
+				currentKeyAfter,
+				resultDigest: empiricalStrictJsonDigest({
+					kind: "root-eval-no-network-billing-observation",
+					executionId: effect.executionId,
+					admissionDigest: currentKeyAfter.admissionDigest,
+				}),
+			});
+		} finally {
+			lease.dispose();
+		}
 	};
 	return Object.freeze({
 		providerRequestSummaries(): readonly Readonly<Record<string, unknown>>[] {
@@ -2125,18 +2573,27 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 			if (!cancellation.signal.aborted)
 				cancellation.abort(reason ?? new Error("root eval executor disposed"));
 			await Promise.allSettled([...active.values()]);
-			await rm(materializationRoot, { recursive: true, force: true });
+			const finalizer = createRootEvalSettlementLease(
+				"cleanup-finalizer",
+				ROOT_EVAL_TOOL_SETTLEMENT_LEASE_MS,
+			);
+			try {
+				await cleanup(materializationRoot, finalizer.signal);
+			} finally {
+				finalizer.dispose();
+			}
 		},
 	});
 }
 
 export const ROOT_EVAL_LIVE_TASK_BINDING_DIGEST = empiricalStrictJsonDigest(
 	strictSnapshot({
-		baselineCommit: ROOT_EVAL_FROZEN_BASELINE_COMMIT,
-		writablePath: ROOT_EVAL_LIVE_WRITABLE_PATH,
-		publicTest: ROOT_EVAL_LIVE_PUBLIC_TEST,
-		taskStatement: TASK_STATEMENT,
+		decisionRef: ROOT_EVAL_LIVE_DECISION_REF,
+		taskSetBindingDigest: ROOT_EVAL_D145_TASK_SET_BINDING_DIGEST,
+		heldOutSealDigest: ROOT_EVAL_HELD_OUT_SEAL_DIGEST,
+		developmentTasks: ROOT_EVAL_DEVELOPMENT_TASKS,
 		noAdmittedMemoryContext: NO_ADMITTED_MEMORY_CONTEXT,
-		relevantMemoryContentDigest: empiricalStrictJsonDigest(RELEVANT_MEMORY_CONTENT),
 	}),
 );
+
+export { ROOT_EVAL_HELD_OUT_SEAL_DIGEST } from "./root-eval-task.js";

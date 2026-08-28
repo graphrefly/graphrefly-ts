@@ -318,4 +318,30 @@ describe("toolProviderRunAdmissionProjector (D419)", () => {
 			expect.objectContaining({ runId: admittedRunId("candidate-replay") }),
 		]);
 	});
+
+	it("fails closed when a replayed proposal id carries different authority material", () => {
+		const harness = createHarness();
+		const input = readyInput({ requestId: "conflicting-replay", approvalMode: "auto" });
+		const candidate = requestToolProviderAdapterRun(input, {
+			runId: "candidate-conflicting-replay",
+			reason: "manual",
+		});
+		const conflicting = {
+			...candidate,
+			sourceRefs: [...candidate.sourceRefs, { kind: "policy", id: "different-authority" }],
+		} satisfies ToolProviderAdapterRunRequested;
+
+		harness.inputs.down([["DATA", input]]);
+		harness.runRequests.down([["DATA", candidate]]);
+		harness.runRequests.down([["DATA", conflicting]]);
+
+		expect(harness.seen.approved).toEqual([
+			expect.objectContaining({ runId: admittedRunId("candidate-conflicting-replay") }),
+		]);
+		expect(harness.seen.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: "tool-provider-run-admission-proposal-conflict" }),
+			]),
+		);
+	});
 });

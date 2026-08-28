@@ -6,6 +6,21 @@
  */
 
 export {
+	type AdmissionHandoffAccepted,
+	type AdmissionHandoffBundle,
+	type AdmissionHandoffCandidate,
+	type AdmissionHandoffCursor,
+	type AdmissionHandoffDecision,
+	type AdmissionHandoffIssue,
+	type AdmissionHandoffIssueCode,
+	type AdmissionHandoffOptions,
+	type AdmissionHandoffRejected,
+	type AdmissionHandoffStatus,
+	type AdmissionHandoffStatusState,
+	admissionHandoff,
+} from "./admission-handoff.js";
+
+export {
 	type EventFlowAuditRecord,
 	type EventFlowBundle,
 	type EventFlowHighWater,

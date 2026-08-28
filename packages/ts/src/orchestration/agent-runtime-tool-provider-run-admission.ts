@@ -4,6 +4,11 @@ import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import {
+	type AdmissionHandoffCandidate,
+	type AdmissionHandoffDecision,
+	admissionHandoff,
+} from "../patterns/admission-handoff.js";
+import {
 	requestToolProviderAdapterRun,
 	runRequestIdentityIssues,
 } from "./agent-runtime-adapter-run.js";
@@ -14,6 +19,8 @@ import {
 	ref,
 	sanitizeAdapterInputSourceRefs,
 	sanitizeProviderGraphVisibleRecord,
+	stableJsonStringify,
+	stableStringHash,
 	uniqueSourceRefs,
 } from "./agent-runtime-common.js";
 import type { AgentNeed, AgentRuntimeAuditRecord } from "./agent-runtime-types-agent.js";
@@ -69,7 +76,6 @@ export function toolProviderRunAdmissionProjector(
 				admissionsByRun: new Map<string, ToolProviderRunAdmission[]>(),
 				proposalKeys: new Set<string>(),
 				admissionKeys: new Set<string>(),
-				approvedRunKeys: new Set<string>(),
 				statusKeys: new Set<string>(),
 				issueKeys: new Set<string>(),
 				auditSeq: 0,
@@ -122,6 +128,79 @@ export function toolProviderRunAdmissionProjector(
 		},
 		{ name: `${name}/runtime`, factory: "toolProviderRunAdmissionProjector", partial: true },
 	);
+	const handoffCandidates = projectRuntimeFact(
+		graph,
+		runtime,
+		`${name}/handoffCandidates`,
+		"toolProviderRunAdmissionHandoffCandidates",
+		(fact): AdmissionHandoffCandidate<ToolProviderRunAdmissionProposal> | undefined =>
+			fact.kind === "proposal"
+				? Object.freeze({
+						kind: "admission-handoff-candidate" as const,
+						candidateId: fact.proposal.proposalId,
+						candidateFingerprint: proposalHandoffFingerprint(fact.proposal),
+						value: fact.proposal,
+					})
+				: undefined,
+	);
+	const handoffDecisions = projectRuntimeFact(
+		graph,
+		runtime,
+		`${name}/handoffDecisions`,
+		"toolProviderRunAdmissionHandoffDecisions",
+		(
+			fact,
+		):
+			| AdmissionHandoffDecision<{
+					readonly admission: ToolProviderRunAdmission;
+					readonly approvedRequest?: ToolProviderAdapterRunRequested;
+			  }>
+			| undefined =>
+			fact.kind === "handoff-decision"
+				? Object.freeze({
+						kind: "admission-handoff-decision" as const,
+						decisionId: `${fact.admission.admissionId}/handoff-decision`,
+						decisionFingerprint: admissionHandoffFingerprint(fact.admission, fact.approvedRequest),
+						candidateId: fact.proposal.proposalId,
+						candidateFingerprint: proposalHandoffFingerprint(fact.proposal),
+						state:
+							fact.admission.state === "admitted" ? ("admitted" as const) : ("rejected" as const),
+						reason: Object.freeze({
+							admission: fact.admission,
+							...(fact.approvedRequest === undefined
+								? {}
+								: { approvedRequest: fact.approvedRequest }),
+						}),
+					})
+				: undefined,
+	);
+	const approvedRunHandoff = admissionHandoff(graph, {
+		name: `${name}/approvedRunHandoff`,
+		candidates: handoffCandidates,
+		decisions: handoffDecisions,
+		maxPending: 1_024,
+		maxRecent: 2_048,
+	});
+	const approvedRunRequests = graph.node<ToolProviderAdapterRunRequested>(
+		[approvedRunHandoff.accepted],
+		(ctx) => {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const approvedRequest = (
+					raw as {
+						readonly reason?: { readonly approvedRequest?: ToolProviderAdapterRunRequested };
+					}
+				).reason?.approvedRequest;
+				if (approvedRequest === undefined)
+					throw new TypeError("admitted tool provider handoff lacked an approved run request");
+				ctx.down([["DATA", approvedRequest]]);
+			}
+		},
+		{
+			name: `${name}/approvedRunRequests`,
+			factory: "toolProviderRunAdmissionApprovedRunRequests",
+			meta: { source: "admission-handoff-accepted" },
+		},
+	);
 	return {
 		proposals: projectRuntimeFact(
 			graph,
@@ -137,13 +216,7 @@ export function toolProviderRunAdmissionProjector(
 			"toolProviderRunAdmissions",
 			(fact) => (fact.kind === "admission" ? fact.admission : undefined),
 		),
-		approvedRunRequests: projectRuntimeFact(
-			graph,
-			runtime,
-			`${name}/approvedRunRequests`,
-			"toolProviderRunAdmissionApprovedRunRequests",
-			(fact) => (fact.kind === "approved-run-request" ? fact.request : undefined),
-		),
+		approvedRunRequests,
 		status: projectRuntimeFact(
 			graph,
 			runtime,
@@ -178,7 +251,12 @@ export function toolProviderRunAdmissionProjector(
 type ToolProviderRunAdmissionFact =
 	| { readonly kind: "proposal"; readonly proposal: ToolProviderRunAdmissionProposal }
 	| { readonly kind: "admission"; readonly admission: ToolProviderRunAdmission }
-	| { readonly kind: "approved-run-request"; readonly request: ToolProviderAdapterRunRequested }
+	| {
+			readonly kind: "handoff-decision";
+			readonly proposal: ToolProviderRunAdmissionProposal;
+			readonly admission: ToolProviderRunAdmission;
+			readonly approvedRequest?: ToolProviderAdapterRunRequested;
+	  }
 	| { readonly kind: "status"; readonly status: ToolProviderRunAdmissionStatus }
 	| { readonly kind: "issue"; readonly issue: DataIssue }
 	| { readonly kind: "audit"; readonly audit: AgentRuntimeAuditRecord }
@@ -199,7 +277,6 @@ interface ToolProviderRunAdmissionProjectorState {
 	admissionsByRun: Map<string, ToolProviderRunAdmission[]>;
 	proposalKeys: Set<string>;
 	admissionKeys: Set<string>;
-	approvedRunKeys: Set<string>;
 	statusKeys: Set<string>;
 	issueKeys: Set<string>;
 	auditSeq: number;
@@ -246,6 +323,35 @@ function handleRunRequest(
 	}
 	const approval = resolveApprovalPolicy(input);
 	const proposal = admissionProposal(input, request, approval);
+	const existingProposal = state.proposalsById.get(proposal.proposalId);
+	if (existingProposal !== undefined) {
+		if (
+			proposalHandoffFingerprint(existingProposal.proposal) !== proposalHandoffFingerprint(proposal)
+		) {
+			const issue = dataIssue(
+				"tool-provider-run-admission-proposal-conflict",
+				"A tool provider run proposal identity was replayed with different authority material.",
+				{
+					subjectId: proposal.proposalId,
+					refs: [ref("tool-provider-run-admission-proposal", proposal.proposalId)],
+				},
+			);
+			emitAdmissionIssue(ctx, state, issue);
+			emitAdmissionStatus(ctx, state, {
+				kind: "tool-provider-run-admission-status",
+				proposalId: proposal.proposalId,
+				runId: proposal.runId,
+				adapterInputId: proposal.adapterInputId,
+				requestId: proposal.requestId,
+				operationId: proposal.operationId,
+				state: "issue",
+				issues: Object.freeze([issue]),
+				sourceRefs: proposal.sourceRefs,
+			});
+			emitAdmissionAudit(ctx, state, "tool-provider-run-admission-proposal-conflict", proposal);
+		}
+		return;
+	}
 	const internal = { proposal, request, input };
 	state.proposalsById.set(proposal.proposalId, internal);
 	pushMapArrayBy(state.proposalsByRun, request.runId, proposal, (entry) => entry.proposalId);
@@ -381,7 +487,7 @@ function admit(
 		},
 		requestedAtMs: now?.(),
 	});
-	emitApprovedRunRequest(ctx, state, approvedRequest);
+	emitAdmissionHandoffDecision(ctx, internal.proposal, admission, approvedRequest);
 	emitAdmissionAudit(
 		ctx,
 		state,
@@ -466,6 +572,8 @@ function recordAdmission(
 	emitAdmissionAudit(ctx, state, `tool-provider-run-admission-${admissionState}`, admission, {
 		decisionId: opts.decision?.decisionId,
 	});
+	if (admissionState !== "admitted")
+		emitAdmissionHandoffDecision(ctx, internal.proposal, admission);
 	return admission;
 }
 
@@ -628,15 +736,42 @@ function emitAdmission(
 	ctx.down([["DATA", { kind: "admission", admission }]]);
 }
 
-function emitApprovedRunRequest(
+function emitAdmissionHandoffDecision(
 	ctx: { down: (msgs: readonly ["DATA", ToolProviderRunAdmissionFact][]) => void },
-	state: ToolProviderRunAdmissionProjectorState,
-	request: ToolProviderAdapterRunRequested,
+	proposal: ToolProviderRunAdmissionProposal,
+	admission: ToolProviderRunAdmission,
+	approvedRequest?: ToolProviderAdapterRunRequested,
 ): void {
-	const key = compoundTupleKey("approved-run", [request.runId]);
-	if (state.approvedRunKeys.has(key)) return;
-	state.approvedRunKeys.add(key);
-	ctx.down([["DATA", { kind: "approved-run-request", request }]]);
+	ctx.down([
+		[
+			"DATA",
+			{
+				kind: "handoff-decision",
+				proposal,
+				admission,
+				...(approvedRequest === undefined ? {} : { approvedRequest }),
+			},
+		],
+	]);
+}
+
+function proposalHandoffFingerprint(proposal: ToolProviderRunAdmissionProposal): string {
+	return completeHandoffFingerprint("tool-provider-run-admission-handoff-candidate", proposal);
+}
+
+function admissionHandoffFingerprint(
+	admission: ToolProviderRunAdmission,
+	approvedRequest: ToolProviderAdapterRunRequested | undefined,
+): string {
+	return completeHandoffFingerprint("tool-provider-run-admission-handoff-decision", {
+		admission,
+		...(approvedRequest === undefined ? {} : { approvedRequest }),
+	});
+}
+
+function completeHandoffFingerprint(kind: string, value: unknown): string {
+	const canonical = stableJsonStringify(value);
+	return compoundTupleKey(kind, [stableStringHash(canonical), String(canonical.length)]);
 }
 
 function emitAdmissionStatus(

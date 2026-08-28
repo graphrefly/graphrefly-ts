@@ -3,13 +3,13 @@ import { join, relative, resolve } from "node:path";
 import { empiricalSha256, empiricalStrictJsonDigest } from "./canonical.js";
 
 export const CURRENT_QUALIFICATION_DIGEST =
-	"sha256:1f13678ed0dbaa3291f38847fca33cd54cf61cafd73eeae6c950fdc2ed483cc0" as const;
+	"sha256:2e5b5864ad8e6513dc97e944dc46dbae7fa50c1acd1b99d8520ac8fce764ac8a" as const;
 export const CURRENT_QUALIFICATION_ARTIFACT_DIGEST =
-	"sha256:cd48cb3d276abcdc5fb789cca1a755cbb8a6abe530b53e3a69f14577c6972fe8" as const;
+	"sha256:684f9b9cd2df354d8026bf1ebe4d07e35c022a22d88636842b6ffdc1cc3e1e19" as const;
 
 // Updated only after the current closure and its no-network qualification are both frozen.
 export const CURRENT_IMPLEMENTATION_MANIFEST_DIGEST =
-	"sha256:558dd06bcad4ffa9f88982da4c661280dbcb82341b99ba7cf54a3230bb3a6465" as const;
+	"sha256:686547b5d25f016787caee68c0de77889e5b5219e56cf04e74b8bb0850e3b615" as const;
 
 export const CURRENT_IMPLEMENTATION_RUNTIME = Object.freeze({
 	node: "v24.18.0" as const,
@@ -24,7 +24,7 @@ export function assertCurrentImplementationRuntime(): void {
 		runtime.platform !== CURRENT_IMPLEMENTATION_RUNTIME.platform ||
 		runtime.arch !== CURRENT_IMPLEMENTATION_RUNTIME.arch
 	)
-		throw new TypeError("root eval D125 implementation runtime drifted");
+		throw new TypeError("root eval D145 implementation runtime drifted");
 }
 
 async function listRuntimeSources(root: string, directory: string): Promise<readonly string[]> {
@@ -42,7 +42,7 @@ async function listRuntimeSources(root: string, directory: string): Promise<read
 export async function measureCurrentImplementation(): Promise<string> {
 	const sources = await measureCurrentImplementationInputs();
 	return empiricalStrictJsonDigest({
-		revision: "graphrefly-ts.d125.current-implementation-manifest.v23",
+		revision: "graphrefly-ts.d147.current-implementation-manifest.v46",
 		runtime: CURRENT_IMPLEMENTATION_RUNTIME,
 		sources,
 	});
@@ -58,15 +58,20 @@ export async function measureCurrentImplementationInputs(): Promise<
 		"eval-topology-contract.ts",
 		"eval-topology.ts",
 		"generate-root-eval-artifacts.ts",
+		"generate-root-eval-task-manifests.ts",
 		"harness-campaign-policy.ts",
 		"model-harness-profile-qualification.ts",
 		"model-harness-profile.ts",
+		"precredential-stage-coordinator.ts",
 		"precredential-environment.mjs",
-		"qualify-live-private-inputs.ts",
+		"root-eval-charter-ledger.ts",
+		"root-eval-charter-transaction.ts",
 		"root-eval-topology-qualification.ts",
 		"root-eval-live-authority.ts",
 		"root-eval-live-qualification.ts",
 		"root-eval-live.ts",
+		"root-eval-task.ts",
+		"root-eval-task-manifest-store.ts",
 		"run-live-campaign.ts",
 		"run-live-campaign-bootstrap.mjs",
 	] as const;

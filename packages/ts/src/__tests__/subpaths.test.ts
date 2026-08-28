@@ -455,6 +455,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(committedFacts.COMMITTED_FACT_JOURNAL_CURSOR_KIND).toBe("committed-fact-journal.cursor");
 		expect(Object.hasOwn(rootPackage, "appendLogCommittedFactJournal")).toBe(false);
 		expect(typeof patterns.profileSummary).toBe("function");
+		expect(typeof patterns.admissionHandoff).toBe("function");
 		expect(typeof patterns.eventFlow).toBe("function");
 		expect(typeof patterns.eventFlowProjection).toBe("function");
 		expect(typeof eventFlowPatterns.eventFlow).toBe("function");

@@ -9,7 +9,7 @@ const runner = fileURLToPath(new URL("./run-live-campaign.ts", import.meta.url))
 const isolatedEnvironment = createRootEvalPrecredentialEnvironment(process.env);
 
 await new Promise((resolvePromise, rejectPromise) => {
-	const child = spawn(process.execPath, ["--import", "tsx", runner], {
+	const child = spawn(process.execPath, ["--import", "tsx", runner, ...process.argv.slice(2)], {
 		cwd: repositoryRoot,
 		env: isolatedEnvironment,
 		stdio: "inherit",
@@ -19,6 +19,6 @@ await new Promise((resolvePromise, rejectPromise) => {
 	child.once("close", (code, signal) => {
 		if (code === 0) resolvePromise();
 		else
-			rejectPromise(new TypeError(`root eval D125 isolated live child failed (${signal ?? code})`));
+			rejectPromise(new TypeError(`root eval D145 isolated live child failed (${signal ?? code})`));
 	});
 });

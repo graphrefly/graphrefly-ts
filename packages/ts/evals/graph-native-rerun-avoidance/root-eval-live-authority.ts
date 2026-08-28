@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { chmod, link, mkdir, open, realpath, rename, rm } from "node:fs/promises";
+import { chmod, link, mkdir, open, readdir, realpath, rename, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import type { ObserveEvent } from "../../src/graph/inspect.js";
@@ -27,6 +27,8 @@ import {
 	EVAL_PROVIDER_OUTCOME_REASON_CODES,
 	EVAL_VERIFICATION_STAGE_KEYS,
 	EVAL_VERIFICATION_TERMINAL_REASONS,
+	type EvalBudgetPartition,
+	type EvalCampaignPurpose,
 	type EvalFinding,
 	type EvalObservation,
 	type EvalProviderOutcomeReasonCounts,
@@ -48,20 +50,67 @@ import {
 	ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT_DIGEST,
 	ROOT_EVAL_LIVE_QUALIFICATION,
 } from "./root-eval-live-qualification.js";
+import {
+	ROOT_EVAL_CONFIRMATORY_TASK_SET_REF,
+	ROOT_EVAL_HELD_OUT_SEAL_DIGEST,
+	type RootEvalTaskManifestSlot,
+	readRootEvalTaskManifest,
+	rootEvalDevelopmentOrdinal,
+	rootEvalDevelopmentTaskSetRef,
+} from "./root-eval-task.js";
 
 export const ROOT_EVAL_LIVE_PRICING_SOURCE =
 	"https://openrouter.ai/api/v1/models/deepseek/deepseek-v4-flash-0731/endpoints" as const;
 export const ROOT_EVAL_LIVE_ZDR_SOURCE = "https://openrouter.ai/api/v1/endpoints/zdr" as const;
 export const ROOT_EVAL_LIVE_CURRENT_KEY_ENDPOINT = "https://openrouter.ai/api/v1/key" as const;
 export const ROOT_EVAL_LIVE_ZERO_BYOK_SCHEMA =
-	"graphrefly-ts.d125.zero-byok-observation.v12" as const;
-export const ROOT_EVAL_LIVE_CLAIM_SCHEMA = "graphrefly-ts.root-eval-live-claim.v15" as const;
-export const ROOT_EVAL_LIVE_EVIDENCE_SCHEMA = "graphrefly-ts.root-eval-live-evidence.v18" as const;
+	"graphrefly-ts.d145.zero-byok-observation.v16" as const;
+export const ROOT_EVAL_LIVE_CLAIM_SCHEMA = "graphrefly-ts.root-eval-live-claim.v20" as const;
+export const ROOT_EVAL_LIVE_EVIDENCE_SCHEMA = "graphrefly-ts.root-eval-live-evidence.v23" as const;
 export const ROOT_EVAL_LIVE_PRECLAIM_FAILURE_SCHEMA =
-	"graphrefly-ts.root-eval-live-preclaim-failure.v15" as const;
-export const ROOT_EVAL_LIVE_GENERATION_REF = "root-eval-live-2026-08-26-d125-v1" as const;
-export const ROOT_EVAL_LIVE_CLAIM_REF = "root-eval-live-claim-2026-08-26-d125-v1" as const;
+	"graphrefly-ts.root-eval-live-preclaim-failure.v20" as const;
+export const ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_SCHEMA =
+	"graphrefly-ts.root-eval-live-precredential-gates.v5" as const;
+function campaignPlan(slot: RootEvalTaskManifestSlot) {
+	if (slot === "confirmatory")
+		return Object.freeze({
+			campaignPurpose: "confirmatory" as const,
+			budgetPartition: "confirmatory-usd-6" as const,
+			taskSetRef: ROOT_EVAL_CONFIRMATORY_TASK_SET_REF,
+			generationRef: "root-eval-confirmatory-2026-08-27-d145-v1" as const,
+			claimRef: "root-eval-confirmatory-claim-2026-08-27-d145-v1" as const,
+		});
+	const ordinal = rootEvalDevelopmentOrdinal(slot)!;
+	return Object.freeze({
+		campaignPurpose: "development" as const,
+		budgetPartition: "development-usd-6" as const,
+		taskSetRef: rootEvalDevelopmentTaskSetRef(ordinal),
+		generationRef: `root-eval-development-2026-08-27-d145-v${ordinal}`,
+		claimRef: `root-eval-development-claim-2026-08-27-d145-v${ordinal}`,
+	});
+}
+
+function campaignSlot(): RootEvalTaskManifestSlot {
+	const slot = process.env.GRAPHREFLY_ROOT_EVAL_CAMPAIGN_SLOT ?? "development-1";
+	if (slot !== "confirmatory" && !/^development-[1-9][0-9]*$/u.test(slot))
+		throw new TypeError("root eval D145 campaign slot invalid");
+	return slot as RootEvalTaskManifestSlot;
+}
+
+export const ROOT_EVAL_LIVE_CAMPAIGN_SLOT = campaignSlot();
+const ROOT_EVAL_LIVE_CAMPAIGN_PLAN = campaignPlan(ROOT_EVAL_LIVE_CAMPAIGN_SLOT);
+export const ROOT_EVAL_LIVE_GENERATION_REF = ROOT_EVAL_LIVE_CAMPAIGN_PLAN.generationRef;
+export const ROOT_EVAL_LIVE_CLAIM_REF = ROOT_EVAL_LIVE_CAMPAIGN_PLAN.claimRef;
+export const ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_NAME =
+	`.${ROOT_EVAL_LIVE_GENERATION_REF}.precredential-gates.v5.json` as const;
 export const ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD = 6_000_000 as const;
+export const ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE =
+	ROOT_EVAL_LIVE_CAMPAIGN_PLAN.campaignPurpose satisfies EvalCampaignPurpose;
+export const ROOT_EVAL_LIVE_REPLICATE_COUNT = 5 as const;
+export const ROOT_EVAL_LIVE_TASK_SET_REF = ROOT_EVAL_LIVE_CAMPAIGN_PLAN.taskSetRef;
+export const ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST = ROOT_EVAL_HELD_OUT_SEAL_DIGEST;
+export const ROOT_EVAL_LIVE_BUDGET_PARTITION =
+	ROOT_EVAL_LIVE_CAMPAIGN_PLAN.budgetPartition satisfies EvalBudgetPartition;
 export const ROOT_EVAL_LIVE_KEY_LIMIT_MICROUSD = 32_000_000 as const;
 export const ROOT_EVAL_CURRENT_IMPLEMENTATION_MANIFEST_DIGEST =
 	CURRENT_IMPLEMENTATION_MANIFEST_DIGEST;
@@ -80,7 +129,7 @@ export const ROOT_EVAL_HISTORICAL_D85_TASK_BINDING_DIGEST =
 	"sha256:f020b4fdcb290a17ab7716fb6b432293c99c1da4d9d9489eceff1fa2de1901e8" as const;
 export const ROOT_EVAL_D85_RETIREMENT_REF = "graphrefly-ts:D86" as const;
 
-type RootEvalLiveAdmissionKind = "pricing" | "zero-byok" | "current-key";
+type RootEvalLiveAdmissionKind = "precredential-gates" | "pricing" | "zero-byok" | "current-key";
 interface RootEvalLiveAdmissionProvenance {
 	readonly kind: RootEvalLiveAdmissionKind;
 	readonly controlPlaneTransport: boolean;
@@ -123,7 +172,27 @@ function brandAdmission<T extends object>(
 export interface RootEvalLiveCredential {
 	readonly bearerToken: string;
 	readonly bindingRef: "openrouter.local-eval-2";
-	readonly bindingRevision: "2026-08-26.d125.v1";
+	readonly bindingRevision: "2026-08-26.d145.v1";
+}
+
+export interface RootEvalLivePrecredentialGateReceipt {
+	readonly schemaVersion: typeof ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_SCHEMA;
+	readonly decisionRef: typeof ROOT_EVAL_LIVE_DECISION_REF;
+	readonly generationRef: typeof ROOT_EVAL_LIVE_GENERATION_REF;
+	readonly implementationManifestDigest: typeof ROOT_EVAL_CURRENT_IMPLEMENTATION_MANIFEST_DIGEST;
+	readonly qualificationArtifactDigest: typeof ROOT_EVAL_CURRENT_QUALIFICATION_ARTIFACT_DIGEST;
+	readonly qualificationDigest: typeof ROOT_EVAL_CURRENT_QUALIFICATION_DIGEST;
+	readonly implementationCommit: string;
+	readonly repositoryStateDigest: string;
+	readonly artifactSetDigest: string;
+	readonly completedAtMs: number;
+	readonly receiptDigest: string;
+}
+
+export interface RootEvalLiveBoundedCurrentness {
+	readonly implementationCommit: string;
+	readonly repositoryStateDigest: string;
+	readonly artifactSetDigest: string;
 }
 
 export interface RootEvalLivePricingObservation {
@@ -151,8 +220,68 @@ export interface RootEvalLiveZeroByokObservation {
 	readonly byokCredentialCount: 0;
 	readonly providerObservation: "Fireworks Not configured";
 	readonly observedAtMs: number;
+	readonly precredentialGateCompletedAtMs: number;
+	readonly precredentialGateReceiptDigest: string;
 	readonly sourceArtifactDigest: string;
 	readonly observationDigest: string;
+}
+
+export interface RootEvalLiveZeroByokBrowserFacts {
+	readonly workspaceName: "GraphReFly";
+	readonly workspaceSlug: "graph-re-fly";
+	readonly keyName: "Local Eval 2";
+	readonly byokCredentialCount: 0;
+	readonly providerObservation: "Fireworks Not configured";
+	readonly source: "openrouter-browser-settings";
+	readonly observedAtMs: number;
+	readonly precredentialGateReceiptDigest: string;
+	readonly keyVisiblePrefix: string;
+	readonly keyVisibleSuffix: string;
+	readonly guardrailId: "2c97d3e1-b4cc-4246-95d7-33eb27fb65ab";
+	readonly guardrailName: "B112 DeepSeek V4 Flash";
+	readonly guardrailDescription: "Dedicated Local Eval 2 guardrail for the B112 DeepSeek V4 Flash 0731 Fireworks-only structured-proposal route.";
+	readonly keyAssigned: true;
+	readonly restrictionMode: "only-allow";
+	readonly paidEndpointTrainingAllowed: false;
+	readonly providerEligible: true;
+	readonly requestDataCollection: "deny";
+	readonly requestZdrRequired: true;
+	readonly allowedModels: readonly ["deepseek/deepseek-v4-flash-0731"];
+	readonly allowedProviders: readonly ["Fireworks"];
+}
+
+export function buildRootEvalLiveZeroByokArtifactBytes(
+	input: RootEvalLiveZeroByokBrowserFacts,
+): Uint8Array {
+	if (!Number.isSafeInteger(input.observedAtMs))
+		throw new TypeError("root eval zero-BYOK browser observation time was invalid");
+	return strictJsonCodec.encode(
+		strictSnapshot({
+			schemaVersion: ROOT_EVAL_LIVE_ZERO_BYOK_SCHEMA,
+			decisionRef: ROOT_EVAL_LIVE_DECISION_REF,
+			workspaceName: input.workspaceName,
+			workspaceSlug: input.workspaceSlug,
+			keyName: input.keyName,
+			byokCredentialCount: input.byokCredentialCount,
+			providerObservation: input.providerObservation,
+			source: input.source,
+			observedAt: new Date(input.observedAtMs).toISOString(),
+			precredentialGateReceiptDigest: input.precredentialGateReceiptDigest,
+			keyVisiblePrefix: input.keyVisiblePrefix,
+			keyVisibleSuffix: input.keyVisibleSuffix,
+			guardrailId: input.guardrailId,
+			guardrailName: input.guardrailName,
+			guardrailDescription: input.guardrailDescription,
+			keyAssigned: input.keyAssigned,
+			restrictionMode: input.restrictionMode,
+			paidEndpointTrainingAllowed: input.paidEndpointTrainingAllowed,
+			providerEligible: input.providerEligible,
+			requestDataCollection: input.requestDataCollection,
+			requestZdrRequired: input.requestZdrRequired,
+			allowedModels: [...input.allowedModels],
+			allowedProviders: [...input.allowedProviders],
+		}),
+	);
 }
 
 export interface RootEvalLiveCurrentKeyAdmission {
@@ -170,6 +299,16 @@ export interface RootEvalLiveClaim {
 	readonly claimRef: typeof ROOT_EVAL_LIVE_CLAIM_REF;
 	readonly decisionRef: typeof ROOT_EVAL_LIVE_DECISION_REF;
 	readonly generationRef: typeof ROOT_EVAL_LIVE_GENERATION_REF;
+	readonly campaignPurpose: typeof ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE;
+	readonly taskSetRef: typeof ROOT_EVAL_LIVE_TASK_SET_REF;
+	readonly taskManifestDigest: string;
+	readonly replicateCount: typeof ROOT_EVAL_LIVE_REPLICATE_COUNT;
+	readonly heldOutSealDigest: typeof ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST;
+	readonly budgetPartition: typeof ROOT_EVAL_LIVE_BUDGET_PARTITION;
+	readonly partitionHardCapMicrousd: 6_000_000;
+	readonly partitionSpentBeforeMicrousd: number;
+	readonly partitionLedgerDigest: string;
+	readonly developmentQualificationStreakBefore: number;
 	readonly implementationCoordinate: string;
 	readonly implementationManifestDigest: string;
 	readonly qualificationArtifactDigest: string;
@@ -241,6 +380,7 @@ export interface RootEvalLiveEvidence {
 	readonly pricingObservationDigest: string;
 	readonly zeroByokObservationDigest: string;
 	readonly taskBindingDigest: string;
+	readonly taskManifestDigest: string;
 	readonly providerCalls: number;
 	readonly graphResult: RootEvalLiveGraphEvidence | null;
 	readonly partialGraphObservations: readonly ObserveEvent[];
@@ -248,8 +388,8 @@ export interface RootEvalLiveEvidence {
 	readonly admissionReport: RootEvalLiveAdmissionReport;
 	readonly failureDigest: string | null;
 	readonly technicalFailureCode: "caller-settlement-deadline-expired" | null;
-	readonly efficacyClaim: "none" | "frozen-task-positive-differential";
-	readonly causalAttribution: "frozen-task-memory-context-differential" | "undetermined";
+	readonly efficacyClaim: "none" | "transfer-task-family-positive-differential";
+	readonly causalAttribution: "verified-prior-work-item-memory-transfer" | "undetermined";
 	readonly evidenceDigest: string;
 }
 
@@ -283,6 +423,7 @@ export const ROOT_EVAL_LIVE_AUTHORITY_VIOLATION_CODES = Object.freeze([
 	"authority.claim-decision-mismatch",
 	"authority.claim-generation-mismatch",
 	"authority.claim-task-binding-mismatch",
+	"authority.claim-task-manifest-mismatch",
 	"authority.claim-campaign-cap-mismatch",
 	"authority.claim-key-limit-mismatch",
 	"authority.claim-implementation-coordinate-invalid",
@@ -330,7 +471,7 @@ export const ROOT_EVAL_LIVE_SUCCESS_VIOLATION_CODES = Object.freeze([
 	"success.terminal-observation-order-invalid",
 	"success.terminal-observation-state-mismatch",
 	"success.peak-concurrency-below-one",
-	"success.peak-concurrency-above-six",
+	"success.peak-provider-concurrency-above-two",
 	"success.admission-count-below-thirty",
 	"success.admission-identities-duplicate",
 	"success.finding-admitted-attempts-mismatch",
@@ -531,29 +672,221 @@ export function parseRootEvalLiveCredential(bytes: Uint8Array): RootEvalLiveCred
 	return Object.freeze({
 		bearerToken: token,
 		bindingRef: "openrouter.local-eval-2" as const,
-		bindingRevision: "2026-08-26.d125.v1" as const,
+		bindingRevision: "2026-08-26.d145.v1" as const,
+	});
+}
+
+export function admitRootEvalLivePrecredentialGateReceipt(input: {
+	readonly bytes: Uint8Array;
+	readonly nowMs?: number;
+}): RootEvalLivePrecredentialGateReceipt {
+	const nowMs = input.nowMs ?? Date.now();
+	if (input.bytes.byteLength < 1 || input.bytes.byteLength > 16_384)
+		throw new TypeError("root eval precredential gate receipt exceeded its bound");
+	const value = object(
+		parseRootEvalUniqueJson(input.bytes, "root eval precredential gate receipt"),
+		"precredential gate receipt",
+	);
+	exactKeys(
+		value,
+		[
+			"schemaVersion",
+			"decisionRef",
+			"generationRef",
+			"implementationManifestDigest",
+			"qualificationArtifactDigest",
+			"qualificationDigest",
+			"implementationCommit",
+			"repositoryStateDigest",
+			"artifactSetDigest",
+			"completedAtMs",
+			"receiptDigest",
+		],
+		"root eval precredential gate receipt",
+	);
+	const completedAtMs = safeInteger(
+		value.completedAtMs,
+		"root eval precredential gate receipt.completedAtMs",
+	);
+	const material = strictSnapshot({
+		schemaVersion: literal(
+			value.schemaVersion,
+			ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_SCHEMA,
+			"root eval precredential gate receipt.schemaVersion",
+		),
+		decisionRef: literal(
+			value.decisionRef,
+			ROOT_EVAL_LIVE_DECISION_REF,
+			"root eval precredential gate receipt.decisionRef",
+		),
+		generationRef: literal(
+			value.generationRef,
+			ROOT_EVAL_LIVE_GENERATION_REF,
+			"root eval precredential gate receipt.generationRef",
+		),
+		implementationManifestDigest: literal(
+			value.implementationManifestDigest,
+			ROOT_EVAL_CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
+			"root eval precredential gate receipt.implementationManifestDigest",
+		),
+		qualificationArtifactDigest: literal(
+			value.qualificationArtifactDigest,
+			ROOT_EVAL_CURRENT_QUALIFICATION_ARTIFACT_DIGEST,
+			"root eval precredential gate receipt.qualificationArtifactDigest",
+		),
+		qualificationDigest: literal(
+			value.qualificationDigest,
+			ROOT_EVAL_CURRENT_QUALIFICATION_DIGEST,
+			"root eval precredential gate receipt.qualificationDigest",
+		),
+		implementationCommit: coordinate(
+			value.implementationCommit,
+			"root eval precredential gate receipt.implementationCommit",
+		),
+		repositoryStateDigest: digest(
+			value.repositoryStateDigest,
+			"root eval precredential gate receipt.repositoryStateDigest",
+		),
+		artifactSetDigest: digest(
+			value.artifactSetDigest,
+			"root eval precredential gate receipt.artifactSetDigest",
+		),
+		completedAtMs,
+	});
+	if (!/^[0-9a-f]{40}$/u.test(material.implementationCommit))
+		throw new TypeError("root eval precredential gate receipt implementation commit was invalid");
+	if (completedAtMs > nowMs || nowMs - completedAtMs > 3_600_000)
+		throw new TypeError("root eval precredential gate receipt was not fresh");
+	const receiptDigest = digest(
+		value.receiptDigest,
+		"root eval precredential gate receipt.receiptDigest",
+	);
+	if (receiptDigest !== empiricalStrictJsonDigest(material))
+		throw new TypeError("root eval precredential gate receipt digest drifted");
+	return brandAdmission(
+		{ ...material, receiptDigest },
+		{
+			kind: "precredential-gates",
+			controlPlaneTransport: false,
+			trustedClock: input.nowMs === undefined,
+			issuedAtMs: nowMs,
+			credentialFingerprintDigest: null,
+		},
+	);
+}
+
+export async function persistRootEvalLivePrecredentialGateReceipt(input: {
+	readonly privateRoot: string;
+	readonly currentness: RootEvalLiveBoundedCurrentness;
+	readonly completedAtMs?: number;
+}): Promise<RootEvalLivePrecredentialGateReceipt> {
+	const privateRoot = await ensurePrivateRoot(input.privateRoot);
+	const completedAtMs = input.completedAtMs ?? Date.now();
+	const material = strictSnapshot({
+		schemaVersion: ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_SCHEMA,
+		decisionRef: ROOT_EVAL_LIVE_DECISION_REF,
+		generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
+		implementationManifestDigest: ROOT_EVAL_CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
+		qualificationArtifactDigest: ROOT_EVAL_CURRENT_QUALIFICATION_ARTIFACT_DIGEST,
+		qualificationDigest: ROOT_EVAL_CURRENT_QUALIFICATION_DIGEST,
+		implementationCommit: input.currentness.implementationCommit,
+		repositoryStateDigest: input.currentness.repositoryStateDigest,
+		artifactSetDigest: input.currentness.artifactSetDigest,
+		completedAtMs,
+	});
+	const receipt = strictSnapshot({
+		...material,
+		receiptDigest: empiricalStrictJsonDigest(material),
+	});
+	const bytes = strictJsonCodec.encode(receipt);
+	const postCommitFailureDigest = await installExclusivePrivateFile(
+		privateRoot,
+		ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_NAME,
+		bytes,
+	);
+	if (postCommitFailureDigest !== null)
+		throw new TypeError("root eval precredential gate receipt post-commit verification failed");
+	return admitRootEvalLivePrecredentialGateReceipt({ bytes, nowMs: completedAtMs });
+}
+
+export async function readRootEvalLivePrecredentialGateReceipt(input: {
+	readonly privateRoot: string;
+	readonly nowMs?: number;
+}): Promise<RootEvalLivePrecredentialGateReceipt> {
+	return admitRootEvalLivePrecredentialGateReceipt({
+		bytes: await readRootEvalPrivateFile(
+			join(resolve(input.privateRoot), ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_NAME),
+			16_384,
+		),
+		nowMs: input.nowMs,
 	});
 }
 
 export interface RootEvalLivePrivateInputs {
+	readonly precredentialGateReceipt: RootEvalLivePrecredentialGateReceipt;
 	readonly credential: RootEvalLiveCredential;
 	readonly zeroByok: RootEvalLiveZeroByokObservation;
+}
+
+export interface RootEvalLivePrivateInputPreflight {
+	readonly disposition: "qualified-private-inputs";
+	readonly generationRef: typeof ROOT_EVAL_LIVE_GENERATION_REF;
+	readonly credentialBindingDigest: string;
+	readonly zeroByokObservationDigest: string;
+	readonly precredentialGateReceiptDigest: string;
 }
 
 export async function qualifyRootEvalLivePrivateInputs(input: {
 	readonly credentialPath: string;
 	readonly zeroByokPath: string;
+	readonly precredentialPrivateRoot: string;
+	readonly currentness: RootEvalLiveBoundedCurrentness;
 	readonly nowMs?: number;
 }): Promise<RootEvalLivePrivateInputs> {
+	const privateRoot = await ensurePrivateRoot(input.precredentialPrivateRoot);
+	const entries = await readdir(privateRoot);
+	if (entries.length !== 1 || entries[0] !== ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_NAME)
+		throw new TypeError("root eval private-input admission observed consumed generation state");
+	const precredentialGateReceipt = await readRootEvalLivePrecredentialGateReceipt({
+		privateRoot,
+		nowMs: input.nowMs,
+	});
+	if (
+		precredentialGateReceipt.implementationCommit !== input.currentness.implementationCommit ||
+		precredentialGateReceipt.repositoryStateDigest !== input.currentness.repositoryStateDigest ||
+		precredentialGateReceipt.artifactSetDigest !== input.currentness.artifactSetDigest
+	)
+		throw new TypeError("root eval precredential gate receipt currentness drifted");
 	const credential = parseRootEvalLiveCredential(
 		await readRootEvalPrivateFile(input.credentialPath, 16_384),
 	);
 	const zeroByok = admitRootEvalLiveZeroByok({
 		bytes: await readRootEvalPrivateFile(input.zeroByokPath, 16_384),
 		credential,
+		precredentialGateReceipt,
 		nowMs: input.nowMs,
 	});
-	return Object.freeze({ credential, zeroByok });
+	return Object.freeze({ precredentialGateReceipt, credential, zeroByok });
+}
+
+export async function qualifyRootEvalLivePrivateInputPreflight(input: {
+	readonly credentialPath: string;
+	readonly zeroByokPath: string;
+	readonly precredentialPrivateRoot: string;
+	readonly currentness: RootEvalLiveBoundedCurrentness;
+	readonly nowMs?: number;
+}): Promise<RootEvalLivePrivateInputPreflight> {
+	const privateInputs = await qualifyRootEvalLivePrivateInputs(input);
+	return Object.freeze({
+		disposition: "qualified-private-inputs" as const,
+		generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
+		credentialBindingDigest: empiricalStrictJsonDigest({
+			bindingRef: privateInputs.credential.bindingRef,
+			bindingRevision: privateInputs.credential.bindingRevision,
+		}),
+		zeroByokObservationDigest: privateInputs.zeroByok.observationDigest,
+		precredentialGateReceiptDigest: privateInputs.precredentialGateReceipt.receiptDigest,
+	});
 }
 
 export async function readRootEvalLivePricing(input: {
@@ -686,6 +1019,7 @@ export async function readRootEvalLivePricing(input: {
 export function admitRootEvalLiveZeroByok(input: {
 	readonly bytes: Uint8Array;
 	readonly credential: RootEvalLiveCredential;
+	readonly precredentialGateReceipt: RootEvalLivePrecredentialGateReceipt;
 	readonly nowMs?: number;
 }): RootEvalLiveZeroByokObservation {
 	const nowMs = input.nowMs ?? Date.now();
@@ -695,7 +1029,39 @@ export function admitRootEvalLiveZeroByok(input: {
 		parseRootEvalUniqueJson(input.bytes, "root eval zero-BYOK artifact"),
 		"zero-BYOK artifact",
 	);
+	exactKeys(
+		value,
+		[
+			"schemaVersion",
+			"decisionRef",
+			"workspaceName",
+			"workspaceSlug",
+			"keyName",
+			"byokCredentialCount",
+			"providerObservation",
+			"source",
+			"observedAt",
+			"precredentialGateReceiptDigest",
+			"keyVisiblePrefix",
+			"keyVisibleSuffix",
+			"guardrailId",
+			"guardrailName",
+			"guardrailDescription",
+			"keyAssigned",
+			"restrictionMode",
+			"paidEndpointTrainingAllowed",
+			"providerEligible",
+			"requestDataCollection",
+			"requestZdrRequired",
+			"allowedModels",
+			"allowedProviders",
+		],
+		"root eval zero-BYOK artifact",
+	);
 	const observedAtMs = Date.parse(String(value.observedAt));
+	const precredentialProvenance = RootEvalLiveAdmissionCapability.provenance(
+		input.precredentialGateReceipt,
+	);
 	const visiblePrefix = value.keyVisiblePrefix;
 	const visibleSuffix = value.keyVisibleSuffix;
 	if (
@@ -717,7 +1083,10 @@ export function admitRootEvalLiveZeroByok(input: {
 		value.providerEligible !== true ||
 		value.requestDataCollection !== "deny" ||
 		value.requestZdrRequired !== true ||
+		precredentialProvenance?.kind !== "precredential-gates" ||
+		value.precredentialGateReceiptDigest !== input.precredentialGateReceipt.receiptDigest ||
 		!Number.isSafeInteger(observedAtMs) ||
+		observedAtMs < input.precredentialGateReceipt.completedAtMs ||
 		Math.abs(nowMs - observedAtMs) > 3_600_000 ||
 		typeof visiblePrefix !== "string" ||
 		visiblePrefix.length < 8 ||
@@ -739,6 +1108,8 @@ export function admitRootEvalLiveZeroByok(input: {
 		byokCredentialCount: 0 as const,
 		providerObservation: "Fireworks Not configured" as const,
 		observedAtMs,
+		precredentialGateCompletedAtMs: input.precredentialGateReceipt.completedAtMs,
+		precredentialGateReceiptDigest: input.precredentialGateReceipt.receiptDigest,
 		sourceArtifactDigest: empiricalSha256(input.bytes),
 	});
 	return brandAdmission(
@@ -828,10 +1199,14 @@ export interface RootEvalLiveClaimInput {
 	readonly qualificationArtifactDigest: string;
 	readonly qualificationDigest: string;
 	readonly taskBindingDigest: string;
+	readonly taskManifestDigest: string;
 	readonly pricing: RootEvalLivePricingObservation;
 	readonly zeroByok: RootEvalLiveZeroByokObservation;
 	readonly credential: RootEvalLiveCredential;
 	readonly currentKeyBefore: RootEvalLiveCurrentKeyAdmission;
+	readonly partitionSpentBeforeMicrousd?: number;
+	readonly partitionLedgerDigest?: string;
+	readonly developmentQualificationStreakBefore?: number;
 	readonly nowMs?: number;
 }
 
@@ -844,6 +1219,10 @@ async function acquireRootEvalLiveClaimInternal(
 	const currentKeyProvenance = RootEvalLiveAdmissionCapability.provenance(input.currentKeyBefore);
 	const fingerprint = credentialFingerprint(input.credential);
 	const nowMs = qualificationOnly ? (input.nowMs ?? Date.now()) : Date.now();
+	const partitionSpentBeforeMicrousd = input.partitionSpentBeforeMicrousd ?? 0;
+	const partitionLedgerDigest =
+		input.partitionLedgerDigest ?? empiricalStrictJsonDigest({ kind: "d145-empty-test-ledger" });
+	const developmentQualificationStreakBefore = input.developmentQualificationStreakBefore ?? 0;
 	const preclaimChecks = [
 		[
 			"implementation-manifest",
@@ -855,6 +1234,24 @@ async function acquireRootEvalLiveClaimInternal(
 		],
 		["qualification", input.qualificationDigest === ROOT_EVAL_CURRENT_QUALIFICATION_DIGEST],
 		["task-binding", input.taskBindingDigest === ROOT_EVAL_CURRENT_TASK_BINDING_DIGEST],
+		[
+			"task-manifest",
+			/^sha256:[0-9a-f]{64}$/u.test(input.taskManifestDigest) &&
+				(String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) !== "confirmatory" ||
+					input.taskManifestDigest === ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST),
+		],
+		[
+			"partition-ledger",
+			Number.isSafeInteger(partitionSpentBeforeMicrousd) &&
+				partitionSpentBeforeMicrousd >= 0 &&
+				partitionSpentBeforeMicrousd < ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD &&
+				/^sha256:[0-9a-f]{64}$/u.test(partitionLedgerDigest) &&
+				Number.isSafeInteger(developmentQualificationStreakBefore) &&
+				developmentQualificationStreakBefore >= 0 &&
+				developmentQualificationStreakBefore <= 2 &&
+				(String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) !== "confirmatory" ||
+					developmentQualificationStreakBefore === 2),
+		],
 		[
 			"implementation-coordinate",
 			/^worktree:[0-9a-f]{40}:sha256:[0-9a-f]{64}$/u.test(input.implementationCoordinate) &&
@@ -879,7 +1276,8 @@ async function acquireRootEvalLiveClaimInternal(
 			hasExactBrandedAdmission(input.currentKeyBefore, CURRENT_KEY_KEYS, "current-key") &&
 				validCurrentKeySemantics(input.currentKeyBefore) &&
 				validatesOwnDigest(input.currentKeyBefore, "admissionDigest") &&
-				input.currentKeyBefore.remainingMicrousd >= ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
+				input.currentKeyBefore.remainingMicrousd >=
+					ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD - partitionSpentBeforeMicrousd,
 		],
 		[
 			"freshness",
@@ -906,14 +1304,20 @@ async function acquireRootEvalLiveClaimInternal(
 		[
 			"credential-binding",
 			input.credential.bindingRef === "openrouter.local-eval-2" &&
-				input.credential.bindingRevision === "2026-08-26.d125.v1",
+				input.credential.bindingRevision === "2026-08-26.d145.v1",
 		],
 	] as const;
 	const preclaimViolations = preclaimChecks.filter(([, passed]) => !passed).map(([code]) => code);
 	if (preclaimViolations.length > 0)
 		throw new TypeError(
-			`root eval D125 claim coordinates did not match the current closure: ${preclaimViolations.join(",")}`,
+			`root eval D145 claim coordinates did not match the current closure: ${preclaimViolations.join(",")}`,
 		);
+	if (
+		!qualificationOnly &&
+		input.taskManifestDigest !==
+			readRootEvalTaskManifest(ROOT_EVAL_LIVE_CAMPAIGN_SLOT).manifestDigest
+	)
+		throw new TypeError("root eval D145 claim task manifest did not match the current closure");
 	const privateRoot = await ensurePrivateRoot(input.privateRoot);
 	const material = strictSnapshot({
 		schemaVersion: ROOT_EVAL_LIVE_CLAIM_SCHEMA,
@@ -921,6 +1325,16 @@ async function acquireRootEvalLiveClaimInternal(
 		claimRef: ROOT_EVAL_LIVE_CLAIM_REF,
 		decisionRef: ROOT_EVAL_LIVE_DECISION_REF,
 		generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
+		campaignPurpose: ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE,
+		taskSetRef: ROOT_EVAL_LIVE_TASK_SET_REF,
+		taskManifestDigest: input.taskManifestDigest,
+		replicateCount: ROOT_EVAL_LIVE_REPLICATE_COUNT,
+		heldOutSealDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
+		budgetPartition: ROOT_EVAL_LIVE_BUDGET_PARTITION,
+		partitionHardCapMicrousd: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
+		partitionSpentBeforeMicrousd,
+		partitionLedgerDigest,
+		developmentQualificationStreakBefore,
 		implementationCoordinate: input.implementationCoordinate,
 		implementationManifestDigest: input.implementationManifestDigest,
 		qualificationArtifactDigest: input.qualificationArtifactDigest,
@@ -945,7 +1359,7 @@ async function acquireRootEvalLiveClaimInternal(
 	const claim = Object.freeze({ ...material, claimDigest: empiricalStrictJsonDigest(material) });
 	const postCommitFailureDigest = await installExclusivePrivateFile(
 		privateRoot,
-		`.${ROOT_EVAL_LIVE_GENERATION_REF}.disposition.v15.json`,
+		`.${ROOT_EVAL_LIVE_GENERATION_REF}.disposition.v20.json`,
 		strictJsonCodec.encode(claim),
 	);
 	return new RootEvalLiveClaimCommitCapability(claim, postCommitFailureDigest, privateRoot);
@@ -986,7 +1400,7 @@ export async function persistRootEvalLivePreclaimFailure(input: {
 		input.qualificationDigest !== ROOT_EVAL_CURRENT_QUALIFICATION_DIGEST ||
 		input.taskBindingDigest !== ROOT_EVAL_CURRENT_TASK_BINDING_DIGEST
 	)
-		throw new TypeError("root eval D125 preclaim coordinates did not match the current closure");
+		throw new TypeError("root eval D145 preclaim coordinates did not match the current closure");
 	const privateRoot = await ensurePrivateRoot(input.privateRoot);
 	const material = strictSnapshot({
 		schemaVersion: ROOT_EVAL_LIVE_PRECLAIM_FAILURE_SCHEMA,
@@ -1009,7 +1423,7 @@ export async function persistRootEvalLivePreclaimFailure(input: {
 	});
 	const postCommitFailureDigest = await installExclusivePrivateFile(
 		privateRoot,
-		`.${ROOT_EVAL_LIVE_GENERATION_REF}.disposition.v15.json`,
+		`.${ROOT_EVAL_LIVE_GENERATION_REF}.disposition.v20.json`,
 		strictJsonCodec.encode(receipt),
 	);
 	return Object.freeze({ receiptDigest: receipt.receiptDigest, postCommitFailureDigest });
@@ -1074,6 +1488,16 @@ const CLAIM_KEYS = Object.freeze([
 	"claimRef",
 	"decisionRef",
 	"generationRef",
+	"campaignPurpose",
+	"taskSetRef",
+	"taskManifestDigest",
+	"replicateCount",
+	"heldOutSealDigest",
+	"budgetPartition",
+	"partitionHardCapMicrousd",
+	"partitionSpentBeforeMicrousd",
+	"partitionLedgerDigest",
+	"developmentQualificationStreakBefore",
 	"implementationCoordinate",
 	"implementationManifestDigest",
 	"qualificationArtifactDigest",
@@ -1114,6 +1538,8 @@ const ZERO_BYOK_KEYS = Object.freeze([
 	"byokCredentialCount",
 	"providerObservation",
 	"observedAtMs",
+	"precredentialGateCompletedAtMs",
+	"precredentialGateReceiptDigest",
 	"sourceArtifactDigest",
 	"observationDigest",
 ]);
@@ -1224,6 +1650,9 @@ function validZeroByokSemantics(value: Record<string, unknown>): boolean {
 		value.byokCredentialCount === 0 &&
 		value.providerObservation === "Fireworks Not configured" &&
 		isNonnegativeSafeInteger(value.observedAtMs) &&
+		isNonnegativeSafeInteger(value.precredentialGateCompletedAtMs) &&
+		(value.precredentialGateCompletedAtMs as number) <= (value.observedAtMs as number) &&
+		isDigest(value.precredentialGateReceiptDigest) &&
 		isDigest(value.sourceArtifactDigest)
 	);
 }
@@ -1246,6 +1675,10 @@ interface ParsedEvalFinding {
 	readonly replicateCount: number;
 	readonly armOrder: readonly string[];
 	readonly passCounts: Readonly<Record<(typeof ROOT_EVAL_ARMS)[number], number>>;
+	readonly evaluableReplicates: number;
+	readonly excludedTechnicalReplicates: readonly number[];
+	readonly sourceTechnicalExcludedReplicates: readonly number[];
+	readonly matchedRelevantOverColdWins: number;
 	readonly verificationDiagnostics: EvalVerificationDiagnostics;
 	readonly completedWorkItems: number;
 	readonly admittedAttempts: number;
@@ -1262,7 +1695,10 @@ interface ParsedEvalFinding {
 	readonly reconciledBilledMicrousd: number;
 	readonly billingDisposition: "reconciled" | "rejected";
 	readonly providerOutcomeReasonCounts: EvalProviderOutcomeReasonCounts;
-	readonly finding: "positive-differential" | "no-positive-differential";
+	readonly finding:
+		| "positive-differential"
+		| "no-positive-differential"
+		| "operationally-inconclusive";
 	readonly stoppingReason: "campaign-complete";
 }
 
@@ -1285,6 +1721,7 @@ function projectProviderOutcomeReasonCounts(
 function projectVerificationDiagnostics(
 	value: unknown,
 	label: string,
+	replicateCount: number,
 ): EvalVerificationDiagnostics {
 	const root = record(value, label);
 	exactKeys(
@@ -1315,7 +1752,9 @@ function projectVerificationDiagnostics(
 		const projectedStages = Object.fromEntries(
 			EVAL_VERIFICATION_STAGE_KEYS.map((stage) => [
 				stage,
-				safeInteger(stages[stage], `${label}.stageCounts.${arm}.${stage}`, { max: 5 }),
+				safeInteger(stages[stage], `${label}.stageCounts.${arm}.${stage}`, {
+					max: replicateCount,
+				}),
 			]),
 		) as Record<(typeof EVAL_VERIFICATION_STAGE_KEYS)[number], number>;
 		if (
@@ -1336,7 +1775,7 @@ function projectVerificationDiagnostics(
 			EVAL_VERIFICATION_TERMINAL_REASONS.map((reason) => [
 				reason,
 				safeInteger(reasons[reason], `${label}.terminalReasonCounts.${arm}.${reason}`, {
-					max: 5,
+					max: replicateCount,
 				}),
 			]),
 		) as Record<(typeof EVAL_VERIFICATION_TERMINAL_REASONS)[number], number>;
@@ -1384,8 +1823,9 @@ function projectVerificationDiagnostics(
 		completedWorkItems += projectedStages.completedWorkItems;
 	}
 	if (
-		safeInteger(root.completedWorkItems, `${label}.completedWorkItems`, { max: 30 }) !==
-		completedWorkItems
+		safeInteger(root.completedWorkItems, `${label}.completedWorkItems`, {
+			max: replicateCount * ROOT_EVAL_ARMS.length,
+		}) !== completedWorkItems
 	)
 		throw new TypeError(`${label} completed Work Item total invalid`);
 	return strictSnapshot({
@@ -1419,6 +1859,10 @@ function projectFinding(value: unknown): ParsedEvalFinding {
 			"replicateCount",
 			"armOrder",
 			"passCounts",
+			"evaluableReplicates",
+			"excludedTechnicalReplicates",
+			"sourceTechnicalExcludedReplicates",
+			"matchedRelevantOverColdWins",
 			"verificationDiagnostics",
 			"completedWorkItems",
 			"admittedAttempts",
@@ -1459,6 +1903,53 @@ function projectFinding(value: unknown): ParsedEvalFinding {
 		"root eval result.finding.replicateCount",
 		{ max: 5 },
 	);
+	const excludedTechnicalReplicates = array(
+		root.excludedTechnicalReplicates,
+		"root eval result.finding.excludedTechnicalReplicates",
+	).map((replicate, index) =>
+		safeInteger(replicate, `root eval result.finding.excludedTechnicalReplicates[${index}]`, {
+			min: 1,
+			max: replicateCount,
+		}),
+	);
+	if (
+		new Set(excludedTechnicalReplicates).size !== excludedTechnicalReplicates.length ||
+		excludedTechnicalReplicates.some(
+			(replicate, index) => index > 0 && replicate <= excludedTechnicalReplicates[index - 1]!,
+		)
+	)
+		throw new TypeError("root eval result finding technical exclusions invalid");
+	const sourceTechnicalExcludedReplicates = array(
+		root.sourceTechnicalExcludedReplicates,
+		"root eval result.finding.sourceTechnicalExcludedReplicates",
+	).map((replicate, index) =>
+		safeInteger(replicate, `root eval result.finding.sourceTechnicalExcludedReplicates[${index}]`, {
+			min: 1,
+			max: replicateCount,
+		}),
+	);
+	if (
+		new Set(sourceTechnicalExcludedReplicates).size !== sourceTechnicalExcludedReplicates.length ||
+		sourceTechnicalExcludedReplicates.some(
+			(replicate, index) => index > 0 && replicate <= sourceTechnicalExcludedReplicates[index - 1]!,
+		) ||
+		sourceTechnicalExcludedReplicates.some(
+			(replicate) => !excludedTechnicalReplicates.includes(replicate),
+		)
+	)
+		throw new TypeError("root eval result finding source technical exclusions invalid");
+	const evaluableReplicates = safeInteger(
+		root.evaluableReplicates,
+		"root eval result.finding.evaluableReplicates",
+		{ max: replicateCount },
+	);
+	const matchedRelevantOverColdWins = safeInteger(
+		root.matchedRelevantOverColdWins,
+		"root eval result.finding.matchedRelevantOverColdWins",
+		{ max: evaluableReplicates },
+	);
+	if (evaluableReplicates !== replicateCount - excludedTechnicalReplicates.length)
+		throw new TypeError("root eval result finding evaluable replicate count invalid");
 	const completedWorkItems = safeInteger(
 		root.completedWorkItems,
 		"root eval result.finding.completedWorkItems",
@@ -1467,6 +1958,7 @@ function projectFinding(value: unknown): ParsedEvalFinding {
 	const verificationDiagnostics = projectVerificationDiagnostics(
 		root.verificationDiagnostics,
 		"root eval result.finding.verificationDiagnostics",
+		replicateCount,
 	);
 	return strictSnapshot({
 		kind: literal(root.kind, "eval-efficacy-finding", "root eval result.finding.kind"),
@@ -1474,6 +1966,10 @@ function projectFinding(value: unknown): ParsedEvalFinding {
 		replicateCount,
 		armOrder: projectedArms,
 		passCounts,
+		evaluableReplicates,
+		excludedTechnicalReplicates,
+		sourceTechnicalExcludedReplicates,
+		matchedRelevantOverColdWins,
 		verificationDiagnostics,
 		completedWorkItems,
 		admittedAttempts: safeInteger(
@@ -1540,7 +2036,7 @@ function projectFinding(value: unknown): ParsedEvalFinding {
 		),
 		finding: oneOf(
 			root.finding,
-			["positive-differential", "no-positive-differential"] as const,
+			["positive-differential", "no-positive-differential", "operationally-inconclusive"] as const,
 			"root eval result.finding.finding",
 		),
 		stoppingReason: oneOf(
@@ -1568,9 +2064,23 @@ function projectObservation(value: unknown, index: number): ParsedEvalObservatio
 			"topologyRevision",
 			"solutionIdentities",
 			"campaignRef",
+			"campaignPurpose",
+			"taskSetRef",
+			"generationRef",
 			"replicate",
+			"replicateCount",
+			"heldOutSealDigest",
+			"budgetPartition",
+			"partitionHardCapMicrousd",
+			"partitionSpentBeforeMicrousd",
+			"partitionLedgerDigest",
+			"developmentQualification",
 			"armOrder",
 			"memoryProvenance",
+			"evaluableReplicates",
+			"excludedTechnicalReplicates",
+			"sourceTechnicalExcludedReplicates",
+			"matchedRelevantOverColdWins",
 			"verificationDiagnostics",
 			"completedArms",
 			"activeProviderEffects",
@@ -1578,6 +2088,8 @@ function projectObservation(value: unknown, index: number): ParsedEvalObservatio
 			"activeRetryEffects",
 			"activeBillingEffects",
 			"activeAdmittedEffects",
+			"providerCapacity",
+			"elapsedBudget",
 			"admittedAttempts",
 			"admittedRetryAttempts",
 			"retryProposalCount",
@@ -1630,6 +2142,9 @@ function projectObservation(value: unknown, index: number): ParsedEvalObservatio
 			ROOT_EVAL_MEMORY_PROVENANCE[arm],
 			`root eval result.observations[${index}].memoryProvenance.${arm}`,
 		);
+	const replicateCount = safeInteger(raw.replicateCount, "root eval observation.replicateCount", {
+		max: 5,
+	});
 	const projected = strictSnapshot({
 		kind: literal(raw.kind, "eval-observation", "root eval observation.kind"),
 		topologyRevision: literal(
@@ -1643,12 +2158,95 @@ function projectObservation(value: unknown, index: number): ParsedEvalObservatio
 			ROOT_EVAL_LIVE_GENERATION_REF,
 			"root eval observation.campaignRef",
 		),
-		replicate: safeInteger(raw.replicate, "root eval observation.replicate", { max: 5 }),
+		campaignPurpose: literal(
+			raw.campaignPurpose,
+			ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE,
+			"root eval observation.campaignPurpose",
+		),
+		taskSetRef: literal(
+			raw.taskSetRef,
+			ROOT_EVAL_LIVE_TASK_SET_REF,
+			"root eval observation.taskSetRef",
+		),
+		generationRef: literal(
+			raw.generationRef,
+			ROOT_EVAL_LIVE_GENERATION_REF,
+			"root eval observation.generationRef",
+		),
+		replicate: safeInteger(raw.replicate, "root eval observation.replicate", {
+			max: replicateCount,
+		}),
+		replicateCount: literal(
+			replicateCount,
+			ROOT_EVAL_LIVE_REPLICATE_COUNT,
+			"root eval observation.replicateCount",
+		),
+		heldOutSealDigest: literal(
+			raw.heldOutSealDigest,
+			ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
+			"root eval observation.heldOutSealDigest",
+		),
+		budgetPartition: literal(
+			raw.budgetPartition,
+			ROOT_EVAL_LIVE_BUDGET_PARTITION,
+			"root eval observation.budgetPartition",
+		),
+		partitionHardCapMicrousd: literal(
+			raw.partitionHardCapMicrousd,
+			ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
+			"root eval observation.partitionHardCapMicrousd",
+		),
+		partitionSpentBeforeMicrousd: safeInteger(
+			raw.partitionSpentBeforeMicrousd,
+			"root eval observation.partitionSpentBeforeMicrousd",
+			{ max: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD - 1 },
+		),
+		partitionLedgerDigest: digest(
+			raw.partitionLedgerDigest,
+			"root eval observation.partitionLedgerDigest",
+		),
+		developmentQualification:
+			raw.developmentQualification as EvalObservation["developmentQualification"],
 		armOrder: ROOT_EVAL_ARMS,
 		memoryProvenance: ROOT_EVAL_MEMORY_PROVENANCE,
+		evaluableReplicates:
+			raw.evaluableReplicates === null
+				? null
+				: safeInteger(raw.evaluableReplicates, "root eval observation.evaluableReplicates", {
+						max: replicateCount,
+					}),
+		excludedTechnicalReplicates: array(
+			raw.excludedTechnicalReplicates,
+			"root eval observation.excludedTechnicalReplicates",
+		).map((replicate, exclusionIndex) =>
+			safeInteger(
+				replicate,
+				`root eval observation.excludedTechnicalReplicates[${exclusionIndex}]`,
+				{ min: 1, max: replicateCount },
+			),
+		),
+		sourceTechnicalExcludedReplicates: array(
+			raw.sourceTechnicalExcludedReplicates,
+			"root eval observation.sourceTechnicalExcludedReplicates",
+		).map((replicate, exclusionIndex) =>
+			safeInteger(
+				replicate,
+				`root eval observation.sourceTechnicalExcludedReplicates[${exclusionIndex}]`,
+				{ min: 1, max: replicateCount },
+			),
+		),
+		matchedRelevantOverColdWins:
+			raw.matchedRelevantOverColdWins === null
+				? null
+				: safeInteger(
+						raw.matchedRelevantOverColdWins,
+						"root eval observation.matchedRelevantOverColdWins",
+						{ max: replicateCount },
+					),
 		verificationDiagnostics: projectVerificationDiagnostics(
 			raw.verificationDiagnostics,
 			`root eval result.observations[${index}].verificationDiagnostics`,
+			replicateCount,
 		),
 		completedArms: safeInteger(raw.completedArms, "root eval observation.completedArms", {
 			max: 6,
@@ -1680,6 +2278,8 @@ function projectObservation(value: unknown, index: number): ParsedEvalObservatio
 			"root eval observation.activeAdmittedEffects",
 			{ max: 6 },
 		),
+		providerCapacity: raw.providerCapacity as EvalObservation["providerCapacity"],
+		elapsedBudget: raw.elapsedBudget as EvalObservation["elapsedBudget"],
 		admittedAttempts: safeInteger(raw.admittedAttempts, "root eval observation.admittedAttempts", {
 			max: 60,
 		}),
@@ -1771,12 +2371,23 @@ function projectObservation(value: unknown, index: number): ParsedEvalObservatio
 		),
 		stoppingReason: oneOf(
 			raw.stoppingReason,
-			["none", "campaign-complete", "budget-exhausted", "effect-failed"] as const,
+			[
+				"none",
+				"campaign-complete",
+				"budget-exhausted",
+				"elapsed-budget-exhausted",
+				"effect-failed",
+			] as const,
 			"root eval observation.stoppingReason",
 		),
 		finding: oneOf(
 			raw.finding,
-			["pending", "positive-differential", "no-positive-differential"] as const,
+			[
+				"pending",
+				"positive-differential",
+				"no-positive-differential",
+				"operationally-inconclusive",
+			] as const,
 			"root eval observation.finding",
 		),
 	}) as EvalObservation;
@@ -1797,12 +2408,18 @@ function projectObservation(value: unknown, index: number): ParsedEvalObservatio
 
 function expectedAdmissionIds(): ReadonlySet<string> {
 	const ids = new Set<string>();
-	for (let replicate = 1; replicate <= 5; replicate += 1)
+	for (let replicate = 1; replicate <= ROOT_EVAL_LIVE_REPLICATE_COUNT; replicate += 1) {
+		const taskInstanceRef = `${ROOT_EVAL_LIVE_TASK_SET_REF}/instance-${replicate}`;
+		const sourceWorkItemId = `${taskInstanceRef}/source-work-item`;
+		const sourceEffectRunId = `effect-run:work-item:${sourceWorkItemId}:effect-plan:1:${sourceWorkItemId}/plan:source-provider-and-exact-tool`;
+		for (const attempt of [1, 2] as const)
+			ids.add(`${sourceEffectRunId}/attempt-${attempt}/admission`);
 		for (const arm of ROOT_EVAL_ARMS) {
 			const workItemId = `${ROOT_EVAL_LIVE_GENERATION_REF}/replicate-${replicate}/${arm}`;
 			const effectRunId = `effect-run:work-item:${workItemId}:effect-plan:1:${workItemId}/plan:provider-and-exact-tool`;
 			for (const attempt of [1, 2] as const) ids.add(`${effectRunId}/attempt-${attempt}/admission`);
 		}
+	}
 	return ids;
 }
 
@@ -1819,7 +2436,7 @@ function projectRootEvalRunResult(value: unknown): ParsedRootEvalRunResult {
 	if (rawObservations.length > 512)
 		throw new TypeError("root eval observations exceeded evidence bound");
 	const rawIds = array(root.executedAdmissionIds, "root eval result.executedAdmissionIds");
-	if (rawIds.length > 60)
+	if (rawIds.length > EXPECTED_ADMISSION_IDS.size)
 		throw new TypeError("root eval admission identities exceeded evidence bound");
 	const ids = rawIds.map((id, index) => {
 		if (typeof id !== "string" || !EXPECTED_ADMISSION_IDS.has(id))
@@ -1879,6 +2496,31 @@ function projectLatestObservation(values: readonly ObserveEvent[]): ObserveEvent
 			// Continue backwards to the latest valid Graph-native DATA observation.
 		}
 	return null;
+}
+
+function observationValueDigests(values: readonly ObserveEvent[]): readonly string[] {
+	return Object.freeze(
+		values.map((value, index) => empiricalStrictJsonDigest(projectObservation(value, index).value)),
+	);
+}
+
+function successObservationStreamsAgree(
+	diagnostic: readonly ObserveEvent[],
+	canonical: readonly ObserveEvent[],
+): boolean {
+	// graph.observe() is push-on-subscribe. The diagnostic subscriber is installed before
+	// runRootEval installs the canonical evidence subscriber, so it may contain an earlier
+	// initial snapshot and its envelopes may carry subscriber-specific sequence numbers.
+	// The canonical stream remains authoritative. Require its complete semantic DATA history
+	// to be the exact suffix of the diagnostic stream; only a diagnostic prefix and envelope
+	// sequence differences are tolerated.
+	if (canonical.length > diagnostic.length) return false;
+	const diagnosticDigests = observationValueDigests(diagnostic);
+	const canonicalDigests = observationValueDigests(canonical);
+	const offset = diagnosticDigests.length - canonicalDigests.length;
+	return canonicalDigests.every(
+		(digestValue, index) => diagnosticDigests[offset + index] === digestValue,
+	);
 }
 
 function graphEvidence(graph: ParsedRootEvalRunResult): RootEvalLiveGraphEvidence {
@@ -1997,11 +2639,36 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 		],
 		[
 			"authority.claim-generation-mismatch",
-			claimShape && claim.generationRef === ROOT_EVAL_LIVE_GENERATION_REF,
+			claimShape &&
+				claim.generationRef === ROOT_EVAL_LIVE_GENERATION_REF &&
+				claim.campaignPurpose === ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE &&
+				claim.taskSetRef === ROOT_EVAL_LIVE_TASK_SET_REF &&
+				claim.replicateCount === ROOT_EVAL_LIVE_REPLICATE_COUNT &&
+				claim.heldOutSealDigest === ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST &&
+				claim.budgetPartition === ROOT_EVAL_LIVE_BUDGET_PARTITION &&
+				claim.partitionHardCapMicrousd === ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD &&
+				typeof claim.partitionSpentBeforeMicrousd === "number" &&
+				Number.isSafeInteger(claim.partitionSpentBeforeMicrousd) &&
+				claim.partitionSpentBeforeMicrousd >= 0 &&
+				claim.partitionSpentBeforeMicrousd < claim.partitionHardCapMicrousd &&
+				typeof claim.partitionLedgerDigest === "string" &&
+				/^sha256:[0-9a-f]{64}$/u.test(claim.partitionLedgerDigest) &&
+				typeof claim.developmentQualificationStreakBefore === "number" &&
+				Number.isSafeInteger(claim.developmentQualificationStreakBefore) &&
+				claim.developmentQualificationStreakBefore >= 0 &&
+				claim.developmentQualificationStreakBefore <= 2,
 		],
 		[
 			"authority.claim-task-binding-mismatch",
 			claimShape && claim.taskBindingDigest === ROOT_EVAL_CURRENT_TASK_BINDING_DIGEST,
+		],
+		[
+			"authority.claim-task-manifest-mismatch",
+			claimShape &&
+				typeof claim.taskManifestDigest === "string" &&
+				/^sha256:[0-9a-f]{64}$/u.test(claim.taskManifestDigest) &&
+				(String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) !== "confirmatory" ||
+					claim.taskManifestDigest === ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST),
 		],
 		[
 			"authority.claim-campaign-cap-mismatch",
@@ -2045,7 +2712,7 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 				claim.credentialBindingDigest ===
 					empiricalStrictJsonDigest({
 						bindingRef: "openrouter.local-eval-2",
-						bindingRevision: "2026-08-26.d125.v1",
+						bindingRevision: "2026-08-26.d145.v1",
 					}),
 		],
 		[
@@ -2068,7 +2735,8 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 				(currentBeforeShape &&
 					validCurrentKeySemantics(currentBefore!) &&
 					(currentBefore!.remainingMicrousd as number) >=
-						(claim.campaignHardCapMicrousd as number)),
+						(claim.partitionHardCapMicrousd as number) -
+							(claim.partitionSpentBeforeMicrousd as number)),
 		],
 		["authority.current-key-reconciliation-nonmonotonic", reconciliationValid],
 		[
@@ -2097,10 +2765,13 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 	try {
 		projected = projectRootEvalRunResult(graph);
 	} catch {
+		const shapeViolationCodes: RootEvalLiveSuccessViolationCode[] = ["success.graph-shape-invalid"];
+		if (graph.finding.replicateCount !== ROOT_EVAL_LIVE_REPLICATE_COUNT)
+			shapeViolationCodes.push("success.replicate-count-mismatch");
 		return Object.freeze({
 			admissionReport: Object.freeze({
 				status: "rejected" as const,
-				violationCodes: Object.freeze(["success.graph-shape-invalid"] as const),
+				violationCodes: Object.freeze(shapeViolationCodes),
 				rejectedGraphSummary: null,
 			}),
 			reconciliation,
@@ -2108,6 +2779,8 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 		});
 	}
 	const finding = projected.finding;
+	const executedTargetReplicateCount =
+		ROOT_EVAL_LIVE_REPLICATE_COUNT - finding.sourceTechnicalExcludedReplicates.length;
 	const passCountsValid =
 		finding.armOrder.length === ROOT_EVAL_ARMS.length &&
 		ROOT_EVAL_ARMS.every(
@@ -2115,20 +2788,30 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 				finding.armOrder[index] === arm &&
 				Number.isSafeInteger(finding.passCounts[arm]) &&
 				finding.passCounts[arm] >= 0 &&
-				finding.passCounts[arm] <= 5 &&
-				finding.verificationDiagnostics.stageCounts[arm].passed === finding.passCounts[arm],
+				finding.passCounts[arm] <= ROOT_EVAL_LIVE_REPLICATE_COUNT &&
+				finding.verificationDiagnostics.stageCounts[arm].passed >= finding.passCounts[arm],
 		);
+	const controlMaximum = Math.max(
+		finding.passCounts.cold,
+		finding.passCounts["proposal-only"],
+		finding.passCounts["admission-rejected"],
+		finding.passCounts["irrelevant-applied"],
+		finding.passCounts["wrong-scope-applied"],
+	);
+	const allCleanupSettled = ROOT_EVAL_ARMS.every(
+		(arm) =>
+			finding.verificationDiagnostics.stageCounts[arm].cleanupCompleted ===
+			executedTargetReplicateCount,
+	);
 	const computedFinding =
-		finding.passCounts["relevant-applied"] >
-		Math.max(
-			finding.passCounts.cold,
-			finding.passCounts["proposal-only"],
-			finding.passCounts["admission-rejected"],
-			finding.passCounts["irrelevant-applied"],
-			finding.passCounts["wrong-scope-applied"],
-		)
-			? "positive-differential"
-			: "no-positive-differential";
+		finding.evaluableReplicates < 4
+			? "operationally-inconclusive"
+			: allCleanupSettled &&
+					finding.passCounts["relevant-applied"] >= 3 &&
+					finding.passCounts["relevant-applied"] - controlMaximum >= 2 &&
+					finding.matchedRelevantOverColdWins >= 3
+				? "positive-differential"
+				: "no-positive-differential";
 	const observationValues = projected.observations.map((observation) => observation.value);
 	const terminalObservations = observationValues.filter((value) => value.finding !== "pending");
 	const terminalObservation = terminalObservations.at(-1);
@@ -2164,11 +2847,30 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 		observationValues.at(-1) === terminalObservation &&
 		observationProgressValid &&
 		observationSequenceValid;
+	const lastExecutedReplicate = Array.from(
+		{ length: ROOT_EVAL_LIVE_REPLICATE_COUNT },
+		(_, index) => index + 1,
+	)
+		.filter((replicate) => !finding.sourceTechnicalExcludedReplicates.includes(replicate))
+		.at(-1);
 	const terminalObservationStateValid =
 		terminalObservation !== undefined &&
-		terminalObservation.replicate === 5 &&
-		terminalObservation.completedArms === 6 &&
+		terminalObservation.replicate === (lastExecutedReplicate ?? ROOT_EVAL_LIVE_REPLICATE_COUNT) &&
+		terminalObservation.replicateCount === ROOT_EVAL_LIVE_REPLICATE_COUNT &&
+		terminalObservation.partitionHardCapMicrousd === claim.partitionHardCapMicrousd &&
+		terminalObservation.partitionSpentBeforeMicrousd === claim.partitionSpentBeforeMicrousd &&
+		terminalObservation.partitionLedgerDigest === claim.partitionLedgerDigest &&
+		terminalObservation.developmentQualification.consecutiveQualifyingGenerations ===
+			(claim.developmentQualificationStreakBefore as number) +
+				(terminalObservation.developmentQualification.generationQualified === true ? 1 : 0) &&
+		terminalObservation.completedArms === (lastExecutedReplicate === undefined ? 0 : 6) &&
 		terminalObservation.activeAdmittedEffects === 0 &&
+		terminalObservation.evaluableReplicates === finding.evaluableReplicates &&
+		terminalObservation.matchedRelevantOverColdWins === finding.matchedRelevantOverColdWins &&
+		empiricalStrictJsonDigest(terminalObservation.excludedTechnicalReplicates) ===
+			empiricalStrictJsonDigest(finding.excludedTechnicalReplicates) &&
+		empiricalStrictJsonDigest(terminalObservation.sourceTechnicalExcludedReplicates) ===
+			empiricalStrictJsonDigest(finding.sourceTechnicalExcludedReplicates) &&
 		terminalObservation.admittedAttempts === finding.admittedAttempts &&
 		terminalObservation.providerCallCount === finding.providerCallCount &&
 		terminalObservation.activeReservedMicrousd === finding.activeReservedMicrousd &&
@@ -2205,12 +2907,15 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 		"success.failure-present": input.failure === null,
 		"success.cleanup-incomplete": input.cleanupDisposition === "complete",
 		"success.campaign-ref-mismatch": finding.campaignRef === ROOT_EVAL_LIVE_GENERATION_REF,
-		"success.replicate-count-mismatch": finding.replicateCount === 5,
+		"success.replicate-count-mismatch": finding.replicateCount === ROOT_EVAL_LIVE_REPLICATE_COUNT,
 		"success.completed-work-items-mismatch":
-			finding.completedWorkItems === 30 &&
-			finding.verificationDiagnostics.completedWorkItems === 30 &&
+			finding.completedWorkItems === executedTargetReplicateCount * ROOT_EVAL_ARMS.length &&
+			finding.verificationDiagnostics.completedWorkItems ===
+				executedTargetReplicateCount * ROOT_EVAL_ARMS.length &&
 			ROOT_EVAL_ARMS.every(
-				(arm) => finding.verificationDiagnostics.stageCounts[arm].completedWorkItems === 5,
+				(arm) =>
+					finding.verificationDiagnostics.stageCounts[arm].completedWorkItems ===
+					executedTargetReplicateCount,
 			),
 		"success.finding-mismatch": finding.finding === computedFinding,
 		"success.pass-counts-invalid": passCountsValid,
@@ -2222,8 +2927,9 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 		"success.terminal-observation-order-invalid": terminalObservationOrderValid,
 		"success.terminal-observation-state-mismatch": terminalObservationStateValid,
 		"success.peak-concurrency-below-one": projected.peakConcurrentEffects >= 1,
-		"success.peak-concurrency-above-six": projected.peakConcurrentEffects <= 6,
-		"success.admission-count-below-thirty": projected.executedAdmissionIds.length >= 30,
+		"success.peak-provider-concurrency-above-two": projected.peakConcurrentEffects <= 2,
+		"success.admission-count-below-thirty":
+			projected.executedAdmissionIds.length >= executedTargetReplicateCount * ROOT_EVAL_ARMS.length,
 		"success.admission-identities-duplicate":
 			new Set(projected.executedAdmissionIds).size === projected.executedAdmissionIds.length,
 		"success.finding-admitted-attempts-mismatch":
@@ -2309,7 +3015,10 @@ export function constructRootEvalLiveEvidence(
 	const { admissionReport, reconciliation, projectedGraph } = evaluateRootEvalLiveAdmission(input);
 	const admitted = admissionReport.status === "admitted";
 	const graph = projectedGraph;
-	const positive = admitted && graph?.finding.finding === "positive-differential";
+	const positive =
+		String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "confirmatory" &&
+		admitted &&
+		graph?.finding.finding === "positive-differential";
 	const technicalFailureCode =
 		input.failure instanceof RootEvalCallerSettlementDeadlineExpired
 			? ("caller-settlement-deadline-expired" as const)
@@ -2344,6 +3053,7 @@ export function constructRootEvalLiveEvidence(
 		pricingObservationDigest: input.pricing.observationDigest,
 		zeroByokObservationDigest: input.zeroByok.observationDigest,
 		taskBindingDigest: input.claim.taskBindingDigest,
+		taskManifestDigest: input.claim.taskManifestDigest,
 		providerCalls: input.providerCalls,
 		graphResult: graph,
 		partialGraphObservations: projectPartialObservations(input.partialGraphObservations),
@@ -2351,9 +3061,11 @@ export function constructRootEvalLiveEvidence(
 		admissionReport,
 		failureDigest,
 		technicalFailureCode,
-		efficacyClaim: positive ? ("frozen-task-positive-differential" as const) : ("none" as const),
+		efficacyClaim: positive
+			? ("transfer-task-family-positive-differential" as const)
+			: ("none" as const),
 		causalAttribution: positive
-			? ("frozen-task-memory-context-differential" as const)
+			? ("verified-prior-work-item-memory-transfer" as const)
 			: ("undetermined" as const),
 	});
 	return Object.freeze({ ...material, evidenceDigest: empiricalStrictJsonDigest(material) });
@@ -2376,6 +3088,7 @@ const EVIDENCE_KEYS = Object.freeze([
 	"pricingObservationDigest",
 	"zeroByokObservationDigest",
 	"taskBindingDigest",
+	"taskManifestDigest",
 	"providerCalls",
 	"graphResult",
 	"partialGraphObservations",
@@ -2396,30 +3109,42 @@ function validateEvidenceGraph(value: unknown): RootEvalLiveGraphEvidence {
 		"root eval live evidence.graphResult",
 	);
 	const finding = projectFinding(graph.finding);
+	const executedTargetReplicateCount =
+		ROOT_EVAL_LIVE_REPLICATE_COUNT - finding.sourceTechnicalExcludedReplicates.length;
 	if (
 		finding.campaignRef !== ROOT_EVAL_LIVE_GENERATION_REF ||
-		finding.replicateCount !== 5 ||
-		finding.completedWorkItems !== 30 ||
+		finding.replicateCount !== ROOT_EVAL_LIVE_REPLICATE_COUNT ||
+		finding.completedWorkItems !== executedTargetReplicateCount * ROOT_EVAL_ARMS.length ||
 		finding.stoppingReason !== "campaign-complete" ||
 		finding.armOrder.some((arm, index) => arm !== ROOT_EVAL_ARMS[index]) ||
-		ROOT_EVAL_ARMS.some((arm) => finding.passCounts[arm] > 5) ||
+		ROOT_EVAL_ARMS.some((arm) => finding.passCounts[arm] > ROOT_EVAL_LIVE_REPLICATE_COUNT) ||
 		finding.accountedUpperBoundMicrousd > ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD ||
 		finding.pricingRoundingAllowanceMicrousd > finding.providerReportedMicrousd ||
 		finding.providerReportedLowerBoundMicrousd !==
 			Math.max(0, finding.providerReportedMicrousd - finding.pricingRoundingAllowanceMicrousd)
 	)
 		throw new TypeError("root eval live evidence graph finding was not admitted");
+	const controlMaximum = Math.max(
+		finding.passCounts.cold,
+		finding.passCounts["proposal-only"],
+		finding.passCounts["admission-rejected"],
+		finding.passCounts["irrelevant-applied"],
+		finding.passCounts["wrong-scope-applied"],
+	);
+	const allCleanupSettled = ROOT_EVAL_ARMS.every(
+		(arm) =>
+			finding.verificationDiagnostics.stageCounts[arm].cleanupCompleted ===
+			executedTargetReplicateCount,
+	);
 	const computedFinding =
-		finding.passCounts["relevant-applied"] >
-		Math.max(
-			finding.passCounts.cold,
-			finding.passCounts["proposal-only"],
-			finding.passCounts["admission-rejected"],
-			finding.passCounts["irrelevant-applied"],
-			finding.passCounts["wrong-scope-applied"],
-		)
-			? "positive-differential"
-			: "no-positive-differential";
+		finding.evaluableReplicates < 4
+			? "operationally-inconclusive"
+			: allCleanupSettled &&
+					finding.passCounts["relevant-applied"] >= 3 &&
+					finding.passCounts["relevant-applied"] - controlMaximum >= 2 &&
+					finding.matchedRelevantOverColdWins >= 3
+				? "positive-differential"
+				: "no-positive-differential";
 	if (finding.finding !== computedFinding)
 		throw new TypeError("root eval live evidence graph finding conclusion drifted");
 	const observations = array(
@@ -2459,7 +3184,7 @@ function validateEvidenceGraph(value: unknown): RootEvalLiveGraphEvidence {
 		projectedObservations.at(-1) !== terminal ||
 		terminal.value.finding !== finding.finding ||
 		terminal.value.stoppingReason !== finding.stoppingReason ||
-		terminal.value.replicate !== 5 ||
+		terminal.value.replicate !== ROOT_EVAL_LIVE_REPLICATE_COUNT ||
 		terminal.value.completedArms !== 6 ||
 		terminal.value.activeAdmittedEffects !== 0 ||
 		terminal.value.admittedAttempts !== finding.admittedAttempts ||
@@ -2495,7 +3220,10 @@ function validateEvidenceGraph(value: unknown): RootEvalLiveGraphEvidence {
 		graph.executedAdmissionDigests,
 		"root eval live evidence.graphResult.executedAdmissionDigests",
 	);
-	if (rawDigests.length < 30 || rawDigests.length > 60)
+	if (
+		rawDigests.length < executedTargetReplicateCount * ROOT_EVAL_ARMS.length ||
+		rawDigests.length > ROOT_EVAL_LIVE_REPLICATE_COUNT * ROOT_EVAL_ARMS.length * 2
+	)
 		throw new TypeError("root eval live evidence admission digest count invalid");
 	const admissionDigests = rawDigests.map((value, index) =>
 		digest(value, `root eval live evidence.graphResult.executedAdmissionDigests[${index}]`),
@@ -2591,7 +3319,7 @@ function validateAdmissionReport(value: unknown): RootEvalLiveAdmissionReport {
 		);
 		oneOf(
 			summary.finding,
-			["positive-differential", "no-positive-differential"] as const,
+			["positive-differential", "no-positive-differential", "operationally-inconclusive"] as const,
 			"root eval live evidence rejected finding",
 		);
 		for (const key of [
@@ -2641,9 +3369,14 @@ function validateAdmissionReport(value: unknown): RootEvalLiveAdmissionReport {
 				!(["none", "campaign-complete", "budget-exhausted", "effect-failed"] as const).includes(
 					terminal.stoppingReason as never,
 				) ||
-				!(["pending", "positive-differential", "no-positive-differential"] as const).includes(
-					terminal.finding as never,
-				)
+				!(
+					[
+						"pending",
+						"positive-differential",
+						"no-positive-differential",
+						"operationally-inconclusive",
+					] as const
+				).includes(terminal.finding as never)
 			)
 				throw new TypeError("root eval live evidence rejected terminal observation invalid");
 		}
@@ -2700,6 +3433,12 @@ function validateRootEvalLiveEvidenceForPersistence(value: RootEvalLiveEvidence)
 		ROOT_EVAL_CURRENT_TASK_BINDING_DIGEST,
 		"root eval live evidence.taskBindingDigest",
 	);
+	digest(evidence.taskManifestDigest, "root eval live evidence.taskManifestDigest");
+	if (
+		String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "confirmatory" &&
+		evidence.taskManifestDigest !== ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST
+	)
+		throw new TypeError("root eval live evidence held-out manifest binding invalid");
 	digest(evidence.pricingObservationDigest, "root eval live evidence.pricingObservationDigest");
 	digest(evidence.zeroByokObservationDigest, "root eval live evidence.zeroByokObservationDigest");
 	if (
@@ -2747,19 +3486,22 @@ function validateRootEvalLiveEvidenceForPersistence(value: RootEvalLiveEvidence)
 		)
 			throw new TypeError("root eval live success evidence relationship invalid");
 		const graph = validateEvidenceGraph(evidence.graphResult);
-		if (empiricalStrictJsonDigest(partial) !== empiricalStrictJsonDigest(graph.observations))
+		if (!successObservationStreamsAgree(partial, graph.observations))
 			throw new TypeError(
-				"root eval live success partial observations drifted from Graph result observations",
+				"root eval live success diagnostic observations drifted from canonical Graph observations",
 			);
 		if (evidence.providerCalls !== graph.finding.providerCallCount)
 			throw new TypeError("root eval live success provider count drifted");
 		if (evidence.currentKeyBeforeDigest === null)
 			throw new TypeError("root eval live success campaign admission snapshot missing");
-		const positive = graph.finding.finding === "positive-differential";
+		const positive =
+			String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "confirmatory" &&
+			graph.finding.finding === "positive-differential";
 		if (
-			evidence.efficacyClaim !== (positive ? "frozen-task-positive-differential" : "none") ||
+			evidence.efficacyClaim !==
+				(positive ? "transfer-task-family-positive-differential" : "none") ||
 			evidence.causalAttribution !==
-				(positive ? "frozen-task-memory-context-differential" : "undetermined") ||
+				(positive ? "verified-prior-work-item-memory-transfer" : "undetermined") ||
 			evidence.cleanupDisposition !== "complete"
 		)
 			throw new TypeError("root eval live success conclusion relationship invalid");
@@ -2815,6 +3557,55 @@ function validateCurrentCommittedClaim(value: unknown): RootEvalLiveClaim {
 		"root eval live committed claim generation",
 	);
 	literal(
+		claim.campaignPurpose,
+		ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE,
+		"root eval live committed claim campaign purpose",
+	);
+	literal(claim.taskSetRef, ROOT_EVAL_LIVE_TASK_SET_REF, "root eval live committed claim task set");
+	digest(claim.taskManifestDigest, "root eval live committed claim task manifest");
+	if (
+		String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "confirmatory" &&
+		claim.taskManifestDigest !== ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST
+	)
+		throw new TypeError("root eval live committed claim held-out manifest binding invalid");
+	literal(
+		claim.replicateCount,
+		ROOT_EVAL_LIVE_REPLICATE_COUNT,
+		"root eval live committed claim replicate count",
+	);
+	literal(
+		claim.heldOutSealDigest,
+		ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
+		"root eval live committed claim held-out seal",
+	);
+	literal(
+		claim.budgetPartition,
+		ROOT_EVAL_LIVE_BUDGET_PARTITION,
+		"root eval live committed claim budget partition",
+	);
+	literal(
+		claim.partitionHardCapMicrousd,
+		ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
+		"root eval live committed claim partition hard cap",
+	);
+	const partitionSpentBeforeMicrousd = safeInteger(
+		claim.partitionSpentBeforeMicrousd,
+		"root eval live committed claim partition spend before",
+		{ max: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD - 1 },
+	);
+	digest(claim.partitionLedgerDigest, "root eval live committed claim partition ledger digest");
+	const developmentQualificationStreakBefore = safeInteger(
+		claim.developmentQualificationStreakBefore,
+		"root eval live committed claim development qualification streak before",
+		{ max: 2 },
+	);
+	if (
+		partitionSpentBeforeMicrousd >= ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD ||
+		(String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "confirmatory" &&
+			developmentQualificationStreakBefore !== 2)
+	)
+		throw new TypeError("root eval live committed claim partition authority invalid");
+	literal(
 		claim.implementationManifestDigest,
 		ROOT_EVAL_CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
 		"root eval live committed claim implementation manifest",
@@ -2855,7 +3646,7 @@ function validateCurrentCommittedClaim(value: unknown): RootEvalLiveClaim {
 		claim.credentialBindingDigest,
 		empiricalStrictJsonDigest({
 			bindingRef: "openrouter.local-eval-2",
-			bindingRevision: "2026-08-26.d125.v1",
+			bindingRevision: "2026-08-26.d145.v1",
 		}),
 		"root eval live committed claim credential binding",
 	);
@@ -2898,6 +3689,7 @@ function validateCommittedClaimForEvidence(
 		["qualificationArtifactDigest", "qualificationArtifactDigest"],
 		["qualificationDigest", "qualificationDigest"],
 		["taskBindingDigest", "taskBindingDigest"],
+		["taskManifestDigest", "taskManifestDigest"],
 		["pricingObservationDigest", "pricingObservationDigest"],
 		["zeroByokObservationDigest", "zeroByokObservationDigest"],
 		["currentKeyBeforeDigest", "currentKeyBeforeDigest"],
@@ -2970,10 +3762,10 @@ export async function persistRootEvalLiveEvidence(input: {
 		throw new TypeError("root eval evidence root drifted");
 	const dispositionPath = join(
 		privateRoot,
-		`.${ROOT_EVAL_LIVE_GENERATION_REF}.disposition.v15.json`,
+		`.${ROOT_EVAL_LIVE_GENERATION_REF}.disposition.v20.json`,
 	);
 	const dispositionBytes = await readRootEvalPrivateFile(dispositionPath, 65_536).catch(() => {
-		throw new TypeError("root eval evidence requires one committed D125 claim");
+		throw new TypeError("root eval evidence requires one committed D145 claim");
 	});
 	const committedClaim = strictJsonCodec.decode(dispositionBytes);
 	if (!sameBytes(strictJsonCodec.encode(committedClaim), dispositionBytes))
@@ -2987,14 +3779,14 @@ export async function persistRootEvalLiveEvidence(input: {
 				credentialFingerprint({
 					bearerToken: "sk-or-v1-a44-middle-credential-e06",
 					bindingRef: "openrouter.local-eval-2",
-					bindingRevision: "2026-08-26.d125.v1",
+					bindingRevision: "2026-08-26.d145.v1",
 				})
 		)
 			throw new TypeError("root eval qualification evidence escaped synthetic authority");
 	}
 	const bytes = strictJsonCodec.encode(evidence);
 	const generationRoot = join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF);
-	const target = join(generationRoot, "evidence.v18.json");
+	const target = join(generationRoot, "evidence.v23.json");
 	const existing = await open(target, constants.O_RDONLY | constants.O_NOFOLLOW).catch(
 		(error: unknown) => {
 			if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
@@ -3027,7 +3819,7 @@ export async function persistRootEvalLiveEvidence(input: {
 	await mkdir(stageRoot, { mode: 0o700 });
 	try {
 		await chmod(stageRoot, 0o700);
-		const stagedTarget = join(stageRoot, "evidence.v18.json");
+		const stagedTarget = join(stageRoot, "evidence.v23.json");
 		const writer = await open(
 			stagedTarget,
 			constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
@@ -3046,6 +3838,12 @@ export async function persistRootEvalLiveEvidence(input: {
 			await stageDirectory.close();
 		}
 		await rename(stageRoot, generationRoot);
+		const privateDirectory = await open(privateRoot, constants.O_RDONLY | constants.O_DIRECTORY);
+		try {
+			await privateDirectory.sync();
+		} finally {
+			await privateDirectory.close();
+		}
 	} catch (error) {
 		await rm(stageRoot, { recursive: true, force: true }).catch(() => undefined);
 		if (!["EEXIST", "ENOTEMPTY"].includes((error as NodeJS.ErrnoException).code ?? "")) throw error;

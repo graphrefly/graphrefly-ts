@@ -33,7 +33,7 @@
 		"test:ts": "pnpm --filter @graphrefly/ts test",
 		"eval:root:artifacts": "tsx packages/ts/evals/graph-native-rerun-avoidance/generate-root-eval-artifacts.ts --write",
 		"eval:root:artifacts:check": "tsx packages/ts/evals/graph-native-rerun-avoidance/generate-root-eval-artifacts.ts --check",
-		"eval:root:private-inputs": "tsx packages/ts/evals/graph-native-rerun-avoidance/qualify-live-private-inputs.ts",
+		"eval:root:private-inputs": "node packages/ts/evals/graph-native-rerun-avoidance/run-live-campaign-bootstrap.mjs --qualify-private-inputs",
 		"eval:root:live": "node packages/ts/evals/graph-native-rerun-avoidance/run-live-campaign-bootstrap.mjs",
 		"probe:b49:ts": "tsx packages/ts/src/__bench__/b49-probe.ts",
 		"bench": "pnpm run probe:b49:ts",

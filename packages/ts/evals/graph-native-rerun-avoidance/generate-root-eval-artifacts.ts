@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { empiricalSha256, empiricalStrictJsonDigest } from "./canonical.js";
 import { createCurrentExactModelHarnessProfileInput } from "./current-exact-profile.js";
@@ -19,11 +19,13 @@ import {
 	CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
 	measureCurrentImplementation,
 } from "./implementation-manifest.js";
+import { ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER } from "./root-eval-charter-ledger.js";
 import {
 	ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT,
 	ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT_DIGEST,
 	ROOT_EVAL_LIVE_QUALIFICATION,
 } from "./root-eval-live-qualification.js";
+import { ROOT_EVAL_DEVELOPMENT_TASKS, ROOT_EVAL_HELD_OUT_SEAL_DIGEST } from "./root-eval-task.js";
 import {
 	ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT,
 	ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT_DIGEST,
@@ -86,6 +88,90 @@ export interface RootEvalGeneratedArtifactBytes {
 	readonly d124Mermaid: string;
 }
 
+export interface RootEvalGeneratedArtifactSnapshot {
+	readonly artifactSetDigest: string;
+	readonly implementationManifestDigest: string;
+}
+
+const ROOT_EVAL_ARTIFACT_MARKER_MAX_BYTES = 65_536;
+const ROOT_EVAL_ARTIFACT_FILE_MAX_BYTES = 64 * 1_048_576;
+
+function parseRootEvalArtifactSet(bytes: Uint8Array): {
+	readonly implementationManifestDigest: string;
+	readonly files: Readonly<Record<string, string>>;
+} {
+	if (bytes.byteLength < 1 || bytes.byteLength > ROOT_EVAL_ARTIFACT_MARKER_MAX_BYTES)
+		throw new Error("root eval artifact-set marker exceeded its byte bound");
+	const value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as unknown;
+	if (value === null || typeof value !== "object" || Array.isArray(value))
+		throw new Error("root eval artifact-set marker was malformed");
+	const marker = value as Record<string, unknown>;
+	if (
+		Object.keys(marker).sort().join("\0") !==
+			["files", "format", "implementationManifestDigest", "publication", "version"]
+				.sort()
+				.join("\0") ||
+		marker.format !== "graphrefly.rootEvalArtifactSet" ||
+		marker.version !== 1 ||
+		marker.publication !== "commit-marker-written-last" ||
+		typeof marker.implementationManifestDigest !== "string" ||
+		marker.files === null ||
+		typeof marker.files !== "object" ||
+		Array.isArray(marker.files)
+	)
+		throw new Error("root eval artifact-set marker was malformed");
+	const files = marker.files as Record<string, unknown>;
+	for (const [name, fileDigest] of Object.entries(files))
+		if (
+			!/^([a-z0-9-]+\/)*[a-z0-9.-]+$/u.test(name) ||
+			typeof fileDigest !== "string" ||
+			!/^sha256:[0-9a-f]{64}$/u.test(fileDigest)
+		)
+			throw new Error("root eval artifact-set marker file binding was malformed");
+	return Object.freeze({
+		implementationManifestDigest: marker.implementationManifestDigest,
+		files: Object.freeze(files as Record<string, string>),
+	});
+}
+
+export async function checkRootEvalGeneratedArtifactSnapshot(input?: {
+	readonly artifactDirectory?: string;
+}): Promise<RootEvalGeneratedArtifactSnapshot> {
+	const artifactDirectory = resolve(input?.artifactDirectory ?? ROOT_EVAL_ARTIFACT_DIRECTORY);
+	const artifactSetPath = resolve(artifactDirectory, "root-eval-artifact-set.json");
+	const markerStat = await stat(artifactSetPath);
+	if (!markerStat.isFile() || markerStat.size > ROOT_EVAL_ARTIFACT_MARKER_MAX_BYTES)
+		throw new Error("root eval artifact-set marker exceeded its byte bound");
+	const markerBefore = await readFile(artifactSetPath);
+	const marker = parseRootEvalArtifactSet(markerBefore);
+	if (marker.implementationManifestDigest !== CURRENT_IMPLEMENTATION_MANIFEST_DIGEST)
+		throw new Error("root eval artifact-set implementation manifest drifted");
+	const expectedFiles = Object.entries(ROOT_EVAL_GENERATED_ARTIFACT_PATHS)
+		.filter(([key]) => key !== "artifactSet")
+		.map(([, path]) => relative(ROOT_EVAL_ARTIFACT_DIRECTORY, path))
+		.concat(relative(ROOT_EVAL_ARTIFACT_DIRECTORY, ROOT_EVAL_EXPLANATORY_MERMAID_PATH))
+		.sort();
+	if (Object.keys(marker.files).sort().join("\0") !== expectedFiles.join("\0"))
+		throw new Error("root eval artifact-set file membership drifted");
+	for (const name of expectedFiles) {
+		const path = resolve(artifactDirectory, name);
+		if (!path.startsWith(`${artifactDirectory}/`))
+			throw new Error("root eval artifact-set path escaped its directory");
+		const fileStat = await stat(path);
+		if (!fileStat.isFile() || fileStat.size > ROOT_EVAL_ARTIFACT_FILE_MAX_BYTES)
+			throw new Error(`root eval generated artifact exceeded its byte bound: ${name}`);
+		if (empiricalSha256(await readFile(path)) !== marker.files[name])
+			throw new Error(`root eval generated artifact snapshot drift: ${name}`);
+	}
+	const markerAfter = await readFile(artifactSetPath);
+	if (empiricalSha256(markerAfter) !== empiricalSha256(markerBefore))
+		throw new Error("root eval artifact set changed while its snapshot was checked");
+	return Object.freeze({
+		artifactSetDigest: empiricalSha256(markerBefore),
+		implementationManifestDigest: marker.implementationManifestDigest,
+	});
+}
+
 const D120_IMPLEMENTATION_MANIFEST_DIGEST =
 	"sha256:bef7aae1a105d67c0dd1a55d2a474b70fbca80389654050855e9b78153cbcdcd";
 const D120_TOPOLOGY_QA_DIGEST =
@@ -96,8 +182,6 @@ const D120_LIVE_QA_DIGEST =
 	"sha256:debb0e0bda6b5edecb5fb22738fcf5258965020101f723fb23035ba6ce383a62";
 const D120_LIVE_QUALIFICATION_DIGEST =
 	"sha256:2048d8366ade35e83b2bc513f3d1849f1b5bbeb0a2117e0c436c63e8594afd21";
-const D124_IMPLEMENTATION_MANIFEST_DIGEST =
-	"sha256:2bf1f7b4fa15262f09fdadc491af567d455d4dea81e28478db7223fb22556e0e";
 const D124_TOPOLOGY_QA_DIGEST =
 	"sha256:a5dfafaca9437a317c82433e3de528fcc6d32805210329ab37bf167497d7200e";
 const D124_TOPOLOGY_QUALIFICATION_DIGEST =
@@ -106,6 +190,10 @@ const D124_LIVE_QA_DIGEST =
 	"sha256:90fdba7d97a6cd4e353cefe6f762ea114d92b2f1b6cdc23e4451f44656cefcfa";
 const D124_LIVE_QUALIFICATION_DIGEST =
 	"sha256:b6d49961927d36d18153d32c673414bf9488edaa3fe8f96d9294f2e9efacc3a4";
+const D124_TOPOLOGY_QUALIFICATION_BYTES_DIGEST =
+	"sha256:66df4bc2853ece5b96449939c002521079d31aebe0989e6966b7ec5dbbf93c12";
+const D124_LIVE_QUALIFICATION_BYTES_DIGEST =
+	"sha256:4e83b0f797775e5c5dcb311a112f18fdd29ccb8ccf22380c34d8cf0816d8dfdc";
 const D124_DESCRIBE_DIGEST =
 	"sha256:91fc8d290eeecb70d281a86fcc3dc2437d6840e9fbaa88b20184d04757ffda54";
 const D124_OBSERVE_DIGEST =
@@ -137,6 +225,7 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 		...ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT,
 		schemaVersion: "graphrefly-ts.root-eval-topology-no-network-qa.v15",
 		topologyRevision: "graphrefly-ts.root-eval-topology.v7",
+		replicates: 5,
 		requiredNodeCount: 66,
 		criticalEdgeCount: 108,
 		decisionRefs: Object.freeze(
@@ -147,13 +236,32 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 					ref !== "graphrefly-ts:D122" &&
 					ref !== "graphrefly-ts:D123" &&
 					ref !== "graphrefly-ts:D124" &&
-					ref !== "graphrefly-ts:D125",
+					ref !== "graphrefly-ts:D125" &&
+					ref !== "graphrefly-ts:D126" &&
+					ref !== "graphrefly-ts:D127" &&
+					ref !== "graphrefly-ts:D128" &&
+					ref !== "graphrefly-ts:D129" &&
+					ref !== "graphrefly-ts:D130" &&
+					ref !== "graphrefly-ts:D131" &&
+					ref !== "graphrefly-ts:D132" &&
+					ref !== "graphrefly-ts:D133" &&
+					ref !== "graphrefly-ts:D134" &&
+					ref !== "graphrefly-ts:D135" &&
+					ref !== "graphrefly-ts:D136" &&
+					ref !== "graphrefly-ts:D137" &&
+					ref !== "graphrefly-ts:D138" &&
+					ref !== "graphrefly-ts:D139" &&
+					ref !== "graphrefly-ts:D140" &&
+					ref !== "graphrefly-ts:D141" &&
+					ref !== "graphrefly-ts:D144" &&
+					ref !== "graphrefly-ts:D145",
 			),
 		),
 		implementationManifestDigest: D120_IMPLEMENTATION_MANIFEST_DIGEST,
 		caseResults: remapHistoricalCases(
 			ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.caseResults,
 			{
+				sixConcurrentWorkItemsWithTwoProviderSlots: "sixEffectConcurrency",
 				d121GenerationIsolatedFromConsumedD116: "d116GenerationIsolatedFromConsumedD111",
 				d121GenerationIsolatedFromD118Qualification:
 					"d116GenerationIsolatedFromD109PreclaimFailure",
@@ -162,9 +270,30 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 			new Set([
 				"d120QualificationArtifactsImmutable",
 				"d121ResultNamespacesFresh",
-				"d125ResultNamespacesFresh",
-				"d125RejectsConsumedD121Coordinates",
-				"d125BindsD124RepairReceipt",
+				"d136ResultNamespacesFresh",
+				"d136RejectsConsumedD125Coordinates",
+				"d136BindsD133ImplementationReceipt",
+				"d136BrowserArtifactBuilderUsesCurrentSchema",
+				"d136PrivateInputPreflightDoesNotConsumeGeneration",
+				"d136ZeroChargePreclaimCloseout",
+				"d138PrecredentialGateChronologyLeavesTopologyUnchanged",
+				"d138ExecutableStagePlanMutationContract",
+				"d140ResultNamespacesFresh",
+				"d140RejectsClosedD136Coordinates",
+				"d140BindsD139ImplementationReceipt",
+				"d140BrowserArtifactBuilderUsesCurrentSchema",
+				"d140PrivateInputPreflightDoesNotConsumeGeneration",
+				"d145ExactlyOneRootCampaignContract",
+				"d145OneFixedAgenticMemoryLifecycle",
+				"d145SixArmsAreCorrelatedDataNotLifecycleCopies",
+				"d145CausallyPriorSourceWorkItemVerifiedAndSettled",
+				"d145MatchedSourceTargetFindingEvidence",
+				"d145WholeReplicateTechnicalExclusion",
+				"d145OperationallyInconclusiveBelowFourEvaluable",
+				"d145DevelopmentAndConfirmatoryReplicateModes",
+				"d145GraphOwnedDevelopmentQualification",
+				"d145HeldOutSealAndBudgetPartitions",
+				"d145CriticalCampaignAndQualificationEdges",
 				"sixConcurrentHttp429RetryConservation",
 				"retryProgressDataPreventsFanInWedge",
 				"retryConservationGraphObservation",
@@ -173,6 +302,26 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 				"retryCompletionOrderPermutations",
 				"callerSettlementDeadlineTechnicalOnly",
 				"budgetStopDrainsAdmittedEffects",
+				"adaptiveProviderCapacityGraphState",
+				"exactRouteHttp429Cooldown",
+				"permanentRateLimitedSerialDownshift",
+				"firstAndRetryProposalConservation",
+				"perOutcomeRetryReadinessWithoutBatchWedge",
+				"canonicalProviderCapacityBudgetStableCut",
+				"failedCooldownReadinessFailsClosed",
+				"callerCancellationDuringCooldownLeavesNoBackgroundAdmission",
+				"sixArmHttp429RetryConservation",
+				"initialProviderSlotCompletionOrderPermutations",
+				"graphOwnedElapsedAdmissionBudget",
+				"campaignStartWaveSettlesImmediately",
+				"timerSourceResolvedThenBoundaryData",
+				"exactElapsedBoundaryVirtualTime",
+				"elapsedStateMonotoneAcrossStartReplay",
+				"elapsedStoppingObservationStableCut",
+				"configuredCampaignIdentityPreservedAtTimerBoundary",
+				"elapsedStopDrainsAdmittedCausalTail",
+				"earlyTerminalTimerDeactivation",
+				"callerLeaseAfterGraphBudgetAndDrainReserve",
 			]),
 		),
 	});
@@ -183,6 +332,21 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 		d121ConsumedLiveExecutionApprovalRef: _topologyD121Approval,
 		d121LivenessIncidentRepairRef: _topologyD121Repair,
 		d122ImplementationReceiptRef: _topologyD122Receipt,
+		mostRecentConsumedLiveExecutionApprovalRef: _topologyD125Approval,
+		mostRecentConsumedLiveExecutionCloseoutRef: _topologyD126Closeout,
+		adaptiveProviderCapacityDecisionRef: _topologyD127,
+		adaptiveProviderCapacityExecutionApprovalRef: _topologyD128,
+		elapsedAdmissionBudgetDecisionRef: _topologyD129,
+		elapsedAdmissionBudgetExecutionApprovalRef: _topologyD130,
+		nonBlockingElapsedTimerDecisionRef: _topologyD131,
+		nonBlockingElapsedTimerExecutionApprovalRef: _topologyD132,
+		graphElapsedAdaptiveImplementationReceiptRef: _topologyD133Receipt,
+		d136ZeroChargeCloseoutRef: _topologyD137Closeout,
+		precredentialGateChronologyExecutionApprovalRef: _topologyD138Approval,
+		precredentialGateChronologyImplementationReceiptRef: _topologyD139Receipt,
+		completionCharterRef: _topologyD140Charter,
+		currentLiveExecutionApprovalClosed: _topologyLiveApprovalClosed,
+		callerHorizonDecisionRequired: _topologyCallerHorizon,
 		mostRecentSuccessfulCanonicalLiveExecutionApprovalRef: _successfulApproval,
 		mostRecentSuccessfulCanonicalLiveExecutionCloseoutRef: _successfulCloseout,
 		...topologyCurrent
@@ -250,18 +414,39 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 					ref !== "graphrefly-ts:D122" &&
 					ref !== "graphrefly-ts:D123" &&
 					ref !== "graphrefly-ts:D124" &&
-					ref !== "graphrefly-ts:D125",
+					ref !== "graphrefly-ts:D125" &&
+					ref !== "graphrefly-ts:D126" &&
+					ref !== "graphrefly-ts:D127" &&
+					ref !== "graphrefly-ts:D128" &&
+					ref !== "graphrefly-ts:D129" &&
+					ref !== "graphrefly-ts:D130" &&
+					ref !== "graphrefly-ts:D131" &&
+					ref !== "graphrefly-ts:D132" &&
+					ref !== "graphrefly-ts:D133" &&
+					ref !== "graphrefly-ts:D134" &&
+					ref !== "graphrefly-ts:D135" &&
+					ref !== "graphrefly-ts:D136" &&
+					ref !== "graphrefly-ts:D137" &&
+					ref !== "graphrefly-ts:D138" &&
+					ref !== "graphrefly-ts:D139" &&
+					ref !== "graphrefly-ts:D140" &&
+					ref !== "graphrefly-ts:D141" &&
+					ref !== "graphrefly-ts:D144" &&
+					ref !== "graphrefly-ts:D145",
 			),
 		),
 		implementationManifestDigest: D120_IMPLEMENTATION_MANIFEST_DIGEST,
+		taskBindingDigest: "sha256:f020b4fdcb290a17ab7716fb6b432293c99c1da4d9d9289eceff1fa2de1901e8",
 		caseResults: remapHistoricalCases(
 			ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT.caseResults,
 			{
+				sixConcurrentWorkItemsTwoProviderSlotsDelegatedToRootGraph:
+					"sixEffectConcurrencyDelegatedToRootGraph",
 				d121LiveClaimRequiresRuntimeAuthorityProvenance:
 					"d116LiveClaimRequiresRuntimeAuthorityProvenance",
 				d121LiveExecutorConsumesOnlyCommittedLiveClaim:
 					"d116LiveExecutorConsumesOnlyCommittedLiveClaim",
-				evidenceV18FilenameExact: "evidenceV15FilenameExact",
+				evidenceV23FilenameExact: "evidenceV15FilenameExact",
 				d121QualificationClaimAndEvidenceCoordinatesFresh:
 					"d116QualificationClaimAndEvidenceCoordinatesFresh",
 				d121GenerationIsolatedFromConsumedD116: "d116GenerationIsolatedFromConsumedD111",
@@ -274,6 +459,7 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 				"claimCommitCapabilityCannotBeSelfAuthored",
 				"implementationCoordinateExactShape",
 				"isolatedPrecredentialBootstrap",
+				"precredentialGateReceiptBeforeBrowserObservation",
 				"sixConcurrentHttp429RetryConservation",
 				"realParserSixConcurrentHttp429Integration",
 				"retryConservationGraphObservation",
@@ -282,11 +468,69 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 				"callerDeadlineCancelsGraphAndExecutor",
 				"callerDeadlineDurableClosedCode",
 				"partialEvidenceRetainsLatestGraphObservation",
-				"d125LiveClaimRequiresRuntimeAuthorityProvenance",
-				"d125LiveExecutorConsumesOnlyCommittedLiveClaim",
-				"d125QualificationClaimAndEvidenceCoordinatesFresh",
-				"d125GenerationIsolatedFromConsumedD121",
-				"d125PreclaimWriteSingleUse",
+				"d136LiveClaimRequiresRuntimeAuthorityProvenance",
+				"d136LiveExecutorConsumesOnlyCommittedLiveClaim",
+				"d136QualificationClaimAndEvidenceCoordinatesFresh",
+				"d136GenerationIsolatedFromConsumedD125",
+				"d136PreclaimWriteSingleUse",
+				"d136BrowserArtifactBuilderUsesCurrentSchema",
+				"d136PrivateInputPreflightDoesNotConsumeGeneration",
+				"d136ZeroChargePreclaimCloseout",
+				"d138LongGatesOnlyBeforeReceipt",
+				"d138NoLongGatesAfterReceipt",
+				"d138BoundedCurrentnessBeforePrivateInputs",
+				"d138StaleReceiptRejectedBeforeCredential",
+				"d138UnexpectedPrivateStateRejectedBeforeCredential",
+				"d138ExecutableStagePlanMutationContract",
+				"d138ArtifactSnapshotByteMutationRejected",
+				"d138ReceiptBindsCommitRepositoryAndArtifactSet",
+				"d138ClosedD136EntryRejectsBeforeCapability",
+				"d140LiveClaimRequiresRuntimeAuthorityProvenance",
+				"d140LiveExecutorConsumesOnlyCommittedLiveClaim",
+				"d140QualificationClaimAndEvidenceCoordinatesFresh",
+				"d140GenerationIsolatedFromConsumedD136",
+				"d140PreclaimWriteSingleUse",
+				"d140BrowserArtifactBuilderUsesCurrentSchema",
+				"d140PrivateInputPreflightDoesNotConsumeGeneration",
+				"d140ExactExecutionAuthorityOpen",
+				"d140FirstProviderDispatchConsumesAutomaticRerunAuthority",
+				"d140CumulativeUsdSixHardCap",
+				"d145CampaignContractGraphVisible",
+				"d145OneReplicateDevelopmentGeneration",
+				"d145DevelopmentAlwaysEmitsNoEfficacyClaim",
+				"d145TwoConsecutiveGenerationGate",
+				"d145HeldOutTaskAndVerifierSeal",
+				"d145IndependentSpendPartitions",
+				"d145PrivateDiagnosticsBoundedAndMode0600",
+				"d145ExactHeldOutFiveReplicateAuthority",
+				"fiveTransferWorkspaceVerifierVariants",
+				"ambiguousPublicDiscriminatingPrivateVerifier",
+				"oneFixedAgenticMemoryLifecycleSixCorrelatedData",
+				"causallyPriorVerifiedSourceWorkItemCleanup",
+				"disjointDevelopmentAndConfirmatoryTaskManifests",
+				"privateTaskManifestMode0600AndDigestBinding",
+				"missingConfirmatoryManifestFailsClosed",
+				"matchedRelevantOverColdThreshold",
+				"wholeReplicateTechnicalExclusion",
+				"belowFourEvaluableOperationallyInconclusive",
+				"developmentEvidenceCannotEmitEfficacyClaim",
+				"adaptiveProviderCapacityGraphState",
+				"exactFireworks429CooldownAndPermanentSerialDownshift",
+				"firstAndRetryProposalConservation",
+				"canonicalProviderCapacityBudgetStableCut",
+				"peakProviderConcurrencyAtMostTwoEvidenceGate",
+				"retryAfterFloorCapAndMalformedHeaderMatrix",
+				"sixArmHttp429RetryConservation",
+				"initialProviderSlotCompletionOrderPermutations",
+				"graphOwnedElapsedAdmissionBudget",
+				"nonBlockingElapsedTimerSource",
+				"exactElapsedBoundaryAndEarlyCancellation",
+				"boundedProviderToolBillingSettlementLeases",
+				"boundedRetryAndCleanupFinalizerSettlementLeases",
+				"nonCooperativeSettlementAdaptersContained",
+				"mainNoNetworkExecutorUsesSettlementLeases",
+				"postCutoffCausalTailBelowDrainReserve",
+				"callerSafetyLeaseRemainsLastResort",
 			]),
 		),
 	});
@@ -297,6 +541,21 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 		d121ConsumedLiveExecutionApprovalRef: _liveD121Approval,
 		d121LivenessIncidentRepairRef: _liveD121Repair,
 		d122ImplementationReceiptRef: _liveD122Receipt,
+		mostRecentConsumedLiveExecutionApprovalRef: _liveD125Approval,
+		mostRecentConsumedLiveExecutionCloseoutRef: _liveD126Closeout,
+		adaptiveProviderCapacityDecisionRef: _liveD127,
+		adaptiveProviderCapacityExecutionApprovalRef: _liveD128,
+		elapsedAdmissionBudgetDecisionRef: _liveD129,
+		elapsedAdmissionBudgetExecutionApprovalRef: _liveD130,
+		nonBlockingElapsedTimerDecisionRef: _liveD131,
+		nonBlockingElapsedTimerExecutionApprovalRef: _liveD132,
+		graphElapsedAdaptiveImplementationReceiptRef: _liveD133Receipt,
+		d136ZeroChargeCloseoutRef: _liveD137Closeout,
+		precredentialGateChronologyExecutionApprovalRef: _liveD138Approval,
+		precredentialGateChronologyImplementationReceiptRef: _liveD139Receipt,
+		completionCharterRef: _liveD140Charter,
+		currentLiveExecutionApprovalClosed: _liveApprovalClosed,
+		callerHorizonDecisionRequired: _liveCallerHorizon,
 		mostRecentSuccessfulCanonicalLiveExecutionApprovalRef: _liveSuccessfulApproval,
 		mostRecentSuccessfulCanonicalLiveExecutionCloseoutRef: _liveSuccessfulCloseout,
 		...liveCurrent
@@ -342,162 +601,50 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 	return Object.freeze({ topology, live });
 }
 
-function remapD124DescribeValue(value: unknown, key = ""): unknown {
-	if (Array.isArray(value)) return value.map((item) => remapD124DescribeValue(item));
-	if (value !== null && typeof value === "object")
-		return Object.fromEntries(
-			Object.entries(value).map(([entryKey, entryValue]) => [
-				entryKey,
-				remapD124DescribeValue(entryValue, entryKey),
-			]),
-		);
-	if (typeof value !== "string") return value;
-	if (key === "currentImplementationManifestDigest" || key === "implementationManifestDigest")
-		return D124_IMPLEMENTATION_MANIFEST_DIGEST;
-	if (key === "qualificationArtifactDigest")
-		return "sha256:c60022f0351797252fb05ed69fc1823d53b23c1226f40243fc32f1b9af8e72de";
-	if (key === "qualificationDigest")
-		return "sha256:d2a8077750a017af669b9c566f22661e6314a524c332ef631fcaa50d7d49644b";
-	if (key === "eligibilityDigest")
-		return "sha256:a2dbbc97331e6644446d291ccfffbd144b2bce3803a4e8cbe39ba04ac337c001";
-	if (key === "resolutionDigest")
-		return "sha256:79c90f74dd329ad58024dc9a1990161ae018273b19f3c92b8f51871695d54038";
-	return value === "root-eval-live-2026-08-26-d125-v1"
-		? "root-eval-live-2026-08-25-d121-v1"
-		: value;
-}
-
-function buildD124FrozenArtifactBytes(input: {
-	readonly describe: string;
-	readonly observeEvents: string;
-	readonly runSummary: string;
-	readonly mermaid: string;
-}): Readonly<{
-	readonly describe: string;
-	readonly observeEvents: string;
-	readonly runSummary: string;
-	readonly topologyQualification: string;
-	readonly liveQualification: string;
-	readonly mermaid: string;
-}> {
-	const describe = prettyJson(remapD124DescribeValue(JSON.parse(input.describe)));
-	const observeEvents = input.observeEvents;
-	const runSummary = input.runSummary;
-	const mermaid = input.mermaid;
+async function readD124FrozenArtifactBytes(): Promise<
+	Readonly<{
+		readonly describe: string;
+		readonly observeEvents: string;
+		readonly runSummary: string;
+		readonly topologyQualification: string;
+		readonly liveQualification: string;
+		readonly mermaid: string;
+	}>
+> {
+	const [describe, observeEvents, runSummary, topologyQualification, liveQualification, mermaid] =
+		await Promise.all([
+			readFile(ROOT_EVAL_GENERATED_ARTIFACT_PATHS.d124Describe, "utf8"),
+			readFile(ROOT_EVAL_GENERATED_ARTIFACT_PATHS.d124ObserveEvents, "utf8"),
+			readFile(ROOT_EVAL_GENERATED_ARTIFACT_PATHS.d124RunSummary, "utf8"),
+			readFile(ROOT_EVAL_GENERATED_ARTIFACT_PATHS.d124TopologyQualification, "utf8"),
+			readFile(ROOT_EVAL_GENERATED_ARTIFACT_PATHS.d124LiveQualification, "utf8"),
+			readFile(ROOT_EVAL_GENERATED_ARTIFACT_PATHS.d124Mermaid, "utf8"),
+		]);
 	for (const [name, bytes, digest] of [
 		["describe", describe, D124_DESCRIBE_DIGEST],
 		["observe", observeEvents, D124_OBSERVE_DIGEST],
 		["run-summary", runSummary, D124_RUN_SUMMARY_DIGEST],
+		["topology-qualification", topologyQualification, D124_TOPOLOGY_QUALIFICATION_BYTES_DIGEST],
+		["live-qualification", liveQualification, D124_LIVE_QUALIFICATION_BYTES_DIGEST],
 		["mermaid", mermaid, D124_MERMAID_DIGEST],
 	] as const)
 		if (empiricalSha256(Buffer.from(bytes)) !== digest)
-			throw new Error(`root eval D124 frozen ${name} reconstruction drifted`);
-
-	const topologyArtifact = Object.freeze({
-		...ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT,
-		schemaVersion: "graphrefly-ts.root-eval-topology-no-network-qa.v18",
-		decisionRefs: Object.freeze(
-			ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.decisionRefs.filter(
-				(ref) => ref !== "graphrefly-ts:D124" && ref !== "graphrefly-ts:D125",
-			),
-		),
-		implementationManifestDigest: D124_IMPLEMENTATION_MANIFEST_DIGEST,
-		caseResults: remapHistoricalCases(
-			ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.caseResults,
-			{},
-			new Set([
-				"d125ResultNamespacesFresh",
-				"d125RejectsConsumedD121Coordinates",
-				"d125BindsD124RepairReceipt",
-			]),
-		),
-	});
-	if (empiricalStrictJsonDigest(topologyArtifact) !== D124_TOPOLOGY_QA_DIGEST)
-		throw new Error("root eval D124 frozen topology QA reconstruction drifted");
-	const {
-		qualificationDigest: _topologyDigest,
-		d122ImplementationReceiptRef: _topologyD122Receipt,
-		...topologyMaterialCurrent
-	} = ROOT_EVAL_TOPOLOGY_QUALIFICATION;
-	const topologyMaterial = Object.freeze({
-		...topologyMaterialCurrent,
-		schemaVersion: "graphrefly-ts.root-eval-topology-qualification.v18",
-		currentLiveExecutionApprovalRef: null,
-		implementationManifestDigest: D124_IMPLEMENTATION_MANIFEST_DIGEST,
-		qualificationArtifactDigest: D124_TOPOLOGY_QA_DIGEST,
-		status: "qualified-no-network-d122-awaiting-fresh-live-decision",
-	});
-	if (empiricalStrictJsonDigest(topologyMaterial) !== D124_TOPOLOGY_QUALIFICATION_DIGEST)
-		throw new Error("root eval D124 frozen topology qualification reconstruction drifted");
-	const evidenceDigests = Object.freeze({
-		describe: D124_DESCRIBE_DIGEST,
-		observeEvents: D124_OBSERVE_DIGEST,
-		runSummary: D124_RUN_SUMMARY_DIGEST,
-		explanatoryMermaid: D124_MERMAID_DIGEST,
-	});
-	const topologyQualification = prettyJson({
-		artifact: topologyArtifact,
-		artifactDigest: D124_TOPOLOGY_QA_DIGEST,
-		qualification: Object.freeze({
-			...topologyMaterial,
-			qualificationDigest: D124_TOPOLOGY_QUALIFICATION_DIGEST,
-		}),
-		measuredImplementationManifestDigest: D124_IMPLEMENTATION_MANIFEST_DIGEST,
-		evidenceDigests,
-		evidenceBindingDigest: empiricalStrictJsonDigest({
-			implementationManifestDigest: D124_IMPLEMENTATION_MANIFEST_DIGEST,
-			qualificationDigest: D124_TOPOLOGY_QUALIFICATION_DIGEST,
-			evidenceDigests,
-		}),
-	});
-
-	const liveArtifact = Object.freeze({
-		...ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT,
-		schemaVersion: "graphrefly-ts.root-eval-live-no-network-qa.v25",
-		decisionRefs: Object.freeze(
-			ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT.decisionRefs.filter(
-				(ref) => ref !== "graphrefly-ts:D124" && ref !== "graphrefly-ts:D125",
-			),
-		),
-		implementationManifestDigest: D124_IMPLEMENTATION_MANIFEST_DIGEST,
-		caseResults: remapHistoricalCases(
-			ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT.caseResults,
-			{ evidenceV18FilenameExact: "evidenceV17FilenameExact" },
-			new Set([
-				"d125LiveClaimRequiresRuntimeAuthorityProvenance",
-				"d125LiveExecutorConsumesOnlyCommittedLiveClaim",
-				"d125QualificationClaimAndEvidenceCoordinatesFresh",
-				"d125GenerationIsolatedFromConsumedD121",
-				"d125PreclaimWriteSingleUse",
-			]),
-		),
-	});
-	if (empiricalStrictJsonDigest(liveArtifact) !== D124_LIVE_QA_DIGEST)
-		throw new Error("root eval D124 frozen live QA reconstruction drifted");
-	const {
-		qualificationDigest: _liveDigest,
-		d122ImplementationReceiptRef: _liveD122Receipt,
-		...liveMaterialCurrent
-	} = ROOT_EVAL_LIVE_QUALIFICATION;
-	const liveMaterial = Object.freeze({
-		...liveMaterialCurrent,
-		schemaVersion: "graphrefly-ts.root-eval-live-qualification.v25",
-		currentLiveExecutionApprovalRef: null,
-		implementationManifestDigest: D124_IMPLEMENTATION_MANIFEST_DIGEST,
-		qualificationArtifactDigest: D124_LIVE_QA_DIGEST,
-		status: "qualified-no-network-d122-awaiting-fresh-live-decision",
-	});
-	if (empiricalStrictJsonDigest(liveMaterial) !== D124_LIVE_QUALIFICATION_DIGEST)
-		throw new Error("root eval D124 frozen live qualification reconstruction drifted");
-	const liveQualification = prettyJson({
-		artifact: liveArtifact,
-		artifactDigest: D124_LIVE_QA_DIGEST,
-		qualification: Object.freeze({
-			...liveMaterial,
-			qualificationDigest: D124_LIVE_QUALIFICATION_DIGEST,
-		}),
-		measuredImplementationManifestDigest: D124_IMPLEMENTATION_MANIFEST_DIGEST,
-	});
+			throw new Error(`root eval immutable D124 ${name} artifact drifted`);
+	const parsedTopology = JSON.parse(topologyQualification) as {
+		readonly artifactDigest?: string;
+		readonly qualification?: { readonly qualificationDigest?: string };
+	};
+	const parsedLive = JSON.parse(liveQualification) as {
+		readonly artifactDigest?: string;
+		readonly qualification?: { readonly qualificationDigest?: string };
+	};
+	if (
+		parsedTopology.artifactDigest !== D124_TOPOLOGY_QA_DIGEST ||
+		parsedTopology.qualification?.qualificationDigest !== D124_TOPOLOGY_QUALIFICATION_DIGEST ||
+		parsedLive.artifactDigest !== D124_LIVE_QA_DIGEST ||
+		parsedLive.qualification?.qualificationDigest !== D124_LIVE_QUALIFICATION_DIGEST
+	)
+		throw new Error("root eval immutable D124 qualification identity drifted");
 	return Object.freeze({
 		describe,
 		observeEvents,
@@ -512,13 +659,16 @@ function qualificationOutcome(effect: EvalAdmittedToolEffect): EvalEffectOutcome
 	const payload = effect.providerAdmission.request.payload as
 		| { readonly memoryExposureCount?: number }
 		| undefined;
-	const passed = payload?.memoryExposureCount === 1;
-	const expectedDigest = empiricalStrictJsonDigest({
-		kind: "expected-eval-result",
-		replicate: effect.replicate,
-		arm: effect.arm,
-		attempt: effect.attempt,
-	});
+	const passed = effect.workItemRole === "source" || payload?.memoryExposureCount === 1;
+	const expectedDigest =
+		effect.workItemRole === "source"
+			? ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate - 1]!.sourceVerifierEvidenceDigest
+			: empiricalStrictJsonDigest({
+					kind: "expected-eval-result",
+					replicate: effect.replicate,
+					arm: effect.arm,
+					attempt: effect.attempt,
+				});
 	return Object.freeze({
 		kind: "eval-effect-outcome",
 		admission: effect,
@@ -529,6 +679,7 @@ function qualificationOutcome(effect: EvalAdmittedToolEffect): EvalEffectOutcome
 		argumentsDigest: effect.argumentsDigest,
 		effectRunId: effect.effectRunId,
 		workItemId: effect.workItemId,
+		workItemRole: effect.workItemRole,
 		replicate: effect.replicate,
 		arm: effect.arm,
 		attempt: effect.attempt,
@@ -591,12 +742,19 @@ async function qualificationExecutor(effect: EvalExecutableEffect): Promise<Eval
 				id: effect.executionId,
 			}),
 		});
+	const task = ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate - 1]!;
 	const tool = Object.freeze({
 		toolRef: "graphrefly.eval.exact-tool.v1" as const,
-		path: "packages/ts/src/executors/managed-cloud-postgresql.ts",
-		oldText: "old",
-		newText: "new",
+		path: effect.workItemRole === "source" ? task.sourceWritablePath : task.writablePath,
+		oldText: effect.workItemRole === "source" ? task.sourceFixtureBuggyText : task.fixtureBuggyText,
+		newText:
+			effect.workItemRole === "source" ? task.sourceFixtureCorrectText : task.fixtureCorrectText,
 	});
+	const exactRouteHttp429 =
+		effect.workItemRole === "target" &&
+		effect.replicate === 1 &&
+		effect.arm === "cold" &&
+		effect.attempt === 1;
 	return Object.freeze({
 		kind: "eval-provider-outcome" as const,
 		admission: effect,
@@ -605,13 +763,14 @@ async function qualificationExecutor(effect: EvalExecutableEffect): Promise<Eval
 		operationId: effect.operationId,
 		effectRunId: effect.effectRunId,
 		workItemId: effect.workItemId,
+		workItemRole: effect.workItemRole,
 		replicate: effect.replicate,
 		arm: effect.arm,
 		attempt: effect.attempt,
-		status: "tool-proposed" as const,
-		reason: "tool-proposed" as const,
+		status: exactRouteHttp429 ? ("retryable" as const) : ("tool-proposed" as const),
+		reason: exactRouteHttp429 ? ("http-429-retryable" as const) : ("tool-proposed" as const),
 		dispatchAttempted: true,
-		costMicrousd: 10,
+		costMicrousd: exactRouteHttp429 ? 0 : 10,
 		costEvidence: "provider-reported" as const,
 		pricingRoundingAllowanceMicrousd: 0,
 		elapsedMs: effect.replicate * 10 + effect.attempt,
@@ -619,12 +778,14 @@ async function qualificationExecutor(effect: EvalExecutableEffect): Promise<Eval
 			kind: "qualification-provider",
 			id: effect.executionId,
 		}),
-		retryAfterMs: 0,
-		cleanupCompleted: false,
-		toolProposal: Object.freeze({
-			...tool,
-			argumentsDigest: empiricalStrictJsonDigest(tool),
-		}),
+		retryAfterMs: exactRouteHttp429 ? 60_000 : 0,
+		cleanupCompleted: exactRouteHttp429,
+		toolProposal: exactRouteHttp429
+			? null
+			: Object.freeze({
+					...tool,
+					argumentsDigest: empiricalStrictJsonDigest(tool),
+				}),
 	});
 }
 
@@ -639,6 +800,17 @@ export async function buildRootEvalGeneratedArtifactBytes(): Promise<RootEvalGen
 	const topology = createRootEvalTopology({
 		profileInput: createCurrentExactModelHarnessProfileInput(),
 		currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+		campaignRef: "root-eval-confirmatory-2026-08-27-d145-v1",
+		campaignPurpose: "confirmatory",
+		taskSetRef: ROOT_EVAL_DEVELOPMENT_TASKS[0]!.taskSetRef,
+		generationRef: "root-eval-confirmatory-2026-08-27-d145-v1",
+		replicateCount: 5,
+		heldOutSealDigest: ROOT_EVAL_HELD_OUT_SEAL_DIGEST,
+		budgetPartition: "confirmatory-usd-6",
+		partitionHardCapMicrousd: 6_000_000,
+		partitionSpentBeforeMicrousd: 0,
+		partitionLedgerDigest: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER.ledgerDigest,
+		developmentQualificationStreakBefore: 2,
 	});
 	const describe = topology.graph.describe();
 	const rawObservationEvents: Array<RootEvalRunResult["observations"][number]> = [];
@@ -706,12 +878,7 @@ export async function buildRootEvalGeneratedArtifactBytes(): Promise<RootEvalGen
 		measuredImplementationManifestDigest: measuredManifestDigest,
 	});
 	const d120Frozen = buildD120FrozenQualificationBytes();
-	const d124Frozen = buildD124FrozenArtifactBytes({
-		describe: describeBytes,
-		observeEvents: observeEventBytes,
-		runSummary: runSummaryBytes,
-		mermaid: mermaidBytes,
-	});
+	const d124Frozen = await readD124FrozenArtifactBytes();
 	const artifactSet = Object.freeze({
 		format: "graphrefly.rootEvalArtifactSet" as const,
 		version: 1 as const,

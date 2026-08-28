@@ -28,8 +28,9 @@ flowchart TD
     WIRUN --> PPROPOSE["provider proposal"]
     PADMIT -->|"exact model/provider/protocol binding"| PPROPOSE
     PPROPOSE --> SIX["six-proposal replicate barrier"]
-    SIX --> BUDGET["Graph atomic budget + retry admission state"]
+    SIX --> BUDGET["Graph adaptive provider capacity + atomic budget\nall first/retry proposals conserved\ninitial 2 slots; 429 permanently downshifts to 1"]
     RPROPOSE["bounded same-WorkItem attempt-2 proposal"] --> BUDGET
+    BUDGET --> CAPACITY["Graph-visible capacity state\npending / active / settled / rejected\ncooldown readiness + rate-limit feedback"]
     BUDGET --> PADMISSION["provider admission"]
     PADMISSION --> PEXEC["current-provider-effect boundary"]
     PEXEC --> PREG["provider effect lifecycle registry\nGraph state: admitted → settled"]
@@ -39,13 +40,13 @@ flowchart TD
     PTERMINAL["correlated terminal provider result DATA"] --> TADMIT["Graph terminal-result admission"]
     PRETRY["correlated retryable provider result DATA"] --> RADMIT["Graph retryable-result admission\nattempt-2 retry fails closed here"]
     TADMIT --> BUDGET
-    RADMIT --> BUDGET
+    RADMIT -->|"exact-route 429 feedback"| BUDGET
     TADMIT --> PREG
     RADMIT --> PREG
     TADMIT --> RBATCH["read-only provider cohort progress\nnot settlement authority"]
     RADMIT --> RBATCH
     TADMIT --> TOOL["Graph exact-tool admission\nactual path + old/new digest"]
-    RBATCH --> DELAY["Graph retry-delay admission"]
+    RADMIT --> DELAY["per-result Graph retry-delay admission\nno six-result batch barrier"]
     DELAY --> RBOUND["current-retry-delay boundary"]
     RBOUND --> RREG["retry-delay lifecycle registry\nGraph state: admitted → settled"]
     RREG --> RGATE["caller-admitted retry gate"]
@@ -53,6 +54,7 @@ flowchart TD
     RREG --> RCOUNT["retry lifecycle count\nactive = admitted - settled"]
     RRESULT["correlated retry-delay result DATA"] --> RREG
     RRESULT --> RPROPOSE
+    RRESULT -->|"cooldown readiness"| BUDGET
     TOOL --> TBOUND["current-tool-effect boundary"]
     TBOUND --> TREG["exact-tool effect lifecycle registry\nGraph state: admitted → settled"]
     TREG --> TGATE["caller-admitted exact-tool gate"]
@@ -97,6 +99,7 @@ flowchart TD
     ACTIVITY -->|"only zero active + matching budget digest"| FINDING
     FSTATE --> OBS["canonical Graph-native eval observation\nper-class + total active admitted effects"]
     ACTIVITY --> OBS
+    CAPACITY --> OBS
     FINDING --> OBS
     FINDING --> TERMINAL["terminal lifecycle consistency\nzero activity + exact conservation"]
     ACTIVITY --> TERMINAL
