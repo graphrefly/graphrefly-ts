@@ -6,7 +6,7 @@ export type RootEvalTaskKind = "development-transfer" | "confirmatory-transfer";
 export type RootEvalTaskManifestSlot = `development-${number}` | "confirmatory";
 
 export const ROOT_EVAL_TASK_MANIFEST_SCHEMA =
-	"graphrefly-ts.root-eval-d145-task-manifest.v3" as const;
+	"graphrefly-ts.root-eval-d145-task-manifest.v4" as const;
 export const ROOT_EVAL_DEVELOPMENT_TASK_SET_REFS = Object.freeze({
 	"development-1": "root-eval-d145-transfer-development-1-v1",
 	"development-2": "root-eval-d145-transfer-development-2-v1",
@@ -202,73 +202,83 @@ interface TransferVariant {
 const BASELINE_COMMIT = "dea57bdeb4b370dddbbe2505bd05f9e3551b26c6";
 const QUALIFICATION_TASK_SET_REF = "root-eval-d145-transfer-qualification-v1";
 
+const SOURCE_INSIGHT_LENGTH = 384;
+
+function sourceInsightContent(rule: TransferVariant["acceptedRule"]): string {
+	const authority =
+		rule === "source"
+			? "coordinateLeft is the authoritative identity and coordinateRight is not"
+			: rule === "boundary"
+				? "coordinateRight is the authoritative identity and coordinateLeft is not"
+				: "coordinateLeft lowercased is the authoritative identity; raw coordinateLeft and coordinateRight are not";
+	const content = `A prior verified Work Item established this transferable handoff invariant: ${authority}. Compare the locally derived coordinate with that authoritative identity, reject a mismatch, and return the authoritative identity unchanged. Actor-visible names do not determine the authority.`;
+	if (content.length > SOURCE_INSIGHT_LENGTH)
+		throw new TypeError("root eval source insight exceeded its matched bound");
+	return content.padEnd(SOURCE_INSIGHT_LENGTH, " ");
+}
+
 export const ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES = Object.freeze([2, 3, 4, 5, 1] as const);
 
 const VARIANTS: readonly TransferVariant[] = Object.freeze([
 	Object.freeze({
-		slug: "origin-boundary-coordinate",
-		exportName: "admitTrimSensitiveCoordinate",
-		envelopeName: "OriginBoundaryEnvelope",
-		sourceField: "originRef",
-		boundaryField: "boundaryRef",
+		slug: "transfer-a",
+		exportName: "resolveTransferCoordinateA",
+		envelopeName: "TransferEnvelopeA",
+		sourceField: "coordinateLeft",
+		boundaryField: "coordinateRight",
 		acceptedRule: "source",
-		publicCoordinate: "proposal:tenant-alpha:run-7 ",
-		hiddenSourceCoordinate: "proposal:tenant-alpha:run-7 ",
-		boundaryCoordinate: "proposal:tenant-alpha:run-7",
-		sourceInsightContent:
-			"A prior verified Work Item established that originRef is the causal identity for this handoff. boundaryRef is a transport-facing representation and can differ without changing the source admission; compare the local coordinate with originRef and return originRef unchanged.",
+		publicCoordinate: "coordinate-a ",
+		hiddenSourceCoordinate: "coordinate-a ",
+		boundaryCoordinate: "coordinate-a",
+		sourceInsightContent: sourceInsightContent("source"),
 	}),
 	Object.freeze({
-		slug: "issued-presentation-coordinate",
-		exportName: "admitCaseSensitiveCoordinate",
-		envelopeName: "IssuedPresentationEnvelope",
-		sourceField: "issuedKey",
-		boundaryField: "presentationKey",
+		slug: "transfer-b",
+		exportName: "resolveTransferCoordinateB",
+		envelopeName: "TransferEnvelopeB",
+		sourceField: "coordinateLeft",
+		boundaryField: "coordinateRight",
 		acceptedRule: "boundary",
-		publicCoordinate: "RunAdmission:TenantA:CandidateZ",
-		hiddenSourceCoordinate: "RunAdmission:TenantA:CandidateZ",
-		boundaryCoordinate: "runadmission:tenanta:candidatez",
-		sourceInsightContent:
-			"A prior verified Work Item established that presentationKey is the signed admission identity after issuer canonicalization. issuedKey is only the pre-presentation candidate; compare the local coordinate with presentationKey and return presentationKey unchanged.",
+		publicCoordinate: "coordinate-b-left",
+		hiddenSourceCoordinate: "coordinate-b-left",
+		boundaryCoordinate: "coordinate-b-right",
+		sourceInsightContent: sourceInsightContent("boundary"),
 	}),
 	Object.freeze({
-		slug: "causal-lookup-coordinate",
-		exportName: "admitCompositeCoordinate",
-		envelopeName: "CausalLookupEnvelope",
-		sourceField: "causalId",
-		boundaryField: "lookupId",
+		slug: "transfer-c",
+		exportName: "resolveTransferCoordinateC",
+		envelopeName: "TransferEnvelopeC",
+		sourceField: "coordinateLeft",
+		boundaryField: "coordinateRight",
 		acceptedRule: "source",
-		publicCoordinate: "workspace-A#proposal-B#attempt-C",
-		hiddenSourceCoordinate: "workspace-A#proposal-B#attempt-C",
-		boundaryCoordinate: "attempt-C",
-		sourceInsightContent:
-			"A prior verified Work Item established that causalId retains the namespace needed for admission identity. lookupId is only an index key; compare the local coordinate with causalId and return the complete causalId.",
+		publicCoordinate: "coordinate-c-left/full",
+		hiddenSourceCoordinate: "coordinate-c-left/full",
+		boundaryCoordinate: "coordinate-c-right/part",
+		sourceInsightContent: sourceInsightContent("source"),
 	}),
 	Object.freeze({
-		slug: "stored-rendered-coordinate",
-		exportName: "admitSerializedCoordinate",
-		envelopeName: "StoredRenderedEnvelope",
-		sourceField: "storedToken",
-		boundaryField: "renderedToken",
+		slug: "transfer-d",
+		exportName: "resolveTransferCoordinateD",
+		envelopeName: "TransferEnvelopeD",
+		sourceField: "coordinateLeft",
+		boundaryField: "coordinateRight",
 		acceptedRule: "boundary",
-		publicCoordinate: '{ "run": "7", "tenant": "alpha" }',
-		hiddenSourceCoordinate: '{ "run": "7", "tenant": "alpha" }',
-		boundaryCoordinate: '{"run":"7","tenant":"alpha"}',
-		sourceInsightContent:
-			"A prior verified Work Item established that renderedToken is the admission identity after canonical serialization and signature. storedToken is the pre-render storage candidate; compare and return renderedToken unchanged.",
+		publicCoordinate: '{ "coordinate": "d-left" }',
+		hiddenSourceCoordinate: '{ "coordinate": "d-left" }',
+		boundaryCoordinate: '{"coordinate":"d-right"}',
+		sourceInsightContent: sourceInsightContent("boundary"),
 	}),
 	Object.freeze({
-		slug: "producer-alias-coordinate",
-		exportName: "admitEncodedCoordinate",
-		envelopeName: "ProducerAliasEnvelope",
-		sourceField: "producerRef",
-		boundaryField: "localAlias",
+		slug: "transfer-e",
+		exportName: "resolveTransferCoordinateE",
+		envelopeName: "TransferEnvelopeE",
+		sourceField: "coordinateLeft",
+		boundaryField: "coordinateRight",
 		acceptedRule: "normalized-source",
-		publicCoordinate: "proposal/tenant-alpha/run-7",
-		hiddenSourceCoordinate: "Proposal/Tenant-Alpha/Run-7",
-		boundaryCoordinate: "proposal/tenant-alpha/local-alias",
-		sourceInsightContent:
-			"A prior verified Work Item established that producerRef must be normalized to lowercase before admission comparison and return. localAlias is an independently assigned convenience value and must not replace the normalized producer identity.",
+		publicCoordinate: "coordinate-e-left",
+		hiddenSourceCoordinate: "Coordinate-E-Left",
+		boundaryCoordinate: "coordinate-e-right",
+		sourceInsightContent: sourceInsightContent("normalized-source"),
 	}),
 ]);
 
@@ -480,12 +490,12 @@ function createTask(
 		replicate,
 		baselineCommit: BASELINE_COMMIT,
 		writablePath,
-		taskStatement: `A handoff regression causes some valid admission coordinates to be rejected. Restore stable agreement while retaining mismatch rejection. The two envelope coordinates can coincide in ordinary traffic but are not guaranteed to do so. Make the smallest change in the admitted file only.
+		taskStatement: `A handoff regression causes some valid admission coordinates to be rejected. Restore stable agreement while retaining mismatch rejection. The two envelope coordinates can coincide in ordinary traffic but are not guaranteed to do so. Actor-visible names and files intentionally do not identify which coordinate is authoritative; that invariant is established only by a causally prior verified Work Item when its memory is admitted. Make the smallest change in the admitted file only.
 
 Acceptance criteria:
 1. Valid handoff fixtures are accepted and round-trip through the consumer.
 2. A locally derived coordinate that does not identify the admitted handoff is rejected.
-3. Preserve the causal identity established by the upstream handoff.
+3. Preserve the authority selected by the causally prior handoff without reconstructing it from names.
 4. Only ${writablePath} changes.`,
 		sourceWorkItemRef,
 		sourceVerifierEvidenceDigest,
@@ -570,6 +580,11 @@ function createTaskSet(
 	variants: readonly TransferVariant[] = VARIANTS,
 	coordinateSuffix = "",
 ): readonly RootEvalTaskDefinition[] {
+	const suffixed = (coordinate: string): string => {
+		if (coordinateSuffix.length === 0) return coordinate;
+		const trailingWhitespace = /\s*$/u.exec(coordinate)?.[0] ?? "";
+		return `${coordinate.slice(0, coordinate.length - trailingWhitespace.length)}${coordinateSuffix}${trailingWhitespace}`;
+	};
 	return Object.freeze(
 		variants.map((_variant, index) =>
 			createTask(
@@ -577,8 +592,8 @@ function createTaskSet(
 				(index + 1) as 1 | 2 | 3 | 4 | 5,
 				variants[index]!,
 				taskSetRef,
-				`${variants[index]!.publicCoordinate}${coordinateSuffix}`,
-				`${variants[index]!.hiddenSourceCoordinate}${coordinateSuffix}`,
+				suffixed(variants[index]!.publicCoordinate),
+				suffixed(variants[index]!.hiddenSourceCoordinate),
 			),
 		),
 	);
@@ -621,7 +636,7 @@ export function rootEvalTaskBindings(
 }
 
 export const ROOT_EVAL_HELD_OUT_SEAL_DIGEST =
-	"sha256:3ccbca4701877bb96781eab2f92e16600dafe5aa0f85e1b756bb997e8d447982" as const;
+	"sha256:42d1f3ad9aaf37c43ab9bca6e3b752b372955aded3d6ce85d3be68b039996dbf" as const;
 
 export const ROOT_EVAL_D145_TASK_SET_BINDING_DIGEST = empiricalStrictJsonDigest(
 	strictSnapshot({

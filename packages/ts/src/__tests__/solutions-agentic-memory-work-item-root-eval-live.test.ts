@@ -4279,13 +4279,35 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			if (accepted.field === fields[0]) return accepted.normalized ? "normalized-source" : "source";
 			return "boundary";
 		};
+		const insightAuthorityClass = (
+			content: string,
+		): "source" | "boundary" | "normalized-source" => {
+			if (content.includes("coordinateLeft lowercased is the authoritative identity"))
+				return "normalized-source";
+			if (content.includes("coordinateLeft is the authoritative identity")) return "source";
+			if (content.includes("coordinateRight is the authoritative identity")) return "boundary";
+			throw new TypeError("source insight authority missing");
+		};
 		const bindings = rootEvalTaskBindings(ROOT_EVAL_DEVELOPMENT_TASKS);
 		expect(bindings).toHaveLength(5);
 		expect(new Set(bindings.map((binding) => binding.irrelevantTaskInstanceRef)).size).toBe(5);
+		expect(
+			new Set(ROOT_EVAL_DEVELOPMENT_TASKS.map((task) => task.sourceInsightContent.length)),
+		).toEqual(new Set([384]));
 		for (const [index, binding] of bindings.entries()) {
 			const target = ROOT_EVAL_DEVELOPMENT_TASKS[index]!;
 			const irrelevantIndex = ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES[index]! - 1;
 			const irrelevant = ROOT_EVAL_DEVELOPMENT_TASKS[irrelevantIndex]!;
+			expect(target.readonlyFixtureFiles[0]!.text).toContain("readonly coordinateLeft: string;");
+			expect(target.readonlyFixtureFiles[0]!.text).toContain("readonly coordinateRight: string;");
+			expect(target.taskStatement).toContain(
+				"Actor-visible names and files intentionally do not identify which coordinate is authoritative",
+			);
+			expect(target.taskStatement).not.toMatch(
+				/originRef|boundaryRef|issuedKey|presentationKey|causalId|lookupId|storedToken|renderedToken|producerRef|localAlias/u,
+			);
+			expect(target.sourceInsightContent).not.toContain(target.writablePath);
+			expect(irrelevant.sourceInsightContent.length).toBe(target.sourceInsightContent.length);
 			expect(binding.irrelevantTaskInstanceRef).toBe(irrelevant.instanceRef);
 			expect(binding.irrelevantSourceInsightDigest).toBe(irrelevant.sourceInsightDigest);
 			const targetClass = authorityClass(
@@ -4302,7 +4324,23 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			);
 			expect(targetClass).not.toBe(irrelevantCorrectClass);
 			expect(irrelevantCorrectClass).not.toBe(irrelevantBuggyClass);
+			expect(insightAuthorityClass(target.sourceInsightContent)).toBe(targetClass);
+			expect(insightAuthorityClass(irrelevant.sourceInsightContent)).toBe(irrelevantCorrectClass);
 		}
+	});
+
+	it("keeps coordinate edge cases load-bearing when private manifests add a suffix", () => {
+		const manifest = createRootEvalTaskManifest({
+			slot: "development-7",
+			variantOrder: [0, 1, 2, 3, 4],
+			coordinateSuffix: "manifest-suffix-1234",
+		});
+		expect(manifest.tasks[0]!.hiddenVerifierSource).toContain(
+			JSON.stringify("coordinate-a:manifest-suffix-1234 "),
+		);
+		expect(manifest.tasks[0]!.hiddenVerifierSource).not.toContain(
+			JSON.stringify("coordinate-a :manifest-suffix-1234"),
+		);
 	});
 
 	it("binds D140 zero-BYOK and current-key admission to the same Local Eval 2 credential", async () => {

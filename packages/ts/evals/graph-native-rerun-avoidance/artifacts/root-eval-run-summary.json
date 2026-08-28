@@ -51,7 +51,7 @@
 		"excludedTechnicalReplicates": [],
 		"finding": "no-positive-differential",
 		"generationRef": "root-eval-confirmatory-2026-08-27-d145-v1",
-		"heldOutSealDigest": "sha256:3ccbca4701877bb96781eab2f92e16600dafe5aa0f85e1b756bb997e8d447982",
+		"heldOutSealDigest": "sha256:42d1f3ad9aaf37c43ab9bca6e3b752b372955aded3d6ce85d3be68b039996dbf",
 		"kind": "eval-observation",
 		"matchedRelevantOverColdWins": 5,
 		"memoryProvenance": {
@@ -64,7 +64,7 @@
 		},
 		"observedBilledMicrousd": 350,
 		"partitionHardCapMicrousd": 6000000,
-		"partitionLedgerDigest": "sha256:64422c8796a878a23774418e08c452559d94e92d880900ac8bc7d5bd40b10cd1",
+		"partitionLedgerDigest": "sha256:ac32218952562f91fe64bdaf77f22e5e85798d9f6c17b33ad5fcbd05540214f2",
 		"partitionSpentBeforeMicrousd": 0,
 		"pendingRetryProposalCount": 0,
 		"pricingRoundingAllowanceMicrousd": 0,
