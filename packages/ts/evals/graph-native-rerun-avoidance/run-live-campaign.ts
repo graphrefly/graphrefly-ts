@@ -376,6 +376,7 @@ async function persistClaimedEvidence(input: {
 		providerReportedMicrousd,
 		unreportedSettledUpperBoundMicrousd,
 		accountedUpperBoundMicrousd,
+		admissionStatus: evidence.admissionReport.status,
 		developmentQualification: terminalQualification ?? null,
 		evidenceDigest: evidence.evidenceDigest,
 	});

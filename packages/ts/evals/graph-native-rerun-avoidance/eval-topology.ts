@@ -7522,6 +7522,14 @@ async function runRootEvalWithOutcomeInput(
 				observation.finding === "pending"
 			)
 				return;
+			try {
+				assertRootEvalFindingTerminalConsistency(finding, observation);
+			} catch {
+				// The observation dependency may deliver its terminal DATA before the
+				// caller's independent finding subscriber receives that same wave. Wait
+				// for the correlated finding instead of assembling two different cuts.
+				return;
+			}
 			settled = true;
 			stopSubscriptions();
 			const result = Object.freeze({

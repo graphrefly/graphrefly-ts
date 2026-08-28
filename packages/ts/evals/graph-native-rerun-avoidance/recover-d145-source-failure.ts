@@ -374,6 +374,7 @@ async function main(): Promise<void> {
 		providerReportedMicrousd: spend.providerReportedMicrousd,
 		unreportedSettledUpperBoundMicrousd: spend.unreportedSettledUpperBoundMicrousd,
 		accountedUpperBoundMicrousd: spend.accountedUpperBoundMicrousd,
+		admissionStatus: evidence.admissionReport.status,
 		developmentQualification: null,
 		evidenceDigest: evidence.evidenceDigest,
 	});

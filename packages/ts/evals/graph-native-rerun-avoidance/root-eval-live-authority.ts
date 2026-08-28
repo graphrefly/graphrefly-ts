@@ -2466,6 +2466,11 @@ function projectRootEvalRunResult(value: unknown): ParsedRootEvalRunResult {
 	});
 }
 
+/** @internal Package-private diagnostic assertion for the sealed live-evidence boundary. */
+export function assertRootEvalRunResultAdmissionShape(value: unknown): void {
+	projectRootEvalRunResult(value);
+}
+
 function projectPartialObservations(values: readonly ObserveEvent[]): readonly ObserveEvent[] {
 	let source: readonly unknown[];
 	try {

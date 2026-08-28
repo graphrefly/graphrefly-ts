@@ -71,6 +71,7 @@ import {
 	acquireRootEvalLiveClaimForNoNetworkQualification,
 	admitRootEvalLivePrecredentialGateReceipt,
 	admitRootEvalLiveZeroByok,
+	assertRootEvalRunResultAdmissionShape,
 	buildRootEvalLiveZeroByokArtifactBytes,
 	constructRootEvalLiveEvidence,
 	evaluateRootEvalLiveAdmission,
@@ -1031,12 +1032,36 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				providerReportedMicrousd: 101,
 				unreportedSettledUpperBoundMicrousd: 0,
 				accountedUpperBoundMicrousd: 101,
+				admissionStatus: "admitted",
 				developmentQualification: qualified(1),
 				evidenceDigest: empiricalStrictJsonDigest("development-1-evidence"),
 			});
 			await writeRootEvalD145CharterLedger(path, first);
 			expect((await stat(path)).mode & 0o777).toBe(0o600);
 			expect(await readRootEvalD145CharterLedger(path)).toEqual(first);
+			const rejectedCandidate = advanceRootEvalD145CharterLedger({
+				ledger: first,
+				generationRef: "development-rejected",
+				campaignPurpose: "development",
+				taskSetRef: "root-eval-d145-transfer-development-2-v1",
+				taskManifestDigest: empiricalStrictJsonDigest("development-rejected-manifest"),
+				budgetPartition: "development-usd-6",
+				providerReportedMicrousd: 1,
+				unreportedSettledUpperBoundMicrousd: 0,
+				accountedUpperBoundMicrousd: 1,
+				admissionStatus: "rejected",
+				developmentQualification: qualified(2),
+				evidenceDigest: empiricalStrictJsonDigest("development-rejected-evidence"),
+			});
+			expect(rejectedCandidate).toMatchObject({
+				developmentQualificationStreak: 0,
+				entries: expect.arrayContaining([
+					expect.objectContaining({
+						generationRef: "development-rejected",
+						generationQualified: false,
+					}),
+				]),
+			});
 			expect(() =>
 				advanceRootEvalD145CharterLedger({
 					ledger: first,
@@ -1048,6 +1073,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					providerReportedMicrousd: 1,
 					unreportedSettledUpperBoundMicrousd: 0,
 					accountedUpperBoundMicrousd: 1,
+					admissionStatus: "admitted",
 					developmentQualification: null,
 					evidenceDigest: empiricalStrictJsonDigest("too-early"),
 				}),
@@ -1062,6 +1088,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				providerReportedMicrousd: 202,
 				unreportedSettledUpperBoundMicrousd: 0,
 				accountedUpperBoundMicrousd: 202,
+				admissionStatus: "admitted",
 				developmentQualification: qualified(2),
 				evidenceDigest: empiricalStrictJsonDigest("development-2-evidence"),
 			});
@@ -1075,6 +1102,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				providerReportedMicrousd: 303,
 				unreportedSettledUpperBoundMicrousd: 0,
 				accountedUpperBoundMicrousd: 303,
+				admissionStatus: "admitted",
 				developmentQualification: {
 					kind: "eval-development-qualification-state",
 					campaignPurpose: "confirmatory",
@@ -1104,6 +1132,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					providerReportedMicrousd: 1,
 					unreportedSettledUpperBoundMicrousd: 0,
 					accountedUpperBoundMicrousd: 1,
+					admissionStatus: "admitted",
 					developmentQualification: null,
 					evidenceDigest: empiricalStrictJsonDigest("confirmatory-2"),
 				}),
@@ -3891,6 +3920,12 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 	it("completes a live-shaped six-arm 429 lifecycle through six Graph-admitted retries", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-live-six-429-"));
 		const materializationRoot = join(temporary, "workspaces");
+		const taskManifest = createRootEvalTaskManifest({
+			slot: "development-1",
+			variantOrder: [0, 1, 2, 3, 4],
+			coordinateSuffix: "no-network-shape",
+		});
+		const tasks = taskManifest.tasks;
 		expect(
 			rootEvalWorkspaceForAdmission(materializationRoot, {
 				replicate: 1,
@@ -3917,9 +3952,11 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			repositoryRoot,
 			materializationRoot,
 			pricing,
+			taskManifestSlot: "development-1",
+			taskManifest,
 			providerResponses: [],
 			providerResponseForEffect(effect) {
-				const task = ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate - 1]!;
+				const task = tasks[effect.replicate - 1]!;
 				if (effect.workItemRole === "source")
 					return { status: 200, bytes: providerBytesForSourceTask(task) };
 				return effect.replicate === 1 && effect.attempt === 1 ? retryable : successful(task);
@@ -3931,7 +3968,16 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					profileInput: createCurrentExactModelHarnessProfileInput(),
 					currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
 					campaignRef: ROOT_EVAL_LIVE_GENERATION_REF,
-					taskSetRef: ROOT_EVAL_DEVELOPMENT_TASK.taskSetRef,
+					campaignPurpose: ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE,
+					taskSetRef: taskManifest.taskSetRef,
+					taskManifestDigest: taskManifest.manifestDigest,
+					taskBindings: rootEvalTaskBindings(tasks),
+					generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
+					heldOutSealDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
+					budgetPartition: ROOT_EVAL_LIVE_BUDGET_PARTITION,
+					partitionHardCapMicrousd: 6_000_000,
+					partitionLedgerDigest: testPartitionLedgerDigest,
+					developmentQualificationStreakBefore: 0,
 					maxCostMicrousd: 6_000_000,
 					reservationMicrousd: 200_000,
 				}),
@@ -3952,6 +3998,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			);
 			expect(executor.providerRequestSummaries()).toHaveLength(41);
 			expect(graphResult.executedAdmissionIds).toHaveLength(41);
+			assertRootEvalRunResultAdmissionShape(graphResult);
 			expect(graphResult.finding).toMatchObject({
 				completedWorkItems: 30,
 				admittedAttempts: 41,

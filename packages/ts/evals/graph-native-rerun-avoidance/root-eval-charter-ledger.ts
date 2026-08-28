@@ -252,10 +252,19 @@ export function advanceRootEvalD145CharterLedger(input: {
 	readonly providerReportedMicrousd: number;
 	readonly unreportedSettledUpperBoundMicrousd: number;
 	readonly accountedUpperBoundMicrousd: number;
+	readonly admissionStatus: "admitted" | "rejected" | "not-candidate";
 	readonly developmentQualification: EvalDevelopmentQualificationState | null;
 	readonly evidenceDigest: string;
 }): RootEvalD145CharterLedger {
 	const ledger = validateLedger(input.ledger);
+	if (
+		!(
+			"admitted" === input.admissionStatus ||
+			"rejected" === input.admissionStatus ||
+			"not-candidate" === input.admissionStatus
+		)
+	)
+		throw new TypeError("root eval D145 evidence admission status invalid");
 	if (ledger.entries.some((entry) => entry.generationRef === input.generationRef))
 		throw new TypeError("root eval D145 generation was already recorded");
 	if (
@@ -314,7 +323,8 @@ export function advanceRootEvalD145CharterLedger(input: {
 		throw new TypeError("root eval D145 partition hard cap exceeded");
 	const generationQualified =
 		input.campaignPurpose === "development"
-			? input.developmentQualification?.generationQualified === true
+			? input.admissionStatus === "admitted" &&
+				input.developmentQualification?.generationQualified === true
 			: null;
 	const developmentQualificationStreak =
 		input.campaignPurpose === "development"
@@ -323,6 +333,7 @@ export function advanceRootEvalD145CharterLedger(input: {
 				: 0
 			: ledger.developmentQualificationStreak;
 	if (
+		input.admissionStatus === "admitted" &&
 		input.developmentQualification !== null &&
 		input.developmentQualification.consecutiveQualifyingGenerations !==
 			developmentQualificationStreak

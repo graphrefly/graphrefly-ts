@@ -2220,6 +2220,7 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 	readonly pricing: RootEvalLivePricing;
 	readonly taskKind?: RootEvalTaskKind;
 	readonly taskManifestSlot?: RootEvalTaskManifestSlot;
+	readonly taskManifest?: RootEvalTaskManifest;
 	readonly providerResponses: readonly Readonly<{
 		readonly status: number;
 		readonly bytes: Uint8Array;
@@ -2238,9 +2239,12 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 	const materializationRoot = resolve(input.materializationRoot);
 	const taskKind = input.taskKind ?? "development-transfer";
 	const taskManifest =
-		input.taskManifestSlot === undefined
+		input.taskManifest ??
+		(input.taskManifestSlot === undefined
 			? undefined
-			: readRootEvalTaskManifest(input.taskManifestSlot);
+			: readRootEvalTaskManifest(input.taskManifestSlot));
+	if (taskManifest !== undefined && input.taskManifestSlot !== taskManifest.slot)
+		throw new TypeError("root eval no-network task manifest slot drifted");
 	const tasks = taskManifest?.tasks ?? ROOT_EVAL_DEVELOPMENT_TASKS;
 	const taskManifestDigest = taskManifest?.manifestDigest ?? ROOT_EVAL_DEVELOPMENT_TASK_SET_DIGEST;
 	const taskForEffect = (effect: Pick<EvalAdmittedEffect, "replicate" | "workItemRole">) => {

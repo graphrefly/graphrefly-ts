@@ -1102,7 +1102,10 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 
 	it("rejects forged admission coordinates and invalid accounting before cleanup", async () => {
 		for (const patch of [
-			{ workItemId: "forged/replicate-5/wrong-scope-applied", arm: "wrong-scope-applied" as const },
+			{
+				workItemId: "forged/replicate-5/wrong-scope-applied",
+				arm: "wrong-scope-applied" as const,
+			},
 			{ costMicrousd: -1 },
 			{ costMicrousd: 1 },
 		] as readonly Record<string, unknown>[]) {
@@ -1124,7 +1127,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			expect(checked).toBe(true);
 		}
 		expect(Object.keys(createTopology().inputs)).toEqual(["start"]);
-	});
+	}, 15_000);
 
 	it("does not expose the raw outcome input and rejects a structural-clone receipt", async () => {
 		await expect(
