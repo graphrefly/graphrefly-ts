@@ -28,6 +28,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Root-eval qualification materializes its frozen task baseline from
+          # an exact historical commit. Keep CI fail-closed without replacing
+          # that baseline with HEAD or a synthetic fixture.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v6
         with:
