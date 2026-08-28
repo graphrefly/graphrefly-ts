@@ -63,6 +63,7 @@ import {
 	ROOT_EVAL_TOOL_SETTLEMENT_LEASE_MS,
 	RootEvalCallerSettlementDeadlineExpired,
 	readRootEvalBoundedResponseBytes,
+	rootEvalWorkspaceForAdmission,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-live.js";
 import {
 	acquireRootEvalLiveClaim,
@@ -3850,6 +3851,21 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 	it("completes a live-shaped six-arm 429 lifecycle through six Graph-admitted retries", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-live-six-429-"));
 		const materializationRoot = join(temporary, "workspaces");
+		expect(
+			rootEvalWorkspaceForAdmission(materializationRoot, {
+				replicate: 1,
+				workItemRole: "source",
+				arm: "cold",
+				attempt: 1,
+			}),
+		).not.toBe(
+			rootEvalWorkspaceForAdmission(materializationRoot, {
+				replicate: 1,
+				workItemRole: "target",
+				arm: "cold",
+				attempt: 1,
+			}),
+		);
 		const retryable = Object.freeze({
 			status: 429,
 			bytes: new TextEncoder().encode("{}"),

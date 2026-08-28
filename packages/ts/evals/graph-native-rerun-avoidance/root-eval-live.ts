@@ -1251,7 +1251,7 @@ async function materialize(input: {
 }): Promise<string> {
 	input.signal?.throwIfAborted();
 	const task = input.task ?? rootEvalTask("development-transfer", input.effect.replicate);
-	const root = workspaceFor(input.materializationRoot, input.effect);
+	const root = rootEvalWorkspaceForAdmission(input.materializationRoot, input.effect);
 	await mkdir(dirname(root), { recursive: true, mode: 0o700 });
 	input.signal?.throwIfAborted();
 	const clone = await runProcess({
@@ -1322,8 +1322,14 @@ async function materialize(input: {
 	return root;
 }
 
-function workspaceFor(root: string, effect: EvalAdmittedEffect): string {
-	return join(root, `replicate-${effect.replicate}-${effect.arm}-attempt-${effect.attempt}`);
+export function rootEvalWorkspaceForAdmission(
+	root: string,
+	effect: Pick<EvalAdmittedEffect, "replicate" | "workItemRole" | "arm" | "attempt">,
+): string {
+	return join(
+		root,
+		`replicate-${effect.replicate}-${effect.workItemRole}-${effect.arm}-attempt-${effect.attempt}`,
+	);
 }
 
 async function applyExactTool(
@@ -1664,7 +1670,7 @@ function createRootEvalLiveExecutorInternal(
 			cancellation.signal,
 		);
 		const lease = createRootEvalEffectLease(effect.timeoutMs, settlementLease.signal);
-		const root = workspaceFor(materializationRoot, effect);
+		const root = rootEvalWorkspaceForAdmission(materializationRoot, effect);
 		let postDispatch = false;
 		let confirmedCostMicrousd = 0;
 		let confirmedPricingRoundingAllowanceMicrousd = 0;
@@ -1843,7 +1849,7 @@ function createRootEvalLiveExecutorInternal(
 						task: "d145-prior-work-item-transfer-acceptance",
 					});
 		const started = performance.now();
-		const root = workspaceFor(materializationRoot, effect.providerAdmission);
+		const root = rootEvalWorkspaceForAdmission(materializationRoot, effect.providerAdmission);
 		const lease = createRootEvalSettlementLease(
 			"exact-tool",
 			ROOT_EVAL_TOOL_SETTLEMENT_LEASE_MS,
@@ -2420,7 +2426,7 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 						task: "d145-prior-work-item-transfer-acceptance",
 					});
 		const started = performance.now();
-		const root = workspaceFor(materializationRoot, effect.providerAdmission);
+		const root = rootEvalWorkspaceForAdmission(materializationRoot, effect.providerAdmission);
 		const lease = createRootEvalSettlementLease(
 			"exact-tool",
 			ROOT_EVAL_TOOL_SETTLEMENT_LEASE_MS,
