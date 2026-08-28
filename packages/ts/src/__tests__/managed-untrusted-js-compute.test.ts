@@ -1349,6 +1349,17 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		const acknowledgements = collect(runtime.cancellations);
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 		const cleanup = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
+		const cleanupSucceeded = new Promise<void>((resolve) => {
+			const unsubscribe = runtime.cleanup.subscribe((message) => {
+				if (
+					message[0] === "DATA" &&
+					(message[1] as ManagedUntrustedJsComputeCleanupStatus).state === "succeeded"
+				) {
+					unsubscribe();
+					resolve();
+				}
+			});
+		});
 		inputs.down([["DATA", input()]]);
 		manifests.down([["DATA", manifest({ executionTimeoutMs: 100, cleanupTimeoutMs: 10 })]]);
 		postures.down([["DATA", readiness()]]);
@@ -1364,8 +1375,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		]);
 		await new Promise((resolve) => setTimeout(resolve, 15));
 		releaseCreate?.();
-		await new Promise((resolve) => setTimeout(resolve, 5));
-		await settle();
+		await cleanupSucceeded;
 		expect(outcomes).toEqual([expect.objectContaining({ kind: "result" })]);
 		expect(cleanup).toEqual([expect.objectContaining({ state: "succeeded" })]);
 		expect(events).toEqual([

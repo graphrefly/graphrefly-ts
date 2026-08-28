@@ -1776,6 +1776,14 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			bearerToken: claimInput.credential.bearerToken,
 			pricing: claimInput.pricing,
 			providerResponses: [],
+			beforeProviderDispatch: async (effect, signal) => {
+				if (effect.workItemRole !== "target") return;
+				await new Promise<void>((_resolve, reject) => {
+					const abort = () => reject(signal.reason);
+					if (signal.aborted) abort();
+					else signal.addEventListener("abort", abort, { once: true });
+				});
+			},
 			providerResponseForRequest(request) {
 				const encoded = JSON.stringify(request);
 				const targetTask = ROOT_EVAL_DEVELOPMENT_TASKS.find((task) =>
@@ -1810,8 +1818,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				providerOutcomeReasonCounts: { "transport-failed": 30, "tool-proposed": 5 },
 			});
 			expect(result.peakConcurrentEffects).toBe(2);
-			// The Work Item lease covers pre-dispatch materialization, so an
-			// already-expired effect cannot commit a dispatch or reach transport.
+			// The explicit pre-dispatch barrier proves the Work Item lease covers
+			// the full pre-dispatch path independently of checkout speed.
 			expect(executor.providerRequestSummaries()).toHaveLength(5);
 			expect(await readdir(join(temporary, "workspaces"))).toEqual([]);
 		} finally {

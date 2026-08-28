@@ -1583,6 +1583,10 @@ export interface RootEvalLiveExecutorInput {
 	readonly taskManifestSlot?: RootEvalTaskManifestSlot;
 	readonly taskManifest?: RootEvalTaskManifest;
 	readonly diagnosticMode?: "none" | "development-private";
+	readonly beforeProviderDispatch?: (
+		effect: EvalAdmittedEffect,
+		signal: AbortSignal,
+	) => Promise<void>;
 	readonly onProviderCall?: (effect: EvalAdmittedEffect) => void;
 	readonly wait?: (delayMs: number, signal?: AbortSignal) => Promise<void>;
 	readonly observeCurrentKey?: (
@@ -1675,6 +1679,11 @@ function createRootEvalLiveExecutorInternal(
 			if (materializedRoot !== root)
 				throw new TypeError("root eval materialized workspace identity drifted");
 			const body = await liveWire(effect, root, task, tasks, taskManifestDigest, lease.signal);
+			if (input.beforeProviderDispatch !== undefined)
+				await awaitRootEvalAbortable(
+					input.beforeProviderDispatch(effect, lease.signal),
+					lease.signal,
+				);
 			lease.signal.throwIfAborted();
 			await consumeCurrentProviderDispatch({
 				privateRoot: input.privateRoot,
@@ -2095,6 +2104,10 @@ export function createRootEvalLiveTransportQualificationExecutor(input: {
 		readonly stallUntilAbort?: boolean;
 		readonly stallBodyUntilAbort?: boolean;
 	}>;
+	readonly beforeProviderDispatch?: (
+		effect: EvalAdmittedEffect,
+		signal: AbortSignal,
+	) => Promise<void>;
 	readonly onProviderCall?: (effect: EvalAdmittedEffect) => void;
 	readonly removeDispatchStage?: (stage: string) => Promise<void>;
 }): RootEvalLiveTransportQualificationExecutor {
@@ -2181,6 +2194,7 @@ export function createRootEvalLiveTransportQualificationExecutor(input: {
 			taskKind: input.taskKind,
 			taskManifestSlot: input.taskManifestSlot,
 			diagnosticMode: input.diagnosticMode,
+			beforeProviderDispatch: input.beforeProviderDispatch,
 			onProviderCall: input.onProviderCall,
 			removeDispatchStage: input.removeDispatchStage,
 		},
