@@ -4154,6 +4154,17 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 	it("qualifies all five transfer tasks with ambiguous public and discriminating private verifiers", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-transfer-family-"));
 		try {
+			for (const task of ROOT_EVAL_DEVELOPMENT_TASKS) {
+				const acceptedExpression = task.sourceFixtureCorrectText.match(
+					/const acceptedCoordinate = ([^;]+);/u,
+				)?.[1];
+				expect(acceptedExpression).toBeDefined();
+				expect(task.sourceTaskStatement).toContain(
+					`Set acceptedCoordinate to ${acceptedExpression}.`,
+				);
+				expect(task.sourceTaskStatement).toContain("Return acceptedCoordinate.");
+				expect(task.sourceTaskStatement).toContain("Do not return locallyDerivedCoordinate");
+			}
 			expect(
 				await qualifyRootEvalTransferTaskFamily({
 					repositoryRoot,

@@ -308,6 +308,22 @@ function acceptedExpression(
 	return `envelope.${rule === "source" ? variant.sourceField : variant.boundaryField}`;
 }
 
+function sourceTaskStatement(
+	variant: TransferVariant,
+	sourceWritablePath: string,
+	rejectedSourceIdentity: string,
+	admittedSourceIdentity: string,
+): string {
+	const expression = acceptedExpression(variant);
+	return `A source Work Item found that a producer handoff was accepting ${rejectedSourceIdentity} instead of the admitted ${admittedSourceIdentity}. Repair the admitted source file so the verified identity is preserved and mismatches are rejected.
+
+The causal repair contract is explicit:
+1. Set acceptedCoordinate to ${expression}.
+2. Compare locallyDerivedCoordinate with acceptedCoordinate and reject a mismatch.
+3. Return acceptedCoordinate. Do not return locallyDerivedCoordinate or substitute the other envelope field.
+4. Make the smallest change in ${sourceWritablePath} only.`;
+}
+
 function verifierSource(input: {
 	readonly importPath: string;
 	readonly exportName: string;
@@ -476,7 +492,12 @@ Acceptance criteria:
 		sourceInsightDigest,
 		sourceInsightContent: variant.sourceInsightContent,
 		sourceWritablePath,
-		sourceTaskStatement: `A source Work Item found that a producer handoff was accepting ${rejectedSourceIdentity} instead of the admitted ${admittedSourceIdentity}. Repair the admitted source file so the verified identity is preserved and mismatches are rejected. Make the smallest change in ${sourceWritablePath} only.`,
+		sourceTaskStatement: sourceTaskStatement(
+			variant,
+			sourceWritablePath,
+			rejectedSourceIdentity,
+			admittedSourceIdentity,
+		),
 		sourceFixtureCorrectText,
 		sourceFixtureBuggyText,
 		sourceReadonlyFixtureFiles: Object.freeze([

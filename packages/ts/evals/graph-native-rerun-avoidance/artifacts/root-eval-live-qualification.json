@@ -65,8 +65,8 @@
 			"graphrefly-ts:D144",
 			"graphrefly-ts:D145"
 		],
-		"implementationManifestDigest": "sha256:19a407ba1bd773b51b00bc94bc4f0ef8eb1b9077e0c86d529e25d765b24bf569",
-		"taskBindingDigest": "sha256:1cbc6be7966c0ddf407e4e6fd208447ea07501761ffc9e97b51cfe5474e149da",
+		"implementationManifestDigest": "sha256:503952cd23c236820367040bf71c26d2977aeb59524520cb84f4ac6716e59090",
+		"taskBindingDigest": "sha256:8a85b2764e130a75cc7140a0e3fe874c22bbcbf598496c68a95a618bdd1c3cc9",
 		"caseResults": {
 			"admittedEffectReceiptCorrelation": "passed",
 			"providerThenGraphAdmittedExactTool": "passed",
@@ -250,7 +250,7 @@
 		"credentialAccessed": false,
 		"chargedCallExecuted": false
 	},
-	"artifactDigest": "sha256:19e27f026048d88d3c02aff3652b6dd1384fe3f7ad69d9d5e386a36ee73a1b59",
+	"artifactDigest": "sha256:ebdeeb5dc0b690010540d0e16c9e40416c8433fc5314d2fb4e3246a348f43721",
 	"qualification": {
 		"schemaVersion": "graphrefly-ts.root-eval-live-qualification.v37",
 		"decisionRef": "graphrefly-ts:D145",
@@ -302,10 +302,10 @@
 		"completionCharterRef": "graphrefly-ts:D145",
 		"currentLiveExecutionApprovalClosed": false,
 		"callerHorizonDecisionRequired": false,
-		"implementationManifestDigest": "sha256:19a407ba1bd773b51b00bc94bc4f0ef8eb1b9077e0c86d529e25d765b24bf569",
-		"qualificationArtifactDigest": "sha256:19e27f026048d88d3c02aff3652b6dd1384fe3f7ad69d9d5e386a36ee73a1b59",
+		"implementationManifestDigest": "sha256:503952cd23c236820367040bf71c26d2977aeb59524520cb84f4ac6716e59090",
+		"qualificationArtifactDigest": "sha256:ebdeeb5dc0b690010540d0e16c9e40416c8433fc5314d2fb4e3246a348f43721",
 		"status": "qualified-no-network-d145-development-confirmatory-authority",
-		"qualificationDigest": "sha256:2b1d3e35a271d88cd8cf0bcaa0333a9e0c3f267916ae4d16ffe4d395eb2c8327"
+		"qualificationDigest": "sha256:5b4582b8ff61110ee673d65881554c1dda7870bbbb49b6cf2cda734555c19075"
 	},
-	"measuredImplementationManifestDigest": "sha256:19a407ba1bd773b51b00bc94bc4f0ef8eb1b9077e0c86d529e25d765b24bf569"
+	"measuredImplementationManifestDigest": "sha256:503952cd23c236820367040bf71c26d2977aeb59524520cb84f4ac6716e59090"
 }
