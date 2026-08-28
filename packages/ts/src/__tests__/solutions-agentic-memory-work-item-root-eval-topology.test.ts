@@ -1493,12 +1493,12 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			generationRef: "root-eval-development-test-v1",
 			replicateCount: 5,
 			heldOutSealDigest: ROOT_EVAL_HELD_OUT_SEAL_DIGEST,
-			budgetPartition: "development-usd-6",
-			partitionHardCapMicrousd: 6_000_000,
+			budgetPartition: "development-usd-12",
+			partitionHardCapMicrousd: 12_000_000,
 			partitionSpentBeforeMicrousd: 125_000,
 			partitionLedgerDigest,
 			developmentQualificationStreakBefore: 1,
-			maxCostMicrousd: 5_875_000,
+			maxCostMicrousd: 11_875_000,
 		});
 		const description = topology.graph.describe();
 		expect(description.nodes.filter((node) => node.name === "eval/campaign/contract")).toHaveLength(
@@ -1524,8 +1524,8 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			taskSetRef: ROOT_EVAL_DEVELOPMENT_TASKS[0]!.taskSetRef,
 			replicateCount: 5,
 			heldOutSealDigest: ROOT_EVAL_HELD_OUT_SEAL_DIGEST,
-			budgetPartition: "development-usd-6",
-			partitionHardCapMicrousd: 6_000_000,
+			budgetPartition: "development-usd-12",
+			partitionHardCapMicrousd: 12_000_000,
 			partitionSpentBeforeMicrousd: 125_000,
 			partitionLedgerDigest,
 			developmentQualification: {
@@ -1547,9 +1547,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			createTopology({
 				campaignPurpose: "development",
 				replicateCount: 5,
-				budgetPartition: "development-usd-6",
-				partitionHardCapMicrousd: 6_000_000,
-				partitionSpentBeforeMicrousd: 5_900_000,
+				budgetPartition: "development-usd-12",
+				partitionHardCapMicrousd: 12_000_000,
+				partitionSpentBeforeMicrousd: 11_900_000,
 				maxCostMicrousd: 100_001,
 			}),
 		).toThrow(/partition remainder/u);

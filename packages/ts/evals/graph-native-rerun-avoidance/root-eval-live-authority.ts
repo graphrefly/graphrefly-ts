@@ -40,6 +40,10 @@ import {
 } from "./eval-topology.js";
 import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifest.js";
 import {
+	ROOT_EVAL_D145_CONFIRMATORY_HARD_CAP_MICROUSD,
+	ROOT_EVAL_D145_DEVELOPMENT_HARD_CAP_MICROUSD,
+} from "./root-eval-charter-ledger.js";
+import {
 	parseRootEvalUniqueJson,
 	ROOT_EVAL_LIVE_DECISION_REF,
 	ROOT_EVAL_LIVE_TASK_BINDING_DIGEST,
@@ -83,7 +87,7 @@ function campaignPlan(slot: RootEvalTaskManifestSlot) {
 	const ordinal = rootEvalDevelopmentOrdinal(slot)!;
 	return Object.freeze({
 		campaignPurpose: "development" as const,
-		budgetPartition: "development-usd-6" as const,
+		budgetPartition: "development-usd-12" as const,
 		taskSetRef: rootEvalDevelopmentTaskSetRef(ordinal),
 		generationRef: `root-eval-development-2026-08-27-d145-v${ordinal}`,
 		claimRef: `root-eval-development-claim-2026-08-27-d145-v${ordinal}`,
@@ -103,9 +107,12 @@ export const ROOT_EVAL_LIVE_GENERATION_REF = ROOT_EVAL_LIVE_CAMPAIGN_PLAN.genera
 export const ROOT_EVAL_LIVE_CLAIM_REF = ROOT_EVAL_LIVE_CAMPAIGN_PLAN.claimRef;
 export const ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_NAME =
 	`.${ROOT_EVAL_LIVE_GENERATION_REF}.precredential-gates.v5.json` as const;
-export const ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD = 6_000_000 as const;
 export const ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE =
 	ROOT_EVAL_LIVE_CAMPAIGN_PLAN.campaignPurpose satisfies EvalCampaignPurpose;
+export const ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD =
+	ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE === "development"
+		? ROOT_EVAL_D145_DEVELOPMENT_HARD_CAP_MICROUSD
+		: ROOT_EVAL_D145_CONFIRMATORY_HARD_CAP_MICROUSD;
 export const ROOT_EVAL_LIVE_REPLICATE_COUNT = 5 as const;
 export const ROOT_EVAL_LIVE_TASK_SET_REF = ROOT_EVAL_LIVE_CAMPAIGN_PLAN.taskSetRef;
 export const ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST = ROOT_EVAL_HELD_OUT_SEAL_DIGEST;
@@ -305,7 +312,7 @@ export interface RootEvalLiveClaim {
 	readonly replicateCount: typeof ROOT_EVAL_LIVE_REPLICATE_COUNT;
 	readonly heldOutSealDigest: typeof ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST;
 	readonly budgetPartition: typeof ROOT_EVAL_LIVE_BUDGET_PARTITION;
-	readonly partitionHardCapMicrousd: 6_000_000;
+	readonly partitionHardCapMicrousd: typeof ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD;
 	readonly partitionSpentBeforeMicrousd: number;
 	readonly partitionLedgerDigest: string;
 	readonly developmentQualificationStreakBefore: number;
@@ -324,7 +331,7 @@ export interface RootEvalLiveClaim {
 		readonly zeroByok: RootEvalLiveZeroByokObservation;
 		readonly currentKeyBefore: RootEvalLiveCurrentKeyAdmission;
 	}>;
-	readonly campaignHardCapMicrousd: 6_000_000;
+	readonly campaignHardCapMicrousd: typeof ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD;
 	readonly localEvalNoResetLimitMicrousd: 32_000_000;
 	readonly claimDigest: string;
 }
@@ -2653,6 +2660,7 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 				claim.replicateCount === ROOT_EVAL_LIVE_REPLICATE_COUNT &&
 				claim.heldOutSealDigest === ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST &&
 				claim.budgetPartition === ROOT_EVAL_LIVE_BUDGET_PARTITION &&
+				typeof claim.partitionHardCapMicrousd === "number" &&
 				claim.partitionHardCapMicrousd === ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD &&
 				typeof claim.partitionSpentBeforeMicrousd === "number" &&
 				Number.isSafeInteger(claim.partitionSpentBeforeMicrousd) &&

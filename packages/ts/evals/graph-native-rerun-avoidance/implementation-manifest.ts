@@ -3,13 +3,13 @@ import { join, relative, resolve } from "node:path";
 import { empiricalSha256, empiricalStrictJsonDigest } from "./canonical.js";
 
 export const CURRENT_QUALIFICATION_DIGEST =
-	"sha256:d034abed2fbe571d03daf634cae0cd3f600cf7a8dc34fdf7e8a6cc248226a73e" as const;
+	"sha256:49818654b399afc36d1860d72cb59e20e20809e62c76be8df64d621a313f26d4" as const;
 export const CURRENT_QUALIFICATION_ARTIFACT_DIGEST =
-	"sha256:81ffa62dc2afe6a8a493beb3bd295d62cecefb104922fa58224ac2524cb233c1" as const;
+	"sha256:f130adafb4da3da79f21ba37b19bc43252173eb413de22c8daab2ab92f67f76d" as const;
 
 // Updated only after the current closure and its no-network qualification are both frozen.
 export const CURRENT_IMPLEMENTATION_MANIFEST_DIGEST =
-	"sha256:276fd160ac61a1176fdb585ec95170989c1c46867c1201696a9d8370a311dc47" as const;
+	"sha256:51fab2a073f40f3d05111d7350d52faf41d070d6936b78e5fe9edea4c056d0d0" as const;
 
 export const CURRENT_IMPLEMENTATION_RUNTIME = Object.freeze({
 	node: "v24.18.0" as const,

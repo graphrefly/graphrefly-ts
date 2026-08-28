@@ -40,7 +40,10 @@ import {
 import {
 	advanceRootEvalD145CharterLedger,
 	latestRootEvalGraphSpend,
+	ROOT_EVAL_D145_CONFIRMATORY_HARD_CAP_MICROUSD,
+	ROOT_EVAL_D145_DEVELOPMENT_HARD_CAP_MICROUSD,
 	ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
+	ROOT_EVAL_D145_TOTAL_HARD_CAP_MICROUSD,
 	readRootEvalD145CharterLedger,
 	writeRootEvalD145CharterLedger,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-charter-ledger.js";
@@ -91,6 +94,7 @@ import {
 	ROOT_EVAL_HISTORICAL_D85_TASK_BINDING_DIGEST,
 	ROOT_EVAL_LIVE_AUTHORITY_VIOLATION_CODES,
 	ROOT_EVAL_LIVE_BUDGET_PARTITION,
+	ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
 	ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE,
 	ROOT_EVAL_LIVE_CLAIM_REF,
 	ROOT_EVAL_LIVE_CLAIM_SCHEMA,
@@ -367,8 +371,8 @@ function liveEvidenceInput(
 	};
 	const currentKeyBeforeMaterial = {
 		limitMicrousd: 32_000_000 as const,
-		remainingMicrousd: 7_000_000,
-		usageMicrousd: 25_000_000,
+		remainingMicrousd: 13_000_000,
+		usageMicrousd: 19_000_000,
 		limitReset: "none" as const,
 		isManagementKey: false as const,
 	};
@@ -378,8 +382,8 @@ function liveEvidenceInput(
 	};
 	const currentKeyAfterMaterial = {
 		...currentKeyBeforeMaterial,
-		remainingMicrousd: 6_999_900,
-		usageMicrousd: 25_000_100,
+		remainingMicrousd: 12_999_900,
+		usageMicrousd: 19_000_100,
 	};
 	const currentKeyAfter = {
 		...currentKeyAfterMaterial,
@@ -397,7 +401,7 @@ function liveEvidenceInput(
 		replicateCount: ROOT_EVAL_LIVE_REPLICATE_COUNT,
 		heldOutSealDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
 		budgetPartition: ROOT_EVAL_LIVE_BUDGET_PARTITION,
-		partitionHardCapMicrousd: 6_000_000 as const,
+		partitionHardCapMicrousd: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
 		partitionSpentBeforeMicrousd: 0,
 		partitionLedgerDigest: testPartitionLedgerDigest,
 		developmentQualificationStreakBefore: 0,
@@ -419,7 +423,7 @@ function liveEvidenceInput(
 			zeroByok,
 			currentKeyBefore,
 		},
-		campaignHardCapMicrousd: 6_000_000 as const,
+		campaignHardCapMicrousd: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
 		localEvalNoResetLimitMicrousd: 32_000_000 as const,
 	};
 	const claim = { ...claimMaterial, claimDigest: empiricalStrictJsonDigest(claimMaterial) };
@@ -478,7 +482,7 @@ function liveEvidenceInput(
 				replicateCount,
 				heldOutSealDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
 				budgetPartition: ROOT_EVAL_LIVE_BUDGET_PARTITION,
-				partitionHardCapMicrousd: 6_000_000,
+				partitionHardCapMicrousd: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
 				partitionSpentBeforeMicrousd: 0,
 				partitionLedgerDigest: claimMaterial.partitionLedgerDigest,
 				developmentQualification: {
@@ -820,8 +824,8 @@ async function currentClaimInput(privateRoot: string) {
 				JSON.stringify({
 					data: {
 						limit: 32,
-						limit_remaining: 7,
-						usage: 25,
+						limit_remaining: 13,
+						usage: 19,
 						limit_reset: null,
 						is_management_key: false,
 					},
@@ -1012,6 +1016,9 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		try {
 			const empty = await readRootEvalD145CharterLedger(path);
 			expect(empty).toEqual(ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER);
+			expect(ROOT_EVAL_D145_DEVELOPMENT_HARD_CAP_MICROUSD).toBe(12_000_000);
+			expect(ROOT_EVAL_D145_CONFIRMATORY_HARD_CAP_MICROUSD).toBe(6_000_000);
+			expect(ROOT_EVAL_D145_TOTAL_HARD_CAP_MICROUSD).toBe(18_000_000);
 			const qualified = (count: 1 | 2) => ({
 				kind: "eval-development-qualification-state" as const,
 				campaignPurpose: "development" as const,
@@ -1028,7 +1035,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				campaignPurpose: "development",
 				taskSetRef: "root-eval-d145-transfer-development-1-v1",
 				taskManifestDigest: empiricalStrictJsonDigest("development-1-manifest"),
-				budgetPartition: "development-usd-6",
+				budgetPartition: "development-usd-12",
 				providerReportedMicrousd: 101,
 				unreportedSettledUpperBoundMicrousd: 0,
 				accountedUpperBoundMicrousd: 101,
@@ -1045,7 +1052,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				campaignPurpose: "development",
 				taskSetRef: "root-eval-d145-transfer-development-2-v1",
 				taskManifestDigest: empiricalStrictJsonDigest("development-rejected-manifest"),
-				budgetPartition: "development-usd-6",
+				budgetPartition: "development-usd-12",
 				providerReportedMicrousd: 1,
 				unreportedSettledUpperBoundMicrousd: 0,
 				accountedUpperBoundMicrousd: 1,
@@ -1084,7 +1091,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				campaignPurpose: "development",
 				taskSetRef: "root-eval-d145-transfer-development-2-v1",
 				taskManifestDigest: empiricalStrictJsonDigest("development-2-manifest"),
-				budgetPartition: "development-usd-6",
+				budgetPartition: "development-usd-12",
 				providerReportedMicrousd: 202,
 				unreportedSettledUpperBoundMicrousd: 0,
 				accountedUpperBoundMicrousd: 202,
@@ -1123,6 +1130,22 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			});
 			expect(() =>
 				advanceRootEvalD145CharterLedger({
+					ledger: second,
+					generationRef: "confirmatory-over-cap",
+					campaignPurpose: "confirmatory",
+					taskSetRef: "root-eval-d145-transfer-confirmatory-v1",
+					taskManifestDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
+					budgetPartition: "confirmatory-usd-6",
+					providerReportedMicrousd: 6_000_001,
+					unreportedSettledUpperBoundMicrousd: 0,
+					accountedUpperBoundMicrousd: 6_000_001,
+					admissionStatus: "admitted",
+					developmentQualification: null,
+					evidenceDigest: empiricalStrictJsonDigest("confirmatory-over-cap"),
+				}),
+			).toThrow(/hard cap/u);
+			expect(() =>
+				advanceRootEvalD145CharterLedger({
 					ledger: confirmatory,
 					generationRef: "confirmatory-2",
 					campaignPurpose: "confirmatory",
@@ -1142,6 +1165,73 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		}
 	});
 
+	it("preserves historical USD 6 development entries while admitting only the USD 12 partition", async () => {
+		const historicalEntry = Object.freeze({
+			generationRef: "historical-development-1",
+			campaignPurpose: "development" as const,
+			taskSetRef: "root-eval-d145-transfer-development-1-v1",
+			taskManifestDigest: empiricalStrictJsonDigest("historical-development-manifest"),
+			budgetPartition: "development-usd-6" as const,
+			providerReportedMicrousd: 5_900_000,
+			unreportedSettledUpperBoundMicrousd: 0,
+			accountedUpperBoundMicrousd: 5_900_000,
+			generationQualified: false,
+			evidenceDigest: empiricalStrictJsonDigest("historical-development-evidence"),
+		});
+		const historicalMaterial = Object.freeze({
+			schemaVersion: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER.schemaVersion,
+			decisionRef: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER.decisionRef,
+			heldOutSealDigest: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER.heldOutSealDigest,
+			supersededLedgerDigest: null,
+			developmentSpentMicrousd: 5_900_000,
+			confirmatorySpentMicrousd: 0,
+			developmentQualificationStreak: 0,
+			heldOutConsumed: false,
+			entries: Object.freeze([historicalEntry]),
+		});
+		const historicalLedger = Object.freeze({
+			...historicalMaterial,
+			ledgerDigest: empiricalStrictJsonDigest(historicalMaterial),
+		});
+		const extended = advanceRootEvalD145CharterLedger({
+			ledger: historicalLedger,
+			generationRef: "development-2",
+			campaignPurpose: "development",
+			taskSetRef: "root-eval-d145-transfer-development-2-v1",
+			taskManifestDigest: empiricalStrictJsonDigest("development-2-usd-12-manifest"),
+			budgetPartition: "development-usd-12",
+			providerReportedMicrousd: 200_001,
+			unreportedSettledUpperBoundMicrousd: 0,
+			accountedUpperBoundMicrousd: 200_001,
+			admissionStatus: "rejected",
+			developmentQualification: null,
+			evidenceDigest: empiricalStrictJsonDigest("development-2-usd-12-evidence"),
+		});
+		expect(extended).toMatchObject({
+			developmentSpentMicrousd: 6_100_001,
+			entries: [
+				expect.objectContaining({ budgetPartition: "development-usd-6" }),
+				expect.objectContaining({ budgetPartition: "development-usd-12" }),
+			],
+		});
+		expect(() =>
+			advanceRootEvalD145CharterLedger({
+				ledger: historicalLedger,
+				generationRef: "development-2-old-partition",
+				campaignPurpose: "development",
+				taskSetRef: "root-eval-d145-transfer-development-2-v1",
+				taskManifestDigest: empiricalStrictJsonDigest("development-2-old-partition-manifest"),
+				budgetPartition: "development-usd-6" as never,
+				providerReportedMicrousd: 1,
+				unreportedSettledUpperBoundMicrousd: 0,
+				accountedUpperBoundMicrousd: 1,
+				admissionStatus: "rejected",
+				developmentQualification: null,
+				evidenceDigest: empiricalStrictJsonDigest("development-2-old-partition-evidence"),
+			}),
+		).toThrow(/not authorized/u);
+	});
+
 	it("binds exact fresh D145 currentness and rejects synthetic live authority", async () => {
 		expect(ROOT_EVAL_LIVE_DECISION_REF).toBe("graphrefly-ts:D145");
 		expect(ROOT_EVAL_LIVE_CLAIM_SCHEMA).toBe("graphrefly-ts.root-eval-live-claim.v20");
@@ -1151,6 +1241,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		);
 		expect(ROOT_EVAL_LIVE_CLAIM_REF).toBe("root-eval-development-claim-2026-08-27-d145-v1");
 		expect(ROOT_EVAL_LIVE_GENERATION_REF).toBe("root-eval-development-2026-08-27-d145-v1");
+		expect(ROOT_EVAL_LIVE_BUDGET_PARTITION).toBe("development-usd-12");
+		expect(ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD).toBe(12_000_000);
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-d140-synthetic-live-"));
 		const privateRoot = await realpath(temporary);
 		await chmod(privateRoot, 0o700);
@@ -1162,6 +1254,55 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		} finally {
 			await rm(temporary, { recursive: true, force: true });
 		}
+	});
+
+	it("keeps confirmatory authority on its sealed USD 6 partition", async () => {
+		const moduleUrl = pathToFileURL(
+			resolve(
+				repositoryRoot,
+				"packages/ts/evals/graph-native-rerun-avoidance/root-eval-live-authority.ts",
+			),
+		).href;
+		const source = `
+			const authority = await import(${JSON.stringify(moduleUrl)});
+			process.stdout.write(JSON.stringify({
+				purpose: authority.ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE,
+				partition: authority.ROOT_EVAL_LIVE_BUDGET_PARTITION,
+				hardCapMicrousd: authority.ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
+			}));
+		`;
+		const result = await new Promise<
+			Readonly<{ readonly code: number | null; readonly stdout: string; readonly stderr: string }>
+		>((resolveResult, reject) => {
+			const child = spawn(
+				process.execPath,
+				["--import", "tsx", "--input-type=module", "--eval", source],
+				{
+					cwd: repositoryRoot,
+					env: { ...process.env, GRAPHREFLY_ROOT_EVAL_CAMPAIGN_SLOT: "confirmatory" },
+					shell: false,
+					stdio: ["ignore", "pipe", "pipe"],
+				},
+			);
+			let stdout = "";
+			let stderr = "";
+			child.stdout.setEncoding("utf8");
+			child.stderr.setEncoding("utf8");
+			child.stdout.on("data", (chunk: string) => {
+				stdout += chunk;
+			});
+			child.stderr.on("data", (chunk: string) => {
+				stderr += chunk;
+			});
+			child.once("error", reject);
+			child.once("close", (code) => resolveResult({ code, stdout, stderr }));
+		});
+		expect(result.code, result.stderr).toBe(0);
+		expect(JSON.parse(result.stdout)).toEqual({
+			purpose: "confirmatory",
+			partition: "confirmatory-usd-6",
+			hardCapMicrousd: 6_000_000,
+		});
 	});
 	it("uses the exact shared private-input identity gate before preclaim", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-d116-private-inputs-"));
@@ -2753,7 +2894,13 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			],
 			[
 				"success.accounted-budget-above-cap",
-				withGraphResult(base, {}, { accountedUpperBoundMicrousd: 6_000_001 }),
+				withGraphResult(
+					base,
+					{},
+					{
+						accountedUpperBoundMicrousd: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD + 1,
+					},
+				),
 			],
 			["success.provider-call-count-mismatch", { ...base, providerCalls: workItemCount - 1 }],
 		];
@@ -3493,8 +3640,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 						JSON.stringify({
 							data: {
 								limit: 32,
-								limit_remaining: 7,
-								usage: 25,
+								limit_remaining: 13,
+								usage: 19,
 								limit_reset: null,
 								is_management_key: false,
 							},
@@ -3516,8 +3663,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 						JSON.stringify({
 							data: {
 								limit: 32,
-								limit_remaining: 5.999999,
-								usage: 26.000001,
+								limit_remaining: 11.999999,
+								usage: 20.000001,
 								limit_reset: null,
 								is_management_key: false,
 							},
@@ -3987,10 +4134,10 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
 					heldOutSealDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
 					budgetPartition: ROOT_EVAL_LIVE_BUDGET_PARTITION,
-					partitionHardCapMicrousd: 6_000_000,
+					partitionHardCapMicrousd: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
 					partitionLedgerDigest: testPartitionLedgerDigest,
 					developmentQualificationStreakBefore: 0,
-					maxCostMicrousd: 6_000_000,
+					maxCostMicrousd: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
 					reservationMicrousd: 200_000,
 				}),
 				async (effect) => {
@@ -4470,8 +4617,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				JSON.stringify({
 					data: {
 						limit: 32,
-						limit_remaining: 6.25,
-						usage: 25.75,
+						limit_remaining: 12.25,
+						usage: 19.75,
 						limit_reset: null,
 						is_management_key: false,
 					},
@@ -4482,8 +4629,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		const admittedKey = await readRootEvalLiveCurrentKey({ credential, fetchImpl });
 		expect(admittedKey).toMatchObject({
 			limitMicrousd: 32_000_000,
-			remainingMicrousd: 6_250_000,
-			usageMicrousd: 25_750_000,
+			remainingMicrousd: 12_250_000,
+			usageMicrousd: 19_750_000,
 			limitReset: "none",
 			isManagementKey: false,
 		});
@@ -4562,8 +4709,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			).rejects.toThrow(/current closure/u);
 			const currentKeyBeforeMaterial = Object.freeze({
 				limitMicrousd: 32_000_000 as const,
-				remainingMicrousd: 6_500_000,
-				usageMicrousd: 25_500_000,
+				remainingMicrousd: 13_500_000,
+				usageMicrousd: 18_500_000,
 				limitReset: "none" as const,
 				isManagementKey: false as const,
 			});
@@ -4573,8 +4720,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			});
 			const currentKeyAfterMaterial = Object.freeze({
 				...currentKeyBeforeMaterial,
-				remainingMicrousd: 6_499_900,
-				usageMicrousd: 25_500_100,
+				remainingMicrousd: 13_499_900,
+				usageMicrousd: 18_500_100,
 			});
 			const currentKeyAfter = Object.freeze({
 				...currentKeyAfterMaterial,

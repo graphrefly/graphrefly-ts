@@ -22,7 +22,6 @@ import { runRootEvalPrecredentialStagePlan } from "./precredential-stage-coordin
 import {
 	advanceRootEvalD145CharterLedger,
 	latestRootEvalGraphSpend,
-	ROOT_EVAL_D145_PARTITION_HARD_CAP_MICROUSD,
 	type RootEvalD145CharterLedger,
 	readRootEvalD145CharterLedger,
 } from "./root-eval-charter-ledger.js";
@@ -454,7 +453,7 @@ async function executeClaimedCampaign(input: {
 			replicateCount: ROOT_EVAL_LIVE_REPLICATE_COUNT,
 			heldOutSealDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
 			budgetPartition: ROOT_EVAL_LIVE_BUDGET_PARTITION,
-			partitionHardCapMicrousd: ROOT_EVAL_D145_PARTITION_HARD_CAP_MICROUSD,
+			partitionHardCapMicrousd: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
 			partitionSpentBeforeMicrousd:
 				String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "development"
 					? input.charterLedger.developmentSpentMicrousd
@@ -584,10 +583,14 @@ async function main(): Promise<void> {
 			throw new TypeError("root eval D145 development slot did not follow charter order");
 		await ensureRootEvalDevelopmentTaskManifest(ROOT_EVAL_LIVE_CAMPAIGN_SLOT);
 	} else readRootEvalTaskManifest("confirmatory");
+	const partitionSpentBeforeMicrousd =
+		String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "development"
+			? charterLedger.developmentSpentMicrousd
+			: charterLedger.confirmatorySpentMicrousd;
 	if (
+		partitionSpentBeforeMicrousd >= ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD ||
 		(String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "development" &&
-			(charterLedger.developmentQualificationStreak === 2 ||
-				charterLedger.developmentSpentMicrousd >= ROOT_EVAL_D145_PARTITION_HARD_CAP_MICROUSD)) ||
+			charterLedger.developmentQualificationStreak === 2) ||
 		(String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "confirmatory" &&
 			(charterLedger.developmentQualificationStreak !== 2 || charterLedger.heldOutConsumed))
 	)

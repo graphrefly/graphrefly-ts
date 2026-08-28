@@ -79,7 +79,7 @@ async function correctedEntry(
 		campaignPurpose: entry.campaignPurpose as "development" | "confirmatory",
 		taskSetRef: String(entry.taskSetRef),
 		taskManifestDigest: String(entry.taskManifestDigest),
-		budgetPartition: entry.budgetPartition as "development-usd-6" | "confirmatory-usd-6",
+		budgetPartition: entry.budgetPartition as RootEvalD145CharterLedgerEntry["budgetPartition"],
 		providerReportedMicrousd,
 		unreportedSettledUpperBoundMicrousd,
 		accountedUpperBoundMicrousd: providerReportedMicrousd + unreportedSettledUpperBoundMicrousd,

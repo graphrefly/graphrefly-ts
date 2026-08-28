@@ -15,7 +15,14 @@ import {
 } from "./root-eval-task.js";
 
 export const ROOT_EVAL_D145_CHARTER_LEDGER_SCHEMA = "graphrefly-ts.d145-charter-ledger.v4" as const;
-export const ROOT_EVAL_D145_PARTITION_HARD_CAP_MICROUSD = 6_000_000 as const;
+export const ROOT_EVAL_D145_DEVELOPMENT_HARD_CAP_MICROUSD = 12_000_000 as const;
+export const ROOT_EVAL_D145_CONFIRMATORY_HARD_CAP_MICROUSD = 6_000_000 as const;
+export const ROOT_EVAL_D145_TOTAL_HARD_CAP_MICROUSD = 18_000_000 as const;
+
+type RootEvalD145LedgerBudgetPartition =
+	| "development-usd-6"
+	| "development-usd-12"
+	| "confirmatory-usd-6";
 
 export function latestRootEvalGraphSpend(
 	snapshots: readonly Readonly<{
@@ -54,7 +61,7 @@ export interface RootEvalD145CharterLedgerEntry {
 	readonly campaignPurpose: Exclude<EvalCampaignPurpose, "qualification">;
 	readonly taskSetRef: string;
 	readonly taskManifestDigest: string;
-	readonly budgetPartition: Exclude<EvalBudgetPartition, "no-network">;
+	readonly budgetPartition: RootEvalD145LedgerBudgetPartition;
 	readonly providerReportedMicrousd: number;
 	readonly unreportedSettledUpperBoundMicrousd: number;
 	readonly accountedUpperBoundMicrousd: number;
@@ -121,13 +128,15 @@ function validateLedger(value: unknown): RootEvalD145CharterLedger {
 	const developmentSpentMicrousd = safeInteger(
 		root.developmentSpentMicrousd,
 		"charter ledger development spend",
-		{ max: ROOT_EVAL_D145_PARTITION_HARD_CAP_MICROUSD },
+		{ max: ROOT_EVAL_D145_DEVELOPMENT_HARD_CAP_MICROUSD },
 	);
 	const confirmatorySpentMicrousd = safeInteger(
 		root.confirmatorySpentMicrousd,
 		"charter ledger confirmatory spend",
-		{ max: ROOT_EVAL_D145_PARTITION_HARD_CAP_MICROUSD },
+		{ max: ROOT_EVAL_D145_CONFIRMATORY_HARD_CAP_MICROUSD },
 	);
+	if (developmentSpentMicrousd + confirmatorySpentMicrousd > ROOT_EVAL_D145_TOTAL_HARD_CAP_MICROUSD)
+		throw new TypeError("root eval D145 total hard cap exceeded");
 	const developmentQualificationStreak = safeInteger(
 		root.developmentQualificationStreak,
 		"charter ledger development qualification streak",
@@ -160,8 +169,8 @@ function validateLedger(value: unknown): RootEvalD145CharterLedger {
 			!(["development", "confirmatory"] as const).includes(
 				entry.campaignPurpose as "development" | "confirmatory",
 			) ||
-			!(["development-usd-6", "confirmatory-usd-6"] as const).includes(
-				entry.budgetPartition as "development-usd-6" | "confirmatory-usd-6",
+			!(["development-usd-6", "development-usd-12", "confirmatory-usd-6"] as const).includes(
+				entry.budgetPartition as RootEvalD145LedgerBudgetPartition,
 			) ||
 			!([null, true, false] as const).includes(entry.generationQualified as boolean | null) ||
 			!/^sha256:[0-9a-f]{64}$/u.test(String(entry.evidenceDigest))
@@ -217,8 +226,13 @@ function validateLedger(value: unknown): RootEvalD145CharterLedger {
 			(root.heldOutConsumed ? 1 : 0) ||
 		entries.some(
 			(entry) =>
+				(entry.campaignPurpose === "development" &&
+					entry.budgetPartition !== "development-usd-6" &&
+					entry.budgetPartition !== "development-usd-12") ||
+				(entry.campaignPurpose === "confirmatory" &&
+					entry.budgetPartition !== "confirmatory-usd-6") ||
 				entry.accountedUpperBoundMicrousd !==
-				entry.providerReportedMicrousd + entry.unreportedSettledUpperBoundMicrousd,
+					entry.providerReportedMicrousd + entry.unreportedSettledUpperBoundMicrousd,
 		) ||
 		new Set(entries.map((entry) => entry.taskSetRef)).size !== entries.length ||
 		new Set(entries.map((entry) => entry.taskManifestDigest)).size !== entries.length
@@ -248,7 +262,7 @@ export function advanceRootEvalD145CharterLedger(input: {
 	readonly campaignPurpose: "development" | "confirmatory";
 	readonly taskSetRef: string;
 	readonly taskManifestDigest: string;
-	readonly budgetPartition: "development-usd-6" | "confirmatory-usd-6";
+	readonly budgetPartition: Exclude<EvalBudgetPartition, "no-network">;
 	readonly providerReportedMicrousd: number;
 	readonly unreportedSettledUpperBoundMicrousd: number;
 	readonly accountedUpperBoundMicrousd: number;
@@ -268,7 +282,7 @@ export function advanceRootEvalD145CharterLedger(input: {
 	if (ledger.entries.some((entry) => entry.generationRef === input.generationRef))
 		throw new TypeError("root eval D145 generation was already recorded");
 	if (
-		(input.campaignPurpose === "development" && input.budgetPartition !== "development-usd-6") ||
+		(input.campaignPurpose === "development" && input.budgetPartition !== "development-usd-12") ||
 		(input.campaignPurpose === "confirmatory" &&
 			(input.budgetPartition !== "confirmatory-usd-6" ||
 				ledger.developmentQualificationStreak !== 2 ||
@@ -317,8 +331,9 @@ export function advanceRootEvalD145CharterLedger(input: {
 		ledger.confirmatorySpentMicrousd +
 		(input.campaignPurpose === "confirmatory" ? accountedUpperBoundMicrousd : 0);
 	if (
-		developmentSpentMicrousd > ROOT_EVAL_D145_PARTITION_HARD_CAP_MICROUSD ||
-		confirmatorySpentMicrousd > ROOT_EVAL_D145_PARTITION_HARD_CAP_MICROUSD
+		developmentSpentMicrousd > ROOT_EVAL_D145_DEVELOPMENT_HARD_CAP_MICROUSD ||
+		confirmatorySpentMicrousd > ROOT_EVAL_D145_CONFIRMATORY_HARD_CAP_MICROUSD ||
+		developmentSpentMicrousd + confirmatorySpentMicrousd > ROOT_EVAL_D145_TOTAL_HARD_CAP_MICROUSD
 	)
 		throw new TypeError("root eval D145 partition hard cap exceeded");
 	const generationQualified =
