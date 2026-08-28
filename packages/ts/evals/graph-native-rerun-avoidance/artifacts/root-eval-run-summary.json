@@ -64,7 +64,7 @@
 		},
 		"observedBilledMicrousd": 350,
 		"partitionHardCapMicrousd": 6000000,
-		"partitionLedgerDigest": "sha256:8117d347156e536f96f996d31dd3586a8b747e80132058f34ebdb4cfd34a8587",
+		"partitionLedgerDigest": "sha256:64422c8796a878a23774418e08c452559d94e92d880900ac8bc7d5bd40b10cd1",
 		"partitionSpentBeforeMicrousd": 0,
 		"pendingRetryProposalCount": 0,
 		"pricingRoundingAllowanceMicrousd": 0,
@@ -124,7 +124,7 @@
 		"sourceTechnicalExcludedReplicates": [],
 		"stoppingReason": "campaign-complete",
 		"taskSetRef": "root-eval-d145-transfer-qualification-v1",
-		"topologyRevision": "graphrefly-ts.root-eval-topology.v13",
+		"topologyRevision": "graphrefly-ts.root-eval-topology.v14",
 		"unreportedSettledUpperBoundMicrousd": 0,
 		"verificationDiagnostics": {
 			"armOrder": [

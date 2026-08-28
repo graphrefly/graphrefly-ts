@@ -14,8 +14,40 @@ import {
 	rootEvalDevelopmentTaskSetRef,
 } from "./root-eval-task.js";
 
-export const ROOT_EVAL_D145_CHARTER_LEDGER_SCHEMA = "graphrefly-ts.d145-charter-ledger.v3" as const;
+export const ROOT_EVAL_D145_CHARTER_LEDGER_SCHEMA = "graphrefly-ts.d145-charter-ledger.v4" as const;
 export const ROOT_EVAL_D145_PARTITION_HARD_CAP_MICROUSD = 6_000_000 as const;
+
+export function latestRootEvalGraphSpend(
+	snapshots: readonly Readonly<{
+		providerReportedMicrousd: number;
+		unreportedSettledUpperBoundMicrousd: number;
+		activeReservedMicrousd: number;
+	}>[],
+): Readonly<{
+	providerReportedMicrousd: number;
+	unreportedSettledUpperBoundMicrousd: number;
+	accountedUpperBoundMicrousd: number;
+}> {
+	const latest = snapshots.at(-1) ?? {
+		providerReportedMicrousd: 0,
+		unreportedSettledUpperBoundMicrousd: 0,
+		activeReservedMicrousd: 0,
+	};
+	const providerReportedMicrousd = safeInteger(
+		latest.providerReportedMicrousd,
+		"root eval latest Graph provider-reported spend",
+	);
+	const unreportedSettledUpperBoundMicrousd =
+		safeInteger(
+			latest.unreportedSettledUpperBoundMicrousd,
+			"root eval latest Graph unreported settled spend",
+		) + safeInteger(latest.activeReservedMicrousd, "root eval latest Graph active reservation");
+	return Object.freeze({
+		providerReportedMicrousd,
+		unreportedSettledUpperBoundMicrousd,
+		accountedUpperBoundMicrousd: providerReportedMicrousd + unreportedSettledUpperBoundMicrousd,
+	});
+}
 
 export interface RootEvalD145CharterLedgerEntry {
 	readonly generationRef: string;
@@ -34,6 +66,7 @@ export interface RootEvalD145CharterLedger {
 	readonly schemaVersion: typeof ROOT_EVAL_D145_CHARTER_LEDGER_SCHEMA;
 	readonly decisionRef: "graphrefly-ts:D145";
 	readonly heldOutSealDigest: typeof ROOT_EVAL_HELD_OUT_SEAL_DIGEST;
+	readonly supersededLedgerDigest: string | null;
 	readonly developmentSpentMicrousd: number;
 	readonly confirmatorySpentMicrousd: number;
 	readonly developmentQualificationStreak: number;
@@ -46,6 +79,7 @@ const EMPTY_MATERIAL = Object.freeze({
 	schemaVersion: ROOT_EVAL_D145_CHARTER_LEDGER_SCHEMA,
 	decisionRef: "graphrefly-ts:D145" as const,
 	heldOutSealDigest: ROOT_EVAL_HELD_OUT_SEAL_DIGEST,
+	supersededLedgerDigest: null,
 	developmentSpentMicrousd: 0,
 	confirmatorySpentMicrousd: 0,
 	developmentQualificationStreak: 0,
@@ -66,6 +100,7 @@ function validateLedger(value: unknown): RootEvalD145CharterLedger {
 			"schemaVersion",
 			"decisionRef",
 			"heldOutSealDigest",
+			"supersededLedgerDigest",
 			"developmentSpentMicrousd",
 			"confirmatorySpentMicrousd",
 			"developmentQualificationStreak",
@@ -78,6 +113,11 @@ function validateLedger(value: unknown): RootEvalD145CharterLedger {
 	literal(root.schemaVersion, ROOT_EVAL_D145_CHARTER_LEDGER_SCHEMA, "charter ledger schema");
 	literal(root.decisionRef, "graphrefly-ts:D145", "charter ledger decision");
 	literal(root.heldOutSealDigest, ROOT_EVAL_HELD_OUT_SEAL_DIGEST, "charter ledger held-out seal");
+	if (
+		root.supersededLedgerDigest !== null &&
+		!/^sha256:[0-9a-f]{64}$/u.test(String(root.supersededLedgerDigest))
+	)
+		throw new TypeError("root eval D145 superseded ledger digest invalid");
 	const developmentSpentMicrousd = safeInteger(
 		root.developmentSpentMicrousd,
 		"charter ledger development spend",
@@ -153,6 +193,7 @@ function validateLedger(value: unknown): RootEvalD145CharterLedger {
 		schemaVersion: ROOT_EVAL_D145_CHARTER_LEDGER_SCHEMA,
 		decisionRef: "graphrefly-ts:D145" as const,
 		heldOutSealDigest: ROOT_EVAL_HELD_OUT_SEAL_DIGEST,
+		supersededLedgerDigest: root.supersededLedgerDigest,
 		developmentSpentMicrousd,
 		confirmatorySpentMicrousd,
 		developmentQualificationStreak,
@@ -306,6 +347,7 @@ export function advanceRootEvalD145CharterLedger(input: {
 		schemaVersion: ROOT_EVAL_D145_CHARTER_LEDGER_SCHEMA,
 		decisionRef: "graphrefly-ts:D145" as const,
 		heldOutSealDigest: ROOT_EVAL_HELD_OUT_SEAL_DIGEST,
+		supersededLedgerDigest: ledger.supersededLedgerDigest,
 		developmentSpentMicrousd,
 		confirmatorySpentMicrousd,
 		developmentQualificationStreak,

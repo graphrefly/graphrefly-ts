@@ -1,5 +1,4 @@
 import { depBatch, depLatest } from "../../src/ctx/types.js";
-import { combine } from "../../src/graph/combinators.js";
 import { type Graph, graph } from "../../src/graph/graph.js";
 import type { ObserveEvent } from "../../src/graph/inspect.js";
 import type { Node } from "../../src/node/node.js";
@@ -78,7 +77,7 @@ import {
 	rootEvalTaskBindings,
 } from "./root-eval-task.js";
 
-export const ROOT_EVAL_TOPOLOGY_REVISION = "graphrefly-ts.root-eval-topology.v13" as const;
+export const ROOT_EVAL_TOPOLOGY_REVISION = "graphrefly-ts.root-eval-topology.v14" as const;
 export const ROOT_EVAL_REPLICATE_COUNT = 5 as const;
 export const ROOT_EVAL_DEVELOPMENT_REPLICATE_COUNT = 5 as const;
 export const ROOT_EVAL_DEFAULT_EFFECT_TIMEOUT_MS = 300_000 as const;
@@ -4329,9 +4328,18 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	);
 	owner.retain(batchReleaseController, { reason: "eval campaign replicate batch release" });
 	const campaignStates = owner.node<EvalCampaignState>(
-		[campaign],
+		[campaign, start, campaignContract],
 		(ctx) => {
 			let emitted = false;
+			const announced = ctx.state.get<boolean>() ?? false;
+			if (!announced && (depBatch(ctx, 1)?.length ?? 0) > 0) {
+				const contract = depLatest(ctx, 2) as EvalCampaignContract | undefined;
+				if (contract === undefined)
+					throw new TypeError("eval campaign start lost its Graph contract authority");
+				emitCampaignState(ctx, campaignRef, contract, 1, [], 0, "running", "none");
+				ctx.state.set(true);
+				emitted = true;
+			}
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				if (!Array.isArray(raw) && (raw as EvalCampaignState).kind === "eval-campaign-state") {
 					emitted = true;
@@ -4346,6 +4354,11 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
+			meta: {
+				materialFree: true,
+				authority: "campaign-start-and-replicate-controller",
+				preSourceState: "running-with-zero-completed-arms",
+			},
 		},
 	);
 
@@ -5320,11 +5333,40 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		readonly kind: "eval-active-provider-effects";
 		readonly effects: readonly EvalAdmittedEffect[];
 	}>;
+	type EvalSourceStageObservationContext = Readonly<{
+		readonly campaignRef: string;
+		readonly campaignContract: EvalCampaignContract;
+		readonly memoryProvenance: typeof MEMORY_PROVENANCE;
+		readonly elapsedBudgetScheduleId: string;
+	}>;
+	const sourceStageObservationContext = owner.state(
+		Object.freeze({
+			campaignRef,
+			campaignContract: campaignContractValue,
+			memoryProvenance: MEMORY_PROVENANCE,
+			elapsedBudgetScheduleId,
+		}),
+		{
+			name: "eval/observation/source-stage-context",
+			factory: "rootEvalSourceStageObservationContext",
+			meta: {
+				materialFree: true,
+				authority: "immutable-campaign-observation-context",
+			},
+		},
+	);
+	type EvalBudgetSettledProviderOutcome = Readonly<{
+		readonly kind: "eval-budget-settled-provider-outcome";
+		readonly outcome: EvalProviderOutcome;
+		readonly budget: EvalBudgetState;
+		readonly observationContext: EvalSourceStageObservationContext;
+	}>;
 	type AdmissionFact =
 		| EvalAdmittedEffect
 		| EvalBudgetState
 		| EvalActiveProviderEffects
-		| EvalProviderCapacityState;
+		| EvalProviderCapacityState
+		| EvalBudgetSettledProviderOutcome;
 	const admissionFacts = owner.node<AdmissionFact>(
 		[
 			replicateProposalBatches,
@@ -5333,8 +5375,10 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			retryDelayOutcomes,
 			elapsedBudget,
 			profileAdmission,
+			sourceStageObservationContext,
 		],
 		(ctx) => {
+			const newlySettledProviderOutcomes: EvalProviderOutcome[] = [];
 			const state = ctx.state.get<AdmissionState>() ?? {
 				proposalKeys: new Set<string>(),
 				proposalDigests: new Map<string, string>(),
@@ -5362,9 +5406,10 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			const elapsed = depLatest(ctx, 4) as EvalElapsedBudgetState | undefined;
 			if (elapsed?.state === "exhausted" && state.stoppingReason === "none")
 				state.stoppingReason = "elapsed-budget-exhausted";
-			const settleProviderOutcome = (outcome: EvalProviderOutcome) => {
+			const settleProviderOutcome = (outcome: EvalProviderOutcome): boolean => {
 				const active = state.active.get(outcome.admissionId);
-				if (active === undefined || state.settledAdmissionIds.has(outcome.admissionId)) return;
+				if (active === undefined || state.settledAdmissionIds.has(outcome.admissionId))
+					return false;
 				if (
 					outcome.admission !== active ||
 					outcome.admission.admissionId !== active.admissionId ||
@@ -5410,9 +5455,12 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					state.maxConcurrentEffects = ROOT_EVAL_RATE_LIMITED_PROVIDER_CAPACITY;
 					state.rateLimitFeedbackCount += 1;
 				}
+				return true;
 			};
-			for (const raw of depBatch(ctx, 2) ?? [])
-				settleProviderOutcome(validateProviderOutcome(raw as EvalProviderOutcome));
+			for (const raw of depBatch(ctx, 2) ?? []) {
+				const outcome = validateProviderOutcome(raw as EvalProviderOutcome);
+				if (settleProviderOutcome(outcome)) newlySettledProviderOutcomes.push(outcome);
+			}
 			for (const raw of depBatch(ctx, 3) ?? []) {
 				const readiness = validateRetryDelayOutcome(raw as EvalRetryDelayOutcome);
 				if (readiness.status !== "completed")
@@ -5517,40 +5565,36 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				state.settledRetryAttempts > state.admittedRetryAttempts
 			)
 				throw new TypeError("provider proposal conservation drifted");
-			ctx.down([
-				[
-					"DATA",
-					Object.freeze({
-						kind: "eval-budget-state" as const,
-						admittedAttempts: state.admittedAttempts,
-						admittedRetryAttempts: state.admittedRetryAttempts,
-						retryProposalCount: state.retryProposalKeys.size,
-						pendingRetryProposalCount: [...state.pendingProposals.keys()].filter((key) =>
-							state.retryProposalKeys.has(key),
-						).length,
-						rejectedRetryProposalCount: [...state.rejectedProposalKeys].filter((key) =>
-							state.retryProposalKeys.has(key),
-						).length,
-						settledRetryAttemptCount: state.settledRetryAttempts,
-						providerCallCount: state.providerCallCount,
-						activeEffects: state.active.size,
-						activeReservedMicrousd: state.activeReservedMicrousd,
-						providerReportedMicrousd: state.providerReportedMicrousd,
-						pricingRoundingAllowanceMicrousd: state.pricingRoundingAllowanceMicrousd,
-						unreportedSettledUpperBoundMicrousd: state.unreportedSettledUpperBoundMicrousd,
-						accountedUpperBoundMicrousd:
-							state.activeReservedMicrousd +
-							state.providerReportedMicrousd +
-							state.unreportedSettledUpperBoundMicrousd,
-						providerOutcomeReasonCounts: Object.freeze({
-							...state.providerOutcomeReasonCounts,
-						}),
-						maxAttempts,
-						maxCostMicrousd,
-						stoppingReason: state.stoppingReason,
-					}),
-				],
-			]);
+			const budgetSnapshot: EvalBudgetState = Object.freeze({
+				kind: "eval-budget-state" as const,
+				admittedAttempts: state.admittedAttempts,
+				admittedRetryAttempts: state.admittedRetryAttempts,
+				retryProposalCount: state.retryProposalKeys.size,
+				pendingRetryProposalCount: [...state.pendingProposals.keys()].filter((key) =>
+					state.retryProposalKeys.has(key),
+				).length,
+				rejectedRetryProposalCount: [...state.rejectedProposalKeys].filter((key) =>
+					state.retryProposalKeys.has(key),
+				).length,
+				settledRetryAttemptCount: state.settledRetryAttempts,
+				providerCallCount: state.providerCallCount,
+				activeEffects: state.active.size,
+				activeReservedMicrousd: state.activeReservedMicrousd,
+				providerReportedMicrousd: state.providerReportedMicrousd,
+				pricingRoundingAllowanceMicrousd: state.pricingRoundingAllowanceMicrousd,
+				unreportedSettledUpperBoundMicrousd: state.unreportedSettledUpperBoundMicrousd,
+				accountedUpperBoundMicrousd:
+					state.activeReservedMicrousd +
+					state.providerReportedMicrousd +
+					state.unreportedSettledUpperBoundMicrousd,
+				providerOutcomeReasonCounts: Object.freeze({
+					...state.providerOutcomeReasonCounts,
+				}),
+				maxAttempts,
+				maxCostMicrousd,
+				stoppingReason: state.stoppingReason,
+			});
+			ctx.down([["DATA", budgetSnapshot]]);
 			ctx.down([
 				[
 					"DATA",
@@ -5592,6 +5636,24 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				],
 			]);
 			ctx.state.set(state);
+			const observationContext = depLatest(ctx, 6) as EvalSourceStageObservationContext | undefined;
+			if (newlySettledProviderOutcomes.length > 0 && observationContext === undefined)
+				throw new TypeError("provider budget settlement lost its Graph observation context");
+			if (newlySettledProviderOutcomes.length > 0)
+				ctx.down(
+					newlySettledProviderOutcomes.map(
+						(outcome) =>
+							[
+								"DATA",
+								Object.freeze({
+									kind: "eval-budget-settled-provider-outcome" as const,
+									outcome,
+									budget: budgetSnapshot,
+									observationContext: observationContext!,
+								}),
+							] as const,
+					),
+				);
 		},
 		{
 			name: "eval/provider/graph-admission-and-budget",
@@ -5645,15 +5707,24 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		},
 		{ name: "eval/budget/state", factory: "rootEvalBudgetState" },
 	);
-	const toolAdmissions = owner.node<EvalAdmittedToolEffect>(
-		[
-			terminalProviderResultAdmissions,
-			failedProviderResultAdmissions,
-			sourceToolOutcomes,
-			taskBindingAuthority,
-		],
+	const budgetSettledProviderOutcomes = owner.node<EvalBudgetSettledProviderOutcome>(
+		[admissionFacts],
 		(ctx) => {
-			const graphTaskBindings = depLatest(ctx, 3) as readonly RootEvalTaskBinding[] | undefined;
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const fact = raw as AdmissionFact;
+				if (fact.kind === "eval-budget-settled-provider-outcome") ctx.down([["DATA", fact]]);
+			}
+		},
+		{
+			name: "eval/provider/budget-settled-outcomes",
+			factory: "rootEvalBudgetSettledProviderOutcomes",
+			meta: { authority: "provider-outcome-after-budget-settlement" },
+		},
+	);
+	const toolAdmissions = owner.node<EvalAdmittedToolEffect>(
+		[budgetSettledProviderOutcomes, sourceToolOutcomes, taskBindingAuthority],
+		(ctx) => {
+			const graphTaskBindings = depLatest(ctx, 2) as readonly RootEvalTaskBinding[] | undefined;
 			if (graphTaskBindings === undefined) return;
 			let emitted = false;
 			const state = ctx.state.get<{
@@ -5668,22 +5739,20 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				sourceSettled: new Set<string>(),
 			};
 			const candidates: EvalProviderOutcome[] = [];
-			for (const raw of depBatch(ctx, 2) ?? []) {
+			for (const raw of depBatch(ctx, 1) ?? []) {
 				const outcome = validateOutcomeReceipt(raw as EvalEffectOutcome);
 				if (outcome.workItemRole === "source") state.sourceSettled.add(outcome.workItemId);
 			}
-			for (const dependencyIndex of [0, 1] as const) {
-				for (const raw of depBatch(ctx, dependencyIndex) ?? []) {
-					const outcome = validateProviderOutcome(raw as EvalProviderOutcome);
-					if (outcome.workItemRole === "source") {
-						state.sourceProviderSettled.add(outcome.workItemId);
-						if (outcome.status === "tool-proposed" && outcome.toolProposal !== null)
-							state.sourceOutcomes.set(outcome.workItemId, outcome);
-						continue;
-					}
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const outcome = validateProviderOutcome((raw as EvalBudgetSettledProviderOutcome).outcome);
+				if (outcome.workItemRole === "source") {
+					state.sourceProviderSettled.add(outcome.workItemId);
 					if (outcome.status === "tool-proposed" && outcome.toolProposal !== null)
-						candidates.push(outcome);
+						state.sourceOutcomes.set(outcome.workItemId, outcome);
+					continue;
 				}
+				if (outcome.status === "tool-proposed" && outcome.toolProposal !== null)
+					candidates.push(outcome);
 			}
 			if (state.sourceProviderSettled.size === replicateCount) {
 				const sourceToolActive = graphTaskBindings.some(
@@ -5750,6 +5819,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				toolRef: "graphrefly.eval.exact-tool.v1",
 				arguments: "graph-admitted",
 				sourceBarrier: "all-five-provider-outcomes-before-source-tools",
+				sourceBudgetBarrier: "all-five-provider-budget-settlements-before-source-tools",
 				sourceToolCapacity: 1,
 			},
 		},
@@ -6854,40 +6924,158 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		},
 	);
 
-	type EvalObservationInputs = readonly [
-		EvalCampaignState,
-		typeof MEMORY_PROVENANCE,
-		EvalEfficacyState,
-		EvalDevelopmentQualificationState,
-	];
-	const observationInputs = owner.initNode(
-		combine<EvalObservationInputs>(),
-		[campaignStates, memoryProvenance, efficacyStates, developmentQualification],
-		{
-			name: "eval/observation/inputs",
-			meta: { materialFree: true, authority: "graph-native-combine" },
-		},
-	);
-	const observationEvents = owner.node<EvalObservationInputs | EvalFinding>(
-		[observationInputs, findings],
+	const sourceStageObservations = owner.node<EvalObservation>(
+		[budgetSettledProviderOutcomes],
 		(ctx) => {
-			for (let index = 0; index < 2; index += 1)
-				for (const raw of depBatch(ctx, index) ?? []) ctx.down([["DATA", raw]]);
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const settlement = raw as EvalBudgetSettledProviderOutcome;
+				if (settlement.outcome.workItemRole !== "source") continue;
+				const context = settlement.observationContext;
+				const contract = context.campaignContract;
+				const budget = settlement.budget;
+				const providerReasonTotal = EVAL_PROVIDER_OUTCOME_REASON_CODES.reduce(
+					(total, reason) => total + budget.providerOutcomeReasonCounts[reason],
+					0,
+				);
+				const admittedFirstAttempts = budget.admittedAttempts - budget.admittedRetryAttempts;
+				const pendingFirstAttempts = Math.max(0, contract.replicateCount - admittedFirstAttempts);
+				const rateLimited = budget.providerOutcomeReasonCounts["http-429-retryable"] > 0;
+				const elapsedExhausted = budget.stoppingReason === "elapsed-budget-exhausted";
+				const developmentQualificationState = Object.freeze({
+					kind: "eval-development-qualification-state" as const,
+					campaignPurpose: contract.campaignPurpose,
+					generationRef: contract.generationRef,
+					status:
+						contract.campaignPurpose === "development"
+							? ("pending" as const)
+							: ("not-applicable" as const),
+					generationQualified: null,
+					consecutiveQualifyingGenerations: contract.developmentQualificationStreakBefore,
+					requiredConsecutiveGenerations: 2 as const,
+					heldOutEligible:
+						contract.campaignPurpose === "confirmatory" &&
+						contract.developmentQualificationStreakBefore === 2,
+				});
+				ctx.down([
+					[
+						"DATA",
+						strictSnapshot({
+							kind: "eval-observation" as const,
+							topologyRevision: ROOT_EVAL_TOPOLOGY_REVISION,
+							solutionIdentities: ROOT_EVAL_SOLUTION_IDENTITIES,
+							campaignRef: context.campaignRef,
+							campaignPurpose: contract.campaignPurpose,
+							taskSetRef: contract.taskSetRef,
+							generationRef: contract.generationRef,
+							replicate: 1,
+							replicateCount: contract.replicateCount,
+							heldOutSealDigest: contract.heldOutSealDigest,
+							budgetPartition: contract.budgetPartition,
+							partitionHardCapMicrousd: contract.partitionHardCapMicrousd,
+							partitionSpentBeforeMicrousd: contract.partitionSpentBeforeMicrousd,
+							partitionLedgerDigest: contract.partitionLedgerDigest,
+							developmentQualification: developmentQualificationState,
+							armOrder: HARNESS_ARMS,
+							memoryProvenance: context.memoryProvenance,
+							evaluableReplicates: null,
+							excludedTechnicalReplicates: [],
+							sourceTechnicalExcludedReplicates: [],
+							matchedRelevantOverColdWins: null,
+							completedArms: 0,
+							verificationDiagnostics: verificationDiagnosticsSnapshot(new Map()),
+							activeProviderEffects: budget.activeEffects,
+							activeToolEffects: 0,
+							activeRetryEffects: 0,
+							activeBillingEffects: 0,
+							activeAdmittedEffects: budget.activeEffects,
+							providerCapacity: {
+								kind: "eval-provider-capacity-state" as const,
+								mode: rateLimited
+									? ("rate-limited-serial" as const)
+									: ("initial-parallel" as const),
+								initialMaxConcurrentEffects: ROOT_EVAL_INITIAL_PROVIDER_CAPACITY,
+								maxConcurrentEffects: rateLimited
+									? ROOT_EVAL_RATE_LIMITED_PROVIDER_CAPACITY
+									: ROOT_EVAL_INITIAL_PROVIDER_CAPACITY,
+								activeEffects: budget.activeEffects,
+								proposalCount:
+									budget.admittedAttempts +
+									pendingFirstAttempts +
+									budget.pendingRetryProposalCount +
+									budget.rejectedRetryProposalCount,
+								pendingProposalCount: pendingFirstAttempts + budget.pendingRetryProposalCount,
+								pendingFirstAttemptProposalCount: pendingFirstAttempts,
+								pendingRetryProposalCount: budget.pendingRetryProposalCount,
+								retryProposalCount: budget.retryProposalCount,
+								admittedProposalCount: budget.admittedAttempts,
+								admittedRetryProposalCount: budget.admittedRetryAttempts,
+								settledProposalCount: providerReasonTotal,
+								settledRetryProposalCount: budget.settledRetryAttemptCount,
+								rejectedProposalCount: budget.rejectedRetryProposalCount,
+								rejectedRetryProposalCount: budget.rejectedRetryProposalCount,
+								cooldownOutstandingReadinessCount: 0,
+								rateLimitFeedbackCount: budget.providerOutcomeReasonCounts["http-429-retryable"],
+							},
+							elapsedBudget: {
+								kind: "eval-elapsed-budget-state" as const,
+								scheduleId: context.elapsedBudgetScheduleId,
+								limitMs: ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS,
+								drainReserveMs: ROOT_EVAL_GRAPH_DRAIN_RESERVE_MS,
+								callerSafetyLeaseMs: ROOT_EVAL_CALLER_SAFETY_LEASE_MS,
+								state: elapsedExhausted ? ("exhausted" as const) : ("armed" as const),
+								nowMs: elapsedExhausted
+									? ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS
+									: (0 as const),
+								stoppingReason: elapsedExhausted
+									? ("elapsed-budget-exhausted" as const)
+									: ("none" as const),
+							},
+							admittedAttempts: budget.admittedAttempts,
+							admittedRetryAttempts: budget.admittedRetryAttempts,
+							retryProposalCount: budget.retryProposalCount,
+							pendingRetryProposalCount: budget.pendingRetryProposalCount,
+							rejectedRetryProposalCount: budget.rejectedRetryProposalCount,
+							settledRetryAttemptCount: budget.settledRetryAttemptCount,
+							providerCallCount: budget.providerCallCount,
+							activeReservedMicrousd: budget.activeReservedMicrousd,
+							providerReportedMicrousd: budget.providerReportedMicrousd,
+							pricingRoundingAllowanceMicrousd: budget.pricingRoundingAllowanceMicrousd,
+							providerReportedLowerBoundMicrousd: Math.max(
+								0,
+								budget.providerReportedMicrousd - budget.pricingRoundingAllowanceMicrousd,
+							),
+							unreportedSettledUpperBoundMicrousd: budget.unreportedSettledUpperBoundMicrousd,
+							accountedUpperBoundMicrousd: budget.accountedUpperBoundMicrousd,
+							observedBilledMicrousd: null,
+							billingObservationCount: 0,
+							billingStableIntervals: 0,
+							reconciledBilledMicrousd: null,
+							billingDisposition: "pending" as const,
+							providerOutcomeReasonCounts: budget.providerOutcomeReasonCounts,
+							stoppingReason: budget.stoppingReason,
+							finding: "pending" as const,
+						}),
+					],
+				]);
+			}
 		},
 		{
-			name: "eval/observation/events",
-			factory: "rootEvalObservationEvents",
-			partial: true,
+			name: "eval/observation/source-stage-state",
+			factory: "rootEvalSourceStageObservation",
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: {
 				materialFree: true,
-				authority: "progress-or-terminal-finding",
+				authority: "budget-anchored-source-stage-projection",
 			},
 		},
 	);
+
 	interface EvalObservationProjectionState {
-		inputs?: EvalObservationInputs;
+		campaignState?: EvalCampaignState;
+		provenance?: typeof MEMORY_PROVENANCE;
+		efficacyState?: EvalEfficacyState;
+		qualification?: EvalDevelopmentQualificationState;
 		finding?: EvalFinding;
 		effectActivity?: EvalEffectActivitySnapshot;
 		providerCapacity?: EvalProviderCapacityState;
@@ -6896,9 +7084,14 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		digest?: string;
 		terminal: boolean;
 	}
-	const observation = owner.node<EvalObservation>(
+	const fullObservationPullId = Symbol("eval/observation/full-state");
+	const fullObservation = owner.node<EvalObservation>(
 		[
-			observationEvents,
+			campaignStates,
+			memoryProvenance,
+			efficacyStates,
+			developmentQualification,
+			findings,
 			effectActivity,
 			terminalLifecycleConsistency,
 			providerCapacity,
@@ -6906,15 +7099,18 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		],
 		(ctx) => {
 			const state = ctx.state.get<EvalObservationProjectionState>() ?? { terminal: false };
-			const emit = () => {
+			const emit = (): boolean => {
 				if (
-					state.inputs === undefined ||
+					state.campaignState === undefined ||
+					state.provenance === undefined ||
+					state.efficacyState === undefined ||
+					state.qualification === undefined ||
 					state.effectActivity === undefined ||
 					state.providerCapacity === undefined ||
 					state.elapsedBudget === undefined
 				)
-					return;
-				const [campaignState, provenance, efficacyState, qualification] = state.inputs;
+					return false;
+				const { campaignState, provenance, efficacyState, qualification } = state;
 				const { diagnostics } = efficacyState;
 				const { budget } = state.effectActivity;
 				const {
@@ -6928,17 +7124,32 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					(total, reason) => total + budget.providerOutcomeReasonCounts[reason],
 					0,
 				);
-				if (
-					state.providerCapacity.activeEffects !== activeProviderEffects ||
-					state.providerCapacity.admittedProposalCount !== budget.admittedAttempts ||
-					state.providerCapacity.settledProposalCount !== providerReasonTotal ||
-					state.providerCapacity.pendingRetryProposalCount !== budget.pendingRetryProposalCount ||
-					state.providerCapacity.retryProposalCount !== budget.retryProposalCount ||
-					state.providerCapacity.admittedRetryProposalCount !== budget.admittedRetryAttempts ||
-					state.providerCapacity.settledRetryProposalCount !== budget.settledRetryAttemptCount ||
-					state.providerCapacity.rejectedRetryProposalCount !== budget.rejectedRetryProposalCount
-				)
-					return;
+				const observedPendingFirstAttemptProposalCount = Math.max(
+					0,
+					state.providerCapacity.pendingFirstAttemptProposalCount,
+				);
+				const observedPendingProposalCount =
+					observedPendingFirstAttemptProposalCount + budget.pendingRetryProposalCount;
+				const observedRejectedProposalCount = Math.max(
+					state.providerCapacity.rejectedProposalCount,
+					budget.rejectedRetryProposalCount,
+				);
+				const observedProviderCapacity = strictSnapshot({
+					...state.providerCapacity,
+					activeEffects: activeProviderEffects,
+					proposalCount:
+						budget.admittedAttempts + observedPendingProposalCount + observedRejectedProposalCount,
+					pendingProposalCount: observedPendingProposalCount,
+					pendingFirstAttemptProposalCount: observedPendingFirstAttemptProposalCount,
+					admittedProposalCount: budget.admittedAttempts,
+					settledProposalCount: providerReasonTotal,
+					pendingRetryProposalCount: budget.pendingRetryProposalCount,
+					retryProposalCount: budget.retryProposalCount,
+					admittedRetryProposalCount: budget.admittedRetryAttempts,
+					settledRetryProposalCount: budget.settledRetryAttemptCount,
+					rejectedProposalCount: observedRejectedProposalCount,
+					rejectedRetryProposalCount: budget.rejectedRetryProposalCount,
+				}) as EvalProviderCapacityState;
 				const terminal =
 					state.finding !== undefined &&
 					(campaignPurpose !== "development" || qualification.status !== "pending") &&
@@ -6954,7 +7165,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					(stoppingReason === "elapsed-budget-exhausted") !==
 					(state.elapsedBudget.state === "exhausted")
 				)
-					return;
+					return false;
 				const value = strictSnapshot({
 					kind: "eval-observation" as const,
 					topologyRevision: ROOT_EVAL_TOPOLOGY_REVISION,
@@ -6986,7 +7197,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					activeRetryEffects,
 					activeBillingEffects,
 					activeAdmittedEffects,
-					providerCapacity: state.providerCapacity,
+					providerCapacity: observedProviderCapacity,
 					elapsedBudget: state.elapsedBudget,
 					admittedAttempts: terminal ? state.finding!.admittedAttempts : budget.admittedAttempts,
 					admittedRetryAttempts: budget.admittedRetryAttempts,
@@ -7028,45 +7239,116 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					finding: terminal ? state.finding!.finding : ("pending" as const),
 				});
 				const digest = empiricalStrictJsonDigest(value);
-				if (state.digest === digest) return;
+				if (state.digest === digest) return false;
 				if (state.terminal)
 					throw new TypeError("eval observation changed after its terminal finding");
 				state.digest = digest;
 				state.terminal = terminal;
 				ctx.down([["DATA", value]]);
+				return true;
 			};
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				if (Array.isArray(raw)) state.inputs = raw as unknown as EvalObservationInputs;
-				else state.finding = raw as EvalFinding;
-			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of depBatch(ctx, 0) ?? []) state.campaignState = raw as EvalCampaignState;
+			for (const raw of depBatch(ctx, 1) ?? []) state.provenance = raw as typeof MEMORY_PROVENANCE;
+			for (const raw of depBatch(ctx, 2) ?? []) state.efficacyState = raw as EvalEfficacyState;
+			for (const raw of depBatch(ctx, 3) ?? [])
+				state.qualification = raw as EvalDevelopmentQualificationState;
+			for (const raw of depBatch(ctx, 4) ?? []) state.finding = raw as EvalFinding;
+			for (const raw of depBatch(ctx, 5) ?? []) {
 				state.effectActivity = raw as EvalEffectActivitySnapshot;
 			}
-			for (const raw of depBatch(ctx, 2) ?? []) {
+			for (const raw of depBatch(ctx, 6) ?? []) {
 				state.terminalConsistencyBudgetDigest = (
 					raw as { readonly budgetDigest: string | null }
 				).budgetDigest;
 			}
-			for (const raw of depBatch(ctx, 3) ?? []) {
+			for (const raw of depBatch(ctx, 7) ?? []) {
 				state.providerCapacity = raw as EvalProviderCapacityState;
 			}
-			for (const raw of depBatch(ctx, 4) ?? []) {
+			for (const raw of depBatch(ctx, 8) ?? []) {
 				state.elapsedBudget = raw as EvalElapsedBudgetState;
 			}
 			ctx.state.set(state);
-			emit();
+			if (!emit()) ctx.down([["RESOLVED"]]);
 		},
 		{
-			name: "eval/observation",
-			factory: "rootEvalGraphNativeObservation",
+			name: "eval/observation/full-state",
+			factory: "rootEvalGraphNativeFullObservation",
+			pullId: fullObservationPullId,
+			pausable: "resumeAll",
 			partial: true,
 			completeWhenDepsComplete: false,
 			meta: {
 				materialFree: true,
 				sanitizer: false,
 				authority: "read-only-projection",
+				joinSemantics: "latest-branch-state-with-budget-anchored-provider-capacity-conservation",
 				distinct: true,
 				billingAuditAffectsConclusion: false,
+			},
+		},
+	);
+	const fullObservationActivityReleaseController = owner.node(
+		[effectActivity, fullObservation],
+		(ctx) => {
+			if ((depBatch(ctx, 0)?.length ?? 0) > 0)
+				ctx.upNext([["PULL", { pullId: fullObservationPullId }]], 1);
+		},
+		{
+			name: "eval/observation/full-state-activity-release-controller",
+			factory: "rootEvalFullObservationActivityReleaseController",
+			partial: true,
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+			meta: { role: "quiet-full-observation-release" },
+		},
+	);
+	const fullObservationFindingReleaseController = owner.node(
+		[findings, fullObservation],
+		(ctx) => {
+			if ((depBatch(ctx, 0)?.length ?? 0) > 0)
+				ctx.upNext([["PULL", { pullId: fullObservationPullId }]], 1);
+		},
+		{
+			name: "eval/observation/full-state-finding-release-controller",
+			factory: "rootEvalFullObservationFindingReleaseController",
+			partial: true,
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+			meta: { role: "quiet-terminal-observation-release" },
+		},
+	);
+	const observation = owner.node<EvalObservation>(
+		[sourceStageObservations, fullObservation],
+		(ctx) => {
+			const state = ctx.state.get<{ digest?: string; terminal: boolean }>() ?? {
+				terminal: false,
+			};
+			let emitted = false;
+			for (let index = 0; index < 2; index += 1)
+				for (const raw of depBatch(ctx, index) ?? []) {
+					const value = raw as EvalObservation;
+					const digest = empiricalStrictJsonDigest(value);
+					if (state.digest === digest) continue;
+					if (state.terminal)
+						throw new TypeError("eval observation mux changed after its terminal finding");
+					state.digest = digest;
+					state.terminal = value.finding !== "pending";
+					emitted = true;
+					ctx.down([["DATA", value]]);
+				}
+			ctx.state.set(state);
+			if (!emitted) ctx.down([["RESOLVED"]]);
+		},
+		{
+			name: "eval/observation",
+			factory: "rootEvalGraphNativeObservation",
+			partial: true,
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+			meta: {
+				materialFree: true,
+				sanitizer: false,
+				authority: "source-stage-or-full-state-observation",
 			},
 		},
 	);
@@ -7080,6 +7362,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		billingActiveEffects.subscribe(() => undefined),
 		observation.subscribe(() => undefined),
 		findings.subscribe(() => undefined),
+		fullObservationActivityReleaseController.subscribe(() => undefined),
+		fullObservationFindingReleaseController.subscribe(() => undefined),
 	];
 	let keepalivesReleased = false;
 	const releaseKeepalives = () => {
@@ -7177,6 +7461,8 @@ async function runRootEvalWithOutcomeInput(
 	let activeProviderExecutions = 0;
 	let peakConcurrentEffects = 0;
 	let settled = false;
+	let acceptingNewEffects = true;
+	let pendingFailure: unknown | undefined;
 	let graphStopReason: EvalBudgetState["stoppingReason"] = "none";
 	let latestBudget: EvalBudgetState | undefined;
 	return new Promise<RootEvalRunResult>((resolve, reject) => {
@@ -7186,6 +7472,7 @@ async function runRootEvalWithOutcomeInput(
 		let stopFinding: () => void = () => undefined;
 		let stopObservation: () => void = () => undefined;
 		let stopBudget: () => void = () => undefined;
+		let stopTerminalLifecycleConsistency: () => void = () => undefined;
 		let stopTerminalProviderResultAdmission: () => void = () => undefined;
 		let stopFailedProviderResultAdmission: () => void = () => undefined;
 		let stopRetryableProviderResultAdmission: () => void = () => undefined;
@@ -7195,17 +7482,28 @@ async function runRootEvalWithOutcomeInput(
 			stopFinding();
 			stopObservation();
 			stopBudget();
+			stopTerminalLifecycleConsistency();
 			stopTerminalProviderResultAdmission();
 			stopFailedProviderResultAdmission();
 			stopRetryableProviderResultAdmission();
 			stopAbortSignal();
 			releaseKeepalives();
 		};
-		const abort = (error: unknown) => {
-			if (settled) return;
+		const finishFailureAfterDrain = () => {
+			if (settled || pendingFailure === undefined || inFlight.size !== 0) return;
 			settled = true;
 			stopSubscriptions();
-			void Promise.allSettled([...inFlight]).then(() => reject(error));
+			reject(pendingFailure);
+		};
+		const abort = (error: unknown) => {
+			if (settled) return;
+			pendingFailure ??= error;
+			if (acceptingNewEffects) {
+				acceptingNewEffects = false;
+				stopEffects();
+				stopEffects = () => undefined;
+			}
+			finishFailureAfterDrain();
 		};
 		const maybeFinishGraphStop = () => {
 			if (
@@ -7217,7 +7515,13 @@ async function runRootEvalWithOutcomeInput(
 				abort(new Error(`root eval stopped: ${graphStopReason}`));
 		};
 		const finish = (observation: EvalObservation) => {
-			if (settled || finding === undefined || observation.finding === "pending") return;
+			if (
+				settled ||
+				pendingFailure !== undefined ||
+				finding === undefined ||
+				observation.finding === "pending"
+			)
+				return;
 			settled = true;
 			stopSubscriptions();
 			const result = Object.freeze({
@@ -7278,6 +7582,16 @@ async function runRootEvalWithOutcomeInput(
 			if (budget.stoppingReason !== "none") graphStopReason = budget.stoppingReason;
 			maybeFinishGraphStop();
 		});
+		stopTerminalLifecycleConsistency = topology.nodes.terminalLifecycleConsistency.subscribe(
+			(message) => {
+				if (message[0] !== "ERROR" || settled) return;
+				abort(
+					message[1] instanceof Error
+						? message[1]
+						: new Error("root eval terminal lifecycle consistency path failed"),
+				);
+			},
+		);
 		const abortProviderAdmissionError = (message: readonly unknown[]) => {
 			if (message[0] !== "ERROR" || settled) return;
 			abort(
@@ -7296,7 +7610,7 @@ async function runRootEvalWithOutcomeInput(
 			abortProviderAdmissionError,
 		);
 		const scheduleEffects = (effects: readonly EvalExecutableEffect[]) => {
-			if (settled) return;
+			if (settled || !acceptingNewEffects) return;
 			for (const effect of effects) {
 				if (scheduled.has(effect.executionId)) continue;
 				scheduled.add(effect.executionId);
@@ -7423,10 +7737,12 @@ async function runRootEvalWithOutcomeInput(
 					() => {
 						inFlight.delete(execution);
 						maybeFinishGraphStop();
+						finishFailureAfterDrain();
 					},
 					() => {
 						inFlight.delete(execution);
 						maybeFinishGraphStop();
+						finishFailureAfterDrain();
 					},
 				);
 			}

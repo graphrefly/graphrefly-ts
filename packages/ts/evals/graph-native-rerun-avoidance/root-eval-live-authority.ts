@@ -66,7 +66,7 @@ export const ROOT_EVAL_LIVE_CURRENT_KEY_ENDPOINT = "https://openrouter.ai/api/v1
 export const ROOT_EVAL_LIVE_ZERO_BYOK_SCHEMA =
 	"graphrefly-ts.d145.zero-byok-observation.v16" as const;
 export const ROOT_EVAL_LIVE_CLAIM_SCHEMA = "graphrefly-ts.root-eval-live-claim.v20" as const;
-export const ROOT_EVAL_LIVE_EVIDENCE_SCHEMA = "graphrefly-ts.root-eval-live-evidence.v23" as const;
+export const ROOT_EVAL_LIVE_EVIDENCE_SCHEMA = "graphrefly-ts.root-eval-live-evidence.v24" as const;
 export const ROOT_EVAL_LIVE_PRECLAIM_FAILURE_SCHEMA =
 	"graphrefly-ts.root-eval-live-preclaim-failure.v20" as const;
 export const ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_SCHEMA =
@@ -382,6 +382,7 @@ export interface RootEvalLiveEvidence {
 	readonly taskBindingDigest: string;
 	readonly taskManifestDigest: string;
 	readonly providerCalls: number;
+	readonly observationProvenance: "live-run" | "exact-response-no-network-recovery";
 	readonly graphResult: RootEvalLiveGraphEvidence | null;
 	readonly partialGraphObservations: readonly ObserveEvent[];
 	readonly latestGraphObservation: ObserveEvent | null;
@@ -535,6 +536,7 @@ export interface RootEvalLiveEvidenceInput {
 	readonly pricing: RootEvalLivePricingObservation;
 	readonly zeroByok: RootEvalLiveZeroByokObservation;
 	readonly providerCalls: number;
+	readonly observationProvenance?: "live-run" | "exact-response-no-network-recovery";
 	readonly graphResult: RootEvalRunResult | null;
 	readonly partialGraphObservations: readonly ObserveEvent[];
 	readonly failure: unknown | null;
@@ -3013,7 +3015,8 @@ export function constructRootEvalLiveEvidence(
 	input: RootEvalLiveEvidenceInput,
 ): RootEvalLiveEvidence {
 	const { admissionReport, reconciliation, projectedGraph } = evaluateRootEvalLiveAdmission(input);
-	const admitted = admissionReport.status === "admitted";
+	const observationProvenance = input.observationProvenance ?? "live-run";
+	const admitted = observationProvenance === "live-run" && admissionReport.status === "admitted";
 	const graph = projectedGraph;
 	const positive =
 		String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "confirmatory" &&
@@ -3055,6 +3058,7 @@ export function constructRootEvalLiveEvidence(
 		taskBindingDigest: input.claim.taskBindingDigest,
 		taskManifestDigest: input.claim.taskManifestDigest,
 		providerCalls: input.providerCalls,
+		observationProvenance,
 		graphResult: graph,
 		partialGraphObservations: projectPartialObservations(input.partialGraphObservations),
 		latestGraphObservation: projectLatestObservation(input.partialGraphObservations),
@@ -3090,6 +3094,7 @@ const EVIDENCE_KEYS = Object.freeze([
 	"taskBindingDigest",
 	"taskManifestDigest",
 	"providerCalls",
+	"observationProvenance",
 	"graphResult",
 	"partialGraphObservations",
 	"latestGraphObservation",
@@ -3449,6 +3454,11 @@ function validateRootEvalLiveEvidenceForPersistence(value: RootEvalLiveEvidence)
 		)
 	)
 		throw new TypeError("root eval live evidence implementation coordinate invalid");
+	oneOf(
+		evidence.observationProvenance,
+		["live-run", "exact-response-no-network-recovery"] as const,
+		"root eval live evidence.observationProvenance",
+	);
 	const report = validateAdmissionReport(evidence.admissionReport);
 	const partial = projectPartialObservations(
 		evidence.partialGraphObservations as readonly ObserveEvent[],
@@ -3479,6 +3489,7 @@ function validateRootEvalLiveEvidenceForPersistence(value: RootEvalLiveEvidence)
 	);
 	if (disposition === "success") {
 		if (
+			evidence.observationProvenance !== "live-run" ||
 			evidence.graphResult === null ||
 			report.status !== "admitted" ||
 			evidence.failureDigest !== null ||
@@ -3786,7 +3797,7 @@ export async function persistRootEvalLiveEvidence(input: {
 	}
 	const bytes = strictJsonCodec.encode(evidence);
 	const generationRoot = join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF);
-	const target = join(generationRoot, "evidence.v23.json");
+	const target = join(generationRoot, "evidence.v24.json");
 	const existing = await open(target, constants.O_RDONLY | constants.O_NOFOLLOW).catch(
 		(error: unknown) => {
 			if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
@@ -3819,7 +3830,7 @@ export async function persistRootEvalLiveEvidence(input: {
 	await mkdir(stageRoot, { mode: 0o700 });
 	try {
 		await chmod(stageRoot, 0o700);
-		const stagedTarget = join(stageRoot, "evidence.v23.json");
+		const stagedTarget = join(stageRoot, "evidence.v24.json");
 		const writer = await open(
 			stagedTarget,
 			constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,

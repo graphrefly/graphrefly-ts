@@ -21,6 +21,7 @@ import {
 import { runRootEvalPrecredentialStagePlan } from "./precredential-stage-coordinator.js";
 import {
 	advanceRootEvalD145CharterLedger,
+	latestRootEvalGraphSpend,
 	ROOT_EVAL_D145_PARTITION_HARD_CAP_MICROUSD,
 	type RootEvalD145CharterLedger,
 	readRootEvalD145CharterLedger,
@@ -76,7 +77,7 @@ export const ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_STATE = "open-by-graphrefly-ts:D
 const repositoryRoot = resolve(import.meta.dirname, "../../../..");
 const operatorRoot = resolve(import.meta.dirname, "../.private/graph-native-rerun-avoidance");
 const privateRoot = resolve(join(operatorRoot, `current-${ROOT_EVAL_LIVE_GENERATION_REF}`));
-const charterLedgerPath = resolve(join(operatorRoot, "d145-charter-ledger.v3.json"));
+const charterLedgerPath = resolve(join(operatorRoot, "d145-charter-ledger.v4.json"));
 const charterTransactionPath = resolve(join(operatorRoot, "d145-charter-transaction.v1.json"));
 const credentialPath = resolve(
 	join(import.meta.dirname, "../.private/empirical-memory-rerun-avoidance/openrouter.env"),
@@ -342,11 +343,11 @@ async function persistClaimedEvidence(input: {
 		.filter((value) => value !== undefined);
 	if (input.providerCalls > 0 && observationValues.length === 0)
 		throw new TypeError("root eval D145 provider spend lacked Graph-visible usage authority");
-	const spendSnapshots = [
+	const conservativeSpend = latestRootEvalGraphSpend([
 		...observationValues.map((observation) => ({
 			providerReportedMicrousd: observation.providerReportedMicrousd,
-			unreportedSettledUpperBoundMicrousd:
-				observation.unreportedSettledUpperBoundMicrousd + observation.activeReservedMicrousd,
+			unreportedSettledUpperBoundMicrousd: observation.unreportedSettledUpperBoundMicrousd,
+			activeReservedMicrousd: observation.activeReservedMicrousd,
 		})),
 		...(input.graphResult === null
 			? []
@@ -354,19 +355,11 @@ async function persistClaimedEvidence(input: {
 					{
 						providerReportedMicrousd: input.graphResult.finding.providerReportedMicrousd,
 						unreportedSettledUpperBoundMicrousd:
-							input.graphResult.finding.unreportedSettledUpperBoundMicrousd +
-							input.graphResult.finding.activeReservedMicrousd,
+							input.graphResult.finding.unreportedSettledUpperBoundMicrousd,
+						activeReservedMicrousd: input.graphResult.finding.activeReservedMicrousd,
 					},
 				]),
-	];
-	const conservativeSpend = spendSnapshots.reduce(
-		(maximum, snapshot) =>
-			snapshot.providerReportedMicrousd + snapshot.unreportedSettledUpperBoundMicrousd >
-			maximum.providerReportedMicrousd + maximum.unreportedSettledUpperBoundMicrousd
-				? snapshot
-				: maximum,
-		{ providerReportedMicrousd: 0, unreportedSettledUpperBoundMicrousd: 0 },
-	);
+	]);
 	const { providerReportedMicrousd, unreportedSettledUpperBoundMicrousd } = conservativeSpend;
 	const accountedUpperBoundMicrousd =
 		providerReportedMicrousd + unreportedSettledUpperBoundMicrousd;

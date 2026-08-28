@@ -603,6 +603,8 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"runtime/packages/ts/src/solutions/work-item/index.ts",
 			"runtime/packages/ts/src/solutions/agentic-memory/index.ts",
 			"runtime/packages/ts/src/solutions/agentic-work-item-memory-application/index.ts",
+			"recover-d145-source-failure.ts",
+			"rollover-d145-charter-ledger.ts",
 			"toolchain/pnpm-lock.yaml",
 		] as const)
 			expect(implementationInputs[required], required).toMatch(/^sha256:[0-9a-f]{64}$/u);
@@ -625,7 +627,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(ROOT_EVAL_LIVE_GENERATION_REF).toBe("root-eval-development-2026-08-27-d145-v1");
 		expect(ROOT_EVAL_LIVE_CLAIM_REF).toBe("root-eval-development-claim-2026-08-27-d145-v1");
 		expect(ROOT_EVAL_LIVE_CLAIM_SCHEMA).toBe("graphrefly-ts.root-eval-live-claim.v20");
-		expect(ROOT_EVAL_LIVE_EVIDENCE_SCHEMA).toBe("graphrefly-ts.root-eval-live-evidence.v23");
+		expect(ROOT_EVAL_LIVE_EVIDENCE_SCHEMA).toBe("graphrefly-ts.root-eval-live-evidence.v24");
 		expect(ROOT_EVAL_LIVE_PRECLAIM_FAILURE_SCHEMA).toBe(
 			"graphrefly-ts.root-eval-live-preclaim-failure.v20",
 		);
@@ -1456,7 +1458,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				observations[index]!.verificationDiagnostics.completedWorkItems,
 			).toBeGreaterThanOrEqual(observations[index - 1]!.verificationDiagnostics.completedWorkItems);
 		expect(observations.at(-1)).toMatchObject({
-			topologyRevision: "graphrefly-ts.root-eval-topology.v13",
+			topologyRevision: "graphrefly-ts.root-eval-topology.v14",
 			armOrder: HARNESS_ARMS,
 			memoryProvenance: {
 				cold: "none",
@@ -2741,6 +2743,57 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		});
 		for (const arm of HARNESS_ARMS)
 			expect(result.finding.verificationDiagnostics.stageCounts[arm].completedWorkItems).toBe(3);
+	});
+
+	it("keeps Graph-native spend observable when source verification fails closed", async () => {
+		const topology = createTopology();
+		const observations: EvalObservation[] = [];
+		const stop = topology.graph.observe("eval/observation").subscribe((event) => {
+			const value = materialFreeObservationValue(event);
+			if (value !== undefined) observations.push(value);
+		});
+		let targetProviderCalls = 0;
+		try {
+			await expect(
+				runRootEval(
+					topology,
+					twoPhaseExecutor({
+						onProvider(effect) {
+							if (effect.workItemRole === "target") targetProviderCalls += 1;
+							return providerOutcome(effect);
+						},
+						onTool(effect) {
+							const settled = outcome(effect);
+							if (effect.workItemRole !== "source" || effect.replicate !== 1) return settled;
+							return outcome(effect, {
+								evidence: { ...settled.evidence, hiddenVerifier: "fail" },
+							});
+						},
+					}),
+				),
+			).rejects.toThrow("source Work Item verification failed closed");
+		} finally {
+			stop();
+		}
+		const latest = observations.at(-1);
+		expect(latest).toBeDefined();
+		expect(latest).toMatchObject({
+			campaignRef: topology.campaignRef,
+			completedArms: 0,
+			providerCallCount: 5,
+			providerReportedMicrousd: 50,
+			activeReservedMicrousd: 0,
+			accountedUpperBoundMicrousd: 50,
+			activeProviderEffects: 0,
+			providerCapacity: {
+				proposalCount: 5,
+				pendingProposalCount: 0,
+				admittedProposalCount: 5,
+				settledProposalCount: 5,
+			},
+			finding: "pending",
+		});
+		expect(targetProviderCalls).toBe(0);
 	});
 
 	it("enforces attempt and cost budget ceilings independently and validates all budget inputs", async () => {

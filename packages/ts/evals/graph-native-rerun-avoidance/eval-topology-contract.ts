@@ -90,6 +90,7 @@ export const ROOT_EVAL_REQUIRED_NODES = Object.freeze({
 	"eval/provider/all-result-admissions": "rootEvalAllProviderResultAdmissions",
 	"eval/provider/result-batches": "rootEvalProviderOutcomeBatches",
 	"eval/provider/reconciliation": "rootEvalProviderReconciliation",
+	"eval/provider/budget-settled-outcomes": "rootEvalBudgetSettledProviderOutcomes",
 	"eval/tool/exact-admission": "rootEvalExactToolAdmission",
 	"eval/retry/delay-admission": "rootEvalRetryDelayAdmission",
 	"eval/executor/current-provider-effect": "rootEvalProviderExecutorBoundary",
@@ -134,8 +135,13 @@ export const ROOT_EVAL_REQUIRED_NODES = Object.freeze({
 	"eval/development/qualification": "rootEvalDevelopmentQualification",
 	"eval/observation/terminal-lifecycle-consistency": "rootEvalTerminalLifecycleConsistency",
 	"eval/controls/memory-provenance": "state",
-	"eval/observation/inputs": "combine",
-	"eval/observation/events": "rootEvalObservationEvents",
+	"eval/observation/source-stage-context": "state",
+	"eval/observation/source-stage-state": "rootEvalSourceStageObservation",
+	"eval/observation/full-state": "rootEvalGraphNativeFullObservation",
+	"eval/observation/full-state-activity-release-controller":
+		"rootEvalFullObservationActivityReleaseController",
+	"eval/observation/full-state-finding-release-controller":
+		"rootEvalFullObservationFindingReleaseController",
 	"eval/observation": "rootEvalGraphNativeObservation",
 } as const);
 
@@ -354,8 +360,6 @@ export const ROOT_EVAL_CRITICAL_EDGES = Object.freeze([
 	["eval/provider/graph-admission-and-budget", "eval/provider/adaptive-capacity-state"],
 	["eval/provider/graph-admission-and-budget", "eval/budget/state"],
 	["eval/provider/admissions", "eval/executor/current-provider-effect"],
-	["eval/provider/result-admission", "eval/tool/exact-admission"],
-	["eval/provider/failed-result-admission", "eval/tool/exact-admission"],
 	["eval/source-work-item/tool-result-input", "eval/tool/exact-admission"],
 	["eval/campaign/task-bindings", "eval/tool/exact-admission"],
 	["eval/tool/exact-admission", "eval/executor/current-tool-effect"],
@@ -412,6 +416,9 @@ export const ROOT_EVAL_CRITICAL_EDGES = Object.freeze([
 	["eval/source-work-item/tool-result-input", "eval/tool/result"],
 	["eval/effect/terminal-outcomes", "eval/verification/diff"],
 	["eval/provider/reconciliation", "eval/solution/work-item-execution/plan/runtime"],
+	["eval/provider/graph-admission-and-budget", "eval/provider/budget-settled-outcomes"],
+	["eval/observation/source-stage-context", "eval/provider/graph-admission-and-budget"],
+	["eval/provider/budget-settled-outcomes", "eval/tool/exact-admission"],
 	["eval/verification/diff", "eval/verification/public-semantic"],
 	["eval/verification/public-semantic", "eval/verification/hidden-verifier"],
 	["eval/verification/hidden-verifier", "eval/cleanup/completed"],
@@ -439,17 +446,22 @@ export const ROOT_EVAL_CRITICAL_EDGES = Object.freeze([
 	["eval/memory/exposure-frame", "eval/memory/context-for-work-item"],
 	["eval/memory/context-for-work-item", "eval/work-item/attempt-resource-plan"],
 	["eval/profile/graph-admission", "eval/work-item/attempt-resource-plan"],
-	["eval/campaign/state", "eval/observation/inputs"],
-	["eval/controls/memory-provenance", "eval/observation/inputs"],
-	["eval/findings/efficacy-state", "eval/observation/inputs"],
-	["eval/development/qualification", "eval/observation/inputs"],
-	["eval/observation/inputs", "eval/observation/events"],
-	["eval/findings/efficacy", "eval/observation/events"],
-	["eval/observation/events", "eval/observation"],
-	["eval/observation/effect-activity", "eval/observation"],
-	["eval/provider/adaptive-capacity-state", "eval/observation"],
-	["eval/time/elapsed-budget/state", "eval/observation"],
-	["eval/observation/terminal-lifecycle-consistency", "eval/observation"],
+	["eval/provider/budget-settled-outcomes", "eval/observation/source-stage-state"],
+	["eval/campaign/state", "eval/observation/full-state"],
+	["eval/controls/memory-provenance", "eval/observation/full-state"],
+	["eval/findings/efficacy-state", "eval/observation/full-state"],
+	["eval/development/qualification", "eval/observation/full-state"],
+	["eval/findings/efficacy", "eval/observation/full-state"],
+	["eval/observation/effect-activity", "eval/observation/full-state"],
+	["eval/observation/terminal-lifecycle-consistency", "eval/observation/full-state"],
+	["eval/provider/adaptive-capacity-state", "eval/observation/full-state"],
+	["eval/time/elapsed-budget/state", "eval/observation/full-state"],
+	["eval/observation/effect-activity", "eval/observation/full-state-activity-release-controller"],
+	["eval/observation/full-state", "eval/observation/full-state-activity-release-controller"],
+	["eval/findings/efficacy", "eval/observation/full-state-finding-release-controller"],
+	["eval/observation/full-state", "eval/observation/full-state-finding-release-controller"],
+	["eval/observation/source-stage-state", "eval/observation"],
+	["eval/observation/full-state", "eval/observation"],
 ] as const);
 
 export interface RootEvalTopologyContractReport {
@@ -557,6 +569,8 @@ export function assertRootEvalTopologyContract(
 	const exactToolAdmission = nodes.get("eval/tool/exact-admission");
 	if (
 		exactToolAdmission?.meta?.sourceBarrier !== "all-five-provider-outcomes-before-source-tools" ||
+		exactToolAdmission.meta.sourceBudgetBarrier !==
+			"all-five-provider-budget-settlements-before-source-tools" ||
 		exactToolAdmission.meta.sourceToolCapacity !== 1
 	)
 		throw new Error("topology contract: source exact-tool capacity/barrier drift");
@@ -577,10 +591,17 @@ export function assertRootEvalTopologyContract(
 	)
 		throw new Error("topology contract: adaptive provider capacity state drift");
 	const observation = nodes.get("eval/observation");
+	const sourceStageObservation = nodes.get("eval/observation/source-stage-state");
+	const fullObservation = nodes.get("eval/observation/full-state");
 	if (
 		observation?.meta?.materialFree !== true ||
 		observation.meta.sanitizer !== false ||
-		observation.meta.authority !== "read-only-projection"
+		observation.meta.authority !== "source-stage-or-full-state-observation" ||
+		sourceStageObservation?.meta?.materialFree !== true ||
+		sourceStageObservation.meta.authority !== "budget-anchored-source-stage-projection" ||
+		fullObservation?.meta?.materialFree !== true ||
+		fullObservation.meta.sanitizer !== false ||
+		fullObservation.meta.authority !== "read-only-projection"
 	)
 		throw new Error("topology contract: raw observation policy drift");
 	if (snapshot.nodes.filter((node) => node.id === "eval/observation").length !== 1)

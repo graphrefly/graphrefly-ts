@@ -39,6 +39,7 @@ import {
 } from "../../evals/graph-native-rerun-avoidance/generate-root-eval-artifacts.js";
 import {
 	advanceRootEvalD145CharterLedger,
+	latestRootEvalGraphSpend,
 	ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
 	readRootEvalD145CharterLedger,
 	writeRootEvalD145CharterLedger,
@@ -461,7 +462,7 @@ function liveEvidenceInput(
 			"DATA",
 			{
 				kind: "eval-observation",
-				topologyRevision: "graphrefly-ts.root-eval-topology.v13",
+				topologyRevision: "graphrefly-ts.root-eval-topology.v14",
 				solutionIdentities: [
 					"work-item-execution",
 					"agentic-work-item-memory-application",
@@ -983,6 +984,27 @@ function withRejectedBillingTerminal(input: RootEvalLiveEvidenceInput): RootEval
 }
 
 describe("D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence", () => {
+	it("releases resolved reservations from the latest Graph spend snapshot", () => {
+		expect(
+			latestRootEvalGraphSpend([
+				{
+					providerReportedMicrousd: 4_718,
+					unreportedSettledUpperBoundMicrousd: 0,
+					activeReservedMicrousd: 400_000,
+				},
+				{
+					providerReportedMicrousd: 6_419,
+					unreportedSettledUpperBoundMicrousd: 0,
+					activeReservedMicrousd: 0,
+				},
+			]),
+		).toEqual({
+			providerReportedMicrousd: 6_419,
+			unreportedSettledUpperBoundMicrousd: 0,
+			accountedUpperBoundMicrousd: 6_419,
+		});
+	});
+
 	it("atomically conserves both D145 spend partitions and the two-generation development gate", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-d145-charter-ledger-"));
 		const path = join(await realpath(temporary), "charter.json");
@@ -1094,7 +1116,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 	it("binds exact fresh D145 currentness and rejects synthetic live authority", async () => {
 		expect(ROOT_EVAL_LIVE_DECISION_REF).toBe("graphrefly-ts:D145");
 		expect(ROOT_EVAL_LIVE_CLAIM_SCHEMA).toBe("graphrefly-ts.root-eval-live-claim.v20");
-		expect(ROOT_EVAL_LIVE_EVIDENCE_SCHEMA).toBe("graphrefly-ts.root-eval-live-evidence.v23");
+		expect(ROOT_EVAL_LIVE_EVIDENCE_SCHEMA).toBe("graphrefly-ts.root-eval-live-evidence.v24");
 		expect(ROOT_EVAL_LIVE_PRECLAIM_FAILURE_SCHEMA).toBe(
 			"graphrefly-ts.root-eval-live-preclaim-failure.v20",
 		);
@@ -3265,6 +3287,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		);
 		expect(evidence).toMatchObject({
 			disposition: "partial-failure",
+			observationProvenance: "live-run",
 			graphResult: null,
 			efficacyClaim: "none",
 			causalAttribution: "undetermined",
@@ -3312,6 +3335,23 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			disposition: "partial-failure",
 			technicalFailureCode: "caller-settlement-deadline-expired",
 			latestGraphObservation: expect.objectContaining({ path: "eval/observation" }),
+		});
+		const recoveredPartial = constructRootEvalLiveEvidence({
+			...liveEvidenceInput(),
+			observationProvenance: "exact-response-no-network-recovery",
+			graphResult: null,
+			currentKeyAfter: null,
+			providerCalls: 5,
+			failure: new Error("source Work Item verification failed closed"),
+			cleanupDisposition: "complete",
+		});
+		expect(recoveredPartial).toMatchObject({
+			disposition: "partial-failure",
+			observationProvenance: "exact-response-no-network-recovery",
+			graphResult: null,
+			efficacyClaim: "none",
+			causalAttribution: "undetermined",
+			admissionReport: { status: "not-candidate" },
 		});
 		const base = liveEvidenceInput();
 		const spendMismatch = constructRootEvalLiveEvidence(
@@ -3575,7 +3615,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			expect(second).toEqual(first);
 			expect(first.postCommitFailureDigest).toBeNull();
 			expect(await readdir(join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF))).toEqual([
-				"evidence.v23.json",
+				"evidence.v24.json",
 			]);
 			await expect(
 				persistRootEvalLiveEvidence({
@@ -3641,7 +3681,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			const persisted = await persistRootEvalLiveEvidence({ privateRoot, evidence });
 			expect(persisted.postCommitFailureDigest).toBeNull();
 			const bytes = await readFile(
-				join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF, "evidence.v23.json"),
+				join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF, "evidence.v24.json"),
 				"utf8",
 			);
 			const durable = JSON.parse(bytes) as Record<string, unknown>;
@@ -3704,7 +3744,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			const receipt = await persistRootEvalLiveEvidence({ privateRoot, evidence });
 			expect(receipt.postCommitFailureDigest).toBeNull();
 			const persisted = await readFile(
-				join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF, "evidence.v23.json"),
+				join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF, "evidence.v24.json"),
 				"utf8",
 			);
 			expect(JSON.parse(persisted)).toEqual(evidence);
