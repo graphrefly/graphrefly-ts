@@ -868,7 +868,7 @@ export function parseRootEvalLiveProviderResponse(input: {
 	const retryAfterMs =
 		input.retryAfter !== null && /^\d+$/u.test(input.retryAfter)
 			? Math.min(120_000, Number(input.retryAfter) * 1_000)
-			: 0;
+			: null;
 	let errorCostMicrousd = input.reservationMicrousd;
 	let errorCostEvidence: EvalProviderOutcome["costEvidence"] = "reservation-upper-bound";
 	let errorPricingRoundingAllowanceMicrousd = 0;
@@ -890,7 +890,8 @@ export function parseRootEvalLiveProviderResponse(input: {
 			costEvidence: errorCostEvidence,
 			pricingRoundingAllowanceMicrousd: errorPricingRoundingAllowanceMicrousd,
 			resultDigest: empiricalSha256(input.bytes),
-			retryAfterMs: Math.max(60_000, retryAfterMs),
+			retryAfterMs:
+				retryAfterMs === null ? ROOT_EVAL_MAX_RETRY_DELAY_MS : Math.max(60_000, retryAfterMs),
 			tool: null,
 		});
 	if (input.status < 200 || input.status >= 300)

@@ -6927,6 +6927,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const sourceStageObservations = owner.node<EvalObservation>(
 		[budgetSettledProviderOutcomes],
 		(ctx) => {
+			let emitted = false;
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const settlement = raw as EvalBudgetSettledProviderOutcome;
 				if (settlement.outcome.workItemRole !== "source") continue;
@@ -6937,6 +6938,13 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					(total, reason) => total + budget.providerOutcomeReasonCounts[reason],
 					0,
 				);
+				const retryableReasonTotal =
+					budget.providerOutcomeReasonCounts["transport-retryable"] +
+					budget.providerOutcomeReasonCounts["http-429-retryable"];
+				// This projection declares no active retry effect. Do not publish any concurrent
+				// source settlement until every prior retryable result has reached attempt-two
+				// provider admission; the full-state path observes active retry-delay cuts.
+				if (retryableReasonTotal !== budget.admittedRetryAttempts) continue;
 				const admittedFirstAttempts = budget.admittedAttempts - budget.admittedRetryAttempts;
 				const pendingFirstAttempts = Math.max(0, contract.replicateCount - admittedFirstAttempts);
 				const rateLimited = budget.providerOutcomeReasonCounts["http-429-retryable"] > 0;
@@ -7057,7 +7065,9 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 						}),
 					],
 				]);
+				emitted = true;
 			}
+			if (!emitted) ctx.down([["RESOLVED"]]);
 		},
 		{
 			name: "eval/observation/source-stage-state",
@@ -7124,6 +7134,11 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					(total, reason) => total + budget.providerOutcomeReasonCounts[reason],
 					0,
 				);
+				const retryableReasonTotal =
+					budget.providerOutcomeReasonCounts["transport-retryable"] +
+					budget.providerOutcomeReasonCounts["http-429-retryable"];
+				if (activeRetryEffects !== retryableReasonTotal - budget.admittedRetryAttempts)
+					return false;
 				const observedPendingFirstAttemptProposalCount = Math.max(
 					0,
 					state.providerCapacity.pendingFirstAttemptProposalCount,

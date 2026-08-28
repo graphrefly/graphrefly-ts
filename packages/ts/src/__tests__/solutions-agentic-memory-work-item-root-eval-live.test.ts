@@ -2289,11 +2289,11 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			});
 		}
 		for (const [retryAfter, expectedMs] of [
-			[null, 60_000],
-			["malformed", 60_000],
+			[null, 120_000],
+			["malformed", 120_000],
 			["1", 60_000],
 			["121", 120_000],
-			["Wed, 21 Oct 2015 07:28:00 GMT", 60_000],
+			["Wed, 21 Oct 2015 07:28:00 GMT", 120_000],
 		] as const)
 			expect(
 				parseRootEvalLiveProviderResponse({

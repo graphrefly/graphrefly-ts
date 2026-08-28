@@ -6,6 +6,7 @@ import {
 } from "../../evals/graph-native-rerun-avoidance/canonical.js";
 import { createCurrentExactModelHarnessProfileInput } from "../../evals/graph-native-rerun-avoidance/current-exact-profile.js";
 import {
+	assertRootEvalObservationRuntimeShape,
 	assertRootEvalOutcomeReceipt,
 	createRootEvalTopology,
 	type EvalAdmittedEffect,
@@ -2020,6 +2021,45 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"metadata",
 		] as const)
 			expect(attemptTwo!.request[key], `request.${key}`).toEqual(attemptOne!.request[key]);
+	});
+
+	it("emits source retry observations only after the retry lifecycle reaches a stable cut", async () => {
+		const result = await runRootEval(
+			createTopology(),
+			twoPhaseExecutor({
+				onProvider(effect) {
+					if (effect.workItemRole === "source" && effect.replicate === 1 && effect.attempt === 1)
+						return providerOutcome(effect, {
+							status: "retryable",
+							reason: "http-429-retryable",
+							retryAfterMs: 120_000,
+							cleanupCompleted: true,
+							toolProposal: null,
+						});
+					return providerOutcome(effect);
+				},
+			}),
+		);
+
+		expect(result.executedAdmissionIds).toHaveLength(36);
+		expect(result.finding.providerOutcomeReasonCounts).toMatchObject({
+			"http-429-retryable": 1,
+			"tool-proposed": 35,
+		});
+		for (const [index, event] of result.observations.entries()) {
+			if (event.msg[0] !== "DATA") continue;
+			const observation = event.msg[1] as EvalObservation;
+			expect(
+				() => assertRootEvalObservationRuntimeShape(observation),
+				`observation ${index} retryable=${observation.providerOutcomeReasonCounts["http-429-retryable"]} admittedRetry=${observation.admittedRetryAttempts} activeRetry=${observation.activeRetryEffects}`,
+			).not.toThrow();
+			const retryableReasonTotal =
+				observation.providerOutcomeReasonCounts["transport-retryable"] +
+				observation.providerOutcomeReasonCounts["http-429-retryable"];
+			expect(observation.activeRetryEffects).toBe(
+				retryableReasonTotal - observation.admittedRetryAttempts,
+			);
+		}
 	});
 
 	it("fails closed when a transport failure is mislabeled as retryable", async () => {
