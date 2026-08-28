@@ -1205,7 +1205,7 @@ async function liveWire(
 			{
 				role: "system",
 				content:
-					"You are editing one bounded TypeScript workspace. Inspect the supplied producer and identity contracts, then return exactly one JSON object matching the required replacement schema. Put the complete smallest behaviorally correct change in that object. Do not claim validation; the Graph runs independent public and withheld behavioral verification.",
+					"You are editing one bounded TypeScript workspace. Inspect the supplied producer and identity contracts, then return exactly one JSON object matching the required replacement schema. Put the complete smallest behaviorally correct change in that object. The oldText field must be copied byte-for-byte from exactly one occurrence in the supplied admitted file, including tabs, spaces, line endings, and surrounding indentation; newText replaces only that exact occurrence. Do not claim validation; the Graph runs independent public and withheld behavioral verification.",
 			},
 			{
 				role: "user",

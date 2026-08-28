@@ -1636,6 +1636,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			} finally {
 				await wrongCredentialExecutor.dispose();
 			}
+			let capturedSystemPrompt: string | undefined;
 			const executor = createRootEvalLiveTransportQualificationExecutor({
 				repositoryRoot,
 				materializationRoot: join(temporary, "workspaces"),
@@ -1643,7 +1644,12 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				claimCommit: claimAcquisition,
 				bearerToken: claimInput.credential.bearerToken,
 				pricing: claimInput.pricing,
-				providerResponses: [{ status: 200, bytes: providerBytesForEffect(admitted) }],
+				providerResponses: [],
+				providerResponseForRequest(request) {
+					const messages = request.messages as readonly Readonly<Record<string, unknown>>[];
+					capturedSystemPrompt = String(messages[0]?.content);
+					return { status: 200, bytes: providerBytesForEffect(admitted) };
+				},
 			});
 			try {
 				const outcome = (await executor.execute(admitted)) as EvalProviderOutcome;
@@ -1673,6 +1679,12 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					},
 					reasoning: { effort: "medium" },
 				});
+				expect(capturedSystemPrompt).toContain(
+					"oldText field must be copied byte-for-byte from exactly one occurrence",
+				);
+				expect(capturedSystemPrompt).toContain(
+					"including tabs, spaces, line endings, and surrounding indentation",
+				);
 				expect(requestBody?.reasoning).not.toHaveProperty("max_tokens");
 				expect(requestBody).not.toHaveProperty("tools");
 				expect(requestBody).not.toHaveProperty("tool_choice");
