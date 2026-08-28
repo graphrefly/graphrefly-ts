@@ -3,13 +3,13 @@ import { join, relative, resolve } from "node:path";
 import { empiricalSha256, empiricalStrictJsonDigest } from "./canonical.js";
 
 export const CURRENT_QUALIFICATION_DIGEST =
-	"sha256:8cf4c81dbfcfd8406ae97aaf63ca5dba319c35b53939a9cba25c1c641e2865d0" as const;
+	"sha256:4e6472602a260f85673034afabde9196ba95c2b2a6e7a566d5c36ff0fd0abb06" as const;
 export const CURRENT_QUALIFICATION_ARTIFACT_DIGEST =
-	"sha256:c6f66e8e62d9d74e2bbb3b4b931ce68b1a7a529944bd6c8eb9dce413a784a5d9" as const;
+	"sha256:d0961c0bd13350d35b7f5e26c11dd893ccb025861f102114e121f8993ca072ff" as const;
 
 // Updated only after the current closure and its no-network qualification are both frozen.
 export const CURRENT_IMPLEMENTATION_MANIFEST_DIGEST =
-	"sha256:ac1e8bc628590f8786074b8c72740fc9f21ab9568692fabc8ac31c01b9afdb4f" as const;
+	"sha256:d4e96fe2e2ee7b2510f055e926210ac8d06b9d7e67353f83907c87a92efd7709" as const;
 
 export const CURRENT_IMPLEMENTATION_RUNTIME = Object.freeze({
 	node: "v24.18.0" as const,
@@ -27,6 +27,16 @@ export function assertCurrentImplementationRuntime(): void {
 		throw new TypeError("root eval D145 implementation runtime drifted");
 }
 
+export function measureReleaseInvariantPackageManifest(value: unknown): string {
+	if (value === null || typeof value !== "object" || Array.isArray(value))
+		throw new TypeError("root eval package manifest must be an object");
+	const manifest = value as Readonly<Record<string, unknown>>;
+	if (typeof manifest.version !== "string" || manifest.version.length === 0)
+		throw new TypeError("root eval package manifest requires a release version");
+	const { version: _releaseVersion, ...behavioralManifest } = manifest;
+	return empiricalStrictJsonDigest(behavioralManifest);
+}
+
 async function listRuntimeSources(root: string, directory: string): Promise<readonly string[]> {
 	const names: string[] = [];
 	for (const entry of (await readdir(directory, { withFileTypes: true })).sort((left, right) =>
@@ -42,7 +52,7 @@ async function listRuntimeSources(root: string, directory: string): Promise<read
 export async function measureCurrentImplementation(): Promise<string> {
 	const sources = await measureCurrentImplementationInputs();
 	return empiricalStrictJsonDigest({
-		revision: "graphrefly-ts.d147.current-implementation-manifest.v47",
+		revision: "graphrefly-ts.d147.current-implementation-manifest.v48",
 		runtime: CURRENT_IMPLEMENTATION_RUNTIME,
 		sources,
 	});
@@ -103,6 +113,11 @@ export async function measureCurrentImplementationInputs(): Promise<
 		"packages/ts/tsconfig.tests.json",
 		"packages/ts/vitest.config.ts",
 	] as const)
-		sources[`toolchain/${name}`] = empiricalSha256(await readFile(join(repositoryRoot, name)));
+		sources[`toolchain/${name}`] =
+			name === "packages/ts/package.json"
+				? measureReleaseInvariantPackageManifest(
+						JSON.parse(await readFile(join(repositoryRoot, name), "utf8")),
+					)
+				: empiricalSha256(await readFile(join(repositoryRoot, name)));
 	return Object.freeze(sources);
 }

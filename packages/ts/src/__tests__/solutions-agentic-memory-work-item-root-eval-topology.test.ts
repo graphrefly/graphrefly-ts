@@ -49,6 +49,7 @@ import {
 	CURRENT_QUALIFICATION_DIGEST,
 	measureCurrentImplementation,
 	measureCurrentImplementationInputs,
+	measureReleaseInvariantPackageManifest,
 } from "../../evals/graph-native-rerun-avoidance/implementation-manifest.js";
 import {
 	rootEvalPrecredentialStagePlan,
@@ -605,6 +606,21 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"toolchain/pnpm-lock.yaml",
 		] as const)
 			expect(implementationInputs[required], required).toMatch(/^sha256:[0-9a-f]{64}$/u);
+		const packageManifest = JSON.parse(
+			readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
+		) as Record<string, unknown>;
+		expect(implementationInputs["toolchain/packages/ts/package.json"]).toBe(
+			measureReleaseInvariantPackageManifest(packageManifest),
+		);
+		expect(
+			measureReleaseInvariantPackageManifest({ ...packageManifest, version: "999.999.999" }),
+		).toBe(measureReleaseInvariantPackageManifest(packageManifest));
+		expect(
+			measureReleaseInvariantPackageManifest({
+				...packageManifest,
+				scripts: { ...(packageManifest.scripts as Record<string, string>), test: "false" },
+			}),
+		).not.toBe(measureReleaseInvariantPackageManifest(packageManifest));
 		expect(ROOT_EVAL_LIVE_DECISION_REF).toBe("graphrefly-ts:D145");
 		expect(ROOT_EVAL_LIVE_GENERATION_REF).toBe("root-eval-development-2026-08-27-d145-v1");
 		expect(ROOT_EVAL_LIVE_CLAIM_REF).toBe("root-eval-development-claim-2026-08-27-d145-v1");
