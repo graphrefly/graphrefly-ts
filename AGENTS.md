@@ -72,6 +72,14 @@ no implement without explicit approval · verify premise before greenfield.
 
 ## Workflow rules
 
+Before decision or work admission, design review, dispatch, QA, long-running goal progression,
+live/provider/spend authorization, retry, or stalled-work recovery, load and follow the personal
+`$project-governance` skill at `~/.codex/skills/project-governance/SKILL.md`. It governs
+cross-project record and permission classification, while this repo and `~/src/graphrefly` retain
+their existing authorities. The concrete GraphReFly family mapping is proposed as
+`graphrefly:B137`; do not invent that schema or migrate history before its separate approval, and do
+not mint a D# merely for an attempt, rerun, receipt, incident, provider/model change, or spend grant.
+
 - **spec-first** (F-NO-IMPL-DEFINED): any protocol behavior change → amend `~/src/graphrefly`
   `spec/rules.jsonl` + `formal/*.tla` + `spec/conformance.jsonl` **before** code (`/spec-amend`).
 - **decision-first + owner-first**: `/design-review` → approval → append to the unique owner ledger.

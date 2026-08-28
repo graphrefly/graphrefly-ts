@@ -5,6 +5,12 @@ description: "GraphReFly clean-slate decision-consistency check. Resolves the fe
 
 # decision-guard — recall and apply locked decisions, values, invariants (clean-slate)
 
+Load and apply the personal `$project-governance` skill at
+`~/.codex/skills/project-governance/SKILL.md` before classifying or appending any decision, work,
+execution authorization, attempt, incident, receipt or evidence record. It supplies the cross-project
+classification floor; this skill and the federated GraphReFly authorities still decide the unique
+project owner and semantic consistency.
+
 **Purpose.** Conversations lose context-window state quickly. This is the canonical recall
 surface for the **clean-slate** redesign: invoke BEFORE answering decision questions to anchor
 against the user's locked positions and prevent silent drift — especially when a chat proposes
@@ -83,8 +89,12 @@ after a decision locks. Invoke when the question is "what should I decide?", not
 
 ## Update protocol
 
-When a new D# locks (after user approval): first classify durable vs execution/receipt and select the unique
-owner. Append only to that ledger; use qualified cross-repo refs and never copy the record body upstream.
+When a new durable D# locks (after user approval), verify that it represents a material semantic,
+architectural, product, safety or authority-boundary decision and select the unique owner. Attempts,
+incidents, receipts, reruns, provider/model changes and spend grants are not D# records. Use the
+project's approved non-decision mapping when one exists; while `graphrefly:B137` remains proposed, do
+not invent its schema or use a new execution D# as a substitute. Append a durable decision only to its
+owner ledger; use qualified cross-repo refs and never copy the record body upstream.
 Update a root session lock only for a root-owned decision. Run
 `npm --prefix ~/src/graphrefly run authority:check:workspace` and
 `node ~/src/graphrefly/dashboard/build.mjs --check`.
