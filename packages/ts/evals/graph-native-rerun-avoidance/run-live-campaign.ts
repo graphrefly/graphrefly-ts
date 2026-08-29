@@ -440,6 +440,16 @@ async function executeClaimedCampaign(input: {
 	let executor: RootEvalLiveExecutor | null = null;
 	let stopObservation: () => void = () => undefined;
 	const callerCancellation = new AbortController();
+	const processSignalHandlers = new Map<NodeJS.Signals, () => void>();
+	for (const signal of ["SIGHUP", "SIGINT", "SIGTERM"] as const) {
+		const handler = () => {
+			const error = new Error(`root eval live runner received ${signal}`);
+			failure ??= error;
+			if (!callerCancellation.signal.aborted) callerCancellation.abort(error);
+		};
+		processSignalHandlers.set(signal, handler);
+		process.once(signal, handler);
+	}
 	try {
 		if (failure !== null) throw failure;
 		const topology = createRootEvalTopology({
@@ -537,19 +547,23 @@ async function executeClaimedCampaign(input: {
 		} catch (error) {
 			failure ??= error;
 		}
-	await persistClaimedEvidence({
-		claim,
-		currentKeyBefore: input.currentKeyBefore,
-		currentKeyAfter,
-		pricing: input.pricing,
-		zeroByok: input.zeroByok,
-		providerCalls,
-		graphResult,
-		partialGraphObservations,
-		failure,
-		cleanupDisposition,
-		charterLedger: input.charterLedger,
-	});
+	try {
+		await persistClaimedEvidence({
+			claim,
+			currentKeyBefore: input.currentKeyBefore,
+			currentKeyAfter,
+			pricing: input.pricing,
+			zeroByok: input.zeroByok,
+			providerCalls,
+			graphResult,
+			partialGraphObservations,
+			failure,
+			cleanupDisposition,
+			charterLedger: input.charterLedger,
+		});
+	} finally {
+		for (const [signal, handler] of processSignalHandlers) process.off(signal, handler);
+	}
 }
 
 async function main(): Promise<void> {

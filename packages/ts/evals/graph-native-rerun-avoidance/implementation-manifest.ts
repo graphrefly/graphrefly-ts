@@ -3,13 +3,13 @@ import { join, relative, resolve } from "node:path";
 import { empiricalSha256, empiricalStrictJsonDigest } from "./canonical.js";
 
 export const CURRENT_QUALIFICATION_DIGEST =
-	"sha256:9e6f621bd7b3ffe205f91ee4d7e33d511b8cd6abf0af065d1ae92d5357f98644" as const;
+	"sha256:7d8765f21d31bcb62f7dfb3a6100f791f23f9c825c80aa656ae6b6873c5a650b" as const;
 export const CURRENT_QUALIFICATION_ARTIFACT_DIGEST =
-	"sha256:44d012cd0c2ebb443350c167216b2bd1cad452b9dbd767e005fbaf311665323f" as const;
+	"sha256:3653a4ac58901fafc2dd30a1954e0897222a69a52674eab8f54a9edeb1a32871" as const;
 
 // Updated only after the current closure and its no-network qualification are both frozen.
 export const CURRENT_IMPLEMENTATION_MANIFEST_DIGEST =
-	"sha256:bbe3ce166aa21742610955a07954a9780c36fd7429376a72c4ca2b3863dd1c10" as const;
+	"sha256:4058632c0f2fa76700d52a79de4b80aa82f8f33e52c1c07f6f32c831d9347029" as const;
 
 export const CURRENT_IMPLEMENTATION_RUNTIME = Object.freeze({
 	node: "v24.18.0" as const,
@@ -80,6 +80,7 @@ export async function measureCurrentImplementationInputs(): Promise<
 		"root-eval-live-authority.ts",
 		"root-eval-live-qualification.ts",
 		"root-eval-live.ts",
+		"recover-d145-interrupted-campaign.ts",
 		"recover-d145-source-failure.ts",
 		"rollover-d145-charter-ledger.ts",
 		"root-eval-task.ts",

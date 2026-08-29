@@ -604,6 +604,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"runtime/packages/ts/src/solutions/work-item/index.ts",
 			"runtime/packages/ts/src/solutions/agentic-memory/index.ts",
 			"runtime/packages/ts/src/solutions/agentic-work-item-memory-application/index.ts",
+			"recover-d145-interrupted-campaign.ts",
 			"recover-d145-source-failure.ts",
 			"rollover-d145-charter-ledger.ts",
 			"toolchain/pnpm-lock.yaml",
@@ -831,7 +832,21 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(liveEntry).toMatch(
 			/ROOT_EVAL_LIVE_MOST_RECENT_SUCCESSFUL_CANONICAL_CLOSEOUT[^;]+"graphrefly-ts:D117"/su,
 		);
+		expect(liveEntry).toMatch(
+			/\["SIGHUP", "SIGINT", "SIGTERM"\][\s\S]+callerCancellation\.abort\(error\)[\s\S]+process\.off\(signal, handler\)/u,
+		);
 		expect(liveEntry).toMatch(/ROOT_EVAL_LIVE_CONSUMED_D121_APPROVAL = "graphrefly-ts:D121"/u);
+		const interruptedRecovery = readFileSync(
+			new URL(
+				"../../evals/graph-native-rerun-avoidance/recover-d145-interrupted-campaign.ts",
+				import.meta.url,
+			),
+			"utf8",
+		);
+		expect(interruptedRecovery).toMatch(/assertDispatchReceipts[\s\S]+providerResponseForEffect/u);
+		expect(interruptedRecovery).toMatch(
+			/observationProvenance: "exact-response-no-network-recovery"[\s\S]+graphResult: null[\s\S]+developmentQualification: null/u,
+		);
 		expect(liveEntry).toMatch(/ROOT_EVAL_LIVE_D121_REPAIR_RECEIPT = "graphrefly-ts:D124"/u);
 		expect(liveEntry).toMatch(/ROOT_EVAL_LIVE_EXECUTION_APPROVAL = "graphrefly-ts:D145"/u);
 		expect(liveEntry).toMatch(
