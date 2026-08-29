@@ -40,7 +40,9 @@ import {
 } from "./eval-topology.js";
 import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifest.js";
 import {
+	ROOT_EVAL_D145_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD,
 	ROOT_EVAL_D145_CONFIRMATORY_HARD_CAP_MICROUSD,
+	ROOT_EVAL_D145_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD,
 	ROOT_EVAL_D145_DEVELOPMENT_HARD_CAP_MICROUSD,
 } from "./root-eval-charter-ledger.js";
 import {
@@ -87,7 +89,7 @@ function campaignPlan(slot: RootEvalTaskManifestSlot) {
 	const ordinal = rootEvalDevelopmentOrdinal(slot)!;
 	return Object.freeze({
 		campaignPurpose: "development" as const,
-		budgetPartition: "development-usd-12" as const,
+		budgetPartition: "development-usd-36" as const,
 		taskSetRef: rootEvalDevelopmentTaskSetRef(ordinal),
 		generationRef: `root-eval-development-2026-08-27-d145-v${ordinal}`,
 		claimRef: `root-eval-development-claim-2026-08-27-d145-v${ordinal}`,
@@ -109,10 +111,14 @@ export const ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_NAME =
 	`.${ROOT_EVAL_LIVE_GENERATION_REF}.precredential-gates.v5.json` as const;
 export const ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE =
 	ROOT_EVAL_LIVE_CAMPAIGN_PLAN.campaignPurpose satisfies EvalCampaignPurpose;
-export const ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD =
+export const ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD =
 	ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE === "development"
 		? ROOT_EVAL_D145_DEVELOPMENT_HARD_CAP_MICROUSD
 		: ROOT_EVAL_D145_CONFIRMATORY_HARD_CAP_MICROUSD;
+export const ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD =
+	ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE === "development"
+		? ROOT_EVAL_D145_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD
+		: ROOT_EVAL_D145_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD;
 export const ROOT_EVAL_LIVE_REPLICATE_COUNT = 5 as const;
 export const ROOT_EVAL_LIVE_TASK_SET_REF = ROOT_EVAL_LIVE_CAMPAIGN_PLAN.taskSetRef;
 export const ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST = ROOT_EVAL_HELD_OUT_SEAL_DIGEST;
@@ -312,7 +318,7 @@ export interface RootEvalLiveClaim {
 	readonly replicateCount: typeof ROOT_EVAL_LIVE_REPLICATE_COUNT;
 	readonly heldOutSealDigest: typeof ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST;
 	readonly budgetPartition: typeof ROOT_EVAL_LIVE_BUDGET_PARTITION;
-	readonly partitionHardCapMicrousd: typeof ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD;
+	readonly partitionHardCapMicrousd: typeof ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD;
 	readonly partitionSpentBeforeMicrousd: number;
 	readonly partitionLedgerDigest: string;
 	readonly developmentQualificationStreakBefore: number;
@@ -1253,7 +1259,7 @@ async function acquireRootEvalLiveClaimInternal(
 			"partition-ledger",
 			Number.isSafeInteger(partitionSpentBeforeMicrousd) &&
 				partitionSpentBeforeMicrousd >= 0 &&
-				partitionSpentBeforeMicrousd < ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD &&
+				partitionSpentBeforeMicrousd < ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD &&
 				/^sha256:[0-9a-f]{64}$/u.test(partitionLedgerDigest) &&
 				Number.isSafeInteger(developmentQualificationStreakBefore) &&
 				developmentQualificationStreakBefore >= 0 &&
@@ -1286,7 +1292,10 @@ async function acquireRootEvalLiveClaimInternal(
 				validCurrentKeySemantics(input.currentKeyBefore) &&
 				validatesOwnDigest(input.currentKeyBefore, "admissionDigest") &&
 				input.currentKeyBefore.remainingMicrousd >=
-					ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD - partitionSpentBeforeMicrousd,
+					Math.min(
+						ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
+						ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD - partitionSpentBeforeMicrousd,
+					),
 		],
 		[
 			"freshness",
@@ -1340,7 +1349,7 @@ async function acquireRootEvalLiveClaimInternal(
 		replicateCount: ROOT_EVAL_LIVE_REPLICATE_COUNT,
 		heldOutSealDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
 		budgetPartition: ROOT_EVAL_LIVE_BUDGET_PARTITION,
-		partitionHardCapMicrousd: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
+		partitionHardCapMicrousd: ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD,
 		partitionSpentBeforeMicrousd,
 		partitionLedgerDigest,
 		developmentQualificationStreakBefore,
@@ -2202,13 +2211,13 @@ function projectObservation(value: unknown, index: number): ParsedEvalObservatio
 		),
 		partitionHardCapMicrousd: literal(
 			raw.partitionHardCapMicrousd,
-			ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
+			ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD,
 			"root eval observation.partitionHardCapMicrousd",
 		),
 		partitionSpentBeforeMicrousd: safeInteger(
 			raw.partitionSpentBeforeMicrousd,
 			"root eval observation.partitionSpentBeforeMicrousd",
-			{ max: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD - 1 },
+			{ max: ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD - 1 },
 		),
 		partitionLedgerDigest: digest(
 			raw.partitionLedgerDigest,
@@ -2661,7 +2670,7 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 				claim.heldOutSealDigest === ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST &&
 				claim.budgetPartition === ROOT_EVAL_LIVE_BUDGET_PARTITION &&
 				typeof claim.partitionHardCapMicrousd === "number" &&
-				claim.partitionHardCapMicrousd === ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD &&
+				claim.partitionHardCapMicrousd === ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD &&
 				typeof claim.partitionSpentBeforeMicrousd === "number" &&
 				Number.isSafeInteger(claim.partitionSpentBeforeMicrousd) &&
 				claim.partitionSpentBeforeMicrousd >= 0 &&
@@ -2750,8 +2759,11 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 				(currentBeforeShape &&
 					validCurrentKeySemantics(currentBefore!) &&
 					(currentBefore!.remainingMicrousd as number) >=
-						(claim.partitionHardCapMicrousd as number) -
-							(claim.partitionSpentBeforeMicrousd as number)),
+						Math.min(
+							claim.campaignHardCapMicrousd as number,
+							(claim.partitionHardCapMicrousd as number) -
+								(claim.partitionSpentBeforeMicrousd as number),
+						)),
 		],
 		["authority.current-key-reconciliation-nonmonotonic", reconciliationValid],
 		[
@@ -3614,13 +3626,13 @@ function validateCurrentCommittedClaim(value: unknown): RootEvalLiveClaim {
 	);
 	literal(
 		claim.partitionHardCapMicrousd,
-		ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
+		ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD,
 		"root eval live committed claim partition hard cap",
 	);
 	const partitionSpentBeforeMicrousd = safeInteger(
 		claim.partitionSpentBeforeMicrousd,
 		"root eval live committed claim partition spend before",
-		{ max: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD - 1 },
+		{ max: ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD - 1 },
 	);
 	digest(claim.partitionLedgerDigest, "root eval live committed claim partition ledger digest");
 	const developmentQualificationStreakBefore = safeInteger(
@@ -3629,7 +3641,7 @@ function validateCurrentCommittedClaim(value: unknown): RootEvalLiveClaim {
 		{ max: 2 },
 	);
 	if (
-		partitionSpentBeforeMicrousd >= ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD ||
+		partitionSpentBeforeMicrousd >= ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD ||
 		(String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "confirmatory" &&
 			developmentQualificationStreakBefore !== 2)
 	)

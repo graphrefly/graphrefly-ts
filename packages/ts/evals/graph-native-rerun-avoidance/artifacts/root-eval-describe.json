@@ -178,7 +178,7 @@
 			"name": "eval/profile/qualified-catalog",
 			"value": {
 				"requestedTargetRef": "model-target.deepseek-v4-flash-0731",
-				"currentImplementationManifestDigest": "sha256:c1f3ab221204540413fa9c3bf97a310e24825943f5e04662c453e1129c1e6f48",
+				"currentImplementationManifestDigest": "sha256:bbe3ce166aa21742610955a07954a9780c36fd7429376a72c4ca2b3863dd1c10",
 				"targets": [
 					{
 						"modelRef": "deepseek/deepseek-v4-flash-0731",
@@ -227,19 +227,19 @@
 						"bindingDigest": "sha256:2163c9f0da40a602408c54076cd5eb81a43d6154467a233b1d5d5dd56d2b388d",
 						"bindingRef": "provider-binding.fireworks-structured-chat.v2",
 						"credentialAccessed": false,
-						"implementationManifestDigest": "sha256:c1f3ab221204540413fa9c3bf97a310e24825943f5e04662c453e1129c1e6f48",
+						"implementationManifestDigest": "sha256:bbe3ce166aa21742610955a07954a9780c36fd7429376a72c4ca2b3863dd1c10",
 						"liveEvaluationExecuted": false,
 						"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 						"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
 						"providerNetworkAccessed": false,
-						"qualificationArtifactDigest": "sha256:a7d0f34b1a0d71a6002cac9df66e53501978e90a9ac18cded9a6671d7e2bff4e",
+						"qualificationArtifactDigest": "sha256:3d394decbd5e8a25d6c39b03f72259e50792be6c2ed6d2f6e40bb4e60ceb244e",
 						"qualificationMode": "injected-no-network",
 						"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 						"qualified": true,
 						"schemaVersion": "graphrefly-ts.profile-qualification.v1",
 						"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 						"targetRef": "model-target.deepseek-v4-flash-0731",
-						"qualificationDigest": "sha256:b305287aaeca2a4395fe2ce64090eaaee937b35557f07a6071f3dce2bcf30400"
+						"qualificationDigest": "sha256:a93856497b661822689b3bbc1944597888c8fbe48caff5d9fcb727bc4b112a76"
 					}
 				]
 			},
@@ -269,28 +269,28 @@
 					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
 					"decisionRef": "graphrefly-ts:D96",
 					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
-					"implementationManifestDigest": "sha256:c1f3ab221204540413fa9c3bf97a310e24825943f5e04662c453e1129c1e6f48",
+					"implementationManifestDigest": "sha256:bbe3ce166aa21742610955a07954a9780c36fd7429376a72c4ca2b3863dd1c10",
 					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
-					"qualificationDigest": "sha256:b305287aaeca2a4395fe2ce64090eaaee937b35557f07a6071f3dce2bcf30400",
+					"qualificationDigest": "sha256:a93856497b661822689b3bbc1944597888c8fbe48caff5d9fcb727bc4b112a76",
 					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 					"reasonCode": "root-graph-exact-profile-current",
 					"schemaVersion": "graphrefly-ts.current-profile-eligibility.v1",
 					"status": "eligible",
 					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 					"targetRef": "model-target.deepseek-v4-flash-0731",
-					"eligibilityDigest": "sha256:7e9e118ea8339ab1e38ba07bda56dc5c6867b71ba8c04d4d36a35b7bd3333cbb"
+					"eligibilityDigest": "sha256:cee8b780187b188223e4609f75f282f5151d4d2ea91483c8f7fec96c77ce9c31"
 				},
 				"resolution": {
 					"bindingDigest": "sha256:2163c9f0da40a602408c54076cd5eb81a43d6154467a233b1d5d5dd56d2b388d",
 					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
-					"eligibilityDigest": "sha256:7e9e118ea8339ab1e38ba07bda56dc5c6867b71ba8c04d4d36a35b7bd3333cbb",
+					"eligibilityDigest": "sha256:cee8b780187b188223e4609f75f282f5151d4d2ea91483c8f7fec96c77ce9c31",
 					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
-					"implementationManifestDigest": "sha256:c1f3ab221204540413fa9c3bf97a310e24825943f5e04662c453e1129c1e6f48",
+					"implementationManifestDigest": "sha256:bbe3ce166aa21742610955a07954a9780c36fd7429376a72c4ca2b3863dd1c10",
 					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
 					"providerRef": "fireworks",
-					"qualificationDigest": "sha256:b305287aaeca2a4395fe2ce64090eaaee937b35557f07a6071f3dce2bcf30400",
+					"qualificationDigest": "sha256:a93856497b661822689b3bbc1944597888c8fbe48caff5d9fcb727bc4b112a76",
 					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 					"requestedTargetRef": "model-target.deepseek-v4-flash-0731",
 					"resolverRevision": "graphrefly-ts.profile-resolver.v1",
@@ -298,7 +298,7 @@
 					"status": "eligible",
 					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 					"targetRef": "model-target.deepseek-v4-flash-0731",
-					"resolutionDigest": "sha256:aa18d5519b5bc4e4d866a221d9287671b9045a079ebe64102cbd273aaca8ecb8"
+					"resolutionDigest": "sha256:8ee89164d9a0fe68758cc62257d1e41b96e7d2e482507f89acd35c08dc89fada"
 				},
 				"profile": {
 					"enhancementRecipes": [

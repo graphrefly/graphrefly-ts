@@ -113,7 +113,7 @@ export type EvalMemoryProvenance =
 	| "wrong-scope-applied";
 
 export type EvalCampaignPurpose = "qualification" | "development" | "confirmatory";
-export type EvalBudgetPartition = "no-network" | "development-usd-12" | "confirmatory-usd-6";
+export type EvalBudgetPartition = "no-network" | "development-usd-36" | "confirmatory-usd-6";
 
 export interface EvalCampaignContract {
 	readonly kind: "eval-campaign-contract";
@@ -2255,7 +2255,7 @@ export function assertRootEvalObservationRuntimeShape(
 	if (!/^sha256:[0-9a-f]{64}$/u.test(String(root.heldOutSealDigest)))
 		throw new TypeError(`${label}.heldOutSealDigest invalid`);
 	if (
-		!(["no-network", "development-usd-12", "confirmatory-usd-6"] as const).includes(
+		!(["no-network", "development-usd-36", "confirmatory-usd-6"] as const).includes(
 			root.budgetPartition as EvalBudgetPartition,
 		)
 	)
@@ -2326,7 +2326,7 @@ export function assertRootEvalObservationRuntimeShape(
 	if (
 		(root.campaignPurpose === "development" &&
 			(replicateCount !== ROOT_EVAL_DEVELOPMENT_REPLICATE_COUNT ||
-				root.budgetPartition !== "development-usd-12")) ||
+				root.budgetPartition !== "development-usd-36")) ||
 		(root.campaignPurpose === "confirmatory" &&
 			(replicateCount !== ROOT_EVAL_REPLICATE_COUNT ||
 				root.budgetPartition !== "confirmatory-usd-6")) ||
@@ -2902,7 +2902,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	if (
 		(campaignPurpose === "development" &&
 			(replicateCount !== ROOT_EVAL_DEVELOPMENT_REPLICATE_COUNT ||
-				budgetPartition !== "development-usd-12")) ||
+				budgetPartition !== "development-usd-36")) ||
 		(campaignPurpose === "confirmatory" &&
 			(replicateCount !== ROOT_EVAL_REPLICATE_COUNT || budgetPartition !== "confirmatory-usd-6")) ||
 		(campaignPurpose === "qualification" && budgetPartition !== "no-network")

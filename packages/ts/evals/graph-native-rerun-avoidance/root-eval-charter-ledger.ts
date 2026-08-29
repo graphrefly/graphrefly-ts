@@ -15,13 +15,16 @@ import {
 } from "./root-eval-task.js";
 
 export const ROOT_EVAL_D145_CHARTER_LEDGER_SCHEMA = "graphrefly-ts.d145-charter-ledger.v4" as const;
-export const ROOT_EVAL_D145_DEVELOPMENT_HARD_CAP_MICROUSD = 12_000_000 as const;
+export const ROOT_EVAL_D145_DEVELOPMENT_HARD_CAP_MICROUSD = 36_000_000 as const;
+export const ROOT_EVAL_D145_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD = 12_000_000 as const;
 export const ROOT_EVAL_D145_CONFIRMATORY_HARD_CAP_MICROUSD = 6_000_000 as const;
-export const ROOT_EVAL_D145_TOTAL_HARD_CAP_MICROUSD = 18_000_000 as const;
+export const ROOT_EVAL_D145_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD = 6_000_000 as const;
+export const ROOT_EVAL_D145_TOTAL_HARD_CAP_MICROUSD = 42_000_000 as const;
 
 type RootEvalD145LedgerBudgetPartition =
 	| "development-usd-6"
 	| "development-usd-12"
+	| "development-usd-36"
 	| "confirmatory-usd-6";
 
 export function latestRootEvalGraphSpend(
@@ -169,9 +172,14 @@ function validateLedger(value: unknown): RootEvalD145CharterLedger {
 			!(["development", "confirmatory"] as const).includes(
 				entry.campaignPurpose as "development" | "confirmatory",
 			) ||
-			!(["development-usd-6", "development-usd-12", "confirmatory-usd-6"] as const).includes(
-				entry.budgetPartition as RootEvalD145LedgerBudgetPartition,
-			) ||
+			!(
+				[
+					"development-usd-6",
+					"development-usd-12",
+					"development-usd-36",
+					"confirmatory-usd-6",
+				] as const
+			).includes(entry.budgetPartition as RootEvalD145LedgerBudgetPartition) ||
 			!([null, true, false] as const).includes(entry.generationQualified as boolean | null) ||
 			!/^sha256:[0-9a-f]{64}$/u.test(String(entry.evidenceDigest))
 		)
@@ -228,7 +236,8 @@ function validateLedger(value: unknown): RootEvalD145CharterLedger {
 			(entry) =>
 				(entry.campaignPurpose === "development" &&
 					entry.budgetPartition !== "development-usd-6" &&
-					entry.budgetPartition !== "development-usd-12") ||
+					entry.budgetPartition !== "development-usd-12" &&
+					entry.budgetPartition !== "development-usd-36") ||
 				(entry.campaignPurpose === "confirmatory" &&
 					entry.budgetPartition !== "confirmatory-usd-6") ||
 				entry.accountedUpperBoundMicrousd !==
@@ -282,7 +291,7 @@ export function advanceRootEvalD145CharterLedger(input: {
 	if (ledger.entries.some((entry) => entry.generationRef === input.generationRef))
 		throw new TypeError("root eval D145 generation was already recorded");
 	if (
-		(input.campaignPurpose === "development" && input.budgetPartition !== "development-usd-12") ||
+		(input.campaignPurpose === "development" && input.budgetPartition !== "development-usd-36") ||
 		(input.campaignPurpose === "confirmatory" &&
 			(input.budgetPartition !== "confirmatory-usd-6" ||
 				ledger.developmentQualificationStreak !== 2 ||

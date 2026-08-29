@@ -50,6 +50,7 @@ import {
 	ROOT_EVAL_LIVE_CAMPAIGN_SLOT,
 	ROOT_EVAL_LIVE_GENERATION_REF,
 	ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
+	ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD,
 	ROOT_EVAL_LIVE_REPLICATE_COUNT,
 	ROOT_EVAL_LIVE_TASK_SET_REF,
 	type RootEvalLiveBoundedCurrentness,
@@ -453,18 +454,20 @@ async function executeClaimedCampaign(input: {
 			replicateCount: ROOT_EVAL_LIVE_REPLICATE_COUNT,
 			heldOutSealDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
 			budgetPartition: ROOT_EVAL_LIVE_BUDGET_PARTITION,
-			partitionHardCapMicrousd: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
+			partitionHardCapMicrousd: ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD,
 			partitionSpentBeforeMicrousd:
 				String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "development"
 					? input.charterLedger.developmentSpentMicrousd
 					: input.charterLedger.confirmatorySpentMicrousd,
 			partitionLedgerDigest: input.charterLedger.ledgerDigest,
 			developmentQualificationStreakBefore: input.charterLedger.developmentQualificationStreak,
-			maxCostMicrousd:
-				ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD -
-				(String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "development"
-					? input.charterLedger.developmentSpentMicrousd
-					: input.charterLedger.confirmatorySpentMicrousd),
+			maxCostMicrousd: Math.min(
+				ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
+				ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD -
+					(String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "development"
+						? input.charterLedger.developmentSpentMicrousd
+						: input.charterLedger.confirmatorySpentMicrousd),
+			),
 			reservationMicrousd: 200_000,
 		});
 		stopObservation = topology.graph.observe("eval/observation").subscribe((event) => {
@@ -588,7 +591,7 @@ async function main(): Promise<void> {
 			? charterLedger.developmentSpentMicrousd
 			: charterLedger.confirmatorySpentMicrousd;
 	if (
-		partitionSpentBeforeMicrousd >= ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD ||
+		partitionSpentBeforeMicrousd >= ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD ||
 		(String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "development" &&
 			charterLedger.developmentQualificationStreak === 2) ||
 		(String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "confirmatory" &&
@@ -664,6 +667,10 @@ async function main(): Promise<void> {
 					currentKeyBefore = await readRootEvalLiveCurrentKey({
 						fetchImpl: LIVE_FETCH,
 						credential: privateInputs.credential,
+						minimumRemainingMicrousd: Math.min(
+							ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
+							ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD - partitionSpentBeforeMicrousd,
+						),
 					});
 					return;
 				}
