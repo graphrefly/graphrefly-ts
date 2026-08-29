@@ -2868,6 +2868,12 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 	)
 		.filter((replicate) => !finding.sourceTechnicalExcludedReplicates.includes(replicate))
 		.at(-1);
+	const expectedDevelopmentQualificationCount =
+		terminalObservation?.developmentQualification.generationQualified === true
+			? Math.min(2, (claim.developmentQualificationStreakBefore as number) + 1)
+			: terminalObservation?.developmentQualification.generationQualified === false
+				? 0
+				: (claim.developmentQualificationStreakBefore as number);
 	const terminalObservationStateValid =
 		terminalObservation !== undefined &&
 		terminalObservation.replicate === (lastExecutedReplicate ?? ROOT_EVAL_LIVE_REPLICATE_COUNT) &&
@@ -2876,8 +2882,7 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 		terminalObservation.partitionSpentBeforeMicrousd === claim.partitionSpentBeforeMicrousd &&
 		terminalObservation.partitionLedgerDigest === claim.partitionLedgerDigest &&
 		terminalObservation.developmentQualification.consecutiveQualifyingGenerations ===
-			(claim.developmentQualificationStreakBefore as number) +
-				(terminalObservation.developmentQualification.generationQualified === true ? 1 : 0) &&
+			expectedDevelopmentQualificationCount &&
 		terminalObservation.completedArms === (lastExecutedReplicate === undefined ? 0 : 6) &&
 		terminalObservation.activeAdmittedEffects === 0 &&
 		terminalObservation.evaluableReplicates === finding.evaluableReplicates &&

@@ -2927,6 +2927,48 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		}
 	});
 
+	it("admits a development generation that correctly resets a prior qualification streak", () => {
+		let input = withRehashedClaim(liveEvidenceInput(), {
+			developmentQualificationStreakBefore: 1,
+		});
+		input = withGraphResult(
+			input,
+			{},
+			{
+				evaluableReplicates: 3,
+				excludedTechnicalReplicates: [2, 5],
+				matchedRelevantOverColdWins: 3,
+				passCounts: {
+					...input.graphResult!.finding.passCounts,
+					"relevant-applied": 3,
+				},
+				finding: "operationally-inconclusive",
+			},
+		);
+		input = withTerminalObservation(input, {
+			evaluableReplicates: 3,
+			excludedTechnicalReplicates: [2, 5],
+			matchedRelevantOverColdWins: 3,
+			developmentQualification: {
+				kind: "eval-development-qualification-state",
+				campaignPurpose: ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE,
+				generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
+				status: "reset",
+				generationQualified: false,
+				consecutiveQualifyingGenerations: 0,
+				requiredConsecutiveGenerations: 2,
+				heldOutEligible: false,
+			},
+			finding: "operationally-inconclusive",
+		});
+
+		expect(evaluateRootEvalLiveAdmission(input).admissionReport).toEqual({
+			status: "admitted",
+			violationCodes: [],
+			rejectedGraphSummary: null,
+		});
+	});
+
 	it("admits only the closed source-and-target Work Item admission identity space", () => {
 		const base = liveEvidenceInput();
 		const targetIds = base.graphResult?.executedAdmissionIds ?? [];
