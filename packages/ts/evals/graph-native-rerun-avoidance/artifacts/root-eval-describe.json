@@ -178,7 +178,7 @@
 			"name": "eval/profile/qualified-catalog",
 			"value": {
 				"requestedTargetRef": "model-target.deepseek-v4-flash-0731",
-				"currentImplementationManifestDigest": "sha256:4825fff9e40ac51947d37423db04060a161ace1838190b8a64f8768d318976bc",
+				"currentImplementationManifestDigest": "sha256:c1f3ab221204540413fa9c3bf97a310e24825943f5e04662c453e1129c1e6f48",
 				"targets": [
 					{
 						"modelRef": "deepseek/deepseek-v4-flash-0731",
@@ -227,19 +227,19 @@
 						"bindingDigest": "sha256:2163c9f0da40a602408c54076cd5eb81a43d6154467a233b1d5d5dd56d2b388d",
 						"bindingRef": "provider-binding.fireworks-structured-chat.v2",
 						"credentialAccessed": false,
-						"implementationManifestDigest": "sha256:4825fff9e40ac51947d37423db04060a161ace1838190b8a64f8768d318976bc",
+						"implementationManifestDigest": "sha256:c1f3ab221204540413fa9c3bf97a310e24825943f5e04662c453e1129c1e6f48",
 						"liveEvaluationExecuted": false,
 						"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 						"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
 						"providerNetworkAccessed": false,
-						"qualificationArtifactDigest": "sha256:8d7516fca4b058bf3d13f34c718181ef3bb4438911e15c85f60308ab813b8852",
+						"qualificationArtifactDigest": "sha256:a7d0f34b1a0d71a6002cac9df66e53501978e90a9ac18cded9a6671d7e2bff4e",
 						"qualificationMode": "injected-no-network",
 						"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 						"qualified": true,
 						"schemaVersion": "graphrefly-ts.profile-qualification.v1",
 						"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 						"targetRef": "model-target.deepseek-v4-flash-0731",
-						"qualificationDigest": "sha256:975a16070806ac2f5d24f49d5755acc8d977e25f8f4f0ca460b240289b641112"
+						"qualificationDigest": "sha256:b305287aaeca2a4395fe2ce64090eaaee937b35557f07a6071f3dce2bcf30400"
 					}
 				]
 			},
@@ -269,28 +269,28 @@
 					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
 					"decisionRef": "graphrefly-ts:D96",
 					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
-					"implementationManifestDigest": "sha256:4825fff9e40ac51947d37423db04060a161ace1838190b8a64f8768d318976bc",
+					"implementationManifestDigest": "sha256:c1f3ab221204540413fa9c3bf97a310e24825943f5e04662c453e1129c1e6f48",
 					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
-					"qualificationDigest": "sha256:975a16070806ac2f5d24f49d5755acc8d977e25f8f4f0ca460b240289b641112",
+					"qualificationDigest": "sha256:b305287aaeca2a4395fe2ce64090eaaee937b35557f07a6071f3dce2bcf30400",
 					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 					"reasonCode": "root-graph-exact-profile-current",
 					"schemaVersion": "graphrefly-ts.current-profile-eligibility.v1",
 					"status": "eligible",
 					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 					"targetRef": "model-target.deepseek-v4-flash-0731",
-					"eligibilityDigest": "sha256:7a842f769ef38f929553777bc549d10f8719590bdb8a7fbd65c723efaeb54d29"
+					"eligibilityDigest": "sha256:7e9e118ea8339ab1e38ba07bda56dc5c6867b71ba8c04d4d36a35b7bd3333cbb"
 				},
 				"resolution": {
 					"bindingDigest": "sha256:2163c9f0da40a602408c54076cd5eb81a43d6154467a233b1d5d5dd56d2b388d",
 					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
-					"eligibilityDigest": "sha256:7a842f769ef38f929553777bc549d10f8719590bdb8a7fbd65c723efaeb54d29",
+					"eligibilityDigest": "sha256:7e9e118ea8339ab1e38ba07bda56dc5c6867b71ba8c04d4d36a35b7bd3333cbb",
 					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
-					"implementationManifestDigest": "sha256:4825fff9e40ac51947d37423db04060a161ace1838190b8a64f8768d318976bc",
+					"implementationManifestDigest": "sha256:c1f3ab221204540413fa9c3bf97a310e24825943f5e04662c453e1129c1e6f48",
 					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
 					"providerRef": "fireworks",
-					"qualificationDigest": "sha256:975a16070806ac2f5d24f49d5755acc8d977e25f8f4f0ca460b240289b641112",
+					"qualificationDigest": "sha256:b305287aaeca2a4395fe2ce64090eaaee937b35557f07a6071f3dce2bcf30400",
 					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 					"requestedTargetRef": "model-target.deepseek-v4-flash-0731",
 					"resolverRevision": "graphrefly-ts.profile-resolver.v1",
@@ -298,7 +298,7 @@
 					"status": "eligible",
 					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 					"targetRef": "model-target.deepseek-v4-flash-0731",
-					"resolutionDigest": "sha256:7e0f3841bc8c8442281afd912a1c6ac8b390ecde6ea33ea642d3199ba4b3b901"
+					"resolutionDigest": "sha256:aa18d5519b5bc4e4d866a221d9287671b9045a079ebe64102cbd273aaca8ecb8"
 				},
 				"profile": {
 					"enhancementRecipes": [
@@ -360,7 +360,7 @@
 					"wrong-scope-applied"
 				],
 				"replicateCount": 5,
-				"topologyRevision": "graphrefly-ts.root-eval-topology.v14"
+				"topologyRevision": "graphrefly-ts.root-eval-topology.v15"
 			}
 		},
 		{
@@ -3741,7 +3741,12 @@
 			"factory": "rootEvalSourceStageObservation",
 			"status": "sentinel",
 			"deps": [
-				"eval/provider/budget-settled-outcomes"
+				"eval/observation/source-stage-context",
+				"eval/budget/state",
+				"eval/observation/effect-activity",
+				"eval/provider/adaptive-capacity-state",
+				"eval/campaign/state",
+				"eval/verification/diagnostics"
 			],
 			"name": "eval/observation/source-stage-state",
 			"version": {
@@ -3749,7 +3754,7 @@
 				"counter": 0
 			},
 			"meta": {
-				"authority": "budget-anchored-source-stage-projection",
+				"authority": "budget-and-lifecycle-anchored-progress-projection",
 				"materialFree": true
 			}
 		},
@@ -3783,23 +3788,6 @@
 			}
 		},
 		{
-			"id": "eval/observation/full-state-activity-release-controller",
-			"factory": "rootEvalFullObservationActivityReleaseController",
-			"status": "sentinel",
-			"deps": [
-				"eval/observation/effect-activity",
-				"eval/observation/full-state"
-			],
-			"name": "eval/observation/full-state-activity-release-controller",
-			"version": {
-				"level": 0,
-				"counter": 0
-			},
-			"meta": {
-				"role": "quiet-full-observation-release"
-			}
-		},
-		{
 			"id": "eval/observation/full-state-finding-release-controller",
 			"factory": "rootEvalFullObservationFindingReleaseController",
 			"status": "sentinel",
@@ -3830,7 +3818,7 @@
 				"counter": 0
 			},
 			"meta": {
-				"authority": "source-stage-or-full-state-observation",
+				"authority": "progress-or-terminal-observation",
 				"materialFree": true,
 				"sanitizer": false
 			}
@@ -5046,7 +5034,27 @@
 			"to": "eval/observation/terminal-lifecycle-consistency"
 		},
 		{
-			"from": "eval/provider/budget-settled-outcomes",
+			"from": "eval/observation/source-stage-context",
+			"to": "eval/observation/source-stage-state"
+		},
+		{
+			"from": "eval/budget/state",
+			"to": "eval/observation/source-stage-state"
+		},
+		{
+			"from": "eval/observation/effect-activity",
+			"to": "eval/observation/source-stage-state"
+		},
+		{
+			"from": "eval/provider/adaptive-capacity-state",
+			"to": "eval/observation/source-stage-state"
+		},
+		{
+			"from": "eval/campaign/state",
+			"to": "eval/observation/source-stage-state"
+		},
+		{
+			"from": "eval/verification/diagnostics",
 			"to": "eval/observation/source-stage-state"
 		},
 		{
@@ -5084,14 +5092,6 @@
 		{
 			"from": "eval/time/elapsed-budget/state",
 			"to": "eval/observation/full-state"
-		},
-		{
-			"from": "eval/observation/effect-activity",
-			"to": "eval/observation/full-state-activity-release-controller"
-		},
-		{
-			"from": "eval/observation/full-state",
-			"to": "eval/observation/full-state-activity-release-controller"
 		},
 		{
 			"from": "eval/findings/efficacy",

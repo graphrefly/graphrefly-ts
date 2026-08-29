@@ -138,8 +138,6 @@ export const ROOT_EVAL_REQUIRED_NODES = Object.freeze({
 	"eval/observation/source-stage-context": "state",
 	"eval/observation/source-stage-state": "rootEvalSourceStageObservation",
 	"eval/observation/full-state": "rootEvalGraphNativeFullObservation",
-	"eval/observation/full-state-activity-release-controller":
-		"rootEvalFullObservationActivityReleaseController",
 	"eval/observation/full-state-finding-release-controller":
 		"rootEvalFullObservationFindingReleaseController",
 	"eval/observation": "rootEvalGraphNativeObservation",
@@ -446,7 +444,12 @@ export const ROOT_EVAL_CRITICAL_EDGES = Object.freeze([
 	["eval/memory/exposure-frame", "eval/memory/context-for-work-item"],
 	["eval/memory/context-for-work-item", "eval/work-item/attempt-resource-plan"],
 	["eval/profile/graph-admission", "eval/work-item/attempt-resource-plan"],
-	["eval/provider/budget-settled-outcomes", "eval/observation/source-stage-state"],
+	["eval/observation/source-stage-context", "eval/observation/source-stage-state"],
+	["eval/budget/state", "eval/observation/source-stage-state"],
+	["eval/observation/effect-activity", "eval/observation/source-stage-state"],
+	["eval/provider/adaptive-capacity-state", "eval/observation/source-stage-state"],
+	["eval/campaign/state", "eval/observation/source-stage-state"],
+	["eval/verification/diagnostics", "eval/observation/source-stage-state"],
 	["eval/campaign/state", "eval/observation/full-state"],
 	["eval/controls/memory-provenance", "eval/observation/full-state"],
 	["eval/findings/efficacy-state", "eval/observation/full-state"],
@@ -456,8 +459,6 @@ export const ROOT_EVAL_CRITICAL_EDGES = Object.freeze([
 	["eval/observation/terminal-lifecycle-consistency", "eval/observation/full-state"],
 	["eval/provider/adaptive-capacity-state", "eval/observation/full-state"],
 	["eval/time/elapsed-budget/state", "eval/observation/full-state"],
-	["eval/observation/effect-activity", "eval/observation/full-state-activity-release-controller"],
-	["eval/observation/full-state", "eval/observation/full-state-activity-release-controller"],
 	["eval/findings/efficacy", "eval/observation/full-state-finding-release-controller"],
 	["eval/observation/full-state", "eval/observation/full-state-finding-release-controller"],
 	["eval/observation/source-stage-state", "eval/observation"],
@@ -596,9 +597,9 @@ export function assertRootEvalTopologyContract(
 	if (
 		observation?.meta?.materialFree !== true ||
 		observation.meta.sanitizer !== false ||
-		observation.meta.authority !== "source-stage-or-full-state-observation" ||
+		observation.meta.authority !== "progress-or-terminal-observation" ||
 		sourceStageObservation?.meta?.materialFree !== true ||
-		sourceStageObservation.meta.authority !== "budget-anchored-source-stage-projection" ||
+		sourceStageObservation.meta.authority !== "budget-and-lifecycle-anchored-progress-projection" ||
 		fullObservation?.meta?.materialFree !== true ||
 		fullObservation.meta.sanitizer !== false ||
 		fullObservation.meta.authority !== "read-only-projection"

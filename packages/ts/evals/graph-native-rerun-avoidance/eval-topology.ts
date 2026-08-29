@@ -77,7 +77,7 @@ import {
 	rootEvalTaskBindings,
 } from "./root-eval-task.js";
 
-export const ROOT_EVAL_TOPOLOGY_REVISION = "graphrefly-ts.root-eval-topology.v14" as const;
+export const ROOT_EVAL_TOPOLOGY_REVISION = "graphrefly-ts.root-eval-topology.v15" as const;
 export const ROOT_EVAL_REPLICATE_COUNT = 5 as const;
 export const ROOT_EVAL_DEVELOPMENT_REPLICATE_COUNT = 5 as const;
 export const ROOT_EVAL_DEFAULT_EFFECT_TIMEOUT_MS = 300_000 as const;
@@ -2519,7 +2519,7 @@ export function assertRootEvalObservationRuntimeShape(
 		providerCapacity.settledRetryProposalCount !== settledRetryAttemptCount ||
 		providerCapacity.rejectedRetryProposalCount !== rejectedRetryProposalCount ||
 		activeProviderEffects !== admittedAttempts - providerReasonTotal ||
-		activeRetryEffects !== retryableReasonTotal - admittedRetryAttempts ||
+		activeRetryEffects !== retryableReasonTotal - retryProposalCount ||
 		retryProposalCount !==
 			pendingRetryProposalCount + admittedRetryAttempts + rejectedRetryProposalCount ||
 		settledRetryAttemptCount > admittedRetryAttempts ||
@@ -6444,7 +6444,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				provider.admittedEffects !== budget.admittedAttempts ||
 				provider.settledEffects !== providerReasonTotal ||
 				retry.admittedEffects !== retryableReasonTotal ||
-				retry.settledEffects !== budget.admittedRetryAttempts ||
+				retry.settledEffects !== budget.retryProposalCount ||
 				activeAdmittedEffects > HARNESS_ARMS.length ||
 				(activeBillingEffects > 0 && activeAdmittedEffects !== activeBillingEffects)
 			) {
@@ -6924,30 +6924,90 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		},
 	);
 
+	interface EvalProgressObservationState {
+		context?: EvalSourceStageObservationContext;
+		budget?: EvalBudgetState;
+		activity?: EvalEffectActivitySnapshot;
+		capacity?: EvalProviderCapacityState;
+		campaignState?: EvalCampaignState;
+		diagnostics?: EvalVerificationDiagnostics;
+	}
 	const sourceStageObservations = owner.node<EvalObservation>(
-		[budgetSettledProviderOutcomes],
+		[
+			sourceStageObservationContext,
+			budgets,
+			effectActivity,
+			providerCapacity,
+			campaignStates,
+			verificationDiagnostics,
+		],
 		(ctx) => {
 			let emitted = false;
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				const settlement = raw as EvalBudgetSettledProviderOutcome;
-				if (settlement.outcome.workItemRole !== "source") continue;
-				const context = settlement.observationContext;
+			const state = ctx.state.get<EvalProgressObservationState>() ?? {};
+			for (const raw of depBatch(ctx, 0) ?? [])
+				state.context = raw as EvalSourceStageObservationContext;
+			for (const raw of depBatch(ctx, 1) ?? []) state.budget = raw as EvalBudgetState;
+			for (const raw of depBatch(ctx, 2) ?? []) state.activity = raw as EvalEffectActivitySnapshot;
+			for (const raw of depBatch(ctx, 3) ?? []) state.capacity = raw as EvalProviderCapacityState;
+			for (const raw of depBatch(ctx, 4) ?? []) state.campaignState = raw as EvalCampaignState;
+			for (const raw of depBatch(ctx, 5) ?? [])
+				state.diagnostics = raw as EvalVerificationDiagnostics;
+			const { context, budget, activity, capacity, campaignState, diagnostics } = state;
+			const providerReasonTotal =
+				budget === undefined
+					? -1
+					: EVAL_PROVIDER_OUTCOME_REASON_CODES.reduce(
+							(total, reason) => total + budget.providerOutcomeReasonCounts[reason],
+							0,
+						);
+			const expectedCompletedWorkItems =
+				campaignState === undefined
+					? -1
+					: (campaignState.replicate -
+							1 -
+							campaignState.sourceTechnicalExcludedReplicates.filter(
+								(replicate) => replicate < campaignState.replicate,
+							).length) *
+							HARNESS_ARMS.length +
+						campaignState.completedArms;
+			if (
+				context !== undefined &&
+				budget !== undefined &&
+				activity !== undefined &&
+				capacity !== undefined &&
+				campaignState !== undefined &&
+				diagnostics !== undefined &&
+				diagnostics.completedWorkItems === expectedCompletedWorkItems &&
+				activity.budgetDigest === empiricalStrictJsonDigest(budget)
+			) {
 				const contract = context.campaignContract;
-				const budget = settlement.budget;
-				const providerReasonTotal = EVAL_PROVIDER_OUTCOME_REASON_CODES.reduce(
-					(total, reason) => total + budget.providerOutcomeReasonCounts[reason],
+				const pendingFirstAttemptProposalCount = Math.max(
 					0,
+					capacity.pendingFirstAttemptProposalCount,
 				);
-				const retryableReasonTotal =
-					budget.providerOutcomeReasonCounts["transport-retryable"] +
-					budget.providerOutcomeReasonCounts["http-429-retryable"];
-				// This projection declares no active retry effect. Do not publish any concurrent
-				// source settlement until every prior retryable result has reached attempt-two
-				// provider admission; the full-state path observes active retry-delay cuts.
-				if (retryableReasonTotal !== budget.admittedRetryAttempts) continue;
-				const admittedFirstAttempts = budget.admittedAttempts - budget.admittedRetryAttempts;
-				const pendingFirstAttempts = Math.max(0, contract.replicateCount - admittedFirstAttempts);
-				const rateLimited = budget.providerOutcomeReasonCounts["http-429-retryable"] > 0;
+				const pendingProposalCount =
+					pendingFirstAttemptProposalCount + budget.pendingRetryProposalCount;
+				const rejectedProposalCount = Math.max(
+					capacity.rejectedProposalCount,
+					budget.rejectedRetryProposalCount,
+				);
+				const observedProviderCapacity = strictSnapshot({
+					...capacity,
+					activeEffects: activity.activeProviderEffects,
+					proposalCount: budget.admittedAttempts + pendingProposalCount + rejectedProposalCount,
+					pendingProposalCount,
+					pendingFirstAttemptProposalCount,
+					pendingRetryProposalCount: budget.pendingRetryProposalCount,
+					retryProposalCount: budget.retryProposalCount,
+					admittedProposalCount: budget.admittedAttempts,
+					admittedRetryProposalCount: budget.admittedRetryAttempts,
+					settledProposalCount: providerReasonTotal,
+					settledRetryProposalCount: budget.settledRetryAttemptCount,
+					rejectedProposalCount,
+					rejectedRetryProposalCount: budget.rejectedRetryProposalCount,
+				}) as EvalProviderCapacityState;
+				// Publish dependency-coherent progress cuts, including an admitted retry delay
+				// before its proposal exists and its later admitted-or-rejected proposal settlement.
 				const elapsedExhausted = budget.stoppingReason === "elapsed-budget-exhausted";
 				const developmentQualificationState = Object.freeze({
 					kind: "eval-development-qualification-state" as const,
@@ -6975,7 +7035,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 							campaignPurpose: contract.campaignPurpose,
 							taskSetRef: contract.taskSetRef,
 							generationRef: contract.generationRef,
-							replicate: 1,
+							replicate: campaignState.replicate,
 							replicateCount: contract.replicateCount,
 							heldOutSealDigest: contract.heldOutSealDigest,
 							budgetPartition: contract.budgetPartition,
@@ -6986,44 +7046,17 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 							armOrder: HARNESS_ARMS,
 							memoryProvenance: context.memoryProvenance,
 							evaluableReplicates: null,
-							excludedTechnicalReplicates: [],
-							sourceTechnicalExcludedReplicates: [],
+							excludedTechnicalReplicates: campaignState.sourceTechnicalExcludedReplicates,
+							sourceTechnicalExcludedReplicates: campaignState.sourceTechnicalExcludedReplicates,
 							matchedRelevantOverColdWins: null,
-							completedArms: 0,
-							verificationDiagnostics: verificationDiagnosticsSnapshot(new Map()),
-							activeProviderEffects: budget.activeEffects,
-							activeToolEffects: 0,
-							activeRetryEffects: 0,
-							activeBillingEffects: 0,
-							activeAdmittedEffects: budget.activeEffects,
-							providerCapacity: {
-								kind: "eval-provider-capacity-state" as const,
-								mode: rateLimited
-									? ("rate-limited-serial" as const)
-									: ("initial-parallel" as const),
-								initialMaxConcurrentEffects: ROOT_EVAL_INITIAL_PROVIDER_CAPACITY,
-								maxConcurrentEffects: rateLimited
-									? ROOT_EVAL_RATE_LIMITED_PROVIDER_CAPACITY
-									: ROOT_EVAL_INITIAL_PROVIDER_CAPACITY,
-								activeEffects: budget.activeEffects,
-								proposalCount:
-									budget.admittedAttempts +
-									pendingFirstAttempts +
-									budget.pendingRetryProposalCount +
-									budget.rejectedRetryProposalCount,
-								pendingProposalCount: pendingFirstAttempts + budget.pendingRetryProposalCount,
-								pendingFirstAttemptProposalCount: pendingFirstAttempts,
-								pendingRetryProposalCount: budget.pendingRetryProposalCount,
-								retryProposalCount: budget.retryProposalCount,
-								admittedProposalCount: budget.admittedAttempts,
-								admittedRetryProposalCount: budget.admittedRetryAttempts,
-								settledProposalCount: providerReasonTotal,
-								settledRetryProposalCount: budget.settledRetryAttemptCount,
-								rejectedProposalCount: budget.rejectedRetryProposalCount,
-								rejectedRetryProposalCount: budget.rejectedRetryProposalCount,
-								cooldownOutstandingReadinessCount: 0,
-								rateLimitFeedbackCount: budget.providerOutcomeReasonCounts["http-429-retryable"],
-							},
+							completedArms: campaignState.completedArms,
+							verificationDiagnostics: diagnostics,
+							activeProviderEffects: activity.activeProviderEffects,
+							activeToolEffects: activity.activeToolEffects,
+							activeRetryEffects: activity.activeRetryEffects,
+							activeBillingEffects: activity.activeBillingEffects,
+							activeAdmittedEffects: activity.activeAdmittedEffects,
+							providerCapacity: observedProviderCapacity,
 							elapsedBudget: {
 								kind: "eval-elapsed-budget-state" as const,
 								scheduleId: context.elapsedBudgetScheduleId,
@@ -7067,6 +7100,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				]);
 				emitted = true;
 			}
+			ctx.state.set(state);
 			if (!emitted) ctx.down([["RESOLVED"]]);
 		},
 		{
@@ -7076,7 +7110,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			errorWhenDepsError: false,
 			meta: {
 				materialFree: true,
-				authority: "budget-anchored-source-stage-projection",
+				authority: "budget-and-lifecycle-anchored-progress-projection",
 			},
 		},
 	);
@@ -7137,8 +7171,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				const retryableReasonTotal =
 					budget.providerOutcomeReasonCounts["transport-retryable"] +
 					budget.providerOutcomeReasonCounts["http-429-retryable"];
-				if (activeRetryEffects !== retryableReasonTotal - budget.admittedRetryAttempts)
-					return false;
+				if (activeRetryEffects !== retryableReasonTotal - budget.retryProposalCount) return false;
 				const observedPendingFirstAttemptProposalCount = Math.max(
 					0,
 					state.providerCapacity.pendingFirstAttemptProposalCount,
@@ -7170,6 +7203,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					(campaignPurpose !== "development" || qualification.status !== "pending") &&
 					activeAdmittedEffects === 0 &&
 					state.terminalConsistencyBudgetDigest === state.effectActivity.budgetDigest;
+				if (!terminal) return false;
 				const terminalDiagnostics = terminal ? state.finding!.verificationDiagnostics : diagnostics;
 				const stoppingReason = terminal
 					? state.finding!.stoppingReason
@@ -7302,21 +7336,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			},
 		},
 	);
-	const fullObservationActivityReleaseController = owner.node(
-		[effectActivity, fullObservation],
-		(ctx) => {
-			if ((depBatch(ctx, 0)?.length ?? 0) > 0)
-				ctx.upNext([["PULL", { pullId: fullObservationPullId }]], 1);
-		},
-		{
-			name: "eval/observation/full-state-activity-release-controller",
-			factory: "rootEvalFullObservationActivityReleaseController",
-			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
-			meta: { role: "quiet-full-observation-release" },
-		},
-	);
 	const fullObservationFindingReleaseController = owner.node(
 		[findings, fullObservation],
 		(ctx) => {
@@ -7363,7 +7382,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			meta: {
 				materialFree: true,
 				sanitizer: false,
-				authority: "source-stage-or-full-state-observation",
+				authority: "progress-or-terminal-observation",
 			},
 		},
 	);
@@ -7377,7 +7396,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		billingActiveEffects.subscribe(() => undefined),
 		observation.subscribe(() => undefined),
 		findings.subscribe(() => undefined),
-		fullObservationActivityReleaseController.subscribe(() => undefined),
 		fullObservationFindingReleaseController.subscribe(() => undefined),
 	];
 	let keepalivesReleased = false;
@@ -7480,6 +7498,7 @@ async function runRootEvalWithOutcomeInput(
 	let pendingFailure: unknown | undefined;
 	let graphStopReason: EvalBudgetState["stoppingReason"] = "none";
 	let latestBudget: EvalBudgetState | undefined;
+	let latestObservation: EvalObservation | undefined;
 	return new Promise<RootEvalRunResult>((resolve, reject) => {
 		let finding: EvalFinding | undefined;
 		let terminalObservation: EvalObservation | undefined;
@@ -7525,6 +7544,8 @@ async function runRootEvalWithOutcomeInput(
 				!settled &&
 				graphStopReason !== "none" &&
 				latestBudget?.activeEffects === 0 &&
+				latestObservation?.stoppingReason === graphStopReason &&
+				latestObservation.activeAdmittedEffects === 0 &&
 				inFlight.size === 0
 			)
 				abort(new Error(`root eval stopped: ${graphStopReason}`));
@@ -7571,8 +7592,10 @@ async function runRootEvalWithOutcomeInput(
 				// observations here; callers that need the raw START/DIRTY/DATA stream subscribe
 				// directly to graph.observe().
 				observationEvents.push(event);
+				latestObservation = value;
 				if (value.finding !== "pending") terminalObservation = value;
 				finish(value);
+				maybeFinishGraphStop();
 			}
 		});
 		stopFinding = topology.nodes.findings.subscribe((message) => {

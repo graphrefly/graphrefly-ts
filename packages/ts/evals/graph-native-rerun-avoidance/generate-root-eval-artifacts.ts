@@ -322,6 +322,8 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 				"elapsedStopDrainsAdmittedCausalTail",
 				"earlyTerminalTimerDeactivation",
 				"callerLeaseAfterGraphBudgetAndDrainReserve",
+				"budgetRejectedRetryProposalSettlesCompletedDelay",
+				"budgetStopObservationDoesNotAwaitEfficacyBranch",
 			]),
 		),
 	});
@@ -531,6 +533,8 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 				"mainNoNetworkExecutorUsesSettlementLeases",
 				"postCutoffCausalTailBelowDrainReserve",
 				"callerSafetyLeaseRemainsLastResort",
+				"budgetRejectedRetryProposalSettlesCompletedDelay",
+				"budgetStopObservationDoesNotAwaitEfficacyBranch",
 			]),
 		),
 	});

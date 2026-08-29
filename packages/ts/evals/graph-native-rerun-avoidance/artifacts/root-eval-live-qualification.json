@@ -1,6 +1,6 @@
 {
 	"artifact": {
-		"schemaVersion": "graphrefly-ts.root-eval-live-no-network-qa.v37",
+		"schemaVersion": "graphrefly-ts.root-eval-live-no-network-qa.v38",
 		"decisionRefs": [
 			"graphrefly-ts:D76",
 			"graphrefly-ts:D81",
@@ -65,7 +65,7 @@
 			"graphrefly-ts:D144",
 			"graphrefly-ts:D145"
 		],
-		"implementationManifestDigest": "sha256:4825fff9e40ac51947d37423db04060a161ace1838190b8a64f8768d318976bc",
+		"implementationManifestDigest": "sha256:c1f3ab221204540413fa9c3bf97a310e24825943f5e04662c453e1129c1e6f48",
 		"taskBindingDigest": "sha256:e527e8b64f522e4614eee0ef5e2f92ee58dd0fc857209570db51e9e56c56db55",
 		"caseResults": {
 			"admittedEffectReceiptCorrelation": "passed",
@@ -118,6 +118,8 @@
 			"callerDeadlineDurableClosedCode": "passed",
 			"partialEvidenceRetainsLatestGraphObservation": "passed",
 			"graphAdmittedRetryDelay": "passed",
+			"budgetRejectedRetryProposalSettlesCompletedDelay": "passed",
+			"budgetStopObservationDoesNotAwaitEfficacyBranch": "passed",
 			"usdSixHardCapAndUsdThirtyTwoAdmission": "passed",
 			"historicalD85ClaimCoordinatesFrozen": "passed",
 			"historicalD85EvidenceValidation": "passed",
@@ -250,9 +252,9 @@
 		"credentialAccessed": false,
 		"chargedCallExecuted": false
 	},
-	"artifactDigest": "sha256:9f8a609c369aa913322253dfa198e1d41db0ee1b31cdd461cbf82d370386ea63",
+	"artifactDigest": "sha256:08e6305dc57fce15cccb32468a569bf208f8c2e2e25588b9430c7f777b8e05de",
 	"qualification": {
-		"schemaVersion": "graphrefly-ts.root-eval-live-qualification.v37",
+		"schemaVersion": "graphrefly-ts.root-eval-live-qualification.v38",
 		"decisionRef": "graphrefly-ts:D145",
 		"implementationExecutionApprovalRef": "graphrefly-ts:D145",
 		"verificationDiagnosticsImplementationReceiptRef": "graphrefly-ts:D120",
@@ -302,10 +304,10 @@
 		"completionCharterRef": "graphrefly-ts:D145",
 		"currentLiveExecutionApprovalClosed": false,
 		"callerHorizonDecisionRequired": false,
-		"implementationManifestDigest": "sha256:4825fff9e40ac51947d37423db04060a161ace1838190b8a64f8768d318976bc",
-		"qualificationArtifactDigest": "sha256:9f8a609c369aa913322253dfa198e1d41db0ee1b31cdd461cbf82d370386ea63",
+		"implementationManifestDigest": "sha256:c1f3ab221204540413fa9c3bf97a310e24825943f5e04662c453e1129c1e6f48",
+		"qualificationArtifactDigest": "sha256:08e6305dc57fce15cccb32468a569bf208f8c2e2e25588b9430c7f777b8e05de",
 		"status": "qualified-no-network-d145-development-confirmatory-authority",
-		"qualificationDigest": "sha256:4a23d6fa320fdf4575449b23c57ce7e720bb587a17d7e4fbca3f7e6e432552e6"
+		"qualificationDigest": "sha256:34724f608f66c3bf1a493864f98361cb63bbe74a4b172caf507708936494797b"
 	},
-	"measuredImplementationManifestDigest": "sha256:4825fff9e40ac51947d37423db04060a161ace1838190b8a64f8768d318976bc"
+	"measuredImplementationManifestDigest": "sha256:c1f3ab221204540413fa9c3bf97a310e24825943f5e04662c453e1129c1e6f48"
 }

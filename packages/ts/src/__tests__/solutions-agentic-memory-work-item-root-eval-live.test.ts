@@ -467,7 +467,7 @@ function liveEvidenceInput(
 			"DATA",
 			{
 				kind: "eval-observation",
-				topologyRevision: "graphrefly-ts.root-eval-topology.v14",
+				topologyRevision: "graphrefly-ts.root-eval-topology.v15",
 				solutionIdentities: [
 					"work-item-execution",
 					"agentic-work-item-memory-application",

@@ -1,6 +1,6 @@
 {
 	"artifact": {
-		"schemaVersion": "graphrefly-ts.root-eval-topology-no-network-qa.v30",
+		"schemaVersion": "graphrefly-ts.root-eval-topology-no-network-qa.v31",
 		"decisionRefs": [
 			"graphrefly-ts:D76",
 			"graphrefly-ts:D77",
@@ -57,8 +57,8 @@
 			"graphrefly-ts:D144",
 			"graphrefly-ts:D145"
 		],
-		"topologyRevision": "graphrefly-ts.root-eval-topology.v14",
-		"implementationManifestDigest": "sha256:4825fff9e40ac51947d37423db04060a161ace1838190b8a64f8768d318976bc",
+		"topologyRevision": "graphrefly-ts.root-eval-topology.v15",
+		"implementationManifestDigest": "sha256:c1f3ab221204540413fa9c3bf97a310e24825943f5e04662c453e1129c1e6f48",
 		"rootGraphs": 1,
 		"mounts": 0,
 		"replicates": 5,
@@ -70,8 +70,8 @@
 			"irrelevant-applied",
 			"wrong-scope-applied"
 		],
-		"requiredNodeCount": 131,
-		"criticalEdgeCount": 211,
+		"requiredNodeCount": 130,
+		"criticalEdgeCount": 214,
 		"caseResults": {
 			"realSolutionComposition": "passed",
 			"fullCurrentQualificationTupleBinding": "passed",
@@ -98,6 +98,8 @@
 			"actualToolArgumentsGraphAdmitted": "passed",
 			"memoryExposureBindingLoadBearing": "passed",
 			"graphAdmittedRetryDelay": "passed",
+			"budgetRejectedRetryProposalSettlesCompletedDelay": "passed",
+			"budgetStopObservationDoesNotAwaitEfficacyBranch": "passed",
 			"fullAdmissionReceiptBinding": "passed",
 			"exactlyOnceResultReplay": "passed",
 			"reservationHardCap": "passed",
@@ -184,9 +186,9 @@
 		"credentialAccessed": false,
 		"liveEvaluationExecuted": false
 	},
-	"artifactDigest": "sha256:76b77a5476e5231a325d09cfde4cd3394fa01eb344bf039565153c1ea7c3b227",
+	"artifactDigest": "sha256:9f2cbf558489f20b4cde255c9eba71b4e583827a3fce5a16939d81f4aeb2124f",
 	"qualification": {
-		"schemaVersion": "graphrefly-ts.root-eval-topology-qualification.v30",
+		"schemaVersion": "graphrefly-ts.root-eval-topology-qualification.v31",
 		"decisionRef": "graphrefly-ts:D145",
 		"executionApprovalRef": "graphrefly-ts:D145",
 		"verificationDiagnosticsImplementationReceiptRef": "graphrefly-ts:D120",
@@ -231,17 +233,17 @@
 		"structuredProposalRef": "graphrefly-ts:D87",
 		"structuredProposalExecutionApprovalRef": "graphrefly-ts:D88",
 		"responseHorizonIncidentClosureRef": "graphrefly-ts:D93",
-		"implementationManifestDigest": "sha256:4825fff9e40ac51947d37423db04060a161ace1838190b8a64f8768d318976bc",
-		"qualificationArtifactDigest": "sha256:76b77a5476e5231a325d09cfde4cd3394fa01eb344bf039565153c1ea7c3b227",
+		"implementationManifestDigest": "sha256:c1f3ab221204540413fa9c3bf97a310e24825943f5e04662c453e1129c1e6f48",
+		"qualificationArtifactDigest": "sha256:9f2cbf558489f20b4cde255c9eba71b4e583827a3fce5a16939d81f4aeb2124f",
 		"status": "qualified-no-network-d145-development-confirmatory-authority",
-		"qualificationDigest": "sha256:486558669e8828ea18a55a643d30bb23567eac03195a04e9855fa5c6263e4e50"
+		"qualificationDigest": "sha256:d07fc8df0c4930067814f113782fe7359cfb7f4f97c1e4fd4b95877552811d6c"
 	},
-	"measuredImplementationManifestDigest": "sha256:4825fff9e40ac51947d37423db04060a161ace1838190b8a64f8768d318976bc",
+	"measuredImplementationManifestDigest": "sha256:c1f3ab221204540413fa9c3bf97a310e24825943f5e04662c453e1129c1e6f48",
 	"evidenceDigests": {
-		"describe": "sha256:01792e8e3eb1c4d9e89319c1e98800b5cb49ee9a246e677d9eaf3f5a69bdb8ca",
-		"observeEvents": "sha256:1ae09e3a7e417a357be2bd317248d2e9f2518e64b4ec6ab339cd774583f80b6a",
-		"runSummary": "sha256:7cadc206950e3a9ec92830184c239091078e2215d7feee6926108e065bd65782",
+		"describe": "sha256:0438a8a58a4685546b9c0254d37af5ac8c52bec7ae09e67fb0b2916ec4a26dc5",
+		"observeEvents": "sha256:0b7596071209fcb4be193490ed3a45f2f274d8479856dfcbea091c365186fa2a",
+		"runSummary": "sha256:45bb0cf351f6db3d5bd6dfca4497afcec430b0e9e6d86b20e82fe0f6d809d48e",
 		"explanatoryMermaid": "sha256:601ad0b245549c27dc2015ef9adb5f3c299cdc8c428c07ef398583950d072a06"
 	},
-	"evidenceBindingDigest": "sha256:72aa986a27c7d4cf1c93dd2d05b7eba9ea2e05edb6cc41562a6737b747ba906e"
+	"evidenceBindingDigest": "sha256:8931adcea6d3f24cd597dbfc1f6ab9c46fbf0e43cf953117fc5eb25ef756c23e"
 }

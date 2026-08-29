@@ -636,16 +636,16 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"graphrefly-ts.root-eval-live-precredential-gates.v5",
 		);
 		expect(ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-no-network-qa.v37",
+			"graphrefly-ts.root-eval-live-no-network-qa.v38",
 		);
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-qualification.v37",
+			"graphrefly-ts.root-eval-live-qualification.v38",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-no-network-qa.v30",
+			"graphrefly-ts.root-eval-topology-no-network-qa.v31",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-qualification.v30",
+			"graphrefly-ts.root-eval-topology-qualification.v31",
 		);
 		expect(ROOT_EVAL_LIVE_GENERATION_REF).not.toContain("d116");
 		expect(ROOT_EVAL_LIVE_CLAIM_REF).not.toContain("d116");
@@ -1462,7 +1462,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				observations[index]!.verificationDiagnostics.completedWorkItems,
 			).toBeGreaterThanOrEqual(observations[index - 1]!.verificationDiagnostics.completedWorkItems);
 		expect(observations.at(-1)).toMatchObject({
-			topologyRevision: "graphrefly-ts.root-eval-topology.v14",
+			topologyRevision: "graphrefly-ts.root-eval-topology.v15",
 			armOrder: HARNESS_ARMS,
 			memoryProvenance: {
 				cold: "none",
@@ -2909,6 +2909,58 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			expect(() => createTopology(options)).toThrow(
 				/positive safe integer|bounded positive|partition budget authority/u,
 			);
+	});
+
+	it("settles a completed retry delay before a budget-rejected retry proposal", async () => {
+		const topology = createTopology({
+			maxAttempts: 60,
+			maxCostMicrousd: 2_000,
+			reservationMicrousd: 1_000,
+		});
+		const observations: EvalObservation[] = [];
+		const stop = topology.graph.observe("eval/observation").subscribe((event) => {
+			const value = materialFreeObservationValue(event);
+			if (value !== undefined) observations.push(value);
+		});
+		try {
+			await expect(
+				runRootEval(
+					topology,
+					twoPhaseExecutor({
+						onProvider(effect) {
+							if (effect.replicate !== 1 || effect.attempt !== 1) return providerOutcome(effect);
+							return providerOutcome(effect, {
+								status: "retryable",
+								reason: "http-429-retryable",
+								costMicrousd: 1_100,
+								retryAfterMs: 1,
+								cleanupCompleted: true,
+								toolProposal: null,
+							});
+						},
+					}),
+				),
+			).rejects.toThrow(/budget-exhausted/u);
+		} finally {
+			stop();
+		}
+		const terminalStop = observations.at(-1);
+		expect(terminalStop).toMatchObject({
+			stoppingReason: "budget-exhausted",
+			finding: "pending",
+			activeProviderEffects: 0,
+			activeRetryEffects: 0,
+			activeAdmittedEffects: 0,
+			admittedRetryAttempts: 0,
+			retryProposalCount: 1,
+			pendingRetryProposalCount: 0,
+			rejectedRetryProposalCount: 1,
+			settledRetryAttemptCount: 0,
+			providerCapacity: {
+				pendingProposalCount: 0,
+				rejectedRetryProposalCount: 1,
+			},
+		});
 	});
 
 	it("deduplicates identical cleanup replay and rejects contradictory replay", () => {
