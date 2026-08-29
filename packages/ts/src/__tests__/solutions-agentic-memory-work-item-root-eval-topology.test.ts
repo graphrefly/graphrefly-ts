@@ -847,6 +847,12 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(interruptedRecovery).toMatch(
 			/observationProvenance: "exact-response-no-network-recovery"[\s\S]+graphResult: null[\s\S]+developmentQualification: null/u,
 		);
+		expect(interruptedRecovery).toMatch(
+			/join\(operatorRoot, "d145-charter-transaction\.v1\.json"\)/u,
+		);
+		expect(interruptedRecovery).not.toMatch(
+			/join\(operatorRoot, "\.d145-charter-transaction\.v1\.json"\)/u,
+		);
 		expect(liveEntry).toMatch(/ROOT_EVAL_LIVE_D121_REPAIR_RECEIPT = "graphrefly-ts:D124"/u);
 		expect(liveEntry).toMatch(/ROOT_EVAL_LIVE_EXECUTION_APPROVAL = "graphrefly-ts:D145"/u);
 		expect(liveEntry).toMatch(

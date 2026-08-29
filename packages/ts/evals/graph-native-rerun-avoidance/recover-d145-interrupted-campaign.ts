@@ -387,7 +387,7 @@ async function main(): Promise<void> {
 		evidenceDigest: evidence.evidenceDigest,
 	});
 	const transaction = await commitRootEvalD145CharterTransaction({
-		journalPath: join(operatorRoot, ".d145-charter-transaction.v1.json"),
+		journalPath: join(operatorRoot, "d145-charter-transaction.v1.json"),
 		privateRoot: generationRoot,
 		charterLedgerPath: ledgerPath,
 		previousLedgerDigest: ledger.ledgerDigest,

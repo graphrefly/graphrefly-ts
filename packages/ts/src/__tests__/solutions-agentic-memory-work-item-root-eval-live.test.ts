@@ -3907,6 +3907,34 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		}
 	});
 
+	it("persists success when the canonical observer has a prefix and diagnostics retain the exact semantic suffix", async () => {
+		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-canonical-prefix-"));
+		const privateRoot = await realpath(temporary);
+		await chmod(privateRoot, 0o700);
+		try {
+			const claimInput = await currentClaimInput(privateRoot);
+			const claimAcquisition = await acquireRootEvalLiveClaimForNoNetworkQualification(claimInput);
+			const base = liveEvidenceInput();
+			const diagnostic = base
+				.graphResult!.observations.slice(1)
+				.map((event) => ({ ...event, seq: event.seq + 10_000 }));
+			const evidence = constructRootEvalLiveEvidence({
+				...base,
+				claim: claimAcquisition.claim,
+				pricing: claimInput.pricing,
+				zeroByok: claimInput.zeroByok,
+				currentKeyBefore: claimInput.currentKeyBefore,
+				partialGraphObservations: diagnostic,
+			});
+
+			await expect(persistRootEvalLiveEvidence({ privateRoot, evidence })).resolves.toMatchObject({
+				postCommitFailureDigest: null,
+			});
+		} finally {
+			await rm(temporary, { recursive: true, force: true });
+		}
+	});
+
 	it("persists the caller deadline code and latest bounded Graph observation", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-deadline-evidence-"));
 		const privateRoot = await realpath(temporary);

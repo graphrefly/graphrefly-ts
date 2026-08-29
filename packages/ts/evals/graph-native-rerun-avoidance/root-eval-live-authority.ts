@@ -2531,19 +2531,20 @@ function successObservationStreamsAgree(
 	diagnostic: readonly ObserveEvent[],
 	canonical: readonly ObserveEvent[],
 ): boolean {
-	// graph.observe() is push-on-subscribe. The diagnostic subscriber is installed before
-	// runRootEval installs the canonical evidence subscriber, so it may contain an earlier
-	// initial snapshot and its envelopes may carry subscriber-specific sequence numbers.
-	// The canonical stream remains authoritative. Require its complete semantic DATA history
-	// to be the exact suffix of the diagnostic stream; only a diagnostic prefix and envelope
-	// sequence differences are tolerated.
-	if (canonical.length > diagnostic.length) return false;
+	// graph.observe() is push-on-subscribe. Independent subscribers can materialize at different
+	// boundaries, so either stream may contain observer-specific initial snapshots. The canonical
+	// stream remains authoritative. Require the shorter non-empty semantic DATA history to be the
+	// exact suffix of the longer one; only an observer-specific prefix and envelope sequence
+	// differences are tolerated. Terminal or middle-history drift still fails closed.
+	if (diagnostic.length === 0 || canonical.length === 0) return false;
 	const diagnosticDigests = observationValueDigests(diagnostic);
 	const canonicalDigests = observationValueDigests(canonical);
-	const offset = diagnosticDigests.length - canonicalDigests.length;
-	return canonicalDigests.every(
-		(digestValue, index) => diagnosticDigests[offset + index] === digestValue,
-	);
+	const overlap = Math.min(diagnosticDigests.length, canonicalDigests.length);
+	const diagnosticOffset = diagnosticDigests.length - overlap;
+	const canonicalOffset = canonicalDigests.length - overlap;
+	return diagnosticDigests
+		.slice(diagnosticOffset)
+		.every((digestValue, index) => canonicalDigests[canonicalOffset + index] === digestValue);
 }
 
 function graphEvidence(graph: ParsedRootEvalRunResult): RootEvalLiveGraphEvidence {
