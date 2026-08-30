@@ -314,14 +314,14 @@ function clone(snapshot: DescribeSnapshot): DescribeSnapshot {
 }
 
 describe("D140-qualified D122 one-root verification diagnostics", () => {
-	it("executes mutation-sensitive D138 stage plans without post-receipt long gates", async () => {
+	it("executes the D149 automatic precredential stage plan before live admission", async () => {
 		const cases = [
-			["--prepare-browser", ["long-gates", "bounded-currentness", "persist-receipt"]],
-			["--qualify-private-inputs", ["bounded-currentness", "private-input-admission"]],
 			[
 				"--execute-live",
 				[
+					"long-gates",
 					"bounded-currentness",
+					"persist-receipt",
 					"private-input-admission",
 					"control-plane-admission",
 					"claim",
@@ -342,8 +342,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			).resolves.toEqual(expected);
 			expect(trace).toEqual(expected);
 		}
-		expect(rootEvalPrecredentialStagePlan("--qualify-private-inputs")).not.toContain("long-gates");
-		expect(rootEvalPrecredentialStagePlan("--execute-live")).not.toContain("long-gates");
+		expect(rootEvalPrecredentialStagePlan("--execute-live")).toContain("long-gates");
 	});
 	it("exposes raw material-free describe JSON and the executable real-solution contract", () => {
 		const topology = createTopology();
@@ -650,6 +649,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"recover-d145-interrupted-campaign.ts",
 			"recover-d145-source-failure.ts",
 			"rollover-d145-charter-ledger.ts",
+			"update-operator-configuration.ts",
 			"toolchain/pnpm-lock.yaml",
 		] as const)
 			expect(implementationInputs[required], required).toMatch(/^sha256:[0-9a-f]{64}$/u);
@@ -680,16 +680,16 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"graphrefly-ts.root-eval-live-precredential-gates.v5",
 		);
 		expect(ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-no-network-qa.v40",
+			"graphrefly-ts.root-eval-live-no-network-qa.v41",
 		);
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-qualification.v40",
+			"graphrefly-ts.root-eval-live-qualification.v41",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-no-network-qa.v33",
+			"graphrefly-ts.root-eval-topology-no-network-qa.v34",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-qualification.v33",
+			"graphrefly-ts.root-eval-topology-qualification.v34",
 		);
 		expect(ROOT_EVAL_LIVE_GENERATION_REF).not.toContain("d116");
 		expect(ROOT_EVAL_LIVE_CLAIM_REF).not.toContain("d116");
@@ -910,19 +910,27 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(liveEntry).not.toMatch(/GRAPHREFLY_EVAL_PRIVATE_ROOT/u);
 		expect(liveEntry).not.toMatch(/GRAPHREFLY_EVAL_CREDENTIAL_PATH/u);
 		expect(liveEntry).not.toMatch(/GRAPHREFLY_EVAL_ZERO_BYOK_PATH/u);
-		expect(liveEntry).toMatch(/qualifyRootEvalLivePrivateInputPreflight/u);
 		expect(liveEntry).toMatch(/qualifyRootEvalLivePrivateInputs/u);
 		expect(liveEntry).toContain("runRootEvalPrecredentialStagePlan({");
-		expect(liveEntry).toContain('mode === "--qualify-private-inputs"');
-		expect(liveEntry.indexOf('mode === "--qualify-private-inputs"')).toBeLessThan(
-			liveEntry.indexOf("acquisition = await acquireRootEvalLiveClaim"),
+		expect(liveEntry).not.toMatch(/--prepare-browser|--qualify-private-inputs/u);
+		expect(liveEntry).toMatch(
+			/stage === "private-input-admission"[\s\S]+qualifyRootEvalLivePrivateInputs[\s\S]+stage === "control-plane-admission"[\s\S]+readRootEvalLivePricing[\s\S]+preclaimPersistenceArmed = true[\s\S]+readRootEvalLiveCurrentKey/u,
 		);
 		expect(liveEntry).toMatch(/stage === "long-gates"[\s\S]+runPrecredentialGates\(\)/u);
 		expect(liveEntry).toMatch(
 			/stage === "bounded-currentness"[\s\S]+assertBoundedCurrentness\(\)/u,
 		);
 		expect(liveEntry).toMatch(
-			/stage === "persist-receipt"[\s\S]+persistRootEvalLivePrecredentialGateReceipt/u,
+			/stage === "persist-receipt"[\s\S]+persistOrReusePrecredentialGateReceipt/u,
+		);
+		expect(liveEntry).toMatch(
+			/async function persistOrReusePrecredentialGateReceipt[\s\S]+persistRootEvalLivePrecredentialGateReceipt/u,
+		);
+		expect(liveEntry).toMatch(
+			/async function persistOrReusePrecredentialGateReceipt[\s\S]+replaceRootEvalLivePrecredentialGateReceipt/u,
+		);
+		expect(liveEntry).toMatch(
+			/async function persistOrReusePrecredentialGateReceipt[\s\S]+readRootEvalLiveRefreshablePrecredentialGateReceipt[\s\S]+replaceRootEvalLivePrecredentialGateReceipt/u,
 		);
 		expect(liveEntry).toMatch(
 			/async function assertBoundedCurrentness\(\): Promise<RootEvalLiveBoundedCurrentness>[\s\S]+measureCurrentImplementation\(\)[\s\S]+checkRootEvalGeneratedArtifactSnapshot\(\)[\s\S]+runGit\(\["rev-parse", "HEAD"\]\)[\s\S]+"diff", "HEAD"/u,
@@ -955,6 +963,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"utf8",
 		);
 		expect(liveAuthority).toContain("2026-08-26.d145.v1");
+		expect(liveAuthority).toMatch(
+			/const secondStat = await secondHandle\.stat\(\)[\s\S]+secondStat\.nlink !== 1[\s\S]+\(secondStat\.mode & 0o777\) !== 0o600[\s\S]+secondStat\.size !== stat\.size[\s\S]+await realpath\(resolved\)/u,
+		);
 		expect(liveAuthority).not.toContain("2026-08-26.d125.v1");
 		expect(liveAuthority).not.toContain("2026-08-25.d121.v1");
 		const liveBootstrap = readFileSync(
@@ -1007,8 +1018,20 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		const packageJson = JSON.parse(
 			readFileSync(new URL("../../../../package.json", import.meta.url), "utf8"),
 		) as { scripts: Record<string, string> };
-		expect(packageJson.scripts["eval:root:private-inputs"]).toBe(
-			"node packages/ts/evals/graph-native-rerun-avoidance/run-live-campaign-bootstrap.mjs --qualify-private-inputs",
+		expect(packageJson.scripts["eval:root:operator-config:update"]).toBe(
+			"tsx packages/ts/evals/graph-native-rerun-avoidance/update-operator-configuration.ts",
+		);
+		expect(packageJson.scripts["eval:root:private-inputs"]).toBeUndefined();
+		const operatorConfigurationUpdate = readFileSync(
+			new URL(
+				"../../evals/graph-native-rerun-avoidance/update-operator-configuration.ts",
+				import.meta.url,
+			),
+			"utf8",
+		);
+		expect(operatorConfigurationUpdate).toMatch(/replaceRootEvalLiveOperatorConfiguration/u);
+		expect(operatorConfigurationUpdate).toMatch(
+			/operator-configuration-committed-unverified[\s\S]+process\.exitCode = 1/u,
 		);
 		const evalDirectory = new URL("../../evals/graph-native-rerun-avoidance/", import.meta.url);
 		expect(readdirSync(evalDirectory)).not.toContain("qualify-live-private-inputs.ts");

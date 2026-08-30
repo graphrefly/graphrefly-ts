@@ -16,7 +16,10 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it, vi } from "vitest";
-import { empiricalStrictJsonDigest } from "../../evals/graph-native-rerun-avoidance/canonical.js";
+import {
+	empiricalSha256,
+	empiricalStrictJsonDigest,
+} from "../../evals/graph-native-rerun-avoidance/canonical.js";
 import { createCurrentExactModelHarnessProfileInput } from "../../evals/graph-native-rerun-avoidance/current-exact-profile.js";
 import {
 	assertRootEvalObservationRuntimeShape,
@@ -74,17 +77,17 @@ import {
 import {
 	acquireRootEvalLiveClaim,
 	acquireRootEvalLiveClaimForNoNetworkQualification,
+	admitRootEvalLiveOperatorConfiguration,
 	admitRootEvalLivePrecredentialGateReceipt,
 	admitRootEvalLiveZeroByok,
 	assertRootEvalRunResultAdmissionShape,
-	buildRootEvalLiveZeroByokArtifactBytes,
+	buildRootEvalLiveOperatorConfigurationArtifactBytes,
 	constructRootEvalLiveEvidence,
 	evaluateRootEvalLiveAdmission,
 	parseRootEvalLiveCredential,
 	persistRootEvalLiveEvidence,
 	persistRootEvalLivePreclaimFailure,
 	persistRootEvalLivePrecredentialGateReceipt,
-	qualifyRootEvalLivePrivateInputPreflight,
 	qualifyRootEvalLivePrivateInputs,
 	ROOT_EVAL_CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
 	ROOT_EVAL_CURRENT_QUALIFICATION_ARTIFACT_DIGEST,
@@ -103,20 +106,27 @@ import {
 	ROOT_EVAL_LIVE_EVIDENCE_SCHEMA,
 	ROOT_EVAL_LIVE_GENERATION_REF,
 	ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
+	ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_DECISION_REF,
+	ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_NAME,
+	ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_SCHEMA,
 	ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD,
 	ROOT_EVAL_LIVE_PRECLAIM_FAILURE_SCHEMA,
+	ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_NAME,
 	ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_SCHEMA,
 	ROOT_EVAL_LIVE_PRICING_SOURCE,
 	ROOT_EVAL_LIVE_REPLICATE_COUNT,
 	ROOT_EVAL_LIVE_SUCCESS_VIOLATION_CODES,
 	ROOT_EVAL_LIVE_TASK_SET_REF,
 	ROOT_EVAL_LIVE_ZDR_SOURCE,
-	ROOT_EVAL_LIVE_ZERO_BYOK_SCHEMA,
 	type RootEvalLiveClaim,
 	type RootEvalLiveEvidenceInput,
 	readRootEvalLiveCurrentKey,
+	readRootEvalLivePrecredentialGateReceipt,
 	readRootEvalLivePricing,
+	readRootEvalLiveRefreshablePrecredentialGateReceipt,
 	recoverRootEvalLiveClaimAuthority,
+	replaceRootEvalLiveOperatorConfiguration,
+	replaceRootEvalLivePrecredentialGateReceipt,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-live-authority.js";
 import {
 	createRootEvalTaskManifest,
@@ -291,21 +301,21 @@ function precredentialGateReceipt(completedAtMs: number) {
 	});
 }
 
-function zeroByokArtifactBytes(
-	nowMs: number,
-	precredentialGateReceiptDigest: string,
-	duplicateKey = false,
-): Uint8Array {
+function operatorConfigurationBytes(declaredAtMs: number, duplicateKey = false): Uint8Array {
 	const encoded = new TextDecoder().decode(
-		buildRootEvalLiveZeroByokArtifactBytes({
+		buildRootEvalLiveOperatorConfigurationArtifactBytes({
 			workspaceName: "GraphReFly",
 			workspaceSlug: "graph-re-fly",
 			keyName: "Local Eval 2",
 			byokCredentialCount: 0,
 			providerObservation: "Fireworks Not configured",
-			source: "openrouter-browser-settings",
-			observedAtMs: nowMs,
-			precredentialGateReceiptDigest,
+			source: "maintainer-declared-openrouter-settings",
+			declaredAtMs,
+			configurationRevision: "2026-08-29.d149.v1",
+			revoked: false,
+			credentialFingerprintDigest: empiricalSha256(
+				new TextEncoder().encode("sk-or-v1-a44-middle-credential-e06"),
+			),
 			keyVisiblePrefix: "sk-or-v1-a44",
 			keyVisibleSuffix: "e06",
 			guardrailId: "2c97d3e1-b4cc-4246-95d7-33eb27fb65ab",
@@ -818,7 +828,7 @@ async function currentClaimInput(privateRoot: string) {
 		credential,
 		nowMs,
 		precredentialGateReceipt: precredentialGateReceipt(nowMs - 1),
-		bytes: zeroByokArtifactBytes(nowMs, precredentialGateReceipt(nowMs - 1).receiptDigest),
+		bytes: operatorConfigurationBytes(nowMs),
 	});
 	const currentKeyBefore = await readRootEvalLiveCurrentKey({
 		credential,
@@ -831,6 +841,7 @@ async function currentClaimInput(privateRoot: string) {
 						usage: 19,
 						limit_reset: null,
 						is_management_key: false,
+						rate_limit: { requests: 1, interval: "1d" },
 					},
 				}),
 				{ status: 200 },
@@ -1334,7 +1345,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		try {
 			await mkdir(inputRoot, { mode: 0o700 });
 			await mkdir(privateRoot, { mode: 0o700 });
-			const precredentialReceipt = await persistRootEvalLivePrecredentialGateReceipt({
+			await persistRootEvalLivePrecredentialGateReceipt({
 				privateRoot,
 				currentness: boundedCurrentness,
 				completedAtMs: observedAtMs - 1,
@@ -1343,14 +1354,10 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				mode: 0o600,
 			});
 			await chmod(credentialPath, 0o600);
-			await writeFile(
-				zeroByokPath,
-				zeroByokArtifactBytes(observedAtMs, precredentialReceipt.receiptDigest),
-				{ mode: 0o644 },
-			);
+			await writeFile(zeroByokPath, operatorConfigurationBytes(observedAtMs), { mode: 0o644 });
 			await chmod(zeroByokPath, 0o644);
 			await expect(
-				qualifyRootEvalLivePrivateInputPreflight({
+				qualifyRootEvalLivePrivateInputs({
 					credentialPath,
 					zeroByokPath,
 					precredentialPrivateRoot: privateRoot,
@@ -1384,7 +1391,75 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			await rm(temporary, { force: true, recursive: true });
 		}
 	});
-	it("qualifies D140 private inputs without consuming its live generation", async () => {
+	it("installs an explicitly supplied operator configuration atomically and mode-0600", async () => {
+		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-d149-config-update-"));
+		const root = await realpath(temporary);
+		const credentialPath = join(root, "openrouter.env");
+		const candidatePath = join(root, "candidate.json");
+		const targetPath = join(root, ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_NAME);
+		const nowMs = Date.now();
+		const candidateBytes = operatorConfigurationBytes(nowMs);
+		try {
+			await chmod(root, 0o700);
+			await writeFile(credentialPath, "OPENROUTER_API_KEY=sk-or-v1-a44-middle-credential-e06\n", {
+				mode: 0o600,
+			});
+			await writeFile(candidatePath, candidateBytes, { mode: 0o600 });
+			await writeFile(targetPath, operatorConfigurationBytes(nowMs - 1), { mode: 0o600 });
+			await expect(
+				replaceRootEvalLiveOperatorConfiguration({
+					credentialPath,
+					candidatePath,
+					targetPath,
+					nowMs,
+				}),
+			).resolves.toMatchObject({
+				configurationRevision: "2026-08-29.d149.v1",
+				postCommitFailureDigest: null,
+				sourceArtifactDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+			});
+			expect(new Uint8Array(await readFile(targetPath))).toEqual(candidateBytes);
+			expect((await stat(targetPath)).mode & 0o777).toBe(0o600);
+
+			await chmod(candidatePath, 0o644);
+			await expect(
+				replaceRootEvalLiveOperatorConfiguration({
+					credentialPath,
+					candidatePath,
+					targetPath,
+					nowMs,
+				}),
+			).rejects.toThrow(/private input identity/u);
+			expect(new Uint8Array(await readFile(targetPath))).toEqual(candidateBytes);
+
+			const revokedBytes = new TextEncoder().encode(
+				new TextDecoder().decode(candidateBytes).replace('"revoked":false', '"revoked":true'),
+			);
+			await chmod(candidatePath, 0o600);
+			await writeFile(candidatePath, revokedBytes);
+			await expect(
+				replaceRootEvalLiveOperatorConfiguration({
+					credentialPath,
+					candidatePath,
+					targetPath,
+					nowMs,
+				}),
+			).resolves.toMatchObject({ revoked: true });
+			const installedRevocation = new Uint8Array(await readFile(targetPath));
+			expect(() =>
+				admitRootEvalLiveOperatorConfiguration({
+					credential: parseRootEvalLiveCredential(
+						new TextEncoder().encode("OPENROUTER_API_KEY=sk-or-v1-a44-middle-credential-e06\n"),
+					),
+					bytes: installedRevocation,
+					nowMs,
+				}),
+			).toThrow(/same-credential admission/u);
+		} finally {
+			await rm(temporary, { force: true, recursive: true });
+		}
+	});
+	it("admits a stable operator configuration without consuming its live generation", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-d140-preflight-"));
 		const canonicalTemporary = await realpath(temporary);
 		const inputRoot = join(canonicalTemporary, "inputs");
@@ -1403,11 +1478,11 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			await writeFile(credentialPath, "OPENROUTER_API_KEY=sk-or-v1-a44-middle-credential-e06\n", {
 				mode: 0o600,
 			});
-			await writeFile(zeroByokPath, zeroByokArtifactBytes(observedAtMs, receipt.receiptDigest), {
+			await writeFile(zeroByokPath, operatorConfigurationBytes(observedAtMs), {
 				mode: 0o600,
 			});
 			await expect(
-				qualifyRootEvalLivePrivateInputPreflight({
+				qualifyRootEvalLivePrivateInputs({
 					credentialPath,
 					zeroByokPath,
 					precredentialPrivateRoot: privateRoot,
@@ -1415,20 +1490,22 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					nowMs: observedAtMs,
 				}),
 			).resolves.toMatchObject({
-				disposition: "qualified-private-inputs",
-				generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
-				precredentialGateReceiptDigest: receipt.receiptDigest,
+				precredentialGateReceipt: { receiptDigest: receipt.receiptDigest },
+				zeroByok: { workspaceSlug: "graph-re-fly" },
 			});
 			expect(await readdir(privateRoot)).toEqual([
 				`.${ROOT_EVAL_LIVE_GENERATION_REF}.precredential-gates.v5.json`,
 			]);
 
 			const staleSchema = new TextDecoder()
-				.decode(zeroByokArtifactBytes(observedAtMs, receipt.receiptDigest))
-				.replace(ROOT_EVAL_LIVE_ZERO_BYOK_SCHEMA, "graphrefly-ts.d134.zero-byok-observation.v13");
+				.decode(operatorConfigurationBytes(observedAtMs))
+				.replace(
+					ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_SCHEMA,
+					"graphrefly-ts.d145.zero-byok-observation.v16",
+				);
 			await writeFile(zeroByokPath, staleSchema, { mode: 0o600 });
 			await expect(
-				qualifyRootEvalLivePrivateInputPreflight({
+				qualifyRootEvalLivePrivateInputs({
 					credentialPath,
 					zeroByokPath,
 					precredentialPrivateRoot: privateRoot,
@@ -1441,11 +1518,11 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			]);
 
 			const unknownField = new TextDecoder()
-				.decode(zeroByokArtifactBytes(observedAtMs, receipt.receiptDigest))
+				.decode(operatorConfigurationBytes(observedAtMs))
 				.replace(/\}$/u, ',"unexpectedField":true}');
 			await writeFile(zeroByokPath, unknownField, { mode: 0o600 });
 			await expect(
-				qualifyRootEvalLivePrivateInputPreflight({
+				qualifyRootEvalLivePrivateInputs({
 					credentialPath,
 					zeroByokPath,
 					precredentialPrivateRoot: privateRoot,
@@ -1479,6 +1556,100 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					nowMs,
 				}),
 			).rejects.toThrow(/receipt was not fresh/u);
+		} finally {
+			await rm(temporary, { force: true, recursive: true });
+		}
+	});
+	it("atomically refreshes a stale unconsumed receipt for automatic retry", async () => {
+		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-d149-receipt-refresh-"));
+		const privateRoot = await realpath(temporary);
+		const nowMs = Date.now();
+		try {
+			const stale = await persistRootEvalLivePrecredentialGateReceipt({
+				privateRoot,
+				currentness: boundedCurrentness,
+				completedAtMs: nowMs - 3_600_001,
+			});
+			await expect(
+				readRootEvalLivePrecredentialGateReceipt({ privateRoot, nowMs }),
+			).rejects.toThrow(/receipt was not fresh/u);
+			const refreshed = await replaceRootEvalLivePrecredentialGateReceipt({
+				privateRoot,
+				currentness: {
+					...boundedCurrentness,
+					repositoryStateDigest: empiricalStrictJsonDigest("repaired-currentness"),
+				},
+				completedAtMs: nowMs,
+			});
+			expect(refreshed.receiptDigest).not.toBe(stale.receiptDigest);
+			await expect(
+				readRootEvalLivePrecredentialGateReceipt({ privateRoot, nowMs }),
+			).resolves.toMatchObject({
+				repositoryStateDigest: empiricalStrictJsonDigest("repaired-currentness"),
+				completedAtMs: nowMs,
+			});
+			expect(await readdir(privateRoot)).toEqual([
+				`.${ROOT_EVAL_LIVE_GENERATION_REF}.precredential-gates.v5.json`,
+			]);
+		} finally {
+			await rm(temporary, { force: true, recursive: true });
+		}
+	});
+	it("admits an old self-consistent receipt closure only for atomic refresh", async () => {
+		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-d149-closure-refresh-"));
+		const privateRoot = await realpath(temporary);
+		const nowMs = Date.now();
+		const oldMaterial = {
+			schemaVersion: ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_SCHEMA,
+			decisionRef: ROOT_EVAL_LIVE_DECISION_REF,
+			generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
+			implementationManifestDigest: empiricalStrictJsonDigest("old-implementation"),
+			qualificationArtifactDigest: empiricalStrictJsonDigest("old-artifact"),
+			qualificationDigest: empiricalStrictJsonDigest("old-qualification"),
+			implementationCommit: "c".repeat(40),
+			repositoryStateDigest: empiricalStrictJsonDigest("old-repository-state"),
+			artifactSetDigest: empiricalStrictJsonDigest("old-artifact-set"),
+			completedAtMs: nowMs - 1,
+		};
+		const oldBytes = new TextEncoder().encode(
+			JSON.stringify({
+				...oldMaterial,
+				receiptDigest: empiricalStrictJsonDigest(oldMaterial),
+			}),
+		);
+		try {
+			await writeFile(join(privateRoot, ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_NAME), oldBytes, {
+				mode: 0o600,
+			});
+			await expect(
+				readRootEvalLivePrecredentialGateReceipt({ privateRoot, nowMs }),
+			).rejects.toThrow(/implementationManifestDigest/u);
+			await expect(
+				readRootEvalLiveRefreshablePrecredentialGateReceipt({ privateRoot, nowMs }),
+			).resolves.toMatchObject(oldMaterial);
+
+			const tampered = new TextDecoder()
+				.decode(oldBytes)
+				.replace(oldMaterial.repositoryStateDigest, empiricalStrictJsonDigest("tampered"));
+			await writeFile(join(privateRoot, ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_NAME), tampered, {
+				mode: 0o600,
+			});
+			await expect(
+				readRootEvalLiveRefreshablePrecredentialGateReceipt({ privateRoot, nowMs }),
+			).rejects.toThrow(/digest drifted/u);
+
+			await writeFile(join(privateRoot, ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_NAME), oldBytes, {
+				mode: 0o600,
+			});
+			const refreshed = await replaceRootEvalLivePrecredentialGateReceipt({
+				privateRoot,
+				currentness: boundedCurrentness,
+				completedAtMs: nowMs,
+			});
+			expect(refreshed.implementationManifestDigest).toBe(
+				ROOT_EVAL_CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
+			);
+			expect(refreshed.receiptDigest).not.toBe(empiricalStrictJsonDigest(oldMaterial));
 		} finally {
 			await rm(temporary, { force: true, recursive: true });
 		}
@@ -2455,7 +2626,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				credential,
 				precredentialGateReceipt: receipt,
 				nowMs: 1,
-				bytes: zeroByokArtifactBytes(1, receipt.receiptDigest, true),
+				bytes: operatorConfigurationBytes(1, true),
 			}),
 		).toThrow(/unique-key UTF-8 JSON/u);
 		await expect(
@@ -4844,30 +5015,60 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		);
 	});
 
-	it("binds D140 zero-BYOK and current-key admission to the same Local Eval 2 credential", async () => {
+	it("binds the stable D149 operator declaration and fresh current-key admission to Local Eval 2", async () => {
 		const credential = parseRootEvalLiveCredential(
 			new TextEncoder().encode("OPENROUTER_API_KEY=sk-or-v1-a44-middle-credential-e06\n"),
 		);
 		const nowMs = Date.now();
 		const gateReceipt = precredentialGateReceipt(nowMs - 1);
-		const browserArtifactBytes = zeroByokArtifactBytes(nowMs, gateReceipt.receiptDigest);
-		expect(JSON.parse(new TextDecoder().decode(browserArtifactBytes))).toMatchObject({
-			schemaVersion: ROOT_EVAL_LIVE_ZERO_BYOK_SCHEMA,
-			decisionRef: ROOT_EVAL_LIVE_DECISION_REF,
+		const declarationBytes = operatorConfigurationBytes(nowMs);
+		expect(JSON.parse(new TextDecoder().decode(declarationBytes))).toMatchObject({
+			schemaVersion: ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_SCHEMA,
+			decisionRef: ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_DECISION_REF,
+			credentialFingerprintDigest: empiricalSha256(
+				new TextEncoder().encode("sk-or-v1-a44-middle-credential-e06"),
+			),
 		});
 		const zeroByok = admitRootEvalLiveZeroByok({
 			credential,
 			precredentialGateReceipt: gateReceipt,
 			nowMs,
-			bytes: browserArtifactBytes,
+			bytes: declarationBytes,
 		});
 		expect(zeroByok.byokCredentialCount).toBe(0);
+		const oldDeclarationBytes = operatorConfigurationBytes(nowMs - 31 * 24 * 60 * 60 * 1_000);
+		const oldDeclaration = admitRootEvalLiveOperatorConfiguration({
+			credential,
+			nowMs,
+			bytes: oldDeclarationBytes,
+		});
+		expect(oldDeclaration.declaredAtMs).toBe(nowMs - 31 * 24 * 60 * 60 * 1_000);
+		const laterReceiptObservation = admitRootEvalLiveZeroByok({
+			credential,
+			precredentialGateReceipt: precredentialGateReceipt(nowMs + 1),
+			nowMs: nowMs + 1,
+			bytes: declarationBytes,
+		});
+		expect(laterReceiptObservation.sourceArtifactDigest).toBe(zeroByok.sourceArtifactDigest);
+		expect(laterReceiptObservation.observationDigest).not.toBe(zeroByok.observationDigest);
+		const rotatedSameFragments = parseRootEvalLiveCredential(
+			new TextEncoder().encode("OPENROUTER_API_KEY=sk-or-v1-a44-rotated-credential-e06\n"),
+		);
 		expect(() =>
-			admitRootEvalLiveZeroByok({
-				credential,
-				precredentialGateReceipt: gateReceipt,
+			admitRootEvalLiveOperatorConfiguration({
+				credential: rotatedSameFragments,
 				nowMs,
-				bytes: zeroByokArtifactBytes(nowMs - 2, gateReceipt.receiptDigest),
+				bytes: declarationBytes,
+			}),
+		).toThrow(/same-credential admission/u);
+		const revoked = new TextDecoder()
+			.decode(declarationBytes)
+			.replace('"revoked":false', '"revoked":true');
+		expect(() =>
+			admitRootEvalLiveOperatorConfiguration({
+				credential,
+				nowMs,
+				bytes: new TextEncoder().encode(revoked),
 			}),
 		).toThrow(/same-credential admission/u);
 		expect(() =>
@@ -4877,14 +5078,20 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				nowMs,
 				bytes: new TextEncoder().encode(
 					JSON.stringify({
-						schemaVersion: ROOT_EVAL_LIVE_ZERO_BYOK_SCHEMA,
+						schemaVersion: ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_SCHEMA,
 						decisionRef: "graphrefly-ts:D94",
 						workspaceName: "GraphReFly",
 						workspaceSlug: "graph-re-fly",
 						keyName: "Local Eval 2",
 						byokCredentialCount: 0,
 						providerObservation: "Fireworks Not configured",
-						source: "openrouter-browser-settings",
+						source: "maintainer-declared-openrouter-settings",
+						declaredAt: new Date(nowMs).toISOString(),
+						configurationRevision: "2026-08-29.d149.v1",
+						revoked: false,
+						credentialFingerprintDigest: empiricalSha256(
+							new TextEncoder().encode("sk-or-v1-a44-middle-credential-e06"),
+						),
 						guardrailId: "2c97d3e1-b4cc-4246-95d7-33eb27fb65ab",
 						guardrailName: "B112 DeepSeek V4 Flash",
 						guardrailDescription:
@@ -4895,8 +5102,6 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 						providerEligible: true,
 						requestDataCollection: "deny",
 						requestZdrRequired: true,
-						precredentialGateReceiptDigest: gateReceipt.receiptDigest,
-						observedAt: new Date(nowMs).toISOString(),
 						keyVisiblePrefix: "",
 						keyVisibleSuffix: "",
 						allowedModels: ["deepseek/deepseek-v4-flash-0731"],
@@ -4916,6 +5121,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 						usage: 19.75,
 						limit_reset: null,
 						is_management_key: false,
+						rate_limit: { requests: 0, interval: "deprecated-not-budget-authority" },
 					},
 				}),
 				{ status: 200 },

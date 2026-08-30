@@ -3,7 +3,7 @@ import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifes
 import { ROOT_EVAL_LIVE_TASK_BINDING_DIGEST } from "./root-eval-live.js";
 
 export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-live-no-network-qa.v40" as const,
+	schemaVersion: "graphrefly-ts.root-eval-live-no-network-qa.v41" as const,
 	decisionRefs: Object.freeze([
 		"graphrefly-ts:D76",
 		"graphrefly-ts:D81",
@@ -68,6 +68,7 @@ export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		"graphrefly-ts:D144",
 		"graphrefly-ts:D145",
 		"graphrefly-ts:D148",
+		"graphrefly-ts:D149",
 	] as const),
 	implementationManifestDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
 	taskBindingDigest: ROOT_EVAL_LIVE_TASK_BINDING_DIGEST,
@@ -150,6 +151,7 @@ export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		unforgeablePrivateAdmissionProvenance: "passed" as const,
 		d121LiveClaimRequiresRuntimeAuthorityProvenance: "passed" as const,
 		currentKeyAdmissionFreshWithinSixtySeconds: "passed" as const,
+		providerOwnedPricingZdrAndCurrentKeyRemainGenerationFresh: "passed" as const,
 		zeroByokAndCurrentKeyAdmissionsBindSameCredential: "passed" as const,
 		claimBindsSameCredentialAtDispatch: "passed" as const,
 		liveProviderTransportIsCapturedAndNonInjectable: "passed" as const,
@@ -176,11 +178,16 @@ export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		d140QualificationClaimAndEvidenceCoordinatesFresh: "passed" as const,
 		d140GenerationIsolatedFromConsumedD136: "passed" as const,
 		d140PreclaimWriteSingleUse: "passed" as const,
-		d140BrowserArtifactBuilderUsesCurrentSchema: "passed" as const,
-		d140PrivateInputPreflightDoesNotConsumeGeneration: "passed" as const,
+		d149StableOperatorConfigurationUsesCurrentSchema: "passed" as const,
+		d149DeclarationAgeAloneDoesNotInvalidate: "passed" as const,
+		d149ExactCredentialFingerprintMutationRejected: "passed" as const,
+		d149ExplicitOperatorConfigurationUpdateIsAtomicAndMode0600: "passed" as const,
+		d149InvalidLocalPrecredentialStateDoesNotConsumeGeneration: "passed" as const,
+		d149StaleUnconsumedReceiptRefreshesAtomically: "passed" as const,
+		d149PublicPricingFailureDoesNotConsumeGeneration: "passed" as const,
+		d149SecondPrivateReadRevalidatesIdentity: "passed" as const,
 		d136ZeroChargePreclaimCloseout: "passed" as const,
-		d138LongGatesOnlyBeforeReceipt: "passed" as const,
-		d138NoLongGatesAfterReceipt: "passed" as const,
+		d149AutomaticWorkflowRunsLongGatesBeforeReceiptAndPrivateInputs: "passed" as const,
 		d138BoundedCurrentnessBeforePrivateInputs: "passed" as const,
 		d138StaleReceiptRejectedBeforeCredential: "passed" as const,
 		d138UnexpectedPrivateStateRejectedBeforeCredential: "passed" as const,
@@ -192,7 +199,7 @@ export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		d140CumulativeUsdSixHardCap: "passed" as const,
 		implementationCoordinateExactShape: "passed" as const,
 		isolatedPrecredentialBootstrap: "passed" as const,
-		precredentialGateReceiptBeforeBrowserObservation: "passed" as const,
+		precredentialGateReceiptBeforeStableOperatorAdmission: "passed" as const,
 		claimRecoveryEnvelopeLoadBearing: "passed" as const,
 		claimRecoveryEnvelopeMaterialFree: "passed" as const,
 		precredentialFrozenTaskQualification: "passed" as const,
@@ -266,7 +273,7 @@ export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT_DIGEST = empiricalStrictJsonD
 );
 
 const qualificationMaterial = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-live-qualification.v40" as const,
+	schemaVersion: "graphrefly-ts.root-eval-live-qualification.v41" as const,
 	decisionRef: "graphrefly-ts:D145" as const,
 	implementationExecutionApprovalRef: "graphrefly-ts:D145" as const,
 	verificationDiagnosticsImplementationReceiptRef: "graphrefly-ts:D120" as const,
@@ -313,6 +320,7 @@ const qualificationMaterial = Object.freeze({
 	d136ZeroChargeCloseoutRef: "graphrefly-ts:D137" as const,
 	precredentialGateChronologyExecutionApprovalRef: "graphrefly-ts:D138" as const,
 	precredentialGateChronologyImplementationReceiptRef: "graphrefly-ts:D139" as const,
+	stableOperatorConfigurationDecisionRef: "graphrefly-ts:D149" as const,
 	completionCharterRef: "graphrefly-ts:D145" as const,
 	currentLiveExecutionApprovalClosed: false as const,
 	callerHorizonDecisionRequired: false as const,

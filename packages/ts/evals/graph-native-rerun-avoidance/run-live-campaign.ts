@@ -39,7 +39,6 @@ import {
 	constructRootEvalLiveEvidence,
 	persistRootEvalLivePreclaimFailure,
 	persistRootEvalLivePrecredentialGateReceipt,
-	qualifyRootEvalLivePrivateInputPreflight,
 	qualifyRootEvalLivePrivateInputs,
 	ROOT_EVAL_CURRENT_QUALIFICATION_ARTIFACT_DIGEST,
 	ROOT_EVAL_CURRENT_QUALIFICATION_DIGEST,
@@ -50,7 +49,9 @@ import {
 	ROOT_EVAL_LIVE_CAMPAIGN_SLOT,
 	ROOT_EVAL_LIVE_GENERATION_REF,
 	ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
+	ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_NAME,
 	ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD,
+	ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_NAME,
 	ROOT_EVAL_LIVE_REPLICATE_COUNT,
 	ROOT_EVAL_LIVE_TASK_SET_REF,
 	type RootEvalLiveBoundedCurrentness,
@@ -60,7 +61,10 @@ import {
 	type RootEvalLivePricingObservation,
 	type RootEvalLiveZeroByokObservation,
 	readRootEvalLiveCurrentKey,
+	readRootEvalLivePrecredentialGateReceipt,
 	readRootEvalLivePricing,
+	readRootEvalLiveRefreshablePrecredentialGateReceipt,
+	replaceRootEvalLivePrecredentialGateReceipt,
 } from "./root-eval-live-authority.js";
 import { readRootEvalTaskManifest, rootEvalTaskBindings } from "./root-eval-task.js";
 import { ensureRootEvalDevelopmentTaskManifest } from "./root-eval-task-manifest-store.js";
@@ -82,7 +86,9 @@ const charterTransactionPath = resolve(join(operatorRoot, "d145-charter-transact
 const credentialPath = resolve(
 	join(import.meta.dirname, "../.private/empirical-memory-rerun-avoidance/openrouter.env"),
 );
-const zeroByokPath = resolve(join(operatorRoot, "fresh-zero-byok-d145.v16.json"));
+const operatorConfigurationPath = resolve(
+	join(operatorRoot, ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_NAME),
+);
 const LIVE_FETCH = globalThis.fetch;
 const pnpm = resolve(process.execPath, "../pnpm");
 
@@ -276,6 +282,40 @@ async function assertFreshGeneration(): Promise<void> {
 				if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
 			},
 		);
+}
+
+async function persistOrReusePrecredentialGateReceipt(
+	currentness: RootEvalLiveBoundedCurrentness,
+): Promise<void> {
+	await mkdir(privateRoot, { recursive: true, mode: 0o700 });
+	await chmod(privateRoot, 0o700);
+	await assertFreshGeneration();
+	const receiptPath = join(privateRoot, ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_NAME);
+	const exists = await lstat(receiptPath).then(
+		() => true,
+		(error: unknown) => {
+			if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+			throw error;
+		},
+	);
+	if (exists) {
+		try {
+			const receipt = await readRootEvalLivePrecredentialGateReceipt({ privateRoot });
+			if (
+				receipt.implementationCommit === currentness.implementationCommit &&
+				receipt.repositoryStateDigest === currentness.repositoryStateDigest &&
+				receipt.artifactSetDigest === currentness.artifactSetDigest
+			)
+				return;
+		} catch {}
+		// Strict admission can reject an old closure coordinate before currentness
+		// comparison. Require the old receipt to remain self-consistent before the
+		// still-unconsumed generation is allowed to replace it atomically.
+		await readRootEvalLiveRefreshablePrecredentialGateReceipt({ privateRoot });
+		await replaceRootEvalLivePrecredentialGateReceipt({ privateRoot, currentness });
+		return;
+	}
+	await persistRootEvalLivePrecredentialGateReceipt({ privateRoot, currentness });
 }
 
 function graphCurrentKey(
@@ -577,12 +617,7 @@ async function main(): Promise<void> {
 	)
 		throw new TypeError("root eval D145 live entry requires the clean precredential bootstrap");
 	const mode = process.argv[2] ?? "--execute-live";
-	if (
-		mode !== "--execute-live" &&
-		mode !== "--prepare-browser" &&
-		mode !== "--qualify-private-inputs"
-	)
-		throw new TypeError("root eval D145 live entry mode was invalid");
+	if (mode !== "--execute-live") throw new TypeError("root eval D145 live entry mode was invalid");
 	if (ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_STATE !== ("open-by-graphrefly-ts:D145" as string))
 		throw new TypeError("root eval D145 live authority is unavailable");
 	let currentness: RootEvalLiveBoundedCurrentness | undefined;
@@ -628,13 +663,8 @@ async function main(): Promise<void> {
 				if (currentness === undefined)
 					throw new TypeError("root eval D145 stage requires bounded currentness");
 				if (stage === "persist-receipt") {
-					await mkdir(privateRoot, { recursive: true, mode: 0o700 });
-					await chmod(privateRoot, 0o700);
-					await assertFreshGeneration();
-					const receipt = await persistRootEvalLivePrecredentialGateReceipt({
-						privateRoot,
-						currentness,
-					});
+					await persistOrReusePrecredentialGateReceipt(currentness);
+					const receipt = await readRootEvalLivePrecredentialGateReceipt({ privateRoot });
 					process.stdout.write(
 						`${JSON.stringify({
 							disposition: "precredential-gates-passed",
@@ -650,34 +680,19 @@ async function main(): Promise<void> {
 					await mkdir(privateRoot, { recursive: true, mode: 0o700 });
 					await chmod(privateRoot, 0o700);
 					await assertFreshGeneration();
-					preclaimPersistenceArmed = mode === "--execute-live";
-					if (mode === "--qualify-private-inputs") {
-						const preflight = await qualifyRootEvalLivePrivateInputPreflight({
-							credentialPath,
-							zeroByokPath,
-							precredentialPrivateRoot: privateRoot,
-							currentness,
-						});
-						process.stdout.write(
-							`${JSON.stringify({
-								...preflight,
-								executionApprovalRef: ROOT_EVAL_LIVE_EXECUTION_APPROVAL,
-							})}\n`,
-						);
-					} else {
-						privateInputs = await qualifyRootEvalLivePrivateInputs({
-							credentialPath,
-							zeroByokPath,
-							precredentialPrivateRoot: privateRoot,
-							currentness,
-						});
-					}
+					privateInputs = await qualifyRootEvalLivePrivateInputs({
+						credentialPath,
+						zeroByokPath: operatorConfigurationPath,
+						precredentialPrivateRoot: privateRoot,
+						currentness,
+					});
 					return;
 				}
 				if (privateInputs === undefined)
 					throw new TypeError("root eval D145 stage requires admitted private inputs");
 				if (stage === "control-plane-admission") {
 					pricing = await readRootEvalLivePricing({ fetchImpl: LIVE_FETCH });
+					preclaimPersistenceArmed = true;
 					currentKeyBefore = await readRootEvalLiveCurrentKey({
 						fetchImpl: LIVE_FETCH,
 						credential: privateInputs.credential,

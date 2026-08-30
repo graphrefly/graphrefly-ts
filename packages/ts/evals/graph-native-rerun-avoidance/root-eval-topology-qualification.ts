@@ -5,7 +5,7 @@ import { HARNESS_ARMS } from "./harness-campaign-policy.js";
 import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifest.js";
 
 export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-topology-no-network-qa.v33" as const,
+	schemaVersion: "graphrefly-ts.root-eval-topology-no-network-qa.v34" as const,
 	decisionRefs: Object.freeze([
 		"graphrefly-ts:D76",
 		"graphrefly-ts:D77",
@@ -62,6 +62,7 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		"graphrefly-ts:D144",
 		"graphrefly-ts:D145",
 		"graphrefly-ts:D148",
+		"graphrefly-ts:D149",
 	] as const),
 	topologyRevision: ROOT_EVAL_TOPOLOGY_REVISION,
 	implementationManifestDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
@@ -165,8 +166,14 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		d140ResultNamespacesFresh: "passed" as const,
 		d140RejectsClosedD136Coordinates: "passed" as const,
 		d140BindsD139ImplementationReceipt: "passed" as const,
-		d140BrowserArtifactBuilderUsesCurrentSchema: "passed" as const,
-		d140PrivateInputPreflightDoesNotConsumeGeneration: "passed" as const,
+		d149StableOperatorConfigurationUsesCurrentSchema: "passed" as const,
+		d149ExactCredentialFingerprintMutationRejected: "passed" as const,
+		d149ExplicitOperatorConfigurationUpdateIsAtomicAndMode0600: "passed" as const,
+		d149AutomaticPrecredentialWorkflowMutationContract: "passed" as const,
+		d149InvalidLocalPrecredentialStateDoesNotConsumeGeneration: "passed" as const,
+		d149StaleUnconsumedReceiptRefreshesAtomically: "passed" as const,
+		d149PublicPricingFailureDoesNotConsumeGeneration: "passed" as const,
+		d149SecondPrivateReadRevalidatesIdentity: "passed" as const,
 		d136ZeroChargePreclaimCloseout: "passed" as const,
 		d138PrecredentialGateChronologyLeavesTopologyUnchanged: "passed" as const,
 		d138ExecutableStagePlanMutationContract: "passed" as const,
@@ -194,7 +201,7 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT_DIGEST = empiricalStrictJ
 );
 
 const qualificationMaterial = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-topology-qualification.v33" as const,
+	schemaVersion: "graphrefly-ts.root-eval-topology-qualification.v34" as const,
 	decisionRef: "graphrefly-ts:D145" as const,
 	executionApprovalRef: "graphrefly-ts:D145" as const,
 	verificationDiagnosticsImplementationReceiptRef: "graphrefly-ts:D120" as const,
@@ -233,6 +240,7 @@ const qualificationMaterial = Object.freeze({
 	d136ZeroChargeCloseoutRef: "graphrefly-ts:D137" as const,
 	precredentialGateChronologyExecutionApprovalRef: "graphrefly-ts:D138" as const,
 	precredentialGateChronologyImplementationReceiptRef: "graphrefly-ts:D139" as const,
+	stableOperatorConfigurationDecisionRef: "graphrefly-ts:D149" as const,
 	completionCharterRef: "graphrefly-ts:D145" as const,
 	currentLiveExecutionApprovalClosed: false as const,
 	callerHorizonDecisionRequired: false as const,

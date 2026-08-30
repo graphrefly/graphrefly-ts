@@ -1,7 +1,4 @@
-export type RootEvalLiveOperatorMode =
-	| "--prepare-browser"
-	| "--qualify-private-inputs"
-	| "--execute-live";
+export type RootEvalLiveOperatorMode = "--execute-live";
 
 export type RootEvalPrecredentialStage =
 	| "long-gates"
@@ -13,17 +10,10 @@ export type RootEvalPrecredentialStage =
 	| "campaign";
 
 const ROOT_EVAL_PRECREDENTIAL_STAGE_PLANS = Object.freeze({
-	"--prepare-browser": Object.freeze([
+	"--execute-live": Object.freeze([
 		"long-gates",
 		"bounded-currentness",
 		"persist-receipt",
-	] as const),
-	"--qualify-private-inputs": Object.freeze([
-		"bounded-currentness",
-		"private-input-admission",
-	] as const),
-	"--execute-live": Object.freeze([
-		"bounded-currentness",
 		"private-input-admission",
 		"control-plane-admission",
 		"claim",

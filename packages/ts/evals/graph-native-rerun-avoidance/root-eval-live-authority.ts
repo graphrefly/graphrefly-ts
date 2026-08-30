@@ -70,8 +70,11 @@ export const ROOT_EVAL_LIVE_PRICING_SOURCE =
 	"https://openrouter.ai/api/v1/models/deepseek/deepseek-v4-flash-0731/endpoints" as const;
 export const ROOT_EVAL_LIVE_ZDR_SOURCE = "https://openrouter.ai/api/v1/endpoints/zdr" as const;
 export const ROOT_EVAL_LIVE_CURRENT_KEY_ENDPOINT = "https://openrouter.ai/api/v1/key" as const;
-export const ROOT_EVAL_LIVE_ZERO_BYOK_SCHEMA =
-	"graphrefly-ts.d145.zero-byok-observation.v16" as const;
+export const ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_SCHEMA =
+	"graphrefly-ts.d149.operator-configuration.v1" as const;
+export const ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_DECISION_REF = "graphrefly-ts:D149" as const;
+export const ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_NAME =
+	"operator-configuration-d149.v1.json" as const;
 export const ROOT_EVAL_LIVE_CLAIM_SCHEMA = "graphrefly-ts.root-eval-live-claim.v20" as const;
 export const ROOT_EVAL_LIVE_EVIDENCE_SCHEMA = "graphrefly-ts.root-eval-live-evidence.v24" as const;
 export const ROOT_EVAL_LIVE_PRECLAIM_FAILURE_SCHEMA =
@@ -143,7 +146,12 @@ export const ROOT_EVAL_HISTORICAL_D85_TASK_BINDING_DIGEST =
 	"sha256:f020b4fdcb290a17ab7716fb6b432293c99c1da4d9d9489eceff1fa2de1901e8" as const;
 export const ROOT_EVAL_D85_RETIREMENT_REF = "graphrefly-ts:D86" as const;
 
-type RootEvalLiveAdmissionKind = "precredential-gates" | "pricing" | "zero-byok" | "current-key";
+type RootEvalLiveAdmissionKind =
+	| "precredential-gates"
+	| "operator-configuration"
+	| "pricing"
+	| "zero-byok"
+	| "current-key";
 interface RootEvalLiveAdmissionProvenance {
 	readonly kind: RootEvalLiveAdmissionKind;
 	readonly controlPlaneTransport: boolean;
@@ -203,6 +211,20 @@ export interface RootEvalLivePrecredentialGateReceipt {
 	readonly receiptDigest: string;
 }
 
+export interface RootEvalLiveRefreshablePrecredentialGateReceipt {
+	readonly schemaVersion: typeof ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_SCHEMA;
+	readonly decisionRef: typeof ROOT_EVAL_LIVE_DECISION_REF;
+	readonly generationRef: typeof ROOT_EVAL_LIVE_GENERATION_REF;
+	readonly implementationManifestDigest: string;
+	readonly qualificationArtifactDigest: string;
+	readonly qualificationDigest: string;
+	readonly implementationCommit: string;
+	readonly repositoryStateDigest: string;
+	readonly artifactSetDigest: string;
+	readonly completedAtMs: number;
+	readonly receiptDigest: string;
+}
+
 export interface RootEvalLiveBoundedCurrentness {
 	readonly implementationCommit: string;
 	readonly repositoryStateDigest: string;
@@ -240,15 +262,17 @@ export interface RootEvalLiveZeroByokObservation {
 	readonly observationDigest: string;
 }
 
-export interface RootEvalLiveZeroByokBrowserFacts {
+export interface RootEvalLiveOperatorConfigurationFacts {
 	readonly workspaceName: "GraphReFly";
 	readonly workspaceSlug: "graph-re-fly";
 	readonly keyName: "Local Eval 2";
 	readonly byokCredentialCount: 0;
 	readonly providerObservation: "Fireworks Not configured";
-	readonly source: "openrouter-browser-settings";
-	readonly observedAtMs: number;
-	readonly precredentialGateReceiptDigest: string;
+	readonly source: "maintainer-declared-openrouter-settings";
+	readonly declaredAtMs: number;
+	readonly configurationRevision: "2026-08-29.d149.v1";
+	readonly revoked: boolean;
+	readonly credentialFingerprintDigest: string;
 	readonly keyVisiblePrefix: string;
 	readonly keyVisibleSuffix: string;
 	readonly guardrailId: "2c97d3e1-b4cc-4246-95d7-33eb27fb65ab";
@@ -264,23 +288,40 @@ export interface RootEvalLiveZeroByokBrowserFacts {
 	readonly allowedProviders: readonly ["Fireworks"];
 }
 
-export function buildRootEvalLiveZeroByokArtifactBytes(
-	input: RootEvalLiveZeroByokBrowserFacts,
+export interface RootEvalLiveOperatorConfiguration {
+	readonly workspaceSlug: "graph-re-fly";
+	readonly keyName: "Local Eval 2";
+	readonly byokCredentialCount: 0;
+	readonly providerObservation: "Fireworks Not configured";
+	readonly declaredAtMs: number;
+	readonly configurationRevision: "2026-08-29.d149.v1";
+	readonly revoked: boolean;
+	readonly credentialFingerprintDigest: string;
+	readonly sourceArtifactDigest: string;
+}
+
+export function buildRootEvalLiveOperatorConfigurationArtifactBytes(
+	input: RootEvalLiveOperatorConfigurationFacts,
 ): Uint8Array {
-	if (!Number.isSafeInteger(input.observedAtMs))
-		throw new TypeError("root eval zero-BYOK browser observation time was invalid");
+	if (!Number.isSafeInteger(input.declaredAtMs) || input.declaredAtMs < 0)
+		throw new TypeError("root eval operator configuration declaration time was invalid");
 	return strictJsonCodec.encode(
 		strictSnapshot({
-			schemaVersion: ROOT_EVAL_LIVE_ZERO_BYOK_SCHEMA,
-			decisionRef: ROOT_EVAL_LIVE_DECISION_REF,
+			schemaVersion: ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_SCHEMA,
+			decisionRef: ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_DECISION_REF,
 			workspaceName: input.workspaceName,
 			workspaceSlug: input.workspaceSlug,
 			keyName: input.keyName,
 			byokCredentialCount: input.byokCredentialCount,
 			providerObservation: input.providerObservation,
 			source: input.source,
-			observedAt: new Date(input.observedAtMs).toISOString(),
-			precredentialGateReceiptDigest: input.precredentialGateReceiptDigest,
+			declaredAt: new Date(input.declaredAtMs).toISOString(),
+			configurationRevision: input.configurationRevision,
+			revoked: input.revoked,
+			credentialFingerprintDigest: digest(
+				input.credentialFingerprintDigest,
+				"root eval operator configuration.credentialFingerprintDigest",
+			),
 			keyVisiblePrefix: input.keyVisiblePrefix,
 			keyVisibleSuffix: input.keyVisibleSuffix,
 			guardrailId: input.guardrailId,
@@ -621,6 +662,58 @@ async function installExclusivePrivateFile(
 			});
 }
 
+async function installReplacingPrivateFile(
+	privateRoot: string,
+	name: string,
+	bytes: Uint8Array,
+): Promise<string | null> {
+	const target = join(privateRoot, name);
+	const stage = join(privateRoot, `.${name}.stage-${randomUUID()}`);
+	let committed = false;
+	try {
+		const handle = await open(
+			stage,
+			constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+			0o600,
+		);
+		try {
+			await handle.writeFile(bytes);
+			await handle.sync();
+		} finally {
+			await handle.close();
+		}
+		await rename(stage, target);
+		committed = true;
+	} catch (error) {
+		await rm(stage, { force: true }).catch(() => undefined);
+		throw error;
+	}
+	const postCommitErrors: unknown[] = [];
+	try {
+		const directory = await open(privateRoot, constants.O_RDONLY | constants.O_DIRECTORY);
+		try {
+			await directory.sync();
+		} finally {
+			await directory.close();
+		}
+		const installed = await readRootEvalPrivateFile(target, bytes.byteLength);
+		if (!sameBytes(installed, bytes))
+			throw new TypeError("root eval replacing private file bytes drifted");
+	} catch (error) {
+		postCommitErrors.push(error);
+	}
+	await rm(stage, { force: true }).catch((error: unknown) => postCommitErrors.push(error));
+	if (!committed) throw new TypeError("root eval replacing private file did not commit");
+	return postCommitErrors.length === 0
+		? null
+		: empiricalStrictJsonDigest({
+				kind: "root-eval-replacing-file-post-commit-failure",
+				errors: postCommitErrors.map((error) =>
+					error instanceof Error ? error.message : String(error),
+				),
+			});
+}
+
 function object(value: unknown, path: string): Record<string, unknown> {
 	if (value === null || typeof value !== "object" || Array.isArray(value))
 		throw new TypeError(`${path} must be an object`);
@@ -659,7 +752,16 @@ export async function readRootEvalPrivateFile(path: string, maxBytes: number): P
 		try {
 			const secondStat = await secondHandle.stat();
 			const second = new Uint8Array(await secondHandle.readFile());
-			if (secondStat.dev !== stat.dev || secondStat.ino !== stat.ino || !sameBytes(first, second))
+			if (
+				!secondStat.isFile() ||
+				secondStat.nlink !== 1 ||
+				(secondStat.mode & 0o777) !== 0o600 ||
+				secondStat.size !== stat.size ||
+				secondStat.dev !== stat.dev ||
+				secondStat.ino !== stat.ino ||
+				(await realpath(resolved)) !== resolved ||
+				!sameBytes(first, second)
+			)
 				throw new TypeError("root eval private input changed during read");
 		} finally {
 			await secondHandle.close();
@@ -791,6 +893,95 @@ export function admitRootEvalLivePrecredentialGateReceipt(input: {
 	);
 }
 
+export function admitRootEvalLiveRefreshablePrecredentialGateReceipt(input: {
+	readonly bytes: Uint8Array;
+	readonly nowMs?: number;
+}): RootEvalLiveRefreshablePrecredentialGateReceipt {
+	const nowMs = input.nowMs ?? Date.now();
+	if (input.bytes.byteLength < 1 || input.bytes.byteLength > 16_384)
+		throw new TypeError("root eval refreshable precredential gate receipt exceeded its bound");
+	const value = object(
+		parseRootEvalUniqueJson(input.bytes, "root eval refreshable precredential gate receipt"),
+		"refreshable precredential gate receipt",
+	);
+	exactKeys(
+		value,
+		[
+			"schemaVersion",
+			"decisionRef",
+			"generationRef",
+			"implementationManifestDigest",
+			"qualificationArtifactDigest",
+			"qualificationDigest",
+			"implementationCommit",
+			"repositoryStateDigest",
+			"artifactSetDigest",
+			"completedAtMs",
+			"receiptDigest",
+		],
+		"root eval refreshable precredential gate receipt",
+	);
+	const completedAtMs = safeInteger(
+		value.completedAtMs,
+		"root eval refreshable precredential gate receipt.completedAtMs",
+	);
+	const material = strictSnapshot({
+		schemaVersion: literal(
+			value.schemaVersion,
+			ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_SCHEMA,
+			"root eval refreshable precredential gate receipt.schemaVersion",
+		),
+		decisionRef: literal(
+			value.decisionRef,
+			ROOT_EVAL_LIVE_DECISION_REF,
+			"root eval refreshable precredential gate receipt.decisionRef",
+		),
+		generationRef: literal(
+			value.generationRef,
+			ROOT_EVAL_LIVE_GENERATION_REF,
+			"root eval refreshable precredential gate receipt.generationRef",
+		),
+		implementationManifestDigest: digest(
+			value.implementationManifestDigest,
+			"root eval refreshable precredential gate receipt.implementationManifestDigest",
+		),
+		qualificationArtifactDigest: digest(
+			value.qualificationArtifactDigest,
+			"root eval refreshable precredential gate receipt.qualificationArtifactDigest",
+		),
+		qualificationDigest: digest(
+			value.qualificationDigest,
+			"root eval refreshable precredential gate receipt.qualificationDigest",
+		),
+		implementationCommit: coordinate(
+			value.implementationCommit,
+			"root eval refreshable precredential gate receipt.implementationCommit",
+		),
+		repositoryStateDigest: digest(
+			value.repositoryStateDigest,
+			"root eval refreshable precredential gate receipt.repositoryStateDigest",
+		),
+		artifactSetDigest: digest(
+			value.artifactSetDigest,
+			"root eval refreshable precredential gate receipt.artifactSetDigest",
+		),
+		completedAtMs,
+	});
+	if (!/^[0-9a-f]{40}$/u.test(material.implementationCommit))
+		throw new TypeError(
+			"root eval refreshable precredential gate receipt implementation commit was invalid",
+		);
+	if (completedAtMs > nowMs)
+		throw new TypeError("root eval refreshable precredential gate receipt was future-dated");
+	const receiptDigest = digest(
+		value.receiptDigest,
+		"root eval refreshable precredential gate receipt.receiptDigest",
+	);
+	if (receiptDigest !== empiricalStrictJsonDigest(material))
+		throw new TypeError("root eval refreshable precredential gate receipt digest drifted");
+	return Object.freeze({ ...material, receiptDigest });
+}
+
 export async function persistRootEvalLivePrecredentialGateReceipt(input: {
 	readonly privateRoot: string;
 	readonly currentness: RootEvalLiveBoundedCurrentness;
@@ -798,23 +989,7 @@ export async function persistRootEvalLivePrecredentialGateReceipt(input: {
 }): Promise<RootEvalLivePrecredentialGateReceipt> {
 	const privateRoot = await ensurePrivateRoot(input.privateRoot);
 	const completedAtMs = input.completedAtMs ?? Date.now();
-	const material = strictSnapshot({
-		schemaVersion: ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_SCHEMA,
-		decisionRef: ROOT_EVAL_LIVE_DECISION_REF,
-		generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
-		implementationManifestDigest: ROOT_EVAL_CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
-		qualificationArtifactDigest: ROOT_EVAL_CURRENT_QUALIFICATION_ARTIFACT_DIGEST,
-		qualificationDigest: ROOT_EVAL_CURRENT_QUALIFICATION_DIGEST,
-		implementationCommit: input.currentness.implementationCommit,
-		repositoryStateDigest: input.currentness.repositoryStateDigest,
-		artifactSetDigest: input.currentness.artifactSetDigest,
-		completedAtMs,
-	});
-	const receipt = strictSnapshot({
-		...material,
-		receiptDigest: empiricalStrictJsonDigest(material),
-	});
-	const bytes = strictJsonCodec.encode(receipt);
+	const bytes = buildRootEvalLivePrecredentialGateReceiptBytes(input.currentness, completedAtMs);
 	const postCommitFailureDigest = await installExclusivePrivateFile(
 		privateRoot,
 		ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_NAME,
@@ -822,6 +997,47 @@ export async function persistRootEvalLivePrecredentialGateReceipt(input: {
 	);
 	if (postCommitFailureDigest !== null)
 		throw new TypeError("root eval precredential gate receipt post-commit verification failed");
+	return admitRootEvalLivePrecredentialGateReceipt({ bytes, nowMs: completedAtMs });
+}
+
+function buildRootEvalLivePrecredentialGateReceiptBytes(
+	currentness: RootEvalLiveBoundedCurrentness,
+	completedAtMs: number,
+): Uint8Array {
+	const material = strictSnapshot({
+		schemaVersion: ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_SCHEMA,
+		decisionRef: ROOT_EVAL_LIVE_DECISION_REF,
+		generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
+		implementationManifestDigest: ROOT_EVAL_CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
+		qualificationArtifactDigest: ROOT_EVAL_CURRENT_QUALIFICATION_ARTIFACT_DIGEST,
+		qualificationDigest: ROOT_EVAL_CURRENT_QUALIFICATION_DIGEST,
+		implementationCommit: currentness.implementationCommit,
+		repositoryStateDigest: currentness.repositoryStateDigest,
+		artifactSetDigest: currentness.artifactSetDigest,
+		completedAtMs,
+	});
+	const receipt = strictSnapshot({
+		...material,
+		receiptDigest: empiricalStrictJsonDigest(material),
+	});
+	return strictJsonCodec.encode(receipt);
+}
+
+export async function replaceRootEvalLivePrecredentialGateReceipt(input: {
+	readonly privateRoot: string;
+	readonly currentness: RootEvalLiveBoundedCurrentness;
+	readonly completedAtMs?: number;
+}): Promise<RootEvalLivePrecredentialGateReceipt> {
+	const privateRoot = await ensurePrivateRoot(input.privateRoot);
+	const completedAtMs = input.completedAtMs ?? Date.now();
+	const bytes = buildRootEvalLivePrecredentialGateReceiptBytes(input.currentness, completedAtMs);
+	const postCommitFailureDigest = await installReplacingPrivateFile(
+		privateRoot,
+		ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_NAME,
+		bytes,
+	);
+	if (postCommitFailureDigest !== null)
+		throw new TypeError("root eval replacement receipt post-commit verification failed");
 	return admitRootEvalLivePrecredentialGateReceipt({ bytes, nowMs: completedAtMs });
 }
 
@@ -838,18 +1054,23 @@ export async function readRootEvalLivePrecredentialGateReceipt(input: {
 	});
 }
 
+export async function readRootEvalLiveRefreshablePrecredentialGateReceipt(input: {
+	readonly privateRoot: string;
+	readonly nowMs?: number;
+}): Promise<RootEvalLiveRefreshablePrecredentialGateReceipt> {
+	return admitRootEvalLiveRefreshablePrecredentialGateReceipt({
+		bytes: await readRootEvalPrivateFile(
+			join(resolve(input.privateRoot), ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_NAME),
+			16_384,
+		),
+		nowMs: input.nowMs,
+	});
+}
+
 export interface RootEvalLivePrivateInputs {
 	readonly precredentialGateReceipt: RootEvalLivePrecredentialGateReceipt;
 	readonly credential: RootEvalLiveCredential;
 	readonly zeroByok: RootEvalLiveZeroByokObservation;
-}
-
-export interface RootEvalLivePrivateInputPreflight {
-	readonly disposition: "qualified-private-inputs";
-	readonly generationRef: typeof ROOT_EVAL_LIVE_GENERATION_REF;
-	readonly credentialBindingDigest: string;
-	readonly zeroByokObservationDigest: string;
-	readonly precredentialGateReceiptDigest: string;
 }
 
 export async function qualifyRootEvalLivePrivateInputs(input: {
@@ -883,26 +1104,6 @@ export async function qualifyRootEvalLivePrivateInputs(input: {
 		nowMs: input.nowMs,
 	});
 	return Object.freeze({ precredentialGateReceipt, credential, zeroByok });
-}
-
-export async function qualifyRootEvalLivePrivateInputPreflight(input: {
-	readonly credentialPath: string;
-	readonly zeroByokPath: string;
-	readonly precredentialPrivateRoot: string;
-	readonly currentness: RootEvalLiveBoundedCurrentness;
-	readonly nowMs?: number;
-}): Promise<RootEvalLivePrivateInputPreflight> {
-	const privateInputs = await qualifyRootEvalLivePrivateInputs(input);
-	return Object.freeze({
-		disposition: "qualified-private-inputs" as const,
-		generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
-		credentialBindingDigest: empiricalStrictJsonDigest({
-			bindingRef: privateInputs.credential.bindingRef,
-			bindingRevision: privateInputs.credential.bindingRevision,
-		}),
-		zeroByokObservationDigest: privateInputs.zeroByok.observationDigest,
-		precredentialGateReceiptDigest: privateInputs.precredentialGateReceipt.receiptDigest,
-	});
 }
 
 export async function readRootEvalLivePricing(input: {
@@ -1038,12 +1239,38 @@ export function admitRootEvalLiveZeroByok(input: {
 	readonly precredentialGateReceipt: RootEvalLivePrecredentialGateReceipt;
 	readonly nowMs?: number;
 }): RootEvalLiveZeroByokObservation {
+	const configuration = admitRootEvalLiveOperatorConfiguration({
+		bytes: input.bytes,
+		credential: input.credential,
+		nowMs: input.nowMs,
+	});
+	return bindRootEvalLiveOperatorConfiguration({
+		configuration,
+		precredentialGateReceipt: input.precredentialGateReceipt,
+		nowMs: input.nowMs,
+	});
+}
+
+export function admitRootEvalLiveOperatorConfiguration(input: {
+	readonly bytes: Uint8Array;
+	readonly credential: RootEvalLiveCredential;
+	readonly nowMs?: number;
+}): RootEvalLiveOperatorConfiguration {
+	return validateRootEvalLiveOperatorConfiguration({ ...input, allowRevoked: false });
+}
+
+function validateRootEvalLiveOperatorConfiguration(input: {
+	readonly bytes: Uint8Array;
+	readonly credential: RootEvalLiveCredential;
+	readonly nowMs?: number;
+	readonly allowRevoked: boolean;
+}): RootEvalLiveOperatorConfiguration {
 	const nowMs = input.nowMs ?? Date.now();
 	if (input.bytes.byteLength < 1 || input.bytes.byteLength > 16_384)
-		throw new TypeError("root eval zero-BYOK artifact exceeded its bound");
+		throw new TypeError("root eval operator configuration exceeded its bound");
 	const value = object(
-		parseRootEvalUniqueJson(input.bytes, "root eval zero-BYOK artifact"),
-		"zero-BYOK artifact",
+		parseRootEvalUniqueJson(input.bytes, "root eval operator configuration"),
+		"operator configuration",
 	);
 	exactKeys(
 		value,
@@ -1056,8 +1283,10 @@ export function admitRootEvalLiveZeroByok(input: {
 			"byokCredentialCount",
 			"providerObservation",
 			"source",
-			"observedAt",
-			"precredentialGateReceiptDigest",
+			"declaredAt",
+			"configurationRevision",
+			"revoked",
+			"credentialFingerprintDigest",
 			"keyVisiblePrefix",
 			"keyVisibleSuffix",
 			"guardrailId",
@@ -1072,23 +1301,27 @@ export function admitRootEvalLiveZeroByok(input: {
 			"allowedModels",
 			"allowedProviders",
 		],
-		"root eval zero-BYOK artifact",
+		"root eval operator configuration",
 	);
-	const observedAtMs = Date.parse(String(value.observedAt));
-	const precredentialProvenance = RootEvalLiveAdmissionCapability.provenance(
-		input.precredentialGateReceipt,
+	const declaredAtMs = Date.parse(String(value.declaredAt));
+	const declaredCredentialFingerprintDigest = digest(
+		value.credentialFingerprintDigest,
+		"root eval operator configuration.credentialFingerprintDigest",
 	);
 	const visiblePrefix = value.keyVisiblePrefix;
 	const visibleSuffix = value.keyVisibleSuffix;
 	if (
-		value.schemaVersion !== ROOT_EVAL_LIVE_ZERO_BYOK_SCHEMA ||
-		value.decisionRef !== ROOT_EVAL_LIVE_DECISION_REF ||
+		value.schemaVersion !== ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_SCHEMA ||
+		value.decisionRef !== ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_DECISION_REF ||
 		value.workspaceName !== "GraphReFly" ||
 		value.workspaceSlug !== "graph-re-fly" ||
 		value.keyName !== "Local Eval 2" ||
 		value.byokCredentialCount !== 0 ||
 		value.providerObservation !== "Fireworks Not configured" ||
-		value.source !== "openrouter-browser-settings" ||
+		value.source !== "maintainer-declared-openrouter-settings" ||
+		value.configurationRevision !== "2026-08-29.d149.v1" ||
+		(value.revoked !== false && !(input.allowRevoked && value.revoked === true)) ||
+		declaredCredentialFingerprintDigest !== credentialFingerprint(input.credential) ||
 		value.guardrailId !== "2c97d3e1-b4cc-4246-95d7-33eb27fb65ab" ||
 		value.guardrailName !== "B112 DeepSeek V4 Flash" ||
 		value.guardrailDescription !==
@@ -1099,11 +1332,9 @@ export function admitRootEvalLiveZeroByok(input: {
 		value.providerEligible !== true ||
 		value.requestDataCollection !== "deny" ||
 		value.requestZdrRequired !== true ||
-		precredentialProvenance?.kind !== "precredential-gates" ||
-		value.precredentialGateReceiptDigest !== input.precredentialGateReceipt.receiptDigest ||
-		!Number.isSafeInteger(observedAtMs) ||
-		observedAtMs < input.precredentialGateReceipt.completedAtMs ||
-		Math.abs(nowMs - observedAtMs) > 3_600_000 ||
+		!Number.isSafeInteger(declaredAtMs) ||
+		declaredAtMs < 0 ||
+		declaredAtMs > nowMs ||
 		typeof visiblePrefix !== "string" ||
 		visiblePrefix.length < 8 ||
 		visiblePrefix.length > 128 ||
@@ -1117,25 +1348,123 @@ export function admitRootEvalLiveZeroByok(input: {
 		JSON.stringify(value.allowedModels) !== JSON.stringify(["deepseek/deepseek-v4-flash-0731"]) ||
 		JSON.stringify(value.allowedProviders) !== JSON.stringify(["Fireworks"])
 	)
-		throw new TypeError("root eval zero-BYOK artifact failed same-credential admission");
+		throw new TypeError("root eval operator configuration failed same-credential admission");
 	const material = strictSnapshot({
 		workspaceSlug: "graph-re-fly" as const,
 		keyName: "Local Eval 2" as const,
 		byokCredentialCount: 0 as const,
 		providerObservation: "Fireworks Not configured" as const,
-		observedAtMs,
+		declaredAtMs,
+		configurationRevision: "2026-08-29.d149.v1" as const,
+		revoked: value.revoked as boolean,
+		credentialFingerprintDigest: declaredCredentialFingerprintDigest,
+		sourceArtifactDigest: empiricalSha256(input.bytes),
+	});
+	return brandAdmission(material, {
+		kind: "operator-configuration",
+		controlPlaneTransport: false,
+		trustedClock: input.nowMs === undefined,
+		issuedAtMs: nowMs,
+		credentialFingerprintDigest: declaredCredentialFingerprintDigest,
+	});
+}
+
+export async function replaceRootEvalLiveOperatorConfiguration(input: {
+	readonly credentialPath: string;
+	readonly candidatePath: string;
+	readonly targetPath: string;
+	readonly nowMs?: number;
+}): Promise<
+	| Readonly<{
+			disposition: "installed";
+			configurationRevision: "2026-08-29.d149.v1";
+			revoked: boolean;
+			sourceArtifactDigest: string;
+			postCommitFailureDigest: null;
+	  }>
+	| Readonly<{
+			disposition: "committed-unverified";
+			postCommitFailureDigest: string;
+	  }>
+> {
+	const candidatePath = resolve(input.candidatePath);
+	const targetPath = resolve(input.targetPath);
+	if (
+		candidatePath === targetPath ||
+		targetPath !== join(dirname(targetPath), ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_NAME)
+	)
+		throw new TypeError("root eval operator configuration update path was invalid");
+	const credential = parseRootEvalLiveCredential(
+		await readRootEvalPrivateFile(input.credentialPath, 16_384),
+	);
+	const bytes = await readRootEvalPrivateFile(candidatePath, 16_384);
+	const admitted = validateRootEvalLiveOperatorConfiguration({
+		bytes,
+		credential,
+		nowMs: input.nowMs,
+		allowRevoked: true,
+	});
+	const privateRoot = await ensurePrivateRoot(dirname(targetPath));
+	const postCommitFailureDigest = await installReplacingPrivateFile(
+		privateRoot,
+		ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_NAME,
+		bytes,
+	);
+	if (postCommitFailureDigest !== null)
+		return Object.freeze({
+			disposition: "committed-unverified" as const,
+			postCommitFailureDigest,
+		});
+	const installed = validateRootEvalLiveOperatorConfiguration({
+		bytes: await readRootEvalPrivateFile(targetPath, 16_384),
+		credential,
+		nowMs: input.nowMs,
+		allowRevoked: true,
+	});
+	if (installed.sourceArtifactDigest !== admitted.sourceArtifactDigest)
+		throw new TypeError("root eval operator configuration changed during install");
+	return Object.freeze({
+		disposition: "installed" as const,
+		configurationRevision: installed.configurationRevision,
+		revoked: installed.revoked,
+		sourceArtifactDigest: installed.sourceArtifactDigest,
+		postCommitFailureDigest: null,
+	});
+}
+
+function bindRootEvalLiveOperatorConfiguration(input: {
+	readonly configuration: RootEvalLiveOperatorConfiguration;
+	readonly precredentialGateReceipt: RootEvalLivePrecredentialGateReceipt;
+	readonly nowMs?: number;
+}): RootEvalLiveZeroByokObservation {
+	const nowMs = input.nowMs ?? Date.now();
+	const configurationProvenance = RootEvalLiveAdmissionCapability.provenance(input.configuration);
+	const precredentialProvenance = RootEvalLiveAdmissionCapability.provenance(
+		input.precredentialGateReceipt,
+	);
+	if (
+		configurationProvenance?.kind !== "operator-configuration" ||
+		precredentialProvenance?.kind !== "precredential-gates"
+	)
+		throw new TypeError("root eval operator configuration provenance was invalid");
+	const material = strictSnapshot({
+		workspaceSlug: input.configuration.workspaceSlug,
+		keyName: input.configuration.keyName,
+		byokCredentialCount: input.configuration.byokCredentialCount,
+		providerObservation: input.configuration.providerObservation,
+		observedAtMs: input.precredentialGateReceipt.completedAtMs,
 		precredentialGateCompletedAtMs: input.precredentialGateReceipt.completedAtMs,
 		precredentialGateReceiptDigest: input.precredentialGateReceipt.receiptDigest,
-		sourceArtifactDigest: empiricalSha256(input.bytes),
+		sourceArtifactDigest: input.configuration.sourceArtifactDigest,
 	});
 	return brandAdmission(
 		{ ...material, observationDigest: empiricalStrictJsonDigest(material) },
 		{
 			kind: "zero-byok",
-			controlPlaneTransport: true,
+			controlPlaneTransport: false,
 			trustedClock: input.nowMs === undefined,
 			issuedAtMs: nowMs,
-			credentialFingerprintDigest: credentialFingerprint(input.credential),
+			credentialFingerprintDigest: configurationProvenance.credentialFingerprintDigest,
 		},
 	);
 }
