@@ -74,10 +74,10 @@
 			"admittedProposalCount": 36,
 			"admittedRetryProposalCount": 1,
 			"cooldownOutstandingReadinessCount": 0,
-			"initialMaxConcurrentEffects": 2,
+			"initialMaxConcurrentEffects": 1,
 			"kind": "eval-provider-capacity-state",
 			"maxConcurrentEffects": 1,
-			"mode": "rate-limited-serial",
+			"mode": "paced-serial",
 			"pendingFirstAttemptProposalCount": 0,
 			"pendingProposalCount": 0,
 			"pendingRetryProposalCount": 0,
@@ -91,8 +91,11 @@
 		},
 		"providerOutcomeReasonCounts": {
 			"executor-failed": 0,
-			"http-429-retryable": 1,
-			"http-failed": 0,
+			"http-availability-exhausted": 0,
+			"http-availability-retryable": 0,
+			"http-capacity-exhausted": 0,
+			"http-capacity-retryable": 1,
+			"http-terminal": 0,
 			"response-bounds-invalid": 0,
 			"response-choice-invalid": 0,
 			"response-json-invalid": 0,
@@ -104,8 +107,9 @@
 			"response-route-invalid": 0,
 			"response-usage-invalid": 0,
 			"tool-proposed": 35,
-			"transport-failed": 0,
-			"transport-retryable": 0
+			"transport-availability-exhausted": 0,
+			"transport-availability-retryable": 0,
+			"transport-failed": 0
 		},
 		"providerReportedLowerBoundMicrousd": 350,
 		"providerReportedMicrousd": 350,
@@ -124,7 +128,7 @@
 		"sourceTechnicalExcludedReplicates": [],
 		"stoppingReason": "campaign-complete",
 		"taskSetRef": "root-eval-d145-transfer-qualification-v1",
-		"topologyRevision": "graphrefly-ts.root-eval-topology.v15",
+		"topologyRevision": "graphrefly-ts.root-eval-topology.v17",
 		"unreportedSettledUpperBoundMicrousd": 0,
 		"verificationDiagnostics": {
 			"armOrder": [
@@ -427,10 +431,14 @@
 		"billingDisposition": "reconciled",
 		"providerOutcomeReasonCounts": {
 			"tool-proposed": 35,
-			"http-failed": 0,
-			"http-429-retryable": 1,
+			"http-capacity-retryable": 1,
+			"http-capacity-exhausted": 0,
+			"http-availability-retryable": 0,
+			"http-availability-exhausted": 0,
+			"http-terminal": 0,
 			"transport-failed": 0,
-			"transport-retryable": 0,
+			"transport-availability-retryable": 0,
+			"transport-availability-exhausted": 0,
 			"response-bounds-invalid": 0,
 			"response-json-invalid": 0,
 			"response-route-invalid": 0,
@@ -446,6 +454,6 @@
 		"finding": "no-positive-differential",
 		"stoppingReason": "campaign-complete"
 	},
-	"peakConcurrentEffects": 2,
+	"peakConcurrentEffects": 1,
 	"executedAdmissionCount": 36
 }

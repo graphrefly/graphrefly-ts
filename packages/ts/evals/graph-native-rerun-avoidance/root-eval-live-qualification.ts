@@ -3,7 +3,7 @@ import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifes
 import { ROOT_EVAL_LIVE_TASK_BINDING_DIGEST } from "./root-eval-live.js";
 
 export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-live-no-network-qa.v39" as const,
+	schemaVersion: "graphrefly-ts.root-eval-live-no-network-qa.v40" as const,
 	decisionRefs: Object.freeze([
 		"graphrefly-ts:D76",
 		"graphrefly-ts:D81",
@@ -67,6 +67,7 @@ export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		"graphrefly-ts:D141",
 		"graphrefly-ts:D144",
 		"graphrefly-ts:D145",
+		"graphrefly-ts:D148",
 	] as const),
 	implementationManifestDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
 	taskBindingDigest: ROOT_EVAL_LIVE_TASK_BINDING_DIGEST,
@@ -75,12 +76,14 @@ export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		providerThenGraphAdmittedExactTool: "passed" as const,
 		memoryBindingMechanicalDereference: "passed" as const,
 		exactProfileWireBinding: "passed" as const,
-		sixConcurrentWorkItemsTwoProviderSlotsDelegatedToRootGraph: "passed" as const,
-		adaptiveProviderCapacityGraphState: "passed" as const,
-		exactFireworks429CooldownAndPermanentSerialDownshift: "passed" as const,
+		sixConcurrentWorkItemsOnePacedProviderLaneDelegatedToRootGraph: "passed" as const,
+		pacedSerialProviderCapacityGraphState: "passed" as const,
+		exactFireworks429CapacityRecovery: "passed" as const,
+		thirtySecondProviderStartPacing: "passed" as const,
+		typedCapacityAvailabilityAndTerminalRecovery: "passed" as const,
 		firstAndRetryProposalConservation: "passed" as const,
 		canonicalProviderCapacityBudgetStableCut: "passed" as const,
-		peakProviderConcurrencyAtMostTwoEvidenceGate: "passed" as const,
+		peakProviderConcurrencyExactlyOneEvidenceGate: "passed" as const,
 		retryAfterFloorCapAndMalformedHeaderMatrix: "passed" as const,
 		frozenTaskMaterialization: "passed" as const,
 		exactToolPathAndReplacementBounds: "passed" as const,
@@ -104,6 +107,7 @@ export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		duplicateExternalAuthorityKeysRejected: "passed" as const,
 		oneRetryOnly: "passed" as const,
 		sixArmHttp429RetryConservation: "passed" as const,
+		threeCapacityRecoveriesThenExhaustion: "passed" as const,
 		realParserSixConcurrentHttp429Integration: "passed" as const,
 		retryConservationGraphObservation: "passed" as const,
 		initialProviderSlotCompletionOrderPermutations: "passed" as const,
@@ -262,7 +266,7 @@ export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT_DIGEST = empiricalStrictJsonD
 );
 
 const qualificationMaterial = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-live-qualification.v39" as const,
+	schemaVersion: "graphrefly-ts.root-eval-live-qualification.v40" as const,
 	decisionRef: "graphrefly-ts:D145" as const,
 	implementationExecutionApprovalRef: "graphrefly-ts:D145" as const,
 	verificationDiagnosticsImplementationReceiptRef: "graphrefly-ts:D120" as const,

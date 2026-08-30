@@ -35,7 +35,11 @@ import type {
 	EvalRetryDelayEffect,
 	EvalRetryDelayOutcome,
 } from "./eval-topology.js";
-import { ROOT_EVAL_CALLER_SAFETY_LEASE_MS } from "./eval-topology.js";
+import {
+	EVAL_PROVIDER_CONDITIONAL_AVAILABILITY_CODES,
+	ROOT_EVAL_CALLER_SAFETY_LEASE_MS,
+	ROOT_EVAL_MAX_INFRASTRUCTURE_RETRY_DELAY_MS,
+} from "./eval-topology.js";
 import type { RootEvalLiveClaimCommit } from "./root-eval-live-authority.js";
 import {
 	ROOT_EVAL_D145_TASK_SET_BINDING_DIGEST,
@@ -110,8 +114,8 @@ export const ROOT_EVAL_CALLER_SETTLEMENT_DEADLINE_MS = ROOT_EVAL_CALLER_SAFETY_L
 export const ROOT_EVAL_PROVIDER_SETTLEMENT_LEASE_MS = 600_000 as const;
 export const ROOT_EVAL_TOOL_SETTLEMENT_LEASE_MS = 600_000 as const;
 export const ROOT_EVAL_BILLING_SETTLEMENT_LEASE_MS = 32_000 as const;
-export const ROOT_EVAL_MAX_RETRY_DELAY_MS = 120_000 as const;
-export const ROOT_EVAL_RETRY_SETTLEMENT_LEASE_MS = 121_000 as const;
+export const ROOT_EVAL_MAX_RETRY_DELAY_MS = ROOT_EVAL_MAX_INFRASTRUCTURE_RETRY_DELAY_MS;
+export const ROOT_EVAL_RETRY_SETTLEMENT_LEASE_MS = 241_000 as const;
 export const ROOT_EVAL_MAX_BILLING_OBSERVATIONS = 8 as const;
 export const ROOT_EVAL_MAX_POST_CUTOFF_CAUSAL_TAIL_MS =
 	ROOT_EVAL_PROVIDER_SETTLEMENT_LEASE_MS +
@@ -341,7 +345,7 @@ async function consumeCurrentProviderDispatch(input: {
 		executionId: input.effect.executionId,
 		admissionId: input.effect.admissionId,
 		operationId: input.effect.operationId,
-		attempt: input.effect.attempt,
+		dispatchOrdinal: input.effect.dispatchOrdinal,
 	});
 	const bytes = strictJsonCodec.encode({
 		...receipt,
@@ -417,7 +421,7 @@ async function persistRootEvalPrivateDiagnostic(input: {
 		workItemId: input.effect.workItemId,
 		replicate: input.effect.replicate,
 		arm: input.effect.arm,
-		attempt: input.effect.attempt,
+		dispatchOrdinal: input.effect.dispatchOrdinal,
 		material: input.material,
 	});
 	const bytes = strictJsonCodec.encode({
@@ -461,11 +465,13 @@ async function persistRootEvalPrivateDiagnostic(input: {
 interface ProviderResult {
 	readonly disposition: "tool" | "retryable" | "failed";
 	readonly reason: EvalProviderOutcomeReason;
+	readonly recoveryClass: "capacity" | "availability" | null;
 	readonly costMicrousd: number;
 	readonly costEvidence: EvalProviderOutcome["costEvidence"];
 	readonly pricingRoundingAllowanceMicrousd: number;
 	readonly resultDigest: string;
 	readonly retryAfterMs: number;
+	readonly providerErrorCode: string | null;
 	readonly tool: Readonly<{
 		readonly path: string;
 		readonly oldText: string;
@@ -482,6 +488,13 @@ class RootEvalProviderResponseError extends TypeError {
 		readonly pricingRoundingAllowanceMicrousd = 0,
 	) {
 		super(message);
+	}
+}
+
+class RootEvalProviderTransportError extends Error {
+	constructor(readonly cause: unknown) {
+		super(cause instanceof Error ? cause.message : String(cause));
+		this.name = "RootEvalProviderTransportError";
 	}
 }
 
@@ -685,6 +698,10 @@ function elapsed(started: number): number {
 	return Math.max(0, Math.ceil(performance.now() - started));
 }
 
+function dispatchElapsed(started: number): number {
+	return Math.max(0, Math.floor(performance.now() - started));
+}
+
 async function runProcess(input: {
 	readonly command: string;
 	readonly args: readonly string[];
@@ -840,6 +857,65 @@ function auditProviderReportedCost(
 		throw new TypeError("provider usage.cost disagreed with the admitted route pricing audit");
 }
 
+type ParsedRetryAfter =
+	| Readonly<{ readonly kind: "absent" | "invalid" }>
+	| Readonly<{ readonly kind: "valid"; readonly delayMs: number }>
+	| Readonly<{ readonly kind: "valid-over-limit" }>;
+
+function parseRetryAfterMs(value: string | null, nowMs: number): ParsedRetryAfter {
+	if (value === null) return Object.freeze({ kind: "absent" as const });
+	const trimmed = value.trim();
+	if (/^\d+$/u.test(trimmed)) {
+		const seconds = BigInt(trimmed);
+		if (seconds < 1n) return Object.freeze({ kind: "invalid" as const });
+		if (seconds * 1_000n > BigInt(ROOT_EVAL_MAX_RETRY_DELAY_MS))
+			return Object.freeze({ kind: "valid-over-limit" as const });
+		return Object.freeze({ kind: "valid" as const, delayMs: Number(seconds) * 1_000 });
+	}
+	{
+		const readyAtMs = Date.parse(trimmed);
+		if (!Number.isFinite(readyAtMs)) return Object.freeze({ kind: "invalid" as const });
+		const delayMs = Math.ceil(readyAtMs - nowMs);
+		if (!Number.isSafeInteger(delayMs) || delayMs < 1)
+			return Object.freeze({ kind: "invalid" as const });
+		if (delayMs > ROOT_EVAL_MAX_RETRY_DELAY_MS)
+			return Object.freeze({ kind: "valid-over-limit" as const });
+		return Object.freeze({ kind: "valid" as const, delayMs });
+	}
+}
+
+const CONDITIONAL_AVAILABILITY_CODES = Object.freeze(
+	new Set<string>(EVAL_PROVIDER_CONDITIONAL_AVAILABILITY_CODES),
+);
+
+function providerErrorCode(root: Record<string, unknown>): string | null {
+	const error = root.error;
+	if (error === null || typeof error !== "object" || Array.isArray(error)) return null;
+	const errorRecord = error as Record<string, unknown>;
+	const metadata = errorRecord.metadata;
+	const metadataRecord =
+		metadata !== null && typeof metadata === "object" && !Array.isArray(metadata)
+			? (metadata as Record<string, unknown>)
+			: undefined;
+	const raw = metadataRecord?.provider_error_code ?? errorRecord.code;
+	return typeof raw === "string" ? raw.toLowerCase() : null;
+}
+
+function isTransientAvailabilityResponse(
+	status: number,
+	root: Record<string, unknown>,
+	retryAfter: ParsedRetryAfter,
+): boolean {
+	if ([408, 425, 502, 503, 504, 520].includes(status)) return true;
+	if (![409, 423, 424, 500].includes(status)) return false;
+	const code = providerErrorCode(root);
+	return (
+		retryAfter.kind === "valid" ||
+		retryAfter.kind === "valid-over-limit" ||
+		(code !== null && CONDITIONAL_AVAILABILITY_CODES.has(code))
+	);
+}
+
 export function parseRootEvalLiveProviderResponse(input: {
 	readonly status: number;
 	readonly bytes: Uint8Array;
@@ -847,31 +923,57 @@ export function parseRootEvalLiveProviderResponse(input: {
 	readonly pricing: RootEvalLivePricing;
 	readonly reservationMicrousd: number;
 	readonly writablePath?: string;
+	readonly nowMs?: number;
 }): ProviderResult {
 	if (!Number.isSafeInteger(input.reservationMicrousd) || input.reservationMicrousd < 1)
 		throw new TypeError("root eval live provider reservation was invalid");
-	if (input.bytes.byteLength < 1 || input.bytes.byteLength > MAX_RESPONSE_BYTES)
-		responseError(
-			"response-bounds-invalid",
-			"root eval live provider response exceeded its byte bound",
-		);
-	let decoded: unknown;
-	try {
-		decoded = parseRootEvalUniqueJson(input.bytes, "root eval live provider response");
-	} catch {
-		responseError(
-			"response-json-invalid",
-			"root eval live provider response was not bounded UTF-8 JSON",
-		);
+	const retryAfter = parseRetryAfterMs(input.retryAfter, input.nowMs ?? Date.now());
+	const retryAfterCandidateMs =
+		retryAfter.kind === "valid"
+			? retryAfter.delayMs
+			: retryAfter.kind === "valid-over-limit"
+				? ROOT_EVAL_MAX_RETRY_DELAY_MS + 1
+				: 0;
+	let root: Record<string, unknown> = {};
+	if (input.status < 200 || input.status >= 300) {
+		if (input.bytes.byteLength > 0 && input.bytes.byteLength <= MAX_RESPONSE_BYTES) {
+			try {
+				const decoded = parseRootEvalUniqueJson(
+					input.bytes,
+					"root eval live provider error response",
+				);
+				if (decoded !== null && typeof decoded === "object" && !Array.isArray(decoded))
+					root = decoded as Record<string, unknown>;
+			} catch {
+				// The HTTP status remains authoritative when the optional error body is malformed.
+			}
+		}
+	} else {
+		if (input.bytes.byteLength < 1 || input.bytes.byteLength > MAX_RESPONSE_BYTES)
+			responseError(
+				"response-bounds-invalid",
+				"root eval live provider response exceeded its byte bound",
+			);
+		let decoded: unknown;
+		try {
+			decoded = parseRootEvalUniqueJson(input.bytes, "root eval live provider response");
+		} catch {
+			responseError(
+				"response-json-invalid",
+				"root eval live provider response was not bounded UTF-8 JSON",
+			);
+		}
+		if (decoded === null || typeof decoded !== "object" || Array.isArray(decoded))
+			responseError(
+				"response-json-invalid",
+				"root eval live provider response was not a JSON object",
+			);
+		root = decoded as Record<string, unknown>;
 	}
-	const root = decoded as Record<string, unknown>;
-	const retryAfterMs =
-		input.retryAfter !== null && /^\d+$/u.test(input.retryAfter)
-			? Math.min(120_000, Number(input.retryAfter) * 1_000)
-			: null;
 	let errorCostMicrousd = input.reservationMicrousd;
 	let errorCostEvidence: EvalProviderOutcome["costEvidence"] = "reservation-upper-bound";
 	let errorPricingRoundingAllowanceMicrousd = 0;
+	const errorCode = providerErrorCode(root);
 	if (root.usage !== undefined) {
 		try {
 			const cost = providerReportedCost(root);
@@ -882,29 +984,43 @@ export function parseRootEvalLiveProviderResponse(input: {
 			// A malformed error-body usage record cannot reduce the admitted reservation.
 		}
 	}
-	if (input.status === 429)
+	if (input.status === 429) {
 		return Object.freeze({
 			disposition: "retryable" as const,
-			reason: "http-429-retryable" as const,
+			reason: "http-capacity-retryable" as const,
+			recoveryClass: "capacity" as const,
 			costMicrousd: errorCostMicrousd,
 			costEvidence: errorCostEvidence,
 			pricingRoundingAllowanceMicrousd: errorPricingRoundingAllowanceMicrousd,
-			resultDigest: empiricalSha256(input.bytes),
-			retryAfterMs:
-				retryAfterMs === null ? ROOT_EVAL_MAX_RETRY_DELAY_MS : Math.max(60_000, retryAfterMs),
+			resultDigest: empiricalStrictJsonDigest({
+				kind: "root-eval-provider-http-result",
+				status: input.status,
+				bodyDigest: empiricalSha256(input.bytes),
+			}),
+			retryAfterMs: retryAfterCandidateMs,
+			providerErrorCode: errorCode,
 			tool: null,
 		});
-	if (input.status < 200 || input.status >= 300)
+	}
+	if (input.status < 200 || input.status >= 300) {
+		const availability = isTransientAvailabilityResponse(input.status, root, retryAfter);
 		return Object.freeze({
-			disposition: "failed" as const,
-			reason: "http-failed" as const,
+			disposition: availability ? ("retryable" as const) : ("failed" as const),
+			reason: availability ? ("http-availability-retryable" as const) : ("http-terminal" as const),
+			recoveryClass: availability ? ("availability" as const) : null,
 			costMicrousd: errorCostMicrousd,
 			costEvidence: errorCostEvidence,
 			pricingRoundingAllowanceMicrousd: errorPricingRoundingAllowanceMicrousd,
-			resultDigest: empiricalSha256(input.bytes),
-			retryAfterMs: 0,
+			resultDigest: empiricalStrictJsonDigest({
+				kind: "root-eval-provider-http-result",
+				status: input.status,
+				bodyDigest: empiricalSha256(input.bytes),
+			}),
+			retryAfterMs: availability ? retryAfterCandidateMs : 0,
+			providerErrorCode: errorCode,
 			tool: null,
 		});
+	}
 	if (
 		root.provider !== "Fireworks" ||
 		!["deepseek/deepseek-v4-flash-0731", "deepseek/deepseek-v4-flash-20260731"].includes(
@@ -1041,11 +1157,13 @@ export function parseRootEvalLiveProviderResponse(input: {
 	return Object.freeze({
 		disposition: "tool" as const,
 		reason: "tool-proposed" as const,
+		recoveryClass: null,
 		costMicrousd: cost.costMicrousd,
 		costEvidence: "provider-reported" as const,
 		pricingRoundingAllowanceMicrousd: cost.pricingRoundingAllowanceMicrousd,
 		resultDigest: empiricalSha256(input.bytes),
 		retryAfterMs: 0,
+		providerErrorCode: null,
 		tool: Object.freeze({
 			path: args.path,
 			oldText: args.oldText,
@@ -1325,11 +1443,11 @@ async function materialize(input: {
 
 export function rootEvalWorkspaceForAdmission(
 	root: string,
-	effect: Pick<EvalAdmittedEffect, "replicate" | "workItemRole" | "arm" | "attempt">,
+	effect: Pick<EvalAdmittedEffect, "replicate" | "workItemRole" | "arm" | "dispatchOrdinal">,
 ): string {
 	return join(
 		root,
-		`replicate-${effect.replicate}-${effect.workItemRole}-${effect.arm}-attempt-${effect.attempt}`,
+		`replicate-${effect.replicate}-${effect.workItemRole}-${effect.arm}-dispatchOrdinal-${effect.dispatchOrdinal}`,
 	);
 }
 
@@ -1437,7 +1555,7 @@ export async function qualifyRootEvalTransferTaskFamily(input: {
 		const effect = {
 			replicate: task.replicate,
 			arm: "relevant-applied",
-			attempt: 1,
+			dispatchOrdinal: 1,
 		} as EvalAdmittedEffect;
 		const root = await materialize({
 			repositoryRoot: resolve(input.repositoryRoot),
@@ -1488,7 +1606,13 @@ function providerOutcome(
 	input: {
 		readonly status: EvalProviderOutcome["status"];
 		readonly reason: EvalProviderOutcomeReason;
+		readonly recoveryClass: EvalProviderOutcome["recoveryClass"];
 		readonly dispatchAttempted: boolean;
+		readonly dispatchElapsedMs: number;
+		readonly providerResponseKind: EvalProviderOutcome["providerResponseKind"];
+		readonly httpStatus: number | null;
+		readonly providerErrorCode: string | null;
+		readonly transportNoToolSideEffect: boolean;
 		readonly costMicrousd: number;
 		readonly costEvidence: EvalProviderOutcome["costEvidence"];
 		readonly pricingRoundingAllowanceMicrousd: number;
@@ -1521,10 +1645,19 @@ function providerOutcome(
 		replicate: effect.replicate,
 		arm: effect.arm,
 		workItemRole: effect.workItemRole,
-		attempt: effect.attempt,
+		providerLogicalAttempt: effect.providerLogicalAttempt,
+		dispatchOrdinal: effect.dispatchOrdinal,
+		capacityRetryOrdinal: effect.capacityRetryOrdinal,
+		availabilityRetryOrdinal: effect.availabilityRetryOrdinal,
+		recoveryClass: input.recoveryClass,
 		status: input.status,
 		reason: input.reason,
 		dispatchAttempted: input.dispatchAttempted,
+		dispatchElapsedMs: input.dispatchElapsedMs,
+		providerResponseKind: input.providerResponseKind,
+		httpStatus: input.httpStatus,
+		providerErrorCode: input.providerErrorCode,
+		transportNoToolSideEffect: input.transportNoToolSideEffect,
 		costMicrousd: input.costMicrousd,
 		costEvidence: input.costEvidence,
 		pricingRoundingAllowanceMicrousd: input.pricingRoundingAllowanceMicrousd,
@@ -1563,7 +1696,10 @@ function toolOutcome(
 		replicate: effect.replicate,
 		arm: effect.arm,
 		workItemRole: effect.workItemRole,
-		attempt: effect.attempt,
+		providerLogicalAttempt: effect.providerLogicalAttempt,
+		dispatchOrdinal: effect.dispatchOrdinal,
+		capacityRetryOrdinal: effect.capacityRetryOrdinal,
+		availabilityRetryOrdinal: effect.availabilityRetryOrdinal,
 		status: input.status,
 		costMicrousd: 0 as const,
 		elapsedMs: input.elapsedMs,
@@ -1673,6 +1809,8 @@ function createRootEvalLiveExecutorInternal(
 		const lease = createRootEvalEffectLease(effect.timeoutMs, settlementLease.signal);
 		const root = rootEvalWorkspaceForAdmission(materializationRoot, effect);
 		let postDispatch = false;
+		let dispatchStartedAt: number | null = null;
+		let responseStatus: number | null = null;
 		let confirmedCostMicrousd = 0;
 		let confirmedPricingRoundingAllowanceMicrousd = 0;
 		try {
@@ -1702,29 +1840,44 @@ function createRootEvalLiveExecutorInternal(
 				removeStage: input.removeDispatchStage,
 			});
 			postDispatch = true;
-			input.onProviderCall?.(effect);
 			lease.signal.throwIfAborted();
-			const response = await providerFetch(ROOT_EVAL_LIVE_ENDPOINT, {
-				method: "POST",
-				redirect: "error",
-				cache: "no-store",
-				credentials: "omit",
-				referrerPolicy: "no-referrer",
-				headers: {
-					authorization: `Bearer ${input.bearerToken}`,
-					"content-type": "application/json",
-					accept: "application/json",
-				},
-				body,
-				signal: lease.signal,
-			});
+			let response: Response;
+			try {
+				dispatchStartedAt = performance.now();
+				const responsePromise = providerFetch(ROOT_EVAL_LIVE_ENDPOINT, {
+					method: "POST",
+					redirect: "error",
+					cache: "no-store",
+					credentials: "omit",
+					referrerPolicy: "no-referrer",
+					headers: {
+						authorization: `Bearer ${input.bearerToken}`,
+						"content-type": "application/json",
+						accept: "application/json",
+					},
+					body,
+					signal: lease.signal,
+				});
+				input.onProviderCall?.(effect);
+				response = await responsePromise;
+			} catch (error) {
+				throw new RootEvalProviderTransportError(error);
+			}
+			responseStatus = response.status;
 			if (response.redirected || response.url !== ROOT_EVAL_LIVE_ENDPOINT)
 				throw new TypeError("root eval D145 provider response route drifted");
-			const bytes = await readRootEvalBoundedResponseBytes(
-				response,
-				MAX_RESPONSE_BYTES,
-				"root eval live provider response",
-			);
+			let bytes: Uint8Array;
+			try {
+				bytes = await readRootEvalBoundedResponseBytes(
+					response,
+					MAX_RESPONSE_BYTES,
+					"root eval live provider response",
+				);
+			} catch (error) {
+				if (response.status >= 200 && response.status < 300)
+					throw new RootEvalProviderTransportError(error);
+				bytes = new Uint8Array();
+			}
 			await persistRootEvalPrivateDiagnostic({
 				enabled: privateDiagnostics,
 				privateRoot: input.privateRoot,
@@ -1753,7 +1906,13 @@ function createRootEvalLiveExecutorInternal(
 				return providerOutcome(effect, {
 					status: "tool-proposed",
 					reason: provider.reason,
+					recoveryClass: provider.recoveryClass,
 					dispatchAttempted: true,
+					dispatchElapsedMs: dispatchStartedAt === null ? 0 : dispatchElapsed(dispatchStartedAt),
+					providerResponseKind: "http",
+					httpStatus: response.status,
+					providerErrorCode: provider.providerErrorCode,
+					transportNoToolSideEffect: false,
 					costMicrousd: provider.costMicrousd,
 					costEvidence: provider.costEvidence,
 					pricingRoundingAllowanceMicrousd: provider.pricingRoundingAllowanceMicrousd,
@@ -1765,20 +1924,21 @@ function createRootEvalLiveExecutorInternal(
 				});
 			const cleanupCompleted = await cleanup(root, settlementLease.signal);
 			return providerOutcome(effect, {
-				status:
-					provider.disposition === "retryable" && effect.attempt === 1 ? "retryable" : "failed",
-				reason:
-					provider.disposition === "retryable" && effect.attempt !== 1
-						? "http-failed"
-						: provider.reason,
+				status: provider.disposition === "retryable" ? "retryable" : "failed",
+				reason: provider.reason,
+				recoveryClass: provider.recoveryClass,
 				dispatchAttempted: true,
+				dispatchElapsedMs: dispatchStartedAt === null ? 0 : dispatchElapsed(dispatchStartedAt),
+				providerResponseKind: "http",
+				httpStatus: response.status,
+				providerErrorCode: provider.providerErrorCode,
+				transportNoToolSideEffect: false,
 				costMicrousd: provider.costMicrousd,
 				costEvidence: provider.costEvidence,
 				pricingRoundingAllowanceMicrousd: provider.pricingRoundingAllowanceMicrousd,
 				elapsedMs: elapsed(started),
 				resultDigest: provider.resultDigest,
-				retryAfterMs:
-					provider.disposition === "retryable" && effect.attempt === 1 ? provider.retryAfterMs : 0,
+				retryAfterMs: provider.disposition === "retryable" ? provider.retryAfterMs : 0,
 				cleanupCompleted,
 				tool: null,
 			});
@@ -1799,15 +1959,29 @@ function createRootEvalLiveExecutorInternal(
 				message: error instanceof Error ? error.message : String(error),
 			});
 			const cleanupCompleted = await cleanup(root, settlementLease.signal);
+			const transportFailure =
+				postDispatch &&
+				!(error instanceof RootEvalProviderResponseError) &&
+				(leaseExpired || error instanceof RootEvalProviderTransportError);
 			return providerOutcome(effect, {
-				status: "failed",
+				status: transportFailure ? "retryable" : "failed",
 				reason:
 					error instanceof RootEvalProviderResponseError
 						? error.reason
-						: leaseExpired
-							? "transport-failed"
+						: transportFailure
+							? "transport-availability-retryable"
 							: "executor-failed",
+				recoveryClass: transportFailure ? "availability" : null,
 				dispatchAttempted: postDispatch,
+				dispatchElapsedMs: dispatchStartedAt === null ? 0 : dispatchElapsed(dispatchStartedAt),
+				providerResponseKind: transportFailure
+					? "transport"
+					: responseStatus === null
+						? "none"
+						: "http",
+				httpStatus: transportFailure ? null : responseStatus,
+				providerErrorCode: null,
+				transportNoToolSideEffect: transportFailure,
 				costMicrousd: postDispatch
 					? error instanceof RootEvalProviderResponseError && error.costMicrousd !== null
 						? error.costMicrousd
@@ -2295,6 +2469,7 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 		const lease = createRootEvalEffectLease(effect.timeoutMs, settlementLease.signal);
 		let root: string | undefined;
 		let postDispatch = false;
+		let dispatchStartedAt: number | null = null;
 		let confirmedCostMicrousd = 0;
 		let confirmedPricingRoundingAllowanceMicrousd = 0;
 		try {
@@ -2321,6 +2496,7 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 					},
 				}),
 			);
+			dispatchStartedAt = performance.now();
 			const selected = input.providerResponseForEffect?.(effect, responseIndex);
 			const response =
 				selected === undefined
@@ -2348,7 +2524,13 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 				return providerOutcome(effect, {
 					status: "tool-proposed",
 					reason: provider.reason,
+					recoveryClass: provider.recoveryClass,
 					dispatchAttempted: true,
+					dispatchElapsedMs: dispatchStartedAt === null ? 0 : dispatchElapsed(dispatchStartedAt),
+					providerResponseKind: "http",
+					httpStatus: response.status,
+					providerErrorCode: provider.providerErrorCode,
+					transportNoToolSideEffect: false,
 					costMicrousd: provider.costMicrousd,
 					costEvidence: provider.costEvidence,
 					pricingRoundingAllowanceMicrousd: provider.pricingRoundingAllowanceMicrousd,
@@ -2360,20 +2542,21 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 				});
 			const cleanupCompleted = await cleanup(root, settlementLease.signal);
 			return providerOutcome(effect, {
-				status:
-					provider.disposition === "retryable" && effect.attempt === 1 ? "retryable" : "failed",
-				reason:
-					provider.disposition === "retryable" && effect.attempt !== 1
-						? "http-failed"
-						: provider.reason,
+				status: provider.disposition === "retryable" ? "retryable" : "failed",
+				reason: provider.reason,
+				recoveryClass: provider.recoveryClass,
 				dispatchAttempted: true,
+				dispatchElapsedMs: dispatchStartedAt === null ? 0 : dispatchElapsed(dispatchStartedAt),
+				providerResponseKind: "http",
+				httpStatus: response.status,
+				providerErrorCode: provider.providerErrorCode,
+				transportNoToolSideEffect: false,
 				costMicrousd: provider.costMicrousd,
 				costEvidence: provider.costEvidence,
 				pricingRoundingAllowanceMicrousd: provider.pricingRoundingAllowanceMicrousd,
 				elapsedMs: elapsed(started),
 				resultDigest: provider.resultDigest,
-				retryAfterMs:
-					provider.disposition === "retryable" && effect.attempt === 1 ? provider.retryAfterMs : 0,
+				retryAfterMs: provider.disposition === "retryable" ? provider.retryAfterMs : 0,
 				cleanupCompleted,
 				tool: null,
 			});
@@ -2388,7 +2571,13 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 			return providerOutcome(effect, {
 				status: "failed",
 				reason: error instanceof RootEvalProviderResponseError ? error.reason : "executor-failed",
+				recoveryClass: null,
 				dispatchAttempted: postDispatch,
+				dispatchElapsedMs: dispatchStartedAt === null ? 0 : dispatchElapsed(dispatchStartedAt),
+				providerResponseKind: "none",
+				httpStatus: null,
+				providerErrorCode: null,
+				transportNoToolSideEffect: false,
 				costMicrousd: postDispatch
 					? error instanceof RootEvalProviderResponseError && error.costMicrousd !== null
 						? error.costMicrousd

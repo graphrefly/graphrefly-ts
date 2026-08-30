@@ -106,7 +106,7 @@ async function readProviderResponses(
 		literal(diagnostic.schemaVersion, DIAGNOSTIC_SCHEMA, "D145 recovery diagnostic schema");
 		literal(diagnostic.generationRef, ROOT_EVAL_LIVE_GENERATION_REF, "D145 recovery diagnostic");
 		literal(diagnostic.arm, "source", "D145 recovery provider response arm");
-		literal(diagnostic.attempt, 1, "D145 recovery provider response attempt");
+		literal(diagnostic.dispatchOrdinal, 1, "D145 recovery provider response dispatchOrdinal");
 		const replicate = safeInteger(diagnostic.replicate, "D145 recovery replicate", { max: 5 });
 		if (replicate < 1 || responses.has(replicate))
 			throw new TypeError("D145 recovery provider response replicate invalid");
@@ -165,7 +165,14 @@ async function assertDispatchReceipts(
 		);
 		exactKeys(
 			receipt,
-			["claimDigest", "executionId", "admissionId", "operationId", "attempt", "receiptDigest"],
+			[
+				"claimDigest",
+				"executionId",
+				"admissionId",
+				"operationId",
+				"dispatchOrdinal",
+				"receiptDigest",
+			],
 			"D145 recovery dispatch receipt",
 		);
 		literal(receipt.claimDigest, claim.claimDigest, "D145 recovery dispatch claim");
@@ -263,6 +270,10 @@ async function main(): Promise<void> {
 	const topology = createRootEvalTopology({
 		profileInput: createCurrentExactModelHarnessProfileInput(),
 		currentKeyBefore: graphCurrentKey(claim),
+		providerPacingSetTimeout: (callback) => {
+			callback();
+			return 0 as unknown as ReturnType<typeof setTimeout>;
+		},
 		campaignRef: claim.generationRef,
 		campaignPurpose: claim.campaignPurpose,
 		taskSetRef: claim.taskSetRef,
@@ -293,7 +304,7 @@ async function main(): Promise<void> {
 		taskManifestSlot: ROOT_EVAL_LIVE_CAMPAIGN_SLOT,
 		providerResponses: [],
 		providerResponseForEffect(effect) {
-			if (effect.workItemRole !== "source" || effect.attempt !== 1)
+			if (effect.workItemRole !== "source" || effect.dispatchOrdinal !== 1)
 				throw new TypeError("D145 recovery attempted a non-recorded provider effect");
 			const response = responses.get(effect.replicate);
 			if (response === undefined || response.admissionId !== effect.admissionId)

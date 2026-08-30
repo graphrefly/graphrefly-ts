@@ -3,6 +3,7 @@ import {
 	ROOT_EVAL_DEFAULT_EFFECT_TIMEOUT_MS,
 	ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS,
 	ROOT_EVAL_INITIAL_PROVIDER_CAPACITY,
+	ROOT_EVAL_PROVIDER_START_INTERVAL_MS,
 	ROOT_EVAL_RATE_LIMITED_PROVIDER_CAPACITY,
 } from "./eval-topology.js";
 import { HARNESS_ARMS } from "./harness-campaign-policy.js";
@@ -80,6 +81,8 @@ export const ROOT_EVAL_REQUIRED_NODES = Object.freeze({
 	"eval/provider/proposal": "rootEvalProviderProposal",
 	"eval/provider/proposal-release-controller": "rootEvalProviderProposalReleaseController",
 	"eval/provider/replicate-proposal-batches": "rootEvalReplicateProposalBatches",
+	"eval/provider/paced-proposal-release": "rootEvalProviderPacedProposalRelease",
+	"eval/provider/start-spacing-readiness": "rootEvalProviderStartSpacingReadiness",
 	"eval/provider/graph-admission-and-budget": "rootEvalProviderGraphAdmission",
 	"eval/provider/adaptive-capacity-state": "rootEvalAdaptiveProviderCapacityState",
 	"eval/provider/result-input": "rootEvalProviderResultInput",
@@ -339,8 +342,13 @@ export const ROOT_EVAL_CRITICAL_EDGES = Object.freeze([
 	["eval/provider/proposal", "eval/provider/replicate-proposal-batches"],
 	["eval/provider/replicate-proposal-batches", "eval/provider/proposals"],
 	["eval/retry/proposal", "eval/provider/proposals"],
-	["eval/provider/replicate-proposal-batches", "eval/provider/graph-admission-and-budget"],
-	["eval/retry/proposal-fact", "eval/provider/graph-admission-and-budget"],
+	["eval/provider/proposals", "eval/provider/paced-proposal-release"],
+	["eval/provider/all-result-admissions", "eval/provider/start-spacing-readiness"],
+	["eval/provider/start-spacing-readiness", "eval/provider/paced-proposal-release"],
+	["eval/retry/delay-result-input", "eval/provider/paced-proposal-release"],
+	["eval/time/elapsed-budget/state", "eval/provider/paced-proposal-release"],
+	["eval/provider/proposals", "eval/provider/graph-admission-and-budget"],
+	["eval/provider/paced-proposal-release", "eval/provider/graph-admission-and-budget"],
 	["eval/provider/result-input", "eval/provider/all-result-admissions"],
 	["eval/provider/all-result-admissions", "eval/provider/result-admission"],
 	["eval/provider/all-result-admissions", "eval/provider/failed-result-admission"],
@@ -575,13 +583,33 @@ export function assertRootEvalTopologyContract(
 		exactToolAdmission.meta.sourceToolCapacity !== 1
 	)
 		throw new Error("topology contract: source exact-tool capacity/barrier drift");
+	const providerPacing = nodes.get("eval/provider/paced-proposal-release");
+	const providerStartSpacing = nodes.get("eval/provider/start-spacing-readiness");
 	if (
-		providerAdmission.meta?.capacityPolicy !== "adaptive-downshift-only" ||
+		providerStartSpacing?.meta?.materialFree !== true ||
+		providerStartSpacing.meta.domainAuthority !== "root-graph" ||
+		providerStartSpacing.meta.providerStartIntervalMs !== ROOT_EVAL_PROVIDER_START_INTERVAL_MS ||
+		providerStartSpacing.meta.inputEvidence !== "canonical-provider-outcome.dispatchElapsedMs"
+	)
+		throw new Error("topology contract: provider start-spacing readiness drift");
+	if (
+		providerPacing?.meta?.domainAuthority !== "root-graph" ||
+		providerPacing.meta.materialFree !== true ||
+		providerPacing.meta.maxConcurrentEffects !== 1 ||
+		providerPacing.meta.providerStartIntervalMs !== ROOT_EVAL_PROVIDER_START_INTERVAL_MS ||
+		providerPacing.meta.startEvidence !== "provider-outcome.dispatchElapsedMs" ||
+		providerPacing.meta.readinessAuthority !== "graph-computes-remaining-start-spacing" ||
+		providerPacing.meta.callerAuthority !== "none"
+	)
+		throw new Error("topology contract: provider pacing policy drift");
+	if (
+		providerAdmission.meta?.capacityPolicy !== "paced-serial" ||
 		providerAdmission.meta.initialMaxConcurrentEffects !== ROOT_EVAL_INITIAL_PROVIDER_CAPACITY ||
 		providerAdmission.meta.rateLimitedMaxConcurrentEffects !==
 			ROOT_EVAL_RATE_LIMITED_PROVIDER_CAPACITY ||
 		providerAdmission.meta.cooldownReadiness !== "exact-correlated-retry-delay-outcome" ||
-		providerAdmission.meta.proposalOrder !== "replicate-fixed-arm-attempt"
+		providerAdmission.meta.proposalOrder !== "replicate-fixed-arm-dispatch" ||
+		providerAdmission.meta.providerStartIntervalMs !== ROOT_EVAL_PROVIDER_START_INTERVAL_MS
 	)
 		throw new Error("topology contract: adaptive provider capacity policy drift");
 	const providerCapacity = nodes.get("eval/provider/adaptive-capacity-state");

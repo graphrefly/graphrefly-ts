@@ -86,6 +86,10 @@ const createTopology = (
 	createRootEvalTopology({
 		profileInput: createCurrentExactModelHarnessProfileInput(),
 		currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+		providerPacingSetTimeout: (callback) => {
+			callback();
+			return 0 as unknown as ReturnType<typeof setTimeout>;
+		},
 		...options,
 	});
 
@@ -108,7 +112,7 @@ function outcome(
 					kind: "expected-eval-result",
 					replicate: effect.replicate,
 					arm: effect.arm,
-					attempt: effect.attempt,
+					dispatchOrdinal: effect.dispatchOrdinal,
 				});
 	const evidence: EvalEffectOutcome["evidence"] = Object.freeze({
 		expectedDigest,
@@ -135,15 +139,18 @@ function outcome(
 		workItemRole: effect.workItemRole,
 		replicate: effect.replicate,
 		arm: effect.arm,
-		attempt: effect.attempt,
+		providerLogicalAttempt: effect.providerLogicalAttempt,
+		dispatchOrdinal: effect.dispatchOrdinal,
+		capacityRetryOrdinal: effect.capacityRetryOrdinal,
+		availabilityRetryOrdinal: effect.availabilityRetryOrdinal,
 		status: "completed",
 		costMicrousd: 0,
-		elapsedMs: effect.replicate * 10 + effect.attempt,
+		elapsedMs: effect.replicate * 10 + effect.dispatchOrdinal,
 		resultDigest: empiricalStrictJsonDigest({
 			kind: "no-network-eval-result",
 			replicate: effect.replicate,
 			arm: effect.arm,
-			attempt: effect.attempt,
+			dispatchOrdinal: effect.dispatchOrdinal,
 		}),
 		evidence,
 		...patch,
@@ -154,6 +161,33 @@ function providerOutcome(
 	effect: EvalAdmittedEffect,
 	patch: Partial<EvalProviderOutcome> = {},
 ): EvalProviderOutcome {
+	const recoveryClass =
+		patch.reason === "http-capacity-retryable" || patch.reason === "http-capacity-exhausted"
+			? ("capacity" as const)
+			: patch.reason === "http-availability-retryable" ||
+					patch.reason === "http-availability-exhausted" ||
+					patch.reason === "transport-availability-retryable" ||
+					patch.reason === "transport-availability-exhausted"
+				? ("availability" as const)
+				: null;
+	const providerResponseKind =
+		patch.providerResponseKind ??
+		(patch.reason === "transport-availability-retryable" ||
+		patch.reason === "transport-availability-exhausted"
+			? ("transport" as const)
+			: patch.reason === "executor-failed" && patch.dispatchAttempted === false
+				? ("none" as const)
+				: ("http" as const));
+	const httpStatus =
+		patch.httpStatus ??
+		(providerResponseKind === "http"
+			? patch.reason === "http-capacity-retryable" || patch.reason === "http-capacity-exhausted"
+				? 429
+				: patch.reason === "http-availability-retryable" ||
+						patch.reason === "http-availability-exhausted"
+					? 503
+					: 200
+			: null);
 	const tool = Object.freeze({
 		toolRef: "graphrefly.eval.exact-tool.v1" as const,
 		path: "packages/ts/src/executors/managed-cloud-postgresql.ts",
@@ -171,14 +205,23 @@ function providerOutcome(
 		workItemRole: effect.workItemRole,
 		replicate: effect.replicate,
 		arm: effect.arm,
-		attempt: effect.attempt,
+		providerLogicalAttempt: effect.providerLogicalAttempt,
+		dispatchOrdinal: effect.dispatchOrdinal,
+		capacityRetryOrdinal: effect.capacityRetryOrdinal,
+		availabilityRetryOrdinal: effect.availabilityRetryOrdinal,
 		status: "tool-proposed" as const,
 		reason: "tool-proposed" as const,
+		recoveryClass,
 		dispatchAttempted: true,
+		dispatchElapsedMs: 0,
+		providerResponseKind,
+		httpStatus,
+		providerErrorCode: null,
+		transportNoToolSideEffect: providerResponseKind === "transport",
 		costMicrousd: 10,
 		costEvidence: "provider-reported" as const,
 		pricingRoundingAllowanceMicrousd: 0,
-		elapsedMs: effect.replicate * 10 + effect.attempt,
+		elapsedMs: effect.replicate * 10 + effect.dispatchOrdinal,
 		resultDigest: empiricalStrictJsonDigest({
 			kind: "no-network-provider-result",
 			executionId: effect.executionId,
@@ -576,9 +619,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				stoppedError = error;
 				stopped = true;
 			});
-			for (let turn = 0; turn < 8 && providerExecutionIds.length < 2; turn += 1)
+			for (let turn = 0; turn < 8 && providerExecutionIds.length < 1; turn += 1)
 				await vi.advanceTimersToNextTimerAsync();
-			expect(providerExecutionIds).toHaveLength(2);
+			expect(providerExecutionIds).toHaveLength(1);
 			vi.advanceTimersByTime(ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS);
 			expect(elapsedStates.at(-1)?.state).toBe("exhausted");
 			expect(stopped).toBe(false);
@@ -588,7 +631,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			expect(stoppedError).toMatchObject({
 				message: "root eval stopped: elapsed-budget-exhausted",
 			});
-			expect(providerExecutionIds).toHaveLength(2);
+			expect(providerExecutionIds).toHaveLength(1);
 			expect(toolExecutions).toBe(0);
 			stopElapsed();
 		} finally {
@@ -637,16 +680,16 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"graphrefly-ts.root-eval-live-precredential-gates.v5",
 		);
 		expect(ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-no-network-qa.v39",
+			"graphrefly-ts.root-eval-live-no-network-qa.v40",
 		);
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-qualification.v39",
+			"graphrefly-ts.root-eval-live-qualification.v40",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-no-network-qa.v32",
+			"graphrefly-ts.root-eval-topology-no-network-qa.v33",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-qualification.v32",
+			"graphrefly-ts.root-eval-topology-qualification.v33",
 		);
 		expect(ROOT_EVAL_LIVE_GENERATION_REF).not.toContain("d116");
 		expect(ROOT_EVAL_LIVE_CLAIM_REF).not.toContain("d116");
@@ -1059,7 +1102,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			format: "graphrefly.rootEvalRunSummary",
 			version: 1,
 			authority: "derived-no-network-qa",
-			peakConcurrentEffects: 2,
+			peakConcurrentEffects: 1,
 			executedAdmissionCount: 36,
 		});
 		const qualification = JSON.parse(generated.qualification) as Record<string, unknown>;
@@ -1187,9 +1230,54 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				}),
 			),
 		).rejects.toThrow(/Graph admission receipt/u);
+		await expect(
+			runRootEval(
+				createTopology(),
+				twoPhaseExecutor({
+					onProvider(effect) {
+						return providerOutcome(effect, {
+							status: "failed",
+							reason: "http-capacity-exhausted",
+							providerResponseKind: "http",
+							httpStatus: 429,
+							cleanupCompleted: true,
+							toolProposal: null,
+						});
+					},
+				}),
+			),
+		).rejects.toThrow(/Graph admission receipt/u);
 	});
 
-	it("drains every concurrently admitted effect before rejecting an invalid receipt", async () => {
+	it("derives recovery class from the factual HTTP receipt instead of the caller label", async () => {
+		let injected = false;
+		const result = await runRootEval(
+			createTopology(),
+			twoPhaseExecutor({
+				onProvider(effect) {
+					if (!injected && effect.workItemRole === "target") {
+						injected = true;
+						return providerOutcome(effect, {
+							status: "retryable",
+							reason: "http-capacity-retryable",
+							recoveryClass: "capacity",
+							providerResponseKind: "http",
+							httpStatus: 503,
+							cleanupCompleted: true,
+							toolProposal: null,
+						});
+					}
+					return providerOutcome(effect);
+				},
+			}),
+		);
+		expect(result.finding.providerOutcomeReasonCounts).toMatchObject({
+			"http-capacity-retryable": 0,
+			"http-availability-retryable": 1,
+		});
+	});
+
+	it("drains every already admitted effect before rejecting an invalid receipt", async () => {
 		let delayedCompleted = 0;
 		await expect(
 			runRootEval(
@@ -1205,7 +1293,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				}),
 			),
 		).rejects.toThrow(/receipt identity/u);
-		expect(delayedCompleted).toBe(6);
+		expect(delayedCompleted).toBe(5);
 	});
 
 	it("fails closed for every removed or replaced required solution/node identity", () => {
@@ -1286,7 +1374,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			["initialMaxConcurrentEffects", 6],
 			["rateLimitedMaxConcurrentEffects", 2],
 			["cooldownReadiness", "caller-timer"],
-			["proposalOrder", "replicate-attempt-fixed-arm"],
+			["proposalOrder", "replicate-dispatchOrdinal-fixed-arm"],
 		] as const) {
 			const capacityDrift = clone(raw);
 			const admission = capacityDrift.nodes.find(
@@ -1407,7 +1495,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		);
 	});
 
-	it("runs five ordered replicates with six concurrent WorkItems and two provider slots", async () => {
+	it("runs five ordered replicates with six concurrent WorkItems and one paced provider slot", async () => {
 		const topology = createTopology({ effectTimeoutMs: 1_234 });
 		const startsByReplicate = new Map<number, string[]>();
 		const exposureCounts = new Map<string, number>();
@@ -1439,7 +1527,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			}),
 		);
 
-		expect(result.peakConcurrentEffects).toBe(2);
+		expect(result.peakConcurrentEffects).toBe(1);
 		expect(result.executedAdmissionIds).toHaveLength(35);
 		expect(admittedTimeouts).toEqual(Array.from({ length: 35 }, () => 1_234));
 		expect(new Set(admittedPlanIds).size).toBe(35);
@@ -1483,7 +1571,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				observations[index]!.verificationDiagnostics.completedWorkItems,
 			).toBeGreaterThanOrEqual(observations[index - 1]!.verificationDiagnostics.completedWorkItems);
 		expect(observations.at(-1)).toMatchObject({
-			topologyRevision: "graphrefly-ts.root-eval-topology.v15",
+			topologyRevision: "graphrefly-ts.root-eval-topology.v17",
 			armOrder: HARNESS_ARMS,
 			memoryProvenance: {
 				cold: "none",
@@ -1503,6 +1591,55 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			finding: "positive-differential",
 		});
 		expect(JSON.stringify(observations)).not.toMatch(/api[_-]?key|authorization|private-marker/iu);
+	});
+
+	it("does not release the next provider dispatch before Graph pacing readiness", async () => {
+		const callbacks: Array<() => void> = [];
+		const delays: number[] = [];
+		const controller = new AbortController();
+		const topology = createTopology({
+			providerPacingSetTimeout(callback, delayMs) {
+				callbacks.push(callback);
+				delays.push(delayMs);
+				return callbacks.length as unknown as ReturnType<typeof setTimeout>;
+			},
+		});
+		const admissions: EvalAdmittedEffect[] = [];
+		const startSpacing: Array<Record<string, unknown>> = [];
+		const stopStartSpacing = topology.graph
+			.observe("eval/provider/start-spacing-readiness")
+			.subscribe((event) => {
+				if (event.msg[0] === "DATA") startSpacing.push(event.msg[1] as Record<string, unknown>);
+			});
+		const running = runRootEval(
+			topology,
+			async (effect) => {
+				if (effect.kind === "eval-admitted-effect") {
+					admissions.push(effect);
+					return providerOutcome(effect, { dispatchElapsedMs: 12_000, elapsedMs: 12_000 });
+				}
+				return await twoPhaseExecutor()(effect);
+			},
+			{ signal: controller.signal },
+		);
+		for (let turn = 0; turn < 32 && admissions.length < 1; turn += 1)
+			await new Promise<void>((resolve) => setTimeout(resolve, 0));
+		expect(admissions).toHaveLength(1);
+		expect(delays).toEqual([18_000]);
+		expect(startSpacing[0]).toMatchObject({
+			kind: "eval-provider-start-spacing-readiness",
+			dispatchElapsedMs: 12_000,
+			remainingPacingDelayMs: 18_000,
+		});
+		await new Promise<void>((resolve) => setTimeout(resolve, 0));
+		expect(admissions).toHaveLength(1);
+		callbacks.shift()?.();
+		for (let turn = 0; turn < 32 && admissions.length < 2; turn += 1)
+			await new Promise<void>((resolve) => setTimeout(resolve, 0));
+		expect(admissions).toHaveLength(2);
+		controller.abort(new Error("paced admission test complete"));
+		await expect(running).rejects.toThrow(/paced admission test complete/u);
+		stopStartSpacing();
 	});
 
 	it("runs one five-replicate development generation with Graph-owned qualification and partition state", async () => {
@@ -1593,7 +1730,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			}),
 		);
 		expect(result.executedAdmissionIds).toHaveLength(35);
-		expect(result.peakConcurrentEffects).toBe(2);
+		expect(result.peakConcurrentEffects).toBe(1);
 		expect(result.finding.providerOutcomeReasonCounts).toMatchObject({
 			"tool-proposed": 30,
 			"executor-failed": 5,
@@ -1666,11 +1803,11 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		];
 		const base = twoPhaseExecutor({
 			onProvider(effect) {
-				if (effect.replicate === 3 && effect.arm === "cold" && effect.attempt === 1)
+				if (effect.replicate === 3 && effect.arm === "cold" && effect.dispatchOrdinal === 1)
 					return providerOutcome(effect, {
 						status: "retryable",
-						reason: "http-429-retryable",
-						retryAfterMs: 1,
+						reason: "http-capacity-retryable",
+						retryAfterMs: 60_000,
 						cleanupCompleted: true,
 						toolProposal: null,
 					});
@@ -1748,8 +1885,8 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(
 			observations.every((value) => {
 				const retryableReasons =
-					value.providerOutcomeReasonCounts["transport-retryable"] +
-					value.providerOutcomeReasonCounts["http-429-retryable"];
+					value.providerOutcomeReasonCounts["transport-availability-retryable"] +
+					value.providerOutcomeReasonCounts["http-capacity-retryable"];
 				return value.activeRetryEffects === retryableReasons - value.admittedRetryAttempts;
 			}),
 		).toBe(true);
@@ -1905,7 +2042,18 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				onProvider: (effect) =>
 					providerOutcome(
 						effect,
-						effect.replicate === 1 && effect.arm === "cold" ? { dispatchAttempted: false } : {},
+						effect.replicate === 1 && effect.arm === "cold"
+							? {
+									status: "failed",
+									reason: "executor-failed",
+									recoveryClass: null,
+									dispatchAttempted: false,
+									providerResponseKind: "none",
+									httpStatus: null,
+									cleanupCompleted: true,
+									toolProposal: null,
+								}
+							: {},
 					),
 			}),
 		);
@@ -1994,17 +2142,17 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			createTopology(),
 			twoPhaseExecutor({
 				onProvider(effect) {
-					if (effect.replicate === 1 && effect.arm === "cold" && effect.attempt === 1) {
+					if (effect.replicate === 1 && effect.arm === "cold" && effect.dispatchOrdinal === 1) {
 						attemptOne = effect;
 						return providerOutcome(effect, {
 							status: "retryable",
-							reason: "http-429-retryable",
-							retryAfterMs: 5_000,
+							reason: "http-capacity-retryable",
+							retryAfterMs: 60_000,
 							cleanupCompleted: true,
 							toolProposal: null,
 						});
 					}
-					if (effect.replicate === 1 && effect.arm === "cold" && effect.attempt === 2)
+					if (effect.replicate === 1 && effect.arm === "cold" && effect.dispatchOrdinal === 2)
 						attemptTwo = effect;
 					return providerOutcome(effect);
 				},
@@ -2016,7 +2164,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(result.finding.completedWorkItems).toBe(30);
 		expect(result.finding.providerOutcomeReasonCounts).toMatchObject({
 			"tool-proposed": 35,
-			"http-429-retryable": 1,
+			"http-capacity-retryable": 1,
 		});
 		expect(attemptOne).toBeDefined();
 		expect(attemptTwo).toBeDefined();
@@ -2049,10 +2197,14 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			createTopology(),
 			twoPhaseExecutor({
 				onProvider(effect) {
-					if (effect.workItemRole === "source" && effect.replicate === 1 && effect.attempt === 1)
+					if (
+						effect.workItemRole === "source" &&
+						effect.replicate === 1 &&
+						effect.dispatchOrdinal === 1
+					)
 						return providerOutcome(effect, {
 							status: "retryable",
-							reason: "http-429-retryable",
+							reason: "http-capacity-retryable",
 							retryAfterMs: 120_000,
 							cleanupCompleted: true,
 							toolProposal: null,
@@ -2064,7 +2216,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 
 		expect(result.executedAdmissionIds).toHaveLength(36);
 		expect(result.finding.providerOutcomeReasonCounts).toMatchObject({
-			"http-429-retryable": 1,
+			"http-capacity-retryable": 1,
 			"tool-proposed": 35,
 		});
 		for (const [index, event] of result.observations.entries()) {
@@ -2072,46 +2224,52 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			const observation = event.msg[1] as EvalObservation;
 			expect(
 				() => assertRootEvalObservationRuntimeShape(observation),
-				`observation ${index} retryable=${observation.providerOutcomeReasonCounts["http-429-retryable"]} admittedRetry=${observation.admittedRetryAttempts} activeRetry=${observation.activeRetryEffects}`,
+				`observation ${index} retryable=${observation.providerOutcomeReasonCounts["http-capacity-retryable"]} admittedRetry=${observation.admittedRetryAttempts} activeRetry=${observation.activeRetryEffects}`,
 			).not.toThrow();
 			const retryableReasonTotal =
-				observation.providerOutcomeReasonCounts["transport-retryable"] +
-				observation.providerOutcomeReasonCounts["http-429-retryable"];
+				observation.providerOutcomeReasonCounts["transport-availability-retryable"] +
+				observation.providerOutcomeReasonCounts["http-capacity-retryable"];
 			expect(observation.activeRetryEffects).toBe(
 				retryableReasonTotal - observation.admittedRetryAttempts,
 			);
 		}
 	});
 
-	it("fails closed when a transport failure is mislabeled as retryable", async () => {
-		await expect(
-			runRootEval(
-				createTopology(),
-				twoPhaseExecutor({
-					onProvider(effect) {
-						if (effect.replicate === 1 && effect.arm === "cold")
-							return providerOutcome(effect, {
-								status: "retryable",
-								reason: "transport-retryable",
-								retryAfterMs: 5_000,
-								cleanupCompleted: true,
-								toolProposal: null,
-							});
-						return providerOutcome(effect);
-					},
-				}),
-			),
-		).rejects.toThrow(/provider outcome does not exactly match its Graph admission receipt/u);
+	it("lets the Graph exhaust a repeated transport-availability candidate", async () => {
+		const result = await runRootEval(
+			createTopology(),
+			twoPhaseExecutor({
+				onProvider(effect) {
+					if (effect.replicate === 1 && effect.arm === "cold")
+						return providerOutcome(effect, {
+							status: "retryable",
+							reason: "transport-availability-retryable",
+							retryAfterMs: 60_000,
+							cleanupCompleted: true,
+							toolProposal: null,
+						});
+					return providerOutcome(effect);
+				},
+			}),
+		);
+		expect(result.finding.providerOutcomeReasonCounts).toMatchObject({
+			"transport-availability-retryable": 1,
+			"transport-availability-exhausted": 1,
+		});
 	});
 
-	it("conserves one full six-arm retryable replicate through attempt-two admission", async () => {
+	it("conserves one full six-arm retryable replicate through dispatchOrdinal-two admission", async () => {
 		const executed: EvalExecutableEffect[] = [];
 		const base = twoPhaseExecutor({
 			onProvider(effect) {
-				if (effect.workItemRole === "target" && effect.replicate === 1 && effect.attempt === 1) {
+				if (
+					effect.workItemRole === "target" &&
+					effect.replicate === 1 &&
+					effect.dispatchOrdinal === 1
+				) {
 					return providerOutcome(effect, {
 						status: "retryable",
-						reason: "http-429-retryable",
+						reason: "http-capacity-retryable",
 						retryAfterMs: 60_000,
 						cleanupCompleted: true,
 						toolProposal: null,
@@ -2129,25 +2287,25 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(result.finding.completedWorkItems).toBe(30);
 		expect(result.finding.admittedAttempts).toBe(41);
 		expect(result.finding.providerOutcomeReasonCounts).toMatchObject({
-			"http-429-retryable": 6,
+			"http-capacity-retryable": 6,
 			"tool-proposed": 35,
 		});
 		const providerAdmissionOrder = executed.flatMap((effect) =>
 			effect.kind === "eval-admitted-effect" && effect.workItemRole === "target"
-				? [`${effect.arm}/attempt-${effect.attempt}`]
+				? [`${effect.arm}/dispatchOrdinal-${effect.dispatchOrdinal}`]
 				: [],
 		);
 		expect(providerAdmissionOrder.slice(0, 5)).toEqual([
-			"cold/attempt-1",
-			"relevant-applied/attempt-1",
-			"cold/attempt-2",
-			"relevant-applied/attempt-2",
-			"proposal-only/attempt-1",
+			"cold/dispatchOrdinal-1",
+			"cold/dispatchOrdinal-2",
+			"relevant-applied/dispatchOrdinal-1",
+			"relevant-applied/dispatchOrdinal-2",
+			"proposal-only/dispatchOrdinal-1",
 		]);
 		for (const arm of HARNESS_ARMS)
 			expect(
 				result.executedAdmissionIds.filter(
-					(id) => id.includes(`/replicate-1/${arm}/`) && id.includes("/attempt-2/"),
+					(id) => id.includes(`/replicate-1/${arm}/`) && id.includes("/dispatch-2/"),
 				),
 			).toHaveLength(1);
 		const capacitySnapshots = result.observations.map(
@@ -2155,7 +2313,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		);
 		expect(capacitySnapshots.some((snapshot) => snapshot.mode === "cooldown")).toBe(true);
 		expect(capacitySnapshots.at(-1)).toMatchObject({
-			mode: "rate-limited-serial",
+			mode: "paced-serial",
 			maxConcurrentEffects: 1,
 			proposalCount: 41,
 			pendingProposalCount: 0,
@@ -2167,71 +2325,118 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		});
 	});
 
-	it("conserves six retry proposals across both initial-slot completion orders", async () => {
-		const initialArms = HARNESS_ARMS.slice(0, 2);
-		for (const order of [initialArms, [...initialArms].reverse()] as const) {
-			const releases = new Map<
-				(typeof HARNESS_ARMS)[number],
-				Readonly<{
-					readonly effect: EvalAdmittedEffect;
-					readonly release: (value: EvalProviderOutcome | PromiseLike<EvalProviderOutcome>) => void;
-				}>
-			>();
-			const base = twoPhaseExecutor({
-				onProvider(effect) {
-					if (effect.workItemRole === "source") return providerOutcome(effect);
-					if (effect.replicate !== 1 || effect.attempt !== 1) return providerOutcome(effect);
-					if (!initialArms.includes(effect.arm))
-						return providerOutcome(effect, {
-							status: "retryable",
-							reason: "http-429-retryable",
-							retryAfterMs: 60_000,
-							cleanupCompleted: true,
-							toolProposal: null,
-						});
-					return new Promise<EvalProviderOutcome>((resolve) => {
-						releases.set(effect.arm, Object.freeze({ effect, release: resolve }));
-					});
-				},
-			});
-			const running = runRootEval(createTopology(), base);
-			while (releases.size < initialArms.length)
-				await new Promise<void>((resolve) => setTimeout(resolve, 0));
-			for (const arm of order) {
-				const entry = releases.get(arm);
-				if (entry === undefined) throw new Error(`missing retry release for ${arm}`);
-				entry.release(
-					providerOutcome(entry.effect, {
+	it("conserves six retry proposals through the single paced provider lane", async () => {
+		const base = twoPhaseExecutor({
+			onProvider(effect) {
+				if (
+					effect.workItemRole === "target" &&
+					effect.replicate === 1 &&
+					effect.dispatchOrdinal === 1
+				)
+					return providerOutcome(effect, {
 						status: "retryable",
-						reason: "http-429-retryable",
+						reason: "http-capacity-retryable",
 						retryAfterMs: 60_000,
 						cleanupCompleted: true,
 						toolProposal: null,
-					}),
-				);
-				await new Promise<void>((resolve) => setTimeout(resolve, 0));
-			}
-			const result = await running;
-			expect(result.finding).toMatchObject({
-				admittedAttempts: 41,
-				completedWorkItems: 30,
-			});
-			expect(result.observations.at(-1)?.msg[1]).toMatchObject({
-				retryProposalCount: 6,
-				pendingRetryProposalCount: 0,
-				admittedRetryAttempts: 6,
-				settledRetryAttemptCount: 6,
-			});
-		}
-	}, 15_000);
+					});
+				return providerOutcome(effect);
+			},
+		});
+		const result = await runRootEval(createTopology(), base);
+		expect(result.finding).toMatchObject({ admittedAttempts: 41, completedWorkItems: 30 });
+		expect(result.observations.at(-1)?.msg[1]).toMatchObject({
+			retryProposalCount: 6,
+			pendingRetryProposalCount: 0,
+			admittedRetryAttempts: 6,
+			settledRetryAttemptCount: 6,
+		});
+	});
+
+	it("retains 429 capacity identity through three recoveries and terminal exhaustion", async () => {
+		const coordinates: Array<readonly [number, number, number]> = [];
+		const requests: EvalAdmittedEffect["request"][] = [];
+		const executed: EvalExecutableEffect[] = [];
+		const base = twoPhaseExecutor({
+			onProvider(effect) {
+				if (effect.workItemRole !== "target" || effect.replicate !== 1 || effect.arm !== "cold")
+					return providerOutcome(effect);
+				coordinates.push([
+					effect.dispatchOrdinal,
+					effect.capacityRetryOrdinal,
+					effect.availabilityRetryOrdinal,
+				]);
+				requests.push(effect.request);
+				return providerOutcome(effect, {
+					status: "retryable",
+					reason: "http-capacity-retryable",
+					retryAfterMs: [60_000, 120_000, 240_000][effect.capacityRetryOrdinal] ?? 0,
+					cleanupCompleted: true,
+					toolProposal: null,
+				});
+			},
+		});
+		const result = await runRootEval(createTopology(), async (effect) => {
+			executed.push(effect);
+			return await base(effect);
+		});
+		expect(coordinates).toEqual([
+			[1, 0, 0],
+			[2, 1, 0],
+			[3, 2, 0],
+			[4, 3, 0],
+		]);
+		expect(requests.every((request) => request === requests[0])).toBe(true);
+		expect(executed.filter((effect) => effect.kind === "eval-admitted-retry-delay")).toHaveLength(
+			3,
+		);
+		expect(result.finding.providerOutcomeReasonCounts).toMatchObject({
+			"http-capacity-retryable": 3,
+			"http-capacity-exhausted": 1,
+		});
+		expect(result.finding.excludedTechnicalReplicates).toContain(1);
+	});
+
+	it("fails closed in the Graph when valid Retry-After exceeds the recovery envelope", async () => {
+		const executed: EvalExecutableEffect[] = [];
+		const base = twoPhaseExecutor({
+			onProvider(providerEffect) {
+				if (
+					providerEffect.replicate === 1 &&
+					providerEffect.arm === "cold" &&
+					providerEffect.dispatchOrdinal === 1
+				)
+					return providerOutcome(providerEffect, {
+						status: "retryable",
+						reason: "http-capacity-retryable",
+						retryAfterMs: 240_001,
+						cleanupCompleted: true,
+						toolProposal: null,
+					});
+				return providerOutcome(providerEffect);
+			},
+		});
+		const result = await runRootEval(createTopology(), async (effect) => {
+			executed.push(effect);
+			return await base(effect);
+		});
+		expect(executed.filter((effect) => effect.kind === "eval-admitted-retry-delay")).toHaveLength(
+			0,
+		);
+		expect(result.finding.providerOutcomeReasonCounts).toMatchObject({
+			"http-capacity-retryable": 0,
+			"http-capacity-exhausted": 1,
+		});
+		expect(result.finding.excludedTechnicalReplicates).toContain(1);
+	});
 
 	it("fails closed when Graph-visible cooldown readiness fails", async () => {
 		const base = twoPhaseExecutor({
 			onProvider(effect) {
-				if (effect.replicate === 1 && effect.arm === "cold" && effect.attempt === 1)
+				if (effect.replicate === 1 && effect.arm === "cold" && effect.dispatchOrdinal === 1)
 					return providerOutcome(effect, {
 						status: "retryable",
-						reason: "http-429-retryable",
+						reason: "http-capacity-retryable",
 						retryAfterMs: 60_000,
 						cleanupCompleted: true,
 						toolProposal: null,
@@ -2268,10 +2473,10 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		const base = twoPhaseExecutor({
 			onProvider(effect) {
 				providerExecutions.push(effect);
-				if (effect.replicate === 1 && effect.arm === "cold" && effect.attempt === 1)
+				if (effect.replicate === 1 && effect.arm === "cold" && effect.dispatchOrdinal === 1)
 					return providerOutcome(effect, {
 						status: "retryable",
-						reason: "http-429-retryable",
+						reason: "http-capacity-retryable",
 						retryAfterMs: 60_000,
 						cleanupCompleted: true,
 						toolProposal: null,
@@ -2305,21 +2510,21 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		controller.abort(new Error("cancelled during cooldown"));
 		releaseDelay?.();
 		await expect(running).rejects.toThrow(/cancelled during cooldown/u);
-		expect(providerExecutions.every((effect) => effect.attempt === 1)).toBe(true);
+		expect(providerExecutions.every((effect) => effect.dispatchOrdinal === 1)).toBe(true);
 		expect(
 			providerExecutions.filter((effect) => effect.workItemRole === "target").length,
 		).toBeLessThanOrEqual(2);
 	});
 
-	it("fails closed when the bounded second provider attempt requests another retry", async () => {
+	it("lets the Graph retain capacity identity when a fourth recovery is requested", async () => {
 		const executed: EvalExecutableEffect[] = [];
 		const executor = twoPhaseExecutor({
 			onProvider(effect) {
 				if (effect.replicate === 1 && effect.arm === "cold")
 					return providerOutcome(effect, {
 						status: "retryable",
-						reason: "http-429-retryable",
-						retryAfterMs: 5_000,
+						reason: "http-capacity-retryable",
+						retryAfterMs: 60_000,
 						cleanupCompleted: true,
 						toolProposal: null,
 					});
@@ -2327,14 +2532,12 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			},
 		});
 
-		await expect(
-			runRootEval(createTopology(), async (effect) => {
-				executed.push(effect);
-				return executor(effect);
-			}),
-		).rejects.toThrow(/second eval attempt cannot request another retry/u);
+		const result = await runRootEval(createTopology(), async (effect) => {
+			executed.push(effect);
+			return executor(effect);
+		});
 		expect(executed.filter((effect) => effect.kind === "eval-admitted-retry-delay")).toHaveLength(
-			1,
+			3,
 		);
 		expect(
 			executed
@@ -2344,8 +2547,12 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 						effect.replicate === 1 &&
 						effect.arm === "cold",
 				)
-				.map((effect) => effect.attempt),
-		).toEqual([1, 2]);
+				.map((effect) => effect.dispatchOrdinal),
+		).toEqual([1, 2, 3, 4]);
+		expect(result.finding.providerOutcomeReasonCounts).toMatchObject({
+			"http-capacity-retryable": 3,
+			"http-capacity-exhausted": 1,
+		});
 	});
 
 	it("cleans up failed effects and keeps the finding deterministic across completion order", async () => {
@@ -2682,7 +2889,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 							return providerOutcome(effect);
 						return providerOutcome(effect, {
 							status: "failed",
-							reason: "http-failed",
+							reason: "http-terminal",
 							cleanupCompleted: true,
 							toolProposal: null,
 						});
@@ -2860,11 +3067,11 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(targetProviderCalls).toBe(0);
 	});
 
-	it("enforces attempt and cost budget ceilings independently and validates all budget inputs", async () => {
+	it("enforces dispatchOrdinal and cost budget ceilings independently and validates all budget inputs", async () => {
 		for (const { options, expectedPeak } of [
 			{
 				options: { maxAttempts: 5, maxCostMicrousd: 6_000_000, reservationMicrousd: 1_000 },
-				expectedPeak: 2,
+				expectedPeak: 1,
 			},
 			{
 				options: { maxAttempts: 60, maxCostMicrousd: 500, reservationMicrousd: 1_000 },
@@ -2909,7 +3116,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 						if (effect.workItemRole === "source") return providerOutcome(effect);
 						return providerOutcome(effect, {
 							status: "failed",
-							reason: "http-failed",
+							reason: "http-terminal",
 							costMicrousd: 1_200,
 							costEvidence: "provider-reported",
 							cleanupCompleted: true,
@@ -2949,12 +3156,13 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 					topology,
 					twoPhaseExecutor({
 						onProvider(effect) {
-							if (effect.replicate !== 1 || effect.attempt !== 1) return providerOutcome(effect);
+							if (effect.replicate !== 1 || effect.dispatchOrdinal !== 1)
+								return providerOutcome(effect);
 							return providerOutcome(effect, {
 								status: "retryable",
-								reason: "http-429-retryable",
+								reason: "http-capacity-retryable",
 								costMicrousd: 1_100,
-								retryAfterMs: 1,
+								retryAfterMs: 60_000,
 								cleanupCompleted: true,
 								toolProposal: null,
 							});

@@ -77,12 +77,17 @@ import {
 	rootEvalTaskBindings,
 } from "./root-eval-task.js";
 
-export const ROOT_EVAL_TOPOLOGY_REVISION = "graphrefly-ts.root-eval-topology.v15" as const;
+export const ROOT_EVAL_TOPOLOGY_REVISION = "graphrefly-ts.root-eval-topology.v17" as const;
 export const ROOT_EVAL_REPLICATE_COUNT = 5 as const;
 export const ROOT_EVAL_DEVELOPMENT_REPLICATE_COUNT = 5 as const;
 export const ROOT_EVAL_DEFAULT_EFFECT_TIMEOUT_MS = 300_000 as const;
-export const ROOT_EVAL_INITIAL_PROVIDER_CAPACITY = 2 as const;
+export const ROOT_EVAL_INITIAL_PROVIDER_CAPACITY = 1 as const;
 export const ROOT_EVAL_RATE_LIMITED_PROVIDER_CAPACITY = 1 as const;
+export const ROOT_EVAL_PROVIDER_START_INTERVAL_MS = 30_000 as const;
+export const ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM = 5 as const;
+export const ROOT_EVAL_MAX_CAPACITY_RETRIES = 3 as const;
+export const ROOT_EVAL_MAX_AVAILABILITY_RETRIES = 1 as const;
+export const ROOT_EVAL_MAX_INFRASTRUCTURE_RETRY_DELAY_MS = 240_000 as const;
 export const ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS = 4_500_000 as const;
 export const ROOT_EVAL_GRAPH_DRAIN_RESERVE_MS = 1_800_000 as const;
 export const ROOT_EVAL_CALLER_SAFETY_LEASE_MS = 6_300_000 as const;
@@ -183,7 +188,12 @@ interface EvalSourceVerificationFact {
 
 type EvalTechnicalFailureReason = Extract<
 	EvalProviderOutcomeReason,
-	"http-failed" | "transport-failed" | "response-route-invalid"
+	| "http-capacity-exhausted"
+	| "http-availability-exhausted"
+	| "http-terminal"
+	| "transport-failed"
+	| "transport-availability-exhausted"
+	| "response-route-invalid"
 >;
 
 interface EvalSourceTechnicalExclusionFact {
@@ -248,7 +258,10 @@ export interface EvalEffectProposal {
 	readonly replicate: number;
 	readonly arm: HarnessArm | "source";
 	readonly workItemRole: "source" | "target";
-	readonly attempt: 1 | 2;
+	readonly providerLogicalAttempt: 1;
+	readonly dispatchOrdinal: number;
+	readonly capacityRetryOrdinal: number;
+	readonly availabilityRetryOrdinal: number;
 	readonly reservationMicrousd: number;
 	readonly timeoutMs: number;
 	readonly maxOutputTokens: number;
@@ -274,10 +287,14 @@ export interface EvalAdmittedEffect extends Omit<EvalEffectProposal, "kind"> {
 
 export const EVAL_PROVIDER_OUTCOME_REASON_CODES = Object.freeze([
 	"tool-proposed",
-	"http-failed",
-	"http-429-retryable",
+	"http-capacity-retryable",
+	"http-capacity-exhausted",
+	"http-availability-retryable",
+	"http-availability-exhausted",
+	"http-terminal",
 	"transport-failed",
-	"transport-retryable",
+	"transport-availability-retryable",
+	"transport-availability-exhausted",
 	"response-bounds-invalid",
 	"response-json-invalid",
 	"response-route-invalid",
@@ -289,6 +306,21 @@ export const EVAL_PROVIDER_OUTCOME_REASON_CODES = Object.freeze([
 	"response-proposal-invalid",
 	"response-proposal-arguments-invalid",
 	"executor-failed",
+] as const);
+
+export const EVAL_PROVIDER_CONDITIONAL_AVAILABILITY_CODES = Object.freeze([
+	"failed_dependency",
+	"gateway_timeout",
+	"internal_server_error",
+	"provider_internal_error",
+	"provider_overloaded",
+	"request_timeout",
+	"resource_locked",
+	"server_error",
+	"service_unavailable",
+	"temporarily_unavailable",
+	"upstream_error",
+	"upstream_timeout",
 ] as const);
 
 export type EvalProviderOutcomeReason = (typeof EVAL_PROVIDER_OUTCOME_REASON_CODES)[number];
@@ -311,10 +343,19 @@ export interface EvalProviderOutcome {
 	readonly replicate: number;
 	readonly arm: HarnessArm | "source";
 	readonly workItemRole: "source" | "target";
-	readonly attempt: 1 | 2;
+	readonly providerLogicalAttempt: 1;
+	readonly dispatchOrdinal: number;
+	readonly capacityRetryOrdinal: number;
+	readonly availabilityRetryOrdinal: number;
+	readonly recoveryClass: "capacity" | "availability" | null;
 	readonly status: "tool-proposed" | "failed" | "retryable";
 	readonly reason: EvalProviderOutcomeReason;
 	readonly dispatchAttempted: boolean;
+	readonly dispatchElapsedMs: number;
+	readonly providerResponseKind: "http" | "transport" | "none";
+	readonly httpStatus: number | null;
+	readonly providerErrorCode: string | null;
+	readonly transportNoToolSideEffect: boolean;
 	readonly costMicrousd: number;
 	readonly costEvidence: "provider-reported" | "reservation-upper-bound";
 	readonly pricingRoundingAllowanceMicrousd: number;
@@ -342,7 +383,10 @@ export interface EvalAdmittedToolEffect {
 	readonly replicate: number;
 	readonly arm: HarnessArm | "source";
 	readonly workItemRole: "source" | "target";
-	readonly attempt: 1 | 2;
+	readonly providerLogicalAttempt: 1;
+	readonly dispatchOrdinal: number;
+	readonly capacityRetryOrdinal: number;
+	readonly availabilityRetryOrdinal: number;
 	readonly toolRef: "graphrefly.eval.exact-tool.v1";
 	readonly path: string;
 	readonly oldText: string;
@@ -360,7 +404,11 @@ export interface EvalRetryDelayEffect {
 	readonly replicate: number;
 	readonly arm: HarnessArm | "source";
 	readonly workItemRole: "source" | "target";
-	readonly attempt: 1;
+	readonly providerLogicalAttempt: 1;
+	readonly dispatchOrdinal: number;
+	readonly capacityRetryOrdinal: number;
+	readonly availabilityRetryOrdinal: number;
+	readonly recoveryClass: "capacity" | "availability";
 	readonly batchSize: number;
 	readonly delayMs: number;
 	readonly receiptDigest: string;
@@ -469,7 +517,10 @@ export interface EvalEffectOutcome {
 	readonly replicate: number;
 	readonly arm: HarnessArm | "source";
 	readonly workItemRole: "source" | "target";
-	readonly attempt: 1 | 2;
+	readonly providerLogicalAttempt: 1;
+	readonly dispatchOrdinal: number;
+	readonly capacityRetryOrdinal: number;
+	readonly availabilityRetryOrdinal: number;
 	readonly status: "completed" | "failed";
 	readonly costMicrousd: 0;
 	readonly elapsedMs: number;
@@ -535,7 +586,7 @@ export interface EvalBudgetState {
 
 export interface EvalProviderCapacityState {
 	readonly kind: "eval-provider-capacity-state";
-	readonly mode: "initial-parallel" | "cooldown" | "rate-limited-serial";
+	readonly mode: "paced-serial" | "cooldown";
 	readonly initialMaxConcurrentEffects: typeof ROOT_EVAL_INITIAL_PROVIDER_CAPACITY;
 	readonly maxConcurrentEffects:
 		| typeof ROOT_EVAL_INITIAL_PROVIDER_CAPACITY
@@ -739,6 +790,10 @@ export interface RootEvalTopologyOptions {
 	readonly reservationMicrousd?: number;
 	readonly effectTimeoutMs?: number;
 	readonly sourceEffectTimeoutMs?: number;
+	readonly providerPacingSetTimeout?: (
+		callback: () => void,
+		delayMs: number,
+	) => ReturnType<typeof setTimeout>;
 }
 
 export interface RootEvalProfileAdmission {
@@ -846,10 +901,11 @@ interface AdmissionState {
 	settledAdmissionIds: Set<string>;
 	active: Map<string, EvalAdmittedEffect>;
 	pendingProposals: Map<string, EvalEffectProposal>;
+	releasedProposalKeys: Set<string>;
 	retryProposalKeys: Set<string>;
 	rejectedProposalKeys: Set<string>;
 	cooldownReadinessIds: Set<string>;
-	capacityMode: "initial-parallel" | "cooldown" | "rate-limited-serial";
+	capacityMode: "paced-serial" | "cooldown";
 	maxConcurrentEffects:
 		| typeof ROOT_EVAL_INITIAL_PROVIDER_CAPACITY
 		| typeof ROOT_EVAL_RATE_LIMITED_PROVIDER_CAPACITY;
@@ -965,8 +1021,11 @@ const MEMORY_PROVENANCE: Readonly<Record<HarnessArm, EvalMemoryProvenance>> = Ob
 });
 
 const TECHNICAL_FAILURE_REASONS = new Set<EvalProviderOutcomeReason>([
-	"http-failed",
+	"http-capacity-exhausted",
+	"http-availability-exhausted",
+	"http-terminal",
 	"transport-failed",
+	"transport-availability-exhausted",
 	"response-route-invalid",
 ]);
 
@@ -1564,10 +1623,14 @@ function validateBillingObservationOutcome(
 	return outcome;
 }
 
-function validateProviderOutcome(outcome: EvalProviderOutcome): EvalProviderOutcome {
+function validateProviderOutcomeShape(
+	outcome: EvalProviderOutcome,
+	mode: "candidate" | "canonical",
+): EvalProviderOutcome {
 	const admission = outcome.admission;
 	const proposal = outcome.toolProposal;
 	const coordinate = executionCoordinateFromWorkItemId(outcome.workItemId);
+	const candidate = mode === "candidate";
 	if (
 		outcome.kind !== "eval-provider-outcome" ||
 		admission?.kind !== "eval-admitted-effect" ||
@@ -1580,11 +1643,49 @@ function validateProviderOutcome(outcome: EvalProviderOutcome): EvalProviderOutc
 		outcome.replicate !== admission.replicate ||
 		outcome.arm !== admission.arm ||
 		outcome.workItemRole !== admission.workItemRole ||
-		outcome.attempt !== admission.attempt ||
+		outcome.providerLogicalAttempt !== admission.providerLogicalAttempt ||
+		outcome.dispatchOrdinal !== admission.dispatchOrdinal ||
+		outcome.capacityRetryOrdinal !== admission.capacityRetryOrdinal ||
+		outcome.availabilityRetryOrdinal !== admission.availabilityRetryOrdinal ||
+		outcome.providerLogicalAttempt !== 1 ||
+		!Number.isSafeInteger(outcome.dispatchOrdinal) ||
+		outcome.dispatchOrdinal < 1 ||
+		outcome.dispatchOrdinal > ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM ||
+		!Number.isSafeInteger(outcome.capacityRetryOrdinal) ||
+		outcome.capacityRetryOrdinal < 0 ||
+		outcome.capacityRetryOrdinal > ROOT_EVAL_MAX_CAPACITY_RETRIES ||
+		!Number.isSafeInteger(outcome.availabilityRetryOrdinal) ||
+		outcome.availabilityRetryOrdinal < 0 ||
+		outcome.availabilityRetryOrdinal > ROOT_EVAL_MAX_AVAILABILITY_RETRIES ||
+		outcome.dispatchOrdinal !==
+			1 + outcome.capacityRetryOrdinal + outcome.availabilityRetryOrdinal ||
 		coordinate?.arm !== outcome.arm ||
 		coordinate?.workItemRole !== outcome.workItemRole ||
 		replicateFromWorkItemId(outcome.workItemId) !== outcome.replicate ||
 		typeof outcome.dispatchAttempted !== "boolean" ||
+		!Number.isSafeInteger(outcome.dispatchElapsedMs) ||
+		outcome.dispatchElapsedMs < 0 ||
+		outcome.dispatchElapsedMs > outcome.elapsedMs ||
+		(!outcome.dispatchAttempted && outcome.dispatchElapsedMs !== 0) ||
+		!(
+			outcome.providerResponseKind === "http" ||
+			outcome.providerResponseKind === "transport" ||
+			outcome.providerResponseKind === "none"
+		) ||
+		(outcome.providerResponseKind === "http" &&
+			(!Number.isSafeInteger(outcome.httpStatus) ||
+				(outcome.httpStatus ?? 0) < 100 ||
+				(outcome.httpStatus ?? 0) > 599)) ||
+		(outcome.providerResponseKind !== "http" && outcome.httpStatus !== null) ||
+		(outcome.providerErrorCode !== null &&
+			(typeof outcome.providerErrorCode !== "string" ||
+				outcome.providerErrorCode.length < 1 ||
+				outcome.providerErrorCode.length > 128 ||
+				outcome.providerErrorCode !== outcome.providerErrorCode.toLowerCase())) ||
+		(outcome.providerResponseKind !== "http" && outcome.providerErrorCode !== null) ||
+		typeof outcome.transportNoToolSideEffect !== "boolean" ||
+		outcome.transportNoToolSideEffect !== (outcome.providerResponseKind === "transport") ||
+		(outcome.providerResponseKind !== "none" && !outcome.dispatchAttempted) ||
 		!Number.isSafeInteger(outcome.costMicrousd) ||
 		outcome.costMicrousd < 0 ||
 		(outcome.costEvidence === "reservation-upper-bound" &&
@@ -1606,7 +1707,10 @@ function validateProviderOutcome(outcome: EvalProviderOutcome): EvalProviderOutc
 		outcome.elapsedMs < 0 ||
 		!Number.isSafeInteger(outcome.retryAfterMs) ||
 		outcome.retryAfterMs < 0 ||
-		outcome.retryAfterMs > 120_000 ||
+		outcome.retryAfterMs >
+			(candidate
+				? ROOT_EVAL_MAX_INFRASTRUCTURE_RETRY_DELAY_MS + 1
+				: ROOT_EVAL_MAX_INFRASTRUCTURE_RETRY_DELAY_MS) ||
 		typeof outcome.cleanupCompleted !== "boolean" ||
 		!isDigest(outcome.resultDigest) ||
 		!(
@@ -1615,10 +1719,42 @@ function validateProviderOutcome(outcome: EvalProviderOutcome): EvalProviderOutc
 			outcome.status === "retryable"
 		) ||
 		!EVAL_PROVIDER_OUTCOME_REASON_CODES.includes(outcome.reason) ||
+		(candidate &&
+			(outcome.reason === "http-capacity-exhausted" ||
+				outcome.reason === "http-availability-exhausted" ||
+				outcome.reason === "transport-availability-exhausted")) ||
 		(outcome.status === "tool-proposed") !== (outcome.reason === "tool-proposed") ||
-		(outcome.status === "retryable") !== (outcome.reason === "http-429-retryable") ||
+		(outcome.status === "retryable") !==
+			(outcome.reason === "http-capacity-retryable" ||
+				outcome.reason === "http-availability-retryable" ||
+				outcome.reason === "transport-availability-retryable") ||
+		(outcome.recoveryClass === "capacity") !==
+			(outcome.reason === "http-capacity-retryable" ||
+				outcome.reason === "http-capacity-exhausted") ||
+		(outcome.recoveryClass === "availability") !==
+			(outcome.reason === "http-availability-retryable" ||
+				outcome.reason === "http-availability-exhausted" ||
+				outcome.reason === "transport-availability-retryable" ||
+				outcome.reason === "transport-availability-exhausted") ||
+		(outcome.recoveryClass === null) !==
+			!(
+				outcome.reason === "http-capacity-retryable" ||
+				outcome.reason === "http-capacity-exhausted" ||
+				outcome.reason === "http-availability-retryable" ||
+				outcome.reason === "http-availability-exhausted" ||
+				outcome.reason === "transport-availability-retryable" ||
+				outcome.reason === "transport-availability-exhausted"
+			) ||
 		(outcome.status === "tool-proposed") !== (proposal !== null) ||
-		(outcome.status === "retryable") !== outcome.retryAfterMs > 0 ||
+		(outcome.status !== "retryable" && outcome.retryAfterMs !== 0) ||
+		(!candidate && outcome.status === "retryable" && outcome.retryAfterMs < 60_000) ||
+		(!candidate &&
+			outcome.reason === "http-capacity-retryable" &&
+			outcome.capacityRetryOrdinal >= ROOT_EVAL_MAX_CAPACITY_RETRIES) ||
+		(!candidate &&
+			(outcome.reason === "http-availability-retryable" ||
+				outcome.reason === "transport-availability-retryable") &&
+			outcome.availabilityRetryOrdinal >= ROOT_EVAL_MAX_AVAILABILITY_RETRIES) ||
 		(outcome.status === "tool-proposed" ? outcome.cleanupCompleted : !outcome.cleanupCompleted) ||
 		(proposal !== null &&
 			(proposal.toolRef !== "graphrefly.eval.exact-tool.v1" ||
@@ -1629,9 +1765,97 @@ function validateProviderOutcome(outcome: EvalProviderOutcome): EvalProviderOutc
 				proposal.argumentsDigest !== effectArgumentsDigest(proposal)))
 	)
 		throw new TypeError(
-			`provider outcome does not exactly match its Graph admission receipt (${String(outcome?.status)}/${String(outcome?.reason)}/attempt-${String(outcome?.attempt)})`,
+			`provider outcome does not exactly match its Graph admission receipt (${String(outcome?.status)}/${String(outcome?.reason)}/dispatchOrdinal-${String(outcome?.dispatchOrdinal)})`,
 		);
 	return outcome;
+}
+
+function validateProviderOutcomeCandidate(outcome: EvalProviderOutcome): EvalProviderOutcome {
+	return validateProviderOutcomeShape(outcome, "candidate");
+}
+
+function validateProviderOutcome(outcome: EvalProviderOutcome): EvalProviderOutcome {
+	return validateProviderOutcomeShape(outcome, "canonical");
+}
+
+function normalizeProviderOutcomeCandidate(outcome: EvalProviderOutcome): EvalProviderOutcome {
+	const candidate = validateProviderOutcomeCandidate(outcome);
+	let derived = candidate;
+	if (candidate.providerResponseKind === "transport") {
+		derived = Object.freeze({
+			...candidate,
+			status: "retryable" as const,
+			reason: "transport-availability-retryable" as const,
+			recoveryClass: "availability" as const,
+			retryAfterMs: candidate.retryAfterMs,
+			toolProposal: null,
+		});
+	} else if (candidate.providerResponseKind === "http") {
+		const status = candidate.httpStatus!;
+		if (status === 429) {
+			derived = Object.freeze({
+				...candidate,
+				status: "retryable" as const,
+				reason: "http-capacity-retryable" as const,
+				recoveryClass: "capacity" as const,
+				toolProposal: null,
+			});
+		} else if (status < 200 || status >= 300) {
+			const availability =
+				[408, 425, 502, 503, 504, 520].includes(status) ||
+				([409, 423, 424, 500].includes(status) &&
+					(candidate.retryAfterMs > 0 ||
+						(candidate.providerErrorCode !== null &&
+							EVAL_PROVIDER_CONDITIONAL_AVAILABILITY_CODES.includes(
+								candidate.providerErrorCode as (typeof EVAL_PROVIDER_CONDITIONAL_AVAILABILITY_CODES)[number],
+							))));
+			derived = Object.freeze({
+				...candidate,
+				status: availability ? ("retryable" as const) : ("failed" as const),
+				reason: availability
+					? ("http-availability-retryable" as const)
+					: ("http-terminal" as const),
+				recoveryClass: availability ? ("availability" as const) : null,
+				retryAfterMs: availability ? candidate.retryAfterMs : 0,
+				toolProposal: null,
+			});
+		} else if (candidate.status === "retryable" || candidate.recoveryClass !== null) {
+			throw new TypeError("successful HTTP provider receipt claimed infrastructure recovery");
+		}
+	} else if (candidate.status === "retryable" || candidate.recoveryClass !== null) {
+		throw new TypeError("pre-dispatch provider outcome claimed infrastructure recovery");
+	}
+	if (derived.status !== "retryable" || derived.recoveryClass === null)
+		return validateProviderOutcome(derived);
+	const overDelayEnvelope = derived.retryAfterMs > ROOT_EVAL_MAX_INFRASTRUCTURE_RETRY_DELAY_MS;
+	const exhausted =
+		overDelayEnvelope ||
+		(derived.recoveryClass === "capacity"
+			? derived.capacityRetryOrdinal >= ROOT_EVAL_MAX_CAPACITY_RETRIES
+			: derived.availabilityRetryOrdinal >= ROOT_EVAL_MAX_AVAILABILITY_RETRIES);
+	if (exhausted) {
+		const reason: EvalProviderOutcomeReason =
+			derived.recoveryClass === "capacity"
+				? "http-capacity-exhausted"
+				: derived.reason === "transport-availability-retryable"
+					? "transport-availability-exhausted"
+					: "http-availability-exhausted";
+		return validateProviderOutcome(
+			Object.freeze({ ...derived, status: "failed" as const, reason, retryAfterMs: 0 }),
+		);
+	}
+	const fallbackMs =
+		derived.recoveryClass === "capacity"
+			? ([60_000, 120_000, 240_000] as const)[derived.capacityRetryOrdinal]
+			: 60_000;
+	if (fallbackMs === undefined)
+		throw new TypeError("provider recovery fallback was unavailable for its Graph coordinate");
+	return validateProviderOutcome(
+		Object.freeze({
+			...derived,
+			retryAfterMs: Math.max(fallbackMs, derived.retryAfterMs),
+		}),
+	);
 }
 
 function validateRetryDelayOutcome(outcome: EvalRetryDelayOutcome): EvalRetryDelayOutcome {
@@ -1681,7 +1905,10 @@ function validateOutcomeReceipt(outcome: EvalEffectOutcome): EvalEffectOutcome {
 		outcome.replicate !== admission.replicate ||
 		outcome.arm !== admission.arm ||
 		outcome.workItemRole !== admission.workItemRole ||
-		outcome.attempt !== admission.attempt ||
+		outcome.providerLogicalAttempt !== admission.providerLogicalAttempt ||
+		outcome.dispatchOrdinal !== admission.dispatchOrdinal ||
+		outcome.capacityRetryOrdinal !== admission.capacityRetryOrdinal ||
+		outcome.availabilityRetryOrdinal !== admission.availabilityRetryOrdinal ||
 		coordinate?.arm !== outcome.arm ||
 		coordinate?.workItemRole !== outcome.workItemRole ||
 		replicateFromWorkItemId(outcome.workItemId) !== outcome.replicate ||
@@ -1723,7 +1950,10 @@ function providerFailureOutcome(provider: EvalProviderOutcome): EvalEffectOutcom
 		replicate: provider.replicate,
 		arm: provider.arm,
 		workItemRole: provider.workItemRole,
-		attempt: provider.attempt,
+		providerLogicalAttempt: provider.providerLogicalAttempt,
+		dispatchOrdinal: provider.dispatchOrdinal,
+		capacityRetryOrdinal: provider.capacityRetryOrdinal,
+		availabilityRetryOrdinal: provider.availabilityRetryOrdinal,
 		status: "failed" as const,
 		costMicrousd: 0 as const,
 		elapsedMs: provider.elapsedMs,
@@ -2118,8 +2348,7 @@ function assertProviderCapacityRuntimeShape(
 		`${label}.initialMaxConcurrentEffects`,
 	);
 	const mode = root.mode;
-	if (mode !== "initial-parallel" && mode !== "cooldown" && mode !== "rate-limited-serial")
-		throw new TypeError(`${label}.mode invalid`);
+	if (mode !== "paced-serial" && mode !== "cooldown") throw new TypeError(`${label}.mode invalid`);
 	const maxConcurrentEffects = safeInteger(
 		root.maxConcurrentEffects,
 		`${label}.maxConcurrentEffects`,
@@ -2185,18 +2414,14 @@ function assertProviderCapacityRuntimeShape(
 		settledRetryProposalCount > settledProposalCount ||
 		rejectedRetryProposalCount > rejectedProposalCount ||
 		activeEffects !== admittedProposalCount - settledProposalCount ||
-		(mode === "initial-parallel" &&
+		(mode === "paced-serial" &&
 			(maxConcurrentEffects !== ROOT_EVAL_INITIAL_PROVIDER_CAPACITY ||
-				rateLimitFeedbackCount !== 0 ||
 				cooldownOutstandingReadinessCount !== 0)) ||
 		(mode === "cooldown" &&
 			(maxConcurrentEffects !== ROOT_EVAL_RATE_LIMITED_PROVIDER_CAPACITY ||
 				rateLimitFeedbackCount < 1 ||
 				cooldownOutstandingReadinessCount < 1)) ||
-		(mode === "rate-limited-serial" &&
-			(maxConcurrentEffects !== ROOT_EVAL_RATE_LIMITED_PROVIDER_CAPACITY ||
-				rateLimitFeedbackCount < 1 ||
-				cooldownOutstandingReadinessCount !== 0))
+		maxConcurrentEffects !== ROOT_EVAL_RATE_LIMITED_PROVIDER_CAPACITY
 	)
 		throw new TypeError(`${label} provider capacity conservation drifted`);
 }
@@ -2505,8 +2730,15 @@ export function assertRootEvalObservationRuntimeShape(
 		`${label}.providerOutcomeReasonCounts`,
 	);
 	const retryableReasonTotal =
-		(root.providerOutcomeReasonCounts as EvalProviderOutcomeReasonCounts)["transport-retryable"] +
-		(root.providerOutcomeReasonCounts as EvalProviderOutcomeReasonCounts)["http-429-retryable"];
+		(root.providerOutcomeReasonCounts as EvalProviderOutcomeReasonCounts)[
+			"transport-availability-retryable"
+		] +
+		(root.providerOutcomeReasonCounts as EvalProviderOutcomeReasonCounts)[
+			"http-capacity-retryable"
+		] +
+		(root.providerOutcomeReasonCounts as EvalProviderOutcomeReasonCounts)[
+			"http-availability-retryable"
+		];
 	if (
 		activeAdmittedEffects !==
 			activeProviderEffects + activeToolEffects + activeRetryEffects + activeBillingEffects ||
@@ -2968,12 +3200,15 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		partitionLedgerDigest,
 		developmentQualificationStreakBefore,
 	});
-	const maxAttempts = options.maxAttempts ?? replicateCount * (HARNESS_ARMS.length + 1) * 2;
+	const maxAttempts =
+		options.maxAttempts ??
+		replicateCount * (HARNESS_ARMS.length + 1) * ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM;
 	const maxCostMicrousd =
 		options.maxCostMicrousd ?? partitionHardCapMicrousd - partitionSpentBeforeMicrousd;
 	const reservationMicrousd = options.reservationMicrousd ?? 1_000;
 	const effectTimeoutMs = options.effectTimeoutMs ?? ROOT_EVAL_DEFAULT_EFFECT_TIMEOUT_MS;
 	const sourceEffectTimeoutMs = options.sourceEffectTimeoutMs ?? effectTimeoutMs;
+	const providerPacingSetTimeout = options.providerPacingSetTimeout ?? setTimeout;
 	if (!Number.isSafeInteger(maxAttempts) || maxAttempts < 1)
 		throw new TypeError("maxAttempts must be a positive safe integer");
 	if (!Number.isSafeInteger(maxCostMicrousd) || maxCostMicrousd < 1)
@@ -3287,11 +3522,9 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		[providerOutcomeInput],
 		(ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
-				const outcome = validateProviderOutcome(raw as EvalProviderOutcome);
+				const outcome = normalizeProviderOutcomeCandidate(raw as EvalProviderOutcome);
 				if (!(["tool-proposed", "failed", "retryable"] as const).includes(outcome.status))
 					throw new TypeError("canonical provider result input received an unknown status");
-				if (outcome.status === "retryable" && outcome.attempt !== 1)
-					throw new TypeError("second eval attempt cannot request another retry");
 				ctx.down([["DATA", outcome]]);
 			}
 		},
@@ -3300,9 +3533,55 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			factory: "rootEvalAllProviderResultAdmissions",
 			meta: {
 				authority: "root-graph",
-				maxAttemptsPerWorkItem: 2,
-				callerAuthority: "submit-correlated-result-data-only",
+				maxDispatchesPerWorkItem: ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM,
+				callerAuthority: "submit-correlated-provider-fact-only",
+				recoveryAuthority: "graph-normalizes-candidate-and-enforces-bounds",
 				resultIngresses: "single-canonical-status-union",
+			},
+		},
+	);
+	type EvalProviderStartSpacingReadiness = Readonly<{
+		readonly kind: "eval-provider-start-spacing-readiness";
+		readonly admissionId: string;
+		readonly effectRunId: string;
+		readonly dispatchOrdinal: number;
+		readonly status: EvalProviderOutcome["status"];
+		readonly dispatchAttempted: boolean;
+		readonly dispatchElapsedMs: number;
+		readonly remainingPacingDelayMs: number;
+	}>;
+	const providerStartSpacingReadiness = owner.node<EvalProviderStartSpacingReadiness>(
+		[allProviderResultAdmissions],
+		(ctx) => {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const outcome = validateProviderOutcome(raw as EvalProviderOutcome);
+				ctx.down([
+					[
+						"DATA",
+						Object.freeze({
+							kind: "eval-provider-start-spacing-readiness" as const,
+							admissionId: outcome.admissionId,
+							effectRunId: outcome.effectRunId,
+							dispatchOrdinal: outcome.dispatchOrdinal,
+							status: outcome.status,
+							dispatchAttempted: outcome.dispatchAttempted,
+							dispatchElapsedMs: outcome.dispatchElapsedMs,
+							remainingPacingDelayMs: outcome.dispatchAttempted
+								? Math.max(0, ROOT_EVAL_PROVIDER_START_INTERVAL_MS - outcome.dispatchElapsedMs)
+								: 0,
+						}),
+					],
+				]);
+			}
+		},
+		{
+			name: "eval/provider/start-spacing-readiness",
+			factory: "rootEvalProviderStartSpacingReadiness",
+			meta: {
+				materialFree: true,
+				domainAuthority: "root-graph",
+				providerStartIntervalMs: ROOT_EVAL_PROVIDER_START_INTERVAL_MS,
+				inputEvidence: "canonical-provider-outcome.dispatchElapsedMs",
 			},
 		},
 	);
@@ -3359,7 +3638,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			meta: {
 				authority: "canonical-status-demux",
 				acceptedStatus: "retryable",
-				maxAttemptsPerWorkItem: 2,
+				maxDispatchesPerWorkItem: ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM,
 			},
 		},
 	);
@@ -3397,14 +3676,13 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	type EvalProviderOutcomeBatch = Readonly<{
 		readonly kind: "eval-provider-outcome-batch";
 		readonly replicate: number;
-		readonly attempt: 1 | 2;
+		readonly dispatchOrdinal: number;
 		readonly complete: boolean;
 		readonly outcomes: readonly EvalProviderOutcome[];
 	}>;
 	interface EvalProviderOutcomeBatchState {
-		readonly attemptOne: Map<number, Map<HarnessArm, EvalProviderOutcome>>;
-		readonly attemptTwo: Map<number, Map<HarnessArm, EvalProviderOutcome>>;
-		readonly expectedAttemptTwo: Map<number, number>;
+		readonly outcomesByDispatch: Map<number, Map<number, Map<HarnessArm, EvalProviderOutcome>>>;
+		readonly lastEmittedDigests: Map<string, string>;
 	}
 	owner.node<EvalProviderOutcomeBatch>(
 		[
@@ -3414,11 +3692,11 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		],
 		(ctx) => {
 			const state = ctx.state.get<EvalProviderOutcomeBatchState>() ?? {
-				attemptOne: new Map<number, Map<HarnessArm, EvalProviderOutcome>>(),
-				attemptTwo: new Map<number, Map<HarnessArm, EvalProviderOutcome>>(),
-				expectedAttemptTwo: new Map<number, number>(),
+				outcomesByDispatch: new Map<number, Map<number, Map<HarnessArm, EvalProviderOutcome>>>(),
+				lastEmittedDigests: new Map<string, string>(),
 			};
 			const emitted: EvalProviderOutcomeBatch[] = [];
+			const touchedReplicates = new Set<number>();
 			for (const raw of [
 				...(depBatch(ctx, 0) ?? []),
 				...(depBatch(ctx, 1) ?? []),
@@ -3426,61 +3704,59 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			]) {
 				const outcome = validateProviderOutcome(raw as EvalProviderOutcome);
 				if (outcome.workItemRole === "source") continue;
-				const byAttempt = outcome.attempt === 1 ? state.attemptOne : state.attemptTwo;
+				const byReplicate =
+					state.outcomesByDispatch.get(outcome.dispatchOrdinal) ??
+					new Map<number, Map<HarnessArm, EvalProviderOutcome>>();
 				const byArm =
-					byAttempt.get(outcome.replicate) ?? new Map<HarnessArm, EvalProviderOutcome>();
+					byReplicate.get(outcome.replicate) ?? new Map<HarnessArm, EvalProviderOutcome>();
 				const arm = outcome.arm as HarnessArm;
 				const prior = byArm.get(arm);
 				if (prior !== undefined && prior.resultDigest !== outcome.resultDigest)
 					throw new TypeError("provider outcome batch received contradictory arm replay");
 				if (prior !== undefined) continue;
 				byArm.set(arm, outcome);
-				byAttempt.set(outcome.replicate, byArm);
-				if (outcome.attempt === 1) {
+				byReplicate.set(outcome.replicate, byArm);
+				state.outcomesByDispatch.set(outcome.dispatchOrdinal, byReplicate);
+				touchedReplicates.add(outcome.replicate);
+			}
+			for (const replicate of touchedReplicates) {
+				let precedingComplete = true;
+				let expectedCount: number = HARNESS_ARMS.length;
+				for (
+					let dispatchOrdinal = 1;
+					dispatchOrdinal <= ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM;
+					dispatchOrdinal += 1
+				) {
+					const byArm = state.outcomesByDispatch.get(dispatchOrdinal)?.get(replicate);
+					if (byArm === undefined) {
+						precedingComplete = false;
+						expectedCount = 0;
+						continue;
+					}
+					if (precedingComplete && byArm.size > expectedCount)
+						throw new TypeError("provider outcome batch exceeded its retry cardinality");
 					const outcomes = Object.freeze(
 						HARNESS_ARMS.flatMap((arm) => {
 							const value = byArm.get(arm);
 							return value === undefined ? [] : [value];
 						}),
 					);
-					const complete = byArm.size === HARNESS_ARMS.length;
-					if (complete) {
-						state.expectedAttemptTwo.set(
-							outcome.replicate,
-							outcomes.filter((value) => value.status === "retryable").length,
-						);
+					const complete: boolean = precedingComplete && byArm.size === expectedCount;
+					const batch = Object.freeze({
+						kind: "eval-provider-outcome-batch" as const,
+						replicate,
+						dispatchOrdinal,
+						complete,
+						outcomes,
+					});
+					const batchKey = `${replicate}:${dispatchOrdinal}`;
+					const batchDigest = empiricalStrictJsonDigest(withoutUndefined(batch));
+					if (state.lastEmittedDigests.get(batchKey) !== batchDigest) {
+						state.lastEmittedDigests.set(batchKey, batchDigest);
+						emitted.push(batch);
 					}
-					emitted.push(
-						Object.freeze({
-							kind: "eval-provider-outcome-batch" as const,
-							replicate: outcome.replicate,
-							attempt: 1 as const,
-							complete,
-							outcomes,
-						}),
-					);
-				}
-				if (outcome.attempt === 2) {
-					const expected = state.expectedAttemptTwo.get(outcome.replicate);
-					if (expected === undefined)
-						throw new TypeError("attempt-two provider outcome preceded its attempt-one batch");
-					if (byArm.size <= expected) {
-						const outcomes = Object.freeze(
-							HARNESS_ARMS.flatMap((arm) => {
-								const value = byArm.get(arm);
-								return value === undefined ? [] : [value];
-							}),
-						);
-						emitted.push(
-							Object.freeze({
-								kind: "eval-provider-outcome-batch" as const,
-								replicate: outcome.replicate,
-								attempt: 2 as const,
-								complete: byArm.size === expected,
-								outcomes,
-							}),
-						);
-					}
+					precedingComplete = complete;
+					expectedCount = outcomes.filter((value) => value.status === "retryable").length;
 				}
 			}
 			if (emitted.length > 0) ctx.down(emitted.map((batch) => ["DATA", batch] as const));
@@ -3627,7 +3903,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
-			meta: { correlation: "admissionId+effectRunId+attempt" },
+			meta: { correlation: "admissionId+effectRunId+dispatchOrdinal" },
 		},
 	);
 	const sourceResultProjection = owner.node<EffectRunResult>(
@@ -3654,7 +3930,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
-			meta: { correlation: "admissionId+effectRunId+attempt", workItemRole: "source" },
+			meta: { correlation: "admissionId+effectRunId+dispatchOrdinal", workItemRole: "source" },
 		},
 	);
 	const sourceRequestAuthority = owner.node<readonly EvalSourceWorkItemRequest[]>(
@@ -5092,14 +5368,17 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				const workItemPlanDigest = evalWorkItemPlanAuthorityDigest(plan);
 				const proposal = Object.freeze({
 					kind: "eval-effect-proposal" as const,
-					proposalId: `${request.effectRunId}/attempt-1/proposal`,
+					proposalId: `${request.effectRunId}/dispatchOrdinal-1/proposal`,
 					effectRunId: request.effectRunId,
 					operationId: request.operationId,
 					workItemId: workItemRef,
 					replicate: replicateFromWorkItemId(workItemRef),
 					arm: coordinate.arm,
 					workItemRole: coordinate.workItemRole,
-					attempt: 1 as const,
+					providerLogicalAttempt: 1 as const,
+					dispatchOrdinal: 1 as const,
+					capacityRetryOrdinal: 0,
+					availabilityRetryOrdinal: 0,
 					reservationMicrousd,
 					timeoutMs,
 					maxOutputTokens: admittedProfile.profile.mutationMaxOutputTokens,
@@ -5174,24 +5453,26 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				const delay = validateRetryDelayOutcome(raw as EvalRetryDelayOutcome);
 				if (delay.status !== "completed") throw new Error("root eval retry delay failed closed");
 				const outcome = validateProviderOutcome(delay.admission.providerOutcome);
-				if (outcome.status !== "retryable" || outcome.attempt !== 1) continue;
-				const request = Object.freeze({
-					...outcome.admission.request,
-					requestId: `${outcome.effectRunId}/retry-request`,
-					proposalId: `${outcome.effectRunId}/retry-proposal`,
-					operationId: `${outcome.effectRunId}/retry-operation`,
-					issuedAtMs: outcome.elapsedMs,
-				});
+				if (outcome.status !== "retryable" || outcome.recoveryClass === null) continue;
+				const request = outcome.admission.request;
+				const dispatchOrdinal = outcome.dispatchOrdinal + 1;
+				const capacityRetryOrdinal =
+					outcome.capacityRetryOrdinal + (outcome.recoveryClass === "capacity" ? 1 : 0);
+				const availabilityRetryOrdinal =
+					outcome.availabilityRetryOrdinal + (outcome.recoveryClass === "availability" ? 1 : 0);
 				const proposal = Object.freeze({
 					kind: "eval-effect-proposal" as const,
-					proposalId: `${outcome.effectRunId}/attempt-2/proposal`,
+					proposalId: `${outcome.effectRunId}/dispatch-${dispatchOrdinal}/proposal`,
 					effectRunId: outcome.effectRunId,
-					operationId: request.operationId,
+					operationId: outcome.admission.operationId,
 					workItemId: outcome.workItemId,
 					replicate: outcome.replicate,
 					arm: outcome.arm,
 					workItemRole: outcome.workItemRole,
-					attempt: 2 as const,
+					providerLogicalAttempt: outcome.providerLogicalAttempt,
+					dispatchOrdinal,
+					capacityRetryOrdinal,
+					availabilityRetryOrdinal,
 					reservationMicrousd,
 					timeoutMs: outcome.admission.timeoutMs,
 					maxOutputTokens: outcome.admission.maxOutputTokens,
@@ -5286,6 +5567,135 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			errorWhenDepsError: false,
 		},
 	);
+	type EvalProviderPacingState = {
+		activeProposalKey: string | null;
+		pacingReady: boolean;
+		stopped: boolean;
+		pending: Map<string, EvalEffectProposal>;
+		expectedRecoveryEffectRunId: string | null;
+		timer: ReturnType<typeof setTimeout> | undefined;
+	};
+	const pacedProviderProposals = owner.node<EvalEffectProposal>(
+		[proposals, providerStartSpacingReadiness, retryDelayOutcomes, elapsedBudget],
+		(ctx) => {
+			let emitted = false;
+			const state = ctx.state.get<EvalProviderPacingState>() ?? {
+				activeProposalKey: null,
+				pacingReady: true,
+				stopped: false,
+				pending: new Map<string, EvalEffectProposal>(),
+				expectedRecoveryEffectRunId: null,
+				timer: undefined,
+			};
+			const keyOf = (proposal: EvalEffectProposal) =>
+				`${proposal.effectRunId}:${proposal.dispatchOrdinal}`;
+			const releaseNext = () => {
+				if (state.stopped || !state.pacingReady || state.activeProposalKey !== null) return;
+				let candidates = [...state.pending.values()];
+				if (state.expectedRecoveryEffectRunId !== null) {
+					candidates = candidates.filter(
+						(proposal) => proposal.effectRunId === state.expectedRecoveryEffectRunId,
+					);
+					if (candidates.length === 0) return;
+				}
+				candidates.sort((left, right) => {
+					if (left.workItemRole !== right.workItemRole)
+						return left.workItemRole === "source" ? -1 : 1;
+					if (left.replicate !== right.replicate) return left.replicate - right.replicate;
+					const armOrder =
+						HARNESS_ARMS.indexOf(left.arm as HarnessArm) -
+						HARNESS_ARMS.indexOf(right.arm as HarnessArm);
+					if (armOrder !== 0) return armOrder;
+					return left.dispatchOrdinal - right.dispatchOrdinal;
+				});
+				const proposal = candidates[0];
+				if (proposal === undefined) return;
+				const key = keyOf(proposal);
+				state.pending.delete(key);
+				state.activeProposalKey = key;
+				state.expectedRecoveryEffectRunId = null;
+				state.pacingReady = false;
+				emitted = true;
+				ctx.down([["DATA", proposal]]);
+			};
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const proposal = raw as EvalEffectProposal;
+				const key = keyOf(proposal);
+				const prior = state.pending.get(key);
+				if (
+					prior !== undefined &&
+					empiricalStrictJsonDigest(withoutUndefined(prior)) !==
+						empiricalStrictJsonDigest(withoutUndefined(proposal))
+				)
+					throw new TypeError("provider pacing received contradictory proposal replay");
+				if (prior === undefined && state.activeProposalKey !== key)
+					state.pending.set(key, proposal);
+			}
+			for (const raw of depBatch(ctx, 1) ?? []) {
+				const readiness = raw as EvalProviderStartSpacingReadiness;
+				const key = `${readiness.effectRunId}:${readiness.dispatchOrdinal}`;
+				if (state.activeProposalKey !== key)
+					throw new TypeError("provider pacing outcome did not settle its active proposal");
+				state.activeProposalKey = null;
+				if (readiness.status === "retryable")
+					state.expectedRecoveryEffectRunId = readiness.effectRunId;
+				const remainingPacingDelayMs = readiness.remainingPacingDelayMs;
+				if (remainingPacingDelayMs === 0) {
+					state.pacingReady = true;
+				} else {
+					if (state.timer !== undefined)
+						throw new TypeError("provider pacing attempted to replace active readiness");
+					let callbackRanSynchronously = false;
+					const timer = providerPacingSetTimeout(() => {
+						callbackRanSynchronously = true;
+						state.timer = undefined;
+						state.pacingReady = true;
+						releaseNext();
+					}, remainingPacingDelayMs);
+					if (!callbackRanSynchronously) {
+						state.timer = timer;
+						(state.timer as { unref?: () => void }).unref?.();
+					}
+				}
+			}
+			for (const raw of depBatch(ctx, 2) ?? []) {
+				const delay = validateRetryDelayOutcome(raw as EvalRetryDelayOutcome);
+				if (delay.status !== "completed") throw new TypeError("provider pacing readiness failed");
+			}
+			const elapsed = depLatest(ctx, 3) as EvalElapsedBudgetState | undefined;
+			if (elapsed?.state === "exhausted") {
+				state.stopped = true;
+				state.pending.clear();
+				if (state.timer !== undefined) clearTimeout(state.timer);
+				state.timer = undefined;
+			}
+			ctx.state.set(state);
+			ctx.onDeactivation(() => {
+				state.stopped = true;
+				if (state.timer !== undefined) clearTimeout(state.timer);
+				state.timer = undefined;
+			});
+			releaseNext();
+			if (!emitted) ctx.down([["RESOLVED"]]);
+		},
+		{
+			name: "eval/provider/paced-proposal-release",
+			factory: "rootEvalProviderPacedProposalRelease",
+			pool: "async",
+			partial: true,
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+			meta: {
+				materialFree: true,
+				domainAuthority: "root-graph",
+				maxConcurrentEffects: 1,
+				providerStartIntervalMs: ROOT_EVAL_PROVIDER_START_INTERVAL_MS,
+				startEvidence: "provider-outcome.dispatchElapsedMs",
+				readinessAuthority: "graph-computes-remaining-start-spacing",
+				callerAuthority: "none",
+			},
+		},
+	);
 	const retryDelayAdmissions = owner.node<EvalRetryDelayEffect>(
 		[retryableProviderResultAdmissions, elapsedBudget],
 		(ctx) => {
@@ -5294,7 +5704,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			const elapsed = depLatest(ctx, 1) as EvalElapsedBudgetState | undefined;
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const outcome = validateProviderOutcome(raw as EvalProviderOutcome);
-				if (outcome.status !== "retryable" || outcome.attempt !== 1) continue;
+				if (outcome.status !== "retryable" || outcome.recoveryClass === null) continue;
 				if (elapsed?.state === "exhausted") continue;
 				const executionId = `${outcome.admissionId}/retry-delay`;
 				if (admitted.has(executionId)) continue;
@@ -5307,7 +5717,11 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					replicate: outcome.replicate,
 					arm: outcome.arm,
 					workItemRole: outcome.workItemRole,
-					attempt: 1 as const,
+					providerLogicalAttempt: outcome.providerLogicalAttempt,
+					dispatchOrdinal: outcome.dispatchOrdinal,
+					capacityRetryOrdinal: outcome.capacityRetryOrdinal,
+					availabilityRetryOrdinal: outcome.availabilityRetryOrdinal,
+					recoveryClass: outcome.recoveryClass,
 					batchSize: 1,
 					delayMs: outcome.retryAfterMs,
 				});
@@ -5369,8 +5783,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		| EvalBudgetSettledProviderOutcome;
 	const admissionFacts = owner.node<AdmissionFact>(
 		[
-			replicateProposalBatches,
-			retryProposalFacts,
+			proposals,
+			pacedProviderProposals,
 			allProviderResultAdmissions,
 			retryDelayOutcomes,
 			elapsedBudget,
@@ -5386,10 +5800,11 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				settledAdmissionIds: new Set<string>(),
 				active: new Map<string, EvalAdmittedEffect>(),
 				pendingProposals: new Map<string, EvalEffectProposal>(),
+				releasedProposalKeys: new Set<string>(),
 				retryProposalKeys: new Set<string>(),
 				rejectedProposalKeys: new Set<string>(),
 				cooldownReadinessIds: new Set<string>(),
-				capacityMode: "initial-parallel" as const,
+				capacityMode: "paced-serial" as const,
 				maxConcurrentEffects: ROOT_EVAL_INITIAL_PROVIDER_CAPACITY,
 				rateLimitFeedbackCount: 0,
 				admittedAttempts: 0,
@@ -5435,8 +5850,11 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				)
 					state.stoppingReason = "budget-exhausted";
 				state.providerOutcomeReasonCounts[outcome.reason] += 1;
-				if (outcome.attempt === 2) state.settledRetryAttempts += 1;
-				if (outcome.reason === "http-429-retryable") {
+				if (outcome.dispatchOrdinal > 1) state.settledRetryAttempts += 1;
+				if (
+					outcome.reason === "http-capacity-retryable" ||
+					outcome.reason === "http-capacity-exhausted"
+				) {
 					const profile = depLatest(ctx, 5) as RootEvalProfileAdmission | undefined;
 					if (profile === undefined)
 						throw new TypeError("rate-limit feedback lost its Graph profile authority");
@@ -5450,10 +5868,15 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 						throw new TypeError(
 							"rate-limit feedback is not attributed to the exact admitted route",
 						);
+					if (outcome.status === "retryable") {
+						state.cooldownReadinessIds.add(`${outcome.admissionId}/retry-delay`);
+						state.capacityMode = "cooldown";
+					}
+					state.rateLimitFeedbackCount += 1;
+				}
+				if (outcome.status === "retryable" && outcome.recoveryClass === "availability") {
 					state.cooldownReadinessIds.add(`${outcome.admissionId}/retry-delay`);
 					state.capacityMode = "cooldown";
-					state.maxConcurrentEffects = ROOT_EVAL_RATE_LIMITED_PROVIDER_CAPACITY;
-					state.rateLimitFeedbackCount += 1;
 				}
 				return true;
 			};
@@ -5468,20 +5891,23 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				state.cooldownReadinessIds.delete(readiness.executionId);
 			}
 			if (state.capacityMode === "cooldown" && state.cooldownReadinessIds.size === 0)
-				state.capacityMode = "rate-limited-serial";
+				state.capacityMode = "paced-serial";
 			const admitProposal = (proposal: EvalEffectProposal): "admitted" | "pending" | "rejected" => {
 				const plan = proposal.workItemPlanAuthority;
 				validateEvalEffectProposalAgainstWorkItemPlan(proposal, plan);
-				const key = `${proposal.effectRunId}:${proposal.attempt}`;
+				const key = `${proposal.effectRunId}:${proposal.dispatchOrdinal}`;
 				if (state.admittedKeys.has(key)) return "admitted";
 				if (state.rejectedProposalKeys.has(key)) return "rejected";
 				if (state.stoppingReason !== "none") {
 					state.rejectedProposalKeys.add(key);
 					return "rejected";
 				}
+				if (!state.releasedProposalKeys.has(key)) return "pending";
 				if (
-					proposal.attempt === 2 &&
-					!state.settledAdmissionIds.has(`${proposal.effectRunId}/attempt-1/admission`)
+					proposal.dispatchOrdinal > 1 &&
+					!state.settledAdmissionIds.has(
+						`${proposal.effectRunId}/dispatch-${proposal.dispatchOrdinal - 1}/admission`,
+					)
 				)
 					return "pending";
 				if (state.capacityMode === "cooldown" || state.active.size >= state.maxConcurrentEffects)
@@ -5498,7 +5924,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					state.rejectedProposalKeys.add(key);
 					return "rejected";
 				}
-				const admissionId = `${proposal.effectRunId}/attempt-${proposal.attempt}/admission`;
+				const admissionId = `${proposal.effectRunId}/dispatch-${proposal.dispatchOrdinal}/admission`;
 				const admittedMaterial = Object.freeze({
 					...proposal,
 					kind: "eval-admitted-effect" as const,
@@ -5510,15 +5936,16 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					receiptDigest: admissionReceiptDigest(admittedMaterial),
 				});
 				state.admittedKeys.add(key);
+				state.releasedProposalKeys.delete(key);
 				state.active.set(admissionId, admitted);
 				state.admittedAttempts += 1;
-				if (proposal.attempt === 2) state.admittedRetryAttempts += 1;
+				if (proposal.dispatchOrdinal > 1) state.admittedRetryAttempts += 1;
 				state.activeReservedMicrousd += proposal.reservationMicrousd;
 				ctx.down([["DATA", admitted]]);
 				return "admitted";
 			};
 			const registerProposal = (proposal: EvalEffectProposal) => {
-				const key = `${proposal.effectRunId}:${proposal.attempt}`;
+				const key = `${proposal.effectRunId}:${proposal.dispatchOrdinal}`;
 				const digest = empiricalStrictJsonDigest(withoutUndefined(proposal));
 				const priorDigest = state.proposalDigests.get(key);
 				if (priorDigest !== undefined && priorDigest !== digest)
@@ -5526,15 +5953,15 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				if (priorDigest !== undefined) return;
 				state.proposalKeys.add(key);
 				state.proposalDigests.set(key, digest);
-				if (proposal.attempt === 2) state.retryProposalKeys.add(key);
+				if (proposal.dispatchOrdinal > 1) state.retryProposalKeys.add(key);
 				state.pendingProposals.set(key, proposal);
 			};
-			for (const rawBatch of depBatch(ctx, 0) ?? []) {
-				for (const proposal of rawBatch as readonly EvalEffectProposal[])
-					registerProposal(proposal);
+			for (const raw of depBatch(ctx, 0) ?? []) registerProposal(raw as EvalEffectProposal);
+			for (const raw of depBatch(ctx, 1) ?? []) {
+				const proposal = raw as EvalEffectProposal;
+				registerProposal(proposal);
+				state.releasedProposalKeys.add(`${proposal.effectRunId}:${proposal.dispatchOrdinal}`);
 			}
-			for (const raw of depBatch(ctx, 1) ?? [])
-				registerProposal((raw as EvalRetryProposalFact).proposal);
 			const pending = [...state.pendingProposals.entries()].sort(([, left], [, right]) => {
 				if (left.workItemRole !== right.workItemRole)
 					return left.workItemRole === "source" ? -1 : 1;
@@ -5543,7 +5970,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					HARNESS_ARMS.indexOf(left.arm as HarnessArm) -
 					HARNESS_ARMS.indexOf(right.arm as HarnessArm);
 				if (armOrder !== 0) return armOrder;
-				return left.attempt - right.attempt;
+				return left.dispatchOrdinal - right.dispatchOrdinal;
 			});
 			for (const [key, proposal] of pending) {
 				const disposition = admitProposal(proposal);
@@ -5607,10 +6034,10 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 						proposalCount: state.proposalKeys.size,
 						pendingProposalCount: state.pendingProposals.size,
 						pendingFirstAttemptProposalCount: [...state.pendingProposals.values()].filter(
-							(proposal) => proposal.attempt === 1,
+							(proposal) => proposal.dispatchOrdinal === 1,
 						).length,
 						pendingRetryProposalCount: [...state.pendingProposals.values()].filter(
-							(proposal) => proposal.attempt === 2,
+							(proposal) => proposal.dispatchOrdinal > 1,
 						).length,
 						retryProposalCount: state.retryProposalKeys.size,
 						admittedProposalCount: state.admittedKeys.size,
@@ -5662,11 +6089,12 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: {
-				capacityPolicy: "adaptive-downshift-only",
+				capacityPolicy: "paced-serial",
 				initialMaxConcurrentEffects: ROOT_EVAL_INITIAL_PROVIDER_CAPACITY,
 				rateLimitedMaxConcurrentEffects: ROOT_EVAL_RATE_LIMITED_PROVIDER_CAPACITY,
 				cooldownReadiness: "exact-correlated-retry-delay-outcome",
-				proposalOrder: "replicate-fixed-arm-attempt",
+				proposalOrder: "replicate-fixed-arm-dispatch",
+				providerStartIntervalMs: ROOT_EVAL_PROVIDER_START_INTERVAL_MS,
 				reservation: "atomic-before-admission",
 				proposalAuthority: "direct-dependency-with-graph-state-conservation",
 				timeoutAuthority: "copied-from-work-item-plan",
@@ -5791,7 +6219,10 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					replicate: outcome.replicate,
 					arm: outcome.arm,
 					workItemRole: outcome.workItemRole,
-					attempt: outcome.attempt,
+					providerLogicalAttempt: outcome.providerLogicalAttempt,
+					dispatchOrdinal: outcome.dispatchOrdinal,
+					capacityRetryOrdinal: outcome.capacityRetryOrdinal,
+					availabilityRetryOrdinal: outcome.availabilityRetryOrdinal,
 					toolRef: proposal.toolRef,
 					path: proposal.path,
 					oldText: proposal.oldText,
@@ -6432,8 +6863,9 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				0,
 			);
 			const retryableReasonTotal =
-				budget.providerOutcomeReasonCounts["transport-retryable"] +
-				budget.providerOutcomeReasonCounts["http-429-retryable"];
+				budget.providerOutcomeReasonCounts["transport-availability-retryable"] +
+				budget.providerOutcomeReasonCounts["http-capacity-retryable"] +
+				budget.providerOutcomeReasonCounts["http-availability-retryable"];
 			const activeAdmittedEffects =
 				activeProviderEffects + activeToolEffects + activeRetryEffects + activeBillingEffects;
 			const lifecycleConserved = (activity: EvalEffectClassActivitySnapshot) =>
@@ -6885,8 +7317,9 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				0,
 			);
 			const retryableReasonTotal =
-				budget.providerOutcomeReasonCounts["transport-retryable"] +
-				budget.providerOutcomeReasonCounts["http-429-retryable"];
+				budget.providerOutcomeReasonCounts["transport-availability-retryable"] +
+				budget.providerOutcomeReasonCounts["http-capacity-retryable"] +
+				budget.providerOutcomeReasonCounts["http-availability-retryable"];
 			if (
 				activity.activeAdmittedEffects !== 0 ||
 				budget.activeEffects !== 0 ||
@@ -7169,8 +7602,9 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					0,
 				);
 				const retryableReasonTotal =
-					budget.providerOutcomeReasonCounts["transport-retryable"] +
-					budget.providerOutcomeReasonCounts["http-429-retryable"];
+					budget.providerOutcomeReasonCounts["transport-availability-retryable"] +
+					budget.providerOutcomeReasonCounts["http-capacity-retryable"] +
+					budget.providerOutcomeReasonCounts["http-availability-retryable"];
 				if (activeRetryEffects !== retryableReasonTotal - budget.retryProposalCount) return false;
 				const observedPendingFirstAttemptProposalCount = Math.max(
 					0,
@@ -7674,7 +8108,7 @@ async function runRootEvalWithOutcomeInput(
 						try {
 							if (effect.kind === "eval-admitted-effect") {
 								const validated = Object.freeze(
-									validateProviderOutcome(outcome as EvalProviderOutcome),
+									validateProviderOutcomeCandidate(outcome as EvalProviderOutcome),
 								);
 								if (validated.admission !== effect)
 									throw new TypeError("provider outcome lost its admitted receipt identity");
@@ -7739,7 +8173,10 @@ async function runRootEvalWithOutcomeInput(
 											workItemRole: effect.workItemRole,
 											replicate: effect.replicate,
 											arm: effect.arm,
-											attempt: effect.attempt,
+											providerLogicalAttempt: effect.providerLogicalAttempt,
+											dispatchOrdinal: effect.dispatchOrdinal,
+											capacityRetryOrdinal: effect.capacityRetryOrdinal,
+											availabilityRetryOrdinal: effect.availabilityRetryOrdinal,
 											status: "failed" as const,
 											costMicrousd: 0 as const,
 											elapsedMs: 0,

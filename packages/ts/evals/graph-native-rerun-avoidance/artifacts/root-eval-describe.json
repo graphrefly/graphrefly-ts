@@ -178,7 +178,7 @@
 			"name": "eval/profile/qualified-catalog",
 			"value": {
 				"requestedTargetRef": "model-target.deepseek-v4-flash-0731",
-				"currentImplementationManifestDigest": "sha256:c63b18780d0ac268e392d7f88ebc79854fb8a9af1fa834c5cb95f7c8523a4e8f",
+				"currentImplementationManifestDigest": "sha256:7da5421cedfe6fa06119cfcb05bd4ea062ad38a1d9267b1b5f2db173cc572a17",
 				"targets": [
 					{
 						"modelRef": "deepseek/deepseek-v4-flash-0731",
@@ -227,19 +227,19 @@
 						"bindingDigest": "sha256:2163c9f0da40a602408c54076cd5eb81a43d6154467a233b1d5d5dd56d2b388d",
 						"bindingRef": "provider-binding.fireworks-structured-chat.v2",
 						"credentialAccessed": false,
-						"implementationManifestDigest": "sha256:c63b18780d0ac268e392d7f88ebc79854fb8a9af1fa834c5cb95f7c8523a4e8f",
+						"implementationManifestDigest": "sha256:7da5421cedfe6fa06119cfcb05bd4ea062ad38a1d9267b1b5f2db173cc572a17",
 						"liveEvaluationExecuted": false,
 						"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 						"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
 						"providerNetworkAccessed": false,
-						"qualificationArtifactDigest": "sha256:4cce32ebb58e2f4460373899d2e6d492e3163f4f3bb888b552435dd754c5a092",
+						"qualificationArtifactDigest": "sha256:21de471de8e0e685bfcc3fccea1dd50340cf5408d4e0b00800c79825f080ccae",
 						"qualificationMode": "injected-no-network",
 						"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 						"qualified": true,
 						"schemaVersion": "graphrefly-ts.profile-qualification.v1",
 						"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 						"targetRef": "model-target.deepseek-v4-flash-0731",
-						"qualificationDigest": "sha256:9513913ee712ad11bae3dc71309fe5d1d687df5ab01b8e068eeb26ba7a6dd3c0"
+						"qualificationDigest": "sha256:71c2189d477ed11499e9f88f6f869abee41e02b6aaa010acc7b2e534233bfcf6"
 					}
 				]
 			},
@@ -269,28 +269,28 @@
 					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
 					"decisionRef": "graphrefly-ts:D96",
 					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
-					"implementationManifestDigest": "sha256:c63b18780d0ac268e392d7f88ebc79854fb8a9af1fa834c5cb95f7c8523a4e8f",
+					"implementationManifestDigest": "sha256:7da5421cedfe6fa06119cfcb05bd4ea062ad38a1d9267b1b5f2db173cc572a17",
 					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
-					"qualificationDigest": "sha256:9513913ee712ad11bae3dc71309fe5d1d687df5ab01b8e068eeb26ba7a6dd3c0",
+					"qualificationDigest": "sha256:71c2189d477ed11499e9f88f6f869abee41e02b6aaa010acc7b2e534233bfcf6",
 					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 					"reasonCode": "root-graph-exact-profile-current",
 					"schemaVersion": "graphrefly-ts.current-profile-eligibility.v1",
 					"status": "eligible",
 					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 					"targetRef": "model-target.deepseek-v4-flash-0731",
-					"eligibilityDigest": "sha256:a83fdb2f66aa5ddf8b03277d3cca6d6dd3d74c3406fda41cecb985b55e9ec019"
+					"eligibilityDigest": "sha256:e7a86a30be3c3f4e5745351e313f00dd6d6406c303c9d43b31fcc2a9ae918d35"
 				},
 				"resolution": {
 					"bindingDigest": "sha256:2163c9f0da40a602408c54076cd5eb81a43d6154467a233b1d5d5dd56d2b388d",
 					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
-					"eligibilityDigest": "sha256:a83fdb2f66aa5ddf8b03277d3cca6d6dd3d74c3406fda41cecb985b55e9ec019",
+					"eligibilityDigest": "sha256:e7a86a30be3c3f4e5745351e313f00dd6d6406c303c9d43b31fcc2a9ae918d35",
 					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
-					"implementationManifestDigest": "sha256:c63b18780d0ac268e392d7f88ebc79854fb8a9af1fa834c5cb95f7c8523a4e8f",
+					"implementationManifestDigest": "sha256:7da5421cedfe6fa06119cfcb05bd4ea062ad38a1d9267b1b5f2db173cc572a17",
 					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
 					"providerRef": "fireworks",
-					"qualificationDigest": "sha256:9513913ee712ad11bae3dc71309fe5d1d687df5ab01b8e068eeb26ba7a6dd3c0",
+					"qualificationDigest": "sha256:71c2189d477ed11499e9f88f6f869abee41e02b6aaa010acc7b2e534233bfcf6",
 					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 					"requestedTargetRef": "model-target.deepseek-v4-flash-0731",
 					"resolverRevision": "graphrefly-ts.profile-resolver.v1",
@@ -298,7 +298,7 @@
 					"status": "eligible",
 					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 					"targetRef": "model-target.deepseek-v4-flash-0731",
-					"resolutionDigest": "sha256:671fa4f9bfa89e676b8fe82f9d459d35d0b5a03b2eacdbb5823ba9ed8bfd0825"
+					"resolutionDigest": "sha256:cde6124eeb73b2def90adfc2e084e7d34e2b50a7bf36df8245d8f03b1b037a1f"
 				},
 				"profile": {
 					"enhancementRecipes": [
@@ -360,7 +360,7 @@
 					"wrong-scope-applied"
 				],
 				"replicateCount": 5,
-				"topologyRevision": "graphrefly-ts.root-eval-topology.v15"
+				"topologyRevision": "graphrefly-ts.root-eval-topology.v17"
 			}
 		},
 		{
@@ -582,9 +582,29 @@
 			},
 			"meta": {
 				"authority": "root-graph",
-				"callerAuthority": "submit-correlated-result-data-only",
-				"maxAttemptsPerWorkItem": 2,
+				"callerAuthority": "submit-correlated-provider-fact-only",
+				"maxDispatchesPerWorkItem": 5,
+				"recoveryAuthority": "graph-normalizes-candidate-and-enforces-bounds",
 				"resultIngresses": "single-canonical-status-union"
+			}
+		},
+		{
+			"id": "eval/provider/start-spacing-readiness",
+			"factory": "rootEvalProviderStartSpacingReadiness",
+			"status": "sentinel",
+			"deps": [
+				"eval/provider/all-result-admissions"
+			],
+			"name": "eval/provider/start-spacing-readiness",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"domainAuthority": "root-graph",
+				"inputEvidence": "canonical-provider-outcome.dispatchElapsedMs",
+				"materialFree": true,
+				"providerStartIntervalMs": 30000
 			}
 		},
 		{
@@ -636,7 +656,7 @@
 			"meta": {
 				"acceptedStatus": "retryable",
 				"authority": "canonical-status-demux",
-				"maxAttemptsPerWorkItem": 2
+				"maxDispatchesPerWorkItem": 5
 			}
 		},
 		{
@@ -797,7 +817,7 @@
 				"counter": 0
 			},
 			"meta": {
-				"correlation": "admissionId+effectRunId+attempt"
+				"correlation": "admissionId+effectRunId+dispatchOrdinal"
 			}
 		},
 		{
@@ -813,7 +833,7 @@
 				"counter": 0
 			},
 			"meta": {
-				"correlation": "admissionId+effectRunId+attempt",
+				"correlation": "admissionId+effectRunId+dispatchOrdinal",
 				"workItemRole": "source"
 			}
 		},
@@ -3021,6 +3041,31 @@
 			}
 		},
 		{
+			"id": "eval/provider/paced-proposal-release",
+			"factory": "rootEvalProviderPacedProposalRelease",
+			"status": "sentinel",
+			"deps": [
+				"eval/provider/proposals",
+				"eval/provider/start-spacing-readiness",
+				"eval/retry/delay-result-input",
+				"eval/time/elapsed-budget/state"
+			],
+			"name": "eval/provider/paced-proposal-release",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"callerAuthority": "none",
+				"domainAuthority": "root-graph",
+				"materialFree": true,
+				"maxConcurrentEffects": 1,
+				"providerStartIntervalMs": 30000,
+				"readinessAuthority": "graph-computes-remaining-start-spacing",
+				"startEvidence": "provider-outcome.dispatchElapsedMs"
+			}
+		},
+		{
 			"id": "eval/retry/delay-admission",
 			"factory": "rootEvalRetryDelayAdmission",
 			"status": "sentinel",
@@ -3083,8 +3128,8 @@
 			"factory": "rootEvalProviderGraphAdmission",
 			"status": "settled",
 			"deps": [
-				"eval/provider/replicate-proposal-batches",
-				"eval/retry/proposal-fact",
+				"eval/provider/proposals",
+				"eval/provider/paced-proposal-release",
 				"eval/provider/all-result-admissions",
 				"eval/retry/delay-result-input",
 				"eval/time/elapsed-budget/state",
@@ -3101,12 +3146,13 @@
 				"counter": 6
 			},
 			"meta": {
-				"capacityPolicy": "adaptive-downshift-only",
+				"capacityPolicy": "paced-serial",
 				"cooldownReadiness": "exact-correlated-retry-delay-outcome",
-				"initialMaxConcurrentEffects": 2,
+				"initialMaxConcurrentEffects": 1,
 				"maxOutputTokens": 16384,
 				"proposalAuthority": "direct-dependency-with-graph-state-conservation",
-				"proposalOrder": "replicate-fixed-arm-attempt",
+				"proposalOrder": "replicate-fixed-arm-dispatch",
+				"providerStartIntervalMs": 30000,
 				"rateLimitedMaxConcurrentEffects": 1,
 				"reasoningEffort": "medium",
 				"reservation": "atomic-before-admission",
@@ -3888,6 +3934,10 @@
 		{
 			"from": "eval/provider/result-input",
 			"to": "eval/provider/all-result-admissions"
+		},
+		{
+			"from": "eval/provider/all-result-admissions",
+			"to": "eval/provider/start-spacing-readiness"
 		},
 		{
 			"from": "eval/provider/all-result-admissions",
@@ -4726,6 +4776,22 @@
 			"to": "eval/provider/proposals"
 		},
 		{
+			"from": "eval/provider/proposals",
+			"to": "eval/provider/paced-proposal-release"
+		},
+		{
+			"from": "eval/provider/start-spacing-readiness",
+			"to": "eval/provider/paced-proposal-release"
+		},
+		{
+			"from": "eval/retry/delay-result-input",
+			"to": "eval/provider/paced-proposal-release"
+		},
+		{
+			"from": "eval/time/elapsed-budget/state",
+			"to": "eval/provider/paced-proposal-release"
+		},
+		{
 			"from": "eval/provider/retryable-result-admission",
 			"to": "eval/retry/delay-admission"
 		},
@@ -4734,11 +4800,11 @@
 			"to": "eval/retry/delay-admission"
 		},
 		{
-			"from": "eval/provider/replicate-proposal-batches",
+			"from": "eval/provider/proposals",
 			"to": "eval/provider/graph-admission-and-budget"
 		},
 		{
-			"from": "eval/retry/proposal-fact",
+			"from": "eval/provider/paced-proposal-release",
 			"to": "eval/provider/graph-admission-and-budget"
 		},
 		{

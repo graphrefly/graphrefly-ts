@@ -254,14 +254,15 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 					ref !== "graphrefly-ts:D140" &&
 					ref !== "graphrefly-ts:D141" &&
 					ref !== "graphrefly-ts:D144" &&
-					ref !== "graphrefly-ts:D145",
+					ref !== "graphrefly-ts:D145" &&
+					ref !== "graphrefly-ts:D148",
 			),
 		),
 		implementationManifestDigest: D120_IMPLEMENTATION_MANIFEST_DIGEST,
 		caseResults: remapHistoricalCases(
 			ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.caseResults,
 			{
-				sixConcurrentWorkItemsWithTwoProviderSlots: "sixEffectConcurrency",
+				sixConcurrentWorkItemsWithOnePacedProviderLane: "sixEffectConcurrency",
 				d121GenerationIsolatedFromConsumedD116: "d116GenerationIsolatedFromConsumedD111",
 				d121GenerationIsolatedFromD118Qualification:
 					"d116GenerationIsolatedFromD109PreclaimFailure",
@@ -303,15 +304,17 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 				"retryCompletionOrderPermutations",
 				"callerSettlementDeadlineTechnicalOnly",
 				"budgetStopDrainsAdmittedEffects",
-				"adaptiveProviderCapacityGraphState",
-				"exactRouteHttp429Cooldown",
-				"permanentRateLimitedSerialDownshift",
+				"pacedSerialProviderCapacityGraphState",
+				"exactRouteHttp429CapacityRecovery",
+				"thirtySecondProviderStartPacing",
+				"typedCapacityAvailabilityAndTerminalRecovery",
 				"firstAndRetryProposalConservation",
 				"perOutcomeRetryReadinessWithoutBatchWedge",
 				"canonicalProviderCapacityBudgetStableCut",
 				"failedCooldownReadinessFailsClosed",
 				"callerCancellationDuringCooldownLeavesNoBackgroundAdmission",
 				"sixArmHttp429RetryConservation",
+				"threeCapacityRecoveriesThenExhaustion",
 				"initialProviderSlotCompletionOrderPermutations",
 				"graphOwnedElapsedAdmissionBudget",
 				"campaignStartWaveSettlesImmediately",
@@ -435,7 +438,8 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 					ref !== "graphrefly-ts:D140" &&
 					ref !== "graphrefly-ts:D141" &&
 					ref !== "graphrefly-ts:D144" &&
-					ref !== "graphrefly-ts:D145",
+					ref !== "graphrefly-ts:D145" &&
+					ref !== "graphrefly-ts:D148",
 			),
 		),
 		implementationManifestDigest: D120_IMPLEMENTATION_MANIFEST_DIGEST,
@@ -443,7 +447,7 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 		caseResults: remapHistoricalCases(
 			ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT.caseResults,
 			{
-				sixConcurrentWorkItemsTwoProviderSlotsDelegatedToRootGraph:
+				sixConcurrentWorkItemsOnePacedProviderLaneDelegatedToRootGraph:
 					"sixEffectConcurrencyDelegatedToRootGraph",
 				d121LiveClaimRequiresRuntimeAuthorityProvenance:
 					"d116LiveClaimRequiresRuntimeAuthorityProvenance",
@@ -518,13 +522,16 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 				"wholeReplicateTechnicalExclusion",
 				"belowFourEvaluableOperationallyInconclusive",
 				"developmentEvidenceCannotEmitEfficacyClaim",
-				"adaptiveProviderCapacityGraphState",
-				"exactFireworks429CooldownAndPermanentSerialDownshift",
+				"pacedSerialProviderCapacityGraphState",
+				"exactFireworks429CapacityRecovery",
+				"thirtySecondProviderStartPacing",
+				"typedCapacityAvailabilityAndTerminalRecovery",
 				"firstAndRetryProposalConservation",
 				"canonicalProviderCapacityBudgetStableCut",
-				"peakProviderConcurrencyAtMostTwoEvidenceGate",
+				"peakProviderConcurrencyExactlyOneEvidenceGate",
 				"retryAfterFloorCapAndMalformedHeaderMatrix",
 				"sixArmHttp429RetryConservation",
+				"threeCapacityRecoveriesThenExhaustion",
 				"initialProviderSlotCompletionOrderPermutations",
 				"graphOwnedElapsedAdmissionBudget",
 				"nonBlockingElapsedTimerSource",
@@ -673,7 +680,7 @@ function qualificationOutcome(effect: EvalAdmittedToolEffect): EvalEffectOutcome
 					kind: "expected-eval-result",
 					replicate: effect.replicate,
 					arm: effect.arm,
-					attempt: effect.attempt,
+					dispatchOrdinal: effect.dispatchOrdinal,
 				});
 	return Object.freeze({
 		kind: "eval-effect-outcome",
@@ -688,15 +695,18 @@ function qualificationOutcome(effect: EvalAdmittedToolEffect): EvalEffectOutcome
 		workItemRole: effect.workItemRole,
 		replicate: effect.replicate,
 		arm: effect.arm,
-		attempt: effect.attempt,
+		providerLogicalAttempt: effect.providerLogicalAttempt,
+		dispatchOrdinal: effect.dispatchOrdinal,
+		capacityRetryOrdinal: effect.capacityRetryOrdinal,
+		availabilityRetryOrdinal: effect.availabilityRetryOrdinal,
 		status: "completed",
 		costMicrousd: 0,
-		elapsedMs: effect.replicate * 10 + effect.attempt,
+		elapsedMs: effect.replicate * 10 + effect.dispatchOrdinal,
 		resultDigest: empiricalStrictJsonDigest({
 			kind: "no-network-eval-result",
 			replicate: effect.replicate,
 			arm: effect.arm,
-			attempt: effect.attempt,
+			dispatchOrdinal: effect.dispatchOrdinal,
 		}),
 		evidence: Object.freeze({
 			expectedDigest,
@@ -760,7 +770,7 @@ async function qualificationExecutor(effect: EvalExecutableEffect): Promise<Eval
 		effect.workItemRole === "target" &&
 		effect.replicate === 1 &&
 		effect.arm === "cold" &&
-		effect.attempt === 1;
+		effect.dispatchOrdinal === 1;
 	return Object.freeze({
 		kind: "eval-provider-outcome" as const,
 		admission: effect,
@@ -772,14 +782,23 @@ async function qualificationExecutor(effect: EvalExecutableEffect): Promise<Eval
 		workItemRole: effect.workItemRole,
 		replicate: effect.replicate,
 		arm: effect.arm,
-		attempt: effect.attempt,
+		providerLogicalAttempt: effect.providerLogicalAttempt,
+		dispatchOrdinal: effect.dispatchOrdinal,
+		capacityRetryOrdinal: effect.capacityRetryOrdinal,
+		availabilityRetryOrdinal: effect.availabilityRetryOrdinal,
 		status: exactRouteHttp429 ? ("retryable" as const) : ("tool-proposed" as const),
-		reason: exactRouteHttp429 ? ("http-429-retryable" as const) : ("tool-proposed" as const),
+		reason: exactRouteHttp429 ? ("http-capacity-retryable" as const) : ("tool-proposed" as const),
+		recoveryClass: exactRouteHttp429 ? ("capacity" as const) : null,
 		dispatchAttempted: true,
+		dispatchElapsedMs: 0,
+		providerResponseKind: "http",
+		httpStatus: exactRouteHttp429 ? 429 : 200,
+		providerErrorCode: null,
+		transportNoToolSideEffect: false,
 		costMicrousd: exactRouteHttp429 ? 0 : 10,
 		costEvidence: "provider-reported" as const,
 		pricingRoundingAllowanceMicrousd: 0,
-		elapsedMs: effect.replicate * 10 + effect.attempt,
+		elapsedMs: effect.replicate * 10 + effect.dispatchOrdinal,
 		resultDigest: empiricalStrictJsonDigest({
 			kind: "qualification-provider",
 			id: effect.executionId,
@@ -806,6 +825,10 @@ export async function buildRootEvalGeneratedArtifactBytes(): Promise<RootEvalGen
 	const topology = createRootEvalTopology({
 		profileInput: createCurrentExactModelHarnessProfileInput(),
 		currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+		providerPacingSetTimeout: (callback) => {
+			callback();
+			return 0 as unknown as ReturnType<typeof setTimeout>;
+		},
 		campaignRef: "root-eval-confirmatory-2026-08-27-d145-v1",
 		campaignPurpose: "confirmatory",
 		taskSetRef: ROOT_EVAL_DEVELOPMENT_TASKS[0]!.taskSetRef,

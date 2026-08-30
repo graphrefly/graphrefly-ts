@@ -35,6 +35,7 @@ import {
 	type EvalVerificationDiagnostics,
 	type EvalVerificationReasonCounts,
 	type EvalVerificationStageCounts,
+	ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM,
 	ROOT_EVAL_TOPOLOGY_REVISION,
 	type RootEvalRunResult,
 } from "./eval-topology.js";
@@ -485,7 +486,7 @@ export const ROOT_EVAL_LIVE_SUCCESS_VIOLATION_CODES = Object.freeze([
 	"success.terminal-observation-order-invalid",
 	"success.terminal-observation-state-mismatch",
 	"success.peak-concurrency-below-one",
-	"success.peak-provider-concurrency-above-two",
+	"success.peak-provider-concurrency-above-one",
 	"success.admission-count-below-thirty",
 	"success.admission-identities-duplicate",
 	"success.finding-admitted-attempts-mismatch",
@@ -2430,12 +2431,21 @@ function expectedAdmissionIds(): ReadonlySet<string> {
 		const taskInstanceRef = `${ROOT_EVAL_LIVE_TASK_SET_REF}/instance-${replicate}`;
 		const sourceWorkItemId = `${taskInstanceRef}/source-work-item`;
 		const sourceEffectRunId = `effect-run:work-item:${sourceWorkItemId}:effect-plan:1:${sourceWorkItemId}/plan:source-provider-and-exact-tool`;
-		for (const attempt of [1, 2] as const)
-			ids.add(`${sourceEffectRunId}/attempt-${attempt}/admission`);
+		for (
+			let dispatchOrdinal = 1;
+			dispatchOrdinal <= ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM;
+			dispatchOrdinal += 1
+		)
+			ids.add(`${sourceEffectRunId}/dispatch-${dispatchOrdinal}/admission`);
 		for (const arm of ROOT_EVAL_ARMS) {
 			const workItemId = `${ROOT_EVAL_LIVE_GENERATION_REF}/replicate-${replicate}/${arm}`;
 			const effectRunId = `effect-run:work-item:${workItemId}:effect-plan:1:${workItemId}/plan:provider-and-exact-tool`;
-			for (const attempt of [1, 2] as const) ids.add(`${effectRunId}/attempt-${attempt}/admission`);
+			for (
+				let dispatchOrdinal = 1;
+				dispatchOrdinal <= ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM;
+				dispatchOrdinal += 1
+			)
+				ids.add(`${effectRunId}/dispatch-${dispatchOrdinal}/admission`);
 		}
 	}
 	return ids;
@@ -2960,7 +2970,7 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 		"success.terminal-observation-order-invalid": terminalObservationOrderValid,
 		"success.terminal-observation-state-mismatch": terminalObservationStateValid,
 		"success.peak-concurrency-below-one": projected.peakConcurrentEffects >= 1,
-		"success.peak-provider-concurrency-above-two": projected.peakConcurrentEffects <= 2,
+		"success.peak-provider-concurrency-above-one": projected.peakConcurrentEffects <= 1,
 		"success.admission-count-below-thirty":
 			projected.executedAdmissionIds.length >= executedTargetReplicateCount * ROOT_EVAL_ARMS.length,
 		"success.admission-identities-duplicate":

@@ -5,7 +5,7 @@ import { HARNESS_ARMS } from "./harness-campaign-policy.js";
 import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifest.js";
 
 export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-topology-no-network-qa.v32" as const,
+	schemaVersion: "graphrefly-ts.root-eval-topology-no-network-qa.v33" as const,
 	decisionRefs: Object.freeze([
 		"graphrefly-ts:D76",
 		"graphrefly-ts:D77",
@@ -61,6 +61,7 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		"graphrefly-ts:D141",
 		"graphrefly-ts:D144",
 		"graphrefly-ts:D145",
+		"graphrefly-ts:D148",
 	] as const),
 	topologyRevision: ROOT_EVAL_TOPOLOGY_REVISION,
 	implementationManifestDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
@@ -78,10 +79,11 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		d121GenerationIsolatedFromConsumedD111: "passed" as const,
 		mutationSensitiveTopologyContract: "passed" as const,
 		fiveReplicateSixArmIntegration: "passed" as const,
-		sixConcurrentWorkItemsWithTwoProviderSlots: "passed" as const,
-		adaptiveProviderCapacityGraphState: "passed" as const,
-		exactRouteHttp429Cooldown: "passed" as const,
-		permanentRateLimitedSerialDownshift: "passed" as const,
+		sixConcurrentWorkItemsWithOnePacedProviderLane: "passed" as const,
+		pacedSerialProviderCapacityGraphState: "passed" as const,
+		exactRouteHttp429CapacityRecovery: "passed" as const,
+		thirtySecondProviderStartPacing: "passed" as const,
+		typedCapacityAvailabilityAndTerminalRecovery: "passed" as const,
 		firstAndRetryProposalConservation: "passed" as const,
 		perOutcomeRetryReadinessWithoutBatchWedge: "passed" as const,
 		canonicalProviderCapacityBudgetStableCut: "passed" as const,
@@ -104,6 +106,7 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		diffPublicHiddenCleanup: "passed" as const,
 		boundedRetry: "passed" as const,
 		sixArmHttp429RetryConservation: "passed" as const,
+		threeCapacityRecoveriesThenExhaustion: "passed" as const,
 		retryProgressDataPreventsFanInWedge: "passed" as const,
 		retryConservationGraphObservation: "passed" as const,
 		terminalProviderOutcomePartition: "passed" as const,
@@ -191,7 +194,7 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT_DIGEST = empiricalStrictJ
 );
 
 const qualificationMaterial = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-topology-qualification.v32" as const,
+	schemaVersion: "graphrefly-ts.root-eval-topology-qualification.v33" as const,
 	decisionRef: "graphrefly-ts:D145" as const,
 	executionApprovalRef: "graphrefly-ts:D145" as const,
 	verificationDiagnosticsImplementationReceiptRef: "graphrefly-ts:D120" as const,
