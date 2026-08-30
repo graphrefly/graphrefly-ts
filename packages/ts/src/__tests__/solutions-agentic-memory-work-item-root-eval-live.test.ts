@@ -492,7 +492,7 @@ function liveEvidenceInput(
 			"DATA",
 			{
 				kind: "eval-observation",
-				topologyRevision: "graphrefly-ts.root-eval-topology.v17",
+				topologyRevision: "graphrefly-ts.root-eval-topology.v18",
 				solutionIdentities: [
 					"work-item-execution",
 					"agentic-work-item-memory-application",
@@ -1941,6 +1941,9 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			},
 			{ signal: cancellation.signal },
 		);
+		for (let turn = 0; turn < 16 && active === 0; turn += 1)
+			await new Promise<void>((resolve) => setTimeout(resolve, 0));
+		expect(active).toBeGreaterThan(0);
 		await expect(
 			awaitRootEvalCallerSettlement(() => running, {
 				deadlineMs: 5,

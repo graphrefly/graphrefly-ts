@@ -5,7 +5,7 @@ import { HARNESS_ARMS } from "./harness-campaign-policy.js";
 import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifest.js";
 
 export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-topology-no-network-qa.v34" as const,
+	schemaVersion: "graphrefly-ts.root-eval-topology-no-network-qa.v35" as const,
 	decisionRefs: Object.freeze([
 		"graphrefly-ts:D76",
 		"graphrefly-ts:D77",
@@ -88,6 +88,7 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		firstAndRetryProposalConservation: "passed" as const,
 		perOutcomeRetryReadinessWithoutBatchWedge: "passed" as const,
 		canonicalProviderCapacityBudgetStableCut: "passed" as const,
+		atomicProviderAdmissionObservationCut: "passed" as const,
 		failedCooldownReadinessFailsClosed: "passed" as const,
 		callerCancellationDuringCooldownLeavesNoBackgroundAdmission: "passed" as const,
 		providerConcurrencyAccountingBeforeReplicateDelivery: "passed" as const,
@@ -201,7 +202,7 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT_DIGEST = empiricalStrictJ
 );
 
 const qualificationMaterial = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-topology-qualification.v34" as const,
+	schemaVersion: "graphrefly-ts.root-eval-topology-qualification.v35" as const,
 	decisionRef: "graphrefly-ts:D145" as const,
 	executionApprovalRef: "graphrefly-ts:D145" as const,
 	verificationDiagnosticsImplementationReceiptRef: "graphrefly-ts:D120" as const,

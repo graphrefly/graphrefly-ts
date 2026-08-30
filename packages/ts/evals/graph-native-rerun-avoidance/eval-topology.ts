@@ -77,7 +77,7 @@ import {
 	rootEvalTaskBindings,
 } from "./root-eval-task.js";
 
-export const ROOT_EVAL_TOPOLOGY_REVISION = "graphrefly-ts.root-eval-topology.v17" as const;
+export const ROOT_EVAL_TOPOLOGY_REVISION = "graphrefly-ts.root-eval-topology.v18" as const;
 export const ROOT_EVAL_REPLICATE_COUNT = 5 as const;
 export const ROOT_EVAL_DEVELOPMENT_REPLICATE_COUNT = 5 as const;
 export const ROOT_EVAL_DEFAULT_EFFECT_TIMEOUT_MS = 300_000 as const;
@@ -607,6 +607,40 @@ export interface EvalProviderCapacityState {
 	readonly rateLimitFeedbackCount: number;
 }
 
+interface EvalProviderAdmissionObservationCut {
+	readonly kind: "eval-provider-admission-observation-cut";
+	readonly revision: number;
+	readonly budget: EvalBudgetState;
+	readonly capacity: EvalProviderCapacityState;
+	readonly activeProviderAdmissionIds: readonly string[];
+}
+
+function assertEvalProviderAdmissionObservationCut(cut: EvalProviderAdmissionObservationCut): void {
+	const providerReasonTotal = EVAL_PROVIDER_OUTCOME_REASON_CODES.reduce(
+		(total, reason) => total + cut.budget.providerOutcomeReasonCounts[reason],
+		0,
+	);
+	if (
+		new Set(cut.activeProviderAdmissionIds).size !== cut.activeProviderAdmissionIds.length ||
+		JSON.stringify(cut.activeProviderAdmissionIds) !==
+			JSON.stringify([...cut.activeProviderAdmissionIds].sort()) ||
+		cut.capacity.activeEffects !== cut.activeProviderAdmissionIds.length ||
+		cut.budget.activeEffects !== cut.activeProviderAdmissionIds.length ||
+		cut.capacity.admittedProposalCount !== cut.budget.admittedAttempts ||
+		cut.capacity.admittedRetryProposalCount !== cut.budget.admittedRetryAttempts ||
+		cut.capacity.retryProposalCount !== cut.budget.retryProposalCount ||
+		cut.capacity.pendingRetryProposalCount !== cut.budget.pendingRetryProposalCount ||
+		cut.capacity.rejectedRetryProposalCount !== cut.budget.rejectedRetryProposalCount ||
+		cut.capacity.settledRetryProposalCount !== cut.budget.settledRetryAttemptCount ||
+		cut.capacity.settledProposalCount !== providerReasonTotal ||
+		cut.capacity.proposalCount !==
+			cut.capacity.pendingProposalCount +
+				cut.capacity.admittedProposalCount +
+				cut.capacity.rejectedProposalCount
+	)
+		throw new TypeError("eval provider admission observation cut was incoherent");
+}
+
 export interface EvalCleanupFact {
 	readonly kind: "eval-cleanup-complete";
 	readonly workItemId: string;
@@ -754,6 +788,7 @@ export interface EvalEffectActivitySnapshot {
 	readonly kind: "eval-effect-activity-snapshot";
 	readonly budgetDigest: string;
 	readonly budget: EvalBudgetState;
+	readonly activeProviderAdmissionIds: readonly string[];
 	readonly activeProviderEffects: number;
 	readonly activeToolEffects: number;
 	readonly activeRetryEffects: number;
@@ -765,6 +800,7 @@ export interface EvalEffectClassActivitySnapshot {
 	readonly kind: "eval-effect-class-activity-snapshot";
 	readonly effectClass: "provider" | "exact-tool" | "retry-delay" | "billing-observation";
 	readonly activeEffects: number;
+	readonly activeExecutionIds: readonly string[];
 	readonly admittedEffects: number;
 	readonly settledEffects: number;
 }
@@ -920,6 +956,7 @@ interface AdmissionState {
 	unreportedSettledUpperBoundMicrousd: number;
 	providerOutcomeReasonCounts: Record<EvalProviderOutcomeReason, number>;
 	stoppingReason: "none" | "budget-exhausted" | "elapsed-budget-exhausted";
+	observationRevision: number;
 }
 
 type EvalWorkItemPlanSnapshot = WorkItemEffectPlanSnapshot<Record<string, unknown>>;
@@ -5743,10 +5780,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			meta: { admission: "per-correlated-retryable-result", batchBarrier: false },
 		},
 	);
-	type EvalActiveProviderEffects = Readonly<{
-		readonly kind: "eval-active-provider-effects";
-		readonly effects: readonly EvalAdmittedEffect[];
-	}>;
 	type EvalSourceStageObservationContext = Readonly<{
 		readonly campaignRef: string;
 		readonly campaignContract: EvalCampaignContract;
@@ -5777,9 +5810,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	}>;
 	type AdmissionFact =
 		| EvalAdmittedEffect
-		| EvalBudgetState
-		| EvalActiveProviderEffects
-		| EvalProviderCapacityState
+		| EvalProviderAdmissionObservationCut
 		| EvalBudgetSettledProviderOutcome;
 	const admissionFacts = owner.node<AdmissionFact>(
 		[
@@ -5817,6 +5848,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				unreportedSettledUpperBoundMicrousd: 0,
 				providerOutcomeReasonCounts: { ...emptyEvalProviderOutcomeReasonCounts() },
 				stoppingReason: "none" as const,
+				observationRevision: 0,
 			};
 			const elapsed = depLatest(ctx, 4) as EvalElapsedBudgetState | undefined;
 			if (elapsed?.state === "exhausted" && state.stoppingReason === "none")
@@ -5892,6 +5924,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			}
 			if (state.capacityMode === "cooldown" && state.cooldownReadinessIds.size === 0)
 				state.capacityMode = "paced-serial";
+			const newlyAdmitted: EvalAdmittedEffect[] = [];
 			const admitProposal = (proposal: EvalEffectProposal): "admitted" | "pending" | "rejected" => {
 				const plan = proposal.workItemPlanAuthority;
 				validateEvalEffectProposalAgainstWorkItemPlan(proposal, plan);
@@ -5941,7 +5974,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				state.admittedAttempts += 1;
 				if (proposal.dispatchOrdinal > 1) state.admittedRetryAttempts += 1;
 				state.activeReservedMicrousd += proposal.reservationMicrousd;
-				ctx.down([["DATA", admitted]]);
+				newlyAdmitted.push(admitted);
 				return "admitted";
 			};
 			const registerProposal = (proposal: EvalEffectProposal) => {
@@ -6021,66 +6054,61 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				maxCostMicrousd,
 				stoppingReason: state.stoppingReason,
 			});
-			ctx.down([["DATA", budgetSnapshot]]);
-			ctx.down([
-				[
-					"DATA",
-					Object.freeze({
-						kind: "eval-provider-capacity-state" as const,
-						mode: state.capacityMode,
-						initialMaxConcurrentEffects: ROOT_EVAL_INITIAL_PROVIDER_CAPACITY,
-						maxConcurrentEffects: state.maxConcurrentEffects,
-						activeEffects: state.active.size,
-						proposalCount: state.proposalKeys.size,
-						pendingProposalCount: state.pendingProposals.size,
-						pendingFirstAttemptProposalCount: [...state.pendingProposals.values()].filter(
-							(proposal) => proposal.dispatchOrdinal === 1,
-						).length,
-						pendingRetryProposalCount: [...state.pendingProposals.values()].filter(
-							(proposal) => proposal.dispatchOrdinal > 1,
-						).length,
-						retryProposalCount: state.retryProposalKeys.size,
-						admittedProposalCount: state.admittedKeys.size,
-						admittedRetryProposalCount: state.admittedRetryAttempts,
-						settledProposalCount: state.settledAdmissionIds.size,
-						settledRetryProposalCount: state.settledRetryAttempts,
-						rejectedProposalCount: state.rejectedProposalKeys.size,
-						rejectedRetryProposalCount: [...state.rejectedProposalKeys].filter((key) =>
-							state.retryProposalKeys.has(key),
-						).length,
-						cooldownOutstandingReadinessCount: state.cooldownReadinessIds.size,
-						rateLimitFeedbackCount: state.rateLimitFeedbackCount,
-					}),
-				],
-			]);
-			ctx.down([
-				[
-					"DATA",
-					Object.freeze({
-						kind: "eval-active-provider-effects" as const,
-						effects: Object.freeze([...state.active.values()]),
-					}),
-				],
-			]);
-			ctx.state.set(state);
+			const capacitySnapshot: EvalProviderCapacityState = Object.freeze({
+				kind: "eval-provider-capacity-state" as const,
+				mode: state.capacityMode,
+				initialMaxConcurrentEffects: ROOT_EVAL_INITIAL_PROVIDER_CAPACITY,
+				maxConcurrentEffects: state.maxConcurrentEffects,
+				activeEffects: state.active.size,
+				proposalCount: state.proposalKeys.size,
+				pendingProposalCount: state.pendingProposals.size,
+				pendingFirstAttemptProposalCount: [...state.pendingProposals.values()].filter(
+					(proposal) => proposal.dispatchOrdinal === 1,
+				).length,
+				pendingRetryProposalCount: [...state.pendingProposals.values()].filter(
+					(proposal) => proposal.dispatchOrdinal > 1,
+				).length,
+				retryProposalCount: state.retryProposalKeys.size,
+				admittedProposalCount: state.admittedKeys.size,
+				admittedRetryProposalCount: state.admittedRetryAttempts,
+				settledProposalCount: state.settledAdmissionIds.size,
+				settledRetryProposalCount: state.settledRetryAttempts,
+				rejectedProposalCount: state.rejectedProposalKeys.size,
+				rejectedRetryProposalCount: [...state.rejectedProposalKeys].filter((key) =>
+					state.retryProposalKeys.has(key),
+				).length,
+				cooldownOutstandingReadinessCount: state.cooldownReadinessIds.size,
+				rateLimitFeedbackCount: state.rateLimitFeedbackCount,
+			});
+			state.observationRevision += 1;
+			const observationCut = Object.freeze({
+				kind: "eval-provider-admission-observation-cut" as const,
+				revision: state.observationRevision,
+				budget: budgetSnapshot,
+				capacity: capacitySnapshot,
+				activeProviderAdmissionIds: Object.freeze([...state.active.keys()].sort()),
+			});
+			assertEvalProviderAdmissionObservationCut(observationCut);
 			const observationContext = depLatest(ctx, 6) as EvalSourceStageObservationContext | undefined;
 			if (newlySettledProviderOutcomes.length > 0 && observationContext === undefined)
 				throw new TypeError("provider budget settlement lost its Graph observation context");
-			if (newlySettledProviderOutcomes.length > 0)
-				ctx.down(
-					newlySettledProviderOutcomes.map(
-						(outcome) =>
-							[
-								"DATA",
-								Object.freeze({
-									kind: "eval-budget-settled-provider-outcome" as const,
-									outcome,
-									budget: budgetSnapshot,
-									observationContext: observationContext!,
-								}),
-							] as const,
-					),
-				);
+			ctx.state.set(state);
+			ctx.down([
+				...newlyAdmitted.map((admitted) => ["DATA", admitted] as const),
+				["DATA", observationCut],
+				...newlySettledProviderOutcomes.map(
+					(outcome) =>
+						[
+							"DATA",
+							Object.freeze({
+								kind: "eval-budget-settled-provider-outcome" as const,
+								outcome,
+								budget: budgetSnapshot,
+								observationContext: observationContext!,
+							}),
+						] as const,
+				),
+			]);
 		},
 		{
 			name: "eval/provider/graph-admission-and-budget",
@@ -6090,6 +6118,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			errorWhenDepsError: false,
 			meta: {
 				capacityPolicy: "paced-serial",
+				atomicAdmissionObservationCut: true,
+				preEmissionValidated: true,
 				initialMaxConcurrentEffects: ROOT_EVAL_INITIAL_PROVIDER_CAPACITY,
 				rateLimitedMaxConcurrentEffects: ROOT_EVAL_RATE_LIMITED_PROVIDER_CAPACITY,
 				cooldownReadiness: "exact-correlated-retry-delay-outcome",
@@ -6103,6 +6133,24 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			},
 		},
 	);
+	const providerAdmissionObservationCuts = owner.node<EvalProviderAdmissionObservationCut>(
+		[admissionFacts],
+		(ctx) => {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const fact = raw as AdmissionFact;
+				if (fact.kind === "eval-provider-admission-observation-cut") ctx.down([["DATA", fact]]);
+			}
+		},
+		{
+			name: "eval/provider/admission-observation-cut",
+			factory: "rootEvalProviderAdmissionObservationCut",
+			meta: {
+				materialFree: true,
+				domainAuthority: "graph-state",
+				atomicFields: Object.freeze(["budget", "capacity", "activeProviderAdmissionIds"]),
+			},
+		},
+	);
 	const providerAdmissions = owner.node<EvalAdmittedEffect>(
 		[admissionFacts],
 		(ctx) => {
@@ -6113,12 +6161,10 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{ name: "eval/provider/admissions", factory: "rootEvalProviderAdmissions" },
 	);
 	const providerCapacity = owner.node<EvalProviderCapacityState>(
-		[admissionFacts],
+		[providerAdmissionObservationCuts],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				if ((raw as AdmissionFact).kind === "eval-provider-capacity-state")
-					ctx.down([["DATA", raw]]);
-			}
+			for (const raw of depBatch(ctx, 0) ?? [])
+				ctx.down([["DATA", (raw as EvalProviderAdmissionObservationCut).capacity]]);
 		},
 		{
 			name: "eval/provider/adaptive-capacity-state",
@@ -6127,11 +6173,10 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		},
 	);
 	const budgets = owner.node<EvalBudgetState>(
-		[admissionFacts],
+		[providerAdmissionObservationCuts],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				if ((raw as AdmissionFact).kind === "eval-budget-state") ctx.down([["DATA", raw]]);
-			}
+			for (const raw of depBatch(ctx, 0) ?? [])
+				ctx.down([["DATA", (raw as EvalProviderAdmissionObservationCut).budget]]);
 		},
 		{ name: "eval/budget/state", factory: "rootEvalBudgetState" },
 	);
@@ -6805,6 +6850,9 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 								kind: "eval-effect-class-activity-snapshot" as const,
 								effectClass,
 								activeEffects: snapshot.active.length,
+								activeExecutionIds: Object.freeze(
+									snapshot.active.map((effect) => effect.executionId).sort(),
+								),
 								admittedEffects: snapshot.admittedEffects,
 								settledEffects: snapshot.settledEffects,
 							}),
@@ -6890,6 +6938,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 						kind: "eval-effect-activity-snapshot" as const,
 						budgetDigest: empiricalStrictJsonDigest(budget),
 						budget,
+						activeProviderAdmissionIds: provider.activeExecutionIds,
 						activeProviderEffects,
 						activeToolEffects,
 						activeRetryEffects,
@@ -6908,6 +6957,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				materialFree: true,
 				authority: "stable-cut-of-existing-lifecycle-and-budget-authorities",
 				budgetEpochBound: true,
+				providerAdmissionIdentityBound: true,
 			},
 		},
 	);
@@ -7359,18 +7409,16 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 
 	interface EvalProgressObservationState {
 		context?: EvalSourceStageObservationContext;
-		budget?: EvalBudgetState;
+		providerAdmissionCut?: EvalProviderAdmissionObservationCut;
 		activity?: EvalEffectActivitySnapshot;
-		capacity?: EvalProviderCapacityState;
 		campaignState?: EvalCampaignState;
 		diagnostics?: EvalVerificationDiagnostics;
 	}
 	const sourceStageObservations = owner.node<EvalObservation>(
 		[
 			sourceStageObservationContext,
-			budgets,
+			providerAdmissionObservationCuts,
 			effectActivity,
-			providerCapacity,
 			campaignStates,
 			verificationDiagnostics,
 		],
@@ -7379,20 +7427,15 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			const state = ctx.state.get<EvalProgressObservationState>() ?? {};
 			for (const raw of depBatch(ctx, 0) ?? [])
 				state.context = raw as EvalSourceStageObservationContext;
-			for (const raw of depBatch(ctx, 1) ?? []) state.budget = raw as EvalBudgetState;
+			for (const raw of depBatch(ctx, 1) ?? [])
+				state.providerAdmissionCut = raw as EvalProviderAdmissionObservationCut;
 			for (const raw of depBatch(ctx, 2) ?? []) state.activity = raw as EvalEffectActivitySnapshot;
-			for (const raw of depBatch(ctx, 3) ?? []) state.capacity = raw as EvalProviderCapacityState;
-			for (const raw of depBatch(ctx, 4) ?? []) state.campaignState = raw as EvalCampaignState;
-			for (const raw of depBatch(ctx, 5) ?? [])
+			for (const raw of depBatch(ctx, 3) ?? []) state.campaignState = raw as EvalCampaignState;
+			for (const raw of depBatch(ctx, 4) ?? [])
 				state.diagnostics = raw as EvalVerificationDiagnostics;
-			const { context, budget, activity, capacity, campaignState, diagnostics } = state;
-			const providerReasonTotal =
-				budget === undefined
-					? -1
-					: EVAL_PROVIDER_OUTCOME_REASON_CODES.reduce(
-							(total, reason) => total + budget.providerOutcomeReasonCounts[reason],
-							0,
-						);
+			const { context, providerAdmissionCut, activity, campaignState, diagnostics } = state;
+			const budget = providerAdmissionCut?.budget;
+			const capacity = providerAdmissionCut?.capacity;
 			const expectedCompletedWorkItems =
 				campaignState === undefined
 					? -1
@@ -7408,37 +7451,17 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				budget !== undefined &&
 				activity !== undefined &&
 				capacity !== undefined &&
+				providerAdmissionCut !== undefined &&
 				campaignState !== undefined &&
 				diagnostics !== undefined &&
 				diagnostics.completedWorkItems === expectedCompletedWorkItems &&
-				activity.budgetDigest === empiricalStrictJsonDigest(budget)
+				activity.budgetDigest === empiricalStrictJsonDigest(budget) &&
+				activity.activeProviderEffects === providerAdmissionCut.activeProviderAdmissionIds.length &&
+				JSON.stringify(activity.activeProviderAdmissionIds) ===
+					JSON.stringify(providerAdmissionCut.activeProviderAdmissionIds) &&
+				activity.activeRetryEffects === capacity.cooldownOutstandingReadinessCount
 			) {
 				const contract = context.campaignContract;
-				const pendingFirstAttemptProposalCount = Math.max(
-					0,
-					capacity.pendingFirstAttemptProposalCount,
-				);
-				const pendingProposalCount =
-					pendingFirstAttemptProposalCount + budget.pendingRetryProposalCount;
-				const rejectedProposalCount = Math.max(
-					capacity.rejectedProposalCount,
-					budget.rejectedRetryProposalCount,
-				);
-				const observedProviderCapacity = strictSnapshot({
-					...capacity,
-					activeEffects: activity.activeProviderEffects,
-					proposalCount: budget.admittedAttempts + pendingProposalCount + rejectedProposalCount,
-					pendingProposalCount,
-					pendingFirstAttemptProposalCount,
-					pendingRetryProposalCount: budget.pendingRetryProposalCount,
-					retryProposalCount: budget.retryProposalCount,
-					admittedProposalCount: budget.admittedAttempts,
-					admittedRetryProposalCount: budget.admittedRetryAttempts,
-					settledProposalCount: providerReasonTotal,
-					settledRetryProposalCount: budget.settledRetryAttemptCount,
-					rejectedProposalCount,
-					rejectedRetryProposalCount: budget.rejectedRetryProposalCount,
-				}) as EvalProviderCapacityState;
 				// Publish dependency-coherent progress cuts, including an admitted retry delay
 				// before its proposal exists and its later admitted-or-rejected proposal settlement.
 				const elapsedExhausted = budget.stoppingReason === "elapsed-budget-exhausted";
@@ -7489,7 +7512,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 							activeRetryEffects: activity.activeRetryEffects,
 							activeBillingEffects: activity.activeBillingEffects,
 							activeAdmittedEffects: activity.activeAdmittedEffects,
-							providerCapacity: observedProviderCapacity,
+							providerCapacity: capacity,
 							elapsedBudget: {
 								kind: "eval-elapsed-budget-state" as const,
 								scheduleId: context.elapsedBudgetScheduleId,
@@ -7543,7 +7566,9 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			errorWhenDepsError: false,
 			meta: {
 				materialFree: true,
-				authority: "budget-and-lifecycle-anchored-progress-projection",
+				authority: "atomic-admission-cut-and-lifecycle-anchored-progress-projection",
+				providerAdmissionIdentityBound: true,
+				retryLifecycleBound: true,
 			},
 		},
 	);
@@ -8103,6 +8128,7 @@ async function runRootEvalWithOutcomeInput(
 					let providerExecutionCounted = effect.kind === "eval-admitted-effect";
 					try {
 						await new Promise<void>((releaseExecutionTurn) => setTimeout(releaseExecutionTurn, 0));
+						if (settled || !acceptingNewEffects) return;
 						const outcome = await executor(effect);
 						if (settled) return;
 						try {

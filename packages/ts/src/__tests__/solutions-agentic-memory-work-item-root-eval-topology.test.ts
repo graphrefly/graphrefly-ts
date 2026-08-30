@@ -21,6 +21,7 @@ import {
 	type EvalExecutableEffect,
 	type EvalExecutorOutcome,
 	type EvalObservation,
+	type EvalProviderCapacityState,
 	type EvalProviderOutcome,
 	evalVerificationTerminalReason,
 	evalWorkItemPlanAuthorityDigest,
@@ -680,16 +681,16 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"graphrefly-ts.root-eval-live-precredential-gates.v5",
 		);
 		expect(ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-no-network-qa.v41",
+			"graphrefly-ts.root-eval-live-no-network-qa.v42",
 		);
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-qualification.v41",
+			"graphrefly-ts.root-eval-live-qualification.v42",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-no-network-qa.v34",
+			"graphrefly-ts.root-eval-topology-no-network-qa.v35",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-qualification.v34",
+			"graphrefly-ts.root-eval-topology-qualification.v35",
 		);
 		expect(ROOT_EVAL_LIVE_GENERATION_REF).not.toContain("d116");
 		expect(ROOT_EVAL_LIVE_CLAIM_REF).not.toContain("d116");
@@ -1604,7 +1605,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				observations[index]!.verificationDiagnostics.completedWorkItems,
 			).toBeGreaterThanOrEqual(observations[index - 1]!.verificationDiagnostics.completedWorkItems);
 		expect(observations.at(-1)).toMatchObject({
-			topologyRevision: "graphrefly-ts.root-eval-topology.v17",
+			topologyRevision: "graphrefly-ts.root-eval-topology.v18",
 			armOrder: HARNESS_ARMS,
 			memoryProvenance: {
 				cold: "none",
@@ -1624,6 +1625,75 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			finding: "positive-differential",
 		});
 		expect(JSON.stringify(observations)).not.toMatch(/api[_-]?key|authorization|private-marker/iu);
+	});
+
+	it("publishes atomic provider-admission cuts before projecting monotonic progress", async () => {
+		type ProviderAdmissionCut = Readonly<{
+			readonly kind: "eval-provider-admission-observation-cut";
+			readonly revision: number;
+			readonly budget: EvalBudgetState;
+			readonly capacity: EvalProviderCapacityState;
+			readonly activeProviderAdmissionIds: readonly string[];
+		}>;
+		const topology = createTopology();
+		const cuts: ProviderAdmissionCut[] = [];
+		const activities: EvalEffectActivitySnapshot[] = [];
+		const stop = topology.graph
+			.observe("eval/provider/admission-observation-cut")
+			.subscribe((event) => {
+				if (event.msg[0] === "DATA") cuts.push(event.msg[1] as ProviderAdmissionCut);
+			});
+		const stopActivity = topology.graph
+			.observe("eval/observation/effect-activity")
+			.subscribe((event) => {
+				if (event.msg[0] === "DATA") activities.push(event.msg[1] as EvalEffectActivitySnapshot);
+			});
+		let result: Awaited<ReturnType<typeof runRootEval>>;
+		try {
+			result = await runRootEval(
+				topology,
+				twoPhaseExecutor({
+					async onProvider(effect) {
+						await new Promise<void>((resolve) => setTimeout(resolve, 1));
+						return providerOutcome(effect);
+					},
+				}),
+			);
+		} finally {
+			stop();
+			stopActivity();
+		}
+		expect(cuts.length).toBeGreaterThan(result.executedAdmissionIds.length);
+		for (let index = 0; index < cuts.length; index += 1) {
+			const cut = cuts[index]!;
+			if (index > 0) expect(cut.revision).toBe(cuts[index - 1]!.revision + 1);
+			expect(cut.capacity.activeEffects).toBe(cut.activeProviderAdmissionIds.length);
+			expect(cut.budget.activeEffects).toBe(cut.activeProviderAdmissionIds.length);
+			expect(cut.capacity.admittedProposalCount).toBe(cut.budget.admittedAttempts);
+			expect(cut.capacity.proposalCount).toBe(
+				cut.capacity.pendingProposalCount +
+					cut.capacity.admittedProposalCount +
+					cut.capacity.rejectedProposalCount,
+			);
+		}
+		expect(
+			activities.every((activity) =>
+				cuts.some(
+					(cut) =>
+						empiricalStrictJsonDigest(cut.budget) === activity.budgetDigest &&
+						JSON.stringify(cut.activeProviderAdmissionIds) ===
+							JSON.stringify(activity.activeProviderAdmissionIds),
+				),
+			),
+		).toBe(true);
+		const observations = result.observations
+			.map(materialFreeObservationValue)
+			.filter((value) => value !== undefined);
+		expect(observations.length).toBeGreaterThan(1);
+		for (let index = 1; index < observations.length; index += 1)
+			expect(observations[index]!.providerCapacity.proposalCount).toBeGreaterThanOrEqual(
+				observations[index - 1]!.providerCapacity.proposalCount,
+			);
 	});
 
 	it("does not release the next provider dispatch before Graph pacing readiness", async () => {
@@ -1673,6 +1743,30 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		controller.abort(new Error("paced admission test complete"));
 		await expect(running).rejects.toThrow(/paced admission test complete/u);
 		stopStartSpacing();
+	});
+
+	it("does not execute a validated admission after cancellation during the deferred caller turn", async () => {
+		const controller = new AbortController();
+		const topology = createTopology();
+		let callerAdmissionSeen = false;
+		const stop = topology.nodes.executorEffects.subscribe((message) => {
+			if (message[0] !== "DATA") return;
+			callerAdmissionSeen = true;
+			queueMicrotask(() => controller.abort(new Error("cancel before deferred caller turn")));
+		});
+		let executorCalls = 0;
+		const running = runRootEval(
+			topology,
+			async (effect) => {
+				executorCalls += 1;
+				return await twoPhaseExecutor()(effect);
+			},
+			{ signal: controller.signal },
+		);
+		await expect(running).rejects.toThrow(/cancel before deferred caller turn/u);
+		expect(callerAdmissionSeen).toBe(true);
+		expect(executorCalls).toBe(0);
+		stop();
 	});
 
 	it("runs one five-replicate development generation with Graph-owned qualification and partition state", async () => {
@@ -1922,6 +2016,12 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 					value.providerOutcomeReasonCounts["http-capacity-retryable"];
 				return value.activeRetryEffects === retryableReasons - value.admittedRetryAttempts;
 			}),
+		).toBe(true);
+		expect(
+			observations.every(
+				(value) =>
+					value.activeRetryEffects === value.providerCapacity.cooldownOutstandingReadinessCount,
+			),
 		).toBe(true);
 		expect(
 			observations.every(

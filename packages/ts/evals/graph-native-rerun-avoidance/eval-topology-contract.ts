@@ -84,6 +84,7 @@ export const ROOT_EVAL_REQUIRED_NODES = Object.freeze({
 	"eval/provider/paced-proposal-release": "rootEvalProviderPacedProposalRelease",
 	"eval/provider/start-spacing-readiness": "rootEvalProviderStartSpacingReadiness",
 	"eval/provider/graph-admission-and-budget": "rootEvalProviderGraphAdmission",
+	"eval/provider/admission-observation-cut": "rootEvalProviderAdmissionObservationCut",
 	"eval/provider/adaptive-capacity-state": "rootEvalAdaptiveProviderCapacityState",
 	"eval/provider/result-input": "rootEvalProviderResultInput",
 	"eval/provider/result-admission": "rootEvalProviderResultAdmission",
@@ -363,8 +364,9 @@ export const ROOT_EVAL_CRITICAL_EDGES = Object.freeze([
 	["eval/provider/all-result-admissions", "eval/provider/graph-admission-and-budget"],
 	["eval/retry/delay-result-input", "eval/provider/graph-admission-and-budget"],
 	["eval/provider/graph-admission-and-budget", "eval/provider/admissions"],
-	["eval/provider/graph-admission-and-budget", "eval/provider/adaptive-capacity-state"],
-	["eval/provider/graph-admission-and-budget", "eval/budget/state"],
+	["eval/provider/graph-admission-and-budget", "eval/provider/admission-observation-cut"],
+	["eval/provider/admission-observation-cut", "eval/provider/adaptive-capacity-state"],
+	["eval/provider/admission-observation-cut", "eval/budget/state"],
 	["eval/provider/admissions", "eval/executor/current-provider-effect"],
 	["eval/source-work-item/tool-result-input", "eval/tool/exact-admission"],
 	["eval/campaign/task-bindings", "eval/tool/exact-admission"],
@@ -453,9 +455,8 @@ export const ROOT_EVAL_CRITICAL_EDGES = Object.freeze([
 	["eval/memory/context-for-work-item", "eval/work-item/attempt-resource-plan"],
 	["eval/profile/graph-admission", "eval/work-item/attempt-resource-plan"],
 	["eval/observation/source-stage-context", "eval/observation/source-stage-state"],
-	["eval/budget/state", "eval/observation/source-stage-state"],
+	["eval/provider/admission-observation-cut", "eval/observation/source-stage-state"],
 	["eval/observation/effect-activity", "eval/observation/source-stage-state"],
-	["eval/provider/adaptive-capacity-state", "eval/observation/source-stage-state"],
 	["eval/campaign/state", "eval/observation/source-stage-state"],
 	["eval/verification/diagnostics", "eval/observation/source-stage-state"],
 	["eval/campaign/state", "eval/observation/full-state"],
@@ -613,7 +614,14 @@ export function assertRootEvalTopologyContract(
 	)
 		throw new Error("topology contract: adaptive provider capacity policy drift");
 	const providerCapacity = nodes.get("eval/provider/adaptive-capacity-state");
+	const providerAdmissionObservationCut = nodes.get("eval/provider/admission-observation-cut");
 	if (
+		providerAdmission?.meta?.atomicAdmissionObservationCut !== true ||
+		providerAdmission.meta.preEmissionValidated !== true ||
+		providerAdmissionObservationCut?.meta?.domainAuthority !== "graph-state" ||
+		providerAdmissionObservationCut.meta.materialFree !== true ||
+		JSON.stringify(providerAdmissionObservationCut.meta.atomicFields) !==
+			JSON.stringify(["budget", "capacity", "activeProviderAdmissionIds"]) ||
 		providerCapacity?.meta?.domainAuthority !== "graph-state" ||
 		providerCapacity.meta.materialFree !== true ||
 		providerCapacity.meta.rebound !== false
@@ -627,7 +635,10 @@ export function assertRootEvalTopologyContract(
 		observation.meta.sanitizer !== false ||
 		observation.meta.authority !== "progress-or-terminal-observation" ||
 		sourceStageObservation?.meta?.materialFree !== true ||
-		sourceStageObservation.meta.authority !== "budget-and-lifecycle-anchored-progress-projection" ||
+		sourceStageObservation.meta.authority !==
+			"atomic-admission-cut-and-lifecycle-anchored-progress-projection" ||
+		sourceStageObservation.meta.providerAdmissionIdentityBound !== true ||
+		sourceStageObservation.meta.retryLifecycleBound !== true ||
 		fullObservation?.meta?.materialFree !== true ||
 		fullObservation.meta.sanitizer !== false ||
 		fullObservation.meta.authority !== "read-only-projection"

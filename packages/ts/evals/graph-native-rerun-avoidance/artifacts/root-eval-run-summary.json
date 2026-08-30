@@ -128,7 +128,7 @@
 		"sourceTechnicalExcludedReplicates": [],
 		"stoppingReason": "campaign-complete",
 		"taskSetRef": "root-eval-d145-transfer-qualification-v1",
-		"topologyRevision": "graphrefly-ts.root-eval-topology.v17",
+		"topologyRevision": "graphrefly-ts.root-eval-topology.v18",
 		"unreportedSettledUpperBoundMicrousd": 0,
 		"verificationDiagnostics": {
 			"armOrder": [
