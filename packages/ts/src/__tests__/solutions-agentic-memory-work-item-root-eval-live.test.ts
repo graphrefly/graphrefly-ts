@@ -43,6 +43,7 @@ import {
 import {
 	advanceRootEvalD145CharterLedger,
 	latestRootEvalGraphSpend,
+	nextRootEvalD145DevelopmentOrdinal,
 	ROOT_EVAL_D145_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD,
 	ROOT_EVAL_D145_CONFIRMATORY_HARD_CAP_MICROUSD,
 	ROOT_EVAL_D145_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD,
@@ -50,8 +51,16 @@ import {
 	ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
 	ROOT_EVAL_D145_TOTAL_HARD_CAP_MICROUSD,
 	readRootEvalD145CharterLedger,
+	reconcileRootEvalD145ConsumedPreclaimFailure,
+	rootEvalD145ConsumedPreclaimReconciliationDigest,
+	rootEvalD145DevelopmentGenerationRef,
 	writeRootEvalD145CharterLedger,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-charter-ledger.js";
+import {
+	commitRootEvalD145CharterReconciliation,
+	ROOT_EVAL_D145_CHARTER_RECONCILIATION_SCHEMA,
+	recoverRootEvalD145CharterTransaction,
+} from "../../evals/graph-native-rerun-avoidance/root-eval-charter-transaction.js";
 import {
 	awaitRootEvalCallerSettlement,
 	createRootEvalLiveExecutor,
@@ -77,6 +86,7 @@ import {
 import {
 	acquireRootEvalLiveClaim,
 	acquireRootEvalLiveClaimForNoNetworkQualification,
+	admitRootEvalLiveConsumedPreclaimFailure,
 	admitRootEvalLiveOperatorConfiguration,
 	admitRootEvalLivePrecredentialGateReceipt,
 	admitRootEvalLiveZeroByok,
@@ -120,6 +130,7 @@ import {
 	ROOT_EVAL_LIVE_ZDR_SOURCE,
 	type RootEvalLiveClaim,
 	type RootEvalLiveEvidenceInput,
+	readRootEvalLiveConsumedDevelopmentPreclaimFailures,
 	readRootEvalLiveCurrentKey,
 	readRootEvalLivePrecredentialGateReceipt,
 	readRootEvalLivePricing,
@@ -138,6 +149,7 @@ import {
 	rootEvalTask,
 	rootEvalTaskBindings,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-task.js";
+import { strictJsonCodec } from "../json/codec.js";
 
 const ROOT_EVAL_DEVELOPMENT_TASK = ROOT_EVAL_DEVELOPMENT_TASKS[0]!;
 
@@ -1047,7 +1059,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			});
 			const first = advanceRootEvalD145CharterLedger({
 				ledger: empty,
-				generationRef: "development-1",
+				generationRef: rootEvalD145DevelopmentGenerationRef(1),
 				campaignPurpose: "development",
 				taskSetRef: "root-eval-d145-transfer-development-1-v1",
 				taskManifestDigest: empiricalStrictJsonDigest("development-1-manifest"),
@@ -1062,9 +1074,26 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			await writeRootEvalD145CharterLedger(path, first);
 			expect((await stat(path)).mode & 0o777).toBe(0o600);
 			expect(await readRootEvalD145CharterLedger(path)).toEqual(first);
+			expect(nextRootEvalD145DevelopmentOrdinal(first)).toBe(2);
+			expect(() =>
+				advanceRootEvalD145CharterLedger({
+					ledger: first,
+					generationRef: rootEvalD145DevelopmentGenerationRef(3),
+					campaignPurpose: "development",
+					taskSetRef: "root-eval-d145-transfer-development-3-v1",
+					taskManifestDigest: empiricalStrictJsonDigest("unproven-gap-manifest"),
+					budgetPartition: "development-usd-36",
+					providerReportedMicrousd: 0,
+					unreportedSettledUpperBoundMicrousd: 0,
+					accountedUpperBoundMicrousd: 0,
+					admissionStatus: "rejected",
+					developmentQualification: null,
+					evidenceDigest: empiricalStrictJsonDigest("unproven-gap-evidence"),
+				}),
+			).toThrow(/development generation order/u);
 			const rejectedCandidate = advanceRootEvalD145CharterLedger({
 				ledger: first,
-				generationRef: "development-rejected",
+				generationRef: rootEvalD145DevelopmentGenerationRef(2),
 				campaignPurpose: "development",
 				taskSetRef: "root-eval-d145-transfer-development-2-v1",
 				taskManifestDigest: empiricalStrictJsonDigest("development-rejected-manifest"),
@@ -1080,11 +1109,39 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				developmentQualificationStreak: 0,
 				entries: expect.arrayContaining([
 					expect.objectContaining({
-						generationRef: "development-rejected",
+						generationRef: rootEvalD145DevelopmentGenerationRef(2),
 						generationQualified: false,
 					}),
 				]),
 			});
+			const { ledgerDigest: _rejectedDigest, ...rejectedMaterial } = rejectedCandidate;
+			const gappedMaterial = Object.freeze({
+				...rejectedMaterial,
+				entries: Object.freeze([
+					rejectedCandidate.entries[0]!,
+					Object.freeze({
+						...rejectedCandidate.entries[1]!,
+						generationRef: rootEvalD145DevelopmentGenerationRef(3),
+						taskSetRef: "root-eval-d145-transfer-development-3-v1",
+					}),
+				]),
+			});
+			expect(() =>
+				nextRootEvalD145DevelopmentOrdinal({
+					...gappedMaterial,
+					ledgerDigest: empiricalStrictJsonDigest(gappedMaterial),
+				}),
+			).toThrow(/conservation invalid/u);
+			const staleStreakMaterial = Object.freeze({
+				...rejectedMaterial,
+				developmentQualificationStreak: 1,
+			});
+			expect(() =>
+				nextRootEvalD145DevelopmentOrdinal({
+					...staleStreakMaterial,
+					ledgerDigest: empiricalStrictJsonDigest(staleStreakMaterial),
+				}),
+			).toThrow(/conservation invalid/u);
 			expect(() =>
 				advanceRootEvalD145CharterLedger({
 					ledger: first,
@@ -1103,7 +1160,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			).toThrow(/not authorized/u);
 			const second = advanceRootEvalD145CharterLedger({
 				ledger: first,
-				generationRef: "development-2",
+				generationRef: rootEvalD145DevelopmentGenerationRef(2),
 				campaignPurpose: "development",
 				taskSetRef: "root-eval-d145-transfer-development-2-v1",
 				taskManifestDigest: empiricalStrictJsonDigest("development-2-manifest"),
@@ -1145,6 +1202,41 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				heldOutConsumed: true,
 			});
 			expect(() =>
+				reconcileRootEvalD145ConsumedPreclaimFailure({
+					ledger: confirmatory,
+					generationRef: rootEvalD145DevelopmentGenerationRef(3),
+					taskSetRef: "root-eval-d145-transfer-development-3-v1",
+					taskManifestDigest: empiricalStrictJsonDigest("post-held-out-manifest"),
+					receiptDigest: empiricalStrictJsonDigest("post-held-out-receipt"),
+				}),
+			).toThrow(/not authorized/u);
+			const { ledgerDigest: _confirmatoryDigest, ...confirmatoryMaterial } = confirmatory;
+			const postHeldOutDevelopmentMaterial = Object.freeze({
+				...confirmatoryMaterial,
+				developmentQualificationStreak: 0,
+				entries: Object.freeze([
+					...confirmatory.entries,
+					Object.freeze({
+						generationRef: rootEvalD145DevelopmentGenerationRef(3),
+						campaignPurpose: "development" as const,
+						taskSetRef: "root-eval-d145-transfer-development-3-v1",
+						taskManifestDigest: empiricalStrictJsonDigest("post-held-out-ledger-manifest"),
+						budgetPartition: "development-usd-36" as const,
+						providerReportedMicrousd: 0,
+						unreportedSettledUpperBoundMicrousd: 0,
+						accountedUpperBoundMicrousd: 0,
+						generationQualified: false,
+						evidenceDigest: empiricalStrictJsonDigest("post-held-out-ledger-evidence"),
+					}),
+				]),
+			});
+			expect(() =>
+				nextRootEvalD145DevelopmentOrdinal({
+					...postHeldOutDevelopmentMaterial,
+					ledgerDigest: empiricalStrictJsonDigest(postHeldOutDevelopmentMaterial),
+				}),
+			).toThrow(/conservation invalid/u);
+			expect(() =>
 				advanceRootEvalD145CharterLedger({
 					ledger: second,
 					generationRef: "confirmatory-over-cap",
@@ -1183,7 +1275,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 
 	it("preserves historical USD 6/12 development entries while admitting only the USD 36 partition", async () => {
 		const historicalEntry = Object.freeze({
-			generationRef: "historical-development-1",
+			generationRef: rootEvalD145DevelopmentGenerationRef(1),
 			campaignPurpose: "development" as const,
 			taskSetRef: "root-eval-d145-transfer-development-1-v1",
 			taskManifestDigest: empiricalStrictJsonDigest("historical-development-manifest"),
@@ -1195,7 +1287,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			evidenceDigest: empiricalStrictJsonDigest("historical-development-evidence"),
 		});
 		const historicalUsd12Entry = Object.freeze({
-			generationRef: "historical-development-2",
+			generationRef: rootEvalD145DevelopmentGenerationRef(2),
 			campaignPurpose: "development" as const,
 			taskSetRef: "root-eval-d145-transfer-development-2-v1",
 			taskManifestDigest: empiricalStrictJsonDigest("historical-development-usd-12-manifest"),
@@ -1223,7 +1315,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		});
 		const extended = advanceRootEvalD145CharterLedger({
 			ledger: historicalLedger,
-			generationRef: "development-3",
+			generationRef: rootEvalD145DevelopmentGenerationRef(3),
 			campaignPurpose: "development",
 			taskSetRef: "root-eval-d145-transfer-development-3-v1",
 			taskManifestDigest: empiricalStrictJsonDigest("development-3-usd-36-manifest"),
@@ -1246,7 +1338,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		expect(() =>
 			advanceRootEvalD145CharterLedger({
 				ledger: historicalLedger,
-				generationRef: "development-3-old-partition",
+				generationRef: rootEvalD145DevelopmentGenerationRef(3),
 				campaignPurpose: "development",
 				taskSetRef: "root-eval-d145-transfer-development-3-v1",
 				taskManifestDigest: empiricalStrictJsonDigest("development-3-old-partition-manifest"),
@@ -4402,6 +4494,305 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			const entries = await readdir(privateRoot);
 			expect(entries).toHaveLength(1);
 			expect(entries[0]).toContain("disposition.v20.json");
+		} finally {
+			await rm(temporary, { recursive: true, force: true });
+		}
+	});
+
+	it("advances past only contiguous self-consistent consumed preclaim dispositions", async () => {
+		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-consumed-preclaim-"));
+		const operatorRoot = await realpath(temporary);
+		const generationRef = rootEvalD145DevelopmentGenerationRef(15);
+		const generationRoot = join(operatorRoot, `current-${generationRef}`);
+		const dispositionPath = join(generationRoot, `.${generationRef}.disposition.v20.json`);
+		const material = {
+			schemaVersion: ROOT_EVAL_LIVE_PRECLAIM_FAILURE_SCHEMA,
+			decisionRef: ROOT_EVAL_LIVE_DECISION_REF,
+			generationRef,
+			implementationManifestDigest: empiricalStrictJsonDigest("old-implementation"),
+			qualificationArtifactDigest: empiricalStrictJsonDigest("old-artifact"),
+			qualificationDigest: empiricalStrictJsonDigest("old-qualification"),
+			taskBindingDigest: empiricalStrictJsonDigest("old-task-binding"),
+			providerCalls: 0,
+			chargedCallExecuted: false,
+			failureDigest: empiricalStrictJsonDigest("old-preclaim-failure"),
+		};
+		const bytes = new TextEncoder().encode(
+			JSON.stringify({ ...material, receiptDigest: empiricalStrictJsonDigest(material) }),
+		);
+		try {
+			await chmod(operatorRoot, 0o700);
+			await mkdir(generationRoot, { mode: 0o700 });
+			await writeFile(dispositionPath, bytes, { mode: 0o600 });
+			expect(
+				admitRootEvalLiveConsumedPreclaimFailure({
+					bytes,
+					expectedGenerationRef: generationRef,
+				}),
+			).toMatchObject(material);
+			await expect(
+				readRootEvalLiveConsumedDevelopmentPreclaimFailures({
+					operatorRoot,
+					firstMissingOrdinal: 15,
+					currentOrdinal: 16,
+				}),
+			).resolves.toEqual([
+				expect.objectContaining({
+					generationRef,
+					providerCalls: 0,
+					chargedCallExecuted: false,
+					receiptDigest: empiricalStrictJsonDigest(material),
+				}),
+			]);
+			await expect(
+				readRootEvalLiveConsumedDevelopmentPreclaimFailures({
+					operatorRoot,
+					firstMissingOrdinal: 14,
+					currentOrdinal: 16,
+				}),
+			).rejects.toThrow(/range was invalid/u);
+			await expect(
+				readRootEvalLiveConsumedDevelopmentPreclaimFailures({
+					operatorRoot: join(operatorRoot, "not-read-for-empty-range"),
+					firstMissingOrdinal: 1,
+					currentOrdinal: 1,
+				}),
+			).resolves.toEqual([]);
+
+			const chargedMaterial = { ...material, chargedCallExecuted: true };
+			await writeFile(
+				dispositionPath,
+				JSON.stringify({
+					...chargedMaterial,
+					receiptDigest: empiricalStrictJsonDigest(chargedMaterial),
+				}),
+				{ mode: 0o600 },
+			);
+			await expect(
+				readRootEvalLiveConsumedDevelopmentPreclaimFailures({
+					operatorRoot,
+					firstMissingOrdinal: 15,
+					currentOrdinal: 16,
+				}),
+			).rejects.toThrow(/chargedCallExecuted/u);
+		} finally {
+			await rm(temporary, { recursive: true, force: true });
+		}
+	});
+
+	it("durably resets the qualification streak for a consumed zero-cost preclaim failure", () => {
+		const first = advanceRootEvalD145CharterLedger({
+			ledger: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
+			generationRef: rootEvalD145DevelopmentGenerationRef(1),
+			campaignPurpose: "development",
+			taskSetRef: "root-eval-d145-transfer-development-1-v1",
+			taskManifestDigest: empiricalStrictJsonDigest("development-1-manifest"),
+			budgetPartition: "development-usd-36",
+			providerReportedMicrousd: 1,
+			unreportedSettledUpperBoundMicrousd: 0,
+			accountedUpperBoundMicrousd: 1,
+			admissionStatus: "admitted",
+			developmentQualification: {
+				kind: "eval-development-qualification-state",
+				campaignPurpose: "development",
+				generationRef: rootEvalD145DevelopmentGenerationRef(1),
+				status: "qualified",
+				generationQualified: true,
+				consecutiveQualifyingGenerations: 1,
+				requiredConsecutiveGenerations: 2,
+				heldOutEligible: false,
+			},
+			evidenceDigest: empiricalStrictJsonDigest("development-1-evidence"),
+		});
+		const receiptDigest = empiricalStrictJsonDigest("development-2-preclaim-receipt");
+		const reconciliationInput = {
+			generationRef: rootEvalD145DevelopmentGenerationRef(2),
+			taskSetRef: "root-eval-d145-transfer-development-2-v1",
+			taskManifestDigest: empiricalStrictJsonDigest("development-2-manifest"),
+			receiptDigest,
+		};
+		const reconciliationDigest =
+			rootEvalD145ConsumedPreclaimReconciliationDigest(reconciliationInput);
+		const reconciled = reconcileRootEvalD145ConsumedPreclaimFailure({
+			ledger: first,
+			...reconciliationInput,
+		});
+		expect(reconciled).toMatchObject({
+			developmentSpentMicrousd: 1,
+			developmentQualificationStreak: 0,
+			entries: [
+				expect.objectContaining({ generationQualified: true }),
+				expect.objectContaining({
+					generationRef: rootEvalD145DevelopmentGenerationRef(2),
+					providerReportedMicrousd: 0,
+					unreportedSettledUpperBoundMicrousd: 0,
+					accountedUpperBoundMicrousd: 0,
+					generationQualified: false,
+					evidenceDigest: reconciliationDigest,
+				}),
+			],
+		});
+		expect(
+			rootEvalD145ConsumedPreclaimReconciliationDigest({
+				...reconciliationInput,
+				taskManifestDigest: empiricalStrictJsonDigest("different-development-2-manifest"),
+			}),
+		).not.toBe(reconciliationDigest);
+		expect(nextRootEvalD145DevelopmentOrdinal(reconciled)).toBe(3);
+
+		const third = advanceRootEvalD145CharterLedger({
+			ledger: reconciled,
+			generationRef: rootEvalD145DevelopmentGenerationRef(3),
+			campaignPurpose: "development",
+			taskSetRef: "root-eval-d145-transfer-development-3-v1",
+			taskManifestDigest: empiricalStrictJsonDigest("development-3-manifest"),
+			budgetPartition: "development-usd-36",
+			providerReportedMicrousd: 1,
+			unreportedSettledUpperBoundMicrousd: 0,
+			accountedUpperBoundMicrousd: 1,
+			admissionStatus: "admitted",
+			developmentQualification: {
+				kind: "eval-development-qualification-state",
+				campaignPurpose: "development",
+				generationRef: rootEvalD145DevelopmentGenerationRef(3),
+				status: "qualified",
+				generationQualified: true,
+				consecutiveQualifyingGenerations: 1,
+				requiredConsecutiveGenerations: 2,
+				heldOutEligible: false,
+			},
+			evidenceDigest: empiricalStrictJsonDigest("development-3-evidence"),
+		});
+		expect(third.developmentQualificationStreak).toBe(1);
+	});
+
+	it("serializes consumed preclaim reconciliation through the durable charter journal", async () => {
+		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-charter-reconcile-"));
+		const ledgerPath = join(temporary, "ledger.json");
+		const journalPath = join(temporary, "journal.json");
+		const firstInput = {
+			generationRef: rootEvalD145DevelopmentGenerationRef(1),
+			taskSetRef: "root-eval-d145-transfer-development-1-v1",
+			taskManifestDigest: empiricalStrictJsonDigest("reconciliation-development-1-manifest"),
+			receiptDigest: empiricalStrictJsonDigest("reconciliation-development-1-receipt"),
+		};
+		const first = reconcileRootEvalD145ConsumedPreclaimFailure({
+			ledger: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
+			...firstInput,
+		});
+		try {
+			await commitRootEvalD145CharterReconciliation({
+				journalPath,
+				charterLedgerPath: ledgerPath,
+				previousLedgerDigest: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER.ledgerDigest,
+				reconciliationDigest: rootEvalD145ConsumedPreclaimReconciliationDigest(firstInput),
+				nextLedger: first,
+			});
+			expect(await readRootEvalD145CharterLedger(ledgerPath)).toEqual(first);
+			await expect(recoverRootEvalD145CharterTransaction(journalPath)).resolves.toBeNull();
+
+			const staleInput = {
+				generationRef: rootEvalD145DevelopmentGenerationRef(2),
+				taskSetRef: "root-eval-d145-transfer-development-2-v1",
+				taskManifestDigest: empiricalStrictJsonDigest("stale-development-2-manifest"),
+				receiptDigest: empiricalStrictJsonDigest("stale-development-2-receipt"),
+			};
+			const competingInput = {
+				...staleInput,
+				taskManifestDigest: empiricalStrictJsonDigest("competing-development-2-manifest"),
+				receiptDigest: empiricalStrictJsonDigest("competing-development-2-receipt"),
+			};
+			const staleNext = reconcileRootEvalD145ConsumedPreclaimFailure({
+				ledger: first,
+				...staleInput,
+			});
+			const competingNext = reconcileRootEvalD145ConsumedPreclaimFailure({
+				ledger: first,
+				...competingInput,
+			});
+			await writeRootEvalD145CharterLedger(ledgerPath, competingNext);
+			await expect(
+				commitRootEvalD145CharterReconciliation({
+					journalPath,
+					charterLedgerPath: ledgerPath,
+					previousLedgerDigest: first.ledgerDigest,
+					reconciliationDigest: rootEvalD145ConsumedPreclaimReconciliationDigest(staleInput),
+					nextLedger: staleNext,
+				}),
+			).rejects.toThrow(/source ledger changed/u);
+			expect(await readRootEvalD145CharterLedger(ledgerPath)).toEqual(competingNext);
+		} finally {
+			await rm(temporary, { recursive: true, force: true });
+		}
+	});
+
+	it("permits exactly one concurrent finalizer for a recoverable charter journal", async () => {
+		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-charter-finalizer-"));
+		const ledgerPath = resolve(join(temporary, "ledger.json"));
+		const journalPath = resolve(join(temporary, "journal.json"));
+		const reconciliationInput = {
+			generationRef: rootEvalD145DevelopmentGenerationRef(1),
+			taskSetRef: "root-eval-d145-transfer-development-1-v1",
+			taskManifestDigest: empiricalStrictJsonDigest("finalizer-development-1-manifest"),
+			receiptDigest: empiricalStrictJsonDigest("finalizer-development-1-receipt"),
+		};
+		const reconciliationDigest =
+			rootEvalD145ConsumedPreclaimReconciliationDigest(reconciliationInput);
+		const nextLedger = reconcileRootEvalD145ConsumedPreclaimFailure({
+			ledger: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
+			...reconciliationInput,
+		});
+		const journalMaterial = Object.freeze({
+			schemaVersion: ROOT_EVAL_D145_CHARTER_RECONCILIATION_SCHEMA,
+			charterLedgerPath: ledgerPath,
+			previousLedgerDigest: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER.ledgerDigest,
+			reconciliationDigest,
+			nextLedger,
+		});
+		const journalBytes = strictJsonCodec.encode({
+			...journalMaterial,
+			transactionDigest: empiricalStrictJsonDigest(journalMaterial),
+		});
+		try {
+			await writeFile(journalPath, journalBytes, { mode: 0o600 });
+			const recoveries = await Promise.allSettled([
+				recoverRootEvalD145CharterTransaction(journalPath),
+				recoverRootEvalD145CharterTransaction(journalPath),
+			]);
+			expect(
+				recoveries.filter((result) => result.status === "fulfilled" && result.value !== null),
+			).toHaveLength(1);
+			expect(await readRootEvalD145CharterLedger(ledgerPath)).toEqual(nextLedger);
+			await expect(stat(journalPath)).rejects.toMatchObject({ code: "ENOENT" });
+			expect((await stat(`${journalPath}.lock.sqlite`)).mode & 0o777).toBe(0o600);
+
+			// Crash after ledger persistence but before journal deletion remains idempotently recoverable.
+			await writeFile(journalPath, journalBytes, { mode: 0o600 });
+			await expect(recoverRootEvalD145CharterTransaction(journalPath)).resolves.toMatchObject({
+				transactionDigest: empiricalStrictJsonDigest(journalMaterial),
+			});
+			expect(await readRootEvalD145CharterLedger(ledgerPath)).toEqual(nextLedger);
+			// Crash after journal deletion leaves no stale process-owned lock state.
+			await expect(recoverRootEvalD145CharterTransaction(journalPath)).resolves.toBeNull();
+
+			const secondInput = {
+				generationRef: rootEvalD145DevelopmentGenerationRef(2),
+				taskSetRef: "root-eval-d145-transfer-development-2-v1",
+				taskManifestDigest: empiricalStrictJsonDigest("finalizer-development-2-manifest"),
+				receiptDigest: empiricalStrictJsonDigest("finalizer-development-2-receipt"),
+			};
+			const secondLedger = reconcileRootEvalD145ConsumedPreclaimFailure({
+				ledger: nextLedger,
+				...secondInput,
+			});
+			await commitRootEvalD145CharterReconciliation({
+				journalPath,
+				charterLedgerPath: ledgerPath,
+				previousLedgerDigest: nextLedger.ledgerDigest,
+				reconciliationDigest: rootEvalD145ConsumedPreclaimReconciliationDigest(secondInput),
+				nextLedger: secondLedger,
+			});
+			expect(await readRootEvalD145CharterLedger(ledgerPath)).toEqual(secondLedger);
 		} finally {
 			await rm(temporary, { recursive: true, force: true });
 		}

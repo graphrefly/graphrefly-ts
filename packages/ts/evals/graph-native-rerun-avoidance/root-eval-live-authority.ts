@@ -45,6 +45,7 @@ import {
 	ROOT_EVAL_D145_CONFIRMATORY_HARD_CAP_MICROUSD,
 	ROOT_EVAL_D145_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD,
 	ROOT_EVAL_D145_DEVELOPMENT_HARD_CAP_MICROUSD,
+	rootEvalD145DevelopmentGenerationRef,
 } from "./root-eval-charter-ledger.js";
 import {
 	parseRootEvalUniqueJson,
@@ -222,6 +223,20 @@ export interface RootEvalLiveRefreshablePrecredentialGateReceipt {
 	readonly repositoryStateDigest: string;
 	readonly artifactSetDigest: string;
 	readonly completedAtMs: number;
+	readonly receiptDigest: string;
+}
+
+export interface RootEvalLiveConsumedPreclaimFailureReceipt {
+	readonly schemaVersion: typeof ROOT_EVAL_LIVE_PRECLAIM_FAILURE_SCHEMA;
+	readonly decisionRef: typeof ROOT_EVAL_LIVE_DECISION_REF;
+	readonly generationRef: string;
+	readonly implementationManifestDigest: string;
+	readonly qualificationArtifactDigest: string;
+	readonly qualificationDigest: string;
+	readonly taskBindingDigest: string;
+	readonly providerCalls: 0;
+	readonly chargedCallExecuted: false;
+	readonly failureDigest: string;
 	readonly receiptDigest: string;
 }
 
@@ -1775,6 +1790,125 @@ export async function persistRootEvalLivePreclaimFailure(input: {
 		strictJsonCodec.encode(receipt),
 	);
 	return Object.freeze({ receiptDigest: receipt.receiptDigest, postCommitFailureDigest });
+}
+
+export function admitRootEvalLiveConsumedPreclaimFailure(input: {
+	readonly bytes: Uint8Array;
+	readonly expectedGenerationRef: string;
+}): RootEvalLiveConsumedPreclaimFailureReceipt {
+	if (input.bytes.byteLength < 1 || input.bytes.byteLength > 65_536)
+		throw new TypeError("root eval consumed preclaim receipt exceeded its bound");
+	const value = record(
+		parseRootEvalUniqueJson(input.bytes, "root eval consumed preclaim receipt"),
+		"root eval consumed preclaim receipt",
+	);
+	exactKeys(
+		value,
+		[
+			"schemaVersion",
+			"decisionRef",
+			"generationRef",
+			"implementationManifestDigest",
+			"qualificationArtifactDigest",
+			"qualificationDigest",
+			"taskBindingDigest",
+			"providerCalls",
+			"chargedCallExecuted",
+			"failureDigest",
+			"receiptDigest",
+		],
+		"root eval consumed preclaim receipt",
+	);
+	const material = strictSnapshot({
+		schemaVersion: literal(
+			value.schemaVersion,
+			ROOT_EVAL_LIVE_PRECLAIM_FAILURE_SCHEMA,
+			"root eval consumed preclaim receipt.schemaVersion",
+		),
+		decisionRef: literal(
+			value.decisionRef,
+			ROOT_EVAL_LIVE_DECISION_REF,
+			"root eval consumed preclaim receipt.decisionRef",
+		),
+		generationRef: literal(
+			value.generationRef,
+			input.expectedGenerationRef,
+			"root eval consumed preclaim receipt.generationRef",
+		),
+		implementationManifestDigest: digest(
+			value.implementationManifestDigest,
+			"root eval consumed preclaim receipt.implementationManifestDigest",
+		),
+		qualificationArtifactDigest: digest(
+			value.qualificationArtifactDigest,
+			"root eval consumed preclaim receipt.qualificationArtifactDigest",
+		),
+		qualificationDigest: digest(
+			value.qualificationDigest,
+			"root eval consumed preclaim receipt.qualificationDigest",
+		),
+		taskBindingDigest: digest(
+			value.taskBindingDigest,
+			"root eval consumed preclaim receipt.taskBindingDigest",
+		),
+		providerCalls: literal(
+			value.providerCalls,
+			0,
+			"root eval consumed preclaim receipt.providerCalls",
+		),
+		chargedCallExecuted: literal(
+			value.chargedCallExecuted,
+			false,
+			"root eval consumed preclaim receipt.chargedCallExecuted",
+		),
+		failureDigest: digest(value.failureDigest, "root eval consumed preclaim receipt.failureDigest"),
+	});
+	const receiptDigest = digest(
+		value.receiptDigest,
+		"root eval consumed preclaim receipt.receiptDigest",
+	);
+	if (receiptDigest !== empiricalStrictJsonDigest(material))
+		throw new TypeError("root eval consumed preclaim receipt digest drifted");
+	return Object.freeze({ ...material, receiptDigest });
+}
+
+export async function readRootEvalLiveConsumedDevelopmentPreclaimFailures(input: {
+	readonly operatorRoot: string;
+	readonly firstMissingOrdinal: number;
+	readonly currentOrdinal: number;
+}): Promise<readonly RootEvalLiveConsumedPreclaimFailureReceipt[]> {
+	const firstMissingOrdinal = safeInteger(
+		input.firstMissingOrdinal,
+		"root eval first missing development ordinal",
+	);
+	const currentOrdinal = safeInteger(input.currentOrdinal, "root eval current development ordinal");
+	if (
+		firstMissingOrdinal < 1 ||
+		currentOrdinal < firstMissingOrdinal ||
+		currentOrdinal - firstMissingOrdinal > 64 ||
+		(currentOrdinal > firstMissingOrdinal && firstMissingOrdinal < 15)
+	)
+		throw new TypeError("root eval consumed preclaim range was invalid");
+	if (currentOrdinal === firstMissingOrdinal) return Object.freeze([]);
+	const operatorRoot = resolve(input.operatorRoot);
+	if ((await realpath(operatorRoot)) !== operatorRoot)
+		throw new TypeError("root eval consumed preclaim operator root drifted");
+	const receipts: RootEvalLiveConsumedPreclaimFailureReceipt[] = [];
+	for (let ordinal = firstMissingOrdinal; ordinal < currentOrdinal; ordinal += 1) {
+		const generationRef = rootEvalD145DevelopmentGenerationRef(ordinal);
+		const receiptPath = join(
+			operatorRoot,
+			`current-${generationRef}`,
+			`.${generationRef}.disposition.v20.json`,
+		);
+		receipts.push(
+			admitRootEvalLiveConsumedPreclaimFailure({
+				bytes: await readRootEvalPrivateFile(receiptPath, 65_536),
+				expectedGenerationRef: generationRef,
+			}),
+		);
+	}
+	return Object.freeze(receipts);
 }
 
 export function reconcileRootEvalLiveSpend(

@@ -22,10 +22,14 @@ import { runRootEvalPrecredentialStagePlan } from "./precredential-stage-coordin
 import {
 	advanceRootEvalD145CharterLedger,
 	latestRootEvalGraphSpend,
+	nextRootEvalD145DevelopmentOrdinal,
 	type RootEvalD145CharterLedger,
 	readRootEvalD145CharterLedger,
+	reconcileRootEvalD145ConsumedPreclaimFailure,
+	rootEvalD145ConsumedPreclaimReconciliationDigest,
 } from "./root-eval-charter-ledger.js";
 import {
+	commitRootEvalD145CharterReconciliation,
 	commitRootEvalD145CharterTransaction,
 	recoverRootEvalD145CharterTransaction,
 } from "./root-eval-charter-transaction.js";
@@ -60,13 +64,18 @@ import {
 	type RootEvalLiveCurrentKeyAdmission,
 	type RootEvalLivePricingObservation,
 	type RootEvalLiveZeroByokObservation,
+	readRootEvalLiveConsumedDevelopmentPreclaimFailures,
 	readRootEvalLiveCurrentKey,
 	readRootEvalLivePrecredentialGateReceipt,
 	readRootEvalLivePricing,
 	readRootEvalLiveRefreshablePrecredentialGateReceipt,
 	replaceRootEvalLivePrecredentialGateReceipt,
 } from "./root-eval-live-authority.js";
-import { readRootEvalTaskManifest, rootEvalTaskBindings } from "./root-eval-task.js";
+import {
+	readRootEvalTaskManifest,
+	rootEvalDevelopmentOrdinal,
+	rootEvalTaskBindings,
+} from "./root-eval-task.js";
 import { ensureRootEvalDevelopmentTaskManifest } from "./root-eval-task-manifest-store.js";
 
 export const ROOT_EVAL_LIVE_EXECUTION_APPROVAL = "graphrefly-ts:D145" as const;
@@ -606,6 +615,42 @@ async function executeClaimedCampaign(input: {
 	}
 }
 
+async function reconcileConsumedDevelopmentPreclaimFailures(
+	ledger: RootEvalD145CharterLedger,
+	currentOrdinal: number,
+): Promise<RootEvalD145CharterLedger> {
+	const firstMissingOrdinal = nextRootEvalD145DevelopmentOrdinal(ledger);
+	const receipts = await readRootEvalLiveConsumedDevelopmentPreclaimFailures({
+		operatorRoot,
+		firstMissingOrdinal,
+		currentOrdinal,
+	});
+	let reconciled = ledger;
+	for (const [index, receipt] of receipts.entries()) {
+		const ordinal = firstMissingOrdinal + index;
+		const taskManifest = readRootEvalTaskManifest(`development-${ordinal}`);
+		const reconciliationInput = {
+			generationRef: receipt.generationRef,
+			taskSetRef: taskManifest.taskSetRef,
+			taskManifestDigest: taskManifest.manifestDigest,
+			receiptDigest: receipt.receiptDigest,
+		};
+		const nextLedger = reconcileRootEvalD145ConsumedPreclaimFailure({
+			ledger: reconciled,
+			...reconciliationInput,
+		});
+		await commitRootEvalD145CharterReconciliation({
+			journalPath: charterTransactionPath,
+			charterLedgerPath,
+			previousLedgerDigest: reconciled.ledgerDigest,
+			reconciliationDigest: rootEvalD145ConsumedPreclaimReconciliationDigest(reconciliationInput),
+			nextLedger,
+		});
+		reconciled = nextLedger;
+	}
+	return reconciled;
+}
+
 async function main(): Promise<void> {
 	if (
 		process.env.GRAPHREFLY_D145_ISOLATED_LIVE_CHILD !== "1" ||
@@ -626,12 +671,14 @@ async function main(): Promise<void> {
 	let currentKeyBefore: RootEvalLiveCurrentKeyAdmission | undefined;
 	let acquisition: Awaited<ReturnType<typeof acquireRootEvalLiveClaim>> | undefined;
 	await recoverRootEvalD145CharterTransaction(charterTransactionPath);
-	const charterLedger = await readRootEvalD145CharterLedger(charterLedgerPath);
+	let charterLedger = await readRootEvalD145CharterLedger(charterLedgerPath);
 	if (String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "development") {
-		const expectedSlot = `development-${
-			charterLedger.entries.filter((entry) => entry.campaignPurpose === "development").length + 1
-		}`;
-		if (ROOT_EVAL_LIVE_CAMPAIGN_SLOT !== expectedSlot)
+		const currentOrdinal = rootEvalDevelopmentOrdinal(ROOT_EVAL_LIVE_CAMPAIGN_SLOT)!;
+		charterLedger = await reconcileConsumedDevelopmentPreclaimFailures(
+			charterLedger,
+			currentOrdinal,
+		);
+		if (currentOrdinal !== nextRootEvalD145DevelopmentOrdinal(charterLedger))
 			throw new TypeError("root eval D145 development slot did not follow charter order");
 		await ensureRootEvalDevelopmentTaskManifest(ROOT_EVAL_LIVE_CAMPAIGN_SLOT);
 	} else readRootEvalTaskManifest("confirmatory");
@@ -642,7 +689,7 @@ async function main(): Promise<void> {
 	if (
 		partitionSpentBeforeMicrousd >= ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD ||
 		(String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "development" &&
-			charterLedger.developmentQualificationStreak === 2) ||
+			(charterLedger.developmentQualificationStreak === 2 || charterLedger.heldOutConsumed)) ||
 		(String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "confirmatory" &&
 			(charterLedger.developmentQualificationStreak !== 2 || charterLedger.heldOutConsumed))
 	)

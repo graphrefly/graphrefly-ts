@@ -933,6 +933,16 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			/async function persistOrReusePrecredentialGateReceipt[\s\S]+readRootEvalLiveRefreshablePrecredentialGateReceipt[\s\S]+replaceRootEvalLivePrecredentialGateReceipt/u,
 		);
 		expect(liveEntry).toMatch(
+			/async function reconcileConsumedDevelopmentPreclaimFailures[\s\S]+readRootEvalLiveConsumedDevelopmentPreclaimFailures[\s\S]+receiptDigest: receipt\.receiptDigest[\s\S]+commitRootEvalD145CharterReconciliation/u,
+		);
+		expect(liveEntry).toMatch(
+			/charterLedger = await reconcileConsumedDevelopmentPreclaimFailures\([\s\S]+currentOrdinal !== nextRootEvalD145DevelopmentOrdinal\(charterLedger\)/u,
+		);
+		expect(liveEntry).not.toMatch(/priorConsumedDevelopmentGenerationRefs/u);
+		expect(liveEntry).not.toMatch(
+			/charterLedger\.entries\.filter\(\(entry\) => entry\.campaignPurpose === "development"\)\.length \+ 1/u,
+		);
+		expect(liveEntry).toMatch(
 			/async function assertBoundedCurrentness\(\): Promise<RootEvalLiveBoundedCurrentness>[\s\S]+measureCurrentImplementation\(\)[\s\S]+checkRootEvalGeneratedArtifactSnapshot\(\)[\s\S]+runGit\(\["rev-parse", "HEAD"\]\)[\s\S]+"diff", "HEAD"/u,
 		);
 		expect(liveEntry).toContain('"open-by-graphrefly-ts:D145" as const');

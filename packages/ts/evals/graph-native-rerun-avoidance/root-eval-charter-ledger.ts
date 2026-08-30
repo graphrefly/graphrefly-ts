@@ -21,6 +21,19 @@ export const ROOT_EVAL_D145_CONFIRMATORY_HARD_CAP_MICROUSD = 6_000_000 as const;
 export const ROOT_EVAL_D145_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD = 6_000_000 as const;
 export const ROOT_EVAL_D145_TOTAL_HARD_CAP_MICROUSD = 42_000_000 as const;
 
+export function rootEvalD145DevelopmentGenerationRef(ordinal: number): string {
+	if (!Number.isSafeInteger(ordinal) || ordinal < 1)
+		throw new TypeError("root eval D145 development generation ordinal invalid");
+	return `root-eval-development-2026-08-27-d145-v${ordinal}`;
+}
+
+function developmentGenerationOrdinal(generationRef: string): number | null {
+	const match = /^root-eval-development-2026-08-27-d145-v([1-9][0-9]*)$/u.exec(generationRef);
+	if (match === null) return null;
+	const ordinal = Number(match[1]);
+	return Number.isSafeInteger(ordinal) ? ordinal : null;
+}
+
 type RootEvalD145LedgerBudgetPartition =
 	| "development-usd-6"
 	| "development-usd-12"
@@ -217,6 +230,16 @@ function validateLedger(value: unknown): RootEvalD145CharterLedger {
 		heldOutConsumed: root.heldOutConsumed,
 		entries: Object.freeze(entries),
 	});
+	const developmentOrdinals = entries
+		.filter((entry) => entry.campaignPurpose === "development")
+		.map((entry) => developmentGenerationOrdinal(entry.generationRef));
+	let derivedDevelopmentQualificationStreak = 0;
+	for (let index = entries.length - 1; index >= 0; index -= 1) {
+		const entry = entries[index]!;
+		if (entry.campaignPurpose !== "development") continue;
+		if (entry.generationQualified !== true) break;
+		derivedDevelopmentQualificationStreak = Math.min(2, derivedDevelopmentQualificationStreak + 1);
+	}
 	if (root.ledgerDigest !== empiricalStrictJsonDigest(material))
 		throw new TypeError("root eval D145 charter ledger digest invalid");
 	if (
@@ -243,6 +266,22 @@ function validateLedger(value: unknown): RootEvalD145CharterLedger {
 				entry.accountedUpperBoundMicrousd !==
 					entry.providerReportedMicrousd + entry.unreportedSettledUpperBoundMicrousd,
 		) ||
+		entries.some((entry) => {
+			if (entry.campaignPurpose !== "development") return false;
+			const ordinal = developmentGenerationOrdinal(entry.generationRef);
+			return (
+				ordinal === null ||
+				entry.taskSetRef !== rootEvalDevelopmentTaskSetRef(ordinal) ||
+				typeof entry.generationQualified !== "boolean"
+			);
+		}) ||
+		entries.some(
+			(entry) => entry.campaignPurpose === "confirmatory" && entry.generationQualified !== null,
+		) ||
+		(entries.some((entry) => entry.campaignPurpose === "confirmatory") &&
+			entries.at(-1)?.campaignPurpose !== "confirmatory") ||
+		developmentOrdinals.some((ordinal, index) => ordinal !== index + 1) ||
+		developmentQualificationStreak !== derivedDevelopmentQualificationStreak ||
 		new Set(entries.map((entry) => entry.taskSetRef)).size !== entries.length ||
 		new Set(entries.map((entry) => entry.taskManifestDigest)).size !== entries.length
 	)
@@ -263,6 +302,15 @@ export async function readRootEvalD145CharterLedger(
 			return ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER;
 		throw error;
 	}
+}
+
+export function nextRootEvalD145DevelopmentOrdinal(ledger: RootEvalD145CharterLedger): number {
+	const validated = validateLedger(ledger);
+	const latest = validated.entries
+		.filter((entry) => entry.campaignPurpose === "development")
+		.map((entry) => developmentGenerationOrdinal(entry.generationRef)!)
+		.at(-1);
+	return (latest ?? 0) + 1;
 }
 
 export function advanceRootEvalD145CharterLedger(input: {
@@ -291,19 +339,26 @@ export function advanceRootEvalD145CharterLedger(input: {
 	if (ledger.entries.some((entry) => entry.generationRef === input.generationRef))
 		throw new TypeError("root eval D145 generation was already recorded");
 	if (
-		(input.campaignPurpose === "development" && input.budgetPartition !== "development-usd-36") ||
+		(input.campaignPurpose === "development" &&
+			(input.budgetPartition !== "development-usd-36" || ledger.heldOutConsumed)) ||
 		(input.campaignPurpose === "confirmatory" &&
 			(input.budgetPartition !== "confirmatory-usd-6" ||
 				ledger.developmentQualificationStreak !== 2 ||
 				ledger.heldOutConsumed))
 	)
 		throw new TypeError("root eval D145 charter transition was not authorized");
+	const nextRecordedDevelopmentOrdinal = nextRootEvalD145DevelopmentOrdinal(ledger);
+	const currentDevelopmentOrdinal = developmentGenerationOrdinal(input.generationRef);
+	if (
+		input.campaignPurpose === "development" &&
+		(currentDevelopmentOrdinal === null ||
+			currentDevelopmentOrdinal !== nextRecordedDevelopmentOrdinal)
+	)
+		throw new TypeError("root eval D145 development generation order was invalid");
 	const expectedTaskSetRef =
 		input.campaignPurpose === "confirmatory"
 			? ROOT_EVAL_CONFIRMATORY_TASK_SET_REF
-			: rootEvalDevelopmentTaskSetRef(
-					ledger.entries.filter((entry) => entry.campaignPurpose === "development").length + 1,
-				);
+			: rootEvalDevelopmentTaskSetRef(currentDevelopmentOrdinal!);
 	if (
 		input.taskSetRef !== expectedTaskSetRef ||
 		!/^sha256:[0-9a-f]{64}$/u.test(input.taskManifestDigest) ||
@@ -390,6 +445,53 @@ export function advanceRootEvalD145CharterLedger(input: {
 		entries,
 	});
 	return Object.freeze({ ...material, ledgerDigest: empiricalStrictJsonDigest(material) });
+}
+
+export function reconcileRootEvalD145ConsumedPreclaimFailure(input: {
+	readonly ledger: RootEvalD145CharterLedger;
+	readonly generationRef: string;
+	readonly taskSetRef: string;
+	readonly taskManifestDigest: string;
+	readonly receiptDigest: string;
+}): RootEvalD145CharterLedger {
+	const reconciliationDigest = rootEvalD145ConsumedPreclaimReconciliationDigest(input);
+	return advanceRootEvalD145CharterLedger({
+		ledger: input.ledger,
+		generationRef: input.generationRef,
+		campaignPurpose: "development",
+		taskSetRef: input.taskSetRef,
+		taskManifestDigest: input.taskManifestDigest,
+		budgetPartition: "development-usd-36",
+		providerReportedMicrousd: 0,
+		unreportedSettledUpperBoundMicrousd: 0,
+		accountedUpperBoundMicrousd: 0,
+		admissionStatus: "rejected",
+		developmentQualification: null,
+		evidenceDigest: reconciliationDigest,
+	});
+}
+
+export function rootEvalD145ConsumedPreclaimReconciliationDigest(input: {
+	readonly generationRef: string;
+	readonly taskSetRef: string;
+	readonly taskManifestDigest: string;
+	readonly receiptDigest: string;
+}): string {
+	const ordinal = developmentGenerationOrdinal(input.generationRef);
+	if (
+		ordinal === null ||
+		input.taskSetRef !== rootEvalDevelopmentTaskSetRef(ordinal) ||
+		!/^sha256:[0-9a-f]{64}$/u.test(input.taskManifestDigest) ||
+		!/^sha256:[0-9a-f]{64}$/u.test(input.receiptDigest)
+	)
+		throw new TypeError("root eval D145 consumed preclaim reconciliation invalid");
+	return empiricalStrictJsonDigest({
+		kind: "root-eval-d145-consumed-preclaim-reconciliation",
+		generationRef: input.generationRef,
+		taskSetRef: input.taskSetRef,
+		taskManifestDigest: input.taskManifestDigest,
+		receiptDigest: input.receiptDigest,
+	});
 }
 
 export async function writeRootEvalD145CharterLedger(
