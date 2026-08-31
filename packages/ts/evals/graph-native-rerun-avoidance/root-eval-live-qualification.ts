@@ -3,7 +3,7 @@ import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifes
 import { ROOT_EVAL_LIVE_TASK_BINDING_DIGEST } from "./root-eval-live.js";
 
 export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-live-no-network-qa.v42" as const,
+	schemaVersion: "graphrefly-ts.root-eval-live-no-network-qa.v43" as const,
 	decisionRefs: Object.freeze([
 		"graphrefly-ts:D76",
 		"graphrefly-ts:D81",
@@ -69,6 +69,7 @@ export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		"graphrefly-ts:D145",
 		"graphrefly-ts:D148",
 		"graphrefly-ts:D149",
+		"graphrefly-ts:D150",
 	] as const),
 	implementationManifestDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
 	taskBindingDigest: ROOT_EVAL_LIVE_TASK_BINDING_DIGEST,
@@ -263,6 +264,12 @@ export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		d145DevelopmentUsd36AndTotalUsd42Caps: "passed" as const,
 		d145PrivateDiagnosticsBoundedAndMode0600: "passed" as const,
 		d145ExactHeldOutFiveReplicateAuthority: "passed" as const,
+		d150ClosedGrammarDiscriminantOnly: "passed" as const,
+		d150SixArmCommonTaskStatement: "passed" as const,
+		d150DistinctIncompatibleIrrelevantProvenance: "passed" as const,
+		d150PriorManifestSchemaFailsClosed: "passed" as const,
+		d150LeakageAndRebindingMutationContract: "passed" as const,
+		d150ConfirmatoryManifestAtomicallyResealed: "passed" as const,
 	}),
 	providerNetworkAccessed: false as const,
 	credentialAccessed: false as const,
@@ -274,7 +281,7 @@ export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT_DIGEST = empiricalStrictJsonD
 );
 
 const qualificationMaterial = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-live-qualification.v42" as const,
+	schemaVersion: "graphrefly-ts.root-eval-live-qualification.v43" as const,
 	decisionRef: "graphrefly-ts:D145" as const,
 	implementationExecutionApprovalRef: "graphrefly-ts:D145" as const,
 	verificationDiagnosticsImplementationReceiptRef: "graphrefly-ts:D120" as const,
@@ -322,6 +329,7 @@ const qualificationMaterial = Object.freeze({
 	precredentialGateChronologyExecutionApprovalRef: "graphrefly-ts:D138" as const,
 	precredentialGateChronologyImplementationReceiptRef: "graphrefly-ts:D139" as const,
 	stableOperatorConfigurationDecisionRef: "graphrefly-ts:D149" as const,
+	discriminantOnlyStimulusDecisionRef: "graphrefly-ts:D150" as const,
 	completionCharterRef: "graphrefly-ts:D145" as const,
 	currentLiveExecutionApprovalClosed: false as const,
 	callerHorizonDecisionRequired: false as const,

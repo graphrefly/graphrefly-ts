@@ -256,7 +256,8 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 					ref !== "graphrefly-ts:D144" &&
 					ref !== "graphrefly-ts:D145" &&
 					ref !== "graphrefly-ts:D148" &&
-					ref !== "graphrefly-ts:D149",
+					ref !== "graphrefly-ts:D149" &&
+					ref !== "graphrefly-ts:D150",
 			),
 		),
 		implementationManifestDigest: D120_IMPLEMENTATION_MANIFEST_DIGEST,
@@ -293,6 +294,7 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 				"d149StaleUnconsumedReceiptRefreshesAtomically",
 				"d149PublicPricingFailureDoesNotConsumeGeneration",
 				"d149SecondPrivateReadRevalidatesIdentity",
+				"d150TaskStimulusContractLeavesTopologyUnchanged",
 				"d145ExactlyOneRootCampaignContract",
 				"d145OneFixedAgenticMemoryLifecycle",
 				"d145SixArmsAreCorrelatedDataNotLifecycleCopies",
@@ -361,6 +363,7 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 		precredentialGateChronologyExecutionApprovalRef: _topologyD138Approval,
 		precredentialGateChronologyImplementationReceiptRef: _topologyD139Receipt,
 		stableOperatorConfigurationDecisionRef: _topologyD149,
+		discriminantOnlyStimulusDecisionRef: _topologyD150,
 		completionCharterRef: _topologyD140Charter,
 		currentLiveExecutionApprovalClosed: _topologyLiveApprovalClosed,
 		callerHorizonDecisionRequired: _topologyCallerHorizon,
@@ -451,7 +454,8 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 					ref !== "graphrefly-ts:D144" &&
 					ref !== "graphrefly-ts:D145" &&
 					ref !== "graphrefly-ts:D148" &&
-					ref !== "graphrefly-ts:D149",
+					ref !== "graphrefly-ts:D149" &&
+					ref !== "graphrefly-ts:D150",
 			),
 		),
 		implementationManifestDigest: D120_IMPLEMENTATION_MANIFEST_DIGEST,
@@ -522,6 +526,12 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 				"d149PublicPricingFailureDoesNotConsumeGeneration",
 				"d149SecondPrivateReadRevalidatesIdentity",
 				"d149AutomaticWorkflowRunsLongGatesBeforeReceiptAndPrivateInputs",
+				"d150ClosedGrammarDiscriminantOnly",
+				"d150SixArmCommonTaskStatement",
+				"d150DistinctIncompatibleIrrelevantProvenance",
+				"d150PriorManifestSchemaFailsClosed",
+				"d150LeakageAndRebindingMutationContract",
+				"d150ConfirmatoryManifestAtomicallyResealed",
 				"d140ExactExecutionAuthorityOpen",
 				"d140FirstProviderDispatchConsumesAutomaticRerunAuthority",
 				"d140CumulativeUsdSixHardCap",
@@ -591,6 +601,7 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 		precredentialGateChronologyExecutionApprovalRef: _liveD138Approval,
 		precredentialGateChronologyImplementationReceiptRef: _liveD139Receipt,
 		stableOperatorConfigurationDecisionRef: _liveD149,
+		discriminantOnlyStimulusDecisionRef: _liveD150,
 		completionCharterRef: _liveD140Charter,
 		currentLiveExecutionApprovalClosed: _liveApprovalClosed,
 		callerHorizonDecisionRequired: _liveCallerHorizon,

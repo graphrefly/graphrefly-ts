@@ -140,12 +140,14 @@ import {
 	replaceRootEvalLivePrecredentialGateReceipt,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-live-authority.js";
 import {
+	assertRootEvalTaskStimulusContract,
 	createRootEvalTaskManifest,
 	ROOT_EVAL_CONFIRMATORY_TASK_SET_REF,
 	ROOT_EVAL_DEVELOPMENT_TASK_SET_REFS,
 	ROOT_EVAL_DEVELOPMENT_TASKS,
 	ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES,
 	readRootEvalTaskManifest,
+	rootEvalSourceInsightDiscriminant,
 	rootEvalTask,
 	rootEvalTaskBindings,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-task.js";
@@ -2389,6 +2391,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 	it("settles thirty output-truncated Fireworks responses through the root Graph", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-truncated-response-"));
 		const privateRoot = await realpath(temporary);
+		const capturedTargetTaskStatements: string[] = [];
 		const claimInput = await currentClaimInput(privateRoot);
 		const claimAcquisition = await acquireRootEvalLiveClaimForNoNetworkQualification(claimInput);
 		const executor = createRootEvalLiveTransportQualificationExecutor({
@@ -2404,7 +2407,14 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				const targetTask = ROOT_EVAL_DEVELOPMENT_TASKS.find((task) =>
 					encoded.includes(JSON.stringify(task.taskStatement).slice(1, -1)),
 				);
-				if (targetTask !== undefined) return { status: 200, bytes: truncatedProviderBytes() };
+				if (targetTask !== undefined) {
+					const messages = request.messages as readonly Readonly<Record<string, unknown>>[];
+					const userContent = String(messages[1]?.content ?? "");
+					capturedTargetTaskStatements.push(
+						userContent.split("\n\n### Admitted memory context\n", 1)[0]!,
+					);
+					return { status: 200, bytes: truncatedProviderBytes() };
+				}
 				const sourceTask = ROOT_EVAL_DEVELOPMENT_TASKS.find((task) =>
 					encoded.includes(JSON.stringify(task.sourceTaskStatement).slice(1, -1)),
 				);
@@ -2438,7 +2448,16 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				},
 			});
 			expect(result.peakConcurrentEffects).toBe(1);
-			expect(executor.providerRequestSummaries()).toHaveLength(35);
+			const requests = executor.providerRequestSummaries();
+			expect(requests).toHaveLength(35);
+			expect(capturedTargetTaskStatements).toHaveLength(30);
+			for (const task of ROOT_EVAL_DEVELOPMENT_TASKS) {
+				const sixArmStatements = capturedTargetTaskStatements.filter(
+					(statement) => statement === task.taskStatement,
+				);
+				expect(sixArmStatements).toHaveLength(6);
+				expect(new Set(sixArmStatements)).toEqual(new Set([task.taskStatement]));
+			}
 			expect(await readdir(join(temporary, "workspaces"))).toEqual([]);
 		} finally {
 			await executor.dispose();
@@ -5266,7 +5285,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		});
 		const confirmatory = createRootEvalTaskManifest({
 			slot: "confirmatory",
-			variantOrder: [2, 0, 4, 1, 3],
+			variantOrder: [2, 1, 0, 3, 4],
 			coordinateSuffix: "confirmatory-sealed-seed",
 		});
 		try {
@@ -5291,6 +5310,18 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			await chmod(join(temporary, "development-1.json"), 0o644);
 			expect(() => readRootEvalTaskManifest("development-1")).toThrow(/mode-0600/u);
 			await chmod(join(temporary, "development-1.json"), 0o600);
+			const oldSchemaManifest = {
+				...development1,
+				schemaVersion: "graphrefly-ts.root-eval-d145-task-manifest.v4",
+				manifestDigest: empiricalStrictJsonDigest({
+					schemaVersion: "graphrefly-ts.root-eval-d145-task-manifest.v4",
+					slot: development1.slot,
+					taskSetRef: development1.taskSetRef,
+					tasks: development1.tasks,
+				}),
+			};
+			await writeFile(join(temporary, "development-1.json"), JSON.stringify(oldSchemaManifest));
+			expect(() => readRootEvalTaskManifest("development-1")).toThrow(/failed closed/u);
 			const tasksWithoutSourceInsightDigest = development1.tasks.map((task, index) => {
 				if (index !== 0) return task;
 				const { sourceInsightDigest: _sourceInsightDigest, ...legacyTask } = task;
@@ -5324,7 +5355,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		}
 	});
 
-	it("binds every irrelevant memory provenance to a source Work Item with the opposite hidden invariant", () => {
+	it("binds discriminant-only relevant and incompatible irrelevant source Work Items", () => {
 		const acceptedField = (source: string): Readonly<{ field: string; normalized: boolean }> => {
 			const match =
 				/const acceptedCoordinate = envelope\.([A-Za-z][A-Za-z0-9]*)(\.toLowerCase\(\))?;/u.exec(
@@ -5348,18 +5379,18 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		const insightAuthorityClass = (
 			content: string,
 		): "source" | "boundary" | "normalized-source" => {
-			if (content.includes("coordinateLeft lowercased is the authoritative identity"))
-				return "normalized-source";
-			if (content.includes("coordinateLeft is the authoritative identity")) return "source";
-			if (content.includes("coordinateRight is the authoritative identity")) return "boundary";
-			throw new TypeError("source insight authority missing");
+			const discriminant = rootEvalSourceInsightDiscriminant(content);
+			if (discriminant === "coordinate-left") return "source";
+			if (discriminant === "coordinate-right") return "boundary";
+			return "normalized-source";
 		};
+		assertRootEvalTaskStimulusContract(ROOT_EVAL_DEVELOPMENT_TASKS);
 		const bindings = rootEvalTaskBindings(ROOT_EVAL_DEVELOPMENT_TASKS);
 		expect(bindings).toHaveLength(5);
 		expect(new Set(bindings.map((binding) => binding.irrelevantTaskInstanceRef)).size).toBe(5);
 		expect(
 			new Set(ROOT_EVAL_DEVELOPMENT_TASKS.map((task) => task.sourceInsightContent.length)),
-		).toEqual(new Set([384]));
+		).toEqual(new Set([64]));
 		for (const [index, binding] of bindings.entries()) {
 			const target = ROOT_EVAL_DEVELOPMENT_TASKS[index]!;
 			const irrelevantIndex = ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES[index]! - 1;
@@ -5373,6 +5404,12 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				/originRef|boundaryRef|issuedKey|presentationKey|causalId|lookupId|storedToken|renderedToken|producerRef|localAlias/u,
 			);
 			expect(target.sourceInsightContent).not.toContain(target.writablePath);
+			expect(target.sourceInsightContent.trim()).toMatch(
+				/^handoff-invariant\.v1;authority=(?:coordinate-left|coordinate-right|normalized-coordinate-left)$/u,
+			);
+			expect(target.sourceInsightContent).not.toMatch(
+				/compare|reject|return|acceptance|patch|verifier|fixture|packages\//iu,
+			);
 			expect(irrelevant.sourceInsightContent.length).toBe(target.sourceInsightContent.length);
 			expect(binding.irrelevantTaskInstanceRef).toBe(irrelevant.instanceRef);
 			expect(binding.irrelevantSourceInsightDigest).toBe(irrelevant.sourceInsightDigest);
@@ -5393,6 +5430,70 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			expect(insightAuthorityClass(target.sourceInsightContent)).toBe(targetClass);
 			expect(insightAuthorityClass(irrelevant.sourceInsightContent)).toBe(irrelevantCorrectClass);
 		}
+		const genericBoilerplate = ROOT_EVAL_DEVELOPMENT_TASKS.map((task, index) =>
+			index === 0
+				? (() => {
+						const sourceInsightContent = `${task.sourceInsightContent.trim()} compare and reject`;
+						return {
+							...task,
+							sourceInsightContent,
+							sourceInsightDigest: empiricalStrictJsonDigest({
+								kind: "eval-source-causal-insight-bytes",
+								taskInstanceRef: task.instanceRef,
+								sourceWorkItemId: task.sourceWorkItemRef,
+								content: sourceInsightContent,
+							}),
+						};
+					})()
+				: task,
+		);
+		expect(() => assertRootEvalTaskStimulusContract(genericBoilerplate)).toThrow(
+			/closed discriminant grammar|common-task\/discriminant/u,
+		);
+		for (const leakedMaterial of [
+			ROOT_EVAL_DEVELOPMENT_TASKS[0]!.writablePath,
+			ROOT_EVAL_DEVELOPMENT_TASKS[0]!.hiddenVerifierName,
+		]) {
+			const target = ROOT_EVAL_DEVELOPMENT_TASKS[0]!;
+			const sourceInsightContent = `${target.sourceInsightContent.trim()};${leakedMaterial}`;
+			const leakedTasks = ROOT_EVAL_DEVELOPMENT_TASKS.map((task, index) =>
+				index === 0
+					? {
+							...task,
+							sourceInsightContent,
+							sourceInsightDigest: empiricalStrictJsonDigest({
+								kind: "eval-source-causal-insight-bytes",
+								taskInstanceRef: task.instanceRef,
+								sourceWorkItemId: task.sourceWorkItemRef,
+								content: sourceInsightContent,
+							}),
+						}
+					: task,
+			);
+			expect(() => assertRootEvalTaskStimulusContract(leakedTasks)).toThrow();
+		}
+		const reboundRelevantAsIrrelevant = ROOT_EVAL_DEVELOPMENT_TASKS.map((task, index) => {
+			if (index !== 1) return task;
+			const sourceInsightContent = ROOT_EVAL_DEVELOPMENT_TASKS[0]!.sourceInsightContent;
+			return {
+				...task,
+				sourceInsightContent,
+				sourceInsightDigest: empiricalStrictJsonDigest({
+					kind: "eval-source-causal-insight-bytes",
+					taskInstanceRef: task.instanceRef,
+					sourceWorkItemId: task.sourceWorkItemRef,
+					content: sourceInsightContent,
+				}),
+			};
+		});
+		expect(() => rootEvalTaskBindings(reboundRelevantAsIrrelevant)).toThrow();
+		expect(() =>
+			createRootEvalTaskManifest({
+				slot: "development-8",
+				variantOrder: [0, 2, 1, 3, 4],
+				coordinateSuffix: "equal-irrelevant-seed",
+			}),
+		).toThrow(/generation input invalid/u);
 	});
 
 	it("keeps coordinate edge cases load-bearing when private manifests add a suffix", () => {

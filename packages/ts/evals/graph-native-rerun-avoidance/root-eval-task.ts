@@ -6,7 +6,7 @@ export type RootEvalTaskKind = "development-transfer" | "confirmatory-transfer";
 export type RootEvalTaskManifestSlot = `development-${number}` | "confirmatory";
 
 export const ROOT_EVAL_TASK_MANIFEST_SCHEMA =
-	"graphrefly-ts.root-eval-d145-task-manifest.v4" as const;
+	"graphrefly-ts.root-eval-d150-task-manifest.v5" as const;
 export const ROOT_EVAL_DEVELOPMENT_TASK_SET_REFS = Object.freeze({
 	"development-1": "root-eval-d145-transfer-development-1-v1",
 	"development-2": "root-eval-d145-transfer-development-2-v1",
@@ -199,22 +199,44 @@ interface TransferVariant {
 	readonly sourceInsightContent: string;
 }
 
+export type RootEvalSourceInsightDiscriminant =
+	| "coordinate-left"
+	| "coordinate-right"
+	| "normalized-coordinate-left";
+
 const BASELINE_COMMIT = "dea57bdeb4b370dddbbe2505bd05f9e3551b26c6";
 const QUALIFICATION_TASK_SET_REF = "root-eval-d145-transfer-qualification-v1";
 
-const SOURCE_INSIGHT_LENGTH = 384;
+const SOURCE_INSIGHT_LENGTH = 64;
+const SOURCE_INSIGHT_PREFIX = "handoff-invariant.v1;authority=";
+
+function ruleDiscriminant(
+	rule: TransferVariant["acceptedRule"],
+): RootEvalSourceInsightDiscriminant {
+	if (rule === "source") return "coordinate-left";
+	if (rule === "boundary") return "coordinate-right";
+	return "normalized-coordinate-left";
+}
 
 function sourceInsightContent(rule: TransferVariant["acceptedRule"]): string {
-	const authority =
-		rule === "source"
-			? "coordinateLeft is the authoritative identity and coordinateRight is not"
-			: rule === "boundary"
-				? "coordinateRight is the authoritative identity and coordinateLeft is not"
-				: "coordinateLeft lowercased is the authoritative identity; raw coordinateLeft and coordinateRight are not";
-	const content = `A prior verified Work Item established this transferable handoff invariant: ${authority}. Compare the locally derived coordinate with that authoritative identity, reject a mismatch, and return the authoritative identity unchanged. Actor-visible names do not determine the authority.`;
+	const content = `${SOURCE_INSIGHT_PREFIX}${ruleDiscriminant(rule)}`;
 	if (content.length > SOURCE_INSIGHT_LENGTH)
 		throw new TypeError("root eval source insight exceeded its matched bound");
 	return content.padEnd(SOURCE_INSIGHT_LENGTH, " ");
+}
+
+export function rootEvalSourceInsightDiscriminant(
+	content: string,
+): RootEvalSourceInsightDiscriminant {
+	for (const discriminant of [
+		"coordinate-left",
+		"coordinate-right",
+		"normalized-coordinate-left",
+	] as const) {
+		if (content === `${SOURCE_INSIGHT_PREFIX}${discriminant}`.padEnd(SOURCE_INSIGHT_LENGTH, " "))
+			return discriminant;
+	}
+	throw new TypeError("root eval source insight violated its closed discriminant grammar");
 }
 
 export const ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES = Object.freeze([2, 3, 4, 5, 1] as const);
@@ -332,6 +354,23 @@ The causal repair contract is explicit:
 2. Compare locallyDerivedCoordinate with acceptedCoordinate and reject a mismatch.
 3. Return acceptedCoordinate. Do not return locallyDerivedCoordinate or substitute the other envelope field.
 4. Make the smallest change in ${sourceWritablePath} only.`;
+}
+
+function targetTaskStatement(writablePath: string): string {
+	return `A handoff regression causes some valid admission coordinates to be rejected. Restore stable agreement while retaining mismatch rejection. The two envelope coordinates can coincide in ordinary traffic but are not guaranteed to do so. Actor-visible names and files intentionally do not identify which coordinate is authoritative; that invariant is established only by a causally prior verified Work Item when its memory is admitted.
+
+Common procedure for every treatment and control arm:
+1. Derive the candidate authority only from the admitted task evidence and any admitted memory context.
+2. Compare locallyDerivedCoordinate with that candidate and reject a mismatch.
+3. Preserve and return the selected authority; do not reconstruct it from actor-visible names.
+4. Return one exact replacement for the admitted file in the required structured response format.
+5. Make the smallest change in ${writablePath} only.
+
+Acceptance criteria:
+1. Valid handoff fixtures are accepted and round-trip through the consumer.
+2. A locally derived coordinate that does not identify the admitted handoff is rejected.
+3. The selected authority is preserved without reconstruction from names.
+4. Only ${writablePath} changes.`;
 }
 
 function verifierSource(input: {
@@ -490,13 +529,7 @@ function createTask(
 		replicate,
 		baselineCommit: BASELINE_COMMIT,
 		writablePath,
-		taskStatement: `A handoff regression causes some valid admission coordinates to be rejected. Restore stable agreement while retaining mismatch rejection. The two envelope coordinates can coincide in ordinary traffic but are not guaranteed to do so. Actor-visible names and files intentionally do not identify which coordinate is authoritative; that invariant is established only by a causally prior verified Work Item when its memory is admitted. Make the smallest change in the admitted file only.
-
-Acceptance criteria:
-1. Valid handoff fixtures are accepted and round-trip through the consumer.
-2. A locally derived coordinate that does not identify the admitted handoff is rejected.
-3. Preserve the authority selected by the causally prior handoff without reconstructing it from names.
-4. Only ${writablePath} changes.`,
+		taskStatement: targetTaskStatement(writablePath),
 		sourceWorkItemRef,
 		sourceVerifierEvidenceDigest,
 		sourceInsightDigest,
@@ -599,6 +632,71 @@ function createTaskSet(
 	);
 }
 
+function taskSourceDiscriminant(task: RootEvalTaskDefinition): RootEvalSourceInsightDiscriminant {
+	const expression =
+		/const acceptedCoordinate = envelope\.coordinateLeft(\.toLowerCase\(\))?;/u.exec(
+			task.sourceFixtureCorrectText,
+		);
+	if (expression !== null)
+		return expression[1] === undefined ? "coordinate-left" : "normalized-coordinate-left";
+	if (/const acceptedCoordinate = envelope\.coordinateRight;/u.test(task.sourceFixtureCorrectText))
+		return "coordinate-right";
+	throw new TypeError("root eval source fixture did not establish one closed discriminant");
+}
+
+export function assertRootEvalTaskStimulusContract(tasks: readonly RootEvalTaskDefinition[]): void {
+	if (
+		tasks.length !== 5 ||
+		tasks.some((task, index) => task.replicate !== index + 1) ||
+		new Set(tasks.map((task) => task.taskSetRef)).size !== 1 ||
+		new Set(tasks.map((task) => task.instanceRef)).size !== 5 ||
+		new Set(tasks.map((task) => task.sourceWorkItemRef)).size !== 5 ||
+		new Set(tasks.map((task) => task.sourceVerifierEvidenceDigest)).size !== 5 ||
+		new Set(tasks.map((task) => task.sourceInsightDigest)).size !== 5
+	)
+		throw new TypeError("root eval task stimulus requires five isolated ordered source instances");
+	for (const [index, task] of tasks.entries()) {
+		if (
+			!hasCurrentTaskDefinitionShape(task, index) ||
+			task.taskStatement !== targetTaskStatement(task.writablePath) ||
+			rootEvalSourceInsightDiscriminant(task.sourceInsightContent) !== taskSourceDiscriminant(task)
+		)
+			throw new TypeError("root eval task stimulus violated its common-task/discriminant contract");
+		const irrelevant = tasks[ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES[index]! - 1]!;
+		if (
+			task.instanceRef === irrelevant.instanceRef ||
+			task.sourceWorkItemRef === irrelevant.sourceWorkItemRef ||
+			task.sourceVerifierEvidenceDigest === irrelevant.sourceVerifierEvidenceDigest ||
+			task.sourceInsightDigest === irrelevant.sourceInsightDigest ||
+			rootEvalSourceInsightDiscriminant(task.sourceInsightContent) ===
+				rootEvalSourceInsightDiscriminant(irrelevant.sourceInsightContent)
+		)
+			throw new TypeError(
+				"root eval irrelevant source must have distinct provenance and an incompatible discriminant",
+			);
+	}
+}
+
+export function rootEvalVariantOrderSupportsIrrelevantControls(
+	variantOrder: readonly number[],
+): boolean {
+	if (
+		variantOrder.length !== 5 ||
+		new Set(variantOrder).size !== 5 ||
+		variantOrder.some(
+			(index) => !Number.isSafeInteger(index) || index < 0 || index >= VARIANTS.length,
+		)
+	)
+		return false;
+	return variantOrder.every((variantIndex, index) => {
+		const irrelevantIndex = ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES[index]! - 1;
+		return (
+			ruleDiscriminant(VARIANTS[variantIndex]!.acceptedRule) !==
+			ruleDiscriminant(VARIANTS[variantOrder[irrelevantIndex]!]!.acceptedRule)
+		);
+	});
+}
+
 export const ROOT_EVAL_DEVELOPMENT_TASKS = createTaskSet(
 	"development-transfer",
 	QUALIFICATION_TASK_SET_REF,
@@ -611,12 +709,7 @@ export const ROOT_EVAL_DEVELOPMENT_TASK_SET_DIGEST = empiricalStrictJsonDigest(
 export function rootEvalTaskBindings(
 	tasks: readonly RootEvalTaskDefinition[],
 ): readonly RootEvalTaskBinding[] {
-	if (
-		tasks.length !== 5 ||
-		tasks.some((task, index) => task.replicate !== index + 1) ||
-		new Set(tasks.map((task) => task.instanceRef)).size !== 5
-	)
-		throw new TypeError("root eval task bindings require five ordered distinct tasks");
+	assertRootEvalTaskStimulusContract(tasks);
 	return Object.freeze(
 		tasks.map((task, index) => {
 			const irrelevant = tasks[ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES[index]! - 1]!;
@@ -636,7 +729,7 @@ export function rootEvalTaskBindings(
 }
 
 export const ROOT_EVAL_HELD_OUT_SEAL_DIGEST =
-	"sha256:42d1f3ad9aaf37c43ab9bca6e3b752b372955aded3d6ce85d3be68b039996dbf" as const;
+	"sha256:304f65ead9d4d9139e2dcf2d3bb5f3152e0c95c33f1671917b53a54f8de0236e" as const;
 
 export const ROOT_EVAL_D145_TASK_SET_BINDING_DIGEST = empiricalStrictJsonDigest(
 	strictSnapshot({
@@ -661,7 +754,8 @@ export function createRootEvalTaskManifest(input: {
 		input.variantOrder.some(
 			(index) => !Number.isSafeInteger(index) || index < 0 || index >= VARIANTS.length,
 		) ||
-		!/^[a-z0-9-]{16,128}$/u.test(input.coordinateSuffix)
+		!/^[a-z0-9-]{16,128}$/u.test(input.coordinateSuffix) ||
+		!rootEvalVariantOrderSupportsIrrelevantControls(input.variantOrder)
 	)
 		throw new TypeError("root eval task manifest generation input invalid");
 	const kind = input.slot === "confirmatory" ? "confirmatory-transfer" : "development-transfer";
@@ -675,6 +769,7 @@ export function createRootEvalTaskManifest(input: {
 		input.variantOrder.map((index) => VARIANTS[index]!),
 		`:${input.coordinateSuffix}`,
 	);
+	assertRootEvalTaskStimulusContract(tasks);
 	const material = Object.freeze({
 		schemaVersion: ROOT_EVAL_TASK_MANIFEST_SCHEMA,
 		slot: input.slot,
@@ -731,6 +826,7 @@ export function readRootEvalTaskManifest(slot: RootEvalTaskManifestSlot): RootEv
 			)
 	)
 		throw new TypeError(`root eval ${slot} task manifest failed closed`);
+	assertRootEvalTaskStimulusContract(value.tasks);
 	return Object.freeze(value);
 }
 

@@ -3,13 +3,13 @@ import { join, relative, resolve } from "node:path";
 import { empiricalSha256, empiricalStrictJsonDigest } from "./canonical.js";
 
 export const CURRENT_QUALIFICATION_DIGEST =
-	"sha256:fb9d4e5b72ce9e8cf3db5fb4fe589876322f1be9a270c86bdfb046c4ece63c27" as const;
+	"sha256:f21cdb9cda5f4d6103ffb5590fed5a77c78640e40ee92cf4e17d248c043d3676" as const;
 export const CURRENT_QUALIFICATION_ARTIFACT_DIGEST =
-	"sha256:0ea1e69549907a6364641581748948ca688891a2570cc12a8fe394741311983a" as const;
+	"sha256:180e8038c4445ed922b2aa6f015b7844545247c66a2e91b020e9250bff1db8a8" as const;
 
 // Updated only after the current closure and its no-network qualification are both frozen.
 export const CURRENT_IMPLEMENTATION_MANIFEST_DIGEST =
-	"sha256:5a8ac4252b796f63e96f60f09f16491fd3a7c202c1ff09f7cdf7832299b265f6" as const;
+	"sha256:df0ea5e8f85932a85d9562df8f9241ef2832abd188660e190e20575b7ad5b944" as const;
 
 export const CURRENT_IMPLEMENTATION_RUNTIME = Object.freeze({
 	node: "v24.18.0" as const,
@@ -52,7 +52,7 @@ async function listRuntimeSources(root: string, directory: string): Promise<read
 export async function measureCurrentImplementation(): Promise<string> {
 	const sources = await measureCurrentImplementationInputs();
 	return empiricalStrictJsonDigest({
-		revision: "graphrefly-ts.d149.current-implementation-manifest.v56",
+		revision: "graphrefly-ts.d150.current-implementation-manifest.v57",
 		runtime: CURRENT_IMPLEMENTATION_RUNTIME,
 		sources,
 	});

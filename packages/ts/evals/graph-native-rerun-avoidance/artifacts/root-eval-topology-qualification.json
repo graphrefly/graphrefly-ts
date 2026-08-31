@@ -1,6 +1,6 @@
 {
 	"artifact": {
-		"schemaVersion": "graphrefly-ts.root-eval-topology-no-network-qa.v35",
+		"schemaVersion": "graphrefly-ts.root-eval-topology-no-network-qa.v36",
 		"decisionRefs": [
 			"graphrefly-ts:D76",
 			"graphrefly-ts:D77",
@@ -57,10 +57,11 @@
 			"graphrefly-ts:D144",
 			"graphrefly-ts:D145",
 			"graphrefly-ts:D148",
-			"graphrefly-ts:D149"
+			"graphrefly-ts:D149",
+			"graphrefly-ts:D150"
 		],
 		"topologyRevision": "graphrefly-ts.root-eval-topology.v18",
-		"implementationManifestDigest": "sha256:5a8ac4252b796f63e96f60f09f16491fd3a7c202c1ff09f7cdf7832299b265f6",
+		"implementationManifestDigest": "sha256:df0ea5e8f85932a85d9562df8f9241ef2832abd188660e190e20575b7ad5b944",
 		"rootGraphs": 1,
 		"mounts": 0,
 		"replicates": 5,
@@ -192,15 +193,16 @@
 			"d145HeldOutSealAndBudgetPartitions": "passed",
 			"d145DevelopmentUsd36AndTotalUsd42Caps": "passed",
 			"d145CriticalCampaignAndQualificationEdges": "passed",
+			"d150TaskStimulusContractLeavesTopologyUnchanged": "passed",
 			"legacyClosureRemoved": "passed"
 		},
 		"providerNetworkAccessed": false,
 		"credentialAccessed": false,
 		"liveEvaluationExecuted": false
 	},
-	"artifactDigest": "sha256:0ea1e69549907a6364641581748948ca688891a2570cc12a8fe394741311983a",
+	"artifactDigest": "sha256:180e8038c4445ed922b2aa6f015b7844545247c66a2e91b020e9250bff1db8a8",
 	"qualification": {
-		"schemaVersion": "graphrefly-ts.root-eval-topology-qualification.v35",
+		"schemaVersion": "graphrefly-ts.root-eval-topology-qualification.v36",
 		"decisionRef": "graphrefly-ts:D145",
 		"executionApprovalRef": "graphrefly-ts:D145",
 		"verificationDiagnosticsImplementationReceiptRef": "graphrefly-ts:D120",
@@ -240,23 +242,24 @@
 		"precredentialGateChronologyExecutionApprovalRef": "graphrefly-ts:D138",
 		"precredentialGateChronologyImplementationReceiptRef": "graphrefly-ts:D139",
 		"stableOperatorConfigurationDecisionRef": "graphrefly-ts:D149",
+		"discriminantOnlyStimulusDecisionRef": "graphrefly-ts:D150",
 		"completionCharterRef": "graphrefly-ts:D145",
 		"currentLiveExecutionApprovalClosed": false,
 		"callerHorizonDecisionRequired": false,
 		"structuredProposalRef": "graphrefly-ts:D87",
 		"structuredProposalExecutionApprovalRef": "graphrefly-ts:D88",
 		"responseHorizonIncidentClosureRef": "graphrefly-ts:D93",
-		"implementationManifestDigest": "sha256:5a8ac4252b796f63e96f60f09f16491fd3a7c202c1ff09f7cdf7832299b265f6",
-		"qualificationArtifactDigest": "sha256:0ea1e69549907a6364641581748948ca688891a2570cc12a8fe394741311983a",
+		"implementationManifestDigest": "sha256:df0ea5e8f85932a85d9562df8f9241ef2832abd188660e190e20575b7ad5b944",
+		"qualificationArtifactDigest": "sha256:180e8038c4445ed922b2aa6f015b7844545247c66a2e91b020e9250bff1db8a8",
 		"status": "qualified-no-network-d145-development-confirmatory-authority",
-		"qualificationDigest": "sha256:fb9d4e5b72ce9e8cf3db5fb4fe589876322f1be9a270c86bdfb046c4ece63c27"
+		"qualificationDigest": "sha256:f21cdb9cda5f4d6103ffb5590fed5a77c78640e40ee92cf4e17d248c043d3676"
 	},
-	"measuredImplementationManifestDigest": "sha256:5a8ac4252b796f63e96f60f09f16491fd3a7c202c1ff09f7cdf7832299b265f6",
+	"measuredImplementationManifestDigest": "sha256:df0ea5e8f85932a85d9562df8f9241ef2832abd188660e190e20575b7ad5b944",
 	"evidenceDigests": {
-		"describe": "sha256:937baa38c768a520781b7ecef096a41b75835eb1a7e786786027f98e22f5ad5e",
-		"observeEvents": "sha256:f2d8ac14a5d63dd034563351e3e27504867abda561fdcc73c2925295ed2bd48b",
-		"runSummary": "sha256:1a7d2732dd733408287eb435ee62822e505ec86a0ce7e6d4a1d928b71596c8d7",
+		"describe": "sha256:7d20e0f321d3a5f3e73c5bd008e7b736f0fba011e47c33d7df4004425a6bdff3",
+		"observeEvents": "sha256:38337d56f5dbb0fb61d08bc3e80dffc9c94fdbefd7ce99f4fcfea4e1d04d5158",
+		"runSummary": "sha256:40aef646a098a658b25271633ca22fc540e81d5bd4f0932b27f42ffd8c0edbc4",
 		"explanatoryMermaid": "sha256:601ad0b245549c27dc2015ef9adb5f3c299cdc8c428c07ef398583950d072a06"
 	},
-	"evidenceBindingDigest": "sha256:d8150a3f8cac5bff5b6e165c1f3670e3a312665b0ff91a46bd9f440cc776f5ef"
+	"evidenceBindingDigest": "sha256:5859cfc4cd5aeb46c44d1149d014cd9398134c5fca32ea5816a69969ac484d3b"
 }

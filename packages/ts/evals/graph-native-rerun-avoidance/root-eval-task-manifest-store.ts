@@ -9,6 +9,7 @@ import {
 	type RootEvalTaskManifestSlot,
 	readRootEvalTaskManifest,
 	rootEvalDevelopmentOrdinal,
+	rootEvalVariantOrderSupportsIrrelevantControls,
 } from "./root-eval-task.js";
 
 function manifestDirectory(): string {
@@ -22,12 +23,15 @@ function manifestDirectory(): string {
 }
 
 function shuffledVariantOrder(): readonly number[] {
-	const order = [0, 1, 2, 3, 4];
-	for (let index = order.length - 1; index > 0; index -= 1) {
-		const swap = randomInt(index + 1);
-		[order[index], order[swap]] = [order[swap]!, order[index]!];
+	for (let attempt = 0; attempt < 128; attempt += 1) {
+		const order = [0, 1, 2, 3, 4];
+		for (let index = order.length - 1; index > 0; index -= 1) {
+			const swap = randomInt(index + 1);
+			[order[index], order[swap]] = [order[swap]!, order[index]!];
+		}
+		if (rootEvalVariantOrderSupportsIrrelevantControls(order)) return Object.freeze(order);
 	}
-	return Object.freeze(order);
+	throw new TypeError("root eval could not generate incompatible irrelevant controls");
 }
 
 export async function ensureRootEvalDevelopmentTaskManifest(

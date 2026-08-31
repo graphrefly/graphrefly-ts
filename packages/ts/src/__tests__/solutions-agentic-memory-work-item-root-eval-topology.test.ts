@@ -681,16 +681,16 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"graphrefly-ts.root-eval-live-precredential-gates.v5",
 		);
 		expect(ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-no-network-qa.v42",
+			"graphrefly-ts.root-eval-live-no-network-qa.v43",
 		);
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-qualification.v42",
+			"graphrefly-ts.root-eval-live-qualification.v43",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-no-network-qa.v35",
+			"graphrefly-ts.root-eval-topology-no-network-qa.v36",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-qualification.v35",
+			"graphrefly-ts.root-eval-topology-qualification.v36",
 		);
 		expect(ROOT_EVAL_LIVE_GENERATION_REF).not.toContain("d116");
 		expect(ROOT_EVAL_LIVE_CLAIM_REF).not.toContain("d116");
