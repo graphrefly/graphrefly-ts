@@ -59,6 +59,8 @@ import {
 import {
 	commitRootEvalD145CharterReconciliation,
 	ROOT_EVAL_D145_CHARTER_RECONCILIATION_SCHEMA,
+	ROOT_EVAL_D145_CHARTER_TRANSACTION_SCHEMA,
+	ROOT_EVAL_D145_STALE_TRANSACTION_RECONCILIATION_SCHEMA,
 	recoverRootEvalD145CharterTransaction,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-charter-transaction.js";
 import {
@@ -4815,6 +4817,187 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				nextLedger: secondLedger,
 			});
 			expect(await readRootEvalD145CharterLedger(ledgerPath)).toEqual(secondLedger);
+		} finally {
+			await rm(temporary, { recursive: true, force: true });
+		}
+	});
+
+	it("settles a version-stale charged journal as spend-only without efficacy evidence", async () => {
+		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-stale-journal-"));
+		const canonicalTemporary = await realpath(temporary);
+		const generationRef = rootEvalD145DevelopmentGenerationRef(1);
+		const privateRoot = resolve(join(canonicalTemporary, `current-${generationRef}`));
+		const ledgerPath = resolve(join(canonicalTemporary, "ledger.json"));
+		const journalPath = resolve(join(canonicalTemporary, "journal.json"));
+		const taskSetRef = "root-eval-d145-transfer-development-1-v1";
+		const taskManifestDigest = empiricalStrictJsonDigest("stale-development-1-manifest");
+		const oldImplementationDigest = empiricalStrictJsonDigest("stale-implementation");
+		const partial = constructRootEvalLiveEvidence({
+			...liveEvidenceInput(),
+			graphResult: null,
+			providerCalls: 1,
+			failure: new Error("old projector rejected its terminal observation"),
+			cleanupDisposition: "complete",
+		});
+		const { evidenceDigest: _currentEvidenceDigest, ...partialMaterial } = partial;
+		const staleEvidenceMaterial = {
+			...partialMaterial,
+			generationRef,
+			implementationCoordinate: `worktree:${"b".repeat(40)}:${oldImplementationDigest}`,
+			implementationManifestDigest: oldImplementationDigest,
+			taskManifestDigest,
+		};
+		const staleEvidence = Object.freeze({
+			...staleEvidenceMaterial,
+			evidenceDigest: empiricalStrictJsonDigest(staleEvidenceMaterial),
+		});
+		const intendedOldLedger = advanceRootEvalD145CharterLedger({
+			ledger: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
+			generationRef,
+			campaignPurpose: "development",
+			taskSetRef,
+			taskManifestDigest,
+			budgetPartition: "development-usd-36",
+			providerReportedMicrousd: 90_000,
+			unreportedSettledUpperBoundMicrousd: 5_800_000,
+			accountedUpperBoundMicrousd: 5_890_000,
+			admissionStatus: "rejected",
+			developmentQualification: null,
+			evidenceDigest: staleEvidence.evidenceDigest,
+		});
+		const journalMaterial = Object.freeze({
+			schemaVersion: ROOT_EVAL_D145_CHARTER_TRANSACTION_SCHEMA,
+			privateRoot,
+			charterLedgerPath: ledgerPath,
+			previousLedgerDigest: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER.ledgerDigest,
+			evidence: staleEvidence,
+			nextLedger: intendedOldLedger,
+		});
+		try {
+			await mkdir(privateRoot, { mode: 0o700 });
+			const completedEvidenceRoot = join(privateRoot, generationRef);
+			await mkdir(completedEvidenceRoot, { mode: 0o700 });
+			await writeFile(
+				join(completedEvidenceRoot, "evidence.v24.json"),
+				strictJsonCodec.encode(staleEvidence),
+				{ mode: 0o600 },
+			);
+			await writeRootEvalD145CharterLedger(ledgerPath, intendedOldLedger);
+			await writeFile(
+				journalPath,
+				strictJsonCodec.encode({
+					...journalMaterial,
+					transactionDigest: empiricalStrictJsonDigest(journalMaterial),
+				}),
+				{ mode: 0o600 },
+			);
+			await expect(recoverRootEvalD145CharterTransaction(journalPath)).resolves.toMatchObject({
+				transactionDigest: empiricalStrictJsonDigest(journalMaterial),
+				historicalEvidencePreserved: true,
+			});
+			expect(await readRootEvalD145CharterLedger(ledgerPath)).toEqual(intendedOldLedger);
+			await rm(completedEvidenceRoot, { recursive: true });
+			await rm(ledgerPath);
+
+			const forgedEvidenceMaterial = {
+				...staleEvidenceMaterial,
+				efficacyClaim: "transfer-task-family-positive-differential" as const,
+				causalAttribution: "verified-prior-work-item-memory-transfer" as const,
+			};
+			const forgedEvidence = {
+				...forgedEvidenceMaterial,
+				evidenceDigest: empiricalStrictJsonDigest(forgedEvidenceMaterial),
+			};
+			const forgedLedger = advanceRootEvalD145CharterLedger({
+				ledger: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
+				generationRef,
+				campaignPurpose: "development",
+				taskSetRef,
+				taskManifestDigest,
+				budgetPartition: "development-usd-36",
+				providerReportedMicrousd: 90_000,
+				unreportedSettledUpperBoundMicrousd: 5_800_000,
+				accountedUpperBoundMicrousd: 5_890_000,
+				admissionStatus: "rejected",
+				developmentQualification: null,
+				evidenceDigest: forgedEvidence.evidenceDigest,
+			});
+			const forgedJournalMaterial = {
+				...journalMaterial,
+				evidence: forgedEvidence,
+				nextLedger: forgedLedger,
+			};
+			await writeFile(
+				journalPath,
+				strictJsonCodec.encode({
+					...forgedJournalMaterial,
+					transactionDigest: empiricalStrictJsonDigest(forgedJournalMaterial),
+				}),
+				{ mode: 0o600 },
+			);
+			await expect(recoverRootEvalD145CharterTransaction(journalPath)).rejects.toThrow(
+				/fail-closed.*efficacy/u,
+			);
+			expect(await readRootEvalD145CharterLedger(ledgerPath)).toEqual(
+				ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
+			);
+
+			await writeFile(
+				journalPath,
+				strictJsonCodec.encode({
+					...journalMaterial,
+					transactionDigest: empiricalStrictJsonDigest(journalMaterial),
+				}),
+				{ mode: 0o600 },
+			);
+			const recovered = await recoverRootEvalD145CharterTransaction(journalPath);
+			expect(recovered).toMatchObject({
+				persistence: null,
+				transactionDigest: empiricalStrictJsonDigest(journalMaterial),
+				reconciliationReceiptDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+			});
+			const ledger = await readRootEvalD145CharterLedger(ledgerPath);
+			expect(ledger).toMatchObject({
+				developmentSpentMicrousd: 5_890_000,
+				developmentQualificationStreak: 0,
+				entries: [
+					expect.objectContaining({
+						generationRef,
+						generationQualified: false,
+						providerReportedMicrousd: 90_000,
+						unreportedSettledUpperBoundMicrousd: 5_800_000,
+						accountedUpperBoundMicrousd: 5_890_000,
+						evidenceDigest: recovered?.reconciliationReceiptDigest,
+					}),
+				],
+			});
+			const receiptPath = join(
+				privateRoot,
+				`.${generationRef}.stale-transaction-reconciliation.v1.json`,
+			);
+			expect(JSON.parse(await readFile(receiptPath, "utf8"))).toMatchObject({
+				schemaVersion: ROOT_EVAL_D145_STALE_TRANSACTION_RECONCILIATION_SCHEMA,
+				generationRef,
+				classification: "consumed-unqualified-stale-transaction",
+				accountedUpperBoundMicrousd: 5_890_000,
+				receiptDigest: recovered?.reconciliationReceiptDigest,
+			});
+			await expect(stat(journalPath)).rejects.toMatchObject({ code: "ENOENT" });
+			await expect(stat(join(privateRoot, generationRef))).rejects.toMatchObject({
+				code: "ENOENT",
+			});
+
+			// A crash after the recovered ledger write but before journal deletion is idempotent.
+			await writeFile(
+				journalPath,
+				strictJsonCodec.encode({
+					...journalMaterial,
+					transactionDigest: empiricalStrictJsonDigest(journalMaterial),
+				}),
+				{ mode: 0o600 },
+			);
+			await expect(recoverRootEvalD145CharterTransaction(journalPath)).resolves.toEqual(recovered);
+			expect(await readRootEvalD145CharterLedger(ledgerPath)).toEqual(ledger);
 		} finally {
 			await rm(temporary, { recursive: true, force: true });
 		}
