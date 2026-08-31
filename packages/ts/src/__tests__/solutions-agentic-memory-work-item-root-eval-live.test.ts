@@ -4936,7 +4936,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		}
 	}, 120_000);
 
-	it("completes a live-shaped six-arm 429 lifecycle through six Graph-admitted retries", async () => {
+	it("completes an all-Work-Item 429 lifecycle beyond the old projection bounds", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-live-six-429-"));
 		const materializationRoot = join(temporary, "workspaces");
 		const taskManifest = createRootEvalTaskManifest({
@@ -4965,8 +4965,6 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			bytes: new TextEncoder().encode("{}"),
 			retryAfter: "0",
 		});
-		const successful = (task: (typeof ROOT_EVAL_DEVELOPMENT_TASKS)[number]) =>
-			Object.freeze({ status: 200, bytes: providerBytesForTask(task) });
 		const executor = createRootEvalNoNetworkQualificationExecutor({
 			repositoryRoot,
 			materializationRoot,
@@ -4976,11 +4974,14 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			providerResponses: [],
 			providerResponseForEffect(effect) {
 				const task = tasks[effect.replicate - 1]!;
-				if (effect.workItemRole === "source")
-					return { status: 200, bytes: providerBytesForSourceTask(task) };
-				return effect.replicate === 1 && effect.dispatchOrdinal === 1
-					? retryable
-					: successful(task);
+				if (effect.dispatchOrdinal === 1) return retryable;
+				return {
+					status: 200,
+					bytes:
+						effect.workItemRole === "source"
+							? providerBytesForSourceTask(task)
+							: providerBytesForTask(task),
+				};
 			},
 		});
 		try {
@@ -5021,16 +5022,16 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					});
 				},
 			);
-			expect(executor.providerRequestSummaries()).toHaveLength(41);
-			expect(graphResult.executedAdmissionIds).toHaveLength(41);
+			expect(executor.providerRequestSummaries()).toHaveLength(70);
+			expect(graphResult.executedAdmissionIds).toHaveLength(70);
 			assertRootEvalRunResultAdmissionShape(graphResult);
 			expect(graphResult.finding).toMatchObject({
 				completedWorkItems: 30,
-				admittedAttempts: 41,
-				providerCallCount: 41,
+				admittedAttempts: 70,
+				providerCallCount: 70,
 				stoppingReason: "campaign-complete",
 				providerOutcomeReasonCounts: {
-					"http-capacity-retryable": 6,
+					"http-capacity-retryable": 35,
 					"tool-proposed": 35,
 				},
 			});
@@ -5041,11 +5042,11 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				)
 				.find((value) => value.finding !== "pending");
 			expect(terminal).toMatchObject({
-				retryProposalCount: 6,
+				retryProposalCount: 35,
 				pendingRetryProposalCount: 0,
-				admittedRetryAttempts: 6,
+				admittedRetryAttempts: 35,
 				rejectedRetryProposalCount: 0,
-				settledRetryAttemptCount: 6,
+				settledRetryAttemptCount: 35,
 			});
 			expect(await readdir(materializationRoot)).toEqual([]);
 		} finally {
@@ -5788,6 +5789,10 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				peakConcurrentEffects: 1,
 				executedAdmissionIds: admissionIds(),
 			});
+			const oversizedDiagnosticStream = [
+				...Array.from({ length: 513 }, () => graphResult.observations[0]!),
+				...graphResult.observations,
+			];
 			const evidence = constructRootEvalLiveEvidence({
 				claim,
 				currentKeyBefore,
@@ -5796,11 +5801,13 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				zeroByok,
 				providerCalls: currentWorkItemCount,
 				graphResult,
-				partialGraphObservations: graphResult.observations,
+				partialGraphObservations: oversizedDiagnosticStream,
 				failure: null,
 				cleanupDisposition: "complete",
 			});
 			expect(evidence.efficacyClaim).toBe("none");
+			expect(evidence.partialGraphObservations).toHaveLength(512);
+			expect(evidence.latestGraphObservation).toEqual(evidence.partialGraphObservations.at(-1));
 			const { evidenceDigest: _digest, ...forgedMaterial } = evidence;
 			const forgedDiagnosticMaterial = {
 				...forgedMaterial,
@@ -5895,7 +5902,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		} finally {
 			await rm(temporary, { recursive: true, force: true });
 		}
-	});
+	}, 30_000);
 
 	it("rejects stale preclaim coordinates before creating a D140 disposition", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-preclaim-"));

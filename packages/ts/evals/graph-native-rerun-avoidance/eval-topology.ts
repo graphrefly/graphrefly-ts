@@ -2688,28 +2688,32 @@ export function assertRootEvalObservationRuntimeShape(
 	)
 		throw new TypeError(`${label} elapsed stopping state drifted`);
 	const admittedAttempts = safeInteger(root.admittedAttempts, `${label}.admittedAttempts`);
+	const maxRetryAttempts =
+		replicateCount *
+		(HARNESS_ARMS.length + 1) *
+		(ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM - 1);
 	const admittedRetryAttempts = safeInteger(
 		root.admittedRetryAttempts,
 		`${label}.admittedRetryAttempts`,
-		{ max: replicateCount * HARNESS_ARMS.length },
+		{ max: maxRetryAttempts },
 	);
 	const retryProposalCount = safeInteger(root.retryProposalCount, `${label}.retryProposalCount`, {
-		max: replicateCount * HARNESS_ARMS.length,
+		max: maxRetryAttempts,
 	});
 	const pendingRetryProposalCount = safeInteger(
 		root.pendingRetryProposalCount,
 		`${label}.pendingRetryProposalCount`,
-		{ max: replicateCount * HARNESS_ARMS.length },
+		{ max: maxRetryAttempts },
 	);
 	const rejectedRetryProposalCount = safeInteger(
 		root.rejectedRetryProposalCount,
 		`${label}.rejectedRetryProposalCount`,
-		{ max: replicateCount * HARNESS_ARMS.length },
+		{ max: maxRetryAttempts },
 	);
 	const settledRetryAttemptCount = safeInteger(
 		root.settledRetryAttemptCount,
 		`${label}.settledRetryAttemptCount`,
-		{ max: replicateCount * HARNESS_ARMS.length },
+		{ max: maxRetryAttempts },
 	);
 	const providerCallCount = safeInteger(root.providerCallCount, `${label}.providerCallCount`);
 	const activeReservedMicrousd = safeInteger(

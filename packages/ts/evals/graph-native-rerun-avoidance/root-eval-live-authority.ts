@@ -1948,6 +1948,12 @@ const ROOT_EVAL_ARMS = Object.freeze([
 	"wrong-scope-applied",
 ] as const);
 
+const ROOT_EVAL_LIVE_MAX_WORK_ITEMS = ROOT_EVAL_LIVE_REPLICATE_COUNT * (ROOT_EVAL_ARMS.length + 1);
+const ROOT_EVAL_LIVE_MAX_PROVIDER_ATTEMPTS =
+	ROOT_EVAL_LIVE_MAX_WORK_ITEMS * ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM;
+const ROOT_EVAL_LIVE_MAX_RETRY_ATTEMPTS =
+	ROOT_EVAL_LIVE_MAX_WORK_ITEMS * (ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM - 1);
+
 const ROOT_EVAL_MEMORY_PROVENANCE = Object.freeze({
 	cold: "none",
 	"relevant-applied": "relevant-applied",
@@ -2194,7 +2200,9 @@ function projectProviderOutcomeReasonCounts(
 		Object.fromEntries(
 			EVAL_PROVIDER_OUTCOME_REASON_CODES.map((code) => [
 				code,
-				safeInteger(counts[code], `${label}.${code}`, { max: 60 }),
+				safeInteger(counts[code], `${label}.${code}`, {
+					max: ROOT_EVAL_LIVE_MAX_PROVIDER_ATTEMPTS,
+				}),
 			]),
 		),
 	) as EvalProviderOutcomeReasonCounts;
@@ -2763,38 +2771,38 @@ function projectObservation(value: unknown, index: number): ParsedEvalObservatio
 		providerCapacity: raw.providerCapacity as EvalObservation["providerCapacity"],
 		elapsedBudget: raw.elapsedBudget as EvalObservation["elapsedBudget"],
 		admittedAttempts: safeInteger(raw.admittedAttempts, "root eval observation.admittedAttempts", {
-			max: 60,
+			max: ROOT_EVAL_LIVE_MAX_PROVIDER_ATTEMPTS,
 		}),
 		admittedRetryAttempts: safeInteger(
 			raw.admittedRetryAttempts,
 			"root eval observation.admittedRetryAttempts",
-			{ max: 30 },
+			{ max: ROOT_EVAL_LIVE_MAX_RETRY_ATTEMPTS },
 		),
 		retryProposalCount: safeInteger(
 			raw.retryProposalCount,
 			"root eval observation.retryProposalCount",
-			{ max: 30 },
+			{ max: ROOT_EVAL_LIVE_MAX_RETRY_ATTEMPTS },
 		),
 		pendingRetryProposalCount: safeInteger(
 			raw.pendingRetryProposalCount,
 			"root eval observation.pendingRetryProposalCount",
-			{ max: 30 },
+			{ max: ROOT_EVAL_LIVE_MAX_RETRY_ATTEMPTS },
 		),
 		rejectedRetryProposalCount: safeInteger(
 			raw.rejectedRetryProposalCount,
 			"root eval observation.rejectedRetryProposalCount",
-			{ max: 30 },
+			{ max: ROOT_EVAL_LIVE_MAX_RETRY_ATTEMPTS },
 		),
 		settledRetryAttemptCount: safeInteger(
 			raw.settledRetryAttemptCount,
 			"root eval observation.settledRetryAttemptCount",
-			{ max: 30 },
+			{ max: ROOT_EVAL_LIVE_MAX_RETRY_ATTEMPTS },
 		),
 		providerCallCount: safeInteger(
 			raw.providerCallCount,
 			"root eval observation.providerCallCount",
 			{
-				max: 60,
+				max: ROOT_EVAL_LIVE_MAX_PROVIDER_ATTEMPTS,
 			},
 		),
 		activeReservedMicrousd: safeInteger(
@@ -2963,19 +2971,19 @@ export function assertRootEvalRunResultAdmissionShape(value: unknown): void {
 function projectPartialObservations(values: readonly ObserveEvent[]): readonly ObserveEvent[] {
 	let source: readonly unknown[];
 	try {
-		source = array(values, "root eval partial observations").slice(-512);
+		source = array(values, "root eval partial observations");
 	} catch {
 		return Object.freeze([]);
 	}
 	const projected: ObserveEvent[] = [];
-	for (const [index, value] of source.entries())
+	for (let index = source.length - 1; index >= 0 && projected.length < 512; index -= 1)
 		try {
-			projected.push(projectObservation(value, index).event);
+			projected.push(projectObservation(source[index], index).event);
 		} catch {
 			// Partial observations are diagnostic-only. Invalid runtime material is omitted,
 			// never copied into durable evidence and never promoted to domain authority.
 		}
-	return Object.freeze(projected);
+	return Object.freeze(projected.reverse());
 }
 
 function projectLatestObservation(values: readonly ObserveEvent[]): ObserveEvent | null {
@@ -3543,6 +3551,7 @@ export function constructRootEvalLiveEvidence(
 						rejectedGraphSummary: admissionReport.rejectedGraphSummary,
 					})
 				: null;
+	const partialGraphObservations = projectPartialObservations(input.partialGraphObservations);
 	const material = strictSnapshot({
 		schemaVersion: ROOT_EVAL_LIVE_EVIDENCE_SCHEMA,
 		generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
@@ -3564,8 +3573,8 @@ export function constructRootEvalLiveEvidence(
 		providerCalls: input.providerCalls,
 		observationProvenance,
 		graphResult: graph,
-		partialGraphObservations: projectPartialObservations(input.partialGraphObservations),
-		latestGraphObservation: projectLatestObservation(input.partialGraphObservations),
+		partialGraphObservations,
+		latestGraphObservation: partialGraphObservations.at(-1) ?? null,
 		admissionReport,
 		failureDigest,
 		technicalFailureCode,
@@ -3731,7 +3740,7 @@ function validateEvidenceGraph(value: unknown): RootEvalLiveGraphEvidence {
 	);
 	if (
 		rawDigests.length < executedTargetReplicateCount * ROOT_EVAL_ARMS.length ||
-		rawDigests.length > ROOT_EVAL_LIVE_REPLICATE_COUNT * ROOT_EVAL_ARMS.length * 2
+		rawDigests.length > ROOT_EVAL_LIVE_MAX_PROVIDER_ATTEMPTS
 	)
 		throw new TypeError("root eval live evidence admission digest count invalid");
 	const admissionDigests = rawDigests.map((value, index) =>
