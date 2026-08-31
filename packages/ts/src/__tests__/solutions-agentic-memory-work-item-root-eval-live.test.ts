@@ -32,8 +32,13 @@ import {
 	ROOT_EVAL_CALLER_SAFETY_LEASE_MS,
 	ROOT_EVAL_GRAPH_DRAIN_RESERVE_MS,
 	ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS,
+	ROOT_EVAL_MAX_AVAILABILITY_RETRIES,
+	ROOT_EVAL_MAX_CAPACITY_RETRIES,
+	ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM,
 	ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
 	type RootEvalRunResult,
+	rootEvalMaximumProviderAttempts,
+	rootEvalMaximumRetryAttempts,
 	runRootEval,
 } from "../../evals/graph-native-rerun-avoidance/eval-topology.js";
 import {
@@ -210,6 +215,30 @@ function admissionIds(count = ROOT_EVAL_LIVE_REPLICATE_COUNT * arms.length): rea
 function sourceAdmissionId(replicate: number, dispatchOrdinal = 1): string {
 	const workItemId = `${ROOT_EVAL_LIVE_TASK_SET_REF}/instance-${replicate}/source-work-item`;
 	return `effect-run:work-item:${workItemId}:effect-plan:1:${workItemId}/plan:source-provider-and-exact-tool/dispatch-${dispatchOrdinal}/admission`;
+}
+
+function allProviderAdmissionIds(): readonly string[] {
+	const result: string[] = [];
+	for (let replicate = 1; replicate <= ROOT_EVAL_LIVE_REPLICATE_COUNT; replicate += 1) {
+		for (
+			let dispatchOrdinal = 1;
+			dispatchOrdinal <= ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM;
+			dispatchOrdinal += 1
+		)
+			result.push(sourceAdmissionId(replicate, dispatchOrdinal));
+		for (const arm of arms) {
+			const workItemId = `${ROOT_EVAL_LIVE_GENERATION_REF}/replicate-${replicate}/${arm}`;
+			for (
+				let dispatchOrdinal = 1;
+				dispatchOrdinal <= ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM;
+				dispatchOrdinal += 1
+			)
+				result.push(
+					`effect-run:work-item:${workItemId}:effect-plan:1:${workItemId}/plan:provider-and-exact-tool/dispatch-${dispatchOrdinal}/admission`,
+				);
+		}
+	}
+	return Object.freeze(result);
 }
 
 function providerBytes(): Uint8Array {
@@ -5237,6 +5266,133 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			await rm(temporary, { recursive: true, force: true });
 		}
 	}, 300_000);
+
+	it("derives and enforces the exact 175-provider/140-retry topology boundary offline", () => {
+		const input = liveEvidenceInput();
+		const graphResult = input.graphResult!;
+		const terminal = graphResult.observations.at(-1)!;
+		if (terminal.msg[0] !== "DATA") throw new TypeError("test terminal observation missing");
+		const terminalValue = terminal.msg[1] as Readonly<Record<string, unknown>>;
+		const providerCapacity = terminalValue.providerCapacity as Readonly<Record<string, unknown>>;
+		const maxProviderAttempts = rootEvalMaximumProviderAttempts(ROOT_EVAL_LIVE_REPLICATE_COUNT);
+		const maxRetryAttempts = rootEvalMaximumRetryAttempts(ROOT_EVAL_LIVE_REPLICATE_COUNT);
+		const maxWorkItems = ROOT_EVAL_LIVE_REPLICATE_COUNT * (arms.length + 1);
+		const maxCapacityRetries = maxWorkItems * ROOT_EVAL_MAX_CAPACITY_RETRIES;
+		const maxAvailabilityRetries = maxWorkItems * ROOT_EVAL_MAX_AVAILABILITY_RETRIES;
+		const maximalReasonCounts = Object.freeze({
+			...emptyEvalProviderOutcomeReasonCounts(),
+			"tool-proposed": maxWorkItems,
+			"http-capacity-retryable": maxCapacityRetries,
+			"http-availability-retryable": maxAvailabilityRetries,
+		});
+		expect(maxProviderAttempts).toBe(175);
+		expect(maxRetryAttempts).toBe(140);
+		expect(maxCapacityRetries + maxAvailabilityRetries).toBe(maxRetryAttempts);
+		const maximalObservation = {
+			...terminalValue,
+			providerCapacity: {
+				...providerCapacity,
+				mode: "cooldown",
+				proposalCount: maxProviderAttempts,
+				pendingProposalCount: 0,
+				pendingFirstAttemptProposalCount: 0,
+				pendingRetryProposalCount: 0,
+				retryProposalCount: maxRetryAttempts,
+				admittedProposalCount: maxProviderAttempts,
+				admittedRetryProposalCount: maxRetryAttempts,
+				settledProposalCount: maxProviderAttempts,
+				settledRetryProposalCount: maxRetryAttempts,
+				rejectedProposalCount: 0,
+				rejectedRetryProposalCount: 0,
+				cooldownOutstandingReadinessCount: 1,
+				rateLimitFeedbackCount: maxCapacityRetries,
+			},
+			admittedAttempts: maxProviderAttempts,
+			admittedRetryAttempts: maxRetryAttempts,
+			retryProposalCount: maxRetryAttempts,
+			pendingRetryProposalCount: 0,
+			rejectedRetryProposalCount: 0,
+			settledRetryAttemptCount: maxRetryAttempts,
+			providerCallCount: maxProviderAttempts,
+			providerOutcomeReasonCounts: maximalReasonCounts,
+		} as never;
+		assertRootEvalObservationRuntimeShape(maximalObservation, "maximal offline observation");
+		const maximalEvent = {
+			...terminal,
+			msg: ["DATA", maximalObservation] as never,
+		};
+		const maximalGraphResult: RootEvalRunResult = {
+			...graphResult,
+			finding: {
+				...graphResult.finding,
+				admittedAttempts: maxProviderAttempts,
+				providerCallCount: maxProviderAttempts,
+				providerOutcomeReasonCounts: maximalReasonCounts,
+			},
+			observations: [...graphResult.observations.slice(0, -1), maximalEvent],
+			executedAdmissionIds: allProviderAdmissionIds(),
+		};
+		expect(maximalGraphResult.executedAdmissionIds).toHaveLength(maxProviderAttempts);
+		assertRootEvalRunResultAdmissionShape(maximalGraphResult);
+		const oversizedDiagnosticStream = [
+			...Array.from({ length: 513 }, () => maximalGraphResult.observations[0]!),
+			...maximalGraphResult.observations,
+		];
+		const evidence = constructRootEvalLiveEvidence({
+			...input,
+			providerCalls: maxProviderAttempts,
+			graphResult: maximalGraphResult,
+			partialGraphObservations: oversizedDiagnosticStream,
+		});
+		expect(evidence).toMatchObject({
+			disposition: "success",
+			providerCalls: maxProviderAttempts,
+			admissionReport: { status: "admitted" },
+			latestGraphObservation: {
+				msg: [
+					"DATA",
+					expect.objectContaining({
+						admittedAttempts: maxProviderAttempts,
+						admittedRetryAttempts: maxRetryAttempts,
+						providerCallCount: maxProviderAttempts,
+					}),
+				],
+			},
+		});
+		expect(evidence.partialGraphObservations).toHaveLength(512);
+		expect(evidence.latestGraphObservation).toEqual(evidence.partialGraphObservations.at(-1));
+
+		for (const overflow of [
+			{ admittedAttempts: maxProviderAttempts + 1 },
+			{ providerCallCount: maxProviderAttempts + 1 },
+			{ admittedRetryAttempts: maxRetryAttempts + 1 },
+			{ retryProposalCount: maxRetryAttempts + 1 },
+			{ settledRetryAttemptCount: maxRetryAttempts + 1 },
+		])
+			expect(() =>
+				assertRootEvalObservationRuntimeShape(
+					{ ...maximalObservation, ...overflow } as never,
+					"overflow offline observation",
+				),
+			).toThrow(/expected safe integer in/u);
+
+		expect(() =>
+			evaluateRootEvalLiveAdmission({ ...input, providerCalls: maxProviderAttempts + 1 }),
+		).toThrow(/authority\.provider-call-count-invalid/u);
+		const overflowEvent = {
+			...maximalEvent,
+			seq: maximalEvent.seq + 1,
+			msg: ["DATA", { ...maximalObservation, providerCallCount: maxProviderAttempts + 1 }] as never,
+		};
+		const projected = constructRootEvalLiveEvidence({
+			...input,
+			providerCalls: maxProviderAttempts,
+			graphResult: maximalGraphResult,
+			partialGraphObservations: [...maximalGraphResult.observations, overflowEvent],
+		});
+		expect(projected.latestGraphObservation).toEqual(maximalEvent);
+		expect(projected.partialGraphObservations).not.toContainEqual(overflowEvent);
+	});
 
 	it("executes one admitted effect against a frozen isolated workspace and behavioral verifiers", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-live-"));

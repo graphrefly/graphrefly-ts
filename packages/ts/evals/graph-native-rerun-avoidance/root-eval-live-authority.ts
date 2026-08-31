@@ -36,9 +36,13 @@ import {
 	type EvalVerificationReasonCounts,
 	type EvalVerificationStageCounts,
 	ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM,
+	ROOT_EVAL_REPLICATE_COUNT,
 	ROOT_EVAL_TOPOLOGY_REVISION,
 	type RootEvalRunResult,
+	rootEvalMaximumProviderAttempts,
+	rootEvalMaximumRetryAttempts,
 } from "./eval-topology.js";
+import { HARNESS_ARMS } from "./harness-campaign-policy.js";
 import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifest.js";
 import {
 	ROOT_EVAL_D145_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD,
@@ -124,7 +128,7 @@ export const ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD =
 	ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE === "development"
 		? ROOT_EVAL_D145_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD
 		: ROOT_EVAL_D145_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD;
-export const ROOT_EVAL_LIVE_REPLICATE_COUNT = 5 as const;
+export const ROOT_EVAL_LIVE_REPLICATE_COUNT = ROOT_EVAL_REPLICATE_COUNT;
 export const ROOT_EVAL_LIVE_TASK_SET_REF = ROOT_EVAL_LIVE_CAMPAIGN_PLAN.taskSetRef;
 export const ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST = ROOT_EVAL_HELD_OUT_SEAL_DIGEST;
 export const ROOT_EVAL_LIVE_BUDGET_PARTITION =
@@ -1939,20 +1943,14 @@ function isDigest(value: unknown): value is string {
 	return typeof value === "string" && /^sha256:[0-9a-f]{64}$/u.test(value);
 }
 
-const ROOT_EVAL_ARMS = Object.freeze([
-	"cold",
-	"relevant-applied",
-	"proposal-only",
-	"admission-rejected",
-	"irrelevant-applied",
-	"wrong-scope-applied",
-] as const);
-
-const ROOT_EVAL_LIVE_MAX_WORK_ITEMS = ROOT_EVAL_LIVE_REPLICATE_COUNT * (ROOT_EVAL_ARMS.length + 1);
-const ROOT_EVAL_LIVE_MAX_PROVIDER_ATTEMPTS =
-	ROOT_EVAL_LIVE_MAX_WORK_ITEMS * ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM;
-const ROOT_EVAL_LIVE_MAX_RETRY_ATTEMPTS =
-	ROOT_EVAL_LIVE_MAX_WORK_ITEMS * (ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM - 1);
+const ROOT_EVAL_ARMS = HARNESS_ARMS;
+const ROOT_EVAL_LIVE_MAX_PROVIDER_ATTEMPTS = rootEvalMaximumProviderAttempts(
+	ROOT_EVAL_LIVE_REPLICATE_COUNT,
+);
+const ROOT_EVAL_LIVE_MAX_RETRY_ATTEMPTS = rootEvalMaximumRetryAttempts(
+	ROOT_EVAL_LIVE_REPLICATE_COUNT,
+);
+const ROOT_EVAL_LIVE_OBSERVATION_RETENTION = 512 as const;
 
 const ROOT_EVAL_MEMORY_PROVENANCE = Object.freeze({
 	cold: "none",
@@ -2633,7 +2631,7 @@ function projectObservation(value: unknown, index: number): ParsedEvalObservatio
 			`root eval result.observations[${index}].memoryProvenance.${arm}`,
 		);
 	const replicateCount = safeInteger(raw.replicateCount, "root eval observation.replicateCount", {
-		max: 5,
+		max: ROOT_EVAL_LIVE_REPLICATE_COUNT,
 	});
 	const projected = strictSnapshot({
 		kind: literal(raw.kind, "eval-observation", "root eval observation.kind"),
@@ -2739,24 +2737,22 @@ function projectObservation(value: unknown, index: number): ParsedEvalObservatio
 			replicateCount,
 		),
 		completedArms: safeInteger(raw.completedArms, "root eval observation.completedArms", {
-			max: 6,
+			max: ROOT_EVAL_ARMS.length,
 		}),
 		activeProviderEffects: safeInteger(
 			raw.activeProviderEffects,
 			"root eval observation.activeProviderEffects",
-			{
-				max: 6,
-			},
+			{ max: ROOT_EVAL_ARMS.length },
 		),
 		activeToolEffects: safeInteger(
 			raw.activeToolEffects,
 			"root eval observation.activeToolEffects",
-			{ max: 6 },
+			{ max: ROOT_EVAL_ARMS.length },
 		),
 		activeRetryEffects: safeInteger(
 			raw.activeRetryEffects,
 			"root eval observation.activeRetryEffects",
-			{ max: 6 },
+			{ max: ROOT_EVAL_ARMS.length },
 		),
 		activeBillingEffects: safeInteger(
 			raw.activeBillingEffects,
@@ -2766,7 +2762,7 @@ function projectObservation(value: unknown, index: number): ParsedEvalObservatio
 		activeAdmittedEffects: safeInteger(
 			raw.activeAdmittedEffects,
 			"root eval observation.activeAdmittedEffects",
-			{ max: 6 },
+			{ max: ROOT_EVAL_ARMS.length },
 		),
 		providerCapacity: raw.providerCapacity as EvalObservation["providerCapacity"],
 		elapsedBudget: raw.elapsedBudget as EvalObservation["elapsedBudget"],
@@ -2932,7 +2928,7 @@ function projectRootEvalRunResult(value: unknown): ParsedRootEvalRunResult {
 		"root eval result",
 	);
 	const rawObservations = array(root.observations, "root eval result.observations");
-	if (rawObservations.length > 512)
+	if (rawObservations.length > ROOT_EVAL_LIVE_OBSERVATION_RETENTION)
 		throw new TypeError("root eval observations exceeded evidence bound");
 	const rawIds = array(root.executedAdmissionIds, "root eval result.executedAdmissionIds");
 	if (rawIds.length > EXPECTED_ADMISSION_IDS.size)
@@ -2976,7 +2972,11 @@ function projectPartialObservations(values: readonly ObserveEvent[]): readonly O
 		return Object.freeze([]);
 	}
 	const projected: ObserveEvent[] = [];
-	for (let index = source.length - 1; index >= 0 && projected.length < 512; index -= 1)
+	for (
+		let index = source.length - 1;
+		index >= 0 && projected.length < ROOT_EVAL_LIVE_OBSERVATION_RETENTION;
+		index -= 1
+	)
 		try {
 			projected.push(projectObservation(source[index], index).event);
 		} catch {
@@ -3250,7 +3250,9 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 		["authority.current-key-reconciliation-nonmonotonic", reconciliationValid],
 		[
 			"authority.provider-call-count-invalid",
-			Number.isSafeInteger(input.providerCalls) && input.providerCalls >= 0,
+			Number.isSafeInteger(input.providerCalls) &&
+				input.providerCalls >= 0 &&
+				input.providerCalls <= ROOT_EVAL_LIVE_MAX_PROVIDER_ATTEMPTS,
 		],
 		["authority.result-and-failure-missing", input.graphResult !== null || input.failure !== null],
 	];
@@ -3669,7 +3671,7 @@ function validateEvidenceGraph(value: unknown): RootEvalLiveGraphEvidence {
 		graph.observations,
 		"root eval live evidence.graphResult.observations",
 	);
-	if (observations.length < 1 || observations.length > 512)
+	if (observations.length < 1 || observations.length > ROOT_EVAL_LIVE_OBSERVATION_RETENTION)
 		throw new TypeError("root eval live evidence graph observation count invalid");
 	const projectedObservations = observations.map((event, index) =>
 		projectObservation(event, index),
@@ -3930,7 +3932,9 @@ function validateRootEvalLiveEvidenceForPersistence(value: RootEvalLiveEvidence)
 		if (evidence[key] !== null) digest(evidence[key], `root eval live evidence.${key}`);
 	for (const key of ["billedUsageDeltaMicrousd", "billedRemainingDeltaMicrousd"] as const)
 		if (evidence[key] !== null) safeInteger(evidence[key], `root eval live evidence.${key}`);
-	safeInteger(evidence.providerCalls, "root eval live evidence.providerCalls");
+	safeInteger(evidence.providerCalls, "root eval live evidence.providerCalls", {
+		max: ROOT_EVAL_LIVE_MAX_PROVIDER_ATTEMPTS,
+	});
 	literal(
 		evidence.implementationManifestDigest,
 		ROOT_EVAL_CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,

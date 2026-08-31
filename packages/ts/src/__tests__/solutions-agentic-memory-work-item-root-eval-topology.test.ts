@@ -32,6 +32,8 @@ import {
 	ROOT_EVAL_GRAPH_DRAIN_RESERVE_MS,
 	ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS,
 	ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+	ROOT_EVAL_REPLICATE_COUNT,
+	rootEvalMaximumProviderAttempts,
 	runRootEval,
 	validateEvalEffectProposalAgainstWorkItemPlan,
 } from "../../evals/graph-native-rerun-avoidance/eval-topology.js";
@@ -3270,6 +3272,11 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			expect(() => createTopology(options)).toThrow(
 				/positive safe integer|bounded positive|partition budget authority/u,
 			);
+		expect(() =>
+			createTopology({
+				maxAttempts: rootEvalMaximumProviderAttempts(ROOT_EVAL_REPLICATE_COUNT) + 1,
+			}),
+		).toThrow("maxAttempts exceeded the root eval topology capacity");
 	});
 
 	it("settles a completed retry delay before a budget-rejected retry proposal", async () => {

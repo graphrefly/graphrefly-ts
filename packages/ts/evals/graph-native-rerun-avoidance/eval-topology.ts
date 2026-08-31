@@ -91,6 +91,20 @@ export const ROOT_EVAL_MAX_INFRASTRUCTURE_RETRY_DELAY_MS = 240_000 as const;
 export const ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS = 4_500_000 as const;
 export const ROOT_EVAL_GRAPH_DRAIN_RESERVE_MS = 1_800_000 as const;
 export const ROOT_EVAL_CALLER_SAFETY_LEASE_MS = 6_300_000 as const;
+
+export function rootEvalMaximumProviderAttempts(replicateCount: number): number {
+	return (
+		replicateCount * (HARNESS_ARMS.length + 1) * ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM
+	);
+}
+
+export function rootEvalMaximumRetryAttempts(replicateCount: number): number {
+	return (
+		replicateCount *
+		(HARNESS_ARMS.length + 1) *
+		(ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM - 1)
+	);
+}
 export const ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE: EvalCurrentKeySnapshot = Object.freeze({
 	kind: "eval-current-key-snapshot",
 	keyBindingDigest: empiricalStrictJsonDigest("root-eval-no-network-key-binding"),
@@ -2687,11 +2701,11 @@ export function assertRootEvalObservationRuntimeShape(
 		(elapsedBudget.state === "exhausted")
 	)
 		throw new TypeError(`${label} elapsed stopping state drifted`);
-	const admittedAttempts = safeInteger(root.admittedAttempts, `${label}.admittedAttempts`);
-	const maxRetryAttempts =
-		replicateCount *
-		(HARNESS_ARMS.length + 1) *
-		(ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM - 1);
+	const maxProviderAttempts = rootEvalMaximumProviderAttempts(replicateCount);
+	const admittedAttempts = safeInteger(root.admittedAttempts, `${label}.admittedAttempts`, {
+		max: maxProviderAttempts,
+	});
+	const maxRetryAttempts = rootEvalMaximumRetryAttempts(replicateCount);
 	const admittedRetryAttempts = safeInteger(
 		root.admittedRetryAttempts,
 		`${label}.admittedRetryAttempts`,
@@ -2715,7 +2729,9 @@ export function assertRootEvalObservationRuntimeShape(
 		`${label}.settledRetryAttemptCount`,
 		{ max: maxRetryAttempts },
 	);
-	const providerCallCount = safeInteger(root.providerCallCount, `${label}.providerCallCount`);
+	const providerCallCount = safeInteger(root.providerCallCount, `${label}.providerCallCount`, {
+		max: maxProviderAttempts,
+	});
 	const activeReservedMicrousd = safeInteger(
 		root.activeReservedMicrousd,
 		`${label}.activeReservedMicrousd`,
@@ -3241,9 +3257,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		partitionLedgerDigest,
 		developmentQualificationStreakBefore,
 	});
-	const maxAttempts =
-		options.maxAttempts ??
-		replicateCount * (HARNESS_ARMS.length + 1) * ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM;
+	const maxAttempts = options.maxAttempts ?? rootEvalMaximumProviderAttempts(replicateCount);
 	const maxCostMicrousd =
 		options.maxCostMicrousd ?? partitionHardCapMicrousd - partitionSpentBeforeMicrousd;
 	const reservationMicrousd = options.reservationMicrousd ?? 1_000;
@@ -3252,6 +3266,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const providerPacingSetTimeout = options.providerPacingSetTimeout ?? setTimeout;
 	if (!Number.isSafeInteger(maxAttempts) || maxAttempts < 1)
 		throw new TypeError("maxAttempts must be a positive safe integer");
+	if (maxAttempts > rootEvalMaximumProviderAttempts(replicateCount))
+		throw new TypeError("maxAttempts exceeded the root eval topology capacity");
 	if (!Number.isSafeInteger(maxCostMicrousd) || maxCostMicrousd < 1)
 		throw new TypeError("maxCostMicrousd must be a positive safe integer");
 	if (maxCostMicrousd > partitionHardCapMicrousd - partitionSpentBeforeMicrousd)
