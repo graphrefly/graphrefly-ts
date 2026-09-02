@@ -3,7 +3,7 @@ import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifes
 import { ROOT_EVAL_LIVE_TASK_BINDING_DIGEST } from "./root-eval-live.js";
 
 export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-live-no-network-qa.v45" as const,
+	schemaVersion: "graphrefly-ts.root-eval-live-no-network-qa.v46" as const,
 	decisionRefs: Object.freeze([
 		"graphrefly-ts:D76",
 		"graphrefly-ts:D81",
@@ -73,10 +73,15 @@ export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		"graphrefly-ts:D151",
 		"graphrefly-ts:D152",
 		"graphrefly-ts:D153",
+		"graphrefly-ts:D154",
 	] as const),
 	implementationManifestDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
 	taskBindingDigest: ROOT_EVAL_LIVE_TASK_BINDING_DIGEST,
 	caseResults: Object.freeze({
+		d154ExactPolicyCostBindingAndReportedPrecedence: "passed" as const,
+		d154AdaptiveSpacingAndExhaustedRetryAfter: "passed" as const,
+		d154CoherentBudgetStopAndSourceToolDrain: "passed" as const,
+		d154StoppedEvidenceWithoutEfficacy: "passed" as const,
 		focusedAsyncAdaptersAndRealHttpRuntimeLeaf: "passed" as const,
 		boundedPrivateDiagnosticsFaultIsolation: "passed" as const,
 		dispatchObserverFailureStillDrainsAndSettlesUsageCost: "passed" as const,
@@ -298,7 +303,8 @@ export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT_DIGEST = empiricalStrictJsonD
 );
 
 const qualificationMaterial = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-live-qualification.v45" as const,
+	providerSettlementAndTerminalDecisionRef: "graphrefly-ts:D154" as const,
+	schemaVersion: "graphrefly-ts.root-eval-live-qualification.v46" as const,
 	decisionRef: "graphrefly-ts:D152" as const,
 	implementationExecutionApprovalRef: "user-authorized-no-network-d151-d152-2026-09-01" as const,
 	verificationDiagnosticsImplementationReceiptRef: "graphrefly-ts:D120" as const,

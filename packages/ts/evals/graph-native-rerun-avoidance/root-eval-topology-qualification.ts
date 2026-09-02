@@ -5,7 +5,7 @@ import { HARNESS_ARMS } from "./harness-campaign-policy.js";
 import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifest.js";
 
 export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-topology-no-network-qa.v39" as const,
+	schemaVersion: "graphrefly-ts.root-eval-topology-no-network-qa.v40" as const,
 	decisionRefs: Object.freeze([
 		"graphrefly-ts:D76",
 		"graphrefly-ts:D77",
@@ -67,6 +67,7 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		"graphrefly-ts:D151",
 		"graphrefly-ts:D152",
 		"graphrefly-ts:D153",
+		"graphrefly-ts:D154",
 		"graphrefly:D789",
 	] as const),
 	topologyRevision: ROOT_EVAL_TOPOLOGY_REVISION,
@@ -78,6 +79,10 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 	requiredNodeCount: Object.keys(ROOT_EVAL_REQUIRED_NODES).length,
 	criticalEdgeCount: ROOT_EVAL_CRITICAL_EDGES.length,
 	caseResults: Object.freeze({
+		d154ExactPolicyCostBindingAndReportedPrecedence: "passed" as const,
+		d154AdaptiveSpacingAndExhaustedRetryAfter: "passed" as const,
+		d154CoherentBudgetStopAndSourceToolDrain: "passed" as const,
+		d154StoppedEvidenceWithoutEfficacy: "passed" as const,
 		exactRealSolutionOccurrenceComposition: "passed" as const,
 		initialMultiDataRecipeConservation: "passed" as const,
 		noEvalPartialOverridesAndReviewedTimerSettlementOnly: "passed" as const,
@@ -226,7 +231,8 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT_DIGEST = empiricalStrictJ
 );
 
 const qualificationMaterial = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-topology-qualification.v39" as const,
+	providerSettlementAndTerminalDecisionRef: "graphrefly-ts:D154" as const,
+	schemaVersion: "graphrefly-ts.root-eval-topology-qualification.v40" as const,
 	decisionRef: "graphrefly-ts:D151" as const,
 	executionApprovalRef: "user-authorized-no-network-d151-d152-2026-09-01" as const,
 	verificationDiagnosticsImplementationReceiptRef: "graphrefly-ts:D120" as const,

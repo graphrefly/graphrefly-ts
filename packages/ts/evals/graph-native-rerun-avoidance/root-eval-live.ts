@@ -51,6 +51,13 @@ import {
 } from "./focused-async-adapters.js";
 import { createRootEvalHttpTransportLeaf } from "./http-transport-leaf.js";
 import { createPrivateDiagnosticSink } from "./private-diagnostic-sink.js";
+import {
+	type EvalNonbillableCostEvidence,
+	nonbillableCostEvidence,
+	nonbillableHttpResultDigest,
+	ROOT_EVAL_NONBILLABLE_POLICY,
+	validateNonbillableCostEvidence,
+} from "./provider-cost-evidence.js";
 import type { RootEvalLiveClaimCommit } from "./root-eval-live-authority.js";
 import {
 	ROOT_EVAL_D152_TASK_SET_BINDING_DIGEST,
@@ -486,6 +493,7 @@ interface ProviderResult {
 	readonly recoveryClass: "capacity" | "availability" | null;
 	readonly costMicrousd: number;
 	readonly costEvidence: EvalProviderOutcome["costEvidence"];
+	readonly nonbillableEvidence?: EvalNonbillableCostEvidence;
 	readonly pricingRoundingAllowanceMicrousd: number;
 	readonly resultDigest: string;
 	readonly retryAfterMs: number;
@@ -934,6 +942,202 @@ function isTransientAvailabilityResponse(
 	);
 }
 
+function boundedErrorText(value: unknown, maximum: number): value is string {
+	return (
+		typeof value === "string" &&
+		value.length > 0 &&
+		value.length <= maximum &&
+		!hasUnpairedSurrogate(value)
+	);
+}
+
+function containsOutputEvidence(value: string): boolean {
+	return /(?:usage|choices|completion_tokens|prompt_tokens|generation_id)["']?\s*[:=]/iu.test(
+		value,
+	);
+}
+
+/** Error metadata is evidence, not an arbitrary container for upstream model output. */
+function errorOnlyUpstreamRaw(value: unknown): boolean {
+	if (!boundedErrorText(value, 65_536)) return false;
+	const raw = value.trim();
+	if (/^(?:\{|\[|")/u.test(raw)) {
+		try {
+			const envelope = object(
+				parseRootEvalUniqueJson(new TextEncoder().encode(raw), "nonbillable upstream error"),
+				"nonbillable upstream error",
+			);
+			if (
+				Object.keys(envelope).some((key) => key !== "error" && key !== "request_id") ||
+				(envelope.request_id !== undefined && !boundedErrorText(envelope.request_id, 512))
+			)
+				return false;
+			const error = object(envelope.error, "nonbillable upstream error.error");
+			if (
+				Object.keys(error).some((key) => !["message", "type", "code", "param"].includes(key)) ||
+				!boundedErrorText(error.message, 16_384) ||
+				containsOutputEvidence(error.message)
+			)
+				return false;
+			for (const key of ["type", "param"])
+				if (error[key] !== undefined && error[key] !== null && !boundedErrorText(error[key], 512))
+					return false;
+			if (
+				error.code !== undefined &&
+				error.code !== null &&
+				error.code !== 429 &&
+				!(
+					boundedErrorText(error.code, 128) &&
+					/rate.?limit|too_many_requests|^429$/iu.test(error.code)
+				)
+			)
+				return false;
+			return /rate.?limit|too many requests|429/iu.test(error.message);
+		} catch {
+			return false;
+		}
+	}
+	// A JSON fragment or explicit output/usage field in otherwise textual metadata is contradictory.
+	return (
+		!/[{}[\]]/u.test(raw) &&
+		!containsOutputEvidence(raw) &&
+		/rate.?limit|too many requests|429/iu.test(raw)
+	);
+}
+
+function exactReplacementResponseFormat(writablePath: string) {
+	return {
+		type: "json_schema",
+		json_schema: {
+			name: "exact_replacement_proposal",
+			strict: true,
+			schema: {
+				type: "object",
+				additionalProperties: false,
+				required: ["path", "oldText", "newText"],
+				properties: {
+					path: { type: "string", enum: [writablePath] },
+					oldText: { type: "string", minLength: 1, maxLength: 32_768 },
+					newText: { type: "string", maxLength: 32_768 },
+				},
+			},
+		},
+	};
+}
+
+function qualifyRootEvalNonbillableResponse(
+	root: Record<string, unknown>,
+	bytes: Uint8Array,
+	context: Readonly<{ admission: EvalAdmittedEffect; requestBody: string }>,
+): EvalNonbillableCostEvidence | undefined {
+	try {
+		const { admission, requestBody } = context;
+		if (
+			admission.providerRef !== "fireworks" ||
+			admission.providerModelRef !== "deepseek/deepseek-v4-flash-0731" ||
+			admission.endpointProtocol !== "chat-completions" ||
+			Object.keys(root).some((key) => key !== "error" && key !== "user_id") ||
+			(root.user_id !== undefined && !boundedErrorText(root.user_id, 512))
+		)
+			return undefined;
+		const error = exactObject(root.error, ["code", "message", "metadata"], "nonbillable error");
+		const metadata = object(error.metadata, "nonbillable error metadata");
+		if (
+			error.code !== 429 ||
+			!boundedErrorText(error.message, 16_384) ||
+			containsOutputEvidence(error.message) ||
+			metadata.provider_name !== "Fireworks" ||
+			metadata.is_byok !== false ||
+			metadata.limit_source !== "upstream_provider_shared_pool" ||
+			Object.keys(metadata).some(
+				(key) =>
+					![
+						"raw",
+						"provider_name",
+						"is_byok",
+						"provider_error_code",
+						"limit_source",
+						"remedy_hint",
+					].includes(key),
+			)
+		)
+			return undefined;
+		if (metadata.raw !== undefined && !errorOnlyUpstreamRaw(metadata.raw)) return undefined;
+		for (const key of ["provider_error_code", "remedy_hint"])
+			if (
+				metadata[key] !== undefined &&
+				metadata[key] !== null &&
+				!boundedErrorText(metadata[key], 1_024)
+			)
+				return undefined;
+		const requestBytes = new TextEncoder().encode(requestBody);
+		if (requestBytes.byteLength === 0 || requestBytes.byteLength > MAX_RESPONSE_BYTES)
+			return undefined;
+		const request = exactObject(
+			parseRootEvalUniqueJson(requestBytes, "nonbillable request"),
+			["model", "messages", "response_format", "max_tokens", "reasoning", "provider"],
+			"nonbillable request",
+		);
+		const provider = exactObject(
+			request.provider,
+			["order", "only", "allow_fallbacks", "require_parameters", "data_collection", "zdr"],
+			"nonbillable route",
+		);
+		const reasoning = exactObject(request.reasoning, ["effort"], "nonbillable reasoning");
+		const format = object(request.response_format, "nonbillable response format");
+		const schema = object(
+			object(format.json_schema, "nonbillable schema").schema,
+			"nonbillable schema body",
+		);
+		const properties = object(schema.properties, "nonbillable schema properties");
+		const paths = object(properties.path, "nonbillable schema path").enum;
+		if (
+			!Array.isArray(paths) ||
+			paths.length !== 1 ||
+			!boundedErrorText(paths[0], 1_024) ||
+			empiricalStrictJsonDigest(format) !==
+				empiricalStrictJsonDigest(exactReplacementResponseFormat(paths[0])) ||
+			reasoning.effort !== admission.reasoningEffort
+		)
+			return undefined;
+		if (
+			request.model !== admission.providerModelRef ||
+			JSON.stringify(provider.order) !== '["fireworks"]' ||
+			JSON.stringify(provider.only) !== '["fireworks"]' ||
+			provider.allow_fallbacks !== false ||
+			provider.require_parameters !== true ||
+			provider.data_collection !== "deny" ||
+			provider.zdr !== true ||
+			!Array.isArray(request.messages) ||
+			request.messages.length !== 2 ||
+			request.max_tokens !== admission.maxOutputTokens
+		)
+			return undefined;
+		for (const [index, message] of request.messages.entries()) {
+			const item = exactObject(message, ["role", "content"], "nonbillable message");
+			if (
+				item.role !== (index === 0 ? "system" : "user") ||
+				!boundedErrorText(item.content, MAX_RESPONSE_BYTES)
+			)
+				return undefined;
+		}
+		const proof = nonbillableCostEvidence({
+			policyRef: ROOT_EVAL_NONBILLABLE_POLICY,
+			admissionId: admission.admissionId,
+			admissionReceiptDigest: admission.receiptDigest,
+			requestDigest: empiricalSha256(requestBytes),
+			responseDigest: empiricalSha256(bytes),
+		});
+		return validateNonbillableCostEvidence(
+			proof,
+			admission,
+			nonbillableHttpResultDigest(proof.responseDigest),
+		);
+	} catch {
+		return undefined;
+	}
+}
+
 export function parseRootEvalLiveProviderResponse(input: {
 	readonly status: number;
 	readonly bytes: Uint8Array;
@@ -942,6 +1146,11 @@ export function parseRootEvalLiveProviderResponse(input: {
 	readonly reservationMicrousd: number;
 	readonly writablePath?: string;
 	readonly nowMs?: number;
+	/** Exact wire bytes and receipt are required before a policy-derived zero is possible. */
+	readonly nonbillableContext?: Readonly<{
+		admission: EvalAdmittedEffect;
+		requestBody: string;
+	}>;
 }): ProviderResult {
 	if (!Number.isSafeInteger(input.reservationMicrousd) || input.reservationMicrousd < 1)
 		throw new TypeError("root eval live provider reservation was invalid");
@@ -991,6 +1200,7 @@ export function parseRootEvalLiveProviderResponse(input: {
 	let errorCostMicrousd = input.reservationMicrousd;
 	let errorCostEvidence: EvalProviderOutcome["costEvidence"] = "reservation-upper-bound";
 	let errorPricingRoundingAllowanceMicrousd = 0;
+	let nonbillableEvidence: EvalNonbillableCostEvidence | undefined;
 	const errorCode = providerErrorCode(root);
 	if (root.usage !== undefined) {
 		try {
@@ -1003,12 +1213,24 @@ export function parseRootEvalLiveProviderResponse(input: {
 		}
 	}
 	if (input.status === 429) {
+		if (!Object.hasOwn(root, "usage") && input.nonbillableContext !== undefined) {
+			nonbillableEvidence = qualifyRootEvalNonbillableResponse(
+				root,
+				input.bytes,
+				input.nonbillableContext,
+			);
+			if (nonbillableEvidence !== undefined) {
+				errorCostMicrousd = 0;
+				errorCostEvidence = "policy-qualified-nonbillable";
+			}
+		}
 		return Object.freeze({
 			disposition: "retryable" as const,
 			reason: "http-capacity-retryable" as const,
 			recoveryClass: "capacity" as const,
 			costMicrousd: errorCostMicrousd,
 			costEvidence: errorCostEvidence,
+			...(nonbillableEvidence === undefined ? {} : { nonbillableEvidence }),
 			pricingRoundingAllowanceMicrousd: errorPricingRoundingAllowanceMicrousd,
 			resultDigest: empiricalStrictJsonDigest({
 				kind: "root-eval-provider-http-result",
@@ -1349,23 +1571,7 @@ async function liveWire(
 				content: `${task.taskStatement}\n\n### Admitted memory context\n${admitted.memoryContent}\n\n${actorSections.join("\n\n")}`,
 			},
 		],
-		response_format: {
-			type: "json_schema",
-			json_schema: {
-				name: "exact_replacement_proposal",
-				strict: true,
-				schema: {
-					type: "object",
-					additionalProperties: false,
-					required: ["path", "oldText", "newText"],
-					properties: {
-						path: { type: "string", enum: [task.writablePath] },
-						oldText: { type: "string", minLength: 1, maxLength: 32_768 },
-						newText: { type: "string", maxLength: 32_768 },
-					},
-				},
-			},
-		},
+		response_format: exactReplacementResponseFormat(task.writablePath),
 		max_tokens: effect.maxOutputTokens,
 		reasoning: { effort: effect.reasoningEffort },
 		provider: {
@@ -1630,6 +1836,7 @@ function providerOutcome(
 		readonly transportNoToolSideEffect: boolean;
 		readonly costMicrousd: number;
 		readonly costEvidence: EvalProviderOutcome["costEvidence"];
+		readonly nonbillableEvidence?: EvalNonbillableCostEvidence;
 		readonly pricingRoundingAllowanceMicrousd: number;
 		readonly elapsedMs: number;
 		readonly resultDigest: string;
@@ -1675,6 +1882,9 @@ function providerOutcome(
 		transportNoToolSideEffect: input.transportNoToolSideEffect,
 		costMicrousd: input.costMicrousd,
 		costEvidence: input.costEvidence,
+		...(input.nonbillableEvidence === undefined
+			? {}
+			: { nonbillableEvidence: input.nonbillableEvidence }),
 		pricingRoundingAllowanceMicrousd: input.pricingRoundingAllowanceMicrousd,
 		elapsedMs: input.elapsedMs,
 		resultDigest: input.resultDigest,
@@ -1842,6 +2052,8 @@ function createRootEvalLiveExecutorInternal(
 		let responseStatus: number | null = null;
 		let confirmedCostMicrousd = 0;
 		let confirmedCostEvidence: EvalProviderOutcome["costEvidence"] | null = null;
+		let confirmedNonbillableEvidence: EvalNonbillableCostEvidence | undefined;
+		let confirmedHttpResultDigest: string | undefined;
 		let dispatchObservationFailed = false;
 		let confirmedPricingRoundingAllowanceMicrousd = 0;
 		try {
@@ -1953,9 +2165,12 @@ function createRootEvalLiveExecutorInternal(
 				pricing: input.pricing,
 				reservationMicrousd: effect.reservationMicrousd,
 				writablePath: task.writablePath,
+				nonbillableContext: { admission: effect, requestBody: body },
 			});
 			confirmedCostMicrousd = provider.costMicrousd;
 			confirmedCostEvidence = provider.costEvidence;
+			confirmedNonbillableEvidence = provider.nonbillableEvidence;
+			confirmedHttpResultDigest = provider.resultDigest;
 			confirmedPricingRoundingAllowanceMicrousd = provider.pricingRoundingAllowanceMicrousd;
 			if (dispatchObservationFailed) throw new TypeError("provider dispatch observation failed");
 			if (provider.disposition === "tool")
@@ -1971,6 +2186,7 @@ function createRootEvalLiveExecutorInternal(
 					transportNoToolSideEffect: false,
 					costMicrousd: provider.costMicrousd,
 					costEvidence: provider.costEvidence,
+					nonbillableEvidence: provider.nonbillableEvidence,
 					pricingRoundingAllowanceMicrousd: provider.pricingRoundingAllowanceMicrousd,
 					elapsedMs: elapsed(started),
 					resultDigest: provider.resultDigest,
@@ -1991,6 +2207,7 @@ function createRootEvalLiveExecutorInternal(
 				transportNoToolSideEffect: false,
 				costMicrousd: provider.costMicrousd,
 				costEvidence: provider.costEvidence,
+				nonbillableEvidence: provider.nonbillableEvidence,
 				pricingRoundingAllowanceMicrousd: provider.pricingRoundingAllowanceMicrousd,
 				elapsedMs: elapsed(started),
 				resultDigest: provider.resultDigest,
@@ -2057,6 +2274,7 @@ function createRootEvalLiveExecutorInternal(
 							? confirmedCostEvidence
 							: "reservation-upper-bound"
 					: "provider-reported",
+				nonbillableEvidence: confirmedNonbillableEvidence,
 				pricingRoundingAllowanceMicrousd: postDispatch
 					? error instanceof RootEvalProviderResponseError
 						? error.pricingRoundingAllowanceMicrousd
@@ -2065,7 +2283,8 @@ function createRootEvalLiveExecutorInternal(
 							: 0
 					: 0,
 				elapsedMs: elapsed(started),
-				resultDigest: digest,
+				resultDigest:
+					confirmedNonbillableEvidence === undefined ? digest : confirmedHttpResultDigest!,
 				retryAfterMs: 0,
 				cleanupCompleted,
 				tool: null,
@@ -2544,6 +2763,10 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 		let postDispatch = false;
 		let dispatchStartedAt: number | null = null;
 		let confirmedCostMicrousd = 0;
+		let confirmedCostEvidence: EvalProviderOutcome["costEvidence"] | null = null;
+		let confirmedNonbillableEvidence: EvalNonbillableCostEvidence | undefined;
+		let confirmedHttpResultDigest: string | undefined;
+		let responseStatus: number | null = null;
 		let confirmedPricingRoundingAllowanceMicrousd = 0;
 		try {
 			root = await materialize({
@@ -2583,6 +2806,7 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 				throw new TypeError("root eval no-network qualification response sequence exhausted");
 			responseIndex += 1;
 			postDispatch = true;
+			responseStatus = response.status;
 			const provider = parseRootEvalLiveProviderResponse({
 				status: response.status,
 				bytes: response.bytes,
@@ -2590,8 +2814,12 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 				pricing: input.pricing,
 				reservationMicrousd: effect.reservationMicrousd,
 				writablePath: task.writablePath,
+				nonbillableContext: { admission: effect, requestBody: body },
 			});
 			confirmedCostMicrousd = provider.costMicrousd;
+			confirmedCostEvidence = provider.costEvidence;
+			confirmedNonbillableEvidence = provider.nonbillableEvidence;
+			confirmedHttpResultDigest = provider.resultDigest;
 			confirmedPricingRoundingAllowanceMicrousd = provider.pricingRoundingAllowanceMicrousd;
 			if (provider.disposition === "tool")
 				return providerOutcome(effect, {
@@ -2606,6 +2834,7 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 					transportNoToolSideEffect: false,
 					costMicrousd: provider.costMicrousd,
 					costEvidence: provider.costEvidence,
+					nonbillableEvidence: provider.nonbillableEvidence,
 					pricingRoundingAllowanceMicrousd: provider.pricingRoundingAllowanceMicrousd,
 					elapsedMs: elapsed(started),
 					resultDigest: provider.resultDigest,
@@ -2626,6 +2855,7 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 				transportNoToolSideEffect: false,
 				costMicrousd: provider.costMicrousd,
 				costEvidence: provider.costEvidence,
+				nonbillableEvidence: provider.nonbillableEvidence,
 				pricingRoundingAllowanceMicrousd: provider.pricingRoundingAllowanceMicrousd,
 				elapsedMs: elapsed(started),
 				resultDigest: provider.resultDigest,
@@ -2647,24 +2877,25 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 				recoveryClass: null,
 				dispatchAttempted: postDispatch,
 				dispatchElapsedMs: dispatchStartedAt === null ? 0 : dispatchElapsed(dispatchStartedAt),
-				providerResponseKind: "none",
-				httpStatus: null,
+				providerResponseKind: responseStatus === null ? "none" : "http",
+				httpStatus: responseStatus,
 				providerErrorCode: null,
 				transportNoToolSideEffect: false,
 				costMicrousd: postDispatch
 					? error instanceof RootEvalProviderResponseError && error.costMicrousd !== null
 						? error.costMicrousd
-						: confirmedCostMicrousd > 0
+						: confirmedCostEvidence !== null
 							? confirmedCostMicrousd
 							: effect.reservationMicrousd
 					: 0,
 				costEvidence: postDispatch
 					? error instanceof RootEvalProviderResponseError
 						? error.costEvidence
-						: confirmedCostMicrousd > 0
-							? "provider-reported"
+						: confirmedCostEvidence !== null
+							? confirmedCostEvidence
 							: "reservation-upper-bound"
 					: "provider-reported",
+				nonbillableEvidence: confirmedNonbillableEvidence,
 				pricingRoundingAllowanceMicrousd: postDispatch
 					? error instanceof RootEvalProviderResponseError
 						? error.pricingRoundingAllowanceMicrousd
@@ -2673,7 +2904,8 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 							: 0
 					: 0,
 				elapsedMs: elapsed(started),
-				resultDigest: digest,
+				resultDigest:
+					confirmedNonbillableEvidence === undefined ? digest : confirmedHttpResultDigest!,
 				retryAfterMs: 0,
 				cleanupCompleted,
 				tool: null,

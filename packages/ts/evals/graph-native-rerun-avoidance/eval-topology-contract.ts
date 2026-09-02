@@ -9,6 +9,8 @@ import {
 import { HARNESS_ARMS } from "./harness-campaign-policy.js";
 
 export const ROOT_EVAL_REQUIRED_NODES = Object.freeze({
+	"eval/provider/cost-settlements": "rootEvalProviderCostSettlements",
+	"eval/campaign/terminal": "rootEvalCampaignTerminal",
 	"eval/observation/input/context/released": "rootEvalObservationSnapshotRelease",
 	"eval/observation/input/context/release-events": "merge",
 	"eval/observation/input/context/release-controller":
@@ -374,6 +376,7 @@ export const ROOT_EVAL_CRITICAL_EDGES = Object.freeze([
 	["eval/observation/canonical-state", "eval/observation"],
 	["eval/observation/canonical-state", "eval/observation/rejections"],
 	["eval/observation/canonical-state", "eval/observation/terminal-lifecycle-consistency"],
+	["eval/observation/canonical-state", "eval/campaign/terminal"],
 	["eval/solution/agentic-memory/snapshot", "eval/solution/agentic-memory/allowedRecords"],
 	["eval/solution/agentic-memory/snapshot", "eval/solution/agentic-memory/exclusions"],
 	["eval/solution/agentic-memory/snapshot", "eval/solution/agentic-memory/status"],
@@ -793,7 +796,9 @@ export const ROOT_EVAL_CRITICAL_EDGES = Object.freeze([
 	["eval/provider/result-admission", "eval/provider/result-batch-events"],
 	["eval/provider/failed-result-admission", "eval/provider/result-batch-events"],
 	["eval/provider/retryable-result-admission", "eval/provider/result-batch-events"],
-	["eval/provider/all-result-admissions", "eval/provider/admission-events"],
+	["eval/provider/all-result-admissions", "eval/provider/cost-settlements"],
+	["eval/provider/cost-settlements", "eval/provider/admission-events"],
+	["eval/provider/start-spacing-readiness", "eval/provider/admission-events"],
 	["eval/retry/delay-result-input", "eval/provider/admission-events"],
 	["eval/provider/graph-admission-and-budget", "eval/provider/admissions"],
 	["eval/provider/graph-admission-and-budget", "eval/provider/admission-observation-cut"],
@@ -802,6 +807,7 @@ export const ROOT_EVAL_CRITICAL_EDGES = Object.freeze([
 	["eval/provider/admissions", "eval/executor/current-provider-effect"],
 	["eval/source-work-item/tool-result-input", "eval/tool/admission-events"],
 	["eval/campaign/task-bindings", "eval/tool/admission-events"],
+	["eval/budget/state", "eval/tool/admission-events"],
 	["eval/tool/exact-admission", "eval/executor/current-tool-effect"],
 	["eval/provider/retryable-result-admission", "eval/retry/delay-admission"],
 	["eval/time/elapsed-budget/state", "eval/retry/delay-admission"],
@@ -1042,7 +1048,9 @@ export function assertRootEvalTopologyContract(
 		exactToolAdmission?.meta?.sourceBarrier !== "all-five-provider-outcomes-before-source-tools" ||
 		exactToolAdmission.meta.sourceBudgetBarrier !==
 			"all-five-provider-budget-settlements-before-source-tools" ||
-		exactToolAdmission.meta.sourceToolCapacity !== 1
+		exactToolAdmission.meta.sourceToolCapacity !== 1 ||
+		exactToolAdmission.meta.stoppedSourceDrain !==
+			"settled-admitted-source-tools-without-unstarted-siblings"
 	)
 		throw new Error("topology contract: source exact-tool capacity/barrier drift");
 	const providerPacing = nodes.get("eval/provider/paced-proposal-release");
@@ -1051,7 +1059,9 @@ export function assertRootEvalTopologyContract(
 		providerStartSpacing?.meta?.materialFree !== true ||
 		providerStartSpacing.meta.domainAuthority !== "root-graph" ||
 		providerStartSpacing.meta.providerStartIntervalMs !== ROOT_EVAL_PROVIDER_START_INTERVAL_MS ||
-		providerStartSpacing.meta.inputEvidence !== "canonical-provider-outcome.dispatchElapsedMs"
+		providerStartSpacing.meta.inputEvidence !== "canonical-provider-outcome.dispatchElapsedMs" ||
+		providerStartSpacing.meta.policy !== "D154/30-60-120-240/three-usable-success-recovery" ||
+		providerStartSpacing.meta.stateScope !== "campaign-route-across-work-items-and-replicates"
 	)
 		throw new Error("topology contract: provider start-spacing readiness drift");
 	if (

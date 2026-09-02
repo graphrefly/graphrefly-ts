@@ -73,6 +73,11 @@ import {
 	validateProviderBinding,
 } from "./model-harness-profile.js";
 import { MODEL_HARNESS_PROFILE_NO_NETWORK_QA_ARTIFACT_DIGEST } from "./model-harness-profile-qualification.js";
+import {
+	type EvalNonbillableCostEvidence,
+	ROOT_EVAL_NONBILLABLE_POLICY,
+	validateNonbillableCostEvidence,
+} from "./provider-cost-evidence.js";
 import { rootEvalQuietDataBoundary } from "./quiet-data-boundary.js";
 import {
 	ROOT_EVAL_DEVELOPMENT_TASK_SET_DIGEST,
@@ -82,7 +87,7 @@ import {
 	rootEvalTaskBindings,
 } from "./root-eval-task.js";
 
-export const ROOT_EVAL_TOPOLOGY_REVISION = "graphrefly-ts.root-eval-topology.v21" as const;
+export const ROOT_EVAL_TOPOLOGY_REVISION = "graphrefly-ts.root-eval-topology.v22" as const;
 
 export type RootEvalOccurrenceLedgerEntry = Readonly<{
 	readonly revision: number;
@@ -431,11 +436,17 @@ export interface EvalProviderOutcome {
 	readonly providerErrorCode: string | null;
 	readonly transportNoToolSideEffect: boolean;
 	readonly costMicrousd: number;
-	readonly costEvidence: "provider-reported" | "reservation-upper-bound";
+	readonly costEvidence:
+		| "provider-reported"
+		| "reservation-upper-bound"
+		| "policy-qualified-nonbillable";
+	readonly nonbillableEvidence?: EvalNonbillableCostEvidence;
 	readonly pricingRoundingAllowanceMicrousd: number;
 	readonly elapsedMs: number;
 	readonly resultDigest: string;
 	readonly retryAfterMs: number;
+	/** Graph-normalized response evidence, independent of whether this request may retry. */
+	readonly responseRetryAfterMs?: number;
 	readonly cleanupCompleted: boolean;
 	readonly toolProposal: Readonly<{
 		readonly toolRef: "graphrefly.eval.exact-tool.v1";
@@ -639,6 +650,7 @@ interface EvalHiddenVerifierFact {
 
 export interface EvalBudgetState {
 	readonly kind: "eval-budget-state";
+	readonly policyQualifiedNonbillableCount: number;
 	readonly admittedAttempts: number;
 	readonly admittedRetryAttempts: number;
 	readonly retryProposalCount: number;
@@ -660,6 +672,9 @@ export interface EvalBudgetState {
 
 export interface EvalProviderCapacityState {
 	readonly kind: "eval-provider-capacity-state";
+	readonly pacingRevision: number;
+	readonly providerStartIntervalMs: number;
+	readonly consecutiveUsableResponses: number;
 	readonly mode: "paced-serial" | "cooldown";
 	readonly initialMaxConcurrentEffects: typeof ROOT_EVAL_INITIAL_PROVIDER_CAPACITY;
 	readonly maxConcurrentEffects:
@@ -855,7 +870,7 @@ export interface EvalObservation {
 	readonly billingDisposition: "pending" | "reconciled" | "rejected";
 	readonly providerOutcomeReasonCounts: EvalProviderOutcomeReasonCounts;
 	readonly stoppingReason: string;
-	readonly finding: EvalFinding["finding"] | "pending";
+	readonly finding: EvalFinding["finding"] | "pending" | "not-evaluated";
 }
 
 export interface EvalEffectActivitySnapshot {
@@ -869,6 +884,9 @@ export interface EvalEffectActivitySnapshot {
 	readonly activeRetryEffects: number;
 	readonly activeBillingEffects: number;
 	readonly activeAdmittedEffects: number;
+	readonly cleanupComplete: boolean;
+	readonly pendingToolAdmissions: number;
+	readonly completedTargetWorkItems: number;
 }
 
 export interface EvalEffectClassActivitySnapshot {
@@ -878,6 +896,8 @@ export interface EvalEffectClassActivitySnapshot {
 	readonly activeExecutionIds: readonly string[];
 	readonly admittedEffects: number;
 	readonly settledEffects: number;
+	readonly cleanupFailureCount: number;
+	readonly completedTargetWorkItems: number;
 }
 
 export interface RootEvalTopologyOptions {
@@ -917,7 +937,7 @@ export interface RootEvalProfileAdmission {
 
 export interface EvalObservationRejection {
 	readonly kind: "eval-observation-rejected";
-	readonly code: "canonical-observation-invalid";
+	readonly code: "canonical-observation-invalid" | "campaign-cleanup-failed";
 	readonly campaignRef: string;
 	readonly acceptedRevision: number;
 }
@@ -941,7 +961,7 @@ export interface RootEvalTopology {
 	runAdmittedEffects(
 		executor: (effect: EvalExecutableEffect) => Promise<EvalExecutorOutcome>,
 		options?: Readonly<{ readonly signal?: AbortSignal }>,
-	): Promise<RootEvalRunResult>;
+	): Promise<RootEvalRunOutcome>;
 	readonly nodes: {
 		readonly campaignContract: Node<EvalCampaignContract>;
 		readonly workItems: Node<WorkItemProjection<Record<string, unknown>>>;
@@ -968,6 +988,7 @@ export interface RootEvalTopology {
 		readonly billingObservationAdmissions: Node<EvalBillingObservationEffect>;
 		readonly billingReconciliation: Node<EvalBillingReconciliation>;
 		readonly findings: Node<EvalFinding>;
+		readonly campaignTerminal: Node<EvalCampaignTerminal>;
 		readonly developmentQualification: Node<EvalDevelopmentQualificationState>;
 		readonly terminalLifecycleConsistency: Node<{
 			readonly kind: "eval-terminal-lifecycle-consistency";
@@ -984,6 +1005,34 @@ export interface RootEvalRunResult {
 	readonly observations: readonly ObserveEvent[];
 	readonly peakConcurrentEffects: number;
 	readonly executedAdmissionIds: readonly string[];
+}
+
+export interface EvalCampaignTerminal {
+	readonly kind: "eval-campaign-terminal";
+	readonly campaignRef: string;
+	readonly status: "completed" | "stopped";
+	readonly stoppingReason: "campaign-complete" | "budget-exhausted" | "elapsed-budget-exhausted";
+	readonly finding: EvalFinding["finding"] | null;
+	readonly observationDigest: string;
+	readonly budgetDigest: string;
+	readonly activityDigest: string;
+	readonly observationRevision: number;
+	readonly completedTargetWorkItems: number;
+	readonly cleanupComplete: true;
+}
+
+export interface RootEvalStoppedResult extends Omit<RootEvalRunResult, "finding"> {
+	readonly finding: null;
+	readonly terminal: EvalCampaignTerminal;
+}
+
+export type RootEvalRunOutcome = RootEvalRunResult | RootEvalStoppedResult;
+
+/** Consumers requiring a complete scientific finding must explicitly reject a normal stop. */
+export function requireCompletedRootEval(result: RootEvalRunOutcome): RootEvalRunResult {
+	if (result.finding === null)
+		throw new Error(`root eval stopped: ${result.terminal.stoppingReason}`);
+	return result;
 }
 
 export interface RootEvalPersistenceRecord {
@@ -1023,6 +1072,10 @@ type EvalCampaignSourceTerminal =
 	  }>;
 
 interface AdmissionState {
+	policyQualifiedNonbillableCount: number;
+	pacingRevision: number;
+	providerStartIntervalMs: number;
+	consecutiveUsableResponses: number;
 	proposalKeys: Set<string>;
 	proposalDigests: Map<string, string>;
 	admittedKeys: Set<string>;
@@ -1824,7 +1877,8 @@ function validateProviderOutcomeShape(
 			outcome.costMicrousd > admission.reservationMicrousd) ||
 		!(
 			outcome.costEvidence === "provider-reported" ||
-			outcome.costEvidence === "reservation-upper-bound"
+			outcome.costEvidence === "reservation-upper-bound" ||
+			outcome.costEvidence === "policy-qualified-nonbillable"
 		) ||
 		!Number.isSafeInteger(outcome.pricingRoundingAllowanceMicrousd) ||
 		outcome.pricingRoundingAllowanceMicrousd < 0 ||
@@ -1843,6 +1897,12 @@ function validateProviderOutcomeShape(
 			(candidate
 				? ROOT_EVAL_MAX_INFRASTRUCTURE_RETRY_DELAY_MS + 1
 				: ROOT_EVAL_MAX_INFRASTRUCTURE_RETRY_DELAY_MS) ||
+		(candidate
+			? outcome.responseRetryAfterMs !== undefined
+			: !Number.isSafeInteger(outcome.responseRetryAfterMs) ||
+				(outcome.responseRetryAfterMs ?? -1) < 0 ||
+				(outcome.responseRetryAfterMs ?? Infinity) >
+					ROOT_EVAL_MAX_INFRASTRUCTURE_RETRY_DELAY_MS + 1) ||
 		typeof outcome.cleanupCompleted !== "boolean" ||
 		!isDigest(outcome.resultDigest) ||
 		!(
@@ -1899,6 +1959,22 @@ function validateProviderOutcomeShape(
 		throw new TypeError(
 			`provider outcome does not exactly match its Graph admission receipt (${String(outcome?.status)}/${String(outcome?.reason)}/dispatchOrdinal-${String(outcome?.dispatchOrdinal)})`,
 		);
+	if (outcome.costEvidence === "policy-qualified-nonbillable") {
+		validateNonbillableCostEvidence(outcome.nonbillableEvidence, admission, outcome.resultDigest);
+		if (
+			outcome.providerResponseKind !== "http" ||
+			outcome.httpStatus !== 429 ||
+			!outcome.dispatchAttempted ||
+			outcome.costMicrousd !== 0 ||
+			outcome.pricingRoundingAllowanceMicrousd !== 0 ||
+			outcome.toolProposal !== null ||
+			admission.providerRef !== "fireworks" ||
+			admission.providerModelRef !== "deepseek/deepseek-v4-flash-0731"
+		)
+			throw new TypeError("policy-qualified cost contradicted its provider outcome");
+	} else if (outcome.nonbillableEvidence !== undefined) {
+		throw new TypeError("nonbillable evidence cannot override reported or unknown cost");
+	}
 	return outcome;
 }
 
@@ -1911,7 +1987,11 @@ function validateProviderOutcome(outcome: EvalProviderOutcome): EvalProviderOutc
 }
 
 function normalizeProviderOutcomeCandidate(outcome: EvalProviderOutcome): EvalProviderOutcome {
-	const candidate = validateProviderOutcomeCandidate(outcome);
+	const input = validateProviderOutcomeCandidate(outcome);
+	const candidate = Object.freeze({ ...input, responseRetryAfterMs: input.retryAfterMs });
+	// D154: an adapter/instrumentation fault stays a fault even when an HTTP
+	// response arrived. Preserve its independent cost and route-feedback evidence.
+	if (candidate.reason === "executor-failed") return validateProviderOutcome(candidate);
 	let derived = candidate;
 	if (candidate.providerResponseKind === "transport") {
 		derived = Object.freeze({
@@ -2453,6 +2533,9 @@ function assertProviderCapacityRuntimeShape(
 		root,
 		[
 			"kind",
+			"pacingRevision",
+			"providerStartIntervalMs",
+			"consecutiveUsableResponses",
 			"mode",
 			"initialMaxConcurrentEffects",
 			"maxConcurrentEffects",
@@ -2532,6 +2615,10 @@ function assertProviderCapacityRuntimeShape(
 		`${label}.cooldownOutstandingReadinessCount`,
 	);
 	safeInteger(root.rateLimitFeedbackCount, `${label}.rateLimitFeedbackCount`);
+	safeInteger(root.pacingRevision, `${label}.pacingRevision`);
+	safeInteger(root.consecutiveUsableResponses, `${label}.consecutiveUsableResponses`, { max: 2 });
+	if (![30_000, 60_000, 120_000, 240_000].includes(root.providerStartIntervalMs as number))
+		throw new TypeError(`${label} adaptive pacing interval invalid`);
 	if (
 		proposalCount !== pendingProposalCount + admittedProposalCount + rejectedProposalCount ||
 		pendingProposalCount !== pendingFirstAttemptProposalCount + pendingRetryProposalCount ||
@@ -2774,8 +2861,8 @@ export function assertRootEvalObservationRuntimeShape(
 	const elapsedBudget = root.elapsedBudget as EvalElapsedBudgetState;
 	assertElapsedBudgetRuntimeShape(elapsedBudget, `${label}.elapsedBudget`);
 	if (
-		(root.stoppingReason === "elapsed-budget-exhausted") !==
-		(elapsedBudget.state === "exhausted")
+		(root.stoppingReason === "elapsed-budget-exhausted" && elapsedBudget.state !== "exhausted") ||
+		(elapsedBudget.state === "exhausted" && root.stoppingReason === "none")
 	)
 		throw new TypeError(`${label} elapsed stopping state drifted`);
 	const maxProviderAttempts = rootEvalMaximumProviderAttempts(replicateCount);
@@ -2849,6 +2936,7 @@ export function assertRootEvalObservationRuntimeShape(
 		throw new TypeError(`${label}.billingDisposition invalid`);
 	if (
 		root.finding !== "pending" &&
+		root.finding !== "not-evaluated" &&
 		root.finding !== "positive-differential" &&
 		root.finding !== "no-positive-differential" &&
 		root.finding !== "operationally-inconclusive"
@@ -2895,7 +2983,8 @@ export function assertRootEvalObservationRuntimeShape(
 		accountedUpperBoundMicrousd !==
 			activeReservedMicrousd + providerReportedMicrousd + unreportedSettledUpperBoundMicrousd ||
 		(accountedUpperBoundMicrousd > partitionHardCapMicrousd - partitionSpentBeforeMicrousd &&
-			(root.stoppingReason !== "budget-exhausted" || root.finding !== "pending")) ||
+			(root.stoppingReason !== "budget-exhausted" ||
+				!["pending", "not-evaluated"].includes(root.finding as string))) ||
 		(providerCapacity.mode === "cooldown" && retryableReasonTotal === 0) ||
 		providerCallCount > admittedAttempts ||
 		providerReasonTotal > admittedAttempts ||
@@ -2904,7 +2993,14 @@ export function assertRootEvalObservationRuntimeShape(
 		throw new TypeError(
 			`${label} budget, billing, or provider-reason arithmetic/conservation drifted`,
 		);
-	const pending = root.finding === "pending";
+	const pending = root.finding === "pending" || root.finding === "not-evaluated";
+	if (
+		root.finding === "not-evaluated" &&
+		(!["budget-exhausted", "elapsed-budget-exhausted"].includes(root.stoppingReason as string) ||
+			activeAdmittedEffects !== 0 ||
+			activeReservedMicrousd !== 0)
+	)
+		throw new TypeError(`${label} incomplete terminal had active work or no stop reason`);
 	if (
 		pending &&
 		(evaluableReplicates !== null ||
@@ -3724,8 +3820,29 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			},
 		},
 	);
+	const providerCostSettlements = owner.node<EvalProviderOutcome>(
+		[allProviderResultAdmissions],
+		(ctx) => {
+			for (const raw of depBatch(ctx, 0) ?? [])
+				ctx.down([["DATA", validateProviderOutcome(raw as EvalProviderOutcome)]]);
+		},
+		{
+			name: "eval/provider/cost-settlements",
+			factory: "rootEvalProviderCostSettlements",
+			meta: {
+				materialFreeDescribe: true,
+				payloadPolicy: "private-admitted-outcome",
+				policyRef: ROOT_EVAL_NONBILLABLE_POLICY,
+				authority: "exact-admission-bound-cost-evidence",
+				reportedCostPrecedence: true,
+			},
+		},
+	);
 	type EvalProviderStartSpacingReadiness = Readonly<{
 		readonly kind: "eval-provider-start-spacing-readiness";
+		readonly pacingRevision: number;
+		readonly providerStartIntervalMs: number;
+		readonly consecutiveUsableResponses: number;
 		readonly admissionId: string;
 		readonly effectRunId: string;
 		readonly dispatchOrdinal: number;
@@ -3737,21 +3854,66 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const providerStartSpacingReadiness = owner.node<EvalProviderStartSpacingReadiness>(
 		[allProviderResultAdmissions],
 		(ctx) => {
+			const state = ctx.state.get<{
+				revision: number;
+				intervalMs: number;
+				successes: number;
+				seen: Map<string, string>;
+			}>() ?? {
+				revision: 0,
+				intervalMs: ROOT_EVAL_PROVIDER_START_INTERVAL_MS,
+				successes: 0,
+				seen: new Map<string, string>(),
+			};
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const outcome = validateProviderOutcome(raw as EvalProviderOutcome);
+				const digest = empiricalStrictJsonDigest(withoutUndefined(outcome));
+				const previous = state.seen.get(outcome.admissionId);
+				if (previous !== undefined) {
+					if (previous !== digest) throw new TypeError("adaptive pacing outcome replay conflicted");
+					continue;
+				}
+				if (state.seen.size >= rootEvalMaximumProviderAttempts(replicateCount))
+					throw new TypeError("adaptive pacing retention exceeded");
+				state.seen.set(outcome.admissionId, digest);
+				state.revision += 1;
+				if (outcome.httpStatus === 429 && outcome.dispatchAttempted) {
+					state.intervalMs = Math.min(240_000, state.intervalMs * 2);
+					state.successes = 0;
+				} else if (outcome.status === "tool-proposed") {
+					state.successes += 1;
+					if (state.successes === 3) {
+						state.intervalMs = Math.max(ROOT_EVAL_PROVIDER_START_INTERVAL_MS, state.intervalMs / 2);
+						state.successes = 0;
+					}
+				} else state.successes = 0;
+				ctx.state.set(state);
 				ctx.down([
 					[
 						"DATA",
 						Object.freeze({
 							kind: "eval-provider-start-spacing-readiness" as const,
+							pacingRevision: state.revision,
+							providerStartIntervalMs: state.intervalMs,
+							consecutiveUsableResponses: state.successes,
 							admissionId: outcome.admissionId,
 							effectRunId: outcome.effectRunId,
 							dispatchOrdinal: outcome.dispatchOrdinal,
 							status: outcome.status,
 							dispatchAttempted: outcome.dispatchAttempted,
 							dispatchElapsedMs: outcome.dispatchElapsedMs,
+							// D154: Retry-After starts at response receipt, while interval spacing
+							// starts at dispatch. Request exhaustion must not erase route cooldown.
+							// The parser's over-envelope marker has no safe finite retry delay;
+							// keep the route closed until the existing elapsed boundary cancels it.
 							remainingPacingDelayMs: outcome.dispatchAttempted
-								? Math.max(0, ROOT_EVAL_PROVIDER_START_INTERVAL_MS - outcome.dispatchElapsedMs)
+								? outcome.responseRetryAfterMs! > ROOT_EVAL_MAX_INFRASTRUCTURE_RETRY_DELAY_MS
+									? ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS
+									: Math.max(
+											0,
+											state.intervalMs - outcome.dispatchElapsedMs,
+											outcome.responseRetryAfterMs!,
+										)
 								: 0,
 						}),
 					],
@@ -3762,6 +3924,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			name: "eval/provider/start-spacing-readiness",
 			factory: "rootEvalProviderStartSpacingReadiness",
 			meta: {
+				policy: "D154/30-60-120-240/three-usable-success-recovery",
+				stateScope: "campaign-route-across-work-items-and-replicates",
 				materialFree: true,
 				domainAuthority: "root-graph",
 				providerStartIntervalMs: ROOT_EVAL_PROVIDER_START_INTERVAL_MS,
@@ -6123,6 +6287,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	type EvalProviderPacingState = {
 		activeProposalKey: string | null;
 		waitingClockKey: string | null;
+		waitingClockRevision: number;
 		pacingReady: boolean;
 		stopped: boolean;
 		pending: Map<string, EvalEffectProposal>;
@@ -6139,6 +6304,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			const state = ctx.state.get<EvalProviderPacingState>() ?? {
 				activeProposalKey: null,
 				waitingClockKey: null,
+				waitingClockRevision: 0,
 				pacingReady: true,
 				stopped: false,
 				pending: new Map<string, EvalEffectProposal>(),
@@ -6175,11 +6341,17 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 						throw new TypeError("provider pacing outcome did not settle its active proposal");
 					state.activeProposalKey = null;
 					state.waitingClockKey = key;
+					if (readiness.pacingRevision <= state.waitingClockRevision)
+						throw new TypeError("pacing schedule revision did not advance");
+					state.waitingClockRevision = readiness.pacingRevision;
 					state.pacingReady = false;
 					if (readiness.status === "retryable")
 						state.expectedRecoveryEffectRunId = readiness.effectRunId;
 				} else if (event.phase === "ready") {
-					if (state.waitingClockKey !== keyOf(event.readiness!))
+					if (
+						state.waitingClockKey !== keyOf(event.readiness!) ||
+						state.waitingClockRevision !== event.readiness!.pacingRevision
+					)
 						throw new TypeError("provider pacing clock did not match its scheduled occurrence");
 					state.waitingClockKey = null;
 					state.pacingReady = true;
@@ -6346,7 +6518,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		[
 			proposals,
 			pacedProviderProposals,
-			allProviderResultAdmissions,
+			providerCostSettlements,
+			providerStartSpacingReadiness,
 			retryDelayOutcomes,
 			elapsedBudget,
 			profileAdmission,
@@ -6371,6 +6544,9 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				rejectedProposalKeys: new Set<string>(),
 				cooldownReadinessIds: new Set<string>(),
 				capacityMode: "paced-serial" as const,
+				pacingRevision: 0,
+				providerStartIntervalMs: ROOT_EVAL_PROVIDER_START_INTERVAL_MS,
+				consecutiveUsableResponses: 0,
 				maxConcurrentEffects: ROOT_EVAL_INITIAL_PROVIDER_CAPACITY,
 				rateLimitFeedbackCount: 0,
 				admittedAttempts: 0,
@@ -6379,6 +6555,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				providerCallCount: 0,
 				activeReservedMicrousd: 0,
 				providerReportedMicrousd: 0,
+				policyQualifiedNonbillableCount: 0,
 				pricingRoundingAllowanceMicrousd: 0,
 				unreportedSettledUpperBoundMicrousd: 0,
 				providerOutcomeReasonCounts: { ...emptyEvalProviderOutcomeReasonCounts() },
@@ -6390,7 +6567,14 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			for (const raw of events) {
 				const kind = (raw as { kind: string }).kind;
 				if (kind === "eval-elapsed-budget-state") state.elapsed = raw as EvalElapsedBudgetState;
-				else if (kind === "root-eval-profile-admission")
+				else if (kind === "eval-provider-start-spacing-readiness") {
+					const spacing = raw as EvalProviderStartSpacingReadiness;
+					if (spacing.pacingRevision < state.pacingRevision)
+						throw new TypeError("stale adaptive pacing revision");
+					state.pacingRevision = spacing.pacingRevision;
+					state.providerStartIntervalMs = spacing.providerStartIntervalMs;
+					state.consecutiveUsableResponses = spacing.consecutiveUsableResponses;
+				} else if (kind === "root-eval-profile-admission")
 					state.profile = raw as RootEvalProfileAdmission;
 			}
 			const elapsed = state.elapsed;
@@ -6417,6 +6601,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				if (outcome.costEvidence === "provider-reported") {
 					state.providerReportedMicrousd += outcome.costMicrousd;
 					state.pricingRoundingAllowanceMicrousd += outcome.pricingRoundingAllowanceMicrousd;
+				} else if (outcome.costEvidence === "policy-qualified-nonbillable") {
+					state.policyQualifiedNonbillableCount += 1;
 				} else state.unreportedSettledUpperBoundMicrousd += outcome.costMicrousd;
 				if (
 					state.providerReportedMicrousd +
@@ -6576,6 +6762,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				throw new TypeError("provider proposal conservation drifted");
 			const budgetSnapshot: EvalBudgetState = Object.freeze({
 				kind: "eval-budget-state" as const,
+				policyQualifiedNonbillableCount: state.policyQualifiedNonbillableCount,
 				admittedAttempts: state.admittedAttempts,
 				admittedRetryAttempts: state.admittedRetryAttempts,
 				retryProposalCount: state.retryProposalKeys.size,
@@ -6605,6 +6792,9 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			});
 			const capacitySnapshot: EvalProviderCapacityState = Object.freeze({
 				kind: "eval-provider-capacity-state" as const,
+				pacingRevision: state.pacingRevision,
+				providerStartIntervalMs: state.providerStartIntervalMs,
+				consecutiveUsableResponses: state.consecutiveUsableResponses,
 				mode: state.capacityMode,
 				initialMaxConcurrentEffects: ROOT_EVAL_INITIAL_PROVIDER_CAPACITY,
 				maxConcurrentEffects: state.maxConcurrentEffects,
@@ -6753,7 +6943,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	);
 	const toolAdmissionEvents = owner.initNode(
 		merge<unknown>(),
-		[budgetSettledProviderOutcomes, sourceToolOutcomes, taskBindingAuthority],
+		[budgetSettledProviderOutcomes, sourceToolOutcomes, taskBindingAuthority, budgets],
 		{ name: "eval/tool/admission-events" },
 	);
 	const toolAdmissions = owner.node<EvalAdmittedToolEffect>(
@@ -6762,6 +6952,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			const state = ctx.state.get<{
 				admitted: Set<string>;
 				bindings?: readonly RootEvalTaskBinding[];
+				budget?: EvalBudgetState;
 				sourceOutcomes: Map<string, EvalProviderOutcome>;
 				sourceProviderSettled: Set<string>;
 				sourceSettled: Set<string>;
@@ -6772,8 +6963,11 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				sourceSettled: new Set<string>(),
 			};
 			const events = depBatch(ctx, 0) ?? [];
-			for (const raw of events)
+			for (const raw of events) {
 				if (Array.isArray(raw)) state.bindings = raw as readonly RootEvalTaskBinding[];
+				else if ((raw as { kind?: string }).kind === "eval-budget-state")
+					state.budget = raw as EvalBudgetState;
+			}
 			ctx.state.set(state);
 			const graphTaskBindings = state.bindings;
 			if (graphTaskBindings === undefined) {
@@ -6799,7 +6993,14 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				if (outcome.status === "tool-proposed" && outcome.toolProposal !== null)
 					candidates.push(outcome);
 			}
-			if (state.sourceProviderSettled.size === replicateCount) {
+			// A stopped provider cohort cannot fill its original all-source barrier.
+			// Already admitted source proposals still own workspaces and must drain.
+			if (
+				state.sourceProviderSettled.size === replicateCount ||
+				(state.budget?.stoppingReason !== undefined &&
+					state.budget.stoppingReason !== "none" &&
+					state.budget.activeEffects === 0)
+			) {
 				const sourceToolActive = graphTaskBindings.some(
 					(binding) =>
 						state.sourceOutcomes.has(binding.sourceWorkItemId) &&
@@ -6865,6 +7066,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				arguments: "graph-admitted",
 				sourceBarrier: "all-five-provider-outcomes-before-source-tools",
 				sourceBudgetBarrier: "all-five-provider-budget-settlements-before-source-tools",
+				stoppedSourceDrain: "settled-admitted-source-tools-without-unstarted-siblings",
 				sourceToolCapacity: 1,
 			},
 		},
@@ -7233,10 +7435,14 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		readonly admitted: readonly EvalExecutableEffect[];
 		readonly admittedEffects: number;
 		readonly settledEffects: number;
+		readonly cleanupFailureCount: number;
+		readonly completedTargetWorkItems: number;
 	}>;
 	interface EvalEffectLifecycleState {
 		readonly active: Map<string, EvalExecutableEffect>;
 		readonly settled: Map<string, string>;
+		cleanupFailureCount: number;
+		completedTargetWorkItems: number;
 	}
 	const settleLifecycleEffect = (
 		state: EvalEffectLifecycleState,
@@ -7290,6 +7496,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			executionId: string;
 			resultDigest: string;
 			admission: EvalExecutableEffect;
+			cleanupFailed?: boolean;
+			completedTargetWorkItem?: boolean;
 		}>,
 		name: string,
 		factory: string,
@@ -7305,6 +7513,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				const state = prior ?? {
 					active: new Map<string, EvalExecutableEffect>(),
 					settled: new Map<string, string>(),
+					cleanupFailureCount: 0,
+					completedTargetWorkItems: 0,
 				};
 				const admitted: EvalExecutableEffect[] = [];
 				let changed = prior === undefined;
@@ -7315,7 +7525,12 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 						admitted.push(...newAdmissions);
 						changed = newAdmissions.length > 0 || changed;
 					} else if (kind !== "eval-campaign-start") {
-						changed = settleLifecycleEffect(state, validateOutcome(raw)) || changed;
+						const outcome = validateOutcome(raw);
+						if (settleLifecycleEffect(state, outcome)) {
+							if (outcome.cleanupFailed) state.cleanupFailureCount += 1;
+							if (outcome.completedTargetWorkItem) state.completedTargetWorkItems += 1;
+							changed = true;
+						}
 					}
 				}
 				ctx.state.set(state);
@@ -7329,6 +7544,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 							admitted: Object.freeze(admitted),
 							admittedEffects: state.active.size + state.settled.size,
 							settledEffects: state.settled.size,
+							cleanupFailureCount: state.cleanupFailureCount,
+							completedTargetWorkItems: state.completedTargetWorkItems,
 						}),
 					],
 				]);
@@ -7345,7 +7562,14 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const providerEffectLifecycles = createEffectLifecycle(
 		providerExecutorEffects,
 		allProviderResultAdmissions,
-		(raw) => validateProviderOutcome(raw as EvalProviderOutcome),
+		(raw) => {
+			const outcome = validateProviderOutcome(raw as EvalProviderOutcome);
+			return {
+				...outcome,
+				cleanupFailed: outcome.status !== "tool-proposed" && !outcome.cleanupCompleted,
+				completedTargetWorkItem: outcome.workItemRole === "target" && outcome.status === "failed",
+			};
+		},
 		"eval/executor/provider-effect-lifecycle-registry",
 		"rootEvalEffectLifecycleRegistry",
 		"provider",
@@ -7361,7 +7585,14 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const toolEffectLifecycles = createEffectLifecycle(
 		toolExecutorEffects as unknown as Node<unknown>,
 		allToolOutcomes as unknown as Node<unknown>,
-		(raw) => validateOutcomeReceipt(raw as EvalEffectOutcome),
+		(raw) => {
+			const outcome = validateOutcomeReceipt(raw as EvalEffectOutcome);
+			return {
+				...outcome,
+				cleanupFailed: !outcome.evidence.cleanupCompleted,
+				completedTargetWorkItem: outcome.admission.workItemRole === "target",
+			};
+		},
 		"eval/executor/tool-effect-lifecycle-registry",
 		"rootEvalToolEffectLifecycleRegistry",
 		"exact-tool",
@@ -7445,6 +7676,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 								),
 								admittedEffects: snapshot.admittedEffects,
 								settledEffects: snapshot.settledEffects,
+								cleanupFailureCount: snapshot.cleanupFailureCount,
+								completedTargetWorkItems: snapshot.completedTargetWorkItems,
 							}),
 						],
 					]);
@@ -7513,6 +7746,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				activeProviderEffects !== budget.activeEffects ||
 				provider.admittedEffects !== budget.admittedAttempts ||
 				provider.settledEffects !== providerReasonTotal ||
+				tool.admittedEffects > budget.providerOutcomeReasonCounts["tool-proposed"] ||
 				retry.admittedEffects !== retryableReasonTotal ||
 				retry.settledEffects !== budget.retryProposalCount ||
 				activeAdmittedEffects > HARNESS_ARMS.length ||
@@ -7540,6 +7774,11 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 						activeRetryEffects,
 						activeBillingEffects,
 						activeAdmittedEffects,
+						cleanupComplete: provider.cleanupFailureCount === 0 && tool.cleanupFailureCount === 0,
+						pendingToolAdmissions:
+							budget.providerOutcomeReasonCounts["tool-proposed"] - tool.admittedEffects,
+						completedTargetWorkItems:
+							provider.completedTargetWorkItems + tool.completedTargetWorkItems,
 					}),
 				],
 			]);
@@ -8154,6 +8393,17 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					activeAdmittedEffects,
 				} = activity;
 				const finding = state.finding;
+				const stopped =
+					!terminal &&
+					budget.stoppingReason !== "none" &&
+					capacity.rejectedProposalCount > 0 &&
+					campaignState.stoppingReason !== "campaign-complete" &&
+					activeAdmittedEffects === 0 &&
+					budget.activeReservedMicrousd === 0 &&
+					activity.cleanupComplete &&
+					activity.pendingToolAdmissions === 0 &&
+					activity.completedTargetWorkItems === diagnostics.completedWorkItems &&
+					state.campaigns.size <= 1;
 				const provenance = context.memoryProvenance;
 				const contract = context.campaignContract;
 				const qualification: EvalDevelopmentQualificationState = terminal
@@ -8243,7 +8493,11 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 						? finding!.providerOutcomeReasonCounts
 						: budget.providerOutcomeReasonCounts,
 					stoppingReason,
-					finding: terminal ? finding!.finding : ("pending" as const),
+					finding: terminal
+						? finding!.finding
+						: stopped
+							? ("not-evaluated" as const)
+							: ("pending" as const),
 				});
 				const digest = empiricalStrictJsonDigest(value);
 				if (state.digest === digest) return;
@@ -8256,7 +8510,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				if (state.revision > observationBound) throw new TypeError("observation bound exceeded");
 				state.digest = digest;
 				state.previous = value;
-				state.terminal = terminal;
+				state.terminal = terminal || stopped;
 				outputs.push(
 					Object.freeze({
 						occurrenceId: `${campaignRef}/observation`,
@@ -8285,8 +8539,9 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				const cut = state.admission;
 				if (!state.context || !cut || !state.elapsed) return;
 				if (
-					(cut.budget.stoppingReason === "elapsed-budget-exhausted") !==
-					(state.elapsed.state === "exhausted")
+					(cut.budget.stoppingReason === "elapsed-budget-exhausted" &&
+						state.elapsed.state !== "exhausted") ||
+					(state.elapsed.state === "exhausted" && cut.budget.stoppingReason === "none")
 				)
 					return;
 				const activity = state.activities.get(empiricalStrictJsonDigest(cut.budget));
@@ -8298,6 +8553,23 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				)
 					return;
 				// Domain coordinates select the diagnostic snapshot. A newer wave never substitutes
+				if (
+					cut.budget.stoppingReason !== "none" &&
+					activity.activeAdmittedEffects === 0 &&
+					activity.pendingToolAdmissions === 0 &&
+					!activity.cleanupComplete
+				) {
+					state.failed = true;
+					outputs.push(
+						Object.freeze({
+							kind: "eval-observation-rejected",
+							code: "campaign-cleanup-failed",
+							campaignRef,
+							acceptedRevision: state.revision,
+						}),
+					);
+					return;
+				}
 				// for the missing coordinate. Every pending campaign occurrence is retained in order.
 				const pending = [...state.campaigns.entries()].sort(
 					([, a], [, b]) => a.replicate - b.replicate || a.completedArms - b.completedArms,
@@ -8507,6 +8779,61 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		},
 	);
 
+	const campaignTerminal = owner.node<EvalCampaignTerminal>(
+		[observationOccurrences],
+		(ctx) => {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				if ("kind" in (raw as object)) continue;
+				const occurrence = raw as SolutionOccurrence<EvalObservation>;
+				const value = occurrence.value;
+				if (value.finding === "pending" || value.activeAdmittedEffects !== 0) continue;
+				const stopped = value.finding === "not-evaluated";
+				if (
+					HARNESS_ARMS.some(
+						(arm) =>
+							value.verificationDiagnostics.stageCounts[arm].cleanupCompleted !==
+							value.verificationDiagnostics.stageCounts[arm].completedWorkItems,
+					)
+				)
+					continue;
+				const terminal: EvalCampaignTerminal = Object.freeze({
+					kind: "eval-campaign-terminal",
+					campaignRef,
+					status: stopped ? "stopped" : "completed",
+					stoppingReason: value.stoppingReason as EvalCampaignTerminal["stoppingReason"],
+					finding: stopped ? null : (value.finding as EvalFinding["finding"]),
+					observationDigest: occurrence.occurrenceDigest,
+					budgetDigest: occurrence.occurrenceSourceRefs.find((ref) => ref.kind === "budget")!.id,
+					activityDigest: occurrence.occurrenceSourceRefs.find(
+						(ref) => ref.kind === "effect-activity",
+					)!.id,
+					observationRevision: occurrence.occurrenceRevision,
+					completedTargetWorkItems: value.verificationDiagnostics.completedWorkItems,
+					cleanupComplete: true,
+				});
+				const digest = empiricalStrictJsonDigest(terminal);
+				const previous = ctx.state.get<string>();
+				if (previous !== undefined) {
+					if (previous !== digest)
+						throw new TypeError("campaign terminal changed after settlement");
+					continue;
+				}
+				ctx.state.set(digest);
+				ctx.down([["DATA", terminal]]);
+			}
+		},
+		{
+			name: "eval/campaign/terminal",
+			factory: "rootEvalCampaignTerminal",
+			meta: {
+				materialFree: true,
+				authority: "coherent-graph-campaign-stop",
+				stoppedEfficacy: "none",
+				cleanupRequired: true,
+			},
+		},
+	);
+
 	// Keep every real solution branch active before the initial state propagates.
 	const keepaliveStops = [
 		admissionFacts.subscribe(() => undefined),
@@ -8515,6 +8842,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		retryActiveEffects.subscribe(() => undefined),
 		billingActiveEffects.subscribe(() => undefined),
 		observation.subscribe(() => undefined),
+		campaignTerminal.subscribe(() => undefined),
 		findings.subscribe(() => undefined),
 		observationRejections.subscribe(() => undefined),
 		...observationReleaseControllers.map((controller) => controller.subscribe(() => undefined)),
@@ -8580,6 +8908,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			billingObservationAdmissions,
 			billingReconciliation,
 			findings,
+			campaignTerminal,
 			developmentQualification,
 			terminalLifecycleConsistency,
 			observationRejections,
@@ -8593,7 +8922,7 @@ export async function runRootEval(
 	topology: RootEvalTopology,
 	executor: (effect: EvalExecutableEffect) => Promise<EvalExecutorOutcome>,
 	options: Readonly<{ readonly signal?: AbortSignal }> = {},
-): Promise<RootEvalRunResult> {
+): Promise<RootEvalRunOutcome> {
 	return topology.runAdmittedEffects(executor, options);
 }
 
@@ -8611,7 +8940,7 @@ async function runRootEvalWithOutcomeInput(
 	executor: (effect: EvalExecutableEffect) => Promise<EvalExecutorOutcome>,
 	signal?: AbortSignal,
 	releaseKeepalives: () => void = () => undefined,
-): Promise<RootEvalRunResult> {
+): Promise<RootEvalRunOutcome> {
 	const observationEvents: ObserveEvent[] = [];
 	const executed = new Set<string>();
 	const scheduled = new Set<string>();
@@ -8621,17 +8950,16 @@ async function runRootEvalWithOutcomeInput(
 	let settled = false;
 	let acceptingNewEffects = true;
 	let pendingFailure: unknown | undefined;
-	let graphStopReason: EvalBudgetState["stoppingReason"] = "none";
-	let latestBudget: EvalBudgetState | undefined;
+	let graphTerminal: EvalCampaignTerminal | undefined;
 	let latestObservation: EvalObservation | undefined;
-	return new Promise<RootEvalRunResult>((resolve, reject) => {
+	return new Promise<RootEvalRunOutcome>((resolve, reject) => {
 		let finding: EvalFinding | undefined;
 		let terminalObservation: EvalObservation | undefined;
 		let stopEffects: () => void = () => undefined;
 		let stopFinding: () => void = () => undefined;
 		let stopObservation: () => void = () => undefined;
 		let stopObservationRejections: () => void = () => undefined;
-		let stopBudget: () => void = () => undefined;
+		let stopTerminal: () => void = () => undefined;
 		let stopTerminalLifecycleConsistency: () => void = () => undefined;
 		let stopTerminalProviderResultAdmission: () => void = () => undefined;
 		let stopFailedProviderResultAdmission: () => void = () => undefined;
@@ -8642,7 +8970,7 @@ async function runRootEvalWithOutcomeInput(
 			stopFinding();
 			stopObservation();
 			stopObservationRejections();
-			stopBudget();
+			stopTerminal();
 			stopTerminalLifecycleConsistency();
 			stopTerminalProviderResultAdmission();
 			stopFailedProviderResultAdmission();
@@ -8669,13 +8997,24 @@ async function runRootEvalWithOutcomeInput(
 		const maybeFinishGraphStop = () => {
 			if (
 				!settled &&
-				graphStopReason !== "none" &&
-				latestBudget?.activeEffects === 0 &&
-				latestObservation?.stoppingReason === graphStopReason &&
-				latestObservation.activeAdmittedEffects === 0 &&
+				pendingFailure === undefined &&
+				graphTerminal?.status === "stopped" &&
+				latestObservation !== undefined &&
+				empiricalStrictJsonDigest(latestObservation) === graphTerminal.observationDigest &&
 				inFlight.size === 0
-			)
-				abort(new Error(`root eval stopped: ${graphStopReason}`));
+			) {
+				settled = true;
+				stopSubscriptions();
+				resolve(
+					Object.freeze({
+						finding: null,
+						terminal: graphTerminal,
+						observations: Object.freeze([...observationEvents]),
+						peakConcurrentEffects,
+						executedAdmissionIds: Object.freeze([...executed].sort()),
+					}),
+				);
+			}
 		};
 		const finish = (observation: EvalObservation) => {
 			if (
@@ -8705,7 +9044,11 @@ async function runRootEvalWithOutcomeInput(
 		};
 		stopObservationRejections = topology.nodes.observationRejections.subscribe((message) => {
 			if (message[0] === "DATA")
-				abort(new Error("root eval canonical observation rejected; admitted work drained"));
+				abort(
+					new Error(
+						`root eval canonical observation rejected: ${(message[1] as EvalObservationRejection).code}; admitted work drained`,
+					),
+				);
 		});
 		stopObservation = topology.graph.observe("eval/observation").subscribe((event) => {
 			if (event.msg[0] === "ERROR") {
@@ -8743,7 +9086,7 @@ async function runRootEvalWithOutcomeInput(
 			finding = message[1] as EvalFinding;
 			if (terminalObservation !== undefined) finish(terminalObservation);
 		});
-		stopBudget = topology.nodes.budgets.subscribe((message) => {
+		stopTerminal = topology.nodes.campaignTerminal.subscribe((message) => {
 			if (settled) return;
 			if (message[0] === "ERROR") {
 				abort(
@@ -8754,9 +9097,7 @@ async function runRootEvalWithOutcomeInput(
 				return;
 			}
 			if (message[0] !== "DATA") return;
-			const budget = message[1] as EvalBudgetState;
-			latestBudget = budget;
-			if (budget.stoppingReason !== "none") graphStopReason = budget.stoppingReason;
+			graphTerminal = message[1] as EvalCampaignTerminal;
 			maybeFinishGraphStop();
 		});
 		stopTerminalLifecycleConsistency = topology.nodes.terminalLifecycleConsistency.subscribe(

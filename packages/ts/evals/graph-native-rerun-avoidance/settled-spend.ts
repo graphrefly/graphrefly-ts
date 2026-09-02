@@ -11,6 +11,7 @@ import { EVAL_PROVIDER_OUTCOME_REASON_CODES } from "./eval-topology.js";
 export function rootEvalBudgetReceipt(value: EvalBudgetState): EvalBudgetState {
 	const budget = strictSnapshot(value);
 	const numeric = [
+		"policyQualifiedNonbillableCount",
 		"admittedAttempts",
 		"admittedRetryAttempts",
 		"retryProposalCount",
@@ -85,6 +86,11 @@ export function settledRootEvalSpend(input: {
 		);
 		const total = reported + unknown + reserved;
 		if (
+			budget.policyQualifiedNonbillableCount > reportedCalls ||
+			budget.policyQualifiedNonbillableCount >
+				budget.providerOutcomeReasonCounts["http-capacity-retryable"] +
+					budget.providerOutcomeReasonCounts["http-capacity-exhausted"] +
+					budget.providerOutcomeReasonCounts["executor-failed"] ||
 			budget.kind !== "eval-budget-state" ||
 			!Number.isSafeInteger(total) ||
 			total !== budget.accountedUpperBoundMicrousd ||

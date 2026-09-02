@@ -8,6 +8,7 @@ import { createCurrentExactModelHarnessProfileInput } from "./current-exact-prof
 import {
 	createRootEvalTopology,
 	type EvalBudgetState,
+	type EvalCampaignTerminal,
 	type EvalCurrentKeySnapshot,
 	materialFreeObservationValue,
 	type RootEvalRunResult,
@@ -376,6 +377,7 @@ async function persistClaimedEvidence(input: {
 	readonly currentKeyAfter: RootEvalLiveCurrentKeyAdmission | null;
 	readonly providerCalls: number;
 	readonly graphResult: RootEvalRunResult | null;
+	readonly stoppedTerminal?: EvalCampaignTerminal | null;
 	readonly partialGraphObservations: readonly ObserveEvent[];
 	readonly failure: unknown | null;
 	readonly cleanupDisposition: "complete" | "failed";
@@ -443,7 +445,10 @@ async function persistClaimedEvidence(input: {
 			providerCalls: evidence.providerCalls,
 			currentKeyRemainingMicrousd: input.currentKeyAfter?.remainingMicrousd ?? null,
 			finding: evidence.graphResult?.finding.finding ?? null,
-			stoppingReason: evidence.graphResult?.finding.stoppingReason ?? null,
+			stoppingReason:
+				evidence.stoppedTerminal?.stoppingReason ??
+				evidence.graphResult?.finding.stoppingReason ??
+				null,
 			efficacyClaim: evidence.efficacyClaim,
 			causalAttribution: evidence.causalAttribution,
 			admissionReport: evidence.admissionReport,
@@ -477,6 +482,7 @@ async function executeClaimedCampaign(input: {
 	const bindingDigest = claim.credentialBindingDigest;
 	let providerCalls = 0;
 	let graphResult: RootEvalRunResult | null = null;
+	let stoppedTerminal: EvalCampaignTerminal | null = null;
 	let currentKeyAfter: RootEvalLiveCurrentKeyAdmission | null = null;
 	let failure: unknown | null = input.initialFailure ?? null;
 	let cleanupDisposition: "complete" | "failed" = "complete";
@@ -569,12 +575,14 @@ async function executeClaimedCampaign(input: {
 				return graphCurrentKey(bindingDigest, observed);
 			},
 		});
-		graphResult = await awaitRootEvalCallerSettlement(
+		const outcome = await awaitRootEvalCallerSettlement(
 			() => runRootEval(topology, executor!.execute, { signal: callerCancellation.signal }),
 			{
 				onDeadline: (error) => callerCancellation.abort(error),
 			},
 		);
+		if (outcome.finding === null) stoppedTerminal = outcome.terminal;
+		else graphResult = outcome;
 	} catch (error) {
 		failure = error;
 	} finally {
@@ -607,6 +615,7 @@ async function executeClaimedCampaign(input: {
 			zeroByok: input.zeroByok,
 			providerCalls,
 			graphResult,
+			stoppedTerminal,
 			partialGraphObservations,
 			failure,
 			cleanupDisposition,

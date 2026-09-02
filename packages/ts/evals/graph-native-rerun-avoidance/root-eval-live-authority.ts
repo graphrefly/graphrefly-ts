@@ -30,6 +30,7 @@ import {
 	type EvalBudgetPartition,
 	type EvalBudgetState,
 	type EvalCampaignPurpose,
+	type EvalCampaignTerminal,
 	type EvalFinding,
 	type EvalObservation,
 	type EvalProviderOutcomeReasonCounts,
@@ -84,7 +85,7 @@ export const ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_DECISION_REF = "graphrefly-ts
 export const ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_NAME =
 	"operator-configuration-d149.v1.json" as const;
 export const ROOT_EVAL_LIVE_CLAIM_SCHEMA = "graphrefly-ts.root-eval-live-claim.v21" as const;
-export const ROOT_EVAL_LIVE_EVIDENCE_SCHEMA = "graphrefly-ts.root-eval-live-evidence.v26" as const;
+export const ROOT_EVAL_LIVE_EVIDENCE_SCHEMA = "graphrefly-ts.root-eval-live-evidence.v27" as const;
 export const ROOT_EVAL_LIVE_PRECLAIM_FAILURE_SCHEMA =
 	"graphrefly-ts.root-eval-live-preclaim-failure.v21" as const;
 export const ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_SCHEMA =
@@ -446,7 +447,7 @@ export interface RootEvalLiveEvidence {
 	readonly budgetReceipt: EvalBudgetState | null;
 	readonly schemaVersion: typeof ROOT_EVAL_LIVE_EVIDENCE_SCHEMA;
 	readonly generationRef: typeof ROOT_EVAL_LIVE_GENERATION_REF;
-	readonly disposition: "success" | "partial-failure";
+	readonly disposition: "success" | "stopped" | "partial-failure";
 	readonly claimDigest: string;
 	readonly currentKeyBeforeDigest: string | null;
 	readonly currentKeyAfterDigest: string | null;
@@ -464,6 +465,7 @@ export interface RootEvalLiveEvidence {
 	readonly providerCalls: number;
 	readonly observationProvenance: "live-run" | "exact-response-no-network-recovery";
 	readonly graphResult: RootEvalLiveGraphEvidence | null;
+	readonly stoppedTerminal: EvalCampaignTerminal | null;
 	readonly partialGraphObservations: readonly ObserveEvent[];
 	readonly latestGraphObservation: ObserveEvent | null;
 	readonly admissionReport: RootEvalLiveAdmissionReport;
@@ -620,6 +622,7 @@ export interface RootEvalLiveEvidenceInput {
 	readonly providerCalls: number;
 	readonly observationProvenance?: "live-run" | "exact-response-no-network-recovery";
 	readonly graphResult: RootEvalRunResult | null;
+	readonly stoppedTerminal?: EvalCampaignTerminal | null;
 	readonly partialGraphObservations: readonly ObserveEvent[];
 	readonly failure: unknown | null;
 	readonly cleanupDisposition: "complete" | "failed";
@@ -2880,6 +2883,7 @@ function projectObservation(value: unknown, index: number): ParsedEvalObservatio
 			raw.finding,
 			[
 				"pending",
+				"not-evaluated",
 				"positive-differential",
 				"no-positive-differential",
 				"operationally-inconclusive",
@@ -3264,7 +3268,10 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 				input.providerCalls >= 0 &&
 				input.providerCalls <= ROOT_EVAL_LIVE_MAX_PROVIDER_ATTEMPTS,
 		],
-		["authority.result-and-failure-missing", input.graphResult !== null || input.failure !== null],
+		[
+			"authority.result-and-failure-missing",
+			input.graphResult !== null || input.stoppedTerminal != null || input.failure !== null,
+		],
 	];
 	const authorityViolations = authorityChecks.filter(([, passed]) => !passed).map(([code]) => code);
 	if (authorityViolations.length > 0)
@@ -3545,6 +3552,130 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 	});
 }
 
+function validateStoppedTerminal(
+	value: unknown,
+	observations: readonly ObserveEvent[],
+	budgetReceipt: EvalBudgetState | null,
+	providerCalls: number,
+	claim?: RootEvalLiveClaim,
+): EvalCampaignTerminal {
+	const terminal = record(strictSnapshot(value), "root eval stopped terminal");
+	exactKeys(
+		terminal,
+		[
+			"kind",
+			"campaignRef",
+			"status",
+			"stoppingReason",
+			"finding",
+			"observationDigest",
+			"budgetDigest",
+			"activityDigest",
+			"observationRevision",
+			"completedTargetWorkItems",
+			"cleanupComplete",
+		],
+		"root eval stopped terminal",
+	);
+	literal(terminal.kind, "eval-campaign-terminal", "root eval stopped terminal.kind");
+	literal(
+		terminal.campaignRef,
+		ROOT_EVAL_LIVE_GENERATION_REF,
+		"root eval stopped terminal.campaignRef",
+	);
+	literal(terminal.status, "stopped", "root eval stopped terminal.status");
+	literal(terminal.finding, null, "root eval stopped terminal.finding");
+	literal(terminal.cleanupComplete, true, "root eval stopped terminal.cleanupComplete");
+	oneOf(
+		terminal.stoppingReason,
+		["budget-exhausted", "elapsed-budget-exhausted"],
+		"root eval stopped terminal.stoppingReason",
+	);
+	for (const key of ["observationDigest", "budgetDigest", "activityDigest"] as const)
+		digest(terminal[key], `root eval stopped terminal.${key}`);
+	safeInteger(terminal.observationRevision, "root eval stopped terminal.observationRevision", {
+		min: 1,
+		max: rootEvalMaximumObservationOccurrences(ROOT_EVAL_LIVE_REPLICATE_COUNT),
+	});
+	safeInteger(
+		terminal.completedTargetWorkItems,
+		"root eval stopped terminal.completedTargetWorkItems",
+		{
+			max: ROOT_EVAL_LIVE_REPLICATE_COUNT * HARNESS_ARMS.length,
+		},
+	);
+	if (observations.length === 0 || budgetReceipt === null)
+		throw new TypeError(
+			"root eval stopped terminal requires canonical observation and independent budget",
+		);
+	const budget = rootEvalBudgetReceipt(budgetReceipt);
+	let previous: ReturnType<typeof projectObservation> | undefined;
+	for (const [index, event] of observations.entries()) {
+		const current = projectObservation(event, index);
+		if (previous !== undefined) {
+			if (event.seq <= previous.event.seq || previous.value.finding !== "pending")
+				throw new TypeError("root eval stopped observation history changed after terminal");
+			assertRootEvalObservationTransition(
+				previous.value,
+				current.value,
+				"root eval stopped observation",
+			);
+		}
+		previous = current;
+	}
+	const observation = previous!.value;
+	if (
+		claim !== undefined &&
+		(observation.partitionSpentBeforeMicrousd !== claim.partitionSpentBeforeMicrousd ||
+			observation.partitionLedgerDigest !== claim.partitionLedgerDigest ||
+			observation.partitionHardCapMicrousd !== claim.partitionHardCapMicrousd ||
+			budget.maxCostMicrousd !==
+				Math.min(
+					claim.campaignHardCapMicrousd,
+					claim.partitionHardCapMicrousd - claim.partitionSpentBeforeMicrousd,
+				))
+	)
+		throw new TypeError("root eval stopped terminal lost its claim-bound budget authority");
+	if (
+		observation.finding !== "not-evaluated" ||
+		observation.activeAdmittedEffects !== 0 ||
+		observation.activeReservedMicrousd !== 0 ||
+		budget.activeEffects !== 0 ||
+		budget.activeReservedMicrousd !== 0 ||
+		budget.providerCallCount !== providerCalls ||
+		terminal.stoppingReason !== observation.stoppingReason ||
+		terminal.stoppingReason !== budget.stoppingReason ||
+		terminal.observationDigest !== empiricalStrictJsonDigest(observation) ||
+		terminal.budgetDigest !== empiricalStrictJsonDigest(budget) ||
+		terminal.completedTargetWorkItems !== observation.verificationDiagnostics.completedWorkItems ||
+		observation.developmentQualification.generationQualified !== null ||
+		HARNESS_ARMS.some(
+			(arm) =>
+				observation.verificationDiagnostics.stageCounts[arm].cleanupCompleted !==
+				observation.verificationDiagnostics.stageCounts[arm].completedWorkItems,
+		)
+	)
+		throw new TypeError("root eval stopped terminal disagrees with its coherent Graph cut");
+	for (const key of [
+		"admittedAttempts",
+		"admittedRetryAttempts",
+		"retryProposalCount",
+		"pendingRetryProposalCount",
+		"rejectedRetryProposalCount",
+		"settledRetryAttemptCount",
+		"providerCallCount",
+		"activeReservedMicrousd",
+		"providerReportedMicrousd",
+		"pricingRoundingAllowanceMicrousd",
+		"unreportedSettledUpperBoundMicrousd",
+		"accountedUpperBoundMicrousd",
+		"providerOutcomeReasonCounts",
+	] as const)
+		if (empiricalStrictJsonDigest(observation[key]) !== empiricalStrictJsonDigest(budget[key]))
+			throw new TypeError(`root eval stopped terminal budget field ${key} drifted`);
+	return strictSnapshot(terminal) as unknown as EvalCampaignTerminal;
+}
+
 export function constructRootEvalLiveEvidence(
 	input: RootEvalLiveEvidenceInput,
 ): RootEvalLiveEvidence {
@@ -3588,11 +3719,33 @@ export function constructRootEvalLiveEvidence(
 	} catch {
 		/* Invalid receipt material is never persisted. */
 	}
+	const stoppedTerminal =
+		input.stoppedTerminal == null
+			? null
+			: validateStoppedTerminal(
+					input.stoppedTerminal,
+					partialGraphObservations,
+					budgetReceipt,
+					input.providerCalls,
+					input.claim,
+				);
+	if (stoppedTerminal !== null && input.graphResult !== null)
+		throw new TypeError("root eval evidence cannot contain both a finding and stopped terminal");
+	const stopped =
+		stoppedTerminal !== null &&
+		input.failure === null &&
+		input.cleanupDisposition === "complete" &&
+		observationProvenance === "live-run" &&
+		admissionReport.status === "not-candidate";
 	const material = strictSnapshot({
 		budgetReceipt,
 		schemaVersion: ROOT_EVAL_LIVE_EVIDENCE_SCHEMA,
 		generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
-		disposition: admitted ? ("success" as const) : ("partial-failure" as const),
+		disposition: admitted
+			? ("success" as const)
+			: stopped
+				? ("stopped" as const)
+				: ("partial-failure" as const),
 		claimDigest: input.claim.claimDigest,
 		currentKeyBeforeDigest: input.currentKeyBefore?.admissionDigest ?? null,
 		currentKeyAfterDigest: input.currentKeyAfter?.admissionDigest ?? null,
@@ -3610,6 +3763,7 @@ export function constructRootEvalLiveEvidence(
 		providerCalls: input.providerCalls,
 		observationProvenance,
 		graphResult: graph,
+		stoppedTerminal,
 		partialGraphObservations,
 		latestGraphObservation: partialGraphObservations.at(-1) ?? null,
 		admissionReport,
@@ -3647,6 +3801,7 @@ const EVIDENCE_KEYS = Object.freeze([
 	"providerCalls",
 	"observationProvenance",
 	"graphResult",
+	"stoppedTerminal",
 	"partialGraphObservations",
 	"latestGraphObservation",
 	"admissionReport",
@@ -4048,13 +4203,24 @@ function validateRootEvalLiveEvidenceForPersistence(value: RootEvalLiveEvidence)
 		throw new TypeError("root eval live evidence technical failure code invalid");
 	const disposition = oneOf(
 		evidence.disposition,
-		["success", "partial-failure"] as const,
+		["success", "stopped", "partial-failure"] as const,
 		"root eval live evidence.disposition",
 	);
+	if (evidence.stoppedTerminal !== null) {
+		validateStoppedTerminal(
+			evidence.stoppedTerminal,
+			partial,
+			value.budgetReceipt,
+			value.providerCalls,
+		);
+		if (evidence.graphResult !== null)
+			throw new TypeError("root eval stopped evidence cannot also contain a finding");
+	}
 	if (disposition === "success") {
 		if (
 			evidence.observationProvenance !== "live-run" ||
 			evidence.graphResult === null ||
+			evidence.stoppedTerminal !== null ||
 			report.status !== "admitted" ||
 			evidence.failureDigest !== null ||
 			evidence.technicalFailureCode !== null
@@ -4080,6 +4246,20 @@ function validateRootEvalLiveEvidenceForPersistence(value: RootEvalLiveEvidence)
 			evidence.cleanupDisposition !== "complete"
 		)
 			throw new TypeError("root eval live success conclusion relationship invalid");
+	} else if (disposition === "stopped") {
+		if (
+			evidence.stoppedTerminal === null ||
+			evidence.graphResult !== null ||
+			evidence.observationProvenance !== "live-run" ||
+			report.status !== "not-candidate" ||
+			evidence.failureDigest !== null ||
+			evidence.technicalFailureCode !== null ||
+			evidence.cleanupDisposition !== "complete" ||
+			evidence.efficacyClaim !== "none" ||
+			evidence.causalAttribution !== "undetermined" ||
+			evidence.currentKeyBeforeDigest === null
+		)
+			throw new TypeError("root eval normal-stop evidence relationship invalid");
 	} else {
 		if (
 			(report.status !== "rejected" && report.status !== "not-candidate") ||
@@ -4271,6 +4451,14 @@ function validateCommittedClaimForEvidence(
 	] as const)
 		if (claim[claimKey] !== evidence[evidenceKey])
 			throw new TypeError(`root eval live evidence was not bound to committed claim ${claimKey}`);
+	if (evidence.stoppedTerminal !== null)
+		validateStoppedTerminal(
+			evidence.stoppedTerminal,
+			evidence.partialGraphObservations,
+			evidence.budgetReceipt,
+			evidence.providerCalls,
+			claim,
+		);
 	return claim;
 }
 
@@ -4361,7 +4549,7 @@ export async function persistRootEvalLiveEvidence(input: {
 	}
 	const bytes = strictJsonCodec.encode(evidence);
 	const generationRoot = join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF);
-	const target = join(generationRoot, "evidence.v26.json");
+	const target = join(generationRoot, "evidence.v27.json");
 	const existing = await open(target, constants.O_RDONLY | constants.O_NOFOLLOW).catch(
 		(error: unknown) => {
 			if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
@@ -4394,7 +4582,7 @@ export async function persistRootEvalLiveEvidence(input: {
 	await mkdir(stageRoot, { mode: 0o700 });
 	try {
 		await chmod(stageRoot, 0o700);
-		const stagedTarget = join(stageRoot, "evidence.v26.json");
+		const stagedTarget = join(stageRoot, "evidence.v27.json");
 		const writer = await open(
 			stagedTarget,
 			constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,

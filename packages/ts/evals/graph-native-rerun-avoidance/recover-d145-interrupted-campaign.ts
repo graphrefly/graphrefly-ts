@@ -330,7 +330,7 @@ async function main(): Promise<void> {
 		await executor.dispose(replayFailure);
 		await rm(temporary, { recursive: true, force: true });
 	}
-	if (replayFailure !== null || graphResult === null)
+	if (replayFailure !== null || graphResult === null || graphResult.finding === null)
 		throw new TypeError("D145 interrupted recovery did not reach an exact terminal replay");
 	if (
 		consumed.size !== responses.size ||

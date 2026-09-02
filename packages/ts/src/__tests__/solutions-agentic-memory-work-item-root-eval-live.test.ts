@@ -26,6 +26,7 @@ import {
 	assertRootEvalObservationSequence,
 	createRootEvalTopology,
 	type EvalAdmittedEffect,
+	type EvalBudgetState,
 	type EvalEffectOutcome,
 	type EvalProviderOutcome,
 	emptyEvalProviderOutcomeReasonCounts,
@@ -595,6 +596,9 @@ function liveEvidenceInput(
 				activeAdmittedEffects: 0,
 				providerCapacity: {
 					kind: "eval-provider-capacity-state",
+					pacingRevision: workItemCount,
+					providerStartIntervalMs: 30_000,
+					consecutiveUsableResponses: workItemCount % 3,
 					mode: "paced-serial",
 					initialMaxConcurrentEffects: 1,
 					maxConcurrentEffects: 1,
@@ -719,6 +723,9 @@ function liveEvidenceInput(
 					activeAdmittedEffects: 0,
 					providerCapacity: {
 						kind: "eval-provider-capacity-state",
+						pacingRevision: completedWorkItems,
+						providerStartIntervalMs: 30_000,
+						consecutiveUsableResponses: completedWorkItems % 3,
 						mode: "paced-serial",
 						initialMaxConcurrentEffects: 1,
 						maxConcurrentEffects: 1,
@@ -1520,7 +1527,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 	it("binds exact fresh D152 currentness and rejects synthetic live authority", async () => {
 		expect(ROOT_EVAL_LIVE_DECISION_REF).toBe("graphrefly-ts:D152");
 		expect(ROOT_EVAL_LIVE_CLAIM_SCHEMA).toBe("graphrefly-ts.root-eval-live-claim.v21");
-		expect(ROOT_EVAL_LIVE_EVIDENCE_SCHEMA).toBe("graphrefly-ts.root-eval-live-evidence.v26");
+		expect(ROOT_EVAL_LIVE_EVIDENCE_SCHEMA).toBe("graphrefly-ts.root-eval-live-evidence.v27");
 		expect(ROOT_EVAL_LIVE_PRECLAIM_FAILURE_SCHEMA).toBe(
 			"graphrefly-ts.root-eval-live-preclaim-failure.v21",
 		);
@@ -3657,6 +3664,9 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					admittedAttempts: workItemCount + 1,
 					providerCapacity: {
 						kind: "eval-provider-capacity-state",
+						pacingRevision: workItemCount,
+						providerStartIntervalMs: 30_000,
+						consecutiveUsableResponses: workItemCount % 3,
 						mode: "paced-serial",
 						initialMaxConcurrentEffects: 1,
 						maxConcurrentEffects: 1,
@@ -4660,7 +4670,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			expect(second).toEqual(first);
 			expect(first.postCommitFailureDigest).toBeNull();
 			expect(await readdir(join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF))).toEqual([
-				"evidence.v26.json",
+				"evidence.v27.json",
 			]);
 			await expect(
 				persistRootEvalLiveEvidence({
@@ -4669,6 +4679,166 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				}),
 			).rejects.toThrow(/evidence.*invalid|digest/u);
 		} finally {
+			await rm(temporary, { recursive: true, force: true });
+		}
+	});
+
+	it("D154 persists a real budget-stopped Graph terminal without efficacy and rejects terminal drift", async () => {
+		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-d154-stopped-"));
+		const privateRoot = await realpath(temporary);
+		let stopBudget = () => undefined;
+		try {
+			const claimInput = await currentClaimInput(privateRoot);
+			const acquisition = await acquireRootEvalLiveClaimForNoNetworkQualification(claimInput);
+			const manifest = createRootEvalTaskManifest({
+				slot: "development-1",
+				variantOrder: [0, 1, 2, 3, 4],
+				coordinateSuffix: "d154-budget-stopped-case",
+			});
+			const topology = createRootEvalTopology({
+				profileInput: createCurrentExactModelHarnessProfileInput(),
+				currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+				campaignRef: ROOT_EVAL_LIVE_GENERATION_REF,
+				campaignPurpose: ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE,
+				taskSetRef: ROOT_EVAL_LIVE_TASK_SET_REF,
+				taskManifestDigest: acquisition.claim.taskManifestDigest,
+				taskBindings: rootEvalTaskBindings(manifest.tasks),
+				generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
+				heldOutSealDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
+				budgetPartition: ROOT_EVAL_LIVE_BUDGET_PARTITION,
+				partitionHardCapMicrousd: ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD,
+				partitionLedgerDigest: acquisition.claim.partitionLedgerDigest,
+				maxCostMicrousd: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
+				reservationMicrousd: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD + 1,
+			});
+			let budgetReceipt: EvalBudgetState | null = null;
+			stopBudget = topology.nodes.budgets.subscribe((message) => {
+				if (message[0] === "DATA") budgetReceipt = message[1] as EvalBudgetState;
+			});
+			const execute = vi.fn(async () => {
+				throw new Error("stopped Graph must not execute effects");
+			});
+			const outcome = await runRootEval(topology, execute);
+			expect(execute).not.toHaveBeenCalled();
+			if (outcome.finding !== null) throw new Error("expected real Graph budget stop");
+			expect(outcome.terminal).toMatchObject({
+				status: "stopped",
+				finding: null,
+				stoppingReason: "budget-exhausted",
+			});
+			const input: RootEvalLiveEvidenceInput = {
+				...liveEvidenceInput(),
+				claim: acquisition.claim,
+				pricing: claimInput.pricing,
+				zeroByok: claimInput.zeroByok,
+				currentKeyBefore: claimInput.currentKeyBefore,
+				currentKeyAfter: claimInput.currentKeyBefore,
+				providerCalls: 0,
+				budgetReceipt,
+				graphResult: null,
+				stoppedTerminal: outcome.terminal,
+				partialGraphObservations: outcome.observations,
+				failure: null,
+				cleanupDisposition: "complete",
+			};
+			const evidence = constructRootEvalLiveEvidence(input);
+			expect(evidence).toMatchObject({
+				disposition: "stopped",
+				graphResult: null,
+				failureDigest: null,
+				efficacyClaim: "none",
+				causalAttribution: "undetermined",
+				admissionReport: { status: "not-candidate", violationCodes: [] },
+			});
+			expect(
+				(evidence.latestGraphObservation!.msg[1] as { developmentQualification: unknown })
+					.developmentQualification,
+			).toMatchObject({ generationQualified: null, heldOutEligible: false });
+			for (const terminalPatch of [
+				{ observationDigest: empiricalStrictJsonDigest("other-observation") },
+				{ budgetDigest: empiricalStrictJsonDigest("other-budget") },
+				{ activityDigest: "invalid" },
+				{ observationRevision: 0 },
+				{ completedTargetWorkItems: 1 },
+				{ cleanupComplete: false },
+				{ stoppingReason: "elapsed-budget-exhausted" },
+				{ unexpected: true },
+			])
+				expect(() =>
+					constructRootEvalLiveEvidence({
+						...input,
+						stoppedTerminal: { ...outcome.terminal, ...terminalPatch } as never,
+					}),
+				).toThrow();
+			expect(() => constructRootEvalLiveEvidence({ ...input, budgetReceipt: null })).toThrow();
+			expect(() =>
+				constructRootEvalLiveEvidence({
+					...input,
+					budgetReceipt: {
+						...evidence.budgetReceipt!,
+						maxCostMicrousd: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD - 1,
+					},
+				}),
+			).toThrow(/budget/u);
+			expect(() =>
+				constructRootEvalLiveEvidence({ ...input, partialGraphObservations: [] }),
+			).toThrow();
+			const lastObservation = outcome.observations.at(-1)!;
+			expect(() =>
+				constructRootEvalLiveEvidence({
+					...input,
+					partialGraphObservations: [
+						...outcome.observations.slice(0, -1),
+						{
+							...lastObservation,
+							msg: [
+								"DATA",
+								{ ...(lastObservation.msg[1] as Record<string, unknown>), finding: "pending" },
+							],
+						},
+					],
+				}),
+			).toThrow(/terminal/u);
+			const failure = constructRootEvalLiveEvidence({
+				...input,
+				failure: new Error("cleanup failed after terminal"),
+				cleanupDisposition: "failed",
+			});
+			expect(failure).toMatchObject({ disposition: "partial-failure", efficacyClaim: "none" });
+			expect(failure.failureDigest).not.toBeNull();
+			const { evidenceDigest: _digest, ...material } = evidence;
+			const mutated = {
+				...material,
+				stoppedTerminal: { ...outcome.terminal, completedTargetWorkItems: 1 },
+			};
+			await expect(
+				persistRootEvalLiveEvidence({
+					privateRoot,
+					evidence: { ...mutated, evidenceDigest: empiricalStrictJsonDigest(mutated) },
+				}),
+			).rejects.toThrow(/terminal/u);
+			const forgedClaim = {
+				...material,
+				efficacyClaim: "transfer-task-family-positive-differential" as const,
+			};
+			await expect(
+				persistRootEvalLiveEvidence({
+					privateRoot,
+					evidence: { ...forgedClaim, evidenceDigest: empiricalStrictJsonDigest(forgedClaim) },
+				}),
+			).rejects.toThrow(/normal-stop/u);
+			const first = await persistRootEvalLiveEvidence({ privateRoot, evidence });
+			expect(await persistRootEvalLiveEvidence({ privateRoot, evidence })).toEqual(first);
+			expect(
+				JSON.parse(
+					await readFile(
+						join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF, "evidence.v27.json"),
+						"utf8",
+					),
+				),
+			).toEqual(evidence);
+		} finally {
+			stopBudget();
 			await rm(temporary, { recursive: true, force: true });
 		}
 	});
@@ -4725,7 +4895,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				}),
 			).toEqual(nextLedger);
 			expect(await readdir(join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF))).toEqual([
-				"evidence.v26.json",
+				"evidence.v27.json",
 			]);
 			await expect(stat(journalPath)).rejects.toMatchObject({ code: "ENOENT" });
 		} finally {
@@ -4754,6 +4924,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			const acquisition = await acquireRootEvalLiveClaimForNoNetworkQualification(claimInput);
 			const budgetReceipt = {
 				kind: "eval-budget-state" as const,
+				policyQualifiedNonbillableCount: 0,
 				admittedAttempts: stale ? 1 : 2,
 				activeEffects: stale ? 0 : 1,
 				admittedRetryAttempts: 0,
@@ -4816,7 +4987,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			expect(nextLedger.developmentSpentMicrousd).toBe(stale ? 12_000_000 : 110);
 			const persisted = JSON.parse(
 				await readFile(
-					join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF, "evidence.v26.json"),
+					join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF, "evidence.v27.json"),
 					"utf8",
 				),
 			);
@@ -4830,7 +5001,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				}),
 			).toEqual(nextLedger);
 			expect(await readdir(join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF))).toEqual([
-				"evidence.v26.json",
+				"evidence.v27.json",
 			]);
 			await expect(stat(journalPath)).rejects.toMatchObject({ code: "ENOENT" });
 		} finally {
@@ -4919,7 +5090,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			const persisted = await persistRootEvalLiveEvidence({ privateRoot, evidence });
 			expect(persisted.postCommitFailureDigest).toBeNull();
 			const bytes = await readFile(
-				join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF, "evidence.v26.json"),
+				join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF, "evidence.v27.json"),
 				"utf8",
 			);
 			const durable = JSON.parse(bytes) as Record<string, unknown>;
@@ -4982,7 +5153,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			const receipt = await persistRootEvalLiveEvidence({ privateRoot, evidence });
 			expect(receipt.postCommitFailureDigest).toBeNull();
 			const persisted = await readFile(
-				join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF, "evidence.v26.json"),
+				join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF, "evidence.v27.json"),
 				"utf8",
 			);
 			expect(JSON.parse(persisted)).toEqual(evidence);

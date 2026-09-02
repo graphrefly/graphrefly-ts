@@ -1,6 +1,6 @@
 {
 	"artifact": {
-		"schemaVersion": "graphrefly-ts.root-eval-topology-no-network-qa.v39",
+		"schemaVersion": "graphrefly-ts.root-eval-topology-no-network-qa.v40",
 		"decisionRefs": [
 			"graphrefly-ts:D76",
 			"graphrefly-ts:D77",
@@ -62,10 +62,11 @@
 			"graphrefly-ts:D151",
 			"graphrefly-ts:D152",
 			"graphrefly-ts:D153",
+			"graphrefly-ts:D154",
 			"graphrefly:D789"
 		],
-		"topologyRevision": "graphrefly-ts.root-eval-topology.v21",
-		"implementationManifestDigest": "sha256:8543c48f3cd5bd56f2246f1d78038a2ab172cb14b8c66a1b5800ba81fbde9eb9",
+		"topologyRevision": "graphrefly-ts.root-eval-topology.v22",
+		"implementationManifestDigest": "sha256:e700b2d928a131331ddc496a3553287fed4e7fe6590338f250e74ef7bfbc9afb",
 		"rootGraphs": 1,
 		"mounts": 0,
 		"replicates": 5,
@@ -77,9 +78,13 @@
 			"irrelevant-applied",
 			"wrong-scope-applied"
 		],
-		"requiredNodeCount": 261,
-		"criticalEdgeCount": 357,
+		"requiredNodeCount": 263,
+		"criticalEdgeCount": 361,
 		"caseResults": {
+			"d154ExactPolicyCostBindingAndReportedPrecedence": "passed",
+			"d154AdaptiveSpacingAndExhaustedRetryAfter": "passed",
+			"d154CoherentBudgetStopAndSourceToolDrain": "passed",
+			"d154StoppedEvidenceWithoutEfficacy": "passed",
 			"exactRealSolutionOccurrenceComposition": "passed",
 			"initialMultiDataRecipeConservation": "passed",
 			"noEvalPartialOverridesAndReviewedTimerSettlementOnly": "passed",
@@ -222,9 +227,10 @@
 		"credentialAccessed": false,
 		"liveEvaluationExecuted": false
 	},
-	"artifactDigest": "sha256:b0b0f25a053cf863b2b8db952f0460db3d24c489c30c8a2519d8a79a48e2f9be",
+	"artifactDigest": "sha256:359f1ee28d97962ece1f061fc2da462aa81376baea10eb0f63995eb76e3f91cd",
 	"qualification": {
-		"schemaVersion": "graphrefly-ts.root-eval-topology-qualification.v39",
+		"providerSettlementAndTerminalDecisionRef": "graphrefly-ts:D154",
+		"schemaVersion": "graphrefly-ts.root-eval-topology-qualification.v40",
 		"decisionRef": "graphrefly-ts:D151",
 		"executionApprovalRef": "user-authorized-no-network-d151-d152-2026-09-01",
 		"verificationDiagnosticsImplementationReceiptRef": "graphrefly-ts:D120",
@@ -273,17 +279,17 @@
 		"structuredProposalRef": "graphrefly-ts:D87",
 		"structuredProposalExecutionApprovalRef": "graphrefly-ts:D88",
 		"responseHorizonIncidentClosureRef": "graphrefly-ts:D93",
-		"implementationManifestDigest": "sha256:8543c48f3cd5bd56f2246f1d78038a2ab172cb14b8c66a1b5800ba81fbde9eb9",
-		"qualificationArtifactDigest": "sha256:b0b0f25a053cf863b2b8db952f0460db3d24c489c30c8a2519d8a79a48e2f9be",
+		"implementationManifestDigest": "sha256:e700b2d928a131331ddc496a3553287fed4e7fe6590338f250e74ef7bfbc9afb",
+		"qualificationArtifactDigest": "sha256:359f1ee28d97962ece1f061fc2da462aa81376baea10eb0f63995eb76e3f91cd",
 		"status": "no-network-occurrence-architecture-qualified",
-		"qualificationDigest": "sha256:493c15d78361d6159c6d2a2c041ed2f242690ad7cab9c1256730bd0d8386fe05"
+		"qualificationDigest": "sha256:264ee42946b7c7457d726b597b3ad053405e7dcfa3b1cd649872c60afd5435d1"
 	},
-	"measuredImplementationManifestDigest": "sha256:8543c48f3cd5bd56f2246f1d78038a2ab172cb14b8c66a1b5800ba81fbde9eb9",
+	"measuredImplementationManifestDigest": "sha256:e700b2d928a131331ddc496a3553287fed4e7fe6590338f250e74ef7bfbc9afb",
 	"evidenceDigests": {
-		"describe": "sha256:940fa23c4d3f62ae4c12dbe6d66d150b84327dee1ee34a362ccb9a8006051c8f",
-		"observeEvents": "sha256:9e936188e388d5bee00ae75bb80f1eeafd9dcdb0f1e9d56ce438c617223f98f7",
-		"runSummary": "sha256:344d2f0d091f966a4bc4eb4149c3cfec1f227a1a6c8c087a7cc745ee5d902052",
-		"explanatoryMermaid": "sha256:a5fd51116b737cb33a58152b114d023191d43253cd357ef53987426e194c0049"
+		"describe": "sha256:aa3ab79d4f82678d578446a4cf0fe9ebb80281c3ab37b5e435a751adea1f915b",
+		"observeEvents": "sha256:8f9157b81e9ac92d354c60dd3d6fe4d80c008175721c3ed3ddf3600ef2921baf",
+		"runSummary": "sha256:cbb3da73b4355796c64d54fc053510797ac0eda777a36069a7526681c08cb55a",
+		"explanatoryMermaid": "sha256:a985dc8f08340cc643b94ab34bf44bddddf81d0f51629618b779d325db1637a4"
 	},
-	"evidenceBindingDigest": "sha256:dd7def6669e0a855a89db166487400785ca5e418864954e525db25516abe0478"
+	"evidenceBindingDigest": "sha256:da3ab73f46b1a783acde17f11cccea6c62480ce958e584b948fc0b473f92a1b2"
 }

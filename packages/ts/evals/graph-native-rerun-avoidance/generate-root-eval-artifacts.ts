@@ -14,6 +14,7 @@ import {
 	materialFreeObservationValue,
 	ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
 	type RootEvalRunResult,
+	requireCompletedRootEval,
 	runRootEval,
 } from "./eval-topology.js";
 import {
@@ -486,6 +487,9 @@ export async function buildRootEvalGeneratedArtifactBytes(): Promise<RootEvalGen
 	const describe = topology.graph.describe();
 	const rawObservationEvents: Array<RootEvalRunResult["observations"][number]> = [];
 	const observationPaths = [
+		"eval/budget/state",
+		"eval/provider/start-spacing-readiness",
+		"eval/campaign/terminal",
 		"eval/observation/arrivals",
 		"eval/observation/canonical-state",
 		"eval/observation/provider-effect-activity",
@@ -500,7 +504,7 @@ export async function buildRootEvalGeneratedArtifactBytes(): Promise<RootEvalGen
 	);
 	let result: RootEvalRunResult;
 	try {
-		result = await runRootEval(topology, qualificationExecutor);
+		result = requireCompletedRootEval(await runRootEval(topology, qualificationExecutor));
 	} finally {
 		for (const stop of stopRawObservations) stop();
 	}
