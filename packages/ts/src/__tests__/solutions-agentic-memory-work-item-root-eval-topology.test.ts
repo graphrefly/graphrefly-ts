@@ -1121,7 +1121,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		);
 		expect(liveEntry).toMatch(/ROOT_EVAL_LIVE_D121_REPAIR_RECEIPT = "graphrefly-ts:D124"/u);
 		expect(liveEntry).toMatch(
-			/ROOT_EVAL_LIVE_EXECUTION_APPROVAL =\s*"user-authorized:d152-development-1:usd-12:development-usd-36"/u,
+			/ROOT_EVAL_LIVE_EXECUTION_APPROVAL =\s*"user-authorized:d152-development-2:usd-4\.272834:development-usd-36"/u,
 		);
 		expect(liveEntry).toMatch(
 			/ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_STATE =\s*process\.env\.GRAPHREFLY_ROOT_EVAL_EXECUTION_AUTHORITY/u,
