@@ -56,11 +56,14 @@ import {
 	ROOT_EVAL_D145_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD,
 	ROOT_EVAL_D145_DEVELOPMENT_HARD_CAP_MICROUSD,
 	ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
+	ROOT_EVAL_D145_HISTORICAL_CONFIRMATORY_TASK_SET_REF,
+	ROOT_EVAL_D145_HISTORICAL_HELD_OUT_SEAL_DIGEST,
 	ROOT_EVAL_D145_TOTAL_HARD_CAP_MICROUSD,
 	readRootEvalD145CharterLedger,
 	reconcileRootEvalD145ConsumedPreclaimFailure,
 	rootEvalD145ConsumedPreclaimReconciliationDigest,
 	rootEvalD145DevelopmentGenerationRef,
+	rootEvalD145DevelopmentTaskSetRef,
 	rootEvalD152DevelopmentGenerationRef,
 	writeRootEvalD145CharterLedger,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-charter-ledger.js";
@@ -159,7 +162,6 @@ import {
 import {
 	assertRootEvalTaskStimulusContract,
 	createRootEvalTaskManifest,
-	ROOT_EVAL_CONFIRMATORY_TASK_SET_REF,
 	ROOT_EVAL_DEVELOPMENT_TASK_SET_REFS,
 	ROOT_EVAL_DEVELOPMENT_TASKS,
 	ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES,
@@ -1113,7 +1115,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			ledger: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
 			generationRef: rootEvalD145DevelopmentGenerationRef(1),
 			campaignPurpose: "development",
-			taskSetRef: rootEvalDevelopmentTaskSetRef(1),
+			taskSetRef: rootEvalD145DevelopmentTaskSetRef(1),
 			taskManifestDigest: empiricalStrictJsonDigest("historical-manifest"),
 			budgetPartition: "development-usd-36",
 			providerReportedMicrousd: 1_000,
@@ -1203,7 +1205,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				ledger: empty,
 				generationRef: rootEvalD145DevelopmentGenerationRef(1),
 				campaignPurpose: "development",
-				taskSetRef: rootEvalDevelopmentTaskSetRef(1),
+				taskSetRef: rootEvalD145DevelopmentTaskSetRef(1),
 				taskManifestDigest: empiricalStrictJsonDigest("development-1-manifest"),
 				budgetPartition: "development-usd-36",
 				providerReportedMicrousd: 101,
@@ -1222,7 +1224,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					ledger: first,
 					generationRef: rootEvalD145DevelopmentGenerationRef(3),
 					campaignPurpose: "development",
-					taskSetRef: rootEvalDevelopmentTaskSetRef(3),
+					taskSetRef: rootEvalD145DevelopmentTaskSetRef(3),
 					taskManifestDigest: empiricalStrictJsonDigest("unproven-gap-manifest"),
 					budgetPartition: "development-usd-36",
 					providerReportedMicrousd: 0,
@@ -1237,7 +1239,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				ledger: first,
 				generationRef: rootEvalD145DevelopmentGenerationRef(2),
 				campaignPurpose: "development",
-				taskSetRef: rootEvalDevelopmentTaskSetRef(2),
+				taskSetRef: rootEvalD145DevelopmentTaskSetRef(2),
 				taskManifestDigest: empiricalStrictJsonDigest("development-rejected-manifest"),
 				budgetPartition: "development-usd-36",
 				providerReportedMicrousd: 1,
@@ -1264,7 +1266,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					Object.freeze({
 						...rejectedCandidate.entries[1]!,
 						generationRef: rootEvalD145DevelopmentGenerationRef(3),
-						taskSetRef: rootEvalDevelopmentTaskSetRef(3),
+						taskSetRef: rootEvalD145DevelopmentTaskSetRef(3),
 					}),
 				]),
 			});
@@ -1289,8 +1291,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					ledger: first,
 					generationRef: "confirmatory-too-early",
 					campaignPurpose: "confirmatory",
-					taskSetRef: ROOT_EVAL_CONFIRMATORY_TASK_SET_REF,
-					taskManifestDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
+					taskSetRef: ROOT_EVAL_D145_HISTORICAL_CONFIRMATORY_TASK_SET_REF,
+					taskManifestDigest: ROOT_EVAL_D145_HISTORICAL_HELD_OUT_SEAL_DIGEST,
 					budgetPartition: "confirmatory-usd-6",
 					providerReportedMicrousd: 1,
 					unreportedSettledUpperBoundMicrousd: 0,
@@ -1304,7 +1306,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				ledger: first,
 				generationRef: rootEvalD145DevelopmentGenerationRef(2),
 				campaignPurpose: "development",
-				taskSetRef: rootEvalDevelopmentTaskSetRef(2),
+				taskSetRef: rootEvalD145DevelopmentTaskSetRef(2),
 				taskManifestDigest: empiricalStrictJsonDigest("development-2-manifest"),
 				budgetPartition: "development-usd-36",
 				providerReportedMicrousd: 202,
@@ -1318,8 +1320,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				ledger: second,
 				generationRef: "confirmatory-1",
 				campaignPurpose: "confirmatory",
-				taskSetRef: ROOT_EVAL_CONFIRMATORY_TASK_SET_REF,
-				taskManifestDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
+				taskSetRef: ROOT_EVAL_D145_HISTORICAL_CONFIRMATORY_TASK_SET_REF,
+				taskManifestDigest: ROOT_EVAL_D145_HISTORICAL_HELD_OUT_SEAL_DIGEST,
 				budgetPartition: "confirmatory-usd-6",
 				providerReportedMicrousd: 303,
 				unreportedSettledUpperBoundMicrousd: 0,
@@ -1347,7 +1349,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				reconcileRootEvalD145ConsumedPreclaimFailure({
 					ledger: confirmatory,
 					generationRef: rootEvalD145DevelopmentGenerationRef(3),
-					taskSetRef: rootEvalDevelopmentTaskSetRef(3),
+					taskSetRef: rootEvalD145DevelopmentTaskSetRef(3),
 					taskManifestDigest: empiricalStrictJsonDigest("post-held-out-manifest"),
 					receiptDigest: empiricalStrictJsonDigest("post-held-out-receipt"),
 				}),
@@ -1361,7 +1363,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					Object.freeze({
 						generationRef: rootEvalD145DevelopmentGenerationRef(3),
 						campaignPurpose: "development" as const,
-						taskSetRef: rootEvalDevelopmentTaskSetRef(3),
+						taskSetRef: rootEvalD145DevelopmentTaskSetRef(3),
 						taskManifestDigest: empiricalStrictJsonDigest("post-held-out-ledger-manifest"),
 						budgetPartition: "development-usd-36" as const,
 						providerReportedMicrousd: 0,
@@ -1383,8 +1385,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					ledger: second,
 					generationRef: "confirmatory-over-cap",
 					campaignPurpose: "confirmatory",
-					taskSetRef: ROOT_EVAL_CONFIRMATORY_TASK_SET_REF,
-					taskManifestDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
+					taskSetRef: ROOT_EVAL_D145_HISTORICAL_CONFIRMATORY_TASK_SET_REF,
+					taskManifestDigest: ROOT_EVAL_D145_HISTORICAL_HELD_OUT_SEAL_DIGEST,
 					budgetPartition: "confirmatory-usd-6",
 					providerReportedMicrousd: 6_000_001,
 					unreportedSettledUpperBoundMicrousd: 0,
@@ -1399,8 +1401,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					ledger: confirmatory,
 					generationRef: "confirmatory-2",
 					campaignPurpose: "confirmatory",
-					taskSetRef: ROOT_EVAL_CONFIRMATORY_TASK_SET_REF,
-					taskManifestDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
+					taskSetRef: ROOT_EVAL_D145_HISTORICAL_CONFIRMATORY_TASK_SET_REF,
+					taskManifestDigest: ROOT_EVAL_D145_HISTORICAL_HELD_OUT_SEAL_DIGEST,
 					budgetPartition: "confirmatory-usd-6",
 					providerReportedMicrousd: 1,
 					unreportedSettledUpperBoundMicrousd: 0,
@@ -1459,7 +1461,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			ledger: historicalLedger,
 			generationRef: rootEvalD145DevelopmentGenerationRef(3),
 			campaignPurpose: "development",
-			taskSetRef: rootEvalDevelopmentTaskSetRef(3),
+			taskSetRef: rootEvalD145DevelopmentTaskSetRef(3),
 			taskManifestDigest: empiricalStrictJsonDigest("development-3-usd-36-manifest"),
 			budgetPartition: "development-usd-36",
 			providerReportedMicrousd: 200_001,
@@ -1482,7 +1484,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				ledger: historicalLedger,
 				generationRef: rootEvalD145DevelopmentGenerationRef(3),
 				campaignPurpose: "development",
-				taskSetRef: rootEvalDevelopmentTaskSetRef(3),
+				taskSetRef: rootEvalD145DevelopmentTaskSetRef(3),
 				taskManifestDigest: empiricalStrictJsonDigest("development-3-old-partition-manifest"),
 				budgetPartition: "development-usd-12" as never,
 				providerReportedMicrousd: 1,
@@ -1498,7 +1500,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				ledger: historicalLedger,
 				generationRef: rootEvalD145DevelopmentGenerationRef(3),
 				campaignPurpose: "development",
-				taskSetRef: "root-eval-d145-transfer-development-3-v1",
+				taskSetRef: rootEvalDevelopmentTaskSetRef(3),
 				taskManifestDigest: empiricalStrictJsonDigest("rebound-d145-manifest"),
 				budgetPartition: "development-usd-36",
 				providerReportedMicrousd: 0,
@@ -4827,7 +4829,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			ledger: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
 			generationRef: rootEvalD145DevelopmentGenerationRef(1),
 			campaignPurpose: "development",
-			taskSetRef: rootEvalDevelopmentTaskSetRef(1),
+			taskSetRef: rootEvalD145DevelopmentTaskSetRef(1),
 			taskManifestDigest: empiricalStrictJsonDigest("development-1-manifest"),
 			budgetPartition: "development-usd-36",
 			providerReportedMicrousd: 1,
@@ -4849,7 +4851,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		const receiptDigest = empiricalStrictJsonDigest("development-2-preclaim-receipt");
 		const reconciliationInput = {
 			generationRef: rootEvalD145DevelopmentGenerationRef(2),
-			taskSetRef: rootEvalDevelopmentTaskSetRef(2),
+			taskSetRef: rootEvalD145DevelopmentTaskSetRef(2),
 			taskManifestDigest: empiricalStrictJsonDigest("development-2-manifest"),
 			receiptDigest,
 		};
@@ -4886,7 +4888,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			ledger: reconciled,
 			generationRef: rootEvalD145DevelopmentGenerationRef(3),
 			campaignPurpose: "development",
-			taskSetRef: rootEvalDevelopmentTaskSetRef(3),
+			taskSetRef: rootEvalD145DevelopmentTaskSetRef(3),
 			taskManifestDigest: empiricalStrictJsonDigest("development-3-manifest"),
 			budgetPartition: "development-usd-36",
 			providerReportedMicrousd: 1,
@@ -4914,7 +4916,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		const journalPath = join(temporary, "journal.json");
 		const firstInput = {
 			generationRef: rootEvalD145DevelopmentGenerationRef(1),
-			taskSetRef: rootEvalDevelopmentTaskSetRef(1),
+			taskSetRef: rootEvalD145DevelopmentTaskSetRef(1),
 			taskManifestDigest: empiricalStrictJsonDigest("reconciliation-development-1-manifest"),
 			receiptDigest: empiricalStrictJsonDigest("reconciliation-development-1-receipt"),
 		};
@@ -4935,7 +4937,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 
 			const staleInput = {
 				generationRef: rootEvalD145DevelopmentGenerationRef(2),
-				taskSetRef: rootEvalDevelopmentTaskSetRef(2),
+				taskSetRef: rootEvalD145DevelopmentTaskSetRef(2),
 				taskManifestDigest: empiricalStrictJsonDigest("stale-development-2-manifest"),
 				receiptDigest: empiricalStrictJsonDigest("stale-development-2-receipt"),
 			};
@@ -4974,7 +4976,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		const journalPath = resolve(join(temporary, "journal.json"));
 		const reconciliationInput = {
 			generationRef: rootEvalD145DevelopmentGenerationRef(1),
-			taskSetRef: rootEvalDevelopmentTaskSetRef(1),
+			taskSetRef: rootEvalD145DevelopmentTaskSetRef(1),
 			taskManifestDigest: empiricalStrictJsonDigest("finalizer-development-1-manifest"),
 			receiptDigest: empiricalStrictJsonDigest("finalizer-development-1-receipt"),
 		};
@@ -5019,7 +5021,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 
 			const secondInput = {
 				generationRef: rootEvalD145DevelopmentGenerationRef(2),
-				taskSetRef: rootEvalDevelopmentTaskSetRef(2),
+				taskSetRef: rootEvalD145DevelopmentTaskSetRef(2),
 				taskManifestDigest: empiricalStrictJsonDigest("finalizer-development-2-manifest"),
 				receiptDigest: empiricalStrictJsonDigest("finalizer-development-2-receipt"),
 			};
@@ -5047,7 +5049,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		const privateRoot = resolve(join(canonicalTemporary, `current-${generationRef}`));
 		const ledgerPath = resolve(join(canonicalTemporary, "ledger.json"));
 		const journalPath = resolve(join(canonicalTemporary, "journal.json"));
-		const taskSetRef = rootEvalDevelopmentTaskSetRef(1);
+		const taskSetRef = rootEvalD145DevelopmentTaskSetRef(1);
 		const taskManifestDigest = empiricalStrictJsonDigest("stale-development-1-manifest");
 		const oldImplementationDigest = empiricalStrictJsonDigest("stale-implementation");
 		const partial = constructRootEvalLiveEvidence({

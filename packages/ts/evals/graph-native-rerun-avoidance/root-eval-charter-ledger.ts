@@ -8,11 +8,6 @@ import type {
 	EvalCampaignPurpose,
 	EvalDevelopmentQualificationState,
 } from "./eval-topology.js";
-import {
-	ROOT_EVAL_CONFIRMATORY_TASK_SET_REF,
-	ROOT_EVAL_HELD_OUT_SEAL_DIGEST,
-	rootEvalDevelopmentTaskSetRef,
-} from "./root-eval-task.js";
 
 export const ROOT_EVAL_D145_CHARTER_LEDGER_SCHEMA = "graphrefly-ts.d145-charter-ledger.v4" as const;
 export const ROOT_EVAL_D145_DEVELOPMENT_HARD_CAP_MICROUSD = 36_000_000 as const;
@@ -20,6 +15,10 @@ export const ROOT_EVAL_D145_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD = 12_000_00
 export const ROOT_EVAL_D145_CONFIRMATORY_HARD_CAP_MICROUSD = 6_000_000 as const;
 export const ROOT_EVAL_D145_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD = 6_000_000 as const;
 export const ROOT_EVAL_D145_TOTAL_HARD_CAP_MICROUSD = 42_000_000 as const;
+export const ROOT_EVAL_D145_HISTORICAL_CONFIRMATORY_TASK_SET_REF =
+	"root-eval-d145-transfer-confirmatory-v1" as const;
+export const ROOT_EVAL_D145_HISTORICAL_HELD_OUT_SEAL_DIGEST =
+	"sha256:304f65ead9d4d9139e2dcf2d3bb5f3152e0c95c33f1671917b53a54f8de0236e" as const;
 
 export const ROOT_EVAL_D152_DEVELOPMENT_HARD_CAP_MICROUSD = 36_000_000 as const;
 export const ROOT_EVAL_D152_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD = 12_000_000 as const;
@@ -102,7 +101,9 @@ function developmentGenerationOrdinal(generationRef: string): number | null {
 	return Number.isSafeInteger(ordinal) ? ordinal : null;
 }
 
-function historicalRootEvalD145DevelopmentTaskSetRef(ordinal: number): string {
+export function rootEvalD145DevelopmentTaskSetRef(ordinal: number): string {
+	if (!Number.isSafeInteger(ordinal) || ordinal < 1)
+		throw new TypeError("root eval D145 development task-set ordinal invalid");
 	return `root-eval-d145-transfer-development-${ordinal}-v1`;
 }
 
@@ -160,7 +161,7 @@ export interface RootEvalD145CharterLedgerEntry {
 export interface RootEvalD145CharterLedger {
 	readonly schemaVersion: typeof ROOT_EVAL_D145_CHARTER_LEDGER_SCHEMA;
 	readonly decisionRef: "graphrefly-ts:D145";
-	readonly heldOutSealDigest: typeof ROOT_EVAL_HELD_OUT_SEAL_DIGEST;
+	readonly heldOutSealDigest: typeof ROOT_EVAL_D145_HISTORICAL_HELD_OUT_SEAL_DIGEST;
 	readonly supersededLedgerDigest: string | null;
 	readonly developmentSpentMicrousd: number;
 	readonly confirmatorySpentMicrousd: number;
@@ -173,7 +174,7 @@ export interface RootEvalD145CharterLedger {
 const EMPTY_MATERIAL = Object.freeze({
 	schemaVersion: ROOT_EVAL_D145_CHARTER_LEDGER_SCHEMA,
 	decisionRef: "graphrefly-ts:D145" as const,
-	heldOutSealDigest: ROOT_EVAL_HELD_OUT_SEAL_DIGEST,
+	heldOutSealDigest: ROOT_EVAL_D145_HISTORICAL_HELD_OUT_SEAL_DIGEST,
 	supersededLedgerDigest: null,
 	developmentSpentMicrousd: 0,
 	confirmatorySpentMicrousd: 0,
@@ -207,7 +208,11 @@ function validateLedger(value: unknown): RootEvalD145CharterLedger {
 	);
 	literal(root.schemaVersion, ROOT_EVAL_D145_CHARTER_LEDGER_SCHEMA, "charter ledger schema");
 	literal(root.decisionRef, "graphrefly-ts:D145", "charter ledger decision");
-	literal(root.heldOutSealDigest, ROOT_EVAL_HELD_OUT_SEAL_DIGEST, "charter ledger held-out seal");
+	literal(
+		root.heldOutSealDigest,
+		ROOT_EVAL_D145_HISTORICAL_HELD_OUT_SEAL_DIGEST,
+		"charter ledger held-out seal",
+	);
 	if (
 		root.supersededLedgerDigest !== null &&
 		!/^sha256:[0-9a-f]{64}$/u.test(String(root.supersededLedgerDigest))
@@ -294,7 +299,7 @@ function validateLedger(value: unknown): RootEvalD145CharterLedger {
 	const material = Object.freeze({
 		schemaVersion: ROOT_EVAL_D145_CHARTER_LEDGER_SCHEMA,
 		decisionRef: "graphrefly-ts:D145" as const,
-		heldOutSealDigest: ROOT_EVAL_HELD_OUT_SEAL_DIGEST,
+		heldOutSealDigest: ROOT_EVAL_D145_HISTORICAL_HELD_OUT_SEAL_DIGEST,
 		supersededLedgerDigest: root.supersededLedgerDigest,
 		developmentSpentMicrousd,
 		confirmatorySpentMicrousd,
@@ -343,8 +348,7 @@ function validateLedger(value: unknown): RootEvalD145CharterLedger {
 			const ordinal = developmentGenerationOrdinal(entry.generationRef);
 			return (
 				ordinal === null ||
-				(entry.taskSetRef !== rootEvalDevelopmentTaskSetRef(ordinal) &&
-					entry.taskSetRef !== historicalRootEvalD145DevelopmentTaskSetRef(ordinal)) ||
+				entry.taskSetRef !== rootEvalD145DevelopmentTaskSetRef(ordinal) ||
 				typeof entry.generationQualified !== "boolean"
 			);
 		}) ||
@@ -430,8 +434,8 @@ export function advanceRootEvalD145CharterLedger(input: {
 		throw new TypeError("root eval D145 development generation order was invalid");
 	const expectedTaskSetRef =
 		input.campaignPurpose === "confirmatory"
-			? ROOT_EVAL_CONFIRMATORY_TASK_SET_REF
-			: rootEvalDevelopmentTaskSetRef(currentDevelopmentOrdinal!);
+			? ROOT_EVAL_D145_HISTORICAL_CONFIRMATORY_TASK_SET_REF
+			: rootEvalD145DevelopmentTaskSetRef(currentDevelopmentOrdinal!);
 	if (
 		input.taskSetRef !== expectedTaskSetRef ||
 		!/^sha256:[0-9a-f]{64}$/u.test(input.taskManifestDigest) ||
@@ -441,7 +445,7 @@ export function advanceRootEvalD145CharterLedger(input: {
 				entry.taskManifestDigest === input.taskManifestDigest,
 		) ||
 		(input.campaignPurpose === "confirmatory" &&
-			input.taskManifestDigest !== ROOT_EVAL_HELD_OUT_SEAL_DIGEST)
+			input.taskManifestDigest !== ROOT_EVAL_D145_HISTORICAL_HELD_OUT_SEAL_DIGEST)
 	)
 		throw new TypeError("root eval D145 task manifest transition was not authorized");
 	const providerReportedMicrousd = safeInteger(
@@ -509,7 +513,7 @@ export function advanceRootEvalD145CharterLedger(input: {
 	const material = Object.freeze({
 		schemaVersion: ROOT_EVAL_D145_CHARTER_LEDGER_SCHEMA,
 		decisionRef: "graphrefly-ts:D145" as const,
-		heldOutSealDigest: ROOT_EVAL_HELD_OUT_SEAL_DIGEST,
+		heldOutSealDigest: ROOT_EVAL_D145_HISTORICAL_HELD_OUT_SEAL_DIGEST,
 		supersededLedgerDigest: ledger.supersededLedgerDigest,
 		developmentSpentMicrousd,
 		confirmatorySpentMicrousd,
@@ -553,7 +557,7 @@ export function rootEvalD145ConsumedPreclaimReconciliationDigest(input: {
 	const ordinal = developmentGenerationOrdinal(input.generationRef);
 	if (
 		ordinal === null ||
-		input.taskSetRef !== rootEvalDevelopmentTaskSetRef(ordinal) ||
+		input.taskSetRef !== rootEvalD145DevelopmentTaskSetRef(ordinal) ||
 		!/^sha256:[0-9a-f]{64}$/u.test(input.taskManifestDigest) ||
 		!/^sha256:[0-9a-f]{64}$/u.test(input.receiptDigest)
 	)
