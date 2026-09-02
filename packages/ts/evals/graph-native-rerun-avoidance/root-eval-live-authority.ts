@@ -45,11 +45,11 @@ import {
 import { HARNESS_ARMS } from "./harness-campaign-policy.js";
 import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifest.js";
 import {
-	ROOT_EVAL_D145_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD,
-	ROOT_EVAL_D145_CONFIRMATORY_HARD_CAP_MICROUSD,
-	ROOT_EVAL_D145_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD,
-	ROOT_EVAL_D145_DEVELOPMENT_HARD_CAP_MICROUSD,
-	rootEvalD145DevelopmentGenerationRef,
+	ROOT_EVAL_D152_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD,
+	ROOT_EVAL_D152_CONFIRMATORY_HARD_CAP_MICROUSD,
+	ROOT_EVAL_D152_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD,
+	ROOT_EVAL_D152_DEVELOPMENT_HARD_CAP_MICROUSD,
+	rootEvalD152DevelopmentGenerationRef,
 } from "./root-eval-charter-ledger.js";
 import {
 	parseRootEvalUniqueJson,
@@ -80,35 +80,35 @@ export const ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_SCHEMA =
 export const ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_DECISION_REF = "graphrefly-ts:D149" as const;
 export const ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_NAME =
 	"operator-configuration-d149.v1.json" as const;
-export const ROOT_EVAL_LIVE_CLAIM_SCHEMA = "graphrefly-ts.root-eval-live-claim.v20" as const;
-export const ROOT_EVAL_LIVE_EVIDENCE_SCHEMA = "graphrefly-ts.root-eval-live-evidence.v24" as const;
+export const ROOT_EVAL_LIVE_CLAIM_SCHEMA = "graphrefly-ts.root-eval-live-claim.v21" as const;
+export const ROOT_EVAL_LIVE_EVIDENCE_SCHEMA = "graphrefly-ts.root-eval-live-evidence.v25" as const;
 export const ROOT_EVAL_LIVE_PRECLAIM_FAILURE_SCHEMA =
-	"graphrefly-ts.root-eval-live-preclaim-failure.v20" as const;
+	"graphrefly-ts.root-eval-live-preclaim-failure.v21" as const;
 export const ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_SCHEMA =
-	"graphrefly-ts.root-eval-live-precredential-gates.v5" as const;
+	"graphrefly-ts.root-eval-live-precredential-gates.v6" as const;
 function campaignPlan(slot: RootEvalTaskManifestSlot) {
 	if (slot === "confirmatory")
 		return Object.freeze({
 			campaignPurpose: "confirmatory" as const,
 			budgetPartition: "confirmatory-usd-6" as const,
 			taskSetRef: ROOT_EVAL_CONFIRMATORY_TASK_SET_REF,
-			generationRef: "root-eval-confirmatory-2026-08-27-d145-v1" as const,
-			claimRef: "root-eval-confirmatory-claim-2026-08-27-d145-v1" as const,
+			generationRef: "root-eval-confirmatory-2026-09-01-d152-v1" as const,
+			claimRef: "root-eval-confirmatory-claim-2026-09-01-d152-v1" as const,
 		});
 	const ordinal = rootEvalDevelopmentOrdinal(slot)!;
 	return Object.freeze({
 		campaignPurpose: "development" as const,
 		budgetPartition: "development-usd-36" as const,
 		taskSetRef: rootEvalDevelopmentTaskSetRef(ordinal),
-		generationRef: `root-eval-development-2026-08-27-d145-v${ordinal}`,
-		claimRef: `root-eval-development-claim-2026-08-27-d145-v${ordinal}`,
+		generationRef: rootEvalD152DevelopmentGenerationRef(ordinal),
+		claimRef: `root-eval-development-claim-2026-09-01-d152-v${ordinal}`,
 	});
 }
 
 function campaignSlot(): RootEvalTaskManifestSlot {
 	const slot = process.env.GRAPHREFLY_ROOT_EVAL_CAMPAIGN_SLOT ?? "development-1";
 	if (slot !== "confirmatory" && !/^development-[1-9][0-9]*$/u.test(slot))
-		throw new TypeError("root eval D145 campaign slot invalid");
+		throw new TypeError("root eval D152 campaign slot invalid");
 	return slot as RootEvalTaskManifestSlot;
 }
 
@@ -122,12 +122,12 @@ export const ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE =
 	ROOT_EVAL_LIVE_CAMPAIGN_PLAN.campaignPurpose satisfies EvalCampaignPurpose;
 export const ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD =
 	ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE === "development"
-		? ROOT_EVAL_D145_DEVELOPMENT_HARD_CAP_MICROUSD
-		: ROOT_EVAL_D145_CONFIRMATORY_HARD_CAP_MICROUSD;
+		? ROOT_EVAL_D152_DEVELOPMENT_HARD_CAP_MICROUSD
+		: ROOT_EVAL_D152_CONFIRMATORY_HARD_CAP_MICROUSD;
 export const ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD =
 	ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE === "development"
-		? ROOT_EVAL_D145_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD
-		: ROOT_EVAL_D145_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD;
+		? ROOT_EVAL_D152_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD
+		: ROOT_EVAL_D152_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD;
 export const ROOT_EVAL_LIVE_REPLICATE_COUNT = ROOT_EVAL_REPLICATE_COUNT;
 export const ROOT_EVAL_LIVE_TASK_SET_REF = ROOT_EVAL_LIVE_CAMPAIGN_PLAN.taskSetRef;
 export const ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST = ROOT_EVAL_HELD_OUT_SEAL_DIGEST;
@@ -199,7 +199,7 @@ function brandAdmission<T extends object>(
 export interface RootEvalLiveCredential {
 	readonly bearerToken: string;
 	readonly bindingRef: "openrouter.local-eval-2";
-	readonly bindingRevision: "2026-08-26.d145.v1";
+	readonly bindingRevision: "2026-09-01.d152.v1";
 }
 
 export interface RootEvalLivePrecredentialGateReceipt {
@@ -809,7 +809,7 @@ export function parseRootEvalLiveCredential(bytes: Uint8Array): RootEvalLiveCred
 	return Object.freeze({
 		bearerToken: token,
 		bindingRef: "openrouter.local-eval-2" as const,
-		bindingRevision: "2026-08-26.d145.v1" as const,
+		bindingRevision: "2026-09-01.d152.v1" as const,
 	});
 }
 
@@ -1585,7 +1585,7 @@ async function acquireRootEvalLiveClaimInternal(
 	const nowMs = qualificationOnly ? (input.nowMs ?? Date.now()) : Date.now();
 	const partitionSpentBeforeMicrousd = input.partitionSpentBeforeMicrousd ?? 0;
 	const partitionLedgerDigest =
-		input.partitionLedgerDigest ?? empiricalStrictJsonDigest({ kind: "d145-empty-test-ledger" });
+		input.partitionLedgerDigest ?? empiricalStrictJsonDigest({ kind: "d152-empty-test-ledger" });
 	const developmentQualificationStreakBefore = input.developmentQualificationStreakBefore ?? 0;
 	const preclaimChecks = [
 		[
@@ -1671,20 +1671,20 @@ async function acquireRootEvalLiveClaimInternal(
 		[
 			"credential-binding",
 			input.credential.bindingRef === "openrouter.local-eval-2" &&
-				input.credential.bindingRevision === "2026-08-26.d145.v1",
+				input.credential.bindingRevision === "2026-09-01.d152.v1",
 		],
 	] as const;
 	const preclaimViolations = preclaimChecks.filter(([, passed]) => !passed).map(([code]) => code);
 	if (preclaimViolations.length > 0)
 		throw new TypeError(
-			`root eval D145 claim coordinates did not match the current closure: ${preclaimViolations.join(",")}`,
+			`root eval D152 claim coordinates did not match the current closure: ${preclaimViolations.join(",")}`,
 		);
 	if (
 		!qualificationOnly &&
 		input.taskManifestDigest !==
 			readRootEvalTaskManifest(ROOT_EVAL_LIVE_CAMPAIGN_SLOT).manifestDigest
 	)
-		throw new TypeError("root eval D145 claim task manifest did not match the current closure");
+		throw new TypeError("root eval D152 claim task manifest did not match the current closure");
 	const privateRoot = await ensurePrivateRoot(input.privateRoot);
 	const material = strictSnapshot({
 		schemaVersion: ROOT_EVAL_LIVE_CLAIM_SCHEMA,
@@ -1726,7 +1726,7 @@ async function acquireRootEvalLiveClaimInternal(
 	const claim = Object.freeze({ ...material, claimDigest: empiricalStrictJsonDigest(material) });
 	const postCommitFailureDigest = await installExclusivePrivateFile(
 		privateRoot,
-		`.${ROOT_EVAL_LIVE_GENERATION_REF}.disposition.v20.json`,
+		`.${ROOT_EVAL_LIVE_GENERATION_REF}.disposition.v21.json`,
 		strictJsonCodec.encode(claim),
 	);
 	return new RootEvalLiveClaimCommitCapability(claim, postCommitFailureDigest, privateRoot);
@@ -1767,7 +1767,7 @@ export async function persistRootEvalLivePreclaimFailure(input: {
 		input.qualificationDigest !== ROOT_EVAL_CURRENT_QUALIFICATION_DIGEST ||
 		input.taskBindingDigest !== ROOT_EVAL_CURRENT_TASK_BINDING_DIGEST
 	)
-		throw new TypeError("root eval D145 preclaim coordinates did not match the current closure");
+		throw new TypeError("root eval D152 preclaim coordinates did not match the current closure");
 	const privateRoot = await ensurePrivateRoot(input.privateRoot);
 	const material = strictSnapshot({
 		schemaVersion: ROOT_EVAL_LIVE_PRECLAIM_FAILURE_SCHEMA,
@@ -1790,7 +1790,7 @@ export async function persistRootEvalLivePreclaimFailure(input: {
 	});
 	const postCommitFailureDigest = await installExclusivePrivateFile(
 		privateRoot,
-		`.${ROOT_EVAL_LIVE_GENERATION_REF}.disposition.v20.json`,
+		`.${ROOT_EVAL_LIVE_GENERATION_REF}.disposition.v21.json`,
 		strictJsonCodec.encode(receipt),
 	);
 	return Object.freeze({ receiptDigest: receipt.receiptDigest, postCommitFailureDigest });
@@ -1899,11 +1899,11 @@ export async function readRootEvalLiveConsumedDevelopmentPreclaimFailures(input:
 		throw new TypeError("root eval consumed preclaim operator root drifted");
 	const receipts: RootEvalLiveConsumedPreclaimFailureReceipt[] = [];
 	for (let ordinal = firstMissingOrdinal; ordinal < currentOrdinal; ordinal += 1) {
-		const generationRef = rootEvalD145DevelopmentGenerationRef(ordinal);
+		const generationRef = rootEvalD152DevelopmentGenerationRef(ordinal);
 		const receiptPath = join(
 			operatorRoot,
 			`current-${generationRef}`,
-			`.${generationRef}.disposition.v20.json`,
+			`.${generationRef}.disposition.v21.json`,
 		);
 		receipts.push(
 			admitRootEvalLiveConsumedPreclaimFailure({
@@ -3218,7 +3218,7 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 				claim.credentialBindingDigest ===
 					empiricalStrictJsonDigest({
 						bindingRef: "openrouter.local-eval-2",
-						bindingRevision: "2026-08-26.d145.v1",
+						bindingRevision: "2026-09-01.d152.v1",
 					}),
 		],
 		[
@@ -4174,7 +4174,7 @@ function validateCurrentCommittedClaim(value: unknown): RootEvalLiveClaim {
 		claim.credentialBindingDigest,
 		empiricalStrictJsonDigest({
 			bindingRef: "openrouter.local-eval-2",
-			bindingRevision: "2026-08-26.d145.v1",
+			bindingRevision: "2026-09-01.d152.v1",
 		}),
 		"root eval live committed claim credential binding",
 	);
@@ -4290,10 +4290,10 @@ export async function persistRootEvalLiveEvidence(input: {
 		throw new TypeError("root eval evidence root drifted");
 	const dispositionPath = join(
 		privateRoot,
-		`.${ROOT_EVAL_LIVE_GENERATION_REF}.disposition.v20.json`,
+		`.${ROOT_EVAL_LIVE_GENERATION_REF}.disposition.v21.json`,
 	);
 	const dispositionBytes = await readRootEvalPrivateFile(dispositionPath, 65_536).catch(() => {
-		throw new TypeError("root eval evidence requires one committed D145 claim");
+		throw new TypeError("root eval evidence requires one committed D152 claim");
 	});
 	const committedClaim = strictJsonCodec.decode(dispositionBytes);
 	if (!sameBytes(strictJsonCodec.encode(committedClaim), dispositionBytes))
@@ -4307,14 +4307,14 @@ export async function persistRootEvalLiveEvidence(input: {
 				credentialFingerprint({
 					bearerToken: "sk-or-v1-a44-middle-credential-e06",
 					bindingRef: "openrouter.local-eval-2",
-					bindingRevision: "2026-08-26.d145.v1",
+					bindingRevision: "2026-09-01.d152.v1",
 				})
 		)
 			throw new TypeError("root eval qualification evidence escaped synthetic authority");
 	}
 	const bytes = strictJsonCodec.encode(evidence);
 	const generationRoot = join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF);
-	const target = join(generationRoot, "evidence.v24.json");
+	const target = join(generationRoot, "evidence.v25.json");
 	const existing = await open(target, constants.O_RDONLY | constants.O_NOFOLLOW).catch(
 		(error: unknown) => {
 			if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
@@ -4347,7 +4347,7 @@ export async function persistRootEvalLiveEvidence(input: {
 	await mkdir(stageRoot, { mode: 0o700 });
 	try {
 		await chmod(stageRoot, 0o700);
-		const stagedTarget = join(stageRoot, "evidence.v24.json");
+		const stagedTarget = join(stageRoot, "evidence.v25.json");
 		const writer = await open(
 			stagedTarget,
 			constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,

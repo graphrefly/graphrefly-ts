@@ -23,6 +23,9 @@ export function createRootEvalPrecredentialEnvironment(environment) {
 		(slot === "confirmatory" || /^development-[1-9][0-9]*$/u.test(slot))
 	)
 		isolated.GRAPHREFLY_ROOT_EVAL_CAMPAIGN_SLOT = slot;
-	isolated.GRAPHREFLY_D145_ISOLATED_LIVE_CHILD = "1";
+	const executionAuthority = environment.GRAPHREFLY_ROOT_EVAL_EXECUTION_AUTHORITY;
+	if (typeof executionAuthority === "string")
+		isolated.GRAPHREFLY_ROOT_EVAL_EXECUTION_AUTHORITY = executionAuthority;
+	isolated.GRAPHREFLY_D152_ISOLATED_LIVE_CHILD = "1";
 	return Object.freeze(isolated);
 }

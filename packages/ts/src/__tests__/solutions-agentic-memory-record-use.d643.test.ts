@@ -26,6 +26,11 @@ import {
 	type StrictJsonValue,
 } from "../solutions/agentic-memory/index.js";
 import * as solutionsAggregate from "../solutions/index.js";
+import type { SolutionOccurrence } from "../solutions/occurrence.js";
+import {
+	type AgenticMemoryRecordUseOccurrenceInput,
+	agenticMemoryRecordUseOccurrenceNode,
+} from "../solutions/occurrence-lifecycles.js";
 
 const decoder = new TextDecoder();
 
@@ -112,6 +117,15 @@ describe("AgenticMemory D643 record-use identity and strict data", () => {
 		);
 		expect("agenticMemoryRecordUseGateBundle" in packageRoot).toBe(false);
 		expect("agenticMemoryRecordUseGateBundle" in solutionsAggregate).toBe(false);
+		for (const occurrenceName of [
+			"agenticMemoryRecordAdmissionOccurrenceNode",
+			"agenticMemoryRecordApplicationOccurrenceNode",
+			"agenticMemoryRecordUseOccurrenceNode",
+		]) {
+			expect(occurrenceName in focusedAgenticMemory).toBe(false);
+			expect(occurrenceName in packageRoot).toBe(false);
+			expect(occurrenceName in solutionsAggregate).toBe(false);
+		}
 	});
 
 	it("builds deterministic complete request/record identities without handwritten encoding", () => {
@@ -731,6 +745,61 @@ describe("AgenticMemory D643 exact-one cardinality and status", () => {
 });
 
 describe("AgenticMemory D643 graph topology and consumer fixtures", () => {
+	it("preserves complete record-use occurrences across separate reordered waves", () => {
+		const g = graph();
+		const occurrences = g.node<SolutionOccurrence<AgenticMemoryRecordUseOccurrenceInput<string>>>(
+			[],
+			null,
+			{ name: "occurrence/complete-record-use-input" },
+		);
+		const projected = agenticMemoryRecordUseOccurrenceNode(g, occurrences, {
+			name: "occurrence/complete-record-use",
+			maxOccurrences: 2,
+		});
+		const observed = collect(projected);
+		const makeOccurrence = (
+			ordinal: 1 | 2,
+		): SolutionOccurrence<AgenticMemoryRecordUseOccurrenceInput<string>> => {
+			const currentRecord = record(`payload-${ordinal}`, {
+				id: `record-${ordinal}`,
+				fragment: fragment(`payload-${ordinal}`, { id: `fragment-${ordinal}` }),
+			});
+			const currentRequest = request({
+				requestId: `request-${ordinal}`,
+				subject: { kind: "actor", id: `subject-${ordinal}` },
+			});
+			return Object.freeze({
+				occurrenceId: `use-${ordinal}`,
+				occurrenceRevision: 1,
+				occurrenceDigest: `sha256:${String(ordinal).repeat(64)}`,
+				occurrenceSourceRefs: Object.freeze([{ kind: "work-item", id: `work-item-${ordinal}` }]),
+				value: Object.freeze({
+					records: Object.freeze([currentRecord]),
+					request: currentRequest,
+					decisions: Object.freeze([
+						createAgenticMemoryRecordUseDecision(currentRequest, currentRecord, {
+							decisionId: `decision-${ordinal}`,
+							state: "allowed",
+						}),
+					]),
+				}),
+			});
+		};
+		const second = makeOccurrence(2);
+		const first = makeOccurrence(1);
+		occurrences.down([["DATA", second]]);
+		occurrences.down([["DATA", first]]);
+		const outputs = observed.values;
+		expect(outputs.map((output) => output.occurrenceId)).toEqual(["use-2", "use-1"]);
+		expect(outputs.map((output) => output.value.snapshot.allowedRecords[0]?.id)).toEqual([
+			"record-2",
+			"record-1",
+		]);
+		occurrences.down([["DATA", second]]);
+		expect(observed.values).toHaveLength(2);
+		observed.unsubscribe();
+	});
+
 	it("revokes cached allowed records when any declared dependency errors", () => {
 		for (const target of ["records", "request", "decisions"] as const) {
 			const g = graph();

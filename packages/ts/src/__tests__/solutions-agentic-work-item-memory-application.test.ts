@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { graph } from "../graph/graph.js";
+import * as packageRoot from "../index.js";
 import type { Message } from "../protocol/messages.js";
 import type { ScoreSignal } from "../scoring/index.js";
 import type {
@@ -13,6 +14,7 @@ import type {
 	AgenticMemoryRecordCandidateMaterial,
 } from "../solutions/agentic-memory/index.js";
 import { agenticMemoryRecordAdmissionPolicySourceBundle } from "../solutions/agentic-memory/index.js";
+import * as focusedAgenticWorkItemMemory from "../solutions/agentic-work-item-memory/index.js";
 import type {
 	AgenticWorkItemMemoryMappingPolicy,
 	AgenticWorkItemMemoryRecordCandidate,
@@ -23,6 +25,9 @@ import {
 	agenticWorkItemMemoryApplicationRecipeBundle,
 	mapAgenticWorkItemMemoryApplicationRecipe,
 } from "../solutions/agentic-work-item-memory-application/index.js";
+import * as solutionsAggregate from "../solutions/index.js";
+import type { SolutionOccurrence } from "../solutions/occurrence.js";
+import { agenticWorkItemMemoryBridgeOccurrenceNode } from "../solutions/occurrence-lifecycles.js";
 import type { WorkItemProjection } from "../solutions/work-item/index.js";
 
 const data = <T>(messages: Message[]): T[] =>
@@ -154,6 +159,13 @@ const importsAgenticMemoryMaterializerHelper = (source: string): boolean =>
 	);
 
 describe("agentic WorkItem memory application recipe wiring (D572/D576/D577/D581/D582/D587)", () => {
+	it("keeps the D151 occurrence lifecycle package-private", () => {
+		const occurrenceName = "agenticWorkItemMemoryBridgeOccurrenceNode";
+		expect(occurrenceName in focusedAgenticWorkItemMemory).toBe(false);
+		expect(occurrenceName in packageRoot).toBe(false);
+		expect(occurrenceName in solutionsAggregate).toBe(false);
+	});
+
 	it("maps evidence through the bridge, then admits and applies only through AgenticMemory helpers", () => {
 		const result = mapAgenticWorkItemMemoryApplicationRecipe({
 			workItem: workItem(),
@@ -434,6 +446,62 @@ describe("agentic WorkItem memory application recipe wiring (D572/D576/D577/D581
 		expect(data<readonly AgenticMemoryRecord<string>[]>(observed.messages).at(-1)).toEqual([
 			record(),
 		]);
+		observed.unsubscribe();
+	});
+
+	it("preserves complete bridge occurrences across separate reordered waves", () => {
+		const g = graph();
+		type Input = Readonly<{
+			readonly workItem: WorkItemProjection;
+			readonly policy: AgenticWorkItemMemoryMappingPolicy<string>;
+			readonly candidates: readonly AgenticWorkItemMemoryRecordCandidate<string>[];
+		}>;
+		const occurrences = g.node<SolutionOccurrence<Input>>([], null, {
+			name: "occurrence/complete-bridge-input",
+		});
+		const projected = agenticWorkItemMemoryBridgeOccurrenceNode(g, occurrences, {
+			name: "occurrence/complete-bridge",
+			maxOccurrences: 2,
+		});
+		const observed = collect(projected);
+		const makeOccurrence = (id: string, itemId: string): SolutionOccurrence<Input> =>
+			Object.freeze({
+				occurrenceId: id,
+				occurrenceRevision: 1,
+				occurrenceDigest: `sha256:${(id === "bridge-1" ? "1" : "2").repeat(64)}`,
+				occurrenceSourceRefs: Object.freeze([{ kind: "work-item", id: itemId }]),
+				value: Object.freeze({
+					workItem: workItem({ workItemId: itemId, lastEventId: `${itemId}/event` }),
+					policy: mappingPolicy({ policyId: `${itemId}/policy`, scoreRules: [] }),
+					candidates: Object.freeze([
+						explicitCandidate({
+							candidateId: `${itemId}/candidate`,
+							workItemId: itemId,
+							candidateMaterial: material({
+								record: record({
+									id: `${itemId}/record`,
+									fragment: {
+										...record().fragment,
+										id: `${itemId}/fragment`,
+										sources: [itemId],
+									},
+								}),
+							}),
+						}),
+					]),
+				}),
+			});
+		const second = makeOccurrence("bridge-2", "wi-2");
+		const first = makeOccurrence("bridge-1", "wi-1");
+		occurrences.down([["DATA", second]]);
+		occurrences.down([["DATA", first]]);
+		const outputs = data<
+			SolutionOccurrence<{ readonly result: { readonly proposals: readonly unknown[] } }>
+		>(observed.messages);
+		expect(outputs.map((output) => output.occurrenceId)).toEqual(["bridge-2", "bridge-1"]);
+		expect(outputs.every((output) => output.value.result.proposals.length === 1)).toBe(true);
+		occurrences.down([["DATA", second]]);
+		expect(data(observed.messages)).toHaveLength(2);
 		observed.unsubscribe();
 	});
 

@@ -2,6 +2,8 @@
 	"format": "graphrefly.rootEvalRunSummary",
 	"version": 1,
 	"authority": "derived-no-network-qa",
+	"claimStatus": "no-network-identifiability-only",
+	"efficacyClaim": "none",
 	"observation": {
 		"accountedUpperBoundMicrousd": 350,
 		"activeAdmittedEffects": 0,
@@ -23,19 +25,19 @@
 		"billingDisposition": "reconciled",
 		"billingObservationCount": 4,
 		"billingStableIntervals": 3,
-		"budgetPartition": "confirmatory-usd-6",
-		"campaignPurpose": "confirmatory",
-		"campaignRef": "root-eval-confirmatory-2026-08-27-d145-v1",
+		"budgetPartition": "development-usd-36",
+		"campaignPurpose": "development",
+		"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
 		"completedArms": 6,
 		"developmentQualification": {
-			"campaignPurpose": "confirmatory",
-			"consecutiveQualifyingGenerations": 2,
-			"generationQualified": null,
-			"generationRef": "root-eval-confirmatory-2026-08-27-d145-v1",
-			"heldOutEligible": true,
+			"campaignPurpose": "development",
+			"consecutiveQualifyingGenerations": 1,
+			"generationQualified": true,
+			"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+			"heldOutEligible": false,
 			"kind": "eval-development-qualification-state",
 			"requiredConsecutiveGenerations": 2,
-			"status": "not-applicable"
+			"status": "qualified"
 		},
 		"elapsedBudget": {
 			"callerSafetyLeaseMs": 6300000,
@@ -43,15 +45,15 @@
 			"kind": "eval-elapsed-budget-state",
 			"limitMs": 4500000,
 			"nowMs": 0,
-			"scheduleId": "root-eval-confirmatory-2026-08-27-d145-v1/elapsed-admission-budget",
+			"scheduleId": "root-eval-d152-mechanism-no-network-qualification-v1/elapsed-admission-budget",
 			"state": "armed",
 			"stoppingReason": "none"
 		},
 		"evaluableReplicates": 5,
 		"excludedTechnicalReplicates": [],
-		"finding": "no-positive-differential",
-		"generationRef": "root-eval-confirmatory-2026-08-27-d145-v1",
-		"heldOutSealDigest": "sha256:304f65ead9d4d9139e2dcf2d3bb5f3152e0c95c33f1671917b53a54f8de0236e",
+		"finding": "positive-differential",
+		"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+		"heldOutSealDigest": "sha256:0d26399c4f80843a4bbcf666e14f2a44a04a5508afa39f6e9144ab461f084820",
 		"kind": "eval-observation",
 		"matchedRelevantOverColdWins": 5,
 		"memoryProvenance": {
@@ -63,8 +65,8 @@
 			"wrong-scope-applied": "wrong-scope-applied"
 		},
 		"observedBilledMicrousd": 350,
-		"partitionHardCapMicrousd": 6000000,
-		"partitionLedgerDigest": "sha256:fb287de412fd519965d4f43912de28e30a0871a0c0b0b711fd371d745f3032a5",
+		"partitionHardCapMicrousd": 36000000,
+		"partitionLedgerDigest": "sha256:1a5008b69a43c54883d4c4afdf1293e8eac8ce761c5984103e79afbea20a3c46",
 		"partitionSpentBeforeMicrousd": 0,
 		"pendingRetryProposalCount": 0,
 		"pricingRoundingAllowanceMicrousd": 0,
@@ -127,8 +129,8 @@
 		],
 		"sourceTechnicalExcludedReplicates": [],
 		"stoppingReason": "campaign-complete",
-		"taskSetRef": "root-eval-d145-transfer-qualification-v1",
-		"topologyRevision": "graphrefly-ts.root-eval-topology.v18",
+		"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+		"topologyRevision": "graphrefly-ts.root-eval-topology.v20",
 		"unreportedSettledUpperBoundMicrousd": 0,
 		"verificationDiagnostics": {
 			"armOrder": [
@@ -164,10 +166,10 @@
 					"cleanupCompleted": 5,
 					"completedWorkItems": 5,
 					"exactToolAdmitted": 5,
-					"hiddenVerifierPassed": 5,
-					"passed": 5,
-					"publicSemanticPassed": 5,
-					"scopedChange": 5
+					"hiddenVerifierPassed": 0,
+					"passed": 0,
+					"publicSemanticPassed": 0,
+					"scopedChange": 0
 				},
 				"proposal-only": {
 					"cleanupCompleted": 5,
@@ -222,8 +224,8 @@
 					"cleanup-incomplete": 0,
 					"exact-tool-failed": 0,
 					"hidden-verifier-failed": 0,
-					"no-change": 0,
-					"passed": 5,
+					"no-change": 5,
+					"passed": 0,
 					"provider-failed": 0,
 					"public-semantic-failed": 0,
 					"wrong-scope": 0
@@ -263,7 +265,7 @@
 	},
 	"finding": {
 		"kind": "eval-efficacy-finding",
-		"campaignRef": "root-eval-confirmatory-2026-08-27-d145-v1",
+		"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
 		"replicateCount": 5,
 		"armOrder": [
 			"cold",
@@ -278,7 +280,7 @@
 			"relevant-applied": 5,
 			"proposal-only": 0,
 			"admission-rejected": 0,
-			"irrelevant-applied": 5,
+			"irrelevant-applied": 0,
 			"wrong-scope-applied": 0
 		},
 		"evaluableReplicates": 5,
@@ -319,10 +321,10 @@
 					"cleanupCompleted": 5,
 					"completedWorkItems": 5,
 					"exactToolAdmitted": 5,
-					"hiddenVerifierPassed": 5,
-					"passed": 5,
-					"publicSemanticPassed": 5,
-					"scopedChange": 5
+					"hiddenVerifierPassed": 0,
+					"passed": 0,
+					"publicSemanticPassed": 0,
+					"scopedChange": 0
 				},
 				"proposal-only": {
 					"cleanupCompleted": 5,
@@ -377,8 +379,8 @@
 					"cleanup-incomplete": 0,
 					"exact-tool-failed": 0,
 					"hidden-verifier-failed": 0,
-					"no-change": 0,
-					"passed": 5,
+					"no-change": 5,
+					"passed": 0,
 					"provider-failed": 0,
 					"public-semantic-failed": 0,
 					"wrong-scope": 0
@@ -451,7 +453,7 @@
 			"response-proposal-arguments-invalid": 0,
 			"executor-failed": 0
 		},
-		"finding": "no-positive-differential",
+		"finding": "positive-differential",
 		"stoppingReason": "campaign-complete"
 	},
 	"peakConcurrentEffects": 1,

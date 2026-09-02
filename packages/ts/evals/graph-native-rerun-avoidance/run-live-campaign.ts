@@ -20,19 +20,17 @@ import {
 } from "./implementation-manifest.js";
 import { runRootEvalPrecredentialStagePlan } from "./precredential-stage-coordinator.js";
 import {
-	advanceRootEvalD145CharterLedger,
 	latestRootEvalGraphSpend,
-	nextRootEvalD145DevelopmentOrdinal,
-	type RootEvalD145CharterLedger,
 	readRootEvalD145CharterLedger,
-	reconcileRootEvalD145ConsumedPreclaimFailure,
-	rootEvalD145ConsumedPreclaimReconciliationDigest,
 } from "./root-eval-charter-ledger.js";
 import {
-	commitRootEvalD145CharterReconciliation,
-	commitRootEvalD145CharterTransaction,
-	recoverRootEvalD145CharterTransaction,
-} from "./root-eval-charter-transaction.js";
+	advanceRootEvalD152Ledger,
+	commitRootEvalD152Transaction,
+	nextRootEvalD152DevelopmentOrdinal,
+	type RootEvalD152Ledger,
+	readRootEvalD152Ledger,
+	recoverRootEvalD152Transaction,
+} from "./root-eval-d152-ledger.js";
 import {
 	awaitRootEvalCallerSettlement,
 	createRootEvalLiveExecutor,
@@ -64,7 +62,6 @@ import {
 	type RootEvalLiveCurrentKeyAdmission,
 	type RootEvalLivePricingObservation,
 	type RootEvalLiveZeroByokObservation,
-	readRootEvalLiveConsumedDevelopmentPreclaimFailures,
 	readRootEvalLiveCurrentKey,
 	readRootEvalLivePrecredentialGateReceipt,
 	readRootEvalLivePricing,
@@ -78,20 +75,23 @@ import {
 } from "./root-eval-task.js";
 import { ensureRootEvalDevelopmentTaskManifest } from "./root-eval-task-manifest-store.js";
 
-export const ROOT_EVAL_LIVE_EXECUTION_APPROVAL = "graphrefly-ts:D145" as const;
+export const ROOT_EVAL_LIVE_EXECUTION_APPROVAL =
+	"user-authorized:d152-development-1:usd-12:development-usd-36" as const;
 export const ROOT_EVAL_LIVE_MOST_RECENT_SUCCESSFUL_CANONICAL_APPROVAL =
 	"graphrefly-ts:D116" as const;
 export const ROOT_EVAL_LIVE_MOST_RECENT_SUCCESSFUL_CANONICAL_CLOSEOUT =
 	"graphrefly-ts:D117" as const;
 export const ROOT_EVAL_LIVE_CONSUMED_D121_APPROVAL = "graphrefly-ts:D121" as const;
 export const ROOT_EVAL_LIVE_D121_REPAIR_RECEIPT = "graphrefly-ts:D124" as const;
-export const ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_STATE = "open-by-graphrefly-ts:D145" as const;
+export const ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_STATE =
+	process.env.GRAPHREFLY_ROOT_EVAL_EXECUTION_AUTHORITY;
 
 const repositoryRoot = resolve(import.meta.dirname, "../../../..");
 const operatorRoot = resolve(import.meta.dirname, "../.private/graph-native-rerun-avoidance");
 const privateRoot = resolve(join(operatorRoot, `current-${ROOT_EVAL_LIVE_GENERATION_REF}`));
-const charterLedgerPath = resolve(join(operatorRoot, "d145-charter-ledger.v4.json"));
-const charterTransactionPath = resolve(join(operatorRoot, "d145-charter-transaction.v1.json"));
+const historicalCharterLedgerPath = resolve(join(operatorRoot, "d145-charter-ledger.v4.json"));
+const charterLedgerPath = resolve(join(operatorRoot, "d152-charter-ledger.v1.json"));
+const charterTransactionPath = resolve(join(operatorRoot, "d152-charter-transaction.v1.json"));
 const credentialPath = resolve(
 	join(import.meta.dirname, "../.private/empirical-memory-rerun-avoidance/openrouter.env"),
 );
@@ -117,7 +117,7 @@ async function runPrecredentialGate(command: string, args: readonly string[]): P
 			else
 				rejectPromise(
 					new TypeError(
-						`root eval D145 precredential gate failed: ${command} ${args.join(" ")} (${signal ?? code})`,
+						`root eval D152 precredential gate failed: ${command} ${args.join(" ")} (${signal ?? code})`,
 					),
 				);
 		});
@@ -279,13 +279,13 @@ async function assertBoundedCurrentness(): Promise<RootEvalLiveBoundedCurrentnes
 
 async function assertFreshGeneration(): Promise<void> {
 	for (const path of [
-		join(privateRoot, `.${ROOT_EVAL_LIVE_GENERATION_REF}.disposition.v20.json`),
+		join(privateRoot, `.${ROOT_EVAL_LIVE_GENERATION_REF}.disposition.v21.json`),
 		join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF),
-		join(privateRoot, ".d145-provider-dispatches"),
+		join(privateRoot, ".d152-provider-dispatches"),
 	] as const)
 		await lstat(path).then(
 			() => {
-				throw new TypeError("root eval D145 single-use generation was already consumed");
+				throw new TypeError("root eval D152 single-use generation was already consumed");
 			},
 			(error: unknown) => {
 				if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
@@ -379,11 +379,11 @@ async function persistClaimedEvidence(input: {
 	readonly partialGraphObservations: readonly ObserveEvent[];
 	readonly failure: unknown | null;
 	readonly cleanupDisposition: "complete" | "failed";
-	readonly charterLedger: RootEvalD145CharterLedger;
+	readonly charterLedger: RootEvalD152Ledger;
 }): Promise<void> {
 	const evidence = constructRootEvalLiveEvidence(input);
 	if (input.charterLedger.ledgerDigest !== input.claim.partitionLedgerDigest)
-		throw new TypeError("root eval D145 claim and charter ledger drifted before commit");
+		throw new TypeError("root eval D152 claim and charter ledger drifted before commit");
 	const observationValues = [
 		...(input.graphResult?.observations ?? []),
 		...input.partialGraphObservations,
@@ -391,7 +391,7 @@ async function persistClaimedEvidence(input: {
 		.map(materialFreeObservationValue)
 		.filter((value) => value !== undefined);
 	if (input.providerCalls > 0 && observationValues.length === 0)
-		throw new TypeError("root eval D145 provider spend lacked Graph-visible usage authority");
+		throw new TypeError("root eval D152 provider spend lacked Graph-visible usage authority");
 	const conservativeSpend = latestRootEvalGraphSpend([
 		...observationValues.map((observation) => ({
 			providerReportedMicrousd: observation.providerReportedMicrousd,
@@ -415,13 +415,11 @@ async function persistClaimedEvidence(input: {
 	const terminalQualification = observationValues
 		.filter((observation) => observation.finding !== "pending")
 		.at(-1)?.developmentQualification;
-	const nextLedger = advanceRootEvalD145CharterLedger({
+	const nextLedger = advanceRootEvalD152Ledger({
 		ledger: input.charterLedger,
 		generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
-		campaignPurpose: ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE,
 		taskSetRef: input.claim.taskSetRef,
 		taskManifestDigest: input.claim.taskManifestDigest,
-		budgetPartition: ROOT_EVAL_LIVE_BUDGET_PARTITION,
 		providerReportedMicrousd,
 		unreportedSettledUpperBoundMicrousd,
 		accountedUpperBoundMicrousd,
@@ -429,10 +427,10 @@ async function persistClaimedEvidence(input: {
 		developmentQualification: terminalQualification ?? null,
 		evidenceDigest: evidence.evidenceDigest,
 	});
-	const transaction = await commitRootEvalD145CharterTransaction({
+	const transaction = await commitRootEvalD152Transaction({
 		journalPath: charterTransactionPath,
 		privateRoot,
-		charterLedgerPath,
+		ledgerPath: charterLedgerPath,
 		previousLedgerDigest: input.charterLedger.ledgerDigest,
 		evidence,
 		nextLedger,
@@ -469,7 +467,7 @@ async function executeClaimedCampaign(input: {
 	readonly pricing: RootEvalLivePricingObservation;
 	readonly zeroByok: RootEvalLiveZeroByokObservation;
 	readonly currentKeyBefore: RootEvalLiveCurrentKeyAdmission;
-	readonly charterLedger: RootEvalD145CharterLedger;
+	readonly charterLedger: RootEvalD152Ledger;
 	readonly initialFailure?: unknown;
 }): Promise<void> {
 	const claim = input.claimCommit.claim;
@@ -615,71 +613,39 @@ async function executeClaimedCampaign(input: {
 	}
 }
 
-async function reconcileConsumedDevelopmentPreclaimFailures(
-	ledger: RootEvalD145CharterLedger,
-	currentOrdinal: number,
-): Promise<RootEvalD145CharterLedger> {
-	const firstMissingOrdinal = nextRootEvalD145DevelopmentOrdinal(ledger);
-	const receipts = await readRootEvalLiveConsumedDevelopmentPreclaimFailures({
-		operatorRoot,
-		firstMissingOrdinal,
-		currentOrdinal,
-	});
-	let reconciled = ledger;
-	for (const [index, receipt] of receipts.entries()) {
-		const ordinal = firstMissingOrdinal + index;
-		const taskManifest = readRootEvalTaskManifest(`development-${ordinal}`);
-		const reconciliationInput = {
-			generationRef: receipt.generationRef,
-			taskSetRef: taskManifest.taskSetRef,
-			taskManifestDigest: taskManifest.manifestDigest,
-			receiptDigest: receipt.receiptDigest,
-		};
-		const nextLedger = reconcileRootEvalD145ConsumedPreclaimFailure({
-			ledger: reconciled,
-			...reconciliationInput,
-		});
-		await commitRootEvalD145CharterReconciliation({
-			journalPath: charterTransactionPath,
-			charterLedgerPath,
-			previousLedgerDigest: reconciled.ledgerDigest,
-			reconciliationDigest: rootEvalD145ConsumedPreclaimReconciliationDigest(reconciliationInput),
-			nextLedger,
-		});
-		reconciled = nextLedger;
-	}
-	return reconciled;
-}
-
 async function main(): Promise<void> {
 	if (
-		process.env.GRAPHREFLY_D145_ISOLATED_LIVE_CHILD !== "1" ||
+		process.env.GRAPHREFLY_D152_ISOLATED_LIVE_CHILD !== "1" ||
 		process.env.NODE_OPTIONS !== undefined ||
 		process.env.NODE_PATH !== undefined ||
 		process.execArgv.length !== 2 ||
 		process.execArgv[0] !== "--import" ||
 		process.execArgv[1] !== "tsx"
 	)
-		throw new TypeError("root eval D145 live entry requires the clean precredential bootstrap");
+		throw new TypeError("root eval D152 live entry requires the clean precredential bootstrap");
 	const mode = process.argv[2] ?? "--execute-live";
-	if (mode !== "--execute-live") throw new TypeError("root eval D145 live entry mode was invalid");
-	if (ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_STATE !== ("open-by-graphrefly-ts:D145" as string))
-		throw new TypeError("root eval D145 live authority is unavailable");
+	if (mode !== "--execute-live") throw new TypeError("root eval D152 live entry mode was invalid");
+	if (
+		ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_STATE !== ROOT_EVAL_LIVE_EXECUTION_APPROVAL ||
+		ROOT_EVAL_LIVE_CAMPAIGN_SLOT !== "development-1" ||
+		ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE !== "development"
+	)
+		throw new TypeError("root eval D152 development-1 live authority is unavailable");
 	let currentness: RootEvalLiveBoundedCurrentness | undefined;
 	let privateInputs: Awaited<ReturnType<typeof qualifyRootEvalLivePrivateInputs>> | undefined;
 	let pricing: RootEvalLivePricingObservation | undefined;
 	let currentKeyBefore: RootEvalLiveCurrentKeyAdmission | undefined;
 	let acquisition: Awaited<ReturnType<typeof acquireRootEvalLiveClaim>> | undefined;
-	await recoverRootEvalD145CharterTransaction(charterTransactionPath);
-	let charterLedger = await readRootEvalD145CharterLedger(charterLedgerPath);
+	await recoverRootEvalD152Transaction(charterTransactionPath);
+	const historicalLedger = await readRootEvalD145CharterLedger(historicalCharterLedgerPath);
+	const charterLedger = await readRootEvalD152Ledger({
+		path: charterLedgerPath,
+		historicalLedger,
+	});
 	if (String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "development") {
 		const currentOrdinal = rootEvalDevelopmentOrdinal(ROOT_EVAL_LIVE_CAMPAIGN_SLOT)!;
-		charterLedger = await reconcileConsumedDevelopmentPreclaimFailures(
-			charterLedger,
-			currentOrdinal,
-		);
-		if (currentOrdinal !== nextRootEvalD145DevelopmentOrdinal(charterLedger))
-			throw new TypeError("root eval D145 development slot did not follow charter order");
+		if (currentOrdinal !== nextRootEvalD152DevelopmentOrdinal(charterLedger))
+			throw new TypeError("root eval D152 development slot did not follow charter order");
 		await ensureRootEvalDevelopmentTaskManifest(ROOT_EVAL_LIVE_CAMPAIGN_SLOT);
 	} else readRootEvalTaskManifest("confirmatory");
 	const partitionSpentBeforeMicrousd =
@@ -693,7 +659,7 @@ async function main(): Promise<void> {
 		(String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "confirmatory" &&
 			(charterLedger.developmentQualificationStreak !== 2 || charterLedger.heldOutConsumed))
 	)
-		throw new TypeError("root eval D145 charter ledger does not authorize this generation");
+		throw new TypeError("root eval D152 charter ledger does not authorize this generation");
 	let preclaimPersistenceArmed = false;
 	try {
 		await runRootEvalPrecredentialStagePlan({
@@ -708,7 +674,7 @@ async function main(): Promise<void> {
 					return;
 				}
 				if (currentness === undefined)
-					throw new TypeError("root eval D145 stage requires bounded currentness");
+					throw new TypeError("root eval D152 stage requires bounded currentness");
 				if (stage === "persist-receipt") {
 					await persistOrReusePrecredentialGateReceipt(currentness);
 					const receipt = await readRootEvalLivePrecredentialGateReceipt({ privateRoot });
@@ -736,7 +702,7 @@ async function main(): Promise<void> {
 					return;
 				}
 				if (privateInputs === undefined)
-					throw new TypeError("root eval D145 stage requires admitted private inputs");
+					throw new TypeError("root eval D152 stage requires admitted private inputs");
 				if (stage === "control-plane-admission") {
 					pricing = await readRootEvalLivePricing({ fetchImpl: LIVE_FETCH });
 					preclaimPersistenceArmed = true;
@@ -751,7 +717,7 @@ async function main(): Promise<void> {
 					return;
 				}
 				if (pricing === undefined || currentKeyBefore === undefined)
-					throw new TypeError("root eval D145 stage requires admitted control-plane state");
+					throw new TypeError("root eval D152 stage requires admitted control-plane state");
 				if (stage === "claim") {
 					const implementationCoordinate = `worktree:${currentness.implementationCommit}:${CURRENT_IMPLEMENTATION_MANIFEST_DIGEST}`;
 					const taskManifest = readRootEvalTaskManifest(ROOT_EVAL_LIVE_CAMPAIGN_SLOT);
@@ -777,7 +743,7 @@ async function main(): Promise<void> {
 					return;
 				}
 				if (acquisition === undefined)
-					throw new TypeError("root eval D145 campaign requires a committed claim");
+					throw new TypeError("root eval D152 campaign requires a committed claim");
 				await executeClaimedCampaign({
 					claimCommit: acquisition,
 					credential: privateInputs.credential,

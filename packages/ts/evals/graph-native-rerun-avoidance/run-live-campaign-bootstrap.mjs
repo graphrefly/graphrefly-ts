@@ -19,6 +19,6 @@ await new Promise((resolvePromise, rejectPromise) => {
 	child.once("close", (code, signal) => {
 		if (code === 0) resolvePromise();
 		else
-			rejectPromise(new TypeError(`root eval D145 isolated live child failed (${signal ?? code})`));
+			rejectPromise(new TypeError(`root eval D152 isolated live child failed (${signal ?? code})`));
 	});
 });

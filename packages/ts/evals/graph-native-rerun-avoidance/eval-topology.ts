@@ -2,6 +2,7 @@ import { depBatch, depLatest } from "../../src/ctx/types.js";
 import { type Graph, graph } from "../../src/graph/graph.js";
 import type { ObserveEvent } from "../../src/graph/inspect.js";
 import type { Node } from "../../src/node/node.js";
+import { merge } from "../../src/operators/index.js";
 import type { AgentRequestIssued, EffectRunResult } from "../../src/orchestration/agent-runtime.js";
 import {
 	type ScheduledReadinessClock,
@@ -16,22 +17,27 @@ import {
 } from "../../src/patterns/admission-handoff.js";
 import {
 	type AgenticMemoryRecord,
-	type AgenticMemoryRecordAdmissionPolicy,
-	type AgenticMemoryRecordApplicationPolicy,
 	type AgenticMemoryRecordUseDecision,
 	type AgenticMemoryRecordUseRequest,
-	agenticMemoryBundle,
-	agenticMemoryRecordAdmissionBundle,
-	agenticMemoryRecordApplicationBundle,
-	agenticMemoryRecordUseGateBundle,
+	agenticMemoryRecordFrame,
 	createAgenticMemoryRecordUseDecision,
 	type StrictJsonValue,
 } from "../../src/solutions/agentic-memory/index.js";
 import type {
+	AgenticWorkItemMemoryBridgeInput,
 	AgenticWorkItemMemoryMappingPolicy,
 	AgenticWorkItemMemoryRecordCandidate,
 } from "../../src/solutions/agentic-work-item-memory/index.js";
-import { agenticWorkItemMemoryApplicationRecipeBundle } from "../../src/solutions/agentic-work-item-memory-application/index.js";
+import type { SolutionOccurrence } from "../../src/solutions/occurrence.js";
+import {
+	type AgenticMemoryRecordAdmissionOccurrenceInput,
+	type AgenticMemoryRecordApplicationOccurrenceInput,
+	type AgenticMemoryRecordUseOccurrenceInput,
+	agenticMemoryRecordAdmissionOccurrenceNode,
+	agenticMemoryRecordApplicationOccurrenceNode,
+	agenticMemoryRecordUseOccurrenceNode,
+	agenticWorkItemMemoryBridgeOccurrenceNode,
+} from "../../src/solutions/occurrence-lifecycles.js";
 import { workItemExecutionRecipe } from "../../src/solutions/work-item/execution.js";
 import type {
 	WorkItemEffectPlanProposed,
@@ -77,7 +83,62 @@ import {
 	rootEvalTaskBindings,
 } from "./root-eval-task.js";
 
-export const ROOT_EVAL_TOPOLOGY_REVISION = "graphrefly-ts.root-eval-topology.v18" as const;
+export const ROOT_EVAL_TOPOLOGY_REVISION = "graphrefly-ts.root-eval-topology.v20" as const;
+
+export type RootEvalOccurrenceLedgerEntry = Readonly<{
+	readonly revision: number;
+	readonly digest: string;
+	readonly sourceRefsDigest: string;
+}>;
+
+/** Package-private D151 occurrence conservation used by the Eval solution boundaries. */
+export function admitRootEvalOccurrence(
+	ledger: Map<string, RootEvalOccurrenceLedgerEntry>,
+	occurrence: Readonly<{
+		readonly occurrenceId: string;
+		readonly occurrenceRevision: number;
+		readonly occurrenceDigest: string;
+		readonly occurrenceSourceRefs: readonly Readonly<{
+			readonly kind: string;
+			readonly id: string;
+		}>[];
+	}>,
+	maxOccurrences: number,
+): "accepted" | "replay" {
+	if (occurrence.occurrenceId.length === 0)
+		throw new TypeError("root eval occurrence identity must be non-empty");
+	if (!Number.isSafeInteger(occurrence.occurrenceRevision) || occurrence.occurrenceRevision < 1)
+		throw new TypeError("root eval occurrence revision must be a positive safe integer");
+	if (!/^sha256:[0-9a-f]{64}$/u.test(occurrence.occurrenceDigest))
+		throw new TypeError("root eval occurrence digest must be canonical sha256");
+	if (occurrence.occurrenceSourceRefs.length === 0)
+		throw new TypeError("root eval occurrence requires visible source refs");
+	const sourceRefsDigest = empiricalStrictJsonDigest(occurrence.occurrenceSourceRefs);
+	const prior = ledger.get(occurrence.occurrenceId);
+	if (prior !== undefined) {
+		if (occurrence.occurrenceRevision < prior.revision)
+			throw new TypeError("root eval occurrence replay used a stale revision");
+		if (occurrence.occurrenceRevision === prior.revision) {
+			if (
+				occurrence.occurrenceDigest !== prior.digest ||
+				sourceRefsDigest !== prior.sourceRefsDigest
+			)
+				throw new TypeError("root eval occurrence replay conflicted with prior DATA");
+			return "replay";
+		}
+	}
+	if (prior === undefined && ledger.size >= maxOccurrences)
+		throw new TypeError("root eval occurrence retention exceeded its fixed bound");
+	ledger.set(
+		occurrence.occurrenceId,
+		Object.freeze({
+			revision: occurrence.occurrenceRevision,
+			digest: occurrence.occurrenceDigest,
+			sourceRefsDigest,
+		}),
+	);
+	return "accepted";
+}
 export const ROOT_EVAL_REPLICATE_COUNT = 5 as const;
 export const ROOT_EVAL_DEVELOPMENT_REPLICATE_COUNT = 5 as const;
 export const ROOT_EVAL_DEFAULT_EFFECT_TIMEOUT_MS = 300_000 as const;
@@ -1476,7 +1537,9 @@ function memoryRecord(dispatch: EvalArmDispatch): AgenticMemoryRecord<MemoryPayl
 			},
 			tNs: BigInt(dispatch.replicate * 10 + dispatch.armIndex),
 			confidence: 1,
-			tags: relevant ? ["relevant", "eval-memory"] : ["irrelevant", "eval-memory"],
+			tags: relevant
+				? ["relevant", "eval-memory", `occurrence:${dispatch.workItemId}`]
+				: ["irrelevant", "eval-memory", `occurrence:${dispatch.workItemId}`],
 			sources: [dispatch.memorySourceWorkItemId, dispatch.memorySourceEvidenceDigest],
 		},
 	});
@@ -3303,7 +3366,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			partitionSpentBeforeMicrousd,
 			partitionLedgerDigest,
 			developmentQualificationStreakBefore,
-			decisionRefs: ["graphrefly-ts:D145"],
+			decisionRefs: ["graphrefly-ts:D145", "graphrefly-ts:D151", "graphrefly-ts:D152"],
 		},
 	});
 	const taskBindingAuthority = owner.state(Object.freeze(taskBindings), {
@@ -3366,7 +3429,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				if (scheduledCampaignRef !== undefined) {
 					if (scheduledCampaignRef !== campaignStart.campaignRef)
 						throw new TypeError("eval elapsed schedule replay identity drifted");
-					ctx.down([["RESOLVED"]]);
 					continue;
 				}
 				ctx.state.set(campaignStart.campaignRef);
@@ -3817,7 +3879,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				}
 			}
 			if (emitted.length > 0) ctx.down(emitted.map((batch) => ["DATA", batch] as const));
-			else ctx.down([["RESOLVED"]]);
 			ctx.state.set(state);
 		},
 		{
@@ -3866,19 +3927,15 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const targetOutcomes = owner.node<EvalEffectOutcome>(
 		[failedProviderResultAdmissions, targetToolOutcomes],
 		(ctx) => {
-			let emitted = false;
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const provider = validateProviderOutcome(raw as EvalProviderOutcome);
 				if (provider.status === "failed" && provider.workItemRole === "target") {
-					emitted = true;
 					ctx.down([["DATA", providerFailureOutcome(provider)]]);
 				}
 			}
 			for (const raw of depBatch(ctx, 1) ?? []) {
-				emitted = true;
 				ctx.down([["DATA", validateOutcomeReceipt(raw as EvalEffectOutcome)]]);
 			}
-			if (!emitted) ctx.down([["RESOLVED"]]);
 		},
 		{
 			name: "eval/effect/terminal-outcomes",
@@ -3901,11 +3958,9 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const sourceOutcomes = owner.node<EvalSourceTerminalInput>(
 		[failedProviderResultAdmissions, sourceToolOutcomes],
 		(ctx) => {
-			let emitted = false;
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const provider = validateProviderOutcome(raw as EvalProviderOutcome);
 				if (provider.status === "failed" && provider.workItemRole === "source") {
-					emitted = true;
 					ctx.down([
 						[
 							"DATA",
@@ -3919,13 +3974,11 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				}
 			}
 			for (const raw of depBatch(ctx, 1) ?? []) {
-				emitted = true;
 				const outcome = validateOutcomeReceipt(raw as EvalEffectOutcome);
 				ctx.down([
 					["DATA", Object.freeze({ kind: "eval-source-tool-outcome-input" as const, outcome })],
 				]);
 			}
-			if (!emitted) ctx.down([["RESOLVED"]]);
 		},
 		{
 			name: "eval/source-work-item/terminal-outcomes",
@@ -3939,7 +3992,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const resultProjection = owner.node<EffectRunResult>(
 		[targetOutcomes],
 		(ctx) => {
-			let emitted = false;
 			const settled = ctx.state.get<Set<string>>() ?? new Set<string>();
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const outcome = validateOutcomeReceipt(raw as EvalEffectOutcome);
@@ -3947,12 +3999,10 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				settled.add(outcome.admissionId);
 				const result = finalResult(outcome);
 				if (result !== undefined) {
-					emitted = true;
 					ctx.down([["DATA", result]]);
 				}
 			}
 			ctx.state.set(settled);
-			if (!emitted) ctx.down([["RESOLVED"]]);
 		},
 		{
 			name: "eval/provider/reconciliation",
@@ -3966,7 +4016,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const sourceResultProjection = owner.node<EffectRunResult>(
 		[sourceOutcomes],
 		(ctx) => {
-			let emitted = false;
 			const settled = ctx.state.get<Set<string>>() ?? new Set<string>();
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const outcome = validateOutcomeReceipt((raw as EvalSourceTerminalInput).outcome);
@@ -3974,12 +4023,10 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				settled.add(outcome.admissionId);
 				const result = finalResult(outcome);
 				if (result !== undefined) {
-					emitted = true;
 					ctx.down([["DATA", result]]);
 				}
 			}
 			ctx.state.set(settled);
-			if (!emitted) ctx.down([["RESOLVED"]]);
 		},
 		{
 			name: "eval/source-work-item/reconciliation",
@@ -4016,62 +4063,23 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const sourceSchedule = owner.node<EvalSourceWorkItemRequest>(
 		[start, sourceRequestAuthority, campaignContract],
 		(ctx) => {
-			type SourceScheduleRuntime = {
-				active: boolean;
-				emitted: boolean;
-				timer: ReturnType<typeof setTimeout> | undefined;
-			};
-			const prior = ctx.state.get<SourceScheduleRuntime>();
-			if (prior !== undefined) {
-				ctx.onDeactivation(() => {
-					prior.active = false;
-					if (prior.timer !== undefined) clearTimeout(prior.timer);
-					prior.timer = undefined;
-				});
-				ctx.down([["RESOLVED"]]);
-				return;
-			}
+			if (ctx.state.get<boolean>() === true) return;
 			const requests = depLatest(ctx, 1) as readonly EvalSourceWorkItemRequest[] | undefined;
 			const contract = depLatest(ctx, 2) as EvalCampaignContract | undefined;
-			if (
-				(depBatch(ctx, 0)?.length ?? 0) === 0 ||
-				requests === undefined ||
-				contract === undefined
-			) {
-				ctx.down([["RESOLVED"]]);
+			if ((depBatch(ctx, 0)?.length ?? 0) === 0 || requests === undefined || contract === undefined)
 				return;
-			}
 			if (contract.taskSetRef !== taskSetRef || requests.length !== contract.replicateCount)
 				throw new TypeError("source schedule lost its Graph campaign authority");
-			const runtime: SourceScheduleRuntime = {
-				active: true,
-				emitted: false,
-				timer: undefined,
-			};
-			ctx.state.set(runtime);
-			runtime.timer = setTimeout(() => {
-				if (!runtime.active || runtime.emitted) return;
-				runtime.emitted = true;
-				runtime.timer = undefined;
-				ctx.down(requests.map((request) => ["DATA", request] as const));
-			}, 0);
-			ctx.onDeactivation(() => {
-				runtime.active = false;
-				if (runtime.timer !== undefined) clearTimeout(runtime.timer);
-				runtime.timer = undefined;
-			});
-			ctx.down([["RESOLVED"]]);
+			ctx.state.set(true);
+			ctx.down(requests.map((request) => ["DATA", request] as const));
 		},
 		{
 			name: "eval/source-work-item/schedule",
 			factory: "rootEvalSourceWorkItemSchedule",
-			pool: "async",
-			pausable: false,
 			meta: {
 				authority: "five-real-source-work-items-before-targets",
 				taskManifestDigest,
-				startWaveSettlement: "immediate-resolved",
-				boundaryEmission: "new-external-data-wave",
+				occurrenceDelivery: "one-bounded-five-occurrence-data-wave",
 			},
 		},
 	);
@@ -4286,14 +4294,12 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const diff = owner.node<EvalDiffFact>(
 		[targetOutcomes],
 		(ctx) => {
-			let emitted = false;
 			const settled = ctx.state.get<Set<string>>() ?? new Set<string>();
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const outcome = validateOutcomeReceipt(raw as EvalEffectOutcome);
 				if (outcome.workItemRole === "source") continue;
 				if (settled.has(outcome.admissionId)) continue;
 				settled.add(outcome.admissionId);
-				emitted = true;
 				ctx.down([
 					[
 						"DATA",
@@ -4307,7 +4313,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				]);
 			}
 			ctx.state.set(settled);
-			if (!emitted) ctx.down([["RESOLVED"]]);
 		},
 		{
 			name: "eval/verification/diff",
@@ -4320,10 +4325,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const publicSemantic = owner.node<EvalPublicSemanticFact>(
 		[diff],
 		(ctx) => {
-			let emitted = false;
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const fact = raw as EvalDiffFact;
-				emitted = true;
 				ctx.down([
 					[
 						"DATA",
@@ -4337,7 +4340,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					],
 				]);
 			}
-			if (!emitted) ctx.down([["RESOLVED"]]);
 		},
 		{
 			name: "eval/verification/public-semantic",
@@ -4350,10 +4352,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const hiddenVerifier = owner.node<EvalHiddenVerifierFact>(
 		[publicSemantic],
 		(ctx) => {
-			let emitted = false;
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const fact = raw as EvalPublicSemanticFact;
-				emitted = true;
 				ctx.down([
 					[
 						"DATA",
@@ -4369,7 +4369,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					],
 				]);
 			}
-			if (!emitted) ctx.down([["RESOLVED"]]);
 		},
 		{
 			name: "eval/verification/hidden-verifier",
@@ -4382,13 +4381,11 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const cleanup = owner.node<EvalCleanupFact>(
 		[hiddenVerifier],
 		(ctx) => {
-			let emitted = false;
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const fact = raw as EvalHiddenVerifierFact;
 				const workItemRef = fact.outcome.workItemId;
 				const arm = armFromWorkItemId(workItemRef);
 				if (arm === undefined) continue;
-				emitted = true;
 				ctx.down([
 					[
 						"DATA",
@@ -4409,7 +4406,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					],
 				]);
 			}
-			if (!emitted) ctx.down([["RESOLVED"]]);
 		},
 		{
 			name: "eval/cleanup/completed",
@@ -4438,7 +4434,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			ctx.state.set(completed);
 			if (changed || (depBatch(ctx, 0)?.length ?? 0) > 0)
 				ctx.down([["DATA", verificationDiagnosticsSnapshot(completed)]]);
-			else ctx.down([["RESOLVED"]]);
 		},
 		{
 			name: "eval/verification/diagnostics",
@@ -4463,7 +4458,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			memoryProvenance,
 		],
 		(ctx) => {
-			let emitted = false;
 			const contract = depLatest(ctx, 3) as EvalCampaignContract | undefined;
 			const bindings = depLatest(ctx, 4) as readonly RootEvalTaskBinding[] | undefined;
 			const provenance = depLatest(ctx, 5) as
@@ -4521,7 +4515,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					return;
 				state.dispatchedReplicates.add(replicate);
 				state.replicate = replicate;
-				emitted = true;
 				ctx.down([["DATA", dispatchBatch(campaignRef, fact.request, binding, provenance)]]);
 			};
 			const requests = depLatest(ctx, 2) as readonly EvalSourceWorkItemRequest[] | undefined;
@@ -4553,7 +4546,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				state.started = true;
 				const first = nextEligibleReplicate(0);
 				if (first === undefined) {
-					emitted = true;
 					emitCampaignState(
 						ctx,
 						campaignRef,
@@ -4565,7 +4557,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 						"campaign-complete",
 					);
 				} else {
-					emitted = true;
 					emitCampaignState(
 						ctx,
 						campaignRef,
@@ -4590,7 +4581,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 						: undefined;
 				if (next !== undefined) emitReplicate(next);
 				const stopped = completed.size === HARNESS_ARMS.length && next === undefined;
-				emitted = true;
 				emitCampaignState(
 					ctx,
 					campaignRef,
@@ -4603,7 +4593,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				);
 			}
 			ctx.state.set(state);
-			if (!emitted) ctx.down([["RESOLVED"]]);
 		},
 		{
 			name: "eval/campaign/replicate-controller",
@@ -4663,7 +4652,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const campaignStates = owner.node<EvalCampaignState>(
 		[campaign, start, campaignContract],
 		(ctx) => {
-			let emitted = false;
 			const announced = ctx.state.get<boolean>() ?? false;
 			if (!announced && (depBatch(ctx, 1)?.length ?? 0) > 0) {
 				const contract = depLatest(ctx, 2) as EvalCampaignContract | undefined;
@@ -4671,15 +4659,12 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					throw new TypeError("eval campaign start lost its Graph contract authority");
 				emitCampaignState(ctx, campaignRef, contract, 1, [], 0, "running", "none");
 				ctx.state.set(true);
-				emitted = true;
 			}
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				if (!Array.isArray(raw) && (raw as EvalCampaignState).kind === "eval-campaign-state") {
-					emitted = true;
 					ctx.down([["DATA", raw]]);
 				}
 			}
-			if (!emitted) ctx.down([["RESOLVED"]]);
 		},
 		{
 			name: "eval/campaign/state",
@@ -4698,14 +4683,11 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const workItems = owner.node<WorkItemProjection<Record<string, unknown>>>(
 		[batches],
 		(ctx) => {
-			let emitted = false;
 			for (const batch of (depBatch(ctx, 0) ?? []) as readonly (readonly EvalArmDispatch[])[]) {
 				for (const item of batch) {
-					emitted = true;
 					ctx.down([["DATA", workItemFor(item)]]);
 				}
 			}
-			if (!emitted) ctx.down([["RESOLVED"]]);
 		},
 		{
 			name: "eval/work-item/objective-data",
@@ -4723,9 +4705,30 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		readonly initialRecords: readonly AgenticMemoryRecord<MemoryPayload>[];
 	}>;
 	type EvalMemoryBridgeFrame = Readonly<{
+		readonly occurrenceId: string;
+		readonly occurrenceRevision: 1;
+		readonly occurrenceDigest: string;
+		readonly occurrenceSourceRefs: readonly Readonly<{
+			readonly kind: string;
+			readonly id: string;
+		}>[];
 		readonly sourceWorkItem: WorkItemProjection<Record<string, unknown>>;
 		readonly mappingPolicy: AgenticWorkItemMemoryMappingPolicy<MemoryPayload>;
 		readonly candidates: readonly AgenticWorkItemMemoryRecordCandidate<MemoryPayload>[];
+		readonly initialRecords: readonly AgenticMemoryRecord<MemoryPayload>[];
+	}>;
+	type EvalMemoryUseFrame = Readonly<{
+		readonly occurrenceId: string;
+		readonly occurrenceRevision: 1;
+		readonly occurrenceDigest: string;
+		readonly occurrenceSourceRefs: readonly Readonly<{
+			readonly kind: string;
+			readonly id: string;
+		}>[];
+		readonly dispatch: EvalArmDispatch;
+		readonly records: readonly AgenticMemoryRecord<MemoryPayload>[];
+		readonly request: AgenticMemoryRecordUseRequest;
+		readonly decisions: readonly AgenticMemoryRecordUseDecision[];
 	}>;
 	type EvalMemoryContextFrame = Readonly<{
 		readonly dispatch: EvalArmDispatch;
@@ -4882,26 +4885,14 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const memoryBridgeFrames = owner.node<EvalMemoryBridgeFrame>(
 		[memoryBatchFrames],
 		(ctx) => {
-			type MemoryBridgeRuntime = {
-				active: boolean;
-				scheduledReplicates: Set<number>;
-				timers: Set<ReturnType<typeof setTimeout>>;
-			};
-			const runtime = ctx.state.get<MemoryBridgeRuntime>() ?? {
-				active: true,
-				scheduledReplicates: new Set<number>(),
-				timers: new Set<ReturnType<typeof setTimeout>>(),
-			};
-			ctx.state.set(runtime);
-			ctx.onDeactivation(() => {
-				runtime.active = false;
-				for (const timer of runtime.timers) clearTimeout(timer);
-				runtime.timers.clear();
-			});
+			const observed =
+				ctx.state.get<Map<string, RootEvalOccurrenceLedgerEntry>>() ??
+				new Map<string, RootEvalOccurrenceLedgerEntry>();
+			const outputs: EvalMemoryBridgeFrame[] = [];
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const frame = raw as EvalMemoryBatchFrame;
 				const replicate = frame.dispatches[0]?.replicate;
-				if (replicate === undefined || runtime.scheduledReplicates.has(replicate)) continue;
+				if (replicate === undefined) throw new TypeError("memory bridge occurrence lost replicate");
 				const irrelevant = frame.dispatches.find(
 					(dispatch) => dispatch.arm === "irrelevant-applied",
 				);
@@ -4912,206 +4903,218 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 						.flatMap((dispatch) => memoryCandidate(dispatch)),
 				);
 				const irrelevantCandidates = memoryCandidate(irrelevant);
-				const frames = [
+				const values = [
 					["relevant", frame.relevantSourceWorkItem, relevantCandidates],
 					["irrelevant", frame.irrelevantSourceWorkItem, irrelevantCandidates],
 				] as const;
-				runtime.scheduledReplicates.add(replicate);
-				const emitFrame = (index: number) => {
-					const tuple = frames[index];
-					if (tuple === undefined) return;
-					const [role, sourceWorkItem, candidates] = tuple;
-					const timer = setTimeout(() => {
-						runtime.timers.delete(timer);
-						if (!runtime.active) return;
-						ctx.down([
-							[
-								"DATA",
-								Object.freeze({
-									sourceWorkItem,
-									mappingPolicy: Object.freeze({
-										kind: "agentic-work-item-memory-mapping-policy" as const,
-										policyId: `${frame.dispatches[0]!.workItemId}/memory-mapping-policy/${role}`,
-										scoreRules: [],
-									}),
-									candidates,
-								}),
-							],
-						]);
-						emitFrame(index + 1);
-					}, 0);
-					runtime.timers.add(timer);
-				};
-				emitFrame(0);
+				for (const [role, sourceWorkItem, candidates] of values) {
+					const occurrenceId = `${campaignRef}/replicate-${replicate}/memory-source/${role}`;
+					const occurrenceMaterial = Object.freeze({
+						occurrenceId,
+						occurrenceRevision: 1 as const,
+						sourceWorkItem,
+						mappingPolicy: Object.freeze({
+							kind: "agentic-work-item-memory-mapping-policy" as const,
+							policyId: `${frame.dispatches[0]!.workItemId}/memory-mapping-policy/${role}`,
+							scoreRules: [],
+						}),
+						candidates,
+						initialRecords: frame.initialRecords,
+						occurrenceSourceRefs: Object.freeze([
+							Object.freeze({ kind: "eval-campaign", id: campaignRef }),
+							Object.freeze({ kind: "work-item", id: sourceWorkItem.workItemId }),
+						]),
+					});
+					const occurrenceDigest = empiricalStrictJsonDigest({
+						kind: "eval-memory-bridge-occurrence",
+						occurrenceId,
+						occurrenceRevision: 1,
+						sourceWorkItemId: sourceWorkItem.workItemId,
+						mappingPolicyId: occurrenceMaterial.mappingPolicy.policyId,
+						candidates: candidates.map((candidate) => ({
+							candidateId: candidate.candidateId,
+							recordId: candidate.candidateMaterial.record.id,
+							bindingDigest: candidate.candidateMaterial.record.fragment.payload.digest,
+						})),
+						sourceRefs: occurrenceMaterial.occurrenceSourceRefs,
+					});
+					const occurrence = Object.freeze({ ...occurrenceMaterial, occurrenceDigest });
+					if (
+						admitRootEvalOccurrence(observed, occurrence, ROOT_EVAL_REPLICATE_COUNT * 2) ===
+						"accepted"
+					)
+						outputs.push(occurrence);
+				}
 			}
-			ctx.down([["RESOLVED"]]);
+			ctx.state.set(observed);
+			if (outputs.length > 0) ctx.down(outputs.map((output) => ["DATA", output]));
 		},
 		{
 			name: "eval/memory/source-record-data",
 			factory: "rootEvalMemorySourceRecordData",
-			pool: "async",
-			pausable: false,
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: {
 				lifecycleCardinality: "one",
 				recordSources: ["relevant", "irrelevant"],
-				dataWaveOrder: ["relevant", "irrelevant"],
-				startWaveSettlement: "immediate-resolved",
+				occurrenceIdentity: "scope-local-id/revision/digest/source-refs",
+				batching: "bounded-many-per-wave",
 			},
 		},
 	);
-	const memoryBridgeWorkItems = owner.node<WorkItemProjection<Record<string, unknown>>>(
-		[memoryBridgeFrames],
-		(ctx) => {
-			let emitted = false;
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				emitted = true;
-				ctx.down([["DATA", (raw as EvalMemoryBridgeFrame).sourceWorkItem]]);
-			}
-			if (!emitted) ctx.down([["RESOLVED"]]);
-		},
-		{
-			name: "eval/memory/source-work-item-data",
-			factory: "rootEvalMemorySourceWorkItemData",
-			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
-		},
-	);
-	const memoryMappingPolicy = owner.node<AgenticWorkItemMemoryMappingPolicy<MemoryPayload>>(
-		[memoryBridgeFrames],
-		(ctx) => {
-			let emitted = false;
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				emitted = true;
-				ctx.down([["DATA", (raw as EvalMemoryBridgeFrame).mappingPolicy]]);
-			}
-			if (!emitted) ctx.down([["RESOLVED"]]);
-		},
-		{
-			name: "eval/memory/mapping-policy",
-			factory: "rootEvalMemoryMappingPolicy",
-			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
-		},
-	);
-	const memoryCandidates = owner.node<
-		readonly AgenticWorkItemMemoryRecordCandidate<MemoryPayload>[]
-	>(
-		[memoryBridgeFrames],
-		(ctx) => {
-			let emitted = false;
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				emitted = true;
-				ctx.down([["DATA", (raw as EvalMemoryBridgeFrame).candidates]]);
-			}
-			if (!emitted) ctx.down([["RESOLVED"]]);
-		},
-		{
-			name: "eval/memory/candidates",
-			factory: "rootEvalMemoryCandidates",
-			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
-		},
-	);
-	const memoryInitialRecords = owner.node<readonly AgenticMemoryRecord<MemoryPayload>[]>(
-		[memoryBatchFrames],
-		(ctx) => {
-			let emitted = false;
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				emitted = true;
-				ctx.down([["DATA", (raw as EvalMemoryBatchFrame).initialRecords]]);
-			}
-			if (!emitted) ctx.down([["RESOLVED"]]);
-		},
-		{
-			name: "eval/memory/initial-records",
-			factory: "rootEvalInitialMemoryRecords",
-			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
-		},
-	);
-	const memoryBridgeRecipe = agenticWorkItemMemoryApplicationRecipeBundle<
+	type EvalMemoryBridgeSolutionInput = AgenticWorkItemMemoryBridgeInput<
 		Record<string, unknown>,
 		MemoryPayload
-	>(owner, {
-		name: "eval/solution/agentic-work-item-memory-application",
-		workItem: memoryBridgeWorkItems,
-		policy: memoryMappingPolicy,
-		candidates: memoryCandidates,
-	});
-	const proposalsForAdmission = owner.node<
-		typeof memoryBridgeRecipe.proposals extends Node<infer T> ? T : never
-	>(
-		[memoryBridgeRecipe.proposals],
+	> &
+		Readonly<{ readonly initialRecords: readonly AgenticMemoryRecord<MemoryPayload>[] }>;
+	const memoryBridgeOccurrences = owner.node<SolutionOccurrence<EvalMemoryBridgeSolutionInput>>(
+		[memoryBridgeFrames],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				if (!Array.isArray(raw)) throw new TypeError("memory proposal batch was not DATA");
-				ctx.down([
-					[
-						"DATA",
-						Object.freeze(
-							raw.filter(
-								(proposal) =>
-									!(
-										proposal as { candidateMaterial?: { record?: { id?: string } } }
-									).candidateMaterial?.record?.id?.includes("/proposal-only/memory-record"),
-							),
-						),
-					],
-				]);
-			}
+			const outputs = (depBatch(ctx, 0) ?? []).map((raw) => {
+				const frame = raw as EvalMemoryBridgeFrame;
+				return Object.freeze({
+					occurrenceId: frame.occurrenceId,
+					occurrenceRevision: frame.occurrenceRevision,
+					occurrenceDigest: frame.occurrenceDigest,
+					occurrenceSourceRefs: frame.occurrenceSourceRefs,
+					value: Object.freeze({
+						workItem: frame.sourceWorkItem,
+						policy: frame.mappingPolicy,
+						candidates: frame.candidates,
+						initialRecords: frame.initialRecords,
+					}),
+				});
+			});
+			if (outputs.length > 0) ctx.down(outputs.map((output) => ["DATA", output]));
 		},
 		{
-			name: "eval/memory/proposal-admission-boundary",
-			factory: "rootEvalMemoryProposalAdmissionBoundary",
+			name: "eval/memory/bridge-occurrence-input",
+			factory: "rootEvalMemoryBridgeOccurrenceInput",
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+		},
+	);
+	const memoryBridgeSolution = agenticWorkItemMemoryBridgeOccurrenceNode<
+		Record<string, unknown>,
+		MemoryPayload,
+		EvalMemoryBridgeSolutionInput
+	>(owner, memoryBridgeOccurrences, {
+		name: "eval/solution/agentic-work-item-memory-bridge",
+		maxOccurrences: ROOT_EVAL_REPLICATE_COUNT * 2,
+	});
+	const memoryAdmissionInputs = owner.node<
+		SolutionOccurrence<AgenticMemoryRecordAdmissionOccurrenceInput<MemoryPayload>>
+	>(
+		[memoryBridgeSolution],
+		(ctx) => {
+			const outputs: SolutionOccurrence<
+				AgenticMemoryRecordAdmissionOccurrenceInput<MemoryPayload>
+			>[] = [];
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const occurrence = raw as typeof memoryBridgeSolution extends Node<infer T> ? T : never;
+				const proposals = occurrence.value.result.proposals.filter(
+					(proposal) =>
+						!proposal.candidateMaterial.record.id.includes("/proposal-only/memory-record"),
+				);
+				const value = Object.freeze({
+					records: occurrence.value.input.initialRecords,
+					proposals: Object.freeze(proposals),
+					policy: Object.freeze({
+						kind: "agentic-memory-record-admission-policy" as const,
+						policyId: "root-eval-memory-admission-policy",
+						defaultState: "admitted" as const,
+						rejectDuplicateRecordIds: true,
+					}),
+				});
+				outputs.push(
+					Object.freeze({
+						...occurrence,
+						occurrenceDigest: empiricalStrictJsonDigest({
+							kind: "eval-memory-admission-occurrence",
+							occurrenceId: occurrence.occurrenceId,
+							proposalIds: proposals.map((proposal) => proposal.proposalId),
+							policyId: value.policy.policyId,
+						}),
+						value,
+					}),
+				);
+			}
+			if (outputs.length > 0) ctx.down(outputs.map((output) => ["DATA", output]));
+		},
+		{
+			name: "eval/memory/admission-occurrence-input",
+			factory: "rootEvalMemoryAdmissionOccurrenceInput",
 			meta: { proposalOnlyRemainsProposalOnly: true },
 		},
 	);
-	const memoryAdmissionPolicy = owner.state<AgenticMemoryRecordAdmissionPolicy>(
-		Object.freeze({
-			kind: "agentic-memory-record-admission-policy",
-			policyId: "root-eval-memory-admission-policy",
-			defaultState: "admitted",
-			rejectDuplicateRecordIds: true,
-		}),
-		{ name: "eval/memory/admission-policy", factory: "rootEvalMemoryAdmissionPolicy" },
+	const memoryAdmission = agenticMemoryRecordAdmissionOccurrenceNode<MemoryPayload>(
+		owner,
+		memoryAdmissionInputs,
+		{
+			name: "eval/solution/agentic-memory-admission",
+			maxOccurrences: ROOT_EVAL_REPLICATE_COUNT * 2,
+		},
 	);
-	const memoryAdmission = agenticMemoryRecordAdmissionBundle<MemoryPayload>(owner, {
-		name: "eval/solution/agentic-memory-admission",
-		records: memoryInitialRecords,
-		proposals: proposalsForAdmission,
-		policy: memoryAdmissionPolicy,
-	});
-	const memoryApplicationPolicy = owner.state<AgenticMemoryRecordApplicationPolicy>(
-		Object.freeze({
-			kind: "agentic-memory-record-application-policy",
-			policyId: "root-eval-memory-application-policy",
-		}),
-		{ name: "eval/memory/application-policy", factory: "rootEvalMemoryApplicationPolicy" },
+	const memoryApplicationInputs = owner.node<
+		SolutionOccurrence<AgenticMemoryRecordApplicationOccurrenceInput<MemoryPayload>>
+	>(
+		[memoryAdmission],
+		(ctx) => {
+			const outputs = (depBatch(ctx, 0) ?? []).map((raw) => {
+				const occurrence = raw as typeof memoryAdmission extends Node<infer T> ? T : never;
+				const value = Object.freeze({
+					records: occurrence.value.input.records,
+					admissions: occurrence.value.snapshot.admissions,
+					policy: Object.freeze({
+						kind: "agentic-memory-record-application-policy" as const,
+						policyId: "root-eval-memory-application-policy",
+					}),
+				});
+				return Object.freeze({
+					...occurrence,
+					occurrenceDigest: empiricalStrictJsonDigest({
+						kind: "eval-memory-application-occurrence",
+						occurrenceId: occurrence.occurrenceId,
+						admissionIds: value.admissions.map((admission) => admission.admissionId),
+						policyId: value.policy.policyId,
+					}),
+					value,
+				});
+			});
+			if (outputs.length > 0) ctx.down(outputs.map((output) => ["DATA", output]));
+		},
+		{
+			name: "eval/memory/application-occurrence-input",
+			factory: "rootEvalMemoryApplicationOccurrenceInput",
+		},
 	);
-	const memoryApplication = agenticMemoryRecordApplicationBundle<MemoryPayload>(owner, {
-		name: "eval/solution/agentic-memory-application",
-		records: memoryInitialRecords,
-		admissions: memoryAdmission.admissions,
-		policy: memoryApplicationPolicy,
-	});
+	const memoryApplication = agenticMemoryRecordApplicationOccurrenceNode<MemoryPayload>(
+		owner,
+		memoryApplicationInputs,
+		{
+			name: "eval/solution/agentic-memory-application",
+			maxOccurrences: ROOT_EVAL_REPLICATE_COUNT * 2,
+		},
+	);
 	const appliedMemoryRecordState = owner.node<readonly AgenticMemoryRecord<MemoryPayload>[]>(
-		[memoryApplication.records],
+		[memoryApplication],
 		(ctx) => {
 			const records =
 				ctx.state.get<Map<string, AgenticMemoryRecord<MemoryPayload>>>() ??
 				new Map<string, AgenticMemoryRecord<MemoryPayload>>();
 			let changed = false;
 			for (const raw of depBatch(ctx, 0) ?? []) {
-				for (const record of raw as readonly AgenticMemoryRecord<MemoryPayload>[]) {
+				const occurrence = raw as typeof memoryApplication extends Node<infer T> ? T : never;
+				for (const record of occurrence.value.snapshot.records) {
 					const prior = records.get(record.id);
-					if (prior !== undefined) continue;
+					if (prior !== undefined) {
+						if (
+							empiricalStrictJsonDigest(agenticMemoryRecordFrame(prior)) !==
+							empiricalStrictJsonDigest(agenticMemoryRecordFrame(record))
+						)
+							throw new TypeError("applied memory record replay conflicted with prior DATA");
+						continue;
+					}
 					records.set(record.id, record);
 					changed = true;
 				}
@@ -5125,38 +5128,46 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			meta: { authority: "real-agentic-memory-application-output", cumulative: true },
 		},
 	);
-	const memoryUseFrames = owner.node<{
-		readonly dispatch: EvalArmDispatch;
-		readonly request: AgenticMemoryRecordUseRequest;
-		readonly decisions: readonly AgenticMemoryRecordUseDecision[];
-	}>(
+	const memoryUseFrames = owner.node<EvalMemoryUseFrame>(
 		[appliedMemoryRecordState, memoryBatchFrames],
 		(ctx) => {
-			const frame = depLatest(ctx, 1) as EvalMemoryBatchFrame | undefined;
 			type MemoryUseRuntime = {
-				active: boolean;
 				records: Map<string, AgenticMemoryRecord<MemoryPayload>>;
-				scheduledReplicates: Set<number>;
-				timers: Set<ReturnType<typeof setTimeout>>;
+				batches: Map<number, EvalMemoryBatchFrame>;
+				observed: Map<string, RootEvalOccurrenceLedgerEntry>;
 			};
 			const runtime = ctx.state.get<MemoryUseRuntime>() ?? {
-				active: true,
 				records: new Map<string, AgenticMemoryRecord<MemoryPayload>>(),
-				scheduledReplicates: new Set<number>(),
-				timers: new Set<ReturnType<typeof setTimeout>>(),
+				batches: new Map<number, EvalMemoryBatchFrame>(),
+				observed: new Map<string, RootEvalOccurrenceLedgerEntry>(),
 			};
-			ctx.state.set(runtime);
-			ctx.onDeactivation(() => {
-				runtime.active = false;
-				for (const timer of runtime.timers) clearTimeout(timer);
-				runtime.timers.clear();
-			});
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const records = raw as readonly AgenticMemoryRecord<MemoryPayload>[];
-				for (const record of records) runtime.records.set(record.id, record);
+				for (const record of records) {
+					const prior = runtime.records.get(record.id);
+					if (
+						prior !== undefined &&
+						empiricalStrictJsonDigest(agenticMemoryRecordFrame(prior)) !==
+							empiricalStrictJsonDigest(agenticMemoryRecordFrame(record))
+					)
+						throw new TypeError("memory use record replay conflicted with prior DATA");
+					runtime.records.set(record.id, record);
+				}
 			}
-			if (frame !== undefined) {
+			for (const raw of depBatch(ctx, 1) ?? []) {
+				const frame = raw as EvalMemoryBatchFrame;
 				const replicate = frame.dispatches[0]?.replicate;
+				if (replicate === undefined) throw new TypeError("memory use occurrence lost replicate");
+				const prior = runtime.batches.get(replicate);
+				if (
+					prior !== undefined &&
+					empiricalStrictJsonDigest(prior) !== empiricalStrictJsonDigest(frame)
+				)
+					throw new TypeError("memory use replicate frame replay conflicted with prior DATA");
+				runtime.batches.set(replicate, frame);
+			}
+			const outputs: EvalMemoryUseFrame[] = [];
+			for (const [, frame] of [...runtime.batches].sort(([left], [right]) => left - right)) {
 				const requiredAppliedIds = frame.dispatches
 					.filter((dispatch) =>
 						["relevant-applied", "irrelevant-applied", "wrong-scope-applied"].includes(
@@ -5164,17 +5175,19 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 						),
 					)
 					.map((dispatch) => `${dispatch.workItemId}/memory-record`);
-				if (
-					replicate !== undefined &&
-					!runtime.scheduledReplicates.has(replicate) &&
-					requiredAppliedIds.every((id) => runtime.records.has(id))
-				) {
-					runtime.scheduledReplicates.add(replicate);
-					const records = [...runtime.records.values()];
-					const frames = HARNESS_ARMS.map((arm) => {
+				if (requiredAppliedIds.every((id) => runtime.records.has(id))) {
+					const frameRecordIds = new Set([
+						...requiredAppliedIds,
+						...frame.initialRecords.map((record) => record.id),
+					]);
+					const records = [...runtime.records.values()]
+						.filter((record) => frameRecordIds.has(record.id))
+						.sort((left, right) => left.id.localeCompare(right.id));
+					for (const arm of HARNESS_ARMS) {
 						const dispatch = frame.dispatches.find((value) => value.arm === arm)!;
 						const expectedRecordId = `${dispatch.workItemId}/memory-record`;
 						const request = memoryUseRequest(dispatch);
+						const occurrenceId = request.requestId;
 						const decisions = records.map((memory) =>
 							createAgenticMemoryRecordUseDecision(request, memory, {
 								decisionId: `${dispatch.workItemId}/memory-use/${memory.id}`,
@@ -5184,141 +5197,139 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 										: "denied",
 							}),
 						);
-						return Object.freeze({ dispatch, request, decisions: Object.freeze(decisions) });
-					});
-					const emitFrame = (index: number) => {
-						const value = frames[index];
-						if (value === undefined) return;
-						const timer = setTimeout(() => {
-							runtime.timers.delete(timer);
-							if (!runtime.active) return;
-							ctx.down([["DATA", value]]);
-							emitFrame(index + 1);
-						}, 0);
-						runtime.timers.add(timer);
-					};
-					emitFrame(0);
+						const occurrenceMaterial = Object.freeze({
+							occurrenceId,
+							occurrenceRevision: 1 as const,
+							occurrenceSourceRefs: Object.freeze([
+								Object.freeze({ kind: "eval-campaign", id: campaignRef }),
+								Object.freeze({ kind: "work-item", id: dispatch.workItemId }),
+							]),
+							dispatch,
+							records: Object.freeze(records),
+							request,
+							decisions: Object.freeze(decisions),
+						});
+						const occurrenceDigest = empiricalStrictJsonDigest({
+							kind: "eval-memory-use-occurrence",
+							occurrenceId,
+							occurrenceRevision: 1,
+							dispatch: {
+								workItemId: dispatch.workItemId,
+								arm: dispatch.arm,
+								replicate: dispatch.replicate,
+							},
+							records: records.map((record) => agenticMemoryRecordFrame(record)),
+							request,
+							decisions,
+							sourceRefs: occurrenceMaterial.occurrenceSourceRefs,
+						});
+						const occurrence = Object.freeze({ ...occurrenceMaterial, occurrenceDigest });
+						if (
+							admitRootEvalOccurrence(
+								runtime.observed,
+								occurrence,
+								ROOT_EVAL_REPLICATE_COUNT * HARNESS_ARMS.length,
+							) === "accepted"
+						)
+							outputs.push(occurrence);
+					}
 				}
 			}
-			ctx.down([["RESOLVED"]]);
+			if (runtime.batches.size > ROOT_EVAL_REPLICATE_COUNT)
+				throw new TypeError("memory use replicate retention exceeded its fixed bound");
+			ctx.state.set(runtime);
+			if (outputs.length > 0) ctx.down(outputs.map((output) => ["DATA", output]));
 		},
 		{
 			name: "eval/memory/exposure-frame",
 			factory: "rootEvalMemoryExposureFrame",
-			pool: "async",
-			pausable: false,
-			meta: { dataWaveOrder: HARNESS_ARMS, lifecycleCardinality: "one" },
+			meta: {
+				armOrder: HARNESS_ARMS,
+				lifecycleCardinality: "one",
+				occurrenceIdentity: "request-id/revision/digest/source-refs",
+				batching: "bounded-many-per-wave",
+			},
 		},
 	);
-	const memoryUseRequests = owner.node<AgenticMemoryRecordUseRequest>(
+	type EvalMemoryUseSolutionInput = AgenticMemoryRecordUseOccurrenceInput<MemoryPayload> &
+		Readonly<{ readonly dispatch: EvalArmDispatch }>;
+	const memoryUseOccurrenceInputs = owner.node<SolutionOccurrence<EvalMemoryUseSolutionInput>>(
 		[memoryUseFrames],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? [])
-				ctx.down([["DATA", (raw as { readonly request: AgenticMemoryRecordUseRequest }).request]]);
+			const outputs = (depBatch(ctx, 0) ?? []).map((raw) => {
+				const frame = raw as EvalMemoryUseFrame;
+				return Object.freeze({
+					occurrenceId: frame.occurrenceId,
+					occurrenceRevision: frame.occurrenceRevision,
+					occurrenceDigest: frame.occurrenceDigest,
+					occurrenceSourceRefs: frame.occurrenceSourceRefs,
+					value: Object.freeze({
+						dispatch: frame.dispatch,
+						records: frame.records,
+						request: frame.request,
+						decisions: frame.decisions,
+					}),
+				});
+			});
+			if (outputs.length > 0) ctx.down(outputs.map((output) => ["DATA", output]));
 		},
-		{ name: "eval/memory/exposure-request", factory: "rootEvalMemoryExposureRequest" },
-	);
-	const memoryUseDecisions = owner.node<readonly AgenticMemoryRecordUseDecision[]>(
-		[memoryUseFrames],
-		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? [])
-				ctx.down([
-					[
-						"DATA",
-						(raw as { readonly decisions: readonly AgenticMemoryRecordUseDecision[] }).decisions,
-					],
-				]);
+		{
+			name: "eval/memory/exposure-occurrence-input",
+			factory: "rootEvalMemoryExposureOccurrenceInput",
 		},
-		{ name: "eval/memory/exposure-decisions", factory: "rootEvalMemoryExposureDecisions" },
 	);
-	const memoryExposure = agenticMemoryRecordUseGateBundle(owner, {
-		name: "eval/solution/agentic-memory-exposure",
-		records: appliedMemoryRecordState,
-		request: memoryUseRequests,
-		decisions: memoryUseDecisions,
-	});
-	const memoryQuery = owner.node<{ readonly tags: readonly string[] }>(
-		[memoryUseFrames],
-		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				const dispatch = (raw as { readonly dispatch: EvalArmDispatch }).dispatch;
-				ctx.down([
-					[
-						"DATA",
-						Object.freeze({
-							tags: Object.freeze([
-								dispatch.arm === "irrelevant-applied" ? "irrelevant" : "relevant",
-							]),
-						}),
-					],
-				]);
-			}
-		},
-		{ name: "eval/memory/query", factory: "rootEvalMemoryQuery" },
-	);
-	const agenticMemory = agenticMemoryBundle(owner, {
+	const memoryExposure = agenticMemoryRecordUseOccurrenceNode<
+		MemoryPayload,
+		EvalMemoryUseSolutionInput
+	>(owner, memoryUseOccurrenceInputs, {
 		name: "eval/solution/agentic-memory",
-		records: memoryExposure.allowedRecords,
-		query: memoryQuery,
+		maxOccurrences: ROOT_EVAL_REPLICATE_COUNT * HARNESS_ARMS.length,
 	});
 	const memoryContexts = owner.node<EvalMemoryContextFrame>(
-		[memoryUseFrames, agenticMemory.ranked],
+		[memoryExposure],
 		(ctx) => {
-			const frame = depLatest(ctx, 0) as { readonly dispatch: EvalArmDispatch } | undefined;
-			const answer = depLatest(ctx, 1) as
-				| {
-						readonly results?: readonly {
-							readonly id?: string;
-							readonly payload?: MemoryPayload;
-						}[];
-				  }
-				| undefined;
-			if (frame === undefined || answer === undefined) return;
-			const emitted = ctx.state.get<Set<string>>() ?? new Set<string>();
-			const dispatch = frame.dispatch;
-			if (!emitted.has(dispatch.workItemId)) {
+			const outputs: EvalMemoryContextFrame[] = [];
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const occurrence = raw as typeof memoryExposure extends Node<infer T> ? T : never;
+				const dispatch = occurrence.value.input.dispatch;
 				const exposed =
 					dispatch.arm === "relevant-applied" || dispatch.arm === "irrelevant-applied";
-				const results = exposed
-					? (answer.results ?? []).filter(
-							(value) => value.id === `${dispatch.workItemId}/memory-fragment`,
+				const records = exposed
+					? occurrence.value.snapshot.allowedRecords.filter(
+							(value) => value.id === `${dispatch.workItemId}/memory-record`,
 						)
 					: [];
-				if (exposed && results.length !== 1) return;
-				const ids = Object.freeze(results.map((value) => value.id as string));
+				if (exposed && records.length !== 1) continue;
+				const ids = Object.freeze(records.map((value) => value.fragment.id as string));
 				const bindings = Object.freeze(
-					results.flatMap((value) =>
-						value.payload !== undefined &&
-						typeof value.payload.bindingRef === "string" &&
-						isDigest(value.payload.digest)
-							? [Object.freeze({ ...value.payload })]
+					records.flatMap((value) =>
+						value.fragment.payload !== undefined &&
+						typeof value.fragment.payload.bindingRef === "string" &&
+						isDigest(value.fragment.payload.digest)
+							? [Object.freeze({ ...value.fragment.payload })]
 							: [],
 					),
 				);
-				if (bindings.length !== ids.length) return;
-				emitted.add(dispatch.workItemId);
-				ctx.down([
-					[
-						"DATA",
-						Object.freeze({
-							dispatch,
+				if (bindings.length !== ids.length) continue;
+				outputs.push(
+					Object.freeze({
+						dispatch,
+						exposedRecordIds: ids,
+						bindings,
+						contextDigest: empiricalStrictJsonDigest({
+							kind: "eval-memory-context",
+							taskInstanceRef: dispatch.taskInstanceRef,
+							sourceWorkItemId: dispatch.memorySourceWorkItemId,
+							sourceEvidenceDigest: dispatch.memorySourceEvidenceDigest,
+							sourceInsightDigest: dispatch.memorySourceInsightDigest,
+							arm: dispatch.arm,
 							exposedRecordIds: ids,
 							bindings,
-							contextDigest: empiricalStrictJsonDigest({
-								kind: "eval-memory-context",
-								taskInstanceRef: dispatch.taskInstanceRef,
-								sourceWorkItemId: dispatch.memorySourceWorkItemId,
-								sourceEvidenceDigest: dispatch.memorySourceEvidenceDigest,
-								sourceInsightDigest: dispatch.memorySourceInsightDigest,
-								arm: dispatch.arm,
-								exposedRecordIds: ids,
-								bindings,
-							}),
 						}),
-					],
-				]);
+					}),
+				);
 			}
-			ctx.state.set(emitted);
+			if (outputs.length > 0) ctx.down(outputs.map((output) => ["DATA", output]));
 		},
 		{
 			name: "eval/memory/context-for-work-item",
@@ -6219,7 +6230,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		(ctx) => {
 			const graphTaskBindings = depLatest(ctx, 2) as readonly RootEvalTaskBinding[] | undefined;
 			if (graphTaskBindings === undefined) return;
-			let emitted = false;
 			const state = ctx.state.get<{
 				admitted: Set<string>;
 				sourceOutcomes: Map<string, EvalProviderOutcome>;
@@ -6299,10 +6309,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					receiptDigest: toolAdmissionReceiptDigest(material),
 				});
 				state.admitted.add(toolAdmissionId);
-				emitted = true;
 				ctx.down([["DATA", admission]]);
 			}
-			if (!emitted) ctx.down([["RESOLVED"]]);
 			ctx.state.set(state);
 		},
 		{
@@ -6320,37 +6328,24 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			},
 		},
 	);
-	const providerExecutorEffects = owner.node<EvalAdmittedEffect>(
+	const providerExecutorEffects = owner.initNode(
+		merge<EvalAdmittedEffect>(),
 		[providerAdmissions],
-		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) ctx.down([["DATA", raw]]);
-		},
 		{
 			name: "eval/executor/current-provider-effect",
-			factory: "rootEvalProviderExecutorBoundary",
-			partial: true,
+			meta: { role: "caller-executes-current-admitted-provider-effect-only" },
 		},
 	);
-	const toolExecutorEffects = owner.node<EvalAdmittedToolEffect>(
-		[toolAdmissions],
-		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) ctx.down([["DATA", raw]]);
-		},
-		{
-			name: "eval/executor/current-tool-effect",
-			factory: "rootEvalToolExecutorBoundary",
-			partial: true,
-		},
-	);
-	const retryDelayExecutorEffects = owner.node<EvalRetryDelayEffect>(
+	const toolExecutorEffects = owner.initNode(merge<EvalAdmittedToolEffect>(), [toolAdmissions], {
+		name: "eval/executor/current-tool-effect",
+		meta: { role: "caller-executes-current-admitted-tool-effect-only" },
+	});
+	const retryDelayExecutorEffects = owner.initNode(
+		merge<EvalRetryDelayEffect>(),
 		[retryDelayAdmissions],
-		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) ctx.down([["DATA", raw]]);
-		},
 		{
 			name: "eval/executor/current-retry-delay",
-			factory: "rootEvalRetryDelayExecutorBoundary",
-			partial: true,
+			meta: { role: "caller-executes-current-admitted-retry-delay-only" },
 		},
 	);
 	type EvalBillingPending = Readonly<{
@@ -6568,13 +6563,10 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const billingObservationProposals = owner.node<EvalBillingObservationProposal>(
 		[billingFacts],
 		(ctx) => {
-			let emitted = false;
 			for (const raw of depBatch(ctx, 0) ?? [])
 				if ((raw as BillingFact).kind === "eval-billing-observation-proposal") {
-					emitted = true;
 					ctx.down([["DATA", raw]]);
 				}
-			if (!emitted) ctx.down([["RESOLVED"]]);
 		},
 		{
 			name: "eval/billing/observation-proposals",
@@ -6614,27 +6606,21 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			meta: { authority: "root-graph", callerAuthority: "execute-current-effect-only" },
 		},
 	);
-	const billingExecutorEffects = owner.node<EvalBillingObservationEffect>(
+	const billingExecutorEffects = owner.initNode(
+		merge<EvalBillingObservationEffect>(),
 		[billingObservationAdmissions],
-		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) ctx.down([["DATA", raw]]);
-		},
 		{
 			name: "eval/executor/current-billing-observation",
-			factory: "rootEvalBillingObservationExecutorBoundary",
-			partial: true,
+			meta: { role: "caller-executes-current-admitted-billing-observation-only" },
 		},
 	);
 	const billingReconciliation = owner.node<EvalBillingReconciliation>(
 		[billingFacts],
 		(ctx) => {
-			let emitted = false;
 			for (const raw of depBatch(ctx, 0) ?? [])
 				if ((raw as BillingFact).kind === "eval-billing-reconciliation") {
-					emitted = true;
 					ctx.down([["DATA", raw]]);
 				}
-			if (!emitted) ctx.down([["RESOLVED"]]);
 		},
 		{
 			name: "eval/billing/reconciliation",
@@ -6948,7 +6934,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				activeAdmittedEffects > HARNESS_ARMS.length ||
 				(activeBillingEffects > 0 && activeAdmittedEffects !== activeBillingEffects)
 			) {
-				ctx.down([["RESOLVED"]]);
 				return;
 			}
 			ctx.down([
@@ -7354,7 +7339,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			errorWhenDepsError: false,
 			meta: {
 				materialFree: true,
-				authority: "d145-two-consecutive-five-replicate-development-generations",
+				authority: "d152-mechanism-two-consecutive-development-generations-under-d145-threshold",
 				requiredConsecutiveGenerations: 2,
 			},
 		},
@@ -7443,7 +7428,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			verificationDiagnostics,
 		],
 		(ctx) => {
-			let emitted = false;
 			const state = ctx.state.get<EvalProgressObservationState>() ?? {};
 			for (const raw of depBatch(ctx, 0) ?? [])
 				state.context = raw as EvalSourceStageObservationContext;
@@ -7574,10 +7558,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 						}),
 					],
 				]);
-				emitted = true;
 			}
 			ctx.state.set(state);
-			if (!emitted) ctx.down([["RESOLVED"]]);
 		},
 		{
 			name: "eval/observation/source-stage-state",
@@ -7796,7 +7778,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				state.elapsedBudget = raw as EvalElapsedBudgetState;
 			}
 			ctx.state.set(state);
-			if (!emit()) ctx.down([["RESOLVED"]]);
+			emit();
 		},
 		{
 			name: "eval/observation/full-state",
@@ -7836,7 +7818,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			const state = ctx.state.get<{ digest?: string; terminal: boolean }>() ?? {
 				terminal: false,
 			};
-			let emitted = false;
 			for (let index = 0; index < 2; index += 1)
 				for (const raw of depBatch(ctx, index) ?? []) {
 					const value = raw as EvalObservation;
@@ -7846,11 +7827,9 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 						throw new TypeError("eval observation mux changed after its terminal finding");
 					state.digest = digest;
 					state.terminal = value.finding !== "pending";
-					emitted = true;
 					ctx.down([["DATA", value]]);
 				}
 			ctx.state.set(state);
-			if (!emitted) ctx.down([["RESOLVED"]]);
 		},
 		{
 			name: "eval/observation",
@@ -8147,7 +8126,9 @@ async function runRootEvalWithOutcomeInput(
 				const execution = (async () => {
 					let providerExecutionCounted = effect.kind === "eval-admitted-effect";
 					try {
-						await new Promise<void>((releaseExecutionTurn) => setTimeout(releaseExecutionTurn, 0));
+						// Mechanical caller cancellation checkpoint. This does not split a domain
+						// occurrence: the admitted effect and all causal coordinates remain unchanged.
+						await Promise.resolve();
 						if (settled || !acceptingNewEffects) return;
 						const outcome = await executor(effect);
 						if (settled) return;

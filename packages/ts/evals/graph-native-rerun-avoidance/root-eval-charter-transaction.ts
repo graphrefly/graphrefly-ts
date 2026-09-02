@@ -297,7 +297,7 @@ function staleTransactionReconciliation(value: RootEvalD145CharterTransaction) {
 	const { evidenceDigest, ...originalEvidenceMaterial } = evidence;
 	const last = value.nextLedger.entries.at(-1);
 	const violations = [
-		...(evidence.schemaVersion !== "graphrefly-ts.root-eval-live-evidence.v24"
+		...(String(evidence.schemaVersion) !== "graphrefly-ts.root-eval-live-evidence.v24"
 			? ["evidence-schema"]
 			: []),
 		...(evidence.implementationManifestDigest === CURRENT_IMPLEMENTATION_MANIFEST_DIGEST

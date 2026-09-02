@@ -19,13 +19,17 @@ import {
 	CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
 	measureCurrentImplementation,
 } from "./implementation-manifest.js";
-import { ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER } from "./root-eval-charter-ledger.js";
 import {
 	ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT,
 	ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT_DIGEST,
 	ROOT_EVAL_LIVE_QUALIFICATION,
 } from "./root-eval-live-qualification.js";
-import { ROOT_EVAL_DEVELOPMENT_TASKS, ROOT_EVAL_HELD_OUT_SEAL_DIGEST } from "./root-eval-task.js";
+import {
+	ROOT_EVAL_DEVELOPMENT_TASKS,
+	ROOT_EVAL_HELD_OUT_SEAL_DIGEST,
+	ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES,
+	rootEvalScriptedMechanismReplacement,
+} from "./root-eval-task.js";
 import {
 	ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT,
 	ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT_DIGEST,
@@ -257,7 +261,9 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 					ref !== "graphrefly-ts:D145" &&
 					ref !== "graphrefly-ts:D148" &&
 					ref !== "graphrefly-ts:D149" &&
-					ref !== "graphrefly-ts:D150",
+					ref !== "graphrefly-ts:D150" &&
+					ref !== "graphrefly-ts:D151" &&
+					ref !== "graphrefly-ts:D152",
 			),
 		),
 		implementationManifestDigest: D120_IMPLEMENTATION_MANIFEST_DIGEST,
@@ -295,6 +301,12 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 				"d149PublicPricingFailureDoesNotConsumeGeneration",
 				"d149SecondPrivateReadRevalidatesIdentity",
 				"d150TaskStimulusContractLeavesTopologyUnchanged",
+				"d151OccurrenceFramedWorkItemMemoryBridge",
+				"d151OccurrenceFramedMemoryAdmissionApplicationExposure",
+				"d151SeparateWaveReorderedOccurrenceConservation",
+				"d151NoDomainOrderingTimerOrCallSiteSettlementRepair",
+				"d152TaskSchemaChangesStimulusNotTopology",
+				"d152NoNetworkGraphBindingIsLoadBearing",
 				"d145ExactlyOneRootCampaignContract",
 				"d145OneFixedAgenticMemoryLifecycle",
 				"d145SixArmsAreCorrelatedDataNotLifecycleCopies",
@@ -364,6 +376,8 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 		precredentialGateChronologyImplementationReceiptRef: _topologyD139Receipt,
 		stableOperatorConfigurationDecisionRef: _topologyD149,
 		discriminantOnlyStimulusDecisionRef: _topologyD150,
+		occurrenceAwareSolutionDeliveryDecisionRef: _topologyD151,
+		orthogonalMechanismFamilyDecisionRef: _topologyD152,
 		completionCharterRef: _topologyD140Charter,
 		currentLiveExecutionApprovalClosed: _topologyLiveApprovalClosed,
 		callerHorizonDecisionRequired: _topologyCallerHorizon,
@@ -455,7 +469,9 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 					ref !== "graphrefly-ts:D145" &&
 					ref !== "graphrefly-ts:D148" &&
 					ref !== "graphrefly-ts:D149" &&
-					ref !== "graphrefly-ts:D150",
+					ref !== "graphrefly-ts:D150" &&
+					ref !== "graphrefly-ts:D151" &&
+					ref !== "graphrefly-ts:D152",
 			),
 		),
 		implementationManifestDigest: D120_IMPLEMENTATION_MANIFEST_DIGEST,
@@ -532,6 +548,16 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 				"d150PriorManifestSchemaFailsClosed",
 				"d150LeakageAndRebindingMutationContract",
 				"d150ConfirmatoryManifestAtomicallyResealed",
+				"d151OccurrenceFramedRealSolutionBoundaries",
+				"d151SeparateWaveReorderedReplayConflictAndBound",
+				"d151NoDomainOrderingTimerOrCallSiteSettlementRepair",
+				"d152FivePairwiseOrthogonalMechanisms",
+				"d152TwoDisjointDevelopmentBanks",
+				"d152TargetPlausibleRotatedIrrelevantControl",
+				"d152NoNetworkDiscriminationOracleUsesGraphBinding",
+				"d152ConfirmatoryManifestUnmaterializedFailsClosed",
+				"d152HistoricalEfficacyEpochNotInherited",
+				"d152NoNetworkArtifactsEmitNoEfficacyClaim",
 				"d140ExactExecutionAuthorityOpen",
 				"d140FirstProviderDispatchConsumesAutomaticRerunAuthority",
 				"d140CumulativeUsdSixHardCap",
@@ -602,6 +628,8 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 		precredentialGateChronologyImplementationReceiptRef: _liveD139Receipt,
 		stableOperatorConfigurationDecisionRef: _liveD149,
 		discriminantOnlyStimulusDecisionRef: _liveD150,
+		occurrenceAwareSolutionDeliveryDecisionRef: _liveD151,
+		orthogonalMechanismFamilyDecisionRef: _liveD152,
 		completionCharterRef: _liveD140Charter,
 		currentLiveExecutionApprovalClosed: _liveApprovalClosed,
 		callerHorizonDecisionRequired: _liveCallerHorizon,
@@ -705,10 +733,11 @@ async function readD124FrozenArtifactBytes(): Promise<
 }
 
 function qualificationOutcome(effect: EvalAdmittedToolEffect): EvalEffectOutcome {
-	const payload = effect.providerAdmission.request.payload as
-		| { readonly memoryExposureCount?: number }
-		| undefined;
-	const passed = effect.workItemRole === "source" || payload?.memoryExposureCount === 1;
+	const passed =
+		effect.workItemRole === "source" ||
+		(effect.path === ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate - 1]!.writablePath &&
+			effect.oldText === ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate - 1]!.fixtureBuggyText &&
+			effect.newText === ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate - 1]!.fixtureCorrectText);
 	const expectedDigest =
 		effect.workItemRole === "source"
 			? ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate - 1]!.sourceVerifierEvidenceDigest
@@ -795,12 +824,53 @@ async function qualificationExecutor(effect: EvalExecutableEffect): Promise<Eval
 			}),
 		});
 	const task = ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate - 1]!;
+	const payload = effect.request.payload as
+		| {
+				readonly memoryExposureCount?: number;
+				readonly memoryBindings?: readonly Readonly<{
+					readonly bindingRef: string;
+					readonly digest: string;
+				}>[];
+		  }
+		| undefined;
+	let targetReplacement = task.fixtureCorrectText;
+	if (effect.workItemRole === "target") {
+		const sourceTask =
+			effect.arm === "irrelevant-applied"
+				? ROOT_EVAL_DEVELOPMENT_TASKS[
+						ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES[effect.replicate - 1]! - 1
+					]!
+				: task;
+		const exposed = effect.arm === "relevant-applied" || effect.arm === "irrelevant-applied";
+		const expectedBindingDigest = empiricalStrictJsonDigest({
+			kind: "eval-private-memory-binding",
+			taskInstanceRef: sourceTask.instanceRef,
+			sourceWorkItemId: sourceTask.sourceWorkItemRef,
+			sourceEvidenceDigest: sourceTask.sourceVerifierEvidenceDigest,
+			sourceInsightDigest: sourceTask.sourceInsightDigest,
+			arm: effect.arm,
+		});
+		if (
+			(exposed &&
+				(payload?.memoryExposureCount !== 1 ||
+					payload.memoryBindings?.length !== 1 ||
+					payload.memoryBindings[0]?.digest !== expectedBindingDigest)) ||
+			(!exposed &&
+				(payload?.memoryExposureCount !== 0 || (payload.memoryBindings?.length ?? 0) !== 0))
+		)
+			throw new TypeError("no-network executor rejected memory occurrence binding drift");
+		targetReplacement = rootEvalScriptedMechanismReplacement(task, {
+			sourceInsightContent: exposed ? sourceTask.sourceInsightContent : undefined,
+			admitted: exposed || effect.arm === "wrong-scope-applied",
+			applied: exposed || effect.arm === "wrong-scope-applied",
+			scopeMatches: effect.arm !== "wrong-scope-applied",
+		}).replacement;
+	}
 	const tool = Object.freeze({
 		toolRef: "graphrefly.eval.exact-tool.v1" as const,
 		path: effect.workItemRole === "source" ? task.sourceWritablePath : task.writablePath,
 		oldText: effect.workItemRole === "source" ? task.sourceFixtureBuggyText : task.fixtureBuggyText,
-		newText:
-			effect.workItemRole === "source" ? task.sourceFixtureCorrectText : task.fixtureCorrectText,
+		newText: effect.workItemRole === "source" ? task.sourceFixtureCorrectText : targetReplacement,
 	});
 	const exactRouteHttp429 =
 		effect.workItemRole === "target" &&
@@ -865,17 +935,19 @@ export async function buildRootEvalGeneratedArtifactBytes(): Promise<RootEvalGen
 			callback();
 			return 0 as unknown as ReturnType<typeof setTimeout>;
 		},
-		campaignRef: "root-eval-confirmatory-2026-08-27-d145-v1",
-		campaignPurpose: "confirmatory",
+		campaignRef: "root-eval-d152-mechanism-no-network-qualification-v1",
+		campaignPurpose: "development",
 		taskSetRef: ROOT_EVAL_DEVELOPMENT_TASKS[0]!.taskSetRef,
-		generationRef: "root-eval-confirmatory-2026-08-27-d145-v1",
+		generationRef: "root-eval-d152-mechanism-no-network-qualification-v1",
 		replicateCount: 5,
 		heldOutSealDigest: ROOT_EVAL_HELD_OUT_SEAL_DIGEST,
-		budgetPartition: "confirmatory-usd-6",
-		partitionHardCapMicrousd: 6_000_000,
+		budgetPartition: "development-usd-36",
+		partitionHardCapMicrousd: 36_000_000,
 		partitionSpentBeforeMicrousd: 0,
-		partitionLedgerDigest: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER.ledgerDigest,
-		developmentQualificationStreakBefore: 2,
+		partitionLedgerDigest: empiricalStrictJsonDigest({
+			kind: "d152-no-network-qualification-ledger",
+		}),
+		developmentQualificationStreakBefore: 0,
 	});
 	const describe = topology.graph.describe();
 	const rawObservationEvents: Array<RootEvalRunResult["observations"][number]> = [];
@@ -908,6 +980,8 @@ export async function buildRootEvalGeneratedArtifactBytes(): Promise<RootEvalGen
 		format: "graphrefly.rootEvalRunSummary" as const,
 		version: 1 as const,
 		authority: "derived-no-network-qa" as const,
+		claimStatus: "no-network-identifiability-only" as const,
+		efficacyClaim: "none" as const,
 		observation,
 		finding: result.finding,
 		peakConcurrentEffects: result.peakConcurrentEffects,

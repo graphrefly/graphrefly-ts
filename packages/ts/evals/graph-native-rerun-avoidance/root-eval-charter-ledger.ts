@@ -21,10 +21,78 @@ export const ROOT_EVAL_D145_CONFIRMATORY_HARD_CAP_MICROUSD = 6_000_000 as const;
 export const ROOT_EVAL_D145_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD = 6_000_000 as const;
 export const ROOT_EVAL_D145_TOTAL_HARD_CAP_MICROUSD = 42_000_000 as const;
 
+export const ROOT_EVAL_D152_DEVELOPMENT_HARD_CAP_MICROUSD = 36_000_000 as const;
+export const ROOT_EVAL_D152_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD = 12_000_000 as const;
+export const ROOT_EVAL_D152_CONFIRMATORY_HARD_CAP_MICROUSD = 6_000_000 as const;
+export const ROOT_EVAL_D152_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD = 6_000_000 as const;
+export const ROOT_EVAL_D152_TOTAL_HARD_CAP_MICROUSD = 42_000_000 as const;
+
+export const ROOT_EVAL_D152_QUALIFICATION_EPOCH_SCHEMA =
+	"graphrefly-ts.root-eval-d152-qualification-epoch.v1" as const;
+
+export type RootEvalD152QualificationEpoch = Readonly<{
+	readonly schemaVersion: typeof ROOT_EVAL_D152_QUALIFICATION_EPOCH_SCHEMA;
+	readonly decisionRef: "graphrefly-ts:D152";
+	readonly supersededHistoricalLedgerDigest: string;
+	readonly carriedDevelopmentSpentMicrousd: number;
+	readonly carriedConfirmatorySpentMicrousd: number;
+	readonly developmentQualificationStreak: 0;
+	readonly heldOutSealDigest: null;
+	readonly heldOutConsumed: false;
+	readonly developmentManifestSlots: readonly ["development-1", "development-2"];
+	readonly epochDigest: string;
+}>;
+
+/**
+ * Opens the D152 evidence epoch without reinterpreting a prior ledger or held-out result.
+ * The returned DATA is planning authority only; it does not authorize provider work or spend.
+ */
+export function createRootEvalD152QualificationEpoch(input: {
+	readonly supersededHistoricalLedgerDigest: string;
+	readonly carriedDevelopmentSpentMicrousd: number;
+	readonly carriedConfirmatorySpentMicrousd: number;
+}): RootEvalD152QualificationEpoch {
+	if (!/^sha256:[0-9a-f]{64}$/u.test(input.supersededHistoricalLedgerDigest))
+		throw new TypeError("root eval D152 historical ledger digest invalid");
+	const carriedDevelopmentSpentMicrousd = safeInteger(
+		input.carriedDevelopmentSpentMicrousd,
+		"root eval D152 carried development spend",
+		{ max: ROOT_EVAL_D145_DEVELOPMENT_HARD_CAP_MICROUSD },
+	);
+	const carriedConfirmatorySpentMicrousd = safeInteger(
+		input.carriedConfirmatorySpentMicrousd,
+		"root eval D152 carried confirmatory spend",
+		{ max: ROOT_EVAL_D145_CONFIRMATORY_HARD_CAP_MICROUSD },
+	);
+	if (
+		carriedDevelopmentSpentMicrousd + carriedConfirmatorySpentMicrousd >
+		ROOT_EVAL_D145_TOTAL_HARD_CAP_MICROUSD
+	)
+		throw new TypeError("root eval D152 carried total spend exceeded the charter cap");
+	const material = Object.freeze({
+		schemaVersion: ROOT_EVAL_D152_QUALIFICATION_EPOCH_SCHEMA,
+		decisionRef: "graphrefly-ts:D152" as const,
+		supersededHistoricalLedgerDigest: input.supersededHistoricalLedgerDigest,
+		carriedDevelopmentSpentMicrousd,
+		carriedConfirmatorySpentMicrousd,
+		developmentQualificationStreak: 0 as const,
+		heldOutSealDigest: null,
+		heldOutConsumed: false as const,
+		developmentManifestSlots: Object.freeze(["development-1", "development-2"] as const),
+	});
+	return Object.freeze({ ...material, epochDigest: empiricalStrictJsonDigest(material) });
+}
+
 export function rootEvalD145DevelopmentGenerationRef(ordinal: number): string {
 	if (!Number.isSafeInteger(ordinal) || ordinal < 1)
 		throw new TypeError("root eval D145 development generation ordinal invalid");
 	return `root-eval-development-2026-08-27-d145-v${ordinal}`;
+}
+
+export function rootEvalD152DevelopmentGenerationRef(ordinal: number): string {
+	if (!Number.isSafeInteger(ordinal) || ordinal < 1)
+		throw new TypeError("root eval D152 development generation ordinal invalid");
+	return `root-eval-development-2026-09-01-d152-v${ordinal}`;
 }
 
 function developmentGenerationOrdinal(generationRef: string): number | null {
@@ -32,6 +100,10 @@ function developmentGenerationOrdinal(generationRef: string): number | null {
 	if (match === null) return null;
 	const ordinal = Number(match[1]);
 	return Number.isSafeInteger(ordinal) ? ordinal : null;
+}
+
+function historicalRootEvalD145DevelopmentTaskSetRef(ordinal: number): string {
+	return `root-eval-d145-transfer-development-${ordinal}-v1`;
 }
 
 type RootEvalD145LedgerBudgetPartition =
@@ -271,7 +343,8 @@ function validateLedger(value: unknown): RootEvalD145CharterLedger {
 			const ordinal = developmentGenerationOrdinal(entry.generationRef);
 			return (
 				ordinal === null ||
-				entry.taskSetRef !== rootEvalDevelopmentTaskSetRef(ordinal) ||
+				(entry.taskSetRef !== rootEvalDevelopmentTaskSetRef(ordinal) &&
+					entry.taskSetRef !== historicalRootEvalD145DevelopmentTaskSetRef(ordinal)) ||
 				typeof entry.generationQualified !== "boolean"
 			);
 		}) ||

@@ -36,6 +36,7 @@ import {
 	ROOT_EVAL_MAX_CAPACITY_RETRIES,
 	ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM,
 	ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+	ROOT_EVAL_TOPOLOGY_REVISION,
 	type RootEvalRunResult,
 	rootEvalMaximumProviderAttempts,
 	rootEvalMaximumRetryAttempts,
@@ -47,6 +48,7 @@ import {
 } from "../../evals/graph-native-rerun-avoidance/generate-root-eval-artifacts.js";
 import {
 	advanceRootEvalD145CharterLedger,
+	createRootEvalD152QualificationEpoch,
 	latestRootEvalGraphSpend,
 	nextRootEvalD145DevelopmentOrdinal,
 	ROOT_EVAL_D145_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD,
@@ -59,6 +61,7 @@ import {
 	reconcileRootEvalD145ConsumedPreclaimFailure,
 	rootEvalD145ConsumedPreclaimReconciliationDigest,
 	rootEvalD145DevelopmentGenerationRef,
+	rootEvalD152DevelopmentGenerationRef,
 	writeRootEvalD145CharterLedger,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-charter-ledger.js";
 import {
@@ -69,12 +72,19 @@ import {
 	recoverRootEvalD145CharterTransaction,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-charter-transaction.js";
 import {
+	advanceRootEvalD152Ledger,
+	commitRootEvalD152Transaction,
+	createRootEvalD152Ledger,
+	ROOT_EVAL_D152_LEDGER_SCHEMA,
+	readRootEvalD152Ledger,
+} from "../../evals/graph-native-rerun-avoidance/root-eval-d152-ledger.js";
+import {
 	awaitRootEvalCallerSettlement,
 	createRootEvalLiveExecutor,
 	createRootEvalLiveTransportQualificationExecutor,
 	createRootEvalNoNetworkQualificationExecutor,
 	parseRootEvalLiveProviderResponse,
-	qualifyRootEvalTransferTaskFamily,
+	qualifyRootEvalMechanismTaskFamily,
 	ROOT_EVAL_BILLING_SETTLEMENT_LEASE_MS,
 	ROOT_EVAL_CALLER_SETTLEMENT_DEADLINE_MS,
 	ROOT_EVAL_LIVE_BUGGY_REPLACEMENT,
@@ -154,9 +164,13 @@ import {
 	ROOT_EVAL_DEVELOPMENT_TASKS,
 	ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES,
 	readRootEvalTaskManifest,
-	rootEvalSourceInsightDiscriminant,
+	rootEvalDevelopmentTaskSetRef,
+	rootEvalMechanismDiscriminationOracle,
+	rootEvalMechanismPairwiseAudit,
+	rootEvalScriptedMechanismReplacement,
 	rootEvalTask,
 	rootEvalTaskBindings,
+	rootEvalTaskManifestDisjointAudit,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-task.js";
 import { strictJsonCodec } from "../json/codec.js";
 
@@ -472,7 +486,7 @@ function liveEvidenceInput(
 		zeroByokObservationDigest: zeroByok.observationDigest,
 		credentialBindingDigest: empiricalStrictJsonDigest({
 			bindingRef: "openrouter.local-eval-2",
-			bindingRevision: "2026-08-26.d145.v1",
+			bindingRevision: "2026-09-01.d152.v1",
 		}),
 		credentialFingerprintDigest: empiricalStrictJsonDigest("test-credential-fingerprint"),
 		currentKeyBeforeDigest: currentKeyBefore.admissionDigest,
@@ -525,7 +539,7 @@ function liveEvidenceInput(
 			"DATA",
 			{
 				kind: "eval-observation",
-				topologyRevision: "graphrefly-ts.root-eval-topology.v18",
+				topologyRevision: ROOT_EVAL_TOPOLOGY_REVISION,
 				solutionIdentities: [
 					"work-item-execution",
 					"agentic-work-item-memory-application",
@@ -1069,7 +1083,102 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		});
 	});
 
-	it("atomically conserves both D145 spend partitions and the two-generation development gate", async () => {
+	it("opens a fresh D152 qualification epoch without inheriting historical efficacy authority", () => {
+		const epoch = createRootEvalD152QualificationEpoch({
+			supersededHistoricalLedgerDigest: `sha256:${"a".repeat(64)}`,
+			carriedDevelopmentSpentMicrousd: 12_000_000,
+			carriedConfirmatorySpentMicrousd: 500_000,
+		});
+		expect(epoch).toMatchObject({
+			decisionRef: "graphrefly-ts:D152",
+			developmentQualificationStreak: 0,
+			heldOutSealDigest: null,
+			heldOutConsumed: false,
+			developmentManifestSlots: ["development-1", "development-2"],
+			carriedDevelopmentSpentMicrousd: 12_000_000,
+			carriedConfirmatorySpentMicrousd: 500_000,
+		});
+		expect(epoch.epochDigest).toMatch(/^sha256:[0-9a-f]{64}$/u);
+		expect(() =>
+			createRootEvalD152QualificationEpoch({
+				supersededHistoricalLedgerDigest: "not-a-digest",
+				carriedDevelopmentSpentMicrousd: 0,
+				carriedConfirmatorySpentMicrousd: 0,
+			}),
+		).toThrow(/historical ledger digest/u);
+	});
+
+	it("carries historical spend but resets efficacy authority in the durable D152 ledger", () => {
+		const historical = advanceRootEvalD145CharterLedger({
+			ledger: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
+			generationRef: rootEvalD145DevelopmentGenerationRef(1),
+			campaignPurpose: "development",
+			taskSetRef: rootEvalDevelopmentTaskSetRef(1),
+			taskManifestDigest: empiricalStrictJsonDigest("historical-manifest"),
+			budgetPartition: "development-usd-36",
+			providerReportedMicrousd: 1_000,
+			unreportedSettledUpperBoundMicrousd: 0,
+			accountedUpperBoundMicrousd: 1_000,
+			admissionStatus: "admitted",
+			developmentQualification: {
+				kind: "eval-development-qualification-state",
+				campaignPurpose: "development",
+				generationRef: rootEvalD145DevelopmentGenerationRef(1),
+				status: "qualified",
+				generationQualified: true,
+				consecutiveQualifyingGenerations: 1,
+				requiredConsecutiveGenerations: 2,
+				relevantPasses: 5,
+				bestControlPasses: 0,
+				irrelevantPasses: 0,
+				requiredMargin: 2,
+			},
+			evidenceDigest: empiricalStrictJsonDigest("historical-evidence"),
+		});
+		const opened = createRootEvalD152Ledger(historical);
+		expect(opened).toMatchObject({
+			schemaVersion: ROOT_EVAL_D152_LEDGER_SCHEMA,
+			decisionRef: "graphrefly-ts:D152",
+			supersededHistoricalLedgerDigest: historical.ledgerDigest,
+			carriedDevelopmentSpentMicrousd: 1_000,
+			developmentSpentMicrousd: 1_000,
+			developmentQualificationStreak: 0,
+			heldOutSealDigest: null,
+			heldOutConsumed: false,
+			entries: [],
+		});
+		const next = advanceRootEvalD152Ledger({
+			ledger: opened,
+			generationRef: rootEvalD152DevelopmentGenerationRef(1),
+			taskSetRef: rootEvalDevelopmentTaskSetRef(1),
+			taskManifestDigest: empiricalStrictJsonDigest("d152-development-1-manifest"),
+			providerReportedMicrousd: 2_000,
+			unreportedSettledUpperBoundMicrousd: 0,
+			accountedUpperBoundMicrousd: 2_000,
+			admissionStatus: "rejected",
+			developmentQualification: null,
+			evidenceDigest: empiricalStrictJsonDigest("d152-development-1-evidence"),
+		});
+		expect(next.developmentSpentMicrousd).toBe(3_000);
+		expect(next.entries).toHaveLength(1);
+		expect(next.developmentQualificationStreak).toBe(0);
+		expect(() =>
+			advanceRootEvalD152Ledger({
+				ledger: opened,
+				generationRef: rootEvalD152DevelopmentGenerationRef(1),
+				taskSetRef: rootEvalDevelopmentTaskSetRef(1),
+				taskManifestDigest: empiricalStrictJsonDigest("overspend-manifest"),
+				providerReportedMicrousd: 12_000_001,
+				unreportedSettledUpperBoundMicrousd: 0,
+				accountedUpperBoundMicrousd: 12_000_001,
+				admissionStatus: "rejected",
+				developmentQualification: null,
+				evidenceDigest: empiricalStrictJsonDigest("overspend-evidence"),
+			}),
+		).toThrow(/accounted upper bound|spend boundary/u);
+	});
+
+	it("atomically conserves historical D145 spend partitions and its old development gate", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-d145-charter-ledger-"));
 		const path = join(await realpath(temporary), "charter.json");
 		try {
@@ -1094,7 +1203,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				ledger: empty,
 				generationRef: rootEvalD145DevelopmentGenerationRef(1),
 				campaignPurpose: "development",
-				taskSetRef: "root-eval-d145-transfer-development-1-v1",
+				taskSetRef: rootEvalDevelopmentTaskSetRef(1),
 				taskManifestDigest: empiricalStrictJsonDigest("development-1-manifest"),
 				budgetPartition: "development-usd-36",
 				providerReportedMicrousd: 101,
@@ -1113,7 +1222,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					ledger: first,
 					generationRef: rootEvalD145DevelopmentGenerationRef(3),
 					campaignPurpose: "development",
-					taskSetRef: "root-eval-d145-transfer-development-3-v1",
+					taskSetRef: rootEvalDevelopmentTaskSetRef(3),
 					taskManifestDigest: empiricalStrictJsonDigest("unproven-gap-manifest"),
 					budgetPartition: "development-usd-36",
 					providerReportedMicrousd: 0,
@@ -1128,7 +1237,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				ledger: first,
 				generationRef: rootEvalD145DevelopmentGenerationRef(2),
 				campaignPurpose: "development",
-				taskSetRef: "root-eval-d145-transfer-development-2-v1",
+				taskSetRef: rootEvalDevelopmentTaskSetRef(2),
 				taskManifestDigest: empiricalStrictJsonDigest("development-rejected-manifest"),
 				budgetPartition: "development-usd-36",
 				providerReportedMicrousd: 1,
@@ -1155,7 +1264,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					Object.freeze({
 						...rejectedCandidate.entries[1]!,
 						generationRef: rootEvalD145DevelopmentGenerationRef(3),
-						taskSetRef: "root-eval-d145-transfer-development-3-v1",
+						taskSetRef: rootEvalDevelopmentTaskSetRef(3),
 					}),
 				]),
 			});
@@ -1180,7 +1289,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					ledger: first,
 					generationRef: "confirmatory-too-early",
 					campaignPurpose: "confirmatory",
-					taskSetRef: "root-eval-d145-transfer-confirmatory-v1",
+					taskSetRef: ROOT_EVAL_CONFIRMATORY_TASK_SET_REF,
 					taskManifestDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
 					budgetPartition: "confirmatory-usd-6",
 					providerReportedMicrousd: 1,
@@ -1195,7 +1304,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				ledger: first,
 				generationRef: rootEvalD145DevelopmentGenerationRef(2),
 				campaignPurpose: "development",
-				taskSetRef: "root-eval-d145-transfer-development-2-v1",
+				taskSetRef: rootEvalDevelopmentTaskSetRef(2),
 				taskManifestDigest: empiricalStrictJsonDigest("development-2-manifest"),
 				budgetPartition: "development-usd-36",
 				providerReportedMicrousd: 202,
@@ -1209,7 +1318,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				ledger: second,
 				generationRef: "confirmatory-1",
 				campaignPurpose: "confirmatory",
-				taskSetRef: "root-eval-d145-transfer-confirmatory-v1",
+				taskSetRef: ROOT_EVAL_CONFIRMATORY_TASK_SET_REF,
 				taskManifestDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
 				budgetPartition: "confirmatory-usd-6",
 				providerReportedMicrousd: 303,
@@ -1238,7 +1347,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				reconcileRootEvalD145ConsumedPreclaimFailure({
 					ledger: confirmatory,
 					generationRef: rootEvalD145DevelopmentGenerationRef(3),
-					taskSetRef: "root-eval-d145-transfer-development-3-v1",
+					taskSetRef: rootEvalDevelopmentTaskSetRef(3),
 					taskManifestDigest: empiricalStrictJsonDigest("post-held-out-manifest"),
 					receiptDigest: empiricalStrictJsonDigest("post-held-out-receipt"),
 				}),
@@ -1252,7 +1361,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					Object.freeze({
 						generationRef: rootEvalD145DevelopmentGenerationRef(3),
 						campaignPurpose: "development" as const,
-						taskSetRef: "root-eval-d145-transfer-development-3-v1",
+						taskSetRef: rootEvalDevelopmentTaskSetRef(3),
 						taskManifestDigest: empiricalStrictJsonDigest("post-held-out-ledger-manifest"),
 						budgetPartition: "development-usd-36" as const,
 						providerReportedMicrousd: 0,
@@ -1274,7 +1383,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					ledger: second,
 					generationRef: "confirmatory-over-cap",
 					campaignPurpose: "confirmatory",
-					taskSetRef: "root-eval-d145-transfer-confirmatory-v1",
+					taskSetRef: ROOT_EVAL_CONFIRMATORY_TASK_SET_REF,
 					taskManifestDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
 					budgetPartition: "confirmatory-usd-6",
 					providerReportedMicrousd: 6_000_001,
@@ -1290,7 +1399,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					ledger: confirmatory,
 					generationRef: "confirmatory-2",
 					campaignPurpose: "confirmatory",
-					taskSetRef: "root-eval-d145-transfer-confirmatory-v1",
+					taskSetRef: ROOT_EVAL_CONFIRMATORY_TASK_SET_REF,
 					taskManifestDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
 					budgetPartition: "confirmatory-usd-6",
 					providerReportedMicrousd: 1,
@@ -1350,7 +1459,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			ledger: historicalLedger,
 			generationRef: rootEvalD145DevelopmentGenerationRef(3),
 			campaignPurpose: "development",
-			taskSetRef: "root-eval-d145-transfer-development-3-v1",
+			taskSetRef: rootEvalDevelopmentTaskSetRef(3),
 			taskManifestDigest: empiricalStrictJsonDigest("development-3-usd-36-manifest"),
 			budgetPartition: "development-usd-36",
 			providerReportedMicrousd: 200_001,
@@ -1373,7 +1482,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				ledger: historicalLedger,
 				generationRef: rootEvalD145DevelopmentGenerationRef(3),
 				campaignPurpose: "development",
-				taskSetRef: "root-eval-d145-transfer-development-3-v1",
+				taskSetRef: rootEvalDevelopmentTaskSetRef(3),
 				taskManifestDigest: empiricalStrictJsonDigest("development-3-old-partition-manifest"),
 				budgetPartition: "development-usd-12" as never,
 				providerReportedMicrousd: 1,
@@ -1384,17 +1493,33 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				evidenceDigest: empiricalStrictJsonDigest("development-3-old-partition-evidence"),
 			}),
 		).toThrow(/not authorized/u);
+		expect(() =>
+			advanceRootEvalD145CharterLedger({
+				ledger: historicalLedger,
+				generationRef: rootEvalD145DevelopmentGenerationRef(3),
+				campaignPurpose: "development",
+				taskSetRef: "root-eval-d145-transfer-development-3-v1",
+				taskManifestDigest: empiricalStrictJsonDigest("rebound-d145-manifest"),
+				budgetPartition: "development-usd-36",
+				providerReportedMicrousd: 0,
+				unreportedSettledUpperBoundMicrousd: 0,
+				accountedUpperBoundMicrousd: 0,
+				admissionStatus: "rejected",
+				developmentQualification: null,
+				evidenceDigest: empiricalStrictJsonDigest("rebound-d145-evidence"),
+			}),
+		).toThrow(/task manifest transition was not authorized/u);
 	});
 
-	it("binds exact fresh D145 currentness and rejects synthetic live authority", async () => {
-		expect(ROOT_EVAL_LIVE_DECISION_REF).toBe("graphrefly-ts:D145");
-		expect(ROOT_EVAL_LIVE_CLAIM_SCHEMA).toBe("graphrefly-ts.root-eval-live-claim.v20");
-		expect(ROOT_EVAL_LIVE_EVIDENCE_SCHEMA).toBe("graphrefly-ts.root-eval-live-evidence.v24");
+	it("binds exact fresh D152 currentness and rejects synthetic live authority", async () => {
+		expect(ROOT_EVAL_LIVE_DECISION_REF).toBe("graphrefly-ts:D152");
+		expect(ROOT_EVAL_LIVE_CLAIM_SCHEMA).toBe("graphrefly-ts.root-eval-live-claim.v21");
+		expect(ROOT_EVAL_LIVE_EVIDENCE_SCHEMA).toBe("graphrefly-ts.root-eval-live-evidence.v25");
 		expect(ROOT_EVAL_LIVE_PRECLAIM_FAILURE_SCHEMA).toBe(
-			"graphrefly-ts.root-eval-live-preclaim-failure.v20",
+			"graphrefly-ts.root-eval-live-preclaim-failure.v21",
 		);
-		expect(ROOT_EVAL_LIVE_CLAIM_REF).toBe("root-eval-development-claim-2026-08-27-d145-v1");
-		expect(ROOT_EVAL_LIVE_GENERATION_REF).toBe("root-eval-development-2026-08-27-d145-v1");
+		expect(ROOT_EVAL_LIVE_CLAIM_REF).toBe("root-eval-development-claim-2026-09-01-d152-v1");
+		expect(ROOT_EVAL_LIVE_GENERATION_REF).toBe("root-eval-development-2026-09-01-d152-v1");
 		expect(ROOT_EVAL_LIVE_BUDGET_PARTITION).toBe("development-usd-36");
 		expect(ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD).toBe(36_000_000);
 		expect(ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD).toBe(12_000_000);
@@ -1503,7 +1628,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			).resolves.toMatchObject({
 				credential: {
 					bindingRef: "openrouter.local-eval-2",
-					bindingRevision: "2026-08-26.d145.v1",
+					bindingRevision: "2026-09-01.d152.v1",
 				},
 				zeroByok: {
 					workspaceSlug: "graph-re-fly",
@@ -1839,7 +1964,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			await rm(temporary, { force: true, recursive: true });
 		}
 	});
-	it("opens only the exact D140 production authority and fresh private namespace", () => {
+	it("opens only the exact transient D152 development-1 authority and fresh private namespace", () => {
 		const liveEntry = readFileSync(
 			resolve(
 				repositoryRoot,
@@ -1847,7 +1972,11 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			),
 			"utf8",
 		);
-		expect(liveEntry).toContain('"open-by-graphrefly-ts:D145" as const');
+		expect(liveEntry).toContain(
+			'"user-authorized:d152-development-1:usd-12:development-usd-36" as const',
+		);
+		expect(liveEntry).toContain("process.env.GRAPHREFLY_ROOT_EVAL_EXECUTION_AUTHORITY");
+		expect(liveEntry).toContain('ROOT_EVAL_LIVE_CAMPAIGN_SLOT !== "development-1"');
 		expect(liveEntry).toMatch(
 			/join\(operatorRoot, `current-\$\{ROOT_EVAL_LIVE_GENERATION_REF\}`\)/u,
 		);
@@ -2020,7 +2149,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			await mkdir(copiedRootPath, { mode: 0o700 });
 			const copiedRoot = await realpath(copiedRootPath);
 			const dispositionName = (await readdir(privateRoot)).find((name) =>
-				name.endsWith("disposition.v20.json"),
+				name.endsWith("disposition.v21.json"),
 			);
 			if (dispositionName === undefined) throw new TypeError("D140 disposition missing");
 			const committedBytes = await readFile(join(privateRoot, dispositionName));
@@ -2286,7 +2415,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				});
 				expect(providerCalls).toBe(1);
 				expect(
-					(await readdir(join(privateRoot, ".d145-provider-dispatches"))).some((name) =>
+					(await readdir(join(privateRoot, ".d152-provider-dispatches"))).some((name) =>
 						name.endsWith(".json"),
 					),
 				).toBe(true);
@@ -4138,14 +4267,14 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		expect(JSON.stringify(forged)).not.toContain("do-not-persist");
 	});
 
-	it("requires a committed D145 claim before evidence persistence", async () => {
+	it("requires a committed D152 claim before evidence persistence", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-no-claim-"));
 		const privateRoot = await realpath(temporary);
 		await chmod(privateRoot, 0o700);
 		try {
 			const evidence = constructRootEvalLiveEvidence(liveEvidenceInput());
 			await expect(persistRootEvalLiveEvidence({ privateRoot, evidence })).rejects.toThrow(
-				/committed D145 claim/u,
+				/committed D152 claim/u,
 			);
 			expect(await readdir(privateRoot)).toEqual([]);
 		} finally {
@@ -4283,7 +4412,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			expect(Object.isFrozen(recovered)).toBe(true);
 			expect(Object.isFrozen(recovered.pricing)).toBe(true);
 			const dispositionName = (await readdir(privateRoot)).find((name) =>
-				name.endsWith("disposition.v20.json"),
+				name.endsWith("disposition.v21.json"),
 			);
 			if (dispositionName === undefined) throw new TypeError("D140 disposition missing");
 			const dispositionText = await readFile(join(privateRoot, dispositionName), "utf8");
@@ -4354,7 +4483,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			expect(second).toEqual(first);
 			expect(first.postCommitFailureDigest).toBeNull();
 			expect(await readdir(join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF))).toEqual([
-				"evidence.v24.json",
+				"evidence.v25.json",
 			]);
 			await expect(
 				persistRootEvalLiveEvidence({
@@ -4362,6 +4491,66 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					evidence: { ...evidence, disposition: "partial-failure" },
 				}),
 			).rejects.toThrow(/evidence.*invalid|digest/u);
+		} finally {
+			await rm(temporary, { recursive: true, force: true });
+		}
+	});
+
+	it("atomically commits D152 evidence and its carried-spend ledger", async () => {
+		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-d152-transaction-"));
+		const operatorRoot = await realpath(temporary);
+		const privateRoot = join(operatorRoot, "current-d152-development-1");
+		const historicalLedgerPath = join(operatorRoot, "d145-charter-ledger.v4.json");
+		const ledgerPath = join(operatorRoot, "d152-charter-ledger.v1.json");
+		const journalPath = join(operatorRoot, "d152-charter-transaction.v1.json");
+		await mkdir(privateRoot, { mode: 0o700 });
+		await writeRootEvalD145CharterLedger(historicalLedgerPath, ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER);
+		try {
+			const ledger = await readRootEvalD152Ledger({
+				path: ledgerPath,
+				historicalLedger: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
+			});
+			const claimInput = await currentClaimInput(privateRoot);
+			const acquisition = await acquireRootEvalLiveClaimForNoNetworkQualification(claimInput);
+			const evidence = constructRootEvalLiveEvidence({
+				...liveEvidenceInput(),
+				claim: acquisition.claim,
+				pricing: claimInput.pricing,
+				zeroByok: claimInput.zeroByok,
+				currentKeyBefore: claimInput.currentKeyBefore,
+			});
+			const nextLedger = advanceRootEvalD152Ledger({
+				ledger,
+				generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
+				taskSetRef: ROOT_EVAL_LIVE_TASK_SET_REF,
+				taskManifestDigest: claimInput.taskManifestDigest,
+				providerReportedMicrousd: 0,
+				unreportedSettledUpperBoundMicrousd: 0,
+				accountedUpperBoundMicrousd: 0,
+				admissionStatus: evidence.admissionReport.status,
+				developmentQualification: null,
+				evidenceDigest: evidence.evidenceDigest,
+			});
+			const committed = await commitRootEvalD152Transaction({
+				journalPath,
+				privateRoot,
+				ledgerPath,
+				previousLedgerDigest: ledger.ledgerDigest,
+				evidence,
+				nextLedger,
+			});
+			expect(committed.nextLedger).toEqual(nextLedger);
+			expect(committed.persistence.postCommitFailureDigest).toBeNull();
+			expect(
+				await readRootEvalD152Ledger({
+					path: ledgerPath,
+					historicalLedger: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
+				}),
+			).toEqual(nextLedger);
+			expect(await readdir(join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF))).toEqual([
+				"evidence.v25.json",
+			]);
+			await expect(stat(journalPath)).rejects.toMatchObject({ code: "ENOENT" });
 		} finally {
 			await rm(temporary, { recursive: true, force: true });
 		}
@@ -4448,7 +4637,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			const persisted = await persistRootEvalLiveEvidence({ privateRoot, evidence });
 			expect(persisted.postCommitFailureDigest).toBeNull();
 			const bytes = await readFile(
-				join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF, "evidence.v24.json"),
+				join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF, "evidence.v25.json"),
 				"utf8",
 			);
 			const durable = JSON.parse(bytes) as Record<string, unknown>;
@@ -4511,7 +4700,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			const receipt = await persistRootEvalLiveEvidence({ privateRoot, evidence });
 			expect(receipt.postCommitFailureDigest).toBeNull();
 			const persisted = await readFile(
-				join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF, "evidence.v24.json"),
+				join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF, "evidence.v25.json"),
 				"utf8",
 			);
 			expect(JSON.parse(persisted)).toEqual(evidence);
@@ -4546,7 +4735,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			).rejects.toMatchObject({ code: "EEXIST" });
 			const entries = await readdir(privateRoot);
 			expect(entries).toHaveLength(1);
-			expect(entries[0]).toContain("disposition.v20.json");
+			expect(entries[0]).toContain("disposition.v21.json");
 		} finally {
 			await rm(temporary, { recursive: true, force: true });
 		}
@@ -4555,9 +4744,9 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 	it("advances past only contiguous self-consistent consumed preclaim dispositions", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-consumed-preclaim-"));
 		const operatorRoot = await realpath(temporary);
-		const generationRef = rootEvalD145DevelopmentGenerationRef(15);
+		const generationRef = rootEvalD152DevelopmentGenerationRef(15);
 		const generationRoot = join(operatorRoot, `current-${generationRef}`);
-		const dispositionPath = join(generationRoot, `.${generationRef}.disposition.v20.json`);
+		const dispositionPath = join(generationRoot, `.${generationRef}.disposition.v21.json`);
 		const material = {
 			schemaVersion: ROOT_EVAL_LIVE_PRECLAIM_FAILURE_SCHEMA,
 			decisionRef: ROOT_EVAL_LIVE_DECISION_REF,
@@ -4638,7 +4827,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			ledger: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
 			generationRef: rootEvalD145DevelopmentGenerationRef(1),
 			campaignPurpose: "development",
-			taskSetRef: "root-eval-d145-transfer-development-1-v1",
+			taskSetRef: rootEvalDevelopmentTaskSetRef(1),
 			taskManifestDigest: empiricalStrictJsonDigest("development-1-manifest"),
 			budgetPartition: "development-usd-36",
 			providerReportedMicrousd: 1,
@@ -4660,7 +4849,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		const receiptDigest = empiricalStrictJsonDigest("development-2-preclaim-receipt");
 		const reconciliationInput = {
 			generationRef: rootEvalD145DevelopmentGenerationRef(2),
-			taskSetRef: "root-eval-d145-transfer-development-2-v1",
+			taskSetRef: rootEvalDevelopmentTaskSetRef(2),
 			taskManifestDigest: empiricalStrictJsonDigest("development-2-manifest"),
 			receiptDigest,
 		};
@@ -4697,7 +4886,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			ledger: reconciled,
 			generationRef: rootEvalD145DevelopmentGenerationRef(3),
 			campaignPurpose: "development",
-			taskSetRef: "root-eval-d145-transfer-development-3-v1",
+			taskSetRef: rootEvalDevelopmentTaskSetRef(3),
 			taskManifestDigest: empiricalStrictJsonDigest("development-3-manifest"),
 			budgetPartition: "development-usd-36",
 			providerReportedMicrousd: 1,
@@ -4725,7 +4914,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		const journalPath = join(temporary, "journal.json");
 		const firstInput = {
 			generationRef: rootEvalD145DevelopmentGenerationRef(1),
-			taskSetRef: "root-eval-d145-transfer-development-1-v1",
+			taskSetRef: rootEvalDevelopmentTaskSetRef(1),
 			taskManifestDigest: empiricalStrictJsonDigest("reconciliation-development-1-manifest"),
 			receiptDigest: empiricalStrictJsonDigest("reconciliation-development-1-receipt"),
 		};
@@ -4746,7 +4935,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 
 			const staleInput = {
 				generationRef: rootEvalD145DevelopmentGenerationRef(2),
-				taskSetRef: "root-eval-d145-transfer-development-2-v1",
+				taskSetRef: rootEvalDevelopmentTaskSetRef(2),
 				taskManifestDigest: empiricalStrictJsonDigest("stale-development-2-manifest"),
 				receiptDigest: empiricalStrictJsonDigest("stale-development-2-receipt"),
 			};
@@ -4785,7 +4974,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		const journalPath = resolve(join(temporary, "journal.json"));
 		const reconciliationInput = {
 			generationRef: rootEvalD145DevelopmentGenerationRef(1),
-			taskSetRef: "root-eval-d145-transfer-development-1-v1",
+			taskSetRef: rootEvalDevelopmentTaskSetRef(1),
 			taskManifestDigest: empiricalStrictJsonDigest("finalizer-development-1-manifest"),
 			receiptDigest: empiricalStrictJsonDigest("finalizer-development-1-receipt"),
 		};
@@ -4830,7 +5019,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 
 			const secondInput = {
 				generationRef: rootEvalD145DevelopmentGenerationRef(2),
-				taskSetRef: "root-eval-d145-transfer-development-2-v1",
+				taskSetRef: rootEvalDevelopmentTaskSetRef(2),
 				taskManifestDigest: empiricalStrictJsonDigest("finalizer-development-2-manifest"),
 				receiptDigest: empiricalStrictJsonDigest("finalizer-development-2-receipt"),
 			};
@@ -4858,7 +5047,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		const privateRoot = resolve(join(canonicalTemporary, `current-${generationRef}`));
 		const ledgerPath = resolve(join(canonicalTemporary, "ledger.json"));
 		const journalPath = resolve(join(canonicalTemporary, "journal.json"));
-		const taskSetRef = "root-eval-d145-transfer-development-1-v1";
+		const taskSetRef = rootEvalDevelopmentTaskSetRef(1);
 		const taskManifestDigest = empiricalStrictJsonDigest("stale-development-1-manifest");
 		const oldImplementationDigest = empiricalStrictJsonDigest("stale-implementation");
 		const partial = constructRootEvalLiveEvidence({
@@ -4871,6 +5060,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		const { evidenceDigest: _currentEvidenceDigest, ...partialMaterial } = partial;
 		const staleEvidenceMaterial = {
 			...partialMaterial,
+			schemaVersion: "graphrefly-ts.root-eval-live-evidence.v24" as const,
 			generationRef,
 			implementationCoordinate: `worktree:${"b".repeat(40)}:${oldImplementationDigest}`,
 			implementationManifestDigest: oldImplementationDigest,
@@ -5557,7 +5747,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			expect(verified?.evidence.publicSemantic).toBe("equivalent");
 			expect(verified?.evidence.hiddenVerifier).toBe("pass");
 			expect(executor.providerRequestSummaries()).toHaveLength(1);
-			const diagnosticRoot = join(privateRoot, ".d145-development-diagnostics");
+			const diagnosticRoot = join(privateRoot, ".d152-development-diagnostics");
 			const diagnosticNames = await readdir(diagnosticRoot);
 			expect(diagnosticNames).toHaveLength(3);
 			for (const name of diagnosticNames)
@@ -5576,22 +5766,20 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		}
 	}, 420_000);
 
-	it("qualifies all five transfer tasks with ambiguous public and discriminating private verifiers", async () => {
+	it("qualifies five orthogonal mechanisms with ambiguous public and discriminating private verifiers", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-transfer-family-"));
 		try {
 			for (const task of ROOT_EVAL_DEVELOPMENT_TASKS) {
-				const acceptedExpression = task.sourceFixtureCorrectText.match(
-					/const acceptedCoordinate = ([^;]+);/u,
-				)?.[1];
-				expect(acceptedExpression).toBeDefined();
-				expect(task.sourceTaskStatement).toContain(
-					`Set acceptedCoordinate to ${acceptedExpression}.`,
+				expect(task.sourceTaskStatement).toContain(task.mechanismId);
+				expect(task.sourceTaskStatement).toContain("verified expression");
+				expect(task.taskStatement).not.toMatch(
+					/compare|reject|return selected|acceptedCoordinate/u,
 				);
-				expect(task.sourceTaskStatement).toContain("Return acceptedCoordinate.");
-				expect(task.sourceTaskStatement).toContain("Do not return locallyDerivedCoordinate");
+				expect(task.fixtureCorrectText).not.toBe(task.fixtureBuggyText);
 			}
+			expect(new Set(ROOT_EVAL_DEVELOPMENT_TASKS.map((task) => task.mechanismId)).size).toBe(5);
 			expect(
-				await qualifyRootEvalTransferTaskFamily({
+				await qualifyRootEvalMechanismTaskFamily({
 					repositoryRoot,
 					materializationRoot: join(temporary, "workspaces"),
 				}),
@@ -5620,25 +5808,51 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		});
 		const development2 = createRootEvalTaskManifest({
 			slot: "development-2",
-			variantOrder: [4, 3, 2, 1, 0],
+			variantOrder: [0, 1, 2, 3, 4],
 			coordinateSuffix: "development-two-seed",
 		});
-		const confirmatory = createRootEvalTaskManifest({
-			slot: "confirmatory",
-			variantOrder: [2, 1, 0, 3, 4],
-			coordinateSuffix: "confirmatory-sealed-seed",
-		});
 		try {
+			expect(rootEvalTaskManifestDisjointAudit(development1, development2)).toEqual({
+				leftSlot: "development-1",
+				rightSlot: "development-2",
+				sharedMechanismIds: [],
+				sharedFixtureDigests: [],
+				sharedVerifierDigests: [],
+				disjoint: true,
+			});
+			expect(development1.manifestDigest).not.toBe(development2.manifestDigest);
 			expect(
 				new Set([
-					development1.manifestDigest,
-					development2.manifestDigest,
-					confirmatory.manifestDigest,
+					...development1.tasks.map((task) => task.mechanismId),
+					...development2.tasks.map((task) => task.mechanismId),
 				]).size,
-			).toBe(3);
+			).toBe(10);
+			expect(
+				development1.tasks.some((left) =>
+					development2.tasks.some(
+						(right) =>
+							left.fixtureCorrectText === right.fixtureCorrectText ||
+							left.hiddenVerifierSource === right.hiddenVerifierSource,
+					),
+				),
+			).toBe(false);
 			expect(development1.taskSetRef).toBe(ROOT_EVAL_DEVELOPMENT_TASK_SET_REFS["development-1"]);
 			expect(development2.taskSetRef).toBe(ROOT_EVAL_DEVELOPMENT_TASK_SET_REFS["development-2"]);
-			expect(confirmatory.taskSetRef).toBe(ROOT_EVAL_CONFIRMATORY_TASK_SET_REF);
+			expect(() =>
+				createRootEvalTaskManifest({
+					slot: "confirmatory",
+					variantOrder: [0, 1, 2, 3, 4],
+					coordinateSuffix: "confirmatory-unmaterialized",
+				}),
+			).toThrow(/unmaterialized/u);
+			expect(() =>
+				rootEvalTaskManifestDisjointAudit(development1, {
+					...development2,
+					tasks: development2.tasks.map((task, index) =>
+						index === 0 ? { ...task, mechanismId: development1.tasks[0]!.mechanismId } : task,
+					),
+				}),
+			).toThrow();
 			await writeFile(join(temporary, "development-1.json"), JSON.stringify(development1), {
 				mode: 0o600,
 			});
@@ -5696,158 +5910,124 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 	});
 
 	it("binds discriminant-only relevant and incompatible irrelevant source Work Items", () => {
-		const acceptedField = (source: string): Readonly<{ field: string; normalized: boolean }> => {
-			const match =
-				/const acceptedCoordinate = envelope\.([A-Za-z][A-Za-z0-9]*)(\.toLowerCase\(\))?;/u.exec(
-					source,
-				);
-			if (match?.[1] === undefined) throw new TypeError("task fixture accepted field missing");
-			return Object.freeze({ field: match[1], normalized: match[2] !== undefined });
-		};
-		const authorityClass = (
-			source: string,
-			contract: string,
-		): "source" | "boundary" | "normalized-source" => {
-			const fields = [...contract.matchAll(/readonly ([A-Za-z][A-Za-z0-9]*): string;/gu)].map(
-				(match) => match[1]!,
-			);
-			if (fields.length !== 2) throw new TypeError("task contract authority fields missing");
-			const accepted = acceptedField(source);
-			if (accepted.field === fields[0]) return accepted.normalized ? "normalized-source" : "source";
-			return "boundary";
-		};
-		const insightAuthorityClass = (
-			content: string,
-		): "source" | "boundary" | "normalized-source" => {
-			const discriminant = rootEvalSourceInsightDiscriminant(content);
-			if (discriminant === "coordinate-left") return "source";
-			if (discriminant === "coordinate-right") return "boundary";
-			return "normalized-source";
-		};
 		assertRootEvalTaskStimulusContract(ROOT_EVAL_DEVELOPMENT_TASKS);
 		const bindings = rootEvalTaskBindings(ROOT_EVAL_DEVELOPMENT_TASKS);
+		const oracle = rootEvalMechanismDiscriminationOracle(ROOT_EVAL_DEVELOPMENT_TASKS);
+		const pairwiseAudit = rootEvalMechanismPairwiseAudit(ROOT_EVAL_DEVELOPMENT_TASKS);
 		expect(bindings).toHaveLength(5);
+		expect(oracle).toHaveLength(5);
+		expect(pairwiseAudit).toHaveLength(10);
+		expect(
+			pairwiseAudit.every(
+				(audit) =>
+					!audit.semanticInterchangeable &&
+					audit.actionTokenOverlap <= 0.2 &&
+					audit.executableTokenOverlap <= 0.2,
+			),
+		).toBe(true);
 		expect(new Set(bindings.map((binding) => binding.irrelevantTaskInstanceRef)).size).toBe(5);
+		expect(new Set(ROOT_EVAL_DEVELOPMENT_TASKS.map((task) => task.mechanismId)).size).toBe(5);
+		expect(new Set(ROOT_EVAL_DEVELOPMENT_TASKS.map((task) => task.mechanismAction)).size).toBe(3);
 		expect(
 			new Set(ROOT_EVAL_DEVELOPMENT_TASKS.map((task) => task.sourceInsightContent.length)),
-		).toEqual(new Set([64]));
+		).toEqual(new Set([80]));
 		for (const [index, binding] of bindings.entries()) {
 			const target = ROOT_EVAL_DEVELOPMENT_TASKS[index]!;
-			const irrelevantIndex = ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES[index]! - 1;
-			const irrelevant = ROOT_EVAL_DEVELOPMENT_TASKS[irrelevantIndex]!;
-			expect(target.readonlyFixtureFiles[0]!.text).toContain("readonly coordinateLeft: string;");
-			expect(target.readonlyFixtureFiles[0]!.text).toContain("readonly coordinateRight: string;");
+			const irrelevant =
+				ROOT_EVAL_DEVELOPMENT_TASKS[ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES[index]! - 1]!;
 			expect(target.taskStatement).toContain(
-				"Actor-visible names and files intentionally do not identify which coordinate is authoritative",
+				"Public examples intentionally permit more than one plausible rule",
 			);
-			expect(target.taskStatement).not.toMatch(
-				/originRef|boundaryRef|issuedKey|presentationKey|causalId|lookupId|storedToken|renderedToken|producerRef|localAlias/u,
-			);
-			expect(target.sourceInsightContent).not.toContain(target.writablePath);
 			expect(target.sourceInsightContent.trim()).toMatch(
-				/^handoff-invariant\.v1;authority=(?:coordinate-left|coordinate-right|normalized-coordinate-left)$/u,
+				/^mechanism-invariant\.v1;action=[a-z-]+$/u,
 			);
 			expect(target.sourceInsightContent).not.toMatch(
-				/compare|reject|return|acceptance|patch|verifier|fixture|packages\//iu,
+				/compare|reject|return|patch|verifier|fixture|packages\//iu,
 			);
-			expect(irrelevant.sourceInsightContent.length).toBe(target.sourceInsightContent.length);
 			expect(binding.irrelevantTaskInstanceRef).toBe(irrelevant.instanceRef);
 			expect(binding.irrelevantSourceInsightDigest).toBe(irrelevant.sourceInsightDigest);
-			const targetClass = authorityClass(
-				target.fixtureCorrectText,
-				target.readonlyFixtureFiles[0]!.text,
-			);
-			const irrelevantCorrectClass = authorityClass(
-				irrelevant.sourceFixtureCorrectText,
-				irrelevant.sourceReadonlyFixtureFiles[0]!.text,
-			);
-			const irrelevantBuggyClass = authorityClass(
-				irrelevant.sourceFixtureBuggyText,
-				irrelevant.sourceReadonlyFixtureFiles[0]!.text,
-			);
-			expect(targetClass).not.toBe(irrelevantCorrectClass);
-			expect(irrelevantCorrectClass).not.toBe(irrelevantBuggyClass);
-			expect(insightAuthorityClass(target.sourceInsightContent)).toBe(targetClass);
-			expect(insightAuthorityClass(irrelevant.sourceInsightContent)).toBe(irrelevantCorrectClass);
+			expect(target.mechanismAction).not.toBe(irrelevant.mechanismAction);
+			expect(target.mechanismAlternativeAction).toBe(irrelevant.mechanismAction);
+			expect(oracle[index]).toEqual({
+				replicate: target.replicate,
+				relevantSelected: "verified",
+				irrelevantSelected: "alternative",
+				controlsSelected: ["alternative", "alternative", "alternative", "alternative"],
+			});
+			expect(
+				rootEvalScriptedMechanismReplacement(target, {
+					sourceInsightContent: target.sourceInsightContent,
+					admitted: true,
+					applied: true,
+					scopeMatches: true,
+				}).replacement,
+			).toBe(target.fixtureCorrectText);
+			expect(
+				rootEvalScriptedMechanismReplacement(target, {
+					sourceInsightContent: irrelevant.sourceInsightContent,
+					admitted: true,
+					applied: true,
+					scopeMatches: true,
+				}).replacement,
+			).toBe(target.fixtureBuggyText);
 		}
-		const genericBoilerplate = ROOT_EVAL_DEVELOPMENT_TASKS.map((task, index) =>
+		const duplicateMechanism = ROOT_EVAL_DEVELOPMENT_TASKS.map((task, index) =>
+			index === 1 ? { ...task, mechanismId: ROOT_EVAL_DEVELOPMENT_TASKS[0]!.mechanismId } : task,
+		);
+		expect(() => assertRootEvalTaskStimulusContract(duplicateMechanism)).toThrow(
+			/orthogonal mechanisms/u,
+		);
+		const target = ROOT_EVAL_DEVELOPMENT_TASKS[0]!;
+		const sourceInsightContent = `${target.sourceInsightContent.trim()};${target.writablePath}`;
+		const leakedTasks = ROOT_EVAL_DEVELOPMENT_TASKS.map((task, index) =>
 			index === 0
-				? (() => {
-						const sourceInsightContent = `${task.sourceInsightContent.trim()} compare and reject`;
-						return {
-							...task,
-							sourceInsightContent,
-							sourceInsightDigest: empiricalStrictJsonDigest({
-								kind: "eval-source-causal-insight-bytes",
-								taskInstanceRef: task.instanceRef,
-								sourceWorkItemId: task.sourceWorkItemRef,
-								content: sourceInsightContent,
-							}),
-						};
-					})()
+				? {
+						...task,
+						sourceInsightContent,
+						sourceInsightDigest: empiricalStrictJsonDigest({
+							kind: "eval-source-causal-insight-bytes",
+							taskInstanceRef: task.instanceRef,
+							sourceWorkItemId: task.sourceWorkItemRef,
+							content: sourceInsightContent,
+						}),
+					}
 				: task,
 		);
-		expect(() => assertRootEvalTaskStimulusContract(genericBoilerplate)).toThrow(
-			/closed discriminant grammar|common-task\/discriminant/u,
-		);
-		for (const leakedMaterial of [
-			ROOT_EVAL_DEVELOPMENT_TASKS[0]!.writablePath,
-			ROOT_EVAL_DEVELOPMENT_TASKS[0]!.hiddenVerifierName,
-		]) {
-			const target = ROOT_EVAL_DEVELOPMENT_TASKS[0]!;
-			const sourceInsightContent = `${target.sourceInsightContent.trim()};${leakedMaterial}`;
-			const leakedTasks = ROOT_EVAL_DEVELOPMENT_TASKS.map((task, index) =>
-				index === 0
-					? {
-							...task,
-							sourceInsightContent,
-							sourceInsightDigest: empiricalStrictJsonDigest({
-								kind: "eval-source-causal-insight-bytes",
-								taskInstanceRef: task.instanceRef,
-								sourceWorkItemId: task.sourceWorkItemRef,
-								content: sourceInsightContent,
-							}),
-						}
-					: task,
-			);
-			expect(() => assertRootEvalTaskStimulusContract(leakedTasks)).toThrow();
-		}
-		const reboundRelevantAsIrrelevant = ROOT_EVAL_DEVELOPMENT_TASKS.map((task, index) => {
+		expect(() => assertRootEvalTaskStimulusContract(leakedTasks)).toThrow();
+		const rebound = ROOT_EVAL_DEVELOPMENT_TASKS.map((task, index) => {
 			if (index !== 1) return task;
-			const sourceInsightContent = ROOT_EVAL_DEVELOPMENT_TASKS[0]!.sourceInsightContent;
+			const content = ROOT_EVAL_DEVELOPMENT_TASKS[0]!.sourceInsightContent;
 			return {
 				...task,
-				sourceInsightContent,
+				sourceInsightContent: content,
 				sourceInsightDigest: empiricalStrictJsonDigest({
 					kind: "eval-source-causal-insight-bytes",
 					taskInstanceRef: task.instanceRef,
 					sourceWorkItemId: task.sourceWorkItemRef,
-					content: sourceInsightContent,
+					content,
 				}),
 			};
 		});
-		expect(() => rootEvalTaskBindings(reboundRelevantAsIrrelevant)).toThrow();
+		expect(() => rootEvalTaskBindings(rebound)).toThrow();
 		expect(() =>
 			createRootEvalTaskManifest({
-				slot: "development-8",
-				variantOrder: [0, 2, 1, 3, 4],
-				coordinateSuffix: "equal-irrelevant-seed",
+				slot: "development-1",
+				variantOrder: [0, 0, 1, 2, 3],
+				coordinateSuffix: "duplicate-mechanism-seed",
 			}),
 		).toThrow(/generation input invalid/u);
 	});
 
-	it("keeps coordinate edge cases load-bearing when private manifests add a suffix", () => {
+	it("binds private manifest salts without leaking them into hidden mechanism fixtures", () => {
 		const manifest = createRootEvalTaskManifest({
-			slot: "development-7",
+			slot: "development-1",
 			variantOrder: [0, 1, 2, 3, 4],
 			coordinateSuffix: "manifest-suffix-1234",
 		});
-		expect(manifest.tasks[0]!.hiddenVerifierSource).toContain(
-			JSON.stringify("coordinate-a:manifest-suffix-1234 "),
+		expect(manifest.tasks[0]!.readonlyFixtureFiles[0]!.text).toContain(
+			"sealed-manifest-coordinate: :manifest-suffix-1234",
 		);
-		expect(manifest.tasks[0]!.hiddenVerifierSource).not.toContain(
-			JSON.stringify("coordinate-a :manifest-suffix-1234"),
-		);
+		expect(manifest.tasks[0]!.hiddenVerifierSource).not.toContain("manifest-suffix-1234");
 	});
 
 	it("binds the stable D149 operator declaration and fresh current-key admission to Local Eval 2", async () => {
@@ -6224,19 +6404,19 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 						evidenceDigest: empiricalStrictJsonDigest(unboundClaimMaterial),
 					},
 				}),
-			).rejects.toThrow(/committed D145 claim/u);
+			).rejects.toThrow(/committed D152 claim/u);
 			await expect(
 				Promise.all([
 					persistRootEvalLiveEvidence({ privateRoot, evidence }),
 					persistRootEvalLiveEvidence({ privateRoot, evidence }),
 				]),
-			).rejects.toThrow(/committed D145 claim/u);
+			).rejects.toThrow(/committed D152 claim/u);
 			await expect(
 				persistRootEvalLiveEvidence({
 					privateRoot,
 					evidence: { ...evidence, disposition: "partial-failure" },
 				}),
-			).rejects.toThrow(/evidence.*invalid|committed D145 claim/u);
+			).rejects.toThrow(/evidence.*invalid|committed D152 claim/u);
 			expect(await readdir(privateRoot)).toEqual([]);
 		} finally {
 			await rm(temporary, { recursive: true, force: true });

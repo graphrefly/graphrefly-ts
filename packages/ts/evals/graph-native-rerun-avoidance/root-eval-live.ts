@@ -42,7 +42,7 @@ import {
 } from "./eval-topology.js";
 import type { RootEvalLiveClaimCommit } from "./root-eval-live-authority.js";
 import {
-	ROOT_EVAL_D145_TASK_SET_BINDING_DIGEST,
+	ROOT_EVAL_D152_TASK_SET_BINDING_DIGEST,
 	ROOT_EVAL_DEVELOPMENT_TASK_SET_DIGEST,
 	ROOT_EVAL_DEVELOPMENT_TASKS,
 	ROOT_EVAL_HELD_OUT_SEAL_DIGEST,
@@ -54,7 +54,7 @@ import {
 	rootEvalTask,
 } from "./root-eval-task.js";
 
-export const ROOT_EVAL_LIVE_DECISION_REF = "graphrefly-ts:D145" as const;
+export const ROOT_EVAL_LIVE_DECISION_REF = "graphrefly-ts:D152" as const;
 export const ROOT_EVAL_LIVE_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions" as const;
 export const ROOT_EVAL_FROZEN_BASELINE_COMMIT = ROOT_EVAL_DEVELOPMENT_TASKS[0]!.baselineCommit;
 export const ROOT_EVAL_LIVE_WRITABLE_PATH = ROOT_EVAL_DEVELOPMENT_TASKS[0]!.writablePath;
@@ -292,7 +292,7 @@ async function syncDirectory(path: string): Promise<void> {
 
 class RootEvalProviderDispatchAuthorityConsumed extends TypeError {
 	constructor(readonly failure: unknown) {
-		super("root eval D145 provider dispatch authority was consumed before durable settlement");
+		super("root eval D152 provider dispatch authority was consumed before durable settlement");
 	}
 }
 
@@ -315,15 +315,15 @@ async function consumeCurrentProviderDispatch(input: {
 		credentialFingerprintDigest: empiricalSha256(new TextEncoder().encode(input.bearerToken)),
 	});
 	if ((await realpath(privateRoot)) !== privateRoot)
-		throw new TypeError("root eval D145 dispatch private root drifted");
+		throw new TypeError("root eval D152 dispatch private root drifted");
 	input.signal?.throwIfAborted();
-	const claimPath = join(privateRoot, `.${claim.generationRef}.disposition.v20.json`);
+	const claimPath = join(privateRoot, `.${claim.generationRef}.disposition.v21.json`);
 	const claimHandle = await open(claimPath, constants.O_RDONLY | constants.O_NOFOLLOW);
 	let claimBytes: Uint8Array;
 	try {
 		const stat = await claimHandle.stat();
 		if (!stat.isFile() || stat.nlink !== 1 || (stat.mode & 0o777) !== 0o600 || stat.size > 65_536)
-			throw new TypeError("root eval D145 committed claim identity invalid");
+			throw new TypeError("root eval D152 committed claim identity invalid");
 		claimBytes = new Uint8Array(await claimHandle.readFile());
 	} finally {
 		await claimHandle.close();
@@ -331,10 +331,10 @@ async function consumeCurrentProviderDispatch(input: {
 	input.signal?.throwIfAborted();
 	const decoded = strictJsonCodec.decode(claimBytes);
 	if (!sameBytes(strictJsonCodec.encode(decoded), claimBytes))
-		throw new TypeError("root eval D145 committed claim bytes were not canonical");
+		throw new TypeError("root eval D152 committed claim bytes were not canonical");
 	if (!sameBytes(strictJsonCodec.encode(claim), claimBytes))
-		throw new TypeError("root eval D145 executor requires the committed claim");
-	const dispatchRoot = join(privateRoot, ".d145-provider-dispatches");
+		throw new TypeError("root eval D152 executor requires the committed claim");
+	const dispatchRoot = join(privateRoot, ".d152-provider-dispatches");
 	await mkdir(dispatchRoot, { recursive: true, mode: 0o700 });
 	await chmod(dispatchRoot, 0o700);
 	await syncDirectory(privateRoot);
@@ -408,7 +408,7 @@ async function persistRootEvalPrivateDiagnostic(input: {
 	readonly material: Readonly<Record<string, unknown>>;
 }): Promise<void> {
 	if (!input.enabled) return;
-	const directory = join(resolve(input.privateRoot), ".d145-development-diagnostics");
+	const directory = join(resolve(input.privateRoot), ".d152-development-diagnostics");
 	await mkdir(directory, { recursive: true, mode: 0o700 });
 	await chmod(directory, 0o700);
 	const material = strictSnapshot({
@@ -1537,7 +1537,7 @@ async function verify(
 	return Object.freeze({ publicSemantic: true, hiddenVerifier: hidden.code === 0 });
 }
 
-export async function qualifyRootEvalTransferTaskFamily(input: {
+export async function qualifyRootEvalMechanismTaskFamily(input: {
 	readonly repositoryRoot: string;
 	readonly materializationRoot: string;
 }): Promise<
@@ -1583,7 +1583,7 @@ export async function qualifyRootEvalTransferTaskFamily(input: {
 				!correct.hiddenVerifier
 			)
 				throw new TypeError(
-					`root eval transfer task ${task.replicate} failed closed: ${JSON.stringify({ ambiguousBug, diff, correct })}`,
+					`root eval mechanism task ${task.replicate} failed closed: ${JSON.stringify({ ambiguousBug, diff, correct })}`,
 				);
 			results.push(
 				Object.freeze({
@@ -1775,7 +1775,7 @@ function createRootEvalLiveExecutorInternal(
 	if (privateDiagnostics && taskKind !== "development-transfer")
 		throw new TypeError("root eval private proposal diagnostics are development-only");
 	if (input.bearerToken.length < 16 || input.bearerToken.length > 4_096)
-		throw new TypeError("root eval D145 credential was invalid");
+		throw new TypeError("root eval D152 credential was invalid");
 	let disposed = false;
 	const cancellation = new AbortController();
 	const active = new Map<string, Promise<EvalExecutorOutcome>>();
@@ -1865,7 +1865,7 @@ function createRootEvalLiveExecutorInternal(
 			}
 			responseStatus = response.status;
 			if (response.redirected || response.url !== ROOT_EVAL_LIVE_ENDPOINT)
-				throw new TypeError("root eval D145 provider response route drifted");
+				throw new TypeError("root eval D152 provider response route drifted");
 			let bytes: Uint8Array;
 			try {
 				bytes = await readRootEvalBoundedResponseBytes(
@@ -1954,7 +1954,7 @@ function createRootEvalLiveExecutorInternal(
 					(lease.signal.reason instanceof RootEvalEffectLeaseExpired ||
 						lease.signal.reason instanceof RootEvalSettlementLeaseExpired));
 			const digest = empiricalStrictJsonDigest({
-				kind: "root-eval-d145-provider-failure",
+				kind: "root-eval-d152-provider-failure",
 				admissionId: effect.admissionId,
 				message: error instanceof Error ? error.message : String(error),
 			});
@@ -2021,7 +2021,7 @@ function createRootEvalLiveExecutorInternal(
 				? task.sourceVerifierEvidenceDigest
 				: empiricalStrictJsonDigest({
 						kind: "root-eval-actor-visible-acceptance",
-						task: "d145-prior-work-item-transfer-acceptance",
+						task: "d152-orthogonal-mechanism-transfer-acceptance",
 					});
 		const started = performance.now();
 		const root = rootEvalWorkspaceForAdmission(materializationRoot, effect.providerAdmission);
@@ -2084,7 +2084,7 @@ function createRootEvalLiveExecutorInternal(
 				});
 			} catch (error) {
 				const digest = empiricalStrictJsonDigest({
-					kind: "root-eval-d145-tool-failure",
+					kind: "root-eval-d152-tool-failure",
 					toolAdmissionId: effect.toolAdmissionId,
 					message: error instanceof Error ? error.message : String(error),
 				});
@@ -2105,7 +2105,7 @@ function createRootEvalLiveExecutorInternal(
 					status: "failed",
 					elapsedMs: elapsed(started),
 					resultDigest: empiricalStrictJsonDigest({
-						kind: "root-eval-d145-cleanup-failure",
+						kind: "root-eval-d152-cleanup-failure",
 						toolAdmissionId: effect.toolAdmissionId,
 					}),
 					expectedDigest,
@@ -2139,7 +2139,7 @@ function createRootEvalLiveExecutorInternal(
 				elapsedMs: effect.delayMs,
 				status: "completed" as const,
 				resultDigest: empiricalStrictJsonDigest({
-					kind: "root-eval-d145-retry-delay-complete",
+					kind: "root-eval-d152-retry-delay-complete",
 					executionId: effect.executionId,
 					delayMs: effect.delayMs,
 				}),
@@ -2217,7 +2217,7 @@ function createRootEvalLiveExecutorInternal(
 	return Object.freeze({
 		async execute(effect: EvalExecutableEffect): Promise<EvalExecutorOutcome> {
 			if (disposed || active.has(effect.executionId))
-				throw new TypeError("root eval D145 executor rejected replay or disposal");
+				throw new TypeError("root eval D152 executor rejected replay or disposal");
 			cancellation.signal.throwIfAborted();
 			const execution = (async (): Promise<EvalExecutorOutcome> => {
 				if (effect.kind === "eval-admitted-effect") return await executeProvider(effect);
@@ -2617,7 +2617,7 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 				? task.sourceVerifierEvidenceDigest
 				: empiricalStrictJsonDigest({
 						kind: "root-eval-actor-visible-acceptance",
-						task: "d145-prior-work-item-transfer-acceptance",
+						task: "d152-orthogonal-mechanism-transfer-acceptance",
 					});
 		const started = performance.now();
 		const root = rootEvalWorkspaceForAdmission(materializationRoot, effect.providerAdmission);
@@ -2803,7 +2803,7 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 export const ROOT_EVAL_LIVE_TASK_BINDING_DIGEST = empiricalStrictJsonDigest(
 	strictSnapshot({
 		decisionRef: ROOT_EVAL_LIVE_DECISION_REF,
-		taskSetBindingDigest: ROOT_EVAL_D145_TASK_SET_BINDING_DIGEST,
+		taskSetBindingDigest: ROOT_EVAL_D152_TASK_SET_BINDING_DIGEST,
 		heldOutSealDigest: ROOT_EVAL_HELD_OUT_SEAL_DIGEST,
 		developmentTasks: ROOT_EVAL_DEVELOPMENT_TASKS,
 		noAdmittedMemoryContext: NO_ADMITTED_MEMORY_CONTEXT,
