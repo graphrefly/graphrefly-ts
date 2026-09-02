@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import {
 	chmod,
@@ -1970,7 +1970,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			await rm(temporary, { force: true, recursive: true });
 		}
 	});
-	it("opens only the exact transient D152 development-1 authority and fresh private namespace", () => {
+	it("opens only the exact transient D152 development-2 authority and fresh private namespace", () => {
 		const liveEntry = readFileSync(
 			resolve(
 				repositoryRoot,
@@ -1979,14 +1979,50 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			"utf8",
 		);
 		expect(liveEntry).toContain(
-			'"user-authorized:d152-development-1:usd-12:development-usd-36" as const',
+			'"user-authorized:d152-development-2:usd-4.272834:development-usd-36" as const',
 		);
 		expect(liveEntry).toContain("process.env.GRAPHREFLY_ROOT_EVAL_EXECUTION_AUTHORITY");
-		expect(liveEntry).toContain('ROOT_EVAL_LIVE_CAMPAIGN_SLOT !== "development-1"');
+		expect(liveEntry).toContain('ROOT_EVAL_LIVE_CAMPAIGN_SLOT !== "development-2"');
+		expect(liveEntry).not.toContain(
+			'"user-authorized:d152-development-1:usd-12:development-usd-36"',
+		);
 		expect(liveEntry).toMatch(
 			/join\(operatorRoot, `current-\$\{ROOT_EVAL_LIVE_GENERATION_REF\}`\)/u,
 		);
 		expect(liveEntry).not.toContain('join(operatorRoot, "current-live-d136")');
+	});
+	it("binds development-2 to the approved remaining cap without changing the charter ceiling", () => {
+		const moduleUrl = pathToFileURL(
+			resolve(
+				repositoryRoot,
+				"packages/ts/evals/graph-native-rerun-avoidance/root-eval-live-authority.ts",
+			),
+		).href;
+		const source = `
+			const a = await import(${JSON.stringify(moduleUrl)});
+			process.stdout.write(JSON.stringify({
+				slot: a.ROOT_EVAL_LIVE_CAMPAIGN_SLOT,
+				generation: a.ROOT_EVAL_LIVE_GENERATION_REF,
+				cap: a.ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
+				partition: a.ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD
+			}));
+		`;
+		const result = execFileSync(
+			process.execPath,
+			["--import", "tsx", "--input-type=module", "--eval", source],
+			{
+				cwd: repositoryRoot,
+				env: { ...process.env, GRAPHREFLY_ROOT_EVAL_CAMPAIGN_SLOT: "development-2" },
+				encoding: "utf8",
+				timeout: 20_000,
+			},
+		);
+		expect(JSON.parse(result)).toEqual({
+			slot: "development-2",
+			generation: "root-eval-development-2026-09-01-d152-v2",
+			cap: 4_272_834,
+			partition: 36_000_000,
+		});
 	});
 	it("keeps an unsettled caller await alive and releases the lease after settlement", async () => {
 		const moduleUrl = pathToFileURL(
