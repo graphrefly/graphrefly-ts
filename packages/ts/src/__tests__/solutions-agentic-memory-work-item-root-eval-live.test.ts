@@ -174,6 +174,7 @@ import {
 	rootEvalTaskBindings,
 	rootEvalTaskManifestDisjointAudit,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-task.js";
+import { ensureRootEvalDevelopmentTaskManifest } from "../../evals/graph-native-rerun-avoidance/root-eval-task-manifest-store.js";
 import { strictJsonCodec } from "../json/codec.js";
 
 const ROOT_EVAL_DEVELOPMENT_TASK = ROOT_EVAL_DEVELOPMENT_TASKS[0]!;
@@ -5814,6 +5815,9 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			coordinateSuffix: "development-two-seed",
 		});
 		try {
+			const generated = await ensureRootEvalDevelopmentTaskManifest("development-2");
+			expect(await ensureRootEvalDevelopmentTaskManifest("development-2")).toEqual(generated);
+			expect((await stat(join(temporary, "development-2.json"))).mode & 0o777).toBe(0o600);
 			expect(rootEvalTaskManifestDisjointAudit(development1, development2)).toEqual({
 				leftSlot: "development-1",
 				rightSlot: "development-2",

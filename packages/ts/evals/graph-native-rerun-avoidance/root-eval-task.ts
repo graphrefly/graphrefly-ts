@@ -1123,7 +1123,7 @@ export function createRootEvalTaskManifest(input: {
 	});
 }
 
-function privateManifestDirectory(): string {
+export function rootEvalTaskManifestDirectory(): string {
 	return resolve(
 		process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY ??
 			resolve(
@@ -1135,7 +1135,7 @@ function privateManifestDirectory(): string {
 
 export function readRootEvalTaskManifest(slot: RootEvalTaskManifestSlot): RootEvalTaskManifest {
 	const developmentOrdinal = rootEvalDevelopmentOrdinal(slot);
-	const path = resolve(privateManifestDirectory(), `${slot}.json`);
+	const path = resolve(rootEvalTaskManifestDirectory(), `${slot}.json`);
 	const file = statSync(path);
 	if (!file.isFile() || (file.mode & 0o077) !== 0)
 		throw new TypeError(`root eval ${slot} task manifest must be a mode-0600 regular file`);

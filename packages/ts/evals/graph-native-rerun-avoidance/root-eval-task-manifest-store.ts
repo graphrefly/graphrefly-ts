@@ -9,18 +9,9 @@ import {
 	type RootEvalTaskManifestSlot,
 	readRootEvalTaskManifest,
 	rootEvalDevelopmentOrdinal,
+	rootEvalTaskManifestDirectory,
 	rootEvalVariantOrderSupportsIrrelevantControls,
 } from "./root-eval-task.js";
-
-function manifestDirectory(): string {
-	return resolve(
-		process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY ??
-			resolve(
-				import.meta.dirname,
-				"../.private/empirical-memory-rerun-avoidance/d145-task-manifests",
-			),
-	);
-}
 
 function shuffledVariantOrder(): readonly number[] {
 	for (let attempt = 0; attempt < 128; attempt += 1) {
@@ -44,7 +35,7 @@ export async function ensureRootEvalDevelopmentTaskManifest(
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
 	}
-	const directory = manifestDirectory();
+	const directory = rootEvalTaskManifestDirectory();
 	await mkdir(directory, { recursive: true, mode: 0o700 });
 	await chmod(directory, 0o700);
 	const manifest = createRootEvalTaskManifest({
