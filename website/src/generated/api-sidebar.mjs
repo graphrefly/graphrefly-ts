@@ -1367,6 +1367,10 @@ export const apiSidebar = [
 		"collapsed": true,
 		"items": [
 			{
+				"label": "admissionHandoff()",
+				"link": "/api/admissionhandoff"
+			},
+			{
 				"label": "eventFlow()",
 				"link": "/api/eventflow"
 			},
@@ -1969,6 +1973,14 @@ export const apiSidebar = [
 				"link": "/api/workitemdomainactionproposalintakeprojector"
 			},
 			{
+				"label": "workItemSeedProjector()",
+				"link": "/api/workitemseedprojector"
+			},
+			{
+				"label": "workItemExecutionRecipe()",
+				"link": "/api/workitemexecutionrecipe"
+			},
+			{
 				"label": "workItemAuthoringProjector()",
 				"link": "/api/workitemauthoringprojector"
 			},
@@ -2291,6 +2303,22 @@ export const apiSidebar = [
 			{
 				"label": "certifyPodmanLibpodApiV0RootlessLocalContainerPostgresqlWithNode()",
 				"link": "/api/certifypodmanlibpodapiv0rootlesslocalcontainerpostgresqlwithnode"
+			},
+			{
+				"label": "localUntrustedJsComputeRuntime()",
+				"link": "/api/localuntrustedjscomputeruntime"
+			},
+			{
+				"label": "nodeLocalUntrustedJsComputeHostBindingAttestation()",
+				"link": "/api/nodelocaluntrustedjscomputehostbindingattestation"
+			},
+			{
+				"label": "certifyNodeLocalUntrustedJsCompute()",
+				"link": "/api/certifynodelocaluntrustedjscompute"
+			},
+			{
+				"label": "nodeLocalUntrustedJsComputeDriver()",
+				"link": "/api/nodelocaluntrustedjscomputedriver"
 			},
 			{
 				"label": "postgresql16ManagedCloudControlStore()",

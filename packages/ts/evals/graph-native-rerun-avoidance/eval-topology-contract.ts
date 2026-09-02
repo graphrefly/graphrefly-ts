@@ -74,7 +74,14 @@ export const ROOT_EVAL_REQUIRED_NODES = Object.freeze({
 	"eval/memory/applied-record-state": "rootEvalAppliedMemoryRecordState",
 	"eval/memory/exposure-frame": "rootEvalMemoryExposureFrame",
 	"eval/memory/exposure-occurrence-input": "rootEvalMemoryExposureOccurrenceInput",
-	"eval/solution/agentic-memory/snapshot": "agenticMemoryRecordUseOccurrence",
+	"eval/memory/use-dispatch": "rootEvalMemoryUseDispatch",
+	"eval/solution/agentic-memory/snapshot": "agenticMemoryRecordUseGate",
+	"eval/solution/agentic-memory/cursor": "agenticMemoryRecordUseCursor",
+	"eval/solution/agentic-memory/audit": "agenticMemoryRecordUseAudit",
+	"eval/solution/agentic-memory/issues": "agenticMemoryRecordUseIssues",
+	"eval/solution/agentic-memory/status": "agenticMemoryRecordUseStatus",
+	"eval/solution/agentic-memory/exclusions": "agenticMemoryRecordUseExclusions",
+	"eval/solution/agentic-memory/allowedRecords": "agenticMemoryRecordUseAllowedRecords",
 	"eval/memory/context-for-work-item": "rootEvalMemoryContextForWorkItem",
 	"eval/campaign/replicate-batches": "rootEvalReplicateBatches",
 	"eval/campaign/replicate-batch-release-controller": "rootEvalReplicateBatchReleaseController",
@@ -149,6 +156,12 @@ export const ROOT_EVAL_REQUIRED_NODES = Object.freeze({
 } as const);
 
 export const ROOT_EVAL_CRITICAL_EDGES = Object.freeze([
+	["eval/solution/agentic-memory/snapshot", "eval/solution/agentic-memory/allowedRecords"],
+	["eval/solution/agentic-memory/snapshot", "eval/solution/agentic-memory/exclusions"],
+	["eval/solution/agentic-memory/snapshot", "eval/solution/agentic-memory/status"],
+	["eval/solution/agentic-memory/snapshot", "eval/solution/agentic-memory/issues"],
+	["eval/solution/agentic-memory/snapshot", "eval/solution/agentic-memory/audit"],
+	["eval/solution/agentic-memory/snapshot", "eval/solution/agentic-memory/cursor"],
 	["eval/profile/qualified-catalog", "eval/profile/graph-admission"],
 	["eval/campaign/start", "eval/time/elapsed-budget/schedule"],
 	["eval/campaign/start", "eval/time/elapsed-budget/timer-source"],
@@ -321,7 +334,9 @@ export const ROOT_EVAL_CRITICAL_EDGES = Object.freeze([
 	["eval/memory/correlated-six-arm-data", "eval/memory/exposure-frame"],
 	["eval/memory/exposure-frame", "eval/memory/exposure-occurrence-input"],
 	["eval/memory/exposure-occurrence-input", "eval/solution/agentic-memory/snapshot"],
-	["eval/solution/agentic-memory/snapshot", "eval/memory/context-for-work-item"],
+	["eval/solution/agentic-memory/allowedRecords", "eval/memory/context-for-work-item"],
+	["eval/memory/exposure-occurrence-input", "eval/memory/use-dispatch"],
+	["eval/memory/use-dispatch", "eval/memory/context-for-work-item"],
 	["eval/campaign/replicate-controller", "eval/campaign/replicate-batch-release-controller"],
 	["eval/campaign/replicate-batches", "eval/campaign/replicate-batch-release-controller"],
 	["eval/solution/source-work-item-execution/requests", "eval/provider/proposal-candidate"],
@@ -550,11 +565,22 @@ export function assertRootEvalTopologyContract(
 		"agenticWorkItemMemoryBridgeOccurrence",
 		"agenticMemoryRecordAdmissionOccurrence",
 		"agenticMemoryRecordApplicationOccurrence",
-		"agenticMemoryRecordUseOccurrence",
+		"agenticMemoryRecordUseGate",
 	] as const)
 		if (snapshot.nodes.filter((node) => node.factory === factory).length !== 1)
 			throw new Error(`topology contract: fixed memory lifecycle duplicated at '${factory}'`);
 	const workItemPlan = nodes.get("eval/work-item/attempt-resource-plan");
+	const contextDependencies = snapshot.edges
+		.filter((edge) => edge.to === "eval/memory/context-for-work-item")
+		.map((edge) => edge.from)
+		.sort();
+	if (
+		JSON.stringify(contextDependencies) !==
+		JSON.stringify(
+			["eval/memory/use-dispatch", "eval/solution/agentic-memory/allowedRecords"].sort(),
+		)
+	)
+		throw new Error("topology contract: governed memory context raw-record bypass");
 	if (
 		workItemPlan?.meta?.timeoutAuthority !== "work-item-effect-plan" ||
 		workItemPlan.meta.effectTimeoutMs !== ROOT_EVAL_DEFAULT_EFFECT_TIMEOUT_MS

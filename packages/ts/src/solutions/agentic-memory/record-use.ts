@@ -1,13 +1,13 @@
-import { depBatch, depLatest, depTerminal, isTerminalError } from "../../ctx/types.js";
+import { depBatch } from "../../ctx/types.js";
 import type { Graph } from "../../graph/graph.js";
 import { canonicalTupleKey } from "../../identity.js";
 import { strictCanonicalJsonBytes, strictJsonCodec } from "../../json/codec.js";
+import { type SolutionOccurrence, solutionOccurrenceProjection } from "../occurrence.js";
 import {
 	agenticMemoryRecordCodec,
 	agenticMemoryRecordFrame,
 	assertAgenticMemoryRecordFrame,
 } from "./frame.js";
-import { solutionProjection } from "./projection.js";
 import {
 	dataArrayContainerErrors,
 	dataRecordContainerErrors,
@@ -653,122 +653,98 @@ function projectAgenticMemoryRecordUseGateInner<TJson extends StrictJsonValue = 
 }
 
 /**
- * Create the static graph-visible single-use gate bundle locked by D643.
+ * Create one real exact-use lifecycle for a bounded stream of complete inputs (D789).
  *
- * Governed retrieval must consume only this bundle's `allowedRecords` projection.
+ * Every projection preserves scoped occurrence identity. Governed consumers must
+ * correlate their query with this gate's allowedRecords occurrence, never raw records.
+ * Permission errors are per-use invalid DATA. Malformed/conflicting occurrence
+ * identity rejects the invocation synchronously; an upstream ERROR terminates
+ * the lifecycle and all projections. Neither failure permits continued use of a
+ * previously emitted authorization as a new occurrence's authority.
  *
- * @param graph - Graph that owns the gate and projection nodes.
- * @param opts - Declared record, request, and external-decision dependencies.
- * @returns One snapshot node plus allowedRecords/exclusions/status/issues/audit/cursor projections.
+ * @param graph - Graph owning the gate and its projections.
+ * @param opts - Complete occurrences, retention bound and optional stable name.
+ * @returns Snapshot and declared, identity-preserving authorization projections.
  * @category solutions
+ * @example
+ * ```ts
+ * import { agenticMemoryRecordUseGateBundle } from "@graphrefly/ts/solutions/agentic-memory";
+ * // completeUses: Node<AgenticMemoryRecordUseOccurrence>
+ * const gate = agenticMemoryRecordUseGateBundle(graph, {
+ *   occurrences: completeUses,
+ *   maxOccurrences: 30,
+ * });
+ * // Match the query to the exact gate.allowedRecords occurrence before retrieval.
+ * ```
  */
 export function agenticMemoryRecordUseGateBundle<TJson extends StrictJsonValue = StrictJsonValue>(
 	graph: Graph,
 	opts: AgenticMemoryRecordUseGateBundleOptions<TJson>,
 ): AgenticMemoryRecordUseGateBundle<TJson> {
 	const name = opts.name ?? "agenticMemoryRecordUseGate";
-	const snapshot = graph.node<AgenticMemoryRecordUseSnapshot<TJson>>(
-		[opts.records, opts.request, opts.decisions],
-		(ctx) => {
-			const records = depLatest(ctx, 0);
-			const request = depLatest(ctx, 1);
-			const decisions = depLatest(ctx, 2);
-			const state =
-				ctx.state.get<{ dependencyFailed: boolean; evaluation: number }>() ??
-				({
-					dependencyFailed: false,
-					evaluation: 0,
-				} satisfies { dependencyFailed: boolean; evaluation: number });
-			if ([0, 1, 2].some((index) => isTerminalError(depTerminal(ctx, index)))) {
-				state.dependencyFailed = true;
+	const snapshot = solutionOccurrenceProjection(graph, opts.occurrences, {
+		name: `${name}/snapshot`,
+		factory: "agenticMemoryRecordUseGate",
+		maxOccurrences: opts.maxOccurrences,
+		project: (value) => {
+			try {
+				const fields = Object.getOwnPropertyDescriptors(value);
+				for (const name of ["records", "request", "decisions"])
+					if (fields[name] === undefined || !Object.hasOwn(fields[name]!, "value"))
+						return globalFailure<TJson>("invalid-input", 1, 0, 0);
+				return projectAgenticMemoryRecordUseGate<TJson>(
+					fields.records!.value,
+					fields.request!.value,
+					fields.decisions!.value,
+				);
+			} catch {
+				return globalFailure<TJson>("invalid-input", 1, 0, 0);
 			}
-			if (
-				!state.dependencyFailed &&
-				[0, 1, 2].every((index) => (depBatch(ctx, index)?.length ?? 0) === 0)
-			) {
-				return;
-			}
-			state.evaluation += 1;
-			ctx.state.set(state);
-			if (state.dependencyFailed) {
-				ctx.down([
-					[
+		},
+		// Invalid permission input has no canonical authority identity. Fingerprint
+		// its bounded invalid result, never inspect rejected getters/Proxy contents.
+		// A prior valid input cannot collide with this tagged invalid representation.
+		identity: (value, snapshot) =>
+			snapshot.status.state === "invalid"
+				? { kind: "invalid-permission-input", snapshot }
+				: { kind: "exact-permission-input", value },
+	});
+	const project = <T>(
+		suffix: string,
+		factory: string,
+		select: (value: AgenticMemoryRecordUseSnapshot<TJson>) => T,
+	) =>
+		graph.node<SolutionOccurrence<T>>(
+			[snapshot],
+			(ctx) => {
+				const outputs = (depBatch(ctx, 0) ?? []).map((raw) => {
+					const occurrence = raw as SolutionOccurrence<AgenticMemoryRecordUseSnapshot<TJson>>;
+					return [
 						"DATA",
-						globalFailure<TJson>(
-							"invalid-input",
-							state.evaluation,
-							safeInputLength(records),
-							safeInputLength(decisions),
-						),
-					],
-				]);
-				return;
-			}
-			if (records === undefined || request === undefined || decisions === undefined) return;
-			ctx.down([
-				[
-					"DATA",
-					projectAgenticMemoryRecordUseGate<TJson>(records, request, decisions, state.evaluation),
-				],
-			]);
-		},
-		{
-			name: `${name}/snapshot`,
-			factory: "agenticMemoryRecordUseGate",
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
-			terminalAsRealInput: true,
-		},
-	);
+						Object.freeze({ ...occurrence, value: select(occurrence.value) }),
+					] as const;
+				});
+				if (outputs.length > 0) ctx.down(outputs);
+			},
+			{ name: `${name}/${suffix}`, factory },
+		);
 	return {
-		input: {
-			records: opts.records,
-			request: opts.request,
-			decisions: opts.decisions,
-		},
+		input: opts.occurrences,
 		snapshot,
-		allowedRecords: solutionProjection(
-			graph,
-			snapshot,
-			`${name}/allowedRecords`,
+		allowedRecords: project(
+			"allowedRecords",
 			"agenticMemoryRecordUseAllowedRecords",
 			(fact) => fact.allowedRecords,
 		),
-		exclusions: solutionProjection(
-			graph,
-			snapshot,
-			`${name}/exclusions`,
+		exclusions: project(
+			"exclusions",
 			"agenticMemoryRecordUseExclusions",
 			(fact) => fact.exclusions,
 		),
-		status: solutionProjection(
-			graph,
-			snapshot,
-			`${name}/status`,
-			"agenticMemoryRecordUseStatus",
-			(fact) => fact.status,
-		),
-		issues: solutionProjection(
-			graph,
-			snapshot,
-			`${name}/issues`,
-			"agenticMemoryRecordUseIssues",
-			(fact) => fact.issues,
-		),
-		audit: solutionProjection(
-			graph,
-			snapshot,
-			`${name}/audit`,
-			"agenticMemoryRecordUseAudit",
-			(fact) => fact.audit,
-		),
-		cursor: solutionProjection(
-			graph,
-			snapshot,
-			`${name}/cursor`,
-			"agenticMemoryRecordUseCursor",
-			(fact) => fact.cursor,
-		),
+		status: project("status", "agenticMemoryRecordUseStatus", (fact) => fact.status),
+		issues: project("issues", "agenticMemoryRecordUseIssues", (fact) => fact.issues),
+		audit: project("audit", "agenticMemoryRecordUseAudit", (fact) => fact.audit),
+		cursor: project("cursor", "agenticMemoryRecordUseCursor", (fact) => fact.cursor),
 	};
 }
 

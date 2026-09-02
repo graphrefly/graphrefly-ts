@@ -180,7 +180,7 @@
 			"name": "eval/profile/qualified-catalog",
 			"value": {
 				"requestedTargetRef": "model-target.deepseek-v4-flash-0731",
-				"currentImplementationManifestDigest": "sha256:6c64512e24b872aaa00ed69876cc675b6e90bab31e2bd792ad5f6a234c967dd0",
+				"currentImplementationManifestDigest": "sha256:638ec8416602abff47a3023f2346f15650220bc7b7f20ce44cb9ee69fe566142",
 				"targets": [
 					{
 						"modelRef": "deepseek/deepseek-v4-flash-0731",
@@ -229,19 +229,19 @@
 						"bindingDigest": "sha256:2163c9f0da40a602408c54076cd5eb81a43d6154467a233b1d5d5dd56d2b388d",
 						"bindingRef": "provider-binding.fireworks-structured-chat.v2",
 						"credentialAccessed": false,
-						"implementationManifestDigest": "sha256:6c64512e24b872aaa00ed69876cc675b6e90bab31e2bd792ad5f6a234c967dd0",
+						"implementationManifestDigest": "sha256:638ec8416602abff47a3023f2346f15650220bc7b7f20ce44cb9ee69fe566142",
 						"liveEvaluationExecuted": false,
 						"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 						"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
 						"providerNetworkAccessed": false,
-						"qualificationArtifactDigest": "sha256:f46f46643e0ea8b8786189cfca5e6ddc7cb9f93788d8e9a90797ea2e38ac2110",
+						"qualificationArtifactDigest": "sha256:0332a7186b0caab5c12dad05134af3a9df66b6e741c359f255ff8ddea6028b44",
 						"qualificationMode": "injected-no-network",
 						"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 						"qualified": true,
 						"schemaVersion": "graphrefly-ts.profile-qualification.v1",
 						"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 						"targetRef": "model-target.deepseek-v4-flash-0731",
-						"qualificationDigest": "sha256:d4d66af83353c74cda05dce9313c6c88f6b75d670c2ab4caeab139ec732acd57"
+						"qualificationDigest": "sha256:95d202772908eb0d84745994ee2fdf5594ee354c3b3b876275cc03a2c3c3497d"
 					}
 				]
 			},
@@ -271,28 +271,28 @@
 					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
 					"decisionRef": "graphrefly-ts:D96",
 					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
-					"implementationManifestDigest": "sha256:6c64512e24b872aaa00ed69876cc675b6e90bab31e2bd792ad5f6a234c967dd0",
+					"implementationManifestDigest": "sha256:638ec8416602abff47a3023f2346f15650220bc7b7f20ce44cb9ee69fe566142",
 					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
-					"qualificationDigest": "sha256:d4d66af83353c74cda05dce9313c6c88f6b75d670c2ab4caeab139ec732acd57",
+					"qualificationDigest": "sha256:95d202772908eb0d84745994ee2fdf5594ee354c3b3b876275cc03a2c3c3497d",
 					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 					"reasonCode": "root-graph-exact-profile-current",
 					"schemaVersion": "graphrefly-ts.current-profile-eligibility.v1",
 					"status": "eligible",
 					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 					"targetRef": "model-target.deepseek-v4-flash-0731",
-					"eligibilityDigest": "sha256:ba4f53f3b8f2c70443271fd0ba1e6dd502054c64c55c6083325c4a4f578feea2"
+					"eligibilityDigest": "sha256:a96a670581b1b7561bb5a8d0893974c56cc7560a3edf60cf4f973a058660612c"
 				},
 				"resolution": {
 					"bindingDigest": "sha256:2163c9f0da40a602408c54076cd5eb81a43d6154467a233b1d5d5dd56d2b388d",
 					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
-					"eligibilityDigest": "sha256:ba4f53f3b8f2c70443271fd0ba1e6dd502054c64c55c6083325c4a4f578feea2",
+					"eligibilityDigest": "sha256:a96a670581b1b7561bb5a8d0893974c56cc7560a3edf60cf4f973a058660612c",
 					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
-					"implementationManifestDigest": "sha256:6c64512e24b872aaa00ed69876cc675b6e90bab31e2bd792ad5f6a234c967dd0",
+					"implementationManifestDigest": "sha256:638ec8416602abff47a3023f2346f15650220bc7b7f20ce44cb9ee69fe566142",
 					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
 					"providerRef": "fireworks",
-					"qualificationDigest": "sha256:d4d66af83353c74cda05dce9313c6c88f6b75d670c2ab4caeab139ec732acd57",
+					"qualificationDigest": "sha256:95d202772908eb0d84745994ee2fdf5594ee354c3b3b876275cc03a2c3c3497d",
 					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 					"requestedTargetRef": "model-target.deepseek-v4-flash-0731",
 					"resolverRevision": "graphrefly-ts.profile-resolver.v1",
@@ -300,7 +300,7 @@
 					"status": "eligible",
 					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 					"targetRef": "model-target.deepseek-v4-flash-0731",
-					"resolutionDigest": "sha256:f8d75f777fffabbddd92cb886bce40e34f0a1be1fbb590e1d6cfdd6cb62a88c3"
+					"resolutionDigest": "sha256:dd57b56323808dfceb2193f366535f91c55109af260ebad4d9c463f0f31e7956"
 				},
 				"profile": {
 					"enhancementRecipes": [
@@ -362,7 +362,7 @@
 					"wrong-scope-applied"
 				],
 				"replicateCount": 5,
-				"topologyRevision": "graphrefly-ts.root-eval-topology.v20"
+				"topologyRevision": "graphrefly-ts.root-eval-topology.v21"
 			}
 		},
 		{
@@ -1967,7 +1967,7 @@
 		},
 		{
 			"id": "eval/solution/agentic-memory/snapshot",
-			"factory": "agenticMemoryRecordUseOccurrence",
+			"factory": "agenticMemoryRecordUseGate",
 			"status": "sentinel",
 			"deps": [
 				"eval/memory/exposure-occurrence-input"
@@ -1984,11 +1984,103 @@
 			}
 		},
 		{
+			"id": "eval/solution/agentic-memory/allowedRecords",
+			"factory": "agenticMemoryRecordUseAllowedRecords",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory/snapshot"
+			],
+			"name": "eval/solution/agentic-memory/allowedRecords",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-memory/exclusions",
+			"factory": "agenticMemoryRecordUseExclusions",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory/snapshot"
+			],
+			"name": "eval/solution/agentic-memory/exclusions",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-memory/status",
+			"factory": "agenticMemoryRecordUseStatus",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory/snapshot"
+			],
+			"name": "eval/solution/agentic-memory/status",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-memory/issues",
+			"factory": "agenticMemoryRecordUseIssues",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory/snapshot"
+			],
+			"name": "eval/solution/agentic-memory/issues",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-memory/audit",
+			"factory": "agenticMemoryRecordUseAudit",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory/snapshot"
+			],
+			"name": "eval/solution/agentic-memory/audit",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-memory/cursor",
+			"factory": "agenticMemoryRecordUseCursor",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory/snapshot"
+			],
+			"name": "eval/solution/agentic-memory/cursor",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/use-dispatch",
+			"factory": "rootEvalMemoryUseDispatch",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/exposure-occurrence-input"
+			],
+			"name": "eval/memory/use-dispatch",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
 			"id": "eval/memory/context-for-work-item",
 			"factory": "rootEvalMemoryContextForWorkItem",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-memory/snapshot"
+				"eval/solution/agentic-memory/allowedRecords",
+				"eval/memory/use-dispatch"
 			],
 			"name": "eval/memory/context-for-work-item",
 			"version": {
@@ -3996,6 +4088,38 @@
 		},
 		{
 			"from": "eval/solution/agentic-memory/snapshot",
+			"to": "eval/solution/agentic-memory/allowedRecords"
+		},
+		{
+			"from": "eval/solution/agentic-memory/snapshot",
+			"to": "eval/solution/agentic-memory/exclusions"
+		},
+		{
+			"from": "eval/solution/agentic-memory/snapshot",
+			"to": "eval/solution/agentic-memory/status"
+		},
+		{
+			"from": "eval/solution/agentic-memory/snapshot",
+			"to": "eval/solution/agentic-memory/issues"
+		},
+		{
+			"from": "eval/solution/agentic-memory/snapshot",
+			"to": "eval/solution/agentic-memory/audit"
+		},
+		{
+			"from": "eval/solution/agentic-memory/snapshot",
+			"to": "eval/solution/agentic-memory/cursor"
+		},
+		{
+			"from": "eval/memory/exposure-occurrence-input",
+			"to": "eval/memory/use-dispatch"
+		},
+		{
+			"from": "eval/solution/agentic-memory/allowedRecords",
+			"to": "eval/memory/context-for-work-item"
+		},
+		{
+			"from": "eval/memory/use-dispatch",
 			"to": "eval/memory/context-for-work-item"
 		},
 		{

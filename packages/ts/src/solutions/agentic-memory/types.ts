@@ -18,6 +18,7 @@ import type {
 	MemoryRetrievalSnapshot,
 	MemoryRetrievalStatus,
 } from "../../patterns/semantic-memory-graph.js";
+import type { SolutionOccurrence } from "../occurrence.js";
 import type {
 	AGENTIC_MEMORY_RECORD_FRAME_FORMAT,
 	AGENTIC_MEMORY_RECORD_FRAME_VERSION,
@@ -1604,30 +1605,36 @@ export interface AgenticMemoryRecordUseSnapshot<TJson extends StrictJsonValue = 
 	readonly cursor: AgenticMemoryRecordUseCursor;
 }
 
-/** Standalone one-use gate bundle. Governed retrieval consumes only `allowedRecords`. */
-export interface AgenticMemoryRecordUseGateBundle<TJson extends StrictJsonValue = StrictJsonValue> {
-	readonly input: {
-		readonly records: Node<readonly AgenticMemoryRecord<TJson>[]>;
-		readonly request: Node<AgenticMemoryRecordUseRequest>;
-		readonly decisions: Node<readonly AgenticMemoryRecordUseDecision[]>;
-	};
-	readonly snapshot: Node<AgenticMemoryRecordUseSnapshot<TJson>>;
-	readonly allowedRecords: Node<readonly AgenticMemoryRecord<TJson>[]>;
-	readonly exclusions: Node<readonly AgenticMemoryRecordUseExclusion[]>;
-	readonly status: Node<AgenticMemoryRecordUseStatus>;
-	readonly issues: Node<readonly AgenticMemoryRecordUseIssue[]>;
-	readonly audit: Node<readonly AgenticMemoryRecordUseAuditEntry[]>;
-	readonly cursor: Node<AgenticMemoryRecordUseCursor>;
+/** Complete authority material for one independently evaluated exact use (D789). */
+export interface AgenticMemoryRecordUseInput<TJson extends StrictJsonValue = StrictJsonValue> {
+	readonly records: readonly AgenticMemoryRecord<TJson>[];
+	readonly request: AgenticMemoryRecordUseRequest;
+	readonly decisions: readonly AgenticMemoryRecordUseDecision[];
 }
 
-/** Declared DATA dependencies and stable optional name for one D643 gate instance. */
+/** Scoped business occurrence, not a protocol wave ID. Digest identifies the input snapshot. */
+export type AgenticMemoryRecordUseOccurrence<TJson extends StrictJsonValue = StrictJsonValue> =
+	SolutionOccurrence<AgenticMemoryRecordUseInput<TJson>>;
+
+/** One fixed lifecycle, many isolated uses. Governed consumers use only `allowedRecords`. */
+export interface AgenticMemoryRecordUseGateBundle<TJson extends StrictJsonValue = StrictJsonValue> {
+	readonly input: Node<AgenticMemoryRecordUseOccurrence<TJson>>;
+	readonly snapshot: Node<SolutionOccurrence<AgenticMemoryRecordUseSnapshot<TJson>>>;
+	readonly allowedRecords: Node<SolutionOccurrence<readonly AgenticMemoryRecord<TJson>[]>>;
+	readonly exclusions: Node<SolutionOccurrence<readonly AgenticMemoryRecordUseExclusion[]>>;
+	readonly status: Node<SolutionOccurrence<AgenticMemoryRecordUseStatus>>;
+	readonly issues: Node<SolutionOccurrence<readonly AgenticMemoryRecordUseIssue[]>>;
+	readonly audit: Node<SolutionOccurrence<readonly AgenticMemoryRecordUseAuditEntry[]>>;
+	readonly cursor: Node<SolutionOccurrence<AgenticMemoryRecordUseCursor>>;
+}
+
+/** Complete immutable DATA inputs; retention is bounded for one activation, not silently evicted. */
 export interface AgenticMemoryRecordUseGateBundleOptions<
 	TJson extends StrictJsonValue = StrictJsonValue,
 > {
 	readonly name?: string;
-	readonly records: Node<readonly AgenticMemoryRecord<TJson>[]>;
-	readonly request: Node<AgenticMemoryRecordUseRequest>;
-	readonly decisions: Node<readonly AgenticMemoryRecordUseDecision[]>;
+	readonly occurrences: Node<AgenticMemoryRecordUseOccurrence<TJson>>;
+	readonly maxOccurrences: number;
 }
 
 /**

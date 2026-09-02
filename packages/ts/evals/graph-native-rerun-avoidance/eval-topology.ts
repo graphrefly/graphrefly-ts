@@ -18,8 +18,10 @@ import {
 import {
 	type AgenticMemoryRecord,
 	type AgenticMemoryRecordUseDecision,
+	type AgenticMemoryRecordUseInput,
 	type AgenticMemoryRecordUseRequest,
 	agenticMemoryRecordFrame,
+	agenticMemoryRecordUseGateBundle,
 	createAgenticMemoryRecordUseDecision,
 	type StrictJsonValue,
 } from "../../src/solutions/agentic-memory/index.js";
@@ -32,10 +34,8 @@ import type { SolutionOccurrence } from "../../src/solutions/occurrence.js";
 import {
 	type AgenticMemoryRecordAdmissionOccurrenceInput,
 	type AgenticMemoryRecordApplicationOccurrenceInput,
-	type AgenticMemoryRecordUseOccurrenceInput,
 	agenticMemoryRecordAdmissionOccurrenceNode,
 	agenticMemoryRecordApplicationOccurrenceNode,
-	agenticMemoryRecordUseOccurrenceNode,
 	agenticWorkItemMemoryBridgeOccurrenceNode,
 } from "../../src/solutions/occurrence-lifecycles.js";
 import { workItemExecutionRecipe } from "../../src/solutions/work-item/execution.js";
@@ -83,7 +83,7 @@ import {
 	rootEvalTaskBindings,
 } from "./root-eval-task.js";
 
-export const ROOT_EVAL_TOPOLOGY_REVISION = "graphrefly-ts.root-eval-topology.v20" as const;
+export const ROOT_EVAL_TOPOLOGY_REVISION = "graphrefly-ts.root-eval-topology.v21" as const;
 
 export type RootEvalOccurrenceLedgerEntry = Readonly<{
 	readonly revision: number;
@@ -5251,7 +5251,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			},
 		},
 	);
-	type EvalMemoryUseSolutionInput = AgenticMemoryRecordUseOccurrenceInput<MemoryPayload> &
+	type EvalMemoryUseSolutionInput = AgenticMemoryRecordUseInput<MemoryPayload> &
 		Readonly<{ readonly dispatch: EvalArmDispatch }>;
 	const memoryUseOccurrenceInputs = owner.node<SolutionOccurrence<EvalMemoryUseSolutionInput>>(
 		[memoryUseFrames],
@@ -5278,26 +5278,68 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			factory: "rootEvalMemoryExposureOccurrenceInput",
 		},
 	);
-	const memoryExposure = agenticMemoryRecordUseOccurrenceNode<
-		MemoryPayload,
-		EvalMemoryUseSolutionInput
-	>(owner, memoryUseOccurrenceInputs, {
+	const memoryExposure = agenticMemoryRecordUseGateBundle<MemoryPayload>(owner, {
 		name: "eval/solution/agentic-memory",
+		occurrences: memoryUseOccurrenceInputs,
 		maxOccurrences: ROOT_EVAL_REPLICATE_COUNT * HARNESS_ARMS.length,
 	});
-	const memoryContexts = owner.node<EvalMemoryContextFrame>(
-		[memoryExposure],
+	const memoryUseDispatches = owner.node<SolutionOccurrence<EvalArmDispatch>>(
+		[memoryUseOccurrenceInputs],
 		(ctx) => {
-			const outputs: EvalMemoryContextFrame[] = [];
+			const outputs = (depBatch(ctx, 0) ?? []).map((raw) => {
+				const input = raw as SolutionOccurrence<EvalMemoryUseSolutionInput>;
+				return ["DATA", Object.freeze({ ...input, value: input.value.dispatch })] as const;
+			});
+			if (outputs.length > 0) ctx.down(outputs);
+		},
+		{ name: "eval/memory/use-dispatch", factory: "rootEvalMemoryUseDispatch" },
+	);
+	const memoryContexts = owner.node<EvalMemoryContextFrame>(
+		[memoryExposure.allowedRecords, memoryUseDispatches],
+		(ctx) => {
+			// Join by exact occurrence, never by a latest request or by delivery order.
+			type Allowed = SolutionOccurrence<readonly AgenticMemoryRecord<MemoryPayload>[]>;
+			const pending = ctx.state.get<{
+				inputs: Map<string, SolutionOccurrence<EvalArmDispatch>>;
+				allowed: Map<string, Allowed>;
+			}>() ?? {
+				inputs: new Map<string, SolutionOccurrence<EvalArmDispatch>>(),
+				allowed: new Map<string, Allowed>(),
+			};
+			for (const raw of depBatch(ctx, 1) ?? []) {
+				const input = raw as SolutionOccurrence<EvalArmDispatch>;
+				pending.inputs.set(JSON.stringify([input.occurrenceId, input.occurrenceRevision]), input);
+			}
 			for (const raw of depBatch(ctx, 0) ?? []) {
-				const occurrence = raw as typeof memoryExposure extends Node<infer T> ? T : never;
-				const dispatch = occurrence.value.input.dispatch;
+				const allowed = raw as Allowed;
+				pending.allowed.set(
+					JSON.stringify([allowed.occurrenceId, allowed.occurrenceRevision]),
+					allowed,
+				);
+			}
+			if (
+				pending.inputs.size > ROOT_EVAL_REPLICATE_COUNT * HARNESS_ARMS.length ||
+				pending.allowed.size > ROOT_EVAL_REPLICATE_COUNT * HARNESS_ARMS.length
+			)
+				throw new Error("memory use correlation exceeded its bound");
+			const outputs: EvalMemoryContextFrame[] = [];
+			for (const [id, occurrence] of pending.allowed) {
+				const input = pending.inputs.get(id);
+				if (input === undefined) continue;
+				if (
+					input.occurrenceRevision !== occurrence.occurrenceRevision ||
+					input.occurrenceDigest !== occurrence.occurrenceDigest ||
+					empiricalStrictJsonDigest(input.occurrenceSourceRefs) !==
+						empiricalStrictJsonDigest(occurrence.occurrenceSourceRefs)
+				)
+					throw new Error("memory use authorization occurrence mismatch");
+				pending.inputs.delete(id);
+				pending.allowed.delete(id);
+				const dispatch = input.value;
 				const exposed =
 					dispatch.arm === "relevant-applied" || dispatch.arm === "irrelevant-applied";
 				const records = exposed
-					? occurrence.value.snapshot.allowedRecords.filter(
-							(value) => value.id === `${dispatch.workItemId}/memory-record`,
-						)
+					? occurrence.value.filter((value) => value.id === `${dispatch.workItemId}/memory-record`)
 					: [];
 				if (exposed && records.length !== 1) continue;
 				const ids = Object.freeze(records.map((value) => value.fragment.id as string));
@@ -5329,6 +5371,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					}),
 				);
 			}
+			ctx.state.set(pending);
 			if (outputs.length > 0) ctx.down(outputs.map((output) => ["DATA", output]));
 		},
 		{

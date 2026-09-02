@@ -408,7 +408,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				expect.objectContaining({ factory: "agenticWorkItemMemoryBridgeOccurrence" }),
 				expect.objectContaining({ factory: "agenticMemoryRecordAdmissionOccurrence" }),
 				expect.objectContaining({ factory: "agenticMemoryRecordApplicationOccurrence" }),
-				expect.objectContaining({ factory: "agenticMemoryRecordUseOccurrence" }),
+				expect.objectContaining({ factory: "agenticMemoryRecordUseGate" }),
 			]),
 		);
 		expect(raw.nodes.map((node) => node.id)).not.toEqual(
@@ -740,10 +740,10 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"graphrefly-ts.root-eval-live-qualification.v44",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-no-network-qa.v37",
+			"graphrefly-ts.root-eval-topology-no-network-qa.v38",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-qualification.v37",
+			"graphrefly-ts.root-eval-topology-qualification.v38",
 		);
 		expect(ROOT_EVAL_LIVE_GENERATION_REF).not.toContain("d116");
 		expect(ROOT_EVAL_LIVE_CLAIM_REF).not.toContain("d116");
@@ -905,10 +905,11 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			precredentialGateChronologyExecutionApprovalRef: "graphrefly-ts:D138",
 			currentLiveExecutionApprovalClosed: true,
 			callerHorizonDecisionRequired: false,
-			status: "qualified-no-network-d151-d152-development-only-confirmatory-unmaterialized",
+			status: "no-network-exact-use-qualified-architecture-migration-incomplete",
 			occurrenceAwareSolutionDeliveryDecisionRef: "graphrefly-ts:D151",
 			orthogonalMechanismFamilyDecisionRef: "graphrefly-ts:D152",
 		});
+		expect(ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.architectureMigration.complete).toBe(false);
 		expect(CURRENT_QUALIFICATION_ARTIFACT_DIGEST).toBe(
 			ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT_DIGEST,
 		);
@@ -1440,6 +1441,12 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			);
 		}
 		const reordered = clone(raw);
+		const rawBypass = clone(raw);
+		rawBypass.edges.push({
+			from: "eval/memory/exposure-occurrence-input",
+			to: "eval/memory/context-for-work-item",
+		});
+		expect(() => assertRootEvalTopologyContract(rawBypass)).toThrow(/raw-record bypass/u);
 		const start = reordered.nodes.find((node) => node.id === "eval/campaign/start");
 		if (start?.meta === undefined) throw new Error("missing start metadata");
 		start.meta.armOrder = [...HARNESS_ARMS].reverse();
@@ -1682,7 +1689,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				observations[index]!.verificationDiagnostics.completedWorkItems,
 			).toBeGreaterThanOrEqual(observations[index - 1]!.verificationDiagnostics.completedWorkItems);
 		expect(observations.at(-1)).toMatchObject({
-			topologyRevision: "graphrefly-ts.root-eval-topology.v20",
+			topologyRevision: "graphrefly-ts.root-eval-topology.v21",
 			armOrder: HARNESS_ARMS,
 			memoryProvenance: {
 				cold: "none",

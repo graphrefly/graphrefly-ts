@@ -10,10 +10,11 @@ import type { AgenticMemoryBundle, AgenticMemoryBundleOptions } from "./types.js
 /**
  * Creates a lower-level agentic memory projection/retrieval bundle.
  *
- * This bundle does not implement D643 record-use authorization. A governed
- * consumer must compose `agenticMemoryRecordUseGateBundle` first and pass only
- * its `allowedRecords` node as this bundle's `records` input, without a parallel
- * raw-record edge.
+ * This bundle does not implement D643/D789 record-use authorization. A governed
+ * consumer must compose `agenticMemoryRecordUseGateBundle` first, select the
+ * exact authorized occurrence matching its query, and pass only that occurrence's
+ * `allowedRecords.value` as this bundle's `records` input. Do not erase identity
+ * across multiple uses, fill from an unrelated latest value, or add a raw-record edge.
  *
  * @param graph - Graph that owns the created nodes or projector.
  * @param opts - Options that configure the helper.

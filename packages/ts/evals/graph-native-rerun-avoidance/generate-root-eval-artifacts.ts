@@ -225,8 +225,10 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 	readonly topology: string;
 	readonly live: string;
 }> {
+	const { architectureMigration: _currentMigration, ...historicalTopologyShape } =
+		ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT;
 	const topologyArtifact = Object.freeze({
-		...ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT,
+		...historicalTopologyShape,
 		schemaVersion: "graphrefly-ts.root-eval-topology-no-network-qa.v15",
 		topologyRevision: "graphrefly-ts.root-eval-topology.v7",
 		replicates: 5,
@@ -263,13 +265,15 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 					ref !== "graphrefly-ts:D149" &&
 					ref !== "graphrefly-ts:D150" &&
 					ref !== "graphrefly-ts:D151" &&
-					ref !== "graphrefly-ts:D152",
+					ref !== "graphrefly-ts:D152" &&
+					ref !== "graphrefly:D789",
 			),
 		),
 		implementationManifestDigest: D120_IMPLEMENTATION_MANIFEST_DIGEST,
 		caseResults: remapHistoricalCases(
 			ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.caseResults,
 			{
+				workItemAndExactUsePublicBundleComposition: "realSolutionComposition",
 				sixConcurrentWorkItemsWithOnePacedProviderLane: "sixEffectConcurrency",
 				d121GenerationIsolatedFromConsumedD116: "d116GenerationIsolatedFromConsumedD111",
 				d121GenerationIsolatedFromD118Qualification:
@@ -277,6 +281,8 @@ function buildD120FrozenQualificationBytes(): Readonly<{
 				d121GenerationIsolatedFromConsumedD111: "d116GenerationIsolatedFromConsumedD103",
 			},
 			new Set([
+				"d789ExactUsePermissionIsolationAndHostileInputs",
+				"d789ImmutableProvenanceAndNoRawRecordBypass",
 				"d120QualificationArtifactsImmutable",
 				"d121ResultNamespacesFresh",
 				"d136ResultNamespacesFresh",

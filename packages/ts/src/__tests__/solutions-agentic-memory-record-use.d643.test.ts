@@ -1,9 +1,10 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
+import { depBatch } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import * as packageRoot from "../index.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
 import type { Node } from "../node/node.js";
-import type { MemoryAnswer, MemoryFragment } from "../patterns/semantic-memory.js";
+import type { MemoryFragment } from "../patterns/semantic-memory.js";
 import type { Message } from "../protocol/messages.js";
 import * as focusedAgenticMemory from "../solutions/agentic-memory/index.js";
 import {
@@ -12,6 +13,7 @@ import {
 	type AgenticMemoryRecord,
 	type AgenticMemoryRecordUseDecision,
 	type AgenticMemoryRecordUseGateBundle,
+	type AgenticMemoryRecordUseOccurrence,
 	type AgenticMemoryRecordUseRequest,
 	type AgenticMemoryRecordUseSnapshot,
 	agenticMemoryBundle,
@@ -27,10 +29,6 @@ import {
 } from "../solutions/agentic-memory/index.js";
 import * as solutionsAggregate from "../solutions/index.js";
 import type { SolutionOccurrence } from "../solutions/occurrence.js";
-import {
-	type AgenticMemoryRecordUseOccurrenceInput,
-	agenticMemoryRecordUseOccurrenceNode,
-} from "../solutions/occurrence-lifecycles.js";
 
 const decoder = new TextDecoder();
 
@@ -744,368 +742,390 @@ describe("AgenticMemory D643 exact-one cardinality and status", () => {
 	});
 });
 
-describe("AgenticMemory D643 graph topology and consumer fixtures", () => {
-	it("preserves complete record-use occurrences across separate reordered waves", () => {
+function useOccurrence(id: string, revision = 1): AgenticMemoryRecordUseOccurrence<string> {
+	const currentRecord = record(`private-${id}`, { id: `record-${id}` });
+	const currentRequest = request({ requestId: `request-${id}` });
+	return Object.freeze({
+		occurrenceId: id,
+		occurrenceRevision: revision,
+		occurrenceDigest: `sha256:${String(revision).padStart(64, "0")}`,
+		occurrenceSourceRefs: Object.freeze([{ kind: "work-item", id: `work-${id}` }]),
+		value: Object.freeze({
+			records: Object.freeze([currentRecord]),
+			request: currentRequest,
+			decisions: Object.freeze([decision(currentRequest, currentRecord)]),
+		}),
+	});
+}
+
+describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
+	it("does not invoke rejected permission getters or leak Proxy exceptions across uses", () => {
 		const g = graph();
-		const occurrences = g.node<SolutionOccurrence<AgenticMemoryRecordUseOccurrenceInput<string>>>(
-			[],
-			null,
-			{ name: "occurrence/complete-record-use-input" },
-		);
-		const projected = agenticMemoryRecordUseOccurrenceNode(g, occurrences, {
-			name: "occurrence/complete-record-use",
-			maxOccurrences: 2,
+		const input = g.node<AgenticMemoryRecordUseOccurrence<string>>([], null);
+		const gate = agenticMemoryRecordUseGateBundle(g, { occurrences: input, maxOccurrences: 3 });
+		const observed = collect(gate.snapshot);
+		let getterCalls = 0;
+		const a = useOccurrence("getter");
+		const hostileRequest = { ...a.value.request };
+		Object.defineProperty(hostileRequest, "purpose", {
+			enumerable: true,
+			get() {
+				getterCalls += 1;
+				throw new Error("PRIVATE-GETTER");
+			},
 		});
-		const observed = collect(projected);
-		const makeOccurrence = (
-			ordinal: 1 | 2,
-		): SolutionOccurrence<AgenticMemoryRecordUseOccurrenceInput<string>> => {
-			const currentRecord = record(`payload-${ordinal}`, {
-				id: `record-${ordinal}`,
-				fragment: fragment(`payload-${ordinal}`, { id: `fragment-${ordinal}` }),
-			});
-			const currentRequest = request({
-				requestId: `request-${ordinal}`,
-				subject: { kind: "actor", id: `subject-${ordinal}` },
-			});
-			return Object.freeze({
-				occurrenceId: `use-${ordinal}`,
-				occurrenceRevision: 1,
-				occurrenceDigest: `sha256:${String(ordinal).repeat(64)}`,
-				occurrenceSourceRefs: Object.freeze([{ kind: "work-item", id: `work-item-${ordinal}` }]),
-				value: Object.freeze({
-					records: Object.freeze([currentRecord]),
-					request: currentRequest,
-					decisions: Object.freeze([
-						createAgenticMemoryRecordUseDecision(currentRequest, currentRecord, {
-							decisionId: `decision-${ordinal}`,
-							state: "allowed",
-						}),
-					]),
-				}),
-			});
-		};
-		const second = makeOccurrence(2);
-		const first = makeOccurrence(1);
-		occurrences.down([["DATA", second]]);
-		occurrences.down([["DATA", first]]);
-		const outputs = observed.values;
-		expect(outputs.map((output) => output.occurrenceId)).toEqual(["use-2", "use-1"]);
-		expect(outputs.map((output) => output.value.snapshot.allowedRecords[0]?.id)).toEqual([
-			"record-2",
-			"record-1",
+		const b = useOccurrence("proxy");
+		const hostileRecords = new Proxy([...b.value.records], {
+			get(target, key, receiver) {
+				if (key === "0") throw new Error("PRIVATE-PROXY");
+				return Reflect.get(target, key, receiver);
+			},
+		});
+		expect(() =>
+			input.down([
+				["DATA", { ...a, value: { ...a.value, request: hostileRequest } }],
+				["DATA", { ...b, value: { ...b.value, records: hostileRecords } }],
+				["DATA", useOccurrence("valid")],
+			]),
+		).not.toThrow();
+		expect(getterCalls).toBe(0);
+		expect(observed.values.map((value) => value.value.status.state)).toEqual([
+			"invalid",
+			"invalid",
+			"ready",
 		]);
-		occurrences.down([["DATA", second]]);
-		expect(observed.values).toHaveLength(2);
+		expect(JSON.stringify(observed.values.slice(0, 2))).not.toContain("PRIVATE-");
 		observed.unsubscribe();
 	});
 
-	it("revokes cached allowed records when any declared dependency errors", () => {
-		for (const target of ["records", "request", "decisions"] as const) {
-			const g = graph();
-			const currentRecord = record(`allowed-before-${target}-error`);
-			const currentRequest = request({ requestId: `${target}-error-use` });
-			const records = g.state<readonly AgenticMemoryRecord<string>[]>([currentRecord], {
-				name: `${target}-error/records`,
-			});
-			const useRequest = g.state(currentRequest, {
-				name: `${target}-error/request`,
-			});
-			const decisions = g.state<readonly AgenticMemoryRecordUseDecision[]>(
-				[decision(currentRequest, currentRecord)],
-				{ name: `${target}-error/decisions` },
-			);
-			const gate = agenticMemoryRecordUseGateBundle(g, {
-				name: `${target}-error/gate`,
-				records,
-				request: useRequest,
-				decisions,
-			});
-			const governed = agenticMemoryBundle(g, {
-				name: `${target}-error/governed`,
-				records: gate.allowedRecords,
-				query: g.state({ tags: ["relevant"] }, { name: `${target}-error/query` }),
-			});
-			const snapshots = collect(gate.snapshot);
-			const ranked = collect(governed.ranked);
-
-			expect(snapshots.values.at(-1)?.allowedRecords).toHaveLength(1);
-			expect(ranked.values.at(-1)?.results).toHaveLength(1);
-			const dependencyError = new Error(`private-${target}-dependency-error`);
-			if (target === "records") records.down([["ERROR", dependencyError]]);
-			else if (target === "request") useRequest.down([["ERROR", dependencyError]]);
-			else decisions.down([["ERROR", dependencyError]]);
-
-			expect(snapshots.values.at(-1)?.allowedRecords).toEqual([]);
-			expect(snapshots.values.at(-1)?.status.state).toBe("invalid");
-			expect(snapshots.values.at(-1)?.issues).toEqual(
-				expect.arrayContaining([expect.objectContaining({ code: "invalid-input" })]),
-			);
-			expect(ranked.values.at(-1)?.results).toEqual([]);
-			expect(JSON.stringify(snapshots.values.at(-1))).not.toContain(dependencyError.message);
-			const failedEvaluation = snapshots.values.at(-1)?.cursor.evaluation ?? 0;
-			if (target === "request") {
-				decisions.set([decision(currentRequest, currentRecord)]);
-			} else {
-				useRequest.set(currentRequest);
-			}
-			expect(snapshots.values.at(-1)?.cursor.evaluation).toBeGreaterThan(failedEvaluation);
-			expect(snapshots.values.at(-1)?.allowedRecords).toEqual([]);
-			expect(snapshots.values.at(-1)?.status.state).toBe("invalid");
-			expect(ranked.values.at(-1)?.results).toEqual([]);
-			snapshots.unsubscribe();
-			ranked.unsubscribe();
-		}
+	it("does not confuse bigint material with a tagged-looking plain object on replay", () => {
+		const g = graph();
+		const input = g.node<AgenticMemoryRecordUseOccurrence<string>>([], null);
+		const gate = agenticMemoryRecordUseGateBundle(g, { occurrences: input, maxOccurrences: 1 });
+		const observed = collect(gate.snapshot);
+		const a = useOccurrence("a");
+		input.down([["DATA", a]]);
+		const changed = {
+			...a,
+			value: {
+				...a.value,
+				records: a.value.records.map((record) => ({
+					...record,
+					fragment: { ...record.fragment, tNs: { bigint: "10" } },
+				})),
+			},
+		} as unknown as AgenticMemoryRecordUseOccurrence<string>;
+		expect(() => input.down([["DATA", changed]])).toThrow(/conflicted/u);
+		expect(observed.values).toHaveLength(1);
+		observed.unsubscribe();
 	});
 
-	it("uses one snapshot and declared projections with no raw-record governed retrieval bypass", () => {
+	it("detaches immutable provenance and rejects extra ref fields and accessors", () => {
 		const g = graph();
-		const currentRecord = record("governed");
-		const currentRequest = request();
-		const rawRecords = g.state<readonly AgenticMemoryRecord<string>[]>([currentRecord], {
-			name: "raw-records",
+		const input = g.node<AgenticMemoryRecordUseOccurrence<string>>([], null);
+		const gate = agenticMemoryRecordUseGateBundle(g, { occurrences: input, maxOccurrences: 1 });
+		const observed = collect(gate.audit);
+		const source = { kind: "work-item", id: "original" };
+		const a = { ...useOccurrence("a"), occurrenceSourceRefs: [source] };
+		input.down([["DATA", a]]);
+		source.id = "mutated";
+		expect(observed.values[0]?.occurrenceSourceRefs).toEqual([
+			{ kind: "work-item", id: "original" },
+		]);
+		expect(Object.isFrozen(observed.values[0]?.occurrenceSourceRefs[0])).toBe(true);
+		expect(() =>
+			input.down([
+				[
+					"DATA",
+					{
+						...a,
+						occurrenceSourceRefs: [{ kind: "work-item", id: "original", privatePayload: "secret" }],
+					},
+				],
+			]),
+		).toThrow(/only data kind\/id/u);
+		observed.unsubscribe();
+		const accessorGraph = graph();
+		const accessorInput = accessorGraph.node<AgenticMemoryRecordUseOccurrence<string>>([], null);
+		const accessorGate = agenticMemoryRecordUseGateBundle(accessorGraph, {
+			occurrences: accessorInput,
+			maxOccurrences: 1,
 		});
-		const useRequest = g.state(currentRequest, { name: "use-request" });
-		const decisions = g.state<readonly AgenticMemoryRecordUseDecision[]>(
-			[decision(currentRequest, currentRecord)],
-			{ name: "use-decisions" },
+		const accessorObserved = collect(accessorGate.audit);
+		let called = false;
+		const ref = {
+			kind: "work-item",
+			get id() {
+				called = true;
+				return "PRIVATE";
+			},
+		};
+		expect(() => accessorInput.down([["DATA", { ...a, occurrenceSourceRefs: [ref] }]])).toThrow(
+			/only data kind\/id/u,
 		);
-		const gate = agenticMemoryRecordUseGateBundle(g, {
-			name: "use-gate",
-			records: rawRecords,
-			request: useRequest,
-			decisions,
-		});
-		const query = g.state({ tags: ["relevant"] }, { name: "governed-query" });
-		const governed = agenticMemoryBundle(g, {
-			name: "governed-memory",
-			records: gate.allowedRecords,
-			query,
-		});
-		const snapshots = collect(gate.snapshot);
-		const allowed = collect(gate.allowedRecords);
+		expect(called).toBe(false);
+		accessorObserved.unsubscribe();
+	});
 
-		expectTypeOf(gate).toMatchTypeOf<AgenticMemoryRecordUseGateBundle<string>>();
-		expectTypeOf(governed).toMatchTypeOf<AgenticMemoryBundle<string>>();
-		expect(allowed.values.at(-1)).toBe(snapshots.values.at(-1)?.allowedRecords);
-		const topology = g.describe();
-		expect(topology.nodes).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					id: "use-gate/snapshot",
-					factory: "agenticMemoryRecordUseGate",
-				}),
-				expect.objectContaining({
-					id: "use-gate/allowedRecords",
-					factory: "agenticMemoryRecordUseAllowedRecords",
-				}),
-			]),
-		);
-		expect(topology.edges).toEqual(
-			expect.arrayContaining([
-				{ from: "raw-records", to: "use-gate/snapshot" },
-				{ from: "use-request", to: "use-gate/snapshot" },
-				{ from: "use-decisions", to: "use-gate/snapshot" },
-				{ from: "use-gate/snapshot", to: "use-gate/allowedRecords" },
-				{ from: "use-gate/allowedRecords", to: "governed-memory/projection" },
-				{
-					from: "governed-memory/fragments",
-					to: "governed-memory/retrieval/snapshot",
+	it("never rereads reference Proxy values or coerces a digest object", () => {
+		const g = graph();
+		const input = g.node<AgenticMemoryRecordUseOccurrence<string>>([], null);
+		const gate = agenticMemoryRecordUseGateBundle(g, { occurrences: input, maxOccurrences: 1 });
+		const observed = collect(gate.audit);
+		let getCalls = 0;
+		const source = new Proxy(
+			{ kind: "work-item", id: "original" },
+			{
+				get() {
+					getCalls += 1;
+					throw new Error("PRIVATE-PROXY");
 				},
-			]),
+			},
 		);
-		expect(topology.edges).not.toContainEqual({
-			from: "raw-records",
-			to: "governed-memory/projection",
+		const a = { ...useOccurrence("a"), occurrenceSourceRefs: [source] };
+		expect(() => input.down([["DATA", a]])).not.toThrow();
+		expect(getCalls).toBe(0);
+		expect(observed.values[0]?.occurrenceSourceRefs).toEqual([
+			{ kind: "work-item", id: "original" },
+		]);
+		let coercions = 0;
+		const bad = {
+			...a,
+			occurrenceDigest: {
+				toString() {
+					coercions += 1;
+					throw new Error("PRIVATE-DIGEST");
+				},
+			},
+		} as unknown as AgenticMemoryRecordUseOccurrence<string>;
+		expect(() => input.down([["DATA", bad]])).toThrow(/canonical sha256/u);
+		expect(coercions).toBe(0);
+		observed.unsubscribe();
+	});
+
+	it("preserves two revisions of one use within a single wave", () => {
+		const g = graph();
+		const input = g.node<AgenticMemoryRecordUseOccurrence<string>>([], null);
+		const gate = agenticMemoryRecordUseGateBundle(g, { occurrences: input, maxOccurrences: 1 });
+		const observed = collect(gate.allowedRecords);
+		input.down([
+			["DATA", useOccurrence("same", 1)],
+			["DATA", useOccurrence("same", 2)],
+		]);
+		expect(observed.values.map((value) => value.occurrenceRevision)).toEqual([1, 2]);
+		observed.unsubscribe();
+	});
+	it.each([
+		"batched",
+		"split",
+		"reordered",
+	] as const)("preserves every independent use: %s", (delivery) => {
+		const g = graph();
+		const input = g.node<AgenticMemoryRecordUseOccurrence<string>>([], null, { name: "uses" });
+		const gate = agenticMemoryRecordUseGateBundle(g, {
+			name: "gate",
+			occurrences: input,
+			maxOccurrences: 2,
 		});
-		expect(topology.edges).not.toContainEqual({
-			from: "raw-records",
-			to: "governed-memory/retrieval/snapshot",
-		});
-		snapshots.unsubscribe();
+		const observed = collect(gate.snapshot);
+		const allowed = collect(gate.allowedRecords);
+		const a = useOccurrence("a");
+		const b = useOccurrence("b");
+		const order = delivery === "reordered" ? [b, a] : [a, b];
+		if (delivery === "batched") input.down(order.map((value) => ["DATA", value]));
+		else for (const value of order) input.down([["DATA", value]]);
+		expect(observed.values.map((value) => value.occurrenceId)).toEqual(
+			order.map((value) => value.occurrenceId),
+		);
+		expect(allowed.values.map((value) => value.value[0]?.id)).toEqual(
+			order.map((value) => value.value.records[0]?.id),
+		);
+		for (const [index, value] of allowed.values.entries()) {
+			expect(value.occurrenceSourceRefs).toEqual(order[index]?.occurrenceSourceRefs);
+			expect(value.occurrenceDigest).toBe(order[index]?.occurrenceDigest);
+			expect(value.value).toBe(observed.values[index]?.value.allowedRecords);
+		}
+		input.down(order.map((value) => ["DATA", value]));
+		expect(observed.values).toHaveLength(2);
+		expect(allowed.values).toHaveLength(2);
+		expectTypeOf(gate).toMatchTypeOf<AgenticMemoryRecordUseGateBundle<string>>();
+		expect(
+			g.describe().nodes.filter((node) => node.factory === "agenticMemoryRecordUseGate"),
+		).toHaveLength(1);
+		observed.unsubscribe();
 		allowed.unsubscribe();
 	});
 
-	it("keeps two explicit use gates independent for the same record", () => {
+	it("keeps denial, missing and duplicate decisions local to one use, including the same record", () => {
 		const g = graph();
-		const currentRecord = record("same-record");
-		const allowRequest = request({ requestId: "allow-use" });
-		const denyRequest = request({
-			requestId: "deny-use",
-			purpose: { kind: "purpose", id: "different-use" },
-		});
-		const rawRecords = g.state<readonly AgenticMemoryRecord<string>[]>([currentRecord], {
-			name: "shared-raw-records",
-		});
-		const allowGate = agenticMemoryRecordUseGateBundle(g, {
-			name: "allow-gate",
-			records: rawRecords,
-			request: g.state(allowRequest, { name: "allow-request" }),
-			decisions: g.state([decision(allowRequest, currentRecord, "allowed", "allow")], {
-				name: "allow-decisions",
-			}),
-		});
-		const denyGate = agenticMemoryRecordUseGateBundle(g, {
-			name: "deny-gate",
-			records: rawRecords,
-			request: g.state(denyRequest, { name: "deny-request" }),
-			decisions: g.state([decision(denyRequest, currentRecord, "denied", "deny")], {
-				name: "deny-decisions",
-			}),
-		});
-		const allow = collect(allowGate.snapshot);
-		const deny = collect(denyGate.snapshot);
-
-		expect(allow.values.at(-1)?.allowedRecords.map((item) => item.id)).toEqual(["record-1"]);
-		expect(deny.values.at(-1)?.allowedRecords).toEqual([]);
-		expect(deny.values.at(-1)?.status.state).toBe("ready");
-		expect(
-			g.describe().nodes.filter((node) => node.factory === "agenticMemoryRecordUseGate"),
-		).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ id: "allow-gate/snapshot" }),
-				expect.objectContaining({ id: "deny-gate/snapshot" }),
-			]),
-		);
-		allow.unsubscribe();
-		deny.unsubscribe();
+		const input = g.node<AgenticMemoryRecordUseOccurrence<string>>([], null);
+		const gate = agenticMemoryRecordUseGateBundle(g, { occurrences: input, maxOccurrences: 4 });
+		const observed = collect(gate.snapshot);
+		const allow = useOccurrence("allow");
+		const currentRecord = allow.value.records[0]!;
+		const make = (id: string, mode: "denied" | "missing" | "duplicate") => {
+			const frame = useOccurrence(id);
+			const exact = decision(
+				frame.value.request,
+				currentRecord,
+				mode === "denied" ? "denied" : "allowed",
+			);
+			return {
+				...frame,
+				value: {
+					...frame.value,
+					records: [currentRecord],
+					decisions: mode === "missing" ? [] : mode === "duplicate" ? [exact, exact] : [exact],
+				},
+			};
+		};
+		input.down([
+			["DATA", make("deny", "denied")],
+			["DATA", make("missing", "missing")],
+			["DATA", make("duplicate", "duplicate")],
+			["DATA", allow],
+		]);
+		expect(observed.values.map((value) => value.value.allowedRecords.length)).toEqual([0, 0, 0, 1]);
+		expect(observed.values.map((value) => value.value.status.state)).toEqual([
+			"ready",
+			"invalid",
+			"invalid",
+			"ready",
+		]);
+		expect(observed.values[1]?.value.exclusions[0]?.reason).toBe("missing-decision");
+		expect(observed.values[2]?.value.exclusions[0]?.reason).toBe("duplicate-decision");
+		observed.unsubscribe();
 	});
 
-	it("proves an Another Hello-shaped derived/rebuildable fixture with opaque SQLite revision", () => {
-		type AnotherHelloRow = {
-			readonly displayName: string;
-			readonly sqliteRevision: string;
-		};
-		const derivedRecord = (row: AnotherHelloRow): AgenticMemoryRecord<string> =>
-			record(`derived greeting preference for ${row.displayName}`, {
-				id: "another-hello-derived",
-				scope: { userId: "local-user" },
-				fragment: fragment(`derived greeting preference for ${row.displayName}`, {
-					id: "another-hello-fragment",
-					sources: ["another-hello-domain-projection"],
-				}),
-			});
-		const useRequest = (revision: string): AgenticMemoryRecordUseRequest =>
-			request({
-				requestId: "another-hello-use",
-				subject: { kind: "local-profile", id: "local-user" },
-				purpose: { kind: "feature", id: "greeting-continuity" },
-				scope: { kind: "application", id: "another-hello" },
-				sourceRevisions: [{ kind: "sqlite-domain", id: "profile", revision }],
-			});
-
+	it.each([
+		"digest",
+		"provenance",
+		"value",
+		"stale",
+		"overflow",
+	] as const)("fails closed on %s without delivering a bad batch prefix", (fault) => {
 		const g = graph();
-		const initialRow = { displayName: "Ada", sqliteRevision: "sqlite-rev-1" };
-		const domainRows = g.state<AnotherHelloRow>(initialRow, {
-			name: "another-hello/sqlite-domain-row",
-		});
-		const derivedRecords = g.derived([domainRows], (row) => Object.freeze([derivedRecord(row)]), {
-			name: "another-hello/derived-records",
-		});
-		const requestState = g.state(useRequest(initialRow.sqliteRevision), {
-			name: "another-hello/use-request",
-		});
-		const decisions = g.state<readonly AgenticMemoryRecordUseDecision[]>(
-			[
-				decision(
-					useRequest(initialRow.sqliteRevision),
-					derivedRecord(initialRow),
-					"allowed",
-					"another-hello-decision",
-				),
-			],
-			{ name: "another-hello/external-decisions" },
+		const input = g.node<AgenticMemoryRecordUseOccurrence<string>>([], null);
+		const gate = agenticMemoryRecordUseGateBundle(g, { occurrences: input, maxOccurrences: 2 });
+		const messages: Message[] = [];
+		const unsubscribe = gate.allowedRecords.subscribe((message) => messages.push(message));
+		const a = useOccurrence("a", 2);
+		input.down([["DATA", a]]);
+		const bad =
+			fault === "digest"
+				? { ...a, occurrenceDigest: `sha256:${"f".repeat(64)}` }
+				: fault === "provenance"
+					? { ...a, occurrenceSourceRefs: [{ kind: "work-item", id: "wrong" }] }
+					: fault === "value"
+						? { ...a, value: { ...a.value, decisions: [] } }
+						: fault === "stale"
+							? useOccurrence("a", 1)
+							: useOccurrence("c");
+		expect(() =>
+			input.down([
+				["DATA", useOccurrence("b")],
+				["DATA", bad],
+			]),
+		).toThrow(/solution occurrence/u);
+		expect(messages.filter((message) => message[0] === "DATA")).toHaveLength(1);
+		unsubscribe();
+	});
+
+	it("stays quiet until an input exists and propagates terminal failure to every projection", () => {
+		const g = graph();
+		const input = g.node<AgenticMemoryRecordUseOccurrence<string>>([], null, { name: "uses" });
+		const gate = agenticMemoryRecordUseGateBundle(g, { occurrences: input, maxOccurrences: 2 });
+		const terminals: string[] = [];
+		const releases = Object.entries(gate)
+			.filter(([key]) => key !== "input")
+			.map(([key, node]) =>
+				node.subscribe((message: Message) => {
+					if (message[0] === "ERROR") terminals.push(key);
+				}),
+			);
+		const allowed = collect(gate.allowedRecords);
+		expect(allowed.values).toEqual([]);
+		input.down([["DATA", useOccurrence("a")]]);
+		expect(allowed.values).toHaveLength(1);
+		input.down([["ERROR", new Error("upstream failed")]]);
+		expect(terminals.sort()).toEqual(
+			["snapshot", "allowedRecords", "exclusions", "status", "issues", "audit", "cursor"].sort(),
 		);
+		expect(allowed.values).toHaveLength(1);
+		for (const release of releases) release();
+		allowed.unsubscribe();
+	});
+
+	it("resets bounded replay state at a fresh activation, not on ordinary replay", () => {
+		const g = graph();
+		const input = g.node<AgenticMemoryRecordUseOccurrence<string>>([], null);
+		const gate = agenticMemoryRecordUseGateBundle(g, { occurrences: input, maxOccurrences: 1 });
+		const a = useOccurrence("a");
+		const first = collect(gate.snapshot);
+		input.down([
+			["DATA", a],
+			["DATA", a],
+		]);
+		expect(first.values).toHaveLength(1);
+		first.unsubscribe();
+		const second = collect(gate.snapshot);
+		input.down([["DATA", a]]);
+		expect(second.values).toHaveLength(1);
+		second.unsubscribe();
+	});
+
+	it.each([
+		"sqlite-domain",
+		"work-item",
+	])("uses exact %s revisions before governed retrieval", (kind) => {
+		const g = graph();
+		const a = useOccurrence(kind);
+		const input = g.state(a, { name: "complete-use" });
 		const gate = agenticMemoryRecordUseGateBundle(g, {
-			name: "another-hello/use-gate",
-			records: derivedRecords,
-			request: requestState,
-			decisions,
+			name: "gate",
+			occurrences: input,
+			maxOccurrences: 1,
 		});
+		// This consumer selects one declared use; it cannot expose another use's latest records.
+		const selected = g.node<readonly AgenticMemoryRecord<string>[]>(
+			[gate.allowedRecords],
+			(ctx) => {
+				for (const raw of depBatch(ctx, 0) ?? []) {
+					const occurrence = raw as SolutionOccurrence<readonly AgenticMemoryRecord<string>[]>;
+					if (occurrence.occurrenceId === kind) ctx.down([["DATA", occurrence.value]]);
+				}
+			},
+			{ name: "selected-use" },
+		);
 		const governed = agenticMemoryBundle(g, {
-			name: "another-hello/governed-memory",
-			records: gate.allowedRecords,
-			query: g.state({ tags: ["relevant"] }, { name: "another-hello/query" }),
+			name: "governed",
+			records: selected,
+			query: g.state({ tags: ["relevant"] }),
 		});
+		const topology = g.describe();
 		const snapshots = collect(gate.snapshot);
 		const ranked = collect(governed.ranked);
-
-		expect(snapshots.values.at(-1)?.allowedRecords).toHaveLength(1);
+		expectTypeOf(governed).toMatchTypeOf<AgenticMemoryBundle<string>>();
 		expect(ranked.values.at(-1)?.results).toHaveLength(1);
-		requestState.set(useRequest("sqlite-rev-2"));
-		expect(snapshots.values.at(-1)?.allowedRecords).toEqual([]);
-		expect(snapshots.values.at(-1)?.exclusions).toEqual(
-			expect.arrayContaining([expect.objectContaining({ reason: "request-mismatch" })]),
-		);
-		expect(g.describe().edges).toContainEqual({
-			from: "another-hello/use-gate/allowedRecords",
-			to: "another-hello/governed-memory/projection",
-		});
-		expect(g.describe().edges).not.toContainEqual({
-			from: "another-hello/derived-records",
-			to: "another-hello/governed-memory/projection",
-		});
-		snapshots.unsubscribe();
-		ranked.unsubscribe();
-	});
-
-	it("makes a WorkItem scope/source-revision change stale before governed retrieval", () => {
-		const workItemRecord = (workItemId: string): AgenticMemoryRecord<string> =>
-			record(`rebuildable guidance for ${workItemId}`, {
-				id: "work-item-memory",
-				scope: { projectId: "project-1" },
-				fragment: fragment(`rebuildable guidance for ${workItemId}`, {
-					id: "work-item-fragment",
-					sources: ["work-item-projection"],
-				}),
-			});
-		const workItemRequest = (workItemId: string, revision: string): AgenticMemoryRecordUseRequest =>
-			request({
-				requestId: "work-item-use",
-				subject: { kind: "work-item-agent", id: "agent-1" },
-				purpose: { kind: "work-item-operation", id: "rerun-avoidance" },
-				scope: { kind: "work-item", id: workItemId },
-				sourceRevisions: [{ kind: "work-item", id: workItemId, revision }],
-			});
-
-		const g = graph();
-		const currentRecord = workItemRecord("WI-1");
-		const originalRequest = workItemRequest("WI-1", "work-item-rev-1");
-		const rawRecords = g.state<readonly AgenticMemoryRecord<string>[]>([currentRecord], {
-			name: "work-item/raw-records",
-		});
-		const requestState = g.state(originalRequest, { name: "work-item/use-request" });
-		const gate = agenticMemoryRecordUseGateBundle(g, {
-			name: "work-item/use-gate",
-			records: rawRecords,
-			request: requestState,
-			decisions: g.state([decision(originalRequest, currentRecord)], {
-				name: "work-item/external-decisions",
-			}),
-		});
-		const governed = agenticMemoryBundle(g, {
-			name: "work-item/governed-memory",
-			records: gate.allowedRecords,
-			query: g.state({ tags: ["relevant"] }, { name: "work-item/query" }),
-		});
-		const snapshots = collect(gate.snapshot);
-		const ranked = collect<Node<MemoryAnswer<string>> extends Node<infer T> ? T : never>(
-			governed.ranked,
-		);
-
-		expect(snapshots.values.at(-1)?.allowedRecords).toHaveLength(1);
-		expect(ranked.values.at(-1)?.results).toHaveLength(1);
-		requestState.set(workItemRequest("WI-2", "work-item-rev-2"));
-		expect(snapshots.values.at(-1)?.allowedRecords).toEqual([]);
-		expect(snapshots.values.at(-1)?.status.state).toBe("invalid");
-		expect(g.describe().edges).toContainEqual({
-			from: "work-item/use-gate/allowedRecords",
-			to: "work-item/governed-memory/projection",
-		});
-		expect(g.describe().edges).not.toContainEqual({
-			from: "work-item/raw-records",
-			to: "work-item/governed-memory/projection",
-		});
+		const changed = {
+			...useOccurrence(kind, 2),
+			value: {
+				...a.value,
+				request: { ...a.value.request, sourceRevisions: [{ kind, id: kind, revision: "changed" }] },
+			},
+		};
+		input.set(changed);
+		expect(snapshots.values.at(-1)?.value.status.state).toBe("invalid");
+		expect(snapshots.values.at(-1)?.value.exclusions[0]?.reason).toBe("request-mismatch");
+		expect(ranked.values.at(-1)?.results).toEqual([]);
+		for (const suffix of ["allowedRecords", "exclusions", "status", "issues", "audit", "cursor"])
+			expect(topology.edges).toContainEqual({ from: "gate/snapshot", to: `gate/${suffix}` });
+		expect(topology.edges).toContainEqual({ from: "complete-use", to: "gate/snapshot" });
+		expect(topology.edges).toContainEqual({ from: "gate/allowedRecords", to: "selected-use" });
+		expect(topology.edges).toContainEqual({ from: "selected-use", to: "governed/projection" });
+		expect(topology.edges).not.toContainEqual({ from: "complete-use", to: "governed/projection" });
+		// Generic describe includes user DATA caches. Privacy of the material-free
+		// Eval is tested on that application graph, not on this raw-record fixture.
 		snapshots.unsubscribe();
 		ranked.unsubscribe();
 	});

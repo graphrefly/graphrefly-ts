@@ -2,7 +2,6 @@ import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
 import { admitAgenticMemoryRecordProposals } from "./agentic-memory/proposal-admission.js";
 import { applyAgenticMemoryRecordAdmissions } from "./agentic-memory/record-application.js";
-import { projectAgenticMemoryRecordUseGate } from "./agentic-memory/record-use.js";
 import type {
 	AgenticMemoryProposalAdmissionPolicy,
 	AgenticMemoryProposalAdmissionSnapshot,
@@ -12,10 +11,6 @@ import type {
 	AgenticMemoryRecordApplicationPolicy,
 	AgenticMemoryRecordApplicationSnapshot,
 	AgenticMemoryRecordProposal,
-	AgenticMemoryRecordUseDecision,
-	AgenticMemoryRecordUseRequest,
-	AgenticMemoryRecordUseSnapshot,
-	StrictJsonValue,
 } from "./agentic-memory/types.js";
 import { mapAgenticWorkItemMemoryBridge } from "./agentic-work-item-memory/bridge.js";
 import type {
@@ -36,15 +31,6 @@ export interface AgenticMemoryRecordApplicationOccurrenceInput<T = unknown> {
 	readonly admissions: readonly AgenticMemoryRecordAdmission<T>[];
 	readonly policy: AgenticMemoryRecordApplicationPolicy;
 	readonly priorEvidence?: AgenticMemoryRecordApplicationOptions<T>["priorEvidence"];
-	readonly evaluation?: number;
-}
-
-export interface AgenticMemoryRecordUseOccurrenceInput<
-	TJson extends StrictJsonValue = StrictJsonValue,
-> {
-	readonly records: readonly AgenticMemoryRecord<TJson>[];
-	readonly request: AgenticMemoryRecordUseRequest;
-	readonly decisions: readonly AgenticMemoryRecordUseDecision[];
 	readonly evaluation?: number;
 }
 
@@ -133,40 +119,6 @@ export function agenticMemoryRecordApplicationOccurrenceNode<T = unknown>(
 					priorEvidence: value.priorEvidence,
 					evaluation: value.evaluation,
 				}),
-			}),
-	});
-}
-
-/** Package-private D151 exact-occurrence Agentic Memory use/exposure lifecycle. */
-export function agenticMemoryRecordUseOccurrenceNode<
-	TJson extends StrictJsonValue = StrictJsonValue,
-	TOccurrenceInput extends
-		AgenticMemoryRecordUseOccurrenceInput<TJson> = AgenticMemoryRecordUseOccurrenceInput<TJson>,
->(
-	graph: Graph,
-	input: Node<SolutionOccurrence<TOccurrenceInput>>,
-	opts: Readonly<{ readonly name: string; readonly maxOccurrences: number }>,
-): Node<
-	SolutionOccurrence<
-		Readonly<{
-			readonly input: TOccurrenceInput;
-			readonly snapshot: AgenticMemoryRecordUseSnapshot<TJson>;
-		}>
-	>
-> {
-	return solutionOccurrenceProjection(graph, input, {
-		name: `${opts.name}/snapshot`,
-		factory: "agenticMemoryRecordUseOccurrence",
-		maxOccurrences: opts.maxOccurrences,
-		project: (value) =>
-			Object.freeze({
-				input: value,
-				snapshot: projectAgenticMemoryRecordUseGate<TJson>(
-					value.records,
-					value.request,
-					value.decisions,
-					value.evaluation,
-				),
 			}),
 	});
 }
