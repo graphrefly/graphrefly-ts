@@ -17,9 +17,13 @@ import {
 } from "../../src/patterns/admission-handoff.js";
 import {
 	type AgenticMemoryRecord,
+	type AgenticMemoryRecordAdmissionInput,
+	type AgenticMemoryRecordApplicationInput,
 	type AgenticMemoryRecordUseDecision,
 	type AgenticMemoryRecordUseInput,
 	type AgenticMemoryRecordUseRequest,
+	agenticMemoryRecordAdmissionBundle,
+	agenticMemoryRecordApplicationBundle,
 	agenticMemoryRecordFrame,
 	agenticMemoryRecordUseGateBundle,
 	createAgenticMemoryRecordUseDecision,
@@ -30,14 +34,8 @@ import type {
 	AgenticWorkItemMemoryMappingPolicy,
 	AgenticWorkItemMemoryRecordCandidate,
 } from "../../src/solutions/agentic-work-item-memory/index.js";
-import type { SolutionOccurrence } from "../../src/solutions/occurrence.js";
-import {
-	type AgenticMemoryRecordAdmissionOccurrenceInput,
-	type AgenticMemoryRecordApplicationOccurrenceInput,
-	agenticMemoryRecordAdmissionOccurrenceNode,
-	agenticMemoryRecordApplicationOccurrenceNode,
-	agenticWorkItemMemoryBridgeOccurrenceNode,
-} from "../../src/solutions/occurrence-lifecycles.js";
+import { agenticWorkItemMemoryBridgeBundle } from "../../src/solutions/agentic-work-item-memory/index.js";
+import { type SolutionOccurrence, solutionOccurrenceJoin } from "../../src/solutions/occurrence.js";
 import { workItemExecutionRecipe } from "../../src/solutions/work-item/execution.js";
 import type {
 	WorkItemEffectPlanProposed,
@@ -75,6 +73,7 @@ import {
 	validateProviderBinding,
 } from "./model-harness-profile.js";
 import { MODEL_HARNESS_PROFILE_NO_NETWORK_QA_ARTIFACT_DIGEST } from "./model-harness-profile-qualification.js";
+import { rootEvalQuietDataBoundary } from "./quiet-data-boundary.js";
 import {
 	ROOT_EVAL_DEVELOPMENT_TASK_SET_DIGEST,
 	ROOT_EVAL_DEVELOPMENT_TASKS,
@@ -861,6 +860,7 @@ export interface EvalObservation {
 
 export interface EvalEffectActivitySnapshot {
 	readonly kind: "eval-effect-activity-snapshot";
+	readonly revision: number;
 	readonly budgetDigest: string;
 	readonly budget: EvalBudgetState;
 	readonly activeProviderAdmissionIds: readonly string[];
@@ -915,6 +915,22 @@ export interface RootEvalProfileAdmission {
 	readonly binding: ProviderBinding;
 }
 
+export interface EvalObservationRejection {
+	readonly kind: "eval-observation-rejected";
+	readonly code: "canonical-observation-invalid";
+	readonly campaignRef: string;
+	readonly acceptedRevision: number;
+}
+
+/** One shared finite occurrence bound for the producer and durable evidence admission. */
+export function rootEvalMaximumObservationOccurrences(replicateCount: number): number {
+	return (
+		rootEvalMaximumProviderAttempts(replicateCount) * 64 +
+		replicateCount * HARNESS_ARMS.length * 64 +
+		64
+	);
+}
+
 export interface RootEvalTopology {
 	readonly graph: Graph;
 	readonly campaignRef: string;
@@ -958,6 +974,7 @@ export interface RootEvalTopology {
 			readonly status: "pending" | "consistent";
 			readonly budgetDigest: string | null;
 		}>;
+		readonly observationRejections: Node<EvalObservationRejection>;
 		readonly observation: Node<EvalObservation>;
 	};
 }
@@ -1032,6 +1049,7 @@ interface AdmissionState {
 	providerOutcomeReasonCounts: Record<EvalProviderOutcomeReason, number>;
 	stoppingReason: "none" | "budget-exhausted" | "elapsed-budget-exhausted";
 	observationRevision: number;
+	observationDigest?: string;
 }
 
 type EvalWorkItemPlanSnapshot = WorkItemEffectPlanSnapshot<Record<string, unknown>>;
@@ -2513,10 +2531,7 @@ function assertProviderCapacityRuntimeShape(
 		root.cooldownOutstandingReadinessCount,
 		`${label}.cooldownOutstandingReadinessCount`,
 	);
-	const rateLimitFeedbackCount = safeInteger(
-		root.rateLimitFeedbackCount,
-		`${label}.rateLimitFeedbackCount`,
-	);
+	safeInteger(root.rateLimitFeedbackCount, `${label}.rateLimitFeedbackCount`);
 	if (
 		proposalCount !== pendingProposalCount + admittedProposalCount + rejectedProposalCount ||
 		pendingProposalCount !== pendingFirstAttemptProposalCount + pendingRetryProposalCount ||
@@ -2533,7 +2548,6 @@ function assertProviderCapacityRuntimeShape(
 				cooldownOutstandingReadinessCount !== 0)) ||
 		(mode === "cooldown" &&
 			(maxConcurrentEffects !== ROOT_EVAL_RATE_LIMITED_PROVIDER_CAPACITY ||
-				rateLimitFeedbackCount < 1 ||
 				cooldownOutstandingReadinessCount < 1)) ||
 		maxConcurrentEffects !== ROOT_EVAL_RATE_LIMITED_PROVIDER_CAPACITY
 	)
@@ -2880,7 +2894,9 @@ export function assertRootEvalObservationRuntimeShape(
 			Math.max(0, providerReportedMicrousd - pricingRoundingAllowanceMicrousd) ||
 		accountedUpperBoundMicrousd !==
 			activeReservedMicrousd + providerReportedMicrousd + unreportedSettledUpperBoundMicrousd ||
-		accountedUpperBoundMicrousd > partitionHardCapMicrousd - partitionSpentBeforeMicrousd ||
+		(accountedUpperBoundMicrousd > partitionHardCapMicrousd - partitionSpentBeforeMicrousd &&
+			(root.stoppingReason !== "budget-exhausted" || root.finding !== "pending")) ||
+		(providerCapacity.mode === "cooldown" && retryableReasonTotal === 0) ||
 		providerCallCount > admittedAttempts ||
 		providerReasonTotal > admittedAttempts ||
 		billingStableIntervals > billingObservationCount
@@ -2948,7 +2964,9 @@ export function assertRootEvalObservationTransition(
 		!skippedReplicatesAreSourceExcluded ||
 		(current.replicate === previous.replicate && current.completedArms < previous.completedArms) ||
 		(current.replicate > previous.replicate &&
-			(previous.completedArms !== HARNESS_ARMS.length || current.completedArms > 1)) ||
+			((previous.completedArms !== HARNESS_ARMS.length &&
+				!current.sourceTechnicalExcludedReplicates.includes(previous.replicate)) ||
+				current.completedArms > 1)) ||
 		current.verificationDiagnostics.completedWorkItems <
 			previous.verificationDiagnostics.completedWorkItems ||
 		current.retryProposalCount < previous.retryProposalCount ||
@@ -3350,6 +3368,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const currentKeyBefore = validateCurrentKeySnapshot(options.currentKeyBefore);
 
 	const owner = graph({ name: "eval/root" });
+	const boundaryReleases: (() => void)[] = [];
 	const campaignContract = owner.state(campaignContractValue, {
 		name: "eval/campaign/contract",
 		factory: "rootEvalCampaignContract",
@@ -3541,6 +3560,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			},
 		},
 	);
+	const elapsedClockPullId = Symbol("eval/elapsed-clock");
 	const elapsedBudgetClocks = owner.node<ScheduledReadinessClock>(
 		[elapsedBudgetTimerSource],
 		(ctx) => {
@@ -3575,20 +3595,61 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/time/elapsed-budget/clock",
 			factory: "rootEvalElapsedBudgetClock",
-			partial: true,
+			pullId: elapsedClockPullId,
+			pausable: "resumeAll",
 			meta: { materialFree: true, authority: "root-graph-timer-source" },
 		},
+	);
+
+	const elapsedClockReleaseEvents = owner.initNode(
+		merge<EvalElapsedBudgetTimerTick | ScheduledReadinessClock>(),
+		[elapsedBudgetTimerSource, elapsedBudgetClocks],
+		{ name: "eval/time/elapsed-budget/clock-release-events" },
+	);
+	const elapsedClockReleaseController = owner.node(
+		[elapsedClockReleaseEvents],
+		(ctx) => {
+			if (ctx.state.get<boolean>() === true) return;
+			if (
+				!(depBatch(ctx, 0) ?? []).some(
+					(raw) => (raw as { kind: string }).kind === "eval-elapsed-budget-timer-tick",
+				)
+			)
+				return;
+			ctx.state.set(true);
+			ctx.upNext([["PULL", { pullId: elapsedClockPullId }]]);
+		},
+		{
+			name: "eval/time/elapsed-budget/clock-release-controller",
+			factory: "rootEvalElapsedClockReleaseController",
+		},
+	);
+	boundaryReleases.push(
+		owner.retain(elapsedClockReleaseController, {
+			reason: "actual elapsed tick releases clock DATA",
+		}),
 	);
 	const elapsedReadiness = scheduledReadinessProjector(owner, {
 		name: "eval/time/elapsed-budget/readiness",
 		schedules: [elapsedBudgetSchedules],
 		clocks: [elapsedBudgetClocks],
 	});
-	const elapsedBudget = owner.node<EvalElapsedBudgetState>(
+
+	const elapsedBudgetEvents = owner.initNode(
+		merge<unknown>(),
 		[elapsedBudgetSchedules, elapsedReadiness.ready],
+		{ name: "eval/time/elapsed-budget/events" },
+	);
+	const elapsedBudget = owner.node<EvalElapsedBudgetState>(
+		[elapsedBudgetEvents],
 		(ctx) => {
 			let state = ctx.state.get<EvalElapsedBudgetState>();
-			if ((depBatch(ctx, 0)?.length ?? 0) > 0 && state === undefined) {
+			if (
+				(depBatch(ctx, 0) ?? []).some(
+					(raw) => (raw as { kind: string }).kind === "scheduled-readiness-requested",
+				) &&
+				state === undefined
+			) {
 				state = Object.freeze({
 					kind: "eval-elapsed-budget-state" as const,
 					scheduleId: elapsedBudgetScheduleId,
@@ -3602,7 +3663,12 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				ctx.state.set(state);
 				ctx.down([["DATA", state]]);
 			}
-			if ((depBatch(ctx, 1)?.length ?? 0) > 0 && state?.state !== "exhausted") {
+			if (
+				(depBatch(ctx, 0) ?? []).some(
+					(raw) => (raw as { kind: string }).kind === "scheduled-readiness-ready",
+				) &&
+				state?.state !== "exhausted"
+			) {
 				state = Object.freeze({
 					kind: "eval-elapsed-budget-state" as const,
 					scheduleId: elapsedBudgetScheduleId,
@@ -3620,7 +3686,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/time/elapsed-budget/state",
 			factory: "rootEvalElapsedBudgetState",
-			partial: true,
 			meta: {
 				materialFree: true,
 				domainAuthority: "root-graph",
@@ -3761,37 +3826,50 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			},
 		},
 	);
-	const resultStatusReleaseController = owner.node(
+
+	const resultStatusReleaseEvents = owner.initNode(
+		merge<EvalProviderOutcome>(),
 		[
 			allProviderResultAdmissions,
 			terminalProviderResultAdmissions,
 			failedProviderResultAdmissions,
 			retryableProviderResultAdmissions,
 		],
+		{ name: "eval/provider/result-status-release-events" },
+	);
+	const resultStatusReleaseController = owner.node(
+		[resultStatusReleaseEvents],
 		(ctx) => {
-			const statuses = new Set(
-				(depBatch(ctx, 0) ?? []).map(
-					(raw) => validateProviderOutcome(raw as EvalProviderOutcome).status,
-				),
-			);
+			const seen = ctx.state.get<Set<string>>() ?? new Set<string>();
+			const statuses = new Set<EvalProviderOutcome["status"]>();
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const value = validateProviderOutcome(raw as EvalProviderOutcome);
+				if (seen.has(value.admissionId)) continue;
+				if (seen.size >= rootEvalMaximumProviderAttempts(replicateCount))
+					throw new TypeError("result release bound exceeded");
+				seen.add(value.admissionId);
+				statuses.add(value.status);
+			}
+			ctx.state.set(seen);
 			if (statuses.has("tool-proposed"))
-				ctx.upNext([["PULL", { pullId: resultStatusPullIds.terminal }]], 1);
-			if (statuses.has("failed")) ctx.upNext([["PULL", { pullId: resultStatusPullIds.failed }]], 2);
+				ctx.upNext([["PULL", { pullId: resultStatusPullIds.terminal }]]);
+			if (statuses.has("failed")) ctx.upNext([["PULL", { pullId: resultStatusPullIds.failed }]]);
 			if (statuses.has("retryable"))
-				ctx.upNext([["PULL", { pullId: resultStatusPullIds.retryable }]], 3);
+				ctx.upNext([["PULL", { pullId: resultStatusPullIds.retryable }]]);
 		},
 		{
 			name: "eval/provider/result-status-release-controller",
 			factory: "rootEvalProviderResultStatusReleaseController",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: { role: "quiet-provider-result-status-demux" },
 		},
 	);
-	owner.retain(resultStatusReleaseController, {
-		reason: "eval provider result status release",
-	});
+	boundaryReleases.push(
+		owner.retain(resultStatusReleaseController, {
+			reason: "eval provider result status release",
+		}),
+	);
 	type EvalProviderOutcomeBatch = Readonly<{
 		readonly kind: "eval-provider-outcome-batch";
 		readonly replicate: number;
@@ -3803,12 +3881,17 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		readonly outcomesByDispatch: Map<number, Map<number, Map<HarnessArm, EvalProviderOutcome>>>;
 		readonly lastEmittedDigests: Map<string, string>;
 	}
-	owner.node<EvalProviderOutcomeBatch>(
+	const resultBatchEvents = owner.initNode(
+		merge<EvalProviderOutcome>(),
 		[
 			terminalProviderResultAdmissions,
 			failedProviderResultAdmissions,
 			retryableProviderResultAdmissions,
 		],
+		{ name: "eval/provider/result-batch-events" },
+	);
+	owner.node<EvalProviderOutcomeBatch>(
+		[resultBatchEvents],
 		(ctx) => {
 			const state = ctx.state.get<EvalProviderOutcomeBatchState>() ?? {
 				outcomesByDispatch: new Map<number, Map<number, Map<HarnessArm, EvalProviderOutcome>>>(),
@@ -3816,11 +3899,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			};
 			const emitted: EvalProviderOutcomeBatch[] = [];
 			const touchedReplicates = new Set<number>();
-			for (const raw of [
-				...(depBatch(ctx, 0) ?? []),
-				...(depBatch(ctx, 1) ?? []),
-				...(depBatch(ctx, 2) ?? []),
-			]) {
+			for (const raw of depBatch(ctx, 0) ?? []) {
 				const outcome = validateProviderOutcome(raw as EvalProviderOutcome);
 				if (outcome.workItemRole === "source") continue;
 				const byReplicate =
@@ -3884,7 +3963,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/provider/result-batches",
 			factory: "rootEvalProviderOutcomeBatches",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: true,
 			meta: { canonicalArmOrder: HARNESS_ARMS, retryCardinalityAuthority: true },
@@ -3900,19 +3978,11 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		factory: "rootEvalSourceExactToolResultInput",
 		meta: { materialPolicy: "digest-and-coordinate-only", workItemRole: "source" },
 	});
-	const allToolOutcomes = owner.node<EvalEffectOutcome>(
+
+	const allToolOutcomes = owner.initNode(
+		merge<EvalEffectOutcome>(),
 		[sourceToolOutcomes, targetToolOutcomes],
-		(ctx) => {
-			for (const dependencyIndex of [0, 1] as const)
-				for (const raw of depBatch(ctx, dependencyIndex) ?? []) ctx.down([["DATA", raw]]);
-		},
-		{
-			name: "eval/tool/all-result-inputs",
-			factory: "rootEvalAllExactToolResults",
-			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
-		},
+		{ name: "eval/tool/all-result-inputs" },
 	);
 	const retryDelayOutcomes = owner.node<EvalRetryDelayOutcome>([], null, {
 		name: "eval/retry/delay-result-input",
@@ -3924,26 +3994,68 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		factory: "rootEvalBillingObservationResultInput",
 		meta: { materialPolicy: "bounded-coordinate-only" },
 	});
-	const targetOutcomes = owner.node<EvalEffectOutcome>(
+
+	const targetTerminalPullId = Symbol("target/terminal-outcome");
+	const targetTerminalInputs = owner.initNode(
+		merge<EvalProviderOutcome | EvalEffectOutcome>(),
 		[failedProviderResultAdmissions, targetToolOutcomes],
+		{ name: "eval/effect/terminal-outcomes/inputs" },
+	);
+	const targetOutcomes = owner.node<EvalEffectOutcome>(
+		[targetTerminalInputs],
 		(ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
+				if ((raw as { kind: string }).kind !== "eval-provider-outcome") continue;
 				const provider = validateProviderOutcome(raw as EvalProviderOutcome);
 				if (provider.status === "failed" && provider.workItemRole === "target") {
 					ctx.down([["DATA", providerFailureOutcome(provider)]]);
 				}
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				if ((raw as { kind: string }).kind === "eval-provider-outcome") continue;
 				ctx.down([["DATA", validateOutcomeReceipt(raw as EvalEffectOutcome)]]);
 			}
 		},
 		{
 			name: "eval/effect/terminal-outcomes",
 			factory: "rootEvalTerminalOutcomes",
-			partial: true,
+			pullId: targetTerminalPullId,
+			pausable: "resumeAll",
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 		},
+	);
+
+	const targetTerminalReleases = owner.initNode(
+		merge<unknown>(),
+		[targetTerminalInputs, targetOutcomes],
+		{ name: "eval/effect/terminal-outcomes/release-events" },
+	);
+	const targetTerminalReleaseController = owner.node(
+		[targetTerminalReleases],
+		(ctx) => {
+			const seen = ctx.state.get<Set<string>>() ?? new Set<string>();
+			let fresh = false;
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const value = raw as EvalProviderOutcome | EvalEffectOutcome;
+				if (value.workItemRole !== "target" || seen.has(value.executionId)) continue;
+				if (seen.size >= rootEvalMaximumProviderAttempts(replicateCount))
+					throw new TypeError("terminal outcome release exceeded its occurrence bound");
+				seen.add(value.executionId);
+				fresh = true;
+			}
+			ctx.state.set(seen);
+			if (fresh) ctx.upNext([["PULL", { pullId: targetTerminalPullId }]]);
+		},
+		{
+			name: "eval/effect/terminal-outcomes/release-controller",
+			factory: "rootEvalTerminalOutcomeReleaseController",
+		},
+	);
+	boundaryReleases.push(
+		owner.retain(targetTerminalReleaseController, {
+			reason: "only actual target terminal DATA opens its downstream lifecycle",
+		}),
 	);
 	type EvalSourceTerminalInput =
 		| Readonly<{
@@ -3955,10 +4067,18 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				readonly kind: "eval-source-tool-outcome-input";
 				readonly outcome: EvalEffectOutcome;
 		  }>;
-	const sourceOutcomes = owner.node<EvalSourceTerminalInput>(
+
+	const sourceTerminalPullId = Symbol("source/terminal-outcome");
+	const sourceTerminalInputs = owner.initNode(
+		merge<EvalProviderOutcome | EvalEffectOutcome>(),
 		[failedProviderResultAdmissions, sourceToolOutcomes],
+		{ name: "eval/source-work-item/terminal-outcomes/inputs" },
+	);
+	const sourceOutcomes = owner.node<EvalSourceTerminalInput>(
+		[sourceTerminalInputs],
 		(ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
+				if ((raw as { kind: string }).kind !== "eval-provider-outcome") continue;
 				const provider = validateProviderOutcome(raw as EvalProviderOutcome);
 				if (provider.status === "failed" && provider.workItemRole === "source") {
 					ctx.down([
@@ -3973,7 +4093,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					]);
 				}
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				if ((raw as { kind: string }).kind === "eval-provider-outcome") continue;
 				const outcome = validateOutcomeReceipt(raw as EvalEffectOutcome);
 				ctx.down([
 					["DATA", Object.freeze({ kind: "eval-source-tool-outcome-input" as const, outcome })],
@@ -3983,10 +4104,43 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/source-work-item/terminal-outcomes",
 			factory: "rootEvalSourceTerminalOutcomes",
-			partial: true,
+			pullId: sourceTerminalPullId,
+			pausable: "resumeAll",
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 		},
+	);
+
+	const sourceTerminalReleases = owner.initNode(
+		merge<unknown>(),
+		[sourceTerminalInputs, sourceOutcomes],
+		{ name: "eval/source-work-item/terminal-outcomes/release-events" },
+	);
+	const sourceTerminalReleaseController = owner.node(
+		[sourceTerminalReleases],
+		(ctx) => {
+			const seen = ctx.state.get<Set<string>>() ?? new Set<string>();
+			let fresh = false;
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const value = raw as EvalProviderOutcome | EvalEffectOutcome;
+				if (value.workItemRole !== "source" || seen.has(value.executionId)) continue;
+				if (seen.size >= rootEvalMaximumProviderAttempts(replicateCount))
+					throw new TypeError("terminal outcome release exceeded its occurrence bound");
+				seen.add(value.executionId);
+				fresh = true;
+			}
+			ctx.state.set(seen);
+			if (fresh) ctx.upNext([["PULL", { pullId: sourceTerminalPullId }]]);
+		},
+		{
+			name: "eval/source-work-item/terminal-outcomes/release-controller",
+			factory: "rootEvalTerminalOutcomeReleaseController",
+		},
+	);
+	boundaryReleases.push(
+		owner.retain(sourceTerminalReleaseController, {
+			reason: "only actual source terminal DATA opens its downstream lifecycle",
+		}),
 	);
 
 	const resultProjection = owner.node<EffectRunResult>(
@@ -4007,7 +4161,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/provider/reconciliation",
 			factory: "rootEvalProviderReconciliation",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: { correlation: "admissionId+effectRunId+dispatchOrdinal" },
@@ -4031,7 +4184,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/source-work-item/reconciliation",
 			factory: "rootEvalSourceWorkItemReconciliation",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: { correlation: "admissionId+effectRunId+dispatchOrdinal", workItemRole: "source" },
@@ -4131,7 +4283,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		},
 		{ name: "eval/tool/result", factory: "rootEvalExactToolResult" },
 	);
-	const sourceVerification = owner.node<EvalSourceTerminalFact>(
+	const sourceVerificationCandidate = owner.node<EvalSourceTerminalFact>(
 		[sourceRequestAuthority, sourceOutcomes],
 		(ctx) => {
 			const requests = new Map(
@@ -4192,9 +4344,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			}
 		},
 		{
-			name: "eval/source-work-item/outcome-evidence-verification",
-			factory: "rootEvalSourceWorkItemVerification",
-			partial: true,
+			name: "eval/source-work-item/outcome-evidence-verification/candidate",
+			factory: "rootEvalSourceWorkItemVerificationCandidate",
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: {
@@ -4205,6 +4356,20 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			},
 		},
 	);
+
+	const sourceVerificationBoundary = rootEvalQuietDataBoundary<EvalSourceTerminalFact>(
+		owner,
+		sourceVerificationCandidate,
+		{
+			name: "eval/source-work-item/outcome-evidence-verification",
+			factory: "rootEvalSourceWorkItemVerification",
+			maxOccurrences: replicateCount,
+			key: (value) => value.sourceWorkItemId,
+			meta: { materialFree: true, completeDomainOccurrence: true },
+		},
+	);
+	const sourceVerification = sourceVerificationBoundary.output;
+	boundaryReleases.push(sourceVerificationBoundary.release);
 	const sourceTerminalCandidates = owner.node<AdmissionHandoffCandidate<EvalSourceTerminalFact>>(
 		[sourceVerification],
 		(ctx) => {
@@ -4317,7 +4482,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/verification/diff",
 			factory: "rootEvalDiffVerification",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 		},
@@ -4344,7 +4508,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/verification/public-semantic",
 			factory: "rootEvalPublicSemanticVerification",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 		},
@@ -4373,7 +4536,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/verification/hidden-verifier",
 			factory: "rootEvalHiddenVerifier",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 		},
@@ -4410,17 +4572,27 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/cleanup/completed",
 			factory: "rootEvalCleanup",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 		},
 	);
+
+	const verificationDiagnosticsEvents = owner.initNode(merge<unknown>(), [start, cleanup], {
+		name: "eval/verification/diagnostic-events",
+	});
 	const verificationDiagnostics = owner.node<EvalVerificationDiagnostics>(
-		[start, cleanup],
+		[verificationDiagnosticsEvents],
 		(ctx) => {
 			const completed = ctx.state.get<Map<string, EvalCleanupFact>>() ?? new Map();
-			let changed = false;
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			const snapshots: EvalVerificationDiagnostics[] = [];
+			if (
+				(depBatch(ctx, 0) ?? []).some(
+					(raw) => (raw as { kind: string }).kind === "eval-campaign-start",
+				)
+			)
+				snapshots.push(verificationDiagnosticsSnapshot(completed));
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				if ((raw as { kind: string }).kind !== "eval-cleanup-complete") continue;
 				const fact = raw as EvalCleanupFact;
 				const previous = completed.get(fact.workItemId);
 				if (previous !== undefined) {
@@ -4429,16 +4601,14 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					continue;
 				}
 				completed.set(fact.workItemId, fact);
-				changed = true;
+				snapshots.push(verificationDiagnosticsSnapshot(completed));
 			}
 			ctx.state.set(completed);
-			if (changed || (depBatch(ctx, 0)?.length ?? 0) > 0)
-				ctx.down([["DATA", verificationDiagnosticsSnapshot(completed)]]);
+			if (snapshots.length > 0) ctx.down(snapshots.map((snapshot) => ["DATA", snapshot]));
 		},
 		{
 			name: "eval/verification/diagnostics",
 			factory: "rootEvalVerificationDiagnostics",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: {
@@ -4448,29 +4618,73 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			},
 		},
 	);
-	const campaign = owner.node<readonly EvalArmDispatch[] | EvalCampaignState>(
-		[
-			cleanup,
-			sourceMemoryHandoff.status,
-			sourceRequestAuthority,
-			campaignContract,
-			taskBindingAuthority,
-			memoryProvenance,
-		],
+
+	type CampaignConfiguration = Readonly<{
+		kind: "eval-campaign-configuration";
+		contract: EvalCampaignContract;
+		bindings: readonly RootEvalTaskBinding[];
+		provenance: Readonly<Record<HarnessArm, EvalMemoryProvenance>>;
+		requests: readonly EvalSourceWorkItemRequest[];
+	}>;
+	const campaignConfiguration = owner.node<CampaignConfiguration>(
+		[campaignContract, taskBindingAuthority, memoryProvenance, sourceRequestAuthority],
 		(ctx) => {
-			const contract = depLatest(ctx, 3) as EvalCampaignContract | undefined;
-			const bindings = depLatest(ctx, 4) as readonly RootEvalTaskBinding[] | undefined;
-			const provenance = depLatest(ctx, 5) as
-				| Readonly<Record<HarnessArm, EvalMemoryProvenance>>
-				| undefined;
-			if (contract === undefined || bindings === undefined || provenance === undefined) return;
-			const state = ctx.state.get<CampaignControllerState>() ?? {
+			ctx.down([
+				[
+					"DATA",
+					Object.freeze({
+						kind: "eval-campaign-configuration" as const,
+						contract: depLatest(ctx, 0) as EvalCampaignContract,
+						bindings: depLatest(ctx, 1) as readonly RootEvalTaskBinding[],
+						provenance: depLatest(ctx, 2) as Readonly<Record<HarnessArm, EvalMemoryProvenance>>,
+						requests: depLatest(ctx, 3) as readonly EvalSourceWorkItemRequest[],
+					}),
+				],
+			]);
+		},
+		{ name: "eval/campaign/sealed-configuration", factory: "rootEvalCampaignConfiguration" },
+	);
+	const campaignEvents = owner.initNode(
+		merge<unknown>(),
+		[campaignConfiguration, cleanup, sourceMemoryHandoff.status],
+		{ name: "eval/campaign/controller-events" },
+	);
+	const campaign = owner.node<readonly EvalArmDispatch[] | EvalCampaignState>(
+		[campaignEvents],
+		(ctx) => {
+			const state = ctx.state.get<
+				CampaignControllerState & { configuration?: CampaignConfiguration }
+			>() ?? {
 				started: false,
 				replicate: 1,
 				completedByReplicate: new Map<number, Set<HarnessArm>>(),
 				sourceTerminals: new Map<number, EvalCampaignSourceTerminal>(),
 				dispatchedReplicates: new Set<number>(),
 			};
+			const events = depBatch(ctx, 0) ?? [];
+			for (const raw of events)
+				if ((raw as { kind: string }).kind === "eval-campaign-configuration") {
+					const configuration = raw as CampaignConfiguration;
+					if (
+						state.configuration !== undefined &&
+						empiricalStrictJsonDigest(state.configuration) !==
+							empiricalStrictJsonDigest(configuration)
+					)
+						throw new TypeError("sealed campaign configuration drifted");
+					state.configuration = configuration;
+				}
+			const { contract, bindings, provenance, requests } = state.configuration ?? {};
+			if (
+				contract === undefined ||
+				bindings === undefined ||
+				provenance === undefined ||
+				requests === undefined
+			) {
+				if (events.some((raw) => (raw as { kind: string }).kind !== "eval-campaign-configuration"))
+					throw new TypeError("campaign event preceded sealed configuration");
+				ctx.state.set(state);
+				return;
+			}
 			const sourceTerminalByWorkItemId = () =>
 				new Map(
 					[...state.sourceTerminals.values()].map((fact) => [fact.sourceWorkItemId, fact] as const),
@@ -4517,9 +4731,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				state.replicate = replicate;
 				ctx.down([["DATA", dispatchBatch(campaignRef, fact.request, binding, provenance)]]);
 			};
-			const requests = depLatest(ctx, 2) as readonly EvalSourceWorkItemRequest[] | undefined;
-			if (requests === undefined) return;
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of events) {
+				if ((raw as { kind: string }).kind !== "admission-handoff-status") continue;
 				const status = raw as AdmissionHandoffStatus;
 				if (status.state !== "accepted" && status.state !== "rejected") continue;
 				const request = requests.find(
@@ -4570,7 +4783,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					emitReplicate(first);
 				}
 			}
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of events) {
+				if ((raw as { kind: string }).kind !== "eval-cleanup-complete") continue;
 				const item = raw as EvalCleanupFact;
 				const completed = state.completedByReplicate.get(item.replicate) ?? new Set<HarnessArm>();
 				completed.add(item.arm);
@@ -4597,7 +4811,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/campaign/replicate-controller",
 			factory: "rootEvalReplicateController",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: {
@@ -4633,43 +4846,74 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			meta: { role: "quiet-campaign-batch-boundary" },
 		},
 	);
+
+	const batchReleaseControllerEvents = owner.initNode(merge<unknown>(), [campaign, batches], {
+		name: "eval/campaign/replicate-batch-release-events",
+	});
 	const batchReleaseController = owner.node(
-		[campaign, batches],
+		[batchReleaseControllerEvents],
+
 		(ctx) => {
-			if ((depBatch(ctx, 0) ?? []).some((raw) => Array.isArray(raw)))
-				ctx.upNext([["PULL", { pullId: batchPullId }]], 1);
+			const seen = ctx.state.get<Set<string>>() ?? new Set<string>();
+			let fresh = false;
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				if (!(Array.isArray(raw) && raw.length > 0)) continue;
+				const key = (raw as readonly EvalArmDispatch[])[0]!.replicate.toString();
+				if (seen.has(key)) continue;
+				if (seen.size >= replicateCount) throw new TypeError("release occurrence bound exceeded");
+				seen.add(key);
+				fresh = true;
+			}
+			ctx.state.set(seen);
+			if (fresh) ctx.upNext([["PULL", { pullId: batchPullId }]]);
 		},
 		{
 			name: "eval/campaign/replicate-batch-release-controller",
 			factory: "rootEvalReplicateBatchReleaseController",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: { role: "campaign-batch-release" },
 		},
 	);
-	owner.retain(batchReleaseController, { reason: "eval campaign replicate batch release" });
-	const campaignStates = owner.node<EvalCampaignState>(
+	boundaryReleases.push(
+		owner.retain(batchReleaseController, { reason: "eval campaign replicate batch release" }),
+	);
+	const campaignStateEvents = owner.initNode(
+		merge<unknown>(),
 		[campaign, start, campaignContract],
+		{ name: "eval/campaign/state-events" },
+	);
+	const campaignStates = owner.node<EvalCampaignState>(
+		[campaignStateEvents],
 		(ctx) => {
-			const announced = ctx.state.get<boolean>() ?? false;
-			if (!announced && (depBatch(ctx, 1)?.length ?? 0) > 0) {
-				const contract = depLatest(ctx, 2) as EvalCampaignContract | undefined;
+			const state = ctx.state.get<{ announced: boolean; contract?: EvalCampaignContract }>() ?? {
+				announced: false,
+			};
+			const events = depBatch(ctx, 0) ?? [];
+			for (const raw of events)
+				if ((raw as { kind?: string }).kind === "eval-campaign-contract")
+					state.contract = raw as EvalCampaignContract;
+			const announced = state.announced;
+			if (
+				!announced &&
+				events.some((raw) => (raw as { kind?: string }).kind === "eval-campaign-start")
+			) {
+				const contract = state.contract;
 				if (contract === undefined)
 					throw new TypeError("eval campaign start lost its Graph contract authority");
 				emitCampaignState(ctx, campaignRef, contract, 1, [], 0, "running", "none");
-				ctx.state.set(true);
+				state.announced = true;
 			}
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of events) {
 				if (!Array.isArray(raw) && (raw as EvalCampaignState).kind === "eval-campaign-state") {
 					ctx.down([["DATA", raw]]);
 				}
 			}
+			ctx.state.set(state);
 		},
 		{
 			name: "eval/campaign/state",
 			factory: "rootEvalCampaignState",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: {
@@ -4692,7 +4936,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/work-item/objective-data",
 			factory: "rootEvalWorkItemData",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: { solutionIdentity: "work-item", cardinality: "one-work-item-per-arm" },
@@ -4766,8 +5009,13 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			meta: { cardinality: "one-candidate-per-replicate", arms: HARNESS_ARMS.length },
 		},
 	);
-	const memoryBatchDecisions = owner.node<AdmissionHandoffDecision<EvalMemoryBatchAdmissionReason>>(
+	const memoryBatchDecisionEvents = owner.initNode(
+		merge<unknown>(),
 		[verifiedSourceWorkItems, batches],
+		{ name: "eval/memory/source-readiness-events" },
+	);
+	const memoryBatchDecisions = owner.node<AdmissionHandoffDecision<EvalMemoryBatchAdmissionReason>>(
+		[memoryBatchDecisionEvents],
 		(ctx) => {
 			const state = ctx.state.get<{
 				sources: Map<string, WorkItemProjection<Record<string, unknown>>>;
@@ -4779,10 +5027,12 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				emitted: new Set<number>(),
 			};
 			for (const raw of depBatch(ctx, 0) ?? []) {
+				if (Array.isArray(raw)) continue;
 				const source = raw as WorkItemProjection<Record<string, unknown>>;
 				state.sources.set(source.workItemId, source);
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				if (!Array.isArray(raw)) continue;
 				const dispatches = raw as readonly EvalArmDispatch[];
 				const replicate = dispatches[0]?.replicate;
 				if (replicate === undefined) throw new TypeError("memory admission batch was empty");
@@ -4827,7 +5077,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/memory/six-arm-source-readiness-decision",
 			factory: "rootEvalMemoryBatchSourceReadinessDecision",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: {
@@ -4994,24 +5243,33 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			errorWhenDepsError: false,
 		},
 	);
-	const memoryBridgeSolution = agenticWorkItemMemoryBridgeOccurrenceNode<
+	const memoryBridgeSolution = agenticWorkItemMemoryBridgeBundle<
 		Record<string, unknown>,
-		MemoryPayload,
-		EvalMemoryBridgeSolutionInput
-	>(owner, memoryBridgeOccurrences, {
+		MemoryPayload
+	>(owner, {
 		name: "eval/solution/agentic-work-item-memory-bridge",
+		occurrences: memoryBridgeOccurrences,
 		maxOccurrences: ROOT_EVAL_REPLICATE_COUNT * 2,
 	});
+	const memoryBridgeCorrelated = solutionOccurrenceJoin(
+		owner,
+		memoryBridgeOccurrences,
+		memoryBridgeSolution.projection,
+		{
+			name: "eval/memory/bridge-result-context",
+			factory: "rootEvalMemoryBridgeResultContext",
+			maxOccurrences: ROOT_EVAL_REPLICATE_COUNT * 2,
+			project: (input, result) => Object.freeze({ input, result }),
+		},
+	);
 	const memoryAdmissionInputs = owner.node<
-		SolutionOccurrence<AgenticMemoryRecordAdmissionOccurrenceInput<MemoryPayload>>
+		SolutionOccurrence<AgenticMemoryRecordAdmissionInput<MemoryPayload>>
 	>(
-		[memoryBridgeSolution],
+		[memoryBridgeCorrelated],
 		(ctx) => {
-			const outputs: SolutionOccurrence<
-				AgenticMemoryRecordAdmissionOccurrenceInput<MemoryPayload>
-			>[] = [];
+			const outputs: SolutionOccurrence<AgenticMemoryRecordAdmissionInput<MemoryPayload>>[] = [];
 			for (const raw of depBatch(ctx, 0) ?? []) {
-				const occurrence = raw as typeof memoryBridgeSolution extends Node<infer T> ? T : never;
+				const occurrence = raw as typeof memoryBridgeCorrelated extends Node<infer T> ? T : never;
 				const proposals = occurrence.value.result.proposals.filter(
 					(proposal) =>
 						!proposal.candidateMaterial.record.id.includes("/proposal-only/memory-record"),
@@ -5047,21 +5305,31 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			meta: { proposalOnlyRemainsProposalOnly: true },
 		},
 	);
-	const memoryAdmission = agenticMemoryRecordAdmissionOccurrenceNode<MemoryPayload>(
+	const memoryAdmission = agenticMemoryRecordAdmissionBundle<MemoryPayload>(owner, {
+		name: "eval/solution/agentic-memory-admission",
+		occurrences: memoryAdmissionInputs,
+		maxOccurrences: ROOT_EVAL_REPLICATE_COUNT * 2,
+	});
+	const memoryAdmissionCorrelated = solutionOccurrenceJoin(
 		owner,
 		memoryAdmissionInputs,
+		memoryAdmission.projection,
 		{
-			name: "eval/solution/agentic-memory-admission",
+			name: "eval/memory/admission-result-context",
+			factory: "rootEvalMemoryAdmissionResultContext",
 			maxOccurrences: ROOT_EVAL_REPLICATE_COUNT * 2,
+			project: (input, snapshot) => Object.freeze({ input, snapshot }),
 		},
 	);
 	const memoryApplicationInputs = owner.node<
-		SolutionOccurrence<AgenticMemoryRecordApplicationOccurrenceInput<MemoryPayload>>
+		SolutionOccurrence<AgenticMemoryRecordApplicationInput<MemoryPayload>>
 	>(
-		[memoryAdmission],
+		[memoryAdmissionCorrelated],
 		(ctx) => {
 			const outputs = (depBatch(ctx, 0) ?? []).map((raw) => {
-				const occurrence = raw as typeof memoryAdmission extends Node<infer T> ? T : never;
+				const occurrence = raw as typeof memoryAdmissionCorrelated extends Node<infer T>
+					? T
+					: never;
 				const value = Object.freeze({
 					records: occurrence.value.input.records,
 					admissions: occurrence.value.snapshot.admissions,
@@ -5088,24 +5356,23 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			factory: "rootEvalMemoryApplicationOccurrenceInput",
 		},
 	);
-	const memoryApplication = agenticMemoryRecordApplicationOccurrenceNode<MemoryPayload>(
-		owner,
-		memoryApplicationInputs,
-		{
-			name: "eval/solution/agentic-memory-application",
-			maxOccurrences: ROOT_EVAL_REPLICATE_COUNT * 2,
-		},
-	);
+	const memoryApplication = agenticMemoryRecordApplicationBundle<MemoryPayload>(owner, {
+		name: "eval/solution/agentic-memory-application",
+		occurrences: memoryApplicationInputs,
+		maxOccurrences: ROOT_EVAL_REPLICATE_COUNT * 2,
+	});
 	const appliedMemoryRecordState = owner.node<readonly AgenticMemoryRecord<MemoryPayload>[]>(
-		[memoryApplication],
+		[memoryApplication.records],
 		(ctx) => {
 			const records =
 				ctx.state.get<Map<string, AgenticMemoryRecord<MemoryPayload>>>() ??
 				new Map<string, AgenticMemoryRecord<MemoryPayload>>();
 			let changed = false;
 			for (const raw of depBatch(ctx, 0) ?? []) {
-				const occurrence = raw as typeof memoryApplication extends Node<infer T> ? T : never;
-				for (const record of occurrence.value.snapshot.records) {
+				const occurrence = raw as typeof memoryApplication.records extends Node<infer T>
+					? T
+					: never;
+				for (const record of occurrence.value) {
 					const prior = records.get(record.id);
 					if (prior !== undefined) {
 						if (
@@ -5128,8 +5395,14 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			meta: { authority: "real-agentic-memory-application-output", cumulative: true },
 		},
 	);
-	const memoryUseFrames = owner.node<EvalMemoryUseFrame>(
+
+	const memoryUseEvents = owner.initNode(
+		merge<readonly AgenticMemoryRecord<MemoryPayload>[] | EvalMemoryBatchFrame>(),
 		[appliedMemoryRecordState, memoryBatchFrames],
+		{ name: "eval/memory/exposure-events" },
+	);
+	const memoryUseFramesCandidate = owner.node<EvalMemoryUseFrame>(
+		[memoryUseEvents],
 		(ctx) => {
 			type MemoryUseRuntime = {
 				records: Map<string, AgenticMemoryRecord<MemoryPayload>>;
@@ -5142,6 +5415,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				observed: new Map<string, RootEvalOccurrenceLedgerEntry>(),
 			};
 			for (const raw of depBatch(ctx, 0) ?? []) {
+				if (!Array.isArray(raw)) continue;
 				const records = raw as readonly AgenticMemoryRecord<MemoryPayload>[];
 				for (const record of records) {
 					const prior = runtime.records.get(record.id);
@@ -5154,7 +5428,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					runtime.records.set(record.id, record);
 				}
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				if (Array.isArray(raw)) continue;
 				const frame = raw as EvalMemoryBatchFrame;
 				const replicate = frame.dispatches[0]?.replicate;
 				if (replicate === undefined) throw new TypeError("memory use occurrence lost replicate");
@@ -5241,8 +5516,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			if (outputs.length > 0) ctx.down(outputs.map((output) => ["DATA", output]));
 		},
 		{
-			name: "eval/memory/exposure-frame",
-			factory: "rootEvalMemoryExposureFrame",
+			name: "eval/memory/exposure-frame/candidate",
+			factory: "rootEvalMemoryExposureFrameCandidate",
 			meta: {
 				armOrder: HARNESS_ARMS,
 				lifecycleCardinality: "one",
@@ -5251,6 +5526,21 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			},
 		},
 	);
+
+	const memoryUseFramesBoundary = rootEvalQuietDataBoundary<EvalMemoryUseFrame>(
+		owner,
+		memoryUseFramesCandidate,
+		{
+			name: "eval/memory/exposure-frame",
+			factory: "rootEvalMemoryExposureFrame",
+			maxOccurrences: replicateCount * HARNESS_ARMS.length,
+			key: (value) => `${value.occurrenceId}:${value.occurrenceRevision}`,
+			fingerprint: (value) => value.occurrenceDigest,
+			meta: { materialFree: true, completeDomainOccurrence: true },
+		},
+	);
+	const memoryUseFrames = memoryUseFramesBoundary.output;
+	boundaryReleases.push(memoryUseFramesBoundary.release);
 	type EvalMemoryUseSolutionInput = AgenticMemoryRecordUseInput<MemoryPayload> &
 		Readonly<{ readonly dispatch: EvalArmDispatch }>;
 	const memoryUseOccurrenceInputs = owner.node<SolutionOccurrence<EvalMemoryUseSolutionInput>>(
@@ -5421,20 +5711,24 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		effectRunResults: resultProjection,
 		now: () => 0,
 	});
-	const admittedPlanAuthority = owner.node<EvalWorkItemPlanAuthority>(
+	const admittedPlanEvents = owner.initNode(
+		merge<unknown>(),
 		[sourceExecution.plan.admitted, execution.plan.admitted],
+		{ name: "eval/work-item/admitted-plan-events" },
+	);
+	const admittedPlanAuthority = owner.node<EvalWorkItemPlanAuthority>(
+		[admittedPlanEvents],
 		(ctx) => {
 			const plans =
 				ctx.state.get<Map<string, EvalWorkItemPlanSnapshot>>() ??
 				new Map<string, EvalWorkItemPlanSnapshot>();
-			for (const dependencyIndex of [0, 1] as const)
-				for (const raw of depBatch(ctx, dependencyIndex) ?? []) {
-					const admitted = raw as {
-						readonly workItemId: string;
-						readonly plan: EvalWorkItemPlanSnapshot;
-					};
-					plans.set(admitted.workItemId, admitted.plan);
-				}
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const admitted = raw as {
+					readonly workItemId: string;
+					readonly plan: EvalWorkItemPlanSnapshot;
+				};
+				plans.set(admitted.workItemId, admitted.plan);
+			}
 			ctx.state.set(plans);
 			ctx.down([["DATA", Object.freeze({ plans: Object.freeze(Object.fromEntries(plans)) })]]);
 		},
@@ -5442,27 +5736,52 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			name: "eval/work-item/admitted-plan-authority",
 			factory: "rootEvalWorkItemAdmittedPlanAuthority",
 			meta: { authority: "work-item-solution-admitted-plan-snapshot" },
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 		},
 	);
-	const firstAttemptProposalCandidates = owner.node<EvalEffectProposal>(
+	const firstProposalEvents = owner.initNode(
+		merge<unknown>(),
 		[sourceExecution.requests, execution.requests, admittedPlanAuthority, profileAdmission],
+		{ name: "eval/provider/first-proposal-events" },
+	);
+	const firstAttemptProposalCandidates = owner.node<EvalEffectProposal>(
+		[firstProposalEvents],
 		(ctx) => {
-			const pending =
-				ctx.state.get<Map<string, AgentRequestIssued<Record<string, unknown>>>>() ??
-				new Map<string, AgentRequestIssued<Record<string, unknown>>>();
-			for (const dependencyIndex of [0, 1] as const)
-				for (const raw of depBatch(ctx, dependencyIndex) ?? []) {
+			type FirstProposalState = {
+				pending: Map<string, AgentRequestIssued<Record<string, unknown>>>;
+				authority?: EvalWorkItemPlanAuthority;
+				profile?: RootEvalProfileAdmission;
+				seen: Map<string, string>;
+			};
+			const state: FirstProposalState = ctx.state.get<FirstProposalState>() ?? {
+				pending: new Map(),
+				seen: new Map(),
+			};
+			const pending = state.pending;
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const event = raw as { kind?: string; plans?: unknown };
+				if (event.kind === "root-eval-profile-admission")
+					state.profile = raw as RootEvalProfileAdmission;
+				else if (event.plans !== undefined) state.authority = raw as EvalWorkItemPlanAuthority;
+				else if (event.kind === "issued") {
 					const request = raw as AgentRequestIssued<Record<string, unknown>>;
+					const digest = empiricalStrictJsonDigest(withoutUndefined(request));
+					const previous = state.seen.get(request.requestId);
+					if (previous !== undefined) {
+						if (previous !== digest) throw new TypeError("issued request identity drifted");
+						continue;
+					}
+					if (state.seen.size >= replicateCount * (HARNESS_ARMS.length + 1))
+						throw new TypeError("issued request bound exceeded");
+					state.seen.set(request.requestId, digest);
 					pending.set(request.requestId, request);
-				}
-			ctx.state.set(pending);
-			const admittedProfile = depLatest(ctx, 3) as RootEvalProfileAdmission | undefined;
-			if (admittedProfile === undefined) return;
-			const authority = depLatest(ctx, 2) as EvalWorkItemPlanAuthority | undefined;
-			if (authority === undefined) return;
+				} else throw new TypeError("unknown first provider proposal event");
+			}
+			ctx.state.set(state);
+			const admittedProfile = state.profile,
+				authority = state.authority;
+			if (admittedProfile === undefined || authority === undefined) return;
 			for (const [requestId, request] of [...pending]) {
 				const workItemRef = request.sourceRefs?.find((ref) => ref.kind === "work-item")?.id;
 				if (workItemRef === undefined) continue;
@@ -5514,7 +5833,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			name: "eval/provider/proposal-candidate",
 			factory: "rootEvalProviderProposalCandidate",
 			meta: { timeoutAuthority: "reads-work-item-plan-data", role: "admitted-plan-candidate" },
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 		},
@@ -5533,24 +5851,42 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			meta: { role: "quiet-admitted-plan-proposal-boundary" },
 		},
 	);
-	const firstAttemptProposalReleaseController = owner.node(
+
+	const firstAttemptProposalReleaseControllerEvents = owner.initNode(
+		merge<unknown>(),
 		[firstAttemptProposalCandidates, firstAttemptProposals],
+		{ name: "eval/provider/proposal-release-events" },
+	);
+	const firstAttemptProposalReleaseController = owner.node(
+		[firstAttemptProposalReleaseControllerEvents],
+
 		(ctx) => {
-			if ((depBatch(ctx, 0)?.length ?? 0) > 0)
-				ctx.upNext([["PULL", { pullId: firstAttemptProposalPullId }]], 1);
+			const seen = ctx.state.get<Set<string>>() ?? new Set<string>();
+			let fresh = false;
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const key = (raw as EvalEffectProposal).proposalId;
+				if (seen.has(key)) continue;
+				if (seen.size >= rootEvalMaximumProviderAttempts(replicateCount))
+					throw new TypeError("release occurrence bound exceeded");
+				seen.add(key);
+				fresh = true;
+			}
+			ctx.state.set(seen);
+			if (fresh) ctx.upNext([["PULL", { pullId: firstAttemptProposalPullId }]]);
 		},
 		{
 			name: "eval/provider/proposal-release-controller",
 			factory: "rootEvalProviderProposalReleaseController",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: { role: "admitted-plan-proposal-release" },
 		},
 	);
-	owner.retain(firstAttemptProposalReleaseController, {
-		reason: "eval admitted Work Item plan proposal release",
-	});
+	boundaryReleases.push(
+		owner.retain(firstAttemptProposalReleaseController, {
+			reason: "eval admitted Work Item plan proposal release",
+		}),
+	);
 	type EvalRetryProposalFact = Readonly<{
 		readonly kind: "eval-retry-proposal-fact";
 		readonly providerOutcome: EvalProviderOutcome;
@@ -5663,137 +5999,225 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			meta: { canonicalArmOrder: HARNESS_ARMS, admissionBarrier: "six-work-items" },
 		},
 	);
-	const proposals = owner.node<EvalEffectProposal>(
+
+	const proposalsEvents = owner.initNode(
+		merge<unknown>(),
 		[replicateProposalBatches, retryProposals],
+		{ name: "eval/provider/proposal-events" },
+	);
+	const proposals = owner.node<EvalEffectProposal>(
+		[proposalsEvents],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? [])
-				for (const proposal of raw as readonly EvalEffectProposal[]) ctx.down([["DATA", proposal]]);
-			for (const raw of depBatch(ctx, 1) ?? []) ctx.down([["DATA", raw]]);
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const values = Array.isArray(raw) ? raw : [raw];
+				if (values.length > 0) ctx.down(values.map((value) => ["DATA", value]));
+			}
 		},
 		{
 			name: "eval/provider/proposals",
 			factory: "rootEvalProviderProposals",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 		},
 	);
+
+	type EvalPacingClockFact = Readonly<{
+		kind: "eval-provider-pacing-clock";
+		phase: "idle" | "scheduled" | "ready" | "replayed" | "stopped";
+		readiness: EvalProviderStartSpacingReadiness | null;
+	}>;
+	const pacingClockInputs = owner.initNode(
+		merge<EvalProviderStartSpacingReadiness | EvalElapsedBudgetState>(),
+		[providerStartSpacingReadiness, elapsedBudget],
+		{ name: "eval/provider/pacing-clock-inputs" },
+	);
+	const pacingClock = owner.node<EvalPacingClockFact>(
+		[pacingClockInputs],
+		(ctx) => {
+			const state = ctx.state.get<{
+				timer: ReturnType<typeof setTimeout> | undefined;
+				cancelled: boolean;
+				sequence: number;
+				seen: Map<string, string>;
+			}>() ?? { timer: undefined, cancelled: false, sequence: 0, seen: new Map<string, string>() };
+			ctx.state.set(state);
+			const emit = (
+				phase: EvalPacingClockFact["phase"],
+				readiness: EvalProviderStartSpacingReadiness | null,
+			) =>
+				ctx.down([
+					[
+						"DATA",
+						Object.freeze({ kind: "eval-provider-pacing-clock" as const, phase, readiness }),
+					],
+				]);
+			const cancel = () => {
+				state.cancelled = true;
+				state.sequence += 1;
+				if (state.timer !== undefined) clearTimeout(state.timer);
+				state.timer = undefined;
+			};
+			ctx.onDeactivation(cancel);
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const event = raw as EvalProviderStartSpacingReadiness | EvalElapsedBudgetState;
+				if (event.kind === "eval-elapsed-budget-state") {
+					if (event.state === "exhausted") cancel();
+					emit(state.cancelled ? "stopped" : "idle", null);
+					continue;
+				}
+				if (state.cancelled) {
+					emit("stopped", null);
+					continue;
+				}
+				const digest = empiricalStrictJsonDigest(event);
+				const prior = state.seen.get(event.admissionId);
+				if (prior !== undefined) {
+					if (prior !== digest)
+						throw new TypeError("pacing clock received conflicting admission replay");
+					emit("replayed", event);
+					continue;
+				}
+				if (state.seen.size >= rootEvalMaximumProviderAttempts(replicateCount))
+					throw new TypeError("pacing clock exceeded its fixed admission bound");
+				if (state.timer !== undefined)
+					throw new TypeError("pacing clock cannot replace an outstanding schedule");
+				state.seen.set(event.admissionId, digest);
+				const sequence = ++state.sequence;
+				emit("scheduled", event);
+				if (event.remainingPacingDelayMs === 0) {
+					emit("ready", event);
+					continue;
+				}
+				let firedSynchronously = false;
+				const timer = providerPacingSetTimeout(() => {
+					firedSynchronously = true;
+					if (state.cancelled || state.sequence !== sequence) return;
+					state.timer = undefined;
+					// External time is evidence only. Proposal selection remains in the sync reducer.
+					emit("ready", event);
+				}, event.remainingPacingDelayMs);
+				if (!firedSynchronously && !state.cancelled) {
+					state.timer = timer;
+					(timer as { unref?: () => void }).unref?.();
+				}
+			}
+		},
+		{
+			name: "eval/provider/pacing-clock",
+			factory: "rootEvalProviderPacingClock",
+			pool: "async",
+			completeWhenDepsComplete: false,
+			errorWhenDepsError: false,
+			meta: {
+				materialFree: true,
+				authority: "external-clock-evidence-only",
+				cancellation: "elapsed-budget-or-deactivation",
+			},
+		},
+	);
+	const pacingEvents = owner.initNode(
+		merge<EvalEffectProposal | EvalPacingClockFact | EvalRetryDelayOutcome>(),
+		[proposals, pacingClock, retryDelayOutcomes],
+		{ name: "eval/provider/pacing-events" },
+	);
 	type EvalProviderPacingState = {
 		activeProposalKey: string | null;
+		waitingClockKey: string | null;
 		pacingReady: boolean;
 		stopped: boolean;
 		pending: Map<string, EvalEffectProposal>;
+		seen: Map<string, string>;
 		expectedRecoveryEffectRunId: string | null;
-		timer: ReturnType<typeof setTimeout> | undefined;
 	};
-	const pacedProviderProposals = owner.node<EvalEffectProposal>(
-		[proposals, providerStartSpacingReadiness, retryDelayOutcomes, elapsedBudget],
+	type EvalPacedProposalRelease = Readonly<{
+		kind: "eval-paced-proposal-release";
+		proposal: EvalEffectProposal;
+	}>;
+	const pacedProviderProposals = owner.node<EvalPacedProposalRelease>(
+		[pacingEvents],
 		(ctx) => {
-			let emitted = false;
 			const state = ctx.state.get<EvalProviderPacingState>() ?? {
 				activeProposalKey: null,
+				waitingClockKey: null,
 				pacingReady: true,
 				stopped: false,
 				pending: new Map<string, EvalEffectProposal>(),
+				seen: new Map<string, string>(),
 				expectedRecoveryEffectRunId: null,
-				timer: undefined,
 			};
-			const keyOf = (proposal: EvalEffectProposal) =>
-				`${proposal.effectRunId}:${proposal.dispatchOrdinal}`;
-			const releaseNext = () => {
-				if (state.stopped || !state.pacingReady || state.activeProposalKey !== null) return;
-				let candidates = [...state.pending.values()];
-				if (state.expectedRecoveryEffectRunId !== null) {
-					candidates = candidates.filter(
-						(proposal) => proposal.effectRunId === state.expectedRecoveryEffectRunId,
-					);
-					if (candidates.length === 0) return;
-				}
-				candidates.sort((left, right) => {
-					if (left.workItemRole !== right.workItemRole)
-						return left.workItemRole === "source" ? -1 : 1;
-					if (left.replicate !== right.replicate) return left.replicate - right.replicate;
-					const armOrder =
-						HARNESS_ARMS.indexOf(left.arm as HarnessArm) -
-						HARNESS_ARMS.indexOf(right.arm as HarnessArm);
-					if (armOrder !== 0) return armOrder;
-					return left.dispatchOrdinal - right.dispatchOrdinal;
-				});
-				const proposal = candidates[0];
-				if (proposal === undefined) return;
-				const key = keyOf(proposal);
-				state.pending.delete(key);
-				state.activeProposalKey = key;
-				state.expectedRecoveryEffectRunId = null;
-				state.pacingReady = false;
-				emitted = true;
-				ctx.down([["DATA", proposal]]);
-			};
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				const proposal = raw as EvalEffectProposal;
-				const key = keyOf(proposal);
-				const prior = state.pending.get(key);
-				if (
-					prior !== undefined &&
-					empiricalStrictJsonDigest(withoutUndefined(prior)) !==
-						empiricalStrictJsonDigest(withoutUndefined(proposal))
-				)
-					throw new TypeError("provider pacing received contradictory proposal replay");
-				if (prior === undefined && state.activeProposalKey !== key)
-					state.pending.set(key, proposal);
-			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
-				const readiness = raw as EvalProviderStartSpacingReadiness;
-				const key = `${readiness.effectRunId}:${readiness.dispatchOrdinal}`;
-				if (state.activeProposalKey !== key)
-					throw new TypeError("provider pacing outcome did not settle its active proposal");
-				state.activeProposalKey = null;
-				if (readiness.status === "retryable")
-					state.expectedRecoveryEffectRunId = readiness.effectRunId;
-				const remainingPacingDelayMs = readiness.remainingPacingDelayMs;
-				if (remainingPacingDelayMs === 0) {
-					state.pacingReady = true;
-				} else {
-					if (state.timer !== undefined)
-						throw new TypeError("provider pacing attempted to replace active readiness");
-					let callbackRanSynchronously = false;
-					const timer = providerPacingSetTimeout(() => {
-						callbackRanSynchronously = true;
-						state.timer = undefined;
-						state.pacingReady = true;
-						releaseNext();
-					}, remainingPacingDelayMs);
-					if (!callbackRanSynchronously) {
-						state.timer = timer;
-						(state.timer as { unref?: () => void }).unref?.();
-					}
-				}
-			}
-			for (const raw of depBatch(ctx, 2) ?? []) {
-				const delay = validateRetryDelayOutcome(raw as EvalRetryDelayOutcome);
-				if (delay.status !== "completed") throw new TypeError("provider pacing readiness failed");
-			}
-			const elapsed = depLatest(ctx, 3) as EvalElapsedBudgetState | undefined;
-			if (elapsed?.state === "exhausted") {
-				state.stopped = true;
-				state.pending.clear();
-				if (state.timer !== undefined) clearTimeout(state.timer);
-				state.timer = undefined;
-			}
 			ctx.state.set(state);
-			ctx.onDeactivation(() => {
-				state.stopped = true;
-				if (state.timer !== undefined) clearTimeout(state.timer);
-				state.timer = undefined;
+			const keyOf = (proposal: { effectRunId: string; dispatchOrdinal: number }) =>
+				`${proposal.effectRunId}:${proposal.dispatchOrdinal}`;
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const event = raw as EvalEffectProposal | EvalPacingClockFact | EvalRetryDelayOutcome;
+				if (event.kind === "eval-effect-proposal") {
+					const key = keyOf(event);
+					const digest = empiricalStrictJsonDigest(withoutUndefined(event));
+					const prior = state.seen.get(key);
+					if (prior !== undefined && prior !== digest)
+						throw new TypeError("provider pacing received contradictory proposal replay");
+					if (prior === undefined) {
+						if (state.seen.size >= rootEvalMaximumProviderAttempts(replicateCount))
+							throw new TypeError("provider pacing exceeded its fixed proposal bound");
+						state.seen.set(key, digest);
+						if (!state.stopped) state.pending.set(key, event);
+					}
+				} else if (event.kind === "eval-retry-delay-outcome") {
+					if (validateRetryDelayOutcome(event).status !== "completed")
+						throw new TypeError("provider pacing readiness failed");
+				} else if (event.phase === "stopped") {
+					state.stopped = true;
+					state.pending.clear();
+				} else if (event.phase === "scheduled") {
+					const readiness = event.readiness!;
+					const key = keyOf(readiness);
+					if (state.activeProposalKey !== key)
+						throw new TypeError("provider pacing outcome did not settle its active proposal");
+					state.activeProposalKey = null;
+					state.waitingClockKey = key;
+					state.pacingReady = false;
+					if (readiness.status === "retryable")
+						state.expectedRecoveryEffectRunId = readiness.effectRunId;
+				} else if (event.phase === "ready") {
+					if (state.waitingClockKey !== keyOf(event.readiness!))
+						throw new TypeError("provider pacing clock did not match its scheduled occurrence");
+					state.waitingClockKey = null;
+					state.pacingReady = true;
+				}
+			}
+			if (state.stopped || !state.pacingReady || state.activeProposalKey !== null) return;
+			let candidates = [...state.pending.values()];
+			if (state.expectedRecoveryEffectRunId !== null) {
+				candidates = candidates.filter(
+					(proposal) => proposal.effectRunId === state.expectedRecoveryEffectRunId,
+				);
+				if (candidates.length === 0) return;
+			}
+			candidates.sort((left, right) => {
+				if (left.workItemRole !== right.workItemRole)
+					return left.workItemRole === "source" ? -1 : 1;
+				if (left.replicate !== right.replicate) return left.replicate - right.replicate;
+				const armOrder =
+					HARNESS_ARMS.indexOf(left.arm as HarnessArm) -
+					HARNESS_ARMS.indexOf(right.arm as HarnessArm);
+				if (armOrder !== 0) return armOrder;
+				return left.dispatchOrdinal - right.dispatchOrdinal;
 			});
-			releaseNext();
-			if (!emitted) ctx.down([["RESOLVED"]]);
+			const proposal = candidates[0];
+			if (proposal === undefined) return;
+			const key = keyOf(proposal);
+			state.pending.delete(key);
+			state.activeProposalKey = key;
+			state.expectedRecoveryEffectRunId = null;
+			state.pacingReady = false;
+
+			ctx.down([
+				["DATA", Object.freeze({ kind: "eval-paced-proposal-release" as const, proposal })],
+			]);
 		},
 		{
 			name: "eval/provider/paced-proposal-release",
 			factory: "rootEvalProviderPacedProposalRelease",
-			pool: "async",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: {
@@ -5807,6 +6231,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			},
 		},
 	);
+	const retryAdmissionPullId = Symbol("eval/retry-admission");
 	const retryDelayAdmissions = owner.node<EvalRetryDelayEffect>(
 		[retryableProviderResultAdmissions, elapsedBudget],
 		(ctx) => {
@@ -5850,9 +6275,40 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/retry/delay-admission",
 			factory: "rootEvalRetryDelayAdmission",
-			partial: true,
+			pullId: retryAdmissionPullId,
+			pausable: "resumeAll",
 			meta: { admission: "per-correlated-retryable-result", batchBarrier: false },
 		},
+	);
+
+	const retryAdmissionReleaseEvents = owner.initNode(
+		merge<unknown>(),
+		[retryableProviderResultAdmissions, retryDelayAdmissions],
+		{ name: "eval/retry/admission-release-events" },
+	);
+	const retryAdmissionRelease = owner.node(
+		[retryAdmissionReleaseEvents],
+		(ctx) => {
+			const seen = ctx.state.get<Set<string>>() ?? new Set<string>();
+			let fresh = false;
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const value = raw as EvalProviderOutcome;
+				if (value.kind !== "eval-provider-outcome" || seen.has(value.admissionId)) continue;
+				seen.add(value.admissionId);
+				fresh = true;
+			}
+			ctx.state.set(seen);
+			if (fresh) ctx.upNext([["PULL", { pullId: retryAdmissionPullId }]]);
+		},
+		{
+			name: "eval/retry/admission-release-controller",
+			factory: "rootEvalRetryAdmissionReleaseController",
+		},
+	);
+	boundaryReleases.push(
+		owner.retain(retryAdmissionRelease, {
+			reason: "only correlated retryable DATA opens retry lifecycle",
+		}),
 	);
 	type EvalSourceStageObservationContext = Readonly<{
 		readonly campaignRef: string;
@@ -5880,13 +6336,13 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		readonly kind: "eval-budget-settled-provider-outcome";
 		readonly outcome: EvalProviderOutcome;
 		readonly budget: EvalBudgetState;
-		readonly observationContext: EvalSourceStageObservationContext;
 	}>;
 	type AdmissionFact =
 		| EvalAdmittedEffect
 		| EvalProviderAdmissionObservationCut
 		| EvalBudgetSettledProviderOutcome;
-	const admissionFacts = owner.node<AdmissionFact>(
+	const admissionEvents = owner.initNode(
+		merge<unknown>(),
 		[
 			proposals,
 			pacedProviderProposals,
@@ -5894,11 +6350,16 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			retryDelayOutcomes,
 			elapsedBudget,
 			profileAdmission,
-			sourceStageObservationContext,
 		],
+		{ name: "eval/provider/admission-events" },
+	);
+	const admissionFacts = owner.node<AdmissionFact>(
+		[admissionEvents],
 		(ctx) => {
 			const newlySettledProviderOutcomes: EvalProviderOutcome[] = [];
-			const state = ctx.state.get<AdmissionState>() ?? {
+			const state = ctx.state.get<
+				AdmissionState & { elapsed?: EvalElapsedBudgetState; profile?: RootEvalProfileAdmission }
+			>() ?? {
 				proposalKeys: new Set<string>(),
 				proposalDigests: new Map<string, string>(),
 				admittedKeys: new Set<string>(),
@@ -5924,7 +6385,16 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				stoppingReason: "none" as const,
 				observationRevision: 0,
 			};
-			const elapsed = depLatest(ctx, 4) as EvalElapsedBudgetState | undefined;
+
+			const events = depBatch(ctx, 0) ?? [];
+			for (const raw of events) {
+				const kind = (raw as { kind: string }).kind;
+				if (kind === "eval-elapsed-budget-state") state.elapsed = raw as EvalElapsedBudgetState;
+				else if (kind === "root-eval-profile-admission")
+					state.profile = raw as RootEvalProfileAdmission;
+			}
+			const elapsed = state.elapsed;
+
 			if (elapsed?.state === "exhausted" && state.stoppingReason === "none")
 				state.stoppingReason = "elapsed-budget-exhausted";
 			const settleProviderOutcome = (outcome: EvalProviderOutcome): boolean => {
@@ -5961,7 +6431,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					outcome.reason === "http-capacity-retryable" ||
 					outcome.reason === "http-capacity-exhausted"
 				) {
-					const profile = depLatest(ctx, 5) as RootEvalProfileAdmission | undefined;
+					const profile = state.profile;
 					if (profile === undefined)
 						throw new TypeError("rate-limit feedback lost its Graph profile authority");
 					if (
@@ -5986,11 +6456,13 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				}
 				return true;
 			};
-			for (const raw of depBatch(ctx, 2) ?? []) {
+			for (const raw of events) {
+				if ((raw as { kind: string }).kind !== "eval-provider-outcome") continue;
 				const outcome = validateProviderOutcome(raw as EvalProviderOutcome);
 				if (settleProviderOutcome(outcome)) newlySettledProviderOutcomes.push(outcome);
 			}
-			for (const raw of depBatch(ctx, 3) ?? []) {
+			for (const raw of events) {
+				if ((raw as { kind: string }).kind !== "eval-retry-delay-outcome") continue;
 				const readiness = validateRetryDelayOutcome(raw as EvalRetryDelayOutcome);
 				if (readiness.status !== "completed")
 					throw new TypeError("provider cooldown readiness failed closed");
@@ -6063,9 +6535,12 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				if (proposal.dispatchOrdinal > 1) state.retryProposalKeys.add(key);
 				state.pendingProposals.set(key, proposal);
 			};
-			for (const raw of depBatch(ctx, 0) ?? []) registerProposal(raw as EvalEffectProposal);
-			for (const raw of depBatch(ctx, 1) ?? []) {
-				const proposal = raw as EvalEffectProposal;
+			for (const raw of events)
+				if ((raw as { kind: string }).kind === "eval-effect-proposal")
+					registerProposal(raw as EvalEffectProposal);
+			for (const raw of events) {
+				if ((raw as { kind: string }).kind !== "eval-paced-proposal-release") continue;
+				const proposal = (raw as EvalPacedProposalRelease).proposal;
 				registerProposal(proposal);
 				state.releasedProposalKeys.add(`${proposal.effectRunId}:${proposal.dispatchOrdinal}`);
 			}
@@ -6154,6 +6629,19 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				cooldownOutstandingReadinessCount: state.cooldownReadinessIds.size,
 				rateLimitFeedbackCount: state.rateLimitFeedbackCount,
 			});
+
+			const observationDigest = empiricalStrictJsonDigest({
+				budget: budgetSnapshot,
+				capacity: capacitySnapshot,
+				activeProviderAdmissionIds: [...state.active.keys()].sort(),
+			});
+			if (state.observationDigest === observationDigest) {
+				if (newlyAdmitted.length > 0 || newlySettledProviderOutcomes.length > 0)
+					throw new TypeError("provider accounting changed without an observation coordinate");
+				ctx.state.set(state);
+				return;
+			}
+			state.observationDigest = observationDigest;
 			state.observationRevision += 1;
 			const observationCut = Object.freeze({
 				kind: "eval-provider-admission-observation-cut" as const,
@@ -6163,9 +6651,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				activeProviderAdmissionIds: Object.freeze([...state.active.keys()].sort()),
 			});
 			assertEvalProviderAdmissionObservationCut(observationCut);
-			const observationContext = depLatest(ctx, 6) as EvalSourceStageObservationContext | undefined;
-			if (newlySettledProviderOutcomes.length > 0 && observationContext === undefined)
-				throw new TypeError("provider budget settlement lost its Graph observation context");
 			ctx.state.set(state);
 			ctx.down([
 				...newlyAdmitted.map((admitted) => ["DATA", admitted] as const),
@@ -6178,7 +6663,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 								kind: "eval-budget-settled-provider-outcome" as const,
 								outcome,
 								budget: budgetSnapshot,
-								observationContext: observationContext!,
 							}),
 						] as const,
 				),
@@ -6187,7 +6671,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/provider/graph-admission-and-budget",
 			factory: "rootEvalProviderGraphAdmission",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: {
@@ -6268,13 +6751,17 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			meta: { authority: "provider-outcome-after-budget-settlement" },
 		},
 	);
-	const toolAdmissions = owner.node<EvalAdmittedToolEffect>(
+	const toolAdmissionEvents = owner.initNode(
+		merge<unknown>(),
 		[budgetSettledProviderOutcomes, sourceToolOutcomes, taskBindingAuthority],
+		{ name: "eval/tool/admission-events" },
+	);
+	const toolAdmissions = owner.node<EvalAdmittedToolEffect>(
+		[toolAdmissionEvents],
 		(ctx) => {
-			const graphTaskBindings = depLatest(ctx, 2) as readonly RootEvalTaskBinding[] | undefined;
-			if (graphTaskBindings === undefined) return;
 			const state = ctx.state.get<{
 				admitted: Set<string>;
+				bindings?: readonly RootEvalTaskBinding[];
 				sourceOutcomes: Map<string, EvalProviderOutcome>;
 				sourceProviderSettled: Set<string>;
 				sourceSettled: Set<string>;
@@ -6284,12 +6771,24 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				sourceProviderSettled: new Set<string>(),
 				sourceSettled: new Set<string>(),
 			};
+			const events = depBatch(ctx, 0) ?? [];
+			for (const raw of events)
+				if (Array.isArray(raw)) state.bindings = raw as readonly RootEvalTaskBinding[];
+			ctx.state.set(state);
+			const graphTaskBindings = state.bindings;
+			if (graphTaskBindings === undefined) {
+				if (events.some((raw) => !Array.isArray(raw)))
+					throw new TypeError("tool event preceded task bindings");
+				return;
+			}
 			const candidates: EvalProviderOutcome[] = [];
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of events) {
+				if ((raw as { kind?: string }).kind !== "eval-effect-outcome") continue;
 				const outcome = validateOutcomeReceipt(raw as EvalEffectOutcome);
 				if (outcome.workItemRole === "source") state.sourceSettled.add(outcome.workItemId);
 			}
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of events) {
+				if ((raw as { kind?: string }).kind !== "eval-budget-settled-provider-outcome") continue;
 				const outcome = validateProviderOutcome((raw as EvalBudgetSettledProviderOutcome).outcome);
 				if (outcome.workItemRole === "source") {
 					state.sourceProviderSettled.add(outcome.workItemId);
@@ -6359,7 +6858,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/tool/exact-admission",
 			factory: "rootEvalExactToolAdmission",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: {
@@ -6410,11 +6908,22 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		stableIntervals: number;
 		previous: EvalCurrentKeySnapshot | null;
 	}
-	const billingFacts = owner.node<BillingFact>(
+	const billingFactEvents = owner.initNode(
+		merge<unknown>(),
 		[cleanup, budgets, billingObservationOutcomes, currentKeyBeforeState, campaignStates],
+		{ name: "eval/billing/fact-events" },
+	);
+	const billingFacts = owner.node<BillingFact>(
+		[billingFactEvents],
 		(ctx) => {
 			let emitted = false;
-			const state = ctx.state.get<BillingState>() ?? {
+			const state = ctx.state.get<
+				BillingState & {
+					before?: EvalCurrentKeySnapshot;
+					budget?: EvalBudgetState;
+					campaignState?: EvalCampaignState;
+				}
+			>() ?? {
 				completed: new Map<string, EvalCleanupFact>(),
 				started: false,
 				outstanding: false,
@@ -6424,13 +6933,24 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				stableIntervals: 0,
 				previous: null,
 			};
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				const fact = raw as EvalCleanupFact;
-				state.completed.set(fact.workItemId, fact);
+
+			const events = depBatch(ctx, 0) ?? [];
+			for (const raw of events) {
+				const kind = (raw as { kind: string }).kind;
+				if (kind === "eval-cleanup-complete") {
+					const fact = raw as EvalCleanupFact;
+					state.completed.set(fact.workItemId, fact);
+				} else if (kind === "eval-current-key-snapshot") {
+					if (
+						state.before !== undefined &&
+						state.before.admissionDigest !== (raw as EvalCurrentKeySnapshot).admissionDigest
+					)
+						throw new TypeError("billing baseline drifted");
+					state.before = raw as EvalCurrentKeySnapshot;
+				} else if (kind === "eval-budget-state") state.budget = raw as EvalBudgetState;
+				else if (kind === "eval-campaign-state") state.campaignState = raw as EvalCampaignState;
 			}
-			const before = depLatest(ctx, 3) as EvalCurrentKeySnapshot | undefined;
-			const budget = depLatest(ctx, 1) as EvalBudgetState | undefined;
-			const campaignState = depLatest(ctx, 4) as EvalCampaignState | undefined;
+			const { before, budget, campaignState } = state;
 			const emitFinal = (
 				status: EvalBillingReconciliation["status"],
 				reason: EvalBillingReconciliation["reason"],
@@ -6466,7 +6986,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					],
 				]);
 			};
-			for (const raw of depBatch(ctx, 2) ?? []) {
+			for (const raw of events) {
+				if ((raw as { kind: string }).kind !== "eval-billing-observation-outcome") continue;
 				if (state.finalized || before === undefined || budget === undefined) continue;
 				const outcome = validateBillingObservationOutcome(raw as EvalBillingObservationOutcome);
 				if (!state.outstanding || outcome.observation !== state.observation)
@@ -6597,7 +7118,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/billing/observation-proposal-and-stopping",
 			factory: "rootEvalBillingObservationProposalAndStopping",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: { maxObservations: 8, stableIntervals: 3, retryAuthority: "root-graph" },
@@ -6616,6 +7136,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			factory: "rootEvalBillingObservationProposals",
 		},
 	);
+	const billingAdmissionPullId = Symbol("eval/billing-admission");
 	const billingObservationAdmissions = owner.node<EvalBillingObservationEffect>(
 		[billingObservationProposals, currentKeyBeforeState],
 		(ctx) => {
@@ -6645,9 +7166,40 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/billing/observation-admission",
 			factory: "rootEvalBillingObservationAdmission",
-			partial: true,
+			pullId: billingAdmissionPullId,
+			pausable: "resumeAll",
 			meta: { authority: "root-graph", callerAuthority: "execute-current-effect-only" },
 		},
+	);
+	const billingAdmissionReleaseEvents = owner.initNode(
+		merge<unknown>(),
+		[billingObservationProposals, billingObservationAdmissions],
+		{ name: "eval/billing/admission-release-events" },
+	);
+	const billingAdmissionRelease = owner.node(
+		[billingAdmissionReleaseEvents],
+		(ctx) => {
+			const seen = ctx.state.get<Set<string>>() ?? new Set<string>();
+			let fresh = false;
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const value = raw as EvalBillingObservationProposal;
+				if (value.kind !== "eval-billing-observation-proposal" || seen.has(value.proposalId))
+					continue;
+				seen.add(value.proposalId);
+				fresh = true;
+			}
+			ctx.state.set(seen);
+			if (fresh) ctx.upNext([["PULL", { pullId: billingAdmissionPullId }]]);
+		},
+		{
+			name: "eval/billing/admission-release-controller",
+			factory: "rootEvalBillingAdmissionReleaseController",
+		},
+	);
+	boundaryReleases.push(
+		owner.retain(billingAdmissionRelease, {
+			reason: "only a billing proposal opens its effect lifecycle",
+		}),
 	);
 	const billingExecutorEffects = owner.initNode(
 		merge<EvalBillingObservationEffect>(),
@@ -6728,65 +7280,46 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		}
 		return admitted;
 	};
-	const providerEffectLifecycles = owner.node<EvalEffectLifecycleSnapshot>(
-		[providerExecutorEffects, allProviderResultAdmissions, start],
-		(ctx) => {
-			const state = ctx.state.get<EvalEffectLifecycleState>() ?? {
-				active: new Map<string, EvalExecutableEffect>(),
-				settled: new Map<string, string>(),
-			};
-			const admitted = admitLifecycleEffects(state, depBatch(ctx, 0) ?? []);
-			for (const raw of depBatch(ctx, 1) ?? [])
-				settleLifecycleEffect(state, validateProviderOutcome(raw as EvalProviderOutcome));
-			ctx.state.set(state);
-			ctx.down([
-				[
-					"DATA",
-					Object.freeze({
-						kind: "eval-effect-lifecycle-snapshot" as const,
-						active: Object.freeze([...state.active.values()]),
-						admitted: Object.freeze(admitted),
-						admittedEffects: state.active.size + state.settled.size,
-						settledEffects: state.settled.size,
-					}),
-				],
-			]);
-		},
-		{
-			name: "eval/executor/provider-effect-lifecycle-registry",
-			factory: "rootEvalEffectLifecycleRegistry",
-			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
-			meta: {
-				domainAuthority: "graph-state",
-				effectClass: "provider",
-			},
-		},
-	);
+
+	// These are alternative lifecycle events, not a latest-value join. Tag each
+	// lane before the built-in merge; no call-site partial override is needed.
 	const createEffectLifecycle = (
 		source: Node<unknown>,
 		outcomeSource: Node<unknown>,
 		validateOutcome: (raw: unknown) => Readonly<{
-			readonly executionId: string;
-			readonly resultDigest: string;
-			readonly admission: EvalExecutableEffect;
+			executionId: string;
+			resultDigest: string;
+			admission: EvalExecutableEffect;
 		}>,
 		name: string,
 		factory: string,
 		effectClass: string,
-	) =>
-		owner.node<EvalEffectLifecycleSnapshot>(
-			[source, outcomeSource, start],
+	) => {
+		const events = owner.initNode(merge<unknown>(), [source, outcomeSource, start], {
+			name: `${name}/events`,
+		});
+		return owner.node<EvalEffectLifecycleSnapshot>(
+			[events],
 			(ctx) => {
-				const state = ctx.state.get<EvalEffectLifecycleState>() ?? {
+				const prior = ctx.state.get<EvalEffectLifecycleState>();
+				const state = prior ?? {
 					active: new Map<string, EvalExecutableEffect>(),
 					settled: new Map<string, string>(),
 				};
-				const admitted = admitLifecycleEffects(state, depBatch(ctx, 0) ?? []);
-				for (const raw of depBatch(ctx, 1) ?? [])
-					settleLifecycleEffect(state, validateOutcome(raw));
+				const admitted: EvalExecutableEffect[] = [];
+				let changed = prior === undefined;
+				for (const raw of depBatch(ctx, 0) ?? []) {
+					const kind = (raw as { kind: string }).kind;
+					if (kind.startsWith("eval-admitted-")) {
+						const newAdmissions = admitLifecycleEffects(state, [raw]);
+						admitted.push(...newAdmissions);
+						changed = newAdmissions.length > 0 || changed;
+					} else if (kind !== "eval-campaign-start") {
+						changed = settleLifecycleEffect(state, validateOutcome(raw)) || changed;
+					}
+				}
 				ctx.state.set(state);
+				if (!changed) return;
 				ctx.down([
 					[
 						"DATA",
@@ -6803,12 +7336,20 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			{
 				name,
 				factory,
-				partial: true,
 				completeWhenDepsComplete: false,
 				errorWhenDepsError: false,
 				meta: { domainAuthority: "graph-state", effectClass },
 			},
 		);
+	};
+	const providerEffectLifecycles = createEffectLifecycle(
+		providerExecutorEffects,
+		allProviderResultAdmissions,
+		(raw) => validateProviderOutcome(raw as EvalProviderOutcome),
+		"eval/executor/provider-effect-lifecycle-registry",
+		"rootEvalEffectLifecycleRegistry",
+		"provider",
+	);
 	const retryEffectLifecycles = createEffectLifecycle(
 		retryDelayExecutorEffects as unknown as Node<unknown>,
 		retryDelayOutcomes as unknown as Node<unknown>,
@@ -6979,11 +7520,18 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			) {
 				return;
 			}
+
+			const causeDigest = empiricalStrictJsonDigest({ provider, tool, retry, billing, budget });
+			const prior = ctx.state.get<{ revision: number; causeDigest: string }>();
+			if (prior?.causeDigest === causeDigest) return;
+			const revision = (prior?.revision ?? 0) + 1;
+			ctx.state.set({ revision, causeDigest });
 			ctx.down([
 				[
 					"DATA",
 					Object.freeze({
 						kind: "eval-effect-activity-snapshot" as const,
+						revision,
 						budgetDigest: empiricalStrictJsonDigest(budget),
 						budget,
 						activeProviderAdmissionIds: provider.activeExecutionIds,
@@ -7056,7 +7604,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		readonly verifiedSourceReplicates: readonly number[];
 		readonly sourceTechnicalExclusions: readonly EvalSourceTechnicalExclusionFact[];
 	}>;
-	const matchedEvidence = owner.node<EvalMatchedEvidence>(
+	const matchedEvidenceEvents = owner.initNode(
+		merge<unknown>(),
 		[
 			cleanup,
 			allProviderResultAdmissions,
@@ -7064,38 +7613,69 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			sourceRequestAuthority,
 			start,
 		],
+		{ name: "eval/findings/matched-evidence-events" },
+	);
+	const matchedEvidence = owner.node<EvalMatchedEvidence>(
+		[matchedEvidenceEvents],
 		(ctx) => {
 			const state = ctx.state.get<{
 				cleanup: Map<string, EvalCleanupFact>;
 				providerReasons: Map<string, EvalProviderOutcomeReason>;
 				verifiedSources: Set<number>;
 				sourceTechnicalExclusions: Map<number, EvalSourceTechnicalExclusionFact>;
+				requests: Map<string, EvalSourceWorkItemRequest>;
+				pendingStatuses: Map<string, AdmissionHandoffStatus>;
 			}>() ?? {
 				cleanup: new Map<string, EvalCleanupFact>(),
 				providerReasons: new Map<string, EvalProviderOutcomeReason>(),
 				verifiedSources: new Set<number>(),
 				sourceTechnicalExclusions: new Map<number, EvalSourceTechnicalExclusionFact>(),
+				requests: new Map<string, EvalSourceWorkItemRequest>(),
+				pendingStatuses: new Map<string, AdmissionHandoffStatus>(),
 			};
-			let changed = (depBatch(ctx, 4)?.length ?? 0) > 0;
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				const fact = raw as EvalCleanupFact;
-				state.cleanup.set(fact.workItemId, fact);
-				changed = true;
+
+			const events = depBatch(ctx, 0) ?? [];
+			let changed = false;
+			for (const raw of events) {
+				if (Array.isArray(raw)) {
+					for (const request of raw as readonly EvalSourceWorkItemRequest[])
+						state.requests.set(request.sourceWorkItemId, request);
+					continue;
+				}
+				const event = raw as { kind: string };
+				if (event.kind === "eval-campaign-start") changed = true;
+				else if (event.kind === "eval-cleanup-complete") {
+					const fact = raw as EvalCleanupFact;
+					const previous = state.cleanup.get(fact.workItemId);
+					if (
+						previous !== undefined &&
+						empiricalStrictJsonDigest(previous) !== empiricalStrictJsonDigest(fact)
+					)
+						throw new TypeError("matched cleanup replay conflicted");
+					state.cleanup.set(fact.workItemId, fact);
+					changed = true;
+				} else if (event.kind === "eval-provider-outcome") {
+					const outcome = raw as EvalProviderOutcome;
+					state.providerReasons.set(outcome.workItemId, outcome.reason);
+					changed = true;
+				} else if (event.kind === "admission-handoff-status") {
+					const status = raw as AdmissionHandoffStatus;
+					if (
+						(status.state === "accepted" || status.state === "rejected") &&
+						status.candidateId !== undefined
+					)
+						state.pendingStatuses.set(status.candidateId, status);
+				} else throw new TypeError("matched evidence received an unknown event");
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
-				const outcome = raw as EvalProviderOutcome;
-				state.providerReasons.set(outcome.workItemId, outcome.reason);
-				changed = true;
-			}
-			for (const raw of depBatch(ctx, 2) ?? []) {
-				const status = raw as AdmissionHandoffStatus;
-				if (status.state !== "accepted" && status.state !== "rejected") continue;
-				const requests = depLatest(ctx, 3) as readonly EvalSourceWorkItemRequest[] | undefined;
-				const request = requests?.find(
-					(candidate) => candidate.sourceWorkItemId === status.candidateId,
-				);
-				if (request === undefined)
-					throw new TypeError("matched evidence source status lacked a sealed request");
+			if (
+				state.requests.size > replicateCount ||
+				state.pendingStatuses.size > replicateCount ||
+				state.cleanup.size > replicateCount * HARNESS_ARMS.length
+			)
+				throw new TypeError("matched evidence exceeded its campaign bound");
+			for (const [candidateId, status] of state.pendingStatuses) {
+				const request = state.requests.get(candidateId);
+				if (request === undefined || !state.providerReasons.has(candidateId)) continue;
 				if (status.state === "accepted") state.verifiedSources.add(request.replicate);
 				else {
 					const reason = state.providerReasons.get(request.sourceWorkItemId);
@@ -7114,6 +7694,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					);
 				}
 				changed = true;
+				state.pendingStatuses.delete(candidateId);
 			}
 			ctx.state.set(state);
 			if (changed)
@@ -7177,7 +7758,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/findings/efficacy-state",
 			factory: "rootEvalEfficacyState",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: {
@@ -7186,7 +7766,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			},
 		},
 	);
-	const findings = owner.node<EvalFinding>(
+	const findingsCandidate = owner.node<EvalFinding>(
 		[efficacyStates, billingReconciliation, effectActivity, matchedEvidence],
 		(ctx) => {
 			const efficacyState = depLatest(ctx, 0) as EvalEfficacyState | undefined;
@@ -7303,19 +7883,40 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			]);
 		},
 		{
-			name: "eval/findings/efficacy",
-			factory: "rootEvalEfficacyFinding",
-			partial: true,
+			name: "eval/findings/efficacy/candidate",
+			factory: "rootEvalEfficacyFindingCandidate",
 			meta: {
 				billingAuditAffectsConclusion: false,
 				semanticAuthority: "verification-diagnostics-stage-counts",
 			},
 		},
 	);
-	const developmentQualification = owner.node<EvalDevelopmentQualificationState>(
+
+	const findingsBoundary = rootEvalQuietDataBoundary<EvalFinding>(owner, findingsCandidate, {
+		name: "eval/findings/efficacy",
+		factory: "rootEvalEfficacyFinding",
+		maxOccurrences: 1,
+		key: (value) => value.campaignRef,
+		meta: {
+			materialFree: true,
+			completeDomainOccurrence: true,
+			billingAuditAffectsConclusion: false,
+			semanticAuthority: "verification-diagnostics-stage-counts",
+		},
+	});
+	const findings = findingsBoundary.output;
+	boundaryReleases.push(findingsBoundary.release);
+
+	const developmentQualificationEvents = owner.initNode(
+		merge<unknown>(),
 		[campaignContract, findings],
+		{ name: "eval/development/qualification-events" },
+	);
+	const developmentQualification = owner.node<EvalDevelopmentQualificationState>(
+		[developmentQualificationEvents],
 		(ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
+				if ((raw as { kind: string }).kind !== "eval-campaign-contract") continue;
 				const contract = raw as EvalCampaignContract;
 				ctx.down([
 					[
@@ -7338,7 +7939,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					],
 				]);
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				if ((raw as { kind: string }).kind !== "eval-efficacy-finding") continue;
 				if (campaignPurpose !== "development") continue;
 				const finding = raw as EvalFinding;
 				const relevant = finding.verificationDiagnostics.stageCounts["relevant-applied"];
@@ -7377,7 +7979,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/development/qualification",
 			factory: "rootEvalDevelopmentQualification",
-			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: {
@@ -7387,338 +7988,191 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			},
 		},
 	);
-	const terminalLifecycleConsistency = owner.node<{
-		readonly kind: "eval-terminal-lifecycle-consistency";
-		readonly status: "pending" | "consistent";
-		readonly budgetDigest: string | null;
-	}>(
-		[findings, effectActivity, budgets, start],
-		(ctx) => {
-			const finding = depLatest(ctx, 0) as EvalFinding | undefined;
-			if (finding === undefined) {
-				ctx.down([
-					[
-						"DATA",
-						Object.freeze({
-							kind: "eval-terminal-lifecycle-consistency" as const,
-							status: "pending" as const,
-							budgetDigest: null,
-						}),
-					],
-				]);
-				return;
-			}
-			const activity = depLatest(ctx, 1) as EvalEffectActivitySnapshot;
-			const budget = depLatest(ctx, 2) as EvalBudgetState;
-			const providerReasonTotal = EVAL_PROVIDER_OUTCOME_REASON_CODES.reduce(
-				(total, reason) => total + budget.providerOutcomeReasonCounts[reason],
-				0,
+
+	type ObservationInputs = {
+		context: EvalSourceStageObservationContext;
+		admission: EvalProviderAdmissionObservationCut;
+		activity: EvalEffectActivitySnapshot;
+		campaign: EvalCampaignState;
+		diagnostics: EvalVerificationDiagnostics;
+		qualification: EvalDevelopmentQualificationState;
+		finding: EvalFinding;
+		elapsed: EvalElapsedBudgetState;
+	};
+	type ObservationInputKey = keyof ObservationInputs;
+	type ObservationArrival = {
+		[K in ObservationInputKey]: Readonly<{
+			source: K;
+			revision: number;
+			digest: string;
+			value: ObservationInputs[K];
+		}>;
+	}[ObservationInputKey];
+	const observationSources: { [K in ObservationInputKey]: Node<ObservationInputs[K]> } = {
+		context: sourceStageObservationContext,
+		admission: providerAdmissionObservationCuts,
+		activity: effectActivity,
+		campaign: campaignStates,
+		diagnostics: verificationDiagnostics,
+		qualification: developmentQualification,
+		finding: findings,
+		elapsed: elapsedBudget,
+	};
+	const observationBound = rootEvalMaximumObservationOccurrences(replicateCount);
+	const observationReleaseControllers: Node<unknown>[] = [];
+	const observationArrivals = owner.initNode(
+		merge<readonly ObservationArrival[]>(),
+		Object.entries(observationSources).map(([source, input]) => {
+			const snapshots = owner.node<readonly ObservationArrival[]>(
+				[input],
+				(ctx) => {
+					const prior = ctx.state.get<{ revision: number; seen: Set<string> }>() ?? {
+						revision: 0,
+						seen: new Set<string>(),
+					};
+					const batch: ObservationArrival[] = [];
+					for (const value of depBatch(ctx, 0) ?? []) {
+						const digest = empiricalStrictJsonDigest(value);
+						if (prior.seen.has(digest)) continue;
+						if (prior.seen.size >= observationBound)
+							throw new TypeError("observation input retention bound exceeded");
+						prior.seen.add(digest);
+						prior.revision += 1;
+						batch.push(
+							Object.freeze({
+								source,
+								revision: prior.revision,
+								digest,
+								value,
+							}) as ObservationArrival,
+						);
+					}
+					ctx.state.set(prior);
+					if (batch.length > 0) ctx.down([["DATA", Object.freeze(batch)]]);
+				},
+				{
+					name: `eval/observation/input/${source}`,
+					factory: "rootEvalObservationOccurrenceInput",
+					meta: { materialFree: true, source, correlation: "source-local-revision/content-digest" },
+				},
 			);
-			const retryableReasonTotal =
-				budget.providerOutcomeReasonCounts["transport-availability-retryable"] +
-				budget.providerOutcomeReasonCounts["http-capacity-retryable"] +
-				budget.providerOutcomeReasonCounts["http-availability-retryable"];
-			if (
-				activity.activeAdmittedEffects !== 0 ||
-				budget.activeEffects !== 0 ||
-				activity.budgetDigest !== empiricalStrictJsonDigest(budget) ||
-				budget.admittedAttempts !== providerReasonTotal ||
-				budget.admittedRetryAttempts !== retryableReasonTotal ||
-				budget.pendingRetryProposalCount !== 0 ||
-				budget.rejectedRetryProposalCount !== 0 ||
-				budget.retryProposalCount !== budget.admittedRetryAttempts ||
-				budget.settledRetryAttemptCount !== budget.admittedRetryAttempts ||
-				finding.admittedAttempts !== budget.admittedAttempts
-			)
-				throw new TypeError("root eval terminal lifecycle consistency drifted");
-			ctx.down([
-				[
-					"DATA",
-					Object.freeze({
-						kind: "eval-terminal-lifecycle-consistency" as const,
-						status: "consistent" as const,
-						budgetDigest: empiricalStrictJsonDigest(budget),
-					}),
-				],
-			]);
-		},
-		{
-			name: "eval/observation/terminal-lifecycle-consistency",
-			factory: "rootEvalTerminalLifecycleConsistency",
-			partial: true,
-			completeWhenDepsComplete: false,
-			meta: {
-				materialFree: true,
-				failClosed: true,
-				authority: "terminal-stable-cut-verifier",
-			},
-		},
+			// D151: transport only actual snapshots across this lifecycle boundary. An
+			// unfinished sibling's preflight must not hold unrelated observation DATA.
+			const pullId = Symbol(`observation/${source}`);
+			const released = owner.node<readonly ObservationArrival[]>(
+				[snapshots],
+				(ctx) => {
+					for (const value of depBatch(ctx, 0) ?? []) ctx.down([["DATA", value]]);
+				},
+				{
+					name: `eval/observation/input/${source}/released`,
+					factory: "rootEvalObservationSnapshotRelease",
+					pullId,
+					pausable: "resumeAll",
+					meta: { materialFree: true, role: "quiet-snapshot-boundary" },
+				},
+			);
+			const releases = owner.initNode(
+				merge<readonly ObservationArrival[]>(),
+				[snapshots, released],
+				{
+					name: `eval/observation/input/${source}/release-events`,
+				},
+			);
+			observationReleaseControllers.push(
+				owner.node(
+					[releases],
+					(ctx) => {
+						const previous = ctx.state.get<number>() ?? 0;
+						let revision = previous;
+						for (const batch of depBatch(ctx, 0) ?? [])
+							for (const event of batch as readonly ObservationArrival[])
+								revision = Math.max(revision, event.revision);
+						ctx.state.set(revision);
+						if (revision > previous) ctx.upNext([["PULL", { pullId }]]);
+					},
+					{
+						name: `eval/observation/input/${source}/release-controller`,
+						factory: "rootEvalObservationSnapshotReleaseController",
+					},
+				),
+			);
+			return released;
+		}),
+		{ name: "eval/observation/arrivals" },
 	);
-
-	interface EvalProgressObservationState {
+	interface CanonicalObservationState {
+		streams: Map<ObservationInputKey, { revision: number; receipts: Map<number, string> }>;
 		context?: EvalSourceStageObservationContext;
-		providerAdmissionCut?: EvalProviderAdmissionObservationCut;
-		activity?: EvalEffectActivitySnapshot;
-		campaignState?: EvalCampaignState;
-		diagnostics?: EvalVerificationDiagnostics;
-	}
-	const sourceStageObservations = owner.node<EvalObservation>(
-		[
-			sourceStageObservationContext,
-			providerAdmissionObservationCuts,
-			effectActivity,
-			campaignStates,
-			verificationDiagnostics,
-		],
-		(ctx) => {
-			const state = ctx.state.get<EvalProgressObservationState>() ?? {};
-			for (const raw of depBatch(ctx, 0) ?? [])
-				state.context = raw as EvalSourceStageObservationContext;
-			for (const raw of depBatch(ctx, 1) ?? [])
-				state.providerAdmissionCut = raw as EvalProviderAdmissionObservationCut;
-			for (const raw of depBatch(ctx, 2) ?? []) state.activity = raw as EvalEffectActivitySnapshot;
-			for (const raw of depBatch(ctx, 3) ?? []) state.campaignState = raw as EvalCampaignState;
-			for (const raw of depBatch(ctx, 4) ?? [])
-				state.diagnostics = raw as EvalVerificationDiagnostics;
-			const { context, providerAdmissionCut, activity, campaignState, diagnostics } = state;
-			const budget = providerAdmissionCut?.budget;
-			const capacity = providerAdmissionCut?.capacity;
-			const expectedCompletedWorkItems =
-				campaignState === undefined
-					? -1
-					: (campaignState.replicate -
-							1 -
-							campaignState.sourceTechnicalExcludedReplicates.filter(
-								(replicate) => replicate < campaignState.replicate,
-							).length) *
-							HARNESS_ARMS.length +
-						campaignState.completedArms;
-			if (
-				context !== undefined &&
-				budget !== undefined &&
-				activity !== undefined &&
-				capacity !== undefined &&
-				providerAdmissionCut !== undefined &&
-				campaignState !== undefined &&
-				diagnostics !== undefined &&
-				diagnostics.completedWorkItems === expectedCompletedWorkItems &&
-				activity.budgetDigest === empiricalStrictJsonDigest(budget) &&
-				activity.activeProviderEffects === providerAdmissionCut.activeProviderAdmissionIds.length &&
-				JSON.stringify(activity.activeProviderAdmissionIds) ===
-					JSON.stringify(providerAdmissionCut.activeProviderAdmissionIds) &&
-				activity.activeRetryEffects === capacity.cooldownOutstandingReadinessCount
-			) {
-				const contract = context.campaignContract;
-				// Publish dependency-coherent progress cuts, including an admitted retry delay
-				// before its proposal exists and its later admitted-or-rejected proposal settlement.
-				const elapsedExhausted = budget.stoppingReason === "elapsed-budget-exhausted";
-				const developmentQualificationState = Object.freeze({
-					kind: "eval-development-qualification-state" as const,
-					campaignPurpose: contract.campaignPurpose,
-					generationRef: contract.generationRef,
-					status:
-						contract.campaignPurpose === "development"
-							? ("pending" as const)
-							: ("not-applicable" as const),
-					generationQualified: null,
-					consecutiveQualifyingGenerations: contract.developmentQualificationStreakBefore,
-					requiredConsecutiveGenerations: 2 as const,
-					heldOutEligible:
-						contract.campaignPurpose === "confirmatory" &&
-						contract.developmentQualificationStreakBefore === 2,
-				});
-				ctx.down([
-					[
-						"DATA",
-						strictSnapshot({
-							kind: "eval-observation" as const,
-							topologyRevision: ROOT_EVAL_TOPOLOGY_REVISION,
-							solutionIdentities: ROOT_EVAL_SOLUTION_IDENTITIES,
-							campaignRef: context.campaignRef,
-							campaignPurpose: contract.campaignPurpose,
-							taskSetRef: contract.taskSetRef,
-							generationRef: contract.generationRef,
-							replicate: campaignState.replicate,
-							replicateCount: contract.replicateCount,
-							heldOutSealDigest: contract.heldOutSealDigest,
-							budgetPartition: contract.budgetPartition,
-							partitionHardCapMicrousd: contract.partitionHardCapMicrousd,
-							partitionSpentBeforeMicrousd: contract.partitionSpentBeforeMicrousd,
-							partitionLedgerDigest: contract.partitionLedgerDigest,
-							developmentQualification: developmentQualificationState,
-							armOrder: HARNESS_ARMS,
-							memoryProvenance: context.memoryProvenance,
-							evaluableReplicates: null,
-							excludedTechnicalReplicates: campaignState.sourceTechnicalExcludedReplicates,
-							sourceTechnicalExcludedReplicates: campaignState.sourceTechnicalExcludedReplicates,
-							matchedRelevantOverColdWins: null,
-							completedArms: campaignState.completedArms,
-							verificationDiagnostics: diagnostics,
-							activeProviderEffects: activity.activeProviderEffects,
-							activeToolEffects: activity.activeToolEffects,
-							activeRetryEffects: activity.activeRetryEffects,
-							activeBillingEffects: activity.activeBillingEffects,
-							activeAdmittedEffects: activity.activeAdmittedEffects,
-							providerCapacity: capacity,
-							elapsedBudget: {
-								kind: "eval-elapsed-budget-state" as const,
-								scheduleId: context.elapsedBudgetScheduleId,
-								limitMs: ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS,
-								drainReserveMs: ROOT_EVAL_GRAPH_DRAIN_RESERVE_MS,
-								callerSafetyLeaseMs: ROOT_EVAL_CALLER_SAFETY_LEASE_MS,
-								state: elapsedExhausted ? ("exhausted" as const) : ("armed" as const),
-								nowMs: elapsedExhausted
-									? ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS
-									: (0 as const),
-								stoppingReason: elapsedExhausted
-									? ("elapsed-budget-exhausted" as const)
-									: ("none" as const),
-							},
-							admittedAttempts: budget.admittedAttempts,
-							admittedRetryAttempts: budget.admittedRetryAttempts,
-							retryProposalCount: budget.retryProposalCount,
-							pendingRetryProposalCount: budget.pendingRetryProposalCount,
-							rejectedRetryProposalCount: budget.rejectedRetryProposalCount,
-							settledRetryAttemptCount: budget.settledRetryAttemptCount,
-							providerCallCount: budget.providerCallCount,
-							activeReservedMicrousd: budget.activeReservedMicrousd,
-							providerReportedMicrousd: budget.providerReportedMicrousd,
-							pricingRoundingAllowanceMicrousd: budget.pricingRoundingAllowanceMicrousd,
-							providerReportedLowerBoundMicrousd: Math.max(
-								0,
-								budget.providerReportedMicrousd - budget.pricingRoundingAllowanceMicrousd,
-							),
-							unreportedSettledUpperBoundMicrousd: budget.unreportedSettledUpperBoundMicrousd,
-							accountedUpperBoundMicrousd: budget.accountedUpperBoundMicrousd,
-							observedBilledMicrousd: null,
-							billingObservationCount: 0,
-							billingStableIntervals: 0,
-							reconciledBilledMicrousd: null,
-							billingDisposition: "pending" as const,
-							providerOutcomeReasonCounts: budget.providerOutcomeReasonCounts,
-							stoppingReason: budget.stoppingReason,
-							finding: "pending" as const,
-						}),
-					],
-				]);
-			}
-			ctx.state.set(state);
-		},
-		{
-			name: "eval/observation/source-stage-state",
-			factory: "rootEvalSourceStageObservation",
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
-			meta: {
-				materialFree: true,
-				authority: "atomic-admission-cut-and-lifecycle-anchored-progress-projection",
-				providerAdmissionIdentityBound: true,
-				retryLifecycleBound: true,
-			},
-		},
-	);
-
-	interface EvalObservationProjectionState {
-		campaignState?: EvalCampaignState;
-		provenance?: typeof MEMORY_PROVENANCE;
-		efficacyState?: EvalEfficacyState;
+		admission?: EvalProviderAdmissionObservationCut;
+		admissionRevisions: Map<number, string>;
+		activityRevisions: Map<number, string>;
+		activities: Map<string, EvalEffectActivitySnapshot>;
+		campaigns: Map<string, EvalCampaignState>;
+		diagnostics: Map<number, EvalVerificationDiagnostics>;
+		campaign?: EvalCampaignState;
 		qualification?: EvalDevelopmentQualificationState;
 		finding?: EvalFinding;
-		effectActivity?: EvalEffectActivitySnapshot;
-		providerCapacity?: EvalProviderCapacityState;
-		elapsedBudget?: EvalElapsedBudgetState;
-		terminalConsistencyBudgetDigest?: string | null;
+		elapsed?: EvalElapsedBudgetState;
+		previous?: EvalObservation;
 		digest?: string;
+		revision: number;
+		failed: boolean;
 		terminal: boolean;
 	}
-	const fullObservationPullId = Symbol("eval/observation/full-state");
-	const fullObservation = owner.node<EvalObservation>(
-		[
-			campaignStates,
-			memoryProvenance,
-			efficacyStates,
-			developmentQualification,
-			findings,
-			effectActivity,
-			terminalLifecycleConsistency,
-			providerCapacity,
-			elapsedBudget,
-		],
+	const observationOccurrences = owner.node<
+		SolutionOccurrence<EvalObservation> | EvalObservationRejection
+	>(
+		[observationArrivals],
 		(ctx) => {
-			const state = ctx.state.get<EvalObservationProjectionState>() ?? { terminal: false };
-			const emit = (): boolean => {
-				if (
-					state.campaignState === undefined ||
-					state.provenance === undefined ||
-					state.efficacyState === undefined ||
-					state.qualification === undefined ||
-					state.effectActivity === undefined ||
-					state.providerCapacity === undefined ||
-					state.elapsedBudget === undefined
-				)
-					return false;
-				const { campaignState, provenance, efficacyState, qualification } = state;
-				const { diagnostics } = efficacyState;
-				const { budget } = state.effectActivity;
+			const state: CanonicalObservationState = ctx.state.get<CanonicalObservationState>() ?? {
+				streams: new Map(),
+				activities: new Map(),
+				campaigns: new Map(),
+				diagnostics: new Map(),
+				admissionRevisions: new Map(),
+				activityRevisions: new Map(),
+				revision: 0,
+				failed: false,
+				terminal: false,
+			};
+			if (state.failed) return;
+			const outputs: (SolutionOccurrence<EvalObservation> | EvalObservationRejection)[] = [];
+			const publish = (
+				campaignState: EvalCampaignState,
+				diagnostics: EvalVerificationDiagnostics,
+				terminal: boolean,
+			) => {
+				const context = state.context!;
+				const { budget, capacity } = state.admission!;
+				const activity = state.activities.get(empiricalStrictJsonDigest(budget))!;
 				const {
 					activeProviderEffects,
 					activeToolEffects,
 					activeRetryEffects,
 					activeBillingEffects,
 					activeAdmittedEffects,
-				} = state.effectActivity;
-				const providerReasonTotal = EVAL_PROVIDER_OUTCOME_REASON_CODES.reduce(
-					(total, reason) => total + budget.providerOutcomeReasonCounts[reason],
-					0,
-				);
-				const retryableReasonTotal =
-					budget.providerOutcomeReasonCounts["transport-availability-retryable"] +
-					budget.providerOutcomeReasonCounts["http-capacity-retryable"] +
-					budget.providerOutcomeReasonCounts["http-availability-retryable"];
-				if (activeRetryEffects !== retryableReasonTotal - budget.retryProposalCount) return false;
-				const observedPendingFirstAttemptProposalCount = Math.max(
-					0,
-					state.providerCapacity.pendingFirstAttemptProposalCount,
-				);
-				const observedPendingProposalCount =
-					observedPendingFirstAttemptProposalCount + budget.pendingRetryProposalCount;
-				const observedRejectedProposalCount = Math.max(
-					state.providerCapacity.rejectedProposalCount,
-					budget.rejectedRetryProposalCount,
-				);
-				const observedProviderCapacity = strictSnapshot({
-					...state.providerCapacity,
-					activeEffects: activeProviderEffects,
-					proposalCount:
-						budget.admittedAttempts + observedPendingProposalCount + observedRejectedProposalCount,
-					pendingProposalCount: observedPendingProposalCount,
-					pendingFirstAttemptProposalCount: observedPendingFirstAttemptProposalCount,
-					admittedProposalCount: budget.admittedAttempts,
-					settledProposalCount: providerReasonTotal,
-					pendingRetryProposalCount: budget.pendingRetryProposalCount,
-					retryProposalCount: budget.retryProposalCount,
-					admittedRetryProposalCount: budget.admittedRetryAttempts,
-					settledRetryProposalCount: budget.settledRetryAttemptCount,
-					rejectedProposalCount: observedRejectedProposalCount,
-					rejectedRetryProposalCount: budget.rejectedRetryProposalCount,
-				}) as EvalProviderCapacityState;
-				const terminal =
-					state.finding !== undefined &&
-					(campaignPurpose !== "development" || qualification.status !== "pending") &&
-					activeAdmittedEffects === 0 &&
-					state.terminalConsistencyBudgetDigest === state.effectActivity.budgetDigest;
-				if (!terminal) return false;
-				const terminalDiagnostics = terminal ? state.finding!.verificationDiagnostics : diagnostics;
-				const stoppingReason = terminal
-					? state.finding!.stoppingReason
-					: budget.stoppingReason !== "none"
-						? budget.stoppingReason
-						: campaignState.stoppingReason;
-				if (
-					(stoppingReason === "elapsed-budget-exhausted") !==
-					(state.elapsedBudget.state === "exhausted")
-				)
-					return false;
+				} = activity;
+				const finding = state.finding;
+				const provenance = context.memoryProvenance;
+				const contract = context.campaignContract;
+				const qualification: EvalDevelopmentQualificationState = terminal
+					? state.qualification!
+					: Object.freeze({
+							kind: "eval-development-qualification-state",
+							campaignPurpose: contract.campaignPurpose,
+							generationRef: contract.generationRef,
+							status: contract.campaignPurpose === "development" ? "pending" : "not-applicable",
+							generationQualified: null,
+							consecutiveQualifyingGenerations: contract.developmentQualificationStreakBefore,
+							requiredConsecutiveGenerations: 2,
+							heldOutEligible:
+								contract.campaignPurpose === "confirmatory" &&
+								contract.developmentQualificationStreakBefore === 2,
+						});
+				const terminalDiagnostics = terminal ? finding!.verificationDiagnostics : diagnostics;
+				const elapsedState = state.elapsed!;
+				const stoppingReason = terminal ? finding!.stoppingReason : budget.stoppingReason;
 				const value = strictSnapshot({
 					kind: "eval-observation" as const,
 					topologyRevision: ROOT_EVAL_TOPOLOGY_REVISION,
@@ -7737,12 +8191,12 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					developmentQualification: qualification,
 					armOrder: HARNESS_ARMS,
 					memoryProvenance: provenance,
-					evaluableReplicates: terminal ? state.finding!.evaluableReplicates : null,
+					evaluableReplicates: terminal ? finding!.evaluableReplicates : null,
 					excludedTechnicalReplicates: terminal
-						? state.finding!.excludedTechnicalReplicates
+						? finding!.excludedTechnicalReplicates
 						: campaignState.sourceTechnicalExcludedReplicates,
 					sourceTechnicalExcludedReplicates: campaignState.sourceTechnicalExcludedReplicates,
-					matchedRelevantOverColdWins: terminal ? state.finding!.matchedRelevantOverColdWins : null,
+					matchedRelevantOverColdWins: terminal ? finding!.matchedRelevantOverColdWins : null,
 					completedArms: campaignState.completedArms,
 					verificationDiagnostics: terminalDiagnostics,
 					activeProviderEffects,
@@ -7750,141 +8204,306 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					activeRetryEffects,
 					activeBillingEffects,
 					activeAdmittedEffects,
-					providerCapacity: observedProviderCapacity,
-					elapsedBudget: state.elapsedBudget,
-					admittedAttempts: terminal ? state.finding!.admittedAttempts : budget.admittedAttempts,
+					providerCapacity: capacity,
+					elapsedBudget: elapsedState,
+					admittedAttempts: terminal ? finding!.admittedAttempts : budget.admittedAttempts,
 					admittedRetryAttempts: budget.admittedRetryAttempts,
 					retryProposalCount: budget.retryProposalCount,
 					pendingRetryProposalCount: budget.pendingRetryProposalCount,
 					rejectedRetryProposalCount: budget.rejectedRetryProposalCount,
 					settledRetryAttemptCount: budget.settledRetryAttemptCount,
-					providerCallCount: terminal ? state.finding!.providerCallCount : budget.providerCallCount,
+					providerCallCount: terminal ? finding!.providerCallCount : budget.providerCallCount,
 					activeReservedMicrousd: terminal
-						? state.finding!.activeReservedMicrousd
+						? finding!.activeReservedMicrousd
 						: budget.activeReservedMicrousd,
 					providerReportedMicrousd: terminal
-						? state.finding!.providerReportedMicrousd
+						? finding!.providerReportedMicrousd
 						: budget.providerReportedMicrousd,
 					pricingRoundingAllowanceMicrousd: terminal
-						? state.finding!.pricingRoundingAllowanceMicrousd
+						? finding!.pricingRoundingAllowanceMicrousd
 						: budget.pricingRoundingAllowanceMicrousd,
 					providerReportedLowerBoundMicrousd: terminal
-						? state.finding!.providerReportedLowerBoundMicrousd
+						? finding!.providerReportedLowerBoundMicrousd
 						: Math.max(
 								0,
 								budget.providerReportedMicrousd - budget.pricingRoundingAllowanceMicrousd,
 							),
 					unreportedSettledUpperBoundMicrousd: terminal
-						? state.finding!.unreportedSettledUpperBoundMicrousd
+						? finding!.unreportedSettledUpperBoundMicrousd
 						: budget.unreportedSettledUpperBoundMicrousd,
 					accountedUpperBoundMicrousd: terminal
-						? state.finding!.accountedUpperBoundMicrousd
+						? finding!.accountedUpperBoundMicrousd
 						: budget.accountedUpperBoundMicrousd,
-					observedBilledMicrousd: terminal ? state.finding!.observedBilledMicrousd : null,
-					billingObservationCount: terminal ? state.finding!.billingObservationCount : 0,
-					billingStableIntervals: terminal ? state.finding!.billingStableIntervals : 0,
-					reconciledBilledMicrousd: terminal ? state.finding!.reconciledBilledMicrousd : null,
-					billingDisposition: terminal ? state.finding!.billingDisposition : ("pending" as const),
+					observedBilledMicrousd: terminal ? finding!.observedBilledMicrousd : null,
+					billingObservationCount: terminal ? finding!.billingObservationCount : 0,
+					billingStableIntervals: terminal ? finding!.billingStableIntervals : 0,
+					reconciledBilledMicrousd: terminal ? finding!.reconciledBilledMicrousd : null,
+					billingDisposition: terminal ? finding!.billingDisposition : ("pending" as const),
 					providerOutcomeReasonCounts: terminal
-						? state.finding!.providerOutcomeReasonCounts
+						? finding!.providerOutcomeReasonCounts
 						: budget.providerOutcomeReasonCounts,
 					stoppingReason,
-					finding: terminal ? state.finding!.finding : ("pending" as const),
+					finding: terminal ? finding!.finding : ("pending" as const),
 				});
 				const digest = empiricalStrictJsonDigest(value);
-				if (state.digest === digest) return false;
-				if (state.terminal)
-					throw new TypeError("eval observation changed after its terminal finding");
+				if (state.digest === digest) return;
+				if (state.terminal) throw new TypeError("observation changed after terminal");
+				assertRootEvalObservationRuntimeShape(value, "canonical observation");
+				if (state.previous !== undefined)
+					assertRootEvalObservationTransition(state.previous, value, "canonical observation");
+				if (terminal) assertRootEvalFindingTerminalConsistency(finding!, value);
+				state.revision += 1;
+				if (state.revision > observationBound) throw new TypeError("observation bound exceeded");
 				state.digest = digest;
+				state.previous = value;
 				state.terminal = terminal;
-				ctx.down([["DATA", value]]);
-				return true;
+				outputs.push(
+					Object.freeze({
+						occurrenceId: `${campaignRef}/observation`,
+						occurrenceRevision: state.revision,
+						occurrenceDigest: digest,
+						occurrenceSourceRefs: Object.freeze(
+							[
+								{ kind: "provider-admission-cut", id: String(state.admission!.revision) },
+								{ kind: "budget", id: empiricalStrictJsonDigest(budget) },
+								{ kind: "effect-activity", id: empiricalStrictJsonDigest(activity) },
+								{ kind: "campaign-progress", id: empiricalStrictJsonDigest(campaignState) },
+								{
+									kind: "verification-progress",
+									id: empiricalStrictJsonDigest(terminalDiagnostics),
+								},
+								...(terminal
+									? [{ kind: "efficacy-finding", id: empiricalStrictJsonDigest(finding) }]
+									: []),
+							].map((ref) => Object.freeze(ref)),
+						),
+						value,
+					}),
+				);
 			};
-			for (const raw of depBatch(ctx, 0) ?? []) state.campaignState = raw as EvalCampaignState;
-			for (const raw of depBatch(ctx, 1) ?? []) state.provenance = raw as typeof MEMORY_PROVENANCE;
-			for (const raw of depBatch(ctx, 2) ?? []) state.efficacyState = raw as EvalEfficacyState;
-			for (const raw of depBatch(ctx, 3) ?? [])
-				state.qualification = raw as EvalDevelopmentQualificationState;
-			for (const raw of depBatch(ctx, 4) ?? []) state.finding = raw as EvalFinding;
-			for (const raw of depBatch(ctx, 5) ?? []) {
-				state.effectActivity = raw as EvalEffectActivitySnapshot;
-			}
-			for (const raw of depBatch(ctx, 6) ?? []) {
-				state.terminalConsistencyBudgetDigest = (
-					raw as { readonly budgetDigest: string | null }
-				).budgetDigest;
-			}
-			for (const raw of depBatch(ctx, 7) ?? []) {
-				state.providerCapacity = raw as EvalProviderCapacityState;
-			}
-			for (const raw of depBatch(ctx, 8) ?? []) {
-				state.elapsedBudget = raw as EvalElapsedBudgetState;
+			const emitCoherent = () => {
+				const cut = state.admission;
+				if (!state.context || !cut || !state.elapsed) return;
+				if (
+					(cut.budget.stoppingReason === "elapsed-budget-exhausted") !==
+					(state.elapsed.state === "exhausted")
+				)
+					return;
+				const activity = state.activities.get(empiricalStrictJsonDigest(cut.budget));
+				if (
+					!activity ||
+					JSON.stringify(activity.activeProviderAdmissionIds) !==
+						JSON.stringify(cut.activeProviderAdmissionIds) ||
+					activity.activeRetryEffects !== cut.capacity.cooldownOutstandingReadinessCount
+				)
+					return;
+				// Domain coordinates select the diagnostic snapshot. A newer wave never substitutes
+				// for the missing coordinate. Every pending campaign occurrence is retained in order.
+				const pending = [...state.campaigns.entries()].sort(
+					([, a], [, b]) => a.replicate - b.replicate || a.completedArms - b.completedArms,
+				);
+				for (const [key, campaign] of pending) {
+					const completed =
+						(campaign.replicate -
+							1 -
+							campaign.sourceTechnicalExcludedReplicates.filter(
+								(replicate) => replicate < campaign.replicate,
+							).length) *
+							HARNESS_ARMS.length +
+						campaign.completedArms;
+					const diagnostics = state.diagnostics.get(completed);
+					if (!diagnostics) break;
+					publish(campaign, diagnostics, false);
+					state.campaign = campaign;
+					state.campaigns.delete(key);
+				}
+				const campaign = state.campaign;
+				if (!campaign) return;
+				const completed =
+					(campaign.replicate -
+						1 -
+						campaign.sourceTechnicalExcludedReplicates.filter(
+							(replicate) => replicate < campaign.replicate,
+						).length) *
+						HARNESS_ARMS.length +
+					campaign.completedArms;
+				const diagnostics = state.diagnostics.get(completed);
+				if (!diagnostics) return;
+				const terminal =
+					state.finding !== undefined &&
+					state.campaigns.size === 0 &&
+					state.finding.completedWorkItems === completed &&
+					state.finding.admittedAttempts === cut.budget.admittedAttempts &&
+					state.qualification !== undefined &&
+					(campaignPurpose !== "development" || state.qualification.status !== "pending") &&
+					activity.activeAdmittedEffects === 0;
+				publish(campaign, diagnostics, terminal);
+			};
+			try {
+				for (const batch of depBatch(ctx, 0) ?? [])
+					for (const event of batch as readonly ObservationArrival[]) {
+						if (event.digest !== empiricalStrictJsonDigest(event.value))
+							throw new TypeError("observation source digest drift");
+						const prior = state.streams.get(event.source);
+						const receipt = prior?.receipts.get(event.revision);
+						if (receipt !== undefined) {
+							if (receipt !== event.digest)
+								throw new TypeError("observation source replay conflict");
+							continue;
+						}
+						if (event.revision !== (prior?.revision ?? 0) + 1 || event.revision > observationBound)
+							throw new TypeError("observation source revision drift");
+						const receipts = prior?.receipts ?? new Map<number, string>();
+						receipts.set(event.revision, event.digest);
+						state.streams.set(event.source, { revision: event.revision, receipts });
+						switch (event.source) {
+							case "context":
+								if (state.context && empiricalStrictJsonDigest(state.context) !== event.digest)
+									throw new TypeError("immutable observation context drift");
+								state.context = event.value;
+								break;
+							case "admission": {
+								assertEvalProviderAdmissionObservationCut(event.value);
+								const known = state.admissionRevisions.get(event.value.revision);
+								if (known !== undefined) {
+									if (known !== event.digest)
+										throw new TypeError("admission occurrence replay conflict");
+									continue;
+								}
+								if (event.value.revision !== (state.admission?.revision ?? 0) + 1)
+									throw new TypeError("admission occurrence revision drift");
+								state.admissionRevisions.set(event.value.revision, event.digest);
+								state.admission = event.value;
+								break;
+							}
+
+							case "activity": {
+								const known = state.activityRevisions.get(event.value.revision);
+								if (known !== undefined) {
+									if (known !== event.digest)
+										throw new TypeError("activity occurrence replay conflict");
+									continue;
+								}
+								if (event.value.revision !== state.activityRevisions.size + 1)
+									throw new TypeError("activity occurrence revision drift");
+								state.activityRevisions.set(event.value.revision, event.digest);
+								state.activities.set(event.value.budgetDigest, event.value);
+								break;
+							}
+							case "campaign":
+								state.campaigns.set(empiricalStrictJsonDigest(event.value), event.value);
+								break;
+							case "diagnostics":
+								state.diagnostics.set(event.value.completedWorkItems, event.value);
+								break;
+							case "qualification":
+								state.qualification = event.value;
+								break;
+							case "finding":
+								state.finding = event.value;
+								break;
+							case "elapsed":
+								state.elapsed = event.value;
+								break;
+						}
+						if (
+							state.activities.size > observationBound ||
+							state.campaigns.size > replicateCount * (HARNESS_ARMS.length + 3) ||
+							state.diagnostics.size > replicateCount * HARNESS_ARMS.length + 1
+						)
+							throw new TypeError("observation retention bound exceeded");
+						emitCoherent();
+					}
+			} catch {
+				// An invalid read-only view cannot interrupt the admitted outcome/budget wave.
+				// Caller sees an explicit rejection and drains already-admitted work.
+				state.failed = true;
+				outputs.push(
+					Object.freeze({
+						kind: "eval-observation-rejected",
+						code: "canonical-observation-invalid",
+						campaignRef,
+						acceptedRevision: state.revision,
+					}),
+				);
 			}
 			ctx.state.set(state);
-			emit();
+			if (outputs.length > 0) ctx.down(outputs.map((value) => ["DATA", value]));
 		},
 		{
-			name: "eval/observation/full-state",
-			factory: "rootEvalGraphNativeFullObservation",
-			pullId: fullObservationPullId,
-			pausable: "resumeAll",
-			partial: true,
+			name: "eval/observation/canonical-state",
+			factory: "rootEvalCanonicalObservation",
 			completeWhenDepsComplete: false,
 			meta: {
 				materialFree: true,
+				authority: "read-only-exact-coherent-cut",
+				correlation: "admission-budget-digest/provider-identities/campaign-completed-coordinate",
+				retentionBound: observationBound,
 				sanitizer: false,
-				authority: "read-only-projection",
-				joinSemantics: "latest-branch-state-with-budget-anchored-provider-capacity-conservation",
-				distinct: true,
-				billingAuditAffectsConclusion: false,
 			},
 		},
 	);
-	const fullObservationFindingReleaseController = owner.node(
-		[findings, fullObservation],
+	const observationRejections = owner.node<EvalObservationRejection>(
+		[observationOccurrences],
 		(ctx) => {
-			if ((depBatch(ctx, 0)?.length ?? 0) > 0)
-				ctx.upNext([["PULL", { pullId: fullObservationPullId }]], 1);
+			const rejected = (depBatch(ctx, 0) ?? []).filter(
+				(raw) => "kind" in (raw as object),
+			) as EvalObservationRejection[];
+			if (rejected.length > 0) ctx.down(rejected.map((value) => ["DATA", value]));
 		},
-		{
-			name: "eval/observation/full-state-finding-release-controller",
-			factory: "rootEvalFullObservationFindingReleaseController",
-			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
-			meta: { role: "quiet-terminal-observation-release" },
-		},
+		{ name: "eval/observation/rejections", factory: "rootEvalObservationRejections" },
 	);
 	const observation = owner.node<EvalObservation>(
-		[sourceStageObservations, fullObservation],
+		[observationOccurrences],
 		(ctx) => {
-			const state = ctx.state.get<{ digest?: string; terminal: boolean }>() ?? {
-				terminal: false,
-			};
-			for (let index = 0; index < 2; index += 1)
-				for (const raw of depBatch(ctx, index) ?? []) {
-					const value = raw as EvalObservation;
-					const digest = empiricalStrictJsonDigest(value);
-					if (state.digest === digest) continue;
-					if (state.terminal)
-						throw new TypeError("eval observation mux changed after its terminal finding");
-					state.digest = digest;
-					state.terminal = value.finding !== "pending";
-					ctx.down([["DATA", value]]);
-				}
-			ctx.state.set(state);
+			const accepted = (depBatch(ctx, 0) ?? []).filter(
+				(raw) => !("kind" in (raw as object)),
+			) as SolutionOccurrence<EvalObservation>[];
+			if (accepted.length > 0) ctx.down(accepted.map((value) => ["DATA", value.value]));
 		},
 		{
 			name: "eval/observation",
 			factory: "rootEvalGraphNativeObservation",
-			partial: true,
 			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
 			meta: {
 				materialFree: true,
 				sanitizer: false,
-				authority: "progress-or-terminal-observation",
+				authority: "canonical-occurrence-value-projection",
 			},
+		},
+	);
+	const terminalLifecycleConsistency = owner.node<{
+		readonly kind: "eval-terminal-lifecycle-consistency";
+		readonly status: "pending" | "consistent";
+		readonly budgetDigest: string | null;
+	}>(
+		[observationOccurrences],
+		(ctx) => {
+			const values = (depBatch(ctx, 0) ?? []).filter(
+				(raw) => !("kind" in (raw as object)),
+			) as SolutionOccurrence<EvalObservation>[];
+			if (values.length > 0)
+				ctx.down(
+					values.map((occurrence) => [
+						"DATA",
+						Object.freeze({
+							kind: "eval-terminal-lifecycle-consistency" as const,
+							status:
+								occurrence.value.finding === "pending"
+									? ("pending" as const)
+									: ("consistent" as const),
+							budgetDigest:
+								occurrence.value.finding === "pending"
+									? null
+									: occurrence.occurrenceSourceRefs.find((ref) => ref.kind === "budget")!.id,
+						}),
+					]),
+				);
+		},
+		{
+			name: "eval/observation/terminal-lifecycle-consistency",
+			factory: "rootEvalTerminalLifecycleConsistency",
+			meta: { materialFree: true, failClosed: true, authority: "validated-canonical-terminal-cut" },
 		},
 	);
 
@@ -7897,13 +8516,17 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		billingActiveEffects.subscribe(() => undefined),
 		observation.subscribe(() => undefined),
 		findings.subscribe(() => undefined),
-		fullObservationFindingReleaseController.subscribe(() => undefined),
+		observationRejections.subscribe(() => undefined),
+		...observationReleaseControllers.map((controller) => controller.subscribe(() => undefined)),
 	];
 	let keepalivesReleased = false;
 	const releaseKeepalives = () => {
 		if (keepalivesReleased) return;
 		keepalivesReleased = true;
 		for (const stop of keepaliveStops) stop();
+		for (const release of boundaryReleases) release();
+		sourceMemoryHandoff.release();
+		memoryBatchHandoff.release();
 	};
 
 	let topology: RootEvalTopology;
@@ -7959,6 +8582,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			findings,
 			developmentQualification,
 			terminalLifecycleConsistency,
+			observationRejections,
 			observation,
 		},
 	});
@@ -8006,6 +8630,7 @@ async function runRootEvalWithOutcomeInput(
 		let stopEffects: () => void = () => undefined;
 		let stopFinding: () => void = () => undefined;
 		let stopObservation: () => void = () => undefined;
+		let stopObservationRejections: () => void = () => undefined;
 		let stopBudget: () => void = () => undefined;
 		let stopTerminalLifecycleConsistency: () => void = () => undefined;
 		let stopTerminalProviderResultAdmission: () => void = () => undefined;
@@ -8016,6 +8641,7 @@ async function runRootEvalWithOutcomeInput(
 			stopEffects();
 			stopFinding();
 			stopObservation();
+			stopObservationRejections();
 			stopBudget();
 			stopTerminalLifecycleConsistency();
 			stopTerminalProviderResultAdmission();
@@ -8077,6 +8703,10 @@ async function runRootEvalWithOutcomeInput(
 			});
 			void Promise.allSettled([...inFlight]).then(() => resolve(result));
 		};
+		stopObservationRejections = topology.nodes.observationRejections.subscribe((message) => {
+			if (message[0] === "DATA")
+				abort(new Error("root eval canonical observation rejected; admitted work drained"));
+		});
 		stopObservation = topology.graph.observe("eval/observation").subscribe((event) => {
 			if (event.msg[0] === "ERROR") {
 				abort(

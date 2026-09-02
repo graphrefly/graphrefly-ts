@@ -1,8 +1,7 @@
-import { depLatest } from "../../ctx/types.js";
 import type { Graph } from "../../graph/graph.js";
 import { compoundTupleKey } from "../../identity.js";
 import type { FactId } from "../../patterns/semantic-memory.js";
-import { solutionProjection } from "./projection.js";
+import { solutionOccurrenceProjection, solutionOccurrenceSelect } from "../occurrence.js";
 import {
 	agenticStatusState,
 	errorMessage,
@@ -40,6 +39,11 @@ const AGENTIC_MEMORY_RECORD_APPLICATION_OPERATION_VERSION = 1 as const;
 /**
  * Creates an agentic memory consolidation bundle.
  *
+ * @remarks D151: each input DATA is one complete identity/revision/digest/source-refs
+ * occurrence. Policy and prior records travel in its value, never independent latest-value
+ * dependencies. Outputs preserve that identity; replay conflicts and retention overflow fail closed.
+ * The fixed recipe topology is retained for its graph lifetime; input snapshots are bounded by
+ * maxOccurrences, not a claim that one protocol wave is one business occurrence.
  * @param graph - Graph that owns the created nodes or projector.
  * @param opts - Options that configure the helper.
  * @returns A bundle of graph-visible nodes for the recipe.
@@ -54,23 +58,21 @@ export function agenticMemoryConsolidationBundle<T = unknown>(
 	opts: AgenticMemoryConsolidationBundleOptions<T>,
 ): AgenticMemoryConsolidationBundle<T> {
 	const name = opts.name ?? "agenticMemoryConsolidation";
-	const projection = graph.node<AgenticMemoryConsolidationSnapshot<T>>(
-		[opts.records, opts.requests, opts.outcomes],
-		(ctx) => {
-			const state =
-				ctx.state.get<{ evaluation: number }>() ??
-				({ evaluation: 0 } satisfies { evaluation: number });
-			state.evaluation += 1;
-			const recordProjection = validateAndProjectRecords<T>(depLatest(ctx, 0));
-			const requests = validateConsolidationRequests(depLatest(ctx, 1), recordProjection.records);
+	const projection = solutionOccurrenceProjection(graph, opts.occurrences, {
+		name: `${name}/projection`,
+		factory: "agenticMemoryConsolidation",
+		maxOccurrences: opts.maxOccurrences,
+		project: (value): AgenticMemoryConsolidationSnapshot<T> => {
+			const recordProjection = validateAndProjectRecords<T>(value.records);
+			const requests = validateConsolidationRequests(value.requests, recordProjection.records);
 			const outcomes = projectConsolidationOutcomes<T>(
-				depLatest(ctx, 2),
+				value.outcomes,
 				requests.requests,
 				recordProjection.records,
-				state.evaluation,
+				1,
 			);
 			const cursor: AgenticMemoryConsolidationCursor = Object.freeze({
-				evaluation: state.evaluation,
+				evaluation: 1,
 				validRequests: requests.requests.length,
 				validOutcomes: outcomes.validOutcomes,
 				invalidOutcomes: outcomes.invalidOutcomes,
@@ -89,75 +91,63 @@ export function agenticMemoryConsolidationBundle<T = unknown>(
 				state: agenticStatusState(errors.length, outcomes.results.length),
 				cursor,
 			});
-			ctx.state.set(state);
-			ctx.down([
-				[
-					"DATA",
-					Object.freeze({
-						results: Object.freeze(outcomes.results),
-						proposedRecordDrafts: Object.freeze(outcomes.proposedRecordDrafts),
-						recordProposals: Object.freeze(outcomes.recordProposals),
-						commands: Object.freeze(outcomes.commands),
-						status,
-						errors,
-						cursor,
-					}),
-				],
-			]);
+			return Object.freeze({
+				results: Object.freeze(outcomes.results),
+				proposedRecordDrafts: Object.freeze(outcomes.proposedRecordDrafts),
+				recordProposals: Object.freeze(outcomes.recordProposals),
+				commands: Object.freeze(outcomes.commands),
+				status,
+				errors,
+				cursor,
+			});
 		},
-		{
-			name: `${name}/projection`,
-			factory: "agenticMemoryConsolidation",
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
-		},
-	);
+	});
 	return {
-		input: { records: opts.records, requests: opts.requests, outcomes: opts.outcomes },
+		input: opts.occurrences,
 		projection,
-		results: solutionProjection(
+		results: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/results`,
 			"agenticMemoryConsolidationResults",
 			(fact) => fact.results,
 		),
-		proposedRecordDrafts: solutionProjection(
+		proposedRecordDrafts: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/proposedRecordDrafts`,
 			"agenticMemoryConsolidationRecordDrafts",
 			(fact) => fact.proposedRecordDrafts,
 		),
-		recordProposals: solutionProjection(
+		recordProposals: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/recordProposals`,
 			"agenticMemoryConsolidationRecordProposals",
 			(fact) => fact.recordProposals,
 		),
-		commands: solutionProjection(
+		commands: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/commands`,
 			"agenticMemoryConsolidationCommands",
 			(fact) => fact.commands,
 		),
-		status: solutionProjection(
+		status: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/status`,
 			"agenticMemoryConsolidationStatus",
 			(fact) => fact.status,
 		),
-		errors: solutionProjection(
+		errors: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/errors`,
 			"agenticMemoryConsolidationErrors",
 			(fact) => fact.errors,
 		),
-		cursor: solutionProjection(
+		cursor: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/cursor`,

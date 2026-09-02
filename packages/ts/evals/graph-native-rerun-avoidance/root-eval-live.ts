@@ -14,6 +14,7 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import type { Graph } from "../../src/graph/graph.js";
 import { strictJsonCodec } from "../../src/json/codec.js";
 import {
 	empiricalSha256,
@@ -39,7 +40,17 @@ import {
 	EVAL_PROVIDER_CONDITIONAL_AVAILABILITY_CODES,
 	ROOT_EVAL_CALLER_SAFETY_LEASE_MS,
 	ROOT_EVAL_MAX_INFRASTRUCTURE_RETRY_DELAY_MS,
+	rootEvalMaximumProviderAttempts,
+	rootEvalMaximumRetryAttempts,
 } from "./eval-topology.js";
+import {
+	createRootEvalBillingAdapter,
+	createRootEvalExactToolAdapter,
+	createRootEvalProviderAdapter,
+	createRootEvalRetryDelayAdapter,
+} from "./focused-async-adapters.js";
+import { createRootEvalHttpTransportLeaf } from "./http-transport-leaf.js";
+import { createPrivateDiagnosticSink } from "./private-diagnostic-sink.js";
 import type { RootEvalLiveClaimCommit } from "./root-eval-live-authority.js";
 import {
 	ROOT_EVAL_D152_TASK_SET_BINDING_DIGEST,
@@ -102,6 +113,7 @@ class RootEvalSettlementLeaseExpired extends Error {
 			| "exact-tool"
 			| "retry-delay"
 			| "billing-observation"
+			| "private-diagnostic"
 			| "cleanup-finalizer",
 		readonly timeoutMs: number,
 	) {
@@ -399,15 +411,21 @@ interface ProcessResult {
 
 type RootEvalPrivateDiagnosticKind = "provider-response" | "public-verifier" | "hidden-verifier";
 
-async function persistRootEvalPrivateDiagnostic(input: {
+interface RootEvalPrivateDiagnostic {
 	readonly enabled: boolean;
 	readonly privateRoot: string;
 	readonly generationRef: string;
 	readonly effect: EvalAdmittedEffect;
 	readonly kind: RootEvalPrivateDiagnosticKind;
 	readonly material: Readonly<Record<string, unknown>>;
-}): Promise<void> {
+}
+
+async function persistRootEvalPrivateDiagnostic(
+	input: RootEvalPrivateDiagnostic,
+	signal: AbortSignal,
+): Promise<void> {
 	if (!input.enabled) return;
+	signal.throwIfAborted();
 	const directory = join(resolve(input.privateRoot), ".d152-development-diagnostics");
 	await mkdir(directory, { recursive: true, mode: 0o700 });
 	await chmod(directory, 0o700);
@@ -442,20 +460,20 @@ async function persistRootEvalPrivateDiagnostic(input: {
 		0o600,
 	);
 	try {
-		await handle.writeFile(bytes);
-		await handle.sync();
-	} finally {
-		await handle.close();
-	}
-	try {
-		await link(stage, target);
-		await syncDirectory(directory);
-	} catch (error) {
 		try {
+			signal.throwIfAborted();
+			await handle.writeFile(bytes, { signal });
+			await handle.sync();
+		} finally {
+			await handle.close();
+		}
+		try {
+			signal.throwIfAborted();
+			await link(stage, target);
+			await syncDirectory(directory);
+		} catch (error) {
 			const existing = await readFile(target);
 			if (!sameBytes(existing, bytes)) throw error;
-		} catch {
-			throw error;
 		}
 	} finally {
 		await rm(stage, { force: true });
@@ -1492,10 +1510,7 @@ async function verify(
 	diff: "scoped-change" | "no-change" | "wrong-scope",
 	task: RootEvalTaskDefinition,
 	signal?: AbortSignal,
-	onDiagnostic?: (
-		kind: "public-verifier" | "hidden-verifier",
-		result: ProcessResult,
-	) => Promise<void>,
+	onDiagnostic?: (kind: "public-verifier" | "hidden-verifier", result: ProcessResult) => void,
 ) {
 	if (diff !== "scoped-change")
 		return Object.freeze({ publicSemantic: false, hiddenVerifier: false });
@@ -1515,7 +1530,7 @@ async function verify(
 		timeoutMs: 120_000,
 		signal,
 	});
-	await onDiagnostic?.("public-verifier", focused);
+	onDiagnostic?.("public-verifier", focused);
 	if (focused.code !== 0) return Object.freeze({ publicSemantic: false, hiddenVerifier: false });
 	await mkdir(dirname(join(root, task.hiddenVerifierPath)), { recursive: true });
 	await writeFile(join(root, task.hiddenVerifierPath), task.hiddenVerifierSource, "utf8");
@@ -1533,7 +1548,7 @@ async function verify(
 		timeoutMs: 300_000,
 		signal,
 	});
-	await onDiagnostic?.("hidden-verifier", hidden);
+	onDiagnostic?.("hidden-verifier", hidden);
 	return Object.freeze({ publicSemantic: true, hiddenVerifier: hidden.code === 0 });
 }
 
@@ -1716,6 +1731,7 @@ function toolOutcome(
 }
 
 export interface RootEvalLiveExecutorInput {
+	readonly graph: Graph;
 	readonly repositoryRoot: string;
 	readonly materializationRoot: string;
 	readonly privateRoot: string;
@@ -1778,7 +1794,10 @@ function createRootEvalLiveExecutorInternal(
 		throw new TypeError("root eval D152 credential was invalid");
 	let disposed = false;
 	const cancellation = new AbortController();
-	const active = new Map<string, Promise<EvalExecutorOutcome>>();
+	const diagnostics = createPrivateDiagnosticSink<RootEvalPrivateDiagnostic>({
+		maxPending: 4,
+		write: persistRootEvalPrivateDiagnostic,
+	});
 	const cleanup = async (root: string, signal: AbortSignal): Promise<boolean> => {
 		try {
 			const operation: Promise<unknown> =
@@ -1798,6 +1817,16 @@ function createRootEvalLiveExecutorInternal(
 			return false;
 		}
 	};
+
+	const httpTransport = createRootEvalHttpTransportLeaf<{ response: Response; bytes: Uint8Array }>(
+		input.graph,
+		{
+			endpoint: ROOT_EVAL_LIVE_ENDPOINT,
+			maxExecutions: rootEvalMaximumProviderAttempts(tasks.length),
+			timeoutMs: ROOT_EVAL_PROVIDER_SETTLEMENT_LEASE_MS,
+			maxResponseBytes: MAX_RESPONSE_BYTES,
+		},
+	);
 	const executeProvider = async (effect: EvalAdmittedEffect): Promise<EvalProviderOutcome> => {
 		const task = taskForEffect(effect);
 		const started = performance.now();
@@ -1812,6 +1841,8 @@ function createRootEvalLiveExecutorInternal(
 		let dispatchStartedAt: number | null = null;
 		let responseStatus: number | null = null;
 		let confirmedCostMicrousd = 0;
+		let confirmedCostEvidence: EvalProviderOutcome["costEvidence"] | null = null;
+		let dispatchObservationFailed = false;
 		let confirmedPricingRoundingAllowanceMicrousd = 0;
 		try {
 			const materializedRoot = await materialize({
@@ -1841,57 +1872,80 @@ function createRootEvalLiveExecutorInternal(
 			});
 			postDispatch = true;
 			lease.signal.throwIfAborted();
-			let response: Response;
-			try {
-				dispatchStartedAt = performance.now();
-				const responsePromise = providerFetch(ROOT_EVAL_LIVE_ENDPOINT, {
-					method: "POST",
-					redirect: "error",
-					cache: "no-store",
-					credentials: "omit",
-					referrerPolicy: "no-referrer",
-					headers: {
-						authorization: `Bearer ${input.bearerToken}`,
-						"content-type": "application/json",
-						accept: "application/json",
-					},
-					body,
-					signal: lease.signal,
+			const { response, bytes } = await httpTransport.run(
+				effect.executionId,
+				async (transportSignal) => {
+					let response: Response;
+					try {
+						dispatchStartedAt = performance.now();
+						const responsePromise = providerFetch(ROOT_EVAL_LIVE_ENDPOINT, {
+							method: "POST",
+							redirect: "error",
+							cache: "no-store",
+							credentials: "omit",
+							referrerPolicy: "no-referrer",
+							headers: {
+								authorization: `Bearer ${input.bearerToken}`,
+								"content-type": "application/json",
+								accept: "application/json",
+							},
+							body,
+							signal: transportSignal,
+						});
+						try {
+							input.onProviderCall?.(effect);
+						} catch {
+							dispatchObservationFailed = true;
+						}
+						response = await responsePromise;
+					} catch (error) {
+						throw new RootEvalProviderTransportError(error);
+					}
+					responseStatus = response.status;
+					if (response.redirected || response.url !== ROOT_EVAL_LIVE_ENDPOINT) {
+						await response.body?.cancel();
+						throw new TypeError("root eval D152 provider response route drifted");
+					}
+					let bytes: Uint8Array;
+					try {
+						bytes = await readRootEvalBoundedResponseBytes(
+							response,
+							MAX_RESPONSE_BYTES,
+							"root eval live provider response",
+						);
+					} catch (error) {
+						if (response.status >= 200 && response.status < 300)
+							throw new RootEvalProviderTransportError(error);
+						bytes = new Uint8Array();
+					}
+
+					return {
+						material: { response, bytes },
+						summary: {
+							url: ROOT_EVAL_LIVE_ENDPOINT,
+							status: response.status,
+							bodyBytes: bytes.byteLength,
+							bodyRef: { kind: "eval-private-response-digest", id: empiricalSha256(bytes) },
+						},
+					};
+				},
+				lease.signal,
+			);
+			if (privateDiagnostics)
+				diagnostics.write({
+					enabled: privateDiagnostics,
+					privateRoot: input.privateRoot,
+					generationRef: input.claimCommit.claim.generationRef,
+					effect,
+					kind: "provider-response",
+					material: Object.freeze({
+						status: response.status,
+						retryAfter: response.headers.get("retry-after"),
+						responseByteLength: bytes.byteLength,
+						responseDigest: empiricalSha256(bytes),
+						responseBase64: Buffer.from(bytes).toString("base64"),
+					}),
 				});
-				input.onProviderCall?.(effect);
-				response = await responsePromise;
-			} catch (error) {
-				throw new RootEvalProviderTransportError(error);
-			}
-			responseStatus = response.status;
-			if (response.redirected || response.url !== ROOT_EVAL_LIVE_ENDPOINT)
-				throw new TypeError("root eval D152 provider response route drifted");
-			let bytes: Uint8Array;
-			try {
-				bytes = await readRootEvalBoundedResponseBytes(
-					response,
-					MAX_RESPONSE_BYTES,
-					"root eval live provider response",
-				);
-			} catch (error) {
-				if (response.status >= 200 && response.status < 300)
-					throw new RootEvalProviderTransportError(error);
-				bytes = new Uint8Array();
-			}
-			await persistRootEvalPrivateDiagnostic({
-				enabled: privateDiagnostics,
-				privateRoot: input.privateRoot,
-				generationRef: input.claimCommit.claim.generationRef,
-				effect,
-				kind: "provider-response",
-				material: Object.freeze({
-					status: response.status,
-					retryAfter: response.headers.get("retry-after"),
-					responseByteLength: bytes.byteLength,
-					responseDigest: empiricalSha256(bytes),
-					responseBase64: Buffer.from(bytes).toString("base64"),
-				}),
-			});
 			const provider = parseRootEvalLiveProviderResponse({
 				status: response.status,
 				bytes,
@@ -1901,7 +1955,9 @@ function createRootEvalLiveExecutorInternal(
 				writablePath: task.writablePath,
 			});
 			confirmedCostMicrousd = provider.costMicrousd;
+			confirmedCostEvidence = provider.costEvidence;
 			confirmedPricingRoundingAllowanceMicrousd = provider.pricingRoundingAllowanceMicrousd;
+			if (dispatchObservationFailed) throw new TypeError("provider dispatch observation failed");
 			if (provider.disposition === "tool")
 				return providerOutcome(effect, {
 					status: "tool-proposed",
@@ -1945,7 +2001,11 @@ function createRootEvalLiveExecutorInternal(
 		} catch (error) {
 			if (error instanceof RootEvalProviderDispatchAuthorityConsumed && !postDispatch) {
 				postDispatch = true;
-				input.onProviderCall?.(effect);
+				try {
+					input.onProviderCall?.(effect);
+				} catch {
+					dispatchObservationFailed = true;
+				}
 			}
 			const leaseExpired =
 				error instanceof RootEvalEffectLeaseExpired ||
@@ -1960,6 +2020,7 @@ function createRootEvalLiveExecutorInternal(
 			});
 			const cleanupCompleted = await cleanup(root, settlementLease.signal);
 			const transportFailure =
+				!dispatchObservationFailed &&
 				postDispatch &&
 				!(error instanceof RootEvalProviderResponseError) &&
 				(leaseExpired || error instanceof RootEvalProviderTransportError);
@@ -1985,15 +2046,15 @@ function createRootEvalLiveExecutorInternal(
 				costMicrousd: postDispatch
 					? error instanceof RootEvalProviderResponseError && error.costMicrousd !== null
 						? error.costMicrousd
-						: confirmedCostMicrousd > 0
+						: confirmedCostEvidence !== null
 							? confirmedCostMicrousd
 							: effect.reservationMicrousd
 					: 0,
 				costEvidence: postDispatch
 					? error instanceof RootEvalProviderResponseError
 						? error.costEvidence
-						: confirmedCostMicrousd > 0
-							? "provider-reported"
+						: confirmedCostEvidence !== null
+							? confirmedCostEvidence
 							: "reservation-upper-bound"
 					: "provider-reported",
 				pricingRoundingAllowanceMicrousd: postDispatch
@@ -2043,13 +2104,9 @@ function createRootEvalLiveExecutorInternal(
 					},
 					task,
 				);
-				const verification = await verify(
-					root,
-					diff,
-					task,
-					lease.signal,
-					async (kind, processResult) =>
-						persistRootEvalPrivateDiagnostic({
+				const verification = await verify(root, diff, task, lease.signal, (kind, processResult) => {
+					if (privateDiagnostics)
+						diagnostics.write({
 							enabled: privateDiagnostics,
 							privateRoot: input.privateRoot,
 							generationRef: input.claimCommit.claim.generationRef,
@@ -2062,8 +2119,8 @@ function createRootEvalLiveExecutorInternal(
 								stdout: new TextDecoder().decode(processResult.stdout.slice(0, 65_536)),
 								stderr: new TextDecoder().decode(processResult.stderr.slice(0, 65_536)),
 							}),
-						}),
-				);
+						});
+				});
 				lease.signal.throwIfAborted();
 				const actualDigest = empiricalSha256(await readFile(join(root, task.writablePath)));
 				result = toolOutcome(effect, {
@@ -2214,37 +2271,51 @@ function createRootEvalLiveExecutorInternal(
 			lease.dispose();
 		}
 	};
+	const bound = rootEvalMaximumProviderAttempts(tasks.length);
+	const providerAdapter = createRootEvalProviderAdapter(bound, executeProvider);
+	const toolAdapter = createRootEvalExactToolAdapter(bound, executeTool);
+	const retryAdapter = createRootEvalRetryDelayAdapter(
+		rootEvalMaximumRetryAttempts(tasks.length),
+		executeDelay,
+	);
+	const billingAdapter = createRootEvalBillingAdapter(
+		ROOT_EVAL_MAX_BILLING_OBSERVATIONS,
+		executeBillingObservation,
+	);
+	const adapters = [providerAdapter, toolAdapter, retryAdapter, billingAdapter];
 	return Object.freeze({
 		async execute(effect: EvalExecutableEffect): Promise<EvalExecutorOutcome> {
-			if (disposed || active.has(effect.executionId))
-				throw new TypeError("root eval D152 executor rejected replay or disposal");
+			if (disposed) throw new TypeError("root eval D152 executor rejected disposal");
 			cancellation.signal.throwIfAborted();
-			const execution = (async (): Promise<EvalExecutorOutcome> => {
-				if (effect.kind === "eval-admitted-effect") return await executeProvider(effect);
-				if (effect.kind === "eval-admitted-tool-effect") return await executeTool(effect);
-				if (effect.kind === "eval-admitted-retry-delay") return await executeDelay(effect);
-				return await executeBillingObservation(effect);
-			})();
-			active.set(effect.executionId, execution);
-			try {
-				return await execution;
-			} finally {
-				active.delete(effect.executionId);
-			}
+			if (effect.kind === "eval-admitted-effect") return providerAdapter.run(effect);
+			if (effect.kind === "eval-admitted-tool-effect") return toolAdapter.run(effect);
+			if (effect.kind === "eval-admitted-retry-delay") return retryAdapter.run(effect);
+			return billingAdapter.run(effect);
 		},
 		async dispose(reason?: unknown): Promise<void> {
 			disposed = true;
+			for (const adapter of adapters) adapter.close();
 			if (!cancellation.signal.aborted)
 				cancellation.abort(reason ?? new Error("root eval executor disposed"));
-			await Promise.allSettled([...active.values()]);
+			await Promise.all(adapters.map((adapter) => adapter.drain()));
+			await httpTransport.dispose();
 			const finalizer = createRootEvalSettlementLease(
 				"cleanup-finalizer",
 				ROOT_EVAL_TOOL_SETTLEMENT_LEASE_MS,
 			);
 			try {
-				await cleanup(materializationRoot, finalizer.signal);
+				if (!(await cleanup(materializationRoot, finalizer.signal)))
+					throw new Error("root eval cleanup finalizer did not complete");
 			} finally {
 				finalizer.dispose();
+				// Optional audit I/O has its own deadline after critical cleanup. It
+				// cannot consume provider/tool leases or change their factual outcome.
+				const diagnosticLease = createRootEvalSettlementLease("private-diagnostic", 10_000);
+				try {
+					await diagnostics.drain(diagnosticLease.signal);
+				} finally {
+					diagnosticLease.dispose();
+				}
 			}
 		},
 	});
@@ -2259,6 +2330,7 @@ export interface RootEvalLiveTransportQualificationExecutor extends RootEvalLive
 }
 
 export function createRootEvalLiveTransportQualificationExecutor(input: {
+	readonly graph: Graph;
 	readonly repositoryRoot: string;
 	readonly materializationRoot: string;
 	readonly privateRoot: string;
@@ -2366,6 +2438,7 @@ export function createRootEvalLiveTransportQualificationExecutor(input: {
 	};
 	const executor = createRootEvalLiveExecutorInternal(
 		{
+			graph: input.graph,
 			repositoryRoot: input.repositoryRoot,
 			materializationRoot: input.materializationRoot,
 			privateRoot: input.privateRoot,
@@ -2792,7 +2865,8 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 				ROOT_EVAL_TOOL_SETTLEMENT_LEASE_MS,
 			);
 			try {
-				await cleanup(materializationRoot, finalizer.signal);
+				if (!(await cleanup(materializationRoot, finalizer.signal)))
+					throw new Error("root eval cleanup finalizer did not complete");
 			} finally {
 				finalizer.dispose();
 			}

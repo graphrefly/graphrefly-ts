@@ -13,10 +13,10 @@ import type {
 } from "../agentic-memory/index.js";
 import type {
 	AgenticWorkItemMemoryBridgeBundle,
-	AgenticWorkItemMemoryBridgeBundleOptions,
 	AgenticWorkItemMemoryBridgeInput,
 	AgenticWorkItemMemoryBridgeResult,
 } from "../agentic-work-item-memory/index.js";
+import type { SolutionOccurrence } from "../occurrence.js";
 
 type AgenticWorkItemMemoryApplicationRecipeAdmissionInput<TRecord> = {
 	readonly records?: readonly AgenticMemoryRecord<TRecord>[];
@@ -61,16 +61,13 @@ export interface AgenticWorkItemMemoryApplicationRecipeResult<TRecord = unknown>
 }
 
 export interface AgenticWorkItemMemoryApplicationRecipeBundle<TInput = unknown, TRecord = unknown> {
-	readonly input: AgenticWorkItemMemoryBridgeBundle<TInput, TRecord>["input"] & {
-		readonly records?: Node<readonly AgenticMemoryRecord<TRecord>[]>;
-		readonly admissionPolicy?: Node<AgenticMemoryRecordAdmissionPolicy>;
-		readonly applicationPolicy?: Node<AgenticMemoryRecordApplicationPolicy>;
-		readonly applicationPriorEvidence?: AgenticMemoryRecordApplicationBundle<TRecord>["input"]["priorEvidence"];
-	};
+	readonly input: Node<
+		SolutionOccurrence<AgenticWorkItemMemoryApplicationRecipeInput<TInput, TRecord>>
+	>;
 	readonly bridge: AgenticWorkItemMemoryBridgeBundle<TInput, TRecord>;
 	readonly projection: AgenticWorkItemMemoryBridgeBundle<TInput, TRecord>["projection"];
-	readonly scoreSignals: Node<readonly ScoreSignal[]>;
-	readonly proposals: Node<readonly AgenticMemoryRecordProposal<TRecord>[]>;
+	readonly scoreSignals: AgenticWorkItemMemoryBridgeBundle<TInput, TRecord>["scoreSignals"];
+	readonly proposals: AgenticWorkItemMemoryBridgeBundle<TInput, TRecord>["proposals"];
 	readonly admission?: AgenticMemoryRecordAdmissionBundle<TRecord>;
 	readonly application?: AgenticMemoryRecordApplicationBundle<TRecord>;
 	readonly records?: AgenticMemoryRecordApplicationBundle<TRecord>["records"];
@@ -83,33 +80,15 @@ export interface AgenticWorkItemMemoryApplicationRecipeBundle<TInput = unknown, 
 	readonly applicationCursor?: AgenticMemoryRecordApplicationBundle<TRecord>["cursor"];
 }
 
-type AgenticWorkItemMemoryApplicationRecipeBundleBridgeOnlyOptions<TRecord> = {
-	readonly records?: Node<readonly AgenticMemoryRecord<TRecord>[]>;
-	readonly admissionPolicy?: undefined;
-	readonly applicationPolicy?: undefined;
-	readonly applicationPriorEvidence?: undefined;
-};
-
-type AgenticWorkItemMemoryApplicationRecipeBundleAdmissionOptions<TRecord> = {
-	readonly records: Node<readonly AgenticMemoryRecord<TRecord>[]>;
-	readonly admissionPolicy: Node<AgenticMemoryRecordAdmissionPolicy>;
-	readonly applicationPolicy?: Node<AgenticMemoryRecordApplicationPolicy>;
-	readonly applicationPriorEvidence?: AgenticMemoryRecordApplicationBundle<TRecord>["input"]["priorEvidence"];
-};
-
-/**
- * Graph bundle options for the D587 cross-family application recipe.
- *
- * `applicationPolicy` and `applicationPriorEvidence` are only valid when
- * `admissionPolicy` is present. Prior evidence must be supplied from an
- * external boundary or later evaluation input, never from this same recipe's
- * current application decisions.
- */
-export type AgenticWorkItemMemoryApplicationRecipeBundleOptions<
+/** D151 fixed composition depth; correlated policy/history material is occurrence DATA. */
+export interface AgenticWorkItemMemoryApplicationRecipeBundleOptions<
 	TInput = unknown,
 	TRecord = unknown,
-> = AgenticWorkItemMemoryBridgeBundleOptions<TInput, TRecord> &
-	(
-		| AgenticWorkItemMemoryApplicationRecipeBundleBridgeOnlyOptions<TRecord>
-		| AgenticWorkItemMemoryApplicationRecipeBundleAdmissionOptions<TRecord>
-	);
+> {
+	readonly name?: string;
+	readonly through: "bridge" | "admission" | "application";
+	readonly occurrences: Node<
+		SolutionOccurrence<AgenticWorkItemMemoryApplicationRecipeInput<TInput, TRecord>>
+	>;
+	readonly maxOccurrences: number;
+}

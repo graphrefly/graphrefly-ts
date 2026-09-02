@@ -394,28 +394,34 @@ export interface AgenticMemoryProposalAdmissionOptions<T = unknown> {
 	readonly evaluation?: number;
 }
 
+/** Complete input for one independently correlated evaluation (D151). */
+export interface AgenticMemoryRecordAdmissionInput<T = unknown> {
+	readonly records: readonly AgenticMemoryRecord<T>[];
+	readonly proposals: readonly AgenticMemoryRecordProposal<T>[];
+	readonly policy: AgenticMemoryRecordAdmissionPolicy;
+}
+
+export type AgenticMemoryRecordAdmissionOccurrence<T = unknown> = SolutionOccurrence<
+	AgenticMemoryRecordAdmissionInput<T>
+>;
+
 export interface AgenticMemoryRecordAdmissionBundle<T = unknown> {
-	readonly input: {
-		readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
-		readonly proposals: Node<readonly AgenticMemoryRecordProposal<T>[]>;
-		readonly policy: Node<AgenticMemoryRecordAdmissionPolicy>;
-	};
-	readonly projection: Node<AgenticMemoryRecordAdmissionSnapshot<T>>;
-	readonly admissions: Node<readonly AgenticMemoryRecordAdmission<T>[]>;
-	readonly admitted: Node<readonly AgenticMemoryRecordAdmission<T>[]>;
-	readonly rejected: Node<readonly AgenticMemoryRecordAdmission<T>[]>;
-	readonly needsReview: Node<readonly AgenticMemoryRecordAdmission<T>[]>;
-	readonly status: Node<AgenticMemoryRecordAdmissionStatus>;
-	readonly issues: Node<readonly DataIssue[]>;
-	readonly audit: Node<readonly AgenticMemoryRecordAdmissionAuditEntry[]>;
-	readonly cursor: Node<AgenticMemoryRecordAdmissionCursor>;
+	readonly input: Node<AgenticMemoryRecordAdmissionOccurrence<T>>;
+	readonly projection: Node<SolutionOccurrence<AgenticMemoryRecordAdmissionSnapshot<T>>>;
+	readonly admissions: Node<SolutionOccurrence<readonly AgenticMemoryRecordAdmission<T>[]>>;
+	readonly admitted: Node<SolutionOccurrence<readonly AgenticMemoryRecordAdmission<T>[]>>;
+	readonly rejected: Node<SolutionOccurrence<readonly AgenticMemoryRecordAdmission<T>[]>>;
+	readonly needsReview: Node<SolutionOccurrence<readonly AgenticMemoryRecordAdmission<T>[]>>;
+	readonly status: Node<SolutionOccurrence<AgenticMemoryRecordAdmissionStatus>>;
+	readonly issues: Node<SolutionOccurrence<readonly DataIssue[]>>;
+	readonly audit: Node<SolutionOccurrence<readonly AgenticMemoryRecordAdmissionAuditEntry[]>>;
+	readonly cursor: Node<SolutionOccurrence<AgenticMemoryRecordAdmissionCursor>>;
 }
 
 export interface AgenticMemoryRecordAdmissionBundleOptions<T = unknown> {
 	readonly name?: string;
-	readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
-	readonly proposals: Node<readonly AgenticMemoryRecordProposal<T>[]>;
-	readonly policy: Node<AgenticMemoryRecordAdmissionPolicy>;
+	readonly occurrences: Node<AgenticMemoryRecordAdmissionOccurrence<T>>;
+	readonly maxOccurrences: number;
 }
 
 /**
@@ -712,34 +718,39 @@ export interface AgenticMemoryRecordApplicationOptions<T = unknown> {
 	readonly evaluation?: number;
 }
 
+/** Complete input for one independently correlated evaluation (D151). */
+export interface AgenticMemoryRecordApplicationInput<T = unknown> {
+	readonly records: readonly AgenticMemoryRecord<T>[];
+	readonly admissions: readonly AgenticMemoryRecordAdmission<T>[];
+	readonly policy: AgenticMemoryRecordApplicationPolicy;
+	readonly priorEvidence?: AgenticMemoryRecordApplicationOptions<T>["priorEvidence"];
+}
+
+export type AgenticMemoryRecordApplicationOccurrence<T = unknown> = SolutionOccurrence<
+	AgenticMemoryRecordApplicationInput<T>
+>;
+
 export interface AgenticMemoryRecordApplicationBundle<T = unknown> {
-	readonly input: {
-		readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
-		readonly admissions: Node<readonly AgenticMemoryRecordAdmission<T>[]>;
-		readonly policy: Node<AgenticMemoryRecordApplicationPolicy>;
-		readonly priorEvidence?:
-			| Node<AgenticMemoryRecordApplicationPriorEvidence>
-			| Node<readonly AgenticMemoryRecordApplicationEvidence[]>;
-	};
-	readonly projection: Node<AgenticMemoryRecordApplicationSnapshot<T>>;
-	readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
-	readonly appliedRecords: Node<readonly AgenticMemoryRecord<T>[]>;
-	readonly applicationDecisions: Node<readonly AgenticMemoryRecordApplicationDecision<T>[]>;
-	readonly status: Node<AgenticMemoryRecordApplicationStatus>;
-	readonly operationStatuses: Node<readonly AgenticMemoryRecordApplicationOperationStatus[]>;
-	readonly issues: Node<readonly DataIssue[]>;
-	readonly audit: Node<readonly AgenticMemoryRecordApplicationAuditEntry[]>;
-	readonly cursor: Node<AgenticMemoryRecordApplicationCursor>;
+	readonly input: Node<AgenticMemoryRecordApplicationOccurrence<T>>;
+	readonly projection: Node<SolutionOccurrence<AgenticMemoryRecordApplicationSnapshot<T>>>;
+	readonly records: Node<SolutionOccurrence<readonly AgenticMemoryRecord<T>[]>>;
+	readonly appliedRecords: Node<SolutionOccurrence<readonly AgenticMemoryRecord<T>[]>>;
+	readonly applicationDecisions: Node<
+		SolutionOccurrence<readonly AgenticMemoryRecordApplicationDecision<T>[]>
+	>;
+	readonly status: Node<SolutionOccurrence<AgenticMemoryRecordApplicationStatus>>;
+	readonly operationStatuses: Node<
+		SolutionOccurrence<readonly AgenticMemoryRecordApplicationOperationStatus[]>
+	>;
+	readonly issues: Node<SolutionOccurrence<readonly DataIssue[]>>;
+	readonly audit: Node<SolutionOccurrence<readonly AgenticMemoryRecordApplicationAuditEntry[]>>;
+	readonly cursor: Node<SolutionOccurrence<AgenticMemoryRecordApplicationCursor>>;
 }
 
 export interface AgenticMemoryRecordApplicationBundleOptions<T = unknown> {
 	readonly name?: string;
-	readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
-	readonly admissions: Node<readonly AgenticMemoryRecordAdmission<T>[]>;
-	readonly policy: Node<AgenticMemoryRecordApplicationPolicy>;
-	readonly priorEvidence?:
-		| Node<AgenticMemoryRecordApplicationPriorEvidence>
-		| Node<readonly AgenticMemoryRecordApplicationEvidence[]>;
+	readonly occurrences: Node<AgenticMemoryRecordApplicationOccurrence<T>>;
+	readonly maxOccurrences: number;
 }
 
 /**
@@ -1247,68 +1258,54 @@ export interface AgenticMemoryConsolidationSnapshot<T = unknown> {
 	readonly cursor: AgenticMemoryConsolidationCursor;
 }
 
-export interface AgenticMemoryConsolidationBundle<T = unknown> {
-	readonly input: {
-		readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
-		readonly requests: Node<readonly AgenticMemoryConsolidationRequest[]>;
-		readonly outcomes: Node<readonly AgenticMemoryConsolidationOutcome<T>[]>;
-	};
-	readonly projection: Node<AgenticMemoryConsolidationSnapshot<T>>;
-	readonly results: Node<readonly AgenticMemoryConsolidationResult[]>;
-	readonly proposedRecordDrafts: Node<readonly AgenticMemoryConsolidationRecordDraft<T>[]>;
-	/** Projected AgenticMemoryRecordProposal facts; does not apply record truth. */
-	readonly recordProposals: Node<readonly AgenticMemoryRecordProposal<T>[]>;
-	readonly commands: Node<readonly AgenticMemoryConsolidationCommand[]>;
-	readonly status: Node<AgenticMemoryConsolidationStatus>;
-	readonly errors: Node<readonly AgenticMemoryConsolidationError[]>;
-	readonly cursor: Node<AgenticMemoryConsolidationCursor>;
+/** A complete caller-owned consolidation snapshot; occurrences never borrow latest values. */
+export interface AgenticMemoryConsolidationInput<T = unknown> {
+	readonly records: readonly AgenticMemoryRecord<T>[];
+	readonly requests: readonly AgenticMemoryConsolidationRequest[];
+	readonly outcomes: readonly AgenticMemoryConsolidationOutcome<T>[];
 }
-
+export interface AgenticMemoryConsolidationBundle<T = unknown> {
+	readonly input: Node<SolutionOccurrence<AgenticMemoryConsolidationInput<T>>>;
+	readonly projection: Node<SolutionOccurrence<AgenticMemoryConsolidationSnapshot<T>>>;
+	readonly results: Node<SolutionOccurrence<readonly AgenticMemoryConsolidationResult[]>>;
+	readonly proposedRecordDrafts: Node<
+		SolutionOccurrence<readonly AgenticMemoryConsolidationRecordDraft<T>[]>
+	>;
+	readonly recordProposals: Node<SolutionOccurrence<readonly AgenticMemoryRecordProposal<T>[]>>;
+	readonly commands: Node<SolutionOccurrence<readonly AgenticMemoryConsolidationCommand[]>>;
+	readonly status: Node<SolutionOccurrence<AgenticMemoryConsolidationStatus>>;
+	readonly errors: Node<SolutionOccurrence<readonly AgenticMemoryConsolidationError[]>>;
+	readonly cursor: Node<SolutionOccurrence<AgenticMemoryConsolidationCursor>>;
+}
 export interface AgenticMemoryConsolidationBundleOptions<T = unknown> {
 	readonly name?: string;
-	readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
-	readonly requests: Node<readonly AgenticMemoryConsolidationRequest[]>;
-	readonly outcomes: Node<readonly AgenticMemoryConsolidationOutcome<T>[]>;
+	readonly occurrences: Node<SolutionOccurrence<AgenticMemoryConsolidationInput<T>>>;
+	readonly maxOccurrences: number;
 }
-
+export interface AgenticMemoryConsolidationApplicationInput<T = unknown>
+	extends AgenticMemoryConsolidationInput<T> {
+	readonly admissionPolicy: AgenticMemoryRecordAdmissionPolicy;
+	readonly applicationPolicy: AgenticMemoryRecordApplicationPolicy;
+	readonly applicationPriorEvidence?:
+		| AgenticMemoryRecordApplicationPriorEvidence
+		| readonly AgenticMemoryRecordApplicationEvidence[];
+}
 export interface AgenticMemoryConsolidationApplicationBundle<T = unknown> {
-	readonly input: {
-		readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
-		readonly requests: Node<readonly AgenticMemoryConsolidationRequest[]>;
-		readonly outcomes: Node<readonly AgenticMemoryConsolidationOutcome<T>[]>;
-		readonly admissionPolicy: Node<AgenticMemoryRecordAdmissionPolicy>;
-		readonly applicationPolicy: Node<AgenticMemoryRecordApplicationPolicy>;
-		readonly applicationPriorEvidence?:
-			| Node<AgenticMemoryRecordApplicationPriorEvidence>
-			| Node<readonly AgenticMemoryRecordApplicationEvidence[]>;
-	};
-	/** D171 consolidation projection: emits proposal-compatible DATA, not record truth. */
+	readonly input: Node<SolutionOccurrence<AgenticMemoryConsolidationApplicationInput<T>>>;
 	readonly consolidation: AgenticMemoryConsolidationBundle<T>;
-	/** D572/D573 proposal admission over consolidation-emitted proposals. */
 	readonly admission: AgenticMemoryRecordAdmissionBundle<T>;
-	/** D577 AgenticMemory-owned record application boundary. */
 	readonly application: AgenticMemoryRecordApplicationBundle<T>;
-	/** Full next AgenticMemoryRecord snapshot after admitted create/replace application. */
-	readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
-	readonly appliedRecords: Node<readonly AgenticMemoryRecord<T>[]>;
-	readonly applicationDecisions: Node<readonly AgenticMemoryRecordApplicationDecision<T>[]>;
-	readonly applicationStatus: Node<AgenticMemoryRecordApplicationStatus>;
-	readonly applicationOperationStatuses: Node<
-		readonly AgenticMemoryRecordApplicationOperationStatus[]
-	>;
-	readonly applicationIssues: Node<readonly DataIssue[]>;
+	readonly records: AgenticMemoryRecordApplicationBundle<T>["records"];
+	readonly appliedRecords: AgenticMemoryRecordApplicationBundle<T>["appliedRecords"];
+	readonly applicationDecisions: AgenticMemoryRecordApplicationBundle<T>["applicationDecisions"];
+	readonly applicationStatus: AgenticMemoryRecordApplicationBundle<T>["status"];
+	readonly applicationOperationStatuses: AgenticMemoryRecordApplicationBundle<T>["operationStatuses"];
+	readonly applicationIssues: AgenticMemoryRecordApplicationBundle<T>["issues"];
 }
-
 export interface AgenticMemoryConsolidationApplicationBundleOptions<T = unknown> {
 	readonly name?: string;
-	readonly records: Node<readonly AgenticMemoryRecord<T>[]>;
-	readonly requests: Node<readonly AgenticMemoryConsolidationRequest[]>;
-	readonly outcomes: Node<readonly AgenticMemoryConsolidationOutcome<T>[]>;
-	readonly admissionPolicy: Node<AgenticMemoryRecordAdmissionPolicy>;
-	readonly applicationPolicy: Node<AgenticMemoryRecordApplicationPolicy>;
-	readonly applicationPriorEvidence?:
-		| Node<AgenticMemoryRecordApplicationPriorEvidence>
-		| Node<readonly AgenticMemoryRecordApplicationEvidence[]>;
+	readonly occurrences: Node<SolutionOccurrence<AgenticMemoryConsolidationApplicationInput<T>>>;
+	readonly maxOccurrences: number;
 }
 
 export interface AgenticMemoryContextText {

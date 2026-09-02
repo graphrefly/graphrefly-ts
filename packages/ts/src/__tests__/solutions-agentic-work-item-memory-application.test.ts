@@ -15,6 +15,7 @@ import type {
 } from "../solutions/agentic-memory/index.js";
 import { agenticMemoryRecordAdmissionPolicySourceBundle } from "../solutions/agentic-memory/index.js";
 import * as focusedAgenticWorkItemMemory from "../solutions/agentic-work-item-memory/index.js";
+import { agenticWorkItemMemoryBridgeBundle } from "../solutions/agentic-work-item-memory/index.js";
 import type {
 	AgenticWorkItemMemoryMappingPolicy,
 	AgenticWorkItemMemoryRecordCandidate,
@@ -27,8 +28,8 @@ import {
 } from "../solutions/agentic-work-item-memory-application/index.js";
 import * as solutionsAggregate from "../solutions/index.js";
 import type { SolutionOccurrence } from "../solutions/occurrence.js";
-import { agenticWorkItemMemoryBridgeOccurrenceNode } from "../solutions/occurrence-lifecycles.js";
 import type { WorkItemProjection } from "../solutions/work-item/index.js";
+import { occurrenceData, occurrenceFixture } from "./solution-occurrence-fixture.js";
 
 const data = <T>(messages: Message[]): T[] =>
 	messages.filter((m) => m[0] === "DATA").map((m) => (m as readonly ["DATA", T])[1]);
@@ -375,80 +376,110 @@ describe("agentic WorkItem memory application recipe wiring (D572/D576/D577/D581
 		expect(result.application?.records).toEqual([]);
 	});
 
-	it("exposes a graph-visible recipe without bridge-owned admission/application semantics", () => {
+	it("exposes the real occurrence-aware bridge, admission, and application topology", () => {
 		const g = graph();
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>([], { name: "records" });
-		const currentWorkItem = g.state(workItem(), { name: "workItem" });
-		const policy = g.state(mappingPolicy({ scoreRules: [] }), { name: "bridgePolicy" });
-		const candidates = g.state<readonly AgenticWorkItemMemoryRecordCandidate<string>[]>([], {
-			name: "candidates",
-		});
-		const admissionSources = g.state(
+		const policySources = g.state(
 			[
 				{
-					kind: "agentic-memory-record-admission-policy-source",
-					sourceId: "static-admission-policy",
-					sourceKind: "static",
+					kind: "agentic-memory-record-admission-policy-source" as const,
+					sourceId: "static-policy",
+					sourceKind: "static" as const,
 					priority: 0,
 					material: admissionPolicy(),
 				},
-			] as const,
+			],
 			{ name: "admissionPolicySources" },
 		);
-		const admissionSource = agenticMemoryRecordAdmissionPolicySourceBundle(g, {
-			name: "admissionPolicySource",
-			policySources: admissionSources,
+		const source = agenticMemoryRecordAdmissionPolicySourceBundle(g, {
+			name: "policySource",
+			policySources,
 		});
-		const application = g.state(applicationPolicy(), { name: "applicationPolicy" });
-		const priorEvidence = g.state<readonly AgenticMemoryRecordApplicationEvidence[]>([], {
-			name: "applicationPriorEvidence",
-		});
+		// This single source constructs a complete caller-owned snapshot. No latest-value fan-in.
+		const occurrences = g.derived(
+			[source.admissionPolicy],
+			(admission) =>
+				occurrenceFixture({
+					workItem: workItem(),
+					policy: mappingPolicy({ scoreRules: [] }),
+					candidates: [explicitCandidate()],
+					records: [],
+					admissionPolicy: admission,
+					applicationPolicy: applicationPolicy(),
+					applicationPriorEvidence: [],
+				}),
+			{ name: "caller/complete-occurrence" },
+		);
 		const bundle = agenticWorkItemMemoryApplicationRecipeBundle(g, {
 			name: "recipe",
-			records,
-			workItem: currentWorkItem,
-			policy,
-			candidates,
-			admissionPolicy: admissionSource.admissionPolicy,
-			applicationPolicy: application,
-			applicationPriorEvidence: priorEvidence,
+			occurrences,
+			maxOccurrences: 2,
+			through: "application",
 		});
-
 		expectTypeOf(bundle).toMatchTypeOf<AgenticWorkItemMemoryApplicationRecipeBundle>();
-		const edges = g.describe().edges;
-		expect(edges).toEqual(
+		const observed = collect(bundle.records!);
+		expect(
+			occurrenceData<readonly AgenticMemoryRecord<string>[]>(observed.messages).at(-1),
+		).toEqual([record()]);
+		expect(g.describe().edges).toEqual(
 			expect.arrayContaining([
-				{ from: "workItem", to: "recipe/bridge/projection" },
-				{ from: "bridgePolicy", to: "recipe/bridge/projection" },
-				{ from: "admissionPolicySources", to: "admissionPolicySource/projection" },
-				{
-					from: "admissionPolicySource/projection",
-					to: "admissionPolicySource/admissionPolicy",
-				},
-				{ from: "admissionPolicySource/admissionPolicy", to: "recipe/admission/projection" },
-				{ from: "recipe/bridge/proposals", to: "recipe/admission/projection" },
-				{ from: "recipe/admission/admissions", to: "recipe/application/projection" },
-				{ from: "applicationPriorEvidence", to: "recipe/application/projection" },
+				{ from: "caller/complete-occurrence", to: "recipe/input" },
+				{ from: "recipe/input", to: "recipe/bridge/projection" },
+				{ from: "recipe/bridge/proposals", to: "recipe/admission-input/right" },
+				{ from: "recipe/input", to: "recipe/admission-input/left" },
+				{ from: "recipe/admission-input", to: "recipe/admission/projection" },
+				{ from: "recipe/admission/admissions", to: "recipe/application-input/right" },
+				{ from: "recipe/input", to: "recipe/application-input/left" },
+				{ from: "recipe/application-input", to: "recipe/application/projection" },
 				{ from: "recipe/application/projection", to: "recipe/application/records" },
 			]),
 		);
-		expect(edges).not.toEqual(
-			expect.arrayContaining([
-				{ from: "recipe/application/applicationDecisions", to: "recipe/application/projection" },
-				{ from: "recipe/application/records", to: "recipe/application/projection" },
-			]),
-		);
-		expect(bundle.input.admissionPolicy).toBe(admissionSource.admissionPolicy);
-		expect(bundle.input.applicationPriorEvidence).toBe(priorEvidence);
-
-		const observed = collect(bundle.records ?? bundle.proposals);
-		candidates.set([explicitCandidate()]);
-		expect(data<readonly AgenticMemoryRecord<string>[]>(observed.messages).at(-1)).toEqual([
-			record(),
-		]);
+		expect(g.describe().edges).not.toContainEqual({
+			from: "recipe/application/applicationDecisions",
+			to: "recipe/application/projection",
+		});
 		observed.unsubscribe();
 	});
 
+	it("preserves initial multi-DATA snapshots through the complete two-join recipe", () => {
+		const g = graph();
+		const value = {
+			workItem: workItem(),
+			policy: mappingPolicy({ scoreRules: [] }),
+			candidates: [explicitCandidate()],
+			records: [],
+			admissionPolicy: admissionPolicy(),
+			applicationPolicy: applicationPolicy(),
+			applicationPriorEvidence: [],
+		};
+		const first = occurrenceFixture(value);
+		const second = {
+			...first,
+			occurrenceId: "initial-second",
+			occurrenceDigest: `sha256:${"2".repeat(64)}`,
+		};
+		const occurrences = g.producer<SolutionOccurrence<typeof value>>((ctx) =>
+			ctx.down([
+				["DATA", first],
+				["DATA", second],
+			]),
+		);
+		const recipe = agenticWorkItemMemoryApplicationRecipeBundle(g, {
+			name: "initial-recipe",
+			occurrences,
+			maxOccurrences: 2,
+			through: "application",
+		});
+		const observed = collect(recipe.records!);
+		expect(
+			data<SolutionOccurrence<readonly AgenticMemoryRecord<string>[]>>(observed.messages).map(
+				(frame) => [frame.occurrenceId, frame.value.length],
+			),
+		).toEqual([
+			[first.occurrenceId, 1],
+			[second.occurrenceId, 1],
+		]);
+		observed.unsubscribe();
+	});
 	it("preserves complete bridge occurrences across separate reordered waves", () => {
 		const g = graph();
 		type Input = Readonly<{
@@ -459,11 +490,12 @@ describe("agentic WorkItem memory application recipe wiring (D572/D576/D577/D581
 		const occurrences = g.node<SolutionOccurrence<Input>>([], null, {
 			name: "occurrence/complete-bridge-input",
 		});
-		const projected = agenticWorkItemMemoryBridgeOccurrenceNode(g, occurrences, {
+		const projected = agenticWorkItemMemoryBridgeBundle(g, {
+			occurrences,
 			name: "occurrence/complete-bridge",
 			maxOccurrences: 2,
 		});
-		const observed = collect(projected);
+		const observed = collect(projected.projection);
 		const makeOccurrence = (id: string, itemId: string): SolutionOccurrence<Input> =>
 			Object.freeze({
 				occurrenceId: id,
@@ -495,11 +527,11 @@ describe("agentic WorkItem memory application recipe wiring (D572/D576/D577/D581
 		const first = makeOccurrence("bridge-1", "wi-1");
 		occurrences.down([["DATA", second]]);
 		occurrences.down([["DATA", first]]);
-		const outputs = data<
-			SolutionOccurrence<{ readonly result: { readonly proposals: readonly unknown[] } }>
-		>(observed.messages);
+		const outputs = data<SolutionOccurrence<{ readonly proposals: readonly unknown[] }>>(
+			observed.messages,
+		);
 		expect(outputs.map((output) => output.occurrenceId)).toEqual(["bridge-2", "bridge-1"]);
-		expect(outputs.every((output) => output.value.result.proposals.length === 1)).toBe(true);
+		expect(outputs.every((output) => output.value.proposals.length === 1)).toBe(true);
 		occurrences.down([["DATA", second]]);
 		expect(data(observed.messages)).toHaveLength(2);
 		observed.unsubscribe();

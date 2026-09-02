@@ -1,14 +1,11 @@
-import { depLatest } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../../identity.js";
 import { stableJsonString, strictJsonCodec } from "../../json/codec.js";
-import type { Node } from "../../node/node.js";
 import type { EffectRunResult, SourceRef } from "../../orchestration/agent-runtime.js";
 import type { WorkItemEvidenceRecorded } from "../../orchestration/work-item-runtime.js";
 import type { ScoreRef, ScoreSignal } from "../../scoring/index.js";
 import { agenticMemoryRecordFrame } from "../agentic-memory/frame.js";
-import { solutionProjection } from "../agentic-memory/projection.js";
 import {
 	cloneStrictJsonObject,
 	isNonEmptyString,
@@ -23,6 +20,7 @@ import type {
 	AgenticMemoryRecordProposal,
 	StrictJsonValue,
 } from "../agentic-memory/types.js";
+import { solutionOccurrenceProjection, solutionOccurrenceSelect } from "../occurrence.js";
 import type { WorkItemProjection } from "../work-item/index.js";
 import type {
 	AgenticWorkItemMemoryBridgeAuditEntry,
@@ -96,6 +94,11 @@ const FORBIDDEN_POLICY_KEYS = new Set([
 /**
  * Creates a DATA-only WorkItem to AgenticMemory mapper bridge bundle (D581/D582).
  *
+ * @remarks D151: each input DATA is one complete identity/revision/digest/source-refs
+ * occurrence. Policy and prior records travel in its value, never independent latest-value
+ * dependencies. Outputs preserve that identity; replay conflicts and retention overflow fail closed.
+ * The fixed recipe topology is retained for its graph lifetime; input snapshots are bounded by
+ * maxOccurrences, not a claim that one protocol wave is one business occurrence.
  * @param graph - Graph that owns the created nodes.
  * @param opts - Nodes carrying current WorkItem projection, mapping policy, and optional DATA inputs.
  * @returns Bridge projection nodes for score signals, proposals, and bridge-local read models.
@@ -110,113 +113,52 @@ export function agenticWorkItemMemoryBridgeBundle<TInput = unknown, TRecord = un
 	opts: AgenticWorkItemMemoryBridgeBundleOptions<TInput, TRecord>,
 ): AgenticWorkItemMemoryBridgeBundle<TInput, TRecord> {
 	const name = opts.name ?? "agenticWorkItemMemoryBridge";
-	const deps: Node<unknown>[] = [opts.workItem as Node<unknown>, opts.policy as Node<unknown>];
-	if (opts.evidence !== undefined) deps.push(opts.evidence as Node<unknown>);
-	if (opts.outcomes !== undefined) deps.push(opts.outcomes as Node<unknown>);
-	if (opts.context !== undefined) deps.push(opts.context as Node<unknown>);
-	if (opts.candidates !== undefined) deps.push(opts.candidates as Node<unknown>);
-	const evidenceIndex = opts.evidence === undefined ? -1 : 2;
-	const outcomesIndex =
-		opts.outcomes === undefined ? -1 : 2 + (opts.evidence === undefined ? 0 : 1);
-	const contextIndex =
-		opts.context === undefined
-			? -1
-			: 2 + (opts.evidence === undefined ? 0 : 1) + (opts.outcomes === undefined ? 0 : 1);
-	const candidatesIndex =
-		opts.candidates === undefined
-			? -1
-			: 2 +
-				(opts.evidence === undefined ? 0 : 1) +
-				(opts.outcomes === undefined ? 0 : 1) +
-				(opts.context === undefined ? 0 : 1);
-	const projection = graph.node<AgenticWorkItemMemoryBridgeResult<TRecord>>(
-		deps,
-		(ctx) => {
-			const state =
-				ctx.state.get<{ evaluation: number }>() ??
-				({ evaluation: 0 } satisfies { evaluation: number });
-			state.evaluation += 1;
-			const result = mapAgenticWorkItemMemoryBridge<TInput, TRecord>({
-				workItem: depLatest(ctx, 0) as WorkItemProjection<TInput>,
-				policy: depLatest(ctx, 1) as AgenticWorkItemMemoryMappingPolicy<TRecord>,
-				evidence:
-					evidenceIndex < 0
-						? undefined
-						: (depLatest(ctx, evidenceIndex) as readonly WorkItemEvidenceRecorded[] | undefined),
-				outcomes:
-					outcomesIndex < 0
-						? undefined
-						: (depLatest(ctx, outcomesIndex) as readonly EffectRunResult[] | undefined),
-				context:
-					contextIndex < 0
-						? undefined
-						: (depLatest(ctx, contextIndex) as
-								| readonly AgenticWorkItemMemoryContextFact[]
-								| undefined),
-				candidates:
-					candidatesIndex < 0
-						? undefined
-						: (depLatest(ctx, candidatesIndex) as
-								| readonly AgenticWorkItemMemoryRecordCandidate<TRecord>[]
-								| undefined),
-				evaluation: state.evaluation,
-			});
-			ctx.state.set(state);
-			ctx.down([["DATA", result]]);
-		},
-		{
-			name: `${name}/projection`,
-			factory: "agenticWorkItemMemoryBridge",
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
-		},
-	);
+	const projection = solutionOccurrenceProjection(graph, opts.occurrences, {
+		name: `${name}/projection`,
+		factory: "agenticWorkItemMemoryBridge",
+		maxOccurrences: opts.maxOccurrences,
+		project: (value) =>
+			mapAgenticWorkItemMemoryBridge<TInput, TRecord>({ ...value, evaluation: 1 }),
+	});
 	return {
-		input: {
-			workItem: opts.workItem,
-			policy: opts.policy,
-			...(opts.evidence === undefined ? {} : { evidence: opts.evidence }),
-			...(opts.outcomes === undefined ? {} : { outcomes: opts.outcomes }),
-			...(opts.context === undefined ? {} : { context: opts.context }),
-			...(opts.candidates === undefined ? {} : { candidates: opts.candidates }),
-		},
+		input: opts.occurrences,
 		projection,
-		scoreSignals: solutionProjection(
+		scoreSignals: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/scoreSignals`,
 			"agenticWorkItemMemoryBridgeScoreSignals",
 			(fact) => fact.scoreSignals,
 		),
-		proposals: solutionProjection(
+		proposals: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/proposals`,
 			"agenticWorkItemMemoryBridgeProposals",
 			(fact) => fact.proposals,
 		),
-		status: solutionProjection(
+		status: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/status`,
 			"agenticWorkItemMemoryBridgeStatus",
 			(fact) => fact.status,
 		),
-		issues: solutionProjection(
+		issues: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/issues`,
 			"agenticWorkItemMemoryBridgeIssues",
 			(fact) => fact.issues,
 		),
-		audit: solutionProjection(
+		audit: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/audit`,
 			"agenticWorkItemMemoryBridgeAudit",
 			(fact) => fact.audit,
 		),
-		cursor: solutionProjection(
+		cursor: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/cursor`,

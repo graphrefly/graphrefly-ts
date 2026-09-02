@@ -1,9 +1,8 @@
-import { depLatest } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../../identity.js";
 import type { FactId } from "../../patterns/semantic-memory.js";
-import { solutionProjection } from "./projection.js";
+import { solutionOccurrenceProjection, solutionOccurrenceSelect } from "../occurrence.js";
 import {
 	cloneStrictJsonObject,
 	errorMessage,
@@ -37,6 +36,11 @@ import type {
 /**
  * Creates an agentic memory record admission bundle.
  *
+ * @remarks D151: each input DATA is one complete identity/revision/digest/source-refs
+ * occurrence. Policy and prior records travel in its value, never independent latest-value
+ * dependencies. Outputs preserve that identity; replay conflicts and retention overflow fail closed.
+ * The fixed recipe topology is retained for its graph lifetime; input snapshots are bounded by
+ * maxOccurrences, not a claim that one protocol wave is one business occurrence.
  * @param graph - Graph that owns the created nodes or projector.
  * @param opts - Options that configure the helper.
  * @returns A bundle of graph-visible nodes for the recipe.
@@ -51,110 +55,69 @@ export function agenticMemoryRecordAdmissionBundle<T = unknown>(
 	opts: AgenticMemoryRecordAdmissionBundleOptions<T>,
 ): AgenticMemoryRecordAdmissionBundle<T> {
 	const name = opts.name ?? "agenticMemoryRecordAdmission";
-	const projection = graph.node<AgenticMemoryProposalAdmissionSnapshot<T>>(
-		[opts.records, opts.proposals, opts.policy],
-		(ctx) => {
-			const state =
-				ctx.state.get<{ evaluation: number }>() ??
-				({ evaluation: 0 } satisfies { evaluation: number });
-			state.evaluation += 1;
-			const recordProjection = validateAndProjectRecords<T>(depLatest(ctx, 0));
-			const policy = safeValidateAdmissionPolicy(depLatest(ctx, 2));
-			const projected = projectProposalAdmissions<T>(depLatest(ctx, 1), policy.policy, {
-				records: recordProjection.records,
-				evaluation: state.evaluation,
-			});
-			const cursor = Object.freeze({
-				...projected.cursor,
-				invalidPolicies: policy.invalidPolicies,
-				issues: recordProjection.errors.length + policy.issues.length + projected.issues.length,
-			});
-			const issues = Object.freeze([
-				...recordProjectionIssues(recordProjection.errors),
-				...policy.issues,
-				...projected.issues,
-			]);
-			const status: AgenticMemoryProposalAdmissionStatus = Object.freeze({
-				state: admissionStatus(cursor),
-				cursor,
-			});
-			ctx.state.set(state);
-			ctx.down([
-				[
-					"DATA",
-					Object.freeze({
-						admissions: projected.admissions,
-						admitted: projected.admitted,
-						rejected: projected.rejected,
-						needsReview: projected.needsReview,
-						status,
-						issues,
-						audit: projected.audit,
-						cursor,
-					}),
-				],
-			]);
-		},
-		{
-			name: `${name}/projection`,
-			factory: "agenticMemoryRecordAdmission",
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
-		},
-	);
+	const projection = solutionOccurrenceProjection(graph, opts.occurrences, {
+		name: `${name}/projection`,
+		factory: "agenticMemoryRecordAdmission",
+		maxOccurrences: opts.maxOccurrences,
+		project: (value) =>
+			admitAgenticMemoryRecordProposals<T>(value.proposals, value.policy, {
+				records: value.records,
+				evaluation: 1,
+			}),
+	});
 	return {
-		input: { records: opts.records, proposals: opts.proposals, policy: opts.policy },
+		input: opts.occurrences,
 		projection,
-		admissions: solutionProjection(
+		admissions: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/admissions`,
-			"agenticMemoryRecordAdmissions",
+			"agenticMemoryRecordAdmissionAdmissions",
 			(fact) => fact.admissions,
 		),
-		admitted: solutionProjection(
+		admitted: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/admitted`,
-			"agenticMemoryRecordAdmissionsAdmitted",
+			"agenticMemoryRecordAdmissionAdmissionsAdmitted",
 			(fact) => fact.admitted,
 		),
-		rejected: solutionProjection(
+		rejected: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/rejected`,
-			"agenticMemoryRecordAdmissionsRejected",
+			"agenticMemoryRecordAdmissionAdmissionsRejected",
 			(fact) => fact.rejected,
 		),
-		needsReview: solutionProjection(
+		needsReview: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/needsReview`,
-			"agenticMemoryRecordAdmissionsNeedsReview",
+			"agenticMemoryRecordAdmissionAdmissionsNeedsReview",
 			(fact) => fact.needsReview,
 		),
-		status: solutionProjection(
+		status: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/status`,
 			"agenticMemoryRecordAdmissionStatus",
 			(fact) => fact.status,
 		),
-		issues: solutionProjection(
+		issues: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/issues`,
 			"agenticMemoryRecordAdmissionIssues",
 			(fact) => fact.issues,
 		),
-		audit: solutionProjection(
+		audit: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/audit`,
 			"agenticMemoryRecordAdmissionAudit",
 			(fact) => fact.audit,
 		),
-		cursor: solutionProjection(
+		cursor: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/cursor`,

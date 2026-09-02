@@ -5,7 +5,7 @@ import { HARNESS_ARMS } from "./harness-campaign-policy.js";
 import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifest.js";
 
 export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-topology-no-network-qa.v38" as const,
+	schemaVersion: "graphrefly-ts.root-eval-topology-no-network-qa.v39" as const,
 	decisionRefs: Object.freeze([
 		"graphrefly-ts:D76",
 		"graphrefly-ts:D77",
@@ -66,6 +66,7 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		"graphrefly-ts:D150",
 		"graphrefly-ts:D151",
 		"graphrefly-ts:D152",
+		"graphrefly-ts:D153",
 		"graphrefly:D789",
 	] as const),
 	topologyRevision: ROOT_EVAL_TOPOLOGY_REVISION,
@@ -77,6 +78,11 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 	requiredNodeCount: Object.keys(ROOT_EVAL_REQUIRED_NODES).length,
 	criticalEdgeCount: ROOT_EVAL_CRITICAL_EDGES.length,
 	caseResults: Object.freeze({
+		exactRealSolutionOccurrenceComposition: "passed" as const,
+		initialMultiDataRecipeConservation: "passed" as const,
+		noEvalPartialOverridesAndReviewedTimerSettlementOnly: "passed" as const,
+		full175Call140RetryContributionConservation: "passed" as const,
+		canonicalReplayConflictFaultIsolation: "passed" as const,
 		workItemAndExactUsePublicBundleComposition: "passed" as const,
 		d789ExactUsePermissionIsolationAndHostileInputs: "passed" as const,
 		d789ImmutableProvenanceAndNoRawRecordBypass: "passed" as const,
@@ -207,13 +213,9 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 	}),
 	providerNetworkAccessed: false as const,
 	architectureMigration: Object.freeze({
-		complete: false as const,
+		complete: true as const,
 		publicExactUseGate: "migrated" as const,
-		remaining: Object.freeze([
-			"public-bridge-admission-application-occurrence-lifecycles",
-			"canonical-observation-validation-and-cleanup-fault-isolation",
-			"focused-async-executor-compatibility-and-reuse",
-		]),
+		remaining: Object.freeze([]),
 	}),
 	credentialAccessed: false as const,
 	liveEvaluationExecuted: false as const,
@@ -224,7 +226,7 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT_DIGEST = empiricalStrictJ
 );
 
 const qualificationMaterial = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-topology-qualification.v38" as const,
+	schemaVersion: "graphrefly-ts.root-eval-topology-qualification.v39" as const,
 	decisionRef: "graphrefly-ts:D151" as const,
 	executionApprovalRef: "user-authorized-no-network-d151-d152-2026-09-01" as const,
 	verificationDiagnosticsImplementationReceiptRef: "graphrefly-ts:D120" as const,
@@ -275,7 +277,7 @@ const qualificationMaterial = Object.freeze({
 	responseHorizonIncidentClosureRef: "graphrefly-ts:D93" as const,
 	implementationManifestDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
 	qualificationArtifactDigest: ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT_DIGEST,
-	status: "no-network-exact-use-qualified-architecture-migration-incomplete" as const,
+	status: "no-network-occurrence-architecture-qualified" as const,
 });
 
 export const ROOT_EVAL_TOPOLOGY_QUALIFICATION = Object.freeze({

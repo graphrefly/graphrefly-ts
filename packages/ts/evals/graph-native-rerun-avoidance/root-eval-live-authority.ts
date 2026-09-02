@@ -28,6 +28,7 @@ import {
 	EVAL_VERIFICATION_STAGE_KEYS,
 	EVAL_VERIFICATION_TERMINAL_REASONS,
 	type EvalBudgetPartition,
+	type EvalBudgetState,
 	type EvalCampaignPurpose,
 	type EvalFinding,
 	type EvalObservation,
@@ -39,6 +40,7 @@ import {
 	ROOT_EVAL_REPLICATE_COUNT,
 	ROOT_EVAL_TOPOLOGY_REVISION,
 	type RootEvalRunResult,
+	rootEvalMaximumObservationOccurrences,
 	rootEvalMaximumProviderAttempts,
 	rootEvalMaximumRetryAttempts,
 } from "./eval-topology.js";
@@ -70,6 +72,7 @@ import {
 	rootEvalDevelopmentOrdinal,
 	rootEvalDevelopmentTaskSetRef,
 } from "./root-eval-task.js";
+import { rootEvalBudgetReceipt, settledRootEvalSpend } from "./settled-spend.js";
 
 export const ROOT_EVAL_LIVE_PRICING_SOURCE =
 	"https://openrouter.ai/api/v1/models/deepseek/deepseek-v4-flash-0731/endpoints" as const;
@@ -81,7 +84,7 @@ export const ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_DECISION_REF = "graphrefly-ts
 export const ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_NAME =
 	"operator-configuration-d149.v1.json" as const;
 export const ROOT_EVAL_LIVE_CLAIM_SCHEMA = "graphrefly-ts.root-eval-live-claim.v21" as const;
-export const ROOT_EVAL_LIVE_EVIDENCE_SCHEMA = "graphrefly-ts.root-eval-live-evidence.v25" as const;
+export const ROOT_EVAL_LIVE_EVIDENCE_SCHEMA = "graphrefly-ts.root-eval-live-evidence.v26" as const;
 export const ROOT_EVAL_LIVE_PRECLAIM_FAILURE_SCHEMA =
 	"graphrefly-ts.root-eval-live-preclaim-failure.v21" as const;
 export const ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_SCHEMA =
@@ -438,6 +441,7 @@ class RootEvalLiveClaimCommitCapability implements RootEvalLiveClaimCommit {
 }
 
 export interface RootEvalLiveEvidence {
+	readonly budgetReceipt: EvalBudgetState | null;
 	readonly schemaVersion: typeof ROOT_EVAL_LIVE_EVIDENCE_SCHEMA;
 	readonly generationRef: typeof ROOT_EVAL_LIVE_GENERATION_REF;
 	readonly disposition: "success" | "partial-failure";
@@ -604,6 +608,8 @@ export interface RootEvalLiveAdmissionReport {
 }
 
 export interface RootEvalLiveEvidenceInput {
+	/** Independent Graph accounting egress; absent only when that egress failed or in a pure evidence fixture. */
+	readonly budgetReceipt?: EvalBudgetState | null;
 	readonly claim: RootEvalLiveClaim;
 	readonly currentKeyBefore: RootEvalLiveCurrentKeyAdmission | null;
 	readonly currentKeyAfter: RootEvalLiveCurrentKeyAdmission | null;
@@ -1950,7 +1956,9 @@ const ROOT_EVAL_LIVE_MAX_PROVIDER_ATTEMPTS = rootEvalMaximumProviderAttempts(
 const ROOT_EVAL_LIVE_MAX_RETRY_ATTEMPTS = rootEvalMaximumRetryAttempts(
 	ROOT_EVAL_LIVE_REPLICATE_COUNT,
 );
-const ROOT_EVAL_LIVE_OBSERVATION_RETENTION = 512 as const;
+const ROOT_EVAL_LIVE_OBSERVATION_RETENTION = rootEvalMaximumObservationOccurrences(
+	ROOT_EVAL_LIVE_REPLICATE_COUNT,
+);
 
 const ROOT_EVAL_MEMORY_PROVENANCE = Object.freeze({
 	cold: "none",
@@ -3277,8 +3285,18 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 		projected = projectRootEvalRunResult(graph);
 	} catch {
 		const shapeViolationCodes: RootEvalLiveSuccessViolationCode[] = ["success.graph-shape-invalid"];
-		if (graph.finding.replicateCount !== ROOT_EVAL_LIVE_REPLICATE_COUNT)
-			shapeViolationCodes.push("success.replicate-count-mismatch");
+		// Rejection must not dereference or invoke accessors on the rejected material.
+		try {
+			const finding = Object.getOwnPropertyDescriptor(graph, "finding")?.value;
+			const replicateCount =
+				finding === null || typeof finding !== "object"
+					? undefined
+					: Object.getOwnPropertyDescriptor(finding, "replicateCount")?.value;
+			if (replicateCount !== undefined && replicateCount !== ROOT_EVAL_LIVE_REPLICATE_COUNT)
+				shapeViolationCodes.push("success.replicate-count-mismatch");
+		} catch {
+			/* Hostile/missing diagnostic coordinates add no authority. */
+		}
 		return Object.freeze({
 			admissionReport: Object.freeze({
 				status: "rejected" as const,
@@ -3554,7 +3572,22 @@ export function constructRootEvalLiveEvidence(
 					})
 				: null;
 	const partialGraphObservations = projectPartialObservations(input.partialGraphObservations);
+	let budgetReceipt: EvalBudgetState | null = null;
+	try {
+		if (
+			input.budgetReceipt != null &&
+			settledRootEvalSpend({
+				budget: input.budgetReceipt,
+				providerCalls: input.providerCalls,
+				authorizedMaximumMicrousd: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
+			}).complete
+		)
+			budgetReceipt = rootEvalBudgetReceipt(input.budgetReceipt);
+	} catch {
+		/* Invalid receipt material is never persisted. */
+	}
 	const material = strictSnapshot({
+		budgetReceipt,
 		schemaVersion: ROOT_EVAL_LIVE_EVIDENCE_SCHEMA,
 		generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
 		disposition: admitted ? ("success" as const) : ("partial-failure" as const),
@@ -3591,6 +3624,7 @@ export function constructRootEvalLiveEvidence(
 }
 
 const EVIDENCE_KEYS = Object.freeze([
+	"budgetReceipt",
 	"schemaVersion",
 	"generationRef",
 	"disposition",
@@ -3915,6 +3949,17 @@ function validateAdmissionReport(value: unknown): RootEvalLiveAdmissionReport {
 function validateRootEvalLiveEvidenceForPersistence(value: RootEvalLiveEvidence): void {
 	const evidence = record(value, "root eval live evidence");
 	exactKeys(evidence, EVIDENCE_KEYS, "root eval live evidence");
+	if (value.budgetReceipt !== null) {
+		rootEvalBudgetReceipt(value.budgetReceipt);
+		if (
+			!settledRootEvalSpend({
+				budget: value.budgetReceipt,
+				providerCalls: value.providerCalls,
+				authorizedMaximumMicrousd: value.budgetReceipt.maxCostMicrousd,
+			}).complete
+		)
+			throw new TypeError("root eval live evidence budget receipt accounting invalid");
+	}
 	if (!validatesOwnDigest(evidence, "evidenceDigest"))
 		throw new TypeError("root eval live evidence digest invalid");
 	literal(
@@ -4314,7 +4359,7 @@ export async function persistRootEvalLiveEvidence(input: {
 	}
 	const bytes = strictJsonCodec.encode(evidence);
 	const generationRoot = join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF);
-	const target = join(generationRoot, "evidence.v25.json");
+	const target = join(generationRoot, "evidence.v26.json");
 	const existing = await open(target, constants.O_RDONLY | constants.O_NOFOLLOW).catch(
 		(error: unknown) => {
 			if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
@@ -4347,7 +4392,7 @@ export async function persistRootEvalLiveEvidence(input: {
 	await mkdir(stageRoot, { mode: 0o700 });
 	try {
 		await chmod(stageRoot, 0o700);
-		const stagedTarget = join(stageRoot, "evidence.v25.json");
+		const stagedTarget = join(stageRoot, "evidence.v26.json");
 		const writer = await open(
 			stagedTarget,
 			constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,

@@ -34,6 +34,7 @@ import {
 	ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS,
 	ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
 	ROOT_EVAL_REPLICATE_COUNT,
+	rootEvalMaximumObservationOccurrences,
 	rootEvalMaximumProviderAttempts,
 	runRootEval,
 	validateEvalEffectProposalAgainstWorkItemPlan,
@@ -318,6 +319,156 @@ function clone(snapshot: DescribeSnapshot): DescribeSnapshot {
 }
 
 describe("D140-qualified D122 one-root verification diagnostics", () => {
+	it("keeps Eval lifecycle flags factory-owned and ordinary no-output settlement implicit", () => {
+		const source = readFileSync(
+			new URL("../../evals/graph-native-rerun-avoidance/eval-topology.ts", import.meta.url),
+			"utf8",
+		);
+		expect(source).not.toMatch(/\bpartial\s*:\s*true/u);
+		const reviewedTimer = source.slice(
+			source.indexOf("const elapsedBudgetTimerSource"),
+			source.indexOf("const elapsedClockPullId"),
+		);
+		expect((source.match(/\[\["RESOLVED"\]\]/gu) ?? []).length).toBe(3);
+		expect((reviewedTimer.match(/\[\["RESOLVED"\]\]/gu) ?? []).length).toBe(3);
+	});
+	it("preserves every authored observation contribution at the full 175-call 140-retry bound", async () => {
+		const topology = createTopology();
+		type Contribution = { source: string; revision: number; digest: string; value: unknown };
+		const authored = new Map<string, string>();
+		const released = new Map<string, string>();
+		const arrivals = new Map<string, string>();
+		const counts: Record<string, number> = {};
+		const record = (path: string, payload: unknown) => {
+			const map =
+				path === "eval/observation/arrivals"
+					? arrivals
+					: /^eval\/observation\/input\/[^/]+\/released$/u.test(path)
+						? released
+						: /^eval\/observation\/input\/[^/]+$/u.test(path)
+							? authored
+							: null;
+			if (map === null) return;
+			for (const value of payload as readonly Contribution[]) {
+				expect(value.digest).toBe(empiricalStrictJsonDigest(value.value));
+				const id = `${value.source}:${value.revision}`;
+				if (map.has(id)) expect(map.get(id)).toBe(value.digest);
+				map.set(id, value.digest);
+			}
+		};
+		// observe() is live egress, not history replay. Immutable configuration
+		// may have been released while the topology installed its keepalives.
+		for (const node of topology.graph.describe().nodes)
+			if (node.value !== undefined) record(node.id, node.value);
+		const bootstrapIds = new Set(authored.keys());
+		const stop = topology.graph.observe().subscribe((event) => {
+			if (event.msg[0] === "DATA") record(event.path, event.msg[1]);
+		});
+		const base = twoPhaseExecutor({
+			onProvider(effect) {
+				if (effect.dispatchOrdinal <= 4)
+					return providerOutcome(effect, {
+						status: "retryable",
+						reason:
+							effect.dispatchOrdinal <= 3
+								? "http-capacity-retryable"
+								: "http-availability-retryable",
+						retryAfterMs: 0,
+						cleanupCompleted: true,
+						toolProposal: null,
+					});
+				return providerOutcome(effect);
+			},
+		});
+		try {
+			const result = await runRootEval(topology, async (effect) => {
+				counts[effect.kind] = (counts[effect.kind] ?? 0) + 1;
+				return base(effect);
+			});
+			expect(counts["eval-admitted-effect"]).toBe(175);
+			expect(counts["eval-admitted-retry-delay"]).toBe(140);
+			expect(counts["eval-admitted-tool-effect"]).toBe(35);
+			expect(counts["eval-admitted-billing-observation"]).toBeLessThanOrEqual(8);
+			expect([...released.entries()].sort()).toEqual([...authored.entries()].sort());
+			const liveEntries = (values: Map<string, string>) =>
+				[...values.entries()].filter(([id]) => !bootstrapIds.has(id)).sort();
+			expect(liveEntries(arrivals)).toEqual(liveEntries(authored));
+			const observations = result.observations
+				.map(materialFreeObservationValue)
+				.filter((value): value is EvalObservation => value !== undefined);
+			expect(observations.length).toBeLessThan(rootEvalMaximumObservationOccurrences(5));
+			expect(
+				new Set(observations.map((value) => value.verificationDiagnostics.completedWorkItems)),
+			).toEqual(new Set(Array.from({ length: 31 }, (_, index) => index)));
+			expect(observations.filter((value) => value.finding !== "pending")).toHaveLength(1);
+			expect(observations.at(-1)).toMatchObject({
+				activeAdmittedEffects: 0,
+				providerCallCount: 175,
+				replicate: 5,
+				completedArms: 6,
+			});
+		} finally {
+			stop();
+		}
+	}, 30_000);
+
+	it.each([
+		"conflict",
+		"skipped",
+	] as const)("keeps reordered exact observation replays quiet and rejects %s revisions without changing spend", async (violation) => {
+		const topology = createTopology();
+		const arrivals = topology.nodes.observation.deps[0]!.deps[0]!;
+		const contributions: { source: string; revision: number; digest: string; value: unknown }[] =
+			[];
+		const stopArrivals = arrivals.subscribe((message) => {
+			if (message[0] === "DATA") contributions.push(...(message[1] as typeof contributions));
+		});
+		const observations: unknown[] = [];
+		const rejections: unknown[] = [];
+		const stopObservations = topology.nodes.observation.subscribe((message) => {
+			if (message[0] === "DATA") observations.push(message[1]);
+		});
+		const stopRejections = topology.nodes.observationRejections.subscribe((message) => {
+			if (message[0] === "DATA") rejections.push(message[1]);
+		});
+		try {
+			await runRootEval(topology, twoPhaseExecutor());
+			const count = observations.length;
+			const before = JSON.stringify(topology.nodes.budgets.cache);
+			arrivals.down([["DATA", [...contributions].reverse()]]);
+			expect(observations).toHaveLength(count);
+			expect(rejections).toEqual([]);
+			const source = contributions.filter((event) => event.source === "diagnostics");
+			const last = source.at(-1)!;
+			const value =
+				violation === "conflict"
+					? { ...(last.value as object), completedWorkItems: -1 }
+					: last.value;
+			arrivals.down([
+				[
+					"DATA",
+					[
+						{
+							...last,
+							revision: violation === "conflict" ? last.revision : last.revision + 2,
+							value,
+							digest: empiricalStrictJsonDigest(value),
+						},
+					],
+				],
+			]);
+			expect(rejections).toHaveLength(1);
+			expect(rejections[0]).toMatchObject({
+				kind: "eval-observation-rejected",
+				code: "canonical-observation-invalid",
+			});
+			expect(JSON.stringify(topology.nodes.budgets.cache)).toBe(before);
+		} finally {
+			stopRejections();
+			stopObservations();
+			stopArrivals();
+		}
+	});
 	it("executes the D149 automatic precredential stage plan before live admission", async () => {
 		const cases = [
 			[
@@ -379,6 +530,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			terminalAuditDependency: true,
 		});
 		expect(raw.nodes.find((node) => node.id === "eval/findings/efficacy")?.meta).toEqual({
+			boundary: "complete-domain-data-only",
+			completeDomainOccurrence: true,
+			materialFree: true,
 			billingAuditAffectsConclusion: false,
 			semanticAuthority: "verification-diagnostics-stage-counts",
 		});
@@ -405,9 +559,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(raw.nodes).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ factory: "workItemExecutionRequestFacts" }),
-				expect.objectContaining({ factory: "agenticWorkItemMemoryBridgeOccurrence" }),
-				expect.objectContaining({ factory: "agenticMemoryRecordAdmissionOccurrence" }),
-				expect.objectContaining({ factory: "agenticMemoryRecordApplicationOccurrence" }),
+				expect.objectContaining({ factory: "agenticWorkItemMemoryBridge" }),
+				expect.objectContaining({ factory: "agenticMemoryRecordAdmission" }),
+				expect.objectContaining({ factory: "agenticMemoryRecordApplication" }),
 				expect.objectContaining({ factory: "agenticMemoryRecordUseGate" }),
 			]),
 		);
@@ -700,6 +854,11 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"runtime/packages/ts/src/solutions/work-item/index.ts",
 			"runtime/packages/ts/src/solutions/agentic-memory/index.ts",
 			"runtime/packages/ts/src/solutions/agentic-work-item-memory-application/index.ts",
+			"focused-async-adapters.ts",
+			"http-transport-leaf.ts",
+			"private-diagnostic-sink.ts",
+			"quiet-data-boundary.ts",
+			"settled-spend.ts",
 			"recover-d145-interrupted-campaign.ts",
 			"recover-d145-source-failure.ts",
 			"rollover-d145-charter-ledger.ts",
@@ -726,7 +885,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(ROOT_EVAL_LIVE_GENERATION_REF).toBe("root-eval-development-2026-09-01-d152-v1");
 		expect(ROOT_EVAL_LIVE_CLAIM_REF).toBe("root-eval-development-claim-2026-09-01-d152-v1");
 		expect(ROOT_EVAL_LIVE_CLAIM_SCHEMA).toBe("graphrefly-ts.root-eval-live-claim.v21");
-		expect(ROOT_EVAL_LIVE_EVIDENCE_SCHEMA).toBe("graphrefly-ts.root-eval-live-evidence.v25");
+		expect(ROOT_EVAL_LIVE_EVIDENCE_SCHEMA).toBe("graphrefly-ts.root-eval-live-evidence.v26");
 		expect(ROOT_EVAL_LIVE_PRECLAIM_FAILURE_SCHEMA).toBe(
 			"graphrefly-ts.root-eval-live-preclaim-failure.v21",
 		);
@@ -734,16 +893,16 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"graphrefly-ts.root-eval-live-precredential-gates.v6",
 		);
 		expect(ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-no-network-qa.v44",
+			"graphrefly-ts.root-eval-live-no-network-qa.v45",
 		);
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-qualification.v44",
+			"graphrefly-ts.root-eval-live-qualification.v45",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-no-network-qa.v38",
+			"graphrefly-ts.root-eval-topology-no-network-qa.v39",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-qualification.v38",
+			"graphrefly-ts.root-eval-topology-qualification.v39",
 		);
 		expect(ROOT_EVAL_LIVE_GENERATION_REF).not.toContain("d116");
 		expect(ROOT_EVAL_LIVE_CLAIM_REF).not.toContain("d116");
@@ -905,11 +1064,11 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			precredentialGateChronologyExecutionApprovalRef: "graphrefly-ts:D138",
 			currentLiveExecutionApprovalClosed: true,
 			callerHorizonDecisionRequired: false,
-			status: "no-network-exact-use-qualified-architecture-migration-incomplete",
+			status: "no-network-occurrence-architecture-qualified",
 			occurrenceAwareSolutionDeliveryDecisionRef: "graphrefly-ts:D151",
 			orthogonalMechanismFamilyDecisionRef: "graphrefly-ts:D152",
 		});
-		expect(ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.architectureMigration.complete).toBe(false);
+		expect(ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.architectureMigration.complete).toBe(true);
 		expect(CURRENT_QUALIFICATION_ARTIFACT_DIGEST).toBe(
 			ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT_DIGEST,
 		);
@@ -925,8 +1084,8 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		);
 		expect(source).not.toMatch(/WeakMap|applyFact|imperativeQueue|pendingEffectsQueue/u);
 		expect(source).not.toMatch(/setTimeout\([^)]*,\s*0\s*\)/u);
-		expect(source.match(/ctx\.down\(\[\["RESOLVED"\]\]\)/gu)).toHaveLength(4);
-		expect(source.match(/if \(!emitted\) ctx\.down\(\[\["RESOLVED"\]\]\)/gu)).toHaveLength(1);
+		expect(source.match(/ctx\.down\(\[\["RESOLVED"\]\]\)/gu)).toHaveLength(3);
+		expect(source).not.toMatch(/if \(!emitted\) ctx\.down\(\[\["RESOLVED"\]\]\)/u);
 		expect(source).toContain("admitRootEvalOccurrence");
 		expect(source).toMatch(/owner\.initNode\(\s*merge<EvalAdmittedEffect>\(\)/u);
 		const liveEntry = readFileSync(
@@ -1141,6 +1300,8 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			.split("\n")
 			.map((line) => JSON.parse(line) as Record<string, unknown>);
 		const observationPaths = [
+			"eval/observation/arrivals",
+			"eval/observation/canonical-state",
 			"eval/observation/provider-effect-activity",
 			"eval/observation/tool-effect-activity",
 			"eval/observation/retry-effect-activity",
@@ -1456,7 +1617,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(() => assertRootEvalTopologyContract(mounted)).toThrow(/hidden or mounted Graph/u);
 		const duplicatedLifecycle = clone(raw);
 		const admission = duplicatedLifecycle.nodes.find(
-			(node) => node.factory === "agenticMemoryRecordAdmissionOccurrence",
+			(node) => node.factory === "agenticMemoryRecordAdmission",
 		);
 		if (admission === undefined) throw new Error("missing memory admission fixture node");
 		duplicatedLifecycle.nodes.push({ ...admission, id: `${admission.id}/duplicate` });
@@ -3135,89 +3296,22 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 	it("continues unaffected replicates after a source technical exclusion without simulating target cleanup", async () => {
 		const targetEffects: EvalExecutableEffect[] = [];
 		const topology = createTopology();
-		const debugEvents: { path: string; type: string; value?: unknown }[] = [];
-		const stopDebug = topology.graph
-			.observe()
-			.subscribe((event) =>
-				debugEvents.push({ path: event.path, type: event.msg[0], value: event.msg[1] }),
-			);
-		const controller = new AbortController();
-		const debugTimer = setTimeout(() => controller.abort(new Error("debug-timeout")), 1_500);
-		let result: Awaited<ReturnType<typeof topology.runAdmittedEffects>>;
-		try {
-			result = await topology.runAdmittedEffects(
-				twoPhaseExecutor({
-					onProvider(effect) {
-						if (effect.workItemRole === "target") targetEffects.push(effect);
-						if (effect.workItemRole !== "source" || effect.replicate !== 2)
-							return providerOutcome(effect);
-						return providerOutcome(effect, {
-							status: "failed",
-							reason: "transport-failed",
-							cleanupCompleted: true,
-							toolProposal: null,
-						});
-					},
-				}),
-				{ signal: controller.signal },
-			);
-		} catch (error) {
-			const counts = Object.fromEntries(
-				[
-					"eval/provider/result-admission",
-					"eval/provider/failed-result-admission",
-					"eval/tool/exact-admission",
-					"eval/source-work-item/terminal-fact",
-					"eval/source-work-item/outcome-evidence-verification",
-					"eval/source-work-item/memory-handoff-candidate",
-					"eval/source-work-item/memory-handoff-decision",
-					"eval/source-work-item/memory-handoff/correlation",
-					"eval/source-work-item/memory-handoff/admitted",
-					"eval/source-work-item/memory-handoff/accepted",
-					"eval/source-work-item/memory-handoff/release-controller",
-					"eval/source-work-item/memory-handoff/rejected",
-					"eval/campaign/replicate-controller",
-					"eval/campaign/state",
-				].map((path) => [
-					path,
-					debugEvents.filter((event) => event.path === path && event.type === "DATA").length,
-				]),
-			);
-			const lastBudget = debugEvents
-				.filter((event) => event.path === "eval/budget/state" && event.type === "DATA")
-				.at(-1)?.value;
-			const errors = debugEvents.filter((event) => event.type === "ERROR");
-			const traces = debugEvents
-				.filter((event) =>
-					[
-						"eval/source-work-item/outcome-evidence-verification",
-						"eval/campaign/replicate-controller",
-						"eval/campaign/replicate-batches",
-						"eval/memory/six-arm-batch-candidate",
-						"eval/memory/six-arm-source-readiness-decision",
-						"eval/provider/result-admission",
-						"eval/provider/failed-result-admission",
-						"eval/tool/exact-admission",
-						"eval/source-work-item/terminal-outcomes",
-						"eval/source-work-item/reconciliation",
-						"eval/budget/state",
-						"eval/executor/provider-effect-lifecycle-registry",
-					].includes(event.path),
-				)
-				.map((event) => `${event.path}:${event.type}`)
-				.slice(-80);
-			const lastByPath = new Map<string, string>();
-			for (const event of debugEvents) lastByPath.set(event.path, event.type);
-			const unresolved = [...lastByPath]
-				.filter(([, type]) => type === "DIRTY")
-				.map(([path]) => path);
-			throw new Error(
-				`${String(error)} ${JSON.stringify({ counts, lastBudget, errors, traces, unresolved })}`,
-			);
-		} finally {
-			clearTimeout(debugTimer);
-			stopDebug();
-		}
+
+		const result = await topology.runAdmittedEffects(
+			twoPhaseExecutor({
+				onProvider(effect) {
+					if (effect.workItemRole === "target") targetEffects.push(effect);
+					if (effect.workItemRole !== "source" || effect.replicate !== 2)
+						return providerOutcome(effect);
+					return providerOutcome(effect, {
+						status: "failed",
+						reason: "transport-failed",
+						cleanupCompleted: true,
+						toolProposal: null,
+					});
+				},
+			}),
+		);
 		expect(targetEffects).toHaveLength(18);
 		expect(targetEffects.some((effect) => effect.replicate === 1 || effect.replicate === 2)).toBe(
 			false,
@@ -3231,6 +3325,40 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		});
 		for (const arm of HARNESS_ARMS)
 			expect(result.finding.verificationDiagnostics.stageCounts[arm].completedWorkItems).toBe(3);
+	});
+
+	it("keeps the entire target verification lifecycle quiet when every source is technically excluded", async () => {
+		const topology = createTopology();
+		const targetMessages: string[] = [];
+		const stop = topology.graph
+			.observe("eval/verification/diff")
+			.subscribe((event) => targetMessages.push(event.msg[0]));
+		try {
+			const result = await runRootEval(
+				topology,
+				twoPhaseExecutor({
+					onProvider(effect) {
+						expect(effect.workItemRole).toBe("source");
+						return providerOutcome(effect, {
+							status: "failed",
+							reason: "transport-failed",
+							cleanupCompleted: true,
+							toolProposal: null,
+						});
+					},
+				}),
+			);
+			expect(result.finding).toMatchObject({
+				completedWorkItems: 0,
+				evaluableReplicates: 0,
+				sourceTechnicalExcludedReplicates: [1, 2, 3, 4, 5],
+				finding: "operationally-inconclusive",
+			});
+			expect(targetMessages).not.toContain("DIRTY");
+			expect(targetMessages).not.toContain("DATA");
+		} finally {
+			stop();
+		}
 	});
 
 	it("keeps Graph-native spend observable when source verification fails closed", async () => {
@@ -3441,6 +3569,20 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		const afterFirst = diagnostics.length;
 		topology.nodes.cleanup.down([["DATA", fact]]);
 		expect(diagnostics).toHaveLength(afterFirst);
+		const batched = HARNESS_ARMS.slice(1, 3).map((arm) =>
+			Object.freeze({
+				...fact,
+				arm,
+				workItemId: `${topology.campaignRef}/replicate-1/${arm}`,
+				resultDigest: empiricalStrictJsonDigest({ result: arm }),
+			}),
+		);
+		topology.nodes.cleanup.down(batched.map((value) => ["DATA", value]));
+		expect(
+			diagnostics
+				.slice(afterFirst)
+				.map((value) => (value as { completedWorkItems: number }).completedWorkItems),
+		).toEqual([2, 3]);
 		expect(() =>
 			topology.nodes.cleanup.down([
 				[

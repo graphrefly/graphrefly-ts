@@ -7,6 +7,7 @@ import { empiricalStrictJsonDigest } from "./canonical.js";
 import { createCurrentExactModelHarnessProfileInput } from "./current-exact-profile.js";
 import {
 	createRootEvalTopology,
+	type EvalBudgetState,
 	type EvalCurrentKeySnapshot,
 	materialFreeObservationValue,
 	type RootEvalRunResult,
@@ -19,10 +20,7 @@ import {
 	measureCurrentImplementation,
 } from "./implementation-manifest.js";
 import { runRootEvalPrecredentialStagePlan } from "./precredential-stage-coordinator.js";
-import {
-	latestRootEvalGraphSpend,
-	readRootEvalD145CharterLedger,
-} from "./root-eval-charter-ledger.js";
+import { readRootEvalD145CharterLedger } from "./root-eval-charter-ledger.js";
 import {
 	advanceRootEvalD152Ledger,
 	commitRootEvalD152Transaction,
@@ -74,6 +72,7 @@ import {
 	rootEvalTaskBindings,
 } from "./root-eval-task.js";
 import { ensureRootEvalDevelopmentTaskManifest } from "./root-eval-task-manifest-store.js";
+import { settledRootEvalSpend } from "./settled-spend.js";
 
 export const ROOT_EVAL_LIVE_EXECUTION_APPROVAL =
 	"user-authorized:d152-development-1:usd-12:development-usd-36" as const;
@@ -369,6 +368,7 @@ async function persistPreclaimFailure(failure: unknown): Promise<never> {
 }
 
 async function persistClaimedEvidence(input: {
+	readonly budgetReceipt: EvalBudgetState | null;
 	readonly claim: RootEvalLiveClaim;
 	readonly pricing: RootEvalLivePricingObservation;
 	readonly zeroByok: RootEvalLiveZeroByokObservation;
@@ -381,40 +381,37 @@ async function persistClaimedEvidence(input: {
 	readonly cleanupDisposition: "complete" | "failed";
 	readonly charterLedger: RootEvalD152Ledger;
 }): Promise<void> {
-	const evidence = constructRootEvalLiveEvidence(input);
+	const conservativeSpend = settledRootEvalSpend({
+		budget: input.budgetReceipt,
+		providerCalls: input.providerCalls,
+		authorizedMaximumMicrousd: Math.min(
+			input.claim.campaignHardCapMicrousd,
+			input.claim.partitionHardCapMicrousd - input.claim.partitionSpentBeforeMicrousd,
+		),
+	});
+	const evidence = constructRootEvalLiveEvidence({
+		...input,
+		failure:
+			input.failure ??
+			(conservativeSpend.complete
+				? null
+				: new Error("independent Graph budget receipt unavailable")),
+	});
 	if (input.charterLedger.ledgerDigest !== input.claim.partitionLedgerDigest)
 		throw new TypeError("root eval D152 claim and charter ledger drifted before commit");
-	const observationValues = [
-		...(input.graphResult?.observations ?? []),
-		...input.partialGraphObservations,
-	]
-		.map(materialFreeObservationValue)
-		.filter((value) => value !== undefined);
-	if (input.providerCalls > 0 && observationValues.length === 0)
-		throw new TypeError("root eval D152 provider spend lacked Graph-visible usage authority");
-	const conservativeSpend = latestRootEvalGraphSpend([
-		...observationValues.map((observation) => ({
-			providerReportedMicrousd: observation.providerReportedMicrousd,
-			unreportedSettledUpperBoundMicrousd: observation.unreportedSettledUpperBoundMicrousd,
-			activeReservedMicrousd: observation.activeReservedMicrousd,
-		})),
-		...(input.graphResult === null
-			? []
-			: [
-					{
-						providerReportedMicrousd: input.graphResult.finding.providerReportedMicrousd,
-						unreportedSettledUpperBoundMicrousd:
-							input.graphResult.finding.unreportedSettledUpperBoundMicrousd,
-						activeReservedMicrousd: input.graphResult.finding.activeReservedMicrousd,
-					},
-				]),
-	]);
-	const { providerReportedMicrousd, unreportedSettledUpperBoundMicrousd } = conservativeSpend;
-	const accountedUpperBoundMicrousd =
-		providerReportedMicrousd + unreportedSettledUpperBoundMicrousd;
-	const terminalQualification = observationValues
-		.filter((observation) => observation.finding !== "pending")
-		.at(-1)?.developmentQualification;
+	const {
+		providerReportedMicrousd,
+		unreportedSettledUpperBoundMicrousd,
+		accountedUpperBoundMicrousd,
+	} = conservativeSpend;
+	const terminalQualification =
+		evidence.admissionReport.status === "admitted"
+			? evidence.graphResult?.observations
+					.map(materialFreeObservationValue)
+					.filter((value) => value?.finding !== "pending")
+					.at(-1)?.developmentQualification
+			: null;
+
 	const nextLedger = advanceRootEvalD152Ledger({
 		ledger: input.charterLedger,
 		generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
@@ -486,6 +483,8 @@ async function executeClaimedCampaign(input: {
 	const partialGraphObservations: ObserveEvent[] = [];
 	let executor: RootEvalLiveExecutor | null = null;
 	let stopObservation: () => void = () => undefined;
+	let stopBudget: () => void = () => undefined;
+	let budgetReceipt: EvalBudgetState | null = null;
 	const callerCancellation = new AbortController();
 	const processSignalHandlers = new Map<NodeJS.Signals, () => void>();
 	for (const signal of ["SIGHUP", "SIGINT", "SIGTERM"] as const) {
@@ -527,6 +526,9 @@ async function executeClaimedCampaign(input: {
 			),
 			reservationMicrousd: 200_000,
 		});
+		stopBudget = topology.nodes.budgets.subscribe((message) => {
+			if (message[0] === "DATA") budgetReceipt = message[1] as EvalBudgetState;
+		});
 		stopObservation = topology.graph.observe("eval/observation").subscribe((event) => {
 			partialGraphObservations.push(event);
 			const observation = materialFreeObservationValue(event);
@@ -534,6 +536,7 @@ async function executeClaimedCampaign(input: {
 				process.stderr.write(`${JSON.stringify({ stream: "graph-progress", observation })}\n`);
 		});
 		executor = createRootEvalLiveExecutor({
+			graph: topology.graph,
 			repositoryRoot,
 			materializationRoot: join(privateRoot, ".workspaces"),
 			privateRoot,
@@ -596,6 +599,7 @@ async function executeClaimedCampaign(input: {
 		}
 	try {
 		await persistClaimedEvidence({
+			budgetReceipt,
 			claim,
 			currentKeyBefore: input.currentKeyBefore,
 			currentKeyAfter,
@@ -609,6 +613,7 @@ async function executeClaimedCampaign(input: {
 			charterLedger: input.charterLedger,
 		});
 	} finally {
+		stopBudget();
 		for (const [signal, handler] of processSignalHandlers) process.off(signal, handler);
 	}
 }

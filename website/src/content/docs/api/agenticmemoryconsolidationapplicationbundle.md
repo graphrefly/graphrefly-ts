@@ -42,6 +42,10 @@ A bundle of graph-visible nodes for the recipe.
 import { agenticMemoryConsolidationApplicationBundle } from "@graphrefly/ts/solutions";
 ```
 
+## Remarks
+
+- D151: each input DATA is one complete identity/revision/digest/source-refs occurrence. Policy and prior records travel in its value, never independent latest-value dependencies. Outputs preserve that identity; replay conflicts and retention overflow fail closed. The fixed recipe topology is retained for its graph lifetime; input snapshots are bounded by maxOccurrences, not a claim that one protocol wave is one business occurrence.
+
 ## Source
 
 `packages/ts/src/solutions/agentic-memory/consolidation-application.ts`

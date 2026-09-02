@@ -1,6 +1,6 @@
 {
 	"artifact": {
-		"schemaVersion": "graphrefly-ts.root-eval-topology-no-network-qa.v38",
+		"schemaVersion": "graphrefly-ts.root-eval-topology-no-network-qa.v39",
 		"decisionRefs": [
 			"graphrefly-ts:D76",
 			"graphrefly-ts:D77",
@@ -61,10 +61,11 @@
 			"graphrefly-ts:D150",
 			"graphrefly-ts:D151",
 			"graphrefly-ts:D152",
+			"graphrefly-ts:D153",
 			"graphrefly:D789"
 		],
 		"topologyRevision": "graphrefly-ts.root-eval-topology.v21",
-		"implementationManifestDigest": "sha256:638ec8416602abff47a3023f2346f15650220bc7b7f20ce44cb9ee69fe566142",
+		"implementationManifestDigest": "sha256:16315fee563d167faa80e271c26d57296c7252df139c34f719cfff8332818432",
 		"rootGraphs": 1,
 		"mounts": 0,
 		"replicates": 5,
@@ -76,9 +77,14 @@
 			"irrelevant-applied",
 			"wrong-scope-applied"
 		],
-		"requiredNodeCount": 141,
-		"criticalEdgeCount": 221,
+		"requiredNodeCount": 261,
+		"criticalEdgeCount": 357,
 		"caseResults": {
+			"exactRealSolutionOccurrenceComposition": "passed",
+			"initialMultiDataRecipeConservation": "passed",
+			"noEvalPartialOverridesAndReviewedTimerSettlementOnly": "passed",
+			"full175Call140RetryContributionConservation": "passed",
+			"canonicalReplayConflictFaultIsolation": "passed",
 			"workItemAndExactUsePublicBundleComposition": "passed",
 			"d789ExactUsePermissionIsolationAndHostileInputs": "passed",
 			"d789ImmutableProvenanceAndNoRawRecordBypass": "passed",
@@ -209,20 +215,16 @@
 		},
 		"providerNetworkAccessed": false,
 		"architectureMigration": {
-			"complete": false,
+			"complete": true,
 			"publicExactUseGate": "migrated",
-			"remaining": [
-				"public-bridge-admission-application-occurrence-lifecycles",
-				"canonical-observation-validation-and-cleanup-fault-isolation",
-				"focused-async-executor-compatibility-and-reuse"
-			]
+			"remaining": []
 		},
 		"credentialAccessed": false,
 		"liveEvaluationExecuted": false
 	},
-	"artifactDigest": "sha256:2ab88931f96d41f56d19705271e96af2e3d373117b483062ea793af2c68a0530",
+	"artifactDigest": "sha256:3491f6fbfa469b8a9b479cedd0d4600084afeaa53b83513ccea8dd7cd4721196",
 	"qualification": {
-		"schemaVersion": "graphrefly-ts.root-eval-topology-qualification.v38",
+		"schemaVersion": "graphrefly-ts.root-eval-topology-qualification.v39",
 		"decisionRef": "graphrefly-ts:D151",
 		"executionApprovalRef": "user-authorized-no-network-d151-d152-2026-09-01",
 		"verificationDiagnosticsImplementationReceiptRef": "graphrefly-ts:D120",
@@ -271,17 +273,17 @@
 		"structuredProposalRef": "graphrefly-ts:D87",
 		"structuredProposalExecutionApprovalRef": "graphrefly-ts:D88",
 		"responseHorizonIncidentClosureRef": "graphrefly-ts:D93",
-		"implementationManifestDigest": "sha256:638ec8416602abff47a3023f2346f15650220bc7b7f20ce44cb9ee69fe566142",
-		"qualificationArtifactDigest": "sha256:2ab88931f96d41f56d19705271e96af2e3d373117b483062ea793af2c68a0530",
-		"status": "no-network-exact-use-qualified-architecture-migration-incomplete",
-		"qualificationDigest": "sha256:9fb6ef54e4e2272b16e4176104afc6d458f8a8ff04fa9a13e31bd85699729462"
+		"implementationManifestDigest": "sha256:16315fee563d167faa80e271c26d57296c7252df139c34f719cfff8332818432",
+		"qualificationArtifactDigest": "sha256:3491f6fbfa469b8a9b479cedd0d4600084afeaa53b83513ccea8dd7cd4721196",
+		"status": "no-network-occurrence-architecture-qualified",
+		"qualificationDigest": "sha256:41f4825751f05339ab69a1bef85f80ddfa7c867c3160f35656a272ca38e37803"
 	},
-	"measuredImplementationManifestDigest": "sha256:638ec8416602abff47a3023f2346f15650220bc7b7f20ce44cb9ee69fe566142",
+	"measuredImplementationManifestDigest": "sha256:16315fee563d167faa80e271c26d57296c7252df139c34f719cfff8332818432",
 	"evidenceDigests": {
-		"describe": "sha256:1b83fc36d28eb8c7e80e3bb9ad6dbc3e0b92779142e0da7dc59b84425a841709",
-		"observeEvents": "sha256:127fe02b7c776b373cdcb95867ba2cc9a46ea0460a8ef24c7442ef34c9eb5d54",
+		"describe": "sha256:13e875ce923668b8a74eb08c0872c44ea4876a4d158e550b13bfe6fa23235118",
+		"observeEvents": "sha256:9e936188e388d5bee00ae75bb80f1eeafd9dcdb0f1e9d56ce438c617223f98f7",
 		"runSummary": "sha256:344d2f0d091f966a4bc4eb4149c3cfec1f227a1a6c8c087a7cc745ee5d902052",
-		"explanatoryMermaid": "sha256:601ad0b245549c27dc2015ef9adb5f3c299cdc8c428c07ef398583950d072a06"
+		"explanatoryMermaid": "sha256:a5fd51116b737cb33a58152b114d023191d43253cd357ef53987426e194c0049"
 	},
-	"evidenceBindingDigest": "sha256:e7026f5db2ac52da530b9f62b0782930cc3e8eeb29425a2df9eaaa2c6968d102"
+	"evidenceBindingDigest": "sha256:767f58f04642e80c8ec738971113d5e2c86afa9fe061ee777dad982dad1083d9"
 }

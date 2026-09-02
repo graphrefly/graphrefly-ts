@@ -180,7 +180,7 @@
 			"name": "eval/profile/qualified-catalog",
 			"value": {
 				"requestedTargetRef": "model-target.deepseek-v4-flash-0731",
-				"currentImplementationManifestDigest": "sha256:638ec8416602abff47a3023f2346f15650220bc7b7f20ce44cb9ee69fe566142",
+				"currentImplementationManifestDigest": "sha256:16315fee563d167faa80e271c26d57296c7252df139c34f719cfff8332818432",
 				"targets": [
 					{
 						"modelRef": "deepseek/deepseek-v4-flash-0731",
@@ -229,19 +229,19 @@
 						"bindingDigest": "sha256:2163c9f0da40a602408c54076cd5eb81a43d6154467a233b1d5d5dd56d2b388d",
 						"bindingRef": "provider-binding.fireworks-structured-chat.v2",
 						"credentialAccessed": false,
-						"implementationManifestDigest": "sha256:638ec8416602abff47a3023f2346f15650220bc7b7f20ce44cb9ee69fe566142",
+						"implementationManifestDigest": "sha256:16315fee563d167faa80e271c26d57296c7252df139c34f719cfff8332818432",
 						"liveEvaluationExecuted": false,
 						"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 						"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
 						"providerNetworkAccessed": false,
-						"qualificationArtifactDigest": "sha256:0332a7186b0caab5c12dad05134af3a9df66b6e741c359f255ff8ddea6028b44",
+						"qualificationArtifactDigest": "sha256:41cc127f567132787aa04f310e96b63ef398cbaa6dd3d5edd0a23f65395e42f9",
 						"qualificationMode": "injected-no-network",
 						"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 						"qualified": true,
 						"schemaVersion": "graphrefly-ts.profile-qualification.v1",
 						"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 						"targetRef": "model-target.deepseek-v4-flash-0731",
-						"qualificationDigest": "sha256:95d202772908eb0d84745994ee2fdf5594ee354c3b3b876275cc03a2c3c3497d"
+						"qualificationDigest": "sha256:fc42a9098f5b0eb6d743c6fc7c77f1cc1e199b05c1ccbc61fb5e7e7d8c367305"
 					}
 				]
 			},
@@ -271,28 +271,28 @@
 					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
 					"decisionRef": "graphrefly-ts:D96",
 					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
-					"implementationManifestDigest": "sha256:638ec8416602abff47a3023f2346f15650220bc7b7f20ce44cb9ee69fe566142",
+					"implementationManifestDigest": "sha256:16315fee563d167faa80e271c26d57296c7252df139c34f719cfff8332818432",
 					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
-					"qualificationDigest": "sha256:95d202772908eb0d84745994ee2fdf5594ee354c3b3b876275cc03a2c3c3497d",
+					"qualificationDigest": "sha256:fc42a9098f5b0eb6d743c6fc7c77f1cc1e199b05c1ccbc61fb5e7e7d8c367305",
 					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 					"reasonCode": "root-graph-exact-profile-current",
 					"schemaVersion": "graphrefly-ts.current-profile-eligibility.v1",
 					"status": "eligible",
 					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 					"targetRef": "model-target.deepseek-v4-flash-0731",
-					"eligibilityDigest": "sha256:a96a670581b1b7561bb5a8d0893974c56cc7560a3edf60cf4f973a058660612c"
+					"eligibilityDigest": "sha256:788f447042b622020da787853e2f278c0e8f58c433ef531d5805de2c3c2b9901"
 				},
 				"resolution": {
 					"bindingDigest": "sha256:2163c9f0da40a602408c54076cd5eb81a43d6154467a233b1d5d5dd56d2b388d",
 					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
-					"eligibilityDigest": "sha256:a96a670581b1b7561bb5a8d0893974c56cc7560a3edf60cf4f973a058660612c",
+					"eligibilityDigest": "sha256:788f447042b622020da787853e2f278c0e8f58c433ef531d5805de2c3c2b9901",
 					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
-					"implementationManifestDigest": "sha256:638ec8416602abff47a3023f2346f15650220bc7b7f20ce44cb9ee69fe566142",
+					"implementationManifestDigest": "sha256:16315fee563d167faa80e271c26d57296c7252df139c34f719cfff8332818432",
 					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
 					"providerRef": "fireworks",
-					"qualificationDigest": "sha256:95d202772908eb0d84745994ee2fdf5594ee354c3b3b876275cc03a2c3c3497d",
+					"qualificationDigest": "sha256:fc42a9098f5b0eb6d743c6fc7c77f1cc1e199b05c1ccbc61fb5e7e7d8c367305",
 					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 					"requestedTargetRef": "model-target.deepseek-v4-flash-0731",
 					"resolverRevision": "graphrefly-ts.profile-resolver.v1",
@@ -300,7 +300,7 @@
 					"status": "eligible",
 					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 					"targetRef": "model-target.deepseek-v4-flash-0731",
-					"resolutionDigest": "sha256:dd57b56323808dfceb2193f366535f91c55109af260ebad4d9c463f0f31e7956"
+					"resolutionDigest": "sha256:5287f32c88e54bcf8afe2dbaad089c763f12ac991ca795299bf6a698de859889"
 				},
 				"profile": {
 					"enhancementRecipes": [
@@ -427,6 +427,33 @@
 			}
 		},
 		{
+			"id": "eval/time/elapsed-budget/clock-release-events",
+			"factory": "merge",
+			"status": "sentinel",
+			"deps": [
+				"eval/time/elapsed-budget/timer-source",
+				"eval/time/elapsed-budget/clock"
+			],
+			"name": "eval/time/elapsed-budget/clock-release-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/time/elapsed-budget/clock-release-controller",
+			"factory": "rootEvalElapsedClockReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/time/elapsed-budget/clock-release-events"
+			],
+			"name": "eval/time/elapsed-budget/clock-release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
 			"id": "eval/time/elapsed-budget/readiness/runtime",
 			"factory": "scheduledReadinessProjector",
 			"status": "sentinel",
@@ -532,12 +559,25 @@
 			}
 		},
 		{
-			"id": "eval/time/elapsed-budget/state",
-			"factory": "rootEvalElapsedBudgetState",
+			"id": "eval/time/elapsed-budget/events",
+			"factory": "merge",
 			"status": "sentinel",
 			"deps": [
 				"eval/time/elapsed-budget/schedule",
 				"eval/time/elapsed-budget/readiness/ready"
+			],
+			"name": "eval/time/elapsed-budget/events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/time/elapsed-budget/state",
+			"factory": "rootEvalElapsedBudgetState",
+			"status": "sentinel",
+			"deps": [
+				"eval/time/elapsed-budget/events"
 			],
 			"name": "eval/time/elapsed-budget/state",
 			"version": {
@@ -662,14 +702,27 @@
 			}
 		},
 		{
-			"id": "eval/provider/result-status-release-controller",
-			"factory": "rootEvalProviderResultStatusReleaseController",
+			"id": "eval/provider/result-status-release-events",
+			"factory": "merge",
 			"status": "sentinel",
 			"deps": [
 				"eval/provider/all-result-admissions",
 				"eval/provider/result-admission",
 				"eval/provider/failed-result-admission",
 				"eval/provider/retryable-result-admission"
+			],
+			"name": "eval/provider/result-status-release-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/provider/result-status-release-controller",
+			"factory": "rootEvalProviderResultStatusReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/provider/result-status-release-events"
 			],
 			"name": "eval/provider/result-status-release-controller",
 			"version": {
@@ -681,13 +734,26 @@
 			}
 		},
 		{
-			"id": "eval/provider/result-batches",
-			"factory": "rootEvalProviderOutcomeBatches",
+			"id": "eval/provider/result-batch-events",
+			"factory": "merge",
 			"status": "sentinel",
 			"deps": [
 				"eval/provider/result-admission",
 				"eval/provider/failed-result-admission",
 				"eval/provider/retryable-result-admission"
+			],
+			"name": "eval/provider/result-batch-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/provider/result-batches",
+			"factory": "rootEvalProviderOutcomeBatches",
+			"status": "sentinel",
+			"deps": [
+				"eval/provider/result-batch-events"
 			],
 			"name": "eval/provider/result-batches",
 			"version": {
@@ -738,7 +804,7 @@
 		},
 		{
 			"id": "eval/tool/all-result-inputs",
-			"factory": "rootEvalAllExactToolResults",
+			"factory": "merge",
 			"status": "sentinel",
 			"deps": [
 				"eval/source-work-item/tool-result-input",
@@ -779,14 +845,68 @@
 			}
 		},
 		{
-			"id": "eval/effect/terminal-outcomes",
-			"factory": "rootEvalTerminalOutcomes",
+			"id": "eval/effect/terminal-outcomes/inputs",
+			"factory": "merge",
 			"status": "sentinel",
 			"deps": [
 				"eval/provider/failed-result-admission",
 				"eval/tool/result-input"
 			],
+			"name": "eval/effect/terminal-outcomes/inputs",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/effect/terminal-outcomes",
+			"factory": "rootEvalTerminalOutcomes",
+			"status": "sentinel",
+			"deps": [
+				"eval/effect/terminal-outcomes/inputs"
+			],
 			"name": "eval/effect/terminal-outcomes",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/effect/terminal-outcomes/release-events",
+			"factory": "merge",
+			"status": "sentinel",
+			"deps": [
+				"eval/effect/terminal-outcomes/inputs",
+				"eval/effect/terminal-outcomes"
+			],
+			"name": "eval/effect/terminal-outcomes/release-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/effect/terminal-outcomes/release-controller",
+			"factory": "rootEvalTerminalOutcomeReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/effect/terminal-outcomes/release-events"
+			],
+			"name": "eval/effect/terminal-outcomes/release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/source-work-item/terminal-outcomes/inputs",
+			"factory": "merge",
+			"status": "sentinel",
+			"deps": [
+				"eval/provider/failed-result-admission",
+				"eval/source-work-item/tool-result-input"
+			],
+			"name": "eval/source-work-item/terminal-outcomes/inputs",
 			"version": {
 				"level": 0,
 				"counter": 0
@@ -797,10 +917,36 @@
 			"factory": "rootEvalSourceTerminalOutcomes",
 			"status": "sentinel",
 			"deps": [
-				"eval/provider/failed-result-admission",
-				"eval/source-work-item/tool-result-input"
+				"eval/source-work-item/terminal-outcomes/inputs"
 			],
 			"name": "eval/source-work-item/terminal-outcomes",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/source-work-item/terminal-outcomes/release-events",
+			"factory": "merge",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/terminal-outcomes/inputs",
+				"eval/source-work-item/terminal-outcomes"
+			],
+			"name": "eval/source-work-item/terminal-outcomes/release-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/source-work-item/terminal-outcomes/release-controller",
+			"factory": "rootEvalTerminalOutcomeReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/terminal-outcomes/release-events"
+			],
+			"name": "eval/source-work-item/terminal-outcomes/release-controller",
 			"version": {
 				"level": 0,
 				"counter": 0
@@ -1247,14 +1393,14 @@
 			}
 		},
 		{
-			"id": "eval/source-work-item/outcome-evidence-verification",
-			"factory": "rootEvalSourceWorkItemVerification",
+			"id": "eval/source-work-item/outcome-evidence-verification/candidate",
+			"factory": "rootEvalSourceWorkItemVerificationCandidate",
 			"status": "sentinel",
 			"deps": [
 				"eval/source-work-item/request-authority",
 				"eval/source-work-item/terminal-outcomes"
 			],
-			"name": "eval/source-work-item/outcome-evidence-verification",
+			"name": "eval/source-work-item/outcome-evidence-verification/candidate",
 			"version": {
 				"level": 0,
 				"counter": 0
@@ -1264,6 +1410,85 @@
 				"failClosed": true,
 				"independentExecutorReceiptRequired": true,
 				"materialFree": true
+			}
+		},
+		{
+			"id": "eval/source-work-item/outcome-evidence-verification/validated",
+			"factory": "rootEvalQuietDataValidated",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/outcome-evidence-verification/candidate"
+			],
+			"name": "eval/source-work-item/outcome-evidence-verification/validated",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"materialFree": true
+			}
+		},
+		{
+			"id": "eval/source-work-item/outcome-evidence-verification/released",
+			"factory": "rootEvalQuietDataPort",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/outcome-evidence-verification/validated"
+			],
+			"name": "eval/source-work-item/outcome-evidence-verification/released",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"boundary": "complete-domain-data-only",
+				"completeDomainOccurrence": true,
+				"materialFree": true
+			}
+		},
+		{
+			"id": "eval/source-work-item/outcome-evidence-verification",
+			"factory": "rootEvalSourceWorkItemVerification",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/outcome-evidence-verification/released"
+			],
+			"name": "eval/source-work-item/outcome-evidence-verification",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"boundary": "complete-domain-data-only",
+				"completeDomainOccurrence": true,
+				"materialFree": true
+			}
+		},
+		{
+			"id": "eval/source-work-item/outcome-evidence-verification/release-events",
+			"factory": "merge",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/outcome-evidence-verification",
+				"eval/source-work-item/outcome-evidence-verification/validated"
+			],
+			"name": "eval/source-work-item/outcome-evidence-verification/release-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/source-work-item/outcome-evidence-verification/release-controller",
+			"factory": "rootEvalQuietDataReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/source-work-item/outcome-evidence-verification/release-events"
+			],
+			"name": "eval/source-work-item/outcome-evidence-verification/release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
 			}
 		},
 		{
@@ -1490,12 +1715,25 @@
 			}
 		},
 		{
-			"id": "eval/verification/diagnostics",
-			"factory": "rootEvalVerificationDiagnostics",
+			"id": "eval/verification/diagnostic-events",
+			"factory": "merge",
 			"status": "sentinel",
 			"deps": [
 				"eval/campaign/start",
 				"eval/cleanup/completed"
+			],
+			"name": "eval/verification/diagnostic-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/verification/diagnostics",
+			"factory": "rootEvalVerificationDiagnostics",
+			"status": "sentinel",
+			"deps": [
+				"eval/verification/diagnostic-events"
 			],
 			"name": "eval/verification/diagnostics",
 			"version": {
@@ -1518,16 +1756,318 @@
 			}
 		},
 		{
+			"id": "eval/campaign/sealed-configuration",
+			"factory": "rootEvalCampaignConfiguration",
+			"status": "settled",
+			"deps": [
+				"eval/campaign/contract",
+				"eval/campaign/task-bindings",
+				"eval/controls/memory-provenance",
+				"eval/source-work-item/request-authority"
+			],
+			"name": "eval/campaign/sealed-configuration",
+			"value": {
+				"kind": "eval-campaign-configuration",
+				"contract": {
+					"kind": "eval-campaign-contract",
+					"campaignPurpose": "development",
+					"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+					"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+					"replicateCount": 5,
+					"heldOutSealDigest": "sha256:0d26399c4f80843a4bbcf666e14f2a44a04a5508afa39f6e9144ab461f084820",
+					"budgetPartition": "development-usd-36",
+					"partitionHardCapMicrousd": 36000000,
+					"partitionSpentBeforeMicrousd": 0,
+					"partitionLedgerDigest": "sha256:1a5008b69a43c54883d4c4afdf1293e8eac8ce761c5984103e79afbea20a3c46",
+					"developmentQualificationStreakBefore": 0
+				},
+				"bindings": [
+					{
+						"replicate": 1,
+						"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-1",
+						"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-1/source-work-item",
+						"sourceEvidenceDigest": "sha256:696d49eb56f3b6740d1cd5f7133734c3453db4b6bf767d8ecf8c6b16cd381f70",
+						"sourceInsightDigest": "sha256:5bd79e93bfa559cb080e42016742a9085986f3cd810f0a3891a584f557ecedaa",
+						"irrelevantTaskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-2",
+						"irrelevantSourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-2/source-work-item",
+						"irrelevantSourceEvidenceDigest": "sha256:2b88df3271dc325e38ff681373428d07d75948bd9f771f74f291f764ea09a7dd",
+						"irrelevantSourceInsightDigest": "sha256:aa88562075e1617a9ae981c406192bcea8d51c060bfad6d6cc3a20034226972f"
+					},
+					{
+						"replicate": 2,
+						"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-2",
+						"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-2/source-work-item",
+						"sourceEvidenceDigest": "sha256:2b88df3271dc325e38ff681373428d07d75948bd9f771f74f291f764ea09a7dd",
+						"sourceInsightDigest": "sha256:aa88562075e1617a9ae981c406192bcea8d51c060bfad6d6cc3a20034226972f",
+						"irrelevantTaskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-3",
+						"irrelevantSourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-3/source-work-item",
+						"irrelevantSourceEvidenceDigest": "sha256:69752d3d042b18673dce8251e5df332b976b34b7304fa2bd56e14ea132217e9a",
+						"irrelevantSourceInsightDigest": "sha256:1b5b79a2ea6bbf4bb589299ede11493a898eb61dc7a26e71d689db9948d94496"
+					},
+					{
+						"replicate": 3,
+						"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-3",
+						"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-3/source-work-item",
+						"sourceEvidenceDigest": "sha256:69752d3d042b18673dce8251e5df332b976b34b7304fa2bd56e14ea132217e9a",
+						"sourceInsightDigest": "sha256:1b5b79a2ea6bbf4bb589299ede11493a898eb61dc7a26e71d689db9948d94496",
+						"irrelevantTaskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-4",
+						"irrelevantSourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-4/source-work-item",
+						"irrelevantSourceEvidenceDigest": "sha256:1a44164136328a5d7efd763ba65a7d8abf8adfc0445a9cbc0c84b0770e52c843",
+						"irrelevantSourceInsightDigest": "sha256:ec40b26fe53cc2f4a82f3d6a97c0353d6b5ce499a0e940115771588667135fa2"
+					},
+					{
+						"replicate": 4,
+						"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-4",
+						"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-4/source-work-item",
+						"sourceEvidenceDigest": "sha256:1a44164136328a5d7efd763ba65a7d8abf8adfc0445a9cbc0c84b0770e52c843",
+						"sourceInsightDigest": "sha256:ec40b26fe53cc2f4a82f3d6a97c0353d6b5ce499a0e940115771588667135fa2",
+						"irrelevantTaskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-5",
+						"irrelevantSourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-5/source-work-item",
+						"irrelevantSourceEvidenceDigest": "sha256:a71c916b95829bd1d79455c80ad752bd91e0c9c070a453cda7fc870994e8d3a9",
+						"irrelevantSourceInsightDigest": "sha256:d71675006349217f08cfc74d0ca310a41c7d5dde244c1a0df89299cd12ef6923"
+					},
+					{
+						"replicate": 5,
+						"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-5",
+						"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-5/source-work-item",
+						"sourceEvidenceDigest": "sha256:a71c916b95829bd1d79455c80ad752bd91e0c9c070a453cda7fc870994e8d3a9",
+						"sourceInsightDigest": "sha256:d71675006349217f08cfc74d0ca310a41c7d5dde244c1a0df89299cd12ef6923",
+						"irrelevantTaskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-1",
+						"irrelevantSourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-1/source-work-item",
+						"irrelevantSourceEvidenceDigest": "sha256:696d49eb56f3b6740d1cd5f7133734c3453db4b6bf767d8ecf8c6b16cd381f70",
+						"irrelevantSourceInsightDigest": "sha256:5bd79e93bfa559cb080e42016742a9085986f3cd810f0a3891a584f557ecedaa"
+					}
+				],
+				"provenance": {
+					"cold": "none",
+					"relevant-applied": "relevant-applied",
+					"proposal-only": "proposal-only",
+					"admission-rejected": "admission-rejected",
+					"irrelevant-applied": "irrelevant-applied",
+					"wrong-scope-applied": "wrong-scope-applied"
+				},
+				"requests": [
+					{
+						"kind": "eval-source-work-item-request",
+						"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+						"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+						"replicate": 1,
+						"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-1",
+						"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-1/source-work-item",
+						"sourceEvidenceDigest": "sha256:696d49eb56f3b6740d1cd5f7133734c3453db4b6bf767d8ecf8c6b16cd381f70",
+						"sourceInsightDigest": "sha256:5bd79e93bfa559cb080e42016742a9085986f3cd810f0a3891a584f557ecedaa",
+						"taskManifestDigest": "sha256:ddf3dbce93c428b1289e5bca484f5b12c8b9675a5f4a229ac6b2c5a192fd57bf"
+					},
+					{
+						"kind": "eval-source-work-item-request",
+						"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+						"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+						"replicate": 2,
+						"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-2",
+						"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-2/source-work-item",
+						"sourceEvidenceDigest": "sha256:2b88df3271dc325e38ff681373428d07d75948bd9f771f74f291f764ea09a7dd",
+						"sourceInsightDigest": "sha256:aa88562075e1617a9ae981c406192bcea8d51c060bfad6d6cc3a20034226972f",
+						"taskManifestDigest": "sha256:ddf3dbce93c428b1289e5bca484f5b12c8b9675a5f4a229ac6b2c5a192fd57bf"
+					},
+					{
+						"kind": "eval-source-work-item-request",
+						"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+						"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+						"replicate": 3,
+						"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-3",
+						"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-3/source-work-item",
+						"sourceEvidenceDigest": "sha256:69752d3d042b18673dce8251e5df332b976b34b7304fa2bd56e14ea132217e9a",
+						"sourceInsightDigest": "sha256:1b5b79a2ea6bbf4bb589299ede11493a898eb61dc7a26e71d689db9948d94496",
+						"taskManifestDigest": "sha256:ddf3dbce93c428b1289e5bca484f5b12c8b9675a5f4a229ac6b2c5a192fd57bf"
+					},
+					{
+						"kind": "eval-source-work-item-request",
+						"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+						"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+						"replicate": 4,
+						"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-4",
+						"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-4/source-work-item",
+						"sourceEvidenceDigest": "sha256:1a44164136328a5d7efd763ba65a7d8abf8adfc0445a9cbc0c84b0770e52c843",
+						"sourceInsightDigest": "sha256:ec40b26fe53cc2f4a82f3d6a97c0353d6b5ce499a0e940115771588667135fa2",
+						"taskManifestDigest": "sha256:ddf3dbce93c428b1289e5bca484f5b12c8b9675a5f4a229ac6b2c5a192fd57bf"
+					},
+					{
+						"kind": "eval-source-work-item-request",
+						"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+						"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+						"replicate": 5,
+						"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-5",
+						"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-5/source-work-item",
+						"sourceEvidenceDigest": "sha256:a71c916b95829bd1d79455c80ad752bd91e0c9c070a453cda7fc870994e8d3a9",
+						"sourceInsightDigest": "sha256:d71675006349217f08cfc74d0ca310a41c7d5dde244c1a0df89299cd12ef6923",
+						"taskManifestDigest": "sha256:ddf3dbce93c428b1289e5bca484f5b12c8b9675a5f4a229ac6b2c5a192fd57bf"
+					}
+				]
+			},
+			"version": {
+				"level": 0,
+				"counter": 1
+			}
+		},
+		{
+			"id": "eval/campaign/controller-events",
+			"factory": "merge",
+			"status": "settled",
+			"deps": [
+				"eval/campaign/sealed-configuration",
+				"eval/cleanup/completed",
+				"eval/source-work-item/memory-handoff/status"
+			],
+			"name": "eval/campaign/controller-events",
+			"value": {
+				"kind": "eval-campaign-configuration",
+				"contract": {
+					"kind": "eval-campaign-contract",
+					"campaignPurpose": "development",
+					"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+					"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+					"replicateCount": 5,
+					"heldOutSealDigest": "sha256:0d26399c4f80843a4bbcf666e14f2a44a04a5508afa39f6e9144ab461f084820",
+					"budgetPartition": "development-usd-36",
+					"partitionHardCapMicrousd": 36000000,
+					"partitionSpentBeforeMicrousd": 0,
+					"partitionLedgerDigest": "sha256:1a5008b69a43c54883d4c4afdf1293e8eac8ce761c5984103e79afbea20a3c46",
+					"developmentQualificationStreakBefore": 0
+				},
+				"bindings": [
+					{
+						"replicate": 1,
+						"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-1",
+						"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-1/source-work-item",
+						"sourceEvidenceDigest": "sha256:696d49eb56f3b6740d1cd5f7133734c3453db4b6bf767d8ecf8c6b16cd381f70",
+						"sourceInsightDigest": "sha256:5bd79e93bfa559cb080e42016742a9085986f3cd810f0a3891a584f557ecedaa",
+						"irrelevantTaskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-2",
+						"irrelevantSourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-2/source-work-item",
+						"irrelevantSourceEvidenceDigest": "sha256:2b88df3271dc325e38ff681373428d07d75948bd9f771f74f291f764ea09a7dd",
+						"irrelevantSourceInsightDigest": "sha256:aa88562075e1617a9ae981c406192bcea8d51c060bfad6d6cc3a20034226972f"
+					},
+					{
+						"replicate": 2,
+						"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-2",
+						"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-2/source-work-item",
+						"sourceEvidenceDigest": "sha256:2b88df3271dc325e38ff681373428d07d75948bd9f771f74f291f764ea09a7dd",
+						"sourceInsightDigest": "sha256:aa88562075e1617a9ae981c406192bcea8d51c060bfad6d6cc3a20034226972f",
+						"irrelevantTaskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-3",
+						"irrelevantSourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-3/source-work-item",
+						"irrelevantSourceEvidenceDigest": "sha256:69752d3d042b18673dce8251e5df332b976b34b7304fa2bd56e14ea132217e9a",
+						"irrelevantSourceInsightDigest": "sha256:1b5b79a2ea6bbf4bb589299ede11493a898eb61dc7a26e71d689db9948d94496"
+					},
+					{
+						"replicate": 3,
+						"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-3",
+						"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-3/source-work-item",
+						"sourceEvidenceDigest": "sha256:69752d3d042b18673dce8251e5df332b976b34b7304fa2bd56e14ea132217e9a",
+						"sourceInsightDigest": "sha256:1b5b79a2ea6bbf4bb589299ede11493a898eb61dc7a26e71d689db9948d94496",
+						"irrelevantTaskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-4",
+						"irrelevantSourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-4/source-work-item",
+						"irrelevantSourceEvidenceDigest": "sha256:1a44164136328a5d7efd763ba65a7d8abf8adfc0445a9cbc0c84b0770e52c843",
+						"irrelevantSourceInsightDigest": "sha256:ec40b26fe53cc2f4a82f3d6a97c0353d6b5ce499a0e940115771588667135fa2"
+					},
+					{
+						"replicate": 4,
+						"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-4",
+						"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-4/source-work-item",
+						"sourceEvidenceDigest": "sha256:1a44164136328a5d7efd763ba65a7d8abf8adfc0445a9cbc0c84b0770e52c843",
+						"sourceInsightDigest": "sha256:ec40b26fe53cc2f4a82f3d6a97c0353d6b5ce499a0e940115771588667135fa2",
+						"irrelevantTaskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-5",
+						"irrelevantSourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-5/source-work-item",
+						"irrelevantSourceEvidenceDigest": "sha256:a71c916b95829bd1d79455c80ad752bd91e0c9c070a453cda7fc870994e8d3a9",
+						"irrelevantSourceInsightDigest": "sha256:d71675006349217f08cfc74d0ca310a41c7d5dde244c1a0df89299cd12ef6923"
+					},
+					{
+						"replicate": 5,
+						"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-5",
+						"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-5/source-work-item",
+						"sourceEvidenceDigest": "sha256:a71c916b95829bd1d79455c80ad752bd91e0c9c070a453cda7fc870994e8d3a9",
+						"sourceInsightDigest": "sha256:d71675006349217f08cfc74d0ca310a41c7d5dde244c1a0df89299cd12ef6923",
+						"irrelevantTaskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-1",
+						"irrelevantSourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-1/source-work-item",
+						"irrelevantSourceEvidenceDigest": "sha256:696d49eb56f3b6740d1cd5f7133734c3453db4b6bf767d8ecf8c6b16cd381f70",
+						"irrelevantSourceInsightDigest": "sha256:5bd79e93bfa559cb080e42016742a9085986f3cd810f0a3891a584f557ecedaa"
+					}
+				],
+				"provenance": {
+					"cold": "none",
+					"relevant-applied": "relevant-applied",
+					"proposal-only": "proposal-only",
+					"admission-rejected": "admission-rejected",
+					"irrelevant-applied": "irrelevant-applied",
+					"wrong-scope-applied": "wrong-scope-applied"
+				},
+				"requests": [
+					{
+						"kind": "eval-source-work-item-request",
+						"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+						"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+						"replicate": 1,
+						"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-1",
+						"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-1/source-work-item",
+						"sourceEvidenceDigest": "sha256:696d49eb56f3b6740d1cd5f7133734c3453db4b6bf767d8ecf8c6b16cd381f70",
+						"sourceInsightDigest": "sha256:5bd79e93bfa559cb080e42016742a9085986f3cd810f0a3891a584f557ecedaa",
+						"taskManifestDigest": "sha256:ddf3dbce93c428b1289e5bca484f5b12c8b9675a5f4a229ac6b2c5a192fd57bf"
+					},
+					{
+						"kind": "eval-source-work-item-request",
+						"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+						"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+						"replicate": 2,
+						"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-2",
+						"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-2/source-work-item",
+						"sourceEvidenceDigest": "sha256:2b88df3271dc325e38ff681373428d07d75948bd9f771f74f291f764ea09a7dd",
+						"sourceInsightDigest": "sha256:aa88562075e1617a9ae981c406192bcea8d51c060bfad6d6cc3a20034226972f",
+						"taskManifestDigest": "sha256:ddf3dbce93c428b1289e5bca484f5b12c8b9675a5f4a229ac6b2c5a192fd57bf"
+					},
+					{
+						"kind": "eval-source-work-item-request",
+						"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+						"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+						"replicate": 3,
+						"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-3",
+						"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-3/source-work-item",
+						"sourceEvidenceDigest": "sha256:69752d3d042b18673dce8251e5df332b976b34b7304fa2bd56e14ea132217e9a",
+						"sourceInsightDigest": "sha256:1b5b79a2ea6bbf4bb589299ede11493a898eb61dc7a26e71d689db9948d94496",
+						"taskManifestDigest": "sha256:ddf3dbce93c428b1289e5bca484f5b12c8b9675a5f4a229ac6b2c5a192fd57bf"
+					},
+					{
+						"kind": "eval-source-work-item-request",
+						"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+						"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+						"replicate": 4,
+						"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-4",
+						"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-4/source-work-item",
+						"sourceEvidenceDigest": "sha256:1a44164136328a5d7efd763ba65a7d8abf8adfc0445a9cbc0c84b0770e52c843",
+						"sourceInsightDigest": "sha256:ec40b26fe53cc2f4a82f3d6a97c0353d6b5ce499a0e940115771588667135fa2",
+						"taskManifestDigest": "sha256:ddf3dbce93c428b1289e5bca484f5b12c8b9675a5f4a229ac6b2c5a192fd57bf"
+					},
+					{
+						"kind": "eval-source-work-item-request",
+						"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+						"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+						"replicate": 5,
+						"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-5",
+						"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-5/source-work-item",
+						"sourceEvidenceDigest": "sha256:a71c916b95829bd1d79455c80ad752bd91e0c9c070a453cda7fc870994e8d3a9",
+						"sourceInsightDigest": "sha256:d71675006349217f08cfc74d0ca310a41c7d5dde244c1a0df89299cd12ef6923",
+						"taskManifestDigest": "sha256:ddf3dbce93c428b1289e5bca484f5b12c8b9675a5f4a229ac6b2c5a192fd57bf"
+					}
+				]
+			},
+			"version": {
+				"level": 0,
+				"counter": 1
+			}
+		},
+		{
 			"id": "eval/campaign/replicate-controller",
 			"factory": "rootEvalReplicateController",
 			"status": "sentinel",
 			"deps": [
-				"eval/cleanup/completed",
-				"eval/source-work-item/memory-handoff/status",
-				"eval/source-work-item/request-authority",
-				"eval/campaign/contract",
-				"eval/campaign/task-bindings",
-				"eval/controls/memory-provenance"
+				"eval/campaign/controller-events"
 			],
 			"name": "eval/campaign/replicate-controller",
 			"version": {
@@ -1564,12 +2104,25 @@
 			}
 		},
 		{
-			"id": "eval/campaign/replicate-batch-release-controller",
-			"factory": "rootEvalReplicateBatchReleaseController",
+			"id": "eval/campaign/replicate-batch-release-events",
+			"factory": "merge",
 			"status": "sentinel",
 			"deps": [
 				"eval/campaign/replicate-controller",
 				"eval/campaign/replicate-batches"
+			],
+			"name": "eval/campaign/replicate-batch-release-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/campaign/replicate-batch-release-controller",
+			"factory": "rootEvalReplicateBatchReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/campaign/replicate-batch-release-events"
 			],
 			"name": "eval/campaign/replicate-batch-release-controller",
 			"version": {
@@ -1581,13 +2134,39 @@
 			}
 		},
 		{
-			"id": "eval/campaign/state",
-			"factory": "rootEvalCampaignState",
-			"status": "sentinel",
+			"id": "eval/campaign/state-events",
+			"factory": "merge",
+			"status": "settled",
 			"deps": [
 				"eval/campaign/replicate-controller",
 				"eval/campaign/start",
 				"eval/campaign/contract"
+			],
+			"name": "eval/campaign/state-events",
+			"value": {
+				"kind": "eval-campaign-contract",
+				"campaignPurpose": "development",
+				"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+				"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+				"replicateCount": 5,
+				"heldOutSealDigest": "sha256:0d26399c4f80843a4bbcf666e14f2a44a04a5508afa39f6e9144ab461f084820",
+				"budgetPartition": "development-usd-36",
+				"partitionHardCapMicrousd": 36000000,
+				"partitionSpentBeforeMicrousd": 0,
+				"partitionLedgerDigest": "sha256:1a5008b69a43c54883d4c4afdf1293e8eac8ce761c5984103e79afbea20a3c46",
+				"developmentQualificationStreakBefore": 0
+			},
+			"version": {
+				"level": 0,
+				"counter": 1
+			}
+		},
+		{
+			"id": "eval/campaign/state",
+			"factory": "rootEvalCampaignState",
+			"status": "sentinel",
+			"deps": [
+				"eval/campaign/state-events"
 			],
 			"name": "eval/campaign/state",
 			"version": {
@@ -1635,12 +2214,25 @@
 			}
 		},
 		{
-			"id": "eval/memory/six-arm-source-readiness-decision",
-			"factory": "rootEvalMemoryBatchSourceReadinessDecision",
+			"id": "eval/memory/source-readiness-events",
+			"factory": "merge",
 			"status": "sentinel",
 			"deps": [
 				"eval/source-work-item/verified-solution",
 				"eval/campaign/replicate-batches"
+			],
+			"name": "eval/memory/source-readiness-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/six-arm-source-readiness-decision",
+			"factory": "rootEvalMemoryBatchSourceReadinessDecision",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/source-readiness-events"
 			],
 			"name": "eval/memory/six-arm-source-readiness-decision",
 			"version": {
@@ -1827,7 +2419,7 @@
 		},
 		{
 			"id": "eval/solution/agentic-work-item-memory-bridge/projection",
-			"factory": "agenticWorkItemMemoryBridgeOccurrence",
+			"factory": "agenticWorkItemMemoryBridge",
 			"status": "sentinel",
 			"deps": [
 				"eval/memory/bridge-occurrence-input"
@@ -1844,11 +2436,199 @@
 			}
 		},
 		{
+			"id": "eval/solution/agentic-work-item-memory-bridge/scoreSignals",
+			"factory": "agenticWorkItemMemoryBridgeScoreSignals",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-work-item-memory-bridge/projection"
+			],
+			"name": "eval/solution/agentic-work-item-memory-bridge/scoreSignals",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-work-item-memory-bridge/proposals",
+			"factory": "agenticWorkItemMemoryBridgeProposals",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-work-item-memory-bridge/projection"
+			],
+			"name": "eval/solution/agentic-work-item-memory-bridge/proposals",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-work-item-memory-bridge/status",
+			"factory": "agenticWorkItemMemoryBridgeStatus",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-work-item-memory-bridge/projection"
+			],
+			"name": "eval/solution/agentic-work-item-memory-bridge/status",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-work-item-memory-bridge/issues",
+			"factory": "agenticWorkItemMemoryBridgeIssues",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-work-item-memory-bridge/projection"
+			],
+			"name": "eval/solution/agentic-work-item-memory-bridge/issues",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-work-item-memory-bridge/audit",
+			"factory": "agenticWorkItemMemoryBridgeAudit",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-work-item-memory-bridge/projection"
+			],
+			"name": "eval/solution/agentic-work-item-memory-bridge/audit",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-work-item-memory-bridge/cursor",
+			"factory": "agenticWorkItemMemoryBridgeCursor",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-work-item-memory-bridge/projection"
+			],
+			"name": "eval/solution/agentic-work-item-memory-bridge/cursor",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/bridge-result-context/left",
+			"factory": "solutionOccurrenceJoinLeft",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/bridge-occurrence-input"
+			],
+			"name": "eval/memory/bridge-result-context/left",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/bridge-result-context/right",
+			"factory": "solutionOccurrenceJoinRight",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-work-item-memory-bridge/projection"
+			],
+			"name": "eval/memory/bridge-result-context/right",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/bridge-result-context/arrivals",
+			"factory": "merge",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/bridge-result-context/left",
+				"eval/memory/bridge-result-context/right"
+			],
+			"name": "eval/memory/bridge-result-context/arrivals",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/bridge-result-context/matched",
+			"factory": "solutionOccurrenceMatched",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/bridge-result-context/arrivals"
+			],
+			"name": "eval/memory/bridge-result-context/matched",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/bridge-result-context/released",
+			"factory": "solutionOccurrenceQuietPort",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/bridge-result-context/matched"
+			],
+			"name": "eval/memory/bridge-result-context/released",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"correlation": "exact-id/revision/digest/source-refs",
+				"role": "quiet-complete-occurrence"
+			}
+		},
+		{
+			"id": "eval/memory/bridge-result-context",
+			"factory": "rootEvalMemoryBridgeResultContext",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/bridge-result-context/released"
+			],
+			"name": "eval/memory/bridge-result-context",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/bridge-result-context/release-events",
+			"factory": "merge",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/bridge-result-context",
+				"eval/memory/bridge-result-context/matched"
+			],
+			"name": "eval/memory/bridge-result-context/release-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/bridge-result-context/release-controller",
+			"factory": "solutionOccurrenceReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/bridge-result-context/release-events"
+			],
+			"name": "eval/memory/bridge-result-context/release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
 			"id": "eval/memory/admission-occurrence-input",
 			"factory": "rootEvalMemoryAdmissionOccurrenceInput",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-work-item-memory-bridge/projection"
+				"eval/memory/bridge-result-context"
 			],
 			"name": "eval/memory/admission-occurrence-input",
 			"version": {
@@ -1861,7 +2641,7 @@
 		},
 		{
 			"id": "eval/solution/agentic-memory-admission/projection",
-			"factory": "agenticMemoryRecordAdmissionOccurrence",
+			"factory": "agenticMemoryRecordAdmission",
 			"status": "sentinel",
 			"deps": [
 				"eval/memory/admission-occurrence-input"
@@ -1878,11 +2658,225 @@
 			}
 		},
 		{
+			"id": "eval/solution/agentic-memory-admission/admissions",
+			"factory": "agenticMemoryRecordAdmissionAdmissions",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory-admission/projection"
+			],
+			"name": "eval/solution/agentic-memory-admission/admissions",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-memory-admission/admitted",
+			"factory": "agenticMemoryRecordAdmissionAdmissionsAdmitted",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory-admission/projection"
+			],
+			"name": "eval/solution/agentic-memory-admission/admitted",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-memory-admission/rejected",
+			"factory": "agenticMemoryRecordAdmissionAdmissionsRejected",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory-admission/projection"
+			],
+			"name": "eval/solution/agentic-memory-admission/rejected",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-memory-admission/needsReview",
+			"factory": "agenticMemoryRecordAdmissionAdmissionsNeedsReview",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory-admission/projection"
+			],
+			"name": "eval/solution/agentic-memory-admission/needsReview",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-memory-admission/status",
+			"factory": "agenticMemoryRecordAdmissionStatus",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory-admission/projection"
+			],
+			"name": "eval/solution/agentic-memory-admission/status",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-memory-admission/issues",
+			"factory": "agenticMemoryRecordAdmissionIssues",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory-admission/projection"
+			],
+			"name": "eval/solution/agentic-memory-admission/issues",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-memory-admission/audit",
+			"factory": "agenticMemoryRecordAdmissionAudit",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory-admission/projection"
+			],
+			"name": "eval/solution/agentic-memory-admission/audit",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-memory-admission/cursor",
+			"factory": "agenticMemoryRecordAdmissionCursor",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory-admission/projection"
+			],
+			"name": "eval/solution/agentic-memory-admission/cursor",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/admission-result-context/left",
+			"factory": "solutionOccurrenceJoinLeft",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/admission-occurrence-input"
+			],
+			"name": "eval/memory/admission-result-context/left",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/admission-result-context/right",
+			"factory": "solutionOccurrenceJoinRight",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory-admission/projection"
+			],
+			"name": "eval/memory/admission-result-context/right",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/admission-result-context/arrivals",
+			"factory": "merge",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/admission-result-context/left",
+				"eval/memory/admission-result-context/right"
+			],
+			"name": "eval/memory/admission-result-context/arrivals",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/admission-result-context/matched",
+			"factory": "solutionOccurrenceMatched",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/admission-result-context/arrivals"
+			],
+			"name": "eval/memory/admission-result-context/matched",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/admission-result-context/released",
+			"factory": "solutionOccurrenceQuietPort",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/admission-result-context/matched"
+			],
+			"name": "eval/memory/admission-result-context/released",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"correlation": "exact-id/revision/digest/source-refs",
+				"role": "quiet-complete-occurrence"
+			}
+		},
+		{
+			"id": "eval/memory/admission-result-context",
+			"factory": "rootEvalMemoryAdmissionResultContext",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/admission-result-context/released"
+			],
+			"name": "eval/memory/admission-result-context",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/admission-result-context/release-events",
+			"factory": "merge",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/admission-result-context",
+				"eval/memory/admission-result-context/matched"
+			],
+			"name": "eval/memory/admission-result-context/release-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/admission-result-context/release-controller",
+			"factory": "solutionOccurrenceReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/admission-result-context/release-events"
+			],
+			"name": "eval/memory/admission-result-context/release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
 			"id": "eval/memory/application-occurrence-input",
 			"factory": "rootEvalMemoryApplicationOccurrenceInput",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-memory-admission/projection"
+				"eval/memory/admission-result-context"
 			],
 			"name": "eval/memory/application-occurrence-input",
 			"version": {
@@ -1892,7 +2886,7 @@
 		},
 		{
 			"id": "eval/solution/agentic-memory-application/projection",
-			"factory": "agenticMemoryRecordApplicationOccurrence",
+			"factory": "agenticMemoryRecordApplication",
 			"status": "sentinel",
 			"deps": [
 				"eval/memory/application-occurrence-input"
@@ -1909,11 +2903,115 @@
 			}
 		},
 		{
+			"id": "eval/solution/agentic-memory-application/records",
+			"factory": "agenticMemoryRecordApplicationRecords",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory-application/projection"
+			],
+			"name": "eval/solution/agentic-memory-application/records",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-memory-application/appliedRecords",
+			"factory": "agenticMemoryRecordApplicationAppliedRecords",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory-application/projection"
+			],
+			"name": "eval/solution/agentic-memory-application/appliedRecords",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-memory-application/applicationDecisions",
+			"factory": "agenticMemoryRecordApplicationDecisions",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory-application/projection"
+			],
+			"name": "eval/solution/agentic-memory-application/applicationDecisions",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-memory-application/status",
+			"factory": "agenticMemoryRecordApplicationStatus",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory-application/projection"
+			],
+			"name": "eval/solution/agentic-memory-application/status",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-memory-application/operationStatuses",
+			"factory": "agenticMemoryRecordApplicationOperationStatuses",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory-application/projection"
+			],
+			"name": "eval/solution/agentic-memory-application/operationStatuses",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-memory-application/issues",
+			"factory": "agenticMemoryRecordApplicationIssues",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory-application/projection"
+			],
+			"name": "eval/solution/agentic-memory-application/issues",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-memory-application/audit",
+			"factory": "agenticMemoryRecordApplicationAudit",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory-application/projection"
+			],
+			"name": "eval/solution/agentic-memory-application/audit",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/solution/agentic-memory-application/cursor",
+			"factory": "agenticMemoryRecordApplicationCursor",
+			"status": "sentinel",
+			"deps": [
+				"eval/solution/agentic-memory-application/projection"
+			],
+			"name": "eval/solution/agentic-memory-application/cursor",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
 			"id": "eval/memory/applied-record-state",
 			"factory": "rootEvalAppliedMemoryRecordState",
 			"status": "sentinel",
 			"deps": [
-				"eval/solution/agentic-memory-application/projection"
+				"eval/solution/agentic-memory-application/records"
 			],
 			"name": "eval/memory/applied-record-state",
 			"version": {
@@ -1926,14 +3024,27 @@
 			}
 		},
 		{
-			"id": "eval/memory/exposure-frame",
-			"factory": "rootEvalMemoryExposureFrame",
+			"id": "eval/memory/exposure-events",
+			"factory": "merge",
 			"status": "sentinel",
 			"deps": [
 				"eval/memory/applied-record-state",
 				"eval/memory/correlated-six-arm-data"
 			],
-			"name": "eval/memory/exposure-frame",
+			"name": "eval/memory/exposure-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/exposure-frame/candidate",
+			"factory": "rootEvalMemoryExposureFrameCandidate",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/exposure-events"
+			],
+			"name": "eval/memory/exposure-frame/candidate",
 			"version": {
 				"level": 0,
 				"counter": 0
@@ -1950,6 +3061,85 @@
 				"batching": "bounded-many-per-wave",
 				"lifecycleCardinality": "one",
 				"occurrenceIdentity": "request-id/revision/digest/source-refs"
+			}
+		},
+		{
+			"id": "eval/memory/exposure-frame/validated",
+			"factory": "rootEvalQuietDataValidated",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/exposure-frame/candidate"
+			],
+			"name": "eval/memory/exposure-frame/validated",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"materialFree": true
+			}
+		},
+		{
+			"id": "eval/memory/exposure-frame/released",
+			"factory": "rootEvalQuietDataPort",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/exposure-frame/validated"
+			],
+			"name": "eval/memory/exposure-frame/released",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"boundary": "complete-domain-data-only",
+				"completeDomainOccurrence": true,
+				"materialFree": true
+			}
+		},
+		{
+			"id": "eval/memory/exposure-frame",
+			"factory": "rootEvalMemoryExposureFrame",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/exposure-frame/released"
+			],
+			"name": "eval/memory/exposure-frame",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"boundary": "complete-domain-data-only",
+				"completeDomainOccurrence": true,
+				"materialFree": true
+			}
+		},
+		{
+			"id": "eval/memory/exposure-frame/release-events",
+			"factory": "merge",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/exposure-frame",
+				"eval/memory/exposure-frame/validated"
+			],
+			"name": "eval/memory/exposure-frame/release-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/memory/exposure-frame/release-controller",
+			"factory": "rootEvalQuietDataReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/memory/exposure-frame/release-events"
+			],
+			"name": "eval/memory/exposure-frame/release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
 			}
 		},
 		{
@@ -2375,12 +3565,25 @@
 			}
 		},
 		{
-			"id": "eval/work-item/admitted-plan-authority",
-			"factory": "rootEvalWorkItemAdmittedPlanAuthority",
+			"id": "eval/work-item/admitted-plan-events",
+			"factory": "merge",
 			"status": "sentinel",
 			"deps": [
 				"eval/solution/source-work-item-execution/plan/admitted",
 				"eval/solution/work-item-execution/plan/admitted"
+			],
+			"name": "eval/work-item/admitted-plan-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/work-item/admitted-plan-authority",
+			"factory": "rootEvalWorkItemAdmittedPlanAuthority",
+			"status": "sentinel",
+			"deps": [
+				"eval/work-item/admitted-plan-events"
 			],
 			"name": "eval/work-item/admitted-plan-authority",
 			"version": {
@@ -2392,14 +3595,96 @@
 			}
 		},
 		{
-			"id": "eval/provider/proposal-candidate",
-			"factory": "rootEvalProviderProposalCandidate",
-			"status": "sentinel",
+			"id": "eval/provider/first-proposal-events",
+			"factory": "merge",
+			"status": "settled",
 			"deps": [
 				"eval/solution/source-work-item-execution/requests",
 				"eval/solution/work-item-execution/requests",
 				"eval/work-item/admitted-plan-authority",
 				"eval/profile/graph-admission"
+			],
+			"name": "eval/provider/first-proposal-events",
+			"value": {
+				"kind": "root-eval-profile-admission",
+				"eligibility": {
+					"bindingDigest": "sha256:2163c9f0da40a602408c54076cd5eb81a43d6154467a233b1d5d5dd56d2b388d",
+					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
+					"decisionRef": "graphrefly-ts:D96",
+					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
+					"implementationManifestDigest": "sha256:16315fee563d167faa80e271c26d57296c7252df139c34f719cfff8332818432",
+					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
+					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
+					"qualificationDigest": "sha256:fc42a9098f5b0eb6d743c6fc7c77f1cc1e199b05c1ccbc61fb5e7e7d8c367305",
+					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
+					"reasonCode": "root-graph-exact-profile-current",
+					"schemaVersion": "graphrefly-ts.current-profile-eligibility.v1",
+					"status": "eligible",
+					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
+					"targetRef": "model-target.deepseek-v4-flash-0731",
+					"eligibilityDigest": "sha256:788f447042b622020da787853e2f278c0e8f58c433ef531d5805de2c3c2b9901"
+				},
+				"resolution": {
+					"bindingDigest": "sha256:2163c9f0da40a602408c54076cd5eb81a43d6154467a233b1d5d5dd56d2b388d",
+					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
+					"eligibilityDigest": "sha256:788f447042b622020da787853e2f278c0e8f58c433ef531d5805de2c3c2b9901",
+					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
+					"implementationManifestDigest": "sha256:16315fee563d167faa80e271c26d57296c7252df139c34f719cfff8332818432",
+					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
+					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
+					"providerRef": "fireworks",
+					"qualificationDigest": "sha256:fc42a9098f5b0eb6d743c6fc7c77f1cc1e199b05c1ccbc61fb5e7e7d8c367305",
+					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
+					"requestedTargetRef": "model-target.deepseek-v4-flash-0731",
+					"resolverRevision": "graphrefly-ts.profile-resolver.v1",
+					"schemaVersion": "graphrefly-ts.profile-resolution.v1",
+					"status": "eligible",
+					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
+					"targetRef": "model-target.deepseek-v4-flash-0731",
+					"resolutionDigest": "sha256:5287f32c88e54bcf8afe2dbaad089c763f12ac991ca795299bf6a698de859889"
+				},
+				"profile": {
+					"enhancementRecipes": [
+						"named-phase-tool-binding",
+						"retained-inspection-span",
+						"premature-final-correction",
+						"fresh-mutation-after-exact-replacement-rejection",
+						"actor-visible-semantic-correction",
+						"sanitized-provider-failure-continuation"
+					],
+					"inspectionMaxOutputTokens": 65536,
+					"mutationMaxOutputTokens": 16384,
+					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
+					"reasoningEffort": "medium",
+					"schemaVersion": "graphrefly-ts.harness-enhancement-profile.v2",
+					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
+					"targetRef": "model-target.deepseek-v4-flash-0731",
+					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8"
+				},
+				"binding": {
+					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
+					"endpointProtocol": "chat-completions",
+					"proposalEncoding": "strict-json-schema",
+					"providerModelRef": "deepseek/deepseek-v4-flash-0731",
+					"providerRef": "fireworks",
+					"responseContractRevision": "bounded-structured-proposal.v3",
+					"schemaVersion": "graphrefly-ts.provider-binding.v2",
+					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
+					"targetRef": "model-target.deepseek-v4-flash-0731",
+					"bindingDigest": "sha256:2163c9f0da40a602408c54076cd5eb81a43d6154467a233b1d5d5dd56d2b388d"
+				}
+			},
+			"version": {
+				"level": 0,
+				"counter": 1
+			}
+		},
+		{
+			"id": "eval/provider/proposal-candidate",
+			"factory": "rootEvalProviderProposalCandidate",
+			"status": "sentinel",
+			"deps": [
+				"eval/provider/first-proposal-events"
 			],
 			"name": "eval/provider/proposal-candidate",
 			"version": {
@@ -2428,12 +3713,25 @@
 			}
 		},
 		{
-			"id": "eval/provider/proposal-release-controller",
-			"factory": "rootEvalProviderProposalReleaseController",
+			"id": "eval/provider/proposal-release-events",
+			"factory": "merge",
 			"status": "sentinel",
 			"deps": [
 				"eval/provider/proposal-candidate",
 				"eval/provider/proposal"
+			],
+			"name": "eval/provider/proposal-release-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/provider/proposal-release-controller",
+			"factory": "rootEvalProviderProposalReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/provider/proposal-release-events"
 			],
 			"name": "eval/provider/proposal-release-controller",
 			"version": {
@@ -2498,14 +3796,74 @@
 			}
 		},
 		{
-			"id": "eval/provider/proposals",
-			"factory": "rootEvalProviderProposals",
+			"id": "eval/provider/proposal-events",
+			"factory": "merge",
 			"status": "sentinel",
 			"deps": [
 				"eval/provider/replicate-proposal-batches",
 				"eval/retry/proposal"
 			],
+			"name": "eval/provider/proposal-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/provider/proposals",
+			"factory": "rootEvalProviderProposals",
+			"status": "sentinel",
+			"deps": [
+				"eval/provider/proposal-events"
+			],
 			"name": "eval/provider/proposals",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/provider/pacing-clock-inputs",
+			"factory": "merge",
+			"status": "sentinel",
+			"deps": [
+				"eval/provider/start-spacing-readiness",
+				"eval/time/elapsed-budget/state"
+			],
+			"name": "eval/provider/pacing-clock-inputs",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/provider/pacing-clock",
+			"factory": "rootEvalProviderPacingClock",
+			"status": "sentinel",
+			"deps": [
+				"eval/provider/pacing-clock-inputs"
+			],
+			"name": "eval/provider/pacing-clock",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"authority": "external-clock-evidence-only",
+				"cancellation": "elapsed-budget-or-deactivation",
+				"materialFree": true
+			}
+		},
+		{
+			"id": "eval/provider/pacing-events",
+			"factory": "merge",
+			"status": "sentinel",
+			"deps": [
+				"eval/provider/proposals",
+				"eval/provider/pacing-clock",
+				"eval/retry/delay-result-input"
+			],
+			"name": "eval/provider/pacing-events",
 			"version": {
 				"level": 0,
 				"counter": 0
@@ -2516,10 +3874,7 @@
 			"factory": "rootEvalProviderPacedProposalRelease",
 			"status": "sentinel",
 			"deps": [
-				"eval/provider/proposals",
-				"eval/provider/start-spacing-readiness",
-				"eval/retry/delay-result-input",
-				"eval/time/elapsed-budget/state"
+				"eval/provider/pacing-events"
 			],
 			"name": "eval/provider/paced-proposal-release",
 			"version": {
@@ -2552,6 +3907,33 @@
 			"meta": {
 				"admission": "per-correlated-retryable-result",
 				"batchBarrier": false
+			}
+		},
+		{
+			"id": "eval/retry/admission-release-events",
+			"factory": "merge",
+			"status": "sentinel",
+			"deps": [
+				"eval/provider/retryable-result-admission",
+				"eval/retry/delay-admission"
+			],
+			"name": "eval/retry/admission-release-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/retry/admission-release-controller",
+			"factory": "rootEvalRetryAdmissionReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/retry/admission-release-events"
+			],
+			"name": "eval/retry/admission-release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
 			}
 		},
 		{
@@ -2595,8 +3977,8 @@
 			}
 		},
 		{
-			"id": "eval/provider/graph-admission-and-budget",
-			"factory": "rootEvalProviderGraphAdmission",
+			"id": "eval/provider/admission-events",
+			"factory": "merge",
 			"status": "settled",
 			"deps": [
 				"eval/provider/proposals",
@@ -2604,13 +3986,94 @@
 				"eval/provider/all-result-admissions",
 				"eval/retry/delay-result-input",
 				"eval/time/elapsed-budget/state",
-				"eval/profile/graph-admission",
-				"eval/observation/source-stage-context"
+				"eval/profile/graph-admission"
+			],
+			"name": "eval/provider/admission-events",
+			"value": {
+				"kind": "root-eval-profile-admission",
+				"eligibility": {
+					"bindingDigest": "sha256:2163c9f0da40a602408c54076cd5eb81a43d6154467a233b1d5d5dd56d2b388d",
+					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
+					"decisionRef": "graphrefly-ts:D96",
+					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
+					"implementationManifestDigest": "sha256:16315fee563d167faa80e271c26d57296c7252df139c34f719cfff8332818432",
+					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
+					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
+					"qualificationDigest": "sha256:fc42a9098f5b0eb6d743c6fc7c77f1cc1e199b05c1ccbc61fb5e7e7d8c367305",
+					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
+					"reasonCode": "root-graph-exact-profile-current",
+					"schemaVersion": "graphrefly-ts.current-profile-eligibility.v1",
+					"status": "eligible",
+					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
+					"targetRef": "model-target.deepseek-v4-flash-0731",
+					"eligibilityDigest": "sha256:788f447042b622020da787853e2f278c0e8f58c433ef531d5805de2c3c2b9901"
+				},
+				"resolution": {
+					"bindingDigest": "sha256:2163c9f0da40a602408c54076cd5eb81a43d6154467a233b1d5d5dd56d2b388d",
+					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
+					"eligibilityDigest": "sha256:788f447042b622020da787853e2f278c0e8f58c433ef531d5805de2c3c2b9901",
+					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
+					"implementationManifestDigest": "sha256:16315fee563d167faa80e271c26d57296c7252df139c34f719cfff8332818432",
+					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
+					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
+					"providerRef": "fireworks",
+					"qualificationDigest": "sha256:fc42a9098f5b0eb6d743c6fc7c77f1cc1e199b05c1ccbc61fb5e7e7d8c367305",
+					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
+					"requestedTargetRef": "model-target.deepseek-v4-flash-0731",
+					"resolverRevision": "graphrefly-ts.profile-resolver.v1",
+					"schemaVersion": "graphrefly-ts.profile-resolution.v1",
+					"status": "eligible",
+					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
+					"targetRef": "model-target.deepseek-v4-flash-0731",
+					"resolutionDigest": "sha256:5287f32c88e54bcf8afe2dbaad089c763f12ac991ca795299bf6a698de859889"
+				},
+				"profile": {
+					"enhancementRecipes": [
+						"named-phase-tool-binding",
+						"retained-inspection-span",
+						"premature-final-correction",
+						"fresh-mutation-after-exact-replacement-rejection",
+						"actor-visible-semantic-correction",
+						"sanitized-provider-failure-continuation"
+					],
+					"inspectionMaxOutputTokens": 65536,
+					"mutationMaxOutputTokens": 16384,
+					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
+					"reasoningEffort": "medium",
+					"schemaVersion": "graphrefly-ts.harness-enhancement-profile.v2",
+					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
+					"targetRef": "model-target.deepseek-v4-flash-0731",
+					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8"
+				},
+				"binding": {
+					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
+					"endpointProtocol": "chat-completions",
+					"proposalEncoding": "strict-json-schema",
+					"providerModelRef": "deepseek/deepseek-v4-flash-0731",
+					"providerRef": "fireworks",
+					"responseContractRevision": "bounded-structured-proposal.v3",
+					"schemaVersion": "graphrefly-ts.provider-binding.v2",
+					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
+					"targetRef": "model-target.deepseek-v4-flash-0731",
+					"bindingDigest": "sha256:2163c9f0da40a602408c54076cd5eb81a43d6154467a233b1d5d5dd56d2b388d"
+				}
+			},
+			"version": {
+				"level": 0,
+				"counter": 1
+			}
+		},
+		{
+			"id": "eval/provider/graph-admission-and-budget",
+			"factory": "rootEvalProviderGraphAdmission",
+			"status": "settled",
+			"deps": [
+				"eval/provider/admission-events"
 			],
 			"name": "eval/provider/graph-admission-and-budget",
 			"value": {
 				"kind": "eval-provider-admission-observation-cut",
-				"revision": 2,
+				"revision": 1,
 				"budget": {
 					"kind": "eval-budget-state",
 					"admittedAttempts": 0,
@@ -2676,7 +4139,7 @@
 			},
 			"version": {
 				"level": 0,
-				"counter": 2
+				"counter": 1
 			},
 			"meta": {
 				"atomicAdmissionObservationCut": true,
@@ -2704,7 +4167,7 @@
 			"name": "eval/provider/admission-observation-cut",
 			"value": {
 				"kind": "eval-provider-admission-observation-cut",
-				"revision": 2,
+				"revision": 1,
 				"budget": {
 					"kind": "eval-budget-state",
 					"admittedAttempts": 0,
@@ -2798,34 +4261,14 @@
 		{
 			"id": "eval/provider/adaptive-capacity-state",
 			"factory": "rootEvalAdaptiveProviderCapacityState",
-			"status": "settled",
+			"status": "sentinel",
 			"deps": [
 				"eval/provider/admission-observation-cut"
 			],
 			"name": "eval/provider/adaptive-capacity-state",
-			"value": {
-				"kind": "eval-provider-capacity-state",
-				"mode": "paced-serial",
-				"initialMaxConcurrentEffects": 1,
-				"maxConcurrentEffects": 1,
-				"activeEffects": 0,
-				"proposalCount": 0,
-				"pendingProposalCount": 0,
-				"pendingFirstAttemptProposalCount": 0,
-				"pendingRetryProposalCount": 0,
-				"retryProposalCount": 0,
-				"admittedProposalCount": 0,
-				"admittedRetryProposalCount": 0,
-				"settledProposalCount": 0,
-				"settledRetryProposalCount": 0,
-				"rejectedProposalCount": 0,
-				"rejectedRetryProposalCount": 0,
-				"cooldownOutstandingReadinessCount": 0,
-				"rateLimitFeedbackCount": 0
-			},
 			"version": {
 				"level": 0,
-				"counter": 1
+				"counter": 0
 			},
 			"meta": {
 				"domainAuthority": "graph-state",
@@ -2904,13 +4347,83 @@
 			}
 		},
 		{
-			"id": "eval/tool/exact-admission",
-			"factory": "rootEvalExactToolAdmission",
-			"status": "sentinel",
+			"id": "eval/tool/admission-events",
+			"factory": "merge",
+			"status": "settled",
 			"deps": [
 				"eval/provider/budget-settled-outcomes",
 				"eval/source-work-item/tool-result-input",
 				"eval/campaign/task-bindings"
+			],
+			"name": "eval/tool/admission-events",
+			"value": [
+				{
+					"replicate": 1,
+					"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-1",
+					"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-1/source-work-item",
+					"sourceEvidenceDigest": "sha256:696d49eb56f3b6740d1cd5f7133734c3453db4b6bf767d8ecf8c6b16cd381f70",
+					"sourceInsightDigest": "sha256:5bd79e93bfa559cb080e42016742a9085986f3cd810f0a3891a584f557ecedaa",
+					"irrelevantTaskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-2",
+					"irrelevantSourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-2/source-work-item",
+					"irrelevantSourceEvidenceDigest": "sha256:2b88df3271dc325e38ff681373428d07d75948bd9f771f74f291f764ea09a7dd",
+					"irrelevantSourceInsightDigest": "sha256:aa88562075e1617a9ae981c406192bcea8d51c060bfad6d6cc3a20034226972f"
+				},
+				{
+					"replicate": 2,
+					"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-2",
+					"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-2/source-work-item",
+					"sourceEvidenceDigest": "sha256:2b88df3271dc325e38ff681373428d07d75948bd9f771f74f291f764ea09a7dd",
+					"sourceInsightDigest": "sha256:aa88562075e1617a9ae981c406192bcea8d51c060bfad6d6cc3a20034226972f",
+					"irrelevantTaskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-3",
+					"irrelevantSourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-3/source-work-item",
+					"irrelevantSourceEvidenceDigest": "sha256:69752d3d042b18673dce8251e5df332b976b34b7304fa2bd56e14ea132217e9a",
+					"irrelevantSourceInsightDigest": "sha256:1b5b79a2ea6bbf4bb589299ede11493a898eb61dc7a26e71d689db9948d94496"
+				},
+				{
+					"replicate": 3,
+					"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-3",
+					"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-3/source-work-item",
+					"sourceEvidenceDigest": "sha256:69752d3d042b18673dce8251e5df332b976b34b7304fa2bd56e14ea132217e9a",
+					"sourceInsightDigest": "sha256:1b5b79a2ea6bbf4bb589299ede11493a898eb61dc7a26e71d689db9948d94496",
+					"irrelevantTaskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-4",
+					"irrelevantSourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-4/source-work-item",
+					"irrelevantSourceEvidenceDigest": "sha256:1a44164136328a5d7efd763ba65a7d8abf8adfc0445a9cbc0c84b0770e52c843",
+					"irrelevantSourceInsightDigest": "sha256:ec40b26fe53cc2f4a82f3d6a97c0353d6b5ce499a0e940115771588667135fa2"
+				},
+				{
+					"replicate": 4,
+					"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-4",
+					"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-4/source-work-item",
+					"sourceEvidenceDigest": "sha256:1a44164136328a5d7efd763ba65a7d8abf8adfc0445a9cbc0c84b0770e52c843",
+					"sourceInsightDigest": "sha256:ec40b26fe53cc2f4a82f3d6a97c0353d6b5ce499a0e940115771588667135fa2",
+					"irrelevantTaskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-5",
+					"irrelevantSourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-5/source-work-item",
+					"irrelevantSourceEvidenceDigest": "sha256:a71c916b95829bd1d79455c80ad752bd91e0c9c070a453cda7fc870994e8d3a9",
+					"irrelevantSourceInsightDigest": "sha256:d71675006349217f08cfc74d0ca310a41c7d5dde244c1a0df89299cd12ef6923"
+				},
+				{
+					"replicate": 5,
+					"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-5",
+					"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-5/source-work-item",
+					"sourceEvidenceDigest": "sha256:a71c916b95829bd1d79455c80ad752bd91e0c9c070a453cda7fc870994e8d3a9",
+					"sourceInsightDigest": "sha256:d71675006349217f08cfc74d0ca310a41c7d5dde244c1a0df89299cd12ef6923",
+					"irrelevantTaskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-1",
+					"irrelevantSourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-1/source-work-item",
+					"irrelevantSourceEvidenceDigest": "sha256:696d49eb56f3b6740d1cd5f7133734c3453db4b6bf767d8ecf8c6b16cd381f70",
+					"irrelevantSourceInsightDigest": "sha256:5bd79e93bfa559cb080e42016742a9085986f3cd810f0a3891a584f557ecedaa"
+				}
+			],
+			"version": {
+				"level": 0,
+				"counter": 1
+			}
+		},
+		{
+			"id": "eval/tool/exact-admission",
+			"factory": "rootEvalExactToolAdmission",
+			"status": "sentinel",
+			"deps": [
+				"eval/tool/admission-events"
 			],
 			"name": "eval/tool/exact-admission",
 			"version": {
@@ -2974,8 +4487,8 @@
 			}
 		},
 		{
-			"id": "eval/billing/observation-proposal-and-stopping",
-			"factory": "rootEvalBillingObservationProposalAndStopping",
+			"id": "eval/billing/fact-events",
+			"factory": "merge",
 			"status": "settled",
 			"deps": [
 				"eval/cleanup/completed",
@@ -2983,6 +4496,29 @@
 				"eval/billing/observation-result-input",
 				"eval/billing/current-key-before",
 				"eval/campaign/state"
+			],
+			"name": "eval/billing/fact-events",
+			"value": {
+				"kind": "eval-current-key-snapshot",
+				"keyBindingDigest": "sha256:0f70e48c5c2f9a502a2f954a1a5ba5cb9433cc9a551c0fdfd3285f837c19fa59",
+				"admissionDigest": "sha256:33eb501af9cf34676923ab6a2e5aa16c8c5ca942447e28612ab77a126f652fff",
+				"limitMicrousd": 32000000,
+				"remainingMicrousd": 12000000,
+				"usageMicrousd": 20000000,
+				"limitReset": "none",
+				"isManagementKey": false
+			},
+			"version": {
+				"level": 0,
+				"counter": 2
+			}
+		},
+		{
+			"id": "eval/billing/observation-proposal-and-stopping",
+			"factory": "rootEvalBillingObservationProposalAndStopping",
+			"status": "settled",
+			"deps": [
+				"eval/billing/fact-events"
 			],
 			"name": "eval/billing/observation-proposal-and-stopping",
 			"value": {
@@ -3032,6 +4568,33 @@
 			}
 		},
 		{
+			"id": "eval/billing/admission-release-events",
+			"factory": "merge",
+			"status": "sentinel",
+			"deps": [
+				"eval/billing/observation-proposals",
+				"eval/billing/observation-admission"
+			],
+			"name": "eval/billing/admission-release-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/billing/admission-release-controller",
+			"factory": "rootEvalBillingAdmissionReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/billing/admission-release-events"
+			],
+			"name": "eval/billing/admission-release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
 			"id": "eval/executor/current-billing-observation",
 			"factory": "merge",
 			"status": "sentinel",
@@ -3066,13 +4629,26 @@
 			}
 		},
 		{
-			"id": "eval/executor/provider-effect-lifecycle-registry",
-			"factory": "rootEvalEffectLifecycleRegistry",
+			"id": "eval/executor/provider-effect-lifecycle-registry/events",
+			"factory": "merge",
 			"status": "sentinel",
 			"deps": [
 				"eval/executor/current-provider-effect",
 				"eval/provider/all-result-admissions",
 				"eval/campaign/start"
+			],
+			"name": "eval/executor/provider-effect-lifecycle-registry/events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/executor/provider-effect-lifecycle-registry",
+			"factory": "rootEvalEffectLifecycleRegistry",
+			"status": "sentinel",
+			"deps": [
+				"eval/executor/provider-effect-lifecycle-registry/events"
 			],
 			"name": "eval/executor/provider-effect-lifecycle-registry",
 			"version": {
@@ -3085,13 +4661,26 @@
 			}
 		},
 		{
-			"id": "eval/executor/retry-effect-lifecycle-registry",
-			"factory": "rootEvalRetryEffectLifecycleRegistry",
+			"id": "eval/executor/retry-effect-lifecycle-registry/events",
+			"factory": "merge",
 			"status": "sentinel",
 			"deps": [
 				"eval/executor/current-retry-delay",
 				"eval/retry/delay-result-input",
 				"eval/campaign/start"
+			],
+			"name": "eval/executor/retry-effect-lifecycle-registry/events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/executor/retry-effect-lifecycle-registry",
+			"factory": "rootEvalRetryEffectLifecycleRegistry",
+			"status": "sentinel",
+			"deps": [
+				"eval/executor/retry-effect-lifecycle-registry/events"
 			],
 			"name": "eval/executor/retry-effect-lifecycle-registry",
 			"version": {
@@ -3104,13 +4693,26 @@
 			}
 		},
 		{
-			"id": "eval/executor/tool-effect-lifecycle-registry",
-			"factory": "rootEvalToolEffectLifecycleRegistry",
+			"id": "eval/executor/tool-effect-lifecycle-registry/events",
+			"factory": "merge",
 			"status": "sentinel",
 			"deps": [
 				"eval/executor/current-tool-effect",
 				"eval/tool/all-result-inputs",
 				"eval/campaign/start"
+			],
+			"name": "eval/executor/tool-effect-lifecycle-registry/events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/executor/tool-effect-lifecycle-registry",
+			"factory": "rootEvalToolEffectLifecycleRegistry",
+			"status": "sentinel",
+			"deps": [
+				"eval/executor/tool-effect-lifecycle-registry/events"
 			],
 			"name": "eval/executor/tool-effect-lifecycle-registry",
 			"version": {
@@ -3123,13 +4725,26 @@
 			}
 		},
 		{
-			"id": "eval/executor/billing-effect-lifecycle-registry",
-			"factory": "rootEvalBillingEffectLifecycleRegistry",
+			"id": "eval/executor/billing-effect-lifecycle-registry/events",
+			"factory": "merge",
 			"status": "sentinel",
 			"deps": [
 				"eval/executor/current-billing-observation",
 				"eval/billing/observation-result-input",
 				"eval/campaign/start"
+			],
+			"name": "eval/executor/billing-effect-lifecycle-registry/events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/executor/billing-effect-lifecycle-registry",
+			"factory": "rootEvalBillingEffectLifecycleRegistry",
+			"status": "sentinel",
+			"deps": [
+				"eval/executor/billing-effect-lifecycle-registry/events"
 			],
 			"name": "eval/executor/billing-effect-lifecycle-registry",
 			"version": {
@@ -3369,15 +4984,85 @@
 			}
 		},
 		{
-			"id": "eval/findings/matched-source-target-evidence",
-			"factory": "rootEvalMatchedSourceTargetEvidence",
-			"status": "sentinel",
+			"id": "eval/findings/matched-evidence-events",
+			"factory": "merge",
+			"status": "settled",
 			"deps": [
 				"eval/cleanup/completed",
 				"eval/provider/all-result-admissions",
 				"eval/source-work-item/memory-handoff/status",
 				"eval/source-work-item/request-authority",
 				"eval/campaign/start"
+			],
+			"name": "eval/findings/matched-evidence-events",
+			"value": [
+				{
+					"kind": "eval-source-work-item-request",
+					"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+					"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+					"replicate": 1,
+					"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-1",
+					"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-1/source-work-item",
+					"sourceEvidenceDigest": "sha256:696d49eb56f3b6740d1cd5f7133734c3453db4b6bf767d8ecf8c6b16cd381f70",
+					"sourceInsightDigest": "sha256:5bd79e93bfa559cb080e42016742a9085986f3cd810f0a3891a584f557ecedaa",
+					"taskManifestDigest": "sha256:ddf3dbce93c428b1289e5bca484f5b12c8b9675a5f4a229ac6b2c5a192fd57bf"
+				},
+				{
+					"kind": "eval-source-work-item-request",
+					"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+					"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+					"replicate": 2,
+					"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-2",
+					"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-2/source-work-item",
+					"sourceEvidenceDigest": "sha256:2b88df3271dc325e38ff681373428d07d75948bd9f771f74f291f764ea09a7dd",
+					"sourceInsightDigest": "sha256:aa88562075e1617a9ae981c406192bcea8d51c060bfad6d6cc3a20034226972f",
+					"taskManifestDigest": "sha256:ddf3dbce93c428b1289e5bca484f5b12c8b9675a5f4a229ac6b2c5a192fd57bf"
+				},
+				{
+					"kind": "eval-source-work-item-request",
+					"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+					"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+					"replicate": 3,
+					"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-3",
+					"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-3/source-work-item",
+					"sourceEvidenceDigest": "sha256:69752d3d042b18673dce8251e5df332b976b34b7304fa2bd56e14ea132217e9a",
+					"sourceInsightDigest": "sha256:1b5b79a2ea6bbf4bb589299ede11493a898eb61dc7a26e71d689db9948d94496",
+					"taskManifestDigest": "sha256:ddf3dbce93c428b1289e5bca484f5b12c8b9675a5f4a229ac6b2c5a192fd57bf"
+				},
+				{
+					"kind": "eval-source-work-item-request",
+					"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+					"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+					"replicate": 4,
+					"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-4",
+					"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-4/source-work-item",
+					"sourceEvidenceDigest": "sha256:1a44164136328a5d7efd763ba65a7d8abf8adfc0445a9cbc0c84b0770e52c843",
+					"sourceInsightDigest": "sha256:ec40b26fe53cc2f4a82f3d6a97c0353d6b5ce499a0e940115771588667135fa2",
+					"taskManifestDigest": "sha256:ddf3dbce93c428b1289e5bca484f5b12c8b9675a5f4a229ac6b2c5a192fd57bf"
+				},
+				{
+					"kind": "eval-source-work-item-request",
+					"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+					"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+					"replicate": 5,
+					"taskInstanceRef": "root-eval-d152-mechanism-qualification-v1/instance-5",
+					"sourceWorkItemId": "root-eval-d152-mechanism-qualification-v1/instance-5/source-work-item",
+					"sourceEvidenceDigest": "sha256:a71c916b95829bd1d79455c80ad752bd91e0c9c070a453cda7fc870994e8d3a9",
+					"sourceInsightDigest": "sha256:d71675006349217f08cfc74d0ca310a41c7d5dde244c1a0df89299cd12ef6923",
+					"taskManifestDigest": "sha256:ddf3dbce93c428b1289e5bca484f5b12c8b9675a5f4a229ac6b2c5a192fd57bf"
+				}
+			],
+			"version": {
+				"level": 0,
+				"counter": 1
+			}
+		},
+		{
+			"id": "eval/findings/matched-source-target-evidence",
+			"factory": "rootEvalMatchedSourceTargetEvidence",
+			"status": "sentinel",
+			"deps": [
+				"eval/findings/matched-evidence-events"
 			],
 			"name": "eval/findings/matched-source-target-evidence",
 			"version": {
@@ -3410,8 +5095,8 @@
 			}
 		},
 		{
-			"id": "eval/findings/efficacy",
-			"factory": "rootEvalEfficacyFinding",
+			"id": "eval/findings/efficacy/candidate",
+			"factory": "rootEvalEfficacyFindingCandidate",
 			"status": "sentinel",
 			"deps": [
 				"eval/findings/efficacy-state",
@@ -3419,7 +5104,7 @@
 				"eval/observation/effect-activity",
 				"eval/findings/matched-source-target-evidence"
 			],
-			"name": "eval/findings/efficacy",
+			"name": "eval/findings/efficacy/candidate",
 			"version": {
 				"level": 0,
 				"counter": 0
@@ -3430,12 +5115,121 @@
 			}
 		},
 		{
-			"id": "eval/development/qualification",
-			"factory": "rootEvalDevelopmentQualification",
+			"id": "eval/findings/efficacy/validated",
+			"factory": "rootEvalQuietDataValidated",
+			"status": "sentinel",
+			"deps": [
+				"eval/findings/efficacy/candidate"
+			],
+			"name": "eval/findings/efficacy/validated",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"materialFree": true
+			}
+		},
+		{
+			"id": "eval/findings/efficacy/released",
+			"factory": "rootEvalQuietDataPort",
+			"status": "sentinel",
+			"deps": [
+				"eval/findings/efficacy/validated"
+			],
+			"name": "eval/findings/efficacy/released",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"billingAuditAffectsConclusion": false,
+				"boundary": "complete-domain-data-only",
+				"completeDomainOccurrence": true,
+				"materialFree": true,
+				"semanticAuthority": "verification-diagnostics-stage-counts"
+			}
+		},
+		{
+			"id": "eval/findings/efficacy",
+			"factory": "rootEvalEfficacyFinding",
+			"status": "sentinel",
+			"deps": [
+				"eval/findings/efficacy/released"
+			],
+			"name": "eval/findings/efficacy",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"billingAuditAffectsConclusion": false,
+				"boundary": "complete-domain-data-only",
+				"completeDomainOccurrence": true,
+				"materialFree": true,
+				"semanticAuthority": "verification-diagnostics-stage-counts"
+			}
+		},
+		{
+			"id": "eval/findings/efficacy/release-events",
+			"factory": "merge",
+			"status": "sentinel",
+			"deps": [
+				"eval/findings/efficacy",
+				"eval/findings/efficacy/validated"
+			],
+			"name": "eval/findings/efficacy/release-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/findings/efficacy/release-controller",
+			"factory": "rootEvalQuietDataReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/findings/efficacy/release-events"
+			],
+			"name": "eval/findings/efficacy/release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/development/qualification-events",
+			"factory": "merge",
 			"status": "settled",
 			"deps": [
 				"eval/campaign/contract",
 				"eval/findings/efficacy"
+			],
+			"name": "eval/development/qualification-events",
+			"value": {
+				"kind": "eval-campaign-contract",
+				"campaignPurpose": "development",
+				"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+				"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+				"replicateCount": 5,
+				"heldOutSealDigest": "sha256:0d26399c4f80843a4bbcf666e14f2a44a04a5508afa39f6e9144ab461f084820",
+				"budgetPartition": "development-usd-36",
+				"partitionHardCapMicrousd": 36000000,
+				"partitionSpentBeforeMicrousd": 0,
+				"partitionLedgerDigest": "sha256:1a5008b69a43c54883d4c4afdf1293e8eac8ce761c5984103e79afbea20a3c46",
+				"developmentQualificationStreakBefore": 0
+			},
+			"version": {
+				"level": 0,
+				"counter": 1
+			}
+		},
+		{
+			"id": "eval/development/qualification",
+			"factory": "rootEvalDevelopmentQualification",
+			"status": "settled",
+			"deps": [
+				"eval/development/qualification-events"
 			],
 			"name": "eval/development/qualification",
 			"value": {
@@ -3459,107 +5253,943 @@
 			}
 		},
 		{
-			"id": "eval/observation/terminal-lifecycle-consistency",
-			"factory": "rootEvalTerminalLifecycleConsistency",
+			"id": "eval/observation/input/context",
+			"factory": "rootEvalObservationOccurrenceInput",
 			"status": "settled",
 			"deps": [
-				"eval/findings/efficacy",
-				"eval/observation/effect-activity",
-				"eval/budget/state",
-				"eval/campaign/start"
+				"eval/observation/source-stage-context"
 			],
-			"name": "eval/observation/terminal-lifecycle-consistency",
-			"value": {
-				"kind": "eval-terminal-lifecycle-consistency",
-				"status": "pending",
-				"budgetDigest": null
-			},
+			"name": "eval/observation/input/context",
+			"value": [
+				{
+					"source": "context",
+					"revision": 1,
+					"digest": "sha256:42e81d06d100cc48fd326f8e9308fdbad2952dce059b18da4d93d4e87c531a35",
+					"value": {
+						"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+						"campaignContract": {
+							"kind": "eval-campaign-contract",
+							"campaignPurpose": "development",
+							"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+							"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+							"replicateCount": 5,
+							"heldOutSealDigest": "sha256:0d26399c4f80843a4bbcf666e14f2a44a04a5508afa39f6e9144ab461f084820",
+							"budgetPartition": "development-usd-36",
+							"partitionHardCapMicrousd": 36000000,
+							"partitionSpentBeforeMicrousd": 0,
+							"partitionLedgerDigest": "sha256:1a5008b69a43c54883d4c4afdf1293e8eac8ce761c5984103e79afbea20a3c46",
+							"developmentQualificationStreakBefore": 0
+						},
+						"memoryProvenance": {
+							"cold": "none",
+							"relevant-applied": "relevant-applied",
+							"proposal-only": "proposal-only",
+							"admission-rejected": "admission-rejected",
+							"irrelevant-applied": "irrelevant-applied",
+							"wrong-scope-applied": "wrong-scope-applied"
+						},
+						"elapsedBudgetScheduleId": "root-eval-d152-mechanism-no-network-qualification-v1/elapsed-admission-budget"
+					}
+				}
+			],
 			"version": {
 				"level": 0,
 				"counter": 1
 			},
 			"meta": {
-				"authority": "terminal-stable-cut-verifier",
-				"failClosed": true,
-				"materialFree": true
+				"correlation": "source-local-revision/content-digest",
+				"materialFree": true,
+				"source": "context"
 			}
 		},
 		{
-			"id": "eval/observation/source-stage-state",
-			"factory": "rootEvalSourceStageObservation",
+			"id": "eval/observation/input/context/released",
+			"factory": "rootEvalObservationSnapshotRelease",
+			"status": "settled",
+			"deps": [
+				"eval/observation/input/context"
+			],
+			"name": "eval/observation/input/context/released",
+			"value": [
+				{
+					"source": "context",
+					"revision": 1,
+					"digest": "sha256:42e81d06d100cc48fd326f8e9308fdbad2952dce059b18da4d93d4e87c531a35",
+					"value": {
+						"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+						"campaignContract": {
+							"kind": "eval-campaign-contract",
+							"campaignPurpose": "development",
+							"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+							"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+							"replicateCount": 5,
+							"heldOutSealDigest": "sha256:0d26399c4f80843a4bbcf666e14f2a44a04a5508afa39f6e9144ab461f084820",
+							"budgetPartition": "development-usd-36",
+							"partitionHardCapMicrousd": 36000000,
+							"partitionSpentBeforeMicrousd": 0,
+							"partitionLedgerDigest": "sha256:1a5008b69a43c54883d4c4afdf1293e8eac8ce761c5984103e79afbea20a3c46",
+							"developmentQualificationStreakBefore": 0
+						},
+						"memoryProvenance": {
+							"cold": "none",
+							"relevant-applied": "relevant-applied",
+							"proposal-only": "proposal-only",
+							"admission-rejected": "admission-rejected",
+							"irrelevant-applied": "irrelevant-applied",
+							"wrong-scope-applied": "wrong-scope-applied"
+						},
+						"elapsedBudgetScheduleId": "root-eval-d152-mechanism-no-network-qualification-v1/elapsed-admission-budget"
+					}
+				}
+			],
+			"version": {
+				"level": 0,
+				"counter": 1
+			},
+			"meta": {
+				"materialFree": true,
+				"role": "quiet-snapshot-boundary"
+			}
+		},
+		{
+			"id": "eval/observation/input/context/release-events",
+			"factory": "merge",
+			"status": "settled",
+			"deps": [
+				"eval/observation/input/context",
+				"eval/observation/input/context/released"
+			],
+			"name": "eval/observation/input/context/release-events",
+			"value": [
+				{
+					"source": "context",
+					"revision": 1,
+					"digest": "sha256:42e81d06d100cc48fd326f8e9308fdbad2952dce059b18da4d93d4e87c531a35",
+					"value": {
+						"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+						"campaignContract": {
+							"kind": "eval-campaign-contract",
+							"campaignPurpose": "development",
+							"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
+							"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+							"replicateCount": 5,
+							"heldOutSealDigest": "sha256:0d26399c4f80843a4bbcf666e14f2a44a04a5508afa39f6e9144ab461f084820",
+							"budgetPartition": "development-usd-36",
+							"partitionHardCapMicrousd": 36000000,
+							"partitionSpentBeforeMicrousd": 0,
+							"partitionLedgerDigest": "sha256:1a5008b69a43c54883d4c4afdf1293e8eac8ce761c5984103e79afbea20a3c46",
+							"developmentQualificationStreakBefore": 0
+						},
+						"memoryProvenance": {
+							"cold": "none",
+							"relevant-applied": "relevant-applied",
+							"proposal-only": "proposal-only",
+							"admission-rejected": "admission-rejected",
+							"irrelevant-applied": "irrelevant-applied",
+							"wrong-scope-applied": "wrong-scope-applied"
+						},
+						"elapsedBudgetScheduleId": "root-eval-d152-mechanism-no-network-qualification-v1/elapsed-admission-budget"
+					}
+				}
+			],
+			"version": {
+				"level": 0,
+				"counter": 2
+			}
+		},
+		{
+			"id": "eval/observation/input/context/release-controller",
+			"factory": "rootEvalObservationSnapshotReleaseController",
 			"status": "sentinel",
 			"deps": [
-				"eval/observation/source-stage-context",
-				"eval/provider/admission-observation-cut",
-				"eval/observation/effect-activity",
-				"eval/campaign/state",
+				"eval/observation/input/context/release-events"
+			],
+			"name": "eval/observation/input/context/release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/observation/input/admission",
+			"factory": "rootEvalObservationOccurrenceInput",
+			"status": "settled",
+			"deps": [
+				"eval/provider/admission-observation-cut"
+			],
+			"name": "eval/observation/input/admission",
+			"value": [
+				{
+					"source": "admission",
+					"revision": 1,
+					"digest": "sha256:7760fa33bff1a8b5ba658c639aa107f9b3b38695d9c18467c5d2177c276cd51b",
+					"value": {
+						"kind": "eval-provider-admission-observation-cut",
+						"revision": 1,
+						"budget": {
+							"kind": "eval-budget-state",
+							"admittedAttempts": 0,
+							"admittedRetryAttempts": 0,
+							"retryProposalCount": 0,
+							"pendingRetryProposalCount": 0,
+							"rejectedRetryProposalCount": 0,
+							"settledRetryAttemptCount": 0,
+							"providerCallCount": 0,
+							"activeEffects": 0,
+							"activeReservedMicrousd": 0,
+							"providerReportedMicrousd": 0,
+							"pricingRoundingAllowanceMicrousd": 0,
+							"unreportedSettledUpperBoundMicrousd": 0,
+							"accountedUpperBoundMicrousd": 0,
+							"providerOutcomeReasonCounts": {
+								"tool-proposed": 0,
+								"http-capacity-retryable": 0,
+								"http-capacity-exhausted": 0,
+								"http-availability-retryable": 0,
+								"http-availability-exhausted": 0,
+								"http-terminal": 0,
+								"transport-failed": 0,
+								"transport-availability-retryable": 0,
+								"transport-availability-exhausted": 0,
+								"response-bounds-invalid": 0,
+								"response-json-invalid": 0,
+								"response-route-invalid": 0,
+								"response-usage-invalid": 0,
+								"response-choice-invalid": 0,
+								"response-output-truncated": 0,
+								"response-proposal-missing": 0,
+								"response-proposal-legacy-shape": 0,
+								"response-proposal-invalid": 0,
+								"response-proposal-arguments-invalid": 0,
+								"executor-failed": 0
+							},
+							"maxAttempts": 175,
+							"maxCostMicrousd": 36000000,
+							"stoppingReason": "none"
+						},
+						"capacity": {
+							"kind": "eval-provider-capacity-state",
+							"mode": "paced-serial",
+							"initialMaxConcurrentEffects": 1,
+							"maxConcurrentEffects": 1,
+							"activeEffects": 0,
+							"proposalCount": 0,
+							"pendingProposalCount": 0,
+							"pendingFirstAttemptProposalCount": 0,
+							"pendingRetryProposalCount": 0,
+							"retryProposalCount": 0,
+							"admittedProposalCount": 0,
+							"admittedRetryProposalCount": 0,
+							"settledProposalCount": 0,
+							"settledRetryProposalCount": 0,
+							"rejectedProposalCount": 0,
+							"rejectedRetryProposalCount": 0,
+							"cooldownOutstandingReadinessCount": 0,
+							"rateLimitFeedbackCount": 0
+						},
+						"activeProviderAdmissionIds": []
+					}
+				}
+			],
+			"version": {
+				"level": 0,
+				"counter": 1
+			},
+			"meta": {
+				"correlation": "source-local-revision/content-digest",
+				"materialFree": true,
+				"source": "admission"
+			}
+		},
+		{
+			"id": "eval/observation/input/admission/released",
+			"factory": "rootEvalObservationSnapshotRelease",
+			"status": "settled",
+			"deps": [
+				"eval/observation/input/admission"
+			],
+			"name": "eval/observation/input/admission/released",
+			"value": [
+				{
+					"source": "admission",
+					"revision": 1,
+					"digest": "sha256:7760fa33bff1a8b5ba658c639aa107f9b3b38695d9c18467c5d2177c276cd51b",
+					"value": {
+						"kind": "eval-provider-admission-observation-cut",
+						"revision": 1,
+						"budget": {
+							"kind": "eval-budget-state",
+							"admittedAttempts": 0,
+							"admittedRetryAttempts": 0,
+							"retryProposalCount": 0,
+							"pendingRetryProposalCount": 0,
+							"rejectedRetryProposalCount": 0,
+							"settledRetryAttemptCount": 0,
+							"providerCallCount": 0,
+							"activeEffects": 0,
+							"activeReservedMicrousd": 0,
+							"providerReportedMicrousd": 0,
+							"pricingRoundingAllowanceMicrousd": 0,
+							"unreportedSettledUpperBoundMicrousd": 0,
+							"accountedUpperBoundMicrousd": 0,
+							"providerOutcomeReasonCounts": {
+								"tool-proposed": 0,
+								"http-capacity-retryable": 0,
+								"http-capacity-exhausted": 0,
+								"http-availability-retryable": 0,
+								"http-availability-exhausted": 0,
+								"http-terminal": 0,
+								"transport-failed": 0,
+								"transport-availability-retryable": 0,
+								"transport-availability-exhausted": 0,
+								"response-bounds-invalid": 0,
+								"response-json-invalid": 0,
+								"response-route-invalid": 0,
+								"response-usage-invalid": 0,
+								"response-choice-invalid": 0,
+								"response-output-truncated": 0,
+								"response-proposal-missing": 0,
+								"response-proposal-legacy-shape": 0,
+								"response-proposal-invalid": 0,
+								"response-proposal-arguments-invalid": 0,
+								"executor-failed": 0
+							},
+							"maxAttempts": 175,
+							"maxCostMicrousd": 36000000,
+							"stoppingReason": "none"
+						},
+						"capacity": {
+							"kind": "eval-provider-capacity-state",
+							"mode": "paced-serial",
+							"initialMaxConcurrentEffects": 1,
+							"maxConcurrentEffects": 1,
+							"activeEffects": 0,
+							"proposalCount": 0,
+							"pendingProposalCount": 0,
+							"pendingFirstAttemptProposalCount": 0,
+							"pendingRetryProposalCount": 0,
+							"retryProposalCount": 0,
+							"admittedProposalCount": 0,
+							"admittedRetryProposalCount": 0,
+							"settledProposalCount": 0,
+							"settledRetryProposalCount": 0,
+							"rejectedProposalCount": 0,
+							"rejectedRetryProposalCount": 0,
+							"cooldownOutstandingReadinessCount": 0,
+							"rateLimitFeedbackCount": 0
+						},
+						"activeProviderAdmissionIds": []
+					}
+				}
+			],
+			"version": {
+				"level": 0,
+				"counter": 1
+			},
+			"meta": {
+				"materialFree": true,
+				"role": "quiet-snapshot-boundary"
+			}
+		},
+		{
+			"id": "eval/observation/input/admission/release-events",
+			"factory": "merge",
+			"status": "settled",
+			"deps": [
+				"eval/observation/input/admission",
+				"eval/observation/input/admission/released"
+			],
+			"name": "eval/observation/input/admission/release-events",
+			"value": [
+				{
+					"source": "admission",
+					"revision": 1,
+					"digest": "sha256:7760fa33bff1a8b5ba658c639aa107f9b3b38695d9c18467c5d2177c276cd51b",
+					"value": {
+						"kind": "eval-provider-admission-observation-cut",
+						"revision": 1,
+						"budget": {
+							"kind": "eval-budget-state",
+							"admittedAttempts": 0,
+							"admittedRetryAttempts": 0,
+							"retryProposalCount": 0,
+							"pendingRetryProposalCount": 0,
+							"rejectedRetryProposalCount": 0,
+							"settledRetryAttemptCount": 0,
+							"providerCallCount": 0,
+							"activeEffects": 0,
+							"activeReservedMicrousd": 0,
+							"providerReportedMicrousd": 0,
+							"pricingRoundingAllowanceMicrousd": 0,
+							"unreportedSettledUpperBoundMicrousd": 0,
+							"accountedUpperBoundMicrousd": 0,
+							"providerOutcomeReasonCounts": {
+								"tool-proposed": 0,
+								"http-capacity-retryable": 0,
+								"http-capacity-exhausted": 0,
+								"http-availability-retryable": 0,
+								"http-availability-exhausted": 0,
+								"http-terminal": 0,
+								"transport-failed": 0,
+								"transport-availability-retryable": 0,
+								"transport-availability-exhausted": 0,
+								"response-bounds-invalid": 0,
+								"response-json-invalid": 0,
+								"response-route-invalid": 0,
+								"response-usage-invalid": 0,
+								"response-choice-invalid": 0,
+								"response-output-truncated": 0,
+								"response-proposal-missing": 0,
+								"response-proposal-legacy-shape": 0,
+								"response-proposal-invalid": 0,
+								"response-proposal-arguments-invalid": 0,
+								"executor-failed": 0
+							},
+							"maxAttempts": 175,
+							"maxCostMicrousd": 36000000,
+							"stoppingReason": "none"
+						},
+						"capacity": {
+							"kind": "eval-provider-capacity-state",
+							"mode": "paced-serial",
+							"initialMaxConcurrentEffects": 1,
+							"maxConcurrentEffects": 1,
+							"activeEffects": 0,
+							"proposalCount": 0,
+							"pendingProposalCount": 0,
+							"pendingFirstAttemptProposalCount": 0,
+							"pendingRetryProposalCount": 0,
+							"retryProposalCount": 0,
+							"admittedProposalCount": 0,
+							"admittedRetryProposalCount": 0,
+							"settledProposalCount": 0,
+							"settledRetryProposalCount": 0,
+							"rejectedProposalCount": 0,
+							"rejectedRetryProposalCount": 0,
+							"cooldownOutstandingReadinessCount": 0,
+							"rateLimitFeedbackCount": 0
+						},
+						"activeProviderAdmissionIds": []
+					}
+				}
+			],
+			"version": {
+				"level": 0,
+				"counter": 2
+			}
+		},
+		{
+			"id": "eval/observation/input/admission/release-controller",
+			"factory": "rootEvalObservationSnapshotReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/observation/input/admission/release-events"
+			],
+			"name": "eval/observation/input/admission/release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/observation/input/activity",
+			"factory": "rootEvalObservationOccurrenceInput",
+			"status": "sentinel",
+			"deps": [
+				"eval/observation/effect-activity"
+			],
+			"name": "eval/observation/input/activity",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"correlation": "source-local-revision/content-digest",
+				"materialFree": true,
+				"source": "activity"
+			}
+		},
+		{
+			"id": "eval/observation/input/activity/released",
+			"factory": "rootEvalObservationSnapshotRelease",
+			"status": "sentinel",
+			"deps": [
+				"eval/observation/input/activity"
+			],
+			"name": "eval/observation/input/activity/released",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"materialFree": true,
+				"role": "quiet-snapshot-boundary"
+			}
+		},
+		{
+			"id": "eval/observation/input/activity/release-events",
+			"factory": "merge",
+			"status": "sentinel",
+			"deps": [
+				"eval/observation/input/activity",
+				"eval/observation/input/activity/released"
+			],
+			"name": "eval/observation/input/activity/release-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/observation/input/activity/release-controller",
+			"factory": "rootEvalObservationSnapshotReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/observation/input/activity/release-events"
+			],
+			"name": "eval/observation/input/activity/release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/observation/input/campaign",
+			"factory": "rootEvalObservationOccurrenceInput",
+			"status": "sentinel",
+			"deps": [
+				"eval/campaign/state"
+			],
+			"name": "eval/observation/input/campaign",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"correlation": "source-local-revision/content-digest",
+				"materialFree": true,
+				"source": "campaign"
+			}
+		},
+		{
+			"id": "eval/observation/input/campaign/released",
+			"factory": "rootEvalObservationSnapshotRelease",
+			"status": "sentinel",
+			"deps": [
+				"eval/observation/input/campaign"
+			],
+			"name": "eval/observation/input/campaign/released",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"materialFree": true,
+				"role": "quiet-snapshot-boundary"
+			}
+		},
+		{
+			"id": "eval/observation/input/campaign/release-events",
+			"factory": "merge",
+			"status": "sentinel",
+			"deps": [
+				"eval/observation/input/campaign",
+				"eval/observation/input/campaign/released"
+			],
+			"name": "eval/observation/input/campaign/release-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/observation/input/campaign/release-controller",
+			"factory": "rootEvalObservationSnapshotReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/observation/input/campaign/release-events"
+			],
+			"name": "eval/observation/input/campaign/release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/observation/input/diagnostics",
+			"factory": "rootEvalObservationOccurrenceInput",
+			"status": "sentinel",
+			"deps": [
 				"eval/verification/diagnostics"
 			],
-			"name": "eval/observation/source-stage-state",
+			"name": "eval/observation/input/diagnostics",
 			"version": {
 				"level": 0,
 				"counter": 0
 			},
 			"meta": {
-				"authority": "atomic-admission-cut-and-lifecycle-anchored-progress-projection",
+				"correlation": "source-local-revision/content-digest",
 				"materialFree": true,
-				"providerAdmissionIdentityBound": true,
-				"retryLifecycleBound": true
+				"source": "diagnostics"
 			}
 		},
 		{
-			"id": "eval/observation/full-state",
-			"factory": "rootEvalGraphNativeFullObservation",
+			"id": "eval/observation/input/diagnostics/released",
+			"factory": "rootEvalObservationSnapshotRelease",
 			"status": "sentinel",
 			"deps": [
-				"eval/campaign/state",
-				"eval/controls/memory-provenance",
-				"eval/findings/efficacy-state",
-				"eval/development/qualification",
-				"eval/findings/efficacy",
-				"eval/observation/effect-activity",
-				"eval/observation/terminal-lifecycle-consistency",
-				"eval/provider/adaptive-capacity-state",
-				"eval/time/elapsed-budget/state"
+				"eval/observation/input/diagnostics"
 			],
-			"name": "eval/observation/full-state",
+			"name": "eval/observation/input/diagnostics/released",
 			"version": {
 				"level": 0,
 				"counter": 0
 			},
 			"meta": {
-				"authority": "read-only-projection",
-				"billingAuditAffectsConclusion": false,
-				"distinct": true,
-				"joinSemantics": "latest-branch-state-with-budget-anchored-provider-capacity-conservation",
 				"materialFree": true,
+				"role": "quiet-snapshot-boundary"
+			}
+		},
+		{
+			"id": "eval/observation/input/diagnostics/release-events",
+			"factory": "merge",
+			"status": "sentinel",
+			"deps": [
+				"eval/observation/input/diagnostics",
+				"eval/observation/input/diagnostics/released"
+			],
+			"name": "eval/observation/input/diagnostics/release-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/observation/input/diagnostics/release-controller",
+			"factory": "rootEvalObservationSnapshotReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/observation/input/diagnostics/release-events"
+			],
+			"name": "eval/observation/input/diagnostics/release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/observation/input/qualification",
+			"factory": "rootEvalObservationOccurrenceInput",
+			"status": "settled",
+			"deps": [
+				"eval/development/qualification"
+			],
+			"name": "eval/observation/input/qualification",
+			"value": [
+				{
+					"source": "qualification",
+					"revision": 1,
+					"digest": "sha256:95c34372da5618fa4e884b292f0252fbfb64967e476efecccf07a19021fa58f1",
+					"value": {
+						"kind": "eval-development-qualification-state",
+						"campaignPurpose": "development",
+						"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+						"status": "pending",
+						"generationQualified": null,
+						"consecutiveQualifyingGenerations": 0,
+						"requiredConsecutiveGenerations": 2,
+						"heldOutEligible": false
+					}
+				}
+			],
+			"version": {
+				"level": 0,
+				"counter": 1
+			},
+			"meta": {
+				"correlation": "source-local-revision/content-digest",
+				"materialFree": true,
+				"source": "qualification"
+			}
+		},
+		{
+			"id": "eval/observation/input/qualification/released",
+			"factory": "rootEvalObservationSnapshotRelease",
+			"status": "settled",
+			"deps": [
+				"eval/observation/input/qualification"
+			],
+			"name": "eval/observation/input/qualification/released",
+			"value": [
+				{
+					"source": "qualification",
+					"revision": 1,
+					"digest": "sha256:95c34372da5618fa4e884b292f0252fbfb64967e476efecccf07a19021fa58f1",
+					"value": {
+						"kind": "eval-development-qualification-state",
+						"campaignPurpose": "development",
+						"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+						"status": "pending",
+						"generationQualified": null,
+						"consecutiveQualifyingGenerations": 0,
+						"requiredConsecutiveGenerations": 2,
+						"heldOutEligible": false
+					}
+				}
+			],
+			"version": {
+				"level": 0,
+				"counter": 1
+			},
+			"meta": {
+				"materialFree": true,
+				"role": "quiet-snapshot-boundary"
+			}
+		},
+		{
+			"id": "eval/observation/input/qualification/release-events",
+			"factory": "merge",
+			"status": "settled",
+			"deps": [
+				"eval/observation/input/qualification",
+				"eval/observation/input/qualification/released"
+			],
+			"name": "eval/observation/input/qualification/release-events",
+			"value": [
+				{
+					"source": "qualification",
+					"revision": 1,
+					"digest": "sha256:95c34372da5618fa4e884b292f0252fbfb64967e476efecccf07a19021fa58f1",
+					"value": {
+						"kind": "eval-development-qualification-state",
+						"campaignPurpose": "development",
+						"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+						"status": "pending",
+						"generationQualified": null,
+						"consecutiveQualifyingGenerations": 0,
+						"requiredConsecutiveGenerations": 2,
+						"heldOutEligible": false
+					}
+				}
+			],
+			"version": {
+				"level": 0,
+				"counter": 2
+			}
+		},
+		{
+			"id": "eval/observation/input/qualification/release-controller",
+			"factory": "rootEvalObservationSnapshotReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/observation/input/qualification/release-events"
+			],
+			"name": "eval/observation/input/qualification/release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/observation/input/finding",
+			"factory": "rootEvalObservationOccurrenceInput",
+			"status": "sentinel",
+			"deps": [
+				"eval/findings/efficacy"
+			],
+			"name": "eval/observation/input/finding",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"correlation": "source-local-revision/content-digest",
+				"materialFree": true,
+				"source": "finding"
+			}
+		},
+		{
+			"id": "eval/observation/input/finding/released",
+			"factory": "rootEvalObservationSnapshotRelease",
+			"status": "sentinel",
+			"deps": [
+				"eval/observation/input/finding"
+			],
+			"name": "eval/observation/input/finding/released",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"materialFree": true,
+				"role": "quiet-snapshot-boundary"
+			}
+		},
+		{
+			"id": "eval/observation/input/finding/release-events",
+			"factory": "merge",
+			"status": "sentinel",
+			"deps": [
+				"eval/observation/input/finding",
+				"eval/observation/input/finding/released"
+			],
+			"name": "eval/observation/input/finding/release-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/observation/input/finding/release-controller",
+			"factory": "rootEvalObservationSnapshotReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/observation/input/finding/release-events"
+			],
+			"name": "eval/observation/input/finding/release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/observation/input/elapsed",
+			"factory": "rootEvalObservationOccurrenceInput",
+			"status": "sentinel",
+			"deps": [
+				"eval/time/elapsed-budget/state"
+			],
+			"name": "eval/observation/input/elapsed",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"correlation": "source-local-revision/content-digest",
+				"materialFree": true,
+				"source": "elapsed"
+			}
+		},
+		{
+			"id": "eval/observation/input/elapsed/released",
+			"factory": "rootEvalObservationSnapshotRelease",
+			"status": "sentinel",
+			"deps": [
+				"eval/observation/input/elapsed"
+			],
+			"name": "eval/observation/input/elapsed/released",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"materialFree": true,
+				"role": "quiet-snapshot-boundary"
+			}
+		},
+		{
+			"id": "eval/observation/input/elapsed/release-events",
+			"factory": "merge",
+			"status": "sentinel",
+			"deps": [
+				"eval/observation/input/elapsed",
+				"eval/observation/input/elapsed/released"
+			],
+			"name": "eval/observation/input/elapsed/release-events",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/observation/input/elapsed/release-controller",
+			"factory": "rootEvalObservationSnapshotReleaseController",
+			"status": "sentinel",
+			"deps": [
+				"eval/observation/input/elapsed/release-events"
+			],
+			"name": "eval/observation/input/elapsed/release-controller",
+			"version": {
+				"level": 0,
+				"counter": 0
+			}
+		},
+		{
+			"id": "eval/observation/arrivals",
+			"factory": "merge",
+			"status": "settled",
+			"deps": [
+				"eval/observation/input/context/released",
+				"eval/observation/input/admission/released",
+				"eval/observation/input/activity/released",
+				"eval/observation/input/campaign/released",
+				"eval/observation/input/diagnostics/released",
+				"eval/observation/input/qualification/released",
+				"eval/observation/input/finding/released",
+				"eval/observation/input/elapsed/released"
+			],
+			"name": "eval/observation/arrivals",
+			"value": [
+				{
+					"source": "qualification",
+					"revision": 1,
+					"digest": "sha256:95c34372da5618fa4e884b292f0252fbfb64967e476efecccf07a19021fa58f1",
+					"value": {
+						"kind": "eval-development-qualification-state",
+						"campaignPurpose": "development",
+						"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+						"status": "pending",
+						"generationQualified": null,
+						"consecutiveQualifyingGenerations": 0,
+						"requiredConsecutiveGenerations": 2,
+						"heldOutEligible": false
+					}
+				}
+			],
+			"version": {
+				"level": 0,
+				"counter": 3
+			}
+		},
+		{
+			"id": "eval/observation/canonical-state",
+			"factory": "rootEvalCanonicalObservation",
+			"status": "sentinel",
+			"deps": [
+				"eval/observation/arrivals"
+			],
+			"name": "eval/observation/canonical-state",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"authority": "read-only-exact-coherent-cut",
+				"correlation": "admission-budget-digest/provider-identities/campaign-completed-coordinate",
+				"materialFree": true,
+				"retentionBound": 13184,
 				"sanitizer": false
 			}
 		},
 		{
-			"id": "eval/observation/full-state-finding-release-controller",
-			"factory": "rootEvalFullObservationFindingReleaseController",
-			"status": "sentinel",
+			"id": "eval/observation/rejections",
+			"factory": "rootEvalObservationRejections",
+			"status": "dirty",
 			"deps": [
-				"eval/findings/efficacy",
-				"eval/observation/full-state"
+				"eval/observation/canonical-state"
 			],
-			"name": "eval/observation/full-state-finding-release-controller",
+			"name": "eval/observation/rejections",
 			"version": {
 				"level": 0,
 				"counter": 0
-			},
-			"meta": {
-				"role": "quiet-terminal-observation-release"
 			}
 		},
 		{
 			"id": "eval/observation",
 			"factory": "rootEvalGraphNativeObservation",
-			"status": "sentinel",
+			"status": "dirty",
 			"deps": [
-				"eval/observation/source-stage-state",
-				"eval/observation/full-state"
+				"eval/observation/canonical-state"
 			],
 			"name": "eval/observation",
 			"version": {
@@ -3567,9 +6197,27 @@
 				"counter": 0
 			},
 			"meta": {
-				"authority": "progress-or-terminal-observation",
+				"authority": "canonical-occurrence-value-projection",
 				"materialFree": true,
 				"sanitizer": false
+			}
+		},
+		{
+			"id": "eval/observation/terminal-lifecycle-consistency",
+			"factory": "rootEvalTerminalLifecycleConsistency",
+			"status": "sentinel",
+			"deps": [
+				"eval/observation/canonical-state"
+			],
+			"name": "eval/observation/terminal-lifecycle-consistency",
+			"version": {
+				"level": 0,
+				"counter": 0
+			},
+			"meta": {
+				"authority": "validated-canonical-terminal-cut",
+				"failClosed": true,
+				"materialFree": true
 			}
 		}
 	],
@@ -3589,6 +6237,18 @@
 		{
 			"from": "eval/time/elapsed-budget/timer-source",
 			"to": "eval/time/elapsed-budget/clock"
+		},
+		{
+			"from": "eval/time/elapsed-budget/timer-source",
+			"to": "eval/time/elapsed-budget/clock-release-events"
+		},
+		{
+			"from": "eval/time/elapsed-budget/clock",
+			"to": "eval/time/elapsed-budget/clock-release-events"
+		},
+		{
+			"from": "eval/time/elapsed-budget/clock-release-events",
+			"to": "eval/time/elapsed-budget/clock-release-controller"
 		},
 		{
 			"from": "eval/time/elapsed-budget/schedule",
@@ -3628,10 +6288,14 @@
 		},
 		{
 			"from": "eval/time/elapsed-budget/schedule",
-			"to": "eval/time/elapsed-budget/state"
+			"to": "eval/time/elapsed-budget/events"
 		},
 		{
 			"from": "eval/time/elapsed-budget/readiness/ready",
+			"to": "eval/time/elapsed-budget/events"
+		},
+		{
+			"from": "eval/time/elapsed-budget/events",
 			"to": "eval/time/elapsed-budget/state"
 		},
 		{
@@ -3656,30 +6320,38 @@
 		},
 		{
 			"from": "eval/provider/all-result-admissions",
+			"to": "eval/provider/result-status-release-events"
+		},
+		{
+			"from": "eval/provider/result-admission",
+			"to": "eval/provider/result-status-release-events"
+		},
+		{
+			"from": "eval/provider/failed-result-admission",
+			"to": "eval/provider/result-status-release-events"
+		},
+		{
+			"from": "eval/provider/retryable-result-admission",
+			"to": "eval/provider/result-status-release-events"
+		},
+		{
+			"from": "eval/provider/result-status-release-events",
 			"to": "eval/provider/result-status-release-controller"
 		},
 		{
 			"from": "eval/provider/result-admission",
-			"to": "eval/provider/result-status-release-controller"
+			"to": "eval/provider/result-batch-events"
 		},
 		{
 			"from": "eval/provider/failed-result-admission",
-			"to": "eval/provider/result-status-release-controller"
+			"to": "eval/provider/result-batch-events"
 		},
 		{
 			"from": "eval/provider/retryable-result-admission",
-			"to": "eval/provider/result-status-release-controller"
+			"to": "eval/provider/result-batch-events"
 		},
 		{
-			"from": "eval/provider/result-admission",
-			"to": "eval/provider/result-batches"
-		},
-		{
-			"from": "eval/provider/failed-result-admission",
-			"to": "eval/provider/result-batches"
-		},
-		{
-			"from": "eval/provider/retryable-result-admission",
+			"from": "eval/provider/result-batch-events",
 			"to": "eval/provider/result-batches"
 		},
 		{
@@ -3692,19 +6364,51 @@
 		},
 		{
 			"from": "eval/provider/failed-result-admission",
-			"to": "eval/effect/terminal-outcomes"
+			"to": "eval/effect/terminal-outcomes/inputs"
 		},
 		{
 			"from": "eval/tool/result-input",
+			"to": "eval/effect/terminal-outcomes/inputs"
+		},
+		{
+			"from": "eval/effect/terminal-outcomes/inputs",
 			"to": "eval/effect/terminal-outcomes"
 		},
 		{
+			"from": "eval/effect/terminal-outcomes/inputs",
+			"to": "eval/effect/terminal-outcomes/release-events"
+		},
+		{
+			"from": "eval/effect/terminal-outcomes",
+			"to": "eval/effect/terminal-outcomes/release-events"
+		},
+		{
+			"from": "eval/effect/terminal-outcomes/release-events",
+			"to": "eval/effect/terminal-outcomes/release-controller"
+		},
+		{
 			"from": "eval/provider/failed-result-admission",
-			"to": "eval/source-work-item/terminal-outcomes"
+			"to": "eval/source-work-item/terminal-outcomes/inputs"
 		},
 		{
 			"from": "eval/source-work-item/tool-result-input",
+			"to": "eval/source-work-item/terminal-outcomes/inputs"
+		},
+		{
+			"from": "eval/source-work-item/terminal-outcomes/inputs",
 			"to": "eval/source-work-item/terminal-outcomes"
+		},
+		{
+			"from": "eval/source-work-item/terminal-outcomes/inputs",
+			"to": "eval/source-work-item/terminal-outcomes/release-events"
+		},
+		{
+			"from": "eval/source-work-item/terminal-outcomes",
+			"to": "eval/source-work-item/terminal-outcomes/release-events"
+		},
+		{
+			"from": "eval/source-work-item/terminal-outcomes/release-events",
+			"to": "eval/source-work-item/terminal-outcomes/release-controller"
 		},
 		{
 			"from": "eval/effect/terminal-outcomes",
@@ -3848,11 +6552,35 @@
 		},
 		{
 			"from": "eval/source-work-item/request-authority",
-			"to": "eval/source-work-item/outcome-evidence-verification"
+			"to": "eval/source-work-item/outcome-evidence-verification/candidate"
 		},
 		{
 			"from": "eval/source-work-item/terminal-outcomes",
+			"to": "eval/source-work-item/outcome-evidence-verification/candidate"
+		},
+		{
+			"from": "eval/source-work-item/outcome-evidence-verification/candidate",
+			"to": "eval/source-work-item/outcome-evidence-verification/validated"
+		},
+		{
+			"from": "eval/source-work-item/outcome-evidence-verification/validated",
+			"to": "eval/source-work-item/outcome-evidence-verification/released"
+		},
+		{
+			"from": "eval/source-work-item/outcome-evidence-verification/released",
 			"to": "eval/source-work-item/outcome-evidence-verification"
+		},
+		{
+			"from": "eval/source-work-item/outcome-evidence-verification",
+			"to": "eval/source-work-item/outcome-evidence-verification/release-events"
+		},
+		{
+			"from": "eval/source-work-item/outcome-evidence-verification/validated",
+			"to": "eval/source-work-item/outcome-evidence-verification/release-events"
+		},
+		{
+			"from": "eval/source-work-item/outcome-evidence-verification/release-events",
+			"to": "eval/source-work-item/outcome-evidence-verification/release-controller"
 		},
 		{
 			"from": "eval/source-work-item/outcome-evidence-verification",
@@ -3924,34 +6652,46 @@
 		},
 		{
 			"from": "eval/campaign/start",
-			"to": "eval/verification/diagnostics"
+			"to": "eval/verification/diagnostic-events"
 		},
 		{
 			"from": "eval/cleanup/completed",
+			"to": "eval/verification/diagnostic-events"
+		},
+		{
+			"from": "eval/verification/diagnostic-events",
 			"to": "eval/verification/diagnostics"
-		},
-		{
-			"from": "eval/cleanup/completed",
-			"to": "eval/campaign/replicate-controller"
-		},
-		{
-			"from": "eval/source-work-item/memory-handoff/status",
-			"to": "eval/campaign/replicate-controller"
-		},
-		{
-			"from": "eval/source-work-item/request-authority",
-			"to": "eval/campaign/replicate-controller"
 		},
 		{
 			"from": "eval/campaign/contract",
-			"to": "eval/campaign/replicate-controller"
+			"to": "eval/campaign/sealed-configuration"
 		},
 		{
 			"from": "eval/campaign/task-bindings",
-			"to": "eval/campaign/replicate-controller"
+			"to": "eval/campaign/sealed-configuration"
 		},
 		{
 			"from": "eval/controls/memory-provenance",
+			"to": "eval/campaign/sealed-configuration"
+		},
+		{
+			"from": "eval/source-work-item/request-authority",
+			"to": "eval/campaign/sealed-configuration"
+		},
+		{
+			"from": "eval/campaign/sealed-configuration",
+			"to": "eval/campaign/controller-events"
+		},
+		{
+			"from": "eval/cleanup/completed",
+			"to": "eval/campaign/controller-events"
+		},
+		{
+			"from": "eval/source-work-item/memory-handoff/status",
+			"to": "eval/campaign/controller-events"
+		},
+		{
+			"from": "eval/campaign/controller-events",
 			"to": "eval/campaign/replicate-controller"
 		},
 		{
@@ -3960,22 +6700,30 @@
 		},
 		{
 			"from": "eval/campaign/replicate-controller",
-			"to": "eval/campaign/replicate-batch-release-controller"
+			"to": "eval/campaign/replicate-batch-release-events"
 		},
 		{
 			"from": "eval/campaign/replicate-batches",
+			"to": "eval/campaign/replicate-batch-release-events"
+		},
+		{
+			"from": "eval/campaign/replicate-batch-release-events",
 			"to": "eval/campaign/replicate-batch-release-controller"
 		},
 		{
 			"from": "eval/campaign/replicate-controller",
-			"to": "eval/campaign/state"
+			"to": "eval/campaign/state-events"
 		},
 		{
 			"from": "eval/campaign/start",
-			"to": "eval/campaign/state"
+			"to": "eval/campaign/state-events"
 		},
 		{
 			"from": "eval/campaign/contract",
+			"to": "eval/campaign/state-events"
+		},
+		{
+			"from": "eval/campaign/state-events",
 			"to": "eval/campaign/state"
 		},
 		{
@@ -3988,10 +6736,14 @@
 		},
 		{
 			"from": "eval/source-work-item/verified-solution",
-			"to": "eval/memory/six-arm-source-readiness-decision"
+			"to": "eval/memory/source-readiness-events"
 		},
 		{
 			"from": "eval/campaign/replicate-batches",
+			"to": "eval/memory/source-readiness-events"
+		},
+		{
+			"from": "eval/memory/source-readiness-events",
 			"to": "eval/memory/six-arm-source-readiness-decision"
 		},
 		{
@@ -4052,6 +6804,70 @@
 		},
 		{
 			"from": "eval/solution/agentic-work-item-memory-bridge/projection",
+			"to": "eval/solution/agentic-work-item-memory-bridge/scoreSignals"
+		},
+		{
+			"from": "eval/solution/agentic-work-item-memory-bridge/projection",
+			"to": "eval/solution/agentic-work-item-memory-bridge/proposals"
+		},
+		{
+			"from": "eval/solution/agentic-work-item-memory-bridge/projection",
+			"to": "eval/solution/agentic-work-item-memory-bridge/status"
+		},
+		{
+			"from": "eval/solution/agentic-work-item-memory-bridge/projection",
+			"to": "eval/solution/agentic-work-item-memory-bridge/issues"
+		},
+		{
+			"from": "eval/solution/agentic-work-item-memory-bridge/projection",
+			"to": "eval/solution/agentic-work-item-memory-bridge/audit"
+		},
+		{
+			"from": "eval/solution/agentic-work-item-memory-bridge/projection",
+			"to": "eval/solution/agentic-work-item-memory-bridge/cursor"
+		},
+		{
+			"from": "eval/memory/bridge-occurrence-input",
+			"to": "eval/memory/bridge-result-context/left"
+		},
+		{
+			"from": "eval/solution/agentic-work-item-memory-bridge/projection",
+			"to": "eval/memory/bridge-result-context/right"
+		},
+		{
+			"from": "eval/memory/bridge-result-context/left",
+			"to": "eval/memory/bridge-result-context/arrivals"
+		},
+		{
+			"from": "eval/memory/bridge-result-context/right",
+			"to": "eval/memory/bridge-result-context/arrivals"
+		},
+		{
+			"from": "eval/memory/bridge-result-context/arrivals",
+			"to": "eval/memory/bridge-result-context/matched"
+		},
+		{
+			"from": "eval/memory/bridge-result-context/matched",
+			"to": "eval/memory/bridge-result-context/released"
+		},
+		{
+			"from": "eval/memory/bridge-result-context/released",
+			"to": "eval/memory/bridge-result-context"
+		},
+		{
+			"from": "eval/memory/bridge-result-context",
+			"to": "eval/memory/bridge-result-context/release-events"
+		},
+		{
+			"from": "eval/memory/bridge-result-context/matched",
+			"to": "eval/memory/bridge-result-context/release-events"
+		},
+		{
+			"from": "eval/memory/bridge-result-context/release-events",
+			"to": "eval/memory/bridge-result-context/release-controller"
+		},
+		{
+			"from": "eval/memory/bridge-result-context",
 			"to": "eval/memory/admission-occurrence-input"
 		},
 		{
@@ -4060,6 +6876,78 @@
 		},
 		{
 			"from": "eval/solution/agentic-memory-admission/projection",
+			"to": "eval/solution/agentic-memory-admission/admissions"
+		},
+		{
+			"from": "eval/solution/agentic-memory-admission/projection",
+			"to": "eval/solution/agentic-memory-admission/admitted"
+		},
+		{
+			"from": "eval/solution/agentic-memory-admission/projection",
+			"to": "eval/solution/agentic-memory-admission/rejected"
+		},
+		{
+			"from": "eval/solution/agentic-memory-admission/projection",
+			"to": "eval/solution/agentic-memory-admission/needsReview"
+		},
+		{
+			"from": "eval/solution/agentic-memory-admission/projection",
+			"to": "eval/solution/agentic-memory-admission/status"
+		},
+		{
+			"from": "eval/solution/agentic-memory-admission/projection",
+			"to": "eval/solution/agentic-memory-admission/issues"
+		},
+		{
+			"from": "eval/solution/agentic-memory-admission/projection",
+			"to": "eval/solution/agentic-memory-admission/audit"
+		},
+		{
+			"from": "eval/solution/agentic-memory-admission/projection",
+			"to": "eval/solution/agentic-memory-admission/cursor"
+		},
+		{
+			"from": "eval/memory/admission-occurrence-input",
+			"to": "eval/memory/admission-result-context/left"
+		},
+		{
+			"from": "eval/solution/agentic-memory-admission/projection",
+			"to": "eval/memory/admission-result-context/right"
+		},
+		{
+			"from": "eval/memory/admission-result-context/left",
+			"to": "eval/memory/admission-result-context/arrivals"
+		},
+		{
+			"from": "eval/memory/admission-result-context/right",
+			"to": "eval/memory/admission-result-context/arrivals"
+		},
+		{
+			"from": "eval/memory/admission-result-context/arrivals",
+			"to": "eval/memory/admission-result-context/matched"
+		},
+		{
+			"from": "eval/memory/admission-result-context/matched",
+			"to": "eval/memory/admission-result-context/released"
+		},
+		{
+			"from": "eval/memory/admission-result-context/released",
+			"to": "eval/memory/admission-result-context"
+		},
+		{
+			"from": "eval/memory/admission-result-context",
+			"to": "eval/memory/admission-result-context/release-events"
+		},
+		{
+			"from": "eval/memory/admission-result-context/matched",
+			"to": "eval/memory/admission-result-context/release-events"
+		},
+		{
+			"from": "eval/memory/admission-result-context/release-events",
+			"to": "eval/memory/admission-result-context/release-controller"
+		},
+		{
+			"from": "eval/memory/admission-result-context",
 			"to": "eval/memory/application-occurrence-input"
 		},
 		{
@@ -4068,15 +6956,75 @@
 		},
 		{
 			"from": "eval/solution/agentic-memory-application/projection",
+			"to": "eval/solution/agentic-memory-application/records"
+		},
+		{
+			"from": "eval/solution/agentic-memory-application/projection",
+			"to": "eval/solution/agentic-memory-application/appliedRecords"
+		},
+		{
+			"from": "eval/solution/agentic-memory-application/projection",
+			"to": "eval/solution/agentic-memory-application/applicationDecisions"
+		},
+		{
+			"from": "eval/solution/agentic-memory-application/projection",
+			"to": "eval/solution/agentic-memory-application/status"
+		},
+		{
+			"from": "eval/solution/agentic-memory-application/projection",
+			"to": "eval/solution/agentic-memory-application/operationStatuses"
+		},
+		{
+			"from": "eval/solution/agentic-memory-application/projection",
+			"to": "eval/solution/agentic-memory-application/issues"
+		},
+		{
+			"from": "eval/solution/agentic-memory-application/projection",
+			"to": "eval/solution/agentic-memory-application/audit"
+		},
+		{
+			"from": "eval/solution/agentic-memory-application/projection",
+			"to": "eval/solution/agentic-memory-application/cursor"
+		},
+		{
+			"from": "eval/solution/agentic-memory-application/records",
 			"to": "eval/memory/applied-record-state"
 		},
 		{
 			"from": "eval/memory/applied-record-state",
-			"to": "eval/memory/exposure-frame"
+			"to": "eval/memory/exposure-events"
 		},
 		{
 			"from": "eval/memory/correlated-six-arm-data",
+			"to": "eval/memory/exposure-events"
+		},
+		{
+			"from": "eval/memory/exposure-events",
+			"to": "eval/memory/exposure-frame/candidate"
+		},
+		{
+			"from": "eval/memory/exposure-frame/candidate",
+			"to": "eval/memory/exposure-frame/validated"
+		},
+		{
+			"from": "eval/memory/exposure-frame/validated",
+			"to": "eval/memory/exposure-frame/released"
+		},
+		{
+			"from": "eval/memory/exposure-frame/released",
 			"to": "eval/memory/exposure-frame"
+		},
+		{
+			"from": "eval/memory/exposure-frame",
+			"to": "eval/memory/exposure-frame/release-events"
+		},
+		{
+			"from": "eval/memory/exposure-frame/validated",
+			"to": "eval/memory/exposure-frame/release-events"
+		},
+		{
+			"from": "eval/memory/exposure-frame/release-events",
+			"to": "eval/memory/exposure-frame/release-controller"
 		},
 		{
 			"from": "eval/memory/exposure-frame",
@@ -4228,26 +7176,34 @@
 		},
 		{
 			"from": "eval/solution/source-work-item-execution/plan/admitted",
-			"to": "eval/work-item/admitted-plan-authority"
+			"to": "eval/work-item/admitted-plan-events"
 		},
 		{
 			"from": "eval/solution/work-item-execution/plan/admitted",
+			"to": "eval/work-item/admitted-plan-events"
+		},
+		{
+			"from": "eval/work-item/admitted-plan-events",
 			"to": "eval/work-item/admitted-plan-authority"
 		},
 		{
 			"from": "eval/solution/source-work-item-execution/requests",
-			"to": "eval/provider/proposal-candidate"
+			"to": "eval/provider/first-proposal-events"
 		},
 		{
 			"from": "eval/solution/work-item-execution/requests",
-			"to": "eval/provider/proposal-candidate"
+			"to": "eval/provider/first-proposal-events"
 		},
 		{
 			"from": "eval/work-item/admitted-plan-authority",
-			"to": "eval/provider/proposal-candidate"
+			"to": "eval/provider/first-proposal-events"
 		},
 		{
 			"from": "eval/profile/graph-admission",
+			"to": "eval/provider/first-proposal-events"
+		},
+		{
+			"from": "eval/provider/first-proposal-events",
 			"to": "eval/provider/proposal-candidate"
 		},
 		{
@@ -4256,10 +7212,14 @@
 		},
 		{
 			"from": "eval/provider/proposal-candidate",
-			"to": "eval/provider/proposal-release-controller"
+			"to": "eval/provider/proposal-release-events"
 		},
 		{
 			"from": "eval/provider/proposal",
+			"to": "eval/provider/proposal-release-events"
+		},
+		{
+			"from": "eval/provider/proposal-release-events",
 			"to": "eval/provider/proposal-release-controller"
 		},
 		{
@@ -4276,26 +7236,42 @@
 		},
 		{
 			"from": "eval/provider/replicate-proposal-batches",
-			"to": "eval/provider/proposals"
+			"to": "eval/provider/proposal-events"
 		},
 		{
 			"from": "eval/retry/proposal",
+			"to": "eval/provider/proposal-events"
+		},
+		{
+			"from": "eval/provider/proposal-events",
 			"to": "eval/provider/proposals"
 		},
 		{
-			"from": "eval/provider/proposals",
-			"to": "eval/provider/paced-proposal-release"
-		},
-		{
 			"from": "eval/provider/start-spacing-readiness",
-			"to": "eval/provider/paced-proposal-release"
-		},
-		{
-			"from": "eval/retry/delay-result-input",
-			"to": "eval/provider/paced-proposal-release"
+			"to": "eval/provider/pacing-clock-inputs"
 		},
 		{
 			"from": "eval/time/elapsed-budget/state",
+			"to": "eval/provider/pacing-clock-inputs"
+		},
+		{
+			"from": "eval/provider/pacing-clock-inputs",
+			"to": "eval/provider/pacing-clock"
+		},
+		{
+			"from": "eval/provider/proposals",
+			"to": "eval/provider/pacing-events"
+		},
+		{
+			"from": "eval/provider/pacing-clock",
+			"to": "eval/provider/pacing-events"
+		},
+		{
+			"from": "eval/retry/delay-result-input",
+			"to": "eval/provider/pacing-events"
+		},
+		{
+			"from": "eval/provider/pacing-events",
 			"to": "eval/provider/paced-proposal-release"
 		},
 		{
@@ -4307,31 +7283,43 @@
 			"to": "eval/retry/delay-admission"
 		},
 		{
+			"from": "eval/provider/retryable-result-admission",
+			"to": "eval/retry/admission-release-events"
+		},
+		{
+			"from": "eval/retry/delay-admission",
+			"to": "eval/retry/admission-release-events"
+		},
+		{
+			"from": "eval/retry/admission-release-events",
+			"to": "eval/retry/admission-release-controller"
+		},
+		{
 			"from": "eval/provider/proposals",
-			"to": "eval/provider/graph-admission-and-budget"
+			"to": "eval/provider/admission-events"
 		},
 		{
 			"from": "eval/provider/paced-proposal-release",
-			"to": "eval/provider/graph-admission-and-budget"
+			"to": "eval/provider/admission-events"
 		},
 		{
 			"from": "eval/provider/all-result-admissions",
-			"to": "eval/provider/graph-admission-and-budget"
+			"to": "eval/provider/admission-events"
 		},
 		{
 			"from": "eval/retry/delay-result-input",
-			"to": "eval/provider/graph-admission-and-budget"
+			"to": "eval/provider/admission-events"
 		},
 		{
 			"from": "eval/time/elapsed-budget/state",
-			"to": "eval/provider/graph-admission-and-budget"
+			"to": "eval/provider/admission-events"
 		},
 		{
 			"from": "eval/profile/graph-admission",
-			"to": "eval/provider/graph-admission-and-budget"
+			"to": "eval/provider/admission-events"
 		},
 		{
-			"from": "eval/observation/source-stage-context",
+			"from": "eval/provider/admission-events",
 			"to": "eval/provider/graph-admission-and-budget"
 		},
 		{
@@ -4356,14 +7344,18 @@
 		},
 		{
 			"from": "eval/provider/budget-settled-outcomes",
-			"to": "eval/tool/exact-admission"
+			"to": "eval/tool/admission-events"
 		},
 		{
 			"from": "eval/source-work-item/tool-result-input",
-			"to": "eval/tool/exact-admission"
+			"to": "eval/tool/admission-events"
 		},
 		{
 			"from": "eval/campaign/task-bindings",
+			"to": "eval/tool/admission-events"
+		},
+		{
+			"from": "eval/tool/admission-events",
 			"to": "eval/tool/exact-admission"
 		},
 		{
@@ -4380,22 +7372,26 @@
 		},
 		{
 			"from": "eval/cleanup/completed",
-			"to": "eval/billing/observation-proposal-and-stopping"
+			"to": "eval/billing/fact-events"
 		},
 		{
 			"from": "eval/budget/state",
-			"to": "eval/billing/observation-proposal-and-stopping"
+			"to": "eval/billing/fact-events"
 		},
 		{
 			"from": "eval/billing/observation-result-input",
-			"to": "eval/billing/observation-proposal-and-stopping"
+			"to": "eval/billing/fact-events"
 		},
 		{
 			"from": "eval/billing/current-key-before",
-			"to": "eval/billing/observation-proposal-and-stopping"
+			"to": "eval/billing/fact-events"
 		},
 		{
 			"from": "eval/campaign/state",
+			"to": "eval/billing/fact-events"
+		},
+		{
+			"from": "eval/billing/fact-events",
 			"to": "eval/billing/observation-proposal-and-stopping"
 		},
 		{
@@ -4411,6 +7407,18 @@
 			"to": "eval/billing/observation-admission"
 		},
 		{
+			"from": "eval/billing/observation-proposals",
+			"to": "eval/billing/admission-release-events"
+		},
+		{
+			"from": "eval/billing/observation-admission",
+			"to": "eval/billing/admission-release-events"
+		},
+		{
+			"from": "eval/billing/admission-release-events",
+			"to": "eval/billing/admission-release-controller"
+		},
+		{
 			"from": "eval/billing/observation-admission",
 			"to": "eval/executor/current-billing-observation"
 		},
@@ -4420,50 +7428,66 @@
 		},
 		{
 			"from": "eval/executor/current-provider-effect",
-			"to": "eval/executor/provider-effect-lifecycle-registry"
+			"to": "eval/executor/provider-effect-lifecycle-registry/events"
 		},
 		{
 			"from": "eval/provider/all-result-admissions",
-			"to": "eval/executor/provider-effect-lifecycle-registry"
+			"to": "eval/executor/provider-effect-lifecycle-registry/events"
 		},
 		{
 			"from": "eval/campaign/start",
+			"to": "eval/executor/provider-effect-lifecycle-registry/events"
+		},
+		{
+			"from": "eval/executor/provider-effect-lifecycle-registry/events",
 			"to": "eval/executor/provider-effect-lifecycle-registry"
 		},
 		{
 			"from": "eval/executor/current-retry-delay",
-			"to": "eval/executor/retry-effect-lifecycle-registry"
+			"to": "eval/executor/retry-effect-lifecycle-registry/events"
 		},
 		{
 			"from": "eval/retry/delay-result-input",
-			"to": "eval/executor/retry-effect-lifecycle-registry"
+			"to": "eval/executor/retry-effect-lifecycle-registry/events"
 		},
 		{
 			"from": "eval/campaign/start",
+			"to": "eval/executor/retry-effect-lifecycle-registry/events"
+		},
+		{
+			"from": "eval/executor/retry-effect-lifecycle-registry/events",
 			"to": "eval/executor/retry-effect-lifecycle-registry"
 		},
 		{
 			"from": "eval/executor/current-tool-effect",
-			"to": "eval/executor/tool-effect-lifecycle-registry"
+			"to": "eval/executor/tool-effect-lifecycle-registry/events"
 		},
 		{
 			"from": "eval/tool/all-result-inputs",
-			"to": "eval/executor/tool-effect-lifecycle-registry"
+			"to": "eval/executor/tool-effect-lifecycle-registry/events"
 		},
 		{
 			"from": "eval/campaign/start",
+			"to": "eval/executor/tool-effect-lifecycle-registry/events"
+		},
+		{
+			"from": "eval/executor/tool-effect-lifecycle-registry/events",
 			"to": "eval/executor/tool-effect-lifecycle-registry"
 		},
 		{
 			"from": "eval/executor/current-billing-observation",
-			"to": "eval/executor/billing-effect-lifecycle-registry"
+			"to": "eval/executor/billing-effect-lifecycle-registry/events"
 		},
 		{
 			"from": "eval/billing/observation-result-input",
-			"to": "eval/executor/billing-effect-lifecycle-registry"
+			"to": "eval/executor/billing-effect-lifecycle-registry/events"
 		},
 		{
 			"from": "eval/campaign/start",
+			"to": "eval/executor/billing-effect-lifecycle-registry/events"
+		},
+		{
+			"from": "eval/executor/billing-effect-lifecycle-registry/events",
 			"to": "eval/executor/billing-effect-lifecycle-registry"
 		},
 		{
@@ -4536,22 +7560,26 @@
 		},
 		{
 			"from": "eval/cleanup/completed",
-			"to": "eval/findings/matched-source-target-evidence"
+			"to": "eval/findings/matched-evidence-events"
 		},
 		{
 			"from": "eval/provider/all-result-admissions",
-			"to": "eval/findings/matched-source-target-evidence"
+			"to": "eval/findings/matched-evidence-events"
 		},
 		{
 			"from": "eval/source-work-item/memory-handoff/status",
-			"to": "eval/findings/matched-source-target-evidence"
+			"to": "eval/findings/matched-evidence-events"
 		},
 		{
 			"from": "eval/source-work-item/request-authority",
-			"to": "eval/findings/matched-source-target-evidence"
+			"to": "eval/findings/matched-evidence-events"
 		},
 		{
 			"from": "eval/campaign/start",
+			"to": "eval/findings/matched-evidence-events"
+		},
+		{
+			"from": "eval/findings/matched-evidence-events",
 			"to": "eval/findings/matched-source-target-evidence"
 		},
 		{
@@ -4572,115 +7600,263 @@
 		},
 		{
 			"from": "eval/findings/efficacy-state",
-			"to": "eval/findings/efficacy"
+			"to": "eval/findings/efficacy/candidate"
 		},
 		{
 			"from": "eval/billing/reconciliation",
-			"to": "eval/findings/efficacy"
+			"to": "eval/findings/efficacy/candidate"
 		},
 		{
 			"from": "eval/observation/effect-activity",
-			"to": "eval/findings/efficacy"
+			"to": "eval/findings/efficacy/candidate"
 		},
 		{
 			"from": "eval/findings/matched-source-target-evidence",
+			"to": "eval/findings/efficacy/candidate"
+		},
+		{
+			"from": "eval/findings/efficacy/candidate",
+			"to": "eval/findings/efficacy/validated"
+		},
+		{
+			"from": "eval/findings/efficacy/validated",
+			"to": "eval/findings/efficacy/released"
+		},
+		{
+			"from": "eval/findings/efficacy/released",
 			"to": "eval/findings/efficacy"
 		},
 		{
+			"from": "eval/findings/efficacy",
+			"to": "eval/findings/efficacy/release-events"
+		},
+		{
+			"from": "eval/findings/efficacy/validated",
+			"to": "eval/findings/efficacy/release-events"
+		},
+		{
+			"from": "eval/findings/efficacy/release-events",
+			"to": "eval/findings/efficacy/release-controller"
+		},
+		{
 			"from": "eval/campaign/contract",
-			"to": "eval/development/qualification"
+			"to": "eval/development/qualification-events"
 		},
 		{
 			"from": "eval/findings/efficacy",
+			"to": "eval/development/qualification-events"
+		},
+		{
+			"from": "eval/development/qualification-events",
 			"to": "eval/development/qualification"
-		},
-		{
-			"from": "eval/findings/efficacy",
-			"to": "eval/observation/terminal-lifecycle-consistency"
-		},
-		{
-			"from": "eval/observation/effect-activity",
-			"to": "eval/observation/terminal-lifecycle-consistency"
-		},
-		{
-			"from": "eval/budget/state",
-			"to": "eval/observation/terminal-lifecycle-consistency"
-		},
-		{
-			"from": "eval/campaign/start",
-			"to": "eval/observation/terminal-lifecycle-consistency"
 		},
 		{
 			"from": "eval/observation/source-stage-context",
-			"to": "eval/observation/source-stage-state"
+			"to": "eval/observation/input/context"
+		},
+		{
+			"from": "eval/observation/input/context",
+			"to": "eval/observation/input/context/released"
+		},
+		{
+			"from": "eval/observation/input/context",
+			"to": "eval/observation/input/context/release-events"
+		},
+		{
+			"from": "eval/observation/input/context/released",
+			"to": "eval/observation/input/context/release-events"
+		},
+		{
+			"from": "eval/observation/input/context/release-events",
+			"to": "eval/observation/input/context/release-controller"
 		},
 		{
 			"from": "eval/provider/admission-observation-cut",
-			"to": "eval/observation/source-stage-state"
+			"to": "eval/observation/input/admission"
+		},
+		{
+			"from": "eval/observation/input/admission",
+			"to": "eval/observation/input/admission/released"
+		},
+		{
+			"from": "eval/observation/input/admission",
+			"to": "eval/observation/input/admission/release-events"
+		},
+		{
+			"from": "eval/observation/input/admission/released",
+			"to": "eval/observation/input/admission/release-events"
+		},
+		{
+			"from": "eval/observation/input/admission/release-events",
+			"to": "eval/observation/input/admission/release-controller"
 		},
 		{
 			"from": "eval/observation/effect-activity",
-			"to": "eval/observation/source-stage-state"
+			"to": "eval/observation/input/activity"
+		},
+		{
+			"from": "eval/observation/input/activity",
+			"to": "eval/observation/input/activity/released"
+		},
+		{
+			"from": "eval/observation/input/activity",
+			"to": "eval/observation/input/activity/release-events"
+		},
+		{
+			"from": "eval/observation/input/activity/released",
+			"to": "eval/observation/input/activity/release-events"
+		},
+		{
+			"from": "eval/observation/input/activity/release-events",
+			"to": "eval/observation/input/activity/release-controller"
 		},
 		{
 			"from": "eval/campaign/state",
-			"to": "eval/observation/source-stage-state"
+			"to": "eval/observation/input/campaign"
+		},
+		{
+			"from": "eval/observation/input/campaign",
+			"to": "eval/observation/input/campaign/released"
+		},
+		{
+			"from": "eval/observation/input/campaign",
+			"to": "eval/observation/input/campaign/release-events"
+		},
+		{
+			"from": "eval/observation/input/campaign/released",
+			"to": "eval/observation/input/campaign/release-events"
+		},
+		{
+			"from": "eval/observation/input/campaign/release-events",
+			"to": "eval/observation/input/campaign/release-controller"
 		},
 		{
 			"from": "eval/verification/diagnostics",
-			"to": "eval/observation/source-stage-state"
+			"to": "eval/observation/input/diagnostics"
 		},
 		{
-			"from": "eval/campaign/state",
-			"to": "eval/observation/full-state"
+			"from": "eval/observation/input/diagnostics",
+			"to": "eval/observation/input/diagnostics/released"
 		},
 		{
-			"from": "eval/controls/memory-provenance",
-			"to": "eval/observation/full-state"
+			"from": "eval/observation/input/diagnostics",
+			"to": "eval/observation/input/diagnostics/release-events"
 		},
 		{
-			"from": "eval/findings/efficacy-state",
-			"to": "eval/observation/full-state"
+			"from": "eval/observation/input/diagnostics/released",
+			"to": "eval/observation/input/diagnostics/release-events"
+		},
+		{
+			"from": "eval/observation/input/diagnostics/release-events",
+			"to": "eval/observation/input/diagnostics/release-controller"
 		},
 		{
 			"from": "eval/development/qualification",
-			"to": "eval/observation/full-state"
+			"to": "eval/observation/input/qualification"
+		},
+		{
+			"from": "eval/observation/input/qualification",
+			"to": "eval/observation/input/qualification/released"
+		},
+		{
+			"from": "eval/observation/input/qualification",
+			"to": "eval/observation/input/qualification/release-events"
+		},
+		{
+			"from": "eval/observation/input/qualification/released",
+			"to": "eval/observation/input/qualification/release-events"
+		},
+		{
+			"from": "eval/observation/input/qualification/release-events",
+			"to": "eval/observation/input/qualification/release-controller"
 		},
 		{
 			"from": "eval/findings/efficacy",
-			"to": "eval/observation/full-state"
+			"to": "eval/observation/input/finding"
 		},
 		{
-			"from": "eval/observation/effect-activity",
-			"to": "eval/observation/full-state"
+			"from": "eval/observation/input/finding",
+			"to": "eval/observation/input/finding/released"
 		},
 		{
-			"from": "eval/observation/terminal-lifecycle-consistency",
-			"to": "eval/observation/full-state"
+			"from": "eval/observation/input/finding",
+			"to": "eval/observation/input/finding/release-events"
 		},
 		{
-			"from": "eval/provider/adaptive-capacity-state",
-			"to": "eval/observation/full-state"
+			"from": "eval/observation/input/finding/released",
+			"to": "eval/observation/input/finding/release-events"
+		},
+		{
+			"from": "eval/observation/input/finding/release-events",
+			"to": "eval/observation/input/finding/release-controller"
 		},
 		{
 			"from": "eval/time/elapsed-budget/state",
-			"to": "eval/observation/full-state"
+			"to": "eval/observation/input/elapsed"
 		},
 		{
-			"from": "eval/findings/efficacy",
-			"to": "eval/observation/full-state-finding-release-controller"
+			"from": "eval/observation/input/elapsed",
+			"to": "eval/observation/input/elapsed/released"
 		},
 		{
-			"from": "eval/observation/full-state",
-			"to": "eval/observation/full-state-finding-release-controller"
+			"from": "eval/observation/input/elapsed",
+			"to": "eval/observation/input/elapsed/release-events"
 		},
 		{
-			"from": "eval/observation/source-stage-state",
+			"from": "eval/observation/input/elapsed/released",
+			"to": "eval/observation/input/elapsed/release-events"
+		},
+		{
+			"from": "eval/observation/input/elapsed/release-events",
+			"to": "eval/observation/input/elapsed/release-controller"
+		},
+		{
+			"from": "eval/observation/input/context/released",
+			"to": "eval/observation/arrivals"
+		},
+		{
+			"from": "eval/observation/input/admission/released",
+			"to": "eval/observation/arrivals"
+		},
+		{
+			"from": "eval/observation/input/activity/released",
+			"to": "eval/observation/arrivals"
+		},
+		{
+			"from": "eval/observation/input/campaign/released",
+			"to": "eval/observation/arrivals"
+		},
+		{
+			"from": "eval/observation/input/diagnostics/released",
+			"to": "eval/observation/arrivals"
+		},
+		{
+			"from": "eval/observation/input/qualification/released",
+			"to": "eval/observation/arrivals"
+		},
+		{
+			"from": "eval/observation/input/finding/released",
+			"to": "eval/observation/arrivals"
+		},
+		{
+			"from": "eval/observation/input/elapsed/released",
+			"to": "eval/observation/arrivals"
+		},
+		{
+			"from": "eval/observation/arrivals",
+			"to": "eval/observation/canonical-state"
+		},
+		{
+			"from": "eval/observation/canonical-state",
+			"to": "eval/observation/rejections"
+		},
+		{
+			"from": "eval/observation/canonical-state",
 			"to": "eval/observation"
 		},
 		{
-			"from": "eval/observation/full-state",
-			"to": "eval/observation"
+			"from": "eval/observation/canonical-state",
+			"to": "eval/observation/terminal-lifecycle-consistency"
 		}
 	],
 	"name": "eval/root"

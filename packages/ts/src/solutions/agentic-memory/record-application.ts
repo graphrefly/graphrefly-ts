@@ -1,11 +1,10 @@
-import { depLatest } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../../identity.js";
 import { strictCanonicalJsonBytes, strictJsonCodec } from "../../json/codec.js";
 import type { FactId } from "../../patterns/semantic-memory.js";
+import { solutionOccurrenceProjection, solutionOccurrenceSelect } from "../occurrence.js";
 import { agenticMemoryRecordFrame, assertAgenticMemoryRecordFrame } from "./frame.js";
-import { solutionProjection } from "./projection.js";
 import {
 	cloneStrictJsonObject,
 	errorMessage,
@@ -80,6 +79,11 @@ const AGENTIC_MEMORY_RECORD_APPLICATION_OPERATIONS = ["create", "replace", "upda
 /**
  * Creates an agentic memory record application bundle.
  *
+ * @remarks D151: each input DATA is one complete identity/revision/digest/source-refs
+ * occurrence. Policy and prior records travel in its value, never independent latest-value
+ * dependencies. Outputs preserve that identity; replay conflicts and retention overflow fail closed.
+ * The fixed recipe topology is retained for its graph lifetime; input snapshots are bounded by
+ * maxOccurrences, not a claim that one protocol wave is one business occurrence.
  * @param graph - Graph that owns the created nodes or projector.
  * @param opts - Options that configure the helper.
  * @returns A bundle of graph-visible nodes for the recipe.
@@ -94,93 +98,70 @@ export function agenticMemoryRecordApplicationBundle<T = unknown>(
 	opts: AgenticMemoryRecordApplicationBundleOptions<T>,
 ): AgenticMemoryRecordApplicationBundle<T> {
 	const name = opts.name ?? "agenticMemoryRecordApplication";
-	const deps =
-		opts.priorEvidence === undefined
-			? [opts.records, opts.admissions, opts.policy]
-			: [opts.records, opts.admissions, opts.policy, opts.priorEvidence];
-	const projection = graph.node<AgenticMemoryRecordApplicationSnapshot<T>>(
-		deps,
-		(ctx) => {
-			const state =
-				ctx.state.get<{ evaluation: number }>() ??
-				({ evaluation: 0 } satisfies { evaluation: number });
-			state.evaluation += 1;
-			const snapshot = applyAgenticMemoryRecordAdmissions<T>(depLatest(ctx, 1), depLatest(ctx, 2), {
-				records: depLatest(ctx, 0) as readonly AgenticMemoryRecord<T>[] | undefined,
-				priorEvidence:
-					opts.priorEvidence === undefined
-						? undefined
-						: (depLatest(ctx, 3) as AgenticMemoryRecordApplicationOptions<T>["priorEvidence"]),
-				evaluation: state.evaluation,
-			});
-			ctx.state.set(state);
-			ctx.down([["DATA", snapshot]]);
-		},
-		{
-			name: `${name}/projection`,
-			factory: "agenticMemoryRecordApplication",
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
-		},
-	);
+	const projection = solutionOccurrenceProjection(graph, opts.occurrences, {
+		name: `${name}/projection`,
+		factory: "agenticMemoryRecordApplication",
+		maxOccurrences: opts.maxOccurrences,
+		project: (value) =>
+			applyAgenticMemoryRecordAdmissions<T>(value.admissions, value.policy, {
+				records: value.records,
+				priorEvidence: value.priorEvidence,
+				evaluation: 1,
+			}),
+	});
 	return {
-		input: {
-			records: opts.records,
-			admissions: opts.admissions,
-			policy: opts.policy,
-			...(opts.priorEvidence === undefined ? {} : { priorEvidence: opts.priorEvidence }),
-		},
+		input: opts.occurrences,
 		projection,
-		records: solutionProjection(
+		records: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/records`,
 			"agenticMemoryRecordApplicationRecords",
 			(fact) => fact.records,
 		),
-		appliedRecords: solutionProjection(
+		appliedRecords: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/appliedRecords`,
 			"agenticMemoryRecordApplicationAppliedRecords",
 			(fact) => fact.appliedRecords,
 		),
-		applicationDecisions: solutionProjection(
+		applicationDecisions: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/applicationDecisions`,
 			"agenticMemoryRecordApplicationDecisions",
 			(fact) => fact.applicationDecisions,
 		),
-		status: solutionProjection(
+		status: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/status`,
 			"agenticMemoryRecordApplicationStatus",
 			(fact) => fact.status,
 		),
-		operationStatuses: solutionProjection(
+		operationStatuses: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/operationStatuses`,
 			"agenticMemoryRecordApplicationOperationStatuses",
 			(fact) => fact.operationStatuses,
 		),
-		issues: solutionProjection(
+		issues: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/issues`,
 			"agenticMemoryRecordApplicationIssues",
 			(fact) => fact.issues,
 		),
-		audit: solutionProjection(
+		audit: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/audit`,
 			"agenticMemoryRecordApplicationAudit",
 			(fact) => fact.audit,
 		),
-		cursor: solutionProjection(
+		cursor: solutionOccurrenceSelect(
 			graph,
 			projection,
 			`${name}/cursor`,

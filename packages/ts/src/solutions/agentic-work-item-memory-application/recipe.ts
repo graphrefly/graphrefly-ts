@@ -9,6 +9,7 @@ import {
 	agenticWorkItemMemoryBridgeBundle,
 	mapAgenticWorkItemMemoryBridge,
 } from "../agentic-work-item-memory/index.js";
+import { solutionOccurrenceJoin, solutionOccurrenceProjection } from "../occurrence.js";
 import type {
 	AgenticWorkItemMemoryApplicationRecipeBundle,
 	AgenticWorkItemMemoryApplicationRecipeBundleOptions,
@@ -72,6 +73,11 @@ export function mapAgenticWorkItemMemoryApplicationRecipe<TInput = unknown, TRec
  * helpers, and record snapshots come only from the AgenticMemory application
  * bundle.
  *
+ * @remarks D151: each input DATA is one complete identity/revision/digest/source-refs
+ * occurrence. Policy and prior records travel in its value, never independent latest-value
+ * dependencies. Outputs preserve that identity; replay conflicts and retention overflow fail closed.
+ * The fixed recipe topology is retained for its graph lifetime; input snapshots are bounded by
+ * maxOccurrences, not a claim that one protocol wave is one business occurrence.
  * @param graph - Graph that owns the created nodes.
  * @param opts - WorkItem bridge nodes plus optional AgenticMemory admission/application nodes.
  * @returns Bridge nodes and, when configured, AgenticMemory admission/application bundles.
@@ -85,50 +91,69 @@ export function agenticWorkItemMemoryApplicationRecipeBundle<TInput = unknown, T
 	graph: Graph,
 	opts: AgenticWorkItemMemoryApplicationRecipeBundleOptions<TInput, TRecord>,
 ): AgenticWorkItemMemoryApplicationRecipeBundle<TInput, TRecord> {
+	if (
+		!(opts.through === "bridge" || opts.through === "admission" || opts.through === "application")
+	)
+		throw new TypeError("memory recipe requires an explicit lifecycle boundary");
 	const name = opts.name ?? "agenticWorkItemMemoryApplicationRecipe";
+	const input = solutionOccurrenceProjection(graph, opts.occurrences, {
+		name: `${name}/input`,
+		factory: "agenticWorkItemMemoryApplicationInput",
+		maxOccurrences: opts.maxOccurrences,
+		project: (value) => value,
+	});
 	const bridge = agenticWorkItemMemoryBridgeBundle<TInput, TRecord>(graph, {
 		name: `${name}/bridge`,
-		workItem: opts.workItem,
-		policy: opts.policy,
-		...(opts.evidence === undefined ? {} : { evidence: opts.evidence }),
-		...(opts.outcomes === undefined ? {} : { outcomes: opts.outcomes }),
-		...(opts.context === undefined ? {} : { context: opts.context }),
-		...(opts.candidates === undefined ? {} : { candidates: opts.candidates }),
+		occurrences: input,
+		maxOccurrences: opts.maxOccurrences,
 	});
 	const admission =
-		opts.records === undefined || opts.admissionPolicy === undefined
+		opts.through === "bridge"
 			? undefined
 			: agenticMemoryRecordAdmissionBundle<TRecord>(graph, {
 					name: `${name}/admission`,
-					records: opts.records,
-					proposals: bridge.proposals,
-					policy: opts.admissionPolicy,
+					maxOccurrences: opts.maxOccurrences,
+					occurrences: solutionOccurrenceJoin(graph, input, bridge.proposals, {
+						name: `${name}/admission-input`,
+						factory: "agenticWorkItemMemoryAdmissionInput",
+						maxOccurrences: opts.maxOccurrences,
+						project: (frame, proposals) => {
+							if (frame.records === undefined || frame.admissionPolicy === undefined)
+								throw new Error("memory recipe occurrence lacks admission inputs");
+							return Object.freeze({
+								records: frame.records,
+								proposals,
+								policy: frame.admissionPolicy,
+							});
+						},
+					}),
 				});
 	const application =
-		opts.records === undefined || admission === undefined || opts.applicationPolicy === undefined
+		opts.through !== "application" || admission === undefined
 			? undefined
 			: agenticMemoryRecordApplicationBundle<TRecord>(graph, {
 					name: `${name}/application`,
-					records: opts.records,
-					admissions: admission.admissions,
-					policy: opts.applicationPolicy,
-					...(opts.applicationPriorEvidence === undefined
-						? {}
-						: { priorEvidence: opts.applicationPriorEvidence }),
+					maxOccurrences: opts.maxOccurrences,
+					occurrences: solutionOccurrenceJoin(graph, input, admission.admissions, {
+						name: `${name}/application-input`,
+						factory: "agenticWorkItemMemoryApplicationInput",
+						maxOccurrences: opts.maxOccurrences,
+						project: (frame, admissions) => {
+							if (frame.records === undefined || frame.applicationPolicy === undefined)
+								throw new Error("memory recipe occurrence lacks application inputs");
+							return Object.freeze({
+								records: frame.records,
+								admissions,
+								policy: frame.applicationPolicy,
+								...(frame.applicationPriorEvidence === undefined
+									? {}
+									: { priorEvidence: frame.applicationPriorEvidence }),
+							});
+						},
+					}),
 				});
-
 	return {
-		input: {
-			...bridge.input,
-			...(opts.records === undefined ? {} : { records: opts.records }),
-			...(opts.admissionPolicy === undefined ? {} : { admissionPolicy: opts.admissionPolicy }),
-			...(opts.applicationPolicy === undefined
-				? {}
-				: { applicationPolicy: opts.applicationPolicy }),
-			...(opts.applicationPriorEvidence === undefined
-				? {}
-				: { applicationPriorEvidence: opts.applicationPriorEvidence }),
-		},
+		input,
 		bridge,
 		projection: bridge.projection,
 		scoreSignals: bridge.scoreSignals,

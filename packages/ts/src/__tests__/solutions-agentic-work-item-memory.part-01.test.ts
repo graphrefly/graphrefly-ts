@@ -17,8 +17,9 @@ import {
 	mapAgenticWorkItemMemoryBridge,
 } from "../solutions/agentic-work-item-memory/index.js";
 import type { WorkItemProjection } from "../solutions/work-item/index.js";
+import { occurrenceData, occurrenceFixture } from "./solution-occurrence-fixture.js";
 
-const data = <T>(messages: Message[]): T[] =>
+const _data = <T>(messages: Message[]): T[] =>
 	messages.filter((m) => m[0] === "DATA").map((m) => (m as readonly ["DATA", T])[1]);
 
 const sourceCoordinate = (refs: readonly { kind: string; id: string; metadata?: unknown }[]) =>
@@ -238,39 +239,45 @@ describe("agentic WorkItem memory bridge (D581)", () => {
 
 	it("exposes an explainable graph bundle over DATA inputs", () => {
 		const g = graph();
-		const workItems = g.state(workItem(), { name: "workItem" });
-		const policies = g.state(policy({ scoreRules: [] }), { name: "policy" });
-		const candidates = g.state<readonly AgenticWorkItemMemoryRecordCandidate<string>[]>([], {
-			name: "candidates",
-		});
+		const workItems = workItem();
+		const policies = policy({ scoreRules: [] });
+		let candidates = [];
+		const occurrences = g.state(
+			occurrenceFixture({ workItem: workItems, policy: policies, candidates: candidates }),
+			{ name: "bridge/occurrences" },
+		);
 		const bundle = agenticWorkItemMemoryBridgeBundle(g, {
 			name: "bridge",
-			workItem: workItems,
-			policy: policies,
-			candidates,
+			occurrences,
+			maxOccurrences: 64,
 		});
 		expectTypeOf(bundle).toMatchTypeOf<AgenticWorkItemMemoryBridgeBundle>();
 		expect(g.describe().edges).toEqual(
 			expect.arrayContaining([
-				{ from: "workItem", to: "bridge/projection" },
-				{ from: "policy", to: "bridge/projection" },
-				{ from: "candidates", to: "bridge/projection" },
+				{ from: "bridge/occurrences", to: "bridge/projection" },
+				{ from: "bridge/occurrences", to: "bridge/projection" },
+				{ from: "bridge/occurrences", to: "bridge/projection" },
 				{ from: "bridge/projection", to: "bridge/proposals" },
 				{ from: "bridge/projection", to: "bridge/status" },
 			]),
 		);
 
 		const observed = collect(bundle.projection);
-		candidates.set([
+		candidates = [
 			{
 				kind: "agentic-work-item-memory-record-candidate",
 				candidateId: "candidate-1",
 				workItemId: "wi-1",
 				candidateMaterial: material(),
 			},
-		]);
+		];
+		occurrences.set(
+			occurrenceFixture({ workItem: workItems, policy: policies, candidates: candidates }, 2),
+		);
 
-		const latest = data<AgenticWorkItemMemoryBridgeResult<string>>(observed.messages).at(-1);
+		const latest = occurrenceData<AgenticWorkItemMemoryBridgeResult<string>>(observed.messages).at(
+			-1,
+		);
 		observed.unsubscribe();
 		expect(latest?.proposals).toHaveLength(1);
 		expect(latest?.status.state).toBe("ready");

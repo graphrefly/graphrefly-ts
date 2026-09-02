@@ -24,9 +24,7 @@ import {
 	type AgenticMemoryCommittedFactReadMaterializationStatus,
 	type AgenticMemoryConsolidationCommand,
 	type AgenticMemoryConsolidationError,
-	type AgenticMemoryConsolidationOutcome,
 	type AgenticMemoryConsolidationRecordDraft,
-	type AgenticMemoryConsolidationRequest,
 	type AgenticMemoryConsolidationStatus,
 	type AgenticMemoryContext,
 	type AgenticMemoryContextAttribution,
@@ -125,6 +123,7 @@ import {
 	projectAgenticMemoryRecordApplicationEvidenceFacts,
 	projectAgenticMemoryRecordApplicationPriorEvidence,
 } from "../solutions/index.js";
+import { occurrenceData, occurrenceFixture } from "./solution-occurrence-fixture.js";
 
 const textDecoder = new TextDecoder();
 
@@ -728,22 +727,25 @@ describe("AgenticMemory D589 committed fact-log contract", () => {
 
 	it("commits application-emitted graph DATA only as canonical facts, not application acks", async () => {
 		const g = graph();
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>([], { name: "records" });
-		const admissions = g.state([admitted({ admissionId: "d589-app", proposalId: "d589-app" })], {
-			name: "admissions",
-		});
-		const policy = g.state(applicationPolicy(), { name: "policy" });
+		const records = [];
+		const admissions = [admitted({ admissionId: "d589-app", proposalId: "d589-app" })];
+		const policy = applicationPolicy();
+		const occurrences = g.state(
+			occurrenceFixture({ records: records, admissions: admissions, policy: policy }),
+			{ name: "d589Application/occurrences" },
+		);
 		const application = agenticMemoryRecordApplicationBundle(g, {
 			name: "d589Application",
-			records,
-			admissions,
-			policy,
+			occurrences,
+			maxOccurrences: 64,
 		});
 		const decisions = collect(application.applicationDecisions);
-		admissions.set(admissions.cache);
-		const emittedDecisions = data<readonly AgenticMemoryRecordApplicationDecision<string>[]>(
-			decisions.messages,
-		).at(-1);
+		occurrences.set(
+			occurrenceFixture({ records: records, admissions: admissions, policy: policy }, 2),
+		);
+		const emittedDecisions = occurrenceData<
+			readonly AgenticMemoryRecordApplicationDecision<string>[]
+		>(decisions.messages).at(-1);
 		if (emittedDecisions === undefined) throw new Error("expected graph-visible decisions");
 		const evidenceProjection = projectAgenticMemoryRecordApplicationEvidenceFacts(emittedDecisions);
 		const facts = [
@@ -2429,33 +2431,31 @@ describe("AgenticMemory D591 fact-log read materialization re-entry boundary", (
 		await log.append(agenticMemoryCommittedFactBatch([fact]));
 		const read = await log.read();
 		const readResult = g.state(read, { name: "readResult" });
-		const liveRecords = g.state<readonly AgenticMemoryRecord<string>[]>([], {
-			name: "callerRecords",
-		});
+		let liveRecords = [];
 		const laterAdmissionRecord = record({
 			id: "record-d591-later-application",
 			fragment: fragment({ id: "fragment-d591-later-application" }),
 		});
-		const admissions = g.state(
-			[
-				admitted({
-					admissionId: "d591-later-application",
-					proposalId: "d591-later-application",
-					candidateMaterial: {
-						kind: "agentic-memory-record-candidate-material",
-						record: laterAdmissionRecord,
-						sourceRefs: [{ kind: "import", id: "import-d591-later" }],
-					},
-				}),
-			],
-			{ name: "laterAdmissions" },
+		const admissions = [
+			admitted({
+				admissionId: "d591-later-application",
+				proposalId: "d591-later-application",
+				candidateMaterial: {
+					kind: "agentic-memory-record-candidate-material",
+					record: laterAdmissionRecord,
+					sourceRefs: [{ kind: "import", id: "import-d591-later" }],
+				},
+			}),
+		];
+		const policy = applicationPolicy();
+		const occurrences = g.state(
+			occurrenceFixture({ records: liveRecords, admissions: admissions, policy: policy }),
+			{ name: "laterApplication/occurrences" },
 		);
-		const policy = g.state(applicationPolicy(), { name: "laterPolicy" });
 		const application = agenticMemoryRecordApplicationBundle(g, {
 			name: "laterApplication",
-			records: liveRecords,
-			admissions,
-			policy,
+			occurrences,
+			maxOccurrences: 64,
 		});
 		const bundle = agenticMemoryCommittedFactReadMaterializationBundle(g, {
 			name: "readMaterialization",
@@ -2513,18 +2513,22 @@ describe("AgenticMemory D591 fact-log read materialization re-entry boundary", (
 			done: true,
 			completePrefix: true,
 		});
-		expect(liveRecords.cache).toEqual([]);
-		expect(data(applied.messages).at(-1)).toEqual([
+		expect(liveRecords).toEqual([]);
+		expect(occurrenceData(applied.messages).at(-1)).toEqual([
 			expect.objectContaining({ id: "record-d591-later-application" }),
 		]);
 
-		liveRecords.set(data<readonly AgenticMemoryRecord<string>[]>(records.messages).at(-1)!);
-		admissions.set(admissions.cache);
+		liveRecords = data<readonly AgenticMemoryRecord<string>[]>(records.messages).at(-1)!;
+		occurrences.set(
+			occurrenceFixture({ records: liveRecords, admissions: admissions, policy: policy }, 2),
+		);
+		occurrences.set(
+			occurrenceFixture({ records: liveRecords, admissions: admissions, policy: policy }, 3),
+		);
 
-		expect(data<readonly AgenticMemoryRecord<string>[]>(applied.messages).at(-1)).toEqual([
-			committedRecord,
-			expect.objectContaining({ id: "record-d591-later-application" }),
-		]);
+		expect(occurrenceData<readonly AgenticMemoryRecord<string>[]>(applied.messages).at(-1)).toEqual(
+			[committedRecord, expect.objectContaining({ id: "record-d591-later-application" })],
+		);
 	});
 
 	it("reports malformed read material through status/issues/audit, not backend-owned application", () => {
@@ -2988,31 +2992,29 @@ describe("AgenticMemory D593 materialized fact-log bootstrap/re-entry boundary",
 			await log.read(),
 		);
 		const materialization = g.state(materializationValue, { name: "materialization" });
-		const liveRecords = g.state<readonly AgenticMemoryRecord<string>[]>([], {
-			name: "callerRecords",
-		});
-		const admissions = g.state(
-			[
-				admitted({
-					admissionId: "d593-later-application",
-					proposalId: "d593-later-application",
-					candidateMaterial: {
-						kind: "agentic-memory-record-candidate-material",
-						record: record({
-							id: "record-d593-later-application",
-							fragment: fragment({ id: "fragment-d593-later-application" }),
-						}),
-					},
-				}),
-			],
-			{ name: "laterAdmissions" },
+		let liveRecords = [];
+		const admissions = [
+			admitted({
+				admissionId: "d593-later-application",
+				proposalId: "d593-later-application",
+				candidateMaterial: {
+					kind: "agentic-memory-record-candidate-material",
+					record: record({
+						id: "record-d593-later-application",
+						fragment: fragment({ id: "fragment-d593-later-application" }),
+					}),
+				},
+			}),
+		];
+		const policy = applicationPolicy();
+		const occurrences = g.state(
+			occurrenceFixture({ records: liveRecords, admissions: admissions, policy: policy }),
+			{ name: "laterApplication/occurrences" },
 		);
-		const policy = g.state(applicationPolicy(), { name: "laterPolicy" });
 		const application = agenticMemoryRecordApplicationBundle(g, {
 			name: "laterApplication",
-			records: liveRecords,
-			admissions,
-			policy,
+			occurrences,
+			maxOccurrences: 64,
 		});
 		const bundle = agenticMemoryMaterializedFactLogBootstrapBundle(g, {
 			name: "bootstrap",
@@ -3065,18 +3067,22 @@ describe("AgenticMemory D593 materialized fact-log bootstrap/re-entry boundary",
 			sourceDone: true,
 			sourceCompletePrefix: true,
 		});
-		expect(liveRecords.cache).toEqual([]);
-		expect(data<readonly AgenticMemoryRecord<string>[]>(applied.messages).at(-1)).toEqual([
-			expect.objectContaining({ id: "record-d593-later-application" }),
-		]);
+		expect(liveRecords).toEqual([]);
+		expect(occurrenceData<readonly AgenticMemoryRecord<string>[]>(applied.messages).at(-1)).toEqual(
+			[expect.objectContaining({ id: "record-d593-later-application" })],
+		);
 
-		liveRecords.set(data<readonly AgenticMemoryRecord<string>[]>(records.messages).at(-1)!);
-		admissions.set(admissions.cache);
+		liveRecords = data<readonly AgenticMemoryRecord<string>[]>(records.messages).at(-1)!;
+		occurrences.set(
+			occurrenceFixture({ records: liveRecords, admissions: admissions, policy: policy }, 2),
+		);
+		occurrences.set(
+			occurrenceFixture({ records: liveRecords, admissions: admissions, policy: policy }, 3),
+		);
 
-		expect(data<readonly AgenticMemoryRecord<string>[]>(applied.messages).at(-1)).toEqual([
-			committedRecord,
-			expect.objectContaining({ id: "record-d593-later-application" }),
-		]);
+		expect(occurrenceData<readonly AgenticMemoryRecord<string>[]>(applied.messages).at(-1)).toEqual(
+			[committedRecord, expect.objectContaining({ id: "record-d593-later-application" })],
+		);
 	});
 });
 
@@ -3194,36 +3200,40 @@ describe("AgenticMemory D588-D593 runtime fact-log persistence composition", () 
 		);
 		const startup = await agenticMemoryCommittedFactLogStartupRead(log);
 		const g = graph();
-		const liveRecords = g.state<readonly AgenticMemoryRecord<string>[]>([], {
-			name: "liveRecords",
-		});
-		const admissions = g.state(
-			[admitted({ admissionId: "runtime-live", proposalId: "runtime-live" })],
-			{ name: "admissions" },
+		let liveRecords = [];
+		const admissions = [admitted({ admissionId: "runtime-live", proposalId: "runtime-live" })];
+		const policy = applicationPolicy();
+		const occurrences = g.state(
+			occurrenceFixture({ records: liveRecords, admissions: admissions, policy: policy }),
+			{ name: "runtimeApplication/occurrences" },
 		);
-		const policy = g.state(applicationPolicy(), { name: "policy" });
 		const application = agenticMemoryRecordApplicationBundle(g, {
 			name: "runtimeApplication",
-			records: liveRecords,
-			admissions,
-			policy,
+			occurrences,
+			maxOccurrences: 64,
 		});
 		const applied = collect(application.records);
 
-		admissions.set(admissions.cache);
+		occurrences.set(
+			occurrenceFixture({ records: liveRecords, admissions: admissions, policy: policy }, 2),
+		);
 
-		expect(liveRecords.cache).toEqual([]);
-		expect(data<readonly AgenticMemoryRecord<string>[]>(applied.messages).at(-1)).toEqual([
-			expect.objectContaining({ id: "record-new" }),
-		]);
+		expect(liveRecords).toEqual([]);
+		expect(occurrenceData<readonly AgenticMemoryRecord<string>[]>(applied.messages).at(-1)).toEqual(
+			[expect.objectContaining({ id: "record-new" })],
+		);
 
-		liveRecords.set(startup.records);
-		admissions.set(admissions.cache);
+		liveRecords = startup.records;
+		occurrences.set(
+			occurrenceFixture({ records: liveRecords, admissions: admissions, policy: policy }, 3),
+		);
+		occurrences.set(
+			occurrenceFixture({ records: liveRecords, admissions: admissions, policy: policy }, 4),
+		);
 
-		expect(data<readonly AgenticMemoryRecord<string>[]>(applied.messages).at(-1)).toEqual([
-			committed,
-			expect.objectContaining({ id: "record-new" }),
-		]);
+		expect(occurrenceData<readonly AgenticMemoryRecord<string>[]>(applied.messages).at(-1)).toEqual(
+			[committed, expect.objectContaining({ id: "record-new" })],
+		);
 	});
 
 	it("keeps backend cursors diagnostic and uncertain append unresolved until explicit read", async () => {
@@ -4122,47 +4132,41 @@ describe("AgenticMemory D586 complete-next-record materializer", () => {
 describe("agentic memory consolidation bundle (D171)", () => {
 	it("projects external consolidation outcomes into result, draft, and command DATA facts", () => {
 		const g = graph();
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>(
-			[
-				record({ id: "record-a", fragment: fragment({ id: "a" }) }),
-				record({ id: "record-b", fragment: fragment({ id: "b" }) }),
-			],
-			{ name: "records" },
-		);
-		const requests = g.state<readonly AgenticMemoryConsolidationRequest[]>(
-			[
-				{
-					id: "request-1",
-					commandId: "cmd-1",
-					recordIds: ["record-a", "record-b"],
-					reason: "merge",
-				},
-			],
-			{ name: "requests" },
-		);
-		const outcomes = g.state<readonly AgenticMemoryConsolidationOutcome<string>[]>(
-			[
-				{
-					id: "outcome-1",
-					requestId: "request-1",
-					kind: "proposedRecords",
-					records: [
-						record({
-							id: "record-merged",
-							artifactKind: "insight",
-							fragment: fragment({ id: "merged", payload: "merged insight" }),
-						}),
-					],
-					provenance: "external-executor",
-				},
-			],
-			{ name: "outcomes" },
+		const records = [
+			record({ id: "record-a", fragment: fragment({ id: "a" }) }),
+			record({ id: "record-b", fragment: fragment({ id: "b" }) }),
+		];
+		const requests = [
+			{
+				id: "request-1",
+				commandId: "cmd-1",
+				recordIds: ["record-a", "record-b"],
+				reason: "merge",
+			},
+		];
+		const outcomes = [
+			{
+				id: "outcome-1",
+				requestId: "request-1",
+				kind: "proposedRecords",
+				records: [
+					record({
+						id: "record-merged",
+						artifactKind: "insight",
+						fragment: fragment({ id: "merged", payload: "merged insight" }),
+					}),
+				],
+				provenance: "external-executor",
+			},
+		];
+		const occurrences = g.state(
+			occurrenceFixture({ records: records, requests: requests, outcomes: outcomes }),
+			{ name: "consolidation/occurrences" },
 		);
 		const bundle = agenticMemoryConsolidationBundle(g, {
 			name: "consolidation",
-			records,
-			requests,
-			outcomes,
+			occurrences,
+			maxOccurrences: 64,
 		});
 		const drafts = collect(bundle.proposedRecordDrafts);
 		const proposals = collect(bundle.recordProposals);
@@ -4188,17 +4192,17 @@ describe("agentic memory consolidation bundle (D171)", () => {
 
 		expect(g.describe().edges).toEqual(
 			expect.arrayContaining([
-				{ from: "records", to: "consolidation/projection" },
-				{ from: "requests", to: "consolidation/projection" },
-				{ from: "outcomes", to: "consolidation/projection" },
+				{ from: "consolidation/occurrences", to: "consolidation/projection" },
+				{ from: "consolidation/occurrences", to: "consolidation/projection" },
+				{ from: "consolidation/occurrences", to: "consolidation/projection" },
 				{ from: "consolidation/projection", to: "consolidation/results" },
 				{ from: "consolidation/projection", to: "consolidation/proposedRecordDrafts" },
 				{ from: "consolidation/projection", to: "consolidation/recordProposals" },
 				{ from: "consolidation/projection", to: "consolidation/commands" },
 			]),
 		);
-		expect(data(errors.messages).at(-1)).toEqual([]);
-		expect(data(status.messages).at(-1)).toMatchObject({
+		expect(occurrenceData(errors.messages).at(-1)).toEqual([]);
+		expect(occurrenceData(status.messages).at(-1)).toMatchObject({
 			state: "ready",
 			cursor: {
 				validOutcomes: 1,
@@ -4207,7 +4211,7 @@ describe("agentic memory consolidation bundle (D171)", () => {
 				recordProposals: 1,
 			},
 		});
-		expect(data(drafts.messages).at(-1)).toEqual([
+		expect(occurrenceData(drafts.messages).at(-1)).toEqual([
 			expect.objectContaining({
 				id: draftId,
 				requestId: "request-1",
@@ -4224,42 +4228,44 @@ describe("agentic memory consolidation bundle (D171)", () => {
 				}),
 			}),
 		]);
-		expect(data<readonly AgenticMemoryRecordProposal<string>[]>(proposals.messages).at(-1)).toEqual(
-			[
-				{
-					kind: "agentic-memory-record-proposal",
-					proposalId,
+		expect(
+			occurrenceData<readonly AgenticMemoryRecordProposal<string>[]>(proposals.messages).at(-1),
+		).toEqual([
+			{
+				kind: "agentic-memory-record-proposal",
+				proposalId,
+				operation: "create",
+				operationVersion: 1,
+				candidateMaterial: expect.objectContaining({
+					kind: "agentic-memory-record-candidate-material",
 					operation: "create",
 					operationVersion: 1,
-					candidateMaterial: expect.objectContaining({
-						kind: "agentic-memory-record-candidate-material",
-						operation: "create",
-						operationVersion: 1,
-						record: expect.objectContaining({
-							id: "record-merged",
-							fragment: expect.objectContaining({ id: "merged", payload: "merged insight" }),
-						}),
-						sourceRefs: consolidationRefs,
-						evidenceRefs: consolidationRefs,
+					record: expect.objectContaining({
+						id: "record-merged",
+						fragment: expect.objectContaining({ id: "merged", payload: "merged insight" }),
 					}),
-					reason: "merge",
-					proposalStatus: "consolidation-proposed",
 					sourceRefs: consolidationRefs,
 					evidenceRefs: consolidationRefs,
-					idempotencyKey: proposalId,
-					correlationId: "request-1",
-					causationId: "outcome-1",
-				},
-			],
-		);
-		expect(data(results.messages).at(-1)).toEqual([
+				}),
+				reason: "merge",
+				proposalStatus: "consolidation-proposed",
+				sourceRefs: consolidationRefs,
+				evidenceRefs: consolidationRefs,
+				idempotencyKey: proposalId,
+				correlationId: "request-1",
+				causationId: "outcome-1",
+			},
+		]);
+		expect(occurrenceData(results.messages).at(-1)).toEqual([
 			expect.objectContaining({
 				state: "proposed",
 				proposedRecordIds: ["record-merged"],
 				proposalIds: [proposalId],
 			}),
 		]);
-		expect(data<readonly AgenticMemoryConsolidationCommand[]>(commands.messages).at(-1)).toEqual([
+		expect(
+			occurrenceData<readonly AgenticMemoryConsolidationCommand[]>(commands.messages).at(-1),
+		).toEqual([
 			{
 				id: compoundTupleKey("agentic-memory-consolidation-command", [
 					compoundTupleKey("agentic-memory-consolidation-result", ["request-1", "outcome-1"]),
@@ -4276,53 +4282,45 @@ describe("agentic memory consolidation bundle (D171)", () => {
 
 	it("composes consolidation proposals through admission and application into record truth", () => {
 		const g = graph();
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>(
-			[
-				record({ id: "record-a", fragment: fragment({ id: "a" }) }),
-				record({ id: "record-b", fragment: fragment({ id: "b" }) }),
-			],
-			{ name: "records" },
-		);
-		const requests = g.state<readonly AgenticMemoryConsolidationRequest[]>(
-			[{ id: "request-1", commandId: "cmd-1", recordIds: ["record-a", "record-b"] }],
-			{ name: "requests" },
-		);
-		const outcomes = g.state<readonly AgenticMemoryConsolidationOutcome<string>[]>(
-			[
-				{
-					id: "outcome-1",
-					requestId: "request-1",
-					kind: "proposedRecords",
-					records: [
-						record({
-							id: "record-merged",
-							fragment: fragment({ id: "merged", payload: "merged insight" }),
-						}),
-					],
-				},
-			],
-			{ name: "outcomes" },
-		);
-		const admissionPolicy = g.state<AgenticMemoryRecordAdmissionPolicy>(
+		const records = [
+			record({ id: "record-a", fragment: fragment({ id: "a" }) }),
+			record({ id: "record-b", fragment: fragment({ id: "b" }) }),
+		];
+		const requests = [{ id: "request-1", commandId: "cmd-1", recordIds: ["record-a", "record-b"] }];
+		const outcomes = [
 			{
-				kind: "agentic-memory-record-admission-policy",
-				policyId: "admission-policy",
-				defaultState: "admitted",
-				requireSourceRefs: true,
+				id: "outcome-1",
+				requestId: "request-1",
+				kind: "proposedRecords",
+				records: [
+					record({
+						id: "record-merged",
+						fragment: fragment({ id: "merged", payload: "merged insight" }),
+					}),
+				],
 			},
-			{ name: "admissionPolicy" },
-		);
-		const applicationPolicyNode = g.state<AgenticMemoryRecordApplicationPolicy>(
-			applicationPolicy(),
-			{ name: "applicationPolicy" },
+		];
+		const admissionPolicy = {
+			kind: "agentic-memory-record-admission-policy",
+			policyId: "admission-policy",
+			defaultState: "admitted",
+			requireSourceRefs: true,
+		};
+		const applicationPolicyNode = applicationPolicy();
+		const occurrences = g.state(
+			occurrenceFixture({
+				records: records,
+				requests: requests,
+				outcomes: outcomes,
+				admissionPolicy: admissionPolicy,
+				applicationPolicy: applicationPolicyNode,
+			}),
+			{ name: "consolidationApplication/occurrences" },
 		);
 		const bundle = agenticMemoryConsolidationApplicationBundle(g, {
 			name: "consolidationApplication",
-			records,
-			requests,
-			outcomes,
-			admissionPolicy,
-			applicationPolicy: applicationPolicyNode,
+			occurrences,
+			maxOccurrences: 64,
 		});
 		const nextRecords = collect(bundle.records);
 		const admitted = collect(bundle.admission.admitted);
@@ -4334,92 +4332,89 @@ describe("agentic memory consolidation bundle (D171)", () => {
 			expect.arrayContaining([
 				{
 					from: "consolidationApplication/consolidation/recordProposals",
-					to: "consolidationApplication/admission/projection",
+					to: "consolidationApplication/admission-input/right",
 				},
 				{
 					from: "consolidationApplication/admission/admissions",
+					to: "consolidationApplication/application-input/right",
+				},
+				{
+					from: "consolidationApplication/application-input",
 					to: "consolidationApplication/application/projection",
 				},
-				{ from: "records", to: "consolidationApplication/application/projection" },
 				{
 					from: "consolidationApplication/application/projection",
 					to: "consolidationApplication/application/records",
 				},
 			]),
 		);
-		expect(data<readonly AgenticMemoryRecordAdmission<string>[]>(admitted.messages).at(-1)).toEqual(
-			[expect.objectContaining({ proposalId: expect.stringContaining("record-merged") })],
-		);
 		expect(
-			data<readonly AgenticMemoryRecord<string>[]>(nextRecords.messages)
+			occurrenceData<readonly AgenticMemoryRecordAdmission<string>[]>(admitted.messages).at(-1),
+		).toEqual([expect.objectContaining({ proposalId: expect.stringContaining("record-merged") })]);
+		expect(
+			occurrenceData<readonly AgenticMemoryRecord<string>[]>(nextRecords.messages)
 				.at(-1)
 				?.map((r) => r.id),
 		).toEqual(["record-a", "record-b", "record-merged"]);
 		expect(
-			data<readonly AgenticMemoryRecordApplicationDecision<string>[]>(decisions.messages)
+			occurrenceData<readonly AgenticMemoryRecordApplicationDecision<string>[]>(decisions.messages)
 				.at(-1)
 				?.map((decision) => decision.state),
 		).toEqual(["applied"]);
-		expect(data<AgenticMemoryRecordApplicationStatus>(status.messages).at(-1)).toMatchObject({
+		expect(
+			occurrenceData<AgenticMemoryRecordApplicationStatus>(status.messages).at(-1),
+		).toMatchObject({
 			state: "ready",
 			cursor: { applied: 1, rejected: 0, skipped: 0 },
 		});
-		expect(data(issues.messages).at(-1)).toEqual([]);
-		expect(records.cache?.map((item) => item.id)).toEqual(["record-a", "record-b"]);
+		expect(occurrenceData(issues.messages).at(-1)).toEqual([]);
+		expect(records?.map((item) => item.id)).toEqual(["record-a", "record-b"]);
 	});
 
 	it("composes consolidation replace proposals through D578 application", () => {
 		const g = graph();
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>(
-			[
-				record({ id: "record-a", fragment: fragment({ id: "a", payload: "old insight" }) }),
-				record({ id: "record-b", fragment: fragment({ id: "b", payload: "kept" }) }),
-			],
-			{ name: "records" },
-		);
-		const requests = g.state<readonly AgenticMemoryConsolidationRequest[]>(
-			[{ id: "request-1", commandId: "cmd-1", recordIds: ["record-a"] }],
-			{ name: "requests" },
-		);
-		const outcomes = g.state<readonly AgenticMemoryConsolidationOutcome<string>[]>(
-			[
-				{
-					id: "outcome-1",
-					requestId: "request-1",
-					kind: "proposedRecords",
-					applicationOperation: "replace",
-					operationVersion: 1,
-					targetRecordIds: ["record-a"],
-					records: [
-						record({
-							id: "record-a",
-							fragment: fragment({ id: "a-next", payload: "updated insight" }),
-						}),
-					],
-				},
-			],
-			{ name: "outcomes" },
-		);
-		const admissionPolicy = g.state<AgenticMemoryRecordAdmissionPolicy>(
+		const records = [
+			record({ id: "record-a", fragment: fragment({ id: "a", payload: "old insight" }) }),
+			record({ id: "record-b", fragment: fragment({ id: "b", payload: "kept" }) }),
+		];
+		const requests = [{ id: "request-1", commandId: "cmd-1", recordIds: ["record-a"] }];
+		const outcomes = [
 			{
-				kind: "agentic-memory-record-admission-policy",
-				policyId: "admission-policy",
-				defaultState: "admitted",
-				requireSourceRefs: true,
+				id: "outcome-1",
+				requestId: "request-1",
+				kind: "proposedRecords",
+				applicationOperation: "replace",
+				operationVersion: 1,
+				targetRecordIds: ["record-a"],
+				records: [
+					record({
+						id: "record-a",
+						fragment: fragment({ id: "a-next", payload: "updated insight" }),
+					}),
+				],
 			},
-			{ name: "admissionPolicy" },
-		);
-		const applicationPolicyNode = g.state<AgenticMemoryRecordApplicationPolicy>(
-			applicationPolicy(),
-			{ name: "applicationPolicy" },
+		];
+		const admissionPolicy = {
+			kind: "agentic-memory-record-admission-policy",
+			policyId: "admission-policy",
+			defaultState: "admitted",
+			requireSourceRefs: true,
+		};
+		const applicationPolicyNode = applicationPolicy();
+		const occurrences = g.state(
+			occurrenceFixture({
+				records: records,
+				requests: requests,
+				outcomes: outcomes,
+				admissionPolicy: admissionPolicy,
+				applicationPolicy: applicationPolicyNode,
+			}),
+			{ name: "consolidationApplication/occurrences" },
 		);
 		const bundle = agenticMemoryConsolidationApplicationBundle(g, {
 			name: "consolidationApplication",
-			records,
-			requests,
-			outcomes,
-			admissionPolicy,
-			applicationPolicy: applicationPolicyNode,
+			occurrences,
+			maxOccurrences: 64,
 		});
 		const drafts = collect(bundle.consolidation.proposedRecordDrafts);
 		const proposals = collect(bundle.consolidation.recordProposals);
@@ -4428,7 +4423,9 @@ describe("agentic memory consolidation bundle (D171)", () => {
 		const issues = collect(bundle.applicationIssues);
 
 		expect(
-			data<readonly AgenticMemoryConsolidationRecordDraft<string>[]>(drafts.messages).at(-1),
+			occurrenceData<readonly AgenticMemoryConsolidationRecordDraft<string>[]>(drafts.messages).at(
+				-1,
+			),
 		).toEqual([
 			expect.objectContaining({
 				applicationOperation: "replace",
@@ -4445,17 +4442,17 @@ describe("agentic memory consolidation bundle (D171)", () => {
 				}),
 			}),
 		]);
-		expect(data<readonly AgenticMemoryRecordProposal<string>[]>(proposals.messages).at(-1)).toEqual(
-			[
-				expect.objectContaining({
-					operation: "replace",
-					operationVersion: 1,
-					targetRecordId: "record-a",
-				}),
-			],
-		);
 		expect(
-			data<readonly AgenticMemoryRecord<string>[]>(nextRecords.messages)
+			occurrenceData<readonly AgenticMemoryRecordProposal<string>[]>(proposals.messages).at(-1),
+		).toEqual([
+			expect.objectContaining({
+				operation: "replace",
+				operationVersion: 1,
+				targetRecordId: "record-a",
+			}),
+		]);
+		expect(
+			occurrenceData<readonly AgenticMemoryRecord<string>[]>(nextRecords.messages)
 				.at(-1)
 				?.map((r) => [r.id, r.fragment.id, r.fragment.payload]),
 		).toEqual([
@@ -4463,7 +4460,9 @@ describe("agentic memory consolidation bundle (D171)", () => {
 			["record-b", "b", "kept"],
 		]);
 		expect(
-			data<readonly AgenticMemoryRecordApplicationDecision<string>[]>(decisions.messages).at(-1),
+			occurrenceData<readonly AgenticMemoryRecordApplicationDecision<string>[]>(
+				decisions.messages,
+			).at(-1),
 		).toEqual([
 			expect.objectContaining({
 				operation: "replace",
@@ -4472,61 +4471,53 @@ describe("agentic memory consolidation bundle (D171)", () => {
 				targetRecordId: "record-a",
 			}),
 		]);
-		expect(data(issues.messages).at(-1)).toEqual([]);
+		expect(occurrenceData(issues.messages).at(-1)).toEqual([]);
 	});
 
 	it("composes consolidation update proposals through D580 application", () => {
 		const g = graph();
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>(
-			[
-				record({ id: "record-a", fragment: fragment({ id: "a", payload: "old insight" }) }),
-				record({ id: "record-b", fragment: fragment({ id: "b", payload: "kept" }) }),
-			],
-			{ name: "records" },
-		);
-		const requests = g.state<readonly AgenticMemoryConsolidationRequest[]>(
-			[{ id: "request-1", commandId: "cmd-1", recordIds: ["record-a"] }],
-			{ name: "requests" },
-		);
-		const outcomes = g.state<readonly AgenticMemoryConsolidationOutcome<string>[]>(
-			[
-				{
-					id: "outcome-1",
-					requestId: "request-1",
-					kind: "proposedRecords",
-					applicationOperation: "update",
-					operationVersion: 1,
-					targetRecordIds: ["record-a"],
-					records: [
-						record({
-							id: "record-a",
-							fragment: fragment({ id: "a-next", payload: "updated insight" }),
-						}),
-					],
-				},
-			],
-			{ name: "outcomes" },
-		);
-		const admissionPolicy = g.state<AgenticMemoryRecordAdmissionPolicy>(
+		const records = [
+			record({ id: "record-a", fragment: fragment({ id: "a", payload: "old insight" }) }),
+			record({ id: "record-b", fragment: fragment({ id: "b", payload: "kept" }) }),
+		];
+		const requests = [{ id: "request-1", commandId: "cmd-1", recordIds: ["record-a"] }];
+		const outcomes = [
 			{
-				kind: "agentic-memory-record-admission-policy",
-				policyId: "admission-policy",
-				defaultState: "admitted",
-				requireSourceRefs: true,
+				id: "outcome-1",
+				requestId: "request-1",
+				kind: "proposedRecords",
+				applicationOperation: "update",
+				operationVersion: 1,
+				targetRecordIds: ["record-a"],
+				records: [
+					record({
+						id: "record-a",
+						fragment: fragment({ id: "a-next", payload: "updated insight" }),
+					}),
+				],
 			},
-			{ name: "admissionPolicy" },
-		);
-		const applicationPolicyNode = g.state<AgenticMemoryRecordApplicationPolicy>(
-			applicationPolicy(),
-			{ name: "applicationPolicy" },
+		];
+		const admissionPolicy = {
+			kind: "agentic-memory-record-admission-policy",
+			policyId: "admission-policy",
+			defaultState: "admitted",
+			requireSourceRefs: true,
+		};
+		const applicationPolicyNode = applicationPolicy();
+		const occurrences = g.state(
+			occurrenceFixture({
+				records: records,
+				requests: requests,
+				outcomes: outcomes,
+				admissionPolicy: admissionPolicy,
+				applicationPolicy: applicationPolicyNode,
+			}),
+			{ name: "consolidationApplication/occurrences" },
 		);
 		const bundle = agenticMemoryConsolidationApplicationBundle(g, {
 			name: "consolidationApplication",
-			records,
-			requests,
-			outcomes,
-			admissionPolicy,
-			applicationPolicy: applicationPolicyNode,
+			occurrences,
+			maxOccurrences: 64,
 		});
 		const drafts = collect(bundle.consolidation.proposedRecordDrafts);
 		const proposals = collect(bundle.consolidation.recordProposals);
@@ -4535,7 +4526,9 @@ describe("agentic memory consolidation bundle (D171)", () => {
 		const issues = collect(bundle.applicationIssues);
 
 		expect(
-			data<readonly AgenticMemoryConsolidationRecordDraft<string>[]>(drafts.messages).at(-1),
+			occurrenceData<readonly AgenticMemoryConsolidationRecordDraft<string>[]>(drafts.messages).at(
+				-1,
+			),
 		).toEqual([
 			expect.objectContaining({
 				applicationOperation: "update",
@@ -4548,17 +4541,17 @@ describe("agentic memory consolidation bundle (D171)", () => {
 				}),
 			}),
 		]);
-		expect(data<readonly AgenticMemoryRecordProposal<string>[]>(proposals.messages).at(-1)).toEqual(
-			[
-				expect.objectContaining({
-					operation: "update",
-					operationVersion: 1,
-					targetRecordId: "record-a",
-				}),
-			],
-		);
 		expect(
-			data<readonly AgenticMemoryRecord<string>[]>(nextRecords.messages)
+			occurrenceData<readonly AgenticMemoryRecordProposal<string>[]>(proposals.messages).at(-1),
+		).toEqual([
+			expect.objectContaining({
+				operation: "update",
+				operationVersion: 1,
+				targetRecordId: "record-a",
+			}),
+		]);
+		expect(
+			occurrenceData<readonly AgenticMemoryRecord<string>[]>(nextRecords.messages)
 				.at(-1)
 				?.map((r) => [r.id, r.fragment.id, r.fragment.payload]),
 		).toEqual([
@@ -4566,7 +4559,9 @@ describe("agentic memory consolidation bundle (D171)", () => {
 			["record-b", "b", "kept"],
 		]);
 		expect(
-			data<readonly AgenticMemoryRecordApplicationDecision<string>[]>(decisions.messages).at(-1),
+			occurrenceData<readonly AgenticMemoryRecordApplicationDecision<string>[]>(
+				decisions.messages,
+			).at(-1),
 		).toEqual([
 			expect.objectContaining({
 				operation: "update",
@@ -4575,54 +4570,46 @@ describe("agentic memory consolidation bundle (D171)", () => {
 				targetRecordId: "record-a",
 			}),
 		]);
-		expect(data(issues.messages).at(-1)).toEqual([]);
+		expect(occurrenceData(issues.messages).at(-1)).toEqual([]);
 	});
 
 	it("does not apply consolidation proposals that admission rejects", () => {
 		const g = graph();
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>(
-			[record({ id: "record-a", fragment: fragment({ id: "a" }) })],
-			{ name: "records" },
-		);
-		const requests = g.state<readonly AgenticMemoryConsolidationRequest[]>(
-			[{ id: "request-1", commandId: "cmd-1", recordIds: ["record-a"] }],
-			{ name: "requests" },
-		);
-		const outcomes = g.state<readonly AgenticMemoryConsolidationOutcome<string>[]>(
-			[
-				{
-					id: "outcome-1",
-					requestId: "request-1",
-					kind: "proposedRecords",
-					records: [
-						record({
-							id: "record-merged",
-							fragment: fragment({ id: "merged", payload: "merged insight" }),
-						}),
-					],
-				},
-			],
-			{ name: "outcomes" },
-		);
-		const admissionPolicy = g.state<AgenticMemoryRecordAdmissionPolicy>(
+		const records = [record({ id: "record-a", fragment: fragment({ id: "a" }) })];
+		const requests = [{ id: "request-1", commandId: "cmd-1", recordIds: ["record-a"] }];
+		const outcomes = [
 			{
-				kind: "agentic-memory-record-admission-policy",
-				policyId: "admission-policy",
-				defaultState: "rejected",
+				id: "outcome-1",
+				requestId: "request-1",
+				kind: "proposedRecords",
+				records: [
+					record({
+						id: "record-merged",
+						fragment: fragment({ id: "merged", payload: "merged insight" }),
+					}),
+				],
 			},
-			{ name: "admissionPolicy" },
-		);
-		const applicationPolicyNode = g.state<AgenticMemoryRecordApplicationPolicy>(
-			applicationPolicy(),
-			{ name: "applicationPolicy" },
+		];
+		const admissionPolicy = {
+			kind: "agentic-memory-record-admission-policy",
+			policyId: "admission-policy",
+			defaultState: "rejected",
+		};
+		const applicationPolicyNode = applicationPolicy();
+		const occurrences = g.state(
+			occurrenceFixture({
+				records: records,
+				requests: requests,
+				outcomes: outcomes,
+				admissionPolicy: admissionPolicy,
+				applicationPolicy: applicationPolicyNode,
+			}),
+			{ name: "consolidationApplication/occurrences" },
 		);
 		const bundle = agenticMemoryConsolidationApplicationBundle(g, {
 			name: "consolidationApplication",
-			records,
-			requests,
-			outcomes,
-			admissionPolicy,
-			applicationPolicy: applicationPolicyNode,
+			occurrences,
+			maxOccurrences: 64,
 		});
 		const nextRecords = collect(bundle.records);
 		const admissions = collect(bundle.admission.admissions);
@@ -4630,19 +4617,21 @@ describe("agentic memory consolidation bundle (D171)", () => {
 		const status = collect(bundle.applicationStatus);
 
 		expect(
-			data<readonly AgenticMemoryRecordAdmission<string>[]>(admissions.messages).at(-1),
+			occurrenceData<readonly AgenticMemoryRecordAdmission<string>[]>(admissions.messages).at(-1),
 		).toEqual([expect.objectContaining({ state: "rejected" })]);
 		expect(
-			data<readonly AgenticMemoryRecord<string>[]>(nextRecords.messages)
+			occurrenceData<readonly AgenticMemoryRecord<string>[]>(nextRecords.messages)
 				.at(-1)
 				?.map((r) => r.id),
 		).toEqual(["record-a"]);
 		expect(
-			data<readonly AgenticMemoryRecordApplicationDecision<string>[]>(decisions.messages)
+			occurrenceData<readonly AgenticMemoryRecordApplicationDecision<string>[]>(decisions.messages)
 				.at(-1)
 				?.map((decision) => decision.state),
 		).toEqual(["skipped"]);
-		expect(data<AgenticMemoryRecordApplicationStatus>(status.messages).at(-1)).toMatchObject({
+		expect(
+			occurrenceData<AgenticMemoryRecordApplicationStatus>(status.messages).at(-1),
+		).toMatchObject({
 			state: "blocked",
 			cursor: { applied: 0, skipped: 1 },
 		});
@@ -4650,41 +4639,35 @@ describe("agentic memory consolidation bundle (D171)", () => {
 
 	it("keeps invalid consolidation outcomes on the DATA error path", () => {
 		const g = graph();
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>(
-			[record({ id: "record-a", fragment: fragment({ id: "a" }) })],
-			{ name: "records" },
-		);
-		const requests = g.state<readonly AgenticMemoryConsolidationRequest[]>(
-			[{ id: "request-1", commandId: "cmd-1", recordIds: ["record-a"] }],
-			{ name: "requests" },
-		);
-		const outcomes = g.state(
-			[
-				{ id: "missing", requestId: "missing-request", kind: "failed", message: "nope" },
-				{
-					id: "bad-record",
-					requestId: "request-1",
-					kind: "proposedRecords",
-					records: [record({ id: "", fragment: fragment({ id: "" }) })],
-				},
-			] as never,
-			{ name: "outcomes" },
+		const records = [record({ id: "record-a", fragment: fragment({ id: "a" }) })];
+		const requests = [{ id: "request-1", commandId: "cmd-1", recordIds: ["record-a"] }];
+		const outcomes = [
+			{ id: "missing", requestId: "missing-request", kind: "failed", message: "nope" },
+			{
+				id: "bad-record",
+				requestId: "request-1",
+				kind: "proposedRecords",
+				records: [record({ id: "", fragment: fragment({ id: "" }) })],
+			},
+		] as never;
+		const occurrences = g.state(
+			occurrenceFixture({ records: records, requests: requests, outcomes: outcomes }),
+			{ name: "consolidation/occurrences" },
 		);
 		const bundle = agenticMemoryConsolidationBundle(g, {
 			name: "consolidation",
-			records,
-			requests,
-			outcomes,
+			occurrences,
+			maxOccurrences: 64,
 		});
 		const errors = collect(bundle.errors);
 		const status = collect(bundle.status);
 
 		expect(
-			data<readonly AgenticMemoryConsolidationError[]>(errors.messages)
+			occurrenceData<readonly AgenticMemoryConsolidationError[]>(errors.messages)
 				.at(-1)
 				?.map((error) => error.code),
 		).toEqual(["missing-request-ref", "invalid-proposed-record"]);
-		expect(data<AgenticMemoryConsolidationStatus>(status.messages).at(-1)).toMatchObject({
+		expect(occurrenceData<AgenticMemoryConsolidationStatus>(status.messages).at(-1)).toMatchObject({
 			state: "error",
 			cursor: { validOutcomes: 0, invalidOutcomes: 2 },
 		});
@@ -4693,55 +4676,49 @@ describe("agentic memory consolidation bundle (D171)", () => {
 
 	it("rejects malformed consolidation replace outcomes before proposal application", () => {
 		const g = graph();
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>(
-			[record({ id: "record-a", fragment: fragment({ id: "a" }) })],
-			{ name: "records" },
-		);
-		const requests = g.state<readonly AgenticMemoryConsolidationRequest[]>(
-			[{ id: "request-1", commandId: "cmd-1", recordIds: ["record-a"] }],
-			{ name: "requests" },
-		);
-		const outcomes = g.state<readonly AgenticMemoryConsolidationOutcome<string>[]>(
-			[
-				{
-					id: "outcome-1",
-					requestId: "request-1",
-					kind: "proposedRecords",
-					applicationOperation: "replace",
-					records: [record({ id: "record-a", fragment: fragment({ id: "a-next" }) })],
-				},
-				{
-					id: "outcome-1",
-					requestId: "request-1",
-					kind: "proposedRecords",
-					records: [record({ id: "record-b", fragment: fragment({ id: "b" }) })],
-				},
-				{
-					id: "outcome-2",
-					requestId: "request-1",
-					kind: "proposedRecords",
-					applicationOperation: "update",
-					records: [record({ id: "record-a", fragment: fragment({ id: "a-next" }) })],
-				},
-			],
-			{ name: "outcomes" },
+		const records = [record({ id: "record-a", fragment: fragment({ id: "a" }) })];
+		const requests = [{ id: "request-1", commandId: "cmd-1", recordIds: ["record-a"] }];
+		const outcomes = [
+			{
+				id: "outcome-1",
+				requestId: "request-1",
+				kind: "proposedRecords",
+				applicationOperation: "replace",
+				records: [record({ id: "record-a", fragment: fragment({ id: "a-next" }) })],
+			},
+			{
+				id: "outcome-1",
+				requestId: "request-1",
+				kind: "proposedRecords",
+				records: [record({ id: "record-b", fragment: fragment({ id: "b" }) })],
+			},
+			{
+				id: "outcome-2",
+				requestId: "request-1",
+				kind: "proposedRecords",
+				applicationOperation: "update",
+				records: [record({ id: "record-a", fragment: fragment({ id: "a-next" }) })],
+			},
+		];
+		const occurrences = g.state(
+			occurrenceFixture({ records: records, requests: requests, outcomes: outcomes }),
+			{ name: "consolidation/occurrences" },
 		);
 		const bundle = agenticMemoryConsolidationBundle(g, {
 			name: "consolidation",
-			records,
-			requests,
-			outcomes,
+			occurrences,
+			maxOccurrences: 64,
 		});
 		const errors = collect(bundle.errors);
 		const proposals = collect(bundle.recordProposals);
 
 		expect(
-			data<readonly AgenticMemoryConsolidationError[]>(errors.messages)
+			occurrenceData<readonly AgenticMemoryConsolidationError[]>(errors.messages)
 				.at(-1)
 				?.map((error) => error.code),
 		).toEqual(["invalid-proposed-record", "duplicate-outcome-id", "invalid-proposed-record"]);
 		expect(
-			data<readonly AgenticMemoryConsolidationError[]>(errors.messages)
+			occurrenceData<readonly AgenticMemoryConsolidationError[]>(errors.messages)
 				.at(-1)
 				?.map((error) => error.validationErrors),
 		).toEqual([
@@ -4749,20 +4726,16 @@ describe("agentic memory consolidation bundle (D171)", () => {
 			["duplicate outcome id 'outcome-1'"],
 			["update outcome.targetRecordIds must align with records"],
 		]);
-		expect(data<readonly AgenticMemoryRecordProposal[]>(proposals.messages).at(-1)).toEqual([]);
+		expect(
+			occurrenceData<readonly AgenticMemoryRecordProposal[]>(proposals.messages).at(-1),
+		).toEqual([]);
 		expect(errors.messages.some((message) => message[0] === "ERROR")).toBe(false);
 	});
 
-	it("rejects duplicate proposed record ids and hostile outcome arrays as DATA errors", () => {
+	it("rejects duplicate proposed record ids and malformed outcomes as DATA errors", () => {
 		const g = graph();
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>(
-			[record({ id: "record-a", fragment: fragment({ id: "a" }) })],
-			{ name: "records" },
-		);
-		const requests = g.state<readonly AgenticMemoryConsolidationRequest[]>(
-			[{ id: "request-1", commandId: "cmd-1", recordIds: ["record-a"] }],
-			{ name: "requests" },
-		);
+		const records = [record({ id: "record-a", fragment: fragment({ id: "a" }) })];
+		const requests = [{ id: "request-1", commandId: "cmd-1", recordIds: ["record-a"] }];
 		const outcomes = [
 			{
 				id: "dupe-records",
@@ -4780,36 +4753,37 @@ describe("agentic memory consolidation bundle (D171)", () => {
 				message: "unreachable",
 			},
 		] as unknown[];
-		Object.defineProperty(outcomes, "1", {
-			get() {
-				throw new Error("outcome getter exploded");
-			},
-		});
-		const outcomeNode = g.state(outcomes as never, { name: "outcomes" });
+		outcomes[1] = null;
+		const outcomeNode = outcomes as never;
+		const occurrences = g.state(
+			occurrenceFixture({ records: records, requests: requests, outcomes: outcomeNode }),
+			{ name: "consolidation/occurrences" },
+		);
 		const bundle = agenticMemoryConsolidationBundle(g, {
 			name: "consolidation",
-			records,
-			requests,
-			outcomes: outcomeNode,
+			occurrences,
+			maxOccurrences: 64,
 		});
 		const errors = collect(bundle.errors);
 		const status = collect(bundle.status);
 		const proposals = collect(bundle.recordProposals);
 
 		expect(
-			data<readonly AgenticMemoryConsolidationError[]>(errors.messages)
+			occurrenceData<readonly AgenticMemoryConsolidationError[]>(errors.messages)
 				.at(-1)
 				?.map((error) => error.code),
 		).toEqual(["invalid-proposed-record", "invalid-outcome"]);
 		expect(
-			data<readonly AgenticMemoryConsolidationError[]>(errors.messages).at(-1)?.[0]
+			occurrenceData<readonly AgenticMemoryConsolidationError[]>(errors.messages).at(-1)?.[0]
 				?.validationErrors,
 		).toEqual(["records[1]: duplicate proposed record id 'record-merged'"]);
-		expect(data<AgenticMemoryConsolidationStatus>(status.messages).at(-1)).toMatchObject({
+		expect(occurrenceData<AgenticMemoryConsolidationStatus>(status.messages).at(-1)).toMatchObject({
 			state: "error",
 			cursor: { validOutcomes: 0, invalidOutcomes: 2, proposedRecordDrafts: 0, recordProposals: 0 },
 		});
-		expect(data<readonly AgenticMemoryRecordProposal[]>(proposals.messages).at(-1)).toEqual([]);
+		expect(
+			occurrenceData<readonly AgenticMemoryRecordProposal[]>(proposals.messages).at(-1),
+		).toEqual([]);
 		expect(errors.messages.some((message) => message[0] === "ERROR")).toBe(false);
 	});
 });
@@ -5293,46 +5267,40 @@ describe("agentic memory admission policy source projection (D583)", () => {
 describe("agentic memory record proposal admission (D572/D573)", () => {
 	it("admits proposal facts without applying AgenticMemoryRecord truth", () => {
 		const g = graph();
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>(
-			[record({ id: "record-existing", fragment: fragment({ id: "existing" }) })],
-			{ name: "records" },
-		);
-		const proposals = g.state<readonly AgenticMemoryRecordProposal<string>[]>(
-			[
-				{
-					kind: "agentic-memory-record-proposal",
-					proposalId: "proposal-1",
-					candidateMaterial: {
-						kind: "agentic-memory-record-candidate-material",
-						record: record({
-							id: "record-new",
-							fragment: fragment({ id: "new", payload: "new insight" }),
-						}),
-					},
-					reason: "human-approved import",
-					sourceRefs: [{ kind: "review", id: "review-1" }],
-					policyRefs: [{ kind: "policy", id: "mapper-1" }],
-					idempotencyKey: "idem-1",
-					correlationId: "corr-1",
-				},
-			],
-			{ name: "proposals" },
-		);
-		const policy = g.state<AgenticMemoryRecordAdmissionPolicy>(
+		const records = [record({ id: "record-existing", fragment: fragment({ id: "existing" }) })];
+		const proposals = [
 			{
-				kind: "agentic-memory-record-admission-policy",
-				policyId: "admission-policy",
-				defaultState: "admitted",
-				requireSourceRefs: true,
-				policyRefs: [{ kind: "policy", id: "admission-policy" }],
+				kind: "agentic-memory-record-proposal",
+				proposalId: "proposal-1",
+				candidateMaterial: {
+					kind: "agentic-memory-record-candidate-material",
+					record: record({
+						id: "record-new",
+						fragment: fragment({ id: "new", payload: "new insight" }),
+					}),
+				},
+				reason: "human-approved import",
+				sourceRefs: [{ kind: "review", id: "review-1" }],
+				policyRefs: [{ kind: "policy", id: "mapper-1" }],
+				idempotencyKey: "idem-1",
+				correlationId: "corr-1",
 			},
-			{ name: "policy" },
+		];
+		const policy = {
+			kind: "agentic-memory-record-admission-policy",
+			policyId: "admission-policy",
+			defaultState: "admitted",
+			requireSourceRefs: true,
+			policyRefs: [{ kind: "policy", id: "admission-policy" }],
+		};
+		const occurrences = g.state(
+			occurrenceFixture({ records: records, proposals: proposals, policy: policy }),
+			{ name: "admission/occurrences" },
 		);
 		const bundle = agenticMemoryRecordAdmissionBundle(g, {
 			name: "admission",
-			records,
-			proposals,
-			policy,
+			occurrences,
+			maxOccurrences: 64,
 		});
 		const admitted = collect(bundle.admitted);
 		const status = collect(bundle.status);
@@ -5340,111 +5308,107 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 
 		expect(g.describe().edges).toEqual(
 			expect.arrayContaining([
-				{ from: "records", to: "admission/projection" },
-				{ from: "proposals", to: "admission/projection" },
-				{ from: "policy", to: "admission/projection" },
+				{ from: "admission/occurrences", to: "admission/projection" },
+				{ from: "admission/occurrences", to: "admission/projection" },
+				{ from: "admission/occurrences", to: "admission/projection" },
 				{ from: "admission/projection", to: "admission/admitted" },
 				{ from: "admission/projection", to: "admission/audit" },
 			]),
 		);
 		expect(Object.hasOwn(bundle, "records")).toBe(false);
-		expect(data<AgenticMemoryRecordAdmissionStatus>(status.messages).at(-1)).toMatchObject({
+		expect(
+			occurrenceData<AgenticMemoryRecordAdmissionStatus>(status.messages).at(-1),
+		).toMatchObject({
 			state: "ready",
 			cursor: { admitted: 1, rejected: 0, needsReview: 0, invalidProposals: 0 },
 		});
-		expect(data<readonly AgenticMemoryRecordAdmission<string>[]>(admitted.messages).at(-1)).toEqual(
-			[
-				expect.objectContaining({
-					kind: "agentic-memory-record-admission",
-					admissionId: 'admission:["admission-policy","proposal-1"]',
-					proposalId: "proposal-1",
-					state: "admitted",
-					candidateMaterial: expect.objectContaining({
-						record: expect.objectContaining({ id: "record-new" }),
-					}),
-					sourceRefs: expect.arrayContaining([{ kind: "review", id: "review-1" }]),
-					policyRefs: expect.arrayContaining([
-						{ kind: "agentic-memory-record-admission-policy", id: "admission-policy" },
-					]),
-					idempotencyKey: "idem-1",
-					correlationId: "corr-1",
+		expect(
+			occurrenceData<readonly AgenticMemoryRecordAdmission<string>[]>(admitted.messages).at(-1),
+		).toEqual([
+			expect.objectContaining({
+				kind: "agentic-memory-record-admission",
+				admissionId: 'admission:["admission-policy","proposal-1"]',
+				proposalId: "proposal-1",
+				state: "admitted",
+				candidateMaterial: expect.objectContaining({
+					record: expect.objectContaining({ id: "record-new" }),
 				}),
-			],
-		);
-		expect(data(audit.messages).at(-1)).toEqual([
+				sourceRefs: expect.arrayContaining([{ kind: "review", id: "review-1" }]),
+				policyRefs: expect.arrayContaining([
+					{ kind: "agentic-memory-record-admission-policy", id: "admission-policy" },
+				]),
+				idempotencyKey: "idem-1",
+				correlationId: "corr-1",
+			}),
+		]);
+		expect(occurrenceData(audit.messages).at(-1)).toEqual([
 			expect.objectContaining({
 				kind: "agentic-memory-record-admission-audit",
 				proposalId: "proposal-1",
 				state: "admitted",
 			}),
 		]);
-		expect(records.cache?.map((item) => item.id)).toEqual(["record-existing"]);
+		expect(records?.map((item) => item.id)).toEqual(["record-existing"]);
 	});
 
 	it("rejects duplicate candidate ids and routes missing provenance to needs-review", () => {
 		const g = graph();
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>(
-			[record({ id: "record-existing", fragment: fragment({ id: "existing" }) })],
-			{ name: "records" },
-		);
-		const proposals = g.state<readonly AgenticMemoryRecordProposal<string>[]>(
-			[
-				{
-					kind: "agentic-memory-record-proposal",
-					proposalId: "duplicate",
-					candidateMaterial: {
-						kind: "agentic-memory-record-candidate-material",
-						record: record({
-							id: "record-existing",
-							fragment: fragment({ id: "replacement" }),
-						}),
-					},
-					sourceRefs: [{ kind: "import", id: "import-1" }],
-				},
-				{
-					kind: "agentic-memory-record-proposal",
-					proposalId: "missing-source",
-					candidateMaterial: {
-						kind: "agentic-memory-record-candidate-material",
-						record: record({
-							id: "record-new",
-							fragment: fragment({ id: "new" }),
-						}),
-					},
-				},
-			],
-			{ name: "proposals" },
-		);
-		const policy = g.state<AgenticMemoryRecordAdmissionPolicy>(
+		const records = [record({ id: "record-existing", fragment: fragment({ id: "existing" }) })];
+		const proposals = [
 			{
-				kind: "agentic-memory-record-admission-policy",
-				policyId: "admission-policy",
-				defaultState: "admitted",
-				requireSourceRefs: true,
+				kind: "agentic-memory-record-proposal",
+				proposalId: "duplicate",
+				candidateMaterial: {
+					kind: "agentic-memory-record-candidate-material",
+					record: record({
+						id: "record-existing",
+						fragment: fragment({ id: "replacement" }),
+					}),
+				},
+				sourceRefs: [{ kind: "import", id: "import-1" }],
 			},
-			{ name: "policy" },
+			{
+				kind: "agentic-memory-record-proposal",
+				proposalId: "missing-source",
+				candidateMaterial: {
+					kind: "agentic-memory-record-candidate-material",
+					record: record({
+						id: "record-new",
+						fragment: fragment({ id: "new" }),
+					}),
+				},
+			},
+		];
+		const policy = {
+			kind: "agentic-memory-record-admission-policy",
+			policyId: "admission-policy",
+			defaultState: "admitted",
+			requireSourceRefs: true,
+		};
+		const occurrences = g.state(
+			occurrenceFixture({ records: records, proposals: proposals, policy: policy }),
+			{ name: "admission/occurrences" },
 		);
 		const bundle = agenticMemoryRecordAdmissionBundle(g, {
 			name: "admission",
-			records,
-			proposals,
-			policy,
+			occurrences,
+			maxOccurrences: 64,
 		});
 		const rejected = collect(bundle.rejected);
 		const needsReview = collect(bundle.needsReview);
 		const status = collect(bundle.status);
 
-		expect(data<readonly AgenticMemoryRecordAdmission<string>[]>(rejected.messages).at(-1)).toEqual(
-			[
-				expect.objectContaining({
-					proposalId: "duplicate",
-					state: "rejected",
-					reason: "candidate record id already exists",
-				}),
-			],
-		);
 		expect(
-			data<readonly AgenticMemoryRecordAdmission<string>[]>(needsReview.messages).at(-1),
+			occurrenceData<readonly AgenticMemoryRecordAdmission<string>[]>(rejected.messages).at(-1),
+		).toEqual([
+			expect.objectContaining({
+				proposalId: "duplicate",
+				state: "rejected",
+				reason: "candidate record id already exists",
+			}),
+		]);
+		expect(
+			occurrenceData<readonly AgenticMemoryRecordAdmission<string>[]>(needsReview.messages).at(-1),
 		).toEqual([
 			expect.objectContaining({
 				proposalId: "missing-source",
@@ -5452,15 +5416,16 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 				reason: "policy requires sourceRefs",
 			}),
 		]);
-		expect(data<AgenticMemoryRecordAdmissionStatus>(status.messages).at(-1)).toMatchObject({
+		expect(
+			occurrenceData<AgenticMemoryRecordAdmissionStatus>(status.messages).at(-1),
+		).toMatchObject({
 			state: "blocked",
 			cursor: { admitted: 0, rejected: 1, needsReview: 1 },
 		});
 	});
 
-	it("keeps malformed proposals on the DATA issue path", () => {
-		const g = graph();
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>([], { name: "records" });
+	it("validates hostile proposals in the pure admission boundary", () => {
+		const records = [];
 		const proposals = [
 			{
 				kind: "agentic-memory-record-proposal",
@@ -5512,34 +5477,17 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 				throw new Error("proposal getter exploded");
 			},
 		});
-		const proposalNode = g.state(proposals as never, { name: "proposals" });
-		const policy = g.state<AgenticMemoryRecordAdmissionPolicy>(
-			{ kind: "agentic-memory-record-admission-policy", policyId: "admission-policy" },
-			{ name: "policy" },
-		);
-		const bundle = agenticMemoryRecordAdmissionBundle(g, {
-			name: "admission",
-			records,
-			proposals: proposalNode,
-			policy,
-		});
-		const issues = collect(bundle.issues);
-		const status = collect(bundle.status);
+		const _proposalNode = proposals as never;
+		const policy = { kind: "agentic-memory-record-admission-policy", policyId: "admission-policy" };
+		const snapshot = admitAgenticMemoryRecordProposals(proposals, policy, { records });
 
-		const latestIssues = data<
-			readonly {
-				readonly code: string;
-				readonly details?: unknown;
-				readonly refs?: readonly string[];
-			}[]
-		>(issues.messages).at(-1);
-		expect(latestIssues?.map((issue) => issue.code)).toEqual([
+		expect(snapshot.issues.map((issue) => issue.code)).toEqual([
 			"agentic-memory.proposal.invalid",
 			"agentic-memory.proposal.invalid",
 			"agentic-memory.proposal.invalid",
 		]);
-		expect(latestIssues?.every((issue) => !Object.hasOwn(issue, "details"))).toBe(true);
-		expect(latestIssues?.[2]?.refs).toEqual(
+		expect(snapshot.issues.every((issue) => !Object.hasOwn(issue, "details"))).toBe(true);
+		expect(snapshot.issues[2]?.refs).toEqual(
 			expect.arrayContaining([
 				"proposal.storageKey is not graph-visible DATA",
 				"proposal.sourceRefs: [0] has unexpected fields callback",
@@ -5547,30 +5495,26 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 				"candidateMaterial: candidateMaterial.attribution.graph is not graph-visible DATA",
 			]),
 		);
-		expect(data<AgenticMemoryRecordAdmissionStatus>(status.messages).at(-1)).toMatchObject({
+		expect(snapshot.status).toMatchObject({
 			state: "error",
 			cursor: { validProposals: 0, invalidProposals: 3 },
 		});
-		expect(issues.messages.some((message) => message[0] === "ERROR")).toBe(false);
+		expect(snapshot.admitted).toEqual([]);
 	});
 
-	it("keeps malformed admission policies on the DATA issue path", () => {
-		const g = graph();
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>([], { name: "records" });
-		const proposals = g.state<readonly AgenticMemoryRecordProposal<string>[]>(
-			[
-				{
-					kind: "agentic-memory-record-proposal",
-					proposalId: "proposal-1",
-					candidateMaterial: {
-						kind: "agentic-memory-record-candidate-material",
-						record: record({ id: "record-new", fragment: fragment({ id: "new" }) }),
-					},
-					sourceRefs: [{ kind: "import", id: "import-1" }],
+	it("validates hostile policies in the pure admission boundary", () => {
+		const records = [];
+		const proposals = [
+			{
+				kind: "agentic-memory-record-proposal",
+				proposalId: "proposal-1",
+				candidateMaterial: {
+					kind: "agentic-memory-record-candidate-material",
+					record: record({ id: "record-new", fragment: fragment({ id: "new" }) }),
 				},
-			],
-			{ name: "proposals" },
-		);
+				sourceRefs: [{ kind: "import", id: "import-1" }],
+			},
+		];
 		const hostilePolicy = {
 			kind: "agentic-memory-record-admission-policy",
 			policyId: "hostile-policy",
@@ -5581,38 +5525,26 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 			},
 			enumerable: true,
 		});
-		const policy = g.state(hostilePolicy as never, { name: "policy" });
-		const bundle = agenticMemoryRecordAdmissionBundle(g, {
-			name: "admission",
-			records,
-			proposals,
-			policy,
-		});
-		const rejected = collect(bundle.rejected);
-		const issues = collect(bundle.issues);
-		const status = collect(bundle.status);
+		const policy = hostilePolicy as never;
+		const snapshot = admitAgenticMemoryRecordProposals(proposals, policy, { records });
 
-		expect(data<readonly AgenticMemoryRecordAdmission<string>[]>(rejected.messages).at(-1)).toEqual(
-			[
-				expect.objectContaining({
-					proposalId: "proposal-1",
-					state: "rejected",
-					reason: "policy:invalid-policy",
-				}),
-			],
-		);
-		const latestIssues = data<readonly { readonly code: string; readonly details?: unknown }[]>(
-			issues.messages,
-		).at(-1);
+		expect(snapshot.rejected).toEqual([
+			expect.objectContaining({
+				proposalId: "proposal-1",
+				state: "rejected",
+				reason: "policy:invalid-policy",
+			}),
+		]);
+		const latestIssues = snapshot.issues;
 		expect(latestIssues).toEqual([
 			expect.objectContaining({ code: "agentic-memory.admission-policy.invalid" }),
 		]);
 		expect(latestIssues?.every((issue) => !Object.hasOwn(issue, "details"))).toBe(true);
-		expect(data<AgenticMemoryRecordAdmissionStatus>(status.messages).at(-1)).toMatchObject({
+		expect(snapshot.status).toMatchObject({
 			state: "partial",
 			cursor: { validProposals: 1, invalidProposals: 0, invalidPolicies: 1, rejected: 1 },
 		});
-		expect(issues.messages.some((message) => message[0] === "ERROR")).toBe(false);
+		expect(snapshot.admitted).toEqual([]);
 	});
 
 	it("exposes a deterministic pure proposal admission helper", () => {
@@ -5867,46 +5799,43 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 
 	it("snapshots refs and preserves colon-distinct policy refs", () => {
 		const g = graph();
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>([], { name: "records" });
+		const records = [];
 		const sourceRef = { kind: "review", id: "review-1", metadata: { rank: 1 } };
-		const proposals = g.state<readonly AgenticMemoryRecordProposal<string>[]>(
-			[
-				{
-					kind: "agentic-memory-record-proposal",
-					proposalId: "proposal-1",
-					candidateMaterial: {
-						kind: "agentic-memory-record-candidate-material",
-						record: record({ id: "record-new", fragment: fragment({ id: "new" }) }),
-					},
-					sourceRefs: [sourceRef],
-					policyRefs: [
-						{ kind: "a:b", id: "c" },
-						{ kind: "a", id: "b:c" },
-					],
-				},
-			],
-			{ name: "proposals" },
-		);
-		const policy = g.state<AgenticMemoryRecordAdmissionPolicy>(
+		const proposals = [
 			{
-				kind: "agentic-memory-record-admission-policy",
-				policyId: "admission-policy",
-				defaultState: "admitted",
+				kind: "agentic-memory-record-proposal",
+				proposalId: "proposal-1",
+				candidateMaterial: {
+					kind: "agentic-memory-record-candidate-material",
+					record: record({ id: "record-new", fragment: fragment({ id: "new" }) }),
+				},
+				sourceRefs: [sourceRef],
+				policyRefs: [
+					{ kind: "a:b", id: "c" },
+					{ kind: "a", id: "b:c" },
+				],
 			},
-			{ name: "policy" },
+		];
+		const policy = {
+			kind: "agentic-memory-record-admission-policy",
+			policyId: "admission-policy",
+			defaultState: "admitted",
+		};
+		const occurrences = g.state(
+			occurrenceFixture({ records: records, proposals: proposals, policy: policy }),
+			{ name: "admission/occurrences" },
 		);
 		const bundle = agenticMemoryRecordAdmissionBundle(g, {
 			name: "admission",
-			records,
-			proposals,
-			policy,
+			occurrences,
+			maxOccurrences: 64,
 		});
 		const admitted = collect(bundle.admitted);
 		sourceRef.metadata.rank = 99;
 
-		const admission = data<readonly AgenticMemoryRecordAdmission<string>[]>(admitted.messages).at(
-			-1,
-		)?.[0];
+		const admission = occurrenceData<readonly AgenticMemoryRecordAdmission<string>[]>(
+			admitted.messages,
+		).at(-1)?.[0];
 		expect(admission?.sourceRefs).toEqual([
 			{ kind: "review", id: "review-1", metadata: { rank: 1 } },
 		]);
@@ -5978,19 +5907,22 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 		).toBe(true);
 
 		const g = graph();
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>([], { name: "records" });
-		const proposalNode = g.state(proposals, { name: "proposals" });
-		const policyNode = g.state(policy, { name: "policy" });
+		const records = [];
+		const proposalNode = proposals;
+		const policyNode = policy;
+		const occurrences = g.state(
+			occurrenceFixture({ records: records, proposals: proposalNode, policy: policyNode }),
+			{ name: "admission/occurrences" },
+		);
 		const bundle = agenticMemoryRecordAdmissionBundle(g, {
 			name: "admission",
-			records,
-			proposals: proposalNode,
-			policy: policyNode,
+			occurrences,
+			maxOccurrences: 64,
 		});
 		const admitted = collect(bundle.admitted);
 
 		expect(
-			data<readonly AgenticMemoryRecordAdmission<string>[]>(admitted.messages).at(-1)?.[0]
+			occurrenceData<readonly AgenticMemoryRecordAdmission<string>[]>(admitted.messages).at(-1)?.[0]
 				?.candidateMaterial,
 		).toEqual(
 			expect.objectContaining({
@@ -6005,58 +5937,57 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 
 	it("rejects duplicate candidate record ids within one proposal batch", () => {
 		const g = graph();
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>([], { name: "records" });
-		const proposals = g.state<readonly AgenticMemoryRecordProposal<string>[]>(
-			[
-				{
-					kind: "agentic-memory-record-proposal",
-					proposalId: "first",
-					candidateMaterial: {
-						kind: "agentic-memory-record-candidate-material",
-						record: record({ id: "record-dupe", fragment: fragment({ id: "dupe-a" }) }),
-					},
-					sourceRefs: [{ kind: "import", id: "import-a" }],
-				},
-				{
-					kind: "agentic-memory-record-proposal",
-					proposalId: "second",
-					candidateMaterial: {
-						kind: "agentic-memory-record-candidate-material",
-						record: record({ id: "record-dupe", fragment: fragment({ id: "dupe-b" }) }),
-					},
-					sourceRefs: [{ kind: "import", id: "import-b" }],
-				},
-			],
-			{ name: "proposals" },
-		);
-		const policy = g.state<AgenticMemoryRecordAdmissionPolicy>(
+		const records = [];
+		const proposals = [
 			{
-				kind: "agentic-memory-record-admission-policy",
-				policyId: "admission-policy",
-				defaultState: "admitted",
-				requireSourceRefs: true,
+				kind: "agentic-memory-record-proposal",
+				proposalId: "first",
+				candidateMaterial: {
+					kind: "agentic-memory-record-candidate-material",
+					record: record({ id: "record-dupe", fragment: fragment({ id: "dupe-a" }) }),
+				},
+				sourceRefs: [{ kind: "import", id: "import-a" }],
 			},
-			{ name: "policy" },
+			{
+				kind: "agentic-memory-record-proposal",
+				proposalId: "second",
+				candidateMaterial: {
+					kind: "agentic-memory-record-candidate-material",
+					record: record({ id: "record-dupe", fragment: fragment({ id: "dupe-b" }) }),
+				},
+				sourceRefs: [{ kind: "import", id: "import-b" }],
+			},
+		];
+		const policy = {
+			kind: "agentic-memory-record-admission-policy",
+			policyId: "admission-policy",
+			defaultState: "admitted",
+			requireSourceRefs: true,
+		};
+		const occurrences = g.state(
+			occurrenceFixture({ records: records, proposals: proposals, policy: policy }),
+			{ name: "admission/occurrences" },
 		);
 		const bundle = agenticMemoryRecordAdmissionBundle(g, {
 			name: "admission",
-			records,
-			proposals,
-			policy,
+			occurrences,
+			maxOccurrences: 64,
 		});
 		const admitted = collect(bundle.admitted);
 		const issues = collect(bundle.issues);
 		const status = collect(bundle.status);
 
-		expect(data<readonly AgenticMemoryRecordAdmission<string>[]>(admitted.messages).at(-1)).toEqual(
-			[expect.objectContaining({ proposalId: "first", state: "admitted" })],
-		);
 		expect(
-			data<readonly { readonly code: string }[]>(issues.messages)
+			occurrenceData<readonly AgenticMemoryRecordAdmission<string>[]>(admitted.messages).at(-1),
+		).toEqual([expect.objectContaining({ proposalId: "first", state: "admitted" })]);
+		expect(
+			occurrenceData<readonly { readonly code: string }[]>(issues.messages)
 				.at(-1)
 				?.map((issue) => issue.code),
 		).toEqual(["agentic-memory.proposal.duplicate-candidate-record-id"]);
-		expect(data<AgenticMemoryRecordAdmissionStatus>(status.messages).at(-1)).toMatchObject({
+		expect(
+			occurrenceData<AgenticMemoryRecordAdmissionStatus>(status.messages).at(-1),
+		).toMatchObject({
 			state: "partial",
 			cursor: { validProposals: 1, invalidProposals: 1, admitted: 1 },
 		});
@@ -7116,23 +7047,23 @@ describe("agentic memory record application projector (D577)", () => {
 
 	it("exposes graph-visible topology and projection subnodes", () => {
 		const g = graph();
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>([], { name: "records" });
-		const admissions = g.state<readonly AgenticMemoryRecordAdmission<string>[]>(
-			[admitted({ admissionId: "admission-create" })],
-			{ name: "admissions" },
+		const records = [];
+		const admissions = [admitted({ admissionId: "admission-create" })];
+		const policy = applicationPolicy();
+		const priorEvidence = [];
+		const occurrences = g.state(
+			occurrenceFixture({
+				records: records,
+				admissions: admissions,
+				policy: policy,
+				priorEvidence: priorEvidence,
+			}),
+			{ name: "application/occurrences" },
 		);
-		const policy = g.state<AgenticMemoryRecordApplicationPolicy>(applicationPolicy(), {
-			name: "policy",
-		});
-		const priorEvidence = g.state<readonly AgenticMemoryRecordApplicationEvidence[]>([], {
-			name: "priorEvidence",
-		});
 		const bundle = agenticMemoryRecordApplicationBundle(g, {
 			name: "application",
-			records,
-			admissions,
-			policy,
-			priorEvidence,
+			occurrences,
+			maxOccurrences: 64,
 		});
 		const nextRecords = collect(bundle.records);
 		const appliedRecords = collect(bundle.appliedRecords);
@@ -7142,10 +7073,10 @@ describe("agentic memory record application projector (D577)", () => {
 
 		expect(g.describe().edges).toEqual(
 			expect.arrayContaining([
-				{ from: "records", to: "application/projection" },
-				{ from: "admissions", to: "application/projection" },
-				{ from: "policy", to: "application/projection" },
-				{ from: "priorEvidence", to: "application/projection" },
+				{ from: "application/occurrences", to: "application/projection" },
+				{ from: "application/occurrences", to: "application/projection" },
+				{ from: "application/occurrences", to: "application/projection" },
+				{ from: "application/occurrences", to: "application/projection" },
 				{ from: "application/projection", to: "application/records" },
 				{ from: "application/projection", to: "application/appliedRecords" },
 				{ from: "application/projection", to: "application/applicationDecisions" },
@@ -7153,20 +7084,24 @@ describe("agentic memory record application projector (D577)", () => {
 				{ from: "application/projection", to: "application/operationStatuses" },
 			]),
 		);
-		expect(data<readonly AgenticMemoryRecord<string>[]>(nextRecords.messages).at(-1)).toEqual([
-			expect.objectContaining({ id: "record-new" }),
-		]);
-		expect(data<readonly AgenticMemoryRecord<string>[]>(appliedRecords.messages).at(-1)).toEqual([
-			expect.objectContaining({ id: "record-new" }),
-		]);
 		expect(
-			data<readonly AgenticMemoryRecordApplicationDecision<string>[]>(decisions.messages).at(-1),
+			occurrenceData<readonly AgenticMemoryRecord<string>[]>(nextRecords.messages).at(-1),
+		).toEqual([expect.objectContaining({ id: "record-new" })]);
+		expect(
+			occurrenceData<readonly AgenticMemoryRecord<string>[]>(appliedRecords.messages).at(-1),
+		).toEqual([expect.objectContaining({ id: "record-new" })]);
+		expect(
+			occurrenceData<readonly AgenticMemoryRecordApplicationDecision<string>[]>(
+				decisions.messages,
+			).at(-1),
 		).toEqual([expect.objectContaining({ state: "applied" })]);
-		expect(data<AgenticMemoryRecordApplicationStatus>(status.messages).at(-1)).toMatchObject({
+		expect(
+			occurrenceData<AgenticMemoryRecordApplicationStatus>(status.messages).at(-1),
+		).toMatchObject({
 			state: "ready",
 			cursor: { applied: 1 },
 		});
-		expect(data(operationStatuses.messages).at(-1)).toEqual([
+		expect(occurrenceData(operationStatuses.messages).at(-1)).toEqual([
 			expect.objectContaining({ operation: "create", state: "ready" }),
 		]);
 	});
@@ -7503,23 +7438,27 @@ describe("agentic memory record application projector (D577)", () => {
 
 	it("keeps current application decisions out of same-evaluation prior evidence wiring", () => {
 		const g = graph();
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>([], { name: "records" });
-		const admissions = g.state<readonly AgenticMemoryRecordAdmission<string>[]>(
-			[admitted({ admissionId: "same-evaluation", proposalId: "same-evaluation" })],
-			{ name: "admissions" },
+		const records = [];
+		const admissions = [
+			admitted({ admissionId: "same-evaluation", proposalId: "same-evaluation" }),
+		];
+		const policy = applicationPolicy();
+		const occurrences = g.state(
+			occurrenceFixture({ records: records, admissions: admissions, policy: policy }),
+			{ name: "application/occurrences" },
 		);
-		const policy = g.state<AgenticMemoryRecordApplicationPolicy>(applicationPolicy(), {
-			name: "policy",
-		});
 		const application = agenticMemoryRecordApplicationBundle(g, {
 			name: "application",
-			records,
-			admissions,
-			policy,
+			occurrences,
+			maxOccurrences: 64,
 		});
 		const evidence = agenticMemoryRecordApplicationEvidenceFactsBundle(g, {
 			name: "history/evidenceFacts",
-			applicationDecisions: application.applicationDecisions,
+			applicationDecisions: g.derived(
+				[application.applicationDecisions],
+				(occurrence) => occurrence.value,
+				{ name: "application/decision-values" },
+			),
 		});
 		const evidenceFacts = collect(evidence.evidenceFacts);
 		const decisions = collect(application.applicationDecisions);
@@ -7529,7 +7468,7 @@ describe("agentic memory record application projector (D577)", () => {
 			expect.arrayContaining([
 				{ from: "application/projection", to: "application/applicationDecisions" },
 				{
-					from: "application/applicationDecisions",
+					from: "application/decision-values",
 					to: "history/evidenceFacts/projection",
 				},
 				{ from: "history/evidenceFacts/projection", to: "history/evidenceFacts/evidenceFacts" },
@@ -7543,7 +7482,9 @@ describe("agentic memory record application projector (D577)", () => {
 			]),
 		);
 		expect(
-			data<readonly AgenticMemoryRecordApplicationDecision<string>[]>(decisions.messages).at(-1),
+			occurrenceData<readonly AgenticMemoryRecordApplicationDecision<string>[]>(
+				decisions.messages,
+			).at(-1),
 		).toEqual([expect.objectContaining({ state: "applied" })]);
 		expect(
 			data<readonly AgenticMemoryRecordApplicationEvidence[]>(evidenceFacts.messages).at(-1),
@@ -7615,20 +7556,21 @@ describe("agentic memory record application projector (D577)", () => {
 			name: "history/prior",
 			evidenceFacts,
 		});
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>([], { name: "records" });
-		const admissions = g.state<readonly AgenticMemoryRecordAdmission<string>[]>(
-			[admitted({ admissionId: "prior-edge", proposalId: "prior-edge" })],
-			{ name: "admissions" },
+		const occurrences = g.derived(
+			[prior.priorEvidence],
+			(priorEvidence) =>
+				occurrenceFixture({
+					records: [],
+					admissions: [admitted({ admissionId: "prior-edge", proposalId: "prior-edge" })],
+					policy: applicationPolicy(),
+					priorEvidence,
+				}),
+			{ name: "caller/later-occurrence" },
 		);
-		const policy = g.state<AgenticMemoryRecordApplicationPolicy>(applicationPolicy(), {
-			name: "policy",
-		});
 		const application = agenticMemoryRecordApplicationBundle(g, {
 			name: "later/application",
-			records,
-			admissions,
-			policy,
-			priorEvidence: prior.priorEvidence,
+			occurrences,
+			maxOccurrences: 1,
 		});
 		const decisions = collect(application.applicationDecisions);
 
@@ -7636,115 +7578,117 @@ describe("agentic memory record application projector (D577)", () => {
 			expect.arrayContaining([
 				{ from: "persisted/evidenceFacts", to: "history/prior/projection" },
 				{ from: "history/prior/projection", to: "history/prior/priorEvidence" },
-				{ from: "history/prior/priorEvidence", to: "later/application/projection" },
+				{ from: "history/prior/priorEvidence", to: "caller/later-occurrence" },
+				{ from: "caller/later-occurrence", to: "later/application/projection" },
 			]),
 		);
-		expect(application.input.priorEvidence).toBe(prior.priorEvidence);
+		expect(application.input).toBe(occurrences);
 		expect(
-			data<readonly AgenticMemoryRecordApplicationDecision<string>[]>(decisions.messages).at(-1),
+			occurrenceData<readonly AgenticMemoryRecordApplicationDecision<string>[]>(
+				decisions.messages,
+			).at(-1),
 		).toEqual([expect.objectContaining({ state: "skipped", reasonCode: "already-applied" })]);
 	});
 
 	it("keeps admission as proposal-only until the application projector consumes it", () => {
 		const g = graph();
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>(
-			[record({ id: "record-existing", fragment: fragment({ id: "existing" }) })],
-			{ name: "records" },
-		);
-		const proposals = g.state<readonly AgenticMemoryRecordProposal<string>[]>(
-			[
-				{
-					kind: "agentic-memory-record-proposal",
-					proposalId: "proposal-create",
-					candidateMaterial: {
-						kind: "agentic-memory-record-candidate-material",
-						record: record({ id: "record-created", fragment: fragment({ id: "created" }) }),
-					},
-					sourceRefs: [{ kind: "import", id: "import-1" }],
-				},
-			],
-			{ name: "proposals" },
-		);
-		const admissionPolicy = g.state<AgenticMemoryRecordAdmissionPolicy>(
+		const records = [record({ id: "record-existing", fragment: fragment({ id: "existing" }) })];
+		const proposals = [
 			{
-				kind: "agentic-memory-record-admission-policy",
-				policyId: "admission-policy",
-				defaultState: "admitted",
+				kind: "agentic-memory-record-proposal",
+				proposalId: "proposal-create",
+				candidateMaterial: {
+					kind: "agentic-memory-record-candidate-material",
+					record: record({ id: "record-created", fragment: fragment({ id: "created" }) }),
+				},
+				sourceRefs: [{ kind: "import", id: "import-1" }],
 			},
-			{ name: "admission-policy" },
-		);
+		];
+		const admissionPolicy = {
+			kind: "agentic-memory-record-admission-policy",
+			policyId: "admission-policy",
+			defaultState: "admitted",
+		};
+		const occurrences = g.state(occurrenceFixture({ records, proposals, policy: admissionPolicy }));
 		const admissionBundle = agenticMemoryRecordAdmissionBundle(g, {
 			name: "admission",
-			records,
-			proposals,
-			policy: admissionPolicy,
+			occurrences,
+			maxOccurrences: 1,
 		});
 		const admittedFacts = collect(admissionBundle.admitted);
 
-		expect(records.cache?.map((item) => item.id)).toEqual(["record-existing"]);
+		expect(records?.map((item) => item.id)).toEqual(["record-existing"]);
 		expect(Object.hasOwn(admissionBundle, "records")).toBe(false);
 
-		const applicationPolicyNode = g.state<AgenticMemoryRecordApplicationPolicy>(
-			applicationPolicy(),
-			{ name: "application-policy" },
+		const applicationInputs = g.derived(
+			[admissionBundle.admitted],
+			(occurrence) => ({
+				...occurrence,
+				value: { records, admissions: occurrence.value, policy: applicationPolicy() },
+			}),
+			{ name: "caller/application-occurrence" },
 		);
 		const application = agenticMemoryRecordApplicationBundle(g, {
 			name: "application",
-			records,
-			admissions: admissionBundle.admitted,
-			policy: applicationPolicyNode,
+			occurrences: applicationInputs,
+			maxOccurrences: 1,
 		});
 		const nextRecords = collect(application.records);
 
 		expect(
-			data<readonly AgenticMemoryRecordAdmission<string>[]>(admittedFacts.messages)
+			occurrenceData<readonly AgenticMemoryRecordAdmission<string>[]>(admittedFacts.messages)
 				.at(-1)
 				?.map((item) => item.proposalId),
 		).toEqual(["proposal-create"]);
 		expect(
-			data<readonly AgenticMemoryRecord<string>[]>(nextRecords.messages)
+			occurrenceData<readonly AgenticMemoryRecord<string>[]>(nextRecords.messages)
 				.at(-1)
 				?.map((item) => item.id),
 		).toEqual(["record-existing", "record-created"]);
-		expect(records.cache?.map((item) => item.id)).toEqual(["record-existing"]);
+		expect(records?.map((item) => item.id)).toEqual(["record-existing"]);
 	});
 
 	it("skips rejected and needs-review admissions without protocol ERROR", () => {
 		const g = graph();
-		const records = g.state<readonly AgenticMemoryRecord<string>[]>([], { name: "records" });
-		const admissions = g.state<readonly AgenticMemoryRecordAdmission<string>[]>(
-			[
-				admitted({
-					admissionId: "admission-rejected",
-					proposalId: "proposal-rejected",
-					state: "rejected",
-				}),
-				admitted({
-					admissionId: "admission-review",
-					proposalId: "proposal-review",
-					state: "needs-review",
-				}),
-			],
-			{ name: "admissions" },
+		const records = [];
+		const admissions = [
+			admitted({
+				admissionId: "admission-rejected",
+				proposalId: "proposal-rejected",
+				state: "rejected",
+			}),
+			admitted({
+				admissionId: "admission-review",
+				proposalId: "proposal-review",
+				state: "needs-review",
+			}),
+		];
+		const policy = applicationPolicy();
+		const occurrences = g.state(
+			occurrenceFixture({ records: records, admissions: admissions, policy: policy }),
+			{ name: "memory/occurrences" },
 		);
-		const policy = g.state<AgenticMemoryRecordApplicationPolicy>(applicationPolicy(), {
-			name: "policy",
+		const bundle = agenticMemoryRecordApplicationBundle(g, {
+			name: "memory",
+			occurrences,
+			maxOccurrences: 64,
 		});
-		const bundle = agenticMemoryRecordApplicationBundle(g, { records, admissions, policy });
 		const decisions = collect(bundle.applicationDecisions);
 		const issues = collect(bundle.issues);
 		const status = collect(bundle.status);
 
 		expect(
-			data<readonly AgenticMemoryRecordApplicationDecision<string>[]>(decisions.messages)
+			occurrenceData<readonly AgenticMemoryRecordApplicationDecision<string>[]>(decisions.messages)
 				.at(-1)
 				?.map((decision) => [decision.proposalId, decision.state, decision.reasonCode]),
 		).toEqual([
 			["proposal-rejected", "skipped", "skipped-non-admitted"],
 			["proposal-review", "skipped", "skipped-non-admitted"],
 		]);
-		expect(data(issues.messages).at(-1)).toEqual([]);
-		expect(data<AgenticMemoryRecordApplicationStatus>(status.messages).at(-1)).toMatchObject({
+		expect(occurrenceData(issues.messages).at(-1)).toEqual([]);
+		expect(
+			occurrenceData<AgenticMemoryRecordApplicationStatus>(status.messages).at(-1),
+		).toMatchObject({
 			state: "blocked",
 			cursor: { applied: 0, skipped: 2, rejected: 0, issues: 0 },
 		});

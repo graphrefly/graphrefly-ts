@@ -38,6 +38,7 @@ import {
 	ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
 	ROOT_EVAL_TOPOLOGY_REVISION,
 	type RootEvalRunResult,
+	rootEvalMaximumObservationOccurrences,
 	rootEvalMaximumProviderAttempts,
 	rootEvalMaximumRetryAttempts,
 	runRootEval,
@@ -175,6 +176,8 @@ import {
 	rootEvalTaskManifestDisjointAudit,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-task.js";
 import { ensureRootEvalDevelopmentTaskManifest } from "../../evals/graph-native-rerun-avoidance/root-eval-task-manifest-store.js";
+import { settledRootEvalSpend } from "../../evals/graph-native-rerun-avoidance/settled-spend.js";
+import { graph } from "../graph/graph.js";
 import { strictJsonCodec } from "../json/codec.js";
 
 const ROOT_EVAL_DEVELOPMENT_TASK = ROOT_EVAL_DEVELOPMENT_TASKS[0]!;
@@ -1517,7 +1520,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 	it("binds exact fresh D152 currentness and rejects synthetic live authority", async () => {
 		expect(ROOT_EVAL_LIVE_DECISION_REF).toBe("graphrefly-ts:D152");
 		expect(ROOT_EVAL_LIVE_CLAIM_SCHEMA).toBe("graphrefly-ts.root-eval-live-claim.v21");
-		expect(ROOT_EVAL_LIVE_EVIDENCE_SCHEMA).toBe("graphrefly-ts.root-eval-live-evidence.v25");
+		expect(ROOT_EVAL_LIVE_EVIDENCE_SCHEMA).toBe("graphrefly-ts.root-eval-live-evidence.v26");
 		expect(ROOT_EVAL_LIVE_PRECLAIM_FAILURE_SCHEMA).toBe(
 			"graphrefly-ts.root-eval-live-preclaim-failure.v21",
 		);
@@ -2038,6 +2041,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 
 	it("enforces retry and cleanup-finalizer settlement against non-cooperative adapters", async () => {
 		const executor = createRootEvalLiveExecutor({
+			graph: graph(),
 			repositoryRoot,
 			materializationRoot: join(repositoryRoot, ".never-created-root-eval-lease-test"),
 			privateRoot: repositoryRoot,
@@ -2060,9 +2064,11 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			});
 			await vi.advanceTimersByTimeAsync(ROOT_EVAL_RETRY_SETTLEMENT_LEASE_MS);
 			await retryResult;
-			const disposal = executor.dispose();
+			const disposal = expect(executor.dispose()).rejects.toThrow(
+				"cleanup finalizer did not complete",
+			);
 			await vi.advanceTimersByTimeAsync(ROOT_EVAL_TOOL_SETTLEMENT_LEASE_MS);
-			await expect(disposal).resolves.toBeUndefined();
+			await disposal;
 		} finally {
 			vi.useRealTimers();
 		}
@@ -2158,6 +2164,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			const committedBytes = await readFile(join(privateRoot, dispositionName));
 			await writeFile(join(copiedRoot, dispositionName), committedBytes, { mode: 0o600 });
 			const copiedRootExecutor = createRootEvalLiveTransportQualificationExecutor({
+				graph: graph(),
 				repositoryRoot,
 				materializationRoot: join(temporary, "copied-root-workspaces"),
 				privateRoot: copiedRoot,
@@ -2177,6 +2184,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				await copiedRootExecutor.dispose();
 			}
 			const forgedCapabilityExecutor = createRootEvalLiveTransportQualificationExecutor({
+				graph: graph(),
 				repositoryRoot,
 				materializationRoot: join(temporary, "forged-capability-workspaces"),
 				privateRoot,
@@ -2199,6 +2207,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				await forgedCapabilityExecutor.dispose();
 			}
 			const liveExecutor = createRootEvalLiveExecutor({
+				graph: graph(),
 				repositoryRoot,
 				materializationRoot: join(temporary, "strict-live-workspaces"),
 				privateRoot,
@@ -2216,6 +2225,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				await liveExecutor.dispose();
 			}
 			const wrongCredentialExecutor = createRootEvalLiveTransportQualificationExecutor({
+				graph: graph(),
 				repositoryRoot,
 				materializationRoot: join(temporary, "wrong-credential-workspaces"),
 				privateRoot,
@@ -2237,6 +2247,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			}
 			let capturedSystemPrompt: string | undefined;
 			const executor = createRootEvalLiveTransportQualificationExecutor({
+				graph: graph(),
 				repositoryRoot,
 				materializationRoot: join(temporary, "workspaces"),
 				privateRoot,
@@ -2290,6 +2301,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				expect(requestBody).not.toHaveProperty("parallel_tool_calls");
 				await executor.dispose();
 				const replayExecutor = createRootEvalLiveTransportQualificationExecutor({
+					graph: graph(),
 					repositoryRoot,
 					materializationRoot: join(temporary, "replay-workspaces"),
 					privateRoot,
@@ -2340,6 +2352,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				{ mode: 0o600 },
 			);
 			const staleD121Executor = createRootEvalLiveTransportQualificationExecutor({
+				graph: graph(),
 				repositoryRoot,
 				materializationRoot: join(temporary, "stale-d121-workspaces"),
 				privateRoot,
@@ -2367,26 +2380,24 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-d140-dispatch-cleanup-"));
 		const privateRoot = await realpath(temporary);
 		let admitted: EvalAdmittedEffect | undefined;
+		const httpTopology = createRootEvalTopology({
+			profileInput: createCurrentExactModelHarnessProfileInput(),
+			currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+			providerPacingSetTimeout: (callback) => {
+				callback();
+				return 0 as unknown as ReturnType<typeof setTimeout>;
+			},
+			campaignRef: ROOT_EVAL_LIVE_GENERATION_REF,
+			taskSetRef: ROOT_EVAL_DEVELOPMENT_TASK.taskSetRef,
+			maxCostMicrousd: 6_000_000,
+			reservationMicrousd: 200_000,
+		});
 		try {
 			await expect(
-				runRootEval(
-					createRootEvalTopology({
-						profileInput: createCurrentExactModelHarnessProfileInput(),
-						currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
-						providerPacingSetTimeout: (callback) => {
-							callback();
-							return 0 as unknown as ReturnType<typeof setTimeout>;
-						},
-						campaignRef: ROOT_EVAL_LIVE_GENERATION_REF,
-						taskSetRef: ROOT_EVAL_DEVELOPMENT_TASK.taskSetRef,
-						maxCostMicrousd: 6_000_000,
-						reservationMicrousd: 200_000,
-					}),
-					async (effect) => {
-						if (effect.kind === "eval-admitted-effect") admitted = effect;
-						throw new Error("captured dispatch-cleanup effect");
-					},
-				),
+				runRootEval(httpTopology, async (effect) => {
+					if (effect.kind === "eval-admitted-effect") admitted = effect;
+					throw new Error("captured dispatch-cleanup effect");
+				}),
 			).rejects.toThrow(/captured dispatch-cleanup effect/u);
 			if (admitted === undefined)
 				throw new TypeError("D140 dispatch-cleanup effect was not captured");
@@ -2394,6 +2405,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			const claimAcquisition = await acquireRootEvalLiveClaimForNoNetworkQualification(claimInput);
 			let providerCalls = 0;
 			const executor = createRootEvalLiveTransportQualificationExecutor({
+				graph: httpTopology.graph,
 				repositoryRoot,
 				materializationRoot: join(temporary, "workspaces"),
 				privateRoot,
@@ -2430,12 +2442,90 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		}
 	}, 15_000);
 
+	it("drains the response and preserves reported cost when the dispatch observer throws", async () => {
+		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-d140-dispatch-observer-"));
+		const privateRoot = await realpath(temporary);
+		let admitted: EvalAdmittedEffect | undefined;
+		const httpTopology = createRootEvalTopology({
+			profileInput: createCurrentExactModelHarnessProfileInput(),
+			currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+			providerPacingSetTimeout: (callback) => {
+				callback();
+				return 0 as unknown as ReturnType<typeof setTimeout>;
+			},
+			campaignRef: ROOT_EVAL_LIVE_GENERATION_REF,
+			taskSetRef: ROOT_EVAL_DEVELOPMENT_TASK.taskSetRef,
+			maxCostMicrousd: 6_000_000,
+			reservationMicrousd: 200_000,
+		});
+		try {
+			await expect(
+				runRootEval(httpTopology, async (effect) => {
+					if (effect.kind === "eval-admitted-effect") admitted = effect;
+					throw new Error("captured dispatch-observer effect");
+				}),
+			).rejects.toThrow(/captured dispatch-observer effect/u);
+			if (admitted === undefined)
+				throw new TypeError("D140 dispatch-observer effect was not captured");
+			const claimInput = await currentClaimInput(privateRoot);
+			const claimAcquisition = await acquireRootEvalLiveClaimForNoNetworkQualification(claimInput);
+			let providerCalls = 0;
+			const executor = createRootEvalLiveTransportQualificationExecutor({
+				graph: httpTopology.graph,
+				repositoryRoot,
+				materializationRoot: join(temporary, "workspaces"),
+				privateRoot,
+				claimCommit: claimAcquisition,
+				bearerToken: claimInput.credential.bearerToken,
+				pricing: claimInput.pricing,
+				providerResponses: [{ status: 200, bytes: providerBytesForEffect(admitted) }],
+				onProviderCall: () => {
+					providerCalls += 1;
+					throw new Error("injected observer failure");
+				},
+			});
+			try {
+				await expect(executor.execute(admitted)).resolves.toMatchObject({
+					status: "failed",
+					reason: "executor-failed",
+					dispatchAttempted: true,
+					costMicrousd: 265,
+					costEvidence: "provider-reported",
+				});
+				expect(providerCalls).toBe(1);
+				expect(executor.providerRequestSummaries()).toHaveLength(1);
+				expect(
+					(await readdir(join(privateRoot, ".d152-provider-dispatches"))).some((name) =>
+						name.endsWith(".json"),
+					),
+				).toBe(true);
+			} finally {
+				await executor.dispose();
+			}
+		} finally {
+			await rm(temporary, { force: true, recursive: true });
+		}
+	}, 15_000);
+
 	it("settles a pre-dispatch stall through the Graph-admitted Work Item timeout", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-effect-lease-"));
 		const privateRoot = await realpath(temporary);
 		const claimInput = await currentClaimInput(privateRoot);
 		const claimAcquisition = await acquireRootEvalLiveClaimForNoNetworkQualification(claimInput);
+		const httpTopology = createRootEvalTopology({
+			profileInput: createCurrentExactModelHarnessProfileInput(),
+			currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+			providerPacingSetTimeout: (callback) => {
+				callback();
+				return 0 as unknown as ReturnType<typeof setTimeout>;
+			},
+			maxCostMicrousd: 6_000_000,
+			reservationMicrousd: 200_000,
+			effectTimeoutMs: 500,
+			sourceEffectTimeoutMs: 300_000,
+		});
 		const executor = createRootEvalLiveTransportQualificationExecutor({
+			graph: httpTopology.graph,
 			repositoryRoot,
 			materializationRoot: join(temporary, "workspaces"),
 			privateRoot,
@@ -2467,21 +2557,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			},
 		});
 		try {
-			const result = await runRootEval(
-				createRootEvalTopology({
-					profileInput: createCurrentExactModelHarnessProfileInput(),
-					currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
-					providerPacingSetTimeout: (callback) => {
-						callback();
-						return 0 as unknown as ReturnType<typeof setTimeout>;
-					},
-					maxCostMicrousd: 6_000_000,
-					reservationMicrousd: 200_000,
-					effectTimeoutMs: 500,
-					sourceEffectTimeoutMs: 300_000,
-				}),
-				(effect) => executor.execute(effect),
-			);
+			const result = await runRootEval(httpTopology, (effect) => executor.execute(effect));
 			expect(result.finding).toMatchObject({
 				completedWorkItems: 30,
 				admittedAttempts: 35,
@@ -2505,7 +2581,18 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		const materializationRoot = join(temporary, "workspaces");
 		const claimInput = await currentClaimInput(privateRoot);
 		const claimAcquisition = await acquireRootEvalLiveClaimForNoNetworkQualification(claimInput);
+		const httpTopology = createRootEvalTopology({
+			profileInput: createCurrentExactModelHarnessProfileInput(),
+			currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+			providerPacingSetTimeout: (callback) => {
+				callback();
+				return 0 as unknown as ReturnType<typeof setTimeout>;
+			},
+			taskSetRef: ROOT_EVAL_DEVELOPMENT_TASK.taskSetRef,
+			effectTimeoutMs: 300_000,
+		});
 		const executor = createRootEvalLiveTransportQualificationExecutor({
+			graph: httpTopology.graph,
 			repositoryRoot,
 			materializationRoot,
 			privateRoot,
@@ -2520,20 +2607,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		});
 		const cancellation = new AbortController();
 		try {
-			const running = runRootEval(
-				createRootEvalTopology({
-					profileInput: createCurrentExactModelHarnessProfileInput(),
-					currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
-					providerPacingSetTimeout: (callback) => {
-						callback();
-						return 0 as unknown as ReturnType<typeof setTimeout>;
-					},
-					taskSetRef: ROOT_EVAL_DEVELOPMENT_TASK.taskSetRef,
-					effectTimeoutMs: 300_000,
-				}),
-				executor.execute,
-				{ signal: cancellation.signal },
-			);
+			const running = runRootEval(httpTopology, executor.execute, { signal: cancellation.signal });
 			const settledRun = running.then(
 				() => null,
 				(error: unknown) => error,
@@ -2557,7 +2631,19 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		const capturedTargetTaskStatements: string[] = [];
 		const claimInput = await currentClaimInput(privateRoot);
 		const claimAcquisition = await acquireRootEvalLiveClaimForNoNetworkQualification(claimInput);
+		const httpTopology = createRootEvalTopology({
+			profileInput: createCurrentExactModelHarnessProfileInput(),
+			currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+			providerPacingSetTimeout: (callback) => {
+				callback();
+				return 0 as unknown as ReturnType<typeof setTimeout>;
+			},
+			taskSetRef: ROOT_EVAL_DEVELOPMENT_TASK.taskSetRef,
+			maxCostMicrousd: 6_000_000,
+			reservationMicrousd: 200_000,
+		});
 		const executor = createRootEvalLiveTransportQualificationExecutor({
+			graph: httpTopology.graph,
 			repositoryRoot,
 			materializationRoot: join(temporary, "workspaces"),
 			privateRoot,
@@ -2587,20 +2673,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			},
 		});
 		try {
-			const result = await runRootEval(
-				createRootEvalTopology({
-					profileInput: createCurrentExactModelHarnessProfileInput(),
-					currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
-					providerPacingSetTimeout: (callback) => {
-						callback();
-						return 0 as unknown as ReturnType<typeof setTimeout>;
-					},
-					taskSetRef: ROOT_EVAL_DEVELOPMENT_TASK.taskSetRef,
-					maxCostMicrousd: 6_000_000,
-					reservationMicrousd: 200_000,
-				}),
-				(effect) => executor.execute(effect),
-			);
+			const result = await runRootEval(httpTopology, (effect) => executor.execute(effect));
 			expect(result.finding).toMatchObject({
 				completedWorkItems: 30,
 				admittedAttempts: 35,
@@ -2634,30 +2707,29 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		const claimInput = await currentClaimInput(privateRoot);
 		const claimAcquisition = await acquireRootEvalLiveClaimForNoNetworkQualification(claimInput);
 		let admitted: EvalAdmittedEffect | undefined;
+		const httpTopology = createRootEvalTopology({
+			profileInput: createCurrentExactModelHarnessProfileInput(),
+			currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+			providerPacingSetTimeout: (callback) => {
+				callback();
+				return 0 as unknown as ReturnType<typeof setTimeout>;
+			},
+			campaignRef: ROOT_EVAL_LIVE_GENERATION_REF,
+			taskSetRef: ROOT_EVAL_DEVELOPMENT_TASK.taskSetRef,
+			maxCostMicrousd: 6_000_000,
+			reservationMicrousd: 200_000,
+			effectTimeoutMs: 5_000,
+		});
 		await expect(
-			runRootEval(
-				createRootEvalTopology({
-					profileInput: createCurrentExactModelHarnessProfileInput(),
-					currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
-					providerPacingSetTimeout: (callback) => {
-						callback();
-						return 0 as unknown as ReturnType<typeof setTimeout>;
-					},
-					campaignRef: ROOT_EVAL_LIVE_GENERATION_REF,
-					taskSetRef: ROOT_EVAL_DEVELOPMENT_TASK.taskSetRef,
-					maxCostMicrousd: 6_000_000,
-					reservationMicrousd: 200_000,
-					effectTimeoutMs: 5_000,
-				}),
-				async (effect) => {
-					if (admitted === undefined && effect.kind === "eval-admitted-effect") admitted = effect;
-					throw new Error("captured body-stall admission");
-				},
-			),
+			runRootEval(httpTopology, async (effect) => {
+				if (admitted === undefined && effect.kind === "eval-admitted-effect") admitted = effect;
+				throw new Error("captured body-stall admission");
+			}),
 		).rejects.toThrow(/captured body-stall admission/u);
 		if (admitted === undefined) throw new Error("missing admitted provider effect fixture");
 		const materializationRoot = join(temporary, "body-workspaces");
 		const executor = createRootEvalLiveTransportQualificationExecutor({
+			graph: httpTopology.graph,
 			repositoryRoot,
 			materializationRoot,
 			privateRoot,
@@ -2692,30 +2764,29 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		const claimInput = await currentClaimInput(privateRoot);
 		const claimAcquisition = await acquireRootEvalLiveClaimForNoNetworkQualification(claimInput);
 		let admitted: EvalAdmittedEffect | undefined;
+		const httpTopology = createRootEvalTopology({
+			profileInput: createCurrentExactModelHarnessProfileInput(),
+			currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+			providerPacingSetTimeout: (callback) => {
+				callback();
+				return 0 as unknown as ReturnType<typeof setTimeout>;
+			},
+			campaignRef: ROOT_EVAL_LIVE_GENERATION_REF,
+			taskSetRef: ROOT_EVAL_DEVELOPMENT_TASK.taskSetRef,
+			maxCostMicrousd: 6_000_000,
+			reservationMicrousd: 200_000,
+			effectTimeoutMs: 5_000,
+		});
 		await expect(
-			runRootEval(
-				createRootEvalTopology({
-					profileInput: createCurrentExactModelHarnessProfileInput(),
-					currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
-					providerPacingSetTimeout: (callback) => {
-						callback();
-						return 0 as unknown as ReturnType<typeof setTimeout>;
-					},
-					campaignRef: ROOT_EVAL_LIVE_GENERATION_REF,
-					taskSetRef: ROOT_EVAL_DEVELOPMENT_TASK.taskSetRef,
-					maxCostMicrousd: 6_000_000,
-					reservationMicrousd: 200_000,
-					effectTimeoutMs: 5_000,
-				}),
-				async (effect) => {
-					if (admitted === undefined && effect.kind === "eval-admitted-effect") admitted = effect;
-					throw new Error("captured 429 body-stall admission");
-				},
-			),
+			runRootEval(httpTopology, async (effect) => {
+				if (admitted === undefined && effect.kind === "eval-admitted-effect") admitted = effect;
+				throw new Error("captured 429 body-stall admission");
+			}),
 		).rejects.toThrow(/captured 429 body-stall admission/u);
 		if (admitted === undefined) throw new Error("missing admitted 429 provider effect fixture");
 		const materializationRoot = join(temporary, "body-workspaces");
 		const executor = createRootEvalLiveTransportQualificationExecutor({
+			graph: httpTopology.graph,
 			repositoryRoot,
 			materializationRoot,
 			privateRoot,
@@ -2736,6 +2807,73 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				status: "retryable",
 				reason: "http-capacity-retryable",
 				recoveryClass: "capacity",
+				retryAfterMs: 0,
+				costMicrousd: 200_000,
+				cleanupCompleted: true,
+			});
+			expect(executor.providerRequestSummaries()).toHaveLength(1);
+			expect(await readdir(materializationRoot)).toEqual([]);
+		} finally {
+			await executor.dispose();
+			await rm(temporary, { recursive: true, force: true });
+		}
+	}, 120_000);
+
+	it("does not turn a dispatch observer failure into availability retry after a 429 body abort", async () => {
+		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-429-body-lease-"));
+		const privateRoot = await realpath(temporary);
+		const claimInput = await currentClaimInput(privateRoot);
+		const claimAcquisition = await acquireRootEvalLiveClaimForNoNetworkQualification(claimInput);
+		let admitted: EvalAdmittedEffect | undefined;
+		const httpTopology = createRootEvalTopology({
+			profileInput: createCurrentExactModelHarnessProfileInput(),
+			currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+			providerPacingSetTimeout: (callback) => {
+				callback();
+				return 0 as unknown as ReturnType<typeof setTimeout>;
+			},
+			campaignRef: ROOT_EVAL_LIVE_GENERATION_REF,
+			taskSetRef: ROOT_EVAL_DEVELOPMENT_TASK.taskSetRef,
+			maxCostMicrousd: 6_000_000,
+			reservationMicrousd: 200_000,
+			effectTimeoutMs: 5_000,
+		});
+		await expect(
+			runRootEval(httpTopology, async (effect) => {
+				if (admitted === undefined && effect.kind === "eval-admitted-effect") admitted = effect;
+				throw new Error("captured 429 body-stall admission");
+			}),
+		).rejects.toThrow(/captured 429 body-stall admission/u);
+		if (admitted === undefined) throw new Error("missing admitted 429 provider effect fixture");
+		const materializationRoot = join(temporary, "body-workspaces");
+		const executor = createRootEvalLiveTransportQualificationExecutor({
+			graph: httpTopology.graph,
+			repositoryRoot,
+			materializationRoot,
+			privateRoot,
+			claimCommit: claimAcquisition,
+			bearerToken: claimInput.credential.bearerToken,
+			pricing: claimInput.pricing,
+			onProviderCall: () => {
+				throw new Error("dispatch observer failed");
+			},
+			providerResponses: [
+				{
+					status: 429,
+					bytes: new TextEncoder().encode("{}"),
+					retryAfter: null,
+					stallBodyUntilAbort: true,
+				},
+			],
+		});
+		try {
+			await expect(executor.execute(admitted)).resolves.toMatchObject({
+				status: "failed",
+				reason: "executor-failed",
+				recoveryClass: null,
+				httpStatus: 429,
+				providerResponseKind: "http",
+				transportNoToolSideEffect: false,
 				retryAfterMs: 0,
 				costMicrousd: 200_000,
 				cleanupCompleted: true,
@@ -4486,7 +4624,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			expect(second).toEqual(first);
 			expect(first.postCommitFailureDigest).toBeNull();
 			expect(await readdir(join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF))).toEqual([
-				"evidence.v25.json",
+				"evidence.v26.json",
 			]);
 			await expect(
 				persistRootEvalLiveEvidence({
@@ -4551,7 +4689,112 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				}),
 			).toEqual(nextLedger);
 			expect(await readdir(join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF))).toEqual([
-				"evidence.v25.json",
+				"evidence.v26.json",
+			]);
+			await expect(stat(journalPath)).rejects.toMatchObject({ code: "ENOENT" });
+		} finally {
+			await rm(temporary, { recursive: true, force: true });
+		}
+	});
+
+	it.each([
+		false,
+		true,
+	])("atomically retains budget receipts and spend when canonical evidence is rejected (stale=%s)", async (stale) => {
+		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-d152-transaction-"));
+		const operatorRoot = await realpath(temporary);
+		const privateRoot = join(operatorRoot, "current-d152-development-1");
+		const historicalLedgerPath = join(operatorRoot, "d145-charter-ledger.v4.json");
+		const ledgerPath = join(operatorRoot, "d152-charter-ledger.v1.json");
+		const journalPath = join(operatorRoot, "d152-charter-transaction.v1.json");
+		await mkdir(privateRoot, { mode: 0o700 });
+		await writeRootEvalD145CharterLedger(historicalLedgerPath, ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER);
+		try {
+			const ledger = await readRootEvalD152Ledger({
+				path: ledgerPath,
+				historicalLedger: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
+			});
+			const claimInput = await currentClaimInput(privateRoot);
+			const acquisition = await acquireRootEvalLiveClaimForNoNetworkQualification(claimInput);
+			const budgetReceipt = {
+				kind: "eval-budget-state" as const,
+				admittedAttempts: stale ? 1 : 2,
+				activeEffects: stale ? 0 : 1,
+				admittedRetryAttempts: 0,
+				retryProposalCount: 0,
+				pendingRetryProposalCount: 0,
+				rejectedRetryProposalCount: 0,
+				settledRetryAttemptCount: 0,
+				providerCallCount: 1,
+				providerReportedMicrousd: 10,
+				unreportedSettledUpperBoundMicrousd: 0,
+				activeReservedMicrousd: stale ? 0 : 100,
+				accountedUpperBoundMicrousd: stale ? 10 : 110,
+				pricingRoundingAllowanceMicrousd: 0,
+				maxAttempts: 175,
+				maxCostMicrousd: 12_000_000,
+				stoppingReason: "none" as const,
+				providerOutcomeReasonCounts: {
+					...emptyEvalProviderOutcomeReasonCounts(),
+					"tool-proposed": 1,
+				},
+			};
+			const spend = settledRootEvalSpend({
+				budget: budgetReceipt,
+				providerCalls: 2,
+				authorizedMaximumMicrousd: 12_000_000,
+			});
+			const evidence = constructRootEvalLiveEvidence({
+				...withGraphResult(liveEvidenceInput(), { peakConcurrentEffects: 3 }),
+				budgetReceipt,
+				providerCalls: 2,
+				failure: new Error("rejected canonical observation"),
+				claim: acquisition.claim,
+				pricing: claimInput.pricing,
+				zeroByok: claimInput.zeroByok,
+				currentKeyBefore: claimInput.currentKeyBefore,
+			});
+			const nextLedger = advanceRootEvalD152Ledger({
+				ledger,
+				generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
+				taskSetRef: ROOT_EVAL_LIVE_TASK_SET_REF,
+				taskManifestDigest: claimInput.taskManifestDigest,
+				providerReportedMicrousd: spend.providerReportedMicrousd,
+				unreportedSettledUpperBoundMicrousd: spend.unreportedSettledUpperBoundMicrousd,
+				accountedUpperBoundMicrousd: spend.accountedUpperBoundMicrousd,
+				admissionStatus: evidence.admissionReport.status,
+				developmentQualification: null,
+				evidenceDigest: evidence.evidenceDigest,
+			});
+			const committed = await commitRootEvalD152Transaction({
+				journalPath,
+				privateRoot,
+				ledgerPath,
+				previousLedgerDigest: ledger.ledgerDigest,
+				evidence,
+				nextLedger,
+			});
+			expect(committed.nextLedger).toEqual(nextLedger);
+			expect(evidence.admissionReport.status).toBe("rejected");
+			expect(evidence.graphResult).toBeNull();
+			expect(nextLedger.developmentSpentMicrousd).toBe(stale ? 12_000_000 : 110);
+			const persisted = JSON.parse(
+				await readFile(
+					join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF, "evidence.v26.json"),
+					"utf8",
+				),
+			);
+			expect(persisted.budgetReceipt).toEqual(stale ? null : budgetReceipt);
+			expect(persisted.efficacyClaim).toBe("none");
+			expect(committed.persistence.postCommitFailureDigest).toBeNull();
+			expect(
+				await readRootEvalD152Ledger({
+					path: ledgerPath,
+					historicalLedger: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
+				}),
+			).toEqual(nextLedger);
+			expect(await readdir(join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF))).toEqual([
+				"evidence.v26.json",
 			]);
 			await expect(stat(journalPath)).rejects.toMatchObject({ code: "ENOENT" });
 		} finally {
@@ -4640,7 +4883,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			const persisted = await persistRootEvalLiveEvidence({ privateRoot, evidence });
 			expect(persisted.postCommitFailureDigest).toBeNull();
 			const bytes = await readFile(
-				join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF, "evidence.v25.json"),
+				join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF, "evidence.v26.json"),
 				"utf8",
 			);
 			const durable = JSON.parse(bytes) as Record<string, unknown>;
@@ -4703,7 +4946,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			const receipt = await persistRootEvalLiveEvidence({ privateRoot, evidence });
 			expect(receipt.postCommitFailureDigest).toBeNull();
 			const persisted = await readFile(
-				join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF, "evidence.v25.json"),
+				join(privateRoot, ROOT_EVAL_LIVE_GENERATION_REF, "evidence.v26.json"),
 				"utf8",
 			);
 			expect(JSON.parse(persisted)).toEqual(evidence);
@@ -5527,6 +5770,15 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		};
 		expect(maximalGraphResult.executedAdmissionIds).toHaveLength(maxProviderAttempts);
 		assertRootEvalRunResultAdmissionShape(maximalGraphResult);
+		expect(() =>
+			assertRootEvalRunResultAdmissionShape({
+				...maximalGraphResult,
+				observations: Array.from(
+					{ length: rootEvalMaximumObservationOccurrences(5) + 1 },
+					() => maximalEvent,
+				),
+			}),
+		).toThrow(/retention|bound|observations/u);
 		const oversizedDiagnosticStream = [
 			...Array.from({ length: 513 }, () => maximalGraphResult.observations[0]!),
 			...maximalGraphResult.observations,
@@ -5552,7 +5804,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				],
 			},
 		});
-		expect(evidence.partialGraphObservations).toHaveLength(512);
+		expect(evidence.partialGraphObservations).toHaveLength(oversizedDiagnosticStream.length);
 		expect(evidence.latestGraphObservation).toEqual(evidence.partialGraphObservations.at(-1));
 
 		for (const overflow of [
@@ -5602,7 +5854,27 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				return { status: 200, bytes: providerBytesForSourceTask(task) };
 			},
 		});
+		const httpTopology = createRootEvalTopology({
+			profileInput: createCurrentExactModelHarnessProfileInput(),
+			currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+			providerPacingSetTimeout: (callback) => {
+				callback();
+				return 0 as unknown as ReturnType<typeof setTimeout>;
+			},
+			campaignRef: ROOT_EVAL_LIVE_GENERATION_REF,
+			campaignPurpose: "qualification",
+			taskSetRef: ROOT_EVAL_DEVELOPMENT_TASK.taskSetRef,
+			generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
+			heldOutSealDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
+			budgetPartition: "no-network",
+			partitionHardCapMicrousd: 6_000_000,
+			partitionLedgerDigest: testPartitionLedgerDigest,
+			developmentQualificationStreakBefore: 0,
+			maxCostMicrousd: 6_000_000,
+			reservationMicrousd: 200_000,
+		});
 		const executor = createRootEvalLiveTransportQualificationExecutor({
+			graph: httpTopology.graph,
 			repositoryRoot,
 			materializationRoot: join(temporary, "workspaces"),
 			privateRoot,
@@ -5614,91 +5886,69 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		});
 		try {
 			let verified: EvalEffectOutcome | undefined;
-			const graphResult = await runRootEval(
-				createRootEvalTopology({
-					profileInput: createCurrentExactModelHarnessProfileInput(),
-					currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
-					providerPacingSetTimeout: (callback) => {
-						callback();
-						return 0 as unknown as ReturnType<typeof setTimeout>;
-					},
-					campaignRef: ROOT_EVAL_LIVE_GENERATION_REF,
-					campaignPurpose: "qualification",
-					taskSetRef: ROOT_EVAL_DEVELOPMENT_TASK.taskSetRef,
-					generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
-					heldOutSealDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
-					budgetPartition: "no-network",
-					partitionHardCapMicrousd: 6_000_000,
-					partitionLedgerDigest: testPartitionLedgerDigest,
-					developmentQualificationStreakBefore: 0,
-					maxCostMicrousd: 6_000_000,
-					reservationMicrousd: 200_000,
-				}),
-				async (effect) => {
-					if (
-						(effect.kind === "eval-admitted-effect" ||
-							effect.kind === "eval-admitted-tool-effect") &&
-						effect.workItemRole === "source"
-					)
-						return await sourceExecutor.execute(effect);
-					if (
-						effect.kind === "eval-admitted-effect" &&
-						effect.replicate === 1 &&
-						effect.arm === "relevant-applied"
-					)
-						return await executor.execute(effect);
-					if (
-						effect.kind === "eval-admitted-tool-effect" &&
-						effect.workItemRole === "target" &&
-						effect.replicate === 1 &&
-						effect.arm === "relevant-applied"
-					) {
-						verified = (await executor.execute(effect)) as EvalEffectOutcome;
-						return verified;
-					}
-					if (effect.kind === "eval-admitted-retry-delay")
-						throw new Error("unexpected retry delay in exact-tool integration test");
-					if (effect.kind === "eval-admitted-billing-observation")
-						return await executor.execute(effect);
-					const digest = empiricalStrictJsonDigest({
-						kind: "injected-control-provider-failure",
-						executionId: effect.executionId,
-					});
-					return Object.freeze({
-						kind: "eval-provider-outcome" as const,
-						admission: effect,
-						admissionId: effect.admissionId,
-						executionId: effect.executionId,
-						operationId: effect.operationId,
-						effectRunId: effect.effectRunId,
-						workItemId: effect.workItemId,
-						workItemRole: effect.workItemRole,
-						replicate: effect.replicate,
-						arm: effect.arm,
-						providerLogicalAttempt: effect.providerLogicalAttempt,
-						dispatchOrdinal: effect.dispatchOrdinal,
-						capacityRetryOrdinal: effect.capacityRetryOrdinal,
-						availabilityRetryOrdinal: effect.availabilityRetryOrdinal,
-						status: "failed" as const,
-						reason: "executor-failed" as const,
-						recoveryClass: null,
-						dispatchAttempted: false,
-						dispatchElapsedMs: 0,
-						providerResponseKind: "none" as const,
-						httpStatus: null,
-						providerErrorCode: null,
-						transportNoToolSideEffect: false,
-						costMicrousd: 0,
-						costEvidence: "provider-reported" as const,
-						pricingRoundingAllowanceMicrousd: 0,
-						elapsedMs: 0,
-						resultDigest: digest,
-						retryAfterMs: 0,
-						cleanupCompleted: true,
-						toolProposal: null,
-					} satisfies EvalProviderOutcome);
-				},
-			);
+			const graphResult = await runRootEval(httpTopology, async (effect) => {
+				if (
+					(effect.kind === "eval-admitted-effect" || effect.kind === "eval-admitted-tool-effect") &&
+					effect.workItemRole === "source"
+				)
+					return await sourceExecutor.execute(effect);
+				if (
+					effect.kind === "eval-admitted-effect" &&
+					effect.replicate === 1 &&
+					effect.arm === "relevant-applied"
+				)
+					return await executor.execute(effect);
+				if (
+					effect.kind === "eval-admitted-tool-effect" &&
+					effect.workItemRole === "target" &&
+					effect.replicate === 1 &&
+					effect.arm === "relevant-applied"
+				) {
+					verified = (await executor.execute(effect)) as EvalEffectOutcome;
+					return verified;
+				}
+				if (effect.kind === "eval-admitted-retry-delay")
+					throw new Error("unexpected retry delay in exact-tool integration test");
+				if (effect.kind === "eval-admitted-billing-observation")
+					return await executor.execute(effect);
+				const digest = empiricalStrictJsonDigest({
+					kind: "injected-control-provider-failure",
+					executionId: effect.executionId,
+				});
+				return Object.freeze({
+					kind: "eval-provider-outcome" as const,
+					admission: effect,
+					admissionId: effect.admissionId,
+					executionId: effect.executionId,
+					operationId: effect.operationId,
+					effectRunId: effect.effectRunId,
+					workItemId: effect.workItemId,
+					workItemRole: effect.workItemRole,
+					replicate: effect.replicate,
+					arm: effect.arm,
+					providerLogicalAttempt: effect.providerLogicalAttempt,
+					dispatchOrdinal: effect.dispatchOrdinal,
+					capacityRetryOrdinal: effect.capacityRetryOrdinal,
+					availabilityRetryOrdinal: effect.availabilityRetryOrdinal,
+					status: "failed" as const,
+					reason: "executor-failed" as const,
+					recoveryClass: null,
+					dispatchAttempted: false,
+					dispatchElapsedMs: 0,
+					providerResponseKind: "none" as const,
+					httpStatus: null,
+					providerErrorCode: null,
+					transportNoToolSideEffect: false,
+					costMicrousd: 0,
+					costEvidence: "provider-reported" as const,
+					pricingRoundingAllowanceMicrousd: 0,
+					elapsedMs: 0,
+					resultDigest: digest,
+					retryAfterMs: 0,
+					cleanupCompleted: true,
+					toolProposal: null,
+				} satisfies EvalProviderOutcome);
+			});
 			expect(
 				Object.entries(graphResult.finding.providerOutcomeReasonCounts).filter(
 					([, count]) => count > 0,
@@ -6331,7 +6581,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				cleanupDisposition: "complete",
 			});
 			expect(evidence.efficacyClaim).toBe("none");
-			expect(evidence.partialGraphObservations).toHaveLength(512);
+			expect(evidence.partialGraphObservations).toHaveLength(oversizedDiagnosticStream.length);
 			expect(evidence.latestGraphObservation).toEqual(evidence.partialGraphObservations.at(-1));
 			const { evidenceDigest: _digest, ...forgedMaterial } = evidence;
 			const forgedDiagnosticMaterial = {

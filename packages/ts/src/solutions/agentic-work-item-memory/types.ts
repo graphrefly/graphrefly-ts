@@ -11,6 +11,7 @@ import type {
 	AgenticMemoryRecordProposal,
 	StrictJsonValue,
 } from "../agentic-memory/index.js";
+import type { SolutionOccurrence } from "../occurrence.js";
 import type { WorkItemProjection } from "../work-item/index.js";
 
 export type AgenticWorkItemMemoryInputLane = "workItem" | "evidence" | "outcome" | "context";
@@ -160,30 +161,25 @@ export interface AgenticWorkItemMemoryBridgeInput<TInput = unknown, TRecord = un
 	readonly evaluation?: number;
 }
 
+/** Complete independently correlated Work Item snapshot (D151). */
+export type AgenticWorkItemMemoryBridgeOccurrence<
+	TInput = unknown,
+	TRecord = unknown,
+> = SolutionOccurrence<Omit<AgenticWorkItemMemoryBridgeInput<TInput, TRecord>, "evaluation">>;
+
 export interface AgenticWorkItemMemoryBridgeBundle<TInput = unknown, TRecord = unknown> {
-	readonly input: {
-		readonly workItem: Node<WorkItemProjection<TInput>>;
-		readonly policy: Node<AgenticWorkItemMemoryMappingPolicy<TRecord>>;
-		readonly evidence?: Node<readonly WorkItemEvidenceRecorded[]>;
-		readonly outcomes?: Node<readonly EffectRunResult[]>;
-		readonly context?: Node<readonly AgenticWorkItemMemoryContextFact[]>;
-		readonly candidates?: Node<readonly AgenticWorkItemMemoryRecordCandidate<TRecord>[]>;
-	};
-	readonly projection: Node<AgenticWorkItemMemoryBridgeResult<TRecord>>;
-	readonly scoreSignals: Node<readonly ScoreSignal[]>;
-	readonly proposals: Node<readonly AgenticMemoryRecordProposal<TRecord>[]>;
-	readonly status: Node<AgenticWorkItemMemoryBridgeStatus>;
-	readonly issues: Node<readonly AgenticWorkItemMemoryBridgeIssue[]>;
-	readonly audit: Node<readonly AgenticWorkItemMemoryBridgeAuditEntry[]>;
-	readonly cursor: Node<AgenticWorkItemMemoryBridgeCursor>;
+	readonly input: Node<AgenticWorkItemMemoryBridgeOccurrence<TInput, TRecord>>;
+	readonly projection: Node<SolutionOccurrence<AgenticWorkItemMemoryBridgeResult<TRecord>>>;
+	readonly scoreSignals: Node<SolutionOccurrence<readonly ScoreSignal[]>>;
+	readonly proposals: Node<SolutionOccurrence<readonly AgenticMemoryRecordProposal<TRecord>[]>>;
+	readonly status: Node<SolutionOccurrence<AgenticWorkItemMemoryBridgeStatus>>;
+	readonly issues: Node<SolutionOccurrence<readonly AgenticWorkItemMemoryBridgeIssue[]>>;
+	readonly audit: Node<SolutionOccurrence<readonly AgenticWorkItemMemoryBridgeAuditEntry[]>>;
+	readonly cursor: Node<SolutionOccurrence<AgenticWorkItemMemoryBridgeCursor>>;
 }
 
 export interface AgenticWorkItemMemoryBridgeBundleOptions<TInput = unknown, TRecord = unknown> {
 	readonly name?: string;
-	readonly workItem: Node<WorkItemProjection<TInput>>;
-	readonly policy: Node<AgenticWorkItemMemoryMappingPolicy<TRecord>>;
-	readonly evidence?: Node<readonly WorkItemEvidenceRecorded[]>;
-	readonly outcomes?: Node<readonly EffectRunResult[]>;
-	readonly context?: Node<readonly AgenticWorkItemMemoryContextFact[]>;
-	readonly candidates?: Node<readonly AgenticWorkItemMemoryRecordCandidate<TRecord>[]>;
+	readonly occurrences: Node<AgenticWorkItemMemoryBridgeOccurrence<TInput, TRecord>>;
+	readonly maxOccurrences: number;
 }
