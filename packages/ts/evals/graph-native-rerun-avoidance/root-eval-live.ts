@@ -60,6 +60,7 @@ import {
 } from "./provider-cost-evidence.js";
 import type { RootEvalLiveClaimCommit } from "./root-eval-live-authority.js";
 import {
+	assertRootEvalTaskStimulusContract,
 	ROOT_EVAL_D152_TASK_SET_BINDING_DIGEST,
 	ROOT_EVAL_DEVELOPMENT_TASK_SET_DIGEST,
 	ROOT_EVAL_DEVELOPMENT_TASKS,
@@ -1761,6 +1762,8 @@ async function verify(
 export async function qualifyRootEvalMechanismTaskFamily(input: {
 	readonly repositoryRoot: string;
 	readonly materializationRoot: string;
+	readonly tasks?: readonly RootEvalTaskDefinition[];
+	readonly workItemRole?: "source" | "target";
 }): Promise<
 	readonly Readonly<{
 		readonly replicate: 1 | 2 | 3 | 4 | 5;
@@ -1771,8 +1774,11 @@ export async function qualifyRootEvalMechanismTaskFamily(input: {
 	}>[]
 > {
 	const materializationRoot = resolve(input.materializationRoot);
+	const tasks = input.tasks ?? ROOT_EVAL_DEVELOPMENT_TASKS;
+	assertRootEvalTaskStimulusContract(tasks);
 	const results = [];
-	for (const task of ROOT_EVAL_DEVELOPMENT_TASKS) {
+	for (const definition of tasks) {
+		const task = executionTask(definition, input.workItemRole ?? "target");
 		const effect = {
 			replicate: task.replicate,
 			arm: "relevant-applied",

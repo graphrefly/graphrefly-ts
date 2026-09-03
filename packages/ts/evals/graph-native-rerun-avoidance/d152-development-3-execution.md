@@ -58,3 +58,78 @@ fixture bank under the existing D152 schema and discrimination/disjointness
 contracts, followed by full no-network QA before this same unconsumed run.
 Do not alias development-1/2, merely rename old mechanisms, alter the threshold,
 or infer permission to modify experimental material from a budget grant alone.
+
+## Approved material completion
+
+The user's subsequent “同意” explicitly authorizes filling the missing five-mechanism
+development-3 bank under D152, then no-network QA and this same unconsumed run.
+This is package-private implementation work and an execution receipt, not a new
+architectural decision or additional spend grant. The generation/partition caps,
+historic unknown-cost hold, model, topology, prompt template, discriminant grammar,
+six-arm order and scoring thresholds remain unchanged. Ownership checkpoints stay
+skipped (delivery-only).
+
+Frozen before live: allocation rounding (ceiling/floor/nearest), paired measurements
+(geometric/arithmetic/quadratic), text units (codepoints/UTF-16/UTF-8), required flag
+coverage (all/any/exact), and duplicate records (last/first/sum). These are new
+mechanisms rather than renamed cache, time, HTTP status, path/host boundary or
+version-order tasks from the first two banks. Public examples admit all three
+candidates; the hidden example rejects the rotated irrelevant candidate. The
+source Work Item verifies the selected policy through the existing recipe.
+
+Given the approved development-3 slot, preparation must seal exactly five fresh
+tasks, bind each relevant source and rotated incompatible source, and run their
+actual source/target verifiers offline. Deleting the bank, substituting an old
+mechanism, rebinding provenance or selecting an incompatible ordering must fail
+before credential admission. Future unsupported slots and held-out material remain
+closed; no fallback to earlier banks is permitted.
+
+## No-network material qualification
+
+The fresh mode-0600 manifest was sealed once at
+`d152-mechanism-manifests/development-3.json` with digest
+`sha256:402961a1e786abbfce170ccadcc70b8f6d530a5140aa22a9be007508094dc72d`.
+Actual development-1/2 sealed files share no mechanism IDs, fixture digests or
+hidden-verifier digests with it. Its fixed replicate order is geometric pair,
+Unicode units, required bits, duplicate-record precedence, allocation rounding.
+No held-out material was generated or read.
+
+| Acceptance | Evidence before live |
+| --- | --- |
+| Five fresh mechanisms, unchanged D152 grammar/template | New third bank; banks 1/2 unchanged; static pairwise review |
+| Relevant/rotated provenance, all shuffled orders | Exhaustive 120 permutations; invalid orders and rebinding rejected; every valid ordering executes all three candidates against public/hidden examples |
+| Public ambiguity and private discrimination | Public accepts all candidates; hidden accepts exactly the frozen candidate; source and target isolated-workspace verifiers pass |
+| Five replicates × six real solution arms, retry conservation | 70 admitted provider attempts, 35 retry delays, 30 completed target Work Items, all workspaces cleaned; exact generation-3 evidence namespace accepted |
+| Wrong-generation evidence remains rejected | Generation-1 admission projector rejects the unchanged generation-3 result; no production relaxation |
+| Atomic seal and future slots fail closed | Mode-0600, idempotent byte preservation, unsupported development-4 and confirmatory rejection |
+| No architecture or public API changes | Root remains 311 nodes / 413 edges; no lifecycle, operator flag, timer, protocol or export edits |
+
+The first two targeted runs exposed test-only namespace omissions: the new
+bank-3 integration still used generation-1 admission and then partition
+coordinates. Both were rejected by unchanged production evidence guards.
+Logs: `.runlog/run-20260902-200940-41989.log` and
+`.runlog/run-20260902-201707-53432.log`. Their source/target verifier and manifest
+cases passed. The corrected exact-namespace integration passed in 130 seconds:
+`.runlog/run-20260902-202052-60251.log`. Two independent static reviews have no
+remaining findings. Lint/typecheck, artifact regeneration/reproduction and diff
+checks passed. The committed-state entry must still pass its full precredential
+test/build/authority/dashboard gates before any external capability is admitted.
+
+Frozen implementation v70:
+`sha256:132e11ec5db15cc02eb2a74a67dbb95f02c2e589d6103c6088918a01ff3c192a`.
+Topology qualification v42; live-boundary qualification v48. The raw describe
+artifact changes only qualification/digest values, not the topology structure.
+These are no-network qualification results, not a model efficacy result.
+
+The first full sweep (`.runlog/run-20260902-202351-65897.log`) passed all 80
+live-boundary tests but exposed a pre-existing oversized topology test: twelve
+independent full campaigns shared a single 15-second test deadline, exceeded
+under the full run (15082ms). The cases are now independent tests with all original
+assertions retained; no production timeout, Graph behavior or protocol change.
+The full suite is rerun after this test-granularity correction.
+
+The corrected full sweep passed in 533 seconds:
+`.runlog/run-20260902-203604-81342.log`. Build passed in 50 seconds
+(`.runlog/run-20260902-202409-67109.log`); final lint/typecheck, artifact reproduction,
+workspace authority and dashboard gates passed. Static review confirmed all twelve
+campaigns and thirteen assertions were preserved by the test split.

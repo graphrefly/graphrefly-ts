@@ -13,14 +13,14 @@ import {
 	rootEvalVariantOrderSupportsIrrelevantControls,
 } from "./root-eval-task.js";
 
-function shuffledVariantOrder(): readonly number[] {
+function shuffledVariantOrder(slot: RootEvalTaskManifestSlot): readonly number[] {
 	for (let attempt = 0; attempt < 128; attempt += 1) {
 		const order = [0, 1, 2, 3, 4];
 		for (let index = order.length - 1; index > 0; index -= 1) {
 			const swap = randomInt(index + 1);
 			[order[index], order[swap]] = [order[swap]!, order[index]!];
 		}
-		if (rootEvalVariantOrderSupportsIrrelevantControls(order)) return Object.freeze(order);
+		if (rootEvalVariantOrderSupportsIrrelevantControls(order, slot)) return Object.freeze(order);
 	}
 	throw new TypeError("root eval could not generate incompatible irrelevant controls");
 }
@@ -40,7 +40,7 @@ export async function ensureRootEvalDevelopmentTaskManifest(
 	await chmod(directory, 0o700);
 	const manifest = createRootEvalTaskManifest({
 		slot,
-		variantOrder: shuffledVariantOrder(),
+		variantOrder: shuffledVariantOrder(slot),
 		coordinateSuffix: randomBytes(24).toString("hex"),
 	});
 	const target = resolve(directory, `${slot}.json`);

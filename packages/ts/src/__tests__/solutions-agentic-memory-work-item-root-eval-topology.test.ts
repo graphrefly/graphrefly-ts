@@ -905,16 +905,16 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"graphrefly-ts.root-eval-live-precredential-gates.v6",
 		);
 		expect(ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-no-network-qa.v47",
+			"graphrefly-ts.root-eval-live-no-network-qa.v48",
 		);
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-qualification.v47",
+			"graphrefly-ts.root-eval-live-qualification.v48",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-no-network-qa.v41",
+			"graphrefly-ts.root-eval-topology-no-network-qa.v42",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-qualification.v41",
+			"graphrefly-ts.root-eval-topology-qualification.v42",
 		);
 		expect(ROOT_EVAL_LIVE_GENERATION_REF).not.toContain("d116");
 		expect(ROOT_EVAL_LIVE_CLAIM_REF).not.toContain("d116");
@@ -3008,7 +3008,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		});
 	});
 
-	it("makes diff, public semantic, hidden verifier, and executor failure load-bearing", async () => {
+	it("verification gates accept a behaviorally equivalent alternative", async () => {
 		const behaviorallyEquivalentAlternative = await runRootEval(
 			createTopology(),
 			twoPhaseExecutor(),
@@ -3021,7 +3021,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				terminalReasonCounts: { "relevant-applied": { passed: 5 } },
 			},
 		});
+	});
 
+	it("verification gates reject a missing diff", async () => {
 		const noDiff = await runRootEval(
 			createTopology(),
 			twoPhaseExecutor({
@@ -3040,7 +3042,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				terminalReasonCounts: { "relevant-applied": { "no-change": 5 } },
 			},
 		});
+	});
 
+	it("verification gates reject public semantic failure", async () => {
 		const semanticFailure = await runRootEval(
 			createTopology(),
 			twoPhaseExecutor({
@@ -3063,6 +3067,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				},
 			},
 		});
+	});
+
+	it("verification gates reject hidden verifier failure", async () => {
 		const hiddenFailure = await runRootEval(
 			createTopology(),
 			twoPhaseExecutor({
@@ -3084,7 +3091,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				},
 			},
 		});
+	});
 
+	it("verification gates retain provider failure", async () => {
 		const providerFailure = await runRootEval(
 			createTopology(),
 			twoPhaseExecutor({
@@ -3103,7 +3112,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			stageCounts: { "relevant-applied": { exactToolAdmitted: 0, passed: 0 } },
 			terminalReasonCounts: { "relevant-applied": { "provider-failed": 5 } },
 		});
+	});
 
+	it("verification gates reject success-looking evidence from a failed exact tool", async () => {
 		const successLookingExactToolFailure = await runRootEval(
 			createTopology(),
 			twoPhaseExecutor({
@@ -3126,6 +3137,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			},
 			terminalReasonCounts: { "relevant-applied": { "exact-tool-failed": 5 } },
 		});
+	});
+
+	it("verification gates prioritize exact-tool failure over no-change", async () => {
 		const exactToolFailurePrecedesNoChange = await runRootEval(
 			createTopology(),
 			twoPhaseExecutor({
@@ -3157,7 +3171,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				},
 			} as EvalEffectOutcome),
 		).toBe("cleanup-incomplete");
+	});
 
+	it("verification gates reject wrong-scope changes", async () => {
 		const wrongScope = await runRootEval(
 			createTopology(),
 			twoPhaseExecutor({
@@ -3172,7 +3188,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			stageCounts: { "relevant-applied": { scopedChange: 0, passed: 0 } },
 			terminalReasonCounts: { "relevant-applied": { "wrong-scope": 5 } },
 		});
+	});
 
+	it("verification gates prioritize wrong scope over public semantic failure", async () => {
 		const wrongScopePrecedesPublicSemantic = await runRootEval(
 			createTopology(),
 			twoPhaseExecutor({
@@ -3199,7 +3217,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				},
 			},
 		});
+	});
 
+	it("verification gates prioritize public semantic failure over hidden verifier failure", async () => {
 		const publicSemanticPrecedesHiddenVerifier = await runRootEval(
 			createTopology(),
 			twoPhaseExecutor({
@@ -3224,7 +3244,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				},
 			},
 		});
+	});
 
+	it("verification gates prioritize incomplete cleanup over other failed stages", async () => {
 		const cleanupPrecedence = await runRootEval(
 			createTopology(),
 			twoPhaseExecutor({
@@ -3252,7 +3274,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				"relevant-applied": { "cleanup-incomplete": 1, "exact-tool-failed": 0, passed: 4 },
 			},
 		});
+	});
 
+	it("verification gates retain executor exceptions as failed cleanup", async () => {
 		const executorFailure = await runRootEval(
 			createTopology(),
 			twoPhaseExecutor({
@@ -3270,7 +3294,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				terminalReasonCounts: { "relevant-applied": { "cleanup-incomplete": 1, passed: 4 } },
 			},
 		});
-	}, 15_000);
+	});
 
 	it("excludes technical failures only as whole matched replicates and becomes inconclusive below four", async () => {
 		const runWithTechnicalReplicates = async (technicalReplicates: ReadonlySet<number>) =>

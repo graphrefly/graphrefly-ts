@@ -15,6 +15,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
 import {
 	empiricalSha256,
@@ -176,6 +177,7 @@ import {
 	rootEvalTask,
 	rootEvalTaskBindings,
 	rootEvalTaskManifestDisjointAudit,
+	rootEvalVariantOrderSupportsIrrelevantControls,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-task.js";
 import { ensureRootEvalDevelopmentTaskManifest } from "../../evals/graph-native-rerun-avoidance/root-eval-task-manifest-store.js";
 import { settledRootEvalSpend } from "../../evals/graph-native-rerun-avoidance/settled-spend.js";
@@ -5856,15 +5858,19 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		}
 	}, 120_000);
 
-	it("completes an all-Work-Item 429 lifecycle beyond the old projection bounds", async () => {
+	it.each([
+		"development-1",
+		"development-3",
+	] as const)("completes an all-Work-Item 429 lifecycle beyond the old projection bounds for %s", async (slot) => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-live-six-429-"));
 		const materializationRoot = join(temporary, "workspaces");
 		const taskManifest = createRootEvalTaskManifest({
-			slot: "development-1",
+			slot,
 			variantOrder: [0, 1, 2, 3, 4],
 			coordinateSuffix: "no-network-shape",
 		});
 		const tasks = taskManifest.tasks;
+		const generationRef = rootEvalD152DevelopmentGenerationRef(slot === "development-3" ? 3 : 1);
 		expect(
 			rootEvalWorkspaceForAdmission(materializationRoot, {
 				replicate: 1,
@@ -5889,7 +5895,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			repositoryRoot,
 			materializationRoot,
 			pricing,
-			taskManifestSlot: "development-1",
+			taskManifestSlot: slot,
 			taskManifest,
 			providerResponses: [],
 			providerResponseForEffect(effect) {
@@ -5913,19 +5919,24 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 						callback();
 						return 0 as unknown as ReturnType<typeof setTimeout>;
 					},
-					campaignRef: ROOT_EVAL_LIVE_GENERATION_REF,
+					campaignRef: generationRef,
 					campaignPurpose: ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE,
 					taskSetRef: taskManifest.taskSetRef,
 					taskManifestDigest: taskManifest.manifestDigest,
 					taskBindings: rootEvalTaskBindings(tasks),
-					generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
+					generationRef,
 					heldOutSealDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
-					budgetPartition: ROOT_EVAL_LIVE_BUDGET_PARTITION,
-					partitionHardCapMicrousd: ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD,
+					budgetPartition:
+						slot === "development-3" ? "development-usd-40" : ROOT_EVAL_LIVE_BUDGET_PARTITION,
+					partitionHardCapMicrousd:
+						slot === "development-3" ? 40_000_000 : ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD,
 					partitionLedgerDigest: testPartitionLedgerDigest,
 					developmentQualificationStreakBefore: 0,
-					maxCostMicrousd: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
-					reservationMicrousd: 200_000,
+					maxCostMicrousd:
+						slot === "development-3" ? 4_179_695 : ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
+					// The synthetic body lacks qualified zero-cost evidence; retain all
+					// 35 holds. This offline reserve fits both generation-specific caps.
+					reservationMicrousd: slot === "development-3" ? 100_000 : 200_000,
 				}),
 				async (effect) => {
 					if (effect.kind !== "eval-admitted-retry-delay") return await executor.execute(effect);
@@ -5944,7 +5955,39 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			);
 			expect(executor.providerRequestSummaries()).toHaveLength(70);
 			expect(graphResult.executedAdmissionIds).toHaveLength(70);
-			assertRootEvalRunResultAdmissionShape(graphResult);
+			if (slot === "development-1") assertRootEvalRunResultAdmissionShape(graphResult);
+			else {
+				// Evidence authority is intentionally generation-scoped at module load.
+				// The default generation-1 boundary must reject this generation-3 run.
+				expect(() => assertRootEvalRunResultAdmissionShape(graphResult)).toThrow(
+					/admission identity/u,
+				);
+				const moduleUrl = pathToFileURL(
+					resolve(
+						repositoryRoot,
+						"packages/ts/evals/graph-native-rerun-avoidance/root-eval-live-authority.ts",
+					),
+				).href;
+				const source = `
+					import { readFileSync } from "node:fs";
+					const authority = await import(${JSON.stringify(moduleUrl)});
+					authority.assertRootEvalRunResultAdmissionShape(JSON.parse(readFileSync(0, "utf8")));
+					process.stdout.write("accepted");
+				`;
+				expect(
+					execFileSync(
+						process.execPath,
+						["--import", "tsx", "--input-type=module", "--eval", source],
+						{
+							cwd: repositoryRoot,
+							env: { ...process.env, GRAPHREFLY_ROOT_EVAL_CAMPAIGN_SLOT: slot },
+							input: JSON.stringify(graphResult),
+							encoding: "utf8",
+							timeout: 20_000,
+						},
+					),
+				).toBe("accepted");
+			}
 			expect(graphResult.finding).toMatchObject({
 				completedWorkItems: 30,
 				admittedAttempts: 70,
@@ -6291,10 +6334,25 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		}
 	}, 420_000);
 
-	it("qualifies five orthogonal mechanisms with ambiguous public and discriminating private verifiers", async () => {
+	it.each([
+		{ slot: "development-1", workItemRole: "target" },
+		{ slot: "development-3", workItemRole: "source" },
+		{ slot: "development-3", workItemRole: "target" },
+	] as const)("qualifies five orthogonal mechanisms with ambiguous public and discriminating private verifiers: $slot/$workItemRole", async ({
+		slot,
+		workItemRole,
+	}) => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-transfer-family-"));
+		const tasks =
+			slot === "development-1"
+				? ROOT_EVAL_DEVELOPMENT_TASKS
+				: createRootEvalTaskManifest({
+						slot,
+						variantOrder: [0, 1, 2, 3, 4],
+						coordinateSuffix: "development-three-offline-qualification",
+					}).tasks;
 		try {
-			for (const task of ROOT_EVAL_DEVELOPMENT_TASKS) {
+			for (const task of tasks) {
 				expect(task.sourceTaskStatement).toContain(task.mechanismId);
 				expect(task.sourceTaskStatement).toContain("verified expression");
 				expect(task.taskStatement).not.toMatch(
@@ -6302,14 +6360,16 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				);
 				expect(task.fixtureCorrectText).not.toBe(task.fixtureBuggyText);
 			}
-			expect(new Set(ROOT_EVAL_DEVELOPMENT_TASKS.map((task) => task.mechanismId)).size).toBe(5);
+			expect(new Set(tasks.map((task) => task.mechanismId)).size).toBe(5);
 			expect(
 				await qualifyRootEvalMechanismTaskFamily({
 					repositoryRoot,
 					materializationRoot: join(temporary, "workspaces"),
+					tasks,
+					workItemRole,
 				}),
 			).toEqual(
-				ROOT_EVAL_DEVELOPMENT_TASKS.map((task) => ({
+				tasks.map((task) => ({
 					replicate: task.replicate,
 					publicAllowsAmbiguousBug: true,
 					hiddenRejectsAmbiguousBug: true,
@@ -6317,6 +6377,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					correctPassesPublicAndHidden: true,
 				})),
 			);
+			expect(await readdir(join(temporary, "workspaces"))).toEqual([]);
 		} finally {
 			await rm(temporary, { recursive: true, force: true });
 		}
@@ -6336,10 +6397,32 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			variantOrder: [0, 1, 2, 3, 4],
 			coordinateSuffix: "development-two-seed",
 		});
+		const development3 = createRootEvalTaskManifest({
+			slot: "development-3",
+			variantOrder: [0, 1, 2, 3, 4],
+			coordinateSuffix: "development-three-seed",
+		});
 		try {
 			const generated = await ensureRootEvalDevelopmentTaskManifest("development-2");
 			expect(await ensureRootEvalDevelopmentTaskManifest("development-2")).toEqual(generated);
 			expect((await stat(join(temporary, "development-2.json"))).mode & 0o777).toBe(0o600);
+			const generated3 = await ensureRootEvalDevelopmentTaskManifest("development-3");
+			const generated3Bytes = await readFile(join(temporary, "development-3.json"));
+			expect(await ensureRootEvalDevelopmentTaskManifest("development-3")).toEqual(generated3);
+			expect(await readFile(join(temporary, "development-3.json"))).toEqual(generated3Bytes);
+			expect((await stat(join(temporary, "development-3.json"))).mode & 0o777).toBe(0o600);
+			expect(rootEvalTask("development-transfer", 5, "development-3")).toEqual(generated3.tasks[4]);
+			for (const previousManifest of [development1, development2]) {
+				expect(rootEvalTaskManifestDisjointAudit(previousManifest, development3).disjoint).toBe(
+					true,
+				);
+				expect(rootEvalTaskManifestDisjointAudit(previousManifest, generated3).disjoint).toBe(true);
+			}
+			expect(rootEvalMechanismDiscriminationOracle(generated3.tasks)).toHaveLength(5);
+			expect(development3.taskSetRef).toBe(ROOT_EVAL_DEVELOPMENT_TASK_SET_REFS["development-3"]);
+			await expect(ensureRootEvalDevelopmentTaskManifest("development-4")).rejects.toThrow();
+			expect(await readdir(temporary)).not.toContain("development-4.json");
+			await expect(ensureRootEvalDevelopmentTaskManifest("confirmatory")).rejects.toThrow();
 			expect(rootEvalTaskManifestDisjointAudit(development1, development2)).toEqual({
 				leftSlot: "development-1",
 				rightSlot: "development-2",
@@ -6435,6 +6518,91 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			else process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY = previous;
 			await rm(temporary, { recursive: true, force: true });
 		}
+	});
+
+	it("qualifies every development-3 shuffle against its own bank and rejects rebinding or bank reuse", () => {
+		const permutations = (remaining: readonly number[]): number[][] =>
+			remaining.length === 0
+				? [[]]
+				: remaining.flatMap((head) =>
+						permutations(remaining.filter((value) => value !== head)).map((tail) => [
+							head,
+							...tail,
+						]),
+					);
+		let qualified = 0;
+		for (const variantOrder of permutations([0, 1, 2, 3, 4])) {
+			const create = () =>
+				createRootEvalTaskManifest({
+					slot: "development-3",
+					variantOrder,
+					coordinateSuffix: "development-three-permutations",
+				});
+			if (!rootEvalVariantOrderSupportsIrrelevantControls(variantOrder, "development-3")) {
+				expect(create).toThrow(/generation input invalid/u);
+				continue;
+			}
+			qualified += 1;
+			const manifest = create();
+			expect(rootEvalMechanismDiscriminationOracle(manifest.tasks)).toHaveLength(5);
+			const bindings = rootEvalTaskBindings(manifest.tasks);
+			for (const [index, task] of manifest.tasks.entries()) {
+				const rotated = manifest.tasks[ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES[index]! - 1]!;
+				expect(bindings[index]!.sourceInsightDigest).toBe(task.sourceInsightDigest);
+				expect(bindings[index]!.irrelevantSourceInsightDigest).toBe(rotated.sourceInsightDigest);
+				expect(task.mechanismAlternativeAction).toBe(rotated.mechanismAction);
+				expect(task.mechanismAction).not.toBe(rotated.mechanismAction);
+				// Execute only this test's generated, trusted candidate expressions. Check
+				// all three, not only the correct/rotated pair or their policy labels.
+				const candidates = [
+					...task.readonlyFixtureFiles[0]!.text.matchAll(/^\/\/ (first|second|third): (.+)$/gmu),
+				];
+				expect(candidates).toHaveLength(3);
+				for (const verifierKind of ["publicVerifierSource", "hiddenVerifierSource"] as const) {
+					const example = task[verifierKind].match(/expect\(\w+\((.+)\)\)\.toBe\((.+)\);/u);
+					if (example === null) throw new Error("generated fixture example missing");
+					const input = runInNewContext(`(${example[1]})`);
+					const expected = runInNewContext(example[2]!);
+					const passing = candidates
+						.filter(
+							(candidate) => runInNewContext(candidate[2]!, { input, TextEncoder }) === expected,
+						)
+						.map((candidate) => `select-${candidate[1]}-candidate`);
+					expect(passing).toEqual(
+						verifierKind === "publicVerifierSource"
+							? ["select-first-candidate", "select-second-candidate", "select-third-candidate"]
+							: [task.mechanismAction],
+					);
+				}
+			}
+			const rebound = manifest.tasks.map((task, index) =>
+				index === 0
+					? { ...task, sourceInsightContent: manifest.tasks[1]!.sourceInsightContent }
+					: task,
+			);
+			expect(() => assertRootEvalTaskStimulusContract(rebound)).toThrow();
+			const previous = createRootEvalTaskManifest({
+				slot: "development-2",
+				variantOrder: [0, 1, 2, 3, 4],
+				coordinateSuffix: "development-two-disjoint",
+			});
+			expect(() =>
+				rootEvalTaskManifestDisjointAudit(previous, {
+					...manifest,
+					tasks: manifest.tasks.map((task, index) =>
+						index === 0 ? { ...task, mechanismId: previous.tasks[0]!.mechanismId } : task,
+					),
+				}),
+			).toThrow();
+		}
+		expect(qualified).toBeGreaterThan(0);
+		expect(qualified).toBeLessThan(120);
+		expect(rootEvalVariantOrderSupportsIrrelevantControls([0, 1, 2, 3, 4], "development-4")).toBe(
+			false,
+		);
+		expect(rootEvalVariantOrderSupportsIrrelevantControls([0, 1, 2, 3, 4], "confirmatory")).toBe(
+			false,
+		);
 	});
 
 	it("binds discriminant-only relevant and incompatible irrelevant source Work Items", () => {

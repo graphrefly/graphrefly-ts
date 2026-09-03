@@ -10,6 +10,7 @@ export const ROOT_EVAL_TASK_MANIFEST_SCHEMA =
 export const ROOT_EVAL_DEVELOPMENT_TASK_SET_REFS = Object.freeze({
 	"development-1": "root-eval-d152-mechanism-development-1-v1",
 	"development-2": "root-eval-d152-mechanism-development-2-v1",
+	"development-3": "root-eval-d152-mechanism-development-3-v1",
 } as const);
 export const ROOT_EVAL_CONFIRMATORY_TASK_SET_REF =
 	"root-eval-d152-mechanism-confirmatory-v1" as const;
@@ -434,6 +435,107 @@ const DEVELOPMENT_TWO_VARIANTS: readonly TransferVariant[] = Object.freeze([
 		sourceInsightContent: sourceInsightContent("select-first-candidate"),
 	}),
 ]);
+
+// D152 development-3: new policies, not renamed cache/time/status/boundary/version tasks.
+// Target-visible coordinates name the domain, never the withheld choice of policy.
+const DEVELOPMENT_THREE_VARIANTS: readonly TransferVariant[] = Object.freeze([
+	Object.freeze({
+		slug: "allocation-count",
+		mechanismId: "ceiling-allocation-rounding",
+		exportName: "allocationCount",
+		envelopeName: "AllocationInput",
+		acceptedRule: "select-first-candidate",
+		contractSource: "\treadonly units: number;\n\treadonly blockSize: number;",
+		correctExpression: "String(Math.ceil(input.units / input.blockSize))",
+		alternativeExpression: "String(Math.floor(input.units / input.blockSize))",
+		thirdExpression: "String(Math.round(input.units / input.blockSize))",
+		publicFixture: "{ units: 20, blockSize: 10 }",
+		publicExpected: '"2"',
+		hiddenFixture: "{ units: 21, blockSize: 10 }",
+		hiddenExpected: '"3"',
+		sourceInsightContent: sourceInsightContent("select-first-candidate"),
+	}),
+	Object.freeze({
+		slug: "paired-measurement",
+		mechanismId: "geometric-pair-combination",
+		exportName: "pairedMeasurement",
+		envelopeName: "MeasurementInput",
+		acceptedRule: "select-second-candidate",
+		contractSource: "\treadonly left: number;\n\treadonly right: number;",
+		correctExpression: "String(Math.sqrt(input.left * input.right))",
+		alternativeExpression: "String((input.left + input.right) / 2)",
+		thirdExpression: "String(Math.sqrt((input.left ** 2 + input.right ** 2) / 2))",
+		publicFixture: "{ left: 4, right: 4 }",
+		publicExpected: '"4"',
+		hiddenFixture: "{ left: 4, right: 9 }",
+		hiddenExpected: '"6"',
+		sourceInsightContent: sourceInsightContent("select-second-candidate"),
+	}),
+	Object.freeze({
+		slug: "text-measurement",
+		mechanismId: "unicode-codepoint-count",
+		exportName: "textMeasurement",
+		envelopeName: "TextMeasurementInput",
+		acceptedRule: "select-third-candidate",
+		contractSource: "\treadonly text: string;",
+		correctExpression: "String(Array.from(input.text).length)",
+		alternativeExpression: "String(input.text.length)",
+		thirdExpression: "String(new TextEncoder().encode(input.text).length)",
+		publicFixture: '{ text: "abc" }',
+		publicExpected: '"3"',
+		hiddenFixture: '{ text: "A😀" }',
+		hiddenExpected: '"2"',
+		sourceInsightContent: sourceInsightContent("select-third-candidate"),
+	}),
+	Object.freeze({
+		slug: "flag-disposition",
+		mechanismId: "all-required-bits",
+		exportName: "flagDisposition",
+		envelopeName: "FlagInput",
+		acceptedRule: "select-first-candidate",
+		contractSource: "\treadonly flags: readonly number[];\n\treadonly required: number;",
+		correctExpression:
+			'input.flags.map((flags) => (flags & input.required) === input.required).join(",")',
+		alternativeExpression: 'input.flags.map((flags) => (flags & input.required) !== 0).join(",")',
+		thirdExpression: 'input.flags.map((flags) => flags === input.required).join(",")',
+		publicFixture: "{ flags: [3], required: 3 }",
+		publicExpected: '"true"',
+		hiddenFixture: "{ flags: [1, 7], required: 3 }",
+		hiddenExpected: '"false,true"',
+		sourceInsightContent: sourceInsightContent("select-first-candidate"),
+	}),
+	Object.freeze({
+		slug: "record-value",
+		mechanismId: "last-write-duplicate-precedence",
+		exportName: "recordValue",
+		envelopeName: "RecordValueInput",
+		acceptedRule: "select-second-candidate",
+		contractSource:
+			"\treadonly records: readonly (readonly [string, number])[];\n\treadonly key: string;",
+		correctExpression: "String(new Map(input.records).get(input.key) ?? 0)",
+		alternativeExpression: "String(input.records.find(([key]) => key === input.key)?.[1] ?? 0)",
+		thirdExpression:
+			"String(input.records.reduce((sum, [key, value]) => sum + (key === input.key ? value : 0), 0))",
+		publicFixture: '{ records: [["x", 5]], key: "x" }',
+		publicExpected: '"5"',
+		hiddenFixture: '{ records: [["x", 2], ["x", 5]], key: "x" }',
+		hiddenExpected: '"5"',
+		sourceInsightContent: sourceInsightContent("select-second-candidate"),
+	}),
+]);
+
+function developmentVariants(
+	slot: RootEvalTaskManifestSlot,
+): readonly TransferVariant[] | undefined {
+	const ordinal = rootEvalDevelopmentOrdinal(slot);
+	return ordinal === 1
+		? VARIANTS
+		: ordinal === 2
+			? DEVELOPMENT_TWO_VARIANTS
+			: ordinal === 3
+				? DEVELOPMENT_THREE_VARIANTS
+				: undefined;
+}
 
 function expressionForAction(
 	variant: TransferVariant,
@@ -950,9 +1052,11 @@ export function rootEvalMechanismDiscriminationOracle(
 
 export function rootEvalVariantOrderSupportsIrrelevantControls(
 	variantOrder: readonly number[],
-	variants: readonly TransferVariant[] = VARIANTS,
+	slot: RootEvalTaskManifestSlot = "development-1",
 ): boolean {
+	const variants = developmentVariants(slot);
 	if (
+		variants === undefined ||
 		variantOrder.length !== 5 ||
 		new Set(variantOrder).size !== 5 ||
 		variantOrder.some(
@@ -1085,12 +1189,7 @@ export function createRootEvalTaskManifest(input: {
 		throw new TypeError(
 			"root eval D152 confirmatory material is unmaterialized until development qualification",
 		);
-	const variants =
-		developmentOrdinal === 1
-			? VARIANTS
-			: developmentOrdinal === 2
-				? DEVELOPMENT_TWO_VARIANTS
-				: undefined;
+	const variants = developmentVariants(input.slot);
 	if (
 		variants === undefined ||
 		input.variantOrder.length !== 5 ||
@@ -1099,7 +1198,7 @@ export function createRootEvalTaskManifest(input: {
 			(index) => !Number.isSafeInteger(index) || index < 0 || index >= variants.length,
 		) ||
 		!/^[a-z0-9-]{16,128}$/u.test(input.coordinateSuffix) ||
-		!rootEvalVariantOrderSupportsIrrelevantControls(input.variantOrder, variants)
+		!rootEvalVariantOrderSupportsIrrelevantControls(input.variantOrder, input.slot)
 	)
 		throw new TypeError("root eval task manifest generation input invalid");
 	const kind = "development-transfer";
