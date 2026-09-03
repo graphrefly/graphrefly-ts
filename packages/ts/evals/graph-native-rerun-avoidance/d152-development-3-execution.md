@@ -33,3 +33,28 @@ Baseline implementation: `95aa60e2fe2e56fdff59e0fd43d12fc505ce8b01`.
 Its clean committed-state full sweep passed 2169 tests, with four existing skips
 (`.runlog/run-20260902-090212-5227.log`). The execution-binding update receives
 its own no-network review and the normal full precredential gates before live.
+
+## Preparation attempt — blocked before credentials
+
+Execution-binding commit: `ec69f477`. Five focused budget/authority/history
+tests passed; lint/typecheck and artifact reproduction passed. Static control
+and financial QA found no blocker in that binding diff. No full-suite result
+for this binding commit is claimed: the normal entry stopped before long gates.
+
+The 2026-09-02 18:23:53 America/Los_Angeles entry failed while preparing the task
+manifest: `createRootEvalTaskManifest` supports only the two predeclared variant
+banks for development-1/2. Development-3 has no bank and is correctly rejected;
+the existing tests only exercised the first two materializable generations.
+This should have been checked before presenting the live preparation as ready.
+
+Log: `.runlog/run-20260902-182353-35287.log`, exit 1 after one second.
+No credential admission, control-plane call, claim, provider dispatch, evidence
+transaction or generation consumption occurred. Prior ledger digest and
+USD 35.820305 accounted spend are unchanged. The development-3 authorization
+has not been spent or replayed.
+
+Next boundary: explicit approval to supply a new five-mechanism development-3
+fixture bank under the existing D152 schema and discrimination/disjointness
+contracts, followed by full no-network QA before this same unconsumed run.
+Do not alias development-1/2, merely rename old mechanisms, alter the threshold,
+or infer permission to modify experimental material from a budget grant alone.
