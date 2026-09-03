@@ -1,6 +1,6 @@
 {
 	"artifact": {
-		"schemaVersion": "graphrefly-ts.root-eval-live-no-network-qa.v46",
+		"schemaVersion": "graphrefly-ts.root-eval-live-no-network-qa.v47",
 		"decisionRefs": [
 			"graphrefly-ts:D76",
 			"graphrefly-ts:D81",
@@ -72,7 +72,7 @@
 			"graphrefly-ts:D153",
 			"graphrefly-ts:D154"
 		],
-		"implementationManifestDigest": "sha256:e700b2d928a131331ddc496a3553287fed4e7fe6590338f250e74ef7bfbc9afb",
+		"implementationManifestDigest": "sha256:0249e7f09b8fb7034a15aae24624ee45da25c0fd7379501469f62fbca19c7283",
 		"taskBindingDigest": "sha256:61ed4e8034e650ec21b7c30f2ef4a8406e2b66f8ec320e6ac3e2253042034cd8",
 		"caseResults": {
 			"d154ExactPolicyCostBindingAndReportedPrecedence": "passed",
@@ -294,10 +294,10 @@
 		"credentialAccessed": false,
 		"chargedCallExecuted": false
 	},
-	"artifactDigest": "sha256:bb16701e2164271aeade1edd62a05f0e1be28a528ef65c86d1028b162b0f29a0",
+	"artifactDigest": "sha256:f8126afbd13cdae09f8d21d8167b23ea2ae4c1154642f4ca5d497d3bbeb344cf",
 	"qualification": {
 		"providerSettlementAndTerminalDecisionRef": "graphrefly-ts:D154",
-		"schemaVersion": "graphrefly-ts.root-eval-live-qualification.v46",
+		"schemaVersion": "graphrefly-ts.root-eval-live-qualification.v47",
 		"decisionRef": "graphrefly-ts:D152",
 		"implementationExecutionApprovalRef": "user-authorized-no-network-d151-d152-2026-09-01",
 		"verificationDiagnosticsImplementationReceiptRef": "graphrefly-ts:D120",
@@ -351,10 +351,10 @@
 		"completionCharterRef": "graphrefly-ts:D145",
 		"currentLiveExecutionApprovalClosed": true,
 		"callerHorizonDecisionRequired": false,
-		"implementationManifestDigest": "sha256:e700b2d928a131331ddc496a3553287fed4e7fe6590338f250e74ef7bfbc9afb",
-		"qualificationArtifactDigest": "sha256:bb16701e2164271aeade1edd62a05f0e1be28a528ef65c86d1028b162b0f29a0",
+		"implementationManifestDigest": "sha256:0249e7f09b8fb7034a15aae24624ee45da25c0fd7379501469f62fbca19c7283",
+		"qualificationArtifactDigest": "sha256:f8126afbd13cdae09f8d21d8167b23ea2ae4c1154642f4ca5d497d3bbeb344cf",
 		"status": "qualified-no-network-d151-d152-development-only-confirmatory-unmaterialized",
-		"qualificationDigest": "sha256:1e651a3a3eabfd114a1e0c62c8403b1178291fd6a3beedc431836e362a38346e"
+		"qualificationDigest": "sha256:01971f11963bcf0acc44aa9721bb948aa9855f5c32c22f50ac5cb5a79ecb15e9"
 	},
-	"measuredImplementationManifestDigest": "sha256:e700b2d928a131331ddc496a3553287fed4e7fe6590338f250e74ef7bfbc9afb"
+	"measuredImplementationManifestDigest": "sha256:0249e7f09b8fb7034a15aae24624ee45da25c0fd7379501469f62fbca19c7283"
 }

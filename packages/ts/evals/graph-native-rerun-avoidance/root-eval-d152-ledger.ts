@@ -12,6 +12,7 @@ import {
 	ROOT_EVAL_D152_TOTAL_HARD_CAP_MICROUSD,
 	type RootEvalD145CharterLedger,
 	readRootEvalD145CharterLedger,
+	rootEvalD152DevelopmentBudgetPartition,
 	rootEvalD152DevelopmentGenerationRef,
 } from "./root-eval-charter-ledger.js";
 import type { RootEvalLiveEvidence } from "./root-eval-live-authority.js";
@@ -36,7 +37,7 @@ export type RootEvalD152LedgerEntry = Readonly<{
 	readonly campaignPurpose: "development";
 	readonly taskSetRef: string;
 	readonly taskManifestDigest: string;
-	readonly budgetPartition: "development-usd-36";
+	readonly budgetPartition: ReturnType<typeof rootEvalD152DevelopmentBudgetPartition>;
 	readonly providerReportedMicrousd: number;
 	readonly unreportedSettledUpperBoundMicrousd: number;
 	readonly accountedUpperBoundMicrousd: number;
@@ -190,7 +191,7 @@ function validate(value: unknown): RootEvalD152Ledger {
 			ordinal !== index + 1 ||
 			entry.campaignPurpose !== "development" ||
 			entry.taskSetRef !== rootEvalDevelopmentTaskSetRef(ordinal) ||
-			entry.budgetPartition !== "development-usd-36" ||
+			entry.budgetPartition !== rootEvalD152DevelopmentBudgetPartition(ordinal) ||
 			typeof entry.generationQualified !== "boolean" ||
 			!/^sha256:[0-9a-f]{64}$/u.test(String(entry.taskManifestDigest)) ||
 			!/^sha256:[0-9a-f]{64}$/u.test(String(entry.evidenceDigest)) ||
@@ -202,7 +203,7 @@ function validate(value: unknown): RootEvalD152Ledger {
 			campaignPurpose: "development" as const,
 			taskSetRef: entry.taskSetRef as string,
 			taskManifestDigest: entry.taskManifestDigest as string,
-			budgetPartition: "development-usd-36" as const,
+			budgetPartition: rootEvalD152DevelopmentBudgetPartition(ordinal!),
 			providerReportedMicrousd,
 			unreportedSettledUpperBoundMicrousd,
 			accountedUpperBoundMicrousd,
@@ -367,7 +368,9 @@ export function advanceRootEvalD152Ledger(input: {
 			campaignPurpose: "development" as const,
 			taskSetRef: input.taskSetRef,
 			taskManifestDigest: input.taskManifestDigest,
-			budgetPartition: "development-usd-36" as const,
+			budgetPartition: rootEvalD152DevelopmentBudgetPartition(
+				developmentOrdinal(input.generationRef)!,
+			),
 			providerReportedMicrousd,
 			unreportedSettledUpperBoundMicrousd,
 			accountedUpperBoundMicrousd,

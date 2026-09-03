@@ -905,16 +905,16 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"graphrefly-ts.root-eval-live-precredential-gates.v6",
 		);
 		expect(ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-no-network-qa.v46",
+			"graphrefly-ts.root-eval-live-no-network-qa.v47",
 		);
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-qualification.v46",
+			"graphrefly-ts.root-eval-live-qualification.v47",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-no-network-qa.v40",
+			"graphrefly-ts.root-eval-topology-no-network-qa.v41",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-qualification.v40",
+			"graphrefly-ts.root-eval-topology-qualification.v41",
 		);
 		expect(ROOT_EVAL_LIVE_GENERATION_REF).not.toContain("d116");
 		expect(ROOT_EVAL_LIVE_CLAIM_REF).not.toContain("d116");
@@ -1133,7 +1133,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		);
 		expect(liveEntry).toMatch(/ROOT_EVAL_LIVE_D121_REPAIR_RECEIPT = "graphrefly-ts:D124"/u);
 		expect(liveEntry).toMatch(
-			/ROOT_EVAL_LIVE_EXECUTION_APPROVAL =\s*"user-authorized:d152-development-2:usd-4\.272834:development-usd-36"/u,
+			/ROOT_EVAL_LIVE_EXECUTION_APPROVAL =\s*"user-authorized:d152-development-3:usd-4\.179695:development-usd-40"/u,
 		);
 		expect(liveEntry).toMatch(
 			/ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_STATE =\s*process\.env\.GRAPHREFLY_ROOT_EVAL_EXECUTION_AUTHORITY/u,

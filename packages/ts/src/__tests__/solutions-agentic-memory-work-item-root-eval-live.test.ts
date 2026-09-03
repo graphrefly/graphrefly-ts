@@ -80,6 +80,7 @@ import {
 	advanceRootEvalD152Ledger,
 	commitRootEvalD152Transaction,
 	createRootEvalD152Ledger,
+	nextRootEvalD152DevelopmentOrdinal,
 	ROOT_EVAL_D152_LEDGER_SCHEMA,
 	readRootEvalD152Ledger,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-d152-ledger.js";
@@ -1121,6 +1122,57 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		).toThrow(/historical ledger digest/u);
 	});
 
+	it("retains old partition receipts while the approved development-3 cap reaches exactly USD 40", () => {
+		let historical = ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER;
+		for (const [index, cost] of [12_000_000, 12_000_000, 4_000_000].entries()) {
+			historical = advanceRootEvalD145CharterLedger({
+				ledger: historical,
+				generationRef: rootEvalD145DevelopmentGenerationRef(index + 1),
+				campaignPurpose: "development",
+				taskSetRef: rootEvalD145DevelopmentTaskSetRef(index + 1),
+				taskManifestDigest: empiricalStrictJsonDigest(["cap-test-historical-manifest", index]),
+				budgetPartition: "development-usd-36",
+				providerReportedMicrousd: cost,
+				unreportedSettledUpperBoundMicrousd: 0,
+				accountedUpperBoundMicrousd: cost,
+				admissionStatus: "rejected",
+				developmentQualification: null,
+				evidenceDigest: empiricalStrictJsonDigest(["cap-test-historical-evidence", index]),
+			});
+		}
+		let ledger = createRootEvalD152Ledger(historical);
+		const advance = (ordinal: number, reported: number, unknown: number) =>
+			advanceRootEvalD152Ledger({
+				ledger,
+				generationRef: rootEvalD152DevelopmentGenerationRef(ordinal),
+				taskSetRef: rootEvalDevelopmentTaskSetRef(ordinal),
+				taskManifestDigest: empiricalStrictJsonDigest(["cap-test-manifest", ordinal]),
+				providerReportedMicrousd: reported,
+				unreportedSettledUpperBoundMicrousd: unknown,
+				accountedUpperBoundMicrousd: reported + unknown,
+				admissionStatus: "rejected",
+				developmentQualification: null,
+				evidenceDigest: empiricalStrictJsonDigest(["cap-test-evidence", ordinal]),
+			});
+		ledger = advance(1, 3_727_166, 0);
+		ledger = advance(2, 93_139, 4_000_000);
+		const historicEntries = JSON.stringify(ledger.entries);
+		expect(ledger.developmentSpentMicrousd).toBe(35_820_305);
+		expect(() => advance(3, 4_179_696, 0)).toThrow(/spend boundary/);
+		const next = advance(3, 4_179_695, 0);
+		expect(next.developmentSpentMicrousd).toBe(40_000_000);
+		expect(JSON.stringify(next.entries.slice(0, 2))).toBe(historicEntries);
+		expect(next.entries[1]!.unreportedSettledUpperBoundMicrousd).toBe(4_000_000);
+		expect(next.entries.map((entry) => entry.budgetPartition)).toEqual([
+			"development-usd-36",
+			"development-usd-36",
+			"development-usd-40",
+		]);
+		expect(next.confirmatorySpentMicrousd).toBe(0);
+		expect(next.heldOutConsumed).toBe(false);
+		expect(nextRootEvalD152DevelopmentOrdinal(next)).toBe(4);
+	});
+
 	it("carries historical spend but resets efficacy authority in the durable D152 ledger", () => {
 		const historical = advanceRootEvalD145CharterLedger({
 			ledger: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
@@ -1977,7 +2029,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			await rm(temporary, { force: true, recursive: true });
 		}
 	});
-	it("opens only the exact transient D152 development-2 authority and fresh private namespace", () => {
+	it("opens only the exact transient D152 development-3 authority and fresh private namespace", () => {
 		const liveEntry = readFileSync(
 			resolve(
 				repositoryRoot,
@@ -1986,10 +2038,13 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			"utf8",
 		);
 		expect(liveEntry).toContain(
-			'"user-authorized:d152-development-2:usd-4.272834:development-usd-36" as const',
+			'"user-authorized:d152-development-3:usd-4.179695:development-usd-40" as const',
 		);
 		expect(liveEntry).toContain("process.env.GRAPHREFLY_ROOT_EVAL_EXECUTION_AUTHORITY");
-		expect(liveEntry).toContain('ROOT_EVAL_LIVE_CAMPAIGN_SLOT !== "development-2"');
+		expect(liveEntry).toContain('ROOT_EVAL_LIVE_CAMPAIGN_SLOT !== "development-3"');
+		expect(liveEntry).not.toContain(
+			'"user-authorized:d152-development-2:usd-4.272834:development-usd-36"',
+		);
 		expect(liveEntry).not.toContain(
 			'"user-authorized:d152-development-1:usd-12:development-usd-36"',
 		);
@@ -1998,7 +2053,15 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		);
 		expect(liveEntry).not.toContain('join(operatorRoot, "current-live-d136")');
 	});
-	it("binds development-2 to the approved remaining cap without changing the charter ceiling", () => {
+	it.each([
+		{ ordinal: 2, cap: 4_272_834, partition: 36_000_000, partitionRef: "development-usd-36" },
+		{ ordinal: 3, cap: 4_179_695, partition: 40_000_000, partitionRef: "development-usd-40" },
+	])("binds development-$ordinal to its exact approved budget coordinates", ({
+		ordinal,
+		cap,
+		partition,
+		partitionRef,
+	}) => {
 		const moduleUrl = pathToFileURL(
 			resolve(
 				repositoryRoot,
@@ -2011,7 +2074,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				slot: a.ROOT_EVAL_LIVE_CAMPAIGN_SLOT,
 				generation: a.ROOT_EVAL_LIVE_GENERATION_REF,
 				cap: a.ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
-				partition: a.ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD
+				partition: a.ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD,
+				partitionRef: a.ROOT_EVAL_LIVE_BUDGET_PARTITION
 			}));
 		`;
 		const result = execFileSync(
@@ -2019,16 +2083,17 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			["--import", "tsx", "--input-type=module", "--eval", source],
 			{
 				cwd: repositoryRoot,
-				env: { ...process.env, GRAPHREFLY_ROOT_EVAL_CAMPAIGN_SLOT: "development-2" },
+				env: { ...process.env, GRAPHREFLY_ROOT_EVAL_CAMPAIGN_SLOT: `development-${ordinal}` },
 				encoding: "utf8",
 				timeout: 20_000,
 			},
 		);
 		expect(JSON.parse(result)).toEqual({
-			slot: "development-2",
-			generation: "root-eval-development-2026-09-01-d152-v2",
-			cap: 4_272_834,
-			partition: 36_000_000,
+			slot: `development-${ordinal}`,
+			generation: `root-eval-development-2026-09-01-d152-v${ordinal}`,
+			cap,
+			partition,
+			partitionRef,
 		});
 	});
 	it("keeps an unsettled caller await alive and releases the lease after settlement", async () => {

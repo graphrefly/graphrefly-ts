@@ -52,6 +52,7 @@ import {
 	ROOT_EVAL_D152_CONFIRMATORY_HARD_CAP_MICROUSD,
 	ROOT_EVAL_D152_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD,
 	ROOT_EVAL_D152_DEVELOPMENT_HARD_CAP_MICROUSD,
+	rootEvalD152DevelopmentBudgetPartition,
 	rootEvalD152DevelopmentGenerationRef,
 } from "./root-eval-charter-ledger.js";
 import {
@@ -102,7 +103,7 @@ function campaignPlan(slot: RootEvalTaskManifestSlot) {
 	const ordinal = rootEvalDevelopmentOrdinal(slot)!;
 	return Object.freeze({
 		campaignPurpose: "development" as const,
-		budgetPartition: "development-usd-36" as const,
+		budgetPartition: rootEvalD152DevelopmentBudgetPartition(ordinal),
 		taskSetRef: rootEvalDevelopmentTaskSetRef(ordinal),
 		generationRef: rootEvalD152DevelopmentGenerationRef(ordinal),
 		claimRef: `root-eval-development-claim-2026-09-01-d152-v${ordinal}`,
@@ -126,13 +127,17 @@ export const ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE =
 	ROOT_EVAL_LIVE_CAMPAIGN_PLAN.campaignPurpose satisfies EvalCampaignPurpose;
 export const ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD =
 	ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE === "development"
-		? ROOT_EVAL_D152_DEVELOPMENT_HARD_CAP_MICROUSD
+		? ROOT_EVAL_LIVE_CAMPAIGN_PLAN.budgetPartition === "development-usd-36"
+			? (36_000_000 as const)
+			: ROOT_EVAL_D152_DEVELOPMENT_HARD_CAP_MICROUSD
 		: ROOT_EVAL_D152_CONFIRMATORY_HARD_CAP_MICROUSD;
 export const ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD =
 	ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE === "development"
 		? ROOT_EVAL_LIVE_CAMPAIGN_SLOT === "development-2"
 			? (4_272_834 as const)
-			: ROOT_EVAL_D152_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD
+			: ROOT_EVAL_LIVE_CAMPAIGN_SLOT === "development-3"
+				? (4_179_695 as const)
+				: ROOT_EVAL_D152_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD
 		: ROOT_EVAL_D152_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD;
 export const ROOT_EVAL_LIVE_REPLICATE_COUNT = ROOT_EVAL_REPLICATE_COUNT;
 export const ROOT_EVAL_LIVE_TASK_SET_REF = ROOT_EVAL_LIVE_CAMPAIGN_PLAN.taskSetRef;

@@ -76,7 +76,7 @@ import { ensureRootEvalDevelopmentTaskManifest } from "./root-eval-task-manifest
 import { settledRootEvalSpend } from "./settled-spend.js";
 
 export const ROOT_EVAL_LIVE_EXECUTION_APPROVAL =
-	"user-authorized:d152-development-2:usd-4.272834:development-usd-36" as const;
+	"user-authorized:d152-development-3:usd-4.179695:development-usd-40" as const;
 export const ROOT_EVAL_LIVE_MOST_RECENT_SUCCESSFUL_CANONICAL_APPROVAL =
 	"graphrefly-ts:D116" as const;
 export const ROOT_EVAL_LIVE_MOST_RECENT_SUCCESSFUL_CANONICAL_CLOSEOUT =
@@ -641,10 +641,10 @@ async function main(): Promise<void> {
 	if (mode !== "--execute-live") throw new TypeError("root eval D152 live entry mode was invalid");
 	if (
 		ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_STATE !== ROOT_EVAL_LIVE_EXECUTION_APPROVAL ||
-		ROOT_EVAL_LIVE_CAMPAIGN_SLOT !== "development-2" ||
+		ROOT_EVAL_LIVE_CAMPAIGN_SLOT !== "development-3" ||
 		ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE !== "development"
 	)
-		throw new TypeError("root eval D152 development-2 live authority is unavailable");
+		throw new TypeError("root eval D152 development-3 live authority is unavailable");
 	let currentness: RootEvalLiveBoundedCurrentness | undefined;
 	let privateInputs: Awaited<ReturnType<typeof qualifyRootEvalLivePrivateInputs>> | undefined;
 	let pricing: RootEvalLivePricingObservation | undefined;

@@ -20,11 +20,19 @@ export const ROOT_EVAL_D145_HISTORICAL_CONFIRMATORY_TASK_SET_REF =
 export const ROOT_EVAL_D145_HISTORICAL_HELD_OUT_SEAL_DIGEST =
 	"sha256:304f65ead9d4d9139e2dcf2d3bb5f3152e0c95c33f1671917b53a54f8de0236e" as const;
 
-export const ROOT_EVAL_D152_DEVELOPMENT_HARD_CAP_MICROUSD = 36_000_000 as const;
+export const ROOT_EVAL_D152_DEVELOPMENT_HARD_CAP_MICROUSD = 40_000_000 as const;
 export const ROOT_EVAL_D152_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD = 12_000_000 as const;
 export const ROOT_EVAL_D152_CONFIRMATORY_HARD_CAP_MICROUSD = 6_000_000 as const;
 export const ROOT_EVAL_D152_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD = 6_000_000 as const;
-export const ROOT_EVAL_D152_TOTAL_HARD_CAP_MICROUSD = 42_000_000 as const;
+export const ROOT_EVAL_D152_TOTAL_HARD_CAP_MICROUSD = 46_000_000 as const;
+
+// Immutable generation 1/2 records retain their original partition identity.
+// The separately approved development-3 grant changes no historical receipt.
+export function rootEvalD152DevelopmentBudgetPartition(ordinal: number) {
+	if (!Number.isSafeInteger(ordinal) || ordinal < 1)
+		throw new TypeError("root eval D152 budget partition ordinal invalid");
+	return ordinal <= 2 ? ("development-usd-36" as const) : ("development-usd-40" as const);
+}
 
 export const ROOT_EVAL_D152_QUALIFICATION_EPOCH_SCHEMA =
 	"graphrefly-ts.root-eval-d152-qualification-epoch.v1" as const;
@@ -405,6 +413,9 @@ export function advanceRootEvalD145CharterLedger(input: {
 	readonly evidenceDigest: string;
 }): RootEvalD145CharterLedger {
 	const ledger = validateLedger(input.ledger);
+	const budgetPartition = input.budgetPartition;
+	if (budgetPartition === "development-usd-40")
+		throw new TypeError("root eval D145 charter transition was not authorized");
 	if (
 		!(
 			"admitted" === input.admissionStatus ||
@@ -502,7 +513,7 @@ export function advanceRootEvalD145CharterLedger(input: {
 			campaignPurpose: input.campaignPurpose,
 			taskSetRef: input.taskSetRef,
 			taskManifestDigest: input.taskManifestDigest,
-			budgetPartition: input.budgetPartition,
+			budgetPartition,
 			providerReportedMicrousd,
 			unreportedSettledUpperBoundMicrousd,
 			accountedUpperBoundMicrousd,
