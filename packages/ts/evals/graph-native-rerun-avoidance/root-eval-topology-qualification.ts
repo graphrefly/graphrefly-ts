@@ -5,7 +5,7 @@ import { HARNESS_ARMS } from "./harness-campaign-policy.js";
 import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifest.js";
 
 export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-topology-no-network-qa.v43" as const,
+	schemaVersion: "graphrefly-ts.root-eval-topology-no-network-qa.v44" as const,
 	exactTogetherCandidateGraphAdmissionQualified: true as const,
 	mixedProviderCatalogRejected: true as const,
 	decisionRefs: Object.freeze([
@@ -234,7 +234,7 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT_DIGEST = empiricalStrictJ
 
 const qualificationMaterial = Object.freeze({
 	providerSettlementAndTerminalDecisionRef: "graphrefly-ts:D154" as const,
-	schemaVersion: "graphrefly-ts.root-eval-topology-qualification.v43" as const,
+	schemaVersion: "graphrefly-ts.root-eval-topology-qualification.v44" as const,
 	decisionRef: "graphrefly-ts:D151" as const,
 	executionApprovalRef: "user-authorized-no-network-d151-d152-2026-09-01" as const,
 	verificationDiagnosticsImplementationReceiptRef: "graphrefly-ts:D120" as const,

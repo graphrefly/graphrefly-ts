@@ -3,11 +3,14 @@ import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifes
 import { ROOT_EVAL_LIVE_TASK_BINDING_DIGEST } from "./root-eval-live.js";
 
 export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-live-no-network-qa.v49" as const,
+	schemaVersion: "graphrefly-ts.root-eval-live-no-network-qa.v50" as const,
 	togetherCandidateInjectedFiveSourceThirtyTargetQualified: true as const,
 	wrongClaimRouteRejectedBeforeDispatch: true as const,
 	togetherMissingUsageRetainsReservation: true as const,
 	candidateDoesNotAuthorizeLive: true as const,
+	independentQualificationSharedDevelopmentReservation: true as const,
+	qualificationDoesNotConsumeGenerationOrStreak: true as const,
+	qualificationSingleUseExactWireAndAtomicReceipt: true as const,
 	decisionRefs: Object.freeze([
 		"graphrefly-ts:D76",
 		"graphrefly-ts:D81",
@@ -311,7 +314,7 @@ export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT_DIGEST = empiricalStrictJsonD
 
 const qualificationMaterial = Object.freeze({
 	providerSettlementAndTerminalDecisionRef: "graphrefly-ts:D154" as const,
-	schemaVersion: "graphrefly-ts.root-eval-live-qualification.v49" as const,
+	schemaVersion: "graphrefly-ts.root-eval-live-qualification.v50" as const,
 	decisionRef: "graphrefly-ts:D152" as const,
 	implementationExecutionApprovalRef: "user-authorized-no-network-d151-d152-2026-09-01" as const,
 	verificationDiagnosticsImplementationReceiptRef: "graphrefly-ts:D120" as const,

@@ -779,4 +779,12 @@ async function main(): Promise<void> {
 	}
 }
 
-await main();
+// D155: campaigns and independent qualification share an execution exclusion
+// as well as an atomic budget ledger. A stale lock requires explicit recovery.
+const { acquireRootEvalD152Execution } = await import("./root-eval-d152-ledger.js");
+const releaseExecution = await acquireRootEvalD152Execution(charterLedgerPath);
+try {
+	await main();
+} finally {
+	await releaseExecution();
+}

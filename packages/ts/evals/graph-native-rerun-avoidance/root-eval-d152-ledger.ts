@@ -6,6 +6,12 @@ import { strictJsonCodec } from "../../src/json/codec.js";
 import { empiricalStrictJsonDigest, exactKeys, literal, record, safeInteger } from "./canonical.js";
 import type { EvalDevelopmentQualificationState } from "./eval-topology.js";
 import {
+	initialQualificationState,
+	PROVIDER_QUALIFICATION_CAP,
+	type QualificationState,
+	validateQualificationState,
+} from "./provider-qualification.js";
+import {
 	ROOT_EVAL_D152_CONFIRMATORY_HARD_CAP_MICROUSD,
 	ROOT_EVAL_D152_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD,
 	ROOT_EVAL_D152_DEVELOPMENT_HARD_CAP_MICROUSD,
@@ -19,7 +25,7 @@ import type { RootEvalLiveEvidence } from "./root-eval-live-authority.js";
 import { persistRootEvalLiveEvidence } from "./root-eval-live-authority.js";
 import { rootEvalDevelopmentTaskSetRef } from "./root-eval-task.js";
 
-export const ROOT_EVAL_D152_LEDGER_SCHEMA = "graphrefly-ts.root-eval-d152-ledger.v1" as const;
+export const ROOT_EVAL_D152_LEDGER_SCHEMA = "graphrefly-ts.root-eval-d152-ledger.v2" as const;
 export const ROOT_EVAL_D152_TRANSACTION_SCHEMA =
 	"graphrefly-ts.root-eval-d152-transaction.v1" as const;
 function developmentOrdinal(generationRef: string): number | null {
@@ -57,7 +63,17 @@ export type RootEvalD152Ledger = Readonly<{
 	readonly heldOutSealDigest: null;
 	readonly heldOutConsumed: false;
 	readonly entries: readonly RootEvalD152LedgerEntry[];
+	readonly qualificationFormatPredecessorDigest: string | null;
+	readonly qualifications: readonly RootEvalD152QualificationEntry[];
 	readonly ledgerDigest: string;
+}>;
+
+export type RootEvalD152QualificationEntry = Readonly<{
+	executionRef: string;
+	grantDigest: string;
+	status: "reserved" | "settled";
+	accountedUpperBoundMicrousd: number;
+	receipt: QualificationState | null;
 }>;
 
 function material(input: Omit<RootEvalD152Ledger, "ledgerDigest">) {
@@ -73,6 +89,8 @@ function material(input: Omit<RootEvalD152Ledger, "ledgerDigest">) {
 		heldOutSealDigest: null,
 		heldOutConsumed: false as const,
 		entries: Object.freeze([...input.entries]),
+		qualificationFormatPredecessorDigest: input.qualificationFormatPredecessorDigest,
+		qualifications: Object.freeze([...input.qualifications]),
 	});
 }
 
@@ -91,6 +109,8 @@ export function createRootEvalD152Ledger(
 		heldOutSealDigest: null,
 		heldOutConsumed: false,
 		entries: [],
+		qualificationFormatPredecessorDigest: null,
+		qualifications: [],
 	});
 	if (
 		value.developmentSpentMicrousd > ROOT_EVAL_D152_DEVELOPMENT_HARD_CAP_MICROUSD ||
@@ -118,6 +138,8 @@ function validate(value: unknown): RootEvalD152Ledger {
 			"heldOutSealDigest",
 			"heldOutConsumed",
 			"entries",
+			"qualificationFormatPredecessorDigest",
+			"qualifications",
 			"ledgerDigest",
 		],
 		"root eval D152 ledger",
@@ -131,6 +153,46 @@ function validate(value: unknown): RootEvalD152Ledger {
 		!Array.isArray(root.entries)
 	)
 		throw new TypeError("root eval D152 ledger authority invalid");
+	if (
+		(root.qualificationFormatPredecessorDigest !== null &&
+			!/^sha256:[a-f0-9]{64}$/u.test(String(root.qualificationFormatPredecessorDigest))) ||
+		!Array.isArray(root.qualifications) ||
+		root.qualifications.length > 64
+	)
+		throw new TypeError("root eval D152 qualification authority invalid");
+	const qualifications = root.qualifications.map((raw) => {
+		const entry = record(raw, "qualification ledger entry");
+		exactKeys(
+			entry,
+			["executionRef", "grantDigest", "status", "accountedUpperBoundMicrousd", "receipt"],
+			"qualification ledger entry",
+		);
+		if (
+			typeof entry.executionRef !== "string" ||
+			!/^sha256:[a-f0-9]{64}$/u.test(String(entry.grantDigest))
+		)
+			throw new TypeError("qualification ledger identity invalid");
+		initialQualificationState(entry.executionRef);
+		const receipt = entry.receipt === null ? null : validateQualificationState(entry.receipt);
+		if (entry.status === "reserved") {
+			if (receipt !== null || entry.accountedUpperBoundMicrousd !== PROVIDER_QUALIFICATION_CAP)
+				throw new TypeError("qualification reservation invalid");
+		} else if (entry.status === "settled") {
+			if (
+				receipt === null ||
+				!receipt.terminal ||
+				receipt.executionRef !== entry.executionRef ||
+				entry.accountedUpperBoundMicrousd !== receipt.accountedMicrousd
+			)
+				throw new TypeError("qualification settlement invalid");
+		} else throw new TypeError("qualification status invalid");
+		return Object.freeze({ ...entry, receipt }) as RootEvalD152QualificationEntry;
+	});
+	if (
+		new Set(qualifications.map((entry) => entry.executionRef)).size !== qualifications.length ||
+		qualifications.filter((entry) => entry.status === "reserved").length > 1
+	)
+		throw new TypeError("qualification replay or overlapping reservations");
 	const carriedDevelopmentSpentMicrousd = safeInteger(
 		root.carriedDevelopmentSpentMicrousd,
 		"root eval D152 carried development spend",
@@ -228,12 +290,17 @@ function validate(value: unknown): RootEvalD152Ledger {
 		heldOutSealDigest: null,
 		heldOutConsumed: false,
 		entries,
+		qualificationFormatPredecessorDigest: root.qualificationFormatPredecessorDigest as
+			| string
+			| null,
+		qualifications,
 	});
 	if (
 		root.ledgerDigest !== empiricalStrictJsonDigest(checked) ||
 		developmentSpentMicrousd !==
 			carriedDevelopmentSpentMicrousd +
-				entries.reduce((sum, entry) => sum + entry.accountedUpperBoundMicrousd, 0) ||
+				entries.reduce((sum, entry) => sum + entry.accountedUpperBoundMicrousd, 0) +
+				qualifications.reduce((sum, entry) => sum + entry.accountedUpperBoundMicrousd, 0) ||
 		confirmatorySpentMicrousd !== carriedConfirmatorySpentMicrousd ||
 		developmentQualificationStreak !== derivedStreak ||
 		new Set(entries.map((entry) => entry.taskManifestDigest)).size !== entries.length
@@ -269,6 +336,40 @@ async function writeLedger(path: string, ledger: RootEvalD152Ledger): Promise<vo
 	}
 }
 
+/** Process-lifetime exclusion: a crash leaves a fail-closed lock, never an auto-retry lease. */
+export async function acquireRootEvalD152Execution(path: string): Promise<() => Promise<void>> {
+	const lockPath = `${resolve(path)}.execution-lock`;
+	await mkdir(dirname(lockPath), { recursive: true, mode: 0o700 });
+	const lock = await open(
+		lockPath,
+		constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+		0o600,
+	);
+	await lock.sync();
+	await syncDirectory(dirname(lockPath));
+	return async () => {
+		await lock.close();
+		await rm(lockPath);
+		await syncDirectory(dirname(lockPath));
+	};
+}
+
+async function withLedgerWriteLock<T>(path: string, run: () => Promise<T>): Promise<T> {
+	const lockPath = `${resolve(path)}.write-lock`;
+	const lock = await open(
+		lockPath,
+		constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+		0o600,
+	);
+	try {
+		return await run();
+	} finally {
+		await lock.close();
+		await rm(lockPath);
+		await syncDirectory(dirname(lockPath));
+	}
+}
+
 async function syncDirectory(path: string): Promise<void> {
 	const directory = await open(resolve(path), constants.O_RDONLY | constants.O_DIRECTORY);
 	try {
@@ -292,13 +393,177 @@ export async function readRootEvalD152Ledger(input: {
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
 		const ledger = createRootEvalD152Ledger(input.historicalLedger);
-		await writeLedger(input.path, ledger);
+		await mkdir(dirname(resolve(input.path)), { recursive: true, mode: 0o700 });
+		await withLedgerWriteLock(input.path, async () => {
+			try {
+				await readFile(input.path);
+				throw new TypeError("D152 ledger initialized concurrently");
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+			}
+			await writeLedger(input.path, ledger);
+		});
 		return ledger;
 	}
 }
 
 export function nextRootEvalD152DevelopmentOrdinal(ledger: RootEvalD152Ledger): number {
-	return validate(ledger).entries.length + 1;
+	const checked = validate(ledger);
+	if (checked.qualifications.some((entry) => entry.status === "reserved"))
+		throw new TypeError("qualification reservation prevents campaign admission");
+	return checked.entries.length + 1;
+}
+
+export function reserveRootEvalQualification(
+	ledger: RootEvalD152Ledger,
+	executionRef: string,
+	grantDigest: string,
+): RootEvalD152Ledger {
+	const checked = validate(ledger);
+	if (
+		checked.qualifications.some(
+			(entry) => entry.status === "reserved" || entry.executionRef === executionRef,
+		)
+	)
+		throw new TypeError("qualification already reserved or consumed");
+	const value = material({
+		...checked,
+		developmentSpentMicrousd: checked.developmentSpentMicrousd + PROVIDER_QUALIFICATION_CAP,
+		qualifications: [
+			...checked.qualifications,
+			{
+				executionRef,
+				grantDigest,
+				status: "reserved",
+				accountedUpperBoundMicrousd: PROVIDER_QUALIFICATION_CAP,
+				receipt: null,
+			},
+		],
+	});
+	return validate({ ...value, ledgerDigest: empiricalStrictJsonDigest(value) });
+}
+
+export function settleRootEvalQualification(
+	ledger: RootEvalD152Ledger,
+	grantDigest: string,
+	rawReceipt: QualificationState,
+): RootEvalD152Ledger {
+	const checked = validate(ledger);
+	const receipt = validateQualificationState(rawReceipt);
+	const entry = checked.qualifications.find((item) => item.executionRef === receipt.executionRef);
+	if (entry === undefined || entry.grantDigest !== grantDigest || !receipt.terminal)
+		throw new TypeError("qualification settlement lacks reserved grant or terminal receipt");
+	if (entry.status === "settled") {
+		if (empiricalStrictJsonDigest(entry.receipt) !== empiricalStrictJsonDigest(receipt))
+			throw new TypeError("qualification conflicting settlement replay");
+		return checked;
+	}
+	const value = material({
+		...checked,
+		developmentSpentMicrousd:
+			checked.developmentSpentMicrousd -
+			entry.accountedUpperBoundMicrousd +
+			receipt.accountedMicrousd,
+		qualifications: checked.qualifications.map((item) =>
+			item === entry
+				? {
+						...entry,
+						status: "settled" as const,
+						accountedUpperBoundMicrousd: receipt.accountedMicrousd,
+						receipt,
+					}
+				: item,
+		),
+	});
+	return validate({ ...value, ledgerDigest: empiricalStrictJsonDigest(value) });
+}
+
+// A single atomic object contains both the budget and bounded receipt. Crashes
+// before settlement retain the entire reservation; this API never redispatches.
+export async function updateRootEvalQualificationLedger(input: {
+	path: string;
+	expectedLedgerDigest: string;
+	update: (ledger: RootEvalD152Ledger) => RootEvalD152Ledger;
+}): Promise<RootEvalD152Ledger> {
+	const path = resolve(input.path);
+	const lockPath = `${path}.write-lock`;
+	const lock = await open(
+		lockPath,
+		constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+		0o600,
+	);
+	try {
+		const current = validate(strictJsonCodec.decode(new Uint8Array(await readFile(path))));
+		if (current.ledgerDigest !== input.expectedLedgerDigest)
+			throw new TypeError("qualification ledger currentness changed");
+		const next = validate(input.update(current));
+		await writeLedger(path, next);
+		return next;
+	} finally {
+		await lock.close();
+		await rm(lockPath);
+		await syncDirectory(dirname(path));
+	}
+}
+
+/** Explicit format upgrade only; ordinary readers reject v1. No historical cost is rewritten. */
+export async function upgradeRootEvalQualificationLedger(
+	path: string,
+	expectedDigest: string,
+): Promise<RootEvalD152Ledger> {
+	const target = resolve(path);
+	const lockPath = `${target}.write-lock`;
+	const lock = await open(
+		lockPath,
+		constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+		0o600,
+	);
+	try {
+		const bytes = new Uint8Array(await readFile(target));
+		const prior = record(strictJsonCodec.decode(bytes), "qualification predecessor ledger");
+		if (
+			prior.schemaVersion !== "graphrefly-ts.root-eval-d152-ledger.v1" ||
+			prior.ledgerDigest !== expectedDigest
+		)
+			throw new TypeError("qualification predecessor does not match explicit upgrade");
+		const { ledgerDigest, ...body } = prior;
+		if (ledgerDigest !== empiricalStrictJsonDigest(body))
+			throw new TypeError("qualification predecessor digest invalid");
+		const value = {
+			...body,
+			schemaVersion: ROOT_EVAL_D152_LEDGER_SCHEMA,
+			qualificationFormatPredecessorDigest: ledgerDigest,
+			qualifications: [],
+		};
+		const next = validate({ ...value, ledgerDigest: empiricalStrictJsonDigest(value) });
+		const archivePath = `${target}.before-qualification`;
+		try {
+			const archive = await open(
+				archivePath,
+				constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+				0o600,
+			);
+			try {
+				await archive.writeFile(bytes);
+				await archive.sync();
+			} finally {
+				await archive.close();
+			}
+		} catch (error) {
+			if (
+				(error as NodeJS.ErrnoException).code !== "EEXIST" ||
+				!Buffer.from(await readFile(archivePath)).equals(Buffer.from(bytes))
+			)
+				throw error;
+		}
+		await syncDirectory(dirname(target));
+		await writeLedger(target, next);
+		return next;
+	} finally {
+		await lock.close();
+		await rm(lockPath);
+		await syncDirectory(dirname(target));
+	}
 }
 
 export function advanceRootEvalD152Ledger(input: {
@@ -314,6 +579,8 @@ export function advanceRootEvalD152Ledger(input: {
 	readonly evidenceDigest: string;
 }): RootEvalD152Ledger {
 	const ledger = validate(input.ledger);
+	if (ledger.qualifications.some((entry) => entry.status === "reserved"))
+		throw new TypeError("qualification reservation prevents campaign advancement");
 	const ordinal = developmentOrdinal(input.generationRef);
 	if (
 		ordinal !== nextRootEvalD152DevelopmentOrdinal(ledger) ||
@@ -466,6 +733,13 @@ async function installJournal(path: string, value: RootEvalD152Transaction): Pro
 }
 
 async function finishTransaction(value: RootEvalD152Transaction): Promise<{
+	readonly persistence: Awaited<ReturnType<typeof persistRootEvalLiveEvidence>>;
+	readonly nextLedger: RootEvalD152Ledger;
+}> {
+	return withLedgerWriteLock(value.ledgerPath, () => finishTransactionLocked(value));
+}
+
+async function finishTransactionLocked(value: RootEvalD152Transaction): Promise<{
 	readonly persistence: Awaited<ReturnType<typeof persistRootEvalLiveEvidence>>;
 	readonly nextLedger: RootEvalD152Ledger;
 }> {
