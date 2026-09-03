@@ -54,7 +54,18 @@ reviewers found no remaining issue. The separate no-network candidate executor
 does not use credentials or provider fetch.
 
 Focused checks passed 47 tests (80 nonmatching tests excluded by that focused
-selection). Full-suite and clean-committed-state results are reported at delivery.
+selection). After fixing a mistaken topology/live qualification digest reference,
+the complete suite passed in clean committed state at `3d2b1c45` with
+`NODE_ENV=test pnpm test`: 2190 passed, four existing skips, 133 test files passed
+and one existing skipped file. No test was disabled for this change. The logged
+run completed with exit zero at 2026-09-02 23:30:40 PDT in 657 seconds:
+`.runlog/run-20260902-231943-87897.log`.
+
+Lint, eval typecheck, package build, ESM/CJS/DTS export smoke, raw-artifact
+reproduction and diff checks passed. The root retains 311 node identities and
+413 identical edges. Private ledger digest remains
+`sha256:ac37f63e1a6964966e15b24d2a906b81a0690095d0fe0ef3d212db6a63b8305a`.
+This QA closeout changes documentation only; the frozen runtime closure is unchanged.
 Ownership checkpoints were skipped at the user's request: delivered, not yet
 ownership-verified.
 
