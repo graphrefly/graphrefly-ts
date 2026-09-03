@@ -728,7 +728,7 @@ function createDeepSeekV4Flash0731StructuredProfileDefinition(
 		providerModelRef: target.modelRef,
 		endpointProtocol: "chat-completions",
 		proposalEncoding: "strict-json-schema",
-		responseContractRevision: "bounded-structured-proposal.v3",
+		responseContractRevision: "occurrence-bound-candidate-selection.v4",
 	});
 	return Object.freeze({ target, profile, binding });
 }

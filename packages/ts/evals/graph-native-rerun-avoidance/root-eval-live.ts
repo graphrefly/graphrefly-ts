@@ -37,6 +37,7 @@ import type {
 	EvalRetryDelayOutcome,
 } from "./eval-topology.js";
 import {
+	assertRootEvalToolAdmissionReceipt,
 	EVAL_PROVIDER_CONDITIONAL_AVAILABILITY_CODES,
 	ROOT_EVAL_CALLER_SAFETY_LEASE_MS,
 	ROOT_EVAL_MAX_INFRASTRUCTURE_RETRY_DELAY_MS,
@@ -70,7 +71,9 @@ import {
 	type RootEvalTaskManifest,
 	type RootEvalTaskManifestSlot,
 	readRootEvalTaskManifest,
+	rootEvalCandidateWorkspaceSnapshotDigest,
 	rootEvalTask,
+	rootEvalToolCandidateCatalog,
 } from "./root-eval-task.js";
 
 export const ROOT_EVAL_LIVE_DECISION_REF = "graphrefly-ts:D152" as const;
@@ -97,6 +100,7 @@ function executionTask(
 		taskStatement: task.sourceTaskStatement,
 		fixtureCorrectText: task.sourceFixtureCorrectText,
 		fixtureBuggyText: task.sourceFixtureBuggyText,
+		fixtureAlternativeText: task.sourceFixtureAlternativeText,
 		readonlyFixtureFiles: task.sourceReadonlyFixtureFiles,
 		actorContext: task.sourceActorContext,
 		publicVerifierPath: task.sourcePublicVerifierPath,
@@ -500,9 +504,8 @@ interface ProviderResult {
 	readonly retryAfterMs: number;
 	readonly providerErrorCode: string | null;
 	readonly tool: Readonly<{
-		readonly path: string;
-		readonly oldText: string;
-		readonly newText: string;
+		readonly candidateRef: string;
+		readonly candidateCatalogDigest: string;
 	}> | null;
 }
 
@@ -1006,20 +1009,18 @@ function errorOnlyUpstreamRaw(value: unknown): boolean {
 	);
 }
 
-function exactReplacementResponseFormat(writablePath: string) {
+function candidateSelectionResponseFormat(candidateRefs: readonly [string, string]) {
 	return {
 		type: "json_schema",
 		json_schema: {
-			name: "exact_replacement_proposal",
+			name: "occurrence_bound_candidate_selection",
 			strict: true,
 			schema: {
 				type: "object",
 				additionalProperties: false,
-				required: ["path", "oldText", "newText"],
+				required: ["candidateRef"],
 				properties: {
-					path: { type: "string", enum: [writablePath] },
-					oldText: { type: "string", minLength: 1, maxLength: 32_768 },
-					newText: { type: "string", maxLength: 32_768 },
+					candidateRef: { type: "string", enum: [...candidateRefs] },
 				},
 			},
 		},
@@ -1091,13 +1092,16 @@ function qualifyRootEvalNonbillableResponse(
 			"nonbillable schema body",
 		);
 		const properties = object(schema.properties, "nonbillable schema properties");
-		const paths = object(properties.path, "nonbillable schema path").enum;
+		const candidateRefs = object(properties.candidateRef, "nonbillable schema candidate ref").enum;
 		if (
-			!Array.isArray(paths) ||
-			paths.length !== 1 ||
-			!boundedErrorText(paths[0], 1_024) ||
+			!Array.isArray(candidateRefs) ||
+			candidateRefs.length !== 2 ||
+			candidateRefs.some((candidateRef) => !boundedErrorText(candidateRef, 1_024)) ||
+			candidateRefs[0] === candidateRefs[1] ||
 			empiricalStrictJsonDigest(format) !==
-				empiricalStrictJsonDigest(exactReplacementResponseFormat(paths[0])) ||
+				empiricalStrictJsonDigest(
+					candidateSelectionResponseFormat(candidateRefs as [string, string]),
+				) ||
 			reasoning.effort !== admission.reasoningEffort
 		)
 			return undefined;
@@ -1147,7 +1151,8 @@ export function parseRootEvalLiveProviderResponse(input: {
 	readonly retryAfter: string | null;
 	readonly pricing: RootEvalLivePricing;
 	readonly reservationMicrousd: number;
-	readonly writablePath?: string;
+	readonly candidateRefs: readonly [string, string];
+	readonly candidateCatalogDigest: string;
 	readonly nowMs?: number;
 	/** Exact wire bytes and receipt are required before a policy-derived zero is possible. */
 	readonly nonbillableContext?: Readonly<{
@@ -1358,11 +1363,7 @@ export function parseRootEvalLiveProviderResponse(input: {
 	let args: Record<string, unknown>;
 	try {
 		assertUniqueJsonObjectKeys(message.content);
-		args = exactObject(
-			JSON.parse(message.content),
-			["newText", "oldText", "path"],
-			"structured proposal",
-		);
+		args = exactObject(JSON.parse(message.content), ["candidateRef"], "structured proposal");
 	} catch {
 		responseError(
 			"response-proposal-invalid",
@@ -1372,21 +1373,15 @@ export function parseRootEvalLiveProviderResponse(input: {
 			cost.pricingRoundingAllowanceMicrousd,
 		);
 	}
-	const writablePath = input.writablePath ?? ROOT_EVAL_LIVE_WRITABLE_PATH;
 	if (
-		args.path !== writablePath ||
-		typeof args.oldText !== "string" ||
-		typeof args.newText !== "string" ||
-		args.oldText.length < 1 ||
-		args.oldText.length > 32_768 ||
-		args.newText.length > 32_768 ||
-		hasUnpairedSurrogate(args.path) ||
-		hasUnpairedSurrogate(args.oldText) ||
-		hasUnpairedSurrogate(args.newText)
+		typeof args.candidateRef !== "string" ||
+		!input.candidateRefs.includes(args.candidateRef) ||
+		hasUnpairedSurrogate(args.candidateRef) ||
+		!/^sha256:[0-9a-f]{64}$/u.test(input.candidateCatalogDigest)
 	)
 		responseError(
 			"response-proposal-arguments-invalid",
-			"root eval live exact tool arguments failed their bound",
+			"root eval live candidate selection failed its occurrence-bound catalog",
 			cost.costMicrousd,
 			"provider-reported",
 			cost.pricingRoundingAllowanceMicrousd,
@@ -1421,9 +1416,8 @@ export function parseRootEvalLiveProviderResponse(input: {
 		retryAfterMs: 0,
 		providerErrorCode: null,
 		tool: Object.freeze({
-			path: args.path,
-			oldText: args.oldText,
-			newText: args.newText,
+			candidateRef: args.candidateRef,
+			candidateCatalogDigest: input.candidateCatalogDigest,
 		}),
 	});
 }
@@ -1441,13 +1435,21 @@ function admittedPayload(
 	if (payload === null || typeof payload !== "object" || Array.isArray(payload))
 		throw new TypeError("root eval live effect lost its admitted provider payload");
 	const value = payload as Record<string, unknown>;
+	const candidateCatalog = rootEvalToolCandidateCatalog(
+		task,
+		effect.workItemRole,
+		effect.workItemId,
+	);
 	if (
 		(effect.providerRef !== "fireworks" && effect.providerRef !== "together") ||
 		effect.providerModelRef !== "deepseek/deepseek-v4-flash-0731" ||
 		effect.endpointProtocol !== "chat-completions" ||
 		effect.proposalEncoding !== "strict-json-schema" ||
-		effect.responseContractRevision !== "bounded-structured-proposal.v3" ||
-		!/^sha256:[0-9a-f]{64}$/u.test(effect.profileResolutionDigest)
+		effect.responseContractRevision !== "occurrence-bound-candidate-selection.v4" ||
+		!/^sha256:[0-9a-f]{64}$/u.test(effect.profileResolutionDigest) ||
+		value.candidateCatalogDigest !== candidateCatalog.catalogDigest ||
+		JSON.stringify(value.candidateRefs) !==
+			JSON.stringify(candidateCatalog.candidates.map((candidate) => candidate.candidateRef))
 	)
 		throw new TypeError("root eval live effect lost its exact qualified profile binding");
 	if (effect.workItemRole === "source") {
@@ -1565,6 +1567,11 @@ async function liveWire(
 ): Promise<string> {
 	signal?.throwIfAborted();
 	const admitted = admittedPayload(effect, task, tasks, taskManifestDigest);
+	const candidateCatalog = rootEvalToolCandidateCatalog(
+		task,
+		effect.workItemRole,
+		effect.workItemId,
+	);
 	const actorSections: string[] = [];
 	for (const source of task.actorContext) {
 		const material = await readFile(join(root, source.path), "utf8");
@@ -1583,14 +1590,16 @@ async function liveWire(
 			{
 				role: "system",
 				content:
-					"You are editing one bounded TypeScript workspace. Inspect the supplied producer and identity contracts, then return exactly one JSON object matching the required replacement schema. Put the complete smallest behaviorally correct change in that object. The oldText field must be copied byte-for-byte from exactly one occurrence in the supplied admitted file, including tabs, spaces, line endings, and surrounding indentation; newText replaces only that exact occurrence. Do not claim validation; the Graph runs independent public and withheld behavioral verification.",
+					"You are choosing one bounded action for a TypeScript workspace. Inspect the supplied contracts and admitted memory, then return exactly one JSON object matching the candidate-selection schema. Select only the candidateRef whose described action satisfies the task. Do not author patch text or claim validation; the Graph admits the occurrence-bound candidate and runs independent public and withheld behavioral verification.",
 			},
 			{
 				role: "user",
-				content: `${task.taskStatement}\n\n### Admitted memory context\n${admitted.memoryContent}\n\n${actorSections.join("\n\n")}`,
+				content: `${task.taskStatement}\n\n### Admitted memory context\n${admitted.memoryContent}\n\n### Available actions\n${JSON.stringify(candidateCatalog.candidates.map(({ candidateRef, action }) => ({ candidateRef, action })))}\n\n${actorSections.join("\n\n")}`,
 			},
 		],
-		response_format: exactReplacementResponseFormat(task.writablePath),
+		response_format: candidateSelectionResponseFormat(
+			candidateCatalog.candidates.map((candidate) => candidate.candidateRef) as [string, string],
+		),
 		max_tokens: effect.maxOutputTokens,
 		reasoning: { effort: effect.reasoningEffort },
 		provider: {
@@ -1694,30 +1703,72 @@ export function rootEvalWorkspaceForAdmission(
 	);
 }
 
-async function applyExactTool(
+async function applyExactCandidateTool(
 	root: string,
 	tool: NonNullable<ProviderResult["tool"]>,
 	task: RootEvalTaskDefinition,
+	workItemRole: "source" | "target",
+	workItemId: string,
 ): Promise<"scoped-change" | "no-change" | "wrong-scope"> {
-	const path = resolve(root, tool.path);
-	if (!path.startsWith(`${resolve(root)}/`) || tool.path !== task.writablePath)
+	const catalog = rootEvalToolCandidateCatalog(task, workItemRole, workItemId);
+	if (catalog.catalogDigest !== tool.candidateCatalogDigest)
+		throw new TypeError("root eval exact candidate tool catalog drifted");
+	const candidate = catalog.candidates.find((entry) => entry.candidateRef === tool.candidateRef);
+	if (candidate === undefined)
+		throw new TypeError("root eval exact candidate tool received an unadmitted candidate");
+	const path = resolve(root, candidate.path);
+	if (!path.startsWith(`${resolve(root)}/`) || candidate.path !== task.writablePath)
 		throw new TypeError("root eval exact tool escaped its admitted path");
 	const stat = await lstat(path);
 	if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1)
 		throw new TypeError("root eval exact tool target identity drifted");
 	const source = await readFile(path, "utf8");
-	const first = source.indexOf(tool.oldText);
+	const readonlyFixtures = await Promise.all(
+		task.readonlyFixtureFiles.map(async (fixture) =>
+			Object.freeze({
+				path: fixture.path,
+				digest: empiricalStrictJsonDigest(await readFile(resolve(root, fixture.path), "utf8")),
+			}),
+		),
+	);
+	const runtimeWorkspaceSnapshotDigest = empiricalStrictJsonDigest({
+		writable: { path: candidate.path, digest: empiricalStrictJsonDigest(source) },
+		readonly: readonlyFixtures,
+	});
 	if (
-		tool.oldText === tool.newText ||
-		first < 0 ||
-		source.indexOf(tool.oldText, first + tool.oldText.length) >= 0
+		runtimeWorkspaceSnapshotDigest !== candidate.workspaceSnapshotDigest ||
+		candidate.workspaceSnapshotDigest !==
+			rootEvalCandidateWorkspaceSnapshotDigest(task, workItemRole)
 	)
-		return "no-change";
+		throw new TypeError("root eval exact candidate tool workspace snapshot drifted");
+	const preexistingDiff = await runProcess({
+		command: "/usr/bin/git",
+		args: ["diff", "--name-only"],
+		cwd: root,
+		timeoutMs: 30_000,
+	});
+	if (preexistingDiff.code !== 0 || new TextDecoder().decode(preexistingDiff.stdout).trim() !== "")
+		throw new TypeError("root eval exact candidate tool workspace was already dirty");
+	const first = source.indexOf(candidate.oldSpanText);
+	if (
+		empiricalStrictJsonDigest(candidate.oldSpanText) !== candidate.oldSpanDigest ||
+		first < 0 ||
+		source.indexOf(candidate.oldSpanText, first + candidate.oldSpanText.length) >= 0
+	)
+		throw new TypeError("root eval exact candidate tool old-byte span was not unique");
+	if (empiricalStrictJsonDigest(candidate.replacementText) !== candidate.replacementDigest)
+		throw new TypeError("root eval exact candidate tool replacement bytes drifted");
+	if (source === candidate.replacementText)
+		throw new TypeError("root eval exact candidate tool rejected a no-op intervention");
 	await writeFile(
 		path,
-		`${source.slice(0, first)}${tool.newText}${source.slice(first + tool.oldText.length)}`,
+		`${source.slice(0, first)}${candidate.replacementText}${source.slice(first + candidate.oldSpanText.length)}`,
 		"utf8",
 	);
+	if (empiricalStrictJsonDigest(await readFile(path, "utf8")) !== candidate.replacementDigest)
+		throw new TypeError(
+			"root eval exact candidate tool did not persist replacement bytes verbatim",
+		);
 	const diff = await runProcess({
 		command: "/usr/bin/git",
 		args: ["diff", "--name-only"],
@@ -1737,7 +1788,7 @@ async function verify(
 	signal?: AbortSignal,
 	onDiagnostic?: (kind: "public-verifier" | "hidden-verifier", result: ProcessResult) => void,
 ) {
-	if (diff !== "scoped-change")
+	if (diff === "wrong-scope")
 		return Object.freeze({ publicSemantic: false, hiddenVerifier: false });
 	await mkdir(dirname(join(root, task.publicVerifierPath)), { recursive: true });
 	await writeFile(join(root, task.publicVerifierPath), task.publicVerifierSource, "utf8");
@@ -1797,32 +1848,66 @@ export async function qualifyRootEvalMechanismTaskFamily(input: {
 	const results = [];
 	for (const definition of tasks) {
 		const task = executionTask(definition, input.workItemRole ?? "target");
+		const workItemRole = input.workItemRole ?? "target";
+		const workItemId = `${task.instanceRef}/${workItemRole}-qualification-work-item`;
 		const effect = {
 			replicate: task.replicate,
 			arm: "relevant-applied",
 			dispatchOrdinal: 1,
+			workItemRole,
+			workItemId,
 		} as EvalAdmittedEffect;
-		const root = await materialize({
+		let root = await materialize({
 			repositoryRoot: resolve(input.repositoryRoot),
 			materializationRoot,
 			effect,
 			task,
 		});
 		try {
-			const ambiguousBug = await verify(root, "scoped-change", task);
-			const diff = await applyExactTool(
+			const catalog = rootEvalToolCandidateCatalog(task, workItemRole, effect.workItemId);
+			const alternativeCandidate = catalog.candidates.find(
+				(candidate) =>
+					candidate.replacementDigest === empiricalStrictJsonDigest(task.fixtureAlternativeText),
+			);
+			const correctCandidate = catalog.candidates.find(
+				(candidate) =>
+					candidate.replacementDigest === empiricalStrictJsonDigest(task.fixtureCorrectText),
+			);
+			if (alternativeCandidate === undefined || correctCandidate === undefined)
+				throw new TypeError("root eval candidate task family lost one action");
+			const alternativeDiff = await applyExactCandidateTool(
 				root,
 				{
-					path: task.writablePath,
-					oldText: task.fixtureBuggyText,
-					newText: task.fixtureCorrectText,
+					candidateRef: alternativeCandidate.candidateRef,
+					candidateCatalogDigest: catalog.catalogDigest,
 				},
 				task,
+				workItemRole,
+				workItemId,
+			);
+			const ambiguousBug = await verify(root, alternativeDiff, task);
+			await rm(root, { recursive: true, force: true });
+			root = await materialize({
+				repositoryRoot: resolve(input.repositoryRoot),
+				materializationRoot,
+				effect: Object.freeze({ ...effect, dispatchOrdinal: 2 }),
+				task,
+			});
+			const diff = await applyExactCandidateTool(
+				root,
+				{
+					candidateRef: correctCandidate.candidateRef,
+					candidateCatalogDigest: catalog.catalogDigest,
+				},
+				task,
+				workItemRole,
+				workItemId,
 			);
 			const correct = await verify(root, diff, task);
 			if (
 				!ambiguousBug.publicSemantic ||
 				ambiguousBug.hiddenVerifier ||
+				alternativeDiff !== "scoped-change" ||
 				diff !== "scoped-change" ||
 				!correct.publicSemantic ||
 				!correct.hiddenVerifier
@@ -1873,10 +1958,10 @@ function providerOutcome(
 		input.tool === null
 			? null
 			: Object.freeze({
-					toolRef: "graphrefly.eval.exact-tool.v1" as const,
+					toolRef: "graphrefly.eval.exact-candidate-tool.v2" as const,
 					...input.tool,
 					argumentsDigest: empiricalStrictJsonDigest({
-						toolRef: "graphrefly.eval.exact-tool.v1",
+						toolRef: "graphrefly.eval.exact-candidate-tool.v2",
 						...input.tool,
 					}),
 				});
@@ -2098,6 +2183,11 @@ function createRootEvalLiveExecutorInternal(
 			});
 			if (materializedRoot !== root)
 				throw new TypeError("root eval materialized workspace identity drifted");
+			const candidateCatalog = rootEvalToolCandidateCatalog(
+				task,
+				effect.workItemRole,
+				effect.workItemId,
+			);
 			const body = await liveWire(effect, root, task, tasks, taskManifestDigest, lease.signal);
 			if (input.beforeProviderDispatch !== undefined)
 				await awaitRootEvalAbortable(
@@ -2197,7 +2287,11 @@ function createRootEvalLiveExecutorInternal(
 				retryAfter: response.headers.get("retry-after"),
 				pricing: input.pricing,
 				reservationMicrousd: effect.reservationMicrousd,
-				writablePath: task.writablePath,
+				candidateRefs: candidateCatalog.candidates.map((candidate) => candidate.candidateRef) as [
+					string,
+					string,
+				],
+				candidateCatalogDigest: candidateCatalog.catalogDigest,
 				nonbillableContext: { admission: effect, requestBody: body },
 			});
 			confirmedCostMicrousd = provider.costMicrousd;
@@ -2328,6 +2422,7 @@ function createRootEvalLiveExecutorInternal(
 		}
 	};
 	const executeTool = async (effect: EvalAdmittedToolEffect): Promise<EvalEffectOutcome> => {
+		assertRootEvalToolAdmissionReceipt(effect);
 		const task = taskForEffect(effect);
 		const expectedDigest =
 			effect.workItemRole === "source"
@@ -2347,14 +2442,15 @@ function createRootEvalLiveExecutorInternal(
 			let result: EvalEffectOutcome;
 			try {
 				lease.signal.throwIfAborted();
-				const diff = await applyExactTool(
+				const diff = await applyExactCandidateTool(
 					root,
 					{
-						path: effect.path,
-						oldText: effect.oldText,
-						newText: effect.newText,
+						candidateRef: effect.candidateRef,
+						candidateCatalogDigest: effect.candidateCatalogDigest,
 					},
 					task,
+					effect.workItemRole,
+					effect.workItemId,
 				);
 				const verification = await verify(root, diff, task, lease.signal, (kind, processResult) => {
 					if (privateDiagnostics)
@@ -2809,6 +2905,11 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 				task,
 				signal: lease.signal,
 			});
+			const candidateCatalog = rootEvalToolCandidateCatalog(
+				task,
+				effect.workItemRole,
+				effect.workItemId,
+			);
 			const body = await liveWire(effect, root, task, tasks, taskManifestDigest, lease.signal);
 			lease.signal.throwIfAborted();
 			const request = object(JSON.parse(body), "root eval no-network provider request");
@@ -2847,7 +2948,11 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 				retryAfter: response.retryAfter,
 				pricing: input.pricing,
 				reservationMicrousd: effect.reservationMicrousd,
-				writablePath: task.writablePath,
+				candidateRefs: candidateCatalog.candidates.map((candidate) => candidate.candidateRef) as [
+					string,
+					string,
+				],
+				candidateCatalogDigest: candidateCatalog.catalogDigest,
 				nonbillableContext: { admission: effect, requestBody: body },
 			});
 			confirmedCostMicrousd = provider.costMicrousd;
@@ -2950,6 +3055,7 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 		}
 	};
 	const executeTool = async (effect: EvalAdmittedToolEffect): Promise<EvalEffectOutcome> => {
+		assertRootEvalToolAdmissionReceipt(effect);
 		const task = taskForEffect(effect);
 		const expectedDigest =
 			effect.workItemRole === "source"
@@ -2968,14 +3074,15 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 		let result: EvalEffectOutcome;
 		try {
 			lease.signal.throwIfAborted();
-			const diff = await applyExactTool(
+			const diff = await applyExactCandidateTool(
 				root,
 				{
-					path: effect.path,
-					oldText: effect.oldText,
-					newText: effect.newText,
+					candidateRef: effect.candidateRef,
+					candidateCatalogDigest: effect.candidateCatalogDigest,
 				},
 				task,
+				effect.workItemRole,
+				effect.workItemId,
 			);
 			const verification = await verify(root, diff, task, lease.signal);
 			lease.signal.throwIfAborted();

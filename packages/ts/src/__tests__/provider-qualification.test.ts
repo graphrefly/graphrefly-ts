@@ -9,6 +9,7 @@ import {
 	PROVIDER_QUALIFICATION_CAP,
 	PROVIDER_QUALIFICATION_REF,
 	qualificationAdmission,
+	qualificationExamples,
 	qualificationWire,
 	settleQualification,
 	validateQualificationState,
@@ -46,23 +47,7 @@ function response(request: number, cost = 0.000042, provider = "Together") {
 	const state = initialQualificationState(PROVIDER_QUALIFICATION_REF);
 	const admission = qualificationAdmission(state)!;
 	const first = JSON.parse(qualificationWire(admission));
-	const examples = [
-		{
-			path: "qualification.ts",
-			oldText: "export const value = 1;",
-			newText: "export const value = 2;",
-		},
-		{
-			path: "qualification.ts",
-			oldText: "\treturn left + right;",
-			newText: "\treturn left - right;",
-		},
-		{
-			path: "qualification.ts",
-			oldText: "const enabled = false;\r\n",
-			newText: "const enabled = true;\r\n",
-		},
-	];
+	const example = qualificationExamples[request - 1]!;
 	return new TextEncoder().encode(
 		JSON.stringify({
 			id: "gen-test",
@@ -72,7 +57,10 @@ function response(request: number, cost = 0.000042, provider = "Together") {
 				{
 					index: 0,
 					finish_reason: "stop",
-					message: { role: "assistant", content: JSON.stringify(examples[request - 1]) },
+					message: {
+						role: "assistant",
+						content: JSON.stringify({ candidateRef: example.candidateRefs[example.requested] }),
+					},
 				},
 			],
 			usage: { prompt_tokens: 100, completion_tokens: 100, total_tokens: 200, cost },
@@ -194,6 +182,11 @@ describe("D155 independent provider qualification", () => {
 		});
 		expect(wire.max_tokens).toBe(16384);
 		expect(wire.response_format.json_schema.strict).toBe(true);
+		expect(wire.response_format.json_schema.schema.required).toEqual(["candidateRef"]);
+		expect(wire.response_format.json_schema.schema.properties.candidateRef.enum).toHaveLength(2);
+		expect(wire.response_format.json_schema.schema.properties.candidateRef).not.toHaveProperty(
+			"const",
+		);
 		for (const mutation of [
 			{ providerRef: "fireworks" },
 			{ requestDigest: digest },
@@ -233,6 +226,14 @@ describe("D155 independent provider qualification", () => {
 		const outcome = qualificationOutcome(admission, 200, response(1, 0.001, "Fireworks"));
 		expect(outcome.usable).toBe(false);
 		expect(outcome.accountedMicrousd).toBe(1000);
+		const wrongCandidate = JSON.parse(new TextDecoder().decode(response(1)));
+		wrongCandidate.choices[0].message.content = JSON.stringify({
+			candidateRef: qualificationExamples[0].candidateRefs[0],
+		});
+		expect(
+			qualificationOutcome(admission, 200, new TextEncoder().encode(JSON.stringify(wrongCandidate)))
+				.usable,
+		).toBe(false);
 	});
 	it("reserves shared development budget without consuming a generation or scientific streak", () => {
 		const ledger = empty();

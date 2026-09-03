@@ -1,12 +1,13 @@
 import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { empiricalStrictJsonDigest, strictSnapshot } from "./canonical.js";
+import { HARNESS_ARMS, type HarnessArm } from "./harness-campaign-policy.js";
 
 export type RootEvalTaskKind = "development-transfer" | "confirmatory-transfer";
 export type RootEvalTaskManifestSlot = `development-${number}` | "confirmatory";
 
 export const ROOT_EVAL_TASK_MANIFEST_SCHEMA =
-	"graphrefly-ts.root-eval-d152-mechanism-manifest.v7" as const;
+	"graphrefly-ts.root-eval-d156-candidate-manifest.v8" as const;
 export const ROOT_EVAL_DEVELOPMENT_TASK_SET_REFS = Object.freeze({
 	"development-1": "root-eval-d152-mechanism-development-1-v1",
 	"development-2": "root-eval-d152-mechanism-development-2-v1",
@@ -22,7 +23,7 @@ export interface RootEvalTaskDefinition {
 	readonly replicate: 1 | 2 | 3 | 4 | 5;
 	readonly mechanismId: string;
 	readonly mechanismAction: RootEvalSourceInsightDiscriminant;
-	readonly mechanismAlternativeAction: RootEvalSourceInsightDiscriminant;
+	readonly mechanismAlternativeAction: string;
 	readonly baselineCommit: string;
 	readonly writablePath: string;
 	readonly taskStatement: string;
@@ -34,6 +35,7 @@ export interface RootEvalTaskDefinition {
 	readonly sourceTaskStatement: string;
 	readonly sourceFixtureCorrectText: string;
 	readonly sourceFixtureBuggyText: string;
+	readonly sourceFixtureAlternativeText: string;
 	readonly sourceReadonlyFixtureFiles: readonly Readonly<{
 		readonly path: string;
 		readonly text: string;
@@ -52,6 +54,7 @@ export interface RootEvalTaskDefinition {
 	readonly sourceHiddenVerifierSource: string;
 	readonly fixtureCorrectText: string;
 	readonly fixtureBuggyText: string;
+	readonly fixtureAlternativeText: string;
 	readonly readonlyFixtureFiles: readonly Readonly<{
 		readonly path: string;
 		readonly text: string;
@@ -100,6 +103,7 @@ const ROOT_EVAL_TASK_DEFINITION_KEYS = Object.freeze(
 		"baselineCommit",
 		"fixtureBuggyText",
 		"fixtureCorrectText",
+		"fixtureAlternativeText",
 		"hiddenVerifierName",
 		"hiddenVerifierPath",
 		"hiddenVerifierSource",
@@ -116,6 +120,7 @@ const ROOT_EVAL_TASK_DEFINITION_KEYS = Object.freeze(
 		"sourceActorContext",
 		"sourceFixtureBuggyText",
 		"sourceFixtureCorrectText",
+		"sourceFixtureAlternativeText",
 		"sourceHiddenVerifierName",
 		"sourceHiddenVerifierPath",
 		"sourceHiddenVerifierSource",
@@ -177,6 +182,7 @@ function hasCurrentTaskDefinitionShape(task: RootEvalTaskDefinition, index: numb
 		task.sourceTaskStatement,
 		task.sourceFixtureCorrectText,
 		task.sourceFixtureBuggyText,
+		task.sourceFixtureAlternativeText,
 		task.sourcePublicVerifierPath,
 		task.sourceHiddenVerifierPath,
 		task.sourcePublicVerifierName,
@@ -185,6 +191,7 @@ function hasCurrentTaskDefinitionShape(task: RootEvalTaskDefinition, index: numb
 		task.sourceHiddenVerifierSource,
 		task.fixtureCorrectText,
 		task.fixtureBuggyText,
+		task.fixtureAlternativeText,
 		task.publicVerifierPath,
 		task.hiddenVerifierPath,
 		task.publicVerifierName,
@@ -204,6 +211,40 @@ export interface RootEvalTaskBinding {
 	readonly irrelevantSourceWorkItemId: string;
 	readonly irrelevantSourceEvidenceDigest: string;
 	readonly irrelevantSourceInsightDigest: string;
+	readonly sourceCandidateCatalogDigest: string;
+	readonly sourceCandidateRefs: readonly [string, string];
+	readonly targetCandidateCatalogs: Readonly<
+		Record<
+			HarnessArm,
+			Readonly<{
+				readonly workItemId: string;
+				readonly candidateCatalogDigest: string;
+				readonly candidateRefs: readonly [string, string];
+			}>
+		>
+	>;
+}
+
+export interface RootEvalToolCandidate {
+	readonly candidateRef: string;
+	readonly taskInstanceRef: string;
+	readonly workItemId: string;
+	readonly workItemRole: "source" | "target";
+	readonly path: string;
+	readonly action: string;
+	readonly workspaceSnapshotDigest: string;
+	readonly oldSpanDigest: string;
+	readonly oldSpanText: string;
+	readonly replacementDigest: string;
+	readonly replacementText: string;
+}
+
+export interface RootEvalToolCandidateCatalog {
+	readonly taskInstanceRef: string;
+	readonly workItemId: string;
+	readonly workItemRole: "source" | "target";
+	readonly catalogDigest: string;
+	readonly candidates: readonly [RootEvalToolCandidate, RootEvalToolCandidate];
 }
 
 interface TransferVariant {
@@ -212,6 +253,7 @@ interface TransferVariant {
 	readonly exportName: string;
 	readonly envelopeName: string;
 	readonly acceptedRule: RootEvalSourceInsightDiscriminant;
+	readonly correctSlot: "first" | "second" | "third";
 	readonly contractSource: string;
 	readonly correctExpression: string;
 	readonly alternativeExpression: string;
@@ -224,15 +266,45 @@ interface TransferVariant {
 }
 
 export type RootEvalSourceInsightDiscriminant =
-	| "select-first-candidate"
-	| "select-second-candidate"
-	| "select-third-candidate";
+	| "canonical-cache-key"
+	| "exclusive-lease-expiry"
+	| "capacity-only-retry"
+	| "segment-safe-path-boundary"
+	| "highest-compatible-version"
+	| "canonical-header-name"
+	| "exclusive-window-end"
+	| "two-hundred-only-success"
+	| "dns-label-host-boundary"
+	| "lowest-compatible-version"
+	| "ceiling-allocation-rounding"
+	| "geometric-pair-combination"
+	| "unicode-codepoint-count"
+	| "all-required-bits"
+	| "last-write-duplicate-precedence";
 
 const BASELINE_COMMIT = "dea57bdeb4b370dddbbe2505bd05f9e3551b26c6";
 const QUALIFICATION_TASK_SET_REF = "root-eval-d152-mechanism-qualification-v1";
 
-const SOURCE_INSIGHT_LENGTH = 80;
-const SOURCE_INSIGHT_PREFIX = "mechanism-invariant.v1;action=";
+const SOURCE_INSIGHT_LENGTH = 96;
+const SOURCE_INSIGHT_PREFIX = "mechanism-invariant.v2;rule=";
+
+const SOURCE_INSIGHT_DISCRIMINANTS = Object.freeze([
+	"canonical-cache-key",
+	"exclusive-lease-expiry",
+	"capacity-only-retry",
+	"segment-safe-path-boundary",
+	"highest-compatible-version",
+	"canonical-header-name",
+	"exclusive-window-end",
+	"two-hundred-only-success",
+	"dns-label-host-boundary",
+	"lowest-compatible-version",
+	"ceiling-allocation-rounding",
+	"geometric-pair-combination",
+	"unicode-codepoint-count",
+	"all-required-bits",
+	"last-write-duplicate-precedence",
+] as const satisfies readonly RootEvalSourceInsightDiscriminant[]);
 
 function sourceInsightContent(rule: TransferVariant["acceptedRule"]): string {
 	const content = `${SOURCE_INSIGHT_PREFIX}${rule}`;
@@ -244,11 +316,7 @@ function sourceInsightContent(rule: TransferVariant["acceptedRule"]): string {
 export function rootEvalSourceInsightDiscriminant(
 	content: string,
 ): RootEvalSourceInsightDiscriminant {
-	for (const discriminant of [
-		"select-first-candidate",
-		"select-second-candidate",
-		"select-third-candidate",
-	] as const) {
+	for (const discriminant of SOURCE_INSIGHT_DISCRIMINANTS) {
 		if (content === `${SOURCE_INSIGHT_PREFIX}${discriminant}`.padEnd(SOURCE_INSIGHT_LENGTH, " "))
 			return discriminant;
 	}
@@ -263,7 +331,8 @@ const VARIANTS: readonly TransferVariant[] = Object.freeze([
 		mechanismId: "canonical-cache-key",
 		exportName: "cacheLookupKey",
 		envelopeName: "CacheLookupInput",
-		acceptedRule: "select-first-candidate",
+		acceptedRule: "canonical-cache-key",
+		correctSlot: "first",
 		contractSource: "\treadonly rawKey: string;",
 		correctExpression: "input.rawKey.trim().toLowerCase()",
 		alternativeExpression: "input.rawKey",
@@ -272,14 +341,15 @@ const VARIANTS: readonly TransferVariant[] = Object.freeze([
 		publicExpected: '"cache-key"',
 		hiddenFixture: '{ rawKey: " Cache-Key " }',
 		hiddenExpected: '"cache-key"',
-		sourceInsightContent: sourceInsightContent("select-first-candidate"),
+		sourceInsightContent: sourceInsightContent("canonical-cache-key"),
 	}),
 	Object.freeze({
 		slug: "lease-boundary",
 		mechanismId: "exclusive-lease-expiry",
 		exportName: "leaseState",
 		envelopeName: "LeaseStateInput",
-		acceptedRule: "select-second-candidate",
+		acceptedRule: "exclusive-lease-expiry",
+		correctSlot: "second",
 		contractSource:
 			"\treadonly nowMs: number;\n\treadonly expiresAtMs: number;\n\treadonly token: string;",
 		correctExpression: 'input.nowMs < input.expiresAtMs ? input.token : "expired"',
@@ -289,14 +359,15 @@ const VARIANTS: readonly TransferVariant[] = Object.freeze([
 		publicExpected: '"active"',
 		hiddenFixture: '{ nowMs: 10, expiresAtMs: 10, token: "active" }',
 		hiddenExpected: '"expired"',
-		sourceInsightContent: sourceInsightContent("select-second-candidate"),
+		sourceInsightContent: sourceInsightContent("exclusive-lease-expiry"),
 	}),
 	Object.freeze({
 		slug: "retry-class",
 		mechanismId: "capacity-only-retry",
 		exportName: "retryDisposition",
 		envelopeName: "RetryDispositionInput",
-		acceptedRule: "select-third-candidate",
+		acceptedRule: "capacity-only-retry",
+		correctSlot: "third",
 		contractSource: "\treadonly status: number;",
 		correctExpression: 'input.status === 429 ? "retry" : "fail"',
 		alternativeExpression: 'input.status >= 400 && input.status < 500 ? "retry" : "fail"',
@@ -305,14 +376,15 @@ const VARIANTS: readonly TransferVariant[] = Object.freeze([
 		publicExpected: '"retry"',
 		hiddenFixture: "{ status: 404 }",
 		hiddenExpected: '"fail"',
-		sourceInsightContent: sourceInsightContent("select-third-candidate"),
+		sourceInsightContent: sourceInsightContent("capacity-only-retry"),
 	}),
 	Object.freeze({
 		slug: "path-boundary",
 		mechanismId: "segment-safe-path-boundary",
 		exportName: "pathDisposition",
 		envelopeName: "PathDispositionInput",
-		acceptedRule: "select-first-candidate",
+		acceptedRule: "segment-safe-path-boundary",
+		correctSlot: "first",
 		contractSource: "\treadonly root: string;\n\treadonly candidate: string;",
 		correctExpression:
 			'input.candidate === input.root || input.candidate.startsWith(input.root + "/") ? "inside" : "outside"',
@@ -322,14 +394,15 @@ const VARIANTS: readonly TransferVariant[] = Object.freeze([
 		publicExpected: '"inside"',
 		hiddenFixture: '{ root: "/srv/app", candidate: "/srv/application" }',
 		hiddenExpected: '"outside"',
-		sourceInsightContent: sourceInsightContent("select-first-candidate"),
+		sourceInsightContent: sourceInsightContent("segment-safe-path-boundary"),
 	}),
 	Object.freeze({
 		slug: "version-selection",
 		mechanismId: "highest-compatible-version",
 		exportName: "selectedVersion",
 		envelopeName: "VersionSelectionInput",
-		acceptedRule: "select-second-candidate",
+		acceptedRule: "highest-compatible-version",
+		correctSlot: "second",
 		contractSource: "\treadonly versions: readonly number[];\n\treadonly maxVersion: number;",
 		correctExpression:
 			'[...input.versions].filter((version) => version <= input.maxVersion).sort((left, right) => right - left)[0]?.toString() ?? "none"',
@@ -341,7 +414,7 @@ const VARIANTS: readonly TransferVariant[] = Object.freeze([
 		publicExpected: '"3"',
 		hiddenFixture: "{ versions: [3, 1, 2], maxVersion: 3 }",
 		hiddenExpected: '"3"',
-		sourceInsightContent: sourceInsightContent("select-second-candidate"),
+		sourceInsightContent: sourceInsightContent("highest-compatible-version"),
 	}),
 ]);
 
@@ -351,7 +424,8 @@ const DEVELOPMENT_TWO_VARIANTS: readonly TransferVariant[] = Object.freeze([
 		mechanismId: "canonical-header-name",
 		exportName: "headerLookupName",
 		envelopeName: "HeaderLookupInput",
-		acceptedRule: "select-third-candidate",
+		acceptedRule: "canonical-header-name",
+		correctSlot: "third",
 		contractSource: "\treadonly name: string;",
 		correctExpression: "input.name.trim().toLowerCase()",
 		alternativeExpression: "input.name.toLowerCase()",
@@ -360,14 +434,15 @@ const DEVELOPMENT_TWO_VARIANTS: readonly TransferVariant[] = Object.freeze([
 		publicExpected: '"content-type"',
 		hiddenFixture: '{ name: " Content-Type " }',
 		hiddenExpected: '"content-type"',
-		sourceInsightContent: sourceInsightContent("select-third-candidate"),
+		sourceInsightContent: sourceInsightContent("canonical-header-name"),
 	}),
 	Object.freeze({
 		slug: "window-end",
 		mechanismId: "exclusive-window-end",
 		exportName: "windowState",
 		envelopeName: "WindowStateInput",
-		acceptedRule: "select-first-candidate",
+		acceptedRule: "exclusive-window-end",
+		correctSlot: "first",
 		contractSource:
 			"\treadonly atMs: number;\n\treadonly startMs: number;\n\treadonly endMs: number;",
 		correctExpression:
@@ -380,14 +455,15 @@ const DEVELOPMENT_TWO_VARIANTS: readonly TransferVariant[] = Object.freeze([
 		publicExpected: '"inside"',
 		hiddenFixture: "{ atMs: 10, startMs: 0, endMs: 10 }",
 		hiddenExpected: '"outside"',
-		sourceInsightContent: sourceInsightContent("select-first-candidate"),
+		sourceInsightContent: sourceInsightContent("exclusive-window-end"),
 	}),
 	Object.freeze({
 		slug: "http-success",
 		mechanismId: "two-hundred-only-success",
 		exportName: "httpDisposition",
 		envelopeName: "HttpDispositionInput",
-		acceptedRule: "select-second-candidate",
+		acceptedRule: "two-hundred-only-success",
+		correctSlot: "second",
 		contractSource: "\treadonly status: number;",
 		correctExpression: 'input.status >= 200 && input.status < 300 ? "success" : "fail"',
 		alternativeExpression: 'input.status >= 200 && input.status < 400 ? "success" : "fail"',
@@ -396,14 +472,15 @@ const DEVELOPMENT_TWO_VARIANTS: readonly TransferVariant[] = Object.freeze([
 		publicExpected: '"success"',
 		hiddenFixture: "{ status: 304 }",
 		hiddenExpected: '"fail"',
-		sourceInsightContent: sourceInsightContent("select-second-candidate"),
+		sourceInsightContent: sourceInsightContent("two-hundred-only-success"),
 	}),
 	Object.freeze({
 		slug: "host-boundary",
 		mechanismId: "dns-label-host-boundary",
 		exportName: "hostDisposition",
 		envelopeName: "HostDispositionInput",
-		acceptedRule: "select-third-candidate",
+		acceptedRule: "dns-label-host-boundary",
+		correctSlot: "third",
 		contractSource: "\treadonly domain: string;\n\treadonly host: string;",
 		correctExpression:
 			'input.host === input.domain || input.host.endsWith("." + input.domain) ? "inside" : "outside"',
@@ -413,14 +490,15 @@ const DEVELOPMENT_TWO_VARIANTS: readonly TransferVariant[] = Object.freeze([
 		publicExpected: '"inside"',
 		hiddenFixture: '{ domain: "example.test", host: "badexample.test" }',
 		hiddenExpected: '"outside"',
-		sourceInsightContent: sourceInsightContent("select-third-candidate"),
+		sourceInsightContent: sourceInsightContent("dns-label-host-boundary"),
 	}),
 	Object.freeze({
 		slug: "minimum-version",
 		mechanismId: "lowest-compatible-version",
 		exportName: "minimumVersion",
 		envelopeName: "MinimumVersionInput",
-		acceptedRule: "select-first-candidate",
+		acceptedRule: "lowest-compatible-version",
+		correctSlot: "first",
 		contractSource: "\treadonly versions: readonly number[];\n\treadonly minVersion: number;",
 		correctExpression:
 			'[...input.versions].filter((version) => version >= input.minVersion).sort((left, right) => left - right)[0]?.toString() ?? "none"',
@@ -432,7 +510,7 @@ const DEVELOPMENT_TWO_VARIANTS: readonly TransferVariant[] = Object.freeze([
 		publicExpected: '"1"',
 		hiddenFixture: "{ versions: [3, 1, 2], minVersion: 1 }",
 		hiddenExpected: '"1"',
-		sourceInsightContent: sourceInsightContent("select-first-candidate"),
+		sourceInsightContent: sourceInsightContent("lowest-compatible-version"),
 	}),
 ]);
 
@@ -444,7 +522,8 @@ const DEVELOPMENT_THREE_VARIANTS: readonly TransferVariant[] = Object.freeze([
 		mechanismId: "ceiling-allocation-rounding",
 		exportName: "allocationCount",
 		envelopeName: "AllocationInput",
-		acceptedRule: "select-first-candidate",
+		acceptedRule: "ceiling-allocation-rounding",
+		correctSlot: "first",
 		contractSource: "\treadonly units: number;\n\treadonly blockSize: number;",
 		correctExpression: "String(Math.ceil(input.units / input.blockSize))",
 		alternativeExpression: "String(Math.floor(input.units / input.blockSize))",
@@ -453,14 +532,15 @@ const DEVELOPMENT_THREE_VARIANTS: readonly TransferVariant[] = Object.freeze([
 		publicExpected: '"2"',
 		hiddenFixture: "{ units: 21, blockSize: 10 }",
 		hiddenExpected: '"3"',
-		sourceInsightContent: sourceInsightContent("select-first-candidate"),
+		sourceInsightContent: sourceInsightContent("ceiling-allocation-rounding"),
 	}),
 	Object.freeze({
 		slug: "paired-measurement",
 		mechanismId: "geometric-pair-combination",
 		exportName: "pairedMeasurement",
 		envelopeName: "MeasurementInput",
-		acceptedRule: "select-second-candidate",
+		acceptedRule: "geometric-pair-combination",
+		correctSlot: "second",
 		contractSource: "\treadonly left: number;\n\treadonly right: number;",
 		correctExpression: "String(Math.sqrt(input.left * input.right))",
 		alternativeExpression: "String((input.left + input.right) / 2)",
@@ -469,14 +549,15 @@ const DEVELOPMENT_THREE_VARIANTS: readonly TransferVariant[] = Object.freeze([
 		publicExpected: '"4"',
 		hiddenFixture: "{ left: 4, right: 9 }",
 		hiddenExpected: '"6"',
-		sourceInsightContent: sourceInsightContent("select-second-candidate"),
+		sourceInsightContent: sourceInsightContent("geometric-pair-combination"),
 	}),
 	Object.freeze({
 		slug: "text-measurement",
 		mechanismId: "unicode-codepoint-count",
 		exportName: "textMeasurement",
 		envelopeName: "TextMeasurementInput",
-		acceptedRule: "select-third-candidate",
+		acceptedRule: "unicode-codepoint-count",
+		correctSlot: "third",
 		contractSource: "\treadonly text: string;",
 		correctExpression: "String(Array.from(input.text).length)",
 		alternativeExpression: "String(input.text.length)",
@@ -485,14 +566,15 @@ const DEVELOPMENT_THREE_VARIANTS: readonly TransferVariant[] = Object.freeze([
 		publicExpected: '"3"',
 		hiddenFixture: '{ text: "A😀" }',
 		hiddenExpected: '"2"',
-		sourceInsightContent: sourceInsightContent("select-third-candidate"),
+		sourceInsightContent: sourceInsightContent("unicode-codepoint-count"),
 	}),
 	Object.freeze({
 		slug: "flag-disposition",
 		mechanismId: "all-required-bits",
 		exportName: "flagDisposition",
 		envelopeName: "FlagInput",
-		acceptedRule: "select-first-candidate",
+		acceptedRule: "all-required-bits",
+		correctSlot: "first",
 		contractSource: "\treadonly flags: readonly number[];\n\treadonly required: number;",
 		correctExpression:
 			'input.flags.map((flags) => (flags & input.required) === input.required).join(",")',
@@ -502,14 +584,15 @@ const DEVELOPMENT_THREE_VARIANTS: readonly TransferVariant[] = Object.freeze([
 		publicExpected: '"true"',
 		hiddenFixture: "{ flags: [1, 7], required: 3 }",
 		hiddenExpected: '"false,true"',
-		sourceInsightContent: sourceInsightContent("select-first-candidate"),
+		sourceInsightContent: sourceInsightContent("all-required-bits"),
 	}),
 	Object.freeze({
 		slug: "record-value",
 		mechanismId: "last-write-duplicate-precedence",
 		exportName: "recordValue",
 		envelopeName: "RecordValueInput",
-		acceptedRule: "select-second-candidate",
+		acceptedRule: "last-write-duplicate-precedence",
+		correctSlot: "second",
 		contractSource:
 			"\treadonly records: readonly (readonly [string, number])[];\n\treadonly key: string;",
 		correctExpression: "String(new Map(input.records).get(input.key) ?? 0)",
@@ -520,7 +603,7 @@ const DEVELOPMENT_THREE_VARIANTS: readonly TransferVariant[] = Object.freeze([
 		publicExpected: '"5"',
 		hiddenFixture: '{ records: [["x", 2], ["x", 5]], key: "x" }',
 		hiddenExpected: '"5"',
-		sourceInsightContent: sourceInsightContent("select-second-candidate"),
+		sourceInsightContent: sourceInsightContent("last-write-duplicate-precedence"),
 	}),
 ]);
 
@@ -537,28 +620,18 @@ function developmentVariants(
 				: undefined;
 }
 
-function expressionForAction(
-	variant: TransferVariant,
-	alternativeRule: RootEvalSourceInsightDiscriminant,
-	action: RootEvalSourceInsightDiscriminant,
-): string {
-	if (action === variant.acceptedRule) return variant.correctExpression;
-	if (action === alternativeRule) return variant.alternativeExpression;
-	return variant.thirdExpression;
-}
-
-function contractSource(
-	variant: TransferVariant,
-	alternativeRule: RootEvalSourceInsightDiscriminant,
-	manifestSalt = "",
-): string {
+function contractSource(variant: TransferVariant, manifestSalt = ""): string {
+	const remaining = [variant.alternativeExpression, variant.thirdExpression];
+	const expressions = (["first", "second", "third"] as const).map((slot) =>
+		slot === variant.correctSlot ? variant.correctExpression : remaining.shift()!,
+	);
 	return `export interface ${variant.envelopeName} {
 ${variant.contractSource}
 }
 // The public contract deliberately exposes three plausible implementations.
-// first: ${expressionForAction(variant, alternativeRule, "select-first-candidate")}
-// second: ${expressionForAction(variant, alternativeRule, "select-second-candidate")}
-// third: ${expressionForAction(variant, alternativeRule, "select-third-candidate")}
+// first: ${expressions[0]}
+// second: ${expressions[1]}
+// third: ${expressions[2]}
 ${manifestSalt.length === 0 ? "" : `// sealed-manifest-coordinate: ${manifestSalt}\n`}
 `;
 }
@@ -616,7 +689,6 @@ function createTask(
 	kind: RootEvalTaskKind,
 	replicate: 1 | 2 | 3 | 4 | 5,
 	variant: TransferVariant,
-	alternativeRule: RootEvalSourceInsightDiscriminant,
 	taskSetRef: string,
 	manifestSalt = "",
 ): RootEvalTaskDefinition {
@@ -644,17 +716,27 @@ function createTask(
 	const sourceExportName = `${variant.exportName}AtSource`;
 	const sourceRelativeImport = `../../../../.root-eval-mechanism/source/${lane}/${replicate}-${variant.slug}.js`;
 	const sourceContractImport = `./${replicate}-${variant.slug}.contract.js`;
-	const sourceFixtureCorrectText = taskSource({
+	const occurrenceTaskSource = (input: Parameters<typeof taskSource>[0]) => {
+		const text = taskSource(input);
+		return replicate === 1 ? text.replace(/\n/gu, "\r\n") : text;
+	};
+	const sourceFixtureCorrectText = occurrenceTaskSource({
 		exportName: sourceExportName,
 		envelopeName: variant.envelopeName,
 		contractImport: sourceContractImport,
 		acceptedExpression: acceptedExpression(variant),
 	});
-	const sourceFixtureBuggyText = taskSource({
+	const sourceFixtureBuggyText = occurrenceTaskSource({
 		exportName: sourceExportName,
 		envelopeName: variant.envelopeName,
 		contractImport: sourceContractImport,
 		acceptedExpression: acceptedExpression(variant, "alternative"),
+	});
+	const sourceFixtureAlternativeText = occurrenceTaskSource({
+		exportName: sourceExportName,
+		envelopeName: variant.envelopeName,
+		contractImport: sourceContractImport,
+		acceptedExpression: `(${variant.alternativeExpression})`,
 	});
 	const sourcePublicVerifierSource = verifierSource({
 		importPath: sourceRelativeImport,
@@ -684,6 +766,7 @@ function createTask(
 			writablePath: sourceWritablePath,
 			fixtureBuggyText: sourceFixtureBuggyText,
 			fixtureCorrectText: sourceFixtureCorrectText,
+			fixtureAlternativeText: sourceFixtureAlternativeText,
 			publicVerifierPath: sourcePublicVerifierPath,
 			publicVerifierSource: sourcePublicVerifierSource,
 			hiddenVerifierPath: sourceHiddenVerifierPath,
@@ -699,7 +782,7 @@ function createTask(
 		replicate,
 		mechanismId: variant.mechanismId,
 		mechanismAction: variant.acceptedRule,
-		mechanismAlternativeAction: alternativeRule,
+		mechanismAlternativeAction: `Use the public contract expression ${variant.alternativeExpression}.`,
 		baselineCommit: BASELINE_COMMIT,
 		writablePath,
 		taskStatement: targetTaskStatement(writablePath),
@@ -711,10 +794,11 @@ function createTask(
 		sourceTaskStatement: sourceTaskStatement(variant, sourceWritablePath),
 		sourceFixtureCorrectText,
 		sourceFixtureBuggyText,
+		sourceFixtureAlternativeText,
 		sourceReadonlyFixtureFiles: Object.freeze([
 			Object.freeze({
 				path: sourceContractPath,
-				text: contractSource(variant, alternativeRule, manifestSalt),
+				text: contractSource(variant, manifestSalt),
 			}),
 		]),
 		sourceActorContext: Object.freeze([
@@ -727,22 +811,28 @@ function createTask(
 		sourceHiddenVerifierName,
 		sourcePublicVerifierSource,
 		sourceHiddenVerifierSource,
-		fixtureCorrectText: taskSource({
+		fixtureCorrectText: occurrenceTaskSource({
 			exportName: variant.exportName,
 			envelopeName: variant.envelopeName,
 			contractImport,
 			acceptedExpression: acceptedExpression(variant),
 		}),
-		fixtureBuggyText: taskSource({
+		fixtureBuggyText: occurrenceTaskSource({
 			exportName: variant.exportName,
 			envelopeName: variant.envelopeName,
 			contractImport,
 			acceptedExpression: acceptedExpression(variant, "alternative"),
 		}),
+		fixtureAlternativeText: occurrenceTaskSource({
+			exportName: variant.exportName,
+			envelopeName: variant.envelopeName,
+			contractImport,
+			acceptedExpression: `(${variant.alternativeExpression})`,
+		}),
 		readonlyFixtureFiles: Object.freeze([
 			Object.freeze({
 				path: contractPath,
-				text: contractSource(variant, alternativeRule, manifestSalt),
+				text: contractSource(variant, manifestSalt),
 			}),
 		]),
 		actorContext: Object.freeze([
@@ -782,7 +872,6 @@ function createTaskSet(
 				kind,
 				(index + 1) as 1 | 2 | 3 | 4 | 5,
 				variants[index]!,
-				variants[(index + 1) % variants.length]!.acceptedRule,
 				taskSetRef,
 				manifestSalt,
 			),
@@ -817,6 +906,12 @@ export function assertRootEvalTaskStimulusContract(tasks: readonly RootEvalTaskD
 		throw new TypeError("root eval task stimulus requires five isolated orthogonal mechanisms");
 	rootEvalMechanismPairwiseAudit(tasks);
 	for (const [index, task] of tasks.entries()) {
+		const targetCatalog = rootEvalToolCandidateCatalog(
+			task,
+			"target",
+			`${task.instanceRef}/stimulus-target-work-item`,
+		);
+		const sourceCatalog = rootEvalToolCandidateCatalog(task, "source", task.sourceWorkItemRef);
 		if (
 			!hasCurrentTaskDefinitionShape(task, index) ||
 			task.taskStatement !== targetTaskStatement(task.writablePath) ||
@@ -825,17 +920,35 @@ export function assertRootEvalTaskStimulusContract(tasks: readonly RootEvalTaskD
 			task.mechanismAction !== taskSourceDiscriminant(task) ||
 			task.mechanismAlternativeAction === task.mechanismAction ||
 			task.fixtureCorrectText === task.fixtureBuggyText ||
+			task.fixtureAlternativeText === task.fixtureBuggyText ||
+			task.fixtureAlternativeText === task.fixtureCorrectText ||
 			task.sourceFixtureCorrectText === task.sourceFixtureBuggyText ||
+			task.sourceFixtureAlternativeText === task.sourceFixtureBuggyText ||
+			task.sourceFixtureAlternativeText === task.sourceFixtureCorrectText ||
 			task.publicVerifierSource === task.hiddenVerifierSource ||
 			task.sourceInsightContent.length !== SOURCE_INSIGHT_LENGTH ||
-			/compare|reject|return|patch|verifier|fixture|packages\//iu.test(task.sourceInsightContent)
+			/compare|reject|return|patch|verifier|fixture|packages\/|candidate|first|second|third/iu.test(
+				task.sourceInsightContent,
+			) ||
+			[targetCatalog, sourceCatalog].some(
+				(catalog) =>
+					catalog.candidates.length !== 2 ||
+					new Set(catalog.candidates.map((candidate) => candidate.candidateRef)).size !== 2 ||
+					new Set(catalog.candidates.map((candidate) => candidate.action)).size !== 2 ||
+					catalog.candidates.some(
+						(candidate) =>
+							candidate.workItemId !== catalog.workItemId ||
+							candidate.action.includes(task.mechanismAction),
+					) ||
+					catalog.candidates[0].candidateRef.endsWith("candidate-a") !== true ||
+					catalog.candidates[1].candidateRef.endsWith("candidate-b") !== true,
+			)
 		)
 			throw new TypeError("root eval task stimulus violated its orthogonal-mechanism contract");
 		const irrelevant = tasks[ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES[index]! - 1]!;
 		if (
 			task.instanceRef === irrelevant.instanceRef ||
 			task.mechanismId === irrelevant.mechanismId ||
-			task.mechanismAlternativeAction !== irrelevant.mechanismAction ||
 			task.sourceWorkItemRef === irrelevant.sourceWorkItemRef ||
 			task.sourceVerifierEvidenceDigest === irrelevant.sourceVerifierEvidenceDigest ||
 			task.sourceInsightDigest === irrelevant.sourceInsightDigest ||
@@ -882,33 +995,10 @@ export function rootEvalMechanismPairwiseAudit(
 		for (let rightIndex = leftIndex + 1; rightIndex < tasks.length; rightIndex += 1) {
 			const right = tasks[rightIndex]!;
 			const actionTokenOverlap = tokenOverlap(
-				lexicalTokens(
-					left.sourceInsightContent,
-					new Set([
-						"mechanism",
-						"invariant",
-						"v1",
-						"action",
-						"select",
-						"candidate",
-						"first",
-						"second",
-						"third",
-					]),
-				),
+				lexicalTokens(left.sourceInsightContent, new Set(["mechanism", "invariant", "v2", "rule"])),
 				lexicalTokens(
 					right.sourceInsightContent,
-					new Set([
-						"mechanism",
-						"invariant",
-						"v1",
-						"action",
-						"select",
-						"candidate",
-						"first",
-						"second",
-						"third",
-					]),
+					new Set(["mechanism", "invariant", "v2", "rule"]),
 				),
 			);
 			const executableTokenOverlap = tokenOverlap(
@@ -965,23 +1055,9 @@ export function rootEvalScriptedMechanismReplacement(
 	}
 	const verified =
 		memory.admitted && memory.applied && memory.scopeMatches && action === task.mechanismAction;
-	const explicitAlternative =
-		memory.admitted &&
-		memory.applied &&
-		memory.scopeMatches &&
-		action === task.mechanismAlternativeAction;
-	if (
-		memory.admitted &&
-		memory.applied &&
-		memory.scopeMatches &&
-		action !== undefined &&
-		!verified &&
-		!explicitAlternative
-	)
-		throw new TypeError("root eval memory discriminant did not select a target-visible candidate");
 	return Object.freeze({
 		selected: verified ? "verified" : "alternative",
-		replacement: verified ? task.fixtureCorrectText : task.fixtureBuggyText,
+		replacement: verified ? task.fixtureCorrectText : task.fixtureAlternativeText,
 	});
 }
 
@@ -1079,16 +1155,141 @@ export const ROOT_EVAL_DEVELOPMENT_TASKS = createTaskSet(
 );
 
 export const ROOT_EVAL_DEVELOPMENT_TASK_SET_DIGEST = empiricalStrictJsonDigest(
-	strictSnapshot({ decisionRef: "graphrefly-ts:D152", tasks: ROOT_EVAL_DEVELOPMENT_TASKS }),
+	strictSnapshot({
+		decisionRef: "graphrefly-ts:D156",
+		tasks: ROOT_EVAL_DEVELOPMENT_TASKS,
+		candidateContract: "occurrence-bound-two-symmetric-semantic-actions",
+	}),
 );
+
+function candidateDigestMaterial(candidate: RootEvalToolCandidate) {
+	return {
+		candidateRef: candidate.candidateRef,
+		taskInstanceRef: candidate.taskInstanceRef,
+		workItemId: candidate.workItemId,
+		workItemRole: candidate.workItemRole,
+		path: candidate.path,
+		action: candidate.action,
+		workspaceSnapshotDigest: candidate.workspaceSnapshotDigest,
+		oldSpanDigest: candidate.oldSpanDigest,
+		replacementDigest: candidate.replacementDigest,
+	};
+}
+
+function candidateWorkspaceSnapshotMaterial(
+	task: RootEvalTaskDefinition,
+	workItemRole: "source" | "target",
+) {
+	const writablePath = workItemRole === "source" ? task.sourceWritablePath : task.writablePath;
+	const writableText =
+		workItemRole === "source" ? task.sourceFixtureBuggyText : task.fixtureBuggyText;
+	const readonlyFixtures =
+		workItemRole === "source" ? task.sourceReadonlyFixtureFiles : task.readonlyFixtureFiles;
+	return Object.freeze({
+		writable: Object.freeze({
+			path: writablePath,
+			digest: empiricalStrictJsonDigest(writableText),
+		}),
+		readonly: Object.freeze(
+			readonlyFixtures.map((fixture) =>
+				Object.freeze({ path: fixture.path, digest: empiricalStrictJsonDigest(fixture.text) }),
+			),
+		),
+	});
+}
+
+export function rootEvalCandidateWorkspaceSnapshotDigest(
+	task: RootEvalTaskDefinition,
+	workItemRole: "source" | "target",
+): string {
+	return empiricalStrictJsonDigest(candidateWorkspaceSnapshotMaterial(task, workItemRole));
+}
+
+function candidateAction(replacementText: string): string {
+	const match = /\r?\n\treturn (?<expression>[^\r\n]+);\r?\n\}/u.exec(replacementText);
+	if (match?.groups?.expression === undefined)
+		throw new TypeError("root eval candidate action lacked one return expression");
+	return `Adopt the documented behavior whose return expression evaluates ${match.groups.expression}.`;
+}
+
+/** D156 private catalog: Graph sees refs/digests; only the exact tool receives replacement bytes. */
+export function rootEvalToolCandidateCatalog(
+	task: RootEvalTaskDefinition,
+	workItemRole: "source" | "target",
+	workItemId: string,
+): RootEvalToolCandidateCatalog {
+	if (workItemId.length < 1 || workItemId.length > 512)
+		throw new TypeError("root eval candidate catalog Work Item occurrence was invalid");
+	const path = workItemRole === "source" ? task.sourceWritablePath : task.writablePath;
+	const source = workItemRole === "source" ? task.sourceFixtureBuggyText : task.fixtureBuggyText;
+	const verified =
+		workItemRole === "source" ? task.sourceFixtureCorrectText : task.fixtureCorrectText;
+	const alternative =
+		workItemRole === "source" ? task.sourceFixtureAlternativeText : task.fixtureAlternativeText;
+	if (source === verified || source === alternative || verified === alternative)
+		throw new TypeError("root eval candidate interventions were not symmetric changes");
+	const entries = [
+		{ action: candidateAction(verified), replacementText: verified },
+		{ action: candidateAction(alternative), replacementText: alternative },
+	] as const;
+	// The verified action alternates A/B across replicates; neither opaque ref encodes correctness.
+	const ordered = task.replicate % 2 === 1 ? entries : ([entries[1], entries[0]] as const);
+	const candidates = ordered.map((entry, index) =>
+		Object.freeze({
+			candidateRef: `${workItemId}/candidate-${index === 0 ? "a" : "b"}`,
+			taskInstanceRef: task.instanceRef,
+			workItemId,
+			workItemRole,
+			path,
+			action: entry.action,
+			workspaceSnapshotDigest: rootEvalCandidateWorkspaceSnapshotDigest(task, workItemRole),
+			oldSpanDigest: empiricalStrictJsonDigest(source),
+			oldSpanText: source,
+			replacementDigest: empiricalStrictJsonDigest(entry.replacementText),
+			replacementText: entry.replacementText,
+		}),
+	) as unknown as readonly [RootEvalToolCandidate, RootEvalToolCandidate];
+	const catalogDigest = empiricalStrictJsonDigest({
+		kind: "root-eval-d156-tool-candidate-catalog",
+		taskInstanceRef: task.instanceRef,
+		workItemId,
+		workItemRole,
+		candidates: candidates.map(candidateDigestMaterial),
+	});
+	return Object.freeze({
+		taskInstanceRef: task.instanceRef,
+		workItemId,
+		workItemRole,
+		catalogDigest,
+		candidates: Object.freeze(candidates),
+	});
+}
 
 export function rootEvalTaskBindings(
 	tasks: readonly RootEvalTaskDefinition[],
+	campaignRef = "graphrefly-efficacy-eval",
 ): readonly RootEvalTaskBinding[] {
 	assertRootEvalTaskStimulusContract(tasks);
 	return Object.freeze(
 		tasks.map((task, index) => {
 			const irrelevant = tasks[ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES[index]! - 1]!;
+			const sourceCatalog = rootEvalToolCandidateCatalog(task, "source", task.sourceWorkItemRef);
+			const targetCandidateCatalogs = Object.fromEntries(
+				HARNESS_ARMS.map((arm) => {
+					const workItemId = `${campaignRef}/replicate-${task.replicate}/${arm}`;
+					const catalog = rootEvalToolCandidateCatalog(task, "target", workItemId);
+					return [
+						arm,
+						Object.freeze({
+							workItemId,
+							candidateCatalogDigest: catalog.catalogDigest,
+							candidateRefs: Object.freeze(
+								catalog.candidates.map((candidate) => candidate.candidateRef),
+							) as readonly [string, string],
+						}),
+					] as const;
+				}),
+			) as RootEvalTaskBinding["targetCandidateCatalogs"];
 			return Object.freeze({
 				replicate: task.replicate,
 				taskInstanceRef: task.instanceRef,
@@ -1099,14 +1300,19 @@ export function rootEvalTaskBindings(
 				irrelevantSourceWorkItemId: irrelevant.sourceWorkItemRef,
 				irrelevantSourceEvidenceDigest: irrelevant.sourceVerifierEvidenceDigest,
 				irrelevantSourceInsightDigest: irrelevant.sourceInsightDigest,
+				sourceCandidateCatalogDigest: sourceCatalog.catalogDigest,
+				sourceCandidateRefs: Object.freeze(
+					sourceCatalog.candidates.map((candidate) => candidate.candidateRef),
+				) as readonly [string, string],
+				targetCandidateCatalogs: Object.freeze(targetCandidateCatalogs),
 			});
 		}),
 	);
 }
 
 export const ROOT_EVAL_HELD_OUT_SEAL_DIGEST = empiricalStrictJsonDigest({
-	kind: "root-eval-d152-unmaterialized-held-out-seal",
-	decisionRef: "graphrefly-ts:D152",
+	kind: "root-eval-d156-unmaterialized-held-out-seal",
+	decisionRef: "graphrefly-ts:D156",
 	schemaVersion: ROOT_EVAL_TASK_MANIFEST_SCHEMA,
 	taskSetRef: ROOT_EVAL_CONFIRMATORY_TASK_SET_REF,
 });

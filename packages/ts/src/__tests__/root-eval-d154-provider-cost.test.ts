@@ -33,16 +33,17 @@ function request() {
 		response_format: {
 			type: "json_schema",
 			json_schema: {
-				name: "exact_replacement_proposal",
+				name: "occurrence_bound_candidate_selection",
 				strict: true,
 				schema: {
 					type: "object",
 					additionalProperties: false,
-					required: ["path", "oldText", "newText"],
+					required: ["candidateRef"],
 					properties: {
-						path: { type: "string", enum: ["src/test.ts"] },
-						oldText: { type: "string", minLength: 1, maxLength: 32_768 },
-						newText: { type: "string", maxLength: 32_768 },
+						candidateRef: {
+							type: "string",
+							enum: ["cost-test-candidate-a", "cost-test-candidate-b"],
+						},
 					},
 				},
 			},
@@ -99,6 +100,8 @@ function parse(
 			cacheReadMicrousdPerMillionTokens: 7_000,
 		},
 		reservationMicrousd,
+		candidateRefs: ["cost-test-candidate-a", "cost-test-candidate-b"],
+		candidateCatalogDigest: empiricalStrictJsonDigest("cost-test-candidate-catalog"),
 		nonbillableContext: { admission: route, requestBody: wire },
 	});
 }

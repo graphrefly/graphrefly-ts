@@ -105,7 +105,7 @@ describe("current exact model-harness profile inside the root Eval Graph (D72/D7
 		expect(catalog.bindings[0]).toMatchObject({
 			providerRef: "fireworks",
 			proposalEncoding: "strict-json-schema",
-			responseContractRevision: "bounded-structured-proposal.v3",
+			responseContractRevision: "occurrence-bound-candidate-selection.v4",
 		});
 		for (const profileInput of [
 			{ ...catalog, currentEligibility: [{}] } as never,

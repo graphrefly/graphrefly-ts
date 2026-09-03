@@ -25,8 +25,8 @@ export const QUALIFICATION_ENDPOINT = "https://openrouter.ai/api/v1/chat/complet
 
 import {
 	qualificationExamples as examples,
-	qualificationPath as path,
 	QUALIFICATION_PRICING,
+	qualificationCandidateCatalogDigest,
 	qualificationWire,
 } from "./provider-qualification.js";
 export function qualificationOutcome(
@@ -55,6 +55,7 @@ export function qualificationOutcome(
 		/* No cost evidence releases a reservation. */
 	}
 	try {
+		const example = examples[admission.request - 1]!;
 		const result = parseRootEvalLiveProviderResponse({
 			route: PROVIDER_QUALIFICATION_ROUTE,
 			status,
@@ -62,14 +63,14 @@ export function qualificationOutcome(
 			retryAfter: null,
 			pricing: QUALIFICATION_PRICING,
 			reservationMicrousd: admission.reservationMicrousd,
-			writablePath: path,
+			candidateRefs: [...example.candidateRefs],
+			candidateCatalogDigest: qualificationCandidateCatalogDigest(admission.request),
 		});
-		const example = examples[admission.request - 1]!;
 		usable =
 			result.disposition === "tool" &&
 			reported !== null &&
-			result.tool?.oldText === example[0] &&
-			result.tool?.newText === example[1];
+			result.tool?.candidateRef === example.candidateRefs[example.requested] &&
+			result.tool.candidateCatalogDigest === qualificationCandidateCatalogDigest(admission.request);
 		reason = usable
 			? "exact-proposal-accepted"
 			: result.disposition === "tool"

@@ -85,10 +85,11 @@ import {
 	ROOT_EVAL_DEVELOPMENT_TASKS,
 	ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES,
 	type RootEvalTaskBinding,
+	type RootEvalTaskDefinition,
 	rootEvalTaskBindings,
 } from "./root-eval-task.js";
 
-export const ROOT_EVAL_TOPOLOGY_REVISION = "graphrefly-ts.root-eval-topology.v22" as const;
+export const ROOT_EVAL_TOPOLOGY_REVISION = "graphrefly-ts.root-eval-topology.v24" as const;
 
 export type RootEvalOccurrenceLedgerEntry = Readonly<{
 	readonly revision: number;
@@ -245,6 +246,8 @@ export interface EvalArmDispatch {
 	readonly memorySourceEvidenceDigest: string;
 	readonly memorySourceInsightDigest: string;
 	readonly memoryProvenance: EvalMemoryProvenance;
+	readonly candidateCatalogDigest: string;
+	readonly candidateRefs: readonly [string, string];
 }
 
 interface EvalSourceWorkItemRequest {
@@ -257,6 +260,8 @@ interface EvalSourceWorkItemRequest {
 	readonly sourceEvidenceDigest: string;
 	readonly sourceInsightDigest: string;
 	readonly taskManifestDigest: string;
+	readonly candidateCatalogDigest: string;
+	readonly candidateRefs: readonly [string, string];
 }
 
 interface EvalSourceVerificationFact {
@@ -454,10 +459,9 @@ export interface EvalProviderOutcome {
 	readonly responseRetryAfterMs?: number;
 	readonly cleanupCompleted: boolean;
 	readonly toolProposal: Readonly<{
-		readonly toolRef: "graphrefly.eval.exact-tool.v1";
-		readonly path: string;
-		readonly oldText: string;
-		readonly newText: string;
+		readonly toolRef: "graphrefly.eval.exact-candidate-tool.v2";
+		readonly candidateRef: string;
+		readonly candidateCatalogDigest: string;
 		readonly argumentsDigest: string;
 	}> | null;
 }
@@ -477,10 +481,9 @@ export interface EvalAdmittedToolEffect {
 	readonly dispatchOrdinal: number;
 	readonly capacityRetryOrdinal: number;
 	readonly availabilityRetryOrdinal: number;
-	readonly toolRef: "graphrefly.eval.exact-tool.v1";
-	readonly path: string;
-	readonly oldText: string;
-	readonly newText: string;
+	readonly toolRef: "graphrefly.eval.exact-candidate-tool.v2";
+	readonly candidateRef: string;
+	readonly candidateCatalogDigest: string;
 	readonly argumentsDigest: string;
 	readonly receiptDigest: string;
 }
@@ -912,6 +915,7 @@ export interface RootEvalTopologyOptions {
 	readonly campaignPurpose?: EvalCampaignPurpose;
 	readonly taskSetRef?: string;
 	readonly taskManifestDigest?: string;
+	readonly taskDefinitions?: readonly RootEvalTaskDefinition[];
 	readonly taskBindings?: readonly RootEvalTaskBinding[];
 	readonly generationRef?: string;
 	readonly replicateCount?: number;
@@ -1251,6 +1255,8 @@ function sourceRequest(
 		sourceEvidenceDigest: binding.sourceEvidenceDigest,
 		sourceInsightDigest: binding.sourceInsightDigest,
 		taskManifestDigest,
+		candidateCatalogDigest: binding.sourceCandidateCatalogDigest,
+		candidateRefs: binding.sourceCandidateRefs,
 	});
 }
 
@@ -1263,6 +1269,7 @@ function dispatchBatch(
 	return Object.freeze(
 		HARNESS_ARMS.map((arm, armIndex) => {
 			const irrelevant = arm === "irrelevant-applied";
+			const targetCatalog = binding.targetCandidateCatalogs[arm];
 			return Object.freeze({
 				kind: "eval-arm-dispatch" as const,
 				campaignRef,
@@ -1287,6 +1294,8 @@ function dispatchBatch(
 					? binding.irrelevantSourceInsightDigest
 					: request.sourceInsightDigest,
 				memoryProvenance: provenance[arm],
+				candidateCatalogDigest: targetCatalog.candidateCatalogDigest,
+				candidateRefs: targetCatalog.candidateRefs,
 			});
 		}),
 	);
@@ -1389,6 +1398,8 @@ function sourcePlanFor(
 								taskInstanceRef: request.taskInstanceRef,
 								taskManifestDigest: request.taskManifestDigest,
 							}),
+							candidateCatalogDigest: request.candidateCatalogDigest,
+							candidateRefs: request.candidateRefs,
 						},
 					},
 				},
@@ -1433,6 +1444,8 @@ function workItemFor(dispatch: EvalArmDispatch): WorkItemProjection<Record<strin
 			memorySourceTaskInstanceRef: dispatch.memorySourceTaskInstanceRef,
 			memorySourceEvidenceDigest: dispatch.memorySourceEvidenceDigest,
 			memorySourceInsightDigest: dispatch.memorySourceInsightDigest,
+			candidateCatalogDigest: dispatch.candidateCatalogDigest,
+			candidateRefs: dispatch.candidateRefs,
 		},
 		metadata: {
 			topologyRevision: ROOT_EVAL_TOPOLOGY_REVISION,
@@ -1481,6 +1494,8 @@ function planFor(
 							memoryExposureCount: memoryContext.exposedRecordIds.length,
 							memoryBindings: memoryContext.bindings,
 							memoryContextDigest: memoryContext.contextDigest,
+							candidateCatalogDigest: dispatch.candidateCatalogDigest,
+							candidateRefs: dispatch.candidateRefs,
 						},
 					},
 				},
@@ -1731,16 +1746,14 @@ function isDigest(value: unknown): value is string {
 }
 
 function effectArgumentsDigest(input: {
-	readonly toolRef: "graphrefly.eval.exact-tool.v1";
-	readonly path: string;
-	readonly oldText: string;
-	readonly newText: string;
+	readonly toolRef: "graphrefly.eval.exact-candidate-tool.v2";
+	readonly candidateRef: string;
+	readonly candidateCatalogDigest: string;
 }): string {
 	return empiricalStrictJsonDigest({
 		toolRef: input.toolRef,
-		path: input.path,
-		oldText: input.oldText,
-		newText: input.newText,
+		candidateRef: input.candidateRef,
+		candidateCatalogDigest: input.candidateCatalogDigest,
 	});
 }
 
@@ -1767,6 +1780,41 @@ function toolAdmissionReceiptDigest(
 ): string {
 	const { receiptDigest: _receiptDigest, ...material } = admission as EvalAdmittedToolEffect;
 	return empiricalStrictJsonDigest(withoutUndefined(material));
+}
+
+/** Package-private executor boundary: validate the complete Graph admission before any side effect. */
+export function assertRootEvalToolAdmissionReceipt(
+	effect: EvalAdmittedToolEffect,
+): EvalAdmittedToolEffect {
+	const providerOutcome = validateProviderOutcome(effect.providerOutcome);
+	const proposal = providerOutcome.toolProposal;
+	if (
+		effect?.kind !== "eval-admitted-tool-effect" ||
+		effect.receiptDigest !== toolAdmissionReceiptDigest(effect) ||
+		effect.executionId !== effect.toolAdmissionId ||
+		effect.toolAdmissionId !== `${providerOutcome.admissionId}/exact-tool` ||
+		effect.providerAdmission.receiptDigest !== admissionReceiptDigest(effect.providerAdmission) ||
+		effect.providerAdmission.receiptDigest !== providerOutcome.admission.receiptDigest ||
+		effect.providerOutcome.executionId !== effect.providerAdmission.executionId ||
+		effect.effectRunId !== providerOutcome.effectRunId ||
+		effect.workItemId !== providerOutcome.workItemId ||
+		effect.replicate !== providerOutcome.replicate ||
+		effect.arm !== providerOutcome.arm ||
+		effect.workItemRole !== providerOutcome.workItemRole ||
+		effect.providerLogicalAttempt !== providerOutcome.providerLogicalAttempt ||
+		effect.dispatchOrdinal !== providerOutcome.dispatchOrdinal ||
+		effect.capacityRetryOrdinal !== providerOutcome.capacityRetryOrdinal ||
+		effect.availabilityRetryOrdinal !== providerOutcome.availabilityRetryOrdinal ||
+		proposal === null ||
+		effect.toolRef !== proposal.toolRef ||
+		effect.candidateRef !== proposal.candidateRef ||
+		effect.candidateCatalogDigest !== proposal.candidateCatalogDigest ||
+		effect.argumentsDigest !== proposal.argumentsDigest ||
+		effect.argumentsDigest !== effectArgumentsDigest(effect) ||
+		!effect.candidateRef.startsWith(`${effect.workItemId}/candidate-`)
+	)
+		throw new TypeError("exact tool effect did not carry one complete Graph admission receipt");
+	return effect;
 }
 
 function retryDelayReceiptDigest(
@@ -1826,6 +1874,14 @@ function validateProviderOutcomeShape(
 ): EvalProviderOutcome {
 	const admission = outcome.admission;
 	const proposal = outcome.toolProposal;
+	const requestPayload = admission?.request?.payload as
+		| {
+				readonly candidateCatalogDigest?: unknown;
+				readonly candidateRefs?: unknown;
+		  }
+		| undefined;
+	const admittedCandidateRefs = requestPayload?.candidateRefs;
+	const admittedCandidateCatalogDigest = requestPayload?.candidateCatalogDigest;
 	const coordinate = executionCoordinateFromWorkItemId(outcome.workItemId);
 	const candidate = mode === "candidate";
 	if (
@@ -1845,6 +1901,14 @@ function validateProviderOutcomeShape(
 		outcome.capacityRetryOrdinal !== admission.capacityRetryOrdinal ||
 		outcome.availabilityRetryOrdinal !== admission.availabilityRetryOrdinal ||
 		outcome.providerLogicalAttempt !== 1 ||
+		!isDigest(admittedCandidateCatalogDigest) ||
+		!Array.isArray(admittedCandidateRefs) ||
+		admittedCandidateRefs.length !== 2 ||
+		admittedCandidateRefs.some(
+			(candidateRef) =>
+				typeof candidateRef !== "string" || candidateRef.length < 1 || candidateRef.length > 512,
+		) ||
+		admittedCandidateRefs[0] === admittedCandidateRefs[1] ||
 		!Number.isSafeInteger(outcome.dispatchOrdinal) ||
 		outcome.dispatchOrdinal < 1 ||
 		outcome.dispatchOrdinal > ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM ||
@@ -1961,11 +2025,12 @@ function validateProviderOutcomeShape(
 			outcome.availabilityRetryOrdinal >= ROOT_EVAL_MAX_AVAILABILITY_RETRIES) ||
 		(outcome.status === "tool-proposed" ? outcome.cleanupCompleted : !outcome.cleanupCompleted) ||
 		(proposal !== null &&
-			(proposal.toolRef !== "graphrefly.eval.exact-tool.v1" ||
-				proposal.path.length < 1 ||
-				proposal.oldText.length < 1 ||
-				proposal.oldText.length > 32_768 ||
-				proposal.newText.length > 32_768 ||
+			(proposal.toolRef !== "graphrefly.eval.exact-candidate-tool.v2" ||
+				proposal.candidateRef.length < 1 ||
+				proposal.candidateRef.length > 512 ||
+				!isDigest(proposal.candidateCatalogDigest) ||
+				!admittedCandidateRefs.includes(proposal.candidateRef) ||
+				proposal.candidateCatalogDigest !== admittedCandidateCatalogDigest ||
 				proposal.argumentsDigest !== effectArgumentsDigest(proposal)))
 	)
 		throw new TypeError(
@@ -3362,7 +3427,15 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const replicateCount = options.replicateCount ?? ROOT_EVAL_REPLICATE_COUNT;
 	const taskSetRef = options.taskSetRef ?? ROOT_EVAL_DEVELOPMENT_TASKS[0]!.taskSetRef;
 	const taskManifestDigest = options.taskManifestDigest ?? ROOT_EVAL_DEVELOPMENT_TASK_SET_DIGEST;
-	const taskBindings = options.taskBindings ?? rootEvalTaskBindings(ROOT_EVAL_DEVELOPMENT_TASKS);
+	const taskDefinitions = options.taskDefinitions ?? ROOT_EVAL_DEVELOPMENT_TASKS;
+	const derivedTaskBindings = rootEvalTaskBindings(taskDefinitions, campaignRef);
+	if (
+		options.taskBindings !== undefined &&
+		empiricalStrictJsonDigest(options.taskBindings) !==
+			empiricalStrictJsonDigest(derivedTaskBindings)
+	)
+		throw new TypeError("root eval task bindings did not match the frozen candidate catalogs");
+	const taskBindings = derivedTaskBindings;
 	const generationRef = options.generationRef ?? campaignRef;
 	const heldOutSealDigest =
 		options.heldOutSealDigest ??
@@ -3408,7 +3481,27 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					binding.sourceInsightDigest,
 					binding.irrelevantSourceEvidenceDigest,
 					binding.irrelevantSourceInsightDigest,
-				].every((value) => /^sha256:[0-9a-f]{64}$/u.test(value)),
+				].every((value) => /^sha256:[0-9a-f]{64}$/u.test(value)) ||
+				!/^sha256:[0-9a-f]{64}$/u.test(binding.sourceCandidateCatalogDigest) ||
+				binding.sourceCandidateRefs.length !== 2 ||
+				new Set(binding.sourceCandidateRefs).size !== 2 ||
+				binding.sourceCandidateRefs.some(
+					(candidateRef) => !candidateRef.startsWith(`${binding.sourceWorkItemId}/candidate-`),
+				) ||
+				Object.keys(binding.targetCandidateCatalogs).length !== HARNESS_ARMS.length ||
+				HARNESS_ARMS.some((arm) => {
+					const catalog = binding.targetCandidateCatalogs[arm];
+					const expectedWorkItemId = workItemId(campaignRef, binding.replicate, arm);
+					return (
+						catalog?.workItemId !== expectedWorkItemId ||
+						!/^sha256:[0-9a-f]{64}$/u.test(catalog.candidateCatalogDigest) ||
+						catalog.candidateRefs.length !== 2 ||
+						new Set(catalog.candidateRefs).size !== 2 ||
+						catalog.candidateRefs.some(
+							(candidateRef) => !candidateRef.startsWith(`${expectedWorkItemId}/candidate-`),
+						)
+					);
+				}),
 		) ||
 		new Set(taskBindings.map((binding) => binding.taskInstanceRef)).size !== replicateCount
 	)
@@ -3494,13 +3587,23 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			partitionSpentBeforeMicrousd,
 			partitionLedgerDigest,
 			developmentQualificationStreakBefore,
-			decisionRefs: ["graphrefly-ts:D145", "graphrefly-ts:D151", "graphrefly-ts:D152"],
+			decisionRefs: [
+				"graphrefly-ts:D145",
+				"graphrefly-ts:D151",
+				"graphrefly-ts:D152",
+				"graphrefly-ts:D156",
+			],
 		},
 	});
 	const taskBindingAuthority = owner.state(Object.freeze(taskBindings), {
 		name: "eval/campaign/task-bindings",
 		factory: "rootEvalTaskBindingAuthority",
-		meta: { materialFree: true, authority: "sealed-task-manifest", taskManifestDigest },
+		meta: {
+			materialFree: true,
+			authority: "sealed-task-manifest-and-occurrence-candidate-catalog",
+			taskManifestDigest,
+			candidateContract: "two-opaque-refs-per-source-and-target-occurrence",
+		},
 	});
 	const memoryProvenance = owner.state(MEMORY_PROVENANCE, {
 		name: "eval/controls/memory-provenance",
@@ -7039,6 +7142,32 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				if (state.admitted.has(toolAdmissionId)) continue;
 				const proposal = outcome.toolProposal;
 				if (proposal === null) continue;
+				const binding = graphTaskBindings.find(
+					(candidate) => candidate.replicate === outcome.replicate,
+				);
+				if (binding === undefined)
+					throw new TypeError("tool proposal did not bind a known task occurrence");
+				const targetCatalog =
+					outcome.workItemRole === "target"
+						? binding.targetCandidateCatalogs[outcome.arm as HarnessArm]
+						: undefined;
+				const candidateRefs =
+					outcome.workItemRole === "source"
+						? binding.sourceCandidateRefs
+						: targetCatalog?.candidateRefs;
+				const candidateCatalogDigest =
+					outcome.workItemRole === "source"
+						? binding.sourceCandidateCatalogDigest
+						: targetCatalog?.candidateCatalogDigest;
+				if (
+					candidateRefs === undefined ||
+					!candidateRefs.includes(proposal.candidateRef) ||
+					proposal.candidateCatalogDigest !== candidateCatalogDigest ||
+					(outcome.workItemRole === "source"
+						? outcome.workItemId !== binding.sourceWorkItemId
+						: targetCatalog?.workItemId !== outcome.workItemId)
+				)
+					throw new TypeError("tool proposal did not match its occurrence-bound candidate catalog");
 				const material = Object.freeze({
 					kind: "eval-admitted-tool-effect" as const,
 					executionId: toolAdmissionId,
@@ -7055,9 +7184,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					capacityRetryOrdinal: outcome.capacityRetryOrdinal,
 					availabilityRetryOrdinal: outcome.availabilityRetryOrdinal,
 					toolRef: proposal.toolRef,
-					path: proposal.path,
-					oldText: proposal.oldText,
-					newText: proposal.newText,
+					candidateRef: proposal.candidateRef,
+					candidateCatalogDigest: proposal.candidateCatalogDigest,
 					argumentsDigest: proposal.argumentsDigest,
 				});
 				const admission = Object.freeze({
@@ -7075,8 +7203,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: {
-				toolRef: "graphrefly.eval.exact-tool.v1",
-				arguments: "graph-admitted",
+				toolRef: "graphrefly.eval.exact-candidate-tool.v2",
+				arguments: "occurrence-bound-candidate-ref-and-catalog-digest",
 				sourceBarrier: "all-five-provider-outcomes-before-source-tools",
 				sourceBudgetBarrier: "all-five-provider-budget-settlements-before-source-tools",
 				stoppedSourceDrain: "settled-admitted-source-tools-without-unstarted-siblings",
@@ -7092,6 +7220,112 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			meta: { role: "caller-executes-current-admitted-provider-effect-only" },
 		},
 	);
+	const candidateProposalObservations = owner.node(
+		[budgetSettledProviderOutcomes],
+		(ctx) => {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const settled = raw as EvalBudgetSettledProviderOutcome;
+				const outcome = validateProviderOutcome(settled.outcome);
+				if (outcome.toolProposal === null) continue;
+				ctx.down([
+					[
+						"DATA",
+						Object.freeze({
+							kind: "eval-candidate-causality-observation" as const,
+							stage: "provider-proposal" as const,
+							workItemId: outcome.workItemId,
+							replicate: outcome.replicate,
+							arm: outcome.arm,
+							workItemRole: outcome.workItemRole,
+							providerAdmissionReceiptDigest: outcome.admission.receiptDigest,
+							candidateRef: outcome.toolProposal.candidateRef,
+							candidateCatalogDigest: outcome.toolProposal.candidateCatalogDigest,
+							argumentsDigest: outcome.toolProposal.argumentsDigest,
+							resultDigest: outcome.resultDigest,
+						}),
+					],
+				]);
+			}
+		},
+		{
+			name: "eval/observation/candidate-provider-proposal",
+			factory: "rootEvalCandidateProviderProposalObservation",
+			meta: { materialFree: true, stage: "provider-proposal" },
+		},
+	);
+	const candidateAdmissionObservations = owner.node(
+		[toolAdmissions],
+		(ctx) => {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const admission = raw as EvalAdmittedToolEffect;
+				ctx.down([
+					[
+						"DATA",
+						Object.freeze({
+							kind: "eval-candidate-causality-observation" as const,
+							stage: "tool-admission" as const,
+							workItemId: admission.workItemId,
+							replicate: admission.replicate,
+							arm: admission.arm,
+							workItemRole: admission.workItemRole,
+							providerAdmissionReceiptDigest: admission.providerAdmission.receiptDigest,
+							toolAdmissionReceiptDigest: admission.receiptDigest,
+							candidateRef: admission.candidateRef,
+							candidateCatalogDigest: admission.candidateCatalogDigest,
+							argumentsDigest: admission.argumentsDigest,
+						}),
+					],
+				]);
+			}
+		},
+		{
+			name: "eval/observation/candidate-tool-admission",
+			factory: "rootEvalCandidateToolAdmissionObservation",
+			meta: { materialFree: true, stage: "tool-admission" },
+		},
+	);
+	const candidateResultObservations = owner.node(
+		[_toolResults],
+		(ctx) => {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const outcome = validateOutcomeReceipt(raw as EvalEffectOutcome);
+				if (outcome.admission.kind !== "eval-admitted-tool-effect")
+					throw new TypeError("exact tool result lost its Graph tool admission receipt");
+				const admission = assertRootEvalToolAdmissionReceipt(outcome.admission);
+				ctx.down([
+					[
+						"DATA",
+						Object.freeze({
+							kind: "eval-candidate-causality-observation" as const,
+							stage: "tool-result" as const,
+							workItemId: outcome.workItemId,
+							replicate: outcome.replicate,
+							arm: outcome.arm,
+							workItemRole: outcome.workItemRole,
+							providerAdmissionReceiptDigest: admission.providerAdmission.receiptDigest,
+							toolAdmissionReceiptDigest: admission.receiptDigest,
+							candidateRef: admission.candidateRef,
+							candidateCatalogDigest: admission.candidateCatalogDigest,
+							argumentsDigest: outcome.argumentsDigest,
+							resultDigest: outcome.resultDigest,
+							diff: outcome.evidence.diff,
+							publicSemantic: outcome.evidence.publicSemantic,
+							hiddenVerifier: outcome.evidence.hiddenVerifier,
+							cleanupCompleted: outcome.evidence.cleanupCompleted,
+						}),
+					],
+				]);
+			}
+		},
+		{
+			name: "eval/observation/candidate-tool-result",
+			factory: "rootEvalCandidateToolResultObservation",
+			meta: { materialFree: true, stage: "tool-result" },
+		},
+	);
+	void candidateProposalObservations;
+	void candidateAdmissionObservations;
+	void candidateResultObservations;
 	const toolExecutorEffects = owner.initNode(merge<EvalAdmittedToolEffect>(), [toolAdmissions], {
 		name: "eval/executor/current-tool-effect",
 		meta: { role: "caller-executes-current-admitted-tool-effect-only" },

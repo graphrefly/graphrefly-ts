@@ -68,12 +68,21 @@ export const QUALIFICATION_PRICING = Object.freeze({
 	outputMicrousdPerMillionTokens: 280_000,
 	cacheReadMicrousdPerMillionTokens: 30_000,
 });
-export const qualificationPath = "qualification.ts";
 export const qualificationExamples = [
-	["export const value = 1;", "export const value = 2;"],
-	["\treturn left + right;", "\treturn left - right;"],
-	["const enabled = false;\r\n", "const enabled = true;\r\n"],
+	{ candidateRefs: ["qualification-1-candidate-a", "qualification-1-candidate-b"], requested: 1 },
+	{ candidateRefs: ["qualification-2-candidate-a", "qualification-2-candidate-b"], requested: 0 },
+	{ candidateRefs: ["qualification-3-candidate-a", "qualification-3-candidate-b"], requested: 1 },
 ] as const;
+
+export function qualificationCandidateCatalogDigest(request: number): string {
+	const example = qualificationExamples[request - 1];
+	if (example === undefined) throw new TypeError("qualification candidate catalog request invalid");
+	return empiricalStrictJsonDigest({
+		kind: "root-eval-d156-provider-qualification-candidate-catalog",
+		request,
+		candidateRefs: example.candidateRefs,
+	});
+}
 
 function qualificationRequestBody(request: number): string {
 	const example = qualificationExamples[request - 1];
@@ -84,26 +93,24 @@ function qualificationRequestBody(request: number): string {
 			{
 				role: "system",
 				content:
-					"This is a transport qualification, not an evaluation task. Return exactly the requested replacement JSON. Copy the provided strings exactly, preserving whitespace. Do not use tools.",
+					"This is a transport qualification, not an evaluation task. Return one allowed candidateRef in the required JSON shape. Do not use tools.",
 			},
 			{
 				role: "user",
-				content: `Return this exact object: ${JSON.stringify({ path: qualificationPath, oldText: example[0], newText: example[1] })}`,
+				content: `Select ${example.candidateRefs[example.requested]} from these two allowed refs: ${example.candidateRefs.join(", ")}.`,
 			},
 		],
 		response_format: {
 			type: "json_schema",
 			json_schema: {
-				name: "exact_replacement_proposal",
+				name: "occurrence_bound_candidate_selection",
 				strict: true,
 				schema: {
 					type: "object",
 					additionalProperties: false,
-					required: ["path", "oldText", "newText"],
+					required: ["candidateRef"],
 					properties: {
-						path: { type: "string", enum: [qualificationPath] },
-						oldText: { type: "string", minLength: 1, maxLength: 32768 },
-						newText: { type: "string", maxLength: 32768 },
+						candidateRef: { type: "string", enum: [...example.candidateRefs] },
 					},
 				},
 			},

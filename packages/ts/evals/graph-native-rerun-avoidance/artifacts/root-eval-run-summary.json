@@ -53,7 +53,7 @@
 		"excludedTechnicalReplicates": [],
 		"finding": "positive-differential",
 		"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
-		"heldOutSealDigest": "sha256:0d26399c4f80843a4bbcf666e14f2a44a04a5508afa39f6e9144ab461f084820",
+		"heldOutSealDigest": "sha256:0924aeefa3425a3be8e8d3794ec8c95a1d5c7e053c31536341134b1b24511e66",
 		"kind": "eval-observation",
 		"matchedRelevantOverColdWins": 5,
 		"memoryProvenance": {
@@ -133,7 +133,7 @@
 		"sourceTechnicalExcludedReplicates": [],
 		"stoppingReason": "campaign-complete",
 		"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
-		"topologyRevision": "graphrefly-ts.root-eval-topology.v22",
+		"topologyRevision": "graphrefly-ts.root-eval-topology.v24",
 		"unreportedSettledUpperBoundMicrousd": 0,
 		"verificationDiagnostics": {
 			"armOrder": [
@@ -153,8 +153,8 @@
 					"exactToolAdmitted": 5,
 					"hiddenVerifierPassed": 0,
 					"passed": 0,
-					"publicSemanticPassed": 0,
-					"scopedChange": 0
+					"publicSemanticPassed": 5,
+					"scopedChange": 5
 				},
 				"cold": {
 					"cleanupCompleted": 5,
@@ -162,8 +162,8 @@
 					"exactToolAdmitted": 5,
 					"hiddenVerifierPassed": 0,
 					"passed": 0,
-					"publicSemanticPassed": 0,
-					"scopedChange": 0
+					"publicSemanticPassed": 5,
+					"scopedChange": 5
 				},
 				"irrelevant-applied": {
 					"cleanupCompleted": 5,
@@ -171,8 +171,8 @@
 					"exactToolAdmitted": 5,
 					"hiddenVerifierPassed": 0,
 					"passed": 0,
-					"publicSemanticPassed": 0,
-					"scopedChange": 0
+					"publicSemanticPassed": 5,
+					"scopedChange": 5
 				},
 				"proposal-only": {
 					"cleanupCompleted": 5,
@@ -180,8 +180,8 @@
 					"exactToolAdmitted": 5,
 					"hiddenVerifierPassed": 0,
 					"passed": 0,
-					"publicSemanticPassed": 0,
-					"scopedChange": 0
+					"publicSemanticPassed": 5,
+					"scopedChange": 5
 				},
 				"relevant-applied": {
 					"cleanupCompleted": 5,
@@ -198,16 +198,16 @@
 					"exactToolAdmitted": 5,
 					"hiddenVerifierPassed": 0,
 					"passed": 0,
-					"publicSemanticPassed": 0,
-					"scopedChange": 0
+					"publicSemanticPassed": 5,
+					"scopedChange": 5
 				}
 			},
 			"terminalReasonCounts": {
 				"admission-rejected": {
 					"cleanup-incomplete": 0,
 					"exact-tool-failed": 0,
-					"hidden-verifier-failed": 0,
-					"no-change": 5,
+					"hidden-verifier-failed": 5,
+					"no-change": 0,
 					"passed": 0,
 					"provider-failed": 0,
 					"public-semantic-failed": 0,
@@ -216,8 +216,8 @@
 				"cold": {
 					"cleanup-incomplete": 0,
 					"exact-tool-failed": 0,
-					"hidden-verifier-failed": 0,
-					"no-change": 5,
+					"hidden-verifier-failed": 5,
+					"no-change": 0,
 					"passed": 0,
 					"provider-failed": 0,
 					"public-semantic-failed": 0,
@@ -226,8 +226,8 @@
 				"irrelevant-applied": {
 					"cleanup-incomplete": 0,
 					"exact-tool-failed": 0,
-					"hidden-verifier-failed": 0,
-					"no-change": 5,
+					"hidden-verifier-failed": 5,
+					"no-change": 0,
 					"passed": 0,
 					"provider-failed": 0,
 					"public-semantic-failed": 0,
@@ -236,8 +236,8 @@
 				"proposal-only": {
 					"cleanup-incomplete": 0,
 					"exact-tool-failed": 0,
-					"hidden-verifier-failed": 0,
-					"no-change": 5,
+					"hidden-verifier-failed": 5,
+					"no-change": 0,
 					"passed": 0,
 					"provider-failed": 0,
 					"public-semantic-failed": 0,
@@ -256,8 +256,8 @@
 				"wrong-scope-applied": {
 					"cleanup-incomplete": 0,
 					"exact-tool-failed": 0,
-					"hidden-verifier-failed": 0,
-					"no-change": 5,
+					"hidden-verifier-failed": 5,
+					"no-change": 0,
 					"passed": 0,
 					"provider-failed": 0,
 					"public-semantic-failed": 0,
@@ -308,8 +308,8 @@
 					"exactToolAdmitted": 5,
 					"hiddenVerifierPassed": 0,
 					"passed": 0,
-					"publicSemanticPassed": 0,
-					"scopedChange": 0
+					"publicSemanticPassed": 5,
+					"scopedChange": 5
 				},
 				"cold": {
 					"cleanupCompleted": 5,
@@ -317,8 +317,8 @@
 					"exactToolAdmitted": 5,
 					"hiddenVerifierPassed": 0,
 					"passed": 0,
-					"publicSemanticPassed": 0,
-					"scopedChange": 0
+					"publicSemanticPassed": 5,
+					"scopedChange": 5
 				},
 				"irrelevant-applied": {
 					"cleanupCompleted": 5,
@@ -326,8 +326,8 @@
 					"exactToolAdmitted": 5,
 					"hiddenVerifierPassed": 0,
 					"passed": 0,
-					"publicSemanticPassed": 0,
-					"scopedChange": 0
+					"publicSemanticPassed": 5,
+					"scopedChange": 5
 				},
 				"proposal-only": {
 					"cleanupCompleted": 5,
@@ -335,8 +335,8 @@
 					"exactToolAdmitted": 5,
 					"hiddenVerifierPassed": 0,
 					"passed": 0,
-					"publicSemanticPassed": 0,
-					"scopedChange": 0
+					"publicSemanticPassed": 5,
+					"scopedChange": 5
 				},
 				"relevant-applied": {
 					"cleanupCompleted": 5,
@@ -353,16 +353,16 @@
 					"exactToolAdmitted": 5,
 					"hiddenVerifierPassed": 0,
 					"passed": 0,
-					"publicSemanticPassed": 0,
-					"scopedChange": 0
+					"publicSemanticPassed": 5,
+					"scopedChange": 5
 				}
 			},
 			"terminalReasonCounts": {
 				"admission-rejected": {
 					"cleanup-incomplete": 0,
 					"exact-tool-failed": 0,
-					"hidden-verifier-failed": 0,
-					"no-change": 5,
+					"hidden-verifier-failed": 5,
+					"no-change": 0,
 					"passed": 0,
 					"provider-failed": 0,
 					"public-semantic-failed": 0,
@@ -371,8 +371,8 @@
 				"cold": {
 					"cleanup-incomplete": 0,
 					"exact-tool-failed": 0,
-					"hidden-verifier-failed": 0,
-					"no-change": 5,
+					"hidden-verifier-failed": 5,
+					"no-change": 0,
 					"passed": 0,
 					"provider-failed": 0,
 					"public-semantic-failed": 0,
@@ -381,8 +381,8 @@
 				"irrelevant-applied": {
 					"cleanup-incomplete": 0,
 					"exact-tool-failed": 0,
-					"hidden-verifier-failed": 0,
-					"no-change": 5,
+					"hidden-verifier-failed": 5,
+					"no-change": 0,
 					"passed": 0,
 					"provider-failed": 0,
 					"public-semantic-failed": 0,
@@ -391,8 +391,8 @@
 				"proposal-only": {
 					"cleanup-incomplete": 0,
 					"exact-tool-failed": 0,
-					"hidden-verifier-failed": 0,
-					"no-change": 5,
+					"hidden-verifier-failed": 5,
+					"no-change": 0,
 					"passed": 0,
 					"provider-failed": 0,
 					"public-semantic-failed": 0,
@@ -411,8 +411,8 @@
 				"wrong-scope-applied": {
 					"cleanup-incomplete": 0,
 					"exact-tool-failed": 0,
-					"hidden-verifier-failed": 0,
-					"no-change": 5,
+					"hidden-verifier-failed": 5,
+					"no-change": 0,
 					"passed": 0,
 					"provider-failed": 0,
 					"public-semantic-failed": 0,

@@ -28,6 +28,7 @@ import { rootEvalDevelopmentTaskSetRef } from "./root-eval-task.js";
 export const ROOT_EVAL_D152_LEDGER_SCHEMA = "graphrefly-ts.root-eval-d152-ledger.v2" as const;
 export const ROOT_EVAL_D152_TRANSACTION_SCHEMA =
 	"graphrefly-ts.root-eval-d152-transaction.v1" as const;
+export const ROOT_EVAL_D156_FIRST_DEVELOPMENT_ORDINAL = 3 as const;
 function developmentOrdinal(generationRef: string): number | null {
 	const match = /^root-eval-development-2026-09-01-d152-v([1-9][0-9]*)$/u.exec(generationRef);
 	if (match === null) return null;
@@ -275,7 +276,12 @@ function validate(value: unknown): RootEvalD152Ledger {
 	});
 	let derivedStreak = 0;
 	for (let index = entries.length - 1; index >= 0; index -= 1) {
-		if (!entries[index]!.generationQualified) break;
+		const entry = entries[index]!;
+		if (
+			developmentOrdinal(entry.generationRef)! < ROOT_EVAL_D156_FIRST_DEVELOPMENT_ORDINAL ||
+			!entry.generationQualified
+		)
+			break;
 		derivedStreak = Math.min(2, derivedStreak + 1);
 	}
 	const checked = material({
@@ -618,9 +624,16 @@ export function advanceRootEvalD152Ledger(input: {
 	const generationQualified =
 		input.admissionStatus === "admitted" &&
 		input.developmentQualification?.generationQualified === true;
-	const developmentQualificationStreak = generationQualified
-		? Math.min(2, ledger.developmentQualificationStreak + 1)
-		: 0;
+	const priorEpochStreak =
+		ordinal === ROOT_EVAL_D156_FIRST_DEVELOPMENT_ORDINAL
+			? 0
+			: ledger.developmentQualificationStreak;
+	const developmentQualificationStreak =
+		ordinal !== null && ordinal < ROOT_EVAL_D156_FIRST_DEVELOPMENT_ORDINAL
+			? 0
+			: generationQualified
+				? Math.min(2, priorEpochStreak + 1)
+				: 0;
 	if (
 		input.admissionStatus === "admitted" &&
 		input.developmentQualification !== null &&

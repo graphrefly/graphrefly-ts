@@ -96,12 +96,11 @@ import {
 	createRootEvalLiveExecutor,
 	createRootEvalLiveTransportQualificationExecutor,
 	createRootEvalNoNetworkQualificationExecutor,
-	parseRootEvalLiveProviderResponse,
+	parseRootEvalLiveProviderResponse as parseCandidateProviderResponse,
 	qualifyRootEvalMechanismTaskFamily,
 	ROOT_EVAL_BILLING_SETTLEMENT_LEASE_MS,
 	ROOT_EVAL_CALLER_SETTLEMENT_DEADLINE_MS,
 	ROOT_EVAL_LIVE_BUGGY_REPLACEMENT,
-	ROOT_EVAL_LIVE_CORRECT_REPLACEMENT,
 	ROOT_EVAL_LIVE_DECISION_REF,
 	ROOT_EVAL_LIVE_WRITABLE_PATH,
 	ROOT_EVAL_MAX_BILLING_OBSERVATIONS,
@@ -176,6 +175,7 @@ import {
 	ROOT_EVAL_DEVELOPMENT_TASKS,
 	ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES,
 	readRootEvalTaskManifest,
+	rootEvalCandidateWorkspaceSnapshotDigest,
 	rootEvalDevelopmentTaskSetRef,
 	rootEvalMechanismDiscriminationOracle,
 	rootEvalMechanismPairwiseAudit,
@@ -183,6 +183,7 @@ import {
 	rootEvalTask,
 	rootEvalTaskBindings,
 	rootEvalTaskManifestDisjointAudit,
+	rootEvalToolCandidateCatalog,
 	rootEvalVariantOrderSupportsIrrelevantControls,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-task.js";
 import { ensureRootEvalDevelopmentTaskManifest } from "../../evals/graph-native-rerun-avoidance/root-eval-task-manifest-store.js";
@@ -191,6 +192,49 @@ import { graph } from "../graph/graph.js";
 import { strictJsonCodec } from "../json/codec.js";
 
 const ROOT_EVAL_DEVELOPMENT_TASK = ROOT_EVAL_DEVELOPMENT_TASKS[0]!;
+const DEFAULT_TEST_WORK_ITEM_ID = "root-eval-test/candidate-work-item";
+
+function correctCandidate(
+	task: (typeof ROOT_EVAL_DEVELOPMENT_TASKS)[number],
+	workItemRole: "source" | "target",
+	workItemId: string,
+) {
+	const catalog = rootEvalToolCandidateCatalog(task, workItemRole, workItemId);
+	const replacement =
+		workItemRole === "source" ? task.sourceFixtureCorrectText : task.fixtureCorrectText;
+	const candidate = catalog.candidates.find(
+		(entry) => entry.replacementDigest === empiricalStrictJsonDigest(replacement),
+	);
+	if (candidate === undefined) throw new Error("test candidate catalog lost verified intervention");
+	return { catalog, candidate };
+}
+
+function parseRootEvalLiveProviderResponse(
+	input: Omit<
+		Parameters<typeof parseCandidateProviderResponse>[0],
+		"candidateRefs" | "candidateCatalogDigest"
+	> &
+		Partial<
+			Pick<
+				Parameters<typeof parseCandidateProviderResponse>[0],
+				"candidateRefs" | "candidateCatalogDigest"
+			>
+		>,
+) {
+	const catalog = rootEvalToolCandidateCatalog(
+		ROOT_EVAL_DEVELOPMENT_TASK,
+		"target",
+		DEFAULT_TEST_WORK_ITEM_ID,
+	);
+	return parseCandidateProviderResponse({
+		candidateRefs: catalog.candidates.map((candidate) => candidate.candidateRef) as [
+			string,
+			string,
+		],
+		candidateCatalogDigest: catalog.catalogDigest,
+		...input,
+	});
+}
 
 const repositoryRoot = resolve(import.meta.dirname, "../../../..");
 const pricing = Object.freeze({
@@ -272,6 +316,11 @@ function allProviderAdmissionIds(): readonly string[] {
 }
 
 function providerBytes(): Uint8Array {
+	const { candidate: correct } = correctCandidate(
+		ROOT_EVAL_DEVELOPMENT_TASK,
+		"target",
+		DEFAULT_TEST_WORK_ITEM_ID,
+	);
 	return new TextEncoder().encode(
 		JSON.stringify({
 			id: "generation:test",
@@ -285,11 +334,7 @@ function providerBytes(): Uint8Array {
 					logprobs: null,
 					message: {
 						role: "assistant",
-						content: JSON.stringify({
-							path: ROOT_EVAL_LIVE_WRITABLE_PATH,
-							oldText: ROOT_EVAL_LIVE_BUGGY_REPLACEMENT,
-							newText: ROOT_EVAL_LIVE_CORRECT_REPLACEMENT,
-						}),
+						content: JSON.stringify({ candidateRef: correct.candidateRef }),
 					},
 				},
 			],
@@ -304,39 +349,37 @@ function providerBytes(): Uint8Array {
 	);
 }
 
-function providerBytesForTask(task: (typeof ROOT_EVAL_DEVELOPMENT_TASKS)[number]): Uint8Array {
+function providerBytesForTask(
+	task: (typeof ROOT_EVAL_DEVELOPMENT_TASKS)[number],
+	workItemId = DEFAULT_TEST_WORK_ITEM_ID,
+): Uint8Array {
+	const { candidate: correct } = correctCandidate(task, "target", workItemId);
 	const decoded = JSON.parse(new TextDecoder().decode(providerBytes())) as {
 		choices: Array<{ message: { content: string } }>;
 	};
-	decoded.choices[0]!.message.content = JSON.stringify({
-		path: task.writablePath,
-		oldText: task.fixtureBuggyText,
-		newText: task.fixtureCorrectText,
-	});
+	decoded.choices[0]!.message.content = JSON.stringify({ candidateRef: correct.candidateRef });
 	return new TextEncoder().encode(JSON.stringify(decoded));
 }
 
 function providerBytesForSourceTask(
 	task: (typeof ROOT_EVAL_DEVELOPMENT_TASKS)[number],
+	workItemId = task.sourceWorkItemRef,
 ): Uint8Array {
+	const { candidate: correct } = correctCandidate(task, "source", workItemId);
 	const decoded = JSON.parse(new TextDecoder().decode(providerBytes())) as {
 		choices: Array<{ message: { content: string } }>;
 	};
-	decoded.choices[0]!.message.content = JSON.stringify({
-		path: task.sourceWritablePath,
-		oldText: task.sourceFixtureBuggyText,
-		newText: task.sourceFixtureCorrectText,
-	});
+	decoded.choices[0]!.message.content = JSON.stringify({ candidateRef: correct.candidateRef });
 	return new TextEncoder().encode(JSON.stringify(decoded));
 }
 
 function providerBytesForEffect(
-	effect: Pick<EvalAdmittedEffect, "replicate" | "workItemRole">,
+	effect: Pick<EvalAdmittedEffect, "replicate" | "workItemRole" | "workItemId">,
 ): Uint8Array {
 	const task = ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate - 1]!;
 	return effect.workItemRole === "source"
-		? providerBytesForSourceTask(task)
-		: providerBytesForTask(task);
+		? providerBytesForSourceTask(task, effect.workItemId)
+		: providerBytesForTask(task, effect.workItemId);
 }
 
 function truncatedProviderBytes(): Uint8Array {
@@ -1128,6 +1171,38 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				carriedConfirmatorySpentMicrousd: 0,
 			}),
 		).toThrow(/historical ledger digest/u);
+	});
+
+	it("starts the D156 efficacy streak at development-3 even when older entries qualified", () => {
+		let ledger = createRootEvalD152Ledger(ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER);
+		const advanceQualified = (ordinal: number, consecutiveQualifyingGenerations: number) =>
+			advanceRootEvalD152Ledger({
+				ledger,
+				generationRef: rootEvalD152DevelopmentGenerationRef(ordinal),
+				taskSetRef: rootEvalDevelopmentTaskSetRef(ordinal),
+				taskManifestDigest: empiricalStrictJsonDigest(["d156-epoch-manifest", ordinal]),
+				providerReportedMicrousd: 0,
+				unreportedSettledUpperBoundMicrousd: 0,
+				accountedUpperBoundMicrousd: 0,
+				admissionStatus: "admitted",
+				developmentQualification: {
+					kind: "eval-development-qualification-state",
+					campaignPurpose: "development",
+					generationRef: rootEvalD152DevelopmentGenerationRef(ordinal),
+					status: "qualified",
+					generationQualified: true,
+					consecutiveQualifyingGenerations,
+					requiredConsecutiveGenerations: 2,
+					heldOutEligible: consecutiveQualifyingGenerations === 2,
+				},
+				evidenceDigest: empiricalStrictJsonDigest(["d156-epoch-evidence", ordinal]),
+			});
+		ledger = advanceQualified(1, 0);
+		expect(ledger.developmentQualificationStreak).toBe(0);
+		ledger = advanceQualified(2, 0);
+		expect(ledger.developmentQualificationStreak).toBe(0);
+		ledger = advanceQualified(3, 1);
+		expect(ledger.developmentQualificationStreak).toBe(1);
 	});
 
 	it("retains old partition receipts while the approved development-3 cap reaches exactly USD 40", () => {
@@ -2401,16 +2476,12 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					},
 					response_format: {
 						type: "json_schema",
-						json_schema: { name: "exact_replacement_proposal", strict: true },
+						json_schema: { name: "occurrence_bound_candidate_selection", strict: true },
 					},
 					reasoning: { effort: "medium" },
 				});
-				expect(capturedSystemPrompt).toContain(
-					"oldText field must be copied byte-for-byte from exactly one occurrence",
-				);
-				expect(capturedSystemPrompt).toContain(
-					"including tabs, spaces, line endings, and surrounding indentation",
-				);
+				expect(capturedSystemPrompt).toContain("Select only the candidateRef");
+				expect(capturedSystemPrompt).toContain("Do not author patch text");
 				expect(requestBody?.reasoning).not.toHaveProperty("max_tokens");
 				expect(requestBody).not.toHaveProperty("tools");
 				expect(requestBody).not.toHaveProperty("tool_choice");
@@ -3185,10 +3256,14 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		expect(parsed.reason).toBe("tool-proposed");
 		expect(parsed.costMicrousd).toBe(265);
 		expect(parsed.pricingRoundingAllowanceMicrousd).toBe(1);
+		const catalog = rootEvalToolCandidateCatalog(
+			ROOT_EVAL_DEVELOPMENT_TASK,
+			"target",
+			DEFAULT_TEST_WORK_ITEM_ID,
+		);
 		expect(parsed.tool).toEqual({
-			path: ROOT_EVAL_LIVE_WRITABLE_PATH,
-			oldText: ROOT_EVAL_LIVE_BUGGY_REPLACEMENT,
-			newText: ROOT_EVAL_LIVE_CORRECT_REPLACEMENT,
+			candidateRef: catalog.candidates[0].candidateRef,
+			candidateCatalogDigest: catalog.catalogDigest,
 		});
 		expect(
 			parseRootEvalLiveProviderResponse({
@@ -3445,6 +3520,11 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 	});
 
 	it("classifies malformed provider responses with closed material-free reasons", () => {
+		const catalog = rootEvalToolCandidateCatalog(
+			ROOT_EVAL_DEVELOPMENT_TASK,
+			"target",
+			DEFAULT_TEST_WORK_ITEM_ID,
+		);
 		const providerText = new TextDecoder().decode(providerBytes());
 		const base = JSON.parse(providerText) as Record<string, unknown>;
 		const reasonFor = (value: unknown | Uint8Array): string => {
@@ -3567,11 +3647,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 							native_finish_reason: "stop",
 							message: {
 								role: "assistant",
-								content: JSON.stringify({
-									path: ROOT_EVAL_LIVE_WRITABLE_PATH,
-									oldText: "x",
-									newText: "y",
-								}),
+								content: JSON.stringify({ candidateRef: catalog.candidates[0].candidateRef }),
 								function_call: { name: "replace_exact", arguments: "{}" },
 							},
 						},
@@ -3589,11 +3665,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 							native_finish_reason: null,
 							message: {
 								role: "assistant",
-								content: JSON.stringify({
-									path: ROOT_EVAL_LIVE_WRITABLE_PATH,
-									oldText: "x",
-									newText: "y",
-								}),
+								content: JSON.stringify({ candidateRef: catalog.candidates[0].candidateRef }),
 								tool_calls: null,
 								function_call: null,
 								refusal: null,
@@ -3620,7 +3692,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 							native_finish_reason: "stop",
 							message: {
 								role: "assistant",
-								content: `{"path":"${ROOT_EVAL_LIVE_WRITABLE_PATH}","path":"wrong","oldText":"x","newText":"y"}`,
+								content: `{"candidateRef":"${catalog.candidates[0].candidateRef}","candidateRef":"wrong"}`,
 							},
 						},
 					],
@@ -3643,9 +3715,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 						{
 							message: {
 								content: JSON.stringify({
-									path: ROOT_EVAL_LIVE_WRITABLE_PATH,
-									oldText: "x",
-									newText: "y",
+									candidateRef: catalog.candidates[0].candidateRef,
 									extra: true,
 								}),
 							},
@@ -3660,7 +3730,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					choices: [
 						{
 							message: {
-								content: JSON.stringify({ path: "wrong", oldText: "x", newText: "y" }),
+								content: JSON.stringify({ candidateRef: "wrong" }),
 							},
 						},
 					],
@@ -3677,11 +3747,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 							native_finish_reason: "stop",
 							message: {
 								role: "assistant",
-								content: JSON.stringify({
-									path: ROOT_EVAL_LIVE_WRITABLE_PATH,
-									oldText: "\ud800",
-									newText: "y",
-								}),
+								content: JSON.stringify({ candidateRef: "\ud800" }),
 							},
 						},
 					],
@@ -4826,7 +4892,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				campaignPurpose: ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE,
 				taskSetRef: ROOT_EVAL_LIVE_TASK_SET_REF,
 				taskManifestDigest: acquisition.claim.taskManifestDigest,
-				taskBindings: rootEvalTaskBindings(manifest.tasks),
+				taskDefinitions: manifest.tasks,
+				taskBindings: rootEvalTaskBindings(manifest.tasks, ROOT_EVAL_LIVE_GENERATION_REF),
 				generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
 				heldOutSealDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
 				budgetPartition: ROOT_EVAL_LIVE_BUDGET_PARTITION,
@@ -5830,7 +5897,10 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				if (effect.workItemRole === "source")
 					return {
 						status: 200,
-						bytes: providerBytesForSourceTask(ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate - 1]!),
+						bytes: providerBytesForSourceTask(
+							ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate - 1]!,
+							effect.workItemId,
+						),
 					};
 				return { status: 200, bytes: effect.replicate === 1 ? legacyToolCall : malformedProposal };
 			},
@@ -5962,8 +6032,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					status: 200,
 					bytes:
 						effect.workItemRole === "source"
-							? providerBytesForSourceTask(task)
-							: providerBytesForTask(task),
+							? providerBytesForSourceTask(task, effect.workItemId)
+							: providerBytesForTask(task, effect.workItemId),
 				};
 			},
 		});
@@ -5980,7 +6050,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					campaignPurpose: ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE,
 					taskSetRef: taskManifest.taskSetRef,
 					taskManifestDigest: taskManifest.manifestDigest,
-					taskBindings: rootEvalTaskBindings(tasks),
+					taskDefinitions: tasks,
+					taskBindings: rootEvalTaskBindings(tasks, generationRef),
 					generationRef,
 					heldOutSealDigest: ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
 					budgetPartition:
@@ -6341,7 +6412,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			providerResponses: [],
 			providerResponseForEffect(effect) {
 				const task = ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate - 1]!;
-				return { status: 200, bytes: providerBytesForSourceTask(task) };
+				return { status: 200, bytes: providerBytesForSourceTask(task, effect.workItemId) };
 			},
 		});
 		const httpTopology = createRootEvalTopology({
@@ -6372,7 +6443,15 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			bearerToken: claimInput.credential.bearerToken,
 			pricing: claimInput.pricing,
 			diagnosticMode: "development-private",
-			providerResponses: [{ status: 200, bytes: providerBytes() }],
+			providerResponses: [
+				{
+					status: 200,
+					bytes: providerBytesForTask(
+						ROOT_EVAL_DEVELOPMENT_TASK,
+						`${ROOT_EVAL_LIVE_GENERATION_REF}/replicate-1/relevant-applied`,
+					),
+				},
+			],
 		});
 		try {
 			let verified: EvalEffectOutcome | undefined;
@@ -6394,6 +6473,12 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					effect.replicate === 1 &&
 					effect.arm === "relevant-applied"
 				) {
+					await expect(
+						executor.execute({
+							...effect,
+							executionId: `${effect.executionId}/forged-unadmitted`,
+						}),
+					).rejects.toThrow(/complete Graph admission receipt/u);
 					verified = (await executor.execute(effect)) as EvalEffectOutcome;
 					return verified;
 				}
@@ -6455,11 +6540,11 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				response_format: {
 					type: "json_schema",
 					json_schema: {
-						name: "exact_replacement_proposal",
+						name: "occurrence_bound_candidate_selection",
 						strict: true,
 						schema: {
 							additionalProperties: false,
-							required: ["path", "oldText", "newText"],
+							required: ["candidateRef"],
 						},
 					},
 				},
@@ -6534,6 +6619,13 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					/compare|reject|return selected|acceptedCoordinate/u,
 				);
 				expect(task.fixtureCorrectText).not.toBe(task.fixtureBuggyText);
+				expect(task.fixtureAlternativeText).not.toBe(task.fixtureBuggyText);
+				expect(task.fixtureAlternativeText).not.toBe(task.fixtureCorrectText);
+				if (task.replicate === 1) {
+					expect(task.fixtureCorrectText).toContain("\r\n\treturn ");
+					expect(task.fixtureCorrectText).not.toMatch(/(?<!\r)\n/u);
+					expect(task.fixtureAlternativeText).toContain("\r\n\treturn ");
+				}
 			}
 			expect(new Set(tasks.map((task) => task.mechanismId)).size).toBe(5);
 			expect(
@@ -6725,7 +6817,6 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				const rotated = manifest.tasks[ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES[index]! - 1]!;
 				expect(bindings[index]!.sourceInsightDigest).toBe(task.sourceInsightDigest);
 				expect(bindings[index]!.irrelevantSourceInsightDigest).toBe(rotated.sourceInsightDigest);
-				expect(task.mechanismAlternativeAction).toBe(rotated.mechanismAction);
 				expect(task.mechanismAction).not.toBe(rotated.mechanismAction);
 				// Execute only this test's generated, trusted candidate expressions. Check
 				// all three, not only the correct/rotated pair or their policy labels.
@@ -6742,11 +6833,15 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 						.filter(
 							(candidate) => runInNewContext(candidate[2]!, { input, TextEncoder }) === expected,
 						)
-						.map((candidate) => `select-${candidate[1]}-candidate`);
+						.map((candidate) => candidate[1]);
+					const correctExpression = task.fixtureCorrectText.match(
+						/\r?\n\treturn (.+);\r?\n\}/u,
+					)?.[1];
+					const correctSlot = candidates.find(
+						(candidate) => candidate[2] === correctExpression,
+					)?.[1];
 					expect(passing).toEqual(
-						verifierKind === "publicVerifierSource"
-							? ["select-first-candidate", "select-second-candidate", "select-third-candidate"]
-							: [task.mechanismAction],
+						verifierKind === "publicVerifierSource" ? ["first", "second", "third"] : [correctSlot],
 					);
 				}
 			}
@@ -6771,7 +6866,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			).toThrow();
 		}
 		expect(qualified).toBeGreaterThan(0);
-		expect(qualified).toBeLessThan(120);
+		expect(qualified).toBe(120);
 		expect(rootEvalVariantOrderSupportsIrrelevantControls([0, 1, 2, 3, 4], "development-4")).toBe(
 			false,
 		);
@@ -6785,7 +6880,14 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		const bindings = rootEvalTaskBindings(ROOT_EVAL_DEVELOPMENT_TASKS);
 		const oracle = rootEvalMechanismDiscriminationOracle(ROOT_EVAL_DEVELOPMENT_TASKS);
 		const pairwiseAudit = rootEvalMechanismPairwiseAudit(ROOT_EVAL_DEVELOPMENT_TASKS);
+		const targetOccurrences = bindings.flatMap((binding) =>
+			Object.values(binding.targetCandidateCatalogs),
+		);
 		expect(bindings).toHaveLength(5);
+		expect(targetOccurrences).toHaveLength(30);
+		expect(new Set(targetOccurrences.map((entry) => entry.workItemId)).size).toBe(30);
+		expect(new Set(targetOccurrences.map((entry) => entry.candidateCatalogDigest)).size).toBe(30);
+		expect(new Set(targetOccurrences.flatMap((entry) => entry.candidateRefs)).size).toBe(60);
 		expect(oracle).toHaveLength(5);
 		expect(pairwiseAudit).toHaveLength(10);
 		expect(
@@ -6798,27 +6900,65 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		).toBe(true);
 		expect(new Set(bindings.map((binding) => binding.irrelevantTaskInstanceRef)).size).toBe(5);
 		expect(new Set(ROOT_EVAL_DEVELOPMENT_TASKS.map((task) => task.mechanismId)).size).toBe(5);
-		expect(new Set(ROOT_EVAL_DEVELOPMENT_TASKS.map((task) => task.mechanismAction)).size).toBe(3);
+		expect(new Set(ROOT_EVAL_DEVELOPMENT_TASKS.map((task) => task.mechanismAction)).size).toBe(5);
 		expect(
 			new Set(ROOT_EVAL_DEVELOPMENT_TASKS.map((task) => task.sourceInsightContent.length)),
-		).toEqual(new Set([80]));
+		).toEqual(new Set([96]));
 		for (const [index, binding] of bindings.entries()) {
 			const target = ROOT_EVAL_DEVELOPMENT_TASKS[index]!;
 			const irrelevant =
 				ROOT_EVAL_DEVELOPMENT_TASKS[ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES[index]! - 1]!;
+			for (const workItemRole of ["source", "target"] as const) {
+				const targetOccurrence = binding.targetCandidateCatalogs.cold;
+				const workItemId =
+					workItemRole === "source" ? binding.sourceWorkItemId : targetOccurrence.workItemId;
+				const catalog = rootEvalToolCandidateCatalog(target, workItemRole, workItemId);
+				const correctReplacement =
+					workItemRole === "source" ? target.sourceFixtureCorrectText : target.fixtureCorrectText;
+				const alternativeReplacement =
+					workItemRole === "source"
+						? target.sourceFixtureAlternativeText
+						: target.fixtureAlternativeText;
+				const correctIndex = catalog.candidates.findIndex(
+					(candidate) =>
+						candidate.replacementDigest === empiricalStrictJsonDigest(correctReplacement),
+				);
+				expect(catalog.candidates).toHaveLength(2);
+				expect(catalog.candidates.map((candidate) => candidate.candidateRef)).toEqual(
+					workItemRole === "source" ? binding.sourceCandidateRefs : targetOccurrence.candidateRefs,
+				);
+				expect(catalog.catalogDigest).toBe(
+					workItemRole === "source"
+						? binding.sourceCandidateCatalogDigest
+						: targetOccurrence.candidateCatalogDigest,
+				);
+				expect(correctIndex).toBe(target.replicate % 2 === 1 ? 0 : 1);
+				expect(new Set(catalog.candidates.map((candidate) => candidate.action)).size).toBe(2);
+				expect(
+					catalog.candidates.every(
+						(candidate) => !/candidate-[ab]|first|second|third/iu.test(candidate.action),
+					),
+				).toBe(true);
+				expect(
+					catalog.candidates.find(
+						(candidate) =>
+							candidate.replacementDigest === empiricalStrictJsonDigest(alternativeReplacement),
+					)?.replacementText,
+				).toBe(alternativeReplacement);
+				expect(target.sourceInsightContent).not.toContain(
+					catalog.candidates[correctIndex]!.candidateRef,
+				);
+			}
 			expect(target.taskStatement).toContain(
 				"Public examples intentionally permit more than one plausible rule",
 			);
-			expect(target.sourceInsightContent.trim()).toMatch(
-				/^mechanism-invariant\.v1;action=[a-z-]+$/u,
-			);
+			expect(target.sourceInsightContent.trim()).toMatch(/^mechanism-invariant\.v2;rule=[a-z-]+$/u);
 			expect(target.sourceInsightContent).not.toMatch(
 				/compare|reject|return|patch|verifier|fixture|packages\//iu,
 			);
 			expect(binding.irrelevantTaskInstanceRef).toBe(irrelevant.instanceRef);
 			expect(binding.irrelevantSourceInsightDigest).toBe(irrelevant.sourceInsightDigest);
 			expect(target.mechanismAction).not.toBe(irrelevant.mechanismAction);
-			expect(target.mechanismAlternativeAction).toBe(irrelevant.mechanismAction);
 			expect(oracle[index]).toEqual({
 				replicate: target.replicate,
 				relevantSelected: "verified",
@@ -6840,7 +6980,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					applied: true,
 					scopeMatches: true,
 				}).replacement,
-			).toBe(target.fixtureBuggyText);
+			).toBe(target.fixtureAlternativeText);
 		}
 		const duplicateMechanism = ROOT_EVAL_DEVELOPMENT_TASKS.map((task, index) =>
 			index === 1 ? { ...task, mechanismId: ROOT_EVAL_DEVELOPMENT_TASKS[0]!.mechanismId } : task,
@@ -6887,6 +7027,24 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				coordinateSuffix: "duplicate-mechanism-seed",
 			}),
 		).toThrow(/generation input invalid/u);
+	});
+
+	it("binds every actor-visible fixture into the exact-tool workspace snapshot", () => {
+		const task = ROOT_EVAL_DEVELOPMENT_TASKS[0]!;
+		const baseline = rootEvalCandidateWorkspaceSnapshotDigest(task, "target");
+		const drifted = Object.freeze({
+			...task,
+			readonlyFixtureFiles: Object.freeze(
+				task.readonlyFixtureFiles.map((fixture, index) =>
+					index === 0 ? Object.freeze({ ...fixture, text: `${fixture.text}\n// drift` }) : fixture,
+				),
+			),
+		});
+		expect(rootEvalCandidateWorkspaceSnapshotDigest(drifted, "target")).not.toBe(baseline);
+		const catalog = rootEvalToolCandidateCatalog(task, "target", DEFAULT_TEST_WORK_ITEM_ID);
+		expect(
+			catalog.candidates.every((candidate) => candidate.workspaceSnapshotDigest === baseline),
+		).toBe(true);
 	});
 
 	it("binds private manifest salts without leaking them into hidden mechanism fixtures", () => {

@@ -5,7 +5,7 @@ import { HARNESS_ARMS } from "./harness-campaign-policy.js";
 import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifest.js";
 
 export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-topology-no-network-qa.v44" as const,
+	schemaVersion: "graphrefly-ts.root-eval-topology-no-network-qa.v46" as const,
 	exactTogetherCandidateGraphAdmissionQualified: true as const,
 	mixedProviderCatalogRejected: true as const,
 	decisionRefs: Object.freeze([
@@ -70,6 +70,8 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		"graphrefly-ts:D152",
 		"graphrefly-ts:D153",
 		"graphrefly-ts:D154",
+		"graphrefly-ts:D155",
+		"graphrefly-ts:D156",
 		"graphrefly:D789",
 	] as const),
 	topologyRevision: ROOT_EVAL_TOPOLOGY_REVISION,
@@ -117,6 +119,15 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		admissionResultCorrelation: "passed" as const,
 		providerResultBeforeActualToolAdmission: "passed" as const,
 		actualToolArgumentsGraphAdmitted: "passed" as const,
+		d156CandidateContractFlowsThroughWorkItemRequestAndProviderAdmission: "passed" as const,
+		d156CrossTaskStaleCatalogRejectedBeforeToolAdmission: "passed" as const,
+		d156CrossArmOccurrenceCatalogReplayRejected: "passed" as const,
+		d156AllThirtyTargetOccurrenceCatalogsAndSixtyCandidateRefsUnique: "passed" as const,
+		d156ToolAdmissionRevalidatesCandidateCatalog: "passed" as const,
+		d156CompleteReceiptValidatedBeforeWorkspaceMutation: "passed" as const,
+		d156ActorVisibleWorkspaceSnapshotBound: "passed" as const,
+		d156CrLfAndTabBytesPreserved: "passed" as const,
+		d156EfficacyStreakStartsAtDevelopmentThree: "passed" as const,
 		memoryExposureBindingLoadBearing: "passed" as const,
 		graphAdmittedRetryDelay: "passed" as const,
 		budgetRejectedRetryProposalSettlesCompletedDelay: "passed" as const,
@@ -234,9 +245,9 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT_DIGEST = empiricalStrictJ
 
 const qualificationMaterial = Object.freeze({
 	providerSettlementAndTerminalDecisionRef: "graphrefly-ts:D154" as const,
-	schemaVersion: "graphrefly-ts.root-eval-topology-qualification.v44" as const,
-	decisionRef: "graphrefly-ts:D151" as const,
-	executionApprovalRef: "user-authorized-no-network-d151-d152-2026-09-01" as const,
+	schemaVersion: "graphrefly-ts.root-eval-topology-qualification.v47" as const,
+	decisionRef: "graphrefly-ts:D156" as const,
+	executionApprovalRef: "user-authorized-d156-implementation-no-network-2026-09-03" as const,
 	verificationDiagnosticsImplementationReceiptRef: "graphrefly-ts:D120" as const,
 	mostRecentSuccessfulCanonicalLiveExecutionApprovalRef: "graphrefly-ts:D116" as const,
 	mostRecentSuccessfulCanonicalLiveExecutionCloseoutRef: "graphrefly-ts:D117" as const,
@@ -277,6 +288,7 @@ const qualificationMaterial = Object.freeze({
 	discriminantOnlyStimulusDecisionRef: "graphrefly-ts:D150" as const,
 	occurrenceAwareSolutionDeliveryDecisionRef: "graphrefly-ts:D151" as const,
 	orthogonalMechanismFamilyDecisionRef: "graphrefly-ts:D152" as const,
+	occurrenceBoundCandidateToolDecisionRef: "graphrefly-ts:D156" as const,
 	completionCharterRef: "graphrefly-ts:D145" as const,
 	currentLiveExecutionApprovalClosed: true as const,
 	callerHorizonDecisionRequired: false as const,

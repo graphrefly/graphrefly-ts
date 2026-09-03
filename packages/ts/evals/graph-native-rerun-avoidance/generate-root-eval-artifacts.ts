@@ -31,6 +31,7 @@ import {
 	ROOT_EVAL_HELD_OUT_SEAL_DIGEST,
 	ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES,
 	rootEvalScriptedMechanismReplacement,
+	rootEvalToolCandidateCatalog,
 } from "./root-eval-task.js";
 import {
 	ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT,
@@ -268,11 +269,17 @@ async function readD124FrozenArtifactBytes(): Promise<
 }
 
 function qualificationOutcome(effect: EvalAdmittedToolEffect): EvalEffectOutcome {
+	const task = ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate - 1]!;
+	const catalog = rootEvalToolCandidateCatalog(task, effect.workItemRole, effect.workItemId);
+	const selected = catalog.candidates.find(
+		(candidate) => candidate.candidateRef === effect.candidateRef,
+	);
 	const passed =
-		effect.workItemRole === "source" ||
-		(effect.path === ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate - 1]!.writablePath &&
-			effect.oldText === ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate - 1]!.fixtureBuggyText &&
-			effect.newText === ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate - 1]!.fixtureCorrectText);
+		effect.candidateCatalogDigest === catalog.catalogDigest &&
+		selected?.replacementDigest ===
+			empiricalStrictJsonDigest(
+				effect.workItemRole === "source" ? task.sourceFixtureCorrectText : task.fixtureCorrectText,
+			);
 	const expectedDigest =
 		effect.workItemRole === "source"
 			? ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate - 1]!.sourceVerifierEvidenceDigest
@@ -315,9 +322,9 @@ function qualificationOutcome(effect: EvalAdmittedToolEffect): EvalEffectOutcome
 				replicate: effect.replicate,
 				arm: effect.arm,
 			}),
-			diff: passed ? "scoped-change" : "no-change",
+			diff: "scoped-change",
 			cleanupCompleted: true,
-			publicSemantic: passed ? "equivalent" : "different",
+			publicSemantic: "equivalent",
 			hiddenVerifier: passed ? "pass" : "fail",
 		}),
 	});
@@ -368,7 +375,8 @@ async function qualificationExecutor(effect: EvalExecutableEffect): Promise<Eval
 				}>[];
 		  }
 		| undefined;
-	let targetReplacement = task.fixtureCorrectText;
+	let targetReplacement =
+		effect.workItemRole === "source" ? task.sourceFixtureCorrectText : task.fixtureCorrectText;
 	if (effect.workItemRole === "target") {
 		const sourceTask =
 			effect.arm === "irrelevant-applied"
@@ -401,11 +409,20 @@ async function qualificationExecutor(effect: EvalExecutableEffect): Promise<Eval
 			scopeMatches: effect.arm !== "wrong-scope-applied",
 		}).replacement;
 	}
+	const candidateCatalog = rootEvalToolCandidateCatalog(
+		task,
+		effect.workItemRole,
+		effect.workItemId,
+	);
+	const selectedCandidate = candidateCatalog.candidates.find(
+		(candidate) => candidate.replacementText === targetReplacement,
+	);
+	if (selectedCandidate === undefined)
+		throw new TypeError("no-network executor could not select one occurrence-bound candidate");
 	const tool = Object.freeze({
-		toolRef: "graphrefly.eval.exact-tool.v1" as const,
-		path: effect.workItemRole === "source" ? task.sourceWritablePath : task.writablePath,
-		oldText: effect.workItemRole === "source" ? task.sourceFixtureBuggyText : task.fixtureBuggyText,
-		newText: effect.workItemRole === "source" ? task.sourceFixtureCorrectText : targetReplacement,
+		toolRef: "graphrefly.eval.exact-candidate-tool.v2" as const,
+		candidateRef: selectedCandidate.candidateRef,
+		candidateCatalogDigest: candidateCatalog.catalogDigest,
 	});
 	const exactRouteHttp429 =
 		effect.workItemRole === "target" &&
@@ -489,6 +506,9 @@ export async function buildRootEvalGeneratedArtifactBytes(): Promise<RootEvalGen
 	const observationPaths = [
 		"eval/budget/state",
 		"eval/provider/start-spacing-readiness",
+		"eval/observation/candidate-provider-proposal",
+		"eval/observation/candidate-tool-admission",
+		"eval/observation/candidate-tool-result",
 		"eval/campaign/terminal",
 		"eval/observation/arrivals",
 		"eval/observation/canonical-state",

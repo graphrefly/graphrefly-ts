@@ -34,6 +34,7 @@ import {
 	ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS,
 	ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
 	ROOT_EVAL_REPLICATE_COUNT,
+	ROOT_EVAL_TOPOLOGY_REVISION,
 	rootEvalMaximumObservationOccurrences,
 	rootEvalMaximumProviderAttempts,
 	runRootEval,
@@ -82,6 +83,8 @@ import {
 import {
 	ROOT_EVAL_DEVELOPMENT_TASKS,
 	ROOT_EVAL_HELD_OUT_SEAL_DIGEST,
+	rootEvalTaskBindings,
+	rootEvalToolCandidateCatalog,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-task.js";
 import {
 	ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT,
@@ -132,9 +135,9 @@ function outcome(
 			replicate: effect.replicate,
 			arm: effect.arm,
 		}),
-		diff: passed ? "scoped-change" : "no-change",
+		diff: "scoped-change",
 		cleanupCompleted: true,
-		publicSemantic: passed ? "equivalent" : "different",
+		publicSemantic: "equivalent",
 		hiddenVerifier: passed ? "pass" : "fail",
 	});
 	return Object.freeze({
@@ -199,11 +202,17 @@ function providerOutcome(
 					? 503
 					: 200
 			: null);
+	const task = ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate - 1]!;
+	const catalog = rootEvalToolCandidateCatalog(task, effect.workItemRole, effect.workItemId);
+	const verifiedReplacement =
+		effect.workItemRole === "source" ? task.sourceFixtureCorrectText : task.fixtureCorrectText;
+	const selected = catalog.candidates.find(
+		(candidate) => candidate.replacementDigest === empiricalStrictJsonDigest(verifiedReplacement),
+	)!;
 	const tool = Object.freeze({
-		toolRef: "graphrefly.eval.exact-tool.v1" as const,
-		path: "packages/ts/src/executors/managed-cloud-postgresql.ts",
-		oldText: "old",
-		newText: "new",
+		toolRef: "graphrefly.eval.exact-candidate-tool.v2" as const,
+		candidateRef: selected.candidateRef,
+		candidateCatalogDigest: catalog.catalogDigest,
 	});
 	return Object.freeze({
 		kind: "eval-provider-outcome" as const,
@@ -857,7 +866,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		}
 	});
 
-	it("freezes D151+D152 no-network qualification with live authority closed", async () => {
+	it("freezes D156 no-network qualification with live authority closed", async () => {
 		expect(await measureCurrentImplementation()).toBe(CURRENT_IMPLEMENTATION_MANIFEST_DIGEST);
 		const implementationInputs = await measureCurrentImplementationInputs();
 		for (const required of [
@@ -905,16 +914,16 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"graphrefly-ts.root-eval-live-precredential-gates.v6",
 		);
 		expect(ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-no-network-qa.v50",
+			"graphrefly-ts.root-eval-live-no-network-qa.v51",
 		);
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-qualification.v50",
+			"graphrefly-ts.root-eval-live-qualification.v52",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-no-network-qa.v44",
+			"graphrefly-ts.root-eval-topology-no-network-qa.v46",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-qualification.v44",
+			"graphrefly-ts.root-eval-topology-qualification.v47",
 		);
 		expect(ROOT_EVAL_LIVE_GENERATION_REF).not.toContain("d116");
 		expect(ROOT_EVAL_LIVE_CLAIM_REF).not.toContain("d116");
@@ -957,9 +966,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.responseHorizonIncidentClosureRef).toBe(
 			"graphrefly-ts:D93",
 		);
-		expect(ROOT_EVAL_LIVE_QUALIFICATION.decisionRef).toBe("graphrefly-ts:D152");
+		expect(ROOT_EVAL_LIVE_QUALIFICATION.decisionRef).toBe("graphrefly-ts:D156");
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.implementationExecutionApprovalRef).toBe(
-			"user-authorized-no-network-d151-d152-2026-09-01",
+			"user-authorized-d156-implementation-no-network-2026-09-03",
 		);
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.efficacyBillingSeparationDecisionRef).toBe(
 			"graphrefly-ts:D113",
@@ -1032,13 +1041,15 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			precredentialGateChronologyExecutionApprovalRef: "graphrefly-ts:D138",
 			currentLiveExecutionApprovalClosed: true,
 			callerHorizonDecisionRequired: false,
-			status: "qualified-no-network-d151-d152-development-only-confirmatory-unmaterialized",
+			status:
+				"qualified-no-network-d156-candidate-selection-development-only-confirmatory-unmaterialized",
 			occurrenceAwareSolutionDeliveryDecisionRef: "graphrefly-ts:D151",
 			orthogonalMechanismFamilyDecisionRef: "graphrefly-ts:D152",
+			occurrenceBoundCandidateToolDecisionRef: "graphrefly-ts:D156",
 		});
 		expect(ROOT_EVAL_TOPOLOGY_QUALIFICATION).toMatchObject({
-			decisionRef: "graphrefly-ts:D151",
-			executionApprovalRef: "user-authorized-no-network-d151-d152-2026-09-01",
+			decisionRef: "graphrefly-ts:D156",
+			executionApprovalRef: "user-authorized-d156-implementation-no-network-2026-09-03",
 			efficacyBillingSeparationDecisionRef: "graphrefly-ts:D113",
 			efficacyBillingSeparationExecutionApprovalRef: "graphrefly-ts:D114",
 			efficacyBillingSeparationImplementationReceiptRef: "graphrefly-ts:D115",
@@ -1079,6 +1090,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			status: "no-network-occurrence-architecture-qualified",
 			occurrenceAwareSolutionDeliveryDecisionRef: "graphrefly-ts:D151",
 			orthogonalMechanismFamilyDecisionRef: "graphrefly-ts:D152",
+			occurrenceBoundCandidateToolDecisionRef: "graphrefly-ts:D156",
 		});
 		expect(ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.architectureMigration.complete).toBe(true);
 		expect(CURRENT_QUALIFICATION_ARTIFACT_DIGEST).toBe(
@@ -1314,6 +1326,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		const observationPaths = [
 			"eval/budget/state",
 			"eval/provider/start-spacing-readiness",
+			"eval/observation/candidate-provider-proposal",
+			"eval/observation/candidate-tool-admission",
+			"eval/observation/candidate-tool-result",
 			"eval/campaign/terminal",
 			"eval/observation/arrivals",
 			"eval/observation/canonical-state",
@@ -1482,6 +1497,51 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(Object.keys(createTopology().inputs)).toEqual(["start"]);
 	}, 15_000);
 
+	it("fails closed before exact-tool admission on cross-task or stale candidate catalogs", async () => {
+		for (const fault of ["cross-task-ref", "stale-catalog"] as const) {
+			let forged = false;
+			await expect(
+				runRootEval(
+					createTopology(),
+					twoPhaseExecutor({
+						onProvider(effect) {
+							const base = providerOutcome(effect);
+							if (forged || effect.workItemRole !== "source") return base;
+							forged = true;
+							const current = rootEvalToolCandidateCatalog(
+								ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate - 1]!,
+								"source",
+								effect.workItemId,
+							);
+							const other = rootEvalToolCandidateCatalog(
+								ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate % 5]!,
+								"source",
+								ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate % 5]!.sourceWorkItemRef,
+							);
+							const tool = Object.freeze({
+								toolRef: "graphrefly.eval.exact-candidate-tool.v2" as const,
+								candidateRef:
+									fault === "cross-task-ref"
+										? other.candidates[0].candidateRef
+										: current.candidates[0].candidateRef,
+								candidateCatalogDigest:
+									fault === "stale-catalog" ? other.catalogDigest : current.catalogDigest,
+							});
+							return Object.freeze({
+								...base,
+								toolProposal: Object.freeze({
+									...tool,
+									argumentsDigest: empiricalStrictJsonDigest(tool),
+								}),
+							});
+						},
+					}),
+				),
+			).rejects.toThrow(/Graph admission receipt/u);
+			expect(forged).toBe(true);
+		}
+	}, 15_000);
+
 	it("does not expose the raw outcome input and rejects a structural-clone receipt", async () => {
 		await expect(
 			runRootEval(
@@ -1598,6 +1658,56 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			node.factory = "simulatedEvalFallback";
 			expect(() => assertRootEvalTopologyContract(changed), id).toThrow(/identity drift/u);
 		}
+	});
+
+	it("fails closed before exact-tool admission on same-task cross-arm candidate replay", async () => {
+		let forged = false;
+		await expect(
+			runRootEval(
+				createTopology(),
+				twoPhaseExecutor({
+					onProvider(effect) {
+						const base = providerOutcome(effect);
+						if (forged || effect.workItemRole !== "target") return base;
+						forged = true;
+						const task = ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate - 1]!;
+						const otherWorkItemId = effect.workItemId.replace(/\/[^/]+$/u, "/relevant-applied");
+						const other = rootEvalToolCandidateCatalog(task, "target", otherWorkItemId);
+						const tool = Object.freeze({
+							toolRef: "graphrefly.eval.exact-candidate-tool.v2" as const,
+							candidateRef: other.candidates[0].candidateRef,
+							candidateCatalogDigest: other.catalogDigest,
+						});
+						return Object.freeze({
+							...base,
+							toolProposal: Object.freeze({
+								...tool,
+								argumentsDigest: empiricalStrictJsonDigest(tool),
+							}),
+						});
+					},
+				}),
+			),
+		).rejects.toThrow(/provider outcome does not exactly match its Graph admission receipt/u);
+		expect(forged).toBe(true);
+	});
+
+	it("rejects forged candidate bindings before the root Graph can admit provider work", () => {
+		const bindings = rootEvalTaskBindings(ROOT_EVAL_DEVELOPMENT_TASKS);
+		const forged = bindings.map((binding, index) =>
+			index === 0
+				? Object.freeze({
+						...binding,
+						sourceCandidateCatalogDigest: empiricalStrictJsonDigest("forged-catalog"),
+					})
+				: binding,
+		);
+		expect(() =>
+			createTopology({
+				taskDefinitions: ROOT_EVAL_DEVELOPMENT_TASKS,
+				taskBindings: forged,
+			}),
+		).toThrow(/frozen candidate catalogs/u);
 	});
 
 	it("fails closed for every critical edge, arm-order drift, or hidden Graph", () => {
@@ -1865,7 +1975,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				observations[index]!.verificationDiagnostics.completedWorkItems,
 			).toBeGreaterThanOrEqual(observations[index - 1]!.verificationDiagnostics.completedWorkItems);
 		expect(observations.at(-1)).toMatchObject({
-			topologyRevision: "graphrefly-ts.root-eval-topology.v22",
+			topologyRevision: ROOT_EVAL_TOPOLOGY_REVISION,
 			armOrder: HARNESS_ARMS,
 			memoryProvenance: {
 				cold: "none",
