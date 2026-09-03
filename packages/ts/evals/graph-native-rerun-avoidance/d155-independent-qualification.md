@@ -67,8 +67,8 @@ input, so caching cannot shrink the upfront safety bound.
 
 The current ledger path retains its historical filename `d152-charter-ledger.v1.json`;
 its **content** is upgraded explicitly to schema v2, with the exact original saved
-as `.before-qualification`. No upgrade or private ledger change has been performed
-at implementation freeze. It is an eval budget-format upgrade, not a B137 authority
+as `.before-qualification`. The approved upgrade was performed only after clean
+committed-state full QA. It is an eval budget-format upgrade, not a B137 authority
 or historical-decision migration.
 
 `run-provider-qualification.ts` accepts an exact execution reference and either
@@ -81,3 +81,28 @@ No existing Fireworks claim or operator-configuration artifact is rebound.
 The public strings test exact JSON, whitespace and CRLF replacement transport.
 They do not exercise experimental task difficulty, Work Item/Memory efficacy,
 sustained rate capacity or a five-replicate campaign.
+
+## Committed-state QA closeout — 2026-09-03
+
+- Implementation commit: `75f27d9f` (D155 initial implementation `8673fe29`).
+- `NODE_ENV=test pnpm test`: 2,208 passed, four existing environment-gated skips;
+  134 passed files / one skipped. Logged DONE exit 0 after 634 seconds:
+  `.runlog/run-20260903-064622-42280.log`.
+- Lint/typecheck, build/ESM/CJS/DTS exports, artifact reproduction, authority,
+  dashboard and diff gates passed. No public API, protocol or conformance changes.
+- Formal root eval remains 311 nodes / 413 edges; node names and edges exactly
+  match baseline `44a44c9c`. Generated digest metadata reflects the new closure.
+- Frozen implementation: `sha256:e495ae9174a54443392d6d76d5780dddca5718efe3368f7b7f9e9f1a2dbfc2b1`.
+- The preliminary full run was intentionally stopped when public endpoint data
+  exposed the cache-price mismatch; it is not cited as passing QA.
+- Explicit budget format upgrade preserved the original three campaign entries,
+  development spend 35,835,756 microusd, confirmatory spend and qualification
+  streak. Original ledger digest:
+  `sha256:ac37f63e1a6964966e15b24d2a906b81a0690095d0fe0ef3d212db6a63b8305a`.
+  Current v2 digest:
+  `sha256:4e6bc47310c24614a02c58ca5a69ad4b42772607b931ab8db7c3eb3b041be848`.
+- Qualification entries: zero. No credential access, inference dispatch, provider
+  spend or browser settings mutation occurred. The browser is on Local Eval 2's
+  existing guardrail, awaiting action-time confirmation to add Together while
+  retaining Fireworks, the one allowed model, ZDR and training/budget restrictions.
+  Do not infer live execution from this closeout.
