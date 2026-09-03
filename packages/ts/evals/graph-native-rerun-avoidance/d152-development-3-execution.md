@@ -133,3 +133,11 @@ The corrected full sweep passed in 533 seconds:
 (`.runlog/run-20260902-202409-67109.log`); final lint/typecheck, artifact reproduction,
 workspace authority and dashboard gates passed. Static review confirmed all twelve
 campaigns and thirteen assertions were preserved by the test split.
+
+## Consumed execution
+
+Committed implementation `85cc4259` passed all fresh precredential gates and
+executed the single approved campaign. It stopped at the Graph's 75-minute
+admission deadline, with 23 provider calls, USD 0.015451 accounted spend, complete
+cleanup and atomic evidence/ledger persistence. No efficacy claim was made.
+The claim is consumed; see [the complete closeout](d152-development-3-closeout.md).
