@@ -93,6 +93,21 @@ function completed(costs = [42, 42, 42]) {
 }
 
 describe("D155 independent provider qualification", () => {
+	it("audits Together cache-read pricing without replacing reported usage.cost", () => {
+		const body = JSON.parse(new TextDecoder().decode(response(1)));
+		body.usage.prompt_tokens_details = { cached_tokens: 40 };
+		body.usage.cost = 0.0000376;
+		const admission = qualificationAdmission(
+			initialQualificationState(PROVIDER_QUALIFICATION_REF),
+		)!;
+		const outcome = qualificationOutcome(
+			admission,
+			200,
+			new TextEncoder().encode(JSON.stringify(body)),
+		);
+		expect(outcome.usable).toBe(true);
+		expect(outcome.providerReportedMicrousd).toBe(38);
+	});
 	it("rejects relabeled offline grants before transport or ledger access", async () => {
 		let calls = 0;
 		expect(() =>

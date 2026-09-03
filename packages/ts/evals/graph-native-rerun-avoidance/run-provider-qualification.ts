@@ -157,7 +157,7 @@ async function main() {
 	if (
 		prices.prompt !== "0.00000014" ||
 		prices.completion !== "0.00000028" ||
-		(prices.input_cache_read !== undefined && prices.input_cache_read !== "0.00000014") ||
+		prices.input_cache_read !== "0.00000003" ||
 		!Array.isArray(endpoint.supported_parameters) ||
 		!["reasoning", "response_format", "structured_outputs", "max_tokens"].every((value) =>
 			(endpoint.supported_parameters as unknown[]).includes(value),

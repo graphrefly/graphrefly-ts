@@ -55,8 +55,13 @@ Three usable responses complete transport qualification, never efficacy.
 Initial static QA found and fixed (1) competing campaign/qualification writes,
 (2) third-success stop-reason precedence, (3) missing request digest in admission,
 and (4) an exported real-fetch path accepting plain grants. Both static reviewers
-reported no remaining concrete findings after fixes. Seventeen focused tests and
+reported no remaining concrete findings after fixes. Eighteen focused tests and
 lint/typecheck passed before committed-state full QA.
+
+The 2026-09-03 public endpoint preflight pinned Together input/output/cache-read
+pricing at USD 0.14/0.28/0.03 per million tokens. A cached-token regression uses
+the existing strict usage-cost audit. Reservation still assumes fully uncached
+input, so caching cannot shrink the upfront safety bound.
 
 ## Operation
 

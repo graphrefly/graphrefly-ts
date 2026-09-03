@@ -66,7 +66,7 @@ function makeAdmission(executionRef: string, request: number): QualificationAdmi
 export const QUALIFICATION_PRICING = Object.freeze({
 	inputMicrousdPerMillionTokens: 140_000,
 	outputMicrousdPerMillionTokens: 280_000,
-	cacheReadMicrousdPerMillionTokens: 140_000,
+	cacheReadMicrousdPerMillionTokens: 30_000,
 });
 export const qualificationPath = "qualification.ts";
 export const qualificationExamples = [
