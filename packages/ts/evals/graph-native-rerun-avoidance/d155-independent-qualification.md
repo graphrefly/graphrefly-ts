@@ -106,3 +106,55 @@ sustained rate capacity or a five-replicate campaign.
   existing guardrail, awaiting action-time confirmation to add Together while
   retaining Fireworks, the one allowed model, ZDR and training/budget restrictions.
   Do not infer live execution from this closeout.
+
+## Approved Together execution closeout — 2026-09-03
+
+Execution evidence, not a new decision or campaign authorization:
+`provider-qualification-together-2026-09-03-1`, implementation `75f27d9f`,
+executed from clean documentation HEAD `06aad808`. The user's action-time
+approval authorized saving the existing Local Eval 2 guardrail with Fireworks
+**and** Together allowed, then the previously approved three-request / USD 0.10
+qualification. No other setting was changed. Saved UI confirmed one allowed
+model (DeepSeek V4 Flash 0731), non-frontier ZDR enforced, paid training disabled,
+Together eligible, and the unchanged USD 32 daily guardrail. Together BYOK was
+not configured. The guardrail's historical descriptive text still says
+Fireworks-only; that text was not edited and is not routing authority.
+
+- Settings proof digest:
+  `sha256:9838ebf6406909c2c97626d72e39c3204ebed8e1906f38ba07ffabc6600ecb92`.
+  An initial local preflight rejected pretty-printed proof bytes before external
+  checks or inference; formatting those same values with `strictJsonCodec.encode`
+  resolved it without changing the semantic digest or implementation.
+- Exactly two serial HTTP 200 responses identified Together and the exact model.
+  Request 1 passed. Request 2 returned valid replacement JSON but omitted the
+  leading U+0009 tab from both `oldText` and `newText`. The admitted request
+  contains those tabs; the saved raw response does not. This is a response
+  content mismatch, not a local parser trim or lifecycle settlement failure.
+- Graph terminal reason: `provider-rejected`; exact outcome reason:
+  `qualification-content-mismatch`. No request 3 was admitted/dispatched, so CRLF
+  preservation was not tested. No 429 occurred in these two calls; this does not
+  establish sustained capacity or comparative provider quality.
+- Provider `usage.cost`: USD 0.00002114 + USD 0.00002002 = USD 0.00004116.
+  Per-response ceiling to integer microusd accounts 22 + 21 = **43 microusd**.
+  The reservation settled atomically; development spend is **35,835,799 microusd**,
+  leaving **4,164,201 microusd** under the existing USD 40 ceiling. All original
+  campaign entries, streak and confirmatory fields are unchanged. No pending
+  D152 write/execution lock remains.
+- Settled ledger digest:
+  `sha256:d030bd2b7f7c71dc7496bfdaccf9b5474250bdd4d602c492d17e0fc4d2c85933`.
+  Terminal receipt digest:
+  `sha256:cecde352976dcf59486926434e4249f7c3308026880e19d5a0352d87131f0c65`.
+- Offline replay of the exact two saved responses through the qualification
+  Graph reproduced both outcomes, costs and terminal receipt, with null next
+  admission. All eight private artifacts are mode 0600; the 35 original domain
+  observation envelopes include the matching terminal DATA. Raw `describe.json`,
+  `observation.json`, admissions, responses, grant and receipt remain under the
+  ignored private directory named by the execution reference.
+
+Result: **Together qualification did not pass**. Route availability and the first
+exact proposal succeeded; whitespace fidelity did not. The program's exit 0 means
+the attempt settled correctly, not that qualification passed. No efficacy claim,
+candidate promotion, campaign generation, automatic retry or additional spend
+was authorized by this evidence. The consumed reference must not be rerun; a
+later paid attempt needs fresh explicit authorization. Do not relax exact-text
+validation or repair returned whitespace merely to turn this result green.
