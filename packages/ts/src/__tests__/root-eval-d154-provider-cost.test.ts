@@ -82,8 +82,14 @@ function metadata(value: Record<string, unknown>): Record<string, unknown> {
 	return (value.error as { metadata: Record<string, unknown> }).metadata;
 }
 
-function parse(body = response(), wire = JSON.stringify(request()), status = 429) {
+function parse(
+	body = response(),
+	wire = JSON.stringify(request()),
+	status = 429,
+	route = admission,
+) {
 	return parseRootEvalLiveProviderResponse({
+		route,
 		status,
 		bytes: new TextEncoder().encode(JSON.stringify(body)),
 		retryAfter: null,
@@ -93,11 +99,41 @@ function parse(body = response(), wire = JSON.stringify(request()), status = 429
 			cacheReadMicrousdPerMillionTokens: 7_000,
 		},
 		reservationMicrousd,
-		nonbillableContext: { admission, requestBody: wire },
+		nonbillableContext: { admission: route, requestBody: wire },
 	});
 }
 
 describe("D154 exact policy-qualified provider cost evidence", () => {
+	it("does not extend the Fireworks nonbillable policy to Together or fabricate reported cost", () => {
+		const route = { ...admission, providerRef: "together" };
+		const body = response();
+		metadata(body).provider_name = "Together";
+		const payload = request();
+		payload.provider.order = ["together"];
+		payload.provider.only = ["together"];
+		const wire = JSON.stringify(payload);
+		const unknown = parse(body, wire, 429, route);
+		expect(unknown).toMatchObject({
+			disposition: "retryable",
+			recoveryClass: "capacity",
+			costMicrousd: reservationMicrousd,
+			costEvidence: "reservation-upper-bound",
+		});
+		expect(unknown.nonbillableEvidence).toBeUndefined();
+		for (const cost of [0, 0.012345]) {
+			const reported = parse({ ...body, usage: { cost } }, wire, 429, route);
+			expect(reported).toMatchObject({
+				costMicrousd: cost * 1_000_000,
+				costEvidence: "provider-reported",
+			});
+			expect(reported.nonbillableEvidence).toBeUndefined();
+		}
+		// A foreign Fireworks error/context cannot turn a Together request into a free call.
+		expect(parse(response(), JSON.stringify(request()), 429, route).costEvidence).toBe(
+			"reservation-upper-bound",
+		);
+	});
+
 	it("binds qualified zero separately to exact request, response, receipt and result", () => {
 		const body = response();
 		const wire = JSON.stringify(request());

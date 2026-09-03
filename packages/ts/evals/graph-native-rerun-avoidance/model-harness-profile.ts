@@ -686,6 +686,23 @@ export function createDeepSeekV4Flash0731FireworksStructuredProfileDefinition(
 		readonly reasoningEffort?: "medium";
 	} = {},
 ): ExactProfileDefinition {
+	return createDeepSeekV4Flash0731StructuredProfileDefinition("fireworks", input);
+}
+
+/** Offline candidate only; this factory is not a live execution or spend grant. */
+export function createDeepSeekV4Flash0731TogetherStructuredProfileDefinition(): ExactProfileDefinition {
+	return createDeepSeekV4Flash0731StructuredProfileDefinition("together", {});
+}
+
+function createDeepSeekV4Flash0731StructuredProfileDefinition(
+	providerRef: "fireworks" | "together",
+	input: {
+		readonly enhancementRecipes?: readonly HarnessEnhancementRecipe[];
+		readonly inspectionMaxOutputTokens?: number;
+		readonly mutationMaxOutputTokens?: number;
+		readonly reasoningEffort?: "medium";
+	},
+): ExactProfileDefinition {
 	const target = createModelTarget({
 		schemaVersion: MODEL_TARGET_SCHEMA,
 		targetRef: "model-target.deepseek-v4-flash-0731",
@@ -704,10 +721,10 @@ export function createDeepSeekV4Flash0731FireworksStructuredProfileDefinition(
 	});
 	const binding = createProviderBinding({
 		schemaVersion: PROVIDER_BINDING_SCHEMA,
-		bindingRef: "provider-binding.fireworks-structured-chat.v2",
+		bindingRef: `provider-binding.${providerRef}-structured-chat.v2`,
 		targetRef: target.targetRef,
 		targetDigest: target.targetDigest,
-		providerRef: "fireworks",
+		providerRef,
 		providerModelRef: target.modelRef,
 		endpointProtocol: "chat-completions",
 		proposalEncoding: "strict-json-schema",
@@ -737,7 +754,7 @@ export function createInjectedNoNetworkProfileQualification(input: {
 	);
 	const qualification = createProfileQualification({
 		schemaVersion: PROFILE_QUALIFICATION_SCHEMA,
-		qualificationRef: "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
+		qualificationRef: `profile-qualification.deepseek-v4-flash-0731.${binding.providerRef}-structured.v3`,
 		targetRef: target.targetRef,
 		targetDigest: target.targetDigest,
 		profileRef: profile.profileRef,

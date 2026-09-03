@@ -58,6 +58,7 @@ import {
 	CURRENT_PROFILE_ELIGIBILITY_SCHEMA,
 	type CurrentProfileEligibility,
 	createDeepSeekV4Flash0731FireworksStructuredProfileDefinition,
+	createDeepSeekV4Flash0731TogetherStructuredProfileDefinition,
 	createInjectedNoNetworkProfileQualification,
 	deterministicProfileResolver,
 	type HarnessEnhancementProfile,
@@ -1145,7 +1146,14 @@ function admitProfileInsideRootGraph(
 	const qualification = validateProfileQualification(
 		exactOne(input.qualifications, "profile qualification"),
 	);
-	const expected = createDeepSeekV4Flash0731FireworksStructuredProfileDefinition();
+	if (binding.providerRef !== "fireworks" && binding.providerRef !== "together")
+		throw new TypeError(
+			"root eval profile provider is not an exact no-network-qualified candidate",
+		);
+	const expected =
+		binding.providerRef === "together"
+			? createDeepSeekV4Flash0731TogetherStructuredProfileDefinition()
+			: createDeepSeekV4Flash0731FireworksStructuredProfileDefinition();
 	const expectedQualification = createInjectedNoNetworkProfileQualification({
 		definition: expected,
 		implementationManifestDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,

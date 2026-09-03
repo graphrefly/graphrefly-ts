@@ -1,6 +1,10 @@
 {
 	"artifact": {
-		"schemaVersion": "graphrefly-ts.root-eval-live-no-network-qa.v48",
+		"schemaVersion": "graphrefly-ts.root-eval-live-no-network-qa.v49",
+		"togetherCandidateInjectedFiveSourceThirtyTargetQualified": true,
+		"wrongClaimRouteRejectedBeforeDispatch": true,
+		"togetherMissingUsageRetainsReservation": true,
+		"candidateDoesNotAuthorizeLive": true,
 		"decisionRefs": [
 			"graphrefly-ts:D76",
 			"graphrefly-ts:D81",
@@ -72,7 +76,7 @@
 			"graphrefly-ts:D153",
 			"graphrefly-ts:D154"
 		],
-		"implementationManifestDigest": "sha256:132e11ec5db15cc02eb2a74a67dbb95f02c2e589d6103c6088918a01ff3c192a",
+		"implementationManifestDigest": "sha256:6ae46d7d48866e245c69532fcf90a692abe4bb15a5cd313017f5820c513a8d67",
 		"taskBindingDigest": "sha256:61ed4e8034e650ec21b7c30f2ef4a8406e2b66f8ec320e6ac3e2253042034cd8",
 		"caseResults": {
 			"d152ThirdBankDisjointSealingAndExhaustiveCandidateDiscrimination": "passed",
@@ -297,10 +301,10 @@
 		"credentialAccessed": false,
 		"chargedCallExecuted": false
 	},
-	"artifactDigest": "sha256:66a1e4b12e76760dc75df7adec9922630b93b2cdd661237f282e9b5ab5c3f3b2",
+	"artifactDigest": "sha256:18c127daa26606408096c8b3b3c517a3d9d0d44869f8fd4feb349ad7e10f3851",
 	"qualification": {
 		"providerSettlementAndTerminalDecisionRef": "graphrefly-ts:D154",
-		"schemaVersion": "graphrefly-ts.root-eval-live-qualification.v48",
+		"schemaVersion": "graphrefly-ts.root-eval-live-qualification.v49",
 		"decisionRef": "graphrefly-ts:D152",
 		"implementationExecutionApprovalRef": "user-authorized-no-network-d151-d152-2026-09-01",
 		"verificationDiagnosticsImplementationReceiptRef": "graphrefly-ts:D120",
@@ -354,10 +358,10 @@
 		"completionCharterRef": "graphrefly-ts:D145",
 		"currentLiveExecutionApprovalClosed": true,
 		"callerHorizonDecisionRequired": false,
-		"implementationManifestDigest": "sha256:132e11ec5db15cc02eb2a74a67dbb95f02c2e589d6103c6088918a01ff3c192a",
-		"qualificationArtifactDigest": "sha256:66a1e4b12e76760dc75df7adec9922630b93b2cdd661237f282e9b5ab5c3f3b2",
+		"implementationManifestDigest": "sha256:6ae46d7d48866e245c69532fcf90a692abe4bb15a5cd313017f5820c513a8d67",
+		"qualificationArtifactDigest": "sha256:18c127daa26606408096c8b3b3c517a3d9d0d44869f8fd4feb349ad7e10f3851",
 		"status": "qualified-no-network-d151-d152-development-only-confirmatory-unmaterialized",
-		"qualificationDigest": "sha256:fe12fc419d8d2630952714828a1c77b8626ebc3c1b50b2b399b380ba36ffc0f7"
+		"qualificationDigest": "sha256:4aa24729f6268f04967524b4eed296c8da4ab17d47b2fe9295201f90469e7dbe"
 	},
-	"measuredImplementationManifestDigest": "sha256:132e11ec5db15cc02eb2a74a67dbb95f02c2e589d6103c6088918a01ff3c192a"
+	"measuredImplementationManifestDigest": "sha256:6ae46d7d48866e245c69532fcf90a692abe4bb15a5cd313017f5820c513a8d67"
 }

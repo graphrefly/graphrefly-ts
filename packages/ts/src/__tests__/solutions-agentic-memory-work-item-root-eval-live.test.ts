@@ -50,6 +50,12 @@ import {
 	ROOT_EVAL_ARTIFACT_DIRECTORY,
 } from "../../evals/graph-native-rerun-avoidance/generate-root-eval-artifacts.js";
 import {
+	createDeepSeekV4Flash0731TogetherStructuredProfileDefinition,
+	createInjectedNoNetworkProfileQualification,
+	exactQualifiedProfileCatalogInput,
+} from "../../evals/graph-native-rerun-avoidance/model-harness-profile.js";
+import { MODEL_HARNESS_PROFILE_NO_NETWORK_QA_ARTIFACT_DIGEST } from "../../evals/graph-native-rerun-avoidance/model-harness-profile-qualification.js";
+import {
 	advanceRootEvalD145CharterLedger,
 	createRootEvalD152QualificationEpoch,
 	latestRootEvalGraphSpend,
@@ -3168,6 +3174,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 
 	it("parses exactly one bounded structured proposal and accounts conservatively", () => {
 		const parsed = parseRootEvalLiveProviderResponse({
+			route: { providerRef: "fireworks", providerModelRef: "deepseek/deepseek-v4-flash-0731" },
 			status: 200,
 			bytes: providerBytes(),
 			retryAfter: null,
@@ -3185,6 +3192,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		});
 		expect(
 			parseRootEvalLiveProviderResponse({
+				route: { providerRef: "fireworks", providerModelRef: "deepseek/deepseek-v4-flash-0731" },
 				status: 429,
 				bytes: new TextEncoder().encode("{}"),
 				retryAfter: "61",
@@ -3194,6 +3202,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		).toMatchObject({ disposition: "retryable", retryAfterMs: 61_000, costMicrousd: 200_000 });
 		expect(
 			parseRootEvalLiveProviderResponse({
+				route: { providerRef: "fireworks", providerModelRef: "deepseek/deepseek-v4-flash-0731" },
 				status: 429,
 				bytes: providerBytes(),
 				retryAfter: "61",
@@ -3207,6 +3216,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		});
 		expect(
 			parseRootEvalLiveProviderResponse({
+				route: { providerRef: "fireworks", providerModelRef: "deepseek/deepseek-v4-flash-0731" },
 				status: 429,
 				bytes: new TextEncoder().encode('{"usage":{"cost":0.000265}}'),
 				retryAfter: "61",
@@ -3225,6 +3235,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		incompleteUsage.usage = { cost: 0.000265 };
 		try {
 			parseRootEvalLiveProviderResponse({
+				route: { providerRef: "fireworks", providerModelRef: "deepseek/deepseek-v4-flash-0731" },
 				status: 200,
 				bytes: new TextEncoder().encode(JSON.stringify(incompleteUsage)),
 				retryAfter: null,
@@ -3248,6 +3259,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		] as const)
 			expect(
 				parseRootEvalLiveProviderResponse({
+					route: { providerRef: "fireworks", providerModelRef: "deepseek/deepseek-v4-flash-0731" },
 					status: 429,
 					bytes: new TextEncoder().encode("{}"),
 					retryAfter,
@@ -3258,6 +3270,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			).toMatchObject({ disposition: "retryable", retryAfterMs: expectedMs });
 		expect(
 			parseRootEvalLiveProviderResponse({
+				route: { providerRef: "fireworks", providerModelRef: "deepseek/deepseek-v4-flash-0731" },
 				status: 503,
 				bytes: new TextEncoder().encode("{}"),
 				retryAfter: "5",
@@ -3273,6 +3286,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		});
 		expect(
 			parseRootEvalLiveProviderResponse({
+				route: { providerRef: "fireworks", providerModelRef: "deepseek/deepseek-v4-flash-0731" },
 				status: 429,
 				bytes: new TextEncoder().encode("{}"),
 				retryAfter: "241",
@@ -3287,6 +3301,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		for (const status of [408, 425, 502, 503, 504, 520])
 			expect(
 				parseRootEvalLiveProviderResponse({
+					route: { providerRef: "fireworks", providerModelRef: "deepseek/deepseek-v4-flash-0731" },
 					status,
 					bytes: new TextEncoder().encode("{}"),
 					retryAfter: null,
@@ -3300,6 +3315,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			});
 		expect(
 			parseRootEvalLiveProviderResponse({
+				route: { providerRef: "fireworks", providerModelRef: "deepseek/deepseek-v4-flash-0731" },
 				status: 500,
 				bytes: new TextEncoder().encode(
 					JSON.stringify({ error: { metadata: { provider_error_code: "provider_overloaded" } } }),
@@ -3312,6 +3328,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		for (const status of [400, 401, 402, 403, 404, 405, 413, 415, 422, 500, 501, 505])
 			expect(
 				parseRootEvalLiveProviderResponse({
+					route: { providerRef: "fireworks", providerModelRef: "deepseek/deepseek-v4-flash-0731" },
 					status,
 					bytes: new TextEncoder().encode("{}"),
 					retryAfter: null,
@@ -3330,6 +3347,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				new Uint8Array(2 * 1_048_576 + 1),
 			]) {
 				const result = parseRootEvalLiveProviderResponse({
+					route: { providerRef: "fireworks", providerModelRef: "deepseek/deepseek-v4-flash-0731" },
 					status,
 					bytes,
 					retryAfter: null,
@@ -3352,6 +3370,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		delete usage.prompt_tokens_details;
 		usage.cost = 0.000286;
 		const withoutCacheDetails = parseRootEvalLiveProviderResponse({
+			route: { providerRef: "fireworks", providerModelRef: "deepseek/deepseek-v4-flash-0731" },
 			status: 200,
 			bytes: new TextEncoder().encode(JSON.stringify({ ...documentedUsage, usage })),
 			retryAfter: null,
@@ -3377,6 +3396,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		};
 		expect(
 			parseRootEvalLiveProviderResponse({
+				route: { providerRef: "fireworks", providerModelRef: "deepseek/deepseek-v4-flash-0731" },
 				status: 200,
 				bytes: new TextEncoder().encode(JSON.stringify(oneMicrousd)),
 				retryAfter: null,
@@ -3389,6 +3409,41 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		});
 	});
 
+	it("accepts only the admitted Together identity, model revision and structured proposal", () => {
+		const base = JSON.parse(new TextDecoder().decode(providerBytes()));
+		const route = { providerRef: "together", providerModelRef: "deepseek/deepseek-v4-flash-0731" };
+		const parse = (response: unknown, admittedRoute = route) =>
+			parseRootEvalLiveProviderResponse({
+				route: admittedRoute,
+				status: 200,
+				bytes: new TextEncoder().encode(JSON.stringify(response)),
+				retryAfter: null,
+				pricing,
+				reservationMicrousd: 200_000,
+			});
+		for (const model of [route.providerModelRef, "deepseek/deepseek-v4-flash-20260731"])
+			expect(parse({ ...base, provider: "Together", model })).toMatchObject({
+				disposition: "tool",
+				costEvidence: "provider-reported",
+				costMicrousd: 265,
+			});
+		for (const provider of ["Fireworks", "DeepInfra", "together", null])
+			expect(() => parse({ ...base, provider })).toThrow(/route identity/);
+		expect(() =>
+			parse({ ...base, provider: "Together", model: "deepseek/deepseek-v4-flash" }),
+		).toThrow(/route identity/);
+		expect(() =>
+			parse({ ...base, provider: "Together" }, { ...route, providerRef: "fireworks" }),
+		).toThrow(/route identity/);
+		expect(() =>
+			parse({
+				...base,
+				provider: "Together",
+				choices: [{ message: { content: null, tool_calls: [] } }],
+			}),
+		).toThrow();
+	});
+
 	it("classifies malformed provider responses with closed material-free reasons", () => {
 		const providerText = new TextDecoder().decode(providerBytes());
 		const base = JSON.parse(providerText) as Record<string, unknown>;
@@ -3397,6 +3452,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				value instanceof Uint8Array ? value : new TextEncoder().encode(JSON.stringify(value));
 			try {
 				parseRootEvalLiveProviderResponse({
+					route: { providerRef: "fireworks", providerModelRef: "deepseek/deepseek-v4-flash-0731" },
 					status: 200,
 					bytes,
 					retryAfter: null,
@@ -3647,6 +3703,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		};
 		try {
 			parseRootEvalLiveProviderResponse({
+				route: { providerRef: "fireworks", providerModelRef: "deepseek/deepseek-v4-flash-0731" },
 				status: 200,
 				bytes: new TextEncoder().encode(JSON.stringify(legacyToolCalls)),
 				retryAfter: null,
@@ -6153,6 +6210,124 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		expect(projected.latestGraphObservation).toEqual(maximalEvent);
 		expect(projected.partialGraphObservations).not.toContainEqual(overflowEvent);
 	});
+
+	it("qualifies Together through five sources and all thirty target Work Items without network", async () => {
+		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-together-candidate-"));
+		const privateRoot = await realpath(temporary);
+		const claimInput = await currentClaimInput(privateRoot);
+		const claimCommit = await acquireRootEvalLiveClaimForNoNetworkQualification(claimInput);
+		const current = createCurrentExactModelHarnessProfileInput();
+		const definition = createDeepSeekV4Flash0731TogetherStructuredProfileDefinition();
+		const qualification = createInjectedNoNetworkProfileQualification({
+			definition,
+			implementationManifestDigest: current.currentImplementationManifestDigest,
+			qualificationArtifactDigest: MODEL_HARNESS_PROFILE_NO_NETWORK_QA_ARTIFACT_DIGEST,
+		});
+		const topology = createRootEvalTopology({
+			profileInput: exactQualifiedProfileCatalogInput(
+				{ ...definition, qualification },
+				current.currentImplementationManifestDigest,
+			),
+			currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+			campaignRef: "together-injected-qualification",
+			campaignPurpose: "qualification",
+			maxCostMicrousd: 6_000_000,
+			reservationMicrousd: 200_000,
+			providerPacingSetTimeout: (callback) => {
+				callback();
+				return 0 as unknown as ReturnType<typeof setTimeout>;
+			},
+		});
+		const executor = createRootEvalNoNetworkQualificationExecutor({
+			repositoryRoot,
+			materializationRoot: join(temporary, "workspaces"),
+			pricing: {
+				inputMicrousdPerMillionTokens: 140_000,
+				outputMicrousdPerMillionTokens: 280_000,
+				cacheReadMicrousdPerMillionTokens: 140_000,
+			},
+			providerResponses: [],
+			providerResponseForEffect(effect) {
+				expect(effect.providerRef).toBe("together");
+				const response = JSON.parse(new TextDecoder().decode(providerBytesForEffect(effect)));
+				response.provider = "Together";
+				response.usage.cost = 0.000168;
+				return { status: 200, bytes: new TextEncoder().encode(JSON.stringify(response)) };
+			},
+		});
+		const wrongGrantExecutor = createRootEvalLiveTransportQualificationExecutor({
+			graph: topology.graph,
+			repositoryRoot,
+			materializationRoot: join(temporary, "wrong-grant-workspaces"),
+			privateRoot,
+			claimCommit,
+			bearerToken: claimInput.credential.bearerToken,
+			pricing: claimInput.pricing,
+			providerResponses: [],
+		});
+		let grantRejectionChecked = false;
+		try {
+			const result = await runRootEval(topology, async (effect) => {
+				if (!grantRejectionChecked && effect.kind === "eval-admitted-effect") {
+					grantRejectionChecked = true;
+					expect(effect.providerRef).toBe("together");
+					await expect(wrongGrantExecutor.execute(effect)).resolves.toMatchObject({
+						status: "failed",
+						reason: "executor-failed",
+						dispatchAttempted: false,
+						costMicrousd: 0,
+					});
+					expect(wrongGrantExecutor.providerRequestSummaries()).toEqual([]);
+					await expect(stat(join(privateRoot, ".d152-provider-dispatches"))).rejects.toMatchObject({
+						code: "ENOENT",
+					});
+					await expect(stat(join(temporary, "wrong-grant-workspaces"))).rejects.toMatchObject({
+						code: "ENOENT",
+					});
+				}
+				return executor.execute(effect);
+			});
+			expect(grantRejectionChecked).toBe(true);
+			const requests = executor.providerRequestSummaries();
+			expect(requests).toHaveLength(35);
+			for (const request of requests)
+				expect(request).toMatchObject({
+					model: "deepseek/deepseek-v4-flash-0731",
+					provider: {
+						order: ["together"],
+						only: ["together"],
+						allow_fallbacks: false,
+						require_parameters: true,
+						data_collection: "deny",
+						zdr: true,
+					},
+					responseFormat: { type: "json_schema", json_schema: { strict: true } },
+					forbiddenFieldPresence: {
+						parallelToolCalls: false,
+						tools: false,
+						toolChoice: false,
+						plugins: false,
+					},
+				});
+			expect(result.finding.providerOutcomeReasonCounts["tool-proposed"]).toBe(35);
+			expect(result.finding.providerReportedMicrousd).toBe(35 * 168);
+			expect(result.finding.unreportedSettledUpperBoundMicrousd).toBe(0);
+			expect(result.finding.armOrder).toHaveLength(6);
+			expect(result.finding.finding).toBe("no-positive-differential");
+			for (const arm of Object.values(result.finding.verificationDiagnostics.stageCounts))
+				expect(arm).toMatchObject({
+					completedWorkItems: 5,
+					exactToolAdmitted: 5,
+					hiddenVerifierPassed: 5,
+					cleanupCompleted: 5,
+				});
+			expect(await readdir(join(temporary, "workspaces"))).toEqual([]);
+		} finally {
+			await wrongGrantExecutor.dispose();
+			await executor.dispose();
+			await rm(temporary, { recursive: true, force: true });
+		}
+	}, 180_000);
 
 	it("executes one admitted effect against a frozen isolated workspace and behavioral verifiers", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-live-"));

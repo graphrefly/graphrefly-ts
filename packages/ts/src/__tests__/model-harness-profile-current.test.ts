@@ -4,13 +4,67 @@ import {
 	createRootEvalTopology,
 	ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
 } from "../../evals/graph-native-rerun-avoidance/eval-topology.js";
-import { deterministicProfileResolver } from "../../evals/graph-native-rerun-avoidance/model-harness-profile.js";
+import {
+	createDeepSeekV4Flash0731TogetherStructuredProfileDefinition,
+	createInjectedNoNetworkProfileQualification,
+	createProviderBinding,
+	deterministicProfileResolver,
+	exactQualifiedProfileCatalogInput,
+} from "../../evals/graph-native-rerun-avoidance/model-harness-profile.js";
 import {
 	MODEL_HARNESS_PROFILE_NO_NETWORK_QA_ARTIFACT,
 	MODEL_HARNESS_PROFILE_NO_NETWORK_QA_ARTIFACT_DIGEST,
 } from "../../evals/graph-native-rerun-avoidance/model-harness-profile-qualification.js";
 
 describe("current exact model-harness profile inside the root Eval Graph (D72/D74/D76/D87)", () => {
+	it("qualifies Together separately without silently promoting the current live route", () => {
+		const current = createCurrentExactModelHarnessProfileInput();
+		const definition = createDeepSeekV4Flash0731TogetherStructuredProfileDefinition();
+		const qualification = createInjectedNoNetworkProfileQualification({
+			definition,
+			implementationManifestDigest: current.currentImplementationManifestDigest,
+			qualificationArtifactDigest: MODEL_HARNESS_PROFILE_NO_NETWORK_QA_ARTIFACT_DIGEST,
+		});
+		const candidate = exactQualifiedProfileCatalogInput(
+			{ ...definition, qualification },
+			current.currentImplementationManifestDigest,
+		);
+		expect(candidate.targets).toEqual(current.targets);
+		expect(candidate.profiles).toEqual(current.profiles);
+		expect(current.bindings[0]!.providerRef).toBe("fireworks");
+		expect(qualification.qualificationRef).toContain("together-structured");
+		expect(qualification).toMatchObject({
+			qualificationMode: "injected-no-network",
+			credentialAccessed: false,
+			providerNetworkAccessed: false,
+			liveEvaluationExecuted: false,
+		});
+		const topology = createRootEvalTopology({
+			profileInput: candidate,
+			currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+		});
+		expect(
+			topology.graph.describe().nodes.find((node) => node.id === "eval/profile/graph-admission")
+				?.value,
+		).toMatchObject({ resolution: { status: "eligible", providerRef: "together" } });
+		const { bindingDigest: _digest, ...binding } = definition.binding;
+		for (const profileInput of [
+			{ ...candidate, bindings: [...candidate.bindings, ...current.bindings] },
+			{ ...candidate, qualifications: current.qualifications },
+			{
+				...candidate,
+				bindings: [createProviderBinding({ ...binding, providerRef: "deepinfra/fp8" })],
+			},
+			{ ...candidate, currentEligibility: [{}] } as never,
+		])
+			expect(() =>
+				createRootEvalTopology({
+					profileInput,
+					currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+				}),
+			).toThrow();
+	});
+
 	it("admits only the exact no-network-qualified tuple and rejects caller authority", () => {
 		const catalog = createCurrentExactModelHarnessProfileInput();
 		const topology = createRootEvalTopology({

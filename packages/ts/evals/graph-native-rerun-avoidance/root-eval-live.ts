@@ -1140,6 +1140,8 @@ function qualifyRootEvalNonbillableResponse(
 }
 
 export function parseRootEvalLiveProviderResponse(input: {
+	/** Copied from the Graph admission, never inferred from the response. */
+	readonly route: Pick<EvalAdmittedEffect, "providerRef" | "providerModelRef">;
 	readonly status: number;
 	readonly bytes: Uint8Array;
 	readonly retryAfter: string | null;
@@ -1214,7 +1216,12 @@ export function parseRootEvalLiveProviderResponse(input: {
 		}
 	}
 	if (input.status === 429) {
-		if (!Object.hasOwn(root, "usage") && input.nonbillableContext !== undefined) {
+		if (
+			!Object.hasOwn(root, "usage") &&
+			input.nonbillableContext !== undefined &&
+			input.nonbillableContext.admission.providerRef === input.route.providerRef &&
+			input.nonbillableContext.admission.providerModelRef === input.route.providerModelRef
+		) {
 			nonbillableEvidence = qualifyRootEvalNonbillableResponse(
 				root,
 				input.bytes,
@@ -1262,8 +1269,16 @@ export function parseRootEvalLiveProviderResponse(input: {
 			tool: null,
 		});
 	}
+	const expectedProvider =
+		input.route.providerRef === "fireworks"
+			? "Fireworks"
+			: input.route.providerRef === "together"
+				? "Together"
+				: null;
 	if (
-		root.provider !== "Fireworks" ||
+		expectedProvider === null ||
+		input.route.providerModelRef !== "deepseek/deepseek-v4-flash-0731" ||
+		root.provider !== expectedProvider ||
 		!["deepseek/deepseek-v4-flash-0731", "deepseek/deepseek-v4-flash-20260731"].includes(
 			String(root.model),
 		)
@@ -1426,6 +1441,15 @@ function admittedPayload(
 	if (payload === null || typeof payload !== "object" || Array.isArray(payload))
 		throw new TypeError("root eval live effect lost its admitted provider payload");
 	const value = payload as Record<string, unknown>;
+	if (
+		(effect.providerRef !== "fireworks" && effect.providerRef !== "together") ||
+		effect.providerModelRef !== "deepseek/deepseek-v4-flash-0731" ||
+		effect.endpointProtocol !== "chat-completions" ||
+		effect.proposalEncoding !== "strict-json-schema" ||
+		effect.responseContractRevision !== "bounded-structured-proposal.v3" ||
+		!/^sha256:[0-9a-f]{64}$/u.test(effect.profileResolutionDigest)
+	)
+		throw new TypeError("root eval live effect lost its exact qualified profile binding");
 	if (effect.workItemRole === "source") {
 		if (
 			effect.arm !== "source" ||
@@ -1496,12 +1520,6 @@ function admittedPayload(
 		? (value.memoryBindings as readonly unknown[])
 		: null;
 	if (
-		effect.providerRef !== "fireworks" ||
-		effect.providerModelRef !== "deepseek/deepseek-v4-flash-0731" ||
-		effect.endpointProtocol !== "chat-completions" ||
-		effect.proposalEncoding !== "strict-json-schema" ||
-		effect.responseContractRevision !== "bounded-structured-proposal.v3" ||
-		!/^sha256:[0-9a-f]{64}$/u.test(effect.profileResolutionDigest) ||
 		value.bindingRef !== `${effect.workItemId}/private-input` ||
 		value.digest !==
 			empiricalStrictJsonDigest({
@@ -2063,6 +2081,14 @@ function createRootEvalLiveExecutorInternal(
 		let dispatchObservationFailed = false;
 		let confirmedPricingRoundingAllowanceMicrousd = 0;
 		try {
+			// Offline profile eligibility never widens a committed execution grant.
+			// Apply this guard to the injected live boundary too, so it is executable QA.
+			const claimedRoute = input.claimCommit.claim.recoveryEnvelope.pricing;
+			if (
+				effect.providerRef !== claimedRoute.providerRef ||
+				effect.providerModelRef !== claimedRoute.modelRef
+			)
+				throw new TypeError("root eval provider effect does not match its committed claim route");
 			const materializedRoot = await materialize({
 				repositoryRoot,
 				materializationRoot,
@@ -2165,6 +2191,7 @@ function createRootEvalLiveExecutorInternal(
 					}),
 				});
 			const provider = parseRootEvalLiveProviderResponse({
+				route: effect,
 				status: response.status,
 				bytes,
 				retryAfter: response.headers.get("retry-after"),
@@ -2814,6 +2841,7 @@ export function createRootEvalNoNetworkQualificationExecutor(input: {
 			postDispatch = true;
 			responseStatus = response.status;
 			const provider = parseRootEvalLiveProviderResponse({
+				route: effect,
 				status: response.status,
 				bytes: response.bytes,
 				retryAfter: response.retryAfter,

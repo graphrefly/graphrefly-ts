@@ -2,19 +2,22 @@ import { empiricalStrictJsonDigest } from "./canonical.js";
 import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifest.js";
 
 export const MODEL_HARNESS_PROFILE_NO_NETWORK_QA_ARTIFACT = Object.freeze({
-	schemaVersion: "graphrefly-ts.model-harness-profile-no-network-qa.v4" as const,
+	schemaVersion: "graphrefly-ts.model-harness-profile-no-network-qa.v5" as const,
 	decisionRef: "graphrefly-ts:D72" as const,
 	clarificationRef: "graphrefly-ts:D74" as const,
 	structuredProposalRef: "graphrefly-ts:D87" as const,
 	implementationApprovalRef: "graphrefly-ts:D88" as const,
 	responseAndSpendClosureRef: "graphrefly-ts:D96" as const,
 	implementationExecutionApprovalRef: "graphrefly-ts:D97" as const,
-	artifactRef: "model-harness-profile.deepseek-v4-flash-0731.fireworks-structured.no-network.v3",
+	artifactRef: "model-harness-profile.deepseek-v4-flash-0731.exact-structured.no-network.v4",
 	implementationManifestDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
 	targetRef: "model-target.deepseek-v4-flash-0731",
 	modelRef: "deepseek/deepseek-v4-flash-0731",
 	modelRevision: "0731",
-	providerRef: "fireworks",
+	qualifiedProviderRefs: Object.freeze(["fireworks", "together"]),
+	crossProviderResponseRejected: true as const,
+	candidateDoesNotAuthorizeLive: true as const,
+	nonbillablePolicyRemainsFireworksOnly: true as const,
 	caseResults: Object.freeze({
 		exact: "eligible" as const,
 		missing: "no-exact-qualified-profile" as const,
