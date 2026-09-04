@@ -81,9 +81,9 @@ import {
 import { settledRootEvalSpend } from "./settled-spend.js";
 
 export const ROOT_EVAL_LIVE_EXECUTION_APPROVAL =
-	"user-authorized:d157-development-4:usd-4.164201:development-usd-40" as const;
-export const ROOT_EVAL_LIVE_EXECUTION_APPROVAL_SLOT = "development-4" as const;
-export const ROOT_EVAL_LIVE_EXECUTION_APPROVAL_HARD_CAP_MICROUSD = 4_164_201 as const;
+	"user-authorized:d157-development-5:usd-4.138575:development-usd-40" as const;
+export const ROOT_EVAL_LIVE_EXECUTION_APPROVAL_SLOT = "development-5" as const;
+export const ROOT_EVAL_LIVE_EXECUTION_APPROVAL_HARD_CAP_MICROUSD = 4_138_575 as const;
 export const ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_OPEN = true as const;
 export const ROOT_EVAL_LIVE_MOST_RECENT_SUCCESSFUL_CANONICAL_APPROVAL =
 	"graphrefly-ts:D116" as const;

@@ -2125,7 +2125,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			await rm(temporary, { force: true, recursive: true });
 		}
 	});
-	it("binds the single-use D157 development-4 authority to the precommitted horizon", () => {
+	it("binds the single-use D157 development-5 authority to the precommitted horizon", () => {
 		const liveEntry = readFileSync(
 			resolve(
 				repositoryRoot,
@@ -2134,10 +2134,10 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			"utf8",
 		);
 		expect(liveEntry).toContain(
-			'"user-authorized:d157-development-4:usd-4.164201:development-usd-40" as const',
+			'"user-authorized:d157-development-5:usd-4.138575:development-usd-40" as const',
 		);
-		expect(liveEntry).toContain('ROOT_EVAL_LIVE_EXECUTION_APPROVAL_SLOT = "development-4"');
-		expect(liveEntry).toContain("ROOT_EVAL_LIVE_EXECUTION_APPROVAL_HARD_CAP_MICROUSD = 4_164_201");
+		expect(liveEntry).toContain('ROOT_EVAL_LIVE_EXECUTION_APPROVAL_SLOT = "development-5"');
+		expect(liveEntry).toContain("ROOT_EVAL_LIVE_EXECUTION_APPROVAL_HARD_CAP_MICROUSD = 4_138_575");
 		expect(liveEntry).toContain("ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_OPEN = true as const");
 		expect(liveEntry).toMatch(
 			/!ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_OPEN\s*\|\|\s*ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_STATE !==/u,
@@ -2221,6 +2221,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		{ ordinal: 2, cap: 4_272_834, partition: 36_000_000, partitionRef: "development-usd-36" },
 		{ ordinal: 3, cap: 4_179_695, partition: 40_000_000, partitionRef: "development-usd-40" },
 		{ ordinal: 4, cap: 4_164_201, partition: 40_000_000, partitionRef: "development-usd-40" },
+		{ ordinal: 5, cap: 4_138_575, partition: 40_000_000, partitionRef: "development-usd-40" },
 	])("binds development-$ordinal to its exact approved budget coordinates", ({
 		ordinal,
 		cap,
