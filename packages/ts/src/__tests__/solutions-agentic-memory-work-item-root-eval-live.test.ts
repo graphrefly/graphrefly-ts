@@ -2125,7 +2125,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			await rm(temporary, { force: true, recursive: true });
 		}
 	});
-	it("keeps consumed D152 authority closed while admitting only the precommitted D157 horizon", () => {
+	it("binds the single-use D157 development-4 authority to the precommitted horizon", () => {
 		const liveEntry = readFileSync(
 			resolve(
 				repositoryRoot,
@@ -2134,14 +2134,21 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			"utf8",
 		);
 		expect(liveEntry).toContain(
-			'"user-authorized:d152-development-3:usd-4.179695:development-usd-40" as const',
+			'"user-authorized:d157-development-4:usd-4.164201:development-usd-40" as const',
 		);
-		expect(liveEntry).toContain("ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_OPEN = false as const");
+		expect(liveEntry).toContain('ROOT_EVAL_LIVE_EXECUTION_APPROVAL_SLOT = "development-4"');
+		expect(liveEntry).toContain("ROOT_EVAL_LIVE_EXECUTION_APPROVAL_HARD_CAP_MICROUSD = 4_164_201");
+		expect(liveEntry).toContain("ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_OPEN = true as const");
 		expect(liveEntry).toMatch(
 			/!ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_OPEN\s*\|\|\s*ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_STATE !==/u,
 		);
 		expect(liveEntry).toContain("process.env.GRAPHREFLY_ROOT_EVAL_EXECUTION_AUTHORITY");
 		expect(liveEntry).toContain("ROOT_EVAL_D157_HORIZON_SLOTS.includes(");
+		expect(liveEntry).toContain(
+			"ROOT_EVAL_LIVE_CAMPAIGN_SLOT !== ROOT_EVAL_LIVE_EXECUTION_APPROVAL_SLOT",
+		);
+		expect(liveEntry).toContain("ROOT_EVAL_LIVE_EXECUTION_APPROVAL_HARD_CAP_MICROUSD");
+		expect(liveEntry).toContain('ROOT_EVAL_LIVE_BUDGET_PARTITION !== "development-usd-40"');
 		expect(liveEntry).toContain("await readRootEvalD157HorizonReceipt();");
 		expect(liveEntry).toContain(
 			"process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY !== undefined",
@@ -2213,6 +2220,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 	it.each([
 		{ ordinal: 2, cap: 4_272_834, partition: 36_000_000, partitionRef: "development-usd-36" },
 		{ ordinal: 3, cap: 4_179_695, partition: 40_000_000, partitionRef: "development-usd-40" },
+		{ ordinal: 4, cap: 4_164_201, partition: 40_000_000, partitionRef: "development-usd-40" },
 	])("binds development-$ordinal to its exact approved budget coordinates", ({
 		ordinal,
 		cap,

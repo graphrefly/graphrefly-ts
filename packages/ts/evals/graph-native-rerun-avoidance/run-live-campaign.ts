@@ -81,8 +81,10 @@ import {
 import { settledRootEvalSpend } from "./settled-spend.js";
 
 export const ROOT_EVAL_LIVE_EXECUTION_APPROVAL =
-	"user-authorized:d152-development-3:usd-4.179695:development-usd-40" as const;
-export const ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_OPEN = false as const;
+	"user-authorized:d157-development-4:usd-4.164201:development-usd-40" as const;
+export const ROOT_EVAL_LIVE_EXECUTION_APPROVAL_SLOT = "development-4" as const;
+export const ROOT_EVAL_LIVE_EXECUTION_APPROVAL_HARD_CAP_MICROUSD = 4_164_201 as const;
+export const ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_OPEN = true as const;
 export const ROOT_EVAL_LIVE_MOST_RECENT_SUCCESSFUL_CANONICAL_APPROVAL =
 	"graphrefly-ts:D116" as const;
 export const ROOT_EVAL_LIVE_MOST_RECENT_SUCCESSFUL_CANONICAL_CLOSEOUT =
@@ -650,6 +652,11 @@ async function main(): Promise<void> {
 	if (
 		!ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_OPEN ||
 		ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_STATE !== ROOT_EVAL_LIVE_EXECUTION_APPROVAL ||
+		ROOT_EVAL_LIVE_CAMPAIGN_SLOT !== ROOT_EVAL_LIVE_EXECUTION_APPROVAL_SLOT ||
+		ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD !==
+			ROOT_EVAL_LIVE_EXECUTION_APPROVAL_HARD_CAP_MICROUSD ||
+		ROOT_EVAL_LIVE_BUDGET_PARTITION !== "development-usd-40" ||
+		ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD !== 40_000_000 ||
 		!ROOT_EVAL_D157_HORIZON_SLOTS.includes(
 			ROOT_EVAL_LIVE_CAMPAIGN_SLOT as (typeof ROOT_EVAL_D157_HORIZON_SLOTS)[number],
 		) ||
