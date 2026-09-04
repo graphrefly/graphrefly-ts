@@ -222,6 +222,11 @@ function conservativeSpend(observations: readonly ObserveEvent[]): Readonly<{
 }
 
 async function main(): Promise<void> {
+	if (
+		ROOT_EVAL_LIVE_CAMPAIGN_SLOT === "development-4" ||
+		ROOT_EVAL_LIVE_CAMPAIGN_SLOT === "development-5"
+	)
+		throw new TypeError("D145 recovery is retired for the D157 finite horizon");
 	const generationRootArgument = process.argv[2];
 	const ledgerPathArgument = process.argv[3];
 	const verifyOnly = process.argv[4] === "--verify-only";

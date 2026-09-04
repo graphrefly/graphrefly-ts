@@ -87,3 +87,7 @@ Next is a separately bounded Together live qualification, followed by an exactly
 authorized fresh campaign if qualification succeeds. It must not reuse consumed
 development-3, manufacture an unsupported development-4 task bank, silently mix
 providers, or count qualification probes as efficacy evidence.
+
+Historical note: D157 later replaced the then-future “unsupported development-4” boundary with one
+finite, atomically precommitted development-4/development-5 horizon. This qualification result and
+its provider evidence remain unchanged.

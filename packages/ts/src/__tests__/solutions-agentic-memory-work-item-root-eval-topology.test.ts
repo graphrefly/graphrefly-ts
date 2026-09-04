@@ -866,7 +866,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		}
 	});
 
-	it("freezes D156 no-network qualification with live authority closed", async () => {
+	it("freezes D157 no-network qualification with live authority closed", async () => {
 		expect(await measureCurrentImplementation()).toBe(CURRENT_IMPLEMENTATION_MANIFEST_DIGEST);
 		const implementationInputs = await measureCurrentImplementationInputs();
 		for (const required of [
@@ -880,8 +880,6 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"quiet-data-boundary.ts",
 			"settled-spend.ts",
 			"provider-cost-evidence.ts",
-			"recover-d145-interrupted-campaign.ts",
-			"recover-d145-source-failure.ts",
 			"rollover-d145-charter-ledger.ts",
 			"update-operator-configuration.ts",
 			"toolchain/pnpm-lock.yaml",
@@ -914,16 +912,16 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"graphrefly-ts.root-eval-live-precredential-gates.v6",
 		);
 		expect(ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-no-network-qa.v51",
+			"graphrefly-ts.root-eval-live-no-network-qa.v52",
 		);
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-qualification.v52",
+			"graphrefly-ts.root-eval-live-qualification.v53",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-no-network-qa.v46",
+			"graphrefly-ts.root-eval-topology-no-network-qa.v47",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-qualification.v47",
+			"graphrefly-ts.root-eval-topology-qualification.v48",
 		);
 		expect(ROOT_EVAL_LIVE_GENERATION_REF).not.toContain("d116");
 		expect(ROOT_EVAL_LIVE_CLAIM_REF).not.toContain("d116");
@@ -966,9 +964,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.responseHorizonIncidentClosureRef).toBe(
 			"graphrefly-ts:D93",
 		);
-		expect(ROOT_EVAL_LIVE_QUALIFICATION.decisionRef).toBe("graphrefly-ts:D156");
+		expect(ROOT_EVAL_LIVE_QUALIFICATION.decisionRef).toBe("graphrefly-ts:D157");
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.implementationExecutionApprovalRef).toBe(
-			"user-authorized-d156-implementation-no-network-2026-09-03",
+			"user-authorized-d157-implementation-no-network-2026-09-03",
 		);
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.efficacyBillingSeparationDecisionRef).toBe(
 			"graphrefly-ts:D113",
@@ -1041,15 +1039,15 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			precredentialGateChronologyExecutionApprovalRef: "graphrefly-ts:D138",
 			currentLiveExecutionApprovalClosed: true,
 			callerHorizonDecisionRequired: false,
-			status:
-				"qualified-no-network-d156-candidate-selection-development-only-confirmatory-unmaterialized",
+			status: "qualified-no-network-d157-precommitted-development-horizon",
 			occurrenceAwareSolutionDeliveryDecisionRef: "graphrefly-ts:D151",
 			orthogonalMechanismFamilyDecisionRef: "graphrefly-ts:D152",
 			occurrenceBoundCandidateToolDecisionRef: "graphrefly-ts:D156",
+			precommittedDevelopmentHorizonDecisionRef: "graphrefly-ts:D157",
 		});
 		expect(ROOT_EVAL_TOPOLOGY_QUALIFICATION).toMatchObject({
-			decisionRef: "graphrefly-ts:D156",
-			executionApprovalRef: "user-authorized-d156-implementation-no-network-2026-09-03",
+			decisionRef: "graphrefly-ts:D157",
+			executionApprovalRef: "user-authorized-d157-implementation-no-network-2026-09-03",
 			efficacyBillingSeparationDecisionRef: "graphrefly-ts:D113",
 			efficacyBillingSeparationExecutionApprovalRef: "graphrefly-ts:D114",
 			efficacyBillingSeparationImplementationReceiptRef: "graphrefly-ts:D115",
@@ -1091,6 +1089,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			occurrenceAwareSolutionDeliveryDecisionRef: "graphrefly-ts:D151",
 			orthogonalMechanismFamilyDecisionRef: "graphrefly-ts:D152",
 			occurrenceBoundCandidateToolDecisionRef: "graphrefly-ts:D156",
+			precommittedDevelopmentHorizonDecisionRef: "graphrefly-ts:D157",
 		});
 		expect(ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.architectureMigration.complete).toBe(true);
 		expect(CURRENT_QUALIFICATION_ARTIFACT_DIGEST).toBe(
@@ -1126,23 +1125,6 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			/\["SIGHUP", "SIGINT", "SIGTERM"\][\s\S]+callerCancellation\.abort\(error\)[\s\S]+process\.off\(signal, handler\)/u,
 		);
 		expect(liveEntry).toMatch(/ROOT_EVAL_LIVE_CONSUMED_D121_APPROVAL = "graphrefly-ts:D121"/u);
-		const interruptedRecovery = readFileSync(
-			new URL(
-				"../../evals/graph-native-rerun-avoidance/recover-d145-interrupted-campaign.ts",
-				import.meta.url,
-			),
-			"utf8",
-		);
-		expect(interruptedRecovery).toMatch(/assertDispatchReceipts[\s\S]+providerResponseForEffect/u);
-		expect(interruptedRecovery).toMatch(
-			/observationProvenance: "exact-response-no-network-recovery"[\s\S]+graphResult: null[\s\S]+developmentQualification: null/u,
-		);
-		expect(interruptedRecovery).toMatch(
-			/join\(operatorRoot, "d145-charter-transaction\.v1\.json"\)/u,
-		);
-		expect(interruptedRecovery).not.toMatch(
-			/join\(operatorRoot, "\.d145-charter-transaction\.v1\.json"\)/u,
-		);
 		expect(liveEntry).toMatch(/ROOT_EVAL_LIVE_D121_REPAIR_RECEIPT = "graphrefly-ts:D124"/u);
 		expect(liveEntry).toMatch(
 			/ROOT_EVAL_LIVE_EXECUTION_APPROVAL =\s*"user-authorized:d152-development-3:usd-4\.179695:development-usd-40"/u,

@@ -9,6 +9,8 @@ import {
 	initialQualificationState,
 	PROVIDER_QUALIFICATION_CAP,
 	type QualificationState,
+	ROOT_EVAL_HISTORICAL_QUALIFICATION_V1_CONTRACT,
+	validateHistoricalQualificationStateV1,
 	validateQualificationState,
 } from "./provider-qualification.js";
 import {
@@ -29,6 +31,8 @@ export const ROOT_EVAL_D152_LEDGER_SCHEMA = "graphrefly-ts.root-eval-d152-ledger
 export const ROOT_EVAL_D152_TRANSACTION_SCHEMA =
 	"graphrefly-ts.root-eval-d152-transaction.v1" as const;
 export const ROOT_EVAL_D156_FIRST_DEVELOPMENT_ORDINAL = 3 as const;
+export const ROOT_EVAL_D152_HISTORICAL_QUALIFICATION_V1_PREDECESSOR_DIGEST =
+	"sha256:ac37f63e1a6964966e15b24d2a906b81a0690095d0fe0ef3d212db6a63b8305a" as const;
 function developmentOrdinal(generationRef: string): number | null {
 	const match = /^root-eval-development-2026-09-01-d152-v([1-9][0-9]*)$/u.exec(generationRef);
 	if (match === null) return null;
@@ -174,7 +178,14 @@ function validate(value: unknown): RootEvalD152Ledger {
 		)
 			throw new TypeError("qualification ledger identity invalid");
 		initialQualificationState(entry.executionRef);
-		const receipt = entry.receipt === null ? null : validateQualificationState(entry.receipt);
+		const receipt =
+			entry.receipt === null
+				? null
+				: root.qualificationFormatPredecessorDigest ===
+							ROOT_EVAL_D152_HISTORICAL_QUALIFICATION_V1_PREDECESSOR_DIGEST &&
+						entry.executionRef === ROOT_EVAL_HISTORICAL_QUALIFICATION_V1_CONTRACT.executionRef
+					? validateHistoricalQualificationStateV1(entry.receipt)
+					: validateQualificationState(entry.receipt);
 		if (entry.status === "reserved") {
 			if (receipt !== null || entry.accountedUpperBoundMicrousd !== PROVIDER_QUALIFICATION_CAP)
 				throw new TypeError("qualification reservation invalid");

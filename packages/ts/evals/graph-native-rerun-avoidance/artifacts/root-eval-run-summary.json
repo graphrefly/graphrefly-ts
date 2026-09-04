@@ -53,7 +53,7 @@
 		"excludedTechnicalReplicates": [],
 		"finding": "positive-differential",
 		"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
-		"heldOutSealDigest": "sha256:0924aeefa3425a3be8e8d3794ec8c95a1d5c7e053c31536341134b1b24511e66",
+		"heldOutSealDigest": "sha256:9729f96ccfbaca56cbb284fa048f1754d8192a18b8af284af407ebb575cf6e23",
 		"kind": "eval-observation",
 		"matchedRelevantOverColdWins": 5,
 		"memoryProvenance": {

@@ -121,6 +121,10 @@ Topology qualification v42; live-boundary qualification v48. The raw describe
 artifact changes only qualification/digest values, not the topology structure.
 These are no-network qualification results, not a model efficacy result.
 
+Historical note: D157 later approved a finite, jointly precommitted development-4/development-5
+horizon. That later decision does not alter this execution record or manufacture a replacement for
+development-3.
+
 The first full sweep (`.runlog/run-20260902-202351-65897.log`) passed all 80
 live-boundary tests but exposed a pre-existing oversized topology test: twelve
 independent full campaigns shared a single 15-second test deadline, exceeded

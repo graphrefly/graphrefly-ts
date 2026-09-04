@@ -12,7 +12,7 @@
 				"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
 				"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
 				"replicateCount": 5,
-				"heldOutSealDigest": "sha256:0924aeefa3425a3be8e8d3794ec8c95a1d5c7e053c31536341134b1b24511e66",
+				"heldOutSealDigest": "sha256:9729f96ccfbaca56cbb284fa048f1754d8192a18b8af284af407ebb575cf6e23",
 				"budgetPartition": "development-usd-36",
 				"partitionHardCapMicrousd": 36000000,
 				"partitionSpentBeforeMicrousd": 0,
@@ -35,7 +35,7 @@
 				],
 				"developmentQualificationStreakBefore": 0,
 				"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
-				"heldOutSealDigest": "sha256:0924aeefa3425a3be8e8d3794ec8c95a1d5c7e053c31536341134b1b24511e66",
+				"heldOutSealDigest": "sha256:9729f96ccfbaca56cbb284fa048f1754d8192a18b8af284af407ebb575cf6e23",
 				"materialFree": true,
 				"partitionHardCapMicrousd": 36000000,
 				"partitionLedgerDigest": "sha256:1a5008b69a43c54883d4c4afdf1293e8eac8ce761c5984103e79afbea20a3c46",
@@ -457,7 +457,7 @@
 			"name": "eval/profile/qualified-catalog",
 			"value": {
 				"requestedTargetRef": "model-target.deepseek-v4-flash-0731",
-				"currentImplementationManifestDigest": "sha256:9c31843d715e1e0f6d7a8f9db87c63b84c43e7d6e22dc73d4c2e8a7aa7ce6ccf",
+				"currentImplementationManifestDigest": "sha256:fb4872440fea38bbb80c5cb716655fb875b97f5bbeb2a6645fd26d691eb6886c",
 				"targets": [
 					{
 						"modelRef": "deepseek/deepseek-v4-flash-0731",
@@ -506,19 +506,19 @@
 						"bindingDigest": "sha256:9e93f2dad3a8cc01b94c07f3dd7c469719368b2186492ae94955e42fe626f0b6",
 						"bindingRef": "provider-binding.fireworks-structured-chat.v2",
 						"credentialAccessed": false,
-						"implementationManifestDigest": "sha256:9c31843d715e1e0f6d7a8f9db87c63b84c43e7d6e22dc73d4c2e8a7aa7ce6ccf",
+						"implementationManifestDigest": "sha256:fb4872440fea38bbb80c5cb716655fb875b97f5bbeb2a6645fd26d691eb6886c",
 						"liveEvaluationExecuted": false,
 						"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 						"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
 						"providerNetworkAccessed": false,
-						"qualificationArtifactDigest": "sha256:704d09639829470d93a505d1a1dd48c8b82ee5ecfa893281ffcab69d4618d8d2",
+						"qualificationArtifactDigest": "sha256:d13d563d915b779431fe112e0a52b02ef6b7893a841f711f32ee40ec07445fc5",
 						"qualificationMode": "injected-no-network",
 						"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 						"qualified": true,
 						"schemaVersion": "graphrefly-ts.profile-qualification.v1",
 						"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 						"targetRef": "model-target.deepseek-v4-flash-0731",
-						"qualificationDigest": "sha256:286947e9470dfd31706bf03043048917c5453480b72a0bfe1d8327e3d857811d"
+						"qualificationDigest": "sha256:a097dc66f1658d72f756b82b56752e70fe5a2fbeee82e5b90993de580fc6004c"
 					}
 				]
 			},
@@ -548,28 +548,28 @@
 					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
 					"decisionRef": "graphrefly-ts:D96",
 					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
-					"implementationManifestDigest": "sha256:9c31843d715e1e0f6d7a8f9db87c63b84c43e7d6e22dc73d4c2e8a7aa7ce6ccf",
+					"implementationManifestDigest": "sha256:fb4872440fea38bbb80c5cb716655fb875b97f5bbeb2a6645fd26d691eb6886c",
 					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
-					"qualificationDigest": "sha256:286947e9470dfd31706bf03043048917c5453480b72a0bfe1d8327e3d857811d",
+					"qualificationDigest": "sha256:a097dc66f1658d72f756b82b56752e70fe5a2fbeee82e5b90993de580fc6004c",
 					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 					"reasonCode": "root-graph-exact-profile-current",
 					"schemaVersion": "graphrefly-ts.current-profile-eligibility.v1",
 					"status": "eligible",
 					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 					"targetRef": "model-target.deepseek-v4-flash-0731",
-					"eligibilityDigest": "sha256:5be5bdb7d1838df43dfcfcb8b3a2bec7ade062dae3fbcb9ce8a4b681dbe51d7e"
+					"eligibilityDigest": "sha256:e0502f1bf9d3bdbc84426c01ec867cca0b9cc1e90f8da1a7210885c81a218d92"
 				},
 				"resolution": {
 					"bindingDigest": "sha256:9e93f2dad3a8cc01b94c07f3dd7c469719368b2186492ae94955e42fe626f0b6",
 					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
-					"eligibilityDigest": "sha256:5be5bdb7d1838df43dfcfcb8b3a2bec7ade062dae3fbcb9ce8a4b681dbe51d7e",
+					"eligibilityDigest": "sha256:e0502f1bf9d3bdbc84426c01ec867cca0b9cc1e90f8da1a7210885c81a218d92",
 					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
-					"implementationManifestDigest": "sha256:9c31843d715e1e0f6d7a8f9db87c63b84c43e7d6e22dc73d4c2e8a7aa7ce6ccf",
+					"implementationManifestDigest": "sha256:fb4872440fea38bbb80c5cb716655fb875b97f5bbeb2a6645fd26d691eb6886c",
 					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
 					"providerRef": "fireworks",
-					"qualificationDigest": "sha256:286947e9470dfd31706bf03043048917c5453480b72a0bfe1d8327e3d857811d",
+					"qualificationDigest": "sha256:a097dc66f1658d72f756b82b56752e70fe5a2fbeee82e5b90993de580fc6004c",
 					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 					"requestedTargetRef": "model-target.deepseek-v4-flash-0731",
 					"resolverRevision": "graphrefly-ts.profile-resolver.v1",
@@ -577,7 +577,7 @@
 					"status": "eligible",
 					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 					"targetRef": "model-target.deepseek-v4-flash-0731",
-					"resolutionDigest": "sha256:539920eb73e141c84357f3f5ea5bab8f96d70860bb5338b8b106c10782fa4d21"
+					"resolutionDigest": "sha256:ef75c49376ac8bb7e086d77f0dc09d1a04f0594bffc224d7d59ed2dc872da30e"
 				},
 				"profile": {
 					"enhancementRecipes": [
@@ -2098,7 +2098,7 @@
 					"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
 					"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
 					"replicateCount": 5,
-					"heldOutSealDigest": "sha256:0924aeefa3425a3be8e8d3794ec8c95a1d5c7e053c31536341134b1b24511e66",
+					"heldOutSealDigest": "sha256:9729f96ccfbaca56cbb284fa048f1754d8192a18b8af284af407ebb575cf6e23",
 					"budgetPartition": "development-usd-36",
 					"partitionHardCapMicrousd": 36000000,
 					"partitionSpentBeforeMicrousd": 0,
@@ -2551,7 +2551,7 @@
 					"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
 					"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
 					"replicateCount": 5,
-					"heldOutSealDigest": "sha256:0924aeefa3425a3be8e8d3794ec8c95a1d5c7e053c31536341134b1b24511e66",
+					"heldOutSealDigest": "sha256:9729f96ccfbaca56cbb284fa048f1754d8192a18b8af284af407ebb575cf6e23",
 					"budgetPartition": "development-usd-36",
 					"partitionHardCapMicrousd": 36000000,
 					"partitionSpentBeforeMicrousd": 0,
@@ -3004,7 +3004,7 @@
 				"budgetPartition": "development-usd-36",
 				"campaignPurpose": "development",
 				"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
-				"heldOutSealDigest": "sha256:0924aeefa3425a3be8e8d3794ec8c95a1d5c7e053c31536341134b1b24511e66",
+				"heldOutSealDigest": "sha256:9729f96ccfbaca56cbb284fa048f1754d8192a18b8af284af407ebb575cf6e23",
 				"parallelism": "six-admitted-effects-per-replicate",
 				"replicates": 5,
 				"sourceFailurePolicy": "fail-closed-dependency-closure",
@@ -3073,7 +3073,7 @@
 				"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
 				"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
 				"replicateCount": 5,
-				"heldOutSealDigest": "sha256:0924aeefa3425a3be8e8d3794ec8c95a1d5c7e053c31536341134b1b24511e66",
+				"heldOutSealDigest": "sha256:9729f96ccfbaca56cbb284fa048f1754d8192a18b8af284af407ebb575cf6e23",
 				"budgetPartition": "development-usd-36",
 				"partitionHardCapMicrousd": 36000000,
 				"partitionSpentBeforeMicrousd": 0,
@@ -4536,28 +4536,28 @@
 					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
 					"decisionRef": "graphrefly-ts:D96",
 					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
-					"implementationManifestDigest": "sha256:9c31843d715e1e0f6d7a8f9db87c63b84c43e7d6e22dc73d4c2e8a7aa7ce6ccf",
+					"implementationManifestDigest": "sha256:fb4872440fea38bbb80c5cb716655fb875b97f5bbeb2a6645fd26d691eb6886c",
 					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
-					"qualificationDigest": "sha256:286947e9470dfd31706bf03043048917c5453480b72a0bfe1d8327e3d857811d",
+					"qualificationDigest": "sha256:a097dc66f1658d72f756b82b56752e70fe5a2fbeee82e5b90993de580fc6004c",
 					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 					"reasonCode": "root-graph-exact-profile-current",
 					"schemaVersion": "graphrefly-ts.current-profile-eligibility.v1",
 					"status": "eligible",
 					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 					"targetRef": "model-target.deepseek-v4-flash-0731",
-					"eligibilityDigest": "sha256:5be5bdb7d1838df43dfcfcb8b3a2bec7ade062dae3fbcb9ce8a4b681dbe51d7e"
+					"eligibilityDigest": "sha256:e0502f1bf9d3bdbc84426c01ec867cca0b9cc1e90f8da1a7210885c81a218d92"
 				},
 				"resolution": {
 					"bindingDigest": "sha256:9e93f2dad3a8cc01b94c07f3dd7c469719368b2186492ae94955e42fe626f0b6",
 					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
-					"eligibilityDigest": "sha256:5be5bdb7d1838df43dfcfcb8b3a2bec7ade062dae3fbcb9ce8a4b681dbe51d7e",
+					"eligibilityDigest": "sha256:e0502f1bf9d3bdbc84426c01ec867cca0b9cc1e90f8da1a7210885c81a218d92",
 					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
-					"implementationManifestDigest": "sha256:9c31843d715e1e0f6d7a8f9db87c63b84c43e7d6e22dc73d4c2e8a7aa7ce6ccf",
+					"implementationManifestDigest": "sha256:fb4872440fea38bbb80c5cb716655fb875b97f5bbeb2a6645fd26d691eb6886c",
 					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
 					"providerRef": "fireworks",
-					"qualificationDigest": "sha256:286947e9470dfd31706bf03043048917c5453480b72a0bfe1d8327e3d857811d",
+					"qualificationDigest": "sha256:a097dc66f1658d72f756b82b56752e70fe5a2fbeee82e5b90993de580fc6004c",
 					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 					"requestedTargetRef": "model-target.deepseek-v4-flash-0731",
 					"resolverRevision": "graphrefly-ts.profile-resolver.v1",
@@ -4565,7 +4565,7 @@
 					"status": "eligible",
 					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 					"targetRef": "model-target.deepseek-v4-flash-0731",
-					"resolutionDigest": "sha256:539920eb73e141c84357f3f5ea5bab8f96d70860bb5338b8b106c10782fa4d21"
+					"resolutionDigest": "sha256:ef75c49376ac8bb7e086d77f0dc09d1a04f0594bffc224d7d59ed2dc872da30e"
 				},
 				"profile": {
 					"enhancementRecipes": [
@@ -4874,7 +4874,7 @@
 					"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
 					"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
 					"replicateCount": 5,
-					"heldOutSealDigest": "sha256:0924aeefa3425a3be8e8d3794ec8c95a1d5c7e053c31536341134b1b24511e66",
+					"heldOutSealDigest": "sha256:9729f96ccfbaca56cbb284fa048f1754d8192a18b8af284af407ebb575cf6e23",
 					"budgetPartition": "development-usd-36",
 					"partitionHardCapMicrousd": 36000000,
 					"partitionSpentBeforeMicrousd": 0,
@@ -4921,28 +4921,28 @@
 					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
 					"decisionRef": "graphrefly-ts:D96",
 					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
-					"implementationManifestDigest": "sha256:9c31843d715e1e0f6d7a8f9db87c63b84c43e7d6e22dc73d4c2e8a7aa7ce6ccf",
+					"implementationManifestDigest": "sha256:fb4872440fea38bbb80c5cb716655fb875b97f5bbeb2a6645fd26d691eb6886c",
 					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
-					"qualificationDigest": "sha256:286947e9470dfd31706bf03043048917c5453480b72a0bfe1d8327e3d857811d",
+					"qualificationDigest": "sha256:a097dc66f1658d72f756b82b56752e70fe5a2fbeee82e5b90993de580fc6004c",
 					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 					"reasonCode": "root-graph-exact-profile-current",
 					"schemaVersion": "graphrefly-ts.current-profile-eligibility.v1",
 					"status": "eligible",
 					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 					"targetRef": "model-target.deepseek-v4-flash-0731",
-					"eligibilityDigest": "sha256:5be5bdb7d1838df43dfcfcb8b3a2bec7ade062dae3fbcb9ce8a4b681dbe51d7e"
+					"eligibilityDigest": "sha256:e0502f1bf9d3bdbc84426c01ec867cca0b9cc1e90f8da1a7210885c81a218d92"
 				},
 				"resolution": {
 					"bindingDigest": "sha256:9e93f2dad3a8cc01b94c07f3dd7c469719368b2186492ae94955e42fe626f0b6",
 					"bindingRef": "provider-binding.fireworks-structured-chat.v2",
-					"eligibilityDigest": "sha256:5be5bdb7d1838df43dfcfcb8b3a2bec7ade062dae3fbcb9ce8a4b681dbe51d7e",
+					"eligibilityDigest": "sha256:e0502f1bf9d3bdbc84426c01ec867cca0b9cc1e90f8da1a7210885c81a218d92",
 					"eligibilityRef": "current-profile-eligibility.profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3.d76",
-					"implementationManifestDigest": "sha256:9c31843d715e1e0f6d7a8f9db87c63b84c43e7d6e22dc73d4c2e8a7aa7ce6ccf",
+					"implementationManifestDigest": "sha256:fb4872440fea38bbb80c5cb716655fb875b97f5bbeb2a6645fd26d691eb6886c",
 					"profileDigest": "sha256:7c6e5ecfe7d2acbd01adf263d1599eda25c2ecc6fbdfd91f65b08cba4219c4e8",
 					"profileRef": "harness-profile.deepseek-v4-flash-0731.v2",
 					"providerRef": "fireworks",
-					"qualificationDigest": "sha256:286947e9470dfd31706bf03043048917c5453480b72a0bfe1d8327e3d857811d",
+					"qualificationDigest": "sha256:a097dc66f1658d72f756b82b56752e70fe5a2fbeee82e5b90993de580fc6004c",
 					"qualificationRef": "profile-qualification.deepseek-v4-flash-0731.fireworks-structured.v3",
 					"requestedTargetRef": "model-target.deepseek-v4-flash-0731",
 					"resolverRevision": "graphrefly-ts.profile-resolver.v1",
@@ -4950,7 +4950,7 @@
 					"status": "eligible",
 					"targetDigest": "sha256:45f7ea343862e904eea6bd0631b0809ce4069bdff668d1b4c98219aa70fcc963",
 					"targetRef": "model-target.deepseek-v4-flash-0731",
-					"resolutionDigest": "sha256:539920eb73e141c84357f3f5ea5bab8f96d70860bb5338b8b106c10782fa4d21"
+					"resolutionDigest": "sha256:ef75c49376ac8bb7e086d77f0dc09d1a04f0594bffc224d7d59ed2dc872da30e"
 				},
 				"profile": {
 					"enhancementRecipes": [
@@ -6209,7 +6209,7 @@
 				"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
 				"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
 				"replicateCount": 5,
-				"heldOutSealDigest": "sha256:0924aeefa3425a3be8e8d3794ec8c95a1d5c7e053c31536341134b1b24511e66",
+				"heldOutSealDigest": "sha256:9729f96ccfbaca56cbb284fa048f1754d8192a18b8af284af407ebb575cf6e23",
 				"budgetPartition": "development-usd-36",
 				"partitionHardCapMicrousd": 36000000,
 				"partitionSpentBeforeMicrousd": 0,
@@ -6261,7 +6261,7 @@
 				{
 					"source": "context",
 					"revision": 1,
-					"digest": "sha256:c2aac15c82a429d82140ee89a54d1d77f41820543fb42008109124401ffb3a4e",
+					"digest": "sha256:7a848df48f8f7462a7e49101c8ae77f263aed6e50f7960a80d102830a9141f74",
 					"value": {
 						"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
 						"campaignContract": {
@@ -6270,7 +6270,7 @@
 							"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
 							"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
 							"replicateCount": 5,
-							"heldOutSealDigest": "sha256:0924aeefa3425a3be8e8d3794ec8c95a1d5c7e053c31536341134b1b24511e66",
+							"heldOutSealDigest": "sha256:9729f96ccfbaca56cbb284fa048f1754d8192a18b8af284af407ebb575cf6e23",
 							"budgetPartition": "development-usd-36",
 							"partitionHardCapMicrousd": 36000000,
 							"partitionSpentBeforeMicrousd": 0,
@@ -6311,7 +6311,7 @@
 				{
 					"source": "context",
 					"revision": 1,
-					"digest": "sha256:c2aac15c82a429d82140ee89a54d1d77f41820543fb42008109124401ffb3a4e",
+					"digest": "sha256:7a848df48f8f7462a7e49101c8ae77f263aed6e50f7960a80d102830a9141f74",
 					"value": {
 						"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
 						"campaignContract": {
@@ -6320,7 +6320,7 @@
 							"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
 							"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
 							"replicateCount": 5,
-							"heldOutSealDigest": "sha256:0924aeefa3425a3be8e8d3794ec8c95a1d5c7e053c31536341134b1b24511e66",
+							"heldOutSealDigest": "sha256:9729f96ccfbaca56cbb284fa048f1754d8192a18b8af284af407ebb575cf6e23",
 							"budgetPartition": "development-usd-36",
 							"partitionHardCapMicrousd": 36000000,
 							"partitionSpentBeforeMicrousd": 0,
@@ -6361,7 +6361,7 @@
 				{
 					"source": "context",
 					"revision": 1,
-					"digest": "sha256:c2aac15c82a429d82140ee89a54d1d77f41820543fb42008109124401ffb3a4e",
+					"digest": "sha256:7a848df48f8f7462a7e49101c8ae77f263aed6e50f7960a80d102830a9141f74",
 					"value": {
 						"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
 						"campaignContract": {
@@ -6370,7 +6370,7 @@
 							"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
 							"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
 							"replicateCount": 5,
-							"heldOutSealDigest": "sha256:0924aeefa3425a3be8e8d3794ec8c95a1d5c7e053c31536341134b1b24511e66",
+							"heldOutSealDigest": "sha256:9729f96ccfbaca56cbb284fa048f1754d8192a18b8af284af407ebb575cf6e23",
 							"budgetPartition": "development-usd-36",
 							"partitionHardCapMicrousd": 36000000,
 							"partitionSpentBeforeMicrousd": 0,

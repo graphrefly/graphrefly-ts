@@ -11,6 +11,7 @@ import {
 	qualificationAdmission,
 	qualificationExamples,
 	qualificationWire,
+	ROOT_EVAL_HISTORICAL_QUALIFICATION_V1_CONTRACT,
 	settleQualification,
 	validateQualificationState,
 } from "../../evals/graph-native-rerun-avoidance/provider-qualification.js";
@@ -24,6 +25,7 @@ import {
 	acquireRootEvalD152Execution,
 	createRootEvalD152Ledger,
 	nextRootEvalD152DevelopmentOrdinal,
+	ROOT_EVAL_D152_HISTORICAL_QUALIFICATION_V1_PREDECESSOR_DIGEST,
 	readRootEvalD152Ledger,
 	reserveRootEvalQualification,
 	settleRootEvalQualification,
@@ -255,6 +257,114 @@ describe("D155 independent provider qualification", () => {
 		expect(() =>
 			reserveRootEvalQualification(settled, PROVIDER_QUALIFICATION_REF, digest),
 		).toThrow();
+	});
+	it("reconstructs the exact frozen v1 admission contract and rejects a rebound digest", async () => {
+		expect(ROOT_EVAL_HISTORICAL_QUALIFICATION_V1_CONTRACT).toEqual({
+			executionRef: "provider-qualification-together-2026-09-03-1",
+			providerRef: "together",
+			providerModelRef: "deepseek/deepseek-v4-flash-0731",
+			requestCap: 3,
+			reservationMicrousd: 33_333,
+			totalCapMicrousd: 100_000,
+			stopOnUnusable: true,
+		});
+		const directory = await mkdtemp(join(tmpdir(), "d157-frozen-qualification-"));
+		const ledgerPath = join(directory, "ledger.json");
+		try {
+			const historicalReceipt = {
+				executionRef: PROVIDER_QUALIFICATION_REF,
+				outcomes: [
+					{
+						request: 1,
+						admissionDigest:
+							"sha256:8dd9eaa7197a7196ff4e09fd53e3f8b3eb7679696ee4f1a46cd386a9be7e3c42",
+						responseDigest:
+							"sha256:409a25a2d7612bb808927ce04056bcea0fb15c4dce795a2092a3b3fea1f8f0e6",
+						status: 200,
+						usable: true,
+						reason: "exact-proposal-accepted",
+						providerReportedMicrousd: 22,
+						accountedMicrousd: 22,
+					},
+					{
+						request: 2,
+						admissionDigest:
+							"sha256:8bd7ab3716cffa18862599a17085bd91b27fa649a8d7004e3517748c4386b803",
+						responseDigest:
+							"sha256:07b8b9ab1ff5cdff41221f4f8e6cffbe50e917703a47363bc200636d65382a7e",
+						status: 200,
+						usable: false,
+						reason: "qualification-content-mismatch",
+						providerReportedMicrousd: 21,
+						accountedMicrousd: 21,
+					},
+				],
+				accountedMicrousd: 43,
+				terminal: true,
+				stopReason: "provider-rejected",
+			};
+			const { ledgerDigest: _ledgerDigest, ...body } = empty();
+			const historicalBody = {
+				...body,
+				developmentSpentMicrousd: body.developmentSpentMicrousd + 43,
+				qualificationFormatPredecessorDigest:
+					ROOT_EVAL_D152_HISTORICAL_QUALIFICATION_V1_PREDECESSOR_DIGEST,
+				qualifications: [
+					{
+						executionRef: PROVIDER_QUALIFICATION_REF,
+						grantDigest: digest,
+						status: "settled",
+						accountedUpperBoundMicrousd: 43,
+						receipt: historicalReceipt,
+					},
+				],
+			};
+			const historical = {
+				...historicalBody,
+				ledgerDigest: empiricalStrictJsonDigest(historicalBody),
+			};
+			await writeFile(ledgerPath, strictJsonCodec.encode(historical), { mode: 0o600 });
+			await expect(
+				readRootEvalD152Ledger({
+					path: ledgerPath,
+					historicalLedger: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
+				}),
+			).resolves.toMatchObject({ ledgerDigest: historical.ledgerDigest });
+			const reboundBody = {
+				...historicalBody,
+				qualifications: [
+					{
+						...historicalBody.qualifications[0]!,
+						receipt: {
+							...historicalReceipt,
+							outcomes: [
+								{
+									...historicalReceipt.outcomes[0]!,
+									admissionDigest: empiricalStrictJsonDigest("rebound"),
+								},
+								...historicalReceipt.outcomes.slice(1),
+							],
+						},
+					},
+				],
+			};
+			await writeFile(
+				ledgerPath,
+				strictJsonCodec.encode({
+					...reboundBody,
+					ledgerDigest: empiricalStrictJsonDigest(reboundBody),
+				}),
+				{ mode: 0o600 },
+			);
+			await expect(
+				readRootEvalD152Ledger({
+					path: ledgerPath,
+					historicalLedger: ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
+				}),
+			).rejects.toThrow(/exact admission/u);
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
 	});
 	it("raw topology and Graph observations expose three admissions and the same terminal receipt", () => {
 		const topology = createProviderQualificationGraph(PROVIDER_QUALIFICATION_REF);

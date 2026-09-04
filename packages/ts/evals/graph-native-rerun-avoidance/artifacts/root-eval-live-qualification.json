@@ -1,6 +1,6 @@
 {
 	"artifact": {
-		"schemaVersion": "graphrefly-ts.root-eval-live-no-network-qa.v51",
+		"schemaVersion": "graphrefly-ts.root-eval-live-no-network-qa.v52",
 		"togetherCandidateInjectedFiveSourceThirtyTargetQualified": true,
 		"wrongClaimRouteRejectedBeforeDispatch": true,
 		"togetherMissingUsageRetainsReservation": true,
@@ -79,10 +79,11 @@
 			"graphrefly-ts:D153",
 			"graphrefly-ts:D154",
 			"graphrefly-ts:D155",
-			"graphrefly-ts:D156"
+			"graphrefly-ts:D156",
+			"graphrefly-ts:D157"
 		],
-		"implementationManifestDigest": "sha256:9c31843d715e1e0f6d7a8f9db87c63b84c43e7d6e22dc73d4c2e8a7aa7ce6ccf",
-		"taskBindingDigest": "sha256:546f9c46ed8790ae82e1f9e140911db8de95f198b88c899b4ce71e8d29d95147",
+		"implementationManifestDigest": "sha256:fb4872440fea38bbb80c5cb716655fb875b97f5bbeb2a6645fd26d691eb6886c",
+		"taskBindingDigest": "sha256:d0473c0f61e5aa8a153d697b1f39eb88c5363b958dafbfcc82b7c646537fe9d4",
 		"caseResults": {
 			"d152ThirdBankDisjointSealingAndExhaustiveCandidateDiscrimination": "passed",
 			"d152ThirdBankSourceAndTargetBehavioralVerifiers": "passed",
@@ -305,18 +306,21 @@
 			"d152NoNetworkDiscriminationOracleUsesGraphBinding": "passed",
 			"d152ConfirmatoryManifestUnmaterializedFailsClosed": "passed",
 			"d152HistoricalEfficacyEpochNotInherited": "passed",
-			"d152NoNetworkArtifactsEmitNoEfficacyClaim": "passed"
+			"d152NoNetworkArtifactsEmitNoEfficacyClaim": "passed",
+			"d157FiveBankPairwiseDisjointness": "passed",
+			"d157AtomicPrecommitBeforeExternalCapability": "passed",
+			"d157LedgerOrderAndDevelopmentSixFailClosed": "passed"
 		},
 		"providerNetworkAccessed": false,
 		"credentialAccessed": false,
 		"chargedCallExecuted": false
 	},
-	"artifactDigest": "sha256:a9d383076c69d0452f9607928746d7006ae7d2e52aaba8a6976fa6ec97f27c4f",
+	"artifactDigest": "sha256:5b5eaa45a82a53c5cf032701f03d288771bff8832feb73c2368af55e1f7b7696",
 	"qualification": {
 		"providerSettlementAndTerminalDecisionRef": "graphrefly-ts:D154",
-		"schemaVersion": "graphrefly-ts.root-eval-live-qualification.v52",
-		"decisionRef": "graphrefly-ts:D156",
-		"implementationExecutionApprovalRef": "user-authorized-d156-implementation-no-network-2026-09-03",
+		"schemaVersion": "graphrefly-ts.root-eval-live-qualification.v53",
+		"decisionRef": "graphrefly-ts:D157",
+		"implementationExecutionApprovalRef": "user-authorized-d157-implementation-no-network-2026-09-03",
 		"verificationDiagnosticsImplementationReceiptRef": "graphrefly-ts:D120",
 		"mostRecentSuccessfulCanonicalLiveExecutionApprovalRef": "graphrefly-ts:D116",
 		"mostRecentSuccessfulCanonicalLiveExecutionCloseoutRef": "graphrefly-ts:D117",
@@ -366,13 +370,14 @@
 		"occurrenceAwareSolutionDeliveryDecisionRef": "graphrefly-ts:D151",
 		"orthogonalMechanismFamilyDecisionRef": "graphrefly-ts:D152",
 		"occurrenceBoundCandidateToolDecisionRef": "graphrefly-ts:D156",
+		"precommittedDevelopmentHorizonDecisionRef": "graphrefly-ts:D157",
 		"completionCharterRef": "graphrefly-ts:D145",
 		"currentLiveExecutionApprovalClosed": true,
 		"callerHorizonDecisionRequired": false,
-		"implementationManifestDigest": "sha256:9c31843d715e1e0f6d7a8f9db87c63b84c43e7d6e22dc73d4c2e8a7aa7ce6ccf",
-		"qualificationArtifactDigest": "sha256:a9d383076c69d0452f9607928746d7006ae7d2e52aaba8a6976fa6ec97f27c4f",
-		"status": "qualified-no-network-d156-candidate-selection-development-only-confirmatory-unmaterialized",
-		"qualificationDigest": "sha256:7741096a387f1fd00fb8156966be875dae930e5ad5da27432496fdca30bdac32"
+		"implementationManifestDigest": "sha256:fb4872440fea38bbb80c5cb716655fb875b97f5bbeb2a6645fd26d691eb6886c",
+		"qualificationArtifactDigest": "sha256:5b5eaa45a82a53c5cf032701f03d288771bff8832feb73c2368af55e1f7b7696",
+		"status": "qualified-no-network-d157-precommitted-development-horizon",
+		"qualificationDigest": "sha256:c22d0b377659d760434afc6f2067209f9217363ecce9180cfc5ee56b7ae13466"
 	},
-	"measuredImplementationManifestDigest": "sha256:9c31843d715e1e0f6d7a8f9db87c63b84c43e7d6e22dc73d4c2e8a7aa7ce6ccf"
+	"measuredImplementationManifestDigest": "sha256:fb4872440fea38bbb80c5cb716655fb875b97f5bbeb2a6645fd26d691eb6886c"
 }

@@ -17,6 +17,12 @@ export const PROVIDER_QUALIFICATION_ROUTE = Object.freeze({
 	providerRef: "together",
 	providerModelRef: "deepseek/deepseek-v4-flash-0731",
 });
+const CURRENT_QUALIFICATION_SETTLEMENT_POLICY = Object.freeze({
+	requestCap: PROVIDER_QUALIFICATION_REQUEST_CAP,
+	reservationMicrousd: PROVIDER_QUALIFICATION_RESERVATION,
+	totalCapMicrousd: PROVIDER_QUALIFICATION_CAP,
+	stopOnUnusable: true,
+});
 
 export type QualificationOutcome = Readonly<{
 	request: number;
@@ -157,8 +163,17 @@ export function initialQualificationState(executionRef: string): QualificationSt
 	});
 }
 
-export function settleQualification(state: QualificationState, raw: unknown): QualificationState {
-	const admission = qualificationAdmission(state);
+function settleQualificationAgainstAdmission(
+	state: QualificationState,
+	raw: unknown,
+	admission: QualificationAdmission | null,
+	policy: Readonly<{
+		readonly requestCap: number;
+		readonly reservationMicrousd: number;
+		readonly totalCapMicrousd: number;
+		readonly stopOnUnusable: boolean;
+	}>,
+): QualificationState {
 	const value = record(raw, "qualification outcome");
 	exactKeys(
 		value,
@@ -200,13 +215,13 @@ export function settleQualification(state: QualificationState, raw: unknown): Qu
 	]);
 	const spent = state.accountedMicrousd + accountedMicrousd;
 	const stopReason =
-		spent > PROVIDER_QUALIFICATION_CAP
+		spent > policy.totalCapMicrousd
 			? "budget-stopped"
-			: !value.usable
+			: policy.stopOnUnusable && !value.usable
 				? "provider-rejected"
-				: outcomes.length === PROVIDER_QUALIFICATION_REQUEST_CAP
+				: outcomes.length === policy.requestCap
 					? "requests-complete"
-					: spent + PROVIDER_QUALIFICATION_RESERVATION > PROVIDER_QUALIFICATION_CAP
+					: spent + policy.reservationMicrousd > policy.totalCapMicrousd
 						? "budget-stopped"
 						: null;
 	return Object.freeze({
@@ -216,6 +231,15 @@ export function settleQualification(state: QualificationState, raw: unknown): Qu
 		terminal: stopReason !== null,
 		stopReason,
 	});
+}
+
+export function settleQualification(state: QualificationState, raw: unknown): QualificationState {
+	return settleQualificationAgainstAdmission(
+		state,
+		raw,
+		qualificationAdmission(state),
+		CURRENT_QUALIFICATION_SETTLEMENT_POLICY,
+	);
 }
 
 /** Reconstruct receipts rather than trusting a terminal/spend flag supplied by a caller. */
@@ -236,6 +260,117 @@ export function validateQualificationState(raw: unknown): QualificationState {
 	for (const outcome of value.outcomes) checked = settleQualification(checked, outcome);
 	if (empiricalStrictJsonDigest(value) !== empiricalStrictJsonDigest(checked))
 		throw new TypeError("qualification state conservation invalid");
+	return checked;
+}
+
+const ROOT_EVAL_HISTORICAL_QUALIFICATION_V1_PATH = "qualification.ts" as const;
+export const ROOT_EVAL_HISTORICAL_QUALIFICATION_V1_CONTRACT = Object.freeze({
+	executionRef: "provider-qualification-together-2026-09-03-1",
+	providerRef: "together",
+	providerModelRef: "deepseek/deepseek-v4-flash-0731",
+	requestCap: 3,
+	reservationMicrousd: 33_333,
+	totalCapMicrousd: 100_000,
+	stopOnUnusable: true,
+});
+const ROOT_EVAL_HISTORICAL_QUALIFICATION_V1_EXAMPLES = Object.freeze([
+	Object.freeze(["export const value = 1;", "export const value = 2;"]),
+	Object.freeze(["\treturn left + right;", "\treturn left - right;"]),
+	Object.freeze(["const enabled = false;\r\n", "const enabled = true;\r\n"]),
+]);
+
+function historicalQualificationV1RequestBody(request: number): string {
+	const example = ROOT_EVAL_HISTORICAL_QUALIFICATION_V1_EXAMPLES[request - 1];
+	if (example === undefined) throw new TypeError("historical qualification request invalid");
+	return JSON.stringify({
+		model: ROOT_EVAL_HISTORICAL_QUALIFICATION_V1_CONTRACT.providerModelRef,
+		messages: [
+			{
+				role: "system",
+				content:
+					"This is a transport qualification, not an evaluation task. Return exactly the requested replacement JSON. Copy the provided strings exactly, preserving whitespace. Do not use tools.",
+			},
+			{
+				role: "user",
+				content: `Return this exact object: ${JSON.stringify({
+					path: ROOT_EVAL_HISTORICAL_QUALIFICATION_V1_PATH,
+					oldText: example[0],
+					newText: example[1],
+				})}`,
+			},
+		],
+		response_format: {
+			type: "json_schema",
+			json_schema: {
+				name: "exact_replacement_proposal",
+				strict: true,
+				schema: {
+					type: "object",
+					additionalProperties: false,
+					required: ["path", "oldText", "newText"],
+					properties: {
+						path: { type: "string", enum: [ROOT_EVAL_HISTORICAL_QUALIFICATION_V1_PATH] },
+						oldText: { type: "string", minLength: 1, maxLength: 32768 },
+						newText: { type: "string", maxLength: 32768 },
+					},
+				},
+			},
+		},
+		max_tokens: 16384,
+		reasoning: { effort: "medium" },
+		provider: {
+			order: ["together"],
+			only: ["together"],
+			allow_fallbacks: false,
+			require_parameters: true,
+			data_collection: "deny",
+			zdr: true,
+		},
+	});
+}
+
+function historicalQualificationV1Admission(
+	state: QualificationState,
+): QualificationAdmission | null {
+	if (state.terminal) return null;
+	const request = state.outcomes.length + 1;
+	const value = {
+		executionRef: state.executionRef,
+		request,
+		providerRef: ROOT_EVAL_HISTORICAL_QUALIFICATION_V1_CONTRACT.providerRef,
+		providerModelRef: ROOT_EVAL_HISTORICAL_QUALIFICATION_V1_CONTRACT.providerModelRef,
+		reservationMicrousd: ROOT_EVAL_HISTORICAL_QUALIFICATION_V1_CONTRACT.reservationMicrousd,
+		requestDigest: empiricalSha256(
+			new TextEncoder().encode(historicalQualificationV1RequestBody(request)),
+		),
+	};
+	return Object.freeze({ ...value, admissionDigest: empiricalStrictJsonDigest(value) });
+}
+
+/** D157 audit-only reconstruction of the exact pre-candidate qualification contract. */
+export function validateHistoricalQualificationStateV1(raw: unknown): QualificationState {
+	const value = record(raw, "historical qualification v1 state");
+	exactKeys(
+		value,
+		["executionRef", "outcomes", "accountedMicrousd", "terminal", "stopReason"],
+		"historical qualification v1 state",
+	);
+	if (
+		value.executionRef !== ROOT_EVAL_HISTORICAL_QUALIFICATION_V1_CONTRACT.executionRef ||
+		!Array.isArray(value.outcomes) ||
+		value.outcomes.length > ROOT_EVAL_HISTORICAL_QUALIFICATION_V1_CONTRACT.requestCap
+	)
+		throw new TypeError("historical qualification v1 state bounds invalid");
+	let checked = initialQualificationState(value.executionRef);
+	for (const outcome of value.outcomes)
+		checked = settleQualificationAgainstAdmission(
+			checked,
+			outcome,
+			historicalQualificationV1Admission(checked),
+			ROOT_EVAL_HISTORICAL_QUALIFICATION_V1_CONTRACT,
+		);
+	if (empiricalStrictJsonDigest(value) !== empiricalStrictJsonDigest(checked))
+		throw new TypeError("historical qualification v1 state conservation invalid");
 	return checked;
 }
 

@@ -3,7 +3,7 @@ import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifes
 import { ROOT_EVAL_LIVE_TASK_BINDING_DIGEST } from "./root-eval-live.js";
 
 export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-live-no-network-qa.v51" as const,
+	schemaVersion: "graphrefly-ts.root-eval-live-no-network-qa.v52" as const,
 	togetherCandidateInjectedFiveSourceThirtyTargetQualified: true as const,
 	wrongClaimRouteRejectedBeforeDispatch: true as const,
 	togetherMissingUsageRetainsReservation: true as const,
@@ -83,6 +83,7 @@ export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		"graphrefly-ts:D154",
 		"graphrefly-ts:D155",
 		"graphrefly-ts:D156",
+		"graphrefly-ts:D157",
 	] as const),
 	implementationManifestDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
 	taskBindingDigest: ROOT_EVAL_LIVE_TASK_BINDING_DIGEST,
@@ -309,6 +310,9 @@ export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		d152ConfirmatoryManifestUnmaterializedFailsClosed: "passed" as const,
 		d152HistoricalEfficacyEpochNotInherited: "passed" as const,
 		d152NoNetworkArtifactsEmitNoEfficacyClaim: "passed" as const,
+		d157FiveBankPairwiseDisjointness: "passed" as const,
+		d157AtomicPrecommitBeforeExternalCapability: "passed" as const,
+		d157LedgerOrderAndDevelopmentSixFailClosed: "passed" as const,
 	}),
 	providerNetworkAccessed: false as const,
 	credentialAccessed: false as const,
@@ -321,10 +325,10 @@ export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT_DIGEST = empiricalStrictJsonD
 
 const qualificationMaterial = Object.freeze({
 	providerSettlementAndTerminalDecisionRef: "graphrefly-ts:D154" as const,
-	schemaVersion: "graphrefly-ts.root-eval-live-qualification.v52" as const,
-	decisionRef: "graphrefly-ts:D156" as const,
+	schemaVersion: "graphrefly-ts.root-eval-live-qualification.v53" as const,
+	decisionRef: "graphrefly-ts:D157" as const,
 	implementationExecutionApprovalRef:
-		"user-authorized-d156-implementation-no-network-2026-09-03" as const,
+		"user-authorized-d157-implementation-no-network-2026-09-03" as const,
 	verificationDiagnosticsImplementationReceiptRef: "graphrefly-ts:D120" as const,
 	mostRecentSuccessfulCanonicalLiveExecutionApprovalRef: "graphrefly-ts:D116" as const,
 	mostRecentSuccessfulCanonicalLiveExecutionCloseoutRef: "graphrefly-ts:D117" as const,
@@ -374,13 +378,13 @@ const qualificationMaterial = Object.freeze({
 	occurrenceAwareSolutionDeliveryDecisionRef: "graphrefly-ts:D151" as const,
 	orthogonalMechanismFamilyDecisionRef: "graphrefly-ts:D152" as const,
 	occurrenceBoundCandidateToolDecisionRef: "graphrefly-ts:D156" as const,
+	precommittedDevelopmentHorizonDecisionRef: "graphrefly-ts:D157" as const,
 	completionCharterRef: "graphrefly-ts:D145" as const,
 	currentLiveExecutionApprovalClosed: true as const,
 	callerHorizonDecisionRequired: false as const,
 	implementationManifestDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
 	qualificationArtifactDigest: ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT_DIGEST,
-	status:
-		"qualified-no-network-d156-candidate-selection-development-only-confirmatory-unmaterialized" as const,
+	status: "qualified-no-network-d157-precommitted-development-horizon" as const,
 });
 
 export const ROOT_EVAL_LIVE_QUALIFICATION = Object.freeze({

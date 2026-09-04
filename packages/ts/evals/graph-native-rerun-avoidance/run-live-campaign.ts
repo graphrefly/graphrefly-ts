@@ -68,15 +68,21 @@ import {
 	replaceRootEvalLivePrecredentialGateReceipt,
 } from "./root-eval-live-authority.js";
 import {
+	ROOT_EVAL_D157_HORIZON_SLOTS,
 	readRootEvalTaskManifest,
 	rootEvalDevelopmentOrdinal,
 	rootEvalTaskBindings,
 } from "./root-eval-task.js";
-import { ensureRootEvalDevelopmentTaskManifest } from "./root-eval-task-manifest-store.js";
+import {
+	ensureRootEvalDevelopmentTaskManifest,
+	readRootEvalD157HorizonReceipt,
+	readRootEvalFrozenDevelopmentManifestAudit,
+} from "./root-eval-task-manifest-store.js";
 import { settledRootEvalSpend } from "./settled-spend.js";
 
 export const ROOT_EVAL_LIVE_EXECUTION_APPROVAL =
 	"user-authorized:d152-development-3:usd-4.179695:development-usd-40" as const;
+export const ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_OPEN = false as const;
 export const ROOT_EVAL_LIVE_MOST_RECENT_SUCCESSFUL_CANONICAL_APPROVAL =
 	"graphrefly-ts:D116" as const;
 export const ROOT_EVAL_LIVE_MOST_RECENT_SUCCESSFUL_CANONICAL_CLOSEOUT =
@@ -630,6 +636,7 @@ async function executeClaimedCampaign(input: {
 
 async function main(): Promise<void> {
 	if (
+		process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY !== undefined ||
 		process.env.GRAPHREFLY_D152_ISOLATED_LIVE_CHILD !== "1" ||
 		process.env.NODE_OPTIONS !== undefined ||
 		process.env.NODE_PATH !== undefined ||
@@ -641,11 +648,14 @@ async function main(): Promise<void> {
 	const mode = process.argv[2] ?? "--execute-live";
 	if (mode !== "--execute-live") throw new TypeError("root eval D152 live entry mode was invalid");
 	if (
+		!ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_OPEN ||
 		ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_STATE !== ROOT_EVAL_LIVE_EXECUTION_APPROVAL ||
-		ROOT_EVAL_LIVE_CAMPAIGN_SLOT !== "development-3" ||
+		!ROOT_EVAL_D157_HORIZON_SLOTS.includes(
+			ROOT_EVAL_LIVE_CAMPAIGN_SLOT as (typeof ROOT_EVAL_D157_HORIZON_SLOTS)[number],
+		) ||
 		ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE !== "development"
 	)
-		throw new TypeError("root eval D152 development-3 live authority is unavailable");
+		throw new TypeError("root eval D157 development horizon live authority is unavailable");
 	let currentness: RootEvalLiveBoundedCurrentness | undefined;
 	let privateInputs: Awaited<ReturnType<typeof qualifyRootEvalLivePrivateInputs>> | undefined;
 	let pricing: RootEvalLivePricingObservation | undefined;
@@ -661,6 +671,17 @@ async function main(): Promise<void> {
 		const currentOrdinal = rootEvalDevelopmentOrdinal(ROOT_EVAL_LIVE_CAMPAIGN_SLOT)!;
 		if (currentOrdinal !== nextRootEvalD152DevelopmentOrdinal(charterLedger))
 			throw new TypeError("root eval D152 development slot did not follow charter order");
+		await readRootEvalD157HorizonReceipt();
+		for (const [index, entry] of charterLedger.entries.entries()) {
+			const historicalManifest = await readRootEvalFrozenDevelopmentManifestAudit(
+				`development-${index + 1}`,
+			);
+			if (
+				entry.taskSetRef !== historicalManifest.taskSetRef ||
+				entry.taskManifestDigest !== historicalManifest.manifestDigest
+			)
+				throw new TypeError("root eval D157 prior development manifest drifted from ledger");
+		}
 		await ensureRootEvalDevelopmentTaskManifest(ROOT_EVAL_LIVE_CAMPAIGN_SLOT);
 	} else readRootEvalTaskManifest("confirmatory");
 	const partitionSpentBeforeMicrousd =

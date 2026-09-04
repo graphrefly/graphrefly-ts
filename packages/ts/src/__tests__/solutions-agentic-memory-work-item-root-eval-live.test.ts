@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import {
 	chmod,
 	cp,
+	link,
 	mkdir,
 	mkdtemp,
 	readdir,
@@ -10,6 +11,7 @@ import {
 	realpath,
 	rm,
 	stat,
+	symlink,
 	writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -171,11 +173,15 @@ import {
 import {
 	assertRootEvalTaskStimulusContract,
 	createRootEvalTaskManifest,
+	ROOT_EVAL_D157_HORIZON_DIRECTORY_NAME,
+	ROOT_EVAL_D157_HORIZON_SLOTS,
 	ROOT_EVAL_DEVELOPMENT_TASK_SET_REFS,
 	ROOT_EVAL_DEVELOPMENT_TASKS,
 	ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES,
+	ROOT_EVAL_SUPPORTED_DEVELOPMENT_SLOTS,
 	readRootEvalTaskManifest,
 	rootEvalCandidateWorkspaceSnapshotDigest,
+	rootEvalDevelopmentRegistryPairwiseAudit,
 	rootEvalDevelopmentTaskSetRef,
 	rootEvalMechanismDiscriminationOracle,
 	rootEvalMechanismPairwiseAudit,
@@ -186,7 +192,14 @@ import {
 	rootEvalToolCandidateCatalog,
 	rootEvalVariantOrderSupportsIrrelevantControls,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-task.js";
-import { ensureRootEvalDevelopmentTaskManifest } from "../../evals/graph-native-rerun-avoidance/root-eval-task-manifest-store.js";
+import {
+	assertRootEvalD157PrecommitEligibility,
+	ensureRootEvalDevelopmentTaskManifest,
+	prepareRootEvalD157HorizonForNoNetworkQualification,
+	ROOT_EVAL_D157_HORIZON_RECEIPT_NAME,
+	readRootEvalD157HorizonReceipt,
+	readRootEvalFrozenDevelopmentManifestAudit,
+} from "../../evals/graph-native-rerun-avoidance/root-eval-task-manifest-store.js";
 import { settledRootEvalSpend } from "../../evals/graph-native-rerun-avoidance/settled-spend.js";
 import { graph } from "../graph/graph.js";
 import { strictJsonCodec } from "../json/codec.js";
@@ -2112,7 +2125,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			await rm(temporary, { force: true, recursive: true });
 		}
 	});
-	it("opens only the exact transient D152 development-3 authority and fresh private namespace", () => {
+	it("keeps consumed D152 authority closed while admitting only the precommitted D157 horizon", () => {
 		const liveEntry = readFileSync(
 			resolve(
 				repositoryRoot,
@@ -2123,8 +2136,19 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		expect(liveEntry).toContain(
 			'"user-authorized:d152-development-3:usd-4.179695:development-usd-40" as const',
 		);
+		expect(liveEntry).toContain("ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_OPEN = false as const");
+		expect(liveEntry).toMatch(
+			/!ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_OPEN\s*\|\|\s*ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_STATE !==/u,
+		);
 		expect(liveEntry).toContain("process.env.GRAPHREFLY_ROOT_EVAL_EXECUTION_AUTHORITY");
-		expect(liveEntry).toContain('ROOT_EVAL_LIVE_CAMPAIGN_SLOT !== "development-3"');
+		expect(liveEntry).toContain("ROOT_EVAL_D157_HORIZON_SLOTS.includes(");
+		expect(liveEntry).toContain("await readRootEvalD157HorizonReceipt();");
+		expect(liveEntry).toContain(
+			"process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY !== undefined",
+		);
+		expect(liveEntry).not.toContain("prepareRootEvalD157HorizonForNoNetworkQualification");
+		expect(liveEntry).toContain("root eval D157 prior development manifest drifted from ledger");
+		expect(liveEntry).not.toContain('ROOT_EVAL_LIVE_CAMPAIGN_SLOT !== "development-3"');
 		expect(liveEntry).not.toContain(
 			'"user-authorized:d152-development-2:usd-4.272834:development-usd-36"',
 		);
@@ -2135,6 +2159,56 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			/join\(operatorRoot, `current-\$\{ROOT_EVAL_LIVE_GENERATION_REF\}`\)/u,
 		);
 		expect(liveEntry).not.toContain('join(operatorRoot, "current-live-d136")');
+		const liveMain = liveEntry.slice(liveEntry.indexOf("async function main(): Promise<void>"));
+		const liveHorizonSeal = liveMain.indexOf("await readRootEvalD157HorizonReceipt();");
+		expect(liveHorizonSeal).toBeGreaterThan(0);
+		expect(liveHorizonSeal).toBeLessThan(
+			liveMain.indexOf("await runRootEvalPrecredentialStagePlan({"),
+		);
+		const qualificationEntry = readFileSync(
+			resolve(
+				repositoryRoot,
+				"packages/ts/evals/graph-native-rerun-avoidance/run-provider-qualification.ts",
+			),
+			"utf8",
+		);
+		const horizonSeal = qualificationEntry.indexOf("await readRootEvalD157HorizonReceipt();");
+		expect(horizonSeal).toBeGreaterThan(0);
+		expect(qualificationEntry).toContain(
+			"process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY !== undefined",
+		);
+		expect(qualificationEntry).not.toContain("prepareRootEvalD157HorizonForNoNetworkQualification");
+		expect(horizonSeal).toBeLessThan(
+			qualificationEntry.indexOf('"together-qualification-settings.json"'),
+		);
+		expect(horizonSeal).toBeLessThan(
+			qualificationEntry.indexOf("const credential = parseRootEvalLiveCredential("),
+		);
+		for (const providerCapableAnchor of [
+			"const pricing = await official(",
+			"const zdr = await official(",
+			"const currentKey = await readRootEvalLiveCurrentKey({",
+			"const result = await runProviderQualificationWithTransport({",
+		])
+			expect(horizonSeal).toBeLessThan(qualificationEntry.indexOf(providerCapableAnchor));
+		for (const recoveryName of [
+			"recover-d145-source-failure.ts",
+			"recover-d145-interrupted-campaign.ts",
+		]) {
+			const recoveryEntry = readFileSync(
+				resolve(repositoryRoot, `packages/ts/evals/graph-native-rerun-avoidance/${recoveryName}`),
+				"utf8",
+			);
+			const recoveryMain = recoveryEntry.slice(
+				recoveryEntry.indexOf("async function main(): Promise<void>"),
+			);
+			expect(recoveryMain).toContain("D145 recovery is retired for the D157 finite horizon");
+			expect(
+				recoveryMain.indexOf("D145 recovery is retired for the D157 finite horizon"),
+			).toBeLessThan(
+				recoveryMain.indexOf("readRootEvalTaskManifest(ROOT_EVAL_LIVE_CAMPAIGN_SLOT)"),
+			);
+		}
 	});
 	it.each([
 		{ ordinal: 2, cap: 4_272_834, partition: 36_000_000, partitionRef: "development-usd-36" },
@@ -6598,6 +6672,10 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		{ slot: "development-1", workItemRole: "target" },
 		{ slot: "development-3", workItemRole: "source" },
 		{ slot: "development-3", workItemRole: "target" },
+		{ slot: "development-4", workItemRole: "source" },
+		{ slot: "development-4", workItemRole: "target" },
+		{ slot: "development-5", workItemRole: "source" },
+		{ slot: "development-5", workItemRole: "target" },
 	] as const)("qualifies five orthogonal mechanisms with ambiguous public and discriminating private verifiers: $slot/$workItemRole", async ({
 		slot,
 		workItemRole,
@@ -6609,7 +6687,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				: createRootEvalTaskManifest({
 						slot,
 						variantOrder: [0, 1, 2, 3, 4],
-						coordinateSuffix: "development-three-offline-qualification",
+						coordinateSuffix: `${slot}-offline-qualification`,
 					}).tasks;
 		try {
 			for (const task of tasks) {
@@ -6650,7 +6728,54 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		}
 	}, 420_000);
 
-	it("seals three disjoint mode-0600 task manifests and fails closed without confirmatory authority", async () => {
+	it("audits frozen pre-D156 manifests without reopening them as executable task material", async () => {
+		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-frozen-manifest-"));
+		const previous = process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY;
+		process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY = temporary;
+		try {
+			const current = createRootEvalTaskManifest({
+				slot: "development-1",
+				variantOrder: [0, 1, 2, 3, 4],
+				coordinateSuffix: "frozen-history-seed",
+			});
+			const historicalTasks = current.tasks.map((task) => {
+				const {
+					fixtureAlternativeText: _fixtureAlternativeText,
+					sourceFixtureAlternativeText: _sourceFixtureAlternativeText,
+					...historicalTask
+				} = task;
+				return historicalTask;
+			});
+			const historicalMaterial = {
+				schemaVersion: "graphrefly-ts.root-eval-d152-mechanism-manifest.v7",
+				slot: current.slot,
+				taskSetRef: current.taskSetRef,
+				tasks: historicalTasks,
+			};
+			const historical = {
+				...historicalMaterial,
+				manifestDigest: empiricalStrictJsonDigest(historicalMaterial),
+			};
+			await writeFile(join(temporary, "development-1.json"), strictJsonCodec.encode(historical), {
+				mode: 0o600,
+			});
+			expect(() => readRootEvalTaskManifest("development-1")).toThrow(/audit-only/u);
+			await expect(
+				readRootEvalFrozenDevelopmentManifestAudit("development-1"),
+			).resolves.toMatchObject({
+				schemaVersion: historical.schemaVersion,
+				slot: historical.slot,
+				taskSetRef: historical.taskSetRef,
+				manifestDigest: historical.manifestDigest,
+			});
+		} finally {
+			if (previous === undefined) delete process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY;
+			else process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY = previous;
+			await rm(temporary, { recursive: true, force: true });
+		}
+	});
+
+	it("atomically seals the D157 two-bank horizon and fails closed outside it", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-task-manifests-"));
 		const previous = process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY;
 		process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY = temporary;
@@ -6670,25 +6795,292 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			coordinateSuffix: "development-three-seed",
 		});
 		try {
-			const generated = await ensureRootEvalDevelopmentTaskManifest("development-2");
-			expect(await ensureRootEvalDevelopmentTaskManifest("development-2")).toEqual(generated);
+			for (const slot of ["development-1", "development-2", "development-3"] as const)
+				await writeFile(
+					join(temporary, `${slot}.json`),
+					await readFile(
+						resolve(
+							repositoryRoot,
+							`packages/ts/evals/.private/empirical-memory-rerun-avoidance/d152-mechanism-manifests/${slot}.json`,
+						),
+					),
+					{ mode: 0o600 },
+				);
+			const frozenManifests = await Promise.all(
+				(["development-1", "development-2", "development-3"] as const).map(
+					readRootEvalFrozenDevelopmentManifestAudit,
+				),
+			);
+			await expect(ensureRootEvalDevelopmentTaskManifest("development-2")).rejects.toThrow(
+				/audit-only/u,
+			);
 			expect((await stat(join(temporary, "development-2.json"))).mode & 0o777).toBe(0o600);
-			const generated3 = await ensureRootEvalDevelopmentTaskManifest("development-3");
 			const generated3Bytes = await readFile(join(temporary, "development-3.json"));
-			expect(await ensureRootEvalDevelopmentTaskManifest("development-3")).toEqual(generated3);
+			await expect(ensureRootEvalDevelopmentTaskManifest("development-3")).rejects.toThrow(
+				/audit-only/u,
+			);
 			expect(await readFile(join(temporary, "development-3.json"))).toEqual(generated3Bytes);
 			expect((await stat(join(temporary, "development-3.json"))).mode & 0o777).toBe(0o600);
-			expect(rootEvalTask("development-transfer", 5, "development-3")).toEqual(generated3.tasks[4]);
+			expect(() => rootEvalTask("development-transfer", 5, "development-3")).toThrow(/audit-only/u);
 			for (const previousManifest of [development1, development2]) {
 				expect(rootEvalTaskManifestDisjointAudit(previousManifest, development3).disjoint).toBe(
 					true,
 				);
-				expect(rootEvalTaskManifestDisjointAudit(previousManifest, generated3).disjoint).toBe(true);
 			}
-			expect(rootEvalMechanismDiscriminationOracle(generated3.tasks)).toHaveLength(5);
+			expect(rootEvalMechanismDiscriminationOracle(development3.tasks)).toHaveLength(5);
 			expect(development3.taskSetRef).toBe(ROOT_EVAL_DEVELOPMENT_TASK_SET_REFS["development-3"]);
-			await expect(ensureRootEvalDevelopmentTaskManifest("development-4")).rejects.toThrow();
-			expect(await readdir(temporary)).not.toContain("development-4.json");
+			const preparationState = {
+				developmentEntryCount: 3,
+				developmentQualificationStreak: 0,
+				ledgerPath: join(temporary, "qualification-ledger.json"),
+				outcomeStatePaths: [join(temporary, "qualification-outcome")],
+				priorManifestBindings: frozenManifests.map((manifest) => ({
+					taskSetRef: manifest.taskSetRef,
+					manifestDigest: manifest.manifestDigest,
+				})),
+			};
+			const horizon = await prepareRootEvalD157HorizonForNoNetworkQualification({
+				state: preparationState,
+			});
+			process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY = resolve(
+				repositoryRoot,
+				"packages/ts/evals/.private/empirical-memory-rerun-avoidance/d152-mechanism-manifests",
+			);
+			await expect(
+				prepareRootEvalD157HorizonForNoNetworkQualification({ state: preparationState }),
+			).rejects.toThrow(/isolated temp root/u);
+			process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY = temporary;
+			const horizonBytes = await readFile(
+				join(temporary, ROOT_EVAL_D157_HORIZON_DIRECTORY_NAME, ROOT_EVAL_D157_HORIZON_RECEIPT_NAME),
+			);
+			expect(await readRootEvalD157HorizonReceipt()).toEqual(horizon);
+			expect(horizon.slots).toEqual(ROOT_EVAL_D157_HORIZON_SLOTS);
+			expect(horizon.manifests).toHaveLength(2);
+			expect(
+				(await stat(join(temporary, ROOT_EVAL_D157_HORIZON_DIRECTORY_NAME))).mode & 0o777,
+			).toBe(0o700);
+			const development4 = await ensureRootEvalDevelopmentTaskManifest("development-4");
+			const development5 = await ensureRootEvalDevelopmentTaskManifest("development-5");
+			for (const manifest of [development4, development5]) {
+				const path = join(
+					temporary,
+					ROOT_EVAL_D157_HORIZON_DIRECTORY_NAME,
+					`${manifest.slot}.json`,
+				);
+				expect((await stat(path)).mode & 0o777).toBe(0o600);
+				expect(rootEvalMechanismDiscriminationOracle(manifest.tasks)).toHaveLength(5);
+			}
+			const all = [development1, development2, development3, development4, development5];
+			expect(ROOT_EVAL_SUPPORTED_DEVELOPMENT_SLOTS).toEqual([
+				"development-1",
+				"development-2",
+				"development-3",
+				"development-4",
+				"development-5",
+			]);
+			const registryTasks = [
+				...frozenManifests.flatMap((manifest) => manifest.tasks),
+				...development4.tasks,
+				...development5.tasks,
+			];
+			expect(rootEvalDevelopmentRegistryPairwiseAudit(registryTasks)).toHaveLength(195);
+			const semanticCloneSource = registryTasks[0]!;
+			const semanticCloneTarget = registryTasks.at(-1)!;
+			const renamedRewordedClone = {
+				...semanticCloneSource,
+				replicate: semanticCloneTarget.replicate,
+				taskSetRef: semanticCloneTarget.taskSetRef,
+				mechanismId: "renamed-reworded-semantic-clone",
+				sourceInsightContent: "mechanism-invariant.v2;rule=renamed-reworded-clone".padEnd(96, " "),
+				fixtureCorrectText: semanticCloneSource.fixtureCorrectText.replace(
+					"export function ",
+					"export function renamed",
+				),
+				readonlyFixtureFiles: Object.freeze([
+					Object.freeze({
+						...semanticCloneSource.readonlyFixtureFiles[0]!,
+						text: `${semanticCloneSource.readonlyFixtureFiles[0]!.text}\n// reworded`,
+					}),
+				]),
+				hiddenVerifierSource: `${semanticCloneSource.hiddenVerifierSource}\n// reworded`,
+			};
+			expect(() =>
+				rootEvalDevelopmentRegistryPairwiseAudit([
+					...registryTasks.slice(0, -1),
+					renamedRewordedClone,
+				]),
+			).toThrow(/pairwise isolation audit/u);
+			const copiedActorContract = {
+				...semanticCloneTarget,
+				sourceReadonlyFixtureFiles: semanticCloneSource.sourceReadonlyFixtureFiles,
+				readonlyFixtureFiles: semanticCloneSource.readonlyFixtureFiles,
+			};
+			expect(() =>
+				rootEvalDevelopmentRegistryPairwiseAudit([
+					...registryTasks.slice(0, -1),
+					copiedActorContract,
+				]),
+			).toThrow(/pairwise isolation audit/u);
+			for (let left = 0; left < all.length; left += 1) {
+				for (let right = left + 1; right < all.length; right += 1)
+					expect(rootEvalTaskManifestDisjointAudit(all[left]!, all[right]!).disjoint).toBe(true);
+			}
+			expect(
+				new Set(all.flatMap((manifest) => manifest.tasks.map((task) => task.mechanismId))).size,
+			).toBe(25);
+			expect(
+				await prepareRootEvalD157HorizonForNoNetworkQualification({
+					state: {
+						developmentEntryCount: 3,
+						developmentQualificationStreak: 0,
+						ledgerPath: join(temporary, "qualification-ledger.json"),
+						outcomeStatePaths: [join(temporary, "qualification-outcome")],
+						priorManifestBindings: frozenManifests.map((manifest) => ({
+							taskSetRef: manifest.taskSetRef,
+							manifestDigest: manifest.manifestDigest,
+						})),
+					},
+				}),
+			).toEqual(horizon);
+			expect(
+				await readFile(
+					join(
+						temporary,
+						ROOT_EVAL_D157_HORIZON_DIRECTORY_NAME,
+						ROOT_EVAL_D157_HORIZON_RECEIPT_NAME,
+					),
+				),
+			).toEqual(horizonBytes);
+			const development5Path = join(
+				temporary,
+				ROOT_EVAL_D157_HORIZON_DIRECTORY_NAME,
+				"development-5.json",
+			);
+			const development5Bytes = await readFile(development5Path);
+			const driftedTasks = development5.tasks.map((task, index) =>
+				index === 0 ? { ...task, baselineCommit: "self-consistent-registry-forgery" } : task,
+			);
+			const driftedMaterial = {
+				schemaVersion: development5.schemaVersion,
+				slot: development5.slot,
+				taskSetRef: development5.taskSetRef,
+				tasks: driftedTasks,
+			};
+			await writeFile(
+				development5Path,
+				strictJsonCodec.encode({
+					...driftedMaterial,
+					manifestDigest: empiricalStrictJsonDigest(driftedMaterial),
+				}),
+			);
+			expect(() => readRootEvalTaskManifest("development-5")).toThrow(/finite registry/u);
+			await writeFile(development5Path, development5Bytes);
+			const linkedManifest = join(temporary, "linked-development-5.json");
+			await writeFile(linkedManifest, development5Bytes, { mode: 0o600 });
+			await rm(development5Path);
+			await link(linkedManifest, development5Path);
+			expect(() => readRootEvalTaskManifest("development-5")).toThrow(/mode-0600/u);
+			await rm(development5Path);
+			await writeFile(development5Path, development5Bytes, { mode: 0o600 });
+			await rm(development5Path);
+			await symlink(linkedManifest, development5Path);
+			expect(() => readRootEvalTaskManifest("development-5")).toThrow();
+			await rm(development5Path);
+			await writeFile(development5Path, development5Bytes, { mode: 0o600 });
+
+			const replacement5 = createRootEvalTaskManifest({
+				slot: "development-5",
+				variantOrder: [0, 1, 2, 3, 4],
+				coordinateSuffix: "replacement-five-must-not-rebind",
+			});
+			await writeFile(development5Path, strictJsonCodec.encode(replacement5));
+			const replacementReceiptMaterial = {
+				schemaVersion: horizon.schemaVersion,
+				decisionRef: horizon.decisionRef,
+				slots: horizon.slots,
+				manifests: [
+					horizon.manifests[0]!,
+					{
+						slot: replacement5.slot,
+						taskSetRef: replacement5.taskSetRef,
+						manifestDigest: replacement5.manifestDigest,
+					},
+				],
+			};
+			await writeFile(
+				join(temporary, ROOT_EVAL_D157_HORIZON_DIRECTORY_NAME, ROOT_EVAL_D157_HORIZON_RECEIPT_NAME),
+				strictJsonCodec.encode({
+					...replacementReceiptMaterial,
+					receiptDigest: empiricalStrictJsonDigest(replacementReceiptMaterial),
+				}),
+			);
+			await expect(readRootEvalD157HorizonReceipt()).rejects.toThrow(
+				/development-4 ledger binding lost development-5/u,
+			);
+			await writeFile(development5Path, development5Bytes);
+			await writeFile(
+				join(temporary, ROOT_EVAL_D157_HORIZON_DIRECTORY_NAME, ROOT_EVAL_D157_HORIZON_RECEIPT_NAME),
+				horizonBytes,
+			);
+			const receiptPath = join(
+				temporary,
+				ROOT_EVAL_D157_HORIZON_DIRECTORY_NAME,
+				ROOT_EVAL_D157_HORIZON_RECEIPT_NAME,
+			);
+			await writeFile(
+				receiptPath,
+				strictJsonCodec.encode({
+					...horizon,
+					receiptDigest: empiricalStrictJsonDigest("tampered"),
+				}),
+			);
+			await expect(readRootEvalD157HorizonReceipt()).rejects.toThrow(/lost manifest binding/u);
+			await writeFile(receiptPath, horizonBytes);
+			const historicalOnePath = join(temporary, "development-1.json");
+			const historicalOneBytes = await readFile(historicalOnePath);
+			const historicalOne = strictJsonCodec.decode(historicalOneBytes) as {
+				readonly schemaVersion: string;
+				readonly slot: string;
+				readonly taskSetRef: string;
+				readonly tasks: readonly Readonly<Record<string, unknown>>[];
+			};
+			const historicalSemanticCloneTasks = historicalOne.tasks.map((task, index) =>
+				index === 0
+					? {
+							...task,
+							mechanismId: "historical-reworded-semantic-clone",
+							sourceInsightContent:
+								"mechanism-invariant.v2;rule=historical-reworded-semantic-clone".padEnd(96, " "),
+							fixtureCorrectText: development4.tasks[0]!.fixtureCorrectText.replace(
+								/export function [A-Za-z0-9_]+/u,
+								"export function historicalSemanticClone",
+							),
+							sourceFixtureCorrectText: development4.tasks[0]!.sourceFixtureCorrectText.replace(
+								/export function [A-Za-z0-9_]+/u,
+								"export function historicalSemanticCloneAtSource",
+							),
+						}
+					: task,
+			);
+			const historicalSemanticCloneMaterial = {
+				schemaVersion: historicalOne.schemaVersion,
+				slot: historicalOne.slot,
+				taskSetRef: historicalOne.taskSetRef,
+				tasks: historicalSemanticCloneTasks,
+			};
+			await writeFile(
+				historicalOnePath,
+				strictJsonCodec.encode({
+					...historicalSemanticCloneMaterial,
+					manifestDigest: empiricalStrictJsonDigest(historicalSemanticCloneMaterial),
+				}),
+			);
+			await expect(readRootEvalD157HorizonReceipt()).rejects.toThrow(/pairwise isolation audit/u);
+			await writeFile(historicalOnePath, historicalOneBytes);
+			await expect(ensureRootEvalDevelopmentTaskManifest("development-6")).rejects.toThrow(
+				/finite horizon/u,
+			);
+			expect(await readdir(temporary)).not.toContain("development-6.json");
 			await expect(ensureRootEvalDevelopmentTaskManifest("confirmatory")).rejects.toThrow();
 			expect(rootEvalTaskManifestDisjointAudit(development1, development2)).toEqual({
 				leftSlot: "development-1",
@@ -6731,55 +7123,73 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					),
 				}),
 			).toThrow();
-			await writeFile(join(temporary, "development-1.json"), JSON.stringify(development1), {
-				mode: 0o600,
-			});
-			expect(readRootEvalTaskManifest("development-1")).toEqual(development1);
-			expect(rootEvalTask("development-transfer", 5, "development-1").instanceRef).toBe(
-				development1.tasks[4]!.instanceRef,
-			);
+			expect(() => readRootEvalTaskManifest("development-1")).toThrow(/audit-only/u);
+			expect(() => rootEvalTask("development-transfer", 5, "development-1")).toThrow(/audit-only/u);
 			expect(() => rootEvalTask("confirmatory-transfer", 1, "confirmatory")).toThrow();
-			await chmod(join(temporary, "development-1.json"), 0o644);
-			expect(() => readRootEvalTaskManifest("development-1")).toThrow(/mode-0600/u);
-			await chmod(join(temporary, "development-1.json"), 0o600);
+			await chmod(development5Path, 0o644);
+			expect(() => readRootEvalTaskManifest("development-5")).toThrow(/mode-0600/u);
+			await chmod(development5Path, 0o600);
 			const oldSchemaManifest = {
-				...development1,
+				...development5,
 				schemaVersion: "graphrefly-ts.root-eval-d145-task-manifest.v4",
 				manifestDigest: empiricalStrictJsonDigest({
 					schemaVersion: "graphrefly-ts.root-eval-d145-task-manifest.v4",
-					slot: development1.slot,
-					taskSetRef: development1.taskSetRef,
-					tasks: development1.tasks,
+					slot: development5.slot,
+					taskSetRef: development5.taskSetRef,
+					tasks: development5.tasks,
 				}),
 			};
-			await writeFile(join(temporary, "development-1.json"), JSON.stringify(oldSchemaManifest));
-			expect(() => readRootEvalTaskManifest("development-1")).toThrow(/failed closed/u);
-			const tasksWithoutSourceInsightDigest = development1.tasks.map((task, index) => {
+			await writeFile(development5Path, JSON.stringify(oldSchemaManifest));
+			expect(() => readRootEvalTaskManifest("development-5")).toThrow(/failed closed/u);
+			const tasksWithoutSourceInsightDigest = development5.tasks.map((task, index) => {
 				if (index !== 0) return task;
 				const { sourceInsightDigest: _sourceInsightDigest, ...legacyTask } = task;
 				return legacyTask;
 			});
 			const legacyShapedManifest = {
-				...development1,
+				...development5,
 				tasks: tasksWithoutSourceInsightDigest,
 				manifestDigest: empiricalStrictJsonDigest({
-					schemaVersion: development1.schemaVersion,
-					slot: development1.slot,
-					taskSetRef: development1.taskSetRef,
+					schemaVersion: development5.schemaVersion,
+					slot: development5.slot,
+					taskSetRef: development5.taskSetRef,
 					tasks: tasksWithoutSourceInsightDigest,
 				}),
 			};
-			await writeFile(join(temporary, "development-1.json"), JSON.stringify(legacyShapedManifest));
-			expect(() => readRootEvalTaskManifest("development-1")).toThrow(/failed closed/u);
+			await writeFile(development5Path, JSON.stringify(legacyShapedManifest));
+			expect(() => readRootEvalTaskManifest("development-5")).toThrow(/failed closed/u);
 			await writeFile(
-				join(temporary, "development-1.json"),
-				JSON.stringify({ ...development1, taskSetRef: "tampered-task-set" }),
+				development5Path,
+				JSON.stringify({ ...development5, taskSetRef: "tampered-task-set" }),
 			);
-			expect(() => readRootEvalTaskManifest("development-1")).toThrow(/failed closed/u);
+			expect(() => readRootEvalTaskManifest("development-5")).toThrow(/failed closed/u);
+			await writeFile(development5Path, development5Bytes);
 			await writeFile(join(temporary, "confirmatory.json"), JSON.stringify(development1), {
 				mode: 0o600,
 			});
 			expect(() => readRootEvalTaskManifest("confirmatory")).toThrow(/failed closed/u);
+			await rm(join(temporary, ROOT_EVAL_D157_HORIZON_DIRECTORY_NAME), {
+				recursive: true,
+				force: true,
+			});
+			expect(() =>
+				assertRootEvalD157PrecommitEligibility({
+					developmentEntryCount: 4,
+					developmentQualificationStreak: 0,
+					outcomeStatePresent: false,
+					priorManifestBindingsMatch: true,
+				}),
+			).toThrow(/precommit authority invalid/u);
+			expect(() =>
+				assertRootEvalD157PrecommitEligibility({
+					developmentEntryCount: 3,
+					developmentQualificationStreak: 0,
+					outcomeStatePresent: true,
+					priorManifestBindingsMatch: true,
+				}),
+			).toThrow(/precommit authority invalid/u);
+			await expect(ensureRootEvalDevelopmentTaskManifest("development-4")).rejects.toThrow();
+			expect(await readdir(temporary)).not.toContain(ROOT_EVAL_D157_HORIZON_DIRECTORY_NAME);
 		} finally {
 			if (previous === undefined) delete process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY;
 			else process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY = previous;
@@ -6868,6 +7278,12 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		expect(qualified).toBeGreaterThan(0);
 		expect(qualified).toBe(120);
 		expect(rootEvalVariantOrderSupportsIrrelevantControls([0, 1, 2, 3, 4], "development-4")).toBe(
+			true,
+		);
+		expect(rootEvalVariantOrderSupportsIrrelevantControls([0, 1, 2, 3, 4], "development-5")).toBe(
+			true,
+		);
+		expect(rootEvalVariantOrderSupportsIrrelevantControls([0, 1, 2, 3, 4], "development-6")).toBe(
 			false,
 		);
 		expect(rootEvalVariantOrderSupportsIrrelevantControls([0, 1, 2, 3, 4], "confirmatory")).toBe(

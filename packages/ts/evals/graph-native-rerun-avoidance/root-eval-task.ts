@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from "node:fs";
+import { closeSync, constants, fstatSync, openSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { empiricalStrictJsonDigest, strictSnapshot } from "./canonical.js";
 import { HARNESS_ARMS, type HarnessArm } from "./harness-campaign-policy.js";
@@ -7,14 +7,12 @@ export type RootEvalTaskKind = "development-transfer" | "confirmatory-transfer";
 export type RootEvalTaskManifestSlot = `development-${number}` | "confirmatory";
 
 export const ROOT_EVAL_TASK_MANIFEST_SCHEMA =
-	"graphrefly-ts.root-eval-d156-candidate-manifest.v8" as const;
-export const ROOT_EVAL_DEVELOPMENT_TASK_SET_REFS = Object.freeze({
-	"development-1": "root-eval-d152-mechanism-development-1-v1",
-	"development-2": "root-eval-d152-mechanism-development-2-v1",
-	"development-3": "root-eval-d152-mechanism-development-3-v1",
-} as const);
+	"graphrefly-ts.root-eval-d157-candidate-manifest.v9" as const;
+export type RootEvalSupportedDevelopmentSlot =
+	keyof typeof ROOT_EVAL_DEVELOPMENT_TASK_BANK_REGISTRY;
 export const ROOT_EVAL_CONFIRMATORY_TASK_SET_REF =
 	"root-eval-d152-mechanism-confirmatory-v1" as const;
+export const ROOT_EVAL_D157_HORIZON_DIRECTORY_NAME = "d157-development-horizon-v3" as const;
 
 export interface RootEvalTaskDefinition {
 	readonly kind: RootEvalTaskKind;
@@ -86,7 +84,17 @@ export function rootEvalDevelopmentOrdinal(slot: RootEvalTaskManifestSlot): numb
 export function rootEvalDevelopmentTaskSetRef(ordinal: number): string {
 	if (!Number.isSafeInteger(ordinal) || ordinal < 1)
 		throw new TypeError("root eval development task-set ordinal invalid");
-	return `root-eval-d152-mechanism-development-${ordinal}-v1`;
+	const slot = `development-${ordinal}` as RootEvalSupportedDevelopmentSlot;
+	const taskSetRef = ROOT_EVAL_DEVELOPMENT_TASK_SET_REFS[slot];
+	if (taskSetRef === undefined)
+		throw new TypeError("root eval development task-set is outside the D157 finite horizon");
+	return taskSetRef;
+}
+
+export function isRootEvalSupportedDevelopmentSlot(
+	slot: RootEvalTaskManifestSlot,
+): slot is RootEvalSupportedDevelopmentSlot {
+	return Object.hasOwn(ROOT_EVAL_DEVELOPMENT_TASK_SET_REFS, slot);
 }
 
 export interface RootEvalTaskManifest {
@@ -94,6 +102,7 @@ export interface RootEvalTaskManifest {
 	readonly slot: RootEvalTaskManifestSlot;
 	readonly taskSetRef: string;
 	readonly tasks: readonly RootEvalTaskDefinition[];
+	readonly horizonPeerManifestDigest?: string;
 	readonly manifestDigest: string;
 }
 
@@ -280,7 +289,17 @@ export type RootEvalSourceInsightDiscriminant =
 	| "geometric-pair-combination"
 	| "unicode-codepoint-count"
 	| "all-required-bits"
-	| "last-write-duplicate-precedence";
+	| "last-write-duplicate-precedence"
+	| "single-percent-decode"
+	| "gregorian-century-leap-year"
+	| "euclidean-nonnegative-remainder"
+	| "earliest-maximum-tie-precedence"
+	| "eight-bit-rotate-left"
+	| "preserve-present-empty-value"
+	| "own-property-only-presence"
+	| "csv-double-quote-escaping"
+	| "unicode-compatibility-normalization"
+	| "strict-majority-threshold";
 
 const BASELINE_COMMIT = "dea57bdeb4b370dddbbe2505bd05f9e3551b26c6";
 const QUALIFICATION_TASK_SET_REF = "root-eval-d152-mechanism-qualification-v1";
@@ -304,6 +323,16 @@ const SOURCE_INSIGHT_DISCRIMINANTS = Object.freeze([
 	"unicode-codepoint-count",
 	"all-required-bits",
 	"last-write-duplicate-precedence",
+	"single-percent-decode",
+	"gregorian-century-leap-year",
+	"euclidean-nonnegative-remainder",
+	"earliest-maximum-tie-precedence",
+	"eight-bit-rotate-left",
+	"preserve-present-empty-value",
+	"own-property-only-presence",
+	"csv-double-quote-escaping",
+	"unicode-compatibility-normalization",
+	"strict-majority-threshold",
 ] as const satisfies readonly RootEvalSourceInsightDiscriminant[]);
 
 function sourceInsightContent(rule: TransferVariant["acceptedRule"]): string {
@@ -607,17 +636,238 @@ const DEVELOPMENT_THREE_VARIANTS: readonly TransferVariant[] = Object.freeze([
 	}),
 ]);
 
+// D157 development-4: five new domains frozen before either horizon outcome is observed.
+const DEVELOPMENT_FOUR_VARIANTS: readonly TransferVariant[] = Object.freeze([
+	Object.freeze({
+		slug: "percent-decoding",
+		mechanismId: "single-percent-decode",
+		exportName: "decodedComponent",
+		envelopeName: "DecodedComponentInput",
+		acceptedRule: "single-percent-decode",
+		correctSlot: "first",
+		contractSource: "\treadonly value: string;",
+		correctExpression: "decodeURIComponent(input.value)",
+		alternativeExpression: "decodeURIComponent(decodeURIComponent(input.value))",
+		thirdExpression: "input.value",
+		publicFixture: '{ value: "alpha" }',
+		publicExpected: '"alpha"',
+		hiddenFixture: '{ value: "%252F" }',
+		hiddenExpected: '"%2F"',
+		sourceInsightContent: sourceInsightContent("single-percent-decode"),
+	}),
+	Object.freeze({
+		slug: "calendar-year",
+		mechanismId: "gregorian-century-leap-year",
+		exportName: "leapYearDisposition",
+		envelopeName: "LeapYearInput",
+		acceptedRule: "gregorian-century-leap-year",
+		correctSlot: "second",
+		contractSource: "\treadonly year: number;",
+		correctExpression:
+			"String((input.year % 4 === 0 && input.year % 100 !== 0) || input.year % 400 === 0)",
+		alternativeExpression: "String(input.year % 4 === 0)",
+		thirdExpression: "String(input.year % 100 === 0)",
+		publicFixture: "{ year: 2000 }",
+		publicExpected: '"true"',
+		hiddenFixture: "{ year: 1900 }",
+		hiddenExpected: '"false"',
+		sourceInsightContent: sourceInsightContent("gregorian-century-leap-year"),
+	}),
+	Object.freeze({
+		slug: "integer-remainder",
+		mechanismId: "euclidean-nonnegative-remainder",
+		exportName: "normalizedRemainder",
+		envelopeName: "RemainderInput",
+		acceptedRule: "euclidean-nonnegative-remainder",
+		correctSlot: "third",
+		contractSource: "\treadonly value: number;\n\treadonly modulus: number;",
+		correctExpression: "String(((input.value % input.modulus) + input.modulus) % input.modulus)",
+		alternativeExpression: "String(input.value % input.modulus)",
+		thirdExpression: "String(Math.abs(input.value % input.modulus))",
+		publicFixture: "{ value: 5, modulus: 3 }",
+		publicExpected: '"2"',
+		hiddenFixture: "{ value: -5, modulus: 3 }",
+		hiddenExpected: '"1"',
+		sourceInsightContent: sourceInsightContent("euclidean-nonnegative-remainder"),
+	}),
+	Object.freeze({
+		slug: "maximum-tie",
+		mechanismId: "earliest-maximum-tie-precedence",
+		exportName: "maximumEntryKey",
+		envelopeName: "MaximumEntryInput",
+		acceptedRule: "earliest-maximum-tie-precedence",
+		correctSlot: "first",
+		contractSource: "\treadonly entries: readonly (readonly [string, number])[];",
+		correctExpression:
+			"input.entries.reduce((best, entry) => entry[1] > best[1] ? entry : best)[0]",
+		alternativeExpression:
+			"input.entries.reduce((best, entry) => entry[1] >= best[1] ? entry : best)[0]",
+		thirdExpression: 'input.entries.at(-1)?.[0] ?? "none"',
+		publicFixture: '{ entries: [["only", 5]] }',
+		publicExpected: '"only"',
+		hiddenFixture: '{ entries: [["first", 5], ["second", 5]] }',
+		hiddenExpected: '"first"',
+		sourceInsightContent: sourceInsightContent("earliest-maximum-tie-precedence"),
+	}),
+	Object.freeze({
+		slug: "byte-rotation",
+		mechanismId: "eight-bit-rotate-left",
+		exportName: "rotatedByte",
+		envelopeName: "RotatedByteInput",
+		acceptedRule: "eight-bit-rotate-left",
+		correctSlot: "second",
+		contractSource: "\treadonly value: number;",
+		correctExpression: "String(((input.value << 1) | (input.value >> 7)) & 0xff)",
+		alternativeExpression: "String(input.value << 1)",
+		thirdExpression: "String((input.value << 1) & 0xff)",
+		publicFixture: "{ value: 1 }",
+		publicExpected: '"2"',
+		hiddenFixture: "{ value: 129 }",
+		hiddenExpected: '"3"',
+		sourceInsightContent: sourceInsightContent("eight-bit-rotate-left"),
+	}),
+]);
+
+// D157 development-5 is authored and sealed with development-4, not after its result.
+const DEVELOPMENT_FIVE_VARIANTS: readonly TransferVariant[] = Object.freeze([
+	Object.freeze({
+		slug: "present-empty-value",
+		mechanismId: "preserve-present-empty-value",
+		exportName: "valueOrFallback",
+		envelopeName: "ValueOrFallbackInput",
+		acceptedRule: "preserve-present-empty-value",
+		correctSlot: "third",
+		contractSource: "\treadonly value?: string;\n\treadonly fallback: string;",
+		correctExpression: "input.value ?? input.fallback",
+		alternativeExpression: "input.value || input.fallback",
+		thirdExpression: "input.value === undefined ? input.fallback : input.value",
+		publicFixture: '{ value: "chosen", fallback: "fallback" }',
+		publicExpected: '"chosen"',
+		hiddenFixture: '{ value: "", fallback: "fallback" }',
+		hiddenExpected: '""',
+		sourceInsightContent: sourceInsightContent("preserve-present-empty-value"),
+	}),
+	Object.freeze({
+		slug: "own-property-presence",
+		mechanismId: "own-property-only-presence",
+		exportName: "hasOwnRecordKey",
+		envelopeName: "OwnPropertyInput",
+		acceptedRule: "own-property-only-presence",
+		correctSlot: "first",
+		contractSource: "\treadonly record: Readonly<Record<string, number>>;\n\treadonly key: string;",
+		correctExpression: "String(Object.hasOwn(input.record, input.key))",
+		alternativeExpression: "String(input.key in input.record)",
+		thirdExpression: "String(input.record[input.key] !== undefined)",
+		publicFixture: '{ record: { own: 1 }, key: "own" }',
+		publicExpected: '"true"',
+		hiddenFixture: '{ record: Object.create({ inherited: 1 }), key: "inherited" }',
+		hiddenExpected: '"false"',
+		sourceInsightContent: sourceInsightContent("own-property-only-presence"),
+	}),
+	Object.freeze({
+		slug: "csv-field-escaping",
+		mechanismId: "csv-double-quote-escaping",
+		exportName: "quotedCsvField",
+		envelopeName: "CsvFieldInput",
+		acceptedRule: "csv-double-quote-escaping",
+		correctSlot: "second",
+		contractSource: "\treadonly value: string;",
+		// biome-ignore lint/suspicious/noTemplateCurlyInString: the value is frozen executable fixture source.
+		correctExpression: '`"${input.value.replaceAll(\'"\', \'""\')}"`',
+		// biome-ignore lint/suspicious/noTemplateCurlyInString: the value is frozen executable fixture source.
+		alternativeExpression: '`"${input.value}"`',
+		thirdExpression: "JSON.stringify(input.value)",
+		publicFixture: '{ value: "alpha" }',
+		publicExpected: JSON.stringify('"alpha"'),
+		hiddenFixture: String.raw`{ value: "a\"b" }`,
+		hiddenExpected: JSON.stringify('"a""b"'),
+		sourceInsightContent: sourceInsightContent("csv-double-quote-escaping"),
+	}),
+	Object.freeze({
+		slug: "compatibility-normalization",
+		mechanismId: "unicode-compatibility-normalization",
+		exportName: "normalizedCompatibilityText",
+		envelopeName: "CompatibilityTextInput",
+		acceptedRule: "unicode-compatibility-normalization",
+		correctSlot: "third",
+		contractSource: "\treadonly text: string;",
+		correctExpression: 'input.text.normalize("NFKC")',
+		alternativeExpression: 'input.text.normalize("NFC")',
+		thirdExpression: "input.text",
+		publicFixture: '{ text: "office" }',
+		publicExpected: '"office"',
+		hiddenFixture: '{ text: "\ufb01" }',
+		hiddenExpected: '"fi"',
+		sourceInsightContent: sourceInsightContent("unicode-compatibility-normalization"),
+	}),
+	Object.freeze({
+		slug: "majority-threshold",
+		mechanismId: "strict-majority-threshold",
+		exportName: "majorityDisposition",
+		envelopeName: "MajorityInput",
+		acceptedRule: "strict-majority-threshold",
+		correctSlot: "first",
+		contractSource: "\treadonly yes: number;\n\treadonly total: number;",
+		correctExpression: 'input.yes * 2 > input.total ? "accepted" : "rejected"',
+		alternativeExpression: 'input.yes * 2 >= input.total ? "accepted" : "rejected"',
+		thirdExpression: 'input.yes > 0 ? "accepted" : "rejected"',
+		publicFixture: "{ yes: 3, total: 3 }",
+		publicExpected: '"accepted"',
+		hiddenFixture: "{ yes: 1, total: 2 }",
+		hiddenExpected: '"rejected"',
+		sourceInsightContent: sourceInsightContent("strict-majority-threshold"),
+	}),
+]);
+
+const ROOT_EVAL_DEVELOPMENT_TASK_BANK_REGISTRY = Object.freeze({
+	"development-1": Object.freeze({
+		taskSetRef: "root-eval-d152-mechanism-development-1-v1",
+		variants: VARIANTS,
+	}),
+	"development-2": Object.freeze({
+		taskSetRef: "root-eval-d152-mechanism-development-2-v1",
+		variants: DEVELOPMENT_TWO_VARIANTS,
+	}),
+	"development-3": Object.freeze({
+		taskSetRef: "root-eval-d152-mechanism-development-3-v1",
+		variants: DEVELOPMENT_THREE_VARIANTS,
+	}),
+	"development-4": Object.freeze({
+		taskSetRef: "root-eval-d152-mechanism-development-4-v1",
+		variants: DEVELOPMENT_FOUR_VARIANTS,
+	}),
+	"development-5": Object.freeze({
+		taskSetRef: "root-eval-d152-mechanism-development-5-v2",
+		variants: DEVELOPMENT_FIVE_VARIANTS,
+	}),
+} as const satisfies Readonly<
+	Record<string, { taskSetRef: string; variants: readonly TransferVariant[] }>
+>);
+
+export const ROOT_EVAL_DEVELOPMENT_TASK_SET_REFS = Object.freeze(
+	Object.fromEntries(
+		Object.entries(ROOT_EVAL_DEVELOPMENT_TASK_BANK_REGISTRY).map(([slot, bank]) => [
+			slot,
+			bank.taskSetRef,
+		]),
+	),
+) as Readonly<{
+	[K in RootEvalSupportedDevelopmentSlot]: (typeof ROOT_EVAL_DEVELOPMENT_TASK_BANK_REGISTRY)[K]["taskSetRef"];
+}>;
+export const ROOT_EVAL_SUPPORTED_DEVELOPMENT_SLOTS = Object.freeze(
+	Object.keys(ROOT_EVAL_DEVELOPMENT_TASK_BANK_REGISTRY) as RootEvalSupportedDevelopmentSlot[],
+);
+export const ROOT_EVAL_D157_HORIZON_SLOTS = Object.freeze([
+	"development-4",
+	"development-5",
+] as const satisfies readonly RootEvalSupportedDevelopmentSlot[]);
+
 function developmentVariants(
 	slot: RootEvalTaskManifestSlot,
 ): readonly TransferVariant[] | undefined {
-	const ordinal = rootEvalDevelopmentOrdinal(slot);
-	return ordinal === 1
-		? VARIANTS
-		: ordinal === 2
-			? DEVELOPMENT_TWO_VARIANTS
-			: ordinal === 3
-				? DEVELOPMENT_THREE_VARIANTS
-				: undefined;
+	return isRootEvalSupportedDevelopmentSlot(slot)
+		? ROOT_EVAL_DEVELOPMENT_TASK_BANK_REGISTRY[slot].variants
+		: undefined;
 }
 
 function contractSource(variant: TransferVariant, manifestSalt = ""): string {
@@ -969,6 +1219,21 @@ export type RootEvalMechanismPairwiseAudit = Readonly<{
 	readonly executableTokenOverlap: number;
 }>;
 
+type RootEvalMechanismAuditTask = Pick<
+	RootEvalTaskDefinition,
+	| "taskSetRef"
+	| "mechanismId"
+	| "sourceInsightContent"
+	| "sourceFixtureCorrectText"
+	| "fixtureCorrectText"
+	| "sourceHiddenVerifierSource"
+	| "hiddenVerifierSource"
+> & {
+	readonly replicate: number;
+	readonly sourceReadonlyFixtureFiles: readonly Readonly<{ readonly text: string }>[];
+	readonly readonlyFixtureFiles: readonly Readonly<{ readonly text: string }>[];
+};
+
 function lexicalTokens(value: string, omitted: ReadonlySet<string>): ReadonlySet<string> {
 	return new Set(
 		(value.toLowerCase().match(/[a-z][a-z0-9]*/gu) ?? []).filter((token) => !omitted.has(token)),
@@ -983,16 +1248,38 @@ function tokenOverlap(left: ReadonlySet<string>, right: ReadonlySet<string>): nu
 	return intersection / union.size;
 }
 
-/** Explicit D152 pairwise semantic, lexical and executable-scaffolding audit. */
-export function rootEvalMechanismPairwiseAudit(
-	tasks: readonly RootEvalTaskDefinition[],
+function normalizedBehavioralRule(task: RootEvalMechanismAuditTask): string {
+	const match = /\breturn\s+([^;]+);/u.exec(task.fixtureCorrectText);
+	if (match === null) throw new TypeError("root eval mechanism audit requires one return rule");
+	return match[1]!.replace(/\s+/gu, "").toLowerCase();
+}
+
+function executableContractTokens(task: RootEvalMechanismAuditTask): ReadonlySet<string> {
+	const candidateExpressions = (text: string): readonly string[] =>
+		[...text.matchAll(/^\/\/ (?:first|second|third): (.+)$/gmu)].map((match) => match[1]!);
+	const contractTexts = [
+		task.sourceReadonlyFixtureFiles[0]?.text ?? "",
+		task.readonlyFixtureFiles[0]?.text ?? "",
+	];
+	const omitted = new Set(["input", "math", "string"]);
+	for (const text of contractTexts)
+		for (const match of text.matchAll(/\breadonly\s+([a-z][a-z0-9]*)\s*[?:]/giu))
+			omitted.add(match[1]!.toLowerCase());
+	return lexicalTokens(
+		[normalizedBehavioralRule(task), ...contractTexts.flatMap(candidateExpressions)].join("\n"),
+		omitted,
+	);
+}
+
+function mechanismPairwiseAudit(
+	tasks: readonly RootEvalMechanismAuditTask[],
+	includePair: (leftIndex: number, rightIndex: number) => boolean = () => true,
 ): readonly RootEvalMechanismPairwiseAudit[] {
-	if (tasks.length !== 5)
-		throw new TypeError("root eval mechanism audit requires exactly five tasks");
 	const audits: RootEvalMechanismPairwiseAudit[] = [];
 	for (let leftIndex = 0; leftIndex < tasks.length; leftIndex += 1) {
 		const left = tasks[leftIndex]!;
 		for (let rightIndex = leftIndex + 1; rightIndex < tasks.length; rightIndex += 1) {
+			if (!includePair(leftIndex, rightIndex)) continue;
 			const right = tasks[rightIndex]!;
 			const actionTokenOverlap = tokenOverlap(
 				lexicalTokens(left.sourceInsightContent, new Set(["mechanism", "invariant", "v2", "rule"])),
@@ -1002,22 +1289,30 @@ export function rootEvalMechanismPairwiseAudit(
 				),
 			);
 			const executableTokenOverlap = tokenOverlap(
-				lexicalTokens(left.mechanismId, new Set()),
-				lexicalTokens(right.mechanismId, new Set()),
+				executableContractTokens(left),
+				executableContractTokens(right),
 			);
 			const semanticInterchangeable =
-				left.readonlyFixtureFiles[0]?.text === right.readonlyFixtureFiles[0]?.text &&
-				left.fixtureCorrectText === right.fixtureCorrectText &&
-				left.hiddenVerifierSource === right.hiddenVerifierSource;
+				normalizedBehavioralRule(left) === normalizedBehavioralRule(right) ||
+				left.sourceFixtureCorrectText.replace(/\s+/gu, "") ===
+					right.sourceFixtureCorrectText.replace(/\s+/gu, "") ||
+				left.readonlyFixtureFiles[0]?.text === right.readonlyFixtureFiles[0]?.text ||
+				left.sourceReadonlyFixtureFiles[0]?.text === right.sourceReadonlyFixtureFiles[0]?.text ||
+				(left.readonlyFixtureFiles[0]?.text === right.readonlyFixtureFiles[0]?.text &&
+					left.fixtureCorrectText === right.fixtureCorrectText &&
+					left.hiddenVerifierSource === right.hiddenVerifierSource) ||
+				(left.sourceReadonlyFixtureFiles[0]?.text === right.sourceReadonlyFixtureFiles[0]?.text &&
+					left.sourceFixtureCorrectText === right.sourceFixtureCorrectText &&
+					left.sourceHiddenVerifierSource === right.sourceHiddenVerifierSource);
 			if (
 				left.mechanismId === right.mechanismId ||
 				left.fixtureCorrectText === right.fixtureCorrectText ||
 				semanticInterchangeable ||
 				actionTokenOverlap > 0.2 ||
-				executableTokenOverlap > 0.2
+				(left.taskSetRef !== right.taskSetRef && executableTokenOverlap > 0.2)
 			)
 				throw new TypeError(
-					`root eval mechanisms ${left.replicate} and ${right.replicate} failed the pairwise isolation audit`,
+					`root eval mechanisms ${left.taskSetRef}/${left.mechanismId} (replicate ${left.replicate}) and ${right.taskSetRef}/${right.mechanismId} (replicate ${right.replicate}) failed the pairwise isolation audit (action overlap ${actionTokenOverlap.toFixed(3)}, executable overlap ${executableTokenOverlap.toFixed(3)})`,
 				);
 			audits.push(
 				Object.freeze({
@@ -1031,6 +1326,30 @@ export function rootEvalMechanismPairwiseAudit(
 		}
 	}
 	return Object.freeze(audits);
+}
+
+/** Explicit D152 within-bank semantic, lexical and executable-scaffolding audit. */
+export function rootEvalMechanismPairwiseAudit(
+	tasks: readonly RootEvalMechanismAuditTask[],
+): readonly RootEvalMechanismPairwiseAudit[] {
+	if (tasks.length !== 5)
+		throw new TypeError("root eval mechanism audit requires exactly five tasks");
+	return mechanismPairwiseAudit(tasks);
+}
+
+/** D157 cross-bank audit over the complete five-bank, twenty-five-mechanism registry. */
+export function rootEvalDevelopmentRegistryPairwiseAudit(
+	tasks: readonly RootEvalMechanismAuditTask[],
+): readonly RootEvalMechanismPairwiseAudit[] {
+	if (tasks.length !== 25)
+		throw new TypeError("root eval D157 registry audit requires exactly twenty-five tasks");
+	const horizonTaskSetRefs = new Set<string>([
+		ROOT_EVAL_DEVELOPMENT_TASK_SET_REFS["development-4"],
+		ROOT_EVAL_DEVELOPMENT_TASK_SET_REFS["development-5"],
+	]);
+	return mechanismPairwiseAudit(tasks, (leftIndex, rightIndex) =>
+		[tasks[leftIndex]!, tasks[rightIndex]!].some((task) => horizonTaskSetRefs.has(task.taskSetRef)),
+	);
 }
 
 export type RootEvalScriptedMemoryState = Readonly<{
@@ -1352,8 +1671,10 @@ export function rootEvalTaskManifestDisjointAudit(
 		manifest.tasks.flatMap((task) => [
 			empiricalStrictJsonDigest(task.sourceFixtureCorrectText),
 			empiricalStrictJsonDigest(task.sourceFixtureBuggyText),
+			empiricalStrictJsonDigest(task.sourceFixtureAlternativeText),
 			empiricalStrictJsonDigest(task.fixtureCorrectText),
 			empiricalStrictJsonDigest(task.fixtureBuggyText),
+			empiricalStrictJsonDigest(task.fixtureAlternativeText),
 		]);
 	const verifierDigests = (manifest: RootEvalTaskManifest) =>
 		manifest.tasks.flatMap((task) => [
@@ -1428,6 +1749,55 @@ export function createRootEvalTaskManifest(input: {
 	});
 }
 
+export function bindRootEvalD157HorizonManifests(
+	development4: RootEvalTaskManifest,
+	development5: RootEvalTaskManifest,
+): readonly [RootEvalTaskManifest, RootEvalTaskManifest] {
+	if (
+		development4.slot !== "development-4" ||
+		development5.slot !== "development-5" ||
+		development4.horizonPeerManifestDigest !== undefined ||
+		development5.horizonPeerManifestDigest !== undefined
+	)
+		throw new TypeError("root eval D157 horizon manifest binding input invalid");
+	const material = Object.freeze({
+		schemaVersion: development4.schemaVersion,
+		slot: development4.slot,
+		taskSetRef: development4.taskSetRef,
+		tasks: development4.tasks,
+		horizonPeerManifestDigest: development5.manifestDigest,
+	});
+	return Object.freeze([
+		Object.freeze({
+			...material,
+			manifestDigest: empiricalStrictJsonDigest(manifestMaterial(material)),
+		}),
+		development5,
+	]);
+}
+
+function assertRootEvalTaskManifestRegistryMembership(manifest: RootEvalTaskManifest): void {
+	if (!isRootEvalSupportedDevelopmentSlot(manifest.slot)) return;
+	const variants = ROOT_EVAL_DEVELOPMENT_TASK_BANK_REGISTRY[manifest.slot].variants;
+	for (const [index, task] of manifest.tasks.entries()) {
+		const variant = variants.find((candidate) => candidate.mechanismId === task.mechanismId);
+		const coordinate = /\/\/ sealed-manifest-coordinate: (:[a-z0-9-]{16,128})\n/u.exec(
+			task.readonlyFixtureFiles[0]?.text ?? "",
+		)?.[1];
+		if (variant === undefined || coordinate === undefined)
+			throw new TypeError("root eval task manifest was not a member of its finite registry bank");
+		const expected = createTask(
+			"development-transfer",
+			(index + 1) as 1 | 2 | 3 | 4 | 5,
+			variant,
+			manifest.taskSetRef,
+			coordinate,
+		);
+		if (empiricalStrictJsonDigest(task) !== empiricalStrictJsonDigest(expected))
+			throw new TypeError("root eval task manifest drifted from its finite registry definition");
+	}
+}
+
 export function rootEvalTaskManifestDirectory(): string {
 	return resolve(
 		process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY ??
@@ -1438,13 +1808,38 @@ export function rootEvalTaskManifestDirectory(): string {
 	);
 }
 
+export function rootEvalTaskManifestPath(slot: RootEvalTaskManifestSlot): string {
+	const directory = rootEvalTaskManifestDirectory();
+	return resolve(
+		ROOT_EVAL_D157_HORIZON_SLOTS.includes(slot as (typeof ROOT_EVAL_D157_HORIZON_SLOTS)[number])
+			? resolve(directory, ROOT_EVAL_D157_HORIZON_DIRECTORY_NAME)
+			: directory,
+		`${slot}.json`,
+	);
+}
+
 export function readRootEvalTaskManifest(slot: RootEvalTaskManifestSlot): RootEvalTaskManifest {
 	const developmentOrdinal = rootEvalDevelopmentOrdinal(slot);
-	const path = resolve(rootEvalTaskManifestDirectory(), `${slot}.json`);
-	const file = statSync(path);
-	if (!file.isFile() || (file.mode & 0o077) !== 0)
-		throw new TypeError(`root eval ${slot} task manifest must be a mode-0600 regular file`);
-	const value = JSON.parse(readFileSync(path, "utf8")) as RootEvalTaskManifest;
+	if (developmentOrdinal !== null && developmentOrdinal <= 3)
+		throw new TypeError(`root eval ${slot} manifest is immutable audit-only evidence`);
+	const path = rootEvalTaskManifestPath(slot);
+	const handle = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+	let raw: string;
+	try {
+		const file = fstatSync(handle);
+		if (
+			!file.isFile() ||
+			file.nlink !== 1 ||
+			(file.mode & 0o777) !== 0o600 ||
+			file.size < 1 ||
+			file.size > 4 * 1_048_576
+		)
+			throw new TypeError(`root eval ${slot} task manifest must be a mode-0600 regular file`);
+		raw = readFileSync(handle, "utf8");
+	} finally {
+		closeSync(handle);
+	}
+	const value = JSON.parse(raw) as RootEvalTaskManifest;
 	if (
 		value.schemaVersion !== ROOT_EVAL_TASK_MANIFEST_SCHEMA ||
 		value.slot !== slot ||
@@ -1461,6 +1856,9 @@ export function readRootEvalTaskManifest(slot: RootEvalTaskManifestSlot): RootEv
 					(slot === "confirmatory" ? "confirmatory-transfer" : "development-transfer") ||
 				!hasCurrentTaskDefinitionShape(task, index),
 		) ||
+		(slot === "development-4"
+			? !/^sha256:[0-9a-f]{64}$/u.test(value.horizonPeerManifestDigest ?? "")
+			: value.horizonPeerManifestDigest !== undefined) ||
 		value.manifestDigest !==
 			empiricalStrictJsonDigest(
 				manifestMaterial({
@@ -1468,11 +1866,15 @@ export function readRootEvalTaskManifest(slot: RootEvalTaskManifestSlot): RootEv
 					slot: value.slot,
 					taskSetRef: value.taskSetRef,
 					tasks: value.tasks,
+					...(value.horizonPeerManifestDigest === undefined
+						? {}
+						: { horizonPeerManifestDigest: value.horizonPeerManifestDigest }),
 				}),
 			)
 	)
 		throw new TypeError(`root eval ${slot} task manifest failed closed`);
 	assertRootEvalTaskStimulusContract(value.tasks);
+	assertRootEvalTaskManifestRegistryMembership(value);
 	return Object.freeze(value);
 }
 

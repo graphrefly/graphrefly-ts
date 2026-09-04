@@ -3,13 +3,13 @@ import { join, relative, resolve } from "node:path";
 import { empiricalSha256, empiricalStrictJsonDigest } from "./canonical.js";
 
 export const CURRENT_QUALIFICATION_DIGEST =
-	"sha256:8b80ec9102b257b2e023aadc8f7816551afd2c6df1be764d779abdbdfccfc8de" as const;
+	"sha256:4dc72d90189963131a013dc7a7ae59439881fb793c3118390725145bdde9f103" as const;
 export const CURRENT_QUALIFICATION_ARTIFACT_DIGEST =
-	"sha256:c7be99407bc3f7b5dae54829a9eb9b11c615341e7474ebab8fa12c06f0a14390" as const;
+	"sha256:d56d600a41bda0a86951535e3855739230df124b53f3d1d9aa8fd4e95b265ad5" as const;
 
 // Updated only after the current closure and its no-network qualification are both frozen.
 export const CURRENT_IMPLEMENTATION_MANIFEST_DIGEST =
-	"sha256:9c31843d715e1e0f6d7a8f9db87c63b84c43e7d6e22dc73d4c2e8a7aa7ce6ccf" as const;
+	"sha256:fb4872440fea38bbb80c5cb716655fb875b97f5bbeb2a6645fd26d691eb6886c" as const;
 
 export const CURRENT_IMPLEMENTATION_RUNTIME = Object.freeze({
 	node: "v24.18.0" as const,
@@ -52,7 +52,7 @@ async function listRuntimeSources(root: string, directory: string): Promise<read
 export async function measureCurrentImplementation(): Promise<string> {
 	const sources = await measureCurrentImplementationInputs();
 	return empiricalStrictJsonDigest({
-		revision: "graphrefly-ts.d156.current-implementation-manifest.v73",
+		revision: "graphrefly-ts.d157.current-implementation-manifest.v74",
 		runtime: CURRENT_IMPLEMENTATION_RUNTIME,
 		sources,
 	});
@@ -74,7 +74,6 @@ export async function measureCurrentImplementationInputs(): Promise<
 		"eval-topology-contract.ts",
 		"eval-topology.ts",
 		"generate-root-eval-artifacts.ts",
-		"generate-root-eval-task-manifests.ts",
 		"harness-campaign-policy.ts",
 		"model-harness-profile-qualification.ts",
 		"model-harness-profile.ts",
@@ -90,8 +89,6 @@ export async function measureCurrentImplementationInputs(): Promise<
 		"root-eval-live-authority.ts",
 		"root-eval-live-qualification.ts",
 		"root-eval-live.ts",
-		"recover-d145-interrupted-campaign.ts",
-		"recover-d145-source-failure.ts",
 		"rollover-d145-charter-ledger.ts",
 		"root-eval-task.ts",
 		"root-eval-task-manifest-store.ts",

@@ -30,6 +30,7 @@ import {
 	readRootEvalLiveCurrentKey,
 	readRootEvalPrivateFile,
 } from "./root-eval-live-authority.js";
+import { readRootEvalD157HorizonReceipt } from "./root-eval-task-manifest-store.js";
 
 const repositoryRoot = resolve(import.meta.dirname, "../../../..");
 const operatorRoot = resolve(import.meta.dirname, "../.private/graph-native-rerun-avoidance");
@@ -63,6 +64,7 @@ async function official(url: string, maximum: number) {
 async function main() {
 	const [mode, approvalRef, proofDigest] = process.argv.slice(2);
 	if (
+		process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY !== undefined ||
 		process.argv.length !== 5 ||
 		!["--upgrade-ledger", "--execute-live"].includes(mode ?? "") ||
 		approvalRef !== PROVIDER_QUALIFICATION_REF ||
@@ -97,6 +99,8 @@ async function main() {
 		}
 		return;
 	}
+	// D157 freezes both evidence-eligible banks before any provider-facing qualification.
+	await readRootEvalD157HorizonReceipt();
 	// This receipt is made only after the intended settings are observed in the UI.
 	// Missing browser evidence stops before credential access or inference.
 	const settings = record(
