@@ -84,7 +84,7 @@
 			"graphrefly-ts:D158",
 			"graphrefly-ts:D159"
 		],
-		"implementationManifestDigest": "sha256:279ad6604e9704adfb4ac352c9a147258dfc3dcd94d5a3f089a9a74857d0b7cb",
+		"implementationManifestDigest": "sha256:3069f9ef27747e867a434869264d738466836e060ce13e6f008f114e76a17d62",
 		"taskBindingDigest": "sha256:d0473c0f61e5aa8a153d697b1f39eb88c5363b958dafbfcc82b7c646537fe9d4",
 		"caseResults": {
 			"d159SevenBankAllPairsDisjointAndExecutable": "passed",
@@ -325,7 +325,7 @@
 		"credentialAccessed": false,
 		"chargedCallExecuted": false
 	},
-	"artifactDigest": "sha256:f86fee56bb2b824ce7d82cd9226c07277fabfd9090fb1b3410b01390244c9d63",
+	"artifactDigest": "sha256:58bda004b7740ae789d46620de87f1545d17c4babb9bc84eb558a41b811913bb",
 	"qualification": {
 		"providerSettlementAndTerminalDecisionRef": "graphrefly-ts:D154",
 		"schemaVersion": "graphrefly-ts.root-eval-live-qualification.v55",
@@ -386,10 +386,10 @@
 		"completionCharterRef": "graphrefly-ts:D145",
 		"currentLiveExecutionApprovalClosed": true,
 		"callerHorizonDecisionRequired": false,
-		"implementationManifestDigest": "sha256:279ad6604e9704adfb4ac352c9a147258dfc3dcd94d5a3f089a9a74857d0b7cb",
-		"qualificationArtifactDigest": "sha256:f86fee56bb2b824ce7d82cd9226c07277fabfd9090fb1b3410b01390244c9d63",
+		"implementationManifestDigest": "sha256:3069f9ef27747e867a434869264d738466836e060ce13e6f008f114e76a17d62",
+		"qualificationArtifactDigest": "sha256:58bda004b7740ae789d46620de87f1545d17c4babb9bc84eb558a41b811913bb",
 		"status": "qualified-no-network-d159-replacement-horizon-and-execution-grant",
-		"qualificationDigest": "sha256:3ecebc315cfd892358458c0a33f543fdb437d2e7af02682de5aa51adf7d9b851"
+		"qualificationDigest": "sha256:2f5bf8a68c27ddc024387b9d48072b74f2e04f5958dfb48f63f1c2dd8e8a0843"
 	},
-	"measuredImplementationManifestDigest": "sha256:279ad6604e9704adfb4ac352c9a147258dfc3dcd94d5a3f089a9a74857d0b7cb"
+	"measuredImplementationManifestDigest": "sha256:3069f9ef27747e867a434869264d738466836e060ce13e6f008f114e76a17d62"
 }
