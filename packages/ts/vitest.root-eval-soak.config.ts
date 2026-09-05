@@ -11,10 +11,7 @@ export default defineConfig({
 		__GRAPHREFLY_TS_PACKAGE_REVISION__: JSON.stringify(packageRevision),
 	},
 	test: {
-		include: ["src/**/*.test.ts"],
-		exclude: [
-			...configDefaults.exclude,
-			"src/__tests__/solutions-agentic-memory-work-item-root-eval-live.test.ts",
-		],
+		include: ["src/__tests__/solutions-agentic-memory-work-item-root-eval-live.test.ts"],
+		exclude: configDefaults.exclude,
 	},
 });
