@@ -15,7 +15,7 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
@@ -140,9 +140,12 @@ import {
 	ROOT_EVAL_LIVE_BUDGET_PARTITION,
 	ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
 	ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE,
+	ROOT_EVAL_LIVE_CAMPAIGN_SLOT,
 	ROOT_EVAL_LIVE_CLAIM_REF,
 	ROOT_EVAL_LIVE_CLAIM_SCHEMA,
 	ROOT_EVAL_LIVE_EVIDENCE_SCHEMA,
+	ROOT_EVAL_LIVE_EXECUTION_CLAIM_SCHEMA,
+	ROOT_EVAL_LIVE_EXECUTION_GRANT_SCHEMA,
 	ROOT_EVAL_LIVE_GENERATION_REF,
 	ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST,
 	ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_DECISION_REF,
@@ -173,12 +176,16 @@ import {
 	createRootEvalTaskManifest,
 	ROOT_EVAL_D157_HORIZON_DIRECTORY_NAME,
 	ROOT_EVAL_D157_HORIZON_SLOTS,
+	ROOT_EVAL_D159_HORIZON_DIRECTORY_NAME,
+	ROOT_EVAL_D159_HORIZON_SLOTS,
 	ROOT_EVAL_DEVELOPMENT_TASK_SET_REFS,
 	ROOT_EVAL_DEVELOPMENT_TASKS,
 	ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES,
 	ROOT_EVAL_SUPPORTED_DEVELOPMENT_SLOTS,
+	type RootEvalTaskDefinition,
 	readRootEvalTaskManifest,
 	rootEvalCandidateWorkspaceSnapshotDigest,
+	rootEvalD159DevelopmentRegistryPairwiseAudit,
 	rootEvalDevelopmentRegistryPairwiseAudit,
 	rootEvalDevelopmentTaskSetRef,
 	rootEvalMechanismDiscriminationOracle,
@@ -194,8 +201,11 @@ import {
 	assertRootEvalD157PrecommitEligibility,
 	ensureRootEvalDevelopmentTaskManifest,
 	prepareRootEvalD157HorizonForNoNetworkQualification,
+	prepareRootEvalD159HorizonForNoNetworkQualification,
 	ROOT_EVAL_D157_HORIZON_RECEIPT_NAME,
+	ROOT_EVAL_D159_HORIZON_RECEIPT_NAME,
 	readRootEvalD157HorizonReceipt,
+	readRootEvalD159HorizonReceipt,
 	readRootEvalFrozenDevelopmentManifestAudit,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-task-manifest-store.js";
 import { settledRootEvalSpend } from "../../evals/graph-native-rerun-avoidance/settled-spend.js";
@@ -206,7 +216,7 @@ const ROOT_EVAL_DEVELOPMENT_TASK = ROOT_EVAL_DEVELOPMENT_TASKS[0]!;
 const DEFAULT_TEST_WORK_ITEM_ID = "root-eval-test/candidate-work-item";
 
 function correctCandidate(
-	task: (typeof ROOT_EVAL_DEVELOPMENT_TASKS)[number],
+	task: RootEvalTaskDefinition,
 	workItemRole: "source" | "target",
 	workItemId: string,
 ) {
@@ -376,7 +386,7 @@ function historicalFireworksProviderBytes(): Uint8Array {
 }
 
 function providerBytesForTask(
-	task: (typeof ROOT_EVAL_DEVELOPMENT_TASKS)[number],
+	task: RootEvalTaskDefinition,
 	workItemId = DEFAULT_TEST_WORK_ITEM_ID,
 ): Uint8Array {
 	const { candidate: correct } = correctCandidate(task, "target", workItemId);
@@ -388,7 +398,7 @@ function providerBytesForTask(
 }
 
 function providerBytesForSourceTask(
-	task: (typeof ROOT_EVAL_DEVELOPMENT_TASKS)[number],
+	task: RootEvalTaskDefinition,
 	workItemId = task.sourceWorkItemRef,
 ): Uint8Array {
 	const { candidate: correct } = correctCandidate(task, "source", workItemId);
@@ -401,8 +411,9 @@ function providerBytesForSourceTask(
 
 function providerBytesForEffect(
 	effect: Pick<EvalAdmittedEffect, "replicate" | "workItemRole" | "workItemId">,
+	tasks: readonly RootEvalTaskDefinition[] = ROOT_EVAL_DEVELOPMENT_TASKS,
 ): Uint8Array {
-	const task = ROOT_EVAL_DEVELOPMENT_TASKS[effect.replicate - 1]!;
+	const task = tasks[effect.replicate - 1]!;
 	return effect.workItemRole === "source"
 		? providerBytesForSourceTask(task, effect.workItemId)
 		: providerBytesForTask(task, effect.workItemId);
@@ -546,9 +557,12 @@ function liveEvidenceInput(
 		...currentKeyAfterMaterial,
 		admissionDigest: empiricalStrictJsonDigest(currentKeyAfterMaterial),
 	};
+	const testExecutionGrantDigest = empiricalStrictJsonDigest("test-execution-grant");
 	const claimMaterial = {
-		schemaVersion: ROOT_EVAL_LIVE_CLAIM_SCHEMA,
+		schemaVersion: ROOT_EVAL_LIVE_EXECUTION_CLAIM_SCHEMA,
 		executionMode: "live" as const,
+		executionRef: `root-eval-${ROOT_EVAL_LIVE_CAMPAIGN_SLOT}-together-test`,
+		executionGrantDigest: testExecutionGrantDigest,
 		claimRef: ROOT_EVAL_LIVE_CLAIM_REF,
 		decisionRef: ROOT_EVAL_LIVE_DECISION_REF,
 		generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
@@ -642,6 +656,7 @@ function liveEvidenceInput(
 				partitionHardCapMicrousd: ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD,
 				partitionSpentBeforeMicrousd: 0,
 				partitionLedgerDigest: claimMaterial.partitionLedgerDigest,
+				executionGrantDigest: testExecutionGrantDigest,
 				developmentQualification: {
 					kind: "eval-development-qualification-state",
 					campaignPurpose: ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE,
@@ -1758,7 +1773,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		expect(JSON.parse(result.stdout)).toEqual({
 			purpose: "confirmatory",
 			partition: "confirmatory-usd-6",
-			hardCapMicrousd: 6_000_000,
+			hardCapMicrousd: 5_477_518,
 		});
 	});
 	it("uses the exact shared private-input identity gate before preclaim", async () => {
@@ -2141,7 +2156,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			await rm(temporary, { force: true, recursive: true });
 		}
 	});
-	it("binds the single-use D157 development-5 authority to the precommitted horizon", () => {
+	it("binds D159 live authority to a single-use private execution grant", () => {
 		const liveEntry = readFileSync(
 			resolve(
 				repositoryRoot,
@@ -2149,27 +2164,21 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			),
 			"utf8",
 		);
-		expect(liveEntry).toContain(
-			'"user-authorized:d157-development-5:usd-4.138575:development-usd-40" as const',
+		expect(ROOT_EVAL_LIVE_EXECUTION_GRANT_SCHEMA).toBe(
+			"graphrefly-ts.root-eval-execution-grant.v1",
 		);
-		expect(liveEntry).toContain('ROOT_EVAL_LIVE_EXECUTION_APPROVAL_SLOT = "development-5"');
-		expect(liveEntry).toContain("ROOT_EVAL_LIVE_EXECUTION_APPROVAL_HARD_CAP_MICROUSD = 4_138_575");
-		expect(liveEntry).toContain("ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_OPEN = true as const");
-		expect(liveEntry).toMatch(
-			/!ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_OPEN\s*\|\|\s*ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_STATE !==/u,
-		);
-		expect(liveEntry).toContain("process.env.GRAPHREFLY_ROOT_EVAL_EXECUTION_AUTHORITY");
-		expect(liveEntry).toContain("ROOT_EVAL_D157_HORIZON_SLOTS.includes(");
-		expect(liveEntry).toContain(
-			"ROOT_EVAL_LIVE_CAMPAIGN_SLOT !== ROOT_EVAL_LIVE_EXECUTION_APPROVAL_SLOT",
-		);
-		expect(liveEntry).toContain("ROOT_EVAL_LIVE_EXECUTION_APPROVAL_HARD_CAP_MICROUSD");
-		expect(liveEntry).toContain('ROOT_EVAL_LIVE_BUDGET_PARTITION !== "development-usd-40"');
-		expect(liveEntry).toContain("await readRootEvalD157HorizonReceipt();");
+		expect(liveEntry).toContain("readRootEvalLiveExecutionGrant(executionGrantPath)");
+		expect(liveEntry).toContain("ROOT_EVAL_D159_HORIZON_SLOTS.includes(");
+		expect(liveEntry).toContain("await readRootEvalD159HorizonReceipt();");
+		expect(liveEntry).toContain('join(operatorRoot, "execution-grants"');
+		expect(liveEntry).toContain("providerQualificationGrantDigest");
+		expect(liveEntry).not.toContain("ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_OPEN");
+		expect(liveEntry).not.toContain("GRAPHREFLY_ROOT_EVAL_EXECUTION_AUTHORITY");
+		expect(liveEntry).not.toContain("user-authorized:d157-development-5");
 		expect(liveEntry).toContain(
 			"process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY !== undefined",
 		);
-		expect(liveEntry).not.toContain("prepareRootEvalD157HorizonForNoNetworkQualification");
+		expect(liveEntry).not.toContain("prepareRootEvalD159HorizonForNoNetworkQualification");
 		expect(liveEntry).toContain("root eval D157 prior development manifest drifted from ledger");
 		expect(liveEntry).not.toContain('ROOT_EVAL_LIVE_CAMPAIGN_SLOT !== "development-3"');
 		expect(liveEntry).not.toContain(
@@ -2183,7 +2192,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		);
 		expect(liveEntry).not.toContain('join(operatorRoot, "current-live-d136")');
 		const liveMain = liveEntry.slice(liveEntry.indexOf("async function main(): Promise<void>"));
-		const liveHorizonSeal = liveMain.indexOf("await readRootEvalD157HorizonReceipt();");
+		const liveHorizonSeal = liveMain.indexOf("await readRootEvalD159HorizonReceipt();");
 		expect(liveHorizonSeal).toBeGreaterThan(0);
 		expect(liveHorizonSeal).toBeLessThan(
 			liveMain.indexOf("await runRootEvalPrecredentialStagePlan({"),
@@ -2195,12 +2204,17 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			),
 			"utf8",
 		);
-		const horizonSeal = qualificationEntry.indexOf("await readRootEvalD157HorizonReceipt();");
+		const horizonSeal = qualificationEntry.indexOf("await readRootEvalD159HorizonReceipt();");
 		expect(horizonSeal).toBeGreaterThan(0);
 		expect(qualificationEntry).toContain(
 			"process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY !== undefined",
 		);
-		expect(qualificationEntry).not.toContain("prepareRootEvalD157HorizonForNoNetworkQualification");
+		expect(qualificationEntry).not.toContain("prepareRootEvalD159HorizonForNoNetworkQualification");
+		expect(qualificationEntry).not.toContain("settings.executionRef !== approvalRef");
+		expect(qualificationEntry).not.toContain("86_400_000");
+		expect(qualificationEntry).toContain(
+			"ledger.developmentSpentMicrousd + PROVIDER_QUALIFICATION_CAP > 45_000_000",
+		);
 		expect(horizonSeal).toBeLessThan(
 			qualificationEntry.indexOf('"together-qualification-settings.json"'),
 		);
@@ -2238,6 +2252,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		{ ordinal: 3, cap: 4_179_695, partition: 40_000_000, partitionRef: "development-usd-40" },
 		{ ordinal: 4, cap: 4_164_201, partition: 40_000_000, partitionRef: "development-usd-40" },
 		{ ordinal: 5, cap: 4_138_575, partition: 40_000_000, partitionRef: "development-usd-40" },
+		{ ordinal: 6, cap: 4_138_575, partition: 45_000_000, partitionRef: "development-usd-45" },
+		{ ordinal: 7, cap: 4_138_575, partition: 45_000_000, partitionRef: "development-usd-45" },
 	])("binds development-$ordinal to its exact approved budget coordinates", ({
 		ordinal,
 		cap,
@@ -5215,6 +5231,9 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			const acquisition = await acquireRootEvalLiveClaimForNoNetworkQualification(claimInput);
 			const budgetReceipt = {
 				kind: "eval-budget-state" as const,
+				executionGrantDigest: empiricalStrictJsonDigest({
+					kind: "root-eval-no-network-execution-grant",
+				}),
 				policyQualifiedNonbillableCount: 0,
 				admittedAttempts: stale ? 1 : 2,
 				activeEffects: stale ? 0 : 1,
@@ -6502,6 +6521,64 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		}
 	}, 180_000);
 
+	it.each([
+		"development-6",
+		"development-7",
+	] as const)("runs the full five-replicate six-arm %s bank through no-network Graph integration", async (slot) => {
+		const temporary = await realpath(
+			await mkdtemp(join(tmpdir(), `graphrefly-root-eval-${slot}-integration-`)),
+		);
+		const manifest = readRootEvalTaskManifest(slot);
+		const topology = createRootEvalTopology({
+			profileInput: createCurrentExactModelHarnessProfileInput(),
+			currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+			campaignRef: `root-eval-${slot}-no-network-integration`,
+			campaignPurpose: "qualification",
+			taskSetRef: manifest.taskSetRef,
+			taskManifestDigest: manifest.manifestDigest,
+			taskDefinitions: manifest.tasks,
+			maxCostMicrousd: 6_000_000,
+			reservationMicrousd: 200_000,
+			providerPacingSetTimeout: (callback) => {
+				callback();
+				return 0 as unknown as ReturnType<typeof setTimeout>;
+			},
+		});
+		const executor = createRootEvalNoNetworkQualificationExecutor({
+			repositoryRoot,
+			materializationRoot: join(temporary, "workspaces"),
+			taskManifestSlot: slot,
+			taskManifest: manifest,
+			pricing: {
+				inputMicrousdPerMillionTokens: 140_000,
+				outputMicrousdPerMillionTokens: 280_000,
+				cacheReadMicrousdPerMillionTokens: 30_000,
+			},
+			providerResponses: [],
+			providerResponseForEffect: (effect) => ({
+				status: 200,
+				bytes: providerBytesForEffect(effect, manifest.tasks),
+			}),
+		});
+		try {
+			const result = await runRootEval(topology, executor.execute);
+			expect(executor.providerRequestSummaries()).toHaveLength(35);
+			expect(result.finding.providerOutcomeReasonCounts["tool-proposed"]).toBe(35);
+			expect(result.finding.armOrder).toHaveLength(6);
+			for (const arm of Object.values(result.finding.verificationDiagnostics.stageCounts))
+				expect(arm).toMatchObject({
+					completedWorkItems: 5,
+					exactToolAdmitted: 5,
+					hiddenVerifierPassed: 5,
+					cleanupCompleted: 5,
+				});
+			expect(await readdir(join(temporary, "workspaces"))).toEqual([]);
+		} finally {
+			await executor.dispose();
+			await rm(temporary, { recursive: true, force: true });
+		}
+	}, 180_000);
+
 	it("executes one admitted effect against a frozen isolated workspace and behavioral verifiers", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-live-"));
 		const privateRoot = await realpath(temporary);
@@ -6704,6 +6781,10 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		{ slot: "development-4", workItemRole: "target" },
 		{ slot: "development-5", workItemRole: "source" },
 		{ slot: "development-5", workItemRole: "target" },
+		{ slot: "development-6", workItemRole: "source" },
+		{ slot: "development-6", workItemRole: "target" },
+		{ slot: "development-7", workItemRole: "source" },
+		{ slot: "development-7", workItemRole: "target" },
 	] as const)("qualifies five orthogonal mechanisms with ambiguous public and discriminating private verifiers: $slot/$workItemRole", async ({
 		slot,
 		workItemRole,
@@ -6905,6 +6986,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				"development-3",
 				"development-4",
 				"development-5",
+				"development-6",
+				"development-7",
 			]);
 			const registryTasks = [
 				...frozenManifests.flatMap((manifest) => manifest.tasks),
@@ -7106,7 +7189,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			await expect(readRootEvalD157HorizonReceipt()).rejects.toThrow(/pairwise isolation audit/u);
 			await writeFile(historicalOnePath, historicalOneBytes);
 			await expect(ensureRootEvalDevelopmentTaskManifest("development-6")).rejects.toThrow(
-				/finite horizon/u,
+				/horizon|ENOENT/u,
 			);
 			expect(await readdir(temporary)).not.toContain("development-6.json");
 			await expect(ensureRootEvalDevelopmentTaskManifest("confirmatory")).rejects.toThrow();
@@ -7225,6 +7308,292 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		}
 	});
 
+	it("atomically precommits the D159 development-6/7 horizon and all-pairs isolation", async () => {
+		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-d159-horizon-"));
+		const previous = process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY;
+		process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY = temporary;
+		try {
+			const production = resolve(
+				repositoryRoot,
+				"packages/ts/evals/.private/empirical-memory-rerun-avoidance/d152-mechanism-manifests",
+			);
+			for (const slot of ["development-1", "development-2", "development-3"] as const)
+				await cp(join(production, `${slot}.json`), join(temporary, `${slot}.json`));
+			await cp(
+				join(production, ROOT_EVAL_D157_HORIZON_DIRECTORY_NAME),
+				join(temporary, ROOT_EVAL_D157_HORIZON_DIRECTORY_NAME),
+				{ recursive: true },
+			);
+			const prior = await Promise.all(
+				ROOT_EVAL_SUPPORTED_DEVELOPMENT_SLOTS.slice(0, 5).map(
+					readRootEvalFrozenDevelopmentManifestAudit,
+				),
+			);
+			const state = {
+				developmentEntryCount: 5,
+				developmentQualificationStreak: 0,
+				ledgerPath: join(temporary, "d159-ledger.json"),
+				outcomeStatePaths: [join(temporary, "d159-outcome")],
+				priorManifestBindings: prior.map((manifest) => ({
+					taskSetRef: manifest.taskSetRef,
+					manifestDigest: manifest.manifestDigest,
+				})),
+			};
+			const receipt = await prepareRootEvalD159HorizonForNoNetworkQualification({ state });
+			expect(receipt.slots).toEqual(ROOT_EVAL_D159_HORIZON_SLOTS);
+			expect(await readRootEvalD159HorizonReceipt()).toEqual(receipt);
+			await expect(prepareRootEvalD159HorizonForNoNetworkQualification({ state })).rejects.toThrow(
+				/preparation replay rejected/u,
+			);
+			const unexpectedPath = join(
+				temporary,
+				ROOT_EVAL_D159_HORIZON_DIRECTORY_NAME,
+				"unexpected.json",
+			);
+			await writeFile(unexpectedPath, strictJsonCodec.encode({ unexpected: true }), {
+				mode: 0o600,
+			});
+			await expect(readRootEvalD159HorizonReceipt()).rejects.toThrow(/directory membership/u);
+			await rm(unexpectedPath);
+			expect(await readRootEvalD159HorizonReceipt()).toEqual(receipt);
+			const development6 = await ensureRootEvalDevelopmentTaskManifest("development-6");
+			const development7 = await ensureRootEvalDevelopmentTaskManifest("development-7");
+			const allTasks = [...prior, development6, development7].flatMap((manifest) => manifest.tasks);
+			expect(allTasks).toHaveLength(35);
+			expect(rootEvalD159DevelopmentRegistryPairwiseAudit(allTasks)).toHaveLength(295);
+			expect(new Set(allTasks.map((task) => task.mechanismId)).size).toBe(35);
+			expect(
+				(await stat(join(temporary, ROOT_EVAL_D159_HORIZON_DIRECTORY_NAME))).mode & 0o777,
+			).toBe(0o700);
+			for (const slot of ROOT_EVAL_D159_HORIZON_SLOTS)
+				expect(
+					(await stat(join(temporary, ROOT_EVAL_D159_HORIZON_DIRECTORY_NAME, `${slot}.json`)))
+						.mode & 0o777,
+				).toBe(0o600);
+			await expect(ensureRootEvalDevelopmentTaskManifest("development-8")).rejects.toThrow(
+				/finite horizon/u,
+			);
+			const receiptPath = join(
+				temporary,
+				ROOT_EVAL_D159_HORIZON_DIRECTORY_NAME,
+				ROOT_EVAL_D159_HORIZON_RECEIPT_NAME,
+			);
+			const receiptBytes = await readFile(receiptPath);
+			await writeFile(
+				receiptPath,
+				strictJsonCodec.encode({
+					...receipt,
+					receiptDigest: empiricalStrictJsonDigest("tampered"),
+				}),
+			);
+			await expect(readRootEvalD159HorizonReceipt()).rejects.toThrow(/manifest binding/u);
+			await writeFile(receiptPath, receiptBytes);
+		} finally {
+			if (previous === undefined) delete process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY;
+			else process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY = previous;
+			await rm(temporary, { recursive: true, force: true });
+		}
+	});
+
+	it("persists one exact D159 execution grant and rejects replay or closure drift", async () => {
+		const previousSlot = process.env.GRAPHREFLY_ROOT_EVAL_CAMPAIGN_SLOT;
+		process.env.GRAPHREFLY_ROOT_EVAL_CAMPAIGN_SLOT = "development-6";
+		const temporary = await realpath(
+			await mkdtemp(join(tmpdir(), "graphrefly-root-eval-d159-grant-")),
+		);
+		try {
+			const moduleUrl = `${
+				pathToFileURL(
+					resolve(
+						repositoryRoot,
+						"packages/ts/evals/graph-native-rerun-avoidance/root-eval-live-authority.ts",
+					),
+				).href
+			}?d159-grant=${Date.now()}`;
+			const authority = await import(moduleUrl);
+			const grant = authority.createRootEvalLiveExecutionGrant({
+				executionRef: "root-eval-development-6-together-2026-09-05-1",
+				providerQualificationExecutionRef: "provider-qualification-together-2026-09-05-2",
+				providerQualificationGrantDigest: empiricalStrictJsonDigest("qualification-grant"),
+			});
+			expect(() =>
+				authority.createRootEvalLiveExecutionGrant({
+					executionRef: "root-eval-development-7-together-2026-09-05-1",
+					providerQualificationExecutionRef: "provider-qualification-together-2026-09-05-2",
+					providerQualificationGrantDigest: empiricalStrictJsonDigest("qualification-grant"),
+				}),
+			).toThrow(/current closure/u);
+			expect(grant).toMatchObject({
+				schemaVersion: ROOT_EVAL_LIVE_EXECUTION_GRANT_SCHEMA,
+				decisionRef: "graphrefly-ts:D159",
+				slot: "development-6",
+				budgetPartition: "development-usd-45",
+				partitionHardCapMicrousd: 45_000_000,
+				totalHardCapMicrousd: 51_000_000,
+				campaignHardCapMicrousd: 4_138_575,
+			});
+			const path = join(temporary, `${authority.ROOT_EVAL_LIVE_GENERATION_REF}.json`);
+			await authority.persistRootEvalLiveExecutionGrant(path, grant);
+			expect((await stat(path)).mode & 0o777).toBe(0o600);
+			expect(await authority.readRootEvalLiveExecutionGrant(path)).toEqual(grant);
+			await expect(authority.persistRootEvalLiveExecutionGrant(path, grant)).rejects.toMatchObject({
+				code: "EEXIST",
+			});
+			const claimRoot = join(temporary, "claim");
+			await mkdir(claimRoot, { mode: 0o700 });
+			const nowMs = Date.now();
+			const credential = authority.parseRootEvalLiveCredential(
+				new TextEncoder().encode("OPENROUTER_API_KEY=sk-or-v1-a44-middle-credential-e06\n"),
+			);
+			const precredentialMaterial = {
+				schemaVersion: authority.ROOT_EVAL_LIVE_PRECREDENTIAL_GATE_RECEIPT_SCHEMA,
+				decisionRef: ROOT_EVAL_LIVE_DECISION_REF,
+				generationRef: authority.ROOT_EVAL_LIVE_GENERATION_REF,
+				implementationManifestDigest: authority.ROOT_EVAL_CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
+				qualificationArtifactDigest: authority.ROOT_EVAL_CURRENT_QUALIFICATION_ARTIFACT_DIGEST,
+				qualificationDigest: authority.ROOT_EVAL_CURRENT_QUALIFICATION_DIGEST,
+				implementationCommit: "a".repeat(40),
+				repositoryStateDigest: empiricalStrictJsonDigest("d159-claim-repository"),
+				artifactSetDigest: empiricalStrictJsonDigest("d159-claim-artifacts"),
+				completedAtMs: nowMs,
+			};
+			const precredentialGateReceipt = authority.admitRootEvalLivePrecredentialGateReceipt({
+				bytes: strictJsonCodec.encode({
+					...precredentialMaterial,
+					receiptDigest: empiricalStrictJsonDigest(precredentialMaterial),
+				}),
+				nowMs,
+			});
+			const pricingAdmission = await authority.readRootEvalLivePricing({
+				nowMs,
+				fetchImpl: (async (url: string | URL | Request) => {
+					const target = String(url);
+					const body =
+						target === authority.ROOT_EVAL_LIVE_PRICING_SOURCE
+							? {
+									data: {
+										id: "deepseek/deepseek-v4-flash-0731",
+										endpoints: [
+											{
+												provider_name: "Together",
+												tag: "together",
+												quantization: "unknown",
+												model_id: "deepseek/deepseek-v4-flash-0731",
+												name: "Together | deepseek/deepseek-v4-flash-20260731",
+												supported_parameters: [
+													"max_tokens",
+													"reasoning",
+													"response_format",
+													"structured_outputs",
+												],
+												pricing: {
+													prompt: "0.00000014",
+													completion: "0.00000028",
+													input_cache_read: "0.00000003",
+												},
+											},
+										],
+									},
+								}
+							: {
+									data: [
+										{
+											provider_name: "Together",
+											tag: "together",
+											model_id: "deepseek/deepseek-v4-flash-0731",
+											name: "Together | deepseek/deepseek-v4-flash-20260731",
+										},
+									],
+								};
+					const response = new Response(JSON.stringify(body), { status: 200 });
+					Object.defineProperty(response, "url", { value: target });
+					return response;
+				}) as typeof fetch,
+			});
+			const zeroByok = authority.admitRootEvalLiveZeroByok({
+				credential,
+				nowMs,
+				precredentialGateReceipt,
+				bytes: operatorConfigurationBytes(nowMs),
+			});
+			const currentKeyBefore = await authority.readRootEvalLiveCurrentKey({
+				credential,
+				fetchImpl: (async () =>
+					new Response(
+						JSON.stringify({
+							data: {
+								limit: 32,
+								limit_remaining: 13,
+								usage: 19,
+								limit_reset: null,
+								is_management_key: false,
+							},
+						}),
+						{ status: 200 },
+					)) as typeof fetch,
+			});
+			const claimInput = {
+				privateRoot: claimRoot,
+				executionGrant: grant,
+				executionGrantPath: path,
+				implementationCoordinate: `worktree:${"a".repeat(40)}:${authority.ROOT_EVAL_CURRENT_IMPLEMENTATION_MANIFEST_DIGEST}`,
+				implementationManifestDigest: authority.ROOT_EVAL_CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
+				qualificationArtifactDigest: authority.ROOT_EVAL_CURRENT_QUALIFICATION_ARTIFACT_DIGEST,
+				qualificationDigest: authority.ROOT_EVAL_CURRENT_QUALIFICATION_DIGEST,
+				taskBindingDigest: authority.ROOT_EVAL_CURRENT_TASK_BINDING_DIGEST,
+				taskManifestDigest: readRootEvalTaskManifest("development-6").manifestDigest,
+				pricing: pricingAdmission,
+				zeroByok,
+				credential,
+				currentKeyBefore,
+				partitionSpentBeforeMicrousd: 0,
+				partitionLedgerDigest: empiricalStrictJsonDigest("d159-claim-ledger"),
+				developmentQualificationStreakBefore: 0,
+				nowMs,
+			};
+			const acquisition =
+				await authority.acquireRootEvalLiveExecutionClaimForNoNetworkQualification(claimInput);
+			expect(acquisition.postCommitFailureDigest).toBeNull();
+			expect(acquisition.claim).toMatchObject({
+				schemaVersion: authority.ROOT_EVAL_LIVE_EXECUTION_CLAIM_SCHEMA,
+				executionMode: "live",
+				executionRef: grant.executionRef,
+				executionGrantDigest: grant.grantDigest,
+			});
+			const consumedEntries = (await readdir(temporary)).filter((name) =>
+				name.includes(".consumed-"),
+			);
+			expect(await readdir(temporary)).not.toContain(basename(path));
+			expect(consumedEntries).toHaveLength(1);
+			expect((await stat(join(temporary, consumedEntries[0]!))).nlink).toBe(1);
+			await expect(
+				authority.acquireRootEvalLiveExecutionClaimForNoNetworkQualification(claimInput),
+			).rejects.toThrow();
+			const topology = createRootEvalTopology({
+				profileInput: createCurrentExactModelHarnessProfileInput(),
+				currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+				executionGrantDigest: acquisition.claim.executionGrantDigest,
+			});
+			const budgetDigests: string[] = [];
+			const stopBudget = topology.nodes.budgets.subscribe((message) => {
+				if (message[0] === "DATA")
+					budgetDigests.push((message[1] as EvalBudgetState).executionGrantDigest);
+			});
+			expect(topology.campaignContract.executionGrantDigest).toBe(grant.grantDigest);
+			expect(budgetDigests).toEqual([grant.grantDigest]);
+			stopBudget();
+			expect(() =>
+				authority.parseRootEvalLiveExecutionGrant(
+					strictJsonCodec.encode({ ...grant, campaignHardCapMicrousd: 4_138_574 }),
+				),
+			).toThrow(/current closure/u);
+		} finally {
+			if (previousSlot === undefined) delete process.env.GRAPHREFLY_ROOT_EVAL_CAMPAIGN_SLOT;
+			else process.env.GRAPHREFLY_ROOT_EVAL_CAMPAIGN_SLOT = previousSlot;
+			await rm(temporary, { recursive: true, force: true });
+		}
+	});
+
 	it("qualifies every development-3 shuffle against its own bank and rejects rebinding or bank reuse", () => {
 		const permutations = (remaining: readonly number[]): number[][] =>
 			remaining.length === 0
@@ -7312,7 +7681,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			true,
 		);
 		expect(rootEvalVariantOrderSupportsIrrelevantControls([0, 1, 2, 3, 4], "development-6")).toBe(
-			false,
+			true,
 		);
 		expect(rootEvalVariantOrderSupportsIrrelevantControls([0, 1, 2, 3, 4], "confirmatory")).toBe(
 			false,

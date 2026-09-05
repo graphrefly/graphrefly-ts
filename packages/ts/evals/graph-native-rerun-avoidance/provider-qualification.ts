@@ -10,7 +10,7 @@ import {
 import { CURRENT_ROOT_EVAL_PROVIDER_ROUTE } from "./current-provider-route.js";
 
 // D155: qualification is not an efficacy campaign. No experimental task is loaded.
-export const PROVIDER_QUALIFICATION_REF = "provider-qualification-together-2026-09-03-1";
+export const PROVIDER_QUALIFICATION_REF = "provider-qualification-together-2026-09-05-2";
 export const PROVIDER_QUALIFICATION_CAP = 100_000;
 export const PROVIDER_QUALIFICATION_REQUEST_CAP = 3;
 export const PROVIDER_QUALIFICATION_RESERVATION = 33_333;

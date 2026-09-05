@@ -31,7 +31,7 @@ import {
 	readRootEvalLiveCurrentKey,
 	readRootEvalPrivateFile,
 } from "./root-eval-live-authority.js";
-import { readRootEvalD157HorizonReceipt } from "./root-eval-task-manifest-store.js";
+import { readRootEvalD159HorizonReceipt } from "./root-eval-task-manifest-store.js";
 
 const repositoryRoot = resolve(import.meta.dirname, "../../../..");
 const operatorRoot = resolve(import.meta.dirname, "../.private/graph-native-rerun-avoidance");
@@ -101,7 +101,7 @@ async function main() {
 		return;
 	}
 	// D157 freezes both evidence-eligible banks before any provider-facing qualification.
-	await readRootEvalD157HorizonReceipt();
+	await readRootEvalD159HorizonReceipt();
 	// This receipt is made only after the intended settings are observed in the UI.
 	// Missing browser evidence stops before credential access or inference.
 	const settings = record(
@@ -126,10 +126,8 @@ async function main() {
 		],
 		"qualification settings",
 	);
-	const now = Date.now();
 	if (
 		empiricalStrictJsonDigest(settings) !== proofDigest ||
-		settings.executionRef !== approvalRef ||
 		settings.keyName !== "Local Eval 2" ||
 		settings.providerRef !== CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerRef ||
 		settings.zeroByok !== true ||
@@ -140,10 +138,9 @@ async function main() {
 		JSON.stringify(settings.allowedProviders) !==
 			JSON.stringify(CURRENT_ROOT_EVAL_PROVIDER_ROUTE.allowedOperatorProviders) ||
 		!Number.isSafeInteger(settings.observedAtMs) ||
-		now - Number(settings.observedAtMs) < 0 ||
-		now - Number(settings.observedAtMs) > 86_400_000
+		Number(settings.observedAtMs) > Date.now()
 	)
-		throw new TypeError("qualification settings proof invalid or stale");
+		throw new TypeError("qualification stable settings proof invalid");
 	const pricing = await official(ROOT_EVAL_LIVE_PRICING_SOURCE, 1_048_576);
 	const data = record(pricing.value.data, "qualification pricing data");
 	if (data.id !== CURRENT_ROOT_EVAL_PROVIDER_ROUTE.modelRef || !Array.isArray(data.endpoints))
@@ -181,7 +178,7 @@ async function main() {
 		ledger.qualifications.some(
 			(entry) => entry.status === "reserved" || entry.executionRef === approvalRef,
 		) ||
-		ledger.developmentSpentMicrousd + PROVIDER_QUALIFICATION_CAP > 40_000_000
+		ledger.developmentSpentMicrousd + PROVIDER_QUALIFICATION_CAP > 45_000_000
 	)
 		throw new TypeError("qualification exhausted or consumed development authority");
 	const credential = parseRootEvalLiveCredential(
@@ -232,6 +229,9 @@ async function main() {
 			executionRef: PROVIDER_QUALIFICATION_REF,
 			mode: "live",
 			implementationDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
+			routeContractRevision: CURRENT_ROOT_EVAL_PROVIDER_ROUTE.contractRevision,
+			providerRef: CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerRef,
+			modelRef: CURRENT_ROOT_EVAL_PROVIDER_ROUTE.modelRef,
 			controlPlaneDigest: empiricalStrictJsonDigest({
 				settings,
 				pricingDigest: empiricalSha256(pricing.bytes),

@@ -8,6 +8,7 @@ import { settledRootEvalSpend } from "../../evals/graph-native-rerun-avoidance/s
 const receipt = (patch: Partial<EvalBudgetState> = {}): EvalBudgetState =>
 	({
 		kind: "eval-budget-state",
+		executionGrantDigest: `sha256:${"a".repeat(64)}`,
 		policyQualifiedNonbillableCount: 0,
 		admittedAttempts: 2,
 		activeEffects: 1,

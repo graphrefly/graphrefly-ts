@@ -13,6 +13,7 @@ export type RootEvalSupportedDevelopmentSlot =
 export const ROOT_EVAL_CONFIRMATORY_TASK_SET_REF =
 	"root-eval-d152-mechanism-confirmatory-v1" as const;
 export const ROOT_EVAL_D157_HORIZON_DIRECTORY_NAME = "d157-development-horizon-v3" as const;
+export const ROOT_EVAL_D159_HORIZON_DIRECTORY_NAME = "d159-development-horizon-v1" as const;
 
 export interface RootEvalTaskDefinition {
 	readonly kind: RootEvalTaskKind;
@@ -299,7 +300,17 @@ export type RootEvalSourceInsightDiscriminant =
 	| "own-property-only-presence"
 	| "csv-double-quote-escaping"
 	| "unicode-compatibility-normalization"
-	| "strict-majority-threshold";
+	| "strict-majority-threshold"
+	| "median-of-three-selection"
+	| "set-symmetric-difference"
+	| "finite-number-admission"
+	| "triangle-strict-validity"
+	| "base64url-unpadded-normalization"
+	| "roman-subtractive-pair-parsing"
+	| "saturating-byte-addition"
+	| "negative-zero-identity"
+	| "integer-octet-range-validation"
+	| "canonical-decimal-leading-zero-rule";
 
 const BASELINE_COMMIT = "dea57bdeb4b370dddbbe2505bd05f9e3551b26c6";
 const QUALIFICATION_TASK_SET_REF = "root-eval-d152-mechanism-qualification-v1";
@@ -333,6 +344,16 @@ const SOURCE_INSIGHT_DISCRIMINANTS = Object.freeze([
 	"csv-double-quote-escaping",
 	"unicode-compatibility-normalization",
 	"strict-majority-threshold",
+	"median-of-three-selection",
+	"set-symmetric-difference",
+	"finite-number-admission",
+	"triangle-strict-validity",
+	"base64url-unpadded-normalization",
+	"roman-subtractive-pair-parsing",
+	"saturating-byte-addition",
+	"negative-zero-identity",
+	"integer-octet-range-validation",
+	"canonical-decimal-leading-zero-rule",
 ] as const satisfies readonly RootEvalSourceInsightDiscriminant[]);
 
 function sourceInsightContent(rule: TransferVariant["acceptedRule"]): string {
@@ -819,6 +840,194 @@ const DEVELOPMENT_FIVE_VARIANTS: readonly TransferVariant[] = Object.freeze([
 	}),
 ]);
 
+// D159 development-6: first half of the jointly sealed replacement horizon.
+const DEVELOPMENT_SIX_VARIANTS: readonly TransferVariant[] = Object.freeze([
+	Object.freeze({
+		slug: "median-three",
+		mechanismId: "median-of-three-selection",
+		exportName: "medianValue",
+		envelopeName: "MedianValueInput",
+		acceptedRule: "median-of-three-selection",
+		correctSlot: "second",
+		contractSource: "\treadonly a: number;\n\treadonly b: number;\n\treadonly c: number;",
+		correctExpression:
+			"String(input.a + input.b + input.c - Math.min(input.a, input.b, input.c) - Math.max(input.a, input.b, input.c))",
+		alternativeExpression: "String((input.a + input.b + input.c) / 3)",
+		thirdExpression: "String(input.a)",
+		publicFixture: "{ a: 4, b: 4, c: 4 }",
+		publicExpected: '"4"',
+		hiddenFixture: "{ a: 1, b: 9, c: 3 }",
+		hiddenExpected: '"3"',
+		sourceInsightContent: sourceInsightContent("median-of-three-selection"),
+	}),
+	Object.freeze({
+		slug: "symmetric-difference",
+		mechanismId: "set-symmetric-difference",
+		exportName: "symmetricDifference",
+		envelopeName: "SymmetricDifferenceInput",
+		acceptedRule: "set-symmetric-difference",
+		correctSlot: "third",
+		contractSource: "\treadonly left: readonly number[];\n\treadonly right: readonly number[];",
+		correctExpression:
+			'[...new Set([...input.left, ...input.right])].filter((value) => input.left.includes(value) !== input.right.includes(value)).sort((left, right) => left - right).join(",")',
+		alternativeExpression:
+			'[...new Set([...input.left, ...input.right])].sort((left, right) => left - right).join(",")',
+		thirdExpression:
+			'[...new Set(input.left)].filter((value) => input.right.includes(value)).sort((left, right) => left - right).join(",")',
+		publicFixture: "{ left: [1], right: [2] }",
+		publicExpected: '"1,2"',
+		hiddenFixture: "{ left: [1, 2], right: [2, 3] }",
+		hiddenExpected: '"1,3"',
+		sourceInsightContent: sourceInsightContent("set-symmetric-difference"),
+	}),
+	Object.freeze({
+		slug: "finite-number",
+		mechanismId: "finite-number-admission",
+		exportName: "finiteNumberDisposition",
+		envelopeName: "FiniteNumberInput",
+		acceptedRule: "finite-number-admission",
+		correctSlot: "first",
+		contractSource: "\treadonly value: number;",
+		correctExpression: "String(Number.isFinite(input.value))",
+		alternativeExpression: "String(!Number.isNaN(input.value))",
+		thirdExpression: 'String(typeof input.value === "number")',
+		publicFixture: "{ value: 5 }",
+		publicExpected: '"true"',
+		hiddenFixture: "{ value: Number.POSITIVE_INFINITY }",
+		hiddenExpected: '"false"',
+		sourceInsightContent: sourceInsightContent("finite-number-admission"),
+	}),
+	Object.freeze({
+		slug: "triangle-validity",
+		mechanismId: "triangle-strict-validity",
+		exportName: "triangleDisposition",
+		envelopeName: "TriangleInput",
+		acceptedRule: "triangle-strict-validity",
+		correctSlot: "second",
+		contractSource: "\treadonly a: number;\n\treadonly b: number;\n\treadonly c: number;",
+		correctExpression:
+			"String(input.a + input.b > input.c && input.a + input.c > input.b && input.b + input.c > input.a)",
+		alternativeExpression:
+			"String(input.a + input.b >= input.c && input.a + input.c >= input.b && input.b + input.c >= input.a)",
+		thirdExpression: "String(input.a > 0 && input.b > 0 && input.c > 0)",
+		publicFixture: "{ a: 3, b: 4, c: 5 }",
+		publicExpected: '"true"',
+		hiddenFixture: "{ a: 1, b: 1, c: 2 }",
+		hiddenExpected: '"false"',
+		sourceInsightContent: sourceInsightContent("triangle-strict-validity"),
+	}),
+	Object.freeze({
+		slug: "base64url-normalization",
+		mechanismId: "base64url-unpadded-normalization",
+		exportName: "base64UrlToken",
+		envelopeName: "Base64UrlInput",
+		acceptedRule: "base64url-unpadded-normalization",
+		correctSlot: "third",
+		contractSource: "\treadonly value: string;",
+		correctExpression: 'input.value.replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/u, "")',
+		alternativeExpression: 'input.value.replaceAll("+", "-").replaceAll("/", "_")',
+		thirdExpression: 'input.value.replace(/=+$/u, "")',
+		publicFixture: '{ value: "YWJj" }',
+		publicExpected: '"YWJj"',
+		hiddenFixture: '{ value: "+/==" }',
+		hiddenExpected: '"-_"',
+		sourceInsightContent: sourceInsightContent("base64url-unpadded-normalization"),
+	}),
+]);
+
+// D159 development-7 is authored and sealed with development-6, before either outcome.
+const DEVELOPMENT_SEVEN_VARIANTS: readonly TransferVariant[] = Object.freeze([
+	Object.freeze({
+		slug: "roman-numeral",
+		mechanismId: "roman-subtractive-pair-parsing",
+		exportName: "romanValue",
+		envelopeName: "RomanValueInput",
+		acceptedRule: "roman-subtractive-pair-parsing",
+		correctSlot: "first",
+		contractSource:
+			"\treadonly numeral: string;\n\treadonly values: Readonly<Record<string, number>>;",
+		correctExpression:
+			'String([...input.numeral].reduce((sum, symbol, index, symbols) => sum + input.values[symbol]! * (input.values[symbol]! < (input.values[symbols[index + 1] ?? ""] ?? 0) ? -1 : 1), 0))',
+		alternativeExpression:
+			"String([...input.numeral].reduce((sum, symbol) => sum + input.values[symbol]!, 0))",
+		thirdExpression: "String(input.numeral.length)",
+		publicFixture: '{ numeral: "III", values: { I: 1, V: 5, X: 10 } }',
+		publicExpected: '"3"',
+		hiddenFixture: '{ numeral: "IX", values: { I: 1, V: 5, X: 10 } }',
+		hiddenExpected: '"9"',
+		sourceInsightContent: sourceInsightContent("roman-subtractive-pair-parsing"),
+	}),
+	Object.freeze({
+		slug: "saturating-byte",
+		mechanismId: "saturating-byte-addition",
+		exportName: "saturatedByte",
+		envelopeName: "SaturatedByteInput",
+		acceptedRule: "saturating-byte-addition",
+		correctSlot: "second",
+		contractSource: "\treadonly left: number;\n\treadonly right: number;",
+		correctExpression: "String(input.left + input.right > 255 ? 255 : input.left + input.right)",
+		alternativeExpression: "String((input.left + input.right) % 256)",
+		thirdExpression: "String(input.left + input.right)",
+		publicFixture: "{ left: 1, right: 2 }",
+		publicExpected: '"3"',
+		hiddenFixture: "{ left: 250, right: 10 }",
+		hiddenExpected: '"255"',
+		sourceInsightContent: sourceInsightContent("saturating-byte-addition"),
+	}),
+	Object.freeze({
+		slug: "negative-zero",
+		mechanismId: "negative-zero-identity",
+		exportName: "negativeZeroDisposition",
+		envelopeName: "NegativeZeroInput",
+		acceptedRule: "negative-zero-identity",
+		correctSlot: "third",
+		contractSource: "\treadonly value: number;",
+		correctExpression: "String(Object.is(input.value, -0))",
+		alternativeExpression: "String(input.value === 0)",
+		thirdExpression: "String(1 / input.value === Number.NEGATIVE_INFINITY)",
+		publicFixture: "{ value: 1 }",
+		publicExpected: '"false"',
+		hiddenFixture: "{ value: 0 }",
+		hiddenExpected: '"false"',
+		sourceInsightContent: sourceInsightContent("negative-zero-identity"),
+	}),
+	Object.freeze({
+		slug: "integer-octets",
+		mechanismId: "integer-octet-range-validation",
+		exportName: "octetDisposition",
+		envelopeName: "OctetInput",
+		acceptedRule: "integer-octet-range-validation",
+		correctSlot: "first",
+		contractSource: "\treadonly octets: readonly number[];",
+		correctExpression:
+			"String(input.octets.every((value) => Number.isInteger(value) && value >= 0 && value <= 255))",
+		alternativeExpression: "String(input.octets.every((value) => value >= 0 && value <= 255))",
+		thirdExpression: "String(input.octets.every((value) => Number.isInteger(value)))",
+		publicFixture: "{ octets: [0, 255] }",
+		publicExpected: '"true"',
+		hiddenFixture: "{ octets: [1.5] }",
+		hiddenExpected: '"false"',
+		sourceInsightContent: sourceInsightContent("integer-octet-range-validation"),
+	}),
+	Object.freeze({
+		slug: "canonical-decimal",
+		mechanismId: "canonical-decimal-leading-zero-rule",
+		exportName: "canonicalDecimalDisposition",
+		envelopeName: "CanonicalDecimalInput",
+		acceptedRule: "canonical-decimal-leading-zero-rule",
+		correctSlot: "second",
+		contractSource: "\treadonly value: string;",
+		correctExpression: "String(/^(?:0|[1-9][0-9]*)$/u.test(input.value))",
+		alternativeExpression: "String(/^[0-9]+$/u.test(input.value))",
+		thirdExpression: "String(String(Number(input.value)) === input.value)",
+		publicFixture: '{ value: "42" }',
+		publicExpected: '"true"',
+		hiddenFixture: '{ value: "042" }',
+		hiddenExpected: '"false"',
+		sourceInsightContent: sourceInsightContent("canonical-decimal-leading-zero-rule"),
+	}),
+]);
+
 const ROOT_EVAL_DEVELOPMENT_TASK_BANK_REGISTRY = Object.freeze({
 	"development-1": Object.freeze({
 		taskSetRef: "root-eval-d152-mechanism-development-1-v1",
@@ -840,6 +1049,14 @@ const ROOT_EVAL_DEVELOPMENT_TASK_BANK_REGISTRY = Object.freeze({
 		taskSetRef: "root-eval-d152-mechanism-development-5-v2",
 		variants: DEVELOPMENT_FIVE_VARIANTS,
 	}),
+	"development-6": Object.freeze({
+		taskSetRef: "root-eval-d159-mechanism-development-6-v1",
+		variants: DEVELOPMENT_SIX_VARIANTS,
+	}),
+	"development-7": Object.freeze({
+		taskSetRef: "root-eval-d159-mechanism-development-7-v1",
+		variants: DEVELOPMENT_SEVEN_VARIANTS,
+	}),
 } as const satisfies Readonly<
 	Record<string, { taskSetRef: string; variants: readonly TransferVariant[] }>
 >);
@@ -860,6 +1077,10 @@ export const ROOT_EVAL_SUPPORTED_DEVELOPMENT_SLOTS = Object.freeze(
 export const ROOT_EVAL_D157_HORIZON_SLOTS = Object.freeze([
 	"development-4",
 	"development-5",
+] as const satisfies readonly RootEvalSupportedDevelopmentSlot[]);
+export const ROOT_EVAL_D159_HORIZON_SLOTS = Object.freeze([
+	"development-6",
+	"development-7",
 ] as const satisfies readonly RootEvalSupportedDevelopmentSlot[]);
 
 function developmentVariants(
@@ -1352,6 +1573,21 @@ export function rootEvalDevelopmentRegistryPairwiseAudit(
 	);
 }
 
+/** D159 cross-bank audit for every pair touching the replacement horizon. */
+export function rootEvalD159DevelopmentRegistryPairwiseAudit(
+	tasks: readonly RootEvalMechanismAuditTask[],
+): readonly RootEvalMechanismPairwiseAudit[] {
+	if (tasks.length !== 35)
+		throw new TypeError("root eval D159 registry audit requires exactly thirty-five tasks");
+	const horizonTaskSetRefs = new Set<string>([
+		ROOT_EVAL_DEVELOPMENT_TASK_SET_REFS["development-6"],
+		ROOT_EVAL_DEVELOPMENT_TASK_SET_REFS["development-7"],
+	]);
+	return mechanismPairwiseAudit(tasks, (leftIndex, rightIndex) =>
+		[tasks[leftIndex]!, tasks[rightIndex]!].some((task) => horizonTaskSetRefs.has(task.taskSetRef)),
+	);
+}
+
 export type RootEvalScriptedMemoryState = Readonly<{
 	readonly sourceInsightContent?: string;
 	readonly admitted: boolean;
@@ -1776,6 +2012,33 @@ export function bindRootEvalD157HorizonManifests(
 	]);
 }
 
+export function bindRootEvalD159HorizonManifests(
+	development6: RootEvalTaskManifest,
+	development7: RootEvalTaskManifest,
+): readonly [RootEvalTaskManifest, RootEvalTaskManifest] {
+	if (
+		development6.slot !== "development-6" ||
+		development7.slot !== "development-7" ||
+		development6.horizonPeerManifestDigest !== undefined ||
+		development7.horizonPeerManifestDigest !== undefined
+	)
+		throw new TypeError("root eval D159 horizon manifest binding input invalid");
+	const material = Object.freeze({
+		schemaVersion: development6.schemaVersion,
+		slot: development6.slot,
+		taskSetRef: development6.taskSetRef,
+		tasks: development6.tasks,
+		horizonPeerManifestDigest: development7.manifestDigest,
+	});
+	return Object.freeze([
+		Object.freeze({
+			...material,
+			manifestDigest: empiricalStrictJsonDigest(manifestMaterial(material)),
+		}),
+		development7,
+	]);
+}
+
 function assertRootEvalTaskManifestRegistryMembership(manifest: RootEvalTaskManifest): void {
 	if (!isRootEvalSupportedDevelopmentSlot(manifest.slot)) return;
 	const variants = ROOT_EVAL_DEVELOPMENT_TASK_BANK_REGISTRY[manifest.slot].variants;
@@ -1813,7 +2076,9 @@ export function rootEvalTaskManifestPath(slot: RootEvalTaskManifestSlot): string
 	return resolve(
 		ROOT_EVAL_D157_HORIZON_SLOTS.includes(slot as (typeof ROOT_EVAL_D157_HORIZON_SLOTS)[number])
 			? resolve(directory, ROOT_EVAL_D157_HORIZON_DIRECTORY_NAME)
-			: directory,
+			: ROOT_EVAL_D159_HORIZON_SLOTS.includes(slot as (typeof ROOT_EVAL_D159_HORIZON_SLOTS)[number])
+				? resolve(directory, ROOT_EVAL_D159_HORIZON_DIRECTORY_NAME)
+				: directory,
 		`${slot}.json`,
 	);
 }
@@ -1856,7 +2121,7 @@ export function readRootEvalTaskManifest(slot: RootEvalTaskManifestSlot): RootEv
 					(slot === "confirmatory" ? "confirmatory-transfer" : "development-transfer") ||
 				!hasCurrentTaskDefinitionShape(task, index),
 		) ||
-		(slot === "development-4"
+		(slot === "development-4" || slot === "development-6"
 			? !/^sha256:[0-9a-f]{64}$/u.test(value.horizonPeerManifestDigest ?? "")
 			: value.horizonPeerManifestDigest !== undefined) ||
 		value.manifestDigest !==

@@ -41,6 +41,7 @@
 		},
 		"evaluableReplicates": 5,
 		"excludedTechnicalReplicates": [],
+		"executionGrantDigest": "sha256:e9fd66f948b57a79a020dca000392947d650088658bb0ee3fc9f95a8628b1358",
 		"finding": "positive-differential",
 		"generationRef": "root-eval-d152-mechanism-no-network-qualification-v1",
 		"heldOutSealDigest": "sha256:9729f96ccfbaca56cbb284fa048f1754d8192a18b8af284af407ebb575cf6e23",

@@ -30,9 +30,11 @@ export function rootEvalBudgetReceipt(value: EvalBudgetState): EvalBudgetState {
 	] as const;
 	exactKeys(
 		budget as unknown as Record<string, unknown>,
-		["kind", ...numeric, "providerOutcomeReasonCounts", "stoppingReason"],
+		["kind", "executionGrantDigest", ...numeric, "providerOutcomeReasonCounts", "stoppingReason"],
 		"budget receipt",
 	);
+	if (!/^sha256:[0-9a-f]{64}$/u.test(budget.executionGrantDigest))
+		throw new TypeError("budget receipt execution grant digest invalid");
 	for (const key of numeric) safeInteger(budget[key], `budget receipt.${key}`);
 	oneOf(
 		budget.stoppingReason,

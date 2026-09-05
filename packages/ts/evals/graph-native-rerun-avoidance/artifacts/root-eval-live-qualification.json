@@ -1,6 +1,6 @@
 {
 	"artifact": {
-		"schemaVersion": "graphrefly-ts.root-eval-live-no-network-qa.v54",
+		"schemaVersion": "graphrefly-ts.root-eval-live-no-network-qa.v55",
 		"togetherCandidateInjectedFiveSourceThirtyTargetQualified": true,
 		"wrongClaimRouteRejectedBeforeDispatch": true,
 		"togetherMissingUsageRetainsReservation": true,
@@ -81,11 +81,17 @@
 			"graphrefly-ts:D155",
 			"graphrefly-ts:D156",
 			"graphrefly-ts:D157",
-			"graphrefly-ts:D158"
+			"graphrefly-ts:D158",
+			"graphrefly-ts:D159"
 		],
-		"implementationManifestDigest": "sha256:2eb1d11e8f3bb70d559ea5d128abcbb8d4a444ee2b187ae8ba947ec80a6a24c2",
+		"implementationManifestDigest": "sha256:489818a257323a6015234947d8c464b422dc6237a109daaa4af9351061999400",
 		"taskBindingDigest": "sha256:d0473c0f61e5aa8a153d697b1f39eb88c5363b958dafbfcc82b7c646537fe9d4",
 		"caseResults": {
+			"d159SevenBankAllPairsDisjointAndExecutable": "passed",
+			"d159TwoBankAtomicPrecommitAndReplayRejection": "passed",
+			"d159Mode0600DigestBoundSingleUseExecutionGrant": "passed",
+			"d159HistoricalBudgetPartitionsAndUsd45Extension": "passed",
+			"d159TogetherQualificationReceiptRequiredBeforeCampaign": "passed",
 			"d158TogetherCurrentRouteAndHistoricalFireworksIsolation": "passed",
 			"d158NoFixedAggregateElapsedCutoff": "passed",
 			"d158FinitePathUsesExecutorSettlementBounds": "passed",
@@ -319,12 +325,12 @@
 		"credentialAccessed": false,
 		"chargedCallExecuted": false
 	},
-	"artifactDigest": "sha256:b9cc4fec462e5419427fbc867e90ad6df1cffb9c852ef7c46ae736994a278d99",
+	"artifactDigest": "sha256:afb8a176e0e0a94b26b3d7bf8398f0c617da16e1868b9bf818ec9672546ee143",
 	"qualification": {
 		"providerSettlementAndTerminalDecisionRef": "graphrefly-ts:D154",
-		"schemaVersion": "graphrefly-ts.root-eval-live-qualification.v54",
-		"decisionRef": "graphrefly-ts:D158",
-		"implementationExecutionApprovalRef": "user-authorized-d158-implementation-no-network-2026-09-04",
+		"schemaVersion": "graphrefly-ts.root-eval-live-qualification.v55",
+		"decisionRef": "graphrefly-ts:D159",
+		"implementationExecutionApprovalRef": "user-authorized-d159-implementation-no-network-2026-09-05",
 		"verificationDiagnosticsImplementationReceiptRef": "graphrefly-ts:D120",
 		"mostRecentSuccessfulCanonicalLiveExecutionApprovalRef": "graphrefly-ts:D116",
 		"mostRecentSuccessfulCanonicalLiveExecutionCloseoutRef": "graphrefly-ts:D117",
@@ -376,13 +382,14 @@
 		"occurrenceBoundCandidateToolDecisionRef": "graphrefly-ts:D156",
 		"precommittedDevelopmentHorizonDecisionRef": "graphrefly-ts:D157",
 		"occurrenceAwareLivenessAndCurrentRouteDecisionRef": "graphrefly-ts:D158",
+		"replacementHorizonAndExecutionGrantDecisionRef": "graphrefly-ts:D159",
 		"completionCharterRef": "graphrefly-ts:D145",
 		"currentLiveExecutionApprovalClosed": true,
 		"callerHorizonDecisionRequired": false,
-		"implementationManifestDigest": "sha256:2eb1d11e8f3bb70d559ea5d128abcbb8d4a444ee2b187ae8ba947ec80a6a24c2",
-		"qualificationArtifactDigest": "sha256:b9cc4fec462e5419427fbc867e90ad6df1cffb9c852ef7c46ae736994a278d99",
-		"status": "qualified-no-network-d158-together-route-and-occurrence-liveness",
-		"qualificationDigest": "sha256:bb0b195e4e9441f7d3a6544100069df2a7e7fb5910e7dbcbc72edd0b7a319a25"
+		"implementationManifestDigest": "sha256:489818a257323a6015234947d8c464b422dc6237a109daaa4af9351061999400",
+		"qualificationArtifactDigest": "sha256:afb8a176e0e0a94b26b3d7bf8398f0c617da16e1868b9bf818ec9672546ee143",
+		"status": "qualified-no-network-d159-replacement-horizon-and-execution-grant",
+		"qualificationDigest": "sha256:af135bed0001df1eac00d85694824c995b81b98fa7f912fdcf8798ce40ff266e"
 	},
-	"measuredImplementationManifestDigest": "sha256:2eb1d11e8f3bb70d559ea5d128abcbb8d4a444ee2b187ae8ba947ec80a6a24c2"
+	"measuredImplementationManifestDigest": "sha256:489818a257323a6015234947d8c464b422dc6237a109daaa4af9351061999400"
 }

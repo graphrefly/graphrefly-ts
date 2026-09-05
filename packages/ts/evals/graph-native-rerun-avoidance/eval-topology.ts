@@ -271,10 +271,12 @@ export type EvalBudgetPartition =
 	| "no-network"
 	| "development-usd-36"
 	| "development-usd-40"
+	| "development-usd-45"
 	| "confirmatory-usd-6";
 
 export interface EvalCampaignContract {
 	readonly kind: "eval-campaign-contract";
+	readonly executionGrantDigest: string;
 	readonly campaignPurpose: EvalCampaignPurpose;
 	readonly taskSetRef: string;
 	readonly generationRef: string;
@@ -366,6 +368,7 @@ type EvalSourceTerminalFact = EvalSourceVerificationFact | EvalSourceTechnicalEx
 
 export interface EvalCampaignState {
 	readonly kind: "eval-campaign-state";
+	readonly executionGrantDigest: string;
 	readonly campaignRef: string;
 	readonly campaignPurpose: EvalCampaignPurpose;
 	readonly taskSetRef: string;
@@ -722,6 +725,7 @@ interface EvalHiddenVerifierFact {
 
 export interface EvalBudgetState {
 	readonly kind: "eval-budget-state";
+	readonly executionGrantDigest: string;
 	readonly policyQualifiedNonbillableCount: number;
 	readonly admittedAttempts: number;
 	readonly admittedRetryAttempts: number;
@@ -889,6 +893,7 @@ export interface EvalFinding {
 export interface EvalObservation {
 	readonly kind: "eval-observation";
 	readonly topologyRevision: typeof ROOT_EVAL_TOPOLOGY_REVISION;
+	readonly executionGrantDigest: string;
 	readonly solutionIdentities: readonly [
 		"work-item-execution",
 		"agentic-work-item-memory-application",
@@ -990,6 +995,7 @@ export interface RootEvalTopologyOptions {
 	readonly partitionSpentBeforeMicrousd?: number;
 	readonly partitionLedgerDigest?: string;
 	readonly developmentQualificationStreakBefore?: number;
+	readonly executionGrantDigest?: string;
 	readonly maxAttempts?: number;
 	readonly maxCostMicrousd?: number;
 	readonly reservationMicrousd?: number;
@@ -2389,6 +2395,7 @@ function emitCampaignState(
 			"DATA",
 			Object.freeze({
 				kind: "eval-campaign-state" as const,
+				executionGrantDigest: contract.executionGrantDigest,
 				campaignRef,
 				campaignPurpose: contract.campaignPurpose,
 				taskSetRef: contract.taskSetRef,
@@ -2561,6 +2568,7 @@ const ROOT_EVAL_FINDING_KEYS = Object.freeze([
 const ROOT_EVAL_OBSERVATION_KEYS = Object.freeze([
 	"kind",
 	"topologyRevision",
+	"executionGrantDigest",
 	"solutionIdentities",
 	"campaignRef",
 	"campaignPurpose",
@@ -2894,6 +2902,8 @@ export function assertRootEvalObservationRuntimeShape(
 	exactKeys(root, ROOT_EVAL_OBSERVATION_KEYS, label);
 	literal(root.kind, "eval-observation", `${label}.kind`);
 	literal(root.topologyRevision, ROOT_EVAL_TOPOLOGY_REVISION, `${label}.topologyRevision`);
+	if (!/^sha256:[0-9a-f]{64}$/u.test(String(root.executionGrantDigest)))
+		throw new TypeError(`${label}.executionGrantDigest invalid`);
 	coordinate(root.campaignRef, `${label}.campaignRef`);
 	if (
 		!(["qualification", "development", "confirmatory"] as const).includes(
@@ -2907,7 +2917,13 @@ export function assertRootEvalObservationRuntimeShape(
 		throw new TypeError(`${label}.heldOutSealDigest invalid`);
 	if (
 		!(
-			["no-network", "development-usd-36", "development-usd-40", "confirmatory-usd-6"] as const
+			[
+				"no-network",
+				"development-usd-36",
+				"development-usd-40",
+				"development-usd-45",
+				"confirmatory-usd-6",
+			] as const
 		).includes(root.budgetPartition as EvalBudgetPartition)
 	)
 		throw new TypeError(`${label}.budgetPartition invalid`);
@@ -2978,7 +2994,8 @@ export function assertRootEvalObservationRuntimeShape(
 		(root.campaignPurpose === "development" &&
 			(replicateCount !== ROOT_EVAL_DEVELOPMENT_REPLICATE_COUNT ||
 				(root.budgetPartition !== "development-usd-36" &&
-					root.budgetPartition !== "development-usd-40"))) ||
+					root.budgetPartition !== "development-usd-40" &&
+					root.budgetPartition !== "development-usd-45"))) ||
 		(root.campaignPurpose === "confirmatory" &&
 			(replicateCount !== ROOT_EVAL_REPLICATE_COUNT ||
 				root.budgetPartition !== "confirmatory-usd-6")) ||
@@ -3250,6 +3267,7 @@ export function assertRootEvalObservationTransition(
 		(_, index) => previous.replicate + index + 1,
 	).every((replicate) => current.sourceTechnicalExcludedReplicates.includes(replicate));
 	if (
+		current.executionGrantDigest !== previous.executionGrantDigest ||
 		current.campaignPurpose !== previous.campaignPurpose ||
 		current.taskSetRef !== previous.taskSetRef ||
 		current.generationRef !== previous.generationRef ||
@@ -3586,10 +3604,15 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			budgetPartition,
 		});
 	const developmentQualificationStreakBefore = options.developmentQualificationStreakBefore ?? 0;
+	const executionGrantDigest =
+		options.executionGrantDigest ??
+		empiricalStrictJsonDigest({ kind: "root-eval-no-network-execution-grant" });
 	if (
 		(campaignPurpose === "development" &&
 			(replicateCount !== ROOT_EVAL_DEVELOPMENT_REPLICATE_COUNT ||
-				(budgetPartition !== "development-usd-36" && budgetPartition !== "development-usd-40"))) ||
+				(budgetPartition !== "development-usd-36" &&
+					budgetPartition !== "development-usd-40" &&
+					budgetPartition !== "development-usd-45"))) ||
 		(campaignPurpose === "confirmatory" &&
 			(replicateCount !== ROOT_EVAL_REPLICATE_COUNT || budgetPartition !== "confirmatory-usd-6")) ||
 		(campaignPurpose === "qualification" && budgetPartition !== "no-network")
@@ -3646,6 +3669,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		throw new TypeError("root eval held-out seal digest was invalid");
 	if (!/^sha256:[0-9a-f]{64}$/u.test(partitionLedgerDigest))
 		throw new TypeError("root eval partition ledger digest was invalid");
+	if (!/^sha256:[0-9a-f]{64}$/u.test(executionGrantDigest))
+		throw new TypeError("root eval execution grant digest was invalid");
 	if (
 		!Number.isSafeInteger(partitionHardCapMicrousd) ||
 		partitionHardCapMicrousd < 1 ||
@@ -3664,6 +3689,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		throw new TypeError("root eval development qualification authority was invalid");
 	const campaignContractValue: EvalCampaignContract = Object.freeze({
 		kind: "eval-campaign-contract",
+		executionGrantDigest,
 		campaignPurpose,
 		taskSetRef,
 		generationRef,
@@ -3731,12 +3757,14 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			partitionSpentBeforeMicrousd,
 			partitionLedgerDigest,
 			developmentQualificationStreakBefore,
+			executionGrantDigest,
 			decisionRefs: [
 				"graphrefly-ts:D145",
 				"graphrefly-ts:D151",
 				"graphrefly-ts:D152",
 				"graphrefly-ts:D156",
 				"graphrefly-ts:D158",
+				"graphrefly-ts:D159",
 			],
 		},
 	});
@@ -7049,6 +7077,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				throw new TypeError("provider proposal conservation drifted");
 			const budgetSnapshot: EvalBudgetState = Object.freeze({
 				kind: "eval-budget-state" as const,
+				executionGrantDigest,
 				policyQualifiedNonbillableCount: state.policyQualifiedNonbillableCount,
 				admittedAttempts: state.admittedAttempts,
 				admittedRetryAttempts: state.admittedRetryAttempts,
@@ -8943,6 +8972,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				const value = strictSnapshot({
 					kind: "eval-observation" as const,
 					topologyRevision: ROOT_EVAL_TOPOLOGY_REVISION,
+					executionGrantDigest: contract.executionGrantDigest,
 					solutionIdentities: ROOT_EVAL_SOLUTION_IDENTITIES,
 					campaignRef,
 					campaignPurpose: campaignState.campaignPurpose,

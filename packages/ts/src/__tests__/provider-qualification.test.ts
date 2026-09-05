@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { empiricalStrictJsonDigest } from "../../evals/graph-native-rerun-avoidance/canonical.js";
+import { CURRENT_ROOT_EVAL_PROVIDER_ROUTE } from "../../evals/graph-native-rerun-avoidance/current-provider-route.js";
 import {
 	createProviderQualificationGraph,
 	initialQualificationState,
@@ -39,6 +40,9 @@ const grant: QualificationGrant = {
 	executionRef: PROVIDER_QUALIFICATION_REF,
 	mode: "no-network",
 	implementationDigest: digest,
+	routeContractRevision: CURRENT_ROOT_EVAL_PROVIDER_ROUTE.contractRevision,
+	providerRef: CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerRef,
+	modelRef: CURRENT_ROOT_EVAL_PROVIDER_ROUTE.modelRef,
 	controlPlaneDigest: digest,
 	credentialFingerprintDigest: digest,
 	approvedHardCapMicrousd: PROVIDER_QUALIFICATION_CAP,
@@ -114,10 +118,26 @@ describe("D155 independent provider qualification", () => {
 		).toThrow(/offline/);
 		expect(calls).toBe(0);
 	});
+	it("rejects a rebound provider route before transport or ledger mutation", async () => {
+		let calls = 0;
+		await expect(
+			runNoNetworkProviderQualification({
+				privateRoot: "/not-accessed",
+				ledgerPath: "/not-accessed",
+				expectedLedgerDigest: digest,
+				grant: { ...grant, providerRef: "rebound-provider" as "together" },
+				transport: async () => {
+					calls++;
+					return { status: 200, bytes: response(1) };
+				},
+			}),
+		).rejects.toThrow(/grant scope/u);
+		expect(calls).toBe(0);
+	});
 	it("rejects a reservation that would exceed the shared development ceiling", () => {
 		const ledger = createRootEvalD152Ledger({
 			...ROOT_EVAL_D145_EMPTY_CHARTER_LEDGER,
-			developmentSpentMicrousd: 39_950_001,
+			developmentSpentMicrousd: 44_950_001,
 		});
 		expect(() =>
 			reserveRootEvalQualification(ledger, PROVIDER_QUALIFICATION_REF, digest),
@@ -272,7 +292,7 @@ describe("D155 independent provider qualification", () => {
 		const ledgerPath = join(directory, "ledger.json");
 		try {
 			const historicalReceipt = {
-				executionRef: PROVIDER_QUALIFICATION_REF,
+				executionRef: ROOT_EVAL_HISTORICAL_QUALIFICATION_V1_CONTRACT.executionRef,
 				outcomes: [
 					{
 						request: 1,
@@ -311,7 +331,7 @@ describe("D155 independent provider qualification", () => {
 					ROOT_EVAL_D152_HISTORICAL_QUALIFICATION_V1_PREDECESSOR_DIGEST,
 				qualifications: [
 					{
-						executionRef: PROVIDER_QUALIFICATION_REF,
+						executionRef: ROOT_EVAL_HISTORICAL_QUALIFICATION_V1_CONTRACT.executionRef,
 						grantDigest: digest,
 						status: "settled",
 						accountedUpperBoundMicrousd: 43,

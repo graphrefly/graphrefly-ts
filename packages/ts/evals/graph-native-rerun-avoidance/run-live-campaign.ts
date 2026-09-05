@@ -59,40 +59,35 @@ import {
 	type RootEvalLiveClaim,
 	type RootEvalLiveCredential,
 	type RootEvalLiveCurrentKeyAdmission,
+	type RootEvalLiveExecutionGrant,
 	type RootEvalLivePricingObservation,
 	type RootEvalLiveZeroByokObservation,
 	readRootEvalLiveCurrentKey,
+	readRootEvalLiveExecutionGrant,
 	readRootEvalLivePrecredentialGateReceipt,
 	readRootEvalLivePricing,
 	readRootEvalLiveRefreshablePrecredentialGateReceipt,
 	replaceRootEvalLivePrecredentialGateReceipt,
 } from "./root-eval-live-authority.js";
 import {
-	ROOT_EVAL_D157_HORIZON_SLOTS,
+	ROOT_EVAL_D159_HORIZON_SLOTS,
 	readRootEvalTaskManifest,
 	rootEvalDevelopmentOrdinal,
 	rootEvalTaskBindings,
 } from "./root-eval-task.js";
 import {
 	ensureRootEvalDevelopmentTaskManifest,
-	readRootEvalD157HorizonReceipt,
+	readRootEvalD159HorizonReceipt,
 	readRootEvalFrozenDevelopmentManifestAudit,
 } from "./root-eval-task-manifest-store.js";
 import { settledRootEvalSpend } from "./settled-spend.js";
 
-export const ROOT_EVAL_LIVE_EXECUTION_APPROVAL =
-	"user-authorized:d157-development-5:usd-4.138575:development-usd-40" as const;
-export const ROOT_EVAL_LIVE_EXECUTION_APPROVAL_SLOT = "development-5" as const;
-export const ROOT_EVAL_LIVE_EXECUTION_APPROVAL_HARD_CAP_MICROUSD = 4_138_575 as const;
-export const ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_OPEN = true as const;
 export const ROOT_EVAL_LIVE_MOST_RECENT_SUCCESSFUL_CANONICAL_APPROVAL =
 	"graphrefly-ts:D116" as const;
 export const ROOT_EVAL_LIVE_MOST_RECENT_SUCCESSFUL_CANONICAL_CLOSEOUT =
 	"graphrefly-ts:D117" as const;
 export const ROOT_EVAL_LIVE_CONSUMED_D121_APPROVAL = "graphrefly-ts:D121" as const;
 export const ROOT_EVAL_LIVE_D121_REPAIR_RECEIPT = "graphrefly-ts:D124" as const;
-export const ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_STATE =
-	process.env.GRAPHREFLY_ROOT_EVAL_EXECUTION_AUTHORITY;
 
 const repositoryRoot = resolve(import.meta.dirname, "../../../..");
 const operatorRoot = resolve(import.meta.dirname, "../.private/graph-native-rerun-avoidance");
@@ -105,6 +100,9 @@ const credentialPath = resolve(
 );
 const operatorConfigurationPath = resolve(
 	join(operatorRoot, ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_NAME),
+);
+const executionGrantPath = resolve(
+	join(operatorRoot, "execution-grants", `${ROOT_EVAL_LIVE_GENERATION_REF}.json`),
 );
 const LIVE_FETCH = globalThis.fetch;
 const pnpm = resolve(process.execPath, "../pnpm");
@@ -355,7 +353,10 @@ function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
-async function persistPreclaimFailure(failure: unknown): Promise<never> {
+async function persistPreclaimFailure(
+	failure: unknown,
+	executionGrant: RootEvalLiveExecutionGrant,
+): Promise<never> {
 	const persistence = await persistRootEvalLivePreclaimFailure({
 		privateRoot,
 		implementationManifestDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
@@ -367,7 +368,7 @@ async function persistPreclaimFailure(failure: unknown): Promise<never> {
 	process.stdout.write(
 		`${JSON.stringify({
 			disposition: "preclaim-failure",
-			executionApprovalRef: ROOT_EVAL_LIVE_EXECUTION_APPROVAL,
+			executionApprovalRef: executionGrant.executionRef,
 			generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
 			failureDigest: empiricalStrictJsonDigest({ message: errorMessage(failure) }),
 			persistence,
@@ -446,7 +447,7 @@ async function persistClaimedEvidence(input: {
 	process.stdout.write(
 		`${JSON.stringify({
 			disposition: evidence.disposition,
-			executionApprovalRef: ROOT_EVAL_LIVE_EXECUTION_APPROVAL,
+			executionApprovalRef: input.claim.claimRef,
 			generationRef: evidence.generationRef,
 			claimDigest: evidence.claimDigest,
 			evidenceDigest: evidence.evidenceDigest,
@@ -532,6 +533,12 @@ async function executeClaimedCampaign(input: {
 					: input.charterLedger.confirmatorySpentMicrousd,
 			partitionLedgerDigest: input.charterLedger.ledgerDigest,
 			developmentQualificationStreakBefore: input.charterLedger.developmentQualificationStreak,
+			executionGrantDigest:
+				claim.executionMode === "live"
+					? claim.executionGrantDigest
+					: (() => {
+							throw new TypeError("root eval live campaign requires an execution-bound claim");
+						})(),
 			maxCostMicrousd: Math.min(
 				ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
 				ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD -
@@ -650,19 +657,14 @@ async function main(): Promise<void> {
 	const mode = process.argv[2] ?? "--execute-live";
 	if (mode !== "--execute-live") throw new TypeError("root eval D152 live entry mode was invalid");
 	if (
-		!ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_OPEN ||
-		ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_STATE !== ROOT_EVAL_LIVE_EXECUTION_APPROVAL ||
-		ROOT_EVAL_LIVE_CAMPAIGN_SLOT !== ROOT_EVAL_LIVE_EXECUTION_APPROVAL_SLOT ||
-		ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD !==
-			ROOT_EVAL_LIVE_EXECUTION_APPROVAL_HARD_CAP_MICROUSD ||
-		ROOT_EVAL_LIVE_BUDGET_PARTITION !== "development-usd-40" ||
-		ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD !== 40_000_000 ||
-		!ROOT_EVAL_D157_HORIZON_SLOTS.includes(
-			ROOT_EVAL_LIVE_CAMPAIGN_SLOT as (typeof ROOT_EVAL_D157_HORIZON_SLOTS)[number],
-		) ||
-		ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE !== "development"
+		ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE === "development" &&
+		!ROOT_EVAL_D159_HORIZON_SLOTS.includes(
+			ROOT_EVAL_LIVE_CAMPAIGN_SLOT as (typeof ROOT_EVAL_D159_HORIZON_SLOTS)[number],
+		)
 	)
-		throw new TypeError("root eval D157 development horizon live authority is unavailable");
+		throw new TypeError("root eval D159 development horizon live authority is unavailable");
+	if (ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE === "development") await readRootEvalD159HorizonReceipt();
+	const executionGrant = await readRootEvalLiveExecutionGrant(executionGrantPath);
 	let currentness: RootEvalLiveBoundedCurrentness | undefined;
 	let privateInputs: Awaited<ReturnType<typeof qualifyRootEvalLivePrivateInputs>> | undefined;
 	let pricing: RootEvalLivePricingObservation | undefined;
@@ -678,7 +680,7 @@ async function main(): Promise<void> {
 		const currentOrdinal = rootEvalDevelopmentOrdinal(ROOT_EVAL_LIVE_CAMPAIGN_SLOT)!;
 		if (currentOrdinal !== nextRootEvalD152DevelopmentOrdinal(charterLedger))
 			throw new TypeError("root eval D152 development slot did not follow charter order");
-		await readRootEvalD157HorizonReceipt();
+		await readRootEvalD159HorizonReceipt();
 		for (const [index, entry] of charterLedger.entries.entries()) {
 			const historicalManifest = await readRootEvalFrozenDevelopmentManifestAudit(
 				`development-${index + 1}`,
@@ -695,6 +697,15 @@ async function main(): Promise<void> {
 		String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "development"
 			? charterLedger.developmentSpentMicrousd
 			: charterLedger.confirmatorySpentMicrousd;
+	const qualification = charterLedger.qualifications.find(
+		(entry) => entry.executionRef === executionGrant.providerQualificationExecutionRef,
+	);
+	if (
+		qualification?.status !== "settled" ||
+		qualification.grantDigest !== executionGrant.providerQualificationGrantDigest ||
+		qualification.receipt?.stopReason !== "requests-complete"
+	)
+		throw new TypeError("root eval D159 execution grant lacks a successful Together qualification");
 	if (
 		partitionSpentBeforeMicrousd >= ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD ||
 		(String(ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE) === "development" &&
@@ -724,7 +735,7 @@ async function main(): Promise<void> {
 					process.stdout.write(
 						`${JSON.stringify({
 							disposition: "precredential-gates-passed",
-							executionApprovalRef: ROOT_EVAL_LIVE_EXECUTION_APPROVAL,
+							executionApprovalRef: executionGrant.executionRef,
 							generationRef: ROOT_EVAL_LIVE_GENERATION_REF,
 							completedAtMs: receipt.completedAtMs,
 							receiptDigest: receipt.receiptDigest,
@@ -766,6 +777,8 @@ async function main(): Promise<void> {
 					const taskManifest = readRootEvalTaskManifest(ROOT_EVAL_LIVE_CAMPAIGN_SLOT);
 					acquisition = await acquireRootEvalLiveClaim({
 						privateRoot,
+						executionGrant,
+						executionGrantPath,
 						implementationCoordinate,
 						implementationManifestDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
 						qualificationArtifactDigest: ROOT_EVAL_CURRENT_QUALIFICATION_ARTIFACT_DIGEST,
@@ -803,7 +816,7 @@ async function main(): Promise<void> {
 		});
 	} catch (error) {
 		if (mode === "--execute-live" && preclaimPersistenceArmed && acquisition === undefined)
-			return await persistPreclaimFailure(error);
+			return await persistPreclaimFailure(error, executionGrant);
 		throw error;
 	}
 }

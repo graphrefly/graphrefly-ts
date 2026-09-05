@@ -3,7 +3,7 @@ import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifes
 import { ROOT_EVAL_LIVE_TASK_BINDING_DIGEST } from "./root-eval-live.js";
 
 export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-live-no-network-qa.v54" as const,
+	schemaVersion: "graphrefly-ts.root-eval-live-no-network-qa.v55" as const,
 	togetherCandidateInjectedFiveSourceThirtyTargetQualified: true as const,
 	wrongClaimRouteRejectedBeforeDispatch: true as const,
 	togetherMissingUsageRetainsReservation: true as const,
@@ -85,10 +85,16 @@ export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		"graphrefly-ts:D156",
 		"graphrefly-ts:D157",
 		"graphrefly-ts:D158",
+		"graphrefly-ts:D159",
 	] as const),
 	implementationManifestDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
 	taskBindingDigest: ROOT_EVAL_LIVE_TASK_BINDING_DIGEST,
 	caseResults: Object.freeze({
+		d159SevenBankAllPairsDisjointAndExecutable: "passed" as const,
+		d159TwoBankAtomicPrecommitAndReplayRejection: "passed" as const,
+		d159Mode0600DigestBoundSingleUseExecutionGrant: "passed" as const,
+		d159HistoricalBudgetPartitionsAndUsd45Extension: "passed" as const,
+		d159TogetherQualificationReceiptRequiredBeforeCampaign: "passed" as const,
 		d158TogetherCurrentRouteAndHistoricalFireworksIsolation: "passed" as const,
 		d158NoFixedAggregateElapsedCutoff: "passed" as const,
 		d158FinitePathUsesExecutorSettlementBounds: "passed" as const,
@@ -329,10 +335,10 @@ export const ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT_DIGEST = empiricalStrictJsonD
 
 const qualificationMaterial = Object.freeze({
 	providerSettlementAndTerminalDecisionRef: "graphrefly-ts:D154" as const,
-	schemaVersion: "graphrefly-ts.root-eval-live-qualification.v54" as const,
-	decisionRef: "graphrefly-ts:D158" as const,
+	schemaVersion: "graphrefly-ts.root-eval-live-qualification.v55" as const,
+	decisionRef: "graphrefly-ts:D159" as const,
 	implementationExecutionApprovalRef:
-		"user-authorized-d158-implementation-no-network-2026-09-04" as const,
+		"user-authorized-d159-implementation-no-network-2026-09-05" as const,
 	verificationDiagnosticsImplementationReceiptRef: "graphrefly-ts:D120" as const,
 	mostRecentSuccessfulCanonicalLiveExecutionApprovalRef: "graphrefly-ts:D116" as const,
 	mostRecentSuccessfulCanonicalLiveExecutionCloseoutRef: "graphrefly-ts:D117" as const,
@@ -384,12 +390,13 @@ const qualificationMaterial = Object.freeze({
 	occurrenceBoundCandidateToolDecisionRef: "graphrefly-ts:D156" as const,
 	precommittedDevelopmentHorizonDecisionRef: "graphrefly-ts:D157" as const,
 	occurrenceAwareLivenessAndCurrentRouteDecisionRef: "graphrefly-ts:D158" as const,
+	replacementHorizonAndExecutionGrantDecisionRef: "graphrefly-ts:D159" as const,
 	completionCharterRef: "graphrefly-ts:D145" as const,
 	currentLiveExecutionApprovalClosed: true as const,
 	callerHorizonDecisionRequired: false as const,
 	implementationManifestDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
 	qualificationArtifactDigest: ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT_DIGEST,
-	status: "qualified-no-network-d158-together-route-and-occurrence-liveness" as const,
+	status: "qualified-no-network-d159-replacement-horizon-and-execution-grant" as const,
 });
 
 export const ROOT_EVAL_LIVE_QUALIFICATION = Object.freeze({

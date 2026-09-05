@@ -3,13 +3,13 @@ import { join, relative, resolve } from "node:path";
 import { empiricalSha256, empiricalStrictJsonDigest } from "./canonical.js";
 
 export const CURRENT_QUALIFICATION_DIGEST =
-	"sha256:c6d932b13f05c35516b7ed9fb5ec92cc4d5832d95347bc0ce2a5c8ac4557c7d8" as const;
+	"sha256:7cb827f48c6de6baf327c6ca5394205a2c9f3c6e27b4e2a1efc19da4585768a1" as const;
 export const CURRENT_QUALIFICATION_ARTIFACT_DIGEST =
-	"sha256:d99cc5b69010b45d73016771d12290380a4e38bf9d26049582f8236b078fa2f8" as const;
+	"sha256:51314f724761cb3b37380f626c471fcf5ee46c906bb59764a0aa66bf25fb96ef" as const;
 
 // Updated only after the current closure and its no-network qualification are both frozen.
 export const CURRENT_IMPLEMENTATION_MANIFEST_DIGEST =
-	"sha256:2eb1d11e8f3bb70d559ea5d128abcbb8d4a444ee2b187ae8ba947ec80a6a24c2" as const;
+	"sha256:489818a257323a6015234947d8c464b422dc6237a109daaa4af9351061999400" as const;
 
 export const CURRENT_IMPLEMENTATION_RUNTIME = Object.freeze({
 	node: "v24.18.0" as const,
@@ -52,7 +52,7 @@ async function listRuntimeSources(root: string, directory: string): Promise<read
 export async function measureCurrentImplementation(): Promise<string> {
 	const sources = await measureCurrentImplementationInputs();
 	return empiricalStrictJsonDigest({
-		revision: "graphrefly-ts.d158.current-implementation-manifest.v76",
+		revision: "graphrefly-ts.d159.current-implementation-manifest.v77",
 		runtime: CURRENT_IMPLEMENTATION_RUNTIME,
 		sources,
 	});
@@ -78,6 +78,7 @@ export async function measureCurrentImplementationInputs(): Promise<
 		"harness-campaign-policy.ts",
 		"model-harness-profile-qualification.ts",
 		"model-harness-profile.ts",
+		"measure-root-eval-implementation.ts",
 		"precredential-stage-coordinator.ts",
 		"precredential-environment.mjs",
 		"root-eval-charter-ledger.ts",
@@ -85,6 +86,8 @@ export async function measureCurrentImplementationInputs(): Promise<
 		"root-eval-d152-ledger.ts",
 		"provider-qualification.ts",
 		"provider-qualification-runner.ts",
+		"prepare-root-eval-d159-horizon.ts",
+		"prepare-root-eval-execution-grant.ts",
 		"run-provider-qualification.ts",
 		"root-eval-topology-qualification.ts",
 		"root-eval-live-authority.ts",
@@ -102,6 +105,7 @@ export async function measureCurrentImplementationInputs(): Promise<
 		sources[name] = empiricalSha256(await readFile(join(import.meta.dirname, name)));
 	for (const testName of [
 		"model-harness-profile-current.test.ts",
+		"provider-qualification.test.ts",
 		"solutions-agentic-memory-work-item-root-eval-live.test.ts",
 		"solutions-agentic-memory-work-item-root-eval-topology.test.ts",
 	] as const)

@@ -49,10 +49,12 @@ import {
 import { HARNESS_ARMS } from "./harness-campaign-policy.js";
 import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifest.js";
 import {
-	ROOT_EVAL_D152_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD,
 	ROOT_EVAL_D152_CONFIRMATORY_HARD_CAP_MICROUSD,
 	ROOT_EVAL_D152_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD,
 	ROOT_EVAL_D152_DEVELOPMENT_HARD_CAP_MICROUSD,
+	ROOT_EVAL_D159_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD,
+	ROOT_EVAL_D159_DEVELOPMENT_HARD_CAP_MICROUSD,
+	ROOT_EVAL_D159_TOTAL_HARD_CAP_MICROUSD,
 	rootEvalD152DevelopmentBudgetPartition,
 	rootEvalD152DevelopmentGenerationRef,
 } from "./root-eval-charter-ledger.js";
@@ -85,7 +87,11 @@ export const ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_SCHEMA =
 export const ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_DECISION_REF = "graphrefly-ts:D149" as const;
 export const ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_NAME =
 	"operator-configuration-d149.v1.json" as const;
+export const ROOT_EVAL_LIVE_EXECUTION_GRANT_SCHEMA =
+	"graphrefly-ts.root-eval-execution-grant.v1" as const;
 export const ROOT_EVAL_LIVE_CLAIM_SCHEMA = "graphrefly-ts.root-eval-live-claim.v21" as const;
+export const ROOT_EVAL_LIVE_EXECUTION_CLAIM_SCHEMA =
+	"graphrefly-ts.root-eval-live-claim.v22" as const;
 export const ROOT_EVAL_LIVE_EVIDENCE_SCHEMA = "graphrefly-ts.root-eval-live-evidence.v27" as const;
 export const ROOT_EVAL_LIVE_PRECLAIM_FAILURE_SCHEMA =
 	"graphrefly-ts.root-eval-live-preclaim-failure.v21" as const;
@@ -129,7 +135,9 @@ export const ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD =
 	ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE === "development"
 		? ROOT_EVAL_LIVE_CAMPAIGN_PLAN.budgetPartition === "development-usd-36"
 			? (36_000_000 as const)
-			: ROOT_EVAL_D152_DEVELOPMENT_HARD_CAP_MICROUSD
+			: ROOT_EVAL_LIVE_CAMPAIGN_PLAN.budgetPartition === "development-usd-40"
+				? ROOT_EVAL_D152_DEVELOPMENT_HARD_CAP_MICROUSD
+				: ROOT_EVAL_D159_DEVELOPMENT_HARD_CAP_MICROUSD
 		: ROOT_EVAL_D152_CONFIRMATORY_HARD_CAP_MICROUSD;
 export const ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD =
 	ROOT_EVAL_LIVE_CAMPAIGN_PURPOSE === "development"
@@ -141,8 +149,11 @@ export const ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD =
 					? (4_164_201 as const)
 					: ROOT_EVAL_LIVE_CAMPAIGN_SLOT === "development-5"
 						? (4_138_575 as const)
-						: ROOT_EVAL_D152_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD
-		: ROOT_EVAL_D152_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD;
+						: ROOT_EVAL_LIVE_CAMPAIGN_SLOT === "development-6" ||
+								ROOT_EVAL_LIVE_CAMPAIGN_SLOT === "development-7"
+							? (4_138_575 as const)
+							: ROOT_EVAL_D152_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD
+		: ROOT_EVAL_D159_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD;
 export const ROOT_EVAL_LIVE_REPLICATE_COUNT = ROOT_EVAL_REPLICATE_COUNT;
 export const ROOT_EVAL_LIVE_TASK_SET_REF = ROOT_EVAL_LIVE_CAMPAIGN_PLAN.taskSetRef;
 export const ROOT_EVAL_LIVE_HELD_OUT_SEAL_DIGEST = ROOT_EVAL_HELD_OUT_SEAL_DIGEST;
@@ -156,6 +167,150 @@ export const ROOT_EVAL_CURRENT_QUALIFICATION_ARTIFACT_DIGEST =
 export const ROOT_EVAL_CURRENT_QUALIFICATION_DIGEST =
 	ROOT_EVAL_LIVE_QUALIFICATION.qualificationDigest;
 export const ROOT_EVAL_CURRENT_TASK_BINDING_DIGEST = ROOT_EVAL_LIVE_TASK_BINDING_DIGEST;
+
+export interface RootEvalLiveExecutionGrant {
+	readonly schemaVersion: typeof ROOT_EVAL_LIVE_EXECUTION_GRANT_SCHEMA;
+	readonly decisionRef: "graphrefly-ts:D159";
+	readonly executionRef: string;
+	readonly slot: typeof ROOT_EVAL_LIVE_CAMPAIGN_SLOT;
+	readonly routeContractRevision: typeof CURRENT_ROOT_EVAL_PROVIDER_ROUTE.contractRevision;
+	readonly providerRef: typeof CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerRef;
+	readonly modelRef: typeof CURRENT_ROOT_EVAL_PROVIDER_ROUTE.modelRef;
+	readonly taskSetRef: typeof ROOT_EVAL_LIVE_TASK_SET_REF;
+	readonly taskManifestDigest: string;
+	readonly replicateCount: typeof ROOT_EVAL_LIVE_REPLICATE_COUNT;
+	readonly armOrder: typeof HARNESS_ARMS;
+	readonly campaignHardCapMicrousd: typeof ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD;
+	readonly budgetPartition: typeof ROOT_EVAL_LIVE_BUDGET_PARTITION;
+	readonly partitionHardCapMicrousd: typeof ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD;
+	readonly totalHardCapMicrousd: number;
+	readonly implementationManifestDigest: string;
+	readonly qualificationArtifactDigest: string;
+	readonly qualificationDigest: string;
+	readonly providerQualificationExecutionRef: string;
+	readonly providerQualificationGrantDigest: string;
+	readonly grantDigest: string;
+}
+
+const EXECUTION_GRANT_KEYS = Object.freeze([
+	"schemaVersion",
+	"decisionRef",
+	"executionRef",
+	"slot",
+	"routeContractRevision",
+	"providerRef",
+	"modelRef",
+	"taskSetRef",
+	"taskManifestDigest",
+	"replicateCount",
+	"armOrder",
+	"campaignHardCapMicrousd",
+	"budgetPartition",
+	"partitionHardCapMicrousd",
+	"totalHardCapMicrousd",
+	"implementationManifestDigest",
+	"qualificationArtifactDigest",
+	"qualificationDigest",
+	"providerQualificationExecutionRef",
+	"providerQualificationGrantDigest",
+	"grantDigest",
+]);
+
+export function parseRootEvalLiveExecutionGrant(bytes: Uint8Array): RootEvalLiveExecutionGrant {
+	const value = record(strictJsonCodec.decode(bytes), "root eval execution grant");
+	exactKeys(value, EXECUTION_GRANT_KEYS, "root eval execution grant");
+	const { grantDigest, ...material } = value;
+	if (
+		value.schemaVersion !== ROOT_EVAL_LIVE_EXECUTION_GRANT_SCHEMA ||
+		value.decisionRef !== "graphrefly-ts:D159" ||
+		!/^root-eval-(development-[67]|confirmatory)-together-[a-z0-9-]{1,80}$/u.test(
+			String(value.executionRef),
+		) ||
+		!String(value.executionRef).startsWith(`root-eval-${String(value.slot)}-together-`) ||
+		value.slot !== ROOT_EVAL_LIVE_CAMPAIGN_SLOT ||
+		value.routeContractRevision !== CURRENT_ROOT_EVAL_PROVIDER_ROUTE.contractRevision ||
+		value.providerRef !== CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerRef ||
+		value.modelRef !== CURRENT_ROOT_EVAL_PROVIDER_ROUTE.modelRef ||
+		value.taskSetRef !== ROOT_EVAL_LIVE_TASK_SET_REF ||
+		value.taskManifestDigest !==
+			readRootEvalTaskManifest(ROOT_EVAL_LIVE_CAMPAIGN_SLOT).manifestDigest ||
+		value.replicateCount !== ROOT_EVAL_LIVE_REPLICATE_COUNT ||
+		JSON.stringify(value.armOrder) !== JSON.stringify(HARNESS_ARMS) ||
+		value.campaignHardCapMicrousd !== ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD ||
+		value.budgetPartition !== ROOT_EVAL_LIVE_BUDGET_PARTITION ||
+		value.partitionHardCapMicrousd !== ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD ||
+		value.totalHardCapMicrousd !== ROOT_EVAL_D159_TOTAL_HARD_CAP_MICROUSD ||
+		value.implementationManifestDigest !== ROOT_EVAL_CURRENT_IMPLEMENTATION_MANIFEST_DIGEST ||
+		value.qualificationArtifactDigest !== ROOT_EVAL_CURRENT_QUALIFICATION_ARTIFACT_DIGEST ||
+		value.qualificationDigest !== ROOT_EVAL_CURRENT_QUALIFICATION_DIGEST ||
+		!/^provider-qualification-together-[a-z0-9-]{1,100}$/u.test(
+			String(value.providerQualificationExecutionRef),
+		) ||
+		!/^sha256:[a-f0-9]{64}$/u.test(String(value.providerQualificationGrantDigest)) ||
+		grantDigest !== empiricalStrictJsonDigest(material)
+	)
+		throw new TypeError("root eval D159 execution grant did not match the current closure");
+	return Object.freeze({
+		...value,
+		armOrder: HARNESS_ARMS,
+	}) as unknown as RootEvalLiveExecutionGrant;
+}
+
+export async function readRootEvalLiveExecutionGrant(
+	path: string,
+): Promise<RootEvalLiveExecutionGrant> {
+	return parseRootEvalLiveExecutionGrant(await readRootEvalPrivateFile(path, 16_384));
+}
+
+export function createRootEvalLiveExecutionGrant(input: {
+	readonly executionRef: string;
+	readonly providerQualificationExecutionRef: string;
+	readonly providerQualificationGrantDigest: string;
+}): RootEvalLiveExecutionGrant {
+	const taskManifest = readRootEvalTaskManifest(ROOT_EVAL_LIVE_CAMPAIGN_SLOT);
+	const material = strictSnapshot({
+		schemaVersion: ROOT_EVAL_LIVE_EXECUTION_GRANT_SCHEMA,
+		decisionRef: "graphrefly-ts:D159" as const,
+		executionRef: input.executionRef,
+		slot: ROOT_EVAL_LIVE_CAMPAIGN_SLOT,
+		routeContractRevision: CURRENT_ROOT_EVAL_PROVIDER_ROUTE.contractRevision,
+		providerRef: CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerRef,
+		modelRef: CURRENT_ROOT_EVAL_PROVIDER_ROUTE.modelRef,
+		taskSetRef: ROOT_EVAL_LIVE_TASK_SET_REF,
+		taskManifestDigest: taskManifest.manifestDigest,
+		replicateCount: ROOT_EVAL_LIVE_REPLICATE_COUNT,
+		armOrder: HARNESS_ARMS,
+		campaignHardCapMicrousd: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
+		budgetPartition: ROOT_EVAL_LIVE_BUDGET_PARTITION,
+		partitionHardCapMicrousd: ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD,
+		totalHardCapMicrousd: ROOT_EVAL_D159_TOTAL_HARD_CAP_MICROUSD,
+		implementationManifestDigest: ROOT_EVAL_CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
+		qualificationArtifactDigest: ROOT_EVAL_CURRENT_QUALIFICATION_ARTIFACT_DIGEST,
+		qualificationDigest: ROOT_EVAL_CURRENT_QUALIFICATION_DIGEST,
+		providerQualificationExecutionRef: input.providerQualificationExecutionRef,
+		providerQualificationGrantDigest: input.providerQualificationGrantDigest,
+	});
+	return parseRootEvalLiveExecutionGrant(
+		strictJsonCodec.encode({ ...material, grantDigest: empiricalStrictJsonDigest(material) }),
+	);
+}
+
+export async function persistRootEvalLiveExecutionGrant(
+	path: string,
+	grant: RootEvalLiveExecutionGrant,
+): Promise<void> {
+	parseRootEvalLiveExecutionGrant(strictJsonCodec.encode(grant));
+	const parent = await ensurePrivateRoot(dirname(resolve(path)));
+	if (join(parent, `${ROOT_EVAL_LIVE_GENERATION_REF}.json`) !== resolve(path))
+		throw new TypeError("root eval D159 execution grant path invalid");
+	const failureDigest = await installExclusivePrivateFile(
+		parent,
+		`${ROOT_EVAL_LIVE_GENERATION_REF}.json`,
+		strictJsonCodec.encode(grant),
+	);
+	if (failureDigest !== null)
+		throw new TypeError("root eval D159 execution grant post-commit verification failed");
+}
 export const ROOT_EVAL_HISTORICAL_D85_IMPLEMENTATION_MANIFEST_DIGEST =
 	"sha256:67c7c1cdae92a696200ee740e20e1ffd77b10fd1e3def0bda4999db206bbdc37" as const;
 export const ROOT_EVAL_HISTORICAL_D85_QUALIFICATION_ARTIFACT_DIGEST =
@@ -382,8 +537,7 @@ export interface RootEvalLiveCurrentKeyAdmission {
 	readonly admissionDigest: string;
 }
 
-export interface RootEvalLiveClaim {
-	readonly schemaVersion: typeof ROOT_EVAL_LIVE_CLAIM_SCHEMA;
+interface RootEvalLiveClaimBase {
 	readonly executionMode: "live" | "no-network-qualification";
 	readonly claimRef: typeof ROOT_EVAL_LIVE_CLAIM_REF;
 	readonly decisionRef: typeof ROOT_EVAL_LIVE_DECISION_REF;
@@ -417,6 +571,20 @@ export interface RootEvalLiveClaim {
 	readonly localEvalNoResetLimitMicrousd: 32_000_000;
 	readonly claimDigest: string;
 }
+
+export interface RootEvalLiveNoNetworkClaim extends RootEvalLiveClaimBase {
+	readonly schemaVersion: typeof ROOT_EVAL_LIVE_CLAIM_SCHEMA;
+	readonly executionMode: "no-network-qualification";
+}
+
+export interface RootEvalLiveExecutionClaim extends RootEvalLiveClaimBase {
+	readonly schemaVersion: typeof ROOT_EVAL_LIVE_EXECUTION_CLAIM_SCHEMA;
+	readonly executionMode: "live";
+	readonly executionRef: string;
+	readonly executionGrantDigest: string;
+}
+
+export type RootEvalLiveClaim = RootEvalLiveNoNetworkClaim | RootEvalLiveExecutionClaim;
 
 export interface RootEvalLiveClaimCommit {
 	readonly claim: RootEvalLiveClaim;
@@ -1583,6 +1751,8 @@ export async function readRootEvalLiveCurrentKey(input: {
 
 export interface RootEvalLiveClaimInput {
 	readonly privateRoot: string;
+	readonly executionGrant?: RootEvalLiveExecutionGrant;
+	readonly executionGrantPath?: string;
 	readonly implementationCoordinate: string;
 	readonly implementationManifestDigest: string;
 	readonly qualificationArtifactDigest: string;
@@ -1602,6 +1772,7 @@ export interface RootEvalLiveClaimInput {
 async function acquireRootEvalLiveClaimInternal(
 	input: RootEvalLiveClaimInput,
 	qualificationOnly: boolean,
+	syntheticLiveAuthority = false,
 ): Promise<RootEvalLiveClaimCommit> {
 	const pricingProvenance = RootEvalLiveAdmissionCapability.provenance(input.pricing);
 	const zeroByokProvenance = RootEvalLiveAdmissionCapability.provenance(input.zeroByok);
@@ -1612,7 +1783,29 @@ async function acquireRootEvalLiveClaimInternal(
 	const partitionLedgerDigest =
 		input.partitionLedgerDigest ?? empiricalStrictJsonDigest({ kind: "d152-empty-test-ledger" });
 	const developmentQualificationStreakBefore = input.developmentQualificationStreakBefore ?? 0;
+	const executionGrant = input.executionGrant;
+	const executionGrantPath = input.executionGrantPath;
 	const preclaimChecks = [
+		[
+			"execution-grant",
+			qualificationOnly
+				? executionGrant === undefined && executionGrantPath === undefined
+				: executionGrant !== undefined &&
+					executionGrantPath !== undefined &&
+					executionGrant.executionRef.startsWith(
+						`root-eval-${ROOT_EVAL_LIVE_CAMPAIGN_SLOT}-together-`,
+					) &&
+					executionGrant.slot === ROOT_EVAL_LIVE_CAMPAIGN_SLOT &&
+					executionGrant.taskManifestDigest === input.taskManifestDigest &&
+					executionGrant.campaignHardCapMicrousd === ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD &&
+					executionGrant.partitionHardCapMicrousd === ROOT_EVAL_LIVE_PARTITION_HARD_CAP_MICROUSD &&
+					executionGrant.grantDigest ===
+						empiricalStrictJsonDigest(
+							Object.fromEntries(
+								Object.entries(executionGrant).filter(([key]) => key !== "grantDigest"),
+							),
+						),
+		],
 		[
 			"implementation-manifest",
 			input.implementationManifestDigest === ROOT_EVAL_CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
@@ -1681,6 +1874,7 @@ async function acquireRootEvalLiveClaimInternal(
 		[
 			"authority-provenance",
 			qualificationOnly ||
+				syntheticLiveAuthority ||
 				(input.nowMs === undefined &&
 					pricingProvenance?.controlPlaneTransport === true &&
 					pricingProvenance.trustedClock &&
@@ -1711,8 +1905,22 @@ async function acquireRootEvalLiveClaimInternal(
 	)
 		throw new TypeError("root eval D152 claim task manifest did not match the current closure");
 	const privateRoot = await ensurePrivateRoot(input.privateRoot);
-	const material = strictSnapshot({
-		schemaVersion: ROOT_EVAL_LIVE_CLAIM_SCHEMA,
+	let admittedExecutionGrant: RootEvalLiveExecutionGrant | undefined;
+	if (!qualificationOnly) {
+		const path = resolve(executionGrantPath!);
+		if (!isAbsolute(executionGrantPath!) || dirname(path) === privateRoot)
+			throw new TypeError("root eval D159 execution grant path invalid");
+		admittedExecutionGrant = await readRootEvalLiveExecutionGrant(path);
+		if (
+			admittedExecutionGrant.grantDigest !== executionGrant!.grantDigest ||
+			!sameBytes(
+				strictJsonCodec.encode(admittedExecutionGrant),
+				strictJsonCodec.encode(executionGrant),
+			)
+		)
+			throw new TypeError("root eval D159 execution grant changed before claim acquisition");
+	}
+	const commonMaterial = {
 		executionMode: qualificationOnly ? ("no-network-qualification" as const) : ("live" as const),
 		claimRef: ROOT_EVAL_LIVE_CLAIM_REF,
 		decisionRef: ROOT_EVAL_LIVE_DECISION_REF,
@@ -1747,13 +1955,71 @@ async function acquireRootEvalLiveClaimInternal(
 		}),
 		campaignHardCapMicrousd: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD,
 		localEvalNoResetLimitMicrousd: ROOT_EVAL_LIVE_KEY_LIMIT_MICROUSD,
-	});
-	const claim = Object.freeze({ ...material, claimDigest: empiricalStrictJsonDigest(material) });
-	const postCommitFailureDigest = await installExclusivePrivateFile(
+	};
+	const material = strictSnapshot(
+		qualificationOnly
+			? {
+					schemaVersion: ROOT_EVAL_LIVE_CLAIM_SCHEMA,
+					...commonMaterial,
+				}
+			: {
+					schemaVersion: ROOT_EVAL_LIVE_EXECUTION_CLAIM_SCHEMA,
+					...commonMaterial,
+					executionRef: admittedExecutionGrant!.executionRef,
+					executionGrantDigest: admittedExecutionGrant!.grantDigest,
+				},
+	);
+	const claim = Object.freeze({
+		...material,
+		claimDigest: empiricalStrictJsonDigest(material),
+	}) as RootEvalLiveClaim;
+	const claimPostCommitFailureDigest = await installExclusivePrivateFile(
 		privateRoot,
 		`.${ROOT_EVAL_LIVE_GENERATION_REF}.disposition.v21.json`,
 		strictJsonCodec.encode(claim),
 	);
+	let grantConsumptionFailureDigest: string | null = null;
+	if (!qualificationOnly)
+		try {
+			const path = resolve(executionGrantPath!);
+			const consumedPath = `${path}.consumed-${claim.claimDigest}.json`;
+			await link(path, consumedPath);
+			const linked = await open(consumedPath, constants.O_RDONLY | constants.O_NOFOLLOW);
+			try {
+				const linkedStat = await linked.stat();
+				const linkedBytes = new Uint8Array(await linked.readFile());
+				if (
+					linkedStat.nlink !== 2 ||
+					!sameBytes(linkedBytes, strictJsonCodec.encode(admittedExecutionGrant))
+				)
+					throw new TypeError("root eval D159 linked execution grant bytes drifted");
+			} finally {
+				await linked.close();
+			}
+			await rm(path);
+			const directory = await open(dirname(path), constants.O_RDONLY | constants.O_DIRECTORY);
+			try {
+				await directory.sync();
+			} finally {
+				await directory.close();
+			}
+			const consumed = await readRootEvalLiveExecutionGrant(consumedPath);
+			if (consumed.grantDigest !== admittedExecutionGrant!.grantDigest)
+				throw new TypeError("root eval D159 consumed execution grant bytes drifted");
+		} catch (error) {
+			grantConsumptionFailureDigest = empiricalStrictJsonDigest({
+				kind: "root-eval-execution-grant-consumption-failure",
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
+	const postCommitFailureDigest =
+		claimPostCommitFailureDigest === null && grantConsumptionFailureDigest === null
+			? null
+			: empiricalStrictJsonDigest({
+					kind: "root-eval-claim-post-commit-failure",
+					claimPostCommitFailureDigest,
+					grantConsumptionFailureDigest,
+				});
 	return new RootEvalLiveClaimCommitCapability(claim, postCommitFailureDigest, privateRoot);
 }
 
@@ -1774,6 +2040,23 @@ export async function acquireRootEvalLiveClaimForNoNetworkQualification(
 	)
 		throw new TypeError("root eval qualification claim was not isolated synthetic authority");
 	return await acquireRootEvalLiveClaimInternal(input, true);
+}
+
+/** @internal Exercises D159 live grant consumption without granting network authority. */
+export async function acquireRootEvalLiveExecutionClaimForNoNetworkQualification(
+	input: RootEvalLiveClaimInput,
+): Promise<RootEvalLiveClaimCommit> {
+	const root = await realpath(input.privateRoot);
+	const temporaryRoot = await realpath(tmpdir());
+	if (
+		process.env.NODE_ENV !== "test" ||
+		!root.startsWith(`${temporaryRoot}/`) ||
+		input.credential.bearerToken !== "sk-or-v1-a44-middle-credential-e06"
+	)
+		throw new TypeError(
+			"root eval execution-claim qualification was not isolated synthetic authority",
+		);
+	return await acquireRootEvalLiveClaimInternal(input, false, true);
 }
 
 export async function persistRootEvalLivePreclaimFailure(input: {
@@ -1995,7 +2278,7 @@ const ROOT_EVAL_SOLUTION_IDENTITIES = Object.freeze([
 	"agentic-memory-retrieval",
 ] as const);
 
-const CLAIM_KEYS = Object.freeze([
+const CLAIM_V21_KEYS = Object.freeze([
 	"schemaVersion",
 	"executionMode",
 	"claimRef",
@@ -2026,6 +2309,14 @@ const CLAIM_KEYS = Object.freeze([
 	"localEvalNoResetLimitMicrousd",
 	"claimDigest",
 ]);
+const CLAIM_V22_KEYS = Object.freeze([...CLAIM_V21_KEYS, "executionRef", "executionGrantDigest"]);
+
+function rootEvalLiveClaimKeys(value: unknown): readonly string[] {
+	return (value as { readonly schemaVersion?: unknown })?.schemaVersion ===
+		ROOT_EVAL_LIVE_EXECUTION_CLAIM_SCHEMA
+		? CLAIM_V22_KEYS
+		: CLAIM_V21_KEYS;
+}
 const CLAIM_RECOVERY_ENVELOPE_KEYS = Object.freeze(["pricing", "zeroByok", "currentKeyBefore"]);
 const PRICING_KEYS = Object.freeze([
 	"sourceUrl",
@@ -2580,6 +2871,7 @@ function projectObservation(value: unknown, index: number): ParsedEvalObservatio
 		[
 			"kind",
 			"topologyRevision",
+			"executionGrantDigest",
 			"solutionIdentities",
 			"campaignRef",
 			"campaignPurpose",
@@ -2670,6 +2962,10 @@ function projectObservation(value: unknown, index: number): ParsedEvalObservatio
 			raw.topologyRevision,
 			ROOT_EVAL_TOPOLOGY_REVISION,
 			"root eval observation.topologyRevision",
+		),
+		executionGrantDigest: digest(
+			raw.executionGrantDigest,
+			"root eval observation.executionGrantDigest",
 		),
 		solutionIdentities: ROOT_EVAL_SOLUTION_IDENTITIES,
 		campaignRef: literal(
@@ -3078,7 +3374,7 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 	}> | null;
 	readonly projectedGraph: RootEvalLiveGraphEvidence | null;
 }> {
-	const claimShape = hasExactPlainShape(input.claim, CLAIM_KEYS);
+	const claimShape = hasExactPlainShape(input.claim, rootEvalLiveClaimKeys(input.claim));
 	const pricingShape = hasExactPlainShape(input.pricing, PRICING_KEYS);
 	const zeroByokShape = hasExactPlainShape(input.zeroByok, ZERO_BYOK_KEYS);
 	const currentBeforeShape =
@@ -3164,7 +3460,16 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 		],
 		[
 			"authority.claim-schema-mismatch",
-			claimShape && claim.schemaVersion === ROOT_EVAL_LIVE_CLAIM_SCHEMA,
+			claimShape &&
+				((claim.executionMode === "live" &&
+					claim.schemaVersion === ROOT_EVAL_LIVE_EXECUTION_CLAIM_SCHEMA &&
+					typeof claim.executionRef === "string" &&
+					String(claim.executionRef).startsWith(
+						`root-eval-${ROOT_EVAL_LIVE_CAMPAIGN_SLOT}-together-`,
+					) &&
+					isDigest(claim.executionGrantDigest)) ||
+					(claim.executionMode === "no-network-qualification" &&
+						claim.schemaVersion === ROOT_EVAL_LIVE_CLAIM_SCHEMA)),
 		],
 		[
 			"authority.claim-execution-mode-invalid",
@@ -3418,6 +3723,13 @@ export function evaluateRootEvalLiveAdmission(input: RootEvalLiveEvidenceInput):
 				: (claim.developmentQualificationStreakBefore as number);
 	const terminalObservationStateValid =
 		terminalObservation !== undefined &&
+		(claim.executionMode !== "live" ||
+			(projected.observations.every(
+				(observation) => observation.value.executionGrantDigest === claim.executionGrantDigest,
+			) &&
+				(input.budgetReceipt === undefined ||
+					input.budgetReceipt === null ||
+					input.budgetReceipt.executionGrantDigest === claim.executionGrantDigest))) &&
 		terminalObservation.replicate === (lastExecutedReplicate ?? ROOT_EVAL_LIVE_REPLICATE_COUNT) &&
 		terminalObservation.replicateCount === ROOT_EVAL_LIVE_REPLICATE_COUNT &&
 		terminalObservation.partitionHardCapMicrousd === claim.partitionHardCapMicrousd &&
@@ -4305,20 +4617,33 @@ function validateRootEvalLiveEvidenceForPersistence(value: RootEvalLiveEvidence)
 
 function validateCurrentCommittedClaim(value: unknown): RootEvalLiveClaim {
 	const claim = record(value, "root eval live committed claim");
-	exactKeys(claim, CLAIM_KEYS, "root eval live committed claim");
+	exactKeys(claim, rootEvalLiveClaimKeys(claim), "root eval live committed claim");
 	if (!validatesOwnDigest(claim, "claimDigest"))
 		throw new TypeError("root eval live committed claim digest invalid");
 	recoverRootEvalLiveClaimAuthority(claim as unknown as RootEvalLiveClaim);
-	literal(
-		claim.schemaVersion,
-		ROOT_EVAL_LIVE_CLAIM_SCHEMA,
-		"root eval live committed claim schema",
-	);
 	oneOf(
 		claim.executionMode,
 		["live", "no-network-qualification"] as const,
 		"root eval live committed claim execution mode",
 	);
+	if (claim.executionMode === "live") {
+		literal(
+			claim.schemaVersion,
+			ROOT_EVAL_LIVE_EXECUTION_CLAIM_SCHEMA,
+			"root eval live committed execution claim schema",
+		);
+		if (
+			typeof claim.executionRef !== "string" ||
+			!claim.executionRef.startsWith(`root-eval-${ROOT_EVAL_LIVE_CAMPAIGN_SLOT}-together-`)
+		)
+			throw new TypeError("root eval live execution claim ref invalid");
+		digest(claim.executionGrantDigest, "root eval live execution claim grant digest");
+	} else
+		literal(
+			claim.schemaVersion,
+			ROOT_EVAL_LIVE_CLAIM_SCHEMA,
+			"root eval live no-network claim schema",
+		);
 	literal(claim.claimRef, ROOT_EVAL_LIVE_CLAIM_REF, "root eval live committed claim ref");
 	literal(
 		claim.decisionRef,
@@ -4470,6 +4795,22 @@ function validateCommittedClaimForEvidence(
 	] as const)
 		if (claim[claimKey] !== evidence[evidenceKey])
 			throw new TypeError(`root eval live evidence was not bound to committed claim ${claimKey}`);
+	if (claim.executionMode === "live") {
+		if (
+			evidence.budgetReceipt !== null &&
+			evidence.budgetReceipt.executionGrantDigest !== claim.executionGrantDigest
+		)
+			throw new TypeError("root eval live budget was not bound to the execution grant");
+		const observationEvents = [
+			...evidence.partialGraphObservations,
+			...(evidence.graphResult?.observations ?? []),
+		];
+		for (const [index, event] of observationEvents.entries())
+			if (
+				projectObservation(event, index).value.executionGrantDigest !== claim.executionGrantDigest
+			)
+				throw new TypeError("root eval live observation was not bound to the execution grant");
+	}
 	if (evidence.stoppedTerminal !== null)
 		validateStoppedTerminal(
 			evidence.stoppedTerminal,

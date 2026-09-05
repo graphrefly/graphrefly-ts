@@ -16,8 +16,8 @@ import {
 import {
 	ROOT_EVAL_D152_CONFIRMATORY_HARD_CAP_MICROUSD,
 	ROOT_EVAL_D152_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD,
-	ROOT_EVAL_D152_DEVELOPMENT_HARD_CAP_MICROUSD,
-	ROOT_EVAL_D152_TOTAL_HARD_CAP_MICROUSD,
+	ROOT_EVAL_D159_DEVELOPMENT_HARD_CAP_MICROUSD,
+	ROOT_EVAL_D159_TOTAL_HARD_CAP_MICROUSD,
 	type RootEvalD145CharterLedger,
 	readRootEvalD145CharterLedger,
 	rootEvalD152DevelopmentBudgetPartition,
@@ -118,10 +118,10 @@ export function createRootEvalD152Ledger(
 		qualifications: [],
 	});
 	if (
-		value.developmentSpentMicrousd > ROOT_EVAL_D152_DEVELOPMENT_HARD_CAP_MICROUSD ||
+		value.developmentSpentMicrousd > ROOT_EVAL_D159_DEVELOPMENT_HARD_CAP_MICROUSD ||
 		value.confirmatorySpentMicrousd > ROOT_EVAL_D152_CONFIRMATORY_HARD_CAP_MICROUSD ||
 		value.developmentSpentMicrousd + value.confirmatorySpentMicrousd >
-			ROOT_EVAL_D152_TOTAL_HARD_CAP_MICROUSD
+			ROOT_EVAL_D159_TOTAL_HARD_CAP_MICROUSD
 	)
 		throw new TypeError("root eval D152 carried spend exceeds the approved cumulative cap");
 	return Object.freeze({ ...value, ledgerDigest: empiricalStrictJsonDigest(value) });
@@ -208,7 +208,7 @@ function validate(value: unknown): RootEvalD152Ledger {
 	const carriedDevelopmentSpentMicrousd = safeInteger(
 		root.carriedDevelopmentSpentMicrousd,
 		"root eval D152 carried development spend",
-		{ max: ROOT_EVAL_D152_DEVELOPMENT_HARD_CAP_MICROUSD },
+		{ max: ROOT_EVAL_D159_DEVELOPMENT_HARD_CAP_MICROUSD },
 	);
 	const carriedConfirmatorySpentMicrousd = safeInteger(
 		root.carriedConfirmatorySpentMicrousd,
@@ -218,7 +218,7 @@ function validate(value: unknown): RootEvalD152Ledger {
 	const developmentSpentMicrousd = safeInteger(
 		root.developmentSpentMicrousd,
 		"root eval D152 development spend",
-		{ max: ROOT_EVAL_D152_DEVELOPMENT_HARD_CAP_MICROUSD },
+		{ max: ROOT_EVAL_D159_DEVELOPMENT_HARD_CAP_MICROUSD },
 	);
 	const confirmatorySpentMicrousd = safeInteger(
 		root.confirmatorySpentMicrousd,
@@ -625,11 +625,13 @@ export function advanceRootEvalD152Ledger(input: {
 		"root eval D152 accounted upper bound",
 		{ max: ROOT_EVAL_D152_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD },
 	);
+	const developmentPartitionHardCapMicrousd =
+		ordinal !== null && ordinal <= 5 ? 40_000_000 : ROOT_EVAL_D159_DEVELOPMENT_HARD_CAP_MICROUSD;
 	if (
 		accountedUpperBoundMicrousd !==
 			providerReportedMicrousd + unreportedSettledUpperBoundMicrousd ||
 		ledger.developmentSpentMicrousd + accountedUpperBoundMicrousd >
-			ROOT_EVAL_D152_DEVELOPMENT_HARD_CAP_MICROUSD
+			developmentPartitionHardCapMicrousd
 	)
 		throw new TypeError("root eval D152 spend boundary exceeded");
 	const generationQualified =

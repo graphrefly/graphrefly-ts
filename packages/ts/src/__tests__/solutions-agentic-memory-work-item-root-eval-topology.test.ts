@@ -1015,7 +1015,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(ids).toContain("eval/time/progress-lease");
 	});
 
-	it("freezes D158 no-network qualification with live authority closed", async () => {
+	it("freezes D159 no-network qualification with live authority closed", async () => {
 		expect(await measureCurrentImplementation()).toBe(CURRENT_IMPLEMENTATION_MANIFEST_DIGEST);
 		const implementationInputs = await measureCurrentImplementationInputs();
 		for (const required of [
@@ -1062,10 +1062,10 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"graphrefly-ts.root-eval-live-precredential-gates.v6",
 		);
 		expect(ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-no-network-qa.v54",
+			"graphrefly-ts.root-eval-live-no-network-qa.v55",
 		);
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-qualification.v54",
+			"graphrefly-ts.root-eval-live-qualification.v55",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
 			"graphrefly-ts.root-eval-topology-no-network-qa.v49",
@@ -1114,9 +1114,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.responseHorizonIncidentClosureRef).toBe(
 			"graphrefly-ts:D93",
 		);
-		expect(ROOT_EVAL_LIVE_QUALIFICATION.decisionRef).toBe("graphrefly-ts:D158");
+		expect(ROOT_EVAL_LIVE_QUALIFICATION.decisionRef).toBe("graphrefly-ts:D159");
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.implementationExecutionApprovalRef).toBe(
-			"user-authorized-d158-implementation-no-network-2026-09-04",
+			"user-authorized-d159-implementation-no-network-2026-09-05",
 		);
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.efficacyBillingSeparationDecisionRef).toBe(
 			"graphrefly-ts:D113",
@@ -1189,7 +1189,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			precredentialGateChronologyExecutionApprovalRef: "graphrefly-ts:D138",
 			currentLiveExecutionApprovalClosed: true,
 			callerHorizonDecisionRequired: false,
-			status: "qualified-no-network-d158-together-route-and-occurrence-liveness",
+			status: "qualified-no-network-d159-replacement-horizon-and-execution-grant",
 			occurrenceAwareSolutionDeliveryDecisionRef: "graphrefly-ts:D151",
 			orthogonalMechanismFamilyDecisionRef: "graphrefly-ts:D152",
 			occurrenceBoundCandidateToolDecisionRef: "graphrefly-ts:D156",
@@ -1278,14 +1278,11 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		);
 		expect(liveEntry).toMatch(/ROOT_EVAL_LIVE_CONSUMED_D121_APPROVAL = "graphrefly-ts:D121"/u);
 		expect(liveEntry).toMatch(/ROOT_EVAL_LIVE_D121_REPAIR_RECEIPT = "graphrefly-ts:D124"/u);
-		expect(liveEntry).toMatch(
-			/ROOT_EVAL_LIVE_EXECUTION_APPROVAL =\s*"user-authorized:d157-development-5:usd-4\.138575:development-usd-40"/u,
-		);
-		expect(liveEntry).toMatch(/ROOT_EVAL_LIVE_EXECUTION_APPROVAL_SLOT = "development-5"/u);
-		expect(liveEntry).toMatch(/ROOT_EVAL_LIVE_EXECUTION_APPROVAL_HARD_CAP_MICROUSD = 4_138_575/u);
-		expect(liveEntry).toMatch(
-			/ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_STATE =\s*process\.env\.GRAPHREFLY_ROOT_EVAL_EXECUTION_AUTHORITY/u,
-		);
+		expect(liveEntry).toMatch(/readRootEvalLiveExecutionGrant\(executionGrantPath\)/u);
+		expect(liveEntry).toMatch(/ROOT_EVAL_D159_HORIZON_SLOTS\.includes/u);
+		expect(liveEntry).toMatch(/await readRootEvalD159HorizonReceipt\(\)/u);
+		expect(liveEntry).not.toMatch(/ROOT_EVAL_LIVE_EXECUTION_AUTHORITY_OPEN/u);
+		expect(liveEntry).not.toMatch(/GRAPHREFLY_ROOT_EVAL_EXECUTION_AUTHORITY/u);
 		expect(liveEntry).toMatch(
 			/join\(operatorRoot, `current-\$\{ROOT_EVAL_LIVE_GENERATION_REF\}`\)/u,
 		);
@@ -1331,7 +1328,6 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(liveEntry).toMatch(
 			/async function assertBoundedCurrentness\(\): Promise<RootEvalLiveBoundedCurrentness>[\s\S]+measureCurrentImplementation\(\)[\s\S]+checkRootEvalGeneratedArtifactSnapshot\(\)[\s\S]+runGit\(\["rev-parse", "HEAD"\]\)[\s\S]+"diff", "HEAD"/u,
 		);
-		expect(liveEntry).toContain("process.env.GRAPHREFLY_ROOT_EVAL_EXECUTION_AUTHORITY");
 		expect(liveEntry).toMatch(/acquisition = await acquireRootEvalLiveClaim/u);
 		expect(liveEntry).toMatch(/createRootEvalLiveExecutor/u);
 		expect(liveEntry).toMatch(

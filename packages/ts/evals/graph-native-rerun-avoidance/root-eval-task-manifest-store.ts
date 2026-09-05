@@ -1,6 +1,6 @@
 import { randomBytes, randomInt } from "node:crypto";
 import { constants } from "node:fs";
-import { chmod, lstat, mkdir, open, realpath, rename, rm } from "node:fs/promises";
+import { chmod, lstat, mkdir, open, readdir, realpath, rename, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve, sep } from "node:path";
 import { strictJsonCodec } from "../../src/json/codec.js";
@@ -16,15 +16,19 @@ import {
 } from "./root-eval-d152-ledger.js";
 import {
 	bindRootEvalD157HorizonManifests,
+	bindRootEvalD159HorizonManifests,
 	createRootEvalTaskManifest,
 	isRootEvalSupportedDevelopmentSlot,
 	ROOT_EVAL_D157_HORIZON_DIRECTORY_NAME,
 	ROOT_EVAL_D157_HORIZON_SLOTS,
+	ROOT_EVAL_D159_HORIZON_DIRECTORY_NAME,
+	ROOT_EVAL_D159_HORIZON_SLOTS,
 	ROOT_EVAL_SUPPORTED_DEVELOPMENT_SLOTS,
 	ROOT_EVAL_TASK_MANIFEST_SCHEMA,
 	type RootEvalTaskManifest,
 	type RootEvalTaskManifestSlot,
 	readRootEvalTaskManifest,
+	rootEvalD159DevelopmentRegistryPairwiseAudit,
 	rootEvalDevelopmentOrdinal,
 	rootEvalDevelopmentRegistryPairwiseAudit,
 	rootEvalDevelopmentTaskSetRef,
@@ -40,6 +44,11 @@ export const ROOT_EVAL_D157_HORIZON_RECEIPT_SCHEMA =
 export const ROOT_EVAL_D157_HORIZON_RECEIPT_NAME = "receipt.json" as const;
 export const ROOT_EVAL_D157_HORIZON_RECEIPT_DIGEST =
 	"sha256:2fbf99acecde8f1a4ffe3a494479e5ab7dfc1de2bee5f5947312dda7f6c5025b" as const;
+export const ROOT_EVAL_D159_HORIZON_RECEIPT_SCHEMA =
+	"graphrefly-ts.root-eval-d159-development-horizon.v1" as const;
+export const ROOT_EVAL_D159_HORIZON_RECEIPT_NAME = "receipt.json" as const;
+export const ROOT_EVAL_D159_HORIZON_RECEIPT_DIGEST =
+	"sha256:e1f699790dcdf11143384e86d67c705f5d6527d855e28df58b01ad765a6e82ac" as const;
 const ROOT_EVAL_FROZEN_PRE_D156_MANIFEST_SCHEMA =
 	"graphrefly-ts.root-eval-d152-mechanism-manifest.v7" as const;
 
@@ -49,6 +58,19 @@ export interface RootEvalD157HorizonReceipt {
 	readonly slots: typeof ROOT_EVAL_D157_HORIZON_SLOTS;
 	readonly manifests: readonly Readonly<{
 		readonly slot: (typeof ROOT_EVAL_D157_HORIZON_SLOTS)[number];
+		readonly taskSetRef: string;
+		readonly manifestDigest: string;
+	}>[];
+	readonly receiptDigest: string;
+}
+
+export interface RootEvalD159HorizonReceipt {
+	readonly schemaVersion: typeof ROOT_EVAL_D159_HORIZON_RECEIPT_SCHEMA;
+	readonly decisionRef: "graphrefly-ts:D159";
+	readonly predecessorReceiptDigest: typeof ROOT_EVAL_D157_HORIZON_RECEIPT_DIGEST;
+	readonly slots: typeof ROOT_EVAL_D159_HORIZON_SLOTS;
+	readonly manifests: readonly Readonly<{
+		readonly slot: (typeof ROOT_EVAL_D159_HORIZON_SLOTS)[number];
 		readonly taskSetRef: string;
 		readonly manifestDigest: string;
 	}>[];
@@ -177,6 +199,26 @@ function horizonReceiptMaterial(
 	});
 }
 
+function d159HorizonReceiptMaterial(
+	manifests: readonly RootEvalFrozenDevelopmentManifestAudit[],
+): Omit<RootEvalD159HorizonReceipt, "receiptDigest"> {
+	return Object.freeze({
+		schemaVersion: ROOT_EVAL_D159_HORIZON_RECEIPT_SCHEMA,
+		decisionRef: "graphrefly-ts:D159" as const,
+		predecessorReceiptDigest: ROOT_EVAL_D157_HORIZON_RECEIPT_DIGEST,
+		slots: ROOT_EVAL_D159_HORIZON_SLOTS,
+		manifests: Object.freeze(
+			manifests.map((manifest) =>
+				Object.freeze({
+					slot: manifest.slot as (typeof ROOT_EVAL_D159_HORIZON_SLOTS)[number],
+					taskSetRef: manifest.taskSetRef,
+					manifestDigest: manifest.manifestDigest,
+				}),
+			),
+		),
+	});
+}
+
 function auditCurrentManifest(
 	manifest: RootEvalTaskManifest,
 ): RootEvalFrozenDevelopmentManifestAudit {
@@ -205,7 +247,7 @@ export async function readRootEvalFrozenDevelopmentManifestAudit(
 		value.schemaVersion ===
 		(ordinal <= 3 ? ROOT_EVAL_FROZEN_PRE_D156_MANIFEST_SCHEMA : ROOT_EVAL_TASK_MANIFEST_SCHEMA);
 	const expectedKeys =
-		slot === "development-4"
+		slot === "development-4" || slot === "development-6"
 			? "horizonPeerManifestDigest,manifestDigest,schemaVersion,slot,taskSetRef,tasks"
 			: "manifestDigest,schemaVersion,slot,taskSetRef,tasks";
 	if (
@@ -289,12 +331,12 @@ export async function readRootEvalFrozenDevelopmentManifestAudit(
 	});
 }
 
-function assertCurrentRegistryBanksDisjoint(): void {
-	const manifests = ROOT_EVAL_SUPPORTED_DEVELOPMENT_SLOTS.map((slot, index) =>
+function assertCurrentRegistryBanksDisjoint(slots: readonly RootEvalTaskManifestSlot[]): void {
+	const manifests = slots.map((slot, index) =>
 		createRootEvalTaskManifest({
 			slot,
 			variantOrder: shuffledVariantOrder(slot),
-			coordinateSuffix: `d157-registry-audit-${index + 1}-0000000000000000`,
+			coordinateSuffix: `registry-audit-${index + 1}-0000000000000000`,
 		}),
 	);
 	for (let left = 0; left < manifests.length; left += 1) {
@@ -305,15 +347,18 @@ function assertCurrentRegistryBanksDisjoint(): void {
 
 function assertAllDevelopmentBanksDisjoint(
 	manifests: readonly RootEvalFrozenDevelopmentManifestAudit[],
+	decisionRef: "D157" | "D159",
 ): void {
-	assertCurrentRegistryBanksDisjoint();
+	const expectedSlots =
+		decisionRef === "D157"
+			? ROOT_EVAL_SUPPORTED_DEVELOPMENT_SLOTS.slice(0, 5)
+			: ROOT_EVAL_SUPPORTED_DEVELOPMENT_SLOTS;
+	assertCurrentRegistryBanksDisjoint(expectedSlots);
 	if (
-		manifests.length !== ROOT_EVAL_SUPPORTED_DEVELOPMENT_SLOTS.length ||
-		manifests.some(
-			(manifest, index) => manifest.slot !== ROOT_EVAL_SUPPORTED_DEVELOPMENT_SLOTS[index],
-		)
+		manifests.length !== expectedSlots.length ||
+		manifests.some((manifest, index) => manifest.slot !== expectedSlots[index])
 	)
-		throw new TypeError("root eval D157 development bank sequence drifted");
+		throw new TypeError(`root eval ${decisionRef} development bank sequence drifted`);
 	for (const manifest of manifests.filter(
 		(manifest) => manifest.schemaVersion === ROOT_EVAL_TASK_MANIFEST_SCHEMA,
 	)) {
@@ -322,13 +367,15 @@ function assertAllDevelopmentBanksDisjoint(
 			semanticAudit.length !== 10 ||
 			semanticAudit.some((entry) => entry.semanticInterchangeable || entry.actionTokenOverlap > 0.2)
 		)
-			throw new TypeError("root eval D157 development bank semantic audit failed");
+			throw new TypeError(`root eval ${decisionRef} development bank semantic audit failed`);
 	}
-	const horizonSemanticAudit = rootEvalDevelopmentRegistryPairwiseAudit(
-		manifests.flatMap((manifest) => manifest.tasks),
-	);
-	if (horizonSemanticAudit.length !== 195)
-		throw new TypeError("root eval D157 frozen horizon semantic audit was incomplete");
+	const registryTasks = manifests.flatMap((manifest) => manifest.tasks);
+	const horizonSemanticAudit =
+		decisionRef === "D157"
+			? rootEvalDevelopmentRegistryPairwiseAudit(registryTasks)
+			: rootEvalD159DevelopmentRegistryPairwiseAudit(registryTasks);
+	if (horizonSemanticAudit.length !== (decisionRef === "D157" ? 195 : 295))
+		throw new TypeError(`root eval ${decisionRef} frozen horizon semantic audit was incomplete`);
 	const intersection = (leftValues: readonly string[], rightValues: readonly string[]) => {
 		const rightSet = new Set(rightValues);
 		return [...new Set(leftValues.filter((value) => rightSet.has(value)))];
@@ -368,7 +415,9 @@ function assertAllDevelopmentBanksDisjoint(
 				intersection(fixtureDigests(leftManifest), fixtureDigests(rightManifest)).length > 0 ||
 				intersection(verifierDigests(leftManifest), verifierDigests(rightManifest)).length > 0
 			)
-				throw new TypeError("root eval D157 frozen development manifests were not disjoint");
+				throw new TypeError(
+					`root eval ${decisionRef} frozen development manifests were not disjoint`,
+				);
 		}
 	}
 }
@@ -394,9 +443,11 @@ export async function readRootEvalD157HorizonReceipt(): Promise<RootEvalD157Hori
 	)
 		throw new TypeError("root eval D157 horizon receipt shape invalid");
 	const manifests = await Promise.all(
-		ROOT_EVAL_SUPPORTED_DEVELOPMENT_SLOTS.map(readRootEvalFrozenDevelopmentManifestAudit),
+		ROOT_EVAL_SUPPORTED_DEVELOPMENT_SLOTS.slice(0, 5).map(
+			readRootEvalFrozenDevelopmentManifestAudit,
+		),
 	);
-	assertAllDevelopmentBanksDisjoint(manifests);
+	assertAllDevelopmentBanksDisjoint(manifests, "D157");
 	const horizonManifests = ROOT_EVAL_D157_HORIZON_SLOTS.map((slot) =>
 		auditCurrentManifest(readRootEvalTaskManifest(slot)),
 	);
@@ -422,6 +473,74 @@ export async function readRootEvalD157HorizonReceipt(): Promise<RootEvalD157Hori
 		value.receiptDigest !== ROOT_EVAL_D157_HORIZON_RECEIPT_DIGEST
 	)
 		throw new TypeError("root eval D157 production horizon receipt drifted");
+	return Object.freeze(value);
+}
+
+export async function readRootEvalD159HorizonReceipt(): Promise<RootEvalD159HorizonReceipt> {
+	await readRootEvalD157HorizonReceipt();
+	const directory = resolve(rootEvalTaskManifestDirectory(), ROOT_EVAL_D159_HORIZON_DIRECTORY_NAME);
+	const receiptPath = resolve(directory, ROOT_EVAL_D159_HORIZON_RECEIPT_NAME);
+	await assertMode0700DirectoryNoFollow(directory, "root eval D159 horizon directory");
+	const entries = await readdir(directory, { withFileTypes: true });
+	const expectedEntries = [
+		...ROOT_EVAL_D159_HORIZON_SLOTS.map((slot) => `${slot}.json`),
+		ROOT_EVAL_D159_HORIZON_RECEIPT_NAME,
+	].sort();
+	if (
+		entries.some((entry) => !entry.isFile()) ||
+		entries
+			.map((entry) => entry.name)
+			.sort()
+			.some((name, index) => name !== expectedEntries[index]) ||
+		entries.length !== expectedEntries.length
+	)
+		throw new TypeError("root eval D159 horizon directory membership drifted");
+	const raw = await readMode0600NoFollow(receiptPath, "root eval D159 horizon receipt");
+	const value = strictJsonCodec.decode(raw) as RootEvalD159HorizonReceipt;
+	if (
+		value === null ||
+		typeof value !== "object" ||
+		Object.keys(value).sort().join(",") !==
+			"decisionRef,manifests,predecessorReceiptDigest,receiptDigest,schemaVersion,slots" ||
+		value.schemaVersion !== ROOT_EVAL_D159_HORIZON_RECEIPT_SCHEMA ||
+		value.decisionRef !== "graphrefly-ts:D159" ||
+		value.predecessorReceiptDigest !== ROOT_EVAL_D157_HORIZON_RECEIPT_DIGEST ||
+		!Array.isArray(value.slots) ||
+		value.slots.length !== ROOT_EVAL_D159_HORIZON_SLOTS.length ||
+		value.slots.some((slot, index) => slot !== ROOT_EVAL_D159_HORIZON_SLOTS[index]) ||
+		!Array.isArray(value.manifests) ||
+		value.manifests.length !== ROOT_EVAL_D159_HORIZON_SLOTS.length
+	)
+		throw new TypeError("root eval D159 horizon receipt shape invalid");
+	const manifests = await Promise.all(
+		ROOT_EVAL_SUPPORTED_DEVELOPMENT_SLOTS.map(readRootEvalFrozenDevelopmentManifestAudit),
+	);
+	assertAllDevelopmentBanksDisjoint(manifests, "D159");
+	const horizonManifests = ROOT_EVAL_D159_HORIZON_SLOTS.map((slot) =>
+		auditCurrentManifest(readRootEvalTaskManifest(slot)),
+	);
+	if (
+		readRootEvalTaskManifest("development-6").horizonPeerManifestDigest !==
+		readRootEvalTaskManifest("development-7").manifestDigest
+	)
+		throw new TypeError("root eval D159 development-6 ledger binding lost development-7");
+	const material = d159HorizonReceiptMaterial(horizonManifests);
+	if (
+		value.manifests.some(
+			(entry, index) =>
+				Object.keys(entry).sort().join(",") !== "manifestDigest,slot,taskSetRef" ||
+				entry.slot !== material.manifests[index]!.slot ||
+				entry.taskSetRef !== material.manifests[index]!.taskSetRef ||
+				entry.manifestDigest !== material.manifests[index]!.manifestDigest,
+		) ||
+		value.receiptDigest !== empiricalStrictJsonDigest(material)
+	)
+		throw new TypeError("root eval D159 horizon receipt lost manifest binding");
+	if (
+		process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY === undefined &&
+		value.receiptDigest !== ROOT_EVAL_D159_HORIZON_RECEIPT_DIGEST
+	)
+		throw new TypeError("root eval D159 production horizon receipt drifted");
 	return Object.freeze(value);
 }
 
@@ -529,7 +648,7 @@ async function prepareRootEvalD157HorizonWithAuthority(
 			}),
 		);
 		const horizon = bindRootEvalD157HorizonManifests(horizonBase[0]!, horizonBase[1]!);
-		assertAllDevelopmentBanksDisjoint([...prior, ...horizon.map(auditCurrentManifest)]);
+		assertAllDevelopmentBanksDisjoint([...prior, ...horizon.map(auditCurrentManifest)], "D157");
 		const material = horizonReceiptMaterial(horizon.map(auditCurrentManifest));
 		const receipt = Object.freeze({
 			...material,
@@ -601,6 +720,184 @@ export async function prepareRootEvalD157HorizonForNoNetworkQualification(input:
 	});
 }
 
+async function d159PrecommitState(): Promise<RootEvalD157PrecommitState> {
+	const operatorRoot = resolve(import.meta.dirname, "../.private/graph-native-rerun-avoidance");
+	const historicalLedger = await readRootEvalD145CharterLedger(
+		resolve(operatorRoot, "d145-charter-ledger.v4.json"),
+	);
+	const ledger = await readRootEvalD152Ledger({
+		path: resolve(operatorRoot, "d152-charter-ledger.v1.json"),
+		historicalLedger,
+	});
+	if (nextRootEvalD152DevelopmentOrdinal(ledger) !== 6)
+		throw new TypeError("root eval D159 horizon precommit ledger order invalid");
+	return Object.freeze({
+		developmentEntryCount: ledger.entries.length,
+		developmentQualificationStreak: ledger.developmentQualificationStreak,
+		ledgerPath: resolve(operatorRoot, "d152-charter-ledger.v1.json"),
+		outcomeStatePaths: Object.freeze([
+			resolve(operatorRoot, "d152-charter-transaction.v1.json"),
+			resolve(operatorRoot, `current-${rootEvalD152DevelopmentGenerationRef(6)}`),
+		]),
+		priorManifestBindings: Object.freeze(
+			ledger.entries.map((entry) =>
+				Object.freeze({
+					taskSetRef: entry.taskSetRef,
+					manifestDigest: entry.taskManifestDigest,
+				}),
+			),
+		),
+	});
+}
+
+export function assertRootEvalD159PrecommitEligibility(input: {
+	readonly developmentEntryCount: number;
+	readonly developmentQualificationStreak: number;
+	readonly outcomeStatePresent: boolean;
+	readonly priorManifestBindingsMatch: boolean;
+}): void {
+	if (
+		input.developmentEntryCount !== 5 ||
+		input.developmentQualificationStreak !== 0 ||
+		input.outcomeStatePresent ||
+		!input.priorManifestBindingsMatch
+	)
+		throw new TypeError("root eval D159 horizon precommit authority invalid");
+}
+
+async function assertD159PrecommitWindow(
+	state: RootEvalD157PrecommitState,
+	prior?: readonly RootEvalFrozenDevelopmentManifestAudit[],
+): Promise<void> {
+	let outcomeStatePresent = false;
+	for (const path of state.outcomeStatePaths) {
+		try {
+			await lstat(path);
+			outcomeStatePresent = true;
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+		}
+	}
+	assertRootEvalD159PrecommitEligibility({
+		developmentEntryCount: state.developmentEntryCount,
+		developmentQualificationStreak: state.developmentQualificationStreak,
+		outcomeStatePresent,
+		priorManifestBindingsMatch:
+			state.priorManifestBindings.length === 5 &&
+			(prior === undefined ||
+				prior.every(
+					(manifest, index) =>
+						manifest.taskSetRef === state.priorManifestBindings[index]?.taskSetRef &&
+						manifest.manifestDigest === state.priorManifestBindings[index]?.manifestDigest,
+				)),
+	});
+}
+
+async function prepareRootEvalD159HorizonWithAuthority(
+	authority: RootEvalD157PreparationAuthority,
+): Promise<RootEvalD159HorizonReceipt> {
+	try {
+		await readRootEvalD159HorizonReceipt();
+		throw new TypeError("root eval D159 horizon preparation replay rejected");
+	} catch (error) {
+		if (error instanceof TypeError && /preparation replay rejected/u.test(error.message))
+			throw error;
+		if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+	}
+	const initialState = await authority.snapshot();
+	const release = await authority.acquire(initialState.ledgerPath);
+	try {
+		try {
+			await readRootEvalD159HorizonReceipt();
+			throw new TypeError("root eval D159 horizon preparation replay rejected");
+		} catch (error) {
+			if (error instanceof TypeError && /preparation replay rejected/u.test(error.message))
+				throw error;
+			if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+		}
+		await readRootEvalD157HorizonReceipt();
+		await assertD159PrecommitWindow(await authority.snapshot());
+		const prior = await Promise.all(
+			ROOT_EVAL_SUPPORTED_DEVELOPMENT_SLOTS.slice(0, 5).map(
+				readRootEvalFrozenDevelopmentManifestAudit,
+			),
+		);
+		await assertD159PrecommitWindow(await authority.snapshot(), prior);
+		const horizonBase = ROOT_EVAL_D159_HORIZON_SLOTS.map((slot) =>
+			createRootEvalTaskManifest({
+				slot,
+				variantOrder: shuffledVariantOrder(slot),
+				coordinateSuffix: randomBytes(24).toString("hex"),
+			}),
+		);
+		const horizon = bindRootEvalD159HorizonManifests(horizonBase[0]!, horizonBase[1]!);
+		assertAllDevelopmentBanksDisjoint([...prior, ...horizon.map(auditCurrentManifest)], "D159");
+		const material = d159HorizonReceiptMaterial(horizon.map(auditCurrentManifest));
+		const receipt = Object.freeze({
+			...material,
+			receiptDigest: empiricalStrictJsonDigest(material),
+		});
+		const parent = rootEvalTaskManifestDirectory();
+		const target = resolve(parent, ROOT_EVAL_D159_HORIZON_DIRECTORY_NAME);
+		const stage = resolve(
+			parent,
+			`.${ROOT_EVAL_D159_HORIZON_DIRECTORY_NAME}.stage-${process.pid}-${randomBytes(12).toString("hex")}`,
+		);
+		await mkdir(parent, { recursive: true, mode: 0o700 });
+		await chmod(parent, 0o700);
+		await mkdir(stage, { mode: 0o700 });
+		try {
+			for (const manifest of horizon)
+				await writeMode0600(resolve(stage, `${manifest.slot}.json`), manifest);
+			await writeMode0600(resolve(stage, ROOT_EVAL_D159_HORIZON_RECEIPT_NAME), receipt);
+			await syncDirectory(stage);
+			await assertD159PrecommitWindow(await authority.snapshot(), prior);
+			await rename(stage, target);
+			await syncDirectory(parent);
+		} finally {
+			await rm(stage, { recursive: true, force: true });
+		}
+		return readRootEvalD159HorizonReceipt();
+	} finally {
+		await release();
+	}
+}
+
+export async function prepareRootEvalD159Horizon(): Promise<RootEvalD159HorizonReceipt> {
+	return prepareRootEvalD159HorizonWithAuthority({
+		snapshot: d159PrecommitState,
+		acquire: acquireRootEvalD152Execution,
+	});
+}
+
+/** @internal No-network D159 precommit seam; production runners never import this capability. */
+export async function prepareRootEvalD159HorizonForNoNetworkQualification(input: {
+	readonly state: RootEvalD157PrecommitState;
+}): Promise<RootEvalD159HorizonReceipt> {
+	const override = process.env.GRAPHREFLY_ROOT_EVAL_TASK_MANIFEST_DIRECTORY;
+	if (process.env.NODE_ENV !== "test" || override === undefined)
+		throw new TypeError("root eval D159 no-network preparation capability unavailable");
+	const isolatedRoot = await realpath(resolve(override));
+	const temporaryRoot = await realpath(tmpdir());
+	const canonicalRoot = await realpath(
+		resolve(
+			import.meta.dirname,
+			"../.private/empirical-memory-rerun-avoidance/d152-mechanism-manifests",
+		),
+	);
+	if (
+		isolatedRoot === canonicalRoot ||
+		isolatedRoot === temporaryRoot ||
+		!isolatedRoot.startsWith(`${temporaryRoot}${sep}`)
+	)
+		throw new TypeError("root eval D159 no-network preparation requires an isolated temp root");
+	await assertMode0700DirectoryNoFollow(isolatedRoot, "root eval D159 no-network preparation root");
+	return prepareRootEvalD159HorizonWithAuthority({
+		snapshot: async () => input.state,
+		acquire: acquireRootEvalD152Execution,
+	});
+}
+
 export async function ensureRootEvalDevelopmentTaskManifest(
 	slot: RootEvalTaskManifestSlot,
 ): Promise<RootEvalTaskManifest> {
@@ -612,6 +909,12 @@ export async function ensureRootEvalDevelopmentTaskManifest(
 		ROOT_EVAL_D157_HORIZON_SLOTS.includes(slot as (typeof ROOT_EVAL_D157_HORIZON_SLOTS)[number])
 	) {
 		await readRootEvalD157HorizonReceipt();
+		return readRootEvalTaskManifest(slot);
+	}
+	if (
+		ROOT_EVAL_D159_HORIZON_SLOTS.includes(slot as (typeof ROOT_EVAL_D159_HORIZON_SLOTS)[number])
+	) {
+		await readRootEvalD159HorizonReceipt();
 		return readRootEvalTaskManifest(slot);
 	}
 	throw new TypeError("root eval development-1..3 manifests are immutable audit-only evidence");

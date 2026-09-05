@@ -110,6 +110,9 @@ export type QualificationGrant = Readonly<{
 	executionRef: typeof PROVIDER_QUALIFICATION_REF;
 	mode: "live" | "no-network";
 	implementationDigest: string;
+	routeContractRevision: typeof CURRENT_ROOT_EVAL_PROVIDER_ROUTE.contractRevision;
+	providerRef: typeof CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerRef;
+	modelRef: typeof CURRENT_ROOT_EVAL_PROVIDER_ROUTE.modelRef;
 	controlPlaneDigest: string;
 	credentialFingerprintDigest: string;
 	approvedHardCapMicrousd: typeof PROVIDER_QUALIFICATION_CAP;
@@ -128,6 +131,7 @@ async function run(input: {
 		signal: AbortSignal,
 	) => Promise<{ status: number; bytes: Uint8Array }>;
 }) {
+	assertQualificationGrantScope(input.grant);
 	const release = await acquireRootEvalD152Execution(input.ledgerPath);
 	try {
 		return await runExclusive(input);
@@ -136,13 +140,19 @@ async function run(input: {
 	}
 }
 
-async function runExclusive(input: Parameters<typeof run>[0]) {
+function assertQualificationGrantScope(grant: QualificationGrant): void {
 	if (
-		input.grant.executionRef !== PROVIDER_QUALIFICATION_REF ||
-		input.grant.approvedHardCapMicrousd !== PROVIDER_QUALIFICATION_CAP ||
-		input.grant.maxRequests !== 3
+		grant.executionRef !== PROVIDER_QUALIFICATION_REF ||
+		grant.approvedHardCapMicrousd !== PROVIDER_QUALIFICATION_CAP ||
+		grant.maxRequests !== 3 ||
+		grant.routeContractRevision !== CURRENT_ROOT_EVAL_PROVIDER_ROUTE.contractRevision ||
+		grant.providerRef !== CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerRef ||
+		grant.modelRef !== CURRENT_ROOT_EVAL_PROVIDER_ROUTE.modelRef
 	)
 		throw new TypeError("qualification grant scope invalid");
+}
+
+async function runExclusive(input: Parameters<typeof run>[0]) {
 	const grantDigest = empiricalStrictJsonDigest(input.grant);
 	// mkdir is exclusive: a failed/interrupted run never becomes a redispatch.
 	await mkdir(input.privateRoot, { mode: 0o700 });

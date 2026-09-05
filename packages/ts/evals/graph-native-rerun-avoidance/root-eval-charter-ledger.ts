@@ -25,13 +25,21 @@ export const ROOT_EVAL_D152_DEVELOPMENT_GENERATION_HARD_CAP_MICROUSD = 12_000_00
 export const ROOT_EVAL_D152_CONFIRMATORY_HARD_CAP_MICROUSD = 6_000_000 as const;
 export const ROOT_EVAL_D152_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD = 6_000_000 as const;
 export const ROOT_EVAL_D152_TOTAL_HARD_CAP_MICROUSD = 46_000_000 as const;
+export const ROOT_EVAL_D159_DEVELOPMENT_HARD_CAP_MICROUSD = 45_000_000 as const;
+export const ROOT_EVAL_D159_CONFIRMATORY_HARD_CAP_MICROUSD = 6_000_000 as const;
+export const ROOT_EVAL_D159_CONFIRMATORY_GENERATION_HARD_CAP_MICROUSD = 5_477_518 as const;
+export const ROOT_EVAL_D159_TOTAL_HARD_CAP_MICROUSD = 51_000_000 as const;
 
 // Immutable generation 1/2 records retain their original partition identity.
 // The separately approved development-3 grant changes no historical receipt.
 export function rootEvalD152DevelopmentBudgetPartition(ordinal: number) {
 	if (!Number.isSafeInteger(ordinal) || ordinal < 1)
 		throw new TypeError("root eval D152 budget partition ordinal invalid");
-	return ordinal <= 2 ? ("development-usd-36" as const) : ("development-usd-40" as const);
+	return ordinal <= 2
+		? ("development-usd-36" as const)
+		: ordinal <= 5
+			? ("development-usd-40" as const)
+			: ("development-usd-45" as const);
 }
 
 export const ROOT_EVAL_D152_QUALIFICATION_EPOCH_SCHEMA =
@@ -414,7 +422,7 @@ export function advanceRootEvalD145CharterLedger(input: {
 }): RootEvalD145CharterLedger {
 	const ledger = validateLedger(input.ledger);
 	const budgetPartition = input.budgetPartition;
-	if (budgetPartition === "development-usd-40")
+	if (budgetPartition === "development-usd-40" || budgetPartition === "development-usd-45")
 		throw new TypeError("root eval D145 charter transition was not authorized");
 	if (
 		!(
