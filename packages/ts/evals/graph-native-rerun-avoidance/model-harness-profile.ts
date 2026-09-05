@@ -689,7 +689,7 @@ export function createDeepSeekV4Flash0731FireworksStructuredProfileDefinition(
 	return createDeepSeekV4Flash0731StructuredProfileDefinition("fireworks", input);
 }
 
-/** Offline candidate only; this factory is not a live execution or spend grant. */
+/** Exact Together binding; promotion is controlled by the current-route authority. */
 export function createDeepSeekV4Flash0731TogetherStructuredProfileDefinition(): ExactProfileDefinition {
 	return createDeepSeekV4Flash0731StructuredProfileDefinition("together", {});
 }

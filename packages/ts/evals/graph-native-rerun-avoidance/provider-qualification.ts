@@ -7,6 +7,7 @@ import {
 	record,
 	safeInteger,
 } from "./canonical.js";
+import { CURRENT_ROOT_EVAL_PROVIDER_ROUTE } from "./current-provider-route.js";
 
 // D155: qualification is not an efficacy campaign. No experimental task is loaded.
 export const PROVIDER_QUALIFICATION_REF = "provider-qualification-together-2026-09-03-1";
@@ -14,8 +15,8 @@ export const PROVIDER_QUALIFICATION_CAP = 100_000;
 export const PROVIDER_QUALIFICATION_REQUEST_CAP = 3;
 export const PROVIDER_QUALIFICATION_RESERVATION = 33_333;
 export const PROVIDER_QUALIFICATION_ROUTE = Object.freeze({
-	providerRef: "together",
-	providerModelRef: "deepseek/deepseek-v4-flash-0731",
+	providerRef: CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerRef,
+	providerModelRef: CURRENT_ROOT_EVAL_PROVIDER_ROUTE.modelRef,
 });
 const CURRENT_QUALIFICATION_SETTLEMENT_POLICY = Object.freeze({
 	requestCap: PROVIDER_QUALIFICATION_REQUEST_CAP,
@@ -57,7 +58,7 @@ export function qualificationAdmission(state: QualificationState): Qualification
 }
 function makeAdmission(executionRef: string, request: number): QualificationAdmission {
 	initialQualificationState(executionRef);
-	if (!Number.isSafeInteger(request) || request < 1 || request > 3)
+	if (!Number.isSafeInteger(request) || request < 1 || request > PROVIDER_QUALIFICATION_REQUEST_CAP)
 		throw new TypeError("qualification request bound invalid");
 	const value = {
 		executionRef,
@@ -70,9 +71,10 @@ function makeAdmission(executionRef: string, request: number): QualificationAdmi
 }
 
 export const QUALIFICATION_PRICING = Object.freeze({
-	inputMicrousdPerMillionTokens: 140_000,
-	outputMicrousdPerMillionTokens: 280_000,
-	cacheReadMicrousdPerMillionTokens: 30_000,
+	inputMicrousdPerMillionTokens: CURRENT_ROOT_EVAL_PROVIDER_ROUTE.inputMicrousdPerMillionTokens,
+	outputMicrousdPerMillionTokens: CURRENT_ROOT_EVAL_PROVIDER_ROUTE.outputMicrousdPerMillionTokens,
+	cacheReadMicrousdPerMillionTokens:
+		CURRENT_ROOT_EVAL_PROVIDER_ROUTE.cacheReadMicrousdPerMillionTokens,
 });
 export const qualificationExamples = [
 	{ candidateRefs: ["qualification-1-candidate-a", "qualification-1-candidate-b"], requested: 1 },
@@ -124,8 +126,8 @@ function qualificationRequestBody(request: number): string {
 		max_tokens: 16384,
 		reasoning: { effort: "medium" },
 		provider: {
-			order: ["together"],
-			only: ["together"],
+			order: [...CURRENT_ROOT_EVAL_PROVIDER_ROUTE.requestProviderOrder],
+			only: [...CURRENT_ROOT_EVAL_PROVIDER_ROUTE.requestProviderOrder],
 			allow_fallbacks: false,
 			require_parameters: true,
 			data_collection: "deny",

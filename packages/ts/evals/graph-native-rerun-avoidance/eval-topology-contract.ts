@@ -1,7 +1,6 @@
 import type { DescribeSnapshot } from "../../src/graph/describe.js";
 import {
 	ROOT_EVAL_DEFAULT_EFFECT_TIMEOUT_MS,
-	ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS,
 	ROOT_EVAL_INITIAL_PROVIDER_CAPACITY,
 	ROOT_EVAL_PROVIDER_START_INTERVAL_MS,
 	ROOT_EVAL_RATE_LIMITED_PROVIDER_CAPACITY,
@@ -11,38 +10,6 @@ import { HARNESS_ARMS } from "./harness-campaign-policy.js";
 export const ROOT_EVAL_REQUIRED_NODES = Object.freeze({
 	"eval/provider/cost-settlements": "rootEvalProviderCostSettlements",
 	"eval/campaign/terminal": "rootEvalCampaignTerminal",
-	"eval/observation/input/context/released": "rootEvalObservationSnapshotRelease",
-	"eval/observation/input/context/release-events": "merge",
-	"eval/observation/input/context/release-controller":
-		"rootEvalObservationSnapshotReleaseController",
-	"eval/observation/input/admission/released": "rootEvalObservationSnapshotRelease",
-	"eval/observation/input/admission/release-events": "merge",
-	"eval/observation/input/admission/release-controller":
-		"rootEvalObservationSnapshotReleaseController",
-	"eval/observation/input/activity/released": "rootEvalObservationSnapshotRelease",
-	"eval/observation/input/activity/release-events": "merge",
-	"eval/observation/input/activity/release-controller":
-		"rootEvalObservationSnapshotReleaseController",
-	"eval/observation/input/campaign/released": "rootEvalObservationSnapshotRelease",
-	"eval/observation/input/campaign/release-events": "merge",
-	"eval/observation/input/campaign/release-controller":
-		"rootEvalObservationSnapshotReleaseController",
-	"eval/observation/input/diagnostics/released": "rootEvalObservationSnapshotRelease",
-	"eval/observation/input/diagnostics/release-events": "merge",
-	"eval/observation/input/diagnostics/release-controller":
-		"rootEvalObservationSnapshotReleaseController",
-	"eval/observation/input/qualification/released": "rootEvalObservationSnapshotRelease",
-	"eval/observation/input/qualification/release-events": "merge",
-	"eval/observation/input/qualification/release-controller":
-		"rootEvalObservationSnapshotReleaseController",
-	"eval/observation/input/finding/released": "rootEvalObservationSnapshotRelease",
-	"eval/observation/input/finding/release-events": "merge",
-	"eval/observation/input/finding/release-controller":
-		"rootEvalObservationSnapshotReleaseController",
-	"eval/observation/input/elapsed/released": "rootEvalObservationSnapshotRelease",
-	"eval/observation/input/elapsed/release-events": "merge",
-	"eval/observation/input/elapsed/release-controller":
-		"rootEvalObservationSnapshotReleaseController",
 	"eval/observation/input/context": "rootEvalObservationOccurrenceInput",
 	"eval/observation/input/admission": "rootEvalObservationOccurrenceInput",
 	"eval/observation/input/activity": "rootEvalObservationOccurrenceInput",
@@ -50,7 +17,8 @@ export const ROOT_EVAL_REQUIRED_NODES = Object.freeze({
 	"eval/observation/input/diagnostics": "rootEvalObservationOccurrenceInput",
 	"eval/observation/input/qualification": "rootEvalObservationOccurrenceInput",
 	"eval/observation/input/finding": "rootEvalObservationOccurrenceInput",
-	"eval/observation/input/elapsed": "rootEvalObservationOccurrenceInput",
+	"eval/observation/input/feasibility": "rootEvalObservationOccurrenceInput",
+	"eval/observation/input/progress": "rootEvalObservationOccurrenceInput",
 	"eval/observation/arrivals": "merge",
 	"eval/observation/canonical-state": "rootEvalCanonicalObservation",
 	"eval/observation/rejections": "rootEvalObservationRejections",
@@ -103,16 +71,13 @@ export const ROOT_EVAL_REQUIRED_NODES = Object.freeze({
 	"eval/campaign/task-bindings": "state",
 	"eval/billing/current-key-before": "state",
 	"eval/profile/qualified-catalog": "state",
+	"eval/provider/current-route-contract": "state",
 	"eval/profile/graph-admission": "rootEvalCurrentProfileAdmission",
-	"eval/time/elapsed-budget/schedule": "rootEvalElapsedBudgetSchedule",
-	"eval/time/elapsed-budget/timer-source": "rootEvalCampaignElapsedTimerSource",
-	"eval/time/elapsed-budget/clock-release-events": "merge",
-	"eval/time/elapsed-budget/clock-release-controller": "rootEvalElapsedClockReleaseController",
-	"eval/time/elapsed-budget/clock": "rootEvalElapsedBudgetClock",
-	"eval/time/elapsed-budget/readiness/runtime": "scheduledReadinessProjector",
-	"eval/time/elapsed-budget/readiness/ready": "scheduledReadinessReady",
-	"eval/time/elapsed-budget/events": "merge",
-	"eval/time/elapsed-budget/state": "rootEvalElapsedBudgetState",
+	"eval/time/schedule-feasibility": "rootEvalScheduleFeasibility",
+	"eval/time/progress-admission-events": "merge",
+	"eval/time/progress-admission-lease": "rootEvalOccurrenceAwareAdmissionProgressLease",
+	"eval/time/progress-terminal-events": "merge",
+	"eval/time/progress-lease": "rootEvalOccurrenceAwareProgressProjection",
 	"eval/campaign/sealed-configuration": "rootEvalCampaignConfiguration",
 	"eval/campaign/controller-events": "merge",
 	"eval/campaign/state-events": "merge",
@@ -208,7 +173,6 @@ export const ROOT_EVAL_REQUIRED_NODES = Object.freeze({
 	"eval/provider/proposal-release-controller": "rootEvalProviderProposalReleaseController",
 	"eval/provider/replicate-proposal-batches": "rootEvalReplicateProposalBatches",
 	"eval/provider/paced-proposal-release": "rootEvalProviderPacedProposalRelease",
-	"eval/provider/pacing-clock-inputs": "merge",
 	"eval/provider/pacing-clock": "rootEvalProviderPacingClock",
 	"eval/provider/pacing-events": "merge",
 	"eval/provider/start-spacing-readiness": "rootEvalProviderStartSpacingReadiness",
@@ -298,83 +262,23 @@ export const ROOT_EVAL_REQUIRED_NODES = Object.freeze({
 
 export const ROOT_EVAL_CRITICAL_EDGES = Object.freeze([
 	["eval/observation/source-stage-context", "eval/observation/input/context"],
-	["eval/observation/input/context", "eval/observation/input/context/released"],
-	["eval/observation/input/context", "eval/observation/input/context/release-events"],
-	["eval/observation/input/context/released", "eval/observation/input/context/release-events"],
-	[
-		"eval/observation/input/context/release-events",
-		"eval/observation/input/context/release-controller",
-	],
-	["eval/observation/input/context/released", "eval/observation/arrivals"],
+	["eval/observation/input/context", "eval/observation/arrivals"],
 	["eval/provider/admission-observation-cut", "eval/observation/input/admission"],
-	["eval/observation/input/admission", "eval/observation/input/admission/released"],
-	["eval/observation/input/admission", "eval/observation/input/admission/release-events"],
-	["eval/observation/input/admission/released", "eval/observation/input/admission/release-events"],
-	[
-		"eval/observation/input/admission/release-events",
-		"eval/observation/input/admission/release-controller",
-	],
-	["eval/observation/input/admission/released", "eval/observation/arrivals"],
+	["eval/observation/input/admission", "eval/observation/arrivals"],
 	["eval/observation/effect-activity", "eval/observation/input/activity"],
-	["eval/observation/input/activity", "eval/observation/input/activity/released"],
-	["eval/observation/input/activity", "eval/observation/input/activity/release-events"],
-	["eval/observation/input/activity/released", "eval/observation/input/activity/release-events"],
-	[
-		"eval/observation/input/activity/release-events",
-		"eval/observation/input/activity/release-controller",
-	],
-	["eval/observation/input/activity/released", "eval/observation/arrivals"],
+	["eval/observation/input/activity", "eval/observation/arrivals"],
 	["eval/campaign/state", "eval/observation/input/campaign"],
-	["eval/observation/input/campaign", "eval/observation/input/campaign/released"],
-	["eval/observation/input/campaign", "eval/observation/input/campaign/release-events"],
-	["eval/observation/input/campaign/released", "eval/observation/input/campaign/release-events"],
-	[
-		"eval/observation/input/campaign/release-events",
-		"eval/observation/input/campaign/release-controller",
-	],
-	["eval/observation/input/campaign/released", "eval/observation/arrivals"],
+	["eval/observation/input/campaign", "eval/observation/arrivals"],
 	["eval/verification/diagnostics", "eval/observation/input/diagnostics"],
-	["eval/observation/input/diagnostics", "eval/observation/input/diagnostics/released"],
-	["eval/observation/input/diagnostics", "eval/observation/input/diagnostics/release-events"],
-	[
-		"eval/observation/input/diagnostics/released",
-		"eval/observation/input/diagnostics/release-events",
-	],
-	[
-		"eval/observation/input/diagnostics/release-events",
-		"eval/observation/input/diagnostics/release-controller",
-	],
-	["eval/observation/input/diagnostics/released", "eval/observation/arrivals"],
+	["eval/observation/input/diagnostics", "eval/observation/arrivals"],
 	["eval/development/qualification", "eval/observation/input/qualification"],
-	["eval/observation/input/qualification", "eval/observation/input/qualification/released"],
-	["eval/observation/input/qualification", "eval/observation/input/qualification/release-events"],
-	[
-		"eval/observation/input/qualification/released",
-		"eval/observation/input/qualification/release-events",
-	],
-	[
-		"eval/observation/input/qualification/release-events",
-		"eval/observation/input/qualification/release-controller",
-	],
-	["eval/observation/input/qualification/released", "eval/observation/arrivals"],
+	["eval/observation/input/qualification", "eval/observation/arrivals"],
 	["eval/findings/efficacy", "eval/observation/input/finding"],
-	["eval/observation/input/finding", "eval/observation/input/finding/released"],
-	["eval/observation/input/finding", "eval/observation/input/finding/release-events"],
-	["eval/observation/input/finding/released", "eval/observation/input/finding/release-events"],
-	[
-		"eval/observation/input/finding/release-events",
-		"eval/observation/input/finding/release-controller",
-	],
-	["eval/observation/input/finding/released", "eval/observation/arrivals"],
-	["eval/time/elapsed-budget/state", "eval/observation/input/elapsed"],
-	["eval/observation/input/elapsed", "eval/observation/input/elapsed/released"],
-	["eval/observation/input/elapsed", "eval/observation/input/elapsed/release-events"],
-	["eval/observation/input/elapsed/released", "eval/observation/input/elapsed/release-events"],
-	[
-		"eval/observation/input/elapsed/release-events",
-		"eval/observation/input/elapsed/release-controller",
-	],
-	["eval/observation/input/elapsed/released", "eval/observation/arrivals"],
+	["eval/observation/input/finding", "eval/observation/arrivals"],
+	["eval/time/schedule-feasibility", "eval/observation/input/feasibility"],
+	["eval/observation/input/feasibility", "eval/observation/arrivals"],
+	["eval/time/progress-lease", "eval/observation/input/progress"],
+	["eval/observation/input/progress", "eval/observation/arrivals"],
 	["eval/observation/arrivals", "eval/observation/canonical-state"],
 	["eval/observation/canonical-state", "eval/observation"],
 	["eval/observation/canonical-state", "eval/observation/rejections"],
@@ -387,6 +291,7 @@ export const ROOT_EVAL_CRITICAL_EDGES = Object.freeze([
 	["eval/solution/agentic-memory/snapshot", "eval/solution/agentic-memory/audit"],
 	["eval/solution/agentic-memory/snapshot", "eval/solution/agentic-memory/cursor"],
 	["eval/profile/qualified-catalog", "eval/profile/graph-admission"],
+	["eval/provider/current-route-contract", "eval/profile/graph-admission"],
 	["eval/source-work-item/terminal-outcomes/inputs", "eval/source-work-item/terminal-outcomes"],
 	[
 		"eval/source-work-item/terminal-outcomes/inputs",
@@ -465,7 +370,7 @@ export const ROOT_EVAL_CRITICAL_EDGES = Object.freeze([
 	["eval/development/qualification-events", "eval/development/qualification"],
 	["eval/provider/proposal-events", "eval/provider/proposals"],
 	["eval/verification/diagnostic-events", "eval/verification/diagnostics"],
-	["eval/time/elapsed-budget/events", "eval/time/elapsed-budget/state"],
+	["eval/time/progress-terminal-events", "eval/time/progress-lease"],
 	["eval/memory/source-readiness-events", "eval/memory/six-arm-source-readiness-decision"],
 	["eval/work-item/admitted-plan-events", "eval/work-item/admitted-plan-authority"],
 	["eval/provider/first-proposal-events", "eval/provider/proposal-candidate"],
@@ -474,21 +379,23 @@ export const ROOT_EVAL_CRITICAL_EDGES = Object.freeze([
 	["eval/tool/exact-admission", "eval/observation/candidate-tool-admission"],
 	["eval/tool/result", "eval/observation/candidate-tool-result"],
 	["eval/provider/admission-events", "eval/provider/graph-admission-and-budget"],
-	["eval/campaign/start", "eval/time/elapsed-budget/schedule"],
-	["eval/campaign/start", "eval/time/elapsed-budget/timer-source"],
-
-	["eval/time/elapsed-budget/timer-source", "eval/time/elapsed-budget/clock"],
-	["eval/time/elapsed-budget/timer-source", "eval/time/elapsed-budget/clock-release-events"],
-	["eval/time/elapsed-budget/clock", "eval/time/elapsed-budget/clock-release-events"],
-	[
-		"eval/time/elapsed-budget/clock-release-events",
-		"eval/time/elapsed-budget/clock-release-controller",
-	],
-	["eval/time/elapsed-budget/schedule", "eval/time/elapsed-budget/readiness/runtime"],
-	["eval/time/elapsed-budget/clock", "eval/time/elapsed-budget/readiness/runtime"],
-	["eval/time/elapsed-budget/readiness/runtime", "eval/time/elapsed-budget/readiness/ready"],
-	["eval/time/elapsed-budget/schedule", "eval/time/elapsed-budget/events"],
-	["eval/time/elapsed-budget/readiness/ready", "eval/time/elapsed-budget/events"],
+	["eval/campaign/start", "eval/time/schedule-feasibility"],
+	["eval/time/schedule-feasibility", "eval/time/progress-admission-events"],
+	["eval/campaign/start", "eval/time/progress-admission-events"],
+	["eval/campaign/state", "eval/time/progress-admission-events"],
+	["eval/provider/cost-settlements", "eval/time/progress-admission-events"],
+	["eval/retry/delay-result-input", "eval/time/progress-admission-events"],
+	["eval/tool/result-input", "eval/time/progress-admission-events"],
+	["eval/source-work-item/tool-result-input", "eval/time/progress-admission-events"],
+	["eval/cleanup/completed", "eval/time/progress-admission-events"],
+	["eval/billing/observation-result-input", "eval/time/progress-admission-events"],
+	["eval/time/progress-admission-events", "eval/time/progress-admission-lease"],
+	["eval/time/progress-admission-lease", "eval/provider/admission-events"],
+	["eval/time/progress-admission-lease", "eval/retry/delay-admission"],
+	["eval/time/progress-admission-lease", "eval/time/progress-terminal-events"],
+	["eval/provider/admissions", "eval/time/progress-terminal-events"],
+	["eval/findings/efficacy", "eval/time/progress-terminal-events"],
+	["eval/budget/state", "eval/time/progress-terminal-events"],
 	["eval/cleanup/completed", "eval/campaign/controller-events"],
 	["eval/campaign/task-bindings", "eval/source-work-item/request-authority"],
 	["eval/campaign/contract", "eval/source-work-item/request-authority"],
@@ -774,17 +681,16 @@ export const ROOT_EVAL_CRITICAL_EDGES = Object.freeze([
 	["eval/provider/proposal-candidate", "eval/provider/proposal"],
 	["eval/provider/proposal-candidate", "eval/provider/proposal-release-events"],
 	["eval/provider/proposal", "eval/provider/proposal-release-events"],
-	["eval/time/elapsed-budget/state", "eval/provider/admission-events"],
+	["eval/time/schedule-feasibility", "eval/provider/admission-events"],
 	["eval/profile/graph-admission", "eval/provider/admission-events"],
 	["eval/provider/proposal", "eval/provider/replicate-proposal-batches"],
 	["eval/provider/replicate-proposal-batches", "eval/provider/proposal-events"],
 	["eval/retry/proposal", "eval/provider/proposal-events"],
 	["eval/provider/all-result-admissions", "eval/provider/start-spacing-readiness"],
-	["eval/provider/proposals", "eval/provider/admission-events"],
+	["eval/provider/replicate-proposal-batches", "eval/provider/admission-events"],
+	["eval/retry/proposal", "eval/provider/admission-events"],
 
-	["eval/provider/start-spacing-readiness", "eval/provider/pacing-clock-inputs"],
-	["eval/time/elapsed-budget/state", "eval/provider/pacing-clock-inputs"],
-	["eval/provider/pacing-clock-inputs", "eval/provider/pacing-clock"],
+	["eval/provider/start-spacing-readiness", "eval/provider/pacing-clock"],
 	["eval/provider/pacing-clock", "eval/provider/pacing-events"],
 	["eval/provider/proposals", "eval/provider/pacing-events"],
 	["eval/retry/delay-result-input", "eval/provider/pacing-events"],
@@ -816,7 +722,6 @@ export const ROOT_EVAL_CRITICAL_EDGES = Object.freeze([
 	["eval/budget/state", "eval/tool/admission-events"],
 	["eval/tool/exact-admission", "eval/executor/current-tool-effect"],
 	["eval/provider/retryable-result-admission", "eval/retry/delay-admission"],
-	["eval/time/elapsed-budget/state", "eval/retry/delay-admission"],
 	["eval/provider/retryable-result-admission", "eval/retry/admission-release-events"],
 	["eval/retry/delay-admission", "eval/retry/admission-release-events"],
 	["eval/retry/admission-release-events", "eval/retry/admission-release-controller"],
@@ -997,17 +902,38 @@ export function assertRootEvalTopologyContract(
 		replicateController.meta.adaptiveRetryMayRebind !== false
 	)
 		throw new Error("topology contract: sealed source fail-closed policy drift");
-	const elapsedTimer = nodes.get("eval/time/elapsed-budget/timer-source");
+	const feasibility = nodes.get("eval/time/schedule-feasibility");
+	const admissionProgress = nodes.get("eval/time/progress-admission-lease");
+	const progress = nodes.get("eval/time/progress-lease");
+	const observationArrivals = nodes.get("eval/observation/arrivals");
+	const currentRoute = nodes.get("eval/provider/current-route-contract");
 	if (
-		elapsedTimer?.meta?.delayMs !== ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS ||
-		elapsedTimer.meta.startWaveSettlement !== "immediate-resolved" ||
-		elapsedTimer.meta.boundaryEmission !== "new-external-data-wave" ||
-		elapsedTimer.meta.asyncPool !== true ||
-		elapsedTimer.meta.pausable !== false ||
-		!Array.isArray(elapsedTimer.meta.decisionRefs) ||
-		!elapsedTimer.meta.decisionRefs.includes("graphrefly-ts:D131")
+		currentRoute?.meta?.decisionRef !== "graphrefly-ts:D158" ||
+		currentRoute.meta.authority !== "single-current-package-route" ||
+		currentRoute.meta.providerRef !== "together" ||
+		currentRoute.meta.providerName !== "Together" ||
+		currentRoute.meta.modelRef !== "deepseek/deepseek-v4-flash-0731" ||
+		currentRoute.meta.endpointModelRef !== "deepseek/deepseek-v4-flash-20260731" ||
+		currentRoute.meta.fallback !== false
 	)
-		throw new Error("topology contract: elapsed timer-source semantics drift");
+		throw new Error("topology contract: single current provider route drift");
+	if (
+		feasibility?.meta?.decisionRef !== "graphrefly-ts:D158" ||
+		feasibility.meta.proof !== "campaign-cardinality-times-finite-boundary-leases" ||
+		admissionProgress?.meta?.decisionRef !== "graphrefly-ts:D158" ||
+		admissionProgress.meta.authority !== "graph-occurrence-revision-and-finite-boundary-lease" ||
+		admissionProgress.meta.admissionAuthority !== true ||
+		admissionProgress.meta.legalCooldownExtendsDeadline !== true ||
+		admissionProgress.meta.staleRevisionMayStopOrRelease !== false ||
+		admissionProgress.meta.callerStoppingAuthority !== "none" ||
+		progress?.meta?.decisionRef !== "graphrefly-ts:D158" ||
+		progress.meta.authority !== "graph-occurrence-progress-terminal-projection" ||
+		observationArrivals?.meta?.delivery !== "direct-typed-occurrence-fan-in" ||
+		observationArrivals.meta.startupOrderAuthority !== "none" ||
+		[...nodes.keys()].some((id) => /^eval\/observation\/input\/.+\/release/u.test(id)) ||
+		nodes.has("eval/time/elapsed-budget/timer-source")
+	)
+		throw new Error("topology contract: occurrence-aware liveness semantics drift");
 	const provenance = nodes.get("eval/controls/memory-provenance");
 	if (provenance?.meta?.treatment !== "relevant-applied" || provenance.meta.controls !== 5)
 		throw new Error("topology contract: treatment/control identity drift");

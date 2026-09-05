@@ -5,6 +5,7 @@ import {
 	ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
 } from "../../evals/graph-native-rerun-avoidance/eval-topology.js";
 import {
+	createDeepSeekV4Flash0731FireworksStructuredProfileDefinition,
 	createDeepSeekV4Flash0731TogetherStructuredProfileDefinition,
 	createInjectedNoNetworkProfileQualification,
 	createProviderBinding,
@@ -17,7 +18,7 @@ import {
 } from "../../evals/graph-native-rerun-avoidance/model-harness-profile-qualification.js";
 
 describe("current exact model-harness profile inside the root Eval Graph (D72/D74/D76/D87)", () => {
-	it("qualifies Together separately without silently promoting the current live route", () => {
+	it("makes Together the single current route without fallback", () => {
 		const current = createCurrentExactModelHarnessProfileInput();
 		const definition = createDeepSeekV4Flash0731TogetherStructuredProfileDefinition();
 		const qualification = createInjectedNoNetworkProfileQualification({
@@ -31,7 +32,7 @@ describe("current exact model-harness profile inside the root Eval Graph (D72/D7
 		);
 		expect(candidate.targets).toEqual(current.targets);
 		expect(candidate.profiles).toEqual(current.profiles);
-		expect(current.bindings[0]!.providerRef).toBe("fireworks");
+		expect(current.bindings[0]!.providerRef).toBe("together");
 		expect(qualification.qualificationRef).toContain("together-structured");
 		expect(qualification).toMatchObject({
 			qualificationMode: "injected-no-network",
@@ -47,10 +48,10 @@ describe("current exact model-harness profile inside the root Eval Graph (D72/D7
 			topology.graph.describe().nodes.find((node) => node.id === "eval/profile/graph-admission")
 				?.value,
 		).toMatchObject({ resolution: { status: "eligible", providerRef: "together" } });
+		const fireworks = createDeepSeekV4Flash0731FireworksStructuredProfileDefinition();
 		const { bindingDigest: _digest, ...binding } = definition.binding;
 		for (const profileInput of [
-			{ ...candidate, bindings: [...candidate.bindings, ...current.bindings] },
-			{ ...candidate, qualifications: current.qualifications },
+			{ ...candidate, bindings: [fireworks.binding] },
 			{
 				...candidate,
 				bindings: [createProviderBinding({ ...binding, providerRef: "deepinfra/fp8" })],
@@ -83,7 +84,7 @@ describe("current exact model-harness profile inside the root Eval Graph (D72/D7
 			},
 			resolution: {
 				status: "eligible",
-				providerRef: "fireworks",
+				providerRef: "together",
 				targetRef: "model-target.deepseek-v4-flash-0731",
 			},
 		});
@@ -103,7 +104,7 @@ describe("current exact model-harness profile inside the root Eval Graph (D72/D7
 			legacyToolCallEncodingRejected: true,
 		});
 		expect(catalog.bindings[0]).toMatchObject({
-			providerRef: "fireworks",
+			providerRef: "together",
 			proposalEncoding: "strict-json-schema",
 			responseContractRevision: "occurrence-bound-candidate-selection.v4",
 		});

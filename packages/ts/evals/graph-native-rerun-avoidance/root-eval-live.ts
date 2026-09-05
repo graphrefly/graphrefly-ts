@@ -22,6 +22,10 @@ import {
 	sameBytes,
 	strictSnapshot,
 } from "./canonical.js";
+import {
+	assertCurrentRootEvalProviderRoute,
+	CURRENT_ROOT_EVAL_PROVIDER_ROUTE,
+} from "./current-provider-route.js";
 import type {
 	EvalAdmittedEffect,
 	EvalAdmittedToolEffect,
@@ -40,7 +44,11 @@ import {
 	assertRootEvalToolAdmissionReceipt,
 	EVAL_PROVIDER_CONDITIONAL_AVAILABILITY_CODES,
 	ROOT_EVAL_CALLER_SAFETY_LEASE_MS,
+	ROOT_EVAL_DEFAULT_EFFECT_TIMEOUT_MS,
 	ROOT_EVAL_MAX_INFRASTRUCTURE_RETRY_DELAY_MS,
+	ROOT_EVAL_PROVIDER_SETTLEMENT_BOUND_MS,
+	ROOT_EVAL_RETRY_SETTLEMENT_BOUND_MS,
+	ROOT_EVAL_TOOL_SETTLEMENT_BOUND_MS,
 	rootEvalMaximumProviderAttempts,
 	rootEvalMaximumRetryAttempts,
 } from "./eval-topology.js";
@@ -77,7 +85,7 @@ import {
 } from "./root-eval-task.js";
 
 export const ROOT_EVAL_LIVE_DECISION_REF = "graphrefly-ts:D152" as const;
-export const ROOT_EVAL_LIVE_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions" as const;
+export const ROOT_EVAL_LIVE_ENDPOINT = CURRENT_ROOT_EVAL_PROVIDER_ROUTE.chatCompletionsEndpoint;
 export const ROOT_EVAL_FROZEN_BASELINE_COMMIT = ROOT_EVAL_DEVELOPMENT_TASKS[0]!.baselineCommit;
 export const ROOT_EVAL_LIVE_WRITABLE_PATH = ROOT_EVAL_DEVELOPMENT_TASKS[0]!.writablePath;
 const ROOT_EVAL_LIVE_PROVIDER_FETCH = globalThis.fetch;
@@ -135,11 +143,11 @@ class RootEvalSettlementLeaseExpired extends Error {
 }
 
 export const ROOT_EVAL_CALLER_SETTLEMENT_DEADLINE_MS = ROOT_EVAL_CALLER_SAFETY_LEASE_MS;
-export const ROOT_EVAL_PROVIDER_SETTLEMENT_LEASE_MS = 600_000 as const;
-export const ROOT_EVAL_TOOL_SETTLEMENT_LEASE_MS = 600_000 as const;
+export const ROOT_EVAL_PROVIDER_SETTLEMENT_LEASE_MS = ROOT_EVAL_PROVIDER_SETTLEMENT_BOUND_MS;
+export const ROOT_EVAL_TOOL_SETTLEMENT_LEASE_MS = ROOT_EVAL_TOOL_SETTLEMENT_BOUND_MS;
 export const ROOT_EVAL_BILLING_SETTLEMENT_LEASE_MS = 32_000 as const;
 export const ROOT_EVAL_MAX_RETRY_DELAY_MS = ROOT_EVAL_MAX_INFRASTRUCTURE_RETRY_DELAY_MS;
-export const ROOT_EVAL_RETRY_SETTLEMENT_LEASE_MS = 241_000 as const;
+export const ROOT_EVAL_RETRY_SETTLEMENT_LEASE_MS = ROOT_EVAL_RETRY_SETTLEMENT_BOUND_MS;
 export const ROOT_EVAL_MAX_BILLING_OBSERVATIONS = 8 as const;
 export const ROOT_EVAL_MAX_POST_CUTOFF_CAUSAL_TAIL_MS =
 	ROOT_EVAL_PROVIDER_SETTLEMENT_LEASE_MS +
@@ -163,7 +171,11 @@ function createRootEvalEffectLease(
 	readonly signal: AbortSignal;
 	dispose(): void;
 }> {
-	if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 300_000)
+	if (
+		!Number.isSafeInteger(timeoutMs) ||
+		timeoutMs < 1 ||
+		timeoutMs > ROOT_EVAL_DEFAULT_EFFECT_TIMEOUT_MS
+	)
 		throw new TypeError("root eval admitted effect timeout was invalid");
 	return createRootEvalAbortLease(
 		timeoutMs,
@@ -180,7 +192,11 @@ function createRootEvalSettlementLease(
 	readonly signal: AbortSignal;
 	dispose(): void;
 }> {
-	if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 600_000)
+	if (
+		!Number.isSafeInteger(timeoutMs) ||
+		timeoutMs < 1 ||
+		timeoutMs > ROOT_EVAL_PROVIDER_SETTLEMENT_BOUND_MS
+	)
 		throw new TypeError("root eval admitted settlement timeout was invalid");
 	return createRootEvalAbortLease(
 		timeoutMs,
@@ -2166,6 +2182,7 @@ function createRootEvalLiveExecutorInternal(
 		let dispatchObservationFailed = false;
 		let confirmedPricingRoundingAllowanceMicrousd = 0;
 		try {
+			if (executionMode === "live") assertCurrentRootEvalProviderRoute(effect);
 			// Offline profile eligibility never widens a committed execution grant.
 			// Apply this guard to the injected live boundary too, so it is executable QA.
 			const claimedRoute = input.claimCommit.claim.recoveryEnvelope.pricing;

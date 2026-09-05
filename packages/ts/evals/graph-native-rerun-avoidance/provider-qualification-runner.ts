@@ -3,6 +3,7 @@ import { mkdir, open } from "node:fs/promises";
 import { join } from "node:path";
 import { strictJsonCodec } from "../../src/json/codec.js";
 import { empiricalSha256, empiricalStrictJsonDigest, record } from "./canonical.js";
+import { CURRENT_ROOT_EVAL_PROVIDER_ROUTE } from "./current-provider-route.js";
 import { createRootEvalHttpTransportLeaf } from "./http-transport-leaf.js";
 import {
 	createProviderQualificationGraph,
@@ -21,7 +22,7 @@ import {
 } from "./root-eval-d152-ledger.js";
 import { parseRootEvalLiveProviderResponse, parseRootEvalUniqueJson } from "./root-eval-live.js";
 
-export const QUALIFICATION_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
+export const QUALIFICATION_ENDPOINT = CURRENT_ROOT_EVAL_PROVIDER_ROUTE.chatCompletionsEndpoint;
 
 import {
 	qualificationExamples as examples,

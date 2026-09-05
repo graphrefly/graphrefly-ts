@@ -1,6 +1,6 @@
 import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifest.js";
 import {
-	createDeepSeekV4Flash0731FireworksStructuredProfileDefinition,
+	createDeepSeekV4Flash0731TogetherStructuredProfileDefinition,
 	createInjectedNoNetworkProfileQualification,
 	exactQualifiedProfileCatalogInput,
 	type QualifiedProfileCatalogInput,
@@ -8,7 +8,7 @@ import {
 import { MODEL_HARNESS_PROFILE_NO_NETWORK_QA_ARTIFACT_DIGEST } from "./model-harness-profile-qualification.js";
 
 export function createCurrentExactModelHarnessProfileInput(): QualifiedProfileCatalogInput {
-	const definition = createDeepSeekV4Flash0731FireworksStructuredProfileDefinition();
+	const definition = createDeepSeekV4Flash0731TogetherStructuredProfileDefinition();
 	const qualification = createInjectedNoNetworkProfileQualification({
 		definition,
 		implementationManifestDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,

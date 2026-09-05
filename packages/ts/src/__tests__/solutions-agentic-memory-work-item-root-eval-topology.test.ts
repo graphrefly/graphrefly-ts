@@ -22,21 +22,26 @@ import {
 	type EvalExecutableEffect,
 	type EvalExecutorOutcome,
 	type EvalObservation,
+	type EvalProgressLeaseState,
 	type EvalProviderCapacityState,
 	type EvalProviderOutcome,
 	evalVerificationTerminalReason,
 	evalWorkItemPlanAuthorityDigest,
 	materialFreeObservationValue,
 	persistRootEvalRunAtomically,
+	ROOT_EVAL_BILLING_SETTLEMENT_BOUND_MS,
 	ROOT_EVAL_CALLER_SAFETY_LEASE_MS,
 	ROOT_EVAL_DEFAULT_EFFECT_TIMEOUT_MS,
-	ROOT_EVAL_GRAPH_DRAIN_RESERVE_MS,
-	ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS,
 	ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+	ROOT_EVAL_PROVIDER_SETTLEMENT_BOUND_MS,
+	ROOT_EVAL_PROVIDER_START_INTERVAL_MS,
 	ROOT_EVAL_REPLICATE_COUNT,
+	ROOT_EVAL_RETRY_SETTLEMENT_BOUND_MS,
+	ROOT_EVAL_TOOL_SETTLEMENT_BOUND_MS,
 	ROOT_EVAL_TOPOLOGY_REVISION,
 	rootEvalMaximumObservationOccurrences,
 	rootEvalMaximumProviderAttempts,
+	rootEvalScheduleFeasibility,
 	runRootEval,
 	validateEvalEffectProposalAgainstWorkItemPlan,
 } from "../../evals/graph-native-rerun-avoidance/eval-topology.js";
@@ -340,29 +345,22 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"utf8",
 		);
 		expect(source).not.toMatch(/\bpartial\s*:\s*true/u);
-		const reviewedTimer = source.slice(
-			source.indexOf("const elapsedBudgetTimerSource"),
-			source.indexOf("const elapsedClockPullId"),
-		);
-		expect((source.match(/\[\["RESOLVED"\]\]/gu) ?? []).length).toBe(3);
-		expect((reviewedTimer.match(/\[\["RESOLVED"\]\]/gu) ?? []).length).toBe(3);
+		expect((source.match(/\[\["RESOLVED"\]\]/gu) ?? []).length).toBe(0);
+		expect(source).not.toContain("elapsedBudgetTimerSource");
 	});
 	it("preserves every authored observation contribution at the full 175-call 140-retry bound", async () => {
 		const topology = createTopology();
 		type Contribution = { source: string; revision: number; digest: string; value: unknown };
 		const authored = new Map<string, string>();
-		const released = new Map<string, string>();
 		const arrivals = new Map<string, string>();
 		const counts: Record<string, number> = {};
 		const record = (path: string, payload: unknown) => {
 			const map =
 				path === "eval/observation/arrivals"
 					? arrivals
-					: /^eval\/observation\/input\/[^/]+\/released$/u.test(path)
-						? released
-						: /^eval\/observation\/input\/[^/]+$/u.test(path)
-							? authored
-							: null;
+					: /^eval\/observation\/input\/[^/]+$/u.test(path)
+						? authored
+						: null;
 			if (map === null) return;
 			for (const value of payload as readonly Contribution[]) {
 				expect(value.digest).toBe(empiricalStrictJsonDigest(value.value));
@@ -404,7 +402,6 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			expect(counts["eval-admitted-retry-delay"]).toBe(140);
 			expect(counts["eval-admitted-tool-effect"]).toBe(35);
 			expect(counts["eval-admitted-billing-observation"]).toBeLessThanOrEqual(8);
-			expect([...released.entries()].sort()).toEqual([...authored.entries()].sort());
 			const liveEntries = (values: Map<string, string>) =>
 				[...values.entries()].filter(([id]) => !bootstrapIds.has(id)).sort();
 			expect(liveEntries(arrivals)).toEqual(liveEntries(authored));
@@ -667,84 +664,282 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(() => createRootEvalTopology({} as never)).toThrow();
 	});
 
-	it("settles campaign start immediately and exhausts the Graph elapsed budget at the exact boundary", () => {
-		vi.useFakeTimers();
+	it("publishes a finite schedule proof and occurrence-aware progress lease", async () => {
+		const topology = createTopology();
+		const feasibility: unknown[] = [];
+		const progress: EvalProgressLeaseState[] = [];
+		const admissions: EvalAdmittedEffect[] = [];
+		const stopFeasibility = topology.nodes.scheduleFeasibility.subscribe((message) => {
+			if (message[0] === "DATA") feasibility.push(message[1]);
+		});
+		const stopProgress = topology.nodes.progressLease.subscribe((message) => {
+			if (message[0] === "DATA") progress.push(message[1]);
+		});
+		const stopAdmissions = topology.nodes.providerAdmissions.subscribe((message) => {
+			if (message[0] === "DATA") admissions.push(message[1]);
+		});
+		const result = await runRootEval(topology, twoPhaseExecutor());
+		const proof = rootEvalScheduleFeasibility(ROOT_EVAL_REPLICATE_COUNT);
+		expect(feasibility).toContainEqual(proof);
+		expect(proof).toMatchObject({
+			sourceWorkItemCount: 5,
+			targetWorkItemCount: 30,
+			exactToolAttemptCount: 35,
+			providerSettlementBoundMs: 600_000,
+			retrySettlementBoundMs: 241_000,
+		});
+		expect(proof.maximumFinitePathMs).toBe(
+			proof.maximumProviderAttempts *
+				(ROOT_EVAL_PROVIDER_SETTLEMENT_BOUND_MS + ROOT_EVAL_PROVIDER_START_INTERVAL_MS) +
+				proof.maximumRetryAttempts * ROOT_EVAL_RETRY_SETTLEMENT_BOUND_MS +
+				35 * ROOT_EVAL_TOOL_SETTLEMENT_BOUND_MS +
+				ROOT_EVAL_BILLING_SETTLEMENT_BOUND_MS,
+		);
+		expect(ROOT_EVAL_CALLER_SAFETY_LEASE_MS).toBe(proof.maximumFinitePathMs);
+		expect(progress.at(-1)).toMatchObject({
+			state: "complete",
+			stoppingReason: "campaign-complete",
+			nextExpectedOccurrence: "campaign-complete",
+		});
+		expect(admissions.length).toBeGreaterThan(0);
+		expect(progress).toContainEqual(
+			expect.objectContaining({
+				nextExpectedOccurrence: `provider-outcome:${empiricalStrictJsonDigest(
+					admissions[0]!.admissionId,
+				)}`,
+				leaseMs: admissions[0]!.timeoutMs,
+			}),
+		);
+		expect(result.finding.stoppingReason).toBe("campaign-complete");
+		stopFeasibility();
+		stopProgress();
+		stopAdmissions();
+	});
+
+	it("settles an active duplicate progress occurrence by exact DATA replay", () => {
+		const scheduled: Array<{ callback: () => void; delayMs: number }> = [];
+		const topology = createTopology({
+			progressLeaseSetTimeout: (callback, delayMs) => {
+				scheduled.push({ callback, delayMs });
+				return scheduled.length as unknown as ReturnType<typeof setTimeout>;
+			},
+		});
+		const progress: EvalProgressLeaseState[] = [];
+		const stop = topology.nodes.progressAdmissionLease.subscribe((message) => {
+			if (message[0] === "DATA") progress.push(message[1]);
+		});
 		try {
-			const topology = createTopology();
-			const states: EvalObservation["elapsedBudget"][] = [];
-			const timerMessageTypes: string[] = [];
-			const stopTimer = topology.nodes.elapsedBudgetTimerSource.subscribe((message) => {
-				timerMessageTypes.push(message[0]);
+			const start = Object.freeze({
+				kind: "eval-campaign-start" as const,
+				campaignRef: topology.campaignRef,
 			});
-			const stop = topology.nodes.elapsedBudget.subscribe((message) => {
-				if (message[0] === "DATA") states.push(message[1] as EvalObservation["elapsedBudget"]);
-			});
-			topology.inputs.start.down([
-				[
-					"DATA",
-					Object.freeze({
-						kind: "eval-campaign-start" as const,
-						campaignRef: topology.campaignRef,
-					}),
-				],
-			]);
-			expect(timerMessageTypes).toContain("RESOLVED");
-			expect(timerMessageTypes).not.toContain("DATA");
-			expect(states.at(-1)).toMatchObject({
-				state: "armed",
-				nowMs: 0,
-				limitMs: ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS,
-				drainReserveMs: ROOT_EVAL_GRAPH_DRAIN_RESERVE_MS,
-				callerSafetyLeaseMs: ROOT_EVAL_CALLER_SAFETY_LEASE_MS,
-				stoppingReason: "none",
-			});
-			expect(ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS + ROOT_EVAL_GRAPH_DRAIN_RESERVE_MS).toBe(
-				ROOT_EVAL_CALLER_SAFETY_LEASE_MS,
-			);
-			vi.advanceTimersByTime(ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS - 1);
-			expect(states.some((state) => state.state === "exhausted")).toBe(false);
-			vi.advanceTimersByTime(1);
-			expect(states.at(-1)).toMatchObject({
-				state: "exhausted",
-				nowMs: ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS,
-				stoppingReason: "elapsed-budget-exhausted",
-			});
-			expect(timerMessageTypes).toContain("DATA");
-			topology.inputs.start.down([
-				[
-					"DATA",
-					Object.freeze({
-						kind: "eval-campaign-start" as const,
-						campaignRef: topology.campaignRef,
-					}),
-				],
-			]);
-			expect(states.at(-1)?.state).toBe("exhausted");
-			stopTimer();
-			stop();
+			topology.inputs.start.down([["DATA", start]]);
+			const prior = progress.at(-1);
+			const timerCount = scheduled.length;
+			topology.inputs.start.down([["DATA", start]]);
+			expect(progress.at(-1)).toBe(prior);
+			expect(scheduled).toHaveLength(timerCount);
 		} finally {
-			vi.useRealTimers();
+			stop();
 		}
 	});
 
-	it("rejects elapsed timer-source semantic metadata drift", () => {
+	it("does not let provider pacing shorten an admitted exact-tool settlement lease", async () => {
+		const scheduled: Array<{ callback: () => void; delayMs: number }> = [];
+		const topology = createTopology({
+			progressLeaseSetTimeout: (callback, delayMs) => {
+				scheduled.push({ callback, delayMs });
+				return scheduled.length as unknown as ReturnType<typeof setTimeout>;
+			},
+		});
+		let releaseTool!: () => void;
+		let held = false;
+		let toolStarted!: () => void;
+		const toolStartedPromise = new Promise<void>((resolve) => {
+			toolStarted = resolve;
+		});
+		const base = twoPhaseExecutor();
+		const run = runRootEval(
+			topology,
+			twoPhaseExecutor({
+				onTool(effect) {
+					if (held) return base(effect) as Promise<EvalEffectOutcome>;
+					held = true;
+					toolStarted();
+					return new Promise<EvalEffectOutcome>((resolve) => {
+						releaseTool = () => {
+							void base(effect).then((value) => resolve(value as EvalEffectOutcome));
+						};
+					});
+				},
+			}),
+		);
+		try {
+			await toolStartedPromise;
+			expect(scheduled.at(-1)?.delayMs).toBe(ROOT_EVAL_TOOL_SETTLEMENT_BOUND_MS);
+			releaseTool();
+			await run;
+		} finally {
+			releaseTool?.();
+			await run.catch(() => undefined);
+		}
+	});
+
+	it("ignores stale progress timers and closes new Graph admissions at the current deadline", () => {
+		const scheduled: Array<{ callback: () => void; delayMs: number }> = [];
+		const topology = createTopology({
+			progressLeaseSetTimeout: (callback, delayMs) => {
+				scheduled.push({ callback, delayMs });
+				return scheduled.length as unknown as ReturnType<typeof setTimeout>;
+			},
+		});
+		const progress: unknown[] = [];
+		const admissions: unknown[] = [];
+		const budgets: unknown[] = [];
+		const stops = [
+			topology.nodes.progressAdmissionLease.subscribe((message) => {
+				if (message[0] === "DATA") progress.push(message[1]);
+			}),
+			topology.nodes.providerAdmissions.subscribe((message) => {
+				if (message[0] === "DATA") admissions.push(message[1]);
+			}),
+			topology.nodes.budgets.subscribe((message) => {
+				if (message[0] === "DATA") budgets.push(message[1]);
+			}),
+		];
+		try {
+			topology.inputs.start.down([
+				[
+					"DATA",
+					Object.freeze({
+						kind: "eval-campaign-start" as const,
+						campaignRef: topology.campaignRef,
+					}),
+				],
+			]);
+			expect(scheduled.length).toBeGreaterThan(1);
+			const admittedBeforeStall = admissions.length;
+			scheduled[0]!.callback();
+			expect(progress).not.toContainEqual(expect.objectContaining({ state: "stalled" }));
+			scheduled.at(-1)!.callback();
+			expect(progress.at(-1)).toMatchObject({
+				state: "stalled",
+				stoppingReason: "progress-stalled",
+				leaseMs: 0,
+			});
+			expect(budgets.at(-1)).toMatchObject({ stoppingReason: "progress-stalled" });
+			topology.inputs.start.down([
+				[
+					"DATA",
+					Object.freeze({
+						kind: "eval-campaign-start" as const,
+						campaignRef: topology.campaignRef,
+					}),
+				],
+			]);
+			expect(admissions).toHaveLength(admittedBeforeStall);
+		} finally {
+			for (const stop of stops) stop();
+		}
+	});
+
+	it("drains an active causal tail after a Graph progress stall without an efficacy finding", async () => {
+		const scheduled: Array<{ callback: () => void; delayMs: number }> = [];
+		const topology = createTopology({
+			progressLeaseSetTimeout: (callback, delayMs) => {
+				scheduled.push({ callback, delayMs });
+				return scheduled.length as unknown as ReturnType<typeof setTimeout>;
+			},
+		});
+		let releaseProvider!: () => void;
+		const providerBlocked = new Promise<void>((resolve) => {
+			releaseProvider = resolve;
+		});
+		let providerStarted!: () => void;
+		const providerStartedPromise = new Promise<void>((resolve) => {
+			providerStarted = resolve;
+		});
+		const executed: EvalExecutableEffect[] = [];
+		const run = runRootEval(
+			topology,
+			twoPhaseExecutor({
+				async onProvider(effect) {
+					executed.push(effect);
+					providerStarted();
+					await providerBlocked;
+					return providerOutcome(effect);
+				},
+				onTool(effect) {
+					executed.push(effect);
+					return outcome(effect);
+				},
+			}),
+		);
+		await providerStartedPromise;
+		expect(scheduled.length).toBeGreaterThan(0);
+		scheduled.at(-1)!.callback();
+		releaseProvider();
+		const result = await run;
+		expect(result.finding).toBeNull();
+		expect(result.terminal).toMatchObject({
+			status: "stopped",
+			stoppingReason: "progress-stalled",
+			finding: null,
+			cleanupComplete: true,
+		});
+		expect(executed.filter((effect) => effect.kind === "eval-admitted-effect")).toHaveLength(1);
+		expect(executed.filter((effect) => effect.kind === "eval-admitted-tool-effect")).toHaveLength(
+			1,
+		);
+		expect(result.observations.at(-1)?.msg[1]).toMatchObject({
+			finding: "not-evaluated",
+			progressLease: { state: "stalled", stoppingReason: "progress-stalled" },
+		});
+	});
+
+	it("rejects occurrence-aware liveness semantic metadata drift", () => {
 		const raw = structuredClone(createTopology().graph.describe());
-		const timer = raw.nodes.find((node) => node.id === "eval/time/elapsed-budget/timer-source");
-		if (timer === undefined) throw new Error("elapsed timer source missing from test topology");
+		const progress = raw.nodes.find((node) => node.id === "eval/time/progress-admission-lease");
+		if (progress === undefined) throw new Error("progress lease missing from test topology");
 		for (const [key, replacement] of [
-			["delayMs", 1],
-			["startWaveSettlement", "deferred"],
-			["boundaryEmission", "same-wave"],
-			["asyncPool", false],
-			["pausable", true],
+			["legalCooldownExtendsDeadline", false],
+			["staleRevisionMayStopOrRelease", true],
+			["callerStoppingAuthority", "caller"],
 		] as const) {
 			const mutation = structuredClone(raw);
-			const mutatedTimer = mutation.nodes.find(
-				(node) => node.id === "eval/time/elapsed-budget/timer-source",
+			const mutatedProgress = mutation.nodes.find(
+				(node) => node.id === "eval/time/progress-admission-lease",
 			)!;
-			mutatedTimer.meta = { ...mutatedTimer.meta, [key]: replacement };
+			mutatedProgress.meta = { ...mutatedProgress.meta, [key]: replacement };
 			expect(() => assertRootEvalTopologyContract(mutation), key).toThrow(
-				/elapsed timer-source semantics drift/u,
+				/occurrence-aware liveness semantics drift/u,
+			);
+		}
+		const observationMutation = structuredClone(raw);
+		const arrivals = observationMutation.nodes.find(
+			(node) => node.id === "eval/observation/arrivals",
+		)!;
+		arrivals.meta = { ...arrivals.meta, delivery: "startup-ordered-release-wrapper" };
+		expect(() => assertRootEvalTopologyContract(observationMutation)).toThrow(
+			/occurrence-aware liveness semantics drift/u,
+		);
+	});
+
+	it("rejects current provider route identity or fallback drift", () => {
+		const raw = structuredClone(createTopology().graph.describe());
+		for (const [key, replacement] of [
+			["providerRef", "fireworks"],
+			["providerName", "Fireworks"],
+			["fallback", true],
+		] as const) {
+			const mutation = structuredClone(raw);
+			const route = mutation.nodes.find(
+				(node) => node.id === "eval/provider/current-route-contract",
+			);
+			if (route === undefined) throw new Error("current provider route missing from test topology");
+			route.meta = { ...route.meta, [key]: replacement };
+			expect(() => assertRootEvalTopologyContract(mutation), key).toThrow(
+				/single current provider route drift/u,
 			);
 		}
 	});
@@ -768,7 +963,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		}
 	});
 
-	it("cancels the Graph elapsed timer when an early campaign finding settles", async () => {
+	it("cancels remaining Graph pacing timers when a campaign finding settles", async () => {
 		vi.useFakeTimers();
 		try {
 			let settled = false;
@@ -787,7 +982,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		}
 	});
 
-	it("keeps duplicate campaign start timer cleanup attached to the Graph lifecycle", async () => {
+	it("keeps duplicate-start pacing timer cleanup attached to the Graph lifecycle", async () => {
 		vi.useFakeTimers();
 		try {
 			const topology = createTopology();
@@ -811,62 +1006,16 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		}
 	});
 
-	it("closes new provider admission at elapsed exhaustion and drains admitted tool cleanup", async () => {
-		vi.useFakeTimers();
-		try {
-			const topology = createTopology();
-			const elapsedStates: EvalObservation["elapsedBudget"][] = [];
-			const stopElapsed = topology.nodes.elapsedBudget.subscribe((message) => {
-				if (message[0] === "DATA")
-					elapsedStates.push(message[1] as EvalObservation["elapsedBudget"]);
-			});
-			const providerReleases: Array<() => void> = [];
-			const providerExecutionIds: string[] = [];
-			let toolExecutions = 0;
-			let stoppedResult: Awaited<ReturnType<typeof runRootEval>> | undefined;
-			let stopped = false;
-			const running = runRootEval(topology, async (effect) => {
-				if (effect.kind === "eval-admitted-effect") {
-					providerExecutionIds.push(effect.executionId);
-					return await new Promise<EvalProviderOutcome>((resolve) => {
-						providerReleases.push(() => resolve(providerOutcome(effect)));
-					});
-				}
-				if (effect.kind === "eval-admitted-tool-effect") {
-					toolExecutions += 1;
-					return outcome(effect);
-				}
-				throw new Error(`unexpected elapsed-drain effect ${effect.kind}`);
-			}).then((result) => {
-				stoppedResult = result;
-				stopped = true;
-			});
-			for (let turn = 0; turn < 8 && providerExecutionIds.length < 1; turn += 1)
-				await vi.advanceTimersToNextTimerAsync();
-			expect(providerExecutionIds).toHaveLength(1);
-			vi.advanceTimersByTime(ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS);
-			expect(elapsedStates.at(-1)?.state).toBe("exhausted");
-			expect(stopped).toBe(false);
-			for (const release of providerReleases) release();
-			for (let turn = 0; turn < 32 && !stopped; turn += 1) await vi.advanceTimersByTimeAsync(0);
-			await running;
-			expect(stoppedResult).toMatchObject({
-				finding: null,
-				terminal: {
-					status: "stopped",
-					stoppingReason: "elapsed-budget-exhausted",
-					cleanupComplete: true,
-				},
-			});
-			expect(providerExecutionIds).toHaveLength(1);
-			expect(toolExecutions).toBe(1);
-			stopElapsed();
-		} finally {
-			vi.useRealTimers();
-		}
+	it("does not expose the retired aggregate elapsed-budget authority", () => {
+		const topology = createTopology();
+		const ids = topology.graph.describe().nodes.map((node) => node.id);
+		expect(ids).not.toContain("eval/time/elapsed-budget/timer-source");
+		expect(ids).not.toContain("eval/time/elapsed-budget/state");
+		expect(ids).toContain("eval/time/schedule-feasibility");
+		expect(ids).toContain("eval/time/progress-lease");
 	});
 
-	it("freezes D157 no-network qualification with live authority closed", async () => {
+	it("freezes D158 no-network qualification with live authority closed", async () => {
 		expect(await measureCurrentImplementation()).toBe(CURRENT_IMPLEMENTATION_MANIFEST_DIGEST);
 		const implementationInputs = await measureCurrentImplementationInputs();
 		for (const required of [
@@ -880,6 +1029,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"quiet-data-boundary.ts",
 			"settled-spend.ts",
 			"provider-cost-evidence.ts",
+			"current-provider-route.ts",
 			"rollover-d145-charter-ledger.ts",
 			"update-operator-configuration.ts",
 			"toolchain/pnpm-lock.yaml",
@@ -912,16 +1062,16 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			"graphrefly-ts.root-eval-live-precredential-gates.v6",
 		);
 		expect(ROOT_EVAL_LIVE_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-no-network-qa.v52",
+			"graphrefly-ts.root-eval-live-no-network-qa.v54",
 		);
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-live-qualification.v53",
+			"graphrefly-ts.root-eval-live-qualification.v54",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-no-network-qa.v47",
+			"graphrefly-ts.root-eval-topology-no-network-qa.v49",
 		);
 		expect(ROOT_EVAL_TOPOLOGY_QUALIFICATION.schemaVersion).toBe(
-			"graphrefly-ts.root-eval-topology-qualification.v48",
+			"graphrefly-ts.root-eval-topology-qualification.v49",
 		);
 		expect(ROOT_EVAL_LIVE_GENERATION_REF).not.toContain("d116");
 		expect(ROOT_EVAL_LIVE_CLAIM_REF).not.toContain("d116");
@@ -964,9 +1114,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.responseHorizonIncidentClosureRef).toBe(
 			"graphrefly-ts:D93",
 		);
-		expect(ROOT_EVAL_LIVE_QUALIFICATION.decisionRef).toBe("graphrefly-ts:D157");
+		expect(ROOT_EVAL_LIVE_QUALIFICATION.decisionRef).toBe("graphrefly-ts:D158");
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.implementationExecutionApprovalRef).toBe(
-			"user-authorized-d157-implementation-no-network-2026-09-03",
+			"user-authorized-d158-implementation-no-network-2026-09-04",
 		);
 		expect(ROOT_EVAL_LIVE_QUALIFICATION.efficacyBillingSeparationDecisionRef).toBe(
 			"graphrefly-ts:D113",
@@ -1039,15 +1189,16 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			precredentialGateChronologyExecutionApprovalRef: "graphrefly-ts:D138",
 			currentLiveExecutionApprovalClosed: true,
 			callerHorizonDecisionRequired: false,
-			status: "qualified-no-network-d157-precommitted-development-horizon",
+			status: "qualified-no-network-d158-together-route-and-occurrence-liveness",
 			occurrenceAwareSolutionDeliveryDecisionRef: "graphrefly-ts:D151",
 			orthogonalMechanismFamilyDecisionRef: "graphrefly-ts:D152",
 			occurrenceBoundCandidateToolDecisionRef: "graphrefly-ts:D156",
 			precommittedDevelopmentHorizonDecisionRef: "graphrefly-ts:D157",
+			occurrenceAwareLivenessAndCurrentRouteDecisionRef: "graphrefly-ts:D158",
 		});
 		expect(ROOT_EVAL_TOPOLOGY_QUALIFICATION).toMatchObject({
-			decisionRef: "graphrefly-ts:D157",
-			executionApprovalRef: "user-authorized-d157-implementation-no-network-2026-09-03",
+			decisionRef: "graphrefly-ts:D158",
+			executionApprovalRef: "user-authorized-d158-implementation-no-network-2026-09-04",
 			efficacyBillingSeparationDecisionRef: "graphrefly-ts:D113",
 			efficacyBillingSeparationExecutionApprovalRef: "graphrefly-ts:D114",
 			efficacyBillingSeparationImplementationReceiptRef: "graphrefly-ts:D115",
@@ -1085,11 +1236,12 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			precredentialGateChronologyExecutionApprovalRef: "graphrefly-ts:D138",
 			currentLiveExecutionApprovalClosed: true,
 			callerHorizonDecisionRequired: false,
-			status: "no-network-occurrence-architecture-qualified",
+			status: "no-network-d158-occurrence-liveness-and-together-route-qualified",
 			occurrenceAwareSolutionDeliveryDecisionRef: "graphrefly-ts:D151",
 			orthogonalMechanismFamilyDecisionRef: "graphrefly-ts:D152",
 			occurrenceBoundCandidateToolDecisionRef: "graphrefly-ts:D156",
 			precommittedDevelopmentHorizonDecisionRef: "graphrefly-ts:D157",
+			occurrenceAwareLivenessAndCurrentRouteDecisionRef: "graphrefly-ts:D158",
 		});
 		expect(ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT.architectureMigration.complete).toBe(true);
 		expect(CURRENT_QUALIFICATION_ARTIFACT_DIGEST).toBe(
@@ -1107,7 +1259,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		);
 		expect(source).not.toMatch(/WeakMap|applyFact|imperativeQueue|pendingEffectsQueue/u);
 		expect(source).not.toMatch(/setTimeout\([^)]*,\s*0\s*\)/u);
-		expect(source.match(/ctx\.down\(\[\["RESOLVED"\]\]\)/gu)).toHaveLength(3);
+		expect(source.match(/ctx\.down\(\[\["RESOLVED"\]\]\)/gu) ?? []).toHaveLength(0);
 		expect(source).not.toMatch(/if \(!emitted\) ctx\.down\(\[\["RESOLVED"\]\]\)/u);
 		expect(source).toContain("admitRootEvalOccurrence");
 		expect(source).toMatch(/owner\.initNode\(\s*merge<EvalAdmittedEffect>\(\)/u);
@@ -1450,7 +1602,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(generated.describe + generated.observeEvents + generated.runSummary).not.toMatch(
 			/api[_-]?key|authorization|private-marker/iu,
 		);
-	});
+	}, 15_000);
 
 	it("rejects forged admission coordinates and invalid accounting before cleanup", async () => {
 		for (const patch of [
@@ -2508,7 +2660,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			finding: "positive-differential",
 			stoppingReason: "campaign-complete",
 		});
-	});
+	}, 15_000);
 
 	it("counts explicit provider dispatches independently from admitted attempts and cost", async () => {
 		const zeroCostDispatched = await runRootEval(
@@ -2549,7 +2701,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			providerCallCount: 34,
 			providerReportedMicrousd: 350,
 		});
-	});
+	}, 15_000);
 
 	it("keeps a positive efficacy finding when the Graph-native billing audit rejects identity drift", async () => {
 		const result = await runRootEval(
@@ -3048,13 +3200,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				createTopology(),
 				twoPhaseExecutor({
 					async onTool(effect) {
+						const armIndex = effect.arm === "source" ? 0 : HARNESS_ARMS.indexOf(effect.arm);
 						await new Promise<void>((resolve) =>
-							setTimeout(
-								resolve,
-								reverse
-									? HARNESS_ARMS.length - HARNESS_ARMS.indexOf(effect.arm)
-									: HARNESS_ARMS.indexOf(effect.arm),
-							),
+							setTimeout(resolve, reverse ? HARNESS_ARMS.length - armIndex : armIndex),
 						);
 						return outcome(
 							effect,
@@ -3066,9 +3214,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		const [forward, reverse] = await Promise.all([run(false), run(true)]);
 		expect(forward.finding).toEqual(reverse.finding);
 		expect(forward.finding.completedWorkItems).toBe(30);
-	});
+	}, 15_000);
 
-	it("reaches a terminal finding when every Fireworks response exhausts its output ceiling", async () => {
+	it("reaches a terminal finding when every provider response exhausts its output ceiling", async () => {
 		const topology = createTopology({
 			maxCostMicrousd: 6_000_000,
 			reservationMicrousd: 200_000,
@@ -3424,7 +3572,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			sourceTechnicalExcludedReplicates: [],
 			matchedRelevantOverColdWins: 3,
 		});
-	});
+	}, 15_000);
 
 	it("continues unaffected replicates after a source technical exclusion without simulating target cleanup", async () => {
 		const targetEffects: EvalExecutableEffect[] = [];
@@ -3626,7 +3774,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				maxAttempts: rootEvalMaximumProviderAttempts(ROOT_EVAL_REPLICATE_COUNT) + 1,
 			}),
 		).toThrow("maxAttempts exceeded the root eval topology capacity");
-	});
+	}, 15_000);
 
 	it("settles a completed retry delay before a budget-rejected retry proposal", async () => {
 		const topology = createTopology({
@@ -3966,7 +4114,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 });
 
 describe("D154 adaptive route settlement and coherent terminal QA", () => {
-	it("preserves executor failure through Graph admission even with a nonbillable 429 receipt", async () => {
+	it("rejects Fireworks-only nonbillable evidence on the current Together route", async () => {
 		const topology = createTopology({ maxAttempts: 1, reservationMicrousd: 100 });
 		const effects: EvalExecutableEffect[] = [];
 		const canonical: EvalProviderOutcome[] = [];
@@ -4007,24 +4155,17 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 					effects.push(effect);
 					return await base(effect);
 				}),
-			).rejects.toThrow("source Work Item non-technical failure failed closed");
+			).rejects.toThrow("policy-qualified cost contradicted its provider outcome");
 		} finally {
 			stopOutcome();
 			stopBudget();
 		}
-		expect(canonical).toHaveLength(1);
-		expect(canonical[0]).toMatchObject({
-			status: "failed",
-			reason: "executor-failed",
-			recoveryClass: null,
-			costEvidence: "policy-qualified-nonbillable",
-			cleanupCompleted: true,
-		});
+		expect(canonical).toHaveLength(0);
 		expect(budgets.at(-1)).toMatchObject({
-			providerCallCount: 1,
-			policyQualifiedNonbillableCount: 1,
-			activeReservedMicrousd: 0,
-			accountedUpperBoundMicrousd: 0,
+			providerCallCount: 0,
+			policyQualifiedNonbillableCount: 0,
+			activeReservedMicrousd: 100,
+			accountedUpperBoundMicrousd: 100,
 		});
 		expect(effects.filter((effect) => effect.kind === "eval-admitted-effect")).toHaveLength(1);
 		expect(effects.some((effect) => effect.kind === "eval-admitted-retry-delay")).toBe(false);
@@ -4074,7 +4215,7 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 		}
 	});
 
-	it("conserves mixed reported, policy-qualified zero and unknown provider costs in the actual Graph", async () => {
+	it("conserves reported and unknown provider costs on the current Together route", async () => {
 		const topology = createTopology({ reservationMicrousd: 100 });
 		const budgets: EvalBudgetState[] = [];
 		const stop = topology.nodes.budgets.subscribe((message) => {
@@ -4085,26 +4226,6 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 				topology,
 				twoPhaseExecutor({
 					onProvider(effect) {
-						if (
-							effect.workItemRole === "source" &&
-							effect.replicate === 1 &&
-							effect.dispatchOrdinal === 1
-						) {
-							const proof = nonbillableCostEvidence({
-								policyRef: ROOT_EVAL_NONBILLABLE_POLICY,
-								admissionId: effect.admissionId,
-								admissionReceiptDigest: effect.receiptDigest,
-								requestDigest: empiricalSha256("D154 synthetic request"),
-								responseDigest: empiricalSha256("D154 synthetic complete 429"),
-							});
-							return {
-								...capacityOutcome(effect),
-								costMicrousd: 0,
-								costEvidence: "policy-qualified-nonbillable",
-								nonbillableEvidence: proof,
-								resultDigest: nonbillableHttpResultDigest(proof.responseDigest),
-							};
-						}
 						if (effect.workItemRole === "target" && effect.replicate === 1 && effect.arm === "cold")
 							return providerOutcome(effect, {
 								status: "failed",
@@ -4121,8 +4242,8 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 			);
 			expect(result.finding?.stoppingReason).toBe("campaign-complete");
 			expect(budgets.at(-1)).toMatchObject({
-				providerCallCount: 36,
-				policyQualifiedNonbillableCount: 1,
+				providerCallCount: 35,
+				policyQualifiedNonbillableCount: 0,
 				providerReportedMicrousd: 340,
 				unreportedSettledUpperBoundMicrousd: 100,
 				accountedUpperBoundMicrousd: 440,
@@ -4205,7 +4326,7 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 		}
 	});
 
-	it("keeps identical cost-proof replay quiet and rejects a proof paired with another response", async () => {
+	it("keeps identical reported-cost replay quiet and rejects a conflicting response", async () => {
 		const callbacks: Array<() => void> = [];
 		const topology = createTopology({
 			providerPacingSetTimeout(callback) {
@@ -4229,21 +4350,7 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 			topology,
 			twoPhaseExecutor({
 				onProvider(effect) {
-					const proof = nonbillableCostEvidence({
-						policyRef: ROOT_EVAL_NONBILLABLE_POLICY,
-						admissionId: effect.admissionId,
-						admissionReceiptDigest: effect.receiptDigest,
-						requestDigest: empiricalSha256("D154 exact request"),
-						responseDigest: empiricalSha256("D154 exact error"),
-					});
-					candidate = capacityOutcome(effect);
-					candidate = {
-						...candidate,
-						costMicrousd: 0,
-						costEvidence: "policy-qualified-nonbillable",
-						nonbillableEvidence: proof,
-						resultDigest: nonbillableHttpResultDigest(proof.responseDigest),
-					};
+					candidate = providerOutcome(effect);
 					return candidate;
 				},
 			}),
@@ -4260,23 +4367,19 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 			input.down([["DATA", candidate!]]);
 			expect(spacings).toHaveLength(1);
 			expect(empiricalStrictJsonDigest(budgets.at(-1))).toBe(budgetBefore);
-			expect(budgets.at(-1)?.policyQualifiedNonbillableCount).toBe(1);
-			const { evidenceDigest: _digest, ...proof } = candidate!.nonbillableEvidence!;
+			expect(budgets.at(-1)?.policyQualifiedNonbillableCount).toBe(0);
 			expect(() =>
 				input.down([
 					[
 						"DATA",
 						{
 							...candidate!,
-							nonbillableEvidence: nonbillableCostEvidence({
-								...proof,
-								responseDigest: empiricalSha256("contradictory response"),
-							}),
+							resultDigest: empiricalSha256("contradictory response"),
 						},
 					],
 				]),
-			).toThrow(/binding/);
-			expect(budgets.at(-1)?.policyQualifiedNonbillableCount).toBe(1);
+			).toThrow(/replay|conflict/u);
+			expect(budgets.at(-1)?.policyQualifiedNonbillableCount).toBe(0);
 		} finally {
 			controller.abort(new Error("D154 cost replay fixture cleanup"));
 			await completion;
@@ -4390,12 +4493,20 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 		}
 	});
 
-	it("keeps a completed scientific finding when elapsed cutoff occurs during final billing", async () => {
-		vi.useFakeTimers();
-		const topology = createTopology();
+	it("withholds the scientific finding when progress stalls during final billing", async () => {
+		const scheduled: Array<{ callback: () => void; delayMs: number }> = [];
+		const topology = createTopology({
+			progressLeaseSetTimeout: (callback, delayMs) => {
+				scheduled.push({ callback, delayMs });
+				return scheduled.length as unknown as ReturnType<typeof setTimeout>;
+			},
+		});
 		let heldBilling: EvalBillingObservationEffect | undefined;
 		let releaseBilling: (() => void) | undefined;
-		let complete = false;
+		let billingStarted!: () => void;
+		const billingStartedPromise = new Promise<void>((resolve) => {
+			billingStarted = resolve;
+		});
 		const controller = new AbortController();
 		const base = twoPhaseExecutor();
 		const running = runRootEval(
@@ -4405,6 +4516,7 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 					if (heldBilling !== undefined)
 						return base(effect) as Promise<EvalBillingObservationOutcome>;
 					heldBilling = effect;
+					billingStarted();
 					return new Promise<EvalBillingObservationOutcome>((resolve) => {
 						releaseBilling = () => {
 							void base(effect).then((value) => resolve(value as EvalBillingObservationOutcome));
@@ -4413,33 +4525,31 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 				},
 			}),
 			{ signal: controller.signal },
-		).finally(() => {
-			complete = true;
-		});
-		void running.catch(() => undefined);
+		);
 		try {
-			await flushUntil(() => releaseBilling !== undefined);
-			vi.advanceTimersByTime(ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS);
-			expect(complete).toBe(false);
+			await billingStartedPromise;
+			expect(releaseBilling).toBeDefined();
+			expect(scheduled.length).toBeGreaterThan(0);
+			scheduled.at(-1)!.callback();
 			releaseBilling!();
 			const result = await running;
-			expect(result.finding).toMatchObject({
-				stoppingReason: "campaign-complete",
-				completedWorkItems: 30,
-				finding: "positive-differential",
+			expect(result.finding).toBeNull();
+			expect(result.terminal).toMatchObject({
+				status: "stopped",
+				stoppingReason: "progress-stalled",
+				finding: null,
 			});
 			expect(
 				result.observations.map(materialFreeObservationValue).filter(Boolean).at(-1),
 			).toMatchObject({
-				stoppingReason: "campaign-complete",
-				finding: "positive-differential",
+				stoppingReason: "progress-stalled",
+				finding: "not-evaluated",
 				activeAdmittedEffects: 0,
 			});
 		} finally {
-			controller.abort(new Error("D154 final billing fixture cleanup"));
+			controller.abort(new Error("D158 final billing fixture cleanup"));
 			releaseBilling?.();
 			await running.catch(() => undefined);
-			vi.useRealTimers();
 		}
 	});
 

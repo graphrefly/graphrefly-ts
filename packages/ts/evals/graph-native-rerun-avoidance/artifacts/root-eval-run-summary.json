@@ -39,16 +39,6 @@
 			"requiredConsecutiveGenerations": 2,
 			"status": "qualified"
 		},
-		"elapsedBudget": {
-			"callerSafetyLeaseMs": 6300000,
-			"drainReserveMs": 1800000,
-			"kind": "eval-elapsed-budget-state",
-			"limitMs": 4500000,
-			"nowMs": 0,
-			"scheduleId": "root-eval-d152-mechanism-no-network-qualification-v1/elapsed-admission-budget",
-			"state": "armed",
-			"stoppingReason": "none"
-		},
 		"evaluableReplicates": 5,
 		"excludedTechnicalReplicates": [],
 		"finding": "positive-differential",
@@ -70,6 +60,18 @@
 		"partitionSpentBeforeMicrousd": 0,
 		"pendingRetryProposalCount": 0,
 		"pricingRoundingAllowanceMicrousd": 0,
+		"progressLease": {
+			"campaignRef": "root-eval-d152-mechanism-no-network-qualification-v1",
+			"deadlineOffsetMs": 0,
+			"kind": "eval-progress-lease-state",
+			"leaseMs": 0,
+			"maximumFinitePathMs": 165246000,
+			"nextExpectedOccurrence": "campaign-complete",
+			"occurrenceDigest": "sha256:4c02f0d244798f0c31288bc9ffd875d54baac32a85ffd926a9dd2c4711b0e02c",
+			"revision": 176,
+			"state": "complete",
+			"stoppingReason": "campaign-complete"
+		},
 		"providerCallCount": 36,
 		"providerCapacity": {
 			"activeEffects": 0,
@@ -123,6 +125,24 @@
 		"replicate": 5,
 		"replicateCount": 5,
 		"retryProposalCount": 1,
+		"scheduleFeasibility": {
+			"billingSettlementBoundMs": 256000,
+			"decisionRef": "graphrefly-ts:D158",
+			"exactToolAttemptCount": 35,
+			"exactToolSettlementBoundMs": 600000,
+			"kind": "eval-schedule-feasibility",
+			"maximumFinitePathMs": 165246000,
+			"maximumProviderAttempts": 175,
+			"maximumRetryAttempts": 140,
+			"providerEffectLeaseMs": 300000,
+			"providerSettlementBoundMs": 600000,
+			"providerStartIntervalMs": 30000,
+			"replicateCount": 5,
+			"retrySettlementBoundMs": 241000,
+			"sourceWorkItemCount": 5,
+			"state": "feasible",
+			"targetWorkItemCount": 30
+		},
 		"settledRetryAttemptCount": 1,
 		"solutionIdentities": [
 			"work-item-execution",
@@ -133,7 +153,7 @@
 		"sourceTechnicalExcludedReplicates": [],
 		"stoppingReason": "campaign-complete",
 		"taskSetRef": "root-eval-d152-mechanism-qualification-v1",
-		"topologyRevision": "graphrefly-ts.root-eval-topology.v24",
+		"topologyRevision": "graphrefly-ts.root-eval-topology.v26",
 		"unreportedSettledUpperBoundMicrousd": 0,
 		"verificationDiagnostics": {
 			"armOrder": [

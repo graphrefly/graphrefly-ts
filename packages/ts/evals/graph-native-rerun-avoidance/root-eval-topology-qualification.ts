@@ -5,7 +5,7 @@ import { HARNESS_ARMS } from "./harness-campaign-policy.js";
 import { CURRENT_IMPLEMENTATION_MANIFEST_DIGEST } from "./implementation-manifest.js";
 
 export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
-	schemaVersion: "graphrefly-ts.root-eval-topology-no-network-qa.v47" as const,
+	schemaVersion: "graphrefly-ts.root-eval-topology-no-network-qa.v49" as const,
 	exactTogetherCandidateGraphAdmissionQualified: true as const,
 	mixedProviderCatalogRejected: true as const,
 	decisionRefs: Object.freeze([
@@ -73,6 +73,7 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		"graphrefly-ts:D155",
 		"graphrefly-ts:D156",
 		"graphrefly-ts:D157",
+		"graphrefly-ts:D158",
 		"graphrefly:D789",
 	] as const),
 	topologyRevision: ROOT_EVAL_TOPOLOGY_REVISION,
@@ -84,6 +85,15 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 	requiredNodeCount: Object.keys(ROOT_EVAL_REQUIRED_NODES).length,
 	criticalEdgeCount: ROOT_EVAL_CRITICAL_EDGES.length,
 	caseResults: Object.freeze({
+		d158SingleTogetherRouteGraphAuthorityAndNoFallback: "passed" as const,
+		d158FiniteScheduleAndOccurrenceAwareProgressLease: "passed" as const,
+		d158FinitePathIncludesFiveSourceAndThirtyTargetTools: "passed" as const,
+		d158ActiveDuplicateProgressExactDataReplay: "passed" as const,
+		d158ActualProviderAdmissionObservableProgress: "passed" as const,
+		d158PacingCannotShortenExactToolLease: "passed" as const,
+		d158RetryCleanupAndReplicateProgressOccurrences: "passed" as const,
+		d158ProgressStallClosesAdmissionAndDrainsCausalTail: "passed" as const,
+		d158SynchronousTerminalCommitsOnlyAfterInFlightQuiescence: "passed" as const,
 		d154ExactPolicyCostBindingAndReportedPrecedence: "passed" as const,
 		d154AdaptiveSpacingAndExhaustedRetryAfter: "passed" as const,
 		d154CoherentBudgetStopAndSourceToolDrain: "passed" as const,
@@ -146,16 +156,8 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT = Object.freeze({
 		directProviderResultAdmissionSettlement: "passed" as const,
 		initialProviderSlotCompletionOrderPermutations: "passed" as const,
 		callerSettlementDeadlineTechnicalOnly: "passed" as const,
-		graphOwnedElapsedAdmissionBudget: "passed" as const,
-		campaignStartWaveSettlesImmediately: "passed" as const,
-		timerSourceResolvedThenBoundaryData: "passed" as const,
-		exactElapsedBoundaryVirtualTime: "passed" as const,
-		elapsedStateMonotoneAcrossStartReplay: "passed" as const,
-		elapsedStoppingObservationStableCut: "passed" as const,
-		configuredCampaignIdentityPreservedAtTimerBoundary: "passed" as const,
-		elapsedStopDrainsAdmittedCausalTail: "passed" as const,
-		earlyTerminalTimerDeactivation: "passed" as const,
-		callerLeaseAfterGraphBudgetAndDrainReserve: "passed" as const,
+		occurrenceProgressLeaseDeactivatesAtTerminal: "passed" as const,
+		callerSafetyLeaseDerivedFromFinitePath: "passed" as const,
 		budgetStop: "passed" as const,
 		budgetStopDrainsAdmittedEffects: "passed" as const,
 		failureCleanup: "passed" as const,
@@ -249,9 +251,9 @@ export const ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT_DIGEST = empiricalStrictJ
 
 const qualificationMaterial = Object.freeze({
 	providerSettlementAndTerminalDecisionRef: "graphrefly-ts:D154" as const,
-	schemaVersion: "graphrefly-ts.root-eval-topology-qualification.v48" as const,
-	decisionRef: "graphrefly-ts:D157" as const,
-	executionApprovalRef: "user-authorized-d157-implementation-no-network-2026-09-03" as const,
+	schemaVersion: "graphrefly-ts.root-eval-topology-qualification.v49" as const,
+	decisionRef: "graphrefly-ts:D158" as const,
+	executionApprovalRef: "user-authorized-d158-implementation-no-network-2026-09-04" as const,
 	verificationDiagnosticsImplementationReceiptRef: "graphrefly-ts:D120" as const,
 	mostRecentSuccessfulCanonicalLiveExecutionApprovalRef: "graphrefly-ts:D116" as const,
 	mostRecentSuccessfulCanonicalLiveExecutionCloseoutRef: "graphrefly-ts:D117" as const,
@@ -294,6 +296,7 @@ const qualificationMaterial = Object.freeze({
 	orthogonalMechanismFamilyDecisionRef: "graphrefly-ts:D152" as const,
 	occurrenceBoundCandidateToolDecisionRef: "graphrefly-ts:D156" as const,
 	precommittedDevelopmentHorizonDecisionRef: "graphrefly-ts:D157" as const,
+	occurrenceAwareLivenessAndCurrentRouteDecisionRef: "graphrefly-ts:D158" as const,
 	completionCharterRef: "graphrefly-ts:D145" as const,
 	currentLiveExecutionApprovalClosed: true as const,
 	callerHorizonDecisionRequired: false as const,
@@ -302,7 +305,7 @@ const qualificationMaterial = Object.freeze({
 	responseHorizonIncidentClosureRef: "graphrefly-ts:D93" as const,
 	implementationManifestDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
 	qualificationArtifactDigest: ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT_DIGEST,
-	status: "no-network-occurrence-architecture-qualified" as const,
+	status: "no-network-d158-occurrence-liveness-and-together-route-qualified" as const,
 });
 
 export const ROOT_EVAL_TOPOLOGY_QUALIFICATION = Object.freeze({

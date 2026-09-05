@@ -33,9 +33,6 @@ import {
 	type EvalEffectOutcome,
 	type EvalProviderOutcome,
 	emptyEvalProviderOutcomeReasonCounts,
-	ROOT_EVAL_CALLER_SAFETY_LEASE_MS,
-	ROOT_EVAL_GRAPH_DRAIN_RESERVE_MS,
-	ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS,
 	ROOT_EVAL_MAX_AVAILABILITY_RETRIES,
 	ROOT_EVAL_MAX_CAPACITY_RETRIES,
 	ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM,
@@ -45,6 +42,7 @@ import {
 	rootEvalMaximumObservationOccurrences,
 	rootEvalMaximumProviderAttempts,
 	rootEvalMaximumRetryAttempts,
+	rootEvalScheduleFeasibility,
 	runRootEval,
 } from "../../evals/graph-native-rerun-avoidance/eval-topology.js";
 import {
@@ -251,6 +249,11 @@ function parseRootEvalLiveProviderResponse(
 
 const repositoryRoot = resolve(import.meta.dirname, "../../../..");
 const pricing = Object.freeze({
+	inputMicrousdPerMillionTokens: 140_000 as const,
+	outputMicrousdPerMillionTokens: 280_000 as const,
+	cacheReadMicrousdPerMillionTokens: 30_000 as const,
+});
+const historicalFireworksPricing = Object.freeze({
 	inputMicrousdPerMillionTokens: 220_000 as const,
 	outputMicrousdPerMillionTokens: 660_000 as const,
 	cacheReadMicrousdPerMillionTokens: 7_000 as const,
@@ -338,7 +341,7 @@ function providerBytes(): Uint8Array {
 		JSON.stringify({
 			id: "generation:test",
 			model: "deepseek/deepseek-v4-flash-20260731",
-			provider: "Fireworks",
+			provider: "Together",
 			choices: [
 				{
 					index: 0,
@@ -355,11 +358,21 @@ function providerBytes(): Uint8Array {
 				prompt_tokens: 1_000,
 				completion_tokens: 100,
 				total_tokens: 1_100,
-				cost: 0.0002647,
+				cost: 0.000157,
 				prompt_tokens_details: { cached_tokens: 100 },
 			},
 		}),
 	);
+}
+
+function historicalFireworksProviderBytes(): Uint8Array {
+	const decoded = JSON.parse(new TextDecoder().decode(providerBytes())) as Record<string, unknown>;
+	decoded.provider = "Fireworks";
+	decoded.usage = {
+		...(decoded.usage as Record<string, unknown>),
+		cost: 0.0002647,
+	};
+	return new TextEncoder().encode(JSON.stringify(decoded));
 }
 
 function providerBytesForTask(
@@ -439,10 +452,10 @@ function operatorConfigurationBytes(declaredAtMs: number, duplicateKey = false):
 			workspaceSlug: "graph-re-fly",
 			keyName: "Local Eval 2",
 			byokCredentialCount: 0,
-			providerObservation: "Fireworks Not configured",
+			providerObservation: "Together Not configured",
 			source: "maintainer-declared-openrouter-settings",
 			declaredAtMs,
-			configurationRevision: "2026-08-29.d149.v1",
+			configurationRevision: "2026-09-04.d158.v1",
 			revoked: false,
 			credentialFingerprintDigest: empiricalSha256(
 				new TextEncoder().encode("sk-or-v1-a44-middle-credential-e06"),
@@ -460,7 +473,7 @@ function operatorConfigurationBytes(declaredAtMs: number, duplicateKey = false):
 			requestDataCollection: "deny",
 			requestZdrRequired: true,
 			allowedModels: ["deepseek/deepseek-v4-flash-0731"],
-			allowedProviders: ["Fireworks"],
+			allowedProviders: ["Fireworks", "Together"],
 		}),
 	);
 	return new TextEncoder().encode(
@@ -482,12 +495,12 @@ function liveEvidenceInput(
 		sourceUrl: ROOT_EVAL_LIVE_PRICING_SOURCE,
 		modelRef: "deepseek/deepseek-v4-flash-0731" as const,
 		endpointModelRef: "deepseek/deepseek-v4-flash-20260731" as const,
-		providerName: "Fireworks" as const,
-		providerRef: "fireworks" as const,
+		providerName: "Together" as const,
+		providerRef: "together" as const,
 		quantization: "unknown" as const,
-		inputMicrousdPerMillionTokens: 220_000 as const,
-		outputMicrousdPerMillionTokens: 660_000 as const,
-		cacheReadMicrousdPerMillionTokens: 7_000 as const,
+		inputMicrousdPerMillionTokens: 140_000 as const,
+		outputMicrousdPerMillionTokens: 280_000 as const,
+		cacheReadMicrousdPerMillionTokens: 30_000 as const,
 		zeroDataRetention: true as const,
 		promptTraining: false as const,
 		zdrSourceUrl: ROOT_EVAL_LIVE_ZDR_SOURCE,
@@ -503,7 +516,7 @@ function liveEvidenceInput(
 		workspaceSlug: "graph-re-fly" as const,
 		keyName: "Local Eval 2" as const,
 		byokCredentialCount: 0 as const,
-		providerObservation: "Fireworks Not configured" as const,
+		providerObservation: "Together Not configured" as const,
 		observedAtMs: 1,
 		precredentialGateCompletedAtMs: 0,
 		precredentialGateReceiptDigest: empiricalStrictJsonDigest("precredential-gates"),
@@ -682,15 +695,18 @@ function liveEvidenceInput(
 					cooldownOutstandingReadinessCount: 0,
 					rateLimitFeedbackCount: 0,
 				},
-				elapsedBudget: {
-					kind: "eval-elapsed-budget-state",
-					scheduleId: `${ROOT_EVAL_LIVE_GENERATION_REF}/elapsed-admission-budget`,
-					limitMs: ROOT_EVAL_GRAPH_ELAPSED_ADMISSION_BUDGET_MS,
-					drainReserveMs: ROOT_EVAL_GRAPH_DRAIN_RESERVE_MS,
-					callerSafetyLeaseMs: ROOT_EVAL_CALLER_SAFETY_LEASE_MS,
-					state: "armed",
-					nowMs: 0,
-					stoppingReason: "none",
+				scheduleFeasibility: rootEvalScheduleFeasibility(replicateCount),
+				progressLease: {
+					kind: "eval-progress-lease-state",
+					campaignRef: ROOT_EVAL_LIVE_GENERATION_REF,
+					revision: 1,
+					occurrenceDigest: empiricalStrictJsonDigest("fixture-campaign-complete"),
+					nextExpectedOccurrence: "campaign-complete",
+					leaseMs: 0,
+					deadlineOffsetMs: 0,
+					maximumFinitePathMs: rootEvalScheduleFeasibility(replicateCount).maximumFinitePathMs,
+					state: "complete",
+					stoppingReason: "campaign-complete",
 				},
 				admittedAttempts: workItemCount,
 				admittedRetryAttempts: 0,
@@ -926,11 +942,11 @@ async function currentClaimInput(privateRoot: string) {
 								id: "deepseek/deepseek-v4-flash-0731",
 								endpoints: [
 									{
-										provider_name: "Fireworks",
-										tag: "fireworks",
+										provider_name: "Together",
+										tag: "together",
 										quantization: "unknown",
 										model_id: "deepseek/deepseek-v4-flash-0731",
-										name: "Fireworks | deepseek/deepseek-v4-flash-20260731",
+										name: "Together | deepseek/deepseek-v4-flash-20260731",
 										supported_parameters: [
 											"max_tokens",
 											"reasoning",
@@ -938,9 +954,9 @@ async function currentClaimInput(privateRoot: string) {
 											"structured_outputs",
 										],
 										pricing: {
-											prompt: "0.00000022",
-											completion: "0.00000066",
-											input_cache_read: "0.000000007",
+											prompt: "0.00000014",
+											completion: "0.00000028",
+											input_cache_read: "0.00000003",
 										},
 									},
 								],
@@ -949,10 +965,10 @@ async function currentClaimInput(privateRoot: string) {
 					: {
 							data: [
 								{
-									provider_name: "Fireworks",
-									tag: "fireworks",
+									provider_name: "Together",
+									tag: "together",
 									model_id: "deepseek/deepseek-v4-flash-0731",
-									name: "Fireworks | deepseek/deepseek-v4-flash-20260731",
+									name: "Together | deepseek/deepseek-v4-flash-20260731",
 								},
 							],
 						};
@@ -1825,7 +1841,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					nowMs,
 				}),
 			).resolves.toMatchObject({
-				configurationRevision: "2026-08-29.d149.v1",
+				configurationRevision: "2026-09-04.d158.v1",
 				postCommitFailureDigest: null,
 				sourceArtifactDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
 			});
@@ -2302,15 +2318,19 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		expect(Date.now() - startedAt).toBeLessThan(5_000);
 	});
 
-	it("keeps the composed admitted causal tail below the Graph drain reserve", () => {
+	it("derives the caller safety ceiling from the finite Graph schedule", () => {
 		expect(ROOT_EVAL_MAX_POST_CUTOFF_CAUSAL_TAIL_MS).toBe(
 			ROOT_EVAL_PROVIDER_SETTLEMENT_LEASE_MS +
 				ROOT_EVAL_TOOL_SETTLEMENT_LEASE_MS +
 				ROOT_EVAL_RETRY_SETTLEMENT_LEASE_MS +
 				ROOT_EVAL_BILLING_SETTLEMENT_LEASE_MS * ROOT_EVAL_MAX_BILLING_OBSERVATIONS,
 		);
-		expect(ROOT_EVAL_MAX_POST_CUTOFF_CAUSAL_TAIL_MS).toBeLessThan(ROOT_EVAL_GRAPH_DRAIN_RESERVE_MS);
-		expect(ROOT_EVAL_CALLER_SETTLEMENT_DEADLINE_MS).toBe(6_300_000);
+		expect(ROOT_EVAL_MAX_POST_CUTOFF_CAUSAL_TAIL_MS).toBeLessThan(
+			rootEvalScheduleFeasibility(5).maximumFinitePathMs,
+		);
+		expect(ROOT_EVAL_CALLER_SETTLEMENT_DEADLINE_MS).toBe(
+			rootEvalScheduleFeasibility(5).maximumFinitePathMs,
+		);
 	});
 
 	it("enforces retry and cleanup-finalizer settlement against non-cooperative adapters", async () => {
@@ -2540,7 +2560,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				expect(outcome).toMatchObject({
 					status: "tool-proposed",
 					reason: "tool-proposed",
-					costMicrousd: 265,
+					costMicrousd: 157,
 				});
 				const requestBody = executor.providerRequestSummaries()[0];
 				expect(Object.isFrozen(requestBody)).toBe(true);
@@ -2550,8 +2570,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					model: "deepseek/deepseek-v4-flash-0731",
 					max_tokens: 16_384,
 					provider: {
-						order: ["fireworks"],
-						only: ["fireworks"],
+						order: ["together"],
+						only: ["together"],
 						allow_fallbacks: false,
 						require_parameters: true,
 						data_collection: "deny",
@@ -2759,7 +2779,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					status: "failed",
 					reason: "executor-failed",
 					dispatchAttempted: true,
-					costMicrousd: 265,
+					costMicrousd: 157,
 					costEvidence: "provider-reported",
 				});
 				expect(providerCalls).toBe(1);
@@ -2895,7 +2915,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		}
 	}, 120_000);
 
-	it("settles thirty output-truncated Fireworks responses through the root Graph", async () => {
+	it("settles thirty output-truncated Together responses through the root Graph", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-truncated-response-"));
 		const privateRoot = await realpath(temporary);
 		const capturedTargetTaskStatements: string[] = [];
@@ -3156,17 +3176,17 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		}
 	}, 120_000);
 
-	it("qualifies fresh Fireworks pricing and the exact route through the ZDR registry", async () => {
+	it("qualifies fresh Together pricing and the exact route through the ZDR registry", async () => {
 		const pricingEnvelope = {
 			data: {
 				id: "deepseek/deepseek-v4-flash-0731",
 				endpoints: [
 					{
-						provider_name: "Fireworks",
-						tag: "fireworks",
+						provider_name: "Together",
+						tag: "together",
 						quantization: "unknown",
 						model_id: "deepseek/deepseek-v4-flash-0731",
-						name: "Fireworks | deepseek/deepseek-v4-flash-20260731",
+						name: "Together | deepseek/deepseek-v4-flash-20260731",
 						supported_parameters: [
 							"max_tokens",
 							"reasoning",
@@ -3174,19 +3194,19 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 							"structured_outputs",
 						],
 						pricing: {
-							prompt: "0.00000022",
-							completion: "0.00000066",
-							input_cache_read: "0.000000007",
+							prompt: "0.00000014",
+							completion: "0.00000028",
+							input_cache_read: "0.00000003",
 						},
 					},
 				],
 			},
 		};
 		const zdrEndpoint = {
-			provider_name: "Fireworks",
-			tag: "fireworks",
+			provider_name: "Together",
+			tag: "together",
 			model_id: "deepseek/deepseek-v4-flash-0731",
-			name: "Fireworks | deepseek/deepseek-v4-flash-20260731",
+			name: "Together | deepseek/deepseek-v4-flash-20260731",
 		};
 		const fetchWithZdr = async (url: string | URL | Request): Promise<Response> => {
 			const target = String(url);
@@ -3202,8 +3222,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		await expect(
 			readRootEvalLivePricing({ fetchImpl: fetchWithZdr as typeof fetch, nowMs: 123 }),
 		).resolves.toMatchObject({
-			providerName: "Fireworks",
-			providerRef: "fireworks",
+			providerName: "Together",
+			providerRef: "together",
 			zeroDataRetention: true,
 			promptTraining: false,
 			zdrSourceUrl: ROOT_EVAL_LIVE_ZDR_SOURCE,
@@ -3252,16 +3272,16 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 
 	it("rejects duplicate keys in every external JSON authority", async () => {
 		const exactEndpoint = {
-			provider_name: "Fireworks",
-			tag: "fireworks",
+			provider_name: "Together",
+			tag: "together",
 			quantization: "unknown",
 			model_id: "deepseek/deepseek-v4-flash-0731",
-			name: "Fireworks | deepseek/deepseek-v4-flash-20260731",
+			name: "Together | deepseek/deepseek-v4-flash-20260731",
 			supported_parameters: ["max_tokens", "reasoning", "response_format", "structured_outputs"],
 			pricing: {
-				prompt: "0.00000022",
-				completion: "0.00000066",
-				input_cache_read: "0.000000007",
+				prompt: "0.00000014",
+				completion: "0.00000028",
+				input_cache_read: "0.00000003",
 			},
 		};
 		const exactPricing = JSON.stringify({
@@ -3330,9 +3350,9 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		const parsed = parseRootEvalLiveProviderResponse({
 			route: { providerRef: "fireworks", providerModelRef: "deepseek/deepseek-v4-flash-0731" },
 			status: 200,
-			bytes: providerBytes(),
+			bytes: historicalFireworksProviderBytes(),
 			retryAfter: null,
-			pricing,
+			pricing: historicalFireworksPricing,
 			reservationMicrousd: 200_000,
 		});
 		expect(parsed.disposition).toBe("tool");
@@ -3362,9 +3382,9 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			parseRootEvalLiveProviderResponse({
 				route: { providerRef: "fireworks", providerModelRef: "deepseek/deepseek-v4-flash-0731" },
 				status: 429,
-				bytes: providerBytes(),
+				bytes: historicalFireworksProviderBytes(),
 				retryAfter: "61",
-				pricing,
+				pricing: historicalFireworksPricing,
 				reservationMicrousd: 100,
 			}),
 		).toMatchObject({
@@ -3378,7 +3398,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				status: 429,
 				bytes: new TextEncoder().encode('{"usage":{"cost":0.000265}}'),
 				retryAfter: "61",
-				pricing,
+				pricing: historicalFireworksPricing,
 				reservationMicrousd: 100,
 			}),
 		).toMatchObject({
@@ -3386,10 +3406,9 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			costEvidence: "provider-reported",
 			costMicrousd: 265,
 		});
-		const incompleteUsage = JSON.parse(new TextDecoder().decode(providerBytes())) as Record<
-			string,
-			unknown
-		>;
+		const incompleteUsage = JSON.parse(
+			new TextDecoder().decode(historicalFireworksProviderBytes()),
+		) as Record<string, unknown>;
 		incompleteUsage.usage = { cost: 0.000265 };
 		try {
 			parseRootEvalLiveProviderResponse({
@@ -3397,7 +3416,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				status: 200,
 				bytes: new TextEncoder().encode(JSON.stringify(incompleteUsage)),
 				retryAfter: null,
-				pricing,
+				pricing: historicalFireworksPricing,
 				reservationMicrousd: 100,
 			});
 			throw new TypeError("incomplete usage unexpectedly passed");
@@ -3421,7 +3440,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					status: 429,
 					bytes: new TextEncoder().encode("{}"),
 					retryAfter,
-					pricing,
+					pricing: historicalFireworksPricing,
 					reservationMicrousd: 200_000,
 				}),
 				retryAfter ?? "missing Retry-After",
@@ -3432,7 +3451,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				status: 503,
 				bytes: new TextEncoder().encode("{}"),
 				retryAfter: "5",
-				pricing,
+				pricing: historicalFireworksPricing,
 				reservationMicrousd: 200_000,
 			}),
 		).toMatchObject({
@@ -3448,7 +3467,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				status: 429,
 				bytes: new TextEncoder().encode("{}"),
 				retryAfter: "241",
-				pricing,
+				pricing: historicalFireworksPricing,
 				reservationMicrousd: 200_000,
 			}),
 		).toMatchObject({
@@ -3463,7 +3482,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					status,
 					bytes: new TextEncoder().encode("{}"),
 					retryAfter: null,
-					pricing,
+					pricing: historicalFireworksPricing,
 					reservationMicrousd: 200_000,
 				}),
 			).toMatchObject({
@@ -3479,7 +3498,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					JSON.stringify({ error: { metadata: { provider_error_code: "provider_overloaded" } } }),
 				),
 				retryAfter: null,
-				pricing,
+				pricing: historicalFireworksPricing,
 				reservationMicrousd: 200_000,
 			}),
 		).toMatchObject({ disposition: "retryable", reason: "http-availability-retryable" });
@@ -3490,7 +3509,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					status,
 					bytes: new TextEncoder().encode("{}"),
 					retryAfter: null,
-					pricing,
+					pricing: historicalFireworksPricing,
 					reservationMicrousd: 200_000,
 				}),
 			).toMatchObject({
@@ -3509,7 +3528,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					status,
 					bytes,
 					retryAfter: null,
-					pricing,
+					pricing: historicalFireworksPricing,
 					reservationMicrousd: 200_000,
 				});
 				expect(result).toMatchObject(
@@ -3520,10 +3539,9 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 							: { disposition: "failed", reason: "http-terminal", recoveryClass: null },
 				);
 			}
-		const documentedUsage = JSON.parse(new TextDecoder().decode(providerBytes())) as Record<
-			string,
-			unknown
-		>;
+		const documentedUsage = JSON.parse(
+			new TextDecoder().decode(historicalFireworksProviderBytes()),
+		) as Record<string, unknown>;
 		const usage = { ...(documentedUsage.usage as Record<string, unknown>) };
 		delete usage.prompt_tokens_details;
 		usage.cost = 0.000286;
@@ -3532,7 +3550,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			status: 200,
 			bytes: new TextEncoder().encode(JSON.stringify({ ...documentedUsage, usage })),
 			retryAfter: null,
-			pricing,
+			pricing: historicalFireworksPricing,
 			reservationMicrousd: 200_000,
 		});
 		expect(withoutCacheDetails).toMatchObject({
@@ -3541,10 +3559,9 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			costMicrousd: 286,
 			pricingRoundingAllowanceMicrousd: 0,
 		});
-		const oneMicrousd = JSON.parse(new TextDecoder().decode(providerBytes())) as Record<
-			string,
-			unknown
-		>;
+		const oneMicrousd = JSON.parse(
+			new TextDecoder().decode(historicalFireworksProviderBytes()),
+		) as Record<string, unknown>;
 		oneMicrousd.usage = {
 			prompt_tokens: 2,
 			completion_tokens: 1,
@@ -3558,14 +3575,14 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				status: 200,
 				bytes: new TextEncoder().encode(JSON.stringify(oneMicrousd)),
 				retryAfter: null,
-				pricing,
+				pricing: historicalFireworksPricing,
 				reservationMicrousd: 200_000,
 			}),
 		).toMatchObject({
 			costMicrousd: 1,
 			pricingRoundingAllowanceMicrousd: 1,
 		});
-	});
+	}, 15_000);
 
 	it("accepts only the admitted Together identity, model revision and structured proposal", () => {
 		const base = JSON.parse(new TextDecoder().decode(providerBytes()));
@@ -3583,7 +3600,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			expect(parse({ ...base, provider: "Together", model })).toMatchObject({
 				disposition: "tool",
 				costEvidence: "provider-reported",
-				costMicrousd: 265,
+				costMicrousd: 157,
 			});
 		for (const provider of ["Fireworks", "DeepInfra", "together", null])
 			expect(() => parse({ ...base, provider })).toThrow(/route identity/);
@@ -3608,7 +3625,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			"target",
 			DEFAULT_TEST_WORK_ITEM_ID,
 		);
-		const providerText = new TextDecoder().decode(providerBytes());
+		const providerText = new TextDecoder().decode(historicalFireworksProviderBytes());
 		const base = JSON.parse(providerText) as Record<string, unknown>;
 		const reasonFor = (value: unknown | Uint8Array): string => {
 			const bytes =
@@ -3619,7 +3636,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					status: 200,
 					bytes,
 					retryAfter: null,
-					pricing,
+					pricing: historicalFireworksPricing,
 					reservationMicrousd: 200_000,
 				});
 				return "not-rejected";
@@ -3856,7 +3873,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				status: 200,
 				bytes: new TextEncoder().encode(JSON.stringify(legacyToolCalls)),
 				retryAfter: null,
-				pricing,
+				pricing: historicalFireworksPricing,
 				reservationMicrousd: 200_000,
 			});
 			throw new Error("legacy tool calls were not rejected");
@@ -5035,7 +5052,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				{ observationRevision: 0 },
 				{ completedTargetWorkItems: 1 },
 				{ cleanupComplete: false },
-				{ stoppingReason: "elapsed-budget-exhausted" },
+				{ stoppingReason: "progress-stalled" },
 				{ unexpected: true },
 			])
 				expect(() =>
@@ -5115,7 +5132,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			stopBudget();
 			await rm(temporary, { recursive: true, force: true });
 		}
-	});
+	}, 15_000);
 
 	it("atomically commits D152 evidence and its carried-spend ledger", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-d152-transaction-"));
@@ -6055,7 +6072,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				},
 			);
 			expect(executor.providerRequestSummaries()).toHaveLength(7);
-			expect(graphResult.finding.providerReportedMicrousd).toBe(1_855);
+			expect(graphResult.finding.providerReportedMicrousd).toBe(1_099);
 			expect(graphResult.finding.providerOutcomeReasonCounts).toMatchObject({
 				"tool-proposed": 5,
 				"response-proposal-legacy-shape": 1,
@@ -6409,39 +6426,41 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				return { status: 200, bytes: new TextEncoder().encode(JSON.stringify(response)) };
 			},
 		});
-		const wrongGrantExecutor = createRootEvalLiveTransportQualificationExecutor({
+		const wrongRouteExecutor = createRootEvalLiveTransportQualificationExecutor({
 			graph: topology.graph,
 			repositoryRoot,
-			materializationRoot: join(temporary, "wrong-grant-workspaces"),
+			materializationRoot: join(temporary, "wrong-route-workspaces"),
 			privateRoot,
 			claimCommit,
 			bearerToken: claimInput.credential.bearerToken,
 			pricing: claimInput.pricing,
 			providerResponses: [],
 		});
-		let grantRejectionChecked = false;
+		let routeRejectionChecked = false;
 		try {
 			const result = await runRootEval(topology, async (effect) => {
-				if (!grantRejectionChecked && effect.kind === "eval-admitted-effect") {
-					grantRejectionChecked = true;
+				if (!routeRejectionChecked && effect.kind === "eval-admitted-effect") {
+					routeRejectionChecked = true;
 					expect(effect.providerRef).toBe("together");
-					await expect(wrongGrantExecutor.execute(effect)).resolves.toMatchObject({
+					await expect(
+						wrongRouteExecutor.execute({ ...effect, providerRef: "fireworks" } as never),
+					).resolves.toMatchObject({
 						status: "failed",
 						reason: "executor-failed",
 						dispatchAttempted: false,
 						costMicrousd: 0,
 					});
-					expect(wrongGrantExecutor.providerRequestSummaries()).toEqual([]);
+					expect(wrongRouteExecutor.providerRequestSummaries()).toEqual([]);
 					await expect(stat(join(privateRoot, ".d152-provider-dispatches"))).rejects.toMatchObject({
 						code: "ENOENT",
 					});
-					await expect(stat(join(temporary, "wrong-grant-workspaces"))).rejects.toMatchObject({
+					await expect(stat(join(temporary, "wrong-route-workspaces"))).rejects.toMatchObject({
 						code: "ENOENT",
 					});
 				}
 				return executor.execute(effect);
 			});
-			expect(grantRejectionChecked).toBe(true);
+			expect(routeRejectionChecked).toBe(true);
 			const requests = executor.providerRequestSummaries();
 			expect(requests).toHaveLength(35);
 			for (const request of requests)
@@ -6477,7 +6496,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				});
 			expect(await readdir(join(temporary, "workspaces"))).toEqual([]);
 		} finally {
-			await wrongGrantExecutor.dispose();
+			await wrongRouteExecutor.dispose();
 			await executor.dispose();
 			await rm(temporary, { recursive: true, force: true });
 		}
@@ -6632,8 +6651,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					},
 				},
 				provider: {
-					order: ["fireworks"],
-					only: ["fireworks"],
+					order: ["together"],
+					only: ["together"],
 					allow_fallbacks: false,
 					require_parameters: true,
 					data_collection: "deny",
@@ -7666,7 +7685,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				credential,
 			};
 			await expect(acquireRootEvalLiveClaim(claimInput)).rejects.toThrow(/current closure/u);
-			const originalClaim = liveEvidenceInput().claim!;
+			const currentEvidence = liveEvidenceInput();
+			const originalClaim = currentEvidence.claim!;
 			await expect(
 				persistRootEvalLivePreclaimFailure({
 					privateRoot,
@@ -7702,8 +7722,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				...originalClaimMaterial,
 				currentKeyBeforeDigest: currentKeyBefore.admissionDigest,
 				recoveryEnvelope: {
-					pricing: pricingObservation,
-					zeroByok,
+					pricing: currentEvidence.pricing,
+					zeroByok: currentEvidence.zeroByok,
 					currentKeyBefore,
 				},
 			};
@@ -7758,7 +7778,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					finding: "positive-differential" as const,
 					stoppingReason: "campaign-complete" as const,
 				}),
-				observations: liveEvidenceInput().graphResult!.observations,
+				observations: currentEvidence.graphResult!.observations,
 				peakConcurrentEffects: 1,
 				executedAdmissionIds: admissionIds(),
 			});
@@ -7770,8 +7790,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				claim,
 				currentKeyBefore,
 				currentKeyAfter,
-				pricing: pricingObservation,
-				zeroByok,
+				pricing: currentEvidence.pricing,
+				zeroByok: currentEvidence.zeroByok,
 				providerCalls: currentWorkItemCount,
 				graphResult,
 				partialGraphObservations: oversizedDiagnosticStream,

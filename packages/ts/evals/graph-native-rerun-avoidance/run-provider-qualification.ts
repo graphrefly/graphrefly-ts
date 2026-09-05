@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { strictJsonCodec } from "../../src/json/codec.js";
 import { empiricalSha256, empiricalStrictJsonDigest, exactKeys, record } from "./canonical.js";
+import { CURRENT_ROOT_EVAL_PROVIDER_ROUTE } from "./current-provider-route.js";
 import {
 	assertCurrentImplementationRuntime,
 	CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
@@ -130,13 +131,14 @@ async function main() {
 		empiricalStrictJsonDigest(settings) !== proofDigest ||
 		settings.executionRef !== approvalRef ||
 		settings.keyName !== "Local Eval 2" ||
-		settings.providerRef !== "together" ||
+		settings.providerRef !== CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerRef ||
 		settings.zeroByok !== true ||
 		settings.zeroDataRetention !== true ||
 		settings.promptTraining !== false ||
 		JSON.stringify(settings.allowedModels) !==
-			JSON.stringify(["deepseek/deepseek-v4-flash-0731"]) ||
-		JSON.stringify(settings.allowedProviders) !== JSON.stringify(["Fireworks", "Together"]) ||
+			JSON.stringify([CURRENT_ROOT_EVAL_PROVIDER_ROUTE.modelRef]) ||
+		JSON.stringify(settings.allowedProviders) !==
+			JSON.stringify(CURRENT_ROOT_EVAL_PROVIDER_ROUTE.allowedOperatorProviders) ||
 		!Number.isSafeInteger(settings.observedAtMs) ||
 		now - Number(settings.observedAtMs) < 0 ||
 		now - Number(settings.observedAtMs) > 86_400_000
@@ -144,33 +146,33 @@ async function main() {
 		throw new TypeError("qualification settings proof invalid or stale");
 	const pricing = await official(ROOT_EVAL_LIVE_PRICING_SOURCE, 1_048_576);
 	const data = record(pricing.value.data, "qualification pricing data");
-	if (data.id !== "deepseek/deepseek-v4-flash-0731" || !Array.isArray(data.endpoints))
+	if (data.id !== CURRENT_ROOT_EVAL_PROVIDER_ROUTE.modelRef || !Array.isArray(data.endpoints))
 		throw new TypeError("qualification model catalog invalid");
 	const exactRoute = (raw: unknown) => {
 		const value = record(raw, "qualification endpoint");
 		return (
-			value.provider_name === "Together" &&
-			value.tag === "together" &&
-			value.model_id === "deepseek/deepseek-v4-flash-0731"
+			value.provider_name === CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerName &&
+			value.tag === CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerRef &&
+			value.model_id === CURRENT_ROOT_EVAL_PROVIDER_ROUTE.modelRef
 		);
 	};
 	const matches = data.endpoints.filter(exactRoute);
-	if (matches.length !== 1) throw new TypeError("qualification Together route ambiguous");
-	const endpoint = record(matches[0], "qualification Together endpoint");
+	if (matches.length !== 1) throw new TypeError("qualification current route ambiguous");
+	const endpoint = record(matches[0], "qualification current endpoint");
 	const prices = record(endpoint.pricing, "qualification prices");
 	if (
-		prices.prompt !== "0.00000014" ||
-		prices.completion !== "0.00000028" ||
-		prices.input_cache_read !== "0.00000003" ||
+		prices.prompt !== CURRENT_ROOT_EVAL_PROVIDER_ROUTE.inputUsdPerToken ||
+		prices.completion !== CURRENT_ROOT_EVAL_PROVIDER_ROUTE.outputUsdPerToken ||
+		prices.input_cache_read !== CURRENT_ROOT_EVAL_PROVIDER_ROUTE.cacheReadUsdPerToken ||
 		!Array.isArray(endpoint.supported_parameters) ||
 		!["reasoning", "response_format", "structured_outputs", "max_tokens"].every((value) =>
 			(endpoint.supported_parameters as unknown[]).includes(value),
 		)
 	)
-		throw new TypeError("qualification Together price or request contract changed");
+		throw new TypeError("qualification current route price or request contract changed");
 	const zdr = await official(ROOT_EVAL_LIVE_ZDR_SOURCE, 4 * 1_048_576);
 	if (!Array.isArray(zdr.value.data) || zdr.value.data.filter(exactRoute).length !== 1)
-		throw new TypeError("qualification Together ZDR unavailable");
+		throw new TypeError("qualification current route ZDR unavailable");
 	const historical = await readRootEvalD145CharterLedger(
 		join(operatorRoot, "d145-charter-ledger.v4.json"),
 	);

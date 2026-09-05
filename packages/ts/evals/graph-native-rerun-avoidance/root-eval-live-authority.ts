@@ -19,6 +19,7 @@ import {
 	sameBytes,
 	strictSnapshot,
 } from "./canonical.js";
+import { CURRENT_ROOT_EVAL_PROVIDER_ROUTE } from "./current-provider-route.js";
 import {
 	assertRootEvalFindingTerminalConsistency,
 	assertRootEvalObservationRuntimeShape,
@@ -76,9 +77,8 @@ import {
 } from "./root-eval-task.js";
 import { rootEvalBudgetReceipt, settledRootEvalSpend } from "./settled-spend.js";
 
-export const ROOT_EVAL_LIVE_PRICING_SOURCE =
-	"https://openrouter.ai/api/v1/models/deepseek/deepseek-v4-flash-0731/endpoints" as const;
-export const ROOT_EVAL_LIVE_ZDR_SOURCE = "https://openrouter.ai/api/v1/endpoints/zdr" as const;
+export const ROOT_EVAL_LIVE_PRICING_SOURCE = CURRENT_ROOT_EVAL_PROVIDER_ROUTE.pricingSource;
+export const ROOT_EVAL_LIVE_ZDR_SOURCE = CURRENT_ROOT_EVAL_PROVIDER_ROUTE.zdrSource;
 export const ROOT_EVAL_LIVE_CURRENT_KEY_ENDPOINT = "https://openrouter.ai/api/v1/key" as const;
 export const ROOT_EVAL_LIVE_OPERATOR_CONFIGURATION_SCHEMA =
 	"graphrefly-ts.d149.operator-configuration.v1" as const;
@@ -267,14 +267,14 @@ export interface RootEvalLiveBoundedCurrentness {
 
 export interface RootEvalLivePricingObservation {
 	readonly sourceUrl: typeof ROOT_EVAL_LIVE_PRICING_SOURCE;
-	readonly modelRef: "deepseek/deepseek-v4-flash-0731";
-	readonly endpointModelRef: "deepseek/deepseek-v4-flash-20260731";
-	readonly providerName: "Fireworks";
-	readonly providerRef: "fireworks";
-	readonly quantization: "unknown";
-	readonly inputMicrousdPerMillionTokens: 220_000;
-	readonly outputMicrousdPerMillionTokens: 660_000;
-	readonly cacheReadMicrousdPerMillionTokens: 7_000;
+	readonly modelRef: typeof CURRENT_ROOT_EVAL_PROVIDER_ROUTE.modelRef;
+	readonly endpointModelRef: typeof CURRENT_ROOT_EVAL_PROVIDER_ROUTE.endpointModelRef;
+	readonly providerName: typeof CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerName;
+	readonly providerRef: typeof CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerRef;
+	readonly quantization: typeof CURRENT_ROOT_EVAL_PROVIDER_ROUTE.quantization;
+	readonly inputMicrousdPerMillionTokens: typeof CURRENT_ROOT_EVAL_PROVIDER_ROUTE.inputMicrousdPerMillionTokens;
+	readonly outputMicrousdPerMillionTokens: typeof CURRENT_ROOT_EVAL_PROVIDER_ROUTE.outputMicrousdPerMillionTokens;
+	readonly cacheReadMicrousdPerMillionTokens: typeof CURRENT_ROOT_EVAL_PROVIDER_ROUTE.cacheReadMicrousdPerMillionTokens;
 	readonly zeroDataRetention: true;
 	readonly promptTraining: false;
 	readonly zdrSourceUrl: typeof ROOT_EVAL_LIVE_ZDR_SOURCE;
@@ -288,7 +288,7 @@ export interface RootEvalLiveZeroByokObservation {
 	readonly workspaceSlug: "graph-re-fly";
 	readonly keyName: "Local Eval 2";
 	readonly byokCredentialCount: 0;
-	readonly providerObservation: "Fireworks Not configured";
+	readonly providerObservation: "Together Not configured";
 	readonly observedAtMs: number;
 	readonly precredentialGateCompletedAtMs: number;
 	readonly precredentialGateReceiptDigest: string;
@@ -301,10 +301,10 @@ export interface RootEvalLiveOperatorConfigurationFacts {
 	readonly workspaceSlug: "graph-re-fly";
 	readonly keyName: "Local Eval 2";
 	readonly byokCredentialCount: 0;
-	readonly providerObservation: "Fireworks Not configured";
+	readonly providerObservation: "Together Not configured";
 	readonly source: "maintainer-declared-openrouter-settings";
 	readonly declaredAtMs: number;
-	readonly configurationRevision: "2026-08-29.d149.v1";
+	readonly configurationRevision: "2026-09-04.d158.v1";
 	readonly revoked: boolean;
 	readonly credentialFingerprintDigest: string;
 	readonly keyVisiblePrefix: string;
@@ -319,16 +319,16 @@ export interface RootEvalLiveOperatorConfigurationFacts {
 	readonly requestDataCollection: "deny";
 	readonly requestZdrRequired: true;
 	readonly allowedModels: readonly ["deepseek/deepseek-v4-flash-0731"];
-	readonly allowedProviders: readonly ["Fireworks"];
+	readonly allowedProviders: typeof CURRENT_ROOT_EVAL_PROVIDER_ROUTE.allowedOperatorProviders;
 }
 
 export interface RootEvalLiveOperatorConfiguration {
 	readonly workspaceSlug: "graph-re-fly";
 	readonly keyName: "Local Eval 2";
 	readonly byokCredentialCount: 0;
-	readonly providerObservation: "Fireworks Not configured";
+	readonly providerObservation: "Together Not configured";
 	readonly declaredAtMs: number;
-	readonly configurationRevision: "2026-08-29.d149.v1";
+	readonly configurationRevision: "2026-09-04.d158.v1";
 	readonly revoked: boolean;
 	readonly credentialFingerprintDigest: string;
 	readonly sourceArtifactDigest: string;
@@ -1177,19 +1177,20 @@ export async function readRootEvalLivePricing(input: {
 		"pricing response",
 	);
 	const data = object(root.data, "pricing response.data");
-	if (data.id !== "deepseek/deepseek-v4-flash-0731" || !Array.isArray(data.endpoints))
+	if (data.id !== CURRENT_ROOT_EVAL_PROVIDER_ROUTE.modelRef || !Array.isArray(data.endpoints))
 		throw new TypeError("root eval exact model route drifted");
 	const matches = data.endpoints
 		.map((entry) => object(entry, "pricing endpoint"))
 		.filter(
 			(endpoint) =>
-				endpoint.provider_name === "Fireworks" &&
-				endpoint.tag === "fireworks" &&
-				endpoint.quantization === "unknown" &&
-				endpoint.model_id === "deepseek/deepseek-v4-flash-0731" &&
-				endpoint.name === "Fireworks | deepseek/deepseek-v4-flash-20260731",
+				endpoint.provider_name === CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerName &&
+				endpoint.tag === CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerRef &&
+				endpoint.quantization === CURRENT_ROOT_EVAL_PROVIDER_ROUTE.quantization &&
+				endpoint.model_id === CURRENT_ROOT_EVAL_PROVIDER_ROUTE.modelRef &&
+				endpoint.name ===
+					`${CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerName} | ${CURRENT_ROOT_EVAL_PROVIDER_ROUTE.endpointModelRef}`,
 		);
-	if (matches.length !== 1) throw new TypeError("root eval exact Fireworks route was ambiguous");
+	if (matches.length !== 1) throw new TypeError("root eval exact current route was ambiguous");
 	const endpoint = matches[0]!;
 	if (
 		!Array.isArray(endpoint.supported_parameters) ||
@@ -1200,9 +1201,9 @@ export async function readRootEvalLivePricing(input: {
 		throw new TypeError("root eval exact route omitted required parameters");
 	const pricing = object(endpoint.pricing, "pricing endpoint.pricing");
 	if (
-		pricing.prompt !== "0.00000022" ||
-		pricing.completion !== "0.00000066" ||
-		pricing.input_cache_read !== "0.000000007"
+		pricing.prompt !== CURRENT_ROOT_EVAL_PROVIDER_ROUTE.inputUsdPerToken ||
+		pricing.completion !== CURRENT_ROOT_EVAL_PROVIDER_ROUTE.outputUsdPerToken ||
+		pricing.input_cache_read !== CURRENT_ROOT_EVAL_PROVIDER_ROUTE.cacheReadUsdPerToken
 	)
 		throw new TypeError("root eval exact route pricing drifted");
 	const zdrResponse = await input.fetchImpl(ROOT_EVAL_LIVE_ZDR_SOURCE, {
@@ -1236,23 +1237,25 @@ export async function readRootEvalLivePricing(input: {
 		.map((entry) => object(entry, "ZDR endpoint"))
 		.filter(
 			(candidate) =>
-				candidate.provider_name === "Fireworks" &&
-				candidate.tag === "fireworks" &&
-				candidate.model_id === "deepseek/deepseek-v4-flash-0731" &&
-				candidate.name === "Fireworks | deepseek/deepseek-v4-flash-20260731",
+				candidate.provider_name === CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerName &&
+				candidate.tag === CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerRef &&
+				candidate.model_id === CURRENT_ROOT_EVAL_PROVIDER_ROUTE.modelRef &&
+				candidate.name ===
+					`${CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerName} | ${CURRENT_ROOT_EVAL_PROVIDER_ROUTE.endpointModelRef}`,
 		);
 	if (zdrMatches.length !== 1)
-		throw new TypeError("root eval exact Fireworks route was not uniquely ZDR-qualified");
+		throw new TypeError("root eval exact current route was not uniquely ZDR-qualified");
 	const material = strictSnapshot({
 		sourceUrl: ROOT_EVAL_LIVE_PRICING_SOURCE,
-		modelRef: "deepseek/deepseek-v4-flash-0731" as const,
-		endpointModelRef: "deepseek/deepseek-v4-flash-20260731" as const,
-		providerName: "Fireworks" as const,
-		providerRef: "fireworks" as const,
-		quantization: "unknown" as const,
-		inputMicrousdPerMillionTokens: 220_000 as const,
-		outputMicrousdPerMillionTokens: 660_000 as const,
-		cacheReadMicrousdPerMillionTokens: 7_000 as const,
+		modelRef: CURRENT_ROOT_EVAL_PROVIDER_ROUTE.modelRef,
+		endpointModelRef: CURRENT_ROOT_EVAL_PROVIDER_ROUTE.endpointModelRef,
+		providerName: CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerName,
+		providerRef: CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerRef,
+		quantization: CURRENT_ROOT_EVAL_PROVIDER_ROUTE.quantization,
+		inputMicrousdPerMillionTokens: CURRENT_ROOT_EVAL_PROVIDER_ROUTE.inputMicrousdPerMillionTokens,
+		outputMicrousdPerMillionTokens: CURRENT_ROOT_EVAL_PROVIDER_ROUTE.outputMicrousdPerMillionTokens,
+		cacheReadMicrousdPerMillionTokens:
+			CURRENT_ROOT_EVAL_PROVIDER_ROUTE.cacheReadMicrousdPerMillionTokens,
 		zeroDataRetention: true as const,
 		promptTraining: false as const,
 		zdrSourceUrl: ROOT_EVAL_LIVE_ZDR_SOURCE,
@@ -1356,9 +1359,9 @@ function validateRootEvalLiveOperatorConfiguration(input: {
 		value.workspaceSlug !== "graph-re-fly" ||
 		value.keyName !== "Local Eval 2" ||
 		value.byokCredentialCount !== 0 ||
-		value.providerObservation !== "Fireworks Not configured" ||
+		value.providerObservation !== "Together Not configured" ||
 		value.source !== "maintainer-declared-openrouter-settings" ||
-		value.configurationRevision !== "2026-08-29.d149.v1" ||
+		value.configurationRevision !== "2026-09-04.d158.v1" ||
 		(value.revoked !== false && !(input.allowRevoked && value.revoked === true)) ||
 		declaredCredentialFingerprintDigest !== credentialFingerprint(input.credential) ||
 		value.guardrailId !== "2c97d3e1-b4cc-4246-95d7-33eb27fb65ab" ||
@@ -1384,17 +1387,19 @@ function validateRootEvalLiveOperatorConfiguration(input: {
 		/\s/u.test(visiblePrefix + visibleSuffix) ||
 		!input.credential.bearerToken.startsWith(visiblePrefix) ||
 		!input.credential.bearerToken.endsWith(visibleSuffix) ||
-		JSON.stringify(value.allowedModels) !== JSON.stringify(["deepseek/deepseek-v4-flash-0731"]) ||
-		JSON.stringify(value.allowedProviders) !== JSON.stringify(["Fireworks"])
+		JSON.stringify(value.allowedModels) !==
+			JSON.stringify([CURRENT_ROOT_EVAL_PROVIDER_ROUTE.modelRef]) ||
+		JSON.stringify(value.allowedProviders) !==
+			JSON.stringify(CURRENT_ROOT_EVAL_PROVIDER_ROUTE.allowedOperatorProviders)
 	)
 		throw new TypeError("root eval operator configuration failed same-credential admission");
 	const material = strictSnapshot({
 		workspaceSlug: "graph-re-fly" as const,
 		keyName: "Local Eval 2" as const,
 		byokCredentialCount: 0 as const,
-		providerObservation: "Fireworks Not configured" as const,
+		providerObservation: "Together Not configured" as const,
 		declaredAtMs,
-		configurationRevision: "2026-08-29.d149.v1" as const,
+		configurationRevision: "2026-09-04.d158.v1" as const,
 		revoked: value.revoked as boolean,
 		credentialFingerprintDigest: declaredCredentialFingerprintDigest,
 		sourceArtifactDigest: empiricalSha256(input.bytes),
@@ -1416,7 +1421,7 @@ export async function replaceRootEvalLiveOperatorConfiguration(input: {
 }): Promise<
 	| Readonly<{
 			disposition: "installed";
-			configurationRevision: "2026-08-29.d149.v1";
+			configurationRevision: "2026-09-04.d158.v1";
 			revoked: boolean;
 			sourceArtifactDigest: string;
 			postCommitFailureDigest: null;
@@ -2134,14 +2139,17 @@ function isNonnegativeSafeInteger(value: unknown): value is number {
 function validPricingSemantics(value: Record<string, unknown>): boolean {
 	return (
 		value.sourceUrl === ROOT_EVAL_LIVE_PRICING_SOURCE &&
-		value.modelRef === "deepseek/deepseek-v4-flash-0731" &&
-		value.endpointModelRef === "deepseek/deepseek-v4-flash-20260731" &&
-		value.providerName === "Fireworks" &&
-		value.providerRef === "fireworks" &&
-		value.quantization === "unknown" &&
-		value.inputMicrousdPerMillionTokens === 220_000 &&
-		value.outputMicrousdPerMillionTokens === 660_000 &&
-		value.cacheReadMicrousdPerMillionTokens === 7_000 &&
+		value.modelRef === CURRENT_ROOT_EVAL_PROVIDER_ROUTE.modelRef &&
+		value.endpointModelRef === CURRENT_ROOT_EVAL_PROVIDER_ROUTE.endpointModelRef &&
+		value.providerName === CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerName &&
+		value.providerRef === CURRENT_ROOT_EVAL_PROVIDER_ROUTE.providerRef &&
+		value.quantization === CURRENT_ROOT_EVAL_PROVIDER_ROUTE.quantization &&
+		value.inputMicrousdPerMillionTokens ===
+			CURRENT_ROOT_EVAL_PROVIDER_ROUTE.inputMicrousdPerMillionTokens &&
+		value.outputMicrousdPerMillionTokens ===
+			CURRENT_ROOT_EVAL_PROVIDER_ROUTE.outputMicrousdPerMillionTokens &&
+		value.cacheReadMicrousdPerMillionTokens ===
+			CURRENT_ROOT_EVAL_PROVIDER_ROUTE.cacheReadMicrousdPerMillionTokens &&
 		value.zeroDataRetention === true &&
 		value.promptTraining === false &&
 		value.zdrSourceUrl === ROOT_EVAL_LIVE_ZDR_SOURCE &&
@@ -2156,7 +2164,7 @@ function validZeroByokSemantics(value: Record<string, unknown>): boolean {
 		value.workspaceSlug === "graph-re-fly" &&
 		value.keyName === "Local Eval 2" &&
 		value.byokCredentialCount === 0 &&
-		value.providerObservation === "Fireworks Not configured" &&
+		value.providerObservation === "Together Not configured" &&
 		isNonnegativeSafeInteger(value.observedAtMs) &&
 		isNonnegativeSafeInteger(value.precredentialGateCompletedAtMs) &&
 		(value.precredentialGateCompletedAtMs as number) <= (value.observedAtMs as number) &&
@@ -2599,7 +2607,8 @@ function projectObservation(value: unknown, index: number): ParsedEvalObservatio
 			"activeBillingEffects",
 			"activeAdmittedEffects",
 			"providerCapacity",
-			"elapsedBudget",
+			"scheduleFeasibility",
+			"progressLease",
 			"admittedAttempts",
 			"admittedRetryAttempts",
 			"retryProposalCount",
@@ -2787,7 +2796,8 @@ function projectObservation(value: unknown, index: number): ParsedEvalObservatio
 			{ max: ROOT_EVAL_ARMS.length },
 		),
 		providerCapacity: raw.providerCapacity as EvalObservation["providerCapacity"],
-		elapsedBudget: raw.elapsedBudget as EvalObservation["elapsedBudget"],
+		scheduleFeasibility: raw.scheduleFeasibility as EvalObservation["scheduleFeasibility"],
+		progressLease: raw.progressLease as EvalObservation["progressLease"],
 		admittedAttempts: safeInteger(raw.admittedAttempts, "root eval observation.admittedAttempts", {
 			max: ROOT_EVAL_LIVE_MAX_PROVIDER_ATTEMPTS,
 		}),
@@ -2883,7 +2893,7 @@ function projectObservation(value: unknown, index: number): ParsedEvalObservatio
 				"none",
 				"campaign-complete",
 				"budget-exhausted",
-				"elapsed-budget-exhausted",
+				"progress-stalled",
 				"effect-failed",
 			] as const,
 			"root eval observation.stoppingReason",
@@ -3597,7 +3607,7 @@ function validateStoppedTerminal(
 	literal(terminal.cleanupComplete, true, "root eval stopped terminal.cleanupComplete");
 	oneOf(
 		terminal.stoppingReason,
-		["budget-exhausted", "elapsed-budget-exhausted"],
+		["budget-exhausted", "progress-stalled"],
 		"root eval stopped terminal.stoppingReason",
 	);
 	for (const key of ["observationDigest", "budgetDigest", "activityDigest"] as const)

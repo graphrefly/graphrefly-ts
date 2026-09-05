@@ -36,7 +36,7 @@ export function rootEvalBudgetReceipt(value: EvalBudgetState): EvalBudgetState {
 	for (const key of numeric) safeInteger(budget[key], `budget receipt.${key}`);
 	oneOf(
 		budget.stoppingReason,
-		["none", "budget-exhausted", "elapsed-budget-exhausted"],
+		["none", "budget-exhausted", "progress-stalled"],
 		"budget receipt.stoppingReason",
 	);
 	exactKeys(
