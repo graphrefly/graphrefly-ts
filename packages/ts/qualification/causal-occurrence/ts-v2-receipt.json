@@ -1,0 +1,109 @@
+{
+	"schema": "graphrefly/conformance-arm-evidence/v1",
+	"revision": "ts-v2",
+	"workRef": "graphrefly-ts:CAUSAL-OCCURRENCE-TS",
+	"owner": "graphrefly-ts",
+	"date": "2026-09-06",
+	"contract": {
+		"artifactRef": "graphrefly:causal-occurrence-contract",
+		"schema": "graphrefly/causal-occurrence-contract/v1",
+		"revision": "contract-v2",
+		"governingRef": "graphrefly:D791"
+	},
+	"authorization": {
+		"kind": "existing-task-user-instruction",
+		"taskId": "01a07544-5ecf-77e2-86f9-a6c759c43872",
+		"instruction": "好的，继续，这些修正能够完成B120是吗？",
+		"scope": "Reviewed local repairs and no-network qualification of the original TS arm; no new architectural decision or execution authority is created by this receipt."
+	},
+	"checkout": {
+		"baseCommit": "006519e177f043bb7267484232e3e7dbb3e9cfe7",
+		"binding": "Final working-tree file digests below; base commit alone is not the repaired implementation."
+	},
+	"files": {
+		"packages/ts/src/solutions/causal-occurrence.ts": "sha256:fadc9bf262851e20dcf017932e6d06d4012a42180ee3fd2a3ef8dc582c3a69a9",
+		"packages/ts/src/__tests__/solutions-causal-occurrence.d791.test.ts": "sha256:b62d3fd1a035b835e3af85a7c24ed391b46da2efd9b5e976c67624692465c5d9",
+		"scripts/qualify-causal-occurrence.mjs": "sha256:ee88365d63949b56c91407f37aed3427d9fe1bb1c6c26883e707f5f04a2f4e7e",
+		"packages/ts/qualification/causal-occurrence/ts-v2-mutations.json": "sha256:00859ce5d2b9b1001f4dad8a3cbe625bfccc4afa552b0b3e2ee030f26c72364f",
+		"packages/ts/evals/graph-native-rerun-avoidance/implementation-manifest.ts": "sha256:a48b720c0293b397ab190a149dd0c53cc04f7a6a59e1e18e4bcd892bb0123223",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-artifact-set.json": "sha256:1cbbfec6da10839fce352fd43393e9f50253da6f490a79c7ae5df1431890dcc1"
+	},
+	"implementationClosureDigest": "sha256:6b810f44364f228d3e247f5f2c4665dce2a97c12e272dc7538004b513254657a",
+	"checks": [
+		{
+			"command": "pnpm --filter @graphrefly/ts exec vitest run src/__tests__/solutions-causal-occurrence.d791.test.ts",
+			"status": "passed",
+			"tests": 24
+		},
+		{
+			"command": "pnpm test:causal-occurrence:qualification --output packages/ts/qualification/causal-occurrence/ts-v2-mutations.json",
+			"status": "passed",
+			"baselines": 2,
+			"structureMutantsKilled": 29,
+			"behaviorMutantsKilled": 43,
+			"survived": 0
+		},
+		{
+			"command": "pnpm --filter @graphrefly/ts test",
+			"status": "passed",
+			"testFiles": 134,
+			"skippedFiles": 1,
+			"tests": 2160,
+			"skippedTests": 4
+		},
+		{
+			"command": "pnpm run lint",
+			"status": "passed"
+		},
+		{
+			"command": "pnpm run build",
+			"status": "passed",
+			"exports": "ESM/CJS/DTS subpath smoke passed"
+		},
+		{
+			"command": "pnpm eval:root:artifacts:check",
+			"status": "passed"
+		},
+		{
+			"command": "npm --prefix ../graphrefly run authority:check:workspace",
+			"status": "passed"
+		},
+		{
+			"command": "npm --prefix ../graphrefly run work:check:workspace",
+			"status": "passed"
+		},
+		{
+			"command": "node ../graphrefly/dashboard/build.mjs --workspace --check",
+			"status": "passed"
+		}
+	],
+	"review": {
+		"mode": "two independent static QA reviewers",
+		"resolvedFindings": [
+			"Preserve bounded pending effect proposals with their early admission/outcome facts at effect capacity.",
+			"Drain capacity freed by pending occurrence promotion in the same finite synchronous transition.",
+			"Preserve the first pending proposal against conflicting direct arrival."
+		],
+		"remainingFindings": []
+	},
+	"cleanup": {
+		"fixture": "Output subscriptions and captured real graph.retain handles are unsubscribed; sanctioned topologyGroup.release removes registrations, including after failed tests.",
+		"mutation": {
+			"temporaryRemoved": true,
+			"childProcessesExited": true
+		},
+		"sourceAndTestsUnchangedByRunner": true
+	},
+	"limits": [
+		"maxOccurrences also bounds distinct lifetime domains across all DATA lanes; domain tombstones are not silently recycled.",
+		"Evidence overflow uses bounded persistent gap representatives, not an exhaustive overflow event log.",
+		"Capacity issues do not settle effects; retained pending obligations prevent eviction and may remain incomplete until capacity exists.",
+		"Existing occurrence-retention gaps remain fail-closed.",
+		"This qualifies the package-private arm; actual host enforcement, source-change UI, layered public API/presets and B121 integration are subsequent owner work.",
+		"Historical ts-v1 receipts remain historical.",
+		"No provider network, credentials, live evaluation or spend was used; no throughput or ownership-verification claim is made."
+	],
+	"workspaceNotes": [
+		"Existing Canvas append-only legacy revision warning and D792 session orphan are informational; no broken links, dependency cycles or work errors."
+	]
+}

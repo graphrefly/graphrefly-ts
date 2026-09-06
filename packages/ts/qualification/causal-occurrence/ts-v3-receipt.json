@@ -1,0 +1,131 @@
+{
+	"schema": "graphrefly/conformance-arm-evidence/v1",
+	"revision": "ts-v3",
+	"workRef": "graphrefly-ts:CAUSAL-OCCURRENCE-TS",
+	"owner": "graphrefly-ts",
+	"date": "2026-09-06",
+	"contract": {
+		"artifactRef": "graphrefly:causal-occurrence-contract",
+		"schema": "graphrefly/causal-occurrence-contract/v1",
+		"revision": "contract-v2",
+		"governingRef": "graphrefly:D791"
+	},
+	"authorization": {
+		"kind": "existing-task-user-instruction",
+		"taskId": "01a07544-5ecf-77e2-86f9-a6c759c43872",
+		"instruction": "你帮我 qa 这个chat里的改动并且commit",
+		"scope": "User-authorized QA, local bug fixes under unchanged D791, qualification and commits for this chat; no downstream implementation or provider/live/spend authority."
+	},
+	"checkout": {
+		"baseCommit": "006519e177f043bb7267484232e3e7dbb3e9cfe7",
+		"binding": "Final working-tree file digests below; base commit alone is not the repaired implementation."
+	},
+	"files": {
+		"packages/ts/src/solutions/causal-occurrence.ts": "sha256:2608730b96b52145ed970700920185f9b0a0958cd9403eba0f996717aab728dd",
+		"packages/ts/src/__tests__/solutions-causal-occurrence.d791.test.ts": "sha256:31719a74e8cc6dd73904202f4d77982862ca725cecb6da01b93e1f9030265199",
+		"scripts/qualify-causal-occurrence.mjs": "sha256:305682ae2b97ea3bf5b4299b2ab27045a048ccc06056daadf24f8aac03777204",
+		"packages/ts/qualification/causal-occurrence/ts-v3-mutations.json": "sha256:0046260400090fb62b13499aecd80fd910feddbf95b5df158ec57ead6a393481",
+		"packages/ts/evals/graph-native-rerun-avoidance/implementation-manifest.ts": "sha256:0b3b27c5cea85307e5f79b3f4b2d66a4b18161d982a80cc1507634ec355a0b8a",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-artifact-set.json": "sha256:384ee30b096843bf67daf7a9530220231123a4a023b24d24230df1d46581545d"
+	},
+	"implementationClosureDigest": "sha256:10f57ce82921f88dd6136467dade80ed2611ccdd666e73d3bb9aeb1d63e876c3",
+	"checks": [
+		{
+			"command": "pnpm --filter @graphrefly/ts exec vitest run src/__tests__/solutions-causal-occurrence.d791.test.ts",
+			"status": "passed",
+			"tests": 26
+		},
+		{
+			"command": "pnpm test:causal-occurrence:qualification --output packages/ts/qualification/causal-occurrence/ts-v3-mutations.json",
+			"status": "passed",
+			"baselines": 2,
+			"structureMutantsKilled": 29,
+			"behaviorMutantsKilled": 44,
+			"survived": 0
+		},
+		{
+			"command": "pnpm --filter @graphrefly/ts test",
+			"status": "passed",
+			"testFiles": 134,
+			"skippedFiles": 1,
+			"tests": 2162,
+			"skippedTests": 4
+		},
+		{
+			"command": "pnpm run lint",
+			"status": "passed"
+		},
+		{
+			"command": "pnpm run build",
+			"status": "passed",
+			"exports": "ESM/CJS/DTS subpath smoke passed"
+		},
+		{
+			"command": "pnpm eval:root:artifacts:check",
+			"status": "passed"
+		},
+		{
+			"command": "npm --prefix ../graphrefly run authority:check:workspace",
+			"status": "passed"
+		},
+		{
+			"command": "npm --prefix ../graphrefly run work:check:workspace",
+			"status": "passed"
+		},
+		{
+			"command": "node ../graphrefly/dashboard/build.mjs --workspace --check",
+			"status": "passed"
+		}
+	],
+	"review": {
+		"mode": "two independent static QA reviewers",
+		"resolvedFindings": [
+			"Preserve bounded pending effect proposals with their early admission/outcome facts at effect capacity.",
+			"Drain capacity freed by pending occurrence promotion in the same finite synchronous transition.",
+			"Preserve the first pending proposal against conflicting direct arrival.",
+			"Promote a first revision retained pending in a new domain, using default high-water zero, when another domain releases capacity.",
+			"Reject independently inconsistent terminal state/result pairs before reserving lifetime domain capacity or retaining pending outcomes."
+		],
+		"remainingFindings": []
+	},
+	"cleanup": {
+		"fixture": "Output subscriptions and captured real graph.retain handles are unsubscribed; sanctioned topologyGroup.release removes registrations, including after failed tests.",
+		"mutation": {
+			"temporaryRemoved": true,
+			"childProcessesExited": true
+		},
+		"sourceAndTestsUnchangedByRunner": true
+	},
+	"limits": [
+		"maxOccurrences also bounds distinct lifetime domains across all DATA lanes; domain tombstones are not silently recycled.",
+		"Evidence overflow uses bounded persistent gap representatives, not an exhaustive overflow event log.",
+		"Capacity issues do not settle effects; retained pending obligations prevent eviction and may remain incomplete until capacity exists.",
+		"Existing occurrence-retention gaps remain fail-closed.",
+		"This qualifies the package-private arm; actual host enforcement, source-change UI, layered public API/presets and B121 integration are subsequent owner work.",
+		"Historical ts-v1 and ts-v2 receipts remain historical.",
+		"No provider network, credentials, live evaluation or spend was used; no throughput or ownership-verification claim is made."
+	],
+	"workspaceNotes": [
+		"Existing Canvas append-only legacy revision warning and D792 session orphan are informational; no broken links, dependency cycles or work errors."
+	],
+	"historicalEvidence": {
+		"packages/ts/qualification/causal-occurrence/ts-v2-receipt.json": "sha256:e50428e085093a5072ef996f2e372ed4c98508650880b14eecf9d49fce76003d",
+		"packages/ts/qualification/causal-occurrence/ts-v2-mutations.json": "sha256:00859ce5d2b9b1001f4dad8a3cbe625bfccc4afa552b0b3e2ee030f26c72364f",
+		"packages/ts/qualification/causal-occurrence/ts-v2-inputs.json": "sha256:b50d7b940a1c2df5b888aa77f13a58e25ab2815054c7cfc2bb93fe33c5660c2a"
+	},
+	"supersessionNote": "ts-v3 corrects two uncovered capacity paths found during pre-commit QA. ts-v2 evidence and source snapshots remain immutable historical evidence, not current full qualification. This is the same work outcome and unchanged root contract.",
+	"regressionEvidence": {
+		"beforeRepairs": {
+			"tests": 26,
+			"passed": 24,
+			"failed": 2
+		},
+		"afterRepairs": {
+			"tests": 26,
+			"passed": 26,
+			"failed": 0
+		},
+		"newProgressMutation": "new-domain-pending-stall",
+		"resultValidationMutation": "result-state-binding"
+	}
+}

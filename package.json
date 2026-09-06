@@ -30,6 +30,7 @@
 		"build:local-untrusted-js-runner": "node scripts/build-local-untrusted-js-runner.mjs",
 		"build:local-untrusted-js-runner-image": "node scripts/build-local-untrusted-js-runner-image.mjs",
 		"test": "pnpm --filter @graphrefly/ts test",
+		"test:causal-occurrence:qualification": "node scripts/qualify-causal-occurrence.mjs",
 		"test:ts": "pnpm --filter @graphrefly/ts test",
 		"test:root-eval-soak": "pnpm --filter @graphrefly/ts test:root-eval-soak",
 		"eval:root:artifacts": "tsx packages/ts/evals/graph-native-rerun-avoidance/generate-root-eval-artifacts.ts --write",

@@ -212,6 +212,8 @@ interface EffectRecord {
 }
 
 interface RuntimeState<T> {
+	/** Shared by every DATA lane; domain tombstones are never silently recycled. */
+	domains: Set<string>;
 	highWaterByDomain: Map<string, number>;
 	retentionFloorByDomain: Map<string, number>;
 	byRevision: Map<string, RetainedOccurrence<T>>;
@@ -465,6 +467,7 @@ function validResult(value: DataResult<unknown>): boolean {
 
 function emptyState<T>(): RuntimeState<T> {
 	return {
+		domains: new Set(),
 		highWaterByDomain: new Map(),
 		retentionFloorByDomain: new Map(),
 		byRevision: new Map(),
@@ -493,6 +496,7 @@ function cloneState<T>(prior: RuntimeState<T> | undefined): RuntimeState<T> {
 	if (prior === undefined) return emptyState();
 	return {
 		...prior,
+		domains: new Set(prior.domains),
 		highWaterByDomain: new Map(prior.highWaterByDomain),
 		retentionFloorByDomain: new Map(prior.retentionFloorByDomain),
 		byRevision: new Map(prior.byRevision),
@@ -598,6 +602,21 @@ export function causalOccurrenceBundle<T>(
 			const state = cloneState(ctx.state.get<RuntimeState<T>>());
 			const outputs: AuthorityFact<T>[] = [];
 			const emitIssue = (value: DataIssue) => outputs.push({ kind: "issue", value });
+			const retainDomain = (domain: string): boolean => {
+				if (state.domains.has(domain)) return true;
+				if (state.domains.size >= opts.maxOccurrences) {
+					emitIssue(
+						issue(
+							"causal-occurrence/domain-bound",
+							"Revision-domain retention bound was reached.",
+							[domain],
+						),
+					);
+					return false;
+				}
+				state.domains.add(domain);
+				return true;
+			};
 			const retainPending = <V>(map: Map<string, V>, key: string, value: V, label: string) => {
 				const prior = map.get(key);
 				if (prior !== undefined) {
@@ -680,6 +699,14 @@ export function causalOccurrenceBundle<T>(
 					admission?.state !== "admitted" ||
 					!state.released.has(key) ||
 					!state.emittedTerminals.has(key)
+				)
+					return false;
+				if (
+					[
+						...state.pendingEffectProposals.values(),
+						...state.pendingEffectAdmissions.values(),
+						...state.pendingEffectOutcomes.values(),
+					].some((fact) => sameRef(fact.occurrence, occurrence))
 				)
 					return false;
 				return [...state.effects.values()]
@@ -796,6 +823,40 @@ export function causalOccurrenceBundle<T>(
 					},
 				});
 			};
+			const retainEffectProposal = (key: string, proposal: CausalEffectProposal) => {
+				const pending = state.pendingEffectProposals.get(key);
+				if (pending !== undefined && dataKey(pending) !== dataKey(proposal)) {
+					emitIssue(
+						issue(
+							"causal-occurrence/effect-proposal-conflict",
+							"Effect proposal conflicts with its retained pending snapshot.",
+							[key],
+						),
+					);
+					return true;
+				}
+				const prior = state.effects.get(key);
+				if (prior !== undefined) {
+					if (prior.key !== dataKey(proposal))
+						emitIssue(
+							issue(
+								"causal-occurrence/effect-proposal-conflict",
+								"Effect proposal replay conflicts.",
+								[key],
+							),
+						);
+					return true;
+				}
+				if (state.effects.size >= opts.maxEffects) {
+					emitIssue(
+						issue("causal-occurrence/effect-bound", "Effect retention bound was reached.", [key]),
+					);
+					return false;
+				}
+				state.effects.set(key, { proposal, key: dataKey(proposal) });
+				emitConservation(proposal.occurrence);
+				return true;
+			};
 			const emitCoverage = (occurrence: CausalOccurrenceRef) => {
 				const entries = [...state.evidence.values(), ...state.coverageGaps.values()].filter(
 					(value) => sameRef(value.occurrence, occurrence),
@@ -826,6 +887,40 @@ export function causalOccurrenceBundle<T>(
 						terminalGapKinds: Object.freeze(terminalGapKinds),
 					},
 				});
+			};
+			const retainEvidence = (key: string, evidence: CausalEvidence) => {
+				const prior = state.evidence.get(key);
+				if (prior !== undefined) {
+					if (dataKey(prior) !== dataKey(evidence))
+						emitIssue(
+							issue("causal-occurrence/evidence-conflict", "Evidence replay conflicts.", [key]),
+						);
+					return;
+				}
+				if (state.evidence.size >= opts.maxEvidence) {
+					emitIssue(
+						issue("causal-occurrence/evidence-bound", "Evidence retention bound was reached.", [
+							key,
+						]),
+					);
+					// One persistent gap per occurrence/required kind, plus one optional-kind
+					// representative: bounded by maxOccurrences * (required kinds + 1).
+					// Overflow details cannot consume maxPending or erase a known coverage gap.
+					const gapKey = canonicalTupleKey([
+						refKey(evidence.occurrence),
+						opts.requiredEvidenceKinds.includes(evidence.evidenceKind)
+							? evidence.evidenceKind
+							: null,
+					]);
+					if (!state.coverageGaps.has(gapKey))
+						state.coverageGaps.set(
+							gapKey,
+							canonicalSnapshot({ ...evidence, coverage: "retention-gap" as const }),
+						);
+				} else {
+					state.evidence.set(key, evidence);
+				}
+				emitCoverage(evidence.occurrence);
 			};
 			const recomputeDomain = (revisionDomain: string) => {
 				const watermark = state.watermarks.get(revisionDomain);
@@ -991,6 +1086,7 @@ export function causalOccurrenceBundle<T>(
 					outputs.push({ kind: "quiescence", value });
 			};
 			const flushPending = () => {
+				let promoted = false;
 				for (const [key, admission] of state.admissions) {
 					const retained = findOccurrence(admission.occurrence);
 					if (retained !== undefined && !sameRef(retained, admission.occurrence)) {
@@ -1022,19 +1118,7 @@ export function causalOccurrenceBundle<T>(
 						!state.released.has(refKey(proposal.occurrence))
 					)
 						continue;
-					if (state.effects.size >= opts.maxEffects) continue;
-					const existing = state.effects.get(key);
-					if (existing === undefined) state.effects.set(key, { proposal, key: dataKey(proposal) });
-					else if (existing.key !== dataKey(proposal))
-						emitIssue(
-							issue(
-								"causal-occurrence/effect-proposal-conflict",
-								"Deferred effect proposal conflicts with retained proposal.",
-								[key],
-							),
-						);
-					state.pendingEffectProposals.delete(key);
-					emitConservation(proposal.occurrence);
+					if (retainEffectProposal(key, proposal)) state.pendingEffectProposals.delete(key);
 				}
 				for (const [key, admission] of state.pendingEffectAdmissions) {
 					const record = state.effects.get(key);
@@ -1154,29 +1238,21 @@ export function causalOccurrenceBundle<T>(
 							state.pendingEvidence.delete(key);
 						continue;
 					}
-					if (state.evidence.size >= opts.maxEvidence) continue;
-					const prior = state.evidence.get(key);
-					if (prior === undefined) state.evidence.set(key, evidence);
-					else if (dataKey(prior) !== dataKey(evidence))
-						emitIssue(
-							issue(
-								"causal-occurrence/evidence-conflict",
-								"Deferred evidence conflicts with retained evidence.",
-								[key],
-							),
-						);
+					retainEvidence(key, evidence);
 					state.pendingEvidence.delete(key);
-					emitCoverage(evidence.occurrence);
 				}
-				for (const revisionDomain of state.highWaterByDomain.keys()) {
+				// A domain can have pending revision 1 before any accepted high-water.
+				for (const revisionDomain of state.domains) {
 					for (;;) {
 						const revision = (state.highWaterByDomain.get(revisionDomain) ?? 0) + 1;
 						const key = revisionKey(revisionDomain, revision);
 						const pending = state.pending.get(key);
 						if (pending === undefined || !acceptOccurrence(pending)) break;
 						state.pending.delete(key);
+						promoted = true;
 					}
 				}
+				return promoted;
 			};
 
 			for (const raw of depBatch(ctx, 0) ?? []) {
@@ -1207,19 +1283,7 @@ export function causalOccurrenceBundle<T>(
 							);
 							continue;
 						}
-						if (
-							!state.highWaterByDomain.has(occurrence.revisionDomain) &&
-							state.highWaterByDomain.size >= opts.maxOccurrences
-						) {
-							emitIssue(
-								issue(
-									"causal-occurrence/domain-bound",
-									"Revision-domain retention bound was reached.",
-									[occurrence.revisionDomain],
-								),
-							);
-							continue;
-						}
+						if (!retainDomain(occurrence.revisionDomain)) continue;
 						const domainKey = revisionKey(occurrence.revisionDomain, occurrence.revision);
 						const existing = state.byRevision.get(domainKey) ?? state.pending.get(domainKey);
 						if (existing !== undefined) {
@@ -1354,6 +1418,7 @@ export function causalOccurrenceBundle<T>(
 							);
 							continue;
 						}
+						if (!retainDomain(admission.occurrence.revisionDomain)) continue;
 						const key = refKey(admission.occurrence);
 						const prior = state.admissions.get(key);
 						if (prior !== undefined) {
@@ -1415,6 +1480,7 @@ export function causalOccurrenceBundle<T>(
 							);
 							continue;
 						}
+						if (!retainDomain(terminal.occurrence.revisionDomain)) continue;
 						const key = refKey(terminal.occurrence);
 						const pendingKey = canonicalTupleKey([key, terminal.branch]);
 						if (
@@ -1484,6 +1550,7 @@ export function causalOccurrenceBundle<T>(
 							);
 							continue;
 						}
+						if (!retainDomain(proposal.occurrence.revisionDomain)) continue;
 						const key = effectKey(proposal);
 						if (
 							exactOccurrence(proposal.occurrence) === undefined &&
@@ -1502,31 +1569,13 @@ export function causalOccurrenceBundle<T>(
 							);
 							continue;
 						}
-						const prior = state.effects.get(key);
-						if (prior !== undefined) {
-							if (prior.key !== canonical.key)
-								emitIssue(
-									issue(
-										"causal-occurrence/effect-proposal-conflict",
-										"Effect proposal replay conflicts.",
-										[key],
-									),
-								);
-							continue;
-						}
-						if (state.effects.size >= opts.maxEffects) {
-							emitIssue(
-								issue("causal-occurrence/effect-bound", "Effect retention bound was reached.", [
-									key,
-								]),
+						if (!retainEffectProposal(key, canonical.snapshot))
+							retainPending(
+								state.pendingEffectProposals,
+								key,
+								canonical.snapshot,
+								"effect-proposal",
 							);
-							continue;
-						}
-						state.effects.set(key, {
-							proposal: canonical.snapshot,
-							key: canonical.key,
-						});
-						emitConservation(proposal.occurrence);
 					}
 				} else if (arrival.lane === "effect-admissions") {
 					for (const admission of arrival.values) {
@@ -1559,6 +1608,7 @@ export function causalOccurrenceBundle<T>(
 							);
 							continue;
 						}
+						if (!retainDomain(admission.occurrence.revisionDomain)) continue;
 						const key = effectKey(admission);
 						const record = state.effects.get(key);
 						if (record === undefined) {
@@ -1631,6 +1681,19 @@ export function causalOccurrenceBundle<T>(
 							);
 							continue;
 						}
+						const resultMatchesState =
+							validResult(outcome.result) &&
+							(outcome.state === "succeeded") === (outcome.result.kind === "ok");
+						if (!resultMatchesState) {
+							emitIssue(
+								issue(
+									"causal-occurrence/effect-outcome-mismatch",
+									"Effect outcome D184 result must match its terminal state.",
+								),
+							);
+							continue;
+						}
+						if (!retainDomain(outcome.occurrence.revisionDomain)) continue;
 						const key = effectKey(outcome);
 						const record = state.effects.get(key);
 						if (record === undefined || record.admission === undefined) {
@@ -1638,16 +1701,12 @@ export function causalOccurrenceBundle<T>(
 							retainPending(state.pendingEffectOutcomes, key, canonical.snapshot, "effect-outcome");
 							continue;
 						}
-						const resultMatchesState =
-							validResult(outcome.result) &&
-							(outcome.state === "succeeded") === (outcome.result.kind === "ok");
 						if (
 							record.admission.state !== "admitted" ||
 							record.proposal.proposalDigest !== outcome.proposalDigest ||
 							dataKey(record.proposal.requestRef) !== dataKey(canonical.snapshot.requestRef) ||
 							dataKey(record.admission.admissionRef) !== dataKey(canonical.snapshot.admissionRef) ||
-							!sameRef(record.proposal.occurrence, outcome.occurrence) ||
-							!resultMatchesState
+							!sameRef(record.proposal.occurrence, outcome.occurrence)
 						) {
 							emitIssue(
 								issue(
@@ -1703,6 +1762,7 @@ export function causalOccurrenceBundle<T>(
 							);
 							continue;
 						}
+						if (!retainDomain(evidence.occurrence.revisionDomain)) continue;
 						const key = canonicalTupleKey([
 							refKey(evidence.occurrence),
 							evidence.evidenceKind,
@@ -1713,46 +1773,7 @@ export function causalOccurrenceBundle<T>(
 							retainPending(state.pendingEvidence, key, canonical.snapshot, "evidence");
 							continue;
 						}
-						const prior = state.evidence.get(key);
-						if (prior !== undefined) {
-							if (dataKey(prior) !== canonical.key)
-								emitIssue(
-									issue("causal-occurrence/evidence-conflict", "Evidence replay conflicts.", [key]),
-								);
-							continue;
-						}
-						if (state.evidence.size >= opts.maxEvidence) {
-							emitIssue(
-								issue("causal-occurrence/evidence-bound", "Evidence retention bound was reached.", [
-									key,
-								]),
-							);
-							const entries = [...state.evidence.values()].filter((entry) =>
-								sameRef(entry.occurrence, evidence.occurrence),
-							);
-							const gap = canonicalSnapshot({ ...evidence, coverage: "retention-gap" as const });
-							if (state.coverageGaps.size < opts.maxPending) state.coverageGaps.set(key, gap);
-							outputs.push({
-								kind: "coverage",
-								value: {
-									kind: "causal-evidence-coverage",
-									occurrence: evidence.occurrence,
-									complete: false,
-									entries: Object.freeze([...entries, gap]),
-									missingKinds: Object.freeze(
-										opts.requiredEvidenceKinds.filter(
-											(kind) =>
-												kind !== evidence.evidenceKind &&
-												!entries.some((entry) => entry.evidenceKind === kind),
-										),
-									),
-									terminalGapKinds: Object.freeze([evidence.evidenceKind]),
-								},
-							});
-							continue;
-						}
-						state.evidence.set(key, canonical.snapshot);
-						emitCoverage(evidence.occurrence);
+						retainEvidence(key, canonical.snapshot);
 					}
 				} else {
 					for (const watermark of arrival.values) {
@@ -1766,6 +1787,7 @@ export function causalOccurrenceBundle<T>(
 							emitIssue(issue("causal-occurrence/invalid-watermark", "Watermark is invalid."));
 							continue;
 						}
+						if (!retainDomain(watermark.revisionDomain)) continue;
 						const prior = state.watermarks.get(watermark.revisionDomain) ?? 0;
 						if (watermark.revision < prior) {
 							emitIssue(
@@ -1778,8 +1800,14 @@ export function causalOccurrenceBundle<T>(
 				}
 			}
 			for (const revisionDomain of state.watermarks.keys()) recomputeDomain(revisionDomain);
-			flushPending();
-			for (const revisionDomain of state.watermarks.keys()) recomputeDomain(revisionDomain);
+			// Repeat only after finite progress: a pending occurrence was consumed or a
+			// newly admitted occurrence released. No timer or unrelated DATA is needed.
+			for (;;) {
+				const promoted = flushPending();
+				const releasedBefore = state.released.size;
+				for (const revisionDomain of state.watermarks.keys()) recomputeDomain(revisionDomain);
+				if (!promoted && state.released.size === releasedBefore) break;
+			}
 			ctx.state.set(state);
 			// Each fact is an independent wave. In particular, each admitted occurrence
 			// becomes one fresh lifecycle after the pull-quiet boundary below.
