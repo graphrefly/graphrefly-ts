@@ -83,11 +83,11 @@ export function transitionCausalAuthority<T>(
 	prior: RuntimeState<T> | undefined,
 	arrivals: readonly Arrival<T>[],
 	opts: TransitionOptions,
-): { state: RuntimeState<T>; outputs: AuthorityFact<T>[] } {
+): { state: RuntimeState<T>; outputs: AuthorityFact<T>[]; committedViewChanged: boolean } {
 	const state = cloneState(prior);
 	const outputs: AuthorityFact<T>[] = [];
 	const emitIssue = (value: DataIssue) => pushIssue(outputs, value);
-	const context = { state, opts, outputs };
+	const context = { state, opts, outputs, committedViewChanged: false };
 	const acceptOccurrence = (entry: RetainedOccurrence<T>): boolean => {
 		const occurrence = entry.value;
 		if (state.byRevision.size >= opts.maxOccurrences) {
@@ -113,7 +113,10 @@ export function transitionCausalAuthority<T>(
 			state.emittedTerminals.delete(evictedRefKey);
 			state.currentness.delete(evictedRefKey);
 			for (const [key, record] of state.effects) {
-				if (sameRef(record.proposal.occurrence, evicted)) state.effects.delete(key);
+				if (sameRef(record.proposal.occurrence, evicted)) {
+					state.effects.delete(key);
+					context.committedViewChanged = true;
+				}
 			}
 			for (const [key, evidence] of state.evidence) {
 				if (sameRef(evidence.occurrence, evicted)) state.evidence.delete(key);
@@ -130,6 +133,10 @@ export function transitionCausalAuthority<T>(
 					if (sameRef(value.occurrence, evicted)) map.delete(key);
 				}
 			}
+			const priorFloor = state.retentionFloorByDomain.get(evicted.revisionDomain) ?? 0;
+			const priorGap = state.retentionGapThroughByDomain.get(evicted.revisionDomain) ?? 0;
+			if (evicted.revision > priorFloor || evicted.revision > priorGap)
+				context.committedViewChanged = true;
 			state.retentionFloorByDomain.set(
 				evicted.revisionDomain,
 				Math.max(state.retentionFloorByDomain.get(evicted.revisionDomain) ?? 0, evicted.revision),
@@ -359,5 +366,5 @@ export function transitionCausalAuthority<T>(
 		for (const revisionDomain of state.watermarks.keys()) recomputeDomain(revisionDomain);
 		if (!promoted && state.released.size === releasedBefore) break;
 	}
-	return { state, outputs };
+	return { state, outputs, committedViewChanged: context.committedViewChanged };
 }

@@ -137,6 +137,7 @@ export function retainEffectProposal<T>(
 		return false;
 	}
 	state.effects.set(key, { proposal, key: dataKey(proposal) });
+	context.committedViewChanged = true;
 	emitConservation(context, proposal.occurrence);
 	return true;
 }
@@ -183,8 +184,10 @@ export function flushEffectsAndTerminals<T>(context: TransitionContext<T>) {
 			state.pendingEffectAdmissions.delete(key);
 			continue;
 		}
-		if (record.admission === undefined) state.effects.set(key, { ...record, admission });
-		else if (dataKey(record.admission) !== dataKey(admission))
+		if (record.admission === undefined) {
+			state.effects.set(key, { ...record, admission });
+			context.committedViewChanged = true;
+		} else if (dataKey(record.admission) !== dataKey(admission))
 			pushIssue(
 				outputs,
 				issue(
@@ -222,8 +225,10 @@ export function flushEffectsAndTerminals<T>(context: TransitionContext<T>) {
 			state.pendingEffectOutcomes.delete(key);
 			continue;
 		}
-		if (record.outcome === undefined) state.effects.set(key, { ...record, outcome });
-		else if (dataKey(record.outcome) !== dataKey(outcome))
+		if (record.outcome === undefined) {
+			state.effects.set(key, { ...record, outcome });
+			context.committedViewChanged = true;
+		} else if (dataKey(record.outcome) !== dataKey(outcome))
 			pushIssue(
 				outputs,
 				issue(
@@ -511,6 +516,7 @@ export function receiveEffectAdmissions<T>(
 			continue;
 		}
 		state.effects.set(key, { ...record, admission: canonical.snapshot });
+		context.committedViewChanged = true;
 		emitConservation(context, admission.occurrence);
 	}
 }
@@ -611,6 +617,7 @@ export function receiveOutcomes<T>(
 			continue;
 		}
 		state.effects.set(key, { ...record, outcome: canonical.snapshot });
+		context.committedViewChanged = true;
 		emitConservation(context, outcome.occurrence);
 	}
 }

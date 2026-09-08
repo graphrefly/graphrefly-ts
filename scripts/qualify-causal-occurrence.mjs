@@ -16,6 +16,7 @@ const sourceNames = [
 	"solutions/causal-occurrence.ts",
 	...[
 		"construction",
+		"committed-view",
 		"contracts",
 		"identity",
 		"lifecycle",
@@ -126,8 +127,8 @@ for (const kind of [
 	const cut = (text) =>
 		replaceOnce(
 			text,
-			"\n\t\t[authority],",
-			`\n\t\tkind === ${JSON.stringify(kind)} ? [] : [authority],`,
+			"return graph.node(\n\t\t[authority],",
+			`return graph.node(\n\t\tkind === ${JSON.stringify(kind)} ? [] : [authority],`,
 		);
 	add(`projection-edge/${kind}`, cut, "structure");
 	add(`projection-behavior/${kind}`, cut);
@@ -169,8 +170,17 @@ add("terminal-fan-in", (text) => {
 add("domain-failure-protocol-error", (text) =>
 	replaceOnce(
 		text,
-		'for (const output of outputs) ctx.down([["DATA", Object.freeze(output)]]);',
-		'for (const output of outputs) { if (output.kind === "conservation" && output.value.failed > 0) ctx.down([["ERROR", output.value]]); else ctx.down([["DATA", Object.freeze(output)]]); }',
+		sourceFiles["solutions/causal-occurrence/construction.ts"]
+			.slice(
+				sourceFiles["solutions/causal-occurrence/construction.ts"].indexOf(
+					"for (const output of outputs)",
+				),
+				sourceFiles["solutions/causal-occurrence/construction.ts"].indexOf(
+					"if (committedViewChanged && outputs.length === 0)",
+				),
+			)
+			.trim(),
+		'for (const output of outputs) { if (output.kind === "conservation" && output.value.failed > 0) ctx.down([["ERROR", output.value]]); else ctx.down([["DATA", Object.freeze({kind:"fact",fact:Object.freeze(output),committedEffects})]]); }',
 	),
 );
 add("effect-pending-loss", (text) =>

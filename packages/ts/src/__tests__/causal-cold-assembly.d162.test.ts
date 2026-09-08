@@ -336,7 +336,7 @@ describe("D162 private shared cold assembly", () => {
 		assertCausalCapabilities(f.graph, f.built.full, binding);
 		const owner = own(f);
 		expect(f.calls()).toBe(0);
-		expect(owner.nodes).toHaveLength(29);
+		expect(owner.nodes).toHaveLength(30);
 		startConstruction(f.graph, owner);
 		expect(f.calls()).toBeGreaterThan(0);
 		expect(f.startup.cache?.state).toBe("started");
@@ -351,7 +351,7 @@ describe("D162 private shared cold assembly", () => {
 		expect(f.built.full.retained.execution).toBe(f.built.full.execution);
 	});
 	it.each([
-		1, 4, 12, 26, 29,
+		1, 4, 12, 26, 30,
 	])("cleans all acquired members when acquisition %i throws after registration", (at) => {
 		let graph: Graph | undefined;
 		let baseline = 0;

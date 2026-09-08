@@ -1142,8 +1142,8 @@ describe("D791 causal occurrence contract-v2", () => {
 			]);
 			// External inspection adds no subscription/keepalive and does not drive computation.
 			expect(f.owner.find("causal/authority")?.cache).toMatchObject({
-				kind: "issue",
-				value: { code: "causal-occurrence/effect-outcome-mismatch" },
+				kind: "fact",
+				fact: { kind: "issue", value: { code: "causal-occurrence/effect-outcome-mismatch" } },
 			});
 			if (detach) f.subscribeOutputs();
 			for (const values of f.messages.values()) values.length = 0;
@@ -1247,9 +1247,15 @@ describe("causal topology exact-string index", () => {
 			["release-candidates", "release-events"],
 			["released", "release-events"],
 			["release-events", "release-controller"],
-			...["currentness", "terminals", "conservation", "coverage", "quiescence", "issues"].map(
-				(port) => ["authority", port],
-			),
+			...[
+				"currentness",
+				"terminals",
+				"conservation",
+				"coverage",
+				"quiescence",
+				"issues",
+				"committed-effects",
+			].map((port) => ["authority", port]),
 		].map(([from, to]) => ({ from: `${name}/${from}`, to: `${name}/${to}` })),
 	];
 	it.each([
@@ -1351,7 +1357,7 @@ describe("causal topology exact-string index", () => {
 		});
 		expect(accesses).toEqual(lanes.flatMap((_, i) => [`edges:${i}`, `to:${i}`]));
 		for (const [i, edge] of sources.entries()) expect(result[i]).toBe(edge);
-		expect(result).toHaveLength(29);
+		expect(result).toHaveLength(30);
 	});
 	it("preserves helper getter failure without inspecting later edges (A2)", () => {
 		const accesses: string[] = [];
@@ -1383,7 +1389,7 @@ describe("causal topology exact-string index", () => {
 	it("keeps fresh frozen internal results without a description (A2)", () => {
 		const a = causalOccurrenceRequiredEdges("causal");
 		const b = causalOccurrenceRequiredEdges("causal", { edges: [] });
-		expect(a).toHaveLength(21);
+		expect(a).toHaveLength(22);
 		expect(b).toEqual(a);
 		expect(b).not.toBe(a);
 		expect(b[0]).not.toBe(a[0]);

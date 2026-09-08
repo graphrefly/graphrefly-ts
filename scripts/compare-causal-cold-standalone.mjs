@@ -17,18 +17,47 @@ const reportPath =
 		: resolve(process.argv[outputArg + 1]);
 const src = join(root, "packages/ts/src");
 const evidence = join(root, "packages/ts/qualification/causal-occurrence");
+const baselineArg = process.argv.indexOf("--baseline-commit");
+const baselineCommit = baselineArg < 0 ? undefined : process.argv[baselineArg + 1];
+if (baselineArg >= 0) assert.match(baselineCommit ?? "", /^[a-f0-9]{40}$/u);
 const frozenPath = join(evidence, "ts-v8-cold-inputs.json");
-const frozen = JSON.parse(readFileSync(frozenPath, "utf8"));
+let frozen = JSON.parse(readFileSync(frozenPath, "utf8"));
 const digest = (bytes) => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 assert.equal(frozen.receiptDigest, digest(readFileSync(join(evidence, "ts-v8-receipt.json"))));
 const baselineReceipt = JSON.parse(readFileSync(join(evidence, "ts-v8-receipt.json"), "utf8"));
+if (baselineCommit) {
+	const ls = spawnSync(
+		"git",
+		["ls-tree", "-r", "--name-only", baselineCommit, "--", "packages/ts/src"],
+		{ cwd: root, encoding: "utf8" },
+	);
+	assert.equal(ls.status, 0);
+	frozen = {
+		sourceCommit: baselineCommit,
+		files: Object.fromEntries(
+			ls.stdout
+				.trim()
+				.split("\n")
+				.map((name) => {
+					const result = spawnSync("git", ["show", baselineCommit + ":" + name], {
+						cwd: root,
+						encoding: "utf8",
+						maxBuffer: 16 * 1024 * 1024,
+					});
+					assert.equal(result.status, 0);
+					return [name, { text: result.stdout, digest: digest(result.stdout) }];
+				}),
+		),
+	};
+}
 const temp = mkdtempSync(join(tmpdir(), "causal-construction-comparison-"));
 const reference = join(temp, "reference");
 for (const [fullName, file] of Object.entries(frozen.files)) {
 	if (!fullName.startsWith("packages/ts/src/")) continue;
 	const name = fullName.slice("packages/ts/src/".length);
 	assert.equal(digest(file.text), file.digest);
-	assert.equal(file.digest, baselineReceipt.files[fullName], "baseline receipt source binding");
+	if (!baselineCommit)
+		assert.equal(file.digest, baselineReceipt.files[fullName], "baseline receipt source binding");
 	mkdirSync(dirname(join(reference, name)), { recursive: true });
 	writeFileSync(join(reference, name), file.text);
 }
@@ -59,6 +88,7 @@ function run(candidate, scenario, background=0, fault=false) {
  const inputs=Object.fromEntries(props.map(prop=>[prop,fault&&prop==='watermarks'?g.producer(()=>{throw new Error('frozen startup fault');},{name:'source/'+prop}):g.node([],null,{name:'source/'+prop})]));
  const start=performance.now();
  const ports=(candidate?causalOccurrenceBundle:referenceBundle)(g,{...scenario.options,...inputs});
+ if(!candidate && ${Boolean(baselineCommit)})g.node([g.find('causal/authority')],()=>{}, {name:'causal/committed-effects',factory:'causalCommittedEffectsProjection'});
  const constructionNs=(performance.now()-start)*1e6;
  const events=[];const timings=[];
  for(const port of originalPorts)stops.push(ports[port].subscribe(m=>{if(m[0]!=='START')events.push([port,m[0],m.length>1?m[1]:null]);}));
@@ -73,9 +103,15 @@ function run(candidate, scenario, background=0, fault=false) {
 }
 const scenarios=[trace(1,0,false),trace(16,128,false),trace(64,512,false),trace(16,128,true),trace(64,512,true),trace(16,128,false,2)];
 const comparisons=[];
-for(const scenario of scenarios){console.log("trace",scenario.count,scenario.evidenceCount,scenario.reverse);const a=run(false,scenario),b=run(true,scenario);assert.deepEqual(b.events,a.events);assert.deepEqual(b.shape,a.shape);comparisons.push({count:scenario.count,evidence:scenario.evidenceCount,reverse:scenario.reverse,capacity:scenario.capacity,matched:true,events:b.events.length,nodes:b.shape.length,baseline:a.events,candidate:b.events,shape:b.shape,baselinePhase:a.phase,candidatePhase:b.phase,timing:{baselineConstructionNs:a.constructionNs,candidateConstructionNs:b.constructionNs,baselineDispatchNs:a.timings,candidateDispatchNs:b.timings}});assert.equal(b.phase,a.phase);}
+function sameShape(before, after) {
+ const added=after.filter(n=>n.id==='causal/committed-effects');
+ assert.deepEqual(added,[{id:'causal/committed-effects',factory:'causalCommittedEffectsProjection',deps:['causal/authority']}]);
+ assert.deepEqual(after.filter(n=>n.id!=='causal/committed-effects'),before.filter(n=>n.id!=='causal/committed-effects'));
+ if(${Boolean(baselineCommit)})assert.deepEqual(before.filter(n=>n.id==='causal/committed-effects'),added);
+}
+for(const scenario of scenarios){console.log("trace",scenario.count,scenario.evidenceCount,scenario.reverse);const a=run(false,scenario),b=run(true,scenario);assert.deepEqual(b.events,a.events);sameShape(a.shape,b.shape);comparisons.push({count:scenario.count,evidence:scenario.evidenceCount,reverse:scenario.reverse,capacity:scenario.capacity,matched:true,events:b.events.length,nodes:b.shape.length,baseline:a.events,candidate:b.events,shape:b.shape,baselinePhase:a.phase,candidatePhase:b.phase,timing:{baselineConstructionNs:a.constructionNs,candidateConstructionNs:b.constructionNs,baselineDispatchNs:a.timings,candidateDispatchNs:b.timings}});assert.equal(b.phase,a.phase);}
 const faultA=run(false,scenarios[0],0,true),faultB=run(true,scenarios[0],0,true);
-assert.deepEqual(faultB.events,faultA.events);assert.deepEqual(faultB.shape,faultA.shape);assert.equal(faultB.phase,faultA.phase);assert.equal(faultB.phase,'faulted');
+assert.deepEqual(faultB.events,faultA.events);sameShape(faultA.shape,faultB.shape);assert.equal(faultB.phase,faultA.phase);assert.equal(faultB.phase,'faulted');
 writeFileSync(${JSON.stringify(resultPath)},JSON.stringify({comparisons,startupFault:{baseline:faultA,candidate:faultB,matched:true},timingMeaning:'Descriptive single-run trace timings, not an additional performance budget or best-of batch'},null,2));
 `;
 try {
@@ -104,7 +140,10 @@ try {
 		revision: "cold-v1",
 		runnerDigest: digest(readFileSync(fileURLToPath(import.meta.url))),
 		fixtureDigest: digest(traceFixture),
-		frozenDigest: digest(readFileSync(frozenPath)),
+		frozenDigest: baselineCommit
+			? digest(JSON.stringify(frozen))
+			: digest(readFileSync(frozenPath)),
+		baselineCommit: baselineCommit ?? null,
 		runtime: process.version,
 		closure: Object.fromEntries(
 			closure.map((p) => [
@@ -112,8 +151,9 @@ try {
 				digest(readFileSync(resolve(root, p))),
 			]),
 		),
-		baselineMeaning:
-			"Receipt-bound ts-v8 actual runtime, including C owner/startup resources; exact node order and all eight output streams compared",
+		baselineMeaning: baselineCommit
+			? "Exact git commit runtime with one non-retained dummy view Node for matched physical resource counts; original eight ports/order. Descriptive timings only."
+			: "Receipt-bound ts-v8 actual runtime, including C owner/startup resources; original node order and all eight output streams compared; exactly one declared D163 authority projection added and asserted separately",
 		...result,
 	};
 	writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);

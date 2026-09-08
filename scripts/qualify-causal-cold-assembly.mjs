@@ -156,8 +156,8 @@ const dependencyCuts = [
 		"authority",
 		[
 			builder,
-			"const authority = graph.node<AuthorityFact<T>>( [arrivals],",
-			"const authority = graph.node<AuthorityFact<T>>( [],",
+			"const authority = graph.node<AuthorityEmission<T>>( [arrivals],",
+			"const authority = graph.node<AuthorityEmission<T>>( [],",
 		],
 	],
 	["projection", [builder, "return graph.node( [authority],", "return graph.node( [],"]],

@@ -9,12 +9,15 @@ import {
 	createCausalCapabilities,
 	type FullCausalCapability,
 } from "./capabilities.js";
+import { prepareCommittedEffectsView } from "./committed-view.js";
 import type {
 	Arrival,
+	AuthorityEmission,
 	AuthorityFact,
 	CausalOccurrence,
 	CausalOccurrenceBundle,
 	CausalOccurrenceBundleOptions,
+	CommittedEffectsView,
 	RuntimeState,
 } from "./contracts.js";
 import { transitionCausalAuthority } from "./transition.js";
@@ -44,6 +47,7 @@ export function causalColdNodeNames(name: string): readonly string[] {
 		"quiescence",
 		"issues",
 		"causal-quiescence",
+		"committed-effects",
 	];
 	return suffixes.map((suffix) => `${name}/${suffix}`);
 }
@@ -106,7 +110,7 @@ function lane<T, K extends Arrival<T>["lane"]>(
 
 function projectFact<T, K extends AuthorityFact<T>["kind"]>(
 	graph: ConstructionScope,
-	authority: Node<AuthorityFact<T>>,
+	authority: Node<AuthorityEmission<T>>,
 	name: string,
 	kind: K,
 	replayBuffer: number,
@@ -114,9 +118,12 @@ function projectFact<T, K extends AuthorityFact<T>["kind"]>(
 	return graph.node(
 		[authority],
 		(ctx) => {
-			const values = (depBatch(ctx, 0) ?? [])
-				.filter((raw) => (raw as AuthorityFact<T>).kind === kind)
-				.map((raw) => ["DATA", (raw as Extract<AuthorityFact<T>, { kind: K }>).value] as const);
+			const values = ((depBatch(ctx, 0) ?? []) as AuthorityEmission<T>[])
+				.filter((raw) => raw.kind === "fact" && raw.fact.kind === kind)
+				.map(
+					(raw) =>
+						["DATA", (raw as { fact: Extract<AuthorityFact<T>, { kind: K }> }).fact.value] as const,
+				);
 			if (values.length > 0) ctx.down(values);
 		},
 		{ name, factory: "causalOccurrenceFactProjection", replayBuffer },
@@ -134,6 +141,7 @@ export function buildCausalNodes<T>(
 	ports: CausalOccurrenceBundle<T>;
 	full: FullCausalCapability<T>;
 	roots: readonly Node<unknown>[];
+	committedEffects: Node<CommittedEffectsView>;
 } {
 	binding = causalBinding(binding);
 	graph.assertContext(ownerGraph, startup, binding.epoch);
@@ -158,17 +166,45 @@ export function buildCausalNodes<T>(
 		{ name: `${opts.name}/arrivals` },
 	);
 
-	const authority = graph.node<AuthorityFact<T>>(
+	const authority = graph.node<AuthorityEmission<T>>(
 		[arrivals],
 		(ctx) => {
-			const { state, outputs } = transitionCausalAuthority(
+			const { state, outputs, committedViewChanged } = transitionCausalAuthority(
 				ctx.state.get<RuntimeState<T>>(),
 				(depBatch(ctx, 0) ?? []) as Arrival<T>[],
 				opts,
 			);
+			const committedEffects = prepareCommittedEffectsView(
+				state,
+				committedViewChanged,
+				outputs.length > 0,
+				`${opts.name}/authority`,
+				binding,
+			);
+			state.committedEffects = committedEffects;
 			ctx.state.set(state);
-			// Commit once before publishing each fact in its own wave.
-			for (const output of outputs) ctx.down([["DATA", Object.freeze(output)]]);
+			// Commit once before publishing each fact in its original wave.
+			for (const output of outputs)
+				ctx.down([
+					[
+						"DATA",
+						Object.freeze({
+							kind: "fact" as const,
+							fact: Object.freeze(output),
+							committedEffects: committedEffects!,
+						}),
+					],
+				]);
+			if (committedViewChanged && outputs.length === 0)
+				ctx.down([
+					[
+						"DATA",
+						Object.freeze({
+							kind: "view-change" as const,
+							committedEffects: committedEffects!,
+						}),
+					],
+				]);
 		},
 		{
 			name: `${opts.name}/authority`,
@@ -256,10 +292,37 @@ export function buildCausalNodes<T>(
 		),
 		issues: projectFact(graph, authority, `${opts.name}/issues`, "issue", opts.maxPending),
 	};
+	const committedEffects = graph.node<CommittedEffectsView>(
+		[authority],
+		(ctx) => {
+			let seen = ctx.state.get<{ view: CommittedEffectsView | undefined }>();
+			if (seen === undefined) {
+				const slot = { view: undefined as CommittedEffectsView | undefined };
+				seen = slot;
+				ctx.state.set(slot);
+			}
+			// R-cleanup-hooks replaces hooks each invocation; INVALIDATE must clear dedup too.
+			const slot = seen;
+			ctx.onInvalidate(() => {
+				slot.view = undefined;
+			});
+			for (const emission of (depBatch(ctx, 0) ?? []) as AuthorityEmission<T>[]) {
+				if (seen.view === emission.committedEffects) continue;
+				seen.view = emission.committedEffects;
+				ctx.down([["DATA", seen.view]]);
+			}
+		},
+		{ name: `${opts.name}/committed-effects`, factory: "causalCommittedEffectsProjection" },
+	);
 	assertCausalOccurrenceTopology(graph.readIncoming(), opts.name);
 	const full = createCausalCapabilities(ownerGraph, graph, opts.name, result, binding);
 	Object.freeze(result);
-	return Object.freeze({ ports: result, full, roots: Object.freeze([releaseController]) });
+	return Object.freeze({
+		ports: result,
+		full,
+		committedEffects,
+		roots: Object.freeze([releaseController]),
+	});
 }
 
 export function causalOccurrenceRequiredEdges(
@@ -290,6 +353,7 @@ export function causalOccurrenceRequiredEdges(
 		{ from: `${name}/authority`, to: `${name}/coverage` },
 		{ from: `${name}/authority`, to: `${name}/quiescence` },
 		{ from: `${name}/authority`, to: `${name}/issues` },
+		{ from: `${name}/authority`, to: `${name}/committed-effects` },
 	];
 	const inputLanes = [
 		"occurrences",

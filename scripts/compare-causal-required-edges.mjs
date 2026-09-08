@@ -67,7 +67,7 @@ const lanes = [
 	"evidence",
 	"watermarks",
 ];
-function execute(module, seed, mode) {
+function execute(module, seed, mode, addedView = false) {
 	const name = ["causal", "__proto__", "域/🌳", "a\0b", "a|b::c->d", ""][seed % 6];
 	const access = [],
 		identities = [];
@@ -112,7 +112,14 @@ function execute(module, seed, mode) {
 				};
 	let helper;
 	try {
-		const result = module.causalOccurrenceRequiredEdges(name, description);
+		let result = module.causalOccurrenceRequiredEdges(name, description);
+		if (addedView) {
+			assert.deepEqual(result.at(-1), {
+				from: `${name}/authority`,
+				to: `${name}/committed-effects`,
+			});
+			result = Object.freeze(result.slice(0, -1));
+		}
 		// Record identity without reading accessor properties a second time.
 		helper = {
 			frozen: Object.isFrozen(result),
@@ -123,7 +130,8 @@ function execute(module, seed, mode) {
 		helper = { error: [e.constructor.name, e.message] };
 	}
 	const helperAccess = [...access];
-	const internal = module.causalOccurrenceRequiredEdges(name);
+	const allInternal = module.causalOccurrenceRequiredEdges(name);
+	const internal = addedView ? allInternal.slice(0, -1) : allInternal;
 	const a = module.causalOccurrenceRequiredEdges(name),
 		b = module.causalOccurrenceRequiredEdges(name);
 	assert.notEqual(a, b);
@@ -139,12 +147,20 @@ function execute(module, seed, mode) {
 			edges: complete.filter((_, i) => i !== remove && (remove < 0 || i !== remove + 1)).reverse(),
 		};
 		try {
-			module.assertCausalOccurrenceTopology(snapshot, name);
+			module.assertCausalOccurrenceTopology(
+				addedView ? { edges: [...snapshot.edges, allInternal.at(-1)] } : snapshot,
+				name,
+			);
 			outcomes.push("accepted");
 		} catch (e) {
 			outcomes.push([e.constructor.name, e.message]);
 		}
 	}
+	if (addedView)
+		assert.throws(
+			() => module.assertCausalOccurrenceTopology({ edges: complete }, name),
+			/committed-effects/,
+		);
 	return { helper, helperAccess, outcomes };
 }
 const cases = [];
@@ -159,7 +175,7 @@ for (let seed = 0; seed < 24; seed++)
 		"to-throw",
 	]) {
 		const before = execute(baseline.module, seed, mode),
-			after = execute(candidate.module, seed, mode);
+			after = execute(candidate.module, seed, mode, true);
 		assert.deepEqual(after, before, `${seed}:${mode}`);
 		cases.push({ seed, mode, matched: true, baseline: before, candidate: after });
 	}
@@ -175,7 +191,7 @@ writeFileSync(
 			runnerDigest: digest(readFileSync(fileURLToPath(import.meta.url))),
 			extractedFunctions: { baseline: baseline.digest, candidate: candidate.digest },
 			boundary:
-				"Actual helper/checker declarations compiled from receipt-bound source; finite pure-function differential, not full runtime or independent business verification. Primitive string names only.",
+				"Actual helper/checker declarations compiled from receipt-bound source; original helper/checker behavior with separately asserted D163 added edge; finite pure-function differential, not full runtime or independent business verification. Primitive string names only.",
 			cases,
 		},
 		null,

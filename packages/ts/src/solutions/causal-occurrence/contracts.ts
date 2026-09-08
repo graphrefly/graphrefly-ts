@@ -1,6 +1,8 @@
 import type { DataIssue, DataResult } from "../../data/index.js";
 import type { StartupFact } from "../../graph/construction-scope.js";
 import type { Node } from "../../node/node.js";
+import type { CausalBinding } from "./capabilities.js";
+
 export interface CausalSourceRef {
 	readonly kind: string;
 	readonly id: string;
@@ -195,6 +197,26 @@ export type AuthorityFact<T> =
 	| Readonly<{ kind: "quiescence"; value: CausalQuiescence }>
 	| Readonly<{ kind: "issue"; value: DataIssue }>;
 
+/** D163 passive retained records, never execution permission or a complete history. */
+export interface CommittedEffectsView {
+	readonly kind: "causal-committed-effects";
+	readonly authorityId: string;
+	readonly binding: CausalBinding;
+	readonly effects: readonly Readonly<{
+		proposal: CausalEffectProposal;
+		admission?: CausalEffectAdmission;
+		outcome?: CausalEffectOutcome;
+	}>[];
+	readonly retention: readonly Readonly<{
+		revisionDomain: string;
+		floor: number;
+		gapThrough: number;
+	}>[];
+}
+export type AuthorityEmission<T> =
+	| Readonly<{ kind: "fact"; fact: AuthorityFact<T>; committedEffects: CommittedEffectsView }>
+	| Readonly<{ kind: "view-change"; committedEffects: CommittedEffectsView }>;
+
 export interface RetainedOccurrence<T> {
 	readonly value: CausalOccurrence<T>;
 	readonly key: string;
@@ -245,7 +267,9 @@ export interface RuntimeState<T>
 	extends IdentityState<T>,
 		LifecycleState,
 		EvidenceState,
-		CoordinationState {}
+		CoordinationState {
+	committedEffects?: CommittedEffectsView;
+}
 export type TransitionOptions = Pick<
 	CausalOccurrenceBundleOptions<unknown>,
 	| "requiredBranches"
@@ -267,4 +291,6 @@ export interface TransitionContext<T> {
 	readonly state: RuntimeState<T>;
 	readonly opts: TransitionOptions;
 	readonly outputs: AuthorityFact<T>[];
+	/** D163: transient marker for actual accepted-record/retention changes. */
+	committedViewChanged: boolean;
 }

@@ -58,6 +58,7 @@ function run(candidate, scenario, background=0) {
   // Same physical resources and startup fact deliveries; old runtime has no C ownership guarantee.
   const startup=g.node([],null,{name:'causal/startup',factory:'graphConstructionStartup',initial:{kind:'graph-startup',instance:'causal',epoch:1,state:'starting'}});
   g.node([ports.quiescence],()=>{}, {name:'causal/causal-quiescence',factory:'causalLifecycleQuiescence'});
+  g.node([g.find('causal/authority')],()=>{}, {name:'causal/committed-effects',factory:'causalCommittedEffectsProjection'});
   g.retain(startup); startup.down([['DATA',{kind:'graph-startup',instance:'causal',epoch:1,state:'started'}]]);
  }
  const constructionNs=(performance.now()-start)*1e6;
