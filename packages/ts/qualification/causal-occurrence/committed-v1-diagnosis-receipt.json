@@ -1,0 +1,81 @@
+{
+	"schema": "graphrefly-ts/causal-committed-view-diagnosis/v1",
+	"owner": "graphrefly-ts",
+	"work": "graphrefly-ts:CAUSAL-COMMITTED-VIEW-TS",
+	"revision": "diagnosis-v1",
+	"status": "diagnosis-complete-qualification-still-failed",
+	"sourceCommit": "f208028b366b13ddbc078d111fca372bdfcd7c86",
+	"approval": {
+		"request": "好的，定位一下",
+		"classification": "bounded offline diagnostic attempt/evidence; earlier 记得 commit authorizes commit",
+		"task": "01a077c7-55e6-7f11-9d4f-e7c51944afb4",
+		"liveProviderSpend": false
+	},
+	"previousReceipt": {
+		"path": "packages/ts/qualification/causal-occurrence/committed-v1-receipt.json",
+		"digest": "sha256:7113ec8589056a8ee1a945602308b41d7be7f823ba61f4894700b6fb99b7b7c8"
+	},
+	"bindings": {
+		"scripts/diagnose-causal-committed-performance.mjs": "sha256:4402b68442c445a7d113f89a3d415d76075d22baf855c0196b1a59570516e1f6",
+		"packages/ts/qualification/causal-occurrence/committed-v1-diagnosis.md": "sha256:7794f8dbac5d1de713917241726483d8f496d60e1e8e9ee1b100cae18fad9111",
+		"packages/ts/qualification/causal-occurrence/committed-v1-diagnosis-evidence.tar.gz": "sha256:28df54978407d18336a13eee08d6923d5fe73b6db13b28c97919d069f26bcf92"
+	},
+	"archiveMembers": {
+		"attempt-1/layout.json": "sha256:79fb2e6524dd7c969c08ca44c67bd619aa90dc8e4fd1c7500e90d4fb30a38a3b",
+		"attempt-1/process-0.bindings.json": "sha256:34c52701ad4d1c48827f99b7e92c7f4d882027acf7656118ed3342240552fc69",
+		"attempt-1/process-0.json": "sha256:dfd85c1d2dd6d696a4c4dcc04b14548b2f0c122334cab60bc2fa180ca40159d8",
+		"attempt-1/process-0.log": "sha256:629163f572991ca60e7c7dbdd4b6aadf8ec38c1255ce942b2cfcb0934c445316",
+		"attempt-1/process-0.mjs": "sha256:c943c54d16d00c6df6a8b6a6fb4414823fb58762362ec0d22255b3a1d405e3e9",
+		"attempt-1/process-0.ts": "sha256:04c6ad31657abf6b1b75f0e6a5d42ba1c89807970a99dd977c51b3f246528109",
+		"attempt-1/process-1.log": "sha256:855cabf9bb0a8cb24af1a22512edee11ff8a2894b5d87313b05b98aba5699ba0",
+		"attempt-1/process-1.mjs": "sha256:f18a1cd8180f508a1ca9dcedb2570dc639928a2ec798e488e86e68e8753f38e8",
+		"attempt-1/process-1.ts": "sha256:9345bfc2b9d673be7a51ab3db9fa26a7065bc4135e1b3902826a0a1965f99c10",
+		"attempt-1/runner.mjs": "sha256:260a770e3b27314bdc439137180fd576101360543274e8629600fec6ac7e198c",
+		"attempt-2/layout.json": "sha256:a6dff0e6cfc156bc0392ba62d7ec438090c66d81f3bc2162c682605e75f5ee3f",
+		"attempt-2/process-1.bindings.json": "sha256:071039f912f6d3f83374eedd89c5a0d51d073a848522ede0a75a708172991266",
+		"attempt-2/process-1.json": "sha256:172d0860630556646b8f8733ddef680177fe45acada46b8bc6106c49c93e3544",
+		"attempt-2/process-1.log": "sha256:44faf14a79daff822819325ccb24764754f9512fd10fd0af9ce345789971418c",
+		"attempt-2/process-1.mjs": "sha256:8fbdd821665b2193e1884fd3b3fce37cf9c2e43c43ccb60bfc18c3001102c617",
+		"attempt-2/process-1.ts": "sha256:1a118edcbe75c20f8ad145c5c7343f62aa9efb76fe6849a3ab276ea9e938db19",
+		"attempt-2/process-2.bindings.json": "sha256:e075ac3c3eac53b282064e548bfba76ab10300e92200f3b5d71cf986434769b5",
+		"attempt-2/process-2.json": "sha256:9758e395ee0db70edca5fbe86fa287aaa9d734e4709c9cfac0d5ff4edcf23f3a",
+		"attempt-2/process-2.log": "sha256:629163f572991ca60e7c7dbdd4b6aadf8ec38c1255ce942b2cfcb0934c445316",
+		"attempt-2/process-2.mjs": "sha256:53aa2d87663de0a9499e6d888b980418d6883a2f10b7c3a2d5a9d23f6e56a475",
+		"attempt-2/process-2.ts": "sha256:919ec6a670bdac125871999178cdbf69217f0d8c2e5a9db5699a7cd357752e3c",
+		"attempt-2/process-3.bindings.json": "sha256:d58acef31d9a91806177aa76bd9c789e6ffae0803d37e7405f60bd0ec9d823c3",
+		"attempt-2/process-3.json": "sha256:b6b49e9339afb1fbafe08b91fc068032d28334147f5c5b3964a13f814a48f828",
+		"attempt-2/process-3.log": "sha256:44faf14a79daff822819325ccb24764754f9512fd10fd0af9ce345789971418c",
+		"attempt-2/process-3.mjs": "sha256:c6aa9e7f7b86a58713cf2d67a934ad54a7b809d781d797ad1df70eefe84acd96",
+		"attempt-2/process-3.ts": "sha256:67d62d17cd7bb0194b6b9f678ef06b8c2a9faec80f68a9df9db62f37963d68cf",
+		"attempt-2/runner.mjs": "sha256:4402b68442c445a7d113f89a3d415d76075d22baf855c0196b1a59570516e1f6",
+		"construction-profile-v2.bindings.json": "sha256:70221f891ddbd8f30a1da119fd507082972845104c5951947148165ba1880bac",
+		"construction-profile-v2.json": "sha256:e75be6f2bc6784d405f1790a92ef112f3259c848c302bbb4069c1c91ae0c73f9",
+		"construction-profile-v2.log": "sha256:99bc2f3a13ae216c054ea768a420b7cf0dbae351681286c73ac6d75fa7c49b15",
+		"construction-profile-v2.mjs": "sha256:682d3f3e57c644b3219bfd8d610acc2a65a3495859d9826e81c45bb71804077e",
+		"construction-profile.bindings.json": "sha256:65c7e806b86bd60a86188f084bd1beda45881dff162979192c6d07140cb0ceb8",
+		"construction-profile.json": "sha256:40166343758b3ab9b8e7abc49d0c5b92738493961c9620988f184833751710a1",
+		"construction-profile.log": "sha256:99bc2f3a13ae216c054ea768a420b7cf0dbae351681286c73ac6d75fa7c49b15",
+		"construction-profile.mjs": "sha256:be28ed799558dd0721e0765278c8cc323365189f1c26db74876b0cdabacae0d0",
+		"current-manifest.json": "sha256:0d3c4df0dbeae914fb55cb324ac41bbe54c7a28f672af64783991cd1cece0b80",
+		"profile-construction-attempt1.mjs": "sha256:95f9a361a33a3c358221b81c3bbc6857d6ab19a67e3975b72b5edd4ecf26ef89",
+		"profile-construction.mjs": "sha256:b0e1a8ce505820d587914a38b562d751add088f4db6228ea6283030b63d9d92d",
+		"summarize.py": "sha256:264a12bdb8e3a1fd56e32619c7c637584309dceae6d0e07e37be025c4a462934",
+		"summary.json": "sha256:250ff36e6d1829c6fd9adc12e159eb19226d39f06303bad7d25eeaf106952931"
+	},
+	"verifiedCurrentClosureEntries": 168,
+	"productionAndEvalUnchanged": true,
+	"originalQualificationChanged": false,
+	"successfulProcesses": 4,
+	"steadyMeasuredLifecycles": 1280,
+	"measuredInputIntervals": 12800,
+	"constructionProfileMeasuredRuns": 400,
+	"failedHarnessAttempts": [
+		"attempt-1/process-1.log: wrong runtime construction registrar in cleanup; corrected for uncompleted processes only",
+		"construction-profile.json: shared statistics object polluted by next warmup; v1 unusable, replaced by frozen-copy v2 without hiding the original"
+	],
+	"unresolved": [
+		"Exact cause of original late-process 1.839833 steady ratio",
+		"Construction tail variability; diagnostic ratios do not requalify the old gate"
+	],
+	"nextScope": "Review extra attribution for unchanged original qualification runner, then a bounded qualification/fix scope; rebind current offline qualification only after source and checks are frozen."
+}
