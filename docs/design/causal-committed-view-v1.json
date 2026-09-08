@@ -1,0 +1,50 @@
+{
+	"schema": "graphrefly-ts/causal-committed-view-design/v1",
+	"revision": "view-v1",
+	"artifactRef": "graphrefly-ts:causal-committed-view-design",
+	"workRef": "graphrefly-ts:CAUSAL-COMMITTED-VIEW-DESIGN-TS",
+	"owner": "graphrefly-ts",
+	"governingRefs": [
+		"graphrefly-ts:D160",
+		"graphrefly-ts:D161",
+		"graphrefly-ts:D162",
+		"graphrefly-ts:D163"
+	],
+	"body": {
+		"path": "docs/design/causal-committed-view-v1.md",
+		"digest": "sha256:c145c5ec4d5e9e9f9d3bc5378beb226e661be10c97deef14db829436a7108d9f"
+	},
+	"approval": {
+		"kind": "design-selection",
+		"taskId": "01a077c7-55e6-7f11-9d4f-e7c51944afb4",
+		"date": "2026-09-07",
+		"userResponse": "同意，继续",
+		"reviewedDraftPath": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/publication-handoff-design/retained-view-review-v2.md",
+		"reviewedDraftDigest": "sha256:6f8ce51f903421f9567f7f093b19b58e58e10ee888903e16a13a4c49b1e870e0",
+		"scope": "Approve the v2 change-triggered immutable committed-effects view carried by existing authority DATA, its C ownership boundary and qualification obligations. Continue specifying the next finite implementation scope; this is not implementation or effect execution authorization."
+	},
+	"consumes": [
+		{
+			"artifactRef": "graphrefly-ts:causal-preset-audience-design",
+			"schema": "graphrefly-ts/causal-preset-audience-design/v1",
+			"revision": "audience-v1",
+			"path": "docs/design/causal-preset-audience-v1.json",
+			"digest": "sha256:4f403cea369c2e76a5a887aeef50d06af11bddf3c5b3348fe81a6b26b6c81cff"
+		},
+		{
+			"artifactRef": "graphrefly-ts:causal-cold-assembly-evidence",
+			"schema": "graphrefly-ts/causal-cold-assembly-evidence/v1",
+			"revision": "cold-v1",
+			"path": "packages/ts/qualification/causal-occurrence/cold-v1-receipt.json",
+			"digest": "sha256:8a2c24fcbc776affcbc290a7ed88ccb1fe2b1b95651bc69a5a28f88e82f1d13f"
+		}
+	],
+	"baselineCommit": "d9c868dc8c2cec395f96a5ae327f692cc37c6df7",
+	"nonClaims": [
+		"Runtime implementation or qualification",
+		"O(1) effect update or zero overhead",
+		"Complete ordinary-user onboarding or all five ports qualified",
+		"Public export or protocol changes",
+		"Actual effect, provider/live/spend, B121 completion or automatic downstream dispatch"
+	]
+}
