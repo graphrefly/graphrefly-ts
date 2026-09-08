@@ -1,0 +1,120 @@
+{
+	"schema": "graphrefly-ts/causal-committed-view-attribution/v1",
+	"owner": "graphrefly-ts",
+	"work": "graphrefly-ts:CAUSAL-COMMITTED-VIEW-TS",
+	"revision": "attribution-v1",
+	"status": "diagnosis-complete-qualification-still-failed",
+	"sourceCommit": "246ff0ac",
+	"productionSourceCommit": "f208028b366b13ddbc078d111fca372bdfcd7c86",
+	"approval": {
+		"request": "继续",
+		"classification": "one original-layout attributed offline attempt after diagnosis-v1; earlier 记得 commit remains applicable",
+		"liveProviderSpend": false
+	},
+	"previousReceipts": {
+		"packages/ts/qualification/causal-occurrence/committed-v1-receipt.json": "sha256:7113ec8589056a8ee1a945602308b41d7be7f823ba61f4894700b6fb99b7b7c8",
+		"packages/ts/qualification/causal-occurrence/committed-v1-diagnosis-receipt.json": "sha256:79efa215e82510154460c6aaba620e25958f270a74925604a3dd05e6a4080879"
+	},
+	"bindings": {
+		"scripts/compare-causal-construction.mjs": "sha256:d9f333853ce2ca24893287f4c036a3236e08e12b04c0927ca5f33a1d48db885d",
+		"scripts/fixtures/causal-performance-attribution.mjs": "sha256:b7b85400a98eb90efe57df94648790e6e7b8613aa9e1e708f5e02be38609eb61",
+		"packages/ts/qualification/causal-occurrence/committed-v1-attribution.md": "sha256:a89693dd252f2dc6236fcd0e3e238b01ba73f48b4714ab11955161992fa57ce5",
+		"packages/ts/qualification/causal-occurrence/committed-v1-attribution-evidence.tar.gz": "sha256:dfe371d7c6b744fe28cc226c4a0890e8621309b438af931b22c8491b81f62d10"
+	},
+	"archiveMembers": {
+		"analysis.json": "sha256:87358d5f793b43fcfd4805e84e4a972d3470dfb583eb8c565847351fe134d502",
+		"analyze-before-uncertainty-review.py": "sha256:a6f14f86ba9431f0b585e3c064f94bb704ae55170a6820897db790927e772fc9",
+		"analyze.py": "sha256:9c4b12d8de66778b9ea245e17b6ab0d5bfab73888c1e2800bd94f1df25a73737",
+		"causal-performance-attribution.mjs": "sha256:b7b85400a98eb90efe57df94648790e6e7b8613aa9e1e708f5e02be38609eb61",
+		"compare-causal-construction.mjs": "sha256:d9f333853ce2ca24893287f4c036a3236e08e12b04c0927ca5f33a1d48db885d",
+		"full/before.json": "sha256:a6c013bd060417726604caba73fa54cf754c805efa717d2d3f920c02255f70df",
+		"full/bundle.mjs": "sha256:afcac9909458dbf3053d8d6fc34a73591d8e87e3e581834fcb0bec7376910b5c",
+		"full/intervals.json": "sha256:60faf7861501257aea162c03aa84d7b3592cda5fbf1ced1a1c7ad4a8e5f1973c",
+		"full/runner.ts": "sha256:8657daa0ed169ab65f8da5f64fb76d7ece02d9b0ccc91d50f443f124b64e9ed1",
+		"full/v8-trace.json": "sha256:582acfa718e8abb334379f874901b7156c3b2b5ba132141f1ca8dd0f0bb79574",
+		"full-attribution.bindings.json": "sha256:1625afcd3afc1e964aeff9b7fbb7e7769749b2144aed56150b9926805b73cdac",
+		"full-attribution.check.json": "sha256:ca16e43cd71556ac0d487f7256137298cb6e9c94a23f94915dcf10fc42477732",
+		"full-attribution.log": "sha256:b5b79427935fbdfc03ed35091a42b89b7cb752dc30691fb2c7ecb426bc6cdb46",
+		"full-report.json": "sha256:1d1ea1e3b573ed54a0090998738d79d2c42674c51f56d2858e43011603f3b476",
+		"layout-verification.json": "sha256:fa72d26b9377a61358f26ae2bfb26951544b9b1c191a6fddb2c2c96abf60cc38",
+		"lint.bindings.json": "sha256:1625afcd3afc1e964aeff9b7fbb7e7769749b2144aed56150b9926805b73cdac",
+		"lint.check.json": "sha256:5434c3018a665e40027b5274a6fcdce17ca41071b3e457234032604f9ee8208f",
+		"lint.log": "sha256:5fe7225e95fb42f1de42c790a0e7c595405785da7c09ceac2b918f3415e479bd",
+		"machine-context-mid-run.json": "sha256:096db057921981b15bdd2d4f6cdb960e20072ae4d50a34dca3cbd67d6bc35c59",
+		"overlap-controls.json": "sha256:838b938ac4e078e7d3d2ad16d6ee85bcb84b17145a55295c59f32cd1799646f3",
+		"overlap-controls.py": "sha256:4e3860e0d5133a94e8f0c32dade7541c043143802b9a4a85298d34e622924ff9",
+		"preflight-failures.json": "sha256:9d0e4646fb04ee7ddcd71fee810f669f331aca1a6d9d875b0614cb35182b864b",
+		"preseal-validation.json": "sha256:228061bdd107096fe9a6930d9a19cdfd5ae6b0f5cce31fe254738239ab1e1dcf",
+		"run-check.mjs": "sha256:c5999de3fc0921b49775ab385faa4e450f761d7d2b08c8d48de49a685d5f7166",
+		"scope.json": "sha256:d644ed0b3382027b3a720855bddf07fcc53fcba3c71cb680aba14e9d57b75890",
+		"smoke-analysis.json": "sha256:ee85a8adbbda37489e073b7bef0f2bb3e9ec4d0bd50be3f5c169516165f0376c",
+		"smoke-bundle.mjs": "sha256:0e7832831cf436f62ec35dbb80462e1797c8aca8bc6469d85188f32e1f57a7d5",
+		"smoke-forced-gc.json": "sha256:4326904314145255607dbc942732bb3be844f42774e9ce31abc9bf2c3f18b31d",
+		"smoke-intervals.json": "sha256:c66fc680d0d0b4479921b97522b8f6f1e7e0dd6c00bd9c722686f2b30b6b4953",
+		"smoke-mark-unsupported/smoke-bundle.mjs": "sha256:4ea15a977309f7ef07e5ffa06add26b24d780e2d620638eb3ce8ddd166ab3588",
+		"smoke-mark-unsupported/smoke-extraction-failed.mjs": "sha256:1a2ac51d2a8af83a89e85833e60b5af9f9d684a4cb89b15e12861b515318edf4",
+		"smoke-mark-unsupported/smoke-intervals.json": "sha256:2b0cdd3b7dd3f378f7e0f25e3470f19838a0df3d1194df5113277f838d9c2664",
+		"smoke-mark-unsupported/smoke-result.json": "sha256:46d7d24406eebb2ebafc911b49e5f960f9b0cb4662bcbe12854ff808f9d8ab46",
+		"smoke-mark-unsupported/smoke-v8.json": "sha256:3913f0b644888cd2818a60c80749bb673742524cc8b2ae014590a1f6741cecb4",
+		"smoke-mark-unsupported/smoke.log": "sha256:2ae61a79ce0b35daa68327f87dda984ee7243f352fabfe244ad3943ce889914f",
+		"smoke-mark-unsupported/smoke.mjs": "sha256:827911bd568513bac4895b4834118f5a9fb442f1a6c62563006f3d354c2769b5",
+		"smoke-mark-unsupported/smoke.ts": "sha256:1dabac26a1d33de2c8b510bdbf6f721c237a4a2b5c04f6e44a42adb940e194cc",
+		"smoke-result.json": "sha256:05bdb2da5e5941ad2b9b986a633ceebaeea3aedd0a3b55fce94113e68fcddbb1",
+		"smoke-v8.json": "sha256:efd058d003bfb5cab49b2203b693adec857faa059332f813ea9288ad550fd216",
+		"smoke-validation.json": "sha256:c56e6e9172216ff6b0d347361712974a7a33268606894f7e9bcb9af26345a4ca",
+		"smoke.log": "sha256:efd7b528cb747dab825627b470182623c620ab230b7be37d77c785d1d3c843bc",
+		"smoke.mjs": "sha256:f17508ceb2f6b4c3a107a36e04c14cd67d5f01c5cf6131f20920544e450d54d4",
+		"smoke.ts": "sha256:7ef2c4d304ba88601afeddb9f0a615a5dddc2b11d45f9c53086a32f9fc84a1f0",
+		"static-review.json": "sha256:b9ed156f71fa7c7bea319a6efa9084230b79d45c2c8814c5455265908acfb4e7"
+	},
+	"validation": {
+		"fullRunSeconds": 900.411371375,
+		"fullRunOnce": true,
+		"sourceAndHarnessUnchanged": true,
+		"constructionSamples": 7200,
+		"steadyLifecycles": 108,
+		"inputSamples": 29976,
+		"allRawScoreArraysReconstructed": true,
+		"gcEvents": 35784,
+		"endpointMarginMs": 0.0033959875106811524,
+		"oldQualificationStillFailed": true,
+		"lint": true,
+		"scopeReview": "No package runtime source changed; full default/soak not repeated; old D159 failures remain."
+	},
+	"performanceRows": [
+		{
+			"count": 1,
+			"evidence": 0,
+			"background": 0,
+			"constructionRatio": 1.2216017697659147,
+			"steadyRatio": 1.0393518518318903,
+			"rawThresholdsMet": false
+		},
+		{
+			"count": 16,
+			"evidence": 128,
+			"background": 0,
+			"constructionRatio": 1.1605787616732064,
+			"steadyRatio": 1.0090721719044347,
+			"rawThresholdsMet": true
+		},
+		{
+			"count": 64,
+			"evidence": 512,
+			"background": 0,
+			"constructionRatio": 1.1187827377683326,
+			"steadyRatio": 1.0043400183062239,
+			"rawThresholdsMet": true
+		},
+		{
+			"count": 1,
+			"evidence": 0,
+			"background": 1000,
+			"constructionRatio": 0.7967373420815674,
+			"steadyRatio": 0.9408987561969012,
+			"rawThresholdsMet": true
+		}
+	],
+	"meaning": "Instrumented attribution, not replacement qualification. Original failure remains; source did not change. P95-determining cold-construction samples have no possible GC/deopt overlap, but exact allocation/function/scheduling cause is unresolved.",
+	"nextScope": "Focus on small cold-assembly/material/validation attribution or optimization; preserve real dependency checks, ownership, getter/error behavior. No more repeated full gates on unchanged production source."
+}

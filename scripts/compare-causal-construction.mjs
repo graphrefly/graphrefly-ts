@@ -2,11 +2,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { attributeCausalPerformance } from "./fixtures/causal-performance-attribution.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outputArg = process.argv.indexOf("--output");
@@ -15,11 +16,34 @@ const reportPath =
 	outputArg < 0
 		? join(root, "packages/ts/qualification/causal-occurrence/ts-v5-construction-comparison.json")
 		: resolve(process.argv[outputArg + 1]);
+const attributionArg = process.argv.indexOf("--attribution-dir");
+if (attributionArg >= 0 && (!process.argv[attributionArg + 1] || outputArg < 0))
+	throw new TypeError("--attribution-dir requires a fresh directory and explicit --output");
+const attributionDir = attributionArg < 0 ? undefined : resolve(process.argv[attributionArg + 1]);
+if (attributionDir) {
+	for (const name of ["intervals.json", "runner.ts", "bundle.mjs", "before.json", "v8-trace.json"])
+		assert.notEqual(
+			reportPath,
+			join(attributionDir, name),
+			"report must not overwrite attribution evidence",
+		);
+	assert.equal(existsSync(attributionDir), false, "attribution directory must be fresh");
+	assert.equal(existsSync(reportPath), false, "retain previous reports");
+	mkdirSync(attributionDir, { recursive: true });
+}
 const src = join(root, "packages/ts/src");
 const evidence = join(root, "packages/ts/qualification/causal-occurrence");
 const frozenPath = join(evidence, "ts-v4-construction-inputs.json");
 const frozen = JSON.parse(readFileSync(frozenPath, "utf8"));
 const digest = (bytes) => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+const harnessInputs = [
+	fileURLToPath(import.meta.url),
+	join(root, "scripts/fixtures/causal-performance-attribution.mjs"),
+	join(root, "scripts/compare-causal-authority.mjs"),
+	frozenPath,
+	join(evidence, "ts-v4-receipt.json"),
+];
+const harnessBefore = Object.fromEntries(harnessInputs.map((p) => [p, digest(readFileSync(p))]));
 assert.equal(frozen.receiptDigest, digest(readFileSync(join(evidence, "ts-v4-receipt.json"))));
 const temp = mkdtempSync(join(tmpdir(), "causal-construction-comparison-"));
 const reference = join(temp, "reference");
@@ -104,8 +128,11 @@ writeFileSync(${JSON.stringify(resultPath)},JSON.stringify({comparisons,performa
 `;
 try {
 	const bundlePath = join(temp, "compare.mjs");
+	const executableRunner = attributionDir
+		? attributeCausalPerformance(runner, join(attributionDir, "intervals.json"))
+		: runner;
 	const compiled = await build({
-		stdin: { contents: runner, resolveDir: root, loader: "ts" },
+		stdin: { contents: executableRunner, resolveDir: root, loader: "ts" },
 		outfile: bundlePath,
 		bundle: true,
 		platform: "node",
@@ -114,21 +141,65 @@ try {
 		nodePaths: [join(root, "node_modules")],
 		define: { __GRAPHREFLY_TS_PACKAGE_REVISION__: JSON.stringify("graphrefly-ts:0.9.0") },
 	});
-	const child = spawnSync(process.execPath, ["--expose-gc", bundlePath], {
+	const closureBefore = Object.fromEntries(
+		Object.keys(compiled.metafile.inputs)
+			.filter((p) => p !== "<stdin>")
+			.map((p) => [p, digest(readFileSync(resolve(root, p)))]),
+	);
+	if (attributionDir) {
+		writeFileSync(join(attributionDir, "runner.ts"), executableRunner);
+		writeFileSync(join(attributionDir, "bundle.mjs"), readFileSync(bundlePath));
+		writeFileSync(
+			join(attributionDir, "before.json"),
+			JSON.stringify(
+				{
+					harness: harnessBefore,
+					closure: closureBefore,
+					runnerDigest: digest(readFileSync(fileURLToPath(import.meta.url))),
+					attributionDigest: digest(
+						readFileSync(join(root, "scripts/fixtures/causal-performance-attribution.mjs")),
+					),
+					bundleDigest: digest(readFileSync(bundlePath)),
+					originalRunnerDigest: digest(runner),
+					node: process.version,
+					platform: process.platform,
+					arch: process.arch,
+				},
+				null,
+				2,
+			),
+		);
+	}
+	const traceArgs = attributionDir
+		? [
+				"--trace-events-enabled",
+				"--trace-event-categories=v8,node.perf.usertiming",
+				`--trace-event-file-pattern=${join(attributionDir, "v8-trace.json")}`,
+			]
+		: [];
+	const child = spawnSync(process.execPath, ["--expose-gc", ...traceArgs, bundlePath], {
 		encoding: "utf8",
 		timeout: 1200000,
 		stdio: "inherit",
 	});
 	assert.ifError(child.error);
 	assert.equal(child.status, 0, `child signal: ${child.signal}`);
+	for (const [p, hash] of Object.entries(harnessBefore))
+		assert.equal(digest(readFileSync(p)), hash, `harness changed during measurement: ${p}`);
+	for (const [p, hash] of Object.entries(closureBefore))
+		assert.equal(
+			digest(readFileSync(resolve(root, p))),
+			hash,
+			`source changed during measurement: ${p}`,
+		);
 	const result = JSON.parse(readFileSync(resultPath, "utf8"));
 	const closure = Object.keys(compiled.metafile.inputs).filter((p) => p !== "<stdin>");
 	const report = {
 		schema: "graphrefly-ts/causal-construction-comparison/v1",
 		revision: "construction-v1",
-		runnerDigest: digest(readFileSync(fileURLToPath(import.meta.url))),
+		runnerDigest: harnessBefore[fileURLToPath(import.meta.url)],
 		fixtureDigest: digest(traceFixture),
-		frozenDigest: digest(readFileSync(frozenPath)),
+		frozenDigest: harnessBefore[frozenPath],
 		runtime: process.version,
 		closure: Object.fromEntries(
 			closure.map((p) => [
@@ -139,6 +210,15 @@ try {
 		baselineMeaning:
 			"ts-v4 actual runtime with same added startup/projection physical resources; no C ownership guarantee",
 		...result,
+		...(attributionDir
+			? {
+					attribution: {
+						purpose: "diagnostic; original failed qualification retained",
+						directory: attributionDir,
+						sourceUnchanged: true,
+					},
+				}
+			: {}),
 	};
 	writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
 	console.log(
