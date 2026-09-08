@@ -1,0 +1,46 @@
+{
+  "schema": "graphrefly-ts/causal-composition-design/v1",
+  "revision": "design-v1",
+  "artifactRef": "graphrefly-ts:causal-composition-design",
+  "workRef": "graphrefly-ts:CAUSAL-COMPOSITION-DESIGN-TS",
+  "owner": "graphrefly-ts",
+  "governingRef": "graphrefly-ts:D160",
+  "body": {
+    "path": "docs/design/causal-composition-v1.md",
+    "digest": "sha256:e57de7a4cb6affe36df5e984abb85569f5f9034d636a8ac7f95de6a3dc794ce1"
+  },
+  "approval": {
+    "kind": "design-selection",
+    "taskId": "01a077c7-55e6-7f11-9d4f-e7c51944afb4",
+    "date": "2026-09-06",
+    "userResponse": "同意",
+    "reviewedDraftDigest": "sha256:388a42a822483b197e7a90b6f1ae2c4270ea1a002bbbdd9a92f7753373a4b0b4",
+    "scope": "Approve the reviewed single-authority full-closure composition, package-private graph-bound preset with bounded immutable transaction prefixes, and current-at-dispatch focused inbox boundary. Design only; no implementation or effect execution grant."
+  },
+  "consumes": [
+    {
+      "artifactRef": "graphrefly:causal-flagship-design-brief",
+      "schema": "graphrefly/causal-flagship-design-brief/v1",
+      "revision": "brief-v1",
+      "path": "../graphrefly/sessions/archive/b139-causal-flagship-brief-v1.json",
+      "digest": "sha256:c406a58efb7ec9c24ef01c11b987405345b330edd045c915c2afef8d945a7fe7"
+    },
+    {
+      "artifactRef": "graphrefly-ts:causal-occurrence-arm-evidence",
+      "schema": "graphrefly/conformance-arm-evidence/v1",
+      "revision": "ts-v3",
+      "path": "packages/ts/qualification/causal-occurrence/ts-v3-receipt.json",
+      "digest": "sha256:27d68650bf4d6575a616f776e59e806d0fa1e430b1096d4ac28882d778863690"
+    }
+  ],
+  "baselineCommit": "63d58eace38ac782155062284515eeeba68b1df8",
+  "nonClaims": [
+    "Implementation complete",
+    "New runtime qualification",
+    "Public package exports",
+    "Reduced-assurance runtime support",
+    "B121 complete",
+    "Provider/live/spend or inbox effect authorization",
+    "Post-dispatch withdrawal or cross-crash exactly-once"
+  ]
+}

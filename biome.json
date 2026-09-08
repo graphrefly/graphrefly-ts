@@ -114,6 +114,15 @@
 					"unsafeParameterDecoratorsEnabled": true
 				}
 			}
+		},
+		{
+			"includes": [
+				"docs/design/causal-composition-v1.json",
+				"docs/design/causal-preset-audience-v1.json"
+			],
+			"formatter": {
+				"enabled": false
+			}
 		}
 	]
 }

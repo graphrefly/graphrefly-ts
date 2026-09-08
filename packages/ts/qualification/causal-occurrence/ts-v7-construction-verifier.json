@@ -1,0 +1,2432 @@
+{
+	"schema": "graphrefly-ts/causal-construction-verifier/v1",
+	"runnerDigest": "sha256:fadd9bd249c2eca5b91bc6748b6e3680b4720b2019477fecb5cc8f3ef97955f5",
+	"fixtureDigest": "sha256:2796ab38f03965e26e003240b1301c55113a15b8fcd3481c635c5638b7cb9fcb",
+	"closure": {
+		"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+		"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+		"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+		"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+		"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+		"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+		"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+		"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+		"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+		"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+		"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+		"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+		"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+		"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+		"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+		"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+		"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+		"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+		"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+		"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+		"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+		"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+		"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+		"packages/ts/src/graph/graph-lifecycle.ts": "sha256:aad0f8c4b90f39fef693c6b8150165c35013032039566a82ef6db1d15f2f3772",
+		"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+		"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+		"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+		"packages/ts/src/graph/graph.ts": "sha256:1f261caf16821965b6ca8e6de3e14f27c348a81f016010379eb376688497978c",
+		"packages/ts/src/graph/construction-scope.ts": "sha256:97ae64eae90439773bc80dff4ebc52ec1ca781871948d865b10081452eacc3f5",
+		"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+		"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+		"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+		"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+		"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+		"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+		"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+		"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+		"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+		"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+		"packages/ts/src/solutions/causal-occurrence.ts": "sha256:9493fafb2b6f2c3e0d72fd64716ea9a679485c307fa1a5f2876695f6cdd4abee"
+	},
+	"snapshots": [
+		{
+			"scenario": "normal",
+			"at": "cold",
+			"expected": {
+				"phase": "cold",
+				"resources": [
+					["view/join", "cold"],
+					["view/left", "cold"],
+					["view/right", "cold"],
+					["view/startup", "cold"]
+				],
+				"obligations": [],
+				"deliveries": 0
+			},
+			"actual": {
+				"registrations": ["a", "b", "view/join", "view/left", "view/right", "view/startup"],
+				"handles": [
+					{
+						"poolId": 0,
+						"handleId": 0
+					},
+					{
+						"poolId": 0,
+						"handleId": 1
+					},
+					{
+						"poolId": 0,
+						"handleId": 2
+					}
+				],
+				"slots": [
+					["a", true],
+					["b", true],
+					["view/startup", true],
+					["view/left", true],
+					["view/right", true],
+					["view/join", true]
+				],
+				"subscriptions": [
+					["a", 1],
+					["b", 0],
+					["view/startup", 0],
+					["view/left", 0],
+					["view/right", 0],
+					["view/join", 0]
+				],
+				"dependencyLeases": [
+					["a", 0],
+					["b", 0],
+					["view/startup", 0],
+					["view/left", 0],
+					["view/right", 0],
+					["view/join", 0]
+				]
+			}
+		},
+		{
+			"scenario": "normal",
+			"at": "started",
+			"expected": {
+				"phase": "started",
+				"resources": [
+					["lease/join", "graph"],
+					["lease/startup", "graph"],
+					["view/join", "graph"],
+					["view/left", "graph"],
+					["view/right", "graph"],
+					["view/startup", "graph"]
+				],
+				"obligations": [],
+				"deliveries": 2
+			},
+			"actual": {
+				"registrations": ["a", "b", "view/join", "view/left", "view/right", "view/startup"],
+				"handles": [
+					{
+						"poolId": 0,
+						"handleId": 0
+					},
+					{
+						"poolId": 0,
+						"handleId": 1
+					},
+					{
+						"poolId": 0,
+						"handleId": 2
+					}
+				],
+				"slots": [
+					["a", true],
+					["b", true],
+					["view/startup", true],
+					["view/left", true],
+					["view/right", true],
+					["view/join", true]
+				],
+				"subscriptions": [
+					["a", 3],
+					["b", 1],
+					["view/startup", 1],
+					["view/left", 1],
+					["view/right", 1],
+					["view/join", 1]
+				],
+				"dependencyLeases": [
+					["a", 0],
+					["b", 0],
+					["view/startup", 0],
+					["view/left", 1],
+					["view/right", 2],
+					["view/join", 2]
+				]
+			},
+			"describe": {
+				"nodes": [
+					{
+						"id": "a",
+						"factory": "state",
+						"status": "settled",
+						"deps": [],
+						"name": "a",
+						"value": 2,
+						"version": {
+							"level": 0,
+							"counter": 0
+						}
+					},
+					{
+						"id": "b",
+						"factory": "state",
+						"status": "settled",
+						"deps": [],
+						"name": "b",
+						"value": 3,
+						"version": {
+							"level": 0,
+							"counter": 0
+						}
+					},
+					{
+						"id": "view/startup",
+						"factory": "graphConstructionStartup",
+						"status": "settled",
+						"deps": [],
+						"name": "view/startup",
+						"value": {
+							"kind": "graph-startup",
+							"instance": "view",
+							"epoch": 1,
+							"state": "started"
+						},
+						"version": {
+							"level": 0,
+							"counter": 1
+						}
+					},
+					{
+						"id": "view/left",
+						"factory": "node",
+						"status": "settled",
+						"deps": ["a"],
+						"name": "view/left",
+						"value": 4,
+						"version": {
+							"level": 0,
+							"counter": 1
+						}
+					},
+					{
+						"id": "view/right",
+						"factory": "node",
+						"status": "settled",
+						"deps": ["a", "b"],
+						"name": "view/right",
+						"value": 5,
+						"version": {
+							"level": 0,
+							"counter": 1
+						}
+					},
+					{
+						"id": "view/join",
+						"factory": "node",
+						"status": "settled",
+						"deps": ["view/left", "view/right"],
+						"name": "view/join",
+						"value": 9,
+						"version": {
+							"level": 0,
+							"counter": 1
+						}
+					}
+				],
+				"edges": [
+					{
+						"from": "a",
+						"to": "view/left"
+					},
+					{
+						"from": "a",
+						"to": "view/right"
+					},
+					{
+						"from": "b",
+						"to": "view/right"
+					},
+					{
+						"from": "view/left",
+						"to": "view/join"
+					},
+					{
+						"from": "view/right",
+						"to": "view/join"
+					}
+				]
+			},
+			"borrowed": [2]
+		},
+		{
+			"scenario": "cold-abort",
+			"at": "cold",
+			"expected": {
+				"phase": "cold",
+				"resources": [
+					["view/join", "cold"],
+					["view/left", "cold"],
+					["view/right", "cold"],
+					["view/startup", "cold"]
+				],
+				"obligations": [],
+				"deliveries": 0
+			},
+			"actual": {
+				"registrations": ["a", "b", "view/join", "view/left", "view/right", "view/startup"],
+				"handles": [
+					{
+						"poolId": 0,
+						"handleId": 0
+					},
+					{
+						"poolId": 0,
+						"handleId": 1
+					},
+					{
+						"poolId": 0,
+						"handleId": 2
+					}
+				],
+				"slots": [
+					["a", true],
+					["b", true],
+					["view/startup", true],
+					["view/left", true],
+					["view/right", true],
+					["view/join", true]
+				],
+				"subscriptions": [
+					["a", 1],
+					["b", 0],
+					["view/startup", 0],
+					["view/left", 0],
+					["view/right", 0],
+					["view/join", 0]
+				],
+				"dependencyLeases": [
+					["a", 0],
+					["b", 0],
+					["view/startup", 0],
+					["view/left", 0],
+					["view/right", 0],
+					["view/join", 0]
+				]
+			}
+		},
+		{
+			"scenario": "cold-abort",
+			"at": "aborted",
+			"expected": {
+				"phase": "aborted",
+				"resources": [],
+				"obligations": [],
+				"deliveries": 0
+			},
+			"actual": {
+				"registrations": ["a", "b"],
+				"handles": [],
+				"slots": [
+					["a", true],
+					["b", true],
+					["view/startup", false],
+					["view/left", false],
+					["view/right", false],
+					["view/join", false]
+				],
+				"subscriptions": [
+					["a", 1],
+					["b", 0],
+					["view/startup", 0],
+					["view/left", 0],
+					["view/right", 0],
+					["view/join", 0]
+				],
+				"dependencyLeases": [
+					["a", 0],
+					["b", 0],
+					["view/startup", 0],
+					["view/left", 0],
+					["view/right", 0],
+					["view/join", 0]
+				]
+			},
+			"borrowed": [2, 4]
+		},
+		{
+			"scenario": "causal-normal",
+			"at": "admitted",
+			"expected": {
+				"phase": "started",
+				"resources": [["authority", "graph"]],
+				"obligations": ["effect/admission"],
+				"deliveries": 1
+			},
+			"actual": {
+				"startup": {
+					"kind": "graph-startup",
+					"instance": "causal",
+					"epoch": 1,
+					"state": "started"
+				},
+				"activeObligations": ["effect/admission"],
+				"ownerPhase": "started",
+				"rootLeases": [
+					{
+						"id": "causal/startup",
+						"recorded": true
+					},
+					{
+						"id": "causal/release-controller",
+						"recorded": true
+					}
+				],
+				"resources": {
+					"registrations": [
+						"causal/arrivals",
+						"causal/authority",
+						"causal/causal-quiescence",
+						"causal/conservation",
+						"causal/coverage",
+						"causal/currentness",
+						"causal/input/admissions",
+						"causal/input/branch-terminals",
+						"causal/input/effect-admissions",
+						"causal/input/effect-outcomes",
+						"causal/input/effect-proposals",
+						"causal/input/evidence",
+						"causal/input/occurrences",
+						"causal/input/watermarks",
+						"causal/issues",
+						"causal/quiescence",
+						"causal/release-candidates",
+						"causal/release-controller",
+						"causal/release-events",
+						"causal/release-port",
+						"causal/released",
+						"causal/startup",
+						"causal/terminals",
+						"input/admission",
+						"input/effect-admission",
+						"input/evidence",
+						"input/occurrence",
+						"input/outcome",
+						"input/proposal",
+						"input/terminal",
+						"input/watermark"
+					],
+					"handles": [
+						{
+							"poolId": 0,
+							"handleId": 0
+						},
+						{
+							"poolId": 0,
+							"handleId": 1
+						},
+						{
+							"poolId": 0,
+							"handleId": 2
+						},
+						{
+							"poolId": 0,
+							"handleId": 3
+						},
+						{
+							"poolId": 0,
+							"handleId": 4
+						},
+						{
+							"poolId": 0,
+							"handleId": 5
+						},
+						{
+							"poolId": 0,
+							"handleId": 6
+						},
+						{
+							"poolId": 0,
+							"handleId": 7
+						},
+						{
+							"poolId": 0,
+							"handleId": 8
+						},
+						{
+							"poolId": 0,
+							"handleId": 9
+						},
+						{
+							"poolId": 0,
+							"handleId": 10
+						},
+						{
+							"poolId": 0,
+							"handleId": 11
+						},
+						{
+							"poolId": 0,
+							"handleId": 12
+						},
+						{
+							"poolId": 0,
+							"handleId": 13
+						},
+						{
+							"poolId": 0,
+							"handleId": 14
+						},
+						{
+							"poolId": 0,
+							"handleId": 15
+						},
+						{
+							"poolId": 0,
+							"handleId": 16
+						},
+						{
+							"poolId": 0,
+							"handleId": 17
+						},
+						{
+							"poolId": 0,
+							"handleId": 18
+						},
+						{
+							"poolId": 0,
+							"handleId": 19
+						},
+						{
+							"poolId": 0,
+							"handleId": 20
+						},
+						{
+							"poolId": 0,
+							"handleId": 21
+						},
+						{
+							"poolId": 0,
+							"handleId": 22
+						}
+					],
+					"slots": [
+						["input/outcome", true],
+						["input/occurrence", true],
+						["input/admission", true],
+						["input/terminal", true],
+						["input/proposal", true],
+						["input/effect-admission", true],
+						["input/evidence", true],
+						["input/watermark", true],
+						["causal/startup", true],
+						["causal/input/occurrences", true],
+						["causal/input/admissions", true],
+						["causal/input/branch-terminals", true],
+						["causal/input/effect-proposals", true],
+						["causal/input/effect-admissions", true],
+						["causal/input/effect-outcomes", true],
+						["causal/input/evidence", true],
+						["causal/input/watermarks", true],
+						["causal/arrivals", true],
+						["causal/authority", true],
+						["causal/release-candidates", true],
+						["causal/release-port", true],
+						["causal/released", true],
+						["causal/release-events", true],
+						["causal/release-controller", true],
+						["causal/currentness", true],
+						["causal/terminals", true],
+						["causal/conservation", true],
+						["causal/coverage", true],
+						["causal/quiescence", true],
+						["causal/issues", true],
+						["causal/causal-quiescence", true]
+					],
+					"subscriptions": [
+						["input/outcome", 1],
+						["input/occurrence", 1],
+						["input/admission", 1],
+						["input/terminal", 1],
+						["input/proposal", 1],
+						["input/effect-admission", 1],
+						["input/evidence", 1],
+						["input/watermark", 1],
+						["causal/startup", 1],
+						["causal/input/occurrences", 1],
+						["causal/input/admissions", 1],
+						["causal/input/branch-terminals", 1],
+						["causal/input/effect-proposals", 1],
+						["causal/input/effect-admissions", 1],
+						["causal/input/effect-outcomes", 1],
+						["causal/input/evidence", 1],
+						["causal/input/watermarks", 1],
+						["causal/arrivals", 1],
+						["causal/authority", 1],
+						["causal/release-candidates", 2],
+						["causal/release-port", 1],
+						["causal/released", 1],
+						["causal/release-events", 1],
+						["causal/release-controller", 1],
+						["causal/currentness", 0],
+						["causal/terminals", 0],
+						["causal/conservation", 0],
+						["causal/coverage", 0],
+						["causal/quiescence", 0],
+						["causal/issues", 0],
+						["causal/causal-quiescence", 0]
+					],
+					"dependencyLeases": [
+						["input/outcome", 0],
+						["input/occurrence", 0],
+						["input/admission", 0],
+						["input/terminal", 0],
+						["input/proposal", 0],
+						["input/effect-admission", 0],
+						["input/evidence", 0],
+						["input/watermark", 0],
+						["causal/startup", 0],
+						["causal/input/occurrences", 1],
+						["causal/input/admissions", 1],
+						["causal/input/branch-terminals", 1],
+						["causal/input/effect-proposals", 1],
+						["causal/input/effect-admissions", 1],
+						["causal/input/effect-outcomes", 1],
+						["causal/input/evidence", 1],
+						["causal/input/watermarks", 1],
+						["causal/arrivals", 8],
+						["causal/authority", 1],
+						["causal/release-candidates", 1],
+						["causal/release-port", 1],
+						["causal/released", 1],
+						["causal/release-events", 2],
+						["causal/release-controller", 1],
+						["causal/currentness", 0],
+						["causal/terminals", 0],
+						["causal/conservation", 0],
+						["causal/coverage", 0],
+						["causal/quiescence", 0],
+						["causal/issues", 0],
+						["causal/causal-quiescence", 0]
+					]
+				}
+			}
+		},
+		{
+			"scenario": "causal-normal",
+			"at": "UI-detached",
+			"expected": {
+				"phase": "started",
+				"resources": [["authority", "graph"]],
+				"obligations": ["effect/admission"],
+				"deliveries": 1
+			},
+			"actual": {
+				"startup": {
+					"kind": "graph-startup",
+					"instance": "causal",
+					"epoch": 1,
+					"state": "started"
+				},
+				"activeObligations": ["effect/admission"],
+				"ownerPhase": "started",
+				"rootLeases": [
+					{
+						"id": "causal/startup",
+						"recorded": true
+					},
+					{
+						"id": "causal/release-controller",
+						"recorded": true
+					}
+				],
+				"resources": {
+					"registrations": [
+						"causal/arrivals",
+						"causal/authority",
+						"causal/causal-quiescence",
+						"causal/conservation",
+						"causal/coverage",
+						"causal/currentness",
+						"causal/input/admissions",
+						"causal/input/branch-terminals",
+						"causal/input/effect-admissions",
+						"causal/input/effect-outcomes",
+						"causal/input/effect-proposals",
+						"causal/input/evidence",
+						"causal/input/occurrences",
+						"causal/input/watermarks",
+						"causal/issues",
+						"causal/quiescence",
+						"causal/release-candidates",
+						"causal/release-controller",
+						"causal/release-events",
+						"causal/release-port",
+						"causal/released",
+						"causal/startup",
+						"causal/terminals",
+						"input/admission",
+						"input/effect-admission",
+						"input/evidence",
+						"input/occurrence",
+						"input/outcome",
+						"input/proposal",
+						"input/terminal",
+						"input/watermark"
+					],
+					"handles": [
+						{
+							"poolId": 0,
+							"handleId": 0
+						},
+						{
+							"poolId": 0,
+							"handleId": 1
+						},
+						{
+							"poolId": 0,
+							"handleId": 2
+						},
+						{
+							"poolId": 0,
+							"handleId": 3
+						},
+						{
+							"poolId": 0,
+							"handleId": 4
+						},
+						{
+							"poolId": 0,
+							"handleId": 5
+						},
+						{
+							"poolId": 0,
+							"handleId": 6
+						},
+						{
+							"poolId": 0,
+							"handleId": 7
+						},
+						{
+							"poolId": 0,
+							"handleId": 8
+						},
+						{
+							"poolId": 0,
+							"handleId": 9
+						},
+						{
+							"poolId": 0,
+							"handleId": 10
+						},
+						{
+							"poolId": 0,
+							"handleId": 11
+						},
+						{
+							"poolId": 0,
+							"handleId": 12
+						},
+						{
+							"poolId": 0,
+							"handleId": 13
+						},
+						{
+							"poolId": 0,
+							"handleId": 14
+						},
+						{
+							"poolId": 0,
+							"handleId": 15
+						},
+						{
+							"poolId": 0,
+							"handleId": 16
+						},
+						{
+							"poolId": 0,
+							"handleId": 17
+						},
+						{
+							"poolId": 0,
+							"handleId": 18
+						},
+						{
+							"poolId": 0,
+							"handleId": 19
+						},
+						{
+							"poolId": 0,
+							"handleId": 20
+						},
+						{
+							"poolId": 0,
+							"handleId": 21
+						},
+						{
+							"poolId": 0,
+							"handleId": 22
+						}
+					],
+					"slots": [
+						["input/outcome", true],
+						["input/occurrence", true],
+						["input/admission", true],
+						["input/terminal", true],
+						["input/proposal", true],
+						["input/effect-admission", true],
+						["input/evidence", true],
+						["input/watermark", true],
+						["causal/startup", true],
+						["causal/input/occurrences", true],
+						["causal/input/admissions", true],
+						["causal/input/branch-terminals", true],
+						["causal/input/effect-proposals", true],
+						["causal/input/effect-admissions", true],
+						["causal/input/effect-outcomes", true],
+						["causal/input/evidence", true],
+						["causal/input/watermarks", true],
+						["causal/arrivals", true],
+						["causal/authority", true],
+						["causal/release-candidates", true],
+						["causal/release-port", true],
+						["causal/released", true],
+						["causal/release-events", true],
+						["causal/release-controller", true],
+						["causal/currentness", true],
+						["causal/terminals", true],
+						["causal/conservation", true],
+						["causal/coverage", true],
+						["causal/quiescence", true],
+						["causal/issues", true],
+						["causal/causal-quiescence", true]
+					],
+					"subscriptions": [
+						["input/outcome", 1],
+						["input/occurrence", 1],
+						["input/admission", 1],
+						["input/terminal", 1],
+						["input/proposal", 1],
+						["input/effect-admission", 1],
+						["input/evidence", 1],
+						["input/watermark", 1],
+						["causal/startup", 1],
+						["causal/input/occurrences", 1],
+						["causal/input/admissions", 1],
+						["causal/input/branch-terminals", 1],
+						["causal/input/effect-proposals", 1],
+						["causal/input/effect-admissions", 1],
+						["causal/input/effect-outcomes", 1],
+						["causal/input/evidence", 1],
+						["causal/input/watermarks", 1],
+						["causal/arrivals", 1],
+						["causal/authority", 1],
+						["causal/release-candidates", 2],
+						["causal/release-port", 1],
+						["causal/released", 1],
+						["causal/release-events", 1],
+						["causal/release-controller", 1],
+						["causal/currentness", 0],
+						["causal/terminals", 0],
+						["causal/conservation", 0],
+						["causal/coverage", 0],
+						["causal/quiescence", 0],
+						["causal/issues", 0],
+						["causal/causal-quiescence", 0]
+					],
+					"dependencyLeases": [
+						["input/outcome", 0],
+						["input/occurrence", 0],
+						["input/admission", 0],
+						["input/terminal", 0],
+						["input/proposal", 0],
+						["input/effect-admission", 0],
+						["input/evidence", 0],
+						["input/watermark", 0],
+						["causal/startup", 0],
+						["causal/input/occurrences", 1],
+						["causal/input/admissions", 1],
+						["causal/input/branch-terminals", 1],
+						["causal/input/effect-proposals", 1],
+						["causal/input/effect-admissions", 1],
+						["causal/input/effect-outcomes", 1],
+						["causal/input/evidence", 1],
+						["causal/input/watermarks", 1],
+						["causal/arrivals", 8],
+						["causal/authority", 1],
+						["causal/release-candidates", 1],
+						["causal/release-port", 1],
+						["causal/released", 1],
+						["causal/release-events", 2],
+						["causal/release-controller", 1],
+						["causal/currentness", 0],
+						["causal/terminals", 0],
+						["causal/conservation", 0],
+						["causal/coverage", 0],
+						["causal/quiescence", 0],
+						["causal/issues", 0],
+						["causal/causal-quiescence", 0]
+					]
+				}
+			}
+		},
+		{
+			"scenario": "causal-normal",
+			"at": "wrong-outcome",
+			"expected": {
+				"phase": "started",
+				"resources": [["authority", "graph"]],
+				"obligations": ["effect/admission"],
+				"deliveries": 1
+			},
+			"actual": {
+				"startup": {
+					"kind": "graph-startup",
+					"instance": "causal",
+					"epoch": 1,
+					"state": "started"
+				},
+				"activeObligations": ["effect/admission"],
+				"ownerPhase": "started",
+				"rootLeases": [
+					{
+						"id": "causal/startup",
+						"recorded": true
+					},
+					{
+						"id": "causal/release-controller",
+						"recorded": true
+					}
+				],
+				"resources": {
+					"registrations": [
+						"causal/arrivals",
+						"causal/authority",
+						"causal/causal-quiescence",
+						"causal/conservation",
+						"causal/coverage",
+						"causal/currentness",
+						"causal/input/admissions",
+						"causal/input/branch-terminals",
+						"causal/input/effect-admissions",
+						"causal/input/effect-outcomes",
+						"causal/input/effect-proposals",
+						"causal/input/evidence",
+						"causal/input/occurrences",
+						"causal/input/watermarks",
+						"causal/issues",
+						"causal/quiescence",
+						"causal/release-candidates",
+						"causal/release-controller",
+						"causal/release-events",
+						"causal/release-port",
+						"causal/released",
+						"causal/startup",
+						"causal/terminals",
+						"input/admission",
+						"input/effect-admission",
+						"input/evidence",
+						"input/occurrence",
+						"input/outcome",
+						"input/proposal",
+						"input/terminal",
+						"input/watermark"
+					],
+					"handles": [
+						{
+							"poolId": 0,
+							"handleId": 0
+						},
+						{
+							"poolId": 0,
+							"handleId": 1
+						},
+						{
+							"poolId": 0,
+							"handleId": 2
+						},
+						{
+							"poolId": 0,
+							"handleId": 3
+						},
+						{
+							"poolId": 0,
+							"handleId": 4
+						},
+						{
+							"poolId": 0,
+							"handleId": 5
+						},
+						{
+							"poolId": 0,
+							"handleId": 6
+						},
+						{
+							"poolId": 0,
+							"handleId": 7
+						},
+						{
+							"poolId": 0,
+							"handleId": 8
+						},
+						{
+							"poolId": 0,
+							"handleId": 9
+						},
+						{
+							"poolId": 0,
+							"handleId": 10
+						},
+						{
+							"poolId": 0,
+							"handleId": 11
+						},
+						{
+							"poolId": 0,
+							"handleId": 12
+						},
+						{
+							"poolId": 0,
+							"handleId": 13
+						},
+						{
+							"poolId": 0,
+							"handleId": 14
+						},
+						{
+							"poolId": 0,
+							"handleId": 15
+						},
+						{
+							"poolId": 0,
+							"handleId": 16
+						},
+						{
+							"poolId": 0,
+							"handleId": 17
+						},
+						{
+							"poolId": 0,
+							"handleId": 18
+						},
+						{
+							"poolId": 0,
+							"handleId": 19
+						},
+						{
+							"poolId": 0,
+							"handleId": 20
+						},
+						{
+							"poolId": 0,
+							"handleId": 21
+						},
+						{
+							"poolId": 0,
+							"handleId": 22
+						}
+					],
+					"slots": [
+						["input/outcome", true],
+						["input/occurrence", true],
+						["input/admission", true],
+						["input/terminal", true],
+						["input/proposal", true],
+						["input/effect-admission", true],
+						["input/evidence", true],
+						["input/watermark", true],
+						["causal/startup", true],
+						["causal/input/occurrences", true],
+						["causal/input/admissions", true],
+						["causal/input/branch-terminals", true],
+						["causal/input/effect-proposals", true],
+						["causal/input/effect-admissions", true],
+						["causal/input/effect-outcomes", true],
+						["causal/input/evidence", true],
+						["causal/input/watermarks", true],
+						["causal/arrivals", true],
+						["causal/authority", true],
+						["causal/release-candidates", true],
+						["causal/release-port", true],
+						["causal/released", true],
+						["causal/release-events", true],
+						["causal/release-controller", true],
+						["causal/currentness", true],
+						["causal/terminals", true],
+						["causal/conservation", true],
+						["causal/coverage", true],
+						["causal/quiescence", true],
+						["causal/issues", true],
+						["causal/causal-quiescence", true]
+					],
+					"subscriptions": [
+						["input/outcome", 1],
+						["input/occurrence", 1],
+						["input/admission", 1],
+						["input/terminal", 1],
+						["input/proposal", 1],
+						["input/effect-admission", 1],
+						["input/evidence", 1],
+						["input/watermark", 1],
+						["causal/startup", 1],
+						["causal/input/occurrences", 1],
+						["causal/input/admissions", 1],
+						["causal/input/branch-terminals", 1],
+						["causal/input/effect-proposals", 1],
+						["causal/input/effect-admissions", 1],
+						["causal/input/effect-outcomes", 1],
+						["causal/input/evidence", 1],
+						["causal/input/watermarks", 1],
+						["causal/arrivals", 1],
+						["causal/authority", 1],
+						["causal/release-candidates", 2],
+						["causal/release-port", 1],
+						["causal/released", 1],
+						["causal/release-events", 1],
+						["causal/release-controller", 1],
+						["causal/currentness", 0],
+						["causal/terminals", 0],
+						["causal/conservation", 0],
+						["causal/coverage", 0],
+						["causal/quiescence", 0],
+						["causal/issues", 0],
+						["causal/causal-quiescence", 0]
+					],
+					"dependencyLeases": [
+						["input/outcome", 0],
+						["input/occurrence", 0],
+						["input/admission", 0],
+						["input/terminal", 0],
+						["input/proposal", 0],
+						["input/effect-admission", 0],
+						["input/evidence", 0],
+						["input/watermark", 0],
+						["causal/startup", 0],
+						["causal/input/occurrences", 1],
+						["causal/input/admissions", 1],
+						["causal/input/branch-terminals", 1],
+						["causal/input/effect-proposals", 1],
+						["causal/input/effect-admissions", 1],
+						["causal/input/effect-outcomes", 1],
+						["causal/input/evidence", 1],
+						["causal/input/watermarks", 1],
+						["causal/arrivals", 8],
+						["causal/authority", 1],
+						["causal/release-candidates", 1],
+						["causal/release-port", 1],
+						["causal/released", 1],
+						["causal/release-events", 2],
+						["causal/release-controller", 1],
+						["causal/currentness", 0],
+						["causal/terminals", 0],
+						["causal/conservation", 0],
+						["causal/coverage", 0],
+						["causal/quiescence", 0],
+						["causal/issues", 0],
+						["causal/causal-quiescence", 0]
+					]
+				}
+			}
+		},
+		{
+			"scenario": "causal-normal",
+			"at": "exact-outcome",
+			"expected": {
+				"phase": "started",
+				"resources": [["authority", "graph"]],
+				"obligations": [],
+				"deliveries": 1
+			},
+			"actual": {
+				"startup": {
+					"kind": "graph-startup",
+					"instance": "causal",
+					"epoch": 1,
+					"state": "started"
+				},
+				"activeObligations": [],
+				"ownerPhase": "started",
+				"rootLeases": [
+					{
+						"id": "causal/startup",
+						"recorded": true
+					},
+					{
+						"id": "causal/release-controller",
+						"recorded": true
+					}
+				],
+				"resources": {
+					"registrations": [
+						"causal/arrivals",
+						"causal/authority",
+						"causal/causal-quiescence",
+						"causal/conservation",
+						"causal/coverage",
+						"causal/currentness",
+						"causal/input/admissions",
+						"causal/input/branch-terminals",
+						"causal/input/effect-admissions",
+						"causal/input/effect-outcomes",
+						"causal/input/effect-proposals",
+						"causal/input/evidence",
+						"causal/input/occurrences",
+						"causal/input/watermarks",
+						"causal/issues",
+						"causal/quiescence",
+						"causal/release-candidates",
+						"causal/release-controller",
+						"causal/release-events",
+						"causal/release-port",
+						"causal/released",
+						"causal/startup",
+						"causal/terminals",
+						"input/admission",
+						"input/effect-admission",
+						"input/evidence",
+						"input/occurrence",
+						"input/outcome",
+						"input/proposal",
+						"input/terminal",
+						"input/watermark"
+					],
+					"handles": [
+						{
+							"poolId": 0,
+							"handleId": 0
+						},
+						{
+							"poolId": 0,
+							"handleId": 1
+						},
+						{
+							"poolId": 0,
+							"handleId": 2
+						},
+						{
+							"poolId": 0,
+							"handleId": 3
+						},
+						{
+							"poolId": 0,
+							"handleId": 4
+						},
+						{
+							"poolId": 0,
+							"handleId": 5
+						},
+						{
+							"poolId": 0,
+							"handleId": 6
+						},
+						{
+							"poolId": 0,
+							"handleId": 7
+						},
+						{
+							"poolId": 0,
+							"handleId": 8
+						},
+						{
+							"poolId": 0,
+							"handleId": 9
+						},
+						{
+							"poolId": 0,
+							"handleId": 10
+						},
+						{
+							"poolId": 0,
+							"handleId": 11
+						},
+						{
+							"poolId": 0,
+							"handleId": 12
+						},
+						{
+							"poolId": 0,
+							"handleId": 13
+						},
+						{
+							"poolId": 0,
+							"handleId": 14
+						},
+						{
+							"poolId": 0,
+							"handleId": 15
+						},
+						{
+							"poolId": 0,
+							"handleId": 16
+						},
+						{
+							"poolId": 0,
+							"handleId": 17
+						},
+						{
+							"poolId": 0,
+							"handleId": 18
+						},
+						{
+							"poolId": 0,
+							"handleId": 19
+						},
+						{
+							"poolId": 0,
+							"handleId": 20
+						},
+						{
+							"poolId": 0,
+							"handleId": 21
+						},
+						{
+							"poolId": 0,
+							"handleId": 22
+						}
+					],
+					"slots": [
+						["input/outcome", true],
+						["input/occurrence", true],
+						["input/admission", true],
+						["input/terminal", true],
+						["input/proposal", true],
+						["input/effect-admission", true],
+						["input/evidence", true],
+						["input/watermark", true],
+						["causal/startup", true],
+						["causal/input/occurrences", true],
+						["causal/input/admissions", true],
+						["causal/input/branch-terminals", true],
+						["causal/input/effect-proposals", true],
+						["causal/input/effect-admissions", true],
+						["causal/input/effect-outcomes", true],
+						["causal/input/evidence", true],
+						["causal/input/watermarks", true],
+						["causal/arrivals", true],
+						["causal/authority", true],
+						["causal/release-candidates", true],
+						["causal/release-port", true],
+						["causal/released", true],
+						["causal/release-events", true],
+						["causal/release-controller", true],
+						["causal/currentness", true],
+						["causal/terminals", true],
+						["causal/conservation", true],
+						["causal/coverage", true],
+						["causal/quiescence", true],
+						["causal/issues", true],
+						["causal/causal-quiescence", true]
+					],
+					"subscriptions": [
+						["input/outcome", 1],
+						["input/occurrence", 1],
+						["input/admission", 1],
+						["input/terminal", 1],
+						["input/proposal", 1],
+						["input/effect-admission", 1],
+						["input/evidence", 1],
+						["input/watermark", 1],
+						["causal/startup", 1],
+						["causal/input/occurrences", 1],
+						["causal/input/admissions", 1],
+						["causal/input/branch-terminals", 1],
+						["causal/input/effect-proposals", 1],
+						["causal/input/effect-admissions", 1],
+						["causal/input/effect-outcomes", 1],
+						["causal/input/evidence", 1],
+						["causal/input/watermarks", 1],
+						["causal/arrivals", 1],
+						["causal/authority", 1],
+						["causal/release-candidates", 2],
+						["causal/release-port", 1],
+						["causal/released", 1],
+						["causal/release-events", 1],
+						["causal/release-controller", 1],
+						["causal/currentness", 0],
+						["causal/terminals", 0],
+						["causal/conservation", 0],
+						["causal/coverage", 0],
+						["causal/quiescence", 0],
+						["causal/issues", 0],
+						["causal/causal-quiescence", 0]
+					],
+					"dependencyLeases": [
+						["input/outcome", 0],
+						["input/occurrence", 0],
+						["input/admission", 0],
+						["input/terminal", 0],
+						["input/proposal", 0],
+						["input/effect-admission", 0],
+						["input/evidence", 0],
+						["input/watermark", 0],
+						["causal/startup", 0],
+						["causal/input/occurrences", 1],
+						["causal/input/admissions", 1],
+						["causal/input/branch-terminals", 1],
+						["causal/input/effect-proposals", 1],
+						["causal/input/effect-admissions", 1],
+						["causal/input/effect-outcomes", 1],
+						["causal/input/evidence", 1],
+						["causal/input/watermarks", 1],
+						["causal/arrivals", 8],
+						["causal/authority", 1],
+						["causal/release-candidates", 1],
+						["causal/release-port", 1],
+						["causal/released", 1],
+						["causal/release-events", 2],
+						["causal/release-controller", 1],
+						["causal/currentness", 0],
+						["causal/terminals", 0],
+						["causal/conservation", 0],
+						["causal/coverage", 0],
+						["causal/quiescence", 0],
+						["causal/issues", 0],
+						["causal/causal-quiescence", 0]
+					]
+				}
+			}
+		},
+		{
+			"scenario": "activation-fault",
+			"at": "admitted",
+			"expected": {
+				"phase": "faulted",
+				"resources": [["authority", "graph"]],
+				"obligations": ["effect/admission"],
+				"deliveries": 1
+			},
+			"actual": {
+				"startup": {
+					"kind": "graph-startup",
+					"instance": "causal",
+					"epoch": 1,
+					"state": "faulted",
+					"code": "activation-failed"
+				},
+				"activeObligations": ["effect/admission"],
+				"ownerPhase": "faulted",
+				"rootLeases": [
+					{
+						"id": "causal/startup",
+						"recorded": true
+					},
+					{
+						"id": "causal/release-controller",
+						"recorded": true
+					}
+				],
+				"resources": {
+					"registrations": [
+						"causal/arrivals",
+						"causal/authority",
+						"causal/causal-quiescence",
+						"causal/conservation",
+						"causal/coverage",
+						"causal/currentness",
+						"causal/input/admissions",
+						"causal/input/branch-terminals",
+						"causal/input/effect-admissions",
+						"causal/input/effect-outcomes",
+						"causal/input/effect-proposals",
+						"causal/input/evidence",
+						"causal/input/occurrences",
+						"causal/input/watermarks",
+						"causal/issues",
+						"causal/quiescence",
+						"causal/release-candidates",
+						"causal/release-controller",
+						"causal/release-events",
+						"causal/release-port",
+						"causal/released",
+						"causal/startup",
+						"causal/terminals",
+						"input/admission",
+						"input/effect-admission",
+						"input/evidence",
+						"input/occurrence",
+						"input/outcome",
+						"input/proposal",
+						"input/terminal",
+						"input/watermark"
+					],
+					"handles": [
+						{
+							"poolId": 0,
+							"handleId": 0
+						},
+						{
+							"poolId": 0,
+							"handleId": 1
+						},
+						{
+							"poolId": 0,
+							"handleId": 2
+						},
+						{
+							"poolId": 0,
+							"handleId": 3
+						},
+						{
+							"poolId": 0,
+							"handleId": 4
+						},
+						{
+							"poolId": 0,
+							"handleId": 5
+						},
+						{
+							"poolId": 0,
+							"handleId": 6
+						},
+						{
+							"poolId": 0,
+							"handleId": 7
+						},
+						{
+							"poolId": 0,
+							"handleId": 8
+						},
+						{
+							"poolId": 0,
+							"handleId": 9
+						},
+						{
+							"poolId": 0,
+							"handleId": 10
+						},
+						{
+							"poolId": 0,
+							"handleId": 11
+						},
+						{
+							"poolId": 0,
+							"handleId": 12
+						},
+						{
+							"poolId": 0,
+							"handleId": 13
+						},
+						{
+							"poolId": 0,
+							"handleId": 14
+						},
+						{
+							"poolId": 0,
+							"handleId": 15
+						},
+						{
+							"poolId": 0,
+							"handleId": 16
+						},
+						{
+							"poolId": 0,
+							"handleId": 17
+						},
+						{
+							"poolId": 0,
+							"handleId": 18
+						},
+						{
+							"poolId": 0,
+							"handleId": 19
+						},
+						{
+							"poolId": 0,
+							"handleId": 20
+						},
+						{
+							"poolId": 0,
+							"handleId": 21
+						},
+						{
+							"poolId": 0,
+							"handleId": 22
+						}
+					],
+					"slots": [
+						["input/outcome", true],
+						["input/occurrence", true],
+						["input/admission", true],
+						["input/terminal", true],
+						["input/proposal", true],
+						["input/effect-admission", true],
+						["input/evidence", true],
+						["input/watermark", true],
+						["causal/startup", true],
+						["causal/input/occurrences", true],
+						["causal/input/admissions", true],
+						["causal/input/branch-terminals", true],
+						["causal/input/effect-proposals", true],
+						["causal/input/effect-admissions", true],
+						["causal/input/effect-outcomes", true],
+						["causal/input/evidence", true],
+						["causal/input/watermarks", true],
+						["causal/arrivals", true],
+						["causal/authority", true],
+						["causal/release-candidates", true],
+						["causal/release-port", true],
+						["causal/released", true],
+						["causal/release-events", true],
+						["causal/release-controller", true],
+						["causal/currentness", true],
+						["causal/terminals", true],
+						["causal/conservation", true],
+						["causal/coverage", true],
+						["causal/quiescence", true],
+						["causal/issues", true],
+						["causal/causal-quiescence", true]
+					],
+					"subscriptions": [
+						["input/outcome", 1],
+						["input/occurrence", 1],
+						["input/admission", 1],
+						["input/terminal", 1],
+						["input/proposal", 1],
+						["input/effect-admission", 1],
+						["input/evidence", 1],
+						["input/watermark", 1],
+						["causal/startup", 1],
+						["causal/input/occurrences", 1],
+						["causal/input/admissions", 1],
+						["causal/input/branch-terminals", 1],
+						["causal/input/effect-proposals", 1],
+						["causal/input/effect-admissions", 1],
+						["causal/input/effect-outcomes", 1],
+						["causal/input/evidence", 1],
+						["causal/input/watermarks", 1],
+						["causal/arrivals", 1],
+						["causal/authority", 1],
+						["causal/release-candidates", 1],
+						["causal/release-port", 1],
+						["causal/released", 1],
+						["causal/release-events", 1],
+						["causal/release-controller", 1],
+						["causal/currentness", 0],
+						["causal/terminals", 0],
+						["causal/conservation", 0],
+						["causal/coverage", 0],
+						["causal/quiescence", 0],
+						["causal/issues", 0],
+						["causal/causal-quiescence", 0]
+					],
+					"dependencyLeases": [
+						["input/outcome", 0],
+						["input/occurrence", 0],
+						["input/admission", 0],
+						["input/terminal", 0],
+						["input/proposal", 0],
+						["input/effect-admission", 0],
+						["input/evidence", 0],
+						["input/watermark", 0],
+						["causal/startup", 0],
+						["causal/input/occurrences", 1],
+						["causal/input/admissions", 1],
+						["causal/input/branch-terminals", 1],
+						["causal/input/effect-proposals", 1],
+						["causal/input/effect-admissions", 1],
+						["causal/input/effect-outcomes", 1],
+						["causal/input/evidence", 1],
+						["causal/input/watermarks", 1],
+						["causal/arrivals", 8],
+						["causal/authority", 1],
+						["causal/release-candidates", 1],
+						["causal/release-port", 1],
+						["causal/released", 1],
+						["causal/release-events", 1],
+						["causal/release-controller", 1],
+						["causal/currentness", 0],
+						["causal/terminals", 0],
+						["causal/conservation", 0],
+						["causal/coverage", 0],
+						["causal/quiescence", 0],
+						["causal/issues", 0],
+						["causal/causal-quiescence", 0]
+					]
+				}
+			}
+		},
+		{
+			"scenario": "activation-fault",
+			"at": "UI-detached",
+			"expected": {
+				"phase": "faulted",
+				"resources": [["authority", "graph"]],
+				"obligations": ["effect/admission"],
+				"deliveries": 1
+			},
+			"actual": {
+				"startup": {
+					"kind": "graph-startup",
+					"instance": "causal",
+					"epoch": 1,
+					"state": "faulted",
+					"code": "activation-failed"
+				},
+				"activeObligations": ["effect/admission"],
+				"ownerPhase": "faulted",
+				"rootLeases": [
+					{
+						"id": "causal/startup",
+						"recorded": true
+					},
+					{
+						"id": "causal/release-controller",
+						"recorded": true
+					}
+				],
+				"resources": {
+					"registrations": [
+						"causal/arrivals",
+						"causal/authority",
+						"causal/causal-quiescence",
+						"causal/conservation",
+						"causal/coverage",
+						"causal/currentness",
+						"causal/input/admissions",
+						"causal/input/branch-terminals",
+						"causal/input/effect-admissions",
+						"causal/input/effect-outcomes",
+						"causal/input/effect-proposals",
+						"causal/input/evidence",
+						"causal/input/occurrences",
+						"causal/input/watermarks",
+						"causal/issues",
+						"causal/quiescence",
+						"causal/release-candidates",
+						"causal/release-controller",
+						"causal/release-events",
+						"causal/release-port",
+						"causal/released",
+						"causal/startup",
+						"causal/terminals",
+						"input/admission",
+						"input/effect-admission",
+						"input/evidence",
+						"input/occurrence",
+						"input/outcome",
+						"input/proposal",
+						"input/terminal",
+						"input/watermark"
+					],
+					"handles": [
+						{
+							"poolId": 0,
+							"handleId": 0
+						},
+						{
+							"poolId": 0,
+							"handleId": 1
+						},
+						{
+							"poolId": 0,
+							"handleId": 2
+						},
+						{
+							"poolId": 0,
+							"handleId": 3
+						},
+						{
+							"poolId": 0,
+							"handleId": 4
+						},
+						{
+							"poolId": 0,
+							"handleId": 5
+						},
+						{
+							"poolId": 0,
+							"handleId": 6
+						},
+						{
+							"poolId": 0,
+							"handleId": 7
+						},
+						{
+							"poolId": 0,
+							"handleId": 8
+						},
+						{
+							"poolId": 0,
+							"handleId": 9
+						},
+						{
+							"poolId": 0,
+							"handleId": 10
+						},
+						{
+							"poolId": 0,
+							"handleId": 11
+						},
+						{
+							"poolId": 0,
+							"handleId": 12
+						},
+						{
+							"poolId": 0,
+							"handleId": 13
+						},
+						{
+							"poolId": 0,
+							"handleId": 14
+						},
+						{
+							"poolId": 0,
+							"handleId": 15
+						},
+						{
+							"poolId": 0,
+							"handleId": 16
+						},
+						{
+							"poolId": 0,
+							"handleId": 17
+						},
+						{
+							"poolId": 0,
+							"handleId": 18
+						},
+						{
+							"poolId": 0,
+							"handleId": 19
+						},
+						{
+							"poolId": 0,
+							"handleId": 20
+						},
+						{
+							"poolId": 0,
+							"handleId": 21
+						},
+						{
+							"poolId": 0,
+							"handleId": 22
+						}
+					],
+					"slots": [
+						["input/outcome", true],
+						["input/occurrence", true],
+						["input/admission", true],
+						["input/terminal", true],
+						["input/proposal", true],
+						["input/effect-admission", true],
+						["input/evidence", true],
+						["input/watermark", true],
+						["causal/startup", true],
+						["causal/input/occurrences", true],
+						["causal/input/admissions", true],
+						["causal/input/branch-terminals", true],
+						["causal/input/effect-proposals", true],
+						["causal/input/effect-admissions", true],
+						["causal/input/effect-outcomes", true],
+						["causal/input/evidence", true],
+						["causal/input/watermarks", true],
+						["causal/arrivals", true],
+						["causal/authority", true],
+						["causal/release-candidates", true],
+						["causal/release-port", true],
+						["causal/released", true],
+						["causal/release-events", true],
+						["causal/release-controller", true],
+						["causal/currentness", true],
+						["causal/terminals", true],
+						["causal/conservation", true],
+						["causal/coverage", true],
+						["causal/quiescence", true],
+						["causal/issues", true],
+						["causal/causal-quiescence", true]
+					],
+					"subscriptions": [
+						["input/outcome", 1],
+						["input/occurrence", 1],
+						["input/admission", 1],
+						["input/terminal", 1],
+						["input/proposal", 1],
+						["input/effect-admission", 1],
+						["input/evidence", 1],
+						["input/watermark", 1],
+						["causal/startup", 1],
+						["causal/input/occurrences", 1],
+						["causal/input/admissions", 1],
+						["causal/input/branch-terminals", 1],
+						["causal/input/effect-proposals", 1],
+						["causal/input/effect-admissions", 1],
+						["causal/input/effect-outcomes", 1],
+						["causal/input/evidence", 1],
+						["causal/input/watermarks", 1],
+						["causal/arrivals", 1],
+						["causal/authority", 1],
+						["causal/release-candidates", 1],
+						["causal/release-port", 1],
+						["causal/released", 1],
+						["causal/release-events", 1],
+						["causal/release-controller", 1],
+						["causal/currentness", 0],
+						["causal/terminals", 0],
+						["causal/conservation", 0],
+						["causal/coverage", 0],
+						["causal/quiescence", 0],
+						["causal/issues", 0],
+						["causal/causal-quiescence", 0]
+					],
+					"dependencyLeases": [
+						["input/outcome", 0],
+						["input/occurrence", 0],
+						["input/admission", 0],
+						["input/terminal", 0],
+						["input/proposal", 0],
+						["input/effect-admission", 0],
+						["input/evidence", 0],
+						["input/watermark", 0],
+						["causal/startup", 0],
+						["causal/input/occurrences", 1],
+						["causal/input/admissions", 1],
+						["causal/input/branch-terminals", 1],
+						["causal/input/effect-proposals", 1],
+						["causal/input/effect-admissions", 1],
+						["causal/input/effect-outcomes", 1],
+						["causal/input/evidence", 1],
+						["causal/input/watermarks", 1],
+						["causal/arrivals", 8],
+						["causal/authority", 1],
+						["causal/release-candidates", 1],
+						["causal/release-port", 1],
+						["causal/released", 1],
+						["causal/release-events", 1],
+						["causal/release-controller", 1],
+						["causal/currentness", 0],
+						["causal/terminals", 0],
+						["causal/conservation", 0],
+						["causal/coverage", 0],
+						["causal/quiescence", 0],
+						["causal/issues", 0],
+						["causal/causal-quiescence", 0]
+					]
+				}
+			}
+		},
+		{
+			"scenario": "activation-fault",
+			"at": "wrong-outcome",
+			"expected": {
+				"phase": "faulted",
+				"resources": [["authority", "graph"]],
+				"obligations": ["effect/admission"],
+				"deliveries": 1
+			},
+			"actual": {
+				"startup": {
+					"kind": "graph-startup",
+					"instance": "causal",
+					"epoch": 1,
+					"state": "faulted",
+					"code": "activation-failed"
+				},
+				"activeObligations": ["effect/admission"],
+				"ownerPhase": "faulted",
+				"rootLeases": [
+					{
+						"id": "causal/startup",
+						"recorded": true
+					},
+					{
+						"id": "causal/release-controller",
+						"recorded": true
+					}
+				],
+				"resources": {
+					"registrations": [
+						"causal/arrivals",
+						"causal/authority",
+						"causal/causal-quiescence",
+						"causal/conservation",
+						"causal/coverage",
+						"causal/currentness",
+						"causal/input/admissions",
+						"causal/input/branch-terminals",
+						"causal/input/effect-admissions",
+						"causal/input/effect-outcomes",
+						"causal/input/effect-proposals",
+						"causal/input/evidence",
+						"causal/input/occurrences",
+						"causal/input/watermarks",
+						"causal/issues",
+						"causal/quiescence",
+						"causal/release-candidates",
+						"causal/release-controller",
+						"causal/release-events",
+						"causal/release-port",
+						"causal/released",
+						"causal/startup",
+						"causal/terminals",
+						"input/admission",
+						"input/effect-admission",
+						"input/evidence",
+						"input/occurrence",
+						"input/outcome",
+						"input/proposal",
+						"input/terminal",
+						"input/watermark"
+					],
+					"handles": [
+						{
+							"poolId": 0,
+							"handleId": 0
+						},
+						{
+							"poolId": 0,
+							"handleId": 1
+						},
+						{
+							"poolId": 0,
+							"handleId": 2
+						},
+						{
+							"poolId": 0,
+							"handleId": 3
+						},
+						{
+							"poolId": 0,
+							"handleId": 4
+						},
+						{
+							"poolId": 0,
+							"handleId": 5
+						},
+						{
+							"poolId": 0,
+							"handleId": 6
+						},
+						{
+							"poolId": 0,
+							"handleId": 7
+						},
+						{
+							"poolId": 0,
+							"handleId": 8
+						},
+						{
+							"poolId": 0,
+							"handleId": 9
+						},
+						{
+							"poolId": 0,
+							"handleId": 10
+						},
+						{
+							"poolId": 0,
+							"handleId": 11
+						},
+						{
+							"poolId": 0,
+							"handleId": 12
+						},
+						{
+							"poolId": 0,
+							"handleId": 13
+						},
+						{
+							"poolId": 0,
+							"handleId": 14
+						},
+						{
+							"poolId": 0,
+							"handleId": 15
+						},
+						{
+							"poolId": 0,
+							"handleId": 16
+						},
+						{
+							"poolId": 0,
+							"handleId": 17
+						},
+						{
+							"poolId": 0,
+							"handleId": 18
+						},
+						{
+							"poolId": 0,
+							"handleId": 19
+						},
+						{
+							"poolId": 0,
+							"handleId": 20
+						},
+						{
+							"poolId": 0,
+							"handleId": 21
+						},
+						{
+							"poolId": 0,
+							"handleId": 22
+						}
+					],
+					"slots": [
+						["input/outcome", true],
+						["input/occurrence", true],
+						["input/admission", true],
+						["input/terminal", true],
+						["input/proposal", true],
+						["input/effect-admission", true],
+						["input/evidence", true],
+						["input/watermark", true],
+						["causal/startup", true],
+						["causal/input/occurrences", true],
+						["causal/input/admissions", true],
+						["causal/input/branch-terminals", true],
+						["causal/input/effect-proposals", true],
+						["causal/input/effect-admissions", true],
+						["causal/input/effect-outcomes", true],
+						["causal/input/evidence", true],
+						["causal/input/watermarks", true],
+						["causal/arrivals", true],
+						["causal/authority", true],
+						["causal/release-candidates", true],
+						["causal/release-port", true],
+						["causal/released", true],
+						["causal/release-events", true],
+						["causal/release-controller", true],
+						["causal/currentness", true],
+						["causal/terminals", true],
+						["causal/conservation", true],
+						["causal/coverage", true],
+						["causal/quiescence", true],
+						["causal/issues", true],
+						["causal/causal-quiescence", true]
+					],
+					"subscriptions": [
+						["input/outcome", 1],
+						["input/occurrence", 1],
+						["input/admission", 1],
+						["input/terminal", 1],
+						["input/proposal", 1],
+						["input/effect-admission", 1],
+						["input/evidence", 1],
+						["input/watermark", 1],
+						["causal/startup", 1],
+						["causal/input/occurrences", 1],
+						["causal/input/admissions", 1],
+						["causal/input/branch-terminals", 1],
+						["causal/input/effect-proposals", 1],
+						["causal/input/effect-admissions", 1],
+						["causal/input/effect-outcomes", 1],
+						["causal/input/evidence", 1],
+						["causal/input/watermarks", 1],
+						["causal/arrivals", 1],
+						["causal/authority", 1],
+						["causal/release-candidates", 1],
+						["causal/release-port", 1],
+						["causal/released", 1],
+						["causal/release-events", 1],
+						["causal/release-controller", 1],
+						["causal/currentness", 0],
+						["causal/terminals", 0],
+						["causal/conservation", 0],
+						["causal/coverage", 0],
+						["causal/quiescence", 0],
+						["causal/issues", 0],
+						["causal/causal-quiescence", 0]
+					],
+					"dependencyLeases": [
+						["input/outcome", 0],
+						["input/occurrence", 0],
+						["input/admission", 0],
+						["input/terminal", 0],
+						["input/proposal", 0],
+						["input/effect-admission", 0],
+						["input/evidence", 0],
+						["input/watermark", 0],
+						["causal/startup", 0],
+						["causal/input/occurrences", 1],
+						["causal/input/admissions", 1],
+						["causal/input/branch-terminals", 1],
+						["causal/input/effect-proposals", 1],
+						["causal/input/effect-admissions", 1],
+						["causal/input/effect-outcomes", 1],
+						["causal/input/evidence", 1],
+						["causal/input/watermarks", 1],
+						["causal/arrivals", 8],
+						["causal/authority", 1],
+						["causal/release-candidates", 1],
+						["causal/release-port", 1],
+						["causal/released", 1],
+						["causal/release-events", 1],
+						["causal/release-controller", 1],
+						["causal/currentness", 0],
+						["causal/terminals", 0],
+						["causal/conservation", 0],
+						["causal/coverage", 0],
+						["causal/quiescence", 0],
+						["causal/issues", 0],
+						["causal/causal-quiescence", 0]
+					]
+				}
+			}
+		},
+		{
+			"scenario": "activation-fault",
+			"at": "exact-outcome",
+			"expected": {
+				"phase": "faulted",
+				"resources": [["authority", "graph"]],
+				"obligations": [],
+				"deliveries": 1
+			},
+			"actual": {
+				"startup": {
+					"kind": "graph-startup",
+					"instance": "causal",
+					"epoch": 1,
+					"state": "faulted",
+					"code": "activation-failed"
+				},
+				"activeObligations": [],
+				"ownerPhase": "faulted",
+				"rootLeases": [
+					{
+						"id": "causal/startup",
+						"recorded": true
+					},
+					{
+						"id": "causal/release-controller",
+						"recorded": true
+					}
+				],
+				"resources": {
+					"registrations": [
+						"causal/arrivals",
+						"causal/authority",
+						"causal/causal-quiescence",
+						"causal/conservation",
+						"causal/coverage",
+						"causal/currentness",
+						"causal/input/admissions",
+						"causal/input/branch-terminals",
+						"causal/input/effect-admissions",
+						"causal/input/effect-outcomes",
+						"causal/input/effect-proposals",
+						"causal/input/evidence",
+						"causal/input/occurrences",
+						"causal/input/watermarks",
+						"causal/issues",
+						"causal/quiescence",
+						"causal/release-candidates",
+						"causal/release-controller",
+						"causal/release-events",
+						"causal/release-port",
+						"causal/released",
+						"causal/startup",
+						"causal/terminals",
+						"input/admission",
+						"input/effect-admission",
+						"input/evidence",
+						"input/occurrence",
+						"input/outcome",
+						"input/proposal",
+						"input/terminal",
+						"input/watermark"
+					],
+					"handles": [
+						{
+							"poolId": 0,
+							"handleId": 0
+						},
+						{
+							"poolId": 0,
+							"handleId": 1
+						},
+						{
+							"poolId": 0,
+							"handleId": 2
+						},
+						{
+							"poolId": 0,
+							"handleId": 3
+						},
+						{
+							"poolId": 0,
+							"handleId": 4
+						},
+						{
+							"poolId": 0,
+							"handleId": 5
+						},
+						{
+							"poolId": 0,
+							"handleId": 6
+						},
+						{
+							"poolId": 0,
+							"handleId": 7
+						},
+						{
+							"poolId": 0,
+							"handleId": 8
+						},
+						{
+							"poolId": 0,
+							"handleId": 9
+						},
+						{
+							"poolId": 0,
+							"handleId": 10
+						},
+						{
+							"poolId": 0,
+							"handleId": 11
+						},
+						{
+							"poolId": 0,
+							"handleId": 12
+						},
+						{
+							"poolId": 0,
+							"handleId": 13
+						},
+						{
+							"poolId": 0,
+							"handleId": 14
+						},
+						{
+							"poolId": 0,
+							"handleId": 15
+						},
+						{
+							"poolId": 0,
+							"handleId": 16
+						},
+						{
+							"poolId": 0,
+							"handleId": 17
+						},
+						{
+							"poolId": 0,
+							"handleId": 18
+						},
+						{
+							"poolId": 0,
+							"handleId": 19
+						},
+						{
+							"poolId": 0,
+							"handleId": 20
+						},
+						{
+							"poolId": 0,
+							"handleId": 21
+						},
+						{
+							"poolId": 0,
+							"handleId": 22
+						}
+					],
+					"slots": [
+						["input/outcome", true],
+						["input/occurrence", true],
+						["input/admission", true],
+						["input/terminal", true],
+						["input/proposal", true],
+						["input/effect-admission", true],
+						["input/evidence", true],
+						["input/watermark", true],
+						["causal/startup", true],
+						["causal/input/occurrences", true],
+						["causal/input/admissions", true],
+						["causal/input/branch-terminals", true],
+						["causal/input/effect-proposals", true],
+						["causal/input/effect-admissions", true],
+						["causal/input/effect-outcomes", true],
+						["causal/input/evidence", true],
+						["causal/input/watermarks", true],
+						["causal/arrivals", true],
+						["causal/authority", true],
+						["causal/release-candidates", true],
+						["causal/release-port", true],
+						["causal/released", true],
+						["causal/release-events", true],
+						["causal/release-controller", true],
+						["causal/currentness", true],
+						["causal/terminals", true],
+						["causal/conservation", true],
+						["causal/coverage", true],
+						["causal/quiescence", true],
+						["causal/issues", true],
+						["causal/causal-quiescence", true]
+					],
+					"subscriptions": [
+						["input/outcome", 1],
+						["input/occurrence", 1],
+						["input/admission", 1],
+						["input/terminal", 1],
+						["input/proposal", 1],
+						["input/effect-admission", 1],
+						["input/evidence", 1],
+						["input/watermark", 1],
+						["causal/startup", 1],
+						["causal/input/occurrences", 1],
+						["causal/input/admissions", 1],
+						["causal/input/branch-terminals", 1],
+						["causal/input/effect-proposals", 1],
+						["causal/input/effect-admissions", 1],
+						["causal/input/effect-outcomes", 1],
+						["causal/input/evidence", 1],
+						["causal/input/watermarks", 1],
+						["causal/arrivals", 1],
+						["causal/authority", 1],
+						["causal/release-candidates", 1],
+						["causal/release-port", 1],
+						["causal/released", 1],
+						["causal/release-events", 1],
+						["causal/release-controller", 1],
+						["causal/currentness", 0],
+						["causal/terminals", 0],
+						["causal/conservation", 0],
+						["causal/coverage", 0],
+						["causal/quiescence", 0],
+						["causal/issues", 0],
+						["causal/causal-quiescence", 0]
+					],
+					"dependencyLeases": [
+						["input/outcome", 0],
+						["input/occurrence", 0],
+						["input/admission", 0],
+						["input/terminal", 0],
+						["input/proposal", 0],
+						["input/effect-admission", 0],
+						["input/evidence", 0],
+						["input/watermark", 0],
+						["causal/startup", 0],
+						["causal/input/occurrences", 1],
+						["causal/input/admissions", 1],
+						["causal/input/branch-terminals", 1],
+						["causal/input/effect-proposals", 1],
+						["causal/input/effect-admissions", 1],
+						["causal/input/effect-outcomes", 1],
+						["causal/input/evidence", 1],
+						["causal/input/watermarks", 1],
+						["causal/arrivals", 8],
+						["causal/authority", 1],
+						["causal/release-candidates", 1],
+						["causal/release-port", 1],
+						["causal/released", 1],
+						["causal/release-events", 1],
+						["causal/release-controller", 1],
+						["causal/currentness", 0],
+						["causal/terminals", 0],
+						["causal/conservation", 0],
+						["causal/coverage", 0],
+						["causal/quiescence", 0],
+						["causal/issues", 0],
+						["causal/causal-quiescence", 0]
+					]
+				}
+			}
+		}
+	],
+	"negativeControls": 2,
+	"passed": true
+}

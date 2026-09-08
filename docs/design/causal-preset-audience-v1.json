@@ -1,0 +1,49 @@
+{
+  "schema": "graphrefly-ts/causal-preset-audience-design/v1",
+  "revision": "audience-v1",
+  "artifactRef": "graphrefly-ts:causal-preset-audience-design",
+  "workRef": "graphrefly-ts:CAUSAL-PRESET-AUDIENCE-DESIGN-TS",
+  "owner": "graphrefly-ts",
+  "governingRefs": [
+    "graphrefly-ts:D160",
+    "graphrefly-ts:D161",
+    "graphrefly-ts:D162"
+  ],
+  "body": {
+    "path": "docs/design/causal-preset-audience-v1.md",
+    "digest": "sha256:fbbf673ef20980e8286364a9880e4a58fc5068b880eb16a41540332fe8f09dc5"
+  },
+  "approval": {
+    "kind": "design-selection",
+    "taskId": "01a077c7-55e6-7f11-9d4f-e7c51944afb4",
+    "date": "2026-09-07",
+    "userResponse": "同意",
+    "reviewedDraftPath": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/CAUSAL-preset-audience-review.md",
+    "reviewedDraftDigest": "sha256:4a7762af2b90ca0851b161e7b75e07a5695051d361f2b473f1ed4f1137f89565",
+    "scope": "Approve the reviewed package-private view/capabilities shape, explicit four-group inputs, complete cold assembly before one ownership transfer, and audience qualification obligations. Design only; no implementation, effect execution, or commit authorization."
+  },
+  "consumes": [
+    {
+      "artifactRef": "graphrefly-ts:causal-composition-design",
+      "schema": "graphrefly-ts/causal-composition-design/v1",
+      "revision": "design-v1",
+      "path": "docs/design/causal-composition-v1.json",
+      "digest": "sha256:a22e8db0343330f2f709dd3343585e9b504249a33f9e309feb9044cf1ffa2259"
+    },
+    {
+      "artifactRef": "graphrefly-ts:causal-construction-evidence",
+      "schema": "graphrefly-ts/causal-construction-evidence/v1",
+      "revision": "construction-v1",
+      "path": "packages/ts/qualification/causal-occurrence/ts-v8-receipt.json",
+      "digest": "sha256:a30c53ed2f19834089a2a74d8d5ff791426d2eeb8ce773b0b11043c48fbb5628"
+    }
+  ],
+  "baselineCommit": "63d58eace38ac782155062284515eeeba68b1df8",
+  "nonClaims": [
+    "Preset implementation or qualification complete",
+    "New npm exports or reduced runtime profiles",
+    "Actual inbox execution or independent consumer verification",
+    "B121 complete",
+    "Provider/live/spend, implementation, staging or commit authorization"
+  ]
+}

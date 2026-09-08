@@ -1,6 +1,7 @@
 import { SENTINEL } from "../protocol/messages.js";
 import type { Node } from "./node.js";
 import { type NodeRuntimeHost, nodeRuntimeHost } from "./node-runtime-host.js";
+import { type RuntimeReleaseFailure, runtimeReleaseFailures } from "./owned-acquisition.js";
 import {
 	activationReaders,
 	checkpointReaders,
@@ -45,18 +46,22 @@ export function nodeSubscribeDepAt<T>(
 			return;
 		}
 	}
-	const unsub = depNode.subscribe((msg, delivery) => {
+	const sink: import("../ctx/types.js").Sink = (msg, delivery) => {
 		if (ignoreInitialPush && delivery === undefined) return;
 		if (ignoreInitialPush) ignoreInitialPush = false;
 		if (box.v === -1) return; // dep removed — stale callback, drop (drain)
 		self._receiveFromDep(box.v, msg, delivery);
+	};
+	nodeRuntimeHost(depNode)._subscribeOwned(sink, {
+		record: (release) => {
+			if (idx0 !== -1) {
+				self._dep.unsubs[idx0] = release;
+				self._dep.idxBoxes[idx0] = box;
+			}
+		},
 	});
 	if (ignoreInitialPush && idx0 !== -1 && box.v !== -1) self._seedRestoredDepAt(idx0, depNode);
 	ignoreInitialPush = false;
-	if (idx0 !== -1) {
-		self._dep.unsubs[idx0] = unsub;
-		self._dep.idxBoxes[idx0] = box;
-	}
 }
 
 export function nodeSeedRestoredDepAt<T>(
@@ -135,16 +140,24 @@ export function nodeReleaseRuntime<T>(self: NodeRuntimeHost<T>): void {
 	self._released = true;
 	const node = self as unknown as Node<unknown>;
 	releasedNodes.add(node);
-	let releaseError: unknown;
-	const recordReleaseError = (error: unknown): void => {
-		if (releaseError === undefined) releaseError = error;
+	const releaseErrors: RuntimeReleaseFailure[] = [];
+	const recordReleaseError = (
+		error: unknown,
+		resource: RuntimeReleaseFailure["resource"],
+		handle?: import("../dispatcher/index.js").Handle,
+	): void => {
+		releaseErrors.push({
+			cause: error,
+			resource,
+			...(handle === undefined ? {} : { handle, dispatcher: self._slot.dispatcher }),
+		});
 	};
 	self._lifecycle.activated = false;
 	for (const u of self._dep.unsubs) {
 		try {
-			u();
+			u?.();
 		} catch (error) {
-			recordReleaseError(error);
+			recordReleaseError(error, "subscription");
 			// D124 release is graph-owned and atomic; user cleanup must not split commit.
 		}
 	}
@@ -152,7 +165,7 @@ export function nodeReleaseRuntime<T>(self: NodeRuntimeHost<T>): void {
 		try {
 			fn();
 		} catch (error) {
-			recordReleaseError(error);
+			recordReleaseError(error, "deactivation");
 			// D124 release cleans runtime without synthesizing protocol ERROR/COMPLETE.
 		}
 	}
@@ -160,8 +173,13 @@ export function nodeReleaseRuntime<T>(self: NodeRuntimeHost<T>): void {
 	self._dep.idxBoxes = [];
 	self._lifecycle.subscribers.clear();
 	if (self._slot.handle !== null) {
-		self._slot.dispatcher.unregister(self._slot.handle);
-		self._slot.handle = null;
+		const handle = self._slot.handle;
+		try {
+			self._slot.dispatcher.unregister(handle);
+			self._slot.handle = null;
+		} catch (error) {
+			recordReleaseError(error, "handle", handle);
+		}
 	}
 	self._slot.deps = [];
 	self._dep.batch = [];
@@ -200,8 +218,15 @@ export function nodeReleaseRuntime<T>(self: NodeRuntimeHost<T>): void {
 	activationReaders.delete(node);
 	ownerTokens.delete(node);
 	topologyDepsChangedObservers.delete(node);
-	self._core.releaseSlot(self._id);
-	if (releaseError !== undefined) throw releaseError;
+	try {
+		self._core.releaseSlot(self._id);
+	} catch (cause) {
+		releaseErrors.push({ resource: "slot", cause, core: self._core, slot: self._id });
+	}
+	if (releaseErrors.length > 0) {
+		runtimeReleaseFailures.set(node, Object.freeze(releaseErrors));
+		throw releaseErrors[0]!.cause;
+	}
 }
 
 export function nodeResetDepState<T>(self: NodeRuntimeHost<T>): void {

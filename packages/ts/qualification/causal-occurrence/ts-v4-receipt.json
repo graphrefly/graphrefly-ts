@@ -1,0 +1,159 @@
+{
+	"schema": "graphrefly/conformance-arm-evidence/v1",
+	"revision": "ts-v4",
+	"workRef": "graphrefly-ts:CAUSAL-AUTHORITY-DECOMPOSITION-TS",
+	"owner": "graphrefly-ts",
+	"date": "2026-09-06",
+	"contract": {
+		"artifactRef": "graphrefly:causal-occurrence-contract",
+		"schema": "graphrefly/causal-occurrence-contract/v1",
+		"revision": "contract-v2",
+		"governingRef": "graphrefly:D791"
+	},
+	"design": {
+		"governingRef": "graphrefly-ts:D160",
+		"path": "docs/design/causal-composition-v1.json",
+		"digest": "sha256:a22e8db0343330f2f709dd3343585e9b504249a33f9e309feb9044cf1ffa2259"
+	},
+	"authorization": {
+		"kind": "existing-task-user-instruction",
+		"taskId": "01a077c7-55e6-7f11-9d4f-e7c51944afb4",
+		"instruction": "好的，那我批准",
+		"scope": "Only the reviewed first local authority decomposition batch, tests, QA, qualification and owner-local work/evidence closure; no public API, protocol, provider/live/spend, actual inbox effect, next batch or commit."
+	},
+	"checkout": {
+		"baseCommit": "63d58eace38ac782155062284515eeeba68b1df8",
+		"binding": "Working-tree files below are authoritative, not base commit alone."
+	},
+	"files": {
+		"packages/ts/src/solutions/causal-occurrence.ts": "sha256:11d67bcaa578f364a0514a5b8a454a6ef276d6886ac7984e12d681d94aefa14a",
+		"packages/ts/src/solutions/causal-occurrence/contracts.ts": "sha256:1510599e3cb5cb1f2ba749f55c454e1ec6661dd35ee3d1e76b36d91c7f213318",
+		"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+		"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+		"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+		"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+		"packages/ts/src/__tests__/solutions-causal-occurrence.d791.test.ts": "sha256:e40cf170e3ffd1923448cb83cdca8b0c42e6916f6edfc86bfbf7aff988cfaeac",
+		"packages/ts/src/__tests__/solutions-causal-authority.d160.test.ts": "sha256:4d7f67fe3128ad7dd82c5372b1f259a95fb49bc273cc95cecc3cc48e2411f0b2",
+		"scripts/qualify-causal-occurrence.mjs": "sha256:ac0aaa1790aaf6517dcc0b08f3c38513c6b63ede790ddc9745b27037189ffb09",
+		"scripts/compare-causal-authority.mjs": "sha256:0198c07aad3b0c4b95239de8c17e21437e7513892f35de8394933b1422c93028",
+		"biome.json": "sha256:dee2eb71ff5ed788d54d4dc536ea7a17b17ae7230cd55e181bc9e0a3fc97c0c3",
+		"packages/ts/qualification/causal-occurrence/README.md": "sha256:7085f3a0c999801f79c2631f9eafa494ffbd3b613027c3d5cf10f8f72cb6431f",
+		"packages/ts/qualification/causal-occurrence/ts-v4-mutations.json": "sha256:fdb981d2395f8fe928c9637fc90d732a2ec0ff974fc6bd163bf225c42f02aa6f",
+		"packages/ts/qualification/causal-occurrence/ts-v4-comparison.json": "sha256:48b45d82b91ec6d9e94f0951a4ac1ca7260f995f3feeea5279ad5037d7947e7b",
+		"packages/ts/evals/graph-native-rerun-avoidance/implementation-manifest.ts": "sha256:fe2a983e340ec7ab837b094d64b7c58f6a0e9a130dd7007a5b003c7edecbc49c",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-artifact-set.json": "sha256:129a92dcfadf599e3294cef8400ae7fd8894947c6f29d218a217bea25b14e862",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-describe.json": "sha256:5367a18f99135228e1d8c966dcf430fbe7fefdb6a42a40184769d82508d62815",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-live-qualification.json": "sha256:c16e16199dbe5736d5570c2d241eeaad097b3b9817cf85502ec16d0db20d878b",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-observe-events.jsonl": "sha256:a629e7856e722259f63b2213b4b88c44839f669f925640a8288c8db5679517c4",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-run-summary.json": "sha256:bf6a7e9aed921af02531c7f08c2797835bb20e5d53b0198f56b2944f8cfff0b2",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-topology-qualification.json": "sha256:74a724b6d534f563f0831fe3524af2b03c8cbf5f48f2351e3d1b743db5643f82",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-topology.mmd": "sha256:f3823764e82ba2fb21f0c826ee7a219527a03bfd01b71f68fd0398a25b1b6aaf"
+	},
+	"implementationClosureDigest": "sha256:086659ef6a95778be2a789987e678394634e5c5bf04c19a225332063f3481912",
+	"history": {
+		"ts-v3-receipt.json": "sha256:27d68650bf4d6575a616f776e59e806d0fa1e430b1096d4ac28882d778863690",
+		"ts-v3-inputs.json": "sha256:510dd6211dc850fafe268b480370691728727101e4c045c1e94a4d3d4eb5b2d3",
+		"ts-v4-factory-comparison.json": "sha256:7ae697159ffa73f5e82248f94ed6ea8c9ec54c4d672f512b716353fa5fa0938e",
+		"ts-v4-factory-inputs.json": "sha256:76c034e2aa740751ad12fe05b65993419291b1e9fa544180f4654a4f244f40cc"
+	},
+	"checks": [
+		{
+			"command": "pnpm --filter @graphrefly/ts exec vitest run src/__tests__/solutions-causal-occurrence.d791.test.ts src/__tests__/solutions-causal-authority.d160.test.ts",
+			"status": "passed",
+			"tests": 30
+		},
+		{
+			"command": "pnpm test:causal-occurrence:qualification --output packages/ts/qualification/causal-occurrence/ts-v4-mutations.json",
+			"status": "passed",
+			"baselines": 2,
+			"structureMutantsKilled": 29,
+			"behaviorMutantsKilled": 44,
+			"survived": 0
+		},
+		{
+			"command": "node scripts/compare-causal-authority.mjs --output packages/ts/qualification/causal-occurrence/ts-v4-comparison.json",
+			"status": "passed",
+			"matchedTraces": 6,
+			"comparisonScope": "Same graph runtime, hash-bound ts-v3 versus current authority; matching graph topology/events and reducer state/outputs. Not an independent business oracle."
+		},
+		{
+			"command": "pnpm --filter @graphrefly/ts test",
+			"status": "passed",
+			"tests": 2166,
+			"skippedTests": 4,
+			"testFiles": 135,
+			"skippedFiles": 1
+		},
+		{
+			"command": "pnpm run lint",
+			"status": "passed"
+		},
+		{
+			"command": "pnpm run build",
+			"status": "passed"
+		},
+		{
+			"command": "pnpm eval:root:artifacts:check",
+			"status": "passed"
+		},
+		{
+			"command": "npm --prefix ../graphrefly run authority:check:workspace",
+			"status": "passed"
+		},
+		{
+			"command": "npm --prefix ../graphrefly run work:check:workspace",
+			"status": "passed"
+		},
+		{
+			"command": "node ../graphrefly/dashboard/build.mjs --workspace --check",
+			"status": "passed"
+		},
+		{
+			"command": "git diff --check",
+			"status": "passed"
+		}
+	],
+	"performance": {
+		"emptyCoordinationMedianDeltaNs": -1655.4165999987163,
+		"emptyCoordinationTargetNs": 1000,
+		"emptyCoordinationTargetMet": true,
+		"scope": "Empty scaffold isolates setup cost; prepared replay is separately sampled. The small graph path uses warmed alternating samples; larger graph p95 values are single-pass baseline-first observations, not controlled budget qualification. No portable guarantee. Aggregate process RSS cannot establish comparative allocation costs.",
+		"warmedSmallGraph": {
+			"baselineP95Ns": 1521501.0000683833,
+			"candidateP95Ns": 1506041.999993613,
+			"p95Ratio": 0.9898396385713348,
+			"maximumRatio": 1.1,
+			"targetMet": true,
+			"measurement": "warmed alternating total synchronous input-to-output path; construction/cleanup excluded"
+		},
+		"fullPathBudgetQualification": "warmed-small-trace-local-target-met; larger traces observational only"
+	},
+	"review": {
+		"mode": "two independent static reviewers, including follow-up after fixed-helper optimization",
+		"remainingFindings": [],
+		"resolvedFindings": [
+			"Replaced per-transition method factories after measured allocation overhead exceeded the scaffold target.",
+			"Bound comparison candidate, runner and frozen inputs before execution and verified unchanged bytes afterward.",
+			"Corrected small-sample percentile estimation and labeled graph and aggregate-memory measurement limits.",
+			"Retained immutable approved design manifest bytes using a narrow formatter-only exception.",
+			"Refreshed current no-network implementation/qualification artifact digests after source closure changed."
+		]
+	},
+	"cleanup": {
+		"mutationTemporaryRemoved": true,
+		"mutationChildrenExited": true,
+		"comparisonGraphCleanup": true,
+		"comparisonTemporaryRemoved": true,
+		"comparisonChildExited": true
+	},
+	"ownership": "Implementation evidence qualified; user teach-back is pending. No ownership-verification claim.",
+	"nonClaims": [
+		"B121 or full design-v1 implementation complete",
+		"New public exports or reduced-capability runtime",
+		"New whole-composition stop/drain/disposal semantics",
+		"Independent business verifier/plain consumer proof",
+		"Actual inbox/provider/live/spend effect authorization",
+		"Portable performance guarantee or comparative memory claim",
+		"Commit or automatic next batch"
+	]
+}

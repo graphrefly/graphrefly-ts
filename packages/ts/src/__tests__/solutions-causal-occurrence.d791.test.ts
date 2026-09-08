@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import type { DataIssue, DataResult } from "../data/index.js";
+import { constructionOf } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
 import { stableJsonString } from "../json/codec.js";
 import type { Node } from "../node/node.js";
@@ -92,12 +93,14 @@ function fixture(
 		maxEffects: number;
 		maxEvidence: number;
 	}> = {},
+	owner = new FixtureGraph(),
 ) {
-	const owner = new FixtureGraph();
 	const stops: Array<() => void> = [];
 	const stop = () => {
 		for (const release of stops.splice(0)) release();
 		for (const release of owner.retainedStops.splice(0)) release();
+		// Test-owned teardown, never a production lifecycle settlement policy.
+		for (const root of constructionOf(owner, "causal")?.roots ?? []) root.unsubscribe?.();
 		const group = owner.topologyGroup({ name: "causal fixture cleanup" });
 		for (const entry of owner.describe().nodes) group.add(owner.find(entry.id)!);
 		group.release();
@@ -140,11 +143,18 @@ function fixture(
 		maxEvidence: bounds.maxEvidence ?? 8,
 	});
 	const messages = new Map<string, Message[]>();
-	for (const [name, node] of Object.entries(bundle)) {
-		const values: Message[] = [];
-		messages.set(name, values);
-		stops.push(node.subscribe((message) => values.push(message)));
-	}
+	const unsubscribeOutputs = () => {
+		for (const release of stops.splice(0)) release();
+	};
+	const subscribeOutputs = () => {
+		unsubscribeOutputs();
+		for (const [name, node] of Object.entries(bundle)) {
+			const values: Message[] = [];
+			messages.set(name, values);
+			stops.push(node.subscribe((message) => values.push(message)));
+		}
+	};
+	subscribeOutputs();
 	return {
 		owner,
 		occurrences,
@@ -156,6 +166,8 @@ function fixture(
 		evidence,
 		watermarks,
 		messages,
+		unsubscribeOutputs,
+		subscribeOutputs,
 		stop,
 	};
 }
@@ -1081,6 +1093,99 @@ describe("D791 causal occurrence contract-v2", () => {
 		}
 	});
 
+	it("D160 keeps admitted obligations across UI unsubscription and rejects a wrong outcome before exact settlement", () => {
+		const run = (detach: boolean, settle: boolean) => {
+			const f = fixture();
+			const value = occurrence(1);
+			f.occurrences.down([["DATA", value]]);
+			f.admissions.down([["DATA", admission(value)]]);
+			f.watermarks.down([["DATA", { revisionDomain: value.revisionDomain, revision: 1 }]]);
+			for (const branch of ["materialize", "audit"])
+				f.branchTerminals.down([
+					["DATA", { occurrence: value, branch, state: "completed", result: ok(branch) }],
+				]);
+			const proposal: CausalEffectProposal = {
+				occurrence: refOf(value),
+				effectId: "ui-effect",
+				requestRef: { kind: "request", id: "ui-request" },
+				proposalDigest: digest("b"),
+			};
+			const admitted: CausalEffectAdmission = {
+				...proposal,
+				state: "admitted",
+				admissionRef: { kind: "admission", id: "ui-admission" },
+			};
+			f.effectProposals.down([["DATA", proposal]]);
+			f.effectAdmissions.down([["DATA", admitted]]);
+			expect(data<CausalEffectConservation>(f.messages.get("conservation")).at(-1)).toMatchObject({
+				admitted: 1,
+				active: 1,
+			});
+			expect(
+				constructionOf(f.owner, "causal")?.roots.filter(
+					(root) =>
+						root.node === f.owner.find("causal/release-controller") &&
+						root.unsubscribe !== undefined,
+				),
+			).toHaveLength(1);
+			if (detach) f.unsubscribeOutputs();
+			f.effectOutcomes.down([
+				[
+					"DATA",
+					{
+						...admitted,
+						admissionRef: { kind: "admission", id: "wrong" },
+						state: "failed",
+						result: error("failure"),
+					},
+				],
+			]);
+			// External inspection adds no subscription/keepalive and does not drive computation.
+			expect(f.owner.find("causal/authority")?.cache).toMatchObject({
+				kind: "issue",
+				value: { code: "causal-occurrence/effect-outcome-mismatch" },
+			});
+			if (detach) f.subscribeOutputs();
+			for (const values of f.messages.values()) values.length = 0;
+			if (settle) {
+				f.effectOutcomes.down([
+					["DATA", { ...admitted, state: "failed", result: error("failure") }],
+				]);
+				expect(data<CausalEffectConservation>(f.messages.get("conservation")).at(-1)).toMatchObject(
+					{ admitted: 1, active: 0, failed: 1 },
+				);
+			}
+			for (const evidenceKind of ["receipt", "trace"])
+				f.evidence.down([
+					[
+						"DATA",
+						{
+							occurrence: refOf(value),
+							evidenceKind,
+							evidenceId: evidenceKind,
+							evidenceDigest: digest("c"),
+							coverage: "included",
+						},
+					],
+				]);
+			// Force a fresh quiescence fact through DATA without inventing an outcome.
+			f.watermarks.down([["DATA", { revisionDomain: value.revisionDomain, revision: 2 }]]);
+			expect(data<CausalQuiescence>(f.messages.get("quiescence")).at(-1)).toMatchObject({
+				pendingEffectIds: settle ? [] : ["ui-effect"],
+			});
+			if (!settle) expect(data(f.messages.get("conservation"))).toEqual([]);
+			const result = Object.fromEntries(
+				[...f.messages].map(([name, messages]) => [
+					name,
+					messages.filter(([kind]) => kind !== "START"),
+				]),
+			);
+			f.stop();
+			return result;
+		};
+		for (const settle of [false, true]) expect(run(true, settle)).toEqual(run(false, settle));
+	});
+
 	it("fails a topology mutation when any occurrence, join, release, or conservation edge is deleted", () => {
 		const f = fixture();
 		const description = f.owner.describe();
@@ -1103,14 +1208,224 @@ describe("D791 causal occurrence contract-v2", () => {
 	});
 
 	it("contains no caller lifecycle patch escape hatches", () => {
-		const source = readFileSync(
-			new URL("../solutions/causal-occurrence.ts", import.meta.url),
-			"utf8",
-		);
+		const source = [
+			"../solutions/causal-occurrence.ts",
+			...["contracts", "identity", "lifecycle", "evidence", "transition"].map(
+				(name) => `../solutions/causal-occurrence/${name}.ts`,
+			),
+		]
+			.map((path) => readFileSync(new URL(path, import.meta.url), "utf8"))
+			.join("\n");
 		expect(source).not.toMatch(/partial\s*:\s*true/u);
 		expect(source).not.toMatch(/setTimeout|queueMicrotask/u);
 		expect(source).not.toMatch(/\bPromise\b|callerQueue|caller_queue/u);
 		expect(source).not.toMatch(/\[\s*["']RESOLVED["']/u);
 		expect(source).not.toMatch(/\[\s*["']ERROR["']/u);
+	});
+});
+
+// Representation equivalence: expected edges are an independent contract fixture.
+describe("causal topology exact-string index", () => {
+	const lanes = [
+		"occurrences",
+		"admissions",
+		"branch-terminals",
+		"effect-proposals",
+		"effect-admissions",
+		"effect-outcomes",
+		"evidence",
+		"watermarks",
+	];
+	const edgesFor = (name: string) => [
+		...lanes.map((lane) => ({ from: `source/${lane}`, to: `${name}/input/${lane}` })),
+		...lanes.map((lane) => ({ from: `${name}/input/${lane}`, to: `${name}/arrivals` })),
+		...[
+			["arrivals", "authority"],
+			["authority", "release-candidates"],
+			["release-candidates", "release-port"],
+			["release-port", "released"],
+			["release-candidates", "release-events"],
+			["released", "release-events"],
+			["release-events", "release-controller"],
+			...["currentness", "terminals", "conservation", "coverage", "quiescence", "issues"].map(
+				(port) => ["authority", port],
+			),
+		].map(([from, to]) => ({ from: `${name}/${from}`, to: `${name}/${to}` })),
+	];
+	it.each([
+		"ordinary",
+		"__proto__",
+		"域/🌳",
+		"a|b::c->d",
+		"a\0b",
+	])("preserves required edges and first error for %j", (name) => {
+		const edges = edgesFor(name);
+		expect(causalOccurrenceRequiredEdges(name, { edges })).toEqual(edges);
+		expect(() => assertCausalOccurrenceTopology({ edges }, name)).not.toThrow();
+		for (let index = 0; index < edges.length; index += 1) {
+			const removed = edges[index]!;
+			const message =
+				index < lanes.length
+					? `causal occurrence topology missing source edge into ${lanes[index]}`
+					: `causal occurrence topology missing required edge ${removed.from} -> ${removed.to}`;
+			// Also remove the next edge and reverse actual order: diagnostics follow contract order.
+			const remaining = edges.filter((_, i) => i !== index && i !== index + 1).reverse();
+			expect(() => assertCausalOccurrenceTopology({ edges: remaining }, name)).toThrow(
+				new TypeError(message),
+			);
+		}
+	});
+	it("accepts duplicates, multiple sources, unrelated edges and self edges without redefining topology policy", () => {
+		const edges = edgesFor("causal");
+		const extras = [
+			{ from: "__proto__", to: "__proto__" },
+			{ from: "", to: "constructor" },
+			{ from: "another/source", to: "causal/input/occurrences" },
+			{ from: "causal/authority", to: "causal/authority" },
+		];
+		expect(() =>
+			assertCausalOccurrenceTopology(
+				{ edges: [...edges, ...edges, ...extras].reverse() },
+				"causal",
+			),
+		).not.toThrow();
+		expect(() =>
+			assertCausalOccurrenceTopology(
+				{ edges: [...edges.filter((e) => e.from !== "source/occurrences"), ...extras] },
+				"causal",
+			),
+		).not.toThrow();
+	});
+	it.each([
+		"|",
+		"::",
+		"->",
+		"\0",
+	])("does not replace a missing edge with a %j concatenation collision", (separator) => {
+		const name = `a${separator}b`;
+		const edges = edgesFor(name);
+		const missing = { from: `${name}/arrivals`, to: `${name}/authority` };
+		const joined = `${missing.from}${separator}${missing.to}`;
+		const decoy = { from: "a", to: joined.slice(1 + separator.length) };
+		expect(`${decoy.from}${separator}${decoy.to}`).toBe(joined);
+		const remaining = edges.filter((edge) => edge.from !== missing.from || edge.to !== missing.to);
+		expect(() => assertCausalOccurrenceTopology({ edges: [...remaining, decoy] }, name)).toThrow(
+			new TypeError(
+				`causal occurrence topology missing required edge ${missing.from} -> ${missing.to}`,
+			),
+		);
+	});
+	it("preserves helper source identity, lane order, duplicates and sparse holes (A2)", () => {
+		const name = "域/\0__proto__";
+		const first = { from: "first", to: `${name}/input/occurrences` };
+		const last = { from: "last", to: `${name}/input/watermarks` };
+		const edges = [last, first, first, { from: "other", to: "unrelated" }];
+		delete edges[3];
+		const result = causalOccurrenceRequiredEdges(name, { edges });
+		expect(result.slice(0, 3)).toEqual([first, first, last]);
+		expect(result[0]).toBe(first);
+		expect(result[1]).toBe(first);
+		expect(result[2]).toBe(last);
+		expect(result.slice(3)).toEqual(causalOccurrenceRequiredEdges(name));
+		expect(Object.isFrozen(result)).toBe(true);
+		expect(Object.isFrozen(first)).toBe(false);
+	});
+	it("rereads helper edges per lane and preserves edge getter order (A2)", () => {
+		const accesses: string[] = [];
+		const sources: Array<{ from: string; to: string }> = [];
+		let lane = 0;
+		const result = causalOccurrenceRequiredEdges("causal", {
+			get edges() {
+				const index = lane++;
+				accesses.push(`edges:${index}`);
+				const edge = {
+					from: `source/${index}`,
+					get to() {
+						accesses.push(`to:${index}`);
+						return `causal/input/${lanes[index]}`;
+					},
+				};
+				sources.push(edge);
+				return [edge];
+			},
+		});
+		expect(accesses).toEqual(lanes.flatMap((_, i) => [`edges:${i}`, `to:${i}`]));
+		for (const [i, edge] of sources.entries()) expect(result[i]).toBe(edge);
+		expect(result).toHaveLength(29);
+	});
+	it("preserves helper getter failure without inspecting later edges (A2)", () => {
+		const accesses: string[] = [];
+		const failure = new Error("edge read failed");
+		const description = {
+			get edges() {
+				accesses.push("edges");
+				return [
+					{
+						from: "a",
+						get to(): string {
+							accesses.push("first");
+							throw failure;
+						},
+					},
+					{
+						from: "b",
+						get to(): string {
+							accesses.push("later");
+							return "unused";
+						},
+					},
+				];
+			},
+		};
+		expect(() => causalOccurrenceRequiredEdges("causal", description)).toThrow(failure);
+		expect(accesses).toEqual(["edges", "first"]);
+	});
+	it("keeps fresh frozen internal results without a description (A2)", () => {
+		const a = causalOccurrenceRequiredEdges("causal");
+		const b = causalOccurrenceRequiredEdges("causal", { edges: [] });
+		expect(a).toHaveLength(21);
+		expect(b).toEqual(a);
+		expect(b).not.toBe(a);
+		expect(b[0]).not.toBe(a[0]);
+		expect(Object.isFrozen(a)).toBe(true);
+		expect(Object.isFrozen(b)).toBe(true);
+	});
+	it("preserves sparse snapshot holes without accepting explicit undefined edges", () => {
+		const edges = [...new Array<{ from: string; to: string }>(2), ...edgesFor("causal")];
+		delete edges[0];
+		delete edges[1];
+		expect(() => assertCausalOccurrenceTopology({ edges }, "causal")).not.toThrow();
+		delete edges[2];
+		expect(() => assertCausalOccurrenceTopology({ edges }, "causal")).toThrow(
+			new TypeError("causal occurrence topology missing source edge into occurrences"),
+		);
+		edges[2] = edgesFor("causal")[0]!;
+		edges[0] = undefined as never;
+		expect(() => assertCausalOccurrenceTopology({ edges }, "causal")).toThrow(TypeError);
+	});
+	it("inspects changed live dependencies during cold construction rather than trusting the manifest", () => {
+		let changed = false;
+		let calls = 0;
+		class RewiredGraph extends FixtureGraph {
+			override describe(...args: Parameters<Graph["describe"]>): ReturnType<Graph["describe"]> {
+				const authority = this.find("causal/authority");
+				if (authority && !changed) {
+					changed = true;
+					expect(authority.status).toBe("sentinel");
+					authority.unsubscribeDep(this.find("causal/arrivals")!, () => {
+						calls += 1;
+					});
+				}
+				return super.describe(...args);
+			}
+		}
+		const owner = new RewiredGraph();
+		expect(() => fixture({}, owner)).toThrow(
+			/missing required edge causal\/arrivals -> causal\/authority/,
+		);
+		expect(changed).toBe(true);
+		expect(calls).toBe(0);
+		expect(owner.find("causal/authority")).toBeUndefined();
+		expect(owner.describe().nodes).toHaveLength(8);
 	});
 });

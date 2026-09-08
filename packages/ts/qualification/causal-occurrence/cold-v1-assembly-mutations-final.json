@@ -1,0 +1,854 @@
+{
+	"schema": "graphrefly-ts/causal-cold-assembly-mutations/v1",
+	"revision": "cold-v1",
+	"runnerDigest": "sha256:c5e76c03417fdc575492867cc2eba44a071439694071e73811b2fad730d93c83",
+	"testDigest": "sha256:af53a9796602564ce966fac6e0fc1a14c91143c5605a596f1a132774d1b4b802",
+	"incomingTestDigest": "sha256:31b1fbb6936e8d8e8bc0a9e3e1aab5d2dce691e29f0c45a41978006df1f546fd",
+	"assemblyTestDigest": "sha256:40a7e4b18f8a4711f739b0a6d76230fe6697f872478830f2f593a88a7de9530e",
+	"baseline": {
+		"id": "unchanged",
+		"compiled": true,
+		"outcome": "passed",
+		"failed": [],
+		"patches": [],
+		"closure": {
+			"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+			"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+			"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+			"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+			"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+			"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+			"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+			"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+			"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+			"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+			"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+			"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+			"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+			"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+			"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+			"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+			"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+			"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+			"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+			"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+			"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+			"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+			"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+			"packages/ts/src/graph/graph-lifecycle.ts": "sha256:aad0f8c4b90f39fef693c6b8150165c35013032039566a82ef6db1d15f2f3772",
+			"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+			"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+			"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+			"packages/ts/src/graph/graph.ts": "sha256:1f261caf16821965b6ca8e6de3e14f27c348a81f016010379eb376688497978c",
+			"packages/ts/src/graph/construction-scope.ts": "sha256:6435b07d9fc42fc8d5850a050dc7bf9413b7a83a088aec310a1a78cb48dd399c",
+			"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+			"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+			"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+			"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+			"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+			"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+			"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+			"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+			"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+			"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+			"packages/ts/src/solutions/causal-occurrence/construction.ts": "sha256:1053360d7e586033667d7dfa36cf7c448163e8479b422cfb4528a690544a4538",
+			"packages/ts/src/solutions/causal-occurrence.ts": "sha256:215c01b201c2de16f247fd418f289765e776bf6e3c120bd0bcf0bd5895ab7b63"
+		}
+	},
+	"mutations": [
+		{
+			"id": "cold-context-graph",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D162 private shared cold assembly rejects graph context before adding any causal member",
+					"message": "AssertionError: expected [Function] to throw an error\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1420:16)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:445:5\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:863:59\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)"
+				}
+			],
+			"patches": [
+				[
+					"graph/construction-scope.ts",
+					"lifecycleRegistrars.get(graph) !== this.registrar ||",
+					"false ||"
+				]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:aad0f8c4b90f39fef693c6b8150165c35013032039566a82ef6db1d15f2f3772",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:1f261caf16821965b6ca8e6de3e14f27c348a81f016010379eb376688497978c",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:15197e45e74ac2b7838a9138ce3258a2315cbbf94ddca848354f3ff7891b4338",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence/construction.ts": "sha256:1053360d7e586033667d7dfa36cf7c448163e8479b422cfb4528a690544a4538",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:215c01b201c2de16f247fd418f289765e776bf6e3c120bd0bcf0bd5895ab7b63"
+			}
+		},
+		{
+			"id": "cold-context-startup",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D162 private shared cold assembly rejects startup context before adding any causal member",
+					"message": "AssertionError: expected [Function] to throw an error\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1420:16)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:445:5\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:863:59\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)"
+				}
+			],
+			"patches": [
+				[
+					"graph/construction-scope.ts",
+					"startup !== this.startupNode || epoch !== this.manifest.epoch",
+					"false || epoch !== this.manifest.epoch"
+				]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:aad0f8c4b90f39fef693c6b8150165c35013032039566a82ef6db1d15f2f3772",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:1f261caf16821965b6ca8e6de3e14f27c348a81f016010379eb376688497978c",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:5719d5a3245b1c098ccc7b67ba530485bf4bf615c14cdaac25d0a2bc10443c05",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence/construction.ts": "sha256:1053360d7e586033667d7dfa36cf7c448163e8479b422cfb4528a690544a4538",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:215c01b201c2de16f247fd418f289765e776bf6e3c120bd0bcf0bd5895ab7b63"
+			}
+		},
+		{
+			"id": "cold-context-epoch",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D162 private shared cold assembly checks the final binding epoch snapshot, not an earlier getter result",
+					"message": "AssertionError: expected [Function] to throw an error\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1420:16)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:292:5\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				},
+				{
+					"test": "D162 private shared cold assembly rejects epoch context before adding any causal member",
+					"message": "AssertionError: expected [Function] to throw an error\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1420:16)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:445:5\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:863:59\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)"
+				}
+			],
+			"patches": [["graph/construction-scope.ts", "epoch !== this.manifest.epoch", "false"]],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:aad0f8c4b90f39fef693c6b8150165c35013032039566a82ef6db1d15f2f3772",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:1f261caf16821965b6ca8e6de3e14f27c348a81f016010379eb376688497978c",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:01afefc63e18311df555d45517743bee848008a2da9f500e30e581ae09e0f07b",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence/construction.ts": "sha256:1053360d7e586033667d7dfa36cf7c448163e8479b422cfb4528a690544a4538",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:215c01b201c2de16f247fd418f289765e776bf6e3c120bd0bcf0bd5895ab7b63"
+			}
+		},
+		{
+			"id": "cold-context-phase",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D162 private shared cold assembly rejects sealed context before adding any causal member",
+					"message": "AssertionError: expected [Function] to throw error matching /context/ but got 'construction is sealed'\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1420:16)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:431:87\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:863:59\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)"
+				}
+			],
+			"patches": [
+				[
+					"graph/construction-scope.ts",
+					"this.phase !== \"cold\" || lifecycleRegistrars.get(graph)",
+					"false || lifecycleRegistrars.get(graph)"
+				]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:aad0f8c4b90f39fef693c6b8150165c35013032039566a82ef6db1d15f2f3772",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:1f261caf16821965b6ca8e6de3e14f27c348a81f016010379eb376688497978c",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:48428ce95781a0d353f97bb536493ee9fde43bba78700507556883715a764856",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence/construction.ts": "sha256:1053360d7e586033667d7dfa36cf7c448163e8479b422cfb4528a690544a4538",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:215c01b201c2de16f247fd418f289765e776bf6e3c120bd0bcf0bd5895ab7b63"
+			}
+		},
+		{
+			"id": "cold-binding-before-snapshot",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D162 private shared cold assembly checks the final binding epoch snapshot, not an earlier getter result",
+					"message": "AssertionError: expected [Function] to throw an error\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1420:16)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:292:5\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				}
+			],
+			"patches": [
+				[
+					"solutions/causal-occurrence/construction.ts",
+					"binding = causalBinding(binding); graph.assertContext(ownerGraph, startup, binding.epoch);",
+					"graph.assertContext(ownerGraph, startup, binding.epoch); binding = causalBinding(binding);"
+				]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:aad0f8c4b90f39fef693c6b8150165c35013032039566a82ef6db1d15f2f3772",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:1f261caf16821965b6ca8e6de3e14f27c348a81f016010379eb376688497978c",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:6435b07d9fc42fc8d5850a050dc7bf9413b7a83a088aec310a1a78cb48dd399c",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence/construction.ts": "sha256:f4ea2a78b1a31f7285c49359903ed0bf7b3aa06ed129c3dec69279c3fb943509",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:215c01b201c2de16f247fd418f289765e776bf6e3c120bd0bcf0bd5895ab7b63"
+			}
+		},
+		{
+			"id": "cold-incomplete-union",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D162 private shared cold assembly requires every union name before seal",
+					"message": "AssertionError: expected [Function] to throw an error\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1420:16)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:325:36\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				}
+			],
+			"patches": [
+				[
+					"graph/construction-scope.ts",
+					"this.phase !== \"cold\" || this.available.size !== 0",
+					"this.phase !== \"cold\""
+				]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:aad0f8c4b90f39fef693c6b8150165c35013032039566a82ef6db1d15f2f3772",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:1f261caf16821965b6ca8e6de3e14f27c348a81f016010379eb376688497978c",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:8dc85851728bac1b25be8bbe5019194a9f27bc13bb1ba0b9c645242e52b7528f",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence/construction.ts": "sha256:1053360d7e586033667d7dfa36cf7c448163e8479b422cfb4528a690544a4538",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:215c01b201c2de16f247fd418f289765e776bf6e3c120bd0bcf0bd5895ab7b63"
+			}
+		},
+		{
+			"id": "cold-lost-release-root",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D162 private shared cold assembly waits for a late required input and handles a finite repeated DATA batch",
+					"message": "AssertionError: expected undefined to deeply equal { revisionDomain: 'd', …(5) }\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:264:25\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D162 private shared cold assembly builds real upstream and downstream nodes cold, then transfers exactly once before any execution",
+					"message": "AssertionError: expected undefined to deeply equal { revisionDomain: 'd', …(5) }\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:343:25\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D162 private shared cold assembly retains obligations across late root failure, UI unsubscribe, wrong outcome and exact replay",
+					"message": "TypeError: Cannot read properties of undefined (reading 'effects')\n    at effects (/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:248:6)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:458:10\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D162 private shared cold assembly does not lose the early cached occurrence when view roots activate after the authority root",
+					"message": "AssertionError: expected [] to deeply equal [ { revisionDomain: 'd', …(5) } ]\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:500:18\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership preserves admission after startup failure, UI detach and a mismatched outcome",
+					"message": "AssertionError: expected 'started' to be 'faulted' // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/graph-construction.d161.test.ts:421:37\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership keeps a protocol-terminated authority unresolved without automatic reset",
+					"message": "AssertionError: expected 'sentinel' to be 'errored' // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/graph-construction.d161.test.ts:442:28\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership a graph-wired startup gate controls the offline host request (fault=true)",
+					"message": "AssertionError: expected 1 to be +0 // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/graph-construction.d161.test.ts:720:17\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:863:59\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership successful startup and replay without a proposal never fabricate an effect",
+					"message": "TypeError: Cannot read properties of undefined (reading 'effects')\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/graph-construction.d161.test.ts:744:16\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				}
+			],
+			"patches": [
+				[
+					"solutions/causal-occurrence/construction.ts",
+					"roots: Object.freeze([releaseController])",
+					"roots: Object.freeze([])"
+				]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:aad0f8c4b90f39fef693c6b8150165c35013032039566a82ef6db1d15f2f3772",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:1f261caf16821965b6ca8e6de3e14f27c348a81f016010379eb376688497978c",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:6435b07d9fc42fc8d5850a050dc7bf9413b7a83a088aec310a1a78cb48dd399c",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence/construction.ts": "sha256:72a71bcf688dfc192b85276275adce96a2dc81a61ea817f646e939520a4b619b",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:215c01b201c2de16f247fd418f289765e776bf6e3c120bd0bcf0bd5895ab7b63"
+			}
+		},
+		{
+			"id": "cold-premature-retain",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D162 private shared cold assembly waits for a late required input and handles a finite repeated DATA batch",
+					"message": "Error: graph: cannot release node group; 'run/causal/release-controller' still has live subscribers (D124)\n    at Graph._releaseNodes (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph.ts:375:11)\n    at Object.releaseNodes (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph.ts:226:47)\n    at GraphTopologyGroup.release (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph-topology-group.ts:126:13)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:42:9\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runHook (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1436:51)\n    at callSuiteHook (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1442:25)"
+				},
+				{
+					"test": "D162 private shared cold assembly validates options once before resource acquisition and never revalidates the captured snapshot",
+					"message": "Error: graph: cannot release node group; 'causal/release-controller' still has live subscribers (D124)\n    at Graph._releaseNodes (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph.ts:375:11)\n    at Object.releaseNodes (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph.ts:226:47)\n    at GraphTopologyGroup.release (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph-topology-group.ts:126:13)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:42:9\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runHook (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1436:51)\n    at callSuiteHook (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1442:25)"
+				},
+				{
+					"test": "D162 private shared cold assembly builds real upstream and downstream nodes cold, then transfers exactly once before any execution",
+					"message": "AssertionError: expected 3 to be +0 // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:331:21\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\nError: graph: cannot release node group; 'run/causal/release-controller' still has live subscribers (D124)\n    at Graph._releaseNodes (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph.ts:375:11)\n    at Object.releaseNodes (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph.ts:226:47)\n    at GraphTopologyGroup.release (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph-topology-group.ts:126:13)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:42:9\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runHook (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1436:51)\n    at callSuiteHook (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1442:25)"
+				},
+				{
+					"test": "D162 private shared cold assembly cleans all acquired members when acquisition 29 throws after registration",
+					"message": "AssertionError: expected [ Array(39) ] to have a length of 10 but got 39\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1257:20)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:385:35\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:863:59\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\nError: graph: cannot release node group; 'run/causal/release-controller' still has live subscribers (D124)\n    at Graph._releaseNodes (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph.ts:375:11)\n    at Object.releaseNodes (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph.ts:226:47)\n    at GraphTopologyGroup.release (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph-topology-group.ts:126:13)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:42:9\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runHook (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1436:51)\n    at callSuiteHook (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1442:25)"
+				},
+				{
+					"test": "D162 private shared cold assembly retains obligations across late root failure, UI unsubscribe, wrong outcome and exact replay",
+					"message": "Error: graph: cannot release node group; 'run/causal/release-port' is not runtime-quiescent (D124)\n    at Graph._releaseNodes (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph.ts:363:11)\n    at Object.releaseNodes (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph.ts:226:47)\n    at GraphTopologyGroup.release (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph-topology-group.ts:126:13)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:42:9\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runHook (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1436:51)\n    at callSuiteHook (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1442:25)"
+				},
+				{
+					"test": "D162 private shared cold assembly does not lose the early cached occurrence when view roots activate after the authority root",
+					"message": "Error: graph: cannot release node group; 'run/causal/release-controller' still has live subscribers (D124)\n    at Graph._releaseNodes (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph.ts:375:11)\n    at Object.releaseNodes (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph.ts:226:47)\n    at GraphTopologyGroup.release (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph-topology-group.ts:126:13)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:42:9\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runHook (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1436:51)\n    at callSuiteHook (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1442:25)"
+				},
+				{
+					"test": "D162 private shared cold assembly preserves shared dependency protection before ownership or activation",
+					"message": "AssertionError: expected 3 to be +0 // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:509:21\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\nError: graph: cannot release node group; 'run/causal/release-controller' still has live subscribers (D124)\n    at Graph._releaseNodes (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph.ts:375:11)\n    at Object.releaseNodes (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph.ts:226:47)\n    at GraphTopologyGroup.release (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph-topology-group.ts:126:13)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:42:9\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runHook (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1436:51)\n    at callSuiteHook (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1442:25)"
+				},
+				{
+					"test": "D162 private shared cold assembly checks the actual upstream and authority edges without manifest-synthesized edges",
+					"message": "AssertionError: expected 3 to be +0 // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:523:21\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\nError: graph: cannot release node group; 'run/causal/release-controller' still has live subscribers (D124)\n    at Graph._releaseNodes (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph.ts:375:11)\n    at Object.releaseNodes (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph.ts:226:47)\n    at GraphTopologyGroup.release (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph-topology-group.ts:126:13)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:42:9\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runHook (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1436:51)\n    at callSuiteHook (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1442:25)"
+				},
+				{
+					"test": "D161 graph construction ownership preserves admission after startup failure, UI detach and a mismatched outcome",
+					"message": "Error: construction causal rejected; cleanup incomplete: after admission\n    at ConstructionScope.abort (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/construction-scope.ts:320:9)\n    at buildCausalComposition (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/solutions/causal-occurrence.ts:107:9)\n    at Object.composeFull (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/solutions/causal-occurrence.ts:72:11)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/graph-construction.d161.test.ts:416:43\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				},
+				{
+					"test": "D161 graph construction ownership a graph-wired startup gate controls the offline host request (fault=true)",
+					"message": "Error: construction causal rejected; cleanup incomplete: after admission\n    at ConstructionScope.abort (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/construction-scope.ts:320:9)\n    at buildCausalComposition (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/solutions/causal-occurrence.ts:107:9)\n    at Object.composeFull (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/solutions/causal-occurrence.ts:72:11)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/graph-construction.d161.test.ts:702:43\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:863:59\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)"
+				}
+			],
+			"patches": [
+				[
+					"solutions/causal-occurrence/construction.ts",
+					"Object.freeze(result);",
+					"Object.freeze(result); ownerGraph.retain(releaseController);"
+				]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:aad0f8c4b90f39fef693c6b8150165c35013032039566a82ef6db1d15f2f3772",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:1f261caf16821965b6ca8e6de3e14f27c348a81f016010379eb376688497978c",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:6435b07d9fc42fc8d5850a050dc7bf9413b7a83a088aec310a1a78cb48dd399c",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence/construction.ts": "sha256:d719ba09c79a9e53279bd911821abbec54b0b66cac3ad8c3f6fc3aab47579525",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:215c01b201c2de16f247fd418f289765e776bf6e3c120bd0bcf0bd5895ab7b63"
+			}
+		},
+		{
+			"id": "cold-lost-final-cleanup",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D162 private shared cold assembly cleans all acquired members when acquisition 29 throws after registration",
+					"message": "AssertionError: expected [ Array(39) ] to have a length of 10 but got 39\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1257:20)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:385:35\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:863:59\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)"
+				}
+			],
+			"patches": [
+				[
+					"graph/construction-scope.ts",
+					"const registered = this.acquisitions.filter((a) => a.registered).map((a) => a.node!);",
+					"const registered = this.acquisitions.filter((a) => a.registered && !a.name.endsWith(\"/final\")).map((a) => a.node!);"
+				]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:aad0f8c4b90f39fef693c6b8150165c35013032039566a82ef6db1d15f2f3772",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:1f261caf16821965b6ca8e6de3e14f27c348a81f016010379eb376688497978c",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:e8ec6f579941e04aaf61eb0f743608659b9154190c418ba9950412d6d85e4761",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence/construction.ts": "sha256:1053360d7e586033667d7dfa36cf7c448163e8479b422cfb4528a690544a4538",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:215c01b201c2de16f247fd418f289765e776bf6e3c120bd0bcf0bd5895ab7b63"
+			}
+		},
+		{
+			"id": "cold-faulted-owner-loss",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D162 private shared cold assembly retains obligations across late root failure, UI unsubscribe, wrong outcome and exact replay",
+					"message": "AssertionError: expected undefined to be { instance: 'run', epoch: 1, …(5) } // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:487:42\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\nError: graph: cannot release node group; 'run/startup' still has live subscribers (D124)\n    at Graph._releaseNodes (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph.ts:375:11)\n    at Object.releaseNodes (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph.ts:226:47)\n    at GraphTopologyGroup.release (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/graph-topology-group.ts:126:13)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:42:9\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runHook (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1436:51)\n    at callSuiteHook (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1442:25)"
+				},
+				{
+					"test": "D161 graph construction ownership preserves admission after startup failure, UI detach and a mismatched outcome",
+					"message": "AssertionError: expected undefined to be 'faulted' // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/graph-construction.d161.test.ts:434:52\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				}
+			],
+			"patches": [
+				[
+					"graph/construction-scope.ts",
+					"owner.phase = \"faulted\";",
+					"owner.phase = \"faulted\"; lifecycleRegistrars.get(graph)!.constructions.delete(owner.instance);"
+				]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:aad0f8c4b90f39fef693c6b8150165c35013032039566a82ef6db1d15f2f3772",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:1f261caf16821965b6ca8e6de3e14f27c348a81f016010379eb376688497978c",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:c0116b426dd2ec199d40b07ed33a42eca1ca92db19be05f2793e66620f24632a",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence/construction.ts": "sha256:1053360d7e586033667d7dfa36cf7c448163e8479b422cfb4528a690544a4538",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:215c01b201c2de16f247fd418f289765e776bf6e3c120bd0bcf0bd5895ab7b63"
+			}
+		},
+		{
+			"id": "cold-real-input-cut",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D162 private shared cold assembly waits for a late required input and handles a finite repeated DATA batch",
+					"message": "Error: construction run rejected; cleanup complete: causal occurrence topology missing source edge into occurrences\n    at ConstructionScope.abort (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/construction-scope.ts:320:9)\n    at combined (/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:236:9)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:255:13\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"
+				},
+				{
+					"test": "D162 private shared cold assembly validates options once before resource acquisition and never revalidates the captured snapshot",
+					"message": "TypeError: causal occurrence topology missing source edge into occurrences\n    at assertCausalOccurrenceTopology (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/solutions/causal-occurrence/construction.ts:337:10)\n    at buildCausalNodes (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/solutions/causal-occurrence/construction.ts:258:2)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:313:3\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"
+				},
+				{
+					"test": "D162 private shared cold assembly builds real upstream and downstream nodes cold, then transfers exactly once before any execution",
+					"message": "Error: construction run rejected; cleanup complete: causal occurrence topology missing source edge into occurrences\n    at ConstructionScope.abort (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/construction-scope.ts:320:9)\n    at combined (/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:236:9)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:330:13\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"
+				},
+				{
+					"test": "D162 private shared cold assembly retains obligations across late root failure, UI unsubscribe, wrong outcome and exact replay",
+					"message": "Error: construction run rejected; cleanup complete: causal occurrence topology missing source edge into occurrences\n    at ConstructionScope.abort (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/construction-scope.ts:320:9)\n    at combined (/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:236:9)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:450:13\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"
+				},
+				{
+					"test": "D162 private shared cold assembly does not lose the early cached occurrence when view roots activate after the authority root",
+					"message": "Error: construction run rejected; cleanup complete: causal occurrence topology missing source edge into occurrences\n    at ConstructionScope.abort (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/construction-scope.ts:320:9)\n    at combined (/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:236:9)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:492:13\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"
+				},
+				{
+					"test": "D162 private shared cold assembly preserves shared dependency protection before ownership or activation",
+					"message": "Error: construction run rejected; cleanup complete: causal occurrence topology missing source edge into occurrences\n    at ConstructionScope.abort (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/construction-scope.ts:320:9)\n    at combined (/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:236:9)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:504:13\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"
+				},
+				{
+					"test": "D162 private shared cold assembly checks the actual upstream and authority edges without manifest-synthesized edges",
+					"message": "Error: construction run rejected; cleanup complete: causal occurrence topology missing source edge into occurrences\n    at ConstructionScope.abort (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/construction-scope.ts:320:9)\n    at combined (/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:236:9)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/causal-cold-assembly.d162.test.ts:512:13\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"
+				},
+				{
+					"test": "D161 graph construction ownership rejects real cold dependency loss on the native B1 path and releases acquired resources",
+					"message": "AssertionError: expected [Function] to throw error matching /missing required e…/arrivals -> causal\\ but got 'construction causal rejected; cleanup…'\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1420:16)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/graph-construction.d161.test.ts:164:60\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				},
+				{
+					"test": "D161 graph construction ownership preserves admission after startup failure, UI detach and a mismatched outcome",
+					"message": "Error: construction causal rejected; cleanup complete: causal occurrence topology missing source edge into occurrences\n    at ConstructionScope.abort (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/construction-scope.ts:320:9)\n    at buildCausalComposition (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/solutions/causal-occurrence.ts:107:9)\n    at Object.composeFull (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/solutions/causal-occurrence.ts:72:11)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/graph-construction.d161.test.ts:416:43\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				},
+				{
+					"test": "D161 graph construction ownership keeps a protocol-terminated authority unresolved without automatic reset",
+					"message": "Error: construction causal rejected; cleanup complete: causal occurrence topology missing source edge into occurrences\n    at ConstructionScope.abort (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/construction-scope.ts:320:9)\n    at buildCausalComposition (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/solutions/causal-occurrence.ts:107:9)\n    at Object.composeFull (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/solutions/causal-occurrence.ts:72:11)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/graph-construction.d161.test.ts:439:43\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				},
+				{
+					"test": "D161 graph construction ownership returns exact narrow handles with real payload projection and rejects wrong bindings",
+					"message": "Error: construction causal rejected; cleanup complete: causal occurrence topology missing source edge into occurrences\n    at ConstructionScope.abort (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/construction-scope.ts:320:9)\n    at buildCausalComposition (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/solutions/causal-occurrence.ts:107:9)\n    at Object.composeFull (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/solutions/causal-occurrence.ts:72:11)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/graph-construction.d161.test.ts:461:22\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				},
+				{
+					"test": "D161 graph construction ownership a graph-wired startup gate controls the offline host request (fault=false)",
+					"message": "Error: construction causal rejected; cleanup complete: causal occurrence topology missing source edge into occurrences\n    at ConstructionScope.abort (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/construction-scope.ts:320:9)\n    at buildCausalComposition (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/solutions/causal-occurrence.ts:107:9)\n    at Object.composeFull (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/solutions/causal-occurrence.ts:72:11)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/graph-construction.d161.test.ts:702:43\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:863:59\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)"
+				},
+				{
+					"test": "D161 graph construction ownership a graph-wired startup gate controls the offline host request (fault=true)",
+					"message": "Error: construction causal rejected; cleanup complete: causal occurrence topology missing source edge into occurrences\n    at ConstructionScope.abort (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/construction-scope.ts:320:9)\n    at buildCausalComposition (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/solutions/causal-occurrence.ts:107:9)\n    at Object.composeFull (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/solutions/causal-occurrence.ts:72:11)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/graph-construction.d161.test.ts:702:43\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:863:59\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)"
+				},
+				{
+					"test": "D161 graph construction ownership successful startup and replay without a proposal never fabricate an effect",
+					"message": "Error: construction causal rejected; cleanup complete: causal occurrence topology missing source edge into occurrences\n    at ConstructionScope.abort (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/graph/construction-scope.ts:320:9)\n    at buildCausalComposition (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/solutions/causal-occurrence.ts:107:9)\n    at Object.composeFull (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/solutions/causal-occurrence.ts:72:11)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-IRheAu/src/__tests__/graph-construction.d161.test.ts:732:43\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				}
+			],
+			"patches": [
+				[
+					"solutions/causal-occurrence/construction.ts",
+					"return graph.node<Arrival<T>>( [input],",
+					"return graph.node<Arrival<T>>( [],"
+				]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:aad0f8c4b90f39fef693c6b8150165c35013032039566a82ef6db1d15f2f3772",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:1f261caf16821965b6ca8e6de3e14f27c348a81f016010379eb376688497978c",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:6435b07d9fc42fc8d5850a050dc7bf9413b7a83a088aec310a1a78cb48dd399c",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence/construction.ts": "sha256:cb2d9144068f1e6ec1f836c5094c821eec0a054b534ca53b8780500b41edc0a6",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:215c01b201c2de16f247fd418f289765e776bf6e3c120bd0bcf0bd5895ab7b63"
+			}
+		}
+	],
+	"complete": true,
+	"cleanup": {
+		"temporaryRemoved": true,
+		"childrenExited": true
+	}
+}

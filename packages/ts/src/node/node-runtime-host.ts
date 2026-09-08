@@ -1,4 +1,4 @@
-import type { Ctx, CtxState, DeliveryMeta, NodeFn } from "../ctx/types.js";
+import type { Ctx, CtxState, DeliveryMeta, NodeFn, Sink } from "../ctx/types.js";
 import type { LockId, Message, PullDemand, Wave } from "../protocol/messages.js";
 import type {
 	CleanupHooks,
@@ -15,6 +15,7 @@ import type {
 	WaveState,
 } from "./core.js";
 import type { Node } from "./node.js";
+import type { SubscriptionAcquisition } from "./owned-acquisition.js";
 import type { RewireOp, UpRouteState } from "./types.js";
 
 export interface NodeRuntimeHost<T = unknown> {
@@ -43,6 +44,7 @@ export interface NodeRuntimeHost<T = unknown> {
 	_assertRewireDepOwner(dep: Node<unknown>): void;
 	_rewire(newDeps: Node<unknown>[], fn: NodeFn, opts?: { allowTerminalOwner?: boolean }): boolean;
 	_activate(): void;
+	_subscribeOwned(sink: Sink, acquisition?: SubscriptionAcquisition): () => void;
 	_subscribeDepAt(depNode: Node<unknown>, opts?: { seedRestored?: boolean }): void;
 	_seedRestoredDepAt(idx: number, depNode: Node<unknown>): void;
 	_deactivate(): void;

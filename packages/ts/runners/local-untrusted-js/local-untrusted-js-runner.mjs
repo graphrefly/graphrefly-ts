@@ -932,6 +932,10 @@ function nodeRuntimeHost(node) {
   return node;
 }
 
+// packages/ts/src/node/owned-acquisition.ts
+var constructionAcquisitions = /* @__PURE__ */ new WeakMap();
+var runtimeReleaseFailures = /* @__PURE__ */ new WeakMap();
+
 // packages/ts/src/node/node-lifecycle-runtime.ts
 function nodeActivate(self) {
   self._lifecycle.activated = true;
@@ -958,18 +962,22 @@ function nodeSubscribeDepAt(self, depNode, opts = {}) {
       return;
     }
   }
-  const unsub = depNode.subscribe((msg, delivery) => {
+  const sink = (msg, delivery) => {
     if (ignoreInitialPush && delivery === void 0) return;
     if (ignoreInitialPush) ignoreInitialPush = false;
     if (box.v === -1) return;
     self._receiveFromDep(box.v, msg, delivery);
+  };
+  nodeRuntimeHost(depNode)._subscribeOwned(sink, {
+    record: (release) => {
+      if (idx0 !== -1) {
+        self._dep.unsubs[idx0] = release;
+        self._dep.idxBoxes[idx0] = box;
+      }
+    }
   });
   if (ignoreInitialPush && idx0 !== -1 && box.v !== -1) self._seedRestoredDepAt(idx0, depNode);
   ignoreInitialPush = false;
-  if (idx0 !== -1) {
-    self._dep.unsubs[idx0] = unsub;
-    self._dep.idxBoxes[idx0] = box;
-  }
 }
 function nodeSeedRestoredDepAt(self, idx, depNode) {
   const dep = nodeRuntimeHost(depNode);
@@ -1021,31 +1029,40 @@ function nodeReleaseRuntime(self) {
   self._released = true;
   const node = self;
   releasedNodes.add(node);
-  let releaseError;
-  const recordReleaseError = (error) => {
-    if (releaseError === void 0) releaseError = error;
+  const releaseErrors = [];
+  const recordReleaseError = (error, resource, handle) => {
+    releaseErrors.push({
+      cause: error,
+      resource,
+      ...handle === void 0 ? {} : { handle, dispatcher: self._slot.dispatcher }
+    });
   };
   self._lifecycle.activated = false;
   for (const u of self._dep.unsubs) {
     try {
-      u();
+      u?.();
     } catch (error) {
-      recordReleaseError(error);
+      recordReleaseError(error, "subscription");
     }
   }
   for (const fn of self._hooks.onDeactivation) {
     try {
       fn();
     } catch (error) {
-      recordReleaseError(error);
+      recordReleaseError(error, "deactivation");
     }
   }
   self._dep.unsubs = [];
   self._dep.idxBoxes = [];
   self._lifecycle.subscribers.clear();
   if (self._slot.handle !== null) {
-    self._slot.dispatcher.unregister(self._slot.handle);
-    self._slot.handle = null;
+    const handle = self._slot.handle;
+    try {
+      self._slot.dispatcher.unregister(handle);
+      self._slot.handle = null;
+    } catch (error) {
+      recordReleaseError(error, "handle", handle);
+    }
   }
   self._slot.deps = [];
   self._dep.batch = [];
@@ -1084,8 +1101,15 @@ function nodeReleaseRuntime(self) {
   activationReaders.delete(node);
   ownerTokens.delete(node);
   topologyDepsChangedObservers.delete(node);
-  self._core.releaseSlot(self._id);
-  if (releaseError !== void 0) throw releaseError;
+  try {
+    self._core.releaseSlot(self._id);
+  } catch (cause) {
+    releaseErrors.push({ resource: "slot", cause, core: self._core, slot: self._id });
+  }
+  if (releaseErrors.length > 0) {
+    runtimeReleaseFailures.set(node, Object.freeze(releaseErrors));
+    throw releaseErrors[0].cause;
+  }
 }
 function nodeResetDepState(self) {
   const n = self._slot.deps.length;
@@ -2239,6 +2263,8 @@ var Node = class _Node {
     void node._emitToSubs;
   }
   constructor(deps, handleOrFn, opts = {}) {
+    const acquisition = constructionAcquisitions.get(opts);
+    constructionAcquisitions.delete(opts);
     const core = takeConstructingNodeCore();
     const dispatcher = opts.dispatcher ?? defaultDispatcher;
     const environment = takeConstructingEnvironmentDrivers() ?? EnvironmentDrivers.empty();
@@ -2254,6 +2280,10 @@ var Node = class _Node {
     if (handleOrFn === null) handle = null;
     else if (typeof handleOrFn === "function") handle = dispatcher.register(handleOrFn, pool);
     else handle = handleOrFn;
+    if (acquisition !== void 0 && handle !== null && typeof handleOrFn === "function") {
+      acquisition.dispatcher = dispatcher;
+      acquisition.handle = handle;
+    }
     const n = deps.length;
     const dep = makeDepBookkeeping(n);
     const versioning = resolveNodeVersioningPolicy(opts.versioning);
@@ -2328,6 +2358,10 @@ var Node = class _Node {
         }
       }
     );
+    if (acquisition !== void 0) {
+      acquisition.core = this._core;
+      acquisition.slot = created.id;
+    }
     this._id = created.id;
     this._slot = this._core.get(this._id);
     this._dep = this._core.getDep(this._id);
@@ -2413,6 +2447,7 @@ var Node = class _Node {
     subscriberCountReaders.set(this, () => this._subscriberCount());
     activationReaders.set(this, () => this._lifecycle.activated);
     _Node._retainIndirectRuntimeMethods(this);
+    if (acquisition !== void 0) acquisition.node = this;
   }
   /** R-pull (D55/D272): true while a pull node is not serving a PULL demand pulse. */
   _isPullQuiet() {
@@ -2464,6 +2499,9 @@ var Node = class _Node {
   }
   /** R-push-subscribe: a new sink receives START, then cached DATA (or DIRTY if dirty). */
   subscribe(sink) {
+    return this._subscribeOwned(sink);
+  }
+  _subscribeOwned(sink, acquisition) {
     this._assertNotReleased("subscribe");
     enterWave();
     try {
@@ -2477,6 +2515,11 @@ var Node = class _Node {
           );
       }
       this._lifecycle.subscribers.add(sink);
+      const unsubscribe = () => {
+        if (!this._lifecycle.subscribers.delete(sink)) return;
+        if (this._lifecycle.subscribers.size === 0) this._deactivate();
+      };
+      acquisition?.record(unsubscribe);
       sink(["START"]);
       if (this._slot.replayN > 0 && this._value.replayRing.length > 0) {
         for (const v of this._value.replayRing) sink(["DATA", v]);
@@ -2486,10 +2529,7 @@ var Node = class _Node {
         sink(["DIRTY"]);
       }
       if (!this._lifecycle.activated) this._activate();
-      return () => {
-        if (!this._lifecycle.subscribers.delete(sink)) return;
-        if (this._lifecycle.subscribers.size === 0) this._deactivate();
-      };
+      return unsubscribe;
     } finally {
       exitWave();
     }
@@ -3254,7 +3294,23 @@ var Graph = class {
     });
     lifecycleRegistrars.set(this, {
       assertRegisteredNode: (node, label) => this._assertRegisteredNode(node, label),
-      releaseNodes: (nodes, releaseOpts) => this._releaseNodes(nodes, releaseOpts)
+      readIncoming: (nodes) => {
+        const describe = this.describe;
+        return describe === nativeDescribe ? this._describe("", nodes) : Reflect.apply(describe, this, []);
+      },
+      releaseNodes: (nodes, releaseOpts) => this._releaseNodes(nodes, releaseOpts),
+      assertAvailableName: (name) => {
+        if (this._byId.has(name) || this._retiredIds.has(name))
+          throw new Error(`construction: live or retired node name ${name}`);
+      },
+      constructions: /* @__PURE__ */ new Map(),
+      createOwned: (deps, fn, opts2, acquired) => {
+        for (const dep of deps) this._assertRegisteredNode(dep, "construction node dependency");
+        const nodeOpts = this._nodeOpts(opts2);
+        constructionAcquisitions.set(nodeOpts, acquired);
+        const n = this._construct(() => new Node([...deps], fn, nodeOpts));
+        return this._addWithId(n, opts2.factory ?? "node", deps, opts2, acquired.name, acquired);
+      }
     });
   }
   // ── registration / inspection index ──
@@ -3262,7 +3318,7 @@ var Graph = class {
     const id = opts.name ?? `${factory}#${this._seq++}`;
     return this._addWithId(n, factory, deps, opts, id);
   }
-  _addWithId(n, factory, deps, opts, id) {
+  _addWithId(n, factory, deps, opts, id, acquired) {
     assertGraphLocalNode(this, n, `graph node '${opts.name ?? factory}'`);
     for (const dep of deps) assertGraphLocalNode(this, dep, `dep of '${opts.name ?? factory}'`);
     if (this._byId.has(id)) {
@@ -3283,6 +3339,7 @@ var Graph = class {
     });
     setNodeOwner(n, this);
     this._byId.set(id, n);
+    if (acquired !== void 0) acquired.registered = true;
     setNodeTopologyDepsChangedObserver(n, (_node, prevDeps, nextDeps) => {
       this._emitTopologyDepsChanged(n, prevDeps, nextDeps);
     });
@@ -3376,15 +3433,26 @@ var Graph = class {
       this._retiredIds.add(entry.id);
     }
     let releaseError;
+    let releaseFailed = false;
     for (const { node } of entries) {
       try {
         releaseRuntimeOfNode(node);
       } catch (error) {
-        if (releaseError === void 0) releaseError = error;
+        if (!releaseFailed) releaseError = error;
+        releaseFailed = true;
+      }
+    }
+    if (!releaseFailed) {
+      const constructions = lifecycleRegistrars.get(this).constructions;
+      for (const [name, owner] of constructions) {
+        if (owner.nodes.every(
+          (node) => isNodeRuntimeReleased(node) && !runtimeReleaseFailures.has(node)
+        ))
+          constructions.delete(name);
       }
     }
     for (const event of releasedEvents) this._emitTopologyNodeReleased(event);
-    if (releaseError !== void 0) throw releaseError;
+    if (releaseFailed) throw releaseError;
   }
   // ── 8 verbs (core: node/state/batch + sugar: producer/derived/effect/mount) ──
   /** ctx-level power surface: a raw `(ctx)=>void` fn (or a passthrough/state when null). */
@@ -3503,6 +3571,11 @@ var Graph = class {
   // ── inspection: describe / observe / profile (D39) ──
   /** Live point-in-time structure snapshot (R-describe / D39 / D51). `_prefix` carries the mount path. */
   describe(opts = {}, _prefix = "") {
+    const snap = this._describe(_prefix);
+    return opts.explain ? explainSubset(snap, opts.explain) : snap;
+  }
+  /** B1: share discovery order; only materialization is local. Mount reads stay unchanged. */
+  _describe(_prefix, incoming) {
     const discovered = /* @__PURE__ */ new Map();
     const localId = (n) => {
       const e = this._entries.get(n);
@@ -3522,18 +3595,22 @@ var Graph = class {
     for (const entry of this._entries.values()) {
       const id = `${_prefix}${entry.id}`;
       const liveIds = entry.node.deps.map(localId);
-      const dnode = {
-        id,
-        factory: entry.factory,
-        status: entry.node.status,
-        deps: liveIds
-      };
-      if (entry.name !== void 0) dnode.name = entry.name;
-      if (entry.node.cache !== void 0) dnode.value = entry.node.cache;
-      if (entry.node.version !== void 0) dnode.version = entry.node.version;
-      if (entry.meta !== void 0) dnode.meta = entry.meta;
-      nodes.push(dnode);
-      for (const from of liveIds) edges.push({ from, to: id });
+      if (incoming === void 0) {
+        const dnode = {
+          id,
+          factory: entry.factory,
+          status: entry.node.status,
+          deps: liveIds
+        };
+        if (entry.name !== void 0) dnode.name = entry.name;
+        if (entry.node.cache !== void 0) dnode.value = entry.node.cache;
+        if (entry.node.version !== void 0) dnode.version = entry.node.version;
+        if (entry.meta !== void 0) dnode.meta = entry.meta;
+        nodes.push(dnode);
+      }
+      if (incoming === void 0 || incoming.has(entry.node)) {
+        for (const from of liveIds) edges.push({ from, to: id });
+      }
     }
     const visited = /* @__PURE__ */ new Set();
     const queue = [...discovered.keys()];
@@ -3547,16 +3624,18 @@ var Graph = class {
       for (const dep of inner.deps) {
         if (!this._entries.has(dep) && !visited.has(dep)) queue.push(dep);
       }
-      const dnode = {
-        id: `${_prefix}${sid}`,
-        factory: inner.factory ?? "?",
-        status: inner.status,
-        deps: liveIds
-      };
-      if (inner.cache !== void 0) dnode.value = inner.cache;
-      if (inner.version !== void 0) dnode.version = inner.version;
-      nodes.push(dnode);
-      for (const from of liveIds) edges.push({ from, to: dnode.id });
+      if (incoming === void 0) {
+        const dnode = {
+          id: `${_prefix}${sid}`,
+          factory: inner.factory ?? "?",
+          status: inner.status,
+          deps: liveIds
+        };
+        if (inner.cache !== void 0) dnode.value = inner.cache;
+        if (inner.version !== void 0) dnode.version = inner.version;
+        nodes.push(dnode);
+        for (const from of liveIds) edges.push({ from, to: dnode.id });
+      }
     }
     const snap = { nodes, edges };
     if (this.name !== void 0) snap.name = this.name;
@@ -3567,7 +3646,7 @@ var Graph = class {
         return child;
       });
     }
-    return opts.explain ? explainSubset(snap, opts.explain) : snap;
+    return snap;
   }
   /**
    * D173 pure-structure topology snapshot over the same live truth source as describe().
@@ -3889,6 +3968,7 @@ var Graph = class {
 function graph(opts = {}) {
   return new Graph(opts);
 }
+var nativeDescribe = Graph.prototype.describe;
 
 // packages/ts/runners/local-untrusted-js/runner.ts
 var COMPATIBILITY_REVISION = "graphrefly-local-untrusted-js-compute-v1";

@@ -101,6 +101,7 @@ import {
 	nodeRewire,
 } from "./node-rewire-runtime.js";
 import { nodeRuntimeHost } from "./node-runtime-host.js";
+import { constructionAcquisitions, type SubscriptionAcquisition } from "./owned-acquisition.js";
 import {
 	activationReaders,
 	checkpointReaders,
@@ -228,6 +229,8 @@ export class Node<T = unknown> {
 		handleOrFn: Handle | NodeFn | null,
 		opts: NodeOptions<T> = {},
 	) {
+		const acquisition = constructionAcquisitions.get(opts);
+		constructionAcquisitions.delete(opts);
 		const core = takeConstructingNodeCore();
 		const dispatcher = opts.dispatcher ?? defaultDispatcher;
 		const environment = takeConstructingEnvironmentDrivers() ?? EnvironmentDrivers.empty();
@@ -247,6 +250,10 @@ export class Node<T = unknown> {
 		if (handleOrFn === null) handle = null;
 		else if (typeof handleOrFn === "function") handle = dispatcher.register(handleOrFn, pool);
 		else handle = handleOrFn;
+		if (acquisition !== undefined && handle !== null && typeof handleOrFn === "function") {
+			acquisition.dispatcher = dispatcher;
+			acquisition.handle = handle;
+		}
 
 		const n = deps.length;
 		const dep = makeDepBookkeeping(n);
@@ -322,6 +329,10 @@ export class Node<T = unknown> {
 				},
 			},
 		);
+		if (acquisition !== undefined) {
+			acquisition.core = this._core;
+			acquisition.slot = created.id;
+		}
 		this._id = created.id;
 		this._slot = this._core.get<T>(this._id);
 		this._dep = this._core.getDep(this._id);
@@ -413,6 +424,7 @@ export class Node<T = unknown> {
 		subscriberCountReaders.set(this as Node<unknown>, () => this._subscriberCount());
 		activationReaders.set(this as Node<unknown>, () => this._lifecycle.activated);
 		Node._retainIndirectRuntimeMethods(this as Node<unknown>);
+		if (acquisition !== undefined) acquisition.node = this as Node<unknown>;
 	}
 
 	/** R-pull (D55/D272): true while a pull node is not serving a PULL demand pulse. */
@@ -474,6 +486,10 @@ export class Node<T = unknown> {
 
 	/** R-push-subscribe: a new sink receives START, then cached DATA (or DIRTY if dirty). */
 	subscribe(sink: Sink): () => void {
+		return this._subscribeOwned(sink);
+	}
+
+	private _subscribeOwned(sink: Sink, acquisition?: SubscriptionAcquisition): () => void {
 		this._assertNotReleased("subscribe");
 		// Wave-owner boundary (R-rewire-deferred / D47): the activation cascade can run fns that
 		// issue ctx.rewireNext; the OUTERMOST exit drains them. Nested subscribes (dep wiring)
@@ -493,6 +509,12 @@ export class Node<T = unknown> {
 			}
 
 			this._lifecycle.subscribers.add(sink);
+			const unsubscribe = () => {
+				if (!this._lifecycle.subscribers.delete(sink)) return;
+				if (this._lifecycle.subscribers.size === 0) this._deactivate();
+			};
+			// D161: ownership precedes START, cached DATA and dependency activation.
+			acquisition?.record(unsubscribe);
 			sink(["START"]);
 			if (this._slot.replayN > 0 && this._value.replayRing.length > 0) {
 				// R-replay-buffer: late subscriber gets the last N DATA after START.
@@ -508,10 +530,7 @@ export class Node<T = unknown> {
 
 			if (!this._lifecycle.activated) this._activate();
 
-			return () => {
-				if (!this._lifecycle.subscribers.delete(sink)) return;
-				if (this._lifecycle.subscribers.size === 0) this._deactivate();
-			};
+			return unsubscribe;
 		} finally {
 			exitWave();
 		}

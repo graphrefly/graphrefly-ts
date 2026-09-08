@@ -36,6 +36,11 @@ let depth = 0;
 const pendingCores: NodeCore[] = [];
 let pendingHead = 0;
 
+/** @internal D161: construction is allowed only outside a synchronous cascade. */
+export function isWaveActive(): boolean {
+	return depth !== 0;
+}
+
 /** Enter a wave cascade (re-entrant). Pair with {@link exitWave} in a try/finally. */
 export function enterWave(): void {
 	depth++;

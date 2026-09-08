@@ -1,0 +1,29 @@
+{
+	"artifact_ref": "graphrefly-ts:causal-construction-design",
+	"schema": "graphrefly-ts/causal-construction-design/v1",
+	"revision": "construction-v1",
+	"governing_ref": "graphrefly-ts:D161",
+	"body": {
+		"path": "docs/design/causal-construction-v1.md",
+		"digest": "sha256:af32060e3b4fa8f1d1c811dd88d530dd1d0cb3e9cccbd43cddd8c4681fb183dc"
+	},
+	"reviewed_inputs": [
+		{
+			"path": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/CAUSAL-C-first-implementation-scope.md",
+			"digest": "sha256:a112773f0bcde5d6776a9a6f8a71a1a024e7212712d924888d1440d9c3ce4734"
+		},
+		{
+			"path": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/CAUSAL-C-activation-boundary-review.md",
+			"digest": "sha256:884fe830237fb998a8d72fa9292a003ac1b542bafd23ebb3b70ee1153631491a"
+		}
+	],
+	"approval": {
+		"task": "01a077c7-55e6-7f11-9d4f-e7c51944afb4",
+		"user_reply": "同意",
+		"scope": "Register reviewed TS decision/work, implement C first slice and run local offline QA; no commit or downstream/live work."
+	},
+	"baseline": {
+		"revision": "ts-v4",
+		"receipt_digest": "sha256:768255374352f010d5f6babe4a49b614a311ba25b7054ec1c65b793f0d1c66b7"
+	}
+}

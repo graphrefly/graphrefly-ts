@@ -1,0 +1,640 @@
+{
+	"schema": "graphrefly-ts/causal-construction-evidence/v1",
+	"artifactRef": "graphrefly-ts:causal-construction-evidence",
+	"revision": "construction-v1",
+	"armRevision": "ts-v5",
+	"workRef": "graphrefly-ts:CAUSAL-CONSTRUCTION-OWNERSHIP-TS",
+	"owner": "graphrefly-ts",
+	"date": "2026-09-06",
+	"status": "partial",
+	"governingRefs": ["graphrefly-ts:D161", "graphrefly-ts:D160", "graphrefly:D791"],
+	"contract": {
+		"artifactRef": "graphrefly:causal-occurrence-contract",
+		"revision": "contract-v2"
+	},
+	"authorization": {
+		"kind": "existing-task-user-instruction",
+		"taskId": "01a077c7-55e6-7f11-9d4f-e7c51944afb4",
+		"instruction": "同意",
+		"scope": "Approved C first implementation slice, TS decision/work registration, local implementation and offline QA. No commit, public exports, protocol amendment, provider/live/spend, real inbox or automatic downstream work."
+	},
+	"checkout": {
+		"baseCommit": "63d58eace38ac782155062284515eeeba68b1df8",
+		"currentCommit": "63d58eace38ac782155062284515eeeba68b1df8",
+		"commitCreated": false,
+		"binding": "Exact working-tree hashes, not HEAD alone; prior dirty authority implementation preserved."
+	},
+	"generatedArtifacts": [
+		{
+			"path": "packages/ts/runners/local-untrusted-js/local-untrusted-js-runner.mjs",
+			"builder": "scripts/build-local-untrusted-js-runner.mjs",
+			"check": "build",
+			"baselineDigest": "sha256:1da011fa0ccf47eceff1fb2d4e1951b8b7359196a51ed2a7e728c6ebdeaa07e1",
+			"note": "Baseline matched HEAD. Standard package build regenerated this existing exported artifact from updated runtime; it is a generated change, not a preexisting user edit or new export."
+		}
+	],
+	"provenance": {
+		"sourceDelta": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-implementation-baseline/construction-source-delta.patch",
+		"sourceDeltaDigest": "sha256:b6b0e5ff6511a222e0cf1113541d4199bf6adacfd6914b029cc6ea9b2d1e96ab",
+		"sourceChanges": [
+			{
+				"path": "packages/ts/src/__tests__/graph-construction.d161.test.ts",
+				"before": null,
+				"after": "sha256:ecd57532dd8c568334a6e518fc4524fafab828e9cbb6c148c3e64455b9f4f616"
+			},
+			{
+				"path": "packages/ts/src/__tests__/solutions-causal-occurrence.d791.test.ts",
+				"before": "sha256:e40cf170e3ffd1923448cb83cdca8b0c42e6916f6edfc86bfbf7aff988cfaeac",
+				"after": "sha256:3af28e318a2bd063e7d61850d49f187f5399a5acc57241b9b1d6c792cb14b903"
+			},
+			{
+				"path": "packages/ts/src/batch/boundary.ts",
+				"before": "sha256:5e988b8c876b6cb94a539f12a58d568ee702cc367a9e8239e46ac56e87cb92e0",
+				"after": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3"
+			},
+			{
+				"path": "packages/ts/src/graph/construction-scope.ts",
+				"before": null,
+				"after": "sha256:57260c40bd793f9751da628ad7cf0c426a1e18aae43e4fee2242950a83337ad1"
+			},
+			{
+				"path": "packages/ts/src/graph/graph-lifecycle.ts",
+				"before": "sha256:1127e5df4f80daabedaa7db3335569496bdf4fcab0840c4f38787afedfa21010",
+				"after": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a"
+			},
+			{
+				"path": "packages/ts/src/graph/graph.ts",
+				"before": "sha256:a6c2397ace74c55069f6c7aa6c19c1801002aee0dc95179b3bc4338f8a0f4604",
+				"after": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010"
+			},
+			{
+				"path": "packages/ts/src/node/node-lifecycle-runtime.ts",
+				"before": "sha256:1e14065bb5358e87d5c8fd28384795d4d01f131eb6d6ce5622ed1864837a3ee7",
+				"after": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963"
+			},
+			{
+				"path": "packages/ts/src/node/node-runtime-host.ts",
+				"before": "sha256:176def18bdf0f6e2ab28ec3be94f7b38d99cbb4bc6a061f82faae2ab8216a1bf",
+				"after": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b"
+			},
+			{
+				"path": "packages/ts/src/node/node.ts",
+				"before": "sha256:f18905ba9acdbdb0bb089b9638f6af7fbf42796a2437e82e1fb81eaf269cb243",
+				"after": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1"
+			},
+			{
+				"path": "packages/ts/src/node/owned-acquisition.ts",
+				"before": null,
+				"after": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60"
+			},
+			{
+				"path": "packages/ts/src/solutions/causal-occurrence/capabilities.ts",
+				"before": null,
+				"after": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7"
+			},
+			{
+				"path": "packages/ts/src/solutions/causal-occurrence/contracts.ts",
+				"before": "sha256:1510599e3cb5cb1f2ba749f55c454e1ec6661dd35ee3d1e76b36d91c7f213318",
+				"after": "sha256:92002b5cb103cc1c1ce0f2b4d9084a1be67a3dcd86917f797b5ab37562977ca0"
+			},
+			{
+				"path": "packages/ts/src/solutions/causal-occurrence.ts",
+				"before": "sha256:11d67bcaa578f364a0514a5b8a454a6ef276d6886ac7984e12d681d94aefa14a",
+				"after": "sha256:01f36f48d3b9b401f118324e01cfdcb32ad954eb0f28643961badf88c04104d6"
+			}
+		],
+		"baselineInventory": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-implementation-baseline/files.json",
+		"baselineInventoryDigest": "sha256:5c329cbf3a273b7ecc305cbb5105f3f43202f408e960cc03d6328d82385bfb0f",
+		"authorship": "C changes made by this Codex task relative to the frozen existing dirty workspace. Hashes identify implementation bytes; independent traces and mutations support behavior separately."
+	},
+	"files": {
+		"docs/design/causal-construction-v1.json": "sha256:429e5448894103c164ec34abf897819cddba9852b5892ffcc95f9202d2fae3ed",
+		"docs/design/causal-construction-v1.md": "sha256:af32060e3b4fa8f1d1c811dd88d530dd1d0cb3e9cccbd43cddd8c4681fb183dc",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-artifact-set.json": "sha256:88354ad81188f896d6dca58ad82a79975d12fe3f83cf8714cb1ae9089b5d8ad2",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-describe.json": "sha256:b1462f0ef6e0916dd736960e342e5a669890c4bde7295bbf1f652c65f5b3db7d",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-live-qualification.json": "sha256:4e767b05fce60df184be29e17265ff50f80568568e755d47ec3ab45342418597",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-observe-events.jsonl": "sha256:9feef59b174392bccb85d93a043ef1b075622ae159f63ffdb88235f498d5cc46",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-run-summary.json": "sha256:bf6a7e9aed921af02531c7f08c2797835bb20e5d53b0198f56b2944f8cfff0b2",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-topology-qualification.json": "sha256:cb1369a4e824222f57777b9df607ce0eee87c088bec8831e7654a00f2b17af0b",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-topology.mmd": "sha256:f3823764e82ba2fb21f0c826ee7a219527a03bfd01b71f68fd0398a25b1b6aaf",
+		"packages/ts/evals/graph-native-rerun-avoidance/implementation-manifest.ts": "sha256:9954f76357bae85d19b8aeb98c8b39687fc67be6fa7110a94a9c5379d1b7420c",
+		"packages/ts/package.json": "sha256:0ca16a1fcc9602d6f8fa28725f35acf3d7a8be40adeb767fdb89312c6519575d",
+		"packages/ts/qualification/causal-occurrence/README.md": "sha256:782f277ffe19aafcacd51691809cfd622a7e554311d65c1ac0b01a50ed70fcf7",
+		"packages/ts/qualification/causal-occurrence/construction-v1-review.md": "sha256:7f4784988bd6389640663ee399c569a5bc88c91efef07e1238591a8d76717e7f",
+		"packages/ts/qualification/causal-occurrence/ts-v4-construction-inputs.json": "sha256:3cd9fe1df4e8404bf6809528de218169b07a03425f2571e56d63cf777f95fb49",
+		"packages/ts/qualification/causal-occurrence/ts-v4-receipt.json": "sha256:768255374352f010d5f6babe4a49b614a311ba25b7054ec1c65b793f0d1c66b7",
+		"packages/ts/qualification/causal-occurrence/ts-v5-causal-mutations.json": "sha256:77d1865e2b36719fc6fbf3acd7de508db59a6f109dc5e5147e89e72055d499ed",
+		"packages/ts/qualification/causal-occurrence/ts-v5-construction-comparison.json": "sha256:d9f25025efe6a3d1ddcfa09784e6a10206c690cfe7227f6295e8d82da5acd6ee",
+		"packages/ts/qualification/causal-occurrence/ts-v5-construction-mutations.json": "sha256:900747a404013a7c80c41b8852dc567f4c5f1c85afd683575e416fbb58a71e56",
+		"packages/ts/qualification/causal-occurrence/ts-v5-construction-verifier.json": "sha256:0e6b9637c97ed524ddd0177b1a9bc770178f9b1a031233fd87508b2fb2e73535",
+		"packages/ts/runners/local-untrusted-js/local-untrusted-js-runner.mjs": "sha256:91e030ec2ebd3dd98e084f50819ec10f55eaab2b6739ca808a1faf2384702d8c",
+		"packages/ts/src/__tests__/graph-construction.d161.test.ts": "sha256:ecd57532dd8c568334a6e518fc4524fafab828e9cbb6c148c3e64455b9f4f616",
+		"packages/ts/src/__tests__/solutions-causal-authority.d160.test.ts": "sha256:4d7f67fe3128ad7dd82c5372b1f259a95fb49bc273cc95cecc3cc48e2411f0b2",
+		"packages/ts/src/__tests__/solutions-causal-occurrence.d791.test.ts": "sha256:3af28e318a2bd063e7d61850d49f187f5399a5acc57241b9b1d6c792cb14b903",
+		"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+		"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+		"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+		"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+		"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+		"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+		"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+		"packages/ts/src/graph/construction-scope.ts": "sha256:57260c40bd793f9751da628ad7cf0c426a1e18aae43e4fee2242950a83337ad1",
+		"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+		"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+		"packages/ts/src/graph/graph-lifecycle.ts": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+		"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+		"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+		"packages/ts/src/graph/graph.ts": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010",
+		"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+		"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+		"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+		"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+		"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+		"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+		"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+		"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+		"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+		"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+		"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+		"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+		"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+		"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+		"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+		"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+		"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+		"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+		"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+		"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+		"packages/ts/src/solutions/causal-occurrence.ts": "sha256:01f36f48d3b9b401f118324e01cfdcb32ad954eb0f28643961badf88c04104d6",
+		"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+		"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+		"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+		"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+		"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+		"packages/ts/tsconfig.tests.json": "sha256:34d7c4845fe68d3bcc784f305cf20ddbc595dd6347c4f0f0b04df8138de8890c",
+		"packages/ts/vitest.config.ts": "sha256:19a4d3e770044d3549b25b0fc4130e41f4ec0f8a6540cc4c6c79c8f22c737d78",
+		"pnpm-lock.yaml": "sha256:d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+		"scripts/build-local-untrusted-js-runner.mjs": "sha256:5b561e94a88675495b2e154cb94e5baea3f28cadb881cdd6156759c4b4904bfb",
+		"scripts/compare-causal-construction.mjs": "sha256:3151b87243a6764a53e0ef8253d09f801afadbb2a194d0255216a1104807dabd",
+		"scripts/qualify-causal-construction.mjs": "sha256:7d5cb6c43cf84b84a8cff33f51022c4ea22677e84450de2caa15040d903cd844",
+		"scripts/qualify-causal-occurrence.mjs": "sha256:c5289e2e4674a4cfc841a47b78799b29b2594b99863d0d447e34b0a6df7d1d4b",
+		"scripts/verify-causal-construction.mjs": "sha256:bdc6217bd7b0342ce11131c47d6ac73859d2cc55f2994518d855daba673334ef"
+	},
+	"checks": [
+		{
+			"command": [
+				"pnpm",
+				"--filter",
+				"@graphrefly/ts",
+				"exec",
+				"vitest",
+				"run",
+				"src/__tests__/graph-construction.d161.test.ts",
+				"src/__tests__/solutions-causal-occurrence.d791.test.ts",
+				"src/__tests__/solutions-causal-authority.d160.test.ts"
+			],
+			"exitCode": 0,
+			"elapsedSeconds": 2.346,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-implementation-baseline/final-focused.log",
+			"id": "focused",
+			"logDigest": "sha256:cb52a4b1bc365c4a1a4504f4c570c40fa3bb76f80f3aecd387bb1dfc8abedd8f"
+		},
+		{
+			"command": ["node", "scripts/verify-causal-construction.mjs"],
+			"exitCode": 0,
+			"elapsedSeconds": 0.395,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-implementation-baseline/final-verifier.log",
+			"id": "verifier",
+			"logDigest": "sha256:d4f176f99d51aea2d475a2936003854033c57632b838211b1919eecad020e00b"
+		},
+		{
+			"command": [
+				"pnpm",
+				"--filter",
+				"@graphrefly/ts",
+				"exec",
+				"tsc",
+				"--noEmit",
+				"-p",
+				"tsconfig.tests.json"
+			],
+			"exitCode": 0,
+			"elapsedSeconds": 4.894,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-implementation-baseline/final-test-typecheck.log",
+			"id": "test-typecheck",
+			"logDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+		},
+		{
+			"command": ["pnpm", "test"],
+			"exitCode": 0,
+			"elapsedSeconds": 58.534,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-implementation-baseline/final-full-test.log",
+			"id": "full-test",
+			"logDigest": "sha256:6d12471d87519970b782d9bdfdd2bf6f3f52bed85ad3ca68be290ef49828b7d6"
+		},
+		{
+			"command": ["pnpm", "run", "lint"],
+			"exitCode": 0,
+			"elapsedSeconds": 9.981,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-implementation-baseline/final-lint.log",
+			"id": "lint",
+			"logDigest": "sha256:93ed33fa76dfb02ffe60b645f3e0e4583004aabee7365df12737a4e0bf314758"
+		},
+		{
+			"command": ["pnpm", "run", "build"],
+			"exitCode": 0,
+			"elapsedSeconds": 36.03,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-implementation-baseline/final-build.log",
+			"id": "build",
+			"logDigest": "sha256:2fd120cd892d895df77e12437b64cb70d369e8aa04699c956ff972aba3a76bb3"
+		},
+		{
+			"command": ["pnpm", "run", "eval:root:artifacts:check"],
+			"exitCode": 0,
+			"elapsedSeconds": 1.938,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-implementation-baseline/final-artifact.log",
+			"id": "artifact",
+			"logDigest": "sha256:6815c06ff566521a58b70abe699c621b8d68c2dd278401893c85bc1b8899d81a"
+		},
+		{
+			"command": ["pnpm", "test:root-eval-soak"],
+			"exitCode": 1,
+			"elapsedSeconds": 1210.519,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-implementation-baseline/final-root-soak.log",
+			"id": "root-soak",
+			"logDigest": "sha256:ea0594fd030c4dde8f3933c4430076be40be2c01a20a522a7dff2c69eb45c65c"
+		},
+		{
+			"command": [
+				"pnpm",
+				"--filter",
+				"@graphrefly/ts",
+				"exec",
+				"vitest",
+				"run",
+				"--config",
+				"vitest.root-eval-soak.config.ts",
+				"-t",
+				"settles thirty output-truncated Together responses through the root Graph"
+			],
+			"exitCode": 0,
+			"elapsedSeconds": 59.269,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-implementation-baseline/final-root-soak-isolated.log",
+			"id": "root-soak-isolated",
+			"logDigest": "sha256:50e813d16b8e32bded2c4b81c9edaff44131620dac5b0924be3c5b61415f2207"
+		},
+		{
+			"command": ["pnpm", "--filter", "@graphrefly/ts", "test:browser:agentic-memory"],
+			"exitCode": 0,
+			"elapsedSeconds": 3.042,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-implementation-baseline/final-browser.log",
+			"id": "browser",
+			"logDigest": "sha256:b5274a8d9f246e510949e78a1e3cdd20b278ef4479102b99870aa1ce6ed82b7f"
+		},
+		{
+			"command": ["node", "scripts/qualify-causal-construction.mjs"],
+			"exitCode": 0,
+			"elapsedSeconds": 17.143,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-implementation-baseline/final-construction-mutations.log",
+			"id": "construction-mutations",
+			"logDigest": "sha256:94e321f21397ae0912d09cdc7ea20a99980bb18719906fca7ad89e5b04c3840c"
+		},
+		{
+			"command": [
+				"node",
+				"scripts/qualify-causal-occurrence.mjs",
+				"--output",
+				"packages/ts/qualification/causal-occurrence/ts-v5-causal-mutations.json"
+			],
+			"exitCode": 0,
+			"elapsedSeconds": 74.029,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-implementation-baseline/final-causal-mutations.log",
+			"id": "causal-mutations",
+			"logDigest": "sha256:b5330fdc18b6049b5574ef3485419a3ef5a3c7a6248871a763a13f55d07eb0fc"
+		},
+		{
+			"command": ["node", "scripts/compare-causal-construction.mjs"],
+			"exitCode": 0,
+			"elapsedSeconds": 896.544,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-implementation-baseline/final-performance.log",
+			"id": "performance",
+			"logDigest": "sha256:894c09c08f71268b165b28eb8d20b447410f94edb0553332f441050bec019566"
+		},
+		{
+			"command": ["npm", "--prefix", "../graphrefly", "run", "authority:check:workspace"],
+			"exitCode": 0,
+			"elapsedSeconds": 2.556,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-implementation-baseline/final-workspace.log",
+			"id": "workspace",
+			"logDigest": "sha256:5b8fa1861974fb5bfe49bdcc2a2601b95f30bb7f7dc11f0bdd4db328d8f7a80a"
+		},
+		{
+			"command": ["node", "../graphrefly/dashboard/build.mjs", "--check"],
+			"exitCode": 0,
+			"elapsedSeconds": 0.681,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-implementation-baseline/final-dashboard.log",
+			"id": "dashboard",
+			"logDigest": "sha256:57d4dc2953cc9de54408eb72f73eccff702d623d1346ab401e6585a2b1275569"
+		}
+	],
+	"manifestRefresh": [
+		{
+			"command": [
+				"pnpm",
+				"exec",
+				"tsx",
+				"packages/ts/evals/graph-native-rerun-avoidance/measure-root-eval-implementation.ts"
+			],
+			"exitCode": 0,
+			"elapsedSeconds": 0.6971430830017198,
+			"output": "sha256:1748c1d1eee4769cec5cb6365eacaaea54d7501eef6be0de855ac2a87cf3df5a\n"
+		},
+		{
+			"command": [
+				"pnpm",
+				"exec",
+				"tsx",
+				"-e",
+				"import {ROOT_EVAL_TOPOLOGY_QUALIFICATION as q, ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT_DIGEST as a} from './packages/ts/evals/graph-native-rerun-avoidance/root-eval-topology-qualification.ts'; console.log(JSON.stringify({qualification:q.qualificationDigest,artifact:a}));"
+			],
+			"exitCode": 0,
+			"elapsedSeconds": 0.925448125024559,
+			"output": "{\"qualification\":\"sha256:6a2acc7e75ad4cb35fbef62c7405c24c7bc30762bf394efd55c8bba045eeb519\",\"artifact\":\"sha256:2b06d6697bf1909ec737afb49ba5be32fff228cd372fb98a02dd62ecc37e821c\"}\n"
+		},
+		{
+			"command": ["pnpm", "run", "eval:root:artifacts"],
+			"exitCode": 0,
+			"elapsedSeconds": 1.8909440839779563,
+			"output": "$ tsx packages/ts/evals/graph-native-rerun-avoidance/generate-root-eval-artifacts.ts --write\n"
+		}
+	],
+	"constructionDiagnostic": {
+		"baseline": {
+			"path": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-implementation-baseline/construction-baseline.cpuprofile",
+			"digest": "sha256:fc62c85b6a741bc7b37a416407c180b38ef597bcfbd09bc3c5cea0dcfc871a7f",
+			"builderSelfSamples": [
+				["makeDepBookkeeping", 1057],
+				["canonicalTupleKey", 463],
+				["_Node", 440],
+				["_addWithId", 402],
+				["assertCausalOccurrenceTopology", 400],
+				["", 374],
+				["isNodeRuntimeReleased", 222],
+				["_nodeOpts", 149],
+				["causalOccurrenceRequiredEdges", 108],
+				["cloneNodeVersion", 101],
+				["causalOccurrenceBundle", 98],
+				["subscribe", 91],
+				["describe", 88],
+				["getNodeOwner", 67],
+				["createNodeVersion", 56],
+				["localId", 50],
+				["createSlot", 50],
+				["withNodeCore", 39],
+				["node", 36],
+				["setNodeOwner", 34]
+			]
+		},
+		"candidate": {
+			"path": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-implementation-baseline/construction-candidate.cpuprofile",
+			"digest": "sha256:ba83945f46abd9cb38b23c3662f900ba7d71164e0592425f31e2aca7a35f12fd",
+			"builderSelfSamples": [
+				["makeDepBookkeeping2", 1142],
+				["canonicalTupleKey2", 493],
+				["_Node", 480],
+				["assertCausalOccurrenceTopology2", 423],
+				["", 400],
+				["node", 358],
+				["_addWithId", 281],
+				["isNodeRuntimeReleased2", 219],
+				["buildCausalComposition", 179],
+				["createOwned", 168],
+				["_nodeOpts", 155],
+				["prepareConstruction", 153],
+				["causalOccurrenceRequiredEdges2", 117],
+				["createCausalCapabilities", 101],
+				["getNodeOwner2", 89],
+				["cloneNodeVersion2", 87],
+				["_subscribeOwned", 85],
+				["startConstruction", 83],
+				["describe", 79],
+				["_assertRegisteredNode", 63]
+			]
+		},
+		"limitations": "Local sampling diagnostic with 1000 warm and 10000 empty-arrival constructions per arm; includes profiler overhead, excludes baseline two-node adapter from named builder ancestry. No ratio or exact additive attribution may be inferred from these sample counts."
+	},
+	"evidenceApplicability": {
+		"rootSoak": "Executed before the final two private construction-only micro-optimizations. Its existing root-eval consumer imports none of causalComposition/causalOccurrenceBundle/prepareConstruction/createOwned. This is retained regression evidence, not a fresh whole-soak pass on final bytes. Pre-optimization Graph/scope bytes are frozen in the task baseline. Final focused tests, full default suite and both mutation sets re-run after the micro-optimizations.",
+		"resourceVerifier": "Finite selected-case oracle: model node sets/root lease count in the generic view, physical snapshots and exact obligation lineage in causal cases. It does not prove a universal acquisition partial order. Its two model negative controls are separate from 17 actual runtime mutants."
+	},
+	"coverage": {
+		"focusedTests": 56,
+		"constructionTests": 26,
+		"fullSuitePassed": 2192,
+		"fullSuitePreexistingSkipped": 4,
+		"fullSuitePassedFiles": 136,
+		"fullSuitePreexistingSkippedFiles": 1,
+		"soak": {
+			"total": 101,
+			"initialPassed": 100,
+			"initialTimeouts": 1,
+			"isolatedRerunPassed": 1,
+			"isolatedDeselected": 100,
+			"timeoutRelaxed": false,
+			"note": "The 120-second timeout occurred during concurrent heavy qualification; same unchanged case passed in 55.9 seconds in isolation. This is combined coverage, not a claim that the first full soak command passed."
+		},
+		"browserCases": 3,
+		"oldMutantsKilled": 73,
+		"constructionMutantsKilled": 17,
+		"survived": 0,
+		"resourceSnapshots": 12,
+		"plainModelNegativeControls": 2,
+		"originalPortTraceComparisons": 6
+	},
+	"performance": {
+		"constructionMaximumP95Ratio": 1.2,
+		"steadyMaximumP95Ratio": 1.1,
+		"pointThresholdsMet": false,
+		"rows": [
+			{
+				"count": 1,
+				"evidence": 0,
+				"background": 0,
+				"constructionRatio": 1.3280874516966434,
+				"constructionMedianDeltaNs": 16999.99999254942,
+				"steadyRatio": 1.081063917014358
+			},
+			{
+				"count": 16,
+				"evidence": 128,
+				"background": 0,
+				"constructionRatio": 1.2194818187682146,
+				"constructionMedianDeltaNs": 14957.999999751337,
+				"steadyRatio": 1.00532369426878
+			},
+			{
+				"count": 64,
+				"evidence": 512,
+				"background": 0,
+				"constructionRatio": 1.2622032924936304,
+				"constructionMedianDeltaNs": 15250.000011292286,
+				"steadyRatio": 1.0201068227356864
+			},
+			{
+				"count": 1,
+				"evidence": 0,
+				"background": 1000,
+				"constructionRatio": 1.3356315660577174,
+				"constructionMedianDeltaNs": 57375.00009126961,
+				"steadyRatio": 1.0140429769396042
+			}
+		],
+		"ordinaryRatio": 1.0343249104281182,
+		"constructionSampling": {
+			"batches": 3,
+			"warmPairsPerBatch": 100,
+			"measuredPairsPerBatch": 300,
+			"arrivalsDuringConstruction": 0
+		},
+		"steadySampling": "Full original seven-port trace, occupancy/evidence scenarios 1/0,16/128,64/512; separately warmed alternating pairs; narrow projection not activated in this performance arm.",
+		"rawReport": "ts-v5-construction-comparison.json",
+		"attempts": {
+			"attempts": [
+				{
+					"attempt": 1,
+					"status": "timeout",
+					"childTimeoutMs": 180000,
+					"qualified": false
+				},
+				{
+					"attempt": 2,
+					"status": "timeout",
+					"childTimeoutMs": 600000,
+					"qualified": false
+				},
+				{
+					"attempt": 3,
+					"status": "stopped-before-results",
+					"qualified": false,
+					"reason": "Separate cold construction samples from expensive full steady-state traces; no ratio results inspected before freezing new sample layout."
+				},
+				{
+					"attempt": 4,
+					"status": "measurement-complete-budget-not-met",
+					"qualified": false,
+					"report": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-implementation-baseline/pre-optimization/ts-v5-construction-comparison.json",
+					"batches": 3,
+					"warmPairsPerBatch": 6,
+					"measuredPairsPerBatch": 30,
+					"rows": [
+						{
+							"count": 1,
+							"background": 0,
+							"constructionRatio": 1.173173410349933,
+							"steadyRatio": 1.0435390156201303
+						},
+						{
+							"count": 16,
+							"background": 0,
+							"constructionRatio": 1.2325024793557977,
+							"steadyRatio": 0.9991202454524805
+						},
+						{
+							"count": 64,
+							"background": 0,
+							"constructionRatio": 1.2827132836842585,
+							"steadyRatio": 1.0023648681893547
+						},
+						{
+							"count": 1,
+							"background": 1000,
+							"constructionRatio": 0.8850581279915357,
+							"steadyRatio": 1.0018542859668496
+						}
+					]
+				},
+				{
+					"attempt": 5,
+					"status": "measurement-complete-budget-not-met",
+					"qualified": false,
+					"report": "packages/ts/qualification/causal-occurrence/ts-v5-construction-comparison.json",
+					"batches": 3,
+					"warmPairsPerBatch": 100,
+					"measuredPairsPerBatch": 300,
+					"rows": [
+						{
+							"count": 1,
+							"background": 0,
+							"constructionRatio": 1.3280874516966434,
+							"steadyRatio": 1.081063917014358
+						},
+						{
+							"count": 16,
+							"background": 0,
+							"constructionRatio": 1.2194818187682146,
+							"steadyRatio": 1.00532369426878
+						},
+						{
+							"count": 64,
+							"background": 0,
+							"constructionRatio": 1.2622032924936304,
+							"steadyRatio": 1.0201068227356864
+						},
+						{
+							"count": 1,
+							"background": 1000,
+							"constructionRatio": 1.3356315660577174,
+							"steadyRatio": 1.0140429769396042
+						}
+					]
+				}
+			],
+			"repair": "Two private acquisition-only micro-optimizations after attempt4, plus increased construction warmup/sample counts to reduce observed batch noise. Full steady sampling, input obligations and acceptance budgets unchanged. No best-run selection; both completed attempts retained."
+		},
+		"limitations": [
+			"Matched local warm measurements are not a portable guarantee.",
+			"Ordinary graph number is per-update batch average; dynamic peak heap is whole-process observation, not allocation attributed to C.",
+			"Construction includes preflight/seal/activation; separately reported dynamic cycles include existing graph release scanning and retired IDs.",
+			"The first two harness attempts timed out; retaining all performance-run event objects was removed without relaxing acceptance budgets.",
+			"Pre-optimization 6/30 construction samples showed unstable batches; final 100/300 sampling and two private optimizations are a separately preserved attempt, not a selected best run.",
+			"Construction scenarios use matching capacity options with zero arrivals; occupancy and retained evidence occur in the separately measured full steady-state traces.",
+			"Narrow-view activation cost and C-attributed retained bytes are not established by this benchmark."
+		]
+	},
+	"review": {
+		"mode": "Two independent static reviewers; focused follow-up after cleanup fixes",
+		"remainingFindings": [
+			"Construction budget acceptance remains incomplete; see measured rows.",
+			"No C-attributed retained-memory measurement or separate narrow-view steady qualification is claimed."
+		],
+		"fixed": [
+			"Record acquired handles/slots before constructor returns.",
+			"Record root and deep/deferred-rewire dependency leases before START/cache delivery.",
+			"Preserve all cleanup errors including thrown undefined with exact handle/slot locators.",
+			"Keep failed-release owners after unrelated releases.",
+			"Separate started fact delivery errors from startup failure."
+		]
+	},
+	"unavailableOrExcluded": [
+		{
+			"command": "pnpm --filter @graphrefly/ts test:historical-eval-requalification",
+			"reason": "Its referenced vitest.historical-eval-requalification.config.ts is absent. Existing historical transfer/verifier scenarios were run through the root-soak suite."
+		},
+		{
+			"tests": [
+				"local-untrusted-js-compute-node.live.test.ts (3)",
+				"local-container-postgresql-podman-libpod-api-v0-rootless-node.live.test.ts (1)"
+			],
+			"reason": "Four preexisting opt-in environment/live skips; no live/container grant was added."
+		}
+	],
+	"ownership": "Implementation/qualification evidence and human trace delivered; user trace teach-back is pending. No ownership-verification claim.",
+	"nonClaims": [
+		"Ordinary preset or public core/patterns/solutions layering complete",
+		"Consumer deterministic business verifier or spending-alerts plain-code qualification",
+		"Real inbox/provider/live/spend authorization",
+		"Automatic recovery, drain, stop, replacement, disposal or persistence",
+		"Wave protocol amendment or cross-runtime implementation",
+		"Commit or automatic next batch"
+	]
+}

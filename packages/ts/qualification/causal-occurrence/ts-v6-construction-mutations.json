@@ -1,0 +1,1129 @@
+{
+	"schema": "graphrefly-ts/causal-construction-mutations/v1",
+	"revision": "construction-v1",
+	"runnerDigest": "sha256:2078638d9f79eeb56ebc537f40a4a3ceebc4321e9a5981e4c22fdeb18cc0aa66",
+	"testDigest": "sha256:ecd57532dd8c568334a6e518fc4524fafab828e9cbb6c148c3e64455b9f4f616",
+	"baseline": {
+		"id": "unchanged",
+		"compiled": true,
+		"outcome": "passed",
+		"failed": [],
+		"patches": [],
+		"closure": {
+			"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+			"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+			"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+			"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+			"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+			"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+			"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+			"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+			"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+			"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+			"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+			"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+			"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+			"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+			"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+			"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+			"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+			"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+			"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+			"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+			"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+			"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+			"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+			"packages/ts/src/graph/graph-lifecycle.ts": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+			"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+			"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+			"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+			"packages/ts/src/graph/graph.ts": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010",
+			"packages/ts/src/graph/construction-scope.ts": "sha256:57260c40bd793f9751da628ad7cf0c426a1e18aae43e4fee2242950a83337ad1",
+			"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+			"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+			"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+			"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+			"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+			"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+			"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+			"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+			"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+			"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+			"packages/ts/src/solutions/causal-occurrence.ts": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c"
+		}
+	},
+	"mutations": [
+		{
+			"id": "constructor-handle-loss",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D161 graph construction ownership cleans a failed constructor handle before a Node is returned",
+					"message": "AssertionError: expected 1 to be +0 // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:237:32\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership reports a failed partial constructor's exact handle without hiding undefined errors",
+					"message": "AssertionError: expected [] to have a length of 1 but got +0\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1257:20)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:582:34\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				}
+			],
+			"patches": [["node/node.ts", "acquisition.handle = handle;", "void handle;"]],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:a68b4a925162eb6f9205bf2333c668fdf762d2ace64c67f61038dac5222749d6",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:57260c40bd793f9751da628ad7cf0c426a1e18aae43e4fee2242950a83337ad1",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c"
+			}
+		},
+		{
+			"id": "constructor-slot-loss",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D161 graph construction ownership cleans a slot allocated before the constructor returns its Node",
+					"message": "AssertionError: expected [Function] to throw an error\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1420:16)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:280:52\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				}
+			],
+			"patches": [["node/node.ts", "acquisition.slot = created.id;", "void created.id;"]],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:4bf089597d02cd6b560d26126977028ff184abaeb899e8335bc54100d01c5adf",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:57260c40bd793f9751da628ad7cf0c426a1e18aae43e4fee2242950a83337ad1",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c"
+			}
+		},
+		{
+			"id": "root-lease-after-return",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D161 graph construction ownership constructs cold, transfers before running, and preserves a real fan-out/fan-in trace",
+					"message": "AssertionError: expected +0 to be 2 // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:169:59\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership records the acquired root lease before throwing START delivery",
+					"message": "AssertionError: expected undefined to be type of 'function'\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:324:67\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:863:59\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership records the acquired root lease before throwing DATA delivery",
+					"message": "AssertionError: expected undefined to be type of 'function'\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:324:67\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:863:59\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership retains failed deep dependency leases without disturbing a shared existing subscriber",
+					"message": "AssertionError: expected undefined to be type of 'function'\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:348:51\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership keeps a failed-release owner after an unrelated successful release",
+					"message": "AssertionError: expected [Function] to throw error matching /residual/ but got 'graph: cannot release node group; \\'v…'\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1420:16)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:598:33\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				},
+				{
+					"test": "D161 graph construction ownership records dependencies acquired by a startup boundary rewire before their handshake",
+					"message": "AssertionError: expected undefined to be type of 'function'\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:636:48\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership releases a completed non-causal view without retaining its owner or disturbing shared sources",
+					"message": "Error: graph: cannot release node group; 'view-0/startup' still has live subscribers (D124)\n    at Graph._releaseNodes (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/graph/graph.ts:369:11)\n    at Object.releaseNodes (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/graph/graph.ts:220:47)\n    at GraphTopologyGroup.release (/private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/graph/graph-topology-group.ts:126:13)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:664:10\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				}
+			],
+			"patches": [["node/node.ts", "acquisition?.record(unsubscribe);", "void acquisition;"]],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:a82d26d30f273d74cdf78b81cf557622b11d1d4b081354659049a2216551e6f5",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:57260c40bd793f9751da628ad7cf0c426a1e18aae43e4fee2242950a83337ad1",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c"
+			}
+		},
+		{
+			"id": "dependency-lease-loss",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D161 graph construction ownership retains failed deep dependency leases without disturbing a shared existing subscriber",
+					"message": "AssertionError: expected undefined to be type of 'function'\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:348:51\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership keeps a failed-release owner after an unrelated successful release",
+					"message": "AssertionError: expected [Function] to throw error matching /residual/ but got 'graph: cannot release node group; \\'v…'\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1420:16)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:598:33\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				},
+				{
+					"test": "D161 graph construction ownership records dependencies acquired by a startup boundary rewire before their handshake",
+					"message": "AssertionError: expected undefined to be type of 'function'\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:636:48\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership releases a completed non-causal view without retaining its owner or disturbing shared sources",
+					"message": "AssertionError: expected 2 to be 1 // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:666:42\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				}
+			],
+			"patches": [
+				["node/node-lifecycle-runtime.ts", "self._dep.unsubs[idx0] = release;", "void release;"]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:ac382c1fc5e9db383f01dd99b3ad75d3a32bd3fb21555c40052dd50e5362cedc",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:57260c40bd793f9751da628ad7cf0c426a1e18aae43e4fee2242950a83337ad1",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c"
+			}
+		},
+		{
+			"id": "wrong-graph-preflight",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D161 graph construction ownership preflights the entire input closure and all retired names before allocating",
+					"message": "AssertionError: expected [Function] to throw an error\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1420:16)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:185:6\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				}
+			],
+			"patches": [
+				[
+					"graph/construction-scope.ts",
+					"registrar.assertRegisteredNode(node, \"construction input/dependency\");",
+					"void node;"
+				]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:9ea3b88c8c923f039d8a51473126df061ac0df1ed16dd3022424925c20bebd33",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c"
+			}
+		},
+		{
+			"id": "retired-name-preflight",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D161 graph construction ownership preflights the entire input closure and all retired names before allocating",
+					"message": "AssertionError: expected [Function] to throw an error\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1420:16)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:191:5\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				}
+			],
+			"patches": [
+				["graph/construction-scope.ts", "registrar.assertAvailableName(name);", "void name;"]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:5be1c486983fc7bc8698fdf58287da2b69a6923ce88f5f1c107cf8b186fa6c02",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c"
+			}
+		},
+		{
+			"id": "construction-during-wave",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D161 graph construction ownership rejects active batch and reactive entry before any resource acquisition",
+					"message": "AssertionError: expected [Function] to throw an error\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1420:16)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:199:29\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				}
+			],
+			"patches": [
+				["graph/construction-scope.ts", "if (isWaveActive() || currentBatch())", "if (false)"]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:fb71d6b4def37c4fb514b546fcdff9267e5f402c64b5cdf2e75e101e693f3384",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c"
+			}
+		},
+		{
+			"id": "false-started-after-fault",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D161 graph construction ownership records the acquired root lease before throwing START delivery",
+					"message": "AssertionError: expected 'started' to be 'faulted' // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:323:23\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:863:59\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership records the acquired root lease before throwing DATA delivery",
+					"message": "AssertionError: expected 'started' to be 'faulted' // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:323:23\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:863:59\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership retains failed deep dependency leases without disturbing a shared existing subscriber",
+					"message": "AssertionError: expected 'started' to be 'faulted' // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:345:23\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership does not call startup successful before exitWave drain returns",
+					"message": "AssertionError: expected 'started' to be 'faulted' // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:369:34\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership preserves admission after startup failure, UI detach and a mismatched outcome",
+					"message": "AssertionError: expected 'started' to be 'faulted' // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:397:37\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership records dependencies acquired by a startup boundary rewire before their handshake",
+					"message": "AssertionError: expected 'started' to be 'faulted' // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:634:23\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership a graph-wired startup gate controls the offline host request (fault=true)",
+					"message": "AssertionError: expected 1 to be +0 // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:696:17\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:863:59\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				}
+			],
+			"patches": [
+				["graph/construction-scope.ts", "owner.phase = \"faulted\";", "owner.phase = \"started\";"]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:f46fb79ba108e9908505902ff95de5311a5418c5aebc03cb4474cf6ced81ef10",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c"
+			}
+		},
+		{
+			"id": "startup-fact-forges-success",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D161 graph construction ownership does not call startup successful before exitWave drain returns",
+					"message": "AssertionError: expected 'started' to be 'faulted' // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:369:34\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership preserves admission after startup failure, UI detach and a mismatched outcome",
+					"message": "AssertionError: expected 'started' to be 'faulted' // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:397:37\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership a graph-wired startup gate controls the offline host request (fault=true)",
+					"message": "AssertionError: expected 1 to be +0 // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:696:17\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:863:59\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				}
+			],
+			"patches": [["graph/construction-scope.ts", "state: owner.phase,", "state: \"started\","]],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:d5459d0505e06d3ab14b0ed4ec4407cee2a75ffc9d57ef3803a0fe779354074d",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c"
+			}
+		},
+		{
+			"id": "started-delivery-rewrites-history",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D161 graph construction ownership does not rewrite a started fact when its consumer throws",
+					"message": "AssertionError: expected 'faulted' to be 'started' // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:385:23\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				}
+			],
+			"patches": [
+				[
+					"graph/construction-scope.ts",
+					"owner.deliveryError = error;",
+					"owner.deliveryError = error; owner.phase = \"faulted\";"
+				]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:8bdf4612ed4139cc3a59ffaba84ccb6f3802e12926d2e23e63d1d77df50e4c4c",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c"
+			}
+		},
+		{
+			"id": "automatic-start-replay",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D161 graph construction ownership constructs cold, transfers before running, and preserves a real fan-out/fan-in trace",
+					"message": "AssertionError: expected [Function] to throw an error\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1420:16)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:172:51\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				}
+			],
+			"patches": [["graph/construction-scope.ts", "owner.phase !== \"owned\"", "false"]],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:5d570d6dc47fe5b562772de2897735335d301685a342b3143cf8b075cb44a266",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c"
+			}
+		},
+		{
+			"id": "owner-missing-at-first-run",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D161 graph construction ownership constructs cold, transfers before running, and preserves a real fan-out/fan-in trace",
+					"message": "AssertionError: expected 'faulted' to be 'started' // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:165:34\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership preserves admission after startup failure, UI detach and a mismatched outcome",
+					"message": "AssertionError: expected undefined to be 'faulted' // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:410:52\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership keeps a failed-release owner after an unrelated successful release",
+					"message": "AssertionError: expected undefined to be { instance: 'view', epoch: 1, …(4) } // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:600:43\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				},
+				{
+					"test": "D161 graph construction ownership successful startup and replay without a proposal never fabricate an effect",
+					"message": "AssertionError: expected undefined to be 'started' // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:721:52\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				}
+			],
+			"patches": [
+				[
+					"graph/construction-scope.ts",
+					"this.registrar.constructions.set(owner.instance, owner);",
+					"void owner;"
+				],
+				[
+					"graph/construction-scope.ts",
+					"lifecycleRegistrars.get(graph)?.constructions.get(owner.instance) !== owner ||",
+					"false ||"
+				]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:50725f9e8177ae13c92c7e3f84fe15188a374243b2ca113aee5038b64551812e",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c"
+			}
+		},
+		{
+			"id": "cleanup-loses-secondary-handles",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D161 graph construction ownership reports every residual handle, including an undefined thrown error",
+					"message": "AssertionError: expected [ { cause: undefined, …(3) } ] to have a length of 2 but got 1\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1257:20)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:480:34\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				},
+				{
+					"test": "D161 graph construction ownership retains all slot and handle cleanup failures with exact locators",
+					"message": "AssertionError: expected [ { …(4) } ] to have a length of 2 but got 1\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1257:20)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:509:23\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				}
+			],
+			"patches": [
+				[
+					"graph/construction-scope.ts",
+					"errors.push(...detailed);",
+					"errors.push(...detailed.slice(0, 1));"
+				]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:71c375447e46f86f67b2e59e2da25f9792bc4d9cb92516b4223db40c376b9cb1",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c"
+			}
+		},
+		{
+			"id": "cleanup-forgets-slot-failure",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D161 graph construction ownership retains all slot and handle cleanup failures with exact locators",
+					"message": "AssertionError: expected [] to have a length of 2 but got +0\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1257:20)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:509:23\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				}
+			],
+			"patches": [
+				[
+					"node/node-lifecycle-runtime.ts",
+					"releaseErrors.push({ resource: \"slot\", cause, core: self._core, slot: self._id });",
+					"void cause;"
+				]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:6a8de49c6179635a4889a4d80d99b34a9c81be10b34839a259840a4d8caf2fb9",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:57260c40bd793f9751da628ad7cf0c426a1e18aae43e4fee2242950a83337ad1",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c"
+			}
+		},
+		{
+			"id": "retained-owner-dropped-on-unrelated-release",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D161 graph construction ownership keeps a failed-release owner after an unrelated successful release",
+					"message": "AssertionError: expected undefined to be { instance: 'view', epoch: 1, …(4) } // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:600:43\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				}
+			],
+			"patches": [
+				[
+					"graph/graph.ts",
+					"isNodeRuntimeReleased(node) && !runtimeReleaseFailures.has(node)",
+					"isNodeRuntimeReleased(node)"
+				]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:4d65a7e76a7535d0390ed2f861cf001438c7739e3b1263c89aafc7d6306f932c",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:57260c40bd793f9751da628ad7cf0c426a1e18aae43e4fee2242950a83337ad1",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c"
+			}
+		},
+		{
+			"id": "exact-capability-epoch-removed",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D161 graph construction ownership returns exact narrow handles with real payload projection and rejects wrong bindings",
+					"message": "AssertionError: expected [Function] to throw an error\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1420:16)\n    at Proxy.<anonymous> (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+expect@3.2.4/node_modules/@vitest/expect/dist/index.js:1029:14)\n    at Proxy.methodWrapper (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/chai@5.3.3/node_modules/chai/index.js:1686:25)\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:450:83\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)"
+				}
+			],
+			"patches": [
+				[
+					"solutions/causal-occurrence/capabilities.ts",
+					"root.binding.epoch !== binding.epoch",
+					"false"
+				]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:57260c40bd793f9751da628ad7cf0c426a1e18aae43e4fee2242950a83337ad1",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:8f5eff0840ea020342965686f50cb90bc869f3d16d279a8f8cf90c204666476b",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c"
+			}
+		},
+		{
+			"id": "narrow-view-leaks-retained-field",
+			"compiled": true,
+			"outcome": "killed",
+			"failed": [
+				{
+					"test": "D161 graph construction ownership returns exact narrow handles with real payload projection and rejects wrong bindings",
+					"message": "AssertionError: expected false to be true // Object.is equality\n    at /var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/causal-construction-mutations-sNYKHu/src/__tests__/graph-construction.d161.test.ts:448:71\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26\n    at file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)\n    at runTest (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)\n    at runSuite (file:///Users/davidchenallio/src/graphrefly-ts/node_modules/.pnpm/@vitest+runner@3.2.4/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)"
+				}
+			],
+			"patches": [
+				[
+					"solutions/causal-occurrence/capabilities.ts",
+					"lifecycle: value.lifecycle,",
+					"lifecycle: value.lifecycle, retainedEvidence: value.retainedEvidence,"
+				]
+			],
+			"closure": {
+				"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+				"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+				"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+				"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+				"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+				"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+				"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+				"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"packages/ts/src/graph/graph-lifecycle.ts": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+				"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+				"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+				"packages/ts/src/graph/graph.ts": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010",
+				"packages/ts/src/graph/construction-scope.ts": "sha256:57260c40bd793f9751da628ad7cf0c426a1e18aae43e4fee2242950a83337ad1",
+				"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:97f7a00109c4be5f197faa1571d41349d427cc6d77ec3275fbe2a235640fe0d9",
+				"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+				"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+				"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+				"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+				"packages/ts/src/solutions/causal-occurrence.ts": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c"
+			}
+		}
+	],
+	"complete": true,
+	"cleanup": {
+		"temporaryRemoved": true,
+		"childrenExited": true
+	}
+}

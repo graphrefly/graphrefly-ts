@@ -30,6 +30,11 @@ import {
 	withEnvironmentDrivers,
 	withNodeCore,
 } from "../node/node.js";
+import {
+	constructionAcquisitions,
+	type NodeAcquisition,
+	runtimeReleaseFailures,
+} from "../node/owned-acquisition.js";
 import type { NodeVersioningPolicy } from "../node/versioning.js";
 import { errorPayload, messageTier, SENTINEL } from "../protocol/messages.js";
 import {
@@ -212,7 +217,30 @@ export class Graph {
 		});
 		lifecycleRegistrars.set(this, {
 			assertRegisteredNode: (node, label) => this._assertRegisteredNode(node, label),
+			readIncoming: (nodes) => {
+				const describe = this.describe;
+				return describe === nativeDescribe
+					? this._describe("", nodes)
+					: Reflect.apply(describe, this, []);
+			},
 			releaseNodes: (nodes, releaseOpts) => this._releaseNodes(nodes, releaseOpts),
+			assertAvailableName: (name) => {
+				if (this._byId.has(name) || this._retiredIds.has(name))
+					throw new Error(`construction: live or retired node name ${name}`);
+			},
+			constructions: new Map(),
+			createOwned: <T>(
+				deps: readonly Node<unknown>[],
+				fn: NodeFn | null,
+				opts: SugarOpts<T>,
+				acquired: NodeAcquisition,
+			) => {
+				for (const dep of deps) this._assertRegisteredNode(dep, "construction node dependency");
+				const nodeOpts = this._nodeOpts(opts);
+				constructionAcquisitions.set(nodeOpts, acquired);
+				const n = this._construct(() => new Node<T>([...deps], fn, nodeOpts));
+				return this._addWithId(n, opts.factory ?? "node", deps, opts, acquired.name, acquired);
+			},
 		});
 	}
 
@@ -234,6 +262,7 @@ export class Graph {
 		deps: readonly Node<unknown>[],
 		opts: SugarOpts<T>,
 		id: string,
+		acquired?: NodeAcquisition,
 	): Node<T> {
 		assertGraphLocalNode(this, n as Node<unknown>, `graph node '${opts.name ?? factory}'`);
 		for (const dep of deps) assertGraphLocalNode(this, dep, `dep of '${opts.name ?? factory}'`);
@@ -258,6 +287,7 @@ export class Graph {
 		});
 		setNodeOwner(n as Node<unknown>, this);
 		this._byId.set(id, n as Node<unknown>);
+		if (acquired !== undefined) acquired.registered = true;
 		setNodeTopologyDepsChangedObserver(n as Node<unknown>, (_node, prevDeps, nextDeps) => {
 			this._emitTopologyDepsChanged(n as Node<unknown>, prevDeps, nextDeps);
 		});
@@ -361,15 +391,28 @@ export class Graph {
 			this._retiredIds.add(entry.id);
 		}
 		let releaseError: unknown;
+		let releaseFailed = false;
 		for (const { node } of entries) {
 			try {
 				releaseRuntimeOfNode(node);
 			} catch (error) {
-				if (releaseError === undefined) releaseError = error;
+				if (!releaseFailed) releaseError = error;
+				releaseFailed = true;
+			}
+		}
+		if (!releaseFailed) {
+			const constructions = lifecycleRegistrars.get(this)!.constructions;
+			for (const [name, owner] of constructions) {
+				if (
+					owner.nodes.every(
+						(node) => isNodeRuntimeReleased(node) && !runtimeReleaseFailures.has(node),
+					)
+				)
+					constructions.delete(name);
 			}
 		}
 		for (const event of releasedEvents) this._emitTopologyNodeReleased(event);
-		if (releaseError !== undefined) throw releaseError;
+		if (releaseFailed) throw releaseError;
 	}
 
 	// ── 8 verbs (core: node/state/batch + sugar: producer/derived/effect/mount) ──
@@ -524,6 +567,12 @@ export class Graph {
 
 	/** Live point-in-time structure snapshot (R-describe / D39 / D51). `_prefix` carries the mount path. */
 	describe(opts: DescribeOpts = {}, _prefix = ""): DescribeSnapshot {
+		const snap = this._describe(_prefix);
+		return opts.explain ? explainSubset(snap, opts.explain) : snap;
+	}
+
+	/** B1: share discovery order; only materialization is local. Mount reads stay unchanged. */
+	private _describe(_prefix: string, incoming?: ReadonlySet<Node<unknown>>): DescribeSnapshot {
 		// D51: edges derive from each node's CURRENT/LIVE deps (entry.node.deps, NOT the
 		// construction-time entry.deps), so a rewire (C-8 immediate / C-11 *Map deferred) is
 		// reflected and every edge is a real current subscription (D3). A live dep absent from this
@@ -554,18 +603,22 @@ export class Graph {
 		for (const entry of this._entries.values()) {
 			const id = `${_prefix}${entry.id}`;
 			const liveIds = entry.node.deps.map(localId);
-			const dnode: DescribeNode = {
-				id,
-				factory: entry.factory,
-				status: entry.node.status,
-				deps: liveIds,
-			};
-			if (entry.name !== undefined) dnode.name = entry.name;
-			if (entry.node.cache !== undefined) dnode.value = entry.node.cache; // absent = SENTINEL
-			if (entry.node.version !== undefined) dnode.version = entry.node.version;
-			if (entry.meta !== undefined) dnode.meta = entry.meta;
-			nodes.push(dnode);
-			for (const from of liveIds) edges.push({ from, to: id });
+			if (incoming === undefined) {
+				const dnode: DescribeNode = {
+					id,
+					factory: entry.factory,
+					status: entry.node.status,
+					deps: liveIds,
+				};
+				if (entry.name !== undefined) dnode.name = entry.name;
+				if (entry.node.cache !== undefined) dnode.value = entry.node.cache; // absent = SENTINEL
+				if (entry.node.version !== undefined) dnode.version = entry.node.version;
+				if (entry.meta !== undefined) dnode.meta = entry.meta;
+				nodes.push(dnode);
+			}
+			if (incoming === undefined || incoming.has(entry.node)) {
+				for (const from of liveIds) edges.push({ from, to: id });
+			}
 		}
 		// pass 2: recursively emit auto-discovered unregistered nodes (D51+B38). localId() may add
 		// further unregistered deps to `discovered` while this loop runs; a visited set keeps each
@@ -582,16 +635,18 @@ export class Graph {
 			for (const dep of inner.deps) {
 				if (!this._entries.has(dep) && !visited.has(dep)) queue.push(dep);
 			}
-			const dnode: DescribeNode = {
-				id: `${_prefix}${sid}`,
-				factory: inner.factory ?? "?",
-				status: inner.status,
-				deps: liveIds,
-			};
-			if (inner.cache !== undefined) dnode.value = inner.cache;
-			if (inner.version !== undefined) dnode.version = inner.version;
-			nodes.push(dnode);
-			for (const from of liveIds) edges.push({ from, to: dnode.id });
+			if (incoming === undefined) {
+				const dnode: DescribeNode = {
+					id: `${_prefix}${sid}`,
+					factory: inner.factory ?? "?",
+					status: inner.status,
+					deps: liveIds,
+				};
+				if (inner.cache !== undefined) dnode.value = inner.cache;
+				if (inner.version !== undefined) dnode.version = inner.version;
+				nodes.push(dnode);
+				for (const from of liveIds) edges.push({ from, to: dnode.id });
+			}
 		}
 		const snap: DescribeSnapshot = { nodes, edges };
 		if (this.name !== undefined) snap.name = this.name;
@@ -602,7 +657,7 @@ export class Graph {
 				return child;
 			});
 		}
-		return opts.explain ? explainSubset(snap, opts.explain) : snap;
+		return snap;
 	}
 
 	/**
@@ -990,6 +1045,9 @@ export class Graph {
 export function graph(opts: GraphOptions = {}): Graph {
 	return new Graph(opts);
 }
+
+// Capture once, so instance/subclass/prototype describe overrides keep the original call path.
+const nativeDescribe = Graph.prototype.describe;
 
 /** @internal D122 graph-owned ephemeral node-group release. */
 export function releaseGraphNodes(

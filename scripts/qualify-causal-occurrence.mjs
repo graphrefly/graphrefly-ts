@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,9 +10,26 @@ import ts from "typescript";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const srcRoot = join(root, "packages/ts/src");
-const sourcePath = join(srcRoot, "solutions/causal-occurrence.ts");
+const sourcePath = join(srcRoot, "solutions/causal-occurrence/construction.ts");
 const testPath = join(srcRoot, "__tests__/solutions-causal-occurrence.d791.test.ts");
-const source = readFileSync(sourcePath, "utf8");
+const sourceNames = [
+	"solutions/causal-occurrence.ts",
+	...[
+		"construction",
+		"contracts",
+		"identity",
+		"lifecycle",
+		"evidence",
+		"transition",
+		"capabilities",
+	].map((name) => `solutions/causal-occurrence/${name}.ts`),
+	"graph/construction-scope.ts",
+];
+const sourceFiles = Object.fromEntries(
+	sourceNames.map((name) => [name, readFileSync(join(srcRoot, name), "utf8")]),
+);
+const marker = (name) => `\n// QUALIFICATION_FILE ${name}\n`;
+const source = sourceNames.map((name) => marker(name) + sourceFiles[name]).join("");
 const tests = readFileSync(testPath, "utf8");
 const digest = (value) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
 const filterArg = process.argv.indexOf("--filter");
@@ -20,7 +37,12 @@ const selectedFilter = filterArg < 0 ? undefined : new RegExp(process.argv[filte
 const reportArg = process.argv.indexOf("--output");
 const reportPath = reportArg < 0 ? undefined : resolve(process.argv[reportArg + 1]);
 
-const sourceFile = ts.createSourceFile(sourcePath, source, ts.ScriptTarget.Latest, true);
+const sourceFile = ts.createSourceFile(
+	sourcePath,
+	sourceFiles["solutions/causal-occurrence/construction.ts"],
+	ts.ScriptTarget.Latest,
+	true,
+);
 const calls = [];
 function visit(node) {
 	if (ts.isCallExpression(node)) calls.push(node);
@@ -28,8 +50,10 @@ function visit(node) {
 }
 visit(sourceFile);
 const replaceOnce = (text, from, to) => {
-	assert.equal(text.split(from).length - 1, 1, `Mutation anchor must match once: ${from}`);
-	return text.replace(from, to);
+	const escapePattern = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	const pattern = new RegExp(from.trim().split(/\s+/u).map(escapePattern).join("\\s+"), "gu");
+	assert.equal([...text.matchAll(pattern)].length, 1, `Mutation anchor must match once: ${from}`);
+	return text.replace(pattern, () => to);
 };
 const optionsName = (call) => call.arguments.at(-1)?.getText(sourceFile) ?? "";
 function dependencyPatch(suffix, index) {
@@ -115,7 +139,11 @@ const replacements = [
 		'state.admissions.set(key, { ...canonical.snapshot, state: "admitted" });',
 	],
 	["release-currentness", 'currentness?.state !== "current" ||', "currentness === undefined ||"],
-	["release-replay", "\n\t\t\t\t\tstate.released.has(key) ||", "\n\t\t\t\t\tfalse ||"],
+	[
+		"release-replay",
+		'currentness?.state !== "current" || state.released.has(key) ||',
+		'currentness?.state !== "current" || false ||',
+	],
 	["digest-binding", "causalOccurrenceDigest(digestMaterial) !== digest", "false"],
 	[
 		"exact-outcome-admission",
@@ -141,15 +169,15 @@ add("terminal-fan-in", (text) => {
 add("domain-failure-protocol-error", (text) =>
 	replaceOnce(
 		text,
-		"if (record.outcome !== undefined) {",
-		'if (outcome.state === "failed") { ctx.down([["ERROR", outcome.result]]); continue; }\n\t\t\t\t\t\tif (record.outcome !== undefined) {',
+		'for (const output of outputs) ctx.down([["DATA", Object.freeze(output)]]);',
+		'for (const output of outputs) { if (output.kind === "conservation" && output.value.failed > 0) ctx.down([["ERROR", output.value]]); else ctx.down([["DATA", Object.freeze(output)]]); }',
 	),
 );
 add("effect-pending-loss", (text) =>
 	replaceOnce(
 		text,
-		"if (retainEffectProposal(key, proposal)) state.pendingEffectProposals.delete(key);",
-		"retainEffectProposal(key, proposal); state.pendingEffectProposals.delete(key);",
+		"if (retainEffectProposal(context, key, proposal)) state.pendingEffectProposals.delete(key);",
+		"retainEffectProposal(context, key, proposal); state.pendingEffectProposals.delete(key);",
 	),
 );
 add("pending-progress-stall", (text) =>
@@ -162,23 +190,27 @@ add("new-domain-pending-stall", (text) =>
 		"for (const revisionDomain of state.highWaterByDomain.keys()) {",
 	),
 );
-const structureGuard = "\tassertCausalOccurrenceTopology(graph.describe(), opts.name);";
+const structureGuard = "\tassertCausalOccurrenceTopology(graph.readIncoming(), opts.name);";
 const behaviorSource = replaceOnce(
-	source,
-	structureGuard,
-	"\t// Structure guard isolated only in this temporary behavior qualification module.",
+	replaceOnce(
+		source,
+		structureGuard,
+		"\t// Structure guard isolated only in this temporary behavior qualification module.",
+	),
+	'this.phase !== "cold" || this.available.size !== 0',
+	'this.phase !== "cold" /* manifest completeness isolated in temporary behavior arm */',
 );
 for (const mutant of mutants) mutant.change(mutant.kind === "structure" ? source : behaviorSource);
 const temporary = mkdtempSync(join(tmpdir(), "graphrefly-causal-mutations-"));
 const pattern =
-	"^(?!.*(?:fails a topology mutation|contains no caller lifecycle patch escape hatches)).*$";
+	"^(?!.*(?:fails a topology mutation|contains no caller lifecycle patch escape hatches|causal topology exact-string index)).*$";
 const version = JSON.parse(readFileSync(join(root, "packages/ts/package.json"), "utf8")).version;
 const configPath = join(temporary, "vitest.config.mts");
 writeFileSync(
 	configPath,
 	`export default ${JSON.stringify({ define: { __GRAPHREFLY_TS_PACKAGE_REVISION__: JSON.stringify(`graphrefly-ts:${version}`) }, test: { include: ["contract.test.ts"] } })};`,
 );
-const candidatePath = join(temporary, "causal-occurrence.ts");
+const candidatePath = join(temporary, sourceNames[0]);
 const rewrittenTests = tests
 	.replaceAll('from "../', `from "${srcRoot}/`)
 	.replace(
@@ -193,7 +225,9 @@ writeFileSync(join(temporary, "contract.test.ts"), rewrittenTests);
 const report = {
 	schema: "graphrefly-ts/causal-occurrence-mutation-qualification/v1",
 	contract: "graphrefly/causal-occurrence-contract/v1@contract-v2",
+	behaviorIsolation: ["required-edge assertion", "cold manifest completeness"],
 	sourceDigest: digest(source),
+	sourceFiles: Object.fromEntries(sourceNames.map((name) => [name, digest(sourceFiles[name])])),
 	testDigest: digest(tests),
 	runnerDigest: digest(readFileSync(fileURLToPath(import.meta.url))),
 	runtime: { node: process.version, platform: process.platform, arch: process.arch },
@@ -208,7 +242,21 @@ const report = {
 	complete: false,
 };
 function run(id, text, kind) {
-	writeFileSync(candidatePath, text.replaceAll('from "../', `from "${srcRoot}/`));
+	for (const [index, name] of sourceNames.entries()) {
+		const begin = text.indexOf(marker(name)) + marker(name).length;
+		const end =
+			index + 1 < sourceNames.length ? text.indexOf(marker(sourceNames[index + 1])) : text.length;
+		assert.ok(begin >= marker(name).length && end >= begin, "Missing module boundary");
+		const target = join(temporary, name);
+		mkdirSync(dirname(target), { recursive: true });
+		const moduleText = text.slice(begin, end).replace(/from "(\.[^"]+)"/gu, (match, specifier) => {
+			const resolved = resolve(srcRoot, dirname(name), specifier).replace(/\.js$/u, ".ts");
+			return sourceNames.some((entry) => join(srcRoot, entry) === resolved)
+				? match
+				: `from ${JSON.stringify(resolved)}`;
+		});
+		writeFileSync(target, moduleText);
+	}
 	const resultPath = join(temporary, "result.json");
 	rmSync(resultPath, { force: true });
 	const child = spawnSync(
@@ -298,7 +346,7 @@ try {
 	assert.equal(existsSync(temporary), false);
 	report.cleanup = { temporaryRemoved: true, childProcessesExited: true };
 	assert.equal(
-		readFileSync(sourcePath, "utf8"),
+		sourceNames.map((name) => marker(name) + readFileSync(join(srcRoot, name), "utf8")).join(""),
 		source,
 		"Original source changed during qualification",
 	);

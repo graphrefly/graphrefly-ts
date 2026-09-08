@@ -1,0 +1,350 @@
+{
+	"candidateFiles": {
+		"solutions/causal-occurrence.ts": "sha256:11d67bcaa578f364a0514a5b8a454a6ef276d6886ac7984e12d681d94aefa14a",
+		"solutions/causal-occurrence/contracts.ts": "sha256:626bc55b03c8c94107a9b0988cff5ee6669e036448edb11b660de4600f1e9402",
+		"solutions/causal-occurrence/identity.ts": "sha256:016f988f7c174caaea3eaf7fc6fe01e63600d4f3c4a03e054b8f0114992a84e4",
+		"solutions/causal-occurrence/lifecycle.ts": "sha256:5c5a090b122b7428ead7aa917cbf4ec9255c50a23c18d5c6e2b229ce64737a50",
+		"solutions/causal-occurrence/evidence.ts": "sha256:2a68dbb89f003fb21aea0f2b4356d1c969dd11551e2cac3ad2c4c17074fae78c",
+		"solutions/causal-occurrence/transition.ts": "sha256:cacf98c7c370a528be50fc507b57848623a76b3308a9ae8914d09a6c851c3e63"
+	},
+	"schema": "graphrefly-ts/causal-authority-comparison/v1",
+	"baselineDigest": "sha256:2608730b96b52145ed970700920185f9b0a0958cd9403eba0f996717aab728dd",
+	"frozenInputsDigest": "sha256:510dd6211dc850fafe268b480370691728727101e4c045c1e94a4d3d4eb5b2d3",
+	"runnerDigest": "sha256:9188f8c9220a923f045fff11f857036f530d45dcf9a6625b030693817a6c2fbf",
+	"derivedHarnessDigest": "sha256:d4240f1f636a69a4ed9805a7e0a149fe34b75a079c036b384cd87e2f8d07282a",
+	"runtime": {
+		"node": "v24.18.0",
+		"platform": "darwin",
+		"arch": "arm64"
+	},
+	"comparisons": [
+		{
+			"count": 1,
+			"evidenceCount": 0,
+			"reverse": false,
+			"capacity": 64,
+			"inputBatches": 10,
+			"events": 102,
+			"nodes": 29,
+			"edges": 29,
+			"matched": true,
+			"syncPath": {
+				"baselineP95Ns": 2295958.0000000414,
+				"candidateP95Ns": 2804000.0000000303,
+				"p95Ratio": 1.2212766958280508,
+				"baselineTotalNs": 8255916.00000007,
+				"candidateTotalNs": 6801044.0000000475
+			}
+		},
+		{
+			"count": 16,
+			"evidenceCount": 128,
+			"reverse": false,
+			"capacity": 64,
+			"inputBatches": 288,
+			"events": 3664,
+			"nodes": 29,
+			"edges": 29,
+			"matched": true,
+			"syncPath": {
+				"baselineP95Ns": 5904125.000000021,
+				"candidateP95Ns": 5944999.999999937,
+				"p95Ratio": 1.0069231257806899,
+				"baselineTotalNs": 739799536.0000012,
+				"candidateTotalNs": 723082374.000001
+			}
+		},
+		{
+			"count": 64,
+			"evidenceCount": 512,
+			"reverse": false,
+			"capacity": 64,
+			"inputBatches": 1152,
+			"events": 16264,
+			"nodes": 29,
+			"edges": 29,
+			"matched": true,
+			"syncPath": {
+				"baselineP95Ns": 74128540.99999823,
+				"candidateP95Ns": 74757375.00000104,
+				"p95Ratio": 1.0084830214047087,
+				"baselineTotalNs": 32301545090.000057,
+				"candidateTotalNs": 32585594512.999985
+			}
+		},
+		{
+			"count": 16,
+			"evidenceCount": 128,
+			"reverse": true,
+			"capacity": 64,
+			"inputBatches": 288,
+			"events": 3707,
+			"nodes": 29,
+			"edges": 29,
+			"matched": true,
+			"syncPath": {
+				"baselineP95Ns": 5860290.999989957,
+				"candidateP95Ns": 5947458.000009647,
+				"p95Ratio": 1.0148741760468618,
+				"baselineTotalNs": 196210330.99998018,
+				"candidateTotalNs": 192735083.0001815
+			}
+		},
+		{
+			"count": 64,
+			"evidenceCount": 512,
+			"reverse": true,
+			"capacity": 64,
+			"inputBatches": 1152,
+			"events": 14891,
+			"nodes": 29,
+			"edges": 29,
+			"matched": true,
+			"syncPath": {
+				"baselineP95Ns": 1514040.9999876283,
+				"candidateP95Ns": 1548666.9999954756,
+				"p95Ratio": 1.0228699222862063,
+				"baselineTotalNs": 2517798430.0001416,
+				"candidateTotalNs": 2539076515.0000525
+			}
+		},
+		{
+			"count": 16,
+			"evidenceCount": 128,
+			"reverse": false,
+			"capacity": 2,
+			"inputBatches": 288,
+			"events": 3548,
+			"nodes": 29,
+			"edges": 29,
+			"matched": true,
+			"syncPath": {
+				"baselineP95Ns": 624542.0000050217,
+				"candidateP95Ns": 617416.0000227857,
+				"p95Ratio": 0.9885900388089534,
+				"baselineTotalNs": 129131821.99979198,
+				"candidateTotalNs": 127259044.0000058
+			}
+		}
+	],
+	"performance": [
+		{
+			"count": 1,
+			"evidenceCount": 0,
+			"reverse": false,
+			"capacity": 64,
+			"measurement": "retained-state replay transition",
+			"baselineMedianNs": 111541.99999873526,
+			"candidateMedianNs": 114790.99999996834,
+			"deltaNsPerTransition": 3249.000001233071,
+			"baselineP95Ns": 123290.99999624304,
+			"candidateP95Ns": 125124.99999138527,
+			"baselineSamplesNs": [
+				115457.99998566508, 118665.99999484606, 111124.99999580905, 111875.0000023283,
+				113333.9999942109, 111792.00001060963, 111124.99999580905, 110833.99999188259,
+				123290.99999624304, 114708.00000824966, 110958.0000047572, 111541.99999873526,
+				110875.00001303852, 111291.00000835024, 110416.00001044571
+			],
+			"candidateSamplesNs": [
+				125124.99999138527, 115250.00000256114, 114208.00001360476, 113542.00000641868,
+				114916.00002045743, 113917.0000096783, 113833.00001034513, 113207.99999521114,
+				117541.99999268167, 114790.99999996834, 113749.99998952262, 120582.99998170696,
+				117375.00000162981, 124125.00000209548, 114416.99997521937
+			]
+		},
+		{
+			"count": 16,
+			"evidenceCount": 128,
+			"reverse": false,
+			"capacity": 64,
+			"measurement": "retained-state replay transition",
+			"baselineMedianNs": 5895541.000005323,
+			"candidateMedianNs": 5805083.000013838,
+			"deltaNsPerTransition": -90457.99999148585,
+			"baselineP95Ns": 6176707.999984501,
+			"candidateP95Ns": 6247000.000003027,
+			"baselineSamplesNs": [
+				5670542.000007117, 6025832.999992417, 5743749.999994179, 6087958.000018261,
+				5647624.999983236, 6149999.999994179, 6016416.999977082, 6129541.000002064,
+				5642500.000016298, 5895541.000005323, 5795791.999989888, 5956375.000008848,
+				6176707.999984501, 5883958.000020357, 5890707.999991719
+			],
+			"candidateSamplesNs": [
+				5906041.999987792, 5692083.00000173, 5941500.000015367, 5752166.999998735,
+				6247000.000003027, 5908750.000002328, 5784500.000008848, 5720291.999983601, 5792916.9999843,
+				5805083.000013838, 5740500.0000144355, 5676291.999989189, 5838083.000009647,
+				5953417.000011541, 5866582.999995444
+			]
+		},
+		{
+			"count": 64,
+			"evidenceCount": 512,
+			"reverse": false,
+			"capacity": 64,
+			"measurement": "retained-state replay transition",
+			"baselineMedianNs": 78703415.99997482,
+			"candidateMedianNs": 80222416.99998267,
+			"deltaNsPerTransition": 1519001.000007853,
+			"baselineP95Ns": 80389374.99999884,
+			"candidateP95Ns": 82078875.00000653,
+			"baselineSamplesNs": [
+				78863542.00000642, 79163708.00000732, 78486083.00002524, 78522375.00000046,
+				78104625.00000721, 78480040.99997343, 78703415.99997482, 77964000.00000721,
+				79031791.99999431, 78195332.99998148, 78610041.00000718, 78822707.99999242,
+				80389374.99999884, 79493624.99997368, 79684874.99997719
+			],
+			"candidateSamplesNs": [
+				81279999.99999884, 81626499.99998394, 80048250.00002165, 80222416.99998267,
+				80977708.00002035, 82078875.00000653, 79623583.00000778, 80156499.99998277,
+				79890415.99998018, 80962375.0000028, 81221250.00000232, 80206582.99999195, 78994500.0000007,
+				78847042.00000851, 80612625.00000885
+			]
+		},
+		{
+			"count": 16,
+			"evidenceCount": 128,
+			"reverse": true,
+			"capacity": 64,
+			"measurement": "retained-state replay transition",
+			"baselineMedianNs": 5860667.000000831,
+			"candidateMedianNs": 5975583.999999799,
+			"deltaNsPerTransition": 114916.9999989681,
+			"baselineP95Ns": 6174041.999998735,
+			"candidateP95Ns": 6124540.999997407,
+			"baselineSamplesNs": [
+				5792209.000006551, 5846500.000014203, 5783832.999994047, 6047874.99998929,
+				5861000.000004424, 5966500.000009546, 5860667.000000831, 6050625.000003492,
+				5732792.000024347, 6174041.999998735, 5683292.000001529, 5943583.99999328,
+				5845958.999998402, 6012209.000007715, 5675250.000000233
+			],
+			"candidateSamplesNs": [
+				5773957.999976119, 5989375.000004657, 5934666.999994079, 5975583.999999799,
+				5939209.000003757, 5978541.999997105, 6124540.999997407, 5840540.9999832045,
+				6095000.000001164, 5991999.99999837, 6014541.000011377, 5815166.99999338, 6084666.999988258,
+				5740166.000003228, 5799292.00001061
+			]
+		},
+		{
+			"count": 64,
+			"evidenceCount": 512,
+			"reverse": true,
+			"capacity": 64,
+			"measurement": "retained-state replay transition",
+			"baselineMedianNs": 77490832.99998893,
+			"candidateMedianNs": 78426292.0000183,
+			"deltaNsPerTransition": 935459.0000293702,
+			"baselineP95Ns": 80045165.99999624,
+			"candidateP95Ns": 80476541.99998942,
+			"baselineSamplesNs": [
+				78029792.00001574, 77490832.99998893, 77019415.99999554, 77236417.00000735,
+				76795000.0000128, 76632124.99997462, 76301624.99999279, 77467417.00000712,
+				79412542.00000548, 77307915.99999066, 77690291.99998477, 78860083.00000685,
+				78783125.0000163, 79043958.00002384, 80045165.99999624
+			],
+			"candidateSamplesNs": [
+				77816250.00000349, 78029957.99999917, 78281958.00000685, 78741665.99998716,
+				77420458.00000778, 77192875.00000791, 77153791.99999733, 76997125.00002351,
+				78737750.00000024, 79264292.00000712, 78426292.0000183, 79549916.99999663,
+				79494250.00001793, 80476541.99998942, 79923000.00000978
+			]
+		},
+		{
+			"count": 16,
+			"evidenceCount": 128,
+			"reverse": false,
+			"capacity": 2,
+			"measurement": "retained-state replay transition",
+			"baselineMedianNs": 584124.9999939464,
+			"candidateMedianNs": 586916.9999787118,
+			"deltaNsPerTransition": 2791.9999847654253,
+			"baselineP95Ns": 838832.9999870621,
+			"candidateP95Ns": 623749.9999988358,
+			"baselineSamplesNs": [
+				594833.0000101123, 594583.0000273418, 584124.9999939464, 593708.0000003334,
+				703208.9999993332, 594959.0000091121, 586125.0000016298, 838832.9999870621,
+				583665.9999913536, 574875.0000202563, 571792.0000024606, 574625.0000083819,
+				570875.0000048894, 576375.000004191, 577666.9999759179
+			],
+			"candidateSamplesNs": [
+				594375.000015134, 579916.9999954756, 587917.0000262093, 603459.0000053868,
+				623749.9999988358, 594958.0000014976, 599375.0000197906, 586916.9999787118,
+				590957.9999861307, 584375.0000058208, 577707.9999970738, 573499.999998603,
+				576667.0000157319, 571457.999991253, 578291.9999910519
+			]
+		}
+	],
+	"scaffold": {
+		"measurement": "empty transition setup; no identity/hash/graph/I/O",
+		"samples": [
+			{
+				"candidate": 6101.449999999022,
+				"baseline": 3056.5374999976484
+			},
+			{
+				"baseline": 2993.004100001417,
+				"candidate": 5961.195799999405
+			},
+			{
+				"candidate": 5937.370799999917,
+				"baseline": 2958.1666000012774
+			},
+			{
+				"baseline": 2949.6541999978945,
+				"candidate": 6035.420900001191
+			},
+			{
+				"candidate": 5971.291599998949,
+				"baseline": 2956.545800002641
+			},
+			{
+				"baseline": 2997.4124999978812,
+				"candidate": 5953.420799999731
+			},
+			{
+				"candidate": 5959.233300000778,
+				"baseline": 2929.6165999985533
+			},
+			{
+				"baseline": 2933.5083000012673,
+				"candidate": 5978.937500002212
+			},
+			{
+				"candidate": 5956.108300000778,
+				"baseline": 2907.300000000396
+			},
+			{
+				"baseline": 2928.9999999979045,
+				"candidate": 5913.78749999858
+			}
+		],
+		"medianDeltaNs": 3014.745799996308
+	},
+	"memoryScope": "aggregate process only; not a comparative allocation claim",
+	"percentileEstimator": "nearest-rank; 15 replay samples per arm; graph p95 across input batches",
+	"memory": {
+		"rss": 355467264,
+		"heapTotal": 232570880,
+		"heapUsed": 129745232,
+		"external": 3053069,
+		"arrayBuffers": 543540
+	},
+	"resourceUsage": {
+		"userCPUTime": 151449595,
+		"systemCPUTime": 1106391,
+		"maxRSS": 347136,
+		"sharedMemorySize": 0,
+		"unsharedDataSize": 0,
+		"unsharedStackSize": 0,
+		"minorPageFault": 21814,
+		"majorPageFault": 81,
+		"swappedOut": 0,
+		"fsRead": 0,
+		"fsWrite": 0,
+		"ipcSent": 314,
+		"ipcReceived": 314,
+		"signalsCount": 0,
+		"voluntaryContextSwitches": 2,
+		"involuntaryContextSwitches": 60550
+	},
+	"cleanup": true
+}

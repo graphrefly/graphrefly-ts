@@ -1,0 +1,549 @@
+{
+	"schema": "graphrefly-ts/causal-construction-evidence/v1",
+	"artifactRef": "graphrefly-ts:causal-construction-evidence",
+	"revision": "construction-v1",
+	"armRevision": "ts-v7",
+	"workRef": "graphrefly-ts:CAUSAL-CONSTRUCTION-OWNERSHIP-TS",
+	"owner": "graphrefly-ts",
+	"date": "2026-09-07",
+	"status": "partial",
+	"statusReason": "Rows [1, 2, 3] exceed at least one unchanged aggregate construction 1.20 / steady 1.10 budget.",
+	"governingRefs": ["graphrefly-ts:D161", "graphrefly-ts:D160", "graphrefly:D791"],
+	"contract": {
+		"artifactRef": "graphrefly:causal-occurrence-contract",
+		"revision": "contract-v2"
+	},
+	"authorization": {
+		"workRef": "graphrefly-ts:CAUSAL-CONSTRUCTION-OWNERSHIP-TS",
+		"kind": "existing-task-user-instruction",
+		"instruction": "同意",
+		"scope": "Approved B1 internal implementation and offline qualification, preserving observation behavior; no B2, API/protocol, live/provider/spend, staging or commit.",
+		"approvedDesign": "../C-local-edge-design-2026-09-07/B-local-edge-review.md",
+		"approvedDesignDigest": "sha256:f6941827294caef2c9924289c62e8c8dcfd6b6c7565c985262353db9cd3dbe2e",
+		"baselineReceiptDigest": "sha256:fb17c30fd1a362cbb3cb8eb426a3e994b6c8fcc4ac92438b07f9d9d4d52f42a8"
+	},
+	"checkout": {
+		"baseCommit": "63d58eace38ac782155062284515eeeba68b1df8",
+		"currentCommit": "63d58eace38ac782155062284515eeeba68b1df8",
+		"commitCreated": false,
+		"binding": "Current exact working-tree bytes; existing dirty C/A implementation retained."
+	},
+	"files": {
+		"docs/design/causal-construction-v1.json": "sha256:429e5448894103c164ec34abf897819cddba9852b5892ffcc95f9202d2fae3ed",
+		"docs/design/causal-construction-v1.md": "sha256:af32060e3b4fa8f1d1c811dd88d530dd1d0cb3e9cccbd43cddd8c4681fb183dc",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-artifact-set.json": "sha256:fb2372dced9bf352f8c38fe3b27b3a8608c7ef0860cd6c62bf521ef098b727d8",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-describe.json": "sha256:45f5cbb78484c1daf3b4b30c48a97b38a82fd215657e6abc44ff1134ec0fef86",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-live-qualification.json": "sha256:871be258fb6aff418e777b208c548fd89902a0f900ed077d8b378845a822af95",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-observe-events.jsonl": "sha256:3ac9dfe99a8a244dc8f05f4312d5a587fec5a7345f29d2ee8cd78d9a004c76da",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-run-summary.json": "sha256:bf6a7e9aed921af02531c7f08c2797835bb20e5d53b0198f56b2944f8cfff0b2",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-topology-qualification.json": "sha256:4ab54dbd95f0df18f44e18b69c8e8e028bded3e9d7c630bdd3340c0063a93f1f",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-topology.mmd": "sha256:f3823764e82ba2fb21f0c826ee7a219527a03bfd01b71f68fd0398a25b1b6aaf",
+		"packages/ts/evals/graph-native-rerun-avoidance/implementation-manifest.ts": "sha256:74408b73489e3ecbae1322a8a156776cd8f060e7bd51c05abd3c4b58c4fb2cfb",
+		"packages/ts/package.json": "sha256:0ca16a1fcc9602d6f8fa28725f35acf3d7a8be40adeb767fdb89312c6519575d",
+		"packages/ts/qualification/causal-occurrence/README.md": "sha256:29a4ef2e9a9a5d98260cc9b441f5fb108202e434b7a3d8b1211b7259f423c9df",
+		"packages/ts/qualification/causal-occurrence/construction-v1-edge-index-review.md": "sha256:c72f74eae95ddd6a3478369192f0cd019c5dd761b08843136ae3f1cf685e81dd",
+		"packages/ts/qualification/causal-occurrence/construction-v1-incoming-review.md": "sha256:487d12d0b9535cbfb04eeb79db6c7ae11751807071e4028a01f49950646b4dd6",
+		"packages/ts/qualification/causal-occurrence/construction-v1-review.md": "sha256:7f4784988bd6389640663ee399c569a5bc88c91efef07e1238591a8d76717e7f",
+		"packages/ts/qualification/causal-occurrence/ts-v4-construction-inputs.json": "sha256:3cd9fe1df4e8404bf6809528de218169b07a03425f2571e56d63cf777f95fb49",
+		"packages/ts/qualification/causal-occurrence/ts-v4-receipt.json": "sha256:768255374352f010d5f6babe4a49b614a311ba25b7054ec1c65b793f0d1c66b7",
+		"packages/ts/qualification/causal-occurrence/ts-v5-causal-mutations.json": "sha256:77d1865e2b36719fc6fbf3acd7de508db59a6f109dc5e5147e89e72055d499ed",
+		"packages/ts/qualification/causal-occurrence/ts-v5-construction-comparison.json": "sha256:d9f25025efe6a3d1ddcfa09784e6a10206c690cfe7227f6295e8d82da5acd6ee",
+		"packages/ts/qualification/causal-occurrence/ts-v5-construction-mutations.json": "sha256:900747a404013a7c80c41b8852dc567f4c5f1c85afd683575e416fbb58a71e56",
+		"packages/ts/qualification/causal-occurrence/ts-v5-construction-verifier.json": "sha256:0e6b9637c97ed524ddd0177b1a9bc770178f9b1a031233fd87508b2fb2e73535",
+		"packages/ts/qualification/causal-occurrence/ts-v5-inputs.json": "sha256:f0f1c797140e4340152ef1d9ded38de847bf53aff7c005d883c2c698c2b31f3b",
+		"packages/ts/qualification/causal-occurrence/ts-v5-receipt.json": "sha256:e9dfc5184941d0f5e40a0e94d9e48479ada16f672d680d5a4d2df9822acd4200",
+		"packages/ts/qualification/causal-occurrence/ts-v6-causal-mutations.json": "sha256:0320cff48146536bf8b5ff16be22ede0d7a0df167be9f1d32bb43392cb0d4aac",
+		"packages/ts/qualification/causal-occurrence/ts-v6-construction-comparison.json": "sha256:9fd041251b2a90b8ec368c0b93499960c156696859c21da24e8f584cf38aaac7",
+		"packages/ts/qualification/causal-occurrence/ts-v6-construction-mutations.json": "sha256:51b2d6fe0cffa611aed01c88b6edc61f06dca36e0f81c0235f1e7ac3d3cc8a65",
+		"packages/ts/qualification/causal-occurrence/ts-v6-construction-verifier.json": "sha256:0e26b7d3a6ec0e9a0697d8a90b1b0d5aa1b1e78844defbacb4aeaff7cc7da120",
+		"packages/ts/qualification/causal-occurrence/ts-v6-inputs.json": "sha256:f61a22be878f2e988454a8a29180129a147305fc1dd6898232972e84b7511d3f",
+		"packages/ts/qualification/causal-occurrence/ts-v6-receipt.json": "sha256:fb17c30fd1a362cbb3cb8eb426a3e994b6c8fcc4ac92438b07f9d9d4d52f42a8",
+		"packages/ts/qualification/causal-occurrence/ts-v7-causal-mutations.json": "sha256:c1bb29afd083a07360150fe0cc708fcc6a9e7a9c7f1722b281a438e1fb1a2a60",
+		"packages/ts/qualification/causal-occurrence/ts-v7-construction-comparison.json": "sha256:448347dbf8f14bbef7d098dd2a93d5b47dd3daef54f6f7fbcade68d2c3edc90b",
+		"packages/ts/qualification/causal-occurrence/ts-v7-construction-mutations.json": "sha256:d59cc23406bc55f603e4fd9ef4859f0f93a96503d5be2cf31d2021e40afb0920",
+		"packages/ts/qualification/causal-occurrence/ts-v7-construction-verifier.json": "sha256:ea5a03bb572e140946e3b90d7226cbe4506a5be9877d02030e2f021522adddb3",
+		"packages/ts/qualification/causal-occurrence/ts-v7-incoming-differential.json": "sha256:579c38dbaeb6305ea1693d04e963cca7cc86e20b14ef796cd78806fb905deb1a",
+		"packages/ts/runners/local-untrusted-js/local-untrusted-js-runner.mjs": "sha256:f9ddb8e8fe8f0511af526fe02fc8f356ceec93672ce35d60c6c0da41dc681a61",
+		"packages/ts/src/__tests__/graph-construction-incoming.d161.test.ts": "sha256:31b1fbb6936e8d8e8bc0a9e3e1aab5d2dce691e29f0c45a41978006df1f546fd",
+		"packages/ts/src/__tests__/graph-construction.d161.test.ts": "sha256:af53a9796602564ce966fac6e0fc1a14c91143c5605a596f1a132774d1b4b802",
+		"packages/ts/src/__tests__/solutions-causal-authority.d160.test.ts": "sha256:4d7f67fe3128ad7dd82c5372b1f259a95fb49bc273cc95cecc3cc48e2411f0b2",
+		"packages/ts/src/__tests__/solutions-causal-occurrence.d791.test.ts": "sha256:16f158c49729583e739b4c013ab6b992d42c6a0a499cce91c4917f9bd936a937",
+		"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+		"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+		"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+		"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+		"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+		"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+		"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+		"packages/ts/src/graph/construction-scope.ts": "sha256:97ae64eae90439773bc80dff4ebc52ec1ca781871948d865b10081452eacc3f5",
+		"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+		"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+		"packages/ts/src/graph/graph-lifecycle.ts": "sha256:aad0f8c4b90f39fef693c6b8150165c35013032039566a82ef6db1d15f2f3772",
+		"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+		"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+		"packages/ts/src/graph/graph.ts": "sha256:1f261caf16821965b6ca8e6de3e14f27c348a81f016010379eb376688497978c",
+		"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+		"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+		"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+		"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+		"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+		"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+		"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+		"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+		"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+		"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+		"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+		"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+		"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+		"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+		"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+		"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+		"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+		"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+		"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+		"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+		"packages/ts/src/solutions/causal-occurrence.ts": "sha256:9493fafb2b6f2c3e0d72fd64716ea9a679485c307fa1a5f2876695f6cdd4abee",
+		"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+		"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+		"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+		"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+		"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+		"packages/ts/tsconfig.tests.json": "sha256:34d7c4845fe68d3bcc784f305cf20ddbc595dd6347c4f0f0b04df8138de8890c",
+		"packages/ts/vitest.config.ts": "sha256:19a4d3e770044d3549b25b0fc4130e41f4ec0f8a6540cc4c6c79c8f22c737d78",
+		"pnpm-lock.yaml": "sha256:d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+		"scripts/build-local-untrusted-js-runner.mjs": "sha256:5b561e94a88675495b2e154cb94e5baea3f28cadb881cdd6156759c4b4904bfb",
+		"scripts/compare-causal-construction.mjs": "sha256:fdf2ef55f20a3ec5d250da09e5fc499379c4ca64031f8f8c2e1df4743ab23a8a",
+		"scripts/compare-causal-incoming.mjs": "sha256:5366d38f7942ed94463d6d6062687c5ed07c4a6a099f3bab9bbac7191669e700",
+		"scripts/qualify-causal-construction.mjs": "sha256:18971e97514c120d32e1fa1f7e83bd7b6883bad09a76d5033727a389ce70d030",
+		"scripts/qualify-causal-occurrence.mjs": "sha256:56d030c9f1b787b8d4b5566c77a3a2837efdd352e07511a5036d77eed80dba34",
+		"scripts/verify-causal-construction.mjs": "sha256:fadd9bd249c2eca5b91bc6748b6e3680b4720b2019477fecb5cc8f3ef97955f5"
+	},
+	"optimization": {
+		"selected": "B1",
+		"actualDeps": true,
+		"sharedIdentityDiscovery": true,
+		"strictlyLocalTraversal": false,
+		"mountDescribePreserved": true,
+		"overrideSingleReadAndReflectApply": true,
+		"publicApiChanged": false,
+		"protocolChanged": false,
+		"perMessageWorkAdded": false,
+		"helperAndCheckerUnchanged": true
+	},
+	"checks": [
+		{
+			"id": "focused-final",
+			"command": [
+				"pnpm",
+				"--filter",
+				"@graphrefly/ts",
+				"exec",
+				"vitest",
+				"run",
+				"src/__tests__/graph-construction-incoming.d161.test.ts",
+				"src/__tests__/graph-construction.d161.test.ts",
+				"src/__tests__/solutions-causal-occurrence.d791.test.ts",
+				"src/__tests__/solutions-causal-authority.d160.test.ts"
+			],
+			"started": "2026-09-07T17:44:36.079Z",
+			"ended": "2026-09-07T17:44:37.555Z",
+			"elapsedSeconds": 1.474570958,
+			"exitCode": 0,
+			"signal": null,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-local-edge-implementation-2026-09-07/focused-final.log",
+			"sourceUnchanged": true,
+			"changed": [],
+			"logDigest": "sha256:a228a253666cf27955935790717eff87a4be60ec1d3bd2e08d9484d5fecc77a8"
+		},
+		{
+			"id": "full-test-final-v2",
+			"command": ["pnpm", "test"],
+			"started": "2026-09-07T17:45:53.337Z",
+			"ended": "2026-09-07T17:47:25.610Z",
+			"elapsedSeconds": 92.271245083,
+			"exitCode": 0,
+			"signal": null,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-local-edge-implementation-2026-09-07/full-test-final-v2.log",
+			"sourceUnchanged": true,
+			"changed": [],
+			"logDigest": "sha256:b344c7b3add6b5fa07474c6f7a0a531bba51fc899d93a88be75a20305230f9f7"
+		},
+		{
+			"id": "build-final",
+			"command": ["pnpm", "run", "build"],
+			"started": "2026-09-07T17:45:53.325Z",
+			"ended": "2026-09-07T17:47:02.823Z",
+			"elapsedSeconds": 69.496326917,
+			"exitCode": 0,
+			"signal": null,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-local-edge-implementation-2026-09-07/build-final.log",
+			"sourceUnchanged": true,
+			"changed": [],
+			"logDigest": "sha256:19be0e5f4df32622540b8dce40d8c6dbdeaa90d43b09e31b7a4e631a487b05c7"
+		},
+		{
+			"id": "lint-final-v2",
+			"command": ["pnpm", "run", "lint"],
+			"started": "2026-09-07T17:48:40.611Z",
+			"ended": "2026-09-07T17:48:49.067Z",
+			"elapsedSeconds": 8.454721584,
+			"exitCode": 0,
+			"signal": null,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-local-edge-implementation-2026-09-07/lint-final-v2.log",
+			"sourceUnchanged": true,
+			"changed": [],
+			"logDigest": "sha256:b1bff487c756dd612b0da75d8a4623a69c37736458f3063a033cd2e658934682"
+		},
+		{
+			"id": "browser-final",
+			"command": ["pnpm", "--filter", "@graphrefly/ts", "test:browser:agentic-memory"],
+			"started": "2026-09-07T17:48:49.130Z",
+			"ended": "2026-09-07T17:48:51.771Z",
+			"elapsedSeconds": 2.6400922500000004,
+			"exitCode": 0,
+			"signal": null,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-local-edge-implementation-2026-09-07/browser-final.log",
+			"sourceUnchanged": true,
+			"changed": [],
+			"logDigest": "sha256:f16875ee1a4d1235b35fcd05bc730783f96992ba27233443f126d867b450832b"
+		},
+		{
+			"id": "artifact-final",
+			"command": ["pnpm", "run", "eval:root:artifacts:check"],
+			"started": "2026-09-07T17:47:05.974Z",
+			"ended": "2026-09-07T17:47:08.440Z",
+			"elapsedSeconds": 2.465386333,
+			"exitCode": 0,
+			"signal": null,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-local-edge-implementation-2026-09-07/artifact-final.log",
+			"sourceUnchanged": true,
+			"changed": [],
+			"logDigest": "sha256:9456e38adf37533cfd0c762f144a640237a1bc84b50e5cdfce36feb60d6673b0"
+		},
+		{
+			"id": "causal-mutations-final-v2",
+			"command": [
+				"node",
+				"scripts/qualify-causal-occurrence.mjs",
+				"--output",
+				"packages/ts/qualification/causal-occurrence/ts-v7-causal-mutations.json"
+			],
+			"started": "2026-09-07T17:45:53.330Z",
+			"ended": "2026-09-07T17:47:48.471Z",
+			"elapsedSeconds": 115.13765795799999,
+			"exitCode": 0,
+			"signal": null,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-local-edge-implementation-2026-09-07/causal-mutations-final-v2.log",
+			"sourceUnchanged": true,
+			"changed": [],
+			"logDigest": "sha256:af0d48d49c2af798bb50254a7b62996a6fdfe80a20f43407b9944c0c0c98667d"
+		},
+		{
+			"id": "construction-mutations-final-v2",
+			"command": [
+				"node",
+				"scripts/qualify-causal-construction.mjs",
+				"--output",
+				"packages/ts/qualification/causal-occurrence/ts-v7-construction-mutations.json"
+			],
+			"started": "2026-09-07T17:45:53.316Z",
+			"ended": "2026-09-07T17:46:47.000Z",
+			"elapsedSeconds": 53.682381334,
+			"exitCode": 0,
+			"signal": null,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-local-edge-implementation-2026-09-07/construction-mutations-final-v2.log",
+			"sourceUnchanged": true,
+			"changed": [],
+			"logDigest": "sha256:f5af8a7f65a25b989499b06d5dbaa3009cf69f83ee42c8e7bbcc4dcbb1d910cf"
+		},
+		{
+			"id": "incoming-differential-final-v2",
+			"command": [
+				"node",
+				"scripts/compare-causal-incoming.mjs",
+				"--output",
+				"packages/ts/qualification/causal-occurrence/ts-v7-incoming-differential.json"
+			],
+			"started": "2026-09-07T17:47:04.248Z",
+			"ended": "2026-09-07T17:47:05.656Z",
+			"elapsedSeconds": 1.4067978330000002,
+			"exitCode": 0,
+			"signal": null,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-local-edge-implementation-2026-09-07/incoming-differential-final-v2.log",
+			"sourceUnchanged": true,
+			"changed": [],
+			"logDigest": "sha256:c0aa99a649570cc8771ea501c9f98cdbdbb5c5783fc1855cb3eefad4642fb5a2"
+		},
+		{
+			"id": "verifier-final-v2",
+			"command": [
+				"node",
+				"scripts/verify-causal-construction.mjs",
+				"--output",
+				"packages/ts/qualification/causal-occurrence/ts-v7-construction-verifier.json"
+			],
+			"started": "2026-09-07T17:47:05.723Z",
+			"ended": "2026-09-07T17:47:05.904Z",
+			"elapsedSeconds": 0.17959537500000003,
+			"exitCode": 0,
+			"signal": null,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-local-edge-implementation-2026-09-07/verifier-final-v2.log",
+			"sourceUnchanged": true,
+			"changed": [],
+			"logDigest": "sha256:2e745f90367bd57e282cee531fa304a91487586d7891063f80d8a0f43853edd5"
+		},
+		{
+			"id": "root-soak-final",
+			"command": ["pnpm", "test:root-eval-soak"],
+			"started": "2026-09-07T17:49:23.152Z",
+			"ended": "2026-09-07T18:07:09.112Z",
+			"elapsedSeconds": 1065.982269667,
+			"exitCode": 0,
+			"signal": null,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-local-edge-implementation-2026-09-07/root-soak-final.log",
+			"sourceUnchanged": true,
+			"changed": [],
+			"logDigest": "sha256:6b286cf9a92fa731d05b9b0aae904d6e8ecf7cd0a887118f9045e311f02da1cc"
+		},
+		{
+			"id": "performance",
+			"command": [
+				"node",
+				"scripts/compare-causal-construction.mjs",
+				"--output",
+				"packages/ts/qualification/causal-occurrence/ts-v7-construction-comparison.json"
+			],
+			"started": "2026-09-07T18:08:36.100Z",
+			"ended": "2026-09-07T18:24:33.997Z",
+			"elapsedSeconds": 957.901878958,
+			"exitCode": 0,
+			"signal": null,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-local-edge-implementation-2026-09-07/performance.log",
+			"sourceUnchanged": true,
+			"changed": [],
+			"logDigest": "sha256:6a570b38260e20cf191f8003b451c53dadd93058303ef0ffe44d55e7b2734583"
+		},
+		{
+			"id": "workspace-pre-record",
+			"command": [
+				"npm",
+				"--prefix",
+				"/Users/davidchenallio/src/graphrefly",
+				"run",
+				"authority:check:workspace"
+			],
+			"started": "2026-09-07T18:24:54.779Z",
+			"ended": "2026-09-07T18:24:56.812Z",
+			"elapsedSeconds": 2.031685875,
+			"exitCode": 0,
+			"signal": null,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-local-edge-implementation-2026-09-07/workspace-pre-record.log",
+			"sourceUnchanged": true,
+			"changed": [],
+			"logDigest": "sha256:600ef4cc5ed3c17875f5d9ab51ca492c3a547638a7b83ddf268745a9aa61dee4"
+		},
+		{
+			"id": "dashboard-pre-record",
+			"command": ["node", "/Users/davidchenallio/src/graphrefly/dashboard/build.mjs", "--check"],
+			"started": "2026-09-07T18:24:54.788Z",
+			"ended": "2026-09-07T18:24:55.561Z",
+			"elapsedSeconds": 0.7712018340000001,
+			"exitCode": 0,
+			"signal": null,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-local-edge-implementation-2026-09-07/dashboard-pre-record.log",
+			"sourceUnchanged": true,
+			"changed": [],
+			"logDigest": "sha256:ecd073f6e74dddc5da2cccc5208f6fc63923df6af279826fb6c0b2b4207eee27"
+		}
+	],
+	"coverage": {
+		"focusedTests": 81,
+		"causalContractTests": 39,
+		"constructionTests": 27,
+		"incomingTests": 12,
+		"authorityTests": 3,
+		"fullSuitePassed": 2217,
+		"fullSuitePreexistingSkipped": 4,
+		"fullSuitePassedFiles": 137,
+		"fullSuitePreexistingSkippedFiles": 1,
+		"soak": {
+			"passed": 101,
+			"total": 101,
+			"sourceUnchanged": true
+		},
+		"browserCases": 3,
+		"oldCausalMutantsKilled": 73,
+		"oldConstructionMutantsKilled": 17,
+		"newIncomingMutantsKilled": 8,
+		"survived": 0,
+		"resourceSnapshots": 12,
+		"plainModelNegativeControls": 2,
+		"incomingDifferentialCases": 144,
+		"originalPortTraceComparisons": 6
+	},
+	"performance": {
+		"constructionMaximumP95Ratio": 1.2,
+		"steadyMaximumP95Ratio": 1.1,
+		"pointThresholdsMet": false,
+		"failedRows": [1, 2, 3],
+		"rows": [
+			{
+				"count": 1,
+				"evidence": 0,
+				"background": 0,
+				"constructionRatio": 1.1575695158906931,
+				"constructionMedianDeltaNs": 10084.000008646399,
+				"constructionBatchRatios": [1.0580710465935004, 1.1791308422137003, 1.1942204245151753],
+				"steadyRatio": 1.1206380737138861
+			},
+			{
+				"count": 16,
+				"evidence": 128,
+				"background": 0,
+				"constructionRatio": 1.2358075422450527,
+				"constructionMedianDeltaNs": 9625.000006053597,
+				"constructionBatchRatios": [1.2882096547818809, 1.0169296874905196, 1.1686353870429453],
+				"steadyRatio": 1.00338270473033
+			},
+			{
+				"count": 64,
+				"evidence": 512,
+				"background": 0,
+				"constructionRatio": 1.2394232310653261,
+				"constructionMedianDeltaNs": 9500.999993178993,
+				"constructionBatchRatios": [1.32403718451447, 1.2598334867154277, 1.2029155814213108],
+				"steadyRatio": 1.0095123193797193
+			},
+			{
+				"count": 1,
+				"evidence": 0,
+				"background": 1000,
+				"constructionRatio": 0.7700869564128958,
+				"constructionMedianDeltaNs": -28165.999916382134,
+				"constructionBatchRatios": [0.8846421236354927, 0.6924963947832447, 0.7675126627654767],
+				"steadyRatio": 0.989920806197371
+			}
+		],
+		"ordinaryRatio": 1.0093936005211654,
+		"constructionSampling": {
+			"batches": 3,
+			"warmPairsPerBatch": 100,
+			"measuredPairsPerBatch": 300,
+			"arrivalsDuringConstruction": 0
+		},
+		"steadySampling": "Full original seven-port trace, occupancy/evidence scenarios 1/0,16/128,64/512; separately warmed alternating pairs; narrow projection not activated in this performance arm.",
+		"rawReport": "ts-v7-construction-comparison.json",
+		"limitations": [
+			"One uninstrumented local run with all predeclared batches; no portable performance guarantee.",
+			"B1 still walks the full current graph and materializes mounted child snapshots.",
+			"Narrow-view activated steady cost and C-attributed retained memory are not established.",
+			"Ordinary graph measure is an average per update, not p95."
+		]
+	},
+	"manifestRefresh": {
+		"implementation": "sha256:da1e1031b673040b0061f5f46122949abe6a71fe412494e58efd9d3dee1209be",
+		"qualification": "sha256:0324ad124b428ff6291fe8a49b625a8d284850b159ff1fad3303b1b9f2d502a0",
+		"artifact": "sha256:82ca71b3f370775ed8f4babfe6e33b6e320558ada937bfcc84a55eac9599e5f3",
+		"meaning": "Source-bound no-network artifacts only; no operator configuration or external execution."
+	},
+	"review": {
+		"mode": "Two independent static reviewers with callable-property follow-ups",
+		"record": {
+			"path": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-local-edge-implementation-2026-09-07/static-review.md",
+			"digest": "sha256:66bf65a7721d2fcc794dc7156ee3310716d7ced5cd4f6e70e45f9a30bcc62e07"
+		},
+		"fixed": [
+			"Capture describe getter once.",
+			"Invoke captured callable via Reflect.apply without reading its call property."
+		],
+		"remainingFindings": []
+	},
+	"provenance": {
+		"actor": "Codex in current user-authorized task",
+		"workRef": "graphrefly-ts:CAUSAL-CONSTRUCTION-OWNERSHIP-TS",
+		"bindings": {
+			"packages/ts/src/graph/graph.ts": {
+				"before": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010",
+				"after": "sha256:1f261caf16821965b6ca8e6de3e14f27c348a81f016010379eb376688497978c"
+			},
+			"packages/ts/src/graph/graph-lifecycle.ts": {
+				"before": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+				"after": "sha256:aad0f8c4b90f39fef693c6b8150165c35013032039566a82ef6db1d15f2f3772"
+			},
+			"packages/ts/src/graph/construction-scope.ts": {
+				"before": "sha256:57260c40bd793f9751da628ad7cf0c426a1e18aae43e4fee2242950a83337ad1",
+				"after": "sha256:97ae64eae90439773bc80dff4ebc52ec1ca781871948d865b10081452eacc3f5"
+			},
+			"packages/ts/src/solutions/causal-occurrence.ts": {
+				"before": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c",
+				"after": "sha256:9493fafb2b6f2c3e0d72fd64716ea9a679485c307fa1a5f2876695f6cdd4abee"
+			}
+		},
+		"requiredEdgeHelperAndCheckerUnchanged": true
+	},
+	"ownership": "Implementation evidence and trace handoff delivered; user teach-back pending, not ownership-verified.",
+	"nonClaims": [
+		"Ordinary preset or public core/patterns/solutions layering complete",
+		"Consumer deterministic business verifier or spending-alerts plain-code qualification",
+		"Real inbox/provider/live/spend authorization",
+		"Automatic recovery, drain, stop, replacement, disposal or persistence",
+		"Wave protocol amendment or cross-runtime implementation",
+		"Commit or automatic next batch"
+	],
+	"unavailableOrExcluded": [
+		{
+			"command": "pnpm --filter @graphrefly/ts test:historical-eval-requalification",
+			"reason": "Its referenced vitest.historical-eval-requalification.config.ts is absent. Existing historical transfer/verifier scenarios were run through the root-soak suite."
+		},
+		{
+			"tests": [
+				"local-untrusted-js-compute-node.live.test.ts (3)",
+				"local-container-postgresql-podman-libpod-api-v0-rootless-node.live.test.ts (1)"
+			],
+			"reason": "Four preexisting opt-in environment/live skips; no live/container grant was added."
+		}
+	],
+	"evidenceApplicability": {
+		"differential": "144 selected actual-runtime comparisons against frozen ts-v6, including 29 baseline imported modules matching receipt bytes; not exhaustive equivalence or an independent business verifier.",
+		"mutations": "98 actual runtime mutations with assertion kills, including eight B1 mutations; separate from two plain resource model controls.",
+		"cycleFixture": "Cold getter-based inspection stress only; public rewire still rejects cycles.",
+		"rootSoak": "Only the final complete serial run qualifies; the pre-Reflect.apply 367-second run was intentionally terminated and is not a pass."
+	},
+	"developmentAttempts": [
+		{
+			"kind": "fixture-correction",
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-local-edge-implementation-2026-09-07/focused-1.log",
+			"reason": "Public rewire correctly rejected cycle; released-member message expectation corrected."
+		},
+		{
+			"kind": "harness-anchor-correction",
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-local-edge-implementation-2026-09-07/construction-mutations.log",
+			"reason": "Ambiguous describe/checkpoint anchor; no compile or mutation success claimed."
+		},
+		{
+			"kind": "type-import-and-binding-correction",
+			"logs": [
+				"/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-local-edge-implementation-2026-09-07/lint-1.log",
+				"/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-local-edge-implementation-2026-09-07/full-test.log"
+			],
+			"reason": "DescribeSnapshot import fixed; stale no-network implementation/artifact bindings refreshed before successful requalification."
+		},
+		{
+			"kind": "intentional-soak-interruption",
+			"record": {
+				"id": "root-soak",
+				"command": ["pnpm", "test:root-eval-soak"],
+				"started": "2026-09-07T17:37:56.343Z",
+				"ended": "2026-09-07T17:44:03.500Z",
+				"elapsedSeconds": 367.15501337500007,
+				"exitCode": null,
+				"signal": "SIGTERM",
+				"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-local-edge-implementation-2026-09-07/root-soak.log",
+				"sourceUnchanged": true,
+				"changed": [],
+				"logDigest": "sha256:0584a179f603eb9d6d326a99ae1462898a6ab018a03e70417f320f3bb71ef229"
+			},
+			"reason": "Freeze final Reflect.apply correction first; no completed-soak claim for this attempt."
+		}
+	]
+}

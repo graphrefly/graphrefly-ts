@@ -1,0 +1,778 @@
+{
+	"schema": "graphrefly-ts/causal-construction-evidence/v1",
+	"artifactRef": "graphrefly-ts:causal-construction-evidence",
+	"revision": "construction-v1",
+	"armRevision": "ts-v6",
+	"workRef": "graphrefly-ts:CAUSAL-CONSTRUCTION-OWNERSHIP-TS",
+	"owner": "graphrefly-ts",
+	"date": "2026-09-07",
+	"status": "partial",
+	"governingRefs": ["graphrefly-ts:D161", "graphrefly-ts:D160", "graphrefly:D791"],
+	"contract": {
+		"artifactRef": "graphrefly:causal-occurrence-contract",
+		"revision": "contract-v2"
+	},
+	"authorization": {
+		"kind": "existing-task-user-instruction",
+		"taskId": "01a077c7-55e6-7f11-9d4f-e7c51944afb4",
+		"instruction": "好，继续",
+		"scope": "Approved edge-index optimization A, same work; implementation and offline QA only. No local graph reader B, public API/protocol changes, commit or provider/live/spend."
+	},
+	"checkout": {
+		"baseCommit": "63d58eace38ac782155062284515eeeba68b1df8",
+		"currentCommit": "63d58eace38ac782155062284515eeeba68b1df8",
+		"commitCreated": false,
+		"binding": "Exact working-tree hashes, not HEAD alone; prior dirty authority implementation preserved."
+	},
+	"generatedArtifacts": [
+		{
+			"path": "packages/ts/runners/local-untrusted-js/local-untrusted-js-runner.mjs",
+			"builder": "scripts/build-local-untrusted-js-runner.mjs",
+			"check": "build",
+			"baselineDigest": "sha256:91e030ec2ebd3dd98e084f50819ec10f55eaab2b6739ca808a1faf2384702d8c",
+			"note": "Standard build artifact; bound ts-v5 bytes preserved in ts-v5-inputs.json. No new export."
+		}
+	],
+	"files": {
+		"docs/design/causal-construction-v1.json": "sha256:429e5448894103c164ec34abf897819cddba9852b5892ffcc95f9202d2fae3ed",
+		"docs/design/causal-construction-v1.md": "sha256:af32060e3b4fa8f1d1c811dd88d530dd1d0cb3e9cccbd43cddd8c4681fb183dc",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-artifact-set.json": "sha256:1a21ab340468da8bf8d32ca3c4e9d87fa8cf4cc536356e878fcda24718fed338",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-describe.json": "sha256:e83ed9977c9a2e5a198b3fc38ef15635922f129141d4cb64a63e6ff13ca13a42",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-live-qualification.json": "sha256:f93ad0dbfbeb1b29c3bbe52d5edd044e1eee8557dc31a41cc68bb1377ffb4338",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-observe-events.jsonl": "sha256:d38860db0d5daaa39fdd3d3238878c011a46f5dfdbe6e73a14e0b1fe8a26bd78",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-run-summary.json": "sha256:bf6a7e9aed921af02531c7f08c2797835bb20e5d53b0198f56b2944f8cfff0b2",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-topology-qualification.json": "sha256:972db24176a4498dbf166a1dfb5e9611041e926da90dcf6160955d5c4c5be3d5",
+		"packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-topology.mmd": "sha256:f3823764e82ba2fb21f0c826ee7a219527a03bfd01b71f68fd0398a25b1b6aaf",
+		"packages/ts/evals/graph-native-rerun-avoidance/implementation-manifest.ts": "sha256:97f8154cff284e09965d8ab7073c39837f33e13119b9cfd1f2840768499d564d",
+		"packages/ts/package.json": "sha256:0ca16a1fcc9602d6f8fa28725f35acf3d7a8be40adeb767fdb89312c6519575d",
+		"packages/ts/qualification/causal-occurrence/README.md": "sha256:a70215c9476aee2a6556be51f7eb94056a213a67b77ecf84a4af290e5fec0ff1",
+		"packages/ts/qualification/causal-occurrence/construction-v1-edge-index-review.md": "sha256:c72f74eae95ddd6a3478369192f0cd019c5dd761b08843136ae3f1cf685e81dd",
+		"packages/ts/qualification/causal-occurrence/construction-v1-review.md": "sha256:7f4784988bd6389640663ee399c569a5bc88c91efef07e1238591a8d76717e7f",
+		"packages/ts/qualification/causal-occurrence/ts-v4-construction-inputs.json": "sha256:3cd9fe1df4e8404bf6809528de218169b07a03425f2571e56d63cf777f95fb49",
+		"packages/ts/qualification/causal-occurrence/ts-v4-receipt.json": "sha256:768255374352f010d5f6babe4a49b614a311ba25b7054ec1c65b793f0d1c66b7",
+		"packages/ts/qualification/causal-occurrence/ts-v5-causal-mutations.json": "sha256:77d1865e2b36719fc6fbf3acd7de508db59a6f109dc5e5147e89e72055d499ed",
+		"packages/ts/qualification/causal-occurrence/ts-v5-construction-comparison.json": "sha256:d9f25025efe6a3d1ddcfa09784e6a10206c690cfe7227f6295e8d82da5acd6ee",
+		"packages/ts/qualification/causal-occurrence/ts-v5-construction-mutations.json": "sha256:900747a404013a7c80c41b8852dc567f4c5f1c85afd683575e416fbb58a71e56",
+		"packages/ts/qualification/causal-occurrence/ts-v5-construction-verifier.json": "sha256:0e6b9637c97ed524ddd0177b1a9bc770178f9b1a031233fd87508b2fb2e73535",
+		"packages/ts/qualification/causal-occurrence/ts-v5-inputs.json": "sha256:f0f1c797140e4340152ef1d9ded38de847bf53aff7c005d883c2c698c2b31f3b",
+		"packages/ts/qualification/causal-occurrence/ts-v5-receipt.json": "sha256:e9dfc5184941d0f5e40a0e94d9e48479ada16f672d680d5a4d2df9822acd4200",
+		"packages/ts/qualification/causal-occurrence/ts-v6-causal-mutations.json": "sha256:0320cff48146536bf8b5ff16be22ede0d7a0df167be9f1d32bb43392cb0d4aac",
+		"packages/ts/qualification/causal-occurrence/ts-v6-construction-comparison.json": "sha256:9fd041251b2a90b8ec368c0b93499960c156696859c21da24e8f584cf38aaac7",
+		"packages/ts/qualification/causal-occurrence/ts-v6-construction-mutations.json": "sha256:51b2d6fe0cffa611aed01c88b6edc61f06dca36e0f81c0235f1e7ac3d3cc8a65",
+		"packages/ts/qualification/causal-occurrence/ts-v6-construction-verifier.json": "sha256:0e26b7d3a6ec0e9a0697d8a90b1b0d5aa1b1e78844defbacb4aeaff7cc7da120",
+		"packages/ts/runners/local-untrusted-js/local-untrusted-js-runner.mjs": "sha256:91e030ec2ebd3dd98e084f50819ec10f55eaab2b6739ca808a1faf2384702d8c",
+		"packages/ts/src/__tests__/graph-construction.d161.test.ts": "sha256:ecd57532dd8c568334a6e518fc4524fafab828e9cbb6c148c3e64455b9f4f616",
+		"packages/ts/src/__tests__/solutions-causal-authority.d160.test.ts": "sha256:4d7f67fe3128ad7dd82c5372b1f259a95fb49bc273cc95cecc3cc48e2411f0b2",
+		"packages/ts/src/__tests__/solutions-causal-occurrence.d791.test.ts": "sha256:16f158c49729583e739b4c013ab6b992d42c6a0a499cce91c4917f9bd936a937",
+		"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+		"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+		"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+		"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+		"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+		"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+		"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+		"packages/ts/src/graph/construction-scope.ts": "sha256:57260c40bd793f9751da628ad7cf0c426a1e18aae43e4fee2242950a83337ad1",
+		"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+		"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+		"packages/ts/src/graph/graph-lifecycle.ts": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+		"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+		"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+		"packages/ts/src/graph/graph.ts": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010",
+		"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+		"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+		"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+		"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+		"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+		"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+		"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+		"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+		"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+		"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+		"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+		"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+		"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+		"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+		"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+		"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+		"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+		"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+		"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+		"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+		"packages/ts/src/solutions/causal-occurrence.ts": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c",
+		"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+		"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:41c777c1caabc4f1dacc2b9a00e31ac4c976474c3e4598dccc155df8a92a410b",
+		"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+		"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:a4df397cb765b19cd35ff8b79ab3d7bda945766a5581a2b280a57701912ca8d1",
+		"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:2ce03551cdef2579015b1b89ea06d6a76c09096887d69467bcdaae142b74ccc0",
+		"packages/ts/tsconfig.tests.json": "sha256:34d7c4845fe68d3bcc784f305cf20ddbc595dd6347c4f0f0b04df8138de8890c",
+		"packages/ts/vitest.config.ts": "sha256:19a4d3e770044d3549b25b0fc4130e41f4ec0f8a6540cc4c6c79c8f22c737d78",
+		"pnpm-lock.yaml": "sha256:d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+		"scripts/build-local-untrusted-js-runner.mjs": "sha256:5b561e94a88675495b2e154cb94e5baea3f28cadb881cdd6156759c4b4904bfb",
+		"scripts/compare-causal-construction.mjs": "sha256:fdf2ef55f20a3ec5d250da09e5fc499379c4ca64031f8f8c2e1df4743ab23a8a",
+		"scripts/qualify-causal-construction.mjs": "sha256:2078638d9f79eeb56ebc537f40a4a3ceebc4321e9a5981e4c22fdeb18cc0aa66",
+		"scripts/qualify-causal-occurrence.mjs": "sha256:4124d19a1690d38bf2b4c7ff72373c9253fa26dec887665bc79d5a2e284eb93a",
+		"scripts/verify-causal-construction.mjs": "sha256:fadd9bd249c2eca5b91bc6748b6e3680b4720b2019477fecb5cc8f3ef97955f5"
+	},
+	"unavailableOrExcluded": [
+		{
+			"command": "pnpm --filter @graphrefly/ts test:historical-eval-requalification",
+			"reason": "Its referenced vitest.historical-eval-requalification.config.ts is absent. Existing historical transfer/verifier scenarios were run through the root-soak suite."
+		},
+		{
+			"tests": [
+				"local-untrusted-js-compute-node.live.test.ts (3)",
+				"local-container-postgresql-podman-libpod-api-v0-rootless-node.live.test.ts (1)"
+			],
+			"reason": "Four preexisting opt-in environment/live skips; no live/container grant was added."
+		}
+	],
+	"ownership": "Implementation/qualification evidence and human trace delivered; user trace teach-back is pending. No ownership-verification claim.",
+	"nonClaims": [
+		"Ordinary preset or public core/patterns/solutions layering complete",
+		"Consumer deterministic business verifier or spending-alerts plain-code qualification",
+		"Real inbox/provider/live/spend authorization",
+		"Automatic recovery, drain, stop, replacement, disposal or persistence",
+		"Wave protocol amendment or cross-runtime implementation",
+		"Commit or automatic next batch"
+	],
+	"statusReason": "Two of four aggregate construction p95 ratios exceed the unchanged 1.20 threshold; batch variation also retained. All four steady ratios meet 1.10.",
+	"optimization": {
+		"scope": "assertCausalOccurrenceTopology exact-string incoming edge index; original required-edge helper and full describe unchanged",
+		"functionalQualified": true,
+		"pointPerformanceBudgetsMet": false,
+		"workCompletion": "Not asserted by this receipt; report measured budgets and remaining performance evidence limits separately."
+	},
+	"checks": [
+		{
+			"id": "focused",
+			"command": [
+				"pnpm",
+				"--filter",
+				"@graphrefly/ts",
+				"exec",
+				"vitest",
+				"run",
+				"src/__tests__/graph-construction.d161.test.ts",
+				"src/__tests__/solutions-causal-occurrence.d791.test.ts",
+				"src/__tests__/solutions-causal-authority.d160.test.ts"
+			],
+			"exitCode": 0,
+			"elapsedSeconds": 2.841,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/final-focused.log",
+			"logDigest": "sha256:52296af4d4f18eef4185194b4683dc708170c4612402210199c1dc2114368ea1"
+		},
+		{
+			"id": "verifier",
+			"command": [
+				"node",
+				"scripts/verify-causal-construction.mjs",
+				"--output",
+				"packages/ts/qualification/causal-occurrence/ts-v6-construction-verifier.json"
+			],
+			"exitCode": 0,
+			"elapsedSeconds": 0.152,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/final-verifier.log",
+			"logDigest": "sha256:d4f176f99d51aea2d475a2936003854033c57632b838211b1919eecad020e00b"
+		},
+		{
+			"id": "test-typecheck",
+			"command": [
+				"pnpm",
+				"--filter",
+				"@graphrefly/ts",
+				"exec",
+				"tsc",
+				"--noEmit",
+				"-p",
+				"tsconfig.tests.json"
+			],
+			"exitCode": 0,
+			"elapsedSeconds": 4.018,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/final-test-typecheck.log",
+			"logDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+		},
+		{
+			"id": "full-test",
+			"command": ["pnpm", "test"],
+			"exitCode": 0,
+			"elapsedSeconds": 59.633,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/final-full-test.log",
+			"logDigest": "sha256:08d09738a14a094a7a2b2b7cd628311447fad2836778f45cef755f82d294578e"
+		},
+		{
+			"id": "lint",
+			"command": ["pnpm", "run", "lint"],
+			"exitCode": 0,
+			"elapsedSeconds": 8.249,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/final-lint.log",
+			"logDigest": "sha256:ad278faf5b229e767675e11d1bbe8bd3d72b8580b1cacffc264f4f262f448551"
+		},
+		{
+			"id": "build",
+			"command": ["pnpm", "run", "build"],
+			"exitCode": 0,
+			"elapsedSeconds": 35.41,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/final-build.log",
+			"logDigest": "sha256:ba886f0a2a91eff039f1e85cc1b33405560701e15c65a8a9fd5aca2a6ea4b3f5"
+		},
+		{
+			"id": "artifact",
+			"command": ["pnpm", "run", "eval:root:artifacts:check"],
+			"exitCode": 0,
+			"elapsedSeconds": 1.816,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/final-artifact.log",
+			"logDigest": "sha256:6815c06ff566521a58b70abe699c621b8d68c2dd278401893c85bc1b8899d81a"
+		},
+		{
+			"id": "browser",
+			"command": ["pnpm", "--filter", "@graphrefly/ts", "test:browser:agentic-memory"],
+			"exitCode": 0,
+			"elapsedSeconds": 2.669,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/final-browser.log",
+			"logDigest": "sha256:b5274a8d9f246e510949e78a1e3cdd20b278ef4479102b99870aa1ce6ed82b7f"
+		},
+		{
+			"id": "root-soak",
+			"command": ["pnpm", "test:root-eval-soak"],
+			"exitCode": 0,
+			"elapsedSeconds": 1004.109,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/final-root-soak.log",
+			"logDigest": "sha256:60860ae5b799399c743d2312f22bed49941d8d7d38162391c63ae35b5495dd52"
+		},
+		{
+			"id": "causal-mutations",
+			"command": [
+				"node",
+				"scripts/qualify-causal-occurrence.mjs",
+				"--output",
+				"packages/ts/qualification/causal-occurrence/ts-v6-causal-mutations.json"
+			],
+			"exitCode": 0,
+			"elapsedSeconds": 90.996,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/final-causal-mutations.log",
+			"logDigest": "sha256:b5330fdc18b6049b5574ef3485419a3ef5a3c7a6248871a763a13f55d07eb0fc"
+		},
+		{
+			"id": "construction-mutations",
+			"command": [
+				"node",
+				"scripts/qualify-causal-construction.mjs",
+				"--output",
+				"packages/ts/qualification/causal-occurrence/ts-v6-construction-mutations.json"
+			],
+			"exitCode": 0,
+			"elapsedSeconds": 19.901,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/final-construction-mutations.log",
+			"logDigest": "sha256:94e321f21397ae0912d09cdc7ea20a99980bb18719906fca7ad89e5b04c3840c"
+		},
+		{
+			"id": "performance",
+			"command": [
+				"node",
+				"scripts/compare-causal-construction.mjs",
+				"--output",
+				"packages/ts/qualification/causal-occurrence/ts-v6-construction-comparison.json"
+			],
+			"exitCode": 0,
+			"elapsedSeconds": 974.81,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/final-performance.log",
+			"logDigest": "sha256:5094715801055c56b7c82ab3065c8ada159f7df44cf1de6c2e2a7022e92e3915"
+		},
+		{
+			"id": "workspace",
+			"command": ["npm", "--prefix", "../graphrefly", "run", "authority:check:workspace"],
+			"exitCode": 0,
+			"elapsedSeconds": 4.167,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/final-workspace.log",
+			"logDigest": "sha256:5b8fa1861974fb5bfe49bdcc2a2601b95f30bb7f7dc11f0bdd4db328d8f7a80a"
+		},
+		{
+			"id": "dashboard",
+			"command": ["node", "../graphrefly/dashboard/build.mjs", "--check"],
+			"exitCode": 0,
+			"elapsedSeconds": 0.723,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/final-dashboard.log",
+			"logDigest": "sha256:57d4dc2953cc9de54408eb72f73eccff702d623d1346ab401e6585a2b1275569"
+		}
+	],
+	"manifestRefresh": [
+		{
+			"command": [
+				"pnpm",
+				"exec",
+				"tsx",
+				"packages/ts/evals/graph-native-rerun-avoidance/measure-root-eval-implementation.ts"
+			],
+			"exitCode": 0,
+			"elapsedSeconds": 0.5761404999939259,
+			"output": "sha256:a5a487f2e490f918056298781932cf409d8506e2c34ab24bb609e064cfa219ce\n"
+		},
+		{
+			"command": [
+				"pnpm",
+				"exec",
+				"tsx",
+				"-e",
+				"import {ROOT_EVAL_TOPOLOGY_QUALIFICATION as q, ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT_DIGEST as a} from './packages/ts/evals/graph-native-rerun-avoidance/root-eval-topology-qualification.ts'; console.log(JSON.stringify({qualification:q.qualificationDigest,artifact:a}));"
+			],
+			"exitCode": 0,
+			"elapsedSeconds": 0.642333208990749,
+			"output": "{\"qualification\":\"sha256:8d083f0eb7c7d27108f11add38073713693281861fdee17762054af27ece786f\",\"artifact\":\"sha256:99ef37df9b38ab63380dc14d80d93af4824e05ad0fecccc08486b8af98470b8e\"}\n"
+		},
+		{
+			"command": ["pnpm", "run", "eval:root:artifacts"],
+			"exitCode": 0,
+			"elapsedSeconds": 1.790054582990706,
+			"output": "$ tsx packages/ts/evals/graph-native-rerun-avoidance/generate-root-eval-artifacts.ts --write\n"
+		}
+	],
+	"coverage": {
+		"focusedTests": 68,
+		"newRepresentationTests": 12,
+		"constructionTests": 26,
+		"fullSuitePassed": 2204,
+		"fullSuitePreexistingSkipped": 4,
+		"fullSuitePassedFiles": 136,
+		"fullSuitePreexistingSkippedFiles": 1,
+		"soak": {
+			"total": 101,
+			"passed": 101,
+			"note": "Started before final sparse-array checker correction; checker absent from recorded static soak closure. Consumer modules/manifest unchanged during soak. Final default suite and C qualifications re-run afterward."
+		},
+		"browserCases": 3,
+		"oldMutantsKilled": 73,
+		"constructionMutantsKilled": 17,
+		"survived": 0,
+		"resourceSnapshots": 12,
+		"plainModelNegativeControls": 2,
+		"originalPortTraceComparisons": 6
+	},
+	"performance": {
+		"constructionMaximumP95Ratio": 1.2,
+		"steadyMaximumP95Ratio": 1.1,
+		"pointThresholdsMet": false,
+		"rows": [
+			{
+				"count": 1,
+				"evidence": 0,
+				"background": 0,
+				"constructionRatio": 1.1644602528048147,
+				"constructionMedianDeltaNs": 11918.00000378862,
+				"constructionBatchRatios": [1.2654691615516047, 1.2159096703522707, 1.0738572227923102],
+				"steadyRatio": 1.0115776044952554
+			},
+			{
+				"count": 16,
+				"evidence": 128,
+				"background": 0,
+				"constructionRatio": 1.2287721179167,
+				"constructionMedianDeltaNs": 8957.999991253018,
+				"constructionBatchRatios": [1.1855749956310315, 1.0903310435477318, 1.1955587878149716],
+				"steadyRatio": 1.0191512628445587
+			},
+			{
+				"count": 64,
+				"evidence": 512,
+				"background": 0,
+				"constructionRatio": 1.1193197823698366,
+				"constructionMedianDeltaNs": 8666.999987326562,
+				"constructionBatchRatios": [1.055019517366726, 1.1491363522706486, 1.1506196602417336],
+				"steadyRatio": 1.0297323908158873
+			},
+			{
+				"count": 1,
+				"evidence": 0,
+				"background": 1000,
+				"constructionRatio": 1.2280679744056293,
+				"constructionMedianDeltaNs": 32956.999843008816,
+				"constructionBatchRatios": [1.3083095007154373, 1.307185367640451, 1.1102559101362686],
+				"steadyRatio": 0.9585329124874393
+			}
+		],
+		"ordinaryRatio": 0.9567443526718756,
+		"constructionSampling": {
+			"batches": 3,
+			"warmPairsPerBatch": 100,
+			"measuredPairsPerBatch": 300,
+			"arrivalsDuringConstruction": 0
+		},
+		"steadySampling": "Full original seven-port trace, occupancy/evidence scenarios 1/0,16/128,64/512; separately warmed alternating pairs; narrow projection not activated in this performance arm.",
+		"rawReport": "ts-v6-construction-comparison.json",
+		"attempts": [
+			{
+				"record": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/final-performance.json",
+				"recordDigest": "sha256:62fc8e668eb9d7a07808bb32681292bcd9009340e90641aa64abed2fb5d62e6d",
+				"samplingChanged": false
+			}
+		],
+		"limitations": [
+			"One complete uninstrumented local run with all raw batches; not a portable performance guarantee.",
+			"Original full describe retained; no B reader or synthetic ID semantic change.",
+			"Narrow-view activation cost and C-attributed retained bytes are not established.",
+			"Dynamic peak heap is whole-process observation; ordinary ratio is per-update batch average.",
+			"Construction uses empty arrivals with matched capacities; populated cases are exercised by separate full steady traces."
+		]
+	},
+	"review": {
+		"mode": "Two static QA reviewers and follow-up",
+		"records": [
+			{
+				"path": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/blind-review.md",
+				"digest": "sha256:2e974b16a1e20bcf168942a62938385fde5100eedf18b3d0fb27930477fae5d3"
+			},
+			{
+				"path": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/spec-review.md",
+				"digest": "sha256:7db5437f696f67037180a9e4fefee398033a176db681d5b6dfc219b653e56aee"
+			}
+		],
+		"fixed": [
+			"Two runner output-path declarations completed before requalification.",
+			"Topology-only supplemental suite excluded from guard-isolated behavior control, preserving all mutant definitions."
+		],
+		"remainingFindings": [],
+		"sparseArrayFix": "Use forEach to retain old hole-skipping; explicit undefined tested with otherwise complete topology."
+	},
+	"provenance": {
+		"parentReceipt": "packages/ts/qualification/causal-occurrence/ts-v5-receipt.json",
+		"parentReceiptDigest": "sha256:e9dfc5184941d0f5e40a0e94d9e48479ada16f672d680d5a4d2df9822acd4200",
+		"frozenParentFiles": "packages/ts/qualification/causal-occurrence/ts-v5-inputs.json",
+		"sourceDelta": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/v5-to-v6-source.patch",
+		"sourceDeltaDigest": "sha256:0a95fc4f57a021a25b55af4485977953020f3dfdacfa92d0f06f9258bd351374",
+		"sourceChanges": [
+			{
+				"path": "packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-artifact-set.json",
+				"before": "sha256:88354ad81188f896d6dca58ad82a79975d12fe3f83cf8714cb1ae9089b5d8ad2",
+				"after": "sha256:1a21ab340468da8bf8d32ca3c4e9d87fa8cf4cc536356e878fcda24718fed338"
+			},
+			{
+				"path": "packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-describe.json",
+				"before": "sha256:b1462f0ef6e0916dd736960e342e5a669890c4bde7295bbf1f652c65f5b3db7d",
+				"after": "sha256:e83ed9977c9a2e5a198b3fc38ef15635922f129141d4cb64a63e6ff13ca13a42"
+			},
+			{
+				"path": "packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-live-qualification.json",
+				"before": "sha256:4e767b05fce60df184be29e17265ff50f80568568e755d47ec3ab45342418597",
+				"after": "sha256:f93ad0dbfbeb1b29c3bbe52d5edd044e1eee8557dc31a41cc68bb1377ffb4338"
+			},
+			{
+				"path": "packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-observe-events.jsonl",
+				"before": "sha256:9feef59b174392bccb85d93a043ef1b075622ae159f63ffdb88235f498d5cc46",
+				"after": "sha256:d38860db0d5daaa39fdd3d3238878c011a46f5dfdbe6e73a14e0b1fe8a26bd78"
+			},
+			{
+				"path": "packages/ts/evals/graph-native-rerun-avoidance/artifacts/root-eval-topology-qualification.json",
+				"before": "sha256:cb1369a4e824222f57777b9df607ce0eee87c088bec8831e7654a00f2b17af0b",
+				"after": "sha256:972db24176a4498dbf166a1dfb5e9611041e926da90dcf6160955d5c4c5be3d5"
+			},
+			{
+				"path": "packages/ts/evals/graph-native-rerun-avoidance/implementation-manifest.ts",
+				"before": "sha256:9954f76357bae85d19b8aeb98c8b39687fc67be6fa7110a94a9c5379d1b7420c",
+				"after": "sha256:97f8154cff284e09965d8ab7073c39837f33e13119b9cfd1f2840768499d564d"
+			},
+			{
+				"path": "packages/ts/qualification/causal-occurrence/README.md",
+				"before": "sha256:782f277ffe19aafcacd51691809cfd622a7e554311d65c1ac0b01a50ed70fcf7",
+				"after": "sha256:a70215c9476aee2a6556be51f7eb94056a213a67b77ecf84a4af290e5fec0ff1"
+			},
+			{
+				"path": "packages/ts/src/__tests__/solutions-causal-occurrence.d791.test.ts",
+				"before": "sha256:3af28e318a2bd063e7d61850d49f187f5399a5acc57241b9b1d6c792cb14b903",
+				"after": "sha256:16f158c49729583e739b4c013ab6b992d42c6a0a499cce91c4917f9bd936a937"
+			},
+			{
+				"path": "packages/ts/src/solutions/causal-occurrence.ts",
+				"before": "sha256:01f36f48d3b9b401f118324e01cfdcb32ad954eb0f28643961badf88c04104d6",
+				"after": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c"
+			},
+			{
+				"path": "scripts/compare-causal-construction.mjs",
+				"before": "sha256:3151b87243a6764a53e0ef8253d09f801afadbb2a194d0255216a1104807dabd",
+				"after": "sha256:fdf2ef55f20a3ec5d250da09e5fc499379c4ca64031f8f8c2e1df4743ab23a8a"
+			},
+			{
+				"path": "scripts/qualify-causal-construction.mjs",
+				"before": "sha256:7d5cb6c43cf84b84a8cff33f51022c4ea22677e84450de2caa15040d903cd844",
+				"after": "sha256:2078638d9f79eeb56ebc537f40a4a3ceebc4321e9a5981e4c22fdeb18cc0aa66"
+			},
+			{
+				"path": "scripts/qualify-causal-occurrence.mjs",
+				"before": "sha256:c5289e2e4674a4cfc841a47b78799b29b2594b99863d0d447e34b0a6df7d1d4b",
+				"after": "sha256:4124d19a1690d38bf2b4c7ff72373c9253fa26dec887665bc79d5a2e284eb93a"
+			},
+			{
+				"path": "scripts/verify-causal-construction.mjs",
+				"before": "sha256:bdc6217bd7b0342ce11131c47d6ac73859d2cc55f2994518d855daba673334ef",
+				"after": "sha256:fadd9bd249c2eca5b91bc6748b6e3680b4720b2019477fecb5cc8f3ef97955f5"
+			}
+		],
+		"authorship": "This Codex task changed only approved A runtime checker plus supporting tests/tooling/bindings. Prior dirty implementation preserved. Behavior evidence independent of source provenance."
+	},
+	"evidenceApplicability": {
+		"rootSoak": "Serial run begun before sparse-array checker correction. C checker absent from recorded static soak module closure; recorded test/consumer module hashes stayed unchanged during the run. No whole-repository exact-final-bytes soak claim and no provider execution.",
+		"independentVerifier": "Finite selected-case oracle: model node sets/root lease count in the generic view, physical snapshots and exact obligation lineage in causal cases. It does not prove a universal acquisition partial order. Its two model negative controls are separate from 17 actual runtime mutants."
+	},
+	"supplementalEvidence": [
+		{
+			"path": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/scope-integrity.json",
+			"digest": "sha256:9dbb7bc9c55ee4a02ffd80765c4c70ae180e5fc0c2ba9862ff61378d09bdf354",
+			"result": {
+				"onlyProductionFileChanged": ["packages/ts/src/solutions/causal-occurrence.ts"],
+				"prefixIncludingRequiredEdgeHelperUnchangedExceptUnusedImport": true,
+				"benchmarkRunnerBodyByteIdentical": true,
+				"frozenV5ReceiptDigest": "sha256:e9dfc5184941d0f5e40a0e94d9e48479ada16f672d680d5a4d2df9822acd4200"
+			}
+		},
+		{
+			"path": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/index-equivalence.json",
+			"digest": "sha256:1aaab1593a73d7db0c0f788e656e7ef4cc90d49637ddefaf289ca6975c41e98b",
+			"result": {
+				"schema": "task/causal-edge-representation-equivalence/v1",
+				"qualification": "supplemental differential, not independent business verifier",
+				"runnerDigest": "sha256:0424415260d2c66e7efe02e415081e12b25b6c93e67bedfe2a2fed9c164f3017",
+				"baselineDigest": "sha256:01f36f48d3b9b401f118324e01cfdcb32ad954eb0f28643961badf88c04104d6",
+				"candidateDigest": "sha256:c2dfb89b108fd7de13d47fcf264062288147ccd45b9b302a383b6c31241d103c",
+				"frozenInputsDigest": "sha256:f0f1c797140e4340152ef1d9ded38de847bf53aff7c005d883c2c698c2b31f3b",
+				"initialSeed": 161791,
+				"snapshots": 10000,
+				"accepted": 3343,
+				"rejected": 6657,
+				"exactErrorsCompared": true,
+				"passed": true
+			}
+		},
+		{
+			"path": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/soak-static-closure.json",
+			"digest": "sha256:c775d6df8e2988b1fe00548d33559c608e7e11e29666b8ee6bb544b1c46719a3",
+			"result": {
+				"test": "packages/ts/src/__tests__/solutions-agentic-memory-work-item-root-eval-live.test.ts",
+				"scope": "Static imported module closure; dynamic child fixtures and manifest filesystem hashing are not inferred as absent.",
+				"causalCheckerImported": false,
+				"fileDigests": {
+					"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+					"packages/ts/evals/graph-native-rerun-avoidance/canonical.ts": "sha256:87423a4ca6d27a1334bd920325a6ac75108d6e88a5cd09d951165ef3717ba22a",
+					"packages/ts/evals/graph-native-rerun-avoidance/implementation-manifest.ts": "sha256:fb9b725ceaacef29ba04fa31ff8cd1a551eb0ff2fd2747ea6f80a809e54829b4",
+					"packages/ts/evals/graph-native-rerun-avoidance/model-harness-profile.ts": "sha256:7d358277f29c2ee8d39bce6c9b5c28e328c34b1ce6021b9e3497d8a25dc0f16d",
+					"packages/ts/evals/graph-native-rerun-avoidance/model-harness-profile-qualification.ts": "sha256:71fefad443dcb1402b3a8a67aff690de40ce2b07ba03cf3c960c26b2296336ca",
+					"packages/ts/evals/graph-native-rerun-avoidance/current-exact-profile.ts": "sha256:fbbe46d9226eb1c2f912655b5be75f193b124207eb2f50cfd5025baa8b2af908",
+					"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+					"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+					"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+					"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+					"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+					"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+					"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+					"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+					"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+					"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+					"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+					"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+					"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+					"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+					"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+					"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+					"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+					"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+					"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+					"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+					"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+					"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+					"packages/ts/src/graph/graph-lifecycle.ts": "sha256:0a607c59eb409cdd426e521284ab767b888a9ab4948d548a507e94343c06074a",
+					"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+					"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+					"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+					"packages/ts/src/graph/graph.ts": "sha256:4bb0d0715e81d415b0a8d5432916c65a35e408ac8d6bdcf8de2927c3198cc010",
+					"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+					"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+					"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+					"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+					"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+					"packages/ts/src/patterns/admission-handoff.ts": "sha256:b08ba190b1aeeede2b2fd2bd187c81e5df4ef2938f76030c9665cae15835b545",
+					"packages/ts/src/patterns/semantic-memory.ts": "sha256:060089d5ce9e714b2b29a80313765b07d9dcb760b9c91f858a8b6ce32e4c076e",
+					"packages/ts/src/solutions/agentic-memory/shared.ts": "sha256:63390d188fea2cd2ca6af5c1c91fe943190370ee8f5721c3e68b418b325738cf",
+					"packages/ts/src/solutions/agentic-memory/projection.ts": "sha256:4afb0a72f42dc8fd73a88e992dada3e5f44b46fa93cde2c1fdc948678a5970e1",
+					"packages/ts/src/solutions/agentic-memory/admission-policy-source.ts": "sha256:3c6aeda3d1c4fc6c7ceb78c5c58b8c279f1e4998fe002a705941b555187fb270",
+					"packages/ts/src/solutions/agentic-memory/frame.ts": "sha256:752f35cc64293aaa895cefbc5145da51ccf5dfa12f0af85a59be69c673f6bc86",
+					"packages/ts/src/solutions/occurrence.ts": "sha256:9aa73adc083f23a23d04c2153de4a9003ae1d07764adebb5827fae5af41b9da1",
+					"packages/ts/src/solutions/agentic-memory/record-application.ts": "sha256:ede5145c46cca5cbac140a4960cb75aea961a1ab8d2682830318ec3cc4f10d83",
+					"packages/ts/src/solutions/agentic-memory/application-history.ts": "sha256:04a2887c7b93087ebc94a7cc80431ef3cf7e2f63bb43f9d6161350dae4d140ac",
+					"packages/ts/src/patterns/semantic-memory-graph-utils.ts": "sha256:b34fc30a739b6d9ec19ccb542fb325faa576b186bb526ab422c1a8925eb5fb2f",
+					"packages/ts/src/patterns/semantic-memory-graph.ts": "sha256:960c16753f2ab85df9b5d5112a2883ee886436f30b329caa96c362caab91d1f2",
+					"packages/ts/src/solutions/agentic-memory/bundle.ts": "sha256:0c36580b3a03576fe40d90f0e9e5fde1d2e7c2fc0edb0313854be1af9b5c162d",
+					"packages/ts/src/solutions/agentic-memory/store-frame.ts": "sha256:26103ac974a752b4df1f6127b5019a9f0af100f14ced18be1a662cf3cbeb4ef8",
+					"packages/ts/src/solutions/agentic-memory/committed-fact-log.ts": "sha256:c6a54858d08a214fbeddcded947811423b9307a74a270f15b6d069576cbf51b4",
+					"packages/ts/src/solutions/agentic-memory/committed-fact-log-backend.ts": "sha256:78a794920f4b577363edf62a6a48ce47f9727d7690005a9e660bd017567e6e51",
+					"packages/ts/src/solutions/agentic-memory/consolidation.ts": "sha256:d02d9781e7e982760e12c249d9b77cf02315f6c2bfcbe8b588aa9c5d6c6770d2",
+					"packages/ts/src/solutions/agentic-memory/proposal-admission.ts": "sha256:61b9b78719f96e924229ef40db52b7f669be6082bb22f1c26a17c4a42cab5703",
+					"packages/ts/src/solutions/agentic-memory/consolidation-application.ts": "sha256:62cc8db8b64832d9dae0609ff1b257b623862702edc754cbb900924822913189",
+					"packages/ts/src/solutions/agentic-memory/context-packing.ts": "sha256:d2c004c603f5da530be8df5b364204c3c17e257ed785189a6d45b906e1d1431f",
+					"packages/ts/src/solutions/agentic-memory/durable-result.ts": "sha256:2bd874c2605ed3b909b780f97a92addb9544d662528bb44d70a7f11407f4135f",
+					"packages/ts/src/solutions/agentic-memory/fact-log-bootstrap.ts": "sha256:2886a6eeced93aad291c9170d6648aee9ffe5eab4cc2ed735911263ec51bf27e",
+					"packages/ts/src/solutions/agentic-memory/fact-log-read-materialization.ts": "sha256:e8dbf1a98f3e05db908151105aeffc8e6854ff7770fcc033b9544c025dfcd7e6",
+					"packages/ts/src/solutions/agentic-memory/fact-log-runtime-persistence.ts": "sha256:11124581092f8b102f69f336e4ffd63ceae5ec574e6c9a65dd8bd7bd55e02d8f",
+					"packages/ts/src/solutions/agentic-memory/kg.ts": "sha256:25654b6410eb536f783472c9da9ef7dcdb299a48edc87e64df9edd5b35c66594",
+					"packages/ts/src/solutions/agentic-memory/materializer.ts": "sha256:9057da5bde29d92fc9ebe1a12aa7bd786321720095f50ba1cf44bbc7fe5bbcb8",
+					"packages/ts/src/solutions/agentic-memory/record-use.ts": "sha256:622828df7bba9ab411c814960ac0658b792fc85eb2bc3b40a6ef372c9b4aa887",
+					"packages/ts/src/solutions/agentic-memory/retention.ts": "sha256:485b872b375d5db18c497af4751df7b4b8f3118859d76e328a5fc4effb9fd3ae",
+					"packages/ts/src/solutions/agentic-memory/types.ts": "sha256:897e9235841d4885ab914482afb4bba8a49406d4b6d831088fa9e3b07f16e87a",
+					"packages/ts/src/solutions/agentic-memory/index.ts": "sha256:3a4913500a91dad181b361b9333d4269b24951cd8899818b37633df80c8766e1",
+					"packages/ts/src/solutions/agentic-work-item-memory/bridge.ts": "sha256:57b6bca8bc55c284050af12482c55e99f955c3a2145c830916978f87bbb520ee",
+					"packages/ts/src/solutions/agentic-work-item-memory/types.ts": "sha256:4472ae93337014831c79030ccfe39d49bc9fd935faf08d9a0b728845c280119c",
+					"packages/ts/src/solutions/agentic-work-item-memory/index.ts": "sha256:3b57c0ec7953babba9c03f18fbf2698fda9b2d99bf780db82958530040f3bf17",
+					"packages/ts/src/orchestration/agent-runtime-common.ts": "sha256:4db2991e31dc05aced173ddcf03a35d961d3e766e62e73db042d26b60e5280c9",
+					"packages/ts/src/orchestration/agent-runtime-adapter-run.ts": "sha256:8b571630b53ed141199b9f0629938814e1234e26bf586944fb5b5217bd829ea9",
+					"packages/ts/src/orchestration/agent-runtime-effect-completion.ts": "sha256:d552cd80c6835489aeb10a564b4a85da545ec1858494717d290daf5e67b78ff2",
+					"packages/ts/src/orchestration/agent-runtime-decision-interpreter.ts": "sha256:f464cb6584e1279d53e3d4e756cfbcd82582aef5b0130d417a08a996c68d26ed",
+					"packages/ts/src/orchestration/agent-runtime-executor-outcome.ts": "sha256:2b884ab536aac3ab9b49c458b32d4f997192ea29c7d5bbb758fb6dd07f43df6e",
+					"packages/ts/src/orchestration/agent-runtime-fakes.ts": "sha256:4e9064880e137a8ac62504ba7425a8a00ef0060305415335db0b78bb11426bd5",
+					"packages/ts/src/orchestration/agent-runtime-outcome-view.ts": "sha256:f93f2fec10ae663112373509c5d29c0b19fd61f2fa143cb60d7101042469c311",
+					"packages/ts/src/orchestration/agent-runtime-request-ledger.ts": "sha256:693557022c331e7127c6a9bcb8e30613fcc5b2313dfff5dbc3453c9ae2b8990a",
+					"packages/ts/src/orchestration/agent-runtime-request-satisfaction.ts": "sha256:5e810db9f4d0a4a2a8b05afcb236835c9c69be8a402c7ae1b14f366fcdfb4277",
+					"packages/ts/src/orchestration/agent-runtime-tool-provider-policy.ts": "sha256:d253adba3266615c333fcbd0a784bfcdc5e6f82310b4f3428d2e12d66a4f4157",
+					"packages/ts/src/orchestration/agent-runtime-tool-provider-input.ts": "sha256:481429c33fc0a7a8aa0cef29cb774f2514f256519fd20971dc8be8e7d0b7054e",
+					"packages/ts/src/orchestration/agent-runtime-tool-provider-run-admission.ts": "sha256:fb8d9f179959734e8035d7775492ea7c0bf05b27844e5a8fc88b0d54f96c96b9",
+					"packages/ts/src/graph/resilience.ts": "sha256:ffd047c2b00334978bbdf09ea0306196dee07a7ab8c26da03a2a864bbac45ca4",
+					"packages/ts/src/orchestration/agent-runtime-tool-provider-run-retry.ts": "sha256:b66b75905dbc1968f1fa119ead20cbc004ddec1ffb67c7426fc9f6a8f5212c40",
+					"packages/ts/src/orchestration/agent-runtime-types-core.ts": "sha256:c9a128a39280881a9fc63ed9e157ec886caf61092a971a6a31bdc051e58bf432",
+					"packages/ts/src/orchestration/agent-runtime.ts": "sha256:ab180e13d85637fbd758e7012b53ea36bcc3e62742ef9c68ee52a2930731c959",
+					"packages/ts/src/orchestration/work-item-runtime-shared.ts": "sha256:e87eb50af641b83cdf940009d04a7035386f4ba47193d5caef7f33f7e6f2f739",
+					"packages/ts/src/orchestration/work-item-runtime-admission.ts": "sha256:81ba0365ab118c27dcf83beca5d2f48dd117411adfa63a0623e569999ade3f25",
+					"packages/ts/src/orchestration/work-item-runtime-effect-run.ts": "sha256:27318fe8014fb8db183a05aeba5d1cb0c7ebd8e7e6dbed26240e70dcb4fe5e5a",
+					"packages/ts/src/orchestration/work-item-runtime-evidence.ts": "sha256:6f407add226f7a0b74bd29a0aa5517da9fa4419acef7a18c19a78695b978f091",
+					"packages/ts/src/orchestration/work-item-runtime-proposal.ts": "sha256:e9b261e01330a24533c50adc3625b887fe2cba0cae06262bca1ae6f6634ec5d9",
+					"packages/ts/src/orchestration/work-item-runtime.ts": "sha256:0d505a3eb62421501d5421d890d75dcc68dbd4d5ea9d642ca359dc2127b6e9f9",
+					"packages/ts/src/solutions/work-item/scheduling-shared.ts": "sha256:a985a7bbf7f100abb919481a4f5e702900660ddd4693e706effda503f34d8862",
+					"packages/ts/src/solutions/work-item/scheduling-types.ts": "sha256:4a4ff03cf9aac3b8c615a879e938ddf81bc7f3cdc33c7729a81dedfa8e041c8c",
+					"packages/ts/src/solutions/work-item/scheduling-validation.ts": "sha256:720bec0443dbc37f3cbd8ea6f9927190a5a56e77a382553a15124302d5b7fb25",
+					"packages/ts/src/solutions/work-item/scheduling-authoring.ts": "sha256:20130bf9a4979ee1085946e3f0d48a0ddd5c40ecfed354da61676281e7d61a9c",
+					"packages/ts/src/solutions/work-item/scheduling-constructors.ts": "sha256:f63b3b235e01d249658355e3e80269bfd30cc361a1fad30bbe18c7fa059ddcf0",
+					"packages/ts/src/solutions/work-item/scheduling-effect-plan-helpers.ts": "sha256:7dfc95157bda642e8e909ebc7774b9f019cadfb9c2f02a2f18de06aec18f4a9d",
+					"packages/ts/src/solutions/work-item/scheduling-effect-plan-validation.ts": "sha256:bbc83de4d81c1c4b1ca64c18b15a9b4bdeacdbd265d29ff032c8b05041df12d6",
+					"packages/ts/src/solutions/work-item/scheduling-effect-plan.ts": "sha256:3d63ccc3bb323e112a49cf1b2184c6b96d34001525e232d8f6d600fadfa169e7",
+					"packages/ts/src/solutions/work-item/scheduling-verification.ts": "sha256:ae06f5dbcd702ff33be6c970b1df95a3ae535e6fab8c0072c414822fb22d130b",
+					"packages/ts/src/solutions/work-item/workspace-proposals.ts": "sha256:4e112baa4a9cb3c4ea896cec82162a8450d226b2dac8e818c0fd6b5145afef2e",
+					"packages/ts/src/solutions/work-item/workspace-family-applications.ts": "sha256:080d6db3cdd8ef555249f21f4f137c96ff4eca1ece38d4f0b78f05d9d146b3a5",
+					"packages/ts/src/solutions/work-item/workspace-model.ts": "sha256:a43874f785b236f011b937ec357ab94c97b3164e6236eacb4e71a4954ecf9aa3",
+					"packages/ts/src/solutions/work-item/scheduling.ts": "sha256:0e95a59326026ab94c170c119cfc58b6d3de7436511730d6c1e4ffcc8fa5f2c2",
+					"packages/ts/src/solutions/work-item/execution.ts": "sha256:d8fbd48327b9c40c50a736499f85c5919b91bf639acb4f82970918c02f839718",
+					"packages/ts/evals/graph-native-rerun-avoidance/current-provider-route.ts": "sha256:74dd8c2db96eb5ca0490448c4f81b10e807c1ef2c4515d0776b77112a549ded9",
+					"packages/ts/evals/graph-native-rerun-avoidance/harness-campaign-policy.ts": "sha256:ce29e75f6f51fe362a2fd1306d199a6fa3e52bf2a4ac072d9467c4aca4aaf2ca",
+					"packages/ts/evals/graph-native-rerun-avoidance/provider-cost-evidence.ts": "sha256:157bcf68560d10719845259a161a952047f9e82ef1337e379f535d269e186a2c",
+					"packages/ts/evals/graph-native-rerun-avoidance/quiet-data-boundary.ts": "sha256:1019eca3f956b689fb39a5b8e940a4d96e6a33078b46974ebf49fcaf8403e233",
+					"packages/ts/evals/graph-native-rerun-avoidance/root-eval-task.ts": "sha256:cf7e32b70d318af29ff7686963899ca4c92db635db57d66c24572d52afd79b1f",
+					"packages/ts/evals/graph-native-rerun-avoidance/eval-topology.ts": "sha256:f71f714faba81f4a136c01098dc878d1f4bd1deab983a9a01bf5c38113e423c4",
+					"packages/ts/src/graph/blueprint-evidence.ts": "sha256:760a071dc8de2f4dbe8a24939bcb6785ab700cc44e7257568df05572a115937a",
+					"packages/ts/src/graph/render.ts": "sha256:ba796bce128b84297a370647d0b02827371018cd392d07ad63ddc9081430b9c2",
+					"packages/ts/evals/graph-native-rerun-avoidance/focused-async-adapters.ts": "sha256:9cf9fc01bf9e8d2bb6e8ac3ebb8196eded6475f8fa172579311685392708934c",
+					"packages/ts/src/orchestration/process-utils.ts": "sha256:f1a6a731a10b32c2f2e6a4849d1c6087c19bedd2a5832dd2a53b73816670b11f",
+					"packages/ts/src/orchestration/process.ts": "sha256:815f3c4d02e4908d3a062e34dc0ea85bd6c759828c9246ab7ab0f2bb16659dd9",
+					"packages/ts/src/orchestration/resilience-bundles.ts": "sha256:22ac5ea6bd87a4317569c30f40f3385b1dfa3ef34bb322afa9c2a61eb257562b",
+					"packages/ts/src/orchestration/scheduled-readiness.ts": "sha256:997864f78f91a1ad22a1df8278d4c6f715e26f98d7ae62d267f77e5a20ca90e6",
+					"packages/ts/src/orchestration/index.ts": "sha256:072786fb86d80b77d6416244ff77e27f099c305c5712ee0e1a1e25138b871463",
+					"packages/ts/src/executors/tool-provider-adapters.ts": "sha256:d5079cbbd347a23efdb55d55599662b2954ad9a363f0b2dbe8bc3074ad8f3870",
+					"packages/ts/evals/graph-native-rerun-avoidance/http-transport-leaf.ts": "sha256:acdcc0bef56f7982843dc71010af0201b41a6c92739e4f71470b22a603428470",
+					"packages/ts/evals/graph-native-rerun-avoidance/private-diagnostic-sink.ts": "sha256:0afed868c5c8d5c763990d3980d90ae63b382d42e5b6df45f18a8f3c0f3be2a1",
+					"packages/ts/evals/graph-native-rerun-avoidance/root-eval-charter-ledger.ts": "sha256:7266f4b90fcb14da722d603097adf9a7e3807568f21f22894aadf3901efd28d7",
+					"packages/ts/evals/graph-native-rerun-avoidance/settled-spend.ts": "sha256:f14b840c40846f5bb37b36f7520590852e54bdc5c3f34339773058b33c68f2cb",
+					"packages/ts/evals/graph-native-rerun-avoidance/root-eval-live-authority.ts": "sha256:408d6f933d66b3bf74d4772c32b5ddaed2eb383c71908282d72ac388e3673a04",
+					"packages/ts/evals/graph-native-rerun-avoidance/root-eval-live.ts": "sha256:44ceaa7b2a32e60f749c68b98aaa2b724dee108eeea8c1da2432ff6b9638c0b4",
+					"packages/ts/evals/graph-native-rerun-avoidance/root-eval-live-qualification.ts": "sha256:82a3a066d15613451b08799130fb1a430d600756c2f9a6e01ba82c03cbd2d2e3",
+					"packages/ts/evals/graph-native-rerun-avoidance/eval-topology-contract.ts": "sha256:9e24f09baf50e52015e686a44ffb98d1306044ae6785e71531d0e2f1dac83de7",
+					"packages/ts/evals/graph-native-rerun-avoidance/root-eval-topology-qualification.ts": "sha256:81ad15c6c59baeace38b942092ec3f5037bcf817ff9b335712a5fdb848694d87",
+					"packages/ts/evals/graph-native-rerun-avoidance/generate-root-eval-artifacts.ts": "sha256:69d7cc995125a44e195f9063632971e12857e9e16783d30ec2ee926622334d5e",
+					"packages/ts/evals/graph-native-rerun-avoidance/root-eval-charter-transaction.ts": "sha256:293b01dfa5139b46e03fadd9c2553b9decaf2bef0454978f6a9ee84e10179915",
+					"packages/ts/evals/graph-native-rerun-avoidance/provider-qualification.ts": "sha256:e1f833393a8f5baea0b78bac037dac0b79173dc516e5eabee72f11bb51a34348",
+					"packages/ts/evals/graph-native-rerun-avoidance/root-eval-d152-ledger.ts": "sha256:3693015ba698af6b28c016ff0692ca3897dbb42d1ae3e0bc127adc8c7cb15cd2",
+					"packages/ts/evals/graph-native-rerun-avoidance/root-eval-task-manifest-store.ts": "sha256:303d4b05ca82d632ec12d1831f4437773aaad4a7e102f20259d3ef7bc970cd14",
+					"packages/ts/src/__tests__/solutions-agentic-memory-work-item-root-eval-live.test.ts": "sha256:c1c475655d7ff2acfd2bb59f1b69b88aca56e237e7522b4dba29e1b873b83b83"
+				}
+			}
+		},
+		{
+			"path": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/soak-closure-verification.json",
+			"digest": "sha256:05546d4ba32f804b649c48eb2896f73e73778089c7da3f17e05689b99eee7989",
+			"result": {
+				"staticImportedFiles": 136,
+				"allStillMatch": true,
+				"causalCheckerImported": false,
+				"soakExitCode": 0
+			}
+		}
+	],
+	"developmentAttempts": [
+		{
+			"record": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/attempt-1-causal-mutations.json",
+			"digest": "sha256:2d4a5e828bcdf9da3d2bdded2fdae624eb99dd018701266c5659c8ff6c8bdaf0",
+			"command": [
+				"node",
+				"scripts/qualify-causal-occurrence.mjs",
+				"--output",
+				"packages/ts/qualification/causal-occurrence/ts-v6-causal-mutations.json"
+			],
+			"exitCode": 1,
+			"elapsedSeconds": 2.238,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/final-causal-mutations.log"
+		},
+		{
+			"record": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/attempt-1-construction-mutations.json",
+			"digest": "sha256:03f40d301bf48682a34828ce5af928d7f1de66df13de322ce957ba1cba31e567",
+			"command": [
+				"node",
+				"scripts/qualify-causal-construction.mjs",
+				"--output",
+				"packages/ts/qualification/causal-occurrence/ts-v6-construction-mutations.json"
+			],
+			"exitCode": 1,
+			"elapsedSeconds": 19.035,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/final-construction-mutations.log"
+		},
+		{
+			"record": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/attempt-1-focused.json",
+			"digest": "sha256:3388f94551d7a560a4598550a3a05981b7d7d1f757ff1617fcefc909ba82018b",
+			"command": [
+				"pnpm",
+				"--filter",
+				"@graphrefly/ts",
+				"exec",
+				"vitest",
+				"run",
+				"src/__tests__/graph-construction.d161.test.ts",
+				"src/__tests__/solutions-causal-occurrence.d791.test.ts",
+				"src/__tests__/solutions-causal-authority.d160.test.ts"
+			],
+			"exitCode": 1,
+			"elapsedSeconds": 2.03,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/final-focused.log"
+		},
+		{
+			"record": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/attempt-1-verifier.json",
+			"digest": "sha256:3cfc3f953ee4f0ecd2daef6fad4c31444797c62ac990159e6e17aecb72cacf52",
+			"command": [
+				"node",
+				"scripts/verify-causal-construction.mjs",
+				"--output",
+				"packages/ts/qualification/causal-occurrence/ts-v6-construction-verifier.json"
+			],
+			"exitCode": 1,
+			"elapsedSeconds": 0.411,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/final-verifier.log"
+		},
+		{
+			"record": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/attempt-2-focused.json",
+			"digest": "sha256:9349c1fcbb80271b26777d2b397a739b031d73d0a00407c94a9041d3b120bcbe",
+			"command": [
+				"pnpm",
+				"--filter",
+				"@graphrefly/ts",
+				"exec",
+				"vitest",
+				"run",
+				"src/__tests__/graph-construction.d161.test.ts",
+				"src/__tests__/solutions-causal-occurrence.d791.test.ts",
+				"src/__tests__/solutions-causal-authority.d160.test.ts"
+			],
+			"exitCode": 1,
+			"elapsedSeconds": 1.55,
+			"log": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/C-edge-index-2026-09-07/final-focused.log"
+		}
+	]
+}
