@@ -1,0 +1,592 @@
+{
+	"kind": "numeric-contract-design-calculation",
+	"proposalOnly": true,
+	"runtimeQualification": false,
+	"baselineCommit": "70ca9af7",
+	"method": "Accepted binary64 inputs converted to exact rationals. Pairwise and moment sample variance checked independently. Decimal precision 160 only proposes square-root candidates; exact rational squared midpoint-cell comparisons with even-significand tie checks certify their rounding. Rational ratios use the same exact cell checks. No candidate/library/oracle implementation imported or modified.",
+	"rounding": "nearest binary64, ties to even; canonical +0",
+	"vectors": [
+		{
+			"id": "root-sample-negative",
+			"input": {
+				"amounts": [100.0, 200.0],
+				"amountBits": ["4059000000000000", "4069000000000000"],
+				"dailyAverage": 100.0,
+				"zThreshold": 0.8,
+				"dailyRatioThreshold": 5.0,
+				"categoryFamiliarity": "known"
+			},
+			"proposedReference": {
+				"mean": 150.0,
+				"std": 70.71067811865476,
+				"varianceNonzero": true,
+				"zScore": 0.7071067811865476,
+				"zScoreBits": "3fe6a09e667f3bcd",
+				"dailyRatio": 2.0,
+				"dailyRatioBits": "4000000000000000",
+				"zPredicate": false,
+				"dailyPredicate": false,
+				"flagged": false,
+				"zText2": "0.71",
+				"dailyText1": "2.0",
+				"amountText2": "200.00"
+			},
+			"alternativeExactRealPredicate": {
+				"z": false,
+				"daily": false
+			},
+			"checks": {
+				"variancePairwiseIdentity": true,
+				"nonzeroRoundedValuesCertifiedByExactMidpointComparisons": true
+			}
+		},
+		{
+			"id": "large-aab-z05",
+			"input": {
+				"amounts": [999999999.9999999, 999999999.9999999, 1000000000.0],
+				"amountBits": ["41cdcd64ffffffff", "41cdcd64ffffffff", "41cdcd6500000000"],
+				"dailyAverage": 1000000000.0,
+				"zThreshold": 0.5,
+				"dailyRatioThreshold": 5.0,
+				"categoryFamiliarity": "known"
+			},
+			"proposedReference": {
+				"mean": 999999999.9999999,
+				"std": 6.882551541204759e-8,
+				"varianceNonzero": true,
+				"zScore": 1.1547005383792515,
+				"zScoreBits": "3ff279a74590331c",
+				"dailyRatio": 1.0,
+				"dailyRatioBits": "3ff0000000000000",
+				"zPredicate": true,
+				"dailyPredicate": false,
+				"flagged": true,
+				"zText2": "1.15",
+				"dailyText1": "1.0",
+				"amountText2": "1000000000.00"
+			},
+			"alternativeExactRealPredicate": {
+				"z": true,
+				"daily": false
+			},
+			"checks": {
+				"variancePairwiseIdentity": true,
+				"nonzeroRoundedValuesCertifiedByExactMidpointComparisons": true
+			}
+		},
+		{
+			"id": "large-aab-z13",
+			"input": {
+				"amounts": [999999999.9999999, 999999999.9999999, 1000000000.0],
+				"amountBits": ["41cdcd64ffffffff", "41cdcd64ffffffff", "41cdcd6500000000"],
+				"dailyAverage": 1000000000.0,
+				"zThreshold": 1.3,
+				"dailyRatioThreshold": 5.0,
+				"categoryFamiliarity": "known"
+			},
+			"proposedReference": {
+				"mean": 999999999.9999999,
+				"std": 6.882551541204759e-8,
+				"varianceNonzero": true,
+				"zScore": 1.1547005383792515,
+				"zScoreBits": "3ff279a74590331c",
+				"dailyRatio": 1.0,
+				"dailyRatioBits": "3ff0000000000000",
+				"zPredicate": false,
+				"dailyPredicate": false,
+				"flagged": false,
+				"zText2": "1.15",
+				"dailyText1": "1.0",
+				"amountText2": "1000000000.00"
+			},
+			"alternativeExactRealPredicate": {
+				"z": false,
+				"daily": false
+			},
+			"checks": {
+				"variancePairwiseIdentity": true,
+				"nonzeroRoundedValuesCertifiedByExactMidpointComparisons": true
+			}
+		},
+		{
+			"id": "large-aba",
+			"input": {
+				"amounts": [999999999.9999999, 1000000000.0, 999999999.9999999],
+				"amountBits": ["41cdcd64ffffffff", "41cdcd6500000000", "41cdcd64ffffffff"],
+				"dailyAverage": 1000000000.0,
+				"zThreshold": 0.5,
+				"dailyRatioThreshold": 5.0,
+				"categoryFamiliarity": "known"
+			},
+			"proposedReference": {
+				"mean": 999999999.9999999,
+				"std": 6.882551541204759e-8,
+				"varianceNonzero": true,
+				"zScore": -0.5773502691896257,
+				"zScoreBits": "bfe279a74590331c",
+				"dailyRatio": 0.9999999999999999,
+				"dailyRatioBits": "3fefffffffffffff",
+				"zPredicate": false,
+				"dailyPredicate": false,
+				"flagged": false,
+				"zText2": "-0.58",
+				"dailyText1": "1.0",
+				"amountText2": "1000000000.00"
+			},
+			"alternativeExactRealPredicate": {
+				"z": false,
+				"daily": false
+			},
+			"checks": {
+				"variancePairwiseIdentity": true,
+				"nonzeroRoundedValuesCertifiedByExactMidpointComparisons": true
+			}
+		},
+		{
+			"id": "rounded-threshold-equal",
+			"input": {
+				"amounts": [999999999.9999999, 999999999.9999999, 1000000000.0],
+				"amountBits": ["41cdcd64ffffffff", "41cdcd64ffffffff", "41cdcd6500000000"],
+				"dailyAverage": 1000000000.0,
+				"zThreshold": 1.1547005383792515,
+				"dailyRatioThreshold": 5.0,
+				"categoryFamiliarity": "known"
+			},
+			"proposedReference": {
+				"mean": 999999999.9999999,
+				"std": 6.882551541204759e-8,
+				"varianceNonzero": true,
+				"zScore": 1.1547005383792515,
+				"zScoreBits": "3ff279a74590331c",
+				"dailyRatio": 1.0,
+				"dailyRatioBits": "3ff0000000000000",
+				"zPredicate": false,
+				"dailyPredicate": false,
+				"flagged": false,
+				"zText2": "1.15",
+				"dailyText1": "1.0",
+				"amountText2": "1000000000.00"
+			},
+			"alternativeExactRealPredicate": {
+				"z": true,
+				"daily": false
+			},
+			"checks": {
+				"variancePairwiseIdentity": true,
+				"nonzeroRoundedValuesCertifiedByExactMidpointComparisons": true
+			}
+		},
+		{
+			"id": "rounded-threshold-down",
+			"input": {
+				"amounts": [999999999.9999999, 999999999.9999999, 1000000000.0],
+				"amountBits": ["41cdcd64ffffffff", "41cdcd64ffffffff", "41cdcd6500000000"],
+				"dailyAverage": 1000000000.0,
+				"zThreshold": 1.1547005383792512,
+				"dailyRatioThreshold": 5.0,
+				"categoryFamiliarity": "known"
+			},
+			"proposedReference": {
+				"mean": 999999999.9999999,
+				"std": 6.882551541204759e-8,
+				"varianceNonzero": true,
+				"zScore": 1.1547005383792515,
+				"zScoreBits": "3ff279a74590331c",
+				"dailyRatio": 1.0,
+				"dailyRatioBits": "3ff0000000000000",
+				"zPredicate": true,
+				"dailyPredicate": false,
+				"flagged": true,
+				"zText2": "1.15",
+				"dailyText1": "1.0",
+				"amountText2": "1000000000.00"
+			},
+			"alternativeExactRealPredicate": {
+				"z": true,
+				"daily": false
+			},
+			"checks": {
+				"variancePairwiseIdentity": true,
+				"nonzeroRoundedValuesCertifiedByExactMidpointComparisons": true
+			}
+		},
+		{
+			"id": "rounded-threshold-up",
+			"input": {
+				"amounts": [999999999.9999999, 999999999.9999999, 1000000000.0],
+				"amountBits": ["41cdcd64ffffffff", "41cdcd64ffffffff", "41cdcd6500000000"],
+				"dailyAverage": 1000000000.0,
+				"zThreshold": 1.1547005383792517,
+				"dailyRatioThreshold": 5.0,
+				"categoryFamiliarity": "known"
+			},
+			"proposedReference": {
+				"mean": 999999999.9999999,
+				"std": 6.882551541204759e-8,
+				"varianceNonzero": true,
+				"zScore": 1.1547005383792515,
+				"zScoreBits": "3ff279a74590331c",
+				"dailyRatio": 1.0,
+				"dailyRatioBits": "3ff0000000000000",
+				"zPredicate": false,
+				"dailyPredicate": false,
+				"flagged": false,
+				"zText2": "1.15",
+				"dailyText1": "1.0",
+				"amountText2": "1000000000.00"
+			},
+			"alternativeExactRealPredicate": {
+				"z": false,
+				"daily": false
+			},
+			"checks": {
+				"variancePairwiseIdentity": true,
+				"nonzeroRoundedValuesCertifiedByExactMidpointComparisons": true
+			}
+		},
+		{
+			"id": "all-zero-64",
+			"input": {
+				"amounts": [
+					0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+					0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+					0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+					0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+				],
+				"amountBits": [
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000"
+				],
+				"dailyAverage": 100.0,
+				"zThreshold": 0.0,
+				"dailyRatioThreshold": 0.0,
+				"categoryFamiliarity": "known"
+			},
+			"proposedReference": {
+				"mean": 0.0,
+				"std": 0.0,
+				"varianceNonzero": false,
+				"zScore": 0.0,
+				"zScoreBits": "0000000000000000",
+				"dailyRatio": 0.0,
+				"dailyRatioBits": "0000000000000000",
+				"zPredicate": false,
+				"dailyPredicate": false,
+				"flagged": false,
+				"zText2": "0.00",
+				"dailyText1": "0.0",
+				"amountText2": "0.00"
+			},
+			"alternativeExactRealPredicate": {
+				"z": false,
+				"daily": false
+			},
+			"checks": {
+				"variancePairwiseIdentity": true,
+				"nonzeroRoundedValuesCertifiedByExactMidpointComparisons": true
+			}
+		},
+		{
+			"id": "singleton",
+			"input": {
+				"amounts": [42.0],
+				"amountBits": ["4045000000000000"],
+				"dailyAverage": 100.0,
+				"zThreshold": 0.0,
+				"dailyRatioThreshold": 1.0,
+				"categoryFamiliarity": "known"
+			},
+			"proposedReference": {
+				"mean": 42.0,
+				"std": 0.0,
+				"varianceNonzero": false,
+				"zScore": 0.0,
+				"zScoreBits": "0000000000000000",
+				"dailyRatio": 0.42,
+				"dailyRatioBits": "3fdae147ae147ae1",
+				"zPredicate": false,
+				"dailyPredicate": false,
+				"flagged": false,
+				"zText2": "0.00",
+				"dailyText1": "0.4",
+				"amountText2": "42.00"
+			},
+			"alternativeExactRealPredicate": {
+				"z": false,
+				"daily": false
+			},
+			"checks": {
+				"variancePairwiseIdentity": true,
+				"nonzeroRoundedValuesCertifiedByExactMidpointComparisons": true
+			}
+		},
+		{
+			"id": "subnormal-pair",
+			"input": {
+				"amounts": [0.0, 5e-324],
+				"amountBits": ["0000000000000000", "0000000000000001"],
+				"dailyAverage": 100.0,
+				"zThreshold": 0.7,
+				"dailyRatioThreshold": 1.0,
+				"categoryFamiliarity": "known"
+			},
+			"proposedReference": {
+				"mean": 0.0,
+				"std": 5e-324,
+				"varianceNonzero": true,
+				"zScore": 0.7071067811865476,
+				"zScoreBits": "3fe6a09e667f3bcd",
+				"dailyRatio": 0.0,
+				"dailyRatioBits": "0000000000000000",
+				"zPredicate": true,
+				"dailyPredicate": false,
+				"flagged": true,
+				"zText2": "0.71",
+				"dailyText1": "0.0",
+				"amountText2": "0.00"
+			},
+			"alternativeExactRealPredicate": {
+				"z": true,
+				"daily": false
+			},
+			"checks": {
+				"variancePairwiseIdentity": true,
+				"nonzeroRoundedValuesCertifiedByExactMidpointComparisons": true
+			}
+		},
+		{
+			"id": "subnormal-64",
+			"input": {
+				"amounts": [
+					0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+					0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+					0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+					0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 5e-324
+				],
+				"amountBits": [
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000000",
+					"0000000000000001"
+				],
+				"dailyAverage": 100.0,
+				"zThreshold": 7.8,
+				"dailyRatioThreshold": 1.0,
+				"categoryFamiliarity": "known"
+			},
+			"proposedReference": {
+				"mean": 0.0,
+				"std": 0.0,
+				"varianceNonzero": true,
+				"zScore": 7.875,
+				"zScoreBits": "401f800000000000",
+				"dailyRatio": 0.0,
+				"dailyRatioBits": "0000000000000000",
+				"zPredicate": true,
+				"dailyPredicate": false,
+				"flagged": true,
+				"zText2": "7.88",
+				"dailyText1": "0.0",
+				"amountText2": "0.00"
+			},
+			"alternativeExactRealPredicate": {
+				"z": true,
+				"daily": false
+			},
+			"checks": {
+				"variancePairwiseIdentity": true,
+				"nonzeroRoundedValuesCertifiedByExactMidpointComparisons": true
+			}
+		},
+		{
+			"id": "daily-underflow-tie",
+			"input": {
+				"amounts": [5e-324],
+				"amountBits": ["0000000000000001"],
+				"dailyAverage": 2.0,
+				"zThreshold": 0.0,
+				"dailyRatioThreshold": 0.0,
+				"categoryFamiliarity": "known"
+			},
+			"proposedReference": {
+				"mean": 5e-324,
+				"std": 0.0,
+				"varianceNonzero": false,
+				"zScore": 0.0,
+				"zScoreBits": "0000000000000000",
+				"dailyRatio": 0.0,
+				"dailyRatioBits": "0000000000000000",
+				"zPredicate": false,
+				"dailyPredicate": false,
+				"flagged": false,
+				"zText2": "0.00",
+				"dailyText1": "0.0",
+				"amountText2": "0.00"
+			},
+			"alternativeExactRealPredicate": {
+				"z": false,
+				"daily": true
+			},
+			"checks": {
+				"variancePairwiseIdentity": true,
+				"nonzeroRoundedValuesCertifiedByExactMidpointComparisons": true
+			}
+		},
+		{
+			"id": "display-is-not-input-rounding",
+			"input": {
+				"amounts": [1.005],
+				"amountBits": ["3ff0147ae147ae14"],
+				"dailyAverage": 100.0,
+				"zThreshold": 100.0,
+				"dailyRatioThreshold": 100.0,
+				"categoryFamiliarity": "known"
+			},
+			"proposedReference": {
+				"mean": 1.005,
+				"std": 0.0,
+				"varianceNonzero": false,
+				"zScore": 0.0,
+				"zScoreBits": "0000000000000000",
+				"dailyRatio": 0.010049999999999998,
+				"dailyRatioBits": "3f8495182a9930bd",
+				"zPredicate": false,
+				"dailyPredicate": false,
+				"flagged": false,
+				"zText2": "0.00",
+				"dailyText1": "0.0",
+				"amountText2": "1.00"
+			},
+			"alternativeExactRealPredicate": {
+				"z": false,
+				"daily": false
+			},
+			"checks": {
+				"variancePairwiseIdentity": true,
+				"nonzeroRoundedValuesCertifiedByExactMidpointComparisons": true
+			}
+		}
+	]
+}
