@@ -1,0 +1,81 @@
+--- a/packages/ts/src/__tests__/solutions-agentic-memory-work-item-root-eval-live.test.ts
++++ b/packages/ts/src/__tests__/solutions-agentic-memory-work-item-root-eval-live.test.ts
+@@ -7594,7 +7594,7 @@
+ 		}
+ 	});
+ 
+-	it("qualifies every development-3 shuffle against its own bank and rejects rebinding or bank reuse", () => {
++	const developmentThreeOrders = (() => {
+ 		const permutations = (remaining: readonly number[]): number[][] =>
+ 			remaining.length === 0
+ 				? [[]]
+@@ -7604,8 +7604,31 @@
+ 							...tail,
+ 						]),
+ 					);
+-		let qualified = 0;
+-		for (const variantOrder of permutations([0, 1, 2, 3, 4])) {
++		return permutations([0, 1, 2, 3, 4]);
++	})();
++
++	it("enumerates all 120 supported development-3 shuffles and retains bank support controls", () => {
++		expect(developmentThreeOrders).toHaveLength(120);
++		expect(new Set(developmentThreeOrders.map((order) => order.join(","))).size).toBe(120);
++		for (const order of developmentThreeOrders)
++			expect(rootEvalVariantOrderSupportsIrrelevantControls(order, "development-3")).toBe(true);
++		expect(rootEvalVariantOrderSupportsIrrelevantControls([0, 1, 2, 3, 4], "development-4")).toBe(
++			true,
++		);
++		expect(rootEvalVariantOrderSupportsIrrelevantControls([0, 1, 2, 3, 4], "development-5")).toBe(
++			true,
++		);
++		expect(rootEvalVariantOrderSupportsIrrelevantControls([0, 1, 2, 3, 4], "development-6")).toBe(
++			true,
++		);
++		expect(rootEvalVariantOrderSupportsIrrelevantControls([0, 1, 2, 3, 4], "confirmatory")).toBe(
++			false,
++		);
++	});
++
++	it.each(developmentThreeOrders.map((variantOrder) => ({ variantOrder, label: variantOrder.join(",") })))(
++		"qualifies development-3 shuffle $label against its own bank and rejects rebinding or bank reuse",
++		({ variantOrder }) => {
+ 			const create = () =>
+ 				createRootEvalTaskManifest({
+ 					slot: "development-3",
+@@ -7614,9 +7637,8 @@
+ 				});
+ 			if (!rootEvalVariantOrderSupportsIrrelevantControls(variantOrder, "development-3")) {
+ 				expect(create).toThrow(/generation input invalid/u);
+-				continue;
++				return;
+ 			}
+-			qualified += 1;
+ 			const manifest = create();
+ 			expect(rootEvalMechanismDiscriminationOracle(manifest.tasks)).toHaveLength(5);
+ 			const bindings = rootEvalTaskBindings(manifest.tasks);
+@@ -7671,22 +7693,8 @@
+ 					),
+ 				}),
+ 			).toThrow();
+-		}
+-		expect(qualified).toBeGreaterThan(0);
+-		expect(qualified).toBe(120);
+-		expect(rootEvalVariantOrderSupportsIrrelevantControls([0, 1, 2, 3, 4], "development-4")).toBe(
+-			true,
+-		);
+-		expect(rootEvalVariantOrderSupportsIrrelevantControls([0, 1, 2, 3, 4], "development-5")).toBe(
+-			true,
+-		);
+-		expect(rootEvalVariantOrderSupportsIrrelevantControls([0, 1, 2, 3, 4], "development-6")).toBe(
+-			true,
+-		);
+-		expect(rootEvalVariantOrderSupportsIrrelevantControls([0, 1, 2, 3, 4], "confirmatory")).toBe(
+-			false,
+-		);
+-	});
++		},
++	);
+ 
+ 	it("binds discriminant-only relevant and incompatible irrelevant source Work Items", () => {
+ 		assertRootEvalTaskStimulusContract(ROOT_EVAL_DEVELOPMENT_TASKS);
