@@ -1,0 +1,217 @@
+{
+	"patched": true,
+	"originalDigest": "1d0dd477fc73efaa52fb3bd5dd39d2a19b51757a9c99dbd05ee2000761816642",
+	"patchedDigest": "57a73dfa6eb9a685441403520f790447d63e13b5f221b8c7eba3c2c5dfae06c9",
+	"result": [
+		{
+			"mode": "off",
+			"flagged": true,
+			"owner": "started",
+			"authorityPresent": true,
+			"effects": 1,
+			"publication": {
+				"kind": "spending-alerts/publication",
+				"authorityId": "spending/causal/authority",
+				"binding": {
+					"contract": "contract-v2",
+					"implementationRevision": "construction-v1",
+					"scope": "full",
+					"epoch": 1
+				},
+				"asOf": {
+					"compositionEpoch": 1,
+					"destinationRef": {
+						"id": "no-host",
+						"kind": "offline-inbox"
+					},
+					"hostEpoch": 1,
+					"packRef": {
+						"id": "preset",
+						"kind": "offline-pack"
+					},
+					"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+					"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a"
+				},
+				"retention": [],
+				"materialFrame": "valid",
+				"unmatchedMaterials": 0,
+				"rows": [
+					{
+						"proposal": {
+							"effectId": "alert:evaluation-coffee-0",
+							"occurrence": {
+								"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+								"occurrenceId": "evaluation-coffee-0",
+								"revision": 1,
+								"revisionDomain": "fixture-coffee",
+								"sourceRefs": [
+									{
+										"id": "evaluation-coffee-0",
+										"kind": "evaluation"
+									}
+								]
+							},
+							"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+							"requestRef": {
+								"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74",
+								"kind": "spending-alerts/request-material/v1"
+							}
+						},
+						"recorded": "admitted-no-outcome",
+						"material": "matched",
+						"payload": {
+							"message": "Transaction evaluation-coffee-0:tx1 flagged — severity: low.\nVendor: coffee  Amount: $140.00  Category: coffee\nReasoning:\n  • Amount is 0.71σ above this vendor's historical mean.",
+							"severity": "low",
+							"transactionId": "evaluation-coffee-0:tx1",
+							"vendor": "coffee"
+						}
+					}
+				]
+			},
+			"issues": [],
+			"dirty": []
+		},
+		{
+			"mode": "off",
+			"flagged": false,
+			"owner": "started",
+			"authorityPresent": true,
+			"effects": 0,
+			"publication": {
+				"kind": "spending-alerts/publication",
+				"authorityId": "spending/causal/authority",
+				"binding": {
+					"contract": "contract-v2",
+					"implementationRevision": "construction-v1",
+					"scope": "full",
+					"epoch": 1
+				},
+				"asOf": {
+					"compositionEpoch": 1,
+					"destinationRef": {
+						"id": "no-host",
+						"kind": "offline-inbox"
+					},
+					"hostEpoch": 1,
+					"packRef": {
+						"id": "preset",
+						"kind": "offline-pack"
+					},
+					"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+					"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a"
+				},
+				"retention": [],
+				"materialFrame": "valid",
+				"unmatchedMaterials": 0,
+				"rows": []
+			},
+			"issues": [],
+			"dirty": []
+		},
+		{
+			"mode": "summary",
+			"flagged": true,
+			"owner": "started",
+			"authorityPresent": true,
+			"effects": 1,
+			"publication": {
+				"kind": "spending-alerts/publication",
+				"authorityId": "spending/causal/authority",
+				"binding": {
+					"contract": "contract-v2",
+					"implementationRevision": "construction-v1",
+					"scope": "full",
+					"epoch": 1
+				},
+				"asOf": {
+					"compositionEpoch": 1,
+					"destinationRef": {
+						"id": "no-host",
+						"kind": "offline-inbox"
+					},
+					"hostEpoch": 1,
+					"packRef": {
+						"id": "preset",
+						"kind": "offline-pack"
+					},
+					"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+					"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a"
+				},
+				"retention": [],
+				"materialFrame": "valid",
+				"unmatchedMaterials": 0,
+				"rows": [
+					{
+						"proposal": {
+							"effectId": "alert:evaluation-coffee-0",
+							"occurrence": {
+								"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+								"occurrenceId": "evaluation-coffee-0",
+								"revision": 1,
+								"revisionDomain": "fixture-coffee",
+								"sourceRefs": [
+									{
+										"id": "evaluation-coffee-0",
+										"kind": "evaluation"
+									}
+								]
+							},
+							"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+							"requestRef": {
+								"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74",
+								"kind": "spending-alerts/request-material/v1"
+							}
+						},
+						"recorded": "admitted-no-outcome",
+						"material": "matched",
+						"payload": {
+							"message": "Transaction evaluation-coffee-0:tx1 flagged — severity: low.\nVendor: coffee  Amount: $140.00  Category: coffee\nReasoning:\n  • Amount is 0.71σ above this vendor's historical mean.",
+							"severity": "low",
+							"transactionId": "evaluation-coffee-0:tx1",
+							"vendor": "coffee"
+						}
+					}
+				]
+			},
+			"issues": [],
+			"dirty": []
+		},
+		{
+			"mode": "summary",
+			"flagged": false,
+			"owner": "started",
+			"authorityPresent": true,
+			"effects": 0,
+			"publication": {
+				"kind": "spending-alerts/publication",
+				"authorityId": "spending/causal/authority",
+				"binding": {
+					"contract": "contract-v2",
+					"implementationRevision": "construction-v1",
+					"scope": "full",
+					"epoch": 1
+				},
+				"asOf": {
+					"compositionEpoch": 1,
+					"destinationRef": {
+						"id": "no-host",
+						"kind": "offline-inbox"
+					},
+					"hostEpoch": 1,
+					"packRef": {
+						"id": "preset",
+						"kind": "offline-pack"
+					},
+					"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+					"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a"
+				},
+				"retention": [],
+				"materialFrame": "valid",
+				"unmatchedMaterials": 0,
+				"rows": []
+			},
+			"issues": [],
+			"dirty": []
+		}
+	]
+}

@@ -1,0 +1,94 @@
+
+ RUN  v3.2.4 /Users/davidchenallio/src/graphrefly-ts/packages/ts
+
+ ❯ src/__tests__/spending-alerts-causal-preset.test.ts (17 tests | 8 failed) 73ms
+   ✓ D164 spending preset off > owns exact cold topology and five real view fields 8ms
+   × D164 spending preset off > executes real business, independent sample oracle and exact admitted publication 13ms
+     → Target cannot be null or undefined.
+   × D164 spending preset off > retains material and active obligation when UI disconnects, settles only exact outcome 11ms
+     → Cannot read properties of undefined (reading 'effects')
+   × D164 spending preset off > normal transaction makes no proposal 3ms
+     → Cannot read properties of undefined (reading 'effects')
+   × D164 spending preset off > missing verification waits and recovery uses actual receipt DATA 3ms
+     → Cannot read properties of undefined (reading 'effects')
+   ✓ D164 spending preset summary > owns exact cold topology and five real view fields 2ms
+   × D164 spending preset summary > executes real business, independent sample oracle and exact admitted publication 4ms
+     → Target cannot be null or undefined.
+   × D164 spending preset summary > retains material and active obligation when UI disconnects, settles only exact outcome 4ms
+     → Cannot read properties of undefined (reading 'effects')
+   × D164 spending preset summary > normal transaction makes no proposal 4ms
+     → Cannot read properties of undefined (reading 'effects')
+   × D164 spending preset summary > missing verification waits and recovery uses actual receipt DATA 3ms
+     → Cannot read properties of undefined (reading 'effects')
+   ✓ D164 finite passive input and business edges > processes valid recovery after invalid arrival in one DATA batch 2ms
+   ✓ D164 finite passive input and business edges > does not fabricate a verifier pass for ill-conditioned finite inputs 2ms
+   ✓ D164 finite passive input and business edges > processes two independent vendors in one arrival frame 3ms
+   ✓ D164 finite passive input and business edges > native INVALIDATE blocks new admission until verification DATA recovers 4ms
+   ✓ D164 finite passive input and business edges > retains conflicting receipt identity across distinct frames 2ms
+   ✓ D164 finite passive input and business edges > retains both same-wave receipt frames by exact identity 1ms
+   ✓ D164 finite passive input and business edges > rejects an exact failed verifier without grant or inbox observations 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/spending-alerts-causal-preset.test.ts > D164 spending preset off > executes real business, independent sample oracle and exact admitted publication
+ FAIL  src/__tests__/spending-alerts-causal-preset.test.ts > D164 spending preset summary > executes real business, independent sample oracle and exact admitted publication
+AssertionError: Target cannot be null or undefined.
+ ❯ src/__tests__/spending-alerts-causal-preset.test.ts:61:20
+     59|    expect(frames.flatMap((f) => f.rows).some((row) => verifyBusiness(e…
+     60|    const p = r.events.publication.at(-1) as Publication;
+     61|    expect(p?.rows).toHaveLength(1);
+       |                    ^
+     62|    expect(p.rows[0].material).toBe("matched");
+     63|    expect(p.rows[0].recorded).toBe("admitted-no-outcome");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL  src/__tests__/spending-alerts-causal-preset.test.ts > D164 spending preset off > retains material and active obligation when UI disconnects, settles only exact outcome
+ FAIL  src/__tests__/spending-alerts-causal-preset.test.ts > D164 spending preset summary > retains material and active obligation when UI disconnects, settles only exact outcome
+TypeError: Cannot read properties of undefined (reading 'effects')
+ ❯ Object.outcome ../../scripts/fixtures/spending-preset-harness.ts:256:29
+    254|    ?.value as RuntimeState<unknown>;
+    255|  const outcome = (stateName: CausalEffectOutcome["state"] = "succeeded…
+    256|   const records = [...state().effects.values()],
+       |                             ^
+    257|    record = records.at(-1)!;
+    258|   if (!record?.admission) throw new Error("fixture has no admitted rec…
+ ❯ src/__tests__/spending-alerts-causal-preset.test.ts:71:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  src/__tests__/spending-alerts-causal-preset.test.ts > D164 spending preset off > normal transaction makes no proposal
+ FAIL  src/__tests__/spending-alerts-causal-preset.test.ts > D164 spending preset summary > normal transaction makes no proposal
+TypeError: Cannot read properties of undefined (reading 'effects')
+ ❯ src/__tests__/spending-alerts-causal-preset.test.ts:87:19
+     85|    r.send("pack", evaluationPack([e]));
+     86|    r.drive(e);
+     87|    expect(r.state().effects.size).toBe(0);
+       |                   ^
+     88|    expect((r.events.assessment.at(-1) as BusinessFrame<Assessment>).ro…
+     89|     false,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+ FAIL  src/__tests__/spending-alerts-causal-preset.test.ts > D164 spending preset off > missing verification waits and recovery uses actual receipt DATA
+ FAIL  src/__tests__/spending-alerts-causal-preset.test.ts > D164 spending preset summary > missing verification waits and recovery uses actual receipt DATA
+TypeError: Cannot read properties of undefined (reading 'effects')
+ ❯ src/__tests__/spending-alerts-causal-preset.test.ts:101:23
+     99|    r.send("inbox", f.inbox);
+    100|    r.send("arrivals", { packRef: presetBinding.packRef, evaluationRefs…
+    101|    expect([...r.state().effects.values()].every((x) => x.admission ===…
+       |                       ^
+    102|    r.send("verification", f.verification);
+    103|    expect((r.events.publication.at(-1) as Publication).rows[0].recorde…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  8 failed | 9 passed (17)
+   Start at  14:41:43
+   Duration  813ms (transform 221ms, setup 0ms, collect 297ms, tests 73ms, environment 0ms, prepare 87ms)
+
+undefined
+/Users/davidchenallio/src/graphrefly-ts/packages/ts:
+[ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL] Command failed with exit code 1: vitest run src/__tests__/spending-alerts-causal-preset.test.ts

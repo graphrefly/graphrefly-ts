@@ -1,0 +1,17 @@
+{
+	"kind": "implementation-and-offline-qualification",
+	"taskId": "01a077c7-55e6-7f11-9d4f-e7c51944afb4",
+	"userResponse": "同意，继续",
+	"date": "2026-09-09",
+	"workRef": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"scope": "Implement assembly-v1 private business cold assembly, material retention, five-port consumption, prescribed offline qualification and same-scope fixes; retain failures and commit. No real inbox/provider/live/spend or downstream execution.",
+	"baselineCommit": "0c249466fefe54a79b2f0cb87ba3db0f95f8bd0f",
+	"scopeCard": {
+		"path": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/preset-assembly-design-approval/implementation-scope.md",
+		"digest": "sha256:72971bfbe4d37a490bc8b4a930d5bf2508d29f3c28017fa4aa8e76bac3a4bd89"
+	},
+	"designManifest": {
+		"path": "docs/design/causal-preset-assembly-v1.json",
+		"digest": "sha256:ee3aaa60f36e646f81cebbb2dbdf7f361490d25b6bebaadcb02f0205775ca60c"
+	}
+}

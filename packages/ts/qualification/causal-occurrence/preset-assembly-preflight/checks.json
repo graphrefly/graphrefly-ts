@@ -1,0 +1,122 @@
+[
+	{
+		"name": "original-tests",
+		"argv": [
+			"pnpm",
+			"--filter",
+			"@graphrefly/ts",
+			"exec",
+			"vitest",
+			"run",
+			"src/__tests__/spending-alerts-causal-preset.test.ts"
+		],
+		"exitCode": 1,
+		"seconds": 1.623,
+		"log": "original-tests.log",
+		"sha256": "c6884d898eee50c5f31c0001ad8de4d37f554adf71820409906eedc2a1fa513b"
+	},
+	{
+		"name": "isolated-lane-tests",
+		"argv": [
+			"pnpm",
+			"--filter",
+			"@graphrefly/ts",
+			"exec",
+			"vitest",
+			"run",
+			"--config",
+			"/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/preset-assembly-implementation/lane-partial.vitest.config.mts",
+			"src/__tests__/spending-alerts-causal-preset.test.ts"
+		],
+		"exitCode": 0,
+		"seconds": 1.386,
+		"log": "isolated-lane-tests.log",
+		"sha256": "c4bfad0097ab56db5817db103f3983a103e7ecfc23b5383dd40f276e055a54e7"
+	},
+	{
+		"name": "example-types",
+		"argv": ["pnpm", "exec", "tsc", "-p", "examples/spending-alerts/tsconfig.json"],
+		"exitCode": 0,
+		"seconds": 1.769,
+		"log": "example-types.log",
+		"sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+	},
+	{
+		"name": "lint",
+		"argv": ["pnpm", "run", "lint"],
+		"exitCode": 1,
+		"seconds": 1.419,
+		"log": "lint.log",
+		"sha256": "7a089176f976cdbf5594e4a9a5df2645bea46e798a1bc2ef39b18e88c8b01f92"
+	},
+	{
+		"name": "workspace",
+		"argv": [
+			"npm",
+			"--prefix",
+			"/Users/davidchenallio/src/graphrefly",
+			"run",
+			"authority:check:workspace"
+		],
+		"exitCode": 0,
+		"seconds": 2.572,
+		"log": "workspace.log",
+		"sha256": "4f27627dcab3eb3045353edccdee0c80cf96dfefae6c811517d528b223461d83"
+	},
+	{
+		"name": "dashboard",
+		"argv": ["node", "/Users/davidchenallio/src/graphrefly/dashboard/build.mjs", "--check"],
+		"exitCode": 0,
+		"seconds": 0.695,
+		"log": "dashboard.log",
+		"sha256": "57d4dc2953cc9de54408eb72f73eccff702d623d1346ab401e6585a2b1275569"
+	},
+	{
+		"name": "isolated-portable-tests",
+		"argv": [
+			"pnpm",
+			"--filter",
+			"@graphrefly/ts",
+			"exec",
+			"vitest",
+			"run",
+			"--config",
+			"qualification/causal-occurrence/preset-assembly-preflight/lane-partial.vitest.config.mts",
+			"src/__tests__/spending-alerts-causal-preset.test.ts"
+		],
+		"exitCode": 0,
+		"seconds": 1.451,
+		"log": "isolated-portable-tests.log",
+		"sha256": "93e1f608407ed96b195088f61e93a8d32e2e5b2c1e89f0c27686b54e120bda17"
+	},
+	{
+		"name": "lint-final",
+		"argv": ["pnpm", "run", "lint"],
+		"exitCode": 0,
+		"seconds": 9.244,
+		"log": "lint-final.log",
+		"sha256": "422f84619e6a3342724f854a6d365d6e12c412067660d55fc7be7c69403784d4"
+	},
+	{
+		"name": "workspace-final",
+		"argv": [
+			"npm",
+			"--prefix",
+			"/Users/davidchenallio/src/graphrefly",
+			"run",
+			"authority:check:workspace"
+		],
+		"exitCode": 0,
+		"seconds": 1.863,
+		"log": "workspace-final.log",
+		"sha256": "4f27627dcab3eb3045353edccdee0c80cf96dfefae6c811517d528b223461d83"
+	},
+	{
+		"name": "dashboard-final",
+		"argv": ["node", "/Users/davidchenallio/src/graphrefly/dashboard/build.mjs", "--check"],
+		"exitCode": 0,
+		"seconds": 0.636,
+		"log": "dashboard-final.log",
+		"sha256": "57d4dc2953cc9de54408eb72f73eccff702d623d1346ab401e6585a2b1275569"
+	}
+]

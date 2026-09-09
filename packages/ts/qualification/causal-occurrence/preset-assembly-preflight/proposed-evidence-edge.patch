@@ -1,0 +1,11 @@
+--- reviewed-assembly-v1
++++ proposed-assembly-v1-addendum
+@@ -316,7 +316,7 @@
+ | 22 | branchTerminals | assessment, alertMessage, publicationPolicy |
+ | 23 | effectAdmissions | publicationPolicy |
+ | 24 | effectOutcomes | inboxFacts |
+-| 25 | evidence | evaluationSelections, verificationFacts |
++| 25 | evidence | evaluationSelections, materialStore, verificationFacts |
+ | 26 | watermarks | currentFacts |
+ | 27 | consumerIssues | evaluationSelections, currentFacts, verificationFacts, localFacts, inboxFacts, requestMaterials, materialStore, publicationPolicy, causal/issues |
+ 

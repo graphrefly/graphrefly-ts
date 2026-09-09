@@ -1,0 +1,50 @@
+--- a/examples/spending-alerts/causal-admission.ts
++++ b/examples/spending-alerts/causal-admission.ts
+@@ -365,14 +365,14 @@
+ 		for (const f of (depBatch(ctx, 0) ?? []) as Checked<InboxObservationFrame>[])
+ 			if (f.valid) for (const outcome of f.value.outcomes) ctx.down([["DATA", outcome]]);
+ 	});
+-	// Incomplete assembly: request correlation stays unavailable until the material dependency is reviewed.
++	// Proposed addendum: verification evidence is correlated to actual retained or no-publish material.
+ 	const evidence = make<CausalEvidence>(
+ 		"evidence",
+-		[business.evaluationSelections, verificationFacts],
+-		(ctx) => {
+-			const s = collect(ctx, 1);
++		[business.evaluationSelections, materials.materialStore, verificationFacts],
++		(ctx) => {
++			const s = collect(ctx, 2);
+ 			if (!s.valid[0]) return;
+-			const verification = latest<VerificationFrame>(ctx, 1);
++			const verification = latest<VerificationFrame>(ctx, 2);
+ 			for (const { evaluation: e } of s.maps[0].values()) {
+ 				for (const [kind, digest] of [
+ 					["spending-input", e.inputDigest],
+@@ -394,6 +394,11 @@
+ 							},
+ 						],
+ 					]);
++				const material = s.valid[1] ? s.maps[1].get(occurrenceKey(e.occurrence))?.value as MaterialResult | undefined : undefined;
++				// Do not finalize a receipt classification while its material dependency is absent.
++				if (!material) continue;
++				const expectedRequest = material.kind === "retained" ? material.material.body.payloadDigest
++					: material.kind === "normal" ? hash({ kind: "no-publish", evaluationRef: e.evaluationRef }) : undefined;
+ 				for (const v of verification?.receipts ?? [])
+ 					if (same(v.occurrence, e.occurrence))
+ 						ctx.down([
+@@ -410,11 +415,12 @@
+ 										v.inputDigest !== e.inputDigest ||
+ 										v.policyDigest !== e.policyDigest ||
+ 										v.verifierRevision !== VERIFIER_REVISION ||
+-										v.numericDomainRef !== NUMERIC_DOMAIN
++										v.numericDomainRef !== NUMERIC_DOMAIN ||
++										(expectedRequest !== undefined && v.requestDigest !== expectedRequest)
+ 											? "stale"
+-											: v.verdict === "unavailable"
++											: v.verdict === "unavailable" || expectedRequest === undefined
+ 												? "unavailable"
+-												: "unavailable",
++												: "included",
+ 									refs: [v.artifactRef.id],
+ 								},
+ 							],

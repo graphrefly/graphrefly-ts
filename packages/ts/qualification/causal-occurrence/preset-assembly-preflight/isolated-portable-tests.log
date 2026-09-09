@@ -1,0 +1,10 @@
+
+ RUN  v3.2.4 /Users/davidchenallio/src/graphrefly-ts/packages/ts
+
+ ✓ src/__tests__/spending-alerts-causal-preset.test.ts (17 tests) 102ms
+
+ Test Files  1 passed (1)
+      Tests  17 passed (17)
+   Start at  14:45:55
+   Duration  697ms (transform 223ms, setup 0ms, collect 294ms, tests 102ms, environment 0ms, prepare 118ms)
+

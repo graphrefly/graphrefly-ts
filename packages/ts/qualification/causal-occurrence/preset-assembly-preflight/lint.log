@@ -1,0 +1,169 @@
+$ biome check . && tsx scripts/check-no-raw-async.ts && tsx scripts/check-typecheck.ts && pnpm --filter @graphrefly/ts test:typecheck
+packages/ts/qualification/causal-occurrence/cold-v1-helper-differential.json check ━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 2.3 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/cold-v1-incoming-differential.json check ━━━━━━━━━━━━━━━
+
+  i The size of the file is 7.1 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/cold-v1-standalone-comparison-final.json check ━━━━━━━━━━
+
+  i The size of the file is 25.9 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/cold-v1-standalone-comparison.json check ━━━━━━━━━━━━━━━
+
+  i The size of the file is 25.7 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v5-inputs.json check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 8.3 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v6-inputs.json check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 18.8 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v7-incoming-differential.json check ━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 7.1 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v8-cold-inputs.json check ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 61.3 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v8-helper-differential.json check ━━━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 2.3 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v8-incoming-differential.json check ━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 7.1 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/preset-assembly-preflight/checks.json format ━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   [
+     2    │ - ··{
+     3    │ - ····"name":·"original-tests",
+     4    │ - ····"argv":·[
+     5    │ - ······"pnpm",
+     6    │ - ······"--filter",
+     7    │ - ······"@graphrefly/ts",
+     8    │ - ······"exec",
+     9    │ - ······"vitest",
+    10    │ - ······"run",
+    11    │ - ······"src/__tests__/spending-alerts-causal-preset.test.ts"
+    12    │ - ····],
+    13    │ - ····"exitCode":·1,
+    14    │ - ····"seconds":·1.623,
+    15    │ - ····"log":·"original-tests.log",
+    16    │ - ····"sha256":·"c6884d898eee50c5f31c0001ad8de4d37f554adf71820409906eedc2a1fa513b"
+    17    │ - ··},
+    18    │ - ··{
+    19    │ - ····"name":·"isolated-lane-tests",
+    20    │ - ····"argv":·[
+    21    │ - ······"pnpm",
+    22    │ - ······"--filter",
+    23    │ - ······"@graphrefly/ts",
+    24    │ - ······"exec",
+    25    │ - ······"vitest",
+    26    │ - ······"run",
+    27    │ - ······"--config",
+    28    │ - ······"/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/preset-assembly-implementation/lane-partial.vitest.config.mts",
+    29    │ - ······"src/__tests__/spending-alerts-causal-preset.test.ts"
+    30    │ - ····],
+    31    │ - ····"exitCode":·0,
+    32    │ - ····"seconds":·1.386,
+    33    │ - ····"log":·"isolated-lane-tests.log",
+    34    │ - ····"sha256":·"c4bfad0097ab56db5817db103f3983a103e7ecfc23b5383dd40f276e055a54e7"
+    35    │ - ··},
+    36    │ - ··{
+    37    │ - ····"name":·"example-types",
+    38    │ - ····"argv":·[
+    39    │ - ······"pnpm",
+    40    │ - ······"exec",
+    41    │ - ······"tsc",
+    42    │ - ······"-p",
+    43    │ - ······"examples/spending-alerts/tsconfig.json"
+    44    │ - ····],
+    45    │ - ····"exitCode":·0,
+    46    │ - ····"seconds":·1.769,
+    47    │ - ····"log":·"example-types.log",
+    48    │ - ····"sha256":·"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    49    │ - ··}
+        2 │ + → {
+        3 │ + → → "name":·"original-tests",
+        4 │ + → → "argv":·[
+        5 │ + → → → "pnpm",
+        6 │ + → → → "--filter",
+        7 │ + → → → "@graphrefly/ts",
+        8 │ + → → → "exec",
+        9 │ + → → → "vitest",
+       10 │ + → → → "run",
+       11 │ + → → → "src/__tests__/spending-alerts-causal-preset.test.ts"
+       12 │ + → → ],
+       13 │ + → → "exitCode":·1,
+       14 │ + → → "seconds":·1.623,
+       15 │ + → → "log":·"original-tests.log",
+       16 │ + → → "sha256":·"c6884d898eee50c5f31c0001ad8de4d37f554adf71820409906eedc2a1fa513b"
+       17 │ + → },
+       18 │ + → {
+       19 │ + → → "name":·"isolated-lane-tests",
+       20 │ + → → "argv":·[
+       21 │ + → → → "pnpm",
+       22 │ + → → → "--filter",
+       23 │ + → → → "@graphrefly/ts",
+       24 │ + → → → "exec",
+       25 │ + → → → "vitest",
+       26 │ + → → → "run",
+       27 │ + → → → "--config",
+       28 │ + → → → "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/preset-assembly-implementation/lane-partial.vitest.config.mts",
+       29 │ + → → → "src/__tests__/spending-alerts-causal-preset.test.ts"
+       30 │ + → → ],
+       31 │ + → → "exitCode":·0,
+       32 │ + → → "seconds":·1.386,
+       33 │ + → → "log":·"isolated-lane-tests.log",
+       34 │ + → → "sha256":·"c4bfad0097ab56db5817db103f3983a103e7ecfc23b5383dd40f276e055a54e7"
+       35 │ + → },
+       36 │ + → {
+       37 │ + → → "name":·"example-types",
+       38 │ + → → "argv":·["pnpm",·"exec",·"tsc",·"-p",·"examples/spending-alerts/tsconfig.json"],
+       39 │ + → → "exitCode":·0,
+       40 │ + → → "seconds":·1.769,
+       41 │ + → → "log":·"example-types.log",
+       42 │ + → → "sha256":·"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+       43 │ + → }
+    50 44 │   ]
+    51 45 │   
+  
+
+Checked 743 files in 879ms. No fixes applied.
+Found 1 error.
+Found 10 infos.
+check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+
+[ELIFECYCLE] Command failed with exit code 1.

@@ -13,6 +13,14 @@
 		"pipeline.ts",
 		"causal-publication.ts",
 		"../../packages/ts/src/__tests__/spending-alerts-causal-publication.test.ts",
-		"../../scripts/fixtures/spending-publication*.ts"
+		"../../scripts/fixtures/spending-publication*.ts",
+		"causal-inputs.ts",
+		"causal-business.ts",
+		"causal-material-owner.ts",
+		"causal-admission.ts",
+		"causal-preset.ts",
+		"causal-audience.examples.ts",
+		"../../packages/ts/src/__tests__/spending-alerts-causal-preset.test.ts",
+		"../../scripts/fixtures/spending-preset*.ts"
 	]
 }

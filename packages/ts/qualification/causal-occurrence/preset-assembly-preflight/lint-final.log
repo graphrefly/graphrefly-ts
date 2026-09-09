@@ -1,0 +1,68 @@
+$ biome check . && tsx scripts/check-no-raw-async.ts && tsx scripts/check-typecheck.ts && pnpm --filter @graphrefly/ts test:typecheck
+packages/ts/qualification/causal-occurrence/cold-v1-helper-differential.json check ━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 2.3 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/cold-v1-incoming-differential.json check ━━━━━━━━━━━━━━━
+
+  i The size of the file is 7.1 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/cold-v1-standalone-comparison-final.json check ━━━━━━━━━━
+
+  i The size of the file is 25.9 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/cold-v1-standalone-comparison.json check ━━━━━━━━━━━━━━━
+
+  i The size of the file is 25.7 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v5-inputs.json check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 8.3 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v6-inputs.json check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 18.8 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v7-incoming-differential.json check ━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 7.1 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v8-cold-inputs.json check ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 61.3 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v8-helper-differential.json check ━━━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 2.3 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v8-incoming-differential.json check ━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 7.1 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+Checked 750 files in 694ms. No fixes applied.
+Found 10 infos.
+check-no-raw-async: 283 files checked, no raw async outside the sanctioned boundary (26 whole-file allowlisted, 9 pattern-scoped).
+typecheck: spending-alerts example (examples/spending-alerts/tsconfig.json) — clean
+typecheck: keyed-rate-limit example (examples/basic/keyed-rate-limit/tsconfig.json) — clean
+typecheck: 2 package(s) checked, all clean.
+$ tsc --noEmit -p tsconfig.tests.json
