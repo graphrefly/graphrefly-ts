@@ -418,7 +418,11 @@ export function buildSpendingPublication<T>(
 				ctx.down([["ERROR", new TypeError("publication dependency mismatch")]]);
 				return;
 			}
-			let state = ctx.state.get<{ raw?: unknown; index?: MaterialIndex }>();
+			let state = ctx.state.get<{
+				raw?: unknown;
+				index?: MaterialIndex;
+				validatedBinding?: CausalBinding;
+			}>();
 			if (state === undefined) {
 				state = {};
 				ctx.state.set(state);
@@ -446,11 +450,15 @@ export function buildSpendingPublication<T>(
 			if (
 				view.kind !== "causal-committed-effects" ||
 				view.authorityId !== authorityId ||
-				canonicalMaterial(view.binding) !== expectedBinding
+				((state.validatedBinding === undefined || state.validatedBinding !== view.binding) &&
+					canonicalMaterial(view.binding) !== expectedBinding)
 			) {
 				ctx.down([["ERROR", new TypeError("publication authority binding")]]);
 				return;
 			}
+			// Canonical success proves this frozen binding contains only the exact flat primitive fields.
+			// Mutable or new references always pass through the full validator; this is derived RAM only.
+			if (Object.isFrozen(view.binding)) state.validatedBinding = view.binding;
 			ctx.down([["DATA", Object.freeze({ view, index: state.index })]]);
 		},
 		{

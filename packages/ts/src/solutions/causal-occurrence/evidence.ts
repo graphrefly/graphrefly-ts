@@ -81,7 +81,7 @@ export function retainEvidence<T>(
 		// One persistent gap per occurrence/required kind, plus one optional-kind
 		// representative: bounded by maxOccurrences * (required kinds + 1).
 		// Overflow details cannot consume maxPending or erase a known coverage gap.
-		const gapKey = canonicalTupleKey([
+		const gapKey = JSON.stringify([
 			refKey(evidence.occurrence),
 			opts.requiredEvidenceKinds.includes(evidence.evidenceKind) ? evidence.evidenceKind : null,
 		]);

@@ -12,6 +12,7 @@
 		"index.ts",
 		"pipeline.ts",
 		"causal-publication.ts",
-		"../../packages/ts/src/__tests__/spending-alerts-causal-publication.test.ts"
+		"../../packages/ts/src/__tests__/spending-alerts-causal-publication.test.ts",
+		"../../scripts/fixtures/spending-publication*.ts"
 	]
 }

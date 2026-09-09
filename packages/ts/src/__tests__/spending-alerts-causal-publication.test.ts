@@ -14,6 +14,11 @@ import {
 } from "../../../../examples/spending-alerts/causal-publication.js";
 import { spendingAlertsGraph } from "../../../../examples/spending-alerts/pipeline.js";
 import {
+	publicationFacts,
+	publicationProfile,
+	publicationRun,
+} from "../../../../scripts/fixtures/spending-publication-harness.js";
+import {
 	oracleCanonical,
 	oracleFreeze,
 	oracleHash,
@@ -21,6 +26,7 @@ import {
 	oraclePublication,
 	oracleRows,
 	oracleSnapshot,
+	PlainPublication,
 	verifyPublicationMaterial,
 } from "../../../../scripts/fixtures/spending-publication-oracle.js";
 import {
@@ -276,6 +282,7 @@ describe("private publication material-v1", () => {
 		if (first) f.frame([a.material]);
 		f.admit(a);
 		if (!first) f.frame([a.material]);
+		expect(out.values.length).toBeGreaterThan(0);
 		expect(out.last().rows).toEqual(oracleRows(view.last(), [a.material]));
 		expect(out.last().rows[0].material).toBe("matched");
 		expect(f.built.requestMaterialJoin.deps).toEqual([f.built.causal.committedEffects, f.material]);
@@ -411,7 +418,9 @@ describe("private publication material-v1", () => {
 		f.material.down([["DATA", raw]]);
 		expect(out.last().materialFrame).toBe("invalid/conflicting");
 	});
-	it.each([200, 1000])("actual consumer payload for sample 100/%s", (amount) => {
+	it.each(
+		[200, 1000].flatMap((amount) => [false, true].map((first) => ({ amount, first }))),
+	)("actual consumer payload sample 100/$amount material-first=$first", ({ amount, first }) => {
 		const legacy = spendingAlertsGraph({
 			profile: { dailyAverage: 100, typicalCategories: ["groceries"] },
 			dailyRatioThreshold: 5,
@@ -430,13 +439,21 @@ describe("private publication material-v1", () => {
 					timestampIso: `2026-01-01T00:00:0${i}Z`,
 				});
 			const message = messages.at(-1)!;
-			expect(message).toContain(amount === 200 ? "normal." : "flagged — severity: low.");
+			expect(message).toBe(
+				amount === 200
+					? "Transaction txn-1 ($200.00 at A) — normal."
+					: "Transaction txn-1 flagged — severity: low.\nVendor: A  Amount: $1000.00  Category: groceries\nReasoning:\n  • Amount is 10.0× the user's daily average.",
+			);
 			const f = fixture(),
 				a = facts("A", message),
 				out = collect(f.built.publication);
-			f.frame([a.material]);
+			if (first) f.frame([a.material]);
 			if (amount === 1000) f.admit(a);
 			else f.release(a);
+			if (!first) f.frame([a.material]);
+			expect(out.last().rows).toEqual(
+				oracleRows(collect(f.built.causal.committedEffects).last(), [a.material]),
+			);
 			if (amount === 1000) expect(out.last().rows[0].payload?.message).toBe(message);
 			else expect(out.last().rows).toEqual([]);
 		} finally {
@@ -562,6 +579,51 @@ describe("private publication material-v1", () => {
 		f.frame([m]);
 		expect(out.last().rows[0].material).toBe("missing");
 	});
+	it.each([
+		"packRef",
+		"destinationRef",
+		"sourceDigest",
+		"runtimeDigest",
+		"compositionEpoch",
+		"hostEpoch",
+	])("every profile coordinate rejects valid stale frame: %s", (field) => {
+		const a = facts(),
+			f = fixture(),
+			out = collect(f.built.publication);
+		f.admit(a);
+		const changed = JSON.parse(JSON.stringify(profile));
+		if (field.endsWith("Ref")) changed[field].id = "other";
+		else if (field.endsWith("Digest")) changed[field] = `sha256:${"c".repeat(64)}`;
+		else changed[field] = 2;
+		const { packRef: _, ...coordinates } = changed;
+		const m = oracleMaterial({ ...a.material.body, ...coordinates });
+		const frame = oracleSnapshot(changed, [m]);
+		f.material.down([["DATA", frame]]);
+		expect(verifyPublicationMaterial(frame, profile).state).toBe("binding-mismatch");
+		expect(out.last().rows[0].material).toBe("binding-mismatch");
+	});
+	it("source reference order is part of full association", () => {
+		const a = publicationFacts(),
+			f = publicationRun("production");
+		try {
+			f.connect();
+			f.admit(a);
+			const m = oracleMaterial({
+				...a.material.body,
+				occurrence: {
+					...a.material.body.occurrence,
+					sourceRefs: [...a.material.body.occurrence.sourceRefs].reverse(),
+				},
+			});
+			const frame = oracleSnapshot(publicationProfile, [m]);
+			f.frame(frame);
+			expect(verifyPublicationMaterial(frame, publicationProfile).state).toBe("valid");
+			expect(f.latest?.rows[0].material).toBe("missing");
+		} finally {
+			f.close();
+		}
+	});
+
 	it("same-commit outcome projects the final recorded result directly", () => {
 		const f = fixture(),
 			a = facts(),
@@ -626,6 +688,136 @@ describe("private publication material-v1", () => {
 		expect(createHash).not.toHaveBeenCalled();
 		expect(out.last().rows[0].recorded).toBe("succeeded");
 	});
+	it.each(
+		[1, 16, 64].flatMap((count) =>
+			[0, 1024, 8192].flatMap((bytes) =>
+				["production", "reference"].map((arm) => ({ count, bytes, arm })),
+			),
+		),
+	)("finite actual work $arm/$count/$bytes", ({ count, bytes, arm }) => {
+		const facts = Array.from({ length: count }, (_, i) => publicationFacts(`f${i}`, bytes));
+		const f = publicationRun(arm as "production" | "reference", { capacity: count });
+		try {
+			f.connect();
+			f.release(facts[0]);
+			f.send("effectProposals", ...facts.map((x) => x.proposal));
+			f.send("effectAdmissions", ...facts.map((x) => x.admission));
+			const frame = f.snapshot(facts);
+			vi.mocked(createHash).mockClear();
+			f.frame(frame);
+			expect(createHash).toHaveBeenCalledTimes(1 + 3 * count);
+			expect(f.view?.effects).toHaveLength(count);
+			expect(f.latest?.rows).toHaveLength(count);
+			expect(
+				f.latest?.rows.every(
+					(r) => r.material === "matched" && r.recorded === "admitted-no-outcome",
+				),
+			).toBe(true);
+			const memory = () =>
+				checkpointStateOfNode(f.built.requestMaterialJoin).ctxState?.value as {
+					index: { rows: ReadonlyMap<string, unknown> };
+				};
+			const firstIndex = memory().index;
+			expect(firstIndex.rows.size).toBe(count);
+			vi.mocked(createHash).mockClear();
+			let events = f.stats().dataEvents;
+			f.frames([frame, frame]);
+			expect(f.stats().dataEvents - events).toBe(1);
+			expect(memory().index).toBe(firstIndex);
+			expect(createHash).not.toHaveBeenCalled();
+			const replacement = f.snapshot(facts);
+			vi.mocked(createHash).mockClear();
+			events = f.stats().dataEvents;
+			f.frame(replacement);
+			expect(createHash).toHaveBeenCalledTimes(1 + 3 * count);
+			expect(f.stats().dataEvents - events).toBe(1);
+			expect(memory().index).not.toBe(firstIndex);
+			f.disconnect();
+			for (const n of [f.built.requestMaterialJoin, f.built.publication]) {
+				expect(checkpointStateOfNode(n).ctxState?.value).toBeUndefined();
+				expect(checkpointStateOfNode(n).cache).toBeUndefined();
+			}
+			vi.mocked(createHash).mockClear();
+			f.connect();
+			expect(createHash).toHaveBeenCalledTimes(1 + 3 * count);
+		} finally {
+			f.close();
+		}
+	});
+
+	it("validated frozen authority binding avoids repeated encoding and releases with RAM", () => {
+		const f = fixture(),
+			a = facts(),
+			out = collect(f.built.publication);
+		f.admit(a);
+		f.frame([a.material]);
+		const view = collect(f.built.causal.committedEffects).last();
+		const descriptors = vi.spyOn(Object, "getOwnPropertyDescriptor");
+		try {
+			f.send("effectOutcomes", a.outcome);
+			expect(out.last().rows[0].recorded).toBe("succeeded");
+			expect(descriptors.mock.calls.filter(([target]) => target === view.binding)).toHaveLength(0);
+		} finally {
+			descriptors.mockRestore();
+		}
+		out.stop();
+		expect(checkpointStateOfNode(f.built.requestMaterialJoin).ctxState?.value).toBeUndefined();
+	});
+	it("mutable authority binding is revalidated even at the same reference", () => {
+		const f = fixture(),
+			a = facts(),
+			out = collect(f.built.publication);
+		f.admit(a);
+		f.frame([a.material]);
+		const view = collect(f.built.causal.committedEffects).last();
+		const mutable = { ...view.binding };
+		f.built.causal.committedEffects.down([["DATA", { ...view, binding: mutable }]]);
+		const before = out.values.length;
+		mutable.epoch++;
+		f.built.causal.committedEffects.down([["DATA", { ...view, binding: mutable }]]);
+		expect(out.values.length).toBe(before);
+		expect(out.messages.some((m) => (m as unknown[])[0] === "ERROR")).toBe(true);
+	});
+	it.each([
+		"binding",
+		"authorityId",
+		"kind",
+	])("cached binding never bypasses changed %s", (field) => {
+		const f = fixture(),
+			a = facts(),
+			out = collect(f.built.publication);
+		f.admit(a);
+		f.frame([a.material]);
+		const view = collect(f.built.causal.committedEffects).last();
+		const before = out.values.length;
+		const changed = field === "binding" ? Object.freeze({ ...view.binding, epoch: 2 }) : "wrong";
+		f.built.causal.committedEffects.down([["DATA", { ...view, [field]: changed } as typeof view]]);
+		expect(out.values.length).toBe(before);
+		expect(out.messages.some((m) => (m as unknown[])[0] === "ERROR")).toBe(true);
+	});
+	it("frozen accessor binding is rejected before getter invocation", () => {
+		const f = fixture(),
+			a = facts(),
+			out = collect(f.built.publication);
+		f.admit(a);
+		f.frame([a.material]);
+		const view = collect(f.built.causal.committedEffects).last();
+		let reads = 0;
+		const bad = Object.freeze({
+			...view.binding,
+			get epoch() {
+				reads++;
+				return 1;
+			},
+		});
+		const before = out.values.length;
+		try {
+			f.built.causal.committedEffects.down([["DATA", { ...view, binding: bad }]]);
+		} catch {}
+		expect(reads).toBe(0);
+		expect(out.values.length).toBe(before);
+	});
+
 	it("mutation outside material DATA cannot alter accepted payload on a view change", () => {
 		const f = fixture(),
 			a = facts(),
@@ -658,5 +850,236 @@ describe("private publication material-v1", () => {
 		f.material.down([["DATA", raw]]);
 		f.built.causal.committedEffects.down([["DATA", view]]);
 		expect(out.last().rows[0].material).toBe("invalid/conflicting");
+	});
+	it.each([
+		"production",
+		"reference",
+	] as const)("P8/P9 cold ownership and legal retention: %s", (arm) => {
+		expect(() => publicationRun(arm, { foreignMaterial: true })).toThrow();
+		const fault = publicationRun(arm, { fault: true });
+		try {
+			expect(fault.owner.phase).toBe("faulted");
+			expect(constructionOf(fault.graph, "run")).toBe(fault.owner);
+			expect(() => fault.scope.abort(new Error("late"))).toThrow("owned");
+		} finally {
+			fault.close();
+		}
+		const f = publicationRun(arm, { capacity: 1 }),
+			a = publicationFacts("A"),
+			b = publicationFacts("B", 0, 2);
+		try {
+			f.connect();
+			f.frame(f.snapshot([a]));
+			f.admit(a);
+			f.disconnect();
+			expect(f.state()!.effects.size).toBe(1);
+			f.send("occurrences", b.occurrence);
+			expect(f.state()!.effects.size).toBe(1);
+			f.send("effectOutcomes", a.outcome);
+			f.send("branchTerminals", {
+				occurrence: a.proposal.occurrence,
+				branch: "one",
+				state: "completed",
+				result: { kind: "ok", value: 1 },
+			});
+			f.send("occurrences", b.occurrence);
+			f.connect();
+			expect(f.latest).toMatchObject({
+				rows: [],
+				retention: [{ revisionDomain: "d", floor: 1, gapThrough: 1 }],
+				unmatchedMaterials: 1,
+			});
+		} finally {
+			f.close();
+		}
+	});
+	it.each([
+		false,
+		true,
+	])("same bounded plain/reference/production recovery and invalidity, material first=%s", (first) => {
+		const p = publicationRun("production"),
+			r = publicationRun("reference"),
+			plain = new PlainPublication(publicationProfile),
+			a = publicationFacts("A"),
+			b = publicationFacts("B");
+		try {
+			p.connect();
+			r.connect();
+			plain.connect();
+			const frame = p.snapshot([a, b]);
+			if (first) {
+				p.frame(frame);
+				r.frame(frame);
+				plain.acceptMaterial(frame);
+			}
+			p.admit(a);
+			r.admit(a);
+			if (p.view) plain.acceptView(p.view);
+			if (!first) {
+				p.frame(frame);
+				r.frame(frame);
+				plain.acceptMaterial(frame);
+			}
+			expect(p.latest).toEqual(r.latest);
+			expect(p.latest).toEqual(plain.project());
+			for (let i = 0; i < 20; i++) {
+				p.disconnect();
+				r.disconnect();
+				plain.disconnect();
+				if (i === 0) {
+					const wrong = { ...a.outcome, admissionRef: { kind: "admission", id: "wrong" } };
+					p.send("effectOutcomes", wrong);
+					r.send("effectOutcomes", wrong);
+				}
+				if (i === 1) {
+					p.send("effectOutcomes", {
+						...a.outcome,
+						state: "unknown",
+						result: {
+							kind: "error",
+							error: { kind: "issue", code: "unknown", message: "unknown" },
+						},
+					});
+					r.send("effectOutcomes", {
+						...a.outcome,
+						state: "unknown",
+						result: {
+							kind: "error",
+							error: { kind: "issue", code: "unknown", message: "unknown" },
+						},
+					});
+				}
+				plain.acceptView(p.view!);
+				p.connect();
+				r.connect();
+				const actual = plain.connect();
+				expect(p.latest).toEqual(r.latest);
+				expect(p.latest).toEqual(actual);
+			}
+			const bad = { ...frame, digest: h };
+			p.frame(bad);
+			r.frame(bad);
+			expect(p.latest).toEqual(plain.acceptMaterial(bad));
+			expect(p.latest).toEqual(r.latest);
+			const empty = p.snapshot([]);
+			p.frame(empty);
+			r.frame(empty);
+			expect(p.latest).toEqual(plain.acceptMaterial(empty));
+			expect(p.latest).toEqual(r.latest);
+			p.material.down([["INVALIDATE"]]);
+			r.material.down([["INVALIDATE"]]);
+			plain.invalidate("material");
+			expect(plain.project()).toBeUndefined();
+			p.frame(frame);
+			r.frame(frame);
+			expect(p.latest).toEqual(plain.acceptMaterial(frame));
+			expect(p.latest).toEqual(r.latest);
+		} finally {
+			plain.disconnect();
+			p.close();
+			r.close();
+		}
+	});
+	it("raw unaccepted admission lane cannot produce a publication admission", () => {
+		const f = fixture(),
+			a = facts(),
+			out = collect(f.built.publication);
+		f.frame([a.material]);
+		f.release(a);
+		f.send("effectAdmissions", a.admission);
+		expect(out.last().rows).toEqual([]);
+		expect(f.state().effects.size).toBe(0);
+	});
+	it("UI cleanup leaves the actual authority map unchanged", () => {
+		const f = fixture(),
+			a = facts(),
+			out = collect(f.built.publication);
+		f.frame([a.material]);
+		f.admit(a);
+		const state = f.state();
+		out.stop();
+		expect(f.state()).toBe(state);
+		expect(state.effects.size).toBe(1);
+	});
+	it.each([
+		"payload",
+		"inputDigest",
+		"policyDigest",
+	])("valid alternate request cannot match original admission: %s", (field) => {
+		const f = fixture(),
+			a = facts(),
+			out = collect(f.built.publication);
+		f.admit(a);
+		const body = JSON.parse(JSON.stringify(a.material.body));
+		if (field === "payload") {
+			body.payloadText = oracleCanonical({
+				transactionId: "A",
+				vendor: "A",
+				severity: "low",
+				message: "another body",
+			});
+			body.payloadDigest = oracleHash(body.payloadText);
+		} else body[field] = `sha256:${"c".repeat(64)}`;
+		const m = oracleMaterial(body);
+		f.frame([m]);
+		expect(out.last().materialFrame).toBe("valid");
+		expect(out.last().rows[0].material).toBe("missing");
+	});
+	it("plain ERROR is terminal while INVALIDATE is recoverable", () => {
+		const a = publicationFacts(),
+			f = publicationRun("production"),
+			r = publicationRun("reference"),
+			plain = new PlainPublication(publicationProfile);
+		try {
+			f.connect();
+			r.connect();
+			plain.connect();
+			f.admit(a);
+			r.admit(a);
+			const frame = f.snapshot([a]);
+			f.frame(frame);
+			r.frame(frame);
+			plain.acceptView(f.view!);
+			plain.acceptMaterial(frame);
+			const before = [f.stats().dataEvents, r.stats().dataEvents];
+			f.material.down([["ERROR", new Error("terminal")]]);
+			r.material.down([["ERROR", new Error("terminal")]]);
+			plain.acceptError();
+			f.send("effectOutcomes", a.outcome);
+			r.send("effectOutcomes", a.outcome);
+			f.frame(frame);
+			r.frame(frame);
+			expect(plain.acceptMaterial(frame)).toBeUndefined();
+			expect(plain.acceptView(f.view!)).toBeUndefined();
+			expect([f.stats().dataEvents, r.stats().dataEvents]).toEqual(before);
+		} finally {
+			plain.disconnect();
+			f.close();
+			r.close();
+		}
+	});
+	it("plain additional subscriber cannot fabricate material DATA", () => {
+		const a = publicationFacts(),
+			f = publicationRun("production"),
+			plain = new PlainPublication(publicationProfile);
+		try {
+			f.connect();
+			f.admit(a);
+			const raw = JSON.parse(JSON.stringify(f.snapshot([a])));
+			f.frame(raw);
+			plain.connect();
+			plain.acceptView(f.view!);
+			const before = plain.acceptMaterial(raw);
+			raw.body.materials[0].body.payloadText = "{}";
+			const extra = collect<unknown>(f.built.publication);
+			expect(plain.connect()).toEqual(before);
+			expect(extra.last()).toEqual(before);
+			extra.stop();
+			plain.disconnect();
+			expect(() => plain.acceptMaterial(undefined)).toThrow();
+		} finally {
+			plain.disconnect();
+			f.close();
+		}
 	});
 });

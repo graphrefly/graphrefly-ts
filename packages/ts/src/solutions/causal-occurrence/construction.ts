@@ -122,7 +122,10 @@ function projectFact<T, K extends AuthorityFact<T>["kind"]>(
 				.filter((raw) => raw.kind === "fact" && raw.fact.kind === kind)
 				.map(
 					(raw) =>
-						["DATA", (raw as { fact: Extract<AuthorityFact<T>, { kind: K }> }).fact.value] as const,
+						[
+							"DATA",
+							(raw as unknown as { fact: Extract<AuthorityFact<T>, { kind: K }> }).fact.value,
+						] as const,
 				);
 			if (values.length > 0) ctx.down(values);
 		},
