@@ -7594,7 +7594,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		}
 	});
 
-	it("qualifies every development-3 shuffle against its own bank and rejects rebinding or bank reuse", () => {
+	const developmentThreeOrders = (() => {
 		const permutations = (remaining: readonly number[]): number[][] =>
 			remaining.length === 0
 				? [[]]
@@ -7604,76 +7604,14 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 							...tail,
 						]),
 					);
-		let qualified = 0;
-		for (const variantOrder of permutations([0, 1, 2, 3, 4])) {
-			const create = () =>
-				createRootEvalTaskManifest({
-					slot: "development-3",
-					variantOrder,
-					coordinateSuffix: "development-three-permutations",
-				});
-			if (!rootEvalVariantOrderSupportsIrrelevantControls(variantOrder, "development-3")) {
-				expect(create).toThrow(/generation input invalid/u);
-				continue;
-			}
-			qualified += 1;
-			const manifest = create();
-			expect(rootEvalMechanismDiscriminationOracle(manifest.tasks)).toHaveLength(5);
-			const bindings = rootEvalTaskBindings(manifest.tasks);
-			for (const [index, task] of manifest.tasks.entries()) {
-				const rotated = manifest.tasks[ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES[index]! - 1]!;
-				expect(bindings[index]!.sourceInsightDigest).toBe(task.sourceInsightDigest);
-				expect(bindings[index]!.irrelevantSourceInsightDigest).toBe(rotated.sourceInsightDigest);
-				expect(task.mechanismAction).not.toBe(rotated.mechanismAction);
-				// Execute only this test's generated, trusted candidate expressions. Check
-				// all three, not only the correct/rotated pair or their policy labels.
-				const candidates = [
-					...task.readonlyFixtureFiles[0]!.text.matchAll(/^\/\/ (first|second|third): (.+)$/gmu),
-				];
-				expect(candidates).toHaveLength(3);
-				for (const verifierKind of ["publicVerifierSource", "hiddenVerifierSource"] as const) {
-					const example = task[verifierKind].match(/expect\(\w+\((.+)\)\)\.toBe\((.+)\);/u);
-					if (example === null) throw new Error("generated fixture example missing");
-					const input = runInNewContext(`(${example[1]})`);
-					const expected = runInNewContext(example[2]!);
-					const passing = candidates
-						.filter(
-							(candidate) => runInNewContext(candidate[2]!, { input, TextEncoder }) === expected,
-						)
-						.map((candidate) => candidate[1]);
-					const correctExpression = task.fixtureCorrectText.match(
-						/\r?\n\treturn (.+);\r?\n\}/u,
-					)?.[1];
-					const correctSlot = candidates.find(
-						(candidate) => candidate[2] === correctExpression,
-					)?.[1];
-					expect(passing).toEqual(
-						verifierKind === "publicVerifierSource" ? ["first", "second", "third"] : [correctSlot],
-					);
-				}
-			}
-			const rebound = manifest.tasks.map((task, index) =>
-				index === 0
-					? { ...task, sourceInsightContent: manifest.tasks[1]!.sourceInsightContent }
-					: task,
-			);
-			expect(() => assertRootEvalTaskStimulusContract(rebound)).toThrow();
-			const previous = createRootEvalTaskManifest({
-				slot: "development-2",
-				variantOrder: [0, 1, 2, 3, 4],
-				coordinateSuffix: "development-two-disjoint",
-			});
-			expect(() =>
-				rootEvalTaskManifestDisjointAudit(previous, {
-					...manifest,
-					tasks: manifest.tasks.map((task, index) =>
-						index === 0 ? { ...task, mechanismId: previous.tasks[0]!.mechanismId } : task,
-					),
-				}),
-			).toThrow();
-		}
-		expect(qualified).toBeGreaterThan(0);
-		expect(qualified).toBe(120);
+		return permutations([0, 1, 2, 3, 4]);
+	})();
+
+	it("enumerates all 120 supported development-3 shuffles and retains bank support controls", () => {
+		expect(developmentThreeOrders).toHaveLength(120);
+		expect(new Set(developmentThreeOrders.map((order) => order.join(","))).size).toBe(120);
+		for (const order of developmentThreeOrders)
+			expect(rootEvalVariantOrderSupportsIrrelevantControls(order, "development-3")).toBe(true);
 		expect(rootEvalVariantOrderSupportsIrrelevantControls([0, 1, 2, 3, 4], "development-4")).toBe(
 			true,
 		);
@@ -7686,6 +7624,73 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		expect(rootEvalVariantOrderSupportsIrrelevantControls([0, 1, 2, 3, 4], "confirmatory")).toBe(
 			false,
 		);
+	});
+
+	it.each(
+		developmentThreeOrders.map((variantOrder) => ({ variantOrder, label: variantOrder.join(",") })),
+	)("qualifies development-3 shuffle $label against its own bank and rejects rebinding or bank reuse", ({
+		variantOrder,
+	}) => {
+		const create = () =>
+			createRootEvalTaskManifest({
+				slot: "development-3",
+				variantOrder,
+				coordinateSuffix: "development-three-permutations",
+			});
+		if (!rootEvalVariantOrderSupportsIrrelevantControls(variantOrder, "development-3")) {
+			expect(create).toThrow(/generation input invalid/u);
+			return;
+		}
+		const manifest = create();
+		expect(rootEvalMechanismDiscriminationOracle(manifest.tasks)).toHaveLength(5);
+		const bindings = rootEvalTaskBindings(manifest.tasks);
+		for (const [index, task] of manifest.tasks.entries()) {
+			const rotated = manifest.tasks[ROOT_EVAL_IRRELEVANT_SOURCE_REPLICATES[index]! - 1]!;
+			expect(bindings[index]!.sourceInsightDigest).toBe(task.sourceInsightDigest);
+			expect(bindings[index]!.irrelevantSourceInsightDigest).toBe(rotated.sourceInsightDigest);
+			expect(task.mechanismAction).not.toBe(rotated.mechanismAction);
+			// Execute only this test's generated, trusted candidate expressions. Check
+			// all three, not only the correct/rotated pair or their policy labels.
+			const candidates = [
+				...task.readonlyFixtureFiles[0]!.text.matchAll(/^\/\/ (first|second|third): (.+)$/gmu),
+			];
+			expect(candidates).toHaveLength(3);
+			for (const verifierKind of ["publicVerifierSource", "hiddenVerifierSource"] as const) {
+				const example = task[verifierKind].match(/expect\(\w+\((.+)\)\)\.toBe\((.+)\);/u);
+				if (example === null) throw new Error("generated fixture example missing");
+				const input = runInNewContext(`(${example[1]})`);
+				const expected = runInNewContext(example[2]!);
+				const passing = candidates
+					.filter(
+						(candidate) => runInNewContext(candidate[2]!, { input, TextEncoder }) === expected,
+					)
+					.map((candidate) => candidate[1]);
+				const correctExpression = task.fixtureCorrectText.match(/\r?\n\treturn (.+);\r?\n\}/u)?.[1];
+				const correctSlot = candidates.find((candidate) => candidate[2] === correctExpression)?.[1];
+				expect(passing).toEqual(
+					verifierKind === "publicVerifierSource" ? ["first", "second", "third"] : [correctSlot],
+				);
+			}
+		}
+		const rebound = manifest.tasks.map((task, index) =>
+			index === 0
+				? { ...task, sourceInsightContent: manifest.tasks[1]!.sourceInsightContent }
+				: task,
+		);
+		expect(() => assertRootEvalTaskStimulusContract(rebound)).toThrow();
+		const previous = createRootEvalTaskManifest({
+			slot: "development-2",
+			variantOrder: [0, 1, 2, 3, 4],
+			coordinateSuffix: "development-two-disjoint",
+		});
+		expect(() =>
+			rootEvalTaskManifestDisjointAudit(previous, {
+				...manifest,
+				tasks: manifest.tasks.map((task, index) =>
+					index === 0 ? { ...task, mechanismId: previous.tasks[0]!.mechanismId } : task,
+				),
+			}),
+		).toThrow();
 	});
 
 	it("binds discriminant-only relevant and incompatible irrelevant source Work Items", () => {
