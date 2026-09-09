@@ -1,0 +1,66 @@
+{
+	"schema": "graphrefly-ts/causal-preset-assembly-design/v1",
+	"revision": "assembly-v1",
+	"artifactRef": "graphrefly-ts:causal-preset-assembly-design",
+	"workRef": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-DESIGN-TS",
+	"owner": "graphrefly-ts",
+	"governingRefs": [
+		"graphrefly:D793",
+		"graphrefly-ts:D160",
+		"graphrefly-ts:D161",
+		"graphrefly-ts:D162",
+		"graphrefly-ts:D163",
+		"graphrefly-ts:D164"
+	],
+	"body": {
+		"path": "docs/design/causal-preset-assembly-v1.md",
+		"digest": "sha256:7e66c0a31afa9c27d88251e4048e931b41b18560519966d460a09af0fc03ac30"
+	},
+	"bodyPolicy": "Exact reviewed draft retained without rewriting its historical pending/proposed wording; this manifest and owner work record the subsequent design approval. No implementation claim.",
+	"approval": {
+		"kind": "design-selection",
+		"taskId": "01a077c7-55e6-7f11-9d4f-e7c51944afb4",
+		"date": "2026-09-09",
+		"userResponse": "同意,继续",
+		"reviewedDraftPath": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/CAUSAL-preset-assembly-review-v1.md",
+		"reviewedDraftDigest": "sha256:7e66c0a31afa9c27d88251e4048e931b41b18560519966d460a09af0fc03ac30",
+		"reviewBindingsPath": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/CAUSAL-preset-assembly-review-v1.bindings.json",
+		"reviewBindingsDigest": "sha256:05ec726ba785c0d6ba03aefcebbbae7503ad57fa4e65cca439622a70d3f30043",
+		"scope": "Approve the reviewed private business cold-builder and five-port component-consumption design, bounded graph-owned material retention, exact input/edge appendix and separate no-I/O versus real-host qualification boundary. Continue design admission and commit under the standing commit instruction. No implementation, runtime qualification or effect execution grant."
+	},
+	"consumes": [
+		{
+			"workRef": "graphrefly-ts:CAUSAL-PRESET-AUDIENCE-DESIGN-TS",
+			"artifactRef": "graphrefly-ts:causal-preset-audience-design",
+			"schema": "graphrefly-ts/causal-preset-audience-design/v1",
+			"revision": "audience-v1",
+			"path": "docs/design/causal-preset-audience-v1.json",
+			"digest": "sha256:4f403cea369c2e76a5a887aeef50d06af11bddf3c5b3348fe81a6b26b6c81cff"
+		},
+		{
+			"workRef": "graphrefly-ts:CAUSAL-COLD-ASSEMBLY-TS",
+			"artifactRef": "graphrefly-ts:causal-cold-assembly-evidence",
+			"schema": "graphrefly-ts/causal-cold-assembly-evidence/v1",
+			"revision": "cold-v1",
+			"path": "packages/ts/qualification/causal-occurrence/cold-v1-receipt.json",
+			"digest": "sha256:8a2c24fcbc776affcbc290a7ed88ccb1fe2b1b95651bc69a5a28f88e82f1d13f"
+		},
+		{
+			"workRef": "graphrefly-ts:CAUSAL-PUBLICATION-MATERIAL-TS",
+			"artifactRef": "graphrefly-ts:causal-publication-material-evidence",
+			"schema": "graphrefly-ts/causal-publication-material-evidence/v1",
+			"revision": "publication-v1",
+			"path": "packages/ts/qualification/causal-occurrence/publication-v1-receipt.json",
+			"digest": "sha256:4d8d92657612ddd458ff5b73b3be6b1adf344786b5f53765069865fe464da13a"
+		}
+	],
+	"baselineCommit": "f42fb43e12e351dc86601d184ae26e45cf8ed909",
+	"nonClaims": [
+		"Private preset implemented or qualified",
+		"Ordinary users can create the final executable preset",
+		"Real qualified inbox, final dispatch guard or host execution",
+		"B121 complete",
+		"Public exports, authority/C or wave protocol changes",
+		"Implementation/runtime measurement/provider/live/spend authorization"
+	]
+}
