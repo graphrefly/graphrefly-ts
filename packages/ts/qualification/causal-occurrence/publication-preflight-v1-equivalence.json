@@ -1,0 +1,265 @@
+{
+	"classification": "unapplied-source-proposal-proof",
+	"constructionJavaScriptIdentical": true,
+	"constructionJavaScriptDigest": "sha256:0c9983e23d421a436773dfa114702e9317787df4dc94ed988bd90dfb4692eaad",
+	"nullableTupleHelperBody": "return JSON.stringify(parts)",
+	"tupleVectors": [
+		{
+			"tuple": ["", ""],
+			"bytes": "[\"\",\"\"]"
+		},
+		{
+			"tuple": ["", "null"],
+			"bytes": "[\"\",\"null\"]"
+		},
+		{
+			"tuple": ["", "a:b"],
+			"bytes": "[\"\",\"a:b\"]"
+		},
+		{
+			"tuple": ["", "[\"x\"]"],
+			"bytes": "[\"\",\"[\\\"x\\\"]\"]"
+		},
+		{
+			"tuple": ["", "你好😀"],
+			"bytes": "[\"\",\"你好😀\"]"
+		},
+		{
+			"tuple": ["", "\u0000"],
+			"bytes": "[\"\",\"\\u0000\"]"
+		},
+		{
+			"tuple": ["", "\"\\"],
+			"bytes": "[\"\",\"\\\"\\\\\"]"
+		},
+		{
+			"tuple": ["", null],
+			"bytes": "[\"\",null]"
+		},
+		{
+			"tuple": ["null", ""],
+			"bytes": "[\"null\",\"\"]"
+		},
+		{
+			"tuple": ["null", "null"],
+			"bytes": "[\"null\",\"null\"]"
+		},
+		{
+			"tuple": ["null", "a:b"],
+			"bytes": "[\"null\",\"a:b\"]"
+		},
+		{
+			"tuple": ["null", "[\"x\"]"],
+			"bytes": "[\"null\",\"[\\\"x\\\"]\"]"
+		},
+		{
+			"tuple": ["null", "你好😀"],
+			"bytes": "[\"null\",\"你好😀\"]"
+		},
+		{
+			"tuple": ["null", "\u0000"],
+			"bytes": "[\"null\",\"\\u0000\"]"
+		},
+		{
+			"tuple": ["null", "\"\\"],
+			"bytes": "[\"null\",\"\\\"\\\\\"]"
+		},
+		{
+			"tuple": ["null", null],
+			"bytes": "[\"null\",null]"
+		},
+		{
+			"tuple": ["a:b", ""],
+			"bytes": "[\"a:b\",\"\"]"
+		},
+		{
+			"tuple": ["a:b", "null"],
+			"bytes": "[\"a:b\",\"null\"]"
+		},
+		{
+			"tuple": ["a:b", "a:b"],
+			"bytes": "[\"a:b\",\"a:b\"]"
+		},
+		{
+			"tuple": ["a:b", "[\"x\"]"],
+			"bytes": "[\"a:b\",\"[\\\"x\\\"]\"]"
+		},
+		{
+			"tuple": ["a:b", "你好😀"],
+			"bytes": "[\"a:b\",\"你好😀\"]"
+		},
+		{
+			"tuple": ["a:b", "\u0000"],
+			"bytes": "[\"a:b\",\"\\u0000\"]"
+		},
+		{
+			"tuple": ["a:b", "\"\\"],
+			"bytes": "[\"a:b\",\"\\\"\\\\\"]"
+		},
+		{
+			"tuple": ["a:b", null],
+			"bytes": "[\"a:b\",null]"
+		},
+		{
+			"tuple": ["[\"x\"]", ""],
+			"bytes": "[\"[\\\"x\\\"]\",\"\"]"
+		},
+		{
+			"tuple": ["[\"x\"]", "null"],
+			"bytes": "[\"[\\\"x\\\"]\",\"null\"]"
+		},
+		{
+			"tuple": ["[\"x\"]", "a:b"],
+			"bytes": "[\"[\\\"x\\\"]\",\"a:b\"]"
+		},
+		{
+			"tuple": ["[\"x\"]", "[\"x\"]"],
+			"bytes": "[\"[\\\"x\\\"]\",\"[\\\"x\\\"]\"]"
+		},
+		{
+			"tuple": ["[\"x\"]", "你好😀"],
+			"bytes": "[\"[\\\"x\\\"]\",\"你好😀\"]"
+		},
+		{
+			"tuple": ["[\"x\"]", "\u0000"],
+			"bytes": "[\"[\\\"x\\\"]\",\"\\u0000\"]"
+		},
+		{
+			"tuple": ["[\"x\"]", "\"\\"],
+			"bytes": "[\"[\\\"x\\\"]\",\"\\\"\\\\\"]"
+		},
+		{
+			"tuple": ["[\"x\"]", null],
+			"bytes": "[\"[\\\"x\\\"]\",null]"
+		},
+		{
+			"tuple": ["你好😀", ""],
+			"bytes": "[\"你好😀\",\"\"]"
+		},
+		{
+			"tuple": ["你好😀", "null"],
+			"bytes": "[\"你好😀\",\"null\"]"
+		},
+		{
+			"tuple": ["你好😀", "a:b"],
+			"bytes": "[\"你好😀\",\"a:b\"]"
+		},
+		{
+			"tuple": ["你好😀", "[\"x\"]"],
+			"bytes": "[\"你好😀\",\"[\\\"x\\\"]\"]"
+		},
+		{
+			"tuple": ["你好😀", "你好😀"],
+			"bytes": "[\"你好😀\",\"你好😀\"]"
+		},
+		{
+			"tuple": ["你好😀", "\u0000"],
+			"bytes": "[\"你好😀\",\"\\u0000\"]"
+		},
+		{
+			"tuple": ["你好😀", "\"\\"],
+			"bytes": "[\"你好😀\",\"\\\"\\\\\"]"
+		},
+		{
+			"tuple": ["你好😀", null],
+			"bytes": "[\"你好😀\",null]"
+		},
+		{
+			"tuple": ["\u0000", ""],
+			"bytes": "[\"\\u0000\",\"\"]"
+		},
+		{
+			"tuple": ["\u0000", "null"],
+			"bytes": "[\"\\u0000\",\"null\"]"
+		},
+		{
+			"tuple": ["\u0000", "a:b"],
+			"bytes": "[\"\\u0000\",\"a:b\"]"
+		},
+		{
+			"tuple": ["\u0000", "[\"x\"]"],
+			"bytes": "[\"\\u0000\",\"[\\\"x\\\"]\"]"
+		},
+		{
+			"tuple": ["\u0000", "你好😀"],
+			"bytes": "[\"\\u0000\",\"你好😀\"]"
+		},
+		{
+			"tuple": ["\u0000", "\u0000"],
+			"bytes": "[\"\\u0000\",\"\\u0000\"]"
+		},
+		{
+			"tuple": ["\u0000", "\"\\"],
+			"bytes": "[\"\\u0000\",\"\\\"\\\\\"]"
+		},
+		{
+			"tuple": ["\u0000", null],
+			"bytes": "[\"\\u0000\",null]"
+		},
+		{
+			"tuple": ["\"\\", ""],
+			"bytes": "[\"\\\"\\\\\",\"\"]"
+		},
+		{
+			"tuple": ["\"\\", "null"],
+			"bytes": "[\"\\\"\\\\\",\"null\"]"
+		},
+		{
+			"tuple": ["\"\\", "a:b"],
+			"bytes": "[\"\\\"\\\\\",\"a:b\"]"
+		},
+		{
+			"tuple": ["\"\\", "[\"x\"]"],
+			"bytes": "[\"\\\"\\\\\",\"[\\\"x\\\"]\"]"
+		},
+		{
+			"tuple": ["\"\\", "你好😀"],
+			"bytes": "[\"\\\"\\\\\",\"你好😀\"]"
+		},
+		{
+			"tuple": ["\"\\", "\u0000"],
+			"bytes": "[\"\\\"\\\\\",\"\\u0000\"]"
+		},
+		{
+			"tuple": ["\"\\", "\"\\"],
+			"bytes": "[\"\\\"\\\\\",\"\\\"\\\\\"]"
+		},
+		{
+			"tuple": ["\"\\", null],
+			"bytes": "[\"\\\"\\\\\",null]"
+		},
+		{
+			"tuple": [null, ""],
+			"bytes": "[null,\"\"]"
+		},
+		{
+			"tuple": [null, "null"],
+			"bytes": "[null,\"null\"]"
+		},
+		{
+			"tuple": [null, "a:b"],
+			"bytes": "[null,\"a:b\"]"
+		},
+		{
+			"tuple": [null, "[\"x\"]"],
+			"bytes": "[null,\"[\\\"x\\\"]\"]"
+		},
+		{
+			"tuple": [null, "你好😀"],
+			"bytes": "[null,\"你好😀\"]"
+		},
+		{
+			"tuple": [null, "\u0000"],
+			"bytes": "[null,\"\\u0000\"]"
+		},
+		{
+			"tuple": [null, "\"\\"],
+			"bytes": "[null,\"\\\"\\\\\"]"
+		},
+		{
+			"tuple": [null, null],
+			"bytes": "[null,null]"
+		}
+	],
+	"scope": "Type assertion erases identically; nullable tuple serialization unchanged; not runtime/full qualification."
+}

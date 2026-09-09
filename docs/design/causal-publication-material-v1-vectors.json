@@ -1,0 +1,97 @@
+{
+	"status": "proposed-encoding-vector-only",
+	"notBusinessTruthOrPermission": true,
+	"payloadText": "{\"message\":\"Encoding fixture only.\",\"severity\":\"low\",\"transactionId\":\"fixture-tx-A-2\",\"vendor\":\"A\"}",
+	"payloadDigest": "sha256:cbe6a7152f039f4c4cc0719d6484b29c8f15c4a6265404238a52c584ffa67bb4",
+	"materialBody": {
+		"schema": "spending-alerts/request-material/v1",
+		"occurrence": {
+			"revisionDomain": "fixture-run/A",
+			"occurrenceId": "fixture-occ-A-2",
+			"revision": 2,
+			"digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+			"sourceRefs": [
+				{
+					"kind": "fixture-input",
+					"id": "pack-A-2"
+				}
+			]
+		},
+		"effectId": "fixture-effect-A-2",
+		"destinationRef": {
+			"kind": "fixture-inbox",
+			"id": "not-an-executable-destination"
+		},
+		"compositionEpoch": 1,
+		"hostEpoch": 1,
+		"inputDigest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+		"policyDigest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+		"sourceDigest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+		"runtimeDigest": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+		"payloadText": "{\"message\":\"Encoding fixture only.\",\"severity\":\"low\",\"transactionId\":\"fixture-tx-A-2\",\"vendor\":\"A\"}",
+		"payloadDigest": "sha256:cbe6a7152f039f4c4cc0719d6484b29c8f15c4a6265404238a52c584ffa67bb4"
+	},
+	"materialCanonical": "{\"compositionEpoch\":1,\"destinationRef\":{\"id\":\"not-an-executable-destination\",\"kind\":\"fixture-inbox\"},\"effectId\":\"fixture-effect-A-2\",\"hostEpoch\":1,\"inputDigest\":\"sha256:2222222222222222222222222222222222222222222222222222222222222222\",\"occurrence\":{\"digest\":\"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\"occurrenceId\":\"fixture-occ-A-2\",\"revision\":2,\"revisionDomain\":\"fixture-run/A\",\"sourceRefs\":[{\"id\":\"pack-A-2\",\"kind\":\"fixture-input\"}]},\"payloadDigest\":\"sha256:cbe6a7152f039f4c4cc0719d6484b29c8f15c4a6265404238a52c584ffa67bb4\",\"payloadText\":\"{\\\"message\\\":\\\"Encoding fixture only.\\\",\\\"severity\\\":\\\"low\\\",\\\"transactionId\\\":\\\"fixture-tx-A-2\\\",\\\"vendor\\\":\\\"A\\\"}\",\"policyDigest\":\"sha256:3333333333333333333333333333333333333333333333333333333333333333\",\"runtimeDigest\":\"sha256:5555555555555555555555555555555555555555555555555555555555555555\",\"schema\":\"spending-alerts/request-material/v1\",\"sourceDigest\":\"sha256:4444444444444444444444444444444444444444444444444444444444444444\"}",
+	"requestRef": {
+		"kind": "spending-alerts/request-material/v1",
+		"id": "sha256:dfc08c183d4f74662f02b99a85d1243596cb5a579949f5375190425400e637b4"
+	},
+	"proposalCanonical": "{\"effectId\":\"fixture-effect-A-2\",\"occurrence\":{\"digest\":\"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\"occurrenceId\":\"fixture-occ-A-2\",\"revision\":2,\"revisionDomain\":\"fixture-run/A\",\"sourceRefs\":[{\"id\":\"pack-A-2\",\"kind\":\"fixture-input\"}]},\"requestRef\":{\"id\":\"sha256:dfc08c183d4f74662f02b99a85d1243596cb5a579949f5375190425400e637b4\",\"kind\":\"spending-alerts/request-material/v1\"},\"schema\":\"spending-alerts/effect-proposal/v1\"}",
+	"proposalDigest": "sha256:9c8a1304531de898be4af0be2b75cd2b93134eecec37ee8cefc9405ff06bfcfb",
+	"snapshot": {
+		"body": {
+			"schema": "spending-alerts/material-snapshot/v1",
+			"packRef": {
+				"kind": "fixture-pack",
+				"id": "encoding-only"
+			},
+			"sourceDigest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+			"runtimeDigest": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+			"destinationRef": {
+				"kind": "fixture-inbox",
+				"id": "not-an-executable-destination"
+			},
+			"compositionEpoch": 1,
+			"hostEpoch": 1,
+			"materials": [
+				{
+					"body": {
+						"schema": "spending-alerts/request-material/v1",
+						"occurrence": {
+							"revisionDomain": "fixture-run/A",
+							"occurrenceId": "fixture-occ-A-2",
+							"revision": 2,
+							"digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+							"sourceRefs": [
+								{
+									"kind": "fixture-input",
+									"id": "pack-A-2"
+								}
+							]
+						},
+						"effectId": "fixture-effect-A-2",
+						"destinationRef": {
+							"kind": "fixture-inbox",
+							"id": "not-an-executable-destination"
+						},
+						"compositionEpoch": 1,
+						"hostEpoch": 1,
+						"inputDigest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+						"policyDigest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+						"sourceDigest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+						"runtimeDigest": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+						"payloadText": "{\"message\":\"Encoding fixture only.\",\"severity\":\"low\",\"transactionId\":\"fixture-tx-A-2\",\"vendor\":\"A\"}",
+						"payloadDigest": "sha256:cbe6a7152f039f4c4cc0719d6484b29c8f15c4a6265404238a52c584ffa67bb4"
+					},
+					"requestRef": {
+						"kind": "spending-alerts/request-material/v1",
+						"id": "sha256:dfc08c183d4f74662f02b99a85d1243596cb5a579949f5375190425400e637b4"
+					},
+					"proposalDigest": "sha256:9c8a1304531de898be4af0be2b75cd2b93134eecec37ee8cefc9405ff06bfcfb"
+				}
+			]
+		},
+		"digest": "sha256:bfb1eec7b10007da4eb1614497bb523794045a5b063126a6b78742050f437b1f"
+	},
+	"snapshotCanonical": "{\"compositionEpoch\":1,\"destinationRef\":{\"id\":\"not-an-executable-destination\",\"kind\":\"fixture-inbox\"},\"hostEpoch\":1,\"materials\":[{\"body\":{\"compositionEpoch\":1,\"destinationRef\":{\"id\":\"not-an-executable-destination\",\"kind\":\"fixture-inbox\"},\"effectId\":\"fixture-effect-A-2\",\"hostEpoch\":1,\"inputDigest\":\"sha256:2222222222222222222222222222222222222222222222222222222222222222\",\"occurrence\":{\"digest\":\"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\"occurrenceId\":\"fixture-occ-A-2\",\"revision\":2,\"revisionDomain\":\"fixture-run/A\",\"sourceRefs\":[{\"id\":\"pack-A-2\",\"kind\":\"fixture-input\"}]},\"payloadDigest\":\"sha256:cbe6a7152f039f4c4cc0719d6484b29c8f15c4a6265404238a52c584ffa67bb4\",\"payloadText\":\"{\\\"message\\\":\\\"Encoding fixture only.\\\",\\\"severity\\\":\\\"low\\\",\\\"transactionId\\\":\\\"fixture-tx-A-2\\\",\\\"vendor\\\":\\\"A\\\"}\",\"policyDigest\":\"sha256:3333333333333333333333333333333333333333333333333333333333333333\",\"runtimeDigest\":\"sha256:5555555555555555555555555555555555555555555555555555555555555555\",\"schema\":\"spending-alerts/request-material/v1\",\"sourceDigest\":\"sha256:4444444444444444444444444444444444444444444444444444444444444444\"},\"proposalDigest\":\"sha256:9c8a1304531de898be4af0be2b75cd2b93134eecec37ee8cefc9405ff06bfcfb\",\"requestRef\":{\"id\":\"sha256:dfc08c183d4f74662f02b99a85d1243596cb5a579949f5375190425400e637b4\",\"kind\":\"spending-alerts/request-material/v1\"}}],\"packRef\":{\"id\":\"encoding-only\",\"kind\":\"fixture-pack\"},\"runtimeDigest\":\"sha256:5555555555555555555555555555555555555555555555555555555555555555\",\"schema\":\"spending-alerts/material-snapshot/v1\",\"sourceDigest\":\"sha256:4444444444444444444444444444444444444444444444444444444444444444\"}"
+}

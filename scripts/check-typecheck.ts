@@ -20,6 +20,7 @@ const TSC = resolve(ROOT, "node_modules/.bin/tsc");
 
 /** Previously-ungated packages this gate now enforces. */
 const TARGETS: readonly { name: string; project: string }[] = [
+	{ name: "spending-alerts example", project: "examples/spending-alerts/tsconfig.json" },
 	{
 		name: "keyed-rate-limit example",
 		project: "examples/basic/keyed-rate-limit/tsconfig.json",

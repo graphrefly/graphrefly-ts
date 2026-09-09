@@ -1,0 +1,26 @@
+{
+	"schema": "graphrefly-ts/causal-publication-material-design/v1",
+	"revision": "material-v1",
+	"owner": "graphrefly-ts",
+	"workRef": "graphrefly-ts:CAUSAL-PUBLICATION-MATERIAL-TS",
+	"body": {
+		"path": "docs/design/causal-publication-material-v1.md",
+		"digest": "sha256:d9ce51744e97dea84de12321e23b0fdc65807f3b6fa5b2249d30f283448c8c86"
+	},
+	"approval": {
+		"taskId": "01a077c7-55e6-7f11-9d4f-e7c51944afb4",
+		"date": "2026-09-09",
+		"userResponse": "批准",
+		"scope": "Approved publication material slice, prescribed offline qualification and commit; no downstream/provider/live/spend",
+		"baseline": "d333a7b8a0a1e80697ed7c7aa660b8b47e19d62c",
+		"reviewDigest": "sha256:d9ce51744e97dea84de12321e23b0fdc65807f3b6fa5b2249d30f283448c8c86",
+		"inputsDigest": "sha256:505a450d3b38b30d8c23c7a0d658925f5ed02a07d920cf613029b28a1c9ed434"
+	},
+	"classification": "Consumer-local refinement of D160-D163, not a new architecture or execution decision",
+	"encodingVectors": {
+		"path": "docs/design/causal-publication-material-v1-vectors.json",
+		"digest": "sha256:6c01be1ea7222c560af198a39fd0d6c960812d09dc5c0b5e8f9ef3644867dae6",
+		"sourceDigest": "sha256:430e47309132548c4905a883fcf971d90fd2c1298976e133f849bcb39fb24847",
+		"note": "Only JSON indentation normalized for repository formatter; source task artifact unchanged."
+	}
+}

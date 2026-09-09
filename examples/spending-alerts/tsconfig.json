@@ -8,5 +8,10 @@
 		"skipLibCheck": true,
 		"noEmit": true
 	},
-	"include": ["index.ts", "pipeline.ts"]
+	"include": [
+		"index.ts",
+		"pipeline.ts",
+		"causal-publication.ts",
+		"../../packages/ts/src/__tests__/spending-alerts-causal-publication.test.ts"
+	]
 }

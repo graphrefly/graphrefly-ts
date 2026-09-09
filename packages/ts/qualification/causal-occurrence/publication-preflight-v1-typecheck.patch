@@ -1,0 +1,22 @@
+--- a/packages/ts/src/solutions/causal-occurrence/construction.ts
++++ b/packages/ts/src/solutions/causal-occurrence/construction.ts
+@@ -122,7 +122,7 @@
+ 				.filter((raw) => raw.kind === "fact" && raw.fact.kind === kind)
+ 				.map(
+ 					(raw) =>
+-						["DATA", (raw as { fact: Extract<AuthorityFact<T>, { kind: K }> }).fact.value] as const,
++						["DATA", (raw as unknown as { fact: Extract<AuthorityFact<T>, { kind: K }> }).fact.value] as const,
+ 				);
+ 			if (values.length > 0) ctx.down(values);
+ 		},
+--- a/packages/ts/src/solutions/causal-occurrence/evidence.ts
++++ b/packages/ts/src/solutions/causal-occurrence/evidence.ts
+@@ -81,7 +81,7 @@
+ 		// One persistent gap per occurrence/required kind, plus one optional-kind
+ 		// representative: bounded by maxOccurrences * (required kinds + 1).
+ 		// Overflow details cannot consume maxPending or erase a known coverage gap.
+-		const gapKey = canonicalTupleKey([
++		const gapKey = JSON.stringify([
+ 			refKey(evidence.occurrence),
+ 			opts.requiredEvidenceKinds.includes(evidence.evidenceKind) ? evidence.evidenceKind : null,
+ 		]);
