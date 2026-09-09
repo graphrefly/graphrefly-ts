@@ -331,29 +331,35 @@ export function causalOccurrenceRequiredEdges(
 		readonly edges: readonly Readonly<{ from: string; to: string }>[];
 	}>,
 ): readonly Readonly<{ from: string; to: string }>[] {
+	const arrivals = `${name}/arrivals`;
+	const authority = `${name}/authority`;
+	const releaseCandidates = `${name}/release-candidates`;
+	const releaseEvents = `${name}/release-events`;
+	const releasePort = `${name}/release-port`;
+	const released = `${name}/released`;
 	const internal = [
-		{ from: `${name}/input/occurrences`, to: `${name}/arrivals` },
-		{ from: `${name}/input/admissions`, to: `${name}/arrivals` },
-		{ from: `${name}/input/branch-terminals`, to: `${name}/arrivals` },
-		{ from: `${name}/input/effect-proposals`, to: `${name}/arrivals` },
-		{ from: `${name}/input/effect-admissions`, to: `${name}/arrivals` },
-		{ from: `${name}/input/effect-outcomes`, to: `${name}/arrivals` },
-		{ from: `${name}/input/evidence`, to: `${name}/arrivals` },
-		{ from: `${name}/input/watermarks`, to: `${name}/arrivals` },
-		{ from: `${name}/arrivals`, to: `${name}/authority` },
-		{ from: `${name}/authority`, to: `${name}/release-candidates` },
-		{ from: `${name}/release-candidates`, to: `${name}/release-port` },
-		{ from: `${name}/release-port`, to: `${name}/released` },
-		{ from: `${name}/release-candidates`, to: `${name}/release-events` },
-		{ from: `${name}/released`, to: `${name}/release-events` },
-		{ from: `${name}/release-events`, to: `${name}/release-controller` },
-		{ from: `${name}/authority`, to: `${name}/currentness` },
-		{ from: `${name}/authority`, to: `${name}/terminals` },
-		{ from: `${name}/authority`, to: `${name}/conservation` },
-		{ from: `${name}/authority`, to: `${name}/coverage` },
-		{ from: `${name}/authority`, to: `${name}/quiescence` },
-		{ from: `${name}/authority`, to: `${name}/issues` },
-		{ from: `${name}/authority`, to: `${name}/committed-effects` },
+		{ from: `${name}/input/occurrences`, to: arrivals },
+		{ from: `${name}/input/admissions`, to: arrivals },
+		{ from: `${name}/input/branch-terminals`, to: arrivals },
+		{ from: `${name}/input/effect-proposals`, to: arrivals },
+		{ from: `${name}/input/effect-admissions`, to: arrivals },
+		{ from: `${name}/input/effect-outcomes`, to: arrivals },
+		{ from: `${name}/input/evidence`, to: arrivals },
+		{ from: `${name}/input/watermarks`, to: arrivals },
+		{ from: arrivals, to: authority },
+		{ from: authority, to: releaseCandidates },
+		{ from: releaseCandidates, to: releasePort },
+		{ from: releasePort, to: released },
+		{ from: releaseCandidates, to: releaseEvents },
+		{ from: released, to: releaseEvents },
+		{ from: releaseEvents, to: `${name}/release-controller` },
+		{ from: authority, to: `${name}/currentness` },
+		{ from: authority, to: `${name}/terminals` },
+		{ from: authority, to: `${name}/conservation` },
+		{ from: authority, to: `${name}/coverage` },
+		{ from: authority, to: `${name}/quiescence` },
+		{ from: authority, to: `${name}/issues` },
+		{ from: authority, to: `${name}/committed-effects` },
 	];
 	const inputLanes = [
 		"occurrences",
