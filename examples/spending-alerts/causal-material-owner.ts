@@ -1,7 +1,9 @@
 /** D164: retain bytes before proposing; no active/admitted/settled shadow authority. */
+
 import { depBatch } from "../../packages/ts/src/ctx/types.js";
 import type { DataIssue } from "../../packages/ts/src/data/index.js";
 import type { Node } from "../../packages/ts/src/node/node.js";
+import type { Message } from "../../packages/ts/src/protocol/messages.js";
 import type { CausalEffectProposal } from "../../packages/ts/src/solutions/causal-occurrence/contracts.js";
 import {
 	type BusinessFrame,
@@ -137,11 +139,13 @@ export function buildMaterials(
 		for (const f of (depBatch(ctx, 0) ?? []) as StoredFrame[]) ctx.down([["DATA", f.snapshot]]);
 	});
 	const effectProposals = make<CausalEffectProposal>("effectProposals", [materialStore], (ctx) => {
+		const outputs: Message[] = [];
 		for (const f of (depBatch(ctx, 0) ?? []) as StoredFrame[])
 			if (f.valid)
 				for (const row of f.rows)
 					if (row.value.kind === "retained")
-						ctx.down([["DATA", proposalForMaterial(row.value.material)]]);
+						outputs.push(["DATA", proposalForMaterial(row.value.material)]);
+		if (outputs.length) ctx.down(outputs);
 	});
 	return { requestMaterials, materialStore, materialSnapshot, effectProposals };
 }

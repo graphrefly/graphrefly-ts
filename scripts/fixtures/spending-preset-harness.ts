@@ -17,6 +17,7 @@ import {
 	spendingNodeNames,
 } from "../../examples/spending-alerts/causal-preset.js";
 import {
+	type ConstructionScope,
 	prepareConstruction,
 	startConstruction,
 } from "../../packages/ts/src/graph/construction-scope.js";
@@ -165,7 +166,11 @@ export function policyFacts(e: Evaluation, binding = presetBinding) {
 	};
 	return oracleFreeze({ current, verification, local, inbox, request });
 }
-export function presetRun(diagnostics: "off" | "summary" = "off", binding = presetBinding) {
+export function presetRun(
+	diagnostics: "off" | "summary" = "off",
+	binding = presetBinding,
+	inspect?: (scope: ConstructionScope) => void,
+) {
 	const graph = new Graph({ name: "spending-preset-fixture" });
 	const sources = {
 		pack: graph.node<EvaluationPack>([], null, { name: "pack" }),
@@ -188,6 +193,7 @@ export function presetRun(diagnostics: "off" | "summary" = "off", binding = pres
 			inputs: spendingInputNodes(inputs),
 		}),
 		startup = scope.startupSource();
+	inspect?.(scope);
 	let built: ReturnType<typeof buildSpendingPresetNodes>;
 	try {
 		built = buildSpendingPresetNodes(

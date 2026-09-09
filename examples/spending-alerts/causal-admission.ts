@@ -1,6 +1,7 @@
 /** D164 consumer facts. Admission candidates never replace the sole causal authority. */
-import { type Ctx, depBatch, depLatest } from "../../packages/ts/src/ctx/types.js";
+import { type Ctx, depBatch, depLatest, depWaves } from "../../packages/ts/src/ctx/types.js";
 import type { Node } from "../../packages/ts/src/node/node.js";
+import { type Message, SENTINEL } from "../../packages/ts/src/protocol/messages.js";
 import type {
 	CausalBranchTerminal,
 	CausalEffectAdmission,
@@ -35,6 +36,7 @@ import {
 	same,
 	VERIFIER_REVISION,
 	type VerificationFrame,
+	type VerificationReceipt,
 } from "./causal-inputs.js";
 import type { MaterialResult, StoredFrame } from "./causal-material-owner.js";
 import { proposalForMaterial } from "./causal-publication.js";
@@ -58,7 +60,13 @@ function collect(ctx: Ctx, count: number): RowsState {
 			s.maps[i].clear();
 			s.valid[i] = false;
 		}
-		for (const f of (depBatch(ctx, i) ?? []) as BusinessFrame<unknown>[]) {
+		for (const raw of depWaves(ctx, i).flat()) {
+			if (raw === SENTINEL) {
+				s.maps[i].clear();
+				s.valid[i] = false;
+				continue;
+			}
+			const f = raw as BusinessFrame<unknown>;
 			s.valid[i] = f.valid;
 			if (!f.valid) {
 				s.maps[i].clear();
@@ -293,47 +301,62 @@ export function buildAdmission(
 		"occurrences",
 		[business.evaluationSelections],
 		(ctx) => {
+			const outputs: Message[] = [];
+			const emit = (messages: Message[]) => outputs.push(...messages);
 			for (const f of (depBatch(ctx, 0) ?? []) as BusinessFrame<Evaluation>[])
 				if (f.valid)
 					for (const { evaluation: e } of f.rows) {
 						const { occurrence, ...value } = e;
-						ctx.down([["DATA", { ...occurrence, value }]]);
+						emit([["DATA", { ...occurrence, value }]]);
 					}
+			if (outputs.length) ctx.down(outputs);
 		},
 	);
 	const occurrenceAdmissions = make<CausalOccurrenceAdmission>(
 		"occurrenceAdmissions",
 		[business.evaluationSelections, currentFacts],
 		(ctx) => {
-			const s = collect(ctx, 1),
-				current = latest<CurrentFrame>(ctx, 1);
-			if (!s.valid[0] || !current) return;
-			for (const { evaluation: e } of s.maps[0].values()) {
-				const c = current.current.find(
-					(c) =>
-						same(c.occurrence, e.occurrence) &&
-						same(c.policyRef, e.policyRef) &&
-						c.policyDigest === e.policyDigest,
-				);
-				if (c)
-					ctx.down([
-						[
-							"DATA",
-							{
-								occurrence: e.occurrence,
-								decisionId: `evaluation:${e.evaluationRef}`,
-								decisionDigest: hash({ occurrence: e.occurrence, inputDigest: e.inputDigest }),
-								state: "admitted",
-							},
-						],
-					]);
+			const outputs: Message[] = [];
+			const emit = (messages: Message[]) => outputs.push(...messages);
+			const s = collect(ctx, 1);
+			if (!s.valid[0]) return;
+			const frames = (depBatch(ctx, 1) ?? [depLatest(ctx, 1)]) as (
+				| Checked<CurrentFrame>
+				| undefined
+			)[];
+			for (const checked of frames) {
+				if (!checked?.valid) continue;
+				const current = checked.value;
+				for (const { evaluation: e } of s.maps[0].values()) {
+					const c = current.current.find(
+						(c) =>
+							same(c.occurrence, e.occurrence) &&
+							same(c.policyRef, e.policyRef) &&
+							c.policyDigest === e.policyDigest,
+					);
+					if (c)
+						emit([
+							[
+								"DATA",
+								{
+									occurrence: e.occurrence,
+									decisionId: `evaluation:${e.evaluationRef}`,
+									decisionDigest: hash({ occurrence: e.occurrence, inputDigest: e.inputDigest }),
+									state: "admitted",
+								},
+							],
+						]);
+				}
 			}
+			if (outputs.length) ctx.down(outputs);
 		},
 	);
 	const branchTerminals = make<CausalBranchTerminal>(
 		"branchTerminals",
 		[business.assessment, business.alertMessage, publicationPolicy],
 		(ctx) => {
+			const outputs: Message[] = [];
+			const emit = (messages: Message[]) => outputs.push(...messages);
 			for (let i = 0; i < 3; i++)
 				for (const f of (depBatch(ctx, i) ?? []) as BusinessFrame<unknown>[])
 					if (f.valid)
@@ -347,32 +370,51 @@ export function buildAdmission(
 											state: "completed",
 											result: { kind: "ok", value: row.value },
 										};
-							ctx.down([["DATA", value]]);
+							emit([["DATA", value]]);
 						}
+			if (outputs.length) ctx.down(outputs);
 		},
 	);
 	const effectAdmissions = make<CausalEffectAdmission>(
 		"effectAdmissions",
 		[publicationPolicy],
 		(ctx) => {
+			const outputs: Message[] = [];
+			const emit = (messages: Message[]) => outputs.push(...messages);
 			for (const f of (depBatch(ctx, 0) ?? []) as BusinessFrame<PolicyDecision>[])
 				if (f.valid)
-					for (const row of f.rows)
-						if (row.value.admission) ctx.down([["DATA", row.value.admission]]);
+					for (const row of f.rows) if (row.value.admission) emit([["DATA", row.value.admission]]);
+			if (outputs.length) ctx.down(outputs);
 		},
 	);
 	const effectOutcomes = make<CausalEffectOutcome>("effectOutcomes", [inboxFacts], (ctx) => {
+		const outputs: Message[] = [];
+		const emit = (messages: Message[]) => outputs.push(...messages);
 		for (const f of (depBatch(ctx, 0) ?? []) as Checked<InboxObservationFrame>[])
-			if (f.valid) for (const outcome of f.value.outcomes) ctx.down([["DATA", outcome]]);
+			if (f.valid) for (const outcome of f.value.outcomes) emit([["DATA", outcome]]);
+		if (outputs.length) ctx.down(outputs);
 	});
-	// Incomplete assembly: request correlation stays unavailable until the material dependency is reviewed.
+	// D165: verification evidence is correlated to actual retained or no-publish material.
 	const evidence = make<CausalEvidence>(
 		"evidence",
-		[business.evaluationSelections, verificationFacts],
+		[business.evaluationSelections, materials.materialStore, verificationFacts],
 		(ctx) => {
-			const s = collect(ctx, 1);
+			const outputs: Message[] = [];
+			const emit = (messages: Message[]) => outputs.push(...messages);
+			const s = collect(ctx, 2) as RowsState & { receipts?: Map<string, VerificationReceipt> };
+			s.receipts ??= new Map();
+			const verificationFrames = (depBatch(ctx, 2) ?? [depLatest(ctx, 2)]) as (
+				| Checked<VerificationFrame>
+				| undefined
+			)[];
+			for (const f of verificationFrames)
+				if (f?.valid)
+					for (const receipt of f.value.receipts) {
+						const key = hash(receipt.receiptRef);
+						if (!s.receipts.has(key) && s.receipts.size < 64) s.receipts.set(key, receipt);
+					}
+			const verification = [...s.receipts.values()];
 			if (!s.valid[0]) return;
-			const verification = latest<VerificationFrame>(ctx, 1);
 			for (const { evaluation: e } of s.maps[0].values()) {
 				for (const [kind, digest] of [
 					["spending-input", e.inputDigest],
@@ -381,7 +423,7 @@ export function buildAdmission(
 						hash({ sourceDigest: binding.sourceDigest, runtimeDigest: binding.runtimeDigest }),
 					],
 				])
-					ctx.down([
+					emit([
 						[
 							"DATA",
 							{
@@ -394,15 +436,26 @@ export function buildAdmission(
 							},
 						],
 					]);
-				for (const v of verification?.receipts ?? [])
+				const material = s.valid[1]
+					? (s.maps[1].get(occurrenceKey(e.occurrence))?.value as MaterialResult | undefined)
+					: undefined;
+				// Do not finalize a receipt classification while its material dependency is absent.
+				if (!material) continue;
+				const expectedRequest =
+					material.kind === "retained"
+						? material.material.body.payloadDigest
+						: material.kind === "normal"
+							? hash({ kind: "no-publish", evaluationRef: e.evaluationRef })
+							: undefined;
+				for (const v of verification)
 					if (same(v.occurrence, e.occurrence))
-						ctx.down([
+						emit([
 							[
 								"DATA",
 								{
 									occurrence: e.occurrence,
 									evidenceKind: "spending-verification",
-									evidenceId: v.receiptRef.id,
+									evidenceId: hash(v.receiptRef),
 									evidenceDigest: hash(v),
 									coverage:
 										v.sourceDigest !== binding.sourceDigest ||
@@ -410,23 +463,28 @@ export function buildAdmission(
 										v.inputDigest !== e.inputDigest ||
 										v.policyDigest !== e.policyDigest ||
 										v.verifierRevision !== VERIFIER_REVISION ||
-										v.numericDomainRef !== NUMERIC_DOMAIN
+										v.numericDomainRef !== NUMERIC_DOMAIN ||
+										(expectedRequest !== undefined && v.requestDigest !== expectedRequest)
 											? "stale"
-											: v.verdict === "unavailable"
+											: v.verdict === "unavailable" || expectedRequest === undefined
 												? "unavailable"
-												: "unavailable",
+												: "included",
 									refs: [v.artifactRef.id],
 								},
 							],
 						]);
 			}
+			if (outputs.length) ctx.down(outputs);
 		},
 	);
 	const watermarks = make<CausalWatermark>("watermarks", [currentFacts], (ctx) => {
+		const outputs: Message[] = [];
+		const emit = (messages: Message[]) => outputs.push(...messages);
 		for (const f of (depBatch(ctx, 0) ?? []) as Checked<CurrentFrame>[])
 			if (f.valid)
 				for (const c of f.value.current)
-					ctx.down([["DATA", { revisionDomain: c.revisionDomain, revision: c.watermark }]]);
+					emit([["DATA", { revisionDomain: c.revisionDomain, revision: c.watermark }]]);
+		if (outputs.length) ctx.down(outputs);
 	});
 	return {
 		currentFacts,

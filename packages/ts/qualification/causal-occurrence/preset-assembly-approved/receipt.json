@@ -1,0 +1,200 @@
+{
+	"kind": "private-preset-approved-repair-attempt",
+	"workRef": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"baselineCommit": "d943dcac87cc51fdb126c0439ce312a2499b6246",
+	"date": "2026-09-09",
+	"qualified": false,
+	"status": "incomplete-needs-numeric-contract-review",
+	"approval": {
+		"path": "/Users/davidchenallio/src/graphrefly-ts/packages/ts/qualification/causal-occurrence/preset-assembly-approved/approval.json",
+		"digest": "sha256:3d2f2a36b2be52437af3c0a8a9b311a4bdc8eb35d25f8e4ed4b67658e169eef9"
+	},
+	"sourceFiles": {
+		"examples/spending-alerts/causal-inputs.ts": "sha256:ca74273b6dca4f67ca25303e8bd345c7c9f29f834f68da2dde646a9369239c06",
+		"examples/spending-alerts/causal-business.ts": "sha256:4fd1bede209d26c23804b61794d096e1a85ed40bb00bc04a6f1afcbe9737f30e",
+		"examples/spending-alerts/causal-material-owner.ts": "sha256:76a3605e733a2f87b23eb908f37fd7177ef86861c80d839708bd9080c5b9b370",
+		"examples/spending-alerts/causal-admission.ts": "sha256:bc96990c2f96c9ecf6b1ddd3141005caaaf6391cd91a33f5d0e8e5d6ae08361d",
+		"examples/spending-alerts/causal-preset.ts": "sha256:d4388d6a9bd8ed94e89716cb908e3e335ee3081203d25791868e88e8e40a501b",
+		"examples/spending-alerts/causal-audience.examples.ts": "sha256:60d138e2396e427ad34a286177f4d29cb920ad301315664de7eed1e630105f1f",
+		"examples/spending-alerts/causal-publication.ts": "sha256:eb303ca7a7ac46ed4b906f8ae5008a252426a8a07ef082bc15bd76e8b43ac743",
+		"packages/ts/src/solutions/causal-occurrence/construction.ts": "sha256:57a73dfa6eb9a685441403520f790447d63e13b5f221b8c7eba3c2c5dfae06c9",
+		"packages/ts/src/__tests__/spending-alerts-causal-preset.test.ts": "sha256:06a1edca3fbf87fba35d69ffa9627b529bfbed47c78ac70620fac5cb3362e686",
+		"scripts/fixtures/spending-preset-harness.ts": "sha256:cc10715a73179eec5d6df3397f358d965bd889e302589425146631886640253c",
+		"scripts/fixtures/spending-preset-oracle.ts": "sha256:960d57254961dc4d21c376b0f0c78bd75a55a036d0f42a6dbfe78a18e085c914",
+		"scripts/fixtures/spending-preset-plain.ts": "sha256:7fc2b660a8a594926d67efc44638d14664087f6ac7ac6868ba09fe5780667303",
+		"scripts/fixtures/spending-preset-verification.ts": "sha256:71558b5efe1483e43115597e9945fa443906dc171127728242d441522357177a",
+		"scripts/qualify-spending-preset.mjs": "sha256:2a1f3140acfcb436b219cc2cddce6ff58094f1320de161f3295adc54ff27ec62",
+		"scripts/qualify-spending-preset-runtime.mjs": "sha256:91358cb135727d30ba252b04a22529c8085d7acfa7cfc0835c3cd053e68a8401"
+	},
+	"artifactIndex": {
+		"path": "/Users/davidchenallio/src/graphrefly-ts/packages/ts/qualification/causal-occurrence/preset-assembly-approved/artifact-index.json",
+		"digest": "sha256:c37c6c9febb6098b93d81a4549409b535e90041f0a65f440224cabaa5eaa6bf6"
+	},
+	"tests": {
+		"passed": 65,
+		"report": {
+			"path": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/preset-assembly-implementation/final-preset-tests.json",
+			"digest": "sha256:f4024cc198e2658a8cd7017181c9892e439aa07fa79e794c797362e45ddc84c0"
+		},
+		"scope": "finite private consumer cases; not complete N1-N12 or all-domain plain/reference qualification"
+	},
+	"runtimeMutations": {
+		"baseline": "passed",
+		"detected": 11,
+		"loadErrors": 0,
+		"report": {
+			"path": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/preset-assembly-implementation/approved-runtime-mutations-5/results.json",
+			"digest": "sha256:53670d736ffb0fd2e4188e314c4f8c7718856d47b66d1c436864f69321dc77bc"
+		},
+		"fullCopiedSourceBinding": true
+	},
+	"loadedSourceVariants": {
+		"baseline": "pass/admitted",
+		"population": "fail/rejected",
+		"equivalent": "pass/admitted",
+		"sameTopology": true,
+		"effectExecuted": false,
+		"report": {
+			"path": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/preset-assembly-implementation/approved-source-verification-3/results.json",
+			"digest": "sha256:ac669373de781eca750050ecf165f157c9c378adbf3181a9ec39fa6cc3329eed"
+		}
+	},
+	"prerequisiteQualifications": {
+		"runs": {
+			"path": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/preset-assembly-implementation/approved-prerequisite-gates/runs.json",
+			"digest": "sha256:caa739cfc797015e443a81a24db67f05e3748cd90bf220f6cede31044e297de4"
+		},
+		"allFiveExitZero": true
+	},
+	"gates": [
+		{
+			"name": "default",
+			"command": ["pnpm", "test"],
+			"exit": 1,
+			"seconds": 64.16815519332886
+		},
+		{
+			"name": "root-soak",
+			"command": ["pnpm", "run", "test:root-eval-soak"],
+			"exit": 0,
+			"seconds": 1061.1037056446075,
+			"passedTests": 221
+		},
+		{
+			"name": "browser",
+			"command": ["pnpm", "--filter", "@graphrefly/ts", "test:browser:agentic-memory"],
+			"exit": 0,
+			"seconds": 2.8871350288391113
+		},
+		{
+			"name": "lint",
+			"command": ["pnpm", "run", "lint"],
+			"exit": 0,
+			"seconds": 11.87208104133606
+		},
+		{
+			"name": "example-typecheck",
+			"command": [
+				"pnpm",
+				"exec",
+				"tsc",
+				"--noEmit",
+				"-p",
+				"examples/spending-alerts/tsconfig.json"
+			],
+			"exit": 0,
+			"seconds": 1.7025768756866455
+		},
+		{
+			"name": "build-export",
+			"command": ["pnpm", "run", "build"],
+			"exit": 0,
+			"seconds": 37.83914017677307
+		},
+		{
+			"name": "artifacts",
+			"command": ["pnpm", "run", "eval:root:artifacts:check"],
+			"exit": 1,
+			"seconds": 1.0885331630706787
+		},
+		{
+			"name": "workspace",
+			"command": [
+				"npm",
+				"--prefix",
+				"/Users/davidchenallio/src/graphrefly",
+				"run",
+				"authority:check:workspace"
+			],
+			"exit": 0,
+			"seconds": 2.2463748455047607
+		},
+		{
+			"name": "dashboard",
+			"command": ["node", "/Users/davidchenallio/src/graphrefly/dashboard/build.mjs", "--check"],
+			"exit": 0,
+			"seconds": 0.7196528911590576
+		}
+	],
+	"gateScope": "Default suite was run with 61 preset tests; final 65-case targeted suite and final mutation baseline bind the later fixture/test changes. All failures remain recorded, no green full-suite claim.",
+	"numericFailure": {
+		"loadedProbe": {
+			"path": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/preset-assembly-implementation/numeric-semantic-preflight-2/results.json",
+			"digest": "sha256:6c206150e4765001b26ec00ac264e614538028eace6c0f9a0f91c0f31257184b"
+		},
+		"manifest": {
+			"path": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/preset-assembly-implementation/numeric-semantic-preflight-2/manifest.json",
+			"digest": "sha256:7017783e3c742d71149c2ab72979cf38717c19ef58a943c11496dc3295f939bb"
+		},
+		"highPrecisionAnalysis": {
+			"path": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/preset-assembly-implementation/numeric-semantic-preflight-1/high-precision-check.json",
+			"digest": "sha256:3daf97c24b065792d8e2b66d67eb91166da2d104a78dde98eb3edbfd33368df7"
+		},
+		"analysisIsNewVerifier": false,
+		"review": {
+			"path": "docs/design/causal-preset-numeric-review.md",
+			"digest": "sha256:faad54b82329b6d79784b88d52cf5598ac335703abb336a0eb36330fccedc968"
+		}
+	},
+	"historicalManifestDrift": {
+		"path": "/Users/davidchenallio/.codex/visualizations/2026/09/06/01a077c7-55e6-7f11-9d4f-e7c51944afb4/preset-assembly-implementation/manifest-preflight.json",
+		"digest": "sha256:9a6ef53d4377328c0d47d65cf1a45eb13c64b5501ae1fefa74f3d67949b41575"
+	},
+	"staticReview": {
+		"reviewers": ["preset_addendum_blind", "preset_addendum_spec"],
+		"remainingFindingWithinReviewedRepairScope": false,
+		"reviewLimit": "not an all-domain qualification; numerical/reference/performance gaps remain"
+	},
+	"preservedRootBaseline": {
+		"files": {
+			"decisions/decisions.jsonl": "sha256:b1c78cb3d6a0915a37728181a4003bac8f615c1cfd220add1a7982997b48c831",
+			"plan/backlog.jsonl": "sha256:89a6d9e0a7607db2bac8f7cfdfeeebdaea7f5faed820a8f659d647cdea4d9505",
+			"sessions/active/SESSION-blueprint-stacked-pr-ownership.md": "sha256:74d4b1311f8b5631b1c3ae77857797f75541b31f92603f47efab953fb800115c",
+			"sessions/archive/SESSION-b139-causal-flagship-brief-v1.md": "sha256:1477c42a39903ea89c523c97ee82c7eb1c0e320f88c88738325e043c6d44dc8a",
+			"sessions/archive/b139-causal-flagship-brief-v1.json": "sha256:c406a58efb7ec9c24ef01c11b987405345b330edd045c915c2afef8d945a7fe7",
+			"sessions/sessions.jsonl": "sha256:d3c318c66a5c0e54294d91f1f5dc776d89c47a69f01b09a7dea06ed33902791c"
+		},
+		"unchanged": true
+	},
+	"outstanding": [
+		"Numerical truth and threshold/rounding contract for the full accepted finite domain",
+		"Complete independent Graph reference and plain input/lifecycle equivalence",
+		"All N1-N12 evidence including bounded audit package completion",
+		"Frozen 12 cold / 60 steady / 12 recovery performance matrix",
+		"Resolve pre-existing frozen D159 closure/artifact gate without rewriting historical evidence"
+	],
+	"nonClaims": [
+		"preset-v1 complete",
+		"performance budget passed",
+		"ordinary-user cognitive benefit measured",
+		"public API or qualified host",
+		"actual external effect",
+		"B121 human/agent study",
+		"provider/live/spend grant"
+	],
+	"portableRawEvidence": {
+		"path": "packages/ts/qualification/causal-occurrence/preset-assembly-approved/evidence.tar.gz",
+		"digest": "sha256:d686320aad1f3982ded0203220ea8126185e3d4d82d1a5492bdc204d0d014eb1",
+		"contains": "All 309 raw artifacts indexed by artifact-index.json; source/log/bundle bytes unchanged, plus the index itself"
+	}
+}

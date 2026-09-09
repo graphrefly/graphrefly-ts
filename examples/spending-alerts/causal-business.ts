@@ -179,13 +179,9 @@ export function checked<T>(
 	binding: SpendingBinding,
 ): Node<Checked<T>> {
 	return make(name, [source], (ctx) => {
-		let state = ctx.state.get<{
-			facts: Map<string, unknown>;
-			seen: Map<string, string>;
-			conflicts: Set<string>;
-		}>();
+		let state = ctx.state.get<{ seen: Map<string, string>; conflicts: Set<string> }>();
 		if (!state) {
-			state = { facts: new Map(), seen: new Map(), conflicts: new Set() };
+			state = { seen: new Map(), conflicts: new Set() };
 			ctx.state.set(state);
 		}
 		for (const raw of depWaves(ctx, 0).flat()) {
@@ -193,46 +189,25 @@ export function checked<T>(
 				raw === SENTINEL
 					? { valid: false, issue: issue(`invalidated-${kind}`) }
 					: checkInput<T>(kind, raw, binding);
-			if (result.valid && (kind === "current" || kind === "verification" || kind === "local")) {
-				const value = result.value as Record<string, unknown>,
-					field = kind === "current" ? "current" : kind === "verification" ? "receipts" : "grants";
-				const next = new Map(state.facts);
-				let failure: DataIssue | undefined;
-				for (const entry of value[field] as Record<string, unknown>[]) {
-					const key = canonicalMaterial(
-						kind === "current"
-							? entry.revisionDomain
-							: kind === "verification"
-								? entry.receiptRef
-								: entry.grantRef,
-					);
-					if (kind === "verification") {
-						const text = canonicalMaterial(entry),
-							prior = state.seen.get(key);
-						if (prior !== undefined && prior !== text) state.conflicts.add(key);
-						if (state.conflicts.has(key)) {
-							failure = issue("receipt-identity-conflict");
-							break;
-						}
-						if (prior === undefined && state.seen.size >= 64) {
-							failure = issue("receipt-lifetime-capacity");
-							break;
-						}
-						state.seen.set(key, text);
-					}
-					if (!next.has(key) && next.size >= 64) {
-						failure = issue(`${kind}-fact-capacity`);
+			// Each valid DATA is a complete available frame, never a patch over old permissions.
+			// Only receipt identity/conflict evidence survives replacement and invalidation.
+			if (result.valid && kind === "verification") {
+				for (const entry of (result.value as { receipts: unknown[] }).receipts) {
+					const key = canonicalMaterial((entry as { receiptRef: unknown }).receiptRef),
+						text = canonicalMaterial(entry),
+						prior = state.seen.get(key);
+					if (prior !== undefined && prior !== text) state.conflicts.add(key);
+					if (state.conflicts.has(key)) {
+						result = { valid: false, issue: issue("receipt-identity-conflict") };
 						break;
 					}
-					next.set(key, entry);
-				}
-				if (failure) result = { valid: false, issue: failure };
-				else {
-					state.facts = next;
-					result = frozen({ valid: true, value: { ...value, [field]: [...next.values()] } as T });
+					if (prior === undefined && state.seen.size >= 64) {
+						result = { valid: false, issue: issue("receipt-lifetime-capacity") };
+						break;
+					}
+					state.seen.set(key, text);
 				}
 			}
-			if (!result.valid) state.facts.clear();
 			ctx.state.set(state);
 			ctx.down([["DATA", result]]);
 		}
@@ -292,6 +267,19 @@ export function buildBusiness(make: MakeNode, inputs: SpendingInputs, binding: S
 				state.text = text;
 				state.available = true;
 			}
+			const emitPending = () => {
+				if (!state.available || !state.pack) return;
+				const byRef = new Map(state.pack.evaluations.map((e) => [e.evaluationRef, e])),
+					rows: Item<Evaluation>[] = [];
+				for (const ref of state.pending) {
+					const e = byRef.get(ref);
+					if (e) rows.push({ evaluation: e, value: e });
+					else problems.push(issue("unknown-evaluation", ref));
+				}
+				state.pending = [];
+				if (rows.length || problems.length) ctx.down([["DATA", frame(rows, problems.splice(0))]]);
+			};
+			emitPending();
 			for (const raw of depWaves(ctx, 1).flat()) {
 				const result: Checked<ArrivalFrame> =
 					raw === SENTINEL
@@ -300,7 +288,7 @@ export function buildBusiness(make: MakeNode, inputs: SpendingInputs, binding: S
 				if (!result.valid) {
 					problems.push(result.issue);
 					state.pending = [];
-					ctx.down([["DATA", frame([], problems, false)]]);
+					ctx.down([["DATA", frame([], problems.splice(0), false)]]);
 					continue;
 				}
 				for (const ref of result.value.evaluationRefs) {
@@ -310,20 +298,10 @@ export function buildBusiness(make: MakeNode, inputs: SpendingInputs, binding: S
 					}
 					state.pending.push(ref);
 				}
+				// The bound is pending-before-pack, not an artificial cap across several ready frames.
+				emitPending();
 			}
-			if (!state.available || !state.pack) {
-				if (problems.length) ctx.down([["DATA", frame([], problems, false)]]);
-				return;
-			}
-			const byRef = new Map(state.pack.evaluations.map((e) => [e.evaluationRef, e])),
-				rows: Item<Evaluation>[] = [];
-			for (const ref of state.pending) {
-				const e = byRef.get(ref);
-				if (e) rows.push({ evaluation: e, value: e });
-				else problems.push(issue("unknown-evaluation", ref));
-			}
-			state.pending = [];
-			if (rows.length || problems.length) ctx.down([["DATA", frame(rows, problems)]]);
+			if (problems.length) ctx.down([["DATA", frame([], problems, false)]]);
 		},
 	);
 	const transaction = project(

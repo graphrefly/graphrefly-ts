@@ -1,0 +1,19 @@
+{
+	"kind": "approved-design-addendum-and-same-work-repair",
+	"userResponse": "批准",
+	"taskId": "01a077c7-55e6-7f11-9d4f-e7c51944afb4",
+	"workRef": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"date": "2026-09-09",
+	"baselineCommit": "d943dcac87cc51fdb126c0439ce312a2499b6246",
+	"approvedFiles": {
+		"packages/ts/qualification/causal-occurrence/preset-assembly-preflight/README.md": "sha256:d3834e90f0a285e272c91be2beae727a94ee1f1682008ced1e3076be2cf5de91",
+		"packages/ts/qualification/causal-occurrence/preset-assembly-preflight/proposed-lane.patch": "sha256:db49db015769313fa5294128cc6ec9c71ab3072342c88d6fcd426c84bb9be0e4",
+		"packages/ts/qualification/causal-occurrence/preset-assembly-preflight/proposed-evidence-edge.patch": "sha256:0b33a2afc55b27f282dbc1c1dacd2ae06033e19eeb520301cc81e079bab74aec",
+		"packages/ts/qualification/causal-occurrence/preset-assembly-preflight/proposed-evidence-correlation.patch": "sha256:269857335b11244df4f1b2dffff2829e3f1997d26d3bebd84964339102bb110a"
+	},
+	"addendum": {
+		"path": "docs/design/causal-preset-assembly-v1-addendum.md",
+		"digest": "sha256:c9bb5e239a825b0d114a863ef3aee86cb77197f992faa26d70da84df25d96176"
+	},
+	"nonClaims": ["Implementation complete", "Performance passed", "Host/effect authorization"]
+}
