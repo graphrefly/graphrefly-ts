@@ -1,3 +1,4 @@
+import { constructionAcquisitions, type NodeAcquisition } from "../node/owned-acquisition.js";
 /**
  * Operators as free-standing factory definitions (D43 / D6 / D40 Catalog-first).
  *
@@ -195,21 +196,29 @@ export function initNodeWithCore<TIn, TOut>(
 	op: Operator<TIn, TOut>,
 	deps: readonly Node<unknown>[],
 	opts: NodeOptions<TOut> = {},
+	acquired?: NodeAcquisition,
 ): Node<TOut> {
-	return withNodeCore(core, () => makeInitNode(op, deps, opts));
+	return withNodeCore(core, () => makeInitNode(op, deps, opts, acquired));
 }
 
 function makeInitNode<TIn, TOut>(
 	op: Operator<TIn, TOut>,
 	deps: readonly Node<unknown>[],
 	opts: NodeOptions<TOut>,
+	acquired?: NodeAcquisition,
 ): Node<TOut> {
 	const body = operatorNodeFn(op);
 	// D43-reserved / D51: stamp the operator's real factory onto the bare node so a runtime *Map
 	// inner (created here via fromAny, NOT registered in any graph) is named in describe's
 	// auto-discovery. A graph-bound g.initNode also records it in `_entries` (entry.factory wins
 	// there); this field is only read for a node absent from the graph index. Caller opts win.
-	return new Node<TOut>([...deps], body, { factory: op.factory, ...op.opts, ...opts });
+	const merged = { factory: op.factory, ...op.opts, ...opts };
+	if (acquired !== undefined) constructionAcquisitions.set(merged, acquired);
+	try {
+		return new Node<TOut>([...deps], body, merged);
+	} finally {
+		constructionAcquisitions.delete(merged);
+	}
 }
 
 /** @internal Build the dispatcher body for an Operator spec. */

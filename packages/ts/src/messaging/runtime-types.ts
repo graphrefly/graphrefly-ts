@@ -1,9 +1,7 @@
 import type { NodeFn } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
-import type { Node } from "../node/node.js";
 import type {
-	MessageBusCommand,
 	MessageBusDeadLetterEntry,
 	MessageBusDedupePolicy,
 	MessageBusMessage,
@@ -46,6 +44,5 @@ export interface MessageBusState {
 	readonly seenIdempotencyKeys: Set<string>;
 	readonly deadLetters: MessageBusDeadLetterEntry[];
 	deadLetterSeq: number;
-	readonly commandSources: Node<MessageBusCommand>[];
 	readonly commandBody: NodeFn;
 }

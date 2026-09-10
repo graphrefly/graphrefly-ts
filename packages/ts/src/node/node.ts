@@ -101,15 +101,15 @@ import {
 	nodeRewire,
 } from "./node-rewire-runtime.js";
 import { nodeRuntimeHost } from "./node-runtime-host.js";
-import { constructionAcquisitions, type SubscriptionAcquisition } from "./owned-acquisition.js";
 import {
-	activationReaders,
-	checkpointReaders,
+	constructionAcquisitions,
+	failNodeAcquisition,
+	type NodeAcquisition,
+	type SubscriptionAcquisition,
+} from "./owned-acquisition.js";
+import {
 	getNodeOwner,
-	restoreWriters,
-	runtimeQuiescenceReaders,
-	runtimeReleasers,
-	subscriberCountReaders,
+	issueNodeRegistration,
 	takeConstructingEnvironmentDrivers,
 	takeConstructingNodeCore,
 } from "./runtime-accessors.js";
@@ -119,7 +119,6 @@ import {
 	createNodeVersion,
 	type NodeVersion,
 	resolveNodeVersioningPolicy,
-	restoredV1Cid,
 } from "./versioning.js";
 
 export {
@@ -159,20 +158,22 @@ export class Node<T = unknown> {
 	private readonly _slot: NodeSlot<T>;
 	private readonly _dep: DepBookkeeping;
 	private readonly _value: ValueState<T>;
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private readonly _wave: WaveState;
 	private readonly _control: ControlState;
 	private readonly _lifecycle: LifecycleState;
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: used by the issued runtime host.
 	private readonly _privateState: PrivateState;
 	private readonly _hooks: CleanupHooks;
 	private readonly _syncCtxState: SyncCtxState;
 	private readonly _version: VersionState;
 	private _restoredActivationPending = false;
 	private _released = false;
-
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private get _syncCtx(): Ctx | null {
 		return this._syncCtxState.value;
 	}
-
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private set _syncCtx(ctx: Ctx | null) {
 		this._syncCtxState.value = ctx;
 	}
@@ -229,202 +230,130 @@ export class Node<T = unknown> {
 		handleOrFn: Handle | NodeFn | null,
 		opts: NodeOptions<T> = {},
 	) {
-		const acquisition = constructionAcquisitions.get(opts);
+		const suppliedAcquisition = constructionAcquisitions.get(opts);
+		const acquisition: NodeAcquisition = suppliedAcquisition ?? { name: "bare node" };
 		constructionAcquisitions.delete(opts);
 		const core = takeConstructingNodeCore();
 		const dispatcher = opts.dispatcher ?? defaultDispatcher;
 		const environment = takeConstructingEnvironmentDrivers() ?? EnvironmentDrivers.empty();
-		const pool = opts.pool ?? "sync";
-		const pausable = opts.pausable ?? true;
-		const pullLock = opts.pullId;
-		const pull = opts.pullId !== undefined;
-		// R-pull (D269): pull-mode is keyed by an author-supplied pullId (its quiet latch).
-		// R-pull (D55, pin 3): pull still uses the pausable delivery-content axis; pausable:false
-		// ignores PAUSE/RESUME buffering and contradicts quiet pull delivery. Reject at construction.
-		if (pull && pausable === false)
-			throw new Error(
-				"node: pullId is incompatible with pausable:false — a pull node uses the pausable delivery-content axis (R-pull / R-pause-modes / D55,D269)",
+		try {
+			const versioning = resolveNodeVersioningPolicy(opts.versioning);
+			const pool = opts.pool ?? "sync";
+			const pausable = opts.pausable ?? true;
+			const pullLock = opts.pullId;
+			const pull = opts.pullId !== undefined;
+			// R-pull (D269): pull-mode is keyed by an author-supplied pullId (its quiet latch).
+			// R-pull (D55, pin 3): pull still uses the pausable delivery-content axis; pausable:false
+			// ignores PAUSE/RESUME buffering and contradicts quiet pull delivery. Reject at construction.
+			if (pull && pausable === false)
+				throw new Error(
+					"node: pullId is incompatible with pausable:false — a pull node uses the pausable delivery-content axis (R-pull / R-pause-modes / D55,D269)",
+				);
+
+			let handle: Handle | null;
+			if (handleOrFn === null) handle = null;
+			else if (typeof handleOrFn === "function") handle = dispatcher.register(handleOrFn, pool);
+			else handle = handleOrFn;
+			if (handle !== null && typeof handleOrFn === "function") {
+				acquisition.dispatcher = dispatcher;
+				acquisition.handle = handle;
+			}
+
+			const n = deps.length;
+			const dep = makeDepBookkeeping(n);
+			const value = {
+				cache: SENTINEL as T | undefined,
+				hasData: false,
+				status: "sentinel" as Status,
+				terminal: undefined,
+				hasTorndown: false,
+				replayRing: [] as T[],
+			};
+			if (opts.initial !== undefined) {
+				value.cache = opts.initial as T;
+				value.hasData = true;
+				value.status = "settled";
+			}
+			const pauseLockset = new Set<unknown>();
+			this._core = core ?? new NodeCore();
+			const created = this._core.createSlot<T>(
+				{
+					deps,
+					handle,
+					pool,
+					dispatcher,
+					environment,
+					partial: opts.partial ?? false,
+					terminalAsRealInput: opts.terminalAsRealInput ?? false,
+					completeWhenDepsComplete: opts.completeWhenDepsComplete ?? true,
+					errorWhenDepsError: opts.errorWhenDepsError ?? true,
+					resubscribable: opts.resubscribable ?? false,
+					resetOnTeardown: opts.resetOnTeardown ?? false,
+					pausable,
+					pull,
+					pullLock,
+					replayN: opts.replayBuffer ?? 0,
+					dynamic: opts.dynamic ?? false,
+					name: opts.name,
+					factory: opts.factory,
+				},
+				{
+					dep,
+					lifecycle: { subscribers: new Set<Sink>(), activated: false },
+					value,
+					wave: {
+						pending: 0,
+						hasCalledFnOnce: false,
+						emittedDirtyThisWave: false,
+						emittedSettleThisWave: false,
+						insideRunWave: false,
+						inDepMutation: false,
+						rewireRunPending: false,
+						batchDirtyOwed: false,
+					},
+					control: {
+						pauseLockset,
+						pausedDepWaveOccurred: false,
+						pauseBuffer: [],
+						demandOwed: undefined,
+						activePull: undefined,
+						pullDirtyOwed: false,
+						inDeliverDemand: false,
+					},
+					privateState: { value: SENTINEL, persist: false },
+					hooks: { onDeactivation: [], onInvalidate: [] },
+					syncCtx: { value: null },
+					version: {
+						policy: versioning,
+						value: createNodeVersion(
+							versioning,
+							opts.initial !== undefined ? opts.initial : undefined,
+						),
+					},
+				},
+				acquisition,
 			);
-
-		let handle: Handle | null;
-		if (handleOrFn === null) handle = null;
-		else if (typeof handleOrFn === "function") handle = dispatcher.register(handleOrFn, pool);
-		else handle = handleOrFn;
-		if (acquisition !== undefined && handle !== null && typeof handleOrFn === "function") {
-			acquisition.dispatcher = dispatcher;
-			acquisition.handle = handle;
-		}
-
-		const n = deps.length;
-		const dep = makeDepBookkeeping(n);
-		const versioning = resolveNodeVersioningPolicy(opts.versioning);
-		const value = {
-			cache: SENTINEL as T | undefined,
-			hasData: false,
-			status: "sentinel" as Status,
-			terminal: undefined,
-			hasTorndown: false,
-			replayRing: [] as T[],
-		};
-		if (opts.initial !== undefined) {
-			value.cache = opts.initial as T;
-			value.hasData = true;
-			value.status = "settled";
-		}
-		const pauseLockset = new Set<unknown>();
-		this._core = core ?? new NodeCore();
-		const created = this._core.createSlot<T>(
-			{
-				deps,
-				handle,
-				pool,
-				dispatcher,
-				environment,
-				partial: opts.partial ?? false,
-				terminalAsRealInput: opts.terminalAsRealInput ?? false,
-				completeWhenDepsComplete: opts.completeWhenDepsComplete ?? true,
-				errorWhenDepsError: opts.errorWhenDepsError ?? true,
-				resubscribable: opts.resubscribable ?? false,
-				resetOnTeardown: opts.resetOnTeardown ?? false,
-				pausable,
-				pull,
-				pullLock,
-				replayN: opts.replayBuffer ?? 0,
-				dynamic: opts.dynamic ?? false,
-				name: opts.name,
-				factory: opts.factory,
-			},
-			{
-				dep,
-				lifecycle: { subscribers: new Set<Sink>(), activated: false },
-				value,
-				wave: {
-					pending: 0,
-					hasCalledFnOnce: false,
-					emittedDirtyThisWave: false,
-					emittedSettleThisWave: false,
-					insideRunWave: false,
-					inDepMutation: false,
-					rewireRunPending: false,
-					batchDirtyOwed: false,
-				},
-				control: {
-					pauseLockset,
-					pausedDepWaveOccurred: false,
-					pauseBuffer: [],
-					demandOwed: undefined,
-					activePull: undefined,
-					pullDirtyOwed: false,
-					inDeliverDemand: false,
-				},
-				privateState: { value: SENTINEL, persist: false },
-				hooks: { onDeactivation: [], onInvalidate: [] },
-				syncCtx: { value: null },
-				version: {
-					policy: versioning,
-					value: createNodeVersion(
-						versioning,
-						opts.initial !== undefined ? opts.initial : undefined,
-					),
-				},
-			},
-		);
-		if (acquisition !== undefined) {
+			// Also bind the returned slot if an internal wrapper did not forward the journal.
 			acquisition.core = this._core;
 			acquisition.slot = created.id;
+			this._id = created.id;
+			this._slot = this._core.get<T>(this._id);
+			this._dep = this._core.getDep(this._id);
+			this._value = this._core.getValue<T>(this._id);
+			this._wave = this._core.getWave(this._id);
+			this._control = this._core.getControl(this._id);
+			this._lifecycle = this._core.getLifecycle(this._id);
+			this._privateState = this._core.getPrivateState(this._id);
+			this._hooks = this._core.getHooks(this._id);
+			this._syncCtxState = this._core.getSyncCtx(this._id);
+			this._version = this._core.getVersion(this._id);
+			Node._retainIndirectRuntimeMethods(this as Node<unknown>);
+			issueNodeRegistration(this as Node<unknown>);
+			acquisition.node = this as Node<unknown>;
+		} catch (cause) {
+			if (suppliedAcquisition !== undefined) throw cause; // D161 owner retains this journal.
+			failNodeAcquisition(acquisition, cause);
 		}
-		this._id = created.id;
-		this._slot = this._core.get<T>(this._id);
-		this._dep = this._core.getDep(this._id);
-		this._value = this._core.getValue<T>(this._id);
-		this._wave = this._core.getWave(this._id);
-		this._control = this._core.getControl(this._id);
-		this._lifecycle = this._core.getLifecycle(this._id);
-		this._privateState = this._core.getPrivateState(this._id);
-		this._hooks = this._core.getHooks(this._id);
-		this._syncCtxState = this._core.getSyncCtx(this._id);
-		this._version = this._core.getVersion(this._id);
-		checkpointReaders.set(this as Node<unknown>, () => ({
-			cache: this._value.cache,
-			hasData: this._value.hasData,
-			terminal: this._value.terminal,
-			activated: this._lifecycle.activated,
-			hasCalledFnOnce: this._wave.hasCalledFnOnce,
-			ctxState: {
-				value: this._privateState.value,
-				persist: this._privateState.persist,
-			},
-			version: cloneNodeVersion(this._version.value),
-			handle: this._slot.handle,
-		}));
-		restoreWriters.set(this as Node<unknown>, (state) => {
-			this._assertNotReleased("restoreGraph");
-			this._value.cache = state.cache as T;
-			this._value.hasData = state.hasData;
-			this._value.status = state.status;
-			this._value.terminal = state.terminal;
-			this._value.hasTorndown = false;
-			this._value.replayRing = [];
-			this._wave.hasCalledFnOnce = state.hasCalledFnOnce;
-			this._wave.emittedDirtyThisWave = false;
-			this._wave.emittedSettleThisWave = false;
-			this._wave.pending = 0;
-			this._wave.insideRunWave = false;
-			this._wave.inDepMutation = false;
-			this._wave.rewireRunPending = false;
-			this._wave.batchDirtyOwed = false;
-			this._control.pauseBuffer = [];
-			this._control.pausedDepWaveOccurred = false;
-			this._control.demandOwed = undefined;
-			this._control.activePull = undefined;
-			this._control.pullDirtyOwed = false;
-			this._control.inDeliverDemand = false;
-			this._control.pauseLockset.clear();
-			this._privateState.value = state.ctxState.value;
-			this._privateState.persist = state.ctxState.persist;
-			if (state.version === false) {
-				this._version.policy = { enabled: false };
-				this._version.value = undefined;
-			} else if (state.version.level === 0) {
-				this._version.policy = { enabled: true, level: 0 };
-				this._version.value = cloneNodeVersion(state.version);
-			} else {
-				if (!this._version.policy.enabled || this._version.policy.level !== 1) {
-					throw new Error(
-						`restoreGraph: checkpoint node version level ${state.version.level} requires matching node versioning policy`,
-					);
-				}
-				// D109: V1 restore must match the selected hash lane. After DATA then
-				// INVALIDATE/resetOnTeardown, cache is absent while cid remains the last DATA cid;
-				// without the DATA value, restore cannot verify the lane, so fail honestly.
-				if (!state.hasData && state.version.counter > 0) {
-					throw new Error(
-						"restoreGraph: checkpoint node version cid cannot be verified without current DATA under V1 versioning (D109)",
-					);
-				}
-				const expectedCid = restoredV1Cid(this._version.policy, state.hasData, state.cache);
-				if (expectedCid !== state.version.cid) {
-					throw new Error(
-						"restoreGraph: checkpoint node version cid does not match the selected node versioning hash policy (D109)",
-					);
-				}
-				this._version.value = cloneNodeVersion(state.version);
-			}
-			this._syncCtx = null;
-			this._resetDepState();
-			// A fresh restored graph has no subscribers before return. Keep activation closed so the
-			// first real subscriber wires deps normally; D94's preserved lifecycle bit is the first-run
-			// gate (`hasCalledFnOnce`), not a hidden subscription graph.
-			this._lifecycle.activated = false;
-			this._lifecycle.subscribers.clear();
-			this._restoredActivationPending = true;
-		});
-		runtimeReleasers.set(this as Node<unknown>, () => this._releaseRuntime());
-		runtimeQuiescenceReaders.set(this as Node<unknown>, () => this._isRuntimeQuiescentForRelease());
-		subscriberCountReaders.set(this as Node<unknown>, () => this._subscriberCount());
-		activationReaders.set(this as Node<unknown>, () => this._lifecycle.activated);
-		Node._retainIndirectRuntimeMethods(this as Node<unknown>);
-		if (acquisition !== undefined) acquisition.node = this as Node<unknown>;
 	}
 
 	/** R-pull (D55/D272): true while a pull node is not serving a PULL demand pulse. */
@@ -665,19 +594,19 @@ export class Node<T = unknown> {
 		if (this._released)
 			throw new Error(`${op}: node has been released from its graph lifecycle (D122)`);
 	}
-
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private _subscriberCount(): number {
 		return nodeSubscriberCount(nodeRuntimeHost(this));
 	}
-
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private _isRuntimeQuiescentForRelease(): boolean {
 		return nodeIsRuntimeQuiescentForRelease(nodeRuntimeHost(this));
 	}
-
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private _releaseRuntime(): void {
 		nodeReleaseRuntime(nodeRuntimeHost(this));
 	}
-
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private _resetDepState(): void {
 		nodeResetDepState(nodeRuntimeHost(this));
 	}

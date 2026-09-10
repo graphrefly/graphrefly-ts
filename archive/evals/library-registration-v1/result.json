@@ -1,0 +1,219 @@
+{
+  "work": "graphrefly-ts:LIBRARY-REGISTRATION-TS",
+  "decision": "graphrefly-ts:D167",
+  "date": "2026-09-10",
+  "baselineCommit": "8e13d831a62bddc2b498a307c91e49e75fb310ab",
+  "implementation": "completed within approved private registration/cleanup/binding scope",
+  "allOfflineGatesGreen": false,
+  "checks": {
+    "full": {
+      "command": "pnpm test",
+      "exitCode": 1,
+      "passed": 2545,
+      "failed": 2,
+      "skipped": 4,
+      "log": "logs/gr-full-v2.log",
+      "failure": "Existing D159 frozen implementation manifest mismatch; frozen evidence unchanged."
+    },
+    "focused": {
+      "command": "pnpm --dir packages/ts exec vitest run src/__tests__/registration.d167.test.ts src/__tests__/graph-construction.d161.test.ts",
+      "exitCode": 0,
+      "passed": 58,
+      "log": "logs/gr-regression-final.log"
+    },
+    "conformance": {
+      "arm": "ts",
+      "passed": 77,
+      "evidence": "Included in final full suite; other runtime arms not executed."
+    },
+    "rootSoak": {
+      "command": "pnpm test:root-eval-soak",
+      "exitCode": 0,
+      "passed": 221,
+      "seconds": 1066.23,
+      "log": "logs/gr-soak.log"
+    },
+    "scriptTests": {
+      "command": "node --test scripts/*.test.mjs",
+      "exitCode": 0,
+      "passed": 21,
+      "log": "logs/gr-script-tests-v3.log"
+    },
+    "lint": {
+      "command": "pnpm run lint",
+      "exitCode": 0,
+      "log": "logs/gr-lint-v3.log",
+      "note": "Final after build. Earlier overlapping-build typecheck attempt retained; no source change needed."
+    },
+    "buildExport": {
+      "command": "pnpm run build",
+      "exitCode": 0,
+      "log": "logs/gr-build-final.log"
+    },
+    "browser": {
+      "command": "pnpm --filter @graphrefly/ts test:browser:agentic-memory",
+      "exitCode": 0,
+      "log": "logs/gr-browser.log"
+    },
+    "artifacts": {
+      "command": "pnpm eval:root:artifacts:check",
+      "exitCode": 1,
+      "log": "logs/gr-artifacts.log",
+      "failure": "Same pre-existing D159 implementation manifest drift."
+    }
+  },
+  "mutations": {
+    "D167": {
+      "count": 11,
+      "report": "mutations-v3/results.json"
+    },
+    "construction": {
+      "count": 25,
+      "report": "construction-mutations-final.json"
+    },
+    "coldAssembly": {
+      "count": 16,
+      "report": "cold-assembly-mutations-final.json"
+    },
+    "occurrence": {
+      "count": 73,
+      "report": "occurrence-mutations-final.json"
+    },
+    "qualification": "loaded runtime/source defects detected; prior attempts retained, original qualification receipts not overwritten"
+  },
+  "performance": {
+    "kind": "finite private before/after comparison, not formal qualification",
+    "report": "cold/results.json",
+    "samples": 6400,
+    "warmup": 1600,
+    "measured": 4800,
+    "topologies": [
+      {
+        "mode": "off",
+        "arm": "candidate",
+        "nodes": 59,
+        "edges": 89,
+        "topologyDigest": "sha256:db9b69685689ab4f1841114d577966c71182d118f739d85b1e942e053a662f89"
+      },
+      {
+        "mode": "off",
+        "arm": "reference",
+        "nodes": 59,
+        "edges": 89,
+        "topologyDigest": "sha256:8d16667da63bcaa692e7007e36def81c16218d85428fe16437255a1bdd93b19f"
+      },
+      {
+        "mode": "summary",
+        "arm": "candidate",
+        "nodes": 60,
+        "edges": 93,
+        "topologyDigest": "sha256:bf20c2f7790095b34311333e7b66903f4186c1b0f4cf72f227c885ede83fdc11"
+      },
+      {
+        "mode": "summary",
+        "arm": "reference",
+        "nodes": 60,
+        "edges": 93,
+        "topologyDigest": "sha256:e21506c355d7643bd1996dc3d88c2a1d6a0a96cd6a60c7f11b1fdfece40f334c"
+      }
+    ],
+    "contrasts": [
+      {
+        "mode": "off",
+        "arm": "candidate",
+        "pass": 0,
+        "p50AfterOverBefore": 1.0308074923816197,
+        "p95AfterOverBefore": 0.8826507386919055
+      },
+      {
+        "mode": "off",
+        "arm": "candidate",
+        "pass": 1,
+        "p50AfterOverBefore": 0.9938566636775163,
+        "p95AfterOverBefore": 1.037038021409254
+      },
+      {
+        "mode": "off",
+        "arm": "reference",
+        "pass": 0,
+        "p50AfterOverBefore": 0.9877592489078035,
+        "p95AfterOverBefore": 0.9386588811767934
+      },
+      {
+        "mode": "off",
+        "arm": "reference",
+        "pass": 1,
+        "p50AfterOverBefore": 1.0085668514248876,
+        "p95AfterOverBefore": 1.0410499401835964
+      },
+      {
+        "mode": "summary",
+        "arm": "candidate",
+        "pass": 0,
+        "p50AfterOverBefore": 1.0764816633546042,
+        "p95AfterOverBefore": 1.0907738922554284
+      },
+      {
+        "mode": "summary",
+        "arm": "candidate",
+        "pass": 1,
+        "p50AfterOverBefore": 1.0426569846724911,
+        "p95AfterOverBefore": 1.0986093644102377
+      },
+      {
+        "mode": "summary",
+        "arm": "reference",
+        "pass": 0,
+        "p50AfterOverBefore": 1.0677333333335506,
+        "p95AfterOverBefore": 1.1115520282207458
+      },
+      {
+        "mode": "summary",
+        "arm": "reference",
+        "pass": 1,
+        "p50AfterOverBefore": 1.0435618221257954,
+        "p95AfterOverBefore": 0.9944333492058401
+      }
+    ],
+    "finding": "Summary candidate p95 increased 9.08% and 9.86%; off has no consistent increase. No zero-cost, steady-state, memory or universal-performance claim.",
+    "formalRetry": false,
+    "previousFormalRejection": 1.2116712777251397,
+    "previousFormalLimit": 1.2,
+    "previousUnrunRows": 80
+  },
+  "publicSurface": {
+    "newExports": [],
+    "protocolChanged": false,
+    "cognitiveClaim": "No new user concepts or runtime knobs; real human/agent cognitive benefit remains unmeasured."
+  },
+  "sourceBindings": {
+    "packages/ts/src/__tests__/graph-construction.d161.test.ts": "sha256:893310984c1377aa48e1c8b58936a21f3e612103a0603243793994bc53e716a0",
+    "packages/ts/src/__tests__/registration.d167.test.ts": "sha256:379854b35be53e0e94d3976ee8b0f62796e08cb15d984a002049c420dfd22b42",
+    "packages/ts/src/graph/checkpoint.ts": "sha256:303ffb3706bff5aa8f2d61a24290a322b3a7aa75f939318c5eb4e0d996b45ce7",
+    "packages/ts/src/graph/construction-scope.ts": "sha256:343e6828b5276525797f97cb9c3998e4c28a1b0215af0b6505404b676856d37b",
+    "packages/ts/src/graph/graph-lifecycle.ts": "sha256:23abc2773517b95265ce11e8144ba026b9ef4cac60af69351960fda00e12ac9d",
+    "packages/ts/src/graph/graph-topology-group.ts": "sha256:044f242b40e0ca8e069dbac19855af5d647513d80cbd54ac4978aa7b0830c119",
+    "packages/ts/src/graph/graph.ts": "sha256:5d37c836baaf3442b1063e9d88bc8de1a1512e5778a6b4c87a72c07ef290dc2a",
+    "packages/ts/src/graph/operators.ts": "sha256:01dcdfe15269da8fede4e3a0057e668f7c3e6e40c1fbad6d3779c6e5bdf715f3",
+    "packages/ts/src/messaging/index.ts": "sha256:c64c203483dc25ecd42da846685c61f812d72df75e5671e58d98d9ec4f30e2ab",
+    "packages/ts/src/messaging/internal.ts": "sha256:ba126843e98c77467bc0d427a86015680344cf433c0e5e6052d7597f1d9bb5ce",
+    "packages/ts/src/messaging/runtime-types.ts": "sha256:22b547dbe8a2f73e9501599ba2dfb3af24b2fd36e4d706e447af249d0a05e591",
+    "packages/ts/src/node/core.ts": "sha256:c49794c2ae081aecc4b8d198d4745d2ad8b410fb2ae94493b4ee48b42c105472",
+    "packages/ts/src/node/node-checkpoint-runtime.ts": "sha256:5ed4b3fe287fdf3c37b3c15eb9dcbaf3509f03212752068b3d9f3a2eeafe40bb",
+    "packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:c0845b70f2da14aa8692ec2fe4d079cdb0e3be0af777648e0ce2c6adcca3273b",
+    "packages/ts/src/node/node-rewire-runtime.ts": "sha256:f56d6c2b1618e8245a2576757d0639c6337217b41f11a5c0f7a816f5f3db0e1b",
+    "packages/ts/src/node/node.ts": "sha256:b4f7ea41b8bd6cd9664cde9a31763caef4d4effd17597d868f9ef9b3d699eec6",
+    "packages/ts/src/node/owned-acquisition.ts": "sha256:b0f28f96d0f316bd76922869d55b46ef260bee9b9d473dcaaf64622d24c492d9",
+    "packages/ts/src/node/runtime-accessors.ts": "sha256:6f369051cbe22fed2e4af1928283c133a9bb05446eb1b28f97f86c5c2fc0354b",
+    "scripts/compare-library-registration.mjs": "sha256:59d6d86490ff1ffe40cf753dcb543fd298bf3fc342a526e841398ec985c7a6fc",
+    "scripts/diagnose-spending-current-order.test.mjs": "sha256:dc38844c5963cb1189e7ddab90cfa36eee6ff4947dc814be49c50ca54c734ee0",
+    "scripts/fixtures/library-registration-probe.ts": "sha256:6b4a166a73cb4ed9c4f5cf2e0cc3d84813e9374df31fdaa73aa7dec0837a91fb",
+    "scripts/qualify-causal-cold-assembly.mjs": "sha256:d3deff889423a4fb2d8b7829310510135a82a5bb818f6066677fdf95d4c8cf1b",
+    "scripts/qualify-causal-construction.mjs": "sha256:886e077efa6b13eabffb18145ef2fcfc42e2fadd7e35bf450f493488ac7eff18",
+    "scripts/qualify-library-registration.mjs": "sha256:fdacb4a7668c59f3fa315af919a09a8cd12aa8397cca0b2e60c4dcbcdb6c04b5"
+  },
+  "rootPreservation": "root-preservation.json",
+  "review": "review.json",
+  "ownership": "delivered, not yet ownership-verified; prior OWN/PREDICT reused; no user teach-back invented",
+  "noExternalExecution": true
+}

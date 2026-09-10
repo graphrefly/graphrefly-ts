@@ -3,1132 +3,6 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createContext, Script, SourceTextModule } from "node:vm";
 
-// packages/ts/src/batch/boundary.ts
-var depth = 0;
-var pendingCores = [];
-var pendingHead = 0;
-function enterWave() {
-  depth++;
-}
-function exitWave() {
-  depth--;
-  if (depth === 0 && pendingHead < pendingCores.length) drain();
-}
-function deferRewire(core, apply, options = {}) {
-  core.enqueueBoundaryTask({ apply, batchToken: options.batchToken, isReady: options.isReady });
-  pendingCores.push(core);
-}
-function scheduleBoundaryDrain(core) {
-  for (let i = 0; i < core.boundaryTaskCount(); i++) pendingCores.push(core);
-  if (depth === 0 && pendingHead < pendingCores.length) drain();
-}
-function dropBoundaryTasksForBatch(batchToken) {
-  const seen = /* @__PURE__ */ new Set();
-  for (let i = pendingHead; i < pendingCores.length; i++) {
-    const core = pendingCores[i];
-    if (seen.has(core)) continue;
-    seen.add(core);
-    core.dropBoundaryTasksForBatch(batchToken);
-  }
-}
-function drain() {
-  let escaped = null;
-  while (pendingHead < pendingCores.length) {
-    const core = pendingCores[pendingHead++];
-    const task = core.shiftBoundaryTask();
-    if (task === void 0) continue;
-    if (task.batchToken !== void 0) {
-      const committed = task.batchToken.committed === true;
-      if (!committed) continue;
-    }
-    if (task.isReady !== void 0 && !task.isReady()) {
-      core.unshiftBoundaryTask(task);
-      continue;
-    }
-    depth++;
-    try {
-      task.apply();
-    } catch (e) {
-      if (escaped === null) escaped = { e };
-    } finally {
-      depth--;
-    }
-  }
-  pendingCores.length = 0;
-  pendingHead = 0;
-  if (escaped !== null) throw escaped.e;
-}
-
-// packages/ts/src/batch/batch.ts
-var active = null;
-var boundaryOwner = null;
-function currentBatch() {
-  return active !== null;
-}
-function currentBoundaryBatchToken() {
-  return active ?? boundaryOwner ?? void 0;
-}
-function deferToBatch(target, tier3Wave) {
-  if (active === null) return false;
-  if (!active.deferred.has(target)) active.order.push(target);
-  active.deferred.set(target, tier3Wave);
-  return true;
-}
-function deferAfterBatchForTarget(target, fn) {
-  if (active === null || !active.deferred.has(target)) return false;
-  const owner = active;
-  target.__deferBoundary(() => {
-    if (owner.committed) fn();
-  }, owner);
-  return true;
-}
-function commit(b) {
-  const prev = boundaryOwner;
-  boundaryOwner = b;
-  try {
-    for (const target of b.order) {
-      const wave = b.deferred.get(target);
-      if (wave) target.__commitBatchedWave(wave);
-    }
-    b.committed = true;
-  } catch (e) {
-    dropBoundaryTasksForBatch(b);
-    throw e;
-  } finally {
-    boundaryOwner = prev;
-  }
-}
-function rollback(b) {
-  dropBoundaryTasksForBatch(b);
-  for (const target of b.order) target.__rollbackBatched();
-}
-function batch(fn) {
-  enterWave();
-  try {
-    if (active !== null) {
-      const outer = active;
-      return fn({
-        rollback: () => {
-          outer.rolledBack = true;
-        }
-      });
-    }
-    const b = { order: [], deferred: /* @__PURE__ */ new Map(), committed: false, rolledBack: false };
-    active = b;
-    const bctx = {
-      rollback: () => {
-        b.rolledBack = true;
-      }
-    };
-    let result;
-    try {
-      result = fn(bctx);
-    } catch (e) {
-      active = null;
-      rollback(b);
-      throw e;
-    }
-    active = null;
-    if (b.rolledBack) rollback(b);
-    else {
-      commit(b);
-    }
-    return result;
-  } finally {
-    exitWave();
-  }
-}
-
-// packages/ts/src/protocol/messages.ts
-var SENTINEL = void 0;
-function isInvalidErrorPayload(v) {
-  return v === SENTINEL || typeof v === "boolean";
-}
-function errorPayload(reason, fallback = "error without a valid payload") {
-  return isInvalidErrorPayload(reason) ? new Error(fallback) : reason;
-}
-var TIER_START = 0;
-var TIER_CONTROL = 1;
-var TIER_NOTIFICATION = 2;
-var TIER_VALUE = 3;
-var TIER_SETTLE = 4;
-var TIER_TERMINAL = 5;
-var TIER_TEARDOWN = 6;
-var TIER = {
-  START: TIER_START,
-  PAUSE: TIER_CONTROL,
-  RESUME: TIER_CONTROL,
-  PULL: TIER_CONTROL,
-  DIRTY: TIER_NOTIFICATION,
-  DATA: TIER_VALUE,
-  RESOLVED: TIER_VALUE,
-  INVALIDATE: TIER_SETTLE,
-  COMPLETE: TIER_TERMINAL,
-  ERROR: TIER_TERMINAL,
-  TEARDOWN: TIER_TEARDOWN
-};
-function messageTier(t) {
-  return TIER[t];
-}
-function isDeferredTier(t) {
-  return TIER[t] >= TIER_VALUE;
-}
-function isValueTier(t) {
-  return TIER[t] === TIER_VALUE;
-}
-function isPauseBufferedTier(t) {
-  const tier = TIER[t];
-  return tier === TIER_VALUE || tier === TIER_SETTLE;
-}
-function isTerminal(t) {
-  return TIER[t] === TIER_TERMINAL;
-}
-function isUpAllowed(t) {
-  const tier = TIER[t];
-  return tier !== void 0 && tier !== TIER_START && tier !== TIER_VALUE && tier !== TIER_TERMINAL;
-}
-
-// packages/ts/src/ctx/types.ts
-var CTX_DEP_CACHE = /* @__PURE__ */ Symbol.for("graphrefly.ctx.depCache");
-var ctxDepWaveOrigins = /* @__PURE__ */ new WeakMap();
-function setCtxDepWaveOrigin(ctx, origin) {
-  ctxDepWaveOrigins.set(ctx, origin);
-}
-var CTX_NODE_BINDING = /* @__PURE__ */ Symbol("graphrefly.ctx.nodeBinding");
-function depCount(ctx) {
-  return ctx.waveData.length;
-}
-function depLatest(ctx, depIndex) {
-  return ctx[CTX_DEP_CACHE]?.latest[depIndex];
-}
-
-// packages/ts/src/dispatcher/index.ts
-var PoolTable = class {
-  constructor(kind) {
-    this.kind = kind;
-  }
-  kind;
-  fns = [];
-  free = [];
-  register(fn) {
-    const reused = this.free.pop();
-    if (reused !== void 0) {
-      this.fns[reused] = fn;
-      return reused;
-    }
-    const id = this.fns.length;
-    this.fns.push(fn);
-    return id;
-  }
-  unregister(handleId) {
-    if (this.fns[handleId] === void 0) return;
-    this.fns[handleId] = void 0;
-    this.free.push(handleId);
-  }
-  invoke(handleId, ctx) {
-    this.fns[handleId](ctx);
-  }
-};
-var dispatcherHandleStatKey = (h) => JSON.stringify([String(h.poolId), String(h.handleId)]);
-var Dispatcher = class {
-  pools = [];
-  syncPoolId;
-  asyncPoolId;
-  // opt-in profile recorder (default OFF → zero overhead, F-PERF).
-  _recording = false;
-  _stats = /* @__PURE__ */ new Map();
-  _totalInvokes = 0;
-  constructor() {
-    this.syncPoolId = this.addPool(new PoolTable("sync"));
-    this.asyncPoolId = this.addPool(new PoolTable("async"));
-  }
-  /** Turn the profile recorder on/off (D39). Off = zero overhead on invoke. */
-  setRecording(on) {
-    this._recording = on;
-  }
-  /** Reset accumulated profiling counters. */
-  clearStats() {
-    this._stats.clear();
-    this._totalInvokes = 0;
-  }
-  /** Read a handle's accumulated counters (undefined if it never ran while recording). */
-  statFor(handle) {
-    return this._stats.get(dispatcherHandleStatKey(handle));
-  }
-  /** Total fn invocations recorded across the dispatcher. */
-  get totalInvokes() {
-    return this._totalInvokes;
-  }
-  addPool(pool) {
-    const id = this.pools.length;
-    this.pools.push(pool);
-    return id;
-  }
-  /** Register a fn in a pool, returning its Handle. Default pool = sync (R-sync-core). */
-  register(fn, pool = "sync") {
-    const poolId = pool === "sync" ? this.syncPoolId : pool === "async" ? this.asyncPoolId : pool;
-    const handleId = this.pools[poolId].register(fn);
-    return { poolId, handleId };
-  }
-  /**
-   * Release a handle (B15): frees the pool slot (closure GC'd, id reusable) and drops any
-   * accumulated profile stat so a reused id never inherits the previous tenant's counters.
-   * Called on rewire fn-swap (node._rewire) — the old handle is dropped before the node
-   * adopts the new one. Idempotent. NOT called on deactivate (a node's handle survives
-   * activate↔deactivate and is reused on reactivation; only a rewire swaps it).
-   */
-  unregister(handle) {
-    this.pools[handle.poolId].unregister(handle.handleId);
-    this._stats.delete(dispatcherHandleStatKey(handle));
-  }
-  /** Uniform sync-void invoke (R-sync-core / R-dispatch-all). */
-  invoke(handle, ctx) {
-    if (!this._recording) {
-      this.pools[handle.poolId].invoke(handle.handleId, ctx);
-      return;
-    }
-    this._totalInvokes++;
-    const t0 = performance.now();
-    try {
-      this.pools[handle.poolId].invoke(handle.handleId, ctx);
-    } finally {
-      const dur = (performance.now() - t0) * 1e6;
-      const key = dispatcherHandleStatKey(handle);
-      const s = this._stats.get(key) ?? {
-        invokes: 0,
-        totalDurationNs: 0,
-        lastDurationNs: 0
-      };
-      s.invokes++;
-      s.lastDurationNs = dur;
-      s.totalDurationNs += dur;
-      this._stats.set(key, s);
-    }
-  }
-  poolKind(poolId) {
-    return this.pools[poolId].kind;
-  }
-};
-var defaultDispatcher = new Dispatcher();
-
-// packages/ts/src/node/core.ts
-var NodeCore = class {
-  nextId = 0;
-  slots = [];
-  values = [];
-  waves = [];
-  controls = [];
-  lifecycles = [];
-  depStates = [];
-  privateStates = [];
-  hooks = [];
-  syncCtxs = [];
-  versionStates = [];
-  boundary = { queue: [], head: 0 };
-  createSlot(slot, state) {
-    const id = this.nextId++;
-    const full = { ...slot, id };
-    this.slots[id] = full;
-    this.depStates[id] = state.dep;
-    this.lifecycles[id] = state.lifecycle;
-    this.values[id] = state.value;
-    this.waves[id] = state.wave;
-    this.controls[id] = state.control;
-    this.privateStates[id] = state.privateState;
-    this.hooks[id] = state.hooks;
-    this.syncCtxs[id] = state.syncCtx;
-    this.versionStates[id] = state.version;
-    return { id, slot: full };
-  }
-  get(id) {
-    const slot = this.slots[id];
-    if (slot === void 0) throw new Error("NodeCore: unknown node slot");
-    return slot;
-  }
-  getValue(id) {
-    const value = this.values[id];
-    if (value === void 0) throw new Error("NodeCore: unknown node value state");
-    return value;
-  }
-  getWave(id) {
-    const wave = this.waves[id];
-    if (wave === void 0) throw new Error("NodeCore: unknown node wave state");
-    return wave;
-  }
-  getControl(id) {
-    const control = this.controls[id];
-    if (control === void 0) throw new Error("NodeCore: unknown node control state");
-    return control;
-  }
-  getLifecycle(id) {
-    const lifecycle = this.lifecycles[id];
-    if (lifecycle === void 0) throw new Error("NodeCore: unknown node lifecycle state");
-    return lifecycle;
-  }
-  getDep(id) {
-    const dep = this.depStates[id];
-    if (dep === void 0) throw new Error("NodeCore: unknown node dep state");
-    return dep;
-  }
-  getPrivateState(id) {
-    const state = this.privateStates[id];
-    if (state === void 0) throw new Error("NodeCore: unknown node private state");
-    return state;
-  }
-  getHooks(id) {
-    const hooks = this.hooks[id];
-    if (hooks === void 0) throw new Error("NodeCore: unknown node cleanup hooks");
-    return hooks;
-  }
-  getSyncCtx(id) {
-    const state = this.syncCtxs[id];
-    if (state === void 0) throw new Error("NodeCore: unknown node ctx state");
-    return state;
-  }
-  getVersion(id) {
-    const state = this.versionStates[id];
-    if (state === void 0) throw new Error("NodeCore: unknown node version state");
-    return state;
-  }
-  /** @internal D122: release graph-owned ephemeral node runtime state from core retention. */
-  releaseSlot(id) {
-    this.slots[id] = void 0;
-    this.depStates[id] = void 0;
-    this.lifecycles[id] = void 0;
-    this.values[id] = void 0;
-    this.waves[id] = void 0;
-    this.controls[id] = void 0;
-    this.privateStates[id] = void 0;
-    this.hooks[id] = void 0;
-    this.syncCtxs[id] = void 0;
-    this.versionStates[id] = void 0;
-  }
-  /** @internal B49: graph-local deferred-boundary queue (rewireNext/upNext/batch-after-commit). */
-  enqueueBoundaryTask(task) {
-    this.boundary.queue.push(task);
-  }
-  /** @internal */
-  hasBoundaryTasks() {
-    return this.boundary.head < this.boundary.queue.length;
-  }
-  /** @internal */
-  boundaryTaskCount() {
-    return this.boundary.queue.length - this.boundary.head;
-  }
-  /** @internal */
-  shiftBoundaryTask() {
-    if (!this.hasBoundaryTasks()) {
-      this.boundary.queue = [];
-      this.boundary.head = 0;
-      return void 0;
-    }
-    const task = this.boundary.queue[this.boundary.head++];
-    if (!this.hasBoundaryTasks()) {
-      this.boundary.queue = [];
-      this.boundary.head = 0;
-    }
-    return task;
-  }
-  /** @internal Put a not-yet-ready task back at this core's FIFO head. */
-  unshiftBoundaryTask(task) {
-    const remaining = this.boundary.queue.slice(this.boundary.head);
-    this.boundary.queue = [task, ...remaining];
-    this.boundary.head = 0;
-  }
-  /** @internal D110: discard all pending tasks caused by an uncommitted batch. */
-  dropBoundaryTasksForBatch(batchToken) {
-    const remaining = this.boundary.queue.slice(this.boundary.head).filter((task) => task.batchToken !== batchToken);
-    this.boundary.queue = remaining;
-    this.boundary.head = 0;
-  }
-};
-function makeDepBookkeeping(depCount2) {
-  return {
-    batch: new Array(depCount2).fill(null),
-    waveData: Array.from({ length: depCount2 }, () => []),
-    waveTokens: new Array(depCount2).fill(void 0),
-    waveLive: Array.from({ length: depCount2 }, () => []),
-    prev: new Array(depCount2).fill(SENTINEL),
-    hasData: new Array(depCount2).fill(false),
-    dirty: new Array(depCount2).fill(false),
-    tier: new Array(depCount2).fill(0),
-    terminal: new Array(depCount2).fill(void 0),
-    terminalInput: new Array(depCount2).fill(void 0),
-    unsubs: [],
-    idxBoxes: []
-  };
-}
-
-// packages/ts/src/graph/environment.ts
-var EnvironmentDrivers = class _EnvironmentDrivers {
-  process;
-  http;
-  sse;
-  websocket;
-  webhook;
-  constructor(init = {}) {
-    this.process = init.process;
-    this.http = init.http;
-    this.sse = init.sse;
-    this.websocket = init.websocket;
-    this.webhook = init.webhook;
-    Object.freeze(this);
-  }
-  static empty() {
-    return EMPTY_ENVIRONMENT;
-  }
-  withProcess(driver) {
-    return new _EnvironmentDrivers({ ...this, process: driver });
-  }
-  withHttp(driver) {
-    return new _EnvironmentDrivers({ ...this, http: driver });
-  }
-  withSse(driver) {
-    return new _EnvironmentDrivers({ ...this, sse: driver });
-  }
-  withWebSocket(driver) {
-    return new _EnvironmentDrivers({ ...this, websocket: driver });
-  }
-  withWebhook(driver) {
-    return new _EnvironmentDrivers({ ...this, webhook: driver });
-  }
-  processDriver() {
-    return this.process;
-  }
-  httpDriver() {
-    return this.http;
-  }
-  sseDriver() {
-    return this.sse;
-  }
-  webSocketDriver() {
-    return this.websocket;
-  }
-  webhookDriver() {
-    return this.webhook;
-  }
-};
-var EMPTY_ENVIRONMENT = new EnvironmentDrivers();
-
-// packages/ts/src/node/protocol-guards.ts
-function terminalView(t) {
-  return t === void 0 ? false : t;
-}
-function normalizePullDemand(demand) {
-  if (typeof demand !== "object" || demand === null || Array.isArray(demand)) {
-    throw new Error("ctx.up: PULL requires { pullId, params? } demand payload (D269)");
-  }
-  const pullId = demand.pullId;
-  if (typeof pullId !== "string" && typeof pullId !== "symbol") {
-    throw new Error("ctx.up: PULL demand requires a string or symbol pullId (D269)");
-  }
-  const params = demand.params;
-  return params === void 0 ? { pullId } : { pullId, params };
-}
-function validateDownPayloads(msgs) {
-  for (const m of msgs) {
-    if (messageTier(m[0]) === void 0) {
-      throw new Error(
-        `down: ${String(m[0])} is not in the closed message-type set (R-msg-closed-set)`
-      );
-    }
-    if (m[0] === "DATA" && m[1] === void 0) {
-      throw new Error("down: DATA requires a non-SENTINEL payload (R-data-payload)");
-    }
-    if (m[0] === "ERROR" && isInvalidErrorPayload(m[1])) {
-      throw new Error("down: ERROR requires a non-SENTINEL, non-boolean payload (R-data-payload)");
-    }
-  }
-}
-
-// packages/ts/src/node/runtime-accessors.ts
-var constructingCore;
-var constructingEnvironment;
-var ownerTokens = /* @__PURE__ */ new WeakMap();
-var topologyDepsChangedObservers = /* @__PURE__ */ new WeakMap();
-var checkpointReaders = /* @__PURE__ */ new WeakMap();
-var restoreWriters = /* @__PURE__ */ new WeakMap();
-var runtimeReleasers = /* @__PURE__ */ new WeakMap();
-var runtimeQuiescenceReaders = /* @__PURE__ */ new WeakMap();
-var subscriberCountReaders = /* @__PURE__ */ new WeakMap();
-var activationReaders = /* @__PURE__ */ new WeakMap();
-var releasedNodes = /* @__PURE__ */ new WeakSet();
-function withNodeCore(core, create) {
-  const prev = constructingCore;
-  constructingCore = core;
-  try {
-    return create();
-  } finally {
-    constructingCore = prev;
-  }
-}
-function takeConstructingNodeCore() {
-  const core = constructingCore;
-  constructingCore = void 0;
-  return core;
-}
-function withEnvironmentDrivers(environment, create) {
-  const prev = constructingEnvironment;
-  constructingEnvironment = environment;
-  try {
-    return create();
-  } finally {
-    constructingEnvironment = prev;
-  }
-}
-function takeConstructingEnvironmentDrivers() {
-  const environment = constructingEnvironment;
-  constructingEnvironment = void 0;
-  return environment;
-}
-function getNodeOwner(n) {
-  return ownerTokens.get(n);
-}
-function setNodeOwner(n, owner) {
-  ownerTokens.set(n, owner);
-}
-function setNodeTopologyDepsChangedObserver(n, observer) {
-  topologyDepsChangedObservers.set(n, observer);
-}
-function notifyTopologyDepsChanged(node, prevDeps, deps) {
-  topologyDepsChangedObservers.get(node)?.(node, prevDeps, deps);
-}
-function checkpointStateOfNode(n) {
-  const read = checkpointReaders.get(n);
-  if (read === void 0) throw new Error("checkpoint: unknown node state");
-  return read();
-}
-function releaseRuntimeOfNode(n) {
-  runtimeReleasers.get(n)?.();
-}
-function isNodeRuntimeQuiescentForRelease(n) {
-  return runtimeQuiescenceReaders.get(n)?.() ?? false;
-}
-function subscriberCountOfNode(n) {
-  return subscriberCountReaders.get(n)?.() ?? 0;
-}
-function isNodeActiveForRelease(n) {
-  return activationReaders.get(n)?.() ?? false;
-}
-function isNodeRuntimeReleased(n) {
-  return releasedNodes.has(n);
-}
-
-// packages/ts/src/node/node-context-runtime.ts
-function nodeBuildCtx(self) {
-  const kind = self._slot.handle ? self._slot.dispatcher.poolKind(self._slot.handle.poolId) : "sync";
-  if (kind === "sync") {
-    if (self._syncCtx === null) self._syncCtx = self._makeCtx();
-    self._refreshCtx(self._syncCtx);
-    return self._syncCtx;
-  }
-  return self._makeCtx({
-    waveData: self._dep.waveData.map((waves) => waves.map((w) => [...w])),
-    waveLive: self._dep.waveLive.map((waves) => [...waves]),
-    terminal: self._dep.terminalInput.map(terminalView),
-    latest: [...self._dep.prev]
-  });
-}
-function nodeMakeCtx(self, snapshot) {
-  const ctx = {
-    // Wave-owner boundary (D47): a SYNC fn's emit nests under the public entry that drove
-    // it (cheap inc/dec, no early drain); an ASYNC-pool fn re-enters here from its stashed
-    // ctx at depth 0, so this is the boundary that drains any rewireNext it issued.
-    up: (msgs, towardDep) => {
-      if (self._released) return;
-      enterWave();
-      try {
-        self._up(msgs, towardDep);
-      } finally {
-        exitWave();
-      }
-    },
-    down: (msgs) => {
-      if (self._released) return;
-      enterWave();
-      try {
-        self._down(msgs);
-      } finally {
-        exitWave();
-      }
-    },
-    waveData: snapshot?.waveData ?? self._dep.waveData,
-    terminal: snapshot?.terminal ?? self._dep.terminalInput.map(terminalView),
-    state: self._makeState(),
-    onDeactivation: (fn) => {
-      if (self._released) return;
-      self._hooks.onDeactivation.push(fn);
-    },
-    onInvalidate: (fn) => {
-      if (self._released) return;
-      self._hooks.onInvalidate.push(fn);
-    },
-    environment: () => self._slot.environment,
-    // R-rewire-deferred (D47): defer a self-dep-set mutation to the committed boundary.
-    rewireNext: {
-      subscribeDep: (dep, fn) => self._requestRewireNext({ kind: "add", dep, fn }),
-      unsubscribeDep: (dep, fn) => self._requestRewireNext({ kind: "remove", dep, fn }),
-      replaceDeps: (deps, fn) => self._requestRewireNext({ kind: "set", deps, fn })
-    },
-    // R-up-routing / R-pull (D269): deferred up — route a control/demand wave (e.g. PULL)
-    // up the declared cone at the committed boundary. The SELF-demand path: an
-    // immediate ctx.up whose delivery loops back re-enters this fn (D37 / R-reentrancy).
-    upNext: (msgs, towardDep) => self._requestUpNext(msgs, towardDep),
-    ...self._control.activePull === void 0 ? {} : { pull: self._control.activePull },
-    [CTX_DEP_CACHE]: { latest: snapshot?.latest ?? self._dep.prev },
-    [CTX_NODE_BINDING]: {
-      dispatcher: self._slot.dispatcher,
-      create: (factory) => withEnvironmentDrivers(self._slot.environment, () => withNodeCore(self._core, factory))
-    }
-  };
-  setCtxDepWaveOrigin(ctx, { live: snapshot?.waveLive ?? self._dep.waveLive });
-  if (self._slot.dynamic) {
-    ctx.track = (i) => ctx[CTX_DEP_CACHE]?.latest[i];
-  }
-  return ctx;
-}
-function nodeRefreshCtx(self, ctx) {
-  ctx.waveData = self._dep.waveData;
-  ctx.terminal = self._dep.terminalInput.map(terminalView);
-  if (self._control.activePull === void 0) {
-    delete ctx.pull;
-  } else {
-    ctx.pull = self._control.activePull;
-  }
-  ctx[CTX_DEP_CACHE] = { latest: self._dep.prev };
-  setCtxDepWaveOrigin(ctx, { live: self._dep.waveLive });
-}
-function nodeMakeState(self) {
-  return {
-    get: () => self._privateState.value,
-    set: (v) => {
-      self._privateState.value = v;
-    },
-    persist: (on = true) => {
-      self._privateState.persist = on;
-    }
-  };
-}
-
-// packages/ts/src/node/node-input-runtime.ts
-function nodeRecordDepProjection(self, idx, delivery) {
-  const token = delivery?.wave ?? {};
-  if (self._dep.waveTokens[idx] !== token) {
-    self._dep.waveData[idx].push([]);
-    self._dep.waveLive[idx].push(delivery !== void 0);
-    self._dep.waveTokens[idx] = token;
-  }
-  return self._dep.waveData[idx][self._dep.waveData[idx].length - 1];
-}
-function nodeDepProjectionHasData(self, idx) {
-  const projection = self._dep.waveData[idx][self._dep.waveData[idx].length - 1];
-  return projection?.some((v) => v !== SENTINEL) ?? false;
-}
-function nodeReceiveFromDep(self, idx, msg, delivery) {
-  if (self._released) return;
-  const t = msg[0];
-  if (t === "START") return;
-  const isLastInDeliveredWave = delivery?.last ?? true;
-  if (self._value.terminal !== void 0) {
-    if (t === "TEARDOWN") self._down([["TEARDOWN"]]);
-    return;
-  }
-  if (t === "INVALIDATE") {
-    const projection = self._recordDepProjection(idx, delivery);
-    projection.push(SENTINEL);
-    if (projection.some((v) => v !== SENTINEL) && isLastInDeliveredWave) self._maybeRun();
-    self._dep.prev[idx] = SENTINEL;
-    self._dep.hasData[idx] = false;
-    self._dep.batch[idx] = null;
-    if (self._dep.dirty[idx]) {
-      self._dep.dirty[idx] = false;
-      self._wave.pending--;
-    }
-    if (self._control.pausedDepWaveOccurred && self._dep.batch.every((b) => b === null)) {
-      self._control.pausedDepWaveOccurred = false;
-    }
-    const hadData = self._value.hasData;
-    self._invalidate();
-    if (self._wave.pending === 0 && self._wave.emittedDirtyThisWave) {
-      if (!hadData) self._down([["RESOLVED"]]);
-      else self._wave.emittedDirtyThisWave = false;
-    }
-    self._fireOwedDemandIfReady();
-    return;
-  }
-  if (isTerminal(t)) {
-    const isError = t === "ERROR";
-    const errPayload = isError ? msg[1] : void 0;
-    self._dep.terminal[idx] = isError ? errPayload : true;
-    self._dep.terminalInput[idx] = isError ? errPayload : true;
-    self._releaseDepDirty(idx);
-    const ranValueBeforeTerminal = self._depProjectionHasData(idx) && isLastInDeliveredWave;
-    if (ranValueBeforeTerminal) self._maybeRun();
-    if (isError && self._slot.errorWhenDepsError) {
-      self._down([["ERROR", errPayload]]);
-    } else if (self._slot.terminalAsRealInput) {
-      if (ranValueBeforeTerminal) {
-        self._fireOwedDemandIfReady();
-        return;
-      }
-      self._maybeRun();
-    } else if (self._slot.completeWhenDepsComplete && self._allDepsTerminal()) {
-      self._down([["COMPLETE"]]);
-    } else {
-      self._settleAfterAbsorbedTerminal();
-    }
-    self._fireOwedDemandIfReady();
-    return;
-  }
-  if (t === "TEARDOWN") {
-    self._down([["TEARDOWN"]]);
-    return;
-  }
-  if (t === "DIRTY") {
-    if (!self._dep.dirty[idx]) {
-      self._dep.dirty[idx] = true;
-      self._wave.pending++;
-      self._dep.tier[idx] = 2;
-      self._markDirty();
-    }
-    return;
-  }
-  if (t === "DATA") {
-    const v = msg[1];
-    self._recordDepProjection(idx, delivery).push(v);
-    const b = self._dep.batch[idx];
-    if (b === null) self._dep.batch[idx] = [v];
-    else b.push(v);
-    self._dep.prev[idx] = v;
-    self._dep.hasData[idx] = true;
-    self._dep.tier[idx] = 3;
-    if (self._dep.dirty[idx]) {
-      self._dep.dirty[idx] = false;
-      self._wave.pending--;
-    }
-    if (isLastInDeliveredWave) self._maybeRun();
-    self._fireOwedDemandIfReady();
-    return;
-  }
-  if (t === "RESOLVED") {
-    self._recordDepProjection(idx, delivery);
-    self._dep.tier[idx] = 3;
-    if (self._dep.dirty[idx]) {
-      self._dep.dirty[idx] = false;
-      self._wave.pending--;
-    }
-    if (isLastInDeliveredWave) self._maybeRun();
-    self._fireOwedDemandIfReady();
-    return;
-  }
-}
-function nodeReleaseDepDirty(self, idx) {
-  if (self._dep.dirty[idx]) {
-    self._dep.dirty[idx] = false;
-    self._wave.pending--;
-  }
-}
-function nodeSettleAfterAbsorbedTerminal(self) {
-  if (self._wave.pending !== 0 || !self._wave.emittedDirtyThisWave) return;
-  const sawData = self._dep.batch.some((b) => b !== null && b.length > 0);
-  if (sawData) self._maybeRun();
-  if (self._wave.emittedDirtyThisWave) self._down([["RESOLVED"]]);
-}
-function nodeMarkDirty(self) {
-  self._value.status = "dirty";
-  if (self._isPullQuiet()) return;
-  if (!self._wave.emittedDirtyThisWave) {
-    self._wave.emittedDirtyThisWave = true;
-    self._emitToSubs(["DIRTY"]);
-  }
-}
-function nodeMaybeRun(self) {
-  if (self._wave.inDepMutation) {
-    self._wave.rewireRunPending = true;
-    return;
-  }
-  if (self._slot.pausable === true && (self._isPaused() || self._isPullQuiet())) {
-    self._control.pausedDepWaveOccurred = true;
-    return;
-  }
-  self._tryRun();
-}
-function nodeSettleRewire(self) {
-  if (self._slot.pausable === true && self._isPaused()) {
-    self._control.pausedDepWaveOccurred = true;
-    return;
-  }
-  if (self._wave.pending > 0) return;
-  if (self._slot.handle === null) {
-    self._passthroughEmit();
-    return;
-  }
-  if (!self._wave.hasCalledFnOnce && !(self._slot.partial || self._allDepsSettled())) return;
-  self._markDirty();
-  self._runWave();
-}
-function nodeTryRun(self) {
-  if (self._wave.pending > 0) return;
-  if (self._slot.handle === null) {
-    self._passthroughEmit();
-    return;
-  }
-  if (!self._wave.hasCalledFnOnce) {
-    if (self._slot.partial || self._allDepsSettled()) self._runWave();
-    return;
-  }
-  self._runWave();
-}
-function nodeAllDepsSettled(self) {
-  for (let i = 0; i < self._slot.deps.length; i++) {
-    if (self._dep.hasData[i]) continue;
-    if (self._slot.terminalAsRealInput && self._dep.terminal[i] !== void 0) continue;
-    return false;
-  }
-  return true;
-}
-function nodePassthroughEmit(self) {
-  const b = self._dep.batch[0];
-  if (b !== null && b.length > 0) {
-    self._down([["DATA", b[b.length - 1]]]);
-  } else if (self._wave.emittedDirtyThisWave) {
-    self._down([["RESOLVED"]]);
-  }
-  self._dep.batch[0] = null;
-  self._wave.emittedDirtyThisWave = false;
-}
-function nodeRunWave(self) {
-  if (self._wave.insideRunWave)
-    throw new Error(
-      "synchronous feedback cycle: node fn re-entered its own wave (R-reentrancy / D37)"
-    );
-  self._wave.hasCalledFnOnce = true;
-  self._hooks.onInvalidate = [];
-  self._hooks.onDeactivation = [];
-  const ctx = self._buildCtx();
-  const wasDirty = self._wave.emittedDirtyThisWave;
-  self._wave.emittedSettleThisWave = false;
-  self._wave.insideRunWave = true;
-  try {
-    self._slot.dispatcher.invoke(self._slot.handle, ctx);
-  } finally {
-    self._wave.insideRunWave = false;
-  }
-  if (wasDirty && !self._wave.emittedSettleThisWave && self._value.terminal === void 0 && !self._isAsyncPool()) {
-    self._down([["RESOLVED"]]);
-  }
-  for (let i = 0; i < self._dep.batch.length; i++) {
-    self._dep.batch[i] = null;
-    self._dep.waveData[i] = [];
-    self._dep.waveTokens[i] = void 0;
-    self._dep.waveLive[i] = [];
-    self._dep.terminalInput[i] = void 0;
-  }
-  self._wave.emittedDirtyThisWave = false;
-}
-
-// packages/ts/src/node/node-runtime-host.ts
-function nodeRuntimeHost(node) {
-  return node;
-}
-
-// packages/ts/src/node/owned-acquisition.ts
-var constructionAcquisitions = /* @__PURE__ */ new WeakMap();
-var runtimeReleaseFailures = /* @__PURE__ */ new WeakMap();
-
-// packages/ts/src/node/node-lifecycle-runtime.ts
-function nodeActivate(self) {
-  self._lifecycle.activated = true;
-  const seedRestoredDeps = self._restoredActivationPending;
-  self._restoredActivationPending = false;
-  self._dep.unsubs = new Array(self._slot.deps.length);
-  self._dep.idxBoxes = new Array(self._slot.deps.length);
-  for (const dep of self._slot.deps) self._subscribeDepAt(dep, { seedRestored: seedRestoredDeps });
-  if (self._slot.deps.length === 0 && self._slot.handle !== null && !self._wave.hasCalledFnOnce) {
-    self._runWave();
-  }
-}
-function nodeSubscribeDepAt(self, depNode, opts = {}) {
-  const idx0 = self._slot.deps.indexOf(depNode);
-  const box = { v: idx0 };
-  let ignoreInitialPush = opts.seedRestored === true;
-  if (ignoreInitialPush && idx0 !== -1) {
-    self._seedRestoredDepAt(idx0, depNode);
-    const dep = nodeRuntimeHost(depNode);
-    if (dep._value.terminal !== void 0 && !dep._slot.resubscribable) {
-      self._dep.unsubs[idx0] = () => {
-      };
-      self._dep.idxBoxes[idx0] = box;
-      return;
-    }
-  }
-  const sink = (msg, delivery) => {
-    if (ignoreInitialPush && delivery === void 0) return;
-    if (ignoreInitialPush) ignoreInitialPush = false;
-    if (box.v === -1) return;
-    self._receiveFromDep(box.v, msg, delivery);
-  };
-  nodeRuntimeHost(depNode)._subscribeOwned(sink, {
-    record: (release) => {
-      if (idx0 !== -1) {
-        self._dep.unsubs[idx0] = release;
-        self._dep.idxBoxes[idx0] = box;
-      }
-    }
-  });
-  if (ignoreInitialPush && idx0 !== -1 && box.v !== -1) self._seedRestoredDepAt(idx0, depNode);
-  ignoreInitialPush = false;
-}
-function nodeSeedRestoredDepAt(self, idx, depNode) {
-  const dep = nodeRuntimeHost(depNode);
-  const seedData = dep._value.hasData && !dep._slot.pull;
-  self._dep.batch[idx] = null;
-  self._dep.waveData[idx] = [];
-  self._dep.waveTokens[idx] = void 0;
-  self._dep.waveLive[idx] = [];
-  self._dep.prev[idx] = seedData ? dep._value.cache : SENTINEL;
-  self._dep.hasData[idx] = seedData;
-  self._dep.dirty[idx] = false;
-  self._dep.tier[idx] = seedData ? 3 : 0;
-  self._dep.terminal[idx] = dep._value.terminal;
-  self._dep.terminalInput[idx] = void 0;
-}
-function nodeDeactivate(self) {
-  self._lifecycle.activated = false;
-  for (const u of self._dep.unsubs) if (u) u();
-  self._dep.unsubs = [];
-  self._dep.idxBoxes = [];
-  for (const fn of self._hooks.onDeactivation) fn();
-  self._hooks.onDeactivation = [];
-  self._hooks.onInvalidate = [];
-  const isCompute = self._slot.handle !== null || self._slot.deps.length > 0;
-  if (isCompute) {
-    self._value.cache = SENTINEL;
-    self._value.hasData = false;
-    self._value.status = "sentinel";
-  }
-  self._resetDepState();
-  self._wave.hasCalledFnOnce = false;
-  self._control.pauseLockset.clear();
-  self._control.pauseBuffer = [];
-  self._control.pausedDepWaveOccurred = false;
-  self._control.demandOwed = void 0;
-  self._control.activePull = void 0;
-  self._control.pullDirtyOwed = false;
-  self._value.replayRing = [];
-  if (!self._privateState.persist) self._privateState.value = SENTINEL;
-}
-function nodeSubscriberCount(self) {
-  return self._lifecycle.subscribers.size;
-}
-function nodeIsRuntimeQuiescentForRelease(self) {
-  return !self._released && self._value.status !== "dirty" && self._value.status !== "pending" && self._wave.pending === 0 && !self._wave.insideRunWave && !self._wave.inDepMutation && !self._wave.rewireRunPending && !self._wave.batchDirtyOwed && self._dep.dirty.every((dirty) => !dirty) && self._control.pauseBuffer.length === 0 && !self._control.pausedDepWaveOccurred && self._control.demandOwed === void 0 && self._control.activePull === void 0 && !self._control.inDeliverDemand && self._control.pauseLockset.size === 0;
-}
-function nodeReleaseRuntime(self) {
-  if (self._released) return;
-  self._released = true;
-  const node = self;
-  releasedNodes.add(node);
-  const releaseErrors = [];
-  const recordReleaseError = (error, resource, handle) => {
-    releaseErrors.push({
-      cause: error,
-      resource,
-      ...handle === void 0 ? {} : { handle, dispatcher: self._slot.dispatcher }
-    });
-  };
-  self._lifecycle.activated = false;
-  for (const u of self._dep.unsubs) {
-    try {
-      u?.();
-    } catch (error) {
-      recordReleaseError(error, "subscription");
-    }
-  }
-  for (const fn of self._hooks.onDeactivation) {
-    try {
-      fn();
-    } catch (error) {
-      recordReleaseError(error, "deactivation");
-    }
-  }
-  self._dep.unsubs = [];
-  self._dep.idxBoxes = [];
-  self._lifecycle.subscribers.clear();
-  if (self._slot.handle !== null) {
-    const handle = self._slot.handle;
-    try {
-      self._slot.dispatcher.unregister(handle);
-      self._slot.handle = null;
-    } catch (error) {
-      recordReleaseError(error, "handle", handle);
-    }
-  }
-  self._slot.deps = [];
-  self._dep.batch = [];
-  self._dep.waveData = [];
-  self._dep.waveTokens = [];
-  self._dep.waveLive = [];
-  self._dep.prev = [];
-  self._dep.hasData = [];
-  self._dep.dirty = [];
-  self._dep.tier = [];
-  self._dep.terminal = [];
-  self._dep.terminalInput = [];
-  self._value.cache = SENTINEL;
-  self._value.hasData = false;
-  self._value.status = "sentinel";
-  self._value.terminal = void 0;
-  self._value.replayRing = [];
-  self._privateState.value = SENTINEL;
-  self._privateState.persist = false;
-  self._syncCtx = null;
-  self._resetDepState();
-  self._hooks.onDeactivation = [];
-  self._hooks.onInvalidate = [];
-  self._control.pauseLockset.clear();
-  self._control.pauseBuffer = [];
-  self._control.pausedDepWaveOccurred = false;
-  self._control.demandOwed = void 0;
-  self._control.activePull = void 0;
-  self._control.pullDirtyOwed = false;
-  self._restoredActivationPending = false;
-  checkpointReaders.delete(node);
-  restoreWriters.delete(node);
-  runtimeReleasers.delete(node);
-  runtimeQuiescenceReaders.delete(node);
-  subscriberCountReaders.delete(node);
-  activationReaders.delete(node);
-  ownerTokens.delete(node);
-  topologyDepsChangedObservers.delete(node);
-  try {
-    self._core.releaseSlot(self._id);
-  } catch (cause) {
-    releaseErrors.push({ resource: "slot", cause, core: self._core, slot: self._id });
-  }
-  if (releaseErrors.length > 0) {
-    runtimeReleaseFailures.set(node, Object.freeze(releaseErrors));
-    throw releaseErrors[0].cause;
-  }
-}
-function nodeResetDepState(self) {
-  const n = self._slot.deps.length;
-  for (let i = 0; i < n; i++) {
-    self._dep.batch[i] = null;
-    self._dep.waveData[i] = [];
-    self._dep.waveTokens[i] = void 0;
-    self._dep.waveLive[i] = [];
-    self._dep.prev[i] = SENTINEL;
-    self._dep.hasData[i] = false;
-    self._dep.dirty[i] = false;
-    self._dep.tier[i] = 0;
-    self._dep.terminal[i] = void 0;
-    self._dep.terminalInput[i] = void 0;
-  }
-  self._wave.pending = 0;
-  self._wave.emittedDirtyThisWave = false;
-}
-
 // packages/ts/src/json/codec.ts
 var JS_MIN_NORMAL_NUMBER = 2 ** -1022;
 function deepFreezeStrictJson(value) {
@@ -1659,8 +533,1151 @@ function cloneNodeVersion(version) {
     prev: version.prev
   });
 }
-function restoredV1Cid(policy, hasData, cache) {
-  return computeV1Cid(policy, hasData ? cache : ABSENT_V1_SEED);
+
+// packages/ts/src/node/node-runtime-host.ts
+function nodeRuntimeHost(node) {
+  return node;
+}
+
+// packages/ts/src/node/runtime-accessors.ts
+var constructingCore;
+var constructingEnvironment;
+var registrations = /* @__PURE__ */ new WeakMap();
+function issueNodeRegistration(node) {
+  registrations.set(node, { kind: "live", host: nodeRuntimeHost(node) });
+}
+function liveRegistration(node) {
+  const record2 = registrations.get(node);
+  return record2?.kind === "live" ? record2 : void 0;
+}
+function closeNodeRegistration(node) {
+  registrations.set(node, { kind: "retired" });
+}
+function setRuntimeReleaseFailures(node, failures) {
+  const record2 = registrations.get(node);
+  if (record2?.kind !== "retired") throw new Error("release: node access is not closed");
+  record2.failures = failures;
+}
+function runtimeReleaseFailuresOfNode(node) {
+  const record2 = registrations.get(node);
+  return record2?.kind === "retired" ? record2.failures : void 0;
+}
+function nodeBackendContributor(node) {
+  return liveRegistration(node)?.backendContributor;
+}
+function withNodeCore(core, create) {
+  const prev = constructingCore;
+  constructingCore = core;
+  try {
+    return create();
+  } finally {
+    constructingCore = prev;
+  }
+}
+function takeConstructingNodeCore() {
+  const core = constructingCore;
+  constructingCore = void 0;
+  return core;
+}
+function withEnvironmentDrivers(environment, create) {
+  const prev = constructingEnvironment;
+  constructingEnvironment = environment;
+  try {
+    return create();
+  } finally {
+    constructingEnvironment = prev;
+  }
+}
+function takeConstructingEnvironmentDrivers() {
+  const environment = constructingEnvironment;
+  constructingEnvironment = void 0;
+  return environment;
+}
+function getNodeOwner(n) {
+  return liveRegistration(n)?.graphAttachment?.owner;
+}
+function setNodeOwner(n, owner) {
+  const record2 = liveRegistration(n);
+  if (record2 === void 0) throw new Error("graph: unknown node state");
+  record2.graphAttachment = { owner };
+}
+function setNodeTopologyDepsChangedObserver(n, observer) {
+  const attachment = liveRegistration(n)?.graphAttachment;
+  if (attachment === void 0) throw new Error("graph: unknown node owner");
+  attachment.observer = observer;
+}
+function notifyTopologyDepsChanged(node, prevDeps, deps) {
+  liveRegistration(node)?.graphAttachment?.observer?.(node, prevDeps, deps);
+}
+function checkpointStateOfNode(n) {
+  const self = liveRegistration(n)?.host;
+  if (self === void 0) throw new Error("checkpoint: unknown node state");
+  return {
+    cache: self._value.cache,
+    hasData: self._value.hasData,
+    terminal: self._value.terminal,
+    activated: self._lifecycle.activated,
+    hasCalledFnOnce: self._wave.hasCalledFnOnce,
+    ctxState: { value: self._privateState.value, persist: self._privateState.persist },
+    version: cloneNodeVersion(self._version.value),
+    handle: self._slot.handle
+  };
+}
+function releaseRuntimeOfNode(n) {
+  liveRegistration(n)?.host._releaseRuntime();
+}
+function isNodeRuntimeQuiescentForRelease(n) {
+  return liveRegistration(n)?.host._isRuntimeQuiescentForRelease() ?? false;
+}
+function subscriberCountOfNode(n) {
+  return liveRegistration(n)?.host._subscriberCount() ?? 0;
+}
+function isNodeActiveForRelease(n) {
+  return liveRegistration(n)?.host._lifecycle.activated ?? false;
+}
+function isNodeRuntimeReleased(n) {
+  const record2 = registrations.get(n);
+  return record2?.kind === "retired" || record2?.kind === "live" && record2.host._released;
+}
+
+// packages/ts/src/batch/boundary.ts
+var depth = 0;
+var pendingCores = [];
+var pendingHead = 0;
+function enterWave() {
+  depth++;
+}
+function exitWave() {
+  depth--;
+  if (depth === 0 && pendingHead < pendingCores.length) drain();
+}
+function deferRewire(core, apply, options = {}) {
+  core.enqueueBoundaryTask({ apply, batchToken: options.batchToken, isReady: options.isReady });
+  pendingCores.push(core);
+}
+function scheduleBoundaryDrain(core) {
+  for (let i = 0; i < core.boundaryTaskCount(); i++) pendingCores.push(core);
+  if (depth === 0 && pendingHead < pendingCores.length) drain();
+}
+function dropBoundaryTasksForBatch(batchToken) {
+  const seen = /* @__PURE__ */ new Set();
+  for (let i = pendingHead; i < pendingCores.length; i++) {
+    const core = pendingCores[i];
+    if (seen.has(core)) continue;
+    seen.add(core);
+    core.dropBoundaryTasksForBatch(batchToken);
+  }
+}
+function drain() {
+  let escaped = null;
+  while (pendingHead < pendingCores.length) {
+    const core = pendingCores[pendingHead++];
+    const task = core.shiftBoundaryTask();
+    if (task === void 0) continue;
+    if (task.batchToken !== void 0) {
+      const committed = task.batchToken.committed === true;
+      if (!committed) continue;
+    }
+    if (task.isReady !== void 0 && !task.isReady()) {
+      core.unshiftBoundaryTask(task);
+      continue;
+    }
+    depth++;
+    try {
+      task.apply();
+    } catch (e) {
+      if (escaped === null) escaped = { e };
+    } finally {
+      depth--;
+    }
+  }
+  pendingCores.length = 0;
+  pendingHead = 0;
+  if (escaped !== null) throw escaped.e;
+}
+
+// packages/ts/src/batch/batch.ts
+var active = null;
+var boundaryOwner = null;
+function currentBatch() {
+  return active !== null;
+}
+function currentBoundaryBatchToken() {
+  return active ?? boundaryOwner ?? void 0;
+}
+function deferToBatch(target, tier3Wave) {
+  if (active === null) return false;
+  if (!active.deferred.has(target)) active.order.push(target);
+  active.deferred.set(target, tier3Wave);
+  return true;
+}
+function deferAfterBatchForTarget(target, fn) {
+  if (active === null || !active.deferred.has(target)) return false;
+  const owner = active;
+  target.__deferBoundary(() => {
+    if (owner.committed) fn();
+  }, owner);
+  return true;
+}
+function commit(b) {
+  const prev = boundaryOwner;
+  boundaryOwner = b;
+  try {
+    for (const target of b.order) {
+      const wave = b.deferred.get(target);
+      if (wave) target.__commitBatchedWave(wave);
+    }
+    b.committed = true;
+  } catch (e) {
+    dropBoundaryTasksForBatch(b);
+    throw e;
+  } finally {
+    boundaryOwner = prev;
+  }
+}
+function rollback(b) {
+  dropBoundaryTasksForBatch(b);
+  for (const target of b.order) target.__rollbackBatched();
+}
+function batch(fn) {
+  enterWave();
+  try {
+    if (active !== null) {
+      const outer = active;
+      return fn({
+        rollback: () => {
+          outer.rolledBack = true;
+        }
+      });
+    }
+    const b = { order: [], deferred: /* @__PURE__ */ new Map(), committed: false, rolledBack: false };
+    active = b;
+    const bctx = {
+      rollback: () => {
+        b.rolledBack = true;
+      }
+    };
+    let result;
+    try {
+      result = fn(bctx);
+    } catch (e) {
+      active = null;
+      rollback(b);
+      throw e;
+    }
+    active = null;
+    if (b.rolledBack) rollback(b);
+    else {
+      commit(b);
+    }
+    return result;
+  } finally {
+    exitWave();
+  }
+}
+
+// packages/ts/src/protocol/messages.ts
+var SENTINEL = void 0;
+function isInvalidErrorPayload(v) {
+  return v === SENTINEL || typeof v === "boolean";
+}
+function errorPayload(reason, fallback = "error without a valid payload") {
+  return isInvalidErrorPayload(reason) ? new Error(fallback) : reason;
+}
+var TIER_START = 0;
+var TIER_CONTROL = 1;
+var TIER_NOTIFICATION = 2;
+var TIER_VALUE = 3;
+var TIER_SETTLE = 4;
+var TIER_TERMINAL = 5;
+var TIER_TEARDOWN = 6;
+var TIER = {
+  START: TIER_START,
+  PAUSE: TIER_CONTROL,
+  RESUME: TIER_CONTROL,
+  PULL: TIER_CONTROL,
+  DIRTY: TIER_NOTIFICATION,
+  DATA: TIER_VALUE,
+  RESOLVED: TIER_VALUE,
+  INVALIDATE: TIER_SETTLE,
+  COMPLETE: TIER_TERMINAL,
+  ERROR: TIER_TERMINAL,
+  TEARDOWN: TIER_TEARDOWN
+};
+function messageTier(t) {
+  return TIER[t];
+}
+function isDeferredTier(t) {
+  return TIER[t] >= TIER_VALUE;
+}
+function isValueTier(t) {
+  return TIER[t] === TIER_VALUE;
+}
+function isPauseBufferedTier(t) {
+  const tier = TIER[t];
+  return tier === TIER_VALUE || tier === TIER_SETTLE;
+}
+function isTerminal(t) {
+  return TIER[t] === TIER_TERMINAL;
+}
+function isUpAllowed(t) {
+  const tier = TIER[t];
+  return tier !== void 0 && tier !== TIER_START && tier !== TIER_VALUE && tier !== TIER_TERMINAL;
+}
+
+// packages/ts/src/ctx/types.ts
+var CTX_DEP_CACHE = /* @__PURE__ */ Symbol.for("graphrefly.ctx.depCache");
+var ctxDepWaveOrigins = /* @__PURE__ */ new WeakMap();
+function setCtxDepWaveOrigin(ctx, origin) {
+  ctxDepWaveOrigins.set(ctx, origin);
+}
+var CTX_NODE_BINDING = /* @__PURE__ */ Symbol("graphrefly.ctx.nodeBinding");
+function depCount(ctx) {
+  return ctx.waveData.length;
+}
+function depLatest(ctx, depIndex) {
+  return ctx[CTX_DEP_CACHE]?.latest[depIndex];
+}
+
+// packages/ts/src/dispatcher/index.ts
+var PoolTable = class {
+  constructor(kind) {
+    this.kind = kind;
+  }
+  kind;
+  fns = [];
+  free = [];
+  register(fn) {
+    const reused = this.free.pop();
+    if (reused !== void 0) {
+      this.fns[reused] = fn;
+      return reused;
+    }
+    const id = this.fns.length;
+    this.fns.push(fn);
+    return id;
+  }
+  unregister(handleId) {
+    if (this.fns[handleId] === void 0) return;
+    this.fns[handleId] = void 0;
+    this.free.push(handleId);
+  }
+  invoke(handleId, ctx) {
+    this.fns[handleId](ctx);
+  }
+};
+var dispatcherHandleStatKey = (h) => JSON.stringify([String(h.poolId), String(h.handleId)]);
+var Dispatcher = class {
+  pools = [];
+  syncPoolId;
+  asyncPoolId;
+  // opt-in profile recorder (default OFF → zero overhead, F-PERF).
+  _recording = false;
+  _stats = /* @__PURE__ */ new Map();
+  _totalInvokes = 0;
+  constructor() {
+    this.syncPoolId = this.addPool(new PoolTable("sync"));
+    this.asyncPoolId = this.addPool(new PoolTable("async"));
+  }
+  /** Turn the profile recorder on/off (D39). Off = zero overhead on invoke. */
+  setRecording(on) {
+    this._recording = on;
+  }
+  /** Reset accumulated profiling counters. */
+  clearStats() {
+    this._stats.clear();
+    this._totalInvokes = 0;
+  }
+  /** Read a handle's accumulated counters (undefined if it never ran while recording). */
+  statFor(handle) {
+    return this._stats.get(dispatcherHandleStatKey(handle));
+  }
+  /** Total fn invocations recorded across the dispatcher. */
+  get totalInvokes() {
+    return this._totalInvokes;
+  }
+  addPool(pool) {
+    const id = this.pools.length;
+    this.pools.push(pool);
+    return id;
+  }
+  /** Register a fn in a pool, returning its Handle. Default pool = sync (R-sync-core). */
+  register(fn, pool = "sync") {
+    const poolId = pool === "sync" ? this.syncPoolId : pool === "async" ? this.asyncPoolId : pool;
+    const handleId = this.pools[poolId].register(fn);
+    return { poolId, handleId };
+  }
+  /**
+   * Release a handle (B15): frees the pool slot (closure GC'd, id reusable) and drops any
+   * accumulated profile stat so a reused id never inherits the previous tenant's counters.
+   * Called on rewire fn-swap (node._rewire) — the old handle is dropped before the node
+   * adopts the new one. Idempotent. NOT called on deactivate (a node's handle survives
+   * activate↔deactivate and is reused on reactivation; only a rewire swaps it).
+   */
+  unregister(handle) {
+    this.pools[handle.poolId].unregister(handle.handleId);
+    this._stats.delete(dispatcherHandleStatKey(handle));
+  }
+  /** Uniform sync-void invoke (R-sync-core / R-dispatch-all). */
+  invoke(handle, ctx) {
+    if (!this._recording) {
+      this.pools[handle.poolId].invoke(handle.handleId, ctx);
+      return;
+    }
+    this._totalInvokes++;
+    const t0 = performance.now();
+    try {
+      this.pools[handle.poolId].invoke(handle.handleId, ctx);
+    } finally {
+      const dur = (performance.now() - t0) * 1e6;
+      const key = dispatcherHandleStatKey(handle);
+      const s = this._stats.get(key) ?? {
+        invokes: 0,
+        totalDurationNs: 0,
+        lastDurationNs: 0
+      };
+      s.invokes++;
+      s.lastDurationNs = dur;
+      s.totalDurationNs += dur;
+      this._stats.set(key, s);
+    }
+  }
+  poolKind(poolId) {
+    return this.pools[poolId].kind;
+  }
+};
+var defaultDispatcher = new Dispatcher();
+
+// packages/ts/src/node/core.ts
+var NodeCore = class {
+  nextId = 0;
+  slots = [];
+  values = [];
+  waves = [];
+  controls = [];
+  lifecycles = [];
+  depStates = [];
+  privateStates = [];
+  hooks = [];
+  syncCtxs = [];
+  versionStates = [];
+  boundary = { queue: [], head: 0 };
+  createSlot(slot, state, acquisition) {
+    const id = this.nextId++;
+    if (acquisition !== void 0) {
+      acquisition.core = this;
+      acquisition.slot = id;
+    }
+    const full = { ...slot, id };
+    this.slots[id] = full;
+    this.depStates[id] = state.dep;
+    this.lifecycles[id] = state.lifecycle;
+    this.values[id] = state.value;
+    this.waves[id] = state.wave;
+    this.controls[id] = state.control;
+    this.privateStates[id] = state.privateState;
+    this.hooks[id] = state.hooks;
+    this.syncCtxs[id] = state.syncCtx;
+    this.versionStates[id] = state.version;
+    return { id, slot: full };
+  }
+  get(id) {
+    const slot = this.slots[id];
+    if (slot === void 0) throw new Error("NodeCore: unknown node slot");
+    return slot;
+  }
+  getValue(id) {
+    const value = this.values[id];
+    if (value === void 0) throw new Error("NodeCore: unknown node value state");
+    return value;
+  }
+  getWave(id) {
+    const wave = this.waves[id];
+    if (wave === void 0) throw new Error("NodeCore: unknown node wave state");
+    return wave;
+  }
+  getControl(id) {
+    const control = this.controls[id];
+    if (control === void 0) throw new Error("NodeCore: unknown node control state");
+    return control;
+  }
+  getLifecycle(id) {
+    const lifecycle = this.lifecycles[id];
+    if (lifecycle === void 0) throw new Error("NodeCore: unknown node lifecycle state");
+    return lifecycle;
+  }
+  getDep(id) {
+    const dep = this.depStates[id];
+    if (dep === void 0) throw new Error("NodeCore: unknown node dep state");
+    return dep;
+  }
+  getPrivateState(id) {
+    const state = this.privateStates[id];
+    if (state === void 0) throw new Error("NodeCore: unknown node private state");
+    return state;
+  }
+  getHooks(id) {
+    const hooks = this.hooks[id];
+    if (hooks === void 0) throw new Error("NodeCore: unknown node cleanup hooks");
+    return hooks;
+  }
+  getSyncCtx(id) {
+    const state = this.syncCtxs[id];
+    if (state === void 0) throw new Error("NodeCore: unknown node ctx state");
+    return state;
+  }
+  getVersion(id) {
+    const state = this.versionStates[id];
+    if (state === void 0) throw new Error("NodeCore: unknown node version state");
+    return state;
+  }
+  /** @internal D122: release graph-owned ephemeral node runtime state from core retention. */
+  releaseSlot(id) {
+    this.slots[id] = void 0;
+    this.depStates[id] = void 0;
+    this.lifecycles[id] = void 0;
+    this.values[id] = void 0;
+    this.waves[id] = void 0;
+    this.controls[id] = void 0;
+    this.privateStates[id] = void 0;
+    this.hooks[id] = void 0;
+    this.syncCtxs[id] = void 0;
+    this.versionStates[id] = void 0;
+  }
+  /** @internal B49: graph-local deferred-boundary queue (rewireNext/upNext/batch-after-commit). */
+  enqueueBoundaryTask(task) {
+    this.boundary.queue.push(task);
+  }
+  /** @internal */
+  hasBoundaryTasks() {
+    return this.boundary.head < this.boundary.queue.length;
+  }
+  /** @internal */
+  boundaryTaskCount() {
+    return this.boundary.queue.length - this.boundary.head;
+  }
+  /** @internal */
+  shiftBoundaryTask() {
+    if (!this.hasBoundaryTasks()) {
+      this.boundary.queue = [];
+      this.boundary.head = 0;
+      return void 0;
+    }
+    const task = this.boundary.queue[this.boundary.head++];
+    if (!this.hasBoundaryTasks()) {
+      this.boundary.queue = [];
+      this.boundary.head = 0;
+    }
+    return task;
+  }
+  /** @internal Put a not-yet-ready task back at this core's FIFO head. */
+  unshiftBoundaryTask(task) {
+    const remaining = this.boundary.queue.slice(this.boundary.head);
+    this.boundary.queue = [task, ...remaining];
+    this.boundary.head = 0;
+  }
+  /** @internal D110: discard all pending tasks caused by an uncommitted batch. */
+  dropBoundaryTasksForBatch(batchToken) {
+    const remaining = this.boundary.queue.slice(this.boundary.head).filter((task) => task.batchToken !== batchToken);
+    this.boundary.queue = remaining;
+    this.boundary.head = 0;
+  }
+};
+function makeDepBookkeeping(depCount2) {
+  return {
+    batch: new Array(depCount2).fill(null),
+    waveData: Array.from({ length: depCount2 }, () => []),
+    waveTokens: new Array(depCount2).fill(void 0),
+    waveLive: Array.from({ length: depCount2 }, () => []),
+    prev: new Array(depCount2).fill(SENTINEL),
+    hasData: new Array(depCount2).fill(false),
+    dirty: new Array(depCount2).fill(false),
+    tier: new Array(depCount2).fill(0),
+    terminal: new Array(depCount2).fill(void 0),
+    terminalInput: new Array(depCount2).fill(void 0),
+    unsubs: [],
+    idxBoxes: []
+  };
+}
+
+// packages/ts/src/graph/environment.ts
+var EnvironmentDrivers = class _EnvironmentDrivers {
+  process;
+  http;
+  sse;
+  websocket;
+  webhook;
+  constructor(init = {}) {
+    this.process = init.process;
+    this.http = init.http;
+    this.sse = init.sse;
+    this.websocket = init.websocket;
+    this.webhook = init.webhook;
+    Object.freeze(this);
+  }
+  static empty() {
+    return EMPTY_ENVIRONMENT;
+  }
+  withProcess(driver) {
+    return new _EnvironmentDrivers({ ...this, process: driver });
+  }
+  withHttp(driver) {
+    return new _EnvironmentDrivers({ ...this, http: driver });
+  }
+  withSse(driver) {
+    return new _EnvironmentDrivers({ ...this, sse: driver });
+  }
+  withWebSocket(driver) {
+    return new _EnvironmentDrivers({ ...this, websocket: driver });
+  }
+  withWebhook(driver) {
+    return new _EnvironmentDrivers({ ...this, webhook: driver });
+  }
+  processDriver() {
+    return this.process;
+  }
+  httpDriver() {
+    return this.http;
+  }
+  sseDriver() {
+    return this.sse;
+  }
+  webSocketDriver() {
+    return this.websocket;
+  }
+  webhookDriver() {
+    return this.webhook;
+  }
+};
+var EMPTY_ENVIRONMENT = new EnvironmentDrivers();
+
+// packages/ts/src/node/protocol-guards.ts
+function terminalView(t) {
+  return t === void 0 ? false : t;
+}
+function normalizePullDemand(demand) {
+  if (typeof demand !== "object" || demand === null || Array.isArray(demand)) {
+    throw new Error("ctx.up: PULL requires { pullId, params? } demand payload (D269)");
+  }
+  const pullId = demand.pullId;
+  if (typeof pullId !== "string" && typeof pullId !== "symbol") {
+    throw new Error("ctx.up: PULL demand requires a string or symbol pullId (D269)");
+  }
+  const params = demand.params;
+  return params === void 0 ? { pullId } : { pullId, params };
+}
+function validateDownPayloads(msgs) {
+  for (const m of msgs) {
+    if (messageTier(m[0]) === void 0) {
+      throw new Error(
+        `down: ${String(m[0])} is not in the closed message-type set (R-msg-closed-set)`
+      );
+    }
+    if (m[0] === "DATA" && m[1] === void 0) {
+      throw new Error("down: DATA requires a non-SENTINEL payload (R-data-payload)");
+    }
+    if (m[0] === "ERROR" && isInvalidErrorPayload(m[1])) {
+      throw new Error("down: ERROR requires a non-SENTINEL, non-boolean payload (R-data-payload)");
+    }
+  }
+}
+
+// packages/ts/src/node/node-context-runtime.ts
+function nodeBuildCtx(self) {
+  const kind = self._slot.handle ? self._slot.dispatcher.poolKind(self._slot.handle.poolId) : "sync";
+  if (kind === "sync") {
+    if (self._syncCtx === null) self._syncCtx = self._makeCtx();
+    self._refreshCtx(self._syncCtx);
+    return self._syncCtx;
+  }
+  return self._makeCtx({
+    waveData: self._dep.waveData.map((waves) => waves.map((w) => [...w])),
+    waveLive: self._dep.waveLive.map((waves) => [...waves]),
+    terminal: self._dep.terminalInput.map(terminalView),
+    latest: [...self._dep.prev]
+  });
+}
+function nodeMakeCtx(self, snapshot) {
+  const ctx = {
+    // Wave-owner boundary (D47): a SYNC fn's emit nests under the public entry that drove
+    // it (cheap inc/dec, no early drain); an ASYNC-pool fn re-enters here from its stashed
+    // ctx at depth 0, so this is the boundary that drains any rewireNext it issued.
+    up: (msgs, towardDep) => {
+      if (self._released) return;
+      enterWave();
+      try {
+        self._up(msgs, towardDep);
+      } finally {
+        exitWave();
+      }
+    },
+    down: (msgs) => {
+      if (self._released) return;
+      enterWave();
+      try {
+        self._down(msgs);
+      } finally {
+        exitWave();
+      }
+    },
+    waveData: snapshot?.waveData ?? self._dep.waveData,
+    terminal: snapshot?.terminal ?? self._dep.terminalInput.map(terminalView),
+    state: self._makeState(),
+    onDeactivation: (fn) => {
+      if (self._released) return;
+      self._hooks.onDeactivation.push(fn);
+    },
+    onInvalidate: (fn) => {
+      if (self._released) return;
+      self._hooks.onInvalidate.push(fn);
+    },
+    environment: () => self._slot.environment,
+    // R-rewire-deferred (D47): defer a self-dep-set mutation to the committed boundary.
+    rewireNext: {
+      subscribeDep: (dep, fn) => self._requestRewireNext({ kind: "add", dep, fn }),
+      unsubscribeDep: (dep, fn) => self._requestRewireNext({ kind: "remove", dep, fn }),
+      replaceDeps: (deps, fn) => self._requestRewireNext({ kind: "set", deps, fn })
+    },
+    // R-up-routing / R-pull (D269): deferred up — route a control/demand wave (e.g. PULL)
+    // up the declared cone at the committed boundary. The SELF-demand path: an
+    // immediate ctx.up whose delivery loops back re-enters this fn (D37 / R-reentrancy).
+    upNext: (msgs, towardDep) => self._requestUpNext(msgs, towardDep),
+    ...self._control.activePull === void 0 ? {} : { pull: self._control.activePull },
+    [CTX_DEP_CACHE]: { latest: snapshot?.latest ?? self._dep.prev },
+    [CTX_NODE_BINDING]: {
+      dispatcher: self._slot.dispatcher,
+      create: (factory) => withEnvironmentDrivers(self._slot.environment, () => withNodeCore(self._core, factory))
+    }
+  };
+  setCtxDepWaveOrigin(ctx, { live: snapshot?.waveLive ?? self._dep.waveLive });
+  if (self._slot.dynamic) {
+    ctx.track = (i) => ctx[CTX_DEP_CACHE]?.latest[i];
+  }
+  return ctx;
+}
+function nodeRefreshCtx(self, ctx) {
+  ctx.waveData = self._dep.waveData;
+  ctx.terminal = self._dep.terminalInput.map(terminalView);
+  if (self._control.activePull === void 0) {
+    delete ctx.pull;
+  } else {
+    ctx.pull = self._control.activePull;
+  }
+  ctx[CTX_DEP_CACHE] = { latest: self._dep.prev };
+  setCtxDepWaveOrigin(ctx, { live: self._dep.waveLive });
+}
+function nodeMakeState(self) {
+  return {
+    get: () => self._privateState.value,
+    set: (v) => {
+      self._privateState.value = v;
+    },
+    persist: (on = true) => {
+      self._privateState.persist = on;
+    }
+  };
+}
+
+// packages/ts/src/node/node-input-runtime.ts
+function nodeRecordDepProjection(self, idx, delivery) {
+  const token = delivery?.wave ?? {};
+  if (self._dep.waveTokens[idx] !== token) {
+    self._dep.waveData[idx].push([]);
+    self._dep.waveLive[idx].push(delivery !== void 0);
+    self._dep.waveTokens[idx] = token;
+  }
+  return self._dep.waveData[idx][self._dep.waveData[idx].length - 1];
+}
+function nodeDepProjectionHasData(self, idx) {
+  const projection = self._dep.waveData[idx][self._dep.waveData[idx].length - 1];
+  return projection?.some((v) => v !== SENTINEL) ?? false;
+}
+function nodeReceiveFromDep(self, idx, msg, delivery) {
+  if (self._released) return;
+  const t = msg[0];
+  if (t === "START") return;
+  const isLastInDeliveredWave = delivery?.last ?? true;
+  if (self._value.terminal !== void 0) {
+    if (t === "TEARDOWN") self._down([["TEARDOWN"]]);
+    return;
+  }
+  if (t === "INVALIDATE") {
+    const projection = self._recordDepProjection(idx, delivery);
+    projection.push(SENTINEL);
+    if (projection.some((v) => v !== SENTINEL) && isLastInDeliveredWave) self._maybeRun();
+    self._dep.prev[idx] = SENTINEL;
+    self._dep.hasData[idx] = false;
+    self._dep.batch[idx] = null;
+    if (self._dep.dirty[idx]) {
+      self._dep.dirty[idx] = false;
+      self._wave.pending--;
+    }
+    if (self._control.pausedDepWaveOccurred && self._dep.batch.every((b) => b === null)) {
+      self._control.pausedDepWaveOccurred = false;
+    }
+    const hadData = self._value.hasData;
+    self._invalidate();
+    if (self._wave.pending === 0 && self._wave.emittedDirtyThisWave) {
+      if (!hadData) self._down([["RESOLVED"]]);
+      else self._wave.emittedDirtyThisWave = false;
+    }
+    self._fireOwedDemandIfReady();
+    return;
+  }
+  if (isTerminal(t)) {
+    const isError = t === "ERROR";
+    const errPayload = isError ? msg[1] : void 0;
+    self._dep.terminal[idx] = isError ? errPayload : true;
+    self._dep.terminalInput[idx] = isError ? errPayload : true;
+    self._releaseDepDirty(idx);
+    const ranValueBeforeTerminal = self._depProjectionHasData(idx) && isLastInDeliveredWave;
+    if (ranValueBeforeTerminal) self._maybeRun();
+    if (isError && self._slot.errorWhenDepsError) {
+      self._down([["ERROR", errPayload]]);
+    } else if (self._slot.terminalAsRealInput) {
+      if (ranValueBeforeTerminal) {
+        self._fireOwedDemandIfReady();
+        return;
+      }
+      self._maybeRun();
+    } else if (self._slot.completeWhenDepsComplete && self._allDepsTerminal()) {
+      self._down([["COMPLETE"]]);
+    } else {
+      self._settleAfterAbsorbedTerminal();
+    }
+    self._fireOwedDemandIfReady();
+    return;
+  }
+  if (t === "TEARDOWN") {
+    self._down([["TEARDOWN"]]);
+    return;
+  }
+  if (t === "DIRTY") {
+    if (!self._dep.dirty[idx]) {
+      self._dep.dirty[idx] = true;
+      self._wave.pending++;
+      self._dep.tier[idx] = 2;
+      self._markDirty();
+    }
+    return;
+  }
+  if (t === "DATA") {
+    const v = msg[1];
+    self._recordDepProjection(idx, delivery).push(v);
+    const b = self._dep.batch[idx];
+    if (b === null) self._dep.batch[idx] = [v];
+    else b.push(v);
+    self._dep.prev[idx] = v;
+    self._dep.hasData[idx] = true;
+    self._dep.tier[idx] = 3;
+    if (self._dep.dirty[idx]) {
+      self._dep.dirty[idx] = false;
+      self._wave.pending--;
+    }
+    if (isLastInDeliveredWave) self._maybeRun();
+    self._fireOwedDemandIfReady();
+    return;
+  }
+  if (t === "RESOLVED") {
+    self._recordDepProjection(idx, delivery);
+    self._dep.tier[idx] = 3;
+    if (self._dep.dirty[idx]) {
+      self._dep.dirty[idx] = false;
+      self._wave.pending--;
+    }
+    if (isLastInDeliveredWave) self._maybeRun();
+    self._fireOwedDemandIfReady();
+    return;
+  }
+}
+function nodeReleaseDepDirty(self, idx) {
+  if (self._dep.dirty[idx]) {
+    self._dep.dirty[idx] = false;
+    self._wave.pending--;
+  }
+}
+function nodeSettleAfterAbsorbedTerminal(self) {
+  if (self._wave.pending !== 0 || !self._wave.emittedDirtyThisWave) return;
+  const sawData = self._dep.batch.some((b) => b !== null && b.length > 0);
+  if (sawData) self._maybeRun();
+  if (self._wave.emittedDirtyThisWave) self._down([["RESOLVED"]]);
+}
+function nodeMarkDirty(self) {
+  self._value.status = "dirty";
+  if (self._isPullQuiet()) return;
+  if (!self._wave.emittedDirtyThisWave) {
+    self._wave.emittedDirtyThisWave = true;
+    self._emitToSubs(["DIRTY"]);
+  }
+}
+function nodeMaybeRun(self) {
+  if (self._wave.inDepMutation) {
+    self._wave.rewireRunPending = true;
+    return;
+  }
+  if (self._slot.pausable === true && (self._isPaused() || self._isPullQuiet())) {
+    self._control.pausedDepWaveOccurred = true;
+    return;
+  }
+  self._tryRun();
+}
+function nodeSettleRewire(self) {
+  if (self._slot.pausable === true && self._isPaused()) {
+    self._control.pausedDepWaveOccurred = true;
+    return;
+  }
+  if (self._wave.pending > 0) return;
+  if (self._slot.handle === null) {
+    self._passthroughEmit();
+    return;
+  }
+  if (!self._wave.hasCalledFnOnce && !(self._slot.partial || self._allDepsSettled())) return;
+  self._markDirty();
+  self._runWave();
+}
+function nodeTryRun(self) {
+  if (self._wave.pending > 0) return;
+  if (self._slot.handle === null) {
+    self._passthroughEmit();
+    return;
+  }
+  if (!self._wave.hasCalledFnOnce) {
+    if (self._slot.partial || self._allDepsSettled()) self._runWave();
+    return;
+  }
+  self._runWave();
+}
+function nodeAllDepsSettled(self) {
+  for (let i = 0; i < self._slot.deps.length; i++) {
+    if (self._dep.hasData[i]) continue;
+    if (self._slot.terminalAsRealInput && self._dep.terminal[i] !== void 0) continue;
+    return false;
+  }
+  return true;
+}
+function nodePassthroughEmit(self) {
+  const b = self._dep.batch[0];
+  if (b !== null && b.length > 0) {
+    self._down([["DATA", b[b.length - 1]]]);
+  } else if (self._wave.emittedDirtyThisWave) {
+    self._down([["RESOLVED"]]);
+  }
+  self._dep.batch[0] = null;
+  self._wave.emittedDirtyThisWave = false;
+}
+function nodeRunWave(self) {
+  if (self._wave.insideRunWave)
+    throw new Error(
+      "synchronous feedback cycle: node fn re-entered its own wave (R-reentrancy / D37)"
+    );
+  self._wave.hasCalledFnOnce = true;
+  self._hooks.onInvalidate = [];
+  self._hooks.onDeactivation = [];
+  const ctx = self._buildCtx();
+  const wasDirty = self._wave.emittedDirtyThisWave;
+  self._wave.emittedSettleThisWave = false;
+  self._wave.insideRunWave = true;
+  try {
+    self._slot.dispatcher.invoke(self._slot.handle, ctx);
+  } finally {
+    self._wave.insideRunWave = false;
+  }
+  if (wasDirty && !self._wave.emittedSettleThisWave && self._value.terminal === void 0 && !self._isAsyncPool()) {
+    self._down([["RESOLVED"]]);
+  }
+  for (let i = 0; i < self._dep.batch.length; i++) {
+    self._dep.batch[i] = null;
+    self._dep.waveData[i] = [];
+    self._dep.waveTokens[i] = void 0;
+    self._dep.waveLive[i] = [];
+    self._dep.terminalInput[i] = void 0;
+  }
+  self._wave.emittedDirtyThisWave = false;
+}
+
+// packages/ts/src/node/node-lifecycle-runtime.ts
+function nodeActivate(self) {
+  self._lifecycle.activated = true;
+  const seedRestoredDeps = self._restoredActivationPending;
+  self._restoredActivationPending = false;
+  self._dep.unsubs = new Array(self._slot.deps.length);
+  self._dep.idxBoxes = new Array(self._slot.deps.length);
+  for (const dep of self._slot.deps) self._subscribeDepAt(dep, { seedRestored: seedRestoredDeps });
+  if (self._slot.deps.length === 0 && self._slot.handle !== null && !self._wave.hasCalledFnOnce) {
+    self._runWave();
+  }
+}
+function nodeSubscribeDepAt(self, depNode, opts = {}) {
+  const idx0 = self._slot.deps.indexOf(depNode);
+  const box = { v: idx0 };
+  let ignoreInitialPush = opts.seedRestored === true;
+  if (ignoreInitialPush && idx0 !== -1) {
+    self._seedRestoredDepAt(idx0, depNode);
+    const dep = nodeRuntimeHost(depNode);
+    if (dep._value.terminal !== void 0 && !dep._slot.resubscribable) {
+      self._dep.unsubs[idx0] = () => {
+      };
+      self._dep.idxBoxes[idx0] = box;
+      return;
+    }
+  }
+  const sink = (msg, delivery) => {
+    if (ignoreInitialPush && delivery === void 0) return;
+    if (ignoreInitialPush) ignoreInitialPush = false;
+    if (box.v === -1) return;
+    self._receiveFromDep(box.v, msg, delivery);
+  };
+  nodeRuntimeHost(depNode)._subscribeOwned(sink, {
+    record: (release) => {
+      if (idx0 !== -1) {
+        self._dep.unsubs[idx0] = release;
+        self._dep.idxBoxes[idx0] = box;
+      }
+    }
+  });
+  if (ignoreInitialPush && idx0 !== -1 && box.v !== -1) self._seedRestoredDepAt(idx0, depNode);
+  ignoreInitialPush = false;
+}
+function nodeSeedRestoredDepAt(self, idx, depNode) {
+  const dep = nodeRuntimeHost(depNode);
+  const seedData = dep._value.hasData && !dep._slot.pull;
+  self._dep.batch[idx] = null;
+  self._dep.waveData[idx] = [];
+  self._dep.waveTokens[idx] = void 0;
+  self._dep.waveLive[idx] = [];
+  self._dep.prev[idx] = seedData ? dep._value.cache : SENTINEL;
+  self._dep.hasData[idx] = seedData;
+  self._dep.dirty[idx] = false;
+  self._dep.tier[idx] = seedData ? 3 : 0;
+  self._dep.terminal[idx] = dep._value.terminal;
+  self._dep.terminalInput[idx] = void 0;
+}
+function nodeDeactivate(self) {
+  self._lifecycle.activated = false;
+  for (const u of self._dep.unsubs) if (u) u();
+  self._dep.unsubs = [];
+  self._dep.idxBoxes = [];
+  for (const fn of self._hooks.onDeactivation) fn();
+  self._hooks.onDeactivation = [];
+  self._hooks.onInvalidate = [];
+  const isCompute = self._slot.handle !== null || self._slot.deps.length > 0;
+  if (isCompute) {
+    self._value.cache = SENTINEL;
+    self._value.hasData = false;
+    self._value.status = "sentinel";
+  }
+  self._resetDepState();
+  self._wave.hasCalledFnOnce = false;
+  self._control.pauseLockset.clear();
+  self._control.pauseBuffer = [];
+  self._control.pausedDepWaveOccurred = false;
+  self._control.demandOwed = void 0;
+  self._control.activePull = void 0;
+  self._control.pullDirtyOwed = false;
+  self._value.replayRing = [];
+  if (!self._privateState.persist) self._privateState.value = SENTINEL;
+}
+function nodeSubscriberCount(self) {
+  return self._lifecycle.subscribers.size;
+}
+function nodeIsRuntimeQuiescentForRelease(self) {
+  return !self._released && self._value.status !== "dirty" && self._value.status !== "pending" && self._wave.pending === 0 && !self._wave.insideRunWave && !self._wave.inDepMutation && !self._wave.rewireRunPending && !self._wave.batchDirtyOwed && self._dep.dirty.every((dirty) => !dirty) && self._control.pauseBuffer.length === 0 && !self._control.pausedDepWaveOccurred && self._control.demandOwed === void 0 && self._control.activePull === void 0 && !self._control.inDeliverDemand && self._control.pauseLockset.size === 0;
+}
+function nodeReleaseRuntime(self) {
+  if (self._released) return;
+  self._released = true;
+  const node = self;
+  const releaseErrors = [];
+  const recordReleaseError = (error, resource, handle) => {
+    releaseErrors.push({
+      cause: error,
+      resource,
+      ...handle === void 0 ? {} : { handle, dispatcher: self._slot.dispatcher }
+    });
+  };
+  self._lifecycle.activated = false;
+  for (const u of self._dep.unsubs) {
+    try {
+      u?.();
+    } catch (error) {
+      recordReleaseError(error, "subscription");
+    }
+  }
+  for (const fn of self._hooks.onDeactivation) {
+    try {
+      fn();
+    } catch (error) {
+      recordReleaseError(error, "deactivation");
+    }
+  }
+  self._dep.unsubs = [];
+  self._dep.idxBoxes = [];
+  self._lifecycle.subscribers.clear();
+  if (self._slot.handle !== null) {
+    const handle = self._slot.handle;
+    try {
+      self._slot.dispatcher.unregister(handle);
+      self._slot.handle = null;
+    } catch (error) {
+      recordReleaseError(error, "handle", handle);
+    }
+  }
+  self._slot.deps = [];
+  self._dep.batch = [];
+  self._dep.waveData = [];
+  self._dep.waveTokens = [];
+  self._dep.waveLive = [];
+  self._dep.prev = [];
+  self._dep.hasData = [];
+  self._dep.dirty = [];
+  self._dep.tier = [];
+  self._dep.terminal = [];
+  self._dep.terminalInput = [];
+  self._value.cache = SENTINEL;
+  self._value.hasData = false;
+  self._value.status = "sentinel";
+  self._value.terminal = void 0;
+  self._value.replayRing = [];
+  self._privateState.value = SENTINEL;
+  self._privateState.persist = false;
+  self._syncCtx = null;
+  self._resetDepState();
+  self._hooks.onDeactivation = [];
+  self._hooks.onInvalidate = [];
+  self._control.pauseLockset.clear();
+  self._control.pauseBuffer = [];
+  self._control.pausedDepWaveOccurred = false;
+  self._control.demandOwed = void 0;
+  self._control.activePull = void 0;
+  self._control.pullDirtyOwed = false;
+  self._restoredActivationPending = false;
+  closeNodeRegistration(node);
+  try {
+    self._core.releaseSlot(self._id);
+  } catch (cause) {
+    releaseErrors.push({ resource: "slot", cause, core: self._core, slot: self._id });
+  }
+  if (releaseErrors.length > 0) {
+    setRuntimeReleaseFailures(node, Object.freeze(releaseErrors));
+    throw releaseErrors[0].cause;
+  }
+}
+function nodeResetDepState(self) {
+  const n = self._slot.deps.length;
+  for (let i = 0; i < n; i++) {
+    self._dep.batch[i] = null;
+    self._dep.waveData[i] = [];
+    self._dep.waveTokens[i] = void 0;
+    self._dep.waveLive[i] = [];
+    self._dep.prev[i] = SENTINEL;
+    self._dep.hasData[i] = false;
+    self._dep.dirty[i] = false;
+    self._dep.tier[i] = 0;
+    self._dep.terminal[i] = void 0;
+    self._dep.terminalInput[i] = void 0;
+  }
+  self._wave.pending = 0;
+  self._wave.emittedDirtyThisWave = false;
 }
 
 // packages/ts/src/node/node-output-runtime.ts
@@ -2079,33 +2096,9 @@ function nodeApplyRewireNext(self, op) {
 }
 function nodeRewire(self, newDeps, fn, opts = {}) {
   const node = self;
-  if (self._value.terminal !== void 0 && !opts.allowTerminalOwner)
-    throw new Error(
-      "rewire: node is terminal (completed/errored) \u2014 cannot rewire (R-rewire / D42)"
-    );
-  if (self._wave.insideRunWave)
-    throw new Error(
-      "rewire: mid-fn topology mutation \u2014 a fn mutating its own deps mid-wave is the feedback cycle (R-rewire / D37)"
-    );
-  if (self._wave.inDepMutation)
-    throw new Error(
-      "rewire: reentrant dep mutation \u2014 another replaceDeps/subscribeDep/unsubscribeDep is in flight (R-rewire)"
-    );
-  if (newDeps.includes(node)) throw new Error("rewire: self-dependency rejected (R-rewire / D42)");
+  validateNodeRewire(self, newDeps, opts);
   const oldDeps = self._slot.deps;
   const added = newDeps.filter((d) => !oldDeps.includes(d));
-  for (const d of added) {
-    if (self._reachableUpstream(d, node))
-      throw new Error(
-        "rewire: would create a cycle \u2014 dep already transitively depends on this node (R-rewire / D42)"
-      );
-    const dep = nodeRuntimeHost(d);
-    if (dep._value.terminal !== void 0 && !dep._slot.resubscribable)
-      throw new Error(
-        "rewire: cannot add a non-resubscribable terminal dep \u2014 would wedge (R-rewire / D42)"
-      );
-    self._assertRewireDepOwner(d);
-  }
   if (deferAfterBatchForTarget(node, () => {
     self._rewire(newDeps, fn, { ...opts, allowTerminalOwner: true });
   })) {
@@ -2193,6 +2186,88 @@ function nodeRewire(self, newDeps, fn, opts = {}) {
   }
   return false;
 }
+function validateNodeRewire(self, newDeps, opts = {}) {
+  const node = self;
+  if (self._value.terminal !== void 0 && !opts.allowTerminalOwner)
+    throw new Error(
+      "rewire: node is terminal (completed/errored) \u2014 cannot rewire (R-rewire / D42)"
+    );
+  if (self._wave.insideRunWave)
+    throw new Error(
+      "rewire: mid-fn topology mutation \u2014 a fn mutating its own deps mid-wave is the feedback cycle (R-rewire / D37)"
+    );
+  if (self._wave.inDepMutation)
+    throw new Error(
+      "rewire: reentrant dep mutation \u2014 another replaceDeps/subscribeDep/unsubscribeDep is in flight (R-rewire)"
+    );
+  if (newDeps.includes(node)) throw new Error("rewire: self-dependency rejected (R-rewire / D42)");
+  const oldDeps = self._slot.deps;
+  const added = newDeps.filter((d) => !oldDeps.includes(d));
+  for (const d of added) {
+    if (self._reachableUpstream(d, node))
+      throw new Error(
+        "rewire: would create a cycle \u2014 dep already transitively depends on this node (R-rewire / D42)"
+      );
+    const dep = nodeRuntimeHost(d);
+    if (dep._value.terminal !== void 0 && !dep._slot.resubscribable)
+      throw new Error(
+        "rewire: cannot add a non-resubscribable terminal dep \u2014 would wedge (R-rewire / D42)"
+      );
+    self._assertRewireDepOwner(d);
+  }
+}
+
+// packages/ts/src/node/owned-acquisition.ts
+var constructionAcquisitions = /* @__PURE__ */ new WeakMap();
+function cleanupNodeAcquisition(a) {
+  if (a.registered) return [];
+  if (a.node !== void 0) {
+    try {
+      releaseRuntimeOfNode(a.node);
+    } catch (cause) {
+      return runtimeReleaseFailuresOfNode(a.node) ?? [
+        {
+          resource: "runtime",
+          cause,
+          core: a.core,
+          slot: a.slot,
+          dispatcher: a.dispatcher,
+          handle: a.handle
+        }
+      ];
+    }
+    return runtimeReleaseFailuresOfNode(a.node) ?? [];
+  }
+  const failures = [];
+  if (a.handle !== void 0) {
+    try {
+      a.dispatcher.unregister(a.handle);
+    } catch (cause) {
+      failures.push({ resource: "handle", cause, handle: a.handle, dispatcher: a.dispatcher });
+    }
+  }
+  if (a.slot !== void 0) {
+    try {
+      a.core.releaseSlot(a.slot);
+    } catch (cause) {
+      failures.push({ resource: "slot", cause, core: a.core, slot: a.slot });
+    }
+  }
+  return failures;
+}
+function failNodeAcquisition(a, cause) {
+  const failures = cleanupNodeAcquisition(a);
+  if (failures.length === 0) throw cause;
+  throw new ColdNodeAcquisitionError(cause, failures);
+}
+var ColdNodeAcquisitionError = class extends Error {
+  cleanupErrors;
+  constructor(cause, failures) {
+    super("node: construction failed with residual resources", { cause });
+    this.name = "ColdNodeAcquisitionError";
+    this.cleanupErrors = Object.freeze([...failures]);
+  }
+};
 
 // packages/ts/src/node/node.ts
 var Node = class _Node {
@@ -2201,18 +2276,22 @@ var Node = class _Node {
   _slot;
   _dep;
   _value;
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
   _wave;
   _control;
   _lifecycle;
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: used by the issued runtime host.
   _privateState;
   _hooks;
   _syncCtxState;
   _version;
   _restoredActivationPending = false;
   _released = false;
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
   get _syncCtx() {
     return this._syncCtxState.value;
   }
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
   set _syncCtx(ctx) {
     this._syncCtxState.value = ctx;
   }
@@ -2263,191 +2342,124 @@ var Node = class _Node {
     void node._emitToSubs;
   }
   constructor(deps, handleOrFn, opts = {}) {
-    const acquisition = constructionAcquisitions.get(opts);
+    const suppliedAcquisition = constructionAcquisitions.get(opts);
+    const acquisition = suppliedAcquisition ?? { name: "bare node" };
     constructionAcquisitions.delete(opts);
     const core = takeConstructingNodeCore();
     const dispatcher = opts.dispatcher ?? defaultDispatcher;
     const environment = takeConstructingEnvironmentDrivers() ?? EnvironmentDrivers.empty();
-    const pool = opts.pool ?? "sync";
-    const pausable = opts.pausable ?? true;
-    const pullLock = opts.pullId;
-    const pull = opts.pullId !== void 0;
-    if (pull && pausable === false)
-      throw new Error(
-        "node: pullId is incompatible with pausable:false \u2014 a pull node uses the pausable delivery-content axis (R-pull / R-pause-modes / D55,D269)"
-      );
-    let handle;
-    if (handleOrFn === null) handle = null;
-    else if (typeof handleOrFn === "function") handle = dispatcher.register(handleOrFn, pool);
-    else handle = handleOrFn;
-    if (acquisition !== void 0 && handle !== null && typeof handleOrFn === "function") {
-      acquisition.dispatcher = dispatcher;
-      acquisition.handle = handle;
-    }
-    const n = deps.length;
-    const dep = makeDepBookkeeping(n);
-    const versioning = resolveNodeVersioningPolicy(opts.versioning);
-    const value = {
-      cache: SENTINEL,
-      hasData: false,
-      status: "sentinel",
-      terminal: void 0,
-      hasTorndown: false,
-      replayRing: []
-    };
-    if (opts.initial !== void 0) {
-      value.cache = opts.initial;
-      value.hasData = true;
-      value.status = "settled";
-    }
-    const pauseLockset = /* @__PURE__ */ new Set();
-    this._core = core ?? new NodeCore();
-    const created = this._core.createSlot(
-      {
-        deps,
-        handle,
-        pool,
-        dispatcher,
-        environment,
-        partial: opts.partial ?? false,
-        terminalAsRealInput: opts.terminalAsRealInput ?? false,
-        completeWhenDepsComplete: opts.completeWhenDepsComplete ?? true,
-        errorWhenDepsError: opts.errorWhenDepsError ?? true,
-        resubscribable: opts.resubscribable ?? false,
-        resetOnTeardown: opts.resetOnTeardown ?? false,
-        pausable,
-        pull,
-        pullLock,
-        replayN: opts.replayBuffer ?? 0,
-        dynamic: opts.dynamic ?? false,
-        name: opts.name,
-        factory: opts.factory
-      },
-      {
-        dep,
-        lifecycle: { subscribers: /* @__PURE__ */ new Set(), activated: false },
-        value,
-        wave: {
-          pending: 0,
-          hasCalledFnOnce: false,
-          emittedDirtyThisWave: false,
-          emittedSettleThisWave: false,
-          insideRunWave: false,
-          inDepMutation: false,
-          rewireRunPending: false,
-          batchDirtyOwed: false
-        },
-        control: {
-          pauseLockset,
-          pausedDepWaveOccurred: false,
-          pauseBuffer: [],
-          demandOwed: void 0,
-          activePull: void 0,
-          pullDirtyOwed: false,
-          inDeliverDemand: false
-        },
-        privateState: { value: SENTINEL, persist: false },
-        hooks: { onDeactivation: [], onInvalidate: [] },
-        syncCtx: { value: null },
-        version: {
-          policy: versioning,
-          value: createNodeVersion(
-            versioning,
-            opts.initial !== void 0 ? opts.initial : void 0
-          )
-        }
+    try {
+      const versioning = resolveNodeVersioningPolicy(opts.versioning);
+      const pool = opts.pool ?? "sync";
+      const pausable = opts.pausable ?? true;
+      const pullLock = opts.pullId;
+      const pull = opts.pullId !== void 0;
+      if (pull && pausable === false)
+        throw new Error(
+          "node: pullId is incompatible with pausable:false \u2014 a pull node uses the pausable delivery-content axis (R-pull / R-pause-modes / D55,D269)"
+        );
+      let handle;
+      if (handleOrFn === null) handle = null;
+      else if (typeof handleOrFn === "function") handle = dispatcher.register(handleOrFn, pool);
+      else handle = handleOrFn;
+      if (handle !== null && typeof handleOrFn === "function") {
+        acquisition.dispatcher = dispatcher;
+        acquisition.handle = handle;
       }
-    );
-    if (acquisition !== void 0) {
+      const n = deps.length;
+      const dep = makeDepBookkeeping(n);
+      const value = {
+        cache: SENTINEL,
+        hasData: false,
+        status: "sentinel",
+        terminal: void 0,
+        hasTorndown: false,
+        replayRing: []
+      };
+      if (opts.initial !== void 0) {
+        value.cache = opts.initial;
+        value.hasData = true;
+        value.status = "settled";
+      }
+      const pauseLockset = /* @__PURE__ */ new Set();
+      this._core = core ?? new NodeCore();
+      const created = this._core.createSlot(
+        {
+          deps,
+          handle,
+          pool,
+          dispatcher,
+          environment,
+          partial: opts.partial ?? false,
+          terminalAsRealInput: opts.terminalAsRealInput ?? false,
+          completeWhenDepsComplete: opts.completeWhenDepsComplete ?? true,
+          errorWhenDepsError: opts.errorWhenDepsError ?? true,
+          resubscribable: opts.resubscribable ?? false,
+          resetOnTeardown: opts.resetOnTeardown ?? false,
+          pausable,
+          pull,
+          pullLock,
+          replayN: opts.replayBuffer ?? 0,
+          dynamic: opts.dynamic ?? false,
+          name: opts.name,
+          factory: opts.factory
+        },
+        {
+          dep,
+          lifecycle: { subscribers: /* @__PURE__ */ new Set(), activated: false },
+          value,
+          wave: {
+            pending: 0,
+            hasCalledFnOnce: false,
+            emittedDirtyThisWave: false,
+            emittedSettleThisWave: false,
+            insideRunWave: false,
+            inDepMutation: false,
+            rewireRunPending: false,
+            batchDirtyOwed: false
+          },
+          control: {
+            pauseLockset,
+            pausedDepWaveOccurred: false,
+            pauseBuffer: [],
+            demandOwed: void 0,
+            activePull: void 0,
+            pullDirtyOwed: false,
+            inDeliverDemand: false
+          },
+          privateState: { value: SENTINEL, persist: false },
+          hooks: { onDeactivation: [], onInvalidate: [] },
+          syncCtx: { value: null },
+          version: {
+            policy: versioning,
+            value: createNodeVersion(
+              versioning,
+              opts.initial !== void 0 ? opts.initial : void 0
+            )
+          }
+        },
+        acquisition
+      );
       acquisition.core = this._core;
       acquisition.slot = created.id;
+      this._id = created.id;
+      this._slot = this._core.get(this._id);
+      this._dep = this._core.getDep(this._id);
+      this._value = this._core.getValue(this._id);
+      this._wave = this._core.getWave(this._id);
+      this._control = this._core.getControl(this._id);
+      this._lifecycle = this._core.getLifecycle(this._id);
+      this._privateState = this._core.getPrivateState(this._id);
+      this._hooks = this._core.getHooks(this._id);
+      this._syncCtxState = this._core.getSyncCtx(this._id);
+      this._version = this._core.getVersion(this._id);
+      _Node._retainIndirectRuntimeMethods(this);
+      issueNodeRegistration(this);
+      acquisition.node = this;
+    } catch (cause) {
+      if (suppliedAcquisition !== void 0) throw cause;
+      failNodeAcquisition(acquisition, cause);
     }
-    this._id = created.id;
-    this._slot = this._core.get(this._id);
-    this._dep = this._core.getDep(this._id);
-    this._value = this._core.getValue(this._id);
-    this._wave = this._core.getWave(this._id);
-    this._control = this._core.getControl(this._id);
-    this._lifecycle = this._core.getLifecycle(this._id);
-    this._privateState = this._core.getPrivateState(this._id);
-    this._hooks = this._core.getHooks(this._id);
-    this._syncCtxState = this._core.getSyncCtx(this._id);
-    this._version = this._core.getVersion(this._id);
-    checkpointReaders.set(this, () => ({
-      cache: this._value.cache,
-      hasData: this._value.hasData,
-      terminal: this._value.terminal,
-      activated: this._lifecycle.activated,
-      hasCalledFnOnce: this._wave.hasCalledFnOnce,
-      ctxState: {
-        value: this._privateState.value,
-        persist: this._privateState.persist
-      },
-      version: cloneNodeVersion(this._version.value),
-      handle: this._slot.handle
-    }));
-    restoreWriters.set(this, (state) => {
-      this._assertNotReleased("restoreGraph");
-      this._value.cache = state.cache;
-      this._value.hasData = state.hasData;
-      this._value.status = state.status;
-      this._value.terminal = state.terminal;
-      this._value.hasTorndown = false;
-      this._value.replayRing = [];
-      this._wave.hasCalledFnOnce = state.hasCalledFnOnce;
-      this._wave.emittedDirtyThisWave = false;
-      this._wave.emittedSettleThisWave = false;
-      this._wave.pending = 0;
-      this._wave.insideRunWave = false;
-      this._wave.inDepMutation = false;
-      this._wave.rewireRunPending = false;
-      this._wave.batchDirtyOwed = false;
-      this._control.pauseBuffer = [];
-      this._control.pausedDepWaveOccurred = false;
-      this._control.demandOwed = void 0;
-      this._control.activePull = void 0;
-      this._control.pullDirtyOwed = false;
-      this._control.inDeliverDemand = false;
-      this._control.pauseLockset.clear();
-      this._privateState.value = state.ctxState.value;
-      this._privateState.persist = state.ctxState.persist;
-      if (state.version === false) {
-        this._version.policy = { enabled: false };
-        this._version.value = void 0;
-      } else if (state.version.level === 0) {
-        this._version.policy = { enabled: true, level: 0 };
-        this._version.value = cloneNodeVersion(state.version);
-      } else {
-        if (!this._version.policy.enabled || this._version.policy.level !== 1) {
-          throw new Error(
-            `restoreGraph: checkpoint node version level ${state.version.level} requires matching node versioning policy`
-          );
-        }
-        if (!state.hasData && state.version.counter > 0) {
-          throw new Error(
-            "restoreGraph: checkpoint node version cid cannot be verified without current DATA under V1 versioning (D109)"
-          );
-        }
-        const expectedCid = restoredV1Cid(this._version.policy, state.hasData, state.cache);
-        if (expectedCid !== state.version.cid) {
-          throw new Error(
-            "restoreGraph: checkpoint node version cid does not match the selected node versioning hash policy (D109)"
-          );
-        }
-        this._version.value = cloneNodeVersion(state.version);
-      }
-      this._syncCtx = null;
-      this._resetDepState();
-      this._lifecycle.activated = false;
-      this._lifecycle.subscribers.clear();
-      this._restoredActivationPending = true;
-    });
-    runtimeReleasers.set(this, () => this._releaseRuntime());
-    runtimeQuiescenceReaders.set(this, () => this._isRuntimeQuiescentForRelease());
-    subscriberCountReaders.set(this, () => this._subscriberCount());
-    activationReaders.set(this, () => this._lifecycle.activated);
-    _Node._retainIndirectRuntimeMethods(this);
-    if (acquisition !== void 0) acquisition.node = this;
   }
   /** R-pull (D55/D272): true while a pull node is not serving a PULL demand pulse. */
   _isPullQuiet() {
@@ -2638,15 +2650,19 @@ var Node = class _Node {
     if (this._released)
       throw new Error(`${op}: node has been released from its graph lifecycle (D122)`);
   }
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
   _subscriberCount() {
     return nodeSubscriberCount(nodeRuntimeHost(this));
   }
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
   _isRuntimeQuiescentForRelease() {
     return nodeIsRuntimeQuiescentForRelease(nodeRuntimeHost(this));
   }
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
   _releaseRuntime() {
     nodeReleaseRuntime(nodeRuntimeHost(this));
   }
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
   _resetDepState() {
     nodeResetDepState(nodeRuntimeHost(this));
   }
@@ -2978,9 +2994,8 @@ function checkpointTerminal(value, path) {
   if (value === true) return { kind: "COMPLETE" };
   return { kind: "ERROR", error: toCheckpointJson(value, path) };
 }
-var backendStateContributors = /* @__PURE__ */ new WeakMap();
 function checkpointBackendStateOfNode(node, path) {
-  const contributor = backendStateContributors.get(node);
+  const contributor = nodeBackendContributor(node);
   if (contributor === void 0) return void 0;
   return toCheckpointJson(contributor(), path);
 }
@@ -3049,8 +3064,7 @@ function cloneTopologyValue(value, seen) {
 }
 
 // packages/ts/src/graph/graph-lifecycle.ts
-var restoreRegistrars = /* @__PURE__ */ new WeakMap();
-var lifecycleRegistrars = /* @__PURE__ */ new WeakMap();
+var graphRegistrations = /* @__PURE__ */ new WeakMap();
 
 // packages/ts/src/graph/graph-support.ts
 function isNonAuthoritativeCollectionHelperMeta(meta) {
@@ -3166,7 +3180,7 @@ var GraphTopologyGroup = class {
   }
   add(node) {
     this._assertLive();
-    const lifecycle = lifecycleRegistrars.get(this._graph);
+    const lifecycle = graphRegistrations.get(this._graph);
     if (lifecycle === void 0) throw new Error("topologyGroup: graph lifecycle unavailable");
     lifecycle.assertRegisteredNode(node, `topology group '${this.name ?? "group"}' member`);
     if (!this._members.includes(node)) this._members.push(node);
@@ -3198,7 +3212,7 @@ var GraphTopologyGroup = class {
   }
   release(opts = {}) {
     if (this._released) return;
-    const lifecycle = lifecycleRegistrars.get(this._graph);
+    const lifecycle = graphRegistrations.get(this._graph);
     if (lifecycle === void 0) throw new Error("topologyGroup: graph lifecycle unavailable");
     lifecycle.releaseNodes([...this._members], {
       reason: opts.reason ?? this.name
@@ -3214,12 +3228,18 @@ var GraphTopologyGroup = class {
 };
 
 // packages/ts/src/graph/operators.ts
-function initNodeWithCore(core, op, deps, opts = {}) {
-  return withNodeCore(core, () => makeInitNode(op, deps, opts));
+function initNodeWithCore(core, op, deps, opts = {}, acquired) {
+  return withNodeCore(core, () => makeInitNode(op, deps, opts, acquired));
 }
-function makeInitNode(op, deps, opts) {
+function makeInitNode(op, deps, opts, acquired) {
   const body = operatorNodeFn(op);
-  return new Node([...deps], body, { factory: op.factory, ...op.opts, ...opts });
+  const merged = { factory: op.factory, ...op.opts, ...opts };
+  if (acquired !== void 0) constructionAcquisitions.set(merged, acquired);
+  try {
+    return new Node([...deps], body, merged);
+  } finally {
+    constructionAcquisitions.delete(merged);
+  }
 }
 function operatorNodeFn(op) {
   return (ctx) => {
@@ -3279,56 +3299,40 @@ var Graph = class {
     this._versioning = opts.versioning;
     this._environment = opts.environment ?? EnvironmentDrivers.empty();
     if (opts.profile) this._dispatcher.setRecording(true);
-    restoreRegistrars.set(this, {
-      stateNode: (id, stateOpts = {}) => {
-        const n = this._construct(() => new StateNode([], null, this._nodeOpts(stateOpts)));
-        this._addWithId(n, "state", [], stateOpts, id);
-        return n;
-      },
-      node: (id, factory, deps, fn, nodeOpts = {}) => {
-        this._assertDepsLocal(deps, `dep of restored '${id}'`);
-        const n = this._construct(() => new Node([...deps], fn, this._nodeOpts(nodeOpts)));
-        this._addWithId(n, factory, deps, nodeOpts, id);
-        return n;
-      }
-    });
-    lifecycleRegistrars.set(this, {
-      assertRegisteredNode: (node, label) => this._assertRegisteredNode(node, label),
-      readIncoming: (nodes) => {
-        const describe = this.describe;
-        return describe === nativeDescribe ? this._describe("", nodes) : Reflect.apply(describe, this, []);
-      },
-      releaseNodes: (nodes, releaseOpts) => this._releaseNodes(nodes, releaseOpts),
-      assertAvailableName: (name) => {
-        if (this._byId.has(name) || this._retiredIds.has(name))
-          throw new Error(`construction: live or retired node name ${name}`);
-      },
-      constructions: /* @__PURE__ */ new Map(),
-      createOwned: (deps, fn, opts2, acquired) => {
-        for (const dep of deps) this._assertRegisteredNode(dep, "construction node dependency");
-        const nodeOpts = this._nodeOpts(opts2);
-        constructionAcquisitions.set(nodeOpts, acquired);
-        const n = this._construct(() => new Node([...deps], fn, nodeOpts));
-        return this._addWithId(n, opts2.factory ?? "node", deps, opts2, acquired.name, acquired);
-      }
-    });
+    graphRegistrations.set(this, new GraphRegistration(this));
   }
   // ── registration / inspection index ──
-  _add(n, factory, deps, opts) {
-    const id = opts.name ?? `${factory}#${this._seq++}`;
-    return this._addWithId(n, factory, deps, opts, id);
+  /** D167: retain acquisition ownership until Graph publication, including operator factories. */
+  _createRegistered(factory, deps, opts, create, id, supplied) {
+    this._assertDepsLocal(deps, `dep of '${opts.name ?? factory}'`);
+    const name = id ?? opts.name;
+    if (name !== void 0) this._assertAvailableId(name);
+    const nodeOpts = this._nodeOpts(opts);
+    const acquired = supplied ?? { name: name ?? factory };
+    constructionAcquisitions.set(nodeOpts, acquired);
+    try {
+      const n = this._construct(() => create(nodeOpts, acquired));
+      this._addWithId(n, factory, deps, opts, name ?? `${factory}#${this._seq++}`, acquired);
+      return n;
+    } catch (cause) {
+      if (supplied !== void 0 || acquired.registered) throw cause;
+      failNodeAcquisition(acquired, cause);
+    } finally {
+      constructionAcquisitions.delete(nodeOpts);
+    }
+  }
+  _assertAvailableId(id) {
+    if (this._byId.has(id))
+      throw new Error(`graph: duplicate node id '${id}' (checkpoint/describe ids must be unique)`);
+    if (this._retiredIds.has(id))
+      throw new Error(`graph: node id '${id}' was released and cannot be reused (D152/D153)`);
   }
   _addWithId(n, factory, deps, opts, id, acquired) {
     assertGraphLocalNode(this, n, `graph node '${opts.name ?? factory}'`);
     for (const dep of deps) assertGraphLocalNode(this, dep, `dep of '${opts.name ?? factory}'`);
-    if (this._byId.has(id)) {
-      throw new Error(`graph: duplicate node id '${id}' (checkpoint/describe ids must be unique)`);
-    }
-    if (this._retiredIds.has(id)) {
-      throw new Error(`graph: node id '${id}' was released and cannot be reused (D152/D153)`);
-    }
+    this._assertAvailableId(id);
     const meta = opts.meta === void 0 ? void 0 : normalizeTopologyMeta(opts.meta, `graph node '${id}' meta`);
-    this._entries.set(n, {
+    const entry = {
       node: n,
       id,
       name: opts.name,
@@ -3336,13 +3340,14 @@ var Graph = class {
       deps,
       meta,
       restore: opts.restore
-    });
+    };
+    this._assertDepsLocal(deps, `dep of '${id}'`);
+    this._assertAvailableId(id);
+    this._entries.set(n, entry);
     setNodeOwner(n, this);
     this._byId.set(id, n);
     if (acquired !== void 0) acquired.registered = true;
-    setNodeTopologyDepsChangedObserver(n, (_node, prevDeps, nextDeps) => {
-      this._emitTopologyDepsChanged(n, prevDeps, nextDeps);
-    });
+    setNodeTopologyDepsChangedObserver(n, emitRegisteredDepsChanged);
     const seqMatch = /#(\d+)$/.exec(id);
     if (seqMatch) this._seq = Math.max(this._seq, Number(seqMatch[1]) + 1);
     this._emitTopologyNodeRegistered(n);
@@ -3351,6 +3356,7 @@ var Graph = class {
   _assertDepsLocal(deps, label) {
     for (const dep of deps) assertGraphLocalNode(this, dep, label);
   }
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
   _assertRegisteredNode(node, label) {
     assertGraphLocalNode(this, node, label);
     if (!this._entries.has(node)) {
@@ -3381,6 +3387,7 @@ var Graph = class {
     const childPath = id.slice(separator + 2);
     return this._mounts.find((mount) => mount.at === mountPath)?.graph.find(childPath);
   }
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
   _releaseNodes(nodes, _opts = {}) {
     const seen = /* @__PURE__ */ new Set();
     const entries = [];
@@ -3443,10 +3450,10 @@ var Graph = class {
       }
     }
     if (!releaseFailed) {
-      const constructions = lifecycleRegistrars.get(this).constructions;
-      for (const [name, owner] of constructions) {
+      const constructions = graphRegistrations.get(this).existingConstructions;
+      for (const [name, owner] of constructions ?? []) {
         if (owner.nodes.every(
-          (node) => isNodeRuntimeReleased(node) && !runtimeReleaseFailures.has(node)
+          (node) => isNodeRuntimeReleased(node) && !runtimeReleaseFailuresOfNode(node)
         ))
           constructions.delete(name);
       }
@@ -3458,21 +3465,30 @@ var Graph = class {
   /** ctx-level power surface: a raw `(ctx)=>void` fn (or a passthrough/state when null). */
   node(deps = [], fn = null, opts = {}) {
     this._assertDepsLocal(deps, `dep of '${opts.name ?? "node"}'`);
-    const n = this._construct(() => new Node(deps, fn, this._nodeOpts(opts)));
-    return this._add(n, opts.factory ?? "node", deps, opts);
+    return this._createRegistered(
+      opts.factory ?? "node",
+      deps,
+      opts,
+      (nodeOpts) => new Node(deps, fn, nodeOpts)
+    );
   }
   /** A manual source with `.set(v)` (L4-Q1). */
   state(initial, opts = {}) {
-    const n = this._construct(
-      () => new StateNode([], null, { ...this._nodeOpts(opts), initial })
+    return this._createRegistered(
+      "state",
+      [],
+      { ...opts, initial },
+      (nodeOpts) => new StateNode([], null, nodeOpts)
     );
-    this._add(n, "state", [], opts);
-    return n;
   }
   /** ctx-level depless source; its fn runs on activation (R-rom-ram). */
   producer(fn, opts = {}) {
-    const n = this._construct(() => new Node([], fn, this._nodeOpts(opts)));
-    return this._add(n, "producer", [], opts);
+    return this._createRegistered(
+      "producer",
+      [],
+      opts,
+      (nodeOpts) => new Node([], fn, nodeOpts)
+    );
   }
   /** value-level pure transform: deps → value (D27 wrapped; D30 throw→ERROR). */
   derived(deps, fn, opts = {}) {
@@ -3489,8 +3505,12 @@ var Graph = class {
         ctx.down([["ERROR", errorPayload(e, "derived threw without a valid error payload")]]);
       }
     };
-    const n = this._construct(() => new Node([...deps], ctxFn, this._nodeOpts(opts)));
-    return this._add(n, "derived", deps, opts);
+    return this._createRegistered(
+      "derived",
+      deps,
+      opts,
+      (nodeOpts) => new Node([...deps], ctxFn, nodeOpts)
+    );
   }
   /** value-level sink: deps → effect; return value (a fn) becomes onDeactivation (D28). */
   effect(deps, fn, opts = {}) {
@@ -3507,8 +3527,12 @@ var Graph = class {
         ctx.down([["ERROR", errorPayload(e, "effect threw without a valid error payload")]]);
       }
     };
-    const n = this._construct(() => new Node([...deps], ctxFn, this._nodeOpts(opts)));
-    return this._add(n, "effect", deps, opts);
+    return this._createRegistered(
+      "effect",
+      deps,
+      opts,
+      (nodeOpts) => new Node([...deps], ctxFn, nodeOpts)
+    );
   }
   /** Declarative batch (D12): one wave, success→commit / throw→rollback. */
   batch(fn) {
@@ -3546,11 +3570,12 @@ var Graph = class {
     for (const dep of deps)
       assertGraphLocalNode(this, dep, `dep of '${entryOpts.name ?? op.factory}'`);
     const erased = deps;
-    const n = withEnvironmentDrivers(
-      this._environment,
-      () => initNodeWithCore(this._core, op, erased, this._nodeOpts(entryOpts))
+    return this._createRegistered(
+      op.factory,
+      erased,
+      entryOpts,
+      (nodeOpts, acquired) => initNodeWithCore(this._core, op, erased, nodeOpts, acquired)
     );
-    return this._add(n, op.factory, erased, entryOpts);
   }
   /**
    * Graph-owned activation root for internal helper nodes. This is the sanctioned keepalive shape:
@@ -3755,6 +3780,7 @@ var Graph = class {
       seq: this._clock++
     });
   }
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
   _emitTopologyDepsChanged(node, prevDeps, nextDeps) {
     if (this._topologyObservers.size === 0) return;
     const entry = this._entries.get(node);
@@ -3969,6 +3995,70 @@ function graph(opts = {}) {
   return new Graph(opts);
 }
 var nativeDescribe = Graph.prototype.describe;
+var GraphRegistration = class {
+  constructor(graph2) {
+    this.graph = graph2;
+    this.host = graph2;
+  }
+  graph;
+  host;
+  owners;
+  get existingConstructions() {
+    return this.owners;
+  }
+  get constructions() {
+    if (this.owners === void 0) this.owners = /* @__PURE__ */ new Map();
+    return this.owners;
+  }
+  assertRegisteredNode(node, label) {
+    this.host._assertRegisteredNode(node, label);
+  }
+  readIncoming(nodes) {
+    const describe = this.graph.describe;
+    return describe === nativeDescribe ? this.host._describe("", nodes) : Reflect.apply(describe, this.graph, []);
+  }
+  releaseNodes(nodes, opts) {
+    this.host._releaseNodes(nodes, opts);
+  }
+  assertAvailableName(name) {
+    if (this.host._byId.has(name) || this.host._retiredIds.has(name))
+      throw new Error(`construction: live or retired node name ${name}`);
+  }
+  createOwned(deps, fn, opts, acquired) {
+    for (const dep of deps) this.host._assertRegisteredNode(dep, "construction node dependency");
+    return this.host._createRegistered(
+      opts.factory ?? "node",
+      deps,
+      opts,
+      (nodeOpts) => new Node([...deps], fn, nodeOpts),
+      acquired.name,
+      acquired
+    );
+  }
+  stateNode(id, opts = {}) {
+    return this.host._createRegistered(
+      "state",
+      [],
+      opts,
+      (nodeOpts) => new StateNode([], null, nodeOpts),
+      id
+    );
+  }
+  node(id, factory, deps, fn, opts = {}) {
+    return this.host._createRegistered(
+      factory,
+      deps,
+      opts,
+      (nodeOpts) => new Node([...deps], fn, nodeOpts),
+      id
+    );
+  }
+};
+function emitRegisteredDepsChanged(node, prev, deps) {
+  const graph2 = nodeOwner(node);
+  if (graph2 !== void 0)
+    graph2._emitTopologyDepsChanged(node, prev, deps);
+}
 
 // packages/ts/runners/local-untrusted-js/runner.ts
 var COMPATIBILITY_REVISION = "graphrefly-local-untrusted-js-compute-v1";

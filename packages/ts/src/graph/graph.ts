@@ -1,3 +1,5 @@
+import { runtimeReleaseFailuresOfNode } from "../node/runtime-accessors.js";
+import type { OwnedConstruction } from "./construction-scope.js";
 /**
  * The Graph layer (CSP-2): convenience + inspection entry (D5 / R-graph-role).
  *
@@ -32,8 +34,8 @@ import {
 } from "../node/node.js";
 import {
 	constructionAcquisitions,
+	failNodeAcquisition,
 	type NodeAcquisition,
-	runtimeReleaseFailures,
 } from "../node/owned-acquisition.js";
 import type { NodeVersioningPolicy } from "../node/versioning.js";
 import { errorPayload, messageTier, SENTINEL } from "../protocol/messages.js";
@@ -65,7 +67,7 @@ import {
 	topologyFromDescribe,
 } from "./describe.js";
 import { EnvironmentDrivers } from "./environment.js";
-import { lifecycleRegistrars, restoreRegistrars } from "./graph-lifecycle.js";
+import { type GraphLifecycleRegistrar, graphRegistrations } from "./graph-lifecycle.js";
 import {
 	assertCheckpointQuiescentStatus,
 	checkpointFactory,
@@ -196,64 +198,42 @@ export class Graph {
 		this._versioning = opts.versioning;
 		this._environment = opts.environment ?? EnvironmentDrivers.empty();
 		if (opts.profile) this._dispatcher.setRecording(true);
-		restoreRegistrars.set(this, {
-			stateNode: <T = unknown>(id: string, stateOpts: SugarOpts<T> = {}) => {
-				const n = this._construct(() => new StateNode<T>([], null, this._nodeOpts(stateOpts)));
-				this._addWithId(n, "state", [], stateOpts, id);
-				return n;
-			},
-			node: <T = unknown>(
-				id: string,
-				factory: string,
-				deps: readonly Node<unknown>[],
-				fn: NodeFn | null,
-				nodeOpts: SugarOpts<T> = {},
-			) => {
-				this._assertDepsLocal(deps, `dep of restored '${id}'`);
-				const n = this._construct(() => new Node<T>([...deps], fn, this._nodeOpts(nodeOpts)));
-				this._addWithId(n, factory, deps, nodeOpts, id);
-				return n;
-			},
-		});
-		lifecycleRegistrars.set(this, {
-			assertRegisteredNode: (node, label) => this._assertRegisteredNode(node, label),
-			readIncoming: (nodes) => {
-				const describe = this.describe;
-				return describe === nativeDescribe
-					? this._describe("", nodes)
-					: Reflect.apply(describe, this, []);
-			},
-			releaseNodes: (nodes, releaseOpts) => this._releaseNodes(nodes, releaseOpts),
-			assertAvailableName: (name) => {
-				if (this._byId.has(name) || this._retiredIds.has(name))
-					throw new Error(`construction: live or retired node name ${name}`);
-			},
-			constructions: new Map(),
-			createOwned: <T>(
-				deps: readonly Node<unknown>[],
-				fn: NodeFn | null,
-				opts: SugarOpts<T>,
-				acquired: NodeAcquisition,
-			) => {
-				for (const dep of deps) this._assertRegisteredNode(dep, "construction node dependency");
-				const nodeOpts = this._nodeOpts(opts);
-				constructionAcquisitions.set(nodeOpts, acquired);
-				const n = this._construct(() => new Node<T>([...deps], fn, nodeOpts));
-				return this._addWithId(n, opts.factory ?? "node", deps, opts, acquired.name, acquired);
-			},
-		});
+		graphRegistrations.set(this, new GraphRegistration(this));
 	}
 
 	// ── registration / inspection index ──
 
-	private _add<T>(
-		n: Node<T>,
+	/** D167: retain acquisition ownership until Graph publication, including operator factories. */
+	private _createRegistered<T, N extends Node<T> = Node<T>>(
 		factory: string,
 		deps: readonly Node<unknown>[],
 		opts: SugarOpts<T>,
-	): Node<T> {
-		const id = opts.name ?? `${factory}#${this._seq++}`;
-		return this._addWithId(n, factory, deps, opts, id);
+		create: (nodeOpts: NodeOptions<T>, acquired: NodeAcquisition) => N,
+		id?: string,
+		supplied?: NodeAcquisition,
+	): N {
+		this._assertDepsLocal(deps, `dep of '${opts.name ?? factory}'`);
+		const name = id ?? opts.name;
+		if (name !== undefined) this._assertAvailableId(name);
+		const nodeOpts = this._nodeOpts(opts);
+		const acquired = supplied ?? { name: name ?? factory };
+		constructionAcquisitions.set(nodeOpts, acquired);
+		try {
+			const n = this._construct(() => create(nodeOpts, acquired));
+			this._addWithId(n, factory, deps, opts, name ?? `${factory}#${this._seq++}`, acquired);
+			return n;
+		} catch (cause) {
+			if (supplied !== undefined || acquired.registered) throw cause;
+			failNodeAcquisition(acquired, cause);
+		} finally {
+			constructionAcquisitions.delete(nodeOpts);
+		}
+	}
+	private _assertAvailableId(id: string): void {
+		if (this._byId.has(id))
+			throw new Error(`graph: duplicate node id '${id}' (checkpoint/describe ids must be unique)`);
+		if (this._retiredIds.has(id))
+			throw new Error(`graph: node id '${id}' was released and cannot be reused (D152/D153)`);
 	}
 
 	private _addWithId<T>(
@@ -266,17 +246,12 @@ export class Graph {
 	): Node<T> {
 		assertGraphLocalNode(this, n as Node<unknown>, `graph node '${opts.name ?? factory}'`);
 		for (const dep of deps) assertGraphLocalNode(this, dep, `dep of '${opts.name ?? factory}'`);
-		if (this._byId.has(id)) {
-			throw new Error(`graph: duplicate node id '${id}' (checkpoint/describe ids must be unique)`);
-		}
-		if (this._retiredIds.has(id)) {
-			throw new Error(`graph: node id '${id}' was released and cannot be reused (D152/D153)`);
-		}
+		this._assertAvailableId(id);
 		const meta =
 			opts.meta === undefined
 				? undefined
 				: (normalizeTopologyMeta(opts.meta, `graph node '${id}' meta`) as Record<string, unknown>);
-		this._entries.set(n as Node<unknown>, {
+		const entry: Entry = {
 			node: n as Node<unknown>,
 			id,
 			name: opts.name,
@@ -284,13 +259,14 @@ export class Graph {
 			deps,
 			meta,
 			restore: opts.restore,
-		});
+		};
+		this._assertDepsLocal(deps, `dep of '${id}'`);
+		this._assertAvailableId(id);
+		this._entries.set(n as Node<unknown>, entry);
 		setNodeOwner(n as Node<unknown>, this);
 		this._byId.set(id, n as Node<unknown>);
 		if (acquired !== undefined) acquired.registered = true;
-		setNodeTopologyDepsChangedObserver(n as Node<unknown>, (_node, prevDeps, nextDeps) => {
-			this._emitTopologyDepsChanged(n as Node<unknown>, prevDeps, nextDeps);
-		});
+		setNodeTopologyDepsChangedObserver(n as Node<unknown>, emitRegisteredDepsChanged);
 		const seqMatch = /#(\d+)$/.exec(id);
 		if (seqMatch) this._seq = Math.max(this._seq, Number(seqMatch[1]) + 1);
 		this._emitTopologyNodeRegistered(n as Node<unknown>);
@@ -300,7 +276,7 @@ export class Graph {
 	private _assertDepsLocal(deps: readonly Node<unknown>[], label: string): void {
 		for (const dep of deps) assertGraphLocalNode(this, dep, label);
 	}
-
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private _assertRegisteredNode(node: Node<unknown>, label: string): void {
 		assertGraphLocalNode(this, node, label);
 		if (!this._entries.has(node)) {
@@ -335,7 +311,7 @@ export class Graph {
 		const childPath = id.slice(separator + 2);
 		return this._mounts.find((mount) => mount.at === mountPath)?.graph.find(childPath);
 	}
-
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private _releaseNodes(nodes: readonly Node<unknown>[], _opts: { reason?: string } = {}): void {
 		const seen = new Set<Node<unknown>>();
 		const entries: Array<{ node: Node<unknown>; entry: Entry }> = [];
@@ -401,14 +377,14 @@ export class Graph {
 			}
 		}
 		if (!releaseFailed) {
-			const constructions = lifecycleRegistrars.get(this)!.constructions;
-			for (const [name, owner] of constructions) {
+			const constructions = graphRegistrations.get(this)!.existingConstructions;
+			for (const [name, owner] of constructions ?? []) {
 				if (
 					owner.nodes.every(
-						(node) => isNodeRuntimeReleased(node) && !runtimeReleaseFailures.has(node),
+						(node) => isNodeRuntimeReleased(node) && !runtimeReleaseFailuresOfNode(node),
 					)
 				)
-					constructions.delete(name);
+					constructions!.delete(name);
 			}
 		}
 		for (const event of releasedEvents) this._emitTopologyNodeReleased(event);
@@ -424,23 +400,32 @@ export class Graph {
 		opts: SugarOpts<T> = {},
 	): Node<T> {
 		this._assertDepsLocal(deps, `dep of '${opts.name ?? "node"}'`);
-		const n = this._construct(() => new Node<T>(deps as Node<unknown>[], fn, this._nodeOpts(opts)));
-		return this._add(n, opts.factory ?? "node", deps, opts);
+		return this._createRegistered(
+			opts.factory ?? "node",
+			deps,
+			opts,
+			(nodeOpts) => new Node<T>(deps as Node<unknown>[], fn, nodeOpts),
+		);
 	}
 
 	/** A manual source with `.set(v)` (L4-Q1). */
 	state<T>(initial: T, opts: SugarOpts<T> = {}): StateNode<T> {
-		const n = this._construct(
-			() => new StateNode<T>([], null, { ...this._nodeOpts(opts), initial }),
+		return this._createRegistered<T, StateNode<T>>(
+			"state",
+			[],
+			{ ...opts, initial },
+			(nodeOpts) => new StateNode<T>([], null, nodeOpts),
 		);
-		this._add(n, "state", [], opts);
-		return n;
 	}
 
 	/** ctx-level depless source; its fn runs on activation (R-rom-ram). */
 	producer<T = unknown>(fn: NodeFn, opts: SugarOpts<T> = {}): Node<T> {
-		const n = this._construct(() => new Node<T>([], fn, this._nodeOpts(opts)));
-		return this._add(n, "producer", [], opts);
+		return this._createRegistered(
+			"producer",
+			[],
+			opts,
+			(nodeOpts) => new Node<T>([], fn, nodeOpts),
+		);
 	}
 
 	/** value-level pure transform: deps → value (D27 wrapped; D30 throw→ERROR). */
@@ -461,8 +446,12 @@ export class Graph {
 				ctx.down([["ERROR", errorPayload(e, "derived threw without a valid error payload")]]); // D30: value-level throw → graph-layer ERROR
 			}
 		};
-		const n = this._construct(() => new Node<T>([...deps], ctxFn, this._nodeOpts(opts)));
-		return this._add(n, "derived", deps, opts);
+		return this._createRegistered(
+			"derived",
+			deps,
+			opts,
+			(nodeOpts) => new Node<T>([...deps], ctxFn, nodeOpts),
+		);
 	}
 
 	/** value-level sink: deps → effect; return value (a fn) becomes onDeactivation (D28). */
@@ -490,8 +479,12 @@ export class Graph {
 				ctx.down([["ERROR", errorPayload(e, "effect threw without a valid error payload")]]);
 			}
 		};
-		const n = this._construct(() => new Node<void>([...deps], ctxFn, this._nodeOpts(opts)));
-		return this._add(n, "effect", deps, opts);
+		return this._createRegistered(
+			"effect",
+			deps,
+			opts,
+			(nodeOpts) => new Node<void>([...deps], ctxFn, nodeOpts),
+		);
 	}
 
 	/** Declarative batch (D12): one wave, success→commit / throw→rollback. */
@@ -540,10 +533,9 @@ export class Graph {
 		// Node<T> is invariant (T appears in NodeOptions.initial); widen the typed deps to the
 		// erased Node surface the free initNode / _add accept (same cast the old methods used).
 		const erased = deps as readonly Node<unknown>[];
-		const n = withEnvironmentDrivers(this._environment, () =>
-			initNodeWithCore(this._core, op, erased, this._nodeOpts(entryOpts)),
+		return this._createRegistered(op.factory, erased, entryOpts, (nodeOpts, acquired) =>
+			initNodeWithCore(this._core, op, erased, nodeOpts, acquired),
 		);
-		return this._add(n, op.factory, erased, entryOpts);
 	}
 
 	/**
@@ -775,7 +767,7 @@ export class Graph {
 			seq: this._clock++,
 		});
 	}
-
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private _emitTopologyDepsChanged(
 		node: Node<unknown>,
 		prevDeps: readonly Node<unknown>[],
@@ -792,7 +784,6 @@ export class Graph {
 			seq: this._clock++,
 		});
 	}
-
 	private _emitTopologyNodeReleased(event: {
 		path: string;
 		factory: string;
@@ -1055,7 +1046,7 @@ export function releaseGraphNodes(
 	nodes: readonly Node<unknown>[],
 	opts: { reason?: string } = {},
 ): void {
-	const registrar = lifecycleRegistrars.get(graph);
+	const registrar = graphRegistrations.get(graph);
 	if (registrar === undefined) throw new Error("graph: unknown lifecycle registrar");
 	registrar.releaseNodes(nodes, opts);
 }
@@ -1066,7 +1057,7 @@ export function restoreStateNodeInGraph<T = unknown>(
 	id: string,
 	opts: SugarOpts<T> = {},
 ): StateNode<T> {
-	const registrar = restoreRegistrars.get(graph);
+	const registrar = graphRegistrations.get(graph);
 	if (registrar === undefined) throw new Error("restoreGraph: unknown graph restore registrar");
 	return registrar.stateNode(id, opts);
 }
@@ -1080,7 +1071,108 @@ export function restoreNodeInGraph<T = unknown>(
 	fn: NodeFn | null,
 	opts: SugarOpts<T> = {},
 ): Node<T> {
-	const registrar = restoreRegistrars.get(graph);
+	const registrar = graphRegistrations.get(graph);
 	if (registrar === undefined) throw new Error("restoreGraph: unknown graph restore registrar");
 	return registrar.node(id, factory, deps, fn, opts);
+}
+
+/** D167: shared operations on an exact issued Graph host, with no copied graph indexes. */
+interface GraphRuntimeHost {
+	_byId: Map<string, Node<unknown>>;
+	_retiredIds: Set<string>;
+	_assertRegisteredNode(node: Node<unknown>, label: string): void;
+	_releaseNodes(nodes: readonly Node<unknown>[], opts?: { reason?: string }): void;
+	_describe(prefix: string, nodes: ReadonlySet<Node<unknown>>): DescribeSnapshot;
+	_emitTopologyDepsChanged(
+		node: Node<unknown>,
+		prev: readonly Node<unknown>[],
+		deps: readonly Node<unknown>[],
+	): void;
+	_createRegistered<T, N extends Node<T> = Node<T>>(
+		factory: string,
+		deps: readonly Node<unknown>[],
+		opts: SugarOpts<T>,
+		create: (opts: NodeOptions<T>, acquired: NodeAcquisition) => N,
+		id?: string,
+		acquired?: NodeAcquisition,
+	): N;
+}
+class GraphRegistration implements GraphLifecycleRegistrar {
+	readonly host: GraphRuntimeHost;
+	private owners?: Map<string, OwnedConstruction>;
+	constructor(readonly graph: Graph) {
+		this.host = graph as unknown as GraphRuntimeHost;
+	}
+	get existingConstructions() {
+		return this.owners;
+	}
+	get constructions() {
+		if (this.owners === undefined) this.owners = new Map<string, OwnedConstruction>();
+		return this.owners;
+	}
+	assertRegisteredNode(node: Node<unknown>, label: string): void {
+		this.host._assertRegisteredNode(node, label);
+	}
+	readIncoming(nodes: ReadonlySet<Node<unknown>>): Pick<DescribeSnapshot, "edges"> {
+		const describe = this.graph.describe;
+		return describe === nativeDescribe
+			? this.host._describe("", nodes)
+			: Reflect.apply(describe, this.graph, []);
+	}
+	releaseNodes(nodes: readonly Node<unknown>[], opts?: { reason?: string }): void {
+		this.host._releaseNodes(nodes, opts);
+	}
+	assertAvailableName(name: string): void {
+		if (this.host._byId.has(name) || this.host._retiredIds.has(name))
+			throw new Error(`construction: live or retired node name ${name}`);
+	}
+	createOwned<T>(
+		deps: readonly Node<unknown>[],
+		fn: NodeFn | null,
+		opts: SugarOpts<T>,
+		acquired: NodeAcquisition,
+	): Node<T> {
+		for (const dep of deps) this.host._assertRegisteredNode(dep, "construction node dependency");
+		return this.host._createRegistered(
+			opts.factory ?? "node",
+			deps,
+			opts,
+			(nodeOpts) => new Node<T>([...deps], fn, nodeOpts),
+			acquired.name,
+			acquired,
+		);
+	}
+	stateNode<T>(id: string, opts: SugarOpts<T> = {}): StateNode<T> {
+		return this.host._createRegistered<T, StateNode<T>>(
+			"state",
+			[],
+			opts,
+			(nodeOpts) => new StateNode<T>([], null, nodeOpts),
+			id,
+		);
+	}
+	node<T>(
+		id: string,
+		factory: string,
+		deps: readonly Node<unknown>[],
+		fn: NodeFn | null,
+		opts: SugarOpts<T> = {},
+	): Node<T> {
+		return this.host._createRegistered(
+			factory,
+			deps,
+			opts,
+			(nodeOpts) => new Node<T>([...deps], fn, nodeOpts),
+			id,
+		);
+	}
+}
+function emitRegisteredDepsChanged(
+	node: Node<unknown>,
+	prev: readonly Node<unknown>[],
+	deps: readonly Node<unknown>[],
+): void {
+	const graph = nodeOwner(node);
+	if (graph !== undefined)
+		(graph as unknown as GraphRuntimeHost)._emitTopologyDepsChanged(node, prev, deps);
 }

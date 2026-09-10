@@ -3,6 +3,7 @@ import type { Dispatcher, Handle } from "../dispatcher/index.js";
 import type { EnvironmentDrivers } from "../graph/environment.js";
 import { type LockId, type PullDemand, SENTINEL, type Wave } from "../protocol/messages.js";
 import type { Node, Status } from "./node.js";
+import type { NodeAcquisition } from "./owned-acquisition.js";
 import type { NodeVersion, ResolvedNodeVersioningPolicy } from "./versioning.js";
 
 export type NodeId = number & { readonly __nodeId: unique symbol };
@@ -138,8 +139,13 @@ export class NodeCore {
 	createSlot<T>(
 		slot: Omit<NodeSlot<T>, "id">,
 		state: NodeState<T>,
+		acquisition?: NodeAcquisition,
 	): { id: NodeId; slot: NodeSlot<T> } {
 		const id = this.nextId++ as NodeId;
+		if (acquisition !== undefined) {
+			acquisition.core = this;
+			acquisition.slot = id;
+		}
 		const full = { ...slot, id };
 		this.slots[id] = full as NodeSlot<unknown>;
 		this.depStates[id] = state.dep;

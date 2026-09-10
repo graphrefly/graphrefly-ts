@@ -17,9 +17,7 @@ export interface GraphRestoreRegistrar {
 	): Node<T>;
 }
 
-export const restoreRegistrars = new WeakMap<Graph, GraphRestoreRegistrar>();
-
-export interface GraphLifecycleRegistrar {
+export interface GraphLifecycleRegistrar extends GraphRestoreRegistrar {
 	assertRegisteredNode(node: Node<unknown>, label: string): void;
 	readIncoming(nodes: ReadonlySet<Node<unknown>>): Pick<DescribeSnapshot, "edges">;
 	releaseNodes(nodes: readonly Node<unknown>[], opts?: { reason?: string }): void;
@@ -31,6 +29,7 @@ export interface GraphLifecycleRegistrar {
 		acquired: NodeAcquisition,
 	): Node<T>;
 	readonly constructions: Map<string, OwnedConstruction>;
+	readonly existingConstructions: Map<string, OwnedConstruction> | undefined;
 }
 
-export const lifecycleRegistrars = new WeakMap<Graph, GraphLifecycleRegistrar>();
+export const graphRegistrations = new WeakMap<Graph, GraphLifecycleRegistrar>();

@@ -4,14 +4,14 @@ import type { NodeFn } from "../ctx/types.js";
 import type { Node } from "../node/node.js";
 import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import {
+	cleanupNodeAcquisition,
 	type NodeAcquisition,
 	type RuntimeReleaseFailure,
-	runtimeReleaseFailures,
 } from "../node/owned-acquisition.js";
-import { isNodeRuntimeReleased, releaseRuntimeOfNode } from "../node/runtime-accessors.js";
+import { isNodeRuntimeReleased, runtimeReleaseFailuresOfNode } from "../node/runtime-accessors.js";
 import type { DescribeSnapshot } from "./describe.js";
 import type { Graph } from "./graph.js";
-import { type GraphLifecycleRegistrar, lifecycleRegistrars } from "./graph-lifecycle.js";
+import { type GraphLifecycleRegistrar, graphRegistrations } from "./graph-lifecycle.js";
 import type { SugarOpts } from "./graph-types.js";
 import { type Operator, operatorNodeFn } from "./operators.js";
 
@@ -92,7 +92,7 @@ export function prepareConstruction(
 	manifest: ConstructionManifest,
 ): ConstructionScope {
 	stableBoundary();
-	const registrar = lifecycleRegistrars.get(graph);
+	const registrar = graphRegistrations.get(graph);
 	if (registrar === undefined) throw new Error("construction graph is not registered");
 	if (
 		!manifest.name ||
@@ -140,7 +140,7 @@ export class ConstructionScope {
 	assertContext(graph: Graph, startup: Node<StartupFact>, epoch: number): void {
 		if (
 			this.phase !== "cold" ||
-			lifecycleRegistrars.get(graph) !== this.registrar ||
+			graphRegistrations.get(graph) !== this.registrar ||
 			startup !== this.startupNode ||
 			epoch !== this.manifest.epoch
 		)
@@ -278,25 +278,15 @@ export class ConstructionScope {
 		);
 		for (const a of this.acquisitions) {
 			if (a.registered) continue; // Graph release preserves external dependency safety, even on failure.
-			if (a.node !== undefined) {
-				attempt(a.name, () => releaseRuntimeOfNode(a.node!));
-			} else {
-				if (a.handle !== undefined)
-					attempt(`${a.name}:handle`, () => a.dispatcher!.unregister(a.handle!), {
-						handle: a.handle,
-						dispatcher: a.dispatcher,
-					});
-				if (a.slot !== undefined)
-					attempt(`${a.name}:slot`, () => a.core!.releaseSlot(a.slot!), {
-						core: a.core,
-						slot: a.slot,
-					});
+			for (const failure of cleanupNodeAcquisition(a)) {
+				if (a.node === undefined || runtimeReleaseFailuresOfNode(a.node) === undefined)
+					errors.push({ ...failure, resource: `${a.name}:${failure.resource}` });
 			}
 		}
 		const detailed = this.acquisitions.flatMap((a) =>
 			a.node === undefined
 				? []
-				: (runtimeReleaseFailures.get(a.node) ?? []).map((failure) => ({
+				: (runtimeReleaseFailuresOfNode(a.node) ?? []).map((failure) => ({
 						...failure,
 						resource: `${a.name}:${failure.resource}`,
 					})),
@@ -304,7 +294,7 @@ export class ConstructionScope {
 		if (detailed.length > 0) {
 			const nodesWithFailures = new Set(
 				this.acquisitions
-					.filter((a) => a.node !== undefined && runtimeReleaseFailures.has(a.node))
+					.filter((a) => a.node !== undefined && runtimeReleaseFailuresOfNode(a.node))
 					.map((a) => a.name),
 			);
 			for (let i = errors.length - 1; i >= 0; i--) {
@@ -325,7 +315,7 @@ export class ConstructionScope {
 export function startConstruction(graph: Graph, owner: OwnedConstruction): void {
 	stableBoundary();
 	if (
-		lifecycleRegistrars.get(graph)?.constructions.get(owner.instance) !== owner ||
+		graphRegistrations.get(graph)?.existingConstructions?.get(owner.instance) !== owner ||
 		owner.phase !== "owned"
 	)
 		throw new Error("construction is not owned or was already started");
@@ -371,12 +361,12 @@ export function startConstruction(graph: Graph, owner: OwnedConstruction): void 
 
 /** Read-only maintainer resource locator; not a policy or admission input. */
 export function constructionOf(graph: Graph, name: string): OwnedConstruction | undefined {
-	return lifecycleRegistrars.get(graph)?.constructions.get(name);
+	return graphRegistrations.get(graph)?.existingConstructions?.get(name);
 }
 
 /** Test/maintainer assertion: does not infer business lifecycle completion or dispose an instance. */
 export function constructionResourcesReleased(owner: OwnedConstruction): boolean {
 	return owner.nodes.every(
-		(node) => isNodeRuntimeReleased(node) && !runtimeReleaseFailures.has(node),
+		(node) => isNodeRuntimeReleased(node) && !runtimeReleaseFailuresOfNode(node),
 	);
 }

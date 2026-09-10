@@ -1,18 +1,8 @@
 import { SENTINEL } from "../protocol/messages.js";
 import type { Node } from "./node.js";
 import { type NodeRuntimeHost, nodeRuntimeHost } from "./node-runtime-host.js";
-import { type RuntimeReleaseFailure, runtimeReleaseFailures } from "./owned-acquisition.js";
-import {
-	activationReaders,
-	checkpointReaders,
-	ownerTokens,
-	releasedNodes,
-	restoreWriters,
-	runtimeQuiescenceReaders,
-	runtimeReleasers,
-	subscriberCountReaders,
-	topologyDepsChangedObservers,
-} from "./runtime-accessors.js";
+import type { RuntimeReleaseFailure } from "./owned-acquisition.js";
+import { closeNodeRegistration, setRuntimeReleaseFailures } from "./runtime-accessors.js";
 
 export function nodeActivate<T>(self: NodeRuntimeHost<T>): void {
 	self._lifecycle.activated = true;
@@ -139,7 +129,6 @@ export function nodeReleaseRuntime<T>(self: NodeRuntimeHost<T>): void {
 	if (self._released) return;
 	self._released = true;
 	const node = self as unknown as Node<unknown>;
-	releasedNodes.add(node);
 	const releaseErrors: RuntimeReleaseFailure[] = [];
 	const recordReleaseError = (
 		error: unknown,
@@ -210,21 +199,14 @@ export function nodeReleaseRuntime<T>(self: NodeRuntimeHost<T>): void {
 	self._control.activePull = undefined;
 	self._control.pullDirtyOwed = false;
 	self._restoredActivationPending = false;
-	checkpointReaders.delete(node);
-	restoreWriters.delete(node);
-	runtimeReleasers.delete(node);
-	runtimeQuiescenceReaders.delete(node);
-	subscriberCountReaders.delete(node);
-	activationReaders.delete(node);
-	ownerTokens.delete(node);
-	topologyDepsChangedObservers.delete(node);
+	closeNodeRegistration(node);
 	try {
 		self._core.releaseSlot(self._id);
 	} catch (cause) {
 		releaseErrors.push({ resource: "slot", cause, core: self._core, slot: self._id });
 	}
 	if (releaseErrors.length > 0) {
-		runtimeReleaseFailures.set(node, Object.freeze(releaseErrors));
+		setRuntimeReleaseFailures(node, Object.freeze(releaseErrors));
 		throw releaseErrors[0]!.cause;
 	}
 }

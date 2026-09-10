@@ -69,34 +69,9 @@ export function nodeRewire<T>(
 	opts: { allowTerminalOwner?: boolean } = {},
 ): boolean {
 	const node = self as unknown as Node<unknown>;
-	// ── rejects (R-rewire / D42) ──
-	if (self._value.terminal !== undefined && !opts.allowTerminalOwner)
-		throw new Error(
-			"rewire: node is terminal (completed/errored) — cannot rewire (R-rewire / D42)",
-		);
-	if (self._wave.insideRunWave)
-		throw new Error(
-			"rewire: mid-fn topology mutation — a fn mutating its own deps mid-wave is the feedback cycle (R-rewire / D37)",
-		);
-	if (self._wave.inDepMutation)
-		throw new Error(
-			"rewire: reentrant dep mutation — another replaceDeps/subscribeDep/unsubscribeDep is in flight (R-rewire)",
-		);
-	if (newDeps.includes(node)) throw new Error("rewire: self-dependency rejected (R-rewire / D42)");
+	validateNodeRewire(self, newDeps, opts);
 	const oldDeps = self._slot.deps;
 	const added = newDeps.filter((d) => !oldDeps.includes(d));
-	for (const d of added) {
-		if (self._reachableUpstream(d, node))
-			throw new Error(
-				"rewire: would create a cycle — dep already transitively depends on this node (R-rewire / D42)",
-			);
-		const dep = nodeRuntimeHost(d);
-		if (dep._value.terminal !== undefined && !dep._slot.resubscribable)
-			throw new Error(
-				"rewire: cannot add a non-resubscribable terminal dep — would wedge (R-rewire / D42)",
-			);
-		self._assertRewireDepOwner(d);
-	}
 
 	if (
 		deferAfterBatchForTarget(node, () => {
@@ -210,4 +185,41 @@ export function nodeRewire<T>(
 		else self._value.status = self._value.hasData ? "settled" : "sentinel";
 	}
 	return false;
+}
+
+/** Internal adapters validate at call time and repeat against actual deps at commit. */
+export function validateNodeRewire<T>(
+	self: NodeRuntimeHost<T>,
+	newDeps: Node<unknown>[],
+	opts: { allowTerminalOwner?: boolean } = {},
+): void {
+	const node = self as unknown as Node<unknown>;
+	// ── rejects (R-rewire / D42) ──
+	if (self._value.terminal !== undefined && !opts.allowTerminalOwner)
+		throw new Error(
+			"rewire: node is terminal (completed/errored) — cannot rewire (R-rewire / D42)",
+		);
+	if (self._wave.insideRunWave)
+		throw new Error(
+			"rewire: mid-fn topology mutation — a fn mutating its own deps mid-wave is the feedback cycle (R-rewire / D37)",
+		);
+	if (self._wave.inDepMutation)
+		throw new Error(
+			"rewire: reentrant dep mutation — another replaceDeps/subscribeDep/unsubscribeDep is in flight (R-rewire)",
+		);
+	if (newDeps.includes(node)) throw new Error("rewire: self-dependency rejected (R-rewire / D42)");
+	const oldDeps = self._slot.deps;
+	const added = newDeps.filter((d) => !oldDeps.includes(d));
+	for (const d of added) {
+		if (self._reachableUpstream(d, node))
+			throw new Error(
+				"rewire: would create a cycle — dep already transitively depends on this node (R-rewire / D42)",
+			);
+		const dep = nodeRuntimeHost(d);
+		if (dep._value.terminal !== undefined && !dep._slot.resubscribable)
+			throw new Error(
+				"rewire: cannot add a non-resubscribable terminal dep — would wedge (R-rewire / D42)",
+			);
+		self._assertRewireDepOwner(d);
+	}
 }

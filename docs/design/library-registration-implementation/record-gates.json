@@ -1,0 +1,22 @@
+{
+	"workLedgerDigest": "sha256:07aea0f23794ad7ff4f35a2b5e57759bf6d1858bd93dcb6d6b7e59650257e2e6",
+	"decisionLedgerDigest": "sha256:4208ffeeaf6d36099e93237b4582418877d7514f23f4412a8deb71875b992314",
+	"docsIndexDigest": "sha256:b26736ec6ede43c426c46f66258088108091ac9def3fcd90714f6d571f97ce60",
+	"checks": [
+		{
+			"log": "gr-work-complete-check.txt",
+			"digest": "sha256:087d9e259d3e7751a12911c8265fc952e1ef30769ea7777306f80108690198e1",
+			"exitCode": 0
+		},
+		{
+			"log": "gr-work-complete-dashboard.txt",
+			"digest": "sha256:57d4dc2953cc9de54408eb72f73eccff702d623d1346ab401e6585a2b1275569",
+			"exitCode": 0
+		},
+		{
+			"log": "gr-final-doc-check.txt",
+			"digest": "sha256:04f7d6d2ed194302c32c2e166660986ad26a4e6635f5940f26b6a1fa43c80752",
+			"exitCode": 0
+		}
+	]
+}

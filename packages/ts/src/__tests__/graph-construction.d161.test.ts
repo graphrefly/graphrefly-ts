@@ -547,7 +547,12 @@ describe("D161 graph construction ownership", () => {
 			names: ["late/startup", "late/root"],
 		});
 		scope.startupSource();
-		g.state(1, { name: "late/root" }); // A changed graph is rejected at the actual registration boundary.
+		// D167 prechecks known duplicates; exercise an actual post-acquisition race instead.
+		const register = dispatcher.register.bind(dispatcher);
+		vi.spyOn(dispatcher, "register").mockImplementationOnce((...args) => {
+			g.state(1, { name: "late/root" });
+			return register(...args);
+		});
 		let cause: unknown;
 		try {
 			scope.node([], () => {}, { name: "late/root" });
@@ -567,6 +572,44 @@ describe("D161 graph construction ownership", () => {
 		expect(failure?.cleanupErrors[0]?.resource).toBe("late/root:handle");
 		expect(new Set(failure?.cleanupErrors.map((e) => e.handle))).toEqual(dispatcher.live);
 		expect(g.find("late/root")?.cache).toBe(1);
+	});
+
+	it("D167 retains an unpublished node release exception without persisted identity diagnostics", () => {
+		const dispatcher = new CountingDispatcher();
+		const g = new Graph({ dispatcher });
+		const scope = prepareConstruction(g, {
+			name: "fallback",
+			epoch: 1,
+			inputs: [],
+			names: ["fallback/startup", "fallback/root"],
+		});
+		scope.startupSource();
+		const register = dispatcher.register.bind(dispatcher);
+		vi.spyOn(dispatcher, "register").mockImplementationOnce((...args) => {
+			g.state(1, { name: "fallback/root" });
+			return register(...args);
+		});
+		let cause: unknown;
+		try {
+			scope.node([], () => {}, { name: "fallback/root" });
+		} catch (error) {
+			cause = error;
+		}
+		const cleanup = new Error("release before persistence");
+		vi.spyOn(nodeRuntimeHost(Node.prototype), "_releaseRuntime").mockImplementation(() => {
+			throw cleanup;
+		});
+		let failure: ColdConstructionError | undefined;
+		try {
+			scope.abort(cause);
+		} catch (error) {
+			failure = error as ColdConstructionError;
+		}
+		expect(failure?.cleanupErrors).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ resource: "fallback/root:runtime", cause: cleanup, dispatcher }),
+			]),
+		);
 	});
 
 	it("reports a failed partial constructor's exact handle without hiding undefined errors", () => {

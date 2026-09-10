@@ -1,3 +1,4 @@
+import { nodeBackendContributor, setNodeBackendContributor } from "../node/runtime-accessors.js";
 /**
  * Graph checkpoint public data shape (D83/D86/D90/D116).
  *
@@ -94,14 +95,12 @@ export function checkpointTerminal(value: unknown, path: string): GraphCheckpoin
 
 type BackendStateContributor = () => unknown;
 
-const backendStateContributors = new WeakMap<Node<unknown>, BackendStateContributor>();
-
 /** @internal D160: collection-owned backend checkpoint contributor for graph checkpoint. */
 export function registerBackendStateContributor(
 	node: Node<unknown>,
 	contributor: BackendStateContributor,
 ): void {
-	backendStateContributors.set(node, contributor);
+	setNodeBackendContributor(node, contributor);
 }
 
 /** @internal D160: capture a node's collection backend state when it has a contributor. */
@@ -109,7 +108,7 @@ export function checkpointBackendStateOfNode(
 	node: Node<unknown>,
 	path: string,
 ): GraphCheckpointJson | undefined {
-	const contributor = backendStateContributors.get(node);
+	const contributor = nodeBackendContributor(node);
 	if (contributor === undefined) return undefined;
 	return toCheckpointJson(contributor(), path);
 }

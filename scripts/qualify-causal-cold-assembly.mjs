@@ -58,7 +58,7 @@ const builder = "solutions/causal-occurrence/construction.ts";
 const mutants = [
 	[
 		"cold-context-graph",
-		[[scope, "lifecycleRegistrars.get(graph) !== this.registrar ||", "false ||"]],
+		[[scope, "graphRegistrations.get(graph) !== this.registrar ||", "false ||"]],
 	],
 	[
 		"cold-context-startup",
@@ -76,8 +76,8 @@ const mutants = [
 		[
 			[
 				scope,
-				'this.phase !== "cold" || lifecycleRegistrars.get(graph)',
-				"false || lifecycleRegistrars.get(graph)",
+				'this.phase !== "cold" || graphRegistrations.get(graph)',
+				"false || graphRegistrations.get(graph)",
 			],
 		],
 	],
@@ -125,7 +125,7 @@ const mutants = [
 			[
 				scope,
 				'owner.phase = "faulted";',
-				'owner.phase = "faulted"; lifecycleRegistrars.get(graph)!.constructions.delete(owner.instance);',
+				'owner.phase = "faulted"; graphRegistrations.get(graph)!.constructions.delete(owner.instance);',
 			],
 		],
 	],

@@ -1,0 +1,21 @@
+{
+	"work": "graphrefly-ts:LIBRARY-REGISTRATION-TS",
+	"decision": "graphrefly-ts:D167",
+	"baselineCommit": "8e13d831a62bddc2b498a307c91e49e75fb310ab",
+	"result": {
+		"path": "archive/evals/library-registration-v1/result.json",
+		"digest": "sha256:2200078c22e9cc5859dda5f922f92fe0e661f1f5ed8f030aa80ecb92b3ea53d2"
+	},
+	"artifacts": {
+		"path": "archive/evals/library-registration-v1/artifact-index.json",
+		"digest": "sha256:dc9b0eece0c8d6650ae23ac1c3a04e409f58e695083c1916964b4d45c7924a30",
+		"count": 121,
+		"archivePath": "archive/evals/library-registration-v1/evidence.tar.gz",
+		"archiveDigest": "sha256:014e88eb39d6cc8f727a917aff9311d2f782d56cf3c9a618997eaf1a5b39e022",
+		"layout": "Index paths refer to exact entries inside evidence.tar.gz; result.json is also retained standalone."
+	},
+	"status": "implementation verified with explicit pre-existing D159 gate failures and measured cold-cost limitation",
+	"newPublicExports": [],
+	"formalPerformanceQualified": false,
+	"humanAgentStudyCompleted": false
+}

@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import ts from "typescript";
@@ -91,22 +93,35 @@ test("core wrapper preserves return and records a nested interval", () => {
 	assert.throws(() => instrumentCore("class Other{}"));
 });
 
-test("step probes retain all original method/constructor bytes", () => {
+test("historical step probes preserve their frozen bytes and reject the D167 Graph shape", () => {
+	const dir = "packages/ts/qualification/causal-occurrence/preset-current-order-v1";
+	const receipt = JSON.parse(readFileSync(`${dir}/receipt.json`, "utf8"));
+	const sha = (bytes) => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+	assert.equal(sha(readFileSync(receipt.rawEvidence.path)), receipt.rawEvidence.digest);
+	const extract = (name) =>
+		execFileSync("tar", ["-xOzf", receipt.rawEvidence.path, name], { encoding: "utf8" });
+	assert.equal(sha(readFileSync(receipt.rawEvidence.indexPath)), receipt.rawEvidence.indexDigest);
+	const index = JSON.parse(readFileSync(receipt.rawEvidence.indexPath, "utf8"));
+	const strip = (source) =>
+		source
+			.replace(/\nconst __stepProbeStart=globalThis\.performance\.now\(\); try \{\n/g, "")
+			.replace(
+				/\n\} finally \{globalThis\.__spendingStepRecord\("[^"]+",__stepProbeStart,globalThis\.performance\.now\(\)\);\}\n/g,
+				"",
+			);
 	for (const [file, cls, count] of [
 		["packages/ts/src/graph/graph.ts", "Graph", 3],
 		["packages/ts/src/node/node.ts", "Node", 1],
 	]) {
-		const original = readFileSync(file, "utf8"),
-			result = instrumentSteps(original, cls);
+		const frozenInstrumented = extract(`steps-01/original-${cls.toLowerCase()}.ts`);
+		const original = strip(frozenInstrumented);
+		assert.equal(sha(frozenInstrumented), index.files[`steps-01/original-${cls.toLowerCase()}.ts`]);
+		const result = instrumentSteps(original, cls);
 		assert.equal((result.match(/const __stepProbeStart=/g) || []).length, count);
-		assert.equal(
-			result
-				.replace(/\nconst __stepProbeStart=globalThis\.performance\.now\(\); try \{\n/g, "")
-				.replace(
-					/\n\} finally \{globalThis\.__spendingStepRecord\("[^"]+",__stepProbeStart,globalThis\.performance\.now\(\)\);\}\n/g,
-					"",
-				),
-			original,
-		);
+		assert.equal(strip(result), original);
+		assert.equal(result, frozenInstrumented);
 	}
+	assert.throws(() =>
+		instrumentSteps(readFileSync("packages/ts/src/graph/graph.ts", "utf8"), "Graph"),
+	);
 });

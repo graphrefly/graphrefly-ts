@@ -80,8 +80,8 @@ const mutants = [
 		[
 			[
 				"graph/graph.ts",
-				'describe === nativeDescribe ? this._describe("", nodes) : Reflect.apply(describe, this, [])',
-				'this._describe("", nodes)',
+				'describe === nativeDescribe ? this.host._describe("", nodes) : Reflect.apply(describe, this.graph, [])',
+				'this.host._describe("", nodes)',
 			],
 		],
 	],
@@ -164,7 +164,7 @@ const mutants = [
 			[scope, "this.registrar.constructions.set(owner.instance, owner);", "void owner;"],
 			[
 				scope,
-				"lifecycleRegistrars.get(graph)?.constructions.get(owner.instance) !== owner ||",
+				"graphRegistrations.get(graph)?.existingConstructions?.get(owner.instance) !== owner ||",
 				"false ||",
 			],
 		],
@@ -188,7 +188,7 @@ const mutants = [
 		[
 			[
 				"graph/graph.ts",
-				"isNodeRuntimeReleased(node) && !runtimeReleaseFailures.has(node)",
+				"isNodeRuntimeReleased(node) && !runtimeReleaseFailuresOfNode(node)",
 				"isNodeRuntimeReleased(node)",
 			],
 		],

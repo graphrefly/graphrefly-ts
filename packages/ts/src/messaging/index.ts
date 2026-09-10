@@ -5,7 +5,7 @@
  * subscription-cursor substrate. DynamicHub is intentionally retired; do not add aliases.
  */
 
-import { depBatch, type NodeFn } from "../ctx/types.js";
+import { depBatch, depCount, type NodeFn } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey } from "../identity.js";
@@ -123,9 +123,8 @@ export function messageBus<TTopic extends string>(
 ): MessageBus<TTopic> {
 	const name = opts.name ?? "messageBus";
 	const initialTopics = uniqueTopics(opts.topics ?? []);
-	const commandSources: Node<MessageBusCommand>[] = [];
 	const commandBody: NodeFn = (ctx) => {
-		for (let i = 0; i < commandSources.length; i++) {
+		for (let i = 0; i < depCount(ctx); i++) {
 			for (const command of depBatch(ctx, i) ?? []) ctx.down([["DATA", command]]);
 		}
 	};
@@ -148,7 +147,6 @@ export function messageBus<TTopic extends string>(
 		seenIdempotencyKeys: new Set(),
 		deadLetters: [],
 		deadLetterSeq: 0,
-		commandSources,
 		commandBody,
 	};
 	const runtime = graph.node<RuntimeEvent>(
@@ -484,12 +482,9 @@ export function toTopic<T, TTopic extends string>(
 		bus,
 		commands as Node<MessageBusCommand>,
 	);
-	let released = false;
 	return {
 		commands,
 		release() {
-			if (released) return;
-			released = true;
 			releaseSource();
 		},
 	};

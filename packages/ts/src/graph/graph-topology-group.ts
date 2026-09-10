@@ -1,7 +1,7 @@
 import type { NodeFn } from "../ctx/types.js";
 import type { Node } from "../node/node.js";
 import type { Graph, StateNode } from "./graph.js";
-import { lifecycleRegistrars } from "./graph-lifecycle.js";
+import { graphRegistrations } from "./graph-lifecycle.js";
 import type { DerivedFn, EffectFn, SugarOpts } from "./graph-types.js";
 import type { Operator } from "./operators.js";
 
@@ -66,7 +66,7 @@ export class GraphTopologyGroup implements TopologyGroup {
 
 	add<T extends Node<unknown>>(node: T): T {
 		this._assertLive();
-		const lifecycle = lifecycleRegistrars.get(this._graph);
+		const lifecycle = graphRegistrations.get(this._graph);
 		if (lifecycle === undefined) throw new Error("topologyGroup: graph lifecycle unavailable");
 		lifecycle.assertRegisteredNode(node, `topology group '${this.name ?? "group"}' member`);
 		if (!this._members.includes(node)) this._members.push(node);
@@ -121,7 +121,7 @@ export class GraphTopologyGroup implements TopologyGroup {
 
 	release(opts: TopologyGroupReleaseOptions = {}): void {
 		if (this._released) return;
-		const lifecycle = lifecycleRegistrars.get(this._graph);
+		const lifecycle = graphRegistrations.get(this._graph);
 		if (lifecycle === undefined) throw new Error("topologyGroup: graph lifecycle unavailable");
 		lifecycle.releaseNodes([...this._members], {
 			reason: opts.reason ?? this.name,
