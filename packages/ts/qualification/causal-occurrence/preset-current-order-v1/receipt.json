@@ -1,0 +1,127 @@
+{
+	"kind": "private-current-order-diagnostic-evidence",
+	"workRef": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"governingRefs": ["graphrefly-ts:D164", "graphrefly-ts:D165", "graphrefly-ts:D166"],
+	"date": "2026-09-09",
+	"baselineCommit": "81191dcf",
+	"qualification": false,
+	"status": "order-associated-registry-lead-established-not-repair-qualified",
+	"authorization": {
+		"userRequest": "好，继续 after proposed currentFacts path investigation",
+		"scope": "Private offline generated-copy diagnosis; retained commit grant"
+	},
+	"productSourceChanged": false,
+	"formalQualificationRerun": false,
+	"historicalQualification": {
+		"receipt": "packages/ts/qualification/causal-occurrence/preset-performance-v1/receipt.json",
+		"digest": "sha256:18829de286ffba2f4ea7d467e5c8cbb39a653c429f7af35dca2da4649f62ced3",
+		"ratio": 1.2116712777251397,
+		"limit": 1.2,
+		"remainingRowsNotRun": 80,
+		"statusUnchanged": true
+	},
+	"runs": {
+		"run-01": {
+			"freeze": "run-01/freeze.json",
+			"freezeDigest": "sha256:d21ec2fa0005bb0b27fd6af9aaa99396165ea23956b1805b75d212159ffe0584",
+			"executedToolSources": "executed-run-01",
+			"completed": true,
+			"constructions": 12800,
+			"measuredNodeIntervals": 571200,
+			"preflights": 4,
+			"outerTimeoutSeconds": 180
+		},
+		"core-01": {
+			"freeze": "core-01/freeze.json",
+			"freezeDigest": "sha256:c7b65cfa5a6e1ce8ea2b755bf4d7652e8c800f10a7387c45ab9505b6ad19d577",
+			"executedToolSources": "executed-core-01",
+			"completed": true,
+			"constructions": 12800,
+			"measuredNodeIntervals": 571200,
+			"preflights": 4,
+			"outerTimeoutSeconds": 180
+		},
+		"steps-01": {
+			"freeze": "steps-01/freeze.json",
+			"freezeDigest": "sha256:f767e61c8c17d52b4c2acf82f8df3170d1eaf3939c5ea36d9973a8d16675c268",
+			"executedToolSources": "sources",
+			"completed": true,
+			"constructions": 12800,
+			"measuredNodeIntervals": 571200,
+			"preflights": 4,
+			"outerTimeoutSeconds": 180
+		}
+	},
+	"findings": [
+		"Higher candidate interval follows position22 when current/verification identities are exchanged in all eight mode/batches",
+		"Extra local interval not concentrated in createSlot; mainly explicit Node constructor body, some graph registration",
+		"Read-only V8 observation sees checkpointReaders backing table replacement at insertion22 but not21/23"
+	],
+	"debugInspection": {
+		"bindings": "capacity-bindings.json",
+		"output": "capacity.txt",
+		"exitCode": 0,
+		"outerTimeoutSeconds": 30,
+		"graphs": 1,
+		"timingEvidence": false,
+		"capacityMeasured": false,
+		"exclusiveCostMeasured": false
+	},
+	"sourceBindings": {
+		"scripts/diagnose-spending-current-order.mjs": "sha256:a1e9110415858b5680d6a78f83b5a3cbece457205704457368a14add0a80138a",
+		"scripts/diagnose-spending-current-order.test.mjs": "sha256:ff6d7edec10136d6704357a8d0a2beb172eeb8820ddba5feff753f13fb106aac",
+		"scripts/diagnose-spending-node-cold.mjs": "sha256:c47ebeaee1f8a0324aced3bf32b3d1e7e6ccd718920afe38ef65f4115249217d",
+		"scripts/diagnose-spending-preset-cold.mjs": "sha256:0618eadc767d0b28872d3951c7056071134e73c6ba938bd6ad3ec3f291257032"
+	},
+	"priorSourceRecheck": {
+		"preset-performance-v1": {
+			"bindingsUnchanged": 63,
+			"receiptDigest": "sha256:18829de286ffba2f4ea7d467e5c8cbb39a653c429f7af35dca2da4649f62ced3",
+			"archiveUnchanged": true
+		},
+		"preset-reference-v1": {
+			"bindingsUnchanged": 65,
+			"receiptDigest": "sha256:7f754a33728b6b580e22fb217e25deedf3e4796626fae74b0f0d8b603edb379b",
+			"archiveUnchanged": true
+		},
+		"rootDirtyFilesUnchanged": 6
+	},
+	"checks": {
+		"newToolTests": 5,
+		"allDiagnosticToolTests": 13,
+		"defaultSuite": {
+			"passed": 2514,
+			"failed": 2,
+			"skipped": 4,
+			"failure": "Existing D159 frozen implementation-manifest mismatch"
+		},
+		"lintAndTypechecks": "passed",
+		"rawAccountingReplayed": 38400,
+		"staticReview": "static-review.json",
+		"artifactGate": "not rerun; previous failure retained",
+		"newRuntimeMutationQualification": false
+	},
+	"rawEvidence": {
+		"path": "packages/ts/qualification/causal-occurrence/preset-current-order-v1/evidence.tar.gz",
+		"digest": "sha256:a2d7b33ef74ecd7fa1a7d453e3efbb4be16b9c2bd7f4f3b987f4a2bb4ef2ac0b",
+		"artifactCount": 95,
+		"indexPath": "packages/ts/qualification/causal-occurrence/preset-current-order-v1/artifact-index.json",
+		"indexDigest": "sha256:ee9b0e016f8f5ac60eefa6b2a17233a4451cc41acd5674284a956082ea768ffe"
+	},
+	"reviewCopies": {
+		"analysis.json": "sha256:ab5751548156b40fe778faa178286b4f6e2da26a2f20f55a196590f9515bac07",
+		"order-comparison.csv": "sha256:93f7515d0210ad1380e2b6781dc184887d2f5ada07d48f040eefbccdd99d1204"
+	},
+	"postRecordGates": "record-gates.json",
+	"workComplete": false,
+	"nonClaims": [
+		"currentFacts business defect",
+		"Uninstrumented per-node or total speedup",
+		"All-registry exclusive cost or actual table capacity",
+		"Original p95 failure root cause",
+		"Qualification/repair completion",
+		"C/API/protocol change",
+		"Final ergonomics/B121 completion",
+		"Provider/live/spend/effect execution"
+	]
+}
