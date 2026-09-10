@@ -6,8 +6,8 @@ import type {
 } from "../../packages/ts/src/solutions/causal-occurrence/contracts.js";
 
 /** Independent bounded encoder; descriptors are read once and no getters are invoked. */
-function oracleEncoding(input: unknown) {
-	let remaining = 1048576,
+function oracleEncoding(input: unknown, maxBytes = 1048576) {
+	let remaining = maxBytes,
 		immutable = true;
 	const active = new Set<object>();
 	function charge(text: string) {
@@ -64,8 +64,8 @@ function oracleEncoding(input: unknown) {
 		},
 	};
 }
-export function oracleCanonical(input: unknown): string {
-	return oracleEncoding(input).text;
+export function oracleCanonical(input: unknown, maxBytes = 1048576): string {
+	return oracleEncoding(input, maxBytes).text;
 }
 export const oracleHash = (s: string) => `sha256:${createHash("sha256").update(s).digest("hex")}`;
 export function oracleFreeze<T>(v: T): T {

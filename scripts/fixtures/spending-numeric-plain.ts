@@ -46,7 +46,7 @@ function roundRoot(n: bigint, d: bigint, candidate: number): number {
 	const cmp = compare(decode(value(lo)) + decode(value(hi)));
 	return value(cmp < 0n || (cmp === 0n && lo % 2n !== 0n) ? hi : lo);
 }
-export function plainNumbers(amounts: readonly number[], dailyAverage: number) {
+export function plainMoments(amounts: readonly number[]) {
 	const anchor = decode(amounts[0]),
 		n = BigInt(amounts.length);
 	let sum = 0n,
@@ -61,6 +61,15 @@ export function plainNumbers(amounts: readonly number[], dailyAverage: number) {
 	// Scale leading bits only for an approximate root; the exact cell check decides acceptance.
 	const numerator = delta * delta * (n - 1n),
 		denominator = n * dispersion;
+	return {
+		numerator: numerator.toString(),
+		denominator: denominator.toString(),
+		negative: delta < 0n,
+	};
+}
+export function plainScore(moments: ReturnType<typeof plainMoments>): number {
+	const numerator = BigInt(moments.numerator),
+		denominator = BigInt(moments.denominator);
 	let magnitude = 0;
 	if (numerator !== 0n && denominator !== 0n) {
 		const shiftN = Math.max(0, numerator.toString(2).length - 53);
@@ -74,8 +83,11 @@ export function plainNumbers(amounts: readonly number[], dailyAverage: number) {
 			2 ** Math.floor(power / 2);
 		magnitude = roundRoot(numerator, denominator, estimate);
 	}
+	return magnitude === 0 ? 0 : moments.negative ? -magnitude : magnitude;
+}
+export function plainNumbers(amounts: readonly number[], dailyAverage: number) {
 	return {
-		zScore: magnitude === 0 ? 0 : delta < 0n ? -magnitude : magnitude,
+		zScore: plainScore(plainMoments(amounts)),
 		dailyRatio:
 			amounts[amounts.length - 1] === 0
 				? 0

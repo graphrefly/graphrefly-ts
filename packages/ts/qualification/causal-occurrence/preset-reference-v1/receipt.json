@@ -1,0 +1,192 @@
+{
+	"kind": "private-preset-reference-attempt",
+	"workRef": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"governingRefs": ["graphrefly-ts:D164", "graphrefly-ts:D165", "graphrefly-ts:D166"],
+	"baselineCommit": "ca38254a55f08737a2d9aee81ac5c3fd42a49736",
+	"date": "2026-09-09",
+	"qualified": false,
+	"status": "finite-reference-semantic-gate-passed-performance-unrun",
+	"approval": {
+		"scope": "Original private implementation/offline/commit grant retained; user confirmed 好的，继续.",
+		"newDecision": false,
+		"effectExecutionAuthorized": false
+	},
+	"referenceSemanticGate": {
+		"passed": true,
+		"newTests": 51,
+		"profiles": ["P1", "P2", "P3", "P4", "P5", "P6"],
+		"modes": ["off", "summary"],
+		"ownedNodes": [53, 54],
+		"roots": 2,
+		"inputSources": 6,
+		"compared": [
+			"assessment",
+			"effect proposal/admission/outcome",
+			"publication",
+			"coverage/conservation",
+			"retained evidence bytes",
+			"lifecycle and retainedEvidence flags"
+		],
+		"scope": "Finite frozen and adversarial scenarios, not exhaustive full-domain proof"
+	},
+	"sourceBindings": {
+		"examples/spending-alerts/causal-admission.ts": "sha256:bc96990c2f96c9ecf6b1ddd3141005caaaf6391cd91a33f5d0e8e5d6ae08361d",
+		"examples/spending-alerts/causal-business.ts": "sha256:5808b47b937eaa35336736523d958d9dcfa58053caad9c65df2caac49333c523",
+		"examples/spending-alerts/causal-inputs.ts": "sha256:dfb1aa266cfed9bb6400171bfba30f046cd09ef94346c18560124566a7364561",
+		"examples/spending-alerts/causal-material-owner.ts": "sha256:76a3605e733a2f87b23eb908f37fd7177ef86861c80d839708bd9080c5b9b370",
+		"examples/spending-alerts/causal-numeric.ts": "sha256:0acdf5c800e55f7de0736718cc846eea137f880d0cbd0f158b680fa8b2e29dd8",
+		"examples/spending-alerts/causal-preset.ts": "sha256:d4388d6a9bd8ed94e89716cb908e3e335ee3081203d25791868e88e8e40a501b",
+		"examples/spending-alerts/causal-publication.ts": "sha256:eb303ca7a7ac46ed4b906f8ae5008a252426a8a07ef082bc15bd76e8b43ac743",
+		"packages/ts/src/batch/batch.ts": "sha256:a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+		"packages/ts/src/batch/boundary.ts": "sha256:d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+		"packages/ts/src/ctx/types.ts": "sha256:e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+		"packages/ts/src/dispatcher/index.ts": "sha256:32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+		"packages/ts/src/graph/blueprint.ts": "sha256:ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+		"packages/ts/src/graph/checkpoint.ts": "sha256:91c19b941e75cd3ccc20250c440ee29a351fe152a8f18d11bdeedc537e1d7024",
+		"packages/ts/src/graph/combinators.ts": "sha256:e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+		"packages/ts/src/graph/construction-scope.ts": "sha256:6435b07d9fc42fc8d5850a050dc7bf9413b7a83a088aec310a1a78cb48dd399c",
+		"packages/ts/src/graph/describe.ts": "sha256:d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+		"packages/ts/src/graph/environment.ts": "sha256:2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+		"packages/ts/src/graph/graph-lifecycle.ts": "sha256:aad0f8c4b90f39fef693c6b8150165c35013032039566a82ef6db1d15f2f3772",
+		"packages/ts/src/graph/graph-support.ts": "sha256:e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+		"packages/ts/src/graph/graph-topology-group.ts": "sha256:ee93a1869547c45c92d0976ba96af331daed387317b51b374b462688c1705593",
+		"packages/ts/src/graph/graph.ts": "sha256:1f261caf16821965b6ca8e6de3e14f27c348a81f016010379eb376688497978c",
+		"packages/ts/src/graph/higher-order.ts": "sha256:8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+		"packages/ts/src/graph/operators.ts": "sha256:688fc56dde3ddda8320d5e216f93ab1f3ef279b91f3c64ade2ee5fb3ee8ed47c",
+		"packages/ts/src/graph/sources.ts": "sha256:eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+		"packages/ts/src/graph/time.ts": "sha256:04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+		"packages/ts/src/identity.ts": "sha256:4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+		"packages/ts/src/json/codec.ts": "sha256:7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+		"packages/ts/src/node/core.ts": "sha256:e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+		"packages/ts/src/node/node-context-runtime.ts": "sha256:6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+		"packages/ts/src/node/node-input-runtime.ts": "sha256:9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+		"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:cc128a0567de6e8383078016ccd108d872f17858c910b31664c8e475347b2963",
+		"packages/ts/src/node/node-output-runtime.ts": "sha256:c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+		"packages/ts/src/node/node-rewire-runtime.ts": "sha256:567357af98ba43e86281453ab5eb6ab651aa3a6f660f740ad2f763db3f9e3660",
+		"packages/ts/src/node/node-runtime-host.ts": "sha256:7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+		"packages/ts/src/node/node.ts": "sha256:52846fcb1bf65bd2dc2e2c783240d96b4dc71e5647019a961043702b07f052d1",
+		"packages/ts/src/node/owned-acquisition.ts": "sha256:8cdfdc3cdef6cf593e96538a067c81da6f95eed9f14cf7d1889e935502286b60",
+		"packages/ts/src/node/protocol-guards.ts": "sha256:11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+		"packages/ts/src/node/runtime-accessors.ts": "sha256:da9d82b4b676e9eccbdb69cf4f2d3f42780736cc22e12b4eccc742d0af75fb16",
+		"packages/ts/src/node/versioning.ts": "sha256:2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+		"packages/ts/src/operators/index.ts": "sha256:67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+		"packages/ts/src/protocol/messages.ts": "sha256:5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+		"packages/ts/src/solutions/causal-occurrence/capabilities.ts": "sha256:606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+		"packages/ts/src/solutions/causal-occurrence/committed-view.ts": "sha256:ed6e3b06a849f4f7bc9df455059b26f1dea92a64566acad04bbc8c306b35919d",
+		"packages/ts/src/solutions/causal-occurrence/construction.ts": "sha256:57a73dfa6eb9a685441403520f790447d63e13b5f221b8c7eba3c2c5dfae06c9",
+		"packages/ts/src/solutions/causal-occurrence/evidence.ts": "sha256:62c9a985d3e9456f10ff241f736306c85c0f374585718d385131ab19a94c718e",
+		"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+		"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "sha256:bc8f3c7b353d9a2cfbbb0d39bd8fd88a0b356184bbd448c2252f80503dc6089a",
+		"packages/ts/src/solutions/causal-occurrence/transition.ts": "sha256:768e4a03db4204444e6312f22466cffa45d792574b4b9dfb1dbc699d30cc6c98",
+		"scripts/fixtures/spending-numeric-oracle.ts": "sha256:91f90ff47306b4631dc225a6df4daf60cabbd2e146aa1476915cdbfe4419c8df",
+		"scripts/fixtures/spending-preset-harness.ts": "sha256:9c3ba7b674bd56847631a4c07160c1123cc39fa300ef540c2f3aa82880259e22",
+		"scripts/fixtures/spending-preset-oracle.ts": "sha256:1bae2736615e6c2b8db71cc380a31226e73dcea1d31216d45ec13819a92cc8a2",
+		"scripts/fixtures/spending-publication-oracle.ts": "sha256:6e2c9c6695567a276c75090c838670c93ecdea7c7b5a48279f959ccf66c4aac1",
+		"scripts/fixtures/spending-numeric-plain.ts": "sha256:826a09c8c17878f40b9042fa06955d9514b1b5b791b28e5b8cf9a1c785d44dc9",
+		"scripts/fixtures/spending-preset-reference-input.ts": "sha256:e3e967df024c4bb336433bc83bb060be4241d7036083a683311fc9cc464effc7",
+		"scripts/fixtures/spending-preset-reference-run.ts": "sha256:b6b72673a02b6a12e41b5324ce36d1bed11027bfedac718dbc449ed11296b886",
+		"scripts/fixtures/spending-preset-reference.ts": "sha256:bbff086587070d51de01e5c04362b34b22a45b866e9fc38fba529cd9fefdcbc0",
+		"scripts/fixtures/spending-publication-reference.ts": "sha256:83c9e7ecb7dd8ee8b7eed11fdc2d67ed04c40d834ba2d0d77fbf4f519a12dced",
+		"scripts/fixtures/spending-preset-plain.ts": "sha256:26ee81a80e0d9ff18001af2427741a6cbc6e641853a35e5f7cc7cc4b76e6e0ea",
+		"scripts/fixtures/spending-preset-scenarios.ts": "sha256:ecb9fc3219b3d60991446e06e4c448c94fe33863637de73a3cb41d63ed1b9c07",
+		"scripts/fixtures/spending-preset-reference-freeze.ts": "sha256:c200221a9406d8ea2585ea2a745c9a4c956c0eb81f029fe1d86e429e279a56cd",
+		"scripts/qualify-spending-preset-reference.mjs": "sha256:f077dce5924b697a2b168deb2929375152b2360ff6083a75f88aaac6f80d83f6",
+		"packages/ts/src/__tests__/spending-alerts-preset-reference.test.ts": "sha256:b46ac3bb803612c51ba929dd42bc707dee69e75d046a3d480e33003cbadeb0c8",
+		"docs/design/causal-preset-assembly-v1.md": "sha256:7e66c0a31afa9c27d88251e4048e931b41b18560519966d460a09af0fc03ac30",
+		"docs/design/causal-preset-numeric-contract-v1.md": "sha256:1a0d9af21223855dd3a4c9f22ab6400aafc6b9fe65e0f6bed16ed896111ec825",
+		"pnpm-lock.yaml": "sha256:d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485"
+	},
+	"sourceFreeze": "freeze-qualified/freeze.json",
+	"runtimeMutations": {
+		"report": "runtime-qualified/results.json",
+		"baseline": "passed",
+		"detected": 7,
+		"loadErrorKills": 0
+	},
+	"publicationRequalification": {
+		"report": "publication-runtime.json",
+		"baseline": "passed",
+		"detected": 13,
+		"loadErrorKills": 0
+	},
+	"tests": {
+		"existingPreset": 98,
+		"existingPublication": 110,
+		"fixedSeedNumericDifferential": 200,
+		"defaultSuite": {
+			"passed": 2514,
+			"failed": 2,
+			"skipped": 4,
+			"failure": "Existing D159 frozen implementation-manifest drift"
+		}
+	},
+	"gates": {
+		"lint": "passed",
+		"exampleAndPackageTypecheck": "passed",
+		"artifact": "failed-existing-D159-manifest-drift",
+		"workspace": "passed",
+		"dashboard": "passed"
+	},
+	"reusedEvidence": {
+		"rootSoak": {
+			"newRun": false,
+			"priorPassed": 221,
+			"unchangedBindings": 181,
+			"report": "root-soak-reuse.json"
+		},
+		"prerequisites": {
+			"newRuns": false,
+			"whole61FileBindingReusable": false,
+			"changedFile": "scripts/fixtures/spending-publication-oracle.ts",
+			"report": "prerequisite-reuse.json",
+			"replacementEvidence": "Publication 110 tests and actual runtime mutations newly run; no renewed old performance claim"
+		}
+	},
+	"performance": {
+		"matrixRun": false,
+		"runnerImplemented": false,
+		"budgetChanged": false,
+		"originalRecipe": {
+			"coldRows": 12,
+			"steadyRows": 60,
+			"recoveryRows": 12,
+			"coldLimit": 1.2,
+			"steadyLimit": 1.1
+		},
+		"next": "Implement and run original frozen consumer recipe with separate setup and fresh lifetime-capacity segments"
+	},
+	"rawEvidence": {
+		"path": "packages/ts/qualification/causal-occurrence/preset-reference-v1/evidence.tar.gz",
+		"digest": "sha256:6688f8afb5f871ee7c582c5b7e1474278d8b516c12df47d15f96ddc999cfa892",
+		"artifactCount": 176,
+		"indexPath": "packages/ts/qualification/causal-occurrence/preset-reference-v1/artifact-index.json",
+		"indexDigest": "sha256:3385a5732f1e558009d19047f1911e818321c03aa8ccf44de8dc2cf784cd5cba"
+	},
+	"rootBaseline": {
+		"unchanged": true,
+		"boundFiles": 6,
+		"report": "root-baseline-check.json"
+	},
+	"outstanding": [
+		"Original 12/60/12 performance matrix",
+		"N1-N12 final review package",
+		"Existing D159 frozen source-binding issue"
+	],
+	"nonClaims": [
+		"Full preset-v1 qualification",
+		"Runtime performance passed",
+		"Public export layering or final qualified factory",
+		"Actual effect or live/provider/spend",
+		"B121 human/agent study or reduced cognitive burden"
+	],
+	"gateLogs": {
+		"workspace": {
+			"path": "packages/ts/qualification/causal-occurrence/preset-reference-v1/workspace.log",
+			"digest": "sha256:3835fc2a997681bf829c6c54f3219d6ddcc8201e5ee2ac3fc67e3787e4def893"
+		},
+		"dashboard": {
+			"path": "packages/ts/qualification/causal-occurrence/preset-reference-v1/dashboard.log",
+			"digest": "sha256:57d4dc2953cc9de54408eb72f73eccff702d623d1346ab401e6585a2b1275569"
+		}
+	}
+}
