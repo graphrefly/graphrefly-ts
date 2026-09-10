@@ -7,6 +7,7 @@ import {
 	registerBackendStateContributor,
 } from "../graph/checkpoint.js";
 import {
+	assertGraphLocalNode,
 	Graph,
 	releaseGraphNodes,
 	restoreNodeInGraph,
@@ -58,6 +59,39 @@ function pending(bus: ReturnType<typeof messageBus>) {
 }
 
 describe("D167 issued runtime identity and lifecycle", () => {
+	it("preserves graph-use results for owned, foreign, bare and unissued identities", () => {
+		const g = new Graph();
+		const other = new Graph();
+		const owned = g.state(2);
+		const foreign = other.state(3);
+		const bare = new Node([], null);
+		expect(() => assertGraphLocalNode(g, owned, "dep")).not.toThrow();
+		expect(() => assertGraphLocalNode(g, bare, "dep")).not.toThrow();
+		expect(() => assertGraphLocalNode(g, foreign, "dep")).toThrow(
+			"dep belongs to a different graph; cross-graph deps require a wire bridge",
+		);
+		for (const fake of [{}, { ...owned }, Object.create(owned)] as Node<unknown>[]) {
+			expect(() => assertGraphLocalNode(g, fake, "dep")).not.toThrow();
+			expect(() => checkpointStateOfNode(fake)).toThrow("unknown node state");
+		}
+		releaseRuntimeOfNode(bare);
+		releaseGraphNodes(g, [owned]);
+		releaseGraphNodes(other, [foreign]);
+	});
+	it("rejects graph use from release hooks while runtime access is still open", () => {
+		const g = new Graph();
+		const input = g.state(2, { name: "input" });
+		let hookRan = false;
+		nodeRuntimeHost(input)._hooks.onDeactivation.push(() => {
+			hookRan = true;
+			expect(checkpointStateOfNode(input).cache).toBe(2);
+			expect(() => g.node([input], null, { name: "invalid" })).toThrow("has been released");
+			expect(g.find("invalid")).toBeUndefined();
+		});
+		releaseGraphNodes(g, [input]);
+		expect(hookRan).toBe(true);
+		expect(() => assertGraphLocalNode(g, input, "dep")).toThrow("has been released");
+	});
 	it("keeps live bare access and rejects copies/prototype descendants without touching the original", () => {
 		const n = new Node([], null, { initial: 3 });
 		for (const fake of [{}, { ...n }, Object.create(n)] as Node<unknown>[]) {
@@ -109,6 +143,7 @@ describe("D167 issued runtime identity and lifecycle", () => {
 			cause: boom,
 		});
 		expect(isNodeRuntimeReleased(n)).toBe(true);
+		expect(() => assertGraphLocalNode(new Graph(), n, "failed dep")).toThrow("has been released");
 		expect(() => checkpointStateOfNode(n)).toThrow("unknown");
 		releaseRuntimeOfNode(n);
 		expect(unregister).toHaveBeenCalledTimes(1);

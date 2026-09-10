@@ -1,0 +1,44 @@
+{
+  "kind": "Implementation refinement and offline attempt evidence; no execution authority",
+  "work_ref": "graphrefly-ts:LIBRARY-REGISTRATION-TS",
+  "governing_ref": "graphrefly-ts:D167",
+  "approval": "User \u597d\u7684\uff0c\u7ee7\u7eed after concrete design commit 6d818419",
+  "design": {
+    "path": "docs/design/library-registration-check-design-v1.md",
+    "digest": "sha256:8c1f385333c0356c0f8734547659bbe6536fe0231affcbd725bc3ab4e7bfc0d6"
+  },
+  "baseline": "194e72eefefb4b8e0d58573e1a5386eeb17987e5",
+  "result": {
+    "path": "result.json",
+    "digest": "sha256:0a83bbb6d3b7211d3ab45d7a0da3c0abeecd59832803088d9cdb001e7a1c622d"
+  },
+  "analysis": {
+    "path": "performance-analysis.json",
+    "digest": "sha256:869e792a4739471d6722f5553e4b1956313d91eafb5719abe6d38892f59d95d5"
+  },
+  "archive": {
+    "path": "evidence.tar.gz",
+    "digest": "sha256:6d8482c41af09b14beef0fdc46f71a8844a7e70064776c2666721467bdae713b",
+    "entries": 165
+  },
+  "artifact_index": {
+    "path": "artifact-index.json",
+    "digest": "sha256:55bcbfc4c2649fed9b6d5c84bac54d7a533343680e148c55e2933f293e3b7ed5"
+  },
+  "report": {
+    "path": "docs/design/library-registration-check-implementation.md",
+    "digest": "sha256:806df7ac1291a27870ee63af909d78df27836db9085faf95ffb6497879b66130"
+  },
+  "source_bindings": {
+    "path": "source-bindings.json",
+    "digest": "sha256:c93823c30570a6ddd02c627b1bba159180c038f2b7222f4a9dc46aeecc873721"
+  },
+  "limitations": [
+    "Two pre-existing D159 full-suite failures and frozen artifact drift remain",
+    "Initial full suite and soak had additional timeouts, not reproduced in isolated retests; all attempts retained",
+    "Occurrence mutations have stdout and source bindings but no detailed report for this attempt",
+    "No stable end-to-end speedup, steady-state, memory or learning-cost claim",
+    "No formal Causal matrix rerun; prior rejection remains"
+  ],
+  "integrity": "integrity-check.json"
+}

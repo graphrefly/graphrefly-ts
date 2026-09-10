@@ -1,0 +1,246 @@
+{
+  "source": "performance/results.json",
+  "units": "percent change: positive slower; delta in microseconds",
+  "rows": [
+    {
+      "mode": "off",
+      "arm": "candidate",
+      "contrast": "current/before",
+      "p50PercentByRound": [
+        -4.0452003694047,
+        -1.1677363488618808,
+        -2.0914080693692383,
+        -1.5262340556307818
+      ],
+      "p95PercentByRound": [
+        -12.423232987880183,
+        -58.67355727822029,
+        -1.4893997204128429,
+        5.428854800671479
+      ],
+      "p50DeltaMicrosByRound": [
+        -11.126000000018621,
+        -2.7510000001029766,
+        -5.082999999956428,
+        -4.000000000019099
+      ],
+      "p95DeltaMicrosByRound": [
+        -72.4999999999909,
+        -425.7500000001073,
+        -4.251000000010663,
+        20.41700000000901
+      ]
+    },
+    {
+      "mode": "off",
+      "arm": "candidate",
+      "contrast": "current-copy/current",
+      "p50PercentByRound": [
+        0.6630897709936079,
+        1.3245545091000288,
+        -2.7845132985255816,
+        -5.295195731605984
+      ],
+      "p95PercentByRound": [
+        -12.85679066455323,
+        10.045852438555736,
+        -6.001436873581401,
+        -13.629760403540402
+      ],
+      "p50DeltaMicrosByRound": [
+        1.7500000000154614,
+        3.084000000171727,
+        -6.626000000039767,
+        -13.666000000000622
+      ],
+      "p95DeltaMicrosByRound": [
+        -65.70900000002666,
+        30.125000000111868,
+        -16.873999999972966,
+        -54.042000000038115
+      ]
+    },
+    {
+      "mode": "off",
+      "arm": "reference",
+      "contrast": "current/before",
+      "p50PercentByRound": [
+        -3.7536621823555993,
+        6.314864142893883,
+        -2.130977130985856,
+        -2.8336536581940908
+      ],
+      "p95PercentByRound": [
+        -0.9874326750398454,
+        21.740662263487543,
+        -62.3466701699634,
+        -5.446352614078675
+      ],
+      "p50DeltaMicrosByRound": [
+        -9.41699999998491,
+        16.666000000000736,
+        -5.125000000020918,
+        -6.958999999937987
+      ],
+      "p95DeltaMicrosByRound": [
+        -3.5419999999817264,
+        87.62400000000525,
+        -512.5420000000531,
+        -15.74900000002799
+      ]
+    },
+    {
+      "mode": "off",
+      "arm": "reference",
+      "contrast": "current-copy/current",
+      "p50PercentByRound": [
+        -0.32759320461213104,
+        0.35675718059058337,
+        -2.194795538998584,
+        -0.3495023572540612
+      ],
+      "p95PercentByRound": [
+        -3.777388601388265,
+        -1.5540102636017905,
+        -6.178483049160722,
+        1.249373667334397
+      ],
+      "p50DeltaMicrosByRound": [
+        -0.7909999999924366,
+        1.001000000016461,
+        -5.165999999917403,
+        -0.8339999999975589
+      ],
+      "p95DeltaMicrosByRound": [
+        -13.416000000006534,
+        -7.625000000004434,
+        -19.125000000030923,
+        3.4160000000156288
+      ]
+    },
+    {
+      "mode": "summary",
+      "arm": "candidate",
+      "contrast": "current/before",
+      "p50PercentByRound": [
+        -3.435510204085057,
+        0.677966101678873,
+        -3.3632286995535776,
+        -3.320080677929449
+      ],
+      "p95PercentByRound": [
+        -0.6105621805677308,
+        4.914216903379587,
+        -3.5905156057757126,
+        -9.495638506880988
+      ],
+      "p50DeltaMicrosByRound": [
+        -8.417000000008557,
+        1.749999999958618,
+        -9.375000000005684,
+        -7.999999999924512
+      ],
+      "p95DeltaMicrosByRound": [
+        -1.791999999966265,
+        15.83400000004076,
+        -20.249000000021056,
+        -30.208000000016
+      ]
+    },
+    {
+      "mode": "summary",
+      "arm": "candidate",
+      "contrast": "current-copy/current",
+      "p50PercentByRound": [
+        0.47552021912049547,
+        2.9664261664396285,
+        0.15480278422228544,
+        0.3219464452498988
+      ],
+      "p95PercentByRound": [
+        -7.913050036331981,
+        44.31135776025561,
+        2.613162555707338,
+        4.25469840266286
+      ],
+      "p50DeltaMicrosByRound": [
+        1.125000000001819,
+        7.709000000033939,
+        0.41699999999877946,
+        0.7499999999254214
+      ],
+      "p95DeltaMicrosByRound": [
+        -23.08299999998553,
+        149.7909999999365,
+        14.208000000010657,
+        12.249999999994543
+      ]
+    },
+    {
+      "mode": "summary",
+      "arm": "reference",
+      "contrast": "current/before",
+      "p50PercentByRound": [
+        -0.6819983474756319,
+        -0.9693078794675292,
+        -0.7988494726637541,
+        1.298701298702265
+      ],
+      "p95PercentByRound": [
+        1.853746301734427,
+        -0.8114508026965672,
+        28.22073472641844,
+        -7.720505272868294
+      ],
+      "p50DeltaMicrosByRound": [
+        -1.6260000001011576,
+        -2.4579999999900792,
+        -2.082999999970525,
+        3.500000000002501
+      ],
+      "p95DeltaMicrosByRound": [
+        5.707999999913227,
+        -2.456999999992604,
+        96.20899999993071,
+        -30.79199999999105
+      ]
+    },
+    {
+      "mode": "summary",
+      "arm": "reference",
+      "contrast": "current-copy/current",
+      "p50PercentByRound": [
+        3.4845074348641702,
+        3.8992533598596557,
+        -2.4483215872081243,
+        -3.525641025640991
+      ],
+      "p95PercentByRound": [
+        6.058190514150774,
+        34.239546638110085,
+        -9.169688304256962,
+        7.528488596407379
+      ],
+      "p50DeltaMicrosByRound": [
+        8.251000000086606,
+        9.79199999994762,
+        -6.332999999983713,
+        -9.624999999999773
+      ],
+      "p95DeltaMicrosByRound": [
+        19.000000000005457,
+        102.83300000008921,
+        -40.08299999998144,
+        27.707999999989852
+      ]
+    }
+  ],
+  "finding": "Successful same-owner guard lookup is 2 -> 1. Summary candidate p50 decreases in 3/4 rounds, but no stable end-to-end latency improvement established against process/sample variability.",
+  "limitations": [
+    "No formal qualification or retry",
+    "Lookup count reduction is not a latency guarantee",
+    "Identical-copy contrast retained to expose process/sample variability",
+    "No steady-state, memory or human/agent-learning claim"
+  ],
+  "filtering": "none; all rounds and all 19200 samples retained"
+}

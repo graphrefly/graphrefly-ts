@@ -64,6 +64,27 @@ export function probe() {
 		assert.equal(backendCalls, 0);
 		assert.throws(() => checkpointStateOfNode(n), /unknown/);
 	});
+	check("graph-use-rejects-release-start", () => {
+		const g = new Graph();
+		const n = g.state(7, { name: "input" });
+		let hookRan = false;
+		nodeRuntimeHost(n)._hooks.onDeactivation.push(() => {
+			hookRan = true;
+			assert.equal(checkpointStateOfNode(n).cache, 7);
+			assert.throws(() => g.node([n], null, { name: "invalid" }), /has been released/);
+			assert.equal(g.find("invalid"), undefined);
+		});
+		releaseGraphNodes(g, [n]);
+		assert.equal(hookRan, true);
+	});
+	check("graph-use-rejects-foreign-owner", () => {
+		const g = new Graph();
+		const other = new Graph();
+		const n = other.state(1);
+		assert.throws(() => g.node([n], null, { name: "invalid" }), /different graph/);
+		assert.equal(g.find("invalid"), undefined);
+		releaseGraphNodes(other, [n]);
+	});
 	check("cold-handle-cleanup", () => {
 		const d = new CountingDispatcher();
 		assert.throws(

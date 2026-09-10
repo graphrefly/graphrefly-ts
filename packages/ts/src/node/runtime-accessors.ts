@@ -107,6 +107,19 @@ export function getNodeOwner(n: Node<unknown>): unknown {
 	return liveRegistration(n)?.graphAttachment?.owner;
 }
 
+/**
+ * @internal D167: read release state and owner from one exact-identity lookup.
+ * No user callback may run between these reads; never retain this result across checks.
+ * Unissued objects retain the existing unowned result, not runtime access authority.
+ */
+export function nodeOwnerForGraphUse(n: Node<unknown>, label: string): unknown {
+	const record = registrations.get(n);
+	if (record?.kind === "retired" || (record?.kind === "live" && record.host._released)) {
+		throw new Error(`${label} has been released from its graph lifecycle (D122)`);
+	}
+	return record?.kind === "live" ? record.graphAttachment?.owner : undefined;
+}
+
 /** @internal Assign graph-domain ownership after graph registration. */
 export function setNodeOwner(n: Node<unknown>, owner: unknown): void {
 	const record = liveRegistration(n);

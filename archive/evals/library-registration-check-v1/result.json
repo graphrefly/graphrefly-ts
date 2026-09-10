@@ -1,0 +1,312 @@
+{
+  "kind": "D167 single-read implementation and finite offline evidence; not authority",
+  "baseline": "194e72eefefb4b8e0d58573e1a5386eeb17987e5",
+  "designCommit": "6d81841962be78f76f5c040ce449cd09a054e382",
+  "validation": {
+    "focused": {
+      "passed": 72,
+      "groups": {
+        "D167": 32,
+        "D161": 28,
+        "incoming": 12
+      },
+      "evidence": "Original focused console in task; all selected files also pass in full-isolated.log"
+    },
+    "fullInitial": {
+      "name": "full",
+      "command": [
+        "pnpm",
+        "test"
+      ],
+      "exitCode": 1,
+      "seconds": 208.9324612499986,
+      "log": "full.log",
+      "passed": 2541,
+      "failed": 8,
+      "skipped": 4,
+      "unexpectedTimeouts": 6,
+      "unhandledErrors": 1
+    },
+    "fullIsolated": {
+      "name": "full-isolated",
+      "command": [
+        "pnpm",
+        "test"
+      ],
+      "exitCode": 1,
+      "seconds": 88.49188470900117,
+      "log": "full-isolated.log",
+      "isolation": "No batch soak, mutation, build, lint, or other batch test commands running concurrently",
+      "passed": 2547,
+      "failed": 2,
+      "skipped": 4,
+      "unexpectedTimeouts": 0,
+      "unhandledErrors": 0,
+      "remaining": "Pre-existing D159 implementation manifest drift"
+    },
+    "soakInitial": {
+      "name": "soak",
+      "command": [
+        "pnpm",
+        "run",
+        "test:root-eval-soak"
+      ],
+      "exitCode": 1,
+      "seconds": 1197.986611291999,
+      "log": "soak.log",
+      "passed": 220,
+      "failed": 1,
+      "timeoutMillis": 120000
+    },
+    "soakIsolated": {
+      "name": "soak-isolated",
+      "command": [
+        "pnpm",
+        "--filter",
+        "@graphrefly/ts",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "vitest.root-eval-soak.config.ts",
+        "-t",
+        "settles thirty output-truncated Together responses through the root Graph"
+      ],
+      "exitCode": 0,
+      "seconds": 58.457859875001304,
+      "log": "soak-isolated.log",
+      "isolation": "No batch soak, mutation, build, lint, or other batch test commands running concurrently",
+      "passed": 1,
+      "skipped": 220,
+      "testMillis": 55784,
+      "scope": "Only the failed test, same timeout/assertions. Not a second complete 221-test soak pass."
+    },
+    "conformance": {
+      "passed": 77,
+      "evidence": "full-isolated.log"
+    },
+    "mutations": {
+      "registration": 13,
+      "construction": 25,
+      "assembly": 16,
+      "occurrence": 73,
+      "total": 127,
+      "commands": [
+        {
+          "name": "registration-mutations",
+          "command": [
+            "node",
+            "scripts/qualify-library-registration.mjs",
+            "archive/evals/library-registration-check-v1/registration-mutations"
+          ],
+          "exitCode": 0,
+          "seconds": 7.759664000004705
+        },
+        {
+          "name": "construction-mutations",
+          "command": [
+            "node",
+            "scripts/qualify-causal-construction.mjs",
+            "archive/evals/library-registration-check-v1/construction-mutations"
+          ],
+          "exitCode": 0,
+          "seconds": 130.39464145799866
+        },
+        {
+          "name": "assembly-mutations",
+          "command": [
+            "node",
+            "scripts/qualify-causal-cold-assembly.mjs",
+            "archive/evals/library-registration-check-v1/assembly-mutations"
+          ],
+          "exitCode": 0,
+          "seconds": 44.1470384580025
+        },
+        {
+          "name": "occurrence-mutations",
+          "command": [
+            "node",
+            "scripts/qualify-causal-occurrence.mjs",
+            "archive/evals/library-registration-check-v1/occurrence-mutations"
+          ],
+          "exitCode": 0,
+          "seconds": 123.90041479100182
+        }
+      ],
+      "occurrenceLimit": "Complete stdout and source bindings; detailed report unavailable due to recorded output routing error"
+    },
+    "build": {
+      "name": "build",
+      "command": [
+        "pnpm",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "seconds": 39.20309929200448,
+      "log": "build.log"
+    },
+    "lint": {
+      "name": "lint",
+      "command": [
+        "pnpm",
+        "run",
+        "lint"
+      ],
+      "exitCode": 0,
+      "seconds": 58.98246283399931,
+      "log": "lint.log"
+    },
+    "extras": [
+      {
+        "name": "browser",
+        "command": [
+          "pnpm",
+          "--filter",
+          "@graphrefly/ts",
+          "test:browser:agentic-memory"
+        ],
+        "exitCode": 0,
+        "seconds": 4.77545304200612
+      },
+      {
+        "name": "artifact",
+        "command": [
+          "pnpm",
+          "eval:root:artifacts:check"
+        ],
+        "exitCode": 1,
+        "seconds": 1.3178403329948196
+      },
+      {
+        "name": "script-tests",
+        "command": [
+          "node",
+          "--test",
+          "scripts/analyze-spending-preset-cold.test.mjs",
+          "scripts/diagnose-spending-current-order.test.mjs",
+          "scripts/diagnose-spending-node-cold.test.mjs",
+          "scripts/diagnose-spending-preset-cold.test.mjs",
+          "scripts/spending-preset-performance.test.mjs"
+        ],
+        "exitCode": 0,
+        "seconds": 25.059518041998672
+      }
+    ],
+    "finalGates": [
+      {
+        "name": "syntax",
+        "command": [
+          "node",
+          "--check",
+          "scripts/compare-library-registration-check.mjs"
+        ],
+        "exitCode": 0,
+        "seconds": 0.2934368749993155
+      },
+      {
+        "name": "changed-lint",
+        "command": [
+          "pnpm",
+          "exec",
+          "biome",
+          "check",
+          "scripts/compare-library-registration-check.mjs",
+          "scripts/qualify-library-registration.mjs",
+          "scripts/fixtures/library-registration-probe.ts",
+          "packages/ts/src/graph/graph.ts",
+          "packages/ts/src/node/runtime-accessors.ts",
+          "packages/ts/src/__tests__/registration.d167.test.ts"
+        ],
+        "exitCode": 0,
+        "seconds": 1.1591552500030957
+      },
+      {
+        "name": "final-dashboard",
+        "command": [
+          "node",
+          "/Users/davidchenallio/src/graphrefly/dashboard/build.mjs",
+          "--check"
+        ],
+        "exitCode": 0,
+        "seconds": 0.919952625001315
+      },
+      {
+        "name": "final-workspace",
+        "command": [
+          "npm",
+          "--prefix",
+          "/Users/davidchenallio/src/graphrefly",
+          "run",
+          "authority:check:workspace"
+        ],
+        "exitCode": 0,
+        "seconds": 1.8048214160080533
+      },
+      {
+        "name": "diff-check",
+        "command": [
+          "git",
+          "diff",
+          "--check"
+        ],
+        "exitCode": 0,
+        "seconds": 0.03415741700155195
+      }
+    ]
+  },
+  "performance": {
+    "attempt": {
+      "name": "performance",
+      "command": [
+        "node",
+        "scripts/compare-library-registration-check.mjs"
+      ],
+      "exitCode": 0,
+      "seconds": 9.77734524999687,
+      "log": "performance.log",
+      "isolation": "No batch soak, mutation, build, lint, or other batch test commands running concurrently"
+    },
+    "samples": 19200,
+    "warmup": 4800,
+    "measured": 14400,
+    "lookupTrace": [
+      {
+        "variant": "before",
+        "node": "input",
+        "lookups": 2,
+        "guard": "assertGraphLocalNode",
+        "scope": "same-owner live node, no callback, no timing"
+      },
+      {
+        "variant": "current",
+        "node": "input",
+        "lookups": 1,
+        "guard": "assertGraphLocalNode",
+        "scope": "same-owner live node, no callback, no timing"
+      }
+    ],
+    "analysis": "performance-analysis.json",
+    "raw": "performance/results.json in evidence.tar.gz",
+    "claim": "Local lookup reduced; stable end-to-end speedup not established"
+  },
+  "reviews": "static-review.json in evidence.tar.gz",
+  "incidents": [
+    "test-contention-incident.json",
+    "output-routing-incident.json"
+  ],
+  "unchanged": [
+    "All validation boundaries, callbacks and dispatcher behavior",
+    "Public export surface and wave protocol",
+    "Root existing user modifications",
+    "Frozen historical qualification receipts",
+    "Formal P2 summary rejection 1.211671 > 1.20 and 80 unrun rows"
+  ],
+  "nonClaims": [
+    "All tests green",
+    "Formal performance qualification",
+    "Stable p95 benefit",
+    "Steady-state or memory benefit",
+    "User/agent understanding or learning cost validated"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "kind": "D167 approved implementation refinement and offline evidence; no new architectural decision",
+  "approval": "User 好的，继续 after concrete design commit 6d818419",
+  "design": "docs/design/library-registration-check-design-v1.md",
+  "designDigest": "sha256:8c1f385333c0356c0f8734547659bbe6536fe0231affcbd725bc3ab4e7bfc0d6",
+  "baseline": "194e72eefefb4b8e0d58573e1a5386eeb17987e5",
+  "checkout": "6d81841962be78f76f5c040ce449cd09a054e382",
+  "contract": "All validation positions remain; one exact registry read per successful graph-use guard, release-start and foreign-owner rejection retained",
+  "nonGoals": [
+    "new public API",
+    "validation removal/reordering",
+    "formal performance matrix retry",
+    "provider/live/spend"
+  ],
+  "focusedResult": "72 tests passed (32 D167 + 28 D161 + 12 incoming)",
+  "sourceDigests": {
+    "packages/ts/src/graph/graph.ts": "sha256:d0dc5f8c6b11a61c7cc13a8bc88f258e880c38333ffdf73c50f5a93ccc2d13a0",
+    "packages/ts/src/node/runtime-accessors.ts": "sha256:6ec8dc24114807f55bc4633fb12d4fa24c35d83d0796ce270f7407017073322f",
+    "packages/ts/src/__tests__/registration.d167.test.ts": "sha256:ab24fc7c3d6ea490fb0e0a72629dcfe5462b3474533a722e7b69f8a22457299c"
+  }
+}

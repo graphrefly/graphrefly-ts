@@ -1,4 +1,4 @@
-import { runtimeReleaseFailuresOfNode } from "../node/runtime-accessors.js";
+import { nodeOwnerForGraphUse, runtimeReleaseFailuresOfNode } from "../node/runtime-accessors.js";
 import type { OwnedConstruction } from "./construction-scope.js";
 /**
  * The Graph layer (CSP-2): convenience + inspection entry (D5 / R-graph-role).
@@ -125,10 +125,7 @@ function nodeOwner(n: Node<unknown>): Graph | undefined {
 }
 
 export function assertGraphLocalNode(owner: Graph, n: Node<unknown>, label: string): void {
-	if (isNodeRuntimeReleased(n)) {
-		throw new Error(`${label} has been released from its graph lifecycle (D122)`);
-	}
-	const existing = nodeOwner(n);
+	const existing = nodeOwnerForGraphUse(n, label);
 	if (existing !== undefined && existing !== owner) {
 		throw new Error(
 			`${label} belongs to a different graph; cross-graph deps require a wire bridge`,

@@ -596,6 +596,13 @@ function takeConstructingEnvironmentDrivers() {
 function getNodeOwner(n) {
   return liveRegistration(n)?.graphAttachment?.owner;
 }
+function nodeOwnerForGraphUse(n, label) {
+  const record2 = registrations.get(n);
+  if (record2?.kind === "retired" || record2?.kind === "live" && record2.host._released) {
+    throw new Error(`${label} has been released from its graph lifecycle (D122)`);
+  }
+  return record2?.kind === "live" ? record2.graphAttachment?.owner : void 0;
+}
 function setNodeOwner(n, owner) {
   const record2 = liveRegistration(n);
   if (record2 === void 0) throw new Error("graph: unknown node state");
@@ -3256,10 +3263,7 @@ function nodeOwner(n) {
   return getNodeOwner(n);
 }
 function assertGraphLocalNode(owner, n, label) {
-  if (isNodeRuntimeReleased(n)) {
-    throw new Error(`${label} has been released from its graph lifecycle (D122)`);
-  }
-  const existing = nodeOwner(n);
+  const existing = nodeOwnerForGraphUse(n, label);
   if (existing !== void 0 && existing !== owner) {
     throw new Error(
       `${label} belongs to a different graph; cross-graph deps require a wire bridge`

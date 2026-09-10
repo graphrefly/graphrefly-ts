@@ -13,6 +13,19 @@ const owned = "packages/ts/src/node/owned-acquisition.ts";
 const messaging = "packages/ts/src/messaging/internal.ts";
 const mutants = [
 	{
+		id: "graph-use-misses-release-start",
+		file: nodeFile,
+		before:
+			'if (record?.kind === "retired" || (record?.kind === "live" && record.host._released)) {',
+		after: 'if (record?.kind === "retired") {',
+	},
+	{
+		id: "graph-use-misses-foreign-owner",
+		file: "packages/ts/src/graph/graph.ts",
+		before: "if (existing !== undefined && existing !== owner) {",
+		after: "if (false) {",
+	},
+	{
 		id: "forged-node",
 		file: nodeFile,
 		before: "const record = registrations.get(node);",
