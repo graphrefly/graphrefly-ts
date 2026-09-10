@@ -1,0 +1,113 @@
+{
+	"kind": "private-preset-cold-diagnostic-evidence",
+	"workRef": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"governingRefs": ["graphrefly-ts:D164", "graphrefly-ts:D165", "graphrefly-ts:D166"],
+	"baselineCommit": "cde7a097",
+	"date": "2026-09-09",
+	"qualification": false,
+	"status": "investigation-complete-specific-historical-cause-unconfirmed",
+	"authorization": {
+		"userRequest": "好的，开始调查",
+		"scope": "Private offline investigation and retained commit grant; generated-copy probes only",
+		"newDecision": false,
+		"productImplementationChanged": false,
+		"formalQualificationRerun": false,
+		"effectExecutionAuthorized": false
+	},
+	"historicalQualification": {
+		"receipt": "packages/ts/qualification/causal-occurrence/preset-performance-v1/receipt.json",
+		"digest": "sha256:18829de286ffba2f4ea7d467e5c8cbb39a653c429f7af35dca2da4649f62ced3",
+		"rejectedRatio": 1.2116712777251397,
+		"limit": 1.2,
+		"remainingRowsNotRun": 80,
+		"statusUnchanged": true
+	},
+	"findings": [
+		"Inclusive common-shell diagnosis localizes observed extra cost mainly to consumer builder",
+		"Six-phase builder probe finds small distributed differences; no unique culprit or justification to change C/capability layering",
+		"Same-bundle constructor dependency-array counterfactual shows no stable benefit; no production change follows",
+		"Historical deciding batch has p50 244.416/304.375/254.833 microseconds in successive 100-sample windows; no samples excluded",
+		"Original trace lacks function-stack/system-scheduling evidence for that window; its specific cause cannot be retrospectively established"
+	],
+	"runs": {
+		"commonShellAndCpu": {
+			"freeze": "run-01/freeze.json",
+			"freezeDigest": "sha256:f13e4adf4517f196856665672e94843338ba0b2ee29529d9fd607aa1e6749e01",
+			"jobs": 6,
+			"completed": true,
+			"phaseSamples": 4800,
+			"profiledConstructions": 12000,
+			"analysis": "run-01/analysis-verified.json"
+		},
+		"dependencyCounterfactual": {
+			"freeze": "dependency-input-01/freeze.json",
+			"freezeDigest": "sha256:95cdb59545fa8596edb6bffd763a4d17471327a70a891b8db7dca5f199825fd1",
+			"completed": true,
+			"rawSamples": 13200,
+			"modeVariantPreflights": 4,
+			"stableBenefitSupported": false
+		},
+		"builderDecomposition": {
+			"freeze": "builder-01/freeze.json",
+			"freezeDigest": "sha256:27c477b19aabda032876f3ff83c21ef255f1c861f207c22505c409fbed56b16a",
+			"completed": true,
+			"rawSamples": 4800,
+			"modePreflights": 2,
+			"analysis": "builder-analysis.json"
+		},
+		"historicalWindowAnalysis": "historical-windows.json"
+	},
+	"attributionLimits": [
+		"Generated markers and try/finally can affect JIT behavior and measured cost",
+		"Corresponding phase responsibilities are not identical operations; stage quantiles are not additive",
+		"CPU sample counts with graphArm ancestry exclude cleanup/native samples without that frame; no cross-clock alignment used",
+		"Diagnostic selector and shared JIT state prevent claiming production repair qualification",
+		"No new diagnostic result replaces or explains conclusively the historical p95 rejection"
+	],
+	"sourceBindings": {
+		"scripts/diagnose-spending-preset-cold.mjs": "sha256:0618eadc767d0b28872d3951c7056071134e73c6ba938bd6ad3ec3f291257032",
+		"scripts/diagnose-spending-preset-cold.test.mjs": "sha256:5c713005622731f76f5d6db6e862bc1e34da199b8bce3b066503ac83979315fa",
+		"scripts/analyze-spending-preset-cold.mjs": "sha256:dad02fa99c1c9c79b4bd7e1c9f2e9d714d3e063ee08220533587cb74f950b999",
+		"scripts/analyze-spending-preset-cold.test.mjs": "sha256:9cd517334e681ecd3e48ca9467d2e24e23062c38a533f9a4f7eb26e398b31868",
+		"scripts/diagnose-spending-dependency-input.mjs": "sha256:f6c16b4cc0348736370c5eb558eb9f11d00a7d0f3e5fb295d518072a5d5f36e9",
+		"scripts/diagnose-spending-builder.mjs": "sha256:553e979e11a987b5e2c1cb79408fcf37cd2f59f72a59ff7427997989a837cad5"
+	},
+	"priorSourceRecheck": {
+		"report": "source-recheck.json",
+		"oldMeasurementBindingsUnchanged": 63,
+		"oldSemanticBindingsUnchanged": 65,
+		"rootDirtyFilesUnchanged": 6
+	},
+	"checks": {
+		"diagnosticToolTests": 4,
+		"semanticPreflights": "all completed jobs/variants passed existing independent oracle/Graph/plain evidence checks",
+		"defaultSuite": {
+			"passed": 2514,
+			"failed": 2,
+			"skipped": 4,
+			"failure": "Existing D159 implementation-manifest drift"
+		},
+		"lintAndTypechecks": "passed",
+		"newCandidateRuntimeMutationQualification": false,
+		"artifactGate": "not rerun; previous failure retained; no pass claim",
+		"staticReview": "static-review.json"
+	},
+	"rawEvidence": {
+		"path": "packages/ts/qualification/causal-occurrence/preset-cold-diagnosis-v1/evidence.tar.gz",
+		"digest": "sha256:ce9253786d750ec37133aa878f338f8eaea0e6d22c17b78634084e30b203796f",
+		"artifactCount": 105,
+		"indexPath": "packages/ts/qualification/causal-occurrence/preset-cold-diagnosis-v1/artifact-index.json",
+		"indexDigest": "sha256:f52feafd3373fedd44971377ee5e20e88148201960d2e188a623330fb5bb7dd8"
+	},
+	"postRecordGates": "record-gates.json",
+	"recommendation": "Retain implementation; diagnose window-level slowdown with simultaneous function-stack/system context before proposing a concrete repair. Preserve original qualification criteria and all attempts.",
+	"workComplete": false,
+	"nonClaims": [
+		"Runtime performance qualification",
+		"Single-function historical root cause",
+		"Public API or protocol/C changes",
+		"Full display-port recovery",
+		"Cognitive burden/B121/final creating-factory success",
+		"Provider/live/spend/actual effects"
+	]
+}
