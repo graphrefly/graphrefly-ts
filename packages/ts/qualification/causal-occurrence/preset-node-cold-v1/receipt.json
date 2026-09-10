@@ -92,7 +92,7 @@
 	},
 	"reviewCopies": {
 		"node-analysis.json": "sha256:14ae3d32ea940ad968c4c8d5a1a39e31e9ea9e10518362195908267799eecc6d",
-		"node-ranking.csv": "sha256:9469ae8b79bb4fe22aa29084fc2636df1d533d7f5180dbdb581b1440c4de6e7a"
+		"node-ranking.csv": "sha256:37ce90cb7a6f6de5968f4e45ca03fbb531246d2bc85d7ce3045458a4b6ed3db4"
 	},
 	"postRecordGates": "record-gates.json",
 	"workComplete": false,
@@ -103,5 +103,6 @@
 		"Final user ergonomics/B121 success",
 		"C/API/protocol change",
 		"Provider/live/spend/effect execution"
-	]
+	],
+	"reviewCopyFormatting": "CSV review copy normalizes CRLF to LF; archived original bytes unchanged."
 }
