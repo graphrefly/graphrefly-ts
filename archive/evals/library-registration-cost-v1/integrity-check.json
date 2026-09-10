@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "samples": 51200,
+  "measured": 38400,
+  "warmup": 12800,
+  "summary_rows": 128,
+  "preflight_combinations": 32,
+  "checks": [
+    "all bundle digests",
+    "current-copy byte identity",
+    "all indexes and finite positive times",
+    "independent recomputation of every whole p50/p95",
+    "executed script digest",
+    "six root file hashes preserved"
+  ]
+}

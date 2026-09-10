@@ -1,0 +1,2165 @@
+{
+  "baseline": "8e13d831a62bddc2b498a307c91e49e75fb310ab",
+  "current": "194e72eefefb4b8e0d58573e1a5386eeb17987e5",
+  "recipe": {
+    "kind": "finite private diagnostic; not formal qualification",
+    "warmup": 100,
+    "measured": 300,
+    "rounds": 4,
+    "variants": [
+      "before",
+      "current",
+      "current-copy",
+      "without-checks",
+      "without-acquisition",
+      "without-both"
+    ],
+    "cells": [
+      [
+        "off",
+        "candidate"
+      ],
+      [
+        "off",
+        "reference"
+      ],
+      [
+        "summary",
+        "candidate"
+      ],
+      [
+        "summary",
+        "reference"
+      ]
+    ],
+    "process": "one fresh child per variant/round; four cells rotated by round; forward/reverse variant order",
+    "clock": "whole graphArm construction/startup; cleanup outside clock; no scenario inputs/effects",
+    "filtering": "none, including warmup; no automatic retries",
+    "interpretation": "unsafe ablations remove only D167 additions; remaining structural contrast includes common factory refactoring, not just registry representation",
+    "acquisitionFactor": "D167 ordinary-path acquisition plus constructor exception/control layout and early version validation; NOT isolated WeakMap or record-write cost. Original D161 supplied accounting retained."
+  },
+  "preflight": [
+    {
+      "mode": "off",
+      "arm": "candidate",
+      "variant": "before",
+      "digest": "sha256:b16dab4f535f91a8f6a2ef33d692b840ca620e566b7b909c4cb05998a825e30e",
+      "nodes": 59,
+      "edges": 89
+    },
+    {
+      "mode": "off",
+      "arm": "candidate",
+      "variant": "current",
+      "digest": "sha256:b16dab4f535f91a8f6a2ef33d692b840ca620e566b7b909c4cb05998a825e30e",
+      "nodes": 59,
+      "edges": 89
+    },
+    {
+      "mode": "off",
+      "arm": "candidate",
+      "variant": "current-copy",
+      "digest": "sha256:b16dab4f535f91a8f6a2ef33d692b840ca620e566b7b909c4cb05998a825e30e",
+      "nodes": 59,
+      "edges": 89
+    },
+    {
+      "mode": "off",
+      "arm": "candidate",
+      "variant": "without-checks",
+      "digest": "sha256:b16dab4f535f91a8f6a2ef33d692b840ca620e566b7b909c4cb05998a825e30e",
+      "nodes": 59,
+      "edges": 89
+    },
+    {
+      "mode": "off",
+      "arm": "candidate",
+      "variant": "without-acquisition",
+      "digest": "sha256:b16dab4f535f91a8f6a2ef33d692b840ca620e566b7b909c4cb05998a825e30e",
+      "nodes": 59,
+      "edges": 89
+    },
+    {
+      "mode": "off",
+      "arm": "candidate",
+      "variant": "without-both",
+      "digest": "sha256:b16dab4f535f91a8f6a2ef33d692b840ca620e566b7b909c4cb05998a825e30e",
+      "nodes": 59,
+      "edges": 89
+    },
+    {
+      "mode": "off",
+      "arm": "candidate",
+      "variant": "before-phases",
+      "digest": "sha256:b16dab4f535f91a8f6a2ef33d692b840ca620e566b7b909c4cb05998a825e30e",
+      "nodes": 59,
+      "edges": 89
+    },
+    {
+      "mode": "off",
+      "arm": "candidate",
+      "variant": "current-phases",
+      "digest": "sha256:b16dab4f535f91a8f6a2ef33d692b840ca620e566b7b909c4cb05998a825e30e",
+      "nodes": 59,
+      "edges": 89
+    },
+    {
+      "mode": "off",
+      "arm": "reference",
+      "variant": "before",
+      "digest": "sha256:1510ddacd37cca672bae285f3933b2bfc5805efed5896c1703a15d1fce00cd26",
+      "nodes": 59,
+      "edges": 89
+    },
+    {
+      "mode": "off",
+      "arm": "reference",
+      "variant": "current",
+      "digest": "sha256:1510ddacd37cca672bae285f3933b2bfc5805efed5896c1703a15d1fce00cd26",
+      "nodes": 59,
+      "edges": 89
+    },
+    {
+      "mode": "off",
+      "arm": "reference",
+      "variant": "current-copy",
+      "digest": "sha256:1510ddacd37cca672bae285f3933b2bfc5805efed5896c1703a15d1fce00cd26",
+      "nodes": 59,
+      "edges": 89
+    },
+    {
+      "mode": "off",
+      "arm": "reference",
+      "variant": "without-checks",
+      "digest": "sha256:1510ddacd37cca672bae285f3933b2bfc5805efed5896c1703a15d1fce00cd26",
+      "nodes": 59,
+      "edges": 89
+    },
+    {
+      "mode": "off",
+      "arm": "reference",
+      "variant": "without-acquisition",
+      "digest": "sha256:1510ddacd37cca672bae285f3933b2bfc5805efed5896c1703a15d1fce00cd26",
+      "nodes": 59,
+      "edges": 89
+    },
+    {
+      "mode": "off",
+      "arm": "reference",
+      "variant": "without-both",
+      "digest": "sha256:1510ddacd37cca672bae285f3933b2bfc5805efed5896c1703a15d1fce00cd26",
+      "nodes": 59,
+      "edges": 89
+    },
+    {
+      "mode": "off",
+      "arm": "reference",
+      "variant": "before-phases",
+      "digest": "sha256:1510ddacd37cca672bae285f3933b2bfc5805efed5896c1703a15d1fce00cd26",
+      "nodes": 59,
+      "edges": 89
+    },
+    {
+      "mode": "off",
+      "arm": "reference",
+      "variant": "current-phases",
+      "digest": "sha256:1510ddacd37cca672bae285f3933b2bfc5805efed5896c1703a15d1fce00cd26",
+      "nodes": 59,
+      "edges": 89
+    },
+    {
+      "mode": "summary",
+      "arm": "candidate",
+      "variant": "before",
+      "digest": "sha256:edfeaddbf4026fa1eac8d3867ff484fb6ed67ac035405d84ec54c13d126218c8",
+      "nodes": 60,
+      "edges": 93
+    },
+    {
+      "mode": "summary",
+      "arm": "candidate",
+      "variant": "current",
+      "digest": "sha256:edfeaddbf4026fa1eac8d3867ff484fb6ed67ac035405d84ec54c13d126218c8",
+      "nodes": 60,
+      "edges": 93
+    },
+    {
+      "mode": "summary",
+      "arm": "candidate",
+      "variant": "current-copy",
+      "digest": "sha256:edfeaddbf4026fa1eac8d3867ff484fb6ed67ac035405d84ec54c13d126218c8",
+      "nodes": 60,
+      "edges": 93
+    },
+    {
+      "mode": "summary",
+      "arm": "candidate",
+      "variant": "without-checks",
+      "digest": "sha256:edfeaddbf4026fa1eac8d3867ff484fb6ed67ac035405d84ec54c13d126218c8",
+      "nodes": 60,
+      "edges": 93
+    },
+    {
+      "mode": "summary",
+      "arm": "candidate",
+      "variant": "without-acquisition",
+      "digest": "sha256:edfeaddbf4026fa1eac8d3867ff484fb6ed67ac035405d84ec54c13d126218c8",
+      "nodes": 60,
+      "edges": 93
+    },
+    {
+      "mode": "summary",
+      "arm": "candidate",
+      "variant": "without-both",
+      "digest": "sha256:edfeaddbf4026fa1eac8d3867ff484fb6ed67ac035405d84ec54c13d126218c8",
+      "nodes": 60,
+      "edges": 93
+    },
+    {
+      "mode": "summary",
+      "arm": "candidate",
+      "variant": "before-phases",
+      "digest": "sha256:edfeaddbf4026fa1eac8d3867ff484fb6ed67ac035405d84ec54c13d126218c8",
+      "nodes": 60,
+      "edges": 93
+    },
+    {
+      "mode": "summary",
+      "arm": "candidate",
+      "variant": "current-phases",
+      "digest": "sha256:edfeaddbf4026fa1eac8d3867ff484fb6ed67ac035405d84ec54c13d126218c8",
+      "nodes": 60,
+      "edges": 93
+    },
+    {
+      "mode": "summary",
+      "arm": "reference",
+      "variant": "before",
+      "digest": "sha256:dd66d2d31378c821e60dfd2c1582f6526d0a2128527e8023991cf1703bce9b38",
+      "nodes": 60,
+      "edges": 93
+    },
+    {
+      "mode": "summary",
+      "arm": "reference",
+      "variant": "current",
+      "digest": "sha256:dd66d2d31378c821e60dfd2c1582f6526d0a2128527e8023991cf1703bce9b38",
+      "nodes": 60,
+      "edges": 93
+    },
+    {
+      "mode": "summary",
+      "arm": "reference",
+      "variant": "current-copy",
+      "digest": "sha256:dd66d2d31378c821e60dfd2c1582f6526d0a2128527e8023991cf1703bce9b38",
+      "nodes": 60,
+      "edges": 93
+    },
+    {
+      "mode": "summary",
+      "arm": "reference",
+      "variant": "without-checks",
+      "digest": "sha256:dd66d2d31378c821e60dfd2c1582f6526d0a2128527e8023991cf1703bce9b38",
+      "nodes": 60,
+      "edges": 93
+    },
+    {
+      "mode": "summary",
+      "arm": "reference",
+      "variant": "without-acquisition",
+      "digest": "sha256:dd66d2d31378c821e60dfd2c1582f6526d0a2128527e8023991cf1703bce9b38",
+      "nodes": 60,
+      "edges": 93
+    },
+    {
+      "mode": "summary",
+      "arm": "reference",
+      "variant": "without-both",
+      "digest": "sha256:dd66d2d31378c821e60dfd2c1582f6526d0a2128527e8023991cf1703bce9b38",
+      "nodes": 60,
+      "edges": 93
+    },
+    {
+      "mode": "summary",
+      "arm": "reference",
+      "variant": "before-phases",
+      "digest": "sha256:dd66d2d31378c821e60dfd2c1582f6526d0a2128527e8023991cf1703bce9b38",
+      "nodes": 60,
+      "edges": 93
+    },
+    {
+      "mode": "summary",
+      "arm": "reference",
+      "variant": "current-phases",
+      "digest": "sha256:dd66d2d31378c821e60dfd2c1582f6526d0a2128527e8023991cf1703bce9b38",
+      "nodes": 60,
+      "edges": 93
+    }
+  ],
+  "summaries": [
+    {
+      "variant": "before",
+      "round": 0,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 267.0829999999853,
+      "p95": 412.6250000000198
+    },
+    {
+      "variant": "before",
+      "round": 0,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 246.87500000004547,
+      "p95": 407.5409999999806
+    },
+    {
+      "variant": "before",
+      "round": 0,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 245.95799999997325,
+      "p95": 336.16700000004585
+    },
+    {
+      "variant": "before",
+      "round": 0,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 232.87499999992178,
+      "p95": 289.08400000000256
+    },
+    {
+      "variant": "before",
+      "round": 1,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 221.7919999999367,
+      "p95": 281.1669999999822
+    },
+    {
+      "variant": "before",
+      "round": 1,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 257.29200000000674,
+      "p95": 482.37499999999045
+    },
+    {
+      "variant": "before",
+      "round": 1,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 250.74999999998226,
+      "p95": 331.41699999998764
+    },
+    {
+      "variant": "before",
+      "round": 1,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 244.041999999979,
+      "p95": 318.33299999999554
+    },
+    {
+      "variant": "before",
+      "round": 2,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 233.33400000001348,
+      "p95": 292.45800000001054
+    },
+    {
+      "variant": "before",
+      "round": 2,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 220.70800000005875,
+      "p95": 274.04200000000856
+    },
+    {
+      "variant": "before",
+      "round": 2,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 266.9170000000065,
+      "p95": 510.1669999999956
+    },
+    {
+      "variant": "before",
+      "round": 2,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 250.6670000000213,
+      "p95": 377.87499999996044
+    },
+    {
+      "variant": "before",
+      "round": 3,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 248.54199999998627,
+      "p95": 330.04099999999426
+    },
+    {
+      "variant": "before",
+      "round": 3,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 237.2090000000071,
+      "p95": 305.2500000000009
+    },
+    {
+      "variant": "before",
+      "round": 3,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 230.50000000000637,
+      "p95": 277.3339999999962
+    },
+    {
+      "variant": "before",
+      "round": 3,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 269.33300000001736,
+      "p95": 424.0840000000077
+    },
+    {
+      "variant": "current",
+      "round": 0,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 273.6250000000098,
+      "p95": 531.667000000013
+    },
+    {
+      "variant": "current",
+      "round": 0,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 252.49999999999773,
+      "p95": 356.0420000000022
+    },
+    {
+      "variant": "current",
+      "round": 0,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 245.58300000001054,
+      "p95": 306.7500000000223
+    },
+    {
+      "variant": "current",
+      "round": 0,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 240.45799999998962,
+      "p95": 321.2500000000773
+    },
+    {
+      "variant": "current",
+      "round": 1,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 229.7919999999749,
+      "p95": 287.3329999999896
+    },
+    {
+      "variant": "current",
+      "round": 1,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 263.4999999999934,
+      "p95": 484.2079999999953
+    },
+    {
+      "variant": "current",
+      "round": 1,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 264.29200000001174,
+      "p95": 343.12499999998636
+    },
+    {
+      "variant": "current",
+      "round": 1,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 247.83300000001418,
+      "p95": 320.83299999999326
+    },
+    {
+      "variant": "current",
+      "round": 2,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 240.12499999997772,
+      "p95": 289.2500000000382
+    },
+    {
+      "variant": "current",
+      "round": 2,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 231.25000000004547,
+      "p95": 292.00000000003
+    },
+    {
+      "variant": "current",
+      "round": 2,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 277.9170000000022,
+      "p95": 562.2499999999917
+    },
+    {
+      "variant": "current",
+      "round": 2,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 263.87499999998454,
+      "p95": 375.0830000000178
+    },
+    {
+      "variant": "current",
+      "round": 3,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 255.2919999999972,
+      "p95": 375.99999999997635
+    },
+    {
+      "variant": "current",
+      "round": 3,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 242.91700000003402,
+      "p95": 291.79099999998925
+    },
+    {
+      "variant": "current",
+      "round": 3,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 237.45799999994688,
+      "p95": 314.8750000000291
+    },
+    {
+      "variant": "current",
+      "round": 3,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 267.20800000001077,
+      "p95": 595.6669999999917
+    },
+    {
+      "variant": "current-copy",
+      "round": 0,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 269.66600000000085,
+      "p95": 532.5419999999923
+    },
+    {
+      "variant": "current-copy",
+      "round": 0,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 251.16700000000947,
+      "p95": 355.0000000000182
+    },
+    {
+      "variant": "current-copy",
+      "round": 0,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 253.91700000000128,
+      "p95": 340.5830000000378
+    },
+    {
+      "variant": "current-copy",
+      "round": 0,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 247.6249999999709,
+      "p95": 325.2909999999929
+    },
+    {
+      "variant": "current-copy",
+      "round": 1,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 233.4169999999176,
+      "p95": 288.24999999994816
+    },
+    {
+      "variant": "current-copy",
+      "round": 1,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 268.33399999998164,
+      "p95": 539.2499999999956
+    },
+    {
+      "variant": "current-copy",
+      "round": 1,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 265.1250000000118,
+      "p95": 391.62499999997635
+    },
+    {
+      "variant": "current-copy",
+      "round": 1,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 261.62500000003774,
+      "p95": 353.62499999996544
+    },
+    {
+      "variant": "current-copy",
+      "round": 2,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 241.0419999999931,
+      "p95": 317.87499999995816
+    },
+    {
+      "variant": "current-copy",
+      "round": 2,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 226.87500000006366,
+      "p95": 301.3339999999971
+    },
+    {
+      "variant": "current-copy",
+      "round": 2,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 273.08299999999974,
+      "p95": 538.4999999999991
+    },
+    {
+      "variant": "current-copy",
+      "round": 2,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 257.91599999996606,
+      "p95": 376.7090000000053
+    },
+    {
+      "variant": "current-copy",
+      "round": 3,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 258.2079999999678,
+      "p95": 433.95900000001575
+    },
+    {
+      "variant": "current-copy",
+      "round": 3,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 244.33299999998326,
+      "p95": 352.833999999973
+    },
+    {
+      "variant": "current-copy",
+      "round": 3,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 236.41699999996035,
+      "p95": 293.042000000014
+    },
+    {
+      "variant": "current-copy",
+      "round": 3,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 273.87500000000387,
+      "p95": 360.833999999997
+    },
+    {
+      "variant": "without-checks",
+      "round": 0,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 254.49999999999307,
+      "p95": 523.6670000000032
+    },
+    {
+      "variant": "without-checks",
+      "round": 0,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 237.58400000002666,
+      "p95": 462.8749999999968
+    },
+    {
+      "variant": "without-checks",
+      "round": 0,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 238.08299999996052,
+      "p95": 319.79200000000674
+    },
+    {
+      "variant": "without-checks",
+      "round": 0,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 230.58300000002419,
+      "p95": 304.1249999999991
+    },
+    {
+      "variant": "without-checks",
+      "round": 1,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 217.08399999999983,
+      "p95": 297.50000000001364
+    },
+    {
+      "variant": "without-checks",
+      "round": 1,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 255.4580000000044,
+      "p95": 370.20899999998846
+    },
+    {
+      "variant": "without-checks",
+      "round": 1,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 247.50000000000227,
+      "p95": 372.20800000000054
+    },
+    {
+      "variant": "without-checks",
+      "round": 1,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 250.3330000000119,
+      "p95": 361.8330000000469
+    },
+    {
+      "variant": "without-checks",
+      "round": 2,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 222.582999999986,
+      "p95": 278.24999999995725
+    },
+    {
+      "variant": "without-checks",
+      "round": 2,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 219.54199999993307,
+      "p95": 276.2089999999944
+    },
+    {
+      "variant": "without-checks",
+      "round": 2,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 269.33300000000315,
+      "p95": 421.1249999999893
+    },
+    {
+      "variant": "without-checks",
+      "round": 2,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 247.0000000000141,
+      "p95": 419.50000000002774
+    },
+    {
+      "variant": "without-checks",
+      "round": 3,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 243.20799999998144,
+      "p95": 365.1249999999777
+    },
+    {
+      "variant": "without-checks",
+      "round": 3,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 227.87499999998317,
+      "p95": 290.2909999999679
+    },
+    {
+      "variant": "without-checks",
+      "round": 3,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 221.66700000002493,
+      "p95": 267.5000000000409
+    },
+    {
+      "variant": "without-checks",
+      "round": 3,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 261.12500000002115,
+      "p95": 441.4589999999947
+    },
+    {
+      "variant": "without-acquisition",
+      "round": 0,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 270.00000000001023,
+      "p95": 591.8329999999941
+    },
+    {
+      "variant": "without-acquisition",
+      "round": 0,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 252.83300000000963,
+      "p95": 409.95800000001736
+    },
+    {
+      "variant": "without-acquisition",
+      "round": 0,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 254.08299999998007,
+      "p95": 368.082999999956
+    },
+    {
+      "variant": "without-acquisition",
+      "round": 0,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 245.7920000000513,
+      "p95": 353.8749999999027
+    },
+    {
+      "variant": "without-acquisition",
+      "round": 1,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 230.2909999999656,
+      "p95": 272.7909999999838
+    },
+    {
+      "variant": "without-acquisition",
+      "round": 1,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 262.1249999999975,
+      "p95": 544.0420000000046
+    },
+    {
+      "variant": "without-acquisition",
+      "round": 1,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 261.5420000000199,
+      "p95": 328.29199999997627
+    },
+    {
+      "variant": "without-acquisition",
+      "round": 1,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 259.4169999999849,
+      "p95": 359.7910000000297
+    },
+    {
+      "variant": "without-acquisition",
+      "round": 2,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 237.166000000002,
+      "p95": 285.04200000003266
+    },
+    {
+      "variant": "without-acquisition",
+      "round": 2,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 229.87499999999272,
+      "p95": 283.6660000000393
+    },
+    {
+      "variant": "without-acquisition",
+      "round": 2,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 279.66700000001765,
+      "p95": 511.49999999999807
+    },
+    {
+      "variant": "without-acquisition",
+      "round": 2,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 259.6659999999815,
+      "p95": 387.49999999998863
+    },
+    {
+      "variant": "without-acquisition",
+      "round": 3,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 249.74999999994907,
+      "p95": 329.5830000000137
+    },
+    {
+      "variant": "without-acquisition",
+      "round": 3,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 238.66700000002083,
+      "p95": 289.79100000003655
+    },
+    {
+      "variant": "without-acquisition",
+      "round": 3,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 229.1250000000673,
+      "p95": 295.9170000000313
+    },
+    {
+      "variant": "without-acquisition",
+      "round": 3,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 268.7080000000037,
+      "p95": 566.5830000000085
+    },
+    {
+      "variant": "without-both",
+      "round": 0,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 262.3750000000058,
+      "p95": 530.2080000000018
+    },
+    {
+      "variant": "without-both",
+      "round": 0,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 238.29200000000128,
+      "p95": 447.749999999985
+    },
+    {
+      "variant": "without-both",
+      "round": 0,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 240.66599999997607,
+      "p95": 313.12500000001364
+    },
+    {
+      "variant": "without-both",
+      "round": 0,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 233.7079999999787,
+      "p95": 306.041999999934
+    },
+    {
+      "variant": "without-both",
+      "round": 1,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 216.58300000001418,
+      "p95": 318.7919999999167
+    },
+    {
+      "variant": "without-both",
+      "round": 1,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 265.4589999999928,
+      "p95": 466.91699999999514
+    },
+    {
+      "variant": "without-both",
+      "round": 1,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 255.66600000001927,
+      "p95": 410.1660000000038
+    },
+    {
+      "variant": "without-both",
+      "round": 1,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 237.41699999999355,
+      "p95": 308.9580000000183
+    },
+    {
+      "variant": "without-both",
+      "round": 2,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 222.6660000000038,
+      "p95": 302.1669999999972
+    },
+    {
+      "variant": "without-both",
+      "round": 2,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 215.37499999999454,
+      "p95": 263.87499999998454
+    },
+    {
+      "variant": "without-both",
+      "round": 2,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 266.08299999999474,
+      "p95": 472.95800000000554
+    },
+    {
+      "variant": "without-both",
+      "round": 2,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 246.79200000002766,
+      "p95": 410.87500000003274
+    },
+    {
+      "variant": "without-both",
+      "round": 3,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 252.666999999974,
+      "p95": 373.70899999996254
+    },
+    {
+      "variant": "without-both",
+      "round": 3,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 224.33300000000145,
+      "p95": 308.58400000005304
+    },
+    {
+      "variant": "without-both",
+      "round": 3,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 220.50000000001546,
+      "p95": 279.6660000000202
+    },
+    {
+      "variant": "without-both",
+      "round": 3,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 257.62500000000443,
+      "p95": 399.04199999999435
+    },
+    {
+      "variant": "before-phases",
+      "round": 0,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 263.79200000000935,
+      "p95": 382.45799999998553,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.291999999987866,
+          "p95": 17.666999999988775
+        },
+        "prepare-scope": {
+          "p50": 14.91699999999696,
+          "p95": 22.7079999999944
+        },
+        "build-consumer": {
+          "p50": 215.20899999998733,
+          "p95": 299.5830000000126
+        },
+        "seal-and-transfer": {
+          "p50": 4.792000000009011,
+          "p95": 7.417000000003782
+        },
+        "startup": {
+          "p50": 11.916999999996847,
+          "p95": 20.292000000011967
+        },
+        "connect": {
+          "p50": 2.8330000000096334,
+          "p95": 5.334000000004835
+        }
+      }
+    },
+    {
+      "variant": "before-phases",
+      "round": 0,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 244.49999999995953,
+      "p95": 336.62499999996953,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.082999999975527,
+          "p95": 17.042000000003554
+        },
+        "prepare-scope": {
+          "p50": 13.79199999996672,
+          "p95": 20.41700000000901
+        },
+        "build-consumer": {
+          "p50": 201.9170000000372,
+          "p95": 272.625000000005
+        },
+        "seal-and-transfer": {
+          "p50": 4.250000000013188,
+          "p95": 6.87500000003638
+        },
+        "startup": {
+          "p50": 9.87499999996544,
+          "p95": 16.29200000002129
+        },
+        "connect": {
+          "p50": 2.625000000023192,
+          "p95": 4.9579999999878055
+        }
+      }
+    },
+    {
+      "variant": "before-phases",
+      "round": 0,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 240.12500000003456,
+      "p95": 306.83299999998326,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 8.834000000092601,
+          "p95": 12.167000000033568
+        },
+        "prepare-scope": {
+          "p50": 14.042000000017651,
+          "p95": 17.33400000000529
+        },
+        "build-consumer": {
+          "p50": 199.1249999999809,
+          "p95": 243.9160000000129
+        },
+        "seal-and-transfer": {
+          "p50": 4.167000000052212,
+          "p95": 5.625000000009095
+        },
+        "startup": {
+          "p50": 9.666999999978998,
+          "p95": 13.125000000002274
+        },
+        "connect": {
+          "p50": 3.1250000000113687,
+          "p95": 4.37499999998181
+        }
+      }
+    },
+    {
+      "variant": "before-phases",
+      "round": 0,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 235.50000000000182,
+      "p95": 290.62500000009095,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.040999999911037,
+          "p95": 13.916999999992186
+        },
+        "prepare-scope": {
+          "p50": 13.58299999992596,
+          "p95": 16.790999999898304
+        },
+        "build-consumer": {
+          "p50": 193.29099999993105,
+          "p95": 239.37500000010914
+        },
+        "seal-and-transfer": {
+          "p50": 4.167000000052212,
+          "p95": 5.332999999950516
+        },
+        "startup": {
+          "p50": 9.833000000071479,
+          "p95": 13.708000000065113
+        },
+        "connect": {
+          "p50": 3.0420000000503933,
+          "p95": 4.791999999952168
+        }
+      }
+    },
+    {
+      "variant": "before-phases",
+      "round": 1,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 227.49999999996362,
+      "p95": 275.8330000000342,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 8.958000000006905,
+          "p95": 12.875000000008185
+        },
+        "prepare-scope": {
+          "p50": 13.45800000001418,
+          "p95": 17.583000000058746
+        },
+        "build-consumer": {
+          "p50": 186.50000000002365,
+          "p95": 226.8340000000535
+        },
+        "seal-and-transfer": {
+          "p50": 4.000000000019099,
+          "p95": 5.292000000054031
+        },
+        "startup": {
+          "p50": 9.625000000028194,
+          "p95": 13.042000000041298
+        },
+        "connect": {
+          "p50": 2.499999999940883,
+          "p95": 3.375000000005457
+        }
+      }
+    },
+    {
+      "variant": "before-phases",
+      "round": 1,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 260.8340000000027,
+      "p95": 493.6670000000163,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.082999999989738,
+          "p95": 16.375000000010687
+        },
+        "prepare-scope": {
+          "p50": 13.916999999992186,
+          "p95": 19.12499999997408
+        },
+        "build-consumer": {
+          "p50": 213.16700000001276,
+          "p95": 318.9580000000092
+        },
+        "seal-and-transfer": {
+          "p50": 4.874999999998408,
+          "p95": 7.666000000000395
+        },
+        "startup": {
+          "p50": 12.16600000000767,
+          "p95": 20.49999999999841
+        },
+        "connect": {
+          "p50": 2.8749999999888587,
+          "p95": 5.249999999989541
+        }
+      }
+    },
+    {
+      "variant": "before-phases",
+      "round": 1,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 252.95899999997573,
+      "p95": 317.91599999996834,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.165999999993346,
+          "p95": 14.000000000010004
+        },
+        "prepare-scope": {
+          "p50": 14.707999999984622,
+          "p95": 19.37500000002501
+        },
+        "build-consumer": {
+          "p50": 209.45900000003803,
+          "p95": 260.45799999997143
+        },
+        "seal-and-transfer": {
+          "p50": 4.37499999998181,
+          "p95": 5.541999999991276
+        },
+        "startup": {
+          "p50": 9.999999999990905,
+          "p95": 13.45800000001418
+        },
+        "connect": {
+          "p50": 3.1669999999621723,
+          "p95": 4.834000000016658
+        }
+      }
+    },
+    {
+      "variant": "before-phases",
+      "round": 1,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 248.12499999995907,
+      "p95": 316.915999999992,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.125000000040018,
+          "p95": 14.29200000001174
+        },
+        "prepare-scope": {
+          "p50": 13.70800000000827,
+          "p95": 19.74999999993088
+        },
+        "build-consumer": {
+          "p50": 205.20799999997053,
+          "p95": 258.9999999999577
+        },
+        "seal-and-transfer": {
+          "p50": 4.250000000013188,
+          "p95": 6.7499999999540705
+        },
+        "startup": {
+          "p50": 9.875000000022283,
+          "p95": 13.91599999999471
+        },
+        "connect": {
+          "p50": 3.084000000001197,
+          "p95": 4.583000000025095
+        }
+      }
+    },
+    {
+      "variant": "before-phases",
+      "round": 2,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 233.5000000000491,
+      "p95": 288.6660000000347,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 8.791000000030635,
+          "p95": 13.208000000020093
+        },
+        "prepare-scope": {
+          "p50": 13.540999999975156,
+          "p95": 17.333000000007814
+        },
+        "build-consumer": {
+          "p50": 193.37499999994634,
+          "p95": 233.54199999999992
+        },
+        "seal-and-transfer": {
+          "p50": 4.083000000036918,
+          "p95": 5.583999999998923
+        },
+        "startup": {
+          "p50": 9.666999999978998,
+          "p95": 13.042000000041298
+        },
+        "connect": {
+          "p50": 2.7499999999918145,
+          "p95": 3.5419999999817264
+        }
+      }
+    },
+    {
+      "variant": "before-phases",
+      "round": 2,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 223.37499999991905,
+      "p95": 267.832999999996,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 8.707999999955973,
+          "p95": 12.375000000020009
+        },
+        "prepare-scope": {
+          "p50": 13.082999999937783,
+          "p95": 16.541999999958534
+        },
+        "build-consumer": {
+          "p50": 183.45800000008694,
+          "p95": 224.2909999999938
+        },
+        "seal-and-transfer": {
+          "p50": 4.041000000029271,
+          "p95": 4.874999999969987
+        },
+        "startup": {
+          "p50": 9.666999999922155,
+          "p95": 13.291999999978543
+        },
+        "connect": {
+          "p50": 2.6249999999663487,
+          "p95": 3.500000000030923
+        }
+      }
+    },
+    {
+      "variant": "before-phases",
+      "round": 2,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 266.8329999999912,
+      "p95": 389.4999999999982,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.292000000016287,
+          "p95": 15.58400000001825
+        },
+        "prepare-scope": {
+          "p50": 14.33299999999349,
+          "p95": 21.292000000016742
+        },
+        "build-consumer": {
+          "p50": 218.6670000000106,
+          "p95": 299.7079999999812
+        },
+        "seal-and-transfer": {
+          "p50": 4.832999999990761,
+          "p95": 8.5420000000056
+        },
+        "startup": {
+          "p50": 12.084000000015749,
+          "p95": 22.334000000000742
+        },
+        "connect": {
+          "p50": 3.375000000005457,
+          "p95": 6.042000000007874
+        }
+      }
+    },
+    {
+      "variant": "before-phases",
+      "round": 2,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 255.70799999997007,
+      "p95": 361.9160000000079,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.41699999998491,
+          "p95": 15.625
+        },
+        "prepare-scope": {
+          "p50": 14.041000000020176,
+          "p95": 20.167000000014923
+        },
+        "build-consumer": {
+          "p50": 210.5420000000322,
+          "p95": 284.7080000000233
+        },
+        "seal-and-transfer": {
+          "p50": 4.333999999971638,
+          "p95": 6.66599999999562
+        },
+        "startup": {
+          "p50": 10.207999999977346,
+          "p95": 16.999999999995907
+        },
+        "connect": {
+          "p50": 3.207999999972344,
+          "p95": 6.791000000021086
+        }
+      }
+    },
+    {
+      "variant": "before-phases",
+      "round": 3,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 254.66699999998355,
+      "p95": 333.582999999976,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.584000000018023,
+          "p95": 15.874999999994088
+        },
+        "prepare-scope": {
+          "p50": 14.875000000017735,
+          "p95": 19.584000000008928
+        },
+        "build-consumer": {
+          "p50": 210.4580000000169,
+          "p95": 269.41599999997834
+        },
+        "seal-and-transfer": {
+          "p50": 4.500000000007276,
+          "p95": 6.582999999977801
+        },
+        "startup": {
+          "p50": 10.457999999971435,
+          "p95": 15.416000000016084
+        },
+        "connect": {
+          "p50": 2.83299999995279,
+          "p95": 4.249999999956344
+        }
+      }
+    },
+    {
+      "variant": "before-phases",
+      "round": 3,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 237.166000000002,
+      "p95": 288.3330000000228,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 8.791000000087479,
+          "p95": 12.917000000015832
+        },
+        "prepare-scope": {
+          "p50": 13.04099999998698,
+          "p95": 16.291999999964446
+        },
+        "build-consumer": {
+          "p50": 196.9169999999849,
+          "p95": 233.79099999999653
+        },
+        "seal-and-transfer": {
+          "p50": 4.082999999980075,
+          "p95": 5.749999999977717
+        },
+        "startup": {
+          "p50": 9.625000000028194,
+          "p95": 13.125000000002274
+        },
+        "connect": {
+          "p50": 2.625000000023192,
+          "p95": 3.7499999999681677
+        }
+      }
+    },
+    {
+      "variant": "before-phases",
+      "round": 3,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 226.87500000006366,
+      "p95": 271.1659999999938,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 8.708999999953448,
+          "p95": 11.708999999996195
+        },
+        "prepare-scope": {
+          "p50": 13.541000000032,
+          "p95": 16.583000000082393
+        },
+        "build-consumer": {
+          "p50": 185.91600000002018,
+          "p95": 223.45800000005056
+        },
+        "seal-and-transfer": {
+          "p50": 4.083000000036918,
+          "p95": 4.9170000000913205
+        },
+        "startup": {
+          "p50": 9.707999999932326,
+          "p95": 12.207999999986896
+        },
+        "connect": {
+          "p50": 2.916000000027452,
+          "p95": 3.6670000000640357
+        }
+      }
+    },
+    {
+      "variant": "before-phases",
+      "round": 3,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 262.7910000000071,
+      "p95": 489.79199999999423,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.167000000005032,
+          "p95": 15.500000000002956
+        },
+        "prepare-scope": {
+          "p50": 13.542000000001053,
+          "p95": 18.167000000005373
+        },
+        "build-consumer": {
+          "p50": 215.4170000000022,
+          "p95": 343.4999999999917
+        },
+        "seal-and-transfer": {
+          "p50": 4.9579999999878055,
+          "p95": 7.583999999980051
+        },
+        "startup": {
+          "p50": 12.124999999997499,
+          "p95": 19.1250000000025
+        },
+        "connect": {
+          "p50": 3.333000000012021,
+          "p95": 5.2500000000179625
+        }
+      }
+    },
+    {
+      "variant": "current-phases",
+      "round": 0,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 274.249999999995,
+      "p95": 445.12500000000443,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.957999999997469,
+          "p95": 27.33299999999872
+        },
+        "prepare-scope": {
+          "p50": 14.74999999999227,
+          "p95": 20.04200000001788
+        },
+        "build-consumer": {
+          "p50": 225.79200000001265,
+          "p95": 352.00000000000387
+        },
+        "seal-and-transfer": {
+          "p50": 5.083000000013271,
+          "p95": 8.250000000003865
+        },
+        "startup": {
+          "p50": 12.167000000005146,
+          "p95": 18.749999999997158
+        },
+        "connect": {
+          "p50": 2.8340000000071086,
+          "p95": 5.209000000007791
+        }
+      }
+    },
+    {
+      "variant": "current-phases",
+      "round": 0,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 254.3749999999818,
+      "p95": 373.2919999999922,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.5410000000129,
+          "p95": 16.542000000015378
+        },
+        "prepare-scope": {
+          "p50": 13.958000000002357,
+          "p95": 21.2919999999599
+        },
+        "build-consumer": {
+          "p50": 211.37499999997544,
+          "p95": 280.95799999999826
+        },
+        "seal-and-transfer": {
+          "p50": 4.415999999991982,
+          "p95": 7.41699999997536
+        },
+        "startup": {
+          "p50": 10.374999999953616,
+          "p95": 16.040999999972883
+        },
+        "connect": {
+          "p50": 2.625000000023192,
+          "p95": 5.040999999948781
+        }
+      }
+    },
+    {
+      "variant": "current-phases",
+      "round": 0,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 246.83300000003783,
+      "p95": 316.54200000002675,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.000000000014552,
+          "p95": 13.33399999998619
+        },
+        "prepare-scope": {
+          "p50": 13.875000000098225,
+          "p95": 18.165999999951055
+        },
+        "build-consumer": {
+          "p50": 204.20799999999417,
+          "p95": 250.08299999996098
+        },
+        "seal-and-transfer": {
+          "p50": 4.415999999991982,
+          "p95": 5.667000000016742
+        },
+        "startup": {
+          "p50": 9.58399999996118,
+          "p95": 12.833999999998014
+        },
+        "connect": {
+          "p50": 3.0830000000037217,
+          "p95": 5.374999999958163
+        }
+      }
+    },
+    {
+      "variant": "current-phases",
+      "round": 0,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 247.7080000001024,
+      "p95": 307.20799999994597,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.707999999932326,
+          "p95": 13.708000000065113
+        },
+        "prepare-scope": {
+          "p50": 13.584000000037122,
+          "p95": 17.00000000005275
+        },
+        "build-consumer": {
+          "p50": 204.99999999992724,
+          "p95": 253.45900000002075
+        },
+        "seal-and-transfer": {
+          "p50": 4.375000000095497,
+          "p95": 6.499999999959982
+        },
+        "startup": {
+          "p50": 9.999999999990905,
+          "p95": 13.625000000047294
+        },
+        "connect": {
+          "p50": 3.0420000000503933,
+          "p95": 4.000000000019099
+        }
+      }
+    },
+    {
+      "variant": "current-phases",
+      "round": 1,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 227.83300000003237,
+      "p95": 291.4580000000342,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 8.915999999999258,
+          "p95": 13.749999999959073
+        },
+        "prepare-scope": {
+          "p50": 13.291999999978543,
+          "p95": 17.41699999990942
+        },
+        "build-consumer": {
+          "p50": 188.08400000000347,
+          "p95": 229.87499999999272
+        },
+        "seal-and-transfer": {
+          "p50": 3.8329999999859865,
+          "p95": 5.0420000000031
+        },
+        "startup": {
+          "p50": 9.625000000028194,
+          "p95": 13.374999999996362
+        },
+        "connect": {
+          "p50": 2.417000000036751,
+          "p95": 3.208000000086031
+        }
+      }
+    },
+    {
+      "variant": "current-phases",
+      "round": 1,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 264.4999999999982,
+      "p95": 347.8330000000085,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.41699999998491,
+          "p95": 30.41600000000244
+        },
+        "prepare-scope": {
+          "p50": 13.832999999991102,
+          "p95": 19.000000000005457
+        },
+        "build-consumer": {
+          "p50": 215.04100000001358,
+          "p95": 276.41700000000924
+        },
+        "seal-and-transfer": {
+          "p50": 5.249999999989541,
+          "p95": 8.250000000003865
+        },
+        "startup": {
+          "p50": 12.124999999997499,
+          "p95": 18.45900000000711
+        },
+        "connect": {
+          "p50": 2.8329999999954225,
+          "p95": 4.542000000000712
+        }
+      }
+    },
+    {
+      "variant": "current-phases",
+      "round": 1,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 268.08399999998755,
+      "p95": 402.0840000000021,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.666999999978998,
+          "p95": 16.2499999999568
+        },
+        "prepare-scope": {
+          "p50": 14.74999999999227,
+          "p95": 23.167000000000826
+        },
+        "build-consumer": {
+          "p50": 222.79200000002675,
+          "p95": 306.58299999998917
+        },
+        "seal-and-transfer": {
+          "p50": 4.542000000014923,
+          "p95": 7.124999999973625
+        },
+        "startup": {
+          "p50": 10.041999999998552,
+          "p95": 15.582999999992353
+        },
+        "connect": {
+          "p50": 3.1669999999621723,
+          "p95": 5.749999999977717
+        }
+      }
+    },
+    {
+      "variant": "current-phases",
+      "round": 1,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 254.08299999998007,
+      "p95": 351.74999999998136,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.375000000034106,
+          "p95": 16.33300000003146
+        },
+        "prepare-scope": {
+          "p50": 13.541999999972631,
+          "p95": 19.416999999975815
+        },
+        "build-consumer": {
+          "p50": 211.166999999989,
+          "p95": 285.9579999999937
+        },
+        "seal-and-transfer": {
+          "p50": 4.500000000007276,
+          "p95": 5.791000000044733
+        },
+        "startup": {
+          "p50": 9.916999999973086,
+          "p95": 13.750000000015916
+        },
+        "connect": {
+          "p50": 3.04199999999355,
+          "p95": 4.250000000013188
+        }
+      }
+    },
+    {
+      "variant": "current-phases",
+      "round": 2,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 242.95799999998735,
+      "p95": 301.1660000000802,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.040999999911037,
+          "p95": 12.499999999931788
+        },
+        "prepare-scope": {
+          "p50": 13.083999999992102,
+          "p95": 16.250000000013642
+        },
+        "build-consumer": {
+          "p50": 202.2500000000491,
+          "p95": 231.12499999990632
+        },
+        "seal-and-transfer": {
+          "p50": 4.333999999971638,
+          "p95": 5.208000000038737
+        },
+        "startup": {
+          "p50": 9.5410000000129,
+          "p95": 12.791999999990367
+        },
+        "connect": {
+          "p50": 2.6249999999663487,
+          "p95": 3.792000000032658
+        }
+      }
+    },
+    {
+      "variant": "current-phases",
+      "round": 2,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 234.91599999999835,
+      "p95": 313.79200000003493,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.167000000047665,
+          "p95": 13.500000000021828
+        },
+        "prepare-scope": {
+          "p50": 13.000000000033651,
+          "p95": 17.665999999962878
+        },
+        "build-consumer": {
+          "p50": 193.58299999998962,
+          "p95": 246.29200000003948
+        },
+        "seal-and-transfer": {
+          "p50": 4.249999999956344,
+          "p95": 5.583999999998923
+        },
+        "startup": {
+          "p50": 9.66599999992468,
+          "p95": 13.166999999953077
+        },
+        "connect": {
+          "p50": 2.5829999999587017,
+          "p95": 4.291000000080203
+        }
+      }
+    },
+    {
+      "variant": "current-phases",
+      "round": 2,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 277.0829999999762,
+      "p95": 523.1250000000074,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.874999999993861,
+          "p95": 18.83399999999824
+        },
+        "prepare-scope": {
+          "p50": 14.415999999982887,
+          "p95": 20.83399999997937
+        },
+        "build-consumer": {
+          "p50": 227.2920000000056,
+          "p95": 427.5000000000091
+        },
+        "seal-and-transfer": {
+          "p50": 5.167000000000144,
+          "p95": 7.875000000012733
+        },
+        "startup": {
+          "p50": 12.499999999988631,
+          "p95": 19.249999999999545
+        },
+        "connect": {
+          "p50": 3.417000000013104,
+          "p95": 6.249999999994316
+        }
+      }
+    },
+    {
+      "variant": "current-phases",
+      "round": 2,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 268.3749999999918,
+      "p95": 446.3749999999891,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 10.041000000001077,
+          "p95": 18.5830000000351
+        },
+        "prepare-scope": {
+          "p50": 13.958000000002357,
+          "p95": 19.333000000017364
+        },
+        "build-consumer": {
+          "p50": 222.3329999999919,
+          "p95": 351.49999999998727
+        },
+        "seal-and-transfer": {
+          "p50": 4.541000000017448,
+          "p95": 7.542000000000826
+        },
+        "startup": {
+          "p50": 10.167000000024018,
+          "p95": 16.50000000000773
+        },
+        "connect": {
+          "p50": 3.0830000000037217,
+          "p95": 4.834000000016658
+        }
+      }
+    },
+    {
+      "variant": "current-phases",
+      "round": 3,
+      "mode": "off",
+      "arm": "candidate",
+      "p50": 267.9160000000138,
+      "p95": 376.2079999999628,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.958000000040101,
+          "p95": 17.166999999972177
+        },
+        "prepare-scope": {
+          "p50": 15.291999999988093,
+          "p95": 23.000000000024556
+        },
+        "build-consumer": {
+          "p50": 221.54199999999946,
+          "p95": 287.4170000000049
+        },
+        "seal-and-transfer": {
+          "p50": 4.542000000014923,
+          "p95": 7.791999999994914
+        },
+        "startup": {
+          "p50": 10.29199999999264,
+          "p95": 16.374999999982265
+        },
+        "connect": {
+          "p50": 2.7919999999994616,
+          "p95": 5.41699999996581
+        }
+      }
+    },
+    {
+      "variant": "current-phases",
+      "round": 3,
+      "mode": "off",
+      "arm": "reference",
+      "p50": 246.50000000002592,
+      "p95": 319.2500000000109,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.000000000014552,
+          "p95": 13.874999999984539
+        },
+        "prepare-scope": {
+          "p50": 13.416000000006534,
+          "p95": 16.917000000034932
+        },
+        "build-consumer": {
+          "p50": 205.08300000005875,
+          "p95": 260.4170000000181
+        },
+        "seal-and-transfer": {
+          "p50": 4.37499999998181,
+          "p95": 5.750000000034561
+        },
+        "startup": {
+          "p50": 9.749999999996817,
+          "p95": 13.540999999975156
+        },
+        "connect": {
+          "p50": 2.625000000023192,
+          "p95": 3.459000000020751
+        }
+      }
+    },
+    {
+      "variant": "current-phases",
+      "round": 3,
+      "mode": "summary",
+      "arm": "candidate",
+      "p50": 238.29200000000128,
+      "p95": 289.1670000000204,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 8.833999999978914,
+          "p95": 13.166999999953077
+        },
+        "prepare-scope": {
+          "p50": 13.916999999992186,
+          "p95": 17.37500000001546
+        },
+        "build-consumer": {
+          "p50": 196.87499999997726,
+          "p95": 230.99999999999454
+        },
+        "seal-and-transfer": {
+          "p50": 4.291999999963991,
+          "p95": 5.332999999950516
+        },
+        "startup": {
+          "p50": 9.666999999922155,
+          "p95": 12.791999999990367
+        },
+        "connect": {
+          "p50": 2.8750000000172804,
+          "p95": 3.6659999999528736
+        }
+      }
+    },
+    {
+      "variant": "current-phases",
+      "round": 3,
+      "mode": "summary",
+      "arm": "reference",
+      "p50": 272.2090000000037,
+      "p95": 532.584,
+      "phases": {
+        "graph-and-inputs": {
+          "p50": 9.5410000000129,
+          "p95": 19.83299999999133
+        },
+        "prepare-scope": {
+          "p50": 14.082999999999402,
+          "p95": 19.166999999981726
+        },
+        "build-consumer": {
+          "p50": 224.66599999998493,
+          "p95": 453.8340000000005
+        },
+        "seal-and-transfer": {
+          "p50": 5.33300000000736,
+          "p95": 8.83300000000986
+        },
+        "startup": {
+          "p50": 12.042000000008102,
+          "p95": 21.37500000000614
+        },
+        "connect": {
+          "p50": 3.291999999987638,
+          "p95": 5.958999999990056
+        }
+      }
+    }
+  ],
+  "completedAt": "2026-09-10T21:54:48.489Z",
+  "limitations": [
+    "No ablation is a safe product implementation",
+    "Phase clocks add overhead; phase percentiles cannot be summed",
+    "Structural remainder includes factory/control layout and registry changes",
+    "Fresh child per variant differs from prior shared-process diagnostic",
+    "No formal performance qualification, steady-state or memory claims"
+  ]
+}

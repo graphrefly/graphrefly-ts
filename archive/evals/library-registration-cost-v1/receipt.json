@@ -1,0 +1,34 @@
+{
+  "kind": "finite offline diagnostic evidence, not authorization or decision",
+  "work_ref": "graphrefly-ts:LIBRARY-REGISTRATION-TS",
+  "governing_ref": "graphrefly-ts:D167",
+  "baseline": "8e13d831a62bddc2b498a307c91e49e75fb310ab",
+  "production": "194e72eefefb4b8e0d58573e1a5386eeb17987e5",
+  "approval": "User: 好的,你继续, following proposed isolated cost attribution; no production optimization or formal matrix retry",
+  "result": {
+    "path": "result.json",
+    "digest": "sha256:3c2e43e4bceeed1b57083ce58c75fe7bd25dfa9c5d0022f783b588fff21bb4d5"
+  },
+  "analysis": {
+    "path": "analysis.json",
+    "digest": "sha256:4f2ead3ce32abb0f76b0e79f9ef63f52d3cfadb531e346c8eaf87dcc2f1ed7f5"
+  },
+  "archive": {
+    "path": "evidence.tar.gz",
+    "digest": "sha256:56b01c5e3a743b87f05aac86f1b6d137c57d3f51825743eafcde7020496d9596",
+    "entries": 62
+  },
+  "artifact_index": {
+    "path": "artifact-index.json",
+    "digest": "sha256:c097e049e8e477b17631d2ff4659a36aea4537e91bb3f3ef041097524300be97"
+  },
+  "report": "docs/design/library-registration-cost-v1.md",
+  "limitations": [
+    "no valid product ablation",
+    "no isolated registry or WeakMap cost attribution",
+    "p95 identical-copy variability prevents stable explanation of prior 26–27us increase",
+    "formal 1.211671 rejection and 80 unrun rows unchanged",
+    "no steady-state, memory or user-learning claim"
+  ],
+  "verification": "integrity-check.json; post-archive doc/syntax gates recorded separately in gates.json"
+}

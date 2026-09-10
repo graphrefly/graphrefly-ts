@@ -1,0 +1,55 @@
+{
+  "checks": [
+    {
+      "command": [
+        "node",
+        "--check",
+        "scripts/diagnose-library-registration-cost.mjs"
+      ],
+      "exit_code": 0,
+      "log": "gate-0.log"
+    },
+    {
+      "command": [
+        "node",
+        "--check",
+        "scripts/inspect-library-registration-cost.mjs"
+      ],
+      "exit_code": 0,
+      "log": "gate-1.log"
+    },
+    {
+      "command": [
+        "pnpm",
+        "exec",
+        "biome",
+        "check",
+        "scripts/diagnose-library-registration-cost.mjs",
+        "scripts/inspect-library-registration-cost.mjs"
+      ],
+      "exit_code": 0,
+      "log": "gate-2.log"
+    },
+    {
+      "command": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly/dashboard/build.mjs",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log": "gate-3.log"
+    },
+    {
+      "command": [
+        "npm",
+        "--prefix",
+        "/Users/davidchenallio/src/graphrefly",
+        "run",
+        "authority:check:workspace"
+      ],
+      "exit_code": 0,
+      "log": "gate-4.log"
+    }
+  ],
+  "scope": "diagnostic/scripts/docs only; production unchanged, no library suite or formal matrix rerun"
+}

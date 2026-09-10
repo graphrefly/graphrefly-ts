@@ -1,0 +1,4406 @@
+{
+  "resultDigest": "sha256:3c2e43e4bceeed1b57083ce58c75fe7bd25dfa9c5d0022f783b588fff21bb4d5",
+  "contrasts": [
+    {
+      "mode": "off",
+      "arm": "candidate",
+      "variant": "before",
+      "rounds": [
+        {
+          "round": 0,
+          "p50DeltaMicros": -6.542000000024473,
+          "p95DeltaMicros": -119.04199999999321,
+          "p50Percent": -2.3908634079576885,
+          "p95Percent": -22.39033078975944
+        },
+        {
+          "round": 1,
+          "p50DeltaMicros": -8.000000000038199,
+          "p95DeltaMicros": -6.166000000007443,
+          "p50Percent": -3.4814092744913094,
+          "p95Percent": -2.145942164668757
+        },
+        {
+          "round": 2,
+          "p50DeltaMicros": -6.790999999964242,
+          "p95DeltaMicros": 3.207999999972344,
+          "p50Percent": -2.828110359173297,
+          "p95Percent": 1.109075194458753
+        },
+        {
+          "round": 3,
+          "p50DeltaMicros": -6.750000000010914,
+          "p95DeltaMicros": -45.9589999999821,
+          "p50Percent": -2.6440311486497725,
+          "p95Percent": -12.223138297868353
+        }
+      ],
+      "medianPairedP50DeltaMicros": -6.770499999987578,
+      "medianPairedP95DeltaMicros": -26.06249999999477
+    },
+    {
+      "mode": "off",
+      "arm": "candidate",
+      "variant": "current-copy",
+      "rounds": [
+        {
+          "round": 0,
+          "p50DeltaMicros": -3.9590000000089276,
+          "p95DeltaMicros": 0.874999999979309,
+          "p50Percent": -1.44687071722569,
+          "p95Percent": 0.16457669932106178
+        },
+        {
+          "round": 1,
+          "p50DeltaMicros": 3.624999999942702,
+          "p95DeltaMicros": 0.9169999999585343,
+          "p50Percent": 1.577513577471401,
+          "p95Percent": 0.31914190154231914
+        },
+        {
+          "round": 2,
+          "p50DeltaMicros": 0.9170000000153777,
+          "p95DeltaMicros": 28.624999999919964,
+          "p50Percent": 0.38188443519644455,
+          "p95Percent": 9.896283491760126
+        },
+        {
+          "round": 3,
+          "p50DeltaMicros": 2.9159999999706088,
+          "p95DeltaMicros": 57.959000000039396,
+          "p50Percent": 1.1422214562033517,
+          "p95Percent": 15.414627659585921
+        }
+      ],
+      "medianPairedP50DeltaMicros": 1.9164999999929933,
+      "medianPairedP95DeltaMicros": 14.77099999993925
+    },
+    {
+      "mode": "off",
+      "arm": "candidate",
+      "variant": "without-checks",
+      "rounds": [
+        {
+          "round": 0,
+          "p50DeltaMicros": -19.125000000016712,
+          "p95DeltaMicros": -8.000000000009777,
+          "p50Percent": -6.989492919147022,
+          "p95Percent": -1.5047012509728064
+        },
+        {
+          "round": 1,
+          "p50DeltaMicros": -12.707999999975073,
+          "p95DeltaMicros": 10.167000000024018,
+          "p50Percent": -5.53021863249219,
+          "p95Percent": 3.538403176810312
+        },
+        {
+          "round": 2,
+          "p50DeltaMicros": -17.54199999999173,
+          "p95DeltaMicros": -11.000000000080945,
+          "p50Percent": -7.305361790731224,
+          "p95Percent": -3.802938634426789
+        },
+        {
+          "round": 3,
+          "p50DeltaMicros": -12.084000000015749,
+          "p95DeltaMicros": -10.874999999998636,
+          "p50Percent": -4.733403318559093,
+          "p95Percent": -2.8922872340423678
+        }
+      ],
+      "medianPairedP50DeltaMicros": -15.124999999983402,
+      "medianPairedP95DeltaMicros": -9.437500000004206
+    },
+    {
+      "mode": "off",
+      "arm": "candidate",
+      "variant": "without-acquisition",
+      "rounds": [
+        {
+          "round": 0,
+          "p50DeltaMicros": -3.6249999999995453,
+          "p95DeltaMicros": 60.16599999998107,
+          "p50Percent": -1.3248058474186974,
+          "p95Percent": 11.316481933236332
+        },
+        {
+          "round": 1,
+          "p50DeltaMicros": 0.4989999999907013,
+          "p95DeltaMicros": -14.542000000005828,
+          "p50Percent": 0.21715290349131333,
+          "p95Percent": -5.0610267529334845
+        },
+        {
+          "round": 2,
+          "p50DeltaMicros": -2.958999999975731,
+          "p95DeltaMicros": -4.208000000005541,
+          "p50Percent": -1.2322748568354025,
+          "p95Percent": -1.4547968885064821
+        },
+        {
+          "round": 3,
+          "p50DeltaMicros": -5.5420000000481195,
+          "p95DeltaMicros": -46.41699999996263,
+          "p50Percent": -2.170847500136386,
+          "p95Percent": -12.344946808501478
+        }
+      ],
+      "medianPairedP50DeltaMicros": -3.291999999987638,
+      "medianPairedP95DeltaMicros": -9.375000000005684
+    },
+    {
+      "mode": "off",
+      "arm": "candidate",
+      "variant": "without-both",
+      "rounds": [
+        {
+          "round": 0,
+          "p50DeltaMicros": -11.250000000003979,
+          "p95DeltaMicros": -1.4590000000112013,
+          "p50Percent": -4.111466423025522,
+          "p95Percent": -0.2744198906479367
+        },
+        {
+          "round": 1,
+          "p50DeltaMicros": -13.208999999960724,
+          "p95DeltaMicros": 31.458999999927073,
+          "p50Percent": -5.748241888299921,
+          "p95Percent": 10.948620590022106
+        },
+        {
+          "round": 2,
+          "p50DeltaMicros": -17.458999999973912,
+          "p95DeltaMicros": 12.916999999958989,
+          "p50Percent": -7.270796460166807,
+          "p95Percent": 4.4656871218521355
+        },
+        {
+          "round": 3,
+          "p50DeltaMicros": -2.625000000023192,
+          "p95DeltaMicros": -2.2910000000138098,
+          "p50Percent": -1.0282343355934476,
+          "p95Percent": -0.6093085106420038
+        }
+      ],
+      "medianPairedP50DeltaMicros": -12.229499999982352,
+      "medianPairedP95DeltaMicros": 5.728999999973894
+    },
+    {
+      "mode": "off",
+      "arm": "reference",
+      "variant": "before",
+      "rounds": [
+        {
+          "round": 0,
+          "p50DeltaMicros": -5.6249999999522515,
+          "p95DeltaMicros": 51.49899999997842,
+          "p50Percent": -2.2277227722583337,
+          "p95Percent": 14.46430477302625
+        },
+        {
+          "round": 1,
+          "p50DeltaMicros": -6.207999999986669,
+          "p95DeltaMicros": -1.8330000000048585,
+          "p50Percent": -2.3559772295965176,
+          "p95Percent": -0.378556322903556
+        },
+        {
+          "round": 2,
+          "p50DeltaMicros": -10.541999999986729,
+          "p95DeltaMicros": -17.958000000021457,
+          "p50Percent": -4.558702702696071,
+          "p95Percent": -6.150000000006717
+        },
+        {
+          "round": 3,
+          "p50DeltaMicros": -5.708000000026914,
+          "p95DeltaMicros": 13.459000000011656,
+          "p50Percent": -2.349773791058718,
+          "p95Percent": 4.6125480223900395
+        }
+      ],
+      "medianPairedP50DeltaMicros": -5.958000000006791,
+      "medianPairedP95DeltaMicros": 5.813000000003399
+    },
+    {
+      "mode": "off",
+      "arm": "reference",
+      "variant": "current-copy",
+      "rounds": [
+        {
+          "round": 0,
+          "p50DeltaMicros": -1.3329999999882602,
+          "p95DeltaMicros": -1.0419999999840002,
+          "p50Percent": -0.5279207920745654,
+          "p95Percent": -0.29266210165767026
+        },
+        {
+          "round": 1,
+          "p50DeltaMicros": 4.833999999988237,
+          "p95DeltaMicros": 55.04200000000026,
+          "p50Percent": 1.8345351043599134,
+          "p95Percent": 11.367428873542117
+        },
+        {
+          "round": 2,
+          "p50DeltaMicros": -4.37499999998181,
+          "p95DeltaMicros": 9.33399999996709,
+          "p50Percent": -1.891891891883657,
+          "p95Percent": 3.1965753424541443
+        },
+        {
+          "round": 3,
+          "p50DeltaMicros": 1.4159999999492356,
+          "p95DeltaMicros": 61.04299999998375,
+          "p50Percent": 0.5829151520680087,
+          "p95Percent": 20.920110627122156
+        }
+      ],
+      "medianPairedP50DeltaMicros": 0.0414999999804877,
+      "medianPairedP95DeltaMicros": 32.187999999983674
+    },
+    {
+      "mode": "off",
+      "arm": "reference",
+      "variant": "without-checks",
+      "rounds": [
+        {
+          "round": 0,
+          "p50DeltaMicros": -14.915999999971064,
+          "p95DeltaMicros": 106.83299999999463,
+          "p50Percent": -5.907326732661855,
+          "p95Percent": 30.005729661105708
+        },
+        {
+          "round": 1,
+          "p50DeltaMicros": -8.041999999989002,
+          "p95DeltaMicros": -113.99900000000684,
+          "p50Percent": -3.05199240986308,
+          "p95Percent": -23.5433945742342
+        },
+        {
+          "round": 2,
+          "p50DeltaMicros": -11.708000000112406,
+          "p95DeltaMicros": -15.791000000035638,
+          "p50Percent": -5.06291891896653,
+          "p95Percent": -5.40787671234042
+        },
+        {
+          "round": 3,
+          "p50DeltaMicros": -15.042000000050848,
+          "p95DeltaMicros": -1.5000000000213731,
+          "p50Percent": -6.192238501236524,
+          "p95Percent": -0.514066575055927
+        }
+      ],
+      "medianPairedP50DeltaMicros": -13.312000000041735,
+      "medianPairedP95DeltaMicros": -8.645500000028505
+    },
+    {
+      "mode": "off",
+      "arm": "reference",
+      "variant": "without-acquisition",
+      "rounds": [
+        {
+          "round": 0,
+          "p50DeltaMicros": 0.3330000000119071,
+          "p95DeltaMicros": 53.916000000015174,
+          "p50Percent": 0.13188118812352823,
+          "p95Percent": 15.143157267966934
+        },
+        {
+          "round": 1,
+          "p50DeltaMicros": -1.3749999999959073,
+          "p95DeltaMicros": 59.83400000000927,
+          "p50Percent": -0.5218216318770175,
+          "p95Percent": 12.357086210886603
+        },
+        {
+          "round": 2,
+          "p50DeltaMicros": -1.3750000000527507,
+          "p95DeltaMicros": -8.333999999990738,
+          "p50Percent": -0.5945945946172926,
+          "p95Percent": -2.8541095890376345
+        },
+        {
+          "round": 3,
+          "p50DeltaMicros": -4.250000000013188,
+          "p95DeltaMicros": -1.9999999999527063,
+          "p50Percent": -1.7495687827581374,
+          "p95Percent": -0.6854221000485938
+        }
+      ],
+      "medianPairedP50DeltaMicros": -1.375000000024329,
+      "medianPairedP95DeltaMicros": 25.958000000031234
+    },
+    {
+      "mode": "off",
+      "arm": "reference",
+      "variant": "without-both",
+      "rounds": [
+        {
+          "round": 0,
+          "p50DeltaMicros": -14.207999999996446,
+          "p95DeltaMicros": 91.7079999999828,
+          "p50Percent": -5.626930693067955,
+          "p95Percent": 25.757635335152095
+        },
+        {
+          "round": 1,
+          "p50DeltaMicros": 1.958999999999378,
+          "p95DeltaMicros": -17.291000000000167,
+          "p50Percent": 0.7434535104362094,
+          "p95Percent": -3.570986022535838
+        },
+        {
+          "round": 2,
+          "p50DeltaMicros": -15.875000000050932,
+          "p95DeltaMicros": -28.125000000045475,
+          "p50Percent": -6.864864864885545,
+          "p95Percent": -9.631849315083073
+        },
+        {
+          "round": 3,
+          "p50DeltaMicros": -18.584000000032574,
+          "p95DeltaMicros": 16.793000000063785,
+          "p50Percent": -7.650349707937265,
+          "p95Percent": 5.7551466632159265
+        }
+      ],
+      "medianPairedP50DeltaMicros": -15.041500000023689,
+      "medianPairedP95DeltaMicros": -0.24899999996819133
+    },
+    {
+      "mode": "summary",
+      "arm": "candidate",
+      "variant": "before",
+      "rounds": [
+        {
+          "round": 0,
+          "p50DeltaMicros": 0.3749999999627107,
+          "p95DeltaMicros": 29.417000000023563,
+          "p50Percent": 0.15269786587943646,
+          "p95Percent": 9.58989405053674
+        },
+        {
+          "round": 1,
+          "p50DeltaMicros": -13.542000000029475,
+          "p95DeltaMicros": -11.70799999999872,
+          "p50Percent": -5.123878134801229,
+          "p95Percent": -3.4121675774132387
+        },
+        {
+          "round": 2,
+          "p50DeltaMicros": -10.99999999999568,
+          "p95DeltaMicros": -52.082999999996105,
+          "p50Percent": -3.958016242257789,
+          "p95Percent": -9.263317029790464
+        },
+        {
+          "round": 3,
+          "p50DeltaMicros": -6.957999999940512,
+          "p95DeltaMicros": -37.54100000003291,
+          "p50Percent": -2.9302023936620625,
+          "p95Percent": -11.922508932125265
+        }
+      ],
+      "medianPairedP50DeltaMicros": -8.978999999968096,
+      "medianPairedP95DeltaMicros": -24.624500000015814
+    },
+    {
+      "mode": "summary",
+      "arm": "candidate",
+      "variant": "current-copy",
+      "rounds": [
+        {
+          "round": 0,
+          "p50DeltaMicros": 8.333999999990738,
+          "p95DeltaMicros": 33.833000000015545,
+          "p50Percent": 3.393557371638267,
+          "p95Percent": 11.029502852490003
+        },
+        {
+          "round": 1,
+          "p50DeltaMicros": 0.8330000000000837,
+          "p95DeltaMicros": 48.499999999989996,
+          "p50Percent": 0.3151816929759743,
+          "p95Percent": 14.13479052823079
+        },
+        {
+          "round": 2,
+          "p50DeltaMicros": -4.8340000000024475,
+          "p95DeltaMicros": -23.74999999999261,
+          "p50Percent": -1.7393682286446666,
+          "p95Percent": -4.224099599820896
+        },
+        {
+          "round": 3,
+          "p50DeltaMicros": -1.040999999986525,
+          "p95DeltaMicros": -21.83300000001509,
+          "p50Percent": -0.4383933158650155,
+          "p95Percent": -6.9338626439104605
+        }
+      ],
+      "medianPairedP50DeltaMicros": -0.10399999999322063,
+      "medianPairedP95DeltaMicros": 6.000000000000227
+    },
+    {
+      "mode": "summary",
+      "arm": "candidate",
+      "variant": "without-checks",
+      "rounds": [
+        {
+          "round": 0,
+          "p50DeltaMicros": -7.500000000050022,
+          "p95DeltaMicros": 13.041999999984455,
+          "p50Percent": -3.053957317912759,
+          "p95Percent": 4.251670741640923
+        },
+        {
+          "round": 1,
+          "p50DeltaMicros": -16.792000000009466,
+          "p95DeltaMicros": 29.08300000001418,
+          "p50Percent": -6.3535786175929365,
+          "p95Percent": 8.475919854284975
+        },
+        {
+          "round": 2,
+          "p50DeltaMicros": -8.583999999999037,
+          "p95DeltaMicros": -141.1250000000024,
+          "p50Percent": -3.08869194759549,
+          "p95Percent": -25.100044464207105
+        },
+        {
+          "round": 3,
+          "p50DeltaMicros": -15.79099999992195,
+          "p95DeltaMicros": -47.37499999998818,
+          "p50Percent": -6.65001810843412,
+          "p95Percent": -15.045653036914263
+        }
+      ],
+      "medianPairedP50DeltaMicros": -12.187499999960494,
+      "medianPairedP95DeltaMicros": -17.16650000000186
+    },
+    {
+      "mode": "summary",
+      "arm": "candidate",
+      "variant": "without-acquisition",
+      "rounds": [
+        {
+          "round": 0,
+          "p50DeltaMicros": 8.499999999969532,
+          "p95DeltaMicros": 61.33299999993369,
+          "p50Percent": 3.4611516269323017,
+          "p95Percent": 19.9944580276868
+        },
+        {
+          "round": 1,
+          "p50DeltaMicros": -2.7499999999918145,
+          "p95DeltaMicros": -14.833000000010088,
+          "p50Percent": -1.0405157931347442,
+          "p95Percent": -4.322914389802746
+        },
+        {
+          "round": 2,
+          "p50DeltaMicros": 1.7500000000154614,
+          "p95DeltaMicros": -50.74999999999363,
+          "p50Percent": 0.6296844021831838,
+          "p95Percent": -9.02623388172421
+        },
+        {
+          "round": 3,
+          "p50DeltaMicros": -8.332999999879576,
+          "p95DeltaMicros": -18.95799999999781,
+          "p50Percent": -3.509252162437748,
+          "p95Percent": -6.020801905516815
+        }
+      ],
+      "medianPairedP50DeltaMicros": -0.49999999998817657,
+      "medianPairedP95DeltaMicros": -16.89550000000395
+    },
+    {
+      "mode": "summary",
+      "arm": "candidate",
+      "variant": "without-both",
+      "rounds": [
+        {
+          "round": 0,
+          "p50DeltaMicros": -4.917000000034477,
+          "p95DeltaMicros": 6.37499999999136,
+          "p50Percent": -2.0021744176242917,
+          "p95Percent": 2.078239608798982
+        },
+        {
+          "round": 1,
+          "p50DeltaMicros": -8.625999999992473,
+          "p95DeltaMicros": 67.04100000001745,
+          "p50Percent": -3.2638142660360803,
+          "p95Percent": 19.53836065574357
+        },
+        {
+          "round": 2,
+          "p50DeltaMicros": -11.83400000000745,
+          "p95DeltaMicros": -89.29199999998616,
+          "p50Percent": -4.258105837356963,
+          "p95Percent": -15.881191640726989
+        },
+        {
+          "round": 3,
+          "p50DeltaMicros": -16.957999999931417,
+          "p95DeltaMicros": -35.20900000000893,
+          "p50Percent": -7.1414734394862345,
+          "p95Percent": -11.18189757840593
+        }
+      ],
+      "medianPairedP50DeltaMicros": -10.229999999999961,
+      "medianPairedP95DeltaMicros": -14.417000000008784
+    },
+    {
+      "mode": "summary",
+      "arm": "reference",
+      "variant": "before",
+      "rounds": [
+        {
+          "round": 0,
+          "p50DeltaMicros": -7.583000000067841,
+          "p95DeltaMicros": -32.166000000074746,
+          "p50Percent": -3.1535652796197966,
+          "p95Percent": -10.012762645935258
+        },
+        {
+          "round": 1,
+          "p50DeltaMicros": -3.791000000035183,
+          "p95DeltaMicros": -2.4999999999977263,
+          "p50Percent": -1.5296590849624425,
+          "p95Percent": -0.7792215888009602
+        },
+        {
+          "round": 2,
+          "p50DeltaMicros": -13.20799999996325,
+          "p95DeltaMicros": 2.791999999942618,
+          "p50Percent": -5.005400284211847,
+          "p95Percent": 0.7443685797390076
+        },
+        {
+          "round": 3,
+          "p50DeltaMicros": 2.125000000006594,
+          "p95DeltaMicros": -171.58299999998405,
+          "p50Percent": 0.7952606209419288,
+          "p95Percent": -28.80518813363615
+        }
+      ],
+      "medianPairedP50DeltaMicros": -5.687000000051512,
+      "medianPairedP95DeltaMicros": -17.333000000036236
+    },
+    {
+      "mode": "summary",
+      "arm": "reference",
+      "variant": "current-copy",
+      "rounds": [
+        {
+          "round": 0,
+          "p50DeltaMicros": 7.166999999981272,
+          "p95DeltaMicros": 4.040999999915584,
+          "p50Percent": 2.9805620939962862,
+          "p95Percent": 1.2578988326582552
+        },
+        {
+          "round": 1,
+          "p50DeltaMicros": 13.792000000023563,
+          "p95DeltaMicros": 32.79199999997218,
+          "p50Percent": 5.565037747201851,
+          "p95Percent": 10.220893735985026
+        },
+        {
+          "round": 2,
+          "p50DeltaMicros": -5.959000000018477,
+          "p95DeltaMicros": 1.6259999999874708,
+          "p50Percent": -2.258266224545269,
+          "p95Percent": 0.4335040510999866
+        },
+        {
+          "round": 3,
+          "p50DeltaMicros": 6.666999999993095,
+          "p95DeltaMicros": -234.83299999999474,
+          "p50Percent": 2.4950600281401947,
+          "p95Percent": -39.4235369761961
+        }
+      ],
+      "medianPairedP50DeltaMicros": 6.916999999987183,
+      "medianPairedP95DeltaMicros": 2.8334999999515276
+    },
+    {
+      "mode": "summary",
+      "arm": "reference",
+      "variant": "without-checks",
+      "rounds": [
+        {
+          "round": 0,
+          "p50DeltaMicros": -9.87499999996544,
+          "p95DeltaMicros": -17.125000000078217,
+          "p50Percent": -4.106746292477636,
+          "p95Percent": -5.330739299633958
+        },
+        {
+          "round": 1,
+          "p50DeltaMicros": 2.4999999999977263,
+          "p95DeltaMicros": 41.00000000005366,
+          "p50Percent": 1.0087437911809882,
+          "p95Percent": 12.779234056364075
+        },
+        {
+          "round": 2,
+          "p50DeltaMicros": -16.87499999997044,
+          "p95DeltaMicros": 44.41700000000992,
+          "p50Percent": -6.395073424906272,
+          "p95Percent": 11.841912323407833
+        },
+        {
+          "round": 3,
+          "p50DeltaMicros": -6.0829999999896245,
+          "p95DeltaMicros": -154.207999999997,
+          "p50Percent": -2.2765036974901176,
+          "p95Percent": -25.888289933805154
+        }
+      ],
+      "medianPairedP50DeltaMicros": -7.978999999977532,
+      "medianPairedP95DeltaMicros": 11.937499999987722
+    },
+    {
+      "mode": "summary",
+      "arm": "reference",
+      "variant": "without-acquisition",
+      "rounds": [
+        {
+          "round": 0,
+          "p50DeltaMicros": 5.334000000061678,
+          "p95DeltaMicros": 32.62499999982538,
+          "p50Percent": 2.218266807534741,
+          "p95Percent": 10.155642023289513
+        },
+        {
+          "round": 1,
+          "p50DeltaMicros": 11.583999999970729,
+          "p95DeltaMicros": 38.95800000003646,
+          "p50Percent": 4.674115230808673,
+          "p95Percent": 12.142765862625504
+        },
+        {
+          "round": 2,
+          "p50DeltaMicros": -4.209000000003016,
+          "p95DeltaMicros": 12.416999999970812,
+          "p50Percent": -1.5950734249183363,
+          "p95Percent": 3.310467283233365
+        },
+        {
+          "round": 3,
+          "p50DeltaMicros": 1.4999999999929514,
+          "p95DeltaMicros": -29.083999999983234,
+          "p50Percent": 0.5613604383075677,
+          "p95Percent": -4.882593798210011
+        }
+      ],
+      "medianPairedP50DeltaMicros": 3.417000000027315,
+      "medianPairedP95DeltaMicros": 22.520999999898095
+    },
+    {
+      "mode": "summary",
+      "arm": "reference",
+      "variant": "without-both",
+      "rounds": [
+        {
+          "round": 0,
+          "p50DeltaMicros": -6.750000000010914,
+          "p95DeltaMicros": -15.208000000143329,
+          "p50Percent": -2.807143035378823,
+          "p95Percent": -4.734007782144644
+        },
+        {
+          "round": 1,
+          "p50DeltaMicros": -10.416000000020631,
+          "p95DeltaMicros": -11.874999999974989,
+          "p50Percent": -4.20283013158862,
+          "p95Percent": -3.7013025468001226
+        },
+        {
+          "round": 2,
+          "p50DeltaMicros": -17.082999999956883,
+          "p95DeltaMicros": 35.79200000001492,
+          "p50Percent": -6.473898626227525,
+          "p95Percent": 9.54242127742746
+        },
+        {
+          "round": 3,
+          "p50DeltaMicros": -9.583000000006336,
+          "p95DeltaMicros": -196.62499999999739,
+          "p50Percent": -3.5863447202201804,
+          "p95Percent": -33.009214880125995
+        }
+      ],
+      "medianPairedP50DeltaMicros": -9.999500000013484,
+      "medianPairedP95DeltaMicros": -13.541500000059159
+    }
+  ],
+  "counts": [
+    {
+      "variant": "current",
+      "mode": "off",
+      "arm": "candidate",
+      "idChecks": 177,
+      "dependencyElementsChecked": 178,
+      "perNodeIdChecks": {
+        "pack": 3,
+        "arrivals": 3,
+        "current": 3,
+        "verification": 3,
+        "local": 3,
+        "inbox": 3,
+        "spending/startup": 3,
+        "spending/evaluationSelections": 3,
+        "spending/transaction": 3,
+        "spending/vendorStats": 3,
+        "spending/userProfile": 3,
+        "spending/policy": 3,
+        "spending/anomalyScore": 3,
+        "spending/thresholdGate": 3,
+        "spending/reasonFactors": 3,
+        "spending/alertMessage": 3,
+        "spending/assessment": 3,
+        "spending/requestMaterials": 3,
+        "spending/materialStore": 3,
+        "spending/materialSnapshot": 3,
+        "spending/effectProposals": 3,
+        "spending/currentFacts": 3,
+        "spending/verificationFacts": 3,
+        "spending/localFacts": 3,
+        "spending/inboxFacts": 3,
+        "spending/publicationPolicy": 3,
+        "spending/occurrences": 3,
+        "spending/occurrenceAdmissions": 3,
+        "spending/branchTerminals": 3,
+        "spending/effectAdmissions": 3,
+        "spending/effectOutcomes": 3,
+        "spending/evidence": 3,
+        "spending/watermarks": 3,
+        "spending/causal/input/occurrences": 3,
+        "spending/causal/input/admissions": 3,
+        "spending/causal/input/branch-terminals": 3,
+        "spending/causal/input/effect-proposals": 3,
+        "spending/causal/input/effect-admissions": 3,
+        "spending/causal/input/effect-outcomes": 3,
+        "spending/causal/input/evidence": 3,
+        "spending/causal/input/watermarks": 3,
+        "spending/causal/arrivals": 3,
+        "spending/causal/authority": 3,
+        "spending/causal/release-candidates": 3,
+        "spending/causal/release-port": 3,
+        "spending/causal/released": 3,
+        "spending/causal/release-events": 3,
+        "spending/causal/release-controller": 3,
+        "spending/causal/currentness": 3,
+        "spending/causal/terminals": 3,
+        "spending/causal/conservation": 3,
+        "spending/causal/coverage": 3,
+        "spending/causal/quiescence": 3,
+        "spending/causal/issues": 3,
+        "spending/causal/committed-effects": 3,
+        "spending/causal/causal-quiescence": 3,
+        "requestMaterialJoin": 3,
+        "publication": 3,
+        "spending/consumerIssues": 3
+      },
+      "calls": {
+        "ids": [
+          "pack",
+          "pack",
+          "pack",
+          "arrivals",
+          "arrivals",
+          "arrivals",
+          "current",
+          "current",
+          "current",
+          "verification",
+          "verification",
+          "verification",
+          "local",
+          "local",
+          "local",
+          "inbox",
+          "inbox",
+          "inbox",
+          "spending/startup",
+          "spending/startup",
+          "spending/startup",
+          "spending/evaluationSelections",
+          "spending/evaluationSelections",
+          "spending/evaluationSelections",
+          "spending/transaction",
+          "spending/transaction",
+          "spending/transaction",
+          "spending/vendorStats",
+          "spending/vendorStats",
+          "spending/vendorStats",
+          "spending/userProfile",
+          "spending/userProfile",
+          "spending/userProfile",
+          "spending/policy",
+          "spending/policy",
+          "spending/policy",
+          "spending/anomalyScore",
+          "spending/anomalyScore",
+          "spending/anomalyScore",
+          "spending/thresholdGate",
+          "spending/thresholdGate",
+          "spending/thresholdGate",
+          "spending/reasonFactors",
+          "spending/reasonFactors",
+          "spending/reasonFactors",
+          "spending/alertMessage",
+          "spending/alertMessage",
+          "spending/alertMessage",
+          "spending/assessment",
+          "spending/assessment",
+          "spending/assessment",
+          "spending/requestMaterials",
+          "spending/requestMaterials",
+          "spending/requestMaterials",
+          "spending/materialStore",
+          "spending/materialStore",
+          "spending/materialStore",
+          "spending/materialSnapshot",
+          "spending/materialSnapshot",
+          "spending/materialSnapshot",
+          "spending/effectProposals",
+          "spending/effectProposals",
+          "spending/effectProposals",
+          "spending/currentFacts",
+          "spending/currentFacts",
+          "spending/currentFacts",
+          "spending/verificationFacts",
+          "spending/verificationFacts",
+          "spending/verificationFacts",
+          "spending/localFacts",
+          "spending/localFacts",
+          "spending/localFacts",
+          "spending/inboxFacts",
+          "spending/inboxFacts",
+          "spending/inboxFacts",
+          "spending/publicationPolicy",
+          "spending/publicationPolicy",
+          "spending/publicationPolicy",
+          "spending/occurrences",
+          "spending/occurrences",
+          "spending/occurrences",
+          "spending/occurrenceAdmissions",
+          "spending/occurrenceAdmissions",
+          "spending/occurrenceAdmissions",
+          "spending/branchTerminals",
+          "spending/branchTerminals",
+          "spending/branchTerminals",
+          "spending/effectAdmissions",
+          "spending/effectAdmissions",
+          "spending/effectAdmissions",
+          "spending/effectOutcomes",
+          "spending/effectOutcomes",
+          "spending/effectOutcomes",
+          "spending/evidence",
+          "spending/evidence",
+          "spending/evidence",
+          "spending/watermarks",
+          "spending/watermarks",
+          "spending/watermarks",
+          "spending/causal/input/occurrences",
+          "spending/causal/input/occurrences",
+          "spending/causal/input/occurrences",
+          "spending/causal/input/admissions",
+          "spending/causal/input/admissions",
+          "spending/causal/input/admissions",
+          "spending/causal/input/branch-terminals",
+          "spending/causal/input/branch-terminals",
+          "spending/causal/input/branch-terminals",
+          "spending/causal/input/effect-proposals",
+          "spending/causal/input/effect-proposals",
+          "spending/causal/input/effect-proposals",
+          "spending/causal/input/effect-admissions",
+          "spending/causal/input/effect-admissions",
+          "spending/causal/input/effect-admissions",
+          "spending/causal/input/effect-outcomes",
+          "spending/causal/input/effect-outcomes",
+          "spending/causal/input/effect-outcomes",
+          "spending/causal/input/evidence",
+          "spending/causal/input/evidence",
+          "spending/causal/input/evidence",
+          "spending/causal/input/watermarks",
+          "spending/causal/input/watermarks",
+          "spending/causal/input/watermarks",
+          "spending/causal/arrivals",
+          "spending/causal/arrivals",
+          "spending/causal/arrivals",
+          "spending/causal/authority",
+          "spending/causal/authority",
+          "spending/causal/authority",
+          "spending/causal/release-candidates",
+          "spending/causal/release-candidates",
+          "spending/causal/release-candidates",
+          "spending/causal/release-port",
+          "spending/causal/release-port",
+          "spending/causal/release-port",
+          "spending/causal/released",
+          "spending/causal/released",
+          "spending/causal/released",
+          "spending/causal/release-events",
+          "spending/causal/release-events",
+          "spending/causal/release-events",
+          "spending/causal/release-controller",
+          "spending/causal/release-controller",
+          "spending/causal/release-controller",
+          "spending/causal/currentness",
+          "spending/causal/currentness",
+          "spending/causal/currentness",
+          "spending/causal/terminals",
+          "spending/causal/terminals",
+          "spending/causal/terminals",
+          "spending/causal/conservation",
+          "spending/causal/conservation",
+          "spending/causal/conservation",
+          "spending/causal/coverage",
+          "spending/causal/coverage",
+          "spending/causal/coverage",
+          "spending/causal/quiescence",
+          "spending/causal/quiescence",
+          "spending/causal/quiescence",
+          "spending/causal/issues",
+          "spending/causal/issues",
+          "spending/causal/issues",
+          "spending/causal/committed-effects",
+          "spending/causal/committed-effects",
+          "spending/causal/committed-effects",
+          "spending/causal/causal-quiescence",
+          "spending/causal/causal-quiescence",
+          "spending/causal/causal-quiescence",
+          "requestMaterialJoin",
+          "requestMaterialJoin",
+          "requestMaterialJoin",
+          "publication",
+          "publication",
+          "publication",
+          "spending/consumerIssues",
+          "spending/consumerIssues",
+          "spending/consumerIssues"
+        ],
+        "deps": [
+          {
+            "label": "dep of 'pack'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'pack'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'pack'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'arrivals'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'arrivals'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'arrivals'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'current'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'current'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'current'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'verification'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'verification'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'verification'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'local'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'local'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'local'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'inbox'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'inbox'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'inbox'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'spending/startup'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'spending/startup'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'spending/evaluationSelections'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/evaluationSelections'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/transaction'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/transaction'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/vendorStats'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/vendorStats'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/userProfile'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/userProfile'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/policy'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/policy'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/anomalyScore'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/anomalyScore'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/thresholdGate'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/thresholdGate'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/reasonFactors'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/reasonFactors'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/alertMessage'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/alertMessage'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/assessment'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/assessment'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/requestMaterials'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/requestMaterials'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/materialStore'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/materialStore'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/materialSnapshot'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/materialSnapshot'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/effectProposals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/effectProposals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/currentFacts'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/currentFacts'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/verificationFacts'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/verificationFacts'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/localFacts'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/localFacts'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/inboxFacts'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/inboxFacts'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/publicationPolicy'",
+            "count": 7
+          },
+          {
+            "label": "dep of 'spending/publicationPolicy'",
+            "count": 7
+          },
+          {
+            "label": "dep of 'spending/occurrences'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/occurrences'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/occurrenceAdmissions'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/occurrenceAdmissions'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/branchTerminals'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/branchTerminals'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/effectAdmissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/effectAdmissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/effectOutcomes'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/effectOutcomes'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/evidence'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/evidence'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/watermarks'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/watermarks'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/occurrences'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/occurrences'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/admissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/admissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/branch-terminals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/branch-terminals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-proposals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-proposals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-admissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-admissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-outcomes'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-outcomes'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/evidence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/evidence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/watermarks'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/watermarks'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/arrivals'",
+            "count": 8
+          },
+          {
+            "label": "dep of 'spending/causal/arrivals'",
+            "count": 8
+          },
+          {
+            "label": "dep of 'spending/causal/authority'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/authority'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-candidates'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-candidates'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-port'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-port'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/released'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/released'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-events'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/causal/release-events'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/causal/release-controller'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-controller'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/currentness'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/currentness'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/terminals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/terminals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/conservation'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/conservation'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/coverage'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/coverage'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/quiescence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/quiescence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/issues'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/issues'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/committed-effects'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/committed-effects'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/causal-quiescence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/causal-quiescence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'requestMaterialJoin'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'requestMaterialJoin'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'publication'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'publication'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/consumerIssues'",
+            "count": 9
+          },
+          {
+            "label": "dep of 'spending/consumerIssues'",
+            "count": 9
+          }
+        ]
+      }
+    },
+    {
+      "variant": "current",
+      "mode": "off",
+      "arm": "reference",
+      "idChecks": 177,
+      "dependencyElementsChecked": 178,
+      "perNodeIdChecks": {
+        "pack": 3,
+        "arrivals": 3,
+        "current": 3,
+        "verification": 3,
+        "local": 3,
+        "inbox": 3,
+        "spending/startup": 3,
+        "spending/reference/selection": 3,
+        "spending/reference/transaction": 3,
+        "spending/reference/moments": 3,
+        "spending/reference/profile": 3,
+        "spending/reference/policy": 3,
+        "spending/reference/score": 3,
+        "spending/reference/gate": 3,
+        "spending/reference/reason": 3,
+        "spending/reference/message": 3,
+        "spending/reference/assessment": 3,
+        "spending/reference/current": 3,
+        "spending/reference/verification": 3,
+        "spending/reference/local": 3,
+        "spending/reference/inbox": 3,
+        "spending/reference/material": 3,
+        "spending/reference/store": 3,
+        "spending/reference/snapshot": 3,
+        "spending/reference/proposals": 3,
+        "spending/reference/permission": 3,
+        "spending/reference/occurrences": 3,
+        "spending/reference/occurrenceAdmissions": 3,
+        "spending/reference/terminals": 3,
+        "spending/reference/effectAdmissions": 3,
+        "spending/reference/outcomes": 3,
+        "spending/reference/evidence": 3,
+        "spending/reference/watermarks": 3,
+        "spending/causal/input/occurrences": 3,
+        "spending/causal/input/admissions": 3,
+        "spending/causal/input/branch-terminals": 3,
+        "spending/causal/input/effect-proposals": 3,
+        "spending/causal/input/effect-admissions": 3,
+        "spending/causal/input/effect-outcomes": 3,
+        "spending/causal/input/evidence": 3,
+        "spending/causal/input/watermarks": 3,
+        "spending/causal/arrivals": 3,
+        "spending/causal/authority": 3,
+        "spending/causal/release-candidates": 3,
+        "spending/causal/release-port": 3,
+        "spending/causal/released": 3,
+        "spending/causal/release-events": 3,
+        "spending/causal/release-controller": 3,
+        "spending/causal/currentness": 3,
+        "spending/causal/terminals": 3,
+        "spending/causal/conservation": 3,
+        "spending/causal/coverage": 3,
+        "spending/causal/quiescence": 3,
+        "spending/causal/issues": 3,
+        "spending/causal/committed-effects": 3,
+        "spending/causal/causal-quiescence": 3,
+        "requestMaterialJoin": 3,
+        "publication": 3,
+        "spending/reference/issues": 3
+      },
+      "calls": {
+        "ids": [
+          "pack",
+          "pack",
+          "pack",
+          "arrivals",
+          "arrivals",
+          "arrivals",
+          "current",
+          "current",
+          "current",
+          "verification",
+          "verification",
+          "verification",
+          "local",
+          "local",
+          "local",
+          "inbox",
+          "inbox",
+          "inbox",
+          "spending/startup",
+          "spending/startup",
+          "spending/startup",
+          "spending/reference/selection",
+          "spending/reference/selection",
+          "spending/reference/selection",
+          "spending/reference/transaction",
+          "spending/reference/transaction",
+          "spending/reference/transaction",
+          "spending/reference/moments",
+          "spending/reference/moments",
+          "spending/reference/moments",
+          "spending/reference/profile",
+          "spending/reference/profile",
+          "spending/reference/profile",
+          "spending/reference/policy",
+          "spending/reference/policy",
+          "spending/reference/policy",
+          "spending/reference/score",
+          "spending/reference/score",
+          "spending/reference/score",
+          "spending/reference/gate",
+          "spending/reference/gate",
+          "spending/reference/gate",
+          "spending/reference/reason",
+          "spending/reference/reason",
+          "spending/reference/reason",
+          "spending/reference/message",
+          "spending/reference/message",
+          "spending/reference/message",
+          "spending/reference/assessment",
+          "spending/reference/assessment",
+          "spending/reference/assessment",
+          "spending/reference/current",
+          "spending/reference/current",
+          "spending/reference/current",
+          "spending/reference/verification",
+          "spending/reference/verification",
+          "spending/reference/verification",
+          "spending/reference/local",
+          "spending/reference/local",
+          "spending/reference/local",
+          "spending/reference/inbox",
+          "spending/reference/inbox",
+          "spending/reference/inbox",
+          "spending/reference/material",
+          "spending/reference/material",
+          "spending/reference/material",
+          "spending/reference/store",
+          "spending/reference/store",
+          "spending/reference/store",
+          "spending/reference/snapshot",
+          "spending/reference/snapshot",
+          "spending/reference/snapshot",
+          "spending/reference/proposals",
+          "spending/reference/proposals",
+          "spending/reference/proposals",
+          "spending/reference/permission",
+          "spending/reference/permission",
+          "spending/reference/permission",
+          "spending/reference/occurrences",
+          "spending/reference/occurrences",
+          "spending/reference/occurrences",
+          "spending/reference/occurrenceAdmissions",
+          "spending/reference/occurrenceAdmissions",
+          "spending/reference/occurrenceAdmissions",
+          "spending/reference/terminals",
+          "spending/reference/terminals",
+          "spending/reference/terminals",
+          "spending/reference/effectAdmissions",
+          "spending/reference/effectAdmissions",
+          "spending/reference/effectAdmissions",
+          "spending/reference/outcomes",
+          "spending/reference/outcomes",
+          "spending/reference/outcomes",
+          "spending/reference/evidence",
+          "spending/reference/evidence",
+          "spending/reference/evidence",
+          "spending/reference/watermarks",
+          "spending/reference/watermarks",
+          "spending/reference/watermarks",
+          "spending/causal/input/occurrences",
+          "spending/causal/input/occurrences",
+          "spending/causal/input/occurrences",
+          "spending/causal/input/admissions",
+          "spending/causal/input/admissions",
+          "spending/causal/input/admissions",
+          "spending/causal/input/branch-terminals",
+          "spending/causal/input/branch-terminals",
+          "spending/causal/input/branch-terminals",
+          "spending/causal/input/effect-proposals",
+          "spending/causal/input/effect-proposals",
+          "spending/causal/input/effect-proposals",
+          "spending/causal/input/effect-admissions",
+          "spending/causal/input/effect-admissions",
+          "spending/causal/input/effect-admissions",
+          "spending/causal/input/effect-outcomes",
+          "spending/causal/input/effect-outcomes",
+          "spending/causal/input/effect-outcomes",
+          "spending/causal/input/evidence",
+          "spending/causal/input/evidence",
+          "spending/causal/input/evidence",
+          "spending/causal/input/watermarks",
+          "spending/causal/input/watermarks",
+          "spending/causal/input/watermarks",
+          "spending/causal/arrivals",
+          "spending/causal/arrivals",
+          "spending/causal/arrivals",
+          "spending/causal/authority",
+          "spending/causal/authority",
+          "spending/causal/authority",
+          "spending/causal/release-candidates",
+          "spending/causal/release-candidates",
+          "spending/causal/release-candidates",
+          "spending/causal/release-port",
+          "spending/causal/release-port",
+          "spending/causal/release-port",
+          "spending/causal/released",
+          "spending/causal/released",
+          "spending/causal/released",
+          "spending/causal/release-events",
+          "spending/causal/release-events",
+          "spending/causal/release-events",
+          "spending/causal/release-controller",
+          "spending/causal/release-controller",
+          "spending/causal/release-controller",
+          "spending/causal/currentness",
+          "spending/causal/currentness",
+          "spending/causal/currentness",
+          "spending/causal/terminals",
+          "spending/causal/terminals",
+          "spending/causal/terminals",
+          "spending/causal/conservation",
+          "spending/causal/conservation",
+          "spending/causal/conservation",
+          "spending/causal/coverage",
+          "spending/causal/coverage",
+          "spending/causal/coverage",
+          "spending/causal/quiescence",
+          "spending/causal/quiescence",
+          "spending/causal/quiescence",
+          "spending/causal/issues",
+          "spending/causal/issues",
+          "spending/causal/issues",
+          "spending/causal/committed-effects",
+          "spending/causal/committed-effects",
+          "spending/causal/committed-effects",
+          "spending/causal/causal-quiescence",
+          "spending/causal/causal-quiescence",
+          "spending/causal/causal-quiescence",
+          "requestMaterialJoin",
+          "requestMaterialJoin",
+          "requestMaterialJoin",
+          "publication",
+          "publication",
+          "publication",
+          "spending/reference/issues",
+          "spending/reference/issues",
+          "spending/reference/issues"
+        ],
+        "deps": [
+          {
+            "label": "dep of 'pack'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'pack'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'pack'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'arrivals'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'arrivals'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'arrivals'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'current'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'current'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'current'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'verification'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'verification'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'verification'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'local'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'local'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'local'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'inbox'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'inbox'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'inbox'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'spending/startup'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'spending/startup'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'spending/reference/selection'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/reference/selection'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/reference/transaction'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/transaction'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/moments'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/moments'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/profile'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/profile'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/policy'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/policy'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/score'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/reference/score'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/reference/gate'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/reference/gate'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/reference/reason'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/reference/reason'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/reference/message'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/message'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/assessment'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/reference/assessment'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/reference/current'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/current'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/verification'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/verification'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/local'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/local'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/inbox'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/inbox'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/material'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/reference/material'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/reference/store'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/store'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/snapshot'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/snapshot'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/proposals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/proposals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/permission'",
+            "count": 7
+          },
+          {
+            "label": "dep of 'spending/reference/permission'",
+            "count": 7
+          },
+          {
+            "label": "dep of 'spending/reference/occurrences'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/occurrences'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/occurrenceAdmissions'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/reference/occurrenceAdmissions'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/reference/terminals'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/reference/terminals'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/reference/effectAdmissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/effectAdmissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/outcomes'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/outcomes'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/evidence'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/reference/evidence'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/reference/watermarks'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/watermarks'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/occurrences'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/occurrences'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/admissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/admissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/branch-terminals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/branch-terminals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-proposals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-proposals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-admissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-admissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-outcomes'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-outcomes'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/evidence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/evidence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/watermarks'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/watermarks'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/arrivals'",
+            "count": 8
+          },
+          {
+            "label": "dep of 'spending/causal/arrivals'",
+            "count": 8
+          },
+          {
+            "label": "dep of 'spending/causal/authority'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/authority'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-candidates'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-candidates'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-port'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-port'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/released'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/released'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-events'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/causal/release-events'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/causal/release-controller'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-controller'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/currentness'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/currentness'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/terminals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/terminals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/conservation'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/conservation'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/coverage'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/coverage'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/quiescence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/quiescence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/issues'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/issues'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/committed-effects'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/committed-effects'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/causal-quiescence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/causal-quiescence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'requestMaterialJoin'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'requestMaterialJoin'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'publication'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'publication'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/issues'",
+            "count": 9
+          },
+          {
+            "label": "dep of 'spending/reference/issues'",
+            "count": 9
+          }
+        ]
+      }
+    },
+    {
+      "variant": "current",
+      "mode": "summary",
+      "arm": "candidate",
+      "idChecks": 180,
+      "dependencyElementsChecked": 186,
+      "perNodeIdChecks": {
+        "pack": 3,
+        "arrivals": 3,
+        "current": 3,
+        "verification": 3,
+        "local": 3,
+        "inbox": 3,
+        "spending/startup": 3,
+        "spending/evaluationSelections": 3,
+        "spending/transaction": 3,
+        "spending/vendorStats": 3,
+        "spending/userProfile": 3,
+        "spending/policy": 3,
+        "spending/anomalyScore": 3,
+        "spending/thresholdGate": 3,
+        "spending/reasonFactors": 3,
+        "spending/alertMessage": 3,
+        "spending/assessment": 3,
+        "spending/requestMaterials": 3,
+        "spending/materialStore": 3,
+        "spending/materialSnapshot": 3,
+        "spending/effectProposals": 3,
+        "spending/currentFacts": 3,
+        "spending/verificationFacts": 3,
+        "spending/localFacts": 3,
+        "spending/inboxFacts": 3,
+        "spending/publicationPolicy": 3,
+        "spending/occurrences": 3,
+        "spending/occurrenceAdmissions": 3,
+        "spending/branchTerminals": 3,
+        "spending/effectAdmissions": 3,
+        "spending/effectOutcomes": 3,
+        "spending/evidence": 3,
+        "spending/watermarks": 3,
+        "spending/causal/input/occurrences": 3,
+        "spending/causal/input/admissions": 3,
+        "spending/causal/input/branch-terminals": 3,
+        "spending/causal/input/effect-proposals": 3,
+        "spending/causal/input/effect-admissions": 3,
+        "spending/causal/input/effect-outcomes": 3,
+        "spending/causal/input/evidence": 3,
+        "spending/causal/input/watermarks": 3,
+        "spending/causal/arrivals": 3,
+        "spending/causal/authority": 3,
+        "spending/causal/release-candidates": 3,
+        "spending/causal/release-port": 3,
+        "spending/causal/released": 3,
+        "spending/causal/release-events": 3,
+        "spending/causal/release-controller": 3,
+        "spending/causal/currentness": 3,
+        "spending/causal/terminals": 3,
+        "spending/causal/conservation": 3,
+        "spending/causal/coverage": 3,
+        "spending/causal/quiescence": 3,
+        "spending/causal/issues": 3,
+        "spending/causal/committed-effects": 3,
+        "spending/causal/causal-quiescence": 3,
+        "requestMaterialJoin": 3,
+        "publication": 3,
+        "spending/consumerIssues": 3,
+        "spending/diagnosticSummary": 3
+      },
+      "calls": {
+        "ids": [
+          "pack",
+          "pack",
+          "pack",
+          "arrivals",
+          "arrivals",
+          "arrivals",
+          "current",
+          "current",
+          "current",
+          "verification",
+          "verification",
+          "verification",
+          "local",
+          "local",
+          "local",
+          "inbox",
+          "inbox",
+          "inbox",
+          "spending/startup",
+          "spending/startup",
+          "spending/startup",
+          "spending/evaluationSelections",
+          "spending/evaluationSelections",
+          "spending/evaluationSelections",
+          "spending/transaction",
+          "spending/transaction",
+          "spending/transaction",
+          "spending/vendorStats",
+          "spending/vendorStats",
+          "spending/vendorStats",
+          "spending/userProfile",
+          "spending/userProfile",
+          "spending/userProfile",
+          "spending/policy",
+          "spending/policy",
+          "spending/policy",
+          "spending/anomalyScore",
+          "spending/anomalyScore",
+          "spending/anomalyScore",
+          "spending/thresholdGate",
+          "spending/thresholdGate",
+          "spending/thresholdGate",
+          "spending/reasonFactors",
+          "spending/reasonFactors",
+          "spending/reasonFactors",
+          "spending/alertMessage",
+          "spending/alertMessage",
+          "spending/alertMessage",
+          "spending/assessment",
+          "spending/assessment",
+          "spending/assessment",
+          "spending/requestMaterials",
+          "spending/requestMaterials",
+          "spending/requestMaterials",
+          "spending/materialStore",
+          "spending/materialStore",
+          "spending/materialStore",
+          "spending/materialSnapshot",
+          "spending/materialSnapshot",
+          "spending/materialSnapshot",
+          "spending/effectProposals",
+          "spending/effectProposals",
+          "spending/effectProposals",
+          "spending/currentFacts",
+          "spending/currentFacts",
+          "spending/currentFacts",
+          "spending/verificationFacts",
+          "spending/verificationFacts",
+          "spending/verificationFacts",
+          "spending/localFacts",
+          "spending/localFacts",
+          "spending/localFacts",
+          "spending/inboxFacts",
+          "spending/inboxFacts",
+          "spending/inboxFacts",
+          "spending/publicationPolicy",
+          "spending/publicationPolicy",
+          "spending/publicationPolicy",
+          "spending/occurrences",
+          "spending/occurrences",
+          "spending/occurrences",
+          "spending/occurrenceAdmissions",
+          "spending/occurrenceAdmissions",
+          "spending/occurrenceAdmissions",
+          "spending/branchTerminals",
+          "spending/branchTerminals",
+          "spending/branchTerminals",
+          "spending/effectAdmissions",
+          "spending/effectAdmissions",
+          "spending/effectAdmissions",
+          "spending/effectOutcomes",
+          "spending/effectOutcomes",
+          "spending/effectOutcomes",
+          "spending/evidence",
+          "spending/evidence",
+          "spending/evidence",
+          "spending/watermarks",
+          "spending/watermarks",
+          "spending/watermarks",
+          "spending/causal/input/occurrences",
+          "spending/causal/input/occurrences",
+          "spending/causal/input/occurrences",
+          "spending/causal/input/admissions",
+          "spending/causal/input/admissions",
+          "spending/causal/input/admissions",
+          "spending/causal/input/branch-terminals",
+          "spending/causal/input/branch-terminals",
+          "spending/causal/input/branch-terminals",
+          "spending/causal/input/effect-proposals",
+          "spending/causal/input/effect-proposals",
+          "spending/causal/input/effect-proposals",
+          "spending/causal/input/effect-admissions",
+          "spending/causal/input/effect-admissions",
+          "spending/causal/input/effect-admissions",
+          "spending/causal/input/effect-outcomes",
+          "spending/causal/input/effect-outcomes",
+          "spending/causal/input/effect-outcomes",
+          "spending/causal/input/evidence",
+          "spending/causal/input/evidence",
+          "spending/causal/input/evidence",
+          "spending/causal/input/watermarks",
+          "spending/causal/input/watermarks",
+          "spending/causal/input/watermarks",
+          "spending/causal/arrivals",
+          "spending/causal/arrivals",
+          "spending/causal/arrivals",
+          "spending/causal/authority",
+          "spending/causal/authority",
+          "spending/causal/authority",
+          "spending/causal/release-candidates",
+          "spending/causal/release-candidates",
+          "spending/causal/release-candidates",
+          "spending/causal/release-port",
+          "spending/causal/release-port",
+          "spending/causal/release-port",
+          "spending/causal/released",
+          "spending/causal/released",
+          "spending/causal/released",
+          "spending/causal/release-events",
+          "spending/causal/release-events",
+          "spending/causal/release-events",
+          "spending/causal/release-controller",
+          "spending/causal/release-controller",
+          "spending/causal/release-controller",
+          "spending/causal/currentness",
+          "spending/causal/currentness",
+          "spending/causal/currentness",
+          "spending/causal/terminals",
+          "spending/causal/terminals",
+          "spending/causal/terminals",
+          "spending/causal/conservation",
+          "spending/causal/conservation",
+          "spending/causal/conservation",
+          "spending/causal/coverage",
+          "spending/causal/coverage",
+          "spending/causal/coverage",
+          "spending/causal/quiescence",
+          "spending/causal/quiescence",
+          "spending/causal/quiescence",
+          "spending/causal/issues",
+          "spending/causal/issues",
+          "spending/causal/issues",
+          "spending/causal/committed-effects",
+          "spending/causal/committed-effects",
+          "spending/causal/committed-effects",
+          "spending/causal/causal-quiescence",
+          "spending/causal/causal-quiescence",
+          "spending/causal/causal-quiescence",
+          "requestMaterialJoin",
+          "requestMaterialJoin",
+          "requestMaterialJoin",
+          "publication",
+          "publication",
+          "publication",
+          "spending/consumerIssues",
+          "spending/consumerIssues",
+          "spending/consumerIssues",
+          "spending/diagnosticSummary",
+          "spending/diagnosticSummary",
+          "spending/diagnosticSummary"
+        ],
+        "deps": [
+          {
+            "label": "dep of 'pack'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'pack'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'pack'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'arrivals'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'arrivals'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'arrivals'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'current'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'current'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'current'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'verification'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'verification'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'verification'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'local'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'local'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'local'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'inbox'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'inbox'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'inbox'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'spending/startup'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'spending/startup'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'spending/evaluationSelections'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/evaluationSelections'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/transaction'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/transaction'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/vendorStats'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/vendorStats'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/userProfile'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/userProfile'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/policy'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/policy'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/anomalyScore'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/anomalyScore'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/thresholdGate'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/thresholdGate'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/reasonFactors'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/reasonFactors'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/alertMessage'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/alertMessage'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/assessment'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/assessment'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/requestMaterials'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/requestMaterials'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/materialStore'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/materialStore'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/materialSnapshot'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/materialSnapshot'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/effectProposals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/effectProposals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/currentFacts'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/currentFacts'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/verificationFacts'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/verificationFacts'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/localFacts'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/localFacts'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/inboxFacts'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/inboxFacts'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/publicationPolicy'",
+            "count": 7
+          },
+          {
+            "label": "dep of 'spending/publicationPolicy'",
+            "count": 7
+          },
+          {
+            "label": "dep of 'spending/occurrences'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/occurrences'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/occurrenceAdmissions'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/occurrenceAdmissions'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/branchTerminals'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/branchTerminals'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/effectAdmissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/effectAdmissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/effectOutcomes'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/effectOutcomes'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/evidence'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/evidence'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/watermarks'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/watermarks'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/occurrences'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/occurrences'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/admissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/admissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/branch-terminals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/branch-terminals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-proposals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-proposals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-admissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-admissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-outcomes'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-outcomes'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/evidence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/evidence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/watermarks'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/watermarks'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/arrivals'",
+            "count": 8
+          },
+          {
+            "label": "dep of 'spending/causal/arrivals'",
+            "count": 8
+          },
+          {
+            "label": "dep of 'spending/causal/authority'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/authority'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-candidates'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-candidates'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-port'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-port'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/released'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/released'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-events'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/causal/release-events'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/causal/release-controller'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-controller'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/currentness'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/currentness'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/terminals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/terminals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/conservation'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/conservation'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/coverage'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/coverage'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/quiescence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/quiescence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/issues'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/issues'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/committed-effects'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/committed-effects'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/causal-quiescence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/causal-quiescence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'requestMaterialJoin'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'requestMaterialJoin'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'publication'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'publication'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/consumerIssues'",
+            "count": 9
+          },
+          {
+            "label": "dep of 'spending/consumerIssues'",
+            "count": 9
+          },
+          {
+            "label": "dep of 'spending/diagnosticSummary'",
+            "count": 4
+          },
+          {
+            "label": "dep of 'spending/diagnosticSummary'",
+            "count": 4
+          }
+        ]
+      }
+    },
+    {
+      "variant": "current",
+      "mode": "summary",
+      "arm": "reference",
+      "idChecks": 180,
+      "dependencyElementsChecked": 186,
+      "perNodeIdChecks": {
+        "pack": 3,
+        "arrivals": 3,
+        "current": 3,
+        "verification": 3,
+        "local": 3,
+        "inbox": 3,
+        "spending/startup": 3,
+        "spending/reference/selection": 3,
+        "spending/reference/transaction": 3,
+        "spending/reference/moments": 3,
+        "spending/reference/profile": 3,
+        "spending/reference/policy": 3,
+        "spending/reference/score": 3,
+        "spending/reference/gate": 3,
+        "spending/reference/reason": 3,
+        "spending/reference/message": 3,
+        "spending/reference/assessment": 3,
+        "spending/reference/current": 3,
+        "spending/reference/verification": 3,
+        "spending/reference/local": 3,
+        "spending/reference/inbox": 3,
+        "spending/reference/material": 3,
+        "spending/reference/store": 3,
+        "spending/reference/snapshot": 3,
+        "spending/reference/proposals": 3,
+        "spending/reference/permission": 3,
+        "spending/reference/occurrences": 3,
+        "spending/reference/occurrenceAdmissions": 3,
+        "spending/reference/terminals": 3,
+        "spending/reference/effectAdmissions": 3,
+        "spending/reference/outcomes": 3,
+        "spending/reference/evidence": 3,
+        "spending/reference/watermarks": 3,
+        "spending/causal/input/occurrences": 3,
+        "spending/causal/input/admissions": 3,
+        "spending/causal/input/branch-terminals": 3,
+        "spending/causal/input/effect-proposals": 3,
+        "spending/causal/input/effect-admissions": 3,
+        "spending/causal/input/effect-outcomes": 3,
+        "spending/causal/input/evidence": 3,
+        "spending/causal/input/watermarks": 3,
+        "spending/causal/arrivals": 3,
+        "spending/causal/authority": 3,
+        "spending/causal/release-candidates": 3,
+        "spending/causal/release-port": 3,
+        "spending/causal/released": 3,
+        "spending/causal/release-events": 3,
+        "spending/causal/release-controller": 3,
+        "spending/causal/currentness": 3,
+        "spending/causal/terminals": 3,
+        "spending/causal/conservation": 3,
+        "spending/causal/coverage": 3,
+        "spending/causal/quiescence": 3,
+        "spending/causal/issues": 3,
+        "spending/causal/committed-effects": 3,
+        "spending/causal/causal-quiescence": 3,
+        "requestMaterialJoin": 3,
+        "publication": 3,
+        "spending/reference/issues": 3,
+        "spending/reference/summary": 3
+      },
+      "calls": {
+        "ids": [
+          "pack",
+          "pack",
+          "pack",
+          "arrivals",
+          "arrivals",
+          "arrivals",
+          "current",
+          "current",
+          "current",
+          "verification",
+          "verification",
+          "verification",
+          "local",
+          "local",
+          "local",
+          "inbox",
+          "inbox",
+          "inbox",
+          "spending/startup",
+          "spending/startup",
+          "spending/startup",
+          "spending/reference/selection",
+          "spending/reference/selection",
+          "spending/reference/selection",
+          "spending/reference/transaction",
+          "spending/reference/transaction",
+          "spending/reference/transaction",
+          "spending/reference/moments",
+          "spending/reference/moments",
+          "spending/reference/moments",
+          "spending/reference/profile",
+          "spending/reference/profile",
+          "spending/reference/profile",
+          "spending/reference/policy",
+          "spending/reference/policy",
+          "spending/reference/policy",
+          "spending/reference/score",
+          "spending/reference/score",
+          "spending/reference/score",
+          "spending/reference/gate",
+          "spending/reference/gate",
+          "spending/reference/gate",
+          "spending/reference/reason",
+          "spending/reference/reason",
+          "spending/reference/reason",
+          "spending/reference/message",
+          "spending/reference/message",
+          "spending/reference/message",
+          "spending/reference/assessment",
+          "spending/reference/assessment",
+          "spending/reference/assessment",
+          "spending/reference/current",
+          "spending/reference/current",
+          "spending/reference/current",
+          "spending/reference/verification",
+          "spending/reference/verification",
+          "spending/reference/verification",
+          "spending/reference/local",
+          "spending/reference/local",
+          "spending/reference/local",
+          "spending/reference/inbox",
+          "spending/reference/inbox",
+          "spending/reference/inbox",
+          "spending/reference/material",
+          "spending/reference/material",
+          "spending/reference/material",
+          "spending/reference/store",
+          "spending/reference/store",
+          "spending/reference/store",
+          "spending/reference/snapshot",
+          "spending/reference/snapshot",
+          "spending/reference/snapshot",
+          "spending/reference/proposals",
+          "spending/reference/proposals",
+          "spending/reference/proposals",
+          "spending/reference/permission",
+          "spending/reference/permission",
+          "spending/reference/permission",
+          "spending/reference/occurrences",
+          "spending/reference/occurrences",
+          "spending/reference/occurrences",
+          "spending/reference/occurrenceAdmissions",
+          "spending/reference/occurrenceAdmissions",
+          "spending/reference/occurrenceAdmissions",
+          "spending/reference/terminals",
+          "spending/reference/terminals",
+          "spending/reference/terminals",
+          "spending/reference/effectAdmissions",
+          "spending/reference/effectAdmissions",
+          "spending/reference/effectAdmissions",
+          "spending/reference/outcomes",
+          "spending/reference/outcomes",
+          "spending/reference/outcomes",
+          "spending/reference/evidence",
+          "spending/reference/evidence",
+          "spending/reference/evidence",
+          "spending/reference/watermarks",
+          "spending/reference/watermarks",
+          "spending/reference/watermarks",
+          "spending/causal/input/occurrences",
+          "spending/causal/input/occurrences",
+          "spending/causal/input/occurrences",
+          "spending/causal/input/admissions",
+          "spending/causal/input/admissions",
+          "spending/causal/input/admissions",
+          "spending/causal/input/branch-terminals",
+          "spending/causal/input/branch-terminals",
+          "spending/causal/input/branch-terminals",
+          "spending/causal/input/effect-proposals",
+          "spending/causal/input/effect-proposals",
+          "spending/causal/input/effect-proposals",
+          "spending/causal/input/effect-admissions",
+          "spending/causal/input/effect-admissions",
+          "spending/causal/input/effect-admissions",
+          "spending/causal/input/effect-outcomes",
+          "spending/causal/input/effect-outcomes",
+          "spending/causal/input/effect-outcomes",
+          "spending/causal/input/evidence",
+          "spending/causal/input/evidence",
+          "spending/causal/input/evidence",
+          "spending/causal/input/watermarks",
+          "spending/causal/input/watermarks",
+          "spending/causal/input/watermarks",
+          "spending/causal/arrivals",
+          "spending/causal/arrivals",
+          "spending/causal/arrivals",
+          "spending/causal/authority",
+          "spending/causal/authority",
+          "spending/causal/authority",
+          "spending/causal/release-candidates",
+          "spending/causal/release-candidates",
+          "spending/causal/release-candidates",
+          "spending/causal/release-port",
+          "spending/causal/release-port",
+          "spending/causal/release-port",
+          "spending/causal/released",
+          "spending/causal/released",
+          "spending/causal/released",
+          "spending/causal/release-events",
+          "spending/causal/release-events",
+          "spending/causal/release-events",
+          "spending/causal/release-controller",
+          "spending/causal/release-controller",
+          "spending/causal/release-controller",
+          "spending/causal/currentness",
+          "spending/causal/currentness",
+          "spending/causal/currentness",
+          "spending/causal/terminals",
+          "spending/causal/terminals",
+          "spending/causal/terminals",
+          "spending/causal/conservation",
+          "spending/causal/conservation",
+          "spending/causal/conservation",
+          "spending/causal/coverage",
+          "spending/causal/coverage",
+          "spending/causal/coverage",
+          "spending/causal/quiescence",
+          "spending/causal/quiescence",
+          "spending/causal/quiescence",
+          "spending/causal/issues",
+          "spending/causal/issues",
+          "spending/causal/issues",
+          "spending/causal/committed-effects",
+          "spending/causal/committed-effects",
+          "spending/causal/committed-effects",
+          "spending/causal/causal-quiescence",
+          "spending/causal/causal-quiescence",
+          "spending/causal/causal-quiescence",
+          "requestMaterialJoin",
+          "requestMaterialJoin",
+          "requestMaterialJoin",
+          "publication",
+          "publication",
+          "publication",
+          "spending/reference/issues",
+          "spending/reference/issues",
+          "spending/reference/issues",
+          "spending/reference/summary",
+          "spending/reference/summary",
+          "spending/reference/summary"
+        ],
+        "deps": [
+          {
+            "label": "dep of 'pack'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'pack'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'pack'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'arrivals'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'arrivals'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'arrivals'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'current'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'current'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'current'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'verification'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'verification'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'verification'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'local'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'local'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'local'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'inbox'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'inbox'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'inbox'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'spending/startup'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'spending/startup'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'spending/reference/selection'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/reference/selection'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/reference/transaction'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/transaction'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/moments'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/moments'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/profile'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/profile'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/policy'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/policy'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/score'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/reference/score'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/reference/gate'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/reference/gate'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/reference/reason'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/reference/reason'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/reference/message'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/message'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/assessment'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/reference/assessment'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/reference/current'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/current'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/verification'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/verification'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/local'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/local'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/inbox'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/inbox'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/material'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/reference/material'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/reference/store'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/store'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/snapshot'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/snapshot'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/proposals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/proposals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/permission'",
+            "count": 7
+          },
+          {
+            "label": "dep of 'spending/reference/permission'",
+            "count": 7
+          },
+          {
+            "label": "dep of 'spending/reference/occurrences'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/occurrences'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/occurrenceAdmissions'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/reference/occurrenceAdmissions'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/reference/terminals'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/reference/terminals'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/reference/effectAdmissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/effectAdmissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/outcomes'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/outcomes'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/evidence'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/reference/evidence'",
+            "count": 3
+          },
+          {
+            "label": "dep of 'spending/reference/watermarks'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/watermarks'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/occurrences'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/occurrences'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/admissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/admissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/branch-terminals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/branch-terminals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-proposals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-proposals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-admissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-admissions'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-outcomes'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/effect-outcomes'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/evidence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/evidence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/watermarks'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/input/watermarks'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/arrivals'",
+            "count": 8
+          },
+          {
+            "label": "dep of 'spending/causal/arrivals'",
+            "count": 8
+          },
+          {
+            "label": "dep of 'spending/causal/authority'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/authority'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-candidates'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-candidates'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-port'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-port'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/released'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/released'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-events'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/causal/release-events'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'spending/causal/release-controller'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/release-controller'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/currentness'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/currentness'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/terminals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/terminals'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/conservation'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/conservation'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/coverage'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/coverage'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/quiescence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/quiescence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/issues'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/issues'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/committed-effects'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/committed-effects'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/causal-quiescence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/causal/causal-quiescence'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'requestMaterialJoin'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'requestMaterialJoin'",
+            "count": 2
+          },
+          {
+            "label": "dep of 'publication'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'publication'",
+            "count": 1
+          },
+          {
+            "label": "dep of 'spending/reference/issues'",
+            "count": 9
+          },
+          {
+            "label": "dep of 'spending/reference/issues'",
+            "count": 9
+          },
+          {
+            "label": "dep of 'spending/reference/summary'",
+            "count": 4
+          },
+          {
+            "label": "dep of 'spending/reference/summary'",
+            "count": 4
+          }
+        ]
+      }
+    },
+    {
+      "variant": "without-checks",
+      "mode": "off",
+      "arm": "candidate",
+      "idChecks": 59,
+      "dependencyElementsChecked": 0,
+      "perNodeIdChecks": {
+        "pack": 1,
+        "arrivals": 1,
+        "current": 1,
+        "verification": 1,
+        "local": 1,
+        "inbox": 1,
+        "spending/startup": 1,
+        "spending/evaluationSelections": 1,
+        "spending/transaction": 1,
+        "spending/vendorStats": 1,
+        "spending/userProfile": 1,
+        "spending/policy": 1,
+        "spending/anomalyScore": 1,
+        "spending/thresholdGate": 1,
+        "spending/reasonFactors": 1,
+        "spending/alertMessage": 1,
+        "spending/assessment": 1,
+        "spending/requestMaterials": 1,
+        "spending/materialStore": 1,
+        "spending/materialSnapshot": 1,
+        "spending/effectProposals": 1,
+        "spending/currentFacts": 1,
+        "spending/verificationFacts": 1,
+        "spending/localFacts": 1,
+        "spending/inboxFacts": 1,
+        "spending/publicationPolicy": 1,
+        "spending/occurrences": 1,
+        "spending/occurrenceAdmissions": 1,
+        "spending/branchTerminals": 1,
+        "spending/effectAdmissions": 1,
+        "spending/effectOutcomes": 1,
+        "spending/evidence": 1,
+        "spending/watermarks": 1,
+        "spending/causal/input/occurrences": 1,
+        "spending/causal/input/admissions": 1,
+        "spending/causal/input/branch-terminals": 1,
+        "spending/causal/input/effect-proposals": 1,
+        "spending/causal/input/effect-admissions": 1,
+        "spending/causal/input/effect-outcomes": 1,
+        "spending/causal/input/evidence": 1,
+        "spending/causal/input/watermarks": 1,
+        "spending/causal/arrivals": 1,
+        "spending/causal/authority": 1,
+        "spending/causal/release-candidates": 1,
+        "spending/causal/release-port": 1,
+        "spending/causal/released": 1,
+        "spending/causal/release-events": 1,
+        "spending/causal/release-controller": 1,
+        "spending/causal/currentness": 1,
+        "spending/causal/terminals": 1,
+        "spending/causal/conservation": 1,
+        "spending/causal/coverage": 1,
+        "spending/causal/quiescence": 1,
+        "spending/causal/issues": 1,
+        "spending/causal/committed-effects": 1,
+        "spending/causal/causal-quiescence": 1,
+        "requestMaterialJoin": 1,
+        "publication": 1,
+        "spending/consumerIssues": 1
+      },
+      "calls": {
+        "ids": [
+          "pack",
+          "arrivals",
+          "current",
+          "verification",
+          "local",
+          "inbox",
+          "spending/startup",
+          "spending/evaluationSelections",
+          "spending/transaction",
+          "spending/vendorStats",
+          "spending/userProfile",
+          "spending/policy",
+          "spending/anomalyScore",
+          "spending/thresholdGate",
+          "spending/reasonFactors",
+          "spending/alertMessage",
+          "spending/assessment",
+          "spending/requestMaterials",
+          "spending/materialStore",
+          "spending/materialSnapshot",
+          "spending/effectProposals",
+          "spending/currentFacts",
+          "spending/verificationFacts",
+          "spending/localFacts",
+          "spending/inboxFacts",
+          "spending/publicationPolicy",
+          "spending/occurrences",
+          "spending/occurrenceAdmissions",
+          "spending/branchTerminals",
+          "spending/effectAdmissions",
+          "spending/effectOutcomes",
+          "spending/evidence",
+          "spending/watermarks",
+          "spending/causal/input/occurrences",
+          "spending/causal/input/admissions",
+          "spending/causal/input/branch-terminals",
+          "spending/causal/input/effect-proposals",
+          "spending/causal/input/effect-admissions",
+          "spending/causal/input/effect-outcomes",
+          "spending/causal/input/evidence",
+          "spending/causal/input/watermarks",
+          "spending/causal/arrivals",
+          "spending/causal/authority",
+          "spending/causal/release-candidates",
+          "spending/causal/release-port",
+          "spending/causal/released",
+          "spending/causal/release-events",
+          "spending/causal/release-controller",
+          "spending/causal/currentness",
+          "spending/causal/terminals",
+          "spending/causal/conservation",
+          "spending/causal/coverage",
+          "spending/causal/quiescence",
+          "spending/causal/issues",
+          "spending/causal/committed-effects",
+          "spending/causal/causal-quiescence",
+          "requestMaterialJoin",
+          "publication",
+          "spending/consumerIssues"
+        ],
+        "deps": [
+          {
+            "label": "dep of 'pack'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'arrivals'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'current'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'verification'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'local'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'inbox'",
+            "count": 0
+          }
+        ]
+      }
+    },
+    {
+      "variant": "without-checks",
+      "mode": "off",
+      "arm": "reference",
+      "idChecks": 59,
+      "dependencyElementsChecked": 0,
+      "perNodeIdChecks": {
+        "pack": 1,
+        "arrivals": 1,
+        "current": 1,
+        "verification": 1,
+        "local": 1,
+        "inbox": 1,
+        "spending/startup": 1,
+        "spending/reference/selection": 1,
+        "spending/reference/transaction": 1,
+        "spending/reference/moments": 1,
+        "spending/reference/profile": 1,
+        "spending/reference/policy": 1,
+        "spending/reference/score": 1,
+        "spending/reference/gate": 1,
+        "spending/reference/reason": 1,
+        "spending/reference/message": 1,
+        "spending/reference/assessment": 1,
+        "spending/reference/current": 1,
+        "spending/reference/verification": 1,
+        "spending/reference/local": 1,
+        "spending/reference/inbox": 1,
+        "spending/reference/material": 1,
+        "spending/reference/store": 1,
+        "spending/reference/snapshot": 1,
+        "spending/reference/proposals": 1,
+        "spending/reference/permission": 1,
+        "spending/reference/occurrences": 1,
+        "spending/reference/occurrenceAdmissions": 1,
+        "spending/reference/terminals": 1,
+        "spending/reference/effectAdmissions": 1,
+        "spending/reference/outcomes": 1,
+        "spending/reference/evidence": 1,
+        "spending/reference/watermarks": 1,
+        "spending/causal/input/occurrences": 1,
+        "spending/causal/input/admissions": 1,
+        "spending/causal/input/branch-terminals": 1,
+        "spending/causal/input/effect-proposals": 1,
+        "spending/causal/input/effect-admissions": 1,
+        "spending/causal/input/effect-outcomes": 1,
+        "spending/causal/input/evidence": 1,
+        "spending/causal/input/watermarks": 1,
+        "spending/causal/arrivals": 1,
+        "spending/causal/authority": 1,
+        "spending/causal/release-candidates": 1,
+        "spending/causal/release-port": 1,
+        "spending/causal/released": 1,
+        "spending/causal/release-events": 1,
+        "spending/causal/release-controller": 1,
+        "spending/causal/currentness": 1,
+        "spending/causal/terminals": 1,
+        "spending/causal/conservation": 1,
+        "spending/causal/coverage": 1,
+        "spending/causal/quiescence": 1,
+        "spending/causal/issues": 1,
+        "spending/causal/committed-effects": 1,
+        "spending/causal/causal-quiescence": 1,
+        "requestMaterialJoin": 1,
+        "publication": 1,
+        "spending/reference/issues": 1
+      },
+      "calls": {
+        "ids": [
+          "pack",
+          "arrivals",
+          "current",
+          "verification",
+          "local",
+          "inbox",
+          "spending/startup",
+          "spending/reference/selection",
+          "spending/reference/transaction",
+          "spending/reference/moments",
+          "spending/reference/profile",
+          "spending/reference/policy",
+          "spending/reference/score",
+          "spending/reference/gate",
+          "spending/reference/reason",
+          "spending/reference/message",
+          "spending/reference/assessment",
+          "spending/reference/current",
+          "spending/reference/verification",
+          "spending/reference/local",
+          "spending/reference/inbox",
+          "spending/reference/material",
+          "spending/reference/store",
+          "spending/reference/snapshot",
+          "spending/reference/proposals",
+          "spending/reference/permission",
+          "spending/reference/occurrences",
+          "spending/reference/occurrenceAdmissions",
+          "spending/reference/terminals",
+          "spending/reference/effectAdmissions",
+          "spending/reference/outcomes",
+          "spending/reference/evidence",
+          "spending/reference/watermarks",
+          "spending/causal/input/occurrences",
+          "spending/causal/input/admissions",
+          "spending/causal/input/branch-terminals",
+          "spending/causal/input/effect-proposals",
+          "spending/causal/input/effect-admissions",
+          "spending/causal/input/effect-outcomes",
+          "spending/causal/input/evidence",
+          "spending/causal/input/watermarks",
+          "spending/causal/arrivals",
+          "spending/causal/authority",
+          "spending/causal/release-candidates",
+          "spending/causal/release-port",
+          "spending/causal/released",
+          "spending/causal/release-events",
+          "spending/causal/release-controller",
+          "spending/causal/currentness",
+          "spending/causal/terminals",
+          "spending/causal/conservation",
+          "spending/causal/coverage",
+          "spending/causal/quiescence",
+          "spending/causal/issues",
+          "spending/causal/committed-effects",
+          "spending/causal/causal-quiescence",
+          "requestMaterialJoin",
+          "publication",
+          "spending/reference/issues"
+        ],
+        "deps": [
+          {
+            "label": "dep of 'pack'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'arrivals'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'current'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'verification'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'local'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'inbox'",
+            "count": 0
+          }
+        ]
+      }
+    },
+    {
+      "variant": "without-checks",
+      "mode": "summary",
+      "arm": "candidate",
+      "idChecks": 60,
+      "dependencyElementsChecked": 0,
+      "perNodeIdChecks": {
+        "pack": 1,
+        "arrivals": 1,
+        "current": 1,
+        "verification": 1,
+        "local": 1,
+        "inbox": 1,
+        "spending/startup": 1,
+        "spending/evaluationSelections": 1,
+        "spending/transaction": 1,
+        "spending/vendorStats": 1,
+        "spending/userProfile": 1,
+        "spending/policy": 1,
+        "spending/anomalyScore": 1,
+        "spending/thresholdGate": 1,
+        "spending/reasonFactors": 1,
+        "spending/alertMessage": 1,
+        "spending/assessment": 1,
+        "spending/requestMaterials": 1,
+        "spending/materialStore": 1,
+        "spending/materialSnapshot": 1,
+        "spending/effectProposals": 1,
+        "spending/currentFacts": 1,
+        "spending/verificationFacts": 1,
+        "spending/localFacts": 1,
+        "spending/inboxFacts": 1,
+        "spending/publicationPolicy": 1,
+        "spending/occurrences": 1,
+        "spending/occurrenceAdmissions": 1,
+        "spending/branchTerminals": 1,
+        "spending/effectAdmissions": 1,
+        "spending/effectOutcomes": 1,
+        "spending/evidence": 1,
+        "spending/watermarks": 1,
+        "spending/causal/input/occurrences": 1,
+        "spending/causal/input/admissions": 1,
+        "spending/causal/input/branch-terminals": 1,
+        "spending/causal/input/effect-proposals": 1,
+        "spending/causal/input/effect-admissions": 1,
+        "spending/causal/input/effect-outcomes": 1,
+        "spending/causal/input/evidence": 1,
+        "spending/causal/input/watermarks": 1,
+        "spending/causal/arrivals": 1,
+        "spending/causal/authority": 1,
+        "spending/causal/release-candidates": 1,
+        "spending/causal/release-port": 1,
+        "spending/causal/released": 1,
+        "spending/causal/release-events": 1,
+        "spending/causal/release-controller": 1,
+        "spending/causal/currentness": 1,
+        "spending/causal/terminals": 1,
+        "spending/causal/conservation": 1,
+        "spending/causal/coverage": 1,
+        "spending/causal/quiescence": 1,
+        "spending/causal/issues": 1,
+        "spending/causal/committed-effects": 1,
+        "spending/causal/causal-quiescence": 1,
+        "requestMaterialJoin": 1,
+        "publication": 1,
+        "spending/consumerIssues": 1,
+        "spending/diagnosticSummary": 1
+      },
+      "calls": {
+        "ids": [
+          "pack",
+          "arrivals",
+          "current",
+          "verification",
+          "local",
+          "inbox",
+          "spending/startup",
+          "spending/evaluationSelections",
+          "spending/transaction",
+          "spending/vendorStats",
+          "spending/userProfile",
+          "spending/policy",
+          "spending/anomalyScore",
+          "spending/thresholdGate",
+          "spending/reasonFactors",
+          "spending/alertMessage",
+          "spending/assessment",
+          "spending/requestMaterials",
+          "spending/materialStore",
+          "spending/materialSnapshot",
+          "spending/effectProposals",
+          "spending/currentFacts",
+          "spending/verificationFacts",
+          "spending/localFacts",
+          "spending/inboxFacts",
+          "spending/publicationPolicy",
+          "spending/occurrences",
+          "spending/occurrenceAdmissions",
+          "spending/branchTerminals",
+          "spending/effectAdmissions",
+          "spending/effectOutcomes",
+          "spending/evidence",
+          "spending/watermarks",
+          "spending/causal/input/occurrences",
+          "spending/causal/input/admissions",
+          "spending/causal/input/branch-terminals",
+          "spending/causal/input/effect-proposals",
+          "spending/causal/input/effect-admissions",
+          "spending/causal/input/effect-outcomes",
+          "spending/causal/input/evidence",
+          "spending/causal/input/watermarks",
+          "spending/causal/arrivals",
+          "spending/causal/authority",
+          "spending/causal/release-candidates",
+          "spending/causal/release-port",
+          "spending/causal/released",
+          "spending/causal/release-events",
+          "spending/causal/release-controller",
+          "spending/causal/currentness",
+          "spending/causal/terminals",
+          "spending/causal/conservation",
+          "spending/causal/coverage",
+          "spending/causal/quiescence",
+          "spending/causal/issues",
+          "spending/causal/committed-effects",
+          "spending/causal/causal-quiescence",
+          "requestMaterialJoin",
+          "publication",
+          "spending/consumerIssues",
+          "spending/diagnosticSummary"
+        ],
+        "deps": [
+          {
+            "label": "dep of 'pack'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'arrivals'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'current'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'verification'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'local'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'inbox'",
+            "count": 0
+          }
+        ]
+      }
+    },
+    {
+      "variant": "without-checks",
+      "mode": "summary",
+      "arm": "reference",
+      "idChecks": 60,
+      "dependencyElementsChecked": 0,
+      "perNodeIdChecks": {
+        "pack": 1,
+        "arrivals": 1,
+        "current": 1,
+        "verification": 1,
+        "local": 1,
+        "inbox": 1,
+        "spending/startup": 1,
+        "spending/reference/selection": 1,
+        "spending/reference/transaction": 1,
+        "spending/reference/moments": 1,
+        "spending/reference/profile": 1,
+        "spending/reference/policy": 1,
+        "spending/reference/score": 1,
+        "spending/reference/gate": 1,
+        "spending/reference/reason": 1,
+        "spending/reference/message": 1,
+        "spending/reference/assessment": 1,
+        "spending/reference/current": 1,
+        "spending/reference/verification": 1,
+        "spending/reference/local": 1,
+        "spending/reference/inbox": 1,
+        "spending/reference/material": 1,
+        "spending/reference/store": 1,
+        "spending/reference/snapshot": 1,
+        "spending/reference/proposals": 1,
+        "spending/reference/permission": 1,
+        "spending/reference/occurrences": 1,
+        "spending/reference/occurrenceAdmissions": 1,
+        "spending/reference/terminals": 1,
+        "spending/reference/effectAdmissions": 1,
+        "spending/reference/outcomes": 1,
+        "spending/reference/evidence": 1,
+        "spending/reference/watermarks": 1,
+        "spending/causal/input/occurrences": 1,
+        "spending/causal/input/admissions": 1,
+        "spending/causal/input/branch-terminals": 1,
+        "spending/causal/input/effect-proposals": 1,
+        "spending/causal/input/effect-admissions": 1,
+        "spending/causal/input/effect-outcomes": 1,
+        "spending/causal/input/evidence": 1,
+        "spending/causal/input/watermarks": 1,
+        "spending/causal/arrivals": 1,
+        "spending/causal/authority": 1,
+        "spending/causal/release-candidates": 1,
+        "spending/causal/release-port": 1,
+        "spending/causal/released": 1,
+        "spending/causal/release-events": 1,
+        "spending/causal/release-controller": 1,
+        "spending/causal/currentness": 1,
+        "spending/causal/terminals": 1,
+        "spending/causal/conservation": 1,
+        "spending/causal/coverage": 1,
+        "spending/causal/quiescence": 1,
+        "spending/causal/issues": 1,
+        "spending/causal/committed-effects": 1,
+        "spending/causal/causal-quiescence": 1,
+        "requestMaterialJoin": 1,
+        "publication": 1,
+        "spending/reference/issues": 1,
+        "spending/reference/summary": 1
+      },
+      "calls": {
+        "ids": [
+          "pack",
+          "arrivals",
+          "current",
+          "verification",
+          "local",
+          "inbox",
+          "spending/startup",
+          "spending/reference/selection",
+          "spending/reference/transaction",
+          "spending/reference/moments",
+          "spending/reference/profile",
+          "spending/reference/policy",
+          "spending/reference/score",
+          "spending/reference/gate",
+          "spending/reference/reason",
+          "spending/reference/message",
+          "spending/reference/assessment",
+          "spending/reference/current",
+          "spending/reference/verification",
+          "spending/reference/local",
+          "spending/reference/inbox",
+          "spending/reference/material",
+          "spending/reference/store",
+          "spending/reference/snapshot",
+          "spending/reference/proposals",
+          "spending/reference/permission",
+          "spending/reference/occurrences",
+          "spending/reference/occurrenceAdmissions",
+          "spending/reference/terminals",
+          "spending/reference/effectAdmissions",
+          "spending/reference/outcomes",
+          "spending/reference/evidence",
+          "spending/reference/watermarks",
+          "spending/causal/input/occurrences",
+          "spending/causal/input/admissions",
+          "spending/causal/input/branch-terminals",
+          "spending/causal/input/effect-proposals",
+          "spending/causal/input/effect-admissions",
+          "spending/causal/input/effect-outcomes",
+          "spending/causal/input/evidence",
+          "spending/causal/input/watermarks",
+          "spending/causal/arrivals",
+          "spending/causal/authority",
+          "spending/causal/release-candidates",
+          "spending/causal/release-port",
+          "spending/causal/released",
+          "spending/causal/release-events",
+          "spending/causal/release-controller",
+          "spending/causal/currentness",
+          "spending/causal/terminals",
+          "spending/causal/conservation",
+          "spending/causal/coverage",
+          "spending/causal/quiescence",
+          "spending/causal/issues",
+          "spending/causal/committed-effects",
+          "spending/causal/causal-quiescence",
+          "requestMaterialJoin",
+          "publication",
+          "spending/reference/issues",
+          "spending/reference/summary"
+        ],
+        "deps": [
+          {
+            "label": "dep of 'pack'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'arrivals'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'current'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'verification'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'local'",
+            "count": 0
+          },
+          {
+            "label": "dep of 'inbox'",
+            "count": 0
+          }
+        ]
+      }
+    }
+  ],
+  "probeBindings": [
+    {
+      "variant": "current",
+      "sourceDigest": "sha256:de91197cfbf281e46cb563d4435db54c62225192ff34cd1362f97db9f780cb1c",
+      "probeDigest": "sha256:b05a2690928e9930f1a4e5016960c7c4b4c061b3947caa19c8464863fab9e2ea",
+      "change": "append private DiagnosticGraph export only; wrap two methods at runtime"
+    },
+    {
+      "variant": "without-checks",
+      "sourceDigest": "sha256:db629c20c95c2546b727257bd44bbd3cefc64c113fb6a6eb27913f6f6a23d5f7",
+      "probeDigest": "sha256:02994ad7b9d451e2a8db61604943293e593f8f6251236ed902341285e935f380",
+      "change": "append private DiagnosticGraph export only; wrap two methods at runtime"
+    }
+  ],
+  "note": "Counts cover these two Graph methods only, not all validation. Wrappers never participate in performance measurements. Differences of quantiles are contrasts, not additive cost accounting."
+}
