@@ -1,0 +1,13 @@
+{
+	"workspace": {
+		"exitCode": 0,
+		"path": "packages/ts/qualification/causal-occurrence/preset-performance-v1/workspace.txt",
+		"digest": "sha256:3835fc2a997681bf829c6c54f3219d6ddcc8201e5ee2ac3fc67e3787e4def893"
+	},
+	"dashboard": {
+		"exitCode": 0,
+		"path": "packages/ts/qualification/causal-occurrence/preset-performance-v1/dashboard.txt",
+		"digest": "sha256:57d4dc2953cc9de54408eb72f73eccff702d623d1346ab401e6585a2b1275569"
+	},
+	"receiptDigest": "sha256:18829de286ffba2f4ea7d467e5c8cbb39a653c429f7af35dca2da4649f62ced3"
+}
