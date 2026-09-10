@@ -14,6 +14,7 @@ import type {
 	CausalEffectOutcome,
 	CausalEffectProposal,
 } from "../../packages/ts/src/solutions/causal-occurrence/contracts.js";
+import { plainNumbers } from "./spending-numeric-plain.js";
 import {
 	oracleCanonical as canonical,
 	oracleHash,
@@ -24,16 +25,11 @@ import {
 const digest = (x: unknown) => oracleHash(canonical(x));
 const equal = (a: unknown, b: unknown) => canonical(a) === canonical(b);
 export function plainBusiness(e: Evaluation) {
-	const amounts = e.prefix.map((t) => t.amount),
-		count = amounts.length;
-	let mean = 0;
-	for (const amount of amounts) mean += amount / count;
-	let ss = 0;
-	for (const amount of amounts) ss += (amount - mean) * (amount - mean);
-	const std = count > 1 ? Math.sqrt(ss / (count - 1)) : 0,
-		txn = e.prefix[count - 1];
-	const zScore = (txn.amount - mean) / (std || Math.max(mean, 1)),
-		dailyRatio = txn.amount / Math.max(e.profile.dailyAverage, 1);
+	const txn = e.prefix[e.prefix.length - 1];
+	const { zScore, dailyRatio } = plainNumbers(
+		e.prefix.map((t) => t.amount),
+		e.profile.dailyAverage,
+	);
 	const factors: string[] = [];
 	if (zScore > e.policy.zThreshold)
 		factors.push(`Amount is ${zScore.toFixed(2)}σ above this vendor's historical mean.`);
@@ -253,7 +249,7 @@ export class PlainSpending {
 						v.sourceDigest === this.binding.sourceDigest &&
 						v.runtimeDigest === this.binding.runtimeDigest &&
 						v.requestDigest === material.body.payloadDigest &&
-						v.verifierRevision === "spending-oracle-v1" &&
+						v.verifierRevision === "spending-oracle-v2" &&
 						v.numericDomainRef === "spending-finite-v1",
 				) ?? [];
 			if (receipts.length !== 1 || receipts[0].verdict === "unavailable") continue;

@@ -14,17 +14,27 @@ const out = resolve(process.argv[arg + 1]);
 assert.equal(existsSync(out), false);
 mkdirSync(out, { recursive: true });
 const hash = (value) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
-const target = "examples/spending-alerts/causal-business.ts",
+const target = "examples/spending-alerts/causal-numeric.ts",
 	original = readFileSync(resolve(root, target), "utf8");
-const source = "Math.sqrt(m2 / (count - 1))";
+const source = "delta * delta * (n - 1n)";
 assert.equal(original.split(source).length, 2);
+const materialTarget = "examples/spending-alerts/causal-material-owner.ts";
+const materialOriginal = readFileSync(resolve(root, materialTarget), "utf8");
+assert.equal(materialOriginal.split("message: message.message,").length, 2);
 const variants = {
-	baseline: original,
-	population: original.replace(source, "Math.sqrt(m2 / count)"),
-	equivalent: original.replace(source, "Math.sqrt(m2 / (count + -1))"),
+	baseline: { target, changed: original },
+	population: { target, changed: original.replace(source, "delta * delta * n") },
+	equivalent: { target, changed: original.replace(source, "(n - 1n) * delta ** 2n") },
+	"payload-only": {
+		target: materialTarget,
+		changed: materialOriginal.replace(
+			"message: message.message,",
+			'message: message.message + " corrupted",',
+		),
+	},
 };
 const results = [];
-for (const [variant, changed] of Object.entries(variants)) {
+for (const [variant, { target: variantTarget, changed }] of Object.entries(variants)) {
 	const bundle = resolve(out, `${variant}.cjs`);
 	const compiled = await build({
 		entryPoints: [resolve(root, "scripts/fixtures/spending-preset-verification.ts")],
@@ -39,10 +49,11 @@ for (const [variant, changed] of Object.entries(variants)) {
 			{
 				name: "actual-source-variant",
 				setup(b) {
-					b.onLoad({ filter: /spending-alerts\/causal-business\.ts$/ }, () => ({
-						contents: changed,
-						loader: "ts",
-					}));
+					b.onLoad({ filter: /spending-alerts\/causal-(numeric|material-owner)\.ts$/ }, (args) =>
+						args.path === resolve(root, variantTarget)
+							? { contents: changed, loader: "ts" }
+							: undefined,
+					);
 				},
 			},
 		],
@@ -52,14 +63,23 @@ for (const [variant, changed] of Object.entries(variants)) {
 			.sort()
 			.map((p) => [
 				p,
-				hash(resolve(root, p) === resolve(root, target) ? changed : readFileSync(resolve(root, p))),
+				hash(
+					resolve(root, p) === resolve(root, variantTarget)
+						? changed
+						: readFileSync(resolve(root, p)),
+				),
 			]),
 	);
 	const manifest = {
 		variant,
+		changedPath: variantTarget,
 		sourceDigest: hash(changed),
 		bundleDigest: hash(readFileSync(bundle)),
 		sources,
+		numericContractDigest: hash(
+			readFileSync(resolve(root, "docs/design/causal-preset-numeric-contract-v1.md")),
+		),
+		verifierRevision: "spending-oracle-v2",
 	};
 	const mp = resolve(out, `${variant}.manifest.json`),
 		rp = resolve(out, `${variant}.result.json`);
@@ -76,7 +96,7 @@ for (const [variant, changed] of Object.entries(variants)) {
 	const r = JSON.parse(readFileSync(rp, "utf8"));
 	assert.equal(hash(readFileSync(bundle)), manifest.bundleDigest);
 	if (results.length)
-		for (let i = 0; i < 2; i++)
+		for (let i = 0; i < r.result.length; i++)
 			assert.deepEqual(
 				r.result[i].topology,
 				results[0].result[i].topology,
@@ -90,6 +110,7 @@ for (const [variant, changed] of Object.entries(variants)) {
 	console.log("PRESET_VARIANT_DONE", variant);
 }
 assert.equal(readFileSync(resolve(root, target), "utf8"), original);
+assert.equal(readFileSync(resolve(root, materialTarget), "utf8"), materialOriginal);
 writeFileSync(
 	resolve(out, "results.json"),
 	JSON.stringify(

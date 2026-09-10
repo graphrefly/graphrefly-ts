@@ -103,6 +103,14 @@ export function policyFacts(e: Evaluation, binding = presetBinding) {
 		requestDigest =
 			request?.body.payloadDigest ??
 			oracleHash(oracleCanonical({ kind: "no-publish", evaluationRef: e.evaluationRef }));
+	const artifactDigest = oracleHash(
+		oracleCanonical({
+			verifierRevision: "spending-oracle-v2",
+			evaluation: e,
+			binding,
+			result: oracleBusiness(e),
+		}),
+	);
 	const current: CurrentFrame = {
 		binding,
 		current: [
@@ -119,9 +127,9 @@ export function policyFacts(e: Evaluation, binding = presetBinding) {
 		binding,
 		receipts: [
 			{
-				receiptRef: { kind: "fixture-verification", id: e.evaluationRef },
-				issuerRef: { kind: "fixture", id: "independent-two-pass-oracle" },
-				verifierRevision: "spending-oracle-v1",
+				receiptRef: { kind: "fixture-verification", id: artifactDigest },
+				issuerRef: { kind: "fixture", id: "independent-pairwise-oracle" },
+				verifierRevision: "spending-oracle-v2",
 				occurrence: e.occurrence,
 				inputDigest: e.inputDigest,
 				policyDigest: e.policyDigest,
@@ -130,8 +138,8 @@ export function policyFacts(e: Evaluation, binding = presetBinding) {
 				requestDigest,
 				numericDomainRef: "spending-finite-v1",
 				verdict: "pass",
-				artifactRef: { kind: "fixture-artifact", id: e.evaluationRef },
-				artifactDigest: oracleHash(oracleCanonical(oracleBusiness(e))),
+				artifactRef: { kind: "fixture-artifact", id: artifactDigest },
+				artifactDigest,
 			},
 		],
 	};
@@ -303,16 +311,25 @@ export function presetRun(
 }
 
 /** Rebind an adversarial finite numeric fixture independently of candidate digest helpers. */
-export function evaluationWithAmounts(amounts: readonly number[]): Evaluation {
+export function evaluationWithAmounts(
+	amounts: readonly number[],
+	options?: {
+		policy?: Evaluation["policy"];
+		profile?: Evaluation["profile"];
+	},
+): Evaluation {
 	const base = evaluationFixture(0, "coffee", amounts.length);
 	const { occurrence, ...initial } = base;
 	const prefix = initial.prefix.map((t, i) => ({ ...t, amount: amounts[i] }));
+	const profile = options?.profile ?? initial.profile,
+		policy = options?.policy ?? initial.policy;
 	const value = {
 		...initial,
 		prefix,
-		inputDigest: oracleHash(
-			oracleCanonical({ profileRef: initial.profileRef, profile: initial.profile, prefix }),
-		),
+		profile,
+		policy,
+		policyDigest: oracleHash(oracleCanonical(policy)),
+		inputDigest: oracleHash(oracleCanonical({ profileRef: initial.profileRef, profile, prefix })),
 	};
 	const { digest: _digest, ...ref } = occurrence;
 	return oracleFreeze({

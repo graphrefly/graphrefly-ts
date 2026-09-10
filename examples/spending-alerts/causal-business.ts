@@ -17,15 +17,9 @@ import {
 	type SpendingInputs,
 	type SpendingPolicy,
 } from "./causal-inputs.js";
+import { type ExactVendorStats, exactVendorStats, exactZScore } from "./causal-numeric.js";
 import { canonicalMaterial } from "./causal-publication.js";
-import type {
-	AnomalyScore,
-	Flagged,
-	ReasonFactors,
-	Transaction,
-	UserProfile,
-	VendorStats,
-} from "./pipeline.js";
+import type { AnomalyScore, Flagged, ReasonFactors, Transaction, UserProfile } from "./pipeline.js";
 
 export interface Item<T> {
 	readonly evaluation: Evaluation;
@@ -310,18 +304,9 @@ export function buildBusiness(make: MakeNode, inputs: SpendingInputs, binding: S
 		evaluationSelections,
 		(e) => e.prefix[e.prefix.length - 1],
 	);
-	const vendorStats = project(make, "vendorStats", evaluationSelections, (e) => {
-		let count = 0,
-			mean = 0,
-			m2 = 0;
-		for (const t of e.prefix) {
-			count++;
-			const delta = t.amount - mean;
-			mean += delta / count;
-			m2 += delta * (t.amount - mean);
-		}
-		return { count, mean, std: count >= 2 ? Math.sqrt(m2 / (count - 1)) : 0 } satisfies VendorStats;
-	});
+	const vendorStats = project(make, "vendorStats", evaluationSelections, (e) =>
+		exactVendorStats(e.prefix.map((t) => t.amount)),
+	);
 	const userProfile = project(make, "userProfile", evaluationSelections, (e) => e.profile);
 	const policy = project(make, "policy", evaluationSelections, (e) => e.policy);
 	const anomalyScore = join<AnomalyScore>(
@@ -330,11 +315,10 @@ export function buildBusiness(make: MakeNode, inputs: SpendingInputs, binding: S
 		[transaction, vendorStats, userProfile],
 		([rawTxn, rawStats, rawProfile]) => {
 			const txn = rawTxn as Transaction,
-				stats = rawStats as VendorStats,
+				stats = rawStats as ExactVendorStats,
 				prof = rawProfile as UserProfile;
-			const scale = stats.std > 0 ? stats.std : Math.max(stats.mean, 1);
 			return {
-				zScore: (txn.amount - stats.mean) / scale,
+				zScore: exactZScore(txn.amount, stats),
 				dailyRatio: txn.amount / Math.max(prof.dailyAverage, 1),
 				categoryFamiliarity: prof.typicalCategories.includes(txn.category) ? "known" : "unknown",
 				txn,

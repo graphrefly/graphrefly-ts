@@ -9,7 +9,7 @@ import type {
 import { canonicalMaterial, type MaterialProfile, materialDigest } from "./causal-publication.js";
 import type { Transaction, UserProfile } from "./pipeline.js";
 
-export const VERIFIER_REVISION = "spending-oracle-v1";
+export const VERIFIER_REVISION = "spending-oracle-v2";
 export const NUMERIC_DOMAIN = "spending-finite-v1";
 export interface SpendingBinding extends MaterialProfile {
 	readonly runRef: string;

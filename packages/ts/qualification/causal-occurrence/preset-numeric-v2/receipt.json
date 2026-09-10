@@ -1,0 +1,128 @@
+{
+	"kind": "private-preset-numeric-repair-attempt",
+	"workRef": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"governingRef": "graphrefly-ts:D166",
+	"baselineCommit": "6373ad77d325fbe32daf7a2c89a43326f9828cb0",
+	"date": "2026-09-09",
+	"qualified": false,
+	"status": "numeric-repair-verified-preset-qualification-incomplete",
+	"approval": {
+		"conversation": "User \u597d confirmed the concrete numeric rules; subsequent \u660e\u767d\u4e86.\u540c\u610f,\u7ee7\u7eed and \u540c\u610f,\u7ee7\u7eed confirmed implementation continuation. Original offline/commit grant retained.",
+		"scope": "Private numeric algorithm, independent verifier/plain, receipts and offline qualification; no public API, protocol or effect/provider/live/spend."
+	},
+	"contract": {
+		"path": "docs/design/causal-preset-numeric-contract-v1.md",
+		"digest": "sha256:1a0d9af21223855dd3a4c9f22ab6400aafc6b9fe65e0f6bed16ed896111ec825",
+		"vectorsDigest": "sha256:cb9214a57c7aedf3c2b37315068820ec3c1a523905fa9c3c3bc629c94bca826b"
+	},
+	"sourceFiles": {
+		"examples/spending-alerts/causal-business.ts": "sha256:5808b47b937eaa35336736523d958d9dcfa58053caad9c65df2caac49333c523",
+		"examples/spending-alerts/causal-inputs.ts": "sha256:dfb1aa266cfed9bb6400171bfba30f046cd09ef94346c18560124566a7364561",
+		"examples/spending-alerts/causal-numeric.ts": "sha256:0acdf5c800e55f7de0736718cc846eea137f880d0cbd0f158b680fa8b2e29dd8",
+		"packages/ts/src/__tests__/spending-alerts-causal-preset.test.ts": "sha256:e8f81c42851ca12dc0714e1db73fff1c405e293bd8894c64b270eb75903a7523",
+		"scripts/fixtures/spending-numeric-oracle.ts": "sha256:91f90ff47306b4631dc225a6df4daf60cabbd2e146aa1476915cdbfe4419c8df",
+		"scripts/fixtures/spending-numeric-plain.ts": "sha256:d6d7482d41a653c5f9d8de5d88721673c5ba139ad9c1e6371ca57037829e9da7",
+		"scripts/fixtures/spending-numeric-verification.ts": "sha256:0549bd14bcb2f8440c8c1b125eb92c2d638e2373b599bebbc44a71367fde0acb",
+		"scripts/fixtures/spending-preset-harness.ts": "sha256:9c3ba7b674bd56847631a4c07160c1123cc39fa300ef540c2f3aa82880259e22",
+		"scripts/fixtures/spending-preset-oracle.ts": "sha256:1bae2736615e6c2b8db71cc380a31226e73dcea1d31216d45ec13819a92cc8a2",
+		"scripts/fixtures/spending-preset-plain.ts": "sha256:4268c38b4db3758fadbeacf10df86200e3ea3be7f4a0d8f4c7bc22695e0d4159",
+		"scripts/fixtures/spending-preset-verification.ts": "sha256:a5677afa422cfddf8beb88b7c8bb45705db3a880722eeea2749b4a1c18966641",
+		"scripts/qualify-spending-preset-runtime.mjs": "sha256:cb3adc073c97f42ae8d3e9ad4d30d33516ec715dbce2ee06eb5572cc2da02ca3",
+		"scripts/qualify-spending-preset.mjs": "sha256:40a137a7240addd07fda7b425b465cb52958861b6d156166e9ac5f509b9b1fc1"
+	},
+	"tests": {
+		"focusedPassed": 98,
+		"fixedSeedDifferentialCases": 200,
+		"frozenVectors": 13,
+		"diagnosticModes": 2,
+		"fullDefault": {
+			"passed": 2463,
+			"failed": 2,
+			"skipped": 4,
+			"failure": "Pre-existing D159 frozen implementation manifest drift"
+		}
+	},
+	"runtimeMutations": {
+		"detected": 16,
+		"loadErrorKills": 0,
+		"report": "runtime-final/results.json",
+		"finalClosure": "runtime-final-closure.json"
+	},
+	"loadedSourceVariants": {
+		"variants": ["baseline", "population", "equivalent", "payload-only"],
+		"scenarios": ["flagged", "root-negative"],
+		"modes": ["off", "summary"],
+		"sameTopology": true,
+		"actualRequestComparedIndependently": true,
+		"zeroProposalCountAsserted": true,
+		"effectExecuted": false,
+		"actor": "unknown",
+		"report": "loaded-exact-final/results.json"
+	},
+	"gates": {
+		"lint": "passed",
+		"typecheck": "passed",
+		"browser": "passed",
+		"buildExport": "passed",
+		"workspace": "passed",
+		"dashboard": "passed",
+		"artifact": "failed-existing-D159-manifest-drift"
+	},
+	"reusedEvidence": {
+		"rootSoak": {
+			"passed": 221,
+			"newRun": false,
+			"boundFiles": 181,
+			"staticInputs": 136,
+			"report": "root-soak-reuse.json"
+		},
+		"prerequisites": {
+			"priorRuns": 5,
+			"newRuns": false,
+			"boundFiles": 61,
+			"report": "prerequisite-reuse.json"
+		}
+	},
+	"performance": {
+		"matrixRun": false,
+		"supplementalCostMeasured": false,
+		"budgetChanged": false,
+		"reason": "Complete independent Graph reference and full input/lifecycle equivalence remain prerequisites; old C result not transferable."
+	},
+	"rootBaseline": {
+		"files": {
+			"decisions/decisions.jsonl": "sha256:b1c78cb3d6a0915a37728181a4003bac8f615c1cfd220add1a7982997b48c831",
+			"plan/backlog.jsonl": "sha256:89a6d9e0a7607db2bac8f7cfdfeeebdaea7f5faed820a8f659d647cdea4d9505",
+			"sessions/active/SESSION-blueprint-stacked-pr-ownership.md": "sha256:74d4b1311f8b5631b1c3ae77857797f75541b31f92603f47efab953fb800115c",
+			"sessions/archive/SESSION-b139-causal-flagship-brief-v1.md": "sha256:1477c42a39903ea89c523c97ee82c7eb1c0e320f88c88738325e043c6d44dc8a",
+			"sessions/archive/b139-causal-flagship-brief-v1.json": "sha256:c406a58efb7ec9c24ef01c11b987405345b330edd045c915c2afef8d945a7fe7",
+			"sessions/sessions.jsonl": "sha256:d3c318c66a5c0e54294d91f1f5dc776d89c47a69f01b09a7dea06ed33902791c"
+		},
+		"unchanged": true
+	},
+	"review": {
+		"path": "static-review.json",
+		"findingsFixed": 4
+	},
+	"rawEvidence": {
+		"path": "packages/ts/qualification/causal-occurrence/preset-numeric-v2/evidence.tar.gz",
+		"digest": "sha256:a75de67f9eb45d389a6c061a787549afa87c9ad3d1ce4556a46f4b39d8845b77",
+		"artifactCount": 191,
+		"indexPath": "packages/ts/qualification/causal-occurrence/preset-numeric-v2/artifact-index.json",
+		"indexDigest": "sha256:1d1f0c5f7a5ec156bd6ee22d1098cf2ba2f00e9589eba4ac5985e616fad46c1d"
+	},
+	"outstanding": [
+		"Complete independent Graph reference and plain input/lifecycle equivalence",
+		"N1-N12 audit package completion",
+		"Frozen 12 cold / 60 steady / 12 recovery performance matrix",
+		"Pre-existing D159 source-binding/artifact gate"
+	],
+	"nonClaims": [
+		"preset-v1 complete",
+		"performance budget passed",
+		"public export layering complete",
+		"qualified host or actual execution",
+		"B121 human/agent study",
+		"ownership or cognitive benefit measured"
+	]
+}

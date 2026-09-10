@@ -24,6 +24,7 @@ const out = resolve(process.argv[arg + 1]);
 assert.equal(existsSync(out), false);
 mkdirSync(out, { recursive: true });
 const testPath = "packages/ts/src/__tests__/spending-alerts-causal-preset.test.ts";
+const numeric = "examples/spending-alerts/causal-numeric.ts";
 const business = "examples/spending-alerts/causal-business.ts",
 	admission = "examples/spending-alerts/causal-admission.ts",
 	material = "examples/spending-alerts/causal-material-owner.ts";
@@ -36,11 +37,56 @@ const variants = [
 	{ id: "baseline", file: business, kind: "baseline", pattern: ".", change: (s) => s },
 	{
 		id: "population-variance",
-		file: business,
+		file: numeric,
 		kind: "business-output",
 		pattern: "executes real business",
-		change: (s) => one(s, "Math.sqrt(m2 / (count - 1))", "Math.sqrt(m2 / count)"),
+		change: (s) => one(s, "delta * delta * (n - 1n)", "delta * delta * n"),
 	},
+	{
+		id: "rounded-zero-variance",
+		file: numeric,
+		kind: "business-output",
+		pattern: "numeric contract subnormal-64",
+		change: (s) => one(s, "if (dispersion === 0n) return 0;", "if (stats.std === 0) return 0;"),
+	},
+	{
+		id: "rounding-removed",
+		file: numeric,
+		kind: "business-output",
+		pattern: "numeric contract",
+		change: (s) => one(s, "comparison > 0n ||", "false ||"),
+	},
+	{
+		id: "threshold-equality",
+		file: business,
+		kind: "business-output",
+		pattern: "numeric contract rounded-threshold-equal",
+		change: (s) => {
+			assert.equal(s.split("score.zScore > policy.zThreshold").length, 3);
+			return s.replaceAll("score.zScore > policy.zThreshold", "score.zScore >= policy.zThreshold");
+		},
+	},
+	{
+		id: "display-as-policy",
+		file: business,
+		kind: "business-output",
+		pattern: "numeric contract rounded-threshold-down",
+		change: (s) => {
+			assert.equal(s.split("score.zScore > policy.zThreshold").length, 3);
+			return s.replaceAll(
+				"score.zScore > policy.zThreshold",
+				"Number(score.zScore.toFixed(2)) > policy.zThreshold",
+			);
+		},
+	},
+	{
+		id: "stale-verifier-current",
+		file: "examples/spending-alerts/causal-inputs.ts",
+		kind: "authorization",
+		pattern: "old verifier revision",
+		change: (s) => one(s, '"spending-oracle-v2"', '"spending-oracle-v1"'),
+	},
+
 	{
 		id: "request-authorization-bypass",
 		file: admission,
@@ -132,7 +178,12 @@ const temp = mkdtempSync(join(tmpdir(), "preset-mutations-"));
 const originals = new Map(
 	variants.map((v) => [v.file, readFileSync(resolve(root, v.file), "utf8")]),
 );
-const inputDirectories = ["packages/ts/src", "examples/spending-alerts", "scripts/fixtures"];
+const inputDirectories = [
+	"packages/ts/src",
+	"examples/spending-alerts",
+	"scripts/fixtures",
+	"docs/design",
+];
 const filesBelow = (path) =>
 	readdirSync(resolve(root, path), { withFileTypes: true }).flatMap((entry) => {
 		const child = `${path}/${entry.name}`;

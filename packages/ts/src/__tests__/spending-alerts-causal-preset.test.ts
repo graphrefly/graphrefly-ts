@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import numericVectors from "../../../../docs/design/causal-preset-numeric-contract-v1.vectors.json";
 import type {
 	Assessment,
 	BusinessFrame,
 } from "../../../../examples/spending-alerts/causal-business.js";
 import type { Publication } from "../../../../examples/spending-alerts/causal-publication.js";
+import { referenceNumbers } from "../../../../scripts/fixtures/spending-numeric-oracle.js";
 import {
 	evaluationFixture,
 	evaluationPack,
@@ -134,7 +136,7 @@ describe("D164 finite passive input and business edges", () => {
 				.some((x) => verifyBusiness(e, x.value)),
 		).toBe(true);
 	});
-	it("does not fabricate a verifier pass for ill-conditioned finite inputs", () => {
+	it("correctly verifies ill-conditioned finite inputs under D166", () => {
 		const r = run(),
 			e = evaluationWithAmounts([999999999.9999999, 1000000000, 999999999.9999999]);
 		r.send("pack", evaluationPack([e]));
@@ -143,8 +145,8 @@ describe("D164 finite passive input and business edges", () => {
 			.flatMap((f) => f.rows)
 			.at(-1)!;
 		expect(observed).toBeDefined();
-		expect(verifyBusiness(e, observed.value)).toBe(false);
-		// This is a verifier-domain limitation, not permission to relax its tolerance.
+		expect(verifyBusiness(e, observed.value)).toBe(true);
+		expect(observed.value.score.zScore).toBe(-0.5773502691896257);
 	});
 	it("processes two independent vendors in one arrival frame", () => {
 		const r = run(),
@@ -688,4 +690,109 @@ describe("independent finite plain-code comparison", () => {
 		}
 		expect(verifyBusiness(e, plainBusiness(e))).toBe(true);
 	});
+});
+
+for (const mode of ["off", "summary"] as const)
+	describe(`D166 numeric graph ${mode}`, () => {
+		for (const vector of numericVectors.vectors)
+			it(`numeric contract ${vector.id}`, () => {
+				const i = vector.input,
+					expected = vector.proposedReference;
+				const e = evaluationWithAmounts(i.amounts, {
+					policy: { zThreshold: i.zThreshold, dailyRatioThreshold: i.dailyRatioThreshold },
+					profile: { dailyAverage: i.dailyAverage, typicalCategories: ["coffee"] },
+				});
+				const r = run(mode);
+				r.send("pack", evaluationPack([e]));
+				r.drive(e);
+				const observed = (r.events.assessment as BusinessFrame<Assessment>[])
+					.flatMap((f) => f.rows)
+					.at(-1)!.value;
+				expect(observed.score.zScore).toBe(expected.zScore);
+				expect(observed.score.dailyRatio).toBe(expected.dailyRatio);
+				expect(observed.flagged).toBe(expected.flagged);
+				expect(verifyBusiness(e, observed)).toBe(true);
+				expect(verifyBusiness(e, plainBusiness(e))).toBe(true);
+				const independent = referenceNumbers(i.amounts, i.dailyAverage);
+				expect(independent.zScore).toBe(expected.zScore);
+				expect(independent.std).toBe(expected.std);
+				expect(independent.varianceNonzero).toBe(expected.varianceNonzero);
+				const records = [...r.state().effects.values()];
+				expect(records.length).toBe(expected.flagged ? 1 : 0);
+				if (expected.flagged) expect(records[0].admission?.state).toBe("admitted");
+				expect(records.every((x) => x.outcome === undefined)).toBe(true);
+			});
+		it("old verifier revision cannot authorize current numeric results", () => {
+			const r = run(mode),
+				e = evaluationFixture(),
+				f = policyFacts(e);
+			r.send("pack", evaluationPack([e]));
+			r.send("current", f.current);
+			r.send("local", f.local);
+			r.send("inbox", f.inbox);
+			r.send("verification", {
+				...f.verification,
+				receipts: f.verification.receipts.map((v) => ({
+					...v,
+					verifierRevision: "spending-oracle-v1",
+				})),
+			});
+			r.send("arrivals", { packRef: presetBinding.packRef, evaluationRefs: [e.evaluationRef] });
+			expect([...r.state().effects.values()]).toHaveLength(1);
+			expect([...r.state().effects.values()][0].admission?.state).not.toBe("admitted");
+		});
+	});
+
+describe("D166 verifier self-consistency and signed zero", () => {
+	for (const amounts of [[-0], [-0, 0], [0, -0]])
+		it(`canonical zero ${amounts.length}:${Object.is(amounts[0], -0)}`, () => {
+			const e = evaluationWithAmounts(amounts),
+				plain = plainBusiness(e);
+			expect(Object.is(plain.score.zScore, 0)).toBe(true);
+			expect(Object.is(plain.score.dailyRatio, 0)).toBe(true);
+			expect(verifyBusiness(e, plain)).toBe(true);
+			const r = run();
+			r.send("pack", evaluationPack([e]));
+			r.drive(e);
+			const actual = (r.events.assessment as BusinessFrame<Assessment>[])
+				.flatMap((f) => f.rows)
+				.at(-1)!.value;
+			expect(Object.is(actual.score.zScore, 0)).toBe(true);
+			expect(Object.is(actual.score.dailyRatio, 0)).toBe(true);
+			expect(actual.flagged).toBe(false);
+		});
+	it("tolerance does not excuse an actual predicate inconsistent with copied reference consequences", () => {
+		const e = evaluationWithAmounts([999999999.9999999, 999999999.9999999, 1e9], {
+			policy: { zThreshold: 1.1547005383792515, dailyRatioThreshold: 5 },
+			profile: { dailyAverage: 1e9, typicalCategories: ["coffee"] },
+		});
+		const p = plainBusiness(e);
+		expect(verifyBusiness(e, p)).toBe(true);
+		expect(verifyBusiness(e, { ...p, score: { ...p.score, zScore: 1.1547005383792517 } })).toBe(
+			false,
+		);
+		for (const zScore of [NaN, Infinity, -Infinity])
+			expect(verifyBusiness(e, { ...p, score: { ...p.score, zScore } })).toBe(false);
+	});
+});
+
+it("D166 retains historical v1 receipt while a distinct v2 receipt recovers admission", () => {
+	const r = run(),
+		e = evaluationFixture(),
+		f = policyFacts(e);
+	const old = {
+		...f.verification.receipts[0],
+		receiptRef: { kind: "fixture-verification", id: e.evaluationRef },
+		verifierRevision: "spending-oracle-v1",
+	};
+	expect(old.receiptRef).not.toEqual(f.verification.receipts[0].receiptRef);
+	r.send("pack", evaluationPack([e]));
+	r.send("current", f.current);
+	r.send("local", f.local);
+	r.send("inbox", f.inbox);
+	r.send("verification", { ...f.verification, receipts: [old] });
+	r.send("arrivals", { packRef: presetBinding.packRef, evaluationRefs: [e.evaluationRef] });
+	expect([...r.state().effects.values()][0].admission?.state).not.toBe("admitted");
+	r.send("verification", f.verification);
+	expect([...r.state().effects.values()][0].admission?.state).toBe("admitted");
 });

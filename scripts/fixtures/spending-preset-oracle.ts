@@ -1,5 +1,6 @@
-/** Independent two-pass business oracle. Type-only shared passive formats; no candidate helpers. */
+/** Independent pairwise business oracle. Type-only shared passive formats; no candidate helpers. */
 import type { Evaluation, SpendingBinding } from "../../examples/spending-alerts/causal-inputs.js";
+import { referenceFixed, referenceNumbers } from "./spending-numeric-oracle.js";
 import {
 	oracleCanonical,
 	oracleFreeze,
@@ -8,32 +9,28 @@ import {
 } from "./spending-publication-oracle.js";
 export { oracleCanonical, oracleFreeze, oracleHash };
 export function oracleBusiness(e: Evaluation) {
-	const amounts = e.prefix.map((t) => t.amount),
-		n = amounts.length,
-		mean = amounts.reduce((a, b) => a + b, 0) / n;
-	const variance =
-		n > 1 ? amounts.map((x) => (x - mean) ** 2).reduce((a, b) => a + b, 0) / (n - 1) : 0;
-	const std = Math.sqrt(variance),
-		txn = e.prefix[n - 1],
-		zScore = (txn.amount - mean) / (std > 0 ? std : Math.max(mean, 1)),
-		dailyRatio = txn.amount / Math.max(e.profile.dailyAverage, 1);
+	const { mean, std, zScore, dailyRatio } = referenceNumbers(
+		e.prefix.map((t) => t.amount),
+		e.profile.dailyAverage,
+	);
+	const txn = e.prefix[e.prefix.length - 1];
 	const known = e.profile.typicalCategories.indexOf(txn.category) !== -1;
 	const flags = [zScore > e.policy.zThreshold, dailyRatio > e.policy.dailyRatioThreshold, !known],
 		flagged = flags.some(Boolean);
 	const factors = [
-		`Amount is ${zScore.toFixed(2)}σ above this vendor's historical mean.`,
-		`Amount is ${dailyRatio.toFixed(1)}× the user's daily average.`,
+		`Amount is ${referenceFixed(zScore, 2)}σ above this vendor's historical mean.`,
+		`Amount is ${referenceFixed(dailyRatio, 1)}× the user's daily average.`,
 		"Category is outside the user's typical spend profile.",
 	].filter((_, i) => flags[i]);
 	const severity = factors.length > 2 ? "high" : factors.length === 2 ? "medium" : "low";
 	const message = flagged
 		? [
 				`Transaction ${txn.id} flagged — severity: ${severity}.`,
-				`Vendor: ${txn.vendor}  Amount: $${txn.amount.toFixed(2)}  Category: ${txn.category}`,
+				`Vendor: ${txn.vendor}  Amount: $${referenceFixed(txn.amount, 2)}  Category: ${txn.category}`,
 				"Reasoning:",
 				...factors.map((f) => `  • ${f}`),
 			].join("\n")
-		: `Transaction ${txn.id} ($${txn.amount.toFixed(2)} at ${txn.vendor}) — normal.`;
+		: `Transaction ${txn.id} ($${referenceFixed(txn.amount, 2)} at ${txn.vendor}) — normal.`;
 	return oracleFreeze({ mean, std, zScore, dailyRatio, flagged, factors, severity, message, txn });
 }
 export function oracleRequest(e: Evaluation, b: SpendingBinding) {
@@ -69,10 +66,24 @@ export function verifyBusiness(
 		message: string;
 	},
 ): boolean {
+	if (!Number.isFinite(observed.score.zScore) || !Number.isFinite(observed.score.dailyRatio))
+		return false;
 	const expected = oracleBusiness(e),
 		close = (a: number, b: number) =>
 			Number.isFinite(a) && Math.abs(a - b) <= 1e-10 * Math.max(1, Math.abs(b));
+	const actualFlags = [
+		observed.score.zScore > e.policy.zThreshold,
+		observed.score.dailyRatio > e.policy.dailyRatioThreshold,
+		!e.profile.typicalCategories.includes(expected.txn.category),
+	];
+	const actualFactors = [
+		`Amount is ${referenceFixed(observed.score.zScore, 2)}σ above this vendor's historical mean.`,
+		`Amount is ${referenceFixed(observed.score.dailyRatio, 1)}× the user's daily average.`,
+		"Category is outside the user's typical spend profile.",
+	].filter((_, i) => actualFlags[i]);
 	return (
+		observed.flagged === actualFlags.some(Boolean) &&
+		oracleCanonical(observed.reason.factors) === oracleCanonical(actualFactors) &&
 		close(observed.score.zScore, expected.zScore) &&
 		close(observed.score.dailyRatio, expected.dailyRatio) &&
 		observed.flagged === expected.flagged &&
