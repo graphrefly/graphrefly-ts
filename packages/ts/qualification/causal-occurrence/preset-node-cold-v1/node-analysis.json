@@ -1,0 +1,3899 @@
+{
+	"off": {
+		"cells": {
+			"candidate/control": {
+				"batchTotalUs": [
+					{
+						"meanMs": 298.90107000000023,
+						"p50Ms": 270.3750000000582,
+						"p95Ms": 425.62500000008185
+					},
+					{
+						"meanMs": 258.4034399999973,
+						"p50Ms": 235.75000000028012,
+						"p95Ms": 293.2920000002923
+					},
+					{
+						"meanMs": 251.76846333334802,
+						"p50Ms": 233.04200000029596,
+						"p95Ms": 331.29200000030323
+					},
+					{
+						"meanMs": 236.44279000000097,
+						"p50Ms": 227.33299999981682,
+						"p95Ms": 267.5420000000486
+					}
+				]
+			},
+			"candidate/probe": {
+				"batchTotalUs": [
+					{
+						"meanMs": 370.26067333333157,
+						"p50Ms": 322.5830000001224,
+						"p95Ms": 463.7089999998807
+					},
+					{
+						"meanMs": 276.841273333345,
+						"p50Ms": 253.79200000043056,
+						"p95Ms": 326.9999999997708
+					},
+					{
+						"meanMs": 294.8393166666786,
+						"p50Ms": 268.7500000001819,
+						"p95Ms": 359.62500000005093
+					},
+					{
+						"meanMs": 269.59746333330565,
+						"p50Ms": 245.16599999969912,
+						"p95Ms": 315.83299999965675
+					}
+				]
+			},
+			"reference/control": {
+				"batchTotalUs": [
+					{
+						"meanMs": 272.387073333335,
+						"p50Ms": 252.4590000000444,
+						"p95Ms": 364.58300000003874
+					},
+					{
+						"meanMs": 255.42871000002376,
+						"p50Ms": 241.08300000034433,
+						"p95Ms": 302.08300000003874
+					},
+					{
+						"meanMs": 256.3747166666644,
+						"p50Ms": 233.6249999998472,
+						"p95Ms": 318.74999999990905
+					},
+					{
+						"meanMs": 254.90943333333686,
+						"p50Ms": 232.16699999966295,
+						"p95Ms": 321.2079999998423
+					}
+				]
+			},
+			"reference/probe": {
+				"batchTotalUs": [
+					{
+						"meanMs": 322.2730600000068,
+						"p50Ms": 285.04099999986465,
+						"p95Ms": 423.3750000000782
+					},
+					{
+						"meanMs": 296.9472266666556,
+						"p50Ms": 268.08299999993324,
+						"p95Ms": 423.7080000000333
+					},
+					{
+						"meanMs": 308.01099666667596,
+						"p50Ms": 261.417000000165,
+						"p95Ms": 362.416999999823
+					},
+					{
+						"meanMs": 411.87455666667273,
+						"p50Ms": 255.00000000010914,
+						"p95Ms": 982.8339999999116
+					}
+				]
+			}
+		},
+		"overheadContrast": {
+			"candidate": {
+				"batchP50ContrastsUs": [
+					52.2080000000642, 18.042000000150438, 35.70799999988594, 17.832999999882304
+				],
+				"medianBatchP50ContrastUs": 26.87500000001819,
+				"interpretation": "Observed contrast, including instrumentation/JIT/order/system differences; not exact clock overhead"
+			},
+			"reference": {
+				"batchP50ContrastsUs": [
+					32.581999999820255, 26.99999999958891, 27.792000000317785, 22.83300000044619
+				],
+				"medianBatchP50ContrastUs": 27.395999999953347,
+				"interpretation": "Observed contrast, including instrumentation/JIT/order/system differences; not exact clock overhead"
+			}
+		},
+		"nodesByTypicalCost": [
+			{
+				"id": "spending/causal/release-candidates",
+				"candidateMedianBatchP50Us": 6.853999999975713,
+				"referenceMedianBatchP50Us": 6.853999999862026,
+				"batchP50DeltasUs": [
+					0.12500000025283953, -0.16699999991942605, 0.16700000014679972, -0.20799999947485048
+				],
+				"candidateMeanUs": 7.269370833337045,
+				"referenceMeanUs": 7.427253333335102,
+				"batchMeanDeltasUs": [
+					0.8255999999967882, -0.34600666667529334, -0.1555433333351175, -0.9555799999786058
+				],
+				"medianBatchP50DeltaUs": -0.02099999983329326
+			},
+			{
+				"id": "spending/currentFacts",
+				"candidateMedianBatchP50Us": 4.125499999986459,
+				"referenceMedianBatchP50Us": 2.416499999867483,
+				"batchP50DeltasUs": [
+					1.7920000000231084, 1.6250000001036824, 1.8760000002657762, 1.6669999999976426
+				],
+				"candidateMeanUs": 4.400209166669621,
+				"referenceMeanUs": 2.6143825000002607,
+				"batchMeanDeltasUs": [
+					2.243863333333138, 1.6393133333410026, 1.92736666667012, 1.3327633333331808
+				],
+				"medianBatchP50DeltaUs": 1.7295000000103755
+			},
+			{
+				"id": "spending/consumerIssues",
+				"candidateMedianBatchP50Us": 3.9375000000063665,
+				"referenceMedianBatchP50Us": 3.9590000000089276,
+				"batchP50DeltasUs": [0.0, -0.08400000001529406, 0.20699999959106208, -0.12499999911597115],
+				"candidateMeanUs": 4.146882499991307,
+				"referenceMeanUs": 4.551776666665622,
+				"batchMeanDeltasUs": [
+					-0.7308099999886507, -0.2942733333528248, 0.08882333331257548, -0.6833166666683609
+				],
+				"medianBatchP50DeltaUs": -0.04200000000764703
+			},
+			{
+				"id": "spending/causal/arrivals",
+				"candidateMedianBatchP50Us": 3.6874999999554348,
+				"referenceMedianBatchP50Us": 3.666999999950349,
+				"batchP50DeltasUs": [
+					0.08300000013150566, -0.04200000012133387, 0.20799999992959783, -0.04199999966658652
+				],
+				"candidateMeanUs": 3.90834333333468,
+				"referenceMeanUs": 4.105440000013421,
+				"batchMeanDeltasUs": [
+					0.3992999999983715, -0.15897333335260525, 0.10142333332017507, -1.1301366666809065
+				],
+				"medianBatchP50DeltaUs": 0.02050000023245957
+			},
+			{
+				"id": "spending/evaluationSelections",
+				"candidateMedianBatchP50Us": 3.500499999972817,
+				"referenceMedianBatchP50Us": 3.5000000001446097,
+				"batchP50DeltasUs": [
+					0.12500000002546585, -0.2500000002783054, 0.2509999999347201, -0.16600000026301132
+				],
+				"candidateMeanUs": 3.8856241666746882,
+				"referenceMeanUs": 4.195552500002198,
+				"batchMeanDeltasUs": [
+					0.1570733333346652, -0.6212300000091393, 0.1916666666753981, -0.9672233333109644
+				],
+				"medianBatchP50DeltaUs": -0.020500000118772732
+			},
+			{
+				"id": "pack",
+				"candidateMedianBatchP50Us": 3.3124999997653504,
+				"referenceMedianBatchP50Us": 3.312499999879037,
+				"batchP50DeltasUs": [
+					-0.08400000024266774, -0.33300000018243736, 0.37400000019260915, -0.16699999969205237
+				],
+				"candidateMeanUs": 3.9201883333195533,
+				"referenceMeanUs": 4.560118333338134,
+				"batchMeanDeltasUs": [
+					-0.13637333334751667, -1.1286233333248674, 0.3554266666484789, -1.6501500000504166
+				],
+				"medianBatchP50DeltaUs": -0.12549999996736005
+			},
+			{
+				"id": "spending/publicationPolicy",
+				"candidateMedianBatchP50Us": 3.2919999998739513,
+				"referenceMedianBatchP50Us": 3.2919999998739513,
+				"batchP50DeltasUs": [
+					0.04200000012133387, -0.08300000013150566, 0.2500000000509317, -0.08300000035887933
+				],
+				"candidateMeanUs": 3.47146333333266,
+				"referenceMeanUs": 3.6526191666661134,
+				"batchMeanDeltasUs": [
+					0.16014333333108297, -0.14947000001939126, 0.16444000001229145, -0.8997366666577966
+				],
+				"medianBatchP50DeltaUs": -0.020500000005085894
+			},
+			{
+				"id": "spending/causal/input/occurrences",
+				"candidateMedianBatchP50Us": 3.041500000108499,
+				"referenceMedianBatchP50Us": 2.9789999999820793,
+				"batchP50DeltasUs": [
+					0.2080000001569715, -0.16699999991942605, 0.2920000001722656, -0.12500000002546585
+				],
+				"candidateMeanUs": 3.3215174999944947,
+				"referenceMeanUs": 3.563068333327427,
+				"batchMeanDeltasUs": [
+					0.17371333332827538, -0.1490366666788154, 0.08137666667304683, -1.072256666654236
+				],
+				"medianBatchP50DeltaUs": 0.04150000006575283
+			},
+			{
+				"id": "spending/assessment",
+				"candidateMedianBatchP50Us": 2.8125000000045475,
+				"referenceMedianBatchP50Us": 2.8749999999035936,
+				"batchP50DeltasUs": [0.0, -0.12499999979809218, 0.08399999978792039, -0.12400000014167745],
+				"candidateMeanUs": 2.981250000002736,
+				"referenceMeanUs": 3.113233333340304,
+				"batchMeanDeltasUs": [
+					0.29514333333130083, -0.33185000000457865, 0.016106666647222774, -0.5073333333242164
+				],
+				"medianBatchP50DeltaUs": -0.06200000007083872
+			},
+			{
+				"id": "spending/requestMaterials",
+				"candidateMedianBatchP50Us": 2.7914999999438805,
+				"referenceMedianBatchP50Us": 4.625000000032742,
+				"batchP50DeltasUs": [
+					-1.7500000001291482, -1.9170000000485743, -1.66700000045239, -1.9580000002861198
+				],
+				"candidateMeanUs": 2.905441666658627,
+				"referenceMeanUs": 5.062499166670969,
+				"batchMeanDeltasUs": [
+					-1.9178966666769763, -2.5371533333304797, -1.7560900000186543, -2.41709000002326
+				],
+				"medianBatchP50DeltaUs": -1.8335000000888613
+			},
+			{
+				"id": "requestMaterialJoin",
+				"candidateMedianBatchP50Us": 2.7084999999260617,
+				"referenceMedianBatchP50Us": 2.666999999860309,
+				"batchP50DeltasUs": [
+					0.08400000001529406, -0.08400000001529406, 0.20800000038434519, -0.1240000005964248
+				],
+				"candidateMeanUs": 2.925334999999715,
+				"referenceMeanUs": 3.3651241666685414,
+				"batchMeanDeltasUs": [
+					0.23723333332403232, -0.02056999998937192, 0.1705799999869367, -2.146399999996902
+				],
+				"medianBatchP50DeltaUs": 0.0
+			},
+			{
+				"id": "spending/anomalyScore",
+				"candidateMedianBatchP50Us": 2.6249999999663487,
+				"referenceMedianBatchP50Us": 2.5829999999587017,
+				"batchP50DeltasUs": [
+					0.08400000001529406, -0.0010000001111620804, 0.2500000000509317, -4.547473508864641e-10
+				],
+				"candidateMeanUs": 2.8703566666623224,
+				"referenceMeanUs": 3.123216666663969,
+				"batchMeanDeltasUs": [
+					0.06514999999732629, -0.06194000001566273, 0.07475666666929706, -1.0894066666575475
+				],
+				"medianBatchP50DeltaUs": 0.041999999780273356
+			},
+			{
+				"id": "spending/watermarks",
+				"candidateMedianBatchP50Us": 2.5415000000066357,
+				"referenceMedianBatchP50Us": 2.624999999738975,
+				"batchP50DeltasUs": [
+					-0.041999999893960194, -0.12500000002546585, 0.08300000035887933, -0.08400000024266774
+				],
+				"candidateMeanUs": 2.708944999997319,
+				"referenceMeanUs": 17.62474249999343,
+				"batchMeanDeltasUs": [
+					-0.07093000000319652, -0.1972800000021378, -0.10499666666267601, -59.289983333316435
+				],
+				"medianBatchP50DeltaUs": -0.06300000006831397
+			},
+			{
+				"id": "spending/branchTerminals",
+				"candidateMedianBatchP50Us": 2.4994999999989886,
+				"referenceMedianBatchP50Us": 2.5409999999510546,
+				"batchP50DeltasUs": [0.0, -0.08299999990413198, 0.16600000026301132, -0.12500000002546585],
+				"candidateMeanUs": 4.743919166659983,
+				"referenceMeanUs": 7.00808666667721,
+				"batchMeanDeltasUs": [
+					-0.22109666666741143, -0.07197333335094876, -8.518626666674814, -0.24497333337573446
+				],
+				"medianBatchP50DeltaUs": -0.04149999995206599
+			},
+			{
+				"id": "spending/causal/causal-quiescence",
+				"candidateMedianBatchP50Us": 2.479500000049484,
+				"referenceMedianBatchP50Us": 2.417000000036751,
+				"batchP50DeltasUs": [
+					0.16700000014679972, -0.04200000012133387, 0.20799999992959783, -0.08299999990413198
+				],
+				"candidateMeanUs": 2.6442858333295285,
+				"referenceMeanUs": 4.040150833333769,
+				"batchMeanDeltasUs": [
+					0.26616000000785794, -0.11385666667744487, 0.02739333332101501, -5.763156666668389
+				],
+				"medianBatchP50DeltaUs": 0.06250000001273293
+			},
+			{
+				"id": "spending/transaction",
+				"candidateMedianBatchP50Us": 2.4580000000469227,
+				"referenceMedianBatchP50Us": 2.4170000001504377,
+				"batchP50DeltasUs": [
+					0.12399999991430377, -0.08299999990413198, 0.20799999992959783, -0.08299999990413198
+				],
+				"candidateMeanUs": 3.6304374999995543,
+				"referenceMeanUs": 2.6264883333285143,
+				"batchMeanDeltasUs": [
+					4.253000000004097, -0.1544733333222817, 0.16561666669228248, -0.2483466666899402
+				],
+				"medianBatchP50DeltaUs": 0.020500000005085894
+			},
+			{
+				"id": "spending/evidence",
+				"candidateMedianBatchP50Us": 2.4379999997563573,
+				"referenceMedianBatchP50Us": 2.4790000001075896,
+				"batchP50DeltasUs": [
+					0.0009999996564147295, -0.08300000035887933, 0.16700000014679972, -0.08299999944938463
+				],
+				"candidateMeanUs": 2.654053333340206,
+				"referenceMeanUs": 5.51548583332836,
+				"batchMeanDeltasUs": [
+					0.19708666666929264, -0.13239333333331121, -8.310183333311821, -3.200239999976778
+				],
+				"medianBatchP50DeltaUs": -0.04099999989648495
+			},
+			{
+				"id": "spending/causal/release-events",
+				"candidateMedianBatchP50Us": 2.374999999915417,
+				"referenceMedianBatchP50Us": 2.375000000029104,
+				"batchP50DeltasUs": [
+					0.041999999893960194, -0.04200000012133387, 0.20799999992959783, -0.08299999944938463
+				],
+				"candidateMeanUs": 2.5462399999997842,
+				"referenceMeanUs": 3.251494166666665,
+				"batchMeanDeltasUs": [
+					-0.38294999999607165, -0.7090266666485452, 0.10095666667742348, -1.8299966667003296
+				],
+				"medianBatchP50DeltaUs": -1.1368683772161603e-10
+			},
+			{
+				"id": "spending/occurrenceAdmissions",
+				"candidateMedianBatchP50Us": 2.333500000077038,
+				"referenceMedianBatchP50Us": 2.416499999867483,
+				"batchP50DeltasUs": [
+					-0.041999999893960194, -0.12499999979809218, 0.08400000024266774, -0.1250000004802132
+				],
+				"candidateMeanUs": 2.5048583333259935,
+				"referenceMeanUs": 2.730943333331955,
+				"batchMeanDeltasUs": [
+					-0.4536166666654633, -0.15334999998761584, 0.01625666663282281, -0.3136300000035892
+				],
+				"medianBatchP50DeltaUs": -0.08349999984602618
+			},
+			{
+				"id": "spending/thresholdGate",
+				"candidateMedianBatchP50Us": 2.3125000001300577,
+				"referenceMedianBatchP50Us": 2.333999999905245,
+				"batchP50DeltasUs": [
+					-0.000999999883788405, -0.08299999990413198, 0.16600000026301132, -0.08400000024266774
+				],
+				"candidateMeanUs": 2.524010833342156,
+				"referenceMeanUs": 2.6247624999973596,
+				"batchMeanDeltasUs": [
+					0.2540100000032906, -0.07301333333619656, -0.019423333324084663, -0.5645799999638257
+				],
+				"medianBatchP50DeltaUs": -0.041999999893960194
+			},
+			{
+				"id": "spending/causal/release-port",
+				"candidateMedianBatchP50Us": 2.312500000016371,
+				"referenceMedianBatchP50Us": 2.33299999990777,
+				"batchP50DeltasUs": [
+					0.04200000012133387, -0.08400000001529406, 0.2090000002681336, -0.08300000035887933
+				],
+				"candidateMeanUs": 2.5738175000007386,
+				"referenceMeanUs": 2.692950000002459,
+				"batchMeanDeltasUs": [
+					0.11193666666864996, -0.19500666666165964, 0.2255599999792441, -0.6190199999931184
+				],
+				"medianBatchP50DeltaUs": -0.020500000118772732
+			},
+			{
+				"id": "spending/reasonFactors",
+				"candidateMedianBatchP50Us": 2.271000000064305,
+				"referenceMedianBatchP50Us": 2.270999999950618,
+				"batchP50DeltasUs": [
+					0.04200000012133387, -0.041999999893960194, 0.12500000002546585, -0.04200000012133387
+				],
+				"candidateMeanUs": 2.4540591666614846,
+				"referenceMeanUs": 2.5338008333346806,
+				"batchMeanDeltasUs": [
+					0.04498333333003779, -0.1691900000082569, 0.021369999999478872, -0.21613000001404228
+				],
+				"medianBatchP50DeltaUs": 1.1368683772161603e-10
+			},
+			{
+				"id": "spending/causal/authority",
+				"candidateMedianBatchP50Us": 2.2709999998369312,
+				"referenceMedianBatchP50Us": 2.311999999847103,
+				"batchP50DeltasUs": [0.0, -0.12400000036905112, 0.2090000002681336, -0.08300000035887933],
+				"candidateMeanUs": 2.498429166666748,
+				"referenceMeanUs": 2.5952191666694566,
+				"batchMeanDeltasUs": [
+					0.2785800000060586, -0.09197000000237204, -0.03108333333481537, -0.5426866666797042
+				],
+				"medianBatchP50DeltaUs": -0.04150000017943967
+			},
+			{
+				"id": "spending/causal/input/admissions",
+				"candidateMedianBatchP50Us": 2.166999999985819,
+				"referenceMedianBatchP50Us": 2.124999999978172,
+				"batchP50DeltasUs": [0.08400000001529406, 0.0, 0.2500000000509317, 4.547473508864641e-10],
+				"candidateMeanUs": 2.355974166666215,
+				"referenceMeanUs": 2.8645499999998947,
+				"batchMeanDeltasUs": [
+					0.1816466666703792, -1.767500000000079, 0.1508433333310675, -0.5992933333360878
+				],
+				"medianBatchP50DeltaUs": 0.04200000023502071
+			},
+			{
+				"id": "spending/materialStore",
+				"candidateMedianBatchP50Us": 2.166499999930238,
+				"referenceMedianBatchP50Us": 2.04200000007404,
+				"batchP50DeltasUs": [
+					0.16599999980826396, 0.04200000012133387, 0.3329999999550637, 0.04199999966658652
+				],
+				"candidateMeanUs": 2.3294016666555235,
+				"referenceMeanUs": 2.369222499997553,
+				"batchMeanDeltasUs": [
+					0.3691566666748254, -0.24423000000372946, 0.20996999997199361, -0.4941800000112075
+				],
+				"medianBatchP50DeltaUs": 0.10399999996479892
+			},
+			{
+				"id": "spending/causal/coverage",
+				"candidateMedianBatchP50Us": 2.10450000020046,
+				"referenceMedianBatchP50Us": 2.1044999999730862,
+				"batchP50DeltasUs": [
+					2.2737367544323206e-10, 2.2737367544323206e-10, 0.16700000014679972, -0.04099999978279811
+				],
+				"candidateMeanUs": 2.2895541666696317,
+				"referenceMeanUs": 2.382470000003612,
+				"batchMeanDeltasUs": [
+					0.10101000001289627, -0.16275333334760977, 0.0911600000154068, -0.4010800000166155
+				],
+				"medianBatchP50DeltaUs": 2.2737367544323206e-10
+			},
+			{
+				"id": "spending/causal/input/branch-terminals",
+				"candidateMedianBatchP50Us": 2.104000000144879,
+				"referenceMedianBatchP50Us": 2.083000000084212,
+				"batchP50DeltasUs": [
+					0.041999999893960194, 2.2737367544323206e-10, 0.20899999981338624, 0.0
+				],
+				"candidateMeanUs": 2.2519150000128243,
+				"referenceMeanUs": 2.3226108333312823,
+				"batchMeanDeltasUs": [
+					0.05670333333682728, -0.26767999999113573, 0.07400666667763253, -0.14581333329715535
+				],
+				"medianBatchP50DeltaUs": 0.021000000060666935
+			},
+			{
+				"id": "spending/causal/terminals",
+				"candidateMedianBatchP50Us": 2.104000000144879,
+				"referenceMedianBatchP50Us": 2.082999999970525,
+				"batchP50DeltasUs": [
+					0.041999999893960194, 2.2737367544323206e-10, 0.2090000002681336, -0.041000000237545464
+				],
+				"candidateMeanUs": 2.2418324999949846,
+				"referenceMeanUs": 2.3414849999949183,
+				"batchMeanDeltasUs": [
+					0.009886666677327242, -0.11459666667406038, 0.15207000000070064, -0.4459700000037023
+				],
+				"medianBatchP50DeltaUs": 0.021000000060666935
+			},
+			{
+				"id": "spending/causal/input/effect-admissions",
+				"candidateMedianBatchP50Us": 2.103999999917505,
+				"referenceMedianBatchP50Us": 2.082999999970525,
+				"batchP50DeltasUs": [
+					0.041999999893960194, -2.2737367544323206e-10, 0.2090000002681336, -0.0010000003385357559
+				],
+				"candidateMeanUs": 2.4043483333364675,
+				"referenceMeanUs": 2.256744166672699,
+				"batchMeanDeltasUs": [
+					0.28497999999217444, -0.033173333326886115, 0.5487133333281236, -0.2101033333383384
+				],
+				"medianBatchP50DeltaUs": 0.02099999983329326
+			},
+			{
+				"id": "spending/startup",
+				"candidateMedianBatchP50Us": 2.0839999999680003,
+				"referenceMedianBatchP50Us": 2.104500000086773,
+				"batchP50DeltasUs": [
+					0.041999999893960194, -0.20800000038434519, 0.16700000014679972, -0.08300000035887933
+				],
+				"candidateMeanUs": 2.516387500001921,
+				"referenceMeanUs": 2.9376949999976887,
+				"batchMeanDeltasUs": [
+					0.03893000000061882, -0.37530333334113203, 0.3550266666919317, -1.7038833333344887
+				],
+				"medianBatchP50DeltaUs": -0.02050000023245957
+			},
+			{
+				"id": "spending/vendorStats",
+				"candidateMedianBatchP50Us": 2.083500000026106,
+				"referenceMedianBatchP50Us": 2.0839999999680003,
+				"batchP50DeltasUs": [
+					0.04100000001017179, -0.041999999893960194, 0.16600000026301132, -0.04200000057608122
+				],
+				"candidateMeanUs": 2.30080666666898,
+				"referenceMeanUs": 2.3050058333427614,
+				"batchMeanDeltasUs": [
+					0.2962666666614191, -0.08448333334020677, 0.1065199999857212, -0.3351000000020575
+				],
+				"medianBatchP50DeltaUs": -0.0004999999418942025
+			},
+			{
+				"id": "spending/materialSnapshot",
+				"candidateMedianBatchP50Us": 2.083500000026106,
+				"referenceMedianBatchP50Us": 2.04200000007404,
+				"batchP50DeltasUs": [0.08299999990413198, 0.0, 0.24999999959618435, 4.547473508864641e-10],
+				"candidateMeanUs": 2.293139999997796,
+				"referenceMeanUs": 3.6286899999938287,
+				"batchMeanDeltasUs": [
+					0.3179866666619094, -0.12411333333147909, 0.1617333333175943, -5.6978066666321565
+				],
+				"medianBatchP50DeltaUs": 0.04150000017943967
+			},
+			{
+				"id": "spending/verificationFacts",
+				"candidateMedianBatchP50Us": 2.083500000026106,
+				"referenceMedianBatchP50Us": 2.082999999970525,
+				"batchP50DeltasUs": [
+					0.041999999893960194, -0.04100000001017179, 0.2500000000509317, -0.04199999966658652
+				],
+				"candidateMeanUs": 2.3134725000016942,
+				"referenceMeanUs": 2.896995000003055,
+				"batchMeanDeltasUs": [
+					0.09798000001031434, 0.03290333333022012, 0.3076466666501192, -2.7726199999960954
+				],
+				"medianBatchP50DeltaUs": 0.0004999999418942025
+			},
+			{
+				"id": "spending/causal/input/effect-outcomes",
+				"candidateMedianBatchP50Us": 2.083500000026106,
+				"referenceMedianBatchP50Us": 2.0419999999603533,
+				"batchP50DeltasUs": [0.08300000013150566, 0.0, 0.20799999992959783, -0.041000000692292815],
+				"candidateMeanUs": 2.3310175000023037,
+				"referenceMeanUs": 2.2300316666689923,
+				"batchMeanDeltasUs": [
+					0.1830899999814995, 0.03042000001642021, 0.4301299999830617, -0.2396966666477359
+				],
+				"medianBatchP50DeltaUs": 0.04150000006575283
+			},
+			{
+				"id": "spending/causal/release-controller",
+				"candidateMedianBatchP50Us": 2.083500000026106,
+				"referenceMedianBatchP50Us": 2.124999999978172,
+				"batchP50DeltasUs": [
+					-2.2737367544323206e-10, -0.08299999990413198, 0.20799999992959783, -0.08299999944938463
+				],
+				"candidateMeanUs": 2.4053641666608883,
+				"referenceMeanUs": 2.632035833332793,
+				"batchMeanDeltasUs": [
+					0.13562666665696554, 0.020036666681638466, 0.21943333331516127, -1.2817833333413853
+				],
+				"medianBatchP50DeltaUs": -0.041499999838379154
+			},
+			{
+				"id": "spending/causal/input/evidence",
+				"candidateMedianBatchP50Us": 2.0834999999124193,
+				"referenceMedianBatchP50Us": 2.104500000086773,
+				"batchP50DeltasUs": [
+					-0.04100000001017179, -0.04200000012133387, 0.20799999992959783, -0.08299999990413198
+				],
+				"candidateMeanUs": 2.2850799999986293,
+				"referenceMeanUs": 2.3378558333322035,
+				"batchMeanDeltasUs": [
+					0.23041999999198498, -0.09488333333592877, -0.07346666668884899, -0.27317333330150473
+				],
+				"medianBatchP50DeltaUs": -0.04150000006575283
+			},
+			{
+				"id": "spending/causal/input/effect-proposals",
+				"candidateMedianBatchP50Us": 2.083000000084212,
+				"referenceMedianBatchP50Us": 2.062499999965439,
+				"batchP50DeltasUs": [
+					0.08299999990413198, -0.041999999893960194, 0.2090000002681336, -0.04199999966658652
+				],
+				"candidateMeanUs": 2.282961666670076,
+				"referenceMeanUs": 2.247669166669842,
+				"batchMeanDeltasUs": [
+					0.22485333333179372, -0.07970333333863272, 0.20224999997935827, -0.20622999997158345
+				],
+				"medianBatchP50DeltaUs": 0.020500000118772732
+			},
+			{
+				"id": "spending/alertMessage",
+				"candidateMedianBatchP50Us": 2.062500000079126,
+				"referenceMedianBatchP50Us": 2.124999999978172,
+				"batchP50DeltasUs": [
+					-0.041999999893960194, -0.08299999990413198, 0.12500000002546585, -0.08299999990413198
+				],
+				"candidateMeanUs": 2.257150833327728,
+				"referenceMeanUs": 2.285877499998416,
+				"batchMeanDeltasUs": [
+					0.20330333334262232, -0.04608666668521732, 0.08915666667083612, -0.3612800000109928
+				],
+				"medianBatchP50DeltaUs": -0.06249999989904609
+			},
+			{
+				"id": "spending/localFacts",
+				"candidateMedianBatchP50Us": 2.062500000079126,
+				"referenceMedianBatchP50Us": 2.04200000007404,
+				"batchP50DeltasUs": [
+					0.041999999893960194, -0.000999999883788405, 0.20799999992959783, -0.041000000692292815
+				],
+				"candidateMeanUs": 2.286950833341924,
+				"referenceMeanUs": 2.2865108333305293,
+				"batchMeanDeltasUs": [
+					0.2357166666714268, 0.03264666666306448, 0.25299666666038934, -0.5195999999493021
+				],
+				"medianBatchP50DeltaUs": 0.020500000005085894
+			},
+			{
+				"id": "spending/causal/released",
+				"candidateMedianBatchP50Us": 2.0624999998517524,
+				"referenceMedianBatchP50Us": 2.082999999970525,
+				"batchP50DeltasUs": [0.0, -0.042000000348707545, 0.2090000002681336, -0.08299999944938463],
+				"candidateMeanUs": 2.276302499996253,
+				"referenceMeanUs": 4.539750000002414,
+				"batchMeanDeltasUs": [
+					-8.406980000001264, -0.13042666668070532, 0.048879999985729145, -0.565263333328403
+				],
+				"medianBatchP50DeltaUs": -0.021000000174353772
+			},
+			{
+				"id": "spending/causal/input/watermarks",
+				"candidateMedianBatchP50Us": 2.061999999909858,
+				"referenceMedianBatchP50Us": 2.0414999997910854,
+				"batchP50DeltasUs": [
+					0.04200000012133387, -0.0010000003385357559, 0.20800000038434519, -4.547473508864641e-10
+				],
+				"candidateMeanUs": 2.2926175000115263,
+				"referenceMeanUs": 2.2139000000045903,
+				"batchMeanDeltasUs": [
+					0.3258299999765769, -0.018183333312815023, 0.11413333332257027, -0.10690999995858867
+				],
+				"medianBatchP50DeltaUs": 0.02099999983329326
+			},
+			{
+				"id": "spending/userProfile",
+				"candidateMedianBatchP50Us": 2.041500000245833,
+				"referenceMedianBatchP50Us": 2.04200000007404,
+				"batchP50DeltasUs": [
+					0.04100000001017179, -0.08299999944938463, 0.24999999959618435, -0.04099999978279811
+				],
+				"candidateMeanUs": 2.2453941666651644,
+				"referenceMeanUs": 2.3999666666613466,
+				"batchMeanDeltasUs": [
+					0.16459000000850235, -0.09054000002455118, -0.1323566666330102, -0.5599833333356703
+				],
+				"medianBatchP50DeltaUs": 1.1368683772161603e-10
+			},
+			{
+				"id": "spending/inboxFacts",
+				"candidateMedianBatchP50Us": 2.041500000018459,
+				"referenceMedianBatchP50Us": 2.041500000018459,
+				"batchP50DeltasUs": [
+					0.041000000237545464, -0.08299999990413198, 0.20899999981338624, -0.04200000012133387
+				],
+				"candidateMeanUs": 2.232864166661746,
+				"referenceMeanUs": 2.37297749999603,
+				"batchMeanDeltasUs": [
+					0.08889999999837526, -0.1818200000290441, -0.008029999988442421, -0.4595033333180255
+				],
+				"medianBatchP50DeltaUs": -0.0004999999418942025
+			},
+			{
+				"id": "spending/policy",
+				"candidateMedianBatchP50Us": 2.0414999999047723,
+				"referenceMedianBatchP50Us": 2.0209999998996864,
+				"batchP50DeltasUs": [
+					0.08299999990413198, -0.041999999893960194, 0.20799999992959783, -0.08299999944938463
+				],
+				"candidateMeanUs": 4.22399500001158,
+				"referenceMeanUs": 2.256502500001337,
+				"batchMeanDeltasUs": [
+					0.37929000000228075, -0.1680800000031014, 7.919873333342671, -0.261113333300879
+				],
+				"medianBatchP50DeltaUs": 0.020500000005085894
+			},
+			{
+				"id": "spending/effectProposals",
+				"candidateMedianBatchP50Us": 2.021000000013373,
+				"referenceMedianBatchP50Us": 2.041000000076565,
+				"batchP50DeltasUs": [
+					0.0010000001111620804, -0.041999999893960194, 0.16699999969205237, -0.08299999944938463
+				],
+				"candidateMeanUs": 2.1820450000029723,
+				"referenceMeanUs": 2.2675450000033,
+				"batchMeanDeltasUs": [
+					0.09789999997944195, -0.20433000000063356, 0.06915666666221448, -0.3047266666423337
+				],
+				"medianBatchP50DeltaUs": -0.020499999891399057
+			},
+			{
+				"id": "spending/occurrences",
+				"candidateMedianBatchP50Us": 2.021000000013373,
+				"referenceMedianBatchP50Us": 2.020500000185166,
+				"batchP50DeltasUs": [
+					0.041999999893960194, -0.04200000012133387, 0.16699999969205237, -0.08299999944938463
+				],
+				"candidateMeanUs": 2.276415833341995,
+				"referenceMeanUs": 2.2768058333326735,
+				"batchMeanDeltasUs": [
+					0.4300399999957942, -0.03762000000354744, -0.14589666667234272, -0.24808333328261728
+				],
+				"medianBatchP50DeltaUs": -1.1368683772161603e-10
+			},
+			{
+				"id": "spending/causal/currentness",
+				"candidateMedianBatchP50Us": 2.021000000013373,
+				"referenceMedianBatchP50Us": 2.020500000071479,
+				"batchP50DeltasUs": [
+					0.0010000001111620804, -2.2737367544323206e-10, 0.20800000038434519, -0.04200000012133387
+				],
+				"candidateMeanUs": 3.264778333332098,
+				"referenceMeanUs": 2.275242499995708,
+				"batchMeanDeltasUs": [
+					4.38323666667884, -0.20158000001022947, 0.145816666677092, -0.36933000000014243
+				],
+				"medianBatchP50DeltaUs": 0.0004999999418942025
+			},
+			{
+				"id": "spending/causal/committed-effects",
+				"candidateMedianBatchP50Us": 2.021000000013373,
+				"referenceMedianBatchP50Us": 1.9999999999527063,
+				"batchP50DeltasUs": [0.04200000012133387, 0.0, 0.20799999992959783, 4.547473508864641e-10],
+				"candidateMeanUs": 2.1716574999970817,
+				"referenceMeanUs": 3.904413333326034,
+				"batchMeanDeltasUs": [
+					0.044896666668895434, -0.1706233333349399, 0.18541333333814675, -6.99070999998791
+				],
+				"medianBatchP50DeltaUs": 0.02100000028804061
+			},
+			{
+				"id": "spending/effectAdmissions",
+				"candidateMedianBatchP50Us": 2.0209999998996864,
+				"referenceMedianBatchP50Us": 2.0829999998568383,
+				"batchP50DeltasUs": [
+					-0.04100000001017179, -0.08300000013150566, 0.1260000003640016, -0.08300000035887933
+				],
+				"candidateMeanUs": 2.2849750000032523,
+				"referenceMeanUs": 2.400798333330272,
+				"batchMeanDeltasUs": [
+					-0.06942000000284076, -0.13913999997991305, -0.06697333331885572, -0.18776000000646784
+				],
+				"medianBatchP50DeltaUs": -0.06200000007083872
+			},
+			{
+				"id": "spending/effectOutcomes",
+				"candidateMedianBatchP50Us": 2.0209999998996864,
+				"referenceMedianBatchP50Us": 2.0409999998491912,
+				"batchP50DeltasUs": [
+					0.000999999883788405, -0.04100000001017179, 0.16700000060154707, -0.08299999990413198
+				],
+				"candidateMeanUs": 2.142814166667411,
+				"referenceMeanUs": 2.2892641666694162,
+				"batchMeanDeltasUs": [
+					-0.36442666666289386, -0.0898266666573967, 0.10027333332345749, -0.23182000001118785
+				],
+				"medianBatchP50DeltaUs": -0.020000000063191692
+			},
+			{
+				"id": "spending/causal/conservation",
+				"candidateMedianBatchP50Us": 2.0004999997809136,
+				"referenceMedianBatchP50Us": 1.9375000000536602,
+				"batchP50DeltasUs": [
+					0.12499999979809218, 0.0009999996564147295, 0.2500000000509317, -0.000999999883788405
+				],
+				"candidateMeanUs": 2.27656749999691,
+				"referenceMeanUs": 2.150092500007001,
+				"batchMeanDeltasUs": [
+					0.7054966666745106, -0.037206666685657766, 0.18069666664966183, -0.34308666667887644
+				],
+				"medianBatchP50DeltaUs": 0.06299999972725345
+			},
+			{
+				"id": "spending/causal/issues",
+				"candidateMedianBatchP50Us": 1.9790000000057262,
+				"referenceMedianBatchP50Us": 1.9579999999450592,
+				"batchP50DeltasUs": [
+					0.04200000012133387, -0.0010000001111620804, 0.2090000002681336, -4.547473508864641e-10
+				],
+				"candidateMeanUs": 2.1741958333276066,
+				"referenceMeanUs": 2.1727783333382904,
+				"batchMeanDeltasUs": [
+					0.2001266666676808, -0.12139333333683082, 0.127616666663926, -0.2006800000375129
+				],
+				"medianBatchP50DeltaUs": 0.02099999983329326
+			},
+			{
+				"id": "publication",
+				"candidateMedianBatchP50Us": 1.9585000000006403,
+				"referenceMedianBatchP50Us": 1.9375000000536602,
+				"batchP50DeltasUs": [
+					0.041999999893960194, -0.04100000001017179, 0.20799999992959783, -0.08300000035887933
+				],
+				"candidateMeanUs": 2.0953091666814316,
+				"referenceMeanUs": 2.3813775000015385,
+				"batchMeanDeltasUs": [
+					-0.48930999998977615, -0.2597466666520629, -0.1226033333326386, -0.2726133333059502
+				],
+				"medianBatchP50DeltaUs": 0.0004999999418942025
+			},
+			{
+				"id": "spending/causal/quiescence",
+				"candidateMedianBatchP50Us": 1.9375000000536602,
+				"referenceMedianBatchP50Us": 1.9374999999399733,
+				"batchP50DeltasUs": [
+					0.041999999893960194, -0.041999999893960194, 0.20800000038434519, -0.041000000237545464
+				],
+				"candidateMeanUs": 4.16844166666787,
+				"referenceMeanUs": 2.371366666659469,
+				"batchMeanDeltasUs": [
+					-0.022226666665119132, -0.2950299999770322, 0.15942000003178702, 7.346136666643967
+				],
+				"medianBatchP50DeltaUs": 0.0004999998282073648
+			},
+			{
+				"id": "local",
+				"candidateMedianBatchP50Us": 1.146000000062486,
+				"referenceMedianBatchP50Us": 1.146000000062486,
+				"batchP50DeltasUs": [
+					-0.04100000001017179, -0.04199999966658652, 0.20799999947485048, -0.08299999990413198
+				],
+				"candidateMeanUs": 1.3471899999927928,
+				"referenceMeanUs": 1.5618050000008075,
+				"batchMeanDeltasUs": [
+					0.26246999998799453, -0.2290099999981976, 0.1578199999827726, -1.049740000004628
+				],
+				"medianBatchP50DeltaUs": -0.041499999838379154
+			},
+			{
+				"id": "arrivals",
+				"candidateMedianBatchP50Us": 1.1249999998881322,
+				"referenceMedianBatchP50Us": 1.1245000000599248,
+				"batchP50DeltasUs": [
+					-0.041999999893960194, -0.041000000237545464, 0.24999999959618435, -0.08299999990413198
+				],
+				"candidateMeanUs": 1.3468791666480229,
+				"referenceMeanUs": 1.386501666668399,
+				"batchMeanDeltasUs": [
+					0.30529000000266643, -0.21151333334197878, 0.053299999963201145, -0.3055666667053931
+				],
+				"medianBatchP50DeltaUs": -0.04150000006575283
+			},
+			{
+				"id": "verification",
+				"candidateMedianBatchP50Us": 1.0414999999284191,
+				"referenceMedianBatchP50Us": 1.0209999998096464,
+				"batchP50DeltasUs": [
+					0.0, -0.0010000001111620804, 0.20799999992959783, -0.08299999944938463
+				],
+				"candidateMeanUs": 1.1853000000074114,
+				"referenceMeanUs": 1.239784166665269,
+				"batchMeanDeltasUs": [
+					0.06862666666089967, -0.15640666666134462, 0.10814000002634812, -0.23829666665733376
+				],
+				"medianBatchP50DeltaUs": -0.0005000000555810402
+			},
+			{
+				"id": "current",
+				"candidateMedianBatchP50Us": 1.02100000003702,
+				"referenceMedianBatchP50Us": 1.0209999999233332,
+				"batchP50DeltasUs": [
+					-2.2737367544323206e-10, -0.041999999893960194, 0.2090000002681336, -0.04199999966658652
+				],
+				"candidateMeanUs": 1.2074216666599114,
+				"referenceMeanUs": 1.228594999988862,
+				"batchMeanDeltasUs": [
+					0.0883133333301582, -0.01635666667122379, 0.13075333336018943, -0.2874033333349264
+				],
+				"medianBatchP50DeltaUs": -0.020999999946980097
+			},
+			{
+				"id": "inbox",
+				"candidateMedianBatchP50Us": 1.00000000009004,
+				"referenceMedianBatchP50Us": 0.979000000029373,
+				"batchP50DeltasUs": [
+					-2.2737367544323206e-10, 2.2737367544323206e-10, 0.20799999992959783, -0.04200000012133387
+				],
+				"candidateMeanUs": 1.131248333335293,
+				"referenceMeanUs": 1.2309324999995397,
+				"batchMeanDeltasUs": [
+					0.0817933333397984, -0.32933999998628377, 0.174740000008266, -0.3259300000187673
+				],
+				"medianBatchP50DeltaUs": 0.0
+			}
+		],
+		"nodesByTypicalDelta": [
+			{
+				"id": "spending/currentFacts",
+				"candidateMedianBatchP50Us": 4.125499999986459,
+				"referenceMedianBatchP50Us": 2.416499999867483,
+				"batchP50DeltasUs": [
+					1.7920000000231084, 1.6250000001036824, 1.8760000002657762, 1.6669999999976426
+				],
+				"candidateMeanUs": 4.400209166669621,
+				"referenceMeanUs": 2.6143825000002607,
+				"batchMeanDeltasUs": [
+					2.243863333333138, 1.6393133333410026, 1.92736666667012, 1.3327633333331808
+				],
+				"medianBatchP50DeltaUs": 1.7295000000103755
+			},
+			{
+				"id": "spending/materialStore",
+				"candidateMedianBatchP50Us": 2.166499999930238,
+				"referenceMedianBatchP50Us": 2.04200000007404,
+				"batchP50DeltasUs": [
+					0.16599999980826396, 0.04200000012133387, 0.3329999999550637, 0.04199999966658652
+				],
+				"candidateMeanUs": 2.3294016666555235,
+				"referenceMeanUs": 2.369222499997553,
+				"batchMeanDeltasUs": [
+					0.3691566666748254, -0.24423000000372946, 0.20996999997199361, -0.4941800000112075
+				],
+				"medianBatchP50DeltaUs": 0.10399999996479892
+			},
+			{
+				"id": "spending/causal/conservation",
+				"candidateMedianBatchP50Us": 2.0004999997809136,
+				"referenceMedianBatchP50Us": 1.9375000000536602,
+				"batchP50DeltasUs": [
+					0.12499999979809218, 0.0009999996564147295, 0.2500000000509317, -0.000999999883788405
+				],
+				"candidateMeanUs": 2.27656749999691,
+				"referenceMeanUs": 2.150092500007001,
+				"batchMeanDeltasUs": [
+					0.7054966666745106, -0.037206666685657766, 0.18069666664966183, -0.34308666667887644
+				],
+				"medianBatchP50DeltaUs": 0.06299999972725345
+			},
+			{
+				"id": "spending/causal/causal-quiescence",
+				"candidateMedianBatchP50Us": 2.479500000049484,
+				"referenceMedianBatchP50Us": 2.417000000036751,
+				"batchP50DeltasUs": [
+					0.16700000014679972, -0.04200000012133387, 0.20799999992959783, -0.08299999990413198
+				],
+				"candidateMeanUs": 2.6442858333295285,
+				"referenceMeanUs": 4.040150833333769,
+				"batchMeanDeltasUs": [
+					0.26616000000785794, -0.11385666667744487, 0.02739333332101501, -5.763156666668389
+				],
+				"medianBatchP50DeltaUs": 0.06250000001273293
+			},
+			{
+				"id": "spending/causal/input/admissions",
+				"candidateMedianBatchP50Us": 2.166999999985819,
+				"referenceMedianBatchP50Us": 2.124999999978172,
+				"batchP50DeltasUs": [0.08400000001529406, 0.0, 0.2500000000509317, 4.547473508864641e-10],
+				"candidateMeanUs": 2.355974166666215,
+				"referenceMeanUs": 2.8645499999998947,
+				"batchMeanDeltasUs": [
+					0.1816466666703792, -1.767500000000079, 0.1508433333310675, -0.5992933333360878
+				],
+				"medianBatchP50DeltaUs": 0.04200000023502071
+			},
+			{
+				"id": "spending/anomalyScore",
+				"candidateMedianBatchP50Us": 2.6249999999663487,
+				"referenceMedianBatchP50Us": 2.5829999999587017,
+				"batchP50DeltasUs": [
+					0.08400000001529406, -0.0010000001111620804, 0.2500000000509317, -4.547473508864641e-10
+				],
+				"candidateMeanUs": 2.8703566666623224,
+				"referenceMeanUs": 3.123216666663969,
+				"batchMeanDeltasUs": [
+					0.06514999999732629, -0.06194000001566273, 0.07475666666929706, -1.0894066666575475
+				],
+				"medianBatchP50DeltaUs": 0.041999999780273356
+			},
+			{
+				"id": "spending/materialSnapshot",
+				"candidateMedianBatchP50Us": 2.083500000026106,
+				"referenceMedianBatchP50Us": 2.04200000007404,
+				"batchP50DeltasUs": [0.08299999990413198, 0.0, 0.24999999959618435, 4.547473508864641e-10],
+				"candidateMeanUs": 2.293139999997796,
+				"referenceMeanUs": 3.6286899999938287,
+				"batchMeanDeltasUs": [
+					0.3179866666619094, -0.12411333333147909, 0.1617333333175943, -5.6978066666321565
+				],
+				"medianBatchP50DeltaUs": 0.04150000017943967
+			},
+			{
+				"id": "spending/causal/input/occurrences",
+				"candidateMedianBatchP50Us": 3.041500000108499,
+				"referenceMedianBatchP50Us": 2.9789999999820793,
+				"batchP50DeltasUs": [
+					0.2080000001569715, -0.16699999991942605, 0.2920000001722656, -0.12500000002546585
+				],
+				"candidateMeanUs": 3.3215174999944947,
+				"referenceMeanUs": 3.563068333327427,
+				"batchMeanDeltasUs": [
+					0.17371333332827538, -0.1490366666788154, 0.08137666667304683, -1.072256666654236
+				],
+				"medianBatchP50DeltaUs": 0.04150000006575283
+			},
+			{
+				"id": "spending/causal/input/effect-outcomes",
+				"candidateMedianBatchP50Us": 2.083500000026106,
+				"referenceMedianBatchP50Us": 2.0419999999603533,
+				"batchP50DeltasUs": [0.08300000013150566, 0.0, 0.20799999992959783, -0.041000000692292815],
+				"candidateMeanUs": 2.3310175000023037,
+				"referenceMeanUs": 2.2300316666689923,
+				"batchMeanDeltasUs": [
+					0.1830899999814995, 0.03042000001642021, 0.4301299999830617, -0.2396966666477359
+				],
+				"medianBatchP50DeltaUs": 0.04150000006575283
+			},
+			{
+				"id": "spending/causal/committed-effects",
+				"candidateMedianBatchP50Us": 2.021000000013373,
+				"referenceMedianBatchP50Us": 1.9999999999527063,
+				"batchP50DeltasUs": [0.04200000012133387, 0.0, 0.20799999992959783, 4.547473508864641e-10],
+				"candidateMeanUs": 2.1716574999970817,
+				"referenceMeanUs": 3.904413333326034,
+				"batchMeanDeltasUs": [
+					0.044896666668895434, -0.1706233333349399, 0.18541333333814675, -6.99070999998791
+				],
+				"medianBatchP50DeltaUs": 0.02100000028804061
+			},
+			{
+				"id": "spending/causal/input/branch-terminals",
+				"candidateMedianBatchP50Us": 2.104000000144879,
+				"referenceMedianBatchP50Us": 2.083000000084212,
+				"batchP50DeltasUs": [
+					0.041999999893960194, 2.2737367544323206e-10, 0.20899999981338624, 0.0
+				],
+				"candidateMeanUs": 2.2519150000128243,
+				"referenceMeanUs": 2.3226108333312823,
+				"batchMeanDeltasUs": [
+					0.05670333333682728, -0.26767999999113573, 0.07400666667763253, -0.14581333329715535
+				],
+				"medianBatchP50DeltaUs": 0.021000000060666935
+			},
+			{
+				"id": "spending/causal/terminals",
+				"candidateMedianBatchP50Us": 2.104000000144879,
+				"referenceMedianBatchP50Us": 2.082999999970525,
+				"batchP50DeltasUs": [
+					0.041999999893960194, 2.2737367544323206e-10, 0.2090000002681336, -0.041000000237545464
+				],
+				"candidateMeanUs": 2.2418324999949846,
+				"referenceMeanUs": 2.3414849999949183,
+				"batchMeanDeltasUs": [
+					0.009886666677327242, -0.11459666667406038, 0.15207000000070064, -0.4459700000037023
+				],
+				"medianBatchP50DeltaUs": 0.021000000060666935
+			},
+			{
+				"id": "spending/causal/input/effect-admissions",
+				"candidateMedianBatchP50Us": 2.103999999917505,
+				"referenceMedianBatchP50Us": 2.082999999970525,
+				"batchP50DeltasUs": [
+					0.041999999893960194, -2.2737367544323206e-10, 0.2090000002681336, -0.0010000003385357559
+				],
+				"candidateMeanUs": 2.4043483333364675,
+				"referenceMeanUs": 2.256744166672699,
+				"batchMeanDeltasUs": [
+					0.28497999999217444, -0.033173333326886115, 0.5487133333281236, -0.2101033333383384
+				],
+				"medianBatchP50DeltaUs": 0.02099999983329326
+			},
+			{
+				"id": "spending/causal/input/watermarks",
+				"candidateMedianBatchP50Us": 2.061999999909858,
+				"referenceMedianBatchP50Us": 2.0414999997910854,
+				"batchP50DeltasUs": [
+					0.04200000012133387, -0.0010000003385357559, 0.20800000038434519, -4.547473508864641e-10
+				],
+				"candidateMeanUs": 2.2926175000115263,
+				"referenceMeanUs": 2.2139000000045903,
+				"batchMeanDeltasUs": [
+					0.3258299999765769, -0.018183333312815023, 0.11413333332257027, -0.10690999995858867
+				],
+				"medianBatchP50DeltaUs": 0.02099999983329326
+			},
+			{
+				"id": "spending/causal/issues",
+				"candidateMedianBatchP50Us": 1.9790000000057262,
+				"referenceMedianBatchP50Us": 1.9579999999450592,
+				"batchP50DeltasUs": [
+					0.04200000012133387, -0.0010000001111620804, 0.2090000002681336, -4.547473508864641e-10
+				],
+				"candidateMeanUs": 2.1741958333276066,
+				"referenceMeanUs": 2.1727783333382904,
+				"batchMeanDeltasUs": [
+					0.2001266666676808, -0.12139333333683082, 0.127616666663926, -0.2006800000375129
+				],
+				"medianBatchP50DeltaUs": 0.02099999983329326
+			},
+			{
+				"id": "spending/causal/arrivals",
+				"candidateMedianBatchP50Us": 3.6874999999554348,
+				"referenceMedianBatchP50Us": 3.666999999950349,
+				"batchP50DeltasUs": [
+					0.08300000013150566, -0.04200000012133387, 0.20799999992959783, -0.04199999966658652
+				],
+				"candidateMeanUs": 3.90834333333468,
+				"referenceMeanUs": 4.105440000013421,
+				"batchMeanDeltasUs": [
+					0.3992999999983715, -0.15897333335260525, 0.10142333332017507, -1.1301366666809065
+				],
+				"medianBatchP50DeltaUs": 0.02050000023245957
+			},
+			{
+				"id": "spending/causal/input/effect-proposals",
+				"candidateMedianBatchP50Us": 2.083000000084212,
+				"referenceMedianBatchP50Us": 2.062499999965439,
+				"batchP50DeltasUs": [
+					0.08299999990413198, -0.041999999893960194, 0.2090000002681336, -0.04199999966658652
+				],
+				"candidateMeanUs": 2.282961666670076,
+				"referenceMeanUs": 2.247669166669842,
+				"batchMeanDeltasUs": [
+					0.22485333333179372, -0.07970333333863272, 0.20224999997935827, -0.20622999997158345
+				],
+				"medianBatchP50DeltaUs": 0.020500000118772732
+			},
+			{
+				"id": "spending/transaction",
+				"candidateMedianBatchP50Us": 2.4580000000469227,
+				"referenceMedianBatchP50Us": 2.4170000001504377,
+				"batchP50DeltasUs": [
+					0.12399999991430377, -0.08299999990413198, 0.20799999992959783, -0.08299999990413198
+				],
+				"candidateMeanUs": 3.6304374999995543,
+				"referenceMeanUs": 2.6264883333285143,
+				"batchMeanDeltasUs": [
+					4.253000000004097, -0.1544733333222817, 0.16561666669228248, -0.2483466666899402
+				],
+				"medianBatchP50DeltaUs": 0.020500000005085894
+			},
+			{
+				"id": "spending/policy",
+				"candidateMedianBatchP50Us": 2.0414999999047723,
+				"referenceMedianBatchP50Us": 2.0209999998996864,
+				"batchP50DeltasUs": [
+					0.08299999990413198, -0.041999999893960194, 0.20799999992959783, -0.08299999944938463
+				],
+				"candidateMeanUs": 4.22399500001158,
+				"referenceMeanUs": 2.256502500001337,
+				"batchMeanDeltasUs": [
+					0.37929000000228075, -0.1680800000031014, 7.919873333342671, -0.261113333300879
+				],
+				"medianBatchP50DeltaUs": 0.020500000005085894
+			},
+			{
+				"id": "spending/localFacts",
+				"candidateMedianBatchP50Us": 2.062500000079126,
+				"referenceMedianBatchP50Us": 2.04200000007404,
+				"batchP50DeltasUs": [
+					0.041999999893960194, -0.000999999883788405, 0.20799999992959783, -0.041000000692292815
+				],
+				"candidateMeanUs": 2.286950833341924,
+				"referenceMeanUs": 2.2865108333305293,
+				"batchMeanDeltasUs": [
+					0.2357166666714268, 0.03264666666306448, 0.25299666666038934, -0.5195999999493021
+				],
+				"medianBatchP50DeltaUs": 0.020500000005085894
+			},
+			{
+				"id": "spending/verificationFacts",
+				"candidateMedianBatchP50Us": 2.083500000026106,
+				"referenceMedianBatchP50Us": 2.082999999970525,
+				"batchP50DeltasUs": [
+					0.041999999893960194, -0.04100000001017179, 0.2500000000509317, -0.04199999966658652
+				],
+				"candidateMeanUs": 2.3134725000016942,
+				"referenceMeanUs": 2.896995000003055,
+				"batchMeanDeltasUs": [
+					0.09798000001031434, 0.03290333333022012, 0.3076466666501192, -2.7726199999960954
+				],
+				"medianBatchP50DeltaUs": 0.0004999999418942025
+			},
+			{
+				"id": "spending/causal/currentness",
+				"candidateMedianBatchP50Us": 2.021000000013373,
+				"referenceMedianBatchP50Us": 2.020500000071479,
+				"batchP50DeltasUs": [
+					0.0010000001111620804, -2.2737367544323206e-10, 0.20800000038434519, -0.04200000012133387
+				],
+				"candidateMeanUs": 3.264778333332098,
+				"referenceMeanUs": 2.275242499995708,
+				"batchMeanDeltasUs": [
+					4.38323666667884, -0.20158000001022947, 0.145816666677092, -0.36933000000014243
+				],
+				"medianBatchP50DeltaUs": 0.0004999999418942025
+			},
+			{
+				"id": "publication",
+				"candidateMedianBatchP50Us": 1.9585000000006403,
+				"referenceMedianBatchP50Us": 1.9375000000536602,
+				"batchP50DeltasUs": [
+					0.041999999893960194, -0.04100000001017179, 0.20799999992959783, -0.08300000035887933
+				],
+				"candidateMeanUs": 2.0953091666814316,
+				"referenceMeanUs": 2.3813775000015385,
+				"batchMeanDeltasUs": [
+					-0.48930999998977615, -0.2597466666520629, -0.1226033333326386, -0.2726133333059502
+				],
+				"medianBatchP50DeltaUs": 0.0004999999418942025
+			},
+			{
+				"id": "spending/causal/quiescence",
+				"candidateMedianBatchP50Us": 1.9375000000536602,
+				"referenceMedianBatchP50Us": 1.9374999999399733,
+				"batchP50DeltasUs": [
+					0.041999999893960194, -0.041999999893960194, 0.20800000038434519, -0.041000000237545464
+				],
+				"candidateMeanUs": 4.16844166666787,
+				"referenceMeanUs": 2.371366666659469,
+				"batchMeanDeltasUs": [
+					-0.022226666665119132, -0.2950299999770322, 0.15942000003178702, 7.346136666643967
+				],
+				"medianBatchP50DeltaUs": 0.0004999998282073648
+			},
+			{
+				"id": "spending/causal/coverage",
+				"candidateMedianBatchP50Us": 2.10450000020046,
+				"referenceMedianBatchP50Us": 2.1044999999730862,
+				"batchP50DeltasUs": [
+					2.2737367544323206e-10, 2.2737367544323206e-10, 0.16700000014679972, -0.04099999978279811
+				],
+				"candidateMeanUs": 2.2895541666696317,
+				"referenceMeanUs": 2.382470000003612,
+				"batchMeanDeltasUs": [
+					0.10101000001289627, -0.16275333334760977, 0.0911600000154068, -0.4010800000166155
+				],
+				"medianBatchP50DeltaUs": 2.2737367544323206e-10
+			},
+			{
+				"id": "spending/userProfile",
+				"candidateMedianBatchP50Us": 2.041500000245833,
+				"referenceMedianBatchP50Us": 2.04200000007404,
+				"batchP50DeltasUs": [
+					0.04100000001017179, -0.08299999944938463, 0.24999999959618435, -0.04099999978279811
+				],
+				"candidateMeanUs": 2.2453941666651644,
+				"referenceMeanUs": 2.3999666666613466,
+				"batchMeanDeltasUs": [
+					0.16459000000850235, -0.09054000002455118, -0.1323566666330102, -0.5599833333356703
+				],
+				"medianBatchP50DeltaUs": 1.1368683772161603e-10
+			},
+			{
+				"id": "spending/reasonFactors",
+				"candidateMedianBatchP50Us": 2.271000000064305,
+				"referenceMedianBatchP50Us": 2.270999999950618,
+				"batchP50DeltasUs": [
+					0.04200000012133387, -0.041999999893960194, 0.12500000002546585, -0.04200000012133387
+				],
+				"candidateMeanUs": 2.4540591666614846,
+				"referenceMeanUs": 2.5338008333346806,
+				"batchMeanDeltasUs": [
+					0.04498333333003779, -0.1691900000082569, 0.021369999999478872, -0.21613000001404228
+				],
+				"medianBatchP50DeltaUs": 1.1368683772161603e-10
+			},
+			{
+				"id": "inbox",
+				"candidateMedianBatchP50Us": 1.00000000009004,
+				"referenceMedianBatchP50Us": 0.979000000029373,
+				"batchP50DeltasUs": [
+					-2.2737367544323206e-10, 2.2737367544323206e-10, 0.20799999992959783, -0.04200000012133387
+				],
+				"candidateMeanUs": 1.131248333335293,
+				"referenceMeanUs": 1.2309324999995397,
+				"batchMeanDeltasUs": [
+					0.0817933333397984, -0.32933999998628377, 0.174740000008266, -0.3259300000187673
+				],
+				"medianBatchP50DeltaUs": 0.0
+			},
+			{
+				"id": "requestMaterialJoin",
+				"candidateMedianBatchP50Us": 2.7084999999260617,
+				"referenceMedianBatchP50Us": 2.666999999860309,
+				"batchP50DeltasUs": [
+					0.08400000001529406, -0.08400000001529406, 0.20800000038434519, -0.1240000005964248
+				],
+				"candidateMeanUs": 2.925334999999715,
+				"referenceMeanUs": 3.3651241666685414,
+				"batchMeanDeltasUs": [
+					0.23723333332403232, -0.02056999998937192, 0.1705799999869367, -2.146399999996902
+				],
+				"medianBatchP50DeltaUs": 0.0
+			},
+			{
+				"id": "spending/occurrences",
+				"candidateMedianBatchP50Us": 2.021000000013373,
+				"referenceMedianBatchP50Us": 2.020500000185166,
+				"batchP50DeltasUs": [
+					0.041999999893960194, -0.04200000012133387, 0.16699999969205237, -0.08299999944938463
+				],
+				"candidateMeanUs": 2.276415833341995,
+				"referenceMeanUs": 2.2768058333326735,
+				"batchMeanDeltasUs": [
+					0.4300399999957942, -0.03762000000354744, -0.14589666667234272, -0.24808333328261728
+				],
+				"medianBatchP50DeltaUs": -1.1368683772161603e-10
+			},
+			{
+				"id": "spending/causal/release-events",
+				"candidateMedianBatchP50Us": 2.374999999915417,
+				"referenceMedianBatchP50Us": 2.375000000029104,
+				"batchP50DeltasUs": [
+					0.041999999893960194, -0.04200000012133387, 0.20799999992959783, -0.08299999944938463
+				],
+				"candidateMeanUs": 2.5462399999997842,
+				"referenceMeanUs": 3.251494166666665,
+				"batchMeanDeltasUs": [
+					-0.38294999999607165, -0.7090266666485452, 0.10095666667742348, -1.8299966667003296
+				],
+				"medianBatchP50DeltaUs": -1.1368683772161603e-10
+			},
+			{
+				"id": "spending/vendorStats",
+				"candidateMedianBatchP50Us": 2.083500000026106,
+				"referenceMedianBatchP50Us": 2.0839999999680003,
+				"batchP50DeltasUs": [
+					0.04100000001017179, -0.041999999893960194, 0.16600000026301132, -0.04200000057608122
+				],
+				"candidateMeanUs": 2.30080666666898,
+				"referenceMeanUs": 2.3050058333427614,
+				"batchMeanDeltasUs": [
+					0.2962666666614191, -0.08448333334020677, 0.1065199999857212, -0.3351000000020575
+				],
+				"medianBatchP50DeltaUs": -0.0004999999418942025
+			},
+			{
+				"id": "spending/inboxFacts",
+				"candidateMedianBatchP50Us": 2.041500000018459,
+				"referenceMedianBatchP50Us": 2.041500000018459,
+				"batchP50DeltasUs": [
+					0.041000000237545464, -0.08299999990413198, 0.20899999981338624, -0.04200000012133387
+				],
+				"candidateMeanUs": 2.232864166661746,
+				"referenceMeanUs": 2.37297749999603,
+				"batchMeanDeltasUs": [
+					0.08889999999837526, -0.1818200000290441, -0.008029999988442421, -0.4595033333180255
+				],
+				"medianBatchP50DeltaUs": -0.0004999999418942025
+			},
+			{
+				"id": "verification",
+				"candidateMedianBatchP50Us": 1.0414999999284191,
+				"referenceMedianBatchP50Us": 1.0209999998096464,
+				"batchP50DeltasUs": [
+					0.0, -0.0010000001111620804, 0.20799999992959783, -0.08299999944938463
+				],
+				"candidateMeanUs": 1.1853000000074114,
+				"referenceMeanUs": 1.239784166665269,
+				"batchMeanDeltasUs": [
+					0.06862666666089967, -0.15640666666134462, 0.10814000002634812, -0.23829666665733376
+				],
+				"medianBatchP50DeltaUs": -0.0005000000555810402
+			},
+			{
+				"id": "spending/effectOutcomes",
+				"candidateMedianBatchP50Us": 2.0209999998996864,
+				"referenceMedianBatchP50Us": 2.0409999998491912,
+				"batchP50DeltasUs": [
+					0.000999999883788405, -0.04100000001017179, 0.16700000060154707, -0.08299999990413198
+				],
+				"candidateMeanUs": 2.142814166667411,
+				"referenceMeanUs": 2.2892641666694162,
+				"batchMeanDeltasUs": [
+					-0.36442666666289386, -0.0898266666573967, 0.10027333332345749, -0.23182000001118785
+				],
+				"medianBatchP50DeltaUs": -0.020000000063191692
+			},
+			{
+				"id": "spending/effectProposals",
+				"candidateMedianBatchP50Us": 2.021000000013373,
+				"referenceMedianBatchP50Us": 2.041000000076565,
+				"batchP50DeltasUs": [
+					0.0010000001111620804, -0.041999999893960194, 0.16699999969205237, -0.08299999944938463
+				],
+				"candidateMeanUs": 2.1820450000029723,
+				"referenceMeanUs": 2.2675450000033,
+				"batchMeanDeltasUs": [
+					0.09789999997944195, -0.20433000000063356, 0.06915666666221448, -0.3047266666423337
+				],
+				"medianBatchP50DeltaUs": -0.020499999891399057
+			},
+			{
+				"id": "spending/publicationPolicy",
+				"candidateMedianBatchP50Us": 3.2919999998739513,
+				"referenceMedianBatchP50Us": 3.2919999998739513,
+				"batchP50DeltasUs": [
+					0.04200000012133387, -0.08300000013150566, 0.2500000000509317, -0.08300000035887933
+				],
+				"candidateMeanUs": 3.47146333333266,
+				"referenceMeanUs": 3.6526191666661134,
+				"batchMeanDeltasUs": [
+					0.16014333333108297, -0.14947000001939126, 0.16444000001229145, -0.8997366666577966
+				],
+				"medianBatchP50DeltaUs": -0.020500000005085894
+			},
+			{
+				"id": "spending/evaluationSelections",
+				"candidateMedianBatchP50Us": 3.500499999972817,
+				"referenceMedianBatchP50Us": 3.5000000001446097,
+				"batchP50DeltasUs": [
+					0.12500000002546585, -0.2500000002783054, 0.2509999999347201, -0.16600000026301132
+				],
+				"candidateMeanUs": 3.8856241666746882,
+				"referenceMeanUs": 4.195552500002198,
+				"batchMeanDeltasUs": [
+					0.1570733333346652, -0.6212300000091393, 0.1916666666753981, -0.9672233333109644
+				],
+				"medianBatchP50DeltaUs": -0.020500000118772732
+			},
+			{
+				"id": "spending/causal/release-port",
+				"candidateMedianBatchP50Us": 2.312500000016371,
+				"referenceMedianBatchP50Us": 2.33299999990777,
+				"batchP50DeltasUs": [
+					0.04200000012133387, -0.08400000001529406, 0.2090000002681336, -0.08300000035887933
+				],
+				"candidateMeanUs": 2.5738175000007386,
+				"referenceMeanUs": 2.692950000002459,
+				"batchMeanDeltasUs": [
+					0.11193666666864996, -0.19500666666165964, 0.2255599999792441, -0.6190199999931184
+				],
+				"medianBatchP50DeltaUs": -0.020500000118772732
+			},
+			{
+				"id": "spending/startup",
+				"candidateMedianBatchP50Us": 2.0839999999680003,
+				"referenceMedianBatchP50Us": 2.104500000086773,
+				"batchP50DeltasUs": [
+					0.041999999893960194, -0.20800000038434519, 0.16700000014679972, -0.08300000035887933
+				],
+				"candidateMeanUs": 2.516387500001921,
+				"referenceMeanUs": 2.9376949999976887,
+				"batchMeanDeltasUs": [
+					0.03893000000061882, -0.37530333334113203, 0.3550266666919317, -1.7038833333344887
+				],
+				"medianBatchP50DeltaUs": -0.02050000023245957
+			},
+			{
+				"id": "spending/causal/release-candidates",
+				"candidateMedianBatchP50Us": 6.853999999975713,
+				"referenceMedianBatchP50Us": 6.853999999862026,
+				"batchP50DeltasUs": [
+					0.12500000025283953, -0.16699999991942605, 0.16700000014679972, -0.20799999947485048
+				],
+				"candidateMeanUs": 7.269370833337045,
+				"referenceMeanUs": 7.427253333335102,
+				"batchMeanDeltasUs": [
+					0.8255999999967882, -0.34600666667529334, -0.1555433333351175, -0.9555799999786058
+				],
+				"medianBatchP50DeltaUs": -0.02099999983329326
+			},
+			{
+				"id": "current",
+				"candidateMedianBatchP50Us": 1.02100000003702,
+				"referenceMedianBatchP50Us": 1.0209999999233332,
+				"batchP50DeltasUs": [
+					-2.2737367544323206e-10, -0.041999999893960194, 0.2090000002681336, -0.04199999966658652
+				],
+				"candidateMeanUs": 1.2074216666599114,
+				"referenceMeanUs": 1.228594999988862,
+				"batchMeanDeltasUs": [
+					0.0883133333301582, -0.01635666667122379, 0.13075333336018943, -0.2874033333349264
+				],
+				"medianBatchP50DeltaUs": -0.020999999946980097
+			},
+			{
+				"id": "spending/causal/released",
+				"candidateMedianBatchP50Us": 2.0624999998517524,
+				"referenceMedianBatchP50Us": 2.082999999970525,
+				"batchP50DeltasUs": [0.0, -0.042000000348707545, 0.2090000002681336, -0.08299999944938463],
+				"candidateMeanUs": 2.276302499996253,
+				"referenceMeanUs": 4.539750000002414,
+				"batchMeanDeltasUs": [
+					-8.406980000001264, -0.13042666668070532, 0.048879999985729145, -0.565263333328403
+				],
+				"medianBatchP50DeltaUs": -0.021000000174353772
+			},
+			{
+				"id": "spending/evidence",
+				"candidateMedianBatchP50Us": 2.4379999997563573,
+				"referenceMedianBatchP50Us": 2.4790000001075896,
+				"batchP50DeltasUs": [
+					0.0009999996564147295, -0.08300000035887933, 0.16700000014679972, -0.08299999944938463
+				],
+				"candidateMeanUs": 2.654053333340206,
+				"referenceMeanUs": 5.51548583332836,
+				"batchMeanDeltasUs": [
+					0.19708666666929264, -0.13239333333331121, -8.310183333311821, -3.200239999976778
+				],
+				"medianBatchP50DeltaUs": -0.04099999989648495
+			},
+			{
+				"id": "local",
+				"candidateMedianBatchP50Us": 1.146000000062486,
+				"referenceMedianBatchP50Us": 1.146000000062486,
+				"batchP50DeltasUs": [
+					-0.04100000001017179, -0.04199999966658652, 0.20799999947485048, -0.08299999990413198
+				],
+				"candidateMeanUs": 1.3471899999927928,
+				"referenceMeanUs": 1.5618050000008075,
+				"batchMeanDeltasUs": [
+					0.26246999998799453, -0.2290099999981976, 0.1578199999827726, -1.049740000004628
+				],
+				"medianBatchP50DeltaUs": -0.041499999838379154
+			},
+			{
+				"id": "spending/causal/release-controller",
+				"candidateMedianBatchP50Us": 2.083500000026106,
+				"referenceMedianBatchP50Us": 2.124999999978172,
+				"batchP50DeltasUs": [
+					-2.2737367544323206e-10, -0.08299999990413198, 0.20799999992959783, -0.08299999944938463
+				],
+				"candidateMeanUs": 2.4053641666608883,
+				"referenceMeanUs": 2.632035833332793,
+				"batchMeanDeltasUs": [
+					0.13562666665696554, 0.020036666681638466, 0.21943333331516127, -1.2817833333413853
+				],
+				"medianBatchP50DeltaUs": -0.041499999838379154
+			},
+			{
+				"id": "spending/branchTerminals",
+				"candidateMedianBatchP50Us": 2.4994999999989886,
+				"referenceMedianBatchP50Us": 2.5409999999510546,
+				"batchP50DeltasUs": [0.0, -0.08299999990413198, 0.16600000026301132, -0.12500000002546585],
+				"candidateMeanUs": 4.743919166659983,
+				"referenceMeanUs": 7.00808666667721,
+				"batchMeanDeltasUs": [
+					-0.22109666666741143, -0.07197333335094876, -8.518626666674814, -0.24497333337573446
+				],
+				"medianBatchP50DeltaUs": -0.04149999995206599
+			},
+			{
+				"id": "arrivals",
+				"candidateMedianBatchP50Us": 1.1249999998881322,
+				"referenceMedianBatchP50Us": 1.1245000000599248,
+				"batchP50DeltasUs": [
+					-0.041999999893960194, -0.041000000237545464, 0.24999999959618435, -0.08299999990413198
+				],
+				"candidateMeanUs": 1.3468791666480229,
+				"referenceMeanUs": 1.386501666668399,
+				"batchMeanDeltasUs": [
+					0.30529000000266643, -0.21151333334197878, 0.053299999963201145, -0.3055666667053931
+				],
+				"medianBatchP50DeltaUs": -0.04150000006575283
+			},
+			{
+				"id": "spending/causal/input/evidence",
+				"candidateMedianBatchP50Us": 2.0834999999124193,
+				"referenceMedianBatchP50Us": 2.104500000086773,
+				"batchP50DeltasUs": [
+					-0.04100000001017179, -0.04200000012133387, 0.20799999992959783, -0.08299999990413198
+				],
+				"candidateMeanUs": 2.2850799999986293,
+				"referenceMeanUs": 2.3378558333322035,
+				"batchMeanDeltasUs": [
+					0.23041999999198498, -0.09488333333592877, -0.07346666668884899, -0.27317333330150473
+				],
+				"medianBatchP50DeltaUs": -0.04150000006575283
+			},
+			{
+				"id": "spending/causal/authority",
+				"candidateMedianBatchP50Us": 2.2709999998369312,
+				"referenceMedianBatchP50Us": 2.311999999847103,
+				"batchP50DeltasUs": [0.0, -0.12400000036905112, 0.2090000002681336, -0.08300000035887933],
+				"candidateMeanUs": 2.498429166666748,
+				"referenceMeanUs": 2.5952191666694566,
+				"batchMeanDeltasUs": [
+					0.2785800000060586, -0.09197000000237204, -0.03108333333481537, -0.5426866666797042
+				],
+				"medianBatchP50DeltaUs": -0.04150000017943967
+			},
+			{
+				"id": "spending/thresholdGate",
+				"candidateMedianBatchP50Us": 2.3125000001300577,
+				"referenceMedianBatchP50Us": 2.333999999905245,
+				"batchP50DeltasUs": [
+					-0.000999999883788405, -0.08299999990413198, 0.16600000026301132, -0.08400000024266774
+				],
+				"candidateMeanUs": 2.524010833342156,
+				"referenceMeanUs": 2.6247624999973596,
+				"batchMeanDeltasUs": [
+					0.2540100000032906, -0.07301333333619656, -0.019423333324084663, -0.5645799999638257
+				],
+				"medianBatchP50DeltaUs": -0.041999999893960194
+			},
+			{
+				"id": "spending/consumerIssues",
+				"candidateMedianBatchP50Us": 3.9375000000063665,
+				"referenceMedianBatchP50Us": 3.9590000000089276,
+				"batchP50DeltasUs": [0.0, -0.08400000001529406, 0.20699999959106208, -0.12499999911597115],
+				"candidateMeanUs": 4.146882499991307,
+				"referenceMeanUs": 4.551776666665622,
+				"batchMeanDeltasUs": [
+					-0.7308099999886507, -0.2942733333528248, 0.08882333331257548, -0.6833166666683609
+				],
+				"medianBatchP50DeltaUs": -0.04200000000764703
+			},
+			{
+				"id": "spending/assessment",
+				"candidateMedianBatchP50Us": 2.8125000000045475,
+				"referenceMedianBatchP50Us": 2.8749999999035936,
+				"batchP50DeltasUs": [0.0, -0.12499999979809218, 0.08399999978792039, -0.12400000014167745],
+				"candidateMeanUs": 2.981250000002736,
+				"referenceMeanUs": 3.113233333340304,
+				"batchMeanDeltasUs": [
+					0.29514333333130083, -0.33185000000457865, 0.016106666647222774, -0.5073333333242164
+				],
+				"medianBatchP50DeltaUs": -0.06200000007083872
+			},
+			{
+				"id": "spending/effectAdmissions",
+				"candidateMedianBatchP50Us": 2.0209999998996864,
+				"referenceMedianBatchP50Us": 2.0829999998568383,
+				"batchP50DeltasUs": [
+					-0.04100000001017179, -0.08300000013150566, 0.1260000003640016, -0.08300000035887933
+				],
+				"candidateMeanUs": 2.2849750000032523,
+				"referenceMeanUs": 2.400798333330272,
+				"batchMeanDeltasUs": [
+					-0.06942000000284076, -0.13913999997991305, -0.06697333331885572, -0.18776000000646784
+				],
+				"medianBatchP50DeltaUs": -0.06200000007083872
+			},
+			{
+				"id": "spending/alertMessage",
+				"candidateMedianBatchP50Us": 2.062500000079126,
+				"referenceMedianBatchP50Us": 2.124999999978172,
+				"batchP50DeltasUs": [
+					-0.041999999893960194, -0.08299999990413198, 0.12500000002546585, -0.08299999990413198
+				],
+				"candidateMeanUs": 2.257150833327728,
+				"referenceMeanUs": 2.285877499998416,
+				"batchMeanDeltasUs": [
+					0.20330333334262232, -0.04608666668521732, 0.08915666667083612, -0.3612800000109928
+				],
+				"medianBatchP50DeltaUs": -0.06249999989904609
+			},
+			{
+				"id": "spending/watermarks",
+				"candidateMedianBatchP50Us": 2.5415000000066357,
+				"referenceMedianBatchP50Us": 2.624999999738975,
+				"batchP50DeltasUs": [
+					-0.041999999893960194, -0.12500000002546585, 0.08300000035887933, -0.08400000024266774
+				],
+				"candidateMeanUs": 2.708944999997319,
+				"referenceMeanUs": 17.62474249999343,
+				"batchMeanDeltasUs": [
+					-0.07093000000319652, -0.1972800000021378, -0.10499666666267601, -59.289983333316435
+				],
+				"medianBatchP50DeltaUs": -0.06300000006831397
+			},
+			{
+				"id": "spending/occurrenceAdmissions",
+				"candidateMedianBatchP50Us": 2.333500000077038,
+				"referenceMedianBatchP50Us": 2.416499999867483,
+				"batchP50DeltasUs": [
+					-0.041999999893960194, -0.12499999979809218, 0.08400000024266774, -0.1250000004802132
+				],
+				"candidateMeanUs": 2.5048583333259935,
+				"referenceMeanUs": 2.730943333331955,
+				"batchMeanDeltasUs": [
+					-0.4536166666654633, -0.15334999998761584, 0.01625666663282281, -0.3136300000035892
+				],
+				"medianBatchP50DeltaUs": -0.08349999984602618
+			},
+			{
+				"id": "pack",
+				"candidateMedianBatchP50Us": 3.3124999997653504,
+				"referenceMedianBatchP50Us": 3.312499999879037,
+				"batchP50DeltasUs": [
+					-0.08400000024266774, -0.33300000018243736, 0.37400000019260915, -0.16699999969205237
+				],
+				"candidateMeanUs": 3.9201883333195533,
+				"referenceMeanUs": 4.560118333338134,
+				"batchMeanDeltasUs": [
+					-0.13637333334751667, -1.1286233333248674, 0.3554266666484789, -1.6501500000504166
+				],
+				"medianBatchP50DeltaUs": -0.12549999996736005
+			},
+			{
+				"id": "spending/requestMaterials",
+				"candidateMedianBatchP50Us": 2.7914999999438805,
+				"referenceMedianBatchP50Us": 4.625000000032742,
+				"batchP50DeltasUs": [
+					-1.7500000001291482, -1.9170000000485743, -1.66700000045239, -1.9580000002861198
+				],
+				"candidateMeanUs": 2.905441666658627,
+				"referenceMeanUs": 5.062499166670969,
+				"batchMeanDeltasUs": [
+					-1.9178966666769763, -2.5371533333304797, -1.7560900000186543, -2.41709000002326
+				],
+				"medianBatchP50DeltaUs": -1.8335000000888613
+			}
+		],
+		"stagesMeanUs": {
+			"shell-entry": {
+				"candidate": {
+					"totalMs": 0.46173500000274237,
+					"nodeMs": 0,
+					"residualMs": 0.46173500000274237
+				},
+				"reference": {
+					"totalMs": 0.6533391666677819,
+					"nodeMs": 0,
+					"residualMs": 0.6533391666677819
+				}
+			},
+			"graph-and-sources": {
+				"candidate": {
+					"totalMs": 13.716189999997255,
+					"nodeMs": 10.138227499962985,
+					"residualMs": 3.57796250003427
+				},
+				"reference": {
+					"totalMs": 15.656562500008135,
+					"nodeMs": 11.20773666666101,
+					"residualMs": 4.448825833347125
+				}
+			},
+			"names": {
+				"candidate": {
+					"totalMs": 2.011948333333559,
+					"nodeMs": 0,
+					"residualMs": 2.011948333333559
+				},
+				"reference": {
+					"totalMs": 2.213613333326142,
+					"nodeMs": 0,
+					"residualMs": 2.213613333326142
+				}
+			},
+			"prepare-and-startup-source": {
+				"candidate": {
+					"totalMs": 14.060583333344045,
+					"nodeMs": 2.516387500001921,
+					"residualMs": 11.544195833342124
+				},
+				"reference": {
+					"totalMs": 14.198949166666731,
+					"nodeMs": 2.9376949999976887,
+					"residualMs": 11.261254166669044
+				}
+			},
+			"consumer-builder": {
+				"candidate": {
+					"totalMs": 249.49678583332758,
+					"nodeMs": 146.50619333335197,
+					"residualMs": 102.99059249997565
+				},
+				"reference": {
+					"totalMs": 276.8845691666708,
+					"nodeMs": 173.6788250000196,
+					"residualMs": 103.20574416665124
+				}
+			},
+			"seal": {
+				"candidate": {
+					"totalMs": 4.720379166662762,
+					"nodeMs": 0,
+					"residualMs": 4.720379166662762
+				},
+				"reference": {
+					"totalMs": 5.019216666663245,
+					"nodeMs": 0,
+					"residualMs": 5.019216666663245
+				}
+			},
+			"transfer": {
+				"candidate": {
+					"totalMs": 0.28724000000181604,
+					"nodeMs": 0,
+					"residualMs": 0.28724000000181604
+				},
+				"reference": {
+					"totalMs": 0.2684299999987161,
+					"nodeMs": 0,
+					"residualMs": 0.2684299999987161
+				}
+			},
+			"start": {
+				"candidate": {
+					"totalMs": 12.63369416666554,
+					"nodeMs": 0,
+					"residualMs": 12.63369416666554
+				},
+				"reference": {
+					"totalMs": 15.877170000007368,
+					"nodeMs": 0,
+					"residualMs": 15.877170000007368
+				}
+			},
+			"observer-setup": {
+				"candidate": {
+					"totalMs": 0.531695833326656,
+					"nodeMs": 0,
+					"residualMs": 0.531695833326656
+				},
+				"reference": {
+					"totalMs": 0.6176916666640864,
+					"nodeMs": 0,
+					"residualMs": 0.6176916666640864
+				}
+			},
+			"subscribe": {
+				"candidate": {
+					"totalMs": 4.809921666672305,
+					"nodeMs": 0,
+					"residualMs": 4.809921666672305
+				},
+				"reference": {
+					"totalMs": 3.1539391666632355,
+					"nodeMs": 0,
+					"residualMs": 3.1539391666632355
+				}
+			},
+			"return-shell": {
+				"candidate": {
+					"totalMs": 0.1545083333309094,
+					"nodeMs": 0,
+					"residualMs": 0.1545083333309094
+				},
+				"reference": {
+					"totalMs": 0.23297916666649598,
+					"nodeMs": 0,
+					"residualMs": 0.23297916666649598
+				}
+			}
+		},
+		"aggregateProbeMeanUs": {
+			"candidate": {
+				"total": 302.8846816666652,
+				"nodeTotal": 159.16080833331685,
+				"residual": 143.72387333334834
+			},
+			"reference": {
+				"total": 334.77646000000277,
+				"nodeTotal": 187.82425666667828,
+				"residual": 146.95220333332446
+			}
+		}
+	},
+	"summary": {
+		"cells": {
+			"candidate/control": {
+				"batchTotalUs": [
+					{
+						"meanMs": 258.5004466666639,
+						"p50Ms": 241.58400000032998,
+						"p95Ms": 345.8339999997406
+					},
+					{
+						"meanMs": 243.73877000001207,
+						"p50Ms": 235.7080000001588,
+						"p95Ms": 295.2500000001237
+					},
+					{
+						"meanMs": 255.74958666666137,
+						"p50Ms": 234.95900000034453,
+						"p95Ms": 276.24999999989086
+					},
+					{
+						"meanMs": 247.13195333336745,
+						"p50Ms": 228.62499999973807,
+						"p95Ms": 287.83300000031886
+					}
+				]
+			},
+			"candidate/probe": {
+				"batchTotalUs": [
+					{
+						"meanMs": 319.9631866666459,
+						"p50Ms": 282.16599999996106,
+						"p95Ms": 366.1659999997937
+					},
+					{
+						"meanMs": 379.42246333335186,
+						"p50Ms": 252.2499999995489,
+						"p95Ms": 368.37499999910506
+					},
+					{
+						"meanMs": 256.26347666667243,
+						"p50Ms": 242.33400000048277,
+						"p95Ms": 273.58300000014424
+					},
+					{
+						"meanMs": 281.64036666669745,
+						"p50Ms": 265.95799999995506,
+						"p95Ms": 328.62500000010186
+					}
+				]
+			},
+			"reference/control": {
+				"batchTotalUs": [
+					{
+						"meanMs": 248.85599999999005,
+						"p50Ms": 231.45900000054098,
+						"p95Ms": 295.8330000001297
+					},
+					{
+						"meanMs": 249.56237333335594,
+						"p50Ms": 232.33299999992596,
+						"p95Ms": 324.3750000001455
+					},
+					{
+						"meanMs": 249.74319333334884,
+						"p50Ms": 228.5410000004049,
+						"p95Ms": 283.2079999998314
+					},
+					{
+						"meanMs": 245.7630099999733,
+						"p50Ms": 227.12500000034197,
+						"p95Ms": 263.1660000006377
+					}
+				]
+			},
+			"reference/probe": {
+				"batchTotalUs": [
+					{
+						"meanMs": 309.0655266666545,
+						"p50Ms": 265.87500000005093,
+						"p95Ms": 322.7919999999358
+					},
+					{
+						"meanMs": 304.90412666667606,
+						"p50Ms": 262.9580000002534,
+						"p95Ms": 324.00000000052387
+					},
+					{
+						"meanMs": 318.10486666664474,
+						"p50Ms": 279.37500000007276,
+						"p95Ms": 351.3750000001892
+					},
+					{
+						"meanMs": 325.0411000000198,
+						"p50Ms": 276.87499999956344,
+						"p95Ms": 347.208999999566
+					}
+				]
+			}
+		},
+		"overheadContrast": {
+			"candidate": {
+				"batchP50ContrastsUs": [
+					40.58199999963108, 16.5419999993901, 7.375000000138243, 37.333000000217
+				],
+				"medianBatchP50ContrastUs": 26.93749999980355,
+				"interpretation": "Observed contrast, including instrumentation/JIT/order/system differences; not exact clock overhead"
+			},
+			"reference": {
+				"batchP50ContrastsUs": [
+					34.41599999950995, 30.625000000327418, 50.83399999966787, 49.74999999922147
+				],
+				"medianBatchP50ContrastUs": 42.08299999936571,
+				"interpretation": "Observed contrast, including instrumentation/JIT/order/system differences; not exact clock overhead"
+			}
+		},
+		"nodesByTypicalCost": [
+			{
+				"id": "spending/causal/release-candidates",
+				"candidateMedianBatchP50Us": 6.562500000200089,
+				"referenceMedianBatchP50Us": 6.666500000392261,
+				"batchP50DeltasUs": [0.16800000048533548, -0.20800000038434519, -0.5000000001018634, 0.0],
+				"candidateMeanUs": 32.391635000002076,
+				"referenceMeanUs": 6.983065833325479,
+				"batchMeanDeltasUs": [
+					0.0041400000160745146, 93.62186666668094, -0.647120000024491, 8.655390000033853
+				],
+				"medianBatchP50DeltaUs": -0.10400000019217259
+			},
+			{
+				"id": "spending/currentFacts",
+				"candidateMedianBatchP50Us": 4.187499999716238,
+				"referenceMedianBatchP50Us": 2.5625000002946763,
+				"batchP50DeltasUs": [
+					1.9169999986843322, 1.6249999998763087, 1.374999999825377, 1.624999998966814
+				],
+				"candidateMeanUs": 6.4758000000028915,
+				"referenceMeanUs": 2.6815216666553474,
+				"batchMeanDeltasUs": [
+					1.827746666704115, 10.271296666672546, 1.3254500000372593, 1.7526199999762562
+				],
+				"medianBatchP50DeltaUs": 1.6249999994215614
+			},
+			{
+				"id": "spending/consumerIssues",
+				"candidateMedianBatchP50Us": 3.9164999998320127,
+				"referenceMedianBatchP50Us": 4.145499999594904,
+				"batchP50DeltasUs": [
+					0.1250000004802132, -0.20899999981338624, -0.4579999995257822, -0.16600000071775867
+				],
+				"candidateMeanUs": 4.018931666676053,
+				"referenceMeanUs": 4.197736666666666,
+				"batchMeanDeltasUs": [
+					0.04598000004686284, -0.13915666669163299, -0.41337666666853073, -0.2086666666491505
+				],
+				"medianBatchP50DeltaUs": -0.18750000026557245
+			},
+			{
+				"id": "spending/causal/arrivals",
+				"candidateMedianBatchP50Us": 3.7289999995664402,
+				"referenceMedianBatchP50Us": 3.8125000000945874,
+				"batchP50DeltasUs": [
+					0.29100000028847717, -0.08299999990413198, -0.3749999996216502, -0.04200000057608122
+				],
+				"candidateMeanUs": 3.8649108333402182,
+				"referenceMeanUs": 3.866243333324443,
+				"batchMeanDeltasUs": [
+					0.3837433333198233, 0.027113333374776186, -0.2928799999911765, -0.12330666664032205
+				],
+				"medianBatchP50DeltaUs": -0.0625000002401066
+			},
+			{
+				"id": "spending/evaluationSelections",
+				"candidateMedianBatchP50Us": 3.4164999997301493,
+				"referenceMedianBatchP50Us": 3.770500000428001,
+				"batchP50DeltasUs": [
+					0.08299999990413198, -0.4999999991923687, -0.7919999998193816, -0.2080000012938399
+				],
+				"candidateMeanUs": 5.821904166673448,
+				"referenceMeanUs": 4.067149999989397,
+				"batchMeanDeltasUs": [
+					0.17889333335915567, -0.3332200000022564, 7.386383333347719, -0.2130399999684114
+				],
+				"medianBatchP50DeltaUs": -0.3540000002431043
+			},
+			{
+				"id": "spending/publicationPolicy",
+				"candidateMedianBatchP50Us": 3.3334999998260173,
+				"referenceMedianBatchP50Us": 3.4995000000890286,
+				"batchP50DeltasUs": [
+					0.08399999933317304, -0.1250000004802132, -0.3750000005311449, -0.12400000014167745
+				],
+				"candidateMeanUs": 3.4507591666488224,
+				"referenceMeanUs": 3.5828708333459267,
+				"batchMeanDeltasUs": [
+					0.014276666615842086, 0.05430000000463536, -0.49540666669296723, -0.10161666671592695
+				],
+				"medianBatchP50DeltaUs": -0.12450000031094532
+			},
+			{
+				"id": "pack",
+				"candidateMedianBatchP50Us": 3.1254999998964195,
+				"referenceMedianBatchP50Us": 3.3750000002328306,
+				"batchP50DeltasUs": [
+					0.16700000014679972, -0.29100000028847717, -0.5830000000059954, -0.08299999990413198
+				],
+				"candidateMeanUs": 3.73881833332689,
+				"referenceMeanUs": 3.7170874999962202,
+				"batchMeanDeltasUs": [
+					0.46315999998417606, 0.060716666615311284, -0.6256966666417915, 0.18874333336498222
+				],
+				"medianBatchP50DeltaUs": -0.18700000009630457
+			},
+			{
+				"id": "spending/diagnosticSummary",
+				"candidateMedianBatchP50Us": 2.9999999997016857,
+				"referenceMedianBatchP50Us": 3.2084999998005514,
+				"batchP50DeltasUs": [
+					0.08299999990413198, -0.29100000028847717, -0.5000000001018634, -0.1249999995707185
+				],
+				"candidateMeanUs": 3.160503333350183,
+				"referenceMeanUs": 3.315367499999411,
+				"batchMeanDeltasUs": [
+					0.17701000000367156, -0.23151666663276654, -0.5093133333017854, -0.055636666666032245
+				],
+				"medianBatchP50DeltaUs": -0.20799999992959783
+			},
+			{
+				"id": "spending/causal/input/occurrences",
+				"candidateMedianBatchP50Us": 2.8959999999642605,
+				"referenceMedianBatchP50Us": 3.1870000002527377,
+				"batchP50DeltasUs": [
+					0.249999999141437, -0.29100000028847717, -0.7080000004862086, -0.20799999947485048
+				],
+				"candidateMeanUs": 3.162417499994869,
+				"referenceMeanUs": 3.395459999996244,
+				"batchMeanDeltasUs": [
+					0.21041333334324017, -0.0030866666747898265, -0.8859866666565117, -0.2535100000174376
+				],
+				"medianBatchP50DeltaUs": -0.24949999988166383
+			},
+			{
+				"id": "spending/assessment",
+				"candidateMedianBatchP50Us": 2.833499999724154,
+				"referenceMedianBatchP50Us": 3.0414999996537517,
+				"batchP50DeltasUs": [
+					0.08299999990413198, -0.24900000062189065, -0.41600000076869037, -0.1249999995707185
+				],
+				"candidateMeanUs": 2.9897600000125144,
+				"referenceMeanUs": 3.182531666683038,
+				"batchMeanDeltasUs": [
+					0.16527000004922832, -0.12052000002161839, -0.7076566666546569, -0.1081800000550478
+				],
+				"medianBatchP50DeltaUs": -0.18700000009630457
+			},
+			{
+				"id": "spending/requestMaterials",
+				"candidateMedianBatchP50Us": 2.770500000224274,
+				"referenceMedianBatchP50Us": 4.77050000017698,
+				"batchP50DeltasUs": [
+					-1.7079999997804407, -2.0000000004074536, -2.2490000001198496, -1.9160000001647859
+				],
+				"candidateMeanUs": 2.990669999999227,
+				"referenceMeanUs": 4.908098333340452,
+				"batchMeanDeltasUs": [
+					-1.6430733332981617, -1.8691666666533513, -2.183170000043901, -1.9743033333694862
+				],
+				"medianBatchP50DeltaUs": -1.9580000002861198
+			},
+			{
+				"id": "requestMaterialJoin",
+				"candidateMedianBatchP50Us": 2.7084999992439407,
+				"referenceMedianBatchP50Us": 2.9789999998683925,
+				"batchP50DeltasUs": [
+					0.29099999937898247, -0.3329999999550637, -0.6250000005820766, -0.20800000038434519
+				],
+				"candidateMeanUs": 2.9335674999818666,
+				"referenceMeanUs": 3.103180000005826,
+				"batchMeanDeltasUs": [
+					0.16775999997359262, -0.14707333337658693, -0.5280966666214226, -0.17104000007141934
+				],
+				"medianBatchP50DeltaUs": -0.27050000016970444
+			},
+			{
+				"id": "spending/anomalyScore",
+				"candidateMedianBatchP50Us": 2.686999999696127,
+				"referenceMedianBatchP50Us": 2.7500000001055014,
+				"batchP50DeltasUs": [0.20699999913631473, -0.1250000004802132, -0.37400000019260915, 0.0],
+				"candidateMeanUs": 2.8668858333329204,
+				"referenceMeanUs": 5.028884999980315,
+				"batchMeanDeltasUs": [
+					0.19433999998606571, -8.488186666642527, -0.286379999943165, -0.06776999998995334
+				],
+				"medianBatchP50DeltaUs": -0.0625000002401066
+			},
+			{
+				"id": "spending/watermarks",
+				"candidateMedianBatchP50Us": 2.583499999673222,
+				"referenceMedianBatchP50Us": 2.7915000000575674,
+				"batchP50DeltasUs": [
+					0.08400000024266774, -0.24900000062189065, -0.4580000004352769, -0.1250000004802132
+				],
+				"candidateMeanUs": 2.721015833335514,
+				"referenceMeanUs": 5.724832500008385,
+				"batchMeanDeltasUs": [
+					0.08698000000852786, -0.23340999998557305, -0.40245999999569865, -11.46637666671874
+				],
+				"medianBatchP50DeltaUs": -0.18700000055105193
+			},
+			{
+				"id": "spending/causal/release-port",
+				"candidateMedianBatchP50Us": 2.561999999670661,
+				"referenceMedianBatchP50Us": 2.7500000001055014,
+				"batchP50DeltasUs": [
+					0.08299999990413198, -0.2500000009604264, -0.4580000004352769, -0.04200000057608122
+				],
+				"candidateMeanUs": 2.7588249999992818,
+				"referenceMeanUs": 2.9049383333184173,
+				"batchMeanDeltasUs": [
+					0.004236666648769951, -0.1336566666880878, -0.4425033332821236, -0.0125299999551012
+				],
+				"medianBatchP50DeltaUs": -0.1460000007682538
+			},
+			{
+				"id": "spending/branchTerminals",
+				"candidateMedianBatchP50Us": 2.5415000000066357,
+				"referenceMedianBatchP50Us": 2.7079999999841675,
+				"batchP50DeltasUs": [
+					0.12599999899975955, -0.20800000038434519, -0.41599999985919567, -0.08399999933317304
+				],
+				"candidateMeanUs": 2.65661666667332,
+				"referenceMeanUs": 2.8580733333312005,
+				"batchMeanDeltasUs": [
+					0.13000333332759823, -0.19587333330794857, -0.3586033333188728, -0.3813533333322993
+				],
+				"medianBatchP50DeltaUs": -0.1459999998587591
+			},
+			{
+				"id": "spending/transaction",
+				"candidateMedianBatchP50Us": 2.5000000000545697,
+				"referenceMedianBatchP50Us": 2.645999999913329,
+				"batchP50DeltasUs": [
+					0.08400000024266774, -0.20800000038434519, -0.3749999996216502, -0.08400000024266774
+				],
+				"candidateMeanUs": 2.6841683333168476,
+				"referenceMeanUs": 2.7421566666847257,
+				"batchMeanDeltasUs": [
+					0.18428666662354465, -0.04405000000891335, -0.3138533333822123, -0.05833666670393206
+				],
+				"medianBatchP50DeltaUs": -0.14600000031350646
+			},
+			{
+				"id": "spending/evidence",
+				"candidateMedianBatchP50Us": 2.5000000000545697,
+				"referenceMedianBatchP50Us": 2.687499999865395,
+				"batchP50DeltasUs": [
+					0.1249999995707185, -0.20800000038434519, -0.41599999985919567, -0.1249999995707185
+				],
+				"candidateMeanUs": 2.6171166666745194,
+				"referenceMeanUs": 2.768716666667691,
+				"batchMeanDeltasUs": [
+					-0.016226666648435934, -0.14937666661353444, -0.33203666666850074, -0.10876000004221478
+				],
+				"medianBatchP50DeltaUs": -0.16649999997753184
+			},
+			{
+				"id": "spending/causal/release-events",
+				"candidateMedianBatchP50Us": 2.4370000000999426,
+				"referenceMedianBatchP50Us": 2.5835000001279695,
+				"batchP50DeltasUs": [
+					0.16599999980826396, -0.20899999981338624, -0.3750000005311449, -0.04200000057608122
+				],
+				"candidateMeanUs": 2.5432074999897245,
+				"referenceMeanUs": 2.7160641666887386,
+				"batchMeanDeltasUs": [
+					0.12620999995912502, -0.11979666670413258, -0.5704933333739366, -0.12734666667711322
+				],
+				"medianBatchP50DeltaUs": -0.12550000019473373
+			},
+			{
+				"id": "spending/causal/causal-quiescence",
+				"candidateMedianBatchP50Us": 2.395999999862397,
+				"referenceMedianBatchP50Us": 2.5210000003426103,
+				"batchP50DeltasUs": [
+					0.20799999947485048, -0.20800000038434519, -0.4170000001977314, -0.041000000237545464
+				],
+				"candidateMeanUs": 2.5025483333411103,
+				"referenceMeanUs": 2.696123333354687,
+				"batchMeanDeltasUs": [
+					0.1101766666367133, -0.1709566666674312, -0.6262999999853491, -0.08722000003823878
+				],
+				"medianBatchP50DeltaUs": -0.12450000031094532
+			},
+			{
+				"id": "spending/thresholdGate",
+				"candidateMedianBatchP50Us": 2.354499999910331,
+				"referenceMedianBatchP50Us": 2.5420000001759036,
+				"batchP50DeltasUs": [
+					0.08299999990413198, -0.20800000038434519, -0.4170000001977314, -0.1249999995707185
+				],
+				"candidateMeanUs": 2.453259166660094,
+				"referenceMeanUs": 2.6226841667016743,
+				"batchMeanDeltasUs": [
+					0.08704999997765586, -0.2670400000867328, -0.3894733333830421, -0.10823666667420223
+				],
+				"medianBatchP50DeltaUs": -0.16649999997753184
+			},
+			{
+				"id": "spending/occurrenceAdmissions",
+				"candidateMedianBatchP50Us": 2.354499999910331,
+				"referenceMedianBatchP50Us": 2.5835000001279695,
+				"batchP50DeltasUs": [
+					0.08299999990413198, -0.2500000000509317, -0.3750000005311449, -0.16599999980826396
+				],
+				"candidateMeanUs": 2.489502499999314,
+				"referenceMeanUs": 2.6497891666804207,
+				"batchMeanDeltasUs": [
+					0.10320333333159676, -0.22914666666414008, -0.35384666670931114, -0.16135666668257426
+				],
+				"medianBatchP50DeltaUs": -0.20799999992959783
+			},
+			{
+				"id": "spending/reasonFactors",
+				"candidateMedianBatchP50Us": 2.33299999990777,
+				"referenceMedianBatchP50Us": 2.4584999996477563,
+				"batchP50DeltasUs": [
+					0.16700000014679972, -0.16700000014679972, -0.3750000005311449, -0.04199999966658652
+				],
+				"candidateMeanUs": 2.435926666682917,
+				"referenceMeanUs": 2.5117483333095456,
+				"batchMeanDeltasUs": [
+					0.1821000000927597, -0.1794699999663864, -0.3377599999839732, 0.03184333335108604
+				],
+				"medianBatchP50DeltaUs": -0.10449999990669312
+			},
+			{
+				"id": "spending/causal/authority",
+				"candidateMedianBatchP50Us": 2.2919999996702245,
+				"referenceMedianBatchP50Us": 2.458000000387983,
+				"batchP50DeltasUs": [
+					0.16700000014679972, -0.20800000038434519, -0.4170000001977314, -0.08300000081362668
+				],
+				"candidateMeanUs": 2.4407408333286185,
+				"referenceMeanUs": 2.5649550000033137,
+				"batchMeanDeltasUs": [
+					0.18069333331974724, -0.15370333330793098, -0.3763500000119775, -0.1474966666986195
+				],
+				"medianBatchP50DeltaUs": -0.14550000059898593
+			},
+			{
+				"id": "spending/materialStore",
+				"candidateMedianBatchP50Us": 2.250000000003638,
+				"referenceMedianBatchP50Us": 2.250500000172906,
+				"batchP50DeltasUs": [
+					0.2500000000509317, -0.04199999966658652, -0.25100000038946746, 0.08299999990413198
+				],
+				"candidateMeanUs": 2.4233158333224005,
+				"referenceMeanUs": 2.4125700000096613,
+				"batchMeanDeltasUs": [
+					0.4945933333177282, 0.007259999980912223, -0.3671299999981181, -0.09174000004956397
+				],
+				"medianBatchP50DeltaUs": 0.020500000118772732
+			},
+			{
+				"id": "spending/causal/input/admissions",
+				"candidateMedianBatchP50Us": 2.208500000051572,
+				"referenceMedianBatchP50Us": 2.333500000077038,
+				"batchP50DeltasUs": [
+					0.20799999947485048, -0.16599999980826396, -0.3749999996216502, -0.04199999966658652
+				],
+				"candidateMeanUs": 2.3969349999864185,
+				"referenceMeanUs": 4.863064166671241,
+				"batchMeanDeltasUs": [
+					0.3574633333543412, -0.10151000004952936, -10.23375333334722, 0.11328333330311563
+				],
+				"medianBatchP50DeltaUs": -0.10399999973742524
+			},
+			{
+				"id": "spending/causal/input/effect-admissions",
+				"candidateMedianBatchP50Us": 2.2079999994275568,
+				"referenceMedianBatchP50Us": 2.3124999997889972,
+				"batchP50DeltasUs": [
+					0.1250000013897079, -0.12600000081874896, -0.3750000005311449, -9.094947017729282e-10
+				],
+				"candidateMeanUs": 2.433483333324299,
+				"referenceMeanUs": 2.4054875000024367,
+				"batchMeanDeltasUs": [
+					0.35634666667344084, -0.024616666699633742, -0.23794000002756852, 0.01819333334121152
+				],
+				"medianBatchP50DeltaUs": -0.06300000086412183
+			},
+			{
+				"id": "spending/causal/input/branch-terminals",
+				"candidateMedianBatchP50Us": 2.1875000002182787,
+				"referenceMedianBatchP50Us": 2.3125000002437446,
+				"batchP50DeltasUs": [
+					0.16699999923730502, -0.1250000004802132, -0.3749999996216502, -0.08299999990413198
+				],
+				"candidateMeanUs": 2.3772158333319267,
+				"referenceMeanUs": 2.409556666669535,
+				"batchMeanDeltasUs": [
+					0.13065666665473427, -0.015679999972538147, -0.38685000005898473, 0.14251000002635325
+				],
+				"medianBatchP50DeltaUs": -0.10400000019217259
+			},
+			{
+				"id": "spending/causal/terminals",
+				"candidateMedianBatchP50Us": 2.1874999997635314,
+				"referenceMedianBatchP50Us": 2.2915000004104513,
+				"batchP50DeltasUs": [
+					0.1249999995707185, -0.16700000014679972, -0.3749999987121555, -0.041000000237545464
+				],
+				"candidateMeanUs": 2.3649075000101525,
+				"referenceMeanUs": 2.358751666651339,
+				"batchMeanDeltasUs": [
+					0.15691666671348997, 0.14139333338789592, -0.30726333333404904, 0.03357666666791662
+				],
+				"medianBatchP50DeltaUs": -0.10400000019217259
+			},
+			{
+				"id": "spending/verificationFacts",
+				"candidateMedianBatchP50Us": 2.187499999308784,
+				"referenceMedianBatchP50Us": 2.2914999995009566,
+				"batchP50DeltasUs": [0.1250000004802132, -0.16600000071775867, -0.3750000005311449, 0.0],
+				"candidateMeanUs": 2.306619999993321,
+				"referenceMeanUs": 2.415155000012419,
+				"batchMeanDeltasUs": [
+					0.09817999999237742, -0.1282100000298673, -0.410783333342503, 0.00667333330360044
+				],
+				"medianBatchP50DeltaUs": -0.08300000035887933
+			},
+			{
+				"id": "spending/materialSnapshot",
+				"candidateMedianBatchP50Us": 2.1665000003849855,
+				"referenceMedianBatchP50Us": 2.250000000003638,
+				"batchP50DeltasUs": [
+					0.16700000014679972, -0.1249999995707185, -0.3329999999550637, -0.000999999429041054
+				],
+				"candidateMeanUs": 4.789812500008945,
+				"referenceMeanUs": 2.3494100000038998,
+				"batchMeanDeltasUs": [
+					10.005723333336695, -0.05695666669756341, -0.1199166666629027, -0.06723999995604871
+				],
+				"medianBatchP50DeltaUs": -0.06299999949987978
+			},
+			{
+				"id": "spending/causal/input/effect-proposals",
+				"candidateMedianBatchP50Us": 2.1665000003849855,
+				"referenceMedianBatchP50Us": 2.291499999955704,
+				"batchP50DeltasUs": [
+					0.1250000004802132, -0.16599999980826396, -0.33399999938410474, -0.04199999966658652
+				],
+				"candidateMeanUs": 2.3988958333317596,
+				"referenceMeanUs": 2.3236799999919335,
+				"batchMeanDeltasUs": [
+					0.17131666670138673, 0.36827333331530127, -0.23609333334206895, -0.002633333315316469
+				],
+				"medianBatchP50DeltaUs": -0.10399999973742524
+			},
+			{
+				"id": "spending/causal/input/evidence",
+				"candidateMedianBatchP50Us": 2.166499999930238,
+				"referenceMedianBatchP50Us": 2.2915000004104513,
+				"batchP50DeltasUs": [
+					0.1249999995707185, -0.20899999981338624, -0.41599999985919567, -0.041000000237545464
+				],
+				"candidateMeanUs": 2.288407499990323,
+				"referenceMeanUs": 2.3948224999950676,
+				"batchMeanDeltasUs": [
+					0.1341499999913745, -0.18610999999509656, -0.37940999999894587, 0.005709999983688745
+				],
+				"medianBatchP50DeltaUs": -0.12500000002546585
+			},
+			{
+				"id": "spending/vendorStats",
+				"candidateMedianBatchP50Us": 2.1664999994754908,
+				"referenceMedianBatchP50Us": 2.33299999990777,
+				"batchP50DeltasUs": [
+					0.1250000004802132, -0.20899999981338624, -0.3750000005311449, -0.08300000081362668
+				],
+				"candidateMeanUs": 2.3167024999975183,
+				"referenceMeanUs": 2.382824166663037,
+				"batchMeanDeltasUs": [
+					0.26363333335211814, -0.14670000005329117, -0.358646666651718, -0.02277333330918431
+				],
+				"medianBatchP50DeltaUs": -0.14600000031350646
+			},
+			{
+				"id": "spending/causal/release-controller",
+				"candidateMedianBatchP50Us": 2.1460000002662127,
+				"referenceMedianBatchP50Us": 2.33299999990777,
+				"batchP50DeltasUs": [
+					0.08400000024266774, -0.249999999141437, -0.41600000076869037, -0.08299999990413198
+				],
+				"candidateMeanUs": 4.342031666662933,
+				"referenceMeanUs": 2.493710000005649,
+				"batchMeanDeltasUs": [
+					0.15547333329777754, 7.788050000002235, -0.4780066666959706, -0.0722299999749037
+				],
+				"medianBatchP50DeltaUs": -0.1664999995227845
+			},
+			{
+				"id": "spending/causal/input/effect-outcomes",
+				"candidateMedianBatchP50Us": 2.145500000551692,
+				"referenceMedianBatchP50Us": 2.291499999955704,
+				"batchP50DeltasUs": [
+					0.1250000004802132, -0.20799999947485048, -0.33400000029359944, -0.04199999966658652
+				],
+				"candidateMeanUs": 2.306208333338115,
+				"referenceMeanUs": 2.357742500001526,
+				"batchMeanDeltasUs": [
+					0.13066666662477164, -0.10110666664028649, -0.25696999999127, 0.021273333353141136
+				],
+				"medianBatchP50DeltaUs": -0.1249999995707185
+			},
+			{
+				"id": "spending/inboxFacts",
+				"candidateMedianBatchP50Us": 2.145500000096945,
+				"referenceMedianBatchP50Us": 2.24949999983437,
+				"batchP50DeltasUs": [
+					0.12599999990925426, -0.1249999995707185, -0.37400000110210385, -0.04099999932805076
+				],
+				"candidateMeanUs": 2.267394999988331,
+				"referenceMeanUs": 2.362457499987916,
+				"batchMeanDeltasUs": [
+					0.07639000000987531, 0.14252333335813697, -0.5566599999959482, -0.042503333370404794
+				],
+				"medianBatchP50DeltaUs": -0.08299999944938463
+			},
+			{
+				"id": "spending/localFacts",
+				"candidateMedianBatchP50Us": 2.12550000014744,
+				"referenceMedianBatchP50Us": 2.2709999998369312,
+				"batchP50DeltasUs": [
+					0.1250000004802132, -0.1249999995707185, -0.37400000019260915, -0.08299999990413198
+				],
+				"candidateMeanUs": 2.3468141666823312,
+				"referenceMeanUs": 2.3470441666548445,
+				"batchMeanDeltasUs": [
+					0.27346666672201525, 0.029176666691152486, -0.18291666667209944, -0.12064666663112213
+				],
+				"medianBatchP50DeltaUs": -0.10399999973742524
+			},
+			{
+				"id": "spending/userProfile",
+				"candidateMedianBatchP50Us": 2.1250000004329195,
+				"referenceMedianBatchP50Us": 2.270500000577158,
+				"batchP50DeltasUs": [
+					0.1249999995707185, -0.20799999947485048, -0.41599999985919567, -0.041000000237545464
+				],
+				"candidateMeanUs": 2.3153450000108933,
+				"referenceMeanUs": 2.356264999997772,
+				"batchMeanDeltasUs": [
+					0.134036666653022, 0.16151333339924642, -0.451969999979459, -0.007260000020323839
+				],
+				"medianBatchP50DeltaUs": -0.12449999985619797
+			},
+			{
+				"id": "spending/causal/input/watermarks",
+				"candidateMedianBatchP50Us": 2.1250000004329195,
+				"referenceMedianBatchP50Us": 2.250500000172906,
+				"batchP50DeltasUs": [
+					0.16599999980826396, -0.16700000014679972, -0.3329999999550637, -0.08299999990413198
+				],
+				"candidateMeanUs": 2.241191666695765,
+				"referenceMeanUs": 2.3284908333243948,
+				"batchMeanDeltasUs": [
+					0.17533666670715292, -0.14872999997047948, -0.3067766666481472, -0.06902666660304645
+				],
+				"medianBatchP50DeltaUs": -0.12500000002546585
+			},
+			{
+				"id": "spending/causal/currentness",
+				"candidateMedianBatchP50Us": 2.1250000004329195,
+				"referenceMedianBatchP50Us": 2.2709999998369312,
+				"batchP50DeltasUs": [
+					0.08400000115216244, -0.20799999947485048, -0.3750000005311449, -0.04199999966658652
+				],
+				"candidateMeanUs": 2.3173525000023196,
+				"referenceMeanUs": 2.32291916667009,
+				"batchMeanDeltasUs": [
+					0.09843000004972677, 0.2481699999467915, -0.30037333333893895, -0.06849333332866088
+				],
+				"medianBatchP50DeltaUs": -0.1249999995707185
+			},
+			{
+				"id": "spending/causal/quiescence",
+				"candidateMedianBatchP50Us": 2.1250000004329195,
+				"referenceMedianBatchP50Us": 2.291499999955704,
+				"batchP50DeltasUs": [
+					0.16700000014679972, -0.20799999947485048, -0.33400000029359944, -0.08299999990413198
+				],
+				"candidateMeanUs": 2.2957008333484437,
+				"referenceMeanUs": 2.321879999998752,
+				"batchMeanDeltasUs": [
+					0.23526333339153432, -0.0998366666590299, -0.2568066666723701, 0.016663333338631965
+				],
+				"medianBatchP50DeltaUs": -0.14549999968949123
+			},
+			{
+				"id": "spending/alertMessage",
+				"candidateMedianBatchP50Us": 2.124999999978172,
+				"referenceMedianBatchP50Us": 2.3125000002437446,
+				"batchP50DeltasUs": [
+					0.08399999933317304, -0.249999999141437, -0.41599999985919567, -0.1250000004802132
+				],
+				"candidateMeanUs": 2.201165833324315,
+				"referenceMeanUs": 2.4097033333335576,
+				"batchMeanDeltasUs": [
+					0.0660933333134989, -0.3224799999952668, -0.4298399999849304, -0.14792333337027225
+				],
+				"medianBatchP50DeltaUs": -0.1874999998108251
+			},
+			{
+				"id": "spending/causal/released",
+				"candidateMedianBatchP50Us": 2.124999999978172,
+				"referenceMedianBatchP50Us": 2.291499999955704,
+				"batchP50DeltasUs": [
+					0.1250000004802132, -0.20899999981338624, -0.37600000086968066, -0.08300000081362668
+				],
+				"candidateMeanUs": 2.238625000012083,
+				"referenceMeanUs": 2.3601825000097656,
+				"batchMeanDeltasUs": [
+					0.15621333332395188, -0.09321333331475512, -0.361150000038227, -0.18807999996170097
+				],
+				"medianBatchP50DeltaUs": -0.14600000031350646
+			},
+			{
+				"id": "spending/effectProposals",
+				"candidateMedianBatchP50Us": 2.1249999995234248,
+				"referenceMedianBatchP50Us": 2.2500000004583853,
+				"batchP50DeltasUs": [
+					0.1249999986612238, -0.16599999980826396, -0.33400000029359944, -0.08300000081362668
+				],
+				"candidateMeanUs": 2.2446950000153265,
+				"referenceMeanUs": 2.334357500005808,
+				"batchMeanDeltasUs": [
+					0.1884166666817088, -0.09939999997186531, -0.31142666667922925, -0.13623999999253997
+				],
+				"medianBatchP50DeltaUs": -0.12450000031094532
+			},
+			{
+				"id": "spending/policy",
+				"candidateMedianBatchP50Us": 2.1045000003141467,
+				"referenceMedianBatchP50Us": 2.250000000003638,
+				"batchP50DeltasUs": [
+					0.1250000004802132, -0.16699999923730502, -0.41599999894970097, -0.08299999990413198
+				],
+				"candidateMeanUs": 2.252383333351797,
+				"referenceMeanUs": 4.845440000005965,
+				"batchMeanDeltasUs": [
+					0.12224333335022174, 0.049806666665972756, -0.41150999996413407, -10.132766666668736
+				],
+				"medianBatchP50DeltaUs": -0.1249999995707185
+			},
+			{
+				"id": "spending/effectAdmissions",
+				"candidateMedianBatchP50Us": 2.083499999571359,
+				"referenceMedianBatchP50Us": 2.291499999955704,
+				"batchP50DeltasUs": [
+					0.08300000081362668, -0.24900000153138535, -0.4170000001977314, -0.1250000004802132
+				],
+				"candidateMeanUs": 2.186589999989034,
+				"referenceMeanUs": 2.356245833336743,
+				"batchMeanDeltasUs": [
+					0.14830666663025704, -0.23902666668315425, -0.41915333329901233, -0.1687500000389264
+				],
+				"medianBatchP50DeltaUs": -0.18700000100579928
+			},
+			{
+				"id": "spending/causal/committed-effects",
+				"candidateMedianBatchP50Us": 2.083499999571359,
+				"referenceMedianBatchP50Us": 2.1875000002182787,
+				"batchP50DeltasUs": [
+					0.16700000014679972, -0.16700000014679972, -0.2920000006270129, -0.041000001147040166
+				],
+				"candidateMeanUs": 2.206208333335174,
+				"referenceMeanUs": 2.274280833334312,
+				"batchMeanDeltasUs": [
+					0.13681999998273836, -0.15853333333022127, -0.21684333326750993, -0.03373333338155737
+				],
+				"medianBatchP50DeltaUs": -0.10400000064691994
+			},
+			{
+				"id": "spending/occurrences",
+				"candidateMedianBatchP50Us": 2.0830000003115856,
+				"referenceMedianBatchP50Us": 2.2085000005063193,
+				"batchP50DeltasUs": [
+					0.20799999856535578, -0.20799999856535578, -0.3750000005311449, -0.04200000057608122
+				],
+				"candidateMeanUs": 2.21459749998985,
+				"referenceMeanUs": 4.8249783333312735,
+				"batchMeanDeltasUs": [
+					0.20416666663550156, -0.07393333331189413, -0.4736766666671127, -10.098080000022188
+				],
+				"medianBatchP50DeltaUs": -0.1249999995707185
+			},
+			{
+				"id": "spending/causal/conservation",
+				"candidateMedianBatchP50Us": 2.0829999998568383,
+				"referenceMedianBatchP50Us": 2.166499999930238,
+				"batchP50DeltasUs": [0.20799999947485048, -0.12599999990925426, -0.29100000028847717, 0.0],
+				"candidateMeanUs": 2.2285691666676635,
+				"referenceMeanUs": 2.2472800000014104,
+				"batchMeanDeltasUs": [
+					0.272059999973256, 0.0012500000169286818, -0.2770533333114147, -0.07110000001375738
+				],
+				"medianBatchP50DeltaUs": -0.06299999995462713
+			},
+			{
+				"id": "spending/effectOutcomes",
+				"candidateMedianBatchP50Us": 2.062500000192813,
+				"referenceMedianBatchP50Us": 2.208500000051572,
+				"batchP50DeltasUs": [
+					0.12400000014167745, -0.20799999947485048, -0.3750000005311449, -0.04200000057608122
+				],
+				"candidateMeanUs": 2.168918333344815,
+				"referenceMeanUs": 2.3132825000046373,
+				"batchMeanDeltasUs": [
+					0.03620999998626452, -0.18581333334320066, -0.3560133332878952, -0.07183999999445678
+				],
+				"medianBatchP50DeltaUs": -0.12500000002546585
+			},
+			{
+				"id": "spending/startup",
+				"candidateMedianBatchP50Us": 2.0624999997380655,
+				"referenceMedianBatchP50Us": 2.271500000006199,
+				"batchP50DeltasUs": [
+					0.33199999961652793, -0.20800000038434519, -0.5830000000059954, -0.12599999990925426
+				],
+				"candidateMeanUs": 2.4448241666762742,
+				"referenceMeanUs": 2.6179008333398697,
+				"batchMeanDeltasUs": [
+					0.1509633333292488, 0.17824000003201962, -0.593163333366344, -0.4283466666493044
+				],
+				"medianBatchP50DeltaUs": -0.16700000014679972
+			},
+			{
+				"id": "spending/causal/coverage",
+				"candidateMedianBatchP50Us": 2.0624999997380655,
+				"referenceMedianBatchP50Us": 2.1874999997635314,
+				"batchP50DeltasUs": [0.08300000081362668, -0.20800000038434519, -0.3749999996216502, 0.0],
+				"candidateMeanUs": 2.1623216666595604,
+				"referenceMeanUs": 2.262734999991759,
+				"batchMeanDeltasUs": [
+					0.11570666667770016, -0.1598600000276445, -0.393019999983153, 0.03552000000430194
+				],
+				"medianBatchP50DeltaUs": -0.10400000019217259
+			},
+			{
+				"id": "spending/causal/issues",
+				"candidateMedianBatchP50Us": 2.041999999619293,
+				"referenceMedianBatchP50Us": 2.1665000003849855,
+				"batchP50DeltasUs": [
+					0.1250000004802132, -0.16600000071775867, -0.3749999996216502, -0.041000001147040166
+				],
+				"candidateMeanUs": 2.1481116666708053,
+				"referenceMeanUs": 2.238540833332081,
+				"batchMeanDeltasUs": [
+					0.1791099999900324, -0.15851333336286194, -0.3390233332841793, -0.04328999998809467
+				],
+				"medianBatchP50DeltaUs": -0.10350000093239942
+			},
+			{
+				"id": "publication",
+				"candidateMedianBatchP50Us": 1.9585000000006403,
+				"referenceMedianBatchP50Us": 2.1044999998593994,
+				"batchP50DeltasUs": [
+					0.16599999980826396, -0.2500000000509317, -0.3750000005311449, -0.04199999966658652
+				],
+				"candidateMeanUs": 2.0514691666843037,
+				"referenceMeanUs": 2.1713783333348147,
+				"batchMeanDeltasUs": [
+					0.122386666683572, -0.09386000002450609, -0.3579399999398447, -0.15022333332126436
+				],
+				"medianBatchP50DeltaUs": -0.1459999998587591
+			},
+			{
+				"id": "local",
+				"candidateMedianBatchP50Us": 1.2079999996785773,
+				"referenceMedianBatchP50Us": 1.3125000000400178,
+				"batchP50DeltasUs": [
+					0.1250000004802132, -0.16700000014679972, -0.3329999999550637, -9.094947017729282e-10
+				],
+				"candidateMeanUs": 1.6756983333220887,
+				"referenceMeanUs": 1.3776508333535276,
+				"batchMeanDeltasUs": [
+					0.13311333331936714, 1.3982299999770473, -0.24860333338134902, -0.09055000004082109
+				],
+				"medianBatchP50DeltaUs": -0.08350000052814721
+			},
+			{
+				"id": "arrivals",
+				"candidateMedianBatchP50Us": 1.187500000014552,
+				"referenceMedianBatchP50Us": 1.2915000002067245,
+				"batchP50DeltasUs": [0.16599999980826396, -0.20799999947485048, -0.3749999996216502, 0.0],
+				"candidateMeanUs": 1.2911083333278839,
+				"referenceMeanUs": 1.3555791666719113,
+				"batchMeanDeltasUs": [
+					0.15560333331450232, -0.10694999999032, -0.34760333334209775, 0.041066666641806186
+				],
+				"medianBatchP50DeltaUs": -0.10399999973742524
+			},
+			{
+				"id": "current",
+				"candidateMedianBatchP50Us": 1.0835000002771267,
+				"referenceMedianBatchP50Us": 1.228999999966618,
+				"batchP50DeltasUs": [
+					0.1249999995707185, -0.20799999947485048, -0.37399999928311445, -0.041000000237545464
+				],
+				"candidateMeanUs": 1.246894999998555,
+				"referenceMeanUs": 3.5327658333509744,
+				"batchMeanDeltasUs": [
+					-8.945936666680913, 0.039093333346803316, -0.2337433333984033, -0.0028966666771640566
+				],
+				"medianBatchP50DeltaUs": -0.12449999985619797
+			},
+			{
+				"id": "verification",
+				"candidateMedianBatchP50Us": 1.0834999998223793,
+				"referenceMedianBatchP50Us": 1.2289999995118706,
+				"batchP50DeltasUs": [
+					0.04200000057608122, -0.16700000014679972, -0.3329999999550637, -0.04099999932805076
+				],
+				"candidateMeanUs": 1.1629266666644373,
+				"referenceMeanUs": 1.2844400000093021,
+				"batchMeanDeltasUs": [
+					0.03389666667317223, -0.16762666669819745, -0.348419999985102, -0.003903333369332119
+				],
+				"medianBatchP50DeltaUs": -0.10399999973742524
+			},
+			{
+				"id": "inbox",
+				"candidateMedianBatchP50Us": 1.0419999998703133,
+				"referenceMedianBatchP50Us": 1.146000000062486,
+				"batchP50DeltasUs": [
+					0.1250000004802132, -0.16599999980826396, -0.2920000006270129, -9.094947017729282e-10
+				],
+				"candidateMeanUs": 1.141661666674736,
+				"referenceMeanUs": 1.2293291666810546,
+				"batchMeanDeltasUs": [
+					0.08978333338139537, -0.1770500000293396, -0.33698000000489015, 0.07357666662755948
+				],
+				"medianBatchP50DeltaUs": -0.08300000035887933
+			}
+		],
+		"nodesByTypicalDelta": [
+			{
+				"id": "spending/currentFacts",
+				"candidateMedianBatchP50Us": 4.187499999716238,
+				"referenceMedianBatchP50Us": 2.5625000002946763,
+				"batchP50DeltasUs": [
+					1.9169999986843322, 1.6249999998763087, 1.374999999825377, 1.624999998966814
+				],
+				"candidateMeanUs": 6.4758000000028915,
+				"referenceMeanUs": 2.6815216666553474,
+				"batchMeanDeltasUs": [
+					1.827746666704115, 10.271296666672546, 1.3254500000372593, 1.7526199999762562
+				],
+				"medianBatchP50DeltaUs": 1.6249999994215614
+			},
+			{
+				"id": "spending/materialStore",
+				"candidateMedianBatchP50Us": 2.250000000003638,
+				"referenceMedianBatchP50Us": 2.250500000172906,
+				"batchP50DeltasUs": [
+					0.2500000000509317, -0.04199999966658652, -0.25100000038946746, 0.08299999990413198
+				],
+				"candidateMeanUs": 2.4233158333224005,
+				"referenceMeanUs": 2.4125700000096613,
+				"batchMeanDeltasUs": [
+					0.4945933333177282, 0.007259999980912223, -0.3671299999981181, -0.09174000004956397
+				],
+				"medianBatchP50DeltaUs": 0.020500000118772732
+			},
+			{
+				"id": "spending/anomalyScore",
+				"candidateMedianBatchP50Us": 2.686999999696127,
+				"referenceMedianBatchP50Us": 2.7500000001055014,
+				"batchP50DeltasUs": [0.20699999913631473, -0.1250000004802132, -0.37400000019260915, 0.0],
+				"candidateMeanUs": 2.8668858333329204,
+				"referenceMeanUs": 5.028884999980315,
+				"batchMeanDeltasUs": [
+					0.19433999998606571, -8.488186666642527, -0.286379999943165, -0.06776999998995334
+				],
+				"medianBatchP50DeltaUs": -0.0625000002401066
+			},
+			{
+				"id": "spending/causal/arrivals",
+				"candidateMedianBatchP50Us": 3.7289999995664402,
+				"referenceMedianBatchP50Us": 3.8125000000945874,
+				"batchP50DeltasUs": [
+					0.29100000028847717, -0.08299999990413198, -0.3749999996216502, -0.04200000057608122
+				],
+				"candidateMeanUs": 3.8649108333402182,
+				"referenceMeanUs": 3.866243333324443,
+				"batchMeanDeltasUs": [
+					0.3837433333198233, 0.027113333374776186, -0.2928799999911765, -0.12330666664032205
+				],
+				"medianBatchP50DeltaUs": -0.0625000002401066
+			},
+			{
+				"id": "spending/materialSnapshot",
+				"candidateMedianBatchP50Us": 2.1665000003849855,
+				"referenceMedianBatchP50Us": 2.250000000003638,
+				"batchP50DeltasUs": [
+					0.16700000014679972, -0.1249999995707185, -0.3329999999550637, -0.000999999429041054
+				],
+				"candidateMeanUs": 4.789812500008945,
+				"referenceMeanUs": 2.3494100000038998,
+				"batchMeanDeltasUs": [
+					10.005723333336695, -0.05695666669756341, -0.1199166666629027, -0.06723999995604871
+				],
+				"medianBatchP50DeltaUs": -0.06299999949987978
+			},
+			{
+				"id": "spending/causal/conservation",
+				"candidateMedianBatchP50Us": 2.0829999998568383,
+				"referenceMedianBatchP50Us": 2.166499999930238,
+				"batchP50DeltasUs": [0.20799999947485048, -0.12599999990925426, -0.29100000028847717, 0.0],
+				"candidateMeanUs": 2.2285691666676635,
+				"referenceMeanUs": 2.2472800000014104,
+				"batchMeanDeltasUs": [
+					0.272059999973256, 0.0012500000169286818, -0.2770533333114147, -0.07110000001375738
+				],
+				"medianBatchP50DeltaUs": -0.06299999995462713
+			},
+			{
+				"id": "spending/causal/input/effect-admissions",
+				"candidateMedianBatchP50Us": 2.2079999994275568,
+				"referenceMedianBatchP50Us": 2.3124999997889972,
+				"batchP50DeltasUs": [
+					0.1250000013897079, -0.12600000081874896, -0.3750000005311449, -9.094947017729282e-10
+				],
+				"candidateMeanUs": 2.433483333324299,
+				"referenceMeanUs": 2.4054875000024367,
+				"batchMeanDeltasUs": [
+					0.35634666667344084, -0.024616666699633742, -0.23794000002756852, 0.01819333334121152
+				],
+				"medianBatchP50DeltaUs": -0.06300000086412183
+			},
+			{
+				"id": "spending/inboxFacts",
+				"candidateMedianBatchP50Us": 2.145500000096945,
+				"referenceMedianBatchP50Us": 2.24949999983437,
+				"batchP50DeltasUs": [
+					0.12599999990925426, -0.1249999995707185, -0.37400000110210385, -0.04099999932805076
+				],
+				"candidateMeanUs": 2.267394999988331,
+				"referenceMeanUs": 2.362457499987916,
+				"batchMeanDeltasUs": [
+					0.07639000000987531, 0.14252333335813697, -0.5566599999959482, -0.042503333370404794
+				],
+				"medianBatchP50DeltaUs": -0.08299999944938463
+			},
+			{
+				"id": "inbox",
+				"candidateMedianBatchP50Us": 1.0419999998703133,
+				"referenceMedianBatchP50Us": 1.146000000062486,
+				"batchP50DeltasUs": [
+					0.1250000004802132, -0.16599999980826396, -0.2920000006270129, -9.094947017729282e-10
+				],
+				"candidateMeanUs": 1.141661666674736,
+				"referenceMeanUs": 1.2293291666810546,
+				"batchMeanDeltasUs": [
+					0.08978333338139537, -0.1770500000293396, -0.33698000000489015, 0.07357666662755948
+				],
+				"medianBatchP50DeltaUs": -0.08300000035887933
+			},
+			{
+				"id": "spending/verificationFacts",
+				"candidateMedianBatchP50Us": 2.187499999308784,
+				"referenceMedianBatchP50Us": 2.2914999995009566,
+				"batchP50DeltasUs": [0.1250000004802132, -0.16600000071775867, -0.3750000005311449, 0.0],
+				"candidateMeanUs": 2.306619999993321,
+				"referenceMeanUs": 2.415155000012419,
+				"batchMeanDeltasUs": [
+					0.09817999999237742, -0.1282100000298673, -0.410783333342503, 0.00667333330360044
+				],
+				"medianBatchP50DeltaUs": -0.08300000035887933
+			},
+			{
+				"id": "local",
+				"candidateMedianBatchP50Us": 1.2079999996785773,
+				"referenceMedianBatchP50Us": 1.3125000000400178,
+				"batchP50DeltasUs": [
+					0.1250000004802132, -0.16700000014679972, -0.3329999999550637, -9.094947017729282e-10
+				],
+				"candidateMeanUs": 1.6756983333220887,
+				"referenceMeanUs": 1.3776508333535276,
+				"batchMeanDeltasUs": [
+					0.13311333331936714, 1.3982299999770473, -0.24860333338134902, -0.09055000004082109
+				],
+				"medianBatchP50DeltaUs": -0.08350000052814721
+			},
+			{
+				"id": "spending/causal/issues",
+				"candidateMedianBatchP50Us": 2.041999999619293,
+				"referenceMedianBatchP50Us": 2.1665000003849855,
+				"batchP50DeltasUs": [
+					0.1250000004802132, -0.16600000071775867, -0.3749999996216502, -0.041000001147040166
+				],
+				"candidateMeanUs": 2.1481116666708053,
+				"referenceMeanUs": 2.238540833332081,
+				"batchMeanDeltasUs": [
+					0.1791099999900324, -0.15851333336286194, -0.3390233332841793, -0.04328999998809467
+				],
+				"medianBatchP50DeltaUs": -0.10350000093239942
+			},
+			{
+				"id": "arrivals",
+				"candidateMedianBatchP50Us": 1.187500000014552,
+				"referenceMedianBatchP50Us": 1.2915000002067245,
+				"batchP50DeltasUs": [0.16599999980826396, -0.20799999947485048, -0.3749999996216502, 0.0],
+				"candidateMeanUs": 1.2911083333278839,
+				"referenceMeanUs": 1.3555791666719113,
+				"batchMeanDeltasUs": [
+					0.15560333331450232, -0.10694999999032, -0.34760333334209775, 0.041066666641806186
+				],
+				"medianBatchP50DeltaUs": -0.10399999973742524
+			},
+			{
+				"id": "verification",
+				"candidateMedianBatchP50Us": 1.0834999998223793,
+				"referenceMedianBatchP50Us": 1.2289999995118706,
+				"batchP50DeltasUs": [
+					0.04200000057608122, -0.16700000014679972, -0.3329999999550637, -0.04099999932805076
+				],
+				"candidateMeanUs": 1.1629266666644373,
+				"referenceMeanUs": 1.2844400000093021,
+				"batchMeanDeltasUs": [
+					0.03389666667317223, -0.16762666669819745, -0.348419999985102, -0.003903333369332119
+				],
+				"medianBatchP50DeltaUs": -0.10399999973742524
+			},
+			{
+				"id": "spending/localFacts",
+				"candidateMedianBatchP50Us": 2.12550000014744,
+				"referenceMedianBatchP50Us": 2.2709999998369312,
+				"batchP50DeltasUs": [
+					0.1250000004802132, -0.1249999995707185, -0.37400000019260915, -0.08299999990413198
+				],
+				"candidateMeanUs": 2.3468141666823312,
+				"referenceMeanUs": 2.3470441666548445,
+				"batchMeanDeltasUs": [
+					0.27346666672201525, 0.029176666691152486, -0.18291666667209944, -0.12064666663112213
+				],
+				"medianBatchP50DeltaUs": -0.10399999973742524
+			},
+			{
+				"id": "spending/causal/input/admissions",
+				"candidateMedianBatchP50Us": 2.208500000051572,
+				"referenceMedianBatchP50Us": 2.333500000077038,
+				"batchP50DeltasUs": [
+					0.20799999947485048, -0.16599999980826396, -0.3749999996216502, -0.04199999966658652
+				],
+				"candidateMeanUs": 2.3969349999864185,
+				"referenceMeanUs": 4.863064166671241,
+				"batchMeanDeltasUs": [
+					0.3574633333543412, -0.10151000004952936, -10.23375333334722, 0.11328333330311563
+				],
+				"medianBatchP50DeltaUs": -0.10399999973742524
+			},
+			{
+				"id": "spending/causal/input/effect-proposals",
+				"candidateMedianBatchP50Us": 2.1665000003849855,
+				"referenceMedianBatchP50Us": 2.291499999955704,
+				"batchP50DeltasUs": [
+					0.1250000004802132, -0.16599999980826396, -0.33399999938410474, -0.04199999966658652
+				],
+				"candidateMeanUs": 2.3988958333317596,
+				"referenceMeanUs": 2.3236799999919335,
+				"batchMeanDeltasUs": [
+					0.17131666670138673, 0.36827333331530127, -0.23609333334206895, -0.002633333315316469
+				],
+				"medianBatchP50DeltaUs": -0.10399999973742524
+			},
+			{
+				"id": "spending/causal/input/branch-terminals",
+				"candidateMedianBatchP50Us": 2.1875000002182787,
+				"referenceMedianBatchP50Us": 2.3125000002437446,
+				"batchP50DeltasUs": [
+					0.16699999923730502, -0.1250000004802132, -0.3749999996216502, -0.08299999990413198
+				],
+				"candidateMeanUs": 2.3772158333319267,
+				"referenceMeanUs": 2.409556666669535,
+				"batchMeanDeltasUs": [
+					0.13065666665473427, -0.015679999972538147, -0.38685000005898473, 0.14251000002635325
+				],
+				"medianBatchP50DeltaUs": -0.10400000019217259
+			},
+			{
+				"id": "spending/causal/release-candidates",
+				"candidateMedianBatchP50Us": 6.562500000200089,
+				"referenceMedianBatchP50Us": 6.666500000392261,
+				"batchP50DeltasUs": [0.16800000048533548, -0.20800000038434519, -0.5000000001018634, 0.0],
+				"candidateMeanUs": 32.391635000002076,
+				"referenceMeanUs": 6.983065833325479,
+				"batchMeanDeltasUs": [
+					0.0041400000160745146, 93.62186666668094, -0.647120000024491, 8.655390000033853
+				],
+				"medianBatchP50DeltaUs": -0.10400000019217259
+			},
+			{
+				"id": "spending/causal/terminals",
+				"candidateMedianBatchP50Us": 2.1874999997635314,
+				"referenceMedianBatchP50Us": 2.2915000004104513,
+				"batchP50DeltasUs": [
+					0.1249999995707185, -0.16700000014679972, -0.3749999987121555, -0.041000000237545464
+				],
+				"candidateMeanUs": 2.3649075000101525,
+				"referenceMeanUs": 2.358751666651339,
+				"batchMeanDeltasUs": [
+					0.15691666671348997, 0.14139333338789592, -0.30726333333404904, 0.03357666666791662
+				],
+				"medianBatchP50DeltaUs": -0.10400000019217259
+			},
+			{
+				"id": "spending/causal/coverage",
+				"candidateMedianBatchP50Us": 2.0624999997380655,
+				"referenceMedianBatchP50Us": 2.1874999997635314,
+				"batchP50DeltasUs": [0.08300000081362668, -0.20800000038434519, -0.3749999996216502, 0.0],
+				"candidateMeanUs": 2.1623216666595604,
+				"referenceMeanUs": 2.262734999991759,
+				"batchMeanDeltasUs": [
+					0.11570666667770016, -0.1598600000276445, -0.393019999983153, 0.03552000000430194
+				],
+				"medianBatchP50DeltaUs": -0.10400000019217259
+			},
+			{
+				"id": "spending/causal/committed-effects",
+				"candidateMedianBatchP50Us": 2.083499999571359,
+				"referenceMedianBatchP50Us": 2.1875000002182787,
+				"batchP50DeltasUs": [
+					0.16700000014679972, -0.16700000014679972, -0.2920000006270129, -0.041000001147040166
+				],
+				"candidateMeanUs": 2.206208333335174,
+				"referenceMeanUs": 2.274280833334312,
+				"batchMeanDeltasUs": [
+					0.13681999998273836, -0.15853333333022127, -0.21684333326750993, -0.03373333338155737
+				],
+				"medianBatchP50DeltaUs": -0.10400000064691994
+			},
+			{
+				"id": "spending/reasonFactors",
+				"candidateMedianBatchP50Us": 2.33299999990777,
+				"referenceMedianBatchP50Us": 2.4584999996477563,
+				"batchP50DeltasUs": [
+					0.16700000014679972, -0.16700000014679972, -0.3750000005311449, -0.04199999966658652
+				],
+				"candidateMeanUs": 2.435926666682917,
+				"referenceMeanUs": 2.5117483333095456,
+				"batchMeanDeltasUs": [
+					0.1821000000927597, -0.1794699999663864, -0.3377599999839732, 0.03184333335108604
+				],
+				"medianBatchP50DeltaUs": -0.10449999990669312
+			},
+			{
+				"id": "current",
+				"candidateMedianBatchP50Us": 1.0835000002771267,
+				"referenceMedianBatchP50Us": 1.228999999966618,
+				"batchP50DeltasUs": [
+					0.1249999995707185, -0.20799999947485048, -0.37399999928311445, -0.041000000237545464
+				],
+				"candidateMeanUs": 1.246894999998555,
+				"referenceMeanUs": 3.5327658333509744,
+				"batchMeanDeltasUs": [
+					-8.945936666680913, 0.039093333346803316, -0.2337433333984033, -0.0028966666771640566
+				],
+				"medianBatchP50DeltaUs": -0.12449999985619797
+			},
+			{
+				"id": "spending/userProfile",
+				"candidateMedianBatchP50Us": 2.1250000004329195,
+				"referenceMedianBatchP50Us": 2.270500000577158,
+				"batchP50DeltasUs": [
+					0.1249999995707185, -0.20799999947485048, -0.41599999985919567, -0.041000000237545464
+				],
+				"candidateMeanUs": 2.3153450000108933,
+				"referenceMeanUs": 2.356264999997772,
+				"batchMeanDeltasUs": [
+					0.134036666653022, 0.16151333339924642, -0.451969999979459, -0.007260000020323839
+				],
+				"medianBatchP50DeltaUs": -0.12449999985619797
+			},
+			{
+				"id": "spending/effectProposals",
+				"candidateMedianBatchP50Us": 2.1249999995234248,
+				"referenceMedianBatchP50Us": 2.2500000004583853,
+				"batchP50DeltasUs": [
+					0.1249999986612238, -0.16599999980826396, -0.33400000029359944, -0.08300000081362668
+				],
+				"candidateMeanUs": 2.2446950000153265,
+				"referenceMeanUs": 2.334357500005808,
+				"batchMeanDeltasUs": [
+					0.1884166666817088, -0.09939999997186531, -0.31142666667922925, -0.13623999999253997
+				],
+				"medianBatchP50DeltaUs": -0.12450000031094532
+			},
+			{
+				"id": "spending/publicationPolicy",
+				"candidateMedianBatchP50Us": 3.3334999998260173,
+				"referenceMedianBatchP50Us": 3.4995000000890286,
+				"batchP50DeltasUs": [
+					0.08399999933317304, -0.1250000004802132, -0.3750000005311449, -0.12400000014167745
+				],
+				"candidateMeanUs": 3.4507591666488224,
+				"referenceMeanUs": 3.5828708333459267,
+				"batchMeanDeltasUs": [
+					0.014276666615842086, 0.05430000000463536, -0.49540666669296723, -0.10161666671592695
+				],
+				"medianBatchP50DeltaUs": -0.12450000031094532
+			},
+			{
+				"id": "spending/causal/causal-quiescence",
+				"candidateMedianBatchP50Us": 2.395999999862397,
+				"referenceMedianBatchP50Us": 2.5210000003426103,
+				"batchP50DeltasUs": [
+					0.20799999947485048, -0.20800000038434519, -0.4170000001977314, -0.041000000237545464
+				],
+				"candidateMeanUs": 2.5025483333411103,
+				"referenceMeanUs": 2.696123333354687,
+				"batchMeanDeltasUs": [
+					0.1101766666367133, -0.1709566666674312, -0.6262999999853491, -0.08722000003823878
+				],
+				"medianBatchP50DeltaUs": -0.12450000031094532
+			},
+			{
+				"id": "spending/policy",
+				"candidateMedianBatchP50Us": 2.1045000003141467,
+				"referenceMedianBatchP50Us": 2.250000000003638,
+				"batchP50DeltasUs": [
+					0.1250000004802132, -0.16699999923730502, -0.41599999894970097, -0.08299999990413198
+				],
+				"candidateMeanUs": 2.252383333351797,
+				"referenceMeanUs": 4.845440000005965,
+				"batchMeanDeltasUs": [
+					0.12224333335022174, 0.049806666665972756, -0.41150999996413407, -10.132766666668736
+				],
+				"medianBatchP50DeltaUs": -0.1249999995707185
+			},
+			{
+				"id": "spending/occurrences",
+				"candidateMedianBatchP50Us": 2.0830000003115856,
+				"referenceMedianBatchP50Us": 2.2085000005063193,
+				"batchP50DeltasUs": [
+					0.20799999856535578, -0.20799999856535578, -0.3750000005311449, -0.04200000057608122
+				],
+				"candidateMeanUs": 2.21459749998985,
+				"referenceMeanUs": 4.8249783333312735,
+				"batchMeanDeltasUs": [
+					0.20416666663550156, -0.07393333331189413, -0.4736766666671127, -10.098080000022188
+				],
+				"medianBatchP50DeltaUs": -0.1249999995707185
+			},
+			{
+				"id": "spending/causal/input/effect-outcomes",
+				"candidateMedianBatchP50Us": 2.145500000551692,
+				"referenceMedianBatchP50Us": 2.291499999955704,
+				"batchP50DeltasUs": [
+					0.1250000004802132, -0.20799999947485048, -0.33400000029359944, -0.04199999966658652
+				],
+				"candidateMeanUs": 2.306208333338115,
+				"referenceMeanUs": 2.357742500001526,
+				"batchMeanDeltasUs": [
+					0.13066666662477164, -0.10110666664028649, -0.25696999999127, 0.021273333353141136
+				],
+				"medianBatchP50DeltaUs": -0.1249999995707185
+			},
+			{
+				"id": "spending/causal/currentness",
+				"candidateMedianBatchP50Us": 2.1250000004329195,
+				"referenceMedianBatchP50Us": 2.2709999998369312,
+				"batchP50DeltasUs": [
+					0.08400000115216244, -0.20799999947485048, -0.3750000005311449, -0.04199999966658652
+				],
+				"candidateMeanUs": 2.3173525000023196,
+				"referenceMeanUs": 2.32291916667009,
+				"batchMeanDeltasUs": [
+					0.09843000004972677, 0.2481699999467915, -0.30037333333893895, -0.06849333332866088
+				],
+				"medianBatchP50DeltaUs": -0.1249999995707185
+			},
+			{
+				"id": "spending/effectOutcomes",
+				"candidateMedianBatchP50Us": 2.062500000192813,
+				"referenceMedianBatchP50Us": 2.208500000051572,
+				"batchP50DeltasUs": [
+					0.12400000014167745, -0.20799999947485048, -0.3750000005311449, -0.04200000057608122
+				],
+				"candidateMeanUs": 2.168918333344815,
+				"referenceMeanUs": 2.3132825000046373,
+				"batchMeanDeltasUs": [
+					0.03620999998626452, -0.18581333334320066, -0.3560133332878952, -0.07183999999445678
+				],
+				"medianBatchP50DeltaUs": -0.12500000002546585
+			},
+			{
+				"id": "spending/causal/input/evidence",
+				"candidateMedianBatchP50Us": 2.166499999930238,
+				"referenceMedianBatchP50Us": 2.2915000004104513,
+				"batchP50DeltasUs": [
+					0.1249999995707185, -0.20899999981338624, -0.41599999985919567, -0.041000000237545464
+				],
+				"candidateMeanUs": 2.288407499990323,
+				"referenceMeanUs": 2.3948224999950676,
+				"batchMeanDeltasUs": [
+					0.1341499999913745, -0.18610999999509656, -0.37940999999894587, 0.005709999983688745
+				],
+				"medianBatchP50DeltaUs": -0.12500000002546585
+			},
+			{
+				"id": "spending/causal/input/watermarks",
+				"candidateMedianBatchP50Us": 2.1250000004329195,
+				"referenceMedianBatchP50Us": 2.250500000172906,
+				"batchP50DeltasUs": [
+					0.16599999980826396, -0.16700000014679972, -0.3329999999550637, -0.08299999990413198
+				],
+				"candidateMeanUs": 2.241191666695765,
+				"referenceMeanUs": 2.3284908333243948,
+				"batchMeanDeltasUs": [
+					0.17533666670715292, -0.14872999997047948, -0.3067766666481472, -0.06902666660304645
+				],
+				"medianBatchP50DeltaUs": -0.12500000002546585
+			},
+			{
+				"id": "spending/causal/release-events",
+				"candidateMedianBatchP50Us": 2.4370000000999426,
+				"referenceMedianBatchP50Us": 2.5835000001279695,
+				"batchP50DeltasUs": [
+					0.16599999980826396, -0.20899999981338624, -0.3750000005311449, -0.04200000057608122
+				],
+				"candidateMeanUs": 2.5432074999897245,
+				"referenceMeanUs": 2.7160641666887386,
+				"batchMeanDeltasUs": [
+					0.12620999995912502, -0.11979666670413258, -0.5704933333739366, -0.12734666667711322
+				],
+				"medianBatchP50DeltaUs": -0.12550000019473373
+			},
+			{
+				"id": "spending/causal/quiescence",
+				"candidateMedianBatchP50Us": 2.1250000004329195,
+				"referenceMedianBatchP50Us": 2.291499999955704,
+				"batchP50DeltasUs": [
+					0.16700000014679972, -0.20799999947485048, -0.33400000029359944, -0.08299999990413198
+				],
+				"candidateMeanUs": 2.2957008333484437,
+				"referenceMeanUs": 2.321879999998752,
+				"batchMeanDeltasUs": [
+					0.23526333339153432, -0.0998366666590299, -0.2568066666723701, 0.016663333338631965
+				],
+				"medianBatchP50DeltaUs": -0.14549999968949123
+			},
+			{
+				"id": "spending/causal/authority",
+				"candidateMedianBatchP50Us": 2.2919999996702245,
+				"referenceMedianBatchP50Us": 2.458000000387983,
+				"batchP50DeltasUs": [
+					0.16700000014679972, -0.20800000038434519, -0.4170000001977314, -0.08300000081362668
+				],
+				"candidateMeanUs": 2.4407408333286185,
+				"referenceMeanUs": 2.5649550000033137,
+				"batchMeanDeltasUs": [
+					0.18069333331974724, -0.15370333330793098, -0.3763500000119775, -0.1474966666986195
+				],
+				"medianBatchP50DeltaUs": -0.14550000059898593
+			},
+			{
+				"id": "spending/branchTerminals",
+				"candidateMedianBatchP50Us": 2.5415000000066357,
+				"referenceMedianBatchP50Us": 2.7079999999841675,
+				"batchP50DeltasUs": [
+					0.12599999899975955, -0.20800000038434519, -0.41599999985919567, -0.08399999933317304
+				],
+				"candidateMeanUs": 2.65661666667332,
+				"referenceMeanUs": 2.8580733333312005,
+				"batchMeanDeltasUs": [
+					0.13000333332759823, -0.19587333330794857, -0.3586033333188728, -0.3813533333322993
+				],
+				"medianBatchP50DeltaUs": -0.1459999998587591
+			},
+			{
+				"id": "publication",
+				"candidateMedianBatchP50Us": 1.9585000000006403,
+				"referenceMedianBatchP50Us": 2.1044999998593994,
+				"batchP50DeltasUs": [
+					0.16599999980826396, -0.2500000000509317, -0.3750000005311449, -0.04199999966658652
+				],
+				"candidateMeanUs": 2.0514691666843037,
+				"referenceMeanUs": 2.1713783333348147,
+				"batchMeanDeltasUs": [
+					0.122386666683572, -0.09386000002450609, -0.3579399999398447, -0.15022333332126436
+				],
+				"medianBatchP50DeltaUs": -0.1459999998587591
+			},
+			{
+				"id": "spending/transaction",
+				"candidateMedianBatchP50Us": 2.5000000000545697,
+				"referenceMedianBatchP50Us": 2.645999999913329,
+				"batchP50DeltasUs": [
+					0.08400000024266774, -0.20800000038434519, -0.3749999996216502, -0.08400000024266774
+				],
+				"candidateMeanUs": 2.6841683333168476,
+				"referenceMeanUs": 2.7421566666847257,
+				"batchMeanDeltasUs": [
+					0.18428666662354465, -0.04405000000891335, -0.3138533333822123, -0.05833666670393206
+				],
+				"medianBatchP50DeltaUs": -0.14600000031350646
+			},
+			{
+				"id": "spending/vendorStats",
+				"candidateMedianBatchP50Us": 2.1664999994754908,
+				"referenceMedianBatchP50Us": 2.33299999990777,
+				"batchP50DeltasUs": [
+					0.1250000004802132, -0.20899999981338624, -0.3750000005311449, -0.08300000081362668
+				],
+				"candidateMeanUs": 2.3167024999975183,
+				"referenceMeanUs": 2.382824166663037,
+				"batchMeanDeltasUs": [
+					0.26363333335211814, -0.14670000005329117, -0.358646666651718, -0.02277333330918431
+				],
+				"medianBatchP50DeltaUs": -0.14600000031350646
+			},
+			{
+				"id": "spending/causal/released",
+				"candidateMedianBatchP50Us": 2.124999999978172,
+				"referenceMedianBatchP50Us": 2.291499999955704,
+				"batchP50DeltasUs": [
+					0.1250000004802132, -0.20899999981338624, -0.37600000086968066, -0.08300000081362668
+				],
+				"candidateMeanUs": 2.238625000012083,
+				"referenceMeanUs": 2.3601825000097656,
+				"batchMeanDeltasUs": [
+					0.15621333332395188, -0.09321333331475512, -0.361150000038227, -0.18807999996170097
+				],
+				"medianBatchP50DeltaUs": -0.14600000031350646
+			},
+			{
+				"id": "spending/causal/release-port",
+				"candidateMedianBatchP50Us": 2.561999999670661,
+				"referenceMedianBatchP50Us": 2.7500000001055014,
+				"batchP50DeltasUs": [
+					0.08299999990413198, -0.2500000009604264, -0.4580000004352769, -0.04200000057608122
+				],
+				"candidateMeanUs": 2.7588249999992818,
+				"referenceMeanUs": 2.9049383333184173,
+				"batchMeanDeltasUs": [
+					0.004236666648769951, -0.1336566666880878, -0.4425033332821236, -0.0125299999551012
+				],
+				"medianBatchP50DeltaUs": -0.1460000007682538
+			},
+			{
+				"id": "spending/causal/release-controller",
+				"candidateMedianBatchP50Us": 2.1460000002662127,
+				"referenceMedianBatchP50Us": 2.33299999990777,
+				"batchP50DeltasUs": [
+					0.08400000024266774, -0.249999999141437, -0.41600000076869037, -0.08299999990413198
+				],
+				"candidateMeanUs": 4.342031666662933,
+				"referenceMeanUs": 2.493710000005649,
+				"batchMeanDeltasUs": [
+					0.15547333329777754, 7.788050000002235, -0.4780066666959706, -0.0722299999749037
+				],
+				"medianBatchP50DeltaUs": -0.1664999995227845
+			},
+			{
+				"id": "spending/thresholdGate",
+				"candidateMedianBatchP50Us": 2.354499999910331,
+				"referenceMedianBatchP50Us": 2.5420000001759036,
+				"batchP50DeltasUs": [
+					0.08299999990413198, -0.20800000038434519, -0.4170000001977314, -0.1249999995707185
+				],
+				"candidateMeanUs": 2.453259166660094,
+				"referenceMeanUs": 2.6226841667016743,
+				"batchMeanDeltasUs": [
+					0.08704999997765586, -0.2670400000867328, -0.3894733333830421, -0.10823666667420223
+				],
+				"medianBatchP50DeltaUs": -0.16649999997753184
+			},
+			{
+				"id": "spending/evidence",
+				"candidateMedianBatchP50Us": 2.5000000000545697,
+				"referenceMedianBatchP50Us": 2.687499999865395,
+				"batchP50DeltasUs": [
+					0.1249999995707185, -0.20800000038434519, -0.41599999985919567, -0.1249999995707185
+				],
+				"candidateMeanUs": 2.6171166666745194,
+				"referenceMeanUs": 2.768716666667691,
+				"batchMeanDeltasUs": [
+					-0.016226666648435934, -0.14937666661353444, -0.33203666666850074, -0.10876000004221478
+				],
+				"medianBatchP50DeltaUs": -0.16649999997753184
+			},
+			{
+				"id": "spending/startup",
+				"candidateMedianBatchP50Us": 2.0624999997380655,
+				"referenceMedianBatchP50Us": 2.271500000006199,
+				"batchP50DeltasUs": [
+					0.33199999961652793, -0.20800000038434519, -0.5830000000059954, -0.12599999990925426
+				],
+				"candidateMeanUs": 2.4448241666762742,
+				"referenceMeanUs": 2.6179008333398697,
+				"batchMeanDeltasUs": [
+					0.1509633333292488, 0.17824000003201962, -0.593163333366344, -0.4283466666493044
+				],
+				"medianBatchP50DeltaUs": -0.16700000014679972
+			},
+			{
+				"id": "pack",
+				"candidateMedianBatchP50Us": 3.1254999998964195,
+				"referenceMedianBatchP50Us": 3.3750000002328306,
+				"batchP50DeltasUs": [
+					0.16700000014679972, -0.29100000028847717, -0.5830000000059954, -0.08299999990413198
+				],
+				"candidateMeanUs": 3.73881833332689,
+				"referenceMeanUs": 3.7170874999962202,
+				"batchMeanDeltasUs": [
+					0.46315999998417606, 0.060716666615311284, -0.6256966666417915, 0.18874333336498222
+				],
+				"medianBatchP50DeltaUs": -0.18700000009630457
+			},
+			{
+				"id": "spending/assessment",
+				"candidateMedianBatchP50Us": 2.833499999724154,
+				"referenceMedianBatchP50Us": 3.0414999996537517,
+				"batchP50DeltasUs": [
+					0.08299999990413198, -0.24900000062189065, -0.41600000076869037, -0.1249999995707185
+				],
+				"candidateMeanUs": 2.9897600000125144,
+				"referenceMeanUs": 3.182531666683038,
+				"batchMeanDeltasUs": [
+					0.16527000004922832, -0.12052000002161839, -0.7076566666546569, -0.1081800000550478
+				],
+				"medianBatchP50DeltaUs": -0.18700000009630457
+			},
+			{
+				"id": "spending/watermarks",
+				"candidateMedianBatchP50Us": 2.583499999673222,
+				"referenceMedianBatchP50Us": 2.7915000000575674,
+				"batchP50DeltasUs": [
+					0.08400000024266774, -0.24900000062189065, -0.4580000004352769, -0.1250000004802132
+				],
+				"candidateMeanUs": 2.721015833335514,
+				"referenceMeanUs": 5.724832500008385,
+				"batchMeanDeltasUs": [
+					0.08698000000852786, -0.23340999998557305, -0.40245999999569865, -11.46637666671874
+				],
+				"medianBatchP50DeltaUs": -0.18700000055105193
+			},
+			{
+				"id": "spending/effectAdmissions",
+				"candidateMedianBatchP50Us": 2.083499999571359,
+				"referenceMedianBatchP50Us": 2.291499999955704,
+				"batchP50DeltasUs": [
+					0.08300000081362668, -0.24900000153138535, -0.4170000001977314, -0.1250000004802132
+				],
+				"candidateMeanUs": 2.186589999989034,
+				"referenceMeanUs": 2.356245833336743,
+				"batchMeanDeltasUs": [
+					0.14830666663025704, -0.23902666668315425, -0.41915333329901233, -0.1687500000389264
+				],
+				"medianBatchP50DeltaUs": -0.18700000100579928
+			},
+			{
+				"id": "spending/alertMessage",
+				"candidateMedianBatchP50Us": 2.124999999978172,
+				"referenceMedianBatchP50Us": 2.3125000002437446,
+				"batchP50DeltasUs": [
+					0.08399999933317304, -0.249999999141437, -0.41599999985919567, -0.1250000004802132
+				],
+				"candidateMeanUs": 2.201165833324315,
+				"referenceMeanUs": 2.4097033333335576,
+				"batchMeanDeltasUs": [
+					0.0660933333134989, -0.3224799999952668, -0.4298399999849304, -0.14792333337027225
+				],
+				"medianBatchP50DeltaUs": -0.1874999998108251
+			},
+			{
+				"id": "spending/consumerIssues",
+				"candidateMedianBatchP50Us": 3.9164999998320127,
+				"referenceMedianBatchP50Us": 4.145499999594904,
+				"batchP50DeltasUs": [
+					0.1250000004802132, -0.20899999981338624, -0.4579999995257822, -0.16600000071775867
+				],
+				"candidateMeanUs": 4.018931666676053,
+				"referenceMeanUs": 4.197736666666666,
+				"batchMeanDeltasUs": [
+					0.04598000004686284, -0.13915666669163299, -0.41337666666853073, -0.2086666666491505
+				],
+				"medianBatchP50DeltaUs": -0.18750000026557245
+			},
+			{
+				"id": "spending/occurrenceAdmissions",
+				"candidateMedianBatchP50Us": 2.354499999910331,
+				"referenceMedianBatchP50Us": 2.5835000001279695,
+				"batchP50DeltasUs": [
+					0.08299999990413198, -0.2500000000509317, -0.3750000005311449, -0.16599999980826396
+				],
+				"candidateMeanUs": 2.489502499999314,
+				"referenceMeanUs": 2.6497891666804207,
+				"batchMeanDeltasUs": [
+					0.10320333333159676, -0.22914666666414008, -0.35384666670931114, -0.16135666668257426
+				],
+				"medianBatchP50DeltaUs": -0.20799999992959783
+			},
+			{
+				"id": "spending/diagnosticSummary",
+				"candidateMedianBatchP50Us": 2.9999999997016857,
+				"referenceMedianBatchP50Us": 3.2084999998005514,
+				"batchP50DeltasUs": [
+					0.08299999990413198, -0.29100000028847717, -0.5000000001018634, -0.1249999995707185
+				],
+				"candidateMeanUs": 3.160503333350183,
+				"referenceMeanUs": 3.315367499999411,
+				"batchMeanDeltasUs": [
+					0.17701000000367156, -0.23151666663276654, -0.5093133333017854, -0.055636666666032245
+				],
+				"medianBatchP50DeltaUs": -0.20799999992959783
+			},
+			{
+				"id": "spending/causal/input/occurrences",
+				"candidateMedianBatchP50Us": 2.8959999999642605,
+				"referenceMedianBatchP50Us": 3.1870000002527377,
+				"batchP50DeltasUs": [
+					0.249999999141437, -0.29100000028847717, -0.7080000004862086, -0.20799999947485048
+				],
+				"candidateMeanUs": 3.162417499994869,
+				"referenceMeanUs": 3.395459999996244,
+				"batchMeanDeltasUs": [
+					0.21041333334324017, -0.0030866666747898265, -0.8859866666565117, -0.2535100000174376
+				],
+				"medianBatchP50DeltaUs": -0.24949999988166383
+			},
+			{
+				"id": "requestMaterialJoin",
+				"candidateMedianBatchP50Us": 2.7084999992439407,
+				"referenceMedianBatchP50Us": 2.9789999998683925,
+				"batchP50DeltasUs": [
+					0.29099999937898247, -0.3329999999550637, -0.6250000005820766, -0.20800000038434519
+				],
+				"candidateMeanUs": 2.9335674999818666,
+				"referenceMeanUs": 3.103180000005826,
+				"batchMeanDeltasUs": [
+					0.16775999997359262, -0.14707333337658693, -0.5280966666214226, -0.17104000007141934
+				],
+				"medianBatchP50DeltaUs": -0.27050000016970444
+			},
+			{
+				"id": "spending/evaluationSelections",
+				"candidateMedianBatchP50Us": 3.4164999997301493,
+				"referenceMedianBatchP50Us": 3.770500000428001,
+				"batchP50DeltasUs": [
+					0.08299999990413198, -0.4999999991923687, -0.7919999998193816, -0.2080000012938399
+				],
+				"candidateMeanUs": 5.821904166673448,
+				"referenceMeanUs": 4.067149999989397,
+				"batchMeanDeltasUs": [
+					0.17889333335915567, -0.3332200000022564, 7.386383333347719, -0.2130399999684114
+				],
+				"medianBatchP50DeltaUs": -0.3540000002431043
+			},
+			{
+				"id": "spending/requestMaterials",
+				"candidateMedianBatchP50Us": 2.770500000224274,
+				"referenceMedianBatchP50Us": 4.77050000017698,
+				"batchP50DeltasUs": [
+					-1.7079999997804407, -2.0000000004074536, -2.2490000001198496, -1.9160000001647859
+				],
+				"candidateMeanUs": 2.990669999999227,
+				"referenceMeanUs": 4.908098333340452,
+				"batchMeanDeltasUs": [
+					-1.6430733332981617, -1.8691666666533513, -2.183170000043901, -1.9743033333694862
+				],
+				"medianBatchP50DeltaUs": -1.9580000002861198
+			}
+		],
+		"stagesMeanUs": {
+			"shell-entry": {
+				"candidate": {
+					"totalMs": 0.40447416667575453,
+					"nodeMs": 0,
+					"residualMs": 0.40447416667575453
+				},
+				"reference": {
+					"totalMs": 0.40027083332991725,
+					"nodeMs": 0,
+					"residualMs": 0.40027083332991725
+				}
+			},
+			"graph-and-sources": {
+				"candidate": {
+					"totalMs": 13.595274999994066,
+					"nodeMs": 10.25710833331459,
+					"residualMs": 3.3381666666794745
+				},
+				"reference": {
+					"totalMs": 18.00885833334784,
+					"nodeMs": 12.49685250006299,
+					"residualMs": 5.512005833284851
+				}
+			},
+			"names": {
+				"candidate": {
+					"totalMs": 2.0575799999998403,
+					"nodeMs": 0,
+					"residualMs": 2.0575799999998403
+				},
+				"reference": {
+					"totalMs": 4.078199166654031,
+					"nodeMs": 0,
+					"residualMs": 4.078199166654031
+				}
+			},
+			"prepare-and-startup-source": {
+				"candidate": {
+					"totalMs": 13.608386666646007,
+					"nodeMs": 2.4448241666762742,
+					"residualMs": 11.163562499969734
+				},
+				"reference": {
+					"totalMs": 12.796002500000819,
+					"nodeMs": 2.6179008333398697,
+					"residualMs": 10.17810166666095
+				}
+			},
+			"consumer-builder": {
+				"candidate": {
+					"totalMs": 257.3032650000149,
+					"nodeMs": 175.26266250008726,
+					"residualMs": 82.04060249992759
+				},
+				"reference": {
+					"totalMs": 257.32212416665413,
+					"nodeMs": 158.91642833339498,
+					"residualMs": 98.4056958332591
+				}
+			},
+			"seal": {
+				"candidate": {
+					"totalMs": 4.573855833333103,
+					"nodeMs": 0,
+					"residualMs": 4.573855833333103
+				},
+				"reference": {
+					"totalMs": 4.416872500032696,
+					"nodeMs": 0,
+					"residualMs": 4.416872500032696
+				}
+			},
+			"transfer": {
+				"candidate": {
+					"totalMs": 0.2267983333505678,
+					"nodeMs": 0,
+					"residualMs": 0.2267983333505678
+				},
+				"reference": {
+					"totalMs": 0.22728499998038387,
+					"nodeMs": 0,
+					"residualMs": 0.22728499998038387
+				}
+			},
+			"start": {
+				"candidate": {
+					"totalMs": 13.918266666654898,
+					"nodeMs": 0,
+					"residualMs": 13.918266666654898
+				},
+				"reference": {
+					"totalMs": 13.466713333328547,
+					"nodeMs": 0,
+					"residualMs": 13.466713333328547
+				}
+			},
+			"observer-setup": {
+				"candidate": {
+					"totalMs": 0.46632416666170684,
+					"nodeMs": 0,
+					"residualMs": 0.46632416666170684
+				},
+				"reference": {
+					"totalMs": 0.4617416666754555,
+					"nodeMs": 0,
+					"residualMs": 0.4617416666754555
+				}
+			},
+			"subscribe": {
+				"candidate": {
+					"totalMs": 3.0471400000086155,
+					"nodeMs": 0,
+					"residualMs": 3.0471400000086155
+				},
+				"reference": {
+					"totalMs": 2.9740641666573233,
+					"nodeMs": 0,
+					"residualMs": 2.9740641666573233
+				}
+			},
+			"return-shell": {
+				"candidate": {
+					"totalMs": 0.12100750000248202,
+					"nodeMs": 0,
+					"residualMs": 0.12100750000248202
+				},
+				"reference": {
+					"totalMs": 0.1267733333376479,
+					"nodeMs": 0,
+					"residualMs": 0.1267733333376479
+				}
+			}
+		},
+		"aggregateProbeMeanUs": {
+			"candidate": {
+				"total": 309.32237333334194,
+				"nodeTotal": 187.96459500007813,
+				"residual": 121.35777833326377
+			},
+			"reference": {
+				"total": 314.27890499999876,
+				"nodeTotal": 174.03118166679783,
+				"residual": 140.2477233332009
+			}
+		}
+	},
+	"rawCounts": {
+		"constructions": 12800,
+		"measuredNodeIntervals": 285600
+	},
+	"largestNodeIntervals": [
+		{
+			"mode": "summary",
+			"arm": "candidate",
+			"batch": 1,
+			"index": 241,
+			"id": "spending/causal/release-candidates",
+			"durationUs": 28139.083000000028
+		},
+		{
+			"mode": "off",
+			"arm": "reference",
+			"batch": 3,
+			"index": 218,
+			"id": "spending/reference/watermarks",
+			"durationUs": 17121.875000000273
+		},
+		{
+			"mode": "summary",
+			"arm": "reference",
+			"batch": 3,
+			"index": 365,
+			"id": "spending/reference/watermarks",
+			"durationUs": 3395.665999999437
+		},
+		{
+			"mode": "summary",
+			"arm": "reference",
+			"batch": 3,
+			"index": 215,
+			"id": "spending/reference/policy",
+			"durationUs": 3037.2499999994034
+		},
+		{
+			"mode": "summary",
+			"arm": "reference",
+			"batch": 3,
+			"index": 290,
+			"id": "spending/reference/occurrences",
+			"durationUs": 3016.375000000153
+		},
+		{
+			"mode": "summary",
+			"arm": "reference",
+			"batch": 2,
+			"index": 175,
+			"id": "spending/causal/input/admissions",
+			"durationUs": 2968.3329999998023
+		},
+		{
+			"mode": "summary",
+			"arm": "candidate",
+			"batch": 0,
+			"index": 163,
+			"id": "spending/materialSnapshot",
+			"durationUs": 2935.084000000643
+		},
+		{
+			"mode": "summary",
+			"arm": "reference",
+			"batch": 0,
+			"index": 278,
+			"id": "current",
+			"durationUs": 2707.916999999725
+		},
+		{
+			"mode": "off",
+			"arm": "reference",
+			"batch": 0,
+			"index": 148,
+			"id": "spending/causal/released",
+			"durationUs": 2621.958000000177
+		},
+		{
+			"mode": "summary",
+			"arm": "candidate",
+			"batch": 3,
+			"index": 107,
+			"id": "spending/causal/release-candidates",
+			"durationUs": 2602.2499999999127
+		}
+	],
+	"limitations": [
+		"All raw samples retained; typical quantiles are descriptive, not replacement qualification estimator",
+		"No exclusive CPU claim: wall-time node interval may include scheduling or GC",
+		"Residual includes all work outside node bodies and recording overhead",
+		"Instrumentation makes exact uninstrumented per-node costs unidentifiable",
+		"Cold node creation only; no business execution ranking"
+	]
+}

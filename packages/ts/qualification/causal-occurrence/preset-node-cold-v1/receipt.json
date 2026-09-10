@@ -1,0 +1,107 @@
+{
+	"kind": "private-node-cold-diagnostic-evidence",
+	"workRef": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"governingRefs": ["graphrefly-ts:D164", "graphrefly-ts:D165", "graphrefly-ts:D166"],
+	"baselineCommit": "d397a779",
+	"date": "2026-09-09",
+	"qualification": false,
+	"status": "diagnostic-complete-local-lead-not-causal-repair-proof",
+	"authorization": {
+		"userRequest": "Approved per-node profiling and probe-cost comparison; 好的，继续",
+		"commitGrant": "Retained explicit commit approval",
+		"scope": "Private offline generated-copy diagnosis only"
+	},
+	"productSourceChanged": false,
+	"formalQualificationRerun": false,
+	"historicalQualification": {
+		"receipt": "packages/ts/qualification/causal-occurrence/preset-performance-v1/receipt.json",
+		"digest": "sha256:18829de286ffba2f4ea7d467e5c8cbb39a653c429f7af35dca2da4649f62ced3",
+		"ratio": 1.2116712777251397,
+		"limit": 1.2,
+		"remainingRowsNotRun": 80,
+		"statusUnchanged": true
+	},
+	"run": {
+		"freeze": "run-01/freeze.json",
+		"freezeDigest": "sha256:052dec3b568c357ff33f1de44d0f99cf901a28577176bd7140b1f1cbecaa3a60",
+		"completed": true,
+		"constructions": 12800,
+		"measuredNodeIntervals": 285600,
+		"modes": ["off", "summary"],
+		"totalNodes": [59, 60],
+		"ownedNodes": [53, 54],
+		"preflightChecks": 4,
+		"sampleAccountingReplayed": 6400
+	},
+	"findings": {
+		"consistentLead": "currentFacts candidate/reference node-method p50 delta positive in all eight mode/batches",
+		"candidateConstructionOrdinal": 22,
+		"referenceConstructionOrdinal": 18,
+		"typicalDeltaUs": {
+			"off": 1.7295,
+			"summary": 1.625
+		},
+		"causalMechanismConfirmed": false,
+		"wallOutlierCauseConfirmed": false,
+		"probeContrastUs": {
+			"offCandidate": 26.875,
+			"offReference": 27.396,
+			"summaryCandidate": 26.9375,
+			"summaryReference": 42.083
+		},
+		"probeContrastIsExactOverhead": false
+	},
+	"sourceBindings": {
+		"scripts/diagnose-spending-node-cold.mjs": "sha256:c47ebeaee1f8a0324aced3bf32b3d1e7e6ccd718920afe38ef65f4115249217d",
+		"scripts/diagnose-spending-node-cold.test.mjs": "sha256:d6e4e5b9b5d6097a7bfc6ce397aebc48e63dba1b9909421c3cb38bca983bc307",
+		"scripts/diagnose-spending-preset-cold.mjs": "sha256:0618eadc767d0b28872d3951c7056071134e73c6ba938bd6ad3ec3f291257032"
+	},
+	"priorSourceRecheck": {
+		"preset-performance-v1": {
+			"bindingsUnchanged": 63,
+			"receiptDigest": "sha256:18829de286ffba2f4ea7d467e5c8cbb39a653c429f7af35dca2da4649f62ced3",
+			"archiveUnchanged": true
+		},
+		"preset-reference-v1": {
+			"bindingsUnchanged": 65,
+			"receiptDigest": "sha256:7f754a33728b6b580e22fb217e25deedf3e4796626fae74b0f0d8b603edb379b",
+			"archiveUnchanged": true
+		},
+		"rootDirtyFilesUnchanged": 6
+	},
+	"checks": {
+		"newToolTests": 4,
+		"allDiagnosticToolTests": 8,
+		"defaultSuite": {
+			"passed": 2514,
+			"failed": 2,
+			"skipped": 4,
+			"failure": "Existing D159 frozen implementation-manifest mismatch"
+		},
+		"lintAndTypechecks": "passed",
+		"staticReview": "static-review.json",
+		"artifactGate": "not rerun; previous failure remains",
+		"newRuntimeMutationQualification": false
+	},
+	"rawEvidence": {
+		"path": "packages/ts/qualification/causal-occurrence/preset-node-cold-v1/evidence.tar.gz",
+		"digest": "sha256:717c598c28520694099b10b46309a576367ee8b89619f0f7faf8fbf2962a06b4",
+		"artifactCount": 34,
+		"indexPath": "packages/ts/qualification/causal-occurrence/preset-node-cold-v1/artifact-index.json",
+		"indexDigest": "sha256:c40ee5e84be877d5fa25844acd4d0c4804be127f6459cc26eb4c21ffe212a4e7"
+	},
+	"reviewCopies": {
+		"node-analysis.json": "sha256:14ae3d32ea940ad968c4c8d5a1a39e31e9ea9e10518362195908267799eecc6d",
+		"node-ranking.csv": "sha256:9469ae8b79bb4fe22aa29084fc2636df1d533d7f5180dbdb581b1440c4de6e7a"
+	},
+	"postRecordGates": "record-gates.json",
+	"workComplete": false,
+	"nonClaims": [
+		"Performance qualification or repair",
+		"Historical failure cause",
+		"Exact uninstrumented node time or exclusive CPU attribution",
+		"Final user ergonomics/B121 success",
+		"C/API/protocol change",
+		"Provider/live/spend/effect execution"
+	]
+}

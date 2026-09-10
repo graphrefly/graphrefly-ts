@@ -1,0 +1,16 @@
+{
+	"kind": "private-node-diagnostic-post-record-gates",
+	"receiptDigest": "sha256:c17cd0f61b3fc2a136fe7b8c8436ffc16f6b3e03adfd645552ebe9d60632ca2f",
+	"gates": {
+		"workspace": {
+			"exitCode": 0,
+			"log": "workspace.txt",
+			"digest": "sha256:3835fc2a997681bf829c6c54f3219d6ddcc8201e5ee2ac3fc67e3787e4def893"
+		},
+		"dashboard": {
+			"exitCode": 0,
+			"log": "dashboard.txt",
+			"digest": "sha256:57d4dc2953cc9de54408eb72f73eccff702d623d1346ab401e6585a2b1275569"
+		}
+	}
+}
