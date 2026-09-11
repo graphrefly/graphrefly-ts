@@ -1,0 +1,932 @@
+$ biome check . && tsx scripts/check-no-raw-async.ts && tsx scripts/check-typecheck.ts && pnpm --filter @graphrefly/ts test:typecheck
+docs/design/causal-cpu-wall-retained-localization-v1/verify.mjs:51:2 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    49 │ writeFileSync(
+    50 │ 	`${doc}/verification.json`,
+  > 51 │ 	JSON.stringify(
+       │ 	^^^^^^^^^^^^^^^
+  > 52 │ 		{
+        ...
+  > 61 │ 		"\t",
+  > 62 │ 	) + "\n",
+       │ 	^^^^^^^^
+    63 │ );
+    64 │ console.log("RETAINED_GAP_VERIFICATION_DONE", checked);
+  
+  i Unsafe fix: Use a template literal.
+  
+    49 49 │   writeFileSync(
+    50 50 │   	`${doc}/verification.json`,
+    51    │ - → JSON.stringify(
+       51 │ + → `${JSON.stringify(
+    52 52 │   		{
+    53 53 │   			passed: true,
+    ····· │ 
+    60 60 │   		null,
+    61 61 │   		"\t",
+    62    │ - → )·+·"\n",
+       62 │ + → )}\n`,
+    63 63 │   );
+    64 64 │   console.log("RETAINED_GAP_VERIFICATION_DONE", checked);
+  
+
+packages/ts/qualification/causal-occurrence/cold-v1-helper-differential.json check ━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 2.3 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/cold-v1-incoming-differential.json check ━━━━━━━━━━━━━━━
+
+  i The size of the file is 7.1 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/cold-v1-standalone-comparison-final.json check ━━━━━━━━━━
+
+  i The size of the file is 25.9 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/cold-v1-standalone-comparison.json check ━━━━━━━━━━━━━━━
+
+  i The size of the file is 25.7 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v5-inputs.json check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 8.3 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v6-inputs.json check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 18.8 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v7-incoming-differential.json check ━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 7.1 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v8-helper-differential.json check ━━━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 2.3 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v8-incoming-differential.json check ━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 7.1 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+docs/design/causal-release-boundaries-v1-implementation/analysis.json format ━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+       1    1 │   {
+       2      │ - ··"status":·"complete-diagnostic",
+       3      │ - ··"totals":·[
+       4      │ - ····{
+       5      │ - ······"position":·0,
+       6      │ - ······"cell":·"D-U",
+       7      │ - ······"phase":·"warmup",
+       8      │ - ······"outer":·{
+       9      │ - ········"yield":·26.278296000000296,
+      10      │ - ········"memoryBefore":·2.3520109999976455,
+      11      │ - ········"memoryAfter":·2.187136999997648,
+      12      │ - ········"record":·39.33459900000031,
+      13      │ - ········"cleanup":·83.94849799999969,
+      14      │ - ········"withinSampleUnsegmented":·0.4563990000017384,
+      15      │ - ········"disconnect-roots":·8.42541899999705,
+      16      │ - ········"group-create-and-describe":·7.321829000000747,
+      17      │ - ········"membership":·5.307538000002836,
+      18      │ - ········"group-release":·62.121872999998146
+      19      │ - ······},
+      20      │ - ······"constructionMs":·191.31864600000284,
+      21      │ - ······"phaseElapsedMs":·347.067668,
+      22      │ - ······"residualMs":·1.648481000001567
+      23      │ - ····},
+      24      │ - ····{
+      25      │ - ······"position":·0,
+      26      │ - ······"cell":·"D-U",
+      27      │ - ······"phase":·"measured",
+      28      │ - ······"outer":·{
+      29      │ - ········"yield":·73.99718500000168,
+      30      │ - ········"memoryBefore":·6.646087000007697,
+      31      │ - ········"memoryAfter":·6.277459999999138,
+      32      │ - ········"record":·109.17421700000045,
+      33      │ - ········"cleanup":·229.1111039999992,
+      34      │ - ········"withinSampleUnsegmented":·1.1276569999983508,
+      35      │ - ········"disconnect-roots":·21.758405000002085,
+      36      │ - ········"group-create-and-describe":·19.966721999999436,
+      37      │ - ········"membership":·14.187198000000905,
+      38      │ - ········"group-release":·171.4072399999974
+      39      │ - ······},
+      40      │ - ······"constructionMs":·515.3986679999964,
+      41      │ - ······"phaseElapsedMs":·944.2307089999997,
+      42      │ - ······"residualMs":·3.6259879999951465
+      43      │ - ····},
+      44      │ - ····{
+      45      │ - ······"position":·1,
+      46      │ - ······"cell":·"R-V",
+      47      │ - ······"phase":·"warmup",
+      48      │ - ······"outer":·{
+      49      │ - ········"yield":·27.224324999999567,
+      50      │ - ········"memoryBefore":·2.4000080000028277,
+      51      │ - ········"memoryAfter":·2.3293329999996217,
+      52      │ - ········"record":·51.79299899999978,
+      53      │ - ········"cleanup":·86.55214600000099,
+      54      │ - ········"withinSampleUnsegmented":·0.4588919999995653,
+      55      │ - ········"disconnect-roots":·8.381809999999064,
+      56      │ - ········"group-create-and-describe":·7.451995000001261,
+      57      │ - ········"membership":·5.286542999998062,
+      58      │ - ········"group-release":·64.52495100000118
+      59      │ - ······},
+      60      │ - ······"constructionMs":·192.83344999999693,
+      61      │ - ······"phaseElapsedMs":·365.18291800000014,
+      62      │ - ······"residualMs":·2.0506570000004274,
+      63      │ - ······"releaseSegments":·{
+      64      │ - ········"entry-preparation":·5.514578000000228,
+      65      │ - ········"external-dependency-checks":·0.9755849999991142,
+      66      │ - ········"quiescence-subscriber-checks":·40.31395799999939,
+      67      │ - ········"event-registry-removal":·3.610338999998845,
+      68      │ - ········"runtime-release":·11.205169000001206,
+      69      │ - ········"owner-event-finalization":·2.25112300000103,
+      70      │ - ········"wrapper-remainder":·0.6541990000013698
+      71      │ - ······},
+      72      │ - ······"releaseShares":·{
+      73      │ - ········"entry-preparation":·0.08546427257263825,
+      74      │ - ········"external-dependency-checks":·0.015119500051989134,
+      75      │ - ········"quiescence-subscriber-checks":·0.624780916145115,
+      76      │ - ········"event-registry-removal":·0.0559526035130004,
+      77      │ - ········"runtime-release":·0.1736563736406557,
+      78      │ - ········"owner-event-finalization":·0.034887635947232085,
+      79      │ - ········"wrapper-remainder":·0.010138698129369487
+      80      │ - ······}
+      81      │ - ····},
+      82      │ - ····{
+      83      │ - ······"position":·1,
+      84      │ - ······"cell":·"R-V",
+      85      │ - ······"phase":·"measured",
+      86      │ - ······"outer":·{
+      87      │ - ········"yield":·78.09404600000238,
+      88      │ - ········"memoryBefore":·6.922506999996301,
+      89      │ - ········"memoryAfter":·6.588576999998054,
+      90      │ - ········"record":·140.20144799999989,
+      91      │ - ········"cleanup":·235.08822999999953,
+      92      │ - ········"withinSampleUnsegmented":·1.2020370000048217,
+      93      │ - ········"disconnect-roots":·21.392965000001254,
+      94      │ - ········"group-create-and-describe":·20.423097999999925,
+      95      │ - ········"membership":·13.937571000000332,
+      96      │ - ········"group-release":·177.34303499999783
+      97      │ - ······},
+      98      │ - ······"constructionMs":·524.3753590000019,
+      99      │ - ······"phaseElapsedMs":·996.052001,
+     100      │ - ······"residualMs":·4.781834000001965,
+     101      │ - ······"releaseSegments":·{
+     102      │ - ········"entry-preparation":·15.48499999999666,
+     103      │ - ········"external-dependency-checks":·2.5602429999994456,
+     104      │ - ········"quiescence-subscriber-checks":·110.54422199999951,
+     105      │ - ········"event-registry-removal":·10.566034000001082,
+     106      │ - ········"runtime-release":·30.604921000001013,
+     107      │ - ········"owner-event-finalization":·6.140367999999427,
+     108      │ - ········"wrapper-remainder":·1.442247000000691
+     109      │ - ······},
+     110      │ - ······"releaseShares":·{
+     111      │ - ········"entry-preparation":·0.08731665159557492,
+     112      │ - ········"external-dependency-checks":·0.014436670715596341,
+     113      │ - ········"quiescence-subscriber-checks":·0.6233355710868536,
+     114      │ - ········"event-registry-removal":·0.05957963897483322,
+     115      │ - ········"runtime-release":·0.17257469964919336,
+     116      │ - ········"owner-event-finalization":·0.034624241092972734,
+     117      │ - ········"wrapper-remainder":·0.008132526884975825
+     118      │ - ······}
+     119      │ - ····},
+     120      │ - ····{
+     121      │ - ······"position":·2,
+     122      │ - ······"cell":·"D-V",
+     123      │ - ······"phase":·"warmup",
+     124      │ - ······"outer":·{
+     125      │ - ········"yield":·27.513151999997547,
+     126      │ - ········"memoryBefore":·2.4359289999990494,
+     127      │ - ········"memoryAfter":·2.2936180000013167,
+     128      │ - ········"record":·43.9995809999985,
+     129      │ - ········"cleanup":·84.90708300000031,
+     130      │ - ········"withinSampleUnsegmented":·0.47776100000072574,
+     131      │ - ········"disconnect-roots":·8.220341000002946,
+     132      │ - ········"group-create-and-describe":·7.516628999997948,
+     133      │ - ········"membership":·5.670420999999294,
+     134      │ - ········"group-release":·62.67252199999996
+     135      │ - ······},
+     136      │ - ······"constructionMs":·196.87866400000127,
+     137      │ - ······"phaseElapsedMs":·359.76487499999996,
+     138      │ - ······"residualMs":·1.7368480000019986
+     139      │ - ····},
+     140      │ - ····{
+     141      │ - ······"position":·2,
+     142      │ - ······"cell":·"D-V",
+     143      │ - ······"phase":·"measured",
+     144      │ - ······"outer":·{
+     145      │ - ········"yield":·73.53896600000121,
+     146      │ - ········"memoryBefore":·6.5232510000005846,
+     147      │ - ········"memoryAfter":·6.246327000001685,
+     148      │ - ········"record":·119.03067199999757,
+     149      │ - ········"cleanup":·228.84282499999824,
+     150      │ - ········"withinSampleUnsegmented":·1.1863799999995308,
+  2715 more lines truncated
+  
+
+docs/design/causal-release-boundaries-v1-implementation/independent-verification.json format ━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+        1     1 │   {
+        2       │ - ··"evidenceValid":·true,
+        3       │ - ··"status":·"complete-diagnostic",
+        4       │ - ··"processes":·8,
+        5       │ - ··"samples":·19200,
+        6       │ - ··"capturedSamples":·19200,
+        7       │ - ··"notRun":·[],
+        8       │ - ··"rows":·[
+        9       │ - ····{
+       10       │ - ······"position":·0,
+       11       │ - ······"cell":·"D-U",
+       12       │ - ······"samples":·2400,
+       13       │ - ······"blocks":·[
+       14       │ - ········{
+       15       │ - ··········"name":·"b0s0-warmup",
+       16       │ - ··········"sumMs":·38.249251999999956,
+       17       │ - ··········"p50":·0.3259165000000195,
+       18       │ - ··········"p95":·0.6955000000000098
+       19       │ - ········},
+       20       │ - ········{
+       21       │ - ··········"name":·"b0s0-measured",
+       22       │ - ··········"sumMs":·92.68996999999962,
+       23       │ - ··········"p50":·0.2899580000000128,
+       24       │ - ··········"p95":·0.42149999999998045
+       25       │ - ········},
+       26       │ - ········{
+       27       │ - ··········"name":·"b0s1-warmup",
+       28       │ - ··········"sumMs":·36.66082600000033,
+       29       │ - ··········"p50":·0.33289550000000645,
+       30       │ - ··········"p95":·0.6447909999999979
+       31       │ - ········},
+       32       │ - ········{
+       33       │ - ··········"name":·"b0s1-measured",
+       34       │ - ··········"sumMs":·93.63816299999911,
+       35       │ - ··········"p50":·0.2954790000000287,
+       36       │ - ··········"p95":·0.415958000000046
+       37       │ - ········},
+       38       │ - ········{
+       39       │ - ··········"name":·"b1s0-warmup",
+       40       │ - ··········"sumMs":·28.953869000000168,
+       41       │ - ··········"p50":·0.28085350000003473,
+       42       │ - ··········"p95":·0.36037499999997635
+       43       │ - ········},
+       44       │ - ········{
+       45       │ - ··········"name":·"b1s0-measured",
+       46       │ - ··········"sumMs":·81.44720899999845,
+       47       │ - ··········"p50":·0.26204150000000936,
+       48       │ - ··········"p95":·0.3460420000000113
+       49       │ - ········},
+       50       │ - ········{
+       51       │ - ··········"name":·"b1s1-warmup",
+       52       │ - ··········"sumMs":·29.9389570000003,
+       53       │ - ··········"p50":·0.2769584999999779,
+       54       │ - ··········"p95":·0.4172919999999749
+       55       │ - ········},
+       56       │ - ········{
+       57       │ - ··········"name":·"b1s1-measured",
+       58       │ - ··········"sumMs":·87.52133000000072,
+       59       │ - ··········"p50":·0.2744375000000332,
+       60       │ - ··········"p95":·0.3688329999999951
+       61       │ - ········},
+       62       │ - ········{
+       63       │ - ··········"name":·"b2s0-warmup",
+       64       │ - ··········"sumMs":·28.262291000000914,
+       65       │ - ··········"p50":·0.2734170000001086,
+       66       │ - ··········"p95":·0.34845800000016425
+       67       │ - ········},
+       68       │ - ········{
+       69       │ - ··········"name":·"b2s0-measured",
+       70       │ - ··········"sumMs":·82.8087510000014,
+       71       │ - ··········"p50":·0.26683349999996153,
+       72       │ - ··········"p95":·0.34275000000002365
+       73       │ - ········},
+       74       │ - ········{
+       75       │ - ··········"name":·"b2s1-warmup",
+       76       │ - ··········"sumMs":·29.253451000001178,
+       77       │ - ··········"p50":·0.27597900000000664,
+       78       │ - ··········"p95":·0.36941700000011224
+       79       │ - ········},
+       80       │ - ········{
+       81       │ - ··········"name":·"b2s1-measured",
+       82       │ - ··········"sumMs":·77.29324499999711,
+       83       │ - ··········"p50":·0.25012500000002547,
+       84       │ - ··········"p95":·0.3048750000000382
+       85       │ - ········}
+       86       │ - ······],
+       87       │ - ······"cpu":·[
+       88       │ - ········{
+       89       │ - ··········"name":·"b0s0-warmup",
+       90       │ - ··········"T":·71.222,
+       91       │ - ··········"P":·123.584,
+       92       │ - ··········"Wlo":·72.42779199999998,
+       93       │ - ··········"Whi":·72.536833,
+       94       │ - ··········"Wpoint":·72.48231249999999,
+       95       │ - ··········"unaccountedElapsed":·1.2603124999999977,
+       96       │ - ··········"processMinusThread":·52.36200000000001,
+       97       │ - ··········"snapshotWidths":·[
+       98       │ - ············0.07850000000001955,
+       99       │ - ············0.030540999999999485
+      100       │ - ··········],
+      101       │ - ··········"resourceDeltas":·{
+      102       │ - ············"voluntaryContextSwitches":·0,
+      103       │ - ············"involuntaryContextSwitches":·400,
+      104       │ - ············"minorPageFault":·377,
+      105       │ - ············"majorPageFault":·0
+      106       │ - ··········},
+      107       │ - ··········"samples":·100,
+      108       │ - ··········"constructionMs":·38.249251999999956,
+      109       │ - ··········"p50":·0.3259165000000195,
+      110       │ - ··········"p95":·0.6955000000000098
+      111       │ - ········},
+      112       │ - ········{
+      113       │ - ··········"name":·"b0s0-measured",
+      114       │ - ··········"T":·166.643,
+      115       │ - ··········"P":·253.655,
+      116       │ - ··········"Wlo":·172.43008400000002,
+      117       │ - ··········"Whi":·172.463417,
+      118       │ - ··········"Wpoint":·172.4467505,
+      119       │ - ··········"unaccountedElapsed":·5.803750500000007,
+      120       │ - ··········"processMinusThread":·87.012,
+      121       │ - ··········"snapshotWidths":·[
+      122       │ - ············0.008332999999993262,
+      123       │ - ············0.024999999999977263
+      124       │ - ··········],
+      125       │ - ··········"resourceDeltas":·{
+      126       │ - ············"voluntaryContextSwitches":·0,
+      127       │ - ············"involuntaryContextSwitches":·723,
+      128       │ - ············"minorPageFault":·1092,
+      129       │ - ············"majorPageFault":·0
+      130       │ - ··········},
+      131       │ - ··········"samples":·300,
+      132       │ - ··········"constructionMs":·92.68996999999962,
+      133       │ - ··········"p50":·0.2899580000000128,
+      134       │ - ··········"p95":·0.42149999999998045
+      135       │ - ········},
+      136       │ - ········{
+      137       │ - ··········"name":·"b0s1-warmup",
+      138       │ - ··········"T":·64.971,
+      139       │ - ··········"P":·106.803,
+      140       │ - ··········"Wlo":·66.38291699999996,
+      141       │ - ··········"Whi":·66.420209,
+      142       │ - ··········"Wpoint":·66.40156299999998,
+      143       │ - ··········"unaccountedElapsed":·1.430562999999978,
+      144       │ - ··········"processMinusThread":·41.831999999999994,
+      145       │ - ··········"snapshotWidths":·[
+      146       │ - ············0.011625000000037744,
+      147       │ - ············0.025666999999998552
+      148       │ - ··········],
+      149       │ - ··········"resourceDeltas":·{
+      150       │ - ············"voluntaryContextSwitches":·0,
+  20785 more lines truncated
+  
+
+docs/design/causal-release-boundaries-v1-implementation/portable-self-verification.json format ━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+        1     1 │   {
+        2       │ - ··"evidenceValid":·true,
+        3       │ - ··"status":·"complete-diagnostic",
+        4       │ - ··"processes":·8,
+        5       │ - ··"samples":·19200,
+        6       │ - ··"capturedSamples":·19200,
+        7       │ - ··"notRun":·[],
+        8       │ - ··"rows":·[
+        9       │ - ····{
+       10       │ - ······"position":·0,
+       11       │ - ······"cell":·"D-U",
+       12       │ - ······"samples":·2400,
+       13       │ - ······"blocks":·[
+       14       │ - ········{
+       15       │ - ··········"name":·"b0s0-warmup",
+       16       │ - ··········"sumMs":·38.249251999999956,
+       17       │ - ··········"p50":·0.3259165000000195,
+       18       │ - ··········"p95":·0.6955000000000098
+       19       │ - ········},
+       20       │ - ········{
+       21       │ - ··········"name":·"b0s0-measured",
+       22       │ - ··········"sumMs":·92.68996999999962,
+       23       │ - ··········"p50":·0.2899580000000128,
+       24       │ - ··········"p95":·0.42149999999998045
+       25       │ - ········},
+       26       │ - ········{
+       27       │ - ··········"name":·"b0s1-warmup",
+       28       │ - ··········"sumMs":·36.66082600000033,
+       29       │ - ··········"p50":·0.33289550000000645,
+       30       │ - ··········"p95":·0.6447909999999979
+       31       │ - ········},
+       32       │ - ········{
+       33       │ - ··········"name":·"b0s1-measured",
+       34       │ - ··········"sumMs":·93.63816299999911,
+       35       │ - ··········"p50":·0.2954790000000287,
+       36       │ - ··········"p95":·0.415958000000046
+       37       │ - ········},
+       38       │ - ········{
+       39       │ - ··········"name":·"b1s0-warmup",
+       40       │ - ··········"sumMs":·28.953869000000168,
+       41       │ - ··········"p50":·0.28085350000003473,
+       42       │ - ··········"p95":·0.36037499999997635
+       43       │ - ········},
+       44       │ - ········{
+       45       │ - ··········"name":·"b1s0-measured",
+       46       │ - ··········"sumMs":·81.44720899999845,
+       47       │ - ··········"p50":·0.26204150000000936,
+       48       │ - ··········"p95":·0.3460420000000113
+       49       │ - ········},
+       50       │ - ········{
+       51       │ - ··········"name":·"b1s1-warmup",
+       52       │ - ··········"sumMs":·29.9389570000003,
+       53       │ - ··········"p50":·0.2769584999999779,
+       54       │ - ··········"p95":·0.4172919999999749
+       55       │ - ········},
+       56       │ - ········{
+       57       │ - ··········"name":·"b1s1-measured",
+       58       │ - ··········"sumMs":·87.52133000000072,
+       59       │ - ··········"p50":·0.2744375000000332,
+       60       │ - ··········"p95":·0.3688329999999951
+       61       │ - ········},
+       62       │ - ········{
+       63       │ - ··········"name":·"b2s0-warmup",
+       64       │ - ··········"sumMs":·28.262291000000914,
+       65       │ - ··········"p50":·0.2734170000001086,
+       66       │ - ··········"p95":·0.34845800000016425
+       67       │ - ········},
+       68       │ - ········{
+       69       │ - ··········"name":·"b2s0-measured",
+       70       │ - ··········"sumMs":·82.8087510000014,
+       71       │ - ··········"p50":·0.26683349999996153,
+       72       │ - ··········"p95":·0.34275000000002365
+       73       │ - ········},
+       74       │ - ········{
+       75       │ - ··········"name":·"b2s1-warmup",
+       76       │ - ··········"sumMs":·29.253451000001178,
+       77       │ - ··········"p50":·0.27597900000000664,
+       78       │ - ··········"p95":·0.36941700000011224
+       79       │ - ········},
+       80       │ - ········{
+       81       │ - ··········"name":·"b2s1-measured",
+       82       │ - ··········"sumMs":·77.29324499999711,
+       83       │ - ··········"p50":·0.25012500000002547,
+       84       │ - ··········"p95":·0.3048750000000382
+       85       │ - ········}
+       86       │ - ······],
+       87       │ - ······"cpu":·[
+       88       │ - ········{
+       89       │ - ··········"name":·"b0s0-warmup",
+       90       │ - ··········"T":·71.222,
+       91       │ - ··········"P":·123.584,
+       92       │ - ··········"Wlo":·72.42779199999998,
+       93       │ - ··········"Whi":·72.536833,
+       94       │ - ··········"Wpoint":·72.48231249999999,
+       95       │ - ··········"unaccountedElapsed":·1.2603124999999977,
+       96       │ - ··········"processMinusThread":·52.36200000000001,
+       97       │ - ··········"snapshotWidths":·[
+       98       │ - ············0.07850000000001955,
+       99       │ - ············0.030540999999999485
+      100       │ - ··········],
+      101       │ - ··········"resourceDeltas":·{
+      102       │ - ············"voluntaryContextSwitches":·0,
+      103       │ - ············"involuntaryContextSwitches":·400,
+      104       │ - ············"minorPageFault":·377,
+      105       │ - ············"majorPageFault":·0
+      106       │ - ··········},
+      107       │ - ··········"samples":·100,
+      108       │ - ··········"constructionMs":·38.249251999999956,
+      109       │ - ··········"p50":·0.3259165000000195,
+      110       │ - ··········"p95":·0.6955000000000098
+      111       │ - ········},
+      112       │ - ········{
+      113       │ - ··········"name":·"b0s0-measured",
+      114       │ - ··········"T":·166.643,
+      115       │ - ··········"P":·253.655,
+      116       │ - ··········"Wlo":·172.43008400000002,
+      117       │ - ··········"Whi":·172.463417,
+      118       │ - ··········"Wpoint":·172.4467505,
+      119       │ - ··········"unaccountedElapsed":·5.803750500000007,
+      120       │ - ··········"processMinusThread":·87.012,
+      121       │ - ··········"snapshotWidths":·[
+      122       │ - ············0.008332999999993262,
+      123       │ - ············0.024999999999977263
+      124       │ - ··········],
+      125       │ - ··········"resourceDeltas":·{
+      126       │ - ············"voluntaryContextSwitches":·0,
+      127       │ - ············"involuntaryContextSwitches":·723,
+      128       │ - ············"minorPageFault":·1092,
+      129       │ - ············"majorPageFault":·0
+      130       │ - ··········},
+      131       │ - ··········"samples":·300,
+      132       │ - ··········"constructionMs":·92.68996999999962,
+      133       │ - ··········"p50":·0.2899580000000128,
+      134       │ - ··········"p95":·0.42149999999998045
+      135       │ - ········},
+      136       │ - ········{
+      137       │ - ··········"name":·"b0s1-warmup",
+      138       │ - ··········"T":·64.971,
+      139       │ - ··········"P":·106.803,
+      140       │ - ··········"Wlo":·66.38291699999996,
+      141       │ - ··········"Whi":·66.420209,
+      142       │ - ··········"Wpoint":·66.40156299999998,
+      143       │ - ··········"unaccountedElapsed":·1.430562999999978,
+      144       │ - ··········"processMinusThread":·41.831999999999994,
+      145       │ - ··········"snapshotWidths":·[
+      146       │ - ············0.011625000000037744,
+      147       │ - ············0.025666999999998552
+      148       │ - ··········],
+      149       │ - ··········"resourceDeltas":·{
+      150       │ - ············"voluntaryContextSwitches":·0,
+  20785 more lines truncated
+  
+
+docs/design/causal-release-boundaries-v1-implementation/portable-verification.json format ━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+        1     1 │   {
+        2       │ - ··"evidenceValid":·true,
+        3       │ - ··"status":·"complete-diagnostic",
+        4       │ - ··"processes":·8,
+        5       │ - ··"samples":·19200,
+        6       │ - ··"capturedSamples":·19200,
+        7       │ - ··"notRun":·[],
+        8       │ - ··"rows":·[
+        9       │ - ····{
+       10       │ - ······"position":·0,
+       11       │ - ······"cell":·"D-U",
+       12       │ - ······"samples":·2400,
+       13       │ - ······"blocks":·[
+       14       │ - ········{
+       15       │ - ··········"name":·"b0s0-warmup",
+       16       │ - ··········"sumMs":·38.249251999999956,
+       17       │ - ··········"p50":·0.3259165000000195,
+       18       │ - ··········"p95":·0.6955000000000098
+       19       │ - ········},
+       20       │ - ········{
+       21       │ - ··········"name":·"b0s0-measured",
+       22       │ - ··········"sumMs":·92.68996999999962,
+       23       │ - ··········"p50":·0.2899580000000128,
+       24       │ - ··········"p95":·0.42149999999998045
+       25       │ - ········},
+       26       │ - ········{
+       27       │ - ··········"name":·"b0s1-warmup",
+       28       │ - ··········"sumMs":·36.66082600000033,
+       29       │ - ··········"p50":·0.33289550000000645,
+       30       │ - ··········"p95":·0.6447909999999979
+       31       │ - ········},
+       32       │ - ········{
+       33       │ - ··········"name":·"b0s1-measured",
+       34       │ - ··········"sumMs":·93.63816299999911,
+       35       │ - ··········"p50":·0.2954790000000287,
+       36       │ - ··········"p95":·0.415958000000046
+       37       │ - ········},
+       38       │ - ········{
+       39       │ - ··········"name":·"b1s0-warmup",
+       40       │ - ··········"sumMs":·28.953869000000168,
+       41       │ - ··········"p50":·0.28085350000003473,
+       42       │ - ··········"p95":·0.36037499999997635
+       43       │ - ········},
+       44       │ - ········{
+       45       │ - ··········"name":·"b1s0-measured",
+       46       │ - ··········"sumMs":·81.44720899999845,
+       47       │ - ··········"p50":·0.26204150000000936,
+       48       │ - ··········"p95":·0.3460420000000113
+       49       │ - ········},
+       50       │ - ········{
+       51       │ - ··········"name":·"b1s1-warmup",
+       52       │ - ··········"sumMs":·29.9389570000003,
+       53       │ - ··········"p50":·0.2769584999999779,
+       54       │ - ··········"p95":·0.4172919999999749
+       55       │ - ········},
+       56       │ - ········{
+       57       │ - ··········"name":·"b1s1-measured",
+       58       │ - ··········"sumMs":·87.52133000000072,
+       59       │ - ··········"p50":·0.2744375000000332,
+       60       │ - ··········"p95":·0.3688329999999951
+       61       │ - ········},
+       62       │ - ········{
+       63       │ - ··········"name":·"b2s0-warmup",
+       64       │ - ··········"sumMs":·28.262291000000914,
+       65       │ - ··········"p50":·0.2734170000001086,
+       66       │ - ··········"p95":·0.34845800000016425
+       67       │ - ········},
+       68       │ - ········{
+       69       │ - ··········"name":·"b2s0-measured",
+       70       │ - ··········"sumMs":·82.8087510000014,
+       71       │ - ··········"p50":·0.26683349999996153,
+       72       │ - ··········"p95":·0.34275000000002365
+       73       │ - ········},
+       74       │ - ········{
+       75       │ - ··········"name":·"b2s1-warmup",
+       76       │ - ··········"sumMs":·29.253451000001178,
+       77       │ - ··········"p50":·0.27597900000000664,
+       78       │ - ··········"p95":·0.36941700000011224
+       79       │ - ········},
+       80       │ - ········{
+       81       │ - ··········"name":·"b2s1-measured",
+       82       │ - ··········"sumMs":·77.29324499999711,
+       83       │ - ··········"p50":·0.25012500000002547,
+       84       │ - ··········"p95":·0.3048750000000382
+       85       │ - ········}
+       86       │ - ······],
+       87       │ - ······"cpu":·[
+       88       │ - ········{
+       89       │ - ··········"name":·"b0s0-warmup",
+       90       │ - ··········"T":·71.222,
+       91       │ - ··········"P":·123.584,
+       92       │ - ··········"Wlo":·72.42779199999998,
+       93       │ - ··········"Whi":·72.536833,
+       94       │ - ··········"Wpoint":·72.48231249999999,
+       95       │ - ··········"unaccountedElapsed":·1.2603124999999977,
+       96       │ - ··········"processMinusThread":·52.36200000000001,
+       97       │ - ··········"snapshotWidths":·[
+       98       │ - ············0.07850000000001955,
+       99       │ - ············0.030540999999999485
+      100       │ - ··········],
+      101       │ - ··········"resourceDeltas":·{
+      102       │ - ············"voluntaryContextSwitches":·0,
+      103       │ - ············"involuntaryContextSwitches":·400,
+      104       │ - ············"minorPageFault":·377,
+      105       │ - ············"majorPageFault":·0
+      106       │ - ··········},
+      107       │ - ··········"samples":·100,
+      108       │ - ··········"constructionMs":·38.249251999999956,
+      109       │ - ··········"p50":·0.3259165000000195,
+      110       │ - ··········"p95":·0.6955000000000098
+      111       │ - ········},
+      112       │ - ········{
+      113       │ - ··········"name":·"b0s0-measured",
+      114       │ - ··········"T":·166.643,
+      115       │ - ··········"P":·253.655,
+      116       │ - ··········"Wlo":·172.43008400000002,
+      117       │ - ··········"Whi":·172.463417,
+      118       │ - ··········"Wpoint":·172.4467505,
+      119       │ - ··········"unaccountedElapsed":·5.803750500000007,
+      120       │ - ··········"processMinusThread":·87.012,
+      121       │ - ··········"snapshotWidths":·[
+      122       │ - ············0.008332999999993262,
+      123       │ - ············0.024999999999977263
+      124       │ - ··········],
+      125       │ - ··········"resourceDeltas":·{
+      126       │ - ············"voluntaryContextSwitches":·0,
+      127       │ - ············"involuntaryContextSwitches":·723,
+      128       │ - ············"minorPageFault":·1092,
+      129       │ - ············"majorPageFault":·0
+      130       │ - ··········},
+      131       │ - ··········"samples":·300,
+      132       │ - ··········"constructionMs":·92.68996999999962,
+      133       │ - ··········"p50":·0.2899580000000128,
+      134       │ - ··········"p95":·0.42149999999998045
+      135       │ - ········},
+      136       │ - ········{
+      137       │ - ··········"name":·"b0s1-warmup",
+      138       │ - ··········"T":·64.971,
+      139       │ - ··········"P":·106.803,
+      140       │ - ··········"Wlo":·66.38291699999996,
+      141       │ - ··········"Whi":·66.420209,
+      142       │ - ··········"Wpoint":·66.40156299999998,
+      143       │ - ··········"unaccountedElapsed":·1.430562999999978,
+      144       │ - ··········"processMinusThread":·41.831999999999994,
+      145       │ - ··········"snapshotWidths":·[
+      146       │ - ············0.011625000000037744,
+      147       │ - ············0.025666999999998552
+      148       │ - ··········],
+      149       │ - ··········"resourceDeltas":·{
+      150       │ - ············"voluntaryContextSwitches":·0,
+  20785 more lines truncated
+  
+
+docs/design/causal-release-boundaries-v1-implementation/preservation-after.json format ━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   {
+     2    │ - ··"passed":·true,
+     3    │ - ··"qualifiedSources":·15,
+     4    │ - ··"qualifiedLogs":·14,
+     5    │ - ··"rootHashes":·{
+     6    │ - ····"decisions/decisions.jsonl":·"b1c78cb3d6a0915a37728181a4003bac8f615c1cfd220add1a7982997b48c831",
+     7    │ - ····"plan/backlog.jsonl":·"89a6d9e0a7607db2bac8f7cfdfeeebdaea7f5faed820a8f659d647cdea4d9505",
+     8    │ - ····"sessions/active/SESSION-blueprint-stacked-pr-ownership.md":·"74d4b1311f8b5631b1c3ae77857797f75541b31f92603f47efab953fb800115c",
+     9    │ - ····"sessions/sessions.jsonl":·"d3c318c66a5c0e54294d91f1f5dc776d89c47a69f01b09a7dea06ed33902791c",
+    10    │ - ····"sessions/archive/SESSION-b139-causal-flagship-brief-v1.md":·"1477c42a39903ea89c523c97ee82c7eb1c0e320f88c88738325e043c6d44dc8a",
+    11    │ - ····"sessions/archive/b139-causal-flagship-brief-v1.json":·"c406a58efb7ec9c24ef01c11b987405345b330edd045c915c2afef8d945a7fe7"
+    12    │ - ··},
+    13    │ - ··"priorRefs":·{
+    14    │ - ····"docs/design/causal-cleanup-segments-v1-implementation/receipt.json":·"0597ea328158bccdf397e1fa6061f9ee78ce4c03fdab26fc1d465f566de5f11a",
+    15    │ - ····"docs/design/causal-cpu-wall-diagnostic-v1-implementation/qualification.json":·"7516f2e9d9ccc71981dde155661d9c360c3190e7a3fa8de6187fad3d42e20388"
+    16    │ - ··},
+    17    │ - ··"priorArchivesUnchanged":·true,
+    18    │ - ··"portableReplayEqual":·true,
+    19    │ - ··"archiveFiles":·193
+        2 │ + → "passed":·true,
+        3 │ + → "qualifiedSources":·15,
+        4 │ + → "qualifiedLogs":·14,
+        5 │ + → "rootHashes":·{
+        6 │ + → → "decisions/decisions.jsonl":·"b1c78cb3d6a0915a37728181a4003bac8f615c1cfd220add1a7982997b48c831",
+        7 │ + → → "plan/backlog.jsonl":·"89a6d9e0a7607db2bac8f7cfdfeeebdaea7f5faed820a8f659d647cdea4d9505",
+        8 │ + → → "sessions/active/SESSION-blueprint-stacked-pr-ownership.md":·"74d4b1311f8b5631b1c3ae77857797f75541b31f92603f47efab953fb800115c",
+        9 │ + → → "sessions/sessions.jsonl":·"d3c318c66a5c0e54294d91f1f5dc776d89c47a69f01b09a7dea06ed33902791c",
+       10 │ + → → "sessions/archive/SESSION-b139-causal-flagship-brief-v1.md":·"1477c42a39903ea89c523c97ee82c7eb1c0e320f88c88738325e043c6d44dc8a",
+       11 │ + → → "sessions/archive/b139-causal-flagship-brief-v1.json":·"c406a58efb7ec9c24ef01c11b987405345b330edd045c915c2afef8d945a7fe7"
+       12 │ + → },
+       13 │ + → "priorRefs":·{
+       14 │ + → → "docs/design/causal-cleanup-segments-v1-implementation/receipt.json":·"0597ea328158bccdf397e1fa6061f9ee78ce4c03fdab26fc1d465f566de5f11a",
+       15 │ + → → "docs/design/causal-cpu-wall-diagnostic-v1-implementation/qualification.json":·"7516f2e9d9ccc71981dde155661d9c360c3190e7a3fa8de6187fad3d42e20388"
+       16 │ + → },
+       17 │ + → "priorArchivesUnchanged":·true,
+       18 │ + → "portableReplayEqual":·true,
+       19 │ + → "archiveFiles":·193
+    20 20 │   }
+    21 21 │   
+  
+
+docs/design/causal-release-boundaries-v1-implementation/receipt.json format ━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   {
+     2    │ - ··"status":·"complete-diagnostic",
+     3    │ - ··"ownerWork":·"graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+     4    │ - ··"approvalRef":·"docs/design/causal-release-boundaries-v1-implementation/approval.json",
+     5    │ - ··"designCommit":·"720f9b18",
+     6    │ - ··"processes":·8,
+     7    │ - ··"samples":·19200,
+     8    │ - ··"warmupSamples":·4800,
+     9    │ - ··"measuredSamples":·14400,
+    10    │ - ··"elapsedSeconds":·17.50118404100067,
+    11    │ - ··"retries":·0,
+    12    │ - ··"notRun":·[],
+    13    │ - ··"archiveFiles":·193,
+    14    │ - ··"evidenceValid":·true,
+    15    │ - ··"portableReplayEqual":·true,
+    16    │ - ··"performanceQualification":·false,
+    17    │ - ··"causalConstructionAttribution":·false,
+    18    │ - ··"gradedEntryEvidenceComplete":·false,
+    19    │ - ··"grantExhausted":·true,
+    20    │ - ··"fullTs":·{
+    21    │ - ····"passed":·2547,
+    22    │ - ····"failed":·2,
+    23    │ - ····"skipped":·4,
+    24    │ - ····"failures":·"existing·D159·frozen·manifest·drift"
+    25    │ - ··},
+    26    │ - ··"artifactDigests":·{
+    27    │ - ····"docs/design/causal-release-boundaries-v1-implementation/README.md":·"sha256:401afb3468608f9c935051212181757edeae5344ba7029823c51c46cb1f2c145",
+    28    │ - ····"docs/design/causal-release-boundaries-v1-implementation/analysis.json":·"sha256:19d6cb54e380839288f78a261c0c4bf1f72fdb027e53b069c0f91e376fdfd295",
+    29    │ - ····"docs/design/causal-release-boundaries-v1-implementation/analyze.py":·"sha256:ec398a0b3b9f6d541f0bec2b7cc2b225499d811608ff0559f23ff074642b7f60",
+    30    │ - ····"docs/design/causal-release-boundaries-v1-implementation/approval.json":·"sha256:b77a2bdf92a9f11086fe9333f593ba6ebfa7ec2fbb50fc82d0390c2d49b8e1c7",
+    31    │ - ····"docs/design/causal-release-boundaries-v1-implementation/cleanup-regression.log":·"sha256:a97b2e3b82a7ab7fb9b7116fb1eb297b8af5e13c3569fcf574c510fbd5a2a38a",
+    32    │ - ····"docs/design/causal-release-boundaries-v1-implementation/cleanup-source-regression.log":·"sha256:8084874bbc1f875664a00ce171a3a746c6ae4a5131c694e21d8c54a985839e69",
+    33    │ - ····"docs/design/causal-release-boundaries-v1-implementation/dashboard.log":·"sha256:57d4dc2953cc9de54408eb72f73eccff702d623d1346ab401e6585a2b1275569",
+    34    │ - ····"docs/design/causal-release-boundaries-v1-implementation/full-ts-exit.json":·"sha256:87e2953bdc07406c98c388b9e0670b360fd454f1ccc46bf53d0b84b85508772f",
+    35    │ - ····"docs/design/causal-release-boundaries-v1-implementation/full-ts.log":·"sha256:c9a9ee9cd03aad03fba4cd6a973bc11cd5e7f3e5a98579063fcfa41a6a8c2c1e",
+    36    │ - ····"docs/design/causal-release-boundaries-v1-implementation/independent-verification.json":·"sha256:220f9959aae9d1b248afd21fb1251d5c29a5cf0c5182b3d9b639bb2155e923a4",
+    37    │ - ····"docs/design/causal-release-boundaries-v1-implementation/lint-exit.json":·"sha256:a376076adb9b3151f897d6bf8ba7537e9ce31ccf5a0581b1a444054741b7237a",
+    38    │ - ····"docs/design/causal-release-boundaries-v1-implementation/lint.log":·"sha256:a2e7ced25ebe9cb7b1f09a9de4f2f313588b3689bd5b7999b3d8815323110dd1",
+    39    │ - ····"docs/design/causal-release-boundaries-v1-implementation/loaded.log":·"sha256:e3a8cf50d7f5eb187ac69b46f2dae208d74ce24fd62c8a1c550c1be046b0d6c2",
+    40    │ - ····"docs/design/causal-release-boundaries-v1-implementation/matched-comparisons.csv":·"sha256:6c2f72925e0f04b2f2a30379d0b97487f928e0bd4c6e8ad8b6848e49c67a5c7c",
+    41    │ - ····"docs/design/causal-release-boundaries-v1-implementation/paths.log":·"sha256:a80a532c51861d093354d8964469a9ff3110134830d5d0e8693351923b1cc516",
+    42    │ - ····"docs/design/causal-release-boundaries-v1-implementation/portable-self-verification.json":·"sha256:220f9959aae9d1b248afd21fb1251d5c29a5cf0c5182b3d9b639bb2155e923a4",
+    43    │ - ····"docs/design/causal-release-boundaries-v1-implementation/portable-verification.json":·"sha256:220f9959aae9d1b248afd21fb1251d5c29a5cf0c5182b3d9b639bb2155e923a4",
+    44    │ - ····"docs/design/causal-release-boundaries-v1-implementation/preservation-after.json":·"sha256:0d985f706a8e9ed8e4bf646a868a28220e1b4522ab68b11f8f80934881a4be91",
+    45    │ - ····"docs/design/causal-release-boundaries-v1-implementation/preservation-before.json":·"sha256:a9ccab56550a058eb93fdca189e2edaee958b28878f68bfeea5a376f7e79835b",
+    46    │ - ····"docs/design/causal-release-boundaries-v1-implementation/private-exits.json":·"sha256:4cabc755142ee15a963bc53a12cc57bc4dd2a657ad384e909e661cbe7476efd0",
+    47    │ - ····"docs/design/causal-release-boundaries-v1-implementation/qualification.json":·"sha256:3b7bddbd6f18098f5c0a117748085eff71e62c068b2535eb08541158c34f6daa",
+    48    │ - ····"docs/design/causal-release-boundaries-v1-implementation/review.json":·"sha256:554e558f8585f07c922873ea674f908813219f67ad0ac6a8ece9d5a88b024fa4",
+    49    │ - ····"docs/design/causal-release-boundaries-v1-implementation/segment-arithmetic-verification.json":·"sha256:da5ba0a1f7f219921c4b4de9813d7f5c21dd021084c8971e52ab0ebb8f7895ad",
+    50    │ - ····"docs/design/causal-release-boundaries-v1-implementation/source.log":·"sha256:9836f40a96a573c02944447ff9e1708926ac01706c247154bb3af62e98f8e843",
+    51    │ - ····"docs/design/causal-release-boundaries-v1-implementation/verify-segments.mjs":·"sha256:f36f472e7d06b365bc3fb2841c0a2660e7da067ffad7a3f012c9757a9a3e45fc",
+    52    │ - ····"docs/design/causal-release-boundaries-v1-implementation/workspace.log":·"sha256:8e16637781e9a0e14492b2179f94be678d01cff8709df3a238694fc865a7f544"
+    53    │ - ··},
+    54    │ - ··"archiveDigests":·{
+    55    │ - ····"archive/evals/causal-release-boundaries-v1/evidence.tar.gz":·"sha256:ed9ee0ab1a7662b3719f1fc8309eb7d3da3cb3b0c21331ac0c7e7e81a2d720fb",
+    56    │ - ····"archive/evals/causal-release-boundaries-v1/artifact-index.json":·"sha256:4c87c21a93d45b141fb720ccc315e7c64edd4e5541bf999ef79323b297801f8e"
+    57    │ - ··}
+        2 │ + → "status":·"complete-diagnostic",
+        3 │ + → "ownerWork":·"graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+        4 │ + → "approvalRef":·"docs/design/causal-release-boundaries-v1-implementation/approval.json",
+        5 │ + → "designCommit":·"720f9b18",
+        6 │ + → "processes":·8,
+        7 │ + → "samples":·19200,
+        8 │ + → "warmupSamples":·4800,
+        9 │ + → "measuredSamples":·14400,
+       10 │ + → "elapsedSeconds":·17.50118404100067,
+       11 │ + → "retries":·0,
+       12 │ + → "notRun":·[],
+       13 │ + → "archiveFiles":·193,
+       14 │ + → "evidenceValid":·true,
+       15 │ + → "portableReplayEqual":·true,
+       16 │ + → "performanceQualification":·false,
+       17 │ + → "causalConstructionAttribution":·false,
+       18 │ + → "gradedEntryEvidenceComplete":·false,
+       19 │ + → "grantExhausted":·true,
+       20 │ + → "fullTs":·{
+       21 │ + → → "passed":·2547,
+       22 │ + → → "failed":·2,
+       23 │ + → → "skipped":·4,
+       24 │ + → → "failures":·"existing·D159·frozen·manifest·drift"
+       25 │ + → },
+       26 │ + → "artifactDigests":·{
+       27 │ + → → "docs/design/causal-release-boundaries-v1-implementation/README.md":·"sha256:401afb3468608f9c935051212181757edeae5344ba7029823c51c46cb1f2c145",
+       28 │ + → → "docs/design/causal-release-boundaries-v1-implementation/analysis.json":·"sha256:19d6cb54e380839288f78a261c0c4bf1f72fdb027e53b069c0f91e376fdfd295",
+       29 │ + → → "docs/design/causal-release-boundaries-v1-implementation/analyze.py":·"sha256:ec398a0b3b9f6d541f0bec2b7cc2b225499d811608ff0559f23ff074642b7f60",
+       30 │ + → → "docs/design/causal-release-boundaries-v1-implementation/approval.json":·"sha256:b77a2bdf92a9f11086fe9333f593ba6ebfa7ec2fbb50fc82d0390c2d49b8e1c7",
+       31 │ + → → "docs/design/causal-release-boundaries-v1-implementation/cleanup-regression.log":·"sha256:a97b2e3b82a7ab7fb9b7116fb1eb297b8af5e13c3569fcf574c510fbd5a2a38a",
+       32 │ + → → "docs/design/causal-release-boundaries-v1-implementation/cleanup-source-regression.log":·"sha256:8084874bbc1f875664a00ce171a3a746c6ae4a5131c694e21d8c54a985839e69",
+       33 │ + → → "docs/design/causal-release-boundaries-v1-implementation/dashboard.log":·"sha256:57d4dc2953cc9de54408eb72f73eccff702d623d1346ab401e6585a2b1275569",
+       34 │ + → → "docs/design/causal-release-boundaries-v1-implementation/full-ts-exit.json":·"sha256:87e2953bdc07406c98c388b9e0670b360fd454f1ccc46bf53d0b84b85508772f",
+       35 │ + → → "docs/design/causal-release-boundaries-v1-implementation/full-ts.log":·"sha256:c9a9ee9cd03aad03fba4cd6a973bc11cd5e7f3e5a98579063fcfa41a6a8c2c1e",
+       36 │ + → → "docs/design/causal-release-boundaries-v1-implementation/independent-verification.json":·"sha256:220f9959aae9d1b248afd21fb1251d5c29a5cf0c5182b3d9b639bb2155e923a4",
+       37 │ + → → "docs/design/causal-release-boundaries-v1-implementation/lint-exit.json":·"sha256:a376076adb9b3151f897d6bf8ba7537e9ce31ccf5a0581b1a444054741b7237a",
+       38 │ + → → "docs/design/causal-release-boundaries-v1-implementation/lint.log":·"sha256:a2e7ced25ebe9cb7b1f09a9de4f2f313588b3689bd5b7999b3d8815323110dd1",
+       39 │ + → → "docs/design/causal-release-boundaries-v1-implementation/loaded.log":·"sha256:e3a8cf50d7f5eb187ac69b46f2dae208d74ce24fd62c8a1c550c1be046b0d6c2",
+       40 │ + → → "docs/design/causal-release-boundaries-v1-implementation/matched-comparisons.csv":·"sha256:6c2f72925e0f04b2f2a30379d0b97487f928e0bd4c6e8ad8b6848e49c67a5c7c",
+       41 │ + → → "docs/design/causal-release-boundaries-v1-implementation/paths.log":·"sha256:a80a532c51861d093354d8964469a9ff3110134830d5d0e8693351923b1cc516",
+       42 │ + → → "docs/design/causal-release-boundaries-v1-implementation/portable-self-verification.json":·"sha256:220f9959aae9d1b248afd21fb1251d5c29a5cf0c5182b3d9b639bb2155e923a4",
+       43 │ + → → "docs/design/causal-release-boundaries-v1-implementation/portable-verification.json":·"sha256:220f9959aae9d1b248afd21fb1251d5c29a5cf0c5182b3d9b639bb2155e923a4",
+       44 │ + → → "docs/design/causal-release-boundaries-v1-implementation/preservation-after.json":·"sha256:0d985f706a8e9ed8e4bf646a868a28220e1b4522ab68b11f8f80934881a4be91",
+       45 │ + → → "docs/design/causal-release-boundaries-v1-implementation/preservation-before.json":·"sha256:a9ccab56550a058eb93fdca189e2edaee958b28878f68bfeea5a376f7e79835b",
+       46 │ + → → "docs/design/causal-release-boundaries-v1-implementation/private-exits.json":·"sha256:4cabc755142ee15a963bc53a12cc57bc4dd2a657ad384e909e661cbe7476efd0",
+       47 │ + → → "docs/design/causal-release-boundaries-v1-implementation/qualification.json":·"sha256:3b7bddbd6f18098f5c0a117748085eff71e62c068b2535eb08541158c34f6daa",
+       48 │ + → → "docs/design/causal-release-boundaries-v1-implementation/review.json":·"sha256:554e558f8585f07c922873ea674f908813219f67ad0ac6a8ece9d5a88b024fa4",
+       49 │ + → → "docs/design/causal-release-boundaries-v1-implementation/segment-arithmetic-verification.json":·"sha256:da5ba0a1f7f219921c4b4de9813d7f5c21dd021084c8971e52ab0ebb8f7895ad",
+       50 │ + → → "docs/design/causal-release-boundaries-v1-implementation/source.log":·"sha256:9836f40a96a573c02944447ff9e1708926ac01706c247154bb3af62e98f8e843",
+       51 │ + → → "docs/design/causal-release-boundaries-v1-implementation/verify-segments.mjs":·"sha256:f36f472e7d06b365bc3fb2841c0a2660e7da067ffad7a3f012c9757a9a3e45fc",
+       52 │ + → → "docs/design/causal-release-boundaries-v1-implementation/workspace.log":·"sha256:8e16637781e9a0e14492b2179f94be678d01cff8709df3a238694fc865a7f544"
+       53 │ + → },
+       54 │ + → "archiveDigests":·{
+       55 │ + → → "archive/evals/causal-release-boundaries-v1/evidence.tar.gz":·"sha256:ed9ee0ab1a7662b3719f1fc8309eb7d3da3cb3b0c21331ac0c7e7e81a2d720fb",
+       56 │ + → → "archive/evals/causal-release-boundaries-v1/artifact-index.json":·"sha256:4c87c21a93d45b141fb720ccc315e7c64edd4e5541bf999ef79323b297801f8e"
+       57 │ + → }
+    58 58 │   }
+    59 59 │   
+  
+
+docs/design/causal-release-boundaries-v1-implementation/segment-arithmetic-verification.json format ━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+    1 1 │   {
+    2   │ - ··"passed":·true,
+    3   │ - ··"sidecars":·19200,
+    4   │ - ··"internalSidecars":·9600,
+    5   │ - ··"realConsumerSamples":·0
+      2 │ + → "passed":·true,
+      3 │ + → "sidecars":·19200,
+      4 │ + → "internalSidecars":·9600,
+      5 │ + → "realConsumerSamples":·0
+    6 6 │   }
+    7 7 │   
+  
+
+docs/design/causal-release-counting-v1-implementation/counting-exit.json format ━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+    1 │ {·"exitCode":·0,·"command":·["node",·"scripts/causal-release-counting.test.mjs"]·}
+      │  +                                                                              + 
+
+docs/design/causal-release-counting-v1-implementation/full-ts-exit.json format ━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+    1 │ {·"exitCode":·1,·"command":·["pnpm",·"test"]·}
+      │  +                                          + 
+
+docs/design/causal-release-counting-v1-implementation/root-soak-exit.json format ━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+    1 │ {·"exitCode":·0,·"command":·["pnpm",·"test:root-eval-soak"]·}
+      │  +                                                         + 
+
+The number of diagnostics exceeds the limit allowed. Use --max-diagnostics to increase it.
+Diagnostics not shown: 2.
+Checked 936 files in 949ms. No fixes applied.
+Found 10 errors.
+Found 1 warning.
+Found 11 infos.
+check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+
+[ELIFECYCLE] Command failed with exit code 1.

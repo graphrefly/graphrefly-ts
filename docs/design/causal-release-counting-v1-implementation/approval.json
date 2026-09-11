@@ -1,0 +1,20 @@
+{
+	"userText": "\u540c\u610f",
+	"proposalCommit": "2f19cc0d",
+	"designRef": "docs/design/causal-release-counting-v1.md",
+	"designDigest": "sha256:9661bb29aeab3fae2b051c0d37313418976541a0552ebd7515aa551c9b1a1c41",
+	"approvedSections": "2\u20134",
+	"ownerWork": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"scope": [
+		"one-file production counting change",
+		"offline tests and loaded mutations",
+		"QA and commit"
+	],
+	"notAuthorized": [
+		"new performance samples",
+		"formal matrix",
+		"new public API or protocol",
+		"provider/live/spend",
+		"automatic follow-on work"
+	]
+}

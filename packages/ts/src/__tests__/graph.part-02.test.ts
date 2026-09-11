@@ -661,3 +661,72 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 		);
 	});
 });
+
+describe("Graph release-local subscriber accounting — D122/D124", () => {
+	it("counts real active fan-out/fan-in subscriptions and preserves the rejected group", () => {
+		const g = graph({ dispatcher: new Dispatcher(), profile: true });
+		const group = g.topologyGroup({ name: "diamond" });
+		const a = group.state(2, { name: "a" });
+		const b = group.state(3, { name: "b" });
+		const left = group.derived([a, b], (x, y) => x + y, { name: "left" });
+		const right = group.derived([a, b], (x, y) => x * y, { name: "right" });
+		const join = group.derived([left, right], (x, y) => x + y, { name: "join" });
+		const messages: Message[] = [];
+		const disconnect = join.subscribe((m) => messages.push(m));
+		expect(messages).toContainEqual(["DATA", 11]);
+		const before = g.describe();
+		const events: TopologyEvent[] = [];
+		const stopEvents = g.observeTopology().subscribe((e) => events.push(e));
+
+		// a,b,left,right have internal subscribers: only the final sink prevents release.
+		expect(() => group.release()).toThrow(/'join' still has live subscribers/);
+		expect(g.describe()).toEqual(before);
+		expect(group.released).toBe(false);
+		expect(events).toEqual([]);
+		// Live topology changes after rejection must be read again on the next attempt.
+		join.replaceDeps([a], (ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]));
+		expect(join.deps).toEqual([a]);
+		expect(() => group.release()).toThrow(/'join' still has live subscribers/);
+		disconnect();
+		events.length = 0;
+		group.release();
+		group.release();
+		expect(events.map((e) => e.kind)).toEqual(Array(5).fill("node-released"));
+		expect(g.describe().nodes).toEqual([]);
+		expect(Object.keys(g.profile().nodes)).toEqual([]);
+		expect(g.checkpoint().nodes).toEqual([]);
+		for (const name of ["a", "b", "left", "right", "join"]) {
+			expect(g.find(name)).toBeUndefined();
+			expect(() => g.state(0, { name })).toThrow(/released/);
+		}
+		stopEvents();
+	});
+
+	it("keeps competing subscriber/quiescence errors in requested entry order", () => {
+		const g = graph();
+		const first = g.state(1, { name: "first" });
+		const later = g.node([], null, { name: "later" });
+		const disconnect = first.subscribe(() => {});
+		later.down([["DIRTY"]]);
+		const before = g.describe();
+		expect(() => releaseGraphNodes(g, [first, first, later])).toThrow(
+			/'first' still has live subscribers/,
+		);
+		expect(() => releaseGraphNodes(g, [later, first])).toThrow(/'later' is not runtime-quiescent/);
+		expect(g.describe()).toEqual(before);
+		disconnect();
+	});
+
+	it("keeps external dependency rejection before internal subscriber and dirty errors", () => {
+		const g = graph();
+		const a = g.state(1, { name: "a" });
+		const b = g.node([], null, { name: "b" });
+		g.derived([b], (x) => x, { name: "outside" });
+		const disconnect = a.subscribe(() => {});
+		b.down([["DIRTY"]]);
+		const before = g.describe();
+		expect(() => releaseGraphNodes(g, [a, b])).toThrow(/'outside' still depends on 'b'/);
+		expect(g.describe()).toEqual(before);
+		disconnect();
+	});
+});

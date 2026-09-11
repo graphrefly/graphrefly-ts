@@ -1,0 +1,56 @@
+$ pnpm --filter @graphrefly/ts test:root-eval-soak
+$ vitest run --config vitest.root-eval-soak.config.ts
+
+ RUN  v3.2.4 /Users/davidchenallio/src/graphrefly-ts/packages/ts
+
+ ✓ src/__tests__/solutions-agentic-memory-work-item-root-eval-live.test.ts (221 tests) 985485ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > keeps confirmatory authority on its sealed USD 6 partition  639ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > binds development-2 to its exact approved budget coordinates  545ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > binds development-3 to its exact approved budget coordinates  534ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > binds development-4 to its exact approved budget coordinates  402ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > requires a committed D140 live claim before live provider dispatch  7220ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > keeps consumed dispatch accounting when stage cleanup fails after receipt link  1072ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > drains the response and preserves reported cost when the dispatch observer throws  1027ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > settles a pre-dispatch stall through the Graph-admitted Work Item timeout  58094ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > aborts active transport leases and removes every workspace on caller cancellation  1367ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > settles thirty output-truncated Together responses through the root Graph  54886ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > classifies a post-header body abort as the Graph-admitted transport timeout  5271ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > retains HTTP 429 capacity identity when its optional body aborts  5797ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > does not turn a dispatch observer failure into availability retry after a 429 body abort  5310ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > retains every success invariant as a stable material-free rejection code  1151ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > persists a rejected candidate as current partial evidence with no raw admission identities  489ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > requires a committed D152 claim before evidence persistence  392ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > commits one D140 qualification claim and persists identical canonical evidence idempotently  1000ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > D154 persists a real budget-stopped Graph terminal without efficacy and rejects terminal drift  348ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > atomically commits D152 evidence and its carried-spend ledger  462ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > persists success when an earlier independent observer has a prefix and different envelope sequences  387ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > persists success when the canonical observer has a prefix and diagnostics retain the exact semantic suffix  374ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > atomically persists D113 semantic success with a rejected billing audit  401ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > reconciles rejected post-usage response shapes at their independently validated cost  23005ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > completes an all-Work-Item 429 lifecycle beyond the old projection bounds for development-1  118155ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > completes an all-Work-Item 429 lifecycle beyond the old projection bounds for development-3  126660ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > derives and enforces the exact 175-provider/140-retry topology boundary offline  1182ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > qualifies Together through five sources and all thirty target Work Items without network  72167ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > runs the full five-replicate six-arm development-6 bank through no-network Graph integration  76405ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > runs the full five-replicate six-arm development-7 bank through no-network Graph integration  78301ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > executes one admitted effect against a frozen isolated workspace and behavioral verifiers  30920ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > qualifies five orthogonal mechanisms with ambiguous public and discriminating private verifiers: 'development-1'/'target'  39004ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > qualifies five orthogonal mechanisms with ambiguous public and discriminating private verifiers: 'development-3'/'source'  23166ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > qualifies five orthogonal mechanisms with ambiguous public and discriminating private verifiers: 'development-3'/'target'  24693ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > qualifies five orthogonal mechanisms with ambiguous public and discriminating private verifiers: 'development-4'/'source'  24349ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > qualifies five orthogonal mechanisms with ambiguous public and discriminating private verifiers: 'development-4'/'target'  24100ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > qualifies five orthogonal mechanisms with ambiguous public and discriminating private verifiers: 'development-5'/'source'  29796ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > qualifies five orthogonal mechanisms with ambiguous public and discriminating private verifiers: 'development-5'/'target'  23050ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > qualifies five orthogonal mechanisms with ambiguous public and discriminating private verifiers: 'development-6'/'source'  30013ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > qualifies five orthogonal mechanisms with ambiguous public and discriminating private verifiers: 'development-6'/'target'  24020ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > qualifies five orthogonal mechanisms with ambiguous public and discriminating private verifiers: 'development-7'/'source'  25815ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > qualifies five orthogonal mechanisms with ambiguous public and discriminating private verifiers: 'development-7'/'target'  24080ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > atomically seals the D157 two-bank horizon and fails closed outside it  931ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > atomically precommits the D159 development-6/7 horizon and all-pairs isolation  1530ms
+   ✓ D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence > keeps historical D85 coordinates inspectable but rejects their reuse by D140  10737ms
+
+ Test Files  1 passed (1)
+      Tests  221 passed (221)
+   Start at  15:25:45
+   Duration  987.00s (transform 1.04s, setup 0ms, collect 1.25s, tests 985.48s, environment 0ms, prepare 63ms)
+

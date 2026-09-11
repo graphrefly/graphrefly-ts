@@ -1,0 +1,4 @@
+{
+	"exitCode": 0,
+	"command": ["pnpm", "--filter", "@graphrefly/ts", "test:typecheck"]
+}

@@ -1,0 +1,1 @@
+{"passed":true,"oracleCases":1036,"runtimeGuardCases":15,"sameHostRetryChecks":2,"complexityCases":5,"loadedMutants":["ignore-activity","include-self","dedup-deps","count-unregistered-input","cross-call-cache","skip-quiescence","reject-equal","precheck-all-quiescence","remove-before-validation"],"performanceSamples":0}

@@ -331,19 +331,26 @@ export class Graph {
 				);
 			}
 		}
+		let internalSubscriberCounts: Map<Node<unknown>, number> | undefined;
 		for (const { node, entry } of entries) {
 			if (!isNodeRuntimeQuiescentForRelease(node)) {
 				throw new Error(
 					`graph: cannot release node group; '${entry.id}' is not runtime-quiescent (D124)`,
 				);
 			}
-			let internalSubscribers = 0;
-			for (const { node: dependent } of entries) {
-				if (dependent === node || !isNodeActiveForRelease(dependent)) continue;
-				for (const dep of dependent.deps) {
-					if (dep === node) internalSubscribers += 1;
+			// D124: count once in this read-only release attempt; retain ordered guard errors.
+			if (internalSubscriberCounts === undefined && entries.length > 1) {
+				internalSubscriberCounts = new Map();
+				for (const { node: dependent } of entries) {
+					if (!isNodeActiveForRelease(dependent)) continue;
+					for (const dep of dependent.deps) {
+						if (dep !== dependent && releaseSet.has(dep)) {
+							internalSubscriberCounts.set(dep, (internalSubscriberCounts.get(dep) ?? 0) + 1);
+						}
+					}
 				}
 			}
+			const internalSubscribers = internalSubscriberCounts?.get(node) ?? 0;
 			if (subscriberCountOfNode(node) > internalSubscribers) {
 				throw new Error(
 					`graph: cannot release node group; '${entry.id}' still has live subscribers (D124)`,

@@ -1,0 +1,29 @@
+{
+	"staticOnly": true,
+	"reviewers": [
+		{
+			"name": "release_counting_semantics",
+			"verdict": "clear",
+			"scope": "predicate, first-error order, supported extension paths, lifecycle"
+		},
+		{
+			"name": "release_counting_evidence",
+			"verdict": "clear",
+			"scope": "independent oracle, semantic mutation detection, real graph paths, operation counts"
+		}
+	],
+	"actionableFindings": [],
+	"accessorAudit": {
+		"ordinaryDeps": "Node.deps returns live slot deps; inspection-only, no computation",
+		"runtimeAccess": "exact issued identity reads; quiescence and subscriber methods are private read-only forwarding",
+		"construction": "Graph, restore, construction and operator funnels instantiate ordinary Node/StateNode; topologyGroup.add requires registration",
+		"supportedReentrantGuardAccessorFound": false,
+		"noContractNarrowing": true
+	},
+	"supplementalReview": "release_counting_evidence statically re-reviewed all15 extracted predicate cases and AssertionError-only mutant detection: clear",
+	"gateFindings": {
+		"fixed": "new exit-record JSON formatting",
+		"retained": "seven prior release-boundaries JSON formatting errors; byte-bound receipt/archive evidence preserved",
+		"artifact": "existing D159 manifest drift; no rebaseline"
+	}
+}

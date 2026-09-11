@@ -1,0 +1,101 @@
+{
+	"status": "implemented-offline-evidence-with-existing-gate-failures",
+	"ownerWork": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"baselineCommit": "2f19cc0d",
+	"approvalRef": "docs/design/causal-release-counting-v1-implementation/approval.json",
+	"behavioralQualification": {
+		"passed": true,
+		"oracleCases": 1036,
+		"runtimeGuardCases": 15,
+		"sameHostRetryChecks": 2,
+		"complexityCases": 5,
+		"loadedMutants": [
+			"ignore-activity",
+			"include-self",
+			"dedup-deps",
+			"count-unregistered-input",
+			"cross-call-cache",
+			"skip-quiescence",
+			"reject-equal",
+			"precheck-all-quiescence",
+			"remove-before-validation"
+		],
+		"performanceSamples": 0
+	},
+	"allOfflineGatesPassed": false,
+	"fullTs": {
+		"passed": 2550,
+		"failed": 2,
+		"skipped": 4,
+		"failureClassification": "existing D159 frozen implementation manifest drift"
+	},
+	"rootSoak": {
+		"passed": 221
+	},
+	"gates": {
+		"biome-final": 1,
+		"artifact": 1,
+		"counting": 0,
+		"lint": 1,
+		"full-ts": 1,
+		"scoped-biome": 0,
+		"root-soak": 0,
+		"build": 0,
+		"typecheck": 0,
+		"test-typecheck": 0,
+		"no-raw-async": 0
+	},
+	"governance": {
+		"dashboard": 0,
+		"workspace": 0
+	},
+	"lintLimit": "seven pre-existing byte-bound release-boundaries JSON format errors; new-file formatting fixed, scoped Biome and separately executed type/layer gates pass",
+	"artifactLimit": "existing D159 frozen manifest drift; not rebaselined",
+	"publicApiChanged": false,
+	"protocolChanged": false,
+	"performanceSamples": 0,
+	"performanceQualification": false,
+	"gradedEntryEvidenceComplete": false,
+	"ownershipVerified": false,
+	"sourceDigests": {
+		"packages/ts/src/graph/graph.ts": "sha256:54b3644e0de855533f9ac91621b9e4eceb0368d11a953fe0d793dfd22e8b72fe",
+		"packages/ts/src/__tests__/graph.part-02.test.ts": "sha256:f5a17eb39927897111355876d6ec709e21eea7ac3223d3cb02174d64d55bec67",
+		"scripts/causal-release-counting.test.mjs": "sha256:4d9bc65e704171e1e958cf0facc8258e255720b57f39b7db70066651c3ac4d02",
+		"packages/ts/runners/local-untrusted-js/local-untrusted-js-runner.mjs": "sha256:3525f162a2071377e770198838728f107c1c319e27a8ac21f303059befa8021f",
+		"packages/ts/src/node/node.ts": "sha256:b4f7ea41b8bd6cd9664cde9a31763caef4d4effd17597d868f9ef9b3d699eec6",
+		"packages/ts/src/node/runtime-accessors.ts": "sha256:6ec8dc24114807f55bc4633fb12d4fa24c35d83d0796ce270f7407017073322f",
+		"packages/ts/src/node/node-lifecycle-runtime.ts": "sha256:c0845b70f2da14aa8692ec2fe4d079cdb0e3be0af777648e0ce2c6adcca3273b",
+		"packages/ts/src/graph/graph-topology-group.ts": "sha256:044f242b40e0ca8e069dbac19855af5d647513d80cbd54ac4978aa7b0830c119"
+	},
+	"artifactDigests": {
+		"docs/design/causal-release-counting-v1-implementation/README.md": "sha256:ffa75cc42887b75ab04652d6b060c5f5d504e2cd371ae59ce6d8ca22824b35d1",
+		"docs/design/causal-release-counting-v1-implementation/approval.json": "sha256:bb4ccab2de4c358a3a071e355088988b3516acd02c7b6082358d95b72a8703d0",
+		"docs/design/causal-release-counting-v1-implementation/artifact-exit.json": "sha256:fbfdee0c5690ad94448f13b8b4d84d2053312be0b5dc2fda26c032c5e6e054fa",
+		"docs/design/causal-release-counting-v1-implementation/artifact.log": "sha256:20265a75321abe7dc96bcba205b862ad7be450b64df04beed13dbe6a620bad50",
+		"docs/design/causal-release-counting-v1-implementation/biome-final-exit.json": "sha256:2d1d8d515eb300e2fc0e4a4a5d6d16b90fe6e630e1de19d0b98afeb2c2bfc42c",
+		"docs/design/causal-release-counting-v1-implementation/biome-final.log": "sha256:9453f1564b6da68a0f5abe4cfc54e876e388f6bca503009ad614d21eea907d82",
+		"docs/design/causal-release-counting-v1-implementation/build-exit.json": "sha256:2dbfe6e484aa86f9149909857198fb7ddeea75d55872f7388315069a1d539244",
+		"docs/design/causal-release-counting-v1-implementation/build.log": "sha256:1512917bb7ba1ec2bd34808ade4fa6559bedf2ffda14291a050a8425e39697c8",
+		"docs/design/causal-release-counting-v1-implementation/counting-exit.json": "sha256:0661fb965a327d50f4e51a9ed17f548fde5e3ab57a5a2dfb666703ffa4caf2c6",
+		"docs/design/causal-release-counting-v1-implementation/counting.log": "sha256:c01edae44a640c87206c044c3a32e201f290836d5447e856dbffcf99ce8885f0",
+		"docs/design/causal-release-counting-v1-implementation/dashboard.log": "sha256:57d4dc2953cc9de54408eb72f73eccff702d623d1346ab401e6585a2b1275569",
+		"docs/design/causal-release-counting-v1-implementation/full-ts-exit.json": "sha256:45accd0884f4a72588c6e2b8b438f640ed389782ee5c4dca1410b86e4e2d8d94",
+		"docs/design/causal-release-counting-v1-implementation/full-ts.log": "sha256:7f1239d52e5656d654e16350066a46acae32f218b2e623b734550f3d71a46c5b",
+		"docs/design/causal-release-counting-v1-implementation/lint-exit.json": "sha256:d44f1e2cde3402cd8771672ad3c27d6a183d1cffb676bae9c4cc9f73a489a5fe",
+		"docs/design/causal-release-counting-v1-implementation/lint.log": "sha256:5c0840e51fe20e81ee6986da097d62218e0ac8212e3395670d11276c5f8ae0b1",
+		"docs/design/causal-release-counting-v1-implementation/no-raw-async-exit.json": "sha256:71ddeb11f452c8c0a06db3a193303a68a143c39952f40ba5d6faff1c0d7c3325",
+		"docs/design/causal-release-counting-v1-implementation/no-raw-async.log": "sha256:aa66e48fab7b89806f6fb31329a127bf99d560f5029070f913d6ade382caf2bb",
+		"docs/design/causal-release-counting-v1-implementation/preservation.json": "sha256:0a5ffd77919fbbbece7ed4dea4a9e366d630fa9e50b5653f02d98a6ec71a76f2",
+		"docs/design/causal-release-counting-v1-implementation/review.json": "sha256:46a592d03213ef49d4cc5520cdca368521b6c6e46d7fa1856d507cf7c14e681b",
+		"docs/design/causal-release-counting-v1-implementation/root-soak-exit.json": "sha256:a22a5e77391f2e6f248e4fa18b4d14b367c8e53f1e2af0fb75ccdeb2b2a12955",
+		"docs/design/causal-release-counting-v1-implementation/root-soak.log": "sha256:a61e2a30cd633784ae382cac02634b9055655f44858fdfbc9348ffad211e0013",
+		"docs/design/causal-release-counting-v1-implementation/scoped-biome-exit.json": "sha256:3bb0b06f45611461b05afaf1dece2760bafca27a306c19acd449649907c205b1",
+		"docs/design/causal-release-counting-v1-implementation/scoped-biome.log": "sha256:6fe2539f9769909a8ba7cc3568c051b82c9e8e849921b37063970c2b2f90e23e",
+		"docs/design/causal-release-counting-v1-implementation/targeted.log": "sha256:8249299235d5a4ebb8eb9bff97a10483463fa56c974760d76b84cac553aae563",
+		"docs/design/causal-release-counting-v1-implementation/test-typecheck-exit.json": "sha256:36f19579fccf51cfc52033c249341bd193ac35072b00e77f3854ddae1b6004f7",
+		"docs/design/causal-release-counting-v1-implementation/test-typecheck.log": "sha256:a02c98431c2dda3bb9bab21e6f14e45e04fbfaf0baede3c6f8cc985c4791679e",
+		"docs/design/causal-release-counting-v1-implementation/typecheck-exit.json": "sha256:6f851807ce238a77f92d56004c2940f98f73f5d040c56027fa1480f8949b091c",
+		"docs/design/causal-release-counting-v1-implementation/typecheck.log": "sha256:a25ef73018d2bec141ab7fb4105f5d9a7b48471af961ab1f3ccd92395e9f9abe",
+		"docs/design/causal-release-counting-v1-implementation/workspace.log": "sha256:8e16637781e9a0e14492b2179f94be678d01cff8709df3a238694fc865a7f544"
+	}
+}
