@@ -1,0 +1,424 @@
+{
+	"kind": "private bounded crossover diagnostic evidence",
+	"work_ref": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"governing_refs": ["graphrefly-ts:D168"],
+	"baseline": "2867455b",
+	"approval": {
+		"path": "docs/design/causal-control-role-crossover-attempt-2/approval.json",
+		"digest": "sha256:1ce6d966f914a24e8f8a6e8b8ac28956ed2ad3d510be37dedb68710446f7af8d"
+	},
+	"status": "complete-diagnostic",
+	"measurement": {
+		"processes": 8,
+		"samples": 19200,
+		"warmup": 4800,
+		"measured": 14400,
+		"preflightInstances": 48,
+		"elapsedSeconds": 11.883296791012981,
+		"retries": 0,
+		"notRun": []
+	},
+	"independentVerifier": {
+		"status": "complete-diagnostic",
+		"samples": 19200,
+		"processes": 8,
+		"rows": [
+			{
+				"position": 0,
+				"cell": 0,
+				"batchP95Ms": {
+					"candidate": [0.4171660000000088, 0.3495829999999387, 0.3719170000001668],
+					"reference": [0.5234580000000051, 0.35533299999997325, 0.3111669999998412]
+				},
+				"medianBatchP95Ms": {
+					"candidate": 0.3719170000001668,
+					"reference": 0.35533299999997325
+				},
+				"externalOverDriver": 1.0466717135762644,
+				"m1OverM0": 1.0466717135762644,
+				"laterOverEarlier": 1.0466717135762644
+			},
+			{
+				"position": 1,
+				"cell": 1,
+				"batchP95Ms": {
+					"candidate": [0.4260409999999979, 0.3242079999999987, 0.40904199999999946],
+					"reference": [0.40316600000005565, 0.3447079999999687, 0.2986249999999018]
+				},
+				"medianBatchP95Ms": {
+					"candidate": 0.40904199999999946,
+					"reference": 0.3447079999999687
+				},
+				"externalOverDriver": 1.1866333244370209,
+				"m1OverM0": 0.8427203074500152,
+				"laterOverEarlier": 0.8427203074500152
+			},
+			{
+				"position": 2,
+				"cell": 3,
+				"batchP95Ms": {
+					"candidate": [0.38100000000002865, 0.3170000000000073, 0.36962500000004184],
+					"reference": [0.3919999999999959, 0.3310830000000351, 0.30616699999995944]
+				},
+				"medianBatchP95Ms": {
+					"candidate": 0.36962500000004184,
+					"reference": 0.3310830000000351
+				},
+				"externalOverDriver": 1.1164118967147292,
+				"m1OverM0": 0.8957267500845387,
+				"laterOverEarlier": 1.1164118967147292
+			},
+			{
+				"position": 3,
+				"cell": 2,
+				"batchP95Ms": {
+					"candidate": [0.38983400000000756, 0.32016699999996945, 0.3807080000001406],
+					"reference": [0.3940830000000233, 0.3116250000000491, 0.2892500000000382]
+				},
+				"medianBatchP95Ms": {
+					"candidate": 0.3807080000001406,
+					"reference": 0.3116250000000491
+				},
+				"externalOverDriver": 1.2216863217010208,
+				"m1OverM0": 1.2216863217010208,
+				"laterOverEarlier": 0.8185407188709826
+			},
+			{
+				"position": 4,
+				"cell": 2,
+				"batchP95Ms": {
+					"candidate": [0.38270800000000804, 0.32000000000005, 0.3637499999999818],
+					"reference": [0.3930000000000291, 0.36237500000004275, 0.297458000000006]
+				},
+				"medianBatchP95Ms": {
+					"candidate": 0.3637499999999818,
+					"reference": 0.36237500000004275
+				},
+				"externalOverDriver": 1.003794411865992,
+				"m1OverM0": 1.003794411865992,
+				"laterOverEarlier": 0.996219931271645
+			},
+			{
+				"position": 5,
+				"cell": 3,
+				"batchP95Ms": {
+					"candidate": [0.38599999999996726, 0.3105829999999514, 0.35829199999989214],
+					"reference": [0.409417000000019, 0.3229999999999791, 0.2972500000000764]
+				},
+				"medianBatchP95Ms": {
+					"candidate": 0.35829199999989214,
+					"reference": 0.3229999999999791
+				},
+				"externalOverDriver": 1.1092631578944747,
+				"m1OverM0": 0.9014993357375446,
+				"laterOverEarlier": 1.1092631578944747
+			},
+			{
+				"position": 6,
+				"cell": 1,
+				"batchP95Ms": {
+					"candidate": [0.3785840000000178, 0.3197499999999991, 0.3441250000000764],
+					"reference": [0.3988329999999678, 0.3419169999999667, 0.317290999999841]
+				},
+				"medianBatchP95Ms": {
+					"candidate": 0.3441250000000764,
+					"reference": 0.3419169999999667
+				},
+				"externalOverDriver": 1.0064577075726269,
+				"m1OverM0": 0.9935837268431262,
+				"laterOverEarlier": 0.9935837268431262
+			},
+			{
+				"position": 7,
+				"cell": 0,
+				"batchP95Ms": {
+					"candidate": [0.3859170000000063, 0.30883300000004965, 0.36979199999996126],
+					"reference": [0.36308300000001736, 0.3487079999999878, 0.30816600000002836]
+				},
+				"medianBatchP95Ms": {
+					"candidate": 0.36979199999996126,
+					"reference": 0.3487079999999878
+				},
+				"externalOverDriver": 1.0604631955675643,
+				"m1OverM0": 1.0604631955675643,
+				"laterOverEarlier": 1.0604631955675643
+			}
+		],
+		"performanceQualification": false,
+		"eventAssociation": "unknown"
+	},
+	"analysisRef": {
+		"path": "archive/evals/causal-control-role-crossover-attempt-2/analysis.json",
+		"digest": "sha256:ef89585f30777dd037891683f7d06f8848612f171591f30c1a6c574faa58c026"
+	},
+	"tools": {
+		"testsRun": 9,
+		"failures": 0,
+		"errors": 0,
+		"mutants": [
+			{
+				"id": "wrong-driver-C0",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "actual Node stub entry",
+				"entryDigest": "44c87a451cfad1eb7623955f32dae8e772c38b0cfafe6c48436b0a1d28af0540"
+			},
+			{
+				"id": "wrong-driver-C1",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "actual Node stub entry",
+				"entryDigest": "7f6d5da478537af1607ce1575fcef1537a6b675af432ee22b533d88b489c49dc"
+			},
+			{
+				"id": "wrong-driver-C2",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "actual Node stub entry",
+				"entryDigest": "5160b027ddeade80b49368d58953d3f4379ee8a7e1662197e73b7000603739e4"
+			},
+			{
+				"id": "wrong-driver-C3",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "actual Node stub entry",
+				"entryDigest": "e18772f9e7118e82cad035c8d07a429f0f6f5ee66e9786440b8a4dc136c9a7c5"
+			},
+			{
+				"id": "self-copy-C0",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "actual Node stub entry",
+				"entryDigest": "3ee5909e80d3141130f2a6239ca484bad9afeb1363e631c1709ccb7520231ad8"
+			},
+			{
+				"id": "self-copy-C1",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "actual Node stub entry",
+				"entryDigest": "d53bba311e85c69e8b9f75ec3f969fabd75e1abad50e06467369ecb1a293ed7b"
+			},
+			{
+				"id": "self-copy-C2",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "actual Node stub entry",
+				"entryDigest": "615fe8f33fa0c0aa161c5d90cfa3c78665ab24c755d2ea328af7c953d48bd8c2"
+			},
+			{
+				"id": "self-copy-C3",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "actual Node stub entry",
+				"entryDigest": "f393c368ccffc374a10038411f443bac149139fc3e9a16d76607c0623baea630"
+			},
+			{
+				"id": "reversed-load-C0",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "actual Node stub entry",
+				"entryDigest": "3850a393f0a8547240e889b62ef11c1c5bc0c80b01af8402545bd0f6a05d8f4a"
+			},
+			{
+				"id": "reversed-load-C1",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "actual Node stub entry",
+				"entryDigest": "a5b20dc9bd60d59aae0d2d09d7704bad6ad920f1dc57e6d630056a2af919b39a"
+			},
+			{
+				"id": "reversed-load-C2",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "actual Node stub entry",
+				"entryDigest": "34a5babc3f734a03325b9066fb61196049153d53985054b23402fa7925772fa3"
+			},
+			{
+				"id": "reversed-load-C3",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "actual Node stub entry",
+				"entryDigest": "149206cd77d878a44e2fb17e44d4edb0560acf5babd29b5e8e722370cdf8eb5f"
+			},
+			{
+				"id": "whole-span",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "complete verifier input, reindexed"
+			},
+			{
+				"id": "ninth-process",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "complete verifier input, reindexed"
+			},
+			{
+				"id": "changed-bundle",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "complete verifier input, reindexed"
+			},
+			{
+				"id": "summary-tamper",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "complete verifier input, reindexed"
+			},
+			{
+				"id": "wrong-copy",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "verifier job input"
+			},
+			{
+				"id": "missing-completion",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "verifier job input"
+			},
+			{
+				"id": "wrong-pid",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "verifier job input"
+			},
+			{
+				"id": "wrong-entry",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "verifier job input"
+			},
+			{
+				"id": "wrong-import-events",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "verifier job input"
+			},
+			{
+				"id": "wrong-argv",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "verifier job input"
+			},
+			{
+				"id": "preflight-failure",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "verifier job input"
+			},
+			{
+				"id": "missing-sample",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "verifier input"
+			},
+			{
+				"id": "duplicate-sample",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "verifier input"
+			},
+			{
+				"id": "wrong-phase",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "verifier input"
+			},
+			{
+				"id": "wrong-order",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "verifier input"
+			},
+			{
+				"id": "changed-duration",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "verifier input"
+			},
+			{
+				"id": "wrong-cold-construction-field",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "verifier input"
+			},
+			{
+				"id": "nan-duration",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "verifier input"
+			},
+			{
+				"id": "nonmonotonic",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "verifier input"
+			},
+			{
+				"id": "boolean-coordinate",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "verifier input"
+			},
+			{
+				"id": "wrong-segment",
+				"loaded": true,
+				"outcome": "detected",
+				"kind": "verifier input"
+			}
+		],
+		"realConsumerMeasurements": 0
+	},
+	"sourceBindings": {
+		"scripts/causal-control-crossover.py": "sha256:b60b8dc6e5bc7b7d4fe0748dd90d3f4336c5a678c0f7752ecb1d08dfd7150075",
+		"scripts/verify-causal-control-crossover.py": "sha256:5066df570c7b0cffac5137c10698e31b9ddaab333917d10fbec0264aa3f85904",
+		"scripts/causal-control-crossover.test.py": "sha256:37fae84fbd4856f1ea2132291882eecbb9eb3408cd38b0300fd0323b264c3150"
+	},
+	"reusedFullSuite": {
+		"basis": "Only OUTPUT/APPROVAL constants changed; no library/test/measurement/verifier logic change; see preservation.json",
+		"receipt": "docs/design/causal-control-role-crossover-v1-implementation/receipt.json",
+		"digest": "sha256:373405586622d9973a9c30a26b1b57fae039d4eec95658d16d6212446711a4e8",
+		"passed": 2547,
+		"existingD159Failures": 2,
+		"skipped": 4,
+		"executedThisTurn": false
+	},
+	"performanceQualification": false,
+	"workStatus": "incomplete",
+	"ownership": "teach-back unverified",
+	"externalEffects": 0,
+	"rawEvidence": {
+		"path": "archive/evals/causal-control-role-crossover-attempt-2/evidence.tar.gz",
+		"files": 117,
+		"bytes": 1126574,
+		"digest": "sha256:4256d43d7913332911948dc83c2c9eff1ce4f0cd8855121a439f314a7883898d",
+		"indexDigest": "sha256:c2be7d214ccbbeffd100220c8bbd2b25b59522e5fe24719c0dea1136ad08354e",
+		"allBytesVerified": true,
+		"relocatedReplayStatus": "complete-diagnostic",
+		"relocatedSamplesVerified": 19200,
+		"relocatedReplayMatches": true
+	},
+	"gates": {
+		"lint": {
+			"command": ["pnpm", "run", "lint"],
+			"exitCode": 0,
+			"seconds": 9.968696415991872
+		},
+		"dashboard": {
+			"command": ["node", "/Users/davidchenallio/src/graphrefly/dashboard/build.mjs", "--check"],
+			"exitCode": 0,
+			"seconds": 0.865481707995059
+		},
+		"authority": {
+			"command": [
+				"npm",
+				"--prefix",
+				"/Users/davidchenallio/src/graphrefly",
+				"run",
+				"authority:check:workspace"
+			],
+			"exitCode": 0,
+			"seconds": 2.273002166999504
+		}
+	}
+}

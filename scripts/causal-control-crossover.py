@@ -12,8 +12,8 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 ARCHIVE = ROOT / 'archive/evals/causal-performance-repetition-v2'
-OUTPUT = ROOT / 'archive/evals/causal-control-role-crossover-v1/run'
-APPROVAL = ROOT / 'docs/design/causal-control-role-crossover-v1-implementation/approval.json'
+OUTPUT = ROOT / 'archive/evals/causal-control-role-crossover-attempt-2/run'
+APPROVAL = ROOT / 'docs/design/causal-control-role-crossover-attempt-2/approval.json'
 SCHEDULE = [0, 1, 3, 2, 2, 3, 1, 0]
 CELLS = [([0, 1], 0), ([0, 1], 1), ([1, 0], 0), ([1, 0], 1)]
 NAMES = ['worker.mjs', 'worker-copy.mjs']

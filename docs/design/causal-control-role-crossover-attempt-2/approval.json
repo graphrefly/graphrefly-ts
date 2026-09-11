@@ -1,0 +1,23 @@
+{
+	"kind": "human execution approval",
+	"work_ref": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"governing_refs": ["graphrefly-ts:D168"],
+	"design": "docs/design/causal-control-role-crossover-v1.md",
+	"designDigest": "sha256:94b35a6f3dfeb316a2522c53177863b2b56baa0b537d21afab9953b075a67ceb",
+	"designCommit": "eb0de27d",
+	"repairCommit": "2867455b",
+	"userText": "好的，批准，继续",
+	"scope": "One new complete crossover diagnostic using corrected cold-field tools; fixed sequence C0 C1 C3 C2 C2 C3 C1 C0; preserve prior attempt, independently verify and commit results",
+	"output": "archive/evals/causal-control-role-crossover-attempt-2/run",
+	"maxProcesses": 8,
+	"maxSamples": 19200,
+	"maxSecondsPerChild": 30,
+	"maxSecondsTotal": 300,
+	"retries": 0,
+	"currentness": "Current task, exact design/material/runtime bindings; consumed by this attempt, no automatic retry or further capture",
+	"nonGoals": [
+		"formal performance qualification/matrix/CSP-11",
+		"runtime/public API/protocol changes",
+		"provider/live/spend/effects"
+	]
+}

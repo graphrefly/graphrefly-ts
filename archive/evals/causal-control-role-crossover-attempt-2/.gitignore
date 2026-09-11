@@ -1,0 +1,4 @@
+# Raw execution/source bytes live in evidence.tar.gz; retain the single-use reservation.
+/run/*
+!/run/reservation.json
+/final-source/

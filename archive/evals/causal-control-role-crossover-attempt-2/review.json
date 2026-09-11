@@ -1,0 +1,23 @@
+{
+  "kind": "static QA of new attempt bindings",
+  "reviewers": [
+    {
+      "name": "crossover_blind_review",
+      "scope": "parent-supplied exact two-line diff and approval contents; no commands"
+    },
+    {
+      "name": "crossover_spec_review",
+      "scope": "current diff and approval artifact; static reads only"
+    }
+  ],
+  "finding": "none",
+  "sourceChanges": "OUTPUT and APPROVAL only; schedule, sampling, stop, verifier and statistics unchanged",
+  "approvedLimits": {
+    "processes": 8,
+    "samples": 19200,
+    "childSeconds": 30,
+    "totalSeconds": 300,
+    "automaticRetries": 0
+  },
+  "sourceDigest": "sha256:b60b8dc6e5bc7b7d4fe0748dd90d3f4336c5a678c0f7752ecb1d08dfd7150075"
+}

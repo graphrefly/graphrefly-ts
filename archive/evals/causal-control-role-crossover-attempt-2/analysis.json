@@ -1,0 +1,139 @@
+{
+  "kind": "descriptive crossover analysis only",
+  "sourceDigest": "sha256:89c0707dd514c3c72b725bedb35178ad68963392bc5d72c2af611bf90655205e",
+  "externalSlowerCount": 8,
+  "minExternalOverDriver": 1.003794411865992,
+  "maxExternalOverDriver": 1.2216863217010208,
+  "cells": [
+    {
+      "cell": 0,
+      "positions": [
+        0,
+        7
+      ],
+      "externalOverDriver": [
+        1.0466717135762644,
+        1.0604631955675643
+      ],
+      "m1OverM0": [
+        1.0466717135762644,
+        1.0604631955675643
+      ],
+      "laterOverEarlier": [
+        1.0466717135762644,
+        1.0604631955675643
+      ],
+      "perBatchExternalOverDriver": [
+        [
+          0.7969426391420223,
+          0.983817996076821,
+          1.1952327849687037
+        ],
+        [
+          1.0628892016425662,
+          0.885649311171698,
+          1.1999766359686896
+        ]
+      ]
+    },
+    {
+      "cell": 1,
+      "positions": [
+        1,
+        6
+      ],
+      "externalOverDriver": [
+        1.1866333244370209,
+        1.0064577075726269
+      ],
+      "m1OverM0": [
+        0.8427203074500152,
+        0.9935837268431262
+      ],
+      "laterOverEarlier": [
+        0.8427203074500152,
+        0.9935837268431262
+      ],
+      "perBatchExternalOverDriver": [
+        [
+          1.0567384154416273,
+          0.9405293755875354,
+          1.3697513604022906
+        ],
+        [
+          0.9492293767066626,
+          0.9351684765601892,
+          1.084572206587167
+        ]
+      ]
+    },
+    {
+      "cell": 2,
+      "positions": [
+        3,
+        4
+      ],
+      "externalOverDriver": [
+        1.2216863217010208,
+        1.003794411865992
+      ],
+      "m1OverM0": [
+        1.2216863217010208,
+        1.003794411865992
+      ],
+      "laterOverEarlier": [
+        0.8185407188709826,
+        0.996219931271645
+      ],
+      "perBatchExternalOverDriver": [
+        [
+          0.9892180073740419,
+          1.0274111512231656,
+          1.3161901469320323
+        ],
+        [
+          0.9738117048345539,
+          0.8830631252156255,
+          1.2228617149310979
+        ]
+      ]
+    },
+    {
+      "cell": 3,
+      "positions": [
+        2,
+        5
+      ],
+      "externalOverDriver": [
+        1.1164118967147292,
+        1.1092631578944747
+      ],
+      "m1OverM0": [
+        0.8957267500845387,
+        0.9014993357375446
+      ],
+      "laterOverEarlier": [
+        1.1164118967147292,
+        1.1092631578944747
+      ],
+      "perBatchExternalOverDriver": [
+        [
+          0.9719387755102873,
+          0.9574638383727756,
+          1.207265969226242
+        ],
+        [
+          0.9428040359827494,
+          0.9615572755417076,
+          1.2053557611431456
+        ]
+      ]
+    }
+  ],
+  "limitations": [
+    "Two repeats per cell; no inferential significance or root-cause proof",
+    "driver/local call/preflight order remain coupled",
+    "New entry differs from historical original; previous attempt not pooled",
+    "No performance qualification or calibrated event attribution"
+  ]
+}
