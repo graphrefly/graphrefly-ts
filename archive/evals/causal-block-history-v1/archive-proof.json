@@ -1,0 +1,12 @@
+{
+  "path": "archive/evals/causal-block-history-v1/evidence.tar.gz",
+  "files": 165,
+  "bytes": 1158458,
+  "digest": "sha256:f9036edda523a35bbeea71fb544c1449eeec0c7e40e23a1a1adb0e4bf9868a48",
+  "indexDigest": "sha256:796fc2968121e9889098bbd6950fe9a387d36674e597e9799ef3b5f58a4f3aa6",
+  "allBytesVerified": true,
+  "relocatedReplayStatus": "complete-diagnostic",
+  "relocatedSamplesVerified": 19200,
+  "relocatedReplayMatches": true,
+  "businessExecutedByReplay": false
+}

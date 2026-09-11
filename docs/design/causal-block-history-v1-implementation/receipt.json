@@ -1,0 +1,122 @@
+{
+	"kind": "private four-cell block/history diagnostic evidence",
+	"work_ref": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"governing_refs": ["graphrefly-ts:D168"],
+	"baseline": "7a888d94",
+	"approval": {
+		"path": "docs/design/causal-block-history-v1-implementation/approval.json",
+		"digest": "sha256:3f1eda347c6b348405f7109f5994b3dc59b13757ae27c66cffe1ca28eb330e3e"
+	},
+	"status": "complete-diagnostic",
+	"measurement": {
+		"processes": 8,
+		"samples": 19200,
+		"warmup": 4800,
+		"measured": 14400,
+		"preflights": 16,
+		"preflightInstances": 48,
+		"elapsedSeconds": 12.249763374988106,
+		"retries": 0,
+		"notRun": []
+	},
+	"independentVerifier": {
+		"path": "archive/evals/causal-block-history-v1/independent-verification.json",
+		"digest": "sha256:f186f431db635bfd20744ee4faeea44d5108fec16e965ac18c72a859c09992a7"
+	},
+	"analysis": {
+		"path": "archive/evals/causal-block-history-v1/analysis.json",
+		"digest": "sha256:9f06f68bab4f29f2cbf839a7a5be77af83517beda70cde211199239702c84887"
+	},
+	"qualification": {
+		"path": "archive/evals/causal-block-history-v1/qualification.json",
+		"digest": "sha256:66ead6f891a60dd7b44c2dc4533cab9c541eadf0d9eda266d2f4a38e550417fc"
+	},
+	"review": {
+		"path": "archive/evals/causal-block-history-v1/static-review.json",
+		"digest": "sha256:e0d2f6d9655667402c0c91867d38ea40bccae5d28d27eb8bc49ee4c1b62b1553"
+	},
+	"offlineChecks": [
+		{
+			"name": "block-python",
+			"argv": ["python3", "scripts/causal-block-history.test.py"],
+			"exitCode": 0,
+			"elapsedSeconds": 12.296817290989566
+		},
+		{
+			"name": "block-loaded",
+			"argv": ["node", "scripts/causal-block-history.test.mjs"],
+			"exitCode": 0,
+			"elapsedSeconds": 9.880682041999535
+		},
+		{
+			"name": "neutral-regression",
+			"argv": ["python3", "scripts/causal-neutral-driver.test.py"],
+			"exitCode": 0,
+			"elapsedSeconds": 7.792790584004251
+		},
+		{
+			"name": "crossover-regression",
+			"argv": ["python3", "scripts/causal-control-crossover.test.py"],
+			"exitCode": 0,
+			"elapsedSeconds": 4.347076707999804
+		},
+		{
+			"name": "lint",
+			"argv": ["pnpm", "run", "lint"],
+			"exitCode": 0,
+			"elapsedSeconds": 10.411525083007291
+		},
+		{
+			"name": "full-tests",
+			"argv": ["pnpm", "--filter", "@graphrefly/ts", "test"],
+			"exitCode": 1,
+			"elapsedSeconds": 89.22893612500047
+		}
+	],
+	"finalToolCheck": {
+		"command": ["python3", "scripts/causal-block-history.test.py"],
+		"exitCode": 0,
+		"elapsedSeconds": 11.617996000000858,
+		"reason": "preparation failure boundary final source"
+	},
+	"performanceQualification": false,
+	"mechanisticRootCause": false,
+	"workStatus": "incomplete",
+	"libraryChanges": false,
+	"publicApiChanges": false,
+	"protocolChanges": false,
+	"externalEffects": 0,
+	"ownership": "teach-back and graded-entry ergonomics unverified",
+	"rawEvidence": {
+		"path": "archive/evals/causal-block-history-v1/evidence.tar.gz",
+		"files": 165,
+		"bytes": 1158458,
+		"digest": "sha256:f9036edda523a35bbeea71fb544c1449eeec0c7e40e23a1a1adb0e4bf9868a48",
+		"indexDigest": "sha256:796fc2968121e9889098bbd6950fe9a387d36674e597e9799ef3b5f58a4f3aa6",
+		"allBytesVerified": true,
+		"relocatedReplayStatus": "complete-diagnostic",
+		"relocatedSamplesVerified": 19200,
+		"relocatedReplayMatches": true,
+		"businessExecutedByReplay": false
+	},
+	"governanceGates": [
+		{
+			"name": "dashboard",
+			"argv": ["node", "/Users/davidchenallio/src/graphrefly/dashboard/build.mjs", "--check"],
+			"exitCode": 0,
+			"elapsedSeconds": 0.66667762499128
+		},
+		{
+			"name": "authority",
+			"argv": [
+				"npm",
+				"--prefix",
+				"/Users/davidchenallio/src/graphrefly",
+				"run",
+				"authority:check:workspace"
+			],
+			"exitCode": 0,
+			"elapsedSeconds": 1.909421916003339
+		}
+	]
+}

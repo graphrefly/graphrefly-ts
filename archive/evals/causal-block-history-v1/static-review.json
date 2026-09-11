@@ -1,0 +1,13 @@
+{
+  "reviewers": [
+    "crossover_blind_review",
+    "crossover_spec_review"
+  ],
+  "mode": "static only",
+  "fixed": [
+    "independent per-half contrasts and interaction from raw quantiles",
+    "retain preparation failure reservation and single-use lock"
+  ],
+  "finalFindings": [],
+  "realConsumerMeasurements": 0
+}

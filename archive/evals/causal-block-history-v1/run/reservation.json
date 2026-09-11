@@ -1,0 +1,52 @@
+{
+  "approvalDigest": "3f1eda347c6b348405f7109f5994b3dc59b13757ae27c66cffe1ca28eb330e3e",
+  "schedule": [
+    "S00",
+    "S01",
+    "S11",
+    "S10",
+    "S10",
+    "S11",
+    "S01",
+    "S00"
+  ],
+  "executionRoot": "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-block-history-v1/run",
+  "runtime": {
+    "node": "v24.18.0",
+    "v8": "13.6.233.17-node.50",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "executable": "/Users/davidchenallio/.local/share/mise/installs/node/24.18.0/bin/node",
+  "executableDigest": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+  "childEnvironmentKeys": [
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "PATH",
+    "TMPDIR"
+  ],
+  "implicitNodeOptions": {},
+  "loadAverage": [
+    3.56494140625,
+    4.537109375,
+    3.599609375
+  ],
+  "sourceDigests": {
+    "causal-block-history.py": "171d7c2d08064745066f92205c9048d69c50bdc1f76e2b81d27f897ec003bfe7",
+    "verify-causal-block-history.py": "2af562c05cb6a16ac4634e7b1024f88ee4b861c82fa61049d81412d671acc2d2",
+    "derive-causal-block-driver.mjs": "b053c025e26c8f128b3db6c45c1af67639f6870fe52e439e01e8ff398825abd4",
+    "check-causal-block-source.mjs": "1bcc12d5deeabbfcf046e7edd217646c745fc8eb5852a03f8d25b4d80d71e065",
+    "causal-control-crossover.py": "b60b8dc6e5bc7b7d4fe0748dd90d3f4336c5a678c0f7752ecb1d08dfd7150075",
+    "verify-causal-control-crossover.py": "5066df570c7b0cffac5137c10698e31b9ddaab333917d10fbec0264aa3f85904",
+    "causal-block-history.test.mjs": "3dabe88aa755a80ff18fcdeeb1d903c50a32bb937f1fc2b2443a7c6426ab603f",
+    "causal-block-history.test.py": "5d83d2ba30321debe6abe0d63e63cc9567afe85a55a997f364213bb7a8dc62d9"
+  },
+  "archiveBindings": {
+    "archive": "3483b61f34da607ccd04ff99b86e49d14e90584f843ff3aefcf2640d60a4fbd7",
+    "index": "07a8e0384997617197f729bf11bd997335095227244eb8e11a18cc4603e85ef8",
+    "verifiedFiles": 321,
+    "runtimeClosureFiles": 60,
+    "qualificationCases": 8
+  }
+}

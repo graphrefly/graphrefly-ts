@@ -1,0 +1,22 @@
+{
+	"kind": "human execution approval",
+	"work_ref": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"governing_refs": ["graphrefly-ts:D168"],
+	"design": "docs/design/causal-block-history-v1.md",
+	"designDigest": "sha256:35d69d938807aced5cdbd268136be81a84f66bcb4aaf3c5b6ec522582f4f8581",
+	"designCommit": "7a888d94",
+	"userText": "批准",
+	"scope": "Implement approved four-cell private tools, offline qualification, one fixed diagnostic, independent replay, archive and commit",
+	"schedule": ["S00", "S01", "S11", "S10", "S10", "S11", "S01", "S00"],
+	"maxProcesses": 8,
+	"maxSamples": 19200,
+	"maxSecondsPerChild": 30,
+	"maxSecondsTotal": 300,
+	"retries": 0,
+	"output": "archive/evals/causal-block-history-v1/run",
+	"nonGoals": [
+		"D168 method or threshold changes",
+		"library/public API/protocol changes",
+		"additional runs or provider/live/spend/effects"
+	]
+}

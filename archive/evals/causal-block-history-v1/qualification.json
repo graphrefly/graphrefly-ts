@@ -1,0 +1,87 @@
+{
+  "kind": "pre-measurement qualification",
+  "time": "2026-09-11T14:32:40.418443+00:00",
+  "checks": [
+    {
+      "name": "block-python",
+      "argv": [
+        "python3",
+        "scripts/causal-block-history.test.py"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 12.296817290989566
+    },
+    {
+      "name": "block-loaded",
+      "argv": [
+        "node",
+        "scripts/causal-block-history.test.mjs"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 9.880682041999535
+    },
+    {
+      "name": "neutral-regression",
+      "argv": [
+        "python3",
+        "scripts/causal-neutral-driver.test.py"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 7.792790584004251
+    },
+    {
+      "name": "crossover-regression",
+      "argv": [
+        "python3",
+        "scripts/causal-control-crossover.test.py"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 4.347076707999804
+    },
+    {
+      "name": "lint",
+      "argv": [
+        "pnpm",
+        "run",
+        "lint"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 10.411525083007291
+    },
+    {
+      "name": "full-tests",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@graphrefly/ts",
+        "test"
+      ],
+      "exitCode": 1,
+      "elapsedSeconds": 89.22893612500047
+    }
+  ],
+  "finalPythonCheck": {
+    "command": [
+      "python3",
+      "scripts/causal-block-history.test.py"
+    ],
+    "exitCode": 0,
+    "elapsedSeconds": 11.617996000000858,
+    "reason": "preparation failure boundary final source"
+  },
+  "sourceDigests": {
+    "scripts/causal-block-history.py": "171d7c2d08064745066f92205c9048d69c50bdc1f76e2b81d27f897ec003bfe7",
+    "scripts/verify-causal-block-history.py": "2af562c05cb6a16ac4634e7b1024f88ee4b861c82fa61049d81412d671acc2d2",
+    "scripts/derive-causal-block-driver.mjs": "b053c025e26c8f128b3db6c45c1af67639f6870fe52e439e01e8ff398825abd4",
+    "scripts/check-causal-block-source.mjs": "1bcc12d5deeabbfcf046e7edd217646c745fc8eb5852a03f8d25b4d80d71e065",
+    "scripts/causal-block-history.test.py": "5d83d2ba30321debe6abe0d63e63cc9567afe85a55a997f364213bb7a8dc62d9",
+    "scripts/causal-block-history.test.mjs": "3dabe88aa755a80ff18fcdeeb1d903c50a32bb937f1fc2b2443a7c6426ab603f",
+    "scripts/causal-control-crossover.py": "b60b8dc6e5bc7b7d4fe0748dd90d3f4336c5a678c0f7752ecb1d08dfd7150075",
+    "scripts/verify-causal-control-crossover.py": "5066df570c7b0cffac5137c10698e31b9ddaab333917d10fbec0264aa3f85904"
+  },
+  "historicalColdSamples": 117600,
+  "neutralReplaySamples": 28800,
+  "staticReviewsClear": true,
+  "consumerSamplesThisAttemptSoFar": 0,
+  "fullSuite": "2547 pass, 2 existing D159 failures, 4 skip"
+}
