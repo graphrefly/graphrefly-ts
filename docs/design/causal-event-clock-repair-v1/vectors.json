@@ -1,0 +1,126 @@
+{
+  "kind": "design-arithmetic-only",
+  "units": "microseconds",
+  "not_runtime_qualification": true,
+  "anchors": [
+    {
+      "p0": 100,
+      "p1": 102,
+      "h": 201
+    },
+    {
+      "p0": 200,
+      "p1": 202,
+      "h": 301
+    },
+    {
+      "p0": 400,
+      "p1": 402,
+      "h": 501
+    }
+  ],
+  "expected_delta": [
+    99,
+    101
+  ],
+  "sample": [
+    250,
+    260
+  ],
+  "event_precision": 1,
+  "cases": [
+    {
+      "id": "inside",
+      "event": [
+        354,
+        356
+      ],
+      "expected_start": [
+        252,
+        256
+      ],
+      "expected_end": [
+        254,
+        258
+      ],
+      "expected": "overlap"
+    },
+    {
+      "id": "after",
+      "event": [
+        370,
+        371
+      ],
+      "expected": "disjoint"
+    },
+    {
+      "id": "before",
+      "event": [
+        340,
+        341
+      ],
+      "expected": "disjoint"
+    },
+    {
+      "id": "uncertain-boundary",
+      "event": [
+        360,
+        362
+      ],
+      "expected": "possible"
+    },
+    {
+      "id": "touch-boundary",
+      "event": [
+        362,
+        364
+      ],
+      "expected": "possible"
+    },
+    {
+      "id": "zero-duration-inside",
+      "event": [
+        355,
+        355
+      ],
+      "expected": "possible"
+    },
+    {
+      "id": "wide-calibration",
+      "event": [
+        354,
+        356
+      ],
+      "delta_override": [
+        90,
+        110
+      ],
+      "expected": "possible"
+    },
+    {
+      "id": "missing-anchor",
+      "invalid": "one required anchor absent",
+      "expected": "unknown"
+    },
+    {
+      "id": "empty-intersection",
+      "invalid": "anchor intervals do not intersect",
+      "expected": "unknown"
+    },
+    {
+      "id": "wrong-identity",
+      "invalid": "PID/run/source digest mismatched",
+      "expected": "unknown"
+    },
+    {
+      "id": "wrong-units",
+      "invalid": "anchor unit metadata incompatible",
+      "expected": "unknown"
+    },
+    {
+      "id": "truncated-trace",
+      "invalid": "coverage incomplete",
+      "expected": "unknown"
+    }
+  ]
+}

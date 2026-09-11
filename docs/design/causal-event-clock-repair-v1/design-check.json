@@ -1,0 +1,57 @@
+{
+  "status": "proposed-design-not-execution-authority",
+  "baseline_commit": "cab725eaafec08c180c181e2b29cf5f21a63b437",
+  "local_sources": {
+    "scripts/spending-preset-performance-report.mjs": "fb5e3272c647ab4a590e8f3a402fe753e3ba5dbda0a70432d5577011c615795a",
+    "scripts/compare-spending-preset.mjs": "4267b33bde91108f9b787f002513e6eb33c1d89549fef8c32ec466b0c9287e82",
+    "scripts/compare-spending-preset-repetition.mjs": "692c0c9760ec8d2cb5c650999e55ab81cde3d7ecd3eb1263a03ba56dd986964c",
+    "scripts/fixtures/spending-preset-performance-worker.ts": "90bb36deec0e795ac4014b09f280adbb95a02f64a7934b264dcef3fa12b15ff2",
+    "scripts/spending-preset-performance.test.mjs": "470ad8eb63a56ccc75c04c956a950252243f2b780e56f9bedd2ef3bf5b3e3cdd",
+    "scripts/spending-preset-repetition.mjs": "c79419327a8a42881f7206ffc405d6db8b6341a0c5322b88be2788732cbb318f",
+    "decisions/execution.jsonl": "1f3928073011c634c7ace560f40dcd52d1233985ed01de09741691c25c2132cc",
+    "docs/design/causal-performance-control-audit-v1/receipt.json": "308e94c09269fb7e8a0f721fac3b7251656b5eed6d40956cca26c8112c4aa765",
+    "archive/evals/causal-performance-repetition-v2/receipt.json": "d39c2549915b7d874fafc4b82ee06dff00c953f97b1e6c023b185d3d591e5ff8"
+  },
+  "upstream_sources": [
+    {
+      "url": "https://raw.githubusercontent.com/nodejs/node/v24.18.0/doc/api/tracing.md",
+      "sha256": "8bb47aa6288ed310b40191cdf34c3f7b8237423dc711b5aa77256524695872bc",
+      "bytes": 10833
+    },
+    {
+      "url": "https://raw.githubusercontent.com/nodejs/node/v24.18.0/deps/v8/src/runtime/runtime-compiler.cc",
+      "sha256": "8429f6b6db69d994361701882927c11bd1ae557e6718dbe126fded18d6d8fabd",
+      "bytes": 34059
+    },
+    {
+      "url": "https://raw.githubusercontent.com/nodejs/node/v24.18.0/deps/v8/src/heap/heap.cc",
+      "sha256": "5391294b902d421202090167b419a2be7df3392c64fd2d964f2575786c6e1c2e",
+      "bytes": 276538
+    },
+    {
+      "url": "https://raw.githubusercontent.com/nodejs/node/v24.18.0/lib/internal/util/debuglog.js",
+      "sha256": "4471d0ba1b85d272e583aef5ec9fe05c28377bf59b923523495bcba46a858fec",
+      "bytes": 12596
+    },
+    {
+      "url": "https://raw.githubusercontent.com/nodejs/node/v24.18.0/lib/internal/console/constructor.js",
+      "sha256": "6cdad6113815cecbe8c914af86835499dbf2b3bbd617babec9e24af779c8aeaa",
+      "bytes": 21776
+    }
+  ],
+  "design_arithmetic": {
+    "passed": [
+      "inside",
+      "after",
+      "before",
+      "uncertain-boundary",
+      "touch-boundary",
+      "zero-duration-inside",
+      "wide-calibration"
+    ],
+    "negative_premise_cases": "specified only; require implementation tests after approval"
+  },
+  "new_runtime_processes": 0,
+  "new_performance_samples": 0,
+  "implementation_changed": false
+}
