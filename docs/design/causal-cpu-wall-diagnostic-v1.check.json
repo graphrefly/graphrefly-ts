@@ -1,0 +1,41 @@
+{
+	"kind": "design arithmetic and source binding only",
+	"newConsumerProcesses": 0,
+	"newMeasurementSamples": 0,
+	"design": "docs/design/causal-cpu-wall-diagnostic-v1.md",
+	"schedule": ["B-U", "Q-V", "T-U", "B-V", "Q-U", "T-V", "T-V", "Q-U", "B-V", "T-U", "Q-V", "B-U"],
+	"everyCellCount": 2,
+	"everyCellPositionSum": 11,
+	"proposed": {
+		"consumerProcesses": 12,
+		"observerFixtureProcesses": 1,
+		"totalCaptureProcesses": 13,
+		"samples": 28800,
+		"warmup": 7200,
+		"measured": 21600,
+		"originalPreflights": 24,
+		"preflightInstances": 72,
+		"consumerCpuPhases": 96,
+		"consumerCpuSnapshots": 192,
+		"consumerTraceFiles": 4,
+		"consumerTraceMarkers": 48,
+		"consumerTraceAnchors": 12,
+		"fixtureCpuSnapshots": 6,
+		"fixtureTraceMarkers": 3,
+		"fixtureTraceAnchors": 3,
+		"maxSecondsPerChild": 30,
+		"maxSecondsTotal": 900,
+		"retries": 0
+	},
+	"fixtureStaticChecksum": 2225220677,
+	"bindings": {
+		"docs/design/causal-position-pairs-retained-audit-v1/receipt.json": "sha256:ffacc3c7d24a3a0ebce576da973d4bd5997bc99d8c78a3e1f399c86060ca2497",
+		"docs/design/causal-console-marker-replay-v1/receipt.json": "sha256:8404774c9ed4b0199a10ba13f073c88efb3a8dc0b25045bcfaad304e5d7fdcea",
+		"archive/evals/causal-cold-position-pairs-v3/evidence.tar.gz": "sha256:6e6c00fc5c6be7ab7e6ee950c7f7540d952511333af3f1b750abbe648f808799",
+		"archive/evals/causal-cold-position-pairs-v3/artifact-index.json": "sha256:54511a0da2f563cccb10b0d7d81dd8183781b3397867de03689a1a6585a70865",
+		"scripts/derive-causal-position-driver.mjs": "sha256:a1e4e70fa2f34a2119b9ad4bd28e786c0e47ee42f17b015f78520912e47dc806",
+		"scripts/causal-event-correlation.mjs": "sha256:ffac4d7e04563266b976754d00079fdcdfc284d78429af8b764615089a9b977d",
+		"scripts/verify-causal-event-clock.py": "sha256:d8f1a1a3719d8faa888347177913d38e0054d264d316bfb48b1f8c5f2cf36189"
+	},
+	"scope": "D169 unchanged; proposal only; no adoption or execution authorization"
+}
