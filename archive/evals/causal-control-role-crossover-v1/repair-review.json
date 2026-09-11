@@ -1,0 +1,15 @@
+{
+  "kind": "post-attempt cold-field repair static review",
+  "reviewers": [
+    "crossover_blind_review",
+    "crossover_spec_review"
+  ],
+  "finding": "Both new validators and synthetic fixtures wrongly required constructionMs==ms in cold. Actual frozen worker uses ms=end-start and leaves constructionMs/preparationMs zero.",
+  "fix": "Match actual producer fields; replay all four historical controls and preserve incomplete status for retained first child. No retry.",
+  "final": "Both static reviewers report no remaining material findings; no reviewer executions.",
+  "sourceDigests": {
+    "scripts/causal-control-crossover.py": "sha256:a4704e2869664707df06d049cd4390fdf37667d6b4b76b676f1f14139e4efa05",
+    "scripts/verify-causal-control-crossover.py": "sha256:5066df570c7b0cffac5137c10698e31b9ddaab333917d10fbec0264aa3f85904",
+    "scripts/causal-control-crossover.test.py": "sha256:37fae84fbd4856f1ea2132291882eecbb9eb3408cd38b0300fd0323b264c3150"
+  }
+}

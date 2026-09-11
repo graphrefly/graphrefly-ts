@@ -1,0 +1,21 @@
+{
+	"kind": "human execution approval",
+	"work_ref": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"governing_refs": ["graphrefly-ts:D168"],
+	"design": "docs/design/causal-control-role-crossover-v1.md",
+	"designDigest": "sha256:94b35a6f3dfeb316a2522c53177863b2b56baa0b537d21afab9953b075a67ceb",
+	"designCommit": "eb0de27d",
+	"userText": "好的，继续",
+	"scope": "Implement and qualify private crossover tools; one serial 8-process diagnostic on exact archived workers, fixed schedule C0 C1 C3 C2 C2 C3 C1 C0; commit evidence",
+	"maxProcesses": 8,
+	"maxSamples": 19200,
+	"maxSecondsPerChild": 30,
+	"maxSecondsTotal": 300,
+	"retries": 0,
+	"currentness": "This task, exact design/material/runtime bindings only; consumed by first diagnostic spawn, no replay grant",
+	"nonGoals": [
+		"formal matrix/CSP-11",
+		"runtime/public API/protocol changes",
+		"provider/live/spend/effects"
+	]
+}

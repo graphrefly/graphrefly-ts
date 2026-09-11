@@ -1,0 +1,4 @@
+# Raw bytes are retained in evidence.tar.gz; keep reservation as the single-use lock.
+/run/*
+!/run/reservation.json
+/final-source/

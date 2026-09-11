@@ -1,0 +1,32 @@
+{
+  "kind": "qa static review",
+  "scope": [
+    "scripts/causal-control-crossover.py",
+    "scripts/verify-causal-control-crossover.py",
+    "scripts/causal-control-crossover.test.py"
+  ],
+  "reviewers": [
+    "crossover_blind_review",
+    "crossover_spec_review"
+  ],
+  "findings": [
+    {
+      "issue": "Whole-run duration relied on report",
+      "fix": "Derive final end minus first start and bound by recorded elapsed <=300; reindexed timestamp mutation rejects."
+    },
+    {
+      "issue": "Extra indexed process evidence accepted",
+      "fix": "Exact eight scheduled directories and constrained samples/exit paths; ninth-process mutation rejects."
+    },
+    {
+      "issue": "Preparation failure after reservation lacked partial receipt",
+      "fix": "Post-reservation preparation inside try/finally; injected write failure retains incomplete receipt and all not-run."
+    }
+  ],
+  "final": "No remaining material findings from both static reviewers; no reviewer execution or measurement",
+  "sourceDigests": {
+    "scripts/causal-control-crossover.py": "sha256:46fd0a93920e8a5fdcd612b3d856bb6bf49a820eca10b81e1a1dbd902e0e35f7",
+    "scripts/verify-causal-control-crossover.py": "sha256:e4dea00423fb62e77c27e429d9a6c173067765955eadc4da91d22839caabd0ec",
+    "scripts/causal-control-crossover.test.py": "sha256:acc9f1a18e24eef6b8571623f45e4de24b4e940643c1d6959edda9315b22a6ed"
+  }
+}

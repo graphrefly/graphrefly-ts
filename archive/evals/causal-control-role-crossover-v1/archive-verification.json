@@ -1,0 +1,11 @@
+{
+  "files": 50,
+  "bytes": 345582,
+  "digest": "sha256:e465d9b4aa6c53a4d88e376de2d3ee16bc1b7d2376c8faa8bbb8e5ce6076db1c",
+  "indexDigest": "sha256:46e47029a89a03975119d484d2cef46d9bbb3d23dd14bfab4a0e8821ec8e3d80",
+  "allBytesVerified": true,
+  "relocatedReplayStatus": "incomplete",
+  "relocatedRetainedSamplesVerified": 2400,
+  "relocatedReplayMatches": true,
+  "originalRunPreserved": true
+}

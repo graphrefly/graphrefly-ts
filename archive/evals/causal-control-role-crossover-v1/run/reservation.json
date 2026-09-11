@@ -1,0 +1,46 @@
+{
+  "approvalDigest": "0c1a6df19ef66093f14daf41b03b1e83901f886e4305a83dfb93f67f543129aa",
+  "schedule": [
+    0,
+    1,
+    3,
+    2,
+    2,
+    3,
+    1,
+    0
+  ],
+  "executionRoot": "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-control-role-crossover-v1/run",
+  "runtime": {
+    "node": "v24.18.0",
+    "v8": "13.6.233.17-node.50",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "executable": "/Users/davidchenallio/.local/share/mise/installs/node/24.18.0/bin/node",
+  "executableDigest": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+  "childEnvironmentKeys": [
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "PATH",
+    "TMPDIR"
+  ],
+  "implicitNodeOptions": {},
+  "loadAverage": [
+    8.75048828125,
+    8.42626953125,
+    6.2314453125
+  ],
+  "sourceDigests": {
+    "causal-control-crossover.py": "46fd0a93920e8a5fdcd612b3d856bb6bf49a820eca10b81e1a1dbd902e0e35f7",
+    "verify-causal-control-crossover.py": "e4dea00423fb62e77c27e429d9a6c173067765955eadc4da91d22839caabd0ec"
+  },
+  "archiveBindings": {
+    "archive": "3483b61f34da607ccd04ff99b86e49d14e90584f843ff3aefcf2640d60a4fbd7",
+    "index": "07a8e0384997617197f729bf11bd997335095227244eb8e11a18cc4603e85ef8",
+    "verifiedFiles": 321,
+    "runtimeClosureFiles": 60,
+    "qualificationCases": 8
+  }
+}

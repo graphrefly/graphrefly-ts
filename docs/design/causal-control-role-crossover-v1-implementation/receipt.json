@@ -1,0 +1,359 @@
+{
+	"kind": "private diagnostic attempt and retained-sample repair evidence",
+	"work_ref": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"governing_refs": ["graphrefly-ts:D168"],
+	"baseline": "eb0de27d",
+	"approval": {
+		"path": "docs/design/causal-control-role-crossover-v1-implementation/approval.json",
+		"digest": "sha256:0c1a6df19ef66093f14daf41b03b1e83901f886e4305a83dfb93f67f543129aa"
+	},
+	"status": "incomplete",
+	"toolRepair": "complete; actual frozen cold fields independently replayed",
+	"measurement": {
+		"processes": 1,
+		"samples": 2400,
+		"warmup": 600,
+		"measured": 1800,
+		"preflightInstances": 6,
+		"notRunPositions": [1, 2, 3, 4, 5, 6, 7],
+		"retries": 0,
+		"originalResult": {
+			"status": "incomplete",
+			"rows": [],
+			"stopReason": "ValueError: cold clock",
+			"notRun": [1, 2, 3, 4, 5, 6, 7],
+			"elapsedSeconds": 1.6947305420035264,
+			"eventAssociation": "unknown: retained native clocks uncalibrated",
+			"performanceQualification": false
+		},
+		"exit": {
+			"position": 0,
+			"cell": 0,
+			"argv": [
+				"/Users/davidchenallio/.local/share/mise/installs/node/24.18.0/bin/node",
+				"--trace-gc",
+				"--trace-deopt",
+				"--log-deopt",
+				"--no-logfile-per-isolate",
+				"--logfile=v8.log",
+				"/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-control-role-crossover-v1/run/0-C0/entry.mjs"
+			],
+			"cwd": "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-control-role-crossover-v1/run/0-C0",
+			"startMonotonic": 87130.595417208,
+			"status": "exited",
+			"pid": 99203,
+			"exitCode": 0,
+			"endMonotonic": 87132.276291541
+		}
+	},
+	"retainedReplay": {
+		"status": "incomplete",
+		"completeEvidenceVerified": false,
+		"reason": "ValueError: cold clock",
+		"retainedRowsVerified": 1,
+		"samples": 2400,
+		"rows": [
+			{
+				"position": 0,
+				"cell": 0,
+				"batchP95Ms": {
+					"candidate": [0.4296669999999949, 0.3717910000000302, 0.3880420000000413],
+					"reference": [0.5173340000000053, 0.4133749999999736, 0.6257089999999152]
+				},
+				"medianBatchP95Ms": {
+					"candidate": 0.3880420000000413,
+					"reference": 0.5173340000000053
+				},
+				"externalOverDriver": 0.7500802189688621,
+				"m1OverM0": 0.7500802189688621,
+				"laterOverEarlier": 0.7500802189688621
+			}
+		],
+		"notRun": [1, 2, 3, 4, 5, 6, 7],
+		"performanceQualification": false,
+		"eventAssociation": "unknown"
+	},
+	"tests": {
+		"tools": {
+			"testsRun": 9,
+			"failures": 0,
+			"errors": 0,
+			"mutants": [
+				{
+					"id": "wrong-driver-C0",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "actual Node stub entry",
+					"entryDigest": "99c472cd8dc57c7710ffce2a5fd1f3f4f224e851f7712ed4e9e69f7ce149189c"
+				},
+				{
+					"id": "wrong-driver-C1",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "actual Node stub entry",
+					"entryDigest": "c588d876918573ebdc02710d54277bfd235ab30e79a00e394c5cfea76f89a922"
+				},
+				{
+					"id": "wrong-driver-C2",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "actual Node stub entry",
+					"entryDigest": "30e4f604cdedaf1ef11d71017de012bb9317d98ec60af4fc823e5c7e5907c0c8"
+				},
+				{
+					"id": "wrong-driver-C3",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "actual Node stub entry",
+					"entryDigest": "0380406eaeba17b753f68841860b26c56499d2e02b18303e7f1ddc04fb036266"
+				},
+				{
+					"id": "self-copy-C0",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "actual Node stub entry",
+					"entryDigest": "1b388d9a018c5151a28168f4b8e315f3d6631b8bec3ff96413e035ee1babfe5a"
+				},
+				{
+					"id": "self-copy-C1",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "actual Node stub entry",
+					"entryDigest": "1c6310da95674499fe9e3621891418e8814814c25a84143ad26e35297ba4843a"
+				},
+				{
+					"id": "self-copy-C2",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "actual Node stub entry",
+					"entryDigest": "b322fb31347d6ee5f9edb556d7fc452f43daf2f58f8527d7ebb6ddc9a5f3b245"
+				},
+				{
+					"id": "self-copy-C3",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "actual Node stub entry",
+					"entryDigest": "0e5b5d02651eca80be277c324c4bea06532d29e9e601a97f4dbe22c6aea809f2"
+				},
+				{
+					"id": "reversed-load-C0",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "actual Node stub entry",
+					"entryDigest": "f87d5651045b34afbb56f4b1ddda0f2d7ebc0c032c90566c2df6de02f47fe98b"
+				},
+				{
+					"id": "reversed-load-C1",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "actual Node stub entry",
+					"entryDigest": "e358f24c1bb774047cebfaafc8b04030bc6e005fc991b0c10446dfa700dfdcf7"
+				},
+				{
+					"id": "reversed-load-C2",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "actual Node stub entry",
+					"entryDigest": "9505dbfd09f18fc519da3845cc79eaea8e44e4d1fadc47106be89634642fc58a"
+				},
+				{
+					"id": "reversed-load-C3",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "actual Node stub entry",
+					"entryDigest": "1a2ff02ccd904c3e4e36df58cf1ac49051b835c6d531acc8d0438921f5e4a34b"
+				},
+				{
+					"id": "whole-span",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "complete verifier input, reindexed"
+				},
+				{
+					"id": "ninth-process",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "complete verifier input, reindexed"
+				},
+				{
+					"id": "changed-bundle",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "complete verifier input, reindexed"
+				},
+				{
+					"id": "summary-tamper",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "complete verifier input, reindexed"
+				},
+				{
+					"id": "wrong-copy",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "verifier job input"
+				},
+				{
+					"id": "missing-completion",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "verifier job input"
+				},
+				{
+					"id": "wrong-pid",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "verifier job input"
+				},
+				{
+					"id": "wrong-entry",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "verifier job input"
+				},
+				{
+					"id": "wrong-import-events",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "verifier job input"
+				},
+				{
+					"id": "wrong-argv",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "verifier job input"
+				},
+				{
+					"id": "preflight-failure",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "verifier job input"
+				},
+				{
+					"id": "missing-sample",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "verifier input"
+				},
+				{
+					"id": "duplicate-sample",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "verifier input"
+				},
+				{
+					"id": "wrong-phase",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "verifier input"
+				},
+				{
+					"id": "wrong-order",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "verifier input"
+				},
+				{
+					"id": "changed-duration",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "verifier input"
+				},
+				{
+					"id": "wrong-cold-construction-field",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "verifier input"
+				},
+				{
+					"id": "nan-duration",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "verifier input"
+				},
+				{
+					"id": "nonmonotonic",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "verifier input"
+				},
+				{
+					"id": "boolean-coordinate",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "verifier input"
+				},
+				{
+					"id": "wrong-segment",
+					"loaded": true,
+					"outcome": "detected",
+					"kind": "verifier input"
+				}
+			],
+			"realConsumerMeasurements": 0
+		},
+		"fullTsPassed": 2547,
+		"fullTsExistingD159Failures": 2,
+		"fullTsSkipped": 4,
+		"lintTypecheck": "passed",
+		"buildExportBrowserSoak": "not rerun; no library/public API change"
+	},
+	"performanceQualification": false,
+	"historicalPerformanceStatus": "v1 rejection and 80 not-run; D168 inconclusive unchanged",
+	"ownershipStatus": "teach-back unverified",
+	"nonGoals": [
+		"new public API or runtime/protocol change",
+		"further measurement, formal matrix or CSP-11",
+		"provider/live/spend/effects"
+	],
+	"rawEvidence": {
+		"path": "archive/evals/causal-control-role-crossover-v1/evidence.tar.gz",
+		"files": 50,
+		"bytes": 345582,
+		"digest": "sha256:e465d9b4aa6c53a4d88e376de2d3ee16bc1b7d2376c8faa8bbb8e5ce6076db1c",
+		"indexDigest": "sha256:46e47029a89a03975119d484d2cef46d9bbb3d23dd14bfab4a0e8821ec8e3d80",
+		"allBytesVerified": true,
+		"relocatedReplayStatus": "incomplete",
+		"relocatedRetainedSamplesVerified": 2400,
+		"relocatedReplayMatches": true,
+		"originalRunPreserved": true
+	},
+	"sourceBindings": {
+		"scripts/causal-control-crossover.py": "sha256:a4704e2869664707df06d049cd4390fdf37667d6b4b76b676f1f14139e4efa05",
+		"scripts/verify-causal-control-crossover.py": "sha256:5066df570c7b0cffac5137c10698e31b9ddaab333917d10fbec0264aa3f85904",
+		"scripts/causal-control-crossover.test.py": "sha256:37fae84fbd4856f1ea2132291882eecbb9eb3408cd38b0300fd0323b264c3150"
+	},
+	"gates": {
+		"full": {
+			"command": ["pnpm", "test"],
+			"exitCode": 1,
+			"seconds": 97.67595429200446
+		},
+		"lint": {
+			"command": ["pnpm", "run", "lint"],
+			"exitCode": 0,
+			"seconds": 18.886802000008174
+		},
+		"lint-final": {
+			"command": ["pnpm", "run", "lint"],
+			"exitCode": 0,
+			"seconds": 10.185505415996886
+		},
+		"dashboard": {
+			"command": ["node", "/Users/davidchenallio/src/graphrefly/dashboard/build.mjs", "--check"],
+			"exitCode": 0,
+			"seconds": 0.8557862919988111
+		},
+		"authority": {
+			"command": [
+				"npm",
+				"--prefix",
+				"/Users/davidchenallio/src/graphrefly",
+				"run",
+				"authority:check:workspace"
+			],
+			"exitCode": 0,
+			"seconds": 2.5796560419985326
+		}
+	}
+}
