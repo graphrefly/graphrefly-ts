@@ -1,0 +1,13 @@
+{
+  "command": [
+    "python3",
+    "scripts/verify-causal-event-clock.py",
+    "archive/evals/causal-event-clock-repair-v1/capture",
+    "archive/evals/causal-console-marker-replay-v1/replay-final/correlation.json"
+  ],
+  "exitCode": 0,
+  "seconds": 0.11790504200325813,
+  "stdout": "{\n  \"qualified\": true,\n  \"meaning\": \"clock/recorded-event path only; no consumer performance or cause proof\",\n  \"deltaUs\": [\n    84084539230,\n    84084539232\n  ],\n  \"events\": 3,\n  \"windows\": 3,\n  \"markers\": 3\n}\n",
+  "stderr": "",
+  "newCaptureProcesses": 0
+}

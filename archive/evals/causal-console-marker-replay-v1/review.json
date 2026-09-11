@@ -1,0 +1,12 @@
+{
+  "mode": "static only",
+  "reviewers": [
+    "console_blind_review",
+    "console_spec_review"
+  ],
+  "findings_fixed": [
+    "lexical path check allowed symlink parent to enter capture; canonical paths plus exclusive directory/file creation now protect output"
+  ],
+  "final": "both reviewers report no unresolved findings",
+  "newCaptureProcesses": 0
+}

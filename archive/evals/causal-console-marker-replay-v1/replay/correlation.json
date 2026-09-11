@@ -1,0 +1,245 @@
+{
+  "status": "calibrated",
+  "deltaUs": [
+    84084539230,
+    84084539232
+  ],
+  "identity": {
+    "run": "aafbb6fc-649d-4cda-b2eb-10a4b829acba",
+    "pid": 75606,
+    "node": "v24.18.0",
+    "v8": "13.6.233.17-node.50",
+    "sourceDigest": "3022d95cf3977f0275a8a2046c1bef068c1b4b166d25171282b4ad8f9a6029fa"
+  },
+  "tid": 259,
+  "traceDigest": "173bbb72f839138d85f74477f7472bb8ec53e57f28a2d0e3af976b4e733e47af",
+  "evidenceDigest": "6fca15b8c07898de1ee4aa94f1ff1302aadfd39da9912613875b096e552e82f0",
+  "coverage": "recorded supported main-thread spans only; no causal attribution",
+  "events": [
+    {
+      "name": "MajorGC",
+      "cat": "devtools.timeline,v8",
+      "start": 84084567136,
+      "end": 84084569023,
+      "refs": [
+        5,
+        7
+      ]
+    },
+    {
+      "name": "V8.DeoptimizeCode",
+      "cat": "v8",
+      "start": 84084569951,
+      "end": 84084569960,
+      "refs": [
+        10
+      ]
+    },
+    {
+      "name": "V8.DeoptimizeCode",
+      "cat": "v8",
+      "start": 84084569955,
+      "end": 84084569959,
+      "refs": [
+        11
+      ]
+    }
+  ],
+  "backgroundRefs": [],
+  "markers": [
+    {
+      "name": "time::aafbb6fc-649d-4cda-b2eb-10a4b829acba:empty",
+      "cat": "node,node.console",
+      "pid": 75606,
+      "tid": 259,
+      "id": "0x0",
+      "start": 84084566482,
+      "end": 84084567102,
+      "refs": [
+        2,
+        3
+      ]
+    },
+    {
+      "name": "time::aafbb6fc-649d-4cda-b2eb-10a4b829acba:gc",
+      "cat": "node,node.console",
+      "pid": 75606,
+      "tid": 259,
+      "id": "0x0",
+      "start": 84084567118,
+      "end": 84084569118,
+      "refs": [
+        4,
+        8
+      ]
+    },
+    {
+      "name": "time::aafbb6fc-649d-4cda-b2eb-10a4b829acba:deopt",
+      "cat": "node,node.console",
+      "pid": 75606,
+      "tid": 259,
+      "id": "0x0",
+      "start": 84084569922,
+      "end": 84084570003,
+      "refs": [
+        9,
+        12
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "name": "empty",
+      "events": [
+        {
+          "refs": [
+            5,
+            7
+          ],
+          "name": "MajorGC",
+          "status": "disjoint",
+          "start": [
+            27903,
+            27907
+          ],
+          "end": [
+            29790,
+            29794
+          ]
+        },
+        {
+          "refs": [
+            10
+          ],
+          "name": "V8.DeoptimizeCode",
+          "status": "disjoint",
+          "start": [
+            30718,
+            30722
+          ],
+          "end": [
+            30727,
+            30731
+          ]
+        },
+        {
+          "refs": [
+            11
+          ],
+          "name": "V8.DeoptimizeCode",
+          "status": "disjoint",
+          "start": [
+            30722,
+            30726
+          ],
+          "end": [
+            30726,
+            30730
+          ]
+        }
+      ]
+    },
+    {
+      "name": "gc",
+      "events": [
+        {
+          "refs": [
+            5,
+            7
+          ],
+          "name": "MajorGC",
+          "status": "overlap",
+          "start": [
+            27903,
+            27907
+          ],
+          "end": [
+            29790,
+            29794
+          ]
+        },
+        {
+          "refs": [
+            10
+          ],
+          "name": "V8.DeoptimizeCode",
+          "status": "disjoint",
+          "start": [
+            30718,
+            30722
+          ],
+          "end": [
+            30727,
+            30731
+          ]
+        },
+        {
+          "refs": [
+            11
+          ],
+          "name": "V8.DeoptimizeCode",
+          "status": "disjoint",
+          "start": [
+            30722,
+            30726
+          ],
+          "end": [
+            30726,
+            30730
+          ]
+        }
+      ]
+    },
+    {
+      "name": "deopt",
+      "events": [
+        {
+          "refs": [
+            5,
+            7
+          ],
+          "name": "MajorGC",
+          "status": "disjoint",
+          "start": [
+            27903,
+            27907
+          ],
+          "end": [
+            29790,
+            29794
+          ]
+        },
+        {
+          "refs": [
+            10
+          ],
+          "name": "V8.DeoptimizeCode",
+          "status": "overlap",
+          "start": [
+            30718,
+            30722
+          ],
+          "end": [
+            30727,
+            30731
+          ]
+        },
+        {
+          "refs": [
+            11
+          ],
+          "name": "V8.DeoptimizeCode",
+          "status": "overlap",
+          "start": [
+            30722,
+            30726
+          ],
+          "end": [
+            30726,
+            30730
+          ]
+        }
+      ]
+    }
+  ]
+}

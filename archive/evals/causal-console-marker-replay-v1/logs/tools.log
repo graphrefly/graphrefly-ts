@@ -1,0 +1,45 @@
+✔ approved diagnostic design vectors propagate interval uncertainty (1.636417ms)
+✔ X and nested B/E positive paths plus observed-event negative control (2.03825ms)
+✔ invalid evidence unknown: missing anchor (0.581542ms)
+✔ invalid evidence unknown: empty intersection (0.206042ms)
+✔ invalid evidence unknown: anchor order (0.189167ms)
+✔ invalid evidence unknown: units (0.227875ms)
+✔ invalid evidence unknown: anchor inside window (0.150125ms)
+✔ invalid evidence unknown: source identity (0.367ms)
+✔ invalid evidence unknown: version (0.137917ms)
+✔ invalid evidence unknown: phase (0.203667ms)
+✔ invalid evidence unknown: negative duration (0.16725ms)
+✔ invalid evidence unknown: duplicate (0.17175ms)
+✔ invalid evidence unknown: missing E (0.154834ms)
+✔ invalid evidence unknown: marker thread (0.126958ms)
+✔ invalid evidence unknown: marker clock (0.146417ms)
+✔ manifest bindings, timeout, rotation and truncation reject (0.679625ms)
+✔ legacy empty logs and numeric offsets cannot claim no events (0.242625ms)
+✔ wide uncertainty and precision are load-bearing (0.245333ms)
+✔ cross-clock contradictions, missing categories, rotation loss and zero windows (0.475167ms)
+✔ six loaded helper mutations are detected without another capture process (7.944959ms)
+✔ shifted anchors cannot leave markers outside their enclosing windows (0.313791ms)
+✔ retained console identity rejects duplicate begin (0.454ms)
+✔ retained console identity rejects orphan end (0.768167ms)
+✔ retained console identity rejects unclosed begin (0.355ms)
+✔ retained console identity rejects different id (0.659833ms)
+✔ retained console identity rejects missing id (0.390292ms)
+✔ retained console identity rejects different run (0.325375ms)
+✔ retained console identity rejects different window (0.29825ms)
+✔ retained console identity rejects different category (2.280459ms)
+✔ retained console identity rejects different pid (0.367375ms)
+✔ retained console identity rejects different tid (0.31225ms)
+✔ retained console identity rejects synchronous masquerade (1.308666ms)
+✔ retained console identity rejects unsupported async scope (21.526666ms)
+✔ retained console identity rejects ambiguous id2 (11.590834ms)
+✔ retained console identity rejects duplicate completed pair (7.53575ms)
+✔ four loaded marker mutations fail on the retained real trace (43.318209ms)
+✔ offline replay preserves capture, rejects symlink escape and never overwrites output (258.86675ms)
+ℹ tests 37
+ℹ suites 0
+ℹ pass 37
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 310.815833

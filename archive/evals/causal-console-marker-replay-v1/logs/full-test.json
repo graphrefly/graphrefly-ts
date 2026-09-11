@@ -1,0 +1,10 @@
+{
+  "command": [
+    "pnpm",
+    "--filter",
+    "@graphrefly/ts",
+    "test"
+  ],
+  "exitCode": 1,
+  "seconds": 94.13214645799599
+}

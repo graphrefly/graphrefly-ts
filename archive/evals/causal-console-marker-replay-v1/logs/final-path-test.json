@@ -1,0 +1,12 @@
+{
+  "command": [
+    "node",
+    "--test",
+    "scripts/replay-causal-event-clock.test.mjs"
+  ],
+  "exitCode": 0,
+  "seconds": 0.21366237501206342,
+  "stdout": "\u2714 offline replay preserves capture, rejects symlink escape and never overwrites output (126.973416ms)\n\u2139 tests 1\n\u2139 suites 0\n\u2139 pass 1\n\u2139 fail 0\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 174.671708\n",
+  "stderr": "",
+  "newCaptureProcesses": 0
+}

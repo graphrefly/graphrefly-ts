@@ -1,0 +1,71 @@
+{
+	"kind": "private retained-trace replay evidence",
+	"work_ref": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"governing_refs": ["graphrefly-ts:D168"],
+	"baseline": "1b883c08",
+	"approval": {
+		"path": "docs/design/causal-console-marker-replay-v1/approval.json",
+		"digest": "sha256:7097dcdc47105e3b2c677c44d7f56aead587092fe942d0e43e195b50e7365820"
+	},
+	"status": "offline-replay-qualified",
+	"qualification_scope": "same retained trace only; no fresh capture or consumer performance qualification",
+	"newCaptureProcesses": 0,
+	"consumerMeasurements": 0,
+	"source_files": {
+		"scripts/causal-event-correlation.mjs": "sha256:ffac4d7e04563266b976754d00079fdcdfc284d78429af8b764615089a9b977d",
+		"scripts/causal-event-correlation.test.mjs": "sha256:ee25108532f005e52281a081ef0108e74bb02bd5f0551383081c7c2d2966b9b7",
+		"scripts/verify-causal-event-clock.py": "sha256:d8f1a1a3719d8faa888347177913d38e0054d264d316bfb48b1f8c5f2cf36189",
+		"scripts/verify-causal-event-clock.test.py": "sha256:c54f9494e5f9fd99d6c297d4c2eb2a66d398fc28164899f107c2e78d246c9a47",
+		"scripts/replay-causal-event-clock.mjs": "sha256:93adb78b0b0f8bb28b882cc9832f609fa44c3c290190d3a7b7035cde43dfda8a",
+		"scripts/replay-causal-event-clock.test.mjs": "sha256:e65a811eb869187524e2ece992fbb86b4180ffe71f71063044d709754e76d000"
+	},
+	"replay": {
+		"path": "archive/evals/causal-console-marker-replay-v1/replay-final/replay.json",
+		"digest": "sha256:35c6d5a95f627be3d98e1a3e9006ce2969bc40c18a6006832434afd5b1514a06"
+	},
+	"correlation": {
+		"path": "archive/evals/causal-console-marker-replay-v1/replay-final/correlation.json",
+		"digest": "sha256:2a924bcb86c3d54e6f550e3c7c0ec69680979f27d567ad0570c06cc133688541"
+	},
+	"independent_verifier": {
+		"path": "archive/evals/causal-console-marker-replay-v1/logs/final-independent-verifier.json",
+		"digest": "sha256:0e73991e35e2edd1c1643448caaa592ac61fdca27828ad82b38b7b3a3c20a834",
+		"result": {
+			"qualified": true,
+			"meaning": "clock/recorded-event path only; no consumer performance or cause proof",
+			"deltaUs": [84084539230, 84084539232],
+			"events": 3,
+			"windows": 3,
+			"markers": 3
+		}
+	},
+	"tests": {
+		"jsToolsPassed": 37,
+		"pythonVerifierPassed": 16,
+		"loadedHelperMutantsDetected": 10,
+		"ofWhichNewRealTraceMarkerMutants": 4,
+		"fullTsPassed": 2547,
+		"fullTsExistingD159Failures": 2,
+		"fullTsSkipped": 4,
+		"lintTypecheck": "passed",
+		"buildExportBrowserSoak": "not rerun: no library/public API change"
+	},
+	"preservation": {
+		"path": "archive/evals/causal-console-marker-replay-v1/preservation.json",
+		"digest": "sha256:90402357655bdd0cee0e3517c2c66a16ec4ffa132ae378a202c66a047768f3ba"
+	},
+	"review": {
+		"path": "archive/evals/causal-console-marker-replay-v1/review.json",
+		"digest": "sha256:b2d025207c42891aa47ec5cdffae6983bdb0be9a13806b13879ea0b443e00b47",
+		"final": "two static reviews, no unresolved findings"
+	},
+	"historical_capture_status": "original unknown/not-qualified receipt unchanged",
+	"performance_status": "original 67200-sample inconclusive and earlier v1 rejection unchanged; cause remains unproven",
+	"work_status": "incomplete",
+	"ownership": "teach-back unverified",
+	"limits": [
+		"no public API/protocol/runtime changes",
+		"no consumer or matrix dispatch",
+		"no provider/live/spend/effects"
+	]
+}

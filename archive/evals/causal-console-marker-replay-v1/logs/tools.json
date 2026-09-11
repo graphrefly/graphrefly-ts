@@ -1,0 +1,10 @@
+{
+  "command": [
+    "node",
+    "--test",
+    "scripts/causal-event-correlation.test.mjs",
+    "scripts/replay-causal-event-clock.test.mjs"
+  ],
+  "exitCode": 0,
+  "seconds": 0.35416908300248906
+}

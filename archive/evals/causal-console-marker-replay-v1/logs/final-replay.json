@@ -1,0 +1,13 @@
+{
+  "command": [
+    "node",
+    "scripts/replay-causal-event-clock.mjs",
+    "archive/evals/causal-event-clock-repair-v1/capture",
+    "archive/evals/causal-console-marker-replay-v1/replay-final"
+  ],
+  "exitCode": 0,
+  "seconds": 0.044464624996180646,
+  "stdout": "CLOCK_REPLAY_DONE calibrated\n",
+  "stderr": "",
+  "newCaptureProcesses": 0
+}

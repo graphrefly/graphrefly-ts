@@ -1,0 +1,25 @@
+{
+	"kind": "non-decision human approval",
+	"work_ref": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"user_text": "\u540c\u610f\uff0c\u7ee7\u7eed",
+	"baseline": "1b883c08",
+	"proposal": "docs/design/causal-event-clock-repair-v1-implementation/README.md#\u4e0b\u4e00\u6b65\u63d0\u6848\u5c1a\u672a\u5b9e\u73b0",
+	"proposal_digest": "sha256:d5491a45ae5aa91f6d471cc066577efb690d2ea258d41788c932148c1b769c23",
+	"scope": [
+		"private Node console async-marker parser repair",
+		"offline replay of retained trace and independent qualification",
+		"focused negatives, loaded helper mutations and offline QA",
+		"commit code and evidence"
+	],
+	"limits": {
+		"newCaptureProcesses": 0,
+		"consumerMeasurements": 0
+	},
+	"excludes": [
+		"capture retry",
+		"performance matrix or CSP-11",
+		"library/API/protocol changes",
+		"provider/live/spend/effects"
+	],
+	"currentness": "this batch only; no later dispatch granted"
+}

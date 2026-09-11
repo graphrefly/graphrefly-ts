@@ -1,0 +1,21 @@
+{
+  "kind": "retained-trace offline replay; not a new capture or performance qualification",
+  "input": "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-event-clock-repair-v1/capture",
+  "newCaptureProcesses": 0,
+  "consumerMeasurements": 0,
+  "inputs": {
+    "manifest.json": "3f2076171d9da2e24411b5dc6b13cc62a0b49e126e7a1d0f7a9a53b3c60d6d0e",
+    "trace-1.json": "173bbb72f839138d85f74477f7472bb8ec53e57f28a2d0e3af976b4e733e47af",
+    "evidence.json": "6fca15b8c07898de1ee4aa94f1ff1302aadfd39da9912613875b096e552e82f0",
+    "fixture.mjs": "3022d95cf3977f0275a8a2046c1bef068c1b4b166d25171282b4ad8f9a6029fa",
+    "correlation.json": "a825b242099864e6c757d8b8d31d731d9e8222a0759aa3d519b94e2761bb8d4b"
+  },
+  "sources": {
+    "replay-causal-event-clock.mjs": "6a75445719a1266e43dd5628705196cc94b74cd183d7450492714370dfadf42a",
+    "causal-event-correlation.mjs": "ffac4d7e04563266b976754d00079fdcdfc284d78429af8b764615089a9b977d",
+    "verify-causal-event-clock.py": "d8f1a1a3719d8faa888347177913d38e0054d264d316bfb48b1f8c5f2cf36189"
+  },
+  "outputDigest": "2a924bcb86c3d54e6f550e3c7c0ec69680979f27d567ad0570c06cc133688541",
+  "status": "calibrated",
+  "independentVerification": "separate verifier required"
+}

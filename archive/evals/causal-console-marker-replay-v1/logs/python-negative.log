@@ -1,0 +1,21 @@
+test_real_positive (__main__.VerifyTests.test_real_positive) ... ok
+test_reject_category (__main__.VerifyTests.test_reject_category) ... ok
+test_reject_duplicate_begin (__main__.VerifyTests.test_reject_duplicate_begin) ... ok
+test_reject_duplicate_pair (__main__.VerifyTests.test_reject_duplicate_pair) ... ok
+test_reject_id (__main__.VerifyTests.test_reject_id) ... ok
+test_reject_id2 (__main__.VerifyTests.test_reject_id2) ... ok
+test_reject_missing_id (__main__.VerifyTests.test_reject_missing_id) ... ok
+test_reject_orphan_end (__main__.VerifyTests.test_reject_orphan_end) ... ok
+test_reject_phase (__main__.VerifyTests.test_reject_phase) ... ok
+test_reject_pid (__main__.VerifyTests.test_reject_pid) ... ok
+test_reject_run (__main__.VerifyTests.test_reject_run) ... ok
+test_reject_scope (__main__.VerifyTests.test_reject_scope) ... ok
+test_reject_tid (__main__.VerifyTests.test_reject_tid) ... ok
+test_reject_unclosed_begin (__main__.VerifyTests.test_reject_unclosed_begin) ... ok
+test_reject_window (__main__.VerifyTests.test_reject_window) ... ok
+test_report_forgery (__main__.VerifyTests.test_report_forgery) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 0.038s
+
+OK
