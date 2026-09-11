@@ -1,0 +1,101 @@
+{
+	"kind": "design-only arithmetic and retained evidence binding; not method qualification",
+	"baseCommit": "9f99314e1bc31d6017754a4e251348ec8655f782",
+	"design": "docs/design/causal-cold-position-pairs-v3.md",
+	"designDigest": "sha256:a649c371dfaa4dc78e637899d9d27fe54fd382aa0e2f4070cf10cae5ea7c82b8",
+	"historicalArchive": "archive/evals/causal-block-history-v1",
+	"archiveDigest": "sha256:f9036edda523a35bbeea71fb544c1449eeec0c7e40e23a1a1adb0e4bf9868a48",
+	"archiveIndexDigest": "sha256:796fc2968121e9889098bbd6950fe9a387d36674e597e9799ef3b5f58a4f3aa6",
+	"verifiedArchiveFiles": 165,
+	"retainedObservation": {
+		"thirdBatchFirstSlower": 8,
+		"firstOverLaterRange": [1.1163404146284022, 1.300898516178989]
+	},
+	"orders": {
+		"U": [["C", "R"], ["R", "C"], ["C", "R"]],
+		"V": [["R", "C"], ["C", "R"], ["R", "C"]]
+	},
+	"positionMapping": [
+		{
+			"batch": 0,
+			"position": "first",
+			"numerator": "U.C",
+			"denominator": "V.R"
+		},
+		{
+			"batch": 0,
+			"position": "second",
+			"numerator": "V.C",
+			"denominator": "U.R"
+		},
+		{
+			"batch": 1,
+			"position": "first",
+			"numerator": "V.C",
+			"denominator": "U.R"
+		},
+		{
+			"batch": 1,
+			"position": "second",
+			"numerator": "U.C",
+			"denominator": "V.R"
+		},
+		{
+			"batch": 2,
+			"position": "first",
+			"numerator": "U.C",
+			"denominator": "V.R"
+		},
+		{
+			"batch": 2,
+			"position": "second",
+			"numerator": "V.C",
+			"denominator": "U.R"
+		}
+	],
+	"idealArithmeticOnly": [
+		{
+			"name": "position-only",
+			"g": [1.0, 1.0],
+			"T": 1.0
+		},
+		{
+			"name": "one-position-regression",
+			"g": [1.3, 0.8],
+			"T": 1.3
+		},
+		{
+			"name": "real-cost-ideal",
+			"g": [2.0, 2.0],
+			"T": 2.0
+		}
+	],
+	"proposedCounts": {
+		"perPair": 4800,
+		"coldMain": 76800,
+		"coldControl": 19200,
+		"coldPlain": 1200,
+		"coldTotal": 97200,
+		"coldProcesses": 41,
+		"fullMixedMatrix": 5198880,
+		"qualificationProcesses": 80,
+		"qualificationSamples": 192000
+	},
+	"conditionalIntervalNoncoverageBounds": {
+		"oneRow": 0.000518798828125,
+		"cold12": 0.0062255859375,
+		"all72IfValid": 0.037353515625
+	},
+	"rootPreservationFiles": 6,
+	"actualNewConsumerSamples": 0,
+	"implementationApproved": false,
+	"methodAdopted": false,
+	"measurementExecuted": false,
+	"documentationGates": {
+		"gitDiffCheck": 0,
+		"dashboardCheck": 0,
+		"workspaceAuthorityCheck": 0,
+		"onlyExistingWorkNoteChanged": true,
+		"fullTsSuiteRerun": false
+	}
+}
