@@ -1,0 +1,21 @@
+{
+	"status": "design-static-checks-passed",
+	"beforeCommit": "2f19cc0d79937bee0faa462cc9f2cf5209b62111",
+	"afterCommit": "907eec8138cddce9f8ff0e74d9f19d60db8c5b96",
+	"runtimeChanges": ["packages/ts/src/graph/graph.ts"],
+	"consumerFixtureDigest": "sha256:3356c4cb3301306ba02c2a6b3efe1295b70177afd8194ac0e3fc478f8c0d5e03",
+	"archiveDigest": "sha256:ed9ee0ab1a7662b3719f1fc8309eb7d3da3cb3b0c21331ac0c7e7e81a2d720fb",
+	"P2InputDigest": "sha256:44f1165557fc1444540731a73846233ce3d71da7a0af3a3d4fa2137e249c2079",
+	"previousReceiptDigest": "sha256:dcb9be08ce1b27e37440fce93a5badeb131c94a83e6dfdcc92439bd7dcf2bff3",
+	"rows": 5,
+	"pairsPerRow": 6,
+	"processes": 60,
+	"samples": 144000,
+	"warmup": 36000,
+	"measured": 108000,
+	"untimedPreflightInstances": 264,
+	"externalActionClockReads": 460800,
+	"newPerformanceSamples": 0,
+	"implementationChanged": false,
+	"rootPreserved": true
+}
