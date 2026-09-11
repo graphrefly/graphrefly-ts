@@ -1,0 +1,29 @@
+✔ approved diagnostic design vectors propagate interval uncertainty (1.3255ms)
+✔ X and nested B/E positive paths plus observed-event negative control (2.731125ms)
+✔ invalid evidence unknown: missing anchor (0.610167ms)
+✔ invalid evidence unknown: empty intersection (0.18325ms)
+✔ invalid evidence unknown: anchor order (0.1595ms)
+✔ invalid evidence unknown: units (0.230292ms)
+✔ invalid evidence unknown: anchor inside window (0.159166ms)
+✔ invalid evidence unknown: source identity (0.370208ms)
+✔ invalid evidence unknown: version (0.13525ms)
+✔ invalid evidence unknown: phase (0.19375ms)
+✔ invalid evidence unknown: negative duration (0.141125ms)
+✔ invalid evidence unknown: duplicate (0.146042ms)
+✔ invalid evidence unknown: missing E (0.154208ms)
+✔ invalid evidence unknown: marker thread (0.14525ms)
+✔ invalid evidence unknown: marker clock (0.135667ms)
+✔ manifest bindings, timeout, rotation and truncation reject (0.690792ms)
+✔ legacy empty logs and numeric offsets cannot claim no events (0.258792ms)
+✔ wide uncertainty and precision are load-bearing (0.262083ms)
+✔ cross-clock contradictions, missing categories, rotation loss and zero windows (0.499167ms)
+✔ six loaded helper mutations are detected without another capture process (7.379875ms)
+✔ shifted anchors cannot leave markers outside their enclosing windows (0.23025ms)
+ℹ tests 21
+ℹ suites 0
+ℹ pass 21
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 74.380917

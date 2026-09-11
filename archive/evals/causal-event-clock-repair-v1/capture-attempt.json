@@ -1,0 +1,14 @@
+{
+  "command": [
+    "node",
+    "scripts/qualify-causal-event-clock.mjs",
+    "archive/evals/causal-event-clock-repair-v1/capture",
+    "docs/design/causal-event-clock-repair-v1-implementation/approval.json"
+  ],
+  "exitCode": 1,
+  "elapsedSeconds": 0.09802758299338166,
+  "stdout": "CLOCK_CAPTURE_DONE unknown\n",
+  "stderr": "",
+  "fixtureAttempts": 1,
+  "retryAllowed": false
+}

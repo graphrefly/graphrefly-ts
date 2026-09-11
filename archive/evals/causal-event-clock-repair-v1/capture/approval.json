@@ -1,0 +1,23 @@
+{
+	"kind": "non-decision human approval",
+	"work": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"action": "private-event-clock-repair-v1",
+	"user_text": "\u597d\u7684\uff0c\u7ee7\u7eed",
+	"context": "Approval follows committed concrete repair design and one bounded fixture proposal in previous assistant response. Retained commit authorization applies.",
+	"design": "docs/design/causal-event-clock-repair-v1/README.md",
+	"designDigest": "9fde6dabd2163bfbcd717d1dc3b49b079f7ef54c73eb7404615652bab90970a9",
+	"designCommit": "1fa9171d",
+	"limits": {
+		"fixtureProcesses": 1,
+		"timeoutMs": 30000,
+		"retries": 0,
+		"consumerMeasurements": 0
+	},
+	"excludes": [
+		"consumer performance matrix",
+		"CSP-11",
+		"provider/live/spend/effects",
+		"library/public API/protocol changes"
+	],
+	"validity": "this batch only; no replay/retry permission"
+}

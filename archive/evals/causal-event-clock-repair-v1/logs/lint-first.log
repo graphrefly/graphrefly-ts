@@ -1,0 +1,379 @@
+$ biome check . && tsx scripts/check-no-raw-async.ts && tsx scripts/check-typecheck.ts && pnpm --filter @graphrefly/ts test:typecheck
+packages/ts/qualification/causal-occurrence/cold-v1-helper-differential.json check ━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 2.3 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/cold-v1-incoming-differential.json check ━━━━━━━━━━━━━━━
+
+  i The size of the file is 7.1 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/cold-v1-standalone-comparison-final.json check ━━━━━━━━━━
+
+  i The size of the file is 25.9 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/cold-v1-standalone-comparison.json check ━━━━━━━━━━━━━━━
+
+  i The size of the file is 25.7 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v5-inputs.json check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 8.3 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v6-inputs.json check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 18.8 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v7-incoming-differential.json check ━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 7.1 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v8-cold-inputs.json check ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 61.3 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v8-helper-differential.json check ━━━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 2.3 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+packages/ts/qualification/causal-occurrence/ts-v8-incoming-differential.json check ━━━━━━━━━━━━━━━━━
+
+  i The size of the file is 7.1 MiB, which exceeds the configured maximum of 1.0 MiB for this project.
+    Use the `files.maxSize` configuration to change the maximum size of files processed, or `files.includes` to ignore the file.
+  
+
+docs/design/causal-event-clock-repair-v1/checks.json format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   {
+     2    │ - ··"dashboard":·{
+     3    │ - ····"exit_code":·0,
+     4    │ - ····"output":·"===·GraphReFly·dashboard·build·===\ncounts:·{\n··decisions:·585,\n··ownerDecisions:·0,\n··phases:·21,\n··backlog:·135,\n··antipatterns:·9,\n··rules:·68,\n··conformance:·30,\n··formalArtifacts:·81,\n··flowcharts:·3,\n··sessions:·14,\n··guide:·11\n}\ngaps:·{\n··designPhases:·1,\n··openDecisions:·0,\n··deferredBacklog:·27,\n··uncoveredRules:·2,\n··todoConformance:·0\n}\nauthority·metrics:·{\n··unresolvedRefs:·0,\n··supersessionCycles:·0,\n··ruleRevisionCycles:·0,\n··ambiguousCurrentGovernors:·0,\n··unclassifiedDecisions:·441,\n··currentProtocolRules:·23,\n··draftProtocolRules:·44,\n··exactDuplicateCurrentRuleStatements:·0,\n··activeUncoveredRules:·2,\n··formalCoveragePending:·3\n}\nwork·federation:·{\n··contract:·'graphrefly-work-v1',\n··authority:·'read-only-generated-view-not-execution-authority',\n··metrics:·{\n····records:·156,\n····strict_records:·15,\n····legacy_records:·141,\n····legacy_complete_without_evidence:·100,\n····unavailable_ledgers:·0,\n····unstructured_ledgers:·0\n··},\n··dependencyEdges:·47,\n··dependencyCycles:·0,\n··supersessionCycles:·0,\n··orphans:·0\n}\norphans:\n··decision·D792·referenced·by·no·session\nlegacy·external·refs·(ok):\n··D2·supersedes·legacy·R11\nwork·federation·warnings:\n··graphrefly:B121·prerequisite·is·unavailable·in·this·checkout:·graphrefly-ts:CAUSAL-OCCURRENCE-TS\n··graphrefly:B121·prerequisite·is·unavailable·in·this·checkout:·graphrefly-ts:CAUSAL-COMPOSITION-DESIGN-TS\n··graphrefly:B123·prerequisite·is·unavailable·in·this·checkout:·graphrefly-ts:DURABLE-SQLITE-VERTICAL\n··graphrefly:B126·prerequisite·is·unavailable·in·this·checkout:·graphrefly-ts:POSTGRES-DURABILITY\n··graphrefly:B139·prerequisite·is·unavailable·in·this·checkout:·graphrefly-ts:CAUSAL-OCCURRENCE-TS\n··graphrefly:B121·consumed·artifact·is·unavailable·in·this·checkout:·[\"graphrefly-ts:causal-occurrence-arm-evidence\",\"graphrefly/conformance-arm-evidence/v1\",\"ts-v3\"]\n··graphrefly:B121·consumed·artifact·is·unavailable·in·this·checkout:·[\"graphrefly-ts:causal-composition-design\",\"graphrefly-ts/causal-composition-design/v1\",\"design-v1\"]\n··graphrefly:B123·consumed·artifact·is·unavailable·in·this·checkout:·[\"graphrefly-ts:durable-sqlite-vertical-evidence\",\"graphrefly/durable-runtime-arm-evidence/v1\",\"sqlite-ts-v1\"]\n··graphrefly:B126·consumed·artifact·is·unavailable·in·this·checkout:·[\"graphrefly-ts:postgres-durability-evidence\",\"graphrefly/durable-runtime-arm-evidence/v1\",\"postgres-ts-v1\"]\n··graphrefly:B139·consumed·artifact·is·unavailable·in·this·checkout:·[\"graphrefly-ts:causal-occurrence-arm-evidence\",\"graphrefly/conformance-arm-evidence/v1\",\"ts-v3\"]\n"
+     5    │ - ··},
+     6    │ - ··"workspace-authority":·{
+     7    │ - ····"exit_code":·0,
+     8    │ - ····"output":·"\n>·authority:check:workspace\n>·node·authority/check.mjs·--workspace\n\n===·GraphReFly·authority·gate·===\nmetrics:·{\n··unresolvedRefs:·0,\n··supersessionCycles:·0,\n··ruleRevisionCycles:·0,\n··ambiguousCurrentGovernors:·0,\n··unclassifiedDecisions:·441,\n··currentProtocolRules:·23,\n··draftProtocolRules:·44,\n··exactDuplicateCurrentRuleStatements:·0,\n··activeUncoveredRules:·2,\n··formalCoveragePending:·3\n}\nfederation:·{\n··qualifiedDecisions:·1017,\n··referenceEdges:·167,\n··supersessionCycles:·0,\n··relocations:·319,\n··unverifiedRelocations:·0,\n··currentProductComplete:·true,\n··currentProductRecords:·703\n}\nledgers:·[\n··{\n····origin:·'graphrefly',\n····owner:·'graphrefly',\n····authority_class:·'durable-root',\n····path:·'decisions/decisions.jsonl',\n····availability:·'required',\n····include_in_root_dashboard:·true,\n····admission_after:·784,\n····state:·'available',\n····records:·470\n··},\n··{\n····origin:·'graphrefly',\n····owner:·'graphrefly',\n····authority_class:·'evaluation-execution',\n····path:·'decisions/execution.jsonl',\n····availability:·'required',\n····include_in_root_dashboard:·true,\n····admission_after:·784,\n····state:·'available',\n····records:·115\n··},\n··{\n····origin:·'graphrefly-ts',\n····owner:·'graphrefly-ts',\n····authority_class:·'package-local',\n····path:·'../graphrefly-ts/decisions/decisions.jsonl',\n····availability:·'workspace-optional',\n····include_in_root_dashboard:·false,\n····admission_after:·0,\n····state:·'available',\n····records:·72\n··},\n··{\n····origin:·'graphrefly-ts',\n····owner:·'graphrefly-ts',\n····authority_class:·'evaluation-execution',\n····path:·'../graphrefly-ts/decisions/execution.jsonl',\n····availability:·'workspace-optional',\n····include_in_root_dashboard:·false,\n····admission_after:·0,\n····state:·'available',\n····records:·95\n··},\n··{\n····origin:·'graphrefly',\n····owner:·'graphrefly-ts',\n····authority_class:·'package-local-history',\n····path:·'../graphrefly-ts/decisions/root-origin-history.jsonl',\n····availability:·'workspace-optional',\n····include_in_root_dashboard:·false,\n····historical_only:·true,\n····state:·'available',\n····records:·67\n··},\n··{\n····origin:·'graphrefly-rs',\n····owner:·'graphrefly-rs',\n····authority_class:·'package-local',\n····path:·'../graphrefly-rs/decisions/decisions.jsonl',\n····availability:·'workspace-optional',\n····include_in_root_dashboard:·false,\n····admission_after:·0,\n····state:·'available',\n····records:·0\n··},\n··{\n····origin:·'graphrefly',\n····owner:·'graphrefly-rs',\n····authority_class:·'package-local-history',\n····path:·'../graphrefly-rs/decisions/root-origin-history.jsonl',\n····availability:·'workspace-optional',\n····include_in_root_dashboard:·false,\n····historical_only:·true,\n····state:·'available',\n····records:·12\n··},\n··{\n····origin:·'graphrefly-py',\n····owner:·'graphrefly-py',\n····authority_class:·'package-local',\n····path:·'../graphrefly-py/decisions/decisions.jsonl',\n····availability:·'workspace-optional',\n····include_in_root_dashboard:·false,\n····admission_after:·0,\n····state:·'available',\n····records:·0\n··},\n··{\n····origin:·'graphrefly',\n····owner:·'graphrefly-py',\n····authority_class:·'package-local-history',\n····path:·'../graphrefly-py/decisions/root-origin-history.jsonl',\n····availability:·'workspace-optional',\n····include_in_root_dashboard:·false,\n····historical_only:·true,\n····state:·'available',\n····records:·23\n··},\n··{\n····origin:·'graphrefly-canvas',\n····owner:·'graphrefly-canvas',\n····authority_class:·'product-local',\n····path:·'../graphrefly-canvas/decisions/decisions.jsonl',\n····availability:·'workspace-optional',\n····include_in_root_dashboard:·false,\n····admission_after:·0,\n····state:·'available',\n····records:·1\n··},\n··{\n····origin:·'graphrefly',\n····owner:·'graphrefly-canvas',\n····authority_class:·'product-local-history',\n····path:·'../graphrefly-canvas/decisions/root-origin-history.jsonl',\n····availability:·'workspace-optional',\n····include_in_root_dashboard:·false,\n····historical_only:·true,\n····state:·'available',\n····records:·102\n··},\n··{\n····origin:·'graphrefly-stack',\n····owner:·'graphrefly-stack',\n····authority_class:·'product-local',\n····path:·'../graphrefly-stack/docs/decisions/decisions.jsonl',\n····availability:·'workspace-optional',\n····include_in_root_dashboard:·false,\n····admission_after:·60,\n····state:·'available',\n····records:·60\n··}\n]\nwork·federation:·{\n··contract:·'graphrefly-work-v1',\n··authority:·'read-only-generated-view-not-execution-authority',\n··metrics:·{\n····records:·532,\n····strict_records:·103,\n····legacy_records:·429,\n····legacy_complete_without_evidence:·357,\n····unavailable_ledgers:·0,\n····unstructured_ledgers:·0\n··},\n··dependencyEdges:·180,\n··dependencyCycles:·0,\n··supersessionCycles:·0,\n··orphans:·0\n}\nwork·federation·warnings·(1):\n··../graphrefly-canvas/plan/slices.jsonl·has·88·append-only·legacy·revisions·without·immutable·row·coordinates\n"
+     9    │ - ··},
+    10    │ - ··"preservation-and-diff":·{
+    11    │ - ····"exit_code":·0,
+    12    │ - ····"output":·"Six·pre-existing·root·files·unchanged;·docs·JSONL·parses;·diff·check·passed.\n"
+    13    │ - ··}
+        2 │ + → "dashboard":·{
+        3 │ + → → "exit_code":·0,
+        4 │ + → → "output":·"===·GraphReFly·dashboard·build·===\ncounts:·{\n··decisions:·585,\n··ownerDecisions:·0,\n··phases:·21,\n··backlog:·135,\n··antipatterns:·9,\n··rules:·68,\n··conformance:·30,\n··formalArtifacts:·81,\n··flowcharts:·3,\n··sessions:·14,\n··guide:·11\n}\ngaps:·{\n··designPhases:·1,\n··openDecisions:·0,\n··deferredBacklog:·27,\n··uncoveredRules:·2,\n··todoConformance:·0\n}\nauthority·metrics:·{\n··unresolvedRefs:·0,\n··supersessionCycles:·0,\n··ruleRevisionCycles:·0,\n··ambiguousCurrentGovernors:·0,\n··unclassifiedDecisions:·441,\n··currentProtocolRules:·23,\n··draftProtocolRules:·44,\n··exactDuplicateCurrentRuleStatements:·0,\n··activeUncoveredRules:·2,\n··formalCoveragePending:·3\n}\nwork·federation:·{\n··contract:·'graphrefly-work-v1',\n··authority:·'read-only-generated-view-not-execution-authority',\n··metrics:·{\n····records:·156,\n····strict_records:·15,\n····legacy_records:·141,\n····legacy_complete_without_evidence:·100,\n····unavailable_ledgers:·0,\n····unstructured_ledgers:·0\n··},\n··dependencyEdges:·47,\n··dependencyCycles:·0,\n··supersessionCycles:·0,\n··orphans:·0\n}\norphans:\n··decision·D792·referenced·by·no·session\nlegacy·external·refs·(ok):\n··D2·supersedes·legacy·R11\nwork·federation·warnings:\n··graphrefly:B121·prerequisite·is·unavailable·in·this·checkout:·graphrefly-ts:CAUSAL-OCCURRENCE-TS\n··graphrefly:B121·prerequisite·is·unavailable·in·this·checkout:·graphrefly-ts:CAUSAL-COMPOSITION-DESIGN-TS\n··graphrefly:B123·prerequisite·is·unavailable·in·this·checkout:·graphrefly-ts:DURABLE-SQLITE-VERTICAL\n··graphrefly:B126·prerequisite·is·unavailable·in·this·checkout:·graphrefly-ts:POSTGRES-DURABILITY\n··graphrefly:B139·prerequisite·is·unavailable·in·this·checkout:·graphrefly-ts:CAUSAL-OCCURRENCE-TS\n··graphrefly:B121·consumed·artifact·is·unavailable·in·this·checkout:·[\"graphrefly-ts:causal-occurrence-arm-evidence\",\"graphrefly/conformance-arm-evidence/v1\",\"ts-v3\"]\n··graphrefly:B121·consumed·artifact·is·unavailable·in·this·checkout:·[\"graphrefly-ts:causal-composition-design\",\"graphrefly-ts/causal-composition-design/v1\",\"design-v1\"]\n··graphrefly:B123·consumed·artifact·is·unavailable·in·this·checkout:·[\"graphrefly-ts:durable-sqlite-vertical-evidence\",\"graphrefly/durable-runtime-arm-evidence/v1\",\"sqlite-ts-v1\"]\n··graphrefly:B126·consumed·artifact·is·unavailable·in·this·checkout:·[\"graphrefly-ts:postgres-durability-evidence\",\"graphrefly/durable-runtime-arm-evidence/v1\",\"postgres-ts-v1\"]\n··graphrefly:B139·consumed·artifact·is·unavailable·in·this·checkout:·[\"graphrefly-ts:causal-occurrence-arm-evidence\",\"graphrefly/conformance-arm-evidence/v1\",\"ts-v3\"]\n"
+        5 │ + → },
+        6 │ + → "workspace-authority":·{
+        7 │ + → → "exit_code":·0,
+        8 │ + → → "output":·"\n>·authority:check:workspace\n>·node·authority/check.mjs·--workspace\n\n===·GraphReFly·authority·gate·===\nmetrics:·{\n··unresolvedRefs:·0,\n··supersessionCycles:·0,\n··ruleRevisionCycles:·0,\n··ambiguousCurrentGovernors:·0,\n··unclassifiedDecisions:·441,\n··currentProtocolRules:·23,\n··draftProtocolRules:·44,\n··exactDuplicateCurrentRuleStatements:·0,\n··activeUncoveredRules:·2,\n··formalCoveragePending:·3\n}\nfederation:·{\n··qualifiedDecisions:·1017,\n··referenceEdges:·167,\n··supersessionCycles:·0,\n··relocations:·319,\n··unverifiedRelocations:·0,\n··currentProductComplete:·true,\n··currentProductRecords:·703\n}\nledgers:·[\n··{\n····origin:·'graphrefly',\n····owner:·'graphrefly',\n····authority_class:·'durable-root',\n····path:·'decisions/decisions.jsonl',\n····availability:·'required',\n····include_in_root_dashboard:·true,\n····admission_after:·784,\n····state:·'available',\n····records:·470\n··},\n··{\n····origin:·'graphrefly',\n····owner:·'graphrefly',\n····authority_class:·'evaluation-execution',\n····path:·'decisions/execution.jsonl',\n····availability:·'required',\n····include_in_root_dashboard:·true,\n····admission_after:·784,\n····state:·'available',\n····records:·115\n··},\n··{\n····origin:·'graphrefly-ts',\n····owner:·'graphrefly-ts',\n····authority_class:·'package-local',\n····path:·'../graphrefly-ts/decisions/decisions.jsonl',\n····availability:·'workspace-optional',\n····include_in_root_dashboard:·false,\n····admission_after:·0,\n····state:·'available',\n····records:·72\n··},\n··{\n····origin:·'graphrefly-ts',\n····owner:·'graphrefly-ts',\n····authority_class:·'evaluation-execution',\n····path:·'../graphrefly-ts/decisions/execution.jsonl',\n····availability:·'workspace-optional',\n····include_in_root_dashboard:·false,\n····admission_after:·0,\n····state:·'available',\n····records:·95\n··},\n··{\n····origin:·'graphrefly',\n····owner:·'graphrefly-ts',\n····authority_class:·'package-local-history',\n····path:·'../graphrefly-ts/decisions/root-origin-history.jsonl',\n····availability:·'workspace-optional',\n····include_in_root_dashboard:·false,\n····historical_only:·true,\n····state:·'available',\n····records:·67\n··},\n··{\n····origin:·'graphrefly-rs',\n····owner:·'graphrefly-rs',\n····authority_class:·'package-local',\n····path:·'../graphrefly-rs/decisions/decisions.jsonl',\n····availability:·'workspace-optional',\n····include_in_root_dashboard:·false,\n····admission_after:·0,\n····state:·'available',\n····records:·0\n··},\n··{\n····origin:·'graphrefly',\n····owner:·'graphrefly-rs',\n····authority_class:·'package-local-history',\n····path:·'../graphrefly-rs/decisions/root-origin-history.jsonl',\n····availability:·'workspace-optional',\n····include_in_root_dashboard:·false,\n····historical_only:·true,\n····state:·'available',\n····records:·12\n··},\n··{\n····origin:·'graphrefly-py',\n····owner:·'graphrefly-py',\n····authority_class:·'package-local',\n····path:·'../graphrefly-py/decisions/decisions.jsonl',\n····availability:·'workspace-optional',\n····include_in_root_dashboard:·false,\n····admission_after:·0,\n····state:·'available',\n····records:·0\n··},\n··{\n····origin:·'graphrefly',\n····owner:·'graphrefly-py',\n····authority_class:·'package-local-history',\n····path:·'../graphrefly-py/decisions/root-origin-history.jsonl',\n····availability:·'workspace-optional',\n····include_in_root_dashboard:·false,\n····historical_only:·true,\n····state:·'available',\n····records:·23\n··},\n··{\n····origin:·'graphrefly-canvas',\n····owner:·'graphrefly-canvas',\n····authority_class:·'product-local',\n····path:·'../graphrefly-canvas/decisions/decisions.jsonl',\n····availability:·'workspace-optional',\n····include_in_root_dashboard:·false,\n····admission_after:·0,\n····state:·'available',\n····records:·1\n··},\n··{\n····origin:·'graphrefly',\n····owner:·'graphrefly-canvas',\n····authority_class:·'product-local-history',\n····path:·'../graphrefly-canvas/decisions/root-origin-history.jsonl',\n····availability:·'workspace-optional',\n····include_in_root_dashboard:·false,\n····historical_only:·true,\n····state:·'available',\n····records:·102\n··},\n··{\n····origin:·'graphrefly-stack',\n····owner:·'graphrefly-stack',\n····authority_class:·'product-local',\n····path:·'../graphrefly-stack/docs/decisions/decisions.jsonl',\n····availability:·'workspace-optional',\n····include_in_root_dashboard:·false,\n····admission_after:·60,\n····state:·'available',\n····records:·60\n··}\n]\nwork·federation:·{\n··contract:·'graphrefly-work-v1',\n··authority:·'read-only-generated-view-not-execution-authority',\n··metrics:·{\n····records:·532,\n····strict_records:·103,\n····legacy_records:·429,\n····legacy_complete_without_evidence:·357,\n····unavailable_ledgers:·0,\n····unstructured_ledgers:·0\n··},\n··dependencyEdges:·180,\n··dependencyCycles:·0,\n··supersessionCycles:·0,\n··orphans:·0\n}\nwork·federation·warnings·(1):\n··../graphrefly-canvas/plan/slices.jsonl·has·88·append-only·legacy·revisions·without·immutable·row·coordinates\n"
+        9 │ + → },
+       10 │ + → "preservation-and-diff":·{
+       11 │ + → → "exit_code":·0,
+       12 │ + → → "output":·"Six·pre-existing·root·files·unchanged;·docs·JSONL·parses;·diff·check·passed.\n"
+       13 │ + → }
+    14 14 │   }
+    15 15 │   
+  
+
+docs/design/causal-event-clock-repair-v1/design-check.json format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   {
+     2    │ - ··"status":·"proposed-design-not-execution-authority",
+     3    │ - ··"baseline_commit":·"cab725eaafec08c180c181e2b29cf5f21a63b437",
+     4    │ - ··"local_sources":·{
+     5    │ - ····"scripts/spending-preset-performance-report.mjs":·"fb5e3272c647ab4a590e8f3a402fe753e3ba5dbda0a70432d5577011c615795a",
+     6    │ - ····"scripts/compare-spending-preset.mjs":·"4267b33bde91108f9b787f002513e6eb33c1d89549fef8c32ec466b0c9287e82",
+     7    │ - ····"scripts/compare-spending-preset-repetition.mjs":·"692c0c9760ec8d2cb5c650999e55ab81cde3d7ecd3eb1263a03ba56dd986964c",
+     8    │ - ····"scripts/fixtures/spending-preset-performance-worker.ts":·"90bb36deec0e795ac4014b09f280adbb95a02f64a7934b264dcef3fa12b15ff2",
+     9    │ - ····"scripts/spending-preset-performance.test.mjs":·"470ad8eb63a56ccc75c04c956a950252243f2b780e56f9bedd2ef3bf5b3e3cdd",
+    10    │ - ····"scripts/spending-preset-repetition.mjs":·"c79419327a8a42881f7206ffc405d6db8b6341a0c5322b88be2788732cbb318f",
+    11    │ - ····"decisions/execution.jsonl":·"1f3928073011c634c7ace560f40dcd52d1233985ed01de09741691c25c2132cc",
+    12    │ - ····"docs/design/causal-performance-control-audit-v1/receipt.json":·"308e94c09269fb7e8a0f721fac3b7251656b5eed6d40956cca26c8112c4aa765",
+    13    │ - ····"archive/evals/causal-performance-repetition-v2/receipt.json":·"d39c2549915b7d874fafc4b82ee06dff00c953f97b1e6c023b185d3d591e5ff8"
+    14    │ - ··},
+    15    │ - ··"upstream_sources":·[
+    16    │ - ····{
+    17    │ - ······"url":·"https://raw.githubusercontent.com/nodejs/node/v24.18.0/doc/api/tracing.md",
+    18    │ - ······"sha256":·"8bb47aa6288ed310b40191cdf34c3f7b8237423dc711b5aa77256524695872bc",
+    19    │ - ······"bytes":·10833
+    20    │ - ····},
+    21    │ - ····{
+    22    │ - ······"url":·"https://raw.githubusercontent.com/nodejs/node/v24.18.0/deps/v8/src/runtime/runtime-compiler.cc",
+    23    │ - ······"sha256":·"8429f6b6db69d994361701882927c11bd1ae557e6718dbe126fded18d6d8fabd",
+    24    │ - ······"bytes":·34059
+    25    │ - ····},
+    26    │ - ····{
+    27    │ - ······"url":·"https://raw.githubusercontent.com/nodejs/node/v24.18.0/deps/v8/src/heap/heap.cc",
+    28    │ - ······"sha256":·"5391294b902d421202090167b419a2be7df3392c64fd2d964f2575786c6e1c2e",
+    29    │ - ······"bytes":·276538
+    30    │ - ····},
+    31    │ - ····{
+    32    │ - ······"url":·"https://raw.githubusercontent.com/nodejs/node/v24.18.0/lib/internal/util/debuglog.js",
+    33    │ - ······"sha256":·"4471d0ba1b85d272e583aef5ec9fe05c28377bf59b923523495bcba46a858fec",
+    34    │ - ······"bytes":·12596
+    35    │ - ····},
+    36    │ - ····{
+    37    │ - ······"url":·"https://raw.githubusercontent.com/nodejs/node/v24.18.0/lib/internal/console/constructor.js",
+    38    │ - ······"sha256":·"6cdad6113815cecbe8c914af86835499dbf2b3bbd617babec9e24af779c8aeaa",
+    39    │ - ······"bytes":·21776
+    40    │ - ····}
+    41    │ - ··],
+    42    │ - ··"design_arithmetic":·{
+    43    │ - ····"passed":·[
+    44    │ - ······"inside",
+    45    │ - ······"after",
+    46    │ - ······"before",
+    47    │ - ······"uncertain-boundary",
+    48    │ - ······"touch-boundary",
+    49    │ - ······"zero-duration-inside",
+    50    │ - ······"wide-calibration"
+    51    │ - ····],
+    52    │ - ····"negative_premise_cases":·"specified·only;·require·implementation·tests·after·approval"
+    53    │ - ··},
+    54    │ - ··"new_runtime_processes":·0,
+    55    │ - ··"new_performance_samples":·0,
+    56    │ - ··"implementation_changed":·false
+        2 │ + → "status":·"proposed-design-not-execution-authority",
+        3 │ + → "baseline_commit":·"cab725eaafec08c180c181e2b29cf5f21a63b437",
+        4 │ + → "local_sources":·{
+        5 │ + → → "scripts/spending-preset-performance-report.mjs":·"fb5e3272c647ab4a590e8f3a402fe753e3ba5dbda0a70432d5577011c615795a",
+        6 │ + → → "scripts/compare-spending-preset.mjs":·"4267b33bde91108f9b787f002513e6eb33c1d89549fef8c32ec466b0c9287e82",
+        7 │ + → → "scripts/compare-spending-preset-repetition.mjs":·"692c0c9760ec8d2cb5c650999e55ab81cde3d7ecd3eb1263a03ba56dd986964c",
+        8 │ + → → "scripts/fixtures/spending-preset-performance-worker.ts":·"90bb36deec0e795ac4014b09f280adbb95a02f64a7934b264dcef3fa12b15ff2",
+        9 │ + → → "scripts/spending-preset-performance.test.mjs":·"470ad8eb63a56ccc75c04c956a950252243f2b780e56f9bedd2ef3bf5b3e3cdd",
+       10 │ + → → "scripts/spending-preset-repetition.mjs":·"c79419327a8a42881f7206ffc405d6db8b6341a0c5322b88be2788732cbb318f",
+       11 │ + → → "decisions/execution.jsonl":·"1f3928073011c634c7ace560f40dcd52d1233985ed01de09741691c25c2132cc",
+       12 │ + → → "docs/design/causal-performance-control-audit-v1/receipt.json":·"308e94c09269fb7e8a0f721fac3b7251656b5eed6d40956cca26c8112c4aa765",
+       13 │ + → → "archive/evals/causal-performance-repetition-v2/receipt.json":·"d39c2549915b7d874fafc4b82ee06dff00c953f97b1e6c023b185d3d591e5ff8"
+       14 │ + → },
+       15 │ + → "upstream_sources":·[
+       16 │ + → → {
+       17 │ + → → → "url":·"https://raw.githubusercontent.com/nodejs/node/v24.18.0/doc/api/tracing.md",
+       18 │ + → → → "sha256":·"8bb47aa6288ed310b40191cdf34c3f7b8237423dc711b5aa77256524695872bc",
+       19 │ + → → → "bytes":·10833
+       20 │ + → → },
+       21 │ + → → {
+       22 │ + → → → "url":·"https://raw.githubusercontent.com/nodejs/node/v24.18.0/deps/v8/src/runtime/runtime-compiler.cc",
+       23 │ + → → → "sha256":·"8429f6b6db69d994361701882927c11bd1ae557e6718dbe126fded18d6d8fabd",
+       24 │ + → → → "bytes":·34059
+       25 │ + → → },
+       26 │ + → → {
+       27 │ + → → → "url":·"https://raw.githubusercontent.com/nodejs/node/v24.18.0/deps/v8/src/heap/heap.cc",
+       28 │ + → → → "sha256":·"5391294b902d421202090167b419a2be7df3392c64fd2d964f2575786c6e1c2e",
+       29 │ + → → → "bytes":·276538
+       30 │ + → → },
+       31 │ + → → {
+       32 │ + → → → "url":·"https://raw.githubusercontent.com/nodejs/node/v24.18.0/lib/internal/util/debuglog.js",
+       33 │ + → → → "sha256":·"4471d0ba1b85d272e583aef5ec9fe05c28377bf59b923523495bcba46a858fec",
+       34 │ + → → → "bytes":·12596
+       35 │ + → → },
+       36 │ + → → {
+       37 │ + → → → "url":·"https://raw.githubusercontent.com/nodejs/node/v24.18.0/lib/internal/console/constructor.js",
+       38 │ + → → → "sha256":·"6cdad6113815cecbe8c914af86835499dbf2b3bbd617babec9e24af779c8aeaa",
+       39 │ + → → → "bytes":·21776
+       40 │ + → → }
+       41 │ + → ],
+       42 │ + → "design_arithmetic":·{
+       43 │ + → → "passed":·[
+       44 │ + → → → "inside",
+       45 │ + → → → "after",
+       46 │ + → → → "before",
+       47 │ + → → → "uncertain-boundary",
+       48 │ + → → → "touch-boundary",
+       49 │ + → → → "zero-duration-inside",
+       50 │ + → → → "wide-calibration"
+       51 │ + → → ],
+       52 │ + → → "negative_premise_cases":·"specified·only;·require·implementation·tests·after·approval"
+       53 │ + → },
+       54 │ + → "new_runtime_processes":·0,
+       55 │ + → "new_performance_samples":·0,
+       56 │ + → "implementation_changed":·false
+    57 57 │   }
+    58 58 │   
+  
+
+docs/design/causal-event-clock-repair-v1/vectors.json format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+      1  1 │   {
+      2    │ - ··"kind":·"design-arithmetic-only",
+      3    │ - ··"units":·"microseconds",
+      4    │ - ··"not_runtime_qualification":·true,
+      5    │ - ··"anchors":·[
+      6    │ - ····{
+      7    │ - ······"p0":·100,
+      8    │ - ······"p1":·102,
+      9    │ - ······"h":·201
+     10    │ - ····},
+     11    │ - ····{
+     12    │ - ······"p0":·200,
+     13    │ - ······"p1":·202,
+     14    │ - ······"h":·301
+     15    │ - ····},
+     16    │ - ····{
+     17    │ - ······"p0":·400,
+     18    │ - ······"p1":·402,
+     19    │ - ······"h":·501
+     20    │ - ····}
+     21    │ - ··],
+     22    │ - ··"expected_delta":·[
+     23    │ - ····99,
+     24    │ - ····101
+     25    │ - ··],
+     26    │ - ··"sample":·[
+     27    │ - ····250,
+     28    │ - ····260
+     29    │ - ··],
+     30    │ - ··"event_precision":·1,
+     31    │ - ··"cases":·[
+     32    │ - ····{
+     33    │ - ······"id":·"inside",
+     34    │ - ······"event":·[
+     35    │ - ········354,
+     36    │ - ········356
+     37    │ - ······],
+     38    │ - ······"expected_start":·[
+     39    │ - ········252,
+     40    │ - ········256
+     41    │ - ······],
+     42    │ - ······"expected_end":·[
+     43    │ - ········254,
+     44    │ - ········258
+     45    │ - ······],
+     46    │ - ······"expected":·"overlap"
+     47    │ - ····},
+     48    │ - ····{
+     49    │ - ······"id":·"after",
+     50    │ - ······"event":·[
+     51    │ - ········370,
+     52    │ - ········371
+     53    │ - ······],
+     54    │ - ······"expected":·"disjoint"
+     55    │ - ····},
+     56    │ - ····{
+     57    │ - ······"id":·"before",
+     58    │ - ······"event":·[
+     59    │ - ········340,
+     60    │ - ········341
+     61    │ - ······],
+     62    │ - ······"expected":·"disjoint"
+     63    │ - ····},
+     64    │ - ····{
+     65    │ - ······"id":·"uncertain-boundary",
+     66    │ - ······"event":·[
+     67    │ - ········360,
+     68    │ - ········362
+     69    │ - ······],
+     70    │ - ······"expected":·"possible"
+     71    │ - ····},
+     72    │ - ····{
+     73    │ - ······"id":·"touch-boundary",
+     74    │ - ······"event":·[
+     75    │ - ········362,
+     76    │ - ········364
+     77    │ - ······],
+     78    │ - ······"expected":·"possible"
+     79    │ - ····},
+     80    │ - ····{
+     81    │ - ······"id":·"zero-duration-inside",
+     82    │ - ······"event":·[
+     83    │ - ········355,
+     84    │ - ········355
+     85    │ - ······],
+     86    │ - ······"expected":·"possible"
+     87    │ - ····},
+     88    │ - ····{
+     89    │ - ······"id":·"wide-calibration",
+     90    │ - ······"event":·[
+     91    │ - ········354,
+     92    │ - ········356
+     93    │ - ······],
+     94    │ - ······"delta_override":·[
+     95    │ - ········90,
+     96    │ - ········110
+     97    │ - ······],
+     98    │ - ······"expected":·"possible"
+     99    │ - ····},
+    100    │ - ····{
+    101    │ - ······"id":·"missing-anchor",
+    102    │ - ······"invalid":·"one·required·anchor·absent",
+    103    │ - ······"expected":·"unknown"
+    104    │ - ····},
+    105    │ - ····{
+    106    │ - ······"id":·"empty-intersection",
+    107    │ - ······"invalid":·"anchor·intervals·do·not·intersect",
+    108    │ - ······"expected":·"unknown"
+    109    │ - ····},
+    110    │ - ····{
+    111    │ - ······"id":·"wrong-identity",
+    112    │ - ······"invalid":·"PID/run/source·digest·mismatched",
+    113    │ - ······"expected":·"unknown"
+    114    │ - ····},
+    115    │ - ····{
+    116    │ - ······"id":·"wrong-units",
+    117    │ - ······"invalid":·"anchor·unit·metadata·incompatible",
+    118    │ - ······"expected":·"unknown"
+    119    │ - ····},
+    120    │ - ····{
+    121    │ - ······"id":·"truncated-trace",
+    122    │ - ······"invalid":·"coverage·incomplete",
+    123    │ - ······"expected":·"unknown"
+    124    │ - ····}
+    125    │ - ··]
+         2 │ + → "kind":·"design-arithmetic-only",
+         3 │ + → "units":·"microseconds",
+         4 │ + → "not_runtime_qualification":·true,
+         5 │ + → "anchors":·[
+         6 │ + → → {
+         7 │ + → → → "p0":·100,
+         8 │ + → → → "p1":·102,
+         9 │ + → → → "h":·201
+        10 │ + → → },
+        11 │ + → → {
+        12 │ + → → → "p0":·200,
+        13 │ + → → → "p1":·202,
+        14 │ + → → → "h":·301
+        15 │ + → → },
+        16 │ + → → {
+        17 │ + → → → "p0":·400,
+        18 │ + → → → "p1":·402,
+        19 │ + → → → "h":·501
+        20 │ + → → }
+        21 │ + → ],
+        22 │ + → "expected_delta":·[99,·101],
+        23 │ + → "sample":·[250,·260],
+        24 │ + → "event_precision":·1,
+        25 │ + → "cases":·[
+        26 │ + → → {
+  65 more lines truncated
+  
+
+Checked 830 files in 1315ms. No fixes applied.
+Found 3 errors.
+Found 10 infos.
+check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+
+[ELIFECYCLE] Command failed with exit code 1.

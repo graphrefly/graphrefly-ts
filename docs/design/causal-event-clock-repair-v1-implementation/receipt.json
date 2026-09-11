@@ -1,0 +1,69 @@
+{
+	"kind": "private diagnostic repair attempt evidence",
+	"work": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"governing_ref": "graphrefly-ts:D168",
+	"baseline": "1fa9171d",
+	"qualification": "not-qualified",
+	"approval": {
+		"path": "docs/design/causal-event-clock-repair-v1-implementation/approval.json",
+		"digest": "sha256:b485db4fe429692c37889a7b7b341597050aa5eac5552150b7d8e649716926e1"
+	},
+	"fixtureProcesses": 1,
+	"retries": 0,
+	"consumerMeasurements": 0,
+	"capture_result": "unknown: actual console markers have time:: prefix and async b/e; approved sync marker premise false",
+	"capture": {
+		"archive/evals/causal-event-clock-repair-v1/capture/approval.json": "sha256:b485db4fe429692c37889a7b7b341597050aa5eac5552150b7d8e649716926e1",
+		"archive/evals/causal-event-clock-repair-v1/capture/correlation.json": "sha256:a825b242099864e6c757d8b8d31d731d9e8222a0759aa3d519b94e2761bb8d4b",
+		"archive/evals/causal-event-clock-repair-v1/capture/evidence.json": "sha256:6fca15b8c07898de1ee4aa94f1ff1302aadfd39da9912613875b096e552e82f0",
+		"archive/evals/causal-event-clock-repair-v1/capture/fixture.mjs": "sha256:3022d95cf3977f0275a8a2046c1bef068c1b4b166d25171282b4ad8f9a6029fa",
+		"archive/evals/causal-event-clock-repair-v1/capture/manifest.json": "sha256:3f2076171d9da2e24411b5dc6b13cc62a0b49e126e7a1d0f7a9a53b3c60d6d0e",
+		"archive/evals/causal-event-clock-repair-v1/capture/stderr.log": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+		"archive/evals/causal-event-clock-repair-v1/capture/stdout.log": "sha256:99e8a9801ade9ba3a93464600d36a9b8ee5ebfdbf6836b62d814c0c7262a45e7",
+		"archive/evals/causal-event-clock-repair-v1/capture/trace-1.json": "sha256:173bbb72f839138d85f74477f7472bb8ec53e57f28a2d0e3af976b4e733e47af"
+	},
+	"attempt": {
+		"path": "archive/evals/causal-event-clock-repair-v1/capture-attempt.json",
+		"digest": "sha256:bc8100fe8880b46413b6c03b8f22644aab56ead1d87702c22cc64fc01c9e39cc"
+	},
+	"independent_verifier": {
+		"path": "archive/evals/causal-event-clock-repair-v1/verification-attempt.json",
+		"digest": "sha256:b814b93a659c3a244afa6e09bf68a3c7ecf814dc62772c1b62a5d9c6a978aaf3",
+		"qualified": false
+	},
+	"final_sources": {
+		"scripts/verify-causal-event-clock.py": "sha256:deb5dcbf622cdf8e6f855ce9ed02c1cff88cb896fa2f511acd8a5cceb1d93981",
+		"scripts/causal-event-correlation.mjs": "sha256:7777e3e0bb7aba815862ae208e75e0560d78c4d0790efaf5e5aac0d9f0612d26",
+		"scripts/causal-event-correlation.test.mjs": "sha256:db27c8f5a550b9631158a4a2b61e396da0a4daada44b8b5c4d1e9ab95e6f257b",
+		"scripts/qualify-causal-event-clock.mjs": "sha256:f7b9446eacdcc31be07ae35e054112601ad8ef9685d7a60420d4e3e780447681",
+		"scripts/fixtures/causal-event-clock.mjs": "sha256:3022d95cf3977f0275a8a2046c1bef068c1b4b166d25171282b4ad8f9a6029fa",
+		"scripts/spending-preset-performance-report.mjs": "sha256:8fa574aba7a99c68d5665ed1730a69cd960dd12dc5f8472c60a6128e08b77915",
+		"scripts/spending-preset-performance.test.mjs": "sha256:0779f1cb3406182afabfe8b5960da03329935bf6bb0bdef2c45302d27db52292",
+		"scripts/compare-spending-preset.mjs": "sha256:c381135fd3d2286c636bd9be0f84fa6a57d62f0d893ec8046268d5a582940b02",
+		"scripts/compare-spending-preset-repetition.mjs": "sha256:0e02da1f934b55d8815fd1fcfb557807d12d9aa2b5934125ae597168173782fc",
+		"biome.json": "sha256:d88ee1deae486ffbc324e3606115e68dba30baac4a69b0118b4565f0ee16db7a"
+	},
+	"evidence_logs": "archive/evals/causal-event-clock-repair-v1/logs",
+	"tests": {
+		"helper": 21,
+		"loadedHelperMutationsDetected": 6,
+		"legacyStats": 4,
+		"repetitionStats": 7,
+		"fullPassed": 2547,
+		"fullExistingD159Failures": 2,
+		"fullSkipped": 4,
+		"lintTypecheck": "passed"
+	},
+	"legacy_correction": {
+		"path": "archive/evals/causal-event-clock-repair-v1/legacy-correction.json",
+		"digest": "sha256:60bc1606608b3a6345b5e4f083a8d68af7eca7eee9ed3c16022e7dc6a4e6a61c",
+		"archiveFiles": 321,
+		"samples": 67200,
+		"verdict": "inconclusive"
+	},
+	"static_review": "two reviewers; raised issues fixed; final static reviews no unresolved findings",
+	"runtimePublicApiProtocolChanged": false,
+	"scope": "attempt/rejection record only; no new permission or overall work completion",
+	"next_proposal": "async console marker adapter using retained trace only; not dispatched",
+	"ownership": "teach-back unverified"
+}

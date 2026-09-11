@@ -1,0 +1,29 @@
+{
+  "identity": {
+    "run": "aafbb6fc-649d-4cda-b2eb-10a4b829acba",
+    "pid": 75606,
+    "node": "v24.18.0",
+    "v8": "13.6.233.17-node.50",
+    "sourceDigest": "3022d95cf3977f0275a8a2046c1bef068c1b4b166d25171282b4ad8f9a6029fa"
+  },
+  "args": [
+    "--trace-events-enabled",
+    "--trace-event-categories=v8,node.console",
+    "--trace-event-file-pattern=/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-event-clock-repair-v1/capture/trace-${rotation}.json",
+    "--expose-gc",
+    "--allow-natives-syntax",
+    "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-event-clock-repair-v1/capture/fixture.mjs",
+    "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-event-clock-repair-v1/capture/evidence.json",
+    "aafbb6fc-649d-4cda-b2eb-10a4b829acba"
+  ],
+  "execPath": "/Users/davidchenallio/.local/share/mise/installs/node/24.18.0/bin/node",
+  "approvalDigest": "b485db4fe429692c37889a7b7b341597050aa5eac5552150b7d8e649716926e1",
+  "exitCode": 0,
+  "timedOut": false,
+  "traceFiles": [
+    "trace-1.json"
+  ],
+  "signal": null,
+  "traceDigest": "173bbb72f839138d85f74477f7472bb8ec53e57f28a2d0e3af976b4e733e47af",
+  "evidenceDigest": "6fca15b8c07898de1ee4aa94f1ff1302aadfd39da9912613875b096e552e82f0"
+}

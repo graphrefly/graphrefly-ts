@@ -64,6 +64,7 @@ for (const path of [
 	...Object.keys(bundle.metafile.inputs),
 	"scripts/compare-spending-preset.mjs",
 	"scripts/spending-preset-performance-report.mjs",
+	"scripts/causal-event-correlation.mjs",
 	receiptPath,
 	"pnpm-lock.yaml",
 ])
@@ -190,7 +191,6 @@ for (let i = 0; i < rows.length; i++) {
 					samples,
 					readFileSync(resolve(dir, "runtime.log"), "utf8"),
 					readFileSync(resolve(dir, v8File), "utf8"),
-					meta.uptimeOffsetMs,
 				),
 			);
 			result = {

@@ -1,0 +1,370 @@
+{
+  "archiveFilesVerified": 321,
+  "verified": {
+    "validEvidence": true,
+    "rowVerdict": "inconclusive",
+    "samples": 67200,
+    "processes": 20,
+    "qualified": false
+  },
+  "originalDecision": {
+    "verdict": "inconclusive",
+    "reason": "control-instability",
+    "interval": [
+      0.9628643815203556,
+      1.0776527529989572
+    ],
+    "median": 1.0302244214228962,
+    "mean": 1.026382604691945,
+    "min": 0.9160402669678641,
+    "max": 1.1165675025764399,
+    "controls": [
+      1.1958192419822584,
+      1.076343717904805,
+      1.1369324276006292,
+      1.0700366002654857
+    ]
+  },
+  "rows": [
+    {
+      "job": "control-0",
+      "totalSamples": 2400,
+      "measuredSamples": 1800,
+      "scope": "all measured coordinates in original samples.jsonl",
+      "status": "unknown",
+      "sources": {
+        "gc": {
+          "digest": "5b50a9ab3dab1fe9c2ae9f376224f822eea50b942be52da18df8a2babb856452",
+          "clock": "V8 isolate GC log / ms"
+        },
+        "deopt": {
+          "digest": "24797b7f5b85296bdabfd0c7d1363f34b66ba50ef3dee04614f25c549155201f",
+          "clock": "V8 logger / us"
+        }
+      }
+    },
+    {
+      "job": "control-1",
+      "totalSamples": 2400,
+      "measuredSamples": 1800,
+      "scope": "all measured coordinates in original samples.jsonl",
+      "status": "unknown",
+      "sources": {
+        "gc": {
+          "digest": "91d72cc9df5eb4874169152d52b658c7b0f6783ea24568b7a476311c6101fe65",
+          "clock": "V8 isolate GC log / ms"
+        },
+        "deopt": {
+          "digest": "ab9dc226480ad473cb3d6f3ede15ff6735855f6507ac4ddcfbb006ce81f9f544",
+          "clock": "V8 logger / us"
+        }
+      }
+    },
+    {
+      "job": "repeat-0",
+      "totalSamples": 3600,
+      "measuredSamples": 2700,
+      "scope": "all measured coordinates in original samples.jsonl",
+      "status": "unknown",
+      "sources": {
+        "gc": {
+          "digest": "dc4146d4e54767b9569ac46612a1de9219727d68a524f04a6d84b3b790664923",
+          "clock": "V8 isolate GC log / ms"
+        },
+        "deopt": {
+          "digest": "f990ccb584a11b63b6864df40acdeebaf8faefe9c279caaf3f587dd669302668",
+          "clock": "V8 logger / us"
+        }
+      }
+    },
+    {
+      "job": "repeat-1",
+      "totalSamples": 3600,
+      "measuredSamples": 2700,
+      "scope": "all measured coordinates in original samples.jsonl",
+      "status": "unknown",
+      "sources": {
+        "gc": {
+          "digest": "14c3d8b210ab94e330ec206475a6fba80e25206ff6592b2cc8aa149fc2874bee",
+          "clock": "V8 isolate GC log / ms"
+        },
+        "deopt": {
+          "digest": "f75683d1e11aa189281688cb0994cd8dfc0f0283e96058a043b1f2beef59cdea",
+          "clock": "V8 logger / us"
+        }
+      }
+    },
+    {
+      "job": "repeat-2",
+      "totalSamples": 3600,
+      "measuredSamples": 2700,
+      "scope": "all measured coordinates in original samples.jsonl",
+      "status": "unknown",
+      "sources": {
+        "gc": {
+          "digest": "a39450ddaf0676ba177ddcb40da5a30dc9523990e984ddf4296faf54b6ce4f2c",
+          "clock": "V8 isolate GC log / ms"
+        },
+        "deopt": {
+          "digest": "f330cc005c1b618518e156421f876f113e957a71499d9b72062afeb9e641a22b",
+          "clock": "V8 logger / us"
+        }
+      }
+    },
+    {
+      "job": "repeat-3",
+      "totalSamples": 3600,
+      "measuredSamples": 2700,
+      "scope": "all measured coordinates in original samples.jsonl",
+      "status": "unknown",
+      "sources": {
+        "gc": {
+          "digest": "d3fd26834bbc8db2b289ff9f71754a4dd2d88bc57496f263524f92e3f42751f4",
+          "clock": "V8 isolate GC log / ms"
+        },
+        "deopt": {
+          "digest": "e93498429311b2a301eeb1388267d4808f4bdae64c6574f6d54fe39baad6626c",
+          "clock": "V8 logger / us"
+        }
+      }
+    },
+    {
+      "job": "repeat-4",
+      "totalSamples": 3600,
+      "measuredSamples": 2700,
+      "scope": "all measured coordinates in original samples.jsonl",
+      "status": "unknown",
+      "sources": {
+        "gc": {
+          "digest": "38e2dec4c2bab6266982faf7da16cda57d7ebe17970685d03a731341fc7b7385",
+          "clock": "V8 isolate GC log / ms"
+        },
+        "deopt": {
+          "digest": "52024bf78a1b07a48edb3d3e4c09870593142ba7688f8ce39e37fa8547a325bf",
+          "clock": "V8 logger / us"
+        }
+      }
+    },
+    {
+      "job": "repeat-5",
+      "totalSamples": 3600,
+      "measuredSamples": 2700,
+      "scope": "all measured coordinates in original samples.jsonl",
+      "status": "unknown",
+      "sources": {
+        "gc": {
+          "digest": "2c3d2324434d693585c8b4ac7fac5cfb969caaed65b4ba95ed089578ab099d3a",
+          "clock": "V8 isolate GC log / ms"
+        },
+        "deopt": {
+          "digest": "d3150346dcbbb4eddcb35b42b63f3db2dfd8beec7ed89fcb9135a42585f3241a",
+          "clock": "V8 logger / us"
+        }
+      }
+    },
+    {
+      "job": "repeat-6",
+      "totalSamples": 3600,
+      "measuredSamples": 2700,
+      "scope": "all measured coordinates in original samples.jsonl",
+      "status": "unknown",
+      "sources": {
+        "gc": {
+          "digest": "737101dc62fa0543ad98f0806cea4c41fd12438e94e5f0c8325928da343f2c7d",
+          "clock": "V8 isolate GC log / ms"
+        },
+        "deopt": {
+          "digest": "71045d64faf25a5d5ed89ba94b2dbf2a83e3c231be4635763e15760290ea4224",
+          "clock": "V8 logger / us"
+        }
+      }
+    },
+    {
+      "job": "repeat-7",
+      "totalSamples": 3600,
+      "measuredSamples": 2700,
+      "scope": "all measured coordinates in original samples.jsonl",
+      "status": "unknown",
+      "sources": {
+        "gc": {
+          "digest": "ef707f7287fced2629e108a7a2d3d98b641a0cfa07ea569f10225013a1161d1b",
+          "clock": "V8 isolate GC log / ms"
+        },
+        "deopt": {
+          "digest": "353f046feb6399e70e8aa81bea2a8b63af46f2124673630159bd8543edb628f9",
+          "clock": "V8 logger / us"
+        }
+      }
+    },
+    {
+      "job": "repeat-8",
+      "totalSamples": 3600,
+      "measuredSamples": 2700,
+      "scope": "all measured coordinates in original samples.jsonl",
+      "status": "unknown",
+      "sources": {
+        "gc": {
+          "digest": "7e5812709fb87e16db795f3e54c75e6d97f8fd7e3fb7af9e811051b32c52ee38",
+          "clock": "V8 isolate GC log / ms"
+        },
+        "deopt": {
+          "digest": "a6a8d9c2b0222f18aed65ed7f02480067b6e2758af0bda63d99d216a68d40c8c",
+          "clock": "V8 logger / us"
+        }
+      }
+    },
+    {
+      "job": "repeat-9",
+      "totalSamples": 3600,
+      "measuredSamples": 2700,
+      "scope": "all measured coordinates in original samples.jsonl",
+      "status": "unknown",
+      "sources": {
+        "gc": {
+          "digest": "082df85fa698ce69c24e80da6d2a48f54540aa1d009483ff1270f966e678849d",
+          "clock": "V8 isolate GC log / ms"
+        },
+        "deopt": {
+          "digest": "c97b905dea59c474a4a67094925c8f28899b03bf35a1876edbe7f2006becdf28",
+          "clock": "V8 logger / us"
+        }
+      }
+    },
+    {
+      "job": "repeat-10",
+      "totalSamples": 3600,
+      "measuredSamples": 2700,
+      "scope": "all measured coordinates in original samples.jsonl",
+      "status": "unknown",
+      "sources": {
+        "gc": {
+          "digest": "3dd34012e7017de17bee021552f64ffb676ee08985b2988e7e6a0b84973b6899",
+          "clock": "V8 isolate GC log / ms"
+        },
+        "deopt": {
+          "digest": "50d987d6ee2c75a5828b88e10a48bf579447501b373ae289912061d766ad634d",
+          "clock": "V8 logger / us"
+        }
+      }
+    },
+    {
+      "job": "repeat-11",
+      "totalSamples": 3600,
+      "measuredSamples": 2700,
+      "scope": "all measured coordinates in original samples.jsonl",
+      "status": "unknown",
+      "sources": {
+        "gc": {
+          "digest": "5cece830c97a2ad58a3d7e864dfd942821a46d9cfc84b54769f2cf61a140b792",
+          "clock": "V8 isolate GC log / ms"
+        },
+        "deopt": {
+          "digest": "09b4c7aadc720f957cc9ff0fe9ba0abd6cb4fb2e88e2b5807c856e0f45e3adca",
+          "clock": "V8 logger / us"
+        }
+      }
+    },
+    {
+      "job": "repeat-12",
+      "totalSamples": 3600,
+      "measuredSamples": 2700,
+      "scope": "all measured coordinates in original samples.jsonl",
+      "status": "unknown",
+      "sources": {
+        "gc": {
+          "digest": "2429e1d896af832c55308f8c997ed7f4da40667ae8b8f0ed69269e543c96e85e",
+          "clock": "V8 isolate GC log / ms"
+        },
+        "deopt": {
+          "digest": "7b89ac416f93aa4e6081d289f346761e9b6bf1bb0a0850bda4682ad5b4268dc0",
+          "clock": "V8 logger / us"
+        }
+      }
+    },
+    {
+      "job": "repeat-13",
+      "totalSamples": 3600,
+      "measuredSamples": 2700,
+      "scope": "all measured coordinates in original samples.jsonl",
+      "status": "unknown",
+      "sources": {
+        "gc": {
+          "digest": "8fd838a765b5dd9d79bab4e2d9dabbc44a90df76fe6237cbc113dba17c1e73df",
+          "clock": "V8 isolate GC log / ms"
+        },
+        "deopt": {
+          "digest": "556182ed44cc8a7136bad126bbaa8ebde6125c707c290679ddd9745b4391b036",
+          "clock": "V8 logger / us"
+        }
+      }
+    },
+    {
+      "job": "repeat-14",
+      "totalSamples": 3600,
+      "measuredSamples": 2700,
+      "scope": "all measured coordinates in original samples.jsonl",
+      "status": "unknown",
+      "sources": {
+        "gc": {
+          "digest": "0aeb850699bf1f6cbfc930cfb5d88ac358d5a4f14439e899d21f528c2ef007f6",
+          "clock": "V8 isolate GC log / ms"
+        },
+        "deopt": {
+          "digest": "ffe3ce400dacf6333aba4d5e10c90c79e379062db78c5d70d327985a0c62ebbc",
+          "clock": "V8 logger / us"
+        }
+      }
+    },
+    {
+      "job": "repeat-15",
+      "totalSamples": 3600,
+      "measuredSamples": 2700,
+      "scope": "all measured coordinates in original samples.jsonl",
+      "status": "unknown",
+      "sources": {
+        "gc": {
+          "digest": "05d495c9f4aa2f70e66659675f502273894326022ece512353d69ac29b75f3f6",
+          "clock": "V8 isolate GC log / ms"
+        },
+        "deopt": {
+          "digest": "41ac82a5e63f2737473af4cb52c21d1c47d140ffb5f06b7e3a0d6d8aecf6f85b",
+          "clock": "V8 logger / us"
+        }
+      }
+    },
+    {
+      "job": "control-2",
+      "totalSamples": 2400,
+      "measuredSamples": 1800,
+      "scope": "all measured coordinates in original samples.jsonl",
+      "status": "unknown",
+      "sources": {
+        "gc": {
+          "digest": "93e8d82e9c303ed102eb09b9db43b1802b6bbf455c19f867b4a21db4b2185f57",
+          "clock": "V8 isolate GC log / ms"
+        },
+        "deopt": {
+          "digest": "e1a9b95cb4b37bc8e4af6e5f255fef0035a16359c52a251f4b9ded50f20a7b0b",
+          "clock": "V8 logger / us"
+        }
+      }
+    },
+    {
+      "job": "control-3",
+      "totalSamples": 2400,
+      "measuredSamples": 1800,
+      "scope": "all measured coordinates in original samples.jsonl",
+      "status": "unknown",
+      "sources": {
+        "gc": {
+          "digest": "5a986bdbf16308261e095f28363566b3146039a5b5061d6766b2e7e8898484ed",
+          "clock": "V8 isolate GC log / ms"
+        },
+        "deopt": {
+          "digest": "241fedaa17fbb0144199ad47c3280096b8b830cd5bb3a17175835aef2ce62835",
+          "clock": "V8 logger / us"
+        }
+      }
+    }
+  ]
+}

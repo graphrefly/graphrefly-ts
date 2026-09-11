@@ -1,0 +1,10 @@
+{
+  "command": [
+    "node",
+    "--test",
+    "--test-name-pattern=frozen matrix|estimator|truncated measured|uncalibrated native",
+    "scripts/spending-preset-performance.test.mjs"
+  ],
+  "exitCode": 0,
+  "seconds": 0.3919002500042552
+}

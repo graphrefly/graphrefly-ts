@@ -1,0 +1,7 @@
+{
+  "rejectedCommands": 2,
+  "effect": "No file-write commands executed; no capture processes started by rejected actions",
+  "reason": "environment-file access hook matched code or documentation text",
+  "resolution": "explicit minimal child environment; plain prose incident wording",
+  "initialFocusedFormatter": "one noExportsInTest error and one literal Node placeholder warning repaired before capture; no runtime measurement"
+}

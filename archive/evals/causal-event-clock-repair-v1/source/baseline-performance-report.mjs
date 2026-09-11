@@ -66,4 +66,35 @@ export function summarize(row, samples, recipe) {
 		row.group === "cold" ? recipe.coldLimit : row.group === "steady" ? recipe.steadyLimit : null;
 	return { arms, ratio, limit, passed: limit === null || ratio <= limit };
 }
-export { legacyCorrelation as correlate } from "./causal-event-correlation.mjs";
+export function correlate(samples, gcLog, v8Log, offsetMs) {
+	const gc = [...gcLog.matchAll(/\]\s+(\d+) ms:.*?,\s*([\d.]+)\s*\/\s*[\d.]+ ms/g)].map((m) => ({
+		end: Number(m[1]),
+		start: Number(m[1]) - Number(m[2]),
+		line: m[0],
+	}));
+	const deopt = v8Log
+		.split("\n")
+		.filter((s) => s.startsWith("code-deopt,"))
+		.map((line) => ({ at: Number(line.split(",")[1]) / 1000, line }));
+	return {
+		gcEvents: gc,
+		deoptEvents: deopt,
+		clock:
+			"process uptime milliseconds; integer GC log resolution ±1ms; V8 code-deopt timestamp is microseconds",
+		samples: samples
+			.filter((s) => s.phase === "measured")
+			.map((s) => ({
+				arm: s.arm,
+				batch: s.batch,
+				index: s.index,
+				gc: gc
+					.map((e, i) => ({ e, i }))
+					.filter(({ e }) => e.end + 1 >= s.start + offsetMs && e.start - 1 <= s.end + offsetMs)
+					.map(({ i }) => i),
+				deopt: deopt
+					.map((e, i) => ({ e, i }))
+					.filter(({ e }) => e.at >= s.start + offsetMs && e.at <= s.end + offsetMs)
+					.map(({ i }) => i),
+			})),
+	};
+}

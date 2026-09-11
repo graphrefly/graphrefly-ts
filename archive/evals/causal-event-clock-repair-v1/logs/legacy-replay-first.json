@@ -1,0 +1,6 @@
+{
+  "exitCode": 1,
+  "stage": "safe extraction path check",
+  "reason": "macOS temporary directory symlink compared without resolving base; no runtime imports or measurements occurred",
+  "repair": "resolve temporary base before comparing parents"
+}

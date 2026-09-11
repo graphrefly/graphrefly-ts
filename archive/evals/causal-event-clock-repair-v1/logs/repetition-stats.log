@@ -1,0 +1,15 @@
+✔ fixed schedule has 16 repetitions and two controls before/after, no optional sample size (1.515ms)
+✔ approved boundary examples, outliers, means and control instability (0.602ms)
+✔ ratio of median p95s retained; controls contain exactly two measured arms (6.381541ms)
+✔ missing, duplicate, swapped, nonfinite, extra and zero-denominator samples reject (23.578375ms)
+✔ worker generation fails closed on changed anchors and preserves original file (0.959542ms)
+✔ semantic prerequisite rejects missing, duplicate, unknown and non-loadable mutants (0.705541ms)
+✔ independent verifier checks all 67200 synthetic coordinates and rejects report forgery (708.182459ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 848.378375

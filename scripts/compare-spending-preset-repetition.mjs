@@ -143,6 +143,7 @@ try {
 		"scripts/spending-preset-repetition.mjs",
 		"scripts/verify-spending-preset-repetition.mjs",
 		"scripts/spending-preset-performance-report.mjs",
+		"scripts/causal-event-correlation.mjs",
 		"pnpm-lock.yaml",
 	])) {
 		const bytes = readFileSync(file),
@@ -299,7 +300,6 @@ try {
 				samples,
 				readFileSync(resolve(dir, "runtime.log"), "utf8"),
 				readFileSync(resolve(dir, "v8.log"), "utf8"),
-				meta.uptimeOffsetMs,
 			),
 		);
 		const bound = Object.fromEntries(

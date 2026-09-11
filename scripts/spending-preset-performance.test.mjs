@@ -95,15 +95,16 @@ test("truncated measured samples, invalid times and zero denominators cannot pas
 		/denominator/,
 	);
 });
-test("GC/deopt evidence maps actual timestamps to sample intervals", () => {
+test("uncalibrated native GC/deopt logs cannot claim overlap", () => {
 	const r = correlate(
 		[{ arm: "candidate", batch: 0, index: 100, phase: "measured", start: 20, end: 25 }],
 		"[12:0x0] 123 ms: Scavenge 1 -> 2 MB, 2.00 / 0.00 ms",
 		"code-deopt,124000,more\ncode-deopt,140000,later",
 		100,
 	);
-	assert.deepEqual(r.samples[0].gc, [0]);
-	assert.deepEqual(r.samples[0].deopt, [0]);
+	assert.equal(r.samples[0].gc, null);
+	assert.equal(r.samples[0].deopt, null);
+	assert.equal(r.samples[0].status, "unknown");
 });
 for (const [profile, mode, change, dataCount] of [
 	["P1", "off", "all-new", 2],

@@ -1,0 +1,10 @@
+{
+  "command": [
+    "node",
+    "--test",
+    "--test-name-pattern=fixed schedule|approved boundary|ratio of median|missing, duplicate|worker generation|semantic prerequisite|independent verifier checks",
+    "scripts/spending-preset-repetition.test.mjs"
+  ],
+  "exitCode": 0,
+  "seconds": 0.8847231669933535
+}

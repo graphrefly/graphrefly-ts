@@ -1,0 +1,16 @@
+{
+  "mode": "static only",
+  "reviewers": [
+    "clock_blind_review",
+    "clock_spec_review"
+  ],
+  "findings_fixed": [
+    "missing event category accepted",
+    "post-spawn write error child cleanup",
+    "zero duration overlap",
+    "missing initial rotation",
+    "cross-clock ordering and global marker enclosure compatibility"
+  ],
+  "final": "both reviewers report no unresolved findings",
+  "captureFormatMismatch": "recorded failed qualification; no async support silently added"
+}

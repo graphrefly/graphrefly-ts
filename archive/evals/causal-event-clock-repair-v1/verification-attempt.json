@@ -1,0 +1,10 @@
+{
+  "command": [
+    "python3",
+    "scripts/verify-causal-event-clock.py",
+    "archive/evals/causal-event-clock-repair-v1/capture"
+  ],
+  "exitCode": 1,
+  "stdout": "{\"qualified\": false, \"error\": \"\", \"type\": \"AssertionError\"}\n",
+  "stderr": ""
+}

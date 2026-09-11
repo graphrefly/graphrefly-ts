@@ -1,0 +1,12 @@
+✔ frozen matrix has unique 12/60/12 rows and exact dense profile axes (1.077792ms)
+✔ estimator is ratio of median batch p95s, not median paired ratios (2.423125ms)
+✔ truncated measured samples, invalid times and zero denominators cannot pass (8.250416ms)
+✔ uncalibrated native GC/deopt logs cannot claim overlap (0.29975ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 353.151417

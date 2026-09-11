@@ -1,0 +1,6 @@
+{
+  "exitCode": 1,
+  "stdout": "{\"qualified\": false, \"error\": \"\", \"type\": \"AssertionError\"}\n",
+  "stderr": "",
+  "mode": "offline same retained trace; no capture"
+}

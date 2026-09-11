@@ -1,0 +1,9 @@
+{
+  "command": [
+    "node",
+    "--test",
+    "scripts/causal-event-correlation.test.mjs"
+  ],
+  "exitCode": 0,
+  "seconds": 0.11345304199494421
+}

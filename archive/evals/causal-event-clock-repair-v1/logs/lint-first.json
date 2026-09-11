@@ -1,0 +1,9 @@
+{
+  "command": [
+    "pnpm",
+    "run",
+    "lint"
+  ],
+  "exitCode": 1,
+  "seconds": 2.0284227920055855
+}
