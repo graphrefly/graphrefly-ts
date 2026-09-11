@@ -1,0 +1,768 @@
+{
+	"kind": "read-only analysis of retained evidence; not a measurement or qualification",
+	"sourceArchiveDigest": "sha256:3483b61f34da607ccd04ff99b86e49d14e90584f843ff3aefcf2640d60a4fbd7",
+	"sourceIndexDigest": "sha256:07a8e0384997617197f729bf11bd997335095227244eb8e11a18cc4603e85ef8",
+	"verifiedArchiveFiles": 321,
+	"newMeasurementProcesses": 0,
+	"controlsRead": 4,
+	"rawControlSamplesRead": 9600,
+	"sameBundleBytes": true,
+	"controls": [
+		{
+			"id": "control-0",
+			"batches": [
+				{
+					"batch": 0,
+					"arms": {
+						"candidate": {
+							"p50Us": 297.16600000000426,
+							"p95Us": 410.1660000000038,
+							"p95SampleIndex": 376,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 341.58400000001166,
+									"p95Us": 440.9170000000131
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 276.25000000000455,
+									"p95Us": 358.916000000022
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 286.08299999996234,
+									"p95Us": 376.66600000000017
+								}
+							]
+						},
+						"reference": {
+							"p50Us": 301.33299999999963,
+							"p95Us": 433.9160000000106,
+							"p95SampleIndex": 165,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 305.6249999999636,
+									"p95Us": 438.8749999999959
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 309.70800000000054,
+									"p95Us": 457.8749999999445
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 286.5829999999505,
+									"p95Us": 376.3329999999314
+								}
+							]
+						}
+					},
+					"pairedBatchP95RatioDescriptiveOnly": 0.9452659039998381
+				},
+				{
+					"batch": 1,
+					"arms": {
+						"candidate": {
+							"p50Us": 274.4999999999891,
+							"p95Us": 382.00000000006185,
+							"p95SampleIndex": 112,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 284.2080000000351,
+									"p95Us": 382.00000000006185
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 263.16700000006676,
+									"p95Us": 330.2499999999782
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 276.0000000000673,
+									"p95Us": 395.5409999998665
+								}
+							]
+						},
+						"reference": {
+							"p50Us": 263.5420000000295,
+							"p95Us": 343.0000000000746,
+							"p95SampleIndex": 255,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 264.54100000000835,
+									"p95Us": 353.2920000000104
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 263.5000000000218,
+									"p95Us": 343.0000000000746
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 261.9170000000395,
+									"p95Us": 335.7500000000755
+								}
+							]
+						}
+					},
+					"pairedBatchP95RatioDescriptiveOnly": 1.1137026239066437
+				},
+				{
+					"batch": 2,
+					"arms": {
+						"candidate": {
+							"p50Us": 316.6249999999309,
+							"p95Us": 478.20900000010624,
+							"p95SampleIndex": 159,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 337.7090000001317,
+									"p95Us": 537.0830000001661
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 328.7909999999101,
+									"p95Us": 483.5830000001806
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 279.2090000000371,
+									"p95Us": 344.707999999855
+								}
+							]
+						},
+						"reference": {
+							"p50Us": 260.2080000001479,
+							"p95Us": 308.4169999999631,
+							"p95SampleIndex": 116,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 263.332999999875,
+									"p95Us": 308.5829999999987
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 258.9579999998932,
+									"p95Us": 304.95799999994233
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 258.0840000000535,
+									"p95Us": 298.25000000005275
+								}
+							]
+						}
+					},
+					"pairedBatchP95RatioDescriptiveOnly": 1.55052737041137
+				}
+			],
+			"originalFrozenRatio": 1.1958192419822584,
+			"allocationSiteDependencyChanges": {
+				"copy": 9,
+				"original": 2,
+				"rawEvents": [
+					"code-deopt,251583,8224,0x126ed7720,-1,69841,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1982:28>,dependent allocation site tenuring changed",
+					"code-deopt,251625,608,0x126d817c0,-1,38756,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1030:31>,dependent allocation site tenuring changed",
+					"code-deopt,251625,1600,0x126d840e0,-1,46897,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1301:11>,dependent allocation site tenuring changed",
+					"code-deopt,251667,12640,0x126eded80,-1,95793,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:2768:14>,dependent allocation site tenuring changed",
+					"code-deopt,251667,7360,0x126d8f8a0,-1,264767,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:7412:13>,dependent allocation site tenuring changed",
+					"code-deopt,251708,7744,0x126edadc0,-1,264767,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:7412:13>,dependent allocation site tenuring changed",
+					"code-deopt,251708,1184,0x126ece760,-1,40386,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1083:22>,dependent allocation site tenuring changed",
+					"code-deopt,251708,704,0x126ece4a0,-1,38511,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1023:31>,dependent allocation site tenuring changed",
+					"code-deopt,251750,5664,0x126ecec00,-1,53927,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1533:28>,dependent allocation site tenuring changed",
+					"code-deopt,405000,8224,0x126f0a1e0,-1,69841,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker.mjs:1982:28>,dependent allocation site tenuring changed",
+					"code-deopt,405042,608,0x126e45660,-1,38756,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker.mjs:1030:31>,dependent allocation site tenuring changed"
+				]
+			},
+			"clockOrderCheck": {
+				"completionSourceLine": 10177,
+				"completionEvent": "code-deopt,1480458,24992,0x126e124a0,-1,367809,deopt-eager,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker.mjs:10177:3>,Insufficient type feedback for object literal",
+				"completionLoggerMs": 1480.458,
+				"lastSamplePerformanceMs": 1485.7435,
+				"recordedUptimeOffsetMs": -2.9942920000000015,
+				"lastSampleMappedUptimeMs": 1482.749208,
+				"apparentCompletionBeforeLastSampleMs": 2.2912079999998696,
+				"meaning": "Order sanity check under old mapping; NOT a calibrated offset estimate"
+			}
+		},
+		{
+			"id": "control-1",
+			"batches": [
+				{
+					"batch": 0,
+					"arms": {
+						"candidate": {
+							"p50Us": 290.25000000001455,
+							"p95Us": 393.0000000000291,
+							"p95SampleIndex": 353,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 309.6659999999929,
+									"p95Us": 402.3329999999987
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 280.8339999999703,
+									"p95Us": 369.66699999999264
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 280.7500000000118,
+									"p95Us": 375.500000000045
+								}
+							]
+						},
+						"reference": {
+							"p50Us": 297.75000000000773,
+							"p95Us": 406.2910000000102,
+							"p95SampleIndex": 263,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 298.25000000005275,
+									"p95Us": 396.0419999999658
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 315.2499999999918,
+									"p95Us": 445.1670000000263
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 285.29199999991306,
+									"p95Us": 361.2500000000409
+								}
+							]
+						}
+					},
+					"pairedBatchP95RatioDescriptiveOnly": 0.9672869938049803
+				},
+				{
+					"batch": 1,
+					"arms": {
+						"candidate": {
+							"p50Us": 263.16700000006676,
+							"p95Us": 332.3339999999462,
+							"p95SampleIndex": 134,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 278.7500000000591,
+									"p95Us": 345.2919999999722
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 257.20799999999144,
+									"p95Us": 318.91699999994216
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 256.49999999996,
+									"p95Us": 325.4579999999123
+								}
+							]
+						},
+						"reference": {
+							"p50Us": 274.2919999999458,
+							"p95Us": 365.12500000003456,
+							"p95SampleIndex": 191,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 286.62500000007185,
+									"p95Us": 372.83399999989797
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 272.91700000000674,
+									"p95Us": 343.8340000000153
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 267.20800000009604,
+									"p95Us": 328.66599999999835
+								}
+							]
+						}
+					},
+					"pairedBatchP95RatioDescriptiveOnly": 0.9101923998628271
+				},
+				{
+					"batch": 2,
+					"arms": {
+						"candidate": {
+							"p50Us": 286.2920000000031,
+							"p95Us": 394.5420000000013,
+							"p95SampleIndex": 285,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 288.2919999999558,
+									"p95Us": 441.74999999995634
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 296.4999999999236,
+									"p95Us": 394.5420000000013
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 282.9580000000078,
+									"p95Us": 332.3339999999462
+								}
+							]
+						},
+						"reference": {
+							"p50Us": 265.00000000010004,
+							"p95Us": 323.33300000004783,
+							"p95SampleIndex": 222,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 267.45899999991707,
+									"p95Us": 332.95799999996234
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 262.70899999985886,
+									"p95Us": 324.6670000000904
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 263.6250000000473,
+									"p95Us": 292.7500000000691
+								}
+							]
+						}
+					},
+					"pairedBatchP95RatioDescriptiveOnly": 1.2202342476639962
+				}
+			],
+			"originalFrozenRatio": 1.076343717904805,
+			"allocationSiteDependencyChanges": {
+				"copy": 9,
+				"original": 2,
+				"rawEvents": [
+					"code-deopt,239958,8224,0x124e77620,-1,69841,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1982:28>,dependent allocation site tenuring changed",
+					"code-deopt,239958,608,0x124f601c0,-1,38756,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1030:31>,dependent allocation site tenuring changed",
+					"code-deopt,240000,1600,0x124f62ae0,-1,46897,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1301:11>,dependent allocation site tenuring changed",
+					"code-deopt,240000,12640,0x124f64960,-1,95793,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:2768:14>,dependent allocation site tenuring changed",
+					"code-deopt,240041,7360,0x124eb6a00,-1,264767,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:7412:13>,dependent allocation site tenuring changed",
+					"code-deopt,240041,7744,0x124e7acc0,-1,264767,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:7412:13>,dependent allocation site tenuring changed",
+					"code-deopt,240083,1184,0x124e74340,-1,40386,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1083:22>,dependent allocation site tenuring changed",
+					"code-deopt,240083,704,0x124e74080,-1,38511,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1023:31>,dependent allocation site tenuring changed",
+					"code-deopt,240125,5664,0x124e747e0,-1,53927,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1533:28>,dependent allocation site tenuring changed",
+					"code-deopt,389916,8224,0x124f89aa0,-1,69841,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker.mjs:1982:28>,dependent allocation site tenuring changed",
+					"code-deopt,389958,608,0x124fc2760,-1,38756,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker.mjs:1030:31>,dependent allocation site tenuring changed"
+				]
+			},
+			"clockOrderCheck": {
+				"completionSourceLine": 10177,
+				"completionEvent": "code-deopt,1413750,24992,0x124fb5960,-1,367809,deopt-eager,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker.mjs:10177:3>,Insufficient type feedback for object literal",
+				"completionLoggerMs": 1413.75,
+				"lastSamplePerformanceMs": 1418.903542,
+				"recordedUptimeOffsetMs": -2.794415999999984,
+				"lastSampleMappedUptimeMs": 1416.109126,
+				"apparentCompletionBeforeLastSampleMs": 2.3591260000000602,
+				"meaning": "Order sanity check under old mapping; NOT a calibrated offset estimate"
+			}
+		},
+		{
+			"id": "control-2",
+			"batches": [
+				{
+					"batch": 0,
+					"arms": {
+						"candidate": {
+							"p50Us": 289.3750000000068,
+							"p95Us": 407.1249999999509,
+							"p95SampleIndex": 203,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 302.08399999997937,
+									"p95Us": 457.08300000001145
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 288.99999999998727,
+									"p95Us": 384.50000000000273
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 281.62500000001955,
+									"p95Us": 375.70800000003146
+								}
+							]
+						},
+						"reference": {
+							"p50Us": 289.8330000000442,
+							"p95Us": 387.1249999999691,
+							"p95SampleIndex": 363,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 296.79100000004155,
+									"p95Us": 378.45799999996643
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 311.0420000000431,
+									"p95Us": 404.58300000000236
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 270.8340000000362,
+									"p95Us": 379.3340000000853
+								}
+							]
+						}
+					},
+					"pairedBatchP95RatioDescriptiveOnly": 1.051662899580196
+				},
+				{
+					"batch": 1,
+					"arms": {
+						"candidate": {
+							"p50Us": 262.7909999999929,
+							"p95Us": 327.87500000006276,
+							"p95SampleIndex": 109,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 271.6249999999718,
+									"p95Us": 346.75000000004275
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 257.6249999999618,
+									"p95Us": 314.33400000003076
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 257.9999999999245,
+									"p95Us": 312.6249999999118
+								}
+							]
+						},
+						"reference": {
+							"p50Us": 268.41699999999946,
+							"p95Us": 349.62499999994634,
+							"p95SampleIndex": 272,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 285.9159999999292,
+									"p95Us": 368.37500000001455
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 269.95899999997164,
+									"p95Us": 349.62499999994634
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 249.87500000008822,
+									"p95Us": 302.2919999999658
+								}
+							]
+						}
+					},
+					"pairedBatchP95RatioDescriptiveOnly": 0.9377904898108347
+				},
+				{
+					"batch": 2,
+					"arms": {
+						"candidate": {
+							"p50Us": 277.29199999998855,
+							"p95Us": 397.499999999809,
+							"p95SampleIndex": 280,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 263.5840000000371,
+									"p95Us": 413.1670000001577
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 307.7089999999316,
+									"p95Us": 392.95799999990777
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 274.6669999999085,
+									"p95Us": 335.6250000001637
+								}
+							]
+						},
+						"reference": {
+							"p50Us": 262.04200000006495,
+							"p95Us": 308.54100000010476,
+							"p95SampleIndex": 107,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 259.00000000001455,
+									"p95Us": 308.54100000010476
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 263.20800000007694,
+									"p95Us": 305.95800000014606
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 261.9999999999436,
+									"p95Us": 290.4160000000502
+								}
+							]
+						}
+					},
+					"pairedBatchP95RatioDescriptiveOnly": 1.2883214872567148
+				}
+			],
+			"originalFrozenRatio": 1.1369324276006292,
+			"allocationSiteDependencyChanges": {
+				"copy": 15,
+				"original": 2,
+				"rawEvents": [
+					"code-deopt,251750,8224,0x1287963c0,-1,69841,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1982:28>,dependent allocation site tenuring changed",
+					"code-deopt,251791,608,0x1287e5600,-1,38756,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1030:31>,dependent allocation site tenuring changed",
+					"code-deopt,251833,6816,0x12871c9a0,-1,102286,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:2940:18>,dependent allocation site tenuring changed",
+					"code-deopt,251833,2240,0x1287dc2a0,-1,66680,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1906:28>,dependent allocation site tenuring changed",
+					"code-deopt,251875,1600,0x1287e7f20,-1,46897,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1301:11>,dependent allocation site tenuring changed",
+					"code-deopt,251875,416,0x1287acd60,-1,54154,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1538:49>,dependent allocation site tenuring changed",
+					"code-deopt,251916,416,0x1287acbc0,-1,54044,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1536:49>,dependent allocation site tenuring changed",
+					"code-deopt,251916,7360,0x1287aa020,-1,264767,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:7412:13>,dependent allocation site tenuring changed",
+					"code-deopt,251958,7744,0x128799a60,-1,264767,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:7412:13>,dependent allocation site tenuring changed",
+					"code-deopt,251958,1184,0x12878d400,-1,40386,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1083:22>,dependent allocation site tenuring changed",
+					"code-deopt,252000,12640,0x128703120,-1,95793,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:2768:14>,dependent allocation site tenuring changed",
+					"code-deopt,252000,704,0x12878d140,-1,38511,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1023:31>,dependent allocation site tenuring changed",
+					"code-deopt,252041,5664,0x12878d8a0,-1,53927,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1533:28>,dependent allocation site tenuring changed",
+					"code-deopt,263125,8224,0x1287b1d80,-1,69841,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1982:28>,dependent allocation site tenuring changed",
+					"code-deopt,263166,608,0x128723440,-1,38756,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1030:31>,dependent allocation site tenuring changed",
+					"code-deopt,392833,8224,0x128758560,-1,69841,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker.mjs:1982:28>,dependent allocation site tenuring changed",
+					"code-deopt,392875,608,0x128756880,-1,38756,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker.mjs:1030:31>,dependent allocation site tenuring changed"
+				]
+			},
+			"clockOrderCheck": {
+				"completionSourceLine": 10177,
+				"completionEvent": "code-deopt,1407083,24992,0x12885c580,-1,367809,deopt-eager,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker.mjs:10177:3>,Insufficient type feedback for object literal",
+				"completionLoggerMs": 1407.083,
+				"lastSamplePerformanceMs": 1411.991959,
+				"recordedUptimeOffsetMs": -2.7789999999999964,
+				"lastSampleMappedUptimeMs": 1409.212959,
+				"apparentCompletionBeforeLastSampleMs": 2.1299589999998716,
+				"meaning": "Order sanity check under old mapping; NOT a calibrated offset estimate"
+			}
+		},
+		{
+			"id": "control-3",
+			"batches": [
+				{
+					"batch": 0,
+					"arms": {
+						"candidate": {
+							"p50Us": 300.625000000025,
+							"p95Us": 405.50000000001774,
+							"p95SampleIndex": 148,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 318.33400000004985,
+									"p95Us": 451.9999999999982
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 292.6249999999868,
+									"p95Us": 402.2090000000276
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 293.83300000000645,
+									"p95Us": 392.66699999996035
+								}
+							]
+						},
+						"reference": {
+							"p50Us": 299.12500000000364,
+							"p95Us": 444.3749999999227,
+							"p95SampleIndex": 283,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 305.2500000000009,
+									"p95Us": 436.9160000000534
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 311.7499999999609,
+									"p95Us": 467.37499999994725
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 279.7499999999218,
+									"p95Us": 380.0420000000031
+								}
+							]
+						}
+					},
+					"pairedBatchP95RatioDescriptiveOnly": 0.9125175808722099
+				},
+				{
+					"batch": 1,
+					"arms": {
+						"candidate": {
+							"p50Us": 272.7499999999736,
+							"p95Us": 353.0829999999696,
+							"p95SampleIndex": 176,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 279.7090000000253,
+									"p95Us": 361.0830000000078
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 268.416000000002,
+									"p95Us": 323.66700000000037
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 270.20900000002257,
+									"p95Us": 322.37499999996544
+								}
+							]
+						},
+						"reference": {
+							"p50Us": 278.74999999994543,
+							"p95Us": 378.9590000000089,
+							"p95SampleIndex": 364,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 280.3750000000491,
+									"p95Us": 381.3749999999345
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 282.33400000010533,
+									"p95Us": 383.7910000000875
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 275.95899999994344,
+									"p95Us": 364.0419999999267
+								}
+							]
+						}
+					},
+					"pairedBatchP95RatioDescriptiveOnly": 0.9317182069827113
+				},
+				{
+					"batch": 2,
+					"arms": {
+						"candidate": {
+							"p50Us": 280.83300000002964,
+							"p95Us": 417.7919999999631,
+							"p95SampleIndex": 276,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 262.5829999999496,
+									"p95Us": 389.2500000001746
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 324.333999999908,
+									"p95Us": 439.29199999979573
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 276.70899999998255,
+									"p95Us": 336.2919999999576
+								}
+							]
+						},
+						"reference": {
+							"p50Us": 257.95799999991686,
+							"p95Us": 299.6250000001055,
+							"p95SampleIndex": 112,
+							"windows100": [
+								{
+									"firstIndex": 100,
+									"p50Us": 256.9579999999405,
+									"p95Us": 299.6250000001055
+								},
+								{
+									"firstIndex": 200,
+									"p50Us": 258.62499999993815,
+									"p95Us": 303.2919999998285
+								},
+								{
+									"firstIndex": 300,
+									"p50Us": 257.74999999998727,
+									"p95Us": 284.8750000000564
+								}
+							]
+						}
+					},
+					"pairedBatchP95RatioDescriptiveOnly": 1.3943829787227902
+				}
+			],
+			"originalFrozenRatio": 1.0700366002654857,
+			"allocationSiteDependencyChanges": {
+				"copy": 15,
+				"original": 2,
+				"rawEvents": [
+					"code-deopt,248958,8224,0x1337d40e0,-1,69841,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1982:28>,dependent allocation site tenuring changed",
+					"code-deopt,248958,608,0x1337a8f80,-1,38756,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1030:31>,dependent allocation site tenuring changed",
+					"code-deopt,249000,6784,0x1337eca00,-1,102286,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:2940:18>,dependent allocation site tenuring changed",
+					"code-deopt,249000,2240,0x13379fec0,-1,66680,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1906:28>,dependent allocation site tenuring changed",
+					"code-deopt,249041,1600,0x1337ab8a0,-1,46897,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1301:11>,dependent allocation site tenuring changed",
+					"code-deopt,249083,416,0x13380a840,-1,54154,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1538:49>,dependent allocation site tenuring changed",
+					"code-deopt,249083,416,0x13380a9e0,-1,54044,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1536:49>,dependent allocation site tenuring changed",
+					"code-deopt,249125,7360,0x133807ca0,-1,264767,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:7412:13>,dependent allocation site tenuring changed",
+					"code-deopt,249125,7744,0x1337d7780,-1,264767,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:7412:13>,dependent allocation site tenuring changed",
+					"code-deopt,249125,1184,0x1337cb120,-1,40386,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1083:22>,dependent allocation site tenuring changed",
+					"code-deopt,249166,12640,0x1337b0a60,-1,95793,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:2768:14>,dependent allocation site tenuring changed",
+					"code-deopt,249208,704,0x1337cae60,-1,38511,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1023:31>,dependent allocation site tenuring changed",
+					"code-deopt,249208,5664,0x1337cb5c0,-1,53927,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1533:28>,dependent allocation site tenuring changed",
+					"code-deopt,259791,8224,0x13380fa00,-1,69841,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1982:28>,dependent allocation site tenuring changed",
+					"code-deopt,259833,608,0x1337f3480,-1,38756,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker-copy.mjs:1030:31>,dependent allocation site tenuring changed",
+					"code-deopt,393750,8224,0x13385f140,-1,69841,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker.mjs:1982:28>,dependent allocation site tenuring changed",
+					"code-deopt,393791,608,0x13385b7c0,-1,38756,dependency-change,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker.mjs:1030:31>,dependent allocation site tenuring changed"
+				]
+			},
+			"clockOrderCheck": {
+				"completionSourceLine": 10177,
+				"completionEvent": "code-deopt,1443375,24992,0x1338dd960,-1,367809,deopt-eager,<file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-repetition-v2/method-validation/worker.mjs:10177:3>,Insufficient type feedback for object literal",
+				"completionLoggerMs": 1443.375,
+				"lastSamplePerformanceMs": 1448.180042,
+				"recordedUptimeOffsetMs": -2.6869169999999656,
+				"lastSampleMappedUptimeMs": 1445.493125,
+				"apparentCompletionBeforeLastSampleMs": 2.1181249999999636,
+				"meaning": "Order sanity check under old mapping; NOT a calibrated offset estimate"
+			}
+		}
+	],
+	"originalDecision": {
+		"verdict": "inconclusive",
+		"reason": "control-instability",
+		"interval": [0.9628643815203556, 1.0776527529989572],
+		"median": 1.0302244214228962,
+		"mean": 1.026382604691945,
+		"min": 0.9160402669678641,
+		"max": 1.1165675025764399,
+		"controls": [1.1958192419822584, 1.076343717904805, 1.1369324276006292, 1.0700366002654857]
+	},
+	"diagnosticOverlapStatus": "uncalibrated; old GC/deopt overlap arrays are not trusted",
+	"causeOfLatencyDifference": "not established"
+}

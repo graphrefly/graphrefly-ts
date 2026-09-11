@@ -1,0 +1,45 @@
+{
+	"kind": "read-only retained-evidence investigation; no authority",
+	"baseline": "46355332",
+	"work_ref": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"governing_ref": "graphrefly-ts:D168",
+	"authorization": "User 继续 after committed bounded trial; retained commit grant. Read-only attribution only.",
+	"newMeasurementProcesses": 0,
+	"newSamples": 0,
+	"runtimeChanges": false,
+	"methodChanges": false,
+	"previousVerdict": "inconclusive/control-instability; retained",
+	"finding": "Shared v1/v2 diagnostic correlation lacks per-clock calibration; overlap/no-overlap is untrusted. Latency-difference cause remains unresolved.",
+	"upstreamVersion": "Node v24.18.0 as recorded by actual worker; source-version check is not reproducible binary verification",
+	"upstreamSources": [
+		{
+			"url": "https://raw.githubusercontent.com/nodejs/node/v24.18.0/deps/v8/src/logging/log.cc",
+			"digest": "sha256:c2563713db96408aef3162045a50fdc3f161b3216a24e8efc4cabe1b9c5b7d6e"
+		},
+		{
+			"url": "https://raw.githubusercontent.com/nodejs/node/v24.18.0/deps/v8/src/logging/log.h",
+			"digest": "sha256:1a65711fef090bbcb7ecd0cefb3f9bcdc3a5c2d413bc05cf99acb2447b7f1436"
+		},
+		{
+			"url": "https://raw.githubusercontent.com/nodejs/node/v24.18.0/deps/v8/src/heap/gc-tracer.cc",
+			"digest": "sha256:22aa1e6881a10416ea30d569dbe414e1f6b84eb5787be08cf4380753f4ad23d7"
+		},
+		{
+			"url": "https://raw.githubusercontent.com/nodejs/node/v24.18.0/deps/v8/src/execution/isolate.h",
+			"digest": "sha256:bbb6d6feb97711ebd49cce3831f8b7599dc556e2ae9333149acdee3947167a08"
+		},
+		{
+			"url": "https://raw.githubusercontent.com/nodejs/node/v24.18.0/src/node_process_methods.cc",
+			"digest": "sha256:6f2d27513a933dd3d076c0ffe2f95a1846ba1d1060f7ccfbc6eb2df6692a34eb"
+		}
+	],
+	"checks": "checks.json",
+	"ownership": "Human teach-back unverified; prior OWN/PREDICT reused",
+	"nextProposal": "Private diagnostics report unknown without calibration and test distinct clock origins before any new measured probe; no automatic dispatch.",
+	"artifactBindings": {
+		"README.md": "sha256:8661b332b7b7b04ae9e6ad97441e474bdfec8ca3bf96506f8de17cc35cac15fd",
+		"analyze.py": "sha256:56218990b75237a6aafc5d80f1659599c08fde597243b5a5e8b551287246e01d",
+		"analysis.json": "sha256:01fee4f8dbde8ceb5fe25204319c37d8d0a6f1478f1bb3df9504b5c54060181f",
+		"checks.json": "sha256:fba1ca3bf96de9123b2fe232d3f32830ff23460218e0b05f695663409013838f"
+	}
+}
