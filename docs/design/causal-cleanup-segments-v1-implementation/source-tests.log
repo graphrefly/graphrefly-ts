@@ -1,0 +1,5 @@
+CAUSAL_CLEANUP_DIAGNOSTIC_DONE incomplete
+CAUSAL_CLEANUP_DIAGNOSTIC_DONE incomplete
+CAUSAL_CLEANUP_DIAGNOSTIC_DONE incomplete
+CAUSAL_CLEANUP_DIAGNOSTIC_DONE incomplete
+{"passed": true, "sourceNegatives": 6, "entryModes": 3, "preparationRefusals": 4, "inventoryNegatives": 8, "newConsumerSamples": 0}

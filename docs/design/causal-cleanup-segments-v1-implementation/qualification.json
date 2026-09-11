@@ -1,0 +1,68 @@
+{
+	"passed": true,
+	"meaning": "private source/loaded fake-factory and independent verifier qualification; not D169 or all-offline-green",
+	"designDigest": "sha256:dc16c47f22e8f0a0950afc8768383d3ff57c72ee2e132b8afbc4541b3d13f969",
+	"sourceDigests": {
+		"scripts/causal-cleanup-diagnostic.py": "d42b6901829145fdad70eab6c2ae1328132145321a474ea74a090471d40c2f89",
+		"scripts/derive-causal-cleanup.mjs": "b0ad1e48446ddd343055a0a31445009e7d2e676bc0093b0864926064d83caf57",
+		"scripts/causal-cleanup-observer.mjs": "025cbe33d4ffcf7975090c9d9842f04311c44246b82ec08b8af6fe3bb36099ec",
+		"scripts/verify-causal-cleanup.py": "7921142acb603754fdd31e4712dbdd0057f1a64b3ab77a2008108adc9ab9ce75",
+		"scripts/causal-cleanup.test.mjs": "c380414a9670f28101feadaa2d2cc4fa76c3426309ffe7411d70737f0622a569",
+		"scripts/causal-cleanup.test.py": "f8dccb3359772cce1d612018a5f55cb0ac43efc5ebcb1a74e58db6164a70f2d9",
+		"scripts/causal-cpu-observer.mjs": "d95be8c25541cdc4df6c964a89823c802ae4b97992859a2dd81726167093f89b",
+		"scripts/verify-causal-cpu.py": "4d30323b8047c1b66a322d8e5e6364736dcda29ab489fae3d799a17408ba4c91",
+		"scripts/verify-causal-position-pairs.py": "c442c2b60ecb1574250df60edcadb584d31f4c49a87083fd674abed88acd2a3e",
+		"scripts/verify-causal-block-history.py": "2af562c05cb6a16ac4634e7b1024f88ee4b861c82fa61049d81412d671acc2d2",
+		"scripts/verify-causal-control-crossover.py": "5066df570c7b0cffac5137c10698e31b9ddaab333917d10fbec0264aa3f85904",
+		"scripts/causal-control-crossover.py": "b60b8dc6e5bc7b7d4fe0748dd90d3f4336c5a678c0f7752ecb1d08dfd7150075"
+	},
+	"logs": {
+		"loaded-tests.log": "a97b2e3b82a7ab7fb9b7116fb1eb297b8af5e13c3569fcf574c510fbd5a2a38a",
+		"preservation-before.json": "ee40cd2cc7a05f21789948988b1a57028eea47b6417cba8b50a0e9b562646c98",
+		"lint.log": "81c606c6dd43d7e908c30ebcd002d8a9ab8b612d5a02a97f273ba5a28332751f",
+		"source-tests.log": "8084874bbc1f875664a00ce171a3a746c6ae4a5131c694e21d8c54a985839e69",
+		"workspace.log": "8e16637781e9a0e14492b2179f94be678d01cff8709df3a238694fc865a7f544",
+		"lint-exit.json": "a376076adb9b3151f897d6bf8ba7537e9ce31ccf5a0581b1a444054741b7237a",
+		"full-ts-exit.json": "87e2953bdc07406c98c388b9e0670b360fd454f1ccc46bf53d0b84b85508772f",
+		"cpu-python-regression.log": "e494898d288525ebcad2dd7d7500acdb7a8a4c023f5b4bfbd6199cc40d49a3e7",
+		"cpu-regression.log": "826e5ff08b4a784e3aec28f4afef3e370618b8ed55580efaa3a8a4a22ad39d39",
+		"private-check-exits.json": "7a5c0482f0b4242923431935e2d2733063b73495e1d19fe705ff56aaa1628c0b",
+		"review.json": "2ede3443ab60731196410dfb78e1765ff859737a6fe350e9fdd0897ebb4f2082",
+		"dashboard.log": "57d4dc2953cc9de54408eb72f73eccff702d623d1346ab401e6585a2b1275569",
+		"full-ts.log": "e5774f4b0d3683ab1998b1abeb1aefa4483e568ecdc1d6d3ede30117eab5fd18"
+	},
+	"checks": {
+		"loadedPositives": 12,
+		"loadedMutants": 8,
+		"sourceNegatives": 6,
+		"entryModes": 3,
+		"preparationRefusals": 4,
+		"zeroDispatchInventoryNegatives": 8,
+		"syntheticSegmentNegatives": 66,
+		"syntheticWholeJobNegatives": 6,
+		"oldCpu": {
+			"passed": true,
+			"positive": 17,
+			"negative": 15,
+			"loadedMutants": 12,
+			"python": {
+				"passed": true,
+				"negative": 29,
+				"independentChecksum": 2225220677,
+				"nativeConsumerSamples": 0,
+				"nativeObserverCaptures": 0
+			},
+			"nativeConsumerSamples": 0,
+			"nativeObserverCaptures": 0
+		}
+	},
+	"fullTs": {
+		"passed": 2547,
+		"failed": 2,
+		"skipped": 4,
+		"failures": "existing D159 frozen manifest drift"
+	},
+	"staticReviewsClear": true,
+	"newConsumerSamples": 0,
+	"toolInvocationIncident": "Standalone old Python test called without its required vector/material arguments; failed before testing. Its correct invocation already ran and passed via cpu-regression.log (29 negatives). No capture attempted by this invocation."
+}

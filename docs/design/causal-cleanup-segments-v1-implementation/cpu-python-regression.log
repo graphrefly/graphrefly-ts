@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-cpu.test.py", line 7, in <module>
+    data=json.loads(Path(sys.argv[1]).read_text());material=Path(sys.argv[2]);count=0
+                         ~~~~~~~~^^^
+IndexError: list index out of range

@@ -1,0 +1,47 @@
+{
+	"passed": true,
+	"sidecars": 19200,
+	"totals": [
+		{
+			"position": 1,
+			"cleanupMs": 234.35093000000256,
+			"releaseMs": null
+		},
+		{
+			"position": 2,
+			"cleanupMs": 229.05535300000008,
+			"releaseMs": 171.1603659999955
+		},
+		{
+			"position": 4,
+			"cleanupMs": 223.7178240000011,
+			"releaseMs": null
+		},
+		{
+			"position": 5,
+			"cleanupMs": 225.7367429999986,
+			"releaseMs": 169.11243200000294
+		},
+		{
+			"position": 6,
+			"cleanupMs": 226.91658699999516,
+			"releaseMs": 170.54376800000594
+		},
+		{
+			"position": 7,
+			"cleanupMs": 222.13711799999942,
+			"releaseMs": null
+		},
+		{
+			"position": 9,
+			"cleanupMs": 223.95844999999957,
+			"releaseMs": 168.990217000002
+		},
+		{
+			"position": 10,
+			"cleanupMs": 223.50404000000168,
+			"releaseMs": null
+		}
+	],
+	"realConsumerSamples": 0
+}

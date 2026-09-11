@@ -1,0 +1,15 @@
+{
+	"staticOnly": true,
+	"reviewers": ["cleanup_capture_review", "cleanup_evidence_review"],
+	"initialFindings": 5,
+	"fixedFindings": 5,
+	"blockingRemaining": 0,
+	"areas": [
+		"diagnostic error retention",
+		"pre-dispatch design/qualification binding",
+		"failed-row identity",
+		"closed execution inventory",
+		"phase residual accounting"
+	],
+	"newConsumerSamples": 0
+}

@@ -1,0 +1,150 @@
+{
+	"work": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"proposalCommit": "7c36483a",
+	"status": "complete-diagnostic",
+	"performanceQualification": false,
+	"causalConstructionAttribution": false,
+	"processes": 12,
+	"samples": 28800,
+	"warmup": 7200,
+	"measured": 21600,
+	"sidecars": 19200,
+	"deepSidecars": 9600,
+	"elapsedSeconds": 20.95283525000559,
+	"retries": 0,
+	"notRun": [],
+	"archive": {
+		"ref": "archive/evals/causal-cleanup-segments-v1/evidence.tar.gz",
+		"digest": "sha256:f854a39e4af9e6989f357addf83939f4754b939492a6db2d9c2b67f91db6b2ac",
+		"files": 239,
+		"index": "archive/evals/causal-cleanup-segments-v1/artifact-index.json",
+		"indexDigest": "sha256:aa843f453f5403c745531533e787a3bd81e0c12211eed40491c118a52b820123"
+	},
+	"evidence": [
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/README.md",
+			"digest": "sha256:c38e2dae5688ca4d2d03496de125d36b668439d6958acee9eeb659b4682fac1c"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/analysis.json",
+			"digest": "sha256:e21fd6337ddcaf218202ca858e0940f0323c582326c599d82d492a736841df04"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/analyze.py",
+			"digest": "sha256:fe0dc4f730048f27997f1e02bc6b5da00982d1b7df84508074ca81006fc412bd"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/approval.json",
+			"digest": "sha256:5616d7d4a591d3762ffa878c21f98fc4dfde7a93c274f0cac79dfaf829ab6375"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/cpu-python-regression.log",
+			"digest": "sha256:e494898d288525ebcad2dd7d7500acdb7a8a4c023f5b4bfbd6199cc40d49a3e7"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/cpu-regression.log",
+			"digest": "sha256:826e5ff08b4a784e3aec28f4afef3e370618b8ed55580efaa3a8a4a22ad39d39"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/dashboard.log",
+			"digest": "sha256:57d4dc2953cc9de54408eb72f73eccff702d623d1346ab401e6585a2b1275569"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/full-ts-exit.json",
+			"digest": "sha256:87e2953bdc07406c98c388b9e0670b360fd454f1ccc46bf53d0b84b85508772f"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/full-ts.log",
+			"digest": "sha256:e5774f4b0d3683ab1998b1abeb1aefa4483e568ecdc1d6d3ede30117eab5fd18"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/independent-verification.json",
+			"digest": "sha256:b8c1be9266b6b16d51ac59c0f466152a26535cdc2f5c15dcbdf1ca290fd0bf3f"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/lint-exit.json",
+			"digest": "sha256:a376076adb9b3151f897d6bf8ba7537e9ce31ccf5a0581b1a444054741b7237a"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/lint.log",
+			"digest": "sha256:81c606c6dd43d7e908c30ebcd002d8a9ab8b612d5a02a97f273ba5a28332751f"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/loaded-tests.log",
+			"digest": "sha256:a97b2e3b82a7ab7fb9b7116fb1eb297b8af5e13c3569fcf574c510fbd5a2a38a"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/matched-comparisons.csv",
+			"digest": "sha256:4c989ae141673fd2da387555c36b27f8e30eb1378b50993509cd04112065c772"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/portable-self-verification.json",
+			"digest": "sha256:b8c1be9266b6b16d51ac59c0f466152a26535cdc2f5c15dcbdf1ca290fd0bf3f"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/portable-verification.json",
+			"digest": "sha256:b8c1be9266b6b16d51ac59c0f466152a26535cdc2f5c15dcbdf1ca290fd0bf3f"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/preservation-after.json",
+			"digest": "sha256:fd4457df0cd7ab167362091f38e0bb2596f1865e08da0b2c0294ccb42ac6844c"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/preservation-before.json",
+			"digest": "sha256:ee40cd2cc7a05f21789948988b1a57028eea47b6417cba8b50a0e9b562646c98"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/private-check-exits.json",
+			"digest": "sha256:7a5c0482f0b4242923431935e2d2733063b73495e1d19fe705ff56aaa1628c0b"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/qualification.json",
+			"digest": "sha256:411d2bc01be0a964fc6dbdd337df7c0a3a63db1c946d10fa2c0e59698e25945f"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/review.json",
+			"digest": "sha256:2ede3443ab60731196410dfb78e1765ff859737a6fe350e9fdd0897ebb4f2082"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/segment-arithmetic-verification.json",
+			"digest": "sha256:c939f1f4f55e39639db6375922f63cdd040a69b0e5c25c1eea2d4156e07c4c13"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/source-tests.log",
+			"digest": "sha256:8084874bbc1f875664a00ce171a3a746c6ae4a5131c694e21d8c54a985839e69"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/verify-segments.mjs",
+			"digest": "sha256:f1f4cbc4284558d3bda0cc7ade300efe0856783aa93b64bf10d0be45dba623a1"
+		},
+		{
+			"ref": "docs/design/causal-cleanup-segments-v1-implementation/workspace.log",
+			"digest": "sha256:8e16637781e9a0e14492b2179f94be678d01cff8709df3a238694fc865a7f544"
+		}
+	],
+	"qualifiedSourceDigests": {
+		"scripts/causal-cleanup-diagnostic.py": "d42b6901829145fdad70eab6c2ae1328132145321a474ea74a090471d40c2f89",
+		"scripts/derive-causal-cleanup.mjs": "b0ad1e48446ddd343055a0a31445009e7d2e676bc0093b0864926064d83caf57",
+		"scripts/causal-cleanup-observer.mjs": "025cbe33d4ffcf7975090c9d9842f04311c44246b82ec08b8af6fe3bb36099ec",
+		"scripts/verify-causal-cleanup.py": "7921142acb603754fdd31e4712dbdd0057f1a64b3ab77a2008108adc9ab9ce75",
+		"scripts/causal-cleanup.test.mjs": "c380414a9670f28101feadaa2d2cc4fa76c3426309ffe7411d70737f0622a569",
+		"scripts/causal-cleanup.test.py": "f8dccb3359772cce1d612018a5f55cb0ac43efc5ebcb1a74e58db6164a70f2d9",
+		"scripts/causal-cpu-observer.mjs": "d95be8c25541cdc4df6c964a89823c802ae4b97992859a2dd81726167093f89b",
+		"scripts/verify-causal-cpu.py": "4d30323b8047c1b66a322d8e5e6364736dcda29ab489fae3d799a17408ba4c91",
+		"scripts/verify-causal-position-pairs.py": "c442c2b60ecb1574250df60edcadb584d31f4c49a87083fd674abed88acd2a3e",
+		"scripts/verify-causal-block-history.py": "2af562c05cb6a16ac4634e7b1024f88ee4b861c82fa61049d81412d671acc2d2",
+		"scripts/verify-causal-control-crossover.py": "5066df570c7b0cffac5137c10698e31b9ddaab333917d10fbec0264aa3f85904",
+		"scripts/causal-control-crossover.py": "b60b8dc6e5bc7b7d4fe0748dd90d3f4336c5a678c0f7752ecb1d08dfd7150075"
+	},
+	"conclusion": "Observed group.release accounts for74.72–75.46percent of deep-mode cleanup; instrumentation/confounding remains unresolved. No root-cause or D169 qualification claim.",
+	"fullTs": {
+		"passed": 2547,
+		"failed": 2,
+		"skipped": 4
+	},
+	"libraryChanged": false,
+	"publicApiChanged": false,
+	"protocolChanged": false,
+	"ownershipVerified": false,
+	"grantExhausted": true
+}

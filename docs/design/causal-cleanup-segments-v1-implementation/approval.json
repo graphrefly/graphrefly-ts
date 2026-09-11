@@ -1,0 +1,23 @@
+{
+	"work": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"userText": "确认",
+	"proposalCommit": "7c36483a",
+	"design": "docs/design/causal-cleanup-segments-v1.md",
+	"designDigest": "sha256:dc16c47f22e8f0a0950afc8768383d3ff57c72ee2e132b8afbc4541b3d13f969",
+	"scope": "sections 2–6: private implementation/offline qualification, one fixed twelve-consumer diagnostic, independent replay/archive/commit",
+	"output": "archive/evals/causal-cleanup-segments-v1/run",
+	"maxConsumerProcesses": 12,
+	"maxFixtureProcesses": 0,
+	"maxSamples": 28800,
+	"maxSecondsPerChild": 30,
+	"maxSecondsTotal": 900,
+	"maxOutputBytes": 268435456,
+	"checkIntervalMs": 100,
+	"retries": 0,
+	"notAuthorized": [
+		"D169 replacement",
+		"formal consumer matrix",
+		"library/public API/protocol change",
+		"provider/live/spend/effect"
+	]
+}
