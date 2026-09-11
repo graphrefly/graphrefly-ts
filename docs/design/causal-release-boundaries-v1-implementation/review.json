@@ -1,0 +1,14 @@
+{
+	"staticOnly": true,
+	"reviewers": ["release_capture_review", "release_evidence_review"],
+	"findingsFixed": 5,
+	"reportCountCorrection": true,
+	"remainingBlocking": 0,
+	"scope": [
+		"prefix inventory before dispatch",
+		"compound observer errors",
+		"partial identity",
+		"new release-clock failure fixtures",
+		"preflight and doublecount mutations"
+	]
+}

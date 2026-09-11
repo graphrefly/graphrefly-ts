@@ -1,0 +1,23 @@
+{
+	"work": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"userText": "批准",
+	"proposalCommit": "720f9b18",
+	"design": "docs/design/causal-release-boundaries-v1.md",
+	"designDigest": "sha256:11b753d7a9682d1ab9cd951c1c8e828ab663da6b5ac981354e6e51b31db9b069",
+	"scope": "sections 2–5: private implementation/offline qualification, one fixed eight-consumer diagnostic, independent replay/archive/commit",
+	"output": "archive/evals/causal-release-boundaries-v1/run",
+	"maxConsumerProcesses": 8,
+	"maxFixtureProcesses": 0,
+	"maxSamples": 19200,
+	"maxSecondsPerChild": 30,
+	"maxSecondsTotal": 900,
+	"maxOutputBytes": 268435456,
+	"checkIntervalMs": 100,
+	"retries": 0,
+	"notAuthorized": [
+		"D169 replacement",
+		"formal consumer matrix",
+		"library/public API/protocol change",
+		"provider/live/spend/effect"
+	]
+}

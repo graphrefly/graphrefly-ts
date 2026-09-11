@@ -1,0 +1,79 @@
+{
+	"passed": true,
+	"meaning": "private frozen-D/derived-R, actual extracted release paths and fake-clock qualification; not D169 or all-offline-green",
+	"designDigest": "sha256:11b753d7a9682d1ab9cd951c1c8e828ab663da6b5ac981354e6e51b31db9b069",
+	"sourceDigests": {
+		"scripts/causal-release-diagnostic.py": "b1c20ec51fa4664a5351fcebc9c13a2b74c2f0f37b92f1016dc82a8fbec81d86",
+		"scripts/derive-causal-release.mjs": "188c67f5c7d438dda61ea00ea2c317acbd49e53a71ee5205718d2e937d4795ef",
+		"scripts/causal-release-observer.mjs": "d7157afae0aaf20ad2e9d371256d6263a3f3c60691930dc6daae5ef6b5e31d43",
+		"scripts/verify-causal-release.py": "878f0075621180c4a63910d29e8f57370606c2b1b1c668c450c6733cd842667f",
+		"scripts/causal-release.test.mjs": "be55377241e6350a0adbce41be516ef2f2c58e56d960a47d51c81c076f35c633",
+		"scripts/causal-release.test.py": "86edced3fcd991170a0862c13e73edd4b2c407eb2cf1431477aef473d4f2aaaf",
+		"scripts/causal-release-paths.test.mjs": "aecf14e236817b6ba200a2f32eb03fdc753272eb69bcf7afcf6a33c7b361c6d4",
+		"scripts/causal-cleanup-observer.mjs": "025cbe33d4ffcf7975090c9d9842f04311c44246b82ec08b8af6fe3bb36099ec",
+		"scripts/verify-causal-cleanup.py": "7921142acb603754fdd31e4712dbdd0057f1a64b3ab77a2008108adc9ab9ce75",
+		"scripts/causal-cpu-observer.mjs": "d95be8c25541cdc4df6c964a89823c802ae4b97992859a2dd81726167093f89b",
+		"scripts/verify-causal-cpu.py": "4d30323b8047c1b66a322d8e5e6364736dcda29ab489fae3d799a17408ba4c91",
+		"scripts/verify-causal-position-pairs.py": "c442c2b60ecb1574250df60edcadb584d31f4c49a87083fd674abed88acd2a3e",
+		"scripts/verify-causal-block-history.py": "2af562c05cb6a16ac4634e7b1024f88ee4b861c82fa61049d81412d671acc2d2",
+		"scripts/verify-causal-control-crossover.py": "5066df570c7b0cffac5137c10698e31b9ddaab333917d10fbec0264aa3f85904",
+		"scripts/causal-control-crossover.py": "b60b8dc6e5bc7b7d4fe0748dd90d3f4336c5a678c0f7752ecb1d08dfd7150075"
+	},
+	"logs": {
+		"source.log": "9836f40a96a573c02944447ff9e1708926ac01706c247154bb3af62e98f8e843",
+		"preservation-before.json": "a9ccab56550a058eb93fdca189e2edaee958b28878f68bfeea5a376f7e79835b",
+		"cleanup-source-regression.log": "8084874bbc1f875664a00ce171a3a746c6ae4a5131c694e21d8c54a985839e69",
+		"lint.log": "a2e7ced25ebe9cb7b1f09a9de4f2f313588b3689bd5b7999b3d8815323110dd1",
+		"workspace.log": "8e16637781e9a0e14492b2179f94be678d01cff8709df3a238694fc865a7f544",
+		"lint-exit.json": "a376076adb9b3151f897d6bf8ba7537e9ce31ccf5a0581b1a444054741b7237a",
+		"full-ts-exit.json": "87e2953bdc07406c98c388b9e0670b360fd454f1ccc46bf53d0b84b85508772f",
+		"cleanup-regression.log": "a97b2e3b82a7ab7fb9b7116fb1eb297b8af5e13c3569fcf574c510fbd5a2a38a",
+		"private-exits.json": "4cabc755142ee15a963bc53a12cc57bc4dd2a657ad384e909e661cbe7476efd0",
+		"loaded.log": "e3a8cf50d7f5eb187ac69b46f2dae208d74ce24fd62c8a1c550c1be046b0d6c2",
+		"paths.log": "a80a532c51861d093354d8964469a9ff3110134830d5d0e8693351923b1cc516",
+		"review.json": "554e558f8585f07c922873ea674f908813219f67ad0ac6a8ece9d5a88b024fa4",
+		"dashboard.log": "57d4dc2953cc9de54408eb72f73eccff702d623d1346ab401e6585a2b1275569",
+		"full-ts.log": "c9a9ee9cd03aad03fba4cd6a973bc11cd5e7f3e5a98579063fcfa41a6a8c2c1e"
+	},
+	"checks": {
+		"loaded": {
+			"passed": true,
+			"loadedPositives": 10,
+			"loadedMutants": 10,
+			"newConsumerSamples": 0
+		},
+		"paths": {
+			"passed": true,
+			"releasePathPositives": 22,
+			"loadedMutants": 10,
+			"observerErrorCases": 4,
+			"realConsumerSamples": 0
+		},
+		"source": {
+			"passed": true,
+			"sourceNegatives": 6,
+			"entryModes": 2,
+			"preparationRefusals": 4,
+			"inventoryNegatives": 8,
+			"newConsumerSamples": 0
+		},
+		"syntheticIntervalNegatives": 80,
+		"loadedDoublecountMutants": 2,
+		"syntheticWholeJobNegatives": 8,
+		"prefixNegatives": 2,
+		"cleanupRegression": {
+			"passed": true,
+			"loadedPositives": 12,
+			"loadedMutants": 8,
+			"newConsumerSamples": 0
+		}
+	},
+	"fullTs": {
+		"passed": 2547,
+		"failed": 2,
+		"skipped": 4,
+		"failures": "existing D159 frozen manifest drift"
+	},
+	"staticReviewsClear": true,
+	"newConsumerSamples": 0
+}
