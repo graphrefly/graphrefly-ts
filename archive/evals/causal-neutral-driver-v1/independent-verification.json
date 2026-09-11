@@ -1,0 +1,297 @@
+{
+  "status": "complete-diagnostic",
+  "samples": 28800,
+  "processes": 12,
+  "rows": [
+    {
+      "position": 0,
+      "cell": "H0",
+      "batchP95Ms": {
+        "candidate": [
+          0.4352500000000532,
+          0.4234169999999722,
+          0.39866700000015953
+        ],
+        "reference": [
+          0.42620899999997164,
+          0.3913750000000391,
+          0.33045900000001893
+        ]
+      },
+      "medianBatchP95Ms": {
+        "candidate": 0.4234169999999722,
+        "reference": 0.3913750000000391
+      },
+      "candidateOverReference": 1.0818703289682015,
+      "m1OverM0": 1.0818703289682015,
+      "preflightLaterOverEarlier": 1.0818703289682015,
+      "hostedExternalOverLocal": 1.0818703289682015
+    },
+    {
+      "position": 1,
+      "cell": "N0",
+      "batchP95Ms": {
+        "candidate": [
+          0.43170899999995527,
+          0.34179199999994125,
+          0.3901250000001255
+        ],
+        "reference": [
+          0.4187500000000455,
+          0.3724579999999378,
+          0.30262500000003456
+        ]
+      },
+      "medianBatchP95Ms": {
+        "candidate": 0.3901250000001255,
+        "reference": 0.3724579999999378
+      },
+      "candidateOverReference": 1.0474335361307603,
+      "m1OverM0": 1.0474335361307603,
+      "preflightLaterOverEarlier": 1.0474335361307603,
+      "hostedExternalOverLocal": null
+    },
+    {
+      "position": 2,
+      "cell": "R0",
+      "batchP95Ms": {
+        "candidate": [
+          0.393209000000013,
+          0.3176669999999149,
+          0.36170799999990777
+        ],
+        "reference": [
+          0.4142500000000382,
+          0.338333999999918,
+          0.30966699999999037
+        ]
+      },
+      "medianBatchP95Ms": {
+        "candidate": 0.36170799999990777,
+        "reference": 0.338333999999918
+      },
+      "candidateOverReference": 1.0690855781564828,
+      "m1OverM0": 1.0690855781564828,
+      "preflightLaterOverEarlier": 0.9353788138498574,
+      "hostedExternalOverLocal": null
+    },
+    {
+      "position": 3,
+      "cell": "H1",
+      "batchP95Ms": {
+        "candidate": [
+          0.39179200000000947,
+          0.36312500000008185,
+          0.3669999999999618
+        ],
+        "reference": [
+          0.41145800000003874,
+          0.3590840000000526,
+          0.3239169999999376
+        ]
+      },
+      "medianBatchP95Ms": {
+        "candidate": 0.3669999999999618,
+        "reference": 0.3590840000000526
+      },
+      "candidateOverReference": 1.022044981118368,
+      "m1OverM0": 0.9784305177114168,
+      "preflightLaterOverEarlier": 1.022044981118368,
+      "hostedExternalOverLocal": 1.022044981118368
+    },
+    {
+      "position": 4,
+      "cell": "N1",
+      "batchP95Ms": {
+        "candidate": [
+          0.433084000000008,
+          0.35066599999993286,
+          0.3362499999998363
+        ],
+        "reference": [
+          0.41262499999999136,
+          0.3435419999999567,
+          0.31766700000002857
+        ]
+      },
+      "medianBatchP95Ms": {
+        "candidate": 0.35066599999993286,
+        "reference": 0.3435419999999567
+      },
+      "candidateOverReference": 1.020736911352839,
+      "m1OverM0": 0.979684372023585,
+      "preflightLaterOverEarlier": 1.020736911352839,
+      "hostedExternalOverLocal": null
+    },
+    {
+      "position": 5,
+      "cell": "R1",
+      "batchP95Ms": {
+        "candidate": [
+          0.3911249999999882,
+          0.32875000000001364,
+          0.3739590000000135
+        ],
+        "reference": [
+          0.413791999999944,
+          0.34379200000000765,
+          0.31970799999999144
+        ]
+      },
+      "medianBatchP95Ms": {
+        "candidate": 0.3739590000000135,
+        "reference": 0.34379200000000765
+      },
+      "candidateOverReference": 1.0877478242658503,
+      "m1OverM0": 0.9193307287697188,
+      "preflightLaterOverEarlier": 0.9193307287697188,
+      "hostedExternalOverLocal": null
+    },
+    {
+      "position": 6,
+      "cell": "R1",
+      "batchP95Ms": {
+        "candidate": [
+          0.3962500000000091,
+          0.32341599999995196,
+          0.3472079999999096
+        ],
+        "reference": [
+          0.42429200000003675,
+          0.35283300000003237,
+          0.30674999999996544
+        ]
+      },
+      "medianBatchP95Ms": {
+        "candidate": 0.3472079999999096,
+        "reference": 0.35283300000003237
+      },
+      "candidateOverReference": 0.9840576136582398,
+      "m1OverM0": 1.016200663579538,
+      "preflightLaterOverEarlier": 1.016200663579538,
+      "hostedExternalOverLocal": null
+    },
+    {
+      "position": 7,
+      "cell": "N1",
+      "batchP95Ms": {
+        "candidate": [
+          0.3828749999999559,
+          0.32129199999997127,
+          0.37866699999995035
+        ],
+        "reference": [
+          0.3893340000000194,
+          0.3445830000000569,
+          0.3172500000000582
+        ]
+      },
+      "medianBatchP95Ms": {
+        "candidate": 0.37866699999995035,
+        "reference": 0.3445830000000569
+      },
+      "candidateOverReference": 1.0989137595293088,
+      "m1OverM0": 0.9099895158545691,
+      "preflightLaterOverEarlier": 1.0989137595293088,
+      "hostedExternalOverLocal": null
+    },
+    {
+      "position": 8,
+      "cell": "H1",
+      "batchP95Ms": {
+        "candidate": [
+          0.421875,
+          0.33395899999993617,
+          0.4329999999999927
+        ],
+        "reference": [
+          0.4140419999999949,
+          0.3308749999999918,
+          0.3156249999999545
+        ]
+      },
+      "medianBatchP95Ms": {
+        "candidate": 0.421875,
+        "reference": 0.3308749999999918
+      },
+      "candidateOverReference": 1.2750283339630084,
+      "m1OverM0": 0.7842962962962768,
+      "preflightLaterOverEarlier": 1.2750283339630084,
+      "hostedExternalOverLocal": 1.2750283339630084
+    },
+    {
+      "position": 9,
+      "cell": "R0",
+      "batchP95Ms": {
+        "candidate": [
+          0.40041700000000446,
+          0.33208300000001145,
+          0.37825000000020736
+        ],
+        "reference": [
+          0.45158299999991414,
+          0.3562920000000531,
+          0.3238329999999223
+        ]
+      },
+      "medianBatchP95Ms": {
+        "candidate": 0.37825000000020736,
+        "reference": 0.3562920000000531
+      },
+      "candidateOverReference": 1.0616292254671758,
+      "m1OverM0": 1.0616292254671758,
+      "preflightLaterOverEarlier": 0.9419484467940722,
+      "hostedExternalOverLocal": null
+    },
+    {
+      "position": 10,
+      "cell": "N0",
+      "batchP95Ms": {
+        "candidate": [
+          0.4182079999999928,
+          0.33570899999995163,
+          0.36191699999994853
+        ],
+        "reference": [
+          0.44195799999999963,
+          0.3850410000000011,
+          0.3166249999999309
+        ]
+      },
+      "medianBatchP95Ms": {
+        "candidate": 0.36191699999994853,
+        "reference": 0.3850410000000011
+      },
+      "candidateOverReference": 0.9399440579053855,
+      "m1OverM0": 0.9399440579053855,
+      "preflightLaterOverEarlier": 0.9399440579053855,
+      "hostedExternalOverLocal": null
+    },
+    {
+      "position": 11,
+      "cell": "H0",
+      "batchP95Ms": {
+        "candidate": [
+          0.3919169999999781,
+          0.3591660000000729,
+          0.3694590000000062
+        ],
+        "reference": [
+          0.3885829999999828,
+          0.33504099999993286,
+          0.3197090000001026
+        ]
+      },
+      "medianBatchP95Ms": {
+        "candidate": 0.3694590000000062,
+        "reference": 0.33504099999993286
+      },
+      "candidateOverReference": 1.1027277258606565,
+      "m1OverM0": 1.1027277258606565,
+      "preflightLaterOverEarlier": 1.1027277258606565,
+      "hostedExternalOverLocal": 1.1027277258606565
+    }
+  ],
+  "performanceQualification": false,
+  "eventAssociation": "unknown"
+}

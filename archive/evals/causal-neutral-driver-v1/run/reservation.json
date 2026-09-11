@@ -1,0 +1,56 @@
+{
+  "approvalDigest": "1d1949061458c47821c5a81c76be8d92168f01809d18f2e63d3924bb3f1934f3",
+  "schedule": [
+    "H0",
+    "N0",
+    "R0",
+    "H1",
+    "N1",
+    "R1",
+    "R1",
+    "N1",
+    "H1",
+    "R0",
+    "N0",
+    "H0"
+  ],
+  "executionRoot": "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-neutral-driver-v1/run",
+  "runtime": {
+    "node": "v24.18.0",
+    "v8": "13.6.233.17-node.50",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "executable": "/Users/davidchenallio/.local/share/mise/installs/node/24.18.0/bin/node",
+  "executableDigest": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+  "childEnvironmentKeys": [
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "PATH",
+    "TMPDIR"
+  ],
+  "implicitNodeOptions": {},
+  "loadAverage": [
+    9.88427734375,
+    8.357421875,
+    5.818359375
+  ],
+  "sourceDigests": {
+    "causal-neutral-driver.py": "0e99d0c30233fb4dfca8b1e88f67de1d56e6fbc96269fe736b7e3e708c3e23ae",
+    "verify-causal-neutral-driver.py": "603e42d79c475ae8a4c7429388ed264b7e7906de5cff47a95f7e7b775f55b3e5",
+    "derive-causal-neutral-driver.mjs": "e642047e9f158024333dbee98697457564e037cbfa6f97a6ad25fa6b0a401189",
+    "check-causal-neutral-source.mjs": "cabd9236a676924e5fbb417cf90f288a438e4725a13e23cfa7b2376e76edd5d0",
+    "causal-control-crossover.py": "b60b8dc6e5bc7b7d4fe0748dd90d3f4336c5a678c0f7752ecb1d08dfd7150075",
+    "verify-causal-control-crossover.py": "5066df570c7b0cffac5137c10698e31b9ddaab333917d10fbec0264aa3f85904",
+    "causal-neutral-driver.test.mjs": "b2cc141cb997bda1991e2de902e34049bd35b592fd2f6b40e3c94f7f2407e7c8",
+    "causal-neutral-driver.test.py": "2569e83ef9f8a5126b13b17c0addd33089b99cfa249d3727920cc6031978b1ef"
+  },
+  "archiveBindings": {
+    "archive": "3483b61f34da607ccd04ff99b86e49d14e90584f843ff3aefcf2640d60a4fbd7",
+    "index": "07a8e0384997617197f729bf11bd997335095227244eb8e11a18cc4603e85ef8",
+    "verifiedFiles": 321,
+    "runtimeClosureFiles": 60,
+    "qualificationCases": 8
+  }
+}

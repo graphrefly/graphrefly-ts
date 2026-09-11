@@ -1,0 +1,22 @@
+{
+	"kind": "human execution approval",
+	"work_ref": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"governing_refs": ["graphrefly-ts:D168"],
+	"design": "docs/design/causal-neutral-driver-v1.md",
+	"designDigest": "sha256:cafcc8ca19593a9bae40e4d1754c0dabc10d628fd070229f13f63b9f87c932e3",
+	"designCommit": "8ec313b4",
+	"userText": "同意，直至最终测量结果明显",
+	"scope": "Implement and qualify source-derived neutral driver and independent verifier; execute frozen 12-process diagnostic and assess all results; retain uncertainty explicitly rather than selecting favorable samples",
+	"schedule": ["H0", "N0", "R0", "H1", "N1", "R1", "R1", "N1", "H1", "R0", "N0", "H0"],
+	"maxProcesses": 12,
+	"maxSamples": 28800,
+	"maxSecondsPerChild": 30,
+	"maxSecondsTotal": 420,
+	"retries": 0,
+	"output": "archive/evals/causal-neutral-driver-v1/run",
+	"nonGoals": [
+		"formal matrix/qualification or threshold changes",
+		"public API/runtime/protocol changes",
+		"provider/live/spend/effects"
+	]
+}

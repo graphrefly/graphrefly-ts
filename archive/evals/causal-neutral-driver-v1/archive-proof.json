@@ -1,0 +1,12 @@
+{
+  "path": "archive/evals/causal-neutral-driver-v1/evidence.tar.gz",
+  "files": 188,
+  "bytes": 1597116,
+  "digest": "sha256:b6cc07d05ba634fa7b0b12200f294a5c25374665f8cc8baef8db208edc3deb68",
+  "indexDigest": "sha256:be5030ec97fd8b3253b8959852b7b3ce569a77f889780562df1fa3c4a9b09abf",
+  "allBytesVerified": true,
+  "relocatedReplayStatus": "complete-diagnostic",
+  "relocatedSamplesVerified": 28800,
+  "relocatedReplayMatches": true,
+  "businessExecutedByReplay": false
+}

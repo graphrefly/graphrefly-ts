@@ -1,0 +1,16 @@
+{
+  "reviewers": [
+    "crossover_blind_review",
+    "crossover_spec_review"
+  ],
+  "mode": "static only; no business execution",
+  "fixed": [
+    "entry rejects exact wrong config before importing business",
+    "neutral direct path rejects self-copy",
+    "AST rejects generator declaration",
+    "independent parser clean environment and full manifest verification",
+    "all 88800 retained cold samples checked before synthetic fixtures"
+  ],
+  "finalFindings": [],
+  "scopeChanges": false
+}

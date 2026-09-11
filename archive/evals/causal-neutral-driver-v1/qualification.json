@@ -1,0 +1,68 @@
+{
+  "kind": "pre-measurement tool qualification",
+  "recordedAt": "2026-09-11T06:45:56.861545+00:00",
+  "checks": [
+    {
+      "name": "neutral-python",
+      "argv": [
+        "python3",
+        "scripts/causal-neutral-driver.test.py"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 9.084083082998404
+    },
+    {
+      "name": "neutral-loaded",
+      "argv": [
+        "node",
+        "scripts/causal-neutral-driver.test.mjs"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 7.305103292004787
+    },
+    {
+      "name": "crossover-regression",
+      "argv": [
+        "python3",
+        "scripts/causal-control-crossover.test.py"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 3.0479886249959236
+    },
+    {
+      "name": "lint",
+      "argv": [
+        "pnpm",
+        "run",
+        "lint"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 10.357882458003587
+    },
+    {
+      "name": "full-tests",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@graphrefly/ts",
+        "test"
+      ],
+      "exitCode": 1,
+      "elapsedSeconds": 89.92047937499592
+    }
+  ],
+  "sourceDigests": {
+    "scripts/causal-neutral-driver.py": "0e99d0c30233fb4dfca8b1e88f67de1d56e6fbc96269fe736b7e3e708c3e23ae",
+    "scripts/verify-causal-neutral-driver.py": "603e42d79c475ae8a4c7429388ed264b7e7906de5cff47a95f7e7b775f55b3e5",
+    "scripts/derive-causal-neutral-driver.mjs": "e642047e9f158024333dbee98697457564e037cbfa6f97a6ad25fa6b0a401189",
+    "scripts/check-causal-neutral-source.mjs": "cabd9236a676924e5fbb417cf90f288a438e4725a13e23cfa7b2376e76edd5d0",
+    "scripts/causal-control-crossover.py": "b60b8dc6e5bc7b7d4fe0748dd90d3f4336c5a678c0f7752ecb1d08dfd7150075",
+    "scripts/verify-causal-control-crossover.py": "5066df570c7b0cffac5137c10698e31b9ddaab333917d10fbec0264aa3f85904",
+    "scripts/causal-neutral-driver.test.mjs": "b2cc141cb997bda1991e2de902e34049bd35b592fd2f6b40e3c94f7f2407e7c8",
+    "scripts/causal-neutral-driver.test.py": "2569e83ef9f8a5126b13b17c0addd33089b99cfa249d3727920cc6031978b1ef"
+  },
+  "retainedColdSamplesValidated": 88800,
+  "staticReviewsClear": true,
+  "knownFullSuiteFailures": "Two existing D159 implementation manifest gates; library unchanged",
+  "realConsumerMeasurementProcessesSoFar": 0
+}

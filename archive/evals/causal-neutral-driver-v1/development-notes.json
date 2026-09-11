@@ -1,0 +1,9 @@
+{
+  "realConsumerSamplesBeforeQualification": 0,
+  "toolDevelopmentFindings": [
+    "canonicalize temporary test directory: /var vs /private/var",
+    "wrong-driver stub may exit successfully: verify observed driver identity and source, not exit alone",
+    "initial historical test skipped 57600 three-arm samples: corrected to all 88800 and test_00 ordering"
+  ],
+  "resolved": true
+}

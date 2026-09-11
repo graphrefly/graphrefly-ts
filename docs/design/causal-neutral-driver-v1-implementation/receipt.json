@@ -1,0 +1,110 @@
+{
+	"kind": "private neutral-driver diagnostic evidence",
+	"work_ref": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"governing_refs": ["graphrefly-ts:D168"],
+	"designCommit": "8ec313b4",
+	"approval": {
+		"path": "docs/design/causal-neutral-driver-v1-implementation/approval.json",
+		"digest": "sha256:1d1949061458c47821c5a81c76be8d92168f01809d18f2e63d3924bb3f1934f3"
+	},
+	"status": "complete-diagnostic",
+	"measurement": {
+		"processes": 12,
+		"samples": 28800,
+		"warmup": 7200,
+		"measured": 21600,
+		"preflights": 24,
+		"preflightInstances": 72,
+		"elapsedSeconds": 18.159822957997676,
+		"retries": 0,
+		"notRun": []
+	},
+	"independentVerifier": {
+		"path": "archive/evals/causal-neutral-driver-v1/independent-verification.json",
+		"digest": "sha256:d581864f144a625c0ed6c256a07ebc5c3fc989dd0f2dd7e6226f4253ab8bf8d5"
+	},
+	"analysis": {
+		"path": "archive/evals/causal-neutral-driver-v1/analysis.json",
+		"digest": "sha256:1ad33dfdedb74669bc1826d590eaa5c0f89d1a7c2e4e8ca706ba210bfbfcf60d"
+	},
+	"qualification": {
+		"path": "archive/evals/causal-neutral-driver-v1/qualification.json",
+		"digest": "sha256:331b613c5e1f73fe1786cfb9cfd6024ccb25fba0e8b3b7802fd261f050581c88"
+	},
+	"staticReview": {
+		"path": "archive/evals/causal-neutral-driver-v1/static-review.json",
+		"digest": "sha256:a9d2e41760504a121748624fa38bc9df0a17c11b28f5086e55c86f9dc6b29f2e"
+	},
+	"performanceQualification": false,
+	"rootCauseEstablished": false,
+	"workStatus": "incomplete",
+	"eventAssociation": "unknown",
+	"ownership": "teach-back and graded-entry ergonomics unverified",
+	"publicApiChanges": false,
+	"libraryChanges": false,
+	"externalEffects": 0,
+	"rawEvidence": {
+		"path": "archive/evals/causal-neutral-driver-v1/evidence.tar.gz",
+		"files": 188,
+		"bytes": 1597116,
+		"digest": "sha256:b6cc07d05ba634fa7b0b12200f294a5c25374665f8cc8baef8db208edc3deb68",
+		"indexDigest": "sha256:be5030ec97fd8b3253b8959852b7b3ce569a77f889780562df1fa3c4a9b09abf",
+		"allBytesVerified": true,
+		"relocatedReplayStatus": "complete-diagnostic",
+		"relocatedSamplesVerified": 28800,
+		"relocatedReplayMatches": true,
+		"businessExecutedByReplay": false
+	},
+	"governanceGates": [
+		{
+			"name": "dashboard",
+			"argv": ["node", "/Users/davidchenallio/src/graphrefly/dashboard/build.mjs", "--check"],
+			"exitCode": 0,
+			"elapsedSeconds": 0.6712697909970302
+		},
+		{
+			"name": "authority",
+			"argv": [
+				"npm",
+				"--prefix",
+				"/Users/davidchenallio/src/graphrefly",
+				"run",
+				"authority:check:workspace"
+			],
+			"exitCode": 0,
+			"elapsedSeconds": 1.9198226669977885
+		}
+	],
+	"offlineGates": [
+		{
+			"name": "neutral-python",
+			"argv": ["python3", "scripts/causal-neutral-driver.test.py"],
+			"exitCode": 0,
+			"elapsedSeconds": 9.084083082998404
+		},
+		{
+			"name": "neutral-loaded",
+			"argv": ["node", "scripts/causal-neutral-driver.test.mjs"],
+			"exitCode": 0,
+			"elapsedSeconds": 7.305103292004787
+		},
+		{
+			"name": "crossover-regression",
+			"argv": ["python3", "scripts/causal-control-crossover.test.py"],
+			"exitCode": 0,
+			"elapsedSeconds": 3.0479886249959236
+		},
+		{
+			"name": "lint",
+			"argv": ["pnpm", "run", "lint"],
+			"exitCode": 0,
+			"elapsedSeconds": 10.357882458003587
+		},
+		{
+			"name": "full-tests",
+			"argv": ["pnpm", "--filter", "@graphrefly/ts", "test"],
+			"exitCode": 1,
+			"elapsedSeconds": 89.92047937499592
+		}
+	]
+}
