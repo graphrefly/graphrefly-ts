@@ -1,0 +1,22 @@
+{
+	"designDigest": "sha256:dc16c47f22e8f0a0950afc8768383d3ff57c72ee2e132b8afbc4541b3d13f969",
+	"schedule": ["B-U", "S-V", "D-U", "B-V", "S-U", "D-V", "D-V", "S-U", "B-V", "D-U", "S-V", "B-U"],
+	"counts": {
+		"processes": 12,
+		"samples": 28800,
+		"warmup": 7200,
+		"measured": 21600,
+		"sidecars": 19200,
+		"deepSidecars": 9600,
+		"outerReads": 153600,
+		"deepReads": 48000,
+		"cpuSnapshots": 192,
+		"cpuPerformanceReads": 384,
+		"preflights": 24,
+		"preflightInstances": 72
+	},
+	"staticOnly": true,
+	"newCaptureProcesses": 0,
+	"newConsumerSamples": 0,
+	"implementationChanged": false
+}
