@@ -1,0 +1,281 @@
+{
+  "kind": "Design arithmetic and source inspection only; no runtime timing or formal attempt",
+  "baseline": "68461c18b8a768026dc93ec33b088c5a8f366a3d",
+  "sourceBindings": {
+    "scripts/compare-spending-preset.mjs": "sha256:4267b33bde91108f9b787f002513e6eb33c1d89549fef8c32ec466b0c9287e82",
+    "scripts/spending-preset-performance-report.mjs": "sha256:fb5e3272c647ab4a590e8f3a402fe753e3ba5dbda0a70432d5577011c615795a",
+    "scripts/fixtures/spending-preset-performance.ts": "sha256:3356c4cb3301306ba02c2a6b3efe1295b70177afd8194ac0e3fc478f8c0d5e03",
+    "scripts/fixtures/spending-preset-performance-worker.ts": "sha256:90bb36deec0e795ac4014b09f280adbb95a02f64a7934b264dcef3fa12b15ff2",
+    "docs/design/causal-preset-assembly-v1.md": "sha256:7e66c0a31afa9c27d88251e4048e931b41b18560519966d460a09af0fc03ac30",
+    "packages/ts/qualification/causal-occurrence/preset-performance-v1/receipt.json": "sha256:18829de286ffba2f4ea7d467e5c8cbb39a653c429f7af35dca2da4649f62ced3",
+    "archive/evals/library-registration-check-v1/receipt.json": "sha256:f34acd17fa78184cf93e8d6fad5e635ec5107529104da7c49a04757c6a1990fc"
+  },
+  "proposed": {
+    "replicates": 16,
+    "controlsPerRow": 4,
+    "latencyRows": 72,
+    "recoveryRows": 12,
+    "orderStatisticRanks": [
+      2,
+      15
+    ],
+    "p95RankOf300": 285,
+    "twoSidedRowNoncoverageBound": 0.000518798828125,
+    "familyNoncoverageBound": 0.037353515625,
+    "primarySamples": 4147200,
+    "controlSamples": 691200,
+    "recoverySamples": 480,
+    "warmupSamples": 1209600
+  },
+  "examples": [
+    {
+      "name": "clear-pass",
+      "ratios": [
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15
+      ],
+      "controlValid": true,
+      "limit": 1.2,
+      "median": 1.15,
+      "mean": 1.15,
+      "interval": [
+        1.15,
+        1.15
+      ],
+      "verdict": "passed"
+    },
+    {
+      "name": "one-high-batch",
+      "ratios": [
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.8
+      ],
+      "controlValid": true,
+      "limit": 1.2,
+      "median": 1.15,
+      "mean": 1.1906249999999998,
+      "interval": [
+        1.15,
+        1.15
+      ],
+      "verdict": "passed"
+    },
+    {
+      "name": "straddles",
+      "ratios": [
+        1.19,
+        1.19,
+        1.19,
+        1.19,
+        1.19,
+        1.19,
+        1.19,
+        1.19,
+        1.21,
+        1.21,
+        1.21,
+        1.21,
+        1.21,
+        1.21,
+        1.21,
+        1.21
+      ],
+      "controlValid": true,
+      "limit": 1.2,
+      "median": 1.2,
+      "mean": 1.2,
+      "interval": [
+        1.19,
+        1.21
+      ],
+      "verdict": "inconclusive"
+    },
+    {
+      "name": "clear-fail",
+      "ratios": [
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22
+      ],
+      "controlValid": true,
+      "limit": 1.2,
+      "median": 1.22,
+      "mean": 1.22,
+      "interval": [
+        1.22,
+        1.22
+      ],
+      "verdict": "rejected"
+    },
+    {
+      "name": "one-low-batch",
+      "ratios": [
+        1.0,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22,
+        1.22
+      ],
+      "controlValid": true,
+      "limit": 1.2,
+      "median": 1.22,
+      "mean": 1.20625,
+      "interval": [
+        1.22,
+        1.22
+      ],
+      "verdict": "rejected"
+    },
+    {
+      "name": "upper-equals-limit",
+      "ratios": [
+        1.2,
+        1.2,
+        1.2,
+        1.2,
+        1.2,
+        1.2,
+        1.2,
+        1.2,
+        1.2,
+        1.2,
+        1.2,
+        1.2,
+        1.2,
+        1.2,
+        1.2,
+        1.2
+      ],
+      "controlValid": true,
+      "limit": 1.2,
+      "median": 1.2,
+      "mean": 1.2,
+      "interval": [
+        1.2,
+        1.2
+      ],
+      "verdict": "passed"
+    },
+    {
+      "name": "lower-equals-limit",
+      "ratios": [
+        1.2,
+        1.2,
+        1.2,
+        1.2,
+        1.2,
+        1.2,
+        1.2,
+        1.2,
+        1.21,
+        1.21,
+        1.21,
+        1.21,
+        1.21,
+        1.21,
+        1.21,
+        1.21
+      ],
+      "controlValid": true,
+      "limit": 1.2,
+      "median": 1.205,
+      "mean": 1.205,
+      "interval": [
+        1.2,
+        1.21
+      ],
+      "verdict": "inconclusive"
+    },
+    {
+      "name": "invalid-control",
+      "ratios": [
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15,
+        1.15
+      ],
+      "controlValid": false,
+      "limit": 1.2,
+      "median": 1.15,
+      "mean": 1.15,
+      "interval": [
+        1.15,
+        1.15
+      ],
+      "verdict": "inconclusive"
+    }
+  ],
+  "verification": {
+    "designArithmeticAndEightSyntheticExamples": "passed",
+    "sourceBindingsUnchanged": true,
+    "rootSixExistingModificationsUnchanged": true,
+    "dashboardCheck": "passed",
+    "workspaceAuthorityCheck": "passed",
+    "diffCheck": "passed",
+    "runtimeTestsOrBenchmarksExecuted": false
+  }
+}
