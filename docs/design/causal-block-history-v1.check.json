@@ -1,0 +1,29 @@
+{
+	"kind": "design-only schedule arithmetic and retained-summary check",
+	"baseCommit": "66d267a7",
+	"design": "docs/design/causal-block-history-v1.md",
+	"designDigest": "sha256:35d69d938807aced5cdbd268136be81a84f66bcb4aaf3c5b6ec522582f4f8581",
+	"sourceAnalysisDigest": "sha256:1ad33dfdedb74669bc1826d590eaa5c0f89d1a7c2e4e8ca706ba210bfbfcf60d",
+	"sourceArchiveDigest": "sha256:b6cc07d05ba634fa7b0b12200f294a5c25374665f8cc8baef8db208edc3deb68",
+	"sourceArchiveFilesVerified": 188,
+	"retainedSummaryObservation": {
+		"rows": 12,
+		"candidateBatch2P95HigherThanBatch1": 10,
+		"referenceBatch2P95LowerThanBatch1": 12
+	},
+	"cells": {
+		"S00": [["C", "R"], ["R", "C"], ["C", "R"]],
+		"S01": [["C", "R"], ["R", "C"], ["R", "C"]],
+		"S10": [["C", "R"], ["C", "R"], ["C", "R"]],
+		"S11": [["C", "R"], ["C", "R"], ["R", "C"]]
+	},
+	"proposedSchedule": ["S00", "S01", "S11", "S10", "S10", "S11", "S01", "S00"],
+	"proposedProcesses": 8,
+	"proposedSamples": 19200,
+	"proposedWarmup": 4800,
+	"proposedMeasured": 14400,
+	"proposedPreflightInstances": 48,
+	"actualNewConsumerSamples": 0,
+	"implementationApproved": false,
+	"diagnosticExecuted": false
+}
