@@ -1,0 +1,21 @@
+{
+	"designDigest": "sha256:11b753d7a9682d1ab9cd951c1c8e828ab663da6b5ac981354e6e51b31db9b069",
+	"schedule": ["D-U", "R-V", "D-V", "R-U", "R-U", "D-V", "R-V", "D-U"],
+	"counts": {
+		"processes": 8,
+		"samples": 19200,
+		"warmup": 4800,
+		"measured": 14400,
+		"outerReads": 153600,
+		"cleanupReads": 96000,
+		"internalReads": 67200,
+		"cpuSnapshots": 192,
+		"cpuClockReads": 384,
+		"preflights": 16,
+		"preflightInstances": 48
+	},
+	"staticOnly": true,
+	"newConsumerSamples": 0,
+	"newCaptures": 0,
+	"implementationChanged": false
+}
