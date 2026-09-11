@@ -1,0 +1,13 @@
+{
+  "archive": "sha256:3483b61f34da607ccd04ff99b86e49d14e90584f843ff3aefcf2640d60a4fbd7",
+  "index": "sha256:07a8e0384997617197f729bf11bd997335095227244eb8e11a18cc4603e85ef8",
+  "filesVerified": 321,
+  "allBytesVerified": true,
+  "relocatedIndependentVerification": {
+    "validEvidence": true,
+    "rowVerdict": "inconclusive",
+    "samples": 67200,
+    "processes": 20,
+    "qualified": false
+  }
+}

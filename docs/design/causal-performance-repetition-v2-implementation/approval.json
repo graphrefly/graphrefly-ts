@@ -1,0 +1,28 @@
+{
+	"kind": "non-decision human approval",
+	"work_ref": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"user_text": "好的，批准",
+	"design": "docs/design/causal-performance-repetition-v2.md",
+	"designDigest": "sha256:46481f133ffab804a1924d8159031675d0d0ce3d80ca588a57efe59d45ec4c87",
+	"designCommit": "8939de31",
+	"scope": [
+		"Adopt approved v2 method",
+		"Implement private tools and offline qualification",
+		"One P2/summary cold method-validation attempt after tool qualification",
+		"Commit code and evidence"
+	],
+	"measurementLimits": {
+		"row": "cold-P2-summary",
+		"processes": 20,
+		"samples": 67200,
+		"elapsedMs": 900000,
+		"retries": 0
+	},
+	"excluded": [
+		"Full formal matrix dispatch",
+		"CSP-11 rerun",
+		"Provider/live/spend or effects",
+		"Runtime/public API/protocol modifications"
+	],
+	"routingCorrection": "The design draft proposed package-local/durable-architecture. authority/README.md and federation.mjs require evaluation-method in evaluation-execution. Only the ledger classification is corrected; method body remains immutable."
+}

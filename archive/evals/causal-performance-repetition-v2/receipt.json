@@ -1,0 +1,439 @@
+{
+  "kind": "bounded offline method-validation receipt; no execution authority",
+  "work_ref": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "method_ref": "graphrefly-ts:D168",
+  "baseline": "8939de31",
+  "approval": "docs/design/causal-performance-repetition-v2-implementation/approval.json",
+  "approvalDigest": "sha256:8035ae73a1511a3550c278f94dfed2d4d2d81d9dbf3dda531b51280b727556e1",
+  "batchStatus": "delivered",
+  "workComplete": false,
+  "measurementAuthorityConsumed": true,
+  "automaticRetryAuthorized": false,
+  "fullMatrixAuthorized": false,
+  "fullMatrixExecuted": false,
+  "qualified": false,
+  "trial": {
+    "kind": "P2-summary-method-validation-only",
+    "qualified": false,
+    "status": "completed",
+    "elapsedMs": 30460.888082999998,
+    "freezeDigest": "sha256:f6321bf6485dceebda8e5107eda8424b13da92f9c890a2cc2244e0846a03340b",
+    "decision": {
+      "verdict": "inconclusive",
+      "reason": "control-instability",
+      "interval": [
+        0.9628643815203556,
+        1.0776527529989572
+      ],
+      "median": 1.0302244214228962,
+      "mean": 1.026382604691945,
+      "min": 0.9160402669678641,
+      "max": 1.1165675025764399,
+      "controls": [
+        1.1958192419822584,
+        1.076343717904805,
+        1.1369324276006292,
+        1.0700366002654857
+      ]
+    },
+    "jobs": [
+      {
+        "id": "control-0",
+        "control": true,
+        "ratio": 1.1958192419822584,
+        "medianBatchP95Us": {
+          "candidate": 410.1660000000038,
+          "reference": 343.0000000000746
+        }
+      },
+      {
+        "id": "control-1",
+        "control": true,
+        "ratio": 1.076343717904805,
+        "medianBatchP95Us": {
+          "candidate": 393.0000000000291,
+          "reference": 365.12500000003456
+        }
+      },
+      {
+        "id": "repeat-0",
+        "control": false,
+        "ratio": 1.0154166717216857,
+        "medianBatchP95Us": {
+          "candidate": 334.7909999999956,
+          "reference": 329.70799999998235,
+          "plain": 16.208000000005995
+        }
+      },
+      {
+        "id": "repeat-1",
+        "control": false,
+        "ratio": 1.0224181286552148,
+        "medianBatchP95Us": {
+          "candidate": 349.6670000000677,
+          "reference": 341.99999999998454,
+          "plain": 15.540999999984706
+        }
+      },
+      {
+        "id": "repeat-2",
+        "control": false,
+        "ratio": 0.9737191129881446,
+        "medianBatchP95Us": {
+          "candidate": 345.79199999984667,
+          "reference": 355.12499999992997,
+          "plain": 15.958999999952539
+        }
+      },
+      {
+        "id": "repeat-3",
+        "control": false,
+        "ratio": 1.0704717422916856,
+        "medianBatchP95Us": {
+          "candidate": 347.4579999999605,
+          "reference": 324.5839999999589,
+          "plain": 17.082999999956883
+        }
+      },
+      {
+        "id": "repeat-4",
+        "control": false,
+        "ratio": 1.00550594495275,
+        "medianBatchP95Us": {
+          "candidate": 342.4160000001848,
+          "reference": 340.5410000000302,
+          "plain": 15.583999999989828
+        }
+      },
+      {
+        "id": "repeat-5",
+        "control": false,
+        "ratio": 1.1165675025764399,
+        "medianBatchP95Us": {
+          "candidate": 406.2910000000102,
+          "reference": 363.8750000000073,
+          "plain": 16.040999999859196
+        }
+      },
+      {
+        "id": "repeat-6",
+        "control": false,
+        "ratio": 1.0666860120878638,
+        "medianBatchP95Us": {
+          "candidate": 363.9170000000149,
+          "reference": 341.1660000000438,
+          "plain": 18.87499999997999
+        }
+      },
+      {
+        "id": "repeat-7",
+        "control": false,
+        "ratio": 1.0720582598697104,
+        "medianBatchP95Us": {
+          "candidate": 349.62500000006,
+          "reference": 326.1250000000473,
+          "plain": 16.166999999995824
+        }
+      },
+      {
+        "id": "repeat-8",
+        "control": false,
+        "ratio": 0.9763889246621129,
+        "medianBatchP95Us": {
+          "candidate": 379.0830000000369,
+          "reference": 388.2499999999709,
+          "plain": 17.542000000048574
+        }
+      },
+      {
+        "id": "repeat-9",
+        "control": false,
+        "ratio": 0.998870624800247,
+        "medianBatchP95Us": {
+          "candidate": 331.6669999999249,
+          "reference": 332.0420000000013,
+          "plain": 15.874999999937245
+        }
+      },
+      {
+        "id": "repeat-10",
+        "control": false,
+        "ratio": 1.0380307141905776,
+        "medianBatchP95Us": {
+          "candidate": 341.20900000016263,
+          "reference": 328.708000000006,
+          "plain": 15.457999999966887
+        }
+      },
+      {
+        "id": "repeat-11",
+        "control": false,
+        "ratio": 0.9160402669678641,
+        "medianBatchP95Us": {
+          "candidate": 330.5000000000291,
+          "reference": 360.7920000001741,
+          "plain": 17.04199999994671
+        }
+      },
+      {
+        "id": "repeat-12",
+        "control": false,
+        "ratio": 1.0776527529989572,
+        "medianBatchP95Us": {
+          "candidate": 366.0420000001068,
+          "reference": 339.6659999999656,
+          "plain": 16.999999999825377
+        }
+      },
+      {
+        "id": "repeat-13",
+        "control": false,
+        "ratio": 1.0611303344865883,
+        "medianBatchP95Us": {
+          "candidate": 345.0000000000273,
+          "reference": 325.12500000007094,
+          "plain": 15.791000000035638
+        }
+      },
+      {
+        "id": "repeat-14",
+        "control": false,
+        "ratio": 0.9628643815203556,
+        "medianBatchP95Us": {
+          "candidate": 323.04100000010294,
+          "reference": 335.50000000002456,
+          "plain": 15.292000000044936
+        }
+      },
+      {
+        "id": "repeat-15",
+        "control": false,
+        "ratio": 1.0483003003009215,
+        "medianBatchP95Us": {
+          "candidate": 349.08400000017537,
+          "reference": 332.99999999997,
+          "plain": 16.54200000007222
+        }
+      },
+      {
+        "id": "control-2",
+        "control": true,
+        "ratio": 1.1369324276006292,
+        "medianBatchP95Us": {
+          "candidate": 397.499999999809,
+          "reference": 349.62499999994634
+        }
+      },
+      {
+        "id": "control-3",
+        "control": true,
+        "ratio": 1.0700366002654857,
+        "medianBatchP95Us": {
+          "candidate": 405.50000000001774,
+          "reference": 378.9590000000089
+        }
+      }
+    ],
+    "verification": {
+      "validEvidence": true,
+      "rowVerdict": "inconclusive",
+      "samples": 67200,
+      "processes": 20,
+      "qualified": false
+    }
+  },
+  "rawEvidence": {
+    "path": "archive/evals/causal-performance-repetition-v2/evidence.tar.gz",
+    "digest": "sha256:3483b61f34da607ccd04ff99b86e49d14e90584f843ff3aefcf2640d60a4fbd7",
+    "bytes": 3818196,
+    "index": "archive/evals/causal-performance-repetition-v2/artifact-index.json",
+    "indexDigest": "sha256:07a8e0384997617197f729bf11bd997335095227244eb8e11a18cc4603e85ef8",
+    "files": 321,
+    "allBytesVerified": true,
+    "relocatedIndependentVerification": {
+      "validEvidence": true,
+      "rowVerdict": "inconclusive",
+      "samples": 67200,
+      "processes": 20,
+      "qualified": false
+    }
+  },
+  "resultDigest": "sha256:753460fdfeef3ca4f2d6c7d524d965d95af4347c579c9050ef695f38aabb971a",
+  "finalSourceBindings": {
+    "biome.json": "sha256:70f65d0e8d23b3a48adf044ce8a9e75ecd72b36e6c37eeab981e0a9987294876",
+    "scripts/compare-spending-preset-repetition.mjs": "sha256:692c0c9760ec8d2cb5c650999e55ab81cde3d7ecd3eb1263a03ba56dd986964c",
+    "scripts/spending-preset-repetition.mjs": "sha256:c79419327a8a42881f7206ffc405d6db8b6341a0c5322b88be2788732cbb318f",
+    "scripts/spending-preset-repetition.test.mjs": "sha256:3bac2eefb8bced411520ea17671069b162c32af4e0f55a3b4b621563e25ad630",
+    "scripts/verify-spending-preset-repetition.mjs": "sha256:bd70623b3201ade4828ff2ad54961a4d4807fa39b3b8a7d123183e799e4e6637",
+    "docs/design/causal-performance-repetition-v2-implementation/approval.json": "sha256:8035ae73a1511a3550c278f94dfed2d4d2d81d9dbf3dda531b51280b727556e1",
+    "docs/design/causal-performance-repetition-v2-implementation/README.md": "sha256:7f23568e71fc6a971185a6cc58ca1b69678ec74c2a50c6dc6c522c6c9aa48047"
+  },
+  "gates": {
+    "tool-tests-1.json": {
+      "command": [
+        "node",
+        "--test",
+        "scripts/spending-preset-repetition.test.mjs"
+      ],
+      "exitCode": 1,
+      "seconds": 4.750646540996968
+    },
+    "tool-tests-2.json": {
+      "command": [
+        "node",
+        "--test",
+        "scripts/spending-preset-repetition.test.mjs"
+      ],
+      "exitCode": 0,
+      "seconds": 4.002517667002394
+    },
+    "tool-tests-3.json": {
+      "command": [
+        "node",
+        "--test",
+        "scripts/spending-preset-repetition.test.mjs"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 3.8084622500027763
+    },
+    "lint-result.json": {
+      "name": "lint",
+      "command": [
+        "pnpm",
+        "run",
+        "lint"
+      ],
+      "exitCode": 1,
+      "seconds": 1.6586794579925481
+    },
+    "lint-2.json": {
+      "command": [
+        "pnpm",
+        "run",
+        "lint"
+      ],
+      "exitCode": 1,
+      "seconds": 1.2684029590018326
+    },
+    "lint-3.json": {
+      "command": [
+        "pnpm",
+        "run",
+        "lint"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 9.82989125000313
+    },
+    "lint-4.json": {
+      "command": [
+        "pnpm",
+        "run",
+        "lint"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 9.76579924998805
+    },
+    "full-result.json": {
+      "name": "full",
+      "command": [
+        "pnpm",
+        "test"
+      ],
+      "exitCode": 1,
+      "seconds": 90.31784087501
+    },
+    "reference-gate.json": {
+      "command": [
+        "node",
+        "scripts/qualify-spending-preset-reference.mjs",
+        "--output",
+        "archive/evals/causal-performance-repetition-v2/reference-qualification"
+      ],
+      "exitCode": 0,
+      "seconds": 94.66188454099756
+    },
+    "dashboard.json": {
+      "command": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly/dashboard/build.mjs",
+        "--check"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.680367541994201
+    },
+    "workspace-authority.json": {
+      "command": [
+        "npm",
+        "--prefix",
+        "/Users/davidchenallio/src/graphrefly",
+        "run",
+        "authority:check:workspace"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 1.9176796669926262
+    },
+    "standalone-verifier.json": {
+      "command": [
+        "node",
+        "scripts/verify-spending-preset-repetition.mjs",
+        "archive/evals/causal-performance-repetition-v2/method-validation"
+      ],
+      "exitCode": 0,
+      "result": {
+        "validEvidence": true,
+        "rowVerdict": "inconclusive",
+        "samples": 67200,
+        "processes": 20,
+        "qualified": false
+      }
+    },
+    "diff-check.json": {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exitCode": 0
+    }
+  },
+  "freshReferenceQualification": {
+    "baselinePassedTests": 52,
+    "actualLoadedMutantsDetected": 7,
+    "runtimeBundleClosureFiles": 60,
+    "priorReferenceClosureChangedFiles": 12,
+    "priorReferenceClosureTotalFiles": 65
+  },
+  "fullSuite": {
+    "passed": 2547,
+    "failed": 2,
+    "skipped": 4,
+    "knownFailure": "Existing D159 implementation manifest drift; frozen qualification and describe/observe/run-summary reproduction",
+    "freshConformancePassed": 77,
+    "noNewTimeoutOrUnhandledError": true
+  },
+  "notRerun": [
+    "build/export",
+    "browser",
+    "soak",
+    "standalone frozen artifact gate",
+    "full formal performance matrix",
+    "CSP-11"
+  ],
+  "preserved": {
+    "oldV1Ratio": 1.211671,
+    "oldV1NotRunRows": 80,
+    "runtimePublicAPIProtocolChanged": false,
+    "oldWorkerFixturesQualificationChanged": false,
+    "preexistingDirtyRootFiles": 6
+  },
+  "limitations": [
+    "Control ratios all exceed 1.05; main interval cannot support a performance pass",
+    "Repeated-process independence and equal distribution remain assumptions",
+    "No cause attribution of copy/original discrepancy, no control-based correction",
+    "Consumer reference is not the pre-registry production revision; no registry before/after net speedup claim",
+    "Trial evidence cannot be selected into a future formal matrix",
+    "No claim of graded hiding, usability or human/agent teach-back qualification"
+  ],
+  "ownershipStatus": "delivered, not yet ownership-verified",
+  "nextCandidate": "Read-only attribution of retained control evidence, with no automatic measurement or threshold change"
+}
