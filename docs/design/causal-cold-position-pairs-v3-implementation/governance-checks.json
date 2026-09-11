@@ -1,0 +1,19 @@
+{
+	"checks": [
+		{
+			"name": "dashboard",
+			"exitCode": 0,
+			"log": "docs/design/causal-cold-position-pairs-v3-implementation/governance-dashboard.log",
+			"digest": "sha256:57d4dc2953cc9de54408eb72f73eccff702d623d1346ab401e6585a2b1275569"
+		},
+		{
+			"name": "authority",
+			"exitCode": 0,
+			"log": "docs/design/causal-cold-position-pairs-v3-implementation/governance-authority.log",
+			"digest": "sha256:8e16637781e9a0e14492b2179f94be678d01cff8709df3a238694fc865a7f544"
+		}
+	],
+	"rootPreservation": "six pre-existing dirty root files unchanged",
+	"sourcePreservation": "all 11 qualification source digests unchanged",
+	"diffCheck": "passed"
+}

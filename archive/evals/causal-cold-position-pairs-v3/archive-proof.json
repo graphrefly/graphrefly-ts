@@ -1,0 +1,12 @@
+{
+  "files": 635,
+  "uncompressedBytes": 51197507,
+  "bytes": 4794033,
+  "digest": "sha256:6e6c00fc5c6be7ab7e6ee950c7f7540d952511333af3f1b750abbe648f808799",
+  "indexDigest": "sha256:54511a0da2f563cccb10b0d7d81dd8183781b3397867de03689a1a6585a70865",
+  "allBytesVerified": true,
+  "relocatedReplayMatches": true,
+  "relocatedReplayStatus": "method-not-qualified",
+  "relocatedSamplesVerified": 96000,
+  "businessExecutedByReplay": false
+}

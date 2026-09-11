@@ -1,0 +1,37 @@
+{
+	"status": "method-not-qualified",
+	"evidenceValid": true,
+	"processes": 40,
+	"samples": 96000,
+	"panels": [
+		{
+			"panel": "Z",
+			"controlStable": false,
+			"signalPassed": false,
+			"passed": false,
+			"intervals": {
+				"first": {
+					"lower": 0.8754672864966727,
+					"point": 0.9964068150820589,
+					"upper": 1.0985124240053665
+				},
+				"second": {
+					"lower": 0.6087063428004319,
+					"point": 1.0163391481472575,
+					"upper": 1.5168629550319002
+				},
+				"T": {
+					"lower": 0.9925961997825923,
+					"point": 1.0647058544611463,
+					"upper": 1.5168629550319002
+				}
+			},
+			"mainOrderGroups": {
+				"U": [5, 6, 7, 9, 10, 12, 13, 15, 16, 17],
+				"V": [2, 3, 4, 8, 11, 14]
+			}
+		}
+	],
+	"methodQualification": false,
+	"consumerPerformanceQualification": false
+}

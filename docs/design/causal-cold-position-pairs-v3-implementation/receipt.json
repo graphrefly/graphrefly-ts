@@ -1,0 +1,126 @@
+{
+	"kind": "private cold position-paired method qualification evidence",
+	"work_ref": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"governing_refs": ["graphrefly-ts:D169", "graphrefly-ts:D168"],
+	"baseline": "739145d1",
+	"design": {
+		"path": "docs/design/causal-cold-position-pairs-v3.md",
+		"digest": "sha256:a649c371dfaa4dc78e637899d9d27fe54fd382aa0e2f4070cf10cae5ea7c82b8"
+	},
+	"approval": {
+		"path": "docs/design/causal-cold-position-pairs-v3-implementation/approval.json",
+		"digest": "sha256:e07a7d8e13d5f8428653d578713223d7860a7d5b9830e24b1339156990889664"
+	},
+	"status": "method-not-qualified",
+	"batchComplete": true,
+	"measurement": {
+		"processes": 40,
+		"pairs": 20,
+		"samples": 96000,
+		"warmup": 24000,
+		"measured": 72000,
+		"preflights": 80,
+		"preflightInstances": 240,
+		"elapsedSeconds": 68.54501149999851,
+		"retries": 0,
+		"attempted": [
+			0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+			26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39
+		],
+		"notRun": [
+			40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62,
+			63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79
+		],
+		"extraMutationInstances": 0
+	},
+	"panels": [
+		{
+			"panel": "Z",
+			"controlStable": false,
+			"signalPassed": false,
+			"passed": false,
+			"intervals": {
+				"first": {
+					"lower": 0.8754672864966727,
+					"point": 0.9964068150820589,
+					"upper": 1.0985124240053665
+				},
+				"second": {
+					"lower": 0.6087063428004319,
+					"point": 1.0163391481472575,
+					"upper": 1.5168629550319002
+				},
+				"T": {
+					"lower": 0.9925961997825923,
+					"point": 1.0647058544611463,
+					"upper": 1.5168629550319002
+				}
+			},
+			"mainOrderGroups": {
+				"U": [5, 6, 7, 9, 10, 12, 13, 15, 16, 17],
+				"V": [2, 3, 4, 8, 11, 14]
+			}
+		}
+	],
+	"failedControlPairs": [0, 1, 19],
+	"independentVerifier": {
+		"path": "docs/design/causal-cold-position-pairs-v3-implementation/verifier-result.json",
+		"digest": "sha256:379c4b9c5c746d82d19a62674d7f66c11daade1da5f2bad469ce9e21cb32eeb3"
+	},
+	"analysis": {
+		"path": "archive/evals/causal-cold-position-pairs-v3/analysis.json",
+		"digest": "sha256:54764b65f59cd3672c86b158e1dcc71e7ccdaac94a6dbbdadbd257e2446d0226"
+	},
+	"qualification": {
+		"path": "docs/design/causal-cold-position-pairs-v3-implementation/qualification.json",
+		"digest": "sha256:ce598fe4bcfea40c1133fd77440744dff08c820eb988108480c0bc7327e16c64"
+	},
+	"review": {
+		"path": "docs/design/causal-cold-position-pairs-v3-implementation/reviews.json",
+		"digest": "sha256:e8fa08cc6673c29087acc7d822a8d5e14599bd5294d74d6e13b7a10523202612"
+	},
+	"offlineChecks": {
+		"staticNegativeCases": 23,
+		"loadedDriverAndEntryCases": 23,
+		"loadedSourceMutants": 9,
+		"realAdapterOracleCases": 3,
+		"pythonTests": 8,
+		"pythonNegativeCases": 72,
+		"historicalToolRegressions": "passed",
+		"lint": "passed",
+		"fullTs": {
+			"passed": 2547,
+			"failed": 2,
+			"skipped": 4,
+			"failures": "unchanged existing D159 frozen implementation manifest",
+			"overallPassed": false
+		},
+		"staticReviewers": 2
+	},
+	"rawEvidence": {
+		"path": "archive/evals/causal-cold-position-pairs-v3/evidence.tar.gz",
+		"files": 635,
+		"uncompressedBytes": 51197507,
+		"bytes": 4794033,
+		"digest": "sha256:6e6c00fc5c6be7ab7e6ee950c7f7540d952511333af3f1b750abbe648f808799",
+		"indexDigest": "sha256:54511a0da2f563cccb10b0d7d81dd8183781b3397867de03689a1a6585a70865",
+		"allBytesVerified": true,
+		"relocatedReplayMatches": true,
+		"relocatedReplayStatus": "method-not-qualified",
+		"relocatedSamplesVerified": 96000,
+		"businessExecutedByReplay": false
+	},
+	"methodQualification": false,
+	"consumerPerformanceQualification": false,
+	"mechanisticRootCause": false,
+	"eventAssociation": "unknown: retained native clocks uncalibrated",
+	"workStatus": "incomplete",
+	"libraryChanges": false,
+	"publicApiChanges": false,
+	"protocolChanges": false,
+	"formalConsumerMatrixRun": false,
+	"externalEffects": 0,
+	"ownership": "teach-back and graded-entry ergonomics unverified",
+	"historicalEvidence": "unchanged; no pooling or reclassification",
+	"governanceGates": "dashboard and workspace authority checked before measurement; final evidence references checked separately in governance-checks.json"
+}

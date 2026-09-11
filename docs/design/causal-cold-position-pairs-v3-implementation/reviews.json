@@ -1,0 +1,25 @@
+{
+	"kind": "two independent static qa reviews",
+	"sourceReviewOnly": true,
+	"reviewers": {
+		"position_pairs_safety_review": {
+			"remainingFindings": [],
+			"resolved": [
+				"reserved preparation failure replay",
+				"zero-exit validator failure replay",
+				"dual child/wake error preservation",
+				"hidden not-run dispatch rejection",
+				"mandatory invalid-disposition failure binding"
+			]
+		},
+		"position_pairs_method_review": {
+			"remainingFindings": [],
+			"resolved": [
+				"variable-denominator estimator vector",
+				"inclusive control and strict positive endpoints",
+				"loaded outside-timer and swallowed-cleanup mutants"
+			]
+		}
+	},
+	"testsOrMeasurementsRunByReviewers": false
+}

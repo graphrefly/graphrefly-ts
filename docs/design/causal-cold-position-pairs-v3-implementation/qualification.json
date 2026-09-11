@@ -1,0 +1,46 @@
+{
+	"kind": "offline private tooling qualification; not consumer performance qualification",
+	"passed": true,
+	"designDigest": "sha256:a649c371dfaa4dc78e637899d9d27fe54fd382aa0e2f4070cf10cae5ea7c82b8",
+	"sourceDigests": {
+		"causal-position-pairs.py": "7eea9ce8368c2298e47aa789d8b6936a66e6b2705fdcce6d92ba57564862a6a7",
+		"verify-causal-position-pairs.py": "c442c2b60ecb1574250df60edcadb584d31f4c49a87083fd674abed88acd2a3e",
+		"derive-causal-position-driver.mjs": "a1e4e70fa2f34a2119b9ad4bd28e786c0e47ee42f17b015f78520912e47dc806",
+		"check-causal-position-source.mjs": "3e10ac3a4e03d062952c614649c70ca5fea7557d24a127e7d904089488b33cda",
+		"verify-causal-block-history.py": "2af562c05cb6a16ac4634e7b1024f88ee4b861c82fa61049d81412d671acc2d2",
+		"verify-causal-control-crossover.py": "5066df570c7b0cffac5137c10698e31b9ddaab333917d10fbec0264aa3f85904",
+		"causal-position-pairs.test.py": "e68fcc158cadb17e2e298c19c4053553da1c93069da98afe9469416548f46edd",
+		"causal-position-pairs.test.mjs": "90db619b8749c407b58db84a317cc5581969fcb1729746e7b50b530a751fb7f2",
+		"causal-control-crossover.py": "b60b8dc6e5bc7b7d4fe0748dd90d3f4336c5a678c0f7752ecb1d08dfd7150075",
+		"causal-block-history.py": "171d7c2d08064745066f92205c9048d69c50bdc1f76e2b81d27f897ec003bfe7",
+		"derive-causal-block-driver.mjs": "b053c025e26c8f128b3db6c45c1af67639f6870fe52e439e01e8ff398825abd4"
+	},
+	"logs": {
+		"js.log": "79e45aafd55196e837f7ec3b1508f8c3829d83acea9cb284aa69d6800c255c02",
+		"python.log": "9defeabddb0785e65de9adade88431b0f6cb59af9e87f7ccfc092c41359e4ec2",
+		"historical.log": "187d1b09ad47bc98f6335073e81a0156a8dcccec2212ab911c2d4a586e089c38",
+		"ts-suite.log": "cc04382e0b4d0c660c3437575e1760867c639b898359c014ba6358e26788621e",
+		"lint.log": "446015d2a4f4f30c0de12ef9e6b7082b25e15926ea5e533db7e96f2b104a09cf",
+		"reviews.json": "e8fa08cc6673c29087acc7d822a8d5e14599bd5294d74d6e13b7a10523202612"
+	},
+	"checks": {
+		"staticNegativeCases": 23,
+		"loadedDriverAndEntryCases": 23,
+		"loadedSourceMutants": 9,
+		"realAdapterOracleCases": 3,
+		"pythonTests": 8,
+		"pythonNegativeCases": 72,
+		"historicalToolRegressions": "passed",
+		"lint": "passed",
+		"fullTs": {
+			"passed": 2547,
+			"failed": 2,
+			"skipped": 4,
+			"failures": "unchanged existing D159 frozen implementation manifest",
+			"overallPassed": false
+		},
+		"staticReviewers": 2
+	},
+	"measurementSamples": 0,
+	"consumerPerformanceQualification": false
+}

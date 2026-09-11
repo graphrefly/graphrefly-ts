@@ -1,0 +1,25 @@
+{
+	"kind": "human execution approval",
+	"work_ref": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"governing_refs": ["graphrefly-ts:D169", "graphrefly-ts:D168"],
+	"design": "docs/design/causal-cold-position-pairs-v3.md",
+	"designDigest": "sha256:a649c371dfaa4dc78e637899d9d27fe54fd382aa0e2f4070cf10cae5ea7c82b8",
+	"designCommit": "739145d1",
+	"userText": "确认",
+	"scope": "Approved cold method adoption; section-5 private tools, offline qualification, one bounded Z/M method qualification, independent replay, archive and commit",
+	"maxProcesses": 80,
+	"maxSamples": 192000,
+	"maxSecondsPerChild": 30,
+	"maxSecondsTotal": 900,
+	"panels": ["Z", "M"],
+	"mainPairsPerPanel": 16,
+	"controlPairsPerPanel": 4,
+	"retries": 0,
+	"output": "archive/evals/causal-cold-position-pairs-v3/run",
+	"currentness": "Only this exact design and qualified source-bound single-use attempt; consumed on reservation including preparation failure",
+	"nonGoals": [
+		"Formal consumer matrix or retry",
+		"Library/public API/protocol changes",
+		"Provider/live/spend or effect execution"
+	]
+}
