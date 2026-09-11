@@ -1,0 +1,7 @@
+{
+	"passed": true,
+	"independentlyComparedGapRelations": 9552,
+	"newConsumerSamples": 0,
+	"newCaptureProcesses": 0,
+	"method": "Python gap classifier agrees with previously qualified JS relation on every within-phase gap in all four retained T processes"
+}

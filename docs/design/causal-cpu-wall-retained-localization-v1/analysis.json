@@ -1,0 +1,6495 @@
+{
+	"scope": "retained 28800 samples only; zero new capture",
+	"sourceIndexDigest": "79ba418de1bf7d1df1ae497a6f3c3926f9c01bb875533f9da3aad97876fe227b",
+	"claims": "GC-overlapping gap totals are entire mixed gap durations, not GC pause attribution; no event durations added/subtracted. Pair-check count follows frozen cleanup source and preflight topology, not a runtime counter.",
+	"jobs": [
+		{
+			"job": "00-B-U",
+			"phases": [
+				{
+					"block": 0,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 35.974500000000035,
+						"p50": 0.31412499999999,
+						"p95": 0.6357089999999914,
+						"maximum": 1.1032500000000027
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 29.06695799999997,
+						"p50": 0.2296660000000088,
+						"p95": 0.5203750000000014,
+						"maximum": 1.9339999999999975
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 0,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 95.24208600000011,
+						"p50": 0.29883350000000064,
+						"p95": 0.4199169999999981,
+						"maximum": 0.5894170000000258
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 79.28428899999992,
+						"p50": 0.22620799999998553,
+						"p95": 0.5330830000000049,
+						"maximum": 1.884916999999973
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 1,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 36.6144529999998,
+						"p50": 0.3185414999999807,
+						"p95": 0.6301249999999641,
+						"maximum": 0.9781250000000341
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 27.99367200000023,
+						"p50": 0.23337500000002365,
+						"p95": 0.5653749999999604,
+						"maximum": 0.8272499999999923
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 1,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 92.0160970000008,
+						"p50": 0.2871040000000562,
+						"p95": 0.41545800000005784,
+						"maximum": 0.8715000000000259
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 74.39015299999915,
+						"p50": 0.20554200000003675,
+						"p95": 0.43654199999997445,
+						"maximum": 4.144540999999947
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 2,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 28.128284999999778,
+						"p50": 0.27154149999995525,
+						"p95": 0.3311660000000529,
+						"maximum": 0.4402499999999918
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 21.521340000000237,
+						"p50": 0.1895830000000842,
+						"p95": 0.29033300000003237,
+						"maximum": 0.6985839999999826
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 2,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 82.46107799999982,
+						"p50": 0.2625204999999937,
+						"p95": 0.3387089999999944,
+						"maximum": 0.48254100000008293
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 67.06700600000022,
+						"p50": 0.19812500000000455,
+						"p95": 0.2980000000000018,
+						"maximum": 1.2086249999999836
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 3,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 30.5287900000003,
+						"p50": 0.28843700000004446,
+						"p95": 0.4009170000000495,
+						"maximum": 0.5584160000000793
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 25.38825099999974,
+						"p50": 0.20337500000005093,
+						"p95": 0.3210000000000264,
+						"maximum": 3.260167000000024
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 3,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 80.61337799999842,
+						"p50": 0.26075050000002875,
+						"p95": 0.33808299999998326,
+						"maximum": 0.44574999999997544
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 63.882456000001525,
+						"p50": 0.18879200000003493,
+						"p95": 0.3011659999999665,
+						"maximum": 0.7142920000000004
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 4,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 28.556913000000463,
+						"p50": 0.2780414999999721,
+						"p95": 0.34483399999999165,
+						"maximum": 0.4982910000001084
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 24.090502999999444,
+						"p50": 0.22754200000008495,
+						"p95": 0.3208750000001146,
+						"maximum": 0.791582999999946
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 4,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 88.00466800000049,
+						"p50": 0.2763545000000249,
+						"p95": 0.4156669999999849,
+						"maximum": 0.8751670000001468
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 75.35304099999962,
+						"p50": 0.21125000000006366,
+						"p95": 0.35612499999979264,
+						"maximum": 4.285041999999976
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 5,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 28.98512900000037,
+						"p50": 0.27443750000009004,
+						"p95": 0.37941700000010314,
+						"maximum": 0.7752909999999247
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 20.981328999999505,
+						"p50": 0.19158300000003692,
+						"p95": 0.2842080000000351,
+						"maximum": 1.1965419999999085
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 5,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 76.52276900000084,
+						"p50": 0.24845849999996972,
+						"p95": 0.2958329999999023,
+						"maximum": 0.4259999999999309
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 60.53048099999933,
+						"p50": 0.18145800000002055,
+						"p95": 0.27166600000009566,
+						"maximum": 1.1137080000000878
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				}
+			],
+			"releaseNodes": 60,
+			"staticPairChecksPerCleanup": 3540,
+			"staticPairChecksFor2400Cleanups": 8496000
+		},
+		{
+			"job": "01-Q-V",
+			"phases": [
+				{
+					"block": 0,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 37.48557699999995,
+						"p50": 0.321708000000001,
+						"p95": 0.720041000000009,
+						"maximum": 1.1216670000000022
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 31.57800700000007,
+						"p50": 0.24504199999998377,
+						"p95": 0.6162499999999795,
+						"maximum": 2.101875000000007
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 0,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 92.59271299999983,
+						"p50": 0.2923749999999927,
+						"p95": 0.39674999999999727,
+						"maximum": 0.6170000000000186
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 83.75374600000015,
+						"p50": 0.23849999999998772,
+						"p95": 0.590625000000017,
+						"maximum": 1.93504200000001
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 1,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 36.54166700000036,
+						"p50": 0.3222915000000057,
+						"p95": 0.6375830000000065,
+						"maximum": 1.0218750000000227
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 28.41345799999965,
+						"p50": 0.24541599999997743,
+						"p95": 0.55925000000002,
+						"maximum": 0.9769590000000221
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 1,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 92.45662500000145,
+						"p50": 0.29593749999997954,
+						"p95": 0.40104199999996126,
+						"maximum": 0.5634579999999687
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 76.07504099999852,
+						"p50": 0.2151249999999436,
+						"p95": 0.44337499999994634,
+						"maximum": 2.2636249999999336
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 2,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 28.043495999999664,
+						"p50": 0.26912449999997534,
+						"p95": 0.33904199999994944,
+						"maximum": 0.3867079999999987
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 21.70729600000027,
+						"p50": 0.19737499999996544,
+						"p95": 0.2823750000000018,
+						"maximum": 0.6989589999999453
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 2,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 84.74700000000087,
+						"p50": 0.2696460000000229,
+						"p95": 0.36512500000003456,
+						"maximum": 0.42537499999991724
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 71.01362499999914,
+						"p50": 0.20587499999999181,
+						"p95": 0.3385000000000673,
+						"maximum": 0.9334590000000844
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 3,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 31.623580000000857,
+						"p50": 0.2969590000000153,
+						"p95": 0.40949999999998,
+						"maximum": 0.5433749999999691
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 24.293502999999077,
+						"p50": 0.2195000000000391,
+						"p95": 0.3024169999999913,
+						"maximum": 0.7848340000000462
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 3,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 88.31270700000175,
+						"p50": 0.28264599999999973,
+						"p95": 0.37333300000000236,
+						"maximum": 0.5359580000000506
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 73.66575099999818,
+						"p50": 0.22199999999998,
+						"p95": 0.32833400000004076,
+						"maximum": 1.0173750000000155
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 4,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 29.008996999999454,
+						"p50": 0.2814374999999245,
+						"p95": 0.36458300000003874,
+						"maximum": 0.4086250000000291
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 23.326170000000502,
+						"p50": 0.2179159999998319,
+						"p95": 0.313666000000012,
+						"maximum": 0.7383750000001328
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 4,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 93.33809499999916,
+						"p50": 0.3017500000000837,
+						"p95": 0.41712500000016917,
+						"maximum": 0.785082999999986
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 77.0941140000009,
+						"p50": 0.2192499999998745,
+						"p95": 0.3327079999999114,
+						"maximum": 3.3141250000001037
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 5,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 30.539833000000726,
+						"p50": 0.2912499999999909,
+						"p95": 0.3974169999999049,
+						"maximum": 0.8033339999999498
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 23.32962499999917,
+						"p50": 0.20691699999997581,
+						"p95": 0.31245800000010604,
+						"maximum": 1.2304999999998927
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 5,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 87.2300870000015,
+						"p50": 0.2782710000000179,
+						"p95": 0.3703330000000733,
+						"maximum": 0.43524999999999636
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 65.9474549999984,
+						"p50": 0.20062499999994543,
+						"p95": 0.28833400000007714,
+						"maximum": 1.0472919999999704
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				}
+			],
+			"releaseNodes": 60,
+			"staticPairChecksPerCleanup": 3540,
+			"staticPairChecksFor2400Cleanups": 8496000
+		},
+		{
+			"job": "02-T-U",
+			"phases": [
+				{
+					"block": 0,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 46.67317500000024,
+						"p50": 0.3521250000000009,
+						"p95": 1.1259589999999946,
+						"maximum": 3.116000000000014
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 112.40682499999977,
+						"p50": 0.27870900000004895,
+						"p95": 4.089292,
+						"maximum": 44.08016700000002
+					},
+					"gcOverlappingGaps": {
+						"n": 13,
+						"totalMs": 23.41745700000004,
+						"p50": 0.6324160000000347,
+						"p95": 8.814333000000005,
+						"maximum": 8.814333000000005
+					},
+					"noSupportedOverlapGaps": {
+						"n": 86,
+						"totalMs": 88.98936799999973,
+						"p50": 0.25543699999997216,
+						"p95": 3.4770420000000115,
+						"maximum": 44.08016700000002
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 0,
+							"ms": 2.1962500000000205,
+							"gc": [52],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 7,
+							"ms": 8.814333000000005,
+							"gc": [53],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 14,
+							"ms": 1.032624999999996,
+							"gc": [54],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 21,
+							"ms": 6.090624999999989,
+							"gc": [55],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 29,
+							"ms": 0.610040999999967,
+							"gc": [56],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 36,
+							"ms": 0.5555840000000103,
+							"gc": [57],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 44,
+							"ms": 0.6744170000000054,
+							"gc": [58],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 52,
+							"ms": 0.6737079999999764,
+							"gc": [59],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 59,
+							"ms": 0.5500000000000114,
+							"gc": [60],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 67,
+							"ms": 0.5631250000000136,
+							"gc": [61],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 75,
+							"ms": 0.6324160000000347,
+							"gc": [62],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 83,
+							"ms": 0.4587500000000091,
+							"gc": [63],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 91,
+							"ms": 0.5655830000000037,
+							"gc": [64],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 0,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 96.63812000000019,
+						"p50": 0.29877100000001633,
+						"p95": 0.42604199999999537,
+						"maximum": 1.1712079999999787
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 86.55421299999978,
+						"p50": 0.24195900000000847,
+						"p95": 0.5892499999999927,
+						"maximum": 1.8236670000000004
+					},
+					"gcOverlappingGaps": {
+						"n": 23,
+						"totalMs": 15.42999999999978,
+						"p50": 0.5922089999999685,
+						"p95": 0.9571669999999699,
+						"maximum": 1.8236670000000004
+					},
+					"noSupportedOverlapGaps": {
+						"n": 276,
+						"totalMs": 71.124213,
+						"p50": 0.23554150000001073,
+						"p95": 0.3958329999999819,
+						"maximum": 0.9867920000000368
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 107,
+							"ms": 0.5589159999999538,
+							"gc": [66],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 115,
+							"ms": 0.6745420000000308,
+							"gc": [67],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 123,
+							"ms": 0.48333399999995663,
+							"gc": [68],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 131,
+							"ms": 0.471541000000002,
+							"gc": [69],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 139,
+							"ms": 0.4517500000000041,
+							"gc": [70],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 147,
+							"ms": 0.4127080000000092,
+							"gc": [71],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 155,
+							"ms": 0.47916600000002063,
+							"gc": [72],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 163,
+							"ms": 1.8236670000000004,
+							"gc": [73],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 178,
+							"ms": 0.8342920000000049,
+							"gc": [74],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 193,
+							"ms": 0.6722499999999627,
+							"gc": [77],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 208,
+							"ms": 0.5821659999999724,
+							"gc": [78],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 223,
+							"ms": 0.532792000000029,
+							"gc": [79],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 238,
+							"ms": 0.5892499999999927,
+							"gc": [80],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 253,
+							"ms": 0.6023329999999874,
+							"gc": [81],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 268,
+							"ms": 0.5977919999999699,
+							"gc": [82],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 283,
+							"ms": 0.5220829999999523,
+							"gc": [83],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 298,
+							"ms": 0.9364579999999592,
+							"gc": [84],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 313,
+							"ms": 0.9571669999999699,
+							"gc": [85],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 328,
+							"ms": 0.5694169999999872,
+							"gc": [86],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 343,
+							"ms": 0.62175000000002,
+							"gc": [87],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 359,
+							"ms": 0.6501670000000104,
+							"gc": [88],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 375,
+							"ms": 0.5922089999999685,
+							"gc": [91],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 391,
+							"ms": 0.8142500000000155,
+							"gc": [92],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 1,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 42.374334000000545,
+						"p50": 0.3612499999999841,
+						"p95": 0.7795830000000024,
+						"maximum": 1.11933300000004
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 41.855207999999436,
+						"p50": 0.3180419999999913,
+						"p95": 0.882541999999944,
+						"maximum": 2.1784169999999676
+					},
+					"gcOverlappingGaps": {
+						"n": 7,
+						"totalMs": 5.897332999999946,
+						"p50": 0.7649999999999864,
+						"p95": 1.096541000000002,
+						"maximum": 1.096541000000002
+					},
+					"noSupportedOverlapGaps": {
+						"n": 92,
+						"totalMs": 35.95787499999949,
+						"p50": 0.30583350000000564,
+						"p95": 0.7635000000000218,
+						"maximum": 2.1784169999999676
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 6,
+							"ms": 0.9959580000000301,
+							"gc": [93],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 21,
+							"ms": 0.7585419999999203,
+							"gc": [94],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 36,
+							"ms": 1.096541000000002,
+							"gc": [95],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 51,
+							"ms": 0.7649999999999864,
+							"gc": [96],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 66,
+							"ms": 0.6999999999999318,
+							"gc": [97],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 81,
+							"ms": 0.7263340000000653,
+							"gc": [98],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 96,
+							"ms": 0.8549580000000105,
+							"gc": [99],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 1,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 100.43204599999979,
+						"p50": 0.30993749999998954,
+						"p95": 0.47708399999999074,
+						"maximum": 0.7289580000000342
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 87.61399600000027,
+						"p50": 0.2410419999999931,
+						"p95": 0.5700829999999542,
+						"maximum": 2.284582999999998
+					},
+					"gcOverlappingGaps": {
+						"n": 14,
+						"totalMs": 13.787748999999735,
+						"p50": 0.8137709999999743,
+						"p95": 2.284582999999998,
+						"maximum": 2.284582999999998
+					},
+					"noSupportedOverlapGaps": {
+						"n": 285,
+						"totalMs": 73.82624700000054,
+						"p50": 0.2362910000000511,
+						"p95": 0.3870000000000573,
+						"maximum": 0.7542079999999487
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 111,
+							"ms": 0.8576669999999922,
+							"gc": [100],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 126,
+							"ms": 0.6518330000000105,
+							"gc": [101],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 141,
+							"ms": 0.5378749999999854,
+							"gc": [102],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 156,
+							"ms": 0.7929169999999885,
+							"gc": [103],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 171,
+							"ms": 0.7002919999999904,
+							"gc": [104],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 186,
+							"ms": 1.117166999999995,
+							"gc": [107],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 202,
+							"ms": 0.76724999999999,
+							"gc": [108],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 218,
+							"ms": 2.284582999999998,
+							"gc": [109],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 222,
+							"ms": 1.757874999999899,
+							"gc": [110],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 254,
+							"ms": 0.9633750000000418,
+							"gc": [111],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 285,
+							"ms": 1.0204159999999547,
+							"gc": [112],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 316,
+							"ms": 0.7143330000000105,
+							"gc": [113],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 347,
+							"ms": 0.83462499999996,
+							"gc": [114],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 378,
+							"ms": 0.7875409999999192,
+							"gc": [117],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 2,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 29.194171999998844,
+						"p50": 0.27141699999998536,
+						"p95": 0.39570800000001327,
+						"maximum": 0.49745899999993526
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 24.289245000001074,
+						"p50": 0.21612500000003365,
+						"p95": 0.35266599999999926,
+						"maximum": 0.8180419999999913
+					},
+					"gcOverlappingGaps": {
+						"n": 3,
+						"totalMs": 2.316167999999948,
+						"p50": 0.7642089999999371,
+						"p95": 0.8180419999999913,
+						"maximum": 0.8180419999999913
+					},
+					"noSupportedOverlapGaps": {
+						"n": 96,
+						"totalMs": 21.973077000001126,
+						"p50": 0.21487500000000637,
+						"p95": 0.32333300000004783,
+						"maximum": 0.39362500000004275
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 9,
+							"ms": 0.8180419999999913,
+							"gc": [118],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 40,
+							"ms": 0.7339170000000195,
+							"gc": [119],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 71,
+							"ms": 0.7642089999999371,
+							"gc": [120],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 2,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 84.46970500000054,
+						"p50": 0.26737500000001546,
+						"p95": 0.37145799999996143,
+						"maximum": 0.48820899999998346
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 73.3397119999994,
+						"p50": 0.21629199999995308,
+						"p95": 0.3527920000000222,
+						"maximum": 0.9878750000000309
+					},
+					"gcOverlappingGaps": {
+						"n": 10,
+						"totalMs": 8.108417000000031,
+						"p50": 0.7768335000000093,
+						"p95": 0.9878750000000309,
+						"maximum": 0.9878750000000309
+					},
+					"noSupportedOverlapGaps": {
+						"n": 289,
+						"totalMs": 65.23129499999936,
+						"p50": 0.2156249999999318,
+						"p95": 0.3060839999999416,
+						"maximum": 0.3921669999999722
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 102,
+							"ms": 0.7847079999999096,
+							"gc": [121],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 133,
+							"ms": 0.7693750000000819,
+							"gc": [122],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 165,
+							"ms": 0.7374999999999545,
+							"gc": [123],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 197,
+							"ms": 0.9399170000000368,
+							"gc": [124],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 229,
+							"ms": 0.7322080000000142,
+							"gc": [127],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 261,
+							"ms": 0.7466670000000022,
+							"gc": [128],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 293,
+							"ms": 0.9878750000000309,
+							"gc": [129],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 325,
+							"ms": 0.8594580000000178,
+							"gc": [130],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 358,
+							"ms": 0.7842919999999367,
+							"gc": [131],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 391,
+							"ms": 0.7664170000000468,
+							"gc": [132],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 3,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 33.61362900000006,
+						"p50": 0.3218540000000303,
+						"p95": 0.41362500000002456,
+						"maximum": 0.5326659999999492
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 26.678495999999996,
+						"p50": 0.2476249999999709,
+						"p95": 0.3548749999999927,
+						"maximum": 0.89487500000007
+					},
+					"gcOverlappingGaps": {
+						"n": 3,
+						"totalMs": 2.4177919999998494,
+						"p50": 0.8378339999999298,
+						"p95": 0.89487500000007,
+						"maximum": 0.89487500000007
+					},
+					"noSupportedOverlapGaps": {
+						"n": 96,
+						"totalMs": 24.260704000000146,
+						"p50": 0.24570799999997917,
+						"p95": 0.3370830000000069,
+						"maximum": 0.39887499999997544
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 22,
+							"ms": 0.89487500000007,
+							"gc": [133],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 53,
+							"ms": 0.8378339999999298,
+							"gc": [134],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 84,
+							"ms": 0.6850829999998496,
+							"gc": [135],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 3,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 85.93258899999955,
+						"p50": 0.2804589999999507,
+						"p95": 0.3470829999998841,
+						"maximum": 0.5537500000000364
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 70.58932800000048,
+						"p50": 0.21658400000001166,
+						"p95": 0.3288749999999254,
+						"maximum": 0.7349169999999958
+					},
+					"gcOverlappingGaps": {
+						"n": 9,
+						"totalMs": 6.20595800000001,
+						"p50": 0.6789159999998446,
+						"p95": 0.7349169999999958,
+						"maximum": 0.7349169999999958
+					},
+					"noSupportedOverlapGaps": {
+						"n": 290,
+						"totalMs": 64.38337000000047,
+						"p50": 0.21414549999997234,
+						"p95": 0.28920800000014424,
+						"maximum": 0.3870839999999589
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 115,
+							"ms": 0.6754169999999249,
+							"gc": [136],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 146,
+							"ms": 0.7135000000000673,
+							"gc": [137],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 177,
+							"ms": 0.7252920000000813,
+							"gc": [138],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 208,
+							"ms": 0.71612499999992,
+							"gc": [139],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 239,
+							"ms": 0.6789159999998446,
+							"gc": [140],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 270,
+							"ms": 0.6586250000000291,
+							"gc": [141],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 302,
+							"ms": 0.6484580000001188,
+							"gc": [142],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 335,
+							"ms": 0.7349169999999958,
+							"gc": [143],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 368,
+							"ms": 0.6547080000000278,
+							"gc": [144],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 4,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 28.13213000000019,
+						"p50": 0.27214600000002065,
+						"p95": 0.3356669999998303,
+						"maximum": 0.3784579999999096
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 22.203535999999986,
+						"p50": 0.20720799999980954,
+						"p95": 0.28766700000005585,
+						"maximum": 0.7464579999998477
+					},
+					"gcOverlappingGaps": {
+						"n": 3,
+						"totalMs": 2.045624000000089,
+						"p50": 0.652958000000126,
+						"p95": 0.7464579999998477,
+						"maximum": 0.7464579999998477
+					},
+					"noSupportedOverlapGaps": {
+						"n": 96,
+						"totalMs": 20.157911999999897,
+						"p50": 0.20518749999996544,
+						"p95": 0.2743749999999636,
+						"maximum": 0.2899999999999636
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 1,
+							"ms": 0.7464579999998477,
+							"gc": [145],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 34,
+							"ms": 0.6462080000001151,
+							"gc": [146],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 67,
+							"ms": 0.652958000000126,
+							"gc": [147],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 4,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 87.5033199999998,
+						"p50": 0.2765629999998964,
+						"p95": 0.39020899999991343,
+						"maximum": 0.8401249999999436
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 70.49151300000017,
+						"p50": 0.20029199999999037,
+						"p95": 0.28845799999999144,
+						"maximum": 3.6319160000000466
+					},
+					"gcOverlappingGaps": {
+						"n": 7,
+						"totalMs": 10.364333000000215,
+						"p50": 1.1873749999999745,
+						"p95": 3.6319160000000466,
+						"maximum": 3.6319160000000466
+					},
+					"noSupportedOverlapGaps": {
+						"n": 292,
+						"totalMs": 60.12717999999995,
+						"p50": 0.19831250000004275,
+						"p95": 0.26708399999984067,
+						"maximum": 0.3997910000000502
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 100,
+							"ms": 0.6467079999999896,
+							"gc": [148],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 133,
+							"ms": 3.6319160000000466,
+							"gc": [149],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 137,
+							"ms": 1.5818750000000819,
+							"gc": [150],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 203,
+							"ms": 1.2693340000000717,
+							"gc": [151],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 268,
+							"ms": 1.1873749999999745,
+							"gc": [152],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 333,
+							"ms": 1.0709170000000086,
+							"gc": [153],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 398,
+							"ms": 0.9762080000000424,
+							"gc": [154],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 5,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 27.653462000000218,
+						"p50": 0.25937499999997726,
+						"p95": 0.33920899999998255,
+						"maximum": 0.7905419999999594
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 20.548579999999674,
+						"p50": 0.18862500000000182,
+						"p95": 0.27404100000012477,
+						"maximum": 0.9725000000000819
+					},
+					"gcOverlappingGaps": {
+						"n": 1,
+						"totalMs": 0.9725000000000819,
+						"p50": 0.9725000000000819,
+						"p95": 0.9725000000000819,
+						"maximum": 0.9725000000000819
+					},
+					"noSupportedOverlapGaps": {
+						"n": 98,
+						"totalMs": 19.576079999999592,
+						"p50": 0.18810400000006666,
+						"p95": 0.2630419999998139,
+						"maximum": 0.3290830000000824
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 63,
+							"ms": 0.9725000000000819,
+							"gc": [155],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 5,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 79.17433900000219,
+						"p50": 0.25545850000003156,
+						"p95": 0.3090420000000904,
+						"maximum": 0.5072500000001128
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 60.659327999997686,
+						"p50": 0.18229199999996126,
+						"p95": 0.2868750000000091,
+						"maximum": 0.987083999999868
+					},
+					"gcOverlappingGaps": {
+						"n": 5,
+						"totalMs": 4.8378769999997076,
+						"p50": 0.9659999999998945,
+						"p95": 0.987083999999868,
+						"maximum": 0.987083999999868
+					},
+					"noSupportedOverlapGaps": {
+						"n": 294,
+						"totalMs": 55.82145099999798,
+						"p50": 0.1820829999999205,
+						"p95": 0.247916000000032,
+						"maximum": 0.37220800000000054
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 128,
+							"ms": 0.945459000000028,
+							"gc": [156],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 193,
+							"ms": 0.987083999999868,
+							"gc": [157],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 258,
+							"ms": 0.9770419999999831,
+							"gc": [158],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 323,
+							"ms": 0.962291999999934,
+							"gc": [159],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 388,
+							"ms": 0.9659999999998945,
+							"gc": [160],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				}
+			],
+			"releaseNodes": 60,
+			"staticPairChecksPerCleanup": 3540,
+			"staticPairChecksFor2400Cleanups": 8496000
+		},
+		{
+			"job": "03-B-V",
+			"phases": [
+				{
+					"block": 0,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 42.06879500000002,
+						"p50": 0.37499950000000126,
+						"p95": 0.7160829999999976,
+						"maximum": 1.3583329999999876
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 37.019497,
+						"p50": 0.30483300000000213,
+						"p95": 0.7270000000000039,
+						"maximum": 2.0478339999999946
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 0,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 99.91874500000029,
+						"p50": 0.3087294999999983,
+						"p95": 0.4462090000000103,
+						"maximum": 1.1781670000000304
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 92.92375499999972,
+						"p50": 0.2574999999999932,
+						"p95": 0.6152920000000108,
+						"maximum": 2.6738749999999527
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 1,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 37.205161999999916,
+						"p50": 0.32979199999999764,
+						"p95": 0.6784579999999778,
+						"maximum": 0.9333750000000123
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 30.10142200000007,
+						"p50": 0.25324999999998,
+						"p95": 0.6003749999999854,
+						"maximum": 0.9803749999999809
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 1,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 99.14120599999899,
+						"p50": 0.31483299999999304,
+						"p95": 0.43695900000000165,
+						"maximum": 0.6430420000000368
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 91.49483500000093,
+						"p50": 0.231708000000026,
+						"p95": 0.735834000000068,
+						"maximum": 2.7051250000000664
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 2,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 29.976039999999784,
+						"p50": 0.2853954999999928,
+						"p95": 0.3716660000000047,
+						"maximum": 0.4359999999999218
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 29.88250100000016,
+						"p50": 0.2087499999998954,
+						"p95": 0.8548330000000988,
+						"maximum": 2.805417000000034
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 2,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 83.24186999999984,
+						"p50": 0.26862499999992906,
+						"p95": 0.33954099999994014,
+						"maximum": 0.40458300000000236
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 68.33713000000012,
+						"p50": 0.20529099999998834,
+						"p95": 0.3122090000000526,
+						"maximum": 0.7902920000000222
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 3,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 29.78287400000022,
+						"p50": 0.2808120000000258,
+						"p95": 0.40637500000002547,
+						"maximum": 0.5180420000000368
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 23.027750999999853,
+						"p50": 0.2055000000000291,
+						"p95": 0.33779100000003837,
+						"maximum": 0.7113339999999653
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 3,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 82.69616200000007,
+						"p50": 0.26410400000003165,
+						"p95": 0.3479170000000522,
+						"maximum": 0.4079580000000078
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 67.35200499999985,
+						"p50": 0.20091600000000653,
+						"p95": 0.324416000000042,
+						"maximum": 0.8642500000000837
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 4,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 28.70095799999899,
+						"p50": 0.2702289999999721,
+						"p95": 0.3835830000000442,
+						"maximum": 0.5070839999998498
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 27.652500000001055,
+						"p50": 0.20449999999982538,
+						"p95": 0.4405829999998332,
+						"maximum": 3.8887090000000626
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 4,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 84.92012099999897,
+						"p50": 0.2688335000000279,
+						"p95": 0.35991599999988466,
+						"maximum": 0.7664170000000468
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 63.310046000000966,
+						"p50": 0.19079200000010132,
+						"p95": 0.27033300000016425,
+						"maximum": 1.2352919999998448
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 5,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 28.431002000001627,
+						"p50": 0.2658129999999801,
+						"p95": 0.37658299999998235,
+						"maximum": 0.718375000000151
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 21.006163999998307,
+						"p50": 0.18345799999997325,
+						"p95": 0.2846249999997781,
+						"maximum": 1.089708999999857
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 5,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 79.9680810000009,
+						"p50": 0.25789549999990413,
+						"p95": 0.3149580000001606,
+						"maximum": 0.48499999999989996
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 59.11512699999912,
+						"p50": 0.17679100000009385,
+						"p95": 0.2620839999999589,
+						"maximum": 0.9636250000000928
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				}
+			],
+			"releaseNodes": 60,
+			"staticPairChecksPerCleanup": 3540,
+			"staticPairChecksFor2400Cleanups": 8496000
+		},
+		{
+			"job": "04-Q-U",
+			"phases": [
+				{
+					"block": 0,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 37.35813000000016,
+						"p50": 0.3263125000000002,
+						"p95": 0.6716669999999851,
+						"maximum": 1.0749160000000018
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 31.208244999999835,
+						"p50": 0.2505419999999958,
+						"p95": 0.5864579999999933,
+						"maximum": 1.8584170000000029
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 0,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 94.71555099999915,
+						"p50": 0.29843699999999274,
+						"p95": 0.4227920000000154,
+						"maximum": 0.5948750000000018
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 80.95165700000086,
+						"p50": 0.23212499999999636,
+						"p95": 0.5520840000000362,
+						"maximum": 1.747208999999998
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 1,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 37.14274800000004,
+						"p50": 0.327021000000002,
+						"p95": 0.6606669999999895,
+						"maximum": 1.063874999999996
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 29.138334999999927,
+						"p50": 0.24166600000000926,
+						"p95": 0.6462089999999989,
+						"maximum": 0.7847079999999664
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 1,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 90.27971599999887,
+						"p50": 0.28754199999997354,
+						"p95": 0.3850410000000011,
+						"maximum": 0.4988749999999982
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 73.96886700000107,
+						"p50": 0.2071250000000191,
+						"p95": 0.5438750000000141,
+						"maximum": 2.131791000000021
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 2,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 27.822169000000486,
+						"p50": 0.26625000000001364,
+						"p95": 0.35695799999996325,
+						"maximum": 0.4309170000000222
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 21.400455999999508,
+						"p50": 0.19129199999997581,
+						"p95": 0.32162500000004,
+						"maximum": 0.8646669999999403
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 2,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 82.80722000000071,
+						"p50": 0.2647084999999265,
+						"p95": 0.34970800000007785,
+						"maximum": 0.43754100000001017
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 66.70952999999929,
+						"p50": 0.1947499999999991,
+						"p95": 0.2975829999999178,
+						"maximum": 0.9420420000000149
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 3,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 30.645794000000137,
+						"p50": 0.2868960000000129,
+						"p95": 0.4357079999999769,
+						"maximum": 0.49604199999998855
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 23.096372999999858,
+						"p50": 0.2141669999999749,
+						"p95": 0.29445799999996325,
+						"maximum": 0.7355000000000018
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 3,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 81.3112509999994,
+						"p50": 0.261271000000022,
+						"p95": 0.33312499999999545,
+						"maximum": 0.40733299999999417
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 65.15266600000052,
+						"p50": 0.1947499999999991,
+						"p95": 0.2958329999999023,
+						"maximum": 0.7636250000000473
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 4,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 26.7118349999987,
+						"p50": 0.2616249999999809,
+						"p95": 0.3133749999999509,
+						"maximum": 0.353458000000046
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 21.417832000001226,
+						"p50": 0.19129199999997581,
+						"p95": 0.3216660000000502,
+						"maximum": 0.7807920000000195
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 4,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 84.8641369999998,
+						"p50": 0.26604199999997036,
+						"p95": 0.3701249999999163,
+						"maximum": 0.7918750000001182
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 68.93803000000003,
+						"p50": 0.19116699999995035,
+						"p95": 0.2983750000000782,
+						"maximum": 3.6442500000000564
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 5,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 28.57862299999715,
+						"p50": 0.27289599999994607,
+						"p95": 0.3482089999999971,
+						"maximum": 0.7484580000000278
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 20.48904400000265,
+						"p50": 0.1871249999999236,
+						"p95": 0.2825000000000273,
+						"maximum": 1.0263750000001437
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 5,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 78.7620870000012,
+						"p50": 0.25491699999997763,
+						"p95": 0.31674999999995634,
+						"maximum": 0.4394999999999527
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 58.43974699999876,
+						"p50": 0.17458299999998417,
+						"p95": 0.2608749999999418,
+						"maximum": 1.0243749999999636
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				}
+			],
+			"releaseNodes": 60,
+			"staticPairChecksPerCleanup": 3540,
+			"staticPairChecksFor2400Cleanups": 8496000
+		},
+		{
+			"job": "05-T-V",
+			"phases": [
+				{
+					"block": 0,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 36.75161700000024,
+						"p50": 0.3144580000000019,
+						"p95": 0.7019579999999905,
+						"maximum": 1.1194580000000087
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 30.337340999999753,
+						"p50": 0.24166699999997832,
+						"p95": 0.5687089999999841,
+						"maximum": 1.9374579999999924
+					},
+					"gcOverlappingGaps": {
+						"n": 14,
+						"totalMs": 8.473711999999978,
+						"p50": 0.48679200000000833,
+						"p95": 1.9374579999999924,
+						"maximum": 1.9374579999999924
+					},
+					"noSupportedOverlapGaps": {
+						"n": 85,
+						"totalMs": 21.863628999999776,
+						"p50": 0.23374999999998636,
+						"p95": 0.4170830000000194,
+						"maximum": 0.672791999999987
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 0,
+							"ms": 1.9374579999999924,
+							"gc": [52],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 7,
+							"ms": 0.744499999999988,
+							"gc": [53],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 14,
+							"ms": 0.516791000000012,
+							"gc": [54],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 21,
+							"ms": 0.488584000000003,
+							"gc": [55],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 29,
+							"ms": 0.5662089999999864,
+							"gc": [56],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 37,
+							"ms": 0.48500000000001364,
+							"gc": [57],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 44,
+							"ms": 0.5687089999999841,
+							"gc": [58],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 52,
+							"ms": 0.43054200000000264,
+							"gc": [59],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 59,
+							"ms": 0.5154170000000136,
+							"gc": [60],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 67,
+							"ms": 0.41670799999999986,
+							"gc": [61],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 74,
+							"ms": 0.43083399999997596,
+							"gc": [62],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 82,
+							"ms": 0.4812090000000069,
+							"gc": [63],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 90,
+							"ms": 0.4607090000000085,
+							"gc": [64],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 98,
+							"ms": 0.4310419999999908,
+							"gc": [65],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 0,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 91.56417399999998,
+						"p50": 0.28708299999999554,
+						"p95": 0.40920799999997826,
+						"maximum": 0.6229169999999726
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 77.32190900000003,
+						"p50": 0.21966599999996106,
+						"p95": 0.5541660000000093,
+						"maximum": 1.9975839999999891
+					},
+					"gcOverlappingGaps": {
+						"n": 24,
+						"totalMs": 14.946832999999856,
+						"p50": 0.5730205000000126,
+						"p95": 0.8181659999999624,
+						"maximum": 1.9975839999999891
+					},
+					"noSupportedOverlapGaps": {
+						"n": 275,
+						"totalMs": 62.37507600000018,
+						"p50": 0.21495900000002166,
+						"p95": 0.30412500000005593,
+						"maximum": 0.4434590000000185
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 106,
+							"ms": 0.4226250000000107,
+							"gc": [66],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 114,
+							"ms": 0.5114170000000229,
+							"gc": [67],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 122,
+							"ms": 0.48345800000001304,
+							"gc": [68],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 130,
+							"ms": 0.4230000000000018,
+							"gc": [69],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 138,
+							"ms": 0.44862500000002115,
+							"gc": [70],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 146,
+							"ms": 0.48449999999999704,
+							"gc": [71],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 154,
+							"ms": 0.40699999999998226,
+							"gc": [72],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 162,
+							"ms": 0.4148339999999848,
+							"gc": [73],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 170,
+							"ms": 1.9975839999999891,
+							"gc": [74],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 185,
+							"ms": 0.6572500000000332,
+							"gc": [77],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 200,
+							"ms": 0.789291999999989,
+							"gc": [78],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 215,
+							"ms": 0.6185829999999441,
+							"gc": [79],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 230,
+							"ms": 0.5740410000000224,
+							"gc": [80],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 245,
+							"ms": 0.587333000000001,
+							"gc": [81],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 260,
+							"ms": 0.5363749999999641,
+							"gc": [82],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 275,
+							"ms": 0.5720000000000027,
+							"gc": [83],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 290,
+							"ms": 0.5921670000000177,
+							"gc": [84],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 305,
+							"ms": 0.6034579999999892,
+							"gc": [85],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 320,
+							"ms": 0.5584589999999707,
+							"gc": [86],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 335,
+							"ms": 0.5541660000000093,
+							"gc": [87],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 350,
+							"ms": 0.8181659999999624,
+							"gc": [88],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 366,
+							"ms": 0.5928749999999923,
+							"gc": [89],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 382,
+							"ms": 0.6706249999999727,
+							"gc": [92],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 398,
+							"ms": 0.6289999999999623,
+							"gc": [93],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 1,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 36.38633400000009,
+						"p50": 0.3222499999999968,
+						"p95": 0.6822500000000105,
+						"maximum": 0.9231669999999781
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 27.717957999999896,
+						"p50": 0.23320799999999053,
+						"p95": 0.5458749999999668,
+						"maximum": 0.8419999999999845
+					},
+					"gcOverlappingGaps": {
+						"n": 6,
+						"totalMs": 3.7989169999999604,
+						"p50": 0.5844789999999875,
+						"p95": 0.8419999999999845,
+						"maximum": 0.8419999999999845
+					},
+					"noSupportedOverlapGaps": {
+						"n": 93,
+						"totalMs": 23.919040999999936,
+						"p50": 0.23104100000000471,
+						"p95": 0.42308399999996027,
+						"maximum": 0.5607079999999769
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 12,
+							"ms": 0.7281250000000341,
+							"gc": [94],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 27,
+							"ms": 0.8419999999999845,
+							"gc": [95],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 42,
+							"ms": 0.5458749999999668,
+							"gc": [96],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 57,
+							"ms": 0.5233749999999873,
+							"gc": [97],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 72,
+							"ms": 0.5364589999999794,
+							"gc": [98],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 87,
+							"ms": 0.6230830000000083,
+							"gc": [99],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 1,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 94.15912000000003,
+						"p50": 0.29362449999996443,
+						"p95": 0.4412919999999758,
+						"maximum": 0.6102090000000544
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 77.274588,
+						"p50": 0.20991700000001856,
+						"p95": 0.4469169999999849,
+						"maximum": 2.5837920000000167
+					},
+					"gcOverlappingGaps": {
+						"n": 14,
+						"totalMs": 13.635250000000099,
+						"p50": 0.710187000000019,
+						"p95": 2.5837920000000167,
+						"maximum": 2.5837920000000167
+					},
+					"noSupportedOverlapGaps": {
+						"n": 285,
+						"totalMs": 63.639337999999896,
+						"p50": 0.20820900000001075,
+						"p95": 0.3309590000000071,
+						"maximum": 0.4469169999999849
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 102,
+							"ms": 0.5837920000000167,
+							"gc": [100],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 117,
+							"ms": 0.6842090000000098,
+							"gc": [101],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 132,
+							"ms": 0.6393340000000194,
+							"gc": [102],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 147,
+							"ms": 0.6127500000000055,
+							"gc": [103],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 152,
+							"ms": 1.5469170000000076,
+							"gc": [104],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 167,
+							"ms": 0.7096659999999702,
+							"gc": [105],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 182,
+							"ms": 2.5837920000000167,
+							"gc": [108],
+							"deopt": [106, 107],
+							"possible": []
+						},
+						{
+							"afterIndex": 213,
+							"ms": 0.827083000000016,
+							"gc": [109],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 244,
+							"ms": 0.7709999999999582,
+							"gc": [110],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 275,
+							"ms": 0.7107080000000678,
+							"gc": [111],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 279,
+							"ms": 1.7824580000000196,
+							"gc": [112],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 311,
+							"ms": 0.8264169999999922,
+							"gc": [113],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 342,
+							"ms": 0.6633330000000797,
+							"gc": [114],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 373,
+							"ms": 0.6937909999999192,
+							"gc": [117],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 2,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 28.052333999999973,
+						"p50": 0.261874999999975,
+						"p95": 0.388541000000032,
+						"maximum": 0.4586669999999913
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 21.880791000000045,
+						"p50": 0.18599999999992178,
+						"p95": 0.3212909999999738,
+						"maximum": 0.7744169999999713
+					},
+					"gcOverlappingGaps": {
+						"n": 4,
+						"totalMs": 2.934293000000025,
+						"p50": 0.7361255000000142,
+						"p95": 0.7744169999999713,
+						"maximum": 0.7744169999999713
+					},
+					"noSupportedOverlapGaps": {
+						"n": 95,
+						"totalMs": 18.94649800000002,
+						"p50": 0.18533300000001418,
+						"p95": 0.2830420000000231,
+						"maximum": 0.3212909999999738
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 4,
+							"ms": 0.7744169999999713,
+							"gc": [118],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 35,
+							"ms": 0.7525840000000699,
+							"gc": [119],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 66,
+							"ms": 0.7196669999999585,
+							"gc": [120],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 97,
+							"ms": 0.6876250000000255,
+							"gc": [121],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 2,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 81.8671289999985,
+						"p50": 0.2621250000000259,
+						"p95": 0.3450000000000273,
+						"maximum": 0.4977079999999887
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 65.26508000000149,
+						"p50": 0.1934999999999718,
+						"p95": 0.3028749999999718,
+						"maximum": 0.7932090000000471
+					},
+					"gcOverlappingGaps": {
+						"n": 9,
+						"totalMs": 6.217666999999892,
+						"p50": 0.6662499999999909,
+						"p95": 0.7932090000000471,
+						"maximum": 0.7932090000000471
+					},
+					"noSupportedOverlapGaps": {
+						"n": 290,
+						"totalMs": 59.0474130000016,
+						"p50": 0.19125050000002375,
+						"p95": 0.277417000000014,
+						"maximum": 0.34375
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 128,
+							"ms": 0.7062920000000759,
+							"gc": [122],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 159,
+							"ms": 0.655832999999916,
+							"gc": [123],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 191,
+							"ms": 0.67674999999997,
+							"gc": [124],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 224,
+							"ms": 0.7932090000000471,
+							"gc": [127],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 256,
+							"ms": 0.6598749999999427,
+							"gc": [128],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 289,
+							"ms": 0.6657500000000027,
+							"gc": [129],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 321,
+							"ms": 0.6662499999999909,
+							"gc": [130],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 353,
+							"ms": 0.6569579999999178,
+							"gc": [131],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 386,
+							"ms": 0.7367500000000291,
+							"gc": [132],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 3,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 31.441623000000618,
+						"p50": 0.29108349999995653,
+						"p95": 0.47950000000003,
+						"maximum": 0.5228329999999914
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 24.36137699999938,
+						"p50": 0.20899999999994634,
+						"p95": 0.48641700000007404,
+						"maximum": 1.4666670000000295
+					},
+					"gcOverlappingGaps": {
+						"n": 4,
+						"totalMs": 3.5440830000000005,
+						"p50": 0.6989790000000085,
+						"p95": 1.4666670000000295,
+						"maximum": 1.4666670000000295
+					},
+					"noSupportedOverlapGaps": {
+						"n": 95,
+						"totalMs": 20.81729399999938,
+						"p50": 0.20270900000002712,
+						"p95": 0.3085829999999987,
+						"maximum": 0.48641700000007404
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 18,
+							"ms": 0.7000830000000633,
+							"gc": [133],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 49,
+							"ms": 0.6978749999999536,
+							"gc": [134],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 80,
+							"ms": 0.6794579999999542,
+							"gc": [135],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 84,
+							"ms": 1.4666670000000295,
+							"gc": [136],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 3,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 81.37003900000047,
+						"p50": 0.2623125000000073,
+						"p95": 0.3413749999999709,
+						"maximum": 0.4406659999999647
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 63.40429399999948,
+						"p50": 0.18729100000007293,
+						"p95": 0.29616600000008475,
+						"maximum": 0.776416999999924
+					},
+					"gcOverlappingGaps": {
+						"n": 9,
+						"totalMs": 6.29233499999998,
+						"p50": 0.7149160000000165,
+						"p95": 0.776416999999924,
+						"maximum": 0.776416999999924
+					},
+					"noSupportedOverlapGaps": {
+						"n": 290,
+						"totalMs": 57.1119589999995,
+						"p50": 0.18681249999997362,
+						"p95": 0.2515000000000782,
+						"maximum": 0.3427920000000313
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 116,
+							"ms": 0.7714170000000422,
+							"gc": [137],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 147,
+							"ms": 0.7172920000000431,
+							"gc": [138],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 179,
+							"ms": 0.596416999999974,
+							"gc": [139],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 212,
+							"ms": 0.6665420000000495,
+							"gc": [140],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 244,
+							"ms": 0.6773749999999836,
+							"gc": [141],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 276,
+							"ms": 0.776416999999924,
+							"gc": [142],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 308,
+							"ms": 0.6543749999999591,
+							"gc": [143],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 340,
+							"ms": 0.7149160000000165,
+							"gc": [144],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 372,
+							"ms": 0.717583999999988,
+							"gc": [145],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 4,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 29.57299900000146,
+						"p50": 0.2757080000000087,
+						"p95": 0.40533400000003894,
+						"maximum": 0.7676250000001801
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 25.93491699999845,
+						"p50": 0.20154200000001765,
+						"p95": 0.33504199999993034,
+						"maximum": 3.576999999999998
+					},
+					"gcOverlappingGaps": {
+						"n": 3,
+						"totalMs": 5.773292000000197,
+						"p50": 1.4164170000001377,
+						"p95": 3.576999999999998,
+						"maximum": 3.576999999999998
+					},
+					"noSupportedOverlapGaps": {
+						"n": 96,
+						"totalMs": 20.161624999998253,
+						"p50": 0.200937999999951,
+						"p95": 0.3030839999998989,
+						"maximum": 0.4606659999999465
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 5,
+							"ms": 0.7798750000000609,
+							"gc": [146],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 38,
+							"ms": 3.576999999999998,
+							"gc": [147],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 42,
+							"ms": 1.4164170000001377,
+							"gc": [148],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 4,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 84.21871000000101,
+						"p50": 0.26995850000014343,
+						"p95": 0.3527920000001359,
+						"maximum": 0.4537920000000213
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 64.17937299999903,
+						"p50": 0.19249999999988177,
+						"p95": 0.27108300000008967,
+						"maximum": 1.1944170000001577
+					},
+					"gcOverlappingGaps": {
+						"n": 5,
+						"totalMs": 5.424625999999989,
+						"p50": 1.089666999999963,
+						"p95": 1.1944170000001577,
+						"maximum": 1.1944170000001577
+					},
+					"noSupportedOverlapGaps": {
+						"n": 294,
+						"totalMs": 58.75474699999904,
+						"p50": 0.19183299999997416,
+						"p95": 0.26624999999989996,
+						"maximum": 0.47070800000005875
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 108,
+							"ms": 1.0615000000000236,
+							"gc": [149],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 173,
+							"ms": 1.1944170000001577,
+							"gc": [150],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 238,
+							"ms": 1.089666999999963,
+							"gc": [151],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 303,
+							"ms": 0.9637499999998909,
+							"gc": [152],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 368,
+							"ms": 1.115291999999954,
+							"gc": [153],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 5,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 30.530163000000584,
+						"p50": 0.28797899999995025,
+						"p95": 0.39941700000008495,
+						"maximum": 0.8344159999999192
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 28.158169999999245,
+						"p50": 0.20125000000007276,
+						"p95": 0.3677090000001044,
+						"maximum": 4.586707999999817
+					},
+					"gcOverlappingGaps": {
+						"n": 2,
+						"totalMs": 2.152583999999706,
+						"p50": 1.076291999999853,
+						"p95": 1.1301249999999072,
+						"maximum": 1.1301249999999072
+					},
+					"noSupportedOverlapGaps": {
+						"n": 97,
+						"totalMs": 26.00558599999954,
+						"p50": 0.19916699999998855,
+						"p95": 0.287166999999954,
+						"maximum": 4.586707999999817
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 33,
+							"ms": 1.0224589999997988,
+							"gc": [154],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 98,
+							"ms": 1.1301249999999072,
+							"gc": [155],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 5,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 80.52661899999725,
+						"p50": 0.25827049999998053,
+						"p95": 0.32291699999996126,
+						"maximum": 0.4316670000000613
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 60.78208900000277,
+						"p50": 0.1782500000001619,
+						"p95": 0.2777499999999691,
+						"maximum": 1.1003749999999854
+					},
+					"gcOverlappingGaps": {
+						"n": 4,
+						"totalMs": 4.117209000000003,
+						"p50": 1.0227500000000873,
+						"p95": 1.1003749999999854,
+						"maximum": 1.1003749999999854
+					},
+					"noSupportedOverlapGaps": {
+						"n": 295,
+						"totalMs": 56.66488000000277,
+						"p50": 0.17804200000000492,
+						"p95": 0.2564159999999447,
+						"maximum": 0.9777500000000146
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 163,
+							"ms": 0.9778340000000298,
+							"gc": [156],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 228,
+							"ms": 0.9713339999998425,
+							"gc": [157],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 293,
+							"ms": 1.1003749999999854,
+							"gc": [158],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 358,
+							"ms": 1.0676660000001448,
+							"gc": [159],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				}
+			],
+			"releaseNodes": 60,
+			"staticPairChecksPerCleanup": 3540,
+			"staticPairChecksFor2400Cleanups": 8496000
+		},
+		{
+			"job": "06-T-V",
+			"phases": [
+				{
+					"block": 0,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 36.795873999999884,
+						"p50": 0.32116700000000264,
+						"p95": 0.6744170000000054,
+						"maximum": 1.1539579999999887
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 30.3234590000001,
+						"p50": 0.23558299999999122,
+						"p95": 0.600625000000008,
+						"maximum": 1.9800000000000182
+					},
+					"gcOverlappingGaps": {
+						"n": 14,
+						"totalMs": 8.822333000000015,
+						"p50": 0.5070005000000037,
+						"p95": 1.9800000000000182,
+						"maximum": 1.9800000000000182
+					},
+					"noSupportedOverlapGaps": {
+						"n": 85,
+						"totalMs": 21.501126000000085,
+						"p50": 0.23045799999999872,
+						"p95": 0.44779199999999264,
+						"maximum": 0.6096249999999941
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 0,
+							"ms": 1.9800000000000182,
+							"gc": [52],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 7,
+							"ms": 0.7800420000000088,
+							"gc": [53],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 14,
+							"ms": 0.5022920000000113,
+							"gc": [54],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 21,
+							"ms": 0.600625000000008,
+							"gc": [55],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 28,
+							"ms": 0.43795800000000895,
+							"gc": [56],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 36,
+							"ms": 0.5154159999999877,
+							"gc": [57],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 43,
+							"ms": 0.6078329999999994,
+							"gc": [58],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 50,
+							"ms": 0.44524999999998727,
+							"gc": [59],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 58,
+							"ms": 0.5010000000000048,
+							"gc": [60],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 66,
+							"ms": 0.5117089999999962,
+							"gc": [61],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 74,
+							"ms": 0.5640829999999823,
+							"gc": [62],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 82,
+							"ms": 0.46691699999999514,
+							"gc": [63],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 90,
+							"ms": 0.48270800000000236,
+							"gc": [64],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 98,
+							"ms": 0.4265000000000043,
+							"gc": [65],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 0,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 94.35117799999989,
+						"p50": 0.2975619999999992,
+						"p95": 0.4139589999999771,
+						"maximum": 0.6864589999999566
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 79.2068220000001,
+						"p50": 0.22354100000001154,
+						"p95": 0.5289160000000379,
+						"maximum": 1.8793330000000026
+					},
+					"gcOverlappingGaps": {
+						"n": 23,
+						"totalMs": 15.212917000000147,
+						"p50": 0.5583750000000123,
+						"p95": 1.7208330000000274,
+						"maximum": 1.8793330000000026
+					},
+					"noSupportedOverlapGaps": {
+						"n": 276,
+						"totalMs": 63.993904999999955,
+						"p50": 0.21856249999999022,
+						"p95": 0.3378749999999968,
+						"maximum": 0.42479100000002745
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 106,
+							"ms": 0.4504579999999976,
+							"gc": [66],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 114,
+							"ms": 0.4903329999999926,
+							"gc": [67],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 122,
+							"ms": 0.39674999999999727,
+							"gc": [68],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 130,
+							"ms": 0.4349170000000129,
+							"gc": [69],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 138,
+							"ms": 0.4245420000000024,
+							"gc": [70],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 146,
+							"ms": 0.47074999999998113,
+							"gc": [71],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 154,
+							"ms": 0.6637920000000008,
+							"gc": [72],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 162,
+							"ms": 0.41141700000000014,
+							"gc": [73],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 170,
+							"ms": 1.8793330000000026,
+							"gc": [74],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 185,
+							"ms": 0.7330410000000143,
+							"gc": [77],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 200,
+							"ms": 0.563459000000023,
+							"gc": [78],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 215,
+							"ms": 0.5580420000000004,
+							"gc": [79],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 230,
+							"ms": 0.5583750000000123,
+							"gc": [80],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 245,
+							"ms": 0.6243749999999864,
+							"gc": [81],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 260,
+							"ms": 0.543707999999981,
+							"gc": [82],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 275,
+							"ms": 0.6110000000000468,
+							"gc": [83],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 290,
+							"ms": 0.518792000000019,
+							"gc": [84],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 305,
+							"ms": 0.5735419999999749,
+							"gc": [85],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 322,
+							"ms": 1.7208330000000274,
+							"gc": [86],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 338,
+							"ms": 0.5289160000000379,
+							"gc": [87],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 353,
+							"ms": 0.6050000000000182,
+							"gc": [88],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 369,
+							"ms": 0.707458000000031,
+							"gc": [91],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 385,
+							"ms": 0.7440839999999866,
+							"gc": [92],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 1,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 38.00695500000006,
+						"p50": 0.3350625000000207,
+						"p95": 0.6656659999999874,
+						"maximum": 0.947667000000024
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 29.64841999999993,
+						"p50": 0.24679200000002766,
+						"p95": 0.6424999999999841,
+						"maximum": 1.0684579999999642
+					},
+					"gcOverlappingGaps": {
+						"n": 7,
+						"totalMs": 5.214749999999981,
+						"p50": 0.6424999999999841,
+						"p95": 1.0684579999999642,
+						"maximum": 1.0684579999999642
+					},
+					"noSupportedOverlapGaps": {
+						"n": 92,
+						"totalMs": 24.43366999999995,
+						"p50": 0.2439794999999947,
+						"p95": 0.39570900000001075,
+						"maximum": 0.6454590000000167
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 0,
+							"ms": 1.0684579999999642,
+							"gc": [93],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 14,
+							"ms": 0.8280839999999898,
+							"gc": [94],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 29,
+							"ms": 0.8297080000000392,
+							"gc": [95],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 44,
+							"ms": 0.6378330000000005,
+							"gc": [96],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 59,
+							"ms": 0.6349999999999909,
+							"gc": [97],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 74,
+							"ms": 0.5731670000000122,
+							"gc": [98],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 89,
+							"ms": 0.6424999999999841,
+							"gc": [99],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 1,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 91.4677519999999,
+						"p50": 0.29306249999996226,
+						"p95": 0.40625,
+						"maximum": 0.514583000000016
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 73.23766500000005,
+						"p50": 0.20616599999993923,
+						"p95": 0.46750000000002956,
+						"maximum": 2.1170000000000755
+					},
+					"gcOverlappingGaps": {
+						"n": 14,
+						"totalMs": 11.50108500000033,
+						"p50": 0.6728545000000281,
+						"p95": 2.1170000000000755,
+						"maximum": 2.1170000000000755
+					},
+					"noSupportedOverlapGaps": {
+						"n": 285,
+						"totalMs": 61.73657999999972,
+						"p50": 0.2035000000000764,
+						"p95": 0.3079999999999927,
+						"maximum": 0.46750000000002956
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 104,
+							"ms": 0.5171250000000214,
+							"gc": [100],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 119,
+							"ms": 0.5402080000000069,
+							"gc": [101],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 134,
+							"ms": 0.6156250000000227,
+							"gc": [102],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 149,
+							"ms": 0.5373749999999973,
+							"gc": [103],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 164,
+							"ms": 0.5611249999999472,
+							"gc": [104],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 179,
+							"ms": 0.6514999999999986,
+							"gc": [105],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 195,
+							"ms": 0.82162500000004,
+							"gc": [108],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 211,
+							"ms": 2.1170000000000755,
+							"gc": [109],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 215,
+							"ms": 1.436333999999988,
+							"gc": [110],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 247,
+							"ms": 0.8331670000000031,
+							"gc": [111],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 278,
+							"ms": 0.8251250000000709,
+							"gc": [112],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 309,
+							"ms": 0.680667000000085,
+							"gc": [113],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 340,
+							"ms": 0.6650419999999713,
+							"gc": [114],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 371,
+							"ms": 0.6991670000001022,
+							"gc": [117],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 2,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 28.445502999999007,
+						"p50": 0.2723959999999579,
+						"p95": 0.36716599999999744,
+						"maximum": 0.4281670000000304
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 21.647289000001024,
+						"p50": 0.18641700000000583,
+						"p95": 0.38049999999998363,
+						"maximum": 0.8095420000000786
+					},
+					"gcOverlappingGaps": {
+						"n": 4,
+						"totalMs": 2.92450000000008,
+						"p50": 0.7210624999999595,
+						"p95": 0.8095420000000786,
+						"maximum": 0.8095420000000786
+					},
+					"noSupportedOverlapGaps": {
+						"n": 95,
+						"totalMs": 18.722789000000944,
+						"p50": 0.18604200000004312,
+						"p95": 0.26279199999999037,
+						"maximum": 0.38049999999998363
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 2,
+							"ms": 0.8095420000000786,
+							"gc": [118],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 33,
+							"ms": 0.7104999999999109,
+							"gc": [119],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 64,
+							"ms": 0.6728330000000824,
+							"gc": [120],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 95,
+							"ms": 0.7316250000000082,
+							"gc": [121],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 2,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 82.44653799999924,
+						"p50": 0.2624580000000378,
+						"p95": 0.354041000000052,
+						"maximum": 0.43600000000003547
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 64.64717100000075,
+						"p50": 0.1916670000000522,
+						"p95": 0.299082999999996,
+						"maximum": 0.8509169999999813
+					},
+					"gcOverlappingGaps": {
+						"n": 9,
+						"totalMs": 6.407542000000149,
+						"p50": 0.6692500000000337,
+						"p95": 0.8509169999999813,
+						"maximum": 0.8509169999999813
+					},
+					"noSupportedOverlapGaps": {
+						"n": 290,
+						"totalMs": 58.239629000000605,
+						"p50": 0.1906250000000682,
+						"p95": 0.2711659999999938,
+						"maximum": 0.3484999999999445
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 126,
+							"ms": 0.6670830000000478,
+							"gc": [122],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 158,
+							"ms": 0.8509169999999813,
+							"gc": [123],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 191,
+							"ms": 0.6692500000000337,
+							"gc": [124],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 224,
+							"ms": 0.6678339999999707,
+							"gc": [125],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 257,
+							"ms": 0.6634580000001051,
+							"gc": [126],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 290,
+							"ms": 0.7547499999999445,
+							"gc": [127],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 323,
+							"ms": 0.6584170000000995,
+							"gc": [128],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 356,
+							"ms": 0.6712499999999864,
+							"gc": [129],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 389,
+							"ms": 0.8045829999999796,
+							"gc": [130],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 3,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 29.447497000000226,
+						"p50": 0.28285450000004175,
+						"p95": 0.3662500000000364,
+						"maximum": 0.5223330000000033
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 21.59179399999971,
+						"p50": 0.18937500000004093,
+						"p95": 0.3279579999999669,
+						"maximum": 0.7705419999999776
+					},
+					"gcOverlappingGaps": {
+						"n": 3,
+						"totalMs": 2.205667999999946,
+						"p50": 0.7432089999999789,
+						"p95": 0.7705419999999776,
+						"maximum": 0.7705419999999776
+					},
+					"noSupportedOverlapGaps": {
+						"n": 96,
+						"totalMs": 19.386125999999763,
+						"p50": 0.1888959999999429,
+						"p95": 0.2615000000000691,
+						"maximum": 0.3709999999999809
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 21,
+							"ms": 0.6919169999999895,
+							"gc": [131],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 52,
+							"ms": 0.7432089999999789,
+							"gc": [132],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 83,
+							"ms": 0.7705419999999776,
+							"gc": [133],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 3,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 81.38346500000046,
+						"p50": 0.26002050000005283,
+						"p95": 0.3418329999999514,
+						"maximum": 0.5117500000000064
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 64.78240999999957,
+						"p50": 0.18524999999999636,
+						"p95": 0.3308749999999918,
+						"maximum": 1.518000000000029
+					},
+					"gcOverlappingGaps": {
+						"n": 10,
+						"totalMs": 7.620585000000233,
+						"p50": 0.6708130000000097,
+						"p95": 1.518000000000029,
+						"maximum": 1.518000000000029
+					},
+					"noSupportedOverlapGaps": {
+						"n": 289,
+						"totalMs": 57.16182499999934,
+						"p50": 0.18470800000000054,
+						"p95": 0.2713330000000269,
+						"maximum": 0.4856250000000273
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 114,
+							"ms": 0.6613340000000107,
+							"gc": [134],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 145,
+							"ms": 0.7050830000000587,
+							"gc": [135],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 177,
+							"ms": 0.6360830000000988,
+							"gc": [136],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 181,
+							"ms": 1.518000000000029,
+							"gc": [137],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 214,
+							"ms": 0.78125,
+							"gc": [138],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 246,
+							"ms": 0.7024999999999864,
+							"gc": [139],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 278,
+							"ms": 0.647583999999938,
+							"gc": [140],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 311,
+							"ms": 0.6588340000000699,
+							"gc": [141],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 343,
+							"ms": 0.6802920000000086,
+							"gc": [142],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 375,
+							"ms": 0.6296250000000327,
+							"gc": [143],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 4,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 27.73066400000073,
+						"p50": 0.2585414999999216,
+						"p95": 0.3900830000000042,
+						"maximum": 0.518500000000131
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 26.827752999999348,
+						"p50": 0.19129100000009203,
+						"p95": 0.663332999999966,
+						"maximum": 3.9768329999999423
+					},
+					"gcOverlappingGaps": {
+						"n": 4,
+						"totalMs": 7.2785420000001295,
+						"p50": 1.3120420000000763,
+						"p95": 3.9768329999999423,
+						"maximum": 3.9768329999999423
+					},
+					"noSupportedOverlapGaps": {
+						"n": 95,
+						"totalMs": 19.549210999999218,
+						"p50": 0.18795799999998053,
+						"p95": 0.35170799999991686,
+						"maximum": 0.663332999999966
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 8,
+							"ms": 0.7007090000000744,
+							"gc": [144],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 41,
+							"ms": 0.6776250000000346,
+							"gc": [145],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 74,
+							"ms": 3.9768329999999423,
+							"gc": [146],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 78,
+							"ms": 1.9233750000000782,
+							"gc": [147],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 4,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 87.17238199999838,
+						"p50": 0.27833349999991697,
+						"p95": 0.37712499999997817,
+						"maximum": 0.8925409999999374
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 78.55882700000166,
+						"p50": 0.19758299999989504,
+						"p95": 0.2971669999999449,
+						"maximum": 5.46225000000004
+					},
+					"gcOverlappingGaps": {
+						"n": 4,
+						"totalMs": 4.5599580000000515,
+						"p50": 1.141520499999956,
+						"p95": 1.2304579999999987,
+						"maximum": 1.2304579999999987
+					},
+					"noSupportedOverlapGaps": {
+						"n": 295,
+						"totalMs": 73.9988690000016,
+						"p50": 0.19737499999996544,
+						"p95": 0.2721660000001975,
+						"maximum": 5.46225000000004
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 144,
+							"ms": 1.1834999999998672,
+							"gc": [148],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 209,
+							"ms": 1.2304579999999987,
+							"gc": [149],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 274,
+							"ms": 1.0995410000000447,
+							"gc": [150],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 339,
+							"ms": 1.0464590000001408,
+							"gc": [151],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 5,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 28.32270700000072,
+						"p50": 0.2648540000000139,
+						"p95": 0.3536659999999756,
+						"maximum": 0.8019170000000031
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 20.387750999999298,
+						"p50": 0.1820420000001377,
+						"p95": 0.2699999999999818,
+						"maximum": 0.9819579999998496
+					},
+					"gcOverlappingGaps": {
+						"n": 2,
+						"totalMs": 1.8953329999999369,
+						"p50": 0.9476664999999684,
+						"p95": 0.9819579999998496,
+						"maximum": 0.9819579999998496
+					},
+					"noSupportedOverlapGaps": {
+						"n": 97,
+						"totalMs": 18.49241799999936,
+						"p50": 0.18191699999988487,
+						"p95": 0.26237500000002,
+						"maximum": 0.2890419999998812
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 4,
+							"ms": 0.9133750000000873,
+							"gc": [152],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 69,
+							"ms": 0.9819579999998496,
+							"gc": [153],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 5,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 80.35872899999822,
+						"p50": 0.25883349999992333,
+						"p95": 0.3221249999999145,
+						"maximum": 0.40887499999985266
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 58.21985400000176,
+						"p50": 0.17249999999989996,
+						"p95": 0.25179099999991195,
+						"maximum": 1.117334000000028
+					},
+					"gcOverlappingGaps": {
+						"n": 5,
+						"totalMs": 5.0048340000000735,
+						"p50": 0.972332999999935,
+						"p95": 1.117334000000028,
+						"maximum": 1.117334000000028
+					},
+					"noSupportedOverlapGaps": {
+						"n": 294,
+						"totalMs": 53.21502000000169,
+						"p50": 0.17237549999993007,
+						"p95": 0.23345799999992778,
+						"maximum": 0.3305840000000444
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 134,
+							"ms": 1.1035000000001673,
+							"gc": [154],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 199,
+							"ms": 1.117334000000028,
+							"gc": [155],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 264,
+							"ms": 0.972332999999935,
+							"gc": [156],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 329,
+							"ms": 0.8778330000000096,
+							"gc": [157],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 394,
+							"ms": 0.9338339999999334,
+							"gc": [158],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				}
+			],
+			"releaseNodes": 60,
+			"staticPairChecksPerCleanup": 3540,
+			"staticPairChecksFor2400Cleanups": 8496000
+		},
+		{
+			"job": "07-Q-U",
+			"phases": [
+				{
+					"block": 0,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 37.17229000000003,
+						"p50": 0.3347080000000062,
+						"p95": 0.6514159999999833,
+						"maximum": 1.0567089999999837
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 30.735751999999962,
+						"p50": 0.2504169999999988,
+						"p95": 0.5689579999999808,
+						"maximum": 1.7205000000000155
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 0,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 93.71941699999974,
+						"p50": 0.29641699999999105,
+						"p95": 0.41191700000001674,
+						"maximum": 0.5617080000000101
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 80.33120800000029,
+						"p50": 0.22912500000001046,
+						"p95": 0.5660409999999843,
+						"maximum": 1.7247079999999926
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 1,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 36.08228900000023,
+						"p50": 0.31712500000003274,
+						"p95": 0.6957920000000399,
+						"maximum": 0.9663330000000201
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 28.277835999999752,
+						"p50": 0.24191700000000083,
+						"p95": 0.6023329999999874,
+						"maximum": 0.7999159999999961
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 1,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 91.55911999999961,
+						"p50": 0.2913125000000605,
+						"p95": 0.4014160000000402,
+						"maximum": 0.5451659999999947
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 74.94221300000044,
+						"p50": 0.21208400000000438,
+						"p95": 0.47258399999998346,
+						"maximum": 2.1431250000000546
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 2,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 27.855415000000903,
+						"p50": 0.2708335000000375,
+						"p95": 0.3370830000000069,
+						"maximum": 0.44570899999996527
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 21.292125999999143,
+						"p50": 0.1882909999999356,
+						"p95": 0.29550000000006094,
+						"maximum": 0.8252919999999904
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 2,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 82.45183799999984,
+						"p50": 0.26204150000000936,
+						"p95": 0.3530839999999671,
+						"maximum": 0.44145800000001145
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 66.85878700000023,
+						"p50": 0.1948330000000169,
+						"p95": 0.31883399999992434,
+						"maximum": 0.8412500000000591
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 3,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 30.281533999999965,
+						"p50": 0.2809790000000021,
+						"p95": 0.43537500000002183,
+						"maximum": 0.4937079999999696
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 21.921965999999998,
+						"p50": 0.200917000000004,
+						"p95": 0.30008299999997234,
+						"maximum": 0.6779999999999973
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 3,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 87.42404100000101,
+						"p50": 0.280999500000064,
+						"p95": 0.3667090000000144,
+						"maximum": 0.43699999999989814
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 72.41699999999912,
+						"p50": 0.21854199999995672,
+						"p95": 0.3320000000001073,
+						"maximum": 0.8975830000000542
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 4,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 28.860298999999486,
+						"p50": 0.27585450000003675,
+						"p95": 0.34779100000014296,
+						"maximum": 0.38550000000009277
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 24.255659000000605,
+						"p50": 0.2192499999998745,
+						"p95": 0.3289169999998194,
+						"maximum": 0.8047080000001188
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 4,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 94.8402929999977,
+						"p50": 0.3044999999999618,
+						"p95": 0.43391700000006495,
+						"maximum": 0.8339590000000499
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 82.07929000000217,
+						"p50": 0.23237499999981992,
+						"p95": 0.36770799999999326,
+						"maximum": 4.430834000000004
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 5,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 30.72270600000047,
+						"p50": 0.28364600000008977,
+						"p95": 0.4258329999997841,
+						"maximum": 0.7699159999999665
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 24.54229399999963,
+						"p50": 0.21325000000001637,
+						"p95": 0.33870900000010806,
+						"maximum": 1.1707920000001195
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 5,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 86.9579990000027,
+						"p50": 0.27547950000007404,
+						"p95": 0.37845900000002075,
+						"maximum": 0.622333000000026
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 68.98437599999738,
+						"p50": 0.20383300000003146,
+						"p95": 0.3214580000001206,
+						"maximum": 1.2092079999999896
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				}
+			],
+			"releaseNodes": 60,
+			"staticPairChecksPerCleanup": 3540,
+			"staticPairChecksFor2400Cleanups": 8496000
+		},
+		{
+			"job": "08-B-V",
+			"phases": [
+				{
+					"block": 0,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 36.63100099999983,
+						"p50": 0.320604000000003,
+						"p95": 0.6844999999999857,
+						"maximum": 1.1554999999999893
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 30.682290000000165,
+						"p50": 0.2421250000000157,
+						"p95": 0.5522499999999866,
+						"maximum": 2.2280000000000086
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 0,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 93.55329499999965,
+						"p50": 0.2947914999999881,
+						"p95": 0.40554199999996854,
+						"maximum": 0.5952080000000137
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 78.85378800000032,
+						"p50": 0.22308299999997416,
+						"p95": 0.5286660000000438,
+						"maximum": 1.6659999999999968
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 1,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 36.88700199999994,
+						"p50": 0.324354000000028,
+						"p95": 0.6232079999999769,
+						"maximum": 0.9164580000000342
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 29.779790000000105,
+						"p50": 0.2527090000000385,
+						"p95": 0.6023329999999874,
+						"maximum": 0.8896250000000236
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 1,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 98.06541599999855,
+						"p50": 0.30762499999997317,
+						"p95": 0.4480829999999969,
+						"maximum": 0.5906670000000531
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 84.54470900000143,
+						"p50": 0.24337500000001455,
+						"p95": 0.48620900000003076,
+						"maximum": 2.808750000000032
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 2,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 28.905706999999893,
+						"p50": 0.2798540000000571,
+						"p95": 0.3601250000000391,
+						"maximum": 0.41362499999991087
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 23.449001000000067,
+						"p50": 0.21133399999996527,
+						"p95": 0.352333999999928,
+						"maximum": 0.8702500000000555
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 2,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 84.69633400000225,
+						"p50": 0.2691040000000271,
+						"p95": 0.3821249999999736,
+						"maximum": 0.44524999999998727
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 73.17924899999775,
+						"p50": 0.2140839999999571,
+						"p95": 0.3480409999999665,
+						"maximum": 0.916915999999901
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 3,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 31.660377999999923,
+						"p50": 0.29737449999998944,
+						"p95": 0.4002499999999145,
+						"maximum": 0.6520839999999453
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 24.577289000000064,
+						"p50": 0.22079200000007404,
+						"p95": 0.38112499999999727,
+						"maximum": 0.8174999999999955
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 3,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 83.1678389999986,
+						"p50": 0.26743800000002693,
+						"p95": 0.34962499999994634,
+						"maximum": 0.43125000000009095
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 67.50341100000128,
+						"p50": 0.203125,
+						"p95": 0.3161249999999427,
+						"maximum": 0.8279589999999644
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 4,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 29.544124999999894,
+						"p50": 0.26689650000002985,
+						"p95": 0.4024580000000242,
+						"maximum": 0.8915830000000824
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 26.590832999999975,
+						"p50": 0.19883299999992232,
+						"p95": 0.38837499999999636,
+						"maximum": 3.669832999999926
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 4,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 83.23545699999977,
+						"p50": 0.2643749999999727,
+						"p95": 0.3520419999999831,
+						"maximum": 0.5280840000000353
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 63.62521000000038,
+						"p50": 0.18904199999997218,
+						"p95": 0.2640830000000278,
+						"maximum": 1.3312499999999545
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 5,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 28.50187299999925,
+						"p50": 0.2702289999999721,
+						"p95": 0.35412499999983993,
+						"maximum": 0.754207999999835
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 20.684627000000773,
+						"p50": 0.19241600000009385,
+						"p95": 0.2840839999998934,
+						"maximum": 0.9473749999999654
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 5,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 79.93979299999933,
+						"p50": 0.2506664999999657,
+						"p95": 0.3551249999998163,
+						"maximum": 0.5220420000000559
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 64.82879000000071,
+						"p50": 0.18258400000013353,
+						"p95": 0.3550839999998061,
+						"maximum": 1.5835420000000795
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				}
+			],
+			"releaseNodes": 60,
+			"staticPairChecksPerCleanup": 3540,
+			"staticPairChecksFor2400Cleanups": 8496000
+		},
+		{
+			"job": "09-T-U",
+			"phases": [
+				{
+					"block": 0,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 37.89941299999995,
+						"p50": 0.3318335000000019,
+						"p95": 0.6609579999999937,
+						"maximum": 1.089749999999981
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 33.206004000000036,
+						"p50": 0.2532500000000084,
+						"p95": 0.6782079999999837,
+						"maximum": 2.0853340000000173
+					},
+					"gcOverlappingGaps": {
+						"n": 13,
+						"totalMs": 8.934125999999992,
+						"p50": 0.5638329999999883,
+						"p95": 2.0853340000000173,
+						"maximum": 2.0853340000000173
+					},
+					"noSupportedOverlapGaps": {
+						"n": 86,
+						"totalMs": 24.271878000000044,
+						"p50": 0.24470850000001576,
+						"p95": 0.5222500000000139,
+						"maximum": 0.6792910000000063
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 0,
+							"ms": 2.0853340000000173,
+							"gc": [52],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 7,
+							"ms": 0.7117919999999742,
+							"gc": [53],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 14,
+							"ms": 0.5484580000000108,
+							"gc": [54],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 21,
+							"ms": 0.4740419999999972,
+							"gc": [55],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 29,
+							"ms": 0.5401249999999891,
+							"gc": [56],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 36,
+							"ms": 0.426667000000009,
+							"gc": [57],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 44,
+							"ms": 0.5775000000000148,
+							"gc": [58],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 51,
+							"ms": 0.7337080000000071,
+							"gc": [59],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 59,
+							"ms": 0.5496669999999995,
+							"gc": [60],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 67,
+							"ms": 0.5657080000000008,
+							"gc": [61],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 75,
+							"ms": 0.6033329999999921,
+							"gc": [62],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 83,
+							"ms": 0.5539589999999919,
+							"gc": [63],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 91,
+							"ms": 0.5638329999999883,
+							"gc": [64],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 0,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 94.3424200000002,
+						"p50": 0.30002049999998803,
+						"p95": 0.41395800000000804,
+						"maximum": 0.6003749999999854
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 80.67928899999978,
+						"p50": 0.2342090000000212,
+						"p95": 0.5437090000000353,
+						"maximum": 1.8147500000000036
+					},
+					"gcOverlappingGaps": {
+						"n": 24,
+						"totalMs": 14.761706999999973,
+						"p50": 0.5602500000000248,
+						"p95": 0.868665999999962,
+						"maximum": 1.8147500000000036
+					},
+					"noSupportedOverlapGaps": {
+						"n": 275,
+						"totalMs": 65.91758199999981,
+						"p50": 0.23158300000000054,
+						"p95": 0.31808300000000145,
+						"maximum": 0.4244160000000079
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 106,
+							"ms": 0.48016699999999446,
+							"gc": [66],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 114,
+							"ms": 0.49583300000000463,
+							"gc": [67],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 122,
+							"ms": 0.4726670000000013,
+							"gc": [68],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 130,
+							"ms": 0.6302919999999972,
+							"gc": [69],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 138,
+							"ms": 0.43845799999999713,
+							"gc": [70],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 146,
+							"ms": 0.4440830000000062,
+							"gc": [71],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 154,
+							"ms": 0.41770800000000463,
+							"gc": [72],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 162,
+							"ms": 0.4067500000000166,
+							"gc": [73],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 170,
+							"ms": 1.8147500000000036,
+							"gc": [74],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 185,
+							"ms": 0.868665999999962,
+							"gc": [77],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 200,
+							"ms": 0.6259579999999687,
+							"gc": [78],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 215,
+							"ms": 0.6187089999999671,
+							"gc": [79],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 230,
+							"ms": 0.605165999999997,
+							"gc": [80],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 245,
+							"ms": 0.505833999999993,
+							"gc": [81],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 260,
+							"ms": 0.5437499999999886,
+							"gc": [82],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 275,
+							"ms": 0.5614590000000135,
+							"gc": [83],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 290,
+							"ms": 0.6553330000000415,
+							"gc": [84],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 305,
+							"ms": 0.5671249999999759,
+							"gc": [85],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 320,
+							"ms": 0.5437090000000353,
+							"gc": [86],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 335,
+							"ms": 0.5590410000000361,
+							"gc": [87],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 350,
+							"ms": 0.6583330000000274,
+							"gc": [88],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 366,
+							"ms": 0.6030000000000086,
+							"gc": [91],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 382,
+							"ms": 0.7080409999999802,
+							"gc": [92],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 398,
+							"ms": 0.5368749999999523,
+							"gc": [93],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 1,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 36.64032899999961,
+						"p50": 0.3260830000000112,
+						"p95": 0.6452500000000327,
+						"maximum": 0.9435839999999871
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 29.00554600000038,
+						"p50": 0.2513749999999959,
+						"p95": 0.6671670000000063,
+						"maximum": 0.8283329999999864
+					},
+					"gcOverlappingGaps": {
+						"n": 6,
+						"totalMs": 4.1826260000000275,
+						"p50": 0.7033959999999979,
+						"p95": 0.8283329999999864,
+						"maximum": 0.8283329999999864
+					},
+					"noSupportedOverlapGaps": {
+						"n": 93,
+						"totalMs": 24.82292000000035,
+						"p50": 0.24541700000003175,
+						"p95": 0.44216699999998355,
+						"maximum": 0.5898329999999987
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 12,
+							"ms": 0.7836250000000291,
+							"gc": [94],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 27,
+							"ms": 0.8283329999999864,
+							"gc": [95],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 42,
+							"ms": 0.6671670000000063,
+							"gc": [96],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 57,
+							"ms": 0.7064169999999876,
+							"gc": [97],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 72,
+							"ms": 0.49670900000000984,
+							"gc": [98],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 87,
+							"ms": 0.7003750000000082,
+							"gc": [99],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 1,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 92.07683399999962,
+						"p50": 0.29000050000007604,
+						"p95": 0.40591699999993125,
+						"maximum": 0.5445829999999887
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 75.4319160000004,
+						"p50": 0.2151249999999436,
+						"p95": 0.5429579999999987,
+						"maximum": 2.132874999999899
+					},
+					"gcOverlappingGaps": {
+						"n": 15,
+						"totalMs": 13.03329199999996,
+						"p50": 0.7462500000000318,
+						"p95": 2.132874999999899,
+						"maximum": 2.132874999999899
+					},
+					"noSupportedOverlapGaps": {
+						"n": 284,
+						"totalMs": 62.39862400000044,
+						"p50": 0.2104789999999639,
+						"p95": 0.30220800000000736,
+						"maximum": 0.44354199999997945
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 102,
+							"ms": 0.5654999999999859,
+							"gc": [100],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 117,
+							"ms": 0.8313750000000368,
+							"gc": [101],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 132,
+							"ms": 0.5460830000000101,
+							"gc": [102],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 147,
+							"ms": 0.5988339999999539,
+							"gc": [103],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 162,
+							"ms": 0.5429579999999987,
+							"gc": [104],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 177,
+							"ms": 0.9848329999999805,
+							"gc": [105],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 192,
+							"ms": 0.5615410000000338,
+							"gc": [108],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 208,
+							"ms": 0.6909580000000233,
+							"gc": [109],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 224,
+							"ms": 2.132874999999899,
+							"gc": [110],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 228,
+							"ms": 1.579458999999929,
+							"gc": [111],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 260,
+							"ms": 0.7462500000000318,
+							"gc": [112],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 291,
+							"ms": 0.9649590000000217,
+							"gc": [113],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 322,
+							"ms": 0.6949999999999363,
+							"gc": [114],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 353,
+							"ms": 0.8230000000000928,
+							"gc": [115],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 384,
+							"ms": 0.7696670000000267,
+							"gc": [118],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 2,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 28.01337499999977,
+						"p50": 0.26743749999997135,
+						"p95": 0.34762499999999363,
+						"maximum": 0.44612499999993815
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 21.716917000000308,
+						"p50": 0.19462499999997362,
+						"p95": 0.3353749999999991,
+						"maximum": 0.7036659999999983
+					},
+					"gcOverlappingGaps": {
+						"n": 3,
+						"totalMs": 2.084292000000005,
+						"p50": 0.6909170000000131,
+						"p95": 0.7036659999999983,
+						"maximum": 0.7036659999999983
+					},
+					"noSupportedOverlapGaps": {
+						"n": 96,
+						"totalMs": 19.632625000000303,
+						"p50": 0.19422899999995025,
+						"p95": 0.2745830000000069,
+						"maximum": 0.35837500000002365
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 15,
+							"ms": 0.7036659999999983,
+							"gc": [119],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 46,
+							"ms": 0.6897089999999935,
+							"gc": [120],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 77,
+							"ms": 0.6909170000000131,
+							"gc": [121],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 2,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 82.66241899999966,
+						"p50": 0.264895499999966,
+						"p95": 0.3522500000000264,
+						"maximum": 0.4455000000000382
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 66.53995600000042,
+						"p50": 0.20100000000002183,
+						"p95": 0.29749999999989996,
+						"maximum": 0.7848750000000564
+					},
+					"gcOverlappingGaps": {
+						"n": 9,
+						"totalMs": 6.5133339999998725,
+						"p50": 0.7138749999999163,
+						"p95": 0.7848750000000564,
+						"maximum": 0.7848750000000564
+					},
+					"noSupportedOverlapGaps": {
+						"n": 290,
+						"totalMs": 60.02662200000054,
+						"p50": 0.19977099999999837,
+						"p95": 0.2755409999999756,
+						"maximum": 0.34216700000001765
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 108,
+							"ms": 0.7567080000000033,
+							"gc": [122],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 139,
+							"ms": 0.7138749999999163,
+							"gc": [123],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 171,
+							"ms": 0.7247079999999642,
+							"gc": [124],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 203,
+							"ms": 0.7036249999999882,
+							"gc": [125],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 235,
+							"ms": 0.6866249999999354,
+							"gc": [128],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 268,
+							"ms": 0.7848750000000564,
+							"gc": [129],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 301,
+							"ms": 0.6905420000000504,
+							"gc": [130],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 334,
+							"ms": 0.7756669999999986,
+							"gc": [131],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 366,
+							"ms": 0.6767089999999598,
+							"gc": [132],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 3,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 30.692834999999604,
+						"p50": 0.28427100000004657,
+						"p95": 0.4175000000000182,
+						"maximum": 0.5086249999999382
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 23.045040000000427,
+						"p50": 0.205332999999996,
+						"p95": 0.3444169999999076,
+						"maximum": 0.8665829999999914
+					},
+					"gcOverlappingGaps": {
+						"n": 3,
+						"totalMs": 2.3040829999999914,
+						"p50": 0.7988329999999451,
+						"p95": 0.8665829999999914,
+						"maximum": 0.8665829999999914
+					},
+					"noSupportedOverlapGaps": {
+						"n": 96,
+						"totalMs": 20.740957000000435,
+						"p50": 0.20372900000000982,
+						"p95": 0.28712500000006,
+						"maximum": 0.3615419999999858
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 30,
+							"ms": 0.8665829999999914,
+							"gc": [134],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 61,
+							"ms": 0.7988329999999451,
+							"gc": [135],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 92,
+							"ms": 0.6386670000000549,
+							"gc": [136],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 3,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 80.56299000000001,
+						"p50": 0.2618125000000191,
+						"p95": 0.3262919999999667,
+						"maximum": 0.5185829999999214
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 64.97546899999986,
+						"p50": 0.19270800000003874,
+						"p95": 0.3150829999999587,
+						"maximum": 0.8431659999999965
+					},
+					"gcOverlappingGaps": {
+						"n": 9,
+						"totalMs": 6.2749570000001995,
+						"p50": 0.6996249999999691,
+						"p95": 0.8431659999999965,
+						"maximum": 0.8431659999999965
+					},
+					"noSupportedOverlapGaps": {
+						"n": 290,
+						"totalMs": 58.70051199999966,
+						"p50": 0.19154149999997117,
+						"p95": 0.2668750000000273,
+						"maximum": 0.3765839999999798
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 123,
+							"ms": 0.6374170000000277,
+							"gc": [137],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 154,
+							"ms": 0.7079160000000684,
+							"gc": [138],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 187,
+							"ms": 0.6363750000000437,
+							"gc": [139],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 220,
+							"ms": 0.6606250000000955,
+							"gc": [140],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 253,
+							"ms": 0.6154579999999896,
+							"gc": [141],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 286,
+							"ms": 0.6996249999999691,
+							"gc": [142],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 319,
+							"ms": 0.71550000000002,
+							"gc": [143],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 352,
+							"ms": 0.8431659999999965,
+							"gc": [144],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 385,
+							"ms": 0.7588749999999891,
+							"gc": [145],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 4,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 26.408789000000525,
+						"p50": 0.2547710000000052,
+						"p95": 0.31741699999997763,
+						"maximum": 0.37262500000019827
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 21.761918999999352,
+						"p50": 0.1894999999999527,
+						"p95": 0.35616700000014134,
+						"maximum": 0.9084159999999883
+					},
+					"gcOverlappingGaps": {
+						"n": 3,
+						"totalMs": 2.353166999999985,
+						"p50": 0.7417090000001281,
+						"p95": 0.9084159999999883,
+						"maximum": 0.9084159999999883
+					},
+					"noSupportedOverlapGaps": {
+						"n": 96,
+						"totalMs": 19.408751999999367,
+						"p50": 0.1887499999999136,
+						"p95": 0.2829580000000078,
+						"maximum": 0.41695800000002237
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 18,
+							"ms": 0.9084159999999883,
+							"gc": [146],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 51,
+							"ms": 0.7417090000001281,
+							"gc": [147],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 84,
+							"ms": 0.7030419999998685,
+							"gc": [148],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 4,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 88.74103399999831,
+						"p50": 0.28502049999997325,
+						"p95": 0.39295900000001893,
+						"maximum": 0.8777499999998781
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 72.08050700000172,
+						"p50": 0.20525000000020555,
+						"p95": 0.2935419999998885,
+						"maximum": 4.082124999999905
+					},
+					"gcOverlappingGaps": {
+						"n": 6,
+						"totalMs": 9.94204099999979,
+						"p50": 1.0962499999999409,
+						"p95": 4.082124999999905,
+						"maximum": 4.082124999999905
+					},
+					"noSupportedOverlapGaps": {
+						"n": 293,
+						"totalMs": 62.13846600000193,
+						"p50": 0.20433299999990595,
+						"p95": 0.27616699999998673,
+						"maximum": 0.4512499999998454
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 117,
+							"ms": 4.082124999999905,
+							"gc": [149],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 121,
+							"ms": 1.517959000000019,
+							"gc": [150],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 187,
+							"ms": 1.073666000000003,
+							"gc": [151],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 252,
+							"ms": 1.0842499999998836,
+							"gc": [152],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 317,
+							"ms": 1.1082499999999982,
+							"gc": [153],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 382,
+							"ms": 1.075790999999981,
+							"gc": [154],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 5,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 29.859038999999484,
+						"p50": 0.2829579999998941,
+						"p95": 0.36970900000005713,
+						"maximum": 0.8224159999999756
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 26.139794000000393,
+						"p50": 0.19720799999981864,
+						"p95": 0.2987920000000486,
+						"maximum": 4.946749999999838
+					},
+					"gcOverlappingGaps": {
+						"n": 1,
+						"totalMs": 1.062167000000045,
+						"p50": 1.062167000000045,
+						"p95": 1.062167000000045,
+						"maximum": 1.062167000000045
+					},
+					"noSupportedOverlapGaps": {
+						"n": 98,
+						"totalMs": 25.077627000000348,
+						"p50": 0.19643699999994624,
+						"p95": 0.28100000000017644,
+						"maximum": 4.946749999999838
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 47,
+							"ms": 1.062167000000045,
+							"gc": [155],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				},
+				{
+					"block": 5,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 79.36582899999917,
+						"p50": 0.25862500000016553,
+						"p95": 0.3142910000001393,
+						"maximum": 0.41704200000003766
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 59.184713000000784,
+						"p50": 0.17849999999998545,
+						"p95": 0.25137500000005275,
+						"maximum": 1.0614160000000084
+					},
+					"gcOverlappingGaps": {
+						"n": 5,
+						"totalMs": 4.91416600000025,
+						"p50": 0.968375000000151,
+						"p95": 1.0614160000000084,
+						"maximum": 1.0614160000000084
+					},
+					"noSupportedOverlapGaps": {
+						"n": 294,
+						"totalMs": 54.27054700000053,
+						"p50": 0.17810399999996207,
+						"p95": 0.23604199999999764,
+						"maximum": 0.3513749999999618
+					},
+					"gapRelations": [
+						{
+							"afterIndex": 112,
+							"ms": 0.968375000000151,
+							"gc": [156],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 177,
+							"ms": 0.9591660000000957,
+							"gc": [157],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 242,
+							"ms": 0.987041999999974,
+							"gc": [158],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 307,
+							"ms": 0.9381670000000213,
+							"gc": [159],
+							"deopt": [],
+							"possible": []
+						},
+						{
+							"afterIndex": 372,
+							"ms": 1.0614160000000084,
+							"gc": [160],
+							"deopt": [],
+							"possible": []
+						}
+					]
+				}
+			],
+			"releaseNodes": 60,
+			"staticPairChecksPerCleanup": 3540,
+			"staticPairChecksFor2400Cleanups": 8496000
+		},
+		{
+			"job": "10-Q-V",
+			"phases": [
+				{
+					"block": 0,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 36.32437100000004,
+						"p50": 0.31287499999999113,
+						"p95": 0.706167000000022,
+						"maximum": 1.1431249999999977
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 29.71475399999997,
+						"p50": 0.23329200000000583,
+						"p95": 0.5588329999999928,
+						"maximum": 2.0407089999999926
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 0,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 91.02226299999984,
+						"p50": 0.28837500000000205,
+						"p95": 0.39449999999999363,
+						"maximum": 0.5818749999999966
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 78.02782000000016,
+						"p50": 0.2224999999999966,
+						"p95": 0.49916600000000244,
+						"maximum": 1.725750000000005
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 1,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 36.837754999999675,
+						"p50": 0.3211250000000234,
+						"p95": 0.7048330000000078,
+						"maximum": 1.0610419999999863
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 29.916662000000315,
+						"p50": 0.24770799999998871,
+						"p95": 0.6070829999999887,
+						"maximum": 0.8229590000000258
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 1,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 96.4043339999987,
+						"p50": 0.3039369999999906,
+						"p95": 0.43604099999993196,
+						"maximum": 0.6288749999999936
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 82.14445800000135,
+						"p50": 0.23058400000002166,
+						"p95": 0.6290419999999699,
+						"maximum": 2.609166000000073
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 2,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 28.397005999999237,
+						"p50": 0.2728749999999991,
+						"p95": 0.35216700000000856,
+						"maximum": 0.42633299999999963
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 22.16045200000076,
+						"p50": 0.1994999999999436,
+						"p95": 0.32170800000005784,
+						"maximum": 0.7711669999999913
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 2,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 82.67557399999941,
+						"p50": 0.26474999999999227,
+						"p95": 0.350832999999966,
+						"maximum": 0.39562499999999545
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 67.24167600000055,
+						"p50": 0.19841699999994944,
+						"p95": 0.3096249999999827,
+						"maximum": 0.7649579999999787
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 3,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 30.000754000000256,
+						"p50": 0.2802499999999668,
+						"p95": 0.36887500000000273,
+						"maximum": 0.6274590000000444
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 22.5174549999997,
+						"p50": 0.2040830000000824,
+						"p95": 0.33170799999993505,
+						"maximum": 0.745708000000036
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 3,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 80.38091099999917,
+						"p50": 0.25935399999997344,
+						"p95": 0.31933300000002873,
+						"maximum": 0.48854099999994105
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 63.6625060000008,
+						"p50": 0.18737499999997453,
+						"p95": 0.2751670000000104,
+						"maximum": 0.7739169999999831
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 4,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 26.446830999999065,
+						"p50": 0.2543749999999818,
+						"p95": 0.31133299999987685,
+						"maximum": 0.3857499999999163
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 21.04308500000093,
+						"p50": 0.18704200000001947,
+						"p95": 0.33566700000005767,
+						"maximum": 0.6772499999999582
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 4,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 86.09670699999947,
+						"p50": 0.27654150000000755,
+						"p95": 0.36158399999999347,
+						"maximum": 0.7923749999999927
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 70.61425200000053,
+						"p50": 0.20141699999999219,
+						"p95": 0.31666599999994105,
+						"maximum": 3.679458000000068
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 5,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 29.30633000000057,
+						"p50": 0.27270850000002156,
+						"p95": 0.3922500000001037,
+						"maximum": 0.8571249999999964
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 20.643294999999398,
+						"p50": 0.1877919999999449,
+						"p95": 0.29016599999999926,
+						"maximum": 0.9959999999998672
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 5,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 78.3342070000026,
+						"p50": 0.2540005000000747,
+						"p95": 0.3115419999999176,
+						"maximum": 0.43216700000016317
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 57.745459999997365,
+						"p50": 0.17333299999995688,
+						"p95": 0.24499999999989086,
+						"maximum": 1.0647919999998976
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				}
+			],
+			"releaseNodes": 60,
+			"staticPairChecksPerCleanup": 3540,
+			"staticPairChecksFor2400Cleanups": 8496000
+		},
+		{
+			"job": "11-B-U",
+			"phases": [
+				{
+					"block": 0,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 37.0437119999998,
+						"p50": 0.3310419999999965,
+						"p95": 0.6920839999999941,
+						"maximum": 1.0705420000000174
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 30.679205000000195,
+						"p50": 0.24399999999999977,
+						"p95": 0.5290829999999858,
+						"maximum": 2.137999999999977
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 0,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 92.69116800000049,
+						"p50": 0.29300000000000637,
+						"p95": 0.4130419999999617,
+						"maximum": 0.599833000000018
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 77.89708199999953,
+						"p50": 0.2197079999999687,
+						"p95": 0.5133749999999964,
+						"maximum": 1.8528329999999755
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 1,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 35.99857900000029,
+						"p50": 0.31664550000002123,
+						"p95": 0.6540409999999497,
+						"maximum": 0.9457500000000323
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 28.294503999999733,
+						"p50": 0.23937499999999545,
+						"p95": 0.6326249999999618,
+						"maximum": 0.842708000000016
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 1,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 90.79858799999994,
+						"p50": 0.2856249999999818,
+						"p95": 0.39458300000001145,
+						"maximum": 0.6231249999999591
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 74.02857900000004,
+						"p50": 0.20549999999991542,
+						"p95": 0.4902500000000032,
+						"maximum": 2.0680419999999913
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 2,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 28.355509999999754,
+						"p50": 0.2725419999999872,
+						"p95": 0.3605000000000018,
+						"maximum": 0.47308399999997164
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 21.427865000000224,
+						"p50": 0.19279100000005656,
+						"p95": 0.31445799999994506,
+						"maximum": 0.6825829999999087
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 2,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 83.38169699999878,
+						"p50": 0.2648544999999558,
+						"p95": 0.36345799999992323,
+						"maximum": 0.4656250000000455
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 65.83346900000117,
+						"p50": 0.19420900000000074,
+						"p95": 0.31816700000001674,
+						"maximum": 0.7613750000000437
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 3,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 30.06540700000062,
+						"p50": 0.2831249999999841,
+						"p95": 0.3978749999999991,
+						"maximum": 0.518165999999951
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 22.263800999999376,
+						"p50": 0.2017079999999396,
+						"p95": 0.3060839999999416,
+						"maximum": 0.7050000000000409
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 3,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 81.50116400000047,
+						"p50": 0.2580834999999979,
+						"p95": 0.35370799999998326,
+						"maximum": 0.50587500000006
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 66.81025299999953,
+						"p50": 0.19183400000008533,
+						"p95": 0.36687500000005,
+						"maximum": 1.5686249999999973
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 4,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 28.697957000000997,
+						"p50": 0.2644995000000563,
+						"p95": 0.41862500000002,
+						"maximum": 0.7976250000001528
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 26.234042999999133,
+						"p50": 0.1974999999999909,
+						"p95": 0.337291999999934,
+						"maximum": 3.959124999999858
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 4,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 85.80537499999718,
+						"p50": 0.27558350000003884,
+						"p95": 0.36104100000011385,
+						"maximum": 0.4612919999999576
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 66.654792000003,
+						"p50": 0.20116699999994125,
+						"p95": 0.28358300000013514,
+						"maximum": 1.3514999999999873
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 5,
+					"phase": "warmup",
+					"construction": {
+						"n": 100,
+						"totalMs": 29.983541999999716,
+						"p50": 0.2843125000000555,
+						"p95": 0.3700420000000122,
+						"maximum": 0.7593329999999696
+					},
+					"gaps": {
+						"n": 99,
+						"totalMs": 21.28087500000038,
+						"p50": 0.1966660000000502,
+						"p95": 0.28808299999991505,
+						"maximum": 1.1814580000000205
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				},
+				{
+					"block": 5,
+					"phase": "measured",
+					"construction": {
+						"n": 300,
+						"totalMs": 80.49645300000066,
+						"p50": 0.260167000000024,
+						"p95": 0.32008300000006784,
+						"maximum": 0.4146249999998872
+					},
+					"gaps": {
+						"n": 299,
+						"totalMs": 59.090171999999484,
+						"p50": 0.1783339999999498,
+						"p95": 0.24295899999992798,
+						"maximum": 1.0462909999998828
+					},
+					"gcOverlappingGaps": null,
+					"noSupportedOverlapGaps": null,
+					"gapRelations": null
+				}
+			],
+			"releaseNodes": 60,
+			"staticPairChecksPerCleanup": 3540,
+			"staticPairChecksFor2400Cleanups": 8496000
+		}
+	]
+}

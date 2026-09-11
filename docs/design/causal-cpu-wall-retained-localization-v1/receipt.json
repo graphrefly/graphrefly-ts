@@ -1,0 +1,29 @@
+{
+	"work": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"classification": "retained-data investigation; not decision or new capture authorization",
+	"baselineCommit": "ec5aa5e2",
+	"sourceArchive": "sha256:9c7f02c656d2403bd09a645ace3a2fc0955d494d8675334dd7610c6be2a9b325",
+	"sourceIndex": "sha256:79ba418de1bf7d1df1ae497a6f3c3926f9c01bb875533f9da3aad97876fe227b",
+	"retainedSamples": 28800,
+	"independentlyComparedGapRelations": 9552,
+	"newConsumerSamples": 0,
+	"newCaptureProcesses": 0,
+	"libraryChanges": false,
+	"performanceQualification": false,
+	"finding": "specific cleanup quadratic subscriber-validation hotspot; no measured exclusive cost or causal cold-p95 verdict",
+	"artifacts": {
+		"README.md": "sha256:9c88caff80b1356fc31d515be28bb91b3449edc6430aa9136f494c5bb04e4462",
+		"analyze.py": "sha256:215481c292e62c770a4f9ae9cb97ff08e5679cce0cb9c0aacda3edf0e0b70bc0",
+		"verify.mjs": "sha256:f4eec3836772ca40a127ff1629f78a82d3b704949a5408149272204393b89cf1",
+		"analysis.json": "sha256:0fefadd7f6ab0fbb1ba30df7a61959466b195ab08cfff5ac82fec4a2ab9bb84a",
+		"verification.json": "sha256:985735577d4f056f6a280b1664f6cd18980a2d445f2dd2d86de0abd1306c817d"
+	},
+	"rootDirtyFilesUnchanged": {
+		"decisions/decisions.jsonl": "b1c78cb3d6a0915a37728181a4003bac8f615c1cfd220add1a7982997b48c831",
+		"plan/backlog.jsonl": "89a6d9e0a7607db2bac8f7cfdfeeebdaea7f5faed820a8f659d647cdea4d9505",
+		"sessions/active/SESSION-blueprint-stacked-pr-ownership.md": "74d4b1311f8b5631b1c3ae77857797f75541b31f92603f47efab953fb800115c",
+		"sessions/sessions.jsonl": "d3c318c66a5c0e54294d91f1f5dc776d89c47a69f01b09a7dea06ed33902791c",
+		"sessions/archive/SESSION-b139-causal-flagship-brief-v1.md": "1477c42a39903ea89c523c97ee82c7eb1c0e320f88c88738325e043c6d44dc8a",
+		"sessions/archive/b139-causal-flagship-brief-v1.json": "c406a58efb7ec9c24ef01c11b987405345b330edd045c915c2afef8d945a7fe7"
+	}
+}
