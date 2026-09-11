@@ -1,0 +1,10 @@
+{
+	"archiveFiles": 635,
+	"retainedSamples": 96000,
+	"blocksIndependentlyCrossChecked": 240,
+	"originalP95AndPairStatisticsMatch": true,
+	"topDecileAndHalfMediansIndependentlyMatch": true,
+	"analysisReplayMatches": true,
+	"newConsumerExecutions": 0,
+	"newMeasurements": 0
+}

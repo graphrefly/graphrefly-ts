@@ -1,0 +1,56 @@
+{
+	"kind": "read-only retained-data audit",
+	"work_ref": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"governing_refs": ["graphrefly-ts:D169", "graphrefly-ts:D168"],
+	"baseline": "00288782",
+	"authorization": "User 那就继续 follows the retained-data-only investigation proposal; existing commit instruction retained.",
+	"sourceArchive": {
+		"path": "archive/evals/causal-cold-position-pairs-v3/evidence.tar.gz",
+		"digest": "sha256:6e6c00fc5c6be7ab7e6ee950c7f7540d952511333af3f1b750abbe648f808799"
+	},
+	"sourceIndex": {
+		"path": "archive/evals/causal-cold-position-pairs-v3/artifact-index.json",
+		"digest": "sha256:54511a0da2f563cccb10b0d7d81dd8183781b3397867de03689a1a6585a70865"
+	},
+	"files": [
+		{
+			"path": "docs/design/causal-position-pairs-retained-audit-v1/README.md",
+			"digest": "sha256:053a491f68faf22f31481f887142c1590c74a92a0c18f016fbbbdf3c95ff9f3b"
+		},
+		{
+			"path": "docs/design/causal-position-pairs-retained-audit-v1/analyze.py",
+			"digest": "sha256:0a798582f9be64c05048db849fc2c4df3d7ad56351d474866cb2c505dad175e3"
+		},
+		{
+			"path": "docs/design/causal-position-pairs-retained-audit-v1/cross-check.py",
+			"digest": "sha256:46a30fc71d916895baea90789289a076175a261afd779a5352b03d8530ff7c95"
+		},
+		{
+			"path": "docs/design/causal-position-pairs-retained-audit-v1/analysis.json",
+			"digest": "sha256:d24b345fd8540f24f05f41cc0753b05e60b6de051deb2f61da66a1bbe63853c8"
+		},
+		{
+			"path": "docs/design/causal-position-pairs-retained-audit-v1/verification.json",
+			"digest": "sha256:2f171d121a02e56e4bf2f6bf1931fdf778eb396c781cda6696360230c13c86ab"
+		}
+	],
+	"checks": {
+		"archiveFiles": 635,
+		"retainedSamples": 96000,
+		"blocksIndependentlyCrossChecked": 240,
+		"originalP95AndPairStatisticsMatch": true,
+		"topDecileAndHalfMediansIndependentlyMatch": true,
+		"analysisReplayMatches": true,
+		"newConsumerExecutions": 0,
+		"newMeasurements": 0
+	},
+	"newMeasurements": 0,
+	"originalVerdict": "method-not-qualified",
+	"methodChanged": false,
+	"libraryChanged": false,
+	"formalMatrixDispatched": false,
+	"externalEffects": 0,
+	"workStatus": "incomplete",
+	"causalAttribution": "unresolved",
+	"next": "Design bounded CPU-time/wall-time and phase-correlated observations before another measurement; no new run authorized by this receipt."
+}
