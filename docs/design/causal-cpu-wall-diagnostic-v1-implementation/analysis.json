@@ -1,0 +1,1309 @@
+{
+	"status": "complete-unresolved",
+	"performanceQualification": false,
+	"runs": [
+		{
+			"position": 0,
+			"cell": "B-U",
+			"pass": 0,
+			"phases": {
+				"warmup": {
+					"p50": [
+						0.31412499999999, 0.3185414999999807, 0.27154149999995525, 0.28843700000004446,
+						0.2780414999999721, 0.27443750000009004
+					],
+					"p95": [
+						0.6357089999999914, 0.6301249999999641, 0.3311660000000529, 0.4009170000000495,
+						0.34483399999999165, 0.37941700000010314
+					],
+					"constructionMs": 188.78807000000074,
+					"withinPhaseGapMs": 149.04205299999913
+				},
+				"measured": {
+					"p50": [
+						0.29883350000000064, 0.2871040000000562, 0.2625204999999937, 0.26075050000002875,
+						0.2763545000000249, 0.24845849999996972
+					],
+					"p95": [
+						0.4199169999999981, 0.41545800000005784, 0.3387089999999944, 0.33808299999998326,
+						0.4156669999999849, 0.2958329999999023
+					],
+					"constructionMs": 514.8600760000005,
+					"withinPhaseGapMs": 420.5074259999998
+				}
+			}
+		},
+		{
+			"position": 1,
+			"cell": "Q-V",
+			"pass": 0,
+			"phases": {
+				"warmup": {
+					"p50": [
+						0.321708000000001, 0.3222915000000057, 0.26912449999997534, 0.2969590000000153,
+						0.2814374999999245, 0.2912499999999909
+					],
+					"p95": [
+						0.720041000000009, 0.6375830000000065, 0.33904199999994944, 0.40949999999998,
+						0.36458300000003874, 0.3974169999999049
+					],
+					"constructionMs": 193.243150000001,
+					"withinPhaseGapMs": 152.64805899999874,
+					"T": 338.415,
+					"P": 465.71999999999997,
+					"Wlo": 347.8454600000001,
+					"Whi": 348.09745699999996,
+					"Wpoint": 347.97145850000004,
+					"unaccountedElapsed": 9.556458500000055,
+					"processMinusThread": 127.30499999999999
+				},
+				"measured": {
+					"p50": [
+						0.2923749999999927, 0.29593749999997954, 0.2696460000000229, 0.28264599999999973,
+						0.3017500000000837, 0.2782710000000179
+					],
+					"p95": [
+						0.39674999999999727, 0.40104199999996126, 0.36512500000003456, 0.37333300000000236,
+						0.41712500000016917, 0.3703330000000733
+					],
+					"constructionMs": 538.6772270000046,
+					"withinPhaseGapMs": 447.5497319999953,
+					"T": 958.49,
+					"P": 1266.847,
+					"Wlo": 987.8719570000001,
+					"Whi": 988.0236260000001,
+					"Wpoint": 987.9477915000001,
+					"unaccountedElapsed": 29.4577915000001,
+					"processMinusThread": 308.357
+				}
+			}
+		},
+		{
+			"position": 2,
+			"cell": "T-U",
+			"pass": 0,
+			"phases": {
+				"warmup": {
+					"p50": [
+						0.3521250000000009, 0.3612499999999841, 0.27141699999998536, 0.3218540000000303,
+						0.27214600000002065, 0.25937499999997726
+					],
+					"p95": [
+						1.1259589999999946, 0.7795830000000024, 0.39570800000001327, 0.41362500000002456,
+						0.3356669999998303, 0.33920899999998255
+					],
+					"constructionMs": 207.6409020000001,
+					"withinPhaseGapMs": 247.98188999999994,
+					"T": 366.216,
+					"P": 502.49100000000004,
+					"Wlo": 457.789916,
+					"Whi": 458.03608499999996,
+					"Wpoint": 457.91300049999995,
+					"unaccountedElapsed": 91.69700049999999,
+					"processMinusThread": 136.27500000000003
+				},
+				"measured": {
+					"p50": [
+						0.29877100000001633, 0.30993749999998954, 0.26737500000001546, 0.2804589999999507,
+						0.2765629999998964, 0.25545850000003156
+					],
+					"p95": [
+						0.42604199999999537, 0.47708399999999074, 0.37145799999996143, 0.3470829999998841,
+						0.39020899999991343, 0.3090420000000904
+					],
+					"constructionMs": 534.1501190000021,
+					"withinPhaseGapMs": 449.2480899999978,
+					"T": 954.76,
+					"P": 1246.026,
+					"Wlo": 985.5770429999999,
+					"Whi": 985.737625,
+					"Wpoint": 985.6573339999999,
+					"unaccountedElapsed": 30.897333999999915,
+					"processMinusThread": 291.266
+				}
+			}
+		},
+		{
+			"position": 3,
+			"cell": "B-V",
+			"pass": 0,
+			"phases": {
+				"warmup": {
+					"p50": [
+						0.37499950000000126, 0.32979199999999764, 0.2853954999999928, 0.2808120000000258,
+						0.2702289999999721, 0.2658129999999801
+					],
+					"p95": [
+						0.7160829999999976, 0.6784579999999778, 0.3716660000000047, 0.40637500000002547,
+						0.3835830000000442, 0.37658299999998235
+					],
+					"constructionMs": 196.16483100000056,
+					"withinPhaseGapMs": 168.68983499999945
+				},
+				"measured": {
+					"p50": [
+						0.3087294999999983, 0.31483299999999304, 0.26862499999992906, 0.26410400000003165,
+						0.2688335000000279, 0.25789549999990413
+					],
+					"p95": [
+						0.4462090000000103, 0.43695900000000165, 0.33954099999994014, 0.3479170000000522,
+						0.35991599999988466, 0.3149580000001606
+					],
+					"constructionMs": 529.886184999999,
+					"withinPhaseGapMs": 442.5328980000007
+				}
+			}
+		},
+		{
+			"position": 4,
+			"cell": "Q-U",
+			"pass": 0,
+			"phases": {
+				"warmup": {
+					"p50": [
+						0.3263125000000002, 0.327021000000002, 0.26625000000001364, 0.2868960000000129,
+						0.2616249999999809, 0.27289599999994607
+					],
+					"p95": [
+						0.6716669999999851, 0.6606669999999895, 0.35695799999996325, 0.4357079999999769,
+						0.3133749999999509, 0.3482089999999971
+					],
+					"constructionMs": 188.25929899999667,
+					"withinPhaseGapMs": 146.750285000003,
+					"T": 328.621,
+					"P": 454.529,
+					"Wlo": 337.0010000000001,
+					"Whi": 337.25087799999994,
+					"Wpoint": 337.125939,
+					"unaccountedElapsed": 8.504939000000022,
+					"processMinusThread": 125.90800000000002
+				},
+				"measured": {
+					"p50": [
+						0.29843699999999274, 0.28754199999997354, 0.2647084999999265, 0.261271000000022,
+						0.26604199999997036, 0.25491699999997763
+					],
+					"p95": [
+						0.4227920000000154, 0.3850410000000011, 0.34970800000007785, 0.33312499999999545,
+						0.3701249999999163, 0.31674999999995634
+					],
+					"constructionMs": 512.7399619999992,
+					"withinPhaseGapMs": 414.16049700000053,
+					"T": 902.285,
+					"P": 1183.87,
+					"Wlo": 928.2156660000002,
+					"Whi": 928.3734989999999,
+					"Wpoint": 928.2945825,
+					"unaccountedElapsed": 26.009582500000022,
+					"processMinusThread": 281.585
+				}
+			}
+		},
+		{
+			"position": 5,
+			"cell": "T-V",
+			"pass": 0,
+			"phases": {
+				"warmup": {
+					"p50": [
+						0.3144580000000019, 0.3222499999999968, 0.261874999999975, 0.29108349999995653,
+						0.2757080000000087, 0.28797899999995025
+					],
+					"p95": [
+						0.7019579999999905, 0.6822500000000105, 0.388541000000032, 0.47950000000003,
+						0.40533400000003894, 0.39941700000008495
+					],
+					"constructionMs": 192.73507000000296,
+					"withinPhaseGapMs": 158.39055399999677,
+					"T": 338.442,
+					"P": 491.026,
+					"Wlo": 353.12821000000014,
+					"Whi": 353.36887400000023,
+					"Wpoint": 353.24854200000016,
+					"unaccountedElapsed": 14.806542000000192,
+					"processMinusThread": 152.584
+				},
+				"measured": {
+					"p50": [
+						0.28708299999999554, 0.29362449999996443, 0.2621250000000259, 0.2623125000000073,
+						0.26995850000014343, 0.25827049999998053
+					],
+					"p95": [
+						0.40920799999997826, 0.4412919999999758, 0.3450000000000273, 0.3413749999999709,
+						0.3527920000001359, 0.32291699999996126
+					],
+					"constructionMs": 513.7057909999972,
+					"withinPhaseGapMs": 408.2273330000028,
+					"T": 896.476,
+					"P": 1170.6599999999999,
+					"Wlo": 923.3551260000002,
+					"Whi": 923.5195429999997,
+					"Wpoint": 923.4373344999999,
+					"unaccountedElapsed": 26.96133449999985,
+					"processMinusThread": 274.1839999999999
+				}
+			}
+		},
+		{
+			"position": 6,
+			"cell": "T-V",
+			"pass": 1,
+			"phases": {
+				"warmup": {
+					"p50": [
+						0.32116700000000264, 0.3350625000000207, 0.2723959999999579, 0.28285450000004175,
+						0.2585414999999216, 0.2648540000000139
+					],
+					"p95": [
+						0.6744170000000054, 0.6656659999999874, 0.36716599999999744, 0.3662500000000364,
+						0.3900830000000042, 0.3536659999999756
+					],
+					"constructionMs": 188.74920000000063,
+					"withinPhaseGapMs": 150.4264659999994,
+					"T": 331.847,
+					"P": 479.563,
+					"Wlo": 341.0646249999996,
+					"Whi": 341.3129999999999,
+					"Wpoint": 341.1888124999997,
+					"unaccountedElapsed": 9.341812499999719,
+					"processMinusThread": 147.716
+				},
+				"measured": {
+					"p50": [
+						0.2975619999999992, 0.29306249999996226, 0.2624580000000378, 0.26002050000005283,
+						0.27833349999991697, 0.25883349999992333
+					],
+					"p95": [
+						0.4139589999999771, 0.40625, 0.354041000000052, 0.3418329999999514, 0.37712499999997817,
+						0.3221249999999145
+					],
+					"constructionMs": 517.1800439999961,
+					"withinPhaseGapMs": 418.6527490000039,
+					"T": 898.918,
+					"P": 1174.011,
+					"Wlo": 937.1432069999998,
+					"Whi": 937.2961650000002,
+					"Wpoint": 937.219686,
+					"unaccountedElapsed": 38.30168600000002,
+					"processMinusThread": 275.093
+				}
+			}
+		},
+		{
+			"position": 7,
+			"cell": "Q-U",
+			"pass": 1,
+			"phases": {
+				"warmup": {
+					"p50": [
+						0.3347080000000062, 0.31712500000003274, 0.2708335000000375, 0.2809790000000021,
+						0.27585450000003675, 0.28364600000008977
+					],
+					"p95": [
+						0.6514159999999833, 0.6957920000000399, 0.3370830000000069, 0.43537500000002183,
+						0.34779100000014296, 0.4258329999997841
+					],
+					"constructionMs": 190.9745330000011,
+					"withinPhaseGapMs": 151.0256329999991,
+					"T": 334.524,
+					"P": 454.986,
+					"Wlo": 343.9525840000001,
+					"Whi": 344.2043339999998,
+					"Wpoint": 344.07845899999995,
+					"unaccountedElapsed": 9.554458999999937,
+					"processMinusThread": 120.46199999999999
+				},
+				"measured": {
+					"p50": [
+						0.29641699999999105, 0.2913125000000605, 0.26204150000000936, 0.280999500000064,
+						0.3044999999999618, 0.27547950000007404
+					],
+					"p95": [
+						0.41191700000001674, 0.4014160000000402, 0.3530839999999671, 0.3667090000000144,
+						0.43391700000006495, 0.37845900000002075
+					],
+					"constructionMs": 536.9527080000006,
+					"withinPhaseGapMs": 445.61287399999964,
+					"T": 954.338,
+					"P": 1237.493,
+					"Wlo": 984.0541240000001,
+					"Whi": 984.2016250000001,
+					"Wpoint": 984.1278745000002,
+					"unaccountedElapsed": 29.789874500000167,
+					"processMinusThread": 283.155
+				}
+			}
+		},
+		{
+			"position": 8,
+			"cell": "B-V",
+			"pass": 1,
+			"phases": {
+				"warmup": {
+					"p50": [
+						0.320604000000003, 0.324354000000028, 0.2798540000000571, 0.29737449999998944,
+						0.26689650000002985, 0.2702289999999721
+					],
+					"p95": [
+						0.6844999999999857, 0.6232079999999769, 0.3601250000000391, 0.4002499999999145,
+						0.4024580000000242, 0.35412499999983993
+					],
+					"constructionMs": 192.13008599999873,
+					"withinPhaseGapMs": 155.76383000000115
+				},
+				"measured": {
+					"p50": [
+						0.2947914999999881, 0.30762499999997317, 0.2691040000000271, 0.26743800000002693,
+						0.2643749999999727, 0.2506664999999657
+					],
+					"p95": [
+						0.40554199999996854, 0.4480829999999969, 0.3821249999999736, 0.34962499999994634,
+						0.3520419999999831, 0.3551249999998163
+					],
+					"constructionMs": 522.6581339999982,
+					"withinPhaseGapMs": 432.53515700000185
+				}
+			}
+		},
+		{
+			"position": 9,
+			"cell": "T-U",
+			"pass": 1,
+			"phases": {
+				"warmup": {
+					"p50": [
+						0.3318335000000019, 0.3260830000000112, 0.26743749999997135, 0.28427100000004657,
+						0.2547710000000052, 0.2829579999998941
+					],
+					"p95": [
+						0.6609579999999937, 0.6452500000000327, 0.34762499999999363, 0.4175000000000182,
+						0.31741699999997763, 0.36970900000005713
+					],
+					"constructionMs": 189.51377999999895,
+					"withinPhaseGapMs": 154.8752200000009,
+					"T": 332.411,
+					"P": 454.489,
+					"Wlo": 346.82499999999993,
+					"Whi": 347.0663760000003,
+					"Wpoint": 346.94568800000013,
+					"unaccountedElapsed": 14.534688000000124,
+					"processMinusThread": 122.078
+				},
+				"measured": {
+					"p50": [
+						0.30002049999998803, 0.29000050000007604, 0.264895499999966, 0.2618125000000191,
+						0.28502049999997325, 0.25862500000016553
+					],
+					"p95": [
+						0.41395800000000804, 0.40591699999993125, 0.3522500000000264, 0.3262919999999667,
+						0.39295900000001893, 0.3142910000001393
+					],
+					"constructionMs": 517.7515259999969,
+					"withinPhaseGapMs": 418.89185000000293,
+					"T": 914.295,
+					"P": 1192.917,
+					"Wlo": 938.3712079999999,
+					"Whi": 938.5335829999999,
+					"Wpoint": 938.4523955,
+					"unaccountedElapsed": 24.15739549999995,
+					"processMinusThread": 278.622
+				}
+			}
+		},
+		{
+			"position": 10,
+			"cell": "Q-V",
+			"pass": 1,
+			"phases": {
+				"warmup": {
+					"p50": [
+						0.31287499999999113, 0.3211250000000234, 0.2728749999999991, 0.2802499999999668,
+						0.2543749999999818, 0.27270850000002156
+					],
+					"p95": [
+						0.706167000000022, 0.7048330000000078, 0.35216700000000856, 0.36887500000000273,
+						0.31133299999987685, 0.3922500000001037
+					],
+					"constructionMs": 187.31304699999885,
+					"withinPhaseGapMs": 145.99570300000107,
+					"T": 326.502,
+					"P": 452.648,
+					"Wlo": 335.2055429999998,
+					"Whi": 335.4700839999998,
+					"Wpoint": 335.3378134999998,
+					"unaccountedElapsed": 8.835813499999823,
+					"processMinusThread": 126.14600000000002
+				},
+				"measured": {
+					"p50": [
+						0.28837500000000205, 0.3039369999999906, 0.26474999999999227, 0.25935399999997344,
+						0.27654150000000755, 0.2540005000000747
+					],
+					"p95": [
+						0.39449999999999363, 0.43604099999993196, 0.350832999999966, 0.31933300000002873,
+						0.36158399999999347, 0.3115419999999176
+					],
+					"constructionMs": 514.9139959999992,
+					"withinPhaseGapMs": 419.43617200000074,
+					"T": 908.0360000000001,
+					"P": 1187.318,
+					"Wlo": 935.866876,
+					"Whi": 936.0307499999997,
+					"Wpoint": 935.9488129999999,
+					"unaccountedElapsed": 27.9128129999998,
+					"processMinusThread": 279.2819999999999
+				}
+			}
+		},
+		{
+			"position": 11,
+			"cell": "B-U",
+			"pass": 1,
+			"phases": {
+				"warmup": {
+					"p50": [
+						0.3310419999999965, 0.31664550000002123, 0.2725419999999872, 0.2831249999999841,
+						0.2644995000000563, 0.2843125000000555
+					],
+					"p95": [
+						0.6920839999999941, 0.6540409999999497, 0.3605000000000018, 0.3978749999999991,
+						0.41862500000002, 0.3700420000000122
+					],
+					"constructionMs": 190.14470700000118,
+					"withinPhaseGapMs": 150.18029299999904
+				},
+				"measured": {
+					"p50": [
+						0.29300000000000637, 0.2856249999999818, 0.2648544999999558, 0.2580834999999979,
+						0.27558350000003884, 0.260167000000024
+					],
+					"p95": [
+						0.4130419999999617, 0.39458300000001145, 0.36345799999992323, 0.35370799999998326,
+						0.36104100000011385, 0.32008300000006784
+					],
+					"constructionMs": 514.6744449999975,
+					"withinPhaseGapMs": 410.3143470000027
+				}
+			}
+		}
+	],
+	"matchedComparisons": [
+		{
+			"passIndex": 0,
+			"orientation": "U",
+			"phase": "b0s0-warmup",
+			"Q/B": {
+				"p50Ratio": 1.0387982491046897,
+				"p95Ratio": 1.0565636163716325,
+				"constructionMsDifference": 1.3836300000001245,
+				"withinPhaseGapMsDifference": 2.1412869999998634
+			},
+			"T/Q": {
+				"p50Ratio": 1.0791036199961714,
+				"p95Ratio": 1.6763649248809596,
+				"constructionMsDifference": 9.315045000000083,
+				"withinPhaseGapMsDifference": 81.19857999999994
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "U",
+			"phase": "b0s0-measured",
+			"Q/B": {
+				"p50Ratio": 0.9986731741922914,
+				"p95Ratio": 1.0068465911120943,
+				"constructionMsDifference": -0.5265350000009619,
+				"withinPhaseGapMsDifference": 1.6673680000009483
+			},
+			"T/Q": {
+				"p50Ratio": 1.0011191641787835,
+				"p95Ratio": 1.0076869950235101,
+				"constructionMsDifference": 1.9225690000010331,
+				"withinPhaseGapMsDifference": 5.602555999998913
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "U",
+			"phase": "b0s1-warmup",
+			"Q/B": {
+				"p50Ratio": 1.0266197653995532,
+				"p95Ratio": 1.048469748065903,
+				"constructionMsDifference": 0.5282950000002415,
+				"withinPhaseGapMsDifference": 1.1446629999996958
+			},
+			"T/Q": {
+				"p50Ratio": 1.1046691191085034,
+				"p95Ratio": 1.179993854695353,
+				"constructionMsDifference": 5.2315860000005046,
+				"withinPhaseGapMsDifference": 12.71687299999951
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "U",
+			"phase": "b0s1-measured",
+			"Q/B": {
+				"p50Ratio": 1.0015255795806302,
+				"p95Ratio": 0.9267868232166608,
+				"constructionMsDifference": -1.736381000001927,
+				"withinPhaseGapMsDifference": -0.4212859999980765
+			},
+			"T/Q": {
+				"p50Ratio": 1.0778860131737904,
+				"p95Ratio": 1.2390472702906687,
+				"constructionMsDifference": 10.152330000000916,
+				"withinPhaseGapMsDifference": 13.645128999999201
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "U",
+			"phase": "b1s0-warmup",
+			"Q/B": {
+				"p50Ratio": 0.9805131075730874,
+				"p95Ratio": 1.0778823913080033,
+				"constructionMsDifference": -0.3061159999992924,
+				"withinPhaseGapMsDifference": -0.12088400000072852
+			},
+			"T/Q": {
+				"p50Ratio": 1.0194065727698458,
+				"p95Ratio": 1.1085561886834137,
+				"constructionMsDifference": 1.372002999998358,
+				"withinPhaseGapMsDifference": 2.888789000001566
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "U",
+			"phase": "b1s0-measured",
+			"Q/B": {
+				"p50Ratio": 1.0083345872034102,
+				"p95Ratio": 1.0324733030420912,
+				"constructionMsDifference": 0.3461420000008957,
+				"withinPhaseGapMsDifference": -0.35747600000092916
+			},
+			"T/Q": {
+				"p50Ratio": 1.0100733448305954,
+				"p95Ratio": 1.062194745330043,
+				"constructionMsDifference": 1.6624849999998332,
+				"withinPhaseGapMsDifference": 6.630182000000104
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "U",
+			"phase": "b1s1-warmup",
+			"Q/B": {
+				"p50Ratio": 0.9946574121904218,
+				"p95Ratio": 1.0867785601506623,
+				"constructionMsDifference": 0.11700399999983802,
+				"withinPhaseGapMsDifference": -2.2918779999998833
+			},
+			"T/Q": {
+				"p50Ratio": 1.1218490324020405,
+				"p95Ratio": 0.9493169737531707,
+				"constructionMsDifference": 2.9678349999999227,
+				"withinPhaseGapMsDifference": 3.582123000000138
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "U",
+			"phase": "b1s1-measured",
+			"Q/B": {
+				"p50Ratio": 1.0019961610811607,
+				"p95Ratio": 0.9853349621247207,
+				"constructionMsDifference": 0.6978730000009818,
+				"withinPhaseGapMsDifference": 1.2702099999989969
+			},
+			"T/Q": {
+				"p50Ratio": 1.0734409865615666,
+				"p95Ratio": 1.0419001876169272,
+				"constructionMsDifference": 4.621338000000151,
+				"withinPhaseGapMsDifference": 5.436661999999956
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "U",
+			"phase": "b2s0-warmup",
+			"Q/B": {
+				"p50Ratio": 0.9409566557510558,
+				"p95Ratio": 0.9087705968667779,
+				"constructionMsDifference": -1.845078000001763,
+				"withinPhaseGapMsDifference": -2.6726709999982177
+			},
+			"T/Q": {
+				"p50Ratio": 1.0402140468228973,
+				"p95Ratio": 1.071135221379762,
+				"constructionMsDifference": 1.420295000001488,
+				"withinPhaseGapMsDifference": 0.7857039999987592
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "U",
+			"phase": "b2s0-measured",
+			"Q/B": {
+				"p50Ratio": 0.9626837992504061,
+				"p95Ratio": 0.8904363348544141,
+				"constructionMsDifference": -3.140531000000692,
+				"withinPhaseGapMsDifference": -6.415010999999595
+			},
+			"T/Q": {
+				"p50Ratio": 1.0395463874122404,
+				"p95Ratio": 1.0542627490712642,
+				"constructionMsDifference": 2.6391830000000027,
+				"withinPhaseGapMsDifference": 1.553483000000142
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "U",
+			"phase": "b2s1-warmup",
+			"Q/B": {
+				"p50Ratio": 0.9943830562509006,
+				"p95Ratio": 0.9177474915459836,
+				"constructionMsDifference": -0.406506000003219,
+				"withinPhaseGapMsDifference": -0.4922849999968548
+			},
+			"T/Q": {
+				"p50Ratio": 0.9504536526736505,
+				"p95Ratio": 0.9741534538164878,
+				"constructionMsDifference": -0.9251609999969332,
+				"withinPhaseGapMsDifference": 0.05953599999702419
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "U",
+			"phase": "b2s1-measured",
+			"Q/B": {
+				"p50Ratio": 1.025994280735047,
+				"p95Ratio": 1.070705431780974,
+				"constructionMsDifference": 2.2393180000003667,
+				"withinPhaseGapMsDifference": -2.090734000000566
+			},
+			"T/Q": {
+				"p50Ratio": 1.0021242208250292,
+				"p95Ratio": 0.9756653512237822,
+				"constructionMsDifference": 0.41225200000098994,
+				"withinPhaseGapMsDifference": 2.219580999998925
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "V",
+			"phase": "b0s0-warmup",
+			"Q/B": {
+				"p50Ratio": 0.8578891438521916,
+				"p95Ratio": 1.0055272922273137,
+				"constructionMsDifference": -4.583218000000073,
+				"withinPhaseGapMsDifference": -5.441489999999931
+			},
+			"T/Q": {
+				"p50Ratio": 0.977464035709404,
+				"p95Ratio": 0.974886152316301,
+				"constructionMsDifference": -0.733959999999712,
+				"withinPhaseGapMsDifference": -1.2406660000003171
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "V",
+			"phase": "b0s0-measured",
+			"Q/B": {
+				"p50Ratio": 0.9470264422414907,
+				"p95Ratio": 0.8891573231377855,
+				"constructionMsDifference": -7.326032000000453,
+				"withinPhaseGapMsDifference": -9.170008999999567
+			},
+			"T/Q": {
+				"p50Ratio": 0.9818999572466958,
+				"p95Ratio": 1.0314001260238967,
+				"constructionMsDifference": -1.0285389999998529,
+				"withinPhaseGapMsDifference": -6.431837000000115
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "V",
+			"phase": "b0s1-warmup",
+			"Q/B": {
+				"p50Ratio": 0.97725687706193,
+				"p95Ratio": 0.9397530871476603,
+				"constructionMsDifference": -0.663494999999557,
+				"withinPhaseGapMsDifference": -1.6879640000004201
+			},
+			"T/Q": {
+				"p50Ratio": 0.9998712345810892,
+				"p95Ratio": 1.0700567612373661,
+				"constructionMsDifference": -0.15533300000026884,
+				"withinPhaseGapMsDifference": -0.695499999999754
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "V",
+			"phase": "b0s1-measured",
+			"Q/B": {
+				"p50Ratio": 0.9399824668951033,
+				"p95Ratio": 0.9178023567427602,
+				"constructionMsDifference": -6.684580999997536,
+				"withinPhaseGapMsDifference": -15.419794000002412
+			},
+			"T/Q": {
+				"p50Ratio": 0.9921841605068122,
+				"p95Ratio": 1.1003635529446254,
+				"constructionMsDifference": 1.702494999998578,
+				"withinPhaseGapMsDifference": 1.1995470000014734
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "V",
+			"phase": "b1s0-warmup",
+			"Q/B": {
+				"p50Ratio": 0.9429878887367955,
+				"p95Ratio": 0.9122222640756624,
+				"constructionMsDifference": -1.9325440000001208,
+				"withinPhaseGapMsDifference": -8.175204999999892
+			},
+			"T/Q": {
+				"p50Ratio": 0.9730626531586645,
+				"p95Ratio": 1.145996661180886,
+				"constructionMsDifference": 0.008838000000309876,
+				"withinPhaseGapMsDifference": 0.17349499999977525
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "V",
+			"phase": "b1s0-measured",
+			"Q/B": {
+				"p50Ratio": 1.0038008375992336,
+				"p95Ratio": 1.0753487796763834,
+				"constructionMsDifference": 1.5051300000010315,
+				"withinPhaseGapMsDifference": 2.676494999999022
+			},
+			"T/Q": {
+				"p50Ratio": 0.9721078747691553,
+				"p95Ratio": 0.9448818897637649,
+				"constructionMsDifference": -2.8798710000023675,
+				"withinPhaseGapMsDifference": -5.748544999997648
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "V",
+			"phase": "b1s1-warmup",
+			"Q/B": {
+				"p50Ratio": 1.0575011039413842,
+				"p95Ratio": 1.0076899415563318,
+				"constructionMsDifference": 1.8407060000006368,
+				"withinPhaseGapMsDifference": 1.2657519999992246
+			},
+			"T/Q": {
+				"p50Ratio": 0.9802144403770943,
+				"p95Ratio": 1.1709401709403013,
+				"constructionMsDifference": -0.18195700000023862,
+				"withinPhaseGapMsDifference": 0.06787400000030175
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "V",
+			"phase": "b1s1-measured",
+			"Q/B": {
+				"p50Ratio": 1.0702071911064046,
+				"p95Ratio": 1.0730519060578998,
+				"constructionMsDifference": 5.616545000001679,
+				"withinPhaseGapMsDifference": 6.313745999998332
+			},
+			"T/Q": {
+				"p50Ratio": 0.9280601883628551,
+				"p95Ratio": 0.9143981378553965,
+				"constructionMsDifference": -6.942668000001277,
+				"withinPhaseGapMsDifference": -10.2614569999987
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "V",
+			"phase": "b2s0-warmup",
+			"Q/B": {
+				"p50Ratio": 1.0414777836573927,
+				"p95Ratio": 0.9504670436385261,
+				"constructionMsDifference": 0.3080390000004627,
+				"withinPhaseGapMsDifference": -4.326330000000553
+			},
+			"T/Q": {
+				"p50Ratio": 0.9796420164337826,
+				"p95Ratio": 1.1117742736221816,
+				"constructionMsDifference": 0.5640020000020058,
+				"withinPhaseGapMsDifference": 2.6087469999979476
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "V",
+			"phase": "b2s0-measured",
+			"Q/B": {
+				"p50Ratio": 1.1224419575687268,
+				"p95Ratio": 1.1589509774511353,
+				"constructionMsDifference": 8.417974000000186,
+				"withinPhaseGapMsDifference": 13.784067999999934
+			},
+			"T/Q": {
+				"p50Ratio": 0.8946429163216855,
+				"p95Ratio": 0.8457704525022303,
+				"constructionMsDifference": -9.119384999998147,
+				"withinPhaseGapMsDifference": -12.914741000001868
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "V",
+			"phase": "b2s1-warmup",
+			"Q/B": {
+				"p50Ratio": 1.0956950939194574,
+				"p95Ratio": 1.0553237931609327,
+				"constructionMsDifference": 2.1088309999990997,
+				"withinPhaseGapMsDifference": 2.3234610000008615
+			},
+			"T/Q": {
+				"p50Ratio": 0.9887690987123064,
+				"p95Ratio": 1.0050324973521025,
+				"constructionMsDifference": -0.009670000000141954,
+				"withinPhaseGapMsDifference": 4.8285450000000765
+			}
+		},
+		{
+			"passIndex": 0,
+			"orientation": "V",
+			"phase": "b2s1-measured",
+			"Q/B": {
+				"p50Ratio": 1.0790068070211436,
+				"p95Ratio": 1.1758170930723604,
+				"constructionMsDifference": 7.262006000000611,
+				"withinPhaseGapMsDifference": 6.832327999999279
+			},
+			"T/Q": {
+				"p50Ratio": 0.9281258197942434,
+				"p95Ratio": 0.8719638811553314,
+				"constructionMsDifference": -6.70346800000425,
+				"withinPhaseGapMsDifference": -5.165365999995629
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "U",
+			"phase": "b0s0-warmup",
+			"Q/B": {
+				"p50Ratio": 1.011074123525141,
+				"p95Ratio": 0.9412383467902579,
+				"constructionMsDifference": 0.1285780000002319,
+				"withinPhaseGapMsDifference": 0.05654699999976742
+			},
+			"T/Q": {
+				"p50Ratio": 0.9914119172532349,
+				"p95Ratio": 1.014648089699993,
+				"constructionMsDifference": 0.7271229999999207,
+				"withinPhaseGapMsDifference": 2.470252000000073
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "U",
+			"phase": "b0s0-measured",
+			"Q/B": {
+				"p50Ratio": 1.0116621160409032,
+				"p95Ratio": 0.9972763060416493,
+				"constructionMsDifference": 1.0282489999992492,
+				"withinPhaseGapMsDifference": 2.4341260000007594
+			},
+			"T/Q": {
+				"p50Ratio": 1.0121568600991073,
+				"p95Ratio": 1.0049548816873088,
+				"constructionMsDifference": 0.623003000000466,
+				"withinPhaseGapMsDifference": 0.34808099999949604
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "U",
+			"phase": "b0s1-warmup",
+			"Q/B": {
+				"p50Ratio": 1.0015143117461371,
+				"p95Ratio": 1.063835447624986,
+				"constructionMsDifference": 0.08370999999993955,
+				"withinPhaseGapMsDifference": -0.016667999999981475
+			},
+			"T/Q": {
+				"p50Ratio": 1.0282475364603154,
+				"p95Ratio": 0.9273604755444094,
+				"constructionMsDifference": 0.5580399999993801,
+				"withinPhaseGapMsDifference": 0.7277100000006271
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "U",
+			"phase": "b0s1-measured",
+			"Q/B": {
+				"p50Ratio": 1.0199124726479791,
+				"p95Ratio": 1.0173170156849853,
+				"constructionMsDifference": 0.7605319999996709,
+				"withinPhaseGapMsDifference": 0.9136340000003997
+			},
+			"T/Q": {
+				"p50Ratio": 0.9954962454409468,
+				"p95Ratio": 1.0112128066641355,
+				"constructionMsDifference": 0.5177140000000122,
+				"withinPhaseGapMsDifference": 0.48970299999996314
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "U",
+			"phase": "b1s0-warmup",
+			"Q/B": {
+				"p50Ratio": 0.9937312414235245,
+				"p95Ratio": 0.9350429958391268,
+				"constructionMsDifference": -0.5000949999988507,
+				"withinPhaseGapMsDifference": -0.13573900000108097
+			},
+			"T/Q": {
+				"p50Ratio": 0.987460930793031,
+				"p95Ratio": 1.0312741965628243,
+				"constructionMsDifference": 0.1579599999988659,
+				"withinPhaseGapMsDifference": 0.4247910000011643
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "U",
+			"phase": "b1s0-measured",
+			"Q/B": {
+				"p50Ratio": 0.9893790741711131,
+				"p95Ratio": 0.9714574999038174,
+				"constructionMsDifference": -0.9298589999989417,
+				"withinPhaseGapMsDifference": 1.0253179999990607
+			},
+			"T/Q": {
+				"p50Ratio": 1.010891404605593,
+				"p95Ratio": 0.9976379558407042,
+				"constructionMsDifference": 0.21058099999982005,
+				"withinPhaseGapMsDifference": -0.31883099999981823
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "U",
+			"phase": "b1s1-warmup",
+			"Q/B": {
+				"p50Ratio": 0.9924203090508358,
+				"p95Ratio": 1.0942507068803589,
+				"constructionMsDifference": 0.21612699999934648,
+				"withinPhaseGapMsDifference": -0.34183499999937794
+			},
+			"T/Q": {
+				"p50Ratio": 1.0117161780775235,
+				"p95Ratio": 0.9589434395635883,
+				"constructionMsDifference": 0.4113009999996393,
+				"withinPhaseGapMsDifference": 1.123074000000429
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "U",
+			"phase": "b1s1-measured",
+			"Q/B": {
+				"p50Ratio": 1.0887929681675361,
+				"p95Ratio": 1.0367563074627426,
+				"constructionMsDifference": 5.92287700000054,
+				"withinPhaseGapMsDifference": 5.6067469999995865
+			},
+			"T/Q": {
+				"p50Ratio": 0.9317187397129157,
+				"p95Ratio": 0.8897845430571759,
+				"constructionMsDifference": -6.861051000000998,
+				"withinPhaseGapMsDifference": -7.441530999999259
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "U",
+			"phase": "b2s0-warmup",
+			"Q/B": {
+				"p50Ratio": 1.0429301378640718,
+				"p95Ratio": 0.8307936697524666,
+				"constructionMsDifference": 0.16234199999848897,
+				"withinPhaseGapMsDifference": -1.9783839999985275
+			},
+			"T/Q": {
+				"p50Ratio": 0.9235702154576824,
+				"p95Ratio": 0.9126659401762759,
+				"constructionMsDifference": -2.4515099999989616,
+				"withinPhaseGapMsDifference": -2.493740000001253
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "U",
+			"phase": "b2s0-measured",
+			"Q/B": {
+				"p50Ratio": 1.1049282703787378,
+				"p95Ratio": 1.2018496514244312,
+				"constructionMsDifference": 9.034918000000516,
+				"withinPhaseGapMsDifference": 15.424497999999176
+			},
+			"T/Q": {
+				"p50Ratio": 0.9360279146141511,
+				"p95Ratio": 0.905608676313581,
+				"constructionMsDifference": -6.0992589999993925,
+				"withinPhaseGapMsDifference": -9.998783000000458
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "U",
+			"phase": "b2s1-warmup",
+			"Q/B": {
+				"p50Ratio": 0.9976557485162785,
+				"p95Ratio": 1.150769372124705,
+				"constructionMsDifference": 0.7391640000007555,
+				"withinPhaseGapMsDifference": 3.2614189999992504
+			},
+			"T/Q": {
+				"p50Ratio": 0.9975744413804692,
+				"p95Ratio": 0.8682018537789336,
+				"constructionMsDifference": -0.8636670000009872,
+				"withinPhaseGapMsDifference": 1.597500000000764
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "U",
+			"phase": "b2s1-measured",
+			"Q/B": {
+				"p50Ratio": 1.0588564268337206,
+				"p95Ratio": 1.1823776957849699,
+				"constructionMsDifference": 6.461546000002045,
+				"withinPhaseGapMsDifference": 9.894203999997899
+			},
+			"T/Q": {
+				"p50Ratio": 0.9388175889679486,
+				"p95Ratio": 0.8304492692738766,
+				"constructionMsDifference": -7.592170000003534,
+				"withinPhaseGapMsDifference": -9.799662999996599
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "V",
+			"phase": "b0s0-warmup",
+			"Q/B": {
+				"p50Ratio": 0.975892378136231,
+				"p95Ratio": 1.0316537618700319,
+				"constructionMsDifference": -0.30662999999978524,
+				"withinPhaseGapMsDifference": -0.9675360000001945
+			},
+			"T/Q": {
+				"p50Ratio": 1.026502596883777,
+				"p95Ratio": 0.9550389638711302,
+				"constructionMsDifference": 0.47150299999984213,
+				"withinPhaseGapMsDifference": 0.6087050000001284
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "V",
+			"phase": "b0s0-measured",
+			"Q/B": {
+				"p50Ratio": 0.9782337686127778,
+				"p95Ratio": 0.9727722406064582,
+				"constructionMsDifference": -2.5310319999998114,
+				"withinPhaseGapMsDifference": -0.8259680000001595
+			},
+			"T/Q": {
+				"p50Ratio": 1.0318578240138607,
+				"p95Ratio": 1.0493257287705546,
+				"constructionMsDifference": 3.328915000000052,
+				"withinPhaseGapMsDifference": 1.1790019999999402
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "V",
+			"phase": "b0s1-warmup",
+			"Q/B": {
+				"p50Ratio": 0.9900448275649312,
+				"p95Ratio": 1.1309755330484108,
+				"constructionMsDifference": -0.04924700000026405,
+				"withinPhaseGapMsDifference": 0.13687200000020994
+			},
+			"T/Q": {
+				"p50Ratio": 1.0434021019851967,
+				"p95Ratio": 0.9444308084326075,
+				"constructionMsDifference": 1.1692000000003873,
+				"withinPhaseGapMsDifference": -0.26824200000038445
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "V",
+			"phase": "b0s1-measured",
+			"Q/B": {
+				"p50Ratio": 0.9880113774888812,
+				"p95Ratio": 0.9731255146924453,
+				"constructionMsDifference": -1.6610819999998512,
+				"withinPhaseGapMsDifference": -2.4002510000000825
+			},
+			"T/Q": {
+				"p50Ratio": 0.9642212037362063,
+				"p95Ratio": 0.9316784430823326,
+				"constructionMsDifference": -4.936581999998793,
+				"withinPhaseGapMsDifference": -8.9067930000013
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "V",
+			"phase": "b1s0-warmup",
+			"Q/B": {
+				"p50Ratio": 0.9750619966123172,
+				"p95Ratio": 0.9779021173202924,
+				"constructionMsDifference": -0.5087010000006558,
+				"withinPhaseGapMsDifference": -1.288548999999307
+			},
+			"T/Q": {
+				"p50Ratio": 0.9982446174987039,
+				"p95Ratio": 1.0425905891238774,
+				"constructionMsDifference": 0.048496999999770196,
+				"withinPhaseGapMsDifference": -0.5131629999997358
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "V",
+			"phase": "b1s0-measured",
+			"Q/B": {
+				"p50Ratio": 0.9838203817110321,
+				"p95Ratio": 0.9181105659142694,
+				"constructionMsDifference": -2.020760000002838,
+				"withinPhaseGapMsDifference": -5.937572999997201
+			},
+			"T/Q": {
+				"p50Ratio": 0.9913427762041378,
+				"p95Ratio": 1.0091439516809604,
+				"constructionMsDifference": -0.22903600000017832,
+				"withinPhaseGapMsDifference": -2.594504999999799
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "V",
+			"phase": "b1s1-warmup",
+			"Q/B": {
+				"p50Ratio": 0.9424143630337395,
+				"p95Ratio": 0.921611492817193,
+				"constructionMsDifference": -1.659623999999667,
+				"withinPhaseGapMsDifference": -2.0598340000003645
+			},
+			"T/Q": {
+				"p50Ratio": 1.0092934879574496,
+				"p95Ratio": 0.992883768214256,
+				"constructionMsDifference": -0.5532570000000305,
+				"withinPhaseGapMsDifference": -0.925660999999991
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "V",
+			"phase": "b1s1-measured",
+			"Q/B": {
+				"p50Ratio": 0.9697724332366654,
+				"p95Ratio": 0.9133585984986134,
+				"constructionMsDifference": -2.7869279999994205,
+				"withinPhaseGapMsDifference": -3.8409050000004754
+			},
+			"T/Q": {
+				"p50Ratio": 1.0025698466192134,
+				"p95Ratio": 1.0704593637360393,
+				"constructionMsDifference": 1.0025540000012825,
+				"withinPhaseGapMsDifference": 1.119903999998769
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "V",
+			"phase": "b2s0-warmup",
+			"Q/B": {
+				"p50Ratio": 0.9530848100291812,
+				"p95Ratio": 0.7735788579177408,
+				"constructionMsDifference": -3.0972940000008293,
+				"withinPhaseGapMsDifference": -5.547747999999046
+			},
+			"T/Q": {
+				"p50Ratio": 1.0163793611791256,
+				"p95Ratio": 1.2529445963009334,
+				"constructionMsDifference": 1.283833000001664,
+				"withinPhaseGapMsDifference": 5.784667999998419
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "V",
+			"phase": "b2s0-measured",
+			"Q/B": {
+				"p50Ratio": 1.0460198581561648,
+				"p95Ratio": 1.0271047204595214,
+				"constructionMsDifference": 2.8612499999997,
+				"withinPhaseGapMsDifference": 6.989042000000154
+			},
+			"T/Q": {
+				"p50Ratio": 1.0064800400659915,
+				"p95Ratio": 1.0429803309880552,
+				"constructionMsDifference": 1.0756749999989097,
+				"withinPhaseGapMsDifference": 7.944575000001123
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "V",
+			"phase": "b2s1-warmup",
+			"Q/B": {
+				"p50Ratio": 1.009175551106838,
+				"p95Ratio": 1.1076597246742845,
+				"constructionMsDifference": 0.8044570000013209,
+				"withinPhaseGapMsDifference": -0.04133200000137549
+			},
+			"T/Q": {
+				"p50Ratio": 0.9711981841416493,
+				"p95Ratio": 0.9016341618862515,
+				"constructionMsDifference": -0.9836229999998523,
+				"withinPhaseGapMsDifference": -0.2555440000000999
+			}
+		},
+		{
+			"passIndex": 1,
+			"orientation": "V",
+			"phase": "b2s1-measured",
+			"Q/B": {
+				"p50Ratio": 1.0133005407587747,
+				"p95Ratio": 0.8772741992258466,
+				"constructionMsDifference": -1.6055859999967197,
+				"withinPhaseGapMsDifference": -7.083330000003343
+			},
+			"T/Q": {
+				"p50Ratio": 1.0190275215987654,
+				"p95Ratio": 1.0339697376276704,
+				"constructionMsDifference": 2.0245219999956134,
+				"withinPhaseGapMsDifference": 0.4743940000043949
+			}
+		}
+	],
+	"aggregation": "p50/p95 arrays retain all six individual blocks in execution order; totals sum six disjoint phases of the same warmup/measured class; no warmup/measured pooling or CPU allocation"
+}

@@ -1,0 +1,13 @@
+{
+	"archiveDigest": "sha256:9c7f02c656d2403bd09a645ace3a2fc0955d494d8675334dd7610c6be2a9b325",
+	"indexDigest": "sha256:89d3585e1ff435dc7e646b13a77d274662d93329c5c9efcd0414a11c4e2a1e09",
+	"files": 266,
+	"uncompressedBytes": 72391428,
+	"compressedBytes": 2140896,
+	"portableReplay": "passed; identical independent result in fresh directory",
+	"consumerSamples": 28800,
+	"fixtureProcesses": 1,
+	"consumerProcesses": 12,
+	"retries": 0,
+	"performanceQualification": false
+}

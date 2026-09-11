@@ -1,0 +1,57 @@
+{
+	"kind": "two independent static QA reviewers",
+	"findings": [
+		{
+			"issue": "Failed-process sample undercount",
+			"resolution": "capturedSamples distinct from verified samples; raw files retained",
+			"classification": "patch within approved private scope"
+		},
+		{
+			"issue": "Trace load/abnormal exit loses CPU",
+			"resolution": "pure report keeps CPU with unknown trace; supervisor writes explicit unknown receipt",
+			"classification": "patch within approved private scope"
+		},
+		{
+			"issue": "Preparation/finalization budgets",
+			"resolution": "checks during preparation, before each Popen, during wait, and after final indexing; result exit follows finalized status",
+			"classification": "patch within approved private scope"
+		},
+		{
+			"issue": "Cleanup overwrites primary",
+			"resolution": "primary child error plus independent finalization errors retained; loaded fake executor test",
+			"classification": "patch within approved private scope"
+		},
+		{
+			"issue": "Middle anchor gap not fixed",
+			"resolution": "JS and independent Python require exact profile middle gap",
+			"classification": "patch within approved private scope"
+		},
+		{
+			"issue": "Per-child source admission skipped",
+			"resolution": "independent source/material/approval/qualification checks before continuation",
+			"classification": "patch within approved private scope"
+		},
+		{
+			"issue": "Missing independent gate receipts",
+			"resolution": "full replay rechecks each raw job and its recorded independent result",
+			"classification": "patch within approved private scope"
+		},
+		{
+			"issue": "Failure receipt treated as trace rotation",
+			"resolution": "trace data separated from manifest/unknown metadata",
+			"classification": "patch within approved private scope"
+		},
+		{
+			"issue": "Non-finite trace / loose Python identity",
+			"resolution": "finite numeric clocks and exact bool/int thread identity; rebuilt-hash negatives",
+			"classification": "patch within approved private scope"
+		},
+		{
+			"issue": "Decimal versus binary rounding",
+			"resolution": "independent verifier uses stored IEEE-754 multiplication before outward rational rounding; 1.001 boundary covered",
+			"classification": "patch within approved private scope"
+		}
+	],
+	"architectureChanged": false,
+	"unresolvedWithinScope": []
+}

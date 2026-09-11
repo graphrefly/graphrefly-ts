@@ -1,0 +1,59 @@
+{
+	"passed": true,
+	"meaning": "private observer/derivation/report/verifier offline qualification; not all TS tests green; native observer not yet qualified",
+	"designDigest": "sha256:a71ab506c01b59ddef2c4d4c6d5abfecf3226a22c6a64fc9eabe363a4f9f5d84",
+	"sourceDigests": {
+		"scripts/causal-cpu-diagnostic.py": "cdae2471f39847fa5c9a1f48341cdb12b9a03f80ffad089ff15a64dff25b2600",
+		"scripts/causal-cpu-observer.mjs": "d95be8c25541cdc4df6c964a89823c802ae4b97992859a2dd81726167093f89b",
+		"scripts/fixtures/causal-cpu-observer.mjs": "f225c37848aca808f1a71fef1a8e62959c00d123556f30896ee8fcdb7fd9db8a",
+		"scripts/derive-causal-cpu-driver.mjs": "1a8c28b30876639dcfeed69d7054b202fd60a4b415816d429899e322f2a52f28",
+		"scripts/causal-cpu-trace.mjs": "ef1490df36e0d514f23e7e973d903537a626f5f8c02fb6ece35cf37b051777a7",
+		"scripts/report-causal-cpu.mjs": "f2a538df3c78fccbf4b76f34da114569782f0b408e900f6c1cb86b7a7f1eaa3e",
+		"scripts/verify-causal-cpu.py": "4d30323b8047c1b66a322d8e5e6364736dcda29ab489fae3d799a17408ba4c91",
+		"scripts/causal-cpu.test.mjs": "0141d6b07a9e5e4687c2bbb6b18edc8784fbf9fe66fbd0f6f7facb7838b8ac13",
+		"scripts/causal-cpu.test.py": "b4ece0eb16f8a05c60c10ed26e641922e148d0812e0ae9a35542fe933f22c97c",
+		"scripts/causal-event-correlation.mjs": "ffac4d7e04563266b976754d00079fdcdfc284d78429af8b764615089a9b977d",
+		"scripts/verify-causal-event-clock.py": "d8f1a1a3719d8faa888347177913d38e0054d264d316bfb48b1f8c5f2cf36189",
+		"scripts/verify-causal-position-pairs.py": "c442c2b60ecb1574250df60edcadb584d31f4c49a87083fd674abed88acd2a3e",
+		"scripts/verify-causal-block-history.py": "2af562c05cb6a16ac4634e7b1024f88ee4b861c82fa61049d81412d671acc2d2",
+		"scripts/verify-causal-control-crossover.py": "5066df570c7b0cffac5137c10698e31b9ddaab333917d10fbec0264aa3f85904",
+		"scripts/causal-control-crossover.py": "b60b8dc6e5bc7b7d4fe0748dd90d3f4336c5a678c0f7752ecb1d08dfd7150075"
+	},
+	"logs": {
+		"offline-qualification.log": "826e5ff08b4a784e3aec28f4afef3e370618b8ed55580efaa3a8a4a22ad39d39",
+		"old-clock-js.log": "19f8d8b7d4fbb89ead1c77529f19606cca2b9da7916516c2ff8cf91fc1908a38",
+		"old-clock-python.log": "f44b0f1d4bb6d6a1d5a719a923b5e42c1a1b1d052a5fd407e7c86372ed876d51",
+		"offline-results.json": "1b1993f9047409fa6e0cc50a28dba95a12d5207c71c11219f0a5f5f89e01c3e2",
+		"ts-tests.log": "0920458e462b5a74bcdb30696691785899997ceca690c6214eaeb372257e859b",
+		"ts-tests-result.json": "169a822e9e61798a9c71dd4bab6a376a18cd949804ff1d5f8f4f3e08a900e054",
+		"lint.log": "d102f5b0b2b6bc6390cebdcc1769bc43bf7991417a98c7ed10e25832912c710a",
+		"lint-result.json": "123d543ba56b1828fcd0dc2b083b877d3d0d8c6d0c2c9d8ef6d516f88eaf32ad",
+		"dashboard.log": "57d4dc2953cc9de54408eb72f73eccff702d623d1346ab401e6585a2b1275569",
+		"workspace.log": "8e16637781e9a0e14492b2179f94be678d01cff8709df3a238694fc865a7f544",
+		"review.json": "850d09ce0e0b3a86357fcb9d7baf569cec31d0c99d1e507ca772365f1d314bfa",
+		"preservation-before.json": "4ed63dc5ed16ce65ad44321184870ec769a99e143c5ccc8608f2ca73c4027909"
+	},
+	"offline": {
+		"passed": true,
+		"positive": 17,
+		"negative": 15,
+		"loadedMutants": 12,
+		"python": {
+			"passed": true,
+			"negative": 29,
+			"independentChecksum": 2225220677,
+			"nativeConsumerSamples": 0,
+			"nativeObserverCaptures": 0
+		},
+		"nativeConsumerSamples": 0,
+		"nativeObserverCaptures": 0
+	},
+	"fullTs": {
+		"passed": 2547,
+		"failed": 2,
+		"skipped": 4,
+		"failures": "existing D159 frozen implementation manifest drift"
+	},
+	"nativeConsumerSamples": 0,
+	"nativeObserverCaptures": 0
+}

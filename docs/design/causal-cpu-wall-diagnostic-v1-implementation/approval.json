@@ -1,0 +1,24 @@
+{
+	"work": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"userText": "好的，同意，继续",
+	"proposalCommit": "cf20118b",
+	"design": "docs/design/causal-cpu-wall-diagnostic-v1.md",
+	"designDigest": "sha256:a71ab506c01b59ddef2c4d4c6d5abfecf3226a22c6a64fc9eabe363a4f9f5d84",
+	"scope": "sections 3–7: private implementation, offline qualification, one native observer fixture, one fixed twelve-process diagnostic, independent replay/archive/commit",
+	"output": "archive/evals/causal-cpu-wall-diagnostic-v1/run",
+	"maxConsumerProcesses": 12,
+	"maxFixtureProcesses": 1,
+	"maxSamples": 28800,
+	"maxSecondsPerChild": 30,
+	"maxSecondsTotal": 900,
+	"maxOutputBytes": 268435456,
+	"checkIntervalMs": 100,
+	"maxTraceBytes": 16777216,
+	"retries": 0,
+	"notAuthorized": [
+		"D169 replacement",
+		"formal consumer matrix",
+		"library/public API/protocol change",
+		"provider/live/spend/effect"
+	]
+}

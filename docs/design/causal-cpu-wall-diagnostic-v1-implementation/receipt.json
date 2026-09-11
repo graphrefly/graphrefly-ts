@@ -1,0 +1,85 @@
+{
+	"work": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"classification": "approved same-work diagnostic attempt and evidence; no new durable decision",
+	"designCommit": "cf20118b",
+	"captureStatus": "complete-diagnostic",
+	"interpretationStatus": "complete-unresolved",
+	"processes": {
+		"fixture": 1,
+		"consumer": 12
+	},
+	"samples": {
+		"captured": 28800,
+		"verified": 28800,
+		"warmup": 7200,
+		"measured": 21600
+	},
+	"elapsedSeconds": 24.597195249982178,
+	"notRun": [],
+	"retries": 0,
+	"performanceQualification": false,
+	"methodState": "D169 still unqualified; historical Z failure and all M not-run preserved",
+	"observer": {
+		"consumerCPUPhases": 96,
+		"consumerCPUSnapshots": 192,
+		"consumerMarkers": 48,
+		"consumerAnchors": 12,
+		"consumerTraceFiles": 4,
+		"fixturePhases": 3,
+		"fixtureCPUSnapshots": 6,
+		"fixtureMarkers": 3,
+		"fixtureAnchors": 3,
+		"allTracesCalibrated": true
+	},
+	"qualification": {
+		"privateOffline": true,
+		"jsCases": 17,
+		"jsNegative": 15,
+		"loadedSourceMutants": 12,
+		"pythonNegative": 29,
+		"legacyPythonCases": 16,
+		"fullTsPass": 2547,
+		"fullTsFail": 2,
+		"fullTsSkipped": 4,
+		"knownFullTsFailures": "D159 frozen implementation manifest drift"
+	},
+	"archive": {
+		"archiveDigest": "sha256:9c7f02c656d2403bd09a645ace3a2fc0955d494d8675334dd7610c6be2a9b325",
+		"indexDigest": "sha256:89d3585e1ff435dc7e646b13a77d274662d93329c5c9efcd0414a11c4e2a1e09",
+		"files": 266,
+		"uncompressedBytes": 72391428,
+		"compressedBytes": 2140896,
+		"portableReplay": "passed; identical independent result in fresh directory",
+		"consumerSamples": 28800,
+		"fixtureProcesses": 1,
+		"consumerProcesses": 12,
+		"retries": 0,
+		"performanceQualification": false
+	},
+	"artifacts": {
+		"approval.json": "sha256:5349509c36d31980789efb58e342f18ed78aff531bef9bc6cb5125fe5cb224ef",
+		"qualification.json": "sha256:7516f2e9d9ccc71981dde155661d9c360c3190e7a3fa8de6187fad3d42e20388",
+		"review.json": "sha256:850d09ce0e0b3a86357fcb9d7baf569cec31d0c99d1e507ca772365f1d314bfa",
+		"analysis.json": "sha256:20127290e95ce7723a5317ce5bc145becf49b54296f953ad1d3335d5ee685b64",
+		"event-coverage.json": "sha256:38476c4a52c6ae7feb7aa151393efa2b4d278a10216d975a0af63e5fd35b908b",
+		"independent-verification.json": "sha256:7b273b6ef8b5f5300dff1769735600653e1fb03738e5cb2b129b5df273fa7be2",
+		"portable-verification.json": "sha256:7b273b6ef8b5f5300dff1769735600653e1fb03738e5cb2b129b5df273fa7be2",
+		"portable-self-verification.json": "sha256:7b273b6ef8b5f5300dff1769735600653e1fb03738e5cb2b129b5df273fa7be2",
+		"matched-comparisons.csv": "sha256:37d11b46d411770390528e7ff40e716a555ebc941350392e23cb23b4adf8084b",
+		"tables.md": "sha256:b9396de91a93de6cc97653b65314f4a2389637f7eed6f649b03a1b205ebdd750",
+		"analyze.py": "sha256:104e4fad7eadcc76d2b77c32fcc57c0463f4ca4cd96d26ac1c5e2684ec645af1",
+		"preservation-before.json": "sha256:4ed63dc5ed16ce65ad44321184870ec769a99e143c5ccc8608f2ca73c4027909",
+		"preservation-after.json": "sha256:23e5b0a8aaa3e6158d2b84316399d6e46f906be9068c03e68756bc888fec0ed2"
+	},
+	"scope": {
+		"libraryChanges": false,
+		"publicAPIChanges": false,
+		"protocolChanges": false,
+		"newDecision": false,
+		"formalMatrix": false,
+		"providerLiveSpend": false,
+		"effectAuthorizationProven": false,
+		"layeredErgonomicsProven": false,
+		"userTeachBack": "unverified"
+	}
+}

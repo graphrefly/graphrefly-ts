@@ -1,0 +1,3703 @@
+{
+	"evidenceValid": true,
+	"status": "complete-diagnostic",
+	"processes": 13,
+	"samples": 28800,
+	"capturedSamples": 28800,
+	"notRun": [],
+	"fixture": {
+		"position": -1,
+		"cell": "fixture",
+		"samples": 0,
+		"cpu": [
+			{
+				"name": "empty",
+				"T": 0.087,
+				"P": 0.078,
+				"Wlo": 0.026250000000000995,
+				"Whi": 0.10650000000000048,
+				"Wpoint": 0.06637500000000074,
+				"unaccountedElapsed": -0.020624999999999255,
+				"processMinusThread": -0.008999999999999994,
+				"snapshotWidths": [0.06987499999999969, 0.010374999999999801],
+				"resourceDeltas": {
+					"voluntaryContextSwitches": 0,
+					"involuntaryContextSwitches": 0,
+					"minorPageFault": 2,
+					"majorPageFault": 0
+				},
+				"samples": 0,
+				"constructionMs": 0,
+				"p50": null,
+				"p95": null
+			},
+			{
+				"name": "cpu",
+				"T": 4.345,
+				"P": 5.774,
+				"Wlo": 4.358499999999999,
+				"Whi": 4.391250000000003,
+				"Wpoint": 4.374875000000001,
+				"unaccountedElapsed": 0.029875000000001428,
+				"processMinusThread": 1.4290000000000003,
+				"snapshotWidths": [0.008500000000001506, 0.024250000000002103],
+				"resourceDeltas": {
+					"voluntaryContextSwitches": 0,
+					"involuntaryContextSwitches": 6,
+					"minorPageFault": 272,
+					"majorPageFault": 5
+				},
+				"samples": 0,
+				"constructionMs": 0,
+				"p50": null,
+				"p95": null
+			},
+			{
+				"name": "yield",
+				"T": 0.869,
+				"P": 1.112,
+				"Wlo": 51.897708,
+				"Whi": 51.934958,
+				"Wpoint": 51.916333,
+				"unaccountedElapsed": 51.047333,
+				"processMinusThread": 0.2430000000000001,
+				"snapshotWidths": [0.009124999999997385, 0.028125000000002842],
+				"resourceDeltas": {
+					"voluntaryContextSwitches": 0,
+					"involuntaryContextSwitches": 5,
+					"minorPageFault": 46,
+					"majorPageFault": 0
+				},
+				"samples": 0,
+				"constructionMs": 0,
+				"p50": null,
+				"p95": null
+			}
+		],
+		"trace": {
+			"status": "calibrated",
+			"events": 3,
+			"windows": 3,
+			"markers": 3,
+			"deltaUs": [133316412575, 133316412577]
+		},
+		"blocks": []
+	},
+	"rows": [
+		{
+			"position": 0,
+			"cell": "B-U",
+			"samples": 2400,
+			"cpu": null,
+			"trace": {
+				"status": "not-enabled"
+			},
+			"blocks": [
+				{
+					"name": "b0s0-warmup",
+					"samples": 100,
+					"p50": 0.31412499999999,
+					"p95": 0.6357089999999914,
+					"constructionMs": 35.974500000000035,
+					"withinPhaseGapMs": 29.06695799999997,
+					"gapP50": 0.2296660000000088,
+					"gapP95": 0.5203750000000014
+				},
+				{
+					"name": "b0s0-measured",
+					"samples": 300,
+					"p50": 0.29883350000000064,
+					"p95": 0.4199169999999981,
+					"constructionMs": 95.24208600000011,
+					"withinPhaseGapMs": 79.28428899999992,
+					"gapP50": 0.22620799999998553,
+					"gapP95": 0.5330830000000049
+				},
+				{
+					"name": "b0s1-warmup",
+					"samples": 100,
+					"p50": 0.3185414999999807,
+					"p95": 0.6301249999999641,
+					"constructionMs": 36.6144529999998,
+					"withinPhaseGapMs": 27.99367200000023,
+					"gapP50": 0.23337500000002365,
+					"gapP95": 0.5653749999999604
+				},
+				{
+					"name": "b0s1-measured",
+					"samples": 300,
+					"p50": 0.2871040000000562,
+					"p95": 0.41545800000005784,
+					"constructionMs": 92.0160970000008,
+					"withinPhaseGapMs": 74.39015299999915,
+					"gapP50": 0.20554200000003675,
+					"gapP95": 0.43654199999997445
+				},
+				{
+					"name": "b1s0-warmup",
+					"samples": 100,
+					"p50": 0.27154149999995525,
+					"p95": 0.3311660000000529,
+					"constructionMs": 28.128284999999778,
+					"withinPhaseGapMs": 21.521340000000237,
+					"gapP50": 0.1895830000000842,
+					"gapP95": 0.29033300000003237
+				},
+				{
+					"name": "b1s0-measured",
+					"samples": 300,
+					"p50": 0.2625204999999937,
+					"p95": 0.3387089999999944,
+					"constructionMs": 82.46107799999982,
+					"withinPhaseGapMs": 67.06700600000022,
+					"gapP50": 0.19812500000000455,
+					"gapP95": 0.2980000000000018
+				},
+				{
+					"name": "b1s1-warmup",
+					"samples": 100,
+					"p50": 0.28843700000004446,
+					"p95": 0.4009170000000495,
+					"constructionMs": 30.5287900000003,
+					"withinPhaseGapMs": 25.38825099999974,
+					"gapP50": 0.20337500000005093,
+					"gapP95": 0.3210000000000264
+				},
+				{
+					"name": "b1s1-measured",
+					"samples": 300,
+					"p50": 0.26075050000002875,
+					"p95": 0.33808299999998326,
+					"constructionMs": 80.61337799999842,
+					"withinPhaseGapMs": 63.882456000001525,
+					"gapP50": 0.18879200000003493,
+					"gapP95": 0.3011659999999665
+				},
+				{
+					"name": "b2s0-warmup",
+					"samples": 100,
+					"p50": 0.2780414999999721,
+					"p95": 0.34483399999999165,
+					"constructionMs": 28.556913000000463,
+					"withinPhaseGapMs": 24.090502999999444,
+					"gapP50": 0.22754200000008495,
+					"gapP95": 0.3208750000001146
+				},
+				{
+					"name": "b2s0-measured",
+					"samples": 300,
+					"p50": 0.2763545000000249,
+					"p95": 0.4156669999999849,
+					"constructionMs": 88.00466800000049,
+					"withinPhaseGapMs": 75.35304099999962,
+					"gapP50": 0.21125000000006366,
+					"gapP95": 0.35612499999979264
+				},
+				{
+					"name": "b2s1-warmup",
+					"samples": 100,
+					"p50": 0.27443750000009004,
+					"p95": 0.37941700000010314,
+					"constructionMs": 28.98512900000037,
+					"withinPhaseGapMs": 20.981328999999505,
+					"gapP50": 0.19158300000003692,
+					"gapP95": 0.2842080000000351
+				},
+				{
+					"name": "b2s1-measured",
+					"samples": 300,
+					"p50": 0.24845849999996972,
+					"p95": 0.2958329999999023,
+					"constructionMs": 76.52276900000084,
+					"withinPhaseGapMs": 60.53048099999933,
+					"gapP50": 0.18145800000002055,
+					"gapP95": 0.27166600000009566
+				}
+			]
+		},
+		{
+			"position": 1,
+			"cell": "Q-V",
+			"samples": 2400,
+			"cpu": [
+				{
+					"name": "b0s0-warmup",
+					"T": 67.647,
+					"P": 118.935,
+					"Wlo": 69.855042,
+					"Whi": 69.95891699999999,
+					"Wpoint": 69.90697949999999,
+					"unaccountedElapsed": 2.259979499999986,
+					"processMinusThread": 51.288,
+					"snapshotWidths": [0.08016699999998878, 0.023707999999999174],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 376,
+						"minorPageFault": 547,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 37.48557699999995,
+					"p50": 0.321708000000001,
+					"p95": 0.720041000000009
+				},
+				{
+					"name": "b0s0-measured",
+					"T": 170.982,
+					"P": 295.928,
+					"Wlo": 176.83266600000002,
+					"Whi": 176.86599999999999,
+					"Wpoint": 176.849333,
+					"unaccountedElapsed": 5.867333000000002,
+					"processMinusThread": 124.946,
+					"snapshotWidths": [0.008667000000002645, 0.024666999999965356],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 725,
+						"minorPageFault": 1091,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 92.59271299999983,
+					"p50": 0.2923749999999927,
+					"p95": 0.39674999999999727
+				},
+				{
+					"name": "b0s1-warmup",
+					"T": 63.848,
+					"P": 109.271,
+					"Wlo": 65.20162499999998,
+					"Whi": 65.24070799999998,
+					"Wpoint": 65.22116649999998,
+					"unaccountedElapsed": 1.3731664999999822,
+					"processMinusThread": 45.423,
+					"snapshotWidths": [0.012207999999986896, 0.02687500000001819],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 357,
+						"minorPageFault": 157,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 36.54166700000036,
+					"p50": 0.3222915000000057,
+					"p95": 0.6375830000000065
+				},
+				{
+					"name": "b0s1-measured",
+					"T": 164.243,
+					"P": 257.389,
+					"Wlo": 168.73725000000002,
+					"Whi": 168.77520900000007,
+					"Wpoint": 168.75622950000005,
+					"unaccountedElapsed": 4.513229500000051,
+					"processMinusThread": 93.14600000000002,
+					"snapshotWidths": [0.008292000000039934, 0.02966700000001765],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 638,
+						"minorPageFault": 1852,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 92.45662500000145,
+					"p50": 0.29593749999997954,
+					"p95": 0.40104199999996126
+				},
+				{
+					"name": "b1s0-warmup",
+					"T": 48.608,
+					"P": 53.946,
+					"Wlo": 49.947250000000054,
+					"Whi": 50.00645799999995,
+					"Wpoint": 49.976854,
+					"unaccountedElapsed": 1.368854000000006,
+					"processMinusThread": 5.338000000000001,
+					"snapshotWidths": [0.020541999999977634, 0.03866599999992104],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 167,
+						"minorPageFault": 0,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 28.043495999999664,
+					"p50": 0.26912449999997534,
+					"p95": 0.33904199999994944
+				},
+				{
+					"name": "b1s0-measured",
+					"T": 151.098,
+					"P": 181.264,
+					"Wlo": 155.95516700000007,
+					"Whi": 155.9794579999999,
+					"Wpoint": 155.9673125,
+					"unaccountedElapsed": 4.869312499999978,
+					"processMinusThread": 30.165999999999997,
+					"snapshotWidths": [0.008999999999900865, 0.015290999999933774],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 499,
+						"minorPageFault": 80,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 84.74700000000087,
+					"p50": 0.2696460000000229,
+					"p95": 0.36512500000003456
+				},
+				{
+					"name": "b1s1-warmup",
+					"T": 54.751,
+					"P": 68.207,
+					"Wlo": 56.12379199999998,
+					"Whi": 56.14220799999998,
+					"Wpoint": 56.13299999999998,
+					"unaccountedElapsed": 1.3819999999999837,
+					"processMinusThread": 13.455999999999996,
+					"snapshotWidths": [0.003040999999939231, 0.015375000000062755],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 186,
+						"minorPageFault": 99,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 31.623580000000857,
+					"p50": 0.2969590000000153,
+					"p95": 0.40949999999998
+				},
+				{
+					"name": "b1s1-measured",
+					"T": 157.384,
+					"P": 180.599,
+					"Wlo": 162.2975419999999,
+					"Whi": 162.31433400000003,
+					"Wpoint": 162.30593799999997,
+					"unaccountedElapsed": 4.921937999999983,
+					"processMinusThread": 23.215000000000003,
+					"snapshotWidths": [0.003167000000075859, 0.013625000000047294],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 483,
+						"minorPageFault": 267,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 88.31270700000175,
+					"p50": 0.28264599999999973,
+					"p95": 0.37333300000000236
+				},
+				{
+					"name": "b2s0-warmup",
+					"T": 51.025,
+					"P": 54.355,
+					"Wlo": 52.59304199999997,
+					"Whi": 52.61004099999991,
+					"Wpoint": 52.60154149999994,
+					"unaccountedElapsed": 1.5765414999999408,
+					"processMinusThread": 3.3299999999999983,
+					"snapshotWidths": [0.0036660000000665605, 0.013332999999875028],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 152,
+						"minorPageFault": 90,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 29.008996999999454,
+					"p50": 0.2814374999999245,
+					"p95": 0.36458300000003874
+				},
+				{
+					"name": "b2s0-measured",
+					"T": 165.95,
+					"P": 192.111,
+					"Wlo": 170.65129100000013,
+					"Whi": 170.67154200000004,
+					"Wpoint": 170.6614165000001,
+					"unaccountedElapsed": 4.711416500000098,
+					"processMinusThread": 26.161,
+					"snapshotWidths": [0.004458999999997104, 0.015791999999919426],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 503,
+						"minorPageFault": 3444,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 93.33809499999916,
+					"p50": 0.3017500000000837,
+					"p95": 0.41712500000016917
+				},
+				{
+					"name": "b2s1-warmup",
+					"T": 52.536,
+					"P": 61.006,
+					"Wlo": 54.124709000000166,
+					"Whi": 54.13912500000015,
+					"Wpoint": 54.13191700000016,
+					"unaccountedElapsed": 1.5959170000001563,
+					"processMinusThread": 8.469999999999999,
+					"snapshotWidths": [0.003290999999990163, 0.011124999999992724],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 162,
+						"minorPageFault": 12,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 30.539833000000726,
+					"p50": 0.2912499999999909,
+					"p95": 0.3974169999999049
+				},
+				{
+					"name": "b2s1-measured",
+					"T": 148.833,
+					"P": 159.556,
+					"Wlo": 153.39804099999992,
+					"Whi": 153.41708300000005,
+					"Wpoint": 153.40756199999998,
+					"unaccountedElapsed": 4.574561999999986,
+					"processMinusThread": 10.723000000000013,
+					"snapshotWidths": [0.0029999999999290594, 0.01604200000019773],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 451,
+						"minorPageFault": 0,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 87.2300870000015,
+					"p50": 0.2782710000000179,
+					"p95": 0.3703330000000733
+				}
+			],
+			"trace": {
+				"status": "not-enabled"
+			},
+			"blocks": [
+				{
+					"name": "b0s0-warmup",
+					"samples": 100,
+					"p50": 0.321708000000001,
+					"p95": 0.720041000000009,
+					"constructionMs": 37.48557699999995,
+					"withinPhaseGapMs": 31.57800700000007,
+					"gapP50": 0.24504199999998377,
+					"gapP95": 0.6162499999999795
+				},
+				{
+					"name": "b0s0-measured",
+					"samples": 300,
+					"p50": 0.2923749999999927,
+					"p95": 0.39674999999999727,
+					"constructionMs": 92.59271299999983,
+					"withinPhaseGapMs": 83.75374600000015,
+					"gapP50": 0.23849999999998772,
+					"gapP95": 0.590625000000017
+				},
+				{
+					"name": "b0s1-warmup",
+					"samples": 100,
+					"p50": 0.3222915000000057,
+					"p95": 0.6375830000000065,
+					"constructionMs": 36.54166700000036,
+					"withinPhaseGapMs": 28.41345799999965,
+					"gapP50": 0.24541599999997743,
+					"gapP95": 0.55925000000002
+				},
+				{
+					"name": "b0s1-measured",
+					"samples": 300,
+					"p50": 0.29593749999997954,
+					"p95": 0.40104199999996126,
+					"constructionMs": 92.45662500000145,
+					"withinPhaseGapMs": 76.07504099999852,
+					"gapP50": 0.2151249999999436,
+					"gapP95": 0.44337499999994634
+				},
+				{
+					"name": "b1s0-warmup",
+					"samples": 100,
+					"p50": 0.26912449999997534,
+					"p95": 0.33904199999994944,
+					"constructionMs": 28.043495999999664,
+					"withinPhaseGapMs": 21.70729600000027,
+					"gapP50": 0.19737499999996544,
+					"gapP95": 0.2823750000000018
+				},
+				{
+					"name": "b1s0-measured",
+					"samples": 300,
+					"p50": 0.2696460000000229,
+					"p95": 0.36512500000003456,
+					"constructionMs": 84.74700000000087,
+					"withinPhaseGapMs": 71.01362499999914,
+					"gapP50": 0.20587499999999181,
+					"gapP95": 0.3385000000000673
+				},
+				{
+					"name": "b1s1-warmup",
+					"samples": 100,
+					"p50": 0.2969590000000153,
+					"p95": 0.40949999999998,
+					"constructionMs": 31.623580000000857,
+					"withinPhaseGapMs": 24.293502999999077,
+					"gapP50": 0.2195000000000391,
+					"gapP95": 0.3024169999999913
+				},
+				{
+					"name": "b1s1-measured",
+					"samples": 300,
+					"p50": 0.28264599999999973,
+					"p95": 0.37333300000000236,
+					"constructionMs": 88.31270700000175,
+					"withinPhaseGapMs": 73.66575099999818,
+					"gapP50": 0.22199999999998,
+					"gapP95": 0.32833400000004076
+				},
+				{
+					"name": "b2s0-warmup",
+					"samples": 100,
+					"p50": 0.2814374999999245,
+					"p95": 0.36458300000003874,
+					"constructionMs": 29.008996999999454,
+					"withinPhaseGapMs": 23.326170000000502,
+					"gapP50": 0.2179159999998319,
+					"gapP95": 0.313666000000012
+				},
+				{
+					"name": "b2s0-measured",
+					"samples": 300,
+					"p50": 0.3017500000000837,
+					"p95": 0.41712500000016917,
+					"constructionMs": 93.33809499999916,
+					"withinPhaseGapMs": 77.0941140000009,
+					"gapP50": 0.2192499999998745,
+					"gapP95": 0.3327079999999114
+				},
+				{
+					"name": "b2s1-warmup",
+					"samples": 100,
+					"p50": 0.2912499999999909,
+					"p95": 0.3974169999999049,
+					"constructionMs": 30.539833000000726,
+					"withinPhaseGapMs": 23.32962499999917,
+					"gapP50": 0.20691699999997581,
+					"gapP95": 0.31245800000010604
+				},
+				{
+					"name": "b2s1-measured",
+					"samples": 300,
+					"p50": 0.2782710000000179,
+					"p95": 0.3703330000000733,
+					"constructionMs": 87.2300870000015,
+					"withinPhaseGapMs": 65.9474549999984,
+					"gapP50": 0.20062499999994543,
+					"gapP95": 0.28833400000007714
+				}
+			]
+		},
+		{
+			"position": 2,
+			"cell": "T-U",
+			"samples": 2400,
+			"cpu": [
+				{
+					"name": "b0s0-warmup",
+					"T": 81.859,
+					"P": 136.836,
+					"Wlo": 159.94550000000004,
+					"Whi": 160.04162499999998,
+					"Wpoint": 159.9935625,
+					"unaccountedElapsed": 78.1345625,
+					"processMinusThread": 54.97700000000002,
+					"snapshotWidths": [0.07149999999998613, 0.02462499999995771],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 3,
+						"involuntaryContextSwitches": 510,
+						"minorPageFault": 298,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 46.67317500000024,
+					"p50": 0.3521250000000009,
+					"p95": 1.1259589999999946
+				},
+				{
+					"name": "b0s0-measured",
+					"T": 175.4,
+					"P": 278.203,
+					"Wlo": 183.87908400000003,
+					"Whi": 183.919958,
+					"Wpoint": 183.89952100000002,
+					"unaccountedElapsed": 8.499521000000016,
+					"processMinusThread": 102.80299999999997,
+					"snapshotWidths": [0.0101659999999697, 0.030708000000004176],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 813,
+						"minorPageFault": 1080,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 96.63812000000019,
+					"p50": 0.29877100000001633,
+					"p95": 0.42604199999999537
+				},
+				{
+					"name": "b0s1-warmup",
+					"T": 76.63,
+					"P": 128.84,
+					"Wlo": 84.56616700000001,
+					"Whi": 84.60558400000002,
+					"Wpoint": 84.58587550000001,
+					"unaccountedElapsed": 7.955875500000019,
+					"processMinusThread": 52.21000000000001,
+					"snapshotWidths": [0.009749999999996817, 0.02966700000001765],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 502,
+						"minorPageFault": 191,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 42.374334000000545,
+					"p50": 0.3612499999999841,
+					"p95": 0.7795830000000024
+				},
+				{
+					"name": "b0s1-measured",
+					"T": 182.095,
+					"P": 280.593,
+					"Wlo": 188.41387500000008,
+					"Whi": 188.45154100000002,
+					"Wpoint": 188.43270800000005,
+					"unaccountedElapsed": 6.337708000000049,
+					"processMinusThread": 98.49800000000002,
+					"snapshotWidths": [0.009374999999977263, 0.028290999999967426],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 729,
+						"minorPageFault": 1904,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 100.43204599999979,
+					"p50": 0.30993749999998954,
+					"p95": 0.47708399999999074
+				},
+				{
+					"name": "b1s0-warmup",
+					"T": 52.229,
+					"P": 57.856,
+					"Wlo": 53.74141600000007,
+					"Whi": 53.79379199999994,
+					"Wpoint": 53.767604000000006,
+					"unaccountedElapsed": 1.5386040000000065,
+					"processMinusThread": 5.6270000000000024,
+					"snapshotWidths": [0.017958999999905245, 0.03441699999996217],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 174,
+						"minorPageFault": 6,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 29.194171999998844,
+					"p50": 0.27141699999998536,
+					"p95": 0.39570800000001327
+				},
+				{
+					"name": "b1s0-measured",
+					"T": 153.706,
+					"P": 184.689,
+					"Wlo": 158.20066699999995,
+					"Whi": 158.22508399999992,
+					"Wpoint": 158.21287549999994,
+					"unaccountedElapsed": 4.50687549999995,
+					"processMinusThread": 30.983000000000004,
+					"snapshotWidths": [0.00837500000000091, 0.016041999999970358],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 477,
+						"minorPageFault": 72,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 84.46970500000054,
+					"p50": 0.26737500000001546,
+					"p95": 0.37145799999996143
+				},
+				{
+					"name": "b1s1-warmup",
+					"T": 59.21,
+					"P": 72.177,
+					"Wlo": 60.51604100000009,
+					"Whi": 60.53424999999993,
+					"Wpoint": 60.52514550000001,
+					"unaccountedElapsed": 1.315145500000007,
+					"processMinusThread": 12.967000000000006,
+					"snapshotWidths": [0.004042000000026746, 0.014166999999815744],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 178,
+						"minorPageFault": 103,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 33.61362900000006,
+					"p50": 0.3218540000000303,
+					"p95": 0.41362500000002456
+				},
+				{
+					"name": "b1s1-measured",
+					"T": 152.69,
+					"P": 174.86,
+					"Wlo": 156.75258299999996,
+					"Whi": 156.76933299999996,
+					"Wpoint": 156.76095799999996,
+					"unaccountedElapsed": 4.070957999999962,
+					"processMinusThread": 22.170000000000016,
+					"snapshotWidths": [0.004125000000158252, 0.012624999999843567],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 457,
+						"minorPageFault": 303,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 85.93258899999955,
+					"p50": 0.2804589999999507,
+					"p95": 0.3470829999998841
+				},
+				{
+					"name": "b2s0-warmup",
+					"T": 49.033,
+					"P": 52.138,
+					"Wlo": 50.55012499999998,
+					"Whi": 50.57091700000001,
+					"Wpoint": 50.560520999999994,
+					"unaccountedElapsed": 1.527520999999993,
+					"processMinusThread": 3.104999999999997,
+					"snapshotWidths": [0.004166999999824839, 0.016625000000203727],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 152,
+						"minorPageFault": 103,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 28.13213000000019,
+					"p50": 0.27214600000002065,
+					"p95": 0.3356669999998303
+				},
+				{
+					"name": "b2s0-measured",
+					"T": 154.426,
+					"P": 180.059,
+					"Wlo": 158.23512499999993,
+					"Whi": 158.25704199999996,
+					"Wpoint": 158.24608349999994,
+					"unaccountedElapsed": 3.820083499999953,
+					"processMinusThread": 25.63300000000001,
+					"snapshotWidths": [0.007000000000061846, 0.014916999999968539],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 420,
+						"minorPageFault": 3467,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 87.5033199999998,
+					"p50": 0.2765629999998964,
+					"p95": 0.39020899999991343
+				},
+				{
+					"name": "b2s1-warmup",
+					"T": 47.255,
+					"P": 54.644,
+					"Wlo": 48.47066699999982,
+					"Whi": 48.489917000000105,
+					"Wpoint": 48.48029199999996,
+					"unaccountedElapsed": 1.2252919999999605,
+					"processMinusThread": 7.388999999999996,
+					"snapshotWidths": [0.00383300000021336, 0.015417000000070402],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 134,
+						"minorPageFault": 19,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 27.653462000000218,
+					"p50": 0.25937499999997726,
+					"p95": 0.33920899999998255
+				},
+				{
+					"name": "b2s1-measured",
+					"T": 136.443,
+					"P": 147.622,
+					"Wlo": 140.09570899999994,
+					"Whi": 140.11466700000005,
+					"Wpoint": 140.105188,
+					"unaccountedElapsed": 3.6621879999999862,
+					"processMinusThread": 11.179000000000002,
+					"snapshotWidths": [0.0037080000001878943, 0.015249999999923602],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 367,
+						"minorPageFault": 0,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 79.17433900000219,
+					"p50": 0.25545850000003156,
+					"p95": 0.3090420000000904
+				}
+			],
+			"trace": {
+				"status": "calibrated",
+				"events": 167,
+				"windows": 12,
+				"markers": 12,
+				"deltaUs": [133320219380, 133320219382]
+			},
+			"blocks": [
+				{
+					"name": "b0s0-warmup",
+					"samples": 100,
+					"p50": 0.3521250000000009,
+					"p95": 1.1259589999999946,
+					"constructionMs": 46.67317500000024,
+					"withinPhaseGapMs": 112.40682499999977,
+					"gapP50": 0.27870900000004895,
+					"gapP95": 4.089292
+				},
+				{
+					"name": "b0s0-measured",
+					"samples": 300,
+					"p50": 0.29877100000001633,
+					"p95": 0.42604199999999537,
+					"constructionMs": 96.63812000000019,
+					"withinPhaseGapMs": 86.55421299999978,
+					"gapP50": 0.24195900000000847,
+					"gapP95": 0.5892499999999927
+				},
+				{
+					"name": "b0s1-warmup",
+					"samples": 100,
+					"p50": 0.3612499999999841,
+					"p95": 0.7795830000000024,
+					"constructionMs": 42.374334000000545,
+					"withinPhaseGapMs": 41.855207999999436,
+					"gapP50": 0.3180419999999913,
+					"gapP95": 0.882541999999944
+				},
+				{
+					"name": "b0s1-measured",
+					"samples": 300,
+					"p50": 0.30993749999998954,
+					"p95": 0.47708399999999074,
+					"constructionMs": 100.43204599999979,
+					"withinPhaseGapMs": 87.61399600000027,
+					"gapP50": 0.2410419999999931,
+					"gapP95": 0.5700829999999542
+				},
+				{
+					"name": "b1s0-warmup",
+					"samples": 100,
+					"p50": 0.27141699999998536,
+					"p95": 0.39570800000001327,
+					"constructionMs": 29.194171999998844,
+					"withinPhaseGapMs": 24.289245000001074,
+					"gapP50": 0.21612500000003365,
+					"gapP95": 0.35266599999999926
+				},
+				{
+					"name": "b1s0-measured",
+					"samples": 300,
+					"p50": 0.26737500000001546,
+					"p95": 0.37145799999996143,
+					"constructionMs": 84.46970500000054,
+					"withinPhaseGapMs": 73.3397119999994,
+					"gapP50": 0.21629199999995308,
+					"gapP95": 0.3527920000000222
+				},
+				{
+					"name": "b1s1-warmup",
+					"samples": 100,
+					"p50": 0.3218540000000303,
+					"p95": 0.41362500000002456,
+					"constructionMs": 33.61362900000006,
+					"withinPhaseGapMs": 26.678495999999996,
+					"gapP50": 0.2476249999999709,
+					"gapP95": 0.3548749999999927
+				},
+				{
+					"name": "b1s1-measured",
+					"samples": 300,
+					"p50": 0.2804589999999507,
+					"p95": 0.3470829999998841,
+					"constructionMs": 85.93258899999955,
+					"withinPhaseGapMs": 70.58932800000048,
+					"gapP50": 0.21658400000001166,
+					"gapP95": 0.3288749999999254
+				},
+				{
+					"name": "b2s0-warmup",
+					"samples": 100,
+					"p50": 0.27214600000002065,
+					"p95": 0.3356669999998303,
+					"constructionMs": 28.13213000000019,
+					"withinPhaseGapMs": 22.203535999999986,
+					"gapP50": 0.20720799999980954,
+					"gapP95": 0.28766700000005585
+				},
+				{
+					"name": "b2s0-measured",
+					"samples": 300,
+					"p50": 0.2765629999998964,
+					"p95": 0.39020899999991343,
+					"constructionMs": 87.5033199999998,
+					"withinPhaseGapMs": 70.49151300000017,
+					"gapP50": 0.20029199999999037,
+					"gapP95": 0.28845799999999144
+				},
+				{
+					"name": "b2s1-warmup",
+					"samples": 100,
+					"p50": 0.25937499999997726,
+					"p95": 0.33920899999998255,
+					"constructionMs": 27.653462000000218,
+					"withinPhaseGapMs": 20.548579999999674,
+					"gapP50": 0.18862500000000182,
+					"gapP95": 0.27404100000012477
+				},
+				{
+					"name": "b2s1-measured",
+					"samples": 300,
+					"p50": 0.25545850000003156,
+					"p95": 0.3090420000000904,
+					"constructionMs": 79.17433900000219,
+					"withinPhaseGapMs": 60.659327999997686,
+					"gapP50": 0.18229199999996126,
+					"gapP95": 0.2868750000000091
+				}
+			]
+		},
+		{
+			"position": 3,
+			"cell": "B-V",
+			"samples": 2400,
+			"cpu": null,
+			"trace": {
+				"status": "not-enabled"
+			},
+			"blocks": [
+				{
+					"name": "b0s0-warmup",
+					"samples": 100,
+					"p50": 0.37499950000000126,
+					"p95": 0.7160829999999976,
+					"constructionMs": 42.06879500000002,
+					"withinPhaseGapMs": 37.019497,
+					"gapP50": 0.30483300000000213,
+					"gapP95": 0.7270000000000039
+				},
+				{
+					"name": "b0s0-measured",
+					"samples": 300,
+					"p50": 0.3087294999999983,
+					"p95": 0.4462090000000103,
+					"constructionMs": 99.91874500000029,
+					"withinPhaseGapMs": 92.92375499999972,
+					"gapP50": 0.2574999999999932,
+					"gapP95": 0.6152920000000108
+				},
+				{
+					"name": "b0s1-warmup",
+					"samples": 100,
+					"p50": 0.32979199999999764,
+					"p95": 0.6784579999999778,
+					"constructionMs": 37.205161999999916,
+					"withinPhaseGapMs": 30.10142200000007,
+					"gapP50": 0.25324999999998,
+					"gapP95": 0.6003749999999854
+				},
+				{
+					"name": "b0s1-measured",
+					"samples": 300,
+					"p50": 0.31483299999999304,
+					"p95": 0.43695900000000165,
+					"constructionMs": 99.14120599999899,
+					"withinPhaseGapMs": 91.49483500000093,
+					"gapP50": 0.231708000000026,
+					"gapP95": 0.735834000000068
+				},
+				{
+					"name": "b1s0-warmup",
+					"samples": 100,
+					"p50": 0.2853954999999928,
+					"p95": 0.3716660000000047,
+					"constructionMs": 29.976039999999784,
+					"withinPhaseGapMs": 29.88250100000016,
+					"gapP50": 0.2087499999998954,
+					"gapP95": 0.8548330000000988
+				},
+				{
+					"name": "b1s0-measured",
+					"samples": 300,
+					"p50": 0.26862499999992906,
+					"p95": 0.33954099999994014,
+					"constructionMs": 83.24186999999984,
+					"withinPhaseGapMs": 68.33713000000012,
+					"gapP50": 0.20529099999998834,
+					"gapP95": 0.3122090000000526
+				},
+				{
+					"name": "b1s1-warmup",
+					"samples": 100,
+					"p50": 0.2808120000000258,
+					"p95": 0.40637500000002547,
+					"constructionMs": 29.78287400000022,
+					"withinPhaseGapMs": 23.027750999999853,
+					"gapP50": 0.2055000000000291,
+					"gapP95": 0.33779100000003837
+				},
+				{
+					"name": "b1s1-measured",
+					"samples": 300,
+					"p50": 0.26410400000003165,
+					"p95": 0.3479170000000522,
+					"constructionMs": 82.69616200000007,
+					"withinPhaseGapMs": 67.35200499999985,
+					"gapP50": 0.20091600000000653,
+					"gapP95": 0.324416000000042
+				},
+				{
+					"name": "b2s0-warmup",
+					"samples": 100,
+					"p50": 0.2702289999999721,
+					"p95": 0.3835830000000442,
+					"constructionMs": 28.70095799999899,
+					"withinPhaseGapMs": 27.652500000001055,
+					"gapP50": 0.20449999999982538,
+					"gapP95": 0.4405829999998332
+				},
+				{
+					"name": "b2s0-measured",
+					"samples": 300,
+					"p50": 0.2688335000000279,
+					"p95": 0.35991599999988466,
+					"constructionMs": 84.92012099999897,
+					"withinPhaseGapMs": 63.310046000000966,
+					"gapP50": 0.19079200000010132,
+					"gapP95": 0.27033300000016425
+				},
+				{
+					"name": "b2s1-warmup",
+					"samples": 100,
+					"p50": 0.2658129999999801,
+					"p95": 0.37658299999998235,
+					"constructionMs": 28.431002000001627,
+					"withinPhaseGapMs": 21.006163999998307,
+					"gapP50": 0.18345799999997325,
+					"gapP95": 0.2846249999997781
+				},
+				{
+					"name": "b2s1-measured",
+					"samples": 300,
+					"p50": 0.25789549999990413,
+					"p95": 0.3149580000001606,
+					"constructionMs": 79.9680810000009,
+					"withinPhaseGapMs": 59.11512699999912,
+					"gapP50": 0.17679100000009385,
+					"gapP95": 0.2620839999999589
+				}
+			]
+		},
+		{
+			"position": 4,
+			"cell": "Q-U",
+			"samples": 2400,
+			"cpu": [
+				{
+					"name": "b0s0-warmup",
+					"T": 67.708,
+					"P": 117.477,
+					"Wlo": 69.35862499999999,
+					"Whi": 69.46279200000001,
+					"Wpoint": 69.4107085,
+					"unaccountedElapsed": 1.7027085,
+					"processMinusThread": 49.769000000000005,
+					"snapshotWidths": [0.07912500000000477, 0.02504200000001333],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 397,
+						"minorPageFault": 288,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 37.35813000000016,
+					"p50": 0.3263125000000002,
+					"p95": 0.6716669999999851
+				},
+				{
+					"name": "b0s0-measured",
+					"T": 170.743,
+					"P": 275.311,
+					"Wlo": 175.966375,
+					"Whi": 176.000625,
+					"Wpoint": 175.9835,
+					"unaccountedElapsed": 5.240499999999997,
+					"processMinusThread": 104.56799999999998,
+					"snapshotWidths": [0.008208999999993694, 0.02604100000002063],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 757,
+						"minorPageFault": 1133,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 94.71555099999915,
+					"p50": 0.29843699999999274,
+					"p95": 0.4227920000000154
+				},
+				{
+					"name": "b0s1-warmup",
+					"T": 64.835,
+					"P": 108.053,
+					"Wlo": 66.57204200000001,
+					"Whi": 66.60816699999998,
+					"Wpoint": 66.5901045,
+					"unaccountedElapsed": 1.7551045000000016,
+					"processMinusThread": 43.218,
+					"snapshotWidths": [0.012999999999976808, 0.02312499999999318],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 358,
+						"minorPageFault": 181,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 37.14274800000004,
+					"p50": 0.327021000000002,
+					"p95": 0.6606669999999895
+				},
+				{
+					"name": "b0s1-measured",
+					"T": 159.803,
+					"P": 248.345,
+					"Wlo": 164.46433300000007,
+					"Whi": 164.50645900000006,
+					"Wpoint": 164.48539600000007,
+					"unaccountedElapsed": 4.682396000000068,
+					"processMinusThread": 88.542,
+					"snapshotWidths": [0.008167000000014468, 0.03395899999998164],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 606,
+						"minorPageFault": 1865,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 90.27971599999887,
+					"p50": 0.28754199999997354,
+					"p95": 0.3850410000000011
+				},
+				{
+					"name": "b1s0-warmup",
+					"T": 48.064,
+					"P": 57.34,
+					"Wlo": 49.43737500000009,
+					"Whi": 49.490958999999975,
+					"Wpoint": 49.46416700000003,
+					"unaccountedElapsed": 1.4001670000000317,
+					"processMinusThread": 9.276000000000003,
+					"snapshotWidths": [0.016916999999921245, 0.03666699999996581],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 159,
+						"minorPageFault": 0,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 27.822169000000486,
+					"p50": 0.26625000000001364,
+					"p95": 0.35695799999996325
+				},
+				{
+					"name": "b1s0-measured",
+					"T": 145.234,
+					"P": 176.476,
+					"Wlo": 149.69187499999998,
+					"Whi": 149.71420799999999,
+					"Wpoint": 149.70304149999998,
+					"unaccountedElapsed": 4.469041499999975,
+					"processMinusThread": 31.24199999999999,
+					"snapshotWidths": [0.008958000000006905, 0.013374999999996362],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 464,
+						"minorPageFault": 78,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 82.80722000000071,
+					"p50": 0.2647084999999265,
+					"p95": 0.34970800000007785
+				},
+				{
+					"name": "b1s1-warmup",
+					"T": 52.715,
+					"P": 65.703,
+					"Wlo": 53.949208,
+					"Whi": 53.96616699999993,
+					"Wpoint": 53.95768749999996,
+					"unaccountedElapsed": 1.2426874999999598,
+					"processMinusThread": 12.988,
+					"snapshotWidths": [0.0029999999999290594, 0.013958999999999833],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 189,
+						"minorPageFault": 98,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 30.645794000000137,
+					"p50": 0.2868960000000129,
+					"p95": 0.4357079999999769
+				},
+				{
+					"name": "b1s1-measured",
+					"T": 142.677,
+					"P": 164.457,
+					"Wlo": 146.69295799999998,
+					"Whi": 146.7126659999999,
+					"Wpoint": 146.70281199999994,
+					"unaccountedElapsed": 4.025811999999945,
+					"processMinusThread": 21.78,
+					"snapshotWidths": [0.005957999999964159, 0.013749999999959073],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 432,
+						"minorPageFault": 268,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 81.3112509999994,
+					"p50": 0.261271000000022,
+					"p95": 0.33312499999999545
+				},
+				{
+					"name": "b2s0-warmup",
+					"T": 47.116,
+					"P": 50.087,
+					"Wlo": 48.326374999999985,
+					"Whi": 48.34558400000003,
+					"Wpoint": 48.33597950000001,
+					"unaccountedElapsed": 1.219979500000008,
+					"processMinusThread": 2.9710000000000036,
+					"snapshotWidths": [0.003500000000030923, 0.015709000000015294],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 136,
+						"minorPageFault": 90,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 26.7118349999987,
+					"p50": 0.2616249999999809,
+					"p95": 0.3133749999999509
+				},
+				{
+					"name": "b2s0-measured",
+					"T": 150.067,
+					"P": 174.603,
+					"Wlo": 153.99812500000007,
+					"Whi": 154.02183300000002,
+					"Wpoint": 154.00997900000004,
+					"unaccountedElapsed": 3.9429790000000366,
+					"processMinusThread": 24.536,
+					"snapshotWidths": [0.003917000000001281, 0.01979099999994105],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 421,
+						"minorPageFault": 3459,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 84.8641369999998,
+					"p50": 0.26604199999997036,
+					"p95": 0.3701249999999163
+				},
+				{
+					"name": "b2s1-warmup",
+					"T": 48.183,
+					"P": 55.869,
+					"Wlo": 49.35737500000005,
+					"Whi": 49.37720899999999,
+					"Wpoint": 49.36729200000002,
+					"unaccountedElapsed": 1.1842920000000206,
+					"processMinusThread": 7.686,
+					"snapshotWidths": [0.003333999999995285, 0.016499999999950887],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 133,
+						"minorPageFault": 9,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 28.57862299999715,
+					"p50": 0.27289599999994607,
+					"p95": 0.3482089999999971
+				},
+				{
+					"name": "b2s1-measured",
+					"T": 133.761,
+					"P": 144.678,
+					"Wlo": 137.40200000000004,
+					"Whi": 137.41770799999995,
+					"Wpoint": 137.409854,
+					"unaccountedElapsed": 3.648854,
+					"processMinusThread": 10.917000000000002,
+					"snapshotWidths": [0.0034160000000156288, 0.012291999999888503],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 361,
+						"minorPageFault": 2,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 78.7620870000012,
+					"p50": 0.25491699999997763,
+					"p95": 0.31674999999995634
+				}
+			],
+			"trace": {
+				"status": "not-enabled"
+			},
+			"blocks": [
+				{
+					"name": "b0s0-warmup",
+					"samples": 100,
+					"p50": 0.3263125000000002,
+					"p95": 0.6716669999999851,
+					"constructionMs": 37.35813000000016,
+					"withinPhaseGapMs": 31.208244999999835,
+					"gapP50": 0.2505419999999958,
+					"gapP95": 0.5864579999999933
+				},
+				{
+					"name": "b0s0-measured",
+					"samples": 300,
+					"p50": 0.29843699999999274,
+					"p95": 0.4227920000000154,
+					"constructionMs": 94.71555099999915,
+					"withinPhaseGapMs": 80.95165700000086,
+					"gapP50": 0.23212499999999636,
+					"gapP95": 0.5520840000000362
+				},
+				{
+					"name": "b0s1-warmup",
+					"samples": 100,
+					"p50": 0.327021000000002,
+					"p95": 0.6606669999999895,
+					"constructionMs": 37.14274800000004,
+					"withinPhaseGapMs": 29.138334999999927,
+					"gapP50": 0.24166600000000926,
+					"gapP95": 0.6462089999999989
+				},
+				{
+					"name": "b0s1-measured",
+					"samples": 300,
+					"p50": 0.28754199999997354,
+					"p95": 0.3850410000000011,
+					"constructionMs": 90.27971599999887,
+					"withinPhaseGapMs": 73.96886700000107,
+					"gapP50": 0.2071250000000191,
+					"gapP95": 0.5438750000000141
+				},
+				{
+					"name": "b1s0-warmup",
+					"samples": 100,
+					"p50": 0.26625000000001364,
+					"p95": 0.35695799999996325,
+					"constructionMs": 27.822169000000486,
+					"withinPhaseGapMs": 21.400455999999508,
+					"gapP50": 0.19129199999997581,
+					"gapP95": 0.32162500000004
+				},
+				{
+					"name": "b1s0-measured",
+					"samples": 300,
+					"p50": 0.2647084999999265,
+					"p95": 0.34970800000007785,
+					"constructionMs": 82.80722000000071,
+					"withinPhaseGapMs": 66.70952999999929,
+					"gapP50": 0.1947499999999991,
+					"gapP95": 0.2975829999999178
+				},
+				{
+					"name": "b1s1-warmup",
+					"samples": 100,
+					"p50": 0.2868960000000129,
+					"p95": 0.4357079999999769,
+					"constructionMs": 30.645794000000137,
+					"withinPhaseGapMs": 23.096372999999858,
+					"gapP50": 0.2141669999999749,
+					"gapP95": 0.29445799999996325
+				},
+				{
+					"name": "b1s1-measured",
+					"samples": 300,
+					"p50": 0.261271000000022,
+					"p95": 0.33312499999999545,
+					"constructionMs": 81.3112509999994,
+					"withinPhaseGapMs": 65.15266600000052,
+					"gapP50": 0.1947499999999991,
+					"gapP95": 0.2958329999999023
+				},
+				{
+					"name": "b2s0-warmup",
+					"samples": 100,
+					"p50": 0.2616249999999809,
+					"p95": 0.3133749999999509,
+					"constructionMs": 26.7118349999987,
+					"withinPhaseGapMs": 21.417832000001226,
+					"gapP50": 0.19129199999997581,
+					"gapP95": 0.3216660000000502
+				},
+				{
+					"name": "b2s0-measured",
+					"samples": 300,
+					"p50": 0.26604199999997036,
+					"p95": 0.3701249999999163,
+					"constructionMs": 84.8641369999998,
+					"withinPhaseGapMs": 68.93803000000003,
+					"gapP50": 0.19116699999995035,
+					"gapP95": 0.2983750000000782
+				},
+				{
+					"name": "b2s1-warmup",
+					"samples": 100,
+					"p50": 0.27289599999994607,
+					"p95": 0.3482089999999971,
+					"constructionMs": 28.57862299999715,
+					"withinPhaseGapMs": 20.48904400000265,
+					"gapP50": 0.1871249999999236,
+					"gapP95": 0.2825000000000273
+				},
+				{
+					"name": "b2s1-measured",
+					"samples": 300,
+					"p50": 0.25491699999997763,
+					"p95": 0.31674999999995634,
+					"constructionMs": 78.7620870000012,
+					"withinPhaseGapMs": 58.43974699999876,
+					"gapP50": 0.17458299999998417,
+					"gapP95": 0.2608749999999418
+				}
+			]
+		},
+		{
+			"position": 5,
+			"cell": "T-V",
+			"samples": 2400,
+			"cpu": [
+				{
+					"name": "b0s0-warmup",
+					"T": 66.103,
+					"P": 114.335,
+					"Wlo": 67.88370800000001,
+					"Whi": 67.98075,
+					"Wpoint": 67.932229,
+					"unaccountedElapsed": 1.8292290000000122,
+					"processMinusThread": 48.232,
+					"snapshotWidths": [0.07333299999999099, 0.02370899999999665],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 391,
+						"minorPageFault": 379,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 36.75161700000024,
+					"p50": 0.3144580000000019,
+					"p95": 0.7019579999999905
+				},
+				{
+					"name": "b0s0-measured",
+					"T": 164.15,
+					"P": 265.919,
+					"Wlo": 169.15679200000002,
+					"Whi": 169.20195900000002,
+					"Wpoint": 169.17937550000002,
+					"unaccountedElapsed": 5.029375500000015,
+					"processMinusThread": 101.76899999999998,
+					"snapshotWidths": [0.009666999999978998, 0.03550000000001319],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 725,
+						"minorPageFault": 1138,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 91.56417399999998,
+					"p50": 0.28708299999999554,
+					"p95": 0.40920799999997826
+				},
+				{
+					"name": "b0s1-warmup",
+					"T": 62.686,
+					"P": 105.447,
+					"Wlo": 64.36320899999998,
+					"Whi": 64.40466599999996,
+					"Wpoint": 64.38393749999997,
+					"unaccountedElapsed": 1.6979374999999735,
+					"processMinusThread": 42.761,
+					"snapshotWidths": [0.012291000000004715, 0.029165999999975156],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 347,
+						"minorPageFault": 174,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 36.38633400000009,
+					"p50": 0.3222499999999968,
+					"p95": 0.6822500000000105
+				},
+				{
+					"name": "b0s1-measured",
+					"T": 167.098,
+					"P": 266.847,
+					"Wlo": 171.71049999999997,
+					"Whi": 171.74600000000004,
+					"Wpoint": 171.72825,
+					"unaccountedElapsed": 4.6302499999999895,
+					"processMinusThread": 99.74899999999997,
+					"snapshotWidths": [0.009500000000002728, 0.026000000000067303],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 684,
+						"minorPageFault": 1811,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 94.15912000000003,
+					"p50": 0.29362449999996443,
+					"p95": 0.4412919999999758
+				},
+				{
+					"name": "b1s0-warmup",
+					"T": 48.73,
+					"P": 57.788,
+					"Wlo": 50.13629199999991,
+					"Whi": 50.187625000000025,
+					"Wpoint": 50.16195849999997,
+					"unaccountedElapsed": 1.431958499999972,
+					"processMinusThread": 9.058,
+					"snapshotWidths": [0.017125000000078217, 0.0342080000000351],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 169,
+						"minorPageFault": 6,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 28.052333999999973,
+					"p50": 0.261874999999975,
+					"p95": 0.388541000000032
+				},
+				{
+					"name": "b1s0-measured",
+					"T": 143.148,
+					"P": 174.777,
+					"Wlo": 147.35325,
+					"Whi": 147.37574999999993,
+					"Wpoint": 147.36449999999996,
+					"unaccountedElapsed": 4.216499999999968,
+					"processMinusThread": 31.62899999999999,
+					"snapshotWidths": [0.008290999999985615, 0.014208999999937078],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 468,
+						"minorPageFault": 96,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 81.8671289999985,
+					"p50": 0.2621250000000259,
+					"p95": 0.3450000000000273
+				},
+				{
+					"name": "b1s1-warmup",
+					"T": 54.499,
+					"P": 82.012,
+					"Wlo": 56.031791999999996,
+					"Whi": 56.049416000000065,
+					"Wpoint": 56.04060400000003,
+					"unaccountedElapsed": 1.541604000000028,
+					"processMinusThread": 27.512999999999998,
+					"snapshotWidths": [0.0037910000000920263, 0.013832999999976892],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 223,
+						"minorPageFault": 93,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 31.441623000000618,
+					"p50": 0.29108349999995653,
+					"p95": 0.47950000000003
+				},
+				{
+					"name": "b1s1-measured",
+					"T": 140.984,
+					"P": 161.279,
+					"Wlo": 145.02083300000004,
+					"Whi": 145.04066699999998,
+					"Wpoint": 145.03075,
+					"unaccountedElapsed": 4.046750000000003,
+					"processMinusThread": 20.294999999999987,
+					"snapshotWidths": [0.004125000000044565, 0.015708999999901607],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 422,
+						"minorPageFault": 2,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 81.37003900000047,
+					"p50": 0.2623125000000073,
+					"p95": 0.3413749999999709
+				},
+				{
+					"name": "b2s0-warmup",
+					"T": 54.508,
+					"P": 70.093,
+					"Wlo": 55.7376670000001,
+					"Whi": 55.75562500000012,
+					"Wpoint": 55.74664600000011,
+					"unaccountedElapsed": 1.2386460000001094,
+					"processMinusThread": 15.585,
+					"snapshotWidths": [0.004332999999974163, 0.013625000000047294],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 172,
+						"minorPageFault": 1459,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 29.57299900000146,
+					"p50": 0.2757080000000087,
+					"p95": 0.40533400000003894
+				},
+				{
+					"name": "b2s0-measured",
+					"T": 144.591,
+					"P": 154.754,
+					"Wlo": 148.61129200000005,
+					"Whi": 148.63199999999983,
+					"Wpoint": 148.62164599999994,
+					"unaccountedElapsed": 4.030645999999933,
+					"processMinusThread": 10.162999999999982,
+					"snapshotWidths": [0.004500000000007276, 0.01620799999977862],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 392,
+						"minorPageFault": 1953,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 84.21871000000101,
+					"p50": 0.26995850000014343,
+					"p95": 0.3527920000001359
+				},
+				{
+					"name": "b2s1-warmup",
+					"T": 51.916,
+					"P": 61.351,
+					"Wlo": 58.97554200000013,
+					"Whi": 58.990792000000056,
+					"Wpoint": 58.983167000000094,
+					"unaccountedElapsed": 7.067167000000097,
+					"processMinusThread": 9.435000000000002,
+					"snapshotWidths": [0.003958000000011452, 0.01129199999991215],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 1,
+						"involuntaryContextSwitches": 160,
+						"minorPageFault": 10,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 30.530163000000584,
+					"p50": 0.28797899999995025,
+					"p95": 0.39941700000008495
+				},
+				{
+					"name": "b2s1-measured",
+					"T": 136.505,
+					"P": 147.084,
+					"Wlo": 141.50245900000004,
+					"Whi": 141.52316699999983,
+					"Wpoint": 141.51281299999994,
+					"unaccountedElapsed": 5.007812999999942,
+					"processMinusThread": 10.579000000000008,
+					"snapshotWidths": [0.006374999999934516, 0.014332999999851381],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 374,
+						"minorPageFault": 110,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 80.52661899999725,
+					"p50": 0.25827049999998053,
+					"p95": 0.32291699999996126
+				}
+			],
+			"trace": {
+				"status": "calibrated",
+				"events": 166,
+				"windows": 12,
+				"markers": 12,
+				"deltaUs": [133326260552, 133326260554]
+			},
+			"blocks": [
+				{
+					"name": "b0s0-warmup",
+					"samples": 100,
+					"p50": 0.3144580000000019,
+					"p95": 0.7019579999999905,
+					"constructionMs": 36.75161700000024,
+					"withinPhaseGapMs": 30.337340999999753,
+					"gapP50": 0.24166699999997832,
+					"gapP95": 0.5687089999999841
+				},
+				{
+					"name": "b0s0-measured",
+					"samples": 300,
+					"p50": 0.28708299999999554,
+					"p95": 0.40920799999997826,
+					"constructionMs": 91.56417399999998,
+					"withinPhaseGapMs": 77.32190900000003,
+					"gapP50": 0.21966599999996106,
+					"gapP95": 0.5541660000000093
+				},
+				{
+					"name": "b0s1-warmup",
+					"samples": 100,
+					"p50": 0.3222499999999968,
+					"p95": 0.6822500000000105,
+					"constructionMs": 36.38633400000009,
+					"withinPhaseGapMs": 27.717957999999896,
+					"gapP50": 0.23320799999999053,
+					"gapP95": 0.5458749999999668
+				},
+				{
+					"name": "b0s1-measured",
+					"samples": 300,
+					"p50": 0.29362449999996443,
+					"p95": 0.4412919999999758,
+					"constructionMs": 94.15912000000003,
+					"withinPhaseGapMs": 77.274588,
+					"gapP50": 0.20991700000001856,
+					"gapP95": 0.4469169999999849
+				},
+				{
+					"name": "b1s0-warmup",
+					"samples": 100,
+					"p50": 0.261874999999975,
+					"p95": 0.388541000000032,
+					"constructionMs": 28.052333999999973,
+					"withinPhaseGapMs": 21.880791000000045,
+					"gapP50": 0.18599999999992178,
+					"gapP95": 0.3212909999999738
+				},
+				{
+					"name": "b1s0-measured",
+					"samples": 300,
+					"p50": 0.2621250000000259,
+					"p95": 0.3450000000000273,
+					"constructionMs": 81.8671289999985,
+					"withinPhaseGapMs": 65.26508000000149,
+					"gapP50": 0.1934999999999718,
+					"gapP95": 0.3028749999999718
+				},
+				{
+					"name": "b1s1-warmup",
+					"samples": 100,
+					"p50": 0.29108349999995653,
+					"p95": 0.47950000000003,
+					"constructionMs": 31.441623000000618,
+					"withinPhaseGapMs": 24.36137699999938,
+					"gapP50": 0.20899999999994634,
+					"gapP95": 0.48641700000007404
+				},
+				{
+					"name": "b1s1-measured",
+					"samples": 300,
+					"p50": 0.2623125000000073,
+					"p95": 0.3413749999999709,
+					"constructionMs": 81.37003900000047,
+					"withinPhaseGapMs": 63.40429399999948,
+					"gapP50": 0.18729100000007293,
+					"gapP95": 0.29616600000008475
+				},
+				{
+					"name": "b2s0-warmup",
+					"samples": 100,
+					"p50": 0.2757080000000087,
+					"p95": 0.40533400000003894,
+					"constructionMs": 29.57299900000146,
+					"withinPhaseGapMs": 25.93491699999845,
+					"gapP50": 0.20154200000001765,
+					"gapP95": 0.33504199999993034
+				},
+				{
+					"name": "b2s0-measured",
+					"samples": 300,
+					"p50": 0.26995850000014343,
+					"p95": 0.3527920000001359,
+					"constructionMs": 84.21871000000101,
+					"withinPhaseGapMs": 64.17937299999903,
+					"gapP50": 0.19249999999988177,
+					"gapP95": 0.27108300000008967
+				},
+				{
+					"name": "b2s1-warmup",
+					"samples": 100,
+					"p50": 0.28797899999995025,
+					"p95": 0.39941700000008495,
+					"constructionMs": 30.530163000000584,
+					"withinPhaseGapMs": 28.158169999999245,
+					"gapP50": 0.20125000000007276,
+					"gapP95": 0.3677090000001044
+				},
+				{
+					"name": "b2s1-measured",
+					"samples": 300,
+					"p50": 0.25827049999998053,
+					"p95": 0.32291699999996126,
+					"constructionMs": 80.52661899999725,
+					"withinPhaseGapMs": 60.78208900000277,
+					"gapP50": 0.1782500000001619,
+					"gapP95": 0.2777499999999691
+				}
+			]
+		},
+		{
+			"position": 6,
+			"cell": "T-V",
+			"samples": 2400,
+			"cpu": [
+				{
+					"name": "b0s0-warmup",
+					"T": 65.691,
+					"P": 115.686,
+					"Wlo": 67.92991699999999,
+					"Whi": 68.029541,
+					"Wpoint": 67.97972899999999,
+					"unaccountedElapsed": 2.2887289999999894,
+					"processMinusThread": 49.995000000000005,
+					"snapshotWidths": [0.07208299999999213, 0.027541000000013582],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 397,
+						"minorPageFault": 627,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 36.795873999999884,
+					"p50": 0.32116700000000264,
+					"p95": 0.6744170000000054
+				},
+				{
+					"name": "b0s0-measured",
+					"T": 169.193,
+					"P": 277.942,
+					"Wlo": 173.823916,
+					"Whi": 173.86458299999998,
+					"Wpoint": 173.8442495,
+					"unaccountedElapsed": 4.651249499999977,
+					"processMinusThread": 108.749,
+					"snapshotWidths": [0.009292000000016287, 0.03137499999996862],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 736,
+						"minorPageFault": 1049,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 94.35117799999989,
+					"p50": 0.2975619999999992,
+					"p95": 0.4139589999999771
+				},
+				{
+					"name": "b0s1-warmup",
+					"T": 65.903,
+					"P": 112.932,
+					"Wlo": 67.89937499999996,
+					"Whi": 67.93849999999998,
+					"Wpoint": 67.91893749999997,
+					"unaccountedElapsed": 2.015937499999964,
+					"processMinusThread": 47.028999999999996,
+					"snapshotWidths": [0.009875000000022283, 0.02924999999999045],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 368,
+						"minorPageFault": 42,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 38.00695500000006,
+					"p50": 0.3350625000000207,
+					"p95": 0.6656659999999874
+				},
+				{
+					"name": "b0s1-measured",
+					"T": 160.815,
+					"P": 249.89,
+					"Wlo": 164.91316599999993,
+					"Whi": 164.94862500000005,
+					"Wpoint": 164.9308955,
+					"unaccountedElapsed": 4.1158954999999935,
+					"processMinusThread": 89.07499999999999,
+					"snapshotWidths": [0.009334000000023934, 0.02612500000009277],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 623,
+						"minorPageFault": 1761,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 91.4677519999999,
+					"p50": 0.29306249999996226,
+					"p95": 0.40625
+				},
+				{
+					"name": "b1s0-warmup",
+					"T": 48.992,
+					"P": 58.508,
+					"Wlo": 50.290374999999926,
+					"Whi": 50.34458299999994,
+					"Wpoint": 50.317478999999935,
+					"unaccountedElapsed": 1.3254789999999375,
+					"processMinusThread": 9.516000000000005,
+					"snapshotWidths": [0.016875000000027285, 0.037332999999989624],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 160,
+						"minorPageFault": 36,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 28.445502999999007,
+					"p50": 0.2723959999999579,
+					"p95": 0.36716599999999744
+				},
+				{
+					"name": "b1s0-measured",
+					"T": 143.218,
+					"P": 164.668,
+					"Wlo": 147.28954199999998,
+					"Whi": 147.31345800000008,
+					"Wpoint": 147.30150000000003,
+					"unaccountedElapsed": 4.083500000000043,
+					"processMinusThread": 21.450000000000017,
+					"snapshotWidths": [0.00804100000004837, 0.01587500000005093],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 470,
+						"minorPageFault": 438,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 82.44653799999924,
+					"p50": 0.2624580000000378,
+					"p95": 0.354041000000052
+				},
+				{
+					"name": "b1s1-warmup",
+					"T": 49.929,
+					"P": 63.039,
+					"Wlo": 51.236041,
+					"Whi": 51.25816699999996,
+					"Wpoint": 51.24710399999998,
+					"unaccountedElapsed": 1.3181039999999768,
+					"processMinusThread": 13.11,
+					"snapshotWidths": [0.003917000000001281, 0.018208999999956177],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 172,
+						"minorPageFault": 99,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 29.447497000000226,
+					"p50": 0.28285450000004175,
+					"p95": 0.3662500000000364
+				},
+				{
+					"name": "b1s1-measured",
+					"T": 142.326,
+					"P": 177.65,
+					"Wlo": 146.43158299999993,
+					"Whi": 146.44824999999992,
+					"Wpoint": 146.43991649999992,
+					"unaccountedElapsed": 4.113916499999931,
+					"processMinusThread": 35.32400000000001,
+					"snapshotWidths": [0.0038339999999834617, 0.012833000000000538],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 466,
+						"minorPageFault": 105,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 81.38346500000046,
+					"p50": 0.26002050000005283,
+					"p95": 0.3418329999999514
+				},
+				{
+					"name": "b2s0-warmup",
+					"T": 53.534,
+					"P": 73.203,
+					"Wlo": 54.774999999999864,
+					"Whi": 54.791124999999965,
+					"Wpoint": 54.783062499999915,
+					"unaccountedElapsed": 1.2490624999999156,
+					"processMinusThread": 19.669000000000004,
+					"snapshotWidths": [0.004208000000062384, 0.01191700000003948],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 183,
+						"minorPageFault": 364,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 27.73066400000073,
+					"p50": 0.2585414999999216,
+					"p95": 0.3900830000000042
+				},
+				{
+					"name": "b2s0-measured",
+					"T": 148.498,
+					"P": 157.381,
+					"Wlo": 165.93333299999995,
+					"Whi": 165.95241600000008,
+					"Wpoint": 165.94287450000002,
+					"unaccountedElapsed": 17.444874500000026,
+					"processMinusThread": 8.88300000000001,
+					"snapshotWidths": [0.004083000000036918, 0.015000000000100044],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 2,
+						"involuntaryContextSwitches": 402,
+						"minorPageFault": 3069,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 87.17238199999838,
+					"p50": 0.27833349999991697,
+					"p95": 0.37712499999997817
+				},
+				{
+					"name": "b2s1-warmup",
+					"T": 47.798,
+					"P": 56.195,
+					"Wlo": 48.93391699999984,
+					"Whi": 48.95108400000004,
+					"Wpoint": 48.94250049999994,
+					"unaccountedElapsed": 1.1445004999999355,
+					"processMinusThread": 8.396999999999998,
+					"snapshotWidths": [0.004125000000158252, 0.013042000000041298],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 139,
+						"minorPageFault": 11,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 28.32270700000072,
+					"p50": 0.2648540000000139,
+					"p95": 0.3536659999999756
+				},
+				{
+					"name": "b2s1-measured",
+					"T": 134.868,
+					"P": 146.48,
+					"Wlo": 138.751667,
+					"Whi": 138.7688330000001,
+					"Wpoint": 138.76025000000004,
+					"unaccountedElapsed": 3.892250000000047,
+					"processMinusThread": 11.611999999999995,
+					"snapshotWidths": [0.003958000000011452, 0.013208000000076936],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 376,
+						"minorPageFault": 2,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 80.35872899999822,
+					"p50": 0.25883349999992333,
+					"p95": 0.3221249999999145
+				}
+			],
+			"trace": {
+				"status": "calibrated",
+				"events": 165,
+				"windows": 12,
+				"markers": 12,
+				"deltaUs": [133328632857, 133328632859]
+			},
+			"blocks": [
+				{
+					"name": "b0s0-warmup",
+					"samples": 100,
+					"p50": 0.32116700000000264,
+					"p95": 0.6744170000000054,
+					"constructionMs": 36.795873999999884,
+					"withinPhaseGapMs": 30.3234590000001,
+					"gapP50": 0.23558299999999122,
+					"gapP95": 0.600625000000008
+				},
+				{
+					"name": "b0s0-measured",
+					"samples": 300,
+					"p50": 0.2975619999999992,
+					"p95": 0.4139589999999771,
+					"constructionMs": 94.35117799999989,
+					"withinPhaseGapMs": 79.2068220000001,
+					"gapP50": 0.22354100000001154,
+					"gapP95": 0.5289160000000379
+				},
+				{
+					"name": "b0s1-warmup",
+					"samples": 100,
+					"p50": 0.3350625000000207,
+					"p95": 0.6656659999999874,
+					"constructionMs": 38.00695500000006,
+					"withinPhaseGapMs": 29.64841999999993,
+					"gapP50": 0.24679200000002766,
+					"gapP95": 0.6424999999999841
+				},
+				{
+					"name": "b0s1-measured",
+					"samples": 300,
+					"p50": 0.29306249999996226,
+					"p95": 0.40625,
+					"constructionMs": 91.4677519999999,
+					"withinPhaseGapMs": 73.23766500000005,
+					"gapP50": 0.20616599999993923,
+					"gapP95": 0.46750000000002956
+				},
+				{
+					"name": "b1s0-warmup",
+					"samples": 100,
+					"p50": 0.2723959999999579,
+					"p95": 0.36716599999999744,
+					"constructionMs": 28.445502999999007,
+					"withinPhaseGapMs": 21.647289000001024,
+					"gapP50": 0.18641700000000583,
+					"gapP95": 0.38049999999998363
+				},
+				{
+					"name": "b1s0-measured",
+					"samples": 300,
+					"p50": 0.2624580000000378,
+					"p95": 0.354041000000052,
+					"constructionMs": 82.44653799999924,
+					"withinPhaseGapMs": 64.64717100000075,
+					"gapP50": 0.1916670000000522,
+					"gapP95": 0.299082999999996
+				},
+				{
+					"name": "b1s1-warmup",
+					"samples": 100,
+					"p50": 0.28285450000004175,
+					"p95": 0.3662500000000364,
+					"constructionMs": 29.447497000000226,
+					"withinPhaseGapMs": 21.59179399999971,
+					"gapP50": 0.18937500000004093,
+					"gapP95": 0.3279579999999669
+				},
+				{
+					"name": "b1s1-measured",
+					"samples": 300,
+					"p50": 0.26002050000005283,
+					"p95": 0.3418329999999514,
+					"constructionMs": 81.38346500000046,
+					"withinPhaseGapMs": 64.78240999999957,
+					"gapP50": 0.18524999999999636,
+					"gapP95": 0.3308749999999918
+				},
+				{
+					"name": "b2s0-warmup",
+					"samples": 100,
+					"p50": 0.2585414999999216,
+					"p95": 0.3900830000000042,
+					"constructionMs": 27.73066400000073,
+					"withinPhaseGapMs": 26.827752999999348,
+					"gapP50": 0.19129100000009203,
+					"gapP95": 0.663332999999966
+				},
+				{
+					"name": "b2s0-measured",
+					"samples": 300,
+					"p50": 0.27833349999991697,
+					"p95": 0.37712499999997817,
+					"constructionMs": 87.17238199999838,
+					"withinPhaseGapMs": 78.55882700000166,
+					"gapP50": 0.19758299999989504,
+					"gapP95": 0.2971669999999449
+				},
+				{
+					"name": "b2s1-warmup",
+					"samples": 100,
+					"p50": 0.2648540000000139,
+					"p95": 0.3536659999999756,
+					"constructionMs": 28.32270700000072,
+					"withinPhaseGapMs": 20.387750999999298,
+					"gapP50": 0.1820420000001377,
+					"gapP95": 0.2699999999999818
+				},
+				{
+					"name": "b2s1-measured",
+					"samples": 300,
+					"p50": 0.25883349999992333,
+					"p95": 0.3221249999999145,
+					"constructionMs": 80.35872899999822,
+					"withinPhaseGapMs": 58.21985400000176,
+					"gapP50": 0.17249999999989996,
+					"gapP95": 0.25179099999991195
+				}
+			]
+		},
+		{
+			"position": 7,
+			"cell": "Q-U",
+			"samples": 2400,
+			"cpu": [
+				{
+					"name": "b0s0-warmup",
+					"T": 66.936,
+					"P": 115.695,
+					"Wlo": 68.675792,
+					"Whi": 68.77974999999998,
+					"Wpoint": 68.72777099999999,
+					"unaccountedElapsed": 1.791770999999983,
+					"processMinusThread": 48.758999999999986,
+					"snapshotWidths": [0.07416699999998855, 0.0297909999999888],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 386,
+						"minorPageFault": 338,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 37.17229000000003,
+					"p50": 0.3347080000000062,
+					"p95": 0.6514159999999833
+				},
+				{
+					"name": "b0s0-measured",
+					"T": 169.095,
+					"P": 271.433,
+					"Wlo": 174.349291,
+					"Whi": 174.38237500000002,
+					"Wpoint": 174.365833,
+					"unaccountedElapsed": 5.27083300000001,
+					"processMinusThread": 102.338,
+					"snapshotWidths": [0.008125000000006821, 0.024959000000023934],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 725,
+						"minorPageFault": 1205,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 93.71941699999974,
+					"p50": 0.29641699999999105,
+					"p95": 0.41191700000001674
+				},
+				{
+					"name": "b0s1-warmup",
+					"T": 63.09,
+					"P": 105.013,
+					"Wlo": 64.66150000000005,
+					"Whi": 64.69687500000003,
+					"Wpoint": 64.67918750000004,
+					"unaccountedElapsed": 1.5891875000000368,
+					"processMinusThread": 41.923,
+					"snapshotWidths": [0.012499999999988631, 0.02287499999999909],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 359,
+						"minorPageFault": 191,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 36.08228900000023,
+					"p50": 0.31712500000003274,
+					"p95": 0.6957920000000399
+				},
+				{
+					"name": "b0s1-measured",
+					"T": 162.585,
+					"P": 255.272,
+					"Wlo": 166.760541,
+					"Whi": 166.79450000000003,
+					"Wpoint": 166.7775205,
+					"unaccountedElapsed": 4.1925205000000005,
+					"processMinusThread": 92.68699999999998,
+					"snapshotWidths": [0.007625000000018645, 0.02633400000001984],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 627,
+						"minorPageFault": 1876,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 91.55911999999961,
+					"p50": 0.2913125000000605,
+					"p95": 0.4014160000000402
+				},
+				{
+					"name": "b1s0-warmup",
+					"T": 48.082,
+					"P": 53.283,
+					"Wlo": 49.35008300000004,
+					"Whi": 49.40174999999999,
+					"Wpoint": 49.37591650000002,
+					"unaccountedElapsed": 1.293916500000016,
+					"processMinusThread": 5.2010000000000005,
+					"snapshotWidths": [0.01620900000000347, 0.0354579999999487],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 152,
+						"minorPageFault": 0,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 27.855415000000903,
+					"p50": 0.2708335000000375,
+					"p95": 0.3370830000000069
+				},
+				{
+					"name": "b1s0-measured",
+					"T": 145.387,
+					"P": 175.625,
+					"Wlo": 149.4956249999999,
+					"Whi": 149.520708,
+					"Wpoint": 149.50816649999996,
+					"unaccountedElapsed": 4.121166499999958,
+					"processMinusThread": 30.238,
+					"snapshotWidths": [0.008792000000084954, 0.016291000000023814],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 479,
+						"minorPageFault": 26,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 82.45183799999984,
+					"p50": 0.26204150000000936,
+					"p95": 0.3530839999999671
+				},
+				{
+					"name": "b1s1-warmup",
+					"T": 50.944,
+					"P": 63.508,
+					"Wlo": 52.38641700000005,
+					"Whi": 52.411292,
+					"Wpoint": 52.39885450000003,
+					"unaccountedElapsed": 1.4548545000000246,
+					"processMinusThread": 12.564,
+					"snapshotWidths": [0.003207999999972344, 0.021666999999979453],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 178,
+						"minorPageFault": 99,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 30.281533999999965,
+					"p50": 0.2809790000000021,
+					"p95": 0.43537500000002183
+				},
+				{
+					"name": "b1s1-measured",
+					"T": 154.152,
+					"P": 176.047,
+					"Wlo": 160.08508300000005,
+					"Whi": 160.103291,
+					"Wpoint": 160.09418700000003,
+					"unaccountedElapsed": 5.942187000000047,
+					"processMinusThread": 21.89500000000001,
+					"snapshotWidths": [0.003582999999935055, 0.014625000000023647],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 517,
+						"minorPageFault": 325,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 87.42404100000101,
+					"p50": 0.280999500000064,
+					"p95": 0.3667090000000144
+				},
+				{
+					"name": "b2s0-warmup",
+					"T": 51.636,
+					"P": 54.747,
+					"Wlo": 53.375,
+					"Whi": 53.391541999999845,
+					"Wpoint": 53.38327099999992,
+					"unaccountedElapsed": 1.7472709999999196,
+					"processMinusThread": 3.110999999999997,
+					"snapshotWidths": [0.003499999999803549, 0.013042000000041298],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 162,
+						"minorPageFault": 103,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 28.860298999999486,
+					"p50": 0.27585450000003675,
+					"p95": 0.34779100000014296
+				},
+				{
+					"name": "b2s0-measured",
+					"T": 171.585,
+					"P": 196.97,
+					"Wlo": 177.19045900000015,
+					"Whi": 177.20741700000008,
+					"Wpoint": 177.1989380000001,
+					"unaccountedElapsed": 5.613938000000104,
+					"processMinusThread": 25.38499999999999,
+					"snapshotWidths": [0.0037079999999605207, 0.013249999999970896],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 533,
+						"minorPageFault": 3483,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 94.8402929999977,
+					"p50": 0.3044999999999618,
+					"p95": 0.43391700000006495
+				},
+				{
+					"name": "b2s1-warmup",
+					"T": 53.836,
+					"P": 62.74,
+					"Wlo": 55.503791999999976,
+					"Whi": 55.523124999999936,
+					"Wpoint": 55.513458499999956,
+					"unaccountedElapsed": 1.6774584999999576,
+					"processMinusThread": 8.904000000000003,
+					"snapshotWidths": [0.005458000000089669, 0.013874999999870852],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 187,
+						"minorPageFault": 26,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 30.72270600000047,
+					"p50": 0.28364600000008977,
+					"p95": 0.4258329999997841
+				},
+				{
+					"name": "b2s1-measured",
+					"T": 151.534,
+					"P": 162.146,
+					"Wlo": 156.17312500000003,
+					"Whi": 156.19333400000005,
+					"Wpoint": 156.18322950000004,
+					"unaccountedElapsed": 4.649229500000047,
+					"processMinusThread": 10.611999999999995,
+					"snapshotWidths": [0.003249999999979991, 0.01695900000004258],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 441,
+						"minorPageFault": 3,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 86.9579990000027,
+					"p50": 0.27547950000007404,
+					"p95": 0.37845900000002075
+				}
+			],
+			"trace": {
+				"status": "not-enabled"
+			},
+			"blocks": [
+				{
+					"name": "b0s0-warmup",
+					"samples": 100,
+					"p50": 0.3347080000000062,
+					"p95": 0.6514159999999833,
+					"constructionMs": 37.17229000000003,
+					"withinPhaseGapMs": 30.735751999999962,
+					"gapP50": 0.2504169999999988,
+					"gapP95": 0.5689579999999808
+				},
+				{
+					"name": "b0s0-measured",
+					"samples": 300,
+					"p50": 0.29641699999999105,
+					"p95": 0.41191700000001674,
+					"constructionMs": 93.71941699999974,
+					"withinPhaseGapMs": 80.33120800000029,
+					"gapP50": 0.22912500000001046,
+					"gapP95": 0.5660409999999843
+				},
+				{
+					"name": "b0s1-warmup",
+					"samples": 100,
+					"p50": 0.31712500000003274,
+					"p95": 0.6957920000000399,
+					"constructionMs": 36.08228900000023,
+					"withinPhaseGapMs": 28.277835999999752,
+					"gapP50": 0.24191700000000083,
+					"gapP95": 0.6023329999999874
+				},
+				{
+					"name": "b0s1-measured",
+					"samples": 300,
+					"p50": 0.2913125000000605,
+					"p95": 0.4014160000000402,
+					"constructionMs": 91.55911999999961,
+					"withinPhaseGapMs": 74.94221300000044,
+					"gapP50": 0.21208400000000438,
+					"gapP95": 0.47258399999998346
+				},
+				{
+					"name": "b1s0-warmup",
+					"samples": 100,
+					"p50": 0.2708335000000375,
+					"p95": 0.3370830000000069,
+					"constructionMs": 27.855415000000903,
+					"withinPhaseGapMs": 21.292125999999143,
+					"gapP50": 0.1882909999999356,
+					"gapP95": 0.29550000000006094
+				},
+				{
+					"name": "b1s0-measured",
+					"samples": 300,
+					"p50": 0.26204150000000936,
+					"p95": 0.3530839999999671,
+					"constructionMs": 82.45183799999984,
+					"withinPhaseGapMs": 66.85878700000023,
+					"gapP50": 0.1948330000000169,
+					"gapP95": 0.31883399999992434
+				},
+				{
+					"name": "b1s1-warmup",
+					"samples": 100,
+					"p50": 0.2809790000000021,
+					"p95": 0.43537500000002183,
+					"constructionMs": 30.281533999999965,
+					"withinPhaseGapMs": 21.921965999999998,
+					"gapP50": 0.200917000000004,
+					"gapP95": 0.30008299999997234
+				},
+				{
+					"name": "b1s1-measured",
+					"samples": 300,
+					"p50": 0.280999500000064,
+					"p95": 0.3667090000000144,
+					"constructionMs": 87.42404100000101,
+					"withinPhaseGapMs": 72.41699999999912,
+					"gapP50": 0.21854199999995672,
+					"gapP95": 0.3320000000001073
+				},
+				{
+					"name": "b2s0-warmup",
+					"samples": 100,
+					"p50": 0.27585450000003675,
+					"p95": 0.34779100000014296,
+					"constructionMs": 28.860298999999486,
+					"withinPhaseGapMs": 24.255659000000605,
+					"gapP50": 0.2192499999998745,
+					"gapP95": 0.3289169999998194
+				},
+				{
+					"name": "b2s0-measured",
+					"samples": 300,
+					"p50": 0.3044999999999618,
+					"p95": 0.43391700000006495,
+					"constructionMs": 94.8402929999977,
+					"withinPhaseGapMs": 82.07929000000217,
+					"gapP50": 0.23237499999981992,
+					"gapP95": 0.36770799999999326
+				},
+				{
+					"name": "b2s1-warmup",
+					"samples": 100,
+					"p50": 0.28364600000008977,
+					"p95": 0.4258329999997841,
+					"constructionMs": 30.72270600000047,
+					"withinPhaseGapMs": 24.54229399999963,
+					"gapP50": 0.21325000000001637,
+					"gapP95": 0.33870900000010806
+				},
+				{
+					"name": "b2s1-measured",
+					"samples": 300,
+					"p50": 0.27547950000007404,
+					"p95": 0.37845900000002075,
+					"constructionMs": 86.9579990000027,
+					"withinPhaseGapMs": 68.98437599999738,
+					"gapP50": 0.20383300000003146,
+					"gapP95": 0.3214580000001206
+				}
+			]
+		},
+		{
+			"position": 8,
+			"cell": "B-V",
+			"samples": 2400,
+			"cpu": null,
+			"trace": {
+				"status": "not-enabled"
+			},
+			"blocks": [
+				{
+					"name": "b0s0-warmup",
+					"samples": 100,
+					"p50": 0.320604000000003,
+					"p95": 0.6844999999999857,
+					"constructionMs": 36.63100099999983,
+					"withinPhaseGapMs": 30.682290000000165,
+					"gapP50": 0.2421250000000157,
+					"gapP95": 0.5522499999999866
+				},
+				{
+					"name": "b0s0-measured",
+					"samples": 300,
+					"p50": 0.2947914999999881,
+					"p95": 0.40554199999996854,
+					"constructionMs": 93.55329499999965,
+					"withinPhaseGapMs": 78.85378800000032,
+					"gapP50": 0.22308299999997416,
+					"gapP95": 0.5286660000000438
+				},
+				{
+					"name": "b0s1-warmup",
+					"samples": 100,
+					"p50": 0.324354000000028,
+					"p95": 0.6232079999999769,
+					"constructionMs": 36.88700199999994,
+					"withinPhaseGapMs": 29.779790000000105,
+					"gapP50": 0.2527090000000385,
+					"gapP95": 0.6023329999999874
+				},
+				{
+					"name": "b0s1-measured",
+					"samples": 300,
+					"p50": 0.30762499999997317,
+					"p95": 0.4480829999999969,
+					"constructionMs": 98.06541599999855,
+					"withinPhaseGapMs": 84.54470900000143,
+					"gapP50": 0.24337500000001455,
+					"gapP95": 0.48620900000003076
+				},
+				{
+					"name": "b1s0-warmup",
+					"samples": 100,
+					"p50": 0.2798540000000571,
+					"p95": 0.3601250000000391,
+					"constructionMs": 28.905706999999893,
+					"withinPhaseGapMs": 23.449001000000067,
+					"gapP50": 0.21133399999996527,
+					"gapP95": 0.352333999999928
+				},
+				{
+					"name": "b1s0-measured",
+					"samples": 300,
+					"p50": 0.2691040000000271,
+					"p95": 0.3821249999999736,
+					"constructionMs": 84.69633400000225,
+					"withinPhaseGapMs": 73.17924899999775,
+					"gapP50": 0.2140839999999571,
+					"gapP95": 0.3480409999999665
+				},
+				{
+					"name": "b1s1-warmup",
+					"samples": 100,
+					"p50": 0.29737449999998944,
+					"p95": 0.4002499999999145,
+					"constructionMs": 31.660377999999923,
+					"withinPhaseGapMs": 24.577289000000064,
+					"gapP50": 0.22079200000007404,
+					"gapP95": 0.38112499999999727
+				},
+				{
+					"name": "b1s1-measured",
+					"samples": 300,
+					"p50": 0.26743800000002693,
+					"p95": 0.34962499999994634,
+					"constructionMs": 83.1678389999986,
+					"withinPhaseGapMs": 67.50341100000128,
+					"gapP50": 0.203125,
+					"gapP95": 0.3161249999999427
+				},
+				{
+					"name": "b2s0-warmup",
+					"samples": 100,
+					"p50": 0.26689650000002985,
+					"p95": 0.4024580000000242,
+					"constructionMs": 29.544124999999894,
+					"withinPhaseGapMs": 26.590832999999975,
+					"gapP50": 0.19883299999992232,
+					"gapP95": 0.38837499999999636
+				},
+				{
+					"name": "b2s0-measured",
+					"samples": 300,
+					"p50": 0.2643749999999727,
+					"p95": 0.3520419999999831,
+					"constructionMs": 83.23545699999977,
+					"withinPhaseGapMs": 63.62521000000038,
+					"gapP50": 0.18904199999997218,
+					"gapP95": 0.2640830000000278
+				},
+				{
+					"name": "b2s1-warmup",
+					"samples": 100,
+					"p50": 0.2702289999999721,
+					"p95": 0.35412499999983993,
+					"constructionMs": 28.50187299999925,
+					"withinPhaseGapMs": 20.684627000000773,
+					"gapP50": 0.19241600000009385,
+					"gapP95": 0.2840839999998934
+				},
+				{
+					"name": "b2s1-measured",
+					"samples": 300,
+					"p50": 0.2506664999999657,
+					"p95": 0.3551249999998163,
+					"constructionMs": 79.93979299999933,
+					"withinPhaseGapMs": 64.82879000000071,
+					"gapP50": 0.18258400000013353,
+					"gapP95": 0.3550839999998061
+				}
+			]
+		},
+		{
+			"position": 9,
+			"cell": "T-U",
+			"samples": 2400,
+			"cpu": [
+				{
+					"name": "b0s0-warmup",
+					"T": 69.708,
+					"P": 118.997,
+					"Wlo": 71.91145800000001,
+					"Whi": 72.00791700000002,
+					"Wpoint": 71.95968750000002,
+					"unaccountedElapsed": 2.251687500000017,
+					"processMinusThread": 49.289,
+					"snapshotWidths": [0.07004200000000083, 0.02641700000000924],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 384,
+						"minorPageFault": 352,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 37.89941299999995,
+					"p50": 0.3318335000000019,
+					"p95": 0.6609579999999937
+				},
+				{
+					"name": "b0s0-measured",
+					"T": 170.751,
+					"P": 272.011,
+					"Wlo": 175.57645799999997,
+					"Whi": 175.61445799999998,
+					"Wpoint": 175.59545799999998,
+					"unaccountedElapsed": 4.844457999999975,
+					"processMinusThread": 101.26000000000002,
+					"snapshotWidths": [0.009457999999995081, 0.028542000000015832],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 709,
+						"minorPageFault": 1175,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 94.3424200000002,
+					"p50": 0.30002049999998803,
+					"p95": 0.41395800000000804
+				},
+				{
+					"name": "b0s1-warmup",
+					"T": 63.979,
+					"P": 107.076,
+					"Wlo": 65.928292,
+					"Whi": 65.965667,
+					"Wpoint": 65.9469795,
+					"unaccountedElapsed": 1.9679794999999984,
+					"processMinusThread": 43.096999999999994,
+					"snapshotWidths": [0.00925000000000864, 0.02812499999998863],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 364,
+						"minorPageFault": 159,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 36.64032899999961,
+					"p50": 0.3260830000000112,
+					"p95": 0.6452500000000327
+				},
+				{
+					"name": "b0s1-measured",
+					"T": 163.909,
+					"P": 256.989,
+					"Wlo": 167.76212500000003,
+					"Whi": 167.80187499999994,
+					"Wpoint": 167.78199999999998,
+					"unaccountedElapsed": 3.8729999999999905,
+					"processMinusThread": 93.07999999999998,
+					"snapshotWidths": [0.009500000000002728, 0.03024999999990996],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 639,
+						"minorPageFault": 1874,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 92.07683399999962,
+					"p50": 0.29000050000007604,
+					"p95": 0.40591699999993125
+				},
+				{
+					"name": "b1s0-warmup",
+					"T": 48.657,
+					"P": 54.042,
+					"Wlo": 49.938041999999996,
+					"Whi": 49.99004200000002,
+					"Wpoint": 49.964042000000006,
+					"unaccountedElapsed": 1.3070420000000098,
+					"processMinusThread": 5.385000000000005,
+					"snapshotWidths": [0.014832999999953245, 0.037167000000067674],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 152,
+						"minorPageFault": 8,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 28.01337499999977,
+					"p50": 0.26743749999997135,
+					"p95": 0.34762499999999363
+				},
+				{
+					"name": "b1s0-measured",
+					"T": 145.365,
+					"P": 175.139,
+					"Wlo": 149.43787499999996,
+					"Whi": 149.46079100000009,
+					"Wpoint": 149.44933300000002,
+					"unaccountedElapsed": 4.084333000000015,
+					"processMinusThread": 29.774,
+					"snapshotWidths": [0.008416000000011081, 0.014500000000111868],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 442,
+						"minorPageFault": 58,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 82.66241899999966,
+					"p50": 0.264895499999966,
+					"p95": 0.3522500000000264
+				},
+				{
+					"name": "b1s1-warmup",
+					"T": 53.003,
+					"P": 66.532,
+					"Wlo": 54.44704200000001,
+					"Whi": 54.465834000000086,
+					"Wpoint": 54.45643800000005,
+					"unaccountedElapsed": 1.4534380000000482,
+					"processMinusThread": 13.528999999999996,
+					"snapshotWidths": [0.004125000000044565, 0.014667000000031294],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 188,
+						"minorPageFault": 108,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 30.692834999999604,
+					"p50": 0.28427100000004657,
+					"p95": 0.4175000000000182
+				},
+				{
+					"name": "b1s1-measured",
+					"T": 141.879,
+					"P": 162.519,
+					"Wlo": 145.7744580000001,
+					"Whi": 145.79504200000008,
+					"Wpoint": 145.7847500000001,
+					"unaccountedElapsed": 3.905750000000097,
+					"processMinusThread": 20.640000000000015,
+					"snapshotWidths": [0.0037499999999681677, 0.016834000000017113],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 437,
+						"minorPageFault": 303,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 80.56299000000001,
+					"p50": 0.2618125000000191,
+					"p95": 0.3262919999999667
+				},
+				{
+					"name": "b2s0-warmup",
+					"T": 46.842,
+					"P": 50.181,
+					"Wlo": 48.37766599999986,
+					"Whi": 48.39733300000012,
+					"Wpoint": 48.38749949999999,
+					"unaccountedElapsed": 1.5454994999999911,
+					"processMinusThread": 3.3389999999999986,
+					"snapshotWidths": [0.004250000000183718, 0.015417000000070402],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 146,
+						"minorPageFault": 106,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 26.408789000000525,
+					"p50": 0.2547710000000052,
+					"p95": 0.31741699999997763
+				},
+				{
+					"name": "b2s0-measured",
+					"T": 157.07,
+					"P": 180.033,
+					"Wlo": 161.07183299999997,
+					"Whi": 161.09354199999984,
+					"Wpoint": 161.0826874999999,
+					"unaccountedElapsed": 4.012687499999913,
+					"processMinusThread": 22.962999999999994,
+					"snapshotWidths": [0.0042089999999461725, 0.01749999999992724],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 436,
+						"minorPageFault": 3456,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 88.74103399999831,
+					"p50": 0.28502049999997325,
+					"p95": 0.39295900000001893
+				},
+				{
+					"name": "b2s1-warmup",
+					"T": 50.222,
+					"P": 57.661,
+					"Wlo": 56.22250000000008,
+					"Whi": 56.23958300000004,
+					"Wpoint": 56.23104150000006,
+					"unaccountedElapsed": 6.009041500000059,
+					"processMinusThread": 7.439,
+					"snapshotWidths": [0.0039159999998901185, 0.013167000000066764],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 143,
+						"minorPageFault": 12,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 29.859038999999484,
+					"p50": 0.2829579999998941,
+					"p95": 0.36970900000005713
+				},
+				{
+					"name": "b2s1-measured",
+					"T": 135.321,
+					"P": 146.226,
+					"Wlo": 138.7484589999999,
+					"Whi": 138.767875,
+					"Wpoint": 138.75816699999996,
+					"unaccountedElapsed": 3.4371669999999597,
+					"processMinusThread": 10.905000000000001,
+					"snapshotWidths": [0.0037910000000920263, 0.015625],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 363,
+						"minorPageFault": 0,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 79.36582899999917,
+					"p50": 0.25862500000016553,
+					"p95": 0.3142910000001393
+				}
+			],
+			"trace": {
+				"status": "calibrated",
+				"events": 167,
+				"windows": 12,
+				"markers": 12,
+				"deltaUs": [133334546117, 133334546119]
+			},
+			"blocks": [
+				{
+					"name": "b0s0-warmup",
+					"samples": 100,
+					"p50": 0.3318335000000019,
+					"p95": 0.6609579999999937,
+					"constructionMs": 37.89941299999995,
+					"withinPhaseGapMs": 33.206004000000036,
+					"gapP50": 0.2532500000000084,
+					"gapP95": 0.6782079999999837
+				},
+				{
+					"name": "b0s0-measured",
+					"samples": 300,
+					"p50": 0.30002049999998803,
+					"p95": 0.41395800000000804,
+					"constructionMs": 94.3424200000002,
+					"withinPhaseGapMs": 80.67928899999978,
+					"gapP50": 0.2342090000000212,
+					"gapP95": 0.5437090000000353
+				},
+				{
+					"name": "b0s1-warmup",
+					"samples": 100,
+					"p50": 0.3260830000000112,
+					"p95": 0.6452500000000327,
+					"constructionMs": 36.64032899999961,
+					"withinPhaseGapMs": 29.00554600000038,
+					"gapP50": 0.2513749999999959,
+					"gapP95": 0.6671670000000063
+				},
+				{
+					"name": "b0s1-measured",
+					"samples": 300,
+					"p50": 0.29000050000007604,
+					"p95": 0.40591699999993125,
+					"constructionMs": 92.07683399999962,
+					"withinPhaseGapMs": 75.4319160000004,
+					"gapP50": 0.2151249999999436,
+					"gapP95": 0.5429579999999987
+				},
+				{
+					"name": "b1s0-warmup",
+					"samples": 100,
+					"p50": 0.26743749999997135,
+					"p95": 0.34762499999999363,
+					"constructionMs": 28.01337499999977,
+					"withinPhaseGapMs": 21.716917000000308,
+					"gapP50": 0.19462499999997362,
+					"gapP95": 0.3353749999999991
+				},
+				{
+					"name": "b1s0-measured",
+					"samples": 300,
+					"p50": 0.264895499999966,
+					"p95": 0.3522500000000264,
+					"constructionMs": 82.66241899999966,
+					"withinPhaseGapMs": 66.53995600000042,
+					"gapP50": 0.20100000000002183,
+					"gapP95": 0.29749999999989996
+				},
+				{
+					"name": "b1s1-warmup",
+					"samples": 100,
+					"p50": 0.28427100000004657,
+					"p95": 0.4175000000000182,
+					"constructionMs": 30.692834999999604,
+					"withinPhaseGapMs": 23.045040000000427,
+					"gapP50": 0.205332999999996,
+					"gapP95": 0.3444169999999076
+				},
+				{
+					"name": "b1s1-measured",
+					"samples": 300,
+					"p50": 0.2618125000000191,
+					"p95": 0.3262919999999667,
+					"constructionMs": 80.56299000000001,
+					"withinPhaseGapMs": 64.97546899999986,
+					"gapP50": 0.19270800000003874,
+					"gapP95": 0.3150829999999587
+				},
+				{
+					"name": "b2s0-warmup",
+					"samples": 100,
+					"p50": 0.2547710000000052,
+					"p95": 0.31741699999997763,
+					"constructionMs": 26.408789000000525,
+					"withinPhaseGapMs": 21.761918999999352,
+					"gapP50": 0.1894999999999527,
+					"gapP95": 0.35616700000014134
+				},
+				{
+					"name": "b2s0-measured",
+					"samples": 300,
+					"p50": 0.28502049999997325,
+					"p95": 0.39295900000001893,
+					"constructionMs": 88.74103399999831,
+					"withinPhaseGapMs": 72.08050700000172,
+					"gapP50": 0.20525000000020555,
+					"gapP95": 0.2935419999998885
+				},
+				{
+					"name": "b2s1-warmup",
+					"samples": 100,
+					"p50": 0.2829579999998941,
+					"p95": 0.36970900000005713,
+					"constructionMs": 29.859038999999484,
+					"withinPhaseGapMs": 26.139794000000393,
+					"gapP50": 0.19720799999981864,
+					"gapP95": 0.2987920000000486
+				},
+				{
+					"name": "b2s1-measured",
+					"samples": 300,
+					"p50": 0.25862500000016553,
+					"p95": 0.3142910000001393,
+					"constructionMs": 79.36582899999917,
+					"withinPhaseGapMs": 59.184713000000784,
+					"gapP50": 0.17849999999998545,
+					"gapP95": 0.25137500000005275
+				}
+			]
+		},
+		{
+			"position": 10,
+			"cell": "Q-V",
+			"samples": 2400,
+			"cpu": [
+				{
+					"name": "b0s0-warmup",
+					"T": 65.07,
+					"P": 113.628,
+					"Wlo": 66.7835,
+					"Whi": 66.890917,
+					"Wpoint": 66.8372085,
+					"unaccountedElapsed": 1.7672085000000095,
+					"processMinusThread": 48.55800000000001,
+					"snapshotWidths": [0.08333300000001032, 0.024083999999987782],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 382,
+						"minorPageFault": 579,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 36.32437100000004,
+					"p50": 0.31287499999999113,
+					"p95": 0.706167000000022
+				},
+				{
+					"name": "b0s0-measured",
+					"T": 164.365,
+					"P": 263.342,
+					"Wlo": 169.472125,
+					"Whi": 169.51466700000003,
+					"Wpoint": 169.49339600000002,
+					"unaccountedElapsed": 5.128396000000009,
+					"processMinusThread": 98.97699999999998,
+					"snapshotWidths": [0.008167000000014468, 0.03437500000001137],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 716,
+						"minorPageFault": 1057,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 91.02226299999984,
+					"p50": 0.28837500000000205,
+					"p95": 0.39449999999999363
+				},
+				{
+					"name": "b0s1-warmup",
+					"T": 65.437,
+					"P": 113.543,
+					"Wlo": 67.08695899999998,
+					"Whi": 67.14029199999999,
+					"Wpoint": 67.11362549999998,
+					"unaccountedElapsed": 1.676625499999986,
+					"processMinusThread": 48.10600000000001,
+					"snapshotWidths": [0.015958000000011907, 0.03737499999999727],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 377,
+						"minorPageFault": 182,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 36.837754999999675,
+					"p50": 0.3211250000000234,
+					"p95": 0.7048330000000078
+				},
+				{
+					"name": "b0s1-measured",
+					"T": 172.448,
+					"P": 266.126,
+					"Wlo": 178.78179200000005,
+					"Whi": 178.818125,
+					"Wpoint": 178.79995850000003,
+					"unaccountedElapsed": 6.351958500000023,
+					"processMinusThread": 93.67799999999997,
+					"snapshotWidths": [0.008624999999994998, 0.02770799999996143],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 673,
+						"minorPageFault": 1872,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 96.4043339999987,
+					"p50": 0.3039369999999906,
+					"p95": 0.43604099999993196
+				},
+				{
+					"name": "b1s0-warmup",
+					"T": 49.441,
+					"P": 56.155,
+					"Wlo": 50.78545799999995,
+					"Whi": 50.836874999999964,
+					"Wpoint": 50.811166499999956,
+					"unaccountedElapsed": 1.3701664999999537,
+					"processMinusThread": 6.713999999999999,
+					"snapshotWidths": [0.019042000000013104, 0.03237500000000182],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 157,
+						"minorPageFault": 0,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 28.397005999999237,
+					"p50": 0.2728749999999991,
+					"p95": 0.35216700000000856
+				},
+				{
+					"name": "b1s0-measured",
+					"T": 145.745,
+					"P": 176.565,
+					"Wlo": 150.16508299999998,
+					"Whi": 150.18658300000004,
+					"Wpoint": 150.175833,
+					"unaccountedElapsed": 4.430833000000007,
+					"processMinusThread": 30.819999999999993,
+					"snapshotWidths": [0.008832999999981439, 0.012667000000078588],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 499,
+						"minorPageFault": 56,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 82.67557399999941,
+					"p50": 0.26474999999999227,
+					"p95": 0.350832999999966
+				},
+				{
+					"name": "b1s1-warmup",
+					"T": 51.263,
+					"P": 63.848,
+					"Wlo": 52.70979199999999,
+					"Whi": 52.728834000000006,
+					"Wpoint": 52.719313,
+					"unaccountedElapsed": 1.4563130000000015,
+					"processMinusThread": 12.585,
+					"snapshotWidths": [0.0031669999999621723, 0.01587500000005093],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 187,
+						"minorPageFault": 105,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 30.000754000000256,
+					"p50": 0.2802499999999668,
+					"p95": 0.36887500000000273
+				},
+				{
+					"name": "b1s1-measured",
+					"T": 139.898,
+					"P": 160.862,
+					"Wlo": 144.28099999999995,
+					"Whi": 144.29829199999995,
+					"Wpoint": 144.28964599999995,
+					"unaccountedElapsed": 4.391645999999952,
+					"processMinusThread": 20.964,
+					"snapshotWidths": [0.003249999999979991, 0.014042000000017651],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 437,
+						"minorPageFault": 308,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 80.38091099999917,
+					"p50": 0.25935399999997344,
+					"p95": 0.31933300000002873
+				},
+				{
+					"name": "b2s0-warmup",
+					"T": 46.375,
+					"P": 49.168,
+					"Wlo": 47.68658399999981,
+					"Whi": 47.70379099999991,
+					"Wpoint": 47.69518749999986,
+					"unaccountedElapsed": 1.3201874999998608,
+					"processMinusThread": 2.7929999999999993,
+					"snapshotWidths": [0.0034160000000156288, 0.013791000000082931],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 150,
+						"minorPageFault": 103,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 26.446830999999065,
+					"p50": 0.2543749999999818,
+					"p95": 0.31133299999987685
+				},
+				{
+					"name": "b2s0-measured",
+					"T": 152.846,
+					"P": 176.483,
+					"Wlo": 156.911834,
+					"Whi": 156.93954199999985,
+					"Wpoint": 156.92568799999992,
+					"unaccountedElapsed": 4.079687999999919,
+					"processMinusThread": 23.637,
+					"snapshotWidths": [0.0039999999999054126, 0.02370799999994233],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 433,
+						"minorPageFault": 3428,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 86.09670699999947,
+					"p50": 0.27654150000000755,
+					"p95": 0.36158399999999347
+				},
+				{
+					"name": "b2s1-warmup",
+					"T": 48.916,
+					"P": 56.306,
+					"Wlo": 50.15325000000007,
+					"Whi": 50.169374999999945,
+					"Wpoint": 50.16131250000001,
+					"unaccountedElapsed": 1.2453125000000114,
+					"processMinusThread": 7.390000000000001,
+					"snapshotWidths": [0.003582999999935055, 0.012541999999939435],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 144,
+						"minorPageFault": 11,
+						"majorPageFault": 0
+					},
+					"samples": 100,
+					"constructionMs": 29.30633000000057,
+					"p50": 0.27270850000002156,
+					"p95": 0.3922500000001037
+				},
+				{
+					"name": "b2s1-measured",
+					"T": 132.734,
+					"P": 143.94,
+					"Wlo": 136.255042,
+					"Whi": 136.2735409999998,
+					"Wpoint": 136.2642914999999,
+					"unaccountedElapsed": 3.5302914999998904,
+					"processMinusThread": 11.205999999999989,
+					"snapshotWidths": [0.0027909999998882995, 0.015707999999904132],
+					"resourceDeltas": {
+						"voluntaryContextSwitches": 0,
+						"involuntaryContextSwitches": 371,
+						"minorPageFault": 0,
+						"majorPageFault": 0
+					},
+					"samples": 300,
+					"constructionMs": 78.3342070000026,
+					"p50": 0.2540005000000747,
+					"p95": 0.3115419999999176
+				}
+			],
+			"trace": {
+				"status": "not-enabled"
+			},
+			"blocks": [
+				{
+					"name": "b0s0-warmup",
+					"samples": 100,
+					"p50": 0.31287499999999113,
+					"p95": 0.706167000000022,
+					"constructionMs": 36.32437100000004,
+					"withinPhaseGapMs": 29.71475399999997,
+					"gapP50": 0.23329200000000583,
+					"gapP95": 0.5588329999999928
+				},
+				{
+					"name": "b0s0-measured",
+					"samples": 300,
+					"p50": 0.28837500000000205,
+					"p95": 0.39449999999999363,
+					"constructionMs": 91.02226299999984,
+					"withinPhaseGapMs": 78.02782000000016,
+					"gapP50": 0.2224999999999966,
+					"gapP95": 0.49916600000000244
+				},
+				{
+					"name": "b0s1-warmup",
+					"samples": 100,
+					"p50": 0.3211250000000234,
+					"p95": 0.7048330000000078,
+					"constructionMs": 36.837754999999675,
+					"withinPhaseGapMs": 29.916662000000315,
+					"gapP50": 0.24770799999998871,
+					"gapP95": 0.6070829999999887
+				},
+				{
+					"name": "b0s1-measured",
+					"samples": 300,
+					"p50": 0.3039369999999906,
+					"p95": 0.43604099999993196,
+					"constructionMs": 96.4043339999987,
+					"withinPhaseGapMs": 82.14445800000135,
+					"gapP50": 0.23058400000002166,
+					"gapP95": 0.6290419999999699
+				},
+				{
+					"name": "b1s0-warmup",
+					"samples": 100,
+					"p50": 0.2728749999999991,
+					"p95": 0.35216700000000856,
+					"constructionMs": 28.397005999999237,
+					"withinPhaseGapMs": 22.16045200000076,
+					"gapP50": 0.1994999999999436,
+					"gapP95": 0.32170800000005784
+				},
+				{
+					"name": "b1s0-measured",
+					"samples": 300,
+					"p50": 0.26474999999999227,
+					"p95": 0.350832999999966,
+					"constructionMs": 82.67557399999941,
+					"withinPhaseGapMs": 67.24167600000055,
+					"gapP50": 0.19841699999994944,
+					"gapP95": 0.3096249999999827
+				},
+				{
+					"name": "b1s1-warmup",
+					"samples": 100,
+					"p50": 0.2802499999999668,
+					"p95": 0.36887500000000273,
+					"constructionMs": 30.000754000000256,
+					"withinPhaseGapMs": 22.5174549999997,
+					"gapP50": 0.2040830000000824,
+					"gapP95": 0.33170799999993505
+				},
+				{
+					"name": "b1s1-measured",
+					"samples": 300,
+					"p50": 0.25935399999997344,
+					"p95": 0.31933300000002873,
+					"constructionMs": 80.38091099999917,
+					"withinPhaseGapMs": 63.6625060000008,
+					"gapP50": 0.18737499999997453,
+					"gapP95": 0.2751670000000104
+				},
+				{
+					"name": "b2s0-warmup",
+					"samples": 100,
+					"p50": 0.2543749999999818,
+					"p95": 0.31133299999987685,
+					"constructionMs": 26.446830999999065,
+					"withinPhaseGapMs": 21.04308500000093,
+					"gapP50": 0.18704200000001947,
+					"gapP95": 0.33566700000005767
+				},
+				{
+					"name": "b2s0-measured",
+					"samples": 300,
+					"p50": 0.27654150000000755,
+					"p95": 0.36158399999999347,
+					"constructionMs": 86.09670699999947,
+					"withinPhaseGapMs": 70.61425200000053,
+					"gapP50": 0.20141699999999219,
+					"gapP95": 0.31666599999994105
+				},
+				{
+					"name": "b2s1-warmup",
+					"samples": 100,
+					"p50": 0.27270850000002156,
+					"p95": 0.3922500000001037,
+					"constructionMs": 29.30633000000057,
+					"withinPhaseGapMs": 20.643294999999398,
+					"gapP50": 0.1877919999999449,
+					"gapP95": 0.29016599999999926
+				},
+				{
+					"name": "b2s1-measured",
+					"samples": 300,
+					"p50": 0.2540005000000747,
+					"p95": 0.3115419999999176,
+					"constructionMs": 78.3342070000026,
+					"withinPhaseGapMs": 57.745459999997365,
+					"gapP50": 0.17333299999995688,
+					"gapP95": 0.24499999999989086
+				}
+			]
+		},
+		{
+			"position": 11,
+			"cell": "B-U",
+			"samples": 2400,
+			"cpu": null,
+			"trace": {
+				"status": "not-enabled"
+			},
+			"blocks": [
+				{
+					"name": "b0s0-warmup",
+					"samples": 100,
+					"p50": 0.3310419999999965,
+					"p95": 0.6920839999999941,
+					"constructionMs": 37.0437119999998,
+					"withinPhaseGapMs": 30.679205000000195,
+					"gapP50": 0.24399999999999977,
+					"gapP95": 0.5290829999999858
+				},
+				{
+					"name": "b0s0-measured",
+					"samples": 300,
+					"p50": 0.29300000000000637,
+					"p95": 0.4130419999999617,
+					"constructionMs": 92.69116800000049,
+					"withinPhaseGapMs": 77.89708199999953,
+					"gapP50": 0.2197079999999687,
+					"gapP95": 0.5133749999999964
+				},
+				{
+					"name": "b0s1-warmup",
+					"samples": 100,
+					"p50": 0.31664550000002123,
+					"p95": 0.6540409999999497,
+					"constructionMs": 35.99857900000029,
+					"withinPhaseGapMs": 28.294503999999733,
+					"gapP50": 0.23937499999999545,
+					"gapP95": 0.6326249999999618
+				},
+				{
+					"name": "b0s1-measured",
+					"samples": 300,
+					"p50": 0.2856249999999818,
+					"p95": 0.39458300000001145,
+					"constructionMs": 90.79858799999994,
+					"withinPhaseGapMs": 74.02857900000004,
+					"gapP50": 0.20549999999991542,
+					"gapP95": 0.4902500000000032
+				},
+				{
+					"name": "b1s0-warmup",
+					"samples": 100,
+					"p50": 0.2725419999999872,
+					"p95": 0.3605000000000018,
+					"constructionMs": 28.355509999999754,
+					"withinPhaseGapMs": 21.427865000000224,
+					"gapP50": 0.19279100000005656,
+					"gapP95": 0.31445799999994506
+				},
+				{
+					"name": "b1s0-measured",
+					"samples": 300,
+					"p50": 0.2648544999999558,
+					"p95": 0.36345799999992323,
+					"constructionMs": 83.38169699999878,
+					"withinPhaseGapMs": 65.83346900000117,
+					"gapP50": 0.19420900000000074,
+					"gapP95": 0.31816700000001674
+				},
+				{
+					"name": "b1s1-warmup",
+					"samples": 100,
+					"p50": 0.2831249999999841,
+					"p95": 0.3978749999999991,
+					"constructionMs": 30.06540700000062,
+					"withinPhaseGapMs": 22.263800999999376,
+					"gapP50": 0.2017079999999396,
+					"gapP95": 0.3060839999999416
+				},
+				{
+					"name": "b1s1-measured",
+					"samples": 300,
+					"p50": 0.2580834999999979,
+					"p95": 0.35370799999998326,
+					"constructionMs": 81.50116400000047,
+					"withinPhaseGapMs": 66.81025299999953,
+					"gapP50": 0.19183400000008533,
+					"gapP95": 0.36687500000005
+				},
+				{
+					"name": "b2s0-warmup",
+					"samples": 100,
+					"p50": 0.2644995000000563,
+					"p95": 0.41862500000002,
+					"constructionMs": 28.697957000000997,
+					"withinPhaseGapMs": 26.234042999999133,
+					"gapP50": 0.1974999999999909,
+					"gapP95": 0.337291999999934
+				},
+				{
+					"name": "b2s0-measured",
+					"samples": 300,
+					"p50": 0.27558350000003884,
+					"p95": 0.36104100000011385,
+					"constructionMs": 85.80537499999718,
+					"withinPhaseGapMs": 66.654792000003,
+					"gapP50": 0.20116699999994125,
+					"gapP95": 0.28358300000013514
+				},
+				{
+					"name": "b2s1-warmup",
+					"samples": 100,
+					"p50": 0.2843125000000555,
+					"p95": 0.3700420000000122,
+					"constructionMs": 29.983541999999716,
+					"withinPhaseGapMs": 21.28087500000038,
+					"gapP50": 0.1966660000000502,
+					"gapP95": 0.28808299999991505
+				},
+				{
+					"name": "b2s1-measured",
+					"samples": 300,
+					"p50": 0.260167000000024,
+					"p95": 0.32008300000006784,
+					"constructionMs": 80.49645300000066,
+					"withinPhaseGapMs": 59.090171999999484,
+					"gapP50": 0.1783339999999498,
+					"gapP95": 0.24295899999992798
+				}
+			]
+		}
+	],
+	"failedJob": null,
+	"performanceQualification": false,
+	"sourceBound": true
+}

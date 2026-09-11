@@ -1,0 +1,246 @@
+[
+	{
+		"job": "02-T-U",
+		"categories": {
+			"MinorGC": "observed",
+			"MajorGC": "observed",
+			"V8.DeoptimizeCode": "observed"
+		},
+		"events": {
+			"MinorGC": {
+				"total": 118,
+				"insideAnchorCoverage": 97
+			},
+			"MajorGC": {
+				"total": 3,
+				"insideAnchorCoverage": 3
+			},
+			"V8.DeoptimizeCode": {
+				"total": 46,
+				"insideAnchorCoverage": 10
+			}
+		},
+		"backgroundRecords": 0,
+		"unclassifiedRecords": 245,
+		"samplesWithRelationship": {
+			"warmup": {
+				"MinorGC": {
+					"overlap": 0,
+					"possible": 0,
+					"unknown": 600
+				},
+				"MajorGC": {
+					"overlap": 0,
+					"possible": 0,
+					"unknown": 0
+				},
+				"V8.DeoptimizeCode": {
+					"overlap": 0,
+					"possible": 0,
+					"unknown": 600
+				}
+			},
+			"measured": {
+				"MinorGC": {
+					"overlap": 0,
+					"possible": 0,
+					"unknown": 1800
+				},
+				"MajorGC": {
+					"overlap": 0,
+					"possible": 0,
+					"unknown": 0
+				},
+				"V8.DeoptimizeCode": {
+					"overlap": 5,
+					"possible": 0,
+					"unknown": 1800
+				}
+			}
+		},
+		"meaning": "Distinct samples per category/status; counts can overlap. unknown means at least one event is outside anchor coverage, not that all other associations of that sample are unknown. No exclusive-pause or causal attribution."
+	},
+	{
+		"job": "05-T-V",
+		"categories": {
+			"MinorGC": "observed",
+			"MajorGC": "observed",
+			"V8.DeoptimizeCode": "observed"
+		},
+		"events": {
+			"MinorGC": {
+				"total": 115,
+				"insideAnchorCoverage": 94
+			},
+			"MajorGC": {
+				"total": 5,
+				"insideAnchorCoverage": 5
+			},
+			"V8.DeoptimizeCode": {
+				"total": 46,
+				"insideAnchorCoverage": 10
+			}
+		},
+		"backgroundRecords": 0,
+		"unclassifiedRecords": 349,
+		"samplesWithRelationship": {
+			"warmup": {
+				"MinorGC": {
+					"overlap": 0,
+					"possible": 0,
+					"unknown": 600
+				},
+				"MajorGC": {
+					"overlap": 0,
+					"possible": 0,
+					"unknown": 0
+				},
+				"V8.DeoptimizeCode": {
+					"overlap": 0,
+					"possible": 0,
+					"unknown": 600
+				}
+			},
+			"measured": {
+				"MinorGC": {
+					"overlap": 0,
+					"possible": 0,
+					"unknown": 1800
+				},
+				"MajorGC": {
+					"overlap": 0,
+					"possible": 0,
+					"unknown": 0
+				},
+				"V8.DeoptimizeCode": {
+					"overlap": 4,
+					"possible": 0,
+					"unknown": 1800
+				}
+			}
+		},
+		"meaning": "Distinct samples per category/status; counts can overlap. unknown means at least one event is outside anchor coverage, not that all other associations of that sample are unknown. No exclusive-pause or causal attribution."
+	},
+	{
+		"job": "06-T-V",
+		"categories": {
+			"MinorGC": "observed",
+			"MajorGC": "observed",
+			"V8.DeoptimizeCode": "observed"
+		},
+		"events": {
+			"MinorGC": {
+				"total": 116,
+				"insideAnchorCoverage": 95
+			},
+			"MajorGC": {
+				"total": 5,
+				"insideAnchorCoverage": 5
+			},
+			"V8.DeoptimizeCode": {
+				"total": 44,
+				"insideAnchorCoverage": 8
+			}
+		},
+		"backgroundRecords": 0,
+		"unclassifiedRecords": 332,
+		"samplesWithRelationship": {
+			"warmup": {
+				"MinorGC": {
+					"overlap": 0,
+					"possible": 0,
+					"unknown": 600
+				},
+				"MajorGC": {
+					"overlap": 0,
+					"possible": 0,
+					"unknown": 0
+				},
+				"V8.DeoptimizeCode": {
+					"overlap": 0,
+					"possible": 0,
+					"unknown": 600
+				}
+			},
+			"measured": {
+				"MinorGC": {
+					"overlap": 0,
+					"possible": 0,
+					"unknown": 1800
+				},
+				"MajorGC": {
+					"overlap": 0,
+					"possible": 0,
+					"unknown": 0
+				},
+				"V8.DeoptimizeCode": {
+					"overlap": 4,
+					"possible": 0,
+					"unknown": 1800
+				}
+			}
+		},
+		"meaning": "Distinct samples per category/status; counts can overlap. unknown means at least one event is outside anchor coverage, not that all other associations of that sample are unknown. No exclusive-pause or causal attribution."
+	},
+	{
+		"job": "09-T-U",
+		"categories": {
+			"MinorGC": "observed",
+			"MajorGC": "observed",
+			"V8.DeoptimizeCode": "observed"
+		},
+		"events": {
+			"MinorGC": {
+				"total": 118,
+				"insideAnchorCoverage": 97
+			},
+			"MajorGC": {
+				"total": 3,
+				"insideAnchorCoverage": 3
+			},
+			"V8.DeoptimizeCode": {
+				"total": 46,
+				"insideAnchorCoverage": 10
+			}
+		},
+		"backgroundRecords": 0,
+		"unclassifiedRecords": 245,
+		"samplesWithRelationship": {
+			"warmup": {
+				"MinorGC": {
+					"overlap": 0,
+					"possible": 0,
+					"unknown": 600
+				},
+				"MajorGC": {
+					"overlap": 0,
+					"possible": 0,
+					"unknown": 0
+				},
+				"V8.DeoptimizeCode": {
+					"overlap": 0,
+					"possible": 0,
+					"unknown": 600
+				}
+			},
+			"measured": {
+				"MinorGC": {
+					"overlap": 0,
+					"possible": 0,
+					"unknown": 1800
+				},
+				"MajorGC": {
+					"overlap": 0,
+					"possible": 0,
+					"unknown": 0
+				},
+				"V8.DeoptimizeCode": {
+					"overlap": 5,
+					"possible": 0,
+					"unknown": 1800
+				}
+			}
+		},
+		"meaning": "Distinct samples per category/status; counts can overlap. unknown means at least one event is outside anchor coverage, not that all other associations of that sample are unknown. No exclusive-pause or causal attribution."
+	}
+]
