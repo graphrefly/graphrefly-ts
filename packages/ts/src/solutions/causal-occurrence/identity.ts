@@ -381,6 +381,63 @@ export function exactAdmission<T>(context: TransitionContext<T>, occurrence: Cau
 		: undefined;
 }
 
+// This call site receives a canonicalSnapshot-owned occurrence, not arbitrary DATA.
+// cloneState preserves retained entry identities; a future state importer must re-establish
+// this provenance. A shallow Object.freeze check alone is not a canonical-data proof.
+function currentnessMetadata(value: CausalCurrentness, occurrence: CausalOccurrenceRef) {
+	if (
+		value === null ||
+		typeof value !== "object" ||
+		Object.getPrototypeOf(value) !== Object.prototype
+	)
+		return;
+	const keys = Reflect.ownKeys(value);
+	if (
+		keys.length !== 4 ||
+		!keys.every(
+			(key) =>
+				key === "kind" ||
+				key === "occurrence" ||
+				key === "evaluatedThroughRevision" ||
+				key === "state",
+		)
+	)
+		return;
+	const fields = Object.getOwnPropertyDescriptors(value);
+	for (const key of keys) {
+		const field = fields[key as keyof typeof fields];
+		if (field === undefined || !("value" in field) || !field.enumerable) return;
+	}
+	if (
+		fields.kind.value !== "causal-currentness" ||
+		fields.occurrence.value !== occurrence ||
+		typeof fields.evaluatedThroughRevision.value !== "number" ||
+		!Number.isSafeInteger(fields.evaluatedThroughRevision.value) ||
+		fields.evaluatedThroughRevision.value < 0 ||
+		(fields.state.value !== "current" && fields.state.value !== "stale")
+	)
+		return;
+	return {
+		kind: fields.kind.value,
+		occurrence: null,
+		evaluatedThroughRevision: fields.evaluatedThroughRevision.value,
+		state: fields.state.value,
+	};
+}
+
+function currentnessChanged(
+	prior: CausalCurrentness,
+	value: CausalCurrentness,
+	occurrence: CausalOccurrenceRef,
+): boolean {
+	if (Object.isFrozen(occurrence)) {
+		const before = currentnessMetadata(prior, occurrence);
+		const after = currentnessMetadata(value, occurrence);
+		if (before !== undefined && after !== undefined) return dataKey(before) !== dataKey(after);
+	}
+	return dataKey(prior) !== dataKey(value);
+}
+
 /** D160: fixed identity transition helper; no graph control or retained closure. */
 export function recomputeCurrentness<T>(
 	context: TransitionContext<T>,
@@ -457,7 +514,7 @@ export function recomputeCurrentness<T>(
 		const key = refKey(occurrence);
 		const prior = state.currentness.get(key);
 		state.currentness.set(key, value);
-		if (prior === undefined || dataKey(prior) !== dataKey(value))
+		if (prior === undefined || currentnessChanged(prior, value, occurrence))
 			outputs.push({ kind: "currentness", value });
 		maybeRelease(context, occurrence);
 	}

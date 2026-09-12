@@ -1,0 +1,12 @@
+$ tsx packages/ts/evals/graph-native-rerun-avoidance/generate-root-eval-artifacts.ts --check
+/Users/davidchenallio/src/graphrefly-ts/packages/ts/evals/graph-native-rerun-avoidance/generate-root-eval-artifacts.ts:482
+		throw new Error("root eval artifact generation rejects implementation manifest drift");
+		      ^
+
+Error: root eval artifact generation rejects implementation manifest drift
+    at buildRootEvalGeneratedArtifactBytes (/Users/davidchenallio/src/graphrefly-ts/packages/ts/evals/graph-native-rerun-avoidance/generate-root-eval-artifacts.ts:482:9)
+    at async checkRootEvalGeneratedArtifacts (/Users/davidchenallio/src/graphrefly-ts/packages/ts/evals/graph-native-rerun-avoidance/generate-root-eval-artifacts.ts:673:19)
+    at async <anonymous> (/Users/davidchenallio/src/graphrefly-ts/packages/ts/evals/graph-native-rerun-avoidance/generate-root-eval-artifacts.ts:697:2)
+
+Node.js v24.18.0
+[ELIFECYCLE] Command failed with exit code 1.

@@ -1,0 +1,7 @@
+$ tsx scripts/check-typecheck.ts
+
+typecheck: spending-alerts example (examples/spending-alerts/tsconfig.json) — 1 error(s). This gate has NO baseline: fix the error, do not silence it.
+
+packages/ts/src/solutions/causal-occurrence/identity.ts(415,3): error TS18048: 'fields.evaluatedThroughRevision.value' is possibly 'undefined'.
+typecheck: keyed-rate-limit example (examples/basic/keyed-rate-limit/tsconfig.json) — clean
+[ELIFECYCLE] Command failed with exit code 1.

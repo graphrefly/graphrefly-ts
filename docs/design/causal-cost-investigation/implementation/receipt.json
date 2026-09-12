@@ -1,0 +1,85 @@
+{
+	"ownerWork": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"baseCommit": "60190fcc2f660df1164a0c351ff2083925b71baf",
+	"authorization": "User continuation following implementation preparation at 60190fcc: private comparator implementation, differential/runtime tests, offline QA and commit; no performance capture.",
+	"sourceBindings": {
+		"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:03ddd0e0ab80a31252f117bff1ddc5a4558f125c9301f87dee3dcecd6bd55b06",
+		"scripts/test-causal-currentness-comparison.mjs": "sha256:cd1edde35dcff305143770015b4b9069b6d29ba240379c7bc044140f13640cdc"
+	},
+	"evidenceBindings": {
+		"docs/design/causal-cost-investigation/implementation/README.md": "sha256:36edc0dec85d1d6427c961746245aca474aec8090a06a6504670ddfb24f61ba8",
+		"docs/design/causal-cost-investigation/implementation/artifacts.log": "sha256:20265a75321abe7dc96bcba205b862ad7be450b64df04beed13dbe6a620bad50",
+		"docs/design/causal-cost-investigation/implementation/authority.log": "sha256:8e16637781e9a0e14492b2179f94be678d01cff8709df3a238694fc865a7f544",
+		"docs/design/causal-cost-investigation/implementation/browser-smoke.log": "sha256:b5274a8d9f246e510949e78a1e3cdd20b278ef4479102b99870aa1ce6ed82b7f",
+		"docs/design/causal-cost-investigation/implementation/build.log": "sha256:d22a5ffc4ec763b1d0c63c1b3917793b22c689de4d24b75b70ba042533d8b304",
+		"docs/design/causal-cost-investigation/implementation/checks.json": "sha256:cfbd0a4963bf12eb806b5f708362361207209a7532b015ab25f54d65bd0d209d",
+		"docs/design/causal-cost-investigation/implementation/comparison-final.log": "sha256:48f6e526533622dfcd60d0dc122ad79d45bfbe59a74335f2d089eccda3770f99",
+		"docs/design/causal-cost-investigation/implementation/comparison.log": "sha256:48f6e526533622dfcd60d0dc122ad79d45bfbe59a74335f2d089eccda3770f99",
+		"docs/design/causal-cost-investigation/implementation/dashboard.log": "sha256:57d4dc2953cc9de54408eb72f73eccff702d623d1346ab401e6585a2b1275569",
+		"docs/design/causal-cost-investigation/implementation/final-static-checks.json": "sha256:30d87b3f3b7d4d7593c835c797d17a091ae52ef8ede6325b22b782b3a717d17c",
+		"docs/design/causal-cost-investigation/implementation/lint-diagnostics.json": "sha256:7b9940e79e3485671c8f7cf96d776dd13965288ae4d93fd38f0e0e18df0f7daf",
+		"docs/design/causal-cost-investigation/implementation/lint-existing.json": "sha256:99a2e73b938ebd6da481c0f8c670275633046f90edeaa440f8283ac6525acfea",
+		"docs/design/causal-cost-investigation/implementation/lint-final.log": "sha256:6d7cd99fbfad56899876f73c959e532db8b0233cb92aa2855a952ef184cdd0c9",
+		"docs/design/causal-cost-investigation/implementation/lint.log": "sha256:907e564338c36288b8ac6bc6c06cacb68192a2dad6c7285216fb7e7ddfcdf61a",
+		"docs/design/causal-cost-investigation/implementation/no-raw-async.log": "sha256:aa66e48fab7b89806f6fb31329a127bf99d560f5029070f913d6ade382caf2bb",
+		"docs/design/causal-cost-investigation/implementation/preservation.json": "sha256:5e873f6618f4268667bb86cd9dfe71806a24e3f4245ca3bd2c150f6805205f2f",
+		"docs/design/causal-cost-investigation/implementation/qualification-final.json": "sha256:2864633d81a9a26d3f6ef5c7bdb22d9e959f2108ada98a333f01379c0cd81aae",
+		"docs/design/causal-cost-investigation/implementation/qualification-final.log": "sha256:b5330fdc18b6049b5574ef3485419a3ef5a3c7a6248871a763a13f55d07eb0fc",
+		"docs/design/causal-cost-investigation/implementation/qualification.json": "sha256:1ad374c9bcec2cd786b728841bc3816bd035b7038d948ed73318377375748bb1",
+		"docs/design/causal-cost-investigation/implementation/qualification.log": "sha256:b5330fdc18b6049b5574ef3485419a3ef5a3c7a6248871a763a13f55d07eb0fc",
+		"docs/design/causal-cost-investigation/implementation/reruns.jsonl": "sha256:96b00a275ceaccb07efa65e8903543a52140fc627f1b7fe3386c3044fb082d5c",
+		"docs/design/causal-cost-investigation/implementation/review.md": "sha256:2dacc77bc7ec006ad28d24b68f21f6d17b2b475219f1c8547a1edfa62868b0de",
+		"docs/design/causal-cost-investigation/implementation/root-soak.log": "sha256:435653ee7ff27e20cde46f47719fc348a2d9d8fb78590e72d2b8c775f246473c",
+		"docs/design/causal-cost-investigation/implementation/scoped-format.log": "sha256:f46cb723e779de296e1b40b8d37dcbb122040225dc8c9c4f8f52c494ca8e7c1a",
+		"docs/design/causal-cost-investigation/implementation/source-hashes.json": "sha256:2308b1f3e94cca15f20f5d2ae42f663589e1a7e51ea20a8e77dce342161c5b39",
+		"docs/design/causal-cost-investigation/implementation/test-typecheck-final.log": "sha256:a02c98431c2dda3bb9bab21e6f14e45e04fbfaf0baede3c6f8cc985c4791679e",
+		"docs/design/causal-cost-investigation/implementation/test-typecheck.log": "sha256:a02c98431c2dda3bb9bab21e6f14e45e04fbfaf0baede3c6f8cc985c4791679e",
+		"docs/design/causal-cost-investigation/implementation/tests-final.log": "sha256:225bedf0f935d11f92716aefc5ede2922632dc685c4d8eb1961af941c66f1ca5",
+		"docs/design/causal-cost-investigation/implementation/tests.log": "sha256:32c5c7c2ac1ed3ade99ddece9c3f7cf7bcdd4237013d0f1f49c5238e04302ab0",
+		"docs/design/causal-cost-investigation/implementation/typecheck-final.log": "sha256:a25ef73018d2bec141ab7fb4105f5d9a7b48471af961ab1f3ccd92395e9f9abe",
+		"docs/design/causal-cost-investigation/implementation/typecheck.log": "sha256:9e702ae33825dafdbc44d124f5b9ace0a3d1eb2818aca75d70be71ae02b44630"
+	},
+	"result": {
+		"comparisonCases": 76,
+		"transitionSteps": 15,
+		"loadedComparatorMutantsDetected": 7,
+		"comparatorMutantsDetectedThroughTransition": 4,
+		"helperOnlyDefensiveMutants": 3,
+		"graphMutantsDetected": 73,
+		"graphMutantKinds": {
+			"structural": 29,
+			"behavioral": 44
+		},
+		"fullTests": {
+			"passed": 2550,
+			"failed": 2,
+			"skipped": 4,
+			"failures": "Existing D159 artifact/implementation-manifest binding failures, unchanged test identities."
+		},
+		"rootOfflineSoak": {
+			"passed": 221,
+			"failed": 0
+		},
+		"browserSmoke": "passed",
+		"buildAndExports": "passed",
+		"exampleTypecheck": "passed after number type guard fix",
+		"testTypecheck": "passed",
+		"asyncBoundary": "passed",
+		"scopedFormat": "passed",
+		"repositoryLint": "64 existing errors; existing diagnostic files byte-identical to base",
+		"artifactGate": "existing D159 manifest drift",
+		"dashboard": "passed with existing federation warnings",
+		"authorityWorkspace": "passed with existing federation warnings"
+	},
+	"review": "Two independent static reviews; test findings corrected. See review.md.",
+	"scope": {
+		"newPublicExports": 0,
+		"newRetainedState": 0,
+		"performanceCaptures": 0,
+		"providerCalls": 0,
+		"workComplete": false,
+		"gradedEntryHidingProven": false,
+		"performanceImprovementProven": false
+	},
+	"preservation": "Root dirty files and old evidence unchanged; see preservation.json. Initial failed checks retained; final checks supersede only their result claims."
+}

@@ -1,0 +1,1067 @@
+$ biome check . && tsx scripts/check-no-raw-async.ts && tsx scripts/check-typecheck.ts && pnpm --filter @graphrefly/ts test:typecheck
+docs/design/causal-cost-investigation/comparison-proof/remaining.mjs:10:136 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+     8 │ const expected=JSON.parse(readFileSync(path.join(root,'expected.json')));
+     9 │ const phases=[];let run,cleaned=false;
+  > 10 │ function capture(phase){const entry={phase,stats:mod.__take()};phases.push(entry);appendFileSync(path.join(out,'partial-counts.jsonl'),JSON.stringify(entry)+'\n');}
+       │                                                                                                                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    11 │ try{
+    12 │  run=mod.candidate();capture('construct');
+  
+  i Unsafe fix: Use a template literal.
+  
+     8  8 │   const expected=JSON.parse(readFileSync(path.join(root,'expected.json')));
+     9  9 │   const phases=[];let run,cleaned=false;
+    10    │ - function·capture(phase){const·entry={phase,stats:mod.__take()};phases.push(entry);appendFileSync(path.join(out,'partial-counts.jsonl'),JSON.stringify(entry)+'\n');}
+       10 │ + function·capture(phase){const·entry={phase,stats:mod.__take()};phases.push(entry);appendFileSync(path.join(out,'partial-counts.jsonl'),`${JSON.stringify(entry)}\n`);}
+    11 11 │   try{
+    12 12 │    run=mod.candidate();capture('construct');
+  
+
+docs/design/causal-cost-investigation/comparison-proof/remaining.mjs:13:59 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    11 │ try{
+    12 │  run=mod.candidate();capture('construct');
+  > 13 │  for(const step of scenario.steps){run.send(step);capture('initial-'+step.lane);}
+       │                                                           ^^^^^^^^^^^^^^^^^^^^
+    14 │  assert.deepEqual(mod.graphSnapshot(run),expected);
+    15 │  const action=mod.duplicate(scenario);
+  
+  i Unsafe fix: Use a template literal.
+  
+    11 11 │   try{
+    12 12 │    run=mod.candidate();capture('construct');
+    13    │ - ·for(const·step·of·scenario.steps){run.send(step);capture('initial-'+step.lane);}
+       13 │ + ·for(const·step·of·scenario.steps){run.send(step);capture(`initial-${step.lane}`);}
+    14 14 │    assert.deepEqual(mod.graphSnapshot(run),expected);
+    15 15 │    const action=mod.duplicate(scenario);
+  
+
+docs/design/causal-cost-investigation/comparison-proof/remaining.mjs:21:55 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    19 │  run.send(stop);capture('local-stop-change');assert.deepEqual(mod.graphSnapshot(run),expected);assert.equal(mod.occurrence(run),1);
+    20 │  run.cleanup();cleaned=true;assert.equal(run.graph.describe().nodes.length,0);capture('cleanup');
+  > 21 │  writeFileSync(path.join(out,'remaining-result.json'),JSON.stringify({passed:true,additionalLifecycles:1,totalInstancesThisBatch:12,phases,stopSnapshotUnchanged:true,performanceSamples:0},null,2)+'\n');
+       │                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    22 │ }finally{if(run&&!cleaned)run.cleanup();}
+    23 │ 
+  
+  i Unsafe fix: Use a template literal.
+  
+    19 19 │    run.send(stop);capture('local-stop-change');assert.deepEqual(mod.graphSnapshot(run),expected);assert.equal(mod.occurrence(run),1);
+    20 20 │    run.cleanup();cleaned=true;assert.equal(run.graph.describe().nodes.length,0);capture('cleanup');
+    21    │ - ·writeFileSync(path.join(out,'remaining-result.json'),JSON.stringify({passed:true,additionalLifecycles:1,totalInstancesThisBatch:12,phases,stopSnapshotUnchanged:true,performanceSamples:0},null,2)+'\n');
+       21 │ + ·writeFileSync(path.join(out,'remaining-result.json'),`${JSON.stringify({passed:true,additionalLifecycles:1,totalInstancesThisBatch:12,phases,stopSnapshotUnchanged:true,performanceSamples:0},null,2)}\n`);
+    22 22 │   }finally{if(run&&!cleaned)run.cleanup();}
+    23 23 │   
+  
+
+docs/design/causal-cost-investigation/baseline-receipt.json format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   {
+     2    │ - ··"ownerWork":·"graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+     3    │ - ··"status":·"unified-diagnostic-plan-and-retained-profile-analysis",
+     4    │ - ··"newConsumerInstances":·0,
+     5    │ - ··"performanceSamples":·0,
+     6    │ - ··"artifacts":·{
+     7    │ - ····"docs/design/causal-cost-investigation/README.md":·"a0f0f1326e6a413c1d253299de2b9d9d834ad35a52543df7e2a71fb92c917f2f",
+     8    │ - ····"docs/design/causal-cost-investigation/analyze-profile.py":·"c5ff122ab3236c3f43ac316afeb9f97cbede37736466cb3542f6770c9061c9e1",
+     9    │ - ····"docs/design/causal-cost-investigation/caller-attribution.json":·"d552379590b3bb3dd29bd9a000aa43504289848864f930cf351b7e59aa57222e",
+    10    │ - ····"docs/design/causal-cost-investigation/preservation.json":·"7e5e261d7930ce52ab0eb2e85ad6748f1dae05d476bc2b509a3902c744fe88e1",
+    11    │ - ····"docs/design/causal-cost-investigation/source-check.json":·"2a9ab05f49d5a9cbb6c6bbc3ab66c6723f71fd8427c9e216ab57a790a5d810fd"
+    12    │ - ··}
+        2 │ + → "ownerWork":·"graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+        3 │ + → "status":·"unified-diagnostic-plan-and-retained-profile-analysis",
+        4 │ + → "newConsumerInstances":·0,
+        5 │ + → "performanceSamples":·0,
+        6 │ + → "artifacts":·{
+        7 │ + → → "docs/design/causal-cost-investigation/README.md":·"a0f0f1326e6a413c1d253299de2b9d9d834ad35a52543df7e2a71fb92c917f2f",
+        8 │ + → → "docs/design/causal-cost-investigation/analyze-profile.py":·"c5ff122ab3236c3f43ac316afeb9f97cbede37736466cb3542f6770c9061c9e1",
+        9 │ + → → "docs/design/causal-cost-investigation/caller-attribution.json":·"d552379590b3bb3dd29bd9a000aa43504289848864f930cf351b7e59aa57222e",
+       10 │ + → → "docs/design/causal-cost-investigation/preservation.json":·"7e5e261d7930ce52ab0eb2e85ad6748f1dae05d476bc2b509a3902c744fe88e1",
+       11 │ + → → "docs/design/causal-cost-investigation/source-check.json":·"2a9ab05f49d5a9cbb6c6bbc3ab66c6723f71fd8427c9e216ab57a790a5d810fd"
+       12 │ + → }
+    13 13 │   }
+    14 14 │   
+  
+
+docs/design/causal-cost-investigation/caller-attribution.json format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   {
+     2    │ - ··"profileSha256":·"3b8af23641c2166ccf924331aba1683d6efbc631e2a024442b73c2e5bc9824c1",
+     3    │ - ··"profileNodes":·29644,
+     4    │ - ··"estimatedAllocatedBytes":·2236653304,
+     5    │ - ··"stageBytes":·{
+     6    │ - ····"outside":·216144,
+     7    │ - ····"constructionStage":·58298528,
+     8    │ - ····"inputStage":·1341496664,
+     9    │ - ····"duplicateStage":·792006032,
+    10    │ - ····"snapshotStage":·4799760,
+    11    │ - ····"cleanupStage":·33965120,
+    12    │ - ····"validationStage":·5871056
+    13    │ - ··},
+    14    │ - ··"dataKeyImmediateCallerBytes":·{
+    15    │ - ····"outside-dataKey":·1036900360,
+    16    │ - ····"recomputeCurrentness":·887938488,
+    17    │ - ····"recomputeDomain":·185680416,
+    18    │ - ····"causalOccurrenceDigest":·41357712,
+    19    │ - ····"receiveOccurrences":·40365984,
+    20    │ - ····"canonicalSnapshot":·11176976,
+    21    │ - ····"refKey":·10957816,
+    22    │ - ····"canonicalEntry":·7164840,
+    23    │ - ····"retainEvidence":·5663120,
+    24    │ - ····"receiveTerminals":·5295104,
+    25    │ - ····"retainEffectProposal":·2044232,
+    26    │ - ····"sameRef":·922152,
+    27    │ - ····"receiveAdmissions":·625848,
+    28    │ - ····"receiveEffectAdmissions":·560256
+    29    │ - ··},
+    30    │ - ··"dataKeyImmediateCallerPercent":·{
+    31    │ - ····"outside-dataKey":·46.359,
+    32    │ - ····"recomputeCurrentness":·39.699,
+    33    │ - ····"recomputeDomain":·8.302,
+    34    │ - ····"causalOccurrenceDigest":·1.849,
+    35    │ - ····"receiveOccurrences":·1.805,
+    36    │ - ····"canonicalSnapshot":·0.5,
+    37    │ - ····"refKey":·0.49,
+    38    │ - ····"canonicalEntry":·0.32,
+    39    │ - ····"retainEvidence":·0.253,
+    40    │ - ····"receiveTerminals":·0.237,
+    41    │ - ····"retainEffectProposal":·0.091,
+    42    │ - ····"sameRef":·0.041,
+    43    │ - ····"receiveAdmissions":·0.028,
+    44    │ - ····"receiveEffectAdmissions":·0.025
+    45    │ - ··},
+    46    │ - ··"partitionConserved":·true,
+    47    │ - ··"newConsumerInstances":·0,
+    48    │ - ··"performanceSamples":·0
+        2 │ + → "profileSha256":·"3b8af23641c2166ccf924331aba1683d6efbc631e2a024442b73c2e5bc9824c1",
+        3 │ + → "profileNodes":·29644,
+        4 │ + → "estimatedAllocatedBytes":·2236653304,
+        5 │ + → "stageBytes":·{
+        6 │ + → → "outside":·216144,
+        7 │ + → → "constructionStage":·58298528,
+        8 │ + → → "inputStage":·1341496664,
+        9 │ + → → "duplicateStage":·792006032,
+       10 │ + → → "snapshotStage":·4799760,
+       11 │ + → → "cleanupStage":·33965120,
+       12 │ + → → "validationStage":·5871056
+       13 │ + → },
+       14 │ + → "dataKeyImmediateCallerBytes":·{
+       15 │ + → → "outside-dataKey":·1036900360,
+       16 │ + → → "recomputeCurrentness":·887938488,
+       17 │ + → → "recomputeDomain":·185680416,
+       18 │ + → → "causalOccurrenceDigest":·41357712,
+       19 │ + → → "receiveOccurrences":·40365984,
+       20 │ + → → "canonicalSnapshot":·11176976,
+       21 │ + → → "refKey":·10957816,
+       22 │ + → → "canonicalEntry":·7164840,
+       23 │ + → → "retainEvidence":·5663120,
+       24 │ + → → "receiveTerminals":·5295104,
+       25 │ + → → "retainEffectProposal":·2044232,
+       26 │ + → → "sameRef":·922152,
+       27 │ + → → "receiveAdmissions":·625848,
+       28 │ + → → "receiveEffectAdmissions":·560256
+       29 │ + → },
+       30 │ + → "dataKeyImmediateCallerPercent":·{
+       31 │ + → → "outside-dataKey":·46.359,
+       32 │ + → → "recomputeCurrentness":·39.699,
+       33 │ + → → "recomputeDomain":·8.302,
+       34 │ + → → "causalOccurrenceDigest":·1.849,
+       35 │ + → → "receiveOccurrences":·1.805,
+       36 │ + → → "canonicalSnapshot":·0.5,
+       37 │ + → → "refKey":·0.49,
+       38 │ + → → "canonicalEntry":·0.32,
+       39 │ + → → "retainEvidence":·0.253,
+       40 │ + → → "receiveTerminals":·0.237,
+       41 │ + → → "retainEffectProposal":·0.091,
+       42 │ + → → "sameRef":·0.041,
+       43 │ + → → "receiveAdmissions":·0.028,
+       44 │ + → → "receiveEffectAdmissions":·0.025
+       45 │ + → },
+       46 │ + → "partitionConserved":·true,
+       47 │ + → "newConsumerInstances":·0,
+       48 │ + → "performanceSamples":·0
+    49 49 │   }
+    50 50 │   
+  
+
+docs/design/causal-cost-investigation/candidate-review/partition.json format ━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   {
+     2    │ - ··"profileSha256":·"3b8af23641c2166ccf924331aba1683d6efbc631e2a024442b73c2e5bc9824c1",
+     3    │ - ··"bundleSha256":·"fa3bf99da87b5e321b74ffb064b7a87944b0ac3bb5eac517c86bac35af49ede7",
+     4    │ - ··"estimatedAllocatedBytes":·2236653304,
+     5    │ - ··"priorityPartition":·[
+     6    │ - ····{
+     7    │ - ······"group":·"currentness-dataKey",
+     8    │ - ······"bytes":·887938488,
+     9    │ - ······"percent":·39.699
+    10    │ - ····},
+    11    │ - ····{
+    12    │ - ······"group":·"publication-material-code",
+    13    │ - ······"bytes":·347971712,
+    14    │ - ······"percent":·15.558
+    15    │ - ····},
+    16    │ - ····{
+    17    │ - ······"group":·"remaining-runtime-consumer-harness",
+    18    │ - ······"bytes":·252824720,
+    19    │ - ······"percent":·11.304
+    20    │ - ····},
+    21    │ - ····{
+    22    │ - ······"group":·"sameRef-subtree",
+    23    │ - ······"bytes":·233107576,
+    24    │ - ······"percent":·10.422
+    25    │ - ····},
+    26    │ - ····{
+    27    │ - ······"group":·"other-identity-canonicalization",
+    28    │ - ······"bytes":·199472552,
+    29    │ - ······"percent":·8.918
+    30    │ - ····},
+    31    │ - ····{
+    32    │ - ······"group":·"quiescence-dataKey",
+    33    │ - ······"bytes":·185680416,
+    34    │ - ······"percent":·8.302
+    35    │ - ····},
+    36    │ - ····{
+    37    │ - ······"group":·"other-codec",
+    38    │ - ······"bytes":·129657840,
+    39    │ - ······"percent":·5.797
+    40    │ - ····}
+    41    │ - ··],
+    42    │ - ··"allocationSourceSections":·{
+    43    │ - ····"packages/ts/src/json/codec.ts":·1446647256,
+    44    │ - ····"examples/spending-alerts/causal-publication.ts":·347971712,
+    45    │ - ····"packages/ts/src/solutions/causal-occurrence/identity.ts":·189176816,
+    46    │ - ····"packages/ts/src/node/node-output-runtime.ts":·36797440,
+    47    │ - ····"packages/ts/src/graph/graph.ts":·35516632,
+    48    │ - ····"examples/spending-alerts/causal-inputs.ts":·32088216,
+    49    │ - ····"packages/ts/src/node/node-input-runtime.ts":·26257000,
+    50    │ - ····"packages/ts/src/node/node-lifecycle-runtime.ts":·15545840,
+    51    │ - ····"packages/ts/src/solutions/causal-occurrence/transition.ts":·13074792,
+    52    │ - ····"packages/ts/src/node/node.ts":·12404472,
+    53    │ - ····"packages/ts/src/solutions/causal-occurrence/construction.ts":·9000176,
+    54    │ - ····"packages/ts/src/node/core.ts":·8965208,
+    55    │ - ····"examples/spending-alerts/causal-business.ts":·7976120,
+    56    │ - ····"packages/ts/src/node/node-context-runtime.ts":·7775240,
+    57    │ - ····"packages/ts/src/ctx/types.ts":·6924592,
+    58    │ - ····"packages/ts/src/solutions/causal-occurrence/lifecycle.ts":·5871760,
+    59    │ - ····"scripts/fixtures/causal-release-comparison.ts":·5838176,
+    60    │ - ····"scripts/fixtures/spending-publication-oracle.ts":·4470600,
+    61    │ - ····"packages/ts/src/graph/construction-scope.ts":·4347712,
+    62    │ - ····"packages/ts/src/solutions/causal-occurrence/evidence.ts":·3642216,
+    63    │ - ····"examples/spending-alerts/causal-admission.ts":·3510000,
+    64    │ - ····"examples/spending-alerts/causal-preset.ts":·2954232,
+    65    │ - ····"examples/spending-alerts/causal-numeric.ts":·1803712,
+    66    │ - ····"packages/ts/src/identity.ts":·1347984,
+    67    │ - ····"scripts/fixtures/spending-preset-performance.ts":·1082328,
+    68    │ - ····"packages/ts/src/node/protocol-guards.ts":·1016656,
+    69    │ - ····"examples/spending-alerts/causal-material-owner.ts":·787176,
+    70    │ - ····"packages/ts/src/node/versioning.ts":·721640,
+    71    │ - ····"packages/ts/src/graph/graph-topology-group.ts":·591536,
+    72    │ - ····"packages/ts/src/dispatcher/index.ts":·491872,
+    73    │ - ····"packages/ts/src/graph/operators.ts":·459248,
+    74    │ - ····"packages/ts/src/solutions/causal-occurrence/committed-view.ts":·426400,
+    75    │ - ····"packages/ts/src/node/runtime-accessors.ts":·393680,
+    76    │ - ····"scripts/fixtures/spending-preset-performance-worker.ts":·329160,
+    77    │ - ····"outside-bundle":·281712,
+    78    │ - ····"packages/ts/src/solutions/causal-occurrence/capabilities.ts":·163992,
+    79    │ - ····"packages/ts/src/batch/boundary.ts":·0,
+    80    │ - ····"packages/ts/src/node/node-rewire-runtime.ts":·0
+    81    │ - ··},
+    82    │ - ··"partitionConserved":·true,
+    83    │ - ··"newConsumerRuns":·0,
+    84    │ - ··"performanceSamples":·0,
+    85    │ - ··"limits":·"Explicit·priority·partition,·not·removable-cost·estimate.·Inlined/missing·frames·can·move·attribution.·Native·allocations·inherit·nearest·recorded·source·section.·Single·B·diagnostic·only."
+        2 │ + → "profileSha256":·"3b8af23641c2166ccf924331aba1683d6efbc631e2a024442b73c2e5bc9824c1",
+        3 │ + → "bundleSha256":·"fa3bf99da87b5e321b74ffb064b7a87944b0ac3bb5eac517c86bac35af49ede7",
+        4 │ + → "estimatedAllocatedBytes":·2236653304,
+        5 │ + → "priorityPartition":·[
+        6 │ + → → {
+        7 │ + → → → "group":·"currentness-dataKey",
+        8 │ + → → → "bytes":·887938488,
+        9 │ + → → → "percent":·39.699
+       10 │ + → → },
+       11 │ + → → {
+       12 │ + → → → "group":·"publication-material-code",
+       13 │ + → → → "bytes":·347971712,
+       14 │ + → → → "percent":·15.558
+       15 │ + → → },
+       16 │ + → → {
+       17 │ + → → → "group":·"remaining-runtime-consumer-harness",
+       18 │ + → → → "bytes":·252824720,
+       19 │ + → → → "percent":·11.304
+       20 │ + → → },
+       21 │ + → → {
+       22 │ + → → → "group":·"sameRef-subtree",
+       23 │ + → → → "bytes":·233107576,
+       24 │ + → → → "percent":·10.422
+       25 │ + → → },
+       26 │ + → → {
+       27 │ + → → → "group":·"other-identity-canonicalization",
+       28 │ + → → → "bytes":·199472552,
+       29 │ + → → → "percent":·8.918
+       30 │ + → → },
+       31 │ + → → {
+       32 │ + → → → "group":·"quiescence-dataKey",
+       33 │ + → → → "bytes":·185680416,
+       34 │ + → → → "percent":·8.302
+       35 │ + → → },
+       36 │ + → → {
+       37 │ + → → → "group":·"other-codec",
+       38 │ + → → → "bytes":·129657840,
+       39 │ + → → → "percent":·5.797
+       40 │ + → → }
+       41 │ + → ],
+       42 │ + → "allocationSourceSections":·{
+       43 │ + → → "packages/ts/src/json/codec.ts":·1446647256,
+       44 │ + → → "examples/spending-alerts/causal-publication.ts":·347971712,
+       45 │ + → → "packages/ts/src/solutions/causal-occurrence/identity.ts":·189176816,
+       46 │ + → → "packages/ts/src/node/node-output-runtime.ts":·36797440,
+       47 │ + → → "packages/ts/src/graph/graph.ts":·35516632,
+       48 │ + → → "examples/spending-alerts/causal-inputs.ts":·32088216,
+       49 │ + → → "packages/ts/src/node/node-input-runtime.ts":·26257000,
+       50 │ + → → "packages/ts/src/node/node-lifecycle-runtime.ts":·15545840,
+       51 │ + → → "packages/ts/src/solutions/causal-occurrence/transition.ts":·13074792,
+       52 │ + → → "packages/ts/src/node/node.ts":·12404472,
+       53 │ + → → "packages/ts/src/solutions/causal-occurrence/construction.ts":·9000176,
+       54 │ + → → "packages/ts/src/node/core.ts":·8965208,
+       55 │ + → → "examples/spending-alerts/causal-business.ts":·7976120,
+       56 │ + → → "packages/ts/src/node/node-context-runtime.ts":·7775240,
+       57 │ + → → "packages/ts/src/ctx/types.ts":·6924592,
+       58 │ + → → "packages/ts/src/solutions/causal-occurrence/lifecycle.ts":·5871760,
+       59 │ + → → "scripts/fixtures/causal-release-comparison.ts":·5838176,
+       60 │ + → → "scripts/fixtures/spending-publication-oracle.ts":·4470600,
+       61 │ + → → "packages/ts/src/graph/construction-scope.ts":·4347712,
+       62 │ + → → "packages/ts/src/solutions/causal-occurrence/evidence.ts":·3642216,
+       63 │ + → → "examples/spending-alerts/causal-admission.ts":·3510000,
+       64 │ + → → "examples/spending-alerts/causal-preset.ts":·2954232,
+       65 │ + → → "examples/spending-alerts/causal-numeric.ts":·1803712,
+       66 │ + → → "packages/ts/src/identity.ts":·1347984,
+  21 more lines truncated
+  
+
+docs/design/causal-cost-investigation/candidate-review/preservation.json format ━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   {
+     2    │ - ··"passed":·true,
+     3    │ - ··"rootHashes":·{
+     4    │ - ····"decisions/decisions.jsonl":·"b1c78cb3d6a0915a37728181a4003bac8f615c1cfd220add1a7982997b48c831",
+     5    │ - ····"plan/backlog.jsonl":·"89a6d9e0a7607db2bac8f7cfdfeeebdaea7f5faed820a8f659d647cdea4d9505",
+     6    │ - ····"sessions/active/SESSION-blueprint-stacked-pr-ownership.md":·"74d4b1311f8b5631b1c3ae77857797f75541b31f92603f47efab953fb800115c",
+     7    │ - ····"sessions/sessions.jsonl":·"d3c318c66a5c0e54294d91f1f5dc776d89c47a69f01b09a7dea06ed33902791c",
+     8    │ - ····"sessions/archive/SESSION-b139-causal-flagship-brief-v1.md":·"1477c42a39903ea89c523c97ee82c7eb1c0e320f88c88738325e043c6d44dc8a",
+     9    │ - ····"sessions/archive/b139-causal-flagship-brief-v1.json":·"c406a58efb7ec9c24ef01c11b987405345b330edd045c915c2afef8d945a7fe7"
+    10    │ - ··},
+    11    │ - ··"libraryExamplesGeneratedRunnerUnchanged":·true,
+    12    │ - ··"priorAttemptArchiveAndReceiptUnchanged":·true,
+    13    │ - ··"baseline":·"e055cda9"
+        2 │ + → "passed":·true,
+        3 │ + → "rootHashes":·{
+        4 │ + → → "decisions/decisions.jsonl":·"b1c78cb3d6a0915a37728181a4003bac8f615c1cfd220add1a7982997b48c831",
+        5 │ + → → "plan/backlog.jsonl":·"89a6d9e0a7607db2bac8f7cfdfeeebdaea7f5faed820a8f659d647cdea4d9505",
+        6 │ + → → "sessions/active/SESSION-blueprint-stacked-pr-ownership.md":·"74d4b1311f8b5631b1c3ae77857797f75541b31f92603f47efab953fb800115c",
+        7 │ + → → "sessions/sessions.jsonl":·"d3c318c66a5c0e54294d91f1f5dc776d89c47a69f01b09a7dea06ed33902791c",
+        8 │ + → → "sessions/archive/SESSION-b139-causal-flagship-brief-v1.md":·"1477c42a39903ea89c523c97ee82c7eb1c0e320f88c88738325e043c6d44dc8a",
+        9 │ + → → "sessions/archive/b139-causal-flagship-brief-v1.json":·"c406a58efb7ec9c24ef01c11b987405345b330edd045c915c2afef8d945a7fe7"
+       10 │ + → },
+       11 │ + → "libraryExamplesGeneratedRunnerUnchanged":·true,
+       12 │ + → "priorAttemptArchiveAndReceiptUnchanged":·true,
+       13 │ + → "baseline":·"e055cda9"
+    14 14 │   }
+    15 15 │   
+  
+
+docs/design/causal-cost-investigation/comparison-proof/corrected-counts.json format ━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+      1   1 │   {
+      2     │ - ··"sourceOfTruth":·"instrumentation.patch:·second·replacement·is·recomputeCurrentness;·first·is·retainPending,·not·currentness",
+      3     │ - ··"rawLabelsPreserved":·true,
+      4     │ - ··"quiescenceCountMeasured":·false,
+      5     │ - ··"sameOccurrenceIdentityMeasured":·false,
+      6     │ - ··"rows":·[
+      7     │ - ····{
+      8     │ - ······"phase":·"construct",
+      9     │ - ······"transitions":·0,
+     10     │ - ······"arrivalLanes":·{},
+     11     │ - ······"currentnessComparisons":·0,
+     12     │ - ······"equalComparisons":·0,
+     13     │ - ······"canonicalStringCodeUnits":·0
+     14     │ - ····},
+     15     │ - ····{
+     16     │ - ······"phase":·"initial-pack",
+     17     │ - ······"transitions":·0,
+     18     │ - ······"arrivalLanes":·{},
+     19     │ - ······"currentnessComparisons":·0,
+     20     │ - ······"equalComparisons":·0,
+     21     │ - ······"canonicalStringCodeUnits":·0
+     22     │ - ····},
+     23     │ - ····{
+     24     │ - ······"phase":·"initial-current",
+     25     │ - ······"transitions":·1,
+     26     │ - ······"arrivalLanes":·{
+     27     │ - ········"watermarks":·1
+     28     │ - ······},
+     29     │ - ······"currentnessComparisons":·0,
+     30     │ - ······"equalComparisons":·0,
+     31     │ - ······"canonicalStringCodeUnits":·0
+     32     │ - ····},
+     33     │ - ····{
+     34     │ - ······"phase":·"initial-local",
+     35     │ - ······"transitions":·1,
+     36     │ - ······"arrivalLanes":·{},
+     37     │ - ······"currentnessComparisons":·0,
+     38     │ - ······"equalComparisons":·0,
+     39     │ - ······"canonicalStringCodeUnits":·0
+     40     │ - ····},
+     41     │ - ····{
+     42     │ - ······"phase":·"initial-inbox",
+     43     │ - ······"transitions":·1,
+     44     │ - ······"arrivalLanes":·{},
+     45     │ - ······"currentnessComparisons":·0,
+     46     │ - ······"equalComparisons":·0,
+     47     │ - ······"canonicalStringCodeUnits":·0
+     48     │ - ····},
+     49     │ - ····{
+     50     │ - ······"phase":·"initial-verification",
+     51     │ - ······"transitions":·1,
+     52     │ - ······"arrivalLanes":·{},
+     53     │ - ······"currentnessComparisons":·0,
+     54     │ - ······"equalComparisons":·0,
+     55     │ - ······"canonicalStringCodeUnits":·0
+     56     │ - ····},
+     57     │ - ····{
+     58     │ - ······"phase":·"initial-arrivals",
+     59     │ - ······"transitions":·6,
+     60     │ - ······"arrivalLanes":·{
+     61     │ - ········"occurrences":·1,
+     62     │ - ········"admissions":·1,
+     63     │ - ········"branch-terminals":·1,
+     64     │ - ········"effect-proposals":·1,
+     65     │ - ········"effect-admissions":·1,
+     66     │ - ········"evidence":·1
+     67     │ - ······},
+     68     │ - ······"currentnessComparisons":·11,
+     69     │ - ······"equalComparisons":·10,
+     70     │ - ······"canonicalStringCodeUnits":·196981
+     71     │ - ····},
+     72     │ - ····{
+     73     │ - ······"phase":·"same-object-duplicate",
+     74     │ - ······"transitions":·5,
+     75     │ - ······"arrivalLanes":·{
+     76     │ - ········"occurrences":·1,
+     77     │ - ········"admissions":·1,
+     78     │ - ········"branch-terminals":·1,
+     79     │ - ········"effect-proposals":·1,
+     80     │ - ········"evidence":·1
+     81     │ - ······},
+     82     │ - ······"currentnessComparisons":·10,
+     83     │ - ······"equalComparisons":·10,
+     84     │ - ······"canonicalStringCodeUnits":·179060
+     85     │ - ····},
+     86     │ - ····{
+     87     │ - ······"phase":·"equal-clone-duplicate",
+     88     │ - ······"transitions":·5,
+     89     │ - ······"arrivalLanes":·{
+     90     │ - ········"occurrences":·1,
+     91     │ - ········"admissions":·1,
+     92     │ - ········"branch-terminals":·1,
+     93     │ - ········"effect-proposals":·1,
+     94     │ - ········"evidence":·1
+     95     │ - ······},
+     96     │ - ······"currentnessComparisons":·10,
+     97     │ - ······"equalComparisons":·10,
+     98     │ - ······"canonicalStringCodeUnits":·179060
+     99     │ - ····},
+    100     │ - ····{
+    101     │ - ······"phase":·"local-stop-change",
+    102     │ - ······"transitions":·1,
+    103     │ - ······"arrivalLanes":·{},
+    104     │ - ······"currentnessComparisons":·2,
+    105     │ - ······"equalComparisons":·2,
+    106     │ - ······"canonicalStringCodeUnits":·35812
+    107     │ - ····},
+    108     │ - ····{
+    109     │ - ······"phase":·"cleanup",
+    110     │ - ······"transitions":·0,
+    111     │ - ······"arrivalLanes":·{},
+    112     │ - ······"currentnessComparisons":·0,
+    113     │ - ······"equalComparisons":·0,
+    114     │ - ······"canonicalStringCodeUnits":·0
+    115     │ - ····}
+    116     │ - ··],
+    117     │ - ··"counterUnit":·"both·original·canonical·string·lengths·summed·in·JS·UTF-16·code·units,·not·bytes·or·allocated·memory",
+    118     │ - ··"performanceSamples":·0
+          2 │ + → "sourceOfTruth":·"instrumentation.patch:·second·replacement·is·recomputeCurrentness;·first·is·retainPending,·not·currentness",
+          3 │ + → "rawLabelsPreserved":·true,
+          4 │ + → "quiescenceCountMeasured":·false,
+          5 │ + → "sameOccurrenceIdentityMeasured":·false,
+          6 │ + → "rows":·[
+          7 │ + → → {
+          8 │ + → → → "phase":·"construct",
+          9 │ + → → → "transitions":·0,
+         10 │ + → → → "arrivalLanes":·{},
+         11 │ + → → → "currentnessComparisons":·0,
+         12 │ + → → → "equalComparisons":·0,
+         13 │ + → → → "canonicalStringCodeUnits":·0
+         14 │ + → → },
+         15 │ + → → {
+         16 │ + → → → "phase":·"initial-pack",
+         17 │ + → → → "transitions":·0,
+         18 │ + → → → "arrivalLanes":·{},
+         19 │ + → → → "currentnessComparisons":·0,
+         20 │ + → → → "equalComparisons":·0,
+         21 │ + → → → "canonicalStringCodeUnits":·0
+         22 │ + → → },
+         23 │ + → → {
+         24 │ + → → → "phase":·"initial-current",
+         25 │ + → → → "transitions":·1,
+         26 │ + → → → "arrivalLanes":·{
+         27 │ + → → → → "watermarks":·1
+         28 │ + → → → },
+         29 │ + → → → "currentnessComparisons":·0,
+         30 │ + → → → "equalComparisons":·0,
+         31 │ + → → → "canonicalStringCodeUnits":·0
+         32 │ + → → },
+         33 │ + → → {
+  87 more lines truncated
+  
+
+docs/design/causal-cost-investigation/comparison-proof/exit.json format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+    1 1 │   {
+    2   │ - ··"code":·1,
+    3   │ - ··"nodeExecutable":·"/Users/davidchenallio/.local/share/mise/installs/node/24/bin/node",
+    4   │ - ··"nodeDigest":·"ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a"
+      2 │ + → "code":·1,
+      3 │ + → "nodeExecutable":·"/Users/davidchenallio/.local/share/mise/installs/node/24/bin/node",
+      4 │ + → "nodeDigest":·"ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a"
+    5 5 │   }
+    6 6 │   
+  
+
+docs/design/causal-cost-investigation/comparison-proof/instrumentation.json format ━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   {
+     2    │ - ··"inputHashes":·{
+     3    │ - ····"B.mjs":·"fa3bf99da87b5e321b74ffb064b7a87944b0ac3bb5eac517c86bac35af49ede7",
+     4    │ - ····"P2-inputs.json":·"44f1165557fc1444540731a73846233ce3d71da7a0af3a3d4fa2137e249c2079"
+     5    │ - ··},
+     6    │ - ··"instrumentedSha256":·"5a1c99fecb7bf9ca8837842bc606bc9a7887416bd8727fc508242d9c183a065b",
+     7    │ - ··"comparisonSites":·2,
+     8    │ - ··"semanticChange":·"none;·both·original·dataKey·calls·and·comparison·retained,·extra·counters·only",
+     9    │ - ··"maxTotalInstances":·12,
+    10    │ - ··"timeoutSeconds":·30,
+    11    │ - ··"retries":·0
+        2 │ + → "inputHashes":·{
+        3 │ + → → "B.mjs":·"fa3bf99da87b5e321b74ffb064b7a87944b0ac3bb5eac517c86bac35af49ede7",
+        4 │ + → → "P2-inputs.json":·"44f1165557fc1444540731a73846233ce3d71da7a0af3a3d4fa2137e249c2079"
+        5 │ + → },
+        6 │ + → "instrumentedSha256":·"5a1c99fecb7bf9ca8837842bc606bc9a7887416bd8727fc508242d9c183a065b",
+        7 │ + → "comparisonSites":·2,
+        8 │ + → "semanticChange":·"none;·both·original·dataKey·calls·and·comparison·retained,·extra·counters·only",
+        9 │ + → "maxTotalInstances":·12,
+       10 │ + → "timeoutSeconds":·30,
+       11 │ + → "retries":·0
+    12 12 │   }
+    13 13 │   
+  
+
+docs/design/causal-cost-investigation/comparison-proof/preservation.json format ━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   {
+     2    │ - ··"passed":·true,
+     3    │ - ··"rootHashes":·{
+     4    │ - ····"decisions/decisions.jsonl":·"b1c78cb3d6a0915a37728181a4003bac8f615c1cfd220add1a7982997b48c831",
+     5    │ - ····"plan/backlog.jsonl":·"89a6d9e0a7607db2bac8f7cfdfeeebdaea7f5faed820a8f659d647cdea4d9505",
+     6    │ - ····"sessions/active/SESSION-blueprint-stacked-pr-ownership.md":·"74d4b1311f8b5631b1c3ae77857797f75541b31f92603f47efab953fb800115c",
+     7    │ - ····"sessions/sessions.jsonl":·"d3c318c66a5c0e54294d91f1f5dc776d89c47a69f01b09a7dea06ed33902791c",
+     8    │ - ····"sessions/archive/SESSION-b139-causal-flagship-brief-v1.md":·"1477c42a39903ea89c523c97ee82c7eb1c0e320f88c88738325e043c6d44dc8a",
+     9    │ - ····"sessions/archive/b139-causal-flagship-brief-v1.json":·"c406a58efb7ec9c24ef01c11b987405345b330edd045c915c2afef8d945a7fe7"
+    10    │ - ··},
+    11    │ - ··"libraryExamplesGeneratedRunnerUnchanged":·true,
+    12    │ - ··"priorAttemptArchiveAndReceiptUnchanged":·true,
+    13    │ - ··"baseline":·"ab7d059c"
+        2 │ + → "passed":·true,
+        3 │ + → "rootHashes":·{
+        4 │ + → → "decisions/decisions.jsonl":·"b1c78cb3d6a0915a37728181a4003bac8f615c1cfd220add1a7982997b48c831",
+        5 │ + → → "plan/backlog.jsonl":·"89a6d9e0a7607db2bac8f7cfdfeeebdaea7f5faed820a8f659d647cdea4d9505",
+        6 │ + → → "sessions/active/SESSION-blueprint-stacked-pr-ownership.md":·"74d4b1311f8b5631b1c3ae77857797f75541b31f92603f47efab953fb800115c",
+        7 │ + → → "sessions/sessions.jsonl":·"d3c318c66a5c0e54294d91f1f5dc776d89c47a69f01b09a7dea06ed33902791c",
+        8 │ + → → "sessions/archive/SESSION-b139-causal-flagship-brief-v1.md":·"1477c42a39903ea89c523c97ee82c7eb1c0e320f88c88738325e043c6d44dc8a",
+        9 │ + → → "sessions/archive/b139-causal-flagship-brief-v1.json":·"c406a58efb7ec9c24ef01c11b987405345b330edd045c915c2afef8d945a7fe7"
+       10 │ + → },
+       11 │ + → "libraryExamplesGeneratedRunnerUnchanged":·true,
+       12 │ + → "priorAttemptArchiveAndReceiptUnchanged":·true,
+       13 │ + → "baseline":·"ab7d059c"
+    14 14 │   }
+    15 15 │   
+  
+
+docs/design/causal-cost-investigation/comparison-proof/receipt.json format ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   {
+     2    │ - ··"ownerWork":·"graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+     3    │ - ··"status":·"bounded-count-diagnosis-and-first-optimization-design",
+     4    │ - ··"totalInstances":·12,
+     5    │ - ··"diagnosticProcesses":·2,
+     6    │ - ··"firstProcessFailed":·true,
+     7    │ - ··"counterLabelCorrectionRequired":·true,
+     8    │ - ··"performanceSamples":·0,
+     9    │ - ··"libraryImplemented":·false,
+    10    │ - ··"artifacts":·{
+    11    │ - ····"docs/design/causal-cost-investigation/comparison-proof/corrected-counts.json":·"d2b8390a924a5f12d42d25dde19713019fa81c364fa8d565b44adda17cd994f5",
+    12    │ - ····"docs/design/causal-cost-investigation/comparison-proof/count.mjs":·"470219c7dd17abc6532ed65a761170c142acfa2efd31b890596ed155f0cc3c64",
+    13    │ - ····"docs/design/causal-cost-investigation/comparison-proof/exit.json":·"faeba648336d843d9f7ba896833a4641c2d8133f2b4f3e21db15ac4676f6a12c",
+    14    │ - ····"docs/design/causal-cost-investigation/comparison-proof/instrumentation.json":·"89aebbdf24b3854710c100c21187146753ecbb3a2802874961d1bd07b78b3587",
+    15    │ - ····"docs/design/causal-cost-investigation/comparison-proof/instrumentation.patch":·"65a78710f3c7377f7615048d8a6d04db54da0b69bb221b51aee2f71c70b90c1c",
+    16    │ - ····"docs/design/causal-cost-investigation/comparison-proof/partial-counts.jsonl":·"44153d29410f3fe29fdb08009d159f52e4e481847f1414b04ed96b49784fc4ec",
+    17    │ - ····"docs/design/causal-cost-investigation/comparison-proof/prepare-run.py":·"1679710f5559f2b698c855e80e862e937177cbf8a37ce8f272bcc3ff161d7c98",
+    18    │ - ····"docs/design/causal-cost-investigation/comparison-proof/preservation.json":·"6f164f3efb1fe5c82171a554228eff1e1049d367e766f8b2272aa5d39a0ae6c4",
+    19    │ - ····"docs/design/causal-cost-investigation/comparison-proof/remaining-exit.json":·"c067412243d709ee30e834798814adce559ed3f643b596bf7a167d4c9eb9d4e5",
+    20    │ - ····"docs/design/causal-cost-investigation/comparison-proof/remaining-result.json":·"d67d16a852a3e394fba286ffe853b578ac0239aab7f47b5d48b0a9caa875edc9",
+    21    │ - ····"docs/design/causal-cost-investigation/comparison-proof/remaining-stderr.log":·"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    22    │ - ····"docs/design/causal-cost-investigation/comparison-proof/remaining-stdout.log":·"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    23    │ - ····"docs/design/causal-cost-investigation/comparison-proof/remaining.mjs":·"f1b5972b10d895b1e8d21abcfd0b89529ce128a090878bf67aefa077a5def06d",
+    24    │ - ····"docs/design/causal-cost-investigation/comparison-proof/review.md":·"5802b1bd1487c7dd806f8a690fc755072ee1dee5042bc8791abdf528c2968a58",
+    25    │ - ····"docs/design/causal-cost-investigation/comparison-proof/stderr.log":·"47c1e4ecc1735dd687357e471f4fa0df0b2c79fc265a09667042b9898f786483",
+    26    │ - ····"docs/design/causal-cost-investigation/comparison-proof/stdout.log":·"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    27    │ - ····"docs/design/causal-cost-investigation/comparison-proof/verification.json":·"640e6c8106132e714d414e3f4e8229ec189e442a15ae7db2f6d349f3c420ea02",
+    28    │ - ····"docs/design/causal-cost-investigation/STATUS.md":·"fabf905a78673408dbe8e6f6da131353800691d3e9f4f3e3329f3e9f71f2c8b4"
+    29    │ - ··}
+        2 │ + → "ownerWork":·"graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+        3 │ + → "status":·"bounded-count-diagnosis-and-first-optimization-design",
+        4 │ + → "totalInstances":·12,
+        5 │ + → "diagnosticProcesses":·2,
+        6 │ + → "firstProcessFailed":·true,
+        7 │ + → "counterLabelCorrectionRequired":·true,
+        8 │ + → "performanceSamples":·0,
+        9 │ + → "libraryImplemented":·false,
+       10 │ + → "artifacts":·{
+       11 │ + → → "docs/design/causal-cost-investigation/comparison-proof/corrected-counts.json":·"d2b8390a924a5f12d42d25dde19713019fa81c364fa8d565b44adda17cd994f5",
+       12 │ + → → "docs/design/causal-cost-investigation/comparison-proof/count.mjs":·"470219c7dd17abc6532ed65a761170c142acfa2efd31b890596ed155f0cc3c64",
+       13 │ + → → "docs/design/causal-cost-investigation/comparison-proof/exit.json":·"faeba648336d843d9f7ba896833a4641c2d8133f2b4f3e21db15ac4676f6a12c",
+       14 │ + → → "docs/design/causal-cost-investigation/comparison-proof/instrumentation.json":·"89aebbdf24b3854710c100c21187146753ecbb3a2802874961d1bd07b78b3587",
+       15 │ + → → "docs/design/causal-cost-investigation/comparison-proof/instrumentation.patch":·"65a78710f3c7377f7615048d8a6d04db54da0b69bb221b51aee2f71c70b90c1c",
+       16 │ + → → "docs/design/causal-cost-investigation/comparison-proof/partial-counts.jsonl":·"44153d29410f3fe29fdb08009d159f52e4e481847f1414b04ed96b49784fc4ec",
+       17 │ + → → "docs/design/causal-cost-investigation/comparison-proof/prepare-run.py":·"1679710f5559f2b698c855e80e862e937177cbf8a37ce8f272bcc3ff161d7c98",
+       18 │ + → → "docs/design/causal-cost-investigation/comparison-proof/preservation.json":·"6f164f3efb1fe5c82171a554228eff1e1049d367e766f8b2272aa5d39a0ae6c4",
+       19 │ + → → "docs/design/causal-cost-investigation/comparison-proof/remaining-exit.json":·"c067412243d709ee30e834798814adce559ed3f643b596bf7a167d4c9eb9d4e5",
+       20 │ + → → "docs/design/causal-cost-investigation/comparison-proof/remaining-result.json":·"d67d16a852a3e394fba286ffe853b578ac0239aab7f47b5d48b0a9caa875edc9",
+       21 │ + → → "docs/design/causal-cost-investigation/comparison-proof/remaining-stderr.log":·"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       22 │ + → → "docs/design/causal-cost-investigation/comparison-proof/remaining-stdout.log":·"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       23 │ + → → "docs/design/causal-cost-investigation/comparison-proof/remaining.mjs":·"f1b5972b10d895b1e8d21abcfd0b89529ce128a090878bf67aefa077a5def06d",
+       24 │ + → → "docs/design/causal-cost-investigation/comparison-proof/review.md":·"5802b1bd1487c7dd806f8a690fc755072ee1dee5042bc8791abdf528c2968a58",
+       25 │ + → → "docs/design/causal-cost-investigation/comparison-proof/stderr.log":·"47c1e4ecc1735dd687357e471f4fa0df0b2c79fc265a09667042b9898f786483",
+       26 │ + → → "docs/design/causal-cost-investigation/comparison-proof/stdout.log":·"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+       27 │ + → → "docs/design/causal-cost-investigation/comparison-proof/verification.json":·"640e6c8106132e714d414e3f4e8229ec189e442a15ae7db2f6d349f3c420ea02",
+       28 │ + → → "docs/design/causal-cost-investigation/STATUS.md":·"fabf905a78673408dbe8e6f6da131353800691d3e9f4f3e3329f3e9f71f2c8b4"
+       29 │ + → }
+    30 30 │   }
+    31 31 │   
+  
+
+docs/design/causal-cost-investigation/comparison-proof/remaining-exit.json format ━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+    1 1 │   {
+    2   │ - ··"code":·0,
+    3   │ - ··"additionalLifecycles":·1,
+    4   │ - ··"repeatsOfPriorCompletedLifecycles":·0,
+    5   │ - ··"modifiedActionSequence":·"same·and·cloned·duplicate·followed·by·stop·within·one·lifetime"
+      2 │ + → "code":·0,
+      3 │ + → "additionalLifecycles":·1,
+      4 │ + → "repeatsOfPriorCompletedLifecycles":·0,
+      5 │ + → "modifiedActionSequence":·"same·and·cloned·duplicate·followed·by·stop·within·one·lifetime"
+    6 6 │   }
+    7 7 │   
+  
+
+docs/design/causal-cost-investigation/comparison-proof/remaining-result.json format ━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+      1   1 │   {
+      2     │ - ··"passed":·true,
+      3     │ - ··"additionalLifecycles":·1,
+      4     │ - ··"totalInstancesThisBatch":·12,
+      5     │ - ··"phases":·[
+      6     │ - ····{
+      7     │ - ······"phase":·"construct",
+      8     │ - ······"stats":·{
+      9     │ - ········"transitions":·0,
+     10     │ - ········"arrivals":·{},
+     11     │ - ········"currentness":·{
+     12     │ - ··········"count":·0,
+     13     │ - ··········"equal":·0,
+     14     │ - ··········"chars":·0,
+     15     │ - ··········"sameOccurrence":·0,
+     16     │ - ··········"payloadPresent":·0
+     17     │ - ········},
+     18     │ - ········"quiescence":·{
+     19     │ - ··········"count":·0,
+     20     │ - ··········"equal":·0,
+     21     │ - ··········"chars":·0
+     22     │ - ········}
+     23     │ - ······}
+     24     │ - ····},
+     25     │ - ····{
+     26     │ - ······"phase":·"initial-pack",
+     27     │ - ······"stats":·{
+     28     │ - ········"transitions":·0,
+     29     │ - ········"arrivals":·{},
+     30     │ - ········"currentness":·{
+     31     │ - ··········"count":·0,
+     32     │ - ··········"equal":·0,
+     33     │ - ··········"chars":·0,
+     34     │ - ··········"sameOccurrence":·0,
+     35     │ - ··········"payloadPresent":·0
+     36     │ - ········},
+     37     │ - ········"quiescence":·{
+     38     │ - ··········"count":·0,
+     39     │ - ··········"equal":·0,
+     40     │ - ··········"chars":·0
+     41     │ - ········}
+     42     │ - ······}
+     43     │ - ····},
+     44     │ - ····{
+     45     │ - ······"phase":·"initial-current",
+     46     │ - ······"stats":·{
+     47     │ - ········"transitions":·1,
+     48     │ - ········"arrivals":·{
+     49     │ - ··········"watermarks":·1
+     50     │ - ········},
+     51     │ - ········"currentness":·{
+     52     │ - ··········"count":·0,
+     53     │ - ··········"equal":·0,
+     54     │ - ··········"chars":·0,
+     55     │ - ··········"sameOccurrence":·0,
+     56     │ - ··········"payloadPresent":·0
+     57     │ - ········},
+     58     │ - ········"quiescence":·{
+     59     │ - ··········"count":·0,
+     60     │ - ··········"equal":·0,
+     61     │ - ··········"chars":·0
+     62     │ - ········}
+     63     │ - ······}
+     64     │ - ····},
+     65     │ - ····{
+     66     │ - ······"phase":·"initial-local",
+     67     │ - ······"stats":·{
+     68     │ - ········"transitions":·1,
+     69     │ - ········"arrivals":·{},
+     70     │ - ········"currentness":·{
+     71     │ - ··········"count":·0,
+     72     │ - ··········"equal":·0,
+     73     │ - ··········"chars":·0,
+     74     │ - ··········"sameOccurrence":·0,
+     75     │ - ··········"payloadPresent":·0
+     76     │ - ········},
+     77     │ - ········"quiescence":·{
+     78     │ - ··········"count":·0,
+     79     │ - ··········"equal":·0,
+     80     │ - ··········"chars":·0
+     81     │ - ········}
+     82     │ - ······}
+     83     │ - ····},
+     84     │ - ····{
+     85     │ - ······"phase":·"initial-inbox",
+     86     │ - ······"stats":·{
+     87     │ - ········"transitions":·1,
+     88     │ - ········"arrivals":·{},
+     89     │ - ········"currentness":·{
+     90     │ - ··········"count":·0,
+     91     │ - ··········"equal":·0,
+     92     │ - ··········"chars":·0,
+     93     │ - ··········"sameOccurrence":·0,
+     94     │ - ··········"payloadPresent":·0
+     95     │ - ········},
+     96     │ - ········"quiescence":·{
+     97     │ - ··········"count":·0,
+     98     │ - ··········"equal":·0,
+     99     │ - ··········"chars":·0
+    100     │ - ········}
+    101     │ - ······}
+    102     │ - ····},
+    103     │ - ····{
+    104     │ - ······"phase":·"initial-verification",
+    105     │ - ······"stats":·{
+    106     │ - ········"transitions":·1,
+    107     │ - ········"arrivals":·{},
+    108     │ - ········"currentness":·{
+    109     │ - ··········"count":·0,
+    110     │ - ··········"equal":·0,
+    111     │ - ··········"chars":·0,
+    112     │ - ··········"sameOccurrence":·0,
+    113     │ - ··········"payloadPresent":·0
+    114     │ - ········},
+    115     │ - ········"quiescence":·{
+    116     │ - ··········"count":·0,
+    117     │ - ··········"equal":·0,
+    118     │ - ··········"chars":·0
+    119     │ - ········}
+    120     │ - ······}
+    121     │ - ····},
+    122     │ - ····{
+    123     │ - ······"phase":·"initial-arrivals",
+    124     │ - ······"stats":·{
+    125     │ - ········"transitions":·6,
+    126     │ - ········"arrivals":·{
+    127     │ - ··········"occurrences":·1,
+    128     │ - ··········"admissions":·1,
+    129     │ - ··········"branch-terminals":·1,
+    130     │ - ··········"effect-proposals":·1,
+    131     │ - ··········"effect-admissions":·1,
+    132     │ - ··········"evidence":·1
+    133     │ - ········},
+    134     │ - ········"currentness":·{
+    135     │ - ··········"count":·0,
+    136     │ - ··········"equal":·0,
+    137     │ - ··········"chars":·0,
+    138     │ - ··········"sameOccurrence":·0,
+    139     │ - ··········"payloadPresent":·0
+    140     │ - ········},
+    141     │ - ········"quiescence":·{
+    142     │ - ··········"count":·11,
+    143     │ - ··········"equal":·10,
+    144     │ - ··········"chars":·196981
+    145     │ - ········}
+    146     │ - ······}
+    147     │ - ····},
+    148     │ - ····{
+    149     │ - ······"phase":·"same-object-duplicate",
+    150     │ - ······"stats":·{
+  327 more lines truncated
+  
+
+docs/design/causal-cost-investigation/comparison-proof/remaining.mjs:1:1 assist/source/organizeImports  FIXABLE  ━━━━━━━━━━
+
+  × The imports and exports are not sorted.
+  
+  > 1 │ import assert from 'node:assert/strict';
+      │ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    2 │ import {readFileSync,writeFileSync,appendFileSync} from 'node:fs';
+    3 │ import path from 'node:path';
+  
+  i Safe fix: Organize Imports (Biome)
+  
+     1  1 │   import assert from 'node:assert/strict';
+     2    │ - import·{readFileSync,writeFileSync,appendFileSync}·from·'node:fs';
+        2 │ + import·{appendFileSync,·readFileSync,writeFileSync}·from·'node:fs';
+     3  3 │   import path from 'node:path';
+     4  4 │   import {pathToFileURL} from 'node:url';
+        5 │ + 
+     5  6 │   const root=path.resolve(process.argv[2]),out=path.resolve(process.argv[3]);
+     6  7 │   const mod=await import(pathToFileURL(path.join(root,'instrumented.mjs')));
+  
+
+docs/design/causal-cost-investigation/comparison-proof/verification.json format ━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+    1 1 │   {
+    2   │ - ··"passed":·true,
+    3   │ - ··"countsMatchRaw":·true,
+    4   │ - ··"rawLabelsNotTrusted":·true,
+    5   │ - ··"originalFailureRetained":·true,
+    6   │ - ··"remainingInstancePassed":·true,
+    7   │ - ··"performanceSamples":·0
+      2 │ + → "passed":·true,
+      3 │ + → "countsMatchRaw":·true,
+      4 │ + → "rawLabelsNotTrusted":·true,
+      5 │ + → "originalFailureRetained":·true,
+      6 │ + → "remainingInstancePassed":·true,
+      7 │ + → "performanceSamples":·0
+    8 8 │   }
+    9 9 │   
+  
+
+docs/design/causal-cost-investigation/implementation-preparation/binding.json format ━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   {
+     2    │ - ··"inputs":·{
+     3    │ - ····"B.mjs":·"fa3bf99da87b5e321b74ffb064b7a87944b0ac3bb5eac517c86bac35af49ede7",
+     4    │ - ····"P2-inputs.json":·"44f1165557fc1444540731a73846233ce3d71da7a0af3a3d4fa2137e249c2079"
+     5    │ - ··},
+     6    │ - ··"nodeExecutable":·"/Users/davidchenallio/.local/share/mise/installs/node/24/bin/node",
+     7    │ - ··"nodeSha256":·"ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+     8    │ - ··"maxInstances":·1,
+     9    │ - ··"timeoutSeconds":·30,
+    10    │ - ··"performanceSamples":·0,
+    11    │ - ··"retry":·0
+        2 │ + → "inputs":·{
+        3 │ + → → "B.mjs":·"fa3bf99da87b5e321b74ffb064b7a87944b0ac3bb5eac517c86bac35af49ede7",
+        4 │ + → → "P2-inputs.json":·"44f1165557fc1444540731a73846233ce3d71da7a0af3a3d4fa2137e249c2079"
+        5 │ + → },
+        6 │ + → "nodeExecutable":·"/Users/davidchenallio/.local/share/mise/installs/node/24/bin/node",
+        7 │ + → "nodeSha256":·"ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+        8 │ + → "maxInstances":·1,
+        9 │ + → "timeoutSeconds":·30,
+       10 │ + → "performanceSamples":·0,
+       11 │ + → "retry":·0
+    12 12 │   }
+    13 13 │   
+  
+
+docs/design/causal-cost-investigation/implementation-preparation/preservation.json format ━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   {
+     2    │ - ··"passed":·true,
+     3    │ - ··"rootHashes":·{
+     4    │ - ····"decisions/decisions.jsonl":·"b1c78cb3d6a0915a37728181a4003bac8f615c1cfd220add1a7982997b48c831",
+     5    │ - ····"plan/backlog.jsonl":·"89a6d9e0a7607db2bac8f7cfdfeeebdaea7f5faed820a8f659d647cdea4d9505",
+     6    │ - ····"sessions/active/SESSION-blueprint-stacked-pr-ownership.md":·"74d4b1311f8b5631b1c3ae77857797f75541b31f92603f47efab953fb800115c",
+     7    │ - ····"sessions/sessions.jsonl":·"d3c318c66a5c0e54294d91f1f5dc776d89c47a69f01b09a7dea06ed33902791c",
+     8    │ - ····"sessions/archive/SESSION-b139-causal-flagship-brief-v1.md":·"1477c42a39903ea89c523c97ee82c7eb1c0e320f88c88738325e043c6d44dc8a",
+     9    │ - ····"sessions/archive/b139-causal-flagship-brief-v1.json":·"c406a58efb7ec9c24ef01c11b987405345b330edd045c915c2afef8d945a7fe7"
+    10    │ - ··},
+    11    │ - ··"libraryExamplesGeneratedRunnerUnchanged":·true,
+    12    │ - ··"priorAttemptArchiveAndReceiptUnchanged":·true,
+    13    │ - ··"baseline":·"1b5bd4db"
+        2 │ + → "passed":·true,
+        3 │ + → "rootHashes":·{
+        4 │ + → → "decisions/decisions.jsonl":·"b1c78cb3d6a0915a37728181a4003bac8f615c1cfd220add1a7982997b48c831",
+        5 │ + → → "plan/backlog.jsonl":·"89a6d9e0a7607db2bac8f7cfdfeeebdaea7f5faed820a8f659d647cdea4d9505",
+        6 │ + → → "sessions/active/SESSION-blueprint-stacked-pr-ownership.md":·"74d4b1311f8b5631b1c3ae77857797f75541b31f92603f47efab953fb800115c",
+        7 │ + → → "sessions/sessions.jsonl":·"d3c318c66a5c0e54294d91f1f5dc776d89c47a69f01b09a7dea06ed33902791c",
+        8 │ + → → "sessions/archive/SESSION-b139-causal-flagship-brief-v1.md":·"1477c42a39903ea89c523c97ee82c7eb1c0e320f88c88738325e043c6d44dc8a",
+        9 │ + → → "sessions/archive/b139-causal-flagship-brief-v1.json":·"c406a58efb7ec9c24ef01c11b987405345b330edd045c915c2afef8d945a7fe7"
+       10 │ + → },
+       11 │ + → "libraryExamplesGeneratedRunnerUnchanged":·true,
+       12 │ + → "priorAttemptArchiveAndReceiptUnchanged":·true,
+       13 │ + → "baseline":·"1b5bd4db"
+    14 14 │   }
+    15 15 │   
+  
+
+docs/design/causal-cost-investigation/implementation/checks.json format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   [
+     2    │ - ··{
+     3    │ - ····"name":·"comparison",
+     4    │ - ····"command":·[
+     5    │ - ······"node",
+     6    │ - ······"scripts/test-causal-currentness-comparison.mjs"
+     7    │ - ····],
+     8    │ - ····"exitCode":·0,
+     9    │ - ····"seconds":·0.21
+    10    │ - ··},
+    11    │ - ··{
+    12    │ - ····"name":·"qualification",
+    13    │ - ····"command":·[
+    14    │ - ······"node",
+    15    │ - ······"scripts/qualify-causal-occurrence.mjs",
+    16    │ - ······"--output",
+    17    │ - ······"docs/design/causal-cost-investigation/implementation/qualification.json"
+    18    │ - ····],
+    19    │ - ····"exitCode":·0,
+    20    │ - ····"seconds":·84.93
+    21    │ - ··},
+    22    │ - ··{
+    23    │ - ····"name":·"tests",
+    24    │ - ····"command":·[
+    25    │ - ······"pnpm",
+    26    │ - ······"test"
+    27    │ - ····],
+    28    │ - ····"exitCode":·1,
+    29    │ - ····"seconds":·86.28
+    30    │ - ··}
+        2 │ + → {
+        3 │ + → → "name":·"comparison",
+        4 │ + → → "command":·["node",·"scripts/test-causal-currentness-comparison.mjs"],
+        5 │ + → → "exitCode":·0,
+        6 │ + → → "seconds":·0.21
+        7 │ + → },
+        8 │ + → {
+        9 │ + → → "name":·"qualification",
+       10 │ + → → "command":·[
+       11 │ + → → → "node",
+       12 │ + → → → "scripts/qualify-causal-occurrence.mjs",
+       13 │ + → → → "--output",
+       14 │ + → → → "docs/design/causal-cost-investigation/implementation/qualification.json"
+       15 │ + → → ],
+       16 │ + → → "exitCode":·0,
+       17 │ + → → "seconds":·84.93
+       18 │ + → },
+       19 │ + → {
+       20 │ + → → "name":·"tests",
+       21 │ + → → "command":·["pnpm",·"test"],
+       22 │ + → → "exitCode":·1,
+       23 │ + → → "seconds":·86.28
+       24 │ + → }
+    31 25 │   ]
+    32 26 │   
+  
+
+docs/design/causal-cost-investigation/implementation/preservation.json format ━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   {
+     2    │ - ··"rootHashes":·{
+     3    │ - ····"decisions/decisions.jsonl":·"b1c78cb3d6a0915a37728181a4003bac8f615c1cfd220add1a7982997b48c831",
+     4    │ - ····"plan/backlog.jsonl":·"89a6d9e0a7607db2bac8f7cfdfeeebdaea7f5faed820a8f659d647cdea4d9505",
+     5    │ - ····"sessions/active/SESSION-blueprint-stacked-pr-ownership.md":·"74d4b1311f8b5631b1c3ae77857797f75541b31f92603f47efab953fb800115c",
+     6    │ - ····"sessions/sessions.jsonl":·"d3c318c66a5c0e54294d91f1f5dc776d89c47a69f01b09a7dea06ed33902791c",
+     7    │ - ····"sessions/archive/SESSION-b139-causal-flagship-brief-v1.md":·"1477c42a39903ea89c523c97ee82c7eb1c0e320f88c88738325e043c6d44dc8a",
+     8    │ - ····"sessions/archive/b139-causal-flagship-brief-v1.json":·"c406a58efb7ec9c24ef01c11b987405345b330edd045c915c2afef8d945a7fe7"
+     9    │ - ··},
+    10    │ - ··"rootUncommittedFilesUnchanged":·true,
+    11    │ - ··"historicalEvidenceUnchanged":·true
+        2 │ + → "rootHashes":·{
+        3 │ + → → "decisions/decisions.jsonl":·"b1c78cb3d6a0915a37728181a4003bac8f615c1cfd220add1a7982997b48c831",
+        4 │ + → → "plan/backlog.jsonl":·"89a6d9e0a7607db2bac8f7cfdfeeebdaea7f5faed820a8f659d647cdea4d9505",
+        5 │ + → → "sessions/active/SESSION-blueprint-stacked-pr-ownership.md":·"74d4b1311f8b5631b1c3ae77857797f75541b31f92603f47efab953fb800115c",
+        6 │ + → → "sessions/sessions.jsonl":·"d3c318c66a5c0e54294d91f1f5dc776d89c47a69f01b09a7dea06ed33902791c",
+        7 │ + → → "sessions/archive/SESSION-b139-causal-flagship-brief-v1.md":·"1477c42a39903ea89c523c97ee82c7eb1c0e320f88c88738325e043c6d44dc8a",
+        8 │ + → → "sessions/archive/b139-causal-flagship-brief-v1.json":·"c406a58efb7ec9c24ef01c11b987405345b330edd045c915c2afef8d945a7fe7"
+        9 │ + → },
+       10 │ + → "rootUncommittedFilesUnchanged":·true,
+       11 │ + → "historicalEvidenceUnchanged":·true
+    12 12 │   }
+    13 13 │   
+  
+
+The number of diagnostics exceeds the limit allowed. Use --max-diagnostics to increase it.
+Diagnostics not shown: 72.
+Checked 1018 files in 1028ms. No fixes applied.
+Found 67 errors.
+Found 1 warning.
+Found 24 infos.
+check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+
+[ELIFECYCLE] Command failed with exit code 1.

@@ -1,0 +1,61 @@
+[
+	{
+		"name": "comparison",
+		"command": ["node", "scripts/test-causal-currentness-comparison.mjs"],
+		"exitCode": 0,
+		"seconds": 0.21
+	},
+	{
+		"name": "qualification",
+		"command": [
+			"node",
+			"scripts/qualify-causal-occurrence.mjs",
+			"--output",
+			"docs/design/causal-cost-investigation/implementation/qualification.json"
+		],
+		"exitCode": 0,
+		"seconds": 84.93
+	},
+	{
+		"name": "tests",
+		"command": ["pnpm", "test"],
+		"exitCode": 1,
+		"seconds": 86.28
+	},
+	{
+		"name": "lint",
+		"command": ["pnpm", "run", "lint"],
+		"exitCode": 1,
+		"seconds": 2.43
+	},
+	{
+		"name": "typecheck",
+		"command": ["pnpm", "run", "lint:typecheck"],
+		"exitCode": 1,
+		"seconds": 4.81
+	},
+	{
+		"name": "test-typecheck",
+		"command": ["pnpm", "--filter", "@graphrefly/ts", "test:typecheck"],
+		"exitCode": 0,
+		"seconds": 4.03
+	},
+	{
+		"name": "build",
+		"command": ["pnpm", "run", "build"],
+		"exitCode": 0,
+		"seconds": 36.46
+	},
+	{
+		"name": "artifacts",
+		"command": ["pnpm", "run", "eval:root:artifacts:check"],
+		"exitCode": 1,
+		"seconds": 0.87
+	},
+	{
+		"name": "root-soak",
+		"command": ["pnpm", "run", "test:root-eval-soak"],
+		"exitCode": 0,
+		"seconds": 1069.77
+	}
+]

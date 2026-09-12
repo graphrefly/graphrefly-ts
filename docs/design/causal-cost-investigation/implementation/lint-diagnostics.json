@@ -1,0 +1,342 @@
+[
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/baseline-receipt.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/caller-attribution.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/candidate-review/partition.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/candidate-review/preservation.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/candidate-review/receipt.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/comparison-proof/corrected-counts.json"
+	},
+	{
+		"category": "assist/source/organizeImports",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/comparison-proof/count.mjs"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/comparison-proof/count.mjs"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/comparison-proof/exit.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/comparison-proof/instrumentation.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/comparison-proof/preservation.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/comparison-proof/receipt.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/comparison-proof/remaining-exit.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/comparison-proof/remaining-result.json"
+	},
+	{
+		"category": "assist/source/organizeImports",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/comparison-proof/remaining.mjs"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/comparison-proof/remaining.mjs"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/comparison-proof/verification.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/implementation-preparation/binding.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/implementation-preparation/preservation.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/implementation-preparation/probe.mjs"
+	},
+	{
+		"category": "assist/source/organizeImports",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/implementation-preparation/probe.mjs"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/implementation-preparation/receipt.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/implementation-preparation/result.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/implementation-preparation/source-hashes.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/implementation/checks.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/implementation/final-static-checks.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/implementation/qualification-final.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/implementation/qualification.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/preservation.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-cost-investigation/source-check.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-allocation-v1/binding.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-allocation-v1/preservation.json"
+	},
+	{
+		"category": "assist/source/organizeImports",
+		"severity": "error",
+		"path": "docs/design/causal-release-allocation-v1/probe.mjs"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-allocation-v1/probe.mjs"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-allocation-v1/receipt.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-allocation-v1/result.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-allocation-v1/summary.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-boundaries-v1-implementation/analysis.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-boundaries-v1-implementation/independent-verification.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-boundaries-v1-implementation/portable-self-verification.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-boundaries-v1-implementation/portable-verification.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-boundaries-v1-implementation/preservation-after.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-boundaries-v1-implementation/receipt.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-boundaries-v1-implementation/segment-arithmetic-verification.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-comparison-build-v2/archive-verification.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-comparison-build-v2/preservation.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-comparison-build-v2/receipt.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-comparison-build-v2/retained-guard-verification.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-comparison-build-v2/source-verification.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-cost-comparison-v2/approval.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-cost-comparison-v2/prefix-only-rejection.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-cost-comparison-v2/preservation.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-cost-comparison-v2/qualification.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-cost-comparison-v2/receipt.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-cost-comparison-v2/summary.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-cost-comparison-v2/terminal-verification.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-memory-v1/exit.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-memory-v1/preservation.json"
+	},
+	{
+		"category": "assist/source/organizeImports",
+		"severity": "error",
+		"path": "docs/design/causal-release-memory-v1/probe.mjs"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-memory-v1/probe.mjs"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-memory-v1/receipt.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-memory-v1/summary.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-preflight-v1/archive-verification.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-preflight-v1/preservation.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-preflight-v1/receipt.json"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-preflight-v1/run.mjs"
+	},
+	{
+		"category": "assist/source/organizeImports",
+		"severity": "error",
+		"path": "docs/design/causal-release-preflight-v1/run.mjs"
+	},
+	{
+		"category": "format",
+		"severity": "error",
+		"path": "docs/design/causal-release-preflight-v1/verification.json"
+	}
+]

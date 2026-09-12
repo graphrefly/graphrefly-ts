@@ -1,0 +1,22 @@
+[
+	{
+		"name": "comparison-final",
+		"command": ["node", "scripts/test-causal-currentness-comparison.mjs"],
+		"exitCode": 0
+	},
+	{
+		"name": "typecheck-final",
+		"command": ["pnpm", "run", "lint:typecheck"],
+		"exitCode": 0
+	},
+	{
+		"name": "no-raw-async",
+		"command": ["pnpm", "run", "lint:no-raw-async"],
+		"exitCode": 0
+	},
+	{
+		"name": "test-typecheck-final",
+		"command": ["pnpm", "--filter", "@graphrefly/ts", "test:typecheck"],
+		"exitCode": 0
+	}
+]

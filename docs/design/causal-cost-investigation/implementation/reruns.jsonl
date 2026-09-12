@@ -1,0 +1,3 @@
+{"name": "qualification-final", "command": ["node", "scripts/qualify-causal-occurrence.mjs", "--output", "docs/design/causal-cost-investigation/implementation/qualification-final.json"], "exitCode": 0}
+{"name": "tests-final", "command": ["pnpm", "test"], "exitCode": 1}
+{"name": "browser-smoke", "command": ["pnpm", "--filter", "@graphrefly/ts", "test:browser:agentic-memory"], "exitCode": 0}

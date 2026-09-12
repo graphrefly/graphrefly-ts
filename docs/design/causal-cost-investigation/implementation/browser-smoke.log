@@ -1,0 +1,24 @@
+$ node ../../scripts/run-agentic-memory-indexeddb-smoke.mjs
+agentic-memory IndexedDB browser smoke passed
+{
+  "ok": true,
+  "cases": [
+    "append-read-diagnostics",
+    "duplicate-conflict",
+    "uncertain-read-resolution-required"
+  ],
+  "diagnostics": {
+    "appendCursor": {
+      "kind": "agentic-memory-fact-stream.cursor",
+      "position": 2
+    },
+    "backendCursorKind": "agentic-memory-committed-fact-log-backend.cursor",
+    "statusCapabilities": [
+      "single-writer:true",
+      "whole-batch-visibility:true",
+      "browser-transaction-attempt:true",
+      "multi-writer-correctness:false",
+      "fsync-guarantee:false"
+    ]
+  }
+}

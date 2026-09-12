@@ -1,0 +1,4 @@
+{
+	"packages/ts/src/solutions/causal-occurrence/identity.ts": "sha256:03ddd0e0ab80a31252f117bff1ddc5a4558f125c9301f87dee3dcecd6bd55b06",
+	"scripts/test-causal-currentness-comparison.mjs": "sha256:cd1edde35dcff305143770015b4b9069b6d29ba240379c7bc044140f13640cdc"
+}
