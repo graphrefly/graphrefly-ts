@@ -12,8 +12,8 @@
   相同 reference 的方法控制和记录方式实验是不同问题，不能互相替代。
 - **已结束的方向：** EAGER/DEFERRED 记录实验结果 mixed，未达到预先约定的一致改善规则。
   不追加轮次、不采用延后记录、不宣称 library 回归或全局变慢。
-- **下一项：** 先准备可审阅的时间归因工具设计，区分特定慢构造窗口中的函数执行、GC
-  与仍未知的时间。现有日志只给出整进程线索，尚不支持第二项 library 优化。
+- **下一项：** [时间归因设计](aligned-runtime-design.md)已成稿；先审阅并准备时钟来源与
+  无consumer探针资格。现有日志只给出整进程线索，尚不支持第二项library优化或新capture。
 
 所有此前真实 capture 授权均已消费。当前继续覆盖只读分析、总表更新和下一项准备；
 不授权新采样、provider/live/spend、公共 API、wave protocol 或新的语义锁。
@@ -39,6 +39,9 @@
 或优化降低RSS的结论。用户若优先问这一指标，须独立设计同运行时空基线与存活图数量对照。
 
 ## 下一项的完成条件
+
+[时间归因设计稿](aligned-runtime-design.md)限定三个条件与拟议12进程/28,800样本，
+但时钟源码关系和0.1ms对齐精度尚未资格。设计完成不等于工具或真实采集已获授权。
 
 [保留日志审计](retained-runtime-audit/README.md#next-investigation-boundary)给出具体证据要求。
 进入新capture前，设计必须能把构造窗口、GC与CPU采样放到有误差界的时间轴，并通过

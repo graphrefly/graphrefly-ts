@@ -1,0 +1,29 @@
+{
+  "designOnly": true,
+  "consumerExecutions": 0,
+  "probesExecuted": 0,
+  "processes": 12,
+  "samples": 28800,
+  "warmup": 7200,
+  "measured": 21600,
+  "measuredBlocks": 72,
+  "preflightCalls": 24,
+  "untimedInstances": 72,
+  "cpuProfileProcesses": 4,
+  "syntheticIntervalExample": {
+    "offsetIntervalMs": [
+      -995.009,
+      -994.97
+    ],
+    "mappedPointMs": [
+      9.990999999999985,
+      10.029999999999973
+    ],
+    "windowMs": [
+      10,
+      10.02
+    ],
+    "classification": "ambiguous",
+    "notRuntimeEvidence": true
+  }
+}
