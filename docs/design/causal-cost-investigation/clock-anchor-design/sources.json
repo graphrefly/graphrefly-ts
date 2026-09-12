@@ -1,0 +1,20 @@
+[
+  {
+    "path": "lib/internal/process/per_thread.js",
+    "file": "per_thread.js",
+    "url": "https://raw.githubusercontent.com/nodejs/node/v24.18.0/lib/internal/process/per_thread.js",
+    "sha256": "f3bca509ca9ae6be403fcbc0133c45760c6cc76f21f890c8f494f2934efc9e7b"
+  },
+  {
+    "path": "src/node_process-inl.h",
+    "file": "node_process-inl.h",
+    "url": "https://raw.githubusercontent.com/nodejs/node/v24.18.0/src/node_process-inl.h",
+    "sha256": "22ad1b25a496672fa61429c06cb6848c25d50c5c81618e20ea8b83c35d0e5987"
+  },
+  {
+    "path": "src/node_process.h",
+    "file": "node_process.h",
+    "url": "https://raw.githubusercontent.com/nodejs/node/v24.18.0/src/node_process.h",
+    "sha256": "92d60126064d1f132ec7179d957a7baee2aa4cb5d47cf8f4505a2ec29c0308d6"
+  }
+]

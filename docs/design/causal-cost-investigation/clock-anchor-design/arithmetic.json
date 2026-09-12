@@ -1,0 +1,9 @@
+{
+  "designArithmetic": true,
+  "runtimeExecutions": 0,
+  "exactResidues": 3000,
+  "envelopeCases": 54000,
+  "exampleWidthMs": 0.05416766666666667,
+  "exampleIsNotMeasurement": true,
+  "quantizationWidthMs": 0.042625
+}

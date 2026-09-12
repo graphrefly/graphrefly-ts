@@ -16,6 +16,8 @@
   对齐区间0.903669ms，超过0.1ms；其余三个探针停止，consumer执行零。当前启停区间
   方法不够精确，尚不支持第二项library优化或新capture。
 
+[最新设计](clock-anchor-design/README.md)不改registry C或library公开层级；只替代私有计时锚定。
+
 所有此前真实 capture 授权均已消费。当前继续覆盖只读分析、总表更新和下一项准备；
 不授权新采样、provider/live/spend、公共 API、wave protocol 或新的语义锁。
 
@@ -45,7 +47,8 @@
 
 [时间归因设计稿](aligned-runtime-design.md)限定三个条件与拟议12进程/28,800样本，
 时钟来源已核对，但首个准备探针精度未通过，后续采集准备已停止。
-下一项先做不执行的替代时间锚定设计；没有更窄误差证明就保持窗口归因unknown。
+[替代时间锚定设计](clock-anchor-design/README.md)已成稿：推荐首尾hrtime短锚点＋父Mach区间，
+纯算术核对通过，尚无运行时精度资格。待审阅后才能准备，不自动开始探针或consumer。
 
 [保留日志审计](retained-runtime-audit/README.md#next-investigation-boundary)给出具体证据要求。
 进入新capture前，设计必须能把构造窗口、GC与CPU采样放到有误差界的时间轴，并通过
