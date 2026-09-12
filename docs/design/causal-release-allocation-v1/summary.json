@@ -1,0 +1,152 @@
+{
+  "sampledAllocationBytes": 2236653304,
+  "stages": {
+    "outside": 216144,
+    "constructionStage": 58298528,
+    "inputStage": 1341496664,
+    "duplicateStage": 792006032,
+    "snapshotStage": 4799760,
+    "cleanupStage": 33965120,
+    "validationStage": 5871056
+  },
+  "topFunctions": [
+    {
+      "function": "sort",
+      "url": "",
+      "line": 0,
+      "bytes": 541983032
+    },
+    {
+      "function": "sortedJsonValue",
+      "url": "file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/tmpp3v1idd4/B.mjs",
+      "line": 35,
+      "bytes": 480156464,
+      "sourceSection": "packages/ts/src/json/codec.ts"
+    },
+    {
+      "function": "getOwnPropertyDescriptor",
+      "url": "",
+      "line": 0,
+      "bytes": 311747048
+    },
+    {
+      "function": "getOwnPropertyNames",
+      "url": "",
+      "line": 0,
+      "bytes": 122448496
+    },
+    {
+      "function": "visit",
+      "url": "file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/tmpp3v1idd4/B.mjs",
+      "line": 5967,
+      "bytes": 120005344,
+      "sourceSection": "examples/spending-alerts/causal-publication.ts"
+    },
+    {
+      "function": "dataKey",
+      "url": "file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/tmpp3v1idd4/B.mjs",
+      "line": 4212,
+      "bytes": 91707216,
+      "sourceSection": "packages/ts/src/solutions/causal-occurrence/identity.ts"
+    },
+    {
+      "function": "next",
+      "url": "",
+      "line": 0,
+      "bytes": 57348520
+    },
+    {
+      "function": "keys",
+      "url": "",
+      "line": 0,
+      "bytes": 47940776
+    },
+    {
+      "function": "join",
+      "url": "",
+      "line": 0,
+      "bytes": 45434368
+    },
+    {
+      "function": "sha256",
+      "url": "file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/tmpp3v1idd4/B.mjs",
+      "line": 4284,
+      "bytes": 30613368,
+      "sourceSection": "packages/ts/src/solutions/causal-occurrence/identity.ts"
+    },
+    {
+      "function": "Set",
+      "url": "",
+      "line": 0,
+      "bytes": 28137352
+    },
+    {
+      "function": "string",
+      "url": "file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/tmpp3v1idd4/B.mjs",
+      "line": 5962,
+      "bytes": 26635272,
+      "sourceSection": "examples/spending-alerts/causal-publication.ts"
+    },
+    {
+      "function": "push",
+      "url": "",
+      "line": 0,
+      "bytes": 25537648
+    },
+    {
+      "function": "add",
+      "url": "",
+      "line": 0,
+      "bytes": 23791912
+    },
+    {
+      "function": "sameRef",
+      "url": "file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/tmpp3v1idd4/B.mjs",
+      "line": 4406,
+      "bytes": 22779888,
+      "sourceSection": "packages/ts/src/solutions/causal-occurrence/identity.ts"
+    },
+    {
+      "function": "delete",
+      "url": "",
+      "line": 0,
+      "bytes": 19413368
+    },
+    {
+      "function": "nodeDown",
+      "url": "file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/tmpp3v1idd4/B.mjs",
+      "line": 1701,
+      "bytes": 17064680,
+      "sourceSection": "packages/ts/src/node/node-output-runtime.ts"
+    },
+    {
+      "function": "filter",
+      "url": "",
+      "line": 0,
+      "bytes": 13785688
+    },
+    {
+      "function": "nodeUp",
+      "url": "file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/tmpp3v1idd4/B.mjs",
+      "line": 1845,
+      "bytes": 13726120,
+      "sourceSection": "packages/ts/src/node/node-output-runtime.ts"
+    },
+    {
+      "function": "values",
+      "url": "",
+      "line": 0,
+      "bytes": 12569352
+    }
+  ],
+  "performanceSamples": 0,
+  "stagePercent": {
+    "outside": 0.01,
+    "constructionStage": 2.61,
+    "inputStage": 59.98,
+    "duplicateStage": 35.41,
+    "snapshotStage": 0.21,
+    "cleanupStage": 1.52,
+    "validationStage": 0.26
+  }
+}

@@ -1,0 +1,5 @@
+# User clarification: explainable execution is not yet cost attribution
+
+The user asks why understanding GraphReFly profiling requires so many rounds if the graph is supposed to make execution understandable. Granularity is only part of the answer. Current graph identity/topology and dispatcher execution timing do not automatically connect allocation stacks, retained objects and RSS to a stable node identity and causal occurrence. This batch provides function/stage allocation attribution, not that product capability.
+
+The investigation should have separated allocation, retention and RSS capacity earlier and planned a cohesive bounded diagnostic, instead of requiring repeated user continuation. This is a workflow shortcoming as well as an observability gap. No new profiler implementation, public API or design decision is authorized by recording this clarification. Future design must make the missing connection reviewable while budgeting observer overhead and avoiding new ordinary-user concepts.

@@ -1,0 +1,12 @@
+{
+  "files": {
+    "B.mjs": "fa3bf99da87b5e321b74ffb064b7a87944b0ac3bb5eac517c86bac35af49ede7",
+    "B-copy.mjs": "fa3bf99da87b5e321b74ffb064b7a87944b0ac3bb5eac517c86bac35af49ede7",
+    "P2-inputs.json": "44f1165557fc1444540731a73846233ce3d71da7a0af3a3d4fa2137e249c2079"
+  },
+  "nodeDigest": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+  "maxCycles": 100,
+  "timeoutSeconds": 30,
+  "rssCheckpointBytes": 268435456,
+  "retries": 0
+}

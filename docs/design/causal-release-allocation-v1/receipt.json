@@ -1,0 +1,17 @@
+{
+  "ownerWork": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "status": "allocation-diagnostic-complete",
+  "performanceSamples": 0,
+  "artifacts": {
+    "docs/design/causal-release-allocation-v1/README.md": "0fdf7efe20a1d9c9169fbceb6cf893ea6794bed34f6bff9e175ec7c8ab81b351",
+    "docs/design/causal-release-allocation-v1/binding.json": "df0e5be44cb32afa52f4913ab37079c2d7f1ad32ca3f111d286712966863ea51",
+    "docs/design/causal-release-allocation-v1/memory.jsonl": "742a3a2d9027d175114b4f9584251a05ba2a533e8affae7e8b14437e0db1c7ad",
+    "docs/design/causal-release-allocation-v1/preservation.json": "2943862df5316f13815fdefdfd1feb8ec525feb3e38f09cc665b6250ef27dc84",
+    "docs/design/causal-release-allocation-v1/probe.mjs": "6ad65a9b2ef37f5b6a2803cfd9713026d79de1a38dff8a679346ad4624b24928",
+    "docs/design/causal-release-allocation-v1/profile.json": "3b8af23641c2166ccf924331aba1683d6efbc631e2a024442b73c2e5bc9824c1",
+    "docs/design/causal-release-allocation-v1/result.json": "6f4b09b74d492d680eccdcfcee4216443ff8db5c60ef9488ec957475e7b9576f",
+    "docs/design/causal-release-allocation-v1/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "docs/design/causal-release-allocation-v1/stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "docs/design/causal-release-allocation-v1/summary.json": "f3ee808e36e2442d47941275313cab3030b338946b6b8610dda48913c406c877"
+  }
+}
