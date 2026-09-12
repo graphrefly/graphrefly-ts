@@ -1,0 +1,15 @@
+{
+	"ownerWork": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"userRequest": "好的，继续，直到这个性能对比能够复核",
+	"sourceCommit": "f7ea7a5281550060620c2e671d12d06885a07fd2",
+	"scope": "One currentness before/after descriptive timing/RSS comparison, frozen before dispatch, archive/replay/report/commit. No library change, formal acceptance, provider or spend.",
+	"planSha256": "ff0eea33863472e42f32c8225efdc883837747b871e74df16bb6a549f2a0d5bd",
+	"budgets": {
+		"children": 48,
+		"samples": 6720,
+		"rssBytes": 268435456,
+		"childSeconds": 30,
+		"seconds": 900,
+		"retries": 0
+	}
+}

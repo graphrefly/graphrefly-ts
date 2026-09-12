@@ -1,0 +1,9 @@
+{
+	"passed": true,
+	"retainedChildVerified": true,
+	"rejected": [
+		"encoding",
+		"extra"
+	],
+	"newConsumerExecutions": 0
+}

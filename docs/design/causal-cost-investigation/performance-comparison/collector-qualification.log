@@ -1,0 +1,2 @@
+CAPTURE_DONE {"completed": 0, "failure": "synthetic pre-spawn wake timeout"}
+COLLECTOR_QUALIFIED pre-spawn failure replay passed; consumer executions=0

@@ -1,0 +1,23 @@
+{
+	"passed": true,
+	"consumerExecutions": 0,
+	"qualification": {
+		"collector-qualification.log": "9e0312ca6ded6a635bed95e7c3d358ebfc4559dccd57d72d2407c0aea5252d3c",
+		"driver-qualification.log": "2008adf70967962b6b263f23d5f51a4fef50b8d3543905f919e04d0fab0d8c1c",
+		"reused-boundary-qualification.log": "545d73997482bcb58881005318a0b7b1816ff7e8bd9571a344686a310da6119d",
+		"verifier-qualification.log": "1a70b80a5e8cf5735ff5d6e6b766db76f390be6ca1b910842e889fcc085d7caa"
+	},
+	"toolBindings": {
+		"collect.py": "0b2d0da19d439f4bcb2e6bfdea356b8db3acdf5f0231177daee3d653e5fd026e",
+		"test_verify.py": "9069ce701177e168d5ca8b95c74b87672707c2e3da5b0b40bcc6fef512c24f6c",
+		"child.mjs": "f69cb07212bd570d91fc97b79c03d052495fd5b56e3dacef13229354629c5549",
+		"replay.py": "431033c980cffac7888d54e6550b65d2a6cd51ebd69db9b949fc12f9ff0020e1",
+		"build.mjs": "990eedadc2a2a24014e87a07c385249bd6a50e20457c3868273992a4ba809a2f",
+		"test_driver.mjs": "44c141d7c63fec7d68bd26e952ea621f844b316957f710b70cdd2e66eafa4035",
+		"verify.py": "3470af236f7336a3c2edf15ffe312a98813e4c54852496d3814e55d10e31e90d",
+		"test_collector.py": "43f84f949612730dbde281ef5610b1a7e27f66cee760a4d24457834d83179f5d",
+		"driver.mjs": "3f7668683ee4e7f3bf919879707bac9960148ce068a15b2dc6bd0fcde18f9d0a",
+		"prepare.py": "095c84ce5d732c957b24f1d3c889e8c5faa3fb264477f0e20d124e67b3e2a594"
+	},
+	"review": "8d1d4ae8ebf8740958bfca8849702a5db4c5e9c69ad17d38b5234a115bda62c5"
+}
