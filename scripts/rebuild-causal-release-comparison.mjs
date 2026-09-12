@@ -58,6 +58,15 @@ for (const label of ["B", "C"]) {
 			},
 		],
 	});
+	assert.equal(
+		(result.outputFiles[0].text.match(/\bperformance\.now\(\)/g) ?? []).length,
+		2,
+		"only retained recorder clocks",
+	);
+	assert.ok(
+		!/\bperformance\s*\[|\[\s*["']performance["']\s*\]/.test(result.outputFiles[0].text),
+		"computed performance access",
+	);
 	output[label] = hash(result.outputFiles[0].contents);
 	assert.equal(
 		output[label],

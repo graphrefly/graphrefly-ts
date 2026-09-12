@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { build, version } from "esbuild";
+import { build, transformSync, version } from "esbuild";
 import ts from "typescript";
 
 const esbuildEntry = createRequire(import.meta.url).resolve("esbuild");
@@ -97,9 +97,13 @@ for (const [label, commit] of Object.entries(commits)) {
 		],
 	});
 	const bundle = result.outputFiles[0].text;
-	assert.ok(!bundle.includes("performance.now()"), "original timed worker must be tree-shaken");
+	// Keep the rejected artifact inspectable too; never execute it here.
 	put(path.join(root, `${label}.mjs`), bundle);
 	json(path.join(root, `${label}-metafile.json`), result.metafile);
+	verifyUninstrumented(
+		bundle,
+		readFileSync(path.join(root, "sources", label, "packages/ts/src/dispatcher/index.ts"), "utf8"),
+	);
 	all[label] = { commit, closure, bundleDigest: hash(bundle) };
 }
 const keys = Object.keys(all.B.closure).sort();
@@ -134,3 +138,55 @@ console.log(
 		typescript: ts.version,
 	}),
 );
+
+/** Match the retained, default-off recorder exactly; no other performance clock site is allowed. */
+function verifyUninstrumented(bundle, dispatcherSource) {
+	const parse = (text) =>
+		ts.createSourceFile("clock-check.js", text, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+	const printer = ts.createPrinter({ removeComments: true });
+	const methods = (ast) => {
+		const found = [];
+		function visit(node) {
+			if (
+				ts.isMethodDeclaration(node) &&
+				node.name.getText(ast) === "invoke" &&
+				node.body?.getText(ast).includes("this._recording")
+			)
+				found.push(node);
+			ts.forEachChild(node, visit);
+		}
+		visit(ast);
+		return found;
+	};
+	assert.ok(dispatcherSource.includes("private _recording = false;"), "recorder default");
+	const frozen = parse(transformSync(dispatcherSource, { loader: "ts", target: "node24" }).code);
+	const actual = parse(bundle),
+		expected = methods(frozen),
+		retained = methods(actual);
+	assert.equal(expected.length, 1);
+	assert.equal(retained.length, 1);
+	const print = (node, ast) => printer.printNode(ts.EmitHint.Unspecified, node, ast);
+	assert.equal(
+		print(retained[0], actual),
+		print(expected[0], frozen),
+		"fixed recorder invoke differs",
+	);
+	const sites = [];
+	function visit(node) {
+		if (
+			(ts.isIdentifier(node) && /^performance(?:_?\d+)?$/.test(node.text)) ||
+			(ts.isStringLiteral(node) &&
+				node.text === "performance" &&
+				ts.isElementAccessExpression(node.parent))
+		)
+			sites.push(node);
+		ts.forEachChild(node, visit);
+	}
+	visit(actual);
+	assert.equal(sites.length, 2, "unexpected internal clock sites");
+	for (const site of sites)
+		assert.ok(
+			site.pos >= retained[0].pos && site.end <= retained[0].end,
+			"clock outside fixed recorder",
+		);
+}

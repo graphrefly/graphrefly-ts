@@ -1,5 +1,5 @@
 """Independent archive/prefix verification and arithmetic; imports no collector code."""
-import hashlib,json,math,pathlib,statistics,sys,subprocess
+import hashlib,json,math,pathlib,statistics,sys,subprocess,re
 ROWS=['P2-lifecycle','inactive-60','active-diamond-5','inactive-2','inactive-1']
 COMMITS={'B':'2f19cc0d79937bee0faa462cc9f2cf5209b62111','C':'907eec8138cddce9f8ff0e74d9f19d60db8c5b96'}
 INPUT='44f1165557fc1444540731a73846233ce3d71da7a0af3a3d4fa2137e249c2079'
@@ -87,7 +87,9 @@ def admission(root):
     actual=text.encode();require(actual==(root/'loaded'/arm/file).read_bytes(),'allowlisted transform')
    require(sha(actual)==entry['loadedSha256'],'loaded bytes')
    loaded[arm][file]=raw
-  require('performance.now()' not in (root/f'{arm}.mjs').read_text(),'internal action clock')
+  require(len(re.findall(r'\bperformance\.now\(\)', (root/f'{arm}.mjs').read_text()))==2,'only frozen recorder clock sites')
+  require(not re.search(r'''\bperformance\s*\[|\[\s*["']performance["']\s*\]''', (root/f'{arm}.mjs').read_text()),'computed performance access')
+  require(b'private _recording = false;' in loaded[arm]['packages/ts/src/dispatcher/index.ts'],'recorder default off')
  require(set(loaded['B'])==set(loaded['C']),'closure sets')
  differences=[k for k in sorted(loaded['B']) if loaded['B'][k]!=loaded['C'][k]]
  require(differences==['packages/ts/src/graph/graph.ts'],'sole runtime difference')

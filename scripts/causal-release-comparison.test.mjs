@@ -539,3 +539,97 @@ console.log(
 		performanceSamples: 0,
 	}),
 );
+
+// Loaded guard regression: retained default-off recorder is not measurement instrumentation.
+const clockBuilder = readFileSync(
+	new URL("./build-causal-release-comparison.mjs", import.meta.url),
+	"utf8",
+);
+const clockAst = ts.createSourceFile(
+	"builder.mjs",
+	clockBuilder,
+	ts.ScriptTarget.Latest,
+	true,
+	ts.ScriptKind.JS,
+);
+const clockFunction = clockAst.statements.find(
+	(n) => ts.isFunctionDeclaration(n) && n.name?.text === "verifyUninstrumented",
+);
+assert.ok(clockFunction);
+const verifyClocks = new Function(
+	"assert",
+	"ts",
+	"transformSync",
+	`${clockFunction.getText(clockAst)};return verifyUninstrumented;`,
+)(assert, ts, transformSync);
+const dispatcherSource = readFileSync(
+	new URL("../packages/ts/src/dispatcher/index.ts", import.meta.url),
+	"utf8",
+);
+const dispatcherJS = transformSync(dispatcherSource, { loader: "ts", target: "node24" }).code;
+verifyClocks(dispatcherJS, dispatcherSource);
+for (const mutation of [
+	dispatcherJS + "\nperformance.now();",
+	dispatcherJS.replace("if (!this._recording)", "if (this._recording)"),
+	dispatcherJS.replace("const t0 = performance.now();", "const t0 = 0;"),
+	dispatcherJS + "\nconst clockAlias = performance.now;",
+	dispatcherJS + "\nglobalThis.performance.now();",
+	dispatcherJS + '\nperformance["now"]();',
+	dispatcherJS + '\nglobalThis["performance"].now();',
+])
+	assert.throws(() => verifyClocks(mutation, dispatcherSource));
+// Execute only the actual invoke method on a countable host, not a Graph/consumer instance.
+const dispatcherAst = ts.createSourceFile(
+	"dispatcher.js",
+	dispatcherJS,
+	ts.ScriptTarget.Latest,
+	true,
+	ts.ScriptKind.JS,
+);
+let invokeMethod;
+function locateInvoke(n) {
+	if (
+		ts.isMethodDeclaration(n) &&
+		n.name.getText(dispatcherAst) === "invoke" &&
+		n.getText(dispatcherAst).includes("_recording")
+	)
+		invokeMethod = n.getText(dispatcherAst);
+	ts.forEachChild(n, locateInvoke);
+}
+locateInvoke(dispatcherAst);
+assert.ok(invokeMethod);
+let clockReads = 0,
+	poolCalls = 0;
+const invoke = new Function(
+	"performance",
+	"dispatcherHandleStatKey",
+	`return ({${invokeMethod}}).invoke;`,
+)({ now: () => ++clockReads }, () => "fake");
+const host = {
+	_recording: false,
+	pools: [
+		{
+			invoke() {
+				poolCalls++;
+			},
+		},
+	],
+	_totalInvokes: 0,
+	_stats: new Map(),
+};
+invoke.call(host, { poolId: 0, handleId: 0 }, {});
+assert.equal(clockReads, 0);
+assert.equal(poolCalls, 1);
+host._recording = true;
+invoke.call(host, { poolId: 0, handleId: 0 }, {});
+assert.equal(clockReads, 2);
+assert.equal(poolCalls, 2);
+console.log(
+	JSON.stringify({
+		passed: true,
+		clockGuardMutants: 7,
+		recorderOffClockReads: 0,
+		recorderOnClockReads: 2,
+		realConsumerFactories: 0,
+	}),
+);
