@@ -1,0 +1,8 @@
+{
+  "filesVerified": 89,
+  "archiveSha256": "954909a94020a4a1c967a6e4f9165b40a21c7b3e0da622f53911c6c670ace2b2",
+  "portableSyntheticReplayExit": 0,
+  "stdout": "",
+  "stderr": ".\n----------------------------------------------------------------------\nRan 1 test in 0.396s\n\nOK\n",
+  "realConsumerExecutions": 0
+}

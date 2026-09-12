@@ -1,0 +1,10 @@
+{
+  "exitCode": 0,
+  "stdout": "{\"passed\":true,\"toolOnly\":true,\"consumerInstances\":0,\"forcedGcCalls\":2,\"allocatedObjects\":100000,\"finiteDrainTurns\":2,\"data\":{\"condition\":\"CPU_GC\",\"orientation\":\"U\",\"checkpoints\":[{\"batch\":0,\"arm\":\"candidate\",\"edge\":\"warmup\",\"wallBefore\":23.996291,\"wallAfter\":24.011583,\"user\":31773,\"system\":7205},{\"batch\":0,\"arm\":\"candidate\",\"edge\":\"measured\",\"wallBefore\":33.516208,\"wallAfter\":33.53825,\"user\":45815,\"system\":8837}],\"gc\":[{\"startTime\":24.734041,\"duration\":0.6892920136451721,\"receivedAt\":34.128958,\"kind\":1,\"flags\":0},{\"startTime\":26.925791,\"duration\":0.9991250038146973,\"receivedAt\":34.165041,\"kind\":1,\"flags\":0},{\"startTime\":28.723791,\"duration\":1.4110420048236847,\"receivedAt\":34.169416,\"kind\":1,\"flags\":0},{\"startTime\":30.800916,\"duration\":1.3821249902248383,\"receivedAt\":34.172708,\"kind\":4,\"flags\":4},{\"startTime\":32.189083,\"duration\":1.3205000162124634,\"receivedAt\":34.176166,\"kind\":4,\"flags\":4}],\"disconnectAt\":34.22675,\"observerInstalled\":true}}\n",
+  "stderr": "",
+  "command": [
+    "node",
+    "--expose-gc",
+    "scripts/probe-causal-workload-observer.mjs"
+  ]
+}

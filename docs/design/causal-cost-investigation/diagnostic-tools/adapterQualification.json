@@ -1,0 +1,11 @@
+{
+  "exitCode": 1,
+  "stdout": "",
+  "stderr": "file:///Users/davidchenallio/src/graphrefly-ts/scripts/qualify-causal-workload-adapters.mjs:22\n} catch(error){primary=error} finally {const errors=primary?[primary]:[];for(const run of runs)try{run.cleanup()}catch(error){errors.push(error)}if(errors.length)throw new AggregateError(errors,'qualification cleanup')}\n                                                                                                                                                                        ^\n\nAggregateError: qualification cleanup\n    at file:///Users/davidchenallio/src/graphrefly-ts/scripts/qualify-causal-workload-adapters.mjs:22:169 {\n  [errors]: [\n    AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n    + actual - expected\n    \n      [\n    +   '\"{\\\\\"evaluatedThroughRevision\\\\\":1,\\\\\"lifecycle\\\\\":false,\\\\\"retainedEvidence\\\\\":false,\\\\\"revisionDomain\\\\\":\\\\\"profile-P2-0\\\\\"}\"'\n    -   '{\"evaluatedThroughRevision\":1,\"lifecycle\":false,\"retainedEvidence\":false,\"revisionDomain\":\"profile-P2-0\"}'\n      ]\n    \n        at file:///Users/davidchenallio/src/graphrefly-ts/scripts/qualify-causal-workload-adapters.mjs:20:317 {\n      generatedMessage: true,\n      code: 'ERR_ASSERTION',\n      actual: [\n        '\"{\\\\\"evaluatedThroughRevision\\\\\":1,\\\\\"lifecycle\\\\\":false,\\\\\"retainedEvidence\\\\\":false,\\\\\"revisionDomain\\\\\":\\\\\"profile-P2-0\\\\\"}\"'\n      ],\n      expected: [\n        '{\"evaluatedThroughRevision\":1,\"lifecycle\":false,\"retainedEvidence\":false,\"revisionDomain\":\"profile-P2-0\"}'\n      ],\n      operator: 'deepStrictEqual',\n      diff: 'simple'\n    }\n  ]\n}\n\nNode.js v24.18.0\n",
+  "command": [
+    "node",
+    "scripts/qualify-causal-workload-adapters.mjs",
+    "/tmp/causal-workload-tools/prepared",
+    "/tmp/causal-workload-tools/P2-inputs.json"
+  ]
+}

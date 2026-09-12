@@ -1,0 +1,24 @@
+{
+  "toolProbe": {
+    "command": [
+      "node",
+      "--expose-gc",
+      "scripts/probe-causal-workload-observer.mjs"
+    ],
+    "timeoutSeconds": 5,
+    "forcedGcCalls": 2,
+    "allocatedObjects": 100000,
+    "consumerInstances": 0
+  },
+  "adapterQualification": {
+    "command": [
+      "node",
+      "scripts/qualify-causal-workload-adapters.mjs",
+      "/tmp/causal-workload-tools/prepared",
+      "/tmp/causal-workload-tools/P2-inputs.json"
+    ],
+    "timeoutSeconds": 30,
+    "expectedInstances": 9,
+    "performanceSamples": 0
+  }
+}
