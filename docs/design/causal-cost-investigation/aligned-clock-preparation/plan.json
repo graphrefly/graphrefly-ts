@@ -1,0 +1,88 @@
+{
+  "kind": "single-use-clock-preparation-v1",
+  "owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "authorization": "User continuation of 8ae1cffd preparation; no consumer capture",
+  "jobs": [
+    "CPU",
+    "CPU",
+    "CPU",
+    "GC"
+  ],
+  "consumerExecutions": 0,
+  "node": "/Users/davidchenallio/.local/share/mise/installs/node/24.18.0/bin/node",
+  "nodeSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+  "platform": {
+    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "kernel": "25.6.0",
+    "architecture": "arm64",
+    "timebase": {
+      "numer": 125,
+      "denom": 3
+    },
+    "node": "/Users/davidchenallio/.local/share/mise/installs/node/24.18.0/bin/node",
+    "nodeSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+    "nodeMetadata": {
+      "version": "v24.18.0",
+      "platform": "darwin",
+      "arch": "arm64",
+      "versions": {
+        "node": "24.18.0",
+        "acorn": "8.16.0",
+        "ada": "3.4.4",
+        "amaro": "1.1.9",
+        "ares": "1.34.6",
+        "brotli": "1.2.0",
+        "cldr": "48.0",
+        "icu": "78.3",
+        "llhttp": "9.4.2",
+        "merve": "1.2.2",
+        "modules": "137",
+        "napi": "10",
+        "nbytes": "0.1.4",
+        "ncrypto": "0.0.1",
+        "nghttp2": "1.69.0",
+        "nghttp3": "",
+        "ngtcp2": "",
+        "openssl": "3.5.7",
+        "simdjson": "4.6.4",
+        "simdutf": "6.4.0",
+        "sqlite": "3.53.1",
+        "tz": "2026b",
+        "undici": "7.28.0",
+        "unicode": "17.0",
+        "uv": "1.52.1",
+        "uvwasi": "0.0.23",
+        "v8": "13.6.233.17-node.50",
+        "zlib": "1.3.1-e00f703",
+        "zstd": "1.5.7"
+      }
+    }
+  },
+  "explicitEnvironment": {
+    "PATH": "/usr/bin:/bin",
+    "TMPDIR": "/tmp",
+    "LANG": "en_US.UTF-8",
+    "__CF_USER_TEXT_ENCODING": "0x1F5:0x0:0x0"
+  },
+  "files": {
+    "docs/design/causal-cost-investigation/aligned-clock-preparation/apple-header.json": "343b8cf31a0346cac81f642fbcacc7976179a2bdbe289d14c5425e0ab329e1e8",
+    "docs/design/causal-cost-investigation/aligned-clock-preparation/sources.json": "8272cecca29de803981b50804506f154da0552a094dcbc760e2f138aa3fdf31a",
+    "docs/design/causal-cost-investigation/aligned-clock-preparation/source-proof.md": "2242b39216401f75cfc074b1ae0ea9720c52e6a5198c3c51387388280970214c",
+    "docs/design/causal-cost-investigation/aligned-clock-preparation/mach_time.h": "d690e304ea595ca216ed51e20aa9747e0b3bcb07446d996abe0080a231c7065f",
+    "docs/design/causal-cost-investigation/aligned-clock-preparation/platform.json": "3ed38004d5d372d63d07fa1975126d110ab10b14177a8bc1af668ed4c6e049b5",
+    "docs/design/causal-cost-investigation/aligned-clock-preparation/source/src/node_perf.cc": "28b804242177230b93b5817cdcf703a4e43f6a69c2414b3fa049ab5ff4619296",
+    "docs/design/causal-cost-investigation/aligned-clock-preparation/source/src/node_process_methods.cc": "6f2d27513a933dd3d076c0ffe2f95a1846ba1d1060f7ccfbc6eb2df6692a34eb",
+    "docs/design/causal-cost-investigation/aligned-clock-preparation/source/deps/uv/uv.gyp": "5dc464a84a8fb3dc3798325869db22ab3cd0d8815bb463580d182323929a7dec",
+    "docs/design/causal-cost-investigation/aligned-clock-preparation/source/deps/uv/src/unix/darwin.c": "d3ffb6997fa61127feaa67ee2b9d0fda2796e58c0b1094a066bc017e648867cb",
+    "docs/design/causal-cost-investigation/aligned-clock-preparation/source/deps/uv/src/unix/core.c": "18bfd5f2045417f8ace5d76e222bf7441b31ead5fc2cbaf6225965e0afea8767",
+    "docs/design/causal-cost-investigation/aligned-clock-preparation/source/deps/v8/src/inspector/v8-profiler-agent-impl.cc": "95c96243eec1180e3dab1d2dd44a05e9d30c93ca7ad8de460cfa05240b1862c1",
+    "docs/design/causal-cost-investigation/aligned-clock-preparation/source/deps/v8/src/profiler/profile-generator.cc": "dded53c2404f78c87f769f21758fb23f373dca0b829a1da2c4b2a3297fd90336",
+    "docs/design/causal-cost-investigation/aligned-clock-preparation/source/deps/v8/src/base/platform/time.cc": "177cf687e799f6b9c6f7c5aa53fe673604a5e1a6563122aca5abaad5ac04c275",
+    "scripts/probe-causal-aligned-clock.mjs": "7b2bb9554107638554f63491cc4d3d4ca2a08c0df85282281475a0f36c05b96a",
+    "scripts/verify-causal-aligned-clock.py": "2864f7fbf5e1486ea0059da40fbd35149bb888fc9aedf9459272f19beb36b3d4",
+    "scripts/run-causal-clock-probes.py": "6dd9f02513bfbc27d1846b10b9001bfc4182e1edbd107fa746b591976a926314",
+    "scripts/causal-aligned-clock.test.py": "2fffe26ef89f5863d68aac3f2135306c43a2a7c07a0e0cd1a37f51780474dbdd",
+    "scripts/causal-workload-supervisor.py": "bb97969330a5dab44f33b9d005d56260957ed8b0f8cabed15f53116fd40f96ce",
+    "docs/design/causal-cost-investigation/aligned-runtime-design.md": "fc93bf3bf0e1dff34b5179af5c260019ef698a02c6babe0f7de4a3b4ecd4857c"
+  }
+}

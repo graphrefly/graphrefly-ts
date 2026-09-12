@@ -1,0 +1,22 @@
+{
+  "kind": "bounded-clock-probe-analysis-v1",
+  "alignmentQualified": false,
+  "offsetIntervalMs": [
+    -239752192.46225113,
+    -239752191.55858183
+  ],
+  "widthMs": 0.9036692976951599,
+  "epsilonMs": 0.04416814350382487,
+  "quantizationSpreadMs": 0.042625,
+  "sleepVariationUpperMs": 0.0015416666666666667,
+  "floatBoundMs": 4.76837158203125e-07,
+  "uvRoundingSpreadMs": 1e-06,
+  "startBracketMs": 9.408333000000002,
+  "stopBracketMs": 0.852374999999995,
+  "sampleCount": 422,
+  "knownFunctionHits": {
+    "knownArithmeticPhase": 208,
+    "knownStringPhase": 162
+  },
+  "limitation": "Known-function probe only. No consumer attribution or capture qualification. Offset envelope includes bounded clock-error variation; no fitted slope or midpoint."
+}

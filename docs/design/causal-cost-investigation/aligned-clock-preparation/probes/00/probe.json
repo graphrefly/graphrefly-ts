@@ -1,0 +1,1 @@
+{"kind":"CPU","bounds":{"startBefore":18.123917,"startAfter":27.53225,"stopBefore":177.795875,"stopAfter":178.64825},"windows":[{"name":"knownArithmeticPhase","start":27.59725,"end":102.66325},{"name":"knownStringPhase","start":102.741,"end":177.793042}],"sink":-1326749695}

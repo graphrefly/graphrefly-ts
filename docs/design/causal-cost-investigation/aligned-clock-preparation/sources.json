@@ -1,0 +1,50 @@
+[
+  {
+    "path": "src/node_perf.cc",
+    "url": "https://raw.githubusercontent.com/nodejs/node/v24.18.0/src/node_perf.cc",
+    "sha256": "28b804242177230b93b5817cdcf703a4e43f6a69c2414b3fa049ab5ff4619296",
+    "bytes": 15544
+  },
+  {
+    "path": "src/node_process_methods.cc",
+    "url": "https://raw.githubusercontent.com/nodejs/node/v24.18.0/src/node_process_methods.cc",
+    "sha256": "6f2d27513a933dd3d076c0ffe2f95a1846ba1d1060f7ccfbc6eb2df6692a34eb",
+    "bytes": 28892
+  },
+  {
+    "path": "deps/uv/uv.gyp",
+    "url": "https://raw.githubusercontent.com/nodejs/node/v24.18.0/deps/uv/uv.gyp",
+    "sha256": "5dc464a84a8fb3dc3798325869db22ab3cd0d8815bb463580d182323929a7dec",
+    "bytes": 10943
+  },
+  {
+    "path": "deps/uv/src/unix/darwin.c",
+    "url": "https://raw.githubusercontent.com/nodejs/node/v24.18.0/deps/uv/src/unix/darwin.c",
+    "sha256": "d3ffb6997fa61127feaa67ee2b9d0fda2796e58c0b1094a066bc017e648867cb",
+    "bytes": 6882
+  },
+  {
+    "path": "deps/uv/src/unix/core.c",
+    "url": "https://raw.githubusercontent.com/nodejs/node/v24.18.0/deps/uv/src/unix/core.c",
+    "sha256": "18bfd5f2045417f8ace5d76e222bf7441b31ead5fc2cbaf6225965e0afea8767",
+    "bytes": 50911
+  },
+  {
+    "path": "deps/v8/src/base/platform/time.cc",
+    "url": "https://raw.githubusercontent.com/nodejs/node/v24.18.0/deps/v8/src/base/platform/time.cc",
+    "sha256": "177cf687e799f6b9c6f7c5aa53fe673604a5e1a6563122aca5abaad5ac04c275",
+    "bytes": 31145
+  },
+  {
+    "path": "deps/v8/src/profiler/profile-generator.cc",
+    "url": "https://raw.githubusercontent.com/nodejs/node/v24.18.0/deps/v8/src/profiler/profile-generator.cc",
+    "sha256": "dded53c2404f78c87f769f21758fb23f373dca0b829a1da2c4b2a3297fd90336",
+    "bytes": 44191
+  },
+  {
+    "path": "deps/v8/src/inspector/v8-profiler-agent-impl.cc",
+    "url": "https://raw.githubusercontent.com/nodejs/node/v24.18.0/deps/v8/src/inspector/v8-profiler-agent-impl.cc",
+    "sha256": "95c96243eec1180e3dab1d2dd44a05e9d30c93ca7ad8de460cfa05240b1862c1",
+    "bytes": 19053
+  }
+]

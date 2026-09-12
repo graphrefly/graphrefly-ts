@@ -12,8 +12,9 @@
   相同 reference 的方法控制和记录方式实验是不同问题，不能互相替代。
 - **已结束的方向：** EAGER/DEFERRED 记录实验结果 mixed，未达到预先约定的一致改善规则。
   不追加轮次、不采用延后记录、不宣称 library 回归或全局变慢。
-- **下一项：** [时间归因设计](aligned-runtime-design.md)已成稿；先审阅并准备时钟来源与
-  无consumer探针资格。现有日志只给出整进程线索，尚不支持第二项library优化或新capture。
+- **本轮停止点：** [时钟准备探针](aligned-clock-preparation/README.md)首个 CPU 探针
+  对齐区间0.903669ms，超过0.1ms；其余三个探针停止，consumer执行零。当前启停区间
+  方法不够精确，尚不支持第二项library优化或新capture。
 
 所有此前真实 capture 授权均已消费。当前继续覆盖只读分析、总表更新和下一项准备；
 不授权新采样、provider/live/spend、公共 API、wave protocol 或新的语义锁。
@@ -32,7 +33,9 @@
 | 未通过：D169 cold方法资格 | 相邻 `causal-cold-position-pairs-v3-implementation` / `causal-position-pairs-retained-audit-v1` | 相同reference控制不稳定；M灵敏度面板未运行。不得删除早期样本、改门槛或直接重跑正式矩阵 |
 | 完成：固定工作量CPU/GC诊断 | [diagnostic-capture](diagnostic-capture/README.md)，`1c74c254` | 24进程/57600样本；早期进程CPU更多，不能归到构造独占成本；GC是观测子集，结果mixed/unknown |
 | 完成并结束方向：记录路径干预 | [recording-capture](recording-capture/README.md)，`4ca15c37` | 16进程/38400样本，首批p95仅10/16配对下降，规则未过；whole耗时配对中位数约-6.3%但方向混合，延后flush成本已包含 |
-| 本轮完成：保留日志审计 | [retained-runtime-audit](retained-runtime-audit/README.md) | 慢块所在进程GC主耗时日志累计80.98ms，其他51.27–67.82ms；无独有deopt位置。整进程线索不能当作窗口因果归因 |
+| 完成：保留日志审计 | [retained-runtime-audit](retained-runtime-audit/README.md) | 慢块所在进程GC主耗时日志累计80.98ms，其他51.27–67.82ms；无独有deopt位置。整进程线索不能当作窗口因果归因 |
+
+| 已停止：时间对齐准备 | [aligned-clock-preparation](aligned-clock-preparation/README.md) | 1个CPU探针，422样本；0.903669ms>0.1ms，余下3探针未运行；真实consumer零，不是library性能失败 |
 
 旧版累计分配约2.24GB/100次包含已回收对象，不等于RSS。约206–242MiB的近期RSS是
 整个Node评测进程（模块、保留样本等），不能归给一个graph。当前没有单graph增量内存
@@ -41,7 +44,8 @@
 ## 下一项的完成条件
 
 [时间归因设计稿](aligned-runtime-design.md)限定三个条件与拟议12进程/28,800样本，
-但时钟源码关系和0.1ms对齐精度尚未资格。设计完成不等于工具或真实采集已获授权。
+时钟来源已核对，但首个准备探针精度未通过，后续采集准备已停止。
+下一项先做不执行的替代时间锚定设计；没有更窄误差证明就保持窗口归因unknown。
 
 [保留日志审计](retained-runtime-audit/README.md#next-investigation-boundary)给出具体证据要求。
 进入新capture前，设计必须能把构造窗口、GC与CPU采样放到有误差界的时间轴，并通过

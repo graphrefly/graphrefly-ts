@@ -1,0 +1,48 @@
+{
+  "probesQualified": false,
+  "children": [
+    {
+      "id": 0,
+      "kind": "CPU",
+      "outcome": {
+        "pid": 96383,
+        "exitCode": 0,
+        "reason": null,
+        "observations": [
+          {
+            "elapsed": 0.1545941660006065,
+            "childElapsed": 0.00841308297822252,
+            "gap": 0.00841308297822252,
+            "rssBytes": 966656,
+            "directoryBytes": 472
+          },
+          {
+            "elapsed": 0.26231975000700913,
+            "childElapsed": 0.11613866698462516,
+            "gap": 0.10772558400640264,
+            "rssBytes": 59752448,
+            "directoryBytes": 570
+          }
+        ],
+        "endedElapsed": 0.37244654100504704
+      },
+      "qualificationFailure": "clock-interval-width"
+    }
+  ],
+  "notRun": [
+    {
+      "id": 1,
+      "kind": "CPU"
+    },
+    {
+      "id": 2,
+      "kind": "CPU"
+    },
+    {
+      "id": 3,
+      "kind": "GC"
+    }
+  ],
+  "consumerExecutions": 0,
+  "captureToolingQualified": false
+}
