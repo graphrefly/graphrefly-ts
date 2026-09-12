@@ -1,0 +1,11 @@
+{
+  "replayEqual": true,
+  "independentRawCounts": true,
+  "processLogsChecked": 16,
+  "unparsedGcLines": 0,
+  "consumerExecutions": 0,
+  "preservedPriorModifiedFiles": 22,
+  "dashboardCheckExit": 0,
+  "workspaceAuthorityCheckExit": 0,
+  "diffCheckExit": 0
+}
