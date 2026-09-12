@@ -1,0 +1,21 @@
+{
+  "ownerWork": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "status": "build-qualified-consumer-preflight-pending",
+  "artifacts": {
+    "archive/evals/causal-release-comparison-build-v2/artifact-index.json": "4fad96f55f44e97f9f9ba6fd2bf23f473cceaae6e8b55dba912768c88a8dd893",
+    "docs/design/causal-release-comparison-build-v2/README.md": "e71d93b0bf1667029e03b7cf5b9a1a76b064633e8b3cd37afa2c336238089384",
+    "docs/design/causal-release-comparison-build-v2/archive-verification.json": "3814d9bec11d4420066998ebd763c09aaa7a618cbb343dbac541d56a89085c8e",
+    "docs/design/causal-release-comparison-build-v2/js-qualification.log": "545d73997482bcb58881005318a0b7b1816ff7e8bd9571a344686a310da6119d",
+    "docs/design/causal-release-comparison-build-v2/preservation.json": "0abccaeef6c0f01360b2998016d23127e9671c65e5b3004d532fddaf52026c04",
+    "docs/design/causal-release-comparison-build-v2/python-qualification.log": "c81b021e3489c68400c147e78ef683c35edfbf7c16657b0af68c39b3059bd87c",
+    "docs/design/causal-release-comparison-build-v2/retained-guard-verification.json": "3313626aa07507227608ee565e0e0ca444dd05413ae4b584e1a0ec6bafccc545",
+    "docs/design/causal-release-comparison-build-v2/source-verification.json": "fc13cf70222af86c223b7938c97489160db53d267b7ffde4945c14ff84eb8eae",
+    "scripts/build-causal-release-comparison.mjs": "3a8797f6d4ef82b4521a2ed4771013b1d4ba5d085327ba75ef480e1d0ee4a4ac",
+    "scripts/causal-release-comparison.test.mjs": "a3c23c38ab5cf9adc6f804e3efd98c33a52f877bf7c0ba48d72d8edcbfa85132"
+  },
+  "consumerFactories": 0,
+  "performanceSamples": 0,
+  "offlineBuildInvocations": 3,
+  "independentRebuilds": 1,
+  "formalPerformanceQualified": false
+}

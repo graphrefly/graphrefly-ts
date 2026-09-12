@@ -1,0 +1,10 @@
+{
+  "passed": true,
+  "builderDigest": "3a8797f6d4ef82b4521a2ed4771013b1d4ba5d085327ba75ef480e1d0ee4a4ac",
+  "bundles": {
+    "B": "fa3bf99da87b5e321b74ffb064b7a87944b0ac3bb5eac517c86bac35af49ede7",
+    "C": "d12fcd71312805d946cd9e13f952bcb9bf0d14fa9dc353ccb3be2c772d07016f"
+  },
+  "consumerFactories": 0,
+  "newSamples": 0
+}

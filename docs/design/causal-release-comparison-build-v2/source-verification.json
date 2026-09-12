@@ -1,0 +1,19 @@
+{
+  "passed": true,
+  "counts": {
+    "B": {
+      "closure": 62,
+      "gitSourceFiles": 60
+    },
+    "C": {
+      "closure": 62,
+      "gitSourceFiles": 60
+    }
+  },
+  "onlySourceDifference": [
+    "packages/ts/src/graph/graph.ts"
+  ],
+  "outsideReleaseNodesIdentical": true,
+  "loadedTransformExact": true,
+  "BcopyIdentical": true
+}

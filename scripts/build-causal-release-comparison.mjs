@@ -165,16 +165,32 @@ function verifyUninstrumented(bundle, dispatcherSource) {
 		retained = methods(actual);
 	assert.equal(expected.length, 1);
 	assert.equal(retained.length, 1);
-	const print = (node, ast) => printer.printNode(ts.EmitHint.Unspecified, node, ast);
+	// esbuild may alpha-rename locals during bundling (e.g. key -> key2).
+	// Recompile only this isolated method with identifier minification; free names/properties remain.
+	const print = (node, ast) =>
+		transformSync(`class __Recorder { ${printer.printNode(ts.EmitHint.Unspecified, node, ast)} }`, {
+			loader: "js",
+			target: "node24",
+			minifyIdentifiers: true,
+		}).code;
 	assert.equal(
 		print(retained[0], actual),
 		print(expected[0], frozen),
 		"fixed recorder invoke differs",
 	);
 	const sites = [];
+	const importedClocks = new Set();
+	function imports(node) {
+		if (ts.isImportSpecifier(node) && (node.propertyName?.text ?? node.name.text) === "performance")
+			importedClocks.add(node.name.text);
+		ts.forEachChild(node, imports);
+	}
+	imports(actual);
 	function visit(node) {
 		if (
-			(ts.isIdentifier(node) && /^performance(?:_?\d+)?$/.test(node.text)) ||
+			(ts.isIdentifier(node) &&
+				(/^performance(?:_?\d+)?$/.test(node.text) || importedClocks.has(node.text)) &&
+				!ts.isImportSpecifier(node.parent)) ||
 			(ts.isStringLiteral(node) &&
 				node.text === "performance" &&
 				ts.isElementAccessExpression(node.parent))

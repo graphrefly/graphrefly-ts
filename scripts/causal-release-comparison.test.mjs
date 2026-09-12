@@ -568,6 +568,44 @@ const dispatcherSource = readFileSync(
 );
 const dispatcherJS = transformSync(dispatcherSource, { loader: "ts", target: "node24" }).code;
 verifyClocks(dispatcherJS, dispatcherSource);
+const unusedClockImport = 'import { performance as performance2 } from "node:perf_hooks";\n';
+verifyClocks(unusedClockImport + dispatcherJS, dispatcherSource);
+verifyClocks(
+	'import { performance as clock } from "node:perf_hooks";\n' + dispatcherJS,
+	dispatcherSource,
+);
+assert.throws(() =>
+	verifyClocks(
+		'import { performance as clock } from "node:perf_hooks";\n' + dispatcherJS + "\nclock.now();",
+		dispatcherSource,
+	),
+);
+
+assert.throws(() =>
+	verifyClocks(unusedClockImport + dispatcherJS + "\nperformance2.now();", dispatcherSource),
+);
+assert.throws(() =>
+	verifyClocks(dispatcherJS.replaceAll("this._stats", "this._otherStats"), dispatcherSource),
+);
+
+// Genuine bundler alpha-renaming must pass, while free-name/property changes still fail.
+verifyClocks(dispatcherJS.replace(/\bkey\b/g, "key2"), dispatcherSource);
+assert.throws(() =>
+	verifyClocks(
+		dispatcherJS.replace(
+			"const key = dispatcherHandleStatKey(handle);",
+			"const key = otherHandleStatKey(handle);",
+		),
+		dispatcherSource,
+	),
+);
+assert.throws(() =>
+	verifyClocks(
+		dispatcherJS.replace("this._stats.get(key)", "this._stats.get(otherKey)"),
+		dispatcherSource,
+	),
+);
+
 for (const mutation of [
 	dispatcherJS + "\nperformance.now();",
 	dispatcherJS.replace("if (!this._recording)", "if (this._recording)"),

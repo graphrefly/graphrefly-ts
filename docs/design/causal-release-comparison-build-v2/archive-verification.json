@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "files": 288,
+  "archiveSha256": "9103b36e090500e425d45cb34d51468b34008d9449170bbcd3801ee2880421b5",
+  "offlineBuildInvocations": 3,
+  "failedBuilds": 2,
+  "successfulBuilds": 1,
+  "independentRebuilds": 1,
+  "consumerFactories": 0,
+  "performanceSamples": 0
+}

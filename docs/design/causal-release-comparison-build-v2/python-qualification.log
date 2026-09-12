@@ -1,0 +1,2 @@
+{"passed": true, "newPerformanceSamples": 0, "loadedNumericMutants": 4, "syntheticSamples": 2400, "rawNegatives": 12, "failedTerminalVerified": true, "positionMedians": [0.5, 2]}
+{"passed": true, "collectorFakeProcessGroupTimeout": true, "collectorLiveRSSFailureStops": true, "newProcesses": 0}
