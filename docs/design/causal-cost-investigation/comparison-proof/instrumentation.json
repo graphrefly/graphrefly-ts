@@ -1,0 +1,12 @@
+{
+  "inputHashes": {
+    "B.mjs": "fa3bf99da87b5e321b74ffb064b7a87944b0ac3bb5eac517c86bac35af49ede7",
+    "P2-inputs.json": "44f1165557fc1444540731a73846233ce3d71da7a0af3a3d4fa2137e249c2079"
+  },
+  "instrumentedSha256": "5a1c99fecb7bf9ca8837842bc606bc9a7887416bd8727fc508242d9c183a065b",
+  "comparisonSites": 2,
+  "semanticChange": "none; both original dataKey calls and comparison retained, extra counters only",
+  "maxTotalInstances": 12,
+  "timeoutSeconds": 30,
+  "retries": 0
+}

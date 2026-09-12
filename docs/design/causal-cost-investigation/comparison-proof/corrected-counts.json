@@ -1,0 +1,119 @@
+{
+  "sourceOfTruth": "instrumentation.patch: second replacement is recomputeCurrentness; first is retainPending, not currentness",
+  "rawLabelsPreserved": true,
+  "quiescenceCountMeasured": false,
+  "sameOccurrenceIdentityMeasured": false,
+  "rows": [
+    {
+      "phase": "construct",
+      "transitions": 0,
+      "arrivalLanes": {},
+      "currentnessComparisons": 0,
+      "equalComparisons": 0,
+      "canonicalStringCodeUnits": 0
+    },
+    {
+      "phase": "initial-pack",
+      "transitions": 0,
+      "arrivalLanes": {},
+      "currentnessComparisons": 0,
+      "equalComparisons": 0,
+      "canonicalStringCodeUnits": 0
+    },
+    {
+      "phase": "initial-current",
+      "transitions": 1,
+      "arrivalLanes": {
+        "watermarks": 1
+      },
+      "currentnessComparisons": 0,
+      "equalComparisons": 0,
+      "canonicalStringCodeUnits": 0
+    },
+    {
+      "phase": "initial-local",
+      "transitions": 1,
+      "arrivalLanes": {},
+      "currentnessComparisons": 0,
+      "equalComparisons": 0,
+      "canonicalStringCodeUnits": 0
+    },
+    {
+      "phase": "initial-inbox",
+      "transitions": 1,
+      "arrivalLanes": {},
+      "currentnessComparisons": 0,
+      "equalComparisons": 0,
+      "canonicalStringCodeUnits": 0
+    },
+    {
+      "phase": "initial-verification",
+      "transitions": 1,
+      "arrivalLanes": {},
+      "currentnessComparisons": 0,
+      "equalComparisons": 0,
+      "canonicalStringCodeUnits": 0
+    },
+    {
+      "phase": "initial-arrivals",
+      "transitions": 6,
+      "arrivalLanes": {
+        "occurrences": 1,
+        "admissions": 1,
+        "branch-terminals": 1,
+        "effect-proposals": 1,
+        "effect-admissions": 1,
+        "evidence": 1
+      },
+      "currentnessComparisons": 11,
+      "equalComparisons": 10,
+      "canonicalStringCodeUnits": 196981
+    },
+    {
+      "phase": "same-object-duplicate",
+      "transitions": 5,
+      "arrivalLanes": {
+        "occurrences": 1,
+        "admissions": 1,
+        "branch-terminals": 1,
+        "effect-proposals": 1,
+        "evidence": 1
+      },
+      "currentnessComparisons": 10,
+      "equalComparisons": 10,
+      "canonicalStringCodeUnits": 179060
+    },
+    {
+      "phase": "equal-clone-duplicate",
+      "transitions": 5,
+      "arrivalLanes": {
+        "occurrences": 1,
+        "admissions": 1,
+        "branch-terminals": 1,
+        "effect-proposals": 1,
+        "evidence": 1
+      },
+      "currentnessComparisons": 10,
+      "equalComparisons": 10,
+      "canonicalStringCodeUnits": 179060
+    },
+    {
+      "phase": "local-stop-change",
+      "transitions": 1,
+      "arrivalLanes": {},
+      "currentnessComparisons": 2,
+      "equalComparisons": 2,
+      "canonicalStringCodeUnits": 35812
+    },
+    {
+      "phase": "cleanup",
+      "transitions": 0,
+      "arrivalLanes": {},
+      "currentnessComparisons": 0,
+      "equalComparisons": 0,
+      "canonicalStringCodeUnits": 0
+    }
+  ],
+  "counterUnit": "both original canonical string lengths summed in JS UTF-16 code units, not bytes or allocated memory",
+  "performanceSamples": 0
+}

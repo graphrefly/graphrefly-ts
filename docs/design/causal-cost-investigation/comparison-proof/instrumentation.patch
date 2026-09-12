@@ -1,0 +1,38 @@
+--- B.mjs
++++ instrumented.mjs
+@@ -4417,7 +4417,7 @@
+ var retainPending = (opts, outputs, map3, key2, value2, label) => {
+   const prior = map3.get(key2);
+   if (prior !== void 0) {
+-    if (dataKey(prior) !== dataKey(value2))
++    if (__compare(prior, value2, "currentness"))
+       pushIssue(
+         outputs,
+         issue(
+@@ -4561,7 +4561,7 @@
+     const key2 = refKey(occurrence5);
+     const prior = state.currentness.get(key2);
+     state.currentness.set(key2, value2);
+-    if (prior === void 0 || dataKey(prior) !== dataKey(value2))
++    if (prior === void 0 || __compare(prior, value2, "quiescence"))
+       outputs.push({ kind: "currentness", value: value2 });
+     maybeRelease(context, occurrence5);
+   }
+@@ -5324,6 +5324,7 @@
+   };
+ }
+ function transitionCausalAuthority(prior, arrivals, opts) {
++__stats.transitions++;for(const a of arrivals)__stats.arrivals[a.lane]=(__stats.arrivals[a.lane]??0)+1;
+   const state = cloneState(prior);
+   const outputs = [];
+   const emitIssue = (value2) => pushIssue(outputs, value2);
+@@ -10239,3 +10240,9 @@
+   preflights,
+   validate
+ };
++
++let __stats;
++export function __reset(){__stats={transitions:0,arrivals:{},currentness:{count:0,equal:0,chars:0,sameOccurrence:0,payloadPresent:0},quiescence:{count:0,equal:0,chars:0}};}
++export function __take(){const s=__stats;__reset();return s;}
++function __compare(a,b,label){const left=dataKey(a),right=dataKey(b),m=__stats[label];m.count++;m.equal+=left===right?1:0;m.chars+=left.length+right.length;if(label==='currentness'){m.sameOccurrence+=a.occurrence===b.occurrence?1:0;m.payloadPresent+=Object.hasOwn(b.occurrence,'value')?1:0;}return left!==right;}
++__reset();

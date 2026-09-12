@@ -1,0 +1,364 @@
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected "actual" not to be strictly deep-equal to:
+
+{
+  effects: [
+    {
+      admission: {
+        admissionRef: {
+          id: 'sha256:4672c8f52d621b733c46019568739eb79f0bb41c2eaa03d1dd4fc26335840011',
+          kind: 'spending-admission'
+        },
+        effectId: 'alert:evaluation-coffee-0',
+        occurrence: {
+          digest: 'sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd',
+          occurrenceId: 'evaluation-coffee-0',
+          revision: 1,
+          revisionDomain: 'profile-P2-0',
+          sourceRefs: [
+            {
+              id: 'evaluation-coffee-0',
+              kind: 'evaluation'
+            }
+          ]
+        },
+        proposalDigest: 'sha256:3adcb386d8fe0a10547430d7da716afec0b64fbe5979d7ef1a86b45f2abe5bec',
+        requestRef: {
+          id: 'sha256:bf72949c87e44bd80d64572bde5234121ef45aa96bddb3feb6959d3252981494',
+          kind: 'spending-alerts/request-material/v1'
+        },
+        state: 'admitted'
+      },
+      outcome: null,
+      proposal: {
+        effectId: 'alert:evaluation-coffee-0',
+        occurrence: {
+          digest: 'sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd',
+          occurrenceId: 'evaluation-coffee-0',
+          revision: 1,
+          revisionDomain: 'profile-P2-0',
+          sourceRefs: [
+            {
+              id: 'evaluation-coffee-0',
+              kind: 'evaluation'
+            }
+          ]
+        },
+        proposalDigest: 'sha256:3adcb386d8fe0a10547430d7da716afec0b64fbe5979d7ef1a86b45f2abe5bec',
+        requestRef: {
+          id: 'sha256:bf72949c87e44bd80d64572bde5234121ef45aa96bddb3feb6959d3252981494',
+...
+
+    at file:///Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/comparison-proof/count.mjs:26:17 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: {
+    effects: [
+      {
+        proposal: {
+          effectId: 'alert:evaluation-coffee-0',
+          occurrence: {
+            digest: 'sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd',
+            occurrenceId: 'evaluation-coffee-0',
+            revision: 1,
+            revisionDomain: 'profile-P2-0',
+            sourceRefs: [Array]
+          },
+          proposalDigest: 'sha256:3adcb386d8fe0a10547430d7da716afec0b64fbe5979d7ef1a86b45f2abe5bec',
+          requestRef: {
+            id: 'sha256:bf72949c87e44bd80d64572bde5234121ef45aa96bddb3feb6959d3252981494',
+            kind: 'spending-alerts/request-material/v1'
+          }
+        },
+        admission: {
+          admissionRef: {
+            id: 'sha256:4672c8f52d621b733c46019568739eb79f0bb41c2eaa03d1dd4fc26335840011',
+            kind: 'spending-admission'
+          },
+          effectId: 'alert:evaluation-coffee-0',
+          occurrence: {
+            digest: 'sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd',
+            occurrenceId: 'evaluation-coffee-0',
+            revision: 1,
+            revisionDomain: 'profile-P2-0',
+            sourceRefs: [Array]
+          },
+          proposalDigest: 'sha256:3adcb386d8fe0a10547430d7da716afec0b64fbe5979d7ef1a86b45f2abe5bec',
+          requestRef: {
+            id: 'sha256:bf72949c87e44bd80d64572bde5234121ef45aa96bddb3feb6959d3252981494',
+            kind: 'spending-alerts/request-material/v1'
+          },
+          state: 'admitted'
+        },
+        outcome: null
+      }
+    ],
+    evidence: [
+      '{"coverage":"included","evidenceDigest":"sha256:00a32a674f0984c6e7bec42ad45c00c818e602b48ae793fd94a1cefda99838f7","evidenceId":"evaluation-coffee-0:spending-code-binding","evidenceKind":"spending-code-binding","occurrence":{"digest":"sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd","occurrenceId":"evaluation-coffee-0","revision":1,"revisionDomain":"profile-P2-0","sourceRefs":[{"id":"evaluation-coffee-0","kind":"evaluation"}]},"refs":["preset-fixture"]}',
+      '{"coverage":"included","evidenceDigest":"sha256:b4c7cf90507cad4caa0e0f740e0c1a78df0a746a51c3d9951aaab7a896277f10","evidenceId":"evaluation-coffee-0:spending-input","evidenceKind":"spending-input","occurrence":{"digest":"sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd","occurrenceId":"evaluation-coffee-0","revision":1,"revisionDomain":"profile-P2-0","sourceRefs":[{"id":"evaluation-coffee-0","kind":"evaluation"}]},"refs":["preset-fixture"]}',
+      '{"coverage":"included","evidenceDigest":"sha256:eb6c254d377552db5771b42c7b9c70eeb152c8999a3bde99bc6b3ec8f4ec8daa","evidenceId":"sha256:d184a11c0d6592532b1c76187838a2ef95b8b9488c52a0e34e066cde69517ae3","evidenceKind":"spending-verification","occurrence":{"digest":"sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd","occurrenceId":"evaluation-coffee-0","revision":1,"revisionDomain":"profile-P2-0","sourceRefs":[{"id":"evaluation-coffee-0","kind":"evaluation"}]},"refs":["sha256:26289adb273943a30a5cce55a1266306358711f45bc7f83d72a2c77e609aa219"]}'
+    ],
+    obligations: [
+      '{"evaluatedThroughRevision":1,"lifecycle":false,"retainedEvidence":false,"revisionDomain":"profile-P2-0"}'
+    ],
+    view: {
+      startup: {
+        kind: 'graph-startup',
+        instance: 'spending',
+        epoch: 1,
+        state: 'started'
+      },
+      assessment: {
+        valid: true,
+        rows: [ { evaluation: [Object], value: [Object] } ],
+        issues: []
+      },
+      publication: {
+        kind: 'spending-alerts/publication',
+        authorityId: 'spending/causal/authority',
+        binding: {
+          contract: 'contract-v2',
+          implementationRevision: 'construction-v1',
+          scope: 'full',
+          epoch: 1
+        },
+        asOf: {
+          compositionEpoch: 1,
+          destinationRef: { id: 'no-host', kind: 'offline-inbox' },
+          hostEpoch: 1,
+          packRef: { id: 'preset', kind: 'offline-pack' },
+          runtimeDigest: 'sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a',
+          sourceDigest: 'sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a'
+        },
+        retention: [],
+        materialFrame: 'valid',
+        unmatchedMaterials: 0,
+        rows: [
+          {
+            proposal: [Object],
+            recorded: 'admitted-no-outcome',
+            material: 'matched',
+            payload: [Object]
+          }
+        ]
+      },
+      conservation: {
+        kind: 'causal-effect-conservation',
+        occurrence: {
+          digest: 'sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd',
+          occurrenceId: 'evaluation-coffee-0',
+          revision: 1,
+          revisionDomain: 'profile-P2-0',
+          sourceRefs: [ [Object] ]
+        },
+        proposed: 1,
+        pendingAdmission: 0,
+        rejected: 0,
+        admitted: 1,
+        active: 1,
+        succeeded: 0,
+        failed: 0,
+        cancelled: 0,
+        reconcileRequired: 0,
+        unknown: 0
+      },
+      coverage: {
+        kind: 'causal-evidence-coverage',
+        occurrence: {
+          digest: 'sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd',
+          occurrenceId: 'evaluation-coffee-0',
+          revision: 1,
+          revisionDomain: 'profile-P2-0',
+          sourceRefs: [ [Object] ]
+        },
+        complete: true,
+        entries: [
+          {
+            coverage: 'included',
+            evidenceDigest: 'sha256:b4c7cf90507cad4caa0e0f740e0c1a78df0a746a51c3d9951aaab7a896277f10',
+            evidenceId: 'evaluation-coffee-0:spending-input',
+            evidenceKind: 'spending-input',
+            occurrence: [Object],
+            refs: [Array]
+          },
+          {
+            coverage: 'included',
+            evidenceDigest: 'sha256:00a32a674f0984c6e7bec42ad45c00c818e602b48ae793fd94a1cefda99838f7',
+            evidenceId: 'evaluation-coffee-0:spending-code-binding',
+            evidenceKind: 'spending-code-binding',
+            occurrence: [Object],
+            refs: [Array]
+          },
+          {
+            coverage: 'included',
+            evidenceDigest: 'sha256:eb6c254d377552db5771b42c7b9c70eeb152c8999a3bde99bc6b3ec8f4ec8daa',
+            evidenceId: 'sha256:d184a11c0d6592532b1c76187838a2ef95b8b9488c52a0e34e066cde69517ae3',
+            evidenceKind: 'spending-verification',
+            occurrence: [Object],
+            refs: [Array]
+          }
+        ],
+        missingKinds: [],
+        terminalGapKinds: []
+      }
+    }
+  },
+  expected: {
+    effects: [
+      {
+        proposal: {
+          effectId: 'alert:evaluation-coffee-0',
+          occurrence: {
+            digest: 'sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd',
+            occurrenceId: 'evaluation-coffee-0',
+            revision: 1,
+            revisionDomain: 'profile-P2-0',
+            sourceRefs: [Array]
+          },
+          proposalDigest: 'sha256:3adcb386d8fe0a10547430d7da716afec0b64fbe5979d7ef1a86b45f2abe5bec',
+          requestRef: {
+            id: 'sha256:bf72949c87e44bd80d64572bde5234121ef45aa96bddb3feb6959d3252981494',
+            kind: 'spending-alerts/request-material/v1'
+          }
+        },
+        admission: {
+          admissionRef: {
+            id: 'sha256:4672c8f52d621b733c46019568739eb79f0bb41c2eaa03d1dd4fc26335840011',
+            kind: 'spending-admission'
+          },
+          effectId: 'alert:evaluation-coffee-0',
+          occurrence: {
+            digest: 'sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd',
+            occurrenceId: 'evaluation-coffee-0',
+            revision: 1,
+            revisionDomain: 'profile-P2-0',
+            sourceRefs: [Array]
+          },
+          proposalDigest: 'sha256:3adcb386d8fe0a10547430d7da716afec0b64fbe5979d7ef1a86b45f2abe5bec',
+          requestRef: {
+            id: 'sha256:bf72949c87e44bd80d64572bde5234121ef45aa96bddb3feb6959d3252981494',
+            kind: 'spending-alerts/request-material/v1'
+          },
+          state: 'admitted'
+        },
+        outcome: null
+      }
+    ],
+    evidence: [
+      '{"coverage":"included","evidenceDigest":"sha256:00a32a674f0984c6e7bec42ad45c00c818e602b48ae793fd94a1cefda99838f7","evidenceId":"evaluation-coffee-0:spending-code-binding","evidenceKind":"spending-code-binding","occurrence":{"digest":"sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd","occurrenceId":"evaluation-coffee-0","revision":1,"revisionDomain":"profile-P2-0","sourceRefs":[{"id":"evaluation-coffee-0","kind":"evaluation"}]},"refs":["preset-fixture"]}',
+      '{"coverage":"included","evidenceDigest":"sha256:b4c7cf90507cad4caa0e0f740e0c1a78df0a746a51c3d9951aaab7a896277f10","evidenceId":"evaluation-coffee-0:spending-input","evidenceKind":"spending-input","occurrence":{"digest":"sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd","occurrenceId":"evaluation-coffee-0","revision":1,"revisionDomain":"profile-P2-0","sourceRefs":[{"id":"evaluation-coffee-0","kind":"evaluation"}]},"refs":["preset-fixture"]}',
+      '{"coverage":"included","evidenceDigest":"sha256:eb6c254d377552db5771b42c7b9c70eeb152c8999a3bde99bc6b3ec8f4ec8daa","evidenceId":"sha256:d184a11c0d6592532b1c76187838a2ef95b8b9488c52a0e34e066cde69517ae3","evidenceKind":"spending-verification","occurrence":{"digest":"sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd","occurrenceId":"evaluation-coffee-0","revision":1,"revisionDomain":"profile-P2-0","sourceRefs":[{"id":"evaluation-coffee-0","kind":"evaluation"}]},"refs":["sha256:26289adb273943a30a5cce55a1266306358711f45bc7f83d72a2c77e609aa219"]}'
+    ],
+    obligations: [
+      '{"evaluatedThroughRevision":1,"lifecycle":false,"retainedEvidence":false,"revisionDomain":"profile-P2-0"}'
+    ],
+    view: {
+      startup: {
+        kind: 'graph-startup',
+        instance: 'spending',
+        epoch: 1,
+        state: 'started'
+      },
+      assessment: {
+        valid: true,
+        rows: [ { evaluation: [Object], value: [Object] } ],
+        issues: []
+      },
+      publication: {
+        kind: 'spending-alerts/publication',
+        authorityId: 'spending/causal/authority',
+        binding: {
+          contract: 'contract-v2',
+          implementationRevision: 'construction-v1',
+          scope: 'full',
+          epoch: 1
+        },
+        asOf: {
+          compositionEpoch: 1,
+          destinationRef: { id: 'no-host', kind: 'offline-inbox' },
+          hostEpoch: 1,
+          packRef: { id: 'preset', kind: 'offline-pack' },
+          runtimeDigest: 'sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a',
+          sourceDigest: 'sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a'
+        },
+        retention: [],
+        materialFrame: 'valid',
+        unmatchedMaterials: 0,
+        rows: [
+          {
+            proposal: [Object],
+            recorded: 'admitted-no-outcome',
+            material: 'matched',
+            payload: [Object]
+          }
+        ]
+      },
+      conservation: {
+        kind: 'causal-effect-conservation',
+        occurrence: {
+          digest: 'sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd',
+          occurrenceId: 'evaluation-coffee-0',
+          revision: 1,
+          revisionDomain: 'profile-P2-0',
+          sourceRefs: [ [Object] ]
+        },
+        proposed: 1,
+        pendingAdmission: 0,
+        rejected: 0,
+        admitted: 1,
+        active: 1,
+        succeeded: 0,
+        failed: 0,
+        cancelled: 0,
+        reconcileRequired: 0,
+        unknown: 0
+      },
+      coverage: {
+        kind: 'causal-evidence-coverage',
+        occurrence: {
+          digest: 'sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd',
+          occurrenceId: 'evaluation-coffee-0',
+          revision: 1,
+          revisionDomain: 'profile-P2-0',
+          sourceRefs: [ [Object] ]
+        },
+        complete: true,
+        entries: [
+          {
+            coverage: 'included',
+            evidenceDigest: 'sha256:b4c7cf90507cad4caa0e0f740e0c1a78df0a746a51c3d9951aaab7a896277f10',
+            evidenceId: 'evaluation-coffee-0:spending-input',
+            evidenceKind: 'spending-input',
+            occurrence: [Object],
+            refs: [Array]
+          },
+          {
+            coverage: 'included',
+            evidenceDigest: 'sha256:00a32a674f0984c6e7bec42ad45c00c818e602b48ae793fd94a1cefda99838f7',
+            evidenceId: 'evaluation-coffee-0:spending-code-binding',
+            evidenceKind: 'spending-code-binding',
+            occurrence: [Object],
+            refs: [Array]
+          },
+          {
+            coverage: 'included',
+            evidenceDigest: 'sha256:eb6c254d377552db5771b42c7b9c70eeb152c8999a3bde99bc6b3ec8f4ec8daa',
+            evidenceId: 'sha256:d184a11c0d6592532b1c76187838a2ef95b8b9488c52a0e34e066cde69517ae3',
+            evidenceKind: 'spending-verification',
+            occurrence: [Object],
+            refs: [Array]
+          }
+        ],
+        missingKinds: [],
+        terminalGapKinds: []
+      }
+    }
+  },
+  operator: 'notDeepStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.18.0
