@@ -1,0 +1,72 @@
+[
+  {
+    "argv": [
+      "/Users/davidchenallio/.local/share/mise/installs/node/24/bin/node",
+      "scripts/causal-recording-driver.test.mjs",
+      "archive/evals/causal-workload-diagnostic-v1/preparation/prepared/frozen-driver-source.mjs"
+    ],
+    "exitCode": 0,
+    "log": "check-0.txt"
+  },
+  {
+    "argv": [
+      "/Users/davidchenallio/.local/share/mise/installs/node/24/bin/node",
+      "scripts/causal-recording-failure.test.mjs",
+      "archive/evals/causal-workload-diagnostic-v1/preparation/prepared/frozen-driver-source.mjs"
+    ],
+    "exitCode": 0,
+    "log": "check-1.txt"
+  },
+  {
+    "argv": [
+      "/Users/davidchenallio/.local/share/mise/installs/node/24/bin/node",
+      "scripts/causal-recording-termination.test.mjs",
+      "archive/evals/causal-workload-diagnostic-v1/preparation/prepared/frozen-driver-source.mjs"
+    ],
+    "exitCode": 0,
+    "log": "check-2.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "-B",
+      "scripts/causal-recording-verifier.test.py"
+    ],
+    "exitCode": 0,
+    "log": "check-3.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "-B",
+      "scripts/causal-recording-capture.test.py"
+    ],
+    "exitCode": 0,
+    "log": "check-4.txt"
+  },
+  {
+    "argv": [
+      "python3",
+      "-B",
+      "scripts/causal-workload-supervisor.test.py"
+    ],
+    "exitCode": 0,
+    "log": "check-5.txt"
+  },
+  {
+    "argv": [
+      "pnpm",
+      "exec",
+      "biome",
+      "check",
+      "scripts/causal-recording-driver.test.mjs",
+      "scripts/causal-recording-failure.test.mjs",
+      "scripts/causal-recording-termination.test.mjs",
+      "scripts/check-causal-recording-source.mjs",
+      "scripts/derive-causal-recording-driver.mjs",
+      "scripts/prepare-causal-recording-tools.mjs"
+    ],
+    "exitCode": 0,
+    "log": "check-6.json"
+  }
+]

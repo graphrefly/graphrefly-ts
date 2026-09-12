@@ -1,0 +1,1 @@
+{"passed":true,"stubProcesses":2,"killedAtFactory":1200,"eagerPrefix":1199,"deferredPrefix":0,"consumerExecutions":0}

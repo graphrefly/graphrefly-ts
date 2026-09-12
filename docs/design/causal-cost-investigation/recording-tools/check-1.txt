@@ -1,0 +1,7 @@
+PRESET_PERFORMANCE_ROW_DONE cold-P2-summary 2400
+PRESET_PERFORMANCE_ROW_DONE cold-P2-summary 2400
+PRESET_PERFORMANCE_ROW_DONE cold-P2-summary 2400
+PRESET_PERFORMANCE_ROW_DONE cold-P2-summary 2400
+PRESET_PERFORMANCE_ROW_DONE cold-P2-summary 2400
+PRESET_PERFORMANCE_ROW_DONE cold-P2-summary 2400
+{"passed":true,"cases":42,"sourceMutationsRejected":12,"consumerExecutions":0}
