@@ -1,0 +1,31 @@
+{
+  "ownerWork": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "baseline": "073d4dc3",
+  "completed": true,
+  "classification": "mixed",
+  "formalAcceptance": false,
+  "retries": 0,
+  "processes": 16,
+  "samples": 38400,
+  "warmup": 9600,
+  "measured": 28800,
+  "preflightCalls": 32,
+  "untimedPreflightInstances": 96,
+  "evidence": {
+    "approval.txt": "1204fa93895be1ca60696747e091c3687e412138a0f19754562f567e09b180ef",
+    "approval.txt.claim.json": "32ecbcd478ad59f0172e8eb53e32fc4493d523278ef3cc0ef3f0fd29d1e0dcd4",
+    "command.json": "5dcf73c4fcd8f0c46c5b1915244a3138c332052ca1367c0264e331b5d8f51d94",
+    "capture-exit.json": "982b9e9bfb10ffe83cad665807abcfd3fa97b37822db5ab7831157a499548a9e",
+    "analysis.json": "f24098373de94cb75339a216c4d26128fff3070eb78746426e16f7da857ecc29",
+    "summary.json": "06bf63eff7e92fd8d8207c2edc1749f04da6002c648a17c58998a0c133b961c4",
+    "summarize.py": "9a5565d60be1fc2697f6584314ce8af78d0b8a94035bf89ea962d1f5992f07c3",
+    "archive-replay.json": "1c7981328738bdf100c122e49c8414d5520145275f16f80dfde706381d2463e4"
+  },
+  "qualificationSha256": "75a22a3143b848db5ba26be0f258d00f625e7edf7cdb78342704f7452e0258a3",
+  "reservationSha256": "a549a9e209ed3e5475c26ac67fc00682a163b9e89d85b010193aaa0b8e4fdb55",
+  "archive": "archive/evals/causal-recording-diagnostic-v1/evidence.tar.gz",
+  "archiveSha256": "3bd4707bf9bca230656595645296d2fad6174a3020464bb51cf8e3a8f710d07d",
+  "archiveFiles": 363,
+  "archiveBytes": 2297909,
+  "nextBoundary": "Recording-path direction ends per frozen mixed-result rule. No automatic followup capture, method adoption or production change."
+}

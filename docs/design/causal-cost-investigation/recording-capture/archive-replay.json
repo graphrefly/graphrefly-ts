@@ -1,0 +1,8 @@
+{
+  "passed": true,
+  "filesVerified": 363,
+  "exactAnalysisEquality": true,
+  "verifier": "run/assets/tools/verify-causal-recording-run.py",
+  "archiveSha256": "3bd4707bf9bca230656595645296d2fad6174a3020464bb51cf8e3a8f710d07d",
+  "consumerExecutions": 0
+}

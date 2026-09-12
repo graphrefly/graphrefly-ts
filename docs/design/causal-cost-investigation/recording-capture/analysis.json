@@ -1,0 +1,5288 @@
+{
+  "wholePairs": [
+    {
+      "round": 0,
+      "orientation": "U",
+      "eager": {
+        "elapsedLowerMs": 1365.273709,
+        "elapsedUpperMs": 1365.293,
+        "userMs": 1499.742,
+        "systemMs": 247.663
+      },
+      "deferred": {
+        "elapsedLowerMs": 1094.053208,
+        "elapsedUpperMs": 1094.070875,
+        "userMs": 1303.378,
+        "systemMs": 156.749
+      },
+      "ratios": {
+        "elapsedLowerMs": 0.8013434967566639,
+        "elapsedUpperMs": 0.8013451141989302,
+        "userMs": 0.8690681463878454,
+        "systemMs": 0.6329124657296407
+      },
+      "zeroDenominators": []
+    },
+    {
+      "round": 0,
+      "orientation": "V",
+      "eager": {
+        "elapsedLowerMs": 1297.381958,
+        "elapsedUpperMs": 1297.3989159999999,
+        "userMs": 1447.411,
+        "systemMs": 226.565
+      },
+      "deferred": {
+        "elapsedLowerMs": 1472.028333,
+        "elapsedUpperMs": 1472.045959,
+        "userMs": 1542.987,
+        "systemMs": 186.783
+      },
+      "ratios": {
+        "elapsedLowerMs": 1.1346144625513592,
+        "elapsedUpperMs": 1.13461321791331,
+        "userMs": 1.0660323847200277,
+        "systemMs": 0.8244124202767418
+      },
+      "zeroDenominators": []
+    },
+    {
+      "round": 1,
+      "orientation": "U",
+      "eager": {
+        "elapsedLowerMs": 1165.691459,
+        "elapsedUpperMs": 1165.706167,
+        "userMs": 1350.635,
+        "systemMs": 192.965
+      },
+      "deferred": {
+        "elapsedLowerMs": 1097.8273749999998,
+        "elapsedUpperMs": 1097.8477910000001,
+        "userMs": 1305.835,
+        "systemMs": 153.446
+      },
+      "ratios": {
+        "elapsedLowerMs": 0.9417821212671337,
+        "elapsedUpperMs": 0.9417877524190881,
+        "userMs": 0.9668304168039478,
+        "systemMs": 0.7952012022905708
+      },
+      "zeroDenominators": []
+    },
+    {
+      "round": 1,
+      "orientation": "V",
+      "eager": {
+        "elapsedLowerMs": 1164.463125,
+        "elapsedUpperMs": 1164.479333,
+        "userMs": 1344.891,
+        "systemMs": 189.038
+      },
+      "deferred": {
+        "elapsedLowerMs": 1101.075041,
+        "elapsedUpperMs": 1101.0967919999998,
+        "userMs": 1323.154,
+        "systemMs": 150.322
+      },
+      "ratios": {
+        "elapsedLowerMs": 0.9455645415993744,
+        "elapsedUpperMs": 0.9455700593356944,
+        "userMs": 0.9838373518746129,
+        "systemMs": 0.7951946169553211
+      },
+      "zeroDenominators": []
+    },
+    {
+      "round": 2,
+      "orientation": "U",
+      "eager": {
+        "elapsedLowerMs": 1166.314667,
+        "elapsedUpperMs": 1166.330875,
+        "userMs": 1335.219,
+        "systemMs": 186.829
+      },
+      "deferred": {
+        "elapsedLowerMs": 1088.185334,
+        "elapsedUpperMs": 1088.203459,
+        "userMs": 1309.031,
+        "systemMs": 149.378
+      },
+      "ratios": {
+        "elapsedLowerMs": 0.933011789004622,
+        "elapsedUpperMs": 0.933014363526988,
+        "userMs": 0.9803867380557046,
+        "systemMs": 0.799543968013531
+      },
+      "zeroDenominators": []
+    },
+    {
+      "round": 2,
+      "orientation": "V",
+      "eager": {
+        "elapsedLowerMs": 1175.1345000000001,
+        "elapsedUpperMs": 1175.147375,
+        "userMs": 1351.885,
+        "systemMs": 186.411
+      },
+      "deferred": {
+        "elapsedLowerMs": 1070.441667,
+        "elapsedUpperMs": 1070.4608750000002,
+        "userMs": 1281.4,
+        "systemMs": 145.275
+      },
+      "ratios": {
+        "elapsedLowerMs": 0.9109099145672261,
+        "elapsedUpperMs": 0.9109162797559754,
+        "userMs": 0.9478616894188485,
+        "systemMs": 0.7793263273090107
+      },
+      "zeroDenominators": []
+    },
+    {
+      "round": 3,
+      "orientation": "U",
+      "eager": {
+        "elapsedLowerMs": 1147.0187919999998,
+        "elapsedUpperMs": 1147.038709,
+        "userMs": 1334.24,
+        "systemMs": 178.6
+      },
+      "deferred": {
+        "elapsedLowerMs": 1079.360459,
+        "elapsedUpperMs": 1079.383041,
+        "userMs": 1281.357,
+        "systemMs": 149.836
+      },
+      "ratios": {
+        "elapsedLowerMs": 0.9410137536787628,
+        "elapsedUpperMs": 0.9410171012807556,
+        "userMs": 0.9603647020026381,
+        "systemMs": 0.8389473684210528
+      },
+      "zeroDenominators": []
+    },
+    {
+      "round": 3,
+      "orientation": "V",
+      "eager": {
+        "elapsedLowerMs": 1165.584875,
+        "elapsedUpperMs": 1165.5996249999998,
+        "userMs": 1355.727,
+        "systemMs": 179.722
+      },
+      "deferred": {
+        "elapsedLowerMs": 1070.621041,
+        "elapsedUpperMs": 1070.6420839999998,
+        "userMs": 1290.04,
+        "systemMs": 146.352
+      },
+      "ratios": {
+        "elapsedLowerMs": 0.9185268820513822,
+        "elapsedUpperMs": 0.9185333119852368,
+        "userMs": 0.951548504971871,
+        "systemMs": 0.8143243453778614
+      },
+      "zeroDenominators": []
+    }
+  ],
+  "consistentFirstBatch": false,
+  "schema": "causal-recording-run-analysis-v1",
+  "children": [
+    {
+      "id": 0,
+      "round": 0,
+      "pid": 86621,
+      "analysis": {
+        "schema": "causal-workload-child-analysis-v1",
+        "condition": "DEFERRED",
+        "orientation": "V",
+        "sampleCount": 2400,
+        "measuredBlockCount": 6,
+        "estimators": {
+          "p50": "median; average of middle two for even count",
+          "p95": "nearest rank ceil(0.95*n), one-based"
+        },
+        "scope": "Child arithmetic only; no source, process identity, cleanup, execution authorization, 24-process schedule or resource qualification. GC is a captured subset; empty is not no GC. CPU is process-wide; elapsed minus CPU is not waiting time.",
+        "blocks": [
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.46314599999999473,
+            "p95Ms": 1.243249999999989,
+            "constructionSumMs": 61.52420900000024,
+            "commonSpanMs": 100.54862500000002,
+            "otherCommonSpanMs": 39.024415999999775,
+            "checkpoint": {
+              "elapsedLowerMs": 100.97729099999998,
+              "elapsedUpperMs": 101.020083,
+              "userMs": 113.062,
+              "systemMs": 7.704
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.42275000000000773,
+            "p95Ms": 1.4142500000000382,
+            "constructionSumMs": 168.5132890000003,
+            "commonSpanMs": 278.853917,
+            "otherCommonSpanMs": 110.34062799999973,
+            "checkpoint": {
+              "elapsedLowerMs": 279.433084,
+              "elapsedUpperMs": 279.48416699999996,
+              "userMs": 307.845,
+              "systemMs": 20.564
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.43549999999999045,
+            "p95Ms": 0.9815419999999904,
+            "constructionSumMs": 52.31029599999988,
+            "commonSpanMs": 89.70166699999993,
+            "otherCommonSpanMs": 37.39137100000005,
+            "checkpoint": {
+              "elapsedLowerMs": 89.84062499999993,
+              "elapsedUpperMs": 89.87066600000003,
+              "userMs": 108.224,
+              "systemMs": 5.012
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.36477100000001883,
+            "p95Ms": 0.765041999999994,
+            "constructionSumMs": 125.59016499999905,
+            "commonSpanMs": 200.67174999999997,
+            "otherCommonSpanMs": 75.08158500000093,
+            "checkpoint": {
+              "elapsedLowerMs": 200.80216699999994,
+              "elapsedUpperMs": 200.85470800000007,
+              "userMs": 260.904,
+              "systemMs": 14.765
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.31500000000005457,
+            "p95Ms": 0.4053749999999354,
+            "constructionSumMs": 32.57171200000016,
+            "commonSpanMs": 44.78779199999997,
+            "otherCommonSpanMs": 12.216079999999806,
+            "checkpoint": {
+              "elapsedLowerMs": 44.89262499999995,
+              "elapsedUpperMs": 44.92037499999992,
+              "userMs": 50.585,
+              "systemMs": 1.95
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.28656249999994543,
+            "p95Ms": 0.35629099999994196,
+            "constructionSumMs": 87.9785269999993,
+            "commonSpanMs": 120.55587500000001,
+            "otherCommonSpanMs": 32.57734800000071,
+            "checkpoint": {
+              "elapsedLowerMs": 120.66100000000006,
+              "elapsedUpperMs": 120.70516700000007,
+              "userMs": 133.338,
+              "systemMs": 4.722
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.31502049999994597,
+            "p95Ms": 0.43058400000006714,
+            "constructionSumMs": 32.681912000000466,
+            "commonSpanMs": 44.535166000000004,
+            "otherCommonSpanMs": 11.853253999999538,
+            "checkpoint": {
+              "elapsedLowerMs": 45.25970900000016,
+              "elapsedUpperMs": 45.27412499999991,
+              "userMs": 53.027,
+              "systemMs": 2.133
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.3133330000000569,
+            "p95Ms": 0.4510840000000371,
+            "constructionSumMs": 99.99725599999988,
+            "commonSpanMs": 145.25749999999994,
+            "otherCommonSpanMs": 45.26024400000006,
+            "checkpoint": {
+              "elapsedLowerMs": 145.37929200000008,
+              "elapsedUpperMs": 145.39254099999994,
+              "userMs": 167.731,
+              "systemMs": 10.574
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3450204999999187,
+            "p95Ms": 0.4167499999998654,
+            "constructionSumMs": 34.36078399999997,
+            "commonSpanMs": 46.768542000000025,
+            "otherCommonSpanMs": 12.407758000000058,
+            "checkpoint": {
+              "elapsedLowerMs": 46.88662499999987,
+              "elapsedUpperMs": 46.89370800000006,
+              "userMs": 42.347,
+              "systemMs": 5.008
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2644585000000461,
+            "p95Ms": 0.37512500000002547,
+            "constructionSumMs": 84.04729800000155,
+            "commonSpanMs": 114.95183399999996,
+            "otherCommonSpanMs": 30.904535999998416,
+            "checkpoint": {
+              "elapsedLowerMs": 115.06995800000004,
+              "elapsedUpperMs": 115.08266700000013,
+              "userMs": 119.024,
+              "systemMs": 3.481
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2781454999999369,
+            "p95Ms": 0.41745800000012423,
+            "constructionSumMs": 31.09721400000035,
+            "commonSpanMs": 41.69337500000006,
+            "otherCommonSpanMs": 10.59616099999971,
+            "checkpoint": {
+              "elapsedLowerMs": 41.78899999999999,
+              "elapsedUpperMs": 41.79541700000004,
+              "userMs": 48.662,
+              "systemMs": 1.246
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2793749999999591,
+            "p95Ms": 0.34437499999989996,
+            "constructionSumMs": 86.25753400000212,
+            "commonSpanMs": 117.332584,
+            "otherCommonSpanMs": 31.075049999997873,
+            "checkpoint": {
+              "elapsedLowerMs": 117.42650000000003,
+              "elapsedUpperMs": 117.43779199999994,
+              "userMs": 123.29,
+              "systemMs": 2.801
+            },
+            "gc": null
+          }
+        ],
+        "whole": {
+          "elapsedLowerMs": 1472.028333,
+          "elapsedUpperMs": 1472.045959,
+          "userMs": 1542.987,
+          "systemMs": 186.783
+        },
+        "flush": {
+          "elapsedLowerMs": 123.15191600000003,
+          "elapsedUpperMs": 123.16612499999997,
+          "userMs": 14.713,
+          "systemMs": 106.738
+        }
+      }
+    },
+    {
+      "id": 1,
+      "round": 0,
+      "pid": 86675,
+      "analysis": {
+        "schema": "causal-workload-child-analysis-v1",
+        "condition": "EAGER",
+        "orientation": "U",
+        "sampleCount": 2400,
+        "measuredBlockCount": 6,
+        "estimators": {
+          "p50": "median; average of middle two for even count",
+          "p95": "nearest rank ceil(0.95*n), one-based"
+        },
+        "scope": "Child arithmetic only; no source, process identity, cleanup, execution authorization, 24-process schedule or resource qualification. GC is a captured subset; empty is not no GC. CPU is process-wide; elapsed minus CPU is not waiting time.",
+        "blocks": [
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3503544999999946,
+            "p95Ms": 0.8405830000000094,
+            "constructionSumMs": 40.45604500000019,
+            "commonSpanMs": 66.47370899999999,
+            "otherCommonSpanMs": 26.017663999999797,
+            "checkpoint": {
+              "elapsedLowerMs": 67.023334,
+              "elapsedUpperMs": 67.0515,
+              "userMs": 90.263,
+              "systemMs": 10.984
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.35033350000000496,
+            "p95Ms": 0.5128330000000005,
+            "constructionSumMs": 110.96108000000007,
+            "commonSpanMs": 190.684875,
+            "otherCommonSpanMs": 79.72379499999994,
+            "checkpoint": {
+              "elapsedLowerMs": 190.949542,
+              "elapsedUpperMs": 191.002416,
+              "userMs": 280.073,
+              "systemMs": 35.016
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3981455000000267,
+            "p95Ms": 0.8032079999999837,
+            "constructionSumMs": 44.24175100000025,
+            "commonSpanMs": 84.06008300000002,
+            "otherCommonSpanMs": 39.81833199999977,
+            "checkpoint": {
+              "elapsedLowerMs": 84.34924999999998,
+              "elapsedUpperMs": 84.370292,
+              "userMs": 90.333,
+              "systemMs": 14.197
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.34054200000002766,
+            "p95Ms": 0.5714580000000069,
+            "constructionSumMs": 111.49588800000089,
+            "commonSpanMs": 193.70729200000005,
+            "otherCommonSpanMs": 82.21140399999916,
+            "checkpoint": {
+              "elapsedLowerMs": 193.90625,
+              "elapsedUpperMs": 193.95470900000004,
+              "userMs": 250.825,
+              "systemMs": 39.382
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3082914999999389,
+            "p95Ms": 0.3937909999999647,
+            "constructionSumMs": 31.645919000000163,
+            "commonSpanMs": 51.14745800000003,
+            "otherCommonSpanMs": 19.501538999999866,
+            "checkpoint": {
+              "elapsedLowerMs": 51.42312500000003,
+              "elapsedUpperMs": 51.447415999999976,
+              "userMs": 50.883,
+              "systemMs": 8.277
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.27962499999995316,
+            "p95Ms": 0.3824170000000322,
+            "constructionSumMs": 88.64545900000132,
+            "commonSpanMs": 146.50341600000002,
+            "otherCommonSpanMs": 57.85795699999869,
+            "checkpoint": {
+              "elapsedLowerMs": 146.66766700000005,
+              "elapsedUpperMs": 146.70858299999998,
+              "userMs": 148.169,
+              "systemMs": 24.736
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.32175000000000864,
+            "p95Ms": 0.4655410000000302,
+            "constructionSumMs": 34.28353999999979,
+            "commonSpanMs": 54.56412499999999,
+            "otherCommonSpanMs": 20.2805850000002,
+            "checkpoint": {
+              "elapsedLowerMs": 54.81437500000004,
+              "elapsedUpperMs": 54.829792,
+              "userMs": 57.146,
+              "systemMs": 9.56
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2884375000000432,
+            "p95Ms": 0.3832079999999678,
+            "constructionSumMs": 90.77025100000003,
+            "commonSpanMs": 156.2086670000001,
+            "otherCommonSpanMs": 65.43841600000007,
+            "checkpoint": {
+              "elapsedLowerMs": 156.42116600000008,
+              "elapsedUpperMs": 156.43216700000005,
+              "userMs": 155.275,
+              "systemMs": 26.4
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3467919999999367,
+            "p95Ms": 0.48429200000009587,
+            "constructionSumMs": 35.975794000000406,
+            "commonSpanMs": 63.77608299999997,
+            "otherCommonSpanMs": 27.800288999999566,
+            "checkpoint": {
+              "elapsedLowerMs": 63.96716700000002,
+              "elapsedUpperMs": 63.97504099999992,
+              "userMs": 64.903,
+              "systemMs": 16.668
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.308208000000036,
+            "p95Ms": 0.42908299999999144,
+            "constructionSumMs": 96.29585800000041,
+            "commonSpanMs": 154.72699999999986,
+            "otherCommonSpanMs": 58.431141999999454,
+            "checkpoint": {
+              "elapsedLowerMs": 154.89666699999998,
+              "elapsedUpperMs": 154.90987500000006,
+              "userMs": 130.605,
+              "systemMs": 30.1
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.33045849999996335,
+            "p95Ms": 0.47858399999995527,
+            "constructionSumMs": 34.961297999998806,
+            "commonSpanMs": 57.225167000000056,
+            "otherCommonSpanMs": 22.26386900000125,
+            "checkpoint": {
+              "elapsedLowerMs": 57.4005830000001,
+              "elapsedUpperMs": 57.406375000000025,
+              "userMs": 53.175,
+              "systemMs": 9.923
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2872704999999769,
+            "p95Ms": 0.3866249999998672,
+            "constructionSumMs": 89.81111999999871,
+            "commonSpanMs": 142.86599999999999,
+            "otherCommonSpanMs": 53.054880000001276,
+            "checkpoint": {
+              "elapsedLowerMs": 143.02654099999995,
+              "elapsedUpperMs": 143.03720900000008,
+              "userMs": 127.858,
+              "systemMs": 22.329
+            },
+            "gc": null
+          }
+        ],
+        "whole": {
+          "elapsedLowerMs": 1365.273709,
+          "elapsedUpperMs": 1365.293,
+          "userMs": 1499.742,
+          "systemMs": 247.663
+        },
+        "flush": null
+      }
+    },
+    {
+      "id": 2,
+      "round": 0,
+      "pid": 86697,
+      "analysis": {
+        "schema": "causal-workload-child-analysis-v1",
+        "condition": "EAGER",
+        "orientation": "V",
+        "sampleCount": 2400,
+        "measuredBlockCount": 6,
+        "estimators": {
+          "p50": "median; average of middle two for even count",
+          "p95": "nearest rank ceil(0.95*n), one-based"
+        },
+        "scope": "Child arithmetic only; no source, process identity, cleanup, execution authorization, 24-process schedule or resource qualification. GC is a captured subset; empty is not no GC. CPU is process-wide; elapsed minus CPU is not waiting time.",
+        "blocks": [
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.370041999999998,
+            "p95Ms": 0.7793749999999875,
+            "constructionSumMs": 42.35683099999994,
+            "commonSpanMs": 70.01325,
+            "otherCommonSpanMs": 27.656419000000056,
+            "checkpoint": {
+              "elapsedLowerMs": 70.482958,
+              "elapsedUpperMs": 70.510875,
+              "userMs": 93.07,
+              "systemMs": 12.077
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.33004099999996583,
+            "p95Ms": 0.4443330000000003,
+            "constructionSumMs": 102.87170699999942,
+            "commonSpanMs": 170.292875,
+            "otherCommonSpanMs": 67.42116800000059,
+            "checkpoint": {
+              "elapsedLowerMs": 170.70108299999998,
+              "elapsedUpperMs": 170.73566700000003,
+              "userMs": 257.849,
+              "systemMs": 29.252
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.37822899999997617,
+            "p95Ms": 0.7503330000000119,
+            "constructionSumMs": 41.15733300000005,
+            "commonSpanMs": 66.671625,
+            "otherCommonSpanMs": 25.514291999999955,
+            "checkpoint": {
+              "elapsedLowerMs": 66.90495799999997,
+              "elapsedUpperMs": 66.92620799999997,
+              "userMs": 83.919,
+              "systemMs": 10.696
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.35672950000002857,
+            "p95Ms": 0.4992089999999507,
+            "constructionSumMs": 110.19775800000014,
+            "commonSpanMs": 187.9325,
+            "otherCommonSpanMs": 77.73474199999987,
+            "checkpoint": {
+              "elapsedLowerMs": 188.25916700000005,
+              "elapsedUpperMs": 188.30366699999996,
+              "userMs": 259.571,
+              "systemMs": 36.339
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3144790000000057,
+            "p95Ms": 0.4612090000000535,
+            "constructionSumMs": 33.55624900000009,
+            "commonSpanMs": 55.088250000000016,
+            "otherCommonSpanMs": 21.532000999999923,
+            "checkpoint": {
+              "elapsedLowerMs": 55.28316700000005,
+              "elapsedUpperMs": 55.30491699999993,
+              "userMs": 50.035,
+              "systemMs": 10.06
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.28954149999998435,
+            "p95Ms": 0.3912910000000238,
+            "constructionSumMs": 91.95350499999961,
+            "commonSpanMs": 150.566375,
+            "otherCommonSpanMs": 58.612870000000385,
+            "checkpoint": {
+              "elapsedLowerMs": 150.70887500000003,
+              "elapsedUpperMs": 150.75258299999996,
+              "userMs": 142.154,
+              "systemMs": 26.705
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.32677049999995234,
+            "p95Ms": 0.4160829999999578,
+            "constructionSumMs": 33.34099800000013,
+            "commonSpanMs": 54.879459,
+            "otherCommonSpanMs": 21.53846099999987,
+            "checkpoint": {
+              "elapsedLowerMs": 55.053999999999974,
+              "elapsedUpperMs": 55.06720800000005,
+              "userMs": 58.831,
+              "systemMs": 9.39
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2686035000000402,
+            "p95Ms": 0.3579580000000533,
+            "constructionSumMs": 83.86262599999895,
+            "commonSpanMs": 138.32170900000006,
+            "otherCommonSpanMs": 54.4590830000011,
+            "checkpoint": {
+              "elapsedLowerMs": 138.61679199999992,
+              "elapsedUpperMs": 138.63095799999996,
+              "userMs": 133.812,
+              "systemMs": 22.602
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.28537549999998646,
+            "p95Ms": 0.40687500000012733,
+            "constructionSumMs": 29.93466800000101,
+            "commonSpanMs": 52.57670800000005,
+            "otherCommonSpanMs": 22.642039999999042,
+            "checkpoint": {
+              "elapsedLowerMs": 52.73229200000014,
+              "elapsedUpperMs": 52.73883300000011,
+              "userMs": 59.322,
+              "systemMs": 10.595
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.3142085000000634,
+            "p95Ms": 0.42049999999994725,
+            "constructionSumMs": 97.04095199999938,
+            "commonSpanMs": 157.80920800000013,
+            "otherCommonSpanMs": 60.76825600000075,
+            "checkpoint": {
+              "elapsedLowerMs": 157.96020799999997,
+              "elapsedUpperMs": 157.97191599999996,
+              "userMs": 131.277,
+              "systemMs": 31.569
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.29502100000001974,
+            "p95Ms": 0.41487499999993815,
+            "constructionSumMs": 31.472666000000345,
+            "commonSpanMs": 50.199166000000105,
+            "otherCommonSpanMs": 18.72649999999976,
+            "checkpoint": {
+              "elapsedLowerMs": 50.34795800000006,
+              "elapsedUpperMs": 50.3544159999999,
+              "userMs": 49.582,
+              "systemMs": 7.275
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.28156250000006366,
+            "p95Ms": 0.37704199999984667,
+            "constructionSumMs": 88.40537300000005,
+            "commonSpanMs": 139.78641600000014,
+            "otherCommonSpanMs": 51.38104300000009,
+            "checkpoint": {
+              "elapsedLowerMs": 139.94675000000007,
+              "elapsedUpperMs": 139.959208,
+              "userMs": 127.77,
+              "systemMs": 19.935
+            },
+            "gc": null
+          }
+        ],
+        "whole": {
+          "elapsedLowerMs": 1297.381958,
+          "elapsedUpperMs": 1297.3989159999999,
+          "userMs": 1447.411,
+          "systemMs": 226.565
+        },
+        "flush": null
+      }
+    },
+    {
+      "id": 3,
+      "round": 0,
+      "pid": 86764,
+      "analysis": {
+        "schema": "causal-workload-child-analysis-v1",
+        "condition": "DEFERRED",
+        "orientation": "U",
+        "sampleCount": 2400,
+        "measuredBlockCount": 6,
+        "estimators": {
+          "p50": "median; average of middle two for even count",
+          "p95": "nearest rank ceil(0.95*n), one-based"
+        },
+        "scope": "Child arithmetic only; no source, process identity, cleanup, execution authorization, 24-process schedule or resource qualification. GC is a captured subset; empty is not no GC. CPU is process-wide; elapsed minus CPU is not waiting time.",
+        "blocks": [
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3643329999999878,
+            "p95Ms": 0.7674169999999947,
+            "constructionSumMs": 40.38908599999996,
+            "commonSpanMs": 59.14308299999999,
+            "otherCommonSpanMs": 18.753997000000027,
+            "checkpoint": {
+              "elapsedLowerMs": 59.552707999999996,
+              "elapsedUpperMs": 59.58349999999999,
+              "userMs": 88.554,
+              "systemMs": 4.091
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2917500000000217,
+            "p95Ms": 0.4124170000000049,
+            "constructionSumMs": 92.24329599999973,
+            "commonSpanMs": 134.807208,
+            "otherCommonSpanMs": 42.56391200000027,
+            "checkpoint": {
+              "elapsedLowerMs": 134.92391700000002,
+              "elapsedUpperMs": 134.956334,
+              "userMs": 232.306,
+              "systemMs": 10.568
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.31381300000001033,
+            "p95Ms": 0.7022079999999846,
+            "constructionSumMs": 36.18858399999971,
+            "commonSpanMs": 51.877666999999974,
+            "otherCommonSpanMs": 15.689083000000267,
+            "checkpoint": {
+              "elapsedLowerMs": 51.98362499999996,
+              "elapsedUpperMs": 52.00562500000001,
+              "userMs": 76.899,
+              "systemMs": 3.198
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.27633299999999394,
+            "p95Ms": 0.4178749999999809,
+            "constructionSumMs": 88.48020500000013,
+            "commonSpanMs": 128.42004200000002,
+            "otherCommonSpanMs": 39.9398369999999,
+            "checkpoint": {
+              "elapsedLowerMs": 128.51383299999998,
+              "elapsedUpperMs": 128.555541,
+              "userMs": 218.95,
+              "systemMs": 9.844
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.26260350000001154,
+            "p95Ms": 0.32191599999998743,
+            "constructionSumMs": 27.18099700000016,
+            "commonSpanMs": 37.325625,
+            "otherCommonSpanMs": 10.144627999999841,
+            "checkpoint": {
+              "elapsedLowerMs": 37.41829199999995,
+              "elapsedUpperMs": 37.43854200000004,
+              "userMs": 42.926,
+              "systemMs": 1.133
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2547495000000026,
+            "p95Ms": 0.33095800000000963,
+            "constructionSumMs": 79.41682899999853,
+            "commonSpanMs": 109.67341699999997,
+            "otherCommonSpanMs": 30.256588000001443,
+            "checkpoint": {
+              "elapsedLowerMs": 109.76495799999998,
+              "elapsedUpperMs": 109.80995800000005,
+              "userMs": 131.636,
+              "systemMs": 3.598
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.28433350000000246,
+            "p95Ms": 0.39049999999997453,
+            "constructionSumMs": 29.911250999999766,
+            "commonSpanMs": 41.17158299999994,
+            "otherCommonSpanMs": 11.260332000000176,
+            "checkpoint": {
+              "elapsedLowerMs": 41.30941700000005,
+              "elapsedUpperMs": 41.32224999999994,
+              "userMs": 49.029,
+              "systemMs": 1.509
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.253020499999991,
+            "p95Ms": 0.30950000000007094,
+            "constructionSumMs": 77.81433200000072,
+            "commonSpanMs": 107.5992500000001,
+            "otherCommonSpanMs": 29.78491799999938,
+            "checkpoint": {
+              "elapsedLowerMs": 107.69916699999999,
+              "elapsedUpperMs": 107.71004199999993,
+              "userMs": 121.144,
+              "systemMs": 3.724
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.24308350000001155,
+            "p95Ms": 0.29475000000002183,
+            "constructionSumMs": 25.106751999999346,
+            "commonSpanMs": 35.14829199999997,
+            "otherCommonSpanMs": 10.041540000000623,
+            "checkpoint": {
+              "elapsedLowerMs": 35.22925000000009,
+              "elapsedUpperMs": 35.236625000000004,
+              "userMs": 35.467,
+              "systemMs": 1.523
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2582915000000412,
+            "p95Ms": 0.3746659999999338,
+            "constructionSumMs": 83.50888100000043,
+            "commonSpanMs": 118.338167,
+            "otherCommonSpanMs": 34.82928599999957,
+            "checkpoint": {
+              "elapsedLowerMs": 118.42908399999999,
+              "elapsedUpperMs": 118.44133299999999,
+              "userMs": 128.853,
+              "systemMs": 11.754
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2879374999999982,
+            "p95Ms": 0.376041999999984,
+            "constructionSumMs": 31.039000000000215,
+            "commonSpanMs": 41.40716700000007,
+            "otherCommonSpanMs": 10.368166999999858,
+            "checkpoint": {
+              "elapsedLowerMs": 41.50270899999998,
+              "elapsedUpperMs": 41.508959000000004,
+              "userMs": 45.494,
+              "systemMs": 2.062
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2718750000001364,
+            "p95Ms": 0.33704199999988305,
+            "constructionSumMs": 83.79784100000154,
+            "commonSpanMs": 113.73504099999991,
+            "otherCommonSpanMs": 29.93719999999837,
+            "checkpoint": {
+              "elapsedLowerMs": 113.825916,
+              "elapsedUpperMs": 113.837041,
+              "userMs": 117.404,
+              "systemMs": 4.114
+            },
+            "gc": null
+          }
+        ],
+        "whole": {
+          "elapsedLowerMs": 1094.053208,
+          "elapsedUpperMs": 1094.070875,
+          "userMs": 1303.378,
+          "systemMs": 156.749
+        },
+        "flush": {
+          "elapsedLowerMs": 113.47745799999984,
+          "elapsedUpperMs": 113.48912500000006,
+          "userMs": 14.496,
+          "systemMs": 99.53
+        }
+      }
+    },
+    {
+      "id": 4,
+      "round": 1,
+      "pid": 86784,
+      "analysis": {
+        "schema": "causal-workload-child-analysis-v1",
+        "condition": "DEFERRED",
+        "orientation": "V",
+        "sampleCount": 2400,
+        "measuredBlockCount": 6,
+        "estimators": {
+          "p50": "median; average of middle two for even count",
+          "p95": "nearest rank ceil(0.95*n), one-based"
+        },
+        "scope": "Child arithmetic only; no source, process identity, cleanup, execution authorization, 24-process schedule or resource qualification. GC is a captured subset; empty is not no GC. CPU is process-wide; elapsed minus CPU is not waiting time.",
+        "blocks": [
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3188545000000005,
+            "p95Ms": 0.6447909999999979,
+            "constructionSumMs": 37.03658199999995,
+            "commonSpanMs": 53.81316699999999,
+            "otherCommonSpanMs": 16.77658500000004,
+            "checkpoint": {
+              "elapsedLowerMs": 54.20529099999999,
+              "elapsedUpperMs": 54.23329100000001,
+              "userMs": 79.149,
+              "systemMs": 4.066
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2814584999999994,
+            "p95Ms": 0.42124999999998636,
+            "constructionSumMs": 90.55574800000011,
+            "commonSpanMs": 131.31758299999998,
+            "otherCommonSpanMs": 40.76183499999988,
+            "checkpoint": {
+              "elapsedLowerMs": 131.769584,
+              "elapsedUpperMs": 131.80474999999998,
+              "userMs": 234.751,
+              "systemMs": 9.663
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.32299949999998034,
+            "p95Ms": 0.6819580000000087,
+            "constructionSumMs": 37.3360830000002,
+            "commonSpanMs": 53.43479100000002,
+            "otherCommonSpanMs": 16.098707999999817,
+            "checkpoint": {
+              "elapsedLowerMs": 53.54554200000001,
+              "elapsedUpperMs": 53.56433300000003,
+              "userMs": 76.94,
+              "systemMs": 2.977
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2856664999999907,
+            "p95Ms": 0.39795899999995754,
+            "constructionSumMs": 91.05545599999994,
+            "commonSpanMs": 130.23624999999998,
+            "otherCommonSpanMs": 39.18079400000005,
+            "checkpoint": {
+              "elapsedLowerMs": 130.3365,
+              "elapsedUpperMs": 130.37908299999998,
+              "userMs": 219.192,
+              "systemMs": 8.081
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2616880000000208,
+            "p95Ms": 0.3564159999999674,
+            "constructionSumMs": 27.237120000000175,
+            "commonSpanMs": 37.957875,
+            "otherCommonSpanMs": 10.720754999999826,
+            "checkpoint": {
+              "elapsedLowerMs": 38.048832999999945,
+              "elapsedUpperMs": 38.065916999999956,
+              "userMs": 44.51,
+              "systemMs": 1.294
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2585000000000264,
+            "p95Ms": 0.34520899999995436,
+            "constructionSumMs": 80.85958800000037,
+            "commonSpanMs": 112.11699999999996,
+            "otherCommonSpanMs": 31.25741199999959,
+            "checkpoint": {
+              "elapsedLowerMs": 112.20587499999999,
+              "elapsedUpperMs": 112.247792,
+              "userMs": 124.428,
+              "systemMs": 5.662
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.26172900000000254,
+            "p95Ms": 0.3917500000000018,
+            "constructionSumMs": 28.35370599999976,
+            "commonSpanMs": 38.978207999999995,
+            "otherCommonSpanMs": 10.624502000000234,
+            "checkpoint": {
+              "elapsedLowerMs": 39.11725000000001,
+              "elapsedUpperMs": 39.12920900000006,
+              "userMs": 47.11,
+              "systemMs": 1.738
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2563335000000393,
+            "p95Ms": 0.37645900000006804,
+            "constructionSumMs": 81.77216199999975,
+            "commonSpanMs": 117.47054200000002,
+            "otherCommonSpanMs": 35.69838000000027,
+            "checkpoint": {
+              "elapsedLowerMs": 117.55979100000002,
+              "elapsedUpperMs": 117.57266700000002,
+              "userMs": 146.059,
+              "systemMs": 6.555
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.26368700000000445,
+            "p95Ms": 0.3741250000000491,
+            "constructionSumMs": 28.588585000000535,
+            "commonSpanMs": 39.19841699999995,
+            "otherCommonSpanMs": 10.609831999999415,
+            "checkpoint": {
+              "elapsedLowerMs": 39.308500000000095,
+              "elapsedUpperMs": 39.31458400000008,
+              "userMs": 36.847,
+              "systemMs": 3.356
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2827500000000782,
+            "p95Ms": 0.38237500000002456,
+            "constructionSumMs": 88.68133000000034,
+            "commonSpanMs": 123.59912499999996,
+            "otherCommonSpanMs": 34.917794999999614,
+            "checkpoint": {
+              "elapsedLowerMs": 123.70029099999999,
+              "elapsedUpperMs": 123.71174999999994,
+              "userMs": 120.483,
+              "systemMs": 7.521
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2671244999999658,
+            "p95Ms": 0.4002499999999145,
+            "constructionSumMs": 29.020242999999937,
+            "commonSpanMs": 40.156875000000014,
+            "otherCommonSpanMs": 11.136632000000077,
+            "checkpoint": {
+              "elapsedLowerMs": 40.24608400000011,
+              "elapsedUpperMs": 40.252666999999974,
+              "userMs": 45.831,
+              "systemMs": 1.53
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2517920000000231,
+            "p95Ms": 0.36154199999987213,
+            "constructionSumMs": 79.91766500000097,
+            "commonSpanMs": 112.102708,
+            "otherCommonSpanMs": 32.18504299999904,
+            "checkpoint": {
+              "elapsedLowerMs": 112.18541699999992,
+              "elapsedUpperMs": 112.19554100000005,
+              "userMs": 133.57,
+              "systemMs": 4.634
+            },
+            "gc": null
+          }
+        ],
+        "whole": {
+          "elapsedLowerMs": 1101.075041,
+          "elapsedUpperMs": 1101.0967919999998,
+          "userMs": 1323.154,
+          "systemMs": 150.322
+        },
+        "flush": {
+          "elapsedLowerMs": 108.44608300000004,
+          "elapsedUpperMs": 108.45962499999996,
+          "userMs": 14.057,
+          "systemMs": 93.168
+        }
+      }
+    },
+    {
+      "id": 5,
+      "round": 1,
+      "pid": 86804,
+      "analysis": {
+        "schema": "causal-workload-child-analysis-v1",
+        "condition": "EAGER",
+        "orientation": "V",
+        "sampleCount": 2400,
+        "measuredBlockCount": 6,
+        "estimators": {
+          "p50": "median; average of middle two for even count",
+          "p95": "nearest rank ceil(0.95*n), one-based"
+        },
+        "scope": "Child arithmetic only; no source, process identity, cleanup, execution authorization, 24-process schedule or resource qualification. GC is a captured subset; empty is not no GC. CPU is process-wide; elapsed minus CPU is not waiting time.",
+        "blocks": [
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3517500000000098,
+            "p95Ms": 0.712666999999982,
+            "constructionSumMs": 39.59833699999996,
+            "commonSpanMs": 64.94624999999999,
+            "otherCommonSpanMs": 25.347913000000034,
+            "checkpoint": {
+              "elapsedLowerMs": 65.43475000000001,
+              "elapsedUpperMs": 65.46587499999998,
+              "userMs": 88.205,
+              "systemMs": 10.702
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.30737450000000877,
+            "p95Ms": 0.40741700000000947,
+            "constructionSumMs": 95.74825600000034,
+            "commonSpanMs": 161.51287499999998,
+            "otherCommonSpanMs": 65.76461899999964,
+            "checkpoint": {
+              "elapsedLowerMs": 161.93783299999998,
+              "elapsedUpperMs": 161.97916700000002,
+              "userMs": 249.417,
+              "systemMs": 27.545
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3386249999999791,
+            "p95Ms": 0.6655000000000086,
+            "constructionSumMs": 37.65845399999989,
+            "commonSpanMs": 60.68454200000002,
+            "otherCommonSpanMs": 23.02608800000013,
+            "checkpoint": {
+              "elapsedLowerMs": 61.00154200000003,
+              "elapsedUpperMs": 61.01866699999999,
+              "userMs": 77.029,
+              "systemMs": 9.872
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.30535399999999413,
+            "p95Ms": 0.4006249999999909,
+            "constructionSumMs": 94.53337499999861,
+            "commonSpanMs": 156.501375,
+            "otherCommonSpanMs": 61.96800000000138,
+            "checkpoint": {
+              "elapsedLowerMs": 156.67362499999996,
+              "elapsedUpperMs": 156.71383300000002,
+              "userMs": 233.812,
+              "systemMs": 28.72
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.269625499999961,
+            "p95Ms": 0.3636670000000777,
+            "constructionSumMs": 28.37304299999994,
+            "commonSpanMs": 45.104625000000055,
+            "otherCommonSpanMs": 16.731582000000117,
+            "checkpoint": {
+              "elapsedLowerMs": 45.247333000000026,
+              "elapsedUpperMs": 45.26441699999998,
+              "userMs": 43.933,
+              "systemMs": 6.442
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2732294999999567,
+            "p95Ms": 0.35616700000002766,
+            "constructionSumMs": 84.5957000000011,
+            "commonSpanMs": 139.37062500000002,
+            "otherCommonSpanMs": 54.774924999998916,
+            "checkpoint": {
+              "elapsedLowerMs": 139.51654100000007,
+              "elapsedUpperMs": 139.55091700000003,
+              "userMs": 133.739,
+              "systemMs": 22.426
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.286333500000012,
+            "p95Ms": 0.38837499999999636,
+            "constructionSumMs": 30.338502000000062,
+            "commonSpanMs": 48.57220900000004,
+            "otherCommonSpanMs": 18.23370699999998,
+            "checkpoint": {
+              "elapsedLowerMs": 48.71383300000002,
+              "elapsedUpperMs": 48.726,
+              "userMs": 53.574,
+              "systemMs": 7.265
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.25795849999997245,
+            "p95Ms": 0.3412079999999378,
+            "constructionSumMs": 80.42490899999996,
+            "commonSpanMs": 130.64095800000007,
+            "otherCommonSpanMs": 50.21604900000011,
+            "checkpoint": {
+              "elapsedLowerMs": 130.776208,
+              "elapsedUpperMs": 130.7857919999999,
+              "userMs": 129.073,
+              "systemMs": 20.145
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2516454999999951,
+            "p95Ms": 0.4211250000000746,
+            "constructionSumMs": 27.469041999999718,
+            "commonSpanMs": 48.86158400000011,
+            "otherCommonSpanMs": 21.39254200000039,
+            "checkpoint": {
+              "elapsedLowerMs": 49.20145799999989,
+              "elapsedUpperMs": 49.20754199999999,
+              "userMs": 56.268,
+              "systemMs": 9.639
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.27481199999999717,
+            "p95Ms": 0.37283400000001166,
+            "constructionSumMs": 86.28579799999488,
+            "commonSpanMs": 136.2790419999999,
+            "otherCommonSpanMs": 49.99324400000501,
+            "checkpoint": {
+              "elapsedLowerMs": 136.45074999999997,
+              "elapsedUpperMs": 136.46133400000008,
+              "userMs": 117.416,
+              "systemMs": 24.572
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.26479200000005676,
+            "p95Ms": 0.3701249999999163,
+            "constructionSumMs": 28.50428700000134,
+            "commonSpanMs": 44.320458000000144,
+            "otherCommonSpanMs": 15.816170999998803,
+            "checkpoint": {
+              "elapsedLowerMs": 44.47462499999983,
+              "elapsedUpperMs": 44.47995900000001,
+              "userMs": 45.036,
+              "systemMs": 5.933
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2581670000000713,
+            "p95Ms": 0.32337500000016917,
+            "constructionSumMs": 80.1990040000021,
+            "commonSpanMs": 124.52929199999994,
+            "otherCommonSpanMs": 44.330287999997836,
+            "checkpoint": {
+              "elapsedLowerMs": 124.67750000000001,
+              "elapsedUpperMs": 124.68766600000004,
+              "userMs": 117.178,
+              "systemMs": 15.721
+            },
+            "gc": null
+          }
+        ],
+        "whole": {
+          "elapsedLowerMs": 1164.463125,
+          "elapsedUpperMs": 1164.479333,
+          "userMs": 1344.891,
+          "systemMs": 189.038
+        },
+        "flush": null
+      }
+    },
+    {
+      "id": 6,
+      "round": 1,
+      "pid": 86821,
+      "analysis": {
+        "schema": "causal-workload-child-analysis-v1",
+        "condition": "EAGER",
+        "orientation": "U",
+        "sampleCount": 2400,
+        "measuredBlockCount": 6,
+        "estimators": {
+          "p50": "median; average of middle two for even count",
+          "p95": "nearest rank ceil(0.95*n), one-based"
+        },
+        "scope": "Child arithmetic only; no source, process identity, cleanup, execution authorization, 24-process schedule or resource qualification. GC is a captured subset; empty is not no GC. CPU is process-wide; elapsed minus CPU is not waiting time.",
+        "blocks": [
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.32608349999999575,
+            "p95Ms": 0.6438750000000084,
+            "constructionSumMs": 37.073496000000034,
+            "commonSpanMs": 60.40870899999999,
+            "otherCommonSpanMs": 23.335212999999953,
+            "checkpoint": {
+              "elapsedLowerMs": 60.855582999999996,
+              "elapsedUpperMs": 60.882333999999986,
+              "userMs": 81.908,
+              "systemMs": 9.488
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.3063334999999938,
+            "p95Ms": 0.42349999999999,
+            "constructionSumMs": 96.9352000000001,
+            "commonSpanMs": 164.10674999999998,
+            "otherCommonSpanMs": 67.17154999999988,
+            "checkpoint": {
+              "elapsedLowerMs": 164.2715,
+              "elapsedUpperMs": 164.306709,
+              "userMs": 249.021,
+              "systemMs": 28.26
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.33012499999998113,
+            "p95Ms": 0.7100409999999897,
+            "constructionSumMs": 37.26879099999991,
+            "commonSpanMs": 60.83441700000003,
+            "otherCommonSpanMs": 23.565626000000123,
+            "checkpoint": {
+              "elapsedLowerMs": 61.04224999999997,
+              "elapsedUpperMs": 61.065875000000005,
+              "userMs": 76.822,
+              "systemMs": 9.112
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2888330000000394,
+            "p95Ms": 0.4185410000000047,
+            "constructionSumMs": 92.47641799999951,
+            "commonSpanMs": 153.54045799999994,
+            "otherCommonSpanMs": 61.06404000000043,
+            "checkpoint": {
+              "elapsedLowerMs": 153.81187500000004,
+              "elapsedUpperMs": 153.85470800000002,
+              "userMs": 227.39,
+              "systemMs": 26.666
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.26675050000000056,
+            "p95Ms": 0.34524999999996453,
+            "constructionSumMs": 28.09295999999972,
+            "commonSpanMs": 45.10141599999997,
+            "otherCommonSpanMs": 17.00845600000025,
+            "checkpoint": {
+              "elapsedLowerMs": 45.254458,
+              "elapsedUpperMs": 45.273041000000035,
+              "userMs": 43.69,
+              "systemMs": 6.68
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2577290000000403,
+            "p95Ms": 0.3429590000000644,
+            "constructionSumMs": 80.23662000000047,
+            "commonSpanMs": 131.455417,
+            "otherCommonSpanMs": 51.21879699999954,
+            "checkpoint": {
+              "elapsedLowerMs": 131.60575000000006,
+              "elapsedUpperMs": 131.64762500000006,
+              "userMs": 137.523,
+              "systemMs": 20.481
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2863125000000082,
+            "p95Ms": 0.3682089999999789,
+            "constructionSumMs": 29.784241999999722,
+            "commonSpanMs": 47.127250000000004,
+            "otherCommonSpanMs": 17.34300800000028,
+            "checkpoint": {
+              "elapsedLowerMs": 47.28399999999999,
+              "elapsedUpperMs": 47.29774999999995,
+              "userMs": 50.871,
+              "systemMs": 7.396
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2572705000000042,
+            "p95Ms": 0.3235419999999749,
+            "constructionSumMs": 79.36695600000041,
+            "commonSpanMs": 129.66312499999992,
+            "otherCommonSpanMs": 50.29616899999951,
+            "checkpoint": {
+              "elapsedLowerMs": 129.81950000000006,
+              "elapsedUpperMs": 129.83466700000008,
+              "userMs": 133.492,
+              "systemMs": 20.714
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2526875000000359,
+            "p95Ms": 0.2939999999999827,
+            "constructionSumMs": 25.65782899999988,
+            "commonSpanMs": 41.736582999999996,
+            "otherCommonSpanMs": 16.078754000000117,
+            "checkpoint": {
+              "elapsedLowerMs": 41.882999999999925,
+              "elapsedUpperMs": 41.88900000000001,
+              "userMs": 35.997,
+              "systemMs": 6.627
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2838334999999006,
+            "p95Ms": 0.40645900000004076,
+            "constructionSumMs": 89.649035999999,
+            "commonSpanMs": 149.66000000000008,
+            "otherCommonSpanMs": 60.01096400000108,
+            "checkpoint": {
+              "elapsedLowerMs": 149.79525,
+              "elapsedUpperMs": 149.80937499999993,
+              "userMs": 147.039,
+              "systemMs": 30.988
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3176455000001397,
+            "p95Ms": 0.4100419999999758,
+            "constructionSumMs": 33.02924800000028,
+            "commonSpanMs": 54.94145800000001,
+            "otherCommonSpanMs": 21.91220999999973,
+            "checkpoint": {
+              "elapsedLowerMs": 55.14304199999992,
+              "elapsedUpperMs": 55.149875000000065,
+              "userMs": 51.662,
+              "systemMs": 9.324
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.25425000000007003,
+            "p95Ms": 0.30737500000009277,
+            "constructionSumMs": 78.80496000000039,
+            "commonSpanMs": 124.4063749999998,
+            "otherCommonSpanMs": 45.601414999999406,
+            "checkpoint": {
+              "elapsedLowerMs": 124.5340839999999,
+              "elapsedUpperMs": 124.54820800000016,
+              "userMs": 114.993,
+              "systemMs": 17.157
+            },
+            "gc": null
+          }
+        ],
+        "whole": {
+          "elapsedLowerMs": 1165.691459,
+          "elapsedUpperMs": 1165.706167,
+          "userMs": 1350.635,
+          "systemMs": 192.965
+        },
+        "flush": null
+      }
+    },
+    {
+      "id": 7,
+      "round": 1,
+      "pid": 86843,
+      "analysis": {
+        "schema": "causal-workload-child-analysis-v1",
+        "condition": "DEFERRED",
+        "orientation": "U",
+        "sampleCount": 2400,
+        "measuredBlockCount": 6,
+        "estimators": {
+          "p50": "median; average of middle two for even count",
+          "p95": "nearest rank ceil(0.95*n), one-based"
+        },
+        "scope": "Child arithmetic only; no source, process identity, cleanup, execution authorization, 24-process schedule or resource qualification. GC is a captured subset; empty is not no GC. CPU is process-wide; elapsed minus CPU is not waiting time.",
+        "blocks": [
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3127919999999875,
+            "p95Ms": 0.6769999999999925,
+            "constructionSumMs": 37.00541900000022,
+            "commonSpanMs": 54.051625,
+            "otherCommonSpanMs": 17.046205999999785,
+            "checkpoint": {
+              "elapsedLowerMs": 54.48195800000002,
+              "elapsedUpperMs": 54.509625,
+              "userMs": 82.329,
+              "systemMs": 3.781
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2802079999999876,
+            "p95Ms": 0.40108399999999733,
+            "constructionSumMs": 90.77512400000049,
+            "commonSpanMs": 132.141459,
+            "otherCommonSpanMs": 41.36633499999951,
+            "checkpoint": {
+              "elapsedLowerMs": 132.25783299999998,
+              "elapsedUpperMs": 132.29625,
+              "userMs": 230.591,
+              "systemMs": 9.822
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.34193699999997307,
+            "p95Ms": 0.7682080000000155,
+            "constructionSumMs": 39.497541999999896,
+            "commonSpanMs": 56.599042,
+            "otherCommonSpanMs": 17.1015000000001,
+            "checkpoint": {
+              "elapsedLowerMs": 56.72958299999999,
+              "elapsedUpperMs": 56.755791999999985,
+              "userMs": 80.334,
+              "systemMs": 4.117
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2982915000000048,
+            "p95Ms": 0.49091599999997015,
+            "constructionSumMs": 96.36404800000008,
+            "commonSpanMs": 139.77929199999994,
+            "otherCommonSpanMs": 43.41524399999986,
+            "checkpoint": {
+              "elapsedLowerMs": 139.88445800000005,
+              "elapsedUpperMs": 139.935333,
+              "userMs": 228.642,
+              "systemMs": 10.677
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.26868749999999864,
+            "p95Ms": 0.35141700000008314,
+            "constructionSumMs": 27.96229599999981,
+            "commonSpanMs": 38.14970799999992,
+            "otherCommonSpanMs": 10.187412000000108,
+            "checkpoint": {
+              "elapsedLowerMs": 38.24166700000001,
+              "elapsedUpperMs": 38.260125000000016,
+              "userMs": 44.753,
+              "systemMs": 1.233
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.25364550000000463,
+            "p95Ms": 0.32941699999992125,
+            "constructionSumMs": 78.8867029999999,
+            "commonSpanMs": 109.55641600000001,
+            "otherCommonSpanMs": 30.669713000000115,
+            "checkpoint": {
+              "elapsedLowerMs": 109.64241600000003,
+              "elapsedUpperMs": 109.67933300000004,
+              "userMs": 130.949,
+              "systemMs": 3.719
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.277708500000017,
+            "p95Ms": 0.38162499999998545,
+            "constructionSumMs": 29.049038999999425,
+            "commonSpanMs": 40.417958,
+            "otherCommonSpanMs": 11.368919000000574,
+            "checkpoint": {
+              "elapsedLowerMs": 40.54820899999993,
+              "elapsedUpperMs": 40.559875000000034,
+              "userMs": 48.034,
+              "systemMs": 1.708
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2500205000000051,
+            "p95Ms": 0.3207919999999831,
+            "constructionSumMs": 77.519506000001,
+            "commonSpanMs": 107.42229199999997,
+            "otherCommonSpanMs": 29.90278599999897,
+            "checkpoint": {
+              "elapsedLowerMs": 107.52200000000005,
+              "elapsedUpperMs": 107.53262500000005,
+              "userMs": 120.448,
+              "systemMs": 4.608
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2536039999999957,
+            "p95Ms": 0.3162919999999758,
+            "constructionSumMs": 26.144205999999713,
+            "commonSpanMs": 36.32829199999992,
+            "otherCommonSpanMs": 10.184086000000207,
+            "checkpoint": {
+              "elapsedLowerMs": 36.41375000000005,
+              "elapsedUpperMs": 36.419459000000074,
+              "userMs": 36.465,
+              "systemMs": 1.718
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.26839550000005374,
+            "p95Ms": 0.4025420000000395,
+            "constructionSumMs": 86.62275499999919,
+            "commonSpanMs": 122.701416,
+            "otherCommonSpanMs": 36.07866100000081,
+            "checkpoint": {
+              "elapsedLowerMs": 122.78866599999992,
+              "elapsedUpperMs": 122.79958399999998,
+              "userMs": 132.756,
+              "systemMs": 11.474
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.26110400000004574,
+            "p95Ms": 0.3577910000000202,
+            "constructionSumMs": 27.920415000000276,
+            "commonSpanMs": 37.56333299999994,
+            "otherCommonSpanMs": 9.642917999999668,
+            "checkpoint": {
+              "elapsedLowerMs": 37.66954199999998,
+              "elapsedUpperMs": 37.67975000000001,
+              "userMs": 42.276,
+              "systemMs": 1.496
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.25939599999992424,
+            "p95Ms": 0.3275410000001102,
+            "constructionSumMs": 80.52740800000026,
+            "commonSpanMs": 109.483791,
+            "otherCommonSpanMs": 28.956382999999732,
+            "checkpoint": {
+              "elapsedLowerMs": 109.57562500000006,
+              "elapsedUpperMs": 109.59008299999994,
+              "userMs": 113.528,
+              "systemMs": 3.571
+            },
+            "gc": null
+          }
+        ],
+        "whole": {
+          "elapsedLowerMs": 1097.8273749999998,
+          "elapsedUpperMs": 1097.8477910000001,
+          "userMs": 1305.835,
+          "systemMs": 153.446
+        },
+        "flush": {
+          "elapsedLowerMs": 111.62862500000006,
+          "elapsedUpperMs": 111.64233300000001,
+          "userMs": 14.504,
+          "systemMs": 95.418
+        }
+      }
+    },
+    {
+      "id": 8,
+      "round": 2,
+      "pid": 86868,
+      "analysis": {
+        "schema": "causal-workload-child-analysis-v1",
+        "condition": "EAGER",
+        "orientation": "V",
+        "sampleCount": 2400,
+        "measuredBlockCount": 6,
+        "estimators": {
+          "p50": "median; average of middle two for even count",
+          "p95": "nearest rank ceil(0.95*n), one-based"
+        },
+        "scope": "Child arithmetic only; no source, process identity, cleanup, execution authorization, 24-process schedule or resource qualification. GC is a captured subset; empty is not no GC. CPU is process-wide; elapsed minus CPU is not waiting time.",
+        "blocks": [
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3322914999999824,
+            "p95Ms": 0.683290999999997,
+            "constructionSumMs": 37.663586000000066,
+            "commonSpanMs": 61.141249999999985,
+            "otherCommonSpanMs": 23.47766399999992,
+            "checkpoint": {
+              "elapsedLowerMs": 61.578416000000004,
+              "elapsedUpperMs": 61.608958,
+              "userMs": 82.807,
+              "systemMs": 9.266
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2958335000000005,
+            "p95Ms": 0.4245409999999765,
+            "constructionSumMs": 93.59644499999968,
+            "commonSpanMs": 156.77133299999997,
+            "otherCommonSpanMs": 63.174888000000294,
+            "checkpoint": {
+              "elapsedLowerMs": 157.207292,
+              "elapsedUpperMs": 157.24904199999997,
+              "userMs": 245.09,
+              "systemMs": 26.28
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3144374999999684,
+            "p95Ms": 0.6677499999999554,
+            "constructionSumMs": 36.186616999999956,
+            "commonSpanMs": 57.71924999999999,
+            "otherCommonSpanMs": 21.532633000000033,
+            "checkpoint": {
+              "elapsedLowerMs": 57.91750000000002,
+              "elapsedUpperMs": 57.938334,
+              "userMs": 75.116,
+              "systemMs": 7.884
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.29410400000000436,
+            "p95Ms": 0.4243340000000444,
+            "constructionSumMs": 92.78908600000096,
+            "commonSpanMs": 161.895417,
+            "otherCommonSpanMs": 69.10633099999905,
+            "checkpoint": {
+              "elapsedLowerMs": 162.15404099999995,
+              "elapsedUpperMs": 162.20095899999995,
+              "userMs": 229.622,
+              "systemMs": 26.385
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2989795000000868,
+            "p95Ms": 0.39458300000001145,
+            "constructionSumMs": 31.20503999999994,
+            "commonSpanMs": 50.99462500000004,
+            "otherCommonSpanMs": 19.789585000000102,
+            "checkpoint": {
+              "elapsedLowerMs": 51.176750000000084,
+              "elapsedUpperMs": 51.19766600000003,
+              "userMs": 50.571,
+              "systemMs": 8.253
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.26772899999997435,
+            "p95Ms": 0.36258300000008603,
+            "constructionSumMs": 83.18332500000145,
+            "commonSpanMs": 133.5475,
+            "otherCommonSpanMs": 50.36417499999857,
+            "checkpoint": {
+              "elapsedLowerMs": 133.73033399999997,
+              "elapsedUpperMs": 133.7713329999999,
+              "userMs": 140.429,
+              "systemMs": 19.354
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2889790000000403,
+            "p95Ms": 0.4093749999999545,
+            "constructionSumMs": 30.87979100000007,
+            "commonSpanMs": 49.35900000000004,
+            "otherCommonSpanMs": 18.47920899999997,
+            "checkpoint": {
+              "elapsedLowerMs": 49.51329199999998,
+              "elapsedUpperMs": 49.52795800000001,
+              "userMs": 54.607,
+              "systemMs": 7.315
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2701460000000111,
+            "p95Ms": 0.33058299999993324,
+            "constructionSumMs": 82.93745200000023,
+            "commonSpanMs": 133.98791699999992,
+            "otherCommonSpanMs": 51.05046499999969,
+            "checkpoint": {
+              "elapsedLowerMs": 134.16308299999992,
+              "elapsedUpperMs": 134.17824999999993,
+              "userMs": 131.689,
+              "systemMs": 19.949
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2603749999999536,
+            "p95Ms": 0.34866699999997763,
+            "constructionSumMs": 27.478206,
+            "commonSpanMs": 48.262833,
+            "otherCommonSpanMs": 20.784627,
+            "checkpoint": {
+              "elapsedLowerMs": 48.40941699999996,
+              "elapsedUpperMs": 48.41666699999996,
+              "userMs": 54.631,
+              "systemMs": 9.559
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.28870799999998553,
+            "p95Ms": 0.4096669999998994,
+            "constructionSumMs": 90.26813200000038,
+            "commonSpanMs": 144.05987499999992,
+            "otherCommonSpanMs": 53.79174299999954,
+            "checkpoint": {
+              "elapsedLowerMs": 144.24029200000007,
+              "elapsedUpperMs": 144.2532080000001,
+              "userMs": 121.467,
+              "systemMs": 28.903
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2872499999999718,
+            "p95Ms": 0.37754100000006474,
+            "constructionSumMs": 30.03037699999959,
+            "commonSpanMs": 47.41783399999986,
+            "otherCommonSpanMs": 17.387457000000268,
+            "checkpoint": {
+              "elapsedLowerMs": 47.55408299999999,
+              "elapsedUpperMs": 47.5607500000001,
+              "userMs": 47.076,
+              "systemMs": 6.733
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.26158350000002883,
+            "p95Ms": 0.3285000000000764,
+            "constructionSumMs": 81.2034609999987,
+            "commonSpanMs": 126.97162500000013,
+            "otherCommonSpanMs": 45.768164000001434,
+            "checkpoint": {
+              "elapsedLowerMs": 127.09758299999999,
+              "elapsedUpperMs": 127.11170799999991,
+              "userMs": 118.565,
+              "systemMs": 16.457
+            },
+            "gc": null
+          }
+        ],
+        "whole": {
+          "elapsedLowerMs": 1175.1345000000001,
+          "elapsedUpperMs": 1175.147375,
+          "userMs": 1351.885,
+          "systemMs": 186.411
+        },
+        "flush": null
+      }
+    },
+    {
+      "id": 9,
+      "round": 2,
+      "pid": 86886,
+      "analysis": {
+        "schema": "causal-workload-child-analysis-v1",
+        "condition": "DEFERRED",
+        "orientation": "V",
+        "sampleCount": 2400,
+        "measuredBlockCount": 6,
+        "estimators": {
+          "p50": "median; average of middle two for even count",
+          "p95": "nearest rank ceil(0.95*n), one-based"
+        },
+        "scope": "Child arithmetic only; no source, process identity, cleanup, execution authorization, 24-process schedule or resource qualification. GC is a captured subset; empty is not no GC. CPU is process-wide; elapsed minus CPU is not waiting time.",
+        "blocks": [
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.308125000000004,
+            "p95Ms": 0.6384580000000142,
+            "constructionSumMs": 35.88528700000006,
+            "commonSpanMs": 52.433291,
+            "otherCommonSpanMs": 16.548003999999935,
+            "checkpoint": {
+              "elapsedLowerMs": 52.88304199999999,
+              "elapsedUpperMs": 52.909875,
+              "userMs": 79.293,
+              "systemMs": 3.384
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.28420850000003384,
+            "p95Ms": 0.4111660000000086,
+            "constructionSumMs": 90.73416799999993,
+            "commonSpanMs": 131.72491699999998,
+            "otherCommonSpanMs": 40.99074900000005,
+            "checkpoint": {
+              "elapsedLowerMs": 132.21895899999998,
+              "elapsedUpperMs": 132.256167,
+              "userMs": 233.376,
+              "systemMs": 8.704
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.31231250000001864,
+            "p95Ms": 0.7310840000000098,
+            "constructionSumMs": 37.67571000000021,
+            "commonSpanMs": 53.52416600000004,
+            "otherCommonSpanMs": 15.848455999999828,
+            "checkpoint": {
+              "elapsedLowerMs": 53.63287500000001,
+              "elapsedUpperMs": 53.65499999999997,
+              "userMs": 77.298,
+              "systemMs": 2.988
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.28652050000002305,
+            "p95Ms": 0.41458299999999326,
+            "constructionSumMs": 91.51104000000112,
+            "commonSpanMs": 131.34033399999998,
+            "otherCommonSpanMs": 39.82929399999887,
+            "checkpoint": {
+              "elapsedLowerMs": 131.44458300000002,
+              "elapsedUpperMs": 131.49395899999996,
+              "userMs": 222.884,
+              "systemMs": 9.614
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2632709999999747,
+            "p95Ms": 0.2997500000000173,
+            "constructionSumMs": 26.89454699999908,
+            "commonSpanMs": 37.30574999999999,
+            "otherCommonSpanMs": 10.41120300000091,
+            "checkpoint": {
+              "elapsedLowerMs": 37.392124999999965,
+              "elapsedUpperMs": 37.40887500000002,
+              "userMs": 44.179,
+              "systemMs": 1.123
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2457285000000411,
+            "p95Ms": 0.3273749999999609,
+            "constructionSumMs": 76.62246199999868,
+            "commonSpanMs": 105.98629200000005,
+            "otherCommonSpanMs": 29.36383000000137,
+            "checkpoint": {
+              "elapsedLowerMs": 106.07612499999993,
+              "elapsedUpperMs": 106.11312500000008,
+              "userMs": 119.108,
+              "systemMs": 3.148
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2762914999999566,
+            "p95Ms": 0.39200000000005275,
+            "constructionSumMs": 29.174998999999957,
+            "commonSpanMs": 40.326415999999995,
+            "otherCommonSpanMs": 11.151417000000038,
+            "checkpoint": {
+              "elapsedLowerMs": 40.468374999999924,
+              "elapsedUpperMs": 40.48520800000006,
+              "userMs": 48.142,
+              "systemMs": 1.76
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.24612500000000637,
+            "p95Ms": 0.3194579999999405,
+            "constructionSumMs": 76.39249900000095,
+            "commonSpanMs": 106.41641700000002,
+            "otherCommonSpanMs": 30.02391799999907,
+            "checkpoint": {
+              "elapsedLowerMs": 106.51491699999997,
+              "elapsedUpperMs": 106.52716600000008,
+              "userMs": 120.913,
+              "systemMs": 4.239
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2641670000000431,
+            "p95Ms": 0.3952079999999114,
+            "constructionSumMs": 27.756121999999664,
+            "commonSpanMs": 42.43604199999993,
+            "otherCommonSpanMs": 14.679920000000266,
+            "checkpoint": {
+              "elapsedLowerMs": 42.519207999999935,
+              "elapsedUpperMs": 42.525999999999954,
+              "userMs": 56.641,
+              "systemMs": 4.077
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2626460000000179,
+            "p95Ms": 0.34637500000008004,
+            "constructionSumMs": 82.16574800000012,
+            "commonSpanMs": 112.81812500000001,
+            "otherCommonSpanMs": 30.652376999999888,
+            "checkpoint": {
+              "elapsedLowerMs": 112.89983299999994,
+              "elapsedUpperMs": 112.91387499999996,
+              "userMs": 110.255,
+              "systemMs": 8.373
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2525005000000533,
+            "p95Ms": 0.32787499999994907,
+            "constructionSumMs": 27.136453000000074,
+            "commonSpanMs": 36.853166999999985,
+            "otherCommonSpanMs": 9.71671399999991,
+            "checkpoint": {
+              "elapsedLowerMs": 36.93808399999989,
+              "elapsedUpperMs": 36.9470419999999,
+              "userMs": 41.646,
+              "systemMs": 1.321
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2560210000000325,
+            "p95Ms": 0.31683300000008785,
+            "constructionSumMs": 79.26762600000018,
+            "commonSpanMs": 108.486583,
+            "otherCommonSpanMs": 29.21895699999982,
+            "checkpoint": {
+              "elapsedLowerMs": 108.56825000000003,
+              "elapsedUpperMs": 108.58245799999997,
+              "userMs": 113.237,
+              "systemMs": 3.417
+            },
+            "gc": null
+          }
+        ],
+        "whole": {
+          "elapsedLowerMs": 1070.441667,
+          "elapsedUpperMs": 1070.4608750000002,
+          "userMs": 1281.4,
+          "systemMs": 145.275
+        },
+        "flush": {
+          "elapsedLowerMs": 108.44374999999991,
+          "elapsedUpperMs": 108.45700000000011,
+          "userMs": 14.195,
+          "systemMs": 93.022
+        }
+      }
+    },
+    {
+      "id": 10,
+      "round": 2,
+      "pid": 86903,
+      "analysis": {
+        "schema": "causal-workload-child-analysis-v1",
+        "condition": "EAGER",
+        "orientation": "U",
+        "sampleCount": 2400,
+        "measuredBlockCount": 6,
+        "estimators": {
+          "p50": "median; average of middle two for even count",
+          "p95": "nearest rank ceil(0.95*n), one-based"
+        },
+        "scope": "Child arithmetic only; no source, process identity, cleanup, execution authorization, 24-process schedule or resource qualification. GC is a captured subset; empty is not no GC. CPU is process-wide; elapsed minus CPU is not waiting time.",
+        "blocks": [
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.31804150000000675,
+            "p95Ms": 0.6943339999999978,
+            "constructionSumMs": 37.363753999999886,
+            "commonSpanMs": 64.64425,
+            "otherCommonSpanMs": 27.280496000000113,
+            "checkpoint": {
+              "elapsedLowerMs": 65.109917,
+              "elapsedUpperMs": 65.139792,
+              "userMs": 83.921,
+              "systemMs": 9.782
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.297813000000005,
+            "p95Ms": 0.4012910000000147,
+            "constructionSumMs": 93.63950500000036,
+            "commonSpanMs": 155.8775,
+            "otherCommonSpanMs": 62.23799499999964,
+            "checkpoint": {
+              "elapsedLowerMs": 156.30608300000003,
+              "elapsedUpperMs": 156.34825,
+              "userMs": 240.468,
+              "systemMs": 26.432
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3171869999999899,
+            "p95Ms": 0.6863749999999982,
+            "constructionSumMs": 36.32612499999982,
+            "commonSpanMs": 57.880874999999946,
+            "otherCommonSpanMs": 21.554750000000126,
+            "checkpoint": {
+              "elapsedLowerMs": 58.089417000000026,
+              "elapsedUpperMs": 58.11241699999999,
+              "userMs": 74.131,
+              "systemMs": 8.307
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2992915000000096,
+            "p95Ms": 0.41504199999997127,
+            "constructionSumMs": 94.04337599999945,
+            "commonSpanMs": 154.58233299999995,
+            "otherCommonSpanMs": 60.538957000000494,
+            "checkpoint": {
+              "elapsedLowerMs": 154.76104200000003,
+              "elapsedUpperMs": 154.809375,
+              "userMs": 229.585,
+              "systemMs": 27.114
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.28243750000001455,
+            "p95Ms": 0.38408300000003237,
+            "constructionSumMs": 29.42920700000002,
+            "commonSpanMs": 46.963292000000024,
+            "otherCommonSpanMs": 17.534085000000005,
+            "checkpoint": {
+              "elapsedLowerMs": 47.10741600000006,
+              "elapsedUpperMs": 47.12475000000006,
+              "userMs": 47.842,
+              "systemMs": 7.342
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2597499999999968,
+            "p95Ms": 0.3231670000000122,
+            "constructionSumMs": 80.50146800000164,
+            "commonSpanMs": 130.45904200000007,
+            "otherCommonSpanMs": 49.95757399999843,
+            "checkpoint": {
+              "elapsedLowerMs": 130.60016699999994,
+              "elapsedUpperMs": 130.63645899999995,
+              "userMs": 128.012,
+              "systemMs": 19.104
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.27770799999996143,
+            "p95Ms": 0.37999999999999545,
+            "constructionSumMs": 29.559371999998575,
+            "commonSpanMs": 46.67070799999999,
+            "otherCommonSpanMs": 17.111336000001415,
+            "checkpoint": {
+              "elapsedLowerMs": 46.84937500000001,
+              "elapsedUpperMs": 46.86145799999997,
+              "userMs": 52.223,
+              "systemMs": 6.637
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2774165000000153,
+            "p95Ms": 0.3567079999999123,
+            "constructionSumMs": 86.41037699999868,
+            "commonSpanMs": 139.51070800000002,
+            "otherCommonSpanMs": 53.10033100000135,
+            "checkpoint": {
+              "elapsedLowerMs": 139.68170900000007,
+              "elapsedUpperMs": 139.691917,
+              "userMs": 135.336,
+              "systemMs": 21.507
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2698755000000119,
+            "p95Ms": 0.33845799999994597,
+            "constructionSumMs": 27.615715000000137,
+            "commonSpanMs": 45.29529100000002,
+            "otherCommonSpanMs": 17.679575999999884,
+            "checkpoint": {
+              "elapsedLowerMs": 45.43720900000005,
+              "elapsedUpperMs": 45.443625,
+              "userMs": 40.293,
+              "systemMs": 7.583
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2861039999999093,
+            "p95Ms": 0.4232919999999467,
+            "constructionSumMs": 91.58470700000021,
+            "commonSpanMs": 150.73749999999995,
+            "otherCommonSpanMs": 59.15279299999975,
+            "checkpoint": {
+              "elapsedLowerMs": 150.90541600000006,
+              "elapsedUpperMs": 150.9217500000001,
+              "userMs": 140.936,
+              "systemMs": 30.549
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.28643750000003365,
+            "p95Ms": 0.3743329999999787,
+            "constructionSumMs": 30.10587099999998,
+            "commonSpanMs": 46.83558400000015,
+            "otherCommonSpanMs": 16.729713000000174,
+            "checkpoint": {
+              "elapsedLowerMs": 47.015957999999955,
+              "elapsedUpperMs": 47.022459000000026,
+              "userMs": 46.646,
+              "systemMs": 6.703
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.25889600000004975,
+            "p95Ms": 0.3092079999998987,
+            "constructionSumMs": 79.38184300000125,
+            "commonSpanMs": 123.93641700000012,
+            "otherCommonSpanMs": 44.554573999998865,
+            "checkpoint": {
+              "elapsedLowerMs": 124.0696660000001,
+              "elapsedUpperMs": 124.08245799999986,
+              "userMs": 115.612,
+              "systemMs": 15.698
+            },
+            "gc": null
+          }
+        ],
+        "whole": {
+          "elapsedLowerMs": 1166.314667,
+          "elapsedUpperMs": 1166.330875,
+          "userMs": 1335.219,
+          "systemMs": 186.829
+        },
+        "flush": null
+      }
+    },
+    {
+      "id": 11,
+      "round": 2,
+      "pid": 86922,
+      "analysis": {
+        "schema": "causal-workload-child-analysis-v1",
+        "condition": "DEFERRED",
+        "orientation": "U",
+        "sampleCount": 2400,
+        "measuredBlockCount": 6,
+        "estimators": {
+          "p50": "median; average of middle two for even count",
+          "p95": "nearest rank ceil(0.95*n), one-based"
+        },
+        "scope": "Child arithmetic only; no source, process identity, cleanup, execution authorization, 24-process schedule or resource qualification. GC is a captured subset; empty is not no GC. CPU is process-wide; elapsed minus CPU is not waiting time.",
+        "blocks": [
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.32450000000000045,
+            "p95Ms": 0.6334580000000187,
+            "constructionSumMs": 37.19100499999993,
+            "commonSpanMs": 54.27425000000002,
+            "otherCommonSpanMs": 17.08324500000009,
+            "checkpoint": {
+              "elapsedLowerMs": 54.67637500000001,
+              "elapsedUpperMs": 54.715333000000015,
+              "userMs": 82.976,
+              "systemMs": 3.904
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.27729200000001697,
+            "p95Ms": 0.4168329999999969,
+            "constructionSumMs": 90.26057099999997,
+            "commonSpanMs": 131.599292,
+            "otherCommonSpanMs": 41.33872100000002,
+            "checkpoint": {
+              "elapsedLowerMs": 131.702792,
+              "elapsedUpperMs": 131.740334,
+              "userMs": 226.459,
+              "systemMs": 10.312
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3053124999999852,
+            "p95Ms": 0.747415999999987,
+            "constructionSumMs": 36.145289999999875,
+            "commonSpanMs": 51.90750000000003,
+            "otherCommonSpanMs": 15.762210000000152,
+            "checkpoint": {
+              "elapsedLowerMs": 52.014084000000025,
+              "elapsedUpperMs": 52.035459,
+              "userMs": 78.867,
+              "systemMs": 3.166
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2825420000000065,
+            "p95Ms": 0.388040999999987,
+            "constructionSumMs": 89.53034299999973,
+            "commonSpanMs": 129.56433400000003,
+            "otherCommonSpanMs": 40.0339910000003,
+            "checkpoint": {
+              "elapsedLowerMs": 129.65854099999996,
+              "elapsedUpperMs": 129.70179099999996,
+              "userMs": 221.651,
+              "systemMs": 9.429
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.258250500000031,
+            "p95Ms": 0.33533299999999144,
+            "constructionSumMs": 26.92796000000044,
+            "commonSpanMs": 36.77520800000002,
+            "otherCommonSpanMs": 9.847247999999581,
+            "checkpoint": {
+              "elapsedLowerMs": 36.872416000000044,
+              "elapsedUpperMs": 36.89137500000004,
+              "userMs": 42.527,
+              "systemMs": 1.216
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.26487500000001774,
+            "p95Ms": 0.3619579999999587,
+            "constructionSumMs": 83.33917700000075,
+            "commonSpanMs": 115.57862499999999,
+            "otherCommonSpanMs": 32.23944799999924,
+            "checkpoint": {
+              "elapsedLowerMs": 115.66804200000001,
+              "elapsedUpperMs": 115.70579199999997,
+              "userMs": 137.184,
+              "systemMs": 3.89
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2635624999999777,
+            "p95Ms": 0.37808399999994435,
+            "constructionSumMs": 28.778876999999625,
+            "commonSpanMs": 39.88429199999996,
+            "otherCommonSpanMs": 11.105415000000335,
+            "checkpoint": {
+              "elapsedLowerMs": 40.01312500000006,
+              "elapsedUpperMs": 40.02491699999996,
+              "userMs": 48.034,
+              "systemMs": 1.567
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.25262500000008004,
+            "p95Ms": 0.3274579999999787,
+            "constructionSumMs": 78.27008500000068,
+            "commonSpanMs": 108.20450000000005,
+            "otherCommonSpanMs": 29.934414999999376,
+            "checkpoint": {
+              "elapsedLowerMs": 108.30220800000006,
+              "elapsedUpperMs": 108.31262499999991,
+              "userMs": 121.347,
+              "systemMs": 4.292
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.249708499999997,
+            "p95Ms": 0.3612909999999374,
+            "constructionSumMs": 26.466283999999973,
+            "commonSpanMs": 37.185542000000055,
+            "otherCommonSpanMs": 10.719258000000082,
+            "checkpoint": {
+              "elapsedLowerMs": 37.27616599999999,
+              "elapsedUpperMs": 37.28316599999994,
+              "userMs": 37.602,
+              "systemMs": 1.723
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.26585399999999026,
+            "p95Ms": 0.4026249999999436,
+            "constructionSumMs": 86.44682999999975,
+            "commonSpanMs": 123.53241700000001,
+            "otherCommonSpanMs": 37.08558700000026,
+            "checkpoint": {
+              "elapsedLowerMs": 123.703709,
+              "elapsedUpperMs": 123.71554200000003,
+              "userMs": 139.638,
+              "systemMs": 11.771
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2867914999999357,
+            "p95Ms": 0.37066699999991215,
+            "constructionSumMs": 30.443126999999436,
+            "commonSpanMs": 41.673124999999914,
+            "otherCommonSpanMs": 11.229998000000478,
+            "checkpoint": {
+              "elapsedLowerMs": 41.761292000000026,
+              "elapsedUpperMs": 41.770667,
+              "userMs": 46.069,
+              "systemMs": 2.011
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2530624999999418,
+            "p95Ms": 0.31574999999998,
+            "constructionSumMs": 78.64346200000239,
+            "commonSpanMs": 107.49183299999993,
+            "otherCommonSpanMs": 28.84837099999754,
+            "checkpoint": {
+              "elapsedLowerMs": 107.577583,
+              "elapsedUpperMs": 107.59145799999999,
+              "userMs": 111.875,
+              "systemMs": 2.912
+            },
+            "gc": null
+          }
+        ],
+        "whole": {
+          "elapsedLowerMs": 1088.185334,
+          "elapsedUpperMs": 1088.203459,
+          "userMs": 1309.031,
+          "systemMs": 149.378
+        },
+        "flush": {
+          "elapsedLowerMs": 108.47187499999995,
+          "elapsedUpperMs": 108.48454100000004,
+          "userMs": 14.541,
+          "systemMs": 93.083
+        }
+      }
+    },
+    {
+      "id": 12,
+      "round": 3,
+      "pid": 86941,
+      "analysis": {
+        "schema": "causal-workload-child-analysis-v1",
+        "condition": "EAGER",
+        "orientation": "V",
+        "sampleCount": 2400,
+        "measuredBlockCount": 6,
+        "estimators": {
+          "p50": "median; average of middle two for even count",
+          "p95": "nearest rank ceil(0.95*n), one-based"
+        },
+        "scope": "Child arithmetic only; no source, process identity, cleanup, execution authorization, 24-process schedule or resource qualification. GC is a captured subset; empty is not no GC. CPU is process-wide; elapsed minus CPU is not waiting time.",
+        "blocks": [
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3294585000000012,
+            "p95Ms": 0.7296249999999986,
+            "constructionSumMs": 37.85125200000002,
+            "commonSpanMs": 61.998125000000016,
+            "otherCommonSpanMs": 24.146873,
+            "checkpoint": {
+              "elapsedLowerMs": 62.42475000000002,
+              "elapsedUpperMs": 62.45141699999999,
+              "userMs": 84.286,
+              "systemMs": 9.624
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.297458000000006,
+            "p95Ms": 0.4290830000000483,
+            "constructionSumMs": 94.67846400000008,
+            "commonSpanMs": 156.11141600000002,
+            "otherCommonSpanMs": 61.43295199999994,
+            "checkpoint": {
+              "elapsedLowerMs": 156.49745800000002,
+              "elapsedUpperMs": 156.53333299999997,
+              "userMs": 247.075,
+              "systemMs": 25.287
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.32831249999998136,
+            "p95Ms": 0.7415000000000305,
+            "constructionSumMs": 37.50300299999981,
+            "commonSpanMs": 59.586625000000026,
+            "otherCommonSpanMs": 22.08362200000022,
+            "checkpoint": {
+              "elapsedLowerMs": 59.787958,
+              "elapsedUpperMs": 59.81112499999995,
+              "userMs": 75.653,
+              "systemMs": 8.422
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.31212499999998045,
+            "p95Ms": 0.42737499999998363,
+            "constructionSumMs": 96.75712700000082,
+            "commonSpanMs": 158.60070799999994,
+            "otherCommonSpanMs": 61.84358099999912,
+            "checkpoint": {
+              "elapsedLowerMs": 158.79800000000006,
+              "elapsedUpperMs": 158.84520899999995,
+              "userMs": 238.565,
+              "systemMs": 27.612
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.30362550000000965,
+            "p95Ms": 0.4031250000000455,
+            "constructionSumMs": 31.637217999999393,
+            "commonSpanMs": 50.47358399999996,
+            "otherCommonSpanMs": 18.836366000000567,
+            "checkpoint": {
+              "elapsedLowerMs": 50.61808399999995,
+              "elapsedUpperMs": 50.636833000000024,
+              "userMs": 47.707,
+              "systemMs": 7.49
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.26795800000002146,
+            "p95Ms": 0.34929200000010496,
+            "constructionSumMs": 83.40620999999965,
+            "commonSpanMs": 133.09162500000002,
+            "otherCommonSpanMs": 49.685415000000376,
+            "checkpoint": {
+              "elapsedLowerMs": 133.24641700000006,
+              "elapsedUpperMs": 133.285208,
+              "userMs": 131.851,
+              "systemMs": 18.581
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3112710000000334,
+            "p95Ms": 0.44620800000006966,
+            "constructionSumMs": 33.302414999999996,
+            "commonSpanMs": 54.277124999999955,
+            "otherCommonSpanMs": 20.97470999999996,
+            "checkpoint": {
+              "elapsedLowerMs": 54.45687499999997,
+              "elapsedUpperMs": 54.47074999999995,
+              "userMs": 58.064,
+              "systemMs": 8.649
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2663335000000302,
+            "p95Ms": 0.34008300000004965,
+            "constructionSumMs": 82.25862100000188,
+            "commonSpanMs": 131.06287500000008,
+            "otherCommonSpanMs": 48.804253999998195,
+            "checkpoint": {
+              "elapsedLowerMs": 131.2342910000001,
+              "elapsedUpperMs": 131.25099999999998,
+              "userMs": 131.184,
+              "systemMs": 18.225
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.26341699999994717,
+            "p95Ms": 0.41162499999995816,
+            "constructionSumMs": 28.174666000000002,
+            "commonSpanMs": 49.317542,
+            "otherCommonSpanMs": 21.142876,
+            "checkpoint": {
+              "elapsedLowerMs": 49.48479199999997,
+              "elapsedUpperMs": 49.49362499999995,
+              "userMs": 58.777,
+              "systemMs": 9.449
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.27416649999997844,
+            "p95Ms": 0.3767499999999018,
+            "constructionSumMs": 87.43595700000185,
+            "commonSpanMs": 137.91745800000012,
+            "otherCommonSpanMs": 50.481500999998275,
+            "checkpoint": {
+              "elapsedLowerMs": 138.08387500000015,
+              "elapsedUpperMs": 138.09741700000006,
+              "userMs": 118.836,
+              "systemMs": 24.234
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2738125000000764,
+            "p95Ms": 0.3412079999998241,
+            "constructionSumMs": 28.756466999999702,
+            "commonSpanMs": 44.48495899999989,
+            "otherCommonSpanMs": 15.728492000000188,
+            "checkpoint": {
+              "elapsedLowerMs": 44.62966600000004,
+              "elapsedUpperMs": 44.63862499999982,
+              "userMs": 45.351,
+              "systemMs": 5.709
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.26022950000003675,
+            "p95Ms": 0.32625000000007276,
+            "constructionSumMs": 80.92311900000072,
+            "commonSpanMs": 125.78599999999983,
+            "otherCommonSpanMs": 44.862880999999106,
+            "checkpoint": {
+              "elapsedLowerMs": 125.9184580000001,
+              "elapsedUpperMs": 125.93724999999995,
+              "userMs": 118.151,
+              "systemMs": 16.368
+            },
+            "gc": null
+          }
+        ],
+        "whole": {
+          "elapsedLowerMs": 1165.584875,
+          "elapsedUpperMs": 1165.5996249999998,
+          "userMs": 1355.727,
+          "systemMs": 179.722
+        },
+        "flush": null
+      }
+    },
+    {
+      "id": 13,
+      "round": 3,
+      "pid": 86957,
+      "analysis": {
+        "schema": "causal-workload-child-analysis-v1",
+        "condition": "DEFERRED",
+        "orientation": "U",
+        "sampleCount": 2400,
+        "measuredBlockCount": 6,
+        "estimators": {
+          "p50": "median; average of middle two for even count",
+          "p95": "nearest rank ceil(0.95*n), one-based"
+        },
+        "scope": "Child arithmetic only; no source, process identity, cleanup, execution authorization, 24-process schedule or resource qualification. GC is a captured subset; empty is not no GC. CPU is process-wide; elapsed minus CPU is not waiting time.",
+        "blocks": [
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3182079999999985,
+            "p95Ms": 0.6330409999999915,
+            "constructionSumMs": 36.77345600000001,
+            "commonSpanMs": 53.770250000000004,
+            "otherCommonSpanMs": 16.996793999999994,
+            "checkpoint": {
+              "elapsedLowerMs": 54.17670799999999,
+              "elapsedUpperMs": 54.20587499999999,
+              "userMs": 79.464,
+              "systemMs": 3.912
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.29141649999999686,
+            "p95Ms": 0.4195829999999887,
+            "constructionSumMs": 92.89965899999947,
+            "commonSpanMs": 133.282291,
+            "otherCommonSpanMs": 40.38263200000051,
+            "checkpoint": {
+              "elapsedLowerMs": 133.708417,
+              "elapsedUpperMs": 133.745417,
+              "userMs": 229.473,
+              "systemMs": 9.108
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3340624999999875,
+            "p95Ms": 0.8213330000000383,
+            "constructionSumMs": 39.64728900000017,
+            "commonSpanMs": 56.296875,
+            "otherCommonSpanMs": 16.64958599999983,
+            "checkpoint": {
+              "elapsedLowerMs": 56.398459,
+              "elapsedUpperMs": 56.42204099999998,
+              "userMs": 82.282,
+              "systemMs": 3.585
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.28235449999999673,
+            "p95Ms": 0.4125420000000304,
+            "constructionSumMs": 89.84926100000047,
+            "commonSpanMs": 129.59858299999996,
+            "otherCommonSpanMs": 39.749321999999495,
+            "checkpoint": {
+              "elapsedLowerMs": 129.74108400000006,
+              "elapsedUpperMs": 129.78504100000004,
+              "userMs": 220.675,
+              "systemMs": 8.966
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.25956250000001546,
+            "p95Ms": 0.31854199999997945,
+            "constructionSumMs": 26.91196099999945,
+            "commonSpanMs": 37.59641700000009,
+            "otherCommonSpanMs": 10.684456000000637,
+            "checkpoint": {
+              "elapsedLowerMs": 37.682750000000055,
+              "elapsedUpperMs": 37.700374999999894,
+              "userMs": 43.345,
+              "systemMs": 1.361
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2533960000000093,
+            "p95Ms": 0.331957999999986,
+            "constructionSumMs": 79.4958699999994,
+            "commonSpanMs": 110.17370799999992,
+            "otherCommonSpanMs": 30.67783800000052,
+            "checkpoint": {
+              "elapsedLowerMs": 110.26020800000003,
+              "elapsedUpperMs": 110.29508299999998,
+              "userMs": 122.326,
+              "systemMs": 4.34
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.27416649999997844,
+            "p95Ms": 0.3452919999999722,
+            "constructionSumMs": 28.40133499999979,
+            "commonSpanMs": 38.784208000000035,
+            "otherCommonSpanMs": 10.382873000000245,
+            "checkpoint": {
+              "elapsedLowerMs": 38.92754200000002,
+              "elapsedUpperMs": 38.939707999999996,
+              "userMs": 46.322,
+              "systemMs": 1.461
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.25181249999997135,
+            "p95Ms": 0.3330839999999853,
+            "constructionSumMs": 78.85645799999986,
+            "commonSpanMs": 109.85675000000003,
+            "otherCommonSpanMs": 31.000292000000172,
+            "checkpoint": {
+              "elapsedLowerMs": 109.94762500000002,
+              "elapsedUpperMs": 109.95945799999993,
+              "userMs": 124.429,
+              "systemMs": 4.593
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.24768799999992552,
+            "p95Ms": 0.39324999999996635,
+            "constructionSumMs": 26.055711999999744,
+            "commonSpanMs": 39.24795899999992,
+            "otherCommonSpanMs": 13.19224700000018,
+            "checkpoint": {
+              "elapsedLowerMs": 39.388417000000004,
+              "elapsedUpperMs": 39.39433299999996,
+              "userMs": 44.639,
+              "systemMs": 4.005
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2657494999999699,
+            "p95Ms": 0.3661250000000109,
+            "constructionSumMs": 83.65925600000048,
+            "commonSpanMs": 114.95150000000001,
+            "otherCommonSpanMs": 31.292243999999528,
+            "checkpoint": {
+              "elapsedLowerMs": 115.02945799999998,
+              "elapsedUpperMs": 115.04037499999993,
+              "userMs": 120.05,
+              "systemMs": 9.06
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.25475000000000136,
+            "p95Ms": 0.3816669999999931,
+            "constructionSumMs": 27.6427920000001,
+            "commonSpanMs": 38.13191600000005,
+            "otherCommonSpanMs": 10.489123999999947,
+            "checkpoint": {
+              "elapsedLowerMs": 38.21654100000001,
+              "elapsedUpperMs": 38.22170799999992,
+              "userMs": 44.404,
+              "systemMs": 1.442
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.24891700000006267,
+            "p95Ms": 0.306208000000197,
+            "constructionSumMs": 77.71325800000147,
+            "commonSpanMs": 105.31895800000007,
+            "otherCommonSpanMs": 27.605699999998592,
+            "checkpoint": {
+              "elapsedLowerMs": 105.4061670000001,
+              "elapsedUpperMs": 105.4185,
+              "userMs": 108.828,
+              "systemMs": 3.009
+            },
+            "gc": null
+          }
+        ],
+        "whole": {
+          "elapsedLowerMs": 1079.360459,
+          "elapsedUpperMs": 1079.383041,
+          "userMs": 1281.357,
+          "systemMs": 149.836
+        },
+        "flush": {
+          "elapsedLowerMs": 110.04149999999981,
+          "elapsedUpperMs": 110.05383299999994,
+          "userMs": 14.898,
+          "systemMs": 94.876
+        }
+      }
+    },
+    {
+      "id": 14,
+      "round": 3,
+      "pid": 86973,
+      "analysis": {
+        "schema": "causal-workload-child-analysis-v1",
+        "condition": "EAGER",
+        "orientation": "U",
+        "sampleCount": 2400,
+        "measuredBlockCount": 6,
+        "estimators": {
+          "p50": "median; average of middle two for even count",
+          "p95": "nearest rank ceil(0.95*n), one-based"
+        },
+        "scope": "Child arithmetic only; no source, process identity, cleanup, execution authorization, 24-process schedule or resource qualification. GC is a captured subset; empty is not no GC. CPU is process-wide; elapsed minus CPU is not waiting time.",
+        "blocks": [
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3237709999999936,
+            "p95Ms": 0.6845419999999933,
+            "constructionSumMs": 37.604538000000076,
+            "commonSpanMs": 61.43516700000001,
+            "otherCommonSpanMs": 23.83062899999993,
+            "checkpoint": {
+              "elapsedLowerMs": 61.873290999999995,
+              "elapsedUpperMs": 61.90141700000001,
+              "userMs": 84.415,
+              "systemMs": 9.338
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.301228999999978,
+            "p95Ms": 0.39999999999997726,
+            "constructionSumMs": 94.46604599999927,
+            "commonSpanMs": 156.04420800000003,
+            "otherCommonSpanMs": 61.57816200000076,
+            "checkpoint": {
+              "elapsedLowerMs": 156.51320800000002,
+              "elapsedUpperMs": 156.556042,
+              "userMs": 242.452,
+              "systemMs": 25.642
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.31529199999999946,
+            "p95Ms": 0.719208999999978,
+            "constructionSumMs": 36.302041000000315,
+            "commonSpanMs": 58.018958999999995,
+            "otherCommonSpanMs": 21.71691799999968,
+            "checkpoint": {
+              "elapsedLowerMs": 58.234916,
+              "elapsedUpperMs": 58.25970900000004,
+              "userMs": 75.451,
+              "systemMs": 8.509
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.29183350000002406,
+            "p95Ms": 0.41474999999996953,
+            "constructionSumMs": 92.62213300000047,
+            "commonSpanMs": 151.64604100000003,
+            "otherCommonSpanMs": 59.02390799999955,
+            "checkpoint": {
+              "elapsedLowerMs": 151.80654099999998,
+              "elapsedUpperMs": 151.85425000000004,
+              "userMs": 225.445,
+              "systemMs": 25.722
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.273937500000045,
+            "p95Ms": 0.36350000000004457,
+            "constructionSumMs": 28.820496999999932,
+            "commonSpanMs": 45.70541700000001,
+            "otherCommonSpanMs": 16.88492000000008,
+            "checkpoint": {
+              "elapsedLowerMs": 45.870000000000005,
+              "elapsedUpperMs": 45.89095899999995,
+              "userMs": 46.772,
+              "systemMs": 6.726
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.26037549999995235,
+            "p95Ms": 0.3476670000000013,
+            "constructionSumMs": 81.81808499999931,
+            "commonSpanMs": 130.94941699999993,
+            "otherCommonSpanMs": 49.13133200000061,
+            "checkpoint": {
+              "elapsedLowerMs": 131.093125,
+              "elapsedUpperMs": 131.13770899999997,
+              "userMs": 137.772,
+              "systemMs": 18.583
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.277561999999989,
+            "p95Ms": 0.3575829999999769,
+            "constructionSumMs": 29.191037999999935,
+            "commonSpanMs": 45.81295799999998,
+            "otherCommonSpanMs": 16.621920000000046,
+            "checkpoint": {
+              "elapsedLowerMs": 45.966334000000074,
+              "elapsedUpperMs": 45.97854199999995,
+              "userMs": 51.868,
+              "systemMs": 6.145
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.25929150000001755,
+            "p95Ms": 0.3332919999999149,
+            "constructionSumMs": 80.71086999999966,
+            "commonSpanMs": 128.48583299999996,
+            "otherCommonSpanMs": 47.7749630000003,
+            "checkpoint": {
+              "elapsedLowerMs": 128.693583,
+              "elapsedUpperMs": 128.70520799999997,
+              "userMs": 128.418,
+              "systemMs": 18.129
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2627084999999738,
+            "p95Ms": 0.32170800000005784,
+            "constructionSumMs": 26.98549900000114,
+            "commonSpanMs": 43.630042,
+            "otherCommonSpanMs": 16.644542999998862,
+            "checkpoint": {
+              "elapsedLowerMs": 43.76420800000005,
+              "elapsedUpperMs": 43.77049999999997,
+              "userMs": 39.369,
+              "systemMs": 6.738
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2840420000000563,
+            "p95Ms": 0.40629100000001017,
+            "constructionSumMs": 91.299127,
+            "commonSpanMs": 150.30770900000016,
+            "otherCommonSpanMs": 59.00858200000016,
+            "checkpoint": {
+              "elapsedLowerMs": 150.43437500000005,
+              "elapsedUpperMs": 150.44637499999988,
+              "userMs": 138.714,
+              "systemMs": 30.018
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2896250000000009,
+            "p95Ms": 0.3809160000000702,
+            "constructionSumMs": 30.385584999999992,
+            "commonSpanMs": 47.049584000000095,
+            "otherCommonSpanMs": 16.663999000000103,
+            "checkpoint": {
+              "elapsedLowerMs": 47.22058399999992,
+              "elapsedUpperMs": 47.22712499999989,
+              "userMs": 46.731,
+              "systemMs": 6.974
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2596255000000838,
+            "p95Ms": 0.31295799999998053,
+            "constructionSumMs": 80.22741999999994,
+            "commonSpanMs": 125.02500000000009,
+            "otherCommonSpanMs": 44.79758000000015,
+            "checkpoint": {
+              "elapsedLowerMs": 125.16008299999999,
+              "elapsedUpperMs": 125.17166600000019,
+              "userMs": 116.614,
+              "systemMs": 16.008
+            },
+            "gc": null
+          }
+        ],
+        "whole": {
+          "elapsedLowerMs": 1147.0187919999998,
+          "elapsedUpperMs": 1147.038709,
+          "userMs": 1334.24,
+          "systemMs": 178.6
+        },
+        "flush": null
+      }
+    },
+    {
+      "id": 15,
+      "round": 3,
+      "pid": 86991,
+      "analysis": {
+        "schema": "causal-workload-child-analysis-v1",
+        "condition": "DEFERRED",
+        "orientation": "V",
+        "sampleCount": 2400,
+        "measuredBlockCount": 6,
+        "estimators": {
+          "p50": "median; average of middle two for even count",
+          "p95": "nearest rank ceil(0.95*n), one-based"
+        },
+        "scope": "Child arithmetic only; no source, process identity, cleanup, execution authorization, 24-process schedule or resource qualification. GC is a captured subset; empty is not no GC. CPU is process-wide; elapsed minus CPU is not waiting time.",
+        "blocks": [
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.32308350000000985,
+            "p95Ms": 0.6620000000000061,
+            "constructionSumMs": 37.40854700000011,
+            "commonSpanMs": 54.452124999999995,
+            "otherCommonSpanMs": 17.043577999999883,
+            "checkpoint": {
+              "elapsedLowerMs": 54.86150000000001,
+              "elapsedUpperMs": 54.890416999999985,
+              "userMs": 83.792,
+              "systemMs": 4.236
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2802085000000005,
+            "p95Ms": 0.3951250000000073,
+            "constructionSumMs": 89.92650799999984,
+            "commonSpanMs": 130.601,
+            "otherCommonSpanMs": 40.67449200000016,
+            "checkpoint": {
+              "elapsedLowerMs": 130.73933300000002,
+              "elapsedUpperMs": 130.77416699999998,
+              "userMs": 231.883,
+              "systemMs": 8.82
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.3027295000000265,
+            "p95Ms": 0.626542000000029,
+            "constructionSumMs": 34.70325200000025,
+            "commonSpanMs": 49.47554199999996,
+            "otherCommonSpanMs": 14.772289999999714,
+            "checkpoint": {
+              "elapsedLowerMs": 49.611208999999974,
+              "elapsedUpperMs": 49.63012500000002,
+              "userMs": 74.31,
+              "systemMs": 2.791
+            },
+            "gc": null
+          },
+          {
+            "batch": 0,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.2786044999999717,
+            "p95Ms": 0.3866659999999911,
+            "constructionSumMs": 87.9939959999997,
+            "commonSpanMs": 127.65162500000002,
+            "otherCommonSpanMs": 39.65762900000033,
+            "checkpoint": {
+              "elapsedLowerMs": 127.75020799999999,
+              "elapsedUpperMs": 127.79329100000001,
+              "userMs": 215.079,
+              "systemMs": 10.227
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.26304150000004256,
+            "p95Ms": 0.3477499999999054,
+            "constructionSumMs": 27.162375999999426,
+            "commonSpanMs": 36.94391699999994,
+            "otherCommonSpanMs": 9.781541000000516,
+            "checkpoint": {
+              "elapsedLowerMs": 37.042291999999975,
+              "elapsedUpperMs": 37.06175000000002,
+              "userMs": 44.13,
+              "systemMs": 1.02
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 0,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.26418749999999136,
+            "p95Ms": 0.358333000000016,
+            "constructionSumMs": 82.8324220000004,
+            "commonSpanMs": 114.50012500000003,
+            "otherCommonSpanMs": 31.66770299999962,
+            "checkpoint": {
+              "elapsedLowerMs": 115.18404199999998,
+              "elapsedUpperMs": 115.22495800000002,
+              "userMs": 137.497,
+              "systemMs": 3.681
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2693125000000123,
+            "p95Ms": 0.3859170000000631,
+            "constructionSumMs": 28.817120999999702,
+            "commonSpanMs": 39.901792,
+            "otherCommonSpanMs": 11.084671000000299,
+            "checkpoint": {
+              "elapsedLowerMs": 40.013458000000014,
+              "elapsedUpperMs": 40.026666999999975,
+              "userMs": 47.866,
+              "systemMs": 1.493
+            },
+            "gc": null
+          },
+          {
+            "batch": 1,
+            "position": 1,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.26043749999996635,
+            "p95Ms": 0.32941700000003493,
+            "constructionSumMs": 80.1346790000008,
+            "commonSpanMs": 110.43633399999999,
+            "otherCommonSpanMs": 30.301654999999187,
+            "checkpoint": {
+              "elapsedLowerMs": 110.54720800000007,
+              "elapsedUpperMs": 110.55958399999997,
+              "userMs": 123.564,
+              "systemMs": 4.637
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "reference",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.24987499999997453,
+            "p95Ms": 0.3253750000000082,
+            "constructionSumMs": 25.66386799999998,
+            "commonSpanMs": 35.243167000000085,
+            "otherCommonSpanMs": 9.579299000000105,
+            "checkpoint": {
+              "elapsedLowerMs": 35.81908299999998,
+              "elapsedUpperMs": 35.82554200000004,
+              "userMs": 35.975,
+              "systemMs": 1.44
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 0,
+            "arm": "reference",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.25962449999991577,
+            "p95Ms": 0.36579200000005585,
+            "constructionSumMs": 82.34545299999911,
+            "commonSpanMs": 116.67645800000003,
+            "otherCommonSpanMs": 34.331005000000914,
+            "checkpoint": {
+              "elapsedLowerMs": 116.76324999999997,
+              "elapsedUpperMs": 116.78395899999998,
+              "userMs": 127.337,
+              "systemMs": 10.838
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "warmup",
+            "count": 100,
+            "p50Ms": 0.2535829999999919,
+            "p95Ms": 0.3387079999999969,
+            "constructionSumMs": 27.24408100000005,
+            "commonSpanMs": 37.11079199999995,
+            "otherCommonSpanMs": 9.866710999999896,
+            "checkpoint": {
+              "elapsedLowerMs": 37.19704200000001,
+              "elapsedUpperMs": 37.20412500000009,
+              "userMs": 41.638,
+              "systemMs": 1.552
+            },
+            "gc": null
+          },
+          {
+            "batch": 2,
+            "position": 1,
+            "arm": "candidate",
+            "phase": "measured",
+            "count": 300,
+            "p50Ms": 0.25281250000000455,
+            "p95Ms": 0.30262500000003456,
+            "constructionSumMs": 78.49045100000183,
+            "commonSpanMs": 107.8332079999999,
+            "otherCommonSpanMs": 29.342756999998073,
+            "checkpoint": {
+              "elapsedLowerMs": 107.91437499999995,
+              "elapsedUpperMs": 107.93116700000007,
+              "userMs": 112.802,
+              "systemMs": 3.062
+            },
+            "gc": null
+          }
+        ],
+        "whole": {
+          "elapsedLowerMs": 1070.621041,
+          "elapsedUpperMs": 1070.6420839999998,
+          "userMs": 1290.04,
+          "systemMs": 146.352
+        },
+        "flush": {
+          "elapsedLowerMs": 106.7355829999999,
+          "elapsedUpperMs": 106.75216699999987,
+          "userMs": 13.944,
+          "systemMs": 92.442
+        }
+      }
+    }
+  ],
+  "ratios": [
+    {
+      "round": 0,
+      "orientation": "U",
+      "batch": 0,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.8327779101913394,
+        "p95Ms": 0.8041935678866307,
+        "constructionSumMs": 0.8313121681944667,
+        "commonSpanMs": 0.7069632974298564
+      }
+    },
+    {
+      "round": 0,
+      "orientation": "U",
+      "batch": 0,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.811450569973664,
+        "p95Ms": 0.7312435909550236,
+        "constructionSumMs": 0.7935737056060707,
+        "commonSpanMs": 0.6629592550392991
+      }
+    },
+    {
+      "round": 0,
+      "orientation": "U",
+      "batch": 1,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.8772108342360238,
+        "p95Ms": 0.8076553725394484,
+        "constructionSumMs": 0.8572669034483632,
+        "commonSpanMs": 0.6888174136970263
+      }
+    },
+    {
+      "round": 0,
+      "orientation": "U",
+      "batch": 1,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9110397854270731,
+        "p95Ms": 0.865437467476555,
+        "constructionSumMs": 0.8958928059698731,
+        "commonSpanMs": 0.748606551262941
+      }
+    },
+    {
+      "round": 0,
+      "orientation": "U",
+      "batch": 2,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.8380428152416908,
+        "p95Ms": 0.8731783827370025,
+        "constructionSumMs": 0.8672115575313746,
+        "commonSpanMs": 0.7648191136647133
+      }
+    },
+    {
+      "round": 0,
+      "orientation": "U",
+      "batch": 2,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9464076541105275,
+        "p95Ms": 0.8717542838667929,
+        "constructionSumMs": 0.9330452732356833,
+        "commonSpanMs": 0.7960959290523982
+      }
+    },
+    {
+      "round": 0,
+      "orientation": "V",
+      "batch": 0,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 1.0225422904469341,
+        "p95Ms": 1.532508428333763,
+        "constructionSumMs": 1.1396798562816395,
+        "commonSpanMs": 1.0677863062535748
+      }
+    },
+    {
+      "round": 0,
+      "orientation": "V",
+      "batch": 0,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 1.2809014637576892,
+        "p95Ms": 3.1828606022961097,
+        "constructionSumMs": 1.6380916960967824,
+        "commonSpanMs": 1.637496090191677
+      }
+    },
+    {
+      "round": 0,
+      "orientation": "V",
+      "batch": 1,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.989711319448027,
+        "p95Ms": 0.9105525044018908,
+        "constructionSumMs": 0.9567718707405408,
+        "commonSpanMs": 0.8006825893231475
+      }
+    },
+    {
+      "round": 0,
+      "orientation": "V",
+      "batch": 1,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 1.1665261249388412,
+        "p95Ms": 1.2601590130684883,
+        "constructionSumMs": 1.1923935699318684,
+        "commonSpanMs": 1.0501424617302832
+      }
+    },
+    {
+      "round": 0,
+      "orientation": "V",
+      "batch": 2,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9922308546056237,
+        "p95Ms": 0.9133597848516611,
+        "constructionSumMs": 0.9757046554172909,
+        "commonSpanMs": 0.8393704292411351
+      }
+    },
+    {
+      "round": 0,
+      "orientation": "V",
+      "batch": 2,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.8416656455824485,
+        "p95Ms": 0.8920927467302557,
+        "constructionSumMs": 0.8661013342078722,
+        "commonSpanMs": 0.7284228560351172
+      }
+    },
+    {
+      "round": 1,
+      "orientation": "U",
+      "batch": 0,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9147154979784883,
+        "p95Ms": 0.9470696576151282,
+        "constructionSumMs": 0.9364516089098738,
+        "commonSpanMs": 0.8052164764703463
+      }
+    },
+    {
+      "round": 1,
+      "orientation": "U",
+      "batch": 0,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 1.0327472968807723,
+        "p95Ms": 1.1729221271033534,
+        "constructionSumMs": 1.0420391499160422,
+        "commonSpanMs": 0.9103743327377596
+      }
+    },
+    {
+      "round": 1,
+      "orientation": "U",
+      "batch": 1,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9718195440207914,
+        "p95Ms": 0.9915003307144296,
+        "constructionSumMs": 0.9767226804061957,
+        "commonSpanMs": 0.8284721812774452
+      }
+    },
+    {
+      "round": 1,
+      "orientation": "U",
+      "batch": 1,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9841558381088856,
+        "p95Ms": 0.9605142305635933,
+        "constructionSumMs": 0.9831757992796735,
+        "commonSpanMs": 0.8334111936977082
+      }
+    },
+    {
+      "round": 1,
+      "orientation": "U",
+      "batch": 2,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9456089573646089,
+        "p95Ms": 0.9903631116545558,
+        "constructionSumMs": 0.966243016823964,
+        "commonSpanMs": 0.8198678070292659
+      }
+    },
+    {
+      "round": 1,
+      "orientation": "U",
+      "batch": 2,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 1.0202399213366875,
+        "p95Ms": 1.0656071573810861,
+        "constructionSumMs": 1.021857101380419,
+        "commonSpanMs": 0.8800496839490756
+      }
+    },
+    {
+      "round": 1,
+      "orientation": "V",
+      "batch": 0,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9355256521938348,
+        "p95Ms": 0.9933453978158292,
+        "constructionSumMs": 0.9632096177672834,
+        "commonSpanMs": 0.832173199756232
+      }
+    },
+    {
+      "round": 1,
+      "orientation": "V",
+      "batch": 0,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9156859140884861,
+        "p95Ms": 1.0339529278355508,
+        "constructionSumMs": 0.9457691636701956,
+        "commonSpanMs": 0.8130471518137486
+      }
+    },
+    {
+      "round": 1,
+      "orientation": "V",
+      "batch": 1,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9460911065608484,
+        "p95Ms": 0.9692335337072989,
+        "constructionSumMs": 0.9558356748628987,
+        "commonSpanMs": 0.8044521576910482
+      }
+    },
+    {
+      "round": 1,
+      "orientation": "V",
+      "batch": 1,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9937005371021567,
+        "p95Ms": 1.1033123490660732,
+        "constructionSumMs": 1.0167516882114196,
+        "commonSpanMs": 0.8991861648779395
+      }
+    },
+    {
+      "round": 1,
+      "orientation": "V",
+      "batch": 2,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9753066813339952,
+        "p95Ms": 1.1180270583677867,
+        "constructionSumMs": 0.9964919888531143,
+        "commonSpanMs": 0.9002115582573139
+      }
+    },
+    {
+      "round": 1,
+      "orientation": "V",
+      "batch": 2,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 1.0288852015198795,
+        "p95Ms": 1.0255904772633735,
+        "constructionSumMs": 1.0277627611441411,
+        "commonSpanMs": 0.9069562214856196
+      }
+    },
+    {
+      "round": 2,
+      "orientation": "U",
+      "batch": 0,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9310943444376583,
+        "p95Ms": 1.0387299989284127,
+        "constructionSumMs": 0.9639155076695421,
+        "commonSpanMs": 0.8442481564048692
+      }
+    },
+    {
+      "round": 2,
+      "orientation": "U",
+      "batch": 0,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9440361654106363,
+        "p95Ms": 0.9349439333850884,
+        "constructionSumMs": 0.9520111549376986,
+        "commonSpanMs": 0.8381574497261604
+      }
+    },
+    {
+      "round": 2,
+      "orientation": "U",
+      "batch": 1,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9106343710632429,
+        "p95Ms": 0.9180001569913184,
+        "constructionSumMs": 0.9057949718238341,
+        "commonSpanMs": 0.7755999632659024
+      }
+    },
+    {
+      "round": 2,
+      "orientation": "U",
+      "batch": 1,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 1.0197305101059517,
+        "p95Ms": 1.1200339143537088,
+        "constructionSumMs": 1.035250400651067,
+        "commonSpanMs": 0.8859380172360911
+      }
+    },
+    {
+      "round": 2,
+      "orientation": "U",
+      "batch": 2,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9292215418172222,
+        "p95Ms": 0.9511755478487529,
+        "constructionSumMs": 0.9439002736559451,
+        "commonSpanMs": 0.8195201393150348
+      }
+    },
+    {
+      "round": 2,
+      "orientation": "U",
+      "batch": 2,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9774677862921527,
+        "p95Ms": 1.0211572792427217,
+        "constructionSumMs": 0.9906983641082904,
+        "commonSpanMs": 0.8673143503898441
+      }
+    },
+    {
+      "round": 2,
+      "orientation": "V",
+      "batch": 0,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9742149035715897,
+        "p95Ms": 0.9770204602976662,
+        "constructionSumMs": 0.9862263326960691,
+        "commonSpanMs": 0.8112665351113675
+      }
+    },
+    {
+      "round": 2,
+      "orientation": "V",
+      "batch": 0,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9607042474906775,
+        "p95Ms": 0.9684953867825047,
+        "constructionSumMs": 0.9694189560297962,
+        "commonSpanMs": 0.8402359951866966
+      }
+    },
+    {
+      "round": 2,
+      "orientation": "V",
+      "batch": 1,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9178254877135635,
+        "p95Ms": 0.9028967160619312,
+        "constructionSumMs": 0.9211276659113752,
+        "commonSpanMs": 0.7936224339654433
+      }
+    },
+    {
+      "round": 2,
+      "orientation": "V",
+      "batch": 1,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9110814152347111,
+        "p95Ms": 0.9663473318349856,
+        "constructionSumMs": 0.9210856755040019,
+        "commonSpanMs": 0.7942239821520629
+      }
+    },
+    {
+      "round": 2,
+      "orientation": "V",
+      "batch": 2,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.978735279557022,
+        "p95Ms": 0.9644840182648833,
+        "constructionSumMs": 0.9761606835945262,
+        "commonSpanMs": 0.8544159610464139
+      }
+    },
+    {
+      "round": 2,
+      "orientation": "V",
+      "batch": 2,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9097288609946073,
+        "p95Ms": 0.8455037872227079,
+        "constructionSumMs": 0.9102409253356409,
+        "commonSpanMs": 0.783133575535867
+      }
+    },
+    {
+      "round": 3,
+      "orientation": "U",
+      "batch": 0,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9674251151118191,
+        "p95Ms": 1.0489575000000315,
+        "constructionSumMs": 0.9834185184378331,
+        "commonSpanMs": 0.8541316124979145
+      }
+    },
+    {
+      "round": 3,
+      "orientation": "U",
+      "batch": 0,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9675191504744091,
+        "p95Ms": 0.9946763110308877,
+        "constructionSumMs": 0.9700625335415242,
+        "commonSpanMs": 0.8546123732963127
+      }
+    },
+    {
+      "round": 3,
+      "orientation": "U",
+      "batch": 1,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.97115601552675,
+        "p95Ms": 0.9993759226146153,
+        "constructionSumMs": 0.9770240117595089,
+        "commonSpanMs": 0.8550106065000962
+      }
+    },
+    {
+      "round": 3,
+      "orientation": "U",
+      "batch": 1,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9731944825840205,
+        "p95Ms": 0.9548159589491806,
+        "constructionSumMs": 0.9716173386360738,
+        "commonSpanMs": 0.841345540316533
+      }
+    },
+    {
+      "round": 3,
+      "orientation": "U",
+      "batch": 2,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9355993127773963,
+        "p95Ms": 0.9011398234270553,
+        "constructionSumMs": 0.916320437543729,
+        "commonSpanMs": 0.764774480063427
+      }
+    },
+    {
+      "round": 3,
+      "orientation": "U",
+      "batch": 2,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9587540515087399,
+        "p95Ms": 0.9784316106321489,
+        "constructionSumMs": 0.9686620609263209,
+        "commonSpanMs": 0.8423831873625274
+      }
+    },
+    {
+      "round": 3,
+      "orientation": "V",
+      "batch": 0,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.8926055266319237,
+        "p95Ms": 0.9047464170810317,
+        "constructionSumMs": 0.9094316742166079,
+        "commonSpanMs": 0.8048616340350767
+      }
+    },
+    {
+      "round": 3,
+      "orientation": "V",
+      "batch": 0,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9420103006138509,
+        "p95Ms": 0.9208591344797226,
+        "constructionSumMs": 0.9498095364115726,
+        "commonSpanMs": 0.8365884017091997
+      }
+    },
+    {
+      "round": 3,
+      "orientation": "V",
+      "batch": 1,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9859287649555908,
+        "p95Ms": 1.0258837877761537,
+        "constructionSumMs": 0.9931205602076962,
+        "commonSpanMs": 0.8603105191630203
+      }
+    },
+    {
+      "round": 3,
+      "orientation": "V",
+      "batch": 1,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9778623417630032,
+        "p95Ms": 0.9686370680098295,
+        "constructionSumMs": 0.974179703304277,
+        "commonSpanMs": 0.8426210244510501
+      }
+    },
+    {
+      "round": 3,
+      "orientation": "V",
+      "batch": 2,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9714982352114916,
+        "p95Ms": 0.9275862068964508,
+        "constructionSumMs": 0.9699385289388206,
+        "commonSpanMs": 0.8572751180576539
+      }
+    },
+    {
+      "round": 3,
+      "orientation": "V",
+      "batch": 2,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "ratios": {
+        "p50Ms": 0.9469592382728604,
+        "p95Ms": 0.9709143994695454,
+        "constructionSumMs": 0.9417801991919339,
+        "commonSpanMs": 0.8459875906355518
+      }
+    }
+  ],
+  "fourRoundRanges": [
+    {
+      "orientation": "U",
+      "batch": 0,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "rounds": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "ranges": {
+        "p50Ms": [
+          0.8327779101913394,
+          0.9674251151118191
+        ],
+        "p95Ms": [
+          0.8041935678866307,
+          1.0489575000000315
+        ],
+        "constructionSumMs": [
+          0.8313121681944667,
+          0.9834185184378331
+        ],
+        "commonSpanMs": [
+          0.7069632974298564,
+          0.8541316124979145
+        ]
+      }
+    },
+    {
+      "orientation": "U",
+      "batch": 0,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "rounds": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "ranges": {
+        "p50Ms": [
+          0.811450569973664,
+          1.0327472968807723
+        ],
+        "p95Ms": [
+          0.7312435909550236,
+          1.1729221271033534
+        ],
+        "constructionSumMs": [
+          0.7935737056060707,
+          1.0420391499160422
+        ],
+        "commonSpanMs": [
+          0.6629592550392991,
+          0.9103743327377596
+        ]
+      }
+    },
+    {
+      "orientation": "U",
+      "batch": 1,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "rounds": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "ranges": {
+        "p50Ms": [
+          0.8772108342360238,
+          0.9718195440207914
+        ],
+        "p95Ms": [
+          0.8076553725394484,
+          0.9993759226146153
+        ],
+        "constructionSumMs": [
+          0.8572669034483632,
+          0.9770240117595089
+        ],
+        "commonSpanMs": [
+          0.6888174136970263,
+          0.8550106065000962
+        ]
+      }
+    },
+    {
+      "orientation": "U",
+      "batch": 1,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "rounds": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "ranges": {
+        "p50Ms": [
+          0.9110397854270731,
+          1.0197305101059517
+        ],
+        "p95Ms": [
+          0.865437467476555,
+          1.1200339143537088
+        ],
+        "constructionSumMs": [
+          0.8958928059698731,
+          1.035250400651067
+        ],
+        "commonSpanMs": [
+          0.748606551262941,
+          0.8859380172360911
+        ]
+      }
+    },
+    {
+      "orientation": "U",
+      "batch": 2,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "rounds": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "ranges": {
+        "p50Ms": [
+          0.8380428152416908,
+          0.9456089573646089
+        ],
+        "p95Ms": [
+          0.8731783827370025,
+          0.9903631116545558
+        ],
+        "constructionSumMs": [
+          0.8672115575313746,
+          0.966243016823964
+        ],
+        "commonSpanMs": [
+          0.764774480063427,
+          0.8198678070292659
+        ]
+      }
+    },
+    {
+      "orientation": "U",
+      "batch": 2,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "rounds": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "ranges": {
+        "p50Ms": [
+          0.9464076541105275,
+          1.0202399213366875
+        ],
+        "p95Ms": [
+          0.8717542838667929,
+          1.0656071573810861
+        ],
+        "constructionSumMs": [
+          0.9330452732356833,
+          1.021857101380419
+        ],
+        "commonSpanMs": [
+          0.7960959290523982,
+          0.8800496839490756
+        ]
+      }
+    },
+    {
+      "orientation": "V",
+      "batch": 0,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "rounds": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "ranges": {
+        "p50Ms": [
+          0.8926055266319237,
+          1.0225422904469341
+        ],
+        "p95Ms": [
+          0.9047464170810317,
+          1.532508428333763
+        ],
+        "constructionSumMs": [
+          0.9094316742166079,
+          1.1396798562816395
+        ],
+        "commonSpanMs": [
+          0.8048616340350767,
+          1.0677863062535748
+        ]
+      }
+    },
+    {
+      "orientation": "V",
+      "batch": 0,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "rounds": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "ranges": {
+        "p50Ms": [
+          0.9156859140884861,
+          1.2809014637576892
+        ],
+        "p95Ms": [
+          0.9208591344797226,
+          3.1828606022961097
+        ],
+        "constructionSumMs": [
+          0.9457691636701956,
+          1.6380916960967824
+        ],
+        "commonSpanMs": [
+          0.8130471518137486,
+          1.637496090191677
+        ]
+      }
+    },
+    {
+      "orientation": "V",
+      "batch": 1,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "rounds": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "ranges": {
+        "p50Ms": [
+          0.9178254877135635,
+          0.989711319448027
+        ],
+        "p95Ms": [
+          0.9028967160619312,
+          1.0258837877761537
+        ],
+        "constructionSumMs": [
+          0.9211276659113752,
+          0.9931205602076962
+        ],
+        "commonSpanMs": [
+          0.7936224339654433,
+          0.8603105191630203
+        ]
+      }
+    },
+    {
+      "orientation": "V",
+      "batch": 1,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "rounds": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "ranges": {
+        "p50Ms": [
+          0.9110814152347111,
+          1.1665261249388412
+        ],
+        "p95Ms": [
+          0.9663473318349856,
+          1.2601590130684883
+        ],
+        "constructionSumMs": [
+          0.9210856755040019,
+          1.1923935699318684
+        ],
+        "commonSpanMs": [
+          0.7942239821520629,
+          1.0501424617302832
+        ]
+      }
+    },
+    {
+      "orientation": "V",
+      "batch": 2,
+      "arm": "candidate",
+      "contrast": "DEFERRED/EAGER",
+      "rounds": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "ranges": {
+        "p50Ms": [
+          0.9714982352114916,
+          0.9922308546056237
+        ],
+        "p95Ms": [
+          0.9133597848516611,
+          1.1180270583677867
+        ],
+        "constructionSumMs": [
+          0.9699385289388206,
+          0.9964919888531143
+        ],
+        "commonSpanMs": [
+          0.8393704292411351,
+          0.9002115582573139
+        ]
+      }
+    },
+    {
+      "orientation": "V",
+      "batch": 2,
+      "arm": "reference",
+      "contrast": "DEFERRED/EAGER",
+      "rounds": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "ranges": {
+        "p50Ms": [
+          0.8416656455824485,
+          1.0288852015198795
+        ],
+        "p95Ms": [
+          0.8455037872227079,
+          1.0255904772633735
+        ],
+        "constructionSumMs": [
+          0.8661013342078722,
+          1.0277627611441411
+        ],
+        "commonSpanMs": [
+          0.7284228560351172,
+          0.9069562214856196
+        ]
+      }
+    }
+  ],
+  "sampleCount": 38400,
+  "measuredBlockCount": 96,
+  "nodeDigestRecordedNotReexecuted": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+  "scope": "Offline artifact consistency and descriptive ratios, not formal D169 qualification, semantic truth of approval text, replayed executable/tool binary provenance beyond bound assets, proof of complete GC, continuous resource bounds or attribution of process CPU to construction. Relocated config paths are historical."
+}

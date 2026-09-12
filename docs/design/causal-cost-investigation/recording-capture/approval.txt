@@ -1,0 +1,6 @@
+User approval: 批准
+Context: approval after the 073d4dc3 tooling handoff for one 16-process, 38400-sample EAGER/DEFERRED recording-path comparison.
+Owner: graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS
+Qualification SHA256: 75a22a3143b848db5ba26be0f258d00f625e7edf7cdb78342704f7452e0258a3
+Budget: four rounds, two conditions, U/V; serial fresh processes; 9600 warmup, 28800 measured; 32 original preflight calls / 96 untimed instances; 30s/child, 900s/attempt, observed RSS and directory <=256 MiB, observation gap <=1s.
+Currentness: this immediate attempt only, exact qualified tooling/runtime/input; preparation failure consumes. No retries, replacements, extra sampling, formal matrix, provider/live/spend, or production changes.

@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "python3",
+    "-B",
+    "scripts/capture-causal-recording.py",
+    "--capture",
+    "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-recording-tools-v1/prepared",
+    "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-recording-tools-v1/prepared/P2-inputs.json",
+    "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/recording-capture/approval.txt",
+    "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/recording-tools/qualification.json",
+    "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-recording-diagnostic-v1/run",
+    "/Users/davidchenallio/.local/share/mise/installs/node/24.18.0/bin/node"
+  ]
+}

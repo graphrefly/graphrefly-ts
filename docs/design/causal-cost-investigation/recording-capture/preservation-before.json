@@ -1,0 +1,28 @@
+{
+  "/Users/davidchenallio/src/graphrefly-ts": {
+    ".agents/skills/conformance/SKILL.md": "a902123430113c2d971bba466243d61f838973103ab0d6fe60aede469fdc90cd",
+    ".agents/skills/dashboard/SKILL.md": "91ec6f2fb417d41cc4abd73b84f6dcfe8a29bb4a2a54057decd48336423858a2",
+    ".agents/skills/design-review/SKILL.md": "8811bca4c0f54f101461671e7f89f2d2c5fe8bdb5f9d358e5c621a4b24de5ec3",
+    ".agents/skills/dev-dispatch/SKILL.md": "3a9e99c64a67558f9e0f1a8681010f8a446eb1bdb9fe70960f710c7e2103173b",
+    ".agents/skills/qa/SKILL.md": "0f2abe766f4e821e15cfe669072f8ee7ab5f4a3911a90784fd308bca890296e6",
+    ".agents/skills/research/SKILL.md": "ae6f708e5d0af760e2769420ca3130f001bf6f141fd3967179cc5f1138e0d73e",
+    ".agents/skills/spec-amend/SKILL.md": "c8e6865b4b9e15391dd96e97a22cf4c0a3f6c6aad907b78ebbb30afb465c7a6d",
+    ".claude/skills/design-review/SKILL.md": "5a1f29bdeec6d5bfd8986a6af27a8e86ebd529170c3b7fa7a6ed995af95a5155",
+    ".claude/skills/dev-dispatch/SKILL.md": "40af5aed02064ca487272d453604668e08ed58c832d1fbcc176c489f7d1c7d07",
+    ".claude/skills/qa/SKILL.md": "1b1919d25a616a7126a6d09803e605303d72fffc6673cc659aff5bf1c3638eeb",
+    ".claude/skills/research/SKILL.md": "094c59097dc3e22ffb9fc23375d724f34a37fbf448a81ee46cf87ec293bb6519",
+    ".gemini/skills/dev-dispatch/SKILL.md": "601b73968dc69556d915fe882712fb827d175836582febeeb3f6af250e93fd15",
+    ".gemini/skills/parity/SKILL.md": "4c8841ad5327ec5325d9c99b17ef49296b12ab1d58472e6283cc0da3817c815f",
+    "AGENTS.md": "17d59e128ff452e43e36230e41dbc47b926863bcaca1ff59d6639f51a5e33e7e",
+    "CLAUDE.md": "1819becf86be9ccf48c04a2ad98d7259f7d8562bc95f3ded491ce2e3919b2110",
+    "GEMINI.md": "5aa37a74e9599d0a6ae79ed7dba6458ecfb6a83b66c01dbcaaa55ac2eef4efb6"
+  },
+  "/Users/davidchenallio/src/graphrefly": {
+    "AGENTS.md": "a0382154b2c7965e67c8c8ba49bc8c554e7ee8237f17fb7bbc7dd1122c9f2b6e",
+    "CLAUDE.md": "1819becf86be9ccf48c04a2ad98d7259f7d8562bc95f3ded491ce2e3919b2110",
+    "decisions/decisions.jsonl": "b1c78cb3d6a0915a37728181a4003bac8f615c1cfd220add1a7982997b48c831",
+    "plan/backlog.jsonl": "89a6d9e0a7607db2bac8f7cfdfeeebdaea7f5faed820a8f659d647cdea4d9505",
+    "sessions/active/SESSION-blueprint-stacked-pr-ownership.md": "74d4b1311f8b5631b1c3ae77857797f75541b31f92603f47efab953fb800115c",
+    "sessions/sessions.jsonl": "d3c318c66a5c0e54294d91f1f5dc776d89c47a69f01b09a7dea06ed33902791c"
+  }
+}
