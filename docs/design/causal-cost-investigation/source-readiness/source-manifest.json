@@ -1,0 +1,509 @@
+{
+  "revision": "a27580a91798040672d4f5dfb4f1487850041c6a",
+  "esbuild": "0.28.0",
+  "consumerExecutions": 0,
+  "limitation": "Module import closures, not executed-path or per-node cost attribution; harness includes both branches and oracle. Type-only imports omitted by bundling.",
+  "entries": {
+    "candidateBuilder": {
+      "entry": "examples/spending-alerts/causal-preset.ts",
+      "inputs": [
+        "examples/spending-alerts/causal-admission.ts",
+        "examples/spending-alerts/causal-business.ts",
+        "examples/spending-alerts/causal-inputs.ts",
+        "examples/spending-alerts/causal-material-owner.ts",
+        "examples/spending-alerts/causal-numeric.ts",
+        "examples/spending-alerts/causal-preset.ts",
+        "examples/spending-alerts/causal-publication.ts",
+        "packages/ts/src/batch/batch.ts",
+        "packages/ts/src/batch/boundary.ts",
+        "packages/ts/src/ctx/types.ts",
+        "packages/ts/src/dispatcher/index.ts",
+        "packages/ts/src/graph/checkpoint.ts",
+        "packages/ts/src/graph/combinators.ts",
+        "packages/ts/src/graph/environment.ts",
+        "packages/ts/src/graph/higher-order.ts",
+        "packages/ts/src/graph/operators.ts",
+        "packages/ts/src/graph/sources.ts",
+        "packages/ts/src/graph/time.ts",
+        "packages/ts/src/identity.ts",
+        "packages/ts/src/json/codec.ts",
+        "packages/ts/src/node/core.ts",
+        "packages/ts/src/node/node-checkpoint-runtime.ts",
+        "packages/ts/src/node/node-context-runtime.ts",
+        "packages/ts/src/node/node-input-runtime.ts",
+        "packages/ts/src/node/node-lifecycle-runtime.ts",
+        "packages/ts/src/node/node-output-runtime.ts",
+        "packages/ts/src/node/node-rewire-runtime.ts",
+        "packages/ts/src/node/node-runtime-host.ts",
+        "packages/ts/src/node/node.ts",
+        "packages/ts/src/node/owned-acquisition.ts",
+        "packages/ts/src/node/protocol-guards.ts",
+        "packages/ts/src/node/runtime-accessors.ts",
+        "packages/ts/src/node/versioning.ts",
+        "packages/ts/src/operators/index.ts",
+        "packages/ts/src/protocol/messages.ts",
+        "packages/ts/src/solutions/causal-occurrence/capabilities.ts",
+        "packages/ts/src/solutions/causal-occurrence/committed-view.ts",
+        "packages/ts/src/solutions/causal-occurrence/construction.ts",
+        "packages/ts/src/solutions/causal-occurrence/evidence.ts",
+        "packages/ts/src/solutions/causal-occurrence/identity.ts",
+        "packages/ts/src/solutions/causal-occurrence/lifecycle.ts",
+        "packages/ts/src/solutions/causal-occurrence/transition.ts"
+      ],
+      "externalImports": [
+        {
+          "path": "node:crypto",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "bundleSha256": "245c2d3bb9d5df7348979d88a022f31ddb610439eaea5e23f3e04fe485c6c53a"
+    },
+    "referenceBuilder": {
+      "entry": "scripts/fixtures/spending-preset-reference.ts",
+      "inputs": [
+        "packages/ts/src/batch/batch.ts",
+        "packages/ts/src/batch/boundary.ts",
+        "packages/ts/src/ctx/types.ts",
+        "packages/ts/src/dispatcher/index.ts",
+        "packages/ts/src/graph/checkpoint.ts",
+        "packages/ts/src/graph/combinators.ts",
+        "packages/ts/src/graph/environment.ts",
+        "packages/ts/src/graph/higher-order.ts",
+        "packages/ts/src/graph/operators.ts",
+        "packages/ts/src/graph/sources.ts",
+        "packages/ts/src/graph/time.ts",
+        "packages/ts/src/identity.ts",
+        "packages/ts/src/json/codec.ts",
+        "packages/ts/src/node/core.ts",
+        "packages/ts/src/node/node-checkpoint-runtime.ts",
+        "packages/ts/src/node/node-context-runtime.ts",
+        "packages/ts/src/node/node-input-runtime.ts",
+        "packages/ts/src/node/node-lifecycle-runtime.ts",
+        "packages/ts/src/node/node-output-runtime.ts",
+        "packages/ts/src/node/node-rewire-runtime.ts",
+        "packages/ts/src/node/node-runtime-host.ts",
+        "packages/ts/src/node/node.ts",
+        "packages/ts/src/node/owned-acquisition.ts",
+        "packages/ts/src/node/protocol-guards.ts",
+        "packages/ts/src/node/runtime-accessors.ts",
+        "packages/ts/src/node/versioning.ts",
+        "packages/ts/src/operators/index.ts",
+        "packages/ts/src/protocol/messages.ts",
+        "packages/ts/src/solutions/causal-occurrence/capabilities.ts",
+        "packages/ts/src/solutions/causal-occurrence/committed-view.ts",
+        "packages/ts/src/solutions/causal-occurrence/construction.ts",
+        "packages/ts/src/solutions/causal-occurrence/evidence.ts",
+        "packages/ts/src/solutions/causal-occurrence/identity.ts",
+        "packages/ts/src/solutions/causal-occurrence/lifecycle.ts",
+        "packages/ts/src/solutions/causal-occurrence/transition.ts",
+        "scripts/fixtures/spending-numeric-plain.ts",
+        "scripts/fixtures/spending-preset-reference-input.ts",
+        "scripts/fixtures/spending-preset-reference.ts",
+        "scripts/fixtures/spending-publication-oracle.ts",
+        "scripts/fixtures/spending-publication-reference.ts"
+      ],
+      "externalImports": [
+        {
+          "path": "node:crypto",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "bundleSha256": "6603c044ded24aa5f02d4d8f1d98bb3278fac6143122587a54654da3a5a7ff16"
+    },
+    "actualHarness": {
+      "entry": "scripts/fixtures/spending-preset-performance-worker.ts",
+      "inputs": [
+        "examples/spending-alerts/causal-admission.ts",
+        "examples/spending-alerts/causal-business.ts",
+        "examples/spending-alerts/causal-inputs.ts",
+        "examples/spending-alerts/causal-material-owner.ts",
+        "examples/spending-alerts/causal-numeric.ts",
+        "examples/spending-alerts/causal-preset.ts",
+        "examples/spending-alerts/causal-publication.ts",
+        "packages/ts/src/batch/batch.ts",
+        "packages/ts/src/batch/boundary.ts",
+        "packages/ts/src/ctx/types.ts",
+        "packages/ts/src/dispatcher/index.ts",
+        "packages/ts/src/graph/blueprint.ts",
+        "packages/ts/src/graph/checkpoint.ts",
+        "packages/ts/src/graph/combinators.ts",
+        "packages/ts/src/graph/construction-scope.ts",
+        "packages/ts/src/graph/describe.ts",
+        "packages/ts/src/graph/environment.ts",
+        "packages/ts/src/graph/graph-lifecycle.ts",
+        "packages/ts/src/graph/graph-support.ts",
+        "packages/ts/src/graph/graph-topology-group.ts",
+        "packages/ts/src/graph/graph.ts",
+        "packages/ts/src/graph/higher-order.ts",
+        "packages/ts/src/graph/operators.ts",
+        "packages/ts/src/graph/sources.ts",
+        "packages/ts/src/graph/time.ts",
+        "packages/ts/src/identity.ts",
+        "packages/ts/src/json/codec.ts",
+        "packages/ts/src/node/core.ts",
+        "packages/ts/src/node/node-checkpoint-runtime.ts",
+        "packages/ts/src/node/node-context-runtime.ts",
+        "packages/ts/src/node/node-input-runtime.ts",
+        "packages/ts/src/node/node-lifecycle-runtime.ts",
+        "packages/ts/src/node/node-output-runtime.ts",
+        "packages/ts/src/node/node-rewire-runtime.ts",
+        "packages/ts/src/node/node-runtime-host.ts",
+        "packages/ts/src/node/node.ts",
+        "packages/ts/src/node/owned-acquisition.ts",
+        "packages/ts/src/node/protocol-guards.ts",
+        "packages/ts/src/node/runtime-accessors.ts",
+        "packages/ts/src/node/versioning.ts",
+        "packages/ts/src/operators/index.ts",
+        "packages/ts/src/protocol/messages.ts",
+        "packages/ts/src/solutions/causal-occurrence/capabilities.ts",
+        "packages/ts/src/solutions/causal-occurrence/committed-view.ts",
+        "packages/ts/src/solutions/causal-occurrence/construction.ts",
+        "packages/ts/src/solutions/causal-occurrence/evidence.ts",
+        "packages/ts/src/solutions/causal-occurrence/identity.ts",
+        "packages/ts/src/solutions/causal-occurrence/lifecycle.ts",
+        "packages/ts/src/solutions/causal-occurrence/transition.ts",
+        "scripts/fixtures/spending-numeric-oracle.ts",
+        "scripts/fixtures/spending-numeric-plain.ts",
+        "scripts/fixtures/spending-preset-harness.ts",
+        "scripts/fixtures/spending-preset-oracle.ts",
+        "scripts/fixtures/spending-preset-performance-worker.ts",
+        "scripts/fixtures/spending-preset-performance.ts",
+        "scripts/fixtures/spending-preset-plain.ts",
+        "scripts/fixtures/spending-preset-reference-input.ts",
+        "scripts/fixtures/spending-preset-reference.ts",
+        "scripts/fixtures/spending-publication-oracle.ts",
+        "scripts/fixtures/spending-publication-reference.ts"
+      ],
+      "externalImports": [
+        {
+          "path": "node:assert/strict",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:perf_hooks",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:timers/promises",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:crypto",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node:crypto",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "bundleSha256": "f92fd542987f2c5ed01aa949dd356de1ccc060af300e0e64dbcb3efc50e08aab"
+    }
+  },
+  "sharedBuilderInputs": [
+    "packages/ts/src/batch/batch.ts",
+    "packages/ts/src/batch/boundary.ts",
+    "packages/ts/src/ctx/types.ts",
+    "packages/ts/src/dispatcher/index.ts",
+    "packages/ts/src/graph/checkpoint.ts",
+    "packages/ts/src/graph/combinators.ts",
+    "packages/ts/src/graph/environment.ts",
+    "packages/ts/src/graph/higher-order.ts",
+    "packages/ts/src/graph/operators.ts",
+    "packages/ts/src/graph/sources.ts",
+    "packages/ts/src/graph/time.ts",
+    "packages/ts/src/identity.ts",
+    "packages/ts/src/json/codec.ts",
+    "packages/ts/src/node/core.ts",
+    "packages/ts/src/node/node-checkpoint-runtime.ts",
+    "packages/ts/src/node/node-context-runtime.ts",
+    "packages/ts/src/node/node-input-runtime.ts",
+    "packages/ts/src/node/node-lifecycle-runtime.ts",
+    "packages/ts/src/node/node-output-runtime.ts",
+    "packages/ts/src/node/node-rewire-runtime.ts",
+    "packages/ts/src/node/node-runtime-host.ts",
+    "packages/ts/src/node/node.ts",
+    "packages/ts/src/node/owned-acquisition.ts",
+    "packages/ts/src/node/protocol-guards.ts",
+    "packages/ts/src/node/runtime-accessors.ts",
+    "packages/ts/src/node/versioning.ts",
+    "packages/ts/src/operators/index.ts",
+    "packages/ts/src/protocol/messages.ts",
+    "packages/ts/src/solutions/causal-occurrence/capabilities.ts",
+    "packages/ts/src/solutions/causal-occurrence/committed-view.ts",
+    "packages/ts/src/solutions/causal-occurrence/construction.ts",
+    "packages/ts/src/solutions/causal-occurrence/evidence.ts",
+    "packages/ts/src/solutions/causal-occurrence/identity.ts",
+    "packages/ts/src/solutions/causal-occurrence/lifecycle.ts",
+    "packages/ts/src/solutions/causal-occurrence/transition.ts"
+  ],
+  "candidateOnly": [
+    "examples/spending-alerts/causal-admission.ts",
+    "examples/spending-alerts/causal-business.ts",
+    "examples/spending-alerts/causal-inputs.ts",
+    "examples/spending-alerts/causal-material-owner.ts",
+    "examples/spending-alerts/causal-numeric.ts",
+    "examples/spending-alerts/causal-preset.ts",
+    "examples/spending-alerts/causal-publication.ts"
+  ],
+  "referenceOnly": [
+    "scripts/fixtures/spending-numeric-plain.ts",
+    "scripts/fixtures/spending-preset-reference-input.ts",
+    "scripts/fixtures/spending-preset-reference.ts",
+    "scripts/fixtures/spending-publication-oracle.ts",
+    "scripts/fixtures/spending-publication-reference.ts"
+  ],
+  "files": {
+    "examples/spending-alerts/causal-admission.ts": {
+      "sha256": "bc96990c2f96c9ecf6b1ddd3141005caaaf6391cd91a33f5d0e8e5d6ae08361d",
+      "gitBlob": "1f6903a925d7b51d3e98d37fbf57f1866198c51b"
+    },
+    "examples/spending-alerts/causal-business.ts": {
+      "sha256": "5808b47b937eaa35336736523d958d9dcfa58053caad9c65df2caac49333c523",
+      "gitBlob": "e43b33d09c5ef4c66e8de5421fbd6b9f2c976442"
+    },
+    "examples/spending-alerts/causal-inputs.ts": {
+      "sha256": "dfb1aa266cfed9bb6400171bfba30f046cd09ef94346c18560124566a7364561",
+      "gitBlob": "f5c70f73093473362dd170be4d360843203231f2"
+    },
+    "examples/spending-alerts/causal-material-owner.ts": {
+      "sha256": "76a3605e733a2f87b23eb908f37fd7177ef86861c80d839708bd9080c5b9b370",
+      "gitBlob": "8ea37e4fa686cbe85ca7cd0c69070704edc6ba02"
+    },
+    "examples/spending-alerts/causal-numeric.ts": {
+      "sha256": "0acdf5c800e55f7de0736718cc846eea137f880d0cbd0f158b680fa8b2e29dd8",
+      "gitBlob": "ced3e6ae088ecd44e055e0589bac2b81d982ea8b"
+    },
+    "examples/spending-alerts/causal-preset.ts": {
+      "sha256": "d4388d6a9bd8ed94e89716cb908e3e335ee3081203d25791868e88e8e40a501b",
+      "gitBlob": "f66c0c5273a05eae37926490fbf3e6fdc3a64310"
+    },
+    "examples/spending-alerts/causal-publication.ts": {
+      "sha256": "eb303ca7a7ac46ed4b906f8ae5008a252426a8a07ef082bc15bd76e8b43ac743",
+      "gitBlob": "4963765184eccf78772305f1ea566ae96bb728a4"
+    },
+    "packages/ts/src/batch/batch.ts": {
+      "sha256": "a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+      "gitBlob": "33d87f6043ba35a65c5587af6280568f5ea5b22a"
+    },
+    "packages/ts/src/batch/boundary.ts": {
+      "sha256": "d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+      "gitBlob": "6a1ecc8ebbee6e57e537c0a7f6e1e4bfe77abe56"
+    },
+    "packages/ts/src/ctx/types.ts": {
+      "sha256": "e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+      "gitBlob": "cfcf253dec0d17e2435cd6c46e0d2b8be6b084b6"
+    },
+    "packages/ts/src/dispatcher/index.ts": {
+      "sha256": "32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+      "gitBlob": "59ccafc3944308f5d4a851733869719ad175728c"
+    },
+    "packages/ts/src/graph/blueprint.ts": {
+      "sha256": "ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+      "gitBlob": "bc92ebc547822b4de780fd3fa3d70e5bce557ad6"
+    },
+    "packages/ts/src/graph/checkpoint.ts": {
+      "sha256": "303ffb3706bff5aa8f2d61a24290a322b3a7aa75f939318c5eb4e0d996b45ce7",
+      "gitBlob": "95179389c8db37016c0d73a58f17382c56da01f3"
+    },
+    "packages/ts/src/graph/combinators.ts": {
+      "sha256": "e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+      "gitBlob": "375ac792e57bec6072ca33b5d0a2fb077e2a2e84"
+    },
+    "packages/ts/src/graph/construction-scope.ts": {
+      "sha256": "343e6828b5276525797f97cb9c3998e4c28a1b0215af0b6505404b676856d37b",
+      "gitBlob": "e1316ed2384147b737bf922867d620a4adcd0181"
+    },
+    "packages/ts/src/graph/describe.ts": {
+      "sha256": "d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+      "gitBlob": "0196730233a51857a26074c98d34d6068a14038c"
+    },
+    "packages/ts/src/graph/environment.ts": {
+      "sha256": "2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+      "gitBlob": "68f623bb58f4ed387f46faf2611eabdddc0a9b24"
+    },
+    "packages/ts/src/graph/graph-lifecycle.ts": {
+      "sha256": "23abc2773517b95265ce11e8144ba026b9ef4cac60af69351960fda00e12ac9d",
+      "gitBlob": "7f0942ff03fb7a68ced24315499107a786ae4496"
+    },
+    "packages/ts/src/graph/graph-support.ts": {
+      "sha256": "e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+      "gitBlob": "0619900bf76c694bad78e87a87f99952d850e2ab"
+    },
+    "packages/ts/src/graph/graph-topology-group.ts": {
+      "sha256": "044f242b40e0ca8e069dbac19855af5d647513d80cbd54ac4978aa7b0830c119",
+      "gitBlob": "d5d4916842593f0f80f021a36959cd692045c00c"
+    },
+    "packages/ts/src/graph/graph.ts": {
+      "sha256": "54b3644e0de855533f9ac91621b9e4eceb0368d11a953fe0d793dfd22e8b72fe",
+      "gitBlob": "8ba9e8a2e5f39e57e4d044bb2ef50362dde830cf"
+    },
+    "packages/ts/src/graph/higher-order.ts": {
+      "sha256": "8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+      "gitBlob": "1830761ca6cbef7d7d26f75748c8cb459bba56a6"
+    },
+    "packages/ts/src/graph/operators.ts": {
+      "sha256": "01dcdfe15269da8fede4e3a0057e668f7c3e6e40c1fbad6d3779c6e5bdf715f3",
+      "gitBlob": "42bfae66a0e951cc6bc97409c84bf676ffcfba49"
+    },
+    "packages/ts/src/graph/sources.ts": {
+      "sha256": "eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+      "gitBlob": "23613d8b8015b9ded478494eca27f0653a38f983"
+    },
+    "packages/ts/src/graph/time.ts": {
+      "sha256": "04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+      "gitBlob": "cadca2d29b87486e92528d719d8acfebc31aca38"
+    },
+    "packages/ts/src/identity.ts": {
+      "sha256": "4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+      "gitBlob": "b93e9c430518927ca6e5bf6b82a396555ce1c63b"
+    },
+    "packages/ts/src/json/codec.ts": {
+      "sha256": "7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+      "gitBlob": "71ddee1cebb2d2f712c72ee3372a9e25fcf590a1"
+    },
+    "packages/ts/src/node/core.ts": {
+      "sha256": "c49794c2ae081aecc4b8d198d4745d2ad8b410fb2ae94493b4ee48b42c105472",
+      "gitBlob": "2280b8e7e03b99f01993db5004616cdfcfba0e0f"
+    },
+    "packages/ts/src/node/node-checkpoint-runtime.ts": {
+      "sha256": "5ed4b3fe287fdf3c37b3c15eb9dcbaf3509f03212752068b3d9f3a2eeafe40bb",
+      "gitBlob": "0d77d07a4a2727a0e4876e08657ee50b15ebf791"
+    },
+    "packages/ts/src/node/node-context-runtime.ts": {
+      "sha256": "6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+      "gitBlob": "21f664f81a430fb008e2b0a495867e81b6259092"
+    },
+    "packages/ts/src/node/node-input-runtime.ts": {
+      "sha256": "9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+      "gitBlob": "2541b5528284c4412be88a823def54f04a1e777f"
+    },
+    "packages/ts/src/node/node-lifecycle-runtime.ts": {
+      "sha256": "c0845b70f2da14aa8692ec2fe4d079cdb0e3be0af777648e0ce2c6adcca3273b",
+      "gitBlob": "ca1cb4233e82e055471cdb88287dbe0beabcabf5"
+    },
+    "packages/ts/src/node/node-output-runtime.ts": {
+      "sha256": "c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+      "gitBlob": "896a8a64108f8d57c60bad91cd9de4a64f309ff0"
+    },
+    "packages/ts/src/node/node-rewire-runtime.ts": {
+      "sha256": "f56d6c2b1618e8245a2576757d0639c6337217b41f11a5c0f7a816f5f3db0e1b",
+      "gitBlob": "e6d63b916db95d66e4b76e818ac0e8679ba8efd4"
+    },
+    "packages/ts/src/node/node-runtime-host.ts": {
+      "sha256": "7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+      "gitBlob": "258238d32f28a84e5af8633af46da7efda7d5547"
+    },
+    "packages/ts/src/node/node.ts": {
+      "sha256": "b4f7ea41b8bd6cd9664cde9a31763caef4d4effd17597d868f9ef9b3d699eec6",
+      "gitBlob": "598644fab1e10f7ebd523e423961ea8388be8823"
+    },
+    "packages/ts/src/node/owned-acquisition.ts": {
+      "sha256": "b0f28f96d0f316bd76922869d55b46ef260bee9b9d473dcaaf64622d24c492d9",
+      "gitBlob": "b24889a431bc9e868d74826570bf8c27bb6d0a08"
+    },
+    "packages/ts/src/node/protocol-guards.ts": {
+      "sha256": "11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+      "gitBlob": "4821cdd4708639ee4ea17b24b2aa75c8f2bce704"
+    },
+    "packages/ts/src/node/runtime-accessors.ts": {
+      "sha256": "6ec8dc24114807f55bc4633fb12d4fa24c35d83d0796ce270f7407017073322f",
+      "gitBlob": "4683906e87449b8d48ec5f293c3145ef8d4bd0e9"
+    },
+    "packages/ts/src/node/versioning.ts": {
+      "sha256": "2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+      "gitBlob": "777016611763eeb5979ef4cf05e2d372dccbe6d9"
+    },
+    "packages/ts/src/operators/index.ts": {
+      "sha256": "67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+      "gitBlob": "81731c90cefb7cb522c8ce241bd31558b953df34"
+    },
+    "packages/ts/src/protocol/messages.ts": {
+      "sha256": "5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+      "gitBlob": "74716f7576253618e28d6ea83dbe37f840956615"
+    },
+    "packages/ts/src/solutions/causal-occurrence/capabilities.ts": {
+      "sha256": "606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+      "gitBlob": "e66c1a16e53f2cbf2e77ca56cb2e1cd53fc7b1a1"
+    },
+    "packages/ts/src/solutions/causal-occurrence/committed-view.ts": {
+      "sha256": "ed6e3b06a849f4f7bc9df455059b26f1dea92a64566acad04bbc8c306b35919d",
+      "gitBlob": "e4c99672e972429e7f9e6bf293893775f7ebb834"
+    },
+    "packages/ts/src/solutions/causal-occurrence/construction.ts": {
+      "sha256": "57a73dfa6eb9a685441403520f790447d63e13b5f221b8c7eba3c2c5dfae06c9",
+      "gitBlob": "d22bad234a53c63c93a64a77d3c8d2c8c89f388e"
+    },
+    "packages/ts/src/solutions/causal-occurrence/evidence.ts": {
+      "sha256": "62c9a985d3e9456f10ff241f736306c85c0f374585718d385131ab19a94c718e",
+      "gitBlob": "06190c800e935d8491f0aa26930101a6809f1cb2"
+    },
+    "packages/ts/src/solutions/causal-occurrence/identity.ts": {
+      "sha256": "03ddd0e0ab80a31252f117bff1ddc5a4558f125c9301f87dee3dcecd6bd55b06",
+      "gitBlob": "1b922041bb2446f465b40fcb0a930cf119929b39"
+    },
+    "packages/ts/src/solutions/causal-occurrence/lifecycle.ts": {
+      "sha256": "bc8f3c7b353d9a2cfbbb0d39bd8fd88a0b356184bbd448c2252f80503dc6089a",
+      "gitBlob": "aca43dd2b82c3f6d80258cd1f4da62d0f25ada59"
+    },
+    "packages/ts/src/solutions/causal-occurrence/transition.ts": {
+      "sha256": "768e4a03db4204444e6312f22466cffa45d792574b4b9dfb1dbc699d30cc6c98",
+      "gitBlob": "b6006cb4bd5bbcb0b7f99913a161eb10dc3061d7"
+    },
+    "scripts/fixtures/spending-numeric-oracle.ts": {
+      "sha256": "91f90ff47306b4631dc225a6df4daf60cabbd2e146aa1476915cdbfe4419c8df",
+      "gitBlob": "8c7aac75cbdda67b738a6349f4782dadacfe093e"
+    },
+    "scripts/fixtures/spending-numeric-plain.ts": {
+      "sha256": "826a09c8c17878f40b9042fa06955d9514b1b5b791b28e5b8cf9a1c785d44dc9",
+      "gitBlob": "39859f55d77f9105ef13978de0042cb6b4066e5c"
+    },
+    "scripts/fixtures/spending-preset-harness.ts": {
+      "sha256": "9c3ba7b674bd56847631a4c07160c1123cc39fa300ef540c2f3aa82880259e22",
+      "gitBlob": "0fdbcc1e8079e11bdba5d252a72b2bbfe205d6ca"
+    },
+    "scripts/fixtures/spending-preset-oracle.ts": {
+      "sha256": "1bae2736615e6c2b8db71cc380a31226e73dcea1d31216d45ec13819a92cc8a2",
+      "gitBlob": "7416ec8145b9b4b906e8181550d0bd1213358468"
+    },
+    "scripts/fixtures/spending-preset-performance-worker.ts": {
+      "sha256": "90bb36deec0e795ac4014b09f280adbb95a02f64a7934b264dcef3fa12b15ff2",
+      "gitBlob": "a5fbc753d9068d662d25f92887838c15159fa95a"
+    },
+    "scripts/fixtures/spending-preset-performance.ts": {
+      "sha256": "3356c4cb3301306ba02c2a6b3efe1295b70177afd8194ac0e3fc478f8c0d5e03",
+      "gitBlob": "418ff79ef8130f65ddbb9ed6d6967c05c75aea53"
+    },
+    "scripts/fixtures/spending-preset-plain.ts": {
+      "sha256": "26ee81a80e0d9ff18001af2427741a6cbc6e641853a35e5f7cc7cc4b76e6e0ea",
+      "gitBlob": "eaa46f9c56e05e9d35ca267a08ad1d0c0f522c0f"
+    },
+    "scripts/fixtures/spending-preset-reference-input.ts": {
+      "sha256": "e3e967df024c4bb336433bc83bb060be4241d7036083a683311fc9cc464effc7",
+      "gitBlob": "4c38378c31de2b3b3ce81237fe671339fa15edea"
+    },
+    "scripts/fixtures/spending-preset-reference.ts": {
+      "sha256": "bbff086587070d51de01e5c04362b34b22a45b866e9fc38fba529cd9fefdcbc0",
+      "gitBlob": "afa2bdd2e88659f4b25815d4de46ecdbf4e0e255"
+    },
+    "scripts/fixtures/spending-publication-oracle.ts": {
+      "sha256": "6e2c9c6695567a276c75090c838670c93ecdea7c7b5a48279f959ccf66c4aac1",
+      "gitBlob": "e7078150a29d72533bae329c6dca2f6e003e330c"
+    },
+    "scripts/fixtures/spending-publication-reference.ts": {
+      "sha256": "83c9e7ecb7dd8ee8b7eed11fdc2d67ed04c40d834ba2d0d77fbf4f519a12dced",
+      "gitBlob": "84d728ca043b26bd4c44002d98ebd3fdf802ad0c"
+    }
+  }
+}
