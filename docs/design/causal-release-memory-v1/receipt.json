@@ -1,0 +1,15 @@
+{
+  "ownerWork": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "status": "diagnostic-complete-not-performance-qualified",
+  "artifacts": {
+    "docs/design/causal-release-memory-v1/README.md": "3502994b9b7f8e113b10c0593b2485f678b3ffdfded1e43a752d8b7a02d4d8f6",
+    "docs/design/causal-release-memory-v1/exit.json": "9d4829782d552486c9a7176413a9cbf9fd8b3f6d6fb1ff4e4ddf759af249bb40",
+    "docs/design/causal-release-memory-v1/memory.jsonl": "cfffc03ea6672f8c047955e6f5bdf9508a156c92d94a79ac8bbbd84dcf24ed9e",
+    "docs/design/causal-release-memory-v1/preservation.json": "d61bb16f4dbaf84dd7b3acfa7aeee4b7a7fae6041d2647abd479ca72d0ff2dab",
+    "docs/design/causal-release-memory-v1/probe.mjs": "d5e787c09c1482ebd06a7a92ad7c509089d4fe7be7f6acde25077193dd418ebc",
+    "docs/design/causal-release-memory-v1/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "docs/design/causal-release-memory-v1/stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "docs/design/causal-release-memory-v1/summary.json": "60cab07df904eb863029bf02a7e43d2491253c77470503147e5736a849b9a2d2"
+  },
+  "performanceSamples": 0
+}

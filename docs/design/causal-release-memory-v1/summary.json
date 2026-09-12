@@ -1,0 +1,12 @@
+{
+  "completedCycles": 400,
+  "preflightInstances": 6,
+  "postGCHeapUsedRangeBytes": [
+    9801656,
+    10016512
+  ],
+  "finalRSSBytes": 217022464,
+  "finalHeapUsedBytes": 9912160,
+  "performanceSamples": 0,
+  "limitation": "Diagnostic forced GC every 50 cycles, one B module exercised, B-copy loaded only; RSS checked at checkpoints, not original 100ms parent guard; transient peaks not bounded by these observations."
+}
