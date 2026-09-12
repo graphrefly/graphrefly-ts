@@ -1,0 +1,743 @@
+{
+  "source": "archive/evals/causal-currentness-comparison-v1/report.json",
+  "sourceSha256": "sha256:91261631e63cccedece5d4776cc6e705add974fa5b5c9e3167c118a0618c13e8",
+  "consumerExecutions": 0,
+  "metric": "phase measured-duration sum / same-block actionSum measured-duration sum; not p95 share",
+  "formalAcceptance": false,
+  "summary": {
+    "before": {
+      "construction": {
+        "shareRange": [
+          0.04258943235499251,
+          0.048624691221910106
+        ],
+        "absoluteP95MsRange": [
+          0.4671249999998963,
+          0.8120000000000118
+        ]
+      },
+      "initial": {
+        "shareRange": [
+          0.590856261195697,
+          0.6019468862930784
+        ],
+        "absoluteP95MsRange": [
+          6.110665999999924,
+          7.353749999999991
+        ]
+      },
+      "duplicate": {
+        "shareRange": [
+          0.33813172171487754,
+          0.3488676435275216
+        ],
+        "absoluteP95MsRange": [
+          3.8105419999999413,
+          4.582708000000025
+        ]
+      },
+      "cleanup": {
+        "shareRange": [
+          0.012317983563844375,
+          0.016944585326296478
+        ],
+        "absoluteP95MsRange": [
+          0.1492080000000442,
+          0.2628750000000082
+        ]
+      },
+      "initialPlusDuplicateShareRange": [
+        0.9344307234517935,
+        0.9450090605122914
+      ]
+    },
+    "after": {
+      "construction": {
+        "shareRange": [
+          0.05897233766652806,
+          0.06426842847172444
+        ],
+        "absoluteP95MsRange": [
+          0.4888339999999971,
+          0.6570830000000569
+        ]
+      },
+      "initial": {
+        "shareRange": [
+          0.6395915632339988,
+          0.6505680921334931
+        ],
+        "absoluteP95MsRange": [
+          5.272666999999956,
+          5.901000000000067
+        ]
+      },
+      "duplicate": {
+        "shareRange": [
+          0.27041074992784864,
+          0.2789284572162427
+        ],
+        "absoluteP95MsRange": [
+          2.3506669999999303,
+          2.764542000000006
+        ]
+      },
+      "cleanup": {
+        "shareRange": [
+          0.015538208062151119,
+          0.01872803217164069
+        ],
+        "absoluteP95MsRange": [
+          0.1386250000000473,
+          0.22175000000004275
+        ]
+      },
+      "initialPlusDuplicateShareRange": [
+        0.9174516442839054,
+        0.9250616177533637
+      ]
+    }
+  },
+  "blocks": [
+    {
+      "id": 4,
+      "pair": 1,
+      "rep": 0,
+      "variant": "U",
+      "position": 0,
+      "slot": 0,
+      "shares": {
+        "construction": 0.04723630664098118,
+        "initial": 0.5920947164773206,
+        "duplicate": 0.3461995777280862,
+        "cleanup": 0.01446939915361215
+      },
+      "p95Ms": {
+        "construction": 0.7237499999999955,
+        "initial": 6.948416999999949,
+        "duplicate": 4.582708000000025,
+        "cleanup": 0.1726250000000391
+      }
+    },
+    {
+      "id": 4,
+      "pair": 1,
+      "rep": 0,
+      "variant": "U",
+      "position": 1,
+      "slot": 1,
+      "shares": {
+        "construction": 0.06300469869588415,
+        "initial": 0.6499318428052945,
+        "duplicate": 0.27041074992784864,
+        "cleanup": 0.016652708570972723
+      },
+      "p95Ms": {
+        "construction": 0.5471669999999449,
+        "initial": 5.515874999999824,
+        "duplicate": 2.4844590000000153,
+        "cleanup": 0.14791700000000674
+      }
+    },
+    {
+      "id": 5,
+      "pair": 1,
+      "rep": 0,
+      "variant": "V",
+      "position": 0,
+      "slot": 1,
+      "shares": {
+        "construction": 0.06361880355541963,
+        "initial": 0.6436160712350406,
+        "duplicate": 0.27433573977112174,
+        "cleanup": 0.018429385438417954
+      },
+      "p95Ms": {
+        "construction": 0.5895409999999401,
+        "initial": 5.530124999999998,
+        "duplicate": 2.487166000000002,
+        "cleanup": 0.18120799999996962
+      }
+    },
+    {
+      "id": 5,
+      "pair": 1,
+      "rep": 0,
+      "variant": "V",
+      "position": 1,
+      "slot": 0,
+      "shares": {
+        "construction": 0.04424199743999009,
+        "initial": 0.5991490982018602,
+        "duplicate": 0.3432695738475365,
+        "cleanup": 0.013339330510613224
+      },
+      "p95Ms": {
+        "construction": 0.5463330000000042,
+        "initial": 7.218583000000081,
+        "duplicate": 4.097042000000101,
+        "cleanup": 0.1879999999998745
+      }
+    },
+    {
+      "id": 6,
+      "pair": 1,
+      "rep": 1,
+      "variant": "U",
+      "position": 0,
+      "slot": 0,
+      "shares": {
+        "construction": 0.04688947467098809,
+        "initial": 0.594817687774565,
+        "duplicate": 0.3450396026060474,
+        "cleanup": 0.013253234948399577
+      },
+      "p95Ms": {
+        "construction": 0.5536250000000109,
+        "initial": 6.9721250000000055,
+        "duplicate": 4.152709000000016,
+        "cleanup": 0.15445899999997437
+      }
+    },
+    {
+      "id": 6,
+      "pair": 1,
+      "rep": 1,
+      "variant": "U",
+      "position": 1,
+      "slot": 1,
+      "shares": {
+        "construction": 0.06274417159333823,
+        "initial": 0.6491998284670393,
+        "duplicate": 0.2712563549309215,
+        "cleanup": 0.016799645008701083
+      },
+      "p95Ms": {
+        "construction": 0.5640840000000935,
+        "initial": 5.532124999999951,
+        "duplicate": 2.4791669999999613,
+        "cleanup": 0.15058300000009694
+      }
+    },
+    {
+      "id": 7,
+      "pair": 1,
+      "rep": 1,
+      "variant": "V",
+      "position": 0,
+      "slot": 1,
+      "shares": {
+        "construction": 0.06305166495513172,
+        "initial": 0.6494138636337141,
+        "duplicate": 0.2709129961868188,
+        "cleanup": 0.016621475224335307
+      },
+      "p95Ms": {
+        "construction": 0.5570830000000342,
+        "initial": 5.62925000000007,
+        "duplicate": 2.434958999999992,
+        "cleanup": 0.1507090000000062
+      }
+    },
+    {
+      "id": 7,
+      "pair": 1,
+      "rep": 1,
+      "variant": "V",
+      "position": 1,
+      "slot": 0,
+      "shares": {
+        "construction": 0.04632175231122189,
+        "initial": 0.6019468862930784,
+        "duplicate": 0.33813172171487754,
+        "cleanup": 0.013599639680822178
+      },
+      "p95Ms": {
+        "construction": 0.5502500000000055,
+        "initial": 7.049208999999792,
+        "duplicate": 4.197709000000032,
+        "cleanup": 0.1878750000000764
+      }
+    },
+    {
+      "id": 8,
+      "pair": 2,
+      "rep": 0,
+      "variant": "U",
+      "position": 0,
+      "slot": 0,
+      "shares": {
+        "construction": 0.046385122043531825,
+        "initial": 0.5957937394040819,
+        "duplicate": 0.3441633340762918,
+        "cleanup": 0.013657804476094515
+      },
+      "p95Ms": {
+        "construction": 0.5334589999999935,
+        "initial": 6.563457999999969,
+        "duplicate": 3.8557080000000497,
+        "cleanup": 0.16208400000004985
+      }
+    },
+    {
+      "id": 8,
+      "pair": 2,
+      "rep": 0,
+      "variant": "U",
+      "position": 1,
+      "slot": 1,
+      "shares": {
+        "construction": 0.06319516720685225,
+        "initial": 0.6460319363792517,
+        "duplicate": 0.2737005369374129,
+        "cleanup": 0.01707235947648314
+      },
+      "p95Ms": {
+        "construction": 0.5755420000000413,
+        "initial": 5.6519170000001395,
+        "duplicate": 2.7604160000000775,
+        "cleanup": 0.15312500000004547
+      }
+    },
+    {
+      "id": 9,
+      "pair": 2,
+      "rep": 0,
+      "variant": "V",
+      "position": 0,
+      "slot": 1,
+      "shares": {
+        "construction": 0.06426842847172444,
+        "initial": 0.6424699852489717,
+        "duplicate": 0.27498165903493366,
+        "cleanup": 0.018279927244370234
+      },
+      "p95Ms": {
+        "construction": 0.6427499999999782,
+        "initial": 5.643583999999919,
+        "duplicate": 2.764542000000006,
+        "cleanup": 0.18183299999998326
+      }
+    },
+    {
+      "id": 9,
+      "pair": 2,
+      "rep": 0,
+      "variant": "V",
+      "position": 1,
+      "slot": 0,
+      "shares": {
+        "construction": 0.043013460716877186,
+        "initial": 0.5982876150794982,
+        "duplicate": 0.34638094063978025,
+        "cleanup": 0.012317983563844375
+      },
+      "p95Ms": {
+        "construction": 0.5045419999999012,
+        "initial": 7.353749999999991,
+        "duplicate": 4.037166999999954,
+        "cleanup": 0.1504170000000613
+      }
+    },
+    {
+      "id": 10,
+      "pair": 2,
+      "rep": 1,
+      "variant": "U",
+      "position": 0,
+      "slot": 0,
+      "shares": {
+        "construction": 0.048624691221910106,
+        "initial": 0.5919545313837216,
+        "duplicate": 0.34247619206807184,
+        "cleanup": 0.016944585326296478
+      },
+      "p95Ms": {
+        "construction": 0.8120000000000118,
+        "initial": 6.992582999999968,
+        "duplicate": 4.15625,
+        "cleanup": 0.2628750000000082
+      }
+    },
+    {
+      "id": 10,
+      "pair": 2,
+      "rep": 1,
+      "variant": "U",
+      "position": 1,
+      "slot": 1,
+      "shares": {
+        "construction": 0.05897233766652806,
+        "initial": 0.6505680921334931,
+        "duplicate": 0.27449352561987067,
+        "cleanup": 0.015966044580108113
+      },
+      "p95Ms": {
+        "construction": 0.4888339999999971,
+        "initial": 5.272666999999956,
+        "duplicate": 2.3506669999999303,
+        "cleanup": 0.1395829999999023
+      }
+    },
+    {
+      "id": 11,
+      "pair": 2,
+      "rep": 1,
+      "variant": "V",
+      "position": 0,
+      "slot": 1,
+      "shares": {
+        "construction": 0.06263071961694575,
+        "initial": 0.6444837662285171,
+        "duplicate": 0.27599830653156127,
+        "cleanup": 0.01688720762297586
+      },
+      "p95Ms": {
+        "construction": 0.5747499999999945,
+        "initial": 5.328540999999973,
+        "duplicate": 2.526124999999979,
+        "cleanup": 0.15962500000000546
+      }
+    },
+    {
+      "id": 11,
+      "pair": 2,
+      "rep": 1,
+      "variant": "V",
+      "position": 1,
+      "slot": 0,
+      "shares": {
+        "construction": 0.04290935734866027,
+        "initial": 0.5997043486521213,
+        "duplicate": 0.34494034676080315,
+        "cleanup": 0.01244594723841529
+      },
+      "p95Ms": {
+        "construction": 0.5086250000001655,
+        "initial": 7.005374999999958,
+        "duplicate": 4.080166999999847,
+        "cleanup": 0.1492080000000442
+      }
+    },
+    {
+      "id": 12,
+      "pair": 3,
+      "rep": 0,
+      "variant": "V",
+      "position": 0,
+      "slot": 1,
+      "shares": {
+        "construction": 0.06176040465139567,
+        "initial": 0.6459786631547251,
+        "duplicate": 0.27485317180464147,
+        "cleanup": 0.017407760389237806
+      },
+      "p95Ms": {
+        "construction": 0.5591249999999945,
+        "initial": 5.359000000000037,
+        "duplicate": 2.4758330000000797,
+        "cleanup": 0.1815839999999298
+      }
+    },
+    {
+      "id": 12,
+      "pair": 3,
+      "rep": 0,
+      "variant": "V",
+      "position": 1,
+      "slot": 0,
+      "shares": {
+        "construction": 0.046631667836098595,
+        "initial": 0.6011972514080156,
+        "duplicate": 0.33850019818534105,
+        "cleanup": 0.0136708825705447
+      },
+      "p95Ms": {
+        "construction": 0.5492089999997916,
+        "initial": 6.9541659999999865,
+        "duplicate": 4.062082999999802,
+        "cleanup": 0.17849999999998545
+      }
+    },
+    {
+      "id": 13,
+      "pair": 3,
+      "rep": 0,
+      "variant": "U",
+      "position": 0,
+      "slot": 0,
+      "shares": {
+        "construction": 0.04743863548332199,
+        "initial": 0.5950365043692006,
+        "duplicate": 0.34414468371222495,
+        "cleanup": 0.013380176435252448
+      },
+      "p95Ms": {
+        "construction": 0.5669579999999996,
+        "initial": 6.760291999999936,
+        "duplicate": 3.9659169999999904,
+        "cleanup": 0.1597910000000411
+      }
+    },
+    {
+      "id": 13,
+      "pair": 3,
+      "rep": 0,
+      "variant": "U",
+      "position": 1,
+      "slot": 1,
+      "shares": {
+        "construction": 0.06418720296747826,
+        "initial": 0.6395915632339988,
+        "duplicate": 0.2789284572162427,
+        "cleanup": 0.01729277658228021
+      },
+      "p95Ms": {
+        "construction": 0.6036669999998594,
+        "initial": 5.608208999999988,
+        "duplicate": 2.6333750000001146,
+        "cleanup": 0.1980829999999969
+      }
+    },
+    {
+      "id": 14,
+      "pair": 3,
+      "rep": 1,
+      "variant": "V",
+      "position": 0,
+      "slot": 1,
+      "shares": {
+        "construction": 0.06341778958356063,
+        "initial": 0.6421611004183829,
+        "duplicate": 0.27591728186802483,
+        "cleanup": 0.018503828130031645
+      },
+      "p95Ms": {
+        "construction": 0.5167500000000018,
+        "initial": 5.2913339999998925,
+        "duplicate": 2.5297499999999786,
+        "cleanup": 0.22175000000004275
+      }
+    },
+    {
+      "id": 14,
+      "pair": 3,
+      "rep": 1,
+      "variant": "V",
+      "position": 1,
+      "slot": 0,
+      "shares": {
+        "construction": 0.043326953676623335,
+        "initial": 0.5971527331484545,
+        "duplicate": 0.34718002791027,
+        "cleanup": 0.012340285264652206
+      },
+      "p95Ms": {
+        "construction": 0.4883750000001328,
+        "initial": 6.110665999999924,
+        "duplicate": 3.8189159999999447,
+        "cleanup": 0.1512920000000122
+      }
+    },
+    {
+      "id": 15,
+      "pair": 3,
+      "rep": 1,
+      "variant": "U",
+      "position": 0,
+      "slot": 0,
+      "shares": {
+        "construction": 0.04840121272193726,
+        "initial": 0.5952110301201119,
+        "duplicate": 0.34271941099255804,
+        "cleanup": 0.01366834616539279
+      },
+      "p95Ms": {
+        "construction": 0.6309580000000778,
+        "initial": 6.807000000000016,
+        "duplicate": 3.935457999999983,
+        "cleanup": 0.17741699999999128
+      }
+    },
+    {
+      "id": 15,
+      "pair": 3,
+      "rep": 1,
+      "variant": "U",
+      "position": 1,
+      "slot": 1,
+      "shares": {
+        "construction": 0.0615280188177511,
+        "initial": 0.647249713160162,
+        "duplicate": 0.2756840599599357,
+        "cleanup": 0.015538208062151119
+      },
+      "p95Ms": {
+        "construction": 0.6570830000000569,
+        "initial": 5.608208000000104,
+        "duplicate": 2.405958000000055,
+        "cleanup": 0.1386250000000473
+      }
+    },
+    {
+      "id": 16,
+      "pair": 4,
+      "rep": 0,
+      "variant": "V",
+      "position": 0,
+      "slot": 1,
+      "shares": {
+        "construction": 0.06389183700496374,
+        "initial": 0.6432692517649503,
+        "duplicate": 0.2742463174910625,
+        "cleanup": 0.018592593739023423
+      },
+      "p95Ms": {
+        "construction": 0.6101670000000468,
+        "initial": 5.415500000000009,
+        "duplicate": 2.5380830000000287,
+        "cleanup": 0.1871249999999236
+      }
+    },
+    {
+      "id": 16,
+      "pair": 4,
+      "rep": 0,
+      "variant": "V",
+      "position": 1,
+      "slot": 0,
+      "shares": {
+        "construction": 0.04258943235499251,
+        "initial": 0.5961414169847697,
+        "duplicate": 0.3488676435275216,
+        "cleanup": 0.012401507132716138
+      },
+      "p95Ms": {
+        "construction": 0.4671249999998963,
+        "initial": 6.371584000000212,
+        "duplicate": 4.002124999999978,
+        "cleanup": 0.16008400000009715
+      }
+    },
+    {
+      "id": 17,
+      "pair": 4,
+      "rep": 0,
+      "variant": "U",
+      "position": 0,
+      "slot": 0,
+      "shares": {
+        "construction": 0.04726908228686333,
+        "initial": 0.5949137099324084,
+        "duplicate": 0.3444368630110638,
+        "cleanup": 0.013380344769664392
+      },
+      "p95Ms": {
+        "construction": 0.5477910000000747,
+        "initial": 6.8539579999999205,
+        "duplicate": 3.985916999999972,
+        "cleanup": 0.16200000000003456
+      }
+    },
+    {
+      "id": 17,
+      "pair": 4,
+      "rep": 0,
+      "variant": "U",
+      "position": 1,
+      "slot": 1,
+      "shares": {
+        "construction": 0.062442462840254,
+        "initial": 0.6501643681649165,
+        "duplicate": 0.27053616683277254,
+        "cleanup": 0.016857002162056905
+      },
+      "p95Ms": {
+        "construction": 0.5380830000001424,
+        "initial": 5.529458999999861,
+        "duplicate": 2.6505409999999756,
+        "cleanup": 0.16179200000010496
+      }
+    },
+    {
+      "id": 18,
+      "pair": 4,
+      "rep": 1,
+      "variant": "V",
+      "position": 0,
+      "slot": 1,
+      "shares": {
+        "construction": 0.06290961705604883,
+        "initial": 0.644254222553907,
+        "duplicate": 0.27596310836396487,
+        "cleanup": 0.016873052026079315
+      },
+      "p95Ms": {
+        "construction": 0.5840420000000677,
+        "initial": 5.467624999999998,
+        "duplicate": 2.4070409999999356,
+        "cleanup": 0.15450000000009823
+      }
+    },
+    {
+      "id": 18,
+      "pair": 4,
+      "rep": 1,
+      "variant": "V",
+      "position": 1,
+      "slot": 0,
+      "shares": {
+        "construction": 0.04842648541335824,
+        "initial": 0.590856261195697,
+        "duplicate": 0.34741858544165033,
+        "cleanup": 0.013298667949294372
+      },
+      "p95Ms": {
+        "construction": 0.6516670000000886,
+        "initial": 6.639124999999922,
+        "duplicate": 3.9455840000000535,
+        "cleanup": 0.15999999999985448
+      }
+    },
+    {
+      "id": 19,
+      "pair": 4,
+      "rep": 1,
+      "variant": "U",
+      "position": 0,
+      "slot": 0,
+      "shares": {
+        "construction": 0.04768659193550686,
+        "initial": 0.5926240521935996,
+        "duplicate": 0.3462199348721558,
+        "cleanup": 0.013469420998737781
+      },
+      "p95Ms": {
+        "construction": 0.5954160000000002,
+        "initial": 6.42087499999991,
+        "duplicate": 3.8105419999999413,
+        "cleanup": 0.1619590000000244
+      }
+    },
+    {
+      "id": 19,
+      "pair": 4,
+      "rep": 1,
+      "variant": "U",
+      "position": 1,
+      "slot": 1,
+      "shares": {
+        "construction": 0.06139929515237373,
+        "initial": 0.6485728952246244,
+        "duplicate": 0.27129977745136125,
+        "cleanup": 0.01872803217164069
+      },
+      "p95Ms": {
+        "construction": 0.5569590000000062,
+        "initial": 5.901000000000067,
+        "duplicate": 2.540124999999989,
+        "cleanup": 0.18325000000004366
+      }
+    }
+  ]
+}
