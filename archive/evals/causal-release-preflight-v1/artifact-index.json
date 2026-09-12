@@ -1,0 +1,19 @@
+{
+  "archiveSha256": "655dafacf297ca62ceaaf067950e37db8ad111a9d6ba08b0256e7dd19f137edd",
+  "files": {
+    "run/B-copy.mjs": "fa3bf99da87b5e321b74ffb064b7a87944b0ac3bb5eac517c86bac35af49ede7",
+    "run/B-copy.mjs.result.json": "8fc30547f06b74cada0112b1c3f9edad1ad86fae36de25b149e7b0e783da7b37",
+    "run/B.mjs": "fa3bf99da87b5e321b74ffb064b7a87944b0ac3bb5eac517c86bac35af49ede7",
+    "run/B.mjs.result.json": "d1364bf4828f4550c75a1779231bcf0597a79697afa8842c22750e7a5a316431",
+    "run/C.mjs": "d12fcd71312805d946cd9e13f952bcb9bf0d14fa9dc353ccb3be2c772d07016f",
+    "run/C.mjs.result.json": "cf208bff7eeb82dc14c2f549fe36f4d3c14b08d5b6248a64a57df41d0f9e41fa",
+    "run/P2-inputs.json": "44f1165557fc1444540731a73846233ce3d71da7a0af3a3d4fa2137e249c2079",
+    "run/binding.json": "e94817719c056c0eecf4bcef159a98aedcc41edfd3cad99f451e9094e612b873",
+    "run/driver.mjs": "45a51aaffc28cda671bae69f160e2e94ee9b6c51e8aba050a55017f395a2f9f8",
+    "run/exit.json": "7f0d6d0c1adecff18b2f45f19b21ddc1ac420cc417a381486f15820c981109eb",
+    "run/result.json": "cee8865589a81373523b3483e4c20fd7d11b8711578bd5370792d195dfd82fb0",
+    "run/run.mjs": "6c696be72a9f078625c68ba477e189772d47a518a13ddeb6d86cfd6678efd386",
+    "run/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "run/stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

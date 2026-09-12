@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "archiveReplayIdentical": true,
+  "files": 14,
+  "negativeEvidenceChecks": [
+    "instances",
+    "performanceSamples",
+    "passed"
+  ],
+  "newConsumerInstances": 0
+}
