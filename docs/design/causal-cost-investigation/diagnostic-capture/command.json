@@ -1,0 +1,12 @@
+[
+  "python3",
+  "-B",
+  "/Users/davidchenallio/src/graphrefly-ts/scripts/capture-causal-workload.py",
+  "--capture",
+  "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-workload-diagnostic-v1/preparation/prepared",
+  "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-workload-diagnostic-v1/preparation/prepared/P2-inputs.json",
+  "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/diagnostic-capture/approval.txt",
+  "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/diagnostic-tools/qualification.json",
+  "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-workload-diagnostic-v1/run",
+  "/Users/davidchenallio/.local/share/mise/installs/node/24.18.0/bin/node"
+]

@@ -1,0 +1,12 @@
+{
+  "dashboardExit": 0,
+  "workspaceAuthorityExit": 0,
+  "diffCheckExit": 0,
+  "existingDirtyFilesPreserved": true,
+  "independentFullDataReplayPassed": true,
+  "knownWarnings": [
+    "Existing root D792 orphan and workspace-optional dashboard references",
+    "Existing canvas legacy-coordinate warning"
+  ],
+  "receiptSha256": "9bd500b9d6ee197f5f3d53f69bfc2c11fe945ea1aef29a7c702f6a8ba8b5a0e3"
+}

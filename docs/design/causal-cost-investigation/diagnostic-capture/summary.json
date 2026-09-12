@@ -1,0 +1,144 @@
+{
+  "analysisSha256": "f879ebad66c66e3b8181da9faba0be12aff9a4d84aabf12dd01eecc7aba99c6d",
+  "conditions": {
+    "BASE": {
+      "p95RangeMs": [
+        0.2952499999998963,
+        0.4395419999999888
+      ],
+      "batchMedians": [
+        {
+          "batch": 0,
+          "count": 16,
+          "p95Ms": 0.41877099999999245,
+          "constructionSumMs": 94.53961049999953,
+          "commonSpanMs": 157.655146,
+          "processCpuMsMedian": null
+        },
+        {
+          "batch": 1,
+          "count": 16,
+          "p95Ms": 0.3349994999999808,
+          "constructionSumMs": 81.47525449999978,
+          "commonSpanMs": 132.19341649999996,
+          "processCpuMsMedian": null
+        },
+        {
+          "batch": 2,
+          "count": 16,
+          "p95Ms": 0.3628130000000169,
+          "constructionSumMs": 85.92498649999925,
+          "commonSpanMs": 137.9501459999999,
+          "processCpuMsMedian": null
+        }
+      ]
+    },
+    "CPU": {
+      "p95RangeMs": [
+        0.29341599999997925,
+        0.46008299999999736
+      ],
+      "batchMedians": [
+        {
+          "batch": 0,
+          "count": 16,
+          "p95Ms": 0.4102500000000049,
+          "constructionSumMs": 93.5780000000002,
+          "commonSpanMs": 157.13256299999998,
+          "processCpuMsMedian": 266.30500000000006
+        },
+        {
+          "batch": 1,
+          "count": 16,
+          "p95Ms": 0.3431874999999991,
+          "constructionSumMs": 82.77337150000056,
+          "commonSpanMs": 134.57208350000002,
+          "processCpuMsMedian": 157.735
+        },
+        {
+          "batch": 2,
+          "count": 16,
+          "p95Ms": 0.37122949999991306,
+          "constructionSumMs": 86.80906249999975,
+          "commonSpanMs": 136.95189599999992,
+          "processCpuMsMedian": 142.857
+        }
+      ],
+      "cpuExceedsElapsedUpperBlocks": 48
+    },
+    "CPU_GC": {
+      "p95RangeMs": [
+        0.29795800000010786,
+        0.5077499999999873
+      ],
+      "batchMedians": [
+        {
+          "batch": 0,
+          "count": 16,
+          "p95Ms": 0.419541499999994,
+          "constructionSumMs": 95.04174800000098,
+          "commonSpanMs": 160.1717085,
+          "processCpuMsMedian": 267.4095
+        },
+        {
+          "batch": 1,
+          "count": 16,
+          "p95Ms": 0.34381250000001273,
+          "constructionSumMs": 81.33168450000085,
+          "commonSpanMs": 132.46618750000005,
+          "processCpuMsMedian": 156.96050000000002
+        },
+        {
+          "batch": 2,
+          "count": 16,
+          "p95Ms": 0.36047949999999673,
+          "constructionSumMs": 83.69183900000263,
+          "commonSpanMs": 132.99066650000003,
+          "processCpuMsMedian": 139.344
+        }
+      ],
+      "cpuExceedsElapsedUpperBlocks": 47,
+      "observedGcConstructionOverlapMs": 0.0,
+      "observedGcCommonSpanOverlapMs": 288.27324554324156
+    }
+  },
+  "contrasts": {
+    "CPU/BASE": {
+      "p95Ms": {
+        "min": 0.7311506030398797,
+        "median": 1.010870928610016,
+        "max": 1.2665549036046917
+      },
+      "constructionSumMs": {
+        "min": 0.8660500307816879,
+        "median": 1.0077371963251127,
+        "max": 1.0926407454853548
+      },
+      "commonSpanMs": {
+        "min": 0.8283337067592965,
+        "median": 1.0012410196467596,
+        "max": 1.182156799368815
+      }
+    },
+    "CPU_GC/CPU": {
+      "p95Ms": {
+        "min": 0.8669613836592629,
+        "median": 1.0166233735015653,
+        "max": 1.2647649318235
+      },
+      "constructionSumMs": {
+        "min": 0.9059109433196035,
+        "median": 1.0022718094940082,
+        "max": 1.175094160155599
+      },
+      "commonSpanMs": {
+        "min": 0.900443809271551,
+        "median": 1.0098500167179103,
+        "max": 1.2246544844360148
+      }
+    }
+  },
+  "classification": "Mixed: early block CPU activity observed; original extreme tail not reproduced; no single root cause identified.",
+  "formalAcceptance": false,
+  "newConsumerExecutions": 0
+}

@@ -1,0 +1,5 @@
+User approved with “批准” after d6248472 tooling qualification. Authorize exactly one fixed-workload diagnostic capture for graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS: 24 serial fresh processes, 57600 samples, fixed design and resource/stopping boundaries, no retries or replacement. Then independently verify, archive, report and commit. No provider/live/spend or formal D169 acceptance.
+Qualification SHA256: 983df85467aa664d5adcba971563100eb43044d1d72ec4b2cfd1af02aa1f99fc
+Design SHA256: aca84921638fb32d99d64bb6e50782ab1cf8d09d6c7024a59425beb1c31b5b53
+Output: /Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-workload-diagnostic-v1/run
+Approval file: /Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/diagnostic-capture/approval.txt

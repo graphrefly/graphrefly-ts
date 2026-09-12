@@ -1,0 +1,42 @@
+{
+  "ownerWork": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "baseCommit": "d6248472",
+  "authorization": "User explicitly approved one fixed capture after tooling qualification; approval.txt and exclusive claim bind this attempt.",
+  "captureComplete": true,
+  "children": 24,
+  "samples": 57600,
+  "warmupSamples": 14400,
+  "measuredSamples": 43200,
+  "preflightCalls": 48,
+  "preflightInstances": 144,
+  "sampleRetries": 0,
+  "notRun": 0,
+  "lastChildEndedElapsedSeconds": 37.74183816698496,
+  "maxObservedRssBytes": 215203840,
+  "maxObservedGapSeconds": 0.135564374999376,
+  "conclusion": "Mixed/unknown: early blocks show greater process CPU activity; old extreme tail not reproduced; single root cause not established.",
+  "formalAcceptance": false,
+  "wholeWorkComplete": false,
+  "libraryChanges": false,
+  "toolChangesAfterQualification": false,
+  "providerCalls": 0,
+  "archiveReplay": {
+    "files": 455,
+    "exactJsonMatch": true,
+    "newConsumerExecutions": 0
+  },
+  "artifacts": {
+    "docs/design/causal-cost-investigation/diagnostic-capture/README.md": "sha256:ce1cae544eb00d112179d96b710a69c9efbe0d2ec47fa57177b87af36c6fb5db",
+    "docs/design/causal-cost-investigation/diagnostic-capture/analysis.json": "sha256:f879ebad66c66e3b8181da9faba0be12aff9a4d84aabf12dd01eecc7aba99c6d",
+    "docs/design/causal-cost-investigation/diagnostic-capture/approval.txt": "sha256:448d36182123f203067ec7155cda2deec1b98d0f39fa8aa13df262d506ac7b21",
+    "docs/design/causal-cost-investigation/diagnostic-capture/approval.txt.claim.json": "sha256:c8354bd5257f6c4e323d660f7f5389edec094037b18286e1675ecf65f3138ca1",
+    "docs/design/causal-cost-investigation/diagnostic-capture/archive-replay.json": "sha256:926e620e48a97d56f8442c8b6f479fb62e195a9fdd251efeef0f0faf031c44a1",
+    "docs/design/causal-cost-investigation/diagnostic-capture/capture-exit.json": "sha256:982b9e9bfb10ffe83cad665807abcfd3fa97b37822db5ab7831157a499548a9e",
+    "docs/design/causal-cost-investigation/diagnostic-capture/capture-output.txt": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "docs/design/causal-cost-investigation/diagnostic-capture/command.json": "sha256:9f3f161a2955a2086b1a39829494f4e3f18f8a255a121018a383e6bdfd948b89",
+    "docs/design/causal-cost-investigation/diagnostic-capture/preservation-before.json": "sha256:b9ce237311618862ca809a3536ee97d2cc5accff53e08711bd5a52fe3521d1b2",
+    "docs/design/causal-cost-investigation/diagnostic-capture/summarize.py": "sha256:847103f8db8b95a7947d03e14838df24cebeaef89398cd59403777e492a7e7e8",
+    "docs/design/causal-cost-investigation/diagnostic-capture/summary.json": "sha256:df9b2c11523e0df02224270d78a38146dfc5cc6088dd533fdbea33c5a655d829"
+  },
+  "archiveDigest": "sha256:c6a24838bd45dc0fcb88a1c60f301ddfe592ba631c26d5a5b4e765bd87f0714f"
+}
