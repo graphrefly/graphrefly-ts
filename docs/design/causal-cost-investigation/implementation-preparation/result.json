@@ -1,0 +1,23 @@
+{
+  "instances": 1,
+  "performanceSamples": 0,
+  "live": {
+    "sameOccurrence": true,
+    "deepFrozen": true,
+    "payloadPresent": true
+  },
+  "transition": {
+    "newState": true,
+    "newMap": true,
+    "sameRetainedOccurrence": true
+  },
+  "resubscribeRetainsOccurrence": true,
+  "checkpoint": {
+    "accepted": false,
+    "message": "TypeError: checkpoint: value at spending/anomalyScore.ctxState is not strict JSON compatible",
+    "cause": "TypeError: strictJsonValue: stableJsonString: non-plain object at strictJsonValue.maps[0]; stableJsonString: non-plain object at strictJsonValue.maps[1]; stableJsonString: non-plain object at strictJsonValue.maps[2]"
+  },
+  "shallowFreezeNegative": true,
+  "cleanup": true,
+  "passed": true
+}

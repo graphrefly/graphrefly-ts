@@ -1,0 +1,17 @@
+{
+  "ownerWork": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "status": "narrow-implementation-batch-ready-for-approval",
+  "consumerInstances": 1,
+  "performanceSamples": 0,
+  "libraryImplemented": false,
+  "artifacts": {
+    "docs/design/causal-cost-investigation/implementation-preparation/README.md": "1010e14631a229fa9481d749cf0e3150f460cee1ad9008845cb69c70d78baaa9",
+    "docs/design/causal-cost-investigation/implementation-preparation/binding.json": "8e012a614e384f892e6a88c7fda96e8dffad84c77584ecf046ab8522753f404f",
+    "docs/design/causal-cost-investigation/implementation-preparation/preservation.json": "d5a25f4390752f3af89793beb55c0bda2b1b469851cedc1a38a2c9beb8737ad4",
+    "docs/design/causal-cost-investigation/implementation-preparation/probe.mjs": "9857aa6b1e2fa911a17b11d1bd85d5d016892c13052d44d24c1468c4e9ec7ac9",
+    "docs/design/causal-cost-investigation/implementation-preparation/result.json": "6fe1bebe60394d96dad8509c19c9ca9fc4cb0e54efb2db8ae17322e5b3962b20",
+    "docs/design/causal-cost-investigation/implementation-preparation/source-hashes.json": "50f5ed9d064d9adf3fa67a3cc27a6fee98a4ba4767209ae0906c3f6fa5d9f113",
+    "docs/design/causal-cost-investigation/implementation-preparation/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "docs/design/causal-cost-investigation/implementation-preparation/stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}
