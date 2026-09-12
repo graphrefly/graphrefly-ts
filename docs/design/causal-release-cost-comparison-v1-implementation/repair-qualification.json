@@ -1,0 +1,17 @@
+{
+	"passed": true,
+	"kind": "post-attempt offline repair only",
+	"sources": {
+		"scripts/build-causal-release-comparison.mjs": "sha256:fc3d0613b133ffbebeaff8a22cfc114c878f5789ce82d0e4de645a58075bb07a",
+		"scripts/rebuild-causal-release-comparison.mjs": "sha256:e17aa11d986badcee95980e8cb826fdb81415bde7c80da7170c12257419274c5",
+		"scripts/causal-release-comparison.test.mjs": "sha256:73984a82c0dedb67c5eda23baab43b47425f4a5764a649466b187da27bf3bb8a"
+	},
+	"evidence": {
+		"post-failure-repair.log": "sha256:bd865a60ba27c909bd26098984d80e65491a5e0e20c62281f13088c05d0bed5e"
+	},
+	"loadedResolverMutants": 2,
+	"realConsumerFactories": 0,
+	"newPerformanceSamples": 0,
+	"newAttemptAuthorized": false,
+	"realFrozenClosureRebuilt": false
+}

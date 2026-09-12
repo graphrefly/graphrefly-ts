@@ -1,0 +1,27 @@
+{
+	"userText": "继续",
+	"proposalCommit": "fc5acae0",
+	"designRef": "docs/design/causal-release-cost-comparison-v1.md",
+	"designDigest": "sha256:61ebce5c8a1ee3315083067bd9e511f44aeef597114e601ed130c570e00efbc5",
+	"approvedSections": "2–6",
+	"ownerWork": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"scope": [
+		"private tooling and offline qualification",
+		"one fixed 60-process capture",
+		"independent verification/archive/report/commit"
+	],
+	"budget": {
+		"processes": 60,
+		"samples": 144000,
+		"seconds": 900,
+		"childSeconds": 30,
+		"rssBytes": 268435456,
+		"retries": 0
+	},
+	"notAuthorized": [
+		"library/API/protocol changes",
+		"formal matrix",
+		"provider/live/spend",
+		"automatic follow-on"
+	]
+}

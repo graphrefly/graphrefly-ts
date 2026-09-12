@@ -1,0 +1,2 @@
+{"passed":true,"realPerformanceSamples":0,"rows":5,"driverLoadedMutants":9,"wrapperLoadedMutants":1,"clockFailurePositions":8,"coordinateChecks":4800}
+{"passed":true,"childRows":5,"childLoadedMutants":5,"fakeSamples":12000,"realPerformanceSamples":0}

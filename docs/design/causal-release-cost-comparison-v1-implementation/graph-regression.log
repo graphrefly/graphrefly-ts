@@ -1,0 +1,10 @@
+
+ RUN  v3.2.4 /Users/davidchenallio/src/graphrefly-ts/packages/ts
+
+ ✓ src/__tests__/graph.part-02.test.ts (33 tests) 29ms
+
+ Test Files  1 passed (1)
+      Tests  33 passed (33)
+   Start at  17:05:12
+   Duration  1.08s (transform 559ms, setup 0ms, collect 786ms, tests 29ms, environment 0ms, prepare 84ms)
+

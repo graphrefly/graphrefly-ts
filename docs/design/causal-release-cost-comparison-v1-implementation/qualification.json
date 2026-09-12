@@ -1,0 +1,31 @@
+{
+	"passed": true,
+	"scope": "offline tools; no real performance samples",
+	"sources": {
+		"build-causal-release-comparison.mjs": "66aea9cce92f03884a7eb8cdb7c86b80b813b8edd83bbc744e09b52a87a3cda9",
+		"rebuild-causal-release-comparison.mjs": "a1b1753d6e23751140d03e55a24d2b04cad5692b5ffb8cde296a5ef7d5dfc6ba",
+		"causal-release-comparison-child.mjs": "b3382bbfbb61fcc5b5be25db840bb6d92c742ccf0fe5cac30cbea6ee5df7d47f",
+		"causal-release-comparison-driver.mjs": "45a51aaffc28cda671bae69f160e2e94ee9b6c51e8aba050a55017f395a2f9f8",
+		"verify-causal-release-comparison.py": "cb83dc79e9c7cc13e824ea0d77c47a5ae3823e8db2164d87b56a53e223b71f04",
+		"collect-causal-release-comparison.py": "9cd16595f74ebd665cd583ff9d845b9f691f3efa5082dd04caa652f6a34c390b",
+		"causal-release-comparison.test.mjs": "596e577ab73e499e5f591d90415295a2bfb89f3f5cc52659b6b493251291ce25",
+		"test-causal-release-comparison.py": "ab615d819cec91660e4468a600776a1f8a3f74941f5b0dadf952079ef00e72bd",
+		"causal-release-comparison.ts": "88cc9495f71d43884aae4151540583855799baa4e5f0e14751a6161756458a34",
+		"causal-release-comparison-oracle.ts": "c1021fb3802bd4443145acf85f2882e0a867360e23dd9667fa6910c0a3cefb43"
+	},
+	"evidence": {
+		"js-qualification.log": "7b0df13b4328e6f21ba927c17317e4a4a6910b67a2953f149da72828b73a53a3",
+		"python-qualification.log": "c81b021e3489c68400c147e78ef683c35edfbf7c16657b0af68c39b3059bd87c",
+		"counting-regression.log": "c01edae44a640c87206c044c3a32e201f290836d5447e856dbffcf99ce8885f0",
+		"scoped-biome.log": "19b95facb658dc0eb00db3aed8c7d87b9b1259b95c75ce8d80fa11c086bb08d2",
+		"review.md": "f834d7e0b58abf701031c6a3eb28831e68a4116c7545371fd155f8d62d0fa237"
+	},
+	"loadedMutants": {
+		"driver": 9,
+		"wrapper": 1,
+		"child": 5,
+		"arithmetic": 4
+	},
+	"samples": 0,
+	"twoStaticReviews": "no remaining concrete blockers"
+}
