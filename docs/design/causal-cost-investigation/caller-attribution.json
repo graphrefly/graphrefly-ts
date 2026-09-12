@@ -1,0 +1,49 @@
+{
+  "profileSha256": "3b8af23641c2166ccf924331aba1683d6efbc631e2a024442b73c2e5bc9824c1",
+  "profileNodes": 29644,
+  "estimatedAllocatedBytes": 2236653304,
+  "stageBytes": {
+    "outside": 216144,
+    "constructionStage": 58298528,
+    "inputStage": 1341496664,
+    "duplicateStage": 792006032,
+    "snapshotStage": 4799760,
+    "cleanupStage": 33965120,
+    "validationStage": 5871056
+  },
+  "dataKeyImmediateCallerBytes": {
+    "outside-dataKey": 1036900360,
+    "recomputeCurrentness": 887938488,
+    "recomputeDomain": 185680416,
+    "causalOccurrenceDigest": 41357712,
+    "receiveOccurrences": 40365984,
+    "canonicalSnapshot": 11176976,
+    "refKey": 10957816,
+    "canonicalEntry": 7164840,
+    "retainEvidence": 5663120,
+    "receiveTerminals": 5295104,
+    "retainEffectProposal": 2044232,
+    "sameRef": 922152,
+    "receiveAdmissions": 625848,
+    "receiveEffectAdmissions": 560256
+  },
+  "dataKeyImmediateCallerPercent": {
+    "outside-dataKey": 46.359,
+    "recomputeCurrentness": 39.699,
+    "recomputeDomain": 8.302,
+    "causalOccurrenceDigest": 1.849,
+    "receiveOccurrences": 1.805,
+    "canonicalSnapshot": 0.5,
+    "refKey": 0.49,
+    "canonicalEntry": 0.32,
+    "retainEvidence": 0.253,
+    "receiveTerminals": 0.237,
+    "retainEffectProposal": 0.091,
+    "sameRef": 0.041,
+    "receiveAdmissions": 0.028,
+    "receiveEffectAdmissions": 0.025
+  },
+  "partitionConserved": true,
+  "newConsumerInstances": 0,
+  "performanceSamples": 0
+}

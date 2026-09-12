@@ -1,0 +1,13 @@
+{
+  "ownerWork": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "status": "unified-diagnostic-plan-and-retained-profile-analysis",
+  "newConsumerInstances": 0,
+  "performanceSamples": 0,
+  "artifacts": {
+    "docs/design/causal-cost-investigation/README.md": "a0f0f1326e6a413c1d253299de2b9d9d834ad35a52543df7e2a71fb92c917f2f",
+    "docs/design/causal-cost-investigation/analyze-profile.py": "c5ff122ab3236c3f43ac316afeb9f97cbede37736466cb3542f6770c9061c9e1",
+    "docs/design/causal-cost-investigation/caller-attribution.json": "d552379590b3bb3dd29bd9a000aa43504289848864f930cf351b7e59aa57222e",
+    "docs/design/causal-cost-investigation/preservation.json": "7e5e261d7930ce52ab0eb2e85ad6748f1dae05d476bc2b509a3902c744fe88e1",
+    "docs/design/causal-cost-investigation/source-check.json": "2a9ab05f49d5a9cbb6c6bbc3ab66c6723f71fd8427c9e216ab57a790a5d810fd"
+  }
+}

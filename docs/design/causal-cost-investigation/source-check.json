@@ -1,0 +1,22 @@
+[
+  {
+    "path": "packages/ts/src/json/codec.ts",
+    "sha256": "7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+    "currentMatchesFrozenB": true
+  },
+  {
+    "path": "packages/ts/src/solutions/causal-occurrence/identity.ts",
+    "sha256": "82798a9361251c355f2243d4dfd6aed8a14115e12f0c3f1db491afe2ac24daa8",
+    "currentMatchesFrozenB": true
+  },
+  {
+    "path": "packages/ts/src/solutions/causal-occurrence/transition.ts",
+    "sha256": "768e4a03db4204444e6312f22466cffa45d792574b4b9dfb1dbc699d30cc6c98",
+    "currentMatchesFrozenB": true
+  },
+  {
+    "path": "examples/spending-alerts/causal-publication.ts",
+    "sha256": "eb303ca7a7ac46ed4b906f8ae5008a252426a8a07ef082bc15bd76e8b43ac743",
+    "currentMatchesFrozenB": true
+  }
+]
