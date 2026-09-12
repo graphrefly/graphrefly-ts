@@ -1,0 +1,86 @@
+{
+  "profileSha256": "3b8af23641c2166ccf924331aba1683d6efbc631e2a024442b73c2e5bc9824c1",
+  "bundleSha256": "fa3bf99da87b5e321b74ffb064b7a87944b0ac3bb5eac517c86bac35af49ede7",
+  "estimatedAllocatedBytes": 2236653304,
+  "priorityPartition": [
+    {
+      "group": "currentness-dataKey",
+      "bytes": 887938488,
+      "percent": 39.699
+    },
+    {
+      "group": "publication-material-code",
+      "bytes": 347971712,
+      "percent": 15.558
+    },
+    {
+      "group": "remaining-runtime-consumer-harness",
+      "bytes": 252824720,
+      "percent": 11.304
+    },
+    {
+      "group": "sameRef-subtree",
+      "bytes": 233107576,
+      "percent": 10.422
+    },
+    {
+      "group": "other-identity-canonicalization",
+      "bytes": 199472552,
+      "percent": 8.918
+    },
+    {
+      "group": "quiescence-dataKey",
+      "bytes": 185680416,
+      "percent": 8.302
+    },
+    {
+      "group": "other-codec",
+      "bytes": 129657840,
+      "percent": 5.797
+    }
+  ],
+  "allocationSourceSections": {
+    "packages/ts/src/json/codec.ts": 1446647256,
+    "examples/spending-alerts/causal-publication.ts": 347971712,
+    "packages/ts/src/solutions/causal-occurrence/identity.ts": 189176816,
+    "packages/ts/src/node/node-output-runtime.ts": 36797440,
+    "packages/ts/src/graph/graph.ts": 35516632,
+    "examples/spending-alerts/causal-inputs.ts": 32088216,
+    "packages/ts/src/node/node-input-runtime.ts": 26257000,
+    "packages/ts/src/node/node-lifecycle-runtime.ts": 15545840,
+    "packages/ts/src/solutions/causal-occurrence/transition.ts": 13074792,
+    "packages/ts/src/node/node.ts": 12404472,
+    "packages/ts/src/solutions/causal-occurrence/construction.ts": 9000176,
+    "packages/ts/src/node/core.ts": 8965208,
+    "examples/spending-alerts/causal-business.ts": 7976120,
+    "packages/ts/src/node/node-context-runtime.ts": 7775240,
+    "packages/ts/src/ctx/types.ts": 6924592,
+    "packages/ts/src/solutions/causal-occurrence/lifecycle.ts": 5871760,
+    "scripts/fixtures/causal-release-comparison.ts": 5838176,
+    "scripts/fixtures/spending-publication-oracle.ts": 4470600,
+    "packages/ts/src/graph/construction-scope.ts": 4347712,
+    "packages/ts/src/solutions/causal-occurrence/evidence.ts": 3642216,
+    "examples/spending-alerts/causal-admission.ts": 3510000,
+    "examples/spending-alerts/causal-preset.ts": 2954232,
+    "examples/spending-alerts/causal-numeric.ts": 1803712,
+    "packages/ts/src/identity.ts": 1347984,
+    "scripts/fixtures/spending-preset-performance.ts": 1082328,
+    "packages/ts/src/node/protocol-guards.ts": 1016656,
+    "examples/spending-alerts/causal-material-owner.ts": 787176,
+    "packages/ts/src/node/versioning.ts": 721640,
+    "packages/ts/src/graph/graph-topology-group.ts": 591536,
+    "packages/ts/src/dispatcher/index.ts": 491872,
+    "packages/ts/src/graph/operators.ts": 459248,
+    "packages/ts/src/solutions/causal-occurrence/committed-view.ts": 426400,
+    "packages/ts/src/node/runtime-accessors.ts": 393680,
+    "scripts/fixtures/spending-preset-performance-worker.ts": 329160,
+    "outside-bundle": 281712,
+    "packages/ts/src/solutions/causal-occurrence/capabilities.ts": 163992,
+    "packages/ts/src/batch/boundary.ts": 0,
+    "packages/ts/src/node/node-rewire-runtime.ts": 0
+  },
+  "partitionConserved": true,
+  "newConsumerRuns": 0,
+  "performanceSamples": 0,
+  "limits": "Explicit priority partition, not removable-cost estimate. Inlined/missing frames can move attribution. Native allocations inherit nearest recorded source section. Single B diagnostic only."
+}

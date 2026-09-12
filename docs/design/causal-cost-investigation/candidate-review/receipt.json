@@ -1,0 +1,12 @@
+{
+  "ownerWork": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "status": "candidate-inventory-ranked-not-implementation-approved",
+  "newConsumerInstances": 0,
+  "performanceSamples": 0,
+  "artifacts": {
+    "docs/design/causal-cost-investigation/candidate-review/README.md": "d26bd574da3014122a0dc8dcaddbd4bb6b2c2f672066088fb81fb561770fb518",
+    "docs/design/causal-cost-investigation/candidate-review/analyze.py": "a985f5d9dd02dab24ce2f31e91d18379dc5230ce5cd8912737de3ec43029cfca",
+    "docs/design/causal-cost-investigation/candidate-review/partition.json": "78b08ff59390f69157f139e99d9a8fe95d0d54b30f4fe30304181b42e0db1d45",
+    "docs/design/causal-cost-investigation/candidate-review/preservation.json": "78dcd1afdb9dc86033d071d94573dba11ff25ec30e3e70db01a7d5ae5d2c03aa"
+  }
+}
