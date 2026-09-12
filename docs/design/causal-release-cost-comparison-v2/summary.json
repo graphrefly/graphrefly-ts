@@ -1,0 +1,16 @@
+{
+  "captureStatus": "failed-RSS",
+  "completedChildren": 0,
+  "dispatchedChildren": 1,
+  "remainingChildren": 59,
+  "rawSamples": 329,
+  "warmup": 100,
+  "measured": 229,
+  "maxRSSBytes": 268582912,
+  "limitBytes": 268435456,
+  "preflightInstances": 14,
+  "archiveReplayIdentical": true,
+  "archiveFiles": 189,
+  "retries": 0,
+  "comparisonAvailable": false
+}

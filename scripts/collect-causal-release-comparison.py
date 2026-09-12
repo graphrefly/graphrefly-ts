@@ -1,8 +1,8 @@
 """One exclusive attempt; no retry/resume or arbitrary output option."""
 import hashlib,json,os,pathlib,secrets,shutil,signal,subprocess,sys,tarfile,time,traceback
 REPO=pathlib.Path(__file__).resolve().parent.parent
-OUT=REPO/'archive/evals/causal-release-cost-comparison-v1/run'
-DOC=REPO/'docs/design/causal-release-cost-comparison-v1-implementation'
+OUT=REPO/'archive/evals/causal-release-cost-comparison-v2/run'
+DOC=REPO/'docs/design/causal-release-cost-comparison-v2'
 TOOLS=['build-causal-release-comparison.mjs','rebuild-causal-release-comparison.mjs','causal-release-comparison-child.mjs','causal-release-comparison-driver.mjs','verify-causal-release-comparison.py','collect-causal-release-comparison.py','causal-release-comparison.test.mjs','test-causal-release-comparison.py']
 ROWS=['P2-lifecycle','inactive-60','active-diamond-5','inactive-2','inactive-1']
 def sha(b):return hashlib.sha256(b).hexdigest()

@@ -1,0 +1,25 @@
+{
+  "ownerWork": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "status": "capture-failed-RSS",
+  "samples": 329,
+  "completedChildren": 0,
+  "retries": 0,
+  "artifacts": {
+    "docs/design/causal-release-cost-comparison-v2/README.md": "1792e090a7ce6e1ea0bf83f4c1546c0370426672b1a2ed3fb810b23a70fd58a2",
+    "docs/design/causal-release-cost-comparison-v2/approval.json": "58603557333c919b143b7305784e73d91049a59c06c9fc01fcba7f4d04bd766e",
+    "docs/design/causal-release-cost-comparison-v2/capture.log": "5b4b1d4ad4a5af4b945d6bd23a1ae06097bd0ca6340deb9180e9cad591ba8025",
+    "docs/design/causal-release-cost-comparison-v2/counting-regression.log": "c01edae44a640c87206c044c3a32e201f290836d5447e856dbffcf99ce8885f0",
+    "docs/design/causal-release-cost-comparison-v2/js-qualification.log": "545d73997482bcb58881005318a0b7b1816ff7e8bd9571a344686a310da6119d",
+    "docs/design/causal-release-cost-comparison-v2/prefix-only-rejection.json": "0f55600afa42a32a22a9cc84e886804a12a1c7efa7c27a568cc1cb616377d8e6",
+    "docs/design/causal-release-cost-comparison-v2/preservation.json": "109039039d10c5279cd1aee824f987288145af7488384475ae2c3d102422caac",
+    "docs/design/causal-release-cost-comparison-v2/python-qualification.log": "c81b021e3489c68400c147e78ef683c35edfbf7c16657b0af68c39b3059bd87c",
+    "docs/design/causal-release-cost-comparison-v2/qualification.json": "d95e85c114da32242c0ff5866812191f414191dd7f2fc40188d515be7f405a0a",
+    "docs/design/causal-release-cost-comparison-v2/review.md": "0160b3c61730f4665948f09eaf21683b1905b147449a4bd1ff8aaca49bb01a3e",
+    "docs/design/causal-release-cost-comparison-v2/scoped-biome.log": "b54f1072cc1448964fcd1cd1c29374a493b718938521ec519120902ed58452d9",
+    "docs/design/causal-release-cost-comparison-v2/summary.json": "2bfa75e89968d03ad0589e6e1072ccc6b8f6a7b9414299f46a001dde24fce8a8",
+    "docs/design/causal-release-cost-comparison-v2/terminal-verification.json": "ba670f40878cfc1adfb3e9d2759e042989e933151b23f35a173fee6641fba2d0",
+    "scripts/collect-causal-release-comparison.py": "2161f04bd65357bf2217a6997331d9d3bf334b1e98831f63160718eeef92c05c",
+    "archive/evals/causal-release-cost-comparison-v2/artifact-index.json": "947334f8f9c7733936bef435af1ce37c338ba99393cda372384ddf5c72a93e89"
+  },
+  "formalPerformanceQualified": false
+}

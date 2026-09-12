@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "rootHashes": {
+    "decisions/decisions.jsonl": "b1c78cb3d6a0915a37728181a4003bac8f615c1cfd220add1a7982997b48c831",
+    "plan/backlog.jsonl": "89a6d9e0a7607db2bac8f7cfdfeeebdaea7f5faed820a8f659d647cdea4d9505",
+    "sessions/active/SESSION-blueprint-stacked-pr-ownership.md": "74d4b1311f8b5631b1c3ae77857797f75541b31f92603f47efab953fb800115c",
+    "sessions/sessions.jsonl": "d3c318c66a5c0e54294d91f1f5dc776d89c47a69f01b09a7dea06ed33902791c",
+    "sessions/archive/SESSION-b139-causal-flagship-brief-v1.md": "1477c42a39903ea89c523c97ee82c7eb1c0e320f88c88738325e043c6d44dc8a",
+    "sessions/archive/b139-causal-flagship-brief-v1.json": "c406a58efb7ec9c24ef01c11b987405345b330edd045c915c2afef8d945a7fe7"
+  },
+  "libraryExamplesGeneratedRunnerUnchanged": true,
+  "priorAttemptArchiveAndReceiptUnchanged": true,
+  "baseline": "0bb8149d"
+}

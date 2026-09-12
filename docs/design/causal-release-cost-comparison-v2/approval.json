@@ -1,0 +1,29 @@
+{
+  "userText": "\u597d",
+  "proposalCommit": "fc5acae0",
+  "designRef": "docs/design/causal-release-cost-comparison-v1.md",
+  "designDigest": "sha256:61ebce5c8a1ee3315083067bd9e511f44aeef597114e601ed130c570e00efbc5",
+  "approvedSections": "2\u20136",
+  "ownerWork": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "scope": [
+    "one renewed fixed 60-process capture",
+    "independent verification/archive/report/commit"
+  ],
+  "budget": {
+    "processes": 60,
+    "samples": 144000,
+    "seconds": 900,
+    "childSeconds": 30,
+    "rssBytes": 268435456,
+    "retries": 0
+  },
+  "notAuthorized": [
+    "library/API/protocol changes",
+    "formal matrix",
+    "provider/live/spend",
+    "automatic follow-on"
+  ],
+  "approvalContext": "After 0bb8149d: fresh approval explicitly requested for 5 rows, 60 children, 144000 samples, no retries.",
+  "priorGrant": "Consumed; original attempt retained unchanged",
+  "currentness": "Single use in this continuation only"
+}

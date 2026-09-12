@@ -1,0 +1,31 @@
+{
+  "passed": true,
+  "scope": "Current repaired tooling; frozen build and real semantic preflight qualified in ed90f747 and 0bb8149d; collector paths only renewed",
+  "sources": {
+    "build-causal-release-comparison.mjs": "3a8797f6d4ef82b4521a2ed4771013b1d4ba5d085327ba75ef480e1d0ee4a4ac",
+    "rebuild-causal-release-comparison.mjs": "c867bb67b78fa9ab3101b26d02aa3b2fd07c37a1516139690630c46bab6ca5f3",
+    "causal-release-comparison-child.mjs": "b3382bbfbb61fcc5b5be25db840bb6d92c742ccf0fe5cac30cbea6ee5df7d47f",
+    "causal-release-comparison-driver.mjs": "45a51aaffc28cda671bae69f160e2e94ee9b6c51e8aba050a55017f395a2f9f8",
+    "verify-causal-release-comparison.py": "c201c5dc0864664028b010213e9187d22e81031b90e836a0b739e38579810a40",
+    "collect-causal-release-comparison.py": "2161f04bd65357bf2217a6997331d9d3bf334b1e98831f63160718eeef92c05c",
+    "causal-release-comparison.test.mjs": "a3c23c38ab5cf9adc6f804e3efd98c33a52f877bf7c0ba48d72d8edcbfa85132",
+    "test-causal-release-comparison.py": "ab615d819cec91660e4468a600776a1f8a3f74941f5b0dadf952079ef00e72bd",
+    "causal-release-comparison.ts": "88cc9495f71d43884aae4151540583855799baa4e5f0e14751a6161756458a34",
+    "causal-release-comparison-oracle.ts": "c1021fb3802bd4443145acf85f2882e0a867360e23dd9667fa6910c0a3cefb43"
+  },
+  "evidence": {
+    "js-qualification.log": "545d73997482bcb58881005318a0b7b1816ff7e8bd9571a344686a310da6119d",
+    "python-qualification.log": "c81b021e3489c68400c147e78ef683c35edfbf7c16657b0af68c39b3059bd87c",
+    "counting-regression.log": "c01edae44a640c87206c044c3a32e201f290836d5447e856dbffcf99ce8885f0",
+    "scoped-biome.log": "b54f1072cc1448964fcd1cd1c29374a493b718938521ec519120902ed58452d9",
+    "review.md": "0160b3c61730f4665948f09eaf21683b1905b147449a4bd1ff8aaca49bb01a3e"
+  },
+  "loadedMutants": {
+    "driver": 9,
+    "wrapper": 1,
+    "child": 5,
+    "arithmetic": 4
+  },
+  "samples": 0,
+  "twoStaticReviews": "Prior guard repair reviews retained; current collector path-only change inspected locally"
+}

@@ -1,0 +1,178 @@
+
+> authority:check:workspace
+> node authority/check.mjs --workspace
+
+=== GraphReFly authority gate ===
+metrics: {
+  unresolvedRefs: 0,
+  supersessionCycles: 0,
+  ruleRevisionCycles: 0,
+  ambiguousCurrentGovernors: 0,
+  unclassifiedDecisions: 441,
+  currentProtocolRules: 23,
+  draftProtocolRules: 44,
+  exactDuplicateCurrentRuleStatements: 0,
+  activeUncoveredRules: 2,
+  formalCoveragePending: 3
+}
+federation: {
+  qualifiedDecisions: 1018,
+  referenceEdges: 168,
+  supersessionCycles: 0,
+  relocations: 319,
+  unverifiedRelocations: 0,
+  currentProductComplete: true,
+  currentProductRecords: 703
+}
+ledgers: [
+  {
+    origin: 'graphrefly',
+    owner: 'graphrefly',
+    authority_class: 'durable-root',
+    path: 'decisions/decisions.jsonl',
+    availability: 'required',
+    include_in_root_dashboard: true,
+    admission_after: 784,
+    state: 'available',
+    records: 470
+  },
+  {
+    origin: 'graphrefly',
+    owner: 'graphrefly',
+    authority_class: 'evaluation-execution',
+    path: 'decisions/execution.jsonl',
+    availability: 'required',
+    include_in_root_dashboard: true,
+    admission_after: 784,
+    state: 'available',
+    records: 115
+  },
+  {
+    origin: 'graphrefly-ts',
+    owner: 'graphrefly-ts',
+    authority_class: 'package-local',
+    path: '../graphrefly-ts/decisions/decisions.jsonl',
+    availability: 'workspace-optional',
+    include_in_root_dashboard: false,
+    admission_after: 0,
+    state: 'available',
+    records: 72
+  },
+  {
+    origin: 'graphrefly-ts',
+    owner: 'graphrefly-ts',
+    authority_class: 'evaluation-execution',
+    path: '../graphrefly-ts/decisions/execution.jsonl',
+    availability: 'workspace-optional',
+    include_in_root_dashboard: false,
+    admission_after: 0,
+    state: 'available',
+    records: 96
+  },
+  {
+    origin: 'graphrefly',
+    owner: 'graphrefly-ts',
+    authority_class: 'package-local-history',
+    path: '../graphrefly-ts/decisions/root-origin-history.jsonl',
+    availability: 'workspace-optional',
+    include_in_root_dashboard: false,
+    historical_only: true,
+    state: 'available',
+    records: 67
+  },
+  {
+    origin: 'graphrefly-rs',
+    owner: 'graphrefly-rs',
+    authority_class: 'package-local',
+    path: '../graphrefly-rs/decisions/decisions.jsonl',
+    availability: 'workspace-optional',
+    include_in_root_dashboard: false,
+    admission_after: 0,
+    state: 'available',
+    records: 0
+  },
+  {
+    origin: 'graphrefly',
+    owner: 'graphrefly-rs',
+    authority_class: 'package-local-history',
+    path: '../graphrefly-rs/decisions/root-origin-history.jsonl',
+    availability: 'workspace-optional',
+    include_in_root_dashboard: false,
+    historical_only: true,
+    state: 'available',
+    records: 12
+  },
+  {
+    origin: 'graphrefly-py',
+    owner: 'graphrefly-py',
+    authority_class: 'package-local',
+    path: '../graphrefly-py/decisions/decisions.jsonl',
+    availability: 'workspace-optional',
+    include_in_root_dashboard: false,
+    admission_after: 0,
+    state: 'available',
+    records: 0
+  },
+  {
+    origin: 'graphrefly',
+    owner: 'graphrefly-py',
+    authority_class: 'package-local-history',
+    path: '../graphrefly-py/decisions/root-origin-history.jsonl',
+    availability: 'workspace-optional',
+    include_in_root_dashboard: false,
+    historical_only: true,
+    state: 'available',
+    records: 23
+  },
+  {
+    origin: 'graphrefly-canvas',
+    owner: 'graphrefly-canvas',
+    authority_class: 'product-local',
+    path: '../graphrefly-canvas/decisions/decisions.jsonl',
+    availability: 'workspace-optional',
+    include_in_root_dashboard: false,
+    admission_after: 0,
+    state: 'available',
+    records: 1
+  },
+  {
+    origin: 'graphrefly',
+    owner: 'graphrefly-canvas',
+    authority_class: 'product-local-history',
+    path: '../graphrefly-canvas/decisions/root-origin-history.jsonl',
+    availability: 'workspace-optional',
+    include_in_root_dashboard: false,
+    historical_only: true,
+    state: 'available',
+    records: 102
+  },
+  {
+    origin: 'graphrefly-stack',
+    owner: 'graphrefly-stack',
+    authority_class: 'product-local',
+    path: '../graphrefly-stack/docs/decisions/decisions.jsonl',
+    availability: 'workspace-optional',
+    include_in_root_dashboard: false,
+    admission_after: 60,
+    state: 'available',
+    records: 60
+  }
+]
+work federation: {
+  contract: 'graphrefly-work-v1',
+  authority: 'read-only-generated-view-not-execution-authority',
+  metrics: {
+    records: 532,
+    strict_records: 103,
+    legacy_records: 429,
+    legacy_complete_without_evidence: 357,
+    unavailable_ledgers: 0,
+    unstructured_ledgers: 0
+  },
+  dependencyEdges: 180,
+  dependencyCycles: 0,
+  supersessionCycles: 0,
+  orphans: 0
+}
+work federation warnings (1):
+  ../graphrefly-canvas/plan/slices.jsonl has 88 append-only legacy revisions without immutable row coordinates
