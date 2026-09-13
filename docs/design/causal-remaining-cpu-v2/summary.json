@@ -1,0 +1,5057 @@
+{
+  "verified": true,
+  "formalQualified": false,
+  "scope": "Name tables aggregate same-name frames; topSelfLocations preserves URL and zero-based line/column. Unweighted CPU sample counts; inclusive counts overlap; sampling/inspector overhead included, not exact CPU-time percentages.",
+  "jobs": [
+    {
+      "job": {
+        "id": 0,
+        "recipe": "duplicate2",
+        "repeat": 0
+      },
+      "samples": 3862,
+      "profiledActionMs": 2901.7698770000006,
+      "topSelf": [
+        [
+          "sortedJsonValue",
+          1061
+        ],
+        [
+          "stableJsonString",
+          390
+        ],
+        [
+          "visit",
+          289
+        ],
+        [
+          "sha256",
+          246
+        ],
+        [
+          "receiveTerminals",
+          188
+        ],
+        [
+          "canonicalTupleKey",
+          175
+        ],
+        [
+          "string",
+          160
+        ],
+        [
+          "encodeMaterial",
+          112
+        ],
+        [
+          "isEvidenceTerminal",
+          102
+        ],
+        [
+          "anonymous:0",
+          101
+        ],
+        [
+          "recomputeCurrentness",
+          81
+        ],
+        [
+          "pendingObligations",
+          76
+        ],
+        [
+          "receiveEvidence",
+          74
+        ],
+        [
+          "freeze3",
+          68
+        ],
+        [
+          "recomputeDomain",
+          64
+        ],
+        [
+          "currentnessMetadata",
+          64
+        ],
+        [
+          "(program)",
+          55
+        ],
+        [
+          "(garbage collector)",
+          53
+        ],
+        [
+          "token",
+          41
+        ],
+        [
+          "anonymous:6360",
+          36
+        ]
+      ],
+      "topSelfLocations": [
+        {
+          "frame": {
+            "columnNumber": 24,
+            "functionName": "sortedJsonValue",
+            "lineNumber": 513,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1061
+        },
+        {
+          "frame": {
+            "columnNumber": 25,
+            "functionName": "stableJsonString",
+            "lineNumber": 583,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 390
+        },
+        {
+          "frame": {
+            "columnNumber": 16,
+            "functionName": "visit",
+            "lineNumber": 5162,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 289
+        },
+        {
+          "frame": {
+            "columnNumber": 15,
+            "functionName": "sha256",
+            "lineNumber": 3430,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 246
+        },
+        {
+          "frame": {
+            "columnNumber": 25,
+            "functionName": "receiveTerminals",
+            "lineNumber": 4176,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 188
+        },
+        {
+          "frame": {
+            "columnNumber": 26,
+            "functionName": "canonicalTupleKey",
+            "lineNumber": 3337,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 175
+        },
+        {
+          "frame": {
+            "columnNumber": 17,
+            "functionName": "string",
+            "lineNumber": 5157,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 160
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "encodeMaterial",
+            "lineNumber": 5148,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 112
+        },
+        {
+          "frame": {
+            "columnNumber": 27,
+            "functionName": "isEvidenceTerminal",
+            "lineNumber": 3953,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 102
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 101
+        },
+        {
+          "frame": {
+            "columnNumber": 29,
+            "functionName": "recomputeCurrentness",
+            "lineNumber": 3687,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 81
+        },
+        {
+          "frame": {
+            "columnNumber": 27,
+            "functionName": "pendingObligations",
+            "lineNumber": 4432,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 76
+        },
+        {
+          "frame": {
+            "columnNumber": 24,
+            "functionName": "receiveEvidence",
+            "lineNumber": 3918,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 74
+        },
+        {
+          "frame": {
+            "columnNumber": 18,
+            "functionName": "freeze3",
+            "lineNumber": 3500,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 68
+        },
+        {
+          "frame": {
+            "columnNumber": 26,
+            "functionName": "recomputeDomain",
+            "lineNumber": 4736,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 64
+        },
+        {
+          "frame": {
+            "columnNumber": 28,
+            "functionName": "currentnessMetadata",
+            "lineNumber": 3657,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 64
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "(program)",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 55
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "(garbage collector)",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 53
+        },
+        {
+          "frame": {
+            "columnNumber": 16,
+            "functionName": "token",
+            "lineNumber": 5152,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 41
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "",
+            "lineNumber": 6359,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 36
+        },
+        {
+          "frame": {
+            "columnNumber": 25,
+            "functionName": "receiveProposals",
+            "lineNumber": 4239,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 35
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "exactAdmission",
+            "lineNumber": 3652,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 25
+        },
+        {
+          "frame": {
+            "columnNumber": 29,
+            "functionName": "receiveOccurrences",
+            "lineNumber": 4609,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 20
+        },
+        {
+          "frame": {
+            "columnNumber": 21,
+            "functionName": "maybeRelease",
+            "lineNumber": 3642,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 19
+        },
+        {
+          "frame": {
+            "columnNumber": 27,
+            "functionName": "",
+            "lineNumber": 3975,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 18
+        },
+        {
+          "frame": {
+            "columnNumber": 19,
+            "functionName": "cloneState",
+            "lineNumber": 4493,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 16
+        },
+        {
+          "frame": {
+            "columnNumber": 26,
+            "functionName": "",
+            "lineNumber": 5881,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 15
+        },
+        {
+          "frame": {
+            "columnNumber": 24,
+            "functionName": "flushAdmissions",
+            "lineNumber": 3749,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 14
+        },
+        {
+          "frame": {
+            "columnNumber": 17,
+            "functionName": "validRef",
+            "lineNumber": 3540,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 13
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "",
+            "lineNumber": 6433,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 12
+        },
+        {
+          "frame": {
+            "columnNumber": 28,
+            "functionName": "makeRequestMaterial",
+            "lineNumber": 5260,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 10
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "update",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 10
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "retainEvidence",
+            "lineNumber": 3876,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 9
+        },
+        {
+          "frame": {
+            "columnNumber": 39,
+            "functionName": "update",
+            "lineNumber": 135,
+            "url": "node:internal/crypto/hash"
+          },
+          "samples": 8
+        },
+        {
+          "frame": {
+            "columnNumber": 88,
+            "functionName": "",
+            "lineNumber": 3692,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 8
+        },
+        {
+          "frame": {
+            "columnNumber": 31,
+            "functionName": "causalOccurrenceDigest",
+            "lineNumber": 3487,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 7
+        },
+        {
+          "frame": {
+            "columnNumber": 34,
+            "functionName": "transitionCausalAuthority",
+            "lineNumber": 4521,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 7
+        },
+        {
+          "frame": {
+            "columnNumber": 16,
+            "functionName": "collect",
+            "lineNumber": 6144,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 7
+        },
+        {
+          "frame": {
+            "columnNumber": 36,
+            "functionName": "",
+            "lineNumber": 3693,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 7
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "Hash",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 6
+        },
+        {
+          "frame": {
+            "columnNumber": 27,
+            "functionName": "currentnessChanged",
+            "lineNumber": 3679,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 6
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "digest",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 6
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "flushPending",
+            "lineNumber": 4761,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 6
+        },
+        {
+          "frame": {
+            "columnNumber": 15,
+            "functionName": "frozen",
+            "lineNumber": 5460,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 6
+        },
+        {
+          "frame": {
+            "columnNumber": 6,
+            "functionName": "scope.node.name",
+            "lineNumber": 5841,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 6
+        },
+        {
+          "frame": {
+            "columnNumber": 6,
+            "functionName": "post",
+            "lineNumber": 114,
+            "url": "node:inspector"
+          },
+          "samples": 5
+        },
+        {
+          "frame": {
+            "columnNumber": 15,
+            "functionName": "refKey",
+            "lineNumber": 3516,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 5
+        },
+        {
+          "frame": {
+            "columnNumber": 50,
+            "functionName": "",
+            "lineNumber": 3504,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 5
+        },
+        {
+          "frame": {
+            "columnNumber": 7,
+            "functionName": "get",
+            "lineNumber": 473,
+            "url": "node:internal/bootstrap/node"
+          },
+          "samples": 5
+        },
+        {
+          "frame": {
+            "columnNumber": 26,
+            "functionName": "canonicalSnapshot",
+            "lineNumber": 3499,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 5
+        },
+        {
+          "frame": {
+            "columnNumber": 8,
+            "functionName": "encode",
+            "lineNumber": 354,
+            "url": "node:internal/encoding"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 38,
+            "functionName": "",
+            "lineNumber": 5378,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 48,
+            "functionName": "",
+            "lineNumber": 4504,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 15,
+            "functionName": "freeze",
+            "lineNumber": 5204,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 34,
+            "functionName": "",
+            "lineNumber": 3485,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "findOccurrence",
+            "lineNumber": 3605,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 57,
+            "functionName": "",
+            "lineNumber": 3692,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 24,
+            "functionName": "exactOccurrence",
+            "lineNumber": 3609,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 8,
+            "functionName": "invoke",
+            "lineNumber": 1317,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": 21,
+            "functionName": "retainDomain",
+            "lineNumber": 3590,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "canonicalEntry",
+            "lineNumber": 3509,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "encodeUtf8String",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": 26,
+            "functionName": "receiveAdmissions",
+            "lineNumber": 3768,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": 19,
+            "functionName": "byteLength",
+            "lineNumber": 843,
+            "url": "node:buffer"
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": 29,
+            "functionName": "",
+            "lineNumber": 5860,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 20,
+            "functionName": "revisionKey",
+            "lineNumber": 3528,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 20,
+            "functionName": "integerSqrt",
+            "lineNumber": 5765,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "",
+            "lineNumber": 6222,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 29,
+            "functionName": "retainEffectProposal",
+            "lineNumber": 4024,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 13,
+            "functionName": "hash",
+            "lineNumber": 5475,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "graph.node.name.name",
+            "lineNumber": 4863,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 44,
+            "functionName": "",
+            "lineNumber": 3977,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 68,
+            "functionName": "",
+            "lineNumber": 6094,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 20,
+            "functionName": "exactZScore",
+            "lineNumber": 5820,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 17,
+            "functionName": "nodeDown",
+            "lineNumber": 2172,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 66,
+            "functionName": "",
+            "lineNumber": 6558,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 15,
+            "functionName": "dyadic",
+            "lineNumber": 5743,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 13,
+            "functionName": "Hash",
+            "lineNumber": 91,
+            "url": "node:internal/crypto/hash"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "",
+            "lineNumber": 6392,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 31,
+            "functionName": "",
+            "lineNumber": 5673,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 31,
+            "functionName": "",
+            "lineNumber": 5179,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 19,
+            "functionName": "nodeTryRun",
+            "lineNumber": 1846,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 32,
+            "functionName": "nodeRecordDepProjection",
+            "lineNumber": 1690,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 10,
+            "functionName": "_runWave",
+            "lineNumber": 3144,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 539,
+            "functionName": "",
+            "lineNumber": 3541,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 35,
+            "functionName": "",
+            "lineNumber": 5923,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 17,
+            "functionName": "depBatch",
+            "lineNumber": 402,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 16,
+            "functionName": "sameRef",
+            "lineNumber": 3552,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 16,
+            "functionName": "rounded",
+            "lineNumber": 5774,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 27,
+            "functionName": "nodeReceiveFromDep",
+            "lineNumber": 1703,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "",
+            "lineNumber": 6044,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "",
+            "lineNumber": 6052,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "graph.node.name",
+            "lineNumber": 4910,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 67,
+            "functionName": "",
+            "lineNumber": 6606,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 19,
+            "functionName": "checkInput",
+            "lineNumber": 5666,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 59,
+            "functionName": "",
+            "lineNumber": 5180,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 20,
+            "functionName": "validResult",
+            "lineNumber": 3555,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 50,
+            "functionName": "",
+            "lineNumber": 545,
+            "url": "node:internal/validators"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "dispatch",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "nodeRefreshCtx",
+            "lineNumber": 1666,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "",
+            "lineNumber": 6344,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "nodeEmitToSubs",
+            "lineNumber": 2523,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 9,
+            "functionName": "",
+            "lineNumber": 3276,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "associationKey",
+            "lineNumber": 5280,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        }
+      ],
+      "topInclusive": [
+        [
+          "(root)",
+          3862
+        ],
+        [
+          "anonymous:0",
+          3745
+        ],
+        [
+          "_down",
+          3738
+        ],
+        [
+          "_maybeRun",
+          3738
+        ],
+        [
+          "_receiveFromDep",
+          3738
+        ],
+        [
+          "_runWave",
+          3738
+        ],
+        [
+          "_tryRun",
+          3738
+        ],
+        [
+          "anonymous:5978",
+          3738
+        ],
+        [
+          "down",
+          3738
+        ],
+        [
+          "invoke",
+          3738
+        ],
+        [
+          "nodeDown",
+          3738
+        ],
+        [
+          "nodeEmitToSubs",
+          3738
+        ],
+        [
+          "nodeMaybeRun",
+          3738
+        ],
+        [
+          "nodeReceiveFromDep",
+          3738
+        ],
+        [
+          "nodeRunWave",
+          3738
+        ],
+        [
+          "nodeTryRun",
+          3738
+        ],
+        [
+          "scope.node.name",
+          3738
+        ],
+        [
+          "send",
+          3738
+        ],
+        [
+          "sink",
+          3738
+        ],
+        [
+          "emitPending",
+          3734
+        ],
+        [
+          "_emitToSubs",
+          2987
+        ],
+        [
+          "graph.node.name.name",
+          2858
+        ],
+        [
+          "anonymous:3277",
+          2856
+        ],
+        [
+          "body",
+          2855
+        ],
+        [
+          "graph.node.name",
+          2853
+        ],
+        [
+          "transitionCausalAuthority",
+          2852
+        ],
+        [
+          "anonymous:5882",
+          2747
+        ],
+        [
+          "anonymous:5861",
+          2549
+        ],
+        [
+          "recomputeDomain",
+          1482
+        ],
+        [
+          "anonymous:6559",
+          1378
+        ],
+        [
+          "anonymous:6434",
+          1193
+        ],
+        [
+          "dataKey",
+          1081
+        ],
+        [
+          "stableJsonString",
+          1081
+        ],
+        [
+          "anonymous:6393",
+          1062
+        ],
+        [
+          "sortedJsonValue",
+          1061
+        ],
+        [
+          "refKey",
+          873
+        ],
+        [
+          "encodeMaterial",
+          639
+        ],
+        [
+          "recomputeCurrentness",
+          591
+        ],
+        [
+          "visit",
+          582
+        ],
+        [
+          "receiveTerminals",
+          455
+        ],
+        [
+          "anonymous:6607",
+          423
+        ],
+        [
+          "receiveOccurrences",
+          380
+        ],
+        [
+          "sameRef",
+          377
+        ],
+        [
+          "pendingObligations",
+          364
+        ],
+        [
+          "receiveEvidence",
+          344
+        ],
+        [
+          "isEvidenceTerminal",
+          309
+        ],
+        [
+          "exactAdmission",
+          264
+        ],
+        [
+          "sha256",
+          257
+        ],
+        [
+          "anonymous:6360",
+          230
+        ],
+        [
+          "anonymous:6345",
+          223
+        ],
+        [
+          "string",
+          208
+        ],
+        [
+          "anonymous:6528",
+          202
+        ],
+        [
+          "makeRequestMaterial",
+          186
+        ],
+        [
+          "canonicalTupleKey",
+          175
+        ],
+        [
+          "causalOccurrenceDigest",
+          168
+        ],
+        [
+          "maybeRelease",
+          165
+        ],
+        [
+          "anonymous:3694",
+          157
+        ],
+        [
+          "currentnessChanged",
+          131
+        ],
+        [
+          "token",
+          130
+        ],
+        [
+          "retainEvidence",
+          115
+        ],
+        [
+          "exactOccurrence",
+          105
+        ],
+        [
+          "receiveProposals",
+          100
+        ],
+        [
+          "byteLength",
+          93
+        ],
+        [
+          "freeze3",
+          73
+        ],
+        [
+          "currentnessMetadata",
+          64
+        ],
+        [
+          "anonymous:3976",
+          62
+        ],
+        [
+          "collect",
+          56
+        ],
+        [
+          "(program)",
+          55
+        ],
+        [
+          "anonymous:3505",
+          54
+        ],
+        [
+          "(garbage collector)",
+          53
+        ],
+        [
+          "flushPending",
+          51
+        ],
+        [
+          "flushAdmissions",
+          43
+        ],
+        [
+          "anonymous:6371",
+          38
+        ],
+        [
+          "canonicalEntry",
+          31
+        ],
+        [
+          "hash",
+          29
+        ],
+        [
+          "anonymous:6223",
+          27
+        ],
+        [
+          "canonicalMaterial",
+          23
+        ],
+        [
+          "canonicalSnapshot",
+          21
+        ],
+        [
+          "cloneState",
+          20
+        ],
+        [
+          "update",
+          18
+        ],
+        [
+          "validRef",
+          15
+        ],
+        [
+          "anonymous:6472",
+          14
+        ],
+        [
+          "occurrenceIdKey",
+          14
+        ],
+        [
+          "revisionKey",
+          13
+        ],
+        [
+          "occurrenceKey",
+          12
+        ],
+        [
+          "receiveAdmissions",
+          12
+        ],
+        [
+          "anonymous:3693",
+          12
+        ],
+        [
+          "Hash",
+          8
+        ],
+        [
+          "anonymous:6604",
+          8
+        ],
+        [
+          "findOccurrence",
+          8
+        ],
+        [
+          "retainEffectProposal",
+          8
+        ],
+        [
+          "encode",
+          7
+        ],
+        [
+          "anonymous:6053",
+          7
+        ],
+        [
+          "anonymous:28",
+          6
+        ],
+        [
+          "post",
+          6
+        ],
+        [
+          "digest",
+          6
+        ],
+        [
+          "exactZScore",
+          6
+        ],
+        [
+          "frame",
+          6
+        ],
+        [
+          "frozen",
+          6
+        ],
+        [
+          "anonymous:5379",
+          5
+        ]
+      ],
+      "serializationPaths": [
+        [
+          "sortedJsonValue > stableJsonString > dataKey > refKey > isEvidenceTerminal > recomputeDomain > transitionCausalAuthority > graph.node.name",
+          54
+        ],
+        [
+          "sortedJsonValue > stableJsonString > dataKey > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave",
+          47
+        ],
+        [
+          "stableJsonString > dataKey > retainEvidence > receiveEvidence > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave",
+          44
+        ],
+        [
+          "sortedJsonValue > sortedJsonValue > sortedJsonValue > receiveTerminals > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave",
+          42
+        ],
+        [
+          "sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > receiveTerminals > transitionCausalAuthority > graph.node.name",
+          41
+        ],
+        [
+          "stableJsonString > dataKey > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave > _runWave",
+          40
+        ],
+        [
+          "stableJsonString > dataKey > refKey > isEvidenceTerminal > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke",
+          39
+        ],
+        [
+          "sortedJsonValue > sortedJsonValue > stableJsonString > dataKey > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke",
+          38
+        ],
+        [
+          "sortedJsonValue > stableJsonString > dataKey > refKey > sameRef > exactAdmission > pendingObligations > recomputeDomain",
+          36
+        ],
+        [
+          "stableJsonString > dataKey > refKey > sameRef > maybeRelease > recomputeCurrentness > recomputeDomain > transitionCausalAuthority",
+          35
+        ],
+        [
+          "sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > receiveTerminals > transitionCausalAuthority > graph.node.name > invoke",
+          34
+        ],
+        [
+          "encodeMaterial > makeRequestMaterial > anonymous:6528 > anonymous:5882 > scope.node.name > invoke > nodeRunWave > _runWave",
+          34
+        ],
+        [
+          "sortedJsonValue > stableJsonString > dataKey > refKey > sameRef > exactOccurrence > pendingObligations > recomputeDomain",
+          32
+        ],
+        [
+          "sortedJsonValue > receiveEvidence > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave > _runWave > nodeTryRun",
+          32
+        ],
+        [
+          "sortedJsonValue > stableJsonString > dataKey > currentnessChanged > recomputeCurrentness > recomputeDomain > transitionCausalAuthority > graph.node.name",
+          31
+        ]
+      ]
+    },
+    {
+      "job": {
+        "id": 1,
+        "recipe": "duplicate2",
+        "repeat": 1
+      },
+      "samples": 3822,
+      "profiledActionMs": 2873.739249999999,
+      "topSelf": [
+        [
+          "sortedJsonValue",
+          1102
+        ],
+        [
+          "stableJsonString",
+          396
+        ],
+        [
+          "visit",
+          263
+        ],
+        [
+          "sha256",
+          256
+        ],
+        [
+          "receiveTerminals",
+          178
+        ],
+        [
+          "string",
+          173
+        ],
+        [
+          "canonicalTupleKey",
+          165
+        ],
+        [
+          "anonymous:0",
+          105
+        ],
+        [
+          "encodeMaterial",
+          93
+        ],
+        [
+          "isEvidenceTerminal",
+          92
+        ],
+        [
+          "pendingObligations",
+          85
+        ],
+        [
+          "recomputeDomain",
+          70
+        ],
+        [
+          "recomputeCurrentness",
+          70
+        ],
+        [
+          "currentnessMetadata",
+          66
+        ],
+        [
+          "receiveEvidence",
+          65
+        ],
+        [
+          "(program)",
+          59
+        ],
+        [
+          "freeze3",
+          58
+        ],
+        [
+          "(garbage collector)",
+          56
+        ],
+        [
+          "token",
+          31
+        ],
+        [
+          "anonymous:6360",
+          31
+        ]
+      ],
+      "topSelfLocations": [
+        {
+          "frame": {
+            "columnNumber": 24,
+            "functionName": "sortedJsonValue",
+            "lineNumber": 513,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1102
+        },
+        {
+          "frame": {
+            "columnNumber": 25,
+            "functionName": "stableJsonString",
+            "lineNumber": 583,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 396
+        },
+        {
+          "frame": {
+            "columnNumber": 16,
+            "functionName": "visit",
+            "lineNumber": 5162,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 263
+        },
+        {
+          "frame": {
+            "columnNumber": 15,
+            "functionName": "sha256",
+            "lineNumber": 3430,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 256
+        },
+        {
+          "frame": {
+            "columnNumber": 25,
+            "functionName": "receiveTerminals",
+            "lineNumber": 4176,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 178
+        },
+        {
+          "frame": {
+            "columnNumber": 17,
+            "functionName": "string",
+            "lineNumber": 5157,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 173
+        },
+        {
+          "frame": {
+            "columnNumber": 26,
+            "functionName": "canonicalTupleKey",
+            "lineNumber": 3337,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 165
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 105
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "encodeMaterial",
+            "lineNumber": 5148,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 93
+        },
+        {
+          "frame": {
+            "columnNumber": 27,
+            "functionName": "isEvidenceTerminal",
+            "lineNumber": 3953,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 92
+        },
+        {
+          "frame": {
+            "columnNumber": 27,
+            "functionName": "pendingObligations",
+            "lineNumber": 4432,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 85
+        },
+        {
+          "frame": {
+            "columnNumber": 26,
+            "functionName": "recomputeDomain",
+            "lineNumber": 4736,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 70
+        },
+        {
+          "frame": {
+            "columnNumber": 29,
+            "functionName": "recomputeCurrentness",
+            "lineNumber": 3687,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 70
+        },
+        {
+          "frame": {
+            "columnNumber": 28,
+            "functionName": "currentnessMetadata",
+            "lineNumber": 3657,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 66
+        },
+        {
+          "frame": {
+            "columnNumber": 24,
+            "functionName": "receiveEvidence",
+            "lineNumber": 3918,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 65
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "(program)",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 59
+        },
+        {
+          "frame": {
+            "columnNumber": 18,
+            "functionName": "freeze3",
+            "lineNumber": 3500,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 58
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "(garbage collector)",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 56
+        },
+        {
+          "frame": {
+            "columnNumber": 16,
+            "functionName": "token",
+            "lineNumber": 5152,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 31
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "",
+            "lineNumber": 6359,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 31
+        },
+        {
+          "frame": {
+            "columnNumber": 25,
+            "functionName": "receiveProposals",
+            "lineNumber": 4239,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 28
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "exactAdmission",
+            "lineNumber": 3652,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 28
+        },
+        {
+          "frame": {
+            "columnNumber": 21,
+            "functionName": "maybeRelease",
+            "lineNumber": 3642,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 22
+        },
+        {
+          "frame": {
+            "columnNumber": 24,
+            "functionName": "flushAdmissions",
+            "lineNumber": 3749,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 19
+        },
+        {
+          "frame": {
+            "columnNumber": 19,
+            "functionName": "cloneState",
+            "lineNumber": 4493,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 14
+        },
+        {
+          "frame": {
+            "columnNumber": 7,
+            "functionName": "get",
+            "lineNumber": 473,
+            "url": "node:internal/bootstrap/node"
+          },
+          "samples": 13
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "",
+            "lineNumber": 6433,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 13
+        },
+        {
+          "frame": {
+            "columnNumber": 17,
+            "functionName": "validRef",
+            "lineNumber": 3540,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 13
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "update",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 13
+        },
+        {
+          "frame": {
+            "columnNumber": 27,
+            "functionName": "",
+            "lineNumber": 3975,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 12
+        },
+        {
+          "frame": {
+            "columnNumber": 8,
+            "functionName": "encode",
+            "lineNumber": 354,
+            "url": "node:internal/encoding"
+          },
+          "samples": 11
+        },
+        {
+          "frame": {
+            "columnNumber": 19,
+            "functionName": "byteLength",
+            "lineNumber": 843,
+            "url": "node:buffer"
+          },
+          "samples": 11
+        },
+        {
+          "frame": {
+            "columnNumber": 26,
+            "functionName": "",
+            "lineNumber": 5881,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 11
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "Hash",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 10
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "retainEvidence",
+            "lineNumber": 3876,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 9
+        },
+        {
+          "frame": {
+            "columnNumber": 28,
+            "functionName": "makeRequestMaterial",
+            "lineNumber": 5260,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 9
+        },
+        {
+          "frame": {
+            "columnNumber": 34,
+            "functionName": "transitionCausalAuthority",
+            "lineNumber": 4521,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 9
+        },
+        {
+          "frame": {
+            "columnNumber": 29,
+            "functionName": "receiveOccurrences",
+            "lineNumber": 4609,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 9
+        },
+        {
+          "frame": {
+            "columnNumber": 39,
+            "functionName": "update",
+            "lineNumber": 135,
+            "url": "node:internal/crypto/hash"
+          },
+          "samples": 8
+        },
+        {
+          "frame": {
+            "columnNumber": 15,
+            "functionName": "refKey",
+            "lineNumber": 3516,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 8
+        },
+        {
+          "frame": {
+            "columnNumber": 31,
+            "functionName": "causalOccurrenceDigest",
+            "lineNumber": 3487,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 7
+        },
+        {
+          "frame": {
+            "columnNumber": 15,
+            "functionName": "frozen",
+            "lineNumber": 5460,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 7
+        },
+        {
+          "frame": {
+            "columnNumber": 36,
+            "functionName": "",
+            "lineNumber": 3693,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 6
+        },
+        {
+          "frame": {
+            "columnNumber": 6,
+            "functionName": "post",
+            "lineNumber": 114,
+            "url": "node:inspector"
+          },
+          "samples": 5
+        },
+        {
+          "frame": {
+            "columnNumber": 6,
+            "functionName": "scope.node.name",
+            "lineNumber": 5841,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 5
+        },
+        {
+          "frame": {
+            "columnNumber": 50,
+            "functionName": "",
+            "lineNumber": 3504,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 5
+        },
+        {
+          "frame": {
+            "columnNumber": 16,
+            "functionName": "collect",
+            "lineNumber": 6144,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 5
+        },
+        {
+          "frame": {
+            "columnNumber": 66,
+            "functionName": "",
+            "lineNumber": 6558,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 5
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "digest",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 5
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "encodeUtf8String",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 17,
+            "functionName": "nodeDown",
+            "lineNumber": 2172,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 27,
+            "functionName": "currentnessChanged",
+            "lineNumber": 3679,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "findOccurrence",
+            "lineNumber": 3605,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 15,
+            "functionName": "dyadic",
+            "lineNumber": 5743,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 48,
+            "functionName": "",
+            "lineNumber": 4504,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 15,
+            "functionName": "freeze",
+            "lineNumber": 5204,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "",
+            "lineNumber": 6222,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 26,
+            "functionName": "receiveAdmissions",
+            "lineNumber": 3768,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": 25,
+            "functionName": "exactVendorStats",
+            "lineNumber": 5784,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": 10,
+            "functionName": "down",
+            "lineNumber": 1622,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": 539,
+            "functionName": "",
+            "lineNumber": 3541,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": 24,
+            "functionName": "exactOccurrence",
+            "lineNumber": 3609,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": 57,
+            "functionName": "",
+            "lineNumber": 3692,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 35,
+            "functionName": "",
+            "lineNumber": 5923,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 27,
+            "functionName": "advanceNodeVersion",
+            "lineNumber": 988,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 38,
+            "functionName": "",
+            "lineNumber": 5378,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "associationKey",
+            "lineNumber": 5280,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 68,
+            "functionName": "",
+            "lineNumber": 6094,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 21,
+            "functionName": "retainDomain",
+            "lineNumber": 3590,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "flushPending",
+            "lineNumber": 4761,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "",
+            "lineNumber": 5977,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 20,
+            "functionName": "revisionKey",
+            "lineNumber": 3528,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 17,
+            "functionName": "depWaves",
+            "lineNumber": 399,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "nodeEmitToSubs",
+            "lineNumber": 2523,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 10,
+            "functionName": "_runWave",
+            "lineNumber": 3144,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 29,
+            "functionName": "",
+            "lineNumber": 5860,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 28,
+            "functionName": "setCtxDepWaveOrigin",
+            "lineNumber": 392,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 27,
+            "functionName": "nodeReceiveFromDep",
+            "lineNumber": 1703,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "graph.node.name",
+            "lineNumber": 4910,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 19,
+            "functionName": "nodeTryRun",
+            "lineNumber": 1846,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 59,
+            "functionName": "",
+            "lineNumber": 5180,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "canonicalEntry",
+            "lineNumber": 3509,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "nodeRefreshCtx",
+            "lineNumber": 1666,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 69,
+            "functionName": "",
+            "lineNumber": 6603,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 8,
+            "functionName": "invoke",
+            "lineNumber": 1317,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 88,
+            "functionName": "",
+            "lineNumber": 3692,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 17,
+            "functionName": "depBatch",
+            "lineNumber": 402,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 19,
+            "functionName": "emit",
+            "lineNumber": 6346,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 34,
+            "functionName": "",
+            "lineNumber": 3485,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 31,
+            "functionName": "assertStableJsonNumber",
+            "lineNumber": 495,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "",
+            "lineNumber": 6527,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "",
+            "lineNumber": 6075,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 29,
+            "functionName": "retainEffectProposal",
+            "lineNumber": 4024,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "",
+            "lineNumber": 6044,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 26,
+            "functionName": "canonicalSnapshot",
+            "lineNumber": 3499,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        }
+      ],
+      "topInclusive": [
+        [
+          "(root)",
+          3822
+        ],
+        [
+          "anonymous:0",
+          3700
+        ],
+        [
+          "_down",
+          3695
+        ],
+        [
+          "_maybeRun",
+          3695
+        ],
+        [
+          "_receiveFromDep",
+          3695
+        ],
+        [
+          "_runWave",
+          3695
+        ],
+        [
+          "_tryRun",
+          3695
+        ],
+        [
+          "anonymous:5978",
+          3695
+        ],
+        [
+          "down",
+          3695
+        ],
+        [
+          "invoke",
+          3695
+        ],
+        [
+          "nodeDown",
+          3695
+        ],
+        [
+          "nodeEmitToSubs",
+          3695
+        ],
+        [
+          "nodeMaybeRun",
+          3695
+        ],
+        [
+          "nodeReceiveFromDep",
+          3695
+        ],
+        [
+          "nodeRunWave",
+          3695
+        ],
+        [
+          "nodeTryRun",
+          3695
+        ],
+        [
+          "scope.node.name",
+          3695
+        ],
+        [
+          "send",
+          3695
+        ],
+        [
+          "sink",
+          3695
+        ],
+        [
+          "emitPending",
+          3693
+        ],
+        [
+          "_emitToSubs",
+          2947
+        ],
+        [
+          "graph.node.name.name",
+          2846
+        ],
+        [
+          "anonymous:3277",
+          2843
+        ],
+        [
+          "body",
+          2843
+        ],
+        [
+          "graph.node.name",
+          2838
+        ],
+        [
+          "transitionCausalAuthority",
+          2838
+        ],
+        [
+          "anonymous:5882",
+          2697
+        ],
+        [
+          "anonymous:5861",
+          2512
+        ],
+        [
+          "recomputeDomain",
+          1456
+        ],
+        [
+          "anonymous:6559",
+          1339
+        ],
+        [
+          "anonymous:6434",
+          1178
+        ],
+        [
+          "dataKey",
+          1109
+        ],
+        [
+          "stableJsonString",
+          1109
+        ],
+        [
+          "sortedJsonValue",
+          1103
+        ],
+        [
+          "anonymous:6393",
+          1052
+        ],
+        [
+          "refKey",
+          885
+        ],
+        [
+          "encodeMaterial",
+          611
+        ],
+        [
+          "recomputeCurrentness",
+          582
+        ],
+        [
+          "visit",
+          567
+        ],
+        [
+          "receiveTerminals",
+          464
+        ],
+        [
+          "anonymous:6607",
+          420
+        ],
+        [
+          "receiveOccurrences",
+          387
+        ],
+        [
+          "pendingObligations",
+          366
+        ],
+        [
+          "sameRef",
+          352
+        ],
+        [
+          "receiveEvidence",
+          341
+        ],
+        [
+          "isEvidenceTerminal",
+          294
+        ],
+        [
+          "sha256",
+          272
+        ],
+        [
+          "exactAdmission",
+          255
+        ],
+        [
+          "string",
+          240
+        ],
+        [
+          "anonymous:6360",
+          226
+        ],
+        [
+          "anonymous:6345",
+          226
+        ],
+        [
+          "anonymous:6528",
+          198
+        ],
+        [
+          "makeRequestMaterial",
+          170
+        ],
+        [
+          "causalOccurrenceDigest",
+          169
+        ],
+        [
+          "canonicalTupleKey",
+          165
+        ],
+        [
+          "maybeRelease",
+          165
+        ],
+        [
+          "anonymous:3694",
+          150
+        ],
+        [
+          "currentnessChanged",
+          140
+        ],
+        [
+          "token",
+          131
+        ],
+        [
+          "retainEvidence",
+          115
+        ],
+        [
+          "exactOccurrence",
+          104
+        ],
+        [
+          "receiveProposals",
+          102
+        ],
+        [
+          "byteLength",
+          100
+        ],
+        [
+          "currentnessMetadata",
+          66
+        ],
+        [
+          "freeze3",
+          63
+        ],
+        [
+          "(program)",
+          59
+        ],
+        [
+          "anonymous:3976",
+          58
+        ],
+        [
+          "(garbage collector)",
+          56
+        ],
+        [
+          "anonymous:3505",
+          50
+        ],
+        [
+          "flushPending",
+          45
+        ],
+        [
+          "flushAdmissions",
+          43
+        ],
+        [
+          "collect",
+          42
+        ],
+        [
+          "anonymous:6371",
+          38
+        ],
+        [
+          "anonymous:6223",
+          26
+        ],
+        [
+          "canonicalEntry",
+          26
+        ],
+        [
+          "canonicalMaterial",
+          25
+        ],
+        [
+          "hash",
+          25
+        ],
+        [
+          "update",
+          21
+        ],
+        [
+          "cloneState",
+          18
+        ],
+        [
+          "validRef",
+          18
+        ],
+        [
+          "anonymous:6472",
+          17
+        ],
+        [
+          "encode",
+          15
+        ],
+        [
+          "retainEffectProposal",
+          15
+        ],
+        [
+          "canonicalSnapshot",
+          15
+        ],
+        [
+          "receiveAdmissions",
+          13
+        ],
+        [
+          "occurrenceKey",
+          13
+        ],
+        [
+          "get",
+          13
+        ],
+        [
+          "revisionKey",
+          10
+        ],
+        [
+          "Hash",
+          10
+        ],
+        [
+          "occurrenceIdKey",
+          8
+        ],
+        [
+          "findOccurrence",
+          8
+        ],
+        [
+          "frame",
+          7
+        ],
+        [
+          "frozen",
+          7
+        ],
+        [
+          "anonymous:28",
+          5
+        ],
+        [
+          "post",
+          5
+        ],
+        [
+          "anonymous:3542",
+          5
+        ],
+        [
+          "anonymous:6604",
+          5
+        ],
+        [
+          "digest",
+          5
+        ],
+        [
+          "same",
+          4
+        ],
+        [
+          "encodeUtf8String",
+          4
+        ]
+      ],
+      "serializationPaths": [
+        [
+          "sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > receiveTerminals > transitionCausalAuthority > graph.node.name > invoke",
+          52
+        ],
+        [
+          "sortedJsonValue > stableJsonString > dataKey > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave",
+          52
+        ],
+        [
+          "sortedJsonValue > stableJsonString > dataKey > refKey > isEvidenceTerminal > recomputeDomain > transitionCausalAuthority > graph.node.name",
+          51
+        ],
+        [
+          "stableJsonString > dataKey > refKey > isEvidenceTerminal > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke",
+          45
+        ],
+        [
+          "sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > receiveTerminals > transitionCausalAuthority > graph.node.name",
+          40
+        ],
+        [
+          "stableJsonString > dataKey > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave > _runWave",
+          40
+        ],
+        [
+          "stableJsonString > dataKey > retainEvidence > receiveEvidence > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave",
+          36
+        ],
+        [
+          "stableJsonString > dataKey > currentnessChanged > recomputeCurrentness > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke",
+          35
+        ],
+        [
+          "sortedJsonValue > sortedJsonValue > sortedJsonValue > receiveTerminals > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave",
+          35
+        ],
+        [
+          "sortedJsonValue > stableJsonString > dataKey > currentnessChanged > recomputeCurrentness > recomputeDomain > transitionCausalAuthority > graph.node.name",
+          34
+        ],
+        [
+          "sortedJsonValue > sortedJsonValue > receiveTerminals > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave > _runWave",
+          33
+        ],
+        [
+          "sortedJsonValue > sortedJsonValue > stableJsonString > dataKey > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke",
+          30
+        ],
+        [
+          "sortedJsonValue > stableJsonString > dataKey > refKey > sameRef > exactOccurrence > pendingObligations > recomputeDomain",
+          29
+        ],
+        [
+          "sortedJsonValue > stableJsonString > dataKey > refKey > sameRef > exactAdmission > pendingObligations > recomputeDomain",
+          29
+        ],
+        [
+          "sortedJsonValue > sortedJsonValue > receiveEvidence > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave > _runWave",
+          27
+        ]
+      ]
+    },
+    {
+      "job": {
+        "id": 2,
+        "recipe": "verification",
+        "repeat": 0
+      },
+      "samples": 1199,
+      "profiledActionMs": 902.4123330000007,
+      "topSelf": [
+        [
+          "sortedJsonValue",
+          336
+        ],
+        [
+          "encodeMaterial",
+          271
+        ],
+        [
+          "stableJsonString",
+          97
+        ],
+        [
+          "anonymous:0",
+          58
+        ],
+        [
+          "visit",
+          55
+        ],
+        [
+          "emitCoverage",
+          41
+        ],
+        [
+          "emitConservation",
+          35
+        ],
+        [
+          "anonymous:6223",
+          33
+        ],
+        [
+          "(garbage collector)",
+          25
+        ],
+        [
+          "canonicalTupleKey",
+          24
+        ],
+        [
+          "receiveEvidence",
+          23
+        ],
+        [
+          "(program)",
+          21
+        ],
+        [
+          "recomputeDomain",
+          21
+        ],
+        [
+          "string",
+          17
+        ],
+        [
+          "isEvidenceTerminal",
+          17
+        ],
+        [
+          "recomputeCurrentness",
+          16
+        ],
+        [
+          "currentnessMetadata",
+          8
+        ],
+        [
+          "flushAdmissions",
+          7
+        ],
+        [
+          "get",
+          6
+        ],
+        [
+          "token",
+          6
+        ]
+      ],
+      "topSelfLocations": [
+        {
+          "frame": {
+            "columnNumber": 24,
+            "functionName": "sortedJsonValue",
+            "lineNumber": 513,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 336
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "encodeMaterial",
+            "lineNumber": 5148,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 271
+        },
+        {
+          "frame": {
+            "columnNumber": 25,
+            "functionName": "stableJsonString",
+            "lineNumber": 583,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 97
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 58
+        },
+        {
+          "frame": {
+            "columnNumber": 16,
+            "functionName": "visit",
+            "lineNumber": 5162,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 55
+        },
+        {
+          "frame": {
+            "columnNumber": 21,
+            "functionName": "emitCoverage",
+            "lineNumber": 3848,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 41
+        },
+        {
+          "frame": {
+            "columnNumber": 25,
+            "functionName": "emitConservation",
+            "lineNumber": 3999,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 35
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "",
+            "lineNumber": 6222,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 33
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "(garbage collector)",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 25
+        },
+        {
+          "frame": {
+            "columnNumber": 26,
+            "functionName": "canonicalTupleKey",
+            "lineNumber": 3337,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 24
+        },
+        {
+          "frame": {
+            "columnNumber": 24,
+            "functionName": "receiveEvidence",
+            "lineNumber": 3918,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 23
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "(program)",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 21
+        },
+        {
+          "frame": {
+            "columnNumber": 26,
+            "functionName": "recomputeDomain",
+            "lineNumber": 4736,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 21
+        },
+        {
+          "frame": {
+            "columnNumber": 17,
+            "functionName": "string",
+            "lineNumber": 5157,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 17
+        },
+        {
+          "frame": {
+            "columnNumber": 27,
+            "functionName": "isEvidenceTerminal",
+            "lineNumber": 3953,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 17
+        },
+        {
+          "frame": {
+            "columnNumber": 29,
+            "functionName": "recomputeCurrentness",
+            "lineNumber": 3687,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 16
+        },
+        {
+          "frame": {
+            "columnNumber": 28,
+            "functionName": "currentnessMetadata",
+            "lineNumber": 3657,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 8
+        },
+        {
+          "frame": {
+            "columnNumber": 24,
+            "functionName": "flushAdmissions",
+            "lineNumber": 3749,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 7
+        },
+        {
+          "frame": {
+            "columnNumber": 7,
+            "functionName": "get",
+            "lineNumber": 473,
+            "url": "node:internal/bootstrap/node"
+          },
+          "samples": 6
+        },
+        {
+          "frame": {
+            "columnNumber": 16,
+            "functionName": "token",
+            "lineNumber": 5152,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 6
+        },
+        {
+          "frame": {
+            "columnNumber": 27,
+            "functionName": "pendingObligations",
+            "lineNumber": 4432,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 6
+        },
+        {
+          "frame": {
+            "columnNumber": 6,
+            "functionName": "post",
+            "lineNumber": 114,
+            "url": "node:inspector"
+          },
+          "samples": 5
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "canonicalEntry",
+            "lineNumber": 3509,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 5
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "update",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 5
+        },
+        {
+          "frame": {
+            "columnNumber": 27,
+            "functionName": "",
+            "lineNumber": 3975,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 19,
+            "functionName": "byteLength",
+            "lineNumber": 843,
+            "url": "node:buffer"
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": 32,
+            "functionName": "receiveEffectAdmissions",
+            "lineNumber": 4289,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "findOccurrence",
+            "lineNumber": 3605,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "Hash",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "retainEvidence",
+            "lineNumber": 3876,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": 14,
+            "functionName": "keys2",
+            "lineNumber": 5498,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "associationKey",
+            "lineNumber": 5280,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": 25,
+            "functionName": "receiveTerminals",
+            "lineNumber": 4176,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": 6,
+            "functionName": "scope.node.name",
+            "lineNumber": 5841,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "exactAdmission",
+            "lineNumber": 3652,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 13,
+            "functionName": "Hash",
+            "lineNumber": 91,
+            "url": "node:internal/crypto/hash"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "graph.node.name.name",
+            "lineNumber": 4873,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 32,
+            "functionName": "nodeRecordDepProjection",
+            "lineNumber": 1690,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 88,
+            "functionName": "",
+            "lineNumber": 3692,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 16,
+            "functionName": "receipt",
+            "lineNumber": 5603,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 17,
+            "functionName": "validRef",
+            "lineNumber": 3540,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 24,
+            "functionName": "exactOccurrence",
+            "lineNumber": 3609,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 19,
+            "functionName": "cloneState",
+            "lineNumber": 4493,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 86,
+            "functionName": "",
+            "lineNumber": 3851,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 10,
+            "functionName": "down",
+            "lineNumber": 1622,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 57,
+            "functionName": "",
+            "lineNumber": 3692,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 15,
+            "functionName": "frozen",
+            "lineNumber": 5460,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 38,
+            "functionName": "assertVersionDataCompatible",
+            "lineNumber": 2176,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 21,
+            "functionName": "maybeRelease",
+            "lineNumber": 3642,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 15,
+            "functionName": "sink",
+            "lineNumber": 1932,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 32,
+            "functionName": "nodeShouldBufferOnPause",
+            "lineNumber": 2475,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 17,
+            "functionName": "nodeDown",
+            "lineNumber": 2172,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "",
+            "lineNumber": 6433,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 10,
+            "functionName": "_runWave",
+            "lineNumber": 3144,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 54,
+            "functionName": "",
+            "lineNumber": 4454,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 34,
+            "functionName": "transitionCausalAuthority",
+            "lineNumber": 4521,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "digest",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "",
+            "lineNumber": 4452,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        }
+      ],
+      "topInclusive": [
+        [
+          "(root)",
+          1199
+        ],
+        [
+          "anonymous:0",
+          1146
+        ],
+        [
+          "_down",
+          1141
+        ],
+        [
+          "_maybeRun",
+          1141
+        ],
+        [
+          "_receiveFromDep",
+          1141
+        ],
+        [
+          "_runWave",
+          1141
+        ],
+        [
+          "_tryRun",
+          1141
+        ],
+        [
+          "anonymous:5946",
+          1141
+        ],
+        [
+          "down",
+          1141
+        ],
+        [
+          "invoke",
+          1141
+        ],
+        [
+          "nodeDown",
+          1141
+        ],
+        [
+          "nodeEmitToSubs",
+          1141
+        ],
+        [
+          "nodeMaybeRun",
+          1141
+        ],
+        [
+          "nodeReceiveFromDep",
+          1141
+        ],
+        [
+          "nodeRunWave",
+          1141
+        ],
+        [
+          "nodeTryRun",
+          1141
+        ],
+        [
+          "scope.node.name",
+          1141
+        ],
+        [
+          "send",
+          1141
+        ],
+        [
+          "sink",
+          1141
+        ],
+        [
+          "anonymous:3277",
+          672
+        ],
+        [
+          "body",
+          672
+        ],
+        [
+          "graph.node.name.name",
+          672
+        ],
+        [
+          "graph.node.name",
+          670
+        ],
+        [
+          "transitionCausalAuthority",
+          662
+        ],
+        [
+          "anonymous:6434",
+          580
+        ],
+        [
+          "anonymous:6223",
+          531
+        ],
+        [
+          "_emitToSubs",
+          485
+        ],
+        [
+          "encodeMaterial",
+          409
+        ],
+        [
+          "recomputeDomain",
+          409
+        ],
+        [
+          "sortedJsonValue",
+          336
+        ],
+        [
+          "dataKey",
+          305
+        ],
+        [
+          "stableJsonString",
+          305
+        ],
+        [
+          "canonicalMaterial",
+          176
+        ],
+        [
+          "receiveEvidence",
+          159
+        ],
+        [
+          "same",
+          155
+        ],
+        [
+          "refKey",
+          124
+        ],
+        [
+          "retainEvidence",
+          112
+        ],
+        [
+          "visit",
+          88
+        ],
+        [
+          "emitCoverage",
+          83
+        ],
+        [
+          "recomputeCurrentness",
+          78
+        ],
+        [
+          "anonymous:6294",
+          73
+        ],
+        [
+          "receiveEffectAdmissions",
+          71
+        ],
+        [
+          "anonymous:6414",
+          71
+        ],
+        [
+          "anonymous:6288",
+          65
+        ],
+        [
+          "emitConservation",
+          60
+        ],
+        [
+          "pendingObligations",
+          57
+        ],
+        [
+          "anonymous:6393",
+          54
+        ],
+        [
+          "anonymous:6251",
+          53
+        ],
+        [
+          "exactAdmission",
+          50
+        ],
+        [
+          "sameRef",
+          50
+        ],
+        [
+          "isEvidenceTerminal",
+          48
+        ],
+        [
+          "byteLength",
+          27
+        ],
+        [
+          "(garbage collector)",
+          25
+        ],
+        [
+          "canonicalTupleKey",
+          24
+        ],
+        [
+          "anonymous:3694",
+          23
+        ],
+        [
+          "string",
+          22
+        ],
+        [
+          "(program)",
+          21
+        ],
+        [
+          "token",
+          16
+        ],
+        [
+          "currentnessChanged",
+          16
+        ],
+        [
+          "checkInput",
+          16
+        ],
+        [
+          "exactOccurrence",
+          15
+        ],
+        [
+          "maybeRelease",
+          14
+        ],
+        [
+          "anonymous:3976",
+          14
+        ],
+        [
+          "flushAdmissions",
+          12
+        ],
+        [
+          "flushPending",
+          12
+        ],
+        [
+          "hash",
+          10
+        ],
+        [
+          "receiveTerminals",
+          9
+        ],
+        [
+          "anonymous:3852",
+          9
+        ],
+        [
+          "currentnessMetadata",
+          8
+        ],
+        [
+          "canonicalEntry",
+          7
+        ],
+        [
+          "get",
+          6
+        ],
+        [
+          "anonymous:28",
+          5
+        ],
+        [
+          "post",
+          5
+        ],
+        [
+          "Hash",
+          5
+        ],
+        [
+          "receipt",
+          5
+        ],
+        [
+          "update",
+          5
+        ],
+        [
+          "findOccurrence",
+          4
+        ],
+        [
+          "keys2",
+          3
+        ],
+        [
+          "associationKey",
+          3
+        ],
+        [
+          "publicationFor",
+          3
+        ],
+        [
+          "anonymous:3693",
+          3
+        ],
+        [
+          "validRef",
+          3
+        ],
+        [
+          "anonymous:6472",
+          2
+        ],
+        [
+          "_recordDepProjection",
+          2
+        ],
+        [
+          "nodeRecordDepProjection",
+          2
+        ],
+        [
+          "cloneState",
+          1
+        ],
+        [
+          "occurrenceKey",
+          1
+        ],
+        [
+          "frozen",
+          1
+        ],
+        [
+          "assertVersionDataCompatible",
+          1
+        ],
+        [
+          "revisionKey",
+          1
+        ],
+        [
+          "nodeShouldBufferOnPause",
+          1
+        ],
+        [
+          "anonymous:4455",
+          1
+        ],
+        [
+          "digest",
+          1
+        ],
+        [
+          "anonymous:4453",
+          1
+        ]
+      ],
+      "serializationPaths": [
+        [
+          "encodeMaterial > anonymous:6223 > scope.node.name > invoke > nodeRunWave > _runWave > nodeTryRun > _tryRun",
+          136
+        ],
+        [
+          "sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > stableJsonString > dataKey",
+          58
+        ],
+        [
+          "stableJsonString > dataKey > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave > _runWave",
+          52
+        ],
+        [
+          "encodeMaterial > canonicalMaterial > same > anonymous:6294 > anonymous:6223 > scope.node.name > invoke > nodeRunWave",
+          35
+        ],
+        [
+          "encodeMaterial > canonicalMaterial > same > anonymous:6288 > anonymous:6223 > scope.node.name > invoke > nodeRunWave",
+          34
+        ],
+        [
+          "sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > stableJsonString > dataKey > recomputeDomain",
+          29
+        ],
+        [
+          "sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > recomputeDomain > transitionCausalAuthority",
+          23
+        ],
+        [
+          "sortedJsonValue > emitConservation > receiveEffectAdmissions > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave > _runWave",
+          20
+        ],
+        [
+          "sortedJsonValue > emitCoverage > retainEvidence > receiveEvidence > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave",
+          19
+        ],
+        [
+          "encodeMaterial > canonicalMaterial > same > anonymous:6251 > anonymous:6223 > scope.node.name > invoke > nodeRunWave",
+          15
+        ],
+        [
+          "sortedJsonValue > sortedJsonValue > emitCoverage > retainEvidence > receiveEvidence > transitionCausalAuthority > graph.node.name > invoke",
+          13
+        ],
+        [
+          "encodeMaterial > anonymous:6434 > scope.node.name > invoke > nodeRunWave > _runWave > nodeTryRun > _tryRun",
+          12
+        ],
+        [
+          "sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > stableJsonString > dataKey > recomputeDomain > transitionCausalAuthority",
+          11
+        ],
+        [
+          "stableJsonString > dataKey > retainEvidence > receiveEvidence > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave",
+          11
+        ],
+        [
+          "encodeMaterial > anonymous:6288 > anonymous:6223 > scope.node.name > invoke > nodeRunWave > _runWave > nodeTryRun",
+          10
+        ]
+      ]
+    },
+    {
+      "job": {
+        "id": 3,
+        "recipe": "verification",
+        "repeat": 1
+      },
+      "samples": 1219,
+      "profiledActionMs": 912.270124000001,
+      "topSelf": [
+        [
+          "sortedJsonValue",
+          345
+        ],
+        [
+          "encodeMaterial",
+          274
+        ],
+        [
+          "stableJsonString",
+          102
+        ],
+        [
+          "anonymous:0",
+          60
+        ],
+        [
+          "visit",
+          44
+        ],
+        [
+          "emitCoverage",
+          37
+        ],
+        [
+          "anonymous:6223",
+          34
+        ],
+        [
+          "emitConservation",
+          30
+        ],
+        [
+          "recomputeDomain",
+          28
+        ],
+        [
+          "(program)",
+          26
+        ],
+        [
+          "canonicalTupleKey",
+          20
+        ],
+        [
+          "receiveEvidence",
+          19
+        ],
+        [
+          "pendingObligations",
+          17
+        ],
+        [
+          "(garbage collector)",
+          16
+        ],
+        [
+          "string",
+          14
+        ],
+        [
+          "recomputeCurrentness",
+          14
+        ],
+        [
+          "isEvidenceTerminal",
+          13
+        ],
+        [
+          "get",
+          9
+        ],
+        [
+          "token",
+          8
+        ],
+        [
+          "exactAdmission",
+          7
+        ]
+      ],
+      "topSelfLocations": [
+        {
+          "frame": {
+            "columnNumber": 24,
+            "functionName": "sortedJsonValue",
+            "lineNumber": 513,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 345
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "encodeMaterial",
+            "lineNumber": 5148,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 274
+        },
+        {
+          "frame": {
+            "columnNumber": 25,
+            "functionName": "stableJsonString",
+            "lineNumber": 583,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 102
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 60
+        },
+        {
+          "frame": {
+            "columnNumber": 16,
+            "functionName": "visit",
+            "lineNumber": 5162,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 44
+        },
+        {
+          "frame": {
+            "columnNumber": 21,
+            "functionName": "emitCoverage",
+            "lineNumber": 3848,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 37
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "",
+            "lineNumber": 6222,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 34
+        },
+        {
+          "frame": {
+            "columnNumber": 25,
+            "functionName": "emitConservation",
+            "lineNumber": 3999,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 30
+        },
+        {
+          "frame": {
+            "columnNumber": 26,
+            "functionName": "recomputeDomain",
+            "lineNumber": 4736,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 28
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "(program)",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 26
+        },
+        {
+          "frame": {
+            "columnNumber": 26,
+            "functionName": "canonicalTupleKey",
+            "lineNumber": 3337,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 20
+        },
+        {
+          "frame": {
+            "columnNumber": 24,
+            "functionName": "receiveEvidence",
+            "lineNumber": 3918,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 19
+        },
+        {
+          "frame": {
+            "columnNumber": 27,
+            "functionName": "pendingObligations",
+            "lineNumber": 4432,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 17
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "(garbage collector)",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 16
+        },
+        {
+          "frame": {
+            "columnNumber": 17,
+            "functionName": "string",
+            "lineNumber": 5157,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 14
+        },
+        {
+          "frame": {
+            "columnNumber": 29,
+            "functionName": "recomputeCurrentness",
+            "lineNumber": 3687,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 14
+        },
+        {
+          "frame": {
+            "columnNumber": 27,
+            "functionName": "isEvidenceTerminal",
+            "lineNumber": 3953,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 13
+        },
+        {
+          "frame": {
+            "columnNumber": 7,
+            "functionName": "get",
+            "lineNumber": 473,
+            "url": "node:internal/bootstrap/node"
+          },
+          "samples": 9
+        },
+        {
+          "frame": {
+            "columnNumber": 16,
+            "functionName": "token",
+            "lineNumber": 5152,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 8
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "exactAdmission",
+            "lineNumber": 3652,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 7
+        },
+        {
+          "frame": {
+            "columnNumber": 25,
+            "functionName": "receiveTerminals",
+            "lineNumber": 4176,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 6
+        },
+        {
+          "frame": {
+            "columnNumber": 21,
+            "functionName": "maybeRelease",
+            "lineNumber": 3642,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 6
+        },
+        {
+          "frame": {
+            "columnNumber": 6,
+            "functionName": "post",
+            "lineNumber": 114,
+            "url": "node:inspector"
+          },
+          "samples": 5
+        },
+        {
+          "frame": {
+            "columnNumber": 28,
+            "functionName": "currentnessMetadata",
+            "lineNumber": 3657,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 5
+        },
+        {
+          "frame": {
+            "columnNumber": 24,
+            "functionName": "flushAdmissions",
+            "lineNumber": 3749,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 5
+        },
+        {
+          "frame": {
+            "columnNumber": 19,
+            "functionName": "byteLength",
+            "lineNumber": 843,
+            "url": "node:buffer"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "Hash",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 19,
+            "functionName": "cloneState",
+            "lineNumber": 4493,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "canonicalEntry",
+            "lineNumber": 3509,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "graph.node.name.name",
+            "lineNumber": 4873,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 24,
+            "functionName": "exactOccurrence",
+            "lineNumber": 3609,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "retainEvidence",
+            "lineNumber": 3876,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 4
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "update",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": 14,
+            "functionName": "keys2",
+            "lineNumber": 5498,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "",
+            "lineNumber": 6433,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": 19,
+            "functionName": "checkInput",
+            "lineNumber": 5666,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 3
+        },
+        {
+          "frame": {
+            "columnNumber": 15,
+            "functionName": "freeze",
+            "lineNumber": 5204,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "digest",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "publicationFor",
+            "lineNumber": 5376,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 27,
+            "functionName": "",
+            "lineNumber": 3975,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": -1,
+            "functionName": "dispatch",
+            "lineNumber": -1,
+            "url": ""
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 13,
+            "functionName": "same",
+            "lineNumber": 5478,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 36,
+            "functionName": "",
+            "lineNumber": 3693,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 21,
+            "functionName": "retainDomain",
+            "lineNumber": 3590,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 13,
+            "functionName": "Hash",
+            "lineNumber": 91,
+            "url": "node:internal/crypto/hash"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 4,
+            "functionName": "",
+            "lineNumber": 4452,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 2
+        },
+        {
+          "frame": {
+            "columnNumber": 16,
+            "functionName": "receipt",
+            "lineNumber": 5603,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 17,
+            "functionName": "nodeDown",
+            "lineNumber": 2172,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 38,
+            "functionName": "",
+            "lineNumber": 5378,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 86,
+            "functionName": "",
+            "lineNumber": 3851,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 15,
+            "functionName": "refKey",
+            "lineNumber": 3516,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 57,
+            "functionName": "",
+            "lineNumber": 3692,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 46,
+            "functionName": "",
+            "lineNumber": 6287,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 32,
+            "functionName": "receiveEffectAdmissions",
+            "lineNumber": 4289,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 31,
+            "functionName": "assertStableJsonNumber",
+            "lineNumber": 495,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 23,
+            "functionName": "associationKey",
+            "lineNumber": 5280,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 34,
+            "functionName": "transitionCausalAuthority",
+            "lineNumber": 4521,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 18,
+            "functionName": "effectKey",
+            "lineNumber": 3531,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 17,
+            "functionName": "validRef",
+            "lineNumber": 3540,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 15,
+            "functionName": "frozen",
+            "lineNumber": 5460,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        },
+        {
+          "frame": {
+            "columnNumber": 20,
+            "functionName": "messageTier",
+            "lineNumber": 368,
+            "url": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/archive/evals/causal-remaining-cpu-v2/run/worker.mjs"
+          },
+          "samples": 1
+        }
+      ],
+      "topInclusive": [
+        [
+          "(root)",
+          1219
+        ],
+        [
+          "anonymous:0",
+          1175
+        ],
+        [
+          "_down",
+          1168
+        ],
+        [
+          "_maybeRun",
+          1168
+        ],
+        [
+          "_receiveFromDep",
+          1168
+        ],
+        [
+          "_runWave",
+          1168
+        ],
+        [
+          "_tryRun",
+          1168
+        ],
+        [
+          "anonymous:5946",
+          1168
+        ],
+        [
+          "down",
+          1168
+        ],
+        [
+          "invoke",
+          1168
+        ],
+        [
+          "nodeDown",
+          1168
+        ],
+        [
+          "nodeEmitToSubs",
+          1168
+        ],
+        [
+          "nodeMaybeRun",
+          1168
+        ],
+        [
+          "nodeReceiveFromDep",
+          1168
+        ],
+        [
+          "nodeRunWave",
+          1168
+        ],
+        [
+          "nodeTryRun",
+          1168
+        ],
+        [
+          "scope.node.name",
+          1168
+        ],
+        [
+          "send",
+          1168
+        ],
+        [
+          "sink",
+          1168
+        ],
+        [
+          "anonymous:3277",
+          694
+        ],
+        [
+          "body",
+          694
+        ],
+        [
+          "graph.node.name.name",
+          694
+        ],
+        [
+          "graph.node.name",
+          693
+        ],
+        [
+          "transitionCausalAuthority",
+          686
+        ],
+        [
+          "anonymous:6434",
+          600
+        ],
+        [
+          "anonymous:6223",
+          540
+        ],
+        [
+          "_emitToSubs",
+          486
+        ],
+        [
+          "recomputeDomain",
+          427
+        ],
+        [
+          "encodeMaterial",
+          408
+        ],
+        [
+          "sortedJsonValue",
+          346
+        ],
+        [
+          "dataKey",
+          314
+        ],
+        [
+          "stableJsonString",
+          314
+        ],
+        [
+          "canonicalMaterial",
+          168
+        ],
+        [
+          "receiveEvidence",
+          164
+        ],
+        [
+          "same",
+          150
+        ],
+        [
+          "refKey",
+          115
+        ],
+        [
+          "retainEvidence",
+          109
+        ],
+        [
+          "recomputeCurrentness",
+          100
+        ],
+        [
+          "emitCoverage",
+          84
+        ],
+        [
+          "visit",
+          83
+        ],
+        [
+          "anonymous:6414",
+          74
+        ],
+        [
+          "anonymous:6294",
+          71
+        ],
+        [
+          "receiveEffectAdmissions",
+          71
+        ],
+        [
+          "anonymous:6288",
+          69
+        ],
+        [
+          "emitConservation",
+          61
+        ],
+        [
+          "anonymous:6393",
+          54
+        ],
+        [
+          "sameRef",
+          53
+        ],
+        [
+          "anonymous:6251",
+          51
+        ],
+        [
+          "pendingObligations",
+          48
+        ],
+        [
+          "exactAdmission",
+          43
+        ],
+        [
+          "isEvidenceTerminal",
+          39
+        ],
+        [
+          "anonymous:3694",
+          34
+        ],
+        [
+          "(program)",
+          26
+        ],
+        [
+          "string",
+          25
+        ],
+        [
+          "token",
+          25
+        ],
+        [
+          "maybeRelease",
+          25
+        ],
+        [
+          "byteLength",
+          23
+        ],
+        [
+          "canonicalTupleKey",
+          20
+        ],
+        [
+          "checkInput",
+          18
+        ],
+        [
+          "currentnessChanged",
+          18
+        ],
+        [
+          "(garbage collector)",
+          16
+        ],
+        [
+          "anonymous:3852",
+          12
+        ],
+        [
+          "receiveTerminals",
+          11
+        ],
+        [
+          "anonymous:3976",
+          10
+        ],
+        [
+          "get",
+          9
+        ],
+        [
+          "canonicalEntry",
+          9
+        ],
+        [
+          "exactOccurrence",
+          8
+        ],
+        [
+          "flushPending",
+          8
+        ],
+        [
+          "anonymous:28",
+          7
+        ],
+        [
+          "post",
+          7
+        ],
+        [
+          "flushAdmissions",
+          7
+        ],
+        [
+          "Hash",
+          6
+        ],
+        [
+          "hash",
+          5
+        ],
+        [
+          "currentnessMetadata",
+          5
+        ],
+        [
+          "receipt",
+          4
+        ],
+        [
+          "cloneState",
+          4
+        ],
+        [
+          "publicationFor",
+          4
+        ],
+        [
+          "update",
+          3
+        ],
+        [
+          "keys2",
+          3
+        ],
+        [
+          "freeze",
+          2
+        ],
+        [
+          "digest",
+          2
+        ],
+        [
+          "dispatch",
+          2
+        ],
+        [
+          "retainDomain",
+          2
+        ],
+        [
+          "anonymous:4453",
+          2
+        ],
+        [
+          "proposalForMaterial",
+          1
+        ],
+        [
+          "anonymous:5379",
+          1
+        ],
+        [
+          "anonymous:3693",
+          1
+        ],
+        [
+          "occurrence2",
+          1
+        ],
+        [
+          "assertStableJsonNumber",
+          1
+        ],
+        [
+          "associationKey",
+          1
+        ],
+        [
+          "effectKey",
+          1
+        ],
+        [
+          "validRef",
+          1
+        ],
+        [
+          "frozen",
+          1
+        ],
+        [
+          "revisionKey",
+          1
+        ],
+        [
+          "anonymous:2196",
+          1
+        ],
+        [
+          "messageTier",
+          1
+        ]
+      ],
+      "serializationPaths": [
+        [
+          "encodeMaterial > anonymous:6223 > scope.node.name > invoke > nodeRunWave > _runWave > nodeTryRun > _tryRun",
+          147
+        ],
+        [
+          "sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > stableJsonString > dataKey",
+          69
+        ],
+        [
+          "stableJsonString > dataKey > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave > _runWave",
+          51
+        ],
+        [
+          "sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > stableJsonString > dataKey > recomputeDomain",
+          40
+        ],
+        [
+          "encodeMaterial > canonicalMaterial > same > anonymous:6288 > anonymous:6223 > scope.node.name > invoke > nodeRunWave",
+          33
+        ],
+        [
+          "encodeMaterial > canonicalMaterial > same > anonymous:6294 > anonymous:6223 > scope.node.name > invoke > nodeRunWave",
+          26
+        ],
+        [
+          "sortedJsonValue > emitConservation > receiveEffectAdmissions > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave > _runWave",
+          24
+        ],
+        [
+          "sortedJsonValue > emitCoverage > retainEvidence > receiveEvidence > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave",
+          24
+        ],
+        [
+          "encodeMaterial > canonicalMaterial > same > anonymous:6251 > anonymous:6223 > scope.node.name > invoke > nodeRunWave",
+          17
+        ],
+        [
+          "encodeMaterial > anonymous:6434 > scope.node.name > invoke > nodeRunWave > _runWave > nodeTryRun > _tryRun",
+          15
+        ],
+        [
+          "sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > sortedJsonValue > recomputeDomain > transitionCausalAuthority",
+          12
+        ],
+        [
+          "sortedJsonValue > sortedJsonValue > emitCoverage > retainEvidence > receiveEvidence > transitionCausalAuthority > graph.node.name > invoke",
+          11
+        ],
+        [
+          "sortedJsonValue > sortedJsonValue > receiveEvidence > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave > _runWave",
+          11
+        ],
+        [
+          "encodeMaterial > anonymous:6288 > anonymous:6223 > scope.node.name > invoke > nodeRunWave > _runWave > nodeTryRun",
+          11
+        ],
+        [
+          "encodeMaterial > anonymous:6251 > anonymous:6223 > scope.node.name > invoke > nodeRunWave > _runWave > nodeTryRun",
+          9
+        ]
+      ]
+    }
+  ]
+}

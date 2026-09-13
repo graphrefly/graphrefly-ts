@@ -1,0 +1,13 @@
+{
+  "ownerContext": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "base": "32474ec63dd90287cc66d31c2a9ca836bce17f69",
+  "productChanged": false,
+  "cpuProcesses": 4,
+  "profiles": 20,
+  "untimedInspectionRecipes": 2,
+  "untimedInstrumentedComparisonRecipes": 2,
+  "formalQualified": false,
+  "workComplete": false,
+  "authorityUpdated": false,
+  "nextTarget": "Audit repeated unaffected-domain recomputation, including cross-domain retention/flush impacts; no skip rule implemented."
+}

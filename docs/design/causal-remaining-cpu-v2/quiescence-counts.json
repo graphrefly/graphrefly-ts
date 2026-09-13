@@ -1,0 +1,25 @@
+{
+  "originalSha256": "d9aeae65d30ef343537fb0ac4afe7a9d60848add0e8fdd254bcc46e09dfc8d90",
+  "instrumentedSha256": "82a3c2d270c6f6994252c0154ed981cbe85dbb7d84083c66b21b96b05aae1899",
+  "untimed": true,
+  "results": [
+    {
+      "recipe": "duplicate2",
+      "recomputes": 6016,
+      "encodings": 12032,
+      "totalCharacters": 2504912,
+      "maxCharacters": 210,
+      "nonemptyRefs": 0,
+      "stateParity": true
+    },
+    {
+      "recipe": "verification",
+      "recomputes": 896,
+      "encodings": 1792,
+      "totalCharacters": 4276934,
+      "maxCharacters": 9142,
+      "nonemptyRefs": 448,
+      "stateParity": true
+    }
+  ]
+}
