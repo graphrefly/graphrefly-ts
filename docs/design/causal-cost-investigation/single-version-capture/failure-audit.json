@@ -1,0 +1,22 @@
+{
+  "kind": "retained-observation-failure-audit",
+  "realProcesses": 1,
+  "writtenSamples": 120,
+  "warmup": 20,
+  "measured": 100,
+  "qualifiedProcesses": 0,
+  "remainingNotRun": 31,
+  "retries": 0,
+  "childExitCode": 0,
+  "attemptSeconds": 2.1908116250124294,
+  "maxPositiveObservedRssMiB": 142.78125,
+  "invalidRssObservations": [
+    [
+      1.4355498329969123,
+      0
+    ]
+  ],
+  "terminalPsProcessStateRetained": false,
+  "cause": "unknown; process-exit observation race is a hypothesis, not established",
+  "numericalComparisonComplete": false
+}

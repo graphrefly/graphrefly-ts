@@ -1,0 +1,14 @@
+{
+  "owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "userMessage": "\u786e\u8ba4",
+  "inReplyToCommit": "ba143fb7",
+  "action": {
+    "action": "one single-version dependency comparison",
+    "preparedDigest": "cc76132404e850809a0a1a36f5b587efd79cab20f2b2daafb96518d0a2f72541",
+    "children": 32,
+    "samples": 3840,
+    "retries": 0,
+    "executionRoot": "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/single-version-tools/prepared"
+  },
+  "scope": "one frozen capture; no retries or additional consumers; no library changes"
+}

@@ -65,7 +65,9 @@
 32进程/8个对称组，p50/p95分别判断，同版本控制失败即unknown。70种排程算术检查通过，
 设计获确认后，[单版本工具](single-version-tools/README.md)已完成：32假进程/3840假样本、
 14类失败、23种证据损坏、194文件归档回放通过，176资产冻结。真实consumer零；
-下一步审阅一次32进程/3840样本采集，不能以工具资格自动派发。
+[单版本真实采集](single-version-capture/README.md)已停止：1个B进程写出120样本，
+最后RSS=0被独立verifier拒绝，余31项未运行、零重试；正数峰值142.78MiB，非超限。
+199文件失败归档回放一致。下一步修复/资格化私有RSS观测边界，不删0或直接恢复采集。
 
 [保留日志审计](retained-runtime-audit/README.md#next-investigation-boundary)给出具体证据要求。
 进入新capture前，设计必须能把构造窗口、GC与CPU采样放到有误差界的时间轴，并通过

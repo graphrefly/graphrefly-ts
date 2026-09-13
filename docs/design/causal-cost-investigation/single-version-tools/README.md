@@ -1,5 +1,7 @@
 # Single-version measurement tooling — qualified
 
+本页记录准备阶段；后续一次授权已消费，结果见 [capture](../single-version-capture/README.md)。下文授权未到达及零consumer均指准备阶段，实际运行暴露RSS=0资格遗漏。
+
 用户在 `3d59cd0f` 设计后确认，本批完成私有工具实现和假样本资格。
 唯一 owner：graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS；属于执行准备/证据，不新增D#。
 真实consumer执行数与新真实性能样本数为 **0**。初始化收益、D169与原work仍未完成。
