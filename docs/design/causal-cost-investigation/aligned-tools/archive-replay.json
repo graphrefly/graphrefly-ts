@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "files": 116,
+  "pythonTests": ".....\n----------------------------------------------------------------------\nRan 5 tests in 1.538s\n\nOK\n",
+  "observerTests": {
+    "cases": 31,
+    "consumerExecutions": 0,
+    "realObservers": 0
+  },
+  "consumerExecutions": 0,
+  "archiveSha256": "238d14afeebaab186ef62d897ac8e1ecc6b8add4ca2abcfab7ffa4995729b7c1"
+}

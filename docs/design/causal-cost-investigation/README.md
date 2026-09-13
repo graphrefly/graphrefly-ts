@@ -14,7 +14,8 @@
   不追加轮次、不采用延后记录、不宣称 library 回归或全局变慢。
 - **本轮通过：** [hrtime锚点准备](anchor-clock-preparation/README.md)完成3CPU＋1GC探针；
   CPU对齐区间0.04775–0.04892ms，低于0.1ms，已知函数误归属零。真实consumer执行零。
-  原启停区间失败保留；下一项是实际采集工具的替身资格，尚不支持第二项library优化。
+  原启停区间失败保留；[实际采集工具](aligned-tools/README.md)也已通过替身资格，待单独授权真实采集；
+  尚不支持第二项library优化。
 
 [替代设计](clock-anchor-design/README.md)已经落实为私有准备探针，不改registry C或library公开层级。
 
@@ -41,6 +42,8 @@
 
 | 完成：hrtime替代时钟资格 | [anchor-clock-preparation](anchor-clock-preparation/README.md) | 3CPU＋1GC，1769CPU样本，1579已知确定/2模糊/0误归属；31冻结输入归档回放，真实consumer零 |
 
+| 完成：时间归因采集工具准备 | [aligned-tools](aligned-tools/README.md) | 12坐标28800假构造、31生命周期案例、116文件归档回放；真实consumer/profile零，实际采集待单独授权 |
+
 旧版累计分配约2.24GB/100次包含已回收对象，不等于RSS。约206–242MiB的近期RSS是
 整个Node评测进程（模块、保留样本等），不能归给一个graph。当前没有单graph增量内存
 或优化降低RSS的结论。用户若优先问这一指标，须独立设计同运行时空基线与存活图数量对照。
@@ -49,7 +52,8 @@
 
 [时间归因设计稿](aligned-runtime-design.md)限定三个条件与拟议12进程/28,800样本。
 [hrtime替代准备](anchor-clock-preparation/README.md)已通过固定版本的有限时钟/GC探针，
-真实capture工具仍未资格。下一批准备工具并用替身检查；不因probe通过自动启动consumer。
+[真实capture工具](aligned-tools/README.md)已通过替身与归档资格；尚未执行。
+下一项是单独授权12Node consumer＋最多12Python verifier的固定采集，不因准备完成自动运行。
 真实每个进程仍须核对自身≤0.1ms区间，不能沿用probe偏移或保证其一定通过。
 
 [保留日志审计](retained-runtime-audit/README.md#next-investigation-boundary)给出具体证据要求。
