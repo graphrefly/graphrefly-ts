@@ -1,0 +1,698 @@
+{
+  "verified": true,
+  "formalQualified": false,
+  "processes": 48,
+  "measuredSamples": 720,
+  "totalSamples": 1008,
+  "elapsed": 730.3666430000449,
+  "summary": [
+    {
+      "row": {
+        "id": "steady-P3-off-one-new-1",
+        "group": "steady",
+        "profile": "P3",
+        "mode": "off",
+        "change": "one-new",
+        "dataCount": 1
+      },
+      "selection": "full",
+      "arms": {
+        "candidate": {
+          "arrivalMs": 23.849040999999943,
+          "verificationMs": 0.004874999999969987,
+          "totalMs": 23.853624999999965,
+          "repeatTotalMs": [
+            23.853624999999965,
+            23.442125000000033,
+            24.427082999999925
+          ]
+        },
+        "reference": {
+          "arrivalMs": 24.779667000000018,
+          "verificationMs": 0.004667000000154076,
+          "totalMs": 24.784250000000156,
+          "repeatTotalMs": [
+            24.784250000000156,
+            24.52374999999995,
+            30.092208000000028
+          ]
+        },
+        "plain": {
+          "arrivalMs": 4.754958999999872,
+          "verificationMs": 0.004500000000007276,
+          "totalMs": 4.760125000000016,
+          "repeatTotalMs": [
+            4.4692079999999805,
+            4.760125000000016,
+            5.200375000000008
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P3-off-one-new-2",
+        "group": "steady",
+        "profile": "P3",
+        "mode": "off",
+        "change": "one-new",
+        "dataCount": 2
+      },
+      "selection": "full",
+      "arms": {
+        "candidate": {
+          "arrivalMs": 161.79508299999998,
+          "verificationMs": 0.005000000000109139,
+          "totalMs": 161.799708,
+          "repeatTotalMs": [
+            170.3389169999998,
+            159.36233300000004,
+            161.799708
+          ]
+        },
+        "reference": {
+          "arrivalMs": 168.36866699999973,
+          "verificationMs": 0.005125000000134605,
+          "totalMs": 168.37300000000005,
+          "repeatTotalMs": [
+            168.37300000000005,
+            170.36158399999977,
+            168.12929099999974
+          ]
+        },
+        "plain": {
+          "arrivalMs": 8.451958999999988,
+          "verificationMs": 0.005000000000109139,
+          "totalMs": 8.45633399999997,
+          "repeatTotalMs": [
+            8.313790999999583,
+            8.45633399999997,
+            8.958458999999948
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P3-off-one-new-1",
+        "group": "steady",
+        "profile": "P3",
+        "mode": "off",
+        "change": "one-new",
+        "dataCount": 1
+      },
+      "selection": "last",
+      "arms": {
+        "candidate": {
+          "arrivalMs": 17.420292000000018,
+          "verificationMs": 0.004458999999997104,
+          "totalMs": 17.42508299999986,
+          "repeatTotalMs": [
+            17.450500000000034,
+            17.42508299999986,
+            17.084708999999975
+          ]
+        },
+        "reference": {
+          "arrivalMs": 18.100749999999948,
+          "verificationMs": 0.0048750000000836735,
+          "totalMs": 18.106166999999914,
+          "repeatTotalMs": [
+            18.476666999999907,
+            18.106166999999914,
+            17.207959000000074
+          ]
+        },
+        "plain": {
+          "arrivalMs": 4.318040999999994,
+          "verificationMs": 0.004458000000113316,
+          "totalMs": 4.322750000000042,
+          "repeatTotalMs": [
+            4.322750000000042,
+            4.284792000000039,
+            4.426249999999982
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P3-off-one-new-2",
+        "group": "steady",
+        "profile": "P3",
+        "mode": "off",
+        "change": "one-new",
+        "dataCount": 2
+      },
+      "selection": "last",
+      "arms": {
+        "candidate": {
+          "arrivalMs": 116.82329100000015,
+          "verificationMs": 0.004500000000007276,
+          "totalMs": 116.82791600000019,
+          "repeatTotalMs": [
+            123.73708300000021,
+            116.82791600000019,
+            115.87454200000025
+          ]
+        },
+        "reference": {
+          "arrivalMs": 122.82124999999996,
+          "verificationMs": 0.004707999999936874,
+          "totalMs": 122.82562499999995,
+          "repeatTotalMs": [
+            122.82562499999995,
+            128.78837499999986,
+            118.42979100000002
+          ]
+        },
+        "plain": {
+          "arrivalMs": 7.87829099999999,
+          "verificationMs": 0.004334000000199012,
+          "totalMs": 7.882916000000023,
+          "repeatTotalMs": [
+            7.882916000000023,
+            7.71679099999983,
+            8.631666999999993
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P3-off-duplicate-1",
+        "group": "steady",
+        "profile": "P3",
+        "mode": "off",
+        "change": "duplicate",
+        "dataCount": 1
+      },
+      "selection": "full",
+      "arms": {
+        "candidate": {
+          "arrivalMs": 18.603375000000028,
+          "verificationMs": 0.004000000000132786,
+          "totalMs": 18.610374999999976,
+          "repeatTotalMs": [
+            18.610374999999976,
+            19.004707999999937,
+            18.543583000000012
+          ]
+        },
+        "reference": {
+          "arrivalMs": 19.785291999999913,
+          "verificationMs": 0.00433300000008785,
+          "totalMs": 19.78958399999999,
+          "repeatTotalMs": [
+            19.53358400000002,
+            19.78958399999999,
+            20.803375000000187
+          ]
+        },
+        "plain": {
+          "arrivalMs": 3.7972500000000764,
+          "verificationMs": 0.0037920000000895016,
+          "totalMs": 3.8013750000000073,
+          "repeatTotalMs": [
+            3.8013750000000073,
+            3.7751670000000104,
+            3.9388750000000528
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P3-off-duplicate-2",
+        "group": "steady",
+        "profile": "P3",
+        "mode": "off",
+        "change": "duplicate",
+        "dataCount": 2
+      },
+      "selection": "full",
+      "arms": {
+        "candidate": {
+          "arrivalMs": 147.5123329999999,
+          "verificationMs": 0.00458400000002257,
+          "totalMs": 147.51691699999992,
+          "repeatTotalMs": [
+            147.51691699999992,
+            147.0950829999997,
+            157.1388750000001
+          ]
+        },
+        "reference": {
+          "arrivalMs": 154.65845900000022,
+          "verificationMs": 0.004457999999885942,
+          "totalMs": 154.6638750000002,
+          "repeatTotalMs": [
+            154.6638750000002,
+            152.11008400000014,
+            156.5295000000001
+          ]
+        },
+        "plain": {
+          "arrivalMs": 7.515708000000359,
+          "verificationMs": 0.0038750000001073204,
+          "totalMs": 7.519458000000213,
+          "repeatTotalMs": [
+            7.519458000000213,
+            7.373000000000047,
+            8.334875000000011
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P3-off-duplicate-1",
+        "group": "steady",
+        "profile": "P3",
+        "mode": "off",
+        "change": "duplicate",
+        "dataCount": 1
+      },
+      "selection": "last",
+      "arms": {
+        "candidate": {
+          "arrivalMs": 13.194209,
+          "verificationMs": 0.004542000000014923,
+          "totalMs": 13.198417000000063,
+          "repeatTotalMs": [
+            13.198417000000063,
+            12.906500000000051,
+            13.32445800000005
+          ]
+        },
+        "reference": {
+          "arrivalMs": 13.278541999999788,
+          "verificationMs": 0.004375000000209184,
+          "totalMs": 13.282916999999998,
+          "repeatTotalMs": [
+            13.243417000000136,
+            13.606709000000023,
+            13.282916999999998
+          ]
+        },
+        "plain": {
+          "arrivalMs": 3.5122499999999945,
+          "verificationMs": 0.0036250000000563887,
+          "totalMs": 3.5155829999999924,
+          "repeatTotalMs": [
+            3.5069169999999303,
+            3.5155829999999924,
+            3.56008300000002
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P3-off-duplicate-2",
+        "group": "steady",
+        "profile": "P3",
+        "mode": "off",
+        "change": "duplicate",
+        "dataCount": 2
+      },
+      "selection": "last",
+      "arms": {
+        "candidate": {
+          "arrivalMs": 116.83587499999976,
+          "verificationMs": 0.004625000000032742,
+          "totalMs": 116.84012499999972,
+          "repeatTotalMs": [
+            118.54945799999996,
+            116.84012499999972,
+            112.43516599999998
+          ]
+        },
+        "reference": {
+          "arrivalMs": 120.20970800000032,
+          "verificationMs": 0.005083000000013271,
+          "totalMs": 120.21454200000016,
+          "repeatTotalMs": [
+            120.21454200000016,
+            134.1742079999999,
+            114.55799999999999
+          ]
+        },
+        "plain": {
+          "arrivalMs": 7.144916999999623,
+          "verificationMs": 0.0035830000001624285,
+          "totalMs": 7.148499999999785,
+          "repeatTotalMs": [
+            7.148499999999785,
+            10.785083000000213,
+            6.947332999999958
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P6-off-one-new-1",
+        "group": "steady",
+        "profile": "P6",
+        "mode": "off",
+        "change": "one-new",
+        "dataCount": 1
+      },
+      "selection": "full",
+      "arms": {
+        "candidate": {
+          "arrivalMs": 191.48412499999995,
+          "verificationMs": 306.6709580000006,
+          "totalMs": 498.15508300000056,
+          "repeatTotalMs": [
+            498.15508300000056,
+            496.02791699999943,
+            505.60599999999977
+          ]
+        },
+        "reference": {
+          "arrivalMs": 207.36912499999926,
+          "verificationMs": 288.0224999999991,
+          "totalMs": 495.3916249999984,
+          "repeatTotalMs": [
+            495.3916249999984,
+            483.9842920000001,
+            536.4799170000006
+          ]
+        },
+        "plain": {
+          "arrivalMs": 18.10175000000163,
+          "verificationMs": 202.1515419999996,
+          "totalMs": 220.25329200000124,
+          "repeatTotalMs": [
+            220.25329200000124,
+            218.6137090000011,
+            224.26749999999993
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P6-off-one-new-2",
+        "group": "steady",
+        "profile": "P6",
+        "mode": "off",
+        "change": "one-new",
+        "dataCount": 2
+      },
+      "selection": "full",
+      "arms": {
+        "candidate": {
+          "arrivalMs": 1442.9594580000012,
+          "verificationMs": 315.28333399999974,
+          "totalMs": 1757.6641249999993,
+          "repeatTotalMs": [
+            1757.6641249999993,
+            2580.635166,
+            1745.8879160000033
+          ]
+        },
+        "reference": {
+          "arrivalMs": 1426.155375000002,
+          "verificationMs": 282.13733299999876,
+          "totalMs": 1707.2539170000018,
+          "repeatTotalMs": [
+            1702.3428749999985,
+            1747.7810410000002,
+            1707.2539170000018
+          ]
+        },
+        "plain": {
+          "arrivalMs": 36.05420800000138,
+          "verificationMs": 204.10262499999953,
+          "totalMs": 239.92833299999984,
+          "repeatTotalMs": [
+            239.92162500000268,
+            249.77874999999767,
+            239.92833299999984
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P6-off-one-new-1",
+        "group": "steady",
+        "profile": "P6",
+        "mode": "off",
+        "change": "one-new",
+        "dataCount": 1
+      },
+      "selection": "last",
+      "arms": {
+        "candidate": {
+          "arrivalMs": 148.61854200000016,
+          "verificationMs": 310.8957500000015,
+          "totalMs": 459.7654580000017,
+          "repeatTotalMs": [
+            460.8527919999997,
+            456.86304200000086,
+            459.7654580000017
+          ]
+        },
+        "reference": {
+          "arrivalMs": 149.3887079999986,
+          "verificationMs": 280.9625840000008,
+          "totalMs": 430.31925000000047,
+          "repeatTotalMs": [
+            436.70316699999967,
+            429.48783300000014,
+            430.31925000000047
+          ]
+        },
+        "plain": {
+          "arrivalMs": 18.03008299999965,
+          "verificationMs": 203.0270419999997,
+          "totalMs": 221.35050000000047,
+          "repeatTotalMs": [
+            218.35333399999945,
+            221.39658299999974,
+            221.35050000000047
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P6-off-one-new-2",
+        "group": "steady",
+        "profile": "P6",
+        "mode": "off",
+        "change": "one-new",
+        "dataCount": 2
+      },
+      "selection": "last",
+      "arms": {
+        "candidate": {
+          "arrivalMs": 1188.7997909999995,
+          "verificationMs": 308.1398330000011,
+          "totalMs": 1500.5360419999997,
+          "repeatTotalMs": [
+            1500.5360419999997,
+            1483.4617920000019,
+            1505.5533750000031
+          ]
+        },
+        "reference": {
+          "arrivalMs": 1187.6214590000018,
+          "verificationMs": 280.7017500000002,
+          "totalMs": 1468.1281249999993,
+          "repeatTotalMs": [
+            1477.8902080000007,
+            1468.1281249999993,
+            1454.8231669999986
+          ]
+        },
+        "plain": {
+          "arrivalMs": 34.364832999999635,
+          "verificationMs": 205.45029100000102,
+          "totalMs": 240.26137499999822,
+          "repeatTotalMs": [
+            234.96891699999833,
+            240.26137499999822,
+            240.97750000000087
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P6-off-duplicate-1",
+        "group": "steady",
+        "profile": "P6",
+        "mode": "off",
+        "change": "duplicate",
+        "dataCount": 1
+      },
+      "selection": "full",
+      "arms": {
+        "candidate": {
+          "arrivalMs": 129.16462499999943,
+          "verificationMs": 0.004499999999097781,
+          "totalMs": 129.16995899999893,
+          "repeatTotalMs": [
+            129.16995899999893,
+            126.80508300000292,
+            129.58191699999952
+          ]
+        },
+        "reference": {
+          "arrivalMs": 137.40308300000015,
+          "verificationMs": 0.0048749999987194315,
+          "totalMs": 137.40820799999983,
+          "repeatTotalMs": [
+            137.67208299999947,
+            137.40820799999983,
+            136.39958300000217
+          ]
+        },
+        "plain": {
+          "arrivalMs": 48.92249999999876,
+          "verificationMs": 0.005250000000160071,
+          "totalMs": 48.92808299999888,
+          "repeatTotalMs": [
+            47.47108300000036,
+            48.92808299999888,
+            49.59208300000046
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P6-off-duplicate-2",
+        "group": "steady",
+        "profile": "P6",
+        "mode": "off",
+        "change": "duplicate",
+        "dataCount": 2
+      },
+      "selection": "full",
+      "arms": {
+        "candidate": {
+          "arrivalMs": 956.6921669999992,
+          "verificationMs": 0.00491600000532344,
+          "totalMs": 956.6985839999998,
+          "repeatTotalMs": [
+            956.6985839999998,
+            954.7351250000029,
+            965.4060419999987
+          ]
+        },
+        "reference": {
+          "arrivalMs": 1004.3206250000021,
+          "verificationMs": 0.00466700000106357,
+          "totalMs": 1004.3248340000009,
+          "repeatTotalMs": [
+            998.1181249999972,
+            1004.3248340000009,
+            1007.5302080000038
+          ]
+        },
+        "plain": {
+          "arrivalMs": 97.82087500000125,
+          "verificationMs": 0.005624999997962732,
+          "totalMs": 97.82649999999921,
+          "repeatTotalMs": [
+            97.69333400000323,
+            97.82649999999921,
+            97.87241600000016
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P6-off-duplicate-1",
+        "group": "steady",
+        "profile": "P6",
+        "mode": "off",
+        "change": "duplicate",
+        "dataCount": 1
+      },
+      "selection": "last",
+      "arms": {
+        "candidate": {
+          "arrivalMs": 81.41312499999913,
+          "verificationMs": 0.004708000000391621,
+          "totalMs": 81.41783299999952,
+          "repeatTotalMs": [
+            82.29058299999997,
+            80.66233300000022,
+            81.41783299999952
+          ]
+        },
+        "reference": {
+          "arrivalMs": 87.3364160000001,
+          "verificationMs": 0.004709000000730157,
+          "totalMs": 87.34112500000083,
+          "repeatTotalMs": [
+            88.37537499999962,
+            87.34112500000083,
+            86.46879199999967
+          ]
+        },
+        "plain": {
+          "arrivalMs": 48.666833000000224,
+          "verificationMs": 0.005708000000595348,
+          "totalMs": 48.675500000000284,
+          "repeatTotalMs": [
+            49.58770799999911,
+            47.92962500000067,
+            48.675500000000284
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P6-off-duplicate-2",
+        "group": "steady",
+        "profile": "P6",
+        "mode": "off",
+        "change": "duplicate",
+        "dataCount": 2
+      },
+      "selection": "last",
+      "arms": {
+        "candidate": {
+          "arrivalMs": 727.8864169999979,
+          "verificationMs": 0.004499999999097781,
+          "totalMs": 727.8912089999976,
+          "repeatTotalMs": [
+            729.7635840000003,
+            727.8912089999976,
+            725.3914170000025
+          ]
+        },
+        "reference": {
+          "arrivalMs": 963.2925830000022,
+          "verificationMs": 0.0046249999995779945,
+          "totalMs": 963.2965000000004,
+          "repeatTotalMs": [
+            769.2639579999995,
+            965.6507079999992,
+            963.2965000000004
+          ]
+        },
+        "plain": {
+          "arrivalMs": 96.06254200000149,
+          "verificationMs": 0.0062499999985448085,
+          "totalMs": 96.06879200000003,
+          "repeatTotalMs": [
+            94.52216699999917,
+            140.95129200000156,
+            96.06879200000003
+          ]
+        }
+      }
+    }
+  ]
+}
