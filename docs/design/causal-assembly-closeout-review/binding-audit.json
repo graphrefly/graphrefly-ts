@@ -1,0 +1,622 @@
+{
+  "sourceBaseline": "9c30967c8953ae09aa8de5949e0fbdd6de3c4813",
+  "sourceScope": [
+    "packages/ts",
+    "scripts",
+    "examples",
+    "biome.json",
+    "package.json",
+    "pnpm-lock.yaml"
+  ],
+  "committedChangesSinceLastBehaviorQualification": [],
+  "uncommittedChangesInScope": [],
+  "candidateArchiveFilesVerified": 193,
+  "currentFactoryAndGeneratedRunnerMatch": true,
+  "soakRetestBindingsMatch": true,
+  "fileEvidenceReferences": [
+    {
+      "path": "docs/design/causal-preset-assembly-v1.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "packages/ts/qualification/causal-occurrence/preset-assembly-preflight/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-preset-assembly-v1-addendum.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "packages/ts/qualification/causal-occurrence/preset-assembly-approved/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-preset-numeric-review.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "packages/ts/qualification/causal-occurrence/preset-assembly-approved/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-preset-numeric-contract-v1.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-preset-numeric-contract-v1.vectors.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "packages/ts/qualification/causal-occurrence/preset-numeric-v2/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "packages/ts/qualification/causal-occurrence/preset-numeric-v2/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "packages/ts/qualification/causal-occurrence/preset-reference-v1/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "packages/ts/qualification/causal-occurrence/preset-reference-v1/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "packages/ts/qualification/causal-occurrence/preset-performance-v1/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "packages/ts/qualification/causal-occurrence/preset-performance-v1/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "packages/ts/qualification/causal-occurrence/preset-cold-diagnosis-v1/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "packages/ts/qualification/causal-occurrence/preset-cold-diagnosis-v1/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "packages/ts/qualification/causal-occurrence/preset-node-cold-v1/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "packages/ts/qualification/causal-occurrence/preset-node-cold-v1/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "packages/ts/qualification/causal-occurrence/preset-current-order-v1/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "packages/ts/qualification/causal-occurrence/preset-current-order-v1/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-runtime-accessor-review.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-performance-repetition-v2-implementation/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-performance-control-audit-v1/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-event-clock-repair-v1-implementation/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-console-marker-replay-v1/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cold-position-pairs-v3-implementation/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-position-pairs-retained-audit-v1/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cpu-wall-diagnostic-v1.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cpu-wall-diagnostic-v1.check.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cpu-wall-diagnostic-v1-implementation/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cpu-wall-diagnostic-v1-implementation/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cpu-wall-retained-localization-v1/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cleanup-segments-v1.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cleanup-segments-v1.check.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cleanup-segments-v1-implementation/approval.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cleanup-segments-v1-implementation/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-release-boundaries-v1.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-release-boundaries-v1.check.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-release-boundaries-v1-implementation/approval.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-release-boundaries-v1-implementation/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-release-counting-v1.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-release-counting-v1-implementation/approval.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-release-counting-v1-implementation/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-release-cost-comparison-v1.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-release-cost-comparison-v1.checks.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-release-cost-comparison-v1-implementation/approval.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-release-cost-comparison-v1-implementation/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-release-comparison-build-v1/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/implementation/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/implementation/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/performance-comparison/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/performance-comparison/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/followup-audit/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/followup-audit/phase-shares.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/source-readiness/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/source-readiness/source-manifest.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/source-readiness/retained-source-comparison.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/fixed-workload-diagnostic.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/diagnostic-tools/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/diagnostic-tools/qualification.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/diagnostic-tools/archive-replay.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/diagnostic-capture/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/diagnostic-capture/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/recording-intervention.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/recording-tools/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/recording-tools/qualification.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/recording-capture/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/recording-capture/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/retained-runtime-audit/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/retained-runtime-audit/report.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/aligned-runtime-design.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/aligned-runtime-design-check.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/aligned-clock-preparation/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/aligned-clock-preparation/evidence-index.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/clock-anchor-design/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/clock-anchor-design/arithmetic.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/anchor-clock-preparation/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/anchor-clock-preparation/verification.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/aligned-tools/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/aligned-tools/qualification.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/aligned-tools/archive-replay.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/aligned-capture/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/aligned-capture/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/aligned-capture/summary.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/dependency-initialization-review/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/dependency-initialization-review/source-binding.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/dependency-initialization-implementation/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/dependency-initialization-implementation/comparison-plan.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/dependency-initialization-implementation/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/dependency-initialization-implementation/source-binding.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "archive/evals/causal-dependency-initialization-v1/artifact-index.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/soak-timeout-audit/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/soak-timeout-audit/receipt.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/soak-timeout-audit/verification.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/soak-timeout-audit/source-binding.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "archive/evals/causal-soak-timeout-audit-v1/artifact-index.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/dependency-comparison-tools/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "archive/evals/causal-dependency-comparison-preparation-v1/artifact-index.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/dependency-comparison-capture/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "archive/evals/causal-dependency-comparison-capture-v1/artifact-index.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/dependency-order-audit/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/dependency-order-audit/analysis.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/dependency-measurement-design/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/dependency-measurement-design/design-check.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "archive/evals/causal-single-version-preparation-v1/artifact-index.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/single-version-tools/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/single-version-capture/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "archive/evals/causal-single-version-capture-v1/artifact-index.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/single-version-rss-tools/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/single-version-rss-capture/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/single-version-rss-v2-tools/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "docs/design/causal-cost-investigation/single-version-rss-v2-capture/README.md",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "archive/evals/causal-single-version-rss-preparation-v1/artifact-index.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "archive/evals/causal-single-version-rss-capture-v1/artifact-index.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "archive/evals/causal-single-version-rss-v2-preparation-v1/artifact-index.json",
+      "exists": true,
+      "matches": true
+    },
+    {
+      "path": "archive/evals/causal-single-version-rss-v2-capture-v1/artifact-index.json",
+      "exists": true,
+      "matches": true
+    }
+  ],
+  "qualifiedRefsNotExpandedByFileAudit": [
+    "graphrefly-ts:causal-release-comparison-build-v2",
+    "graphrefly-ts:causal-release-preflight-v1",
+    "graphrefly-ts:causal-release-cost-comparison-v2",
+    "graphrefly-ts:causal-release-memory-v1",
+    "graphrefly-ts:causal-release-allocation-v1",
+    "graphrefly-ts:causal-cost-investigation-baseline",
+    "graphrefly-ts:causal-currentness-comparison-proof",
+    "graphrefly-ts:causal-cost-candidate-review",
+    "graphrefly-ts:causal-currentness-implementation-preparation"
+  ],
+  "testsRun": 0,
+  "consumerExecutions": 0,
+  "doesNotAssertHistoricalEnvironmentRequalification": true
+}

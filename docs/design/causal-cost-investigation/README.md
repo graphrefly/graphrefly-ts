@@ -94,3 +94,9 @@ elapsed减process CPU推算等待。无法定位时明确收敛到unknown，不�
 退订与错误outcome不结算active obligation；原独立oracle、plain/reference、负对照与
 真实runtime mutations不可省略。未证明immutable provenance就不按指针复用，不能用
 自报digest绕过独立验证。具体library改动与新测量分别沿已约定的审阅和授权边界推进。
+
+## Assembly收尾审查
+
+[收尾判断与唯一阻塞清单](../causal-assembly-closeout-review/README.md)已完成：实现行为证据
+可保留，正式性能P、D159资格绑定H、lint证据边界L仍阻塞。118文件引用与193文件实现归档
+核对通过，相关源自9c30967c未变。下一批建议仅设计H/L离线收尾；不重跑矩阵、不展开公开API。
