@@ -1,0 +1,12 @@
+{
+  "kind": "design-arithmetic-only",
+  "balancedSchedulesChecked": 70,
+  "processes": 32,
+  "untimedPreflightInstances": 224,
+  "warmup": 640,
+  "measured": 3200,
+  "lifecycles": 3840,
+  "consumerExecutions": 0,
+  "toolsImplemented": false,
+  "captureAuthorized": false
+}
