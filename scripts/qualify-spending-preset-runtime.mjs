@@ -150,8 +150,8 @@ const variants = [
 		change: (s) =>
 			one(
 				s,
-				"const verification = [...s.receipts.values()].map",
-				"const verification = verificationFrames.flatMap(f=>f?.valid?f.value.receipts:[]).map",
+				"verification ??= [...s.receipts.values()].map",
+				"verification ??= verificationFrames.flatMap(f=>f?.valid?f.value.receipts:[]).map",
 			),
 	},
 	{

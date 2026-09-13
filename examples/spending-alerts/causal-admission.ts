@@ -414,12 +414,8 @@ export function buildAdmission(
 						if (!s.receipts.has(key) && s.receipts.size < 64) s.receipts.set(key, receipt);
 					}
 			if (!s.valid[0]) return;
-			// Exact same() representation, computed once per receipt in this synchronous invocation.
-			// Keep receipt order and every emitted fact; nothing is retained beyond this call.
-			const verification = [...s.receipts.values()].map((receipt) => ({
-				receipt,
-				occurrence: occurrenceKey(receipt.occurrence),
-			}));
+			// Allocate only when material permits matching; reuse only within this invocation.
+			let verification: { receipt: VerificationReceipt; occurrence: string }[] | undefined;
 			for (const { evaluation: e } of s.maps[0].values()) {
 				const exactOccurrence = occurrenceKey(e.occurrence);
 				for (const [kind, digest] of [
@@ -447,6 +443,10 @@ export function buildAdmission(
 					: undefined;
 				// Do not finalize a receipt classification while its material dependency is absent.
 				if (!material) continue;
+				verification ??= [...s.receipts.values()].map((receipt) => ({
+					receipt,
+					occurrence: occurrenceKey(receipt.occurrence),
+				}));
 				const expectedRequest =
 					material.kind === "retained"
 						? material.material.body.payloadDigest
