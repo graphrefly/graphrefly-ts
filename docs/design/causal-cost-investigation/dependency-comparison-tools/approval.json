@@ -1,0 +1,8 @@
+{
+  "action": "one dependency initialization comparison",
+  "preparedDigest": "104dc394658be721db0f08a1be08ad5bdf9a7fbac76bee5a25d58efd80949be6",
+  "children": 48,
+  "samples": 6720,
+  "retries": 0,
+  "executionRoot": "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/dependency-comparison-tools/prepared"
+}

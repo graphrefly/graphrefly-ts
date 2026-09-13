@@ -1,5 +1,7 @@
 # Dependency initialization comparison — tooling qualified
 
+本页记录准备阶段状态；后续授权已消费，真实采集结果见 [capture](../dependency-comparison-capture/README.md)。下文的零执行和授权未到达均指准备阶段。
+
 本批只准备、冻结和验证私有测量工具。真实 consumer 执行数与真实性能样本数均为 **0**；
 候选优化收益仍未知，原 CAUSAL-PRESET-ASSEMBLY-TS 与 D169 正式资格仍未完成。
 

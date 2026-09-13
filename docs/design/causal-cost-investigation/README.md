@@ -56,7 +56,9 @@
 [soak超时核对](soak-timeout-audit/README.md)已完成，原deadline两项重验通过。
 [有限对比工具](dependency-comparison-tools/README.md)已冻结并完成合成资格检查：
 48假子进程/6720假样本、10类失败、23种证据损坏、198文件归档回放。
-下一步审阅一次48进程/6720样本的真实采集范围；本批没有真实采集授权，候选收益仍未知。
+[真实有限对比](dependency-comparison-capture/README.md)已完成48进程/6720样本，56.53秒，
+最大观察RSS233.59MiB；619文件归档复核一致。全部指标控制不稳定，初始化收益仍未知。
+本方法结束于inconclusive，授权已消费，不追加采样；下一步仅分析保留数据的顺序/位置差异。
 
 [保留日志审计](retained-runtime-audit/README.md#next-investigation-boundary)给出具体证据要求。
 进入新capture前，设计必须能把构造窗口、GC与CPU采样放到有误差界的时间轴，并通过

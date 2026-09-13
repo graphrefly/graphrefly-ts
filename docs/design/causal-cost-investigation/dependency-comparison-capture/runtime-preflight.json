@@ -1,0 +1,12 @@
+{
+  "execPath": "/Users/davidchenallio/.local/share/mise/installs/node/24.18.0/bin/node",
+  "node": "v24.18.0",
+  "v8": "13.6.233.17-node.50",
+  "environment": {
+    "PATH": "/Users/davidchenallio/.local/share/mise/installs/node/24.18.0/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+    "LANG": "C",
+    "TZ": "UTC"
+  },
+  "executableDigest": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+  "consumerExecutions": 0
+}

@@ -1,0 +1,19 @@
+{
+  "owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "userMessage": "\u7ee7\u7eed",
+  "inReplyToCommit": "f7fc67e3",
+  "scope": "one frozen 48-process/6720-sample dependency initialization comparison",
+  "preparedDigest": "104dc394658be721db0f08a1be08ad5bdf9a7fbac76bee5a25d58efd80949be6",
+  "retries": 0,
+  "limits": {
+    "attemptSeconds": 900,
+    "childSeconds": 30,
+    "observedRssMiB": 256
+  },
+  "excludes": [
+    "automatic retry",
+    "library changes",
+    "provider/live/spend",
+    "formal D169 acceptance"
+  ]
+}
