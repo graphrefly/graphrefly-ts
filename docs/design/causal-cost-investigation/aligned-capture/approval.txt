@@ -1,0 +1,17 @@
+{
+  "owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "userText": "好的，继续",
+  "context": "Explicit continuation of30ebe343 final proposal: one actual aligned capture",
+  "qualificationSha256": "798f985fe63350b5b6b241e0ccdbafd78d2fa69d48b642af2936ad994bfdca66",
+  "nodeConsumers": 12,
+  "pythonVerifiersAtMost": 12,
+  "samples": 28800,
+  "totalSeconds": 900,
+  "perProcessSeconds": 30,
+  "observedRssMiB": 256,
+  "directoryMiB": 256,
+  "cpuIntervalWidthMs": 0.1,
+  "retries": 0,
+  "providerLiveSpend": false,
+  "validity": "One immediate attempt against exact qualified bytes; consumed on claim including failure"
+}

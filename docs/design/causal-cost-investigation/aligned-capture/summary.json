@@ -1,0 +1,758 @@
+{
+  "complete": true,
+  "nodeProcesses": 12,
+  "pythonVerifiers": 12,
+  "retries": 0,
+  "samples": 28800,
+  "warmup": 7200,
+  "measured": 21600,
+  "preflightCalls": 24,
+  "untimedPreflightInstances": 72,
+  "boundary": {
+    "endedElapsed": 20.716937791003147,
+    "directoryBytes": 45897548
+  },
+  "maxObservedNodeRssMiB": 209.578125,
+  "maxObservedVerifierRssMiB": 41.921875,
+  "maxObservationGapSeconds": 0.14804574998561293,
+  "deliveredGcEvents": 840,
+  "measuredGcOverlapMs": 0.0,
+  "cpuAssignment": {
+    "certain": 6835,
+    "ambiguous": 2175,
+    "outside": 5612
+  },
+  "knownWindowZeroCounts": {
+    "slow": 18,
+    "ordinary": 2353
+  },
+  "makeDepBookkeeping": {
+    "slow": {
+      "samples": 61,
+      "certainLeafDenominator": 446
+    },
+    "ordinary": {
+      "samples": 767,
+      "certainLeafDenominator": 4505
+    }
+  },
+  "children": [
+    {
+      "id": 0,
+      "round": 0,
+      "condition": "CONTROL",
+      "deliveredGcEvents": 0,
+      "measuredGcOverlapMs": 0.0,
+      "maxMeasuredConstructionMs": 1.1835829999999987
+    },
+    {
+      "id": 1,
+      "round": 0,
+      "condition": "CONTROL",
+      "deliveredGcEvents": 0,
+      "measuredGcOverlapMs": 0.0,
+      "maxMeasuredConstructionMs": 0.8392089999999826
+    },
+    {
+      "id": 2,
+      "round": 0,
+      "condition": "GC_CPU",
+      "deliveredGcEvents": 104,
+      "measuredGcOverlapMs": 0.0,
+      "maxMeasuredConstructionMs": 1.5666249999999309,
+      "widthMs": 0.04991800000088656,
+      "samples": 3625,
+      "assignment": {
+        "certain": 1694,
+        "ambiguous": 520,
+        "outside": 1411
+      },
+      "groups": {
+        "slow": {
+          "windows": 90,
+          "zeroCertainWindows": 5,
+          "certainLeafSamples": 111,
+          "makeDepBookkeepingSamples": 18,
+          "top": [
+            {
+              "function": "makeDepBookkeeping",
+              "bundle": "worker-copy.mjs",
+              "line": 1530,
+              "column": 28,
+              "samples": 13
+            },
+            {
+              "function": "issueNodeRegistration",
+              "bundle": "worker.mjs",
+              "line": 1020,
+              "column": 31,
+              "samples": 8
+            },
+            {
+              "function": "_Node",
+              "bundle": "worker.mjs",
+              "line": 2765,
+              "column": 14,
+              "samples": 6
+            },
+            {
+              "function": "_Node",
+              "bundle": "worker-copy.mjs",
+              "line": 2765,
+              "column": 14,
+              "samples": 6
+            },
+            {
+              "function": "makeDepBookkeeping",
+              "bundle": "worker.mjs",
+              "line": 1530,
+              "column": 28,
+              "samples": 5
+            },
+            {
+              "function": "assertCausalOccurrenceTopology",
+              "bundle": "worker.mjs",
+              "line": 5075,
+              "column": 40,
+              "samples": 4
+            },
+            {
+              "function": "node",
+              "bundle": "worker-copy.mjs",
+              "line": 6802,
+              "column": 7,
+              "samples": 4
+            },
+            {
+              "function": "nodeOwnerForGraphUse",
+              "bundle": "worker.mjs",
+              "line": 1073,
+              "column": 30,
+              "samples": 3
+            }
+          ]
+        },
+        "ordinary": {
+          "windows": 1710,
+          "zeroCertainWindows": 613,
+          "certainLeafSamples": 1105,
+          "makeDepBookkeepingSamples": 187,
+          "top": [
+            {
+              "function": "makeDepBookkeeping",
+              "bundle": "worker-copy.mjs",
+              "line": 1530,
+              "column": 28,
+              "samples": 95
+            },
+            {
+              "function": "makeDepBookkeeping",
+              "bundle": "worker.mjs",
+              "line": 1530,
+              "column": 28,
+              "samples": 92
+            },
+            {
+              "function": "_Node",
+              "bundle": "worker.mjs",
+              "line": 2765,
+              "column": 14,
+              "samples": 37
+            },
+            {
+              "function": "node",
+              "bundle": "worker-copy.mjs",
+              "line": 6802,
+              "column": 7,
+              "samples": 37
+            },
+            {
+              "function": "assertCausalOccurrenceTopology",
+              "bundle": "worker.mjs",
+              "line": 5075,
+              "column": 40,
+              "samples": 29
+            },
+            {
+              "function": "_addWithId",
+              "bundle": "worker-copy.mjs",
+              "line": 7439,
+              "column": 13,
+              "samples": 28
+            },
+            {
+              "function": "assertCausalOccurrenceTopology",
+              "bundle": "worker-copy.mjs",
+              "line": 5075,
+              "column": 40,
+              "samples": 28
+            },
+            {
+              "function": "node",
+              "bundle": "worker.mjs",
+              "line": 6802,
+              "column": 7,
+              "samples": 25
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 3,
+      "round": 0,
+      "condition": "GC_CPU",
+      "deliveredGcEvents": 106,
+      "measuredGcOverlapMs": 0.0,
+      "maxMeasuredConstructionMs": 1.0806249999999977,
+      "widthMs": 0.050292333334164156,
+      "samples": 3738,
+      "assignment": {
+        "certain": 1774,
+        "ambiguous": 521,
+        "outside": 1443
+      },
+      "groups": {
+        "slow": {
+          "windows": 90,
+          "zeroCertainWindows": 2,
+          "certainLeafSamples": 118,
+          "makeDepBookkeepingSamples": 21,
+          "top": [
+            {
+              "function": "makeDepBookkeeping",
+              "bundle": "worker.mjs",
+              "line": 1530,
+              "column": 28,
+              "samples": 11
+            },
+            {
+              "function": "makeDepBookkeeping",
+              "bundle": "worker-copy.mjs",
+              "line": 1530,
+              "column": 28,
+              "samples": 10
+            },
+            {
+              "function": "_describe",
+              "bundle": "worker-copy.mjs",
+              "line": 7718,
+              "column": 12,
+              "samples": 5
+            },
+            {
+              "function": "_Node",
+              "bundle": "worker-copy.mjs",
+              "line": 2765,
+              "column": 14,
+              "samples": 4
+            },
+            {
+              "function": "causalOccurrenceRequiredEdges",
+              "bundle": "worker.mjs",
+              "line": 5028,
+              "column": 39,
+              "samples": 4
+            },
+            {
+              "function": "_createRegistered",
+              "bundle": "worker.mjs",
+              "line": 7415,
+              "column": 20,
+              "samples": 4
+            },
+            {
+              "function": "assertCausalOccurrenceTopology",
+              "bundle": "worker.mjs",
+              "line": 5075,
+              "column": 40,
+              "samples": 4
+            },
+            {
+              "function": "string",
+              "bundle": "worker-copy.mjs",
+              "line": 72,
+              "column": 18,
+              "samples": 3
+            }
+          ]
+        },
+        "ordinary": {
+          "windows": 1710,
+          "zeroCertainWindows": 532,
+          "certainLeafSamples": 1180,
+          "makeDepBookkeepingSamples": 187,
+          "top": [
+            {
+              "function": "makeDepBookkeeping",
+              "bundle": "worker.mjs",
+              "line": 1530,
+              "column": 28,
+              "samples": 94
+            },
+            {
+              "function": "makeDepBookkeeping",
+              "bundle": "worker-copy.mjs",
+              "line": 1530,
+              "column": 28,
+              "samples": 93
+            },
+            {
+              "function": "assertCausalOccurrenceTopology",
+              "bundle": "worker.mjs",
+              "line": 5075,
+              "column": 40,
+              "samples": 40
+            },
+            {
+              "function": "_Node",
+              "bundle": "worker-copy.mjs",
+              "line": 2765,
+              "column": 14,
+              "samples": 35
+            },
+            {
+              "function": "node",
+              "bundle": "worker-copy.mjs",
+              "line": 6802,
+              "column": 7,
+              "samples": 31
+            },
+            {
+              "function": "assertCausalOccurrenceTopology",
+              "bundle": "worker-copy.mjs",
+              "line": 5075,
+              "column": 40,
+              "samples": 29
+            },
+            {
+              "function": "node",
+              "bundle": "worker.mjs",
+              "line": 6802,
+              "column": 7,
+              "samples": 28
+            },
+            {
+              "function": "_createRegistered",
+              "bundle": "worker-copy.mjs",
+              "line": 7415,
+              "column": 20,
+              "samples": 27
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "round": 0,
+      "condition": "GC",
+      "deliveredGcEvents": 104,
+      "measuredGcOverlapMs": 0.0,
+      "maxMeasuredConstructionMs": 0.7052919999999858
+    },
+    {
+      "id": 5,
+      "round": 0,
+      "condition": "GC",
+      "deliveredGcEvents": 106,
+      "measuredGcOverlapMs": 0.0,
+      "maxMeasuredConstructionMs": 0.7959169999999176
+    },
+    {
+      "id": 6,
+      "round": 1,
+      "condition": "CONTROL",
+      "deliveredGcEvents": 0,
+      "measuredGcOverlapMs": 0.0,
+      "maxMeasuredConstructionMs": 1.2155419999999992
+    },
+    {
+      "id": 7,
+      "round": 1,
+      "condition": "GC",
+      "deliveredGcEvents": 104,
+      "measuredGcOverlapMs": 0.0,
+      "maxMeasuredConstructionMs": 0.640166999999991
+    },
+    {
+      "id": 8,
+      "round": 1,
+      "condition": "GC_CPU",
+      "deliveredGcEvents": 106,
+      "measuredGcOverlapMs": 0.0,
+      "maxMeasuredConstructionMs": 1.0437500000000455,
+      "widthMs": 0.04979266666869484,
+      "samples": 3738,
+      "assignment": {
+        "certain": 1716,
+        "ambiguous": 587,
+        "outside": 1435
+      },
+      "groups": {
+        "slow": {
+          "windows": 90,
+          "zeroCertainWindows": 5,
+          "certainLeafSamples": 109,
+          "makeDepBookkeepingSamples": 12,
+          "top": [
+            {
+              "function": "makeDepBookkeeping",
+              "bundle": "worker-copy.mjs",
+              "line": 1530,
+              "column": 28,
+              "samples": 7
+            },
+            {
+              "function": "_addWithId",
+              "bundle": "worker-copy.mjs",
+              "line": 7439,
+              "column": 13,
+              "samples": 5
+            },
+            {
+              "function": "_addWithId",
+              "bundle": "worker.mjs",
+              "line": 7439,
+              "column": 13,
+              "samples": 5
+            },
+            {
+              "function": "node",
+              "bundle": "worker.mjs",
+              "line": 6802,
+              "column": 7,
+              "samples": 5
+            },
+            {
+              "function": "makeDepBookkeeping",
+              "bundle": "worker.mjs",
+              "line": 1530,
+              "column": 28,
+              "samples": 5
+            },
+            {
+              "function": "_createRegistered",
+              "bundle": "worker-copy.mjs",
+              "line": 7415,
+              "column": 20,
+              "samples": 4
+            },
+            {
+              "function": "_describe",
+              "bundle": "worker-copy.mjs",
+              "line": 7718,
+              "column": 12,
+              "samples": 3
+            },
+            {
+              "function": "assertCausalOccurrenceTopology",
+              "bundle": "worker-copy.mjs",
+              "line": 5075,
+              "column": 40,
+              "samples": 3
+            }
+          ]
+        },
+        "ordinary": {
+          "windows": 1710,
+          "zeroCertainWindows": 575,
+          "certainLeafSamples": 1141,
+          "makeDepBookkeepingSamples": 196,
+          "top": [
+            {
+              "function": "makeDepBookkeeping",
+              "bundle": "worker-copy.mjs",
+              "line": 1530,
+              "column": 28,
+              "samples": 110
+            },
+            {
+              "function": "makeDepBookkeeping",
+              "bundle": "worker.mjs",
+              "line": 1530,
+              "column": 28,
+              "samples": 86
+            },
+            {
+              "function": "node",
+              "bundle": "worker-copy.mjs",
+              "line": 6802,
+              "column": 7,
+              "samples": 40
+            },
+            {
+              "function": "_Node",
+              "bundle": "worker.mjs",
+              "line": 2765,
+              "column": 14,
+              "samples": 39
+            },
+            {
+              "function": "node",
+              "bundle": "worker.mjs",
+              "line": 6802,
+              "column": 7,
+              "samples": 35
+            },
+            {
+              "function": "assertCausalOccurrenceTopology",
+              "bundle": "worker-copy.mjs",
+              "line": 5075,
+              "column": 40,
+              "samples": 32
+            },
+            {
+              "function": "_addWithId",
+              "bundle": "worker-copy.mjs",
+              "line": 7439,
+              "column": 13,
+              "samples": 31
+            },
+            {
+              "function": "_Node",
+              "bundle": "worker-copy.mjs",
+              "line": 2765,
+              "column": 14,
+              "samples": 29
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 9,
+      "round": 1,
+      "condition": "GC_CPU",
+      "deliveredGcEvents": 104,
+      "measuredGcOverlapMs": 0.0,
+      "maxMeasuredConstructionMs": 1.0607919999999922,
+      "widthMs": 0.04937566666859897,
+      "samples": 3521,
+      "assignment": {
+        "certain": 1651,
+        "ambiguous": 547,
+        "outside": 1323
+      },
+      "groups": {
+        "slow": {
+          "windows": 90,
+          "zeroCertainWindows": 6,
+          "certainLeafSamples": 108,
+          "makeDepBookkeepingSamples": 10,
+          "top": [
+            {
+              "function": "makeDepBookkeeping",
+              "bundle": "worker.mjs",
+              "line": 1530,
+              "column": 28,
+              "samples": 5
+            },
+            {
+              "function": "makeDepBookkeeping",
+              "bundle": "worker-copy.mjs",
+              "line": 1530,
+              "column": 28,
+              "samples": 5
+            },
+            {
+              "function": "_Node",
+              "bundle": "worker.mjs",
+              "line": 2765,
+              "column": 14,
+              "samples": 4
+            },
+            {
+              "function": "_describe",
+              "bundle": "worker.mjs",
+              "line": 7718,
+              "column": 12,
+              "samples": 4
+            },
+            {
+              "function": "issueNodeRegistration",
+              "bundle": "worker.mjs",
+              "line": 1020,
+              "column": 31,
+              "samples": 4
+            },
+            {
+              "function": "_Node",
+              "bundle": "worker-copy.mjs",
+              "line": 2765,
+              "column": 14,
+              "samples": 4
+            },
+            {
+              "function": "_addWithId",
+              "bundle": "worker-copy.mjs",
+              "line": 7439,
+              "column": 13,
+              "samples": 4
+            },
+            {
+              "function": "_addWithId",
+              "bundle": "worker.mjs",
+              "line": 7439,
+              "column": 13,
+              "samples": 3
+            }
+          ]
+        },
+        "ordinary": {
+          "windows": 1710,
+          "zeroCertainWindows": 633,
+          "certainLeafSamples": 1079,
+          "makeDepBookkeepingSamples": 197,
+          "top": [
+            {
+              "function": "makeDepBookkeeping",
+              "bundle": "worker.mjs",
+              "line": 1530,
+              "column": 28,
+              "samples": 104
+            },
+            {
+              "function": "makeDepBookkeeping",
+              "bundle": "worker-copy.mjs",
+              "line": 1530,
+              "column": 28,
+              "samples": 93
+            },
+            {
+              "function": "assertCausalOccurrenceTopology",
+              "bundle": "worker.mjs",
+              "line": 5075,
+              "column": 40,
+              "samples": 37
+            },
+            {
+              "function": "_addWithId",
+              "bundle": "worker.mjs",
+              "line": 7439,
+              "column": 13,
+              "samples": 37
+            },
+            {
+              "function": "node",
+              "bundle": "worker.mjs",
+              "line": 6802,
+              "column": 7,
+              "samples": 34
+            },
+            {
+              "function": "_Node",
+              "bundle": "worker.mjs",
+              "line": 2765,
+              "column": 14,
+              "samples": 33
+            },
+            {
+              "function": "_Node",
+              "bundle": "worker-copy.mjs",
+              "line": 2765,
+              "column": 14,
+              "samples": 30
+            },
+            {
+              "function": "_createRegistered",
+              "bundle": "worker.mjs",
+              "line": 7415,
+              "column": 20,
+              "samples": 29
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 10,
+      "round": 1,
+      "condition": "CONTROL",
+      "deliveredGcEvents": 0,
+      "measuredGcOverlapMs": 0.0,
+      "maxMeasuredConstructionMs": 0.907166999999987
+    },
+    {
+      "id": 11,
+      "round": 1,
+      "condition": "GC",
+      "deliveredGcEvents": 106,
+      "measuredGcOverlapMs": 0.0,
+      "maxMeasuredConstructionMs": 0.8064160000000129
+    }
+  ],
+  "ratios": {
+    "GC/CONTROL": {
+      "p95Ms": {
+        "median": 0.9628441932027618,
+        "min": 0.7805084802776241,
+        "max": 1.0999340718379087,
+        "aboveOne": 6,
+        "pairs": 24
+      },
+      "constructionSumMs": {
+        "median": 0.9742590480929734,
+        "min": 0.8626171590218825,
+        "max": 1.0175195054543609,
+        "aboveOne": 3,
+        "pairs": 24
+      },
+      "checkpoint.userMs": {
+        "median": 0.9826733141745052,
+        "min": 0.8280468355983261,
+        "max": 1.1659130319347533,
+        "aboveOne": 9,
+        "pairs": 24
+      }
+    },
+    "GC_CPU/GC": {
+      "p95Ms": {
+        "median": 1.0919017680846426,
+        "min": 0.9326350527297276,
+        "max": 1.3948199620974115,
+        "aboveOne": 20,
+        "pairs": 24
+      },
+      "constructionSumMs": {
+        "median": 1.0474373280750768,
+        "min": 0.9774357995105069,
+        "max": 1.3002421871841652,
+        "aboveOne": 19,
+        "pairs": 24
+      },
+      "checkpoint.userMs": {
+        "median": 1.0402149735832344,
+        "min": 0.8937903845606444,
+        "max": 1.2235318788281244,
+        "aboveOne": 19,
+        "pairs": 24
+      }
+    },
+    "GC_CPU/CONTROL": {
+      "p95Ms": {
+        "median": 1.0493266787318825,
+        "min": 0.855548608793555,
+        "max": 1.3378301432263962,
+        "aboveOne": 18,
+        "pairs": 24
+      },
+      "constructionSumMs": {
+        "median": 1.024724805635438,
+        "min": 0.8947723237831761,
+        "max": 1.2810505987527046,
+        "aboveOne": 15,
+        "pairs": 24
+      },
+      "checkpoint.userMs": {
+        "median": 1.0415819123351882,
+        "min": 0.8250003407712335,
+        "max": 1.2553013155240806,
+        "aboveOne": 16,
+        "pairs": 24
+      }
+    }
+  },
+  "analysisSha256": "92cfbc6544f47af854258a05f21f127d194ff9bb45845b6d517630c6c8069616",
+  "conclusion": "Valid instrumented capture. Repeated makeDepBookkeeping source clue, not a proven slow-tail cause. Delivered GC subset has no measured construction overlap. Sampling interference and coverage gaps prevent a second optimization or D169 acceptance claim."
+}

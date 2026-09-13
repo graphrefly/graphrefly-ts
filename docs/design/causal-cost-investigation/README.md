@@ -12,10 +12,10 @@
   相同 reference 的方法控制和记录方式实验是不同问题，不能互相替代。
 - **已结束的方向：** EAGER/DEFERRED 记录实验结果 mixed，未达到预先约定的一致改善规则。
   不追加轮次、不采用延后记录、不宣称 library 回归或全局变慢。
-- **本轮通过：** [hrtime锚点准备](anchor-clock-preparation/README.md)完成3CPU＋1GC探针；
-  CPU对齐区间0.04775–0.04892ms，低于0.1ms，已知函数误归属零。真实consumer执行零。
-  原启停区间失败保留；[实际采集工具](aligned-tools/README.md)也已通过替身资格，待单独授权真实采集；
-  尚不支持第二项library优化。
+- **本轮完成：** [时间归因真实采集](aligned-capture/README.md)12Node＋12验证进程全部完成，
+  28800样本，CPU时间区间约0.05ms。makeDepBookkeeping反复出现在构造栈中，但慢组占比
+  不更高，不能解释单一慢尾；840个已交付GC事件没有measured构造重叠。下一步只读源码审查，
+  不追加同类采样或自动优化。
 
 [替代设计](clock-anchor-design/README.md)已经落实为私有准备探针，不改registry C或library公开层级。
 
@@ -44,17 +44,17 @@
 
 | 完成：时间归因采集工具准备 | [aligned-tools](aligned-tools/README.md) | 12坐标28800假构造、31生命周期案例、116文件归档回放；真实consumer/profile零，实际采集待单独授权 |
 
+| 完成：时间归因真实采集 | [aligned-capture](aligned-capture/README.md) | 12Node＋12verifier、28800样本；约0.05ms对齐；重复依赖记账源码候选，慢尾根因unknown；403文件重算一致 |
+
 旧版累计分配约2.24GB/100次包含已回收对象，不等于RSS。约206–242MiB的近期RSS是
 整个Node评测进程（模块、保留样本等），不能归给一个graph。当前没有单graph增量内存
 或优化降低RSS的结论。用户若优先问这一指标，须独立设计同运行时空基线与存活图数量对照。
 
 ## 下一项的完成条件
 
-[时间归因设计稿](aligned-runtime-design.md)限定三个条件与拟议12进程/28,800样本。
-[hrtime替代准备](anchor-clock-preparation/README.md)已通过固定版本的有限时钟/GC探针，
-[真实capture工具](aligned-tools/README.md)已通过替身与归档资格；尚未执行。
-下一项是单独授权12Node consumer＋最多12Python verifier的固定采集，不因准备完成自动运行。
-真实每个进程仍须核对自身≤0.1ms区间，不能沿用probe偏移或保证其一定通过。
+[时间归因真实采集](aligned-capture/README.md)已完成并通过403文件归档重算，授权已消费。
+当前方向结束。下一步审查makeDepBookkeeping及调用者是否存在可避免的初始化，先给出
+具体语义取舍；不根据叶帧计数直接声称函数耗时占比或实施懒分配。
 
 [保留日志审计](retained-runtime-audit/README.md#next-investigation-boundary)给出具体证据要求。
 进入新capture前，设计必须能把构造窗口、GC与CPU采样放到有误差界的时间轴，并通过

@@ -1,0 +1,13 @@
+{
+  "replay": true,
+  "archiveFiles": 403,
+  "archiveSha256": "412d3488305cd0e733571c278016aed120be9d0d4ae648d1cef28743c103872b",
+  "analysisSha256": "92cfbc6544f47af854258a05f21f127d194ff9bb45845b6d517630c6c8069616",
+  "qualificationSha256": "798f985fe63350b5b6b241e0ccdbafd78d2fa69d48b642af2936ad994bfdca66",
+  "approvalSha256": "ecb014b76ad782d052584477f41b254e0a1379eafd84944bb18778a716b85a17",
+  "consumerProcesses": 12,
+  "verificationProcesses": 12,
+  "samples": 28800,
+  "retries": 0,
+  "formalAcceptance": false
+}
