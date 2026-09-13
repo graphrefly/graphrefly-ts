@@ -1,0 +1,35 @@
+{
+  "reviewed_commit": "7a229382",
+  "files": [
+    {
+      "path": "packages/ts/src/node/core.ts",
+      "sha256": "c49794c2ae081aecc4b8d198d4745d2ad8b410fb2ae94493b4ee48b42c105472",
+      "retained_capture_source": "docs/design/causal-cost-investigation/aligned-capture/raw/assets/sources/packages/ts/src/node/core.ts"
+    },
+    {
+      "path": "packages/ts/src/node/node.ts",
+      "sha256": "b4f7ea41b8bd6cd9664cde9a31763caef4d4effd17597d868f9ef9b3d699eec6",
+      "retained_capture_source": "docs/design/causal-cost-investigation/aligned-capture/raw/assets/sources/packages/ts/src/node/node.ts"
+    },
+    {
+      "path": "packages/ts/src/node/node-lifecycle-runtime.ts",
+      "sha256": "c0845b70f2da14aa8692ec2fe4d079cdb0e3be0af777648e0ce2c6adcca3273b",
+      "retained_capture_source": "docs/design/causal-cost-investigation/aligned-capture/raw/assets/sources/packages/ts/src/node/node-lifecycle-runtime.ts"
+    },
+    {
+      "path": "packages/ts/src/node/node-input-runtime.ts",
+      "sha256": "9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+      "retained_capture_source": "docs/design/causal-cost-investigation/aligned-capture/raw/assets/sources/packages/ts/src/node/node-input-runtime.ts"
+    },
+    {
+      "path": "packages/ts/src/node/node-context-runtime.ts",
+      "sha256": "6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+      "retained_capture_source": "docs/design/causal-cost-investigation/aligned-capture/raw/assets/sources/packages/ts/src/node/node-context-runtime.ts"
+    },
+    {
+      "path": "packages/ts/src/node/node-rewire-runtime.ts",
+      "sha256": "f56d6c2b1618e8245a2576757d0639c6337217b41f11a5c0f7a816f5f3db0e1b",
+      "retained_capture_source": "docs/design/causal-cost-investigation/aligned-capture/raw/assets/sources/packages/ts/src/node/node-rewire-runtime.ts"
+    }
+  ]
+}
