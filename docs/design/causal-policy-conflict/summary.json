@@ -1,0 +1,459 @@
+{
+  "verified": true,
+  "formalQualification": false,
+  "processes": 24,
+  "samples": 144,
+  "preflights": 48,
+  "summary": [
+    {
+      "profile": "P1",
+      "recipe": "initial",
+      "beforeMedianMs": 2.377999999999986,
+      "afterMedianMs": 2.37170900000001,
+      "ratios": [
+        1.1011488188462322,
+        0.9956021867115223,
+        0.9242825409197326
+      ]
+    },
+    {
+      "profile": "P1",
+      "recipe": "verification",
+      "beforeMedianMs": 0.449292000000014,
+      "afterMedianMs": 0.446124999999995,
+      "ratios": [
+        0.893867448272253,
+        1.040726251379288,
+        0.9200586700853546
+      ]
+    },
+    {
+      "profile": "P1",
+      "recipe": "sparse",
+      "beforeMedianMs": 1.358208000000019,
+      "afterMedianMs": 1.7119169999999997,
+      "ratios": [
+        1.2604232930449355,
+        0.8076696965076962,
+        1.2973205431918322
+      ]
+    },
+    {
+      "profile": "P1",
+      "recipe": "missing-material",
+      "beforeMedianMs": 0.3245839999999873,
+      "afterMedianMs": 0.3182909999999879,
+      "ratios": [
+        0.9519877751214156,
+        1.1152597566093265,
+        0.941224306333821
+      ]
+    },
+    {
+      "profile": "P6",
+      "recipe": "initial",
+      "beforeMedianMs": 624.737959,
+      "afterMedianMs": 581.3535000000002,
+      "ratios": [
+        0.9312595779056849,
+        0.9264959349010462,
+        0.9303764142202737
+      ]
+    },
+    {
+      "profile": "P6",
+      "recipe": "verification",
+      "beforeMedianMs": 239.51591699999972,
+      "afterMedianMs": 202.1512500000008,
+      "ratios": [
+        0.8339355292199644,
+        0.8307329592314706,
+        0.8441428501018694
+      ]
+    },
+    {
+      "profile": "P6",
+      "recipe": "sparse",
+      "beforeMedianMs": 8.91820800000005,
+      "afterMedianMs": 8.439124999999876,
+      "ratios": [
+        0.9658231816645593,
+        0.9304565939442107,
+        0.9821292573575117
+      ]
+    },
+    {
+      "profile": "P6",
+      "recipe": "missing-material",
+      "beforeMedianMs": 34.89316599999984,
+      "afterMedianMs": 34.72554200000013,
+      "ratios": [
+        0.9919634928853288,
+        0.9932616031460065,
+        1.025481465444749
+      ]
+    }
+  ],
+  "rows": [
+    {
+      "job": {
+        "id": 0,
+        "profile": "P1",
+        "recipe": "initial",
+        "repeat": 0,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 2.3426669999999774,
+      "afterMedianMs": 2.5796250000000214,
+      "ratio": 1.1011488188462322
+    },
+    {
+      "job": {
+        "id": 1,
+        "profile": "P1",
+        "recipe": "initial",
+        "repeat": 1,
+        "order": [
+          "after",
+          "before"
+        ]
+      },
+      "beforeMedianMs": 2.377999999999986,
+      "afterMedianMs": 2.367541999999986,
+      "ratio": 0.9956021867115223
+    },
+    {
+      "job": {
+        "id": 2,
+        "profile": "P1",
+        "recipe": "initial",
+        "repeat": 2,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 2.565999999999974,
+      "afterMedianMs": 2.37170900000001,
+      "ratio": 0.9242825409197326
+    },
+    {
+      "job": {
+        "id": 3,
+        "profile": "P1",
+        "recipe": "verification",
+        "repeat": 0,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 0.5001670000000047,
+      "afterMedianMs": 0.4470829999999921,
+      "ratio": 0.893867448272253
+    },
+    {
+      "job": {
+        "id": 4,
+        "profile": "P1",
+        "recipe": "verification",
+        "repeat": 1,
+        "order": [
+          "after",
+          "before"
+        ]
+      },
+      "beforeMedianMs": 0.42866699999999014,
+      "afterMedianMs": 0.446124999999995,
+      "ratio": 1.040726251379288
+    },
+    {
+      "job": {
+        "id": 5,
+        "profile": "P1",
+        "recipe": "verification",
+        "repeat": 2,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 0.449292000000014,
+      "afterMedianMs": 0.41337500000000205,
+      "ratio": 0.9200586700853546
+    },
+    {
+      "job": {
+        "id": 6,
+        "profile": "P1",
+        "recipe": "sparse",
+        "repeat": 0,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 1.358208000000019,
+      "afterMedianMs": 1.7119169999999997,
+      "ratio": 1.2604232930449355
+    },
+    {
+      "job": {
+        "id": 7,
+        "profile": "P1",
+        "recipe": "sparse",
+        "repeat": 1,
+        "order": [
+          "after",
+          "before"
+        ]
+      },
+      "beforeMedianMs": 1.7775410000000136,
+      "afterMedianMs": 1.4356659999999977,
+      "ratio": 0.8076696965076962
+    },
+    {
+      "job": {
+        "id": 8,
+        "profile": "P1",
+        "recipe": "sparse",
+        "repeat": 2,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 1.353334000000018,
+      "afterMedianMs": 1.7557079999999985,
+      "ratio": 1.2973205431918322
+    },
+    {
+      "job": {
+        "id": 9,
+        "profile": "P1",
+        "recipe": "missing-material",
+        "repeat": 0,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 0.3245839999999873,
+      "afterMedianMs": 0.3089999999999975,
+      "ratio": 0.9519877751214156
+    },
+    {
+      "job": {
+        "id": 10,
+        "profile": "P1",
+        "recipe": "missing-material",
+        "repeat": 1,
+        "order": [
+          "after",
+          "before"
+        ]
+      },
+      "beforeMedianMs": 0.2978750000000048,
+      "afterMedianMs": 0.3322080000000085,
+      "ratio": 1.1152597566093265
+    },
+    {
+      "job": {
+        "id": 11,
+        "profile": "P1",
+        "recipe": "missing-material",
+        "repeat": 2,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 0.33816699999999855,
+      "afterMedianMs": 0.3182909999999879,
+      "ratio": 0.941224306333821
+    },
+    {
+      "job": {
+        "id": 12,
+        "profile": "P6",
+        "recipe": "initial",
+        "repeat": 0,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 624.737959,
+      "afterMedianMs": 581.7932079999991,
+      "ratio": 0.9312595779056849
+    },
+    {
+      "job": {
+        "id": 13,
+        "profile": "P6",
+        "recipe": "initial",
+        "repeat": 1,
+        "order": [
+          "after",
+          "before"
+        ]
+      },
+      "beforeMedianMs": 627.4754999999986,
+      "afterMedianMs": 581.3535000000002,
+      "ratio": 0.9264959349010462
+    },
+    {
+      "job": {
+        "id": 14,
+        "profile": "P6",
+        "recipe": "initial",
+        "repeat": 2,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 624.2712079999997,
+      "afterMedianMs": 580.8072079999984,
+      "ratio": 0.9303764142202737
+    },
+    {
+      "job": {
+        "id": 15,
+        "profile": "P6",
+        "recipe": "verification",
+        "repeat": 0,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 239.51591699999972,
+      "afterMedianMs": 199.74083299999984,
+      "ratio": 0.8339355292199644
+    },
+    {
+      "job": {
+        "id": 16,
+        "profile": "P6",
+        "recipe": "verification",
+        "repeat": 1,
+        "order": [
+          "after",
+          "before"
+        ]
+      },
+      "beforeMedianMs": 243.64558399999987,
+      "afterMedianMs": 202.40441699999974,
+      "ratio": 0.8307329592314706
+    },
+    {
+      "job": {
+        "id": 17,
+        "profile": "P6",
+        "recipe": "verification",
+        "repeat": 2,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 239.4751669999996,
+      "afterMedianMs": 202.1512500000008,
+      "ratio": 0.8441428501018694
+    },
+    {
+      "job": {
+        "id": 18,
+        "profile": "P6",
+        "recipe": "sparse",
+        "repeat": 0,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 8.694958000000042,
+      "afterMedianMs": 8.397791999999754,
+      "ratio": 0.9658231816645593
+    },
+    {
+      "job": {
+        "id": 19,
+        "profile": "P6",
+        "recipe": "sparse",
+        "repeat": 1,
+        "order": [
+          "after",
+          "before"
+        ]
+      },
+      "beforeMedianMs": 9.069875000000138,
+      "afterMedianMs": 8.439124999999876,
+      "ratio": 0.9304565939442107
+    },
+    {
+      "job": {
+        "id": 20,
+        "profile": "P6",
+        "recipe": "sparse",
+        "repeat": 2,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 8.91820800000005,
+      "afterMedianMs": 8.758832999999868,
+      "ratio": 0.9821292573575117
+    },
+    {
+      "job": {
+        "id": 21,
+        "profile": "P6",
+        "recipe": "missing-material",
+        "repeat": 0,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 35.006875000000036,
+      "afterMedianMs": 34.72554200000013,
+      "ratio": 0.9919634928853288
+    },
+    {
+      "job": {
+        "id": 22,
+        "profile": "P6",
+        "recipe": "missing-material",
+        "repeat": 1,
+        "order": [
+          "after",
+          "before"
+        ]
+      },
+      "beforeMedianMs": 34.89316599999984,
+      "afterMedianMs": 34.65804199999957,
+      "ratio": 0.9932616031460065
+    },
+    {
+      "job": {
+        "id": 23,
+        "profile": "P6",
+        "recipe": "missing-material",
+        "repeat": 2,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 34.40241700000024,
+      "afterMedianMs": 35.2790410000016,
+      "ratio": 1.025481465444749
+    }
+  ]
+}

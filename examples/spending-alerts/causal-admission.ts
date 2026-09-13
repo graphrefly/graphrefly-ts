@@ -152,6 +152,8 @@ export function buildAdmission(
 				ctx.down([["DATA", frame([], [], false)]]);
 				return;
 			}
+			// The current immutable verification frame is unchanged throughout this invocation.
+			let receiptConflict: boolean | undefined;
 			for (const [k, r] of s.maps[0]) {
 				const e = r.evaluation,
 					gate = s.maps[1].get(k)?.value as Flagged | undefined,
@@ -185,15 +187,21 @@ export function buildAdmission(
 								v.verifierRevision === VERIFIER_REVISION &&
 								v.numericDomainRef === NUMERIC_DOMAIN,
 						);
-						const receipts = new Map<string, string>();
-						let conflict = false;
-						for (const v of verification.receipts) {
-							const key = hash(v.receiptRef),
-								digest = hash(v);
-							if (receipts.has(key) && receipts.get(key) !== digest) conflict = true;
-							receipts.set(key, digest);
+						if (receiptConflict === undefined) {
+							const receipts = new Map<string, string>();
+							receiptConflict = false;
+							for (const v of verification.receipts) {
+								const key = hash(v.receiptRef),
+									digest = hash(v);
+								if (receipts.has(key) && receipts.get(key) !== digest) receiptConflict = true;
+								receipts.set(key, digest);
+							}
 						}
-						if (conflict || candidates.length !== 1 || candidates[0].verdict === "unavailable") {
+						if (
+							receiptConflict ||
+							candidates.length !== 1 ||
+							candidates[0].verdict === "unavailable"
+						) {
 							problems.push(issue("verification-pending-or-conflict", e.evaluationRef));
 							continue;
 						}
