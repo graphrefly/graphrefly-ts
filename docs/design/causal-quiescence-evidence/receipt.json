@@ -1,0 +1,44 @@
+{
+  "ownerContext": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "baseline": "fd697057",
+  "productChange": "Delay read-only evidence terminal query until lifecycle settled; preserve all recompute passes and projection aliases",
+  "beforeSourceSha256": "768e4a03db4204444e6312f22466cffa45d792574b4b9dfb1dbc699d30cc6c98",
+  "afterSourceSha256": "8da684125d3a7a242106b73e8fbd8a1a625beca1dec0dee772c485da95029199",
+  "bundles": {
+    "before": "d9aeae65d30ef343537fb0ac4afe7a9d60848add0e8fdd254bcc46e09dfc8d90",
+    "after": "2340fbc02b83aa8f78a5a8b517c870cf95e82a83d16310606f9e2facf46ba7bb"
+  },
+  "checks": {
+    "fullTests": {
+      "passed": 2560,
+      "failed": 2,
+      "skipped": 4,
+      "failures": "Existing D159 manifest drift"
+    },
+    "finalFocusedTests": 2,
+    "runtimeMutationsKilled": 73,
+    "buildExports": true,
+    "testTypecheck": true,
+    "exampleTypes": true,
+    "asyncBoundary": true,
+    "scopedBiome": true,
+    "artifactVerifier": true,
+    "reindexedNegatives": 6,
+    "independentReview": "No accepted-DATA regression in final smaller diff; whole-flush candidate withdrawn due alias concern"
+  },
+  "performance": {
+    "processes": 21,
+    "samples": 126,
+    "preflights": 42,
+    "controls": 3,
+    "formalQualification": false
+  },
+  "workComplete": false,
+  "authorityUpdated": false,
+  "limits": [
+    "No formal p95 or whole-path100ms qualification",
+    "P1 timing inconclusive",
+    "Global domain recomputation count unchanged",
+    "No memory or unrelated-consumer performance claim"
+  ]
+}

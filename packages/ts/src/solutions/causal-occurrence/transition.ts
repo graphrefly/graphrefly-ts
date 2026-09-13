@@ -311,9 +311,12 @@ export function transitionCausalAuthority<T>(
 			revisionDomain,
 			domain,
 		);
-		const evidenceTerminal = evidence.isEvidenceTerminal(context, revisionDomain, domain);
 		const lifecycle =
 			sequenceComplete && pendingOccurrenceRefs.length === 0 && pendingEffectIds.size === 0;
+		// This read-only completeness query cannot affect retainedEvidence until
+		// lifecycle is settled. Evidence ingestion and coverage outputs remain eager.
+		const evidenceTerminal =
+			lifecycle && evidence.isEvidenceTerminal(context, revisionDomain, domain);
 		const value: CausalQuiescence = {
 			kind: "causal-quiescence",
 			revisionDomain,
