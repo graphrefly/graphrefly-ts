@@ -452,22 +452,27 @@ export function recomputeCurrentness<T>(
 		.map((entry) => entry.value)
 		.filter((value) => value.revisionDomain === revisionDomain && value.revision <= watermark)
 		.sort((left, right) => left.revision - right.revision);
+	// Admissions do not change during this synchronous query. Keep the exact
+	// identity check, but reuse its result across the three passes below.
+	const evaluated = occurrences.map((occurrence) => ({
+		occurrence,
+		admission: exactAdmission(context, occurrence),
+	}));
 	const sequenceComplete =
 		(state.highWaterByDomain.get(revisionDomain) ?? 0) >= watermark &&
 		(state.retentionGapThroughByDomain.get(revisionDomain) ?? 0) === 0 &&
 		![...state.pending.values()].some(
 			(entry) => entry.value.revisionDomain === revisionDomain && entry.value.revision <= watermark,
 		) &&
-		occurrences
-			.filter((occurrence) => occurrence.revision > floor)
-			.every((occurrence) => exactAdmission(context, occurrence) !== undefined);
+		evaluated
+			.filter(({ occurrence }) => occurrence.revision > floor)
+			.every(({ admission }) => admission !== undefined);
 	const latestAdmitted = new Map<string, CausalOccurrence<T>>();
-	for (const occurrence of occurrences) {
-		if (exactAdmission(context, occurrence)?.state === "admitted")
+	for (const { occurrence, admission } of evaluated) {
+		if (admission?.state === "admitted")
 			latestAdmitted.set(occurrenceIdKey(occurrence), occurrence);
 	}
-	for (const occurrence of occurrences) {
-		const admission = exactAdmission(context, occurrence);
+	for (const { occurrence, admission } of evaluated) {
 		const newer = latestAdmitted.get(occurrenceIdKey(occurrence));
 		const value: CausalCurrentness =
 			admission === undefined || !sequenceComplete

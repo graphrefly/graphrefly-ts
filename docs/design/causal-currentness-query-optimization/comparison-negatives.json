@@ -1,0 +1,29 @@
+{
+  "passed": true,
+  "reindexedNegatives": [
+    {
+      "mutation": "sample-count",
+      "rejected": true
+    },
+    {
+      "mutation": "negative-sample",
+      "rejected": true
+    },
+    {
+      "mutation": "preflight",
+      "rejected": true
+    },
+    {
+      "mutation": "identity",
+      "rejected": true
+    },
+    {
+      "mutation": "order",
+      "rejected": true
+    },
+    {
+      "mutation": "hidden-failure",
+      "rejected": true
+    }
+  ]
+}
