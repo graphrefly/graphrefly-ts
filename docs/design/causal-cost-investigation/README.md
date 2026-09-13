@@ -58,7 +58,10 @@
 48假子进程/6720假样本、10类失败、23种证据损坏、198文件归档回放。
 [真实有限对比](dependency-comparison-capture/README.md)已完成48进程/6720样本，56.53秒，
 最大观察RSS233.59MiB；619文件归档复核一致。全部指标控制不稳定，初始化收益仍未知。
-本方法结束于inconclusive，授权已消费，不追加采样；下一步仅分析保留数据的顺序/位置差异。
+本方法结束于inconclusive，授权已消费，不追加采样。
+[顺序/位置审计](dependency-order-audit/README.md)已完成：开头控制偏移、位置方向不统一，
+候选p50有一致下降线索但p95控制未过；现有数据不能分辨GC/JIT/调度。
+保留数据分析结束；下一步只审阅能区分中心/慢尾及模块/顺序影响的测量设计，不直接重跑。
 
 [保留日志审计](retained-runtime-audit/README.md#next-investigation-boundary)给出具体证据要求。
 进入新capture前，设计必须能把构造窗口、GC与CPU采样放到有误差界的时间轴，并通过
