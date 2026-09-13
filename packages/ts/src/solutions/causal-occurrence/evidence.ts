@@ -18,7 +18,6 @@ import {
 	rejectDefinitiveMissingRef,
 	retainDomain,
 	retainPending,
-	sameRef,
 	terminalCoverage,
 	validRef,
 	validToken,
@@ -28,9 +27,14 @@ import {
 export function emitCoverage<T>(context: TransitionContext<T>, occurrence: CausalOccurrenceRef) {
 	const { state, opts, outputs } = context;
 
-	const entries = [...state.evidence.values(), ...state.coverageGaps.values()].filter((value) =>
-		sameRef(value.occurrence, occurrence),
-	);
+	// One synchronous scan compares every entry with the same query reference.
+	// Laziness preserves the empty-scan path; no key survives this invocation.
+	let occurrenceKey: string | undefined;
+	const entries = [...state.evidence.values(), ...state.coverageGaps.values()].filter((value) => {
+		const entryKey = refKey(value.occurrence);
+		occurrenceKey ??= refKey(occurrence);
+		return entryKey === occurrenceKey;
+	});
 	const byKind = new Map(entries.map((value) => [value.evidenceKind, value]));
 	const missingKinds = opts.requiredEvidenceKinds.filter((kind) => !byKind.has(kind));
 	const terminalGapKinds = opts.requiredEvidenceKinds.filter((kind) => {

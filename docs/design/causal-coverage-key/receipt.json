@@ -1,0 +1,51 @@
+{
+  "ownerContext": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "baseline": "5ce56737",
+  "sourceSha256": "535700f13c6b639f694d950922e78d3f7a1da29511477af0ba31ed69d8563e34",
+  "beforeSourceSha256": "e8649d7f80869d5eab186ae327fe7268f74d4bbb41daa54b826890049ab035fb",
+  "bundles": {
+    "before": "b83e13b0fa8cb6735c4434ae9dd8b1085a9698425e3bcc8fc8c998903e1e52e0",
+    "after": "d9aeae65d30ef343537fb0ac4afe7a9d60848add0e8fdd254bcc46e09dfc8d90"
+  },
+  "checks": {
+    "fullTests": {
+      "passed": 2557,
+      "failed": 3,
+      "skipped": 4,
+      "failures": [
+        "2 existing D159 manifest drift",
+        "1 D667 cleanup timing failure; original log retained"
+      ]
+    },
+    "cleanupIsolatedRetest": {
+      "passed": 12,
+      "failed": 0,
+      "sourceChangedForRetest": false
+    },
+    "newCoverageTests": 2,
+    "runtimeMutationsKilled": 73,
+    "buildExports": true,
+    "testTypecheck": true,
+    "exampleTypechecks": true,
+    "asyncBoundary": true,
+    "scopedBiome": true,
+    "artifactVerifier": true,
+    "negativeVerifier": true,
+    "independentReadOnlyReview": "No reachable product regression; adapter provenance gap repaired before sampling"
+  },
+  "performance": {
+    "processes": 24,
+    "samples": 144,
+    "preflights": 48,
+    "formalQualification": false,
+    "beforeBeforeTimingControls": false
+  },
+  "workComplete": false,
+  "authorityUpdated": false,
+  "limits": [
+    "No formal performance or overall100ms pass",
+    "No global-consumer or memory conclusion",
+    "Full initial suite remains recorded as3 failures, isolated retest does not rewrite it",
+    "Python artifact verifier does not rebuild source"
+  ]
+}
