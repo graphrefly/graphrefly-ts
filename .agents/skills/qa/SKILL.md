@@ -1,7 +1,15 @@
 ---
 name: qa
-description: "Adversarial code review, apply fixes, final checks (test/lint/build), and doc updates. Run after /dev-dispatch or any manual implementation. Use when user says 'qa', 'review', or 'code review'. Supports --skip-docs to skip documentation phase."
+description: "Review project changes and verify affected behavior or required phase gates. Apply fixes only within an implementation or QA-and-fix request."
+metadata:
+  argument-hint: "[--skip-docs] [optional context about what was implemented]"
 ---
+
+Read `~/.codex/skills/bmad-build/references/qa.md` for the shared review lenses, five-way triage and
+repair loop. Integrate the domain checks below into that one review; retain this repository's canonical
+completion verdict. Review-only remains read-only, including documentation and authority records.
+Finish with `~/.codex/skills/bmad-checkpoint-preview/SKILL.md` in build-handoff mode unless interactive
+review was requested.
 
 You are executing the **qa** workflow for the **clean-slate GraphReFly** redesign.
 
@@ -40,35 +48,14 @@ Also load the clean-slate context the review must NOT contradict:
 - `~/src/graphrefly/spec/conformance.jsonl` — the C-* scenarios the change must keep green (+ their `runtimes` status).
 - `~/src/graphrefly/formal/*.tla` — when the change implements a formally-modeled rule, cross-check the impl against the TLC-verified model.
 
-### 1b. Launch parallel review subagents
+### 1b. Review, triage and repair
 
-Launch as parallel Agent calls. Each receives the diff + the context from $ARGUMENTS (what was implemented and why). Tell each to do a STATIC review (no servers, no test runs) and return ONLY a findings list.
-
-**Subagent 1: Blind Hunter** — pure code review, no project context:
-> You are a Blind Hunter code reviewer. Review this diff for: logic errors, off-by-one, race/re-entrancy hazards, resource leaks (unclosed subscriptions, unbounded registries), stale-closure / index-desync bugs, missing error handling, dead/unreachable code, sparse-array holes, security issues. For Python, also check thread/free-threaded safety. Be adversarial — assume bugs exist; trace the suspicious paths concretely. If a suspicious path is actually correct, say so in one line rather than raising noise. Output each finding as: **title** | **severity** (critical/major/minor) | **location** (file:line) | **detail** (trigger + consequence + suggested fix).
-
-**Subagent 2: Edge Case Hunter** — clean-slate spec-aware:
-> You are an Edge Case Hunter reviewing a change against the GraphReFly clean-slate SPEC. The authority is the root spec plus the federated owner ledgers indexed by `~/src/graphrefly/authority/ledgers.jsonl` (branch clean-slate) — NOT any docs/*.md or packages/pure-ts (retired port-model; ignore). Read the relevant `spec/rules.jsonl` R-* rules + uniquely resolved origin-qualified D# for the area under review, and the matching `spec/conformance.jsonl` C-* + `formal/*.tla` model if the change implements a spec-locked behavior.
->
-> Check protocol/wave invariants against the rules: message tuples `[[Type,Data?]]`, one array = one wave (R-msg-format); DIRTY-before-DATA in the same wave (R-dirty-before-data); two-phase glitch-free diamond, recompute-once (R-two-phase/R-diamond); ctx.up control-tier-only (R-ctx-up); SENTINEL = absence-of-DATA, never-emitted detector `prevData===undefined` (R-sentinel); equals DATA→RESOLVED only on a single-DATA wave (R-equals); first-run gate (R-first-run-gate); INVALIDATE idempotent + lifecycle-continue (R-invalidate-idempotent); terminal-is-forever / resubscribable reset (R-terminal); ROM/RAM cache (R-rom-ram); PAUSE lockset + modes (R-pause-lockset/R-pause-modes); reentrancy reject (R-reentrancy/D37).
->
-> Flag floor violations: imperative side-channel triggers (R-no-imperative — emitters/callbacks/timers+set instead of ctx.up/message flow); polling/busy-wait (R-no-polling); bare async in the sync core (R-no-raw-async / F-SYNC-CORE — async only in sources / pool / wire bridge); inline-fn bypassing the dispatcher (R-dispatch-all / F-DISPATCH-ALL); peeking a dep `.cache` to seed compute (R-data-not-peek); hardcoded `type === "DATA"` instead of messageTier (R-tier); protocol internals (DIRTY/RESOLVED/bitmask) leaking into value-level sugar (R-primary-api-clean / DR-1); counters/inspection on the thin node (R-node-thin); a new verb (D4 closed set) or a 10th tier (D9) introduced casually; graph-level shared mutable state accessed implicitly instead of an explicit node+dep (D22/D23); cross-graph in-process coupling instead of a wire bridge (D22/D32).
->
-> If the change implements a formally-modeled rule, identify any place the impl DIVERGES from the `formal/*.tla` model (cite the invariant). Surface real-but-unmodeled cross-axis interactions (e.g. X×batch, X×pause) and say whether each is a genuine gap or acceptably-deferred. DROP any finding that matches an already-acknowledged `plan/backlog.jsonl` B# or `plan/antipatterns.jsonl` entry. Output each finding as: **title** | **severity** | **location** (file:line or R-id) | **detail** (the rule/D# it relates to + what the impl does + divergence/gap/ok).
-
-Scale the reviewer count to the change: 2 is the default; for a large or high-risk substrate change add a third reviewer on a specific axis (e.g. concurrency/pool, or a perspective-diverse second spec reviewer).
-
-### 1c. Triage findings
-Classify each: **patch** (fixable, caused by this change — include the fix) · **defer** (pre-existing or out-of-scope — note it) · **reject** (false positive / noise — drop silently). Cross-check every finding against `plan/backlog.jsonl` + `plan/antipatterns.jsonl`; a match to an accepted deferral → **reject** silently.
-
-Fix priority (most→least): 1) **spec alignment** (`spec/rules.jsonl` / the F-* floor — a rule wins over current impl) · 2) **semantic correctness** (protocol + node contract) · 3) **completeness** (edge cases) · 4) **consistency** (patterns already in `packages/ts/src/`) · 5) **level of effort**. (Frozen `packages/pure-ts/**` + `~/src/callbag-recharge` are read-only precedent only — the clean-slate spec wins on any conflict.)
-
-### 1d. Present findings (HALT)
-Present ALL patch + defer findings (treat equally). For each: the issue + location, the **recommended fix** (pros/cons), whether it affects architecture, and whether it needs a user decision or can be auto-applied. Group:
-1. **Needs Decision** — architecture-affecting or ambiguous (route per the floor: architectural lock → `/design-review` → D#; wave-protocol behavior change → `/spec-amend`; an open question with no clear answer → `plan/backlog.jsonl` B#).
-2. **Auto-applicable** — clear fixes following existing patterns.
-
-**Wait for user decisions on group 1.** Group 2 may be applied on the user's batch approval. Do NOT silently pick on a needs-decision item (no-autonomous-decisions).
+Apply the shared BMAD QA reference once, using the original acceptance, governing R-id / D# and this
+diff. Use its blind-hunter, edge-case and verification-gap lenses, then classify validated findings as
+`intent_gap`, `bad_spec`, `patch`, `defer`, or `reject`. Preserve spec-first and owner-first boundaries:
+a `bad_spec` finding never authorizes changing protocol, semantics or a locked design. Collect material
+questions for the user; apply clear in-scope fixes when authorized. Trace protocol behavior and lifecycle
+against conformance and the formal model where relevant. Reuse the final checks below in that repair loop.
 
 ---
 
