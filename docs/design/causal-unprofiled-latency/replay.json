@@ -1,0 +1,5 @@
+{
+  "verify-causal-latency-baseline.py": "fresh archive extraction matches report",
+  "verify-causal-latency-first-use.py": "fresh archive extraction matches report",
+  "check-causal-latency-evidence-negatives.py": "fresh archive extraction matches report"
+}

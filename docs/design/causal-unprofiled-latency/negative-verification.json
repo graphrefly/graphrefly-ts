@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "rejected": [
+    "control-uses-candidate",
+    "negative-time",
+    "warmup-as-measured",
+    "missing-preflight",
+    "hidden-failure"
+  ],
+  "reindexed": true
+}
