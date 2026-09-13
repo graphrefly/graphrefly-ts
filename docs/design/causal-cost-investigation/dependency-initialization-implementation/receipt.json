@@ -1,0 +1,147 @@
+{
+	"owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"base_commit": "8253488b",
+	"classification": "unmeasured implementation candidate; work incomplete",
+	"checks": [
+		{
+			"record": "initial-attempts/artifacts.json",
+			"argv": ["pnpm", "run", "eval:root:artifacts:check"],
+			"exit_code": 1,
+			"elapsed_s": 4.690219163894653
+		},
+		{
+			"record": "initial-attempts/build.json",
+			"argv": ["pnpm", "run", "build"],
+			"exit_code": 0,
+			"elapsed_s": 81.10642313957214
+		},
+		{
+			"record": "initial-attempts/lint.json",
+			"argv": ["pnpm", "run", "lint"],
+			"exit_code": 1,
+			"elapsed_s": 4.076284885406494
+		},
+		{
+			"record": "initial-attempts/no-raw-async.json",
+			"argv": ["pnpm", "run", "lint:no-raw-async"],
+			"exit_code": 0,
+			"elapsed_s": 1.8376541137695312
+		},
+		{
+			"record": "initial-attempts/qualification.json",
+			"argv": [
+				"node",
+				"scripts/qualify-causal-occurrence.mjs",
+				"--output",
+				"docs/design/causal-cost-investigation/dependency-initialization-implementation/qualification-report.json"
+			],
+			"exit_code": 0,
+			"elapsed_s": 184.09883093833923
+		},
+		{
+			"record": "initial-attempts/reference.json",
+			"argv": [
+				"node",
+				"scripts/qualify-spending-preset-reference.mjs",
+				"--output",
+				"docs/design/causal-cost-investigation/dependency-initialization-implementation/reference-evidence"
+			],
+			"exit_code": 1,
+			"elapsed_s": 143.82465982437134
+		},
+		{
+			"record": "initial-attempts/runtime.json",
+			"argv": [
+				"node",
+				"scripts/qualify-spending-preset-runtime.mjs",
+				"--output",
+				"docs/design/causal-cost-investigation/dependency-initialization-implementation/runtime-evidence"
+			],
+			"exit_code": 1,
+			"elapsed_s": 65.29943418502808
+		},
+		{
+			"record": "initial-attempts/scoped-lint.json",
+			"argv": ["pnpm", "exec", "biome", "check", "packages/ts/src/node/core.ts"],
+			"exit_code": 0,
+			"elapsed_s": 1.4418210983276367
+		},
+		{
+			"record": "initial-attempts/test-typecheck.json",
+			"argv": ["pnpm", "--filter", "@graphrefly/ts", "test:typecheck"],
+			"exit_code": 0,
+			"elapsed_s": 13.502588987350464
+		},
+		{
+			"record": "initial-attempts/tests.json",
+			"argv": ["pnpm", "test"],
+			"exit_code": 1,
+			"elapsed_s": 148.9842550754547
+		},
+		{
+			"record": "initial-attempts/typecheck-after-build.json",
+			"argv": ["pnpm", "run", "lint:typecheck"],
+			"exit_code": 0,
+			"elapsed_s": 9.756464004516602
+		},
+		{
+			"record": "initial-attempts/typecheck.json",
+			"argv": ["pnpm", "run", "lint:typecheck"],
+			"exit_code": 1,
+			"elapsed_s": 15.992578029632568
+		},
+		{
+			"record": "reference.json",
+			"argv": [
+				"node",
+				"scripts/qualify-spending-preset-reference.mjs",
+				"--output",
+				"/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/graphrefly-dep-final-jbpr9nm3/reference-evidence"
+			],
+			"exit_code": 0,
+			"elapsed_s": 133.5153260231018
+		},
+		{
+			"record": "root-soak.json",
+			"argv": ["pnpm", "run", "test:root-eval-soak"],
+			"exit_code": 1,
+			"elapsed_s": 2051.3774769306183
+		},
+		{
+			"record": "runtime.json",
+			"argv": [
+				"node",
+				"scripts/qualify-spending-preset-runtime.mjs",
+				"--output",
+				"/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/graphrefly-dep-final-jbpr9nm3/runtime-evidence"
+			],
+			"exit_code": 0,
+			"elapsed_s": 44.540026903152466
+		}
+	],
+	"archive": "archive/evals/causal-dependency-initialization-v1",
+	"archive_files_verified": 193,
+	"archive_sha256": "9a59096387da9f97f95d9f63997ef93895aceca3755e349d0d06272e4498e7e5",
+	"default_tests": {
+		"passed": 2550,
+		"failed": 2,
+		"skipped": 4,
+		"failure_scope": "frozen D159 implementation manifest; parent already unqualified, current source also changes manifest"
+	},
+	"causal_mutations": 73,
+	"consumer_runtime_mutations": 16,
+	"plain_reference_mutations": 7,
+	"performance_samples": 0,
+	"preexisting_files_preserved": 22,
+	"root_soak": {
+		"passed": 219,
+		"failed": 2,
+		"failures": [
+			"development-3/target:420000ms test timeout",
+			"development-4/target:admitted subprocess deadline"
+		],
+		"attribution": "unresolved",
+		"wrapper_configured_timeout_s": 1800,
+		"observed_elapsed_s": 2051.3774769306183
+	}
+}

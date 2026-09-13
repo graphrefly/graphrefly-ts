@@ -1091,20 +1091,33 @@ var NodeCore = class {
   }
 };
 function makeDepBookkeeping(depCount2) {
-  return {
-    batch: new Array(depCount2).fill(null),
-    waveData: Array.from({ length: depCount2 }, () => []),
-    waveTokens: new Array(depCount2).fill(void 0),
-    waveLive: Array.from({ length: depCount2 }, () => []),
-    prev: new Array(depCount2).fill(SENTINEL),
-    hasData: new Array(depCount2).fill(false),
-    dirty: new Array(depCount2).fill(false),
-    tier: new Array(depCount2).fill(0),
-    terminal: new Array(depCount2).fill(void 0),
-    terminalInput: new Array(depCount2).fill(void 0),
+  const dep = {
+    batch: new Array(depCount2),
+    waveData: new Array(depCount2),
+    waveTokens: new Array(depCount2),
+    waveLive: new Array(depCount2),
+    prev: new Array(depCount2),
+    hasData: new Array(depCount2),
+    dirty: new Array(depCount2),
+    tier: new Array(depCount2),
+    terminal: new Array(depCount2),
+    terminalInput: new Array(depCount2),
     unsubs: [],
     idxBoxes: []
   };
+  for (let i = 0; i < depCount2; i++) {
+    dep.batch[i] = null;
+    dep.waveData[i] = [];
+    dep.waveTokens[i] = void 0;
+    dep.waveLive[i] = [];
+    dep.prev[i] = SENTINEL;
+    dep.hasData[i] = false;
+    dep.dirty[i] = false;
+    dep.tier[i] = 0;
+    dep.terminal[i] = void 0;
+    dep.terminalInput[i] = void 0;
+  }
+  return dep;
 }
 
 // packages/ts/src/graph/environment.ts

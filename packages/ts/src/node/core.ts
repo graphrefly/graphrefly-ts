@@ -282,18 +282,31 @@ export class NodeCore {
 }
 
 export function makeDepBookkeeping(depCount: number): DepBookkeeping {
-	return {
-		batch: new Array(depCount).fill(null),
-		waveData: Array.from({ length: depCount }, () => []),
-		waveTokens: new Array(depCount).fill(undefined),
-		waveLive: Array.from({ length: depCount }, () => []),
-		prev: new Array(depCount).fill(SENTINEL),
-		hasData: new Array(depCount).fill(false),
-		dirty: new Array(depCount).fill(false),
-		tier: new Array(depCount).fill(0),
-		terminal: new Array(depCount).fill(undefined),
-		terminalInput: new Array(depCount).fill(undefined),
+	const dep: DepBookkeeping = {
+		batch: new Array(depCount),
+		waveData: new Array(depCount),
+		waveTokens: new Array(depCount),
+		waveLive: new Array(depCount),
+		prev: new Array(depCount),
+		hasData: new Array(depCount),
+		dirty: new Array(depCount),
+		tier: new Array(depCount),
+		terminal: new Array(depCount),
+		terminalInput: new Array(depCount),
 		unsubs: [],
 		idxBoxes: [],
 	};
+	for (let i = 0; i < depCount; i++) {
+		dep.batch[i] = null;
+		dep.waveData[i] = [];
+		dep.waveTokens[i] = undefined;
+		dep.waveLive[i] = [];
+		dep.prev[i] = SENTINEL;
+		dep.hasData[i] = false;
+		dep.dirty[i] = false;
+		dep.tier[i] = 0;
+		dep.terminal[i] = undefined;
+		dep.terminalInput[i] = undefined;
+	}
+	return dep;
 }

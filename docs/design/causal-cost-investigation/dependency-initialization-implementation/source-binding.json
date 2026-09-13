@@ -1,0 +1,15 @@
+{
+	"base_commit": "8253488bd7458a8f6caeb31e79fa04e4f870c77b",
+	"source": [
+		{
+			"path": "packages/ts/src/node/core.ts",
+			"before_sha256": "c49794c2ae081aecc4b8d198d4745d2ad8b410fb2ae94493b4ee48b42c105472",
+			"after_sha256": "87d482706dd0476297f191b485fb14cbbebc8298dd126d8005d8548f2423041c"
+		},
+		{
+			"path": "packages/ts/runners/local-untrusted-js/local-untrusted-js-runner.mjs",
+			"before_sha256": "3525f162a2071377e770198838728f107c1c319e27a8ac21f303059befa8021f",
+			"after_sha256": "4ddf700837e5853e944d1859287fd456a065458362a76a2c1d5ac8f535566d71"
+		}
+	]
+}

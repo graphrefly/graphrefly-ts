@@ -12,9 +12,10 @@
   相同 reference 的方法控制和记录方式实验是不同问题，不能互相替代。
 - **已结束的方向：** EAGER/DEFERRED 记录实验结果 mixed，未达到预先约定的一致改善规则。
   不追加轮次、不采用延后记录、不宣称 library 回归或全局变慢。
-- **本轮完成：** [依赖初始化源码审查](dependency-initialization-review/README.md)。六个当前源码文件
-  与采集输入一致；未发现重复初始化或可直接删除的状态。推荐仅将 eager 初始化改为单循环的
-  有限候选，保留12+2n数组与全部生命周期行为；尚未实现或测量，收益未知。
+- **本轮完成：** [单循环初始化候选](dependency-initialization-implementation/README.md)已实现，
+  保留原有数组与生命周期行为。默认测试2550通过/2个冻结清单失败；build/export、类型检查、
+  73个causal、16个consumer及7个plain/reference mutation通过。root soak219通过/2个超时，
+  原因未确定；候选离线资格未完整通过，未采样、未宣称性能收益。
 
 [替代设计](clock-anchor-design/README.md)已经落实为私有准备探针，不改registry C或library公开层级。
 
@@ -51,17 +52,16 @@
 
 ## 下一项的完成条件
 
-[依赖初始化源码审查](dependency-initialization-review/README.md)已完成。下一项是审阅单函数
-single-pass eager 初始化候选；不改数组表示、生命周期、registry C或公开层级。获准后先做
-行为与离线资格，再准备有限、无profiler插桩的consumer对比；没有已证明的第二项优化收益。
-原capture授权已消费，不追加同类采样。具体候选与退出条件见审查报告。
+[单循环初始化候选](dependency-initialization-implementation/README.md)已实现并保留193文件验证归档。
+下一步先核对root soak development-3/target与development-4/target的超时，不能直接归为
+既有失败或本次回归。对比方案已写，但新性能采集尚未就绪；不扩大deadline，不追加同类profile。
 
 [保留日志审计](retained-runtime-audit/README.md#next-investigation-boundary)给出具体证据要求。
 进入新capture前，设计必须能把构造窗口、GC与CPU采样放到有误差界的时间轴，并通过
 测试替身核实；采样栈按模块/源码归属，native/idle/丢失部分明确未知。比较插桩扰动，
 预先固定有限预算与停止条件。不能以“有profile文件”替代可解释的归因。
 
-当前没有被证明的单一构造热点，不能自动优化第二个函数或重做registry/C；不能用
+当前没有被证明的单一构造热点；已批准的单函数候选仍未测量，不能扩至其他函数或重做registry/C；不能用
 elapsed减process CPU推算等待。无法定位时明确收敛到unknown，不再重复同类采样。
 
 最终分级公开入口、qualified inbox、human/agent理解证据和正式性能资格仍未完成。
