@@ -1,0 +1,9 @@
+{
+  "action": "one single-version dependency comparison",
+  "preparedDigest": "106d8c8186f6df00afded9573c1ed57a7debc4f0b987b85ed2585b0e0d8752e3",
+  "children": 32,
+  "samples": 3840,
+  "retries": 0,
+  "executionRoot": "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/single-version-rss-tools/prepared",
+  "exampleOnly": true
+}

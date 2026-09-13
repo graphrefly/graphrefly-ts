@@ -1,0 +1,13 @@
+{
+  "owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "userMessage": "\u540c\u610f\u4fee\u590d\uff0c\u76f4\u5230\u53ef\u4ee5\u91c7\u96c6\u5230\u6240\u6709\u8bc1\u636e",
+  "scope": "complete evidence after qualified E-state RSS settlement repair; previous29/32 attempt retained; fresh complete32processes with unchanged order/workload/limits; no numerical-result-dependent extension",
+  "approval": {
+    "action": "one single-version dependency comparison",
+    "preparedDigest": "dd577b1d1f033268c923c3097d4450a4d434ddefada85dc90861e707cab0931a",
+    "children": 32,
+    "samples": 3840,
+    "retries": 0,
+    "executionRoot": "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/single-version-rss-v2-tools/prepared"
+  }
+}
