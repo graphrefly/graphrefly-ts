@@ -1,0 +1,123 @@
+{
+  "verified": true,
+  "files": 1988,
+  "archiveSha256": "466bc9688d40299b07913322d71f428d691e9f1832906de717b2868b26849294",
+  "indexSha256": "3cc257bec295e3ec70f18f244b6f1a4f439facb5d083b94b39ebd284e9bd7da5",
+  "checks": [
+    {
+      "tool": "verify-causal-position-current.py",
+      "evidence": "causal-position-current-v2/run",
+      "matched": true
+    },
+    {
+      "tool": "verify-causal-coverage-profile.py",
+      "evidence": "causal-coverage-profile-current-v2/run",
+      "matched": true
+    },
+    {
+      "tool": "audit-causal-performance-coverage.py",
+      "evidence": "causal-performance-coverage-current-v1/run",
+      "matched": true
+    },
+    {
+      "tool": "audit-causal-performance-coverage.py",
+      "evidence": "causal-performance-coverage-current-v2/run",
+      "matched": true
+    },
+    {
+      "tool": "audit-causal-action-cpu.py",
+      "evidence": "causal-action-cpu-current-v1",
+      "matched": true
+    },
+    {
+      "tool": "check-causal-selection-batch-probe.mjs",
+      "passed": true,
+      "result": {
+        "passed": true,
+        "changedFunctions": [
+          "buildBusiness"
+        ],
+        "referenceByteIdentical": true,
+        "cases": [
+          {
+            "name": "duplicates",
+            "records": [
+              {
+                "originalGroups": 0,
+                "groupedGroups": 0,
+                "messages": 0
+              },
+              {
+                "originalGroups": 2,
+                "groupedGroups": 1,
+                "messages": 2
+              }
+            ]
+          },
+          {
+            "name": "pending",
+            "records": [
+              {
+                "originalGroups": 0,
+                "groupedGroups": 0,
+                "messages": 0
+              },
+              {
+                "originalGroups": 1,
+                "groupedGroups": 1,
+                "messages": 1
+              }
+            ]
+          },
+          {
+            "name": "invalid-middle",
+            "records": [
+              {
+                "originalGroups": 0,
+                "groupedGroups": 0,
+                "messages": 0
+              },
+              {
+                "originalGroups": 3,
+                "groupedGroups": 1,
+                "messages": 3
+              }
+            ]
+          },
+          {
+            "name": "unknown",
+            "records": [
+              {
+                "originalGroups": 0,
+                "groupedGroups": 0,
+                "messages": 0
+              },
+              {
+                "originalGroups": 1,
+                "groupedGroups": 1,
+                "messages": 1
+              }
+            ]
+          },
+          {
+            "name": "empty",
+            "records": [
+              {
+                "originalGroups": 0,
+                "groupedGroups": 0,
+                "messages": 0
+              },
+              {
+                "originalGroups": 0,
+                "groupedGroups": 0,
+                "messages": 0
+              }
+            ]
+          }
+        ],
+        "performanceSamples": 0
+      }
+    }
+  ],
+  "formalConsumerQualified": false
+}
