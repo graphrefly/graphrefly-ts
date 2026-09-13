@@ -1,0 +1,49 @@
+{
+  "ownerContext": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "baseline": "0e15fe0263ab452be3dd0a35938d757554c5f910",
+  "productFiles": [
+    "packages/ts/src/solutions/causal-occurrence/identity.ts"
+  ],
+  "beforeSourceSha256": "1ef482e7d925149aad592567211c54843b53a3aa819d19677d88c79a59d930ec",
+  "afterSourceSha256": "54d7cee52121d369f5112e1bba363acd9c4b9d8651d565751b1cc6190799553a",
+  "bundles": {
+    "before": "6a09a8ec70b27d186885d72e6a6af287f460c9f505f9962c2bacf9a303dfccca",
+    "after": "b83e13b0fa8cb6735c4434ae9dd8b1085a9698425e3bcc8fc8c998903e1e52e0"
+  },
+  "checks": {
+    "fullTests": {
+      "passed": 2556,
+      "failed": 2,
+      "skipped": 4,
+      "failureScope": "Existing D159 root-eval manifest drift; full gate not green"
+    },
+    "focusedTests": 5,
+    "runtimeMutationsKilled": 73,
+    "scopedBiome": true,
+    "exampleTypechecks": true,
+    "testTypecheck": true,
+    "asyncBoundary": true,
+    "buildExports": true,
+    "independentSourceReview": "No accepted-DATA regression found; read-only review",
+    "independentArtifactVerification": true,
+    "reindexedNegativeCases": 6
+  },
+  "performance": {
+    "processes": 21,
+    "samples": 126,
+    "preflights": 42,
+    "independentProcessRepeatsPerRow": 3,
+    "beforeBeforeControls": 3,
+    "excludedAttempt": "causal-ref-comparison-v1",
+    "includedAttempt": "causal-ref-comparison-v1-final",
+    "formalQualification": false
+  },
+  "workComplete": false,
+  "authorityUpdated": false,
+  "limits": [
+    "No universal-consumer latency or memory conclusion",
+    "No formal p95 or overall100ms pass",
+    "Full default test gate still has two historical manifest failures",
+    "Only scoped authored-file lint run; immutable raw archive not relinted"
+  ]
+}

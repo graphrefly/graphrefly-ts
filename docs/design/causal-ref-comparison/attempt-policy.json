@@ -1,0 +1,6 @@
+{
+  "excludedAttempt": "archive/evals/causal-ref-comparison-v1",
+  "reason": "Short focused-test process overlapped capture start; complete raw attempt retained, excluded entirely from benefit conclusions.",
+  "nextAttempt": "archive/evals/causal-ref-comparison-v1-final",
+  "method": "Identical source, input, jobs and bounds; run only after all test/build/mutation children finish. No splicing."
+}

@@ -226,11 +226,9 @@ export function validTerminal(value: CausalBranchTerminal): boolean {
 }
 
 export function sameRef(left: CausalOccurrenceRef, right: CausalOccurrenceRef): boolean {
-	return (
-		refKey(left) === refKey(right) &&
-		left.digest === right.digest &&
-		dataKey(left.sourceRefs) === dataKey(right.sourceRefs)
-	);
+	// refKey already includes digest and the full canonical sourceRefs value.
+	// Retained/accepted DATA needs no second serialization of the same coordinates.
+	return refKey(left) === refKey(right);
 }
 
 export function validResult(value: DataResult<unknown>): boolean {

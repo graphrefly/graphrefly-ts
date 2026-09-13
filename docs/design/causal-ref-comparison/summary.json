@@ -1,0 +1,463 @@
+{
+  "verified": true,
+  "formalQualification": false,
+  "processes": 21,
+  "samples": 126,
+  "preflights": 42,
+  "summary": [
+    {
+      "profile": "P1",
+      "dataCount": 1,
+      "beforeMedianMs": 1.2467080000000124,
+      "afterMedianMs": 1.1650840000000073,
+      "ratios": [
+        1.0223925730804662,
+        0.9684196327552774,
+        0.8279154379108213
+      ]
+    },
+    {
+      "profile": "P1",
+      "dataCount": 2,
+      "beforeMedianMs": 8.291957999999994,
+      "afterMedianMs": 7.171166999999997,
+      "ratios": [
+        0.8824819200963074,
+        0.8792774422953115,
+        0.8613063404324993
+      ]
+    },
+    {
+      "profile": "P3",
+      "dataCount": 1,
+      "beforeMedianMs": 18.117042000000026,
+      "afterMedianMs": 16.43954199999996,
+      "ratios": [
+        0.9157567870271736,
+        0.9071040292998491,
+        0.9074076220610371
+      ]
+    },
+    {
+      "profile": "P3",
+      "dataCount": 2,
+      "beforeMedianMs": 132.38350000000003,
+      "afterMedianMs": 114.92775000000006,
+      "ratios": [
+        0.8681425555299568,
+        0.8772873101687081,
+        0.8655236506876337
+      ]
+    },
+    {
+      "profile": "P6",
+      "dataCount": 1,
+      "beforeMedianMs": 101.77137499999981,
+      "afterMedianMs": 99.09995799999979,
+      "ratios": [
+        0.9686548702340916,
+        0.9473548791321817,
+        0.973750801735753
+      ]
+    },
+    {
+      "profile": "P6",
+      "dataCount": 2,
+      "beforeMedianMs": 640.0380409999998,
+      "afterMedianMs": 572.4155419999997,
+      "ratios": [
+        0.8960758785057024,
+        0.8943461252797628,
+        0.8961511669821203
+      ]
+    }
+  ],
+  "controls": [
+    {
+      "job": {
+        "id": 18,
+        "profile": "P1",
+        "count": 2,
+        "repeat": 0,
+        "control": true,
+        "order": [
+          "before",
+          "before"
+        ]
+      },
+      "beforeMedianMs": 7.950334000000026,
+      "afterMedianMs": 7.558667000000014,
+      "ratio": 0.9507357804087211
+    },
+    {
+      "job": {
+        "id": 19,
+        "profile": "P3",
+        "count": 2,
+        "repeat": 0,
+        "control": true,
+        "order": [
+          "before",
+          "before"
+        ]
+      },
+      "beforeMedianMs": 132.31220800000017,
+      "afterMedianMs": 129.64145800000006,
+      "ratio": 0.9798147877631964
+    },
+    {
+      "job": {
+        "id": 20,
+        "profile": "P6",
+        "count": 2,
+        "repeat": 0,
+        "control": true,
+        "order": [
+          "before",
+          "before"
+        ]
+      },
+      "beforeMedianMs": 643.7973750000001,
+      "afterMedianMs": 633.3072499999998,
+      "ratio": 0.9837058593163722
+    }
+  ],
+  "rows": [
+    {
+      "job": {
+        "id": 0,
+        "profile": "P1",
+        "count": 1,
+        "repeat": 0,
+        "control": false,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 1.2467080000000124,
+      "afterMedianMs": 1.2746250000000146,
+      "ratio": 1.0223925730804662
+    },
+    {
+      "job": {
+        "id": 1,
+        "profile": "P1",
+        "count": 1,
+        "repeat": 1,
+        "control": false,
+        "order": [
+          "after",
+          "before"
+        ]
+      },
+      "beforeMedianMs": 1.089790999999991,
+      "afterMedianMs": 1.055374999999998,
+      "ratio": 0.9684196327552774
+    },
+    {
+      "job": {
+        "id": 2,
+        "profile": "P1",
+        "count": 1,
+        "repeat": 2,
+        "control": false,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 1.4072500000000048,
+      "afterMedianMs": 1.1650840000000073,
+      "ratio": 0.8279154379108213
+    },
+    {
+      "job": {
+        "id": 3,
+        "profile": "P1",
+        "count": 2,
+        "repeat": 0,
+        "control": false,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 8.306874999999991,
+      "afterMedianMs": 7.330667000000005,
+      "ratio": 0.8824819200963074
+    },
+    {
+      "job": {
+        "id": 4,
+        "profile": "P1",
+        "count": 2,
+        "repeat": 1,
+        "control": false,
+        "order": [
+          "after",
+          "before"
+        ]
+      },
+      "beforeMedianMs": 8.155750000000012,
+      "afterMedianMs": 7.171166999999997,
+      "ratio": 0.8792774422953115
+    },
+    {
+      "job": {
+        "id": 5,
+        "profile": "P1",
+        "count": 2,
+        "repeat": 2,
+        "control": false,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 8.291957999999994,
+      "afterMedianMs": 7.141915999999981,
+      "ratio": 0.8613063404324993
+    },
+    {
+      "job": {
+        "id": 6,
+        "profile": "P3",
+        "count": 1,
+        "repeat": 0,
+        "control": false,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 18.191874999999982,
+      "afterMedianMs": 16.659332999999947,
+      "ratio": 0.9157567870271736
+    },
+    {
+      "job": {
+        "id": 7,
+        "profile": "P3",
+        "count": 1,
+        "repeat": 1,
+        "control": false,
+        "order": [
+          "after",
+          "before"
+        ]
+      },
+      "beforeMedianMs": 17.691832999999974,
+      "afterMedianMs": 16.048333000000014,
+      "ratio": 0.9071040292998491
+    },
+    {
+      "job": {
+        "id": 8,
+        "profile": "P3",
+        "count": 1,
+        "repeat": 2,
+        "control": false,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 18.117042000000026,
+      "afterMedianMs": 16.43954199999996,
+      "ratio": 0.9074076220610371
+    },
+    {
+      "job": {
+        "id": 9,
+        "profile": "P3",
+        "count": 2,
+        "repeat": 0,
+        "control": false,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 132.38350000000003,
+      "afterMedianMs": 114.92775000000006,
+      "ratio": 0.8681425555299568
+    },
+    {
+      "job": {
+        "id": 10,
+        "profile": "P3",
+        "count": 2,
+        "repeat": 1,
+        "control": false,
+        "order": [
+          "after",
+          "before"
+        ]
+      },
+      "beforeMedianMs": 132.46558300000015,
+      "afterMedianMs": 116.21037499999989,
+      "ratio": 0.8772873101687081
+    },
+    {
+      "job": {
+        "id": 11,
+        "profile": "P3",
+        "count": 2,
+        "repeat": 2,
+        "control": false,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 132.02941699999997,
+      "afterMedianMs": 114.2745829999999,
+      "ratio": 0.8655236506876337
+    },
+    {
+      "job": {
+        "id": 12,
+        "profile": "P6",
+        "count": 1,
+        "repeat": 0,
+        "control": false,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 102.4574160000002,
+      "afterMedianMs": 99.24587500000052,
+      "ratio": 0.9686548702340916
+    },
+    {
+      "job": {
+        "id": 13,
+        "profile": "P6",
+        "count": 1,
+        "repeat": 1,
+        "control": false,
+        "order": [
+          "after",
+          "before"
+        ]
+      },
+      "beforeMedianMs": 100.91470800000025,
+      "afterMedianMs": 95.60204099999964,
+      "ratio": 0.9473548791321817
+    },
+    {
+      "job": {
+        "id": 14,
+        "profile": "P6",
+        "count": 1,
+        "repeat": 2,
+        "control": false,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 101.77137499999981,
+      "afterMedianMs": 99.09995799999979,
+      "ratio": 0.973750801735753
+    },
+    {
+      "job": {
+        "id": 15,
+        "profile": "P6",
+        "count": 2,
+        "repeat": 0,
+        "control": false,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 636.0000840000002,
+      "afterMedianMs": 569.9043340000007,
+      "ratio": 0.8960758785057024
+    },
+    {
+      "job": {
+        "id": 16,
+        "profile": "P6",
+        "count": 2,
+        "repeat": 1,
+        "control": false,
+        "order": [
+          "after",
+          "before"
+        ]
+      },
+      "beforeMedianMs": 640.0380409999998,
+      "afterMedianMs": 572.4155419999997,
+      "ratio": 0.8943461252797628
+    },
+    {
+      "job": {
+        "id": 17,
+        "profile": "P6",
+        "count": 2,
+        "repeat": 2,
+        "control": false,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "beforeMedianMs": 640.4332919999997,
+      "afterMedianMs": 573.9250420000008,
+      "ratio": 0.8961511669821203
+    },
+    {
+      "job": {
+        "id": 18,
+        "profile": "P1",
+        "count": 2,
+        "repeat": 0,
+        "control": true,
+        "order": [
+          "before",
+          "before"
+        ]
+      },
+      "beforeMedianMs": 7.950334000000026,
+      "afterMedianMs": 7.558667000000014,
+      "ratio": 0.9507357804087211
+    },
+    {
+      "job": {
+        "id": 19,
+        "profile": "P3",
+        "count": 2,
+        "repeat": 0,
+        "control": true,
+        "order": [
+          "before",
+          "before"
+        ]
+      },
+      "beforeMedianMs": 132.31220800000017,
+      "afterMedianMs": 129.64145800000006,
+      "ratio": 0.9798147877631964
+    },
+    {
+      "job": {
+        "id": 20,
+        "profile": "P6",
+        "count": 2,
+        "repeat": 0,
+        "control": true,
+        "order": [
+          "before",
+          "before"
+        ]
+      },
+      "beforeMedianMs": 643.7973750000001,
+      "afterMedianMs": 633.3072499999998,
+      "ratio": 0.9837058593163722
+    }
+  ]
+}
