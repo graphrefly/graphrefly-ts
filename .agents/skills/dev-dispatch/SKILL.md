@@ -16,24 +16,12 @@ The user's task/context is: $ARGUMENTS
 ### Mode detection
 If `$ARGUMENTS` contains `--light`, this is **light mode**. Otherwise **full mode**. Differences are noted inline per phase.
 
-### Repository ownership practice
+### Shared build and preview
 
-Apply the global `repository-ownership-practice` skill unless `$ARGUMENTS` explicitly contains
-`--delivery-only`.
-
-- Before broad context loading, pause for the user's OWN card and best-effort PREDICT card.
-- Map one concrete input-to-output path before proposing implementation. Limit the implementation map to five
-  files and eight symbols; targeted authority records do not count toward that cap, but load only records that
-  govern the slice.
-- Preserve the user's first debugging pass: hypotheses and cheapest discriminators before a generated fix.
-- Freeze one Given/When/Then behavior and its stopping boundary before code.
-- Finish with diff, behavior, and trace evidence plus the user's TEACH-BACK checkpoint and next-day five
-  questions.
-- Do not begin another slice in the same turn after the teach-back checkpoint. Waiting for the user leaves any
-  Goal active; it is not a blocker.
-
-`--delivery-only` skips waiting for the user's cards and teach-back, not the narrow map, frozen contract,
-three-layer verification, or ownership handoff. Label such work `delivered, not yet ownership-verified`.
+Use `~/.codex/skills/bmad-build/SKILL.md` inside the selected implementation slice, retaining this
+workflow's authority, sequencer and gates. Use `~/.codex/skills/bmad-checkpoint-preview/SKILL.md` for
+human review: build-handoff mode during ordinary delivery; interactive mode for explicit checkpoint
+or `--practice` requests. No prediction or teach-back is required.
 
 ### Workflow floor (non-negotiable)
 - **decision-first and owner-first**: any architectural lock needs an origin-qualified `D#` in its unique owner ledger from `~/src/graphrefly/authority/ledgers.jsonl` BEFORE code (`/design-review` → user approval → append). Cross-project/protocol locks stay in root; TypeScript-only product or implementation locks live in `graphrefly-ts:decisions/decisions.jsonl`. Decisions locked ≠ implementation approved — wait for an explicit "implement".
@@ -155,5 +143,5 @@ After user approves (full mode) or after Phase 1 (light mode, no escalation):
 
 If implementation leaves an **open architectural decision** (deferred behavior, parity caveat, "needs spec" item), append it to `~/src/graphrefly/plan/backlog.jsonl` (B# + trigger) — NOT a docs file. If it **lands or advances a CSP-* phase**, update that phase's `status`/`note` in `~/src/graphrefly/plan/phases.jsonl`, flip any conformance-backed `draft` rule to `active` once its scenario is green per arm, then run the consistency gate.
 
-When done, briefly list files changed and new exports added. Run the ownership handoff before suggesting `/qa`.
-In practice mode, wait for the user's teach-back before starting another implementation slice.
+When done, briefly list files changed and new exports added. Apply the shared BMAD QA process with local gates, then provide the checkpoint preview trail.
+Wait for review navigation only when interactive checkpoint mode was explicitly requested.
