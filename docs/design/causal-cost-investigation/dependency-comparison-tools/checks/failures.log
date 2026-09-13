@@ -1,0 +1,20 @@
+CAPTURE_DONE initialization failure synthetic metadata probe
+FAILURE_QUALIFIED initial-probe
+CAPTURE_DONE {"completed": 0, "failure": "synthetic spawn"}
+FAILURE_QUALIFIED spawn
+CAPTURE_DONE {"completed": 0, "failure": "KeyboardInterrupt"}
+FAILURE_QUALIFIED interrupt
+CAPTURE_DONE {"completed": 0, "failure": "RSS guard"}
+FAILURE_QUALIFIED rss
+CAPTURE_DONE {"completed": 0, "failure": "host observation gap"}
+FAILURE_QUALIFIED observation-gap
+CAPTURE_DONE {"completed": 0, "failure": "synthetic ps"}
+FAILURE_QUALIFIED cleanup-race
+CAPTURE_DONE {"completed": 0, "failure": "RSS guard; cleanup unconfirmed: synthetic cleanup"}
+FAILURE_QUALIFIED cleanup-error
+CAPTURE_DONE {"completed": 0, "failure": "wake drift"}
+FAILURE_QUALIFIED wake-after
+CAPTURE_DONE {"completed": 0, "failure": "asset drift ['B.mjs']"}
+FAILURE_QUALIFIED asset-drift
+CAPTURE_DONE {"completed": 0, "failure": "RSS guard; cleanup unconfirmed: synthetic cleanup; wake check: synthetic wake failure"}
+FAILURE_QUALIFIED cleanup-wake-error

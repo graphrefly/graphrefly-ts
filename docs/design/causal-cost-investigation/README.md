@@ -53,9 +53,10 @@
 ## 下一项的完成条件
 
 [单循环初始化候选](dependency-initialization-implementation/README.md)与193文件验证归档保留。
-[soak超时核对](soak-timeout-audit/README.md)已完成，原deadline两项重验通过。下一步准备
-已提出的有限、无profiler对比工具，并把主机休眠识别/停止纳入准备审查；不重跑整套soak，
-不把历史fixture子进程超时认作当前library性能回归，不自动启动新性能采集。
+[soak超时核对](soak-timeout-audit/README.md)已完成，原deadline两项重验通过。
+[有限对比工具](dependency-comparison-tools/README.md)已冻结并完成合成资格检查：
+48假子进程/6720假样本、10类失败、23种证据损坏、198文件归档回放。
+下一步审阅一次48进程/6720样本的真实采集范围；本批没有真实采集授权，候选收益仍未知。
 
 [保留日志审计](retained-runtime-audit/README.md#next-investigation-boundary)给出具体证据要求。
 进入新capture前，设计必须能把构造窗口、GC与CPU采样放到有误差界的时间轴，并通过

@@ -1,0 +1,21 @@
+{
+  "kind": "private-tooling-qualification",
+  "realConsumerExecutions": 0,
+  "realPerformanceSamples": 0,
+  "fakeChildren": 48,
+  "syntheticSamples": 6720,
+  "failureCases": 10,
+  "rejectedEvidenceMutations": 23,
+  "clockRejectionCases": 4,
+  "archiveFilesVerified": 198,
+  "archiveVerifierByteIdentical": true,
+  "frozenManifestSha256": "104dc394658be721db0f08a1be08ad5bdf9a7fbac76bee5a25d58efd80949be6",
+  "gates": {
+    "dashboardCheck": 0,
+    "workspaceAuthorityCheck": 0,
+    "diffCheck": 0
+  },
+  "preExistingDirtyFilesPreserved": 22,
+  "actualCaptureAuthorized": false,
+  "productionChangedThisBatch": false
+}
