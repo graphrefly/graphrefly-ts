@@ -174,21 +174,38 @@ export function isEvidenceTerminal<T>(
 	const { state, opts } = context;
 
 	const { watermark, occurrences } = domain;
-	const evidenceTerminal =
-		![...state.pendingEvidence.values()].some(
-			(evidence) =>
-				evidence.occurrence.revisionDomain === revisionDomain &&
-				evidence.occurrence.revision <= watermark,
-		) &&
-		occurrences.every((occurrence) =>
-			opts.requiredEvidenceKinds.every((kind) =>
-				[...state.evidence.values(), ...state.coverageGaps.values()].some(
-					(entry) =>
-						sameRef(entry.occurrence, occurrence) &&
-						entry.evidenceKind === kind &&
-						terminalCoverage.has(entry.coverage),
-				),
-			),
-		);
-	return evidenceTerminal;
+	for (const evidence of state.pendingEvidence.values()) {
+		if (
+			evidence.occurrence.revisionDomain === revisionDomain &&
+			evidence.occurrence.revision <= watermark
+		)
+			return false;
+	}
+	if (occurrences.length === 0 || opts.requiredEvidenceKinds.length === 0) return true;
+
+	// All entries here are retained canonical snapshots. refKey includes every
+	// sameRef coordinate, including the full sourceRefs value. Compute it once
+	// per entry in this query rather than once per occurrence/kind comparison.
+	// This scratch map never survives the transition or becomes retained authority.
+	const covered = new Map<string, Set<string>>();
+	for (const records of [state.evidence, state.coverageGaps]) {
+		for (const entry of records.values()) {
+			if (
+				entry.occurrence.revisionDomain !== revisionDomain ||
+				!terminalCoverage.has(entry.coverage)
+			)
+				continue;
+			const key = refKey(entry.occurrence);
+			let kinds = covered.get(key);
+			if (kinds === undefined) {
+				kinds = new Set();
+				covered.set(key, kinds);
+			}
+			kinds.add(entry.evidenceKind);
+		}
+	}
+	return occurrences.every((occurrence) => {
+		const kinds = covered.get(refKey(occurrence));
+		return opts.requiredEvidenceKinds.every((kind) => kinds?.has(kind) === true);
+	});
 }
