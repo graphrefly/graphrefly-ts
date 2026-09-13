@@ -1,0 +1,23 @@
+{
+  "ownerContext": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "base": "f44f8f54a3844726bb9fcbf97eee0f741f704768",
+  "productChanged": false,
+  "processes": 4,
+  "profiles": 20,
+  "formalQualified": false,
+  "workComplete": false,
+  "authorityUpdated": false,
+  "verification": [
+    "artifact inventory and hashes",
+    "CPU sample structure and location attribution",
+    "four reindexed corruptions rejected",
+    "exact worker rebuild and git source provenance",
+    "scoped Biome and Python syntax"
+  ],
+  "limits": [
+    "P6 only; no global-consumer performance claim",
+    "sample counts are not exact time percentages",
+    "no new unprofiled latency or formal qualification",
+    "archive is not a standalone source build environment"
+  ]
+}
