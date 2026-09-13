@@ -1,0 +1,30 @@
+{
+  "kind": "hrtime-anchor-qualification-v1",
+  "qualified": true,
+  "alignmentQualified": true,
+  "mappingQualified": true,
+  "failure": null,
+  "offsetIntervalExactMs": [
+    "-1073261076011791087604653479/4398046511104000000",
+    "-4293044303207119874611203/17592186044416000"
+  ],
+  "widthExactMs": "210011118951852729/4398046511104000000",
+  "widthMs": 0.04775100000002856,
+  "sameClockWidthMs": 0.003750000000028564,
+  "sleepIntervalWidthMs": 0.001375,
+  "quantizationWidthMs": 0.042625,
+  "knownFunctionMapping": {
+    "knownArithmeticPhase": {
+      "certain": 465,
+      "ambiguous": 0,
+      "wrong": 0
+    },
+    "knownStringPhase": {
+      "certain": 149,
+      "ambiguous": 0,
+      "wrong": 0
+    }
+  },
+  "sampleCount": 680,
+  "consumerExecutions": 0
+}

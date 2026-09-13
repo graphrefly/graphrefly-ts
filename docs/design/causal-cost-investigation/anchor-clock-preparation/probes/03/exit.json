@@ -1,0 +1,15 @@
+{
+  "pid": 5807,
+  "exitCode": 0,
+  "reason": null,
+  "observations": [
+    {
+      "elapsed": 1.0678534579928964,
+      "childElapsed": 0.010236125002847984,
+      "gap": 0.010236125002847984,
+      "rssBytes": 1064960,
+      "directoryBytes": 26561
+    }
+  ],
+  "endedElapsed": 1.1779691250121687
+}

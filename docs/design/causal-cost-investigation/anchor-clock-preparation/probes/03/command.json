@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "/Users/davidchenallio/.local/share/mise/installs/node/24.18.0/bin/node",
+    "--expose-gc",
+    "/Users/davidchenallio/src/graphrefly-ts/scripts/probe-causal-anchor-clock.mjs",
+    "GC",
+    "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/anchor-clock-preparation/probes/03"
+  ],
+  "explicitEnvironment": {
+    "PATH": "/usr/bin:/bin",
+    "TMPDIR": "/tmp",
+    "LANG": "en_US.UTF-8",
+    "__CF_USER_TEXT_ENCODING": "0x1F5:0x0:0x0"
+  }
+}

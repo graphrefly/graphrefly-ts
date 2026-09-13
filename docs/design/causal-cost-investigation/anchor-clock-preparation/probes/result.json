@@ -1,0 +1,105 @@
+{
+  "probesQualified": true,
+  "children": [
+    {
+      "id": 0,
+      "kind": "CPU",
+      "outcome": {
+        "pid": 5785,
+        "exitCode": 0,
+        "reason": null,
+        "observations": [
+          {
+            "elapsed": 0.15676754200831056,
+            "childElapsed": 0.009033792011905462,
+            "gap": 0.009033792011905462,
+            "rssBytes": 983040,
+            "directoryBytes": 503
+          },
+          {
+            "elapsed": 0.2712018330057617,
+            "childElapsed": 0.12346808300935663,
+            "gap": 0.11443429099745117,
+            "rssBytes": 59932672,
+            "directoryBytes": 600
+          }
+        ],
+        "endedElapsed": 0.3795713750005234
+      }
+    },
+    {
+      "id": 1,
+      "kind": "CPU",
+      "outcome": {
+        "pid": 5788,
+        "exitCode": 0,
+        "reason": null,
+        "observations": [
+          {
+            "elapsed": 0.46243041701382026,
+            "childElapsed": 0.007984084018971771,
+            "gap": 0.007984084018971771,
+            "rssBytes": 983040,
+            "directoryBytes": 8377
+          },
+          {
+            "elapsed": 0.5702442500041798,
+            "childElapsed": 0.11579791700933129,
+            "gap": 0.10781383299035951,
+            "rssBytes": 59932672,
+            "directoryBytes": 8474
+          }
+        ],
+        "endedElapsed": 0.6803458330105059
+      }
+    },
+    {
+      "id": 2,
+      "kind": "CPU",
+      "outcome": {
+        "pid": 5802,
+        "exitCode": 0,
+        "reason": null,
+        "observations": [
+          {
+            "elapsed": 0.7647167080140207,
+            "childElapsed": 0.0076123750186525285,
+            "gap": 0.0076123750186525285,
+            "rssBytes": 933888,
+            "directoryBytes": 16955
+          },
+          {
+            "elapsed": 0.8707164170045871,
+            "childElapsed": 0.11361208400921896,
+            "gap": 0.10599970899056643,
+            "rssBytes": 59981824,
+            "directoryBytes": 17052
+          }
+        ],
+        "endedElapsed": 0.9795948750106618
+      }
+    },
+    {
+      "id": 3,
+      "kind": "GC",
+      "outcome": {
+        "pid": 5807,
+        "exitCode": 0,
+        "reason": null,
+        "observations": [
+          {
+            "elapsed": 1.0678534579928964,
+            "childElapsed": 0.010236125002847984,
+            "gap": 0.010236125002847984,
+            "rssBytes": 1064960,
+            "directoryBytes": 26561
+          }
+        ],
+        "endedElapsed": 1.1779691250121687
+      }
+    }
+  ],
+  "notRun": [],
+  "consumerExecutions": 0,
+  "captureToolingQualified": false
+}

@@ -1,0 +1,11 @@
+{
+  "qualified": true,
+  "kind": "GC-functional-probe",
+  "deliveredEvents": 2,
+  "windowOverlaps": [
+    1,
+    1
+  ],
+  "limitation": "Delivered subset overlap only, not proof of complete GC delivery",
+  "consumerExecutions": 0
+}

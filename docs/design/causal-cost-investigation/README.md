@@ -12,11 +12,11 @@
   相同 reference 的方法控制和记录方式实验是不同问题，不能互相替代。
 - **已结束的方向：** EAGER/DEFERRED 记录实验结果 mixed，未达到预先约定的一致改善规则。
   不追加轮次、不采用延后记录、不宣称 library 回归或全局变慢。
-- **本轮停止点：** [时钟准备探针](aligned-clock-preparation/README.md)首个 CPU 探针
-  对齐区间0.903669ms，超过0.1ms；其余三个探针停止，consumer执行零。当前启停区间
-  方法不够精确，尚不支持第二项library优化或新capture。
+- **本轮通过：** [hrtime锚点准备](anchor-clock-preparation/README.md)完成3CPU＋1GC探针；
+  CPU对齐区间0.04775–0.04892ms，低于0.1ms，已知函数误归属零。真实consumer执行零。
+  原启停区间失败保留；下一项是实际采集工具的替身资格，尚不支持第二项library优化。
 
-[最新设计](clock-anchor-design/README.md)不改registry C或library公开层级；只替代私有计时锚定。
+[替代设计](clock-anchor-design/README.md)已经落实为私有准备探针，不改registry C或library公开层级。
 
 所有此前真实 capture 授权均已消费。当前继续覆盖只读分析、总表更新和下一项准备；
 不授权新采样、provider/live/spend、公共 API、wave protocol 或新的语义锁。
@@ -39,16 +39,18 @@
 
 | 已停止：时间对齐准备 | [aligned-clock-preparation](aligned-clock-preparation/README.md) | 1个CPU探针，422样本；0.903669ms>0.1ms，余下3探针未运行；真实consumer零，不是library性能失败 |
 
+| 完成：hrtime替代时钟资格 | [anchor-clock-preparation](anchor-clock-preparation/README.md) | 3CPU＋1GC，1769CPU样本，1579已知确定/2模糊/0误归属；31冻结输入归档回放，真实consumer零 |
+
 旧版累计分配约2.24GB/100次包含已回收对象，不等于RSS。约206–242MiB的近期RSS是
 整个Node评测进程（模块、保留样本等），不能归给一个graph。当前没有单graph增量内存
 或优化降低RSS的结论。用户若优先问这一指标，须独立设计同运行时空基线与存活图数量对照。
 
 ## 下一项的完成条件
 
-[时间归因设计稿](aligned-runtime-design.md)限定三个条件与拟议12进程/28,800样本，
-时钟来源已核对，但首个准备探针精度未通过，后续采集准备已停止。
-[替代时间锚定设计](clock-anchor-design/README.md)已成稿：推荐首尾hrtime短锚点＋父Mach区间，
-纯算术核对通过，尚无运行时精度资格。待审阅后才能准备，不自动开始探针或consumer。
+[时间归因设计稿](aligned-runtime-design.md)限定三个条件与拟议12进程/28,800样本。
+[hrtime替代准备](anchor-clock-preparation/README.md)已通过固定版本的有限时钟/GC探针，
+真实capture工具仍未资格。下一批准备工具并用替身检查；不因probe通过自动启动consumer。
+真实每个进程仍须核对自身≤0.1ms区间，不能沿用probe偏移或保证其一定通过。
 
 [保留日志审计](retained-runtime-audit/README.md#next-investigation-boundary)给出具体证据要求。
 进入新capture前，设计必须能把构造窗口、GC与CPU采样放到有误差界的时间轴，并通过

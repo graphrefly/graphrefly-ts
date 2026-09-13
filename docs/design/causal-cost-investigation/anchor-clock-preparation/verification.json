@@ -1,0 +1,26 @@
+{
+  "freshArchiveReplay": {
+    "replay": true,
+    "frozenFiles": 31,
+    "cpuProbes": 3,
+    "gcProbes": 1,
+    "consumerExecutions": 0,
+    "widthsMs": [
+      0.0479180000000297,
+      0.04891766666669469,
+      0.04775100000002856
+    ],
+    "cpuSamples": 1769,
+    "certainKnownSamples": 1579,
+    "ambiguousKnownSamples": 2,
+    "wrongKnownSamples": 0,
+    "maxObservedRssMiB": 57.203125,
+    "maxObservationGapSeconds": 0.11443429099745117,
+    "lastChildEndedSeconds": 1.1779691250121687
+  },
+  "syntheticTests": 5,
+  "corruptInputCases": 14,
+  "preservedPriorDirtyFiles": 22,
+  "productionChanges": 0,
+  "fullTsSuiteRerun": false
+}
