@@ -34,6 +34,18 @@ const one = (s, a, b) => {
 	return s.replace(a, b);
 };
 const variants = [
+	{
+		id: "occurrence-id-only",
+		file: admission,
+		kind: "evidence-identity",
+		pattern: "receipt association preserves complete occurrence identity",
+		change: (s) =>
+			one(
+				s,
+				"occurrence === exactOccurrence",
+				"v.occurrence.occurrenceId === e.occurrence.occurrenceId",
+			),
+	},
 	{ id: "baseline", file: business, kind: "baseline", pattern: ".", change: (s) => s },
 	{
 		id: "population-variance",
@@ -138,8 +150,8 @@ const variants = [
 		change: (s) =>
 			one(
 				s,
-				"const verification = [...s.receipts.values()];",
-				"const verification = verificationFrames.flatMap(f=>f?.valid?f.value.receipts:[]);",
+				"const verification = [...s.receipts.values()].map",
+				"const verification = verificationFrames.flatMap(f=>f?.valid?f.value.receipts:[]).map",
 			),
 	},
 	{

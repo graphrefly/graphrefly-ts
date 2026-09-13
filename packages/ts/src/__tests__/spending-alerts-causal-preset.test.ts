@@ -796,3 +796,44 @@ it("D166 retains historical v1 receipt while a distinct v2 receipt recovers admi
 	r.send("verification", f.verification);
 	expect([...r.state().effects.values()][0].admission?.state).toBe("admitted");
 });
+
+it("D165 receipt association preserves complete occurrence identity and ordered evidence", () => {
+	const r = run(),
+		e = evaluationFixture(),
+		facts = policyFacts(e),
+		seen = evidenceOf(r);
+	const base = facts.verification.receipts[0];
+	const occurrences = [
+		{ ...e.occurrence, revisionDomain: `${e.occurrence.revisionDomain}-other` },
+		{ ...e.occurrence, revision: e.occurrence.revision + 1 },
+		{ ...e.occurrence, digest: `sha256:${"0".repeat(64)}` },
+		{ ...e.occurrence, sourceRefs: [{ kind: "different", id: "source" }] },
+		e.occurrence,
+		e.occurrence,
+	];
+	const receipts = occurrences.map((occurrence, i) => ({
+		...base,
+		occurrence,
+		receiptRef: { kind: "association-test", id: String(i) },
+	}));
+	r.send("verification", { ...facts.verification, receipts });
+	expect(seen.filter((x) => x.evidenceKind === "spending-verification")).toEqual([]);
+	r.send("pack", evaluationPack([e]));
+	const arrival = { packRef: presetBinding.packRef, evaluationRefs: [e.evaluationRef] };
+	const expected = receipts.slice(-2).map((v) => ({
+		occurrence: e.occurrence,
+		evidenceKind: "spending-verification",
+		evidenceId: oracleHash(oracleCanonical(v.receiptRef)),
+		evidenceDigest: oracleHash(oracleCanonical(v)),
+		coverage: "included",
+		refs: [v.artifactRef.id],
+	}));
+	for (let repeat = 0; repeat < 2; repeat++) {
+		seen.length = 0;
+		r.send("arrivals", arrival);
+		const actual = seen.filter((x) => x.evidenceKind === "spending-verification");
+		expect(actual.length).toBeGreaterThan(0);
+		expect(actual.length % 2).toBe(0);
+		for (let i = 0; i < actual.length; i += 2) expect(actual.slice(i, i + 2)).toEqual(expected);
+	}
+});

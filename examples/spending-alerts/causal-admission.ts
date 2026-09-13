@@ -413,9 +413,15 @@ export function buildAdmission(
 						const key = hash(receipt.receiptRef);
 						if (!s.receipts.has(key) && s.receipts.size < 64) s.receipts.set(key, receipt);
 					}
-			const verification = [...s.receipts.values()];
 			if (!s.valid[0]) return;
+			// Exact same() representation, computed once per receipt in this synchronous invocation.
+			// Keep receipt order and every emitted fact; nothing is retained beyond this call.
+			const verification = [...s.receipts.values()].map((receipt) => ({
+				receipt,
+				occurrence: occurrenceKey(receipt.occurrence),
+			}));
 			for (const { evaluation: e } of s.maps[0].values()) {
+				const exactOccurrence = occurrenceKey(e.occurrence);
 				for (const [kind, digest] of [
 					["spending-input", e.inputDigest],
 					[
@@ -437,7 +443,7 @@ export function buildAdmission(
 						],
 					]);
 				const material = s.valid[1]
-					? (s.maps[1].get(occurrenceKey(e.occurrence))?.value as MaterialResult | undefined)
+					? (s.maps[1].get(exactOccurrence)?.value as MaterialResult | undefined)
 					: undefined;
 				// Do not finalize a receipt classification while its material dependency is absent.
 				if (!material) continue;
@@ -447,8 +453,8 @@ export function buildAdmission(
 						: material.kind === "normal"
 							? hash({ kind: "no-publish", evaluationRef: e.evaluationRef })
 							: undefined;
-				for (const v of verification)
-					if (same(v.occurrence, e.occurrence))
+				for (const { receipt: v, occurrence } of verification)
+					if (occurrence === exactOccurrence)
 						emit([
 							[
 								"DATA",

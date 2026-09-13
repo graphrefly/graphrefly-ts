@@ -1,0 +1,25 @@
+{
+  "owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "baseline": "351a7ace",
+  "changedProductFile": "examples/spending-alerts/causal-admission.ts",
+  "newPersistentState": false,
+  "waveChange": false,
+  "publicApiChange": false,
+  "fullTests": {
+    "passed": 2554,
+    "failed": 2,
+    "skipped": 4,
+    "failure": "existing D159 implementation manifest drift"
+  },
+  "loadedMutantsDetected": 17,
+  "processes": 21,
+  "measuredSamples": 126,
+  "exactSetupOutputSequenceCompared": true,
+  "timedDuplicateStateCompared": true,
+  "reindexedNegatives": 7,
+  "archiveReplay": true,
+  "formalQualified": false,
+  "workComplete": false,
+  "authorityLedgerChanged": false,
+  "evidence": "../../../archive/evals/causal-receipt-identity-evidence-v1/index.json"
+}
