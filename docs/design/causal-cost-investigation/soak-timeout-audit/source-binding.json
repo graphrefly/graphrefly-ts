@@ -1,0 +1,6 @@
+{
+	"packages/ts/evals/graph-native-rerun-avoidance/root-eval-live.ts": "44ceaa7b2a32e60f749c68b98aaa2b724dee108eeea8c1da2432ff6b9638c0b4",
+	"packages/ts/evals/graph-native-rerun-avoidance/root-eval-task.ts": "cf7e32b70d318af29ff7686963899ca4c92db635db57d66c24572d52afd79b1f",
+	"packages/ts/src/node/core.ts": "87d482706dd0476297f191b485fb14cbbebc8298dd126d8005d8548f2423041c",
+	"packages/ts/src/__tests__/solutions-agentic-memory-work-item-root-eval-live.test.ts": "82827f7de650a246fe74f38b90859ad792876436d039b634c3b12f4a55599585"
+}

@@ -1,0 +1,22 @@
+{
+	"checked_commit": "9c30967c8953ae09aa8de5949e0fbdd6de3c4813",
+	"passed_cases": [
+		{
+			"fullName": "D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence qualifies five orthogonal mechanisms with ambiguous public and discriminating private verifiers: 'development-3'/'target'",
+			"status": "passed",
+			"duration": 27229.898875
+		},
+		{
+			"fullName": "D145 live-boundary qualification over immutable D116/D117 and D118/D120 evidence qualifies five orthogonal mechanisms with ambiguous public and discriminating private verifiers: 'development-4'/'target'",
+			"status": "passed",
+			"duration": 25753.535166
+		}
+	],
+	"passed": 2,
+	"failed": 0,
+	"skipped": 219,
+	"source_unchanged": true,
+	"frozen_fixture_baseline": "dea57bdeb4b370dddbbe2505bd05f9e3551b26c6",
+	"frozen_core_sha256": "e7736a5e961dbdd35e3a7704a02b6e901da6a08a88b8af247c942a6306732410",
+	"earlier_whole_soak_still_failed": true
+}

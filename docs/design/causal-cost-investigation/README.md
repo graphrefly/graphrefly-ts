@@ -12,10 +12,10 @@
   相同 reference 的方法控制和记录方式实验是不同问题，不能互相替代。
 - **已结束的方向：** EAGER/DEFERRED 记录实验结果 mixed，未达到预先约定的一致改善规则。
   不追加轮次、不采用延后记录、不宣称 library 回归或全局变慢。
-- **本轮完成：** [单循环初始化候选](dependency-initialization-implementation/README.md)已实现，
-  保留原有数组与生命周期行为。默认测试2550通过/2个冻结清单失败；build/export、类型检查、
-  73个causal、16个consumer及7个plain/reference mutation通过。root soak219通过/2个超时，
-  原因未确定；候选离线资格未完整通过，未采样、未宣称性能收益。
+- **本轮完成：** [soak超时核对](soak-timeout-audit/README.md)：历史运行期间有明确合盖休眠与
+  DarkWake记录；受限子进程运行冻结fixture，不是当前初始化性能测试。原deadline下仅重验
+  两个失败用例，2通过/219跳过，56.4秒，期间无电源转换记录。解除这两个超时的准备阻塞，
+  不改写旧整轮失败；候选仍未测量，既有lint/冻结manifest问题单列。
 
 [替代设计](clock-anchor-design/README.md)已经落实为私有准备探针，不改registry C或library公开层级。
 
@@ -52,9 +52,10 @@
 
 ## 下一项的完成条件
 
-[单循环初始化候选](dependency-initialization-implementation/README.md)已实现并保留193文件验证归档。
-下一步先核对root soak development-3/target与development-4/target的超时，不能直接归为
-既有失败或本次回归。对比方案已写，但新性能采集尚未就绪；不扩大deadline，不追加同类profile。
+[单循环初始化候选](dependency-initialization-implementation/README.md)与193文件验证归档保留。
+[soak超时核对](soak-timeout-audit/README.md)已完成，原deadline两项重验通过。下一步准备
+已提出的有限、无profiler对比工具，并把主机休眠识别/停止纳入准备审查；不重跑整套soak，
+不把历史fixture子进程超时认作当前library性能回归，不自动启动新性能采集。
 
 [保留日志审计](retained-runtime-audit/README.md#next-investigation-boundary)给出具体证据要求。
 进入新capture前，设计必须能把构造窗口、GC与CPU采样放到有误差界的时间轴，并通过

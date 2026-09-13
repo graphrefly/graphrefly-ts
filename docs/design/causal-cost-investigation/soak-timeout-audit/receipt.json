@@ -1,0 +1,25 @@
+{
+	"argv": [
+		"pnpm",
+		"--filter",
+		"@graphrefly/ts",
+		"exec",
+		"vitest",
+		"run",
+		"--config",
+		"vitest.root-eval-soak.config.ts",
+		"-t",
+		"qualifies five orthogonal mechanisms.*development-(3|4).*target",
+		"--reporter=json",
+		"--outputFile=/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/graphrefly-soak-timeout-audit-61p9_79v/tests.json"
+	],
+	"start_unix": 1789275965.51949,
+	"end_unix": 1789276021.9339578,
+	"elapsed_wall_s": 56.41446781158447,
+	"elapsed_monotonic_s": 57.30816558399238,
+	"exit_code": 0,
+	"supervisor_timeout": false,
+	"power_log_exit": 0,
+	"retest_power_transitions": 0,
+	"performance_samples": 0
+}

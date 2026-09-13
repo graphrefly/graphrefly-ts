@@ -1,0 +1,45 @@
+{
+  "archive_sha256": "7e77accd96e955f3c758e2ead3c5c4184edea1d15fb235e44ee9b8a44797fae0",
+  "files": [
+    {
+      "path": "power-transitions.log",
+      "sha256": "b437eb370109fcbeae4f7ddcbfced1fd5905c9eaa8e0b3c569ba58727e4c7257",
+      "bytes": 963
+    },
+    {
+      "path": "receipt.json",
+      "sha256": "ce1c336973f3eee5e14eb1430ec339ba8466c48350706189aac214d0a4bdffb0",
+      "bytes": 668
+    },
+    {
+      "path": "retest-power-transitions.log",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "bytes": 1
+    },
+    {
+      "path": "run.py",
+      "sha256": "8de53ba7c42b7700cf1e5dc3cdb1c9ad232b85725416761282e65af41363c03e",
+      "bytes": 1717
+    },
+    {
+      "path": "source-binding.json",
+      "sha256": "d9dc9a4fef6ae98ff013c506dccc7efdfa0401edf001b3110d716300a8848eb0",
+      "bytes": 538
+    },
+    {
+      "path": "tests.json",
+      "sha256": "28d2b15b746d9c2beb0276c294b8ff5c9deda3ba84b90991764b894683255de7",
+      "bytes": 98745
+    },
+    {
+      "path": "tests.log",
+      "sha256": "6dd7b50402dca8f0c008642ff37bfc43b17ab90e70cf743664336a2ee822463e",
+      "bytes": 135
+    },
+    {
+      "path": "verification.json",
+      "sha256": "e5f101804d0bbde050e636cb9f4a93d1cb3e3fd53a8efb7471d19f29c49c8568",
+      "bytes": 963
+    }
+  ]
+}
