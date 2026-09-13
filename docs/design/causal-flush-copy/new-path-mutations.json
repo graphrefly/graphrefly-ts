@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "results": [
+    {
+      "mutation": "skip-refresh",
+      "exitCode": 1,
+      "detectedByBehaviorAssertion": true
+    },
+    {
+      "mutation": "force-unchanged",
+      "exitCode": 1,
+      "detectedByBehaviorAssertion": true
+    },
+    {
+      "mutation": "share-gap-evidence",
+      "exitCode": 1,
+      "detectedByBehaviorAssertion": true
+    }
+  ]
+}

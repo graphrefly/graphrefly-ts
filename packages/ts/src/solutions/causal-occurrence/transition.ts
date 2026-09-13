@@ -334,7 +334,45 @@ export function transitionCausalAuthority<T>(
 		if (prior === undefined || dataKey(prior) !== dataKey(value))
 			outputs.push({ kind: "quiescence", value });
 	};
+	// Flush only removes entries from these collections. Promotion separately
+	// accounts for occurrence admission and cross-domain retention eviction.
+	const pendingWorkCount = () =>
+		state.admissions.size +
+		state.pending.size +
+		state.pendingTerminals.size +
+		state.pendingEffectProposals.size +
+		state.pendingEffectAdmissions.size +
+		state.pendingEffectOutcomes.size +
+		state.pendingEvidence.size;
+	const refreshProjections = () => {
+		// Preserve the storage/output object separation of the skipped pass.
+		// Only entries that recomputeCurrentness would replace are copied.
+		for (const { value: occurrence } of state.byRevision.values()) {
+			const watermark = state.watermarks.get(occurrence.revisionDomain);
+			if (watermark === undefined || occurrence.revision > watermark) continue;
+			const key = refKey(occurrence);
+			const current = state.currentness.get(key)!;
+			state.currentness.set(
+				key,
+				current.state === "unverifiable" && current.gapRef !== undefined
+					? {
+							...current,
+							gapRef: { ...current.gapRef, evidenceRef: { ...current.gapRef.evidenceRef } },
+						}
+					: { ...current },
+			);
+		}
+		for (const domain of state.watermarks.keys()) {
+			const current = state.quiescence.get(domain)!;
+			state.quiescence.set(domain, {
+				...current,
+				pendingOccurrenceRefs: Object.freeze([...current.pendingOccurrenceRefs]),
+				pendingEffectIds: Object.freeze([...current.pendingEffectIds]),
+			});
+		}
+	};
 	const flushPending = () => {
+		const before = pendingWorkCount();
 		let promoted = false;
 		identity.flushAdmissions(context);
 		execution.flushEffectsAndTerminals(context);
@@ -349,7 +387,7 @@ export function transitionCausalAuthority<T>(
 				promoted = true;
 			}
 		}
-		return promoted;
+		return { promoted, changed: promoted || pendingWorkCount() !== before };
 	};
 	for (const arrival of arrivals) {
 		if (arrival.lane === "occurrences") receiveOccurrences(arrival);
@@ -364,7 +402,11 @@ export function transitionCausalAuthority<T>(
 	for (const revisionDomain of state.watermarks.keys()) recomputeDomain(revisionDomain);
 	// Repeat only on finite progress. Commit remains in the authority node, after this drain.
 	for (;;) {
-		const promoted = flushPending();
+		const { promoted, changed } = flushPending();
+		if (!changed) {
+			refreshProjections();
+			break;
+		}
 		const releasedBefore = state.released.size;
 		for (const revisionDomain of state.watermarks.keys()) recomputeDomain(revisionDomain);
 		if (!promoted && state.released.size === releasedBefore) break;

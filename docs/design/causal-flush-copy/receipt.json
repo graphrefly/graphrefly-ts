@@ -1,0 +1,47 @@
+{
+  "ownerContext": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+  "baseline": "4f7edccb",
+  "beforeSourceSha256": "8da684125d3a7a242106b73e8fbd8a1a625beca1dec0dee772c485da95029199",
+  "afterSourceSha256": "e7765b1f08e57e9c2cca86a5536484251e2eefd3f01d8b29c1a62a55b7ad6ce9",
+  "bundles": {
+    "before": "2340fbc02b83aa8f78a5a8b517c870cf95e82a83d16310606f9e2facf46ba7bb",
+    "after": "198bcf776469d12edf5f167be9ecdad4b31be358a54cf249d8112045efd0ce96"
+  },
+  "checks": {
+    "fullTests": {
+      "passed": 2562,
+      "failed": 2,
+      "skipped": 4,
+      "failureScope": "Existing D159 manifest drift"
+    },
+    "aliasTests": 2,
+    "differentialTraces": 200,
+    "differentialTransitions": 9600,
+    "retainedCollectionOrderChecked": true,
+    "projectionAliasesChecked": true,
+    "existingRuntimeMutantsKilled": 73,
+    "newLoadedMutantsDetected": 3,
+    "buildExports": true,
+    "testTypecheck": true,
+    "exampleTypes": true,
+    "asyncBoundary": true,
+    "scopedBiome": true,
+    "independentReviewLenses": 3,
+    "artifactCorruptionsRejected": 7
+  },
+  "performance": {
+    "processes": 21,
+    "samples": 126,
+    "preflights": 42,
+    "beforeBeforeControls": 3,
+    "formalQualification": false
+  },
+  "workComplete": false,
+  "authorityUpdated": false,
+  "limits": [
+    "Finite randomized differential is not exhaustive branch coverage",
+    "No formal p95 or full-path100ms pass",
+    "No memory or unrelated-consumer performance conclusion",
+    "Full default suite still records2manifest failures"
+  ]
+}

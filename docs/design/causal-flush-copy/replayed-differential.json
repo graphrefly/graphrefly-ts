@@ -1,0 +1,23 @@
+{
+  "passed": true,
+  "mutation": "baseline",
+  "traces": 200,
+  "transitionComparisons": 9600,
+  "orderedOutputsAndState": true,
+  "projectionAliases": true,
+  "outputKinds": [
+    "conservation",
+    "coverage",
+    "currentness",
+    "issue",
+    "quiescence",
+    "release",
+    "terminal"
+  ],
+  "beforeSource": "8da684125d3a7a242106b73e8fbd8a1a625beca1dec0dee772c485da95029199",
+  "afterSource": "e7765b1f08e57e9c2cca86a5536484251e2eefd3f01d8b29c1a62a55b7ad6ce9",
+  "bundles": {
+    "before": "70edb8ab6eb5dde409591201522548efa8b82e954f21c758b65163e79b44ff8c",
+    "after": "7f85c88273fd4a513daa16056dd80873c3a0d581473be117247f9bfe1f3c8cec"
+  }
+}
