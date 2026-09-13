@@ -100,3 +100,7 @@ elapsed减process CPU推算等待。无法定位时明确收敛到unknown，不�
 [收尾判断与唯一阻塞清单](../causal-assembly-closeout-review/README.md)已完成：实现行为证据
 可保留，正式性能P、D159资格绑定H、lint证据边界L仍阻塞。118文件引用与193文件实现归档
 核对通过，相关源自9c30967c未变。下一批建议仅设计H/L离线收尾；不重跑矩阵、不展开公开API。
+
+## H/L离线收尾设计
+
+[具体提案](../causal-offline-closeout-design/README.md)已准备供审阅：历史完整性、当前无网络行为与当前执行资格分开；保留严格gate。Lint采用精确冻结路径与维护工具边界。本轮未实施，当前D159资格与P仍未解决。
