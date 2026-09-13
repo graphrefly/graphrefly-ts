@@ -63,7 +63,9 @@
 候选p50有一致下降线索但p95控制未过；现有数据不能分辨GC/JIT/调度。
 保留数据分析结束；[单版本进程测量草案](dependency-measurement-design/README.md)已提出：
 32进程/8个对称组，p50/p95分别判断，同版本控制失败即unknown。70种排程算术检查通过，
-尚无工具实现或新采集；待审阅后仅进入假样本工具资格。
+设计获确认后，[单版本工具](single-version-tools/README.md)已完成：32假进程/3840假样本、
+14类失败、23种证据损坏、194文件归档回放通过，176资产冻结。真实consumer零；
+下一步审阅一次32进程/3840样本采集，不能以工具资格自动派发。
 
 [保留日志审计](retained-runtime-audit/README.md#next-investigation-boundary)给出具体证据要求。
 进入新capture前，设计必须能把构造窗口、GC与CPU采样放到有误差界的时间轴，并通过
