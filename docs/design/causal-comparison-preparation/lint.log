@@ -1,0 +1,1321 @@
+$ python3 scripts/check-causal-lint-evidence.py && biome check . && tsx scripts/check-no-raw-async.ts && tsx scripts/check-typecheck.ts && pnpm --filter @graphrefly/ts test:typecheck
+{"archives": 24, "currentQualified": false, "files": 253, "kind": "lint-frozen-integrity"}
+docs/design/causal-cost-investigation/aligned-capture/raw/00/entry.mjs:4:177 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    2 │ const {execute}=await import("file:///Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/assets/causal-aligned-observation.mjs");
+    3 │ const config=JSON.parse(fs.readFileSync("/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/00/config.json","utf8"));
+  > 4 │ const put=(name,value)=>{const text=JSON.stringify(value);if(name==="profile.json" && Buffer.byteLength(text)>32*1024**2)throw new Error("profile file limit");fs.writeFileSync("/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/00"+"/"+name,text,{flag:"wx"});};
+      │                                                                                                                                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    5 │ put("entry.json",{pid:process.pid,timeOrigin:performance.timeOrigin,node:process.version,execArgv:process.execArgv,platform:process.platform,arch:process.arch});
+    6 │ await execute("CONTROL",config.orientation,async observation=>{
+  
+  i Unsafe fix: Use a template literal.
+  
+     2  2 │   const {execute}=await import("file:///Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/assets/causal-aligned-observation.mjs");
+     3  3 │   const config=JSON.parse(fs.readFileSync("/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/00/config.json","utf8"));
+     4    │ - const·put=(name,value)=>{const·text=JSON.stringify(value);if(name==="profile.json"·&&·Buffer.byteLength(text)>32*1024**2)throw·new·Error("profile·file·limit");fs.writeFileSync("/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/00"+"/"+name,text,{flag:"wx"});};
+        4 │ + const·put=(name,value)=>{const·text=JSON.stringify(value);if(name==="profile.json"·&&·Buffer.byteLength(text)>32*1024**2)throw·new·Error("profile·file·limit");fs.writeFileSync(`/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/00/${name}`,text,{flag:"wx"});};
+     5  5 │   put("entry.json",{pid:process.pid,timeOrigin:performance.timeOrigin,node:process.version,execArgv:process.execArgv,platform:process.platform,arch:process.arch});
+     6  6 │   await execute("CONTROL",config.orientation,async observation=>{
+  
+
+docs/design/causal-comparison-preparation/capture-binding.json format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+      1   1 │   {
+      2     │ - ··"node":·"v24.18.0",
+      3     │ - ··"sources":·[
+      4     │ - ····{
+      5     │ - ······"path":·"examples/spending-alerts/causal-admission.ts",
+      6     │ - ······"sha256":·"73e966f03b721b84e6a34fb0803089fbca24fcfea2bc53cdc0fd809004decca0"
+      7     │ - ····},
+      8     │ - ····{
+      9     │ - ······"path":·"examples/spending-alerts/causal-business.ts",
+     10     │ - ······"sha256":·"5808b47b937eaa35336736523d958d9dcfa58053caad9c65df2caac49333c523"
+     11     │ - ····},
+     12     │ - ····{
+     13     │ - ······"path":·"examples/spending-alerts/causal-entry.ts",
+     14     │ - ······"sha256":·"3d802f8b01c27519dbcc7b0ed77ed151bc8fa4fd2e0337b7535879e3dbf9b792"
+     15     │ - ····},
+     16     │ - ····{
+     17     │ - ······"path":·"examples/spending-alerts/causal-focused-host.ts",
+     18     │ - ······"sha256":·"a2988bfad5108f424cbf5347e0531ead939397ab0e725ed92461c05f38310819"
+     19     │ - ····},
+     20     │ - ····{
+     21     │ - ······"path":·"examples/spending-alerts/causal-inputs.ts",
+     22     │ - ······"sha256":·"dfb1aa266cfed9bb6400171bfba30f046cd09ef94346c18560124566a7364561"
+     23     │ - ····},
+     24     │ - ····{
+     25     │ - ······"path":·"examples/spending-alerts/causal-material-owner.ts",
+     26     │ - ······"sha256":·"76a3605e733a2f87b23eb908f37fd7177ef86861c80d839708bd9080c5b9b370"
+     27     │ - ····},
+     28     │ - ····{
+     29     │ - ······"path":·"examples/spending-alerts/causal-numeric.ts",
+     30     │ - ······"sha256":·"0acdf5c800e55f7de0736718cc846eea137f880d0cbd0f158b680fa8b2e29dd8"
+     31     │ - ····},
+     32     │ - ····{
+     33     │ - ······"path":·"examples/spending-alerts/causal-preset.ts",
+     34     │ - ······"sha256":·"71f801e17e95b2f7440017048dc08d3479a341d4e5e617be8eff9f513301dd50"
+     35     │ - ····},
+     36     │ - ····{
+     37     │ - ······"path":·"examples/spending-alerts/causal-publication.ts",
+     38     │ - ······"sha256":·"4d2566ff521eeb370388b5d654eebfa9ab6f814c27e35233680f9d9125c7786e"
+     39     │ - ····},
+     40     │ - ····{
+     41     │ - ······"path":·"examples/spending-alerts/causal-resource.ts",
+     42     │ - ······"sha256":·"8bcda13c34aff04379d0e40491fe361cc7c812ed806925649a407be012841ec9"
+     43     │ - ····},
+     44     │ - ····{
+     45     │ - ······"path":·"packages/ts/src/batch/batch.ts",
+     46     │ - ······"sha256":·"a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890"
+     47     │ - ····},
+     48     │ - ····{
+     49     │ - ······"path":·"packages/ts/src/batch/boundary.ts",
+     50     │ - ······"sha256":·"d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3"
+     51     │ - ····},
+     52     │ - ····{
+     53     │ - ······"path":·"packages/ts/src/ctx/types.ts",
+     54     │ - ······"sha256":·"e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9"
+     55     │ - ····},
+     56     │ - ····{
+     57     │ - ······"path":·"packages/ts/src/dispatcher/index.ts",
+     58     │ - ······"sha256":·"32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d"
+     59     │ - ····},
+     60     │ - ····{
+     61     │ - ······"path":·"packages/ts/src/graph/blueprint.ts",
+     62     │ - ······"sha256":·"ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b"
+     63     │ - ····},
+     64     │ - ····{
+     65     │ - ······"path":·"packages/ts/src/graph/checkpoint.ts",
+     66     │ - ······"sha256":·"303ffb3706bff5aa8f2d61a24290a322b3a7aa75f939318c5eb4e0d996b45ce7"
+     67     │ - ····},
+     68     │ - ····{
+     69     │ - ······"path":·"packages/ts/src/graph/combinators.ts",
+     70     │ - ······"sha256":·"e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2"
+     71     │ - ····},
+     72     │ - ····{
+     73     │ - ······"path":·"packages/ts/src/graph/construction-scope.ts",
+     74     │ - ······"sha256":·"343e6828b5276525797f97cb9c3998e4c28a1b0215af0b6505404b676856d37b"
+     75     │ - ····},
+     76     │ - ····{
+     77     │ - ······"path":·"packages/ts/src/graph/describe.ts",
+     78     │ - ······"sha256":·"d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4"
+     79     │ - ····},
+     80     │ - ····{
+     81     │ - ······"path":·"packages/ts/src/graph/environment.ts",
+     82     │ - ······"sha256":·"2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c"
+     83     │ - ····},
+     84     │ - ····{
+     85     │ - ······"path":·"packages/ts/src/graph/graph-lifecycle.ts",
+     86     │ - ······"sha256":·"23abc2773517b95265ce11e8144ba026b9ef4cac60af69351960fda00e12ac9d"
+     87     │ - ····},
+     88     │ - ····{
+     89     │ - ······"path":·"packages/ts/src/graph/graph-support.ts",
+     90     │ - ······"sha256":·"e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a"
+     91     │ - ····},
+     92     │ - ····{
+     93     │ - ······"path":·"packages/ts/src/graph/graph-topology-group.ts",
+     94     │ - ······"sha256":·"044f242b40e0ca8e069dbac19855af5d647513d80cbd54ac4978aa7b0830c119"
+     95     │ - ····},
+     96     │ - ····{
+     97     │ - ······"path":·"packages/ts/src/graph/graph.ts",
+     98     │ - ······"sha256":·"54b3644e0de855533f9ac91621b9e4eceb0368d11a953fe0d793dfd22e8b72fe"
+     99     │ - ····},
+    100     │ - ····{
+    101     │ - ······"path":·"packages/ts/src/graph/higher-order.ts",
+    102     │ - ······"sha256":·"8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c"
+    103     │ - ····},
+    104     │ - ····{
+    105     │ - ······"path":·"packages/ts/src/graph/operators.ts",
+    106     │ - ······"sha256":·"01dcdfe15269da8fede4e3a0057e668f7c3e6e40c1fbad6d3779c6e5bdf715f3"
+    107     │ - ····},
+    108     │ - ····{
+    109     │ - ······"path":·"packages/ts/src/graph/sources.ts",
+    110     │ - ······"sha256":·"eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76"
+    111     │ - ····},
+    112     │ - ····{
+    113     │ - ······"path":·"packages/ts/src/graph/time.ts",
+    114     │ - ······"sha256":·"04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1"
+    115     │ - ····},
+    116     │ - ····{
+    117     │ - ······"path":·"packages/ts/src/identity.ts",
+    118     │ - ······"sha256":·"4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270"
+    119     │ - ····},
+    120     │ - ····{
+    121     │ - ······"path":·"packages/ts/src/json/codec.ts",
+    122     │ - ······"sha256":·"7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa"
+    123     │ - ····},
+    124     │ - ····{
+    125     │ - ······"path":·"packages/ts/src/node/core.ts",
+    126     │ - ······"sha256":·"87d482706dd0476297f191b485fb14cbbebc8298dd126d8005d8548f2423041c"
+    127     │ - ····},
+    128     │ - ····{
+    129     │ - ······"path":·"packages/ts/src/node/node-checkpoint-runtime.ts",
+    130     │ - ······"sha256":·"5ed4b3fe287fdf3c37b3c15eb9dcbaf3509f03212752068b3d9f3a2eeafe40bb"
+    131     │ - ····},
+    132     │ - ····{
+    133     │ - ······"path":·"packages/ts/src/node/node-context-runtime.ts",
+    134     │ - ······"sha256":·"6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624"
+    135     │ - ····},
+    136     │ - ····{
+    137     │ - ······"path":·"packages/ts/src/node/node-input-runtime.ts",
+    138     │ - ······"sha256":·"9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066"
+    139     │ - ····},
+    140     │ - ····{
+    141     │ - ······"path":·"packages/ts/src/node/node-lifecycle-runtime.ts",
+    142     │ - ······"sha256":·"c0845b70f2da14aa8692ec2fe4d079cdb0e3be0af777648e0ce2c6adcca3273b"
+    143     │ - ····},
+    144     │ - ····{
+    145     │ - ······"path":·"packages/ts/src/node/node-output-runtime.ts",
+    146     │ - ······"sha256":·"c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4"
+    147     │ - ····},
+    148     │ - ····{
+    149     │ - ······"path":·"packages/ts/src/node/node-rewire-runtime.ts",
+    150     │ - ······"sha256":·"f56d6c2b1618e8245a2576757d0639c6337217b41f11a5c0f7a816f5f3db0e1b"
+  413 more lines truncated
+  
+
+docs/design/causal-comparison-preparation/memory-checkpoints.json format ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+       34    34 │   					"profile": {
+       35    35 │   						"dailyAverage": 100,
+       36       │ - → → → → → → "typicalCategories":·[
+       37       │ - → → → → → → → "coffee"
+       38       │ - → → → → → → ]
+             36 │ + → → → → → → "typicalCategories":·["coffee"]
+       39    37 │   					},
+       40    38 │   					"policyRef": {
+    ··········· │ 
+       93    91 │   					"profile": {
+       94    92 │   						"dailyAverage": 101,
+       95       │ - → → → → → → "typicalCategories":·[
+       96       │ - → → → → → → → "coffee"
+       97       │ - → → → → → → ]
+             93 │ + → → → → → → "typicalCategories":·["coffee"]
+       98    94 │   					},
+       99    95 │   					"policyRef": {
+    ··········· │ 
+     1648  1644 │   									"profile": {
+     1649  1645 │   										"dailyAverage": 100,
+     1650       │ - → → → → → → → → → → "typicalCategories":·[
+     1651       │ - → → → → → → → → → → → "coffee"
+     1652       │ - → → → → → → → → → → ]
+           1646 │ + → → → → → → → → → → "typicalCategories":·["coffee"]
+     1653  1647 │   									},
+     1654  1648 │   									"policyRef": {
+    ··········· │ 
+     1707  1701 │   									"profile": {
+     1708  1702 │   										"dailyAverage": 101,
+     1709       │ - → → → → → → → → → → "typicalCategories":·[
+     1710       │ - → → → → → → → → → → → "coffee"
+     1711       │ - → → → → → → → → → → ]
+           1703 │ + → → → → → → → → → → "typicalCategories":·["coffee"]
+     1712  1704 │   									},
+     1713  1705 │   									"policyRef": {
+    ··········· │ 
+     1774  1766 │   								"id": "comparison"
+     1775  1767 │   							},
+     1776       │ - → → → → → → → "evaluationRefs":·[
+     1777       │ - → → → → → → → → "proof-coffee-2"
+     1778       │ - → → → → → → → ]
+           1768 │ + → → → → → → → "evaluationRefs":·["proof-coffee-2"]
+     1779  1769 │   						},
+     1780  1770 │   						"version": {
+    ··········· │ 
+     2102  2092 │   						"factory": "spending/evaluationSelections",
+     2103  2093 │   						"status": "settled",
+     2104       │ - → → → → → → "deps":·[
+     2105       │ - → → → → → → → "pack",
+     2106       │ - → → → → → → → "arrivals"
+     2107       │ - → → → → → → ],
+           2094 │ + → → → → → → "deps":·["pack",·"arrivals"],
+     2108  2095 │   						"name": "proof/evaluationSelections",
+     2109  2096 │   						"value": {
+    ··········· │ 
+     2160  2147 │   										"profile": {
+     2161  2148 │   											"dailyAverage": 101,
+     2162       │ - → → → → → → → → → → → "typicalCategories":·[
+     2163       │ - → → → → → → → → → → → → "coffee"
+     2164       │ - → → → → → → → → → → → ]
+           2149 │ + → → → → → → → → → → → "typicalCategories":·["coffee"]
+     2165  2150 │   										},
+     2166  2151 │   										"profileRef": {
+    ··········· │ 
+     2219  2204 │   										"profile": {
+     2220  2205 │   											"dailyAverage": 101,
+     2221       │ - → → → → → → → → → → → "typicalCategories":·[
+     2222       │ - → → → → → → → → → → → → "coffee"
+     2223       │ - → → → → → → → → → → → ]
+           2206 │ + → → → → → → → → → → → "typicalCategories":·["coffee"]
+     2224  2207 │   										},
+     2225  2208 │   										"profileRef": {
+    ··········· │ 
+     2242  2225 │   						"factory": "spending/transaction",
+     2243  2226 │   						"status": "settled",
+     2244       │ - → → → → → → "deps":·[
+     2245       │ - → → → → → → → "proof/evaluationSelections"
+     2246       │ - → → → → → → ],
+           2227 │ + → → → → → → "deps":·["proof/evaluationSelections"],
+     2247  2228 │   						"name": "proof/transaction",
+     2248  2229 │   						"value": {
+    ··········· │ 
+     2299  2280 │   										"profile": {
+     2300  2281 │   											"dailyAverage": 101,
+     2301       │ - → → → → → → → → → → → "typicalCategories":·[
+     2302       │ - → → → → → → → → → → → → "coffee"
+     2303       │ - → → → → → → → → → → → ]
+           2282 │ + → → → → → → → → → → → "typicalCategories":·["coffee"]
+     2304  2283 │   										},
+     2305  2284 │   										"profileRef": {
+    ··········· │ 
+     2329  2308 │   						"factory": "spending/vendorStats",
+     2330  2309 │   						"status": "settled",
+     2331       │ - → → → → → → "deps":·[
+     2332       │ - → → → → → → → "proof/evaluationSelections"
+     2333       │ - → → → → → → ],
+           2310 │ + → → → → → → "deps":·["proof/evaluationSelections"],
+     2334  2311 │   						"name": "proof/vendorStats",
+     2335  2312 │   						"value": {
+    ··········· │ 
+     2386  2363 │   										"profile": {
+     2387  2364 │   											"dailyAverage": 101,
+     2388       │ - → → → → → → → → → → → "typicalCategories":·[
+     2389       │ - → → → → → → → → → → → → "coffee"
+     2390       │ - → → → → → → → → → → → ]
+           2365 │ + → → → → → → → → → → → "typicalCategories":·["coffee"]
+     2391  2366 │   										},
+     2392  2367 │   										"profileRef": {
+    ··········· │ 
+     2419  2394 │   						"factory": "spending/userProfile",
+     2420  2395 │   						"status": "settled",
+     2421       │ - → → → → → → "deps":·[
+     2422       │ - → → → → → → → "proof/evaluationSelections"
+     2423       │ - → → → → → → ],
+           2396 │ + → → → → → → "deps":·["proof/evaluationSelections"],
+     2424  2397 │   						"name": "proof/userProfile",
+     2425  2398 │   						"value": {
+    ··········· │ 
+     2476  2449 │   										"profile": {
+     2477  2450 │   											"dailyAverage": 101,
+     2478       │ - → → → → → → → → → → → "typicalCategories":·[
+     2479       │ - → → → → → → → → → → → → "coffee"
+     2480       │ - → → → → → → → → → → → ]
+           2451 │ + → → → → → → → → → → → "typicalCategories":·["coffee"]
+     2481  2452 │   										},
+     2482  2453 │   										"profileRef": {
+    ··········· │ 
+     2488  2459 │   									"value": {
+     2489  2460 │   										"dailyAverage": 101,
+     2490       │ - → → → → → → → → → → "typicalCategories":·[
+     2491       │ - → → → → → → → → → → → "coffee"
+     2492       │ - → → → → → → → → → → ]
+           2461 │ + → → → → → → → → → → "typicalCategories":·["coffee"]
+     2493  2462 │   									}
+     2494  2463 │   								}
+    ··········· │ 
+     2505  2474 │   						"factory": "spending/policy",
+     2506  2475 │   						"status": "settled",
+     2507       │ - → → → → → → "deps":·[
+     2508       │ - → → → → → → → "proof/evaluationSelections"
+     2509       │ - → → → → → → ],
+           2476 │ + → → → → → → "deps":·["proof/evaluationSelections"],
+     2510  2477 │   						"name": "proof/policy",
+     2511  2478 │   						"value": {
+    ··········· │ 
+     2562  2529 │   										"profile": {
+     2563  2530 │   											"dailyAverage": 101,
+     2564       │ - → → → → → → → → → → → "typicalCategories":·[
+     2565       │ - → → → → → → → → → → → → "coffee"
+     2566       │ - → → → → → → → → → → → ]
+           2531 │ + → → → → → → → → → → → "typicalCategories":·["coffee"]
+     2567  2532 │   										},
+     2568  2533 │   										"profileRef": {
+    ··········· │ 
+     2589  2554 │   						"factory": "spending/anomalyScore",
+     2590  2555 │   						"status": "settled",
+     2591       │ - → → → → → → "deps":·[
+     2592       │ - → → → → → → → "proof/transaction",
+     2593       │ - → → → → → → → "proof/vendorStats",
+     2594       │ - → → → → → → → "proof/userProfile"
+     2595       │ - → → → → → → ],
+           2556 │ + → → → → → → "deps":·["proof/transaction",·"proof/vendorStats",·"proof/userProfile"],
+     2596  2557 │   						"name": "proof/anomalyScore",
+     2597  2558 │   						"value": {
+    ··········· │ 
+     2648  2609 │   										"profile": {
+     2649  2610 │   											"dailyAverage": 101,
+     2650       │ - → → → → → → → → → → → "typicalCategories":·[
+  1646 more lines truncated
+  
+
+docs/design/causal-cost-investigation/aligned-capture/raw/00/alignment.json format ━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+    1    │ - {"condition":"CONTROL","anchors":[{"before":31.575791,"h":"246422440787000","after":31.581875,"pid":12598},{"before":1560.589458,"h":"246423969799541","after":1560.594541,"pid":12598}],"bounds":{},"pid":12598}
+       1 │ + {
+       2 │ + → "condition":·"CONTROL",
+       3 │ + → "anchors":·[
+       4 │ + → → {·"before":·31.575791,·"h":·"246422440787000",·"after":·31.581875,·"pid":·12598·},
+       5 │ + → → {·"before":·1560.589458,·"h":·"246423969799541",·"after":·1560.594541,·"pid":·12598·}
+       6 │ + → ],
+       7 │ + → "bounds":·{},
+       8 │ + → "pid":·12598
+       9 │ + }
+      10 │ + 
+  
+
+docs/design/causal-cost-investigation/aligned-capture/raw/00/completion.json format ━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+    1   │ - {"completed":true,"samples":2400}
+      1 │ + {·"completed":·true,·"samples":·2400·}
+      2 │ + 
+  
+
+docs/design/causal-cost-investigation/aligned-capture/raw/00/config.json format ━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   {
+     2    │ - ··"row":·{
+     3    │ - ····"id":·"cold-P2-summary",
+     4    │ - ····"group":·"cold",
+     5    │ - ····"profile":·"P2",
+     6    │ - ····"mode":·"summary"
+     7    │ - ··},
+     8    │ - ··"kind":·"control",
+     9    │ - ··"control":·true,
+    10    │ - ··"output":·"/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/00",
+    11    │ - ··"scenarioPath":·"/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/P2-inputs.json",
+    12    │ - ··"id":·0,
+    13    │ - ··"round":·0,
+    14    │ - ··"condition":·"CONTROL",
+    15    │ - ··"orientation":·"U"
+        2 │ + → "row":·{
+        3 │ + → → "id":·"cold-P2-summary",
+        4 │ + → → "group":·"cold",
+        5 │ + → → "profile":·"P2",
+        6 │ + → → "mode":·"summary"
+        7 │ + → },
+        8 │ + → "kind":·"control",
+        9 │ + → "control":·true,
+       10 │ + → "output":·"/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/00",
+       11 │ + → "scenarioPath":·"/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/P2-inputs.json",
+       12 │ + → "id":·0,
+       13 │ + → "round":·0,
+       14 │ + → "condition":·"CONTROL",
+       15 │ + → "orientation":·"U"
+    16 16 │   }
+    17 17 │   
+  
+
+docs/design/causal-cost-investigation/aligned-capture/raw/00/diagnostic.json format ━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+    1     │ - {"condition":"CPU","orientation":"U","checkpoints":[{"batch":0,"arm":"candidate","edge":"warmup","wallBefore":224.261291,"wallAfter":224.283583,"user":222243,"system":24484},{"batch":0,"arm":"candidate","edge":"measured","wallBefore":311.668541,"wallAfter":311.690791,"user":320878,"system":38652},{"batch":0,"arm":"candidate","edge":"end","wallBefore":484.866208,"wallAfter":484.893333,"user":584925,"system":70176},{"batch":0,"arm":"reference","edge":"warmup","wallBefore":484.906875,"wallAfter":484.909291,"user":585037,"system":70184},{"batch":0,"arm":"reference","edge":"measured","wallBefore":547.969083,"wallAfter":547.98775,"user":666607,"system":79978},{"batch":0,"arm":"reference","edge":"end","wallBefore":744.418625,"wallAfter":744.441625,"user":923022,"system":120725},{"batch":1,"arm":"reference","edge":"warmup","wallBefore":744.455833,"wallAfter":744.457916,"user":923052,"system":120727},{"batch":1,"arm":"reference","edge":"measured","wallBefore":818.046125,"wallAfter":818.059,"user":981346,"system":132440},{"batch":1,"arm":"reference","edge":"end","wallBefore":973.45775,"wallAfter":973.479,"user":1125527,"system":158364},{"batch":1,"arm":"candidate","edge":"warmup","wallBefore":973.494666,"wallAfter":973.511,"user":1125554,"system":158373},{"batch":1,"arm":"candidate","edge":"measured","wallBefore":1025.085791,"wallAfter":1025.095,"user":1180552,"system":166450},{"batch":1,"arm":"candidate","edge":"end","wallBefore":1168.356208,"wallAfter":1168.361458,"user":1326638,"system":188851},{"batch":2,"arm":"candidate","edge":"warmup","wallBefore":1168.365958,"wallAfter":1168.366583,"user":1326643,"system":188853},{"batch":2,"arm":"candidate","edge":"measured","wallBefore":1223.861041,"wallAfter":1223.866708,"user":1388249,"system":200670},{"batch":2,"arm":"candidate","edge":"end","wallBefore":1376.915541,"wallAfter":1376.921125,"user":1522033,"system":229798},{"batch":2,"arm":"reference","edge":"warmup","wallBefore":1376.92725,"wallAfter":1376.927875,"user":1522037,"system":229804},{"batch":2,"arm":"reference","edge":"measured","wallBefore":1426.752833,"wallAfter":1426.758333,"user":1571648,"system":236665},{"batch":2,"arm":"reference","edge":"end","wallBefore":1560.364833,"wallAfter":1560.369583,"user":1695255,"system":254655}],"gc":[],"disconnectAt":null,"observerInstalled":false}
+        1 │ + {
+        2 │ + → "condition":·"CPU",
+        3 │ + → "orientation":·"U",
+        4 │ + → "checkpoints":·[
+        5 │ + → → {
+        6 │ + → → → "batch":·0,
+        7 │ + → → → "arm":·"candidate",
+        8 │ + → → → "edge":·"warmup",
+        9 │ + → → → "wallBefore":·224.261291,
+       10 │ + → → → "wallAfter":·224.283583,
+       11 │ + → → → "user":·222243,
+       12 │ + → → → "system":·24484
+       13 │ + → → },
+       14 │ + → → {
+       15 │ + → → → "batch":·0,
+       16 │ + → → → "arm":·"candidate",
+       17 │ + → → → "edge":·"measured",
+       18 │ + → → → "wallBefore":·311.668541,
+       19 │ + → → → "wallAfter":·311.690791,
+       20 │ + → → → "user":·320878,
+       21 │ + → → → "system":·38652
+       22 │ + → → },
+       23 │ + → → {
+       24 │ + → → → "batch":·0,
+       25 │ + → → → "arm":·"candidate",
+       26 │ + → → → "edge":·"end",
+       27 │ + → → → "wallBefore":·484.866208,
+       28 │ + → → → "wallAfter":·484.893333,
+       29 │ + → → → "user":·584925,
+       30 │ + → → → "system":·70176
+       31 │ + → → },
+       32 │ + → → {
+       33 │ + → → → "batch":·0,
+       34 │ + → → → "arm":·"reference",
+       35 │ + → → → "edge":·"warmup",
+       36 │ + → → → "wallBefore":·484.906875,
+       37 │ + → → → "wallAfter":·484.909291,
+       38 │ + → → → "user":·585037,
+       39 │ + → → → "system":·70184
+       40 │ + → → },
+       41 │ + → → {
+       42 │ + → → → "batch":·0,
+       43 │ + → → → "arm":·"reference",
+       44 │ + → → → "edge":·"measured",
+       45 │ + → → → "wallBefore":·547.969083,
+       46 │ + → → → "wallAfter":·547.98775,
+       47 │ + → → → "user":·666607,
+       48 │ + → → → "system":·79978
+       49 │ + → → },
+       50 │ + → → {
+       51 │ + → → → "batch":·0,
+       52 │ + → → → "arm":·"reference",
+       53 │ + → → → "edge":·"end",
+       54 │ + → → → "wallBefore":·744.418625,
+       55 │ + → → → "wallAfter":·744.441625,
+       56 │ + → → → "user":·923022,
+       57 │ + → → → "system":·120725
+       58 │ + → → },
+       59 │ + → → {
+       60 │ + → → → "batch":·1,
+       61 │ + → → → "arm":·"reference",
+       62 │ + → → → "edge":·"warmup",
+       63 │ + → → → "wallBefore":·744.455833,
+       64 │ + → → → "wallAfter":·744.457916,
+       65 │ + → → → "user":·923052,
+       66 │ + → → → "system":·120727
+       67 │ + → → },
+       68 │ + → → {
+       69 │ + → → → "batch":·1,
+       70 │ + → → → "arm":·"reference",
+       71 │ + → → → "edge":·"measured",
+       72 │ + → → → "wallBefore":·818.046125,
+       73 │ + → → → "wallAfter":·818.059,
+       74 │ + → → → "user":·981346,
+       75 │ + → → → "system":·132440
+       76 │ + → → },
+       77 │ + → → {
+       78 │ + → → → "batch":·1,
+       79 │ + → → → "arm":·"reference",
+       80 │ + → → → "edge":·"end",
+       81 │ + → → → "wallBefore":·973.45775,
+       82 │ + → → → "wallAfter":·973.479,
+       83 │ + → → → "user":·1125527,
+       84 │ + → → → "system":·158364
+       85 │ + → → },
+       86 │ + → → {
+       87 │ + → → → "batch":·1,
+       88 │ + → → → "arm":·"candidate",
+       89 │ + → → → "edge":·"warmup",
+       90 │ + → → → "wallBefore":·973.494666,
+       91 │ + → → → "wallAfter":·973.511,
+       92 │ + → → → "user":·1125554,
+       93 │ + → → → "system":·158373
+       94 │ + → → },
+       95 │ + → → {
+       96 │ + → → → "batch":·1,
+       97 │ + → → → "arm":·"candidate",
+       98 │ + → → → "edge":·"measured",
+       99 │ + → → → "wallBefore":·1025.085791,
+      100 │ + → → → "wallAfter":·1025.095,
+      101 │ + → → → "user":·1180552,
+      102 │ + → → → "system":·166450
+      103 │ + → → },
+      104 │ + → → {
+      105 │ + → → → "batch":·1,
+      106 │ + → → → "arm":·"candidate",
+      107 │ + → → → "edge":·"end",
+      108 │ + → → → "wallBefore":·1168.356208,
+      109 │ + → → → "wallAfter":·1168.361458,
+      110 │ + → → → "user":·1326638,
+      111 │ + → → → "system":·188851
+      112 │ + → → },
+      113 │ + → → {
+      114 │ + → → → "batch":·2,
+      115 │ + → → → "arm":·"candidate",
+      116 │ + → → → "edge":·"warmup",
+      117 │ + → → → "wallBefore":·1168.365958,
+      118 │ + → → → "wallAfter":·1168.366583,
+      119 │ + → → → "user":·1326643,
+      120 │ + → → → "system":·188853
+      121 │ + → → },
+      122 │ + → → {
+      123 │ + → → → "batch":·2,
+      124 │ + → → → "arm":·"candidate",
+      125 │ + → → → "edge":·"measured",
+      126 │ + → → → "wallBefore":·1223.861041,
+      127 │ + → → → "wallAfter":·1223.866708,
+      128 │ + → → → "user":·1388249,
+      129 │ + → → → "system":·200670
+      130 │ + → → },
+      131 │ + → → {
+      132 │ + → → → "batch":·2,
+      133 │ + → → → "arm":·"candidate",
+      134 │ + → → → "edge":·"end",
+      135 │ + → → → "wallBefore":·1376.915541,
+      136 │ + → → → "wallAfter":·1376.921125,
+      137 │ + → → → "user":·1522033,
+      138 │ + → → → "system":·229798
+      139 │ + → → },
+      140 │ + → → {
+      141 │ + → → → "batch":·2,
+      142 │ + → → → "arm":·"reference",
+      143 │ + → → → "edge":·"warmup",
+      144 │ + → → → "wallBefore":·1376.92725,
+      145 │ + → → → "wallAfter":·1376.927875,
+      146 │ + → → → "user":·1522037,
+      147 │ + → → → "system":·229804
+      148 │ + → → },
+      149 │ + → → {
+  23 more lines truncated
+  
+
+docs/design/causal-cost-investigation/aligned-capture/raw/00/dispatch.json format ━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   {
+     2    │ - ··"argv":·[
+     3    │ - ····"/Users/davidchenallio/.local/share/mise/installs/node/24.18.0/bin/node",
+     4    │ - ····"--trace-gc",
+     5    │ - ····"--trace-deopt",
+     6    │ - ····"--log-deopt",
+     7    │ - ····"--no-logfile-per-isolate",
+     8    │ - ····"--logfile=v8.log",
+     9    │ - ····"/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/00/entry.mjs"
+    10    │ - ··],
+    11    │ - ··"explicitEnvironment":·{
+    12    │ - ····"PATH":·"/usr/bin:/bin",
+    13    │ - ····"TMPDIR":·"/tmp",
+    14    │ - ····"LANG":·"en_US.UTF-8",
+    15    │ - ····"__CF_USER_TEXT_ENCODING":·"0x1F5:0x0:0x0"
+    16    │ - ··},
+    17    │ - ··"cell":·{
+    18    │ - ····"id":·0,
+    19    │ - ····"round":·0,
+    20    │ - ····"condition":·"CONTROL",
+    21    │ - ····"orientation":·"U"
+    22    │ - ··}
+        2 │ + → "argv":·[
+        3 │ + → → "/Users/davidchenallio/.local/share/mise/installs/node/24.18.0/bin/node",
+        4 │ + → → "--trace-gc",
+        5 │ + → → "--trace-deopt",
+        6 │ + → → "--log-deopt",
+        7 │ + → → "--no-logfile-per-isolate",
+        8 │ + → → "--logfile=v8.log",
+        9 │ + → → "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/00/entry.mjs"
+       10 │ + → ],
+       11 │ + → "explicitEnvironment":·{
+       12 │ + → → "PATH":·"/usr/bin:/bin",
+       13 │ + → → "TMPDIR":·"/tmp",
+       14 │ + → → "LANG":·"en_US.UTF-8",
+       15 │ + → → "__CF_USER_TEXT_ENCODING":·"0x1F5:0x0:0x0"
+       16 │ + → },
+       17 │ + → "cell":·{
+       18 │ + → → "id":·0,
+       19 │ + → → "round":·0,
+       20 │ + → → "condition":·"CONTROL",
+       21 │ + → → "orientation":·"U"
+       22 │ + → }
+    23 23 │   }
+    24 24 │   
+  
+
+docs/design/causal-cost-investigation/aligned-capture/raw/00/entry.json format ━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+    1    │ - {"pid":12598,"timeOrigin":1789263146338.195,"node":"v24.18.0","execArgv":["--trace-gc","--trace-deopt","--log-deopt","--no-logfile-per-isolate","--logfile=v8.log"],"platform":"darwin","arch":"arm64"}
+       1 │ + {
+       2 │ + → "pid":·12598,
+       3 │ + → "timeOrigin":·1789263146338.195,
+       4 │ + → "node":·"v24.18.0",
+       5 │ + → "execArgv":·[
+       6 │ + → → "--trace-gc",
+       7 │ + → → "--trace-deopt",
+       8 │ + → → "--log-deopt",
+       9 │ + → → "--no-logfile-per-isolate",
+      10 │ + → → "--logfile=v8.log"
+      11 │ + → ],
+      12 │ + → "platform":·"darwin",
+      13 │ + → "arch":·"arm64"
+      14 │ + }
+      15 │ + 
+  
+
+docs/design/causal-cost-investigation/aligned-capture/raw/00/entry.mjs:1:1 assist/source/organizeImports  FIXABLE  ━━━━━━━━━━
+
+  × The imports and exports are not sorted.
+  
+  > 1 │ import fs from "node:fs";
+      │ ^^^^^^^^^^^^^^^^^^^^^^^^^
+    2 │ const {execute}=await import("file:///Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/assets/causal-aligned-observation.mjs");
+    3 │ const config=JSON.parse(fs.readFileSync("/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/00/config.json","utf8"));
+  
+  i Safe fix: Organize Imports (Biome)
+  
+     1  1 │   import fs from "node:fs";
+        2 │ + 
+     2  3 │   const {execute}=await import("file:///Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/assets/causal-aligned-observation.mjs");
+     3  4 │   const config=JSON.parse(fs.readFileSync("/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/00/config.json","utf8"));
+  
+
+docs/design/causal-cost-investigation/aligned-capture/raw/00/entry.mjs format ━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   import fs from "node:fs";
+     2    │ - const·{execute}=await·import("file:///Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/assets/causal-aligned-observation.mjs");
+     3    │ - const·config=JSON.parse(fs.readFileSync("/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/00/config.json","utf8"));
+     4    │ - const·put=(name,value)=>{const·text=JSON.stringify(value);if(name==="profile.json"·&&·Buffer.byteLength(text)>32*1024**2)throw·new·Error("profile·file·limit");fs.writeFileSync("/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/00"+"/"+name,text,{flag:"wx"});};
+     5    │ - put("entry.json",{pid:process.pid,timeOrigin:performance.timeOrigin,node:process.version,execArgv:process.execArgv,platform:process.platform,arch:process.arch});
+     6    │ - await·execute("CONTROL",config.orientation,async·observation=>{
+     7    │ - const·d=await·import("file:///Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/assets/CONTROL.mjs");
+     8    │ - const·a=await·import("file:///Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/assets/worker.mjs");
+     9    │ - const·b=await·import("file:///Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/assets/worker-copy.mjs");
+    10    │ - return·d.runRow("/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/00/config.json",[a,b],observation);
+    11    │ - },put);
+        2 │ + const·{·execute·}·=·await·import(
+        3 │ + → "file:///Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/assets/causal-aligned-observation.mjs"
+        4 │ + );
+        5 │ + const·config·=·JSON.parse(
+        6 │ + → fs.readFileSync(
+        7 │ + → → "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/00/config.json",
+        8 │ + → → "utf8",
+        9 │ + → ),
+       10 │ + );
+       11 │ + const·put·=·(name,·value)·=>·{
+       12 │ + → const·text·=·JSON.stringify(value);
+       13 │ + → if·(name·===·"profile.json"·&&·Buffer.byteLength(text)·>·32·*·1024·**·2)
+       14 │ + → → throw·new·Error("profile·file·limit");
+       15 │ + → fs.writeFileSync(
+       16 │ + → → "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/00"·+
+       17 │ + → → → "/"·+
+       18 │ + → → → name,
+       19 │ + → → text,
+       20 │ + → → {·flag:·"wx"·},
+       21 │ + → );
+       22 │ + };
+       23 │ + put("entry.json",·{
+       24 │ + → pid:·process.pid,
+       25 │ + → timeOrigin:·performance.timeOrigin,
+       26 │ + → node:·process.version,
+       27 │ + → execArgv:·process.execArgv,
+       28 │ + → platform:·process.platform,
+       29 │ + → arch:·process.arch,
+       30 │ + });
+       31 │ + await·execute(
+       32 │ + → "CONTROL",
+       33 │ + → config.orientation,
+       34 │ + → async·(observation)·=>·{
+       35 │ + → → const·d·=·await·import(
+       36 │ + → → → "file:///Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/assets/CONTROL.mjs"
+       37 │ + → → );
+       38 │ + → → const·a·=·await·import(
+       39 │ + → → → "file:///Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/assets/worker.mjs"
+       40 │ + → → );
+       41 │ + → → const·b·=·await·import(
+       42 │ + → → → "file:///Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/assets/worker-copy.mjs"
+       43 │ + → → );
+       44 │ + → → return·d.runRow(
+       45 │ + → → → "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/00/config.json",
+       46 │ + → → → [a,·b],
+       47 │ + → → → observation,
+       48 │ + → → );
+       49 │ + → },
+       50 │ + → put,
+       51 │ + );
+    12 52 │   
+  
+
+docs/design/causal-cost-investigation/aligned-capture/raw/00/exit.json format ━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+      1   1 │   {
+      2     │ - ··"pid":·12598,
+      3     │ - ··"exitCode":·0,
+      4     │ - ··"reason":·null,
+      5     │ - ··"observations":·[
+      6     │ - ····{
+      7     │ - ······"elapsed":·0.2573077910055872,
+      8     │ - ······"childElapsed":·0.012298000016016886,
+      9     │ - ······"gap":·0.012298000016016886,
+     10     │ - ······"rssBytes":·983040,
+     11     │ - ······"directoryBytes":·2331154
+     12     │ - ····},
+     13     │ - ····{
+     14     │ - ······"elapsed":·0.40535354099120013,
+     15     │ - ······"childElapsed":·0.16034375000162981,
+     16     │ - ······"gap":·0.14804574998561293,
+     17     │ - ······"rssBytes":·82247680,
+     18     │ - ······"directoryBytes":·2344196
+     19     │ - ····},
+     20     │ - ····{
+     21     │ - ······"elapsed":·0.5171191249974072,
+     22     │ - ······"childElapsed":·0.2721093340078369,
+     23     │ - ······"gap":·0.11176558400620706,
+     24     │ - ······"rssBytes":·94912512,
+     25     │ - ······"directoryBytes":·2388229
+     26     │ - ····},
+     27     │ - ····{
+     28     │ - ······"elapsed":·0.6265901660080999,
+     29     │ - ······"childElapsed":·0.3815803750185296,
+     30     │ - ······"gap":·0.10947104101069272,
+     31     │ - ······"rssBytes":·97730560,
+     32     │ - ······"directoryBytes":·2471200
+     33     │ - ····},
+     34     │ - ····{
+     35     │ - ······"elapsed":·0.740491208009189,
+     36     │ - ······"childElapsed":·0.4954814170196187,
+     37     │ - ······"gap":·0.11390104200108908,
+     38     │ - ······"rssBytes":·111149056,
+     39     │ - ······"directoryBytes":·2570709
+     40     │ - ····},
+     41     │ - ····{
+     42     │ - ······"elapsed":·0.8599075000092853,
+     43     │ - ······"childElapsed":·0.614897709019715,
+     44     │ - ······"gap":·0.11941629200009629,
+     45     │ - ······"rssBytes":·116015104,
+     46     │ - ······"directoryBytes":·2663556
+     47     │ - ····},
+     48     │ - ····{
+     49     │ - ······"elapsed":·0.9782677910116035,
+     50     │ - ······"childElapsed":·0.7332580000220332,
+     51     │ - ······"gap":·0.11836029100231826,
+     52     │ - ······"rssBytes":·144228352,
+     53     │ - ······"directoryBytes":·2751706
+     54     │ - ····},
+     55     │ - ····{
+     56     │ - ······"elapsed":·1.0871159580128733,
+     57     │ - ······"childElapsed":·0.842106167023303,
+     58     │ - ······"gap":·0.10884816700126976,
+     59     │ - ······"rssBytes":·144490496,
+     60     │ - ······"directoryBytes":·2826097
+     61     │ - ····},
+     62     │ - ····{
+     63     │ - ······"elapsed":·1.2049177500011865,
+     64     │ - ······"childElapsed":·0.9599079590116162,
+     65     │ - ······"gap":·0.1178017919883132,
+     66     │ - ······"rssBytes":·146882560,
+     67     │ - ······"directoryBytes":·2932105
+     68     │ - ····},
+     69     │ - ····{
+     70     │ - ······"elapsed":·1.3137012910156045,
+     71     │ - ······"childElapsed":·1.0686915000260342,
+     72     │ - ······"gap":·0.108783541014418,
+     73     │ - ······"rssBytes":·150192128,
+     74     │ - ······"directoryBytes":·3035042
+     75     │ - ····},
+     76     │ - ····{
+     77     │ - ······"elapsed":·1.4259261660045013,
+     78     │ - ······"childElapsed":·1.180916375014931,
+     79     │ - ······"gap":·0.11222487498889677,
+     80     │ - ······"rssBytes":·154042368,
+     81     │ - ······"directoryBytes":·3149496
+     82     │ - ····},
+     83     │ - ····{
+     84     │ - ······"elapsed":·1.5430127909930889,
+     85     │ - ······"childElapsed":·1.2980030000035185,
+     86     │ - ······"gap":·0.11708662498858757,
+     87     │ - ······"rssBytes":·196919296,
+     88     │ - ······"directoryBytes":·3263012
+     89     │ - ····},
+     90     │ - ····{
+     91     │ - ······"elapsed":·1.6511657910014037,
+     92     │ - ······"childElapsed":·1.4061560000118334,
+     93     │ - ······"gap":·0.10815300000831485,
+     94     │ - ······"rssBytes":·212942848,
+     95     │ - ······"directoryBytes":·3365259
+     96     │ - ····},
+     97     │ - ····{
+     98     │ - ······"elapsed":·1.7605176659999415,
+     99     │ - ······"childElapsed":·1.5155078750103712,
+    100     │ - ······"gap":·0.10935187499853782,
+    101     │ - ······"rssBytes":·213254144,
+    102     │ - ······"directoryBytes":·3477710
+    103     │ - ····}
+    104     │ - ··],
+    105     │ - ··"endedElapsed":·1.8706912079942413
+          2 │ + → "pid":·12598,
+          3 │ + → "exitCode":·0,
+          4 │ + → "reason":·null,
+          5 │ + → "observations":·[
+          6 │ + → → {
+          7 │ + → → → "elapsed":·0.2573077910055872,
+          8 │ + → → → "childElapsed":·0.012298000016016886,
+          9 │ + → → → "gap":·0.012298000016016886,
+         10 │ + → → → "rssBytes":·983040,
+         11 │ + → → → "directoryBytes":·2331154
+         12 │ + → → },
+         13 │ + → → {
+         14 │ + → → → "elapsed":·0.40535354099120013,
+         15 │ + → → → "childElapsed":·0.16034375000162981,
+         16 │ + → → → "gap":·0.14804574998561293,
+         17 │ + → → → "rssBytes":·82247680,
+         18 │ + → → → "directoryBytes":·2344196
+         19 │ + → → },
+         20 │ + → → {
+         21 │ + → → → "elapsed":·0.5171191249974072,
+         22 │ + → → → "childElapsed":·0.2721093340078369,
+         23 │ + → → → "gap":·0.11176558400620706,
+         24 │ + → → → "rssBytes":·94912512,
+         25 │ + → → → "directoryBytes":·2388229
+         26 │ + → → },
+         27 │ + → → {
+         28 │ + → → → "elapsed":·0.6265901660080999,
+         29 │ + → → → "childElapsed":·0.3815803750185296,
+         30 │ + → → → "gap":·0.10947104101069272,
+         31 │ + → → → "rssBytes":·97730560,
+         32 │ + → → → "directoryBytes":·2471200
+         33 │ + → → },
+         34 │ + → → {
+         35 │ + → → → "elapsed":·0.740491208009189,
+         36 │ + → → → "childElapsed":·0.4954814170196187,
+         37 │ + → → → "gap":·0.11390104200108908,
+         38 │ + → → → "rssBytes":·111149056,
+         39 │ + → → → "directoryBytes":·2570709
+         40 │ + → → },
+         41 │ + → → {
+         42 │ + → → → "elapsed":·0.8599075000092853,
+         43 │ + → → → "childElapsed":·0.614897709019715,
+         44 │ + → → → "gap":·0.11941629200009629,
+         45 │ + → → → "rssBytes":·116015104,
+         46 │ + → → → "directoryBytes":·2663556
+  61 more lines truncated
+  
+
+docs/design/causal-cost-investigation/aligned-capture/raw/00/native-clock.json format ━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   {
+     2    │ - ··"before":·{
+     3    │ - ····"absoluteBefore":·5914137352250,
+     4    │ - ····"continuous":·5914137352573,
+     5    │ - ····"absoluteAfter":·5914137352577
+     6    │ - ··},
+     7    │ - ··"after":·{
+     8    │ - ····"absoluteBefore":·5914176435714,
+     9    │ - ····"continuous":·5914176435836,
+    10    │ - ····"absoluteAfter":·5914176435841
+    11    │ - ··}
+        2 │ + → "before":·{
+        3 │ + → → "absoluteBefore":·5914137352250,
+        4 │ + → → "continuous":·5914137352573,
+        5 │ + → → "absoluteAfter":·5914137352577
+        6 │ + → },
+        7 │ + → "after":·{
+        8 │ + → → "absoluteBefore":·5914176435714,
+        9 │ + → → "continuous":·5914176435836,
+       10 │ + → → "absoluteAfter":·5914176435841
+       11 │ + → }
+    12 12 │   }
+    13 13 │   
+  
+
+docs/design/causal-cost-investigation/aligned-capture/raw/00/platform.json format ━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   {
+     2    │ - ··"os":·"macOS-26.6.2-arm64-arm-64bit-Mach-O",
+     3    │ - ··"kernel":·"25.6.0",
+     4    │ - ··"architecture":·"arm64",
+     5    │ - ··"timebase":·{
+     6    │ - ····"numer":·125,
+     7    │ - ····"denom":·3
+     8    │ - ··},
+     9    │ - ··"node":·"/Users/davidchenallio/.local/share/mise/installs/node/24.18.0/bin/node",
+    10    │ - ··"nodeSha256":·"ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+    11    │ - ··"nodeMetadata":·{
+    12    │ - ····"version":·"v24.18.0",
+    13    │ - ····"platform":·"darwin",
+    14    │ - ····"arch":·"arm64",
+    15    │ - ····"versions":·{
+    16    │ - ······"node":·"24.18.0",
+    17    │ - ······"acorn":·"8.16.0",
+    18    │ - ······"ada":·"3.4.4",
+    19    │ - ······"amaro":·"1.1.9",
+    20    │ - ······"ares":·"1.34.6",
+    21    │ - ······"brotli":·"1.2.0",
+    22    │ - ······"cldr":·"48.0",
+    23    │ - ······"icu":·"78.3",
+    24    │ - ······"llhttp":·"9.4.2",
+    25    │ - ······"merve":·"1.2.2",
+    26    │ - ······"modules":·"137",
+    27    │ - ······"napi":·"10",
+    28    │ - ······"nbytes":·"0.1.4",
+    29    │ - ······"ncrypto":·"0.0.1",
+    30    │ - ······"nghttp2":·"1.69.0",
+    31    │ - ······"nghttp3":·"",
+    32    │ - ······"ngtcp2":·"",
+    33    │ - ······"openssl":·"3.5.7",
+    34    │ - ······"simdjson":·"4.6.4",
+    35    │ - ······"simdutf":·"6.4.0",
+    36    │ - ······"sqlite":·"3.53.1",
+    37    │ - ······"tz":·"2026b",
+    38    │ - ······"undici":·"7.28.0",
+    39    │ - ······"unicode":·"17.0",
+    40    │ - ······"uv":·"1.52.1",
+    41    │ - ······"uvwasi":·"0.0.23",
+    42    │ - ······"v8":·"13.6.233.17-node.50",
+    43    │ - ······"zlib":·"1.3.1-e00f703",
+    44    │ - ······"zstd":·"1.5.7"
+    45    │ - ····}
+    46    │ - ··}
+        2 │ + → "os":·"macOS-26.6.2-arm64-arm-64bit-Mach-O",
+        3 │ + → "kernel":·"25.6.0",
+        4 │ + → "architecture":·"arm64",
+        5 │ + → "timebase":·{
+        6 │ + → → "numer":·125,
+        7 │ + → → "denom":·3
+        8 │ + → },
+        9 │ + → "node":·"/Users/davidchenallio/.local/share/mise/installs/node/24.18.0/bin/node",
+       10 │ + → "nodeSha256":·"ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+       11 │ + → "nodeMetadata":·{
+       12 │ + → → "version":·"v24.18.0",
+       13 │ + → → "platform":·"darwin",
+       14 │ + → → "arch":·"arm64",
+       15 │ + → → "versions":·{
+       16 │ + → → → "node":·"24.18.0",
+       17 │ + → → → "acorn":·"8.16.0",
+       18 │ + → → → "ada":·"3.4.4",
+       19 │ + → → → "amaro":·"1.1.9",
+       20 │ + → → → "ares":·"1.34.6",
+       21 │ + → → → "brotli":·"1.2.0",
+       22 │ + → → → "cldr":·"48.0",
+       23 │ + → → → "icu":·"78.3",
+       24 │ + → → → "llhttp":·"9.4.2",
+       25 │ + → → → "merve":·"1.2.2",
+       26 │ + → → → "modules":·"137",
+       27 │ + → → → "napi":·"10",
+       28 │ + → → → "nbytes":·"0.1.4",
+       29 │ + → → → "ncrypto":·"0.0.1",
+       30 │ + → → → "nghttp2":·"1.69.0",
+       31 │ + → → → "nghttp3":·"",
+       32 │ + → → → "ngtcp2":·"",
+       33 │ + → → → "openssl":·"3.5.7",
+       34 │ + → → → "simdjson":·"4.6.4",
+       35 │ + → → → "simdutf":·"6.4.0",
+       36 │ + → → → "sqlite":·"3.53.1",
+       37 │ + → → → "tz":·"2026b",
+       38 │ + → → → "undici":·"7.28.0",
+       39 │ + → → → "unicode":·"17.0",
+       40 │ + → → → "uv":·"1.52.1",
+       41 │ + → → → "uvwasi":·"0.0.23",
+       42 │ + → → → "v8":·"13.6.233.17-node.50",
+       43 │ + → → → "zlib":·"1.3.1-e00f703",
+       44 │ + → → → "zstd":·"1.5.7"
+       45 │ + → → }
+       46 │ + → }
+    47 47 │   }
+    48 48 │   
+  
+
+docs/design/causal-cost-investigation/aligned-capture/raw/00/preflight-first.json format ━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+    1 1 │   {
+    2   │ - ··"module":·0,
+    3   │ - ··"pid":·12598
+      2 │ + → "module":·0,
+      3 │ + → "pid":·12598
+    4 4 │   }
+    5 5 │   
+  
+
+docs/design/causal-cost-investigation/aligned-capture/raw/00/preflight-order.json format ━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+    1 1 │   {
+    2   │ - ··"modules":·[
+    3   │ - ····0,
+    4   │ - ····1
+    5   │ - ··],
+    6   │ - ··"pid":·12598
+      2 │ + → "modules":·[0,·1],
+      3 │ + → "pid":·12598
+    7 4 │   }
+    8 5 │   
+  
+
+docs/design/causal-cost-investigation/aligned-capture/raw/00/preflight.json format ━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+      1   1 │   {
+      2     │ - ··"passed":·true,
+      3     │ - ··"materialHints":·{
+      4     │ - ····"before":·[],
+      5     │ - ····"action":·[]
+      6     │ - ··},
+      7     │ - ··"recoveryPorts":·{
+      8     │ - ····"candidate":·{
+      9     │ - ······"reemitted":·[
+     10     │ - ········"startup",
+     11     │ - ········"assessment",
+     12     │ - ········"publication",
+     13     │ - ········"summary",
+     14     │ - ········"coverage"
+     15     │ - ······],
+     16     │ - ······"missing":·[
+     17     │ - ········"conservation"
+     18     │ - ······]
+     19     │ - ····},
+     20     │ - ····"reference":·{
+     21     │ - ······"reemitted":·[
+     22     │ - ········"startup",
+     23     │ - ········"assessment",
+     24     │ - ········"publication",
+     25     │ - ········"summary",
+     26     │ - ········"coverage"
+     27     │ - ······],
+     28     │ - ······"missing":·[
+     29     │ - ········"conservation"
+     30     │ - ······]
+     31     │ - ····}
+     32     │ - ··},
+     33     │ - ··"topology":·{
+     34     │ - ····"candidate":·[
+     35     │ - ······{
+     36     │ - ········"id":·"pack",
+     37     │ - ········"deps":·[],
+     38     │ - ········"factory":·"node"
+     39     │ - ······},
+     40     │ - ······{
+     41     │ - ········"id":·"arrivals",
+     42     │ - ········"deps":·[],
+     43     │ - ········"factory":·"node"
+     44     │ - ······},
+     45     │ - ······{
+     46     │ - ········"id":·"current",
+     47     │ - ········"deps":·[],
+     48     │ - ········"factory":·"node"
+     49     │ - ······},
+     50     │ - ······{
+     51     │ - ········"id":·"verification",
+     52     │ - ········"deps":·[],
+     53     │ - ········"factory":·"node"
+     54     │ - ······},
+     55     │ - ······{
+     56     │ - ········"id":·"local",
+     57     │ - ········"deps":·[],
+     58     │ - ········"factory":·"node"
+     59     │ - ······},
+     60     │ - ······{
+     61     │ - ········"id":·"inbox",
+     62     │ - ········"deps":·[],
+     63     │ - ········"factory":·"node"
+     64     │ - ······},
+     65     │ - ······{
+     66     │ - ········"id":·"spending/startup",
+     67     │ - ········"deps":·[],
+     68     │ - ········"factory":·"graphConstructionStartup"
+     69     │ - ······},
+     70     │ - ······{
+     71     │ - ········"id":·"spending/evaluationSelections",
+     72     │ - ········"deps":·[
+     73     │ - ··········"pack",
+     74     │ - ··········"arrivals"
+     75     │ - ········],
+     76     │ - ········"factory":·"spending/evaluationSelections"
+     77     │ - ······},
+     78     │ - ······{
+     79     │ - ········"id":·"spending/transaction",
+     80     │ - ········"deps":·[
+     81     │ - ··········"spending/evaluationSelections"
+     82     │ - ········],
+     83     │ - ········"factory":·"spending/transaction"
+     84     │ - ······},
+     85     │ - ······{
+     86     │ - ········"id":·"spending/vendorStats",
+     87     │ - ········"deps":·[
+     88     │ - ··········"spending/evaluationSelections"
+     89     │ - ········],
+     90     │ - ········"factory":·"spending/vendorStats"
+     91     │ - ······},
+     92     │ - ······{
+     93     │ - ········"id":·"spending/userProfile",
+     94     │ - ········"deps":·[
+     95     │ - ··········"spending/evaluationSelections"
+     96     │ - ········],
+     97     │ - ········"factory":·"spending/userProfile"
+     98     │ - ······},
+     99     │ - ······{
+    100     │ - ········"id":·"spending/policy",
+    101     │ - ········"deps":·[
+    102     │ - ··········"spending/evaluationSelections"
+    103     │ - ········],
+    104     │ - ········"factory":·"spending/policy"
+    105     │ - ······},
+    106     │ - ······{
+    107     │ - ········"id":·"spending/anomalyScore",
+    108     │ - ········"deps":·[
+    109     │ - ··········"spending/transaction",
+    110     │ - ··········"spending/vendorStats",
+    111     │ - ··········"spending/userProfile"
+    112     │ - ········],
+    113     │ - ········"factory":·"spending/anomalyScore"
+    114     │ - ······},
+    115     │ - ······{
+    116     │ - ········"id":·"spending/thresholdGate",
+    117     │ - ········"deps":·[
+    118     │ - ··········"spending/anomalyScore",
+    119     │ - ··········"spending/policy"
+    120     │ - ········],
+    121     │ - ········"factory":·"spending/thresholdGate"
+    122     │ - ······},
+    123     │ - ······{
+    124     │ - ········"id":·"spending/reasonFactors",
+    125     │ - ········"deps":·[
+    126     │ - ··········"spending/thresholdGate",
+    127     │ - ··········"spending/policy"
+    128     │ - ········],
+    129     │ - ········"factory":·"spending/reasonFactors"
+    130     │ - ······},
+    131     │ - ······{
+    132     │ - ········"id":·"spending/alertMessage",
+    133     │ - ········"deps":·[
+    134     │ - ··········"spending/reasonFactors"
+    135     │ - ········],
+    136     │ - ········"factory":·"spending/alertMessage"
+    137     │ - ······},
+    138     │ - ······{
+    139     │ - ········"id":·"spending/assessment",
+    140     │ - ········"deps":·[
+    141     │ - ··········"spending/thresholdGate",
+    142     │ - ··········"spending/reasonFactors",
+    143     │ - ··········"spending/alertMessage"
+    144     │ - ········],
+    145     │ - ········"factory":·"spending/assessment"
+    146     │ - ······},
+    147     │ - ······{
+    148     │ - ········"id":·"spending/requestMaterials",
+    149     │ - ········"deps":·[
+    150     │ - ··········"spending/evaluationSelections",
+  1513 more lines truncated
+  
+
+docs/design/causal-cost-investigation/aligned-capture/raw/00/verification/dispatch.json format ━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   {
+     2    │ - ··"argv":·[
+     3    │ - ····"/Users/davidchenallio/.local/share/mise/installs/python/3.14/bin/python3",
+     4    │ - ····"-B",
+     5    │ - ····"/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/assets/tools/verify-causal-aligned-child.py",
+     6    │ - ····"/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/00"
+     7    │ - ··],
+     8    │ - ··"explicitEnvironment":·{
+     9    │ - ····"PATH":·"/usr/bin:/bin",
+    10    │ - ····"TMPDIR":·"/tmp",
+    11    │ - ····"LANG":·"en_US.UTF-8",
+    12    │ - ····"__CF_USER_TEXT_ENCODING":·"0x1F5:0x0:0x0"
+    13    │ - ··}
+        2 │ + → "argv":·[
+        3 │ + → → "/Users/davidchenallio/.local/share/mise/installs/python/3.14/bin/python3",
+        4 │ + → → "-B",
+        5 │ + → → "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/assets/tools/verify-causal-aligned-child.py",
+        6 │ + → → "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/00"
+        7 │ + → ],
+        8 │ + → "explicitEnvironment":·{
+        9 │ + → → "PATH":·"/usr/bin:/bin",
+       10 │ + → → "TMPDIR":·"/tmp",
+       11 │ + → → "LANG":·"en_US.UTF-8",
+       12 │ + → → "__CF_USER_TEXT_ENCODING":·"0x1F5:0x0:0x0"
+       13 │ + → }
+    14 14 │   }
+    15 15 │   
+  
+
+docs/design/causal-cost-investigation/aligned-capture/raw/00/verification/exit.json format ━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   {
+     2    │ - ··"pid":·12632,
+     3    │ - ··"exitCode":·0,
+     4    │ - ··"reason":·null,
+     5    │ - ··"observations":·[
+     6    │ - ····{
+     7    │ - ······"elapsed":·1.8856203329924028,
+     8    │ - ······"childElapsed":·0.011117541987914592,
+     9    │ - ······"gap":·0.011117541987914592,
+    10    │ - ······"rssBytes":·1785856,
+    11    │ - ······"directoryBytes":·3577886
+    12    │ - ····}
+    13    │ - ··],
+    14    │ - ··"endedElapsed":·1.9958542080130428
+        2 │ + → "pid":·12632,
+        3 │ + → "exitCode":·0,
+        4 │ + → "reason":·null,
+        5 │ + → "observations":·[
+        6 │ + → → {
+        7 │ + → → → "elapsed":·1.8856203329924028,
+        8 │ + → → → "childElapsed":·0.011117541987914592,
+        9 │ + → → → "gap":·0.011117541987914592,
+       10 │ + → → → "rssBytes":·1785856,
+       11 │ + → → → "directoryBytes":·3577886
+       12 │ + → → }
+       13 │ + → ],
+       14 │ + → "endedElapsed":·1.9958542080130428
+    15 15 │   }
+    16 16 │   
+  
+
+docs/design/causal-cost-investigation/aligned-capture/raw/01/config.json format ━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   {
+     2    │ - ··"row":·{
+     3    │ - ····"id":·"cold-P2-summary",
+     4    │ - ····"group":·"cold",
+     5    │ - ····"profile":·"P2",
+     6    │ - ····"mode":·"summary"
+     7    │ - ··},
+     8    │ - ··"kind":·"control",
+     9    │ - ··"control":·true,
+    10    │ - ··"output":·"/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/01",
+    11    │ - ··"scenarioPath":·"/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/P2-inputs.json",
+    12    │ - ··"id":·1,
+    13    │ - ··"round":·0,
+    14    │ - ··"condition":·"CONTROL",
+    15    │ - ··"orientation":·"V"
+        2 │ + → "row":·{
+        3 │ + → → "id":·"cold-P2-summary",
+        4 │ + → → "group":·"cold",
+        5 │ + → → "profile":·"P2",
+        6 │ + → → "mode":·"summary"
+        7 │ + → },
+        8 │ + → "kind":·"control",
+        9 │ + → "control":·true,
+       10 │ + → "output":·"/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/01",
+       11 │ + → "scenarioPath":·"/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-cost-investigation/aligned-capture/raw/P2-inputs.json",
+       12 │ + → "id":·1,
+       13 │ + → "round":·0,
+       14 │ + → "condition":·"CONTROL",
+       15 │ + → "orientation":·"V"
+    16 16 │   }
+    17 17 │   
+  
+
+The number of diagnostics exceeds the limit allowed. Use --max-diagnostics to increase it.
+Diagnostics not shown: 2868.
+Checked 3351 files in 7s. No fixes applied.
+Found 1343 errors.
+Found 1422 warnings.
+Found 123 infos.
+check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+
+[ELIFECYCLE] Command failed with exit code 1.
