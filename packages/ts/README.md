@@ -62,6 +62,35 @@ The package also exports the common surface from the root:
 import { graph, map, timer, memoryKv } from "@graphrefly/ts";
 ```
 
+## Choose an entry by task
+
+Start with the task you need to perform. These layers are not a required learning
+sequence, and user experience levels do not select different runtime semantics.
+
+| Task | Entry | Responsibility |
+|---|---|---|
+| Compose an application and inspect its graph | `@graphrefly/ts/graph` or the root | Named nodes, explicit dependencies, composition and inspection |
+| Implement a node or runtime integration | `@graphrefly/ts/core` | Low-level Node, Ctx, batch, protocol and dispatcher contracts |
+| Reuse a horizontal graph pattern | `@graphrefly/ts/patterns` | Existing patterns such as `admissionHandoff` and `eventFlow` |
+| Use a domain solution | An existing focused `@graphrefly/ts/solutions/*` entry | The selected domain's inputs, policies and lifecycle contract |
+| Connect existing values to a UI | `@graphrefly/ts/adapters` or a framework package | Observation and framework integration under the adapter's documented semantics |
+
+A domain-specific solution need not apply to every business. Its supported inputs
+and execution boundary must still be explicit. Source directory placement alone
+does not make a symbol public; the package export map defines importable paths.
+
+An application can pass a narrow set of original Node references to a component
+while retaining the complete running graph and its lifecycle owner. This hides
+assembly details without cutting required dependencies. Narrow TypeScript types
+are not a security sandbox, and detaching a view does not establish that the
+application's outstanding work has ended.
+
+The repository's [private Causal spending example](../../examples/spending-alerts/README.md)
+shows this separation for display authors, framework integrators and maintainers.
+It uses local source imports and an offline simulated host. There is currently no
+published spending-alerts or causal-occurrence package subpath. This example does
+not establish a generic causal preset or a qualified production inbox integration.
+
 ## Operators
 
 ```ts

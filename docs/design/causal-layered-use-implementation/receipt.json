@@ -1,0 +1,120 @@
+{
+	"kind": "layered-use-implementation-evidence",
+	"owner": "graphrefly-ts",
+	"baseline": "6a5eb7e45c9f1e3a605cc933f07c4c58dc9fa60d",
+	"designRef": "docs/design/causal-layered-use-plan/README.md",
+	"approvalRef": "approval.json",
+	"checks": {
+		"fullTests": {
+			"exit": 0,
+			"passed": 2670,
+			"skipped": 4
+		},
+		"build": 0,
+		"exports": 0,
+		"packageBatchCases": 64,
+		"lintAndTypes": 0,
+		"finalTypes": 0,
+		"demo": 0,
+		"historicalIntegrity": 0,
+		"currentQualified": false
+	},
+	"qa": {
+		"blind": "remaining_cpu_review; host limits documentation patched",
+		"edge": "remaining_cpu_review; no blocker",
+		"verificationGap": "graded_framework; initial/pending displays and localAuthority label patched and rechecked"
+	},
+	"claims": {
+		"runtimeLibraryChanged": false,
+		"publicAPIAdded": false,
+		"performanceQualification": false,
+		"humanUsabilityQualification": false,
+		"B121Complete": false,
+		"providerLiveSpend": false
+	},
+	"sourceHashes": [
+		{
+			"path": "packages/ts/README.md",
+			"sha256": "54706fccbd602e406b78c095d57fd3f7d8e00d7ca8b5647ea395cfdd3a3d3c73"
+		},
+		{
+			"path": "examples/spending-alerts/README.md",
+			"sha256": "f154720ef10c937a73ef923ef3f58e647d6ec336e9199f0305d9d1324b97170f"
+		},
+		{
+			"path": "examples/spending-alerts/causal-graded-demo.ts",
+			"sha256": "1d204980a8bbda0b104a12ace83be097b1c73239afe98c5d0b65329a05f1d6f6"
+		},
+		{
+			"path": "packages/ts/src/__tests__/causal-graded-entry.test.ts",
+			"sha256": "a4ff160af27603dc74c990dd2a291bcd25dd2674d52fb3e34185e25b38871def"
+		},
+		{
+			"path": "packages/ts/package.json",
+			"sha256": "0ca16a1fcc9602d6f8fa28725f35acf3d7a8be40adeb767fdb89312c6519575d"
+		},
+		{
+			"path": "examples/spending-alerts/causal-focused-host.ts",
+			"sha256": "771fe0c1d409debb836bb446dbf1109464497b80225f4fc49e5a56d106feb022"
+		},
+		{
+			"path": "examples/spending-alerts/causal-view-binding.ts",
+			"sha256": "3a8722abf4ed783b8caa794ccb16a1d4fdfdbe26d999160805da746a62427409"
+		},
+		{
+			"path": "examples/spending-alerts/causal-entry.ts",
+			"sha256": "49e56fb40676cb72659af34cf7ac4a96d29b72293f6719ab2f6c722140ed8279"
+		}
+	],
+	"evidenceHashes": [
+		{
+			"path": "docs/design/causal-layered-use-implementation/README.md",
+			"sha256": "dd40cd4002718a294d57480e2606bd164be5df678fd648f5b517fe4c56c56101"
+		},
+		{
+			"path": "docs/design/causal-layered-use-implementation/approval.json",
+			"sha256": "c5edc8ac6cf42e2b6e4055bcdd4905a8ec42baa83f2b04991a0733486d1b2908"
+		},
+		{
+			"path": "docs/design/causal-layered-use-implementation/artifacts.log",
+			"sha256": "5bac644bfec886aebbfdce89d373232bbb5e93992591466d3494bf854936063f"
+		},
+		{
+			"path": "docs/design/causal-layered-use-implementation/build.log",
+			"sha256": "80f965f1f43429fa25059df3372b0d611032292875b8bb70b071eb19a58a7cea"
+		},
+		{
+			"path": "docs/design/causal-layered-use-implementation/demo.json",
+			"sha256": "ba60ba7ff977d6edcc72ad1014b719bbebfc6e6d2faaf81d28b49ac07d8f621e"
+		},
+		{
+			"path": "docs/design/causal-layered-use-implementation/demo.log",
+			"sha256": "375b57a5c8e49606d3387bddb52a95b975273f1baef03a8d562df1251ba595ac"
+		},
+		{
+			"path": "docs/design/causal-layered-use-implementation/docs-check.log",
+			"sha256": "743fcf9801351a1b38691567b0c1bcd42bf6c1f7078a210683ab7b9f489b8266"
+		},
+		{
+			"path": "docs/design/causal-layered-use-implementation/exports.log",
+			"sha256": "4996ebd7d52ba63e4cf2e19b8eb4d34200686c61b1a000a6ce6a49b53777a0ab"
+		},
+		{
+			"path": "docs/design/causal-layered-use-implementation/final-types.log",
+			"sha256": "2cce204523bd16e29a3f9d01879e610f87bf6512544591b83e7812f822d72b4c"
+		},
+		{
+			"path": "docs/design/causal-layered-use-implementation/lint.log",
+			"sha256": "0d83b47adb38b23559579658bd3f18d2282ba79a4b0446a02f844756a46c2ab8"
+		},
+		{
+			"path": "docs/design/causal-layered-use-implementation/tests-initial.log",
+			"sha256": "ec821edf6c55f708fee503cfdf75a36455ffc82143c879ce6b39094b9bc18d8b"
+		},
+		{
+			"path": "docs/design/causal-layered-use-implementation/tests.log",
+			"sha256": "10377a2d06583150d197be644745db3b23575c7b67c3d946db3eaa488e07bdcd"
+		}
+	],
+	"logNormalization": "Trailing whitespace removed; demo JSON formatted without changing data."
+}

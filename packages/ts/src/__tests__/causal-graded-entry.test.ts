@@ -9,6 +9,7 @@ import {
 	composeOfflineSpending,
 	OfflineAlertResource,
 } from "../../../../examples/spending-alerts/causal-focused-host.js";
+import { runGradedSpendingDemo } from "../../../../examples/spending-alerts/causal-graded-demo.js";
 import { drain, inputsFor } from "../../../../scripts/fixtures/spending-focused-host-harness.js";
 import {
 	evaluationFixture,
@@ -318,4 +319,45 @@ it("duplicate instance name fails before claiming another resource", async () =>
 	} finally {
 		teardown(run.graph, [host]);
 	}
+});
+
+it("runnable roles preserve A's obligation while the same graph presents and settles B", async () => {
+	const result = await runGradedSpendingDemo();
+	expect(result.ordinary.initialDisplay).toContain("评估：尚无事实");
+	expect(result.ordinary.pendingDisplay).toContain("admitted-no-outcome");
+	expect(result.ordinary.finalDisplay).toContain("succeeded");
+	expect(result.composition).toMatchObject({
+		sameGraph: true,
+		independentOwners: ["alerts", "alerts-b"],
+		aPendingAfterB: 1,
+		bSucceededWhileAPending: "succeeded",
+		writes: { a: 1, b: 1 },
+		originalExecutionHandles: true,
+		retainedLineages: true,
+	});
+	expect(result.observations).toMatchObject({
+		pendingAtDetach: 1,
+		completedWhileDetached: "succeeded",
+		reconnectReusedOriginalView: true,
+		topologyUnchanged: true,
+		normalEndReady: true,
+	});
+	const [a, b] = result.composition.evidenceNavigation;
+	expect(a.requestRef).not.toEqual(b.requestRef);
+	expect(a.admissionRef).not.toEqual(b.admissionRef);
+	for (const path of [a, b]) {
+		expect(result.maintainer.topology.nodes.some((node) => node.id === path.authorityNode)).toBe(
+			true,
+		);
+		expect(
+			result.maintainer.topology.nodes.some((node) => node.id === path.implementationNode),
+		).toBe(true);
+		expect(path.affectedEdges.length).toBeGreaterThan(0);
+		expect(path.outcome?.state).toBe("succeeded");
+		expect(path.verificationArtifact).toBeTruthy();
+		expect(path.coverage).toContain("not attested");
+		expect(path.historicalScope).toContain("not this A/B run");
+	}
+	expect(a.requestRef).toEqual(result.evidence.requestRef);
+	expect(a.admissionRef).toEqual(result.evidence.admissionRef);
 });

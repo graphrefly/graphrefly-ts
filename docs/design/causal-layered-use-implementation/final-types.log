@@ -1,0 +1,6 @@
+Checked 2 files in 29ms. No fixes applied.
+typecheck: spending-alerts example (examples/spending-alerts/tsconfig.json) — clean
+typecheck: keyed-rate-limit example (examples/basic/keyed-rate-limit/tsconfig.json) — clean
+typecheck: 2 package(s) checked, all clean.
+
+DONE exit=0

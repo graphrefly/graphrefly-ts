@@ -1,0 +1,8 @@
+{
+	"kind": "implementation-approval-evidence",
+	"owner": "graphrefly-ts",
+	"baseline": "6a5eb7e45c9f1e3a605cc933f07c4c58dc9fa60d",
+	"design": "docs/design/causal-layered-use-plan/README.md",
+	"grant": "User: \u540c\u610f\uff0c\u7ee7\u7eed \u2014 approves preceding complete implementation, offline QA and commit plan",
+	"scope": "Package/readme navigation, private role examples and their tests; no library runtime/API/protocol/provider/live/spend"
+}

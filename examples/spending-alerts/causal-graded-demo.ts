@@ -27,19 +27,23 @@ async function drainOfflineCompletion() {
 	for (let i = 0; i < 8; i++) await Promise.resolve();
 }
 
+function demoSources(graph: Graph, prefix: string) {
+	return {
+		pack: graph.node<EvaluationPack>([], null, { name: `${prefix}/pack` }),
+		arrivals: graph.node<ArrivalFrame>([], null, { name: `${prefix}/arrivals` }),
+		current: graph.node<CurrentFrame>([], null, { name: `${prefix}/current-policy` }),
+		verification: graph.node<VerificationFrame>([], null, {
+			name: `${prefix}/independent-verification`,
+		}),
+		local: graph.node<LocalAuthorityFrame>([], null, { name: `${prefix}/local-permission` }),
+	};
+}
+
 export async function runGradedSpendingDemo() {
 	// Application integration owns the graph and the five actual input Nodes.
 	// The independent fixture oracle supplies verification; this is not a qualified real host.
 	const graph = new Graph({ name: "offline-spending-app" });
-	const sources = {
-		pack: graph.node<EvaluationPack>([], null, { name: "input/pack" }),
-		arrivals: graph.node<ArrivalFrame>([], null, { name: "input/arrivals" }),
-		current: graph.node<CurrentFrame>([], null, { name: "input/current-policy" }),
-		verification: graph.node<VerificationFrame>([], null, {
-			name: "input/independent-verification",
-		}),
-		local: graph.node<LocalAuthorityFrame>([], null, { name: "input/local-permission" }),
-	};
+	const sources = demoSources(graph, "input");
 	const writes: string[] = [];
 	let resolveWrite!: (result: { bytesWritten: number }) => void;
 	const pendingWrite = new Promise<{ bytesWritten: number }>((resolve) => {
@@ -65,7 +69,12 @@ export async function runGradedSpendingDemo() {
 		panelText = text;
 		renderCount++;
 	};
+	const beforeInitialPanel = graph.topology();
 	let detachPanel = ordinarySpendingPanel(app.view, show);
+	assert.deepEqual(graph.topology(), beforeInitialPanel);
+	const initialDisplay = panelText;
+	let detachB = () => {};
+	let appB: ReturnType<typeof preset.compose> | undefined;
 	try {
 		const execution = frameworkExample(graph, app.capabilities, {
 			contract: "contract-v2",
@@ -76,6 +85,43 @@ export async function runGradedSpendingDemo() {
 		assert.equal(execution, app.capabilities.execution);
 		assert.equal(execution.identity, app.capabilities.identity);
 		assert.equal(app.capabilities.retained.execution, execution);
+		// Framework task: a second complete instance shares the Graph, not A's input/resource epoch.
+		const bindingB = {
+			...presetBinding,
+			compositionEpoch: 2,
+			hostEpoch: 2,
+			runRef: "second-fixture",
+		};
+		const sourcesB = demoSources(graph, "input-b");
+		const writesB: string[] = [];
+		appB = preset.compose(
+			{
+				evaluations: {
+					pack: sourcesB.pack,
+					arrivals: sourcesB.arrivals,
+					current: sourcesB.current,
+				},
+				verification: { receipts: sourcesB.verification },
+				localAuthority: { facts: sourcesB.local },
+				inbox: {
+					resource: new OfflineAlertResource(bindingB, async (payload) => {
+						writesB.push(payload);
+						return { bytesWritten: Buffer.byteLength(payload) };
+					}),
+				},
+			},
+			{ name: "alerts-b" },
+		);
+		const executionB = frameworkExample(graph, appB.capabilities, {
+			contract: "contract-v2",
+			implementationRevision: "construction-v1",
+			scope: "full",
+			epoch: 2,
+		});
+		assert.equal(executionB, appB.capabilities.execution);
+		assert.equal(appB.capabilities.retained.execution, executionB);
+		assert.notEqual(executionB, execution);
+		assert.notEqual(appB.view, app.view);
 		const topology = graph.topology();
 		await drainOfflineCompletion();
 		const evaluation = evaluationFixture();
@@ -95,10 +141,44 @@ export async function runGradedSpendingDemo() {
 		assert.equal(pending.inFlight, 1);
 		assert.equal(pending.records[0].outcome, undefined);
 		assert.equal(pending.normalEndReady, false);
+		const pendingDisplay = panelText;
 
 		detachPanel();
 		const rendersAtDetach = renderCount;
 		assert.equal(app.inspect().records.length, 1);
+		// Ordinary task switches to B while A still owes its exact result.
+		let panelBText = "";
+		detachB = ordinarySpendingPanel(appB.view, (text) => {
+			panelBText = text;
+		});
+		assert.deepEqual(graph.topology(), topology);
+		const evaluationB = evaluationFixture(0, "tea");
+		const factsB = policyFacts(evaluationB, bindingB);
+		sourcesB.pack.down([["DATA", evaluationPack([evaluationB], bindingB)]]);
+		batch(() => {
+			sourcesB.current.down([["DATA", factsB.current]]);
+			sourcesB.verification.down([["DATA", factsB.verification]]);
+			sourcesB.local.down([["DATA", factsB.local]]);
+			sourcesB.arrivals.down([
+				["DATA", { packRef: bindingB.packRef, evaluationRefs: [evaluationB.evaluationRef] }],
+			]);
+		});
+		await drainOfflineCompletion();
+		assert.deepEqual(writesB, [`${oracleRequest(evaluationB, bindingB)!.body.payloadText}\n`]);
+		assert.equal(appB.inspect().records[0].outcome?.state, "succeeded");
+		assert.match(panelBText, /succeeded/);
+		assert.equal(app.inspect().inFlight, 1);
+		assert.equal(app.inspect().records[0].outcome, undefined);
+		assert.equal(renderCount, rendersAtDetach);
+		const aPendingAfterB = app.inspect().inFlight;
+		assert.notDeepEqual(
+			app.inspect().records[0].admission.admissionRef,
+			appB.inspect().records[0].admission.admissionRef,
+		);
+		// Maintainer captures B's observed publication before its UI releases demand.
+		const publicationB = appB.view.publication.cache;
+		assert.ok(publicationB);
+		detachB();
 		resolveWrite({ bytesWritten: Buffer.byteLength(writes[0]) });
 		await drainOfflineCompletion();
 		assert.equal(renderCount, rendersAtDetach);
@@ -109,9 +189,12 @@ export async function runGradedSpendingDemo() {
 		detachPanel = ordinarySpendingPanel(app.view, show);
 		assert.ok(renderCount > rendersAtDetach);
 		assert.equal(app.inspect().writes, 1);
+		assert.match(panelText, /succeeded/);
+		assert.deepEqual(graph.topology(), topology);
 
 		// Existing local stop fact stops new work; it does not manufacture an outcome.
 		sources.local.down([["DATA", { ...facts.local, stop: true }]]);
+		sourcesB.local.down([["DATA", { ...factsB.local, stop: true }]]);
 		await drainOfflineCompletion();
 		const finished = app.inspect();
 		assert.equal(finished.normalEndReady, true);
@@ -119,10 +202,64 @@ export async function runGradedSpendingDemo() {
 		assert.deepEqual(graph.topology(), topology);
 		const maintainer = maintainerExample(graph);
 		const record = finished.records[0];
+		const recordB = appB.inspect().records[0];
+		assert.equal(appB.inspect().normalEndReady, true);
+		// Navigation begins with each actual publication row, then checks the exact retained request.
+		const publication = app.view.publication.cache;
+		assert.ok(publication);
+		assert.deepEqual(publication.rows[0].proposal.requestRef, record.request.requestRef);
+		assert.deepEqual(publicationB.rows[0].proposal.requestRef, recordB.request.requestRef);
+		const evidenceNavigation = [
+			{
+				publication,
+				hostRecord: record,
+				instance: app.owner.instance,
+				verification: facts.verification.receipts[0],
+			},
+			{
+				publication: publicationB,
+				hostRecord: recordB,
+				instance: appB.owner.instance,
+				verification: factsB.verification.receipts[0],
+			},
+		].map(({ publication, hostRecord, instance, verification }) => {
+			const authority = graph.find(publication.authorityId);
+			const implementationNode = graph.find(`${instance}/vendorStats`);
+			assert.ok(authority && implementationNode);
+			assert.equal(verification.requestDigest, hostRecord.request.body.payloadDigest);
+			assert.equal(publication.rows[0].recorded, hostRecord.outcome?.state);
+			return {
+				authorityNode: publication.authorityId,
+				implementationNode: `${instance}/vendorStats`,
+				affectedEdges: maintainer.edges.filter((edge) => edge.from === `${instance}/vendorStats`),
+				occurrence: hostRecord.request.body.occurrence,
+				requestRef: publication.rows[0].proposal.requestRef,
+				admissionRef: hostRecord.admission.admissionRef,
+				outcome: hostRecord.outcome,
+				verificationArtifact: verification.artifactRef,
+				implementationSource: "examples/spending-alerts/causal-business.ts",
+				binding: {
+					sourceDigest: hostRecord.request.body.sourceDigest,
+					runtimeDigest: hostRecord.request.body.runtimeDigest,
+				},
+				coverage:
+					"fixture binding only; current loaded-source implementation mapping is not attested",
+				historicalSourceExperiment:
+					"docs/design/causal-graded-entry-implementation/source-binding.json",
+				historicalScope: "separate recorded experiment; not this A/B run's source attestation",
+				modificationProvenance:
+					"unknown for this run; recorded tool provenance belongs only to the separate experiment",
+			};
+		});
 		return {
 			mode: "offline-simulation",
 			realInboxIO: false,
-			ordinary: { received: Object.keys(app.view), finalDisplay: panelText },
+			ordinary: {
+				received: Object.keys(app.view),
+				initialDisplay,
+				pendingDisplay,
+				finalDisplay: panelText,
+			},
 			framework: {
 				originalExecutionHandle: true,
 				originalIdentityHandle: true,
@@ -136,6 +273,20 @@ export async function runGradedSpendingDemo() {
 				authority: maintainer.nodes.find((node) => node.id === "alerts/causal/authority")?.id,
 				owner: app.owner.instance,
 				startup: app.owner.phase,
+			},
+			composition: {
+				sameGraph: true,
+				independentOwners: [app.owner.instance, appB.owner.instance],
+				aPendingAfterB,
+				bSucceededWhileAPending: recordB.outcome?.state,
+				writes: { a: writes.length, b: writesB.length },
+				originalExecutionHandles:
+					execution === app.capabilities.execution && executionB === appB.capabilities.execution,
+				retainedLineages:
+					app.capabilities.retained.execution === execution &&
+					appB.capabilities.retained.execution === executionB,
+				bFinalDisplay: panelBText,
+				evidenceNavigation,
 			},
 			observations: {
 				configurationAddedNodes: 0,
@@ -160,8 +311,10 @@ export async function runGradedSpendingDemo() {
 		};
 	} finally {
 		detachPanel();
+		detachB();
 		// Deterministic test/example cleanup, not a newly introduced public lifecycle method.
-		for (const lease of app.owner.roots) lease.unsubscribe?.();
+		for (const instance of [app, appB])
+			for (const lease of instance?.owner.roots ?? []) lease.unsubscribe?.();
 		const group = graph.topologyGroup();
 		for (const node of graph.describe().nodes) group.add(graph.find(node.id)!);
 		group.release();
