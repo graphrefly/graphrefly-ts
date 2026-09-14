@@ -1,0 +1,28 @@
+{
+	"kind": "private-focused-host-offline-delivery",
+	"approvalBaseline": "9350d4a5",
+	"decision": "graphrefly-ts:D170",
+	"defaultTests": {
+		"passed": 2619,
+		"skipped": 4
+	},
+	"focusedTestsPassed": 33,
+	"runtimeMutantsKilled": 9,
+	"runtimeMutationControlsPassed": 9,
+	"sourceBindingVerified": true,
+	"realInboxIO": 0,
+	"publicExportsAdded": 0,
+	"protocolChanges": 0,
+	"formalPerformanceQualified": false,
+	"equalTopologyFactoryPerformanceProven": false,
+	"overallOwnerWorkComplete": false,
+	"files": {
+		"examples/spending-alerts/causal-focused-host.ts": "f2ca05df2ac701617079fd513780cedfb38d67bc345eb79f5992cf3aa621591e",
+		"packages/ts/src/__tests__/causal-focused-host.test.ts": "3aa47b8d5d0ca827fbe9f98aa1d60e129325b784119251f8bde973c7a51a4530",
+		"packages/ts/src/__tests__/causal-focused-host-failures.test.ts": "719b39f2f9fddf3e98849c3d38b8b8b0abc732ed7937486d980bfd3618cb4d2b",
+		"scripts/fixtures/spending-focused-host-harness.ts": "bac4ff883a228fca633ec766aa81d0b3bfd542d64d8e78101daa3f9845cc7dbc",
+		"scripts/qualify-spending-focused-host.mjs": "63f868557ab307b0fce627145846d558eec90bd050529b49558226e1ae557007",
+		"scripts/qualify-spending-host-source-binding.mjs": "a739a5e7f0bf227ce8c1479ca1d4492ca71b26ddfe9b85ca59ae497366299467",
+		"scripts/measure-spending-focused-host.mjs": "fd9b7cba80f2abb04a2c69e38a82fdca024c1540944c657e576892f43f2b81a6"
+	}
+}

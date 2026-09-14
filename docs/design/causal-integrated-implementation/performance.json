@@ -1,0 +1,2829 @@
+{
+	"schema": "spending-focused-host-diagnostic-performance/v1",
+	"startedAt": "2026-09-14T05:08:51.941Z",
+	"status": "diagnostic-complete-not-qualified",
+	"attempt": 2,
+	"supersedesAttempt": {
+		"path": "docs/design/causal-integrated-implementation/performance-attempt1.json",
+		"reason": "Repair invalid eight-vendor fixture using independent domains sharing coffee vendor; normalize measured input/completion/reconnect observers. Prior attempt retained and not pooled."
+	},
+	"command": "node scripts/measure-spending-focused-host.mjs",
+	"node": "v24.18.0",
+	"platform": "darwin",
+	"arch": "arm64",
+	"cpu": "Apple M1 Pro",
+	"protocol": {
+		"warmupsPerVariantPerCell": 5,
+		"samplesPerVariantPerCell": 20,
+		"modes": ["off", "summary"],
+		"sizes": [1, 8],
+		"order": "one fresh child process per mode/size; alternating host/direct within each repetition",
+		"retries": 0,
+		"forcedGc": false,
+		"fixture": "independent oracle-backed evaluationFixture/policyFacts; independent revision domains with one coffee vendor; same pack and batched inputs",
+		"completion": "host deferred write resolved, direct exact fixture outcomes injected; one success and size-1 busy cancellations"
+	},
+	"limitations": [
+		"Diagnostic only; not frozen CSP11, formal 1.20/1.10 gates, or 100ms qualification.",
+		"Different topology and execution semantics: delta measures whole host integration plus existing harness behavior, not thin factory overhead.",
+		"Construction includes existing harness subscriptions: direct also observes conservation and summary; host observes consumer view only. Subsequent input/completion/reconnect measurements use exactly the same five view-only no-op subscribers in both arms; normalization is outside timing.",
+		"First input includes pack and five fact/arrival lane updates; fixture preparation is excluded. Completion excludes external wait and uses no real I/O.",
+		"Direct completion injects exact observations while host validates, retains, schedules and publishes them. These are not equivalent host implementations.",
+		"Construction creates fresh graphs inside warmed processes, not process cold start. RSS includes Node/V8, bundle, both variants, allocator and GC history; not per-graph retained memory.",
+		"No heap attribution, contention isolation, soak, or formal statistical confidence; 20 samples make p95 descriptive only."
+	],
+	"sources": [
+		{
+			"path": "examples/spending-alerts/causal-admission.ts",
+			"sha256": "73e966f03b721b84e6a34fb0803089fbca24fcfea2bc53cdc0fd809004decca0"
+		},
+		{
+			"path": "examples/spending-alerts/causal-business.ts",
+			"sha256": "5808b47b937eaa35336736523d958d9dcfa58053caad9c65df2caac49333c523"
+		},
+		{
+			"path": "examples/spending-alerts/causal-focused-host.ts",
+			"sha256": "f2ca05df2ac701617079fd513780cedfb38d67bc345eb79f5992cf3aa621591e"
+		},
+		{
+			"path": "examples/spending-alerts/causal-inputs.ts",
+			"sha256": "dfb1aa266cfed9bb6400171bfba30f046cd09ef94346c18560124566a7364561"
+		},
+		{
+			"path": "examples/spending-alerts/causal-material-owner.ts",
+			"sha256": "76a3605e733a2f87b23eb908f37fd7177ef86861c80d839708bd9080c5b9b370"
+		},
+		{
+			"path": "examples/spending-alerts/causal-numeric.ts",
+			"sha256": "0acdf5c800e55f7de0736718cc846eea137f880d0cbd0f158b680fa8b2e29dd8"
+		},
+		{
+			"path": "examples/spending-alerts/causal-preset.ts",
+			"sha256": "d4388d6a9bd8ed94e89716cb908e3e335ee3081203d25791868e88e8e40a501b"
+		},
+		{
+			"path": "examples/spending-alerts/causal-publication.ts",
+			"sha256": "eb303ca7a7ac46ed4b906f8ae5008a252426a8a07ef082bc15bd76e8b43ac743"
+		},
+		{
+			"path": "packages/ts/src/batch/batch.ts",
+			"sha256": "a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890"
+		},
+		{
+			"path": "packages/ts/src/batch/boundary.ts",
+			"sha256": "d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3"
+		},
+		{
+			"path": "packages/ts/src/ctx/types.ts",
+			"sha256": "e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9"
+		},
+		{
+			"path": "packages/ts/src/dispatcher/index.ts",
+			"sha256": "32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d"
+		},
+		{
+			"path": "packages/ts/src/graph/blueprint.ts",
+			"sha256": "ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b"
+		},
+		{
+			"path": "packages/ts/src/graph/checkpoint.ts",
+			"sha256": "303ffb3706bff5aa8f2d61a24290a322b3a7aa75f939318c5eb4e0d996b45ce7"
+		},
+		{
+			"path": "packages/ts/src/graph/combinators.ts",
+			"sha256": "e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2"
+		},
+		{
+			"path": "packages/ts/src/graph/construction-scope.ts",
+			"sha256": "343e6828b5276525797f97cb9c3998e4c28a1b0215af0b6505404b676856d37b"
+		},
+		{
+			"path": "packages/ts/src/graph/describe.ts",
+			"sha256": "d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4"
+		},
+		{
+			"path": "packages/ts/src/graph/environment.ts",
+			"sha256": "2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c"
+		},
+		{
+			"path": "packages/ts/src/graph/graph-lifecycle.ts",
+			"sha256": "23abc2773517b95265ce11e8144ba026b9ef4cac60af69351960fda00e12ac9d"
+		},
+		{
+			"path": "packages/ts/src/graph/graph-support.ts",
+			"sha256": "e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a"
+		},
+		{
+			"path": "packages/ts/src/graph/graph-topology-group.ts",
+			"sha256": "044f242b40e0ca8e069dbac19855af5d647513d80cbd54ac4978aa7b0830c119"
+		},
+		{
+			"path": "packages/ts/src/graph/graph.ts",
+			"sha256": "54b3644e0de855533f9ac91621b9e4eceb0368d11a953fe0d793dfd22e8b72fe"
+		},
+		{
+			"path": "packages/ts/src/graph/higher-order.ts",
+			"sha256": "8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c"
+		},
+		{
+			"path": "packages/ts/src/graph/operators.ts",
+			"sha256": "01dcdfe15269da8fede4e3a0057e668f7c3e6e40c1fbad6d3779c6e5bdf715f3"
+		},
+		{
+			"path": "packages/ts/src/graph/sources.ts",
+			"sha256": "eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76"
+		},
+		{
+			"path": "packages/ts/src/graph/time.ts",
+			"sha256": "04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1"
+		},
+		{
+			"path": "packages/ts/src/identity.ts",
+			"sha256": "4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270"
+		},
+		{
+			"path": "packages/ts/src/json/codec.ts",
+			"sha256": "7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa"
+		},
+		{
+			"path": "packages/ts/src/node/core.ts",
+			"sha256": "87d482706dd0476297f191b485fb14cbbebc8298dd126d8005d8548f2423041c"
+		},
+		{
+			"path": "packages/ts/src/node/node-checkpoint-runtime.ts",
+			"sha256": "5ed4b3fe287fdf3c37b3c15eb9dcbaf3509f03212752068b3d9f3a2eeafe40bb"
+		},
+		{
+			"path": "packages/ts/src/node/node-context-runtime.ts",
+			"sha256": "6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624"
+		},
+		{
+			"path": "packages/ts/src/node/node-input-runtime.ts",
+			"sha256": "9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066"
+		},
+		{
+			"path": "packages/ts/src/node/node-lifecycle-runtime.ts",
+			"sha256": "c0845b70f2da14aa8692ec2fe4d079cdb0e3be0af777648e0ce2c6adcca3273b"
+		},
+		{
+			"path": "packages/ts/src/node/node-output-runtime.ts",
+			"sha256": "c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4"
+		},
+		{
+			"path": "packages/ts/src/node/node-rewire-runtime.ts",
+			"sha256": "f56d6c2b1618e8245a2576757d0639c6337217b41f11a5c0f7a816f5f3db0e1b"
+		},
+		{
+			"path": "packages/ts/src/node/node-runtime-host.ts",
+			"sha256": "7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b"
+		},
+		{
+			"path": "packages/ts/src/node/node.ts",
+			"sha256": "b4f7ea41b8bd6cd9664cde9a31763caef4d4effd17597d868f9ef9b3d699eec6"
+		},
+		{
+			"path": "packages/ts/src/node/owned-acquisition.ts",
+			"sha256": "b0f28f96d0f316bd76922869d55b46ef260bee9b9d473dcaaf64622d24c492d9"
+		},
+		{
+			"path": "packages/ts/src/node/protocol-guards.ts",
+			"sha256": "11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177"
+		},
+		{
+			"path": "packages/ts/src/node/runtime-accessors.ts",
+			"sha256": "6ec8dc24114807f55bc4633fb12d4fa24c35d83d0796ce270f7407017073322f"
+		},
+		{
+			"path": "packages/ts/src/node/versioning.ts",
+			"sha256": "2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a"
+		},
+		{
+			"path": "packages/ts/src/operators/index.ts",
+			"sha256": "67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f"
+		},
+		{
+			"path": "packages/ts/src/protocol/messages.ts",
+			"sha256": "5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef"
+		},
+		{
+			"path": "packages/ts/src/solutions/causal-occurrence/capabilities.ts",
+			"sha256": "606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7"
+		},
+		{
+			"path": "packages/ts/src/solutions/causal-occurrence/committed-view.ts",
+			"sha256": "ed6e3b06a849f4f7bc9df455059b26f1dea92a64566acad04bbc8c306b35919d"
+		},
+		{
+			"path": "packages/ts/src/solutions/causal-occurrence/construction.ts",
+			"sha256": "57a73dfa6eb9a685441403520f790447d63e13b5f221b8c7eba3c2c5dfae06c9"
+		},
+		{
+			"path": "packages/ts/src/solutions/causal-occurrence/evidence.ts",
+			"sha256": "535700f13c6b639f694d950922e78d3f7a1da29511477af0ba31ed69d8563e34"
+		},
+		{
+			"path": "packages/ts/src/solutions/causal-occurrence/identity.ts",
+			"sha256": "54d7cee52121d369f5112e1bba363acd9c4b9d8651d565751b1cc6190799553a"
+		},
+		{
+			"path": "packages/ts/src/solutions/causal-occurrence/lifecycle.ts",
+			"sha256": "bc8f3c7b353d9a2cfbbb0d39bd8fd88a0b356184bbd448c2252f80503dc6089a"
+		},
+		{
+			"path": "packages/ts/src/solutions/causal-occurrence/transition.ts",
+			"sha256": "b85f0fa0d4c61c64f88295814c24c770a414bf7d304fd686a01a4a2c524fe220"
+		},
+		{
+			"path": "scripts/fixtures/spending-focused-host-harness.ts",
+			"sha256": "bac4ff883a228fca633ec766aa81d0b3bfd542d64d8e78101daa3f9845cc7dbc"
+		},
+		{
+			"path": "scripts/fixtures/spending-numeric-oracle.ts",
+			"sha256": "91f90ff47306b4631dc225a6df4daf60cabbd2e146aa1476915cdbfe4419c8df"
+		},
+		{
+			"path": "scripts/fixtures/spending-preset-harness.ts",
+			"sha256": "9c3ba7b674bd56847631a4c07160c1123cc39fa300ef540c2f3aa82880259e22"
+		},
+		{
+			"path": "scripts/fixtures/spending-preset-oracle.ts",
+			"sha256": "1bae2736615e6c2b8db71cc380a31226e73dcea1d31216d45ec13819a92cc8a2"
+		},
+		{
+			"path": "scripts/fixtures/spending-publication-oracle.ts",
+			"sha256": "6e2c9c6695567a276c75090c838670c93ecdea7c7b5a48279f959ccf66c4aac1"
+		}
+	],
+	"cells": [
+		{
+			"mode": "off",
+			"size": 1,
+			"results": [
+				{
+					"variant": "host",
+					"repetition": 0,
+					"constructionMs": 0.47979100000000585,
+					"readinessMs": 0.11424999999999841,
+					"firstInputMs": 3.3031249999999943,
+					"completionMs": 0.6831249999999898,
+					"reconnectMs": 0.21016699999999844,
+					"rssMiB": 81.296875,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "direct",
+					"repetition": 0,
+					"constructionMs": 0.4065000000000083,
+					"readinessMs": 0.07570800000000588,
+					"firstInputMs": 2.105125000000001,
+					"completionMs": 0.24245799999999917,
+					"reconnectMs": 0.17029200000000344,
+					"rssMiB": 81.828125,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 1,
+					"constructionMs": 0.6672089999999997,
+					"readinessMs": 0.09775000000000489,
+					"firstInputMs": 2.0377089999999924,
+					"completionMs": 0.23145799999998928,
+					"reconnectMs": 0.19325000000000614,
+					"rssMiB": 82.078125,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 1,
+					"constructionMs": 0.3762920000000065,
+					"readinessMs": 0.1035839999999979,
+					"firstInputMs": 3.169124999999994,
+					"completionMs": 0.5393749999999926,
+					"reconnectMs": 0.16712499999999864,
+					"rssMiB": 82.15625,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "host",
+					"repetition": 2,
+					"constructionMs": 0.42491700000000776,
+					"readinessMs": 0.09000000000000341,
+					"firstInputMs": 2.5791670000000124,
+					"completionMs": 0.5354159999999979,
+					"reconnectMs": 0.16750000000000398,
+					"rssMiB": 82.203125,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "direct",
+					"repetition": 2,
+					"constructionMs": 0.3242079999999987,
+					"readinessMs": 0.061082999999996446,
+					"firstInputMs": 1.7824999999999989,
+					"completionMs": 0.20400000000000773,
+					"reconnectMs": 0.15341700000000458,
+					"rssMiB": 82.21875,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 3,
+					"constructionMs": 0.3134160000000037,
+					"readinessMs": 0.05941699999999628,
+					"firstInputMs": 2.5778329999999983,
+					"completionMs": 0.22825000000000273,
+					"reconnectMs": 0.18299999999999272,
+					"rssMiB": 82.34375,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 3,
+					"constructionMs": 0.5303329999999988,
+					"readinessMs": 0.1173339999999996,
+					"firstInputMs": 2.5148749999999893,
+					"completionMs": 0.5596249999999969,
+					"reconnectMs": 0.16729199999998912,
+					"rssMiB": 82.546875,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "host",
+					"repetition": 4,
+					"constructionMs": 0.4501249999999999,
+					"readinessMs": 0.09391699999999048,
+					"firstInputMs": 2.326750000000004,
+					"completionMs": 0.9424999999999955,
+					"reconnectMs": 0.18495900000002052,
+					"rssMiB": 82.671875,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "direct",
+					"repetition": 4,
+					"constructionMs": 0.33737500000000864,
+					"readinessMs": 0.07245800000001168,
+					"firstInputMs": 1.774957999999998,
+					"completionMs": 0.1927079999999819,
+					"reconnectMs": 0.15520899999998505,
+					"rssMiB": 82.671875,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 5,
+					"constructionMs": 0.32195899999999256,
+					"readinessMs": 0.06141599999997993,
+					"firstInputMs": 2.0705420000000174,
+					"completionMs": 0.22329200000001492,
+					"reconnectMs": 0.15354200000001583,
+					"rssMiB": 82.8125,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 5,
+					"constructionMs": 0.46654100000000653,
+					"readinessMs": 0.08991699999998559,
+					"firstInputMs": 2.255708000000027,
+					"completionMs": 0.4732500000000073,
+					"reconnectMs": 0.148666999999989,
+					"rssMiB": 82.984375,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "host",
+					"repetition": 6,
+					"constructionMs": 0.42329200000000355,
+					"readinessMs": 0.11612499999998249,
+					"firstInputMs": 2.3458750000000066,
+					"completionMs": 0.8616670000000113,
+					"reconnectMs": 0.17258300000000304,
+					"rssMiB": 82.984375,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "direct",
+					"repetition": 6,
+					"constructionMs": 0.33150000000000546,
+					"readinessMs": 0.06366699999998104,
+					"firstInputMs": 1.9339999999999975,
+					"completionMs": 0.2052500000000066,
+					"reconnectMs": 0.1784590000000037,
+					"rssMiB": 83.015625,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 7,
+					"constructionMs": 0.3331660000000056,
+					"readinessMs": 0.06470799999999599,
+					"firstInputMs": 2.064832999999993,
+					"completionMs": 0.22708300000002168,
+					"reconnectMs": 0.21779200000000287,
+					"rssMiB": 83.078125,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 7,
+					"constructionMs": 0.3352920000000097,
+					"readinessMs": 0.09399999999999409,
+					"firstInputMs": 2.307165999999995,
+					"completionMs": 1.0300000000000011,
+					"reconnectMs": 0.17937499999999318,
+					"rssMiB": 83.140625,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "host",
+					"repetition": 8,
+					"constructionMs": 0.48245800000000827,
+					"readinessMs": 0.08579199999999787,
+					"firstInputMs": 2.18395799999999,
+					"completionMs": 0.480165999999997,
+					"reconnectMs": 0.15304100000000176,
+					"rssMiB": 83.140625,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "direct",
+					"repetition": 8,
+					"constructionMs": 0.3315830000000233,
+					"readinessMs": 0.060207999999988715,
+					"firstInputMs": 1.9058750000000089,
+					"completionMs": 0.2065420000000131,
+					"reconnectMs": 0.17279200000001538,
+					"rssMiB": 83.1875,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 9,
+					"constructionMs": 0.3209579999999903,
+					"readinessMs": 0.06883399999998119,
+					"firstInputMs": 2.3272090000000105,
+					"completionMs": 0.19870800000001054,
+					"reconnectMs": 0.16979200000000105,
+					"rssMiB": 83.203125,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 9,
+					"constructionMs": 0.3554160000000195,
+					"readinessMs": 0.08845900000000029,
+					"firstInputMs": 2.0607499999999845,
+					"completionMs": 0.8231250000000045,
+					"reconnectMs": 0.16591700000000742,
+					"rssMiB": 83.25,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "host",
+					"repetition": 10,
+					"constructionMs": 0.34404200000000174,
+					"readinessMs": 0.0858339999999771,
+					"firstInputMs": 2.184708999999998,
+					"completionMs": 0.5216250000000002,
+					"reconnectMs": 0.15962500000000546,
+					"rssMiB": 83.28125,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "direct",
+					"repetition": 10,
+					"constructionMs": 0.3076250000000016,
+					"readinessMs": 0.06595799999999485,
+					"firstInputMs": 2.0688749999999914,
+					"completionMs": 0.19733300000001464,
+					"reconnectMs": 0.16716700000000628,
+					"rssMiB": 83.296875,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 11,
+					"constructionMs": 0.3241250000000093,
+					"readinessMs": 0.0599589999999921,
+					"firstInputMs": 2.024624999999986,
+					"completionMs": 0.20291700000001356,
+					"reconnectMs": 0.17329200000000355,
+					"rssMiB": 83.390625,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 11,
+					"constructionMs": 0.4016249999999957,
+					"readinessMs": 0.07920899999999165,
+					"firstInputMs": 1.931207999999998,
+					"completionMs": 0.4535419999999988,
+					"reconnectMs": 0.1463330000000269,
+					"rssMiB": 83.390625,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "host",
+					"repetition": 12,
+					"constructionMs": 0.6948749999999961,
+					"readinessMs": 0.13433299999999804,
+					"firstInputMs": 2.352833000000004,
+					"completionMs": 0.5253329999999892,
+					"reconnectMs": 0.16437500000000682,
+					"rssMiB": 83.453125,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "direct",
+					"repetition": 12,
+					"constructionMs": 0.32900000000000773,
+					"readinessMs": 0.06120799999999349,
+					"firstInputMs": 2.5930000000000177,
+					"completionMs": 0.1759580000000085,
+					"reconnectMs": 0.14866599999999153,
+					"rssMiB": 84.8125,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 13,
+					"constructionMs": 0.4212079999999787,
+					"readinessMs": 0.05645800000002055,
+					"firstInputMs": 1.803291999999999,
+					"completionMs": 0.17208400000001234,
+					"reconnectMs": 0.14629200000001674,
+					"rssMiB": 86.328125,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 13,
+					"constructionMs": 0.521333999999996,
+					"readinessMs": 0.09350000000000591,
+					"firstInputMs": 2.498790999999983,
+					"completionMs": 0.5492500000000007,
+					"reconnectMs": 0.16629199999999855,
+					"rssMiB": 91.96875,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "host",
+					"repetition": 14,
+					"constructionMs": 0.38245799999998553,
+					"readinessMs": 0.08633299999999622,
+					"firstInputMs": 3.0745410000000106,
+					"completionMs": 0.6294170000000179,
+					"reconnectMs": 0.16183399999999892,
+					"rssMiB": 94.140625,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "direct",
+					"repetition": 14,
+					"constructionMs": 0.38416599999999335,
+					"readinessMs": 0.07237499999999386,
+					"firstInputMs": 1.8894999999999982,
+					"completionMs": 0.23283399999999688,
+					"reconnectMs": 0.175707999999986,
+					"rssMiB": 94.6875,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 15,
+					"constructionMs": 0.3412079999999946,
+					"readinessMs": 0.06583399999999529,
+					"firstInputMs": 1.858666999999997,
+					"completionMs": 0.208958999999993,
+					"reconnectMs": 0.18791699999999878,
+					"rssMiB": 98.859375,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 15,
+					"constructionMs": 0.40883300000001555,
+					"readinessMs": 0.09041699999997377,
+					"firstInputMs": 2.8271249999999952,
+					"completionMs": 0.4541250000000048,
+					"reconnectMs": 0.13662500000000932,
+					"rssMiB": 101.734375,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "host",
+					"repetition": 16,
+					"constructionMs": 0.4158749999999998,
+					"readinessMs": 0.07283400000000029,
+					"firstInputMs": 2.0222090000000037,
+					"completionMs": 0.4612079999999992,
+					"reconnectMs": 0.24929099999999949,
+					"rssMiB": 101.796875,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "direct",
+					"repetition": 16,
+					"constructionMs": 0.3534580000000176,
+					"readinessMs": 0.06837499999997476,
+					"firstInputMs": 2.257374999999996,
+					"completionMs": 0.21379100000001472,
+					"reconnectMs": 0.16724999999999568,
+					"rssMiB": 101.828125,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 17,
+					"constructionMs": 0.29520800000000236,
+					"readinessMs": 0.05437499999999318,
+					"firstInputMs": 2.3123330000000237,
+					"completionMs": 0.17983300000000213,
+					"reconnectMs": 0.14170899999999165,
+					"rssMiB": 101.875,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 17,
+					"constructionMs": 0.3701250000000016,
+					"readinessMs": 0.09049999999999159,
+					"firstInputMs": 2.154416999999995,
+					"completionMs": 0.5172089999999798,
+					"reconnectMs": 0.14929200000000264,
+					"rssMiB": 101.875,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "host",
+					"repetition": 18,
+					"constructionMs": 0.8902089999999987,
+					"readinessMs": 0.10670799999999758,
+					"firstInputMs": 3.7487910000000113,
+					"completionMs": 0.5647080000000244,
+					"reconnectMs": 0.16737499999999272,
+					"rssMiB": 101.984375,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "direct",
+					"repetition": 18,
+					"constructionMs": 0.4779169999999908,
+					"readinessMs": 0.10979199999999878,
+					"firstInputMs": 2.916291000000001,
+					"completionMs": 0.209541999999999,
+					"reconnectMs": 0.1684590000000128,
+					"rssMiB": 102.28125,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 19,
+					"constructionMs": 0.35754199999999514,
+					"readinessMs": 0.06416700000002606,
+					"firstInputMs": 2.3230000000000075,
+					"completionMs": 0.2577079999999796,
+					"reconnectMs": 0.1520840000000021,
+					"rssMiB": 102.40625,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 19,
+					"constructionMs": 0.3664579999999944,
+					"readinessMs": 0.08424999999999727,
+					"firstInputMs": 2.3318749999999966,
+					"completionMs": 0.528125000000017,
+					"reconnectMs": 0.1554580000000101,
+					"rssMiB": 102.765625,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				}
+			],
+			"maxRssKiB": 105232,
+			"summary": {
+				"direct": {
+					"constructionMs": {
+						"mean": 0.3639665500000014,
+						"median": 0.3331660000000056,
+						"p95": 0.4779169999999908,
+						"min": 0.29520800000000236,
+						"max": 0.6672089999999997
+					},
+					"readinessMs": {
+						"mean": 0.06818749999999625,
+						"median": 0.06470799999999599,
+						"p95": 0.09775000000000489,
+						"min": 0.05437499999999318,
+						"max": 0.10979199999999878
+					},
+					"firstInputMs": {
+						"mean": 2.1313771000000017,
+						"median": 2.0688749999999914,
+						"p95": 2.5930000000000177,
+						"min": 1.774957999999998,
+						"max": 2.916291000000001
+					},
+					"completionMs": {
+						"mean": 0.2105354000000041,
+						"median": 0.208958999999993,
+						"p95": 0.24245799999999917,
+						"min": 0.17208400000001234,
+						"max": 0.2577079999999796
+					},
+					"reconnectMs": {
+						"mean": 0.1688044500000018,
+						"median": 0.16979200000000105,
+						"p95": 0.19325000000000614,
+						"min": 0.14170899999999165,
+						"max": 0.21779200000000287
+					},
+					"rssMiB": {
+						"mean": 88.31015625,
+						"median": 83.296875,
+						"p95": 102.28125,
+						"min": 81.828125,
+						"max": 102.40625
+					},
+					"topologyNodes": {
+						"mean": 59,
+						"median": 59,
+						"p95": 59,
+						"min": 59,
+						"max": 59
+					}
+				},
+				"host": {
+					"constructionMs": {
+						"mean": 0.45601455000000257,
+						"median": 0.42329200000000355,
+						"p95": 0.6948749999999961,
+						"min": 0.3352920000000097,
+						"max": 0.8902089999999987
+					},
+					"readinessMs": {
+						"mean": 0.09586479999999398,
+						"median": 0.09049999999999159,
+						"p95": 0.1173339999999996,
+						"min": 0.07283400000000029,
+						"max": 0.13433299999999804
+					},
+					"firstInputMs": {
+						"mean": 2.5086498999999995,
+						"median": 2.3458750000000066,
+						"p95": 3.3031249999999943,
+						"min": 1.931207999999998,
+						"max": 3.7487910000000113
+					},
+					"completionMs": {
+						"mean": 0.6066395500000012,
+						"median": 0.5393749999999926,
+						"p95": 0.9424999999999955,
+						"min": 0.4535419999999988,
+						"max": 1.0300000000000011
+					},
+					"reconnectMs": {
+						"mean": 0.1686563000000028,
+						"median": 0.16629199999999855,
+						"p95": 0.21016699999999844,
+						"min": 0.13662500000000932,
+						"max": 0.24929099999999949
+					},
+					"rssMiB": {
+						"mean": 88.63828125,
+						"median": 83.28125,
+						"p95": 101.984375,
+						"min": 81.296875,
+						"max": 102.765625
+					},
+					"topologyNodes": {
+						"mean": 62,
+						"median": 62,
+						"p95": 62,
+						"min": 62,
+						"max": 62
+					}
+				}
+			},
+			"hostToDirectMeanRatios": {
+				"constructionMs": 1.2529023614944859,
+				"firstInputMs": 1.177008939431693,
+				"completionMs": 2.8814135295061516,
+				"reconnectMs": 0.9991223572601375
+			}
+		},
+		{
+			"mode": "off",
+			"size": 8,
+			"results": [
+				{
+					"variant": "host",
+					"repetition": 0,
+					"constructionMs": 0.6066250000000082,
+					"readinessMs": 0.09737499999999955,
+					"firstInputMs": 19.047624999999982,
+					"completionMs": 2.638417000000004,
+					"reconnectMs": 0.8197499999999991,
+					"rssMiB": 102.890625,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "direct",
+					"repetition": 0,
+					"constructionMs": 0.502125000000035,
+					"readinessMs": 0.07116600000000517,
+					"firstInputMs": 13.041916000000015,
+					"completionMs": 1.190999999999974,
+					"reconnectMs": 0.9024580000000242,
+					"rssMiB": 102.9375,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 1,
+					"constructionMs": 0.5074170000000322,
+					"readinessMs": 0.12745899999998755,
+					"firstInputMs": 13.129208000000006,
+					"completionMs": 1.137125000000026,
+					"reconnectMs": 0.8580419999999549,
+					"rssMiB": 102.984375,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 1,
+					"constructionMs": 0.6122079999999528,
+					"readinessMs": 0.14312499999999773,
+					"firstInputMs": 19.621166999999957,
+					"completionMs": 3.3131250000000136,
+					"reconnectMs": 0.9627089999999612,
+					"rssMiB": 103.34375,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "host",
+					"repetition": 2,
+					"constructionMs": 0.574292000000014,
+					"readinessMs": 0.09654199999999946,
+					"firstInputMs": 19.066457999999955,
+					"completionMs": 2.6267500000000155,
+					"reconnectMs": 1.1860829999999964,
+					"rssMiB": 104.09375,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "direct",
+					"repetition": 2,
+					"constructionMs": 0.598542000000009,
+					"readinessMs": 0.07841700000000174,
+					"firstInputMs": 12.724333000000001,
+					"completionMs": 1.1249579999999924,
+					"reconnectMs": 0.8614590000000248,
+					"rssMiB": 104.234375,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 3,
+					"constructionMs": 0.43754200000000765,
+					"readinessMs": 0.07795800000002373,
+					"firstInputMs": 15.563040999999998,
+					"completionMs": 1.2882079999999974,
+					"reconnectMs": 1.152290999999991,
+					"rssMiB": 104.875,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 3,
+					"constructionMs": 0.5848749999999541,
+					"readinessMs": 0.13208300000002282,
+					"firstInputMs": 20.290750000000003,
+					"completionMs": 3.0141660000000456,
+					"reconnectMs": 0.8905839999999898,
+					"rssMiB": 106,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "host",
+					"repetition": 4,
+					"constructionMs": 0.5510409999999979,
+					"readinessMs": 0.14995799999996962,
+					"firstInputMs": 19.59733300000005,
+					"completionMs": 3.0365829999999505,
+					"reconnectMs": 0.899167000000034,
+					"rssMiB": 106.828125,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "direct",
+					"repetition": 4,
+					"constructionMs": 0.47520799999995234,
+					"readinessMs": 0.07087500000000091,
+					"firstInputMs": 14.075375000000008,
+					"completionMs": 1.7798749999999472,
+					"reconnectMs": 1.6273749999999154,
+					"rssMiB": 107.375,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 5,
+					"constructionMs": 0.45595800000000963,
+					"readinessMs": 0.08491699999990487,
+					"firstInputMs": 13.123208999999974,
+					"completionMs": 1.1016250000000127,
+					"reconnectMs": 0.8214159999999993,
+					"rssMiB": 107.53125,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 5,
+					"constructionMs": 0.42133400000000165,
+					"readinessMs": 0.08591599999999744,
+					"firstInputMs": 23.72458299999994,
+					"completionMs": 3.414250000000038,
+					"reconnectMs": 1.189958000000047,
+					"rssMiB": 119.796875,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "host",
+					"repetition": 6,
+					"constructionMs": 0.5035840000000462,
+					"readinessMs": 0.12341600000002018,
+					"firstInputMs": 20.096874999999955,
+					"completionMs": 3.192916999999966,
+					"reconnectMs": 0.8195419999999558,
+					"rssMiB": 141.5625,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "direct",
+					"repetition": 6,
+					"constructionMs": 0.4518749999999727,
+					"readinessMs": 0.09208300000000236,
+					"firstInputMs": 12.392291999999998,
+					"completionMs": 1.5758749999999964,
+					"reconnectMs": 0.8192500000000109,
+					"rssMiB": 141.90625,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 7,
+					"constructionMs": 0.37525000000005093,
+					"readinessMs": 0.06462499999997817,
+					"firstInputMs": 12.952374999999961,
+					"completionMs": 1.377042000000074,
+					"reconnectMs": 0.8418749999999591,
+					"rssMiB": 141.96875,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 7,
+					"constructionMs": 0.5060829999999896,
+					"readinessMs": 0.6178750000000264,
+					"firstInputMs": 17.92112499999996,
+					"completionMs": 2.4332920000000513,
+					"reconnectMs": 0.8343330000000151,
+					"rssMiB": 142.828125,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "host",
+					"repetition": 8,
+					"constructionMs": 0.457416999999964,
+					"readinessMs": 0.08779100000003837,
+					"firstInputMs": 19.03800000000001,
+					"completionMs": 2.5151670000000195,
+					"reconnectMs": 0.8032919999999422,
+					"rssMiB": 143.1875,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "direct",
+					"repetition": 8,
+					"constructionMs": 0.35895800000002964,
+					"readinessMs": 0.06137499999999818,
+					"firstInputMs": 11.933333000000061,
+					"completionMs": 1.0047500000000582,
+					"reconnectMs": 0.7889579999999796,
+					"rssMiB": 144.125,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 9,
+					"constructionMs": 0.48374999999998636,
+					"readinessMs": 0.1051670000000513,
+					"firstInputMs": 11.8459170000001,
+					"completionMs": 0.9491660000001048,
+					"reconnectMs": 0.77312500000005,
+					"rssMiB": 144.578125,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 9,
+					"constructionMs": 0.452666000000022,
+					"readinessMs": 0.09249999999997272,
+					"firstInputMs": 17.06158400000004,
+					"completionMs": 2.464416999999912,
+					"reconnectMs": 0.8220000000000027,
+					"rssMiB": 145.015625,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "host",
+					"repetition": 10,
+					"constructionMs": 0.4057500000000118,
+					"readinessMs": 0.08991700000001401,
+					"firstInputMs": 17.965791999999965,
+					"completionMs": 2.2371669999999995,
+					"reconnectMs": 0.7905410000000757,
+					"rssMiB": 145.78125,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "direct",
+					"repetition": 10,
+					"constructionMs": 0.3484579999999369,
+					"readinessMs": 0.06216600000004746,
+					"firstInputMs": 12.138083000000051,
+					"completionMs": 0.9857920000000604,
+					"reconnectMs": 0.7767499999999927,
+					"rssMiB": 146.109375,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 11,
+					"constructionMs": 0.46262500000000273,
+					"readinessMs": 0.05783299999995961,
+					"firstInputMs": 11.417583000000036,
+					"completionMs": 1.5000420000000076,
+					"reconnectMs": 0.8035419999999931,
+					"rssMiB": 146.453125,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 11,
+					"constructionMs": 0.4047080000000278,
+					"readinessMs": 0.09591599999998834,
+					"firstInputMs": 16.805083999999965,
+					"completionMs": 2.260791999999924,
+					"reconnectMs": 0.7702090000000226,
+					"rssMiB": 146.828125,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "host",
+					"repetition": 12,
+					"constructionMs": 0.3939170000001013,
+					"readinessMs": 0.07599999999990814,
+					"firstInputMs": 17.14737500000001,
+					"completionMs": 2.3307079999999587,
+					"reconnectMs": 0.8064999999999145,
+					"rssMiB": 147.234375,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "direct",
+					"repetition": 12,
+					"constructionMs": 0.35283400000002985,
+					"readinessMs": 0.05737499999997908,
+					"firstInputMs": 11.993334000000004,
+					"completionMs": 1.0769579999999905,
+					"reconnectMs": 0.7794579999999769,
+					"rssMiB": 147.578125,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 13,
+					"constructionMs": 0.3458329999999705,
+					"readinessMs": 0.06037500000002183,
+					"firstInputMs": 11.815625000000068,
+					"completionMs": 1.003208000000086,
+					"reconnectMs": 1.0229999999999109,
+					"rssMiB": 147.90625,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 13,
+					"constructionMs": 0.6573750000000018,
+					"readinessMs": 0.15075000000001637,
+					"firstInputMs": 19.16554199999996,
+					"completionMs": 2.2576669999999694,
+					"reconnectMs": 1.2292079999999714,
+					"rssMiB": 148.734375,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "host",
+					"repetition": 14,
+					"constructionMs": 0.41745800000001054,
+					"readinessMs": 0.0896660000000793,
+					"firstInputMs": 16.945416000000023,
+					"completionMs": 2.2981250000000273,
+					"reconnectMs": 0.8235419999999749,
+					"rssMiB": 148.953125,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "direct",
+					"repetition": 14,
+					"constructionMs": 0.37866699999995035,
+					"readinessMs": 0.07124999999996362,
+					"firstInputMs": 12.294417000000067,
+					"completionMs": 1.0024170000000368,
+					"reconnectMs": 0.7886250000000246,
+					"rssMiB": 149.34375,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 15,
+					"constructionMs": 0.3464999999999918,
+					"readinessMs": 0.059458000000063294,
+					"firstInputMs": 12.450459000000023,
+					"completionMs": 0.9978330000000142,
+					"reconnectMs": 0.7982499999999391,
+					"rssMiB": 149.6875,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 15,
+					"constructionMs": 0.45679200000006404,
+					"readinessMs": 0.0957499999999527,
+					"firstInputMs": 17.463166,
+					"completionMs": 2.399000000000001,
+					"reconnectMs": 0.8172499999999445,
+					"rssMiB": 150.046875,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "host",
+					"repetition": 16,
+					"constructionMs": 0.40166599999997743,
+					"readinessMs": 0.08124999999995453,
+					"firstInputMs": 17.931832999999983,
+					"completionMs": 2.384207999999944,
+					"reconnectMs": 0.79262499999993,
+					"rssMiB": 150.421875,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "direct",
+					"repetition": 16,
+					"constructionMs": 0.36487499999998363,
+					"readinessMs": 0.06420800000000781,
+					"firstInputMs": 11.670582999999965,
+					"completionMs": 0.9735839999999598,
+					"reconnectMs": 0.7551670000000286,
+					"rssMiB": 150.734375,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 17,
+					"constructionMs": 0.372208999999998,
+					"readinessMs": 0.05624999999997726,
+					"firstInputMs": 12.082333999999946,
+					"completionMs": 1.1625419999999167,
+					"reconnectMs": 0.8203750000000127,
+					"rssMiB": 151.03125,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 17,
+					"constructionMs": 0.4637920000000122,
+					"readinessMs": 0.13441599999998743,
+					"firstInputMs": 17.407958000000008,
+					"completionMs": 2.9293749999999363,
+					"reconnectMs": 0.7886250000000246,
+					"rssMiB": 151.984375,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "host",
+					"repetition": 18,
+					"constructionMs": 0.41304200000013225,
+					"readinessMs": 0.09129199999983939,
+					"firstInputMs": 17.62087500000007,
+					"completionMs": 2.3204169999999067,
+					"reconnectMs": 0.7946249999999964,
+					"rssMiB": 152.203125,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "direct",
+					"repetition": 18,
+					"constructionMs": 0.40991600000006656,
+					"readinessMs": 0.07862500000010186,
+					"firstInputMs": 11.816958999999997,
+					"completionMs": 0.9845840000000408,
+					"reconnectMs": 0.7711249999999836,
+					"rssMiB": 152.5625,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 19,
+					"constructionMs": 0.3832919999999831,
+					"readinessMs": 0.06404199999997218,
+					"firstInputMs": 11.791417000000138,
+					"completionMs": 0.9747910000000957,
+					"reconnectMs": 0.7940830000000005,
+					"rssMiB": 152.921875,
+					"topologyNodes": 59,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 19,
+					"constructionMs": 0.39829200000008314,
+					"readinessMs": 0.08291699999995217,
+					"firstInputMs": 16.83008300000006,
+					"completionMs": 2.313916000000063,
+					"reconnectMs": 0.8118749999998727,
+					"rssMiB": 153.375,
+					"topologyNodes": 62,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				}
+			],
+			"maxRssKiB": 157056,
+			"summary": {
+				"direct": {
+					"constructionMs": {
+						"mean": 0.42059169999999996,
+						"median": 0.40991600000006656,
+						"p95": 0.5074170000000322,
+						"min": 0.3458329999999705,
+						"max": 0.598542000000009
+					},
+					"readinessMs": {
+						"mean": 0.0732812000000024,
+						"median": 0.07087500000000091,
+						"p95": 0.1051670000000513,
+						"min": 0.05624999999997726,
+						"max": 0.12745899999998755
+					},
+					"firstInputMs": {
+						"mean": 12.51258965000002,
+						"median": 12.294417000000067,
+						"p95": 14.075375000000008,
+						"min": 11.417583000000036,
+						"max": 15.563040999999998
+					},
+					"completionMs": {
+						"mean": 1.1595687500000196,
+						"median": 1.1016250000000127,
+						"p95": 1.5758749999999964,
+						"min": 0.9491660000001048,
+						"max": 1.7798749999999472
+					},
+					"reconnectMs": {
+						"mean": 0.8778311999999886,
+						"median": 0.8192500000000109,
+						"p95": 1.152290999999991,
+						"min": 0.7551670000000286,
+						"max": 1.6273749999999154
+					},
+					"rssMiB": {
+						"mean": 134.8421875,
+						"median": 146.109375,
+						"p95": 152.5625,
+						"min": 102.9375,
+						"max": 152.921875
+					},
+					"topologyNodes": {
+						"mean": 59,
+						"median": 59,
+						"p95": 59,
+						"min": 59,
+						"max": 59
+					}
+				},
+				"host": {
+					"constructionMs": {
+						"mean": 0.48414585000001864,
+						"median": 0.457416999999964,
+						"p95": 0.6122079999999528,
+						"min": 0.3939170000001013,
+						"max": 0.6573750000000018
+					},
+					"readinessMs": {
+						"mean": 0.13072274999998684,
+						"median": 0.09591599999998834,
+						"p95": 0.15075000000001637,
+						"min": 0.07599999999990814,
+						"max": 0.6178750000000264
+					},
+					"firstInputMs": {
+						"mean": 18.537431199999993,
+						"median": 17.965791999999965,
+						"p95": 20.290750000000003,
+						"min": 16.805083999999965,
+						"max": 23.72458299999994
+					},
+					"completionMs": {
+						"mean": 2.6190229499999873,
+						"median": 2.464416999999912,
+						"p95": 3.3131250000000136,
+						"min": 2.2371669999999995,
+						"max": 3.414250000000038
+					},
+					"reconnectMs": {
+						"mean": 0.8826208999999835,
+						"median": 0.8197499999999991,
+						"p95": 1.189958000000047,
+						"min": 0.7702090000000226,
+						"max": 1.2292079999999714
+					},
+					"rssMiB": {
+						"mean": 135.55546875,
+						"median": 145.78125,
+						"p95": 152.203125,
+						"min": 102.890625,
+						"max": 153.375
+					},
+					"topologyNodes": {
+						"mean": 62,
+						"median": 62,
+						"p95": 62,
+						"min": 62,
+						"max": 62
+					}
+				}
+			},
+			"hostToDirectMeanRatios": {
+				"constructionMs": 1.1511065244511927,
+				"firstInputMs": 1.481502368296715,
+				"completionMs": 2.258618085387299,
+				"reconnectMs": 1.0054562881793163
+			}
+		},
+		{
+			"mode": "summary",
+			"size": 1,
+			"results": [
+				{
+					"variant": "host",
+					"repetition": 0,
+					"constructionMs": 0.47279100000000085,
+					"readinessMs": 0.10854199999999992,
+					"firstInputMs": 3.202207999999999,
+					"completionMs": 0.5391249999999985,
+					"reconnectMs": 0.17625000000001023,
+					"rssMiB": 83.890625,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "direct",
+					"repetition": 0,
+					"constructionMs": 0.3292500000000018,
+					"readinessMs": 0.06358400000000586,
+					"firstInputMs": 1.868832999999995,
+					"completionMs": 0.20966699999999605,
+					"reconnectMs": 0.16100000000000136,
+					"rssMiB": 84.421875,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 1,
+					"constructionMs": 0.6783750000000026,
+					"readinessMs": 0.08650000000000091,
+					"firstInputMs": 1.9059159999999906,
+					"completionMs": 0.22904099999999517,
+					"reconnectMs": 0.17112500000000352,
+					"rssMiB": 84.578125,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 1,
+					"constructionMs": 0.47937500000000455,
+					"readinessMs": 0.10645900000000097,
+					"firstInputMs": 3.3324580000000026,
+					"completionMs": 0.6831669999999974,
+					"reconnectMs": 0.17425000000000068,
+					"rssMiB": 84.6875,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "host",
+					"repetition": 2,
+					"constructionMs": 0.4297499999999985,
+					"readinessMs": 0.09695800000000077,
+					"firstInputMs": 2.6891669999999976,
+					"completionMs": 0.5658750000000055,
+					"reconnectMs": 0.17737499999999784,
+					"rssMiB": 84.75,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "direct",
+					"repetition": 2,
+					"constructionMs": 0.3809169999999966,
+					"readinessMs": 0.0707089999999937,
+					"firstInputMs": 2.483125000000001,
+					"completionMs": 0.274249999999995,
+					"reconnectMs": 0.22149999999999181,
+					"rssMiB": 84.765625,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 3,
+					"constructionMs": 0.4530420000000106,
+					"readinessMs": 0.4421660000000003,
+					"firstInputMs": 2.1896249999999924,
+					"completionMs": 0.20779100000000028,
+					"reconnectMs": 0.16412499999999852,
+					"rssMiB": 84.875,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 3,
+					"constructionMs": 0.4432079999999985,
+					"readinessMs": 0.10566699999999685,
+					"firstInputMs": 2.7292499999999933,
+					"completionMs": 0.5054999999999836,
+					"reconnectMs": 0.15654200000000174,
+					"rssMiB": 85.109375,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "host",
+					"repetition": 4,
+					"constructionMs": 0.40287499999999454,
+					"readinessMs": 0.09645799999998417,
+					"firstInputMs": 2.0373329999999896,
+					"completionMs": 1.2496670000000165,
+					"reconnectMs": 0.21945800000000304,
+					"rssMiB": 85.25,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "direct",
+					"repetition": 4,
+					"constructionMs": 0.4428749999999866,
+					"readinessMs": 0.09854100000001154,
+					"firstInputMs": 2.2197500000000048,
+					"completionMs": 0.26237500000002,
+					"reconnectMs": 0.20754199999998946,
+					"rssMiB": 85.25,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 5,
+					"constructionMs": 0.3890839999999969,
+					"readinessMs": 0.0765829999999994,
+					"firstInputMs": 2.276999999999987,
+					"completionMs": 0.24079100000000153,
+					"reconnectMs": 0.19495900000001143,
+					"rssMiB": 85.421875,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 5,
+					"constructionMs": 0.4375829999999894,
+					"readinessMs": 0.09633400000001302,
+					"firstInputMs": 2.36616699999999,
+					"completionMs": 0.48270899999999983,
+					"reconnectMs": 0.15933300000000372,
+					"rssMiB": 85.546875,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "host",
+					"repetition": 6,
+					"constructionMs": 0.35200000000000387,
+					"readinessMs": 0.07879199999999287,
+					"firstInputMs": 2.197374999999994,
+					"completionMs": 0.736582999999996,
+					"reconnectMs": 0.16433299999999917,
+					"rssMiB": 85.5625,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "direct",
+					"repetition": 6,
+					"constructionMs": 0.31666699999999537,
+					"readinessMs": 0.06362500000000182,
+					"firstInputMs": 1.9107500000000073,
+					"completionMs": 0.20079200000000696,
+					"reconnectMs": 0.17854200000002152,
+					"rssMiB": 85.609375,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 7,
+					"constructionMs": 0.3184579999999926,
+					"readinessMs": 0.06012499999999932,
+					"firstInputMs": 2.0440830000000005,
+					"completionMs": 0.17958299999997962,
+					"reconnectMs": 0.15212499999998386,
+					"rssMiB": 86.28125,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 7,
+					"constructionMs": 0.3304160000000138,
+					"readinessMs": 0.0806660000000079,
+					"firstInputMs": 2.5131669999999815,
+					"completionMs": 0.6171250000000157,
+					"reconnectMs": 0.1931250000000091,
+					"rssMiB": 86.359375,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "host",
+					"repetition": 8,
+					"constructionMs": 0.44874999999998977,
+					"readinessMs": 0.099125000000015,
+					"firstInputMs": 2.3585000000000207,
+					"completionMs": 0.46837499999998045,
+					"reconnectMs": 0.41791700000001697,
+					"rssMiB": 86.390625,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "direct",
+					"repetition": 8,
+					"constructionMs": 0.33929200000000037,
+					"readinessMs": 0.06479199999998286,
+					"firstInputMs": 1.8144159999999943,
+					"completionMs": 0.1911659999999813,
+					"reconnectMs": 0.15883299999998712,
+					"rssMiB": 86.390625,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 9,
+					"constructionMs": 0.29425000000000523,
+					"readinessMs": 0.058250000000015234,
+					"firstInputMs": 2.0533340000000067,
+					"completionMs": 0.22979200000000333,
+					"reconnectMs": 0.1540419999999756,
+					"rssMiB": 86.4375,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 9,
+					"constructionMs": 0.3368330000000128,
+					"readinessMs": 0.07979199999999764,
+					"firstInputMs": 1.9457089999999937,
+					"completionMs": 0.774708000000004,
+					"reconnectMs": 0.1617909999999938,
+					"rssMiB": 86.484375,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "host",
+					"repetition": 10,
+					"constructionMs": 0.3463339999999846,
+					"readinessMs": 0.08383299999999849,
+					"firstInputMs": 2.1260000000000048,
+					"completionMs": 0.5137919999999951,
+					"reconnectMs": 0.15074999999998795,
+					"rssMiB": 86.5,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "direct",
+					"repetition": 10,
+					"constructionMs": 0.544415999999984,
+					"readinessMs": 0.10954200000000469,
+					"firstInputMs": 1.8546670000000063,
+					"completionMs": 0.2028750000000059,
+					"reconnectMs": 0.17549999999999955,
+					"rssMiB": 86.546875,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 11,
+					"constructionMs": 0.32279099999999517,
+					"readinessMs": 0.060040999999984024,
+					"firstInputMs": 2.223124999999982,
+					"completionMs": 0.21295800000001464,
+					"reconnectMs": 0.16666699999998968,
+					"rssMiB": 86.65625,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 11,
+					"constructionMs": 0.4302080000000217,
+					"readinessMs": 0.08679200000000264,
+					"firstInputMs": 1.9629999999999939,
+					"completionMs": 0.4532920000000047,
+					"reconnectMs": 0.14520900000002257,
+					"rssMiB": 86.65625,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "host",
+					"repetition": 12,
+					"constructionMs": 0.325917000000004,
+					"readinessMs": 0.09658299999998121,
+					"firstInputMs": 1.9357080000000053,
+					"completionMs": 0.4641249999999957,
+					"reconnectMs": 0.1484999999999843,
+					"rssMiB": 86.734375,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "direct",
+					"repetition": 12,
+					"constructionMs": 0.2883330000000228,
+					"readinessMs": 0.054708000000005086,
+					"firstInputMs": 2.837959000000012,
+					"completionMs": 0.20020900000000097,
+					"reconnectMs": 0.18245899999999438,
+					"rssMiB": 88.109375,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 13,
+					"constructionMs": 0.5707500000000039,
+					"readinessMs": 0.07220800000001759,
+					"firstInputMs": 2.0332500000000095,
+					"completionMs": 0.23562499999999886,
+					"reconnectMs": 0.20437499999999886,
+					"rssMiB": 88.625,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 13,
+					"constructionMs": 0.7125000000000057,
+					"readinessMs": 0.13870900000000574,
+					"firstInputMs": 2.9976249999999993,
+					"completionMs": 1.087959000000012,
+					"reconnectMs": 0.2252499999999884,
+					"rssMiB": 94.390625,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "host",
+					"repetition": 14,
+					"constructionMs": 0.4971249999999827,
+					"readinessMs": 0.11299999999999955,
+					"firstInputMs": 2.7878340000000037,
+					"completionMs": 0.5919159999999977,
+					"reconnectMs": 0.17995799999999917,
+					"rssMiB": 95.9375,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "direct",
+					"repetition": 14,
+					"constructionMs": 0.45366700000002425,
+					"readinessMs": 0.08254199999998946,
+					"firstInputMs": 1.7928330000000017,
+					"completionMs": 0.30862500000000637,
+					"reconnectMs": 0.18533300000001418,
+					"rssMiB": 96.921875,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 15,
+					"constructionMs": 0.40995900000001484,
+					"readinessMs": 0.09287499999999227,
+					"firstInputMs": 2.295333999999997,
+					"completionMs": 0.26762500000000955,
+					"reconnectMs": 0.20595800000000963,
+					"rssMiB": 101.109375,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 15,
+					"constructionMs": 0.4924579999999992,
+					"readinessMs": 0.11404199999998355,
+					"firstInputMs": 2.7547910000000115,
+					"completionMs": 0.4615840000000162,
+					"reconnectMs": 0.14116699999999582,
+					"rssMiB": 103.578125,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "host",
+					"repetition": 16,
+					"constructionMs": 0.33304200000000606,
+					"readinessMs": 0.07716700000000287,
+					"firstInputMs": 2.0172919999999976,
+					"completionMs": 0.4335839999999962,
+					"reconnectMs": 0.14733300000000327,
+					"rssMiB": 103.609375,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "direct",
+					"repetition": 16,
+					"constructionMs": 0.30212499999998954,
+					"readinessMs": 0.05550000000002342,
+					"firstInputMs": 1.5941249999999911,
+					"completionMs": 0.16562500000000568,
+					"reconnectMs": 0.13787499999997976,
+					"rssMiB": 103.640625,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 17,
+					"constructionMs": 0.27379200000001447,
+					"readinessMs": 0.05245899999999892,
+					"firstInputMs": 1.8142919999999947,
+					"completionMs": 0.189707999999996,
+					"reconnectMs": 0.14837499999998727,
+					"rssMiB": 103.6875,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 17,
+					"constructionMs": 0.3850410000000011,
+					"readinessMs": 0.07633400000000279,
+					"firstInputMs": 2.0139170000000206,
+					"completionMs": 0.44720799999998917,
+					"reconnectMs": 0.1471249999999884,
+					"rssMiB": 103.703125,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "host",
+					"repetition": 18,
+					"constructionMs": 0.4392920000000231,
+					"readinessMs": 0.101791999999989,
+					"firstInputMs": 2.1184159999999963,
+					"completionMs": 0.4654170000000022,
+					"reconnectMs": 0.15083299999997735,
+					"rssMiB": 103.71875,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				},
+				{
+					"variant": "direct",
+					"repetition": 18,
+					"constructionMs": 0.3273330000000101,
+					"readinessMs": 0.05879100000001358,
+					"firstInputMs": 2.3162920000000042,
+					"completionMs": 0.19362499999999727,
+					"reconnectMs": 0.15370900000002052,
+					"rssMiB": 103.796875,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 19,
+					"constructionMs": 0.4663749999999993,
+					"readinessMs": 0.06379200000000651,
+					"firstInputMs": 2.0132499999999993,
+					"completionMs": 0.24387500000000273,
+					"reconnectMs": 0.15629199999997923,
+					"rssMiB": 103.84375,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 19,
+					"constructionMs": 0.41037500000001614,
+					"readinessMs": 0.11033299999999713,
+					"firstInputMs": 2.3382079999999803,
+					"completionMs": 0.4684170000000165,
+					"reconnectMs": 0.14604099999999676,
+					"rssMiB": 103.921875,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 1444
+				}
+			],
+			"maxRssKiB": 106416,
+			"summary": {
+				"direct": {
+					"constructionMs": {
+						"mean": 0.39508755000000234,
+						"median": 0.3809169999999966,
+						"p95": 0.5707500000000039,
+						"min": 0.27379200000001447,
+						"max": 0.6783750000000026
+					},
+					"readinessMs": {
+						"mean": 0.08936665000000232,
+						"median": 0.06479199999998286,
+						"p95": 0.10954200000000469,
+						"min": 0.05245899999999892,
+						"max": 0.4421660000000003
+					},
+					"firstInputMs": {
+						"mean": 2.077097949999999,
+						"median": 2.0440830000000005,
+						"p95": 2.483125000000001,
+						"min": 1.5941249999999911,
+						"max": 2.837959000000012
+					},
+					"completionMs": {
+						"mean": 0.22229990000000086,
+						"median": 0.21295800000001464,
+						"p95": 0.274249999999995,
+						"min": 0.16562500000000568,
+						"max": 0.30862500000000637
+					},
+					"reconnectMs": {
+						"mean": 0.17401679999999686,
+						"median": 0.17112500000000352,
+						"p95": 0.20754199999998946,
+						"min": 0.13787499999997976,
+						"max": 0.22149999999999181
+					},
+					"rssMiB": {
+						"mean": 90.8484375,
+						"median": 86.546875,
+						"p95": 103.796875,
+						"min": 84.421875,
+						"max": 103.84375
+					},
+					"topologyNodes": {
+						"mean": 60,
+						"median": 60,
+						"p95": 60,
+						"min": 60,
+						"max": 60
+					}
+				},
+				"host": {
+					"constructionMs": {
+						"mean": 0.4252936500000025,
+						"median": 0.4302080000000217,
+						"p95": 0.4971249999999827,
+						"min": 0.325917000000004,
+						"max": 0.7125000000000057
+					},
+					"readinessMs": {
+						"mean": 0.0973688999999986,
+						"median": 0.09695800000000077,
+						"p95": 0.11404199999998355,
+						"min": 0.07633400000000279,
+						"max": 0.13870900000000574
+					},
+					"firstInputMs": {
+						"mean": 2.4212062499999987,
+						"median": 2.3585000000000207,
+						"p95": 3.202207999999999,
+						"min": 1.9357080000000053,
+						"max": 3.3324580000000026
+					},
+					"completionMs": {
+						"mean": 0.6005064000000011,
+						"median": 0.5137919999999951,
+						"p95": 1.087959000000012,
+						"min": 0.4335839999999962,
+						"max": 1.2496670000000165
+					},
+					"reconnectMs": {
+						"mean": 0.179126999999999,
+						"median": 0.1617909999999938,
+						"p95": 0.2252499999999884,
+						"min": 0.14116699999999582,
+						"max": 0.41791700000001697
+					},
+					"rssMiB": {
+						"mean": 91.1390625,
+						"median": 86.5,
+						"p95": 103.71875,
+						"min": 83.890625,
+						"max": 103.921875
+					},
+					"topologyNodes": {
+						"mean": 63,
+						"median": 63,
+						"p95": 63,
+						"min": 63,
+						"max": 63
+					}
+				}
+			},
+			"hostToDirectMeanRatios": {
+				"constructionMs": 1.0764541935072365,
+				"firstInputMs": 1.1656678251499888,
+				"completionMs": 2.7013345485085636,
+				"reconnectMs": 1.0293661301667554
+			}
+		},
+		{
+			"mode": "summary",
+			"size": 8,
+			"results": [
+				{
+					"variant": "host",
+					"repetition": 0,
+					"constructionMs": 0.5903339999999844,
+					"readinessMs": 0.11070899999998574,
+					"firstInputMs": 20.728042000000016,
+					"completionMs": 2.3299580000000333,
+					"reconnectMs": 0.8352500000000305,
+					"rssMiB": 102.28125,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "direct",
+					"repetition": 0,
+					"constructionMs": 0.8885839999999803,
+					"readinessMs": 0.08845800000000281,
+					"firstInputMs": 13.91337500000003,
+					"completionMs": 1.0149169999999685,
+					"reconnectMs": 0.79362500000002,
+					"rssMiB": 102.296875,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 1,
+					"constructionMs": 0.452666000000022,
+					"readinessMs": 0.06720900000004804,
+					"firstInputMs": 12.533749999999998,
+					"completionMs": 1.0575840000000198,
+					"reconnectMs": 0.8020419999999717,
+					"rssMiB": 102.375,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 1,
+					"constructionMs": 0.6336660000000052,
+					"readinessMs": 0.1123749999999859,
+					"firstInputMs": 17.752291999999954,
+					"completionMs": 2.568375000000003,
+					"reconnectMs": 0.7838750000000232,
+					"rssMiB": 103.234375,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "host",
+					"repetition": 2,
+					"constructionMs": 0.6180420000000026,
+					"readinessMs": 0.11662499999999909,
+					"firstInputMs": 17.35120900000004,
+					"completionMs": 2.6032500000000027,
+					"reconnectMs": 0.7839999999999918,
+					"rssMiB": 104.03125,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "direct",
+					"repetition": 2,
+					"constructionMs": 0.4970000000000141,
+					"readinessMs": 0.06808399999999892,
+					"firstInputMs": 11.719291999999996,
+					"completionMs": 0.9708749999999782,
+					"reconnectMs": 0.7593749999999773,
+					"rssMiB": 104.21875,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 3,
+					"constructionMs": 0.7136249999999791,
+					"readinessMs": 0.08020799999997053,
+					"firstInputMs": 11.629165999999998,
+					"completionMs": 0.9621250000000146,
+					"reconnectMs": 0.7539160000000038,
+					"rssMiB": 104.703125,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 3,
+					"constructionMs": 0.45800000000002683,
+					"readinessMs": 0.10054200000001856,
+					"firstInputMs": 17.370875000000012,
+					"completionMs": 2.3447499999999764,
+					"reconnectMs": 0.8076249999999732,
+					"rssMiB": 105.640625,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "host",
+					"repetition": 4,
+					"constructionMs": 0.48450000000002547,
+					"readinessMs": 0.08804200000002993,
+					"firstInputMs": 17.081375000000037,
+					"completionMs": 2.6002090000000067,
+					"reconnectMs": 0.7526670000000308,
+					"rssMiB": 106.484375,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "direct",
+					"repetition": 4,
+					"constructionMs": 0.3703750000000241,
+					"readinessMs": 0.06383400000004258,
+					"firstInputMs": 11.526999999999987,
+					"completionMs": 1.3981670000000008,
+					"reconnectMs": 0.7880410000000211,
+					"rssMiB": 107.046875,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 5,
+					"constructionMs": 0.38112499999999727,
+					"readinessMs": 0.0671249999999759,
+					"firstInputMs": 11.758749999999964,
+					"completionMs": 0.961084000000028,
+					"reconnectMs": 0.7530409999999961,
+					"rssMiB": 107.28125,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 5,
+					"constructionMs": 1.7074999999999818,
+					"readinessMs": 0.08754100000004428,
+					"firstInputMs": 18.76637500000004,
+					"completionMs": 2.3594580000000747,
+					"reconnectMs": 0.8372920000000477,
+					"rssMiB": 125.328125,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "host",
+					"repetition": 6,
+					"constructionMs": 0.4295000000000755,
+					"readinessMs": 0.08320799999989958,
+					"firstInputMs": 18.490374999999972,
+					"completionMs": 2.44070899999997,
+					"reconnectMs": 0.9263329999999996,
+					"rssMiB": 140.609375,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "direct",
+					"repetition": 6,
+					"constructionMs": 0.36558400000001257,
+					"readinessMs": 0.06879200000003038,
+					"firstInputMs": 11.793041000000017,
+					"completionMs": 0.9766660000000229,
+					"reconnectMs": 0.7543750000000955,
+					"rssMiB": 141.078125,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 7,
+					"constructionMs": 0.3421660000000202,
+					"readinessMs": 0.06408299999998235,
+					"firstInputMs": 11.687958000000094,
+					"completionMs": 0.9580420000000913,
+					"reconnectMs": 0.7557499999999209,
+					"rssMiB": 141.4375,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 7,
+					"constructionMs": 0.4287090000000262,
+					"readinessMs": 0.07912499999997635,
+					"firstInputMs": 17.78595800000005,
+					"completionMs": 2.399874999999952,
+					"reconnectMs": 0.7548340000000735,
+					"rssMiB": 141.796875,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "host",
+					"repetition": 8,
+					"constructionMs": 0.4172089999999571,
+					"readinessMs": 0.0768750000000864,
+					"firstInputMs": 16.989874999999984,
+					"completionMs": 2.263333999999986,
+					"reconnectMs": 0.7821669999999585,
+					"rssMiB": 142.59375,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "direct",
+					"repetition": 8,
+					"constructionMs": 0.3562499999999318,
+					"readinessMs": 0.0610829999999396,
+					"firstInputMs": 11.831916999999976,
+					"completionMs": 0.9621670000000222,
+					"reconnectMs": 0.7779580000000124,
+					"rssMiB": 143.265625,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 9,
+					"constructionMs": 0.4039579999999887,
+					"readinessMs": 0.05945799999994961,
+					"firstInputMs": 11.523874999999975,
+					"completionMs": 0.9544999999999391,
+					"reconnectMs": 0.761209000000008,
+					"rssMiB": 143.71875,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 9,
+					"constructionMs": 0.4030830000000378,
+					"readinessMs": 0.08554100000003473,
+					"firstInputMs": 16.790666999999985,
+					"completionMs": 2.2237499999999955,
+					"reconnectMs": 0.7606670000000122,
+					"rssMiB": 144.453125,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "host",
+					"repetition": 10,
+					"constructionMs": 0.3892089999999371,
+					"readinessMs": 0.08216699999991306,
+					"firstInputMs": 16.491791000000035,
+					"completionMs": 2.429917000000046,
+					"reconnectMs": 0.7611249999999927,
+					"rssMiB": 144.828125,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "direct",
+					"repetition": 10,
+					"constructionMs": 0.35658300000000054,
+					"readinessMs": 0.05620899999996709,
+					"firstInputMs": 11.540166,
+					"completionMs": 1.0218340000000126,
+					"reconnectMs": 0.7857920000000149,
+					"rssMiB": 145.1875,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 11,
+					"constructionMs": 0.357167000000004,
+					"readinessMs": 0.06787500000007185,
+					"firstInputMs": 11.830249999999978,
+					"completionMs": 0.9700420000000349,
+					"reconnectMs": 0.7972089999999525,
+					"rssMiB": 145.5,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 11,
+					"constructionMs": 0.4257910000000038,
+					"readinessMs": 0.0807079999999587,
+					"firstInputMs": 16.788999999999987,
+					"completionMs": 2.6142919999999776,
+					"reconnectMs": 0.7634579999999005,
+					"rssMiB": 146.375,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "host",
+					"repetition": 12,
+					"constructionMs": 0.39041599999995924,
+					"readinessMs": 0.07720800000004147,
+					"firstInputMs": 18.454209000000105,
+					"completionMs": 2.5221670000000813,
+					"reconnectMs": 0.8787499999999682,
+					"rssMiB": 146.765625,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "direct",
+					"repetition": 12,
+					"constructionMs": 0.38133399999992434,
+					"readinessMs": 0.06558399999994435,
+					"firstInputMs": 12.79283399999997,
+					"completionMs": 1.0009579999999687,
+					"reconnectMs": 0.7940830000000005,
+					"rssMiB": 147.0625,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 13,
+					"constructionMs": 0.3252499999999827,
+					"readinessMs": 0.06595800000002328,
+					"firstInputMs": 11.608292000000006,
+					"completionMs": 0.9215829999999414,
+					"reconnectMs": 0.7596250000000282,
+					"rssMiB": 147.421875,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 13,
+					"constructionMs": 0.38866699999994125,
+					"readinessMs": 0.07995899999991707,
+					"firstInputMs": 16.30204200000003,
+					"completionMs": 2.202042000000006,
+					"reconnectMs": 0.7631249999999454,
+					"rssMiB": 147.8125,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "host",
+					"repetition": 14,
+					"constructionMs": 0.453125,
+					"readinessMs": 0.07587499999999636,
+					"firstInputMs": 16.439958000000047,
+					"completionMs": 2.1932500000000346,
+					"reconnectMs": 1.2170830000000024,
+					"rssMiB": 148.625,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "direct",
+					"repetition": 14,
+					"constructionMs": 0.37150000000008276,
+					"readinessMs": 0.06595800000002328,
+					"firstInputMs": 11.130750000000035,
+					"completionMs": 0.9405000000000427,
+					"reconnectMs": 0.739832999999976,
+					"rssMiB": 148.75,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 15,
+					"constructionMs": 0.33370800000000145,
+					"readinessMs": 0.05470900000000256,
+					"firstInputMs": 11.560249999999996,
+					"completionMs": 1.0409590000000435,
+					"reconnectMs": 0.7636670000000549,
+					"rssMiB": 148.984375,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 15,
+					"constructionMs": 0.4053750000000491,
+					"readinessMs": 0.08004199999993489,
+					"firstInputMs": 16.268500000000017,
+					"completionMs": 2.6904160000000275,
+					"reconnectMs": 0.7510829999999942,
+					"rssMiB": 149.953125,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "host",
+					"repetition": 16,
+					"constructionMs": 0.39120900000000347,
+					"readinessMs": 0.07762500000001182,
+					"firstInputMs": 16.945790999999986,
+					"completionMs": 2.1819169999999986,
+					"reconnectMs": 0.7311670000000277,
+					"rssMiB": 150.28125,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "direct",
+					"repetition": 16,
+					"constructionMs": 0.35795900000005076,
+					"readinessMs": 0.05637500000000273,
+					"firstInputMs": 11.339917000000014,
+					"completionMs": 0.9097499999999172,
+					"reconnectMs": 0.73012499999993,
+					"rssMiB": 150.671875,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 17,
+					"constructionMs": 0.3697500000000673,
+					"readinessMs": 0.05495799999994233,
+					"firstInputMs": 11.425792000000001,
+					"completionMs": 0.9517090000000508,
+					"reconnectMs": 0.7744999999999891,
+					"rssMiB": 151.03125,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 17,
+					"constructionMs": 0.4203340000000253,
+					"readinessMs": 0.08062500000005457,
+					"firstInputMs": 16.470292000000086,
+					"completionMs": 2.2094580000000406,
+					"reconnectMs": 0.7261250000000246,
+					"rssMiB": 151.421875,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "host",
+					"repetition": 18,
+					"constructionMs": 0.401416999999924,
+					"readinessMs": 0.07558300000005147,
+					"firstInputMs": 16.667582999999922,
+					"completionMs": 2.6347079999999323,
+					"reconnectMs": 0.7677499999999782,
+					"rssMiB": 152.28125,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				},
+				{
+					"variant": "direct",
+					"repetition": 18,
+					"constructionMs": 0.3587080000000924,
+					"readinessMs": 0.060083999999960724,
+					"firstInputMs": 10.842457999999965,
+					"completionMs": 0.9272499999999582,
+					"reconnectMs": 1.1673749999999927,
+					"rssMiB": 152.5,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "direct",
+					"repetition": 19,
+					"constructionMs": 0.3369999999999891,
+					"readinessMs": 0.05895900000007259,
+					"firstInputMs": 10.717833000000041,
+					"completionMs": 0.8967089999999871,
+					"reconnectMs": 0.7187920000000076,
+					"rssMiB": 152.5625,
+					"topologyNodes": 60,
+					"notifications": null,
+					"maxFrameBytes": null
+				},
+				{
+					"variant": "host",
+					"repetition": 19,
+					"constructionMs": 0.3986250000000382,
+					"readinessMs": 0.07150000000001455,
+					"firstInputMs": 16.660000000000082,
+					"completionMs": 2.29200000000003,
+					"reconnectMs": 0.7861670000000913,
+					"rssMiB": 153.5625,
+					"topologyNodes": 63,
+					"notifications": 3,
+					"maxFrameBytes": 6960
+				}
+			],
+			"maxRssKiB": 157296,
+			"summary": {
+				"direct": {
+					"constructionMs": {
+						"mean": 0.4160146000000083,
+						"median": 0.3697500000000673,
+						"p95": 0.7136249999999791,
+						"min": 0.3252499999999827,
+						"max": 0.8885839999999803
+					},
+					"readinessMs": {
+						"mean": 0.06475014999999758,
+						"median": 0.06558399999994435,
+						"p95": 0.08020799999997053,
+						"min": 0.05470900000000256,
+						"max": 0.08845800000000281
+					},
+					"firstInputMs": {
+						"mean": 11.735333300000002,
+						"median": 11.629165999999998,
+						"p95": 12.79283399999997,
+						"min": 10.717833000000041,
+						"max": 13.91337500000003
+					},
+					"completionMs": {
+						"mean": 0.9898710500000021,
+						"median": 0.9621670000000222,
+						"p95": 1.0575840000000198,
+						"min": 0.8967089999999871,
+						"max": 1.3981670000000008
+					},
+					"reconnectMs": {
+						"mean": 0.7865166499999987,
+						"median": 0.7636670000000549,
+						"p95": 0.8020419999999717,
+						"min": 0.7187920000000076,
+						"max": 1.1673749999999927
+					},
+					"rssMiB": {
+						"mean": 134.3546875,
+						"median": 145.1875,
+						"p95": 152.5,
+						"min": 102.296875,
+						"max": 152.5625
+					},
+					"topologyNodes": {
+						"mean": 60,
+						"median": 60,
+						"p95": 60,
+						"min": 60,
+						"max": 60
+					}
+				},
+				"host": {
+					"constructionMs": {
+						"mean": 0.5117355500000003,
+						"median": 0.4257910000000038,
+						"p95": 0.6336660000000052,
+						"min": 0.38866699999994125,
+						"max": 1.7074999999999818
+					},
+					"readinessMs": {
+						"mean": 0.08609374999999772,
+						"median": 0.0807079999999587,
+						"p95": 0.1123749999999859,
+						"min": 0.07150000000001455,
+						"max": 0.11662499999999909
+					},
+					"firstInputMs": {
+						"mean": 17.329810450000018,
+						"median": 16.989874999999984,
+						"p95": 18.76637500000004,
+						"min": 16.268500000000017,
+						"max": 20.728042000000016
+					},
+					"completionMs": {
+						"mean": 2.4051917500000086,
+						"median": 2.399874999999952,
+						"p95": 2.6347079999999323,
+						"min": 2.1819169999999986,
+						"max": 2.6904160000000275
+					},
+					"reconnectMs": {
+						"mean": 0.8085271500000033,
+						"median": 0.7821669999999585,
+						"p95": 0.9263329999999996,
+						"min": 0.7261250000000246,
+						"max": 1.2170830000000024
+					},
+					"rssMiB": {
+						"mean": 135.41796875,
+						"median": 144.828125,
+						"p95": 152.28125,
+						"min": 102.28125,
+						"max": 153.5625
+					},
+					"topologyNodes": {
+						"mean": 63,
+						"median": 63,
+						"p95": 63,
+						"min": 63,
+						"max": 63
+					}
+				}
+			},
+			"hostToDirectMeanRatios": {
+				"constructionMs": 1.2300903622132253,
+				"firstInputMs": 1.4767207719613735,
+				"completionMs": 2.429803104151802,
+				"reconnectMs": 1.0279847858274895
+			}
+		}
+	],
+	"capacitySnapshots": [
+		{
+			"mode": "off",
+			"records": 64,
+			"simulatedWrites": 1,
+			"notifications": 3,
+			"maxFrameBytes": 51305,
+			"kind": "capacity-snapshot-only-no-timing"
+		},
+		{
+			"mode": "summary",
+			"records": 64,
+			"simulatedWrites": 1,
+			"notifications": 3,
+			"maxFrameBytes": 51305,
+			"kind": "capacity-snapshot-only-no-timing"
+		}
+	],
+	"failures": [],
+	"sourceChangesDuringRun": [],
+	"finishedAt": "2026-09-14T05:08:56.753Z",
+	"scriptSha256": "fd9b7cba80f2abb04a2c69e38a82fdca024c1540944c657e576892f43f2b81a6"
+}

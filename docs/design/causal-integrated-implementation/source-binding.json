@@ -1,0 +1,3978 @@
+{
+	"verified": true,
+	"realInboxIO": 0,
+	"scope": "One equivalent vendorStats implementation edit; no claim that arbitrary algorithm changes preserve consequences. Offline resource only.",
+	"provenance": {
+		"actor": "Codex qualification tool",
+		"operation": "in-memory esbuild onLoad source edit",
+		"productionSourceEdited": false,
+		"target": "examples/spending-alerts/causal-business.ts",
+		"from": "exactVendorStats(e.prefix.map((t) => t.amount))",
+		"to": "exactVendorStats(e.prefix.map(({ amount }) => amount))"
+	},
+	"digestMethod": {
+		"source": "SHA256 of JSON sorted metafile input path/SHA256 pairs over actual transformed source bytes, including worker and oracle fixtures",
+		"runtime": "SHA256 of executed bundle bytes; Node/environment is recorded separately"
+	},
+	"node": "v24.18.0",
+	"toolSha256": "a739a5e7f0bf227ce8c1479ca1d4492ca71b26ddfe9b85ca59ae497366299467",
+	"bundles": [
+		{
+			"candidate": false,
+			"inputs": [
+				{
+					"path": "examples/spending-alerts/causal-admission.ts",
+					"sha256": "73e966f03b721b84e6a34fb0803089fbca24fcfea2bc53cdc0fd809004decca0"
+				},
+				{
+					"path": "examples/spending-alerts/causal-business.ts",
+					"sha256": "5808b47b937eaa35336736523d958d9dcfa58053caad9c65df2caac49333c523"
+				},
+				{
+					"path": "examples/spending-alerts/causal-focused-host.ts",
+					"sha256": "f2ca05df2ac701617079fd513780cedfb38d67bc345eb79f5992cf3aa621591e"
+				},
+				{
+					"path": "examples/spending-alerts/causal-inputs.ts",
+					"sha256": "dfb1aa266cfed9bb6400171bfba30f046cd09ef94346c18560124566a7364561"
+				},
+				{
+					"path": "examples/spending-alerts/causal-material-owner.ts",
+					"sha256": "76a3605e733a2f87b23eb908f37fd7177ef86861c80d839708bd9080c5b9b370"
+				},
+				{
+					"path": "examples/spending-alerts/causal-numeric.ts",
+					"sha256": "0acdf5c800e55f7de0736718cc846eea137f880d0cbd0f158b680fa8b2e29dd8"
+				},
+				{
+					"path": "examples/spending-alerts/causal-preset.ts",
+					"sha256": "d4388d6a9bd8ed94e89716cb908e3e335ee3081203d25791868e88e8e40a501b"
+				},
+				{
+					"path": "examples/spending-alerts/causal-publication.ts",
+					"sha256": "eb303ca7a7ac46ed4b906f8ae5008a252426a8a07ef082bc15bd76e8b43ac743"
+				},
+				{
+					"path": "packages/ts/src/batch/batch.ts",
+					"sha256": "a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890"
+				},
+				{
+					"path": "packages/ts/src/batch/boundary.ts",
+					"sha256": "d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3"
+				},
+				{
+					"path": "packages/ts/src/ctx/types.ts",
+					"sha256": "e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9"
+				},
+				{
+					"path": "packages/ts/src/dispatcher/index.ts",
+					"sha256": "32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d"
+				},
+				{
+					"path": "packages/ts/src/graph/blueprint.ts",
+					"sha256": "ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b"
+				},
+				{
+					"path": "packages/ts/src/graph/checkpoint.ts",
+					"sha256": "303ffb3706bff5aa8f2d61a24290a322b3a7aa75f939318c5eb4e0d996b45ce7"
+				},
+				{
+					"path": "packages/ts/src/graph/combinators.ts",
+					"sha256": "e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2"
+				},
+				{
+					"path": "packages/ts/src/graph/construction-scope.ts",
+					"sha256": "343e6828b5276525797f97cb9c3998e4c28a1b0215af0b6505404b676856d37b"
+				},
+				{
+					"path": "packages/ts/src/graph/describe.ts",
+					"sha256": "d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4"
+				},
+				{
+					"path": "packages/ts/src/graph/environment.ts",
+					"sha256": "2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c"
+				},
+				{
+					"path": "packages/ts/src/graph/graph-lifecycle.ts",
+					"sha256": "23abc2773517b95265ce11e8144ba026b9ef4cac60af69351960fda00e12ac9d"
+				},
+				{
+					"path": "packages/ts/src/graph/graph-support.ts",
+					"sha256": "e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a"
+				},
+				{
+					"path": "packages/ts/src/graph/graph-topology-group.ts",
+					"sha256": "044f242b40e0ca8e069dbac19855af5d647513d80cbd54ac4978aa7b0830c119"
+				},
+				{
+					"path": "packages/ts/src/graph/graph.ts",
+					"sha256": "54b3644e0de855533f9ac91621b9e4eceb0368d11a953fe0d793dfd22e8b72fe"
+				},
+				{
+					"path": "packages/ts/src/graph/higher-order.ts",
+					"sha256": "8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c"
+				},
+				{
+					"path": "packages/ts/src/graph/operators.ts",
+					"sha256": "01dcdfe15269da8fede4e3a0057e668f7c3e6e40c1fbad6d3779c6e5bdf715f3"
+				},
+				{
+					"path": "packages/ts/src/graph/sources.ts",
+					"sha256": "eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76"
+				},
+				{
+					"path": "packages/ts/src/graph/time.ts",
+					"sha256": "04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1"
+				},
+				{
+					"path": "packages/ts/src/identity.ts",
+					"sha256": "4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270"
+				},
+				{
+					"path": "packages/ts/src/json/codec.ts",
+					"sha256": "7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa"
+				},
+				{
+					"path": "packages/ts/src/node/core.ts",
+					"sha256": "87d482706dd0476297f191b485fb14cbbebc8298dd126d8005d8548f2423041c"
+				},
+				{
+					"path": "packages/ts/src/node/node-checkpoint-runtime.ts",
+					"sha256": "5ed4b3fe287fdf3c37b3c15eb9dcbaf3509f03212752068b3d9f3a2eeafe40bb"
+				},
+				{
+					"path": "packages/ts/src/node/node-context-runtime.ts",
+					"sha256": "6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624"
+				},
+				{
+					"path": "packages/ts/src/node/node-input-runtime.ts",
+					"sha256": "9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066"
+				},
+				{
+					"path": "packages/ts/src/node/node-lifecycle-runtime.ts",
+					"sha256": "c0845b70f2da14aa8692ec2fe4d079cdb0e3be0af777648e0ce2c6adcca3273b"
+				},
+				{
+					"path": "packages/ts/src/node/node-output-runtime.ts",
+					"sha256": "c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4"
+				},
+				{
+					"path": "packages/ts/src/node/node-rewire-runtime.ts",
+					"sha256": "f56d6c2b1618e8245a2576757d0639c6337217b41f11a5c0f7a816f5f3db0e1b"
+				},
+				{
+					"path": "packages/ts/src/node/node-runtime-host.ts",
+					"sha256": "7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b"
+				},
+				{
+					"path": "packages/ts/src/node/node.ts",
+					"sha256": "b4f7ea41b8bd6cd9664cde9a31763caef4d4effd17597d868f9ef9b3d699eec6"
+				},
+				{
+					"path": "packages/ts/src/node/owned-acquisition.ts",
+					"sha256": "b0f28f96d0f316bd76922869d55b46ef260bee9b9d473dcaaf64622d24c492d9"
+				},
+				{
+					"path": "packages/ts/src/node/protocol-guards.ts",
+					"sha256": "11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177"
+				},
+				{
+					"path": "packages/ts/src/node/runtime-accessors.ts",
+					"sha256": "6ec8dc24114807f55bc4633fb12d4fa24c35d83d0796ce270f7407017073322f"
+				},
+				{
+					"path": "packages/ts/src/node/versioning.ts",
+					"sha256": "2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a"
+				},
+				{
+					"path": "packages/ts/src/operators/index.ts",
+					"sha256": "67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f"
+				},
+				{
+					"path": "packages/ts/src/protocol/messages.ts",
+					"sha256": "5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef"
+				},
+				{
+					"path": "packages/ts/src/solutions/causal-occurrence/capabilities.ts",
+					"sha256": "606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7"
+				},
+				{
+					"path": "packages/ts/src/solutions/causal-occurrence/committed-view.ts",
+					"sha256": "ed6e3b06a849f4f7bc9df455059b26f1dea92a64566acad04bbc8c306b35919d"
+				},
+				{
+					"path": "packages/ts/src/solutions/causal-occurrence/construction.ts",
+					"sha256": "57a73dfa6eb9a685441403520f790447d63e13b5f221b8c7eba3c2c5dfae06c9"
+				},
+				{
+					"path": "packages/ts/src/solutions/causal-occurrence/evidence.ts",
+					"sha256": "535700f13c6b639f694d950922e78d3f7a1da29511477af0ba31ed69d8563e34"
+				},
+				{
+					"path": "packages/ts/src/solutions/causal-occurrence/identity.ts",
+					"sha256": "54d7cee52121d369f5112e1bba363acd9c4b9d8651d565751b1cc6190799553a"
+				},
+				{
+					"path": "packages/ts/src/solutions/causal-occurrence/lifecycle.ts",
+					"sha256": "bc8f3c7b353d9a2cfbbb0d39bd8fd88a0b356184bbd448c2252f80503dc6089a"
+				},
+				{
+					"path": "packages/ts/src/solutions/causal-occurrence/transition.ts",
+					"sha256": "b85f0fa0d4c61c64f88295814c24c770a414bf7d304fd686a01a4a2c524fe220"
+				},
+				{
+					"path": "scripts/fixtures/spending-focused-host-harness.ts",
+					"sha256": "bac4ff883a228fca633ec766aa81d0b3bfd542d64d8e78101daa3f9845cc7dbc"
+				},
+				{
+					"path": "scripts/fixtures/spending-numeric-oracle.ts",
+					"sha256": "91f90ff47306b4631dc225a6df4daf60cabbd2e146aa1476915cdbfe4419c8df"
+				},
+				{
+					"path": "scripts/fixtures/spending-preset-harness.ts",
+					"sha256": "9c3ba7b674bd56847631a4c07160c1123cc39fa300ef540c2f3aa82880259e22"
+				},
+				{
+					"path": "scripts/fixtures/spending-preset-oracle.ts",
+					"sha256": "1bae2736615e6c2b8db71cc380a31226e73dcea1d31216d45ec13819a92cc8a2"
+				},
+				{
+					"path": "scripts/fixtures/spending-publication-oracle.ts",
+					"sha256": "6e2c9c6695567a276c75090c838670c93ecdea7c7b5a48279f959ccf66c4aac1"
+				},
+				{
+					"path": "source-binding-worker.ts",
+					"sha256": "9250ff0e3e1689c168db9df01e41af6e926e207d054bf6021d3d9257d8c7b7a6"
+				}
+			],
+			"bundleSha256": "7f19d7a9a06537754804b179012684b6dfe2fd9489af5af2952e7afb1e5ea63d",
+			"binding": {
+				"sourceDigest": "sha256:654ced7375bed357bcf890f28047b31ee1c1a74e5d81ebcd7615dd53fc34f9e4",
+				"runtimeDigest": "sha256:7f19d7a9a06537754804b179012684b6dfe2fd9489af5af2952e7afb1e5ea63d"
+			}
+		},
+		{
+			"candidate": true,
+			"inputs": [
+				{
+					"path": "examples/spending-alerts/causal-admission.ts",
+					"sha256": "73e966f03b721b84e6a34fb0803089fbca24fcfea2bc53cdc0fd809004decca0"
+				},
+				{
+					"path": "examples/spending-alerts/causal-business.ts",
+					"sha256": "8cb312571d609d242199ed4702e0e5d6e703800b67849b8e4399da96f5f917ce"
+				},
+				{
+					"path": "examples/spending-alerts/causal-focused-host.ts",
+					"sha256": "f2ca05df2ac701617079fd513780cedfb38d67bc345eb79f5992cf3aa621591e"
+				},
+				{
+					"path": "examples/spending-alerts/causal-inputs.ts",
+					"sha256": "dfb1aa266cfed9bb6400171bfba30f046cd09ef94346c18560124566a7364561"
+				},
+				{
+					"path": "examples/spending-alerts/causal-material-owner.ts",
+					"sha256": "76a3605e733a2f87b23eb908f37fd7177ef86861c80d839708bd9080c5b9b370"
+				},
+				{
+					"path": "examples/spending-alerts/causal-numeric.ts",
+					"sha256": "0acdf5c800e55f7de0736718cc846eea137f880d0cbd0f158b680fa8b2e29dd8"
+				},
+				{
+					"path": "examples/spending-alerts/causal-preset.ts",
+					"sha256": "d4388d6a9bd8ed94e89716cb908e3e335ee3081203d25791868e88e8e40a501b"
+				},
+				{
+					"path": "examples/spending-alerts/causal-publication.ts",
+					"sha256": "eb303ca7a7ac46ed4b906f8ae5008a252426a8a07ef082bc15bd76e8b43ac743"
+				},
+				{
+					"path": "packages/ts/src/batch/batch.ts",
+					"sha256": "a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890"
+				},
+				{
+					"path": "packages/ts/src/batch/boundary.ts",
+					"sha256": "d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3"
+				},
+				{
+					"path": "packages/ts/src/ctx/types.ts",
+					"sha256": "e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9"
+				},
+				{
+					"path": "packages/ts/src/dispatcher/index.ts",
+					"sha256": "32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d"
+				},
+				{
+					"path": "packages/ts/src/graph/blueprint.ts",
+					"sha256": "ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b"
+				},
+				{
+					"path": "packages/ts/src/graph/checkpoint.ts",
+					"sha256": "303ffb3706bff5aa8f2d61a24290a322b3a7aa75f939318c5eb4e0d996b45ce7"
+				},
+				{
+					"path": "packages/ts/src/graph/combinators.ts",
+					"sha256": "e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2"
+				},
+				{
+					"path": "packages/ts/src/graph/construction-scope.ts",
+					"sha256": "343e6828b5276525797f97cb9c3998e4c28a1b0215af0b6505404b676856d37b"
+				},
+				{
+					"path": "packages/ts/src/graph/describe.ts",
+					"sha256": "d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4"
+				},
+				{
+					"path": "packages/ts/src/graph/environment.ts",
+					"sha256": "2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c"
+				},
+				{
+					"path": "packages/ts/src/graph/graph-lifecycle.ts",
+					"sha256": "23abc2773517b95265ce11e8144ba026b9ef4cac60af69351960fda00e12ac9d"
+				},
+				{
+					"path": "packages/ts/src/graph/graph-support.ts",
+					"sha256": "e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a"
+				},
+				{
+					"path": "packages/ts/src/graph/graph-topology-group.ts",
+					"sha256": "044f242b40e0ca8e069dbac19855af5d647513d80cbd54ac4978aa7b0830c119"
+				},
+				{
+					"path": "packages/ts/src/graph/graph.ts",
+					"sha256": "54b3644e0de855533f9ac91621b9e4eceb0368d11a953fe0d793dfd22e8b72fe"
+				},
+				{
+					"path": "packages/ts/src/graph/higher-order.ts",
+					"sha256": "8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c"
+				},
+				{
+					"path": "packages/ts/src/graph/operators.ts",
+					"sha256": "01dcdfe15269da8fede4e3a0057e668f7c3e6e40c1fbad6d3779c6e5bdf715f3"
+				},
+				{
+					"path": "packages/ts/src/graph/sources.ts",
+					"sha256": "eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76"
+				},
+				{
+					"path": "packages/ts/src/graph/time.ts",
+					"sha256": "04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1"
+				},
+				{
+					"path": "packages/ts/src/identity.ts",
+					"sha256": "4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270"
+				},
+				{
+					"path": "packages/ts/src/json/codec.ts",
+					"sha256": "7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa"
+				},
+				{
+					"path": "packages/ts/src/node/core.ts",
+					"sha256": "87d482706dd0476297f191b485fb14cbbebc8298dd126d8005d8548f2423041c"
+				},
+				{
+					"path": "packages/ts/src/node/node-checkpoint-runtime.ts",
+					"sha256": "5ed4b3fe287fdf3c37b3c15eb9dcbaf3509f03212752068b3d9f3a2eeafe40bb"
+				},
+				{
+					"path": "packages/ts/src/node/node-context-runtime.ts",
+					"sha256": "6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624"
+				},
+				{
+					"path": "packages/ts/src/node/node-input-runtime.ts",
+					"sha256": "9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066"
+				},
+				{
+					"path": "packages/ts/src/node/node-lifecycle-runtime.ts",
+					"sha256": "c0845b70f2da14aa8692ec2fe4d079cdb0e3be0af777648e0ce2c6adcca3273b"
+				},
+				{
+					"path": "packages/ts/src/node/node-output-runtime.ts",
+					"sha256": "c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4"
+				},
+				{
+					"path": "packages/ts/src/node/node-rewire-runtime.ts",
+					"sha256": "f56d6c2b1618e8245a2576757d0639c6337217b41f11a5c0f7a816f5f3db0e1b"
+				},
+				{
+					"path": "packages/ts/src/node/node-runtime-host.ts",
+					"sha256": "7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b"
+				},
+				{
+					"path": "packages/ts/src/node/node.ts",
+					"sha256": "b4f7ea41b8bd6cd9664cde9a31763caef4d4effd17597d868f9ef9b3d699eec6"
+				},
+				{
+					"path": "packages/ts/src/node/owned-acquisition.ts",
+					"sha256": "b0f28f96d0f316bd76922869d55b46ef260bee9b9d473dcaaf64622d24c492d9"
+				},
+				{
+					"path": "packages/ts/src/node/protocol-guards.ts",
+					"sha256": "11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177"
+				},
+				{
+					"path": "packages/ts/src/node/runtime-accessors.ts",
+					"sha256": "6ec8dc24114807f55bc4633fb12d4fa24c35d83d0796ce270f7407017073322f"
+				},
+				{
+					"path": "packages/ts/src/node/versioning.ts",
+					"sha256": "2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a"
+				},
+				{
+					"path": "packages/ts/src/operators/index.ts",
+					"sha256": "67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f"
+				},
+				{
+					"path": "packages/ts/src/protocol/messages.ts",
+					"sha256": "5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef"
+				},
+				{
+					"path": "packages/ts/src/solutions/causal-occurrence/capabilities.ts",
+					"sha256": "606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7"
+				},
+				{
+					"path": "packages/ts/src/solutions/causal-occurrence/committed-view.ts",
+					"sha256": "ed6e3b06a849f4f7bc9df455059b26f1dea92a64566acad04bbc8c306b35919d"
+				},
+				{
+					"path": "packages/ts/src/solutions/causal-occurrence/construction.ts",
+					"sha256": "57a73dfa6eb9a685441403520f790447d63e13b5f221b8c7eba3c2c5dfae06c9"
+				},
+				{
+					"path": "packages/ts/src/solutions/causal-occurrence/evidence.ts",
+					"sha256": "535700f13c6b639f694d950922e78d3f7a1da29511477af0ba31ed69d8563e34"
+				},
+				{
+					"path": "packages/ts/src/solutions/causal-occurrence/identity.ts",
+					"sha256": "54d7cee52121d369f5112e1bba363acd9c4b9d8651d565751b1cc6190799553a"
+				},
+				{
+					"path": "packages/ts/src/solutions/causal-occurrence/lifecycle.ts",
+					"sha256": "bc8f3c7b353d9a2cfbbb0d39bd8fd88a0b356184bbd448c2252f80503dc6089a"
+				},
+				{
+					"path": "packages/ts/src/solutions/causal-occurrence/transition.ts",
+					"sha256": "b85f0fa0d4c61c64f88295814c24c770a414bf7d304fd686a01a4a2c524fe220"
+				},
+				{
+					"path": "scripts/fixtures/spending-focused-host-harness.ts",
+					"sha256": "bac4ff883a228fca633ec766aa81d0b3bfd542d64d8e78101daa3f9845cc7dbc"
+				},
+				{
+					"path": "scripts/fixtures/spending-numeric-oracle.ts",
+					"sha256": "91f90ff47306b4631dc225a6df4daf60cabbd2e146aa1476915cdbfe4419c8df"
+				},
+				{
+					"path": "scripts/fixtures/spending-preset-harness.ts",
+					"sha256": "9c3ba7b674bd56847631a4c07160c1123cc39fa300ef540c2f3aa82880259e22"
+				},
+				{
+					"path": "scripts/fixtures/spending-preset-oracle.ts",
+					"sha256": "1bae2736615e6c2b8db71cc380a31226e73dcea1d31216d45ec13819a92cc8a2"
+				},
+				{
+					"path": "scripts/fixtures/spending-publication-oracle.ts",
+					"sha256": "6e2c9c6695567a276c75090c838670c93ecdea7c7b5a48279f959ccf66c4aac1"
+				},
+				{
+					"path": "source-binding-worker.ts",
+					"sha256": "9250ff0e3e1689c168db9df01e41af6e926e207d054bf6021d3d9257d8c7b7a6"
+				}
+			],
+			"bundleSha256": "135666f1bf9561ccbbf1351ae33cc3f002e73577290ced899a30d44f1e7890d8",
+			"binding": {
+				"sourceDigest": "sha256:f3a24a9971718cde4e03f9d143170dd4702860a56d43e0800be764b2c343153f",
+				"runtimeDigest": "sha256:135666f1bf9561ccbbf1351ae33cc3f002e73577290ced899a30d44f1e7890d8"
+			}
+		}
+	],
+	"results": {
+		"control": {
+			"binding": {
+				"packRef": {
+					"kind": "offline-pack",
+					"id": "preset"
+				},
+				"sourceDigest": "sha256:654ced7375bed357bcf890f28047b31ee1c1a74e5d81ebcd7615dd53fc34f9e4",
+				"runtimeDigest": "sha256:7f19d7a9a06537754804b179012684b6dfe2fd9489af5af2952e7afb1e5ea63d",
+				"destinationRef": {
+					"kind": "offline-inbox",
+					"id": "no-host"
+				},
+				"compositionEpoch": 1,
+				"hostEpoch": 1,
+				"runRef": "preset-fixture",
+				"evidenceMode": "fixture-observations"
+			},
+			"stale": null,
+			"calls": [
+				"{\"message\":\"Transaction evaluation-coffee-0:tx1 flagged — severity: low.\\nVendor: coffee  Amount: $140.00  Category: coffee\\nReasoning:\\n  • Amount is 0.71σ above this vendor's historical mean.\",\"severity\":\"low\",\"transactionId\":\"evaluation-coffee-0:tx1\",\"vendor\":\"coffee\"}\n"
+			],
+			"oraclePayload": "{\"message\":\"Transaction evaluation-coffee-0:tx1 flagged — severity: low.\\nVendor: coffee  Amount: $140.00  Category: coffee\\nReasoning:\\n  • Amount is 0.71σ above this vendor's historical mean.\",\"severity\":\"low\",\"transactionId\":\"evaluation-coffee-0:tx1\",\"vendor\":\"coffee\"}\n",
+			"outcomes": [
+				{
+					"admissionRef": {
+						"id": "sha256:5491b79409cbf6636abaca58cb0d3cc9146a6f9bf41420c16a298aef21716e39",
+						"kind": "spending-admission"
+					},
+					"effectId": "alert:evaluation-coffee-0",
+					"occurrence": {
+						"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+						"occurrenceId": "evaluation-coffee-0",
+						"revision": 1,
+						"revisionDomain": "fixture-coffee",
+						"sourceRefs": [
+							{
+								"id": "evaluation-coffee-0",
+								"kind": "evaluation"
+							}
+						]
+					},
+					"proposalDigest": "sha256:cbfd06a16422c2b55ee140a582ec78505a8a22818205e4a493a6a693339d1224",
+					"requestRef": {
+						"id": "sha256:886b05495990c13c6ed2c656556dea8d959b717003bb5ce2db19ed5b582ba9f7",
+						"kind": "spending-alerts/request-material/v1"
+					},
+					"result": {
+						"kind": "ok",
+						"value": {
+							"io": false,
+							"source": "offline-host"
+						}
+					},
+					"state": "succeeded"
+				}
+			],
+			"records": 1,
+			"topology": {
+				"nodes": [
+					{
+						"id": "pack",
+						"factory": "node"
+					},
+					{
+						"id": "arrivals",
+						"factory": "node"
+					},
+					{
+						"id": "current",
+						"factory": "node"
+					},
+					{
+						"id": "verification",
+						"factory": "node"
+					},
+					{
+						"id": "local",
+						"factory": "node"
+					},
+					{
+						"id": "spending/startup",
+						"factory": "graphConstructionStartup"
+					},
+					{
+						"id": "spending/hostFacts",
+						"factory": "offlineSpendingHostFacts"
+					},
+					{
+						"id": "spending/evaluationSelections",
+						"factory": "spending/evaluationSelections"
+					},
+					{
+						"id": "spending/transaction",
+						"factory": "spending/transaction"
+					},
+					{
+						"id": "spending/vendorStats",
+						"factory": "spending/vendorStats"
+					},
+					{
+						"id": "spending/userProfile",
+						"factory": "spending/userProfile"
+					},
+					{
+						"id": "spending/policy",
+						"factory": "spending/policy"
+					},
+					{
+						"id": "spending/anomalyScore",
+						"factory": "spending/anomalyScore"
+					},
+					{
+						"id": "spending/thresholdGate",
+						"factory": "spending/thresholdGate"
+					},
+					{
+						"id": "spending/reasonFactors",
+						"factory": "spending/reasonFactors"
+					},
+					{
+						"id": "spending/alertMessage",
+						"factory": "spending/alertMessage"
+					},
+					{
+						"id": "spending/assessment",
+						"factory": "spending/assessment"
+					},
+					{
+						"id": "spending/requestMaterials",
+						"factory": "spending/requestMaterials"
+					},
+					{
+						"id": "spending/materialStore",
+						"factory": "spending/materialStore"
+					},
+					{
+						"id": "spending/materialSnapshot",
+						"factory": "spending/materialSnapshot"
+					},
+					{
+						"id": "spending/effectProposals",
+						"factory": "spending/effectProposals"
+					},
+					{
+						"id": "spending/currentFacts",
+						"factory": "spending/currentFacts"
+					},
+					{
+						"id": "spending/verificationFacts",
+						"factory": "spending/verificationFacts"
+					},
+					{
+						"id": "spending/localFacts",
+						"factory": "spending/localFacts"
+					},
+					{
+						"id": "spending/inboxFacts",
+						"factory": "spending/inboxFacts"
+					},
+					{
+						"id": "spending/publicationPolicy",
+						"factory": "spending/publicationPolicy"
+					},
+					{
+						"id": "spending/occurrences",
+						"factory": "spending/occurrences"
+					},
+					{
+						"id": "spending/occurrenceAdmissions",
+						"factory": "spending/occurrenceAdmissions"
+					},
+					{
+						"id": "spending/branchTerminals",
+						"factory": "spending/branchTerminals"
+					},
+					{
+						"id": "spending/effectAdmissions",
+						"factory": "spending/effectAdmissions"
+					},
+					{
+						"id": "spending/effectOutcomes",
+						"factory": "spending/effectOutcomes"
+					},
+					{
+						"id": "spending/evidence",
+						"factory": "spending/evidence"
+					},
+					{
+						"id": "spending/watermarks",
+						"factory": "spending/watermarks"
+					},
+					{
+						"id": "spending/causal/input/occurrences",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/admissions",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/branch-terminals",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/effect-proposals",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/effect-admissions",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/effect-outcomes",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/evidence",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/watermarks",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/arrivals",
+						"factory": "merge"
+					},
+					{
+						"id": "spending/causal/authority",
+						"factory": "causalOccurrenceAuthority"
+					},
+					{
+						"id": "spending/causal/release-candidates",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/release-port",
+						"factory": "causalOccurrenceQuietReleasePort"
+					},
+					{
+						"id": "spending/causal/released",
+						"factory": "causalOccurrenceReleased"
+					},
+					{
+						"id": "spending/causal/release-events",
+						"factory": "merge"
+					},
+					{
+						"id": "spending/causal/release-controller",
+						"factory": "causalOccurrenceReleaseController"
+					},
+					{
+						"id": "spending/causal/currentness",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/terminals",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/conservation",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/coverage",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/quiescence",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/issues",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/committed-effects",
+						"factory": "causalCommittedEffectsProjection"
+					},
+					{
+						"id": "spending/causal/causal-quiescence",
+						"factory": "causalLifecycleQuiescence"
+					},
+					{
+						"id": "requestMaterialJoin",
+						"factory": "spendingRequestMaterialJoin"
+					},
+					{
+						"id": "publication",
+						"factory": "spendingPublication"
+					},
+					{
+						"id": "spending/consumerIssues",
+						"factory": "spending/consumerIssues"
+					},
+					{
+						"id": "spending/hostPackFacts",
+						"factory": "offlineSpendingHostPackFacts"
+					},
+					{
+						"id": "spending/hostGuard",
+						"factory": "offlineSpendingHostGuard"
+					},
+					{
+						"id": "spending/runEndReady",
+						"factory": "offlineSpendingRunEndReady"
+					}
+				],
+				"edges": [
+					{
+						"from": "pack",
+						"to": "spending/evaluationSelections"
+					},
+					{
+						"from": "arrivals",
+						"to": "spending/evaluationSelections"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/transaction"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/vendorStats"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/userProfile"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/policy"
+					},
+					{
+						"from": "spending/transaction",
+						"to": "spending/anomalyScore"
+					},
+					{
+						"from": "spending/vendorStats",
+						"to": "spending/anomalyScore"
+					},
+					{
+						"from": "spending/userProfile",
+						"to": "spending/anomalyScore"
+					},
+					{
+						"from": "spending/anomalyScore",
+						"to": "spending/thresholdGate"
+					},
+					{
+						"from": "spending/policy",
+						"to": "spending/thresholdGate"
+					},
+					{
+						"from": "spending/thresholdGate",
+						"to": "spending/reasonFactors"
+					},
+					{
+						"from": "spending/policy",
+						"to": "spending/reasonFactors"
+					},
+					{
+						"from": "spending/reasonFactors",
+						"to": "spending/alertMessage"
+					},
+					{
+						"from": "spending/thresholdGate",
+						"to": "spending/assessment"
+					},
+					{
+						"from": "spending/reasonFactors",
+						"to": "spending/assessment"
+					},
+					{
+						"from": "spending/alertMessage",
+						"to": "spending/assessment"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/requestMaterials"
+					},
+					{
+						"from": "spending/thresholdGate",
+						"to": "spending/requestMaterials"
+					},
+					{
+						"from": "spending/alertMessage",
+						"to": "spending/requestMaterials"
+					},
+					{
+						"from": "spending/requestMaterials",
+						"to": "spending/materialStore"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/materialSnapshot"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/effectProposals"
+					},
+					{
+						"from": "current",
+						"to": "spending/currentFacts"
+					},
+					{
+						"from": "verification",
+						"to": "spending/verificationFacts"
+					},
+					{
+						"from": "local",
+						"to": "spending/localFacts"
+					},
+					{
+						"from": "spending/hostFacts",
+						"to": "spending/inboxFacts"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/thresholdGate",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/verificationFacts",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/localFacts",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/inboxFacts",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/occurrences"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/occurrenceAdmissions"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/occurrenceAdmissions"
+					},
+					{
+						"from": "spending/assessment",
+						"to": "spending/branchTerminals"
+					},
+					{
+						"from": "spending/alertMessage",
+						"to": "spending/branchTerminals"
+					},
+					{
+						"from": "spending/publicationPolicy",
+						"to": "spending/branchTerminals"
+					},
+					{
+						"from": "spending/publicationPolicy",
+						"to": "spending/effectAdmissions"
+					},
+					{
+						"from": "spending/inboxFacts",
+						"to": "spending/effectOutcomes"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/evidence"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/evidence"
+					},
+					{
+						"from": "spending/verificationFacts",
+						"to": "spending/evidence"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/watermarks"
+					},
+					{
+						"from": "spending/occurrences",
+						"to": "spending/causal/input/occurrences"
+					},
+					{
+						"from": "spending/occurrenceAdmissions",
+						"to": "spending/causal/input/admissions"
+					},
+					{
+						"from": "spending/branchTerminals",
+						"to": "spending/causal/input/branch-terminals"
+					},
+					{
+						"from": "spending/effectProposals",
+						"to": "spending/causal/input/effect-proposals"
+					},
+					{
+						"from": "spending/effectAdmissions",
+						"to": "spending/causal/input/effect-admissions"
+					},
+					{
+						"from": "spending/effectOutcomes",
+						"to": "spending/causal/input/effect-outcomes"
+					},
+					{
+						"from": "spending/evidence",
+						"to": "spending/causal/input/evidence"
+					},
+					{
+						"from": "spending/watermarks",
+						"to": "spending/causal/input/watermarks"
+					},
+					{
+						"from": "spending/causal/input/occurrences",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/admissions",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/branch-terminals",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/effect-proposals",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/effect-admissions",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/effect-outcomes",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/evidence",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/watermarks",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/arrivals",
+						"to": "spending/causal/authority"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/release-candidates"
+					},
+					{
+						"from": "spending/causal/release-candidates",
+						"to": "spending/causal/release-port"
+					},
+					{
+						"from": "spending/causal/release-port",
+						"to": "spending/causal/released"
+					},
+					{
+						"from": "spending/causal/released",
+						"to": "spending/causal/release-events"
+					},
+					{
+						"from": "spending/causal/release-candidates",
+						"to": "spending/causal/release-events"
+					},
+					{
+						"from": "spending/causal/release-events",
+						"to": "spending/causal/release-controller"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/currentness"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/terminals"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/conservation"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/coverage"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/quiescence"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/issues"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/committed-effects"
+					},
+					{
+						"from": "spending/causal/quiescence",
+						"to": "spending/causal/causal-quiescence"
+					},
+					{
+						"from": "spending/causal/committed-effects",
+						"to": "requestMaterialJoin"
+					},
+					{
+						"from": "spending/materialSnapshot",
+						"to": "requestMaterialJoin"
+					},
+					{
+						"from": "requestMaterialJoin",
+						"to": "publication"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/verificationFacts",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/localFacts",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/inboxFacts",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/requestMaterials",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/publicationPolicy",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/causal/issues",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "pack",
+						"to": "spending/hostPackFacts"
+					},
+					{
+						"from": "spending/causal/committed-effects",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/materialSnapshot",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/verificationFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/localFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/inboxFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/hostPackFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/causal/quiescence",
+						"to": "spending/runEndReady"
+					},
+					{
+						"from": "spending/causal/committed-effects",
+						"to": "spending/runEndReady"
+					},
+					{
+						"from": "spending/localFacts",
+						"to": "spending/runEndReady"
+					},
+					{
+						"from": "spending/hostPackFacts",
+						"to": "spending/runEndReady"
+					}
+				]
+			},
+			"realInboxIO": 0
+		},
+		"staleBoth": {
+			"binding": {
+				"packRef": {
+					"kind": "offline-pack",
+					"id": "preset"
+				},
+				"sourceDigest": "sha256:f3a24a9971718cde4e03f9d143170dd4702860a56d43e0800be764b2c343153f",
+				"runtimeDigest": "sha256:135666f1bf9561ccbbf1351ae33cc3f002e73577290ced899a30d44f1e7890d8",
+				"destinationRef": {
+					"kind": "offline-inbox",
+					"id": "no-host"
+				},
+				"compositionEpoch": 1,
+				"hostEpoch": 1,
+				"runRef": "preset-fixture",
+				"evidenceMode": "fixture-observations"
+			},
+			"stale": {
+				"sourceDigest": "sha256:654ced7375bed357bcf890f28047b31ee1c1a74e5d81ebcd7615dd53fc34f9e4",
+				"runtimeDigest": "sha256:7f19d7a9a06537754804b179012684b6dfe2fd9489af5af2952e7afb1e5ea63d"
+			},
+			"calls": [],
+			"oraclePayload": "{\"message\":\"Transaction evaluation-coffee-0:tx1 flagged — severity: low.\\nVendor: coffee  Amount: $140.00  Category: coffee\\nReasoning:\\n  • Amount is 0.71σ above this vendor's historical mean.\",\"severity\":\"low\",\"transactionId\":\"evaluation-coffee-0:tx1\",\"vendor\":\"coffee\"}\n",
+			"outcomes": [null],
+			"records": 0,
+			"topology": {
+				"nodes": [
+					{
+						"id": "pack",
+						"factory": "node"
+					},
+					{
+						"id": "arrivals",
+						"factory": "node"
+					},
+					{
+						"id": "current",
+						"factory": "node"
+					},
+					{
+						"id": "verification",
+						"factory": "node"
+					},
+					{
+						"id": "local",
+						"factory": "node"
+					},
+					{
+						"id": "spending/startup",
+						"factory": "graphConstructionStartup"
+					},
+					{
+						"id": "spending/hostFacts",
+						"factory": "offlineSpendingHostFacts"
+					},
+					{
+						"id": "spending/evaluationSelections",
+						"factory": "spending/evaluationSelections"
+					},
+					{
+						"id": "spending/transaction",
+						"factory": "spending/transaction"
+					},
+					{
+						"id": "spending/vendorStats",
+						"factory": "spending/vendorStats"
+					},
+					{
+						"id": "spending/userProfile",
+						"factory": "spending/userProfile"
+					},
+					{
+						"id": "spending/policy",
+						"factory": "spending/policy"
+					},
+					{
+						"id": "spending/anomalyScore",
+						"factory": "spending/anomalyScore"
+					},
+					{
+						"id": "spending/thresholdGate",
+						"factory": "spending/thresholdGate"
+					},
+					{
+						"id": "spending/reasonFactors",
+						"factory": "spending/reasonFactors"
+					},
+					{
+						"id": "spending/alertMessage",
+						"factory": "spending/alertMessage"
+					},
+					{
+						"id": "spending/assessment",
+						"factory": "spending/assessment"
+					},
+					{
+						"id": "spending/requestMaterials",
+						"factory": "spending/requestMaterials"
+					},
+					{
+						"id": "spending/materialStore",
+						"factory": "spending/materialStore"
+					},
+					{
+						"id": "spending/materialSnapshot",
+						"factory": "spending/materialSnapshot"
+					},
+					{
+						"id": "spending/effectProposals",
+						"factory": "spending/effectProposals"
+					},
+					{
+						"id": "spending/currentFacts",
+						"factory": "spending/currentFacts"
+					},
+					{
+						"id": "spending/verificationFacts",
+						"factory": "spending/verificationFacts"
+					},
+					{
+						"id": "spending/localFacts",
+						"factory": "spending/localFacts"
+					},
+					{
+						"id": "spending/inboxFacts",
+						"factory": "spending/inboxFacts"
+					},
+					{
+						"id": "spending/publicationPolicy",
+						"factory": "spending/publicationPolicy"
+					},
+					{
+						"id": "spending/occurrences",
+						"factory": "spending/occurrences"
+					},
+					{
+						"id": "spending/occurrenceAdmissions",
+						"factory": "spending/occurrenceAdmissions"
+					},
+					{
+						"id": "spending/branchTerminals",
+						"factory": "spending/branchTerminals"
+					},
+					{
+						"id": "spending/effectAdmissions",
+						"factory": "spending/effectAdmissions"
+					},
+					{
+						"id": "spending/effectOutcomes",
+						"factory": "spending/effectOutcomes"
+					},
+					{
+						"id": "spending/evidence",
+						"factory": "spending/evidence"
+					},
+					{
+						"id": "spending/watermarks",
+						"factory": "spending/watermarks"
+					},
+					{
+						"id": "spending/causal/input/occurrences",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/admissions",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/branch-terminals",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/effect-proposals",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/effect-admissions",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/effect-outcomes",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/evidence",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/watermarks",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/arrivals",
+						"factory": "merge"
+					},
+					{
+						"id": "spending/causal/authority",
+						"factory": "causalOccurrenceAuthority"
+					},
+					{
+						"id": "spending/causal/release-candidates",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/release-port",
+						"factory": "causalOccurrenceQuietReleasePort"
+					},
+					{
+						"id": "spending/causal/released",
+						"factory": "causalOccurrenceReleased"
+					},
+					{
+						"id": "spending/causal/release-events",
+						"factory": "merge"
+					},
+					{
+						"id": "spending/causal/release-controller",
+						"factory": "causalOccurrenceReleaseController"
+					},
+					{
+						"id": "spending/causal/currentness",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/terminals",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/conservation",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/coverage",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/quiescence",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/issues",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/committed-effects",
+						"factory": "causalCommittedEffectsProjection"
+					},
+					{
+						"id": "spending/causal/causal-quiescence",
+						"factory": "causalLifecycleQuiescence"
+					},
+					{
+						"id": "requestMaterialJoin",
+						"factory": "spendingRequestMaterialJoin"
+					},
+					{
+						"id": "publication",
+						"factory": "spendingPublication"
+					},
+					{
+						"id": "spending/consumerIssues",
+						"factory": "spending/consumerIssues"
+					},
+					{
+						"id": "spending/hostPackFacts",
+						"factory": "offlineSpendingHostPackFacts"
+					},
+					{
+						"id": "spending/hostGuard",
+						"factory": "offlineSpendingHostGuard"
+					},
+					{
+						"id": "spending/runEndReady",
+						"factory": "offlineSpendingRunEndReady"
+					}
+				],
+				"edges": [
+					{
+						"from": "pack",
+						"to": "spending/evaluationSelections"
+					},
+					{
+						"from": "arrivals",
+						"to": "spending/evaluationSelections"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/transaction"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/vendorStats"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/userProfile"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/policy"
+					},
+					{
+						"from": "spending/transaction",
+						"to": "spending/anomalyScore"
+					},
+					{
+						"from": "spending/vendorStats",
+						"to": "spending/anomalyScore"
+					},
+					{
+						"from": "spending/userProfile",
+						"to": "spending/anomalyScore"
+					},
+					{
+						"from": "spending/anomalyScore",
+						"to": "spending/thresholdGate"
+					},
+					{
+						"from": "spending/policy",
+						"to": "spending/thresholdGate"
+					},
+					{
+						"from": "spending/thresholdGate",
+						"to": "spending/reasonFactors"
+					},
+					{
+						"from": "spending/policy",
+						"to": "spending/reasonFactors"
+					},
+					{
+						"from": "spending/reasonFactors",
+						"to": "spending/alertMessage"
+					},
+					{
+						"from": "spending/thresholdGate",
+						"to": "spending/assessment"
+					},
+					{
+						"from": "spending/reasonFactors",
+						"to": "spending/assessment"
+					},
+					{
+						"from": "spending/alertMessage",
+						"to": "spending/assessment"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/requestMaterials"
+					},
+					{
+						"from": "spending/thresholdGate",
+						"to": "spending/requestMaterials"
+					},
+					{
+						"from": "spending/alertMessage",
+						"to": "spending/requestMaterials"
+					},
+					{
+						"from": "spending/requestMaterials",
+						"to": "spending/materialStore"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/materialSnapshot"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/effectProposals"
+					},
+					{
+						"from": "current",
+						"to": "spending/currentFacts"
+					},
+					{
+						"from": "verification",
+						"to": "spending/verificationFacts"
+					},
+					{
+						"from": "local",
+						"to": "spending/localFacts"
+					},
+					{
+						"from": "spending/hostFacts",
+						"to": "spending/inboxFacts"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/thresholdGate",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/verificationFacts",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/localFacts",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/inboxFacts",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/occurrences"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/occurrenceAdmissions"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/occurrenceAdmissions"
+					},
+					{
+						"from": "spending/assessment",
+						"to": "spending/branchTerminals"
+					},
+					{
+						"from": "spending/alertMessage",
+						"to": "spending/branchTerminals"
+					},
+					{
+						"from": "spending/publicationPolicy",
+						"to": "spending/branchTerminals"
+					},
+					{
+						"from": "spending/publicationPolicy",
+						"to": "spending/effectAdmissions"
+					},
+					{
+						"from": "spending/inboxFacts",
+						"to": "spending/effectOutcomes"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/evidence"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/evidence"
+					},
+					{
+						"from": "spending/verificationFacts",
+						"to": "spending/evidence"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/watermarks"
+					},
+					{
+						"from": "spending/occurrences",
+						"to": "spending/causal/input/occurrences"
+					},
+					{
+						"from": "spending/occurrenceAdmissions",
+						"to": "spending/causal/input/admissions"
+					},
+					{
+						"from": "spending/branchTerminals",
+						"to": "spending/causal/input/branch-terminals"
+					},
+					{
+						"from": "spending/effectProposals",
+						"to": "spending/causal/input/effect-proposals"
+					},
+					{
+						"from": "spending/effectAdmissions",
+						"to": "spending/causal/input/effect-admissions"
+					},
+					{
+						"from": "spending/effectOutcomes",
+						"to": "spending/causal/input/effect-outcomes"
+					},
+					{
+						"from": "spending/evidence",
+						"to": "spending/causal/input/evidence"
+					},
+					{
+						"from": "spending/watermarks",
+						"to": "spending/causal/input/watermarks"
+					},
+					{
+						"from": "spending/causal/input/occurrences",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/admissions",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/branch-terminals",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/effect-proposals",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/effect-admissions",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/effect-outcomes",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/evidence",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/watermarks",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/arrivals",
+						"to": "spending/causal/authority"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/release-candidates"
+					},
+					{
+						"from": "spending/causal/release-candidates",
+						"to": "spending/causal/release-port"
+					},
+					{
+						"from": "spending/causal/release-port",
+						"to": "spending/causal/released"
+					},
+					{
+						"from": "spending/causal/released",
+						"to": "spending/causal/release-events"
+					},
+					{
+						"from": "spending/causal/release-candidates",
+						"to": "spending/causal/release-events"
+					},
+					{
+						"from": "spending/causal/release-events",
+						"to": "spending/causal/release-controller"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/currentness"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/terminals"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/conservation"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/coverage"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/quiescence"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/issues"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/committed-effects"
+					},
+					{
+						"from": "spending/causal/quiescence",
+						"to": "spending/causal/causal-quiescence"
+					},
+					{
+						"from": "spending/causal/committed-effects",
+						"to": "requestMaterialJoin"
+					},
+					{
+						"from": "spending/materialSnapshot",
+						"to": "requestMaterialJoin"
+					},
+					{
+						"from": "requestMaterialJoin",
+						"to": "publication"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/verificationFacts",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/localFacts",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/inboxFacts",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/requestMaterials",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/publicationPolicy",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/causal/issues",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "pack",
+						"to": "spending/hostPackFacts"
+					},
+					{
+						"from": "spending/causal/committed-effects",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/materialSnapshot",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/verificationFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/localFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/inboxFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/hostPackFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/causal/quiescence",
+						"to": "spending/runEndReady"
+					},
+					{
+						"from": "spending/causal/committed-effects",
+						"to": "spending/runEndReady"
+					},
+					{
+						"from": "spending/localFacts",
+						"to": "spending/runEndReady"
+					},
+					{
+						"from": "spending/hostPackFacts",
+						"to": "spending/runEndReady"
+					}
+				]
+			},
+			"realInboxIO": 0
+		},
+		"staleSource": {
+			"binding": {
+				"packRef": {
+					"kind": "offline-pack",
+					"id": "preset"
+				},
+				"sourceDigest": "sha256:f3a24a9971718cde4e03f9d143170dd4702860a56d43e0800be764b2c343153f",
+				"runtimeDigest": "sha256:135666f1bf9561ccbbf1351ae33cc3f002e73577290ced899a30d44f1e7890d8",
+				"destinationRef": {
+					"kind": "offline-inbox",
+					"id": "no-host"
+				},
+				"compositionEpoch": 1,
+				"hostEpoch": 1,
+				"runRef": "preset-fixture",
+				"evidenceMode": "fixture-observations"
+			},
+			"stale": {
+				"sourceDigest": "sha256:654ced7375bed357bcf890f28047b31ee1c1a74e5d81ebcd7615dd53fc34f9e4"
+			},
+			"calls": [],
+			"oraclePayload": "{\"message\":\"Transaction evaluation-coffee-0:tx1 flagged — severity: low.\\nVendor: coffee  Amount: $140.00  Category: coffee\\nReasoning:\\n  • Amount is 0.71σ above this vendor's historical mean.\",\"severity\":\"low\",\"transactionId\":\"evaluation-coffee-0:tx1\",\"vendor\":\"coffee\"}\n",
+			"outcomes": [null],
+			"records": 0,
+			"topology": {
+				"nodes": [
+					{
+						"id": "pack",
+						"factory": "node"
+					},
+					{
+						"id": "arrivals",
+						"factory": "node"
+					},
+					{
+						"id": "current",
+						"factory": "node"
+					},
+					{
+						"id": "verification",
+						"factory": "node"
+					},
+					{
+						"id": "local",
+						"factory": "node"
+					},
+					{
+						"id": "spending/startup",
+						"factory": "graphConstructionStartup"
+					},
+					{
+						"id": "spending/hostFacts",
+						"factory": "offlineSpendingHostFacts"
+					},
+					{
+						"id": "spending/evaluationSelections",
+						"factory": "spending/evaluationSelections"
+					},
+					{
+						"id": "spending/transaction",
+						"factory": "spending/transaction"
+					},
+					{
+						"id": "spending/vendorStats",
+						"factory": "spending/vendorStats"
+					},
+					{
+						"id": "spending/userProfile",
+						"factory": "spending/userProfile"
+					},
+					{
+						"id": "spending/policy",
+						"factory": "spending/policy"
+					},
+					{
+						"id": "spending/anomalyScore",
+						"factory": "spending/anomalyScore"
+					},
+					{
+						"id": "spending/thresholdGate",
+						"factory": "spending/thresholdGate"
+					},
+					{
+						"id": "spending/reasonFactors",
+						"factory": "spending/reasonFactors"
+					},
+					{
+						"id": "spending/alertMessage",
+						"factory": "spending/alertMessage"
+					},
+					{
+						"id": "spending/assessment",
+						"factory": "spending/assessment"
+					},
+					{
+						"id": "spending/requestMaterials",
+						"factory": "spending/requestMaterials"
+					},
+					{
+						"id": "spending/materialStore",
+						"factory": "spending/materialStore"
+					},
+					{
+						"id": "spending/materialSnapshot",
+						"factory": "spending/materialSnapshot"
+					},
+					{
+						"id": "spending/effectProposals",
+						"factory": "spending/effectProposals"
+					},
+					{
+						"id": "spending/currentFacts",
+						"factory": "spending/currentFacts"
+					},
+					{
+						"id": "spending/verificationFacts",
+						"factory": "spending/verificationFacts"
+					},
+					{
+						"id": "spending/localFacts",
+						"factory": "spending/localFacts"
+					},
+					{
+						"id": "spending/inboxFacts",
+						"factory": "spending/inboxFacts"
+					},
+					{
+						"id": "spending/publicationPolicy",
+						"factory": "spending/publicationPolicy"
+					},
+					{
+						"id": "spending/occurrences",
+						"factory": "spending/occurrences"
+					},
+					{
+						"id": "spending/occurrenceAdmissions",
+						"factory": "spending/occurrenceAdmissions"
+					},
+					{
+						"id": "spending/branchTerminals",
+						"factory": "spending/branchTerminals"
+					},
+					{
+						"id": "spending/effectAdmissions",
+						"factory": "spending/effectAdmissions"
+					},
+					{
+						"id": "spending/effectOutcomes",
+						"factory": "spending/effectOutcomes"
+					},
+					{
+						"id": "spending/evidence",
+						"factory": "spending/evidence"
+					},
+					{
+						"id": "spending/watermarks",
+						"factory": "spending/watermarks"
+					},
+					{
+						"id": "spending/causal/input/occurrences",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/admissions",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/branch-terminals",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/effect-proposals",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/effect-admissions",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/effect-outcomes",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/evidence",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/watermarks",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/arrivals",
+						"factory": "merge"
+					},
+					{
+						"id": "spending/causal/authority",
+						"factory": "causalOccurrenceAuthority"
+					},
+					{
+						"id": "spending/causal/release-candidates",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/release-port",
+						"factory": "causalOccurrenceQuietReleasePort"
+					},
+					{
+						"id": "spending/causal/released",
+						"factory": "causalOccurrenceReleased"
+					},
+					{
+						"id": "spending/causal/release-events",
+						"factory": "merge"
+					},
+					{
+						"id": "spending/causal/release-controller",
+						"factory": "causalOccurrenceReleaseController"
+					},
+					{
+						"id": "spending/causal/currentness",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/terminals",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/conservation",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/coverage",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/quiescence",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/issues",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/committed-effects",
+						"factory": "causalCommittedEffectsProjection"
+					},
+					{
+						"id": "spending/causal/causal-quiescence",
+						"factory": "causalLifecycleQuiescence"
+					},
+					{
+						"id": "requestMaterialJoin",
+						"factory": "spendingRequestMaterialJoin"
+					},
+					{
+						"id": "publication",
+						"factory": "spendingPublication"
+					},
+					{
+						"id": "spending/consumerIssues",
+						"factory": "spending/consumerIssues"
+					},
+					{
+						"id": "spending/hostPackFacts",
+						"factory": "offlineSpendingHostPackFacts"
+					},
+					{
+						"id": "spending/hostGuard",
+						"factory": "offlineSpendingHostGuard"
+					},
+					{
+						"id": "spending/runEndReady",
+						"factory": "offlineSpendingRunEndReady"
+					}
+				],
+				"edges": [
+					{
+						"from": "pack",
+						"to": "spending/evaluationSelections"
+					},
+					{
+						"from": "arrivals",
+						"to": "spending/evaluationSelections"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/transaction"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/vendorStats"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/userProfile"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/policy"
+					},
+					{
+						"from": "spending/transaction",
+						"to": "spending/anomalyScore"
+					},
+					{
+						"from": "spending/vendorStats",
+						"to": "spending/anomalyScore"
+					},
+					{
+						"from": "spending/userProfile",
+						"to": "spending/anomalyScore"
+					},
+					{
+						"from": "spending/anomalyScore",
+						"to": "spending/thresholdGate"
+					},
+					{
+						"from": "spending/policy",
+						"to": "spending/thresholdGate"
+					},
+					{
+						"from": "spending/thresholdGate",
+						"to": "spending/reasonFactors"
+					},
+					{
+						"from": "spending/policy",
+						"to": "spending/reasonFactors"
+					},
+					{
+						"from": "spending/reasonFactors",
+						"to": "spending/alertMessage"
+					},
+					{
+						"from": "spending/thresholdGate",
+						"to": "spending/assessment"
+					},
+					{
+						"from": "spending/reasonFactors",
+						"to": "spending/assessment"
+					},
+					{
+						"from": "spending/alertMessage",
+						"to": "spending/assessment"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/requestMaterials"
+					},
+					{
+						"from": "spending/thresholdGate",
+						"to": "spending/requestMaterials"
+					},
+					{
+						"from": "spending/alertMessage",
+						"to": "spending/requestMaterials"
+					},
+					{
+						"from": "spending/requestMaterials",
+						"to": "spending/materialStore"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/materialSnapshot"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/effectProposals"
+					},
+					{
+						"from": "current",
+						"to": "spending/currentFacts"
+					},
+					{
+						"from": "verification",
+						"to": "spending/verificationFacts"
+					},
+					{
+						"from": "local",
+						"to": "spending/localFacts"
+					},
+					{
+						"from": "spending/hostFacts",
+						"to": "spending/inboxFacts"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/thresholdGate",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/verificationFacts",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/localFacts",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/inboxFacts",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/occurrences"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/occurrenceAdmissions"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/occurrenceAdmissions"
+					},
+					{
+						"from": "spending/assessment",
+						"to": "spending/branchTerminals"
+					},
+					{
+						"from": "spending/alertMessage",
+						"to": "spending/branchTerminals"
+					},
+					{
+						"from": "spending/publicationPolicy",
+						"to": "spending/branchTerminals"
+					},
+					{
+						"from": "spending/publicationPolicy",
+						"to": "spending/effectAdmissions"
+					},
+					{
+						"from": "spending/inboxFacts",
+						"to": "spending/effectOutcomes"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/evidence"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/evidence"
+					},
+					{
+						"from": "spending/verificationFacts",
+						"to": "spending/evidence"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/watermarks"
+					},
+					{
+						"from": "spending/occurrences",
+						"to": "spending/causal/input/occurrences"
+					},
+					{
+						"from": "spending/occurrenceAdmissions",
+						"to": "spending/causal/input/admissions"
+					},
+					{
+						"from": "spending/branchTerminals",
+						"to": "spending/causal/input/branch-terminals"
+					},
+					{
+						"from": "spending/effectProposals",
+						"to": "spending/causal/input/effect-proposals"
+					},
+					{
+						"from": "spending/effectAdmissions",
+						"to": "spending/causal/input/effect-admissions"
+					},
+					{
+						"from": "spending/effectOutcomes",
+						"to": "spending/causal/input/effect-outcomes"
+					},
+					{
+						"from": "spending/evidence",
+						"to": "spending/causal/input/evidence"
+					},
+					{
+						"from": "spending/watermarks",
+						"to": "spending/causal/input/watermarks"
+					},
+					{
+						"from": "spending/causal/input/occurrences",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/admissions",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/branch-terminals",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/effect-proposals",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/effect-admissions",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/effect-outcomes",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/evidence",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/watermarks",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/arrivals",
+						"to": "spending/causal/authority"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/release-candidates"
+					},
+					{
+						"from": "spending/causal/release-candidates",
+						"to": "spending/causal/release-port"
+					},
+					{
+						"from": "spending/causal/release-port",
+						"to": "spending/causal/released"
+					},
+					{
+						"from": "spending/causal/released",
+						"to": "spending/causal/release-events"
+					},
+					{
+						"from": "spending/causal/release-candidates",
+						"to": "spending/causal/release-events"
+					},
+					{
+						"from": "spending/causal/release-events",
+						"to": "spending/causal/release-controller"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/currentness"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/terminals"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/conservation"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/coverage"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/quiescence"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/issues"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/committed-effects"
+					},
+					{
+						"from": "spending/causal/quiescence",
+						"to": "spending/causal/causal-quiescence"
+					},
+					{
+						"from": "spending/causal/committed-effects",
+						"to": "requestMaterialJoin"
+					},
+					{
+						"from": "spending/materialSnapshot",
+						"to": "requestMaterialJoin"
+					},
+					{
+						"from": "requestMaterialJoin",
+						"to": "publication"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/verificationFacts",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/localFacts",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/inboxFacts",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/requestMaterials",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/publicationPolicy",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/causal/issues",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "pack",
+						"to": "spending/hostPackFacts"
+					},
+					{
+						"from": "spending/causal/committed-effects",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/materialSnapshot",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/verificationFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/localFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/inboxFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/hostPackFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/causal/quiescence",
+						"to": "spending/runEndReady"
+					},
+					{
+						"from": "spending/causal/committed-effects",
+						"to": "spending/runEndReady"
+					},
+					{
+						"from": "spending/localFacts",
+						"to": "spending/runEndReady"
+					},
+					{
+						"from": "spending/hostPackFacts",
+						"to": "spending/runEndReady"
+					}
+				]
+			},
+			"realInboxIO": 0
+		},
+		"staleRuntime": {
+			"binding": {
+				"packRef": {
+					"kind": "offline-pack",
+					"id": "preset"
+				},
+				"sourceDigest": "sha256:f3a24a9971718cde4e03f9d143170dd4702860a56d43e0800be764b2c343153f",
+				"runtimeDigest": "sha256:135666f1bf9561ccbbf1351ae33cc3f002e73577290ced899a30d44f1e7890d8",
+				"destinationRef": {
+					"kind": "offline-inbox",
+					"id": "no-host"
+				},
+				"compositionEpoch": 1,
+				"hostEpoch": 1,
+				"runRef": "preset-fixture",
+				"evidenceMode": "fixture-observations"
+			},
+			"stale": {
+				"runtimeDigest": "sha256:7f19d7a9a06537754804b179012684b6dfe2fd9489af5af2952e7afb1e5ea63d"
+			},
+			"calls": [],
+			"oraclePayload": "{\"message\":\"Transaction evaluation-coffee-0:tx1 flagged — severity: low.\\nVendor: coffee  Amount: $140.00  Category: coffee\\nReasoning:\\n  • Amount is 0.71σ above this vendor's historical mean.\",\"severity\":\"low\",\"transactionId\":\"evaluation-coffee-0:tx1\",\"vendor\":\"coffee\"}\n",
+			"outcomes": [null],
+			"records": 0,
+			"topology": {
+				"nodes": [
+					{
+						"id": "pack",
+						"factory": "node"
+					},
+					{
+						"id": "arrivals",
+						"factory": "node"
+					},
+					{
+						"id": "current",
+						"factory": "node"
+					},
+					{
+						"id": "verification",
+						"factory": "node"
+					},
+					{
+						"id": "local",
+						"factory": "node"
+					},
+					{
+						"id": "spending/startup",
+						"factory": "graphConstructionStartup"
+					},
+					{
+						"id": "spending/hostFacts",
+						"factory": "offlineSpendingHostFacts"
+					},
+					{
+						"id": "spending/evaluationSelections",
+						"factory": "spending/evaluationSelections"
+					},
+					{
+						"id": "spending/transaction",
+						"factory": "spending/transaction"
+					},
+					{
+						"id": "spending/vendorStats",
+						"factory": "spending/vendorStats"
+					},
+					{
+						"id": "spending/userProfile",
+						"factory": "spending/userProfile"
+					},
+					{
+						"id": "spending/policy",
+						"factory": "spending/policy"
+					},
+					{
+						"id": "spending/anomalyScore",
+						"factory": "spending/anomalyScore"
+					},
+					{
+						"id": "spending/thresholdGate",
+						"factory": "spending/thresholdGate"
+					},
+					{
+						"id": "spending/reasonFactors",
+						"factory": "spending/reasonFactors"
+					},
+					{
+						"id": "spending/alertMessage",
+						"factory": "spending/alertMessage"
+					},
+					{
+						"id": "spending/assessment",
+						"factory": "spending/assessment"
+					},
+					{
+						"id": "spending/requestMaterials",
+						"factory": "spending/requestMaterials"
+					},
+					{
+						"id": "spending/materialStore",
+						"factory": "spending/materialStore"
+					},
+					{
+						"id": "spending/materialSnapshot",
+						"factory": "spending/materialSnapshot"
+					},
+					{
+						"id": "spending/effectProposals",
+						"factory": "spending/effectProposals"
+					},
+					{
+						"id": "spending/currentFacts",
+						"factory": "spending/currentFacts"
+					},
+					{
+						"id": "spending/verificationFacts",
+						"factory": "spending/verificationFacts"
+					},
+					{
+						"id": "spending/localFacts",
+						"factory": "spending/localFacts"
+					},
+					{
+						"id": "spending/inboxFacts",
+						"factory": "spending/inboxFacts"
+					},
+					{
+						"id": "spending/publicationPolicy",
+						"factory": "spending/publicationPolicy"
+					},
+					{
+						"id": "spending/occurrences",
+						"factory": "spending/occurrences"
+					},
+					{
+						"id": "spending/occurrenceAdmissions",
+						"factory": "spending/occurrenceAdmissions"
+					},
+					{
+						"id": "spending/branchTerminals",
+						"factory": "spending/branchTerminals"
+					},
+					{
+						"id": "spending/effectAdmissions",
+						"factory": "spending/effectAdmissions"
+					},
+					{
+						"id": "spending/effectOutcomes",
+						"factory": "spending/effectOutcomes"
+					},
+					{
+						"id": "spending/evidence",
+						"factory": "spending/evidence"
+					},
+					{
+						"id": "spending/watermarks",
+						"factory": "spending/watermarks"
+					},
+					{
+						"id": "spending/causal/input/occurrences",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/admissions",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/branch-terminals",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/effect-proposals",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/effect-admissions",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/effect-outcomes",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/evidence",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/watermarks",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/arrivals",
+						"factory": "merge"
+					},
+					{
+						"id": "spending/causal/authority",
+						"factory": "causalOccurrenceAuthority"
+					},
+					{
+						"id": "spending/causal/release-candidates",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/release-port",
+						"factory": "causalOccurrenceQuietReleasePort"
+					},
+					{
+						"id": "spending/causal/released",
+						"factory": "causalOccurrenceReleased"
+					},
+					{
+						"id": "spending/causal/release-events",
+						"factory": "merge"
+					},
+					{
+						"id": "spending/causal/release-controller",
+						"factory": "causalOccurrenceReleaseController"
+					},
+					{
+						"id": "spending/causal/currentness",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/terminals",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/conservation",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/coverage",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/quiescence",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/issues",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/committed-effects",
+						"factory": "causalCommittedEffectsProjection"
+					},
+					{
+						"id": "spending/causal/causal-quiescence",
+						"factory": "causalLifecycleQuiescence"
+					},
+					{
+						"id": "requestMaterialJoin",
+						"factory": "spendingRequestMaterialJoin"
+					},
+					{
+						"id": "publication",
+						"factory": "spendingPublication"
+					},
+					{
+						"id": "spending/consumerIssues",
+						"factory": "spending/consumerIssues"
+					},
+					{
+						"id": "spending/hostPackFacts",
+						"factory": "offlineSpendingHostPackFacts"
+					},
+					{
+						"id": "spending/hostGuard",
+						"factory": "offlineSpendingHostGuard"
+					},
+					{
+						"id": "spending/runEndReady",
+						"factory": "offlineSpendingRunEndReady"
+					}
+				],
+				"edges": [
+					{
+						"from": "pack",
+						"to": "spending/evaluationSelections"
+					},
+					{
+						"from": "arrivals",
+						"to": "spending/evaluationSelections"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/transaction"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/vendorStats"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/userProfile"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/policy"
+					},
+					{
+						"from": "spending/transaction",
+						"to": "spending/anomalyScore"
+					},
+					{
+						"from": "spending/vendorStats",
+						"to": "spending/anomalyScore"
+					},
+					{
+						"from": "spending/userProfile",
+						"to": "spending/anomalyScore"
+					},
+					{
+						"from": "spending/anomalyScore",
+						"to": "spending/thresholdGate"
+					},
+					{
+						"from": "spending/policy",
+						"to": "spending/thresholdGate"
+					},
+					{
+						"from": "spending/thresholdGate",
+						"to": "spending/reasonFactors"
+					},
+					{
+						"from": "spending/policy",
+						"to": "spending/reasonFactors"
+					},
+					{
+						"from": "spending/reasonFactors",
+						"to": "spending/alertMessage"
+					},
+					{
+						"from": "spending/thresholdGate",
+						"to": "spending/assessment"
+					},
+					{
+						"from": "spending/reasonFactors",
+						"to": "spending/assessment"
+					},
+					{
+						"from": "spending/alertMessage",
+						"to": "spending/assessment"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/requestMaterials"
+					},
+					{
+						"from": "spending/thresholdGate",
+						"to": "spending/requestMaterials"
+					},
+					{
+						"from": "spending/alertMessage",
+						"to": "spending/requestMaterials"
+					},
+					{
+						"from": "spending/requestMaterials",
+						"to": "spending/materialStore"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/materialSnapshot"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/effectProposals"
+					},
+					{
+						"from": "current",
+						"to": "spending/currentFacts"
+					},
+					{
+						"from": "verification",
+						"to": "spending/verificationFacts"
+					},
+					{
+						"from": "local",
+						"to": "spending/localFacts"
+					},
+					{
+						"from": "spending/hostFacts",
+						"to": "spending/inboxFacts"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/thresholdGate",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/verificationFacts",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/localFacts",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/inboxFacts",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/occurrences"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/occurrenceAdmissions"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/occurrenceAdmissions"
+					},
+					{
+						"from": "spending/assessment",
+						"to": "spending/branchTerminals"
+					},
+					{
+						"from": "spending/alertMessage",
+						"to": "spending/branchTerminals"
+					},
+					{
+						"from": "spending/publicationPolicy",
+						"to": "spending/branchTerminals"
+					},
+					{
+						"from": "spending/publicationPolicy",
+						"to": "spending/effectAdmissions"
+					},
+					{
+						"from": "spending/inboxFacts",
+						"to": "spending/effectOutcomes"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/evidence"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/evidence"
+					},
+					{
+						"from": "spending/verificationFacts",
+						"to": "spending/evidence"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/watermarks"
+					},
+					{
+						"from": "spending/occurrences",
+						"to": "spending/causal/input/occurrences"
+					},
+					{
+						"from": "spending/occurrenceAdmissions",
+						"to": "spending/causal/input/admissions"
+					},
+					{
+						"from": "spending/branchTerminals",
+						"to": "spending/causal/input/branch-terminals"
+					},
+					{
+						"from": "spending/effectProposals",
+						"to": "spending/causal/input/effect-proposals"
+					},
+					{
+						"from": "spending/effectAdmissions",
+						"to": "spending/causal/input/effect-admissions"
+					},
+					{
+						"from": "spending/effectOutcomes",
+						"to": "spending/causal/input/effect-outcomes"
+					},
+					{
+						"from": "spending/evidence",
+						"to": "spending/causal/input/evidence"
+					},
+					{
+						"from": "spending/watermarks",
+						"to": "spending/causal/input/watermarks"
+					},
+					{
+						"from": "spending/causal/input/occurrences",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/admissions",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/branch-terminals",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/effect-proposals",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/effect-admissions",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/effect-outcomes",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/evidence",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/watermarks",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/arrivals",
+						"to": "spending/causal/authority"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/release-candidates"
+					},
+					{
+						"from": "spending/causal/release-candidates",
+						"to": "spending/causal/release-port"
+					},
+					{
+						"from": "spending/causal/release-port",
+						"to": "spending/causal/released"
+					},
+					{
+						"from": "spending/causal/released",
+						"to": "spending/causal/release-events"
+					},
+					{
+						"from": "spending/causal/release-candidates",
+						"to": "spending/causal/release-events"
+					},
+					{
+						"from": "spending/causal/release-events",
+						"to": "spending/causal/release-controller"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/currentness"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/terminals"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/conservation"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/coverage"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/quiescence"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/issues"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/committed-effects"
+					},
+					{
+						"from": "spending/causal/quiescence",
+						"to": "spending/causal/causal-quiescence"
+					},
+					{
+						"from": "spending/causal/committed-effects",
+						"to": "requestMaterialJoin"
+					},
+					{
+						"from": "spending/materialSnapshot",
+						"to": "requestMaterialJoin"
+					},
+					{
+						"from": "requestMaterialJoin",
+						"to": "publication"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/verificationFacts",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/localFacts",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/inboxFacts",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/requestMaterials",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/publicationPolicy",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/causal/issues",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "pack",
+						"to": "spending/hostPackFacts"
+					},
+					{
+						"from": "spending/causal/committed-effects",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/materialSnapshot",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/verificationFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/localFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/inboxFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/hostPackFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/causal/quiescence",
+						"to": "spending/runEndReady"
+					},
+					{
+						"from": "spending/causal/committed-effects",
+						"to": "spending/runEndReady"
+					},
+					{
+						"from": "spending/localFacts",
+						"to": "spending/runEndReady"
+					},
+					{
+						"from": "spending/hostPackFacts",
+						"to": "spending/runEndReady"
+					}
+				]
+			},
+			"realInboxIO": 0
+		},
+		"fresh": {
+			"binding": {
+				"packRef": {
+					"kind": "offline-pack",
+					"id": "preset"
+				},
+				"sourceDigest": "sha256:f3a24a9971718cde4e03f9d143170dd4702860a56d43e0800be764b2c343153f",
+				"runtimeDigest": "sha256:135666f1bf9561ccbbf1351ae33cc3f002e73577290ced899a30d44f1e7890d8",
+				"destinationRef": {
+					"kind": "offline-inbox",
+					"id": "no-host"
+				},
+				"compositionEpoch": 1,
+				"hostEpoch": 1,
+				"runRef": "preset-fixture",
+				"evidenceMode": "fixture-observations"
+			},
+			"stale": null,
+			"calls": [
+				"{\"message\":\"Transaction evaluation-coffee-0:tx1 flagged — severity: low.\\nVendor: coffee  Amount: $140.00  Category: coffee\\nReasoning:\\n  • Amount is 0.71σ above this vendor's historical mean.\",\"severity\":\"low\",\"transactionId\":\"evaluation-coffee-0:tx1\",\"vendor\":\"coffee\"}\n"
+			],
+			"oraclePayload": "{\"message\":\"Transaction evaluation-coffee-0:tx1 flagged — severity: low.\\nVendor: coffee  Amount: $140.00  Category: coffee\\nReasoning:\\n  • Amount is 0.71σ above this vendor's historical mean.\",\"severity\":\"low\",\"transactionId\":\"evaluation-coffee-0:tx1\",\"vendor\":\"coffee\"}\n",
+			"outcomes": [
+				{
+					"admissionRef": {
+						"id": "sha256:300e6621e54d70b01708efb8f396bc18c07e7a7186373c254dac0ed208552e63",
+						"kind": "spending-admission"
+					},
+					"effectId": "alert:evaluation-coffee-0",
+					"occurrence": {
+						"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+						"occurrenceId": "evaluation-coffee-0",
+						"revision": 1,
+						"revisionDomain": "fixture-coffee",
+						"sourceRefs": [
+							{
+								"id": "evaluation-coffee-0",
+								"kind": "evaluation"
+							}
+						]
+					},
+					"proposalDigest": "sha256:4e48a5b0e2ee82a5ceca5724fb5043426a48695bf82d204362aa08d4ab7907fa",
+					"requestRef": {
+						"id": "sha256:a3f35c6085a8c5decd82ffc3f90cf05c42df237757a4b8fd1ad4ba89d35e09c4",
+						"kind": "spending-alerts/request-material/v1"
+					},
+					"result": {
+						"kind": "ok",
+						"value": {
+							"io": false,
+							"source": "offline-host"
+						}
+					},
+					"state": "succeeded"
+				}
+			],
+			"records": 1,
+			"topology": {
+				"nodes": [
+					{
+						"id": "pack",
+						"factory": "node"
+					},
+					{
+						"id": "arrivals",
+						"factory": "node"
+					},
+					{
+						"id": "current",
+						"factory": "node"
+					},
+					{
+						"id": "verification",
+						"factory": "node"
+					},
+					{
+						"id": "local",
+						"factory": "node"
+					},
+					{
+						"id": "spending/startup",
+						"factory": "graphConstructionStartup"
+					},
+					{
+						"id": "spending/hostFacts",
+						"factory": "offlineSpendingHostFacts"
+					},
+					{
+						"id": "spending/evaluationSelections",
+						"factory": "spending/evaluationSelections"
+					},
+					{
+						"id": "spending/transaction",
+						"factory": "spending/transaction"
+					},
+					{
+						"id": "spending/vendorStats",
+						"factory": "spending/vendorStats"
+					},
+					{
+						"id": "spending/userProfile",
+						"factory": "spending/userProfile"
+					},
+					{
+						"id": "spending/policy",
+						"factory": "spending/policy"
+					},
+					{
+						"id": "spending/anomalyScore",
+						"factory": "spending/anomalyScore"
+					},
+					{
+						"id": "spending/thresholdGate",
+						"factory": "spending/thresholdGate"
+					},
+					{
+						"id": "spending/reasonFactors",
+						"factory": "spending/reasonFactors"
+					},
+					{
+						"id": "spending/alertMessage",
+						"factory": "spending/alertMessage"
+					},
+					{
+						"id": "spending/assessment",
+						"factory": "spending/assessment"
+					},
+					{
+						"id": "spending/requestMaterials",
+						"factory": "spending/requestMaterials"
+					},
+					{
+						"id": "spending/materialStore",
+						"factory": "spending/materialStore"
+					},
+					{
+						"id": "spending/materialSnapshot",
+						"factory": "spending/materialSnapshot"
+					},
+					{
+						"id": "spending/effectProposals",
+						"factory": "spending/effectProposals"
+					},
+					{
+						"id": "spending/currentFacts",
+						"factory": "spending/currentFacts"
+					},
+					{
+						"id": "spending/verificationFacts",
+						"factory": "spending/verificationFacts"
+					},
+					{
+						"id": "spending/localFacts",
+						"factory": "spending/localFacts"
+					},
+					{
+						"id": "spending/inboxFacts",
+						"factory": "spending/inboxFacts"
+					},
+					{
+						"id": "spending/publicationPolicy",
+						"factory": "spending/publicationPolicy"
+					},
+					{
+						"id": "spending/occurrences",
+						"factory": "spending/occurrences"
+					},
+					{
+						"id": "spending/occurrenceAdmissions",
+						"factory": "spending/occurrenceAdmissions"
+					},
+					{
+						"id": "spending/branchTerminals",
+						"factory": "spending/branchTerminals"
+					},
+					{
+						"id": "spending/effectAdmissions",
+						"factory": "spending/effectAdmissions"
+					},
+					{
+						"id": "spending/effectOutcomes",
+						"factory": "spending/effectOutcomes"
+					},
+					{
+						"id": "spending/evidence",
+						"factory": "spending/evidence"
+					},
+					{
+						"id": "spending/watermarks",
+						"factory": "spending/watermarks"
+					},
+					{
+						"id": "spending/causal/input/occurrences",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/admissions",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/branch-terminals",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/effect-proposals",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/effect-admissions",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/effect-outcomes",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/evidence",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/input/watermarks",
+						"factory": "causalOccurrenceInputLane"
+					},
+					{
+						"id": "spending/causal/arrivals",
+						"factory": "merge"
+					},
+					{
+						"id": "spending/causal/authority",
+						"factory": "causalOccurrenceAuthority"
+					},
+					{
+						"id": "spending/causal/release-candidates",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/release-port",
+						"factory": "causalOccurrenceQuietReleasePort"
+					},
+					{
+						"id": "spending/causal/released",
+						"factory": "causalOccurrenceReleased"
+					},
+					{
+						"id": "spending/causal/release-events",
+						"factory": "merge"
+					},
+					{
+						"id": "spending/causal/release-controller",
+						"factory": "causalOccurrenceReleaseController"
+					},
+					{
+						"id": "spending/causal/currentness",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/terminals",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/conservation",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/coverage",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/quiescence",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/issues",
+						"factory": "causalOccurrenceFactProjection"
+					},
+					{
+						"id": "spending/causal/committed-effects",
+						"factory": "causalCommittedEffectsProjection"
+					},
+					{
+						"id": "spending/causal/causal-quiescence",
+						"factory": "causalLifecycleQuiescence"
+					},
+					{
+						"id": "requestMaterialJoin",
+						"factory": "spendingRequestMaterialJoin"
+					},
+					{
+						"id": "publication",
+						"factory": "spendingPublication"
+					},
+					{
+						"id": "spending/consumerIssues",
+						"factory": "spending/consumerIssues"
+					},
+					{
+						"id": "spending/hostPackFacts",
+						"factory": "offlineSpendingHostPackFacts"
+					},
+					{
+						"id": "spending/hostGuard",
+						"factory": "offlineSpendingHostGuard"
+					},
+					{
+						"id": "spending/runEndReady",
+						"factory": "offlineSpendingRunEndReady"
+					}
+				],
+				"edges": [
+					{
+						"from": "pack",
+						"to": "spending/evaluationSelections"
+					},
+					{
+						"from": "arrivals",
+						"to": "spending/evaluationSelections"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/transaction"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/vendorStats"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/userProfile"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/policy"
+					},
+					{
+						"from": "spending/transaction",
+						"to": "spending/anomalyScore"
+					},
+					{
+						"from": "spending/vendorStats",
+						"to": "spending/anomalyScore"
+					},
+					{
+						"from": "spending/userProfile",
+						"to": "spending/anomalyScore"
+					},
+					{
+						"from": "spending/anomalyScore",
+						"to": "spending/thresholdGate"
+					},
+					{
+						"from": "spending/policy",
+						"to": "spending/thresholdGate"
+					},
+					{
+						"from": "spending/thresholdGate",
+						"to": "spending/reasonFactors"
+					},
+					{
+						"from": "spending/policy",
+						"to": "spending/reasonFactors"
+					},
+					{
+						"from": "spending/reasonFactors",
+						"to": "spending/alertMessage"
+					},
+					{
+						"from": "spending/thresholdGate",
+						"to": "spending/assessment"
+					},
+					{
+						"from": "spending/reasonFactors",
+						"to": "spending/assessment"
+					},
+					{
+						"from": "spending/alertMessage",
+						"to": "spending/assessment"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/requestMaterials"
+					},
+					{
+						"from": "spending/thresholdGate",
+						"to": "spending/requestMaterials"
+					},
+					{
+						"from": "spending/alertMessage",
+						"to": "spending/requestMaterials"
+					},
+					{
+						"from": "spending/requestMaterials",
+						"to": "spending/materialStore"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/materialSnapshot"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/effectProposals"
+					},
+					{
+						"from": "current",
+						"to": "spending/currentFacts"
+					},
+					{
+						"from": "verification",
+						"to": "spending/verificationFacts"
+					},
+					{
+						"from": "local",
+						"to": "spending/localFacts"
+					},
+					{
+						"from": "spending/hostFacts",
+						"to": "spending/inboxFacts"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/thresholdGate",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/verificationFacts",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/localFacts",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/inboxFacts",
+						"to": "spending/publicationPolicy"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/occurrences"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/occurrenceAdmissions"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/occurrenceAdmissions"
+					},
+					{
+						"from": "spending/assessment",
+						"to": "spending/branchTerminals"
+					},
+					{
+						"from": "spending/alertMessage",
+						"to": "spending/branchTerminals"
+					},
+					{
+						"from": "spending/publicationPolicy",
+						"to": "spending/branchTerminals"
+					},
+					{
+						"from": "spending/publicationPolicy",
+						"to": "spending/effectAdmissions"
+					},
+					{
+						"from": "spending/inboxFacts",
+						"to": "spending/effectOutcomes"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/evidence"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/evidence"
+					},
+					{
+						"from": "spending/verificationFacts",
+						"to": "spending/evidence"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/watermarks"
+					},
+					{
+						"from": "spending/occurrences",
+						"to": "spending/causal/input/occurrences"
+					},
+					{
+						"from": "spending/occurrenceAdmissions",
+						"to": "spending/causal/input/admissions"
+					},
+					{
+						"from": "spending/branchTerminals",
+						"to": "spending/causal/input/branch-terminals"
+					},
+					{
+						"from": "spending/effectProposals",
+						"to": "spending/causal/input/effect-proposals"
+					},
+					{
+						"from": "spending/effectAdmissions",
+						"to": "spending/causal/input/effect-admissions"
+					},
+					{
+						"from": "spending/effectOutcomes",
+						"to": "spending/causal/input/effect-outcomes"
+					},
+					{
+						"from": "spending/evidence",
+						"to": "spending/causal/input/evidence"
+					},
+					{
+						"from": "spending/watermarks",
+						"to": "spending/causal/input/watermarks"
+					},
+					{
+						"from": "spending/causal/input/occurrences",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/admissions",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/branch-terminals",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/effect-proposals",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/effect-admissions",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/effect-outcomes",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/evidence",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/input/watermarks",
+						"to": "spending/causal/arrivals"
+					},
+					{
+						"from": "spending/causal/arrivals",
+						"to": "spending/causal/authority"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/release-candidates"
+					},
+					{
+						"from": "spending/causal/release-candidates",
+						"to": "spending/causal/release-port"
+					},
+					{
+						"from": "spending/causal/release-port",
+						"to": "spending/causal/released"
+					},
+					{
+						"from": "spending/causal/released",
+						"to": "spending/causal/release-events"
+					},
+					{
+						"from": "spending/causal/release-candidates",
+						"to": "spending/causal/release-events"
+					},
+					{
+						"from": "spending/causal/release-events",
+						"to": "spending/causal/release-controller"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/currentness"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/terminals"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/conservation"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/coverage"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/quiescence"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/issues"
+					},
+					{
+						"from": "spending/causal/authority",
+						"to": "spending/causal/committed-effects"
+					},
+					{
+						"from": "spending/causal/quiescence",
+						"to": "spending/causal/causal-quiescence"
+					},
+					{
+						"from": "spending/causal/committed-effects",
+						"to": "requestMaterialJoin"
+					},
+					{
+						"from": "spending/materialSnapshot",
+						"to": "requestMaterialJoin"
+					},
+					{
+						"from": "requestMaterialJoin",
+						"to": "publication"
+					},
+					{
+						"from": "spending/evaluationSelections",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/verificationFacts",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/localFacts",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/inboxFacts",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/requestMaterials",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/materialStore",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/publicationPolicy",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "spending/causal/issues",
+						"to": "spending/consumerIssues"
+					},
+					{
+						"from": "pack",
+						"to": "spending/hostPackFacts"
+					},
+					{
+						"from": "spending/causal/committed-effects",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/materialSnapshot",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/currentFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/verificationFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/localFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/inboxFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/hostPackFacts",
+						"to": "spending/hostGuard"
+					},
+					{
+						"from": "spending/causal/quiescence",
+						"to": "spending/runEndReady"
+					},
+					{
+						"from": "spending/causal/committed-effects",
+						"to": "spending/runEndReady"
+					},
+					{
+						"from": "spending/localFacts",
+						"to": "spending/runEndReady"
+					},
+					{
+						"from": "spending/hostPackFacts",
+						"to": "spending/runEndReady"
+					}
+				]
+			},
+			"realInboxIO": 0
+		}
+	}
+}
