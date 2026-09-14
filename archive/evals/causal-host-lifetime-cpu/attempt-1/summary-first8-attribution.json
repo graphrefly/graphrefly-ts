@@ -1,0 +1,1977 @@
+{
+  "sampledDeltaUs": 87709,
+  "samples": 565,
+  "selfBySource": [
+    {
+      "source": "../../../../examples/spending-alerts/causal-publication.ts",
+      "selfUs": 16290
+    },
+    {
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "selfUs": 15252
+    },
+    {
+      "source": "node:inspector",
+      "selfUs": 13792
+    },
+    {
+      "source": "../../../../packages/ts/src/json/codec.ts",
+      "selfUs": 7877
+    },
+    {
+      "source": "(garbage collector)",
+      "selfUs": 4041
+    },
+    {
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/transition.ts",
+      "selfUs": 3333
+    },
+    {
+      "source": "(anonymous)",
+      "selfUs": 2500
+    },
+    {
+      "source": "../../../../examples/spending-alerts/causal-inputs.ts",
+      "selfUs": 2458
+    },
+    {
+      "source": "../../../../packages/ts/src/node/node-output-runtime.ts",
+      "selfUs": 2418
+    },
+    {
+      "source": "../../../../packages/ts/src/node/node.ts",
+      "selfUs": 1749
+    },
+    {
+      "source": "set Navigator",
+      "selfUs": 1667
+    },
+    {
+      "source": "../../../../examples/spending-alerts/causal-business.ts",
+      "selfUs": 1542
+    },
+    {
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/evidence.ts",
+      "selfUs": 1333
+    },
+    {
+      "source": "(program)",
+      "selfUs": 1332
+    },
+    {
+      "source": "../../../../examples/spending-alerts/causal-admission.ts",
+      "selfUs": 1000
+    },
+    {
+      "source": "../../../../packages/ts/src/dispatcher/index.ts",
+      "selfUs": 1000
+    },
+    {
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/lifecycle.ts",
+      "selfUs": 1000
+    },
+    {
+      "source": "../../../../packages/ts/src/ctx/types.ts",
+      "selfUs": 959
+    },
+    {
+      "source": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/docs/design/causal-lifetime-profile/attempt-1/worker.mjs",
+      "selfUs": 917
+    },
+    {
+      "source": "RegExp: [\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]",
+      "selfUs": 791
+    },
+    {
+      "source": "../../../../packages/ts/src/node/node-input-runtime.ts",
+      "selfUs": 625
+    },
+    {
+      "source": "update",
+      "selfUs": 583
+    },
+    {
+      "source": "../../../../examples/spending-alerts/causal-focused-host.ts",
+      "selfUs": 541
+    },
+    {
+      "source": "../../../../packages/ts/src/node/node-context-runtime.ts",
+      "selfUs": 500
+    },
+    {
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/construction.ts",
+      "selfUs": 500
+    },
+    {
+      "source": "node:buffer",
+      "selfUs": 458
+    },
+    {
+      "source": "node:internal/bootstrap/node",
+      "selfUs": 458
+    },
+    {
+      "source": "../../../../examples/spending-alerts/causal-numeric.ts",
+      "selfUs": 417
+    },
+    {
+      "source": "node:internal/crypto/hash",
+      "selfUs": 375
+    },
+    {
+      "source": "node:crypto",
+      "selfUs": 292
+    },
+    {
+      "source": "../../../../spending-host-profile-worker.ts",
+      "selfUs": 292
+    },
+    {
+      "source": "RegExp: ^(0|[1-9]\\d*)$",
+      "selfUs": 250
+    },
+    {
+      "source": "Hash",
+      "selfUs": 250
+    },
+    {
+      "source": "../../../../examples/spending-alerts/causal-material-owner.ts",
+      "selfUs": 167
+    },
+    {
+      "source": "../../../../packages/ts/src/identity.ts",
+      "selfUs": 125
+    },
+    {
+      "source": "../../../../packages/ts/src/node/core.ts",
+      "selfUs": 125
+    },
+    {
+      "source": "../../../../packages/ts/src/node/protocol-guards.ts",
+      "selfUs": 125
+    },
+    {
+      "source": "../../../../packages/ts/src/node/versioning.ts",
+      "selfUs": 125
+    },
+    {
+      "source": "RegExp: ^sha256:[0-9a-f]{64}$",
+      "selfUs": 125
+    },
+    {
+      "source": "dispatch",
+      "selfUs": 125
+    }
+  ],
+  "functions": [
+    {
+      "functionName": "post",
+      "source": "node:inspector",
+      "line": 115,
+      "generatedLine": 115,
+      "selfUs": 13792,
+      "inclusiveUs": 13917,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "visit",
+      "source": "../../../../examples/spending-alerts/causal-publication.ts",
+      "line": 100,
+      "generatedLine": 5346,
+      "selfUs": 8624,
+      "inclusiveUs": 55955,
+      "selfSamples": 68
+    },
+    {
+      "functionName": "sortedJsonValue",
+      "source": "../../../../packages/ts/src/json/codec.ts",
+      "line": 57,
+      "generatedLine": 287,
+      "selfUs": 7502,
+      "inclusiveUs": 11336,
+      "selfSamples": 57
+    },
+    {
+      "functionName": "(garbage collector)",
+      "source": "",
+      "line": 0,
+      "generatedLine": 0,
+      "selfUs": 4041,
+      "inclusiveUs": 4041,
+      "selfSamples": 29
+    },
+    {
+      "functionName": "string",
+      "source": "../../../../examples/spending-alerts/causal-publication.ts",
+      "line": 92,
+      "generatedLine": 5340,
+      "selfUs": 3459,
+      "inclusiveUs": 6290,
+      "selfSamples": 26
+    },
+    {
+      "functionName": "dataKey",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 38,
+      "generatedLine": 3454,
+      "selfUs": 3417,
+      "inclusiveUs": 7128,
+      "selfSamples": 26
+    },
+    {
+      "functionName": "refKey",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 146,
+      "generatedLine": 3618,
+      "selfUs": 3210,
+      "inclusiveUs": 6959,
+      "selfSamples": 23
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "",
+      "line": 0,
+      "generatedLine": 0,
+      "selfUs": 2500,
+      "inclusiveUs": 2500,
+      "selfSamples": 20
+    },
+    {
+      "functionName": "sameRef",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 228,
+      "generatedLine": 3664,
+      "selfUs": 1875,
+      "inclusiveUs": 4292,
+      "selfSamples": 14
+    },
+    {
+      "functionName": "set Navigator",
+      "source": "",
+      "line": 0,
+      "generatedLine": 0,
+      "selfUs": 1667,
+      "inclusiveUs": 1667,
+      "selfSamples": 12
+    },
+    {
+      "functionName": "(program)",
+      "source": "",
+      "line": 0,
+      "generatedLine": 0,
+      "selfUs": 1332,
+      "inclusiveUs": 1332,
+      "selfSamples": 11
+    },
+    {
+      "functionName": "token",
+      "source": "../../../../examples/spending-alerts/causal-publication.ts",
+      "line": 87,
+      "generatedLine": 5334,
+      "selfUs": 1249,
+      "inclusiveUs": 4415,
+      "selfSamples": 9
+    },
+    {
+      "functionName": "encodeMaterial",
+      "source": "../../../../examples/spending-alerts/causal-publication.ts",
+      "line": 83,
+      "generatedLine": 5330,
+      "selfUs": 1166,
+      "inclusiveUs": 19372,
+      "selfSamples": 8
+    },
+    {
+      "functionName": "checkInput",
+      "source": "../../../../examples/spending-alerts/causal-inputs.ts",
+      "line": 352,
+      "generatedLine": 5896,
+      "selfUs": 1165,
+      "inclusiveUs": 4792,
+      "selfSamples": 8
+    },
+    {
+      "functionName": "nodeDown",
+      "source": "../../../../packages/ts/src/node/node-output-runtime.ts",
+      "line": 24,
+      "generatedLine": 1902,
+      "selfUs": 1125,
+      "inclusiveUs": 286688,
+      "selfSamples": 12
+    },
+    {
+      "functionName": "sha256",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 57,
+      "generatedLine": 3528,
+      "selfUs": 1042,
+      "inclusiveUs": 1292,
+      "selfSamples": 8
+    },
+    {
+      "functionName": "transitionCausalAuthority",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/transition.ts",
+      "line": 82,
+      "generatedLine": 4664,
+      "selfUs": 1000,
+      "inclusiveUs": 29711,
+      "selfSamples": 7
+    },
+    {
+      "functionName": "depBatch",
+      "source": "../../../../packages/ts/src/ctx/types.ts",
+      "line": 246,
+      "generatedLine": 82,
+      "selfUs": 959,
+      "inclusiveUs": 959,
+      "selfSamples": 8
+    },
+    {
+      "functionName": "invoke",
+      "source": "../../../../packages/ts/src/dispatcher/index.ts",
+      "line": 65,
+      "generatedLine": 1033,
+      "selfUs": 875,
+      "inclusiveUs": 270474,
+      "selfSamples": 7
+    },
+    {
+      "functionName": "isEvidenceTerminal",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/evidence.ts",
+      "line": 173,
+      "generatedLine": 4084,
+      "selfUs": 875,
+      "inclusiveUs": 2665,
+      "selfSamples": 7
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 128,
+      "generatedLine": 3600,
+      "selfUs": 834,
+      "inclusiveUs": 1918,
+      "selfSamples": 6
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/transition.ts",
+      "line": 305,
+      "generatedLine": 4879,
+      "selfUs": 833,
+      "inclusiveUs": 13126,
+      "selfSamples": 6
+    },
+    {
+      "functionName": "keys2",
+      "source": "../../../../examples/spending-alerts/causal-inputs.ts",
+      "line": 157,
+      "generatedLine": 5709,
+      "selfUs": 793,
+      "inclusiveUs": 793,
+      "selfSamples": 6
+    },
+    {
+      "functionName": "recomputeCurrentness",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 440,
+      "generatedLine": 3810,
+      "selfUs": 791,
+      "inclusiveUs": 5293,
+      "selfSamples": 6
+    },
+    {
+      "functionName": "RegExp: [\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]",
+      "source": "",
+      "line": 0,
+      "generatedLine": 0,
+      "selfUs": 791,
+      "inclusiveUs": 791,
+      "selfSamples": 6
+    },
+    {
+      "functionName": "_down",
+      "source": "../../../../packages/ts/src/node/node.ts",
+      "line": 693,
+      "generatedLine": 2921,
+      "selfUs": 624,
+      "inclusiveUs": 223892,
+      "selfSamples": 6
+    },
+    {
+      "functionName": "flushEffectsAndTerminals",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/lifecycle.ts",
+      "line": 146,
+      "generatedLine": 4196,
+      "selfUs": 584,
+      "inclusiveUs": 1209,
+      "selfSamples": 4
+    },
+    {
+      "functionName": "currentnessMetadata",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 385,
+      "generatedLine": 3778,
+      "selfUs": 584,
+      "inclusiveUs": 584,
+      "selfSamples": 4
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/transition.ts",
+      "line": 176,
+      "generatedLine": 4752,
+      "selfUs": 583,
+      "inclusiveUs": 3126,
+      "selfSamples": 4
+    },
+    {
+      "functionName": "update",
+      "source": "",
+      "line": 0,
+      "generatedLine": 0,
+      "selfUs": 583,
+      "inclusiveUs": 583,
+      "selfSamples": 5
+    },
+    {
+      "functionName": "exactAdmission",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 373,
+      "generatedLine": 3772,
+      "selfUs": 583,
+      "inclusiveUs": 2876,
+      "selfSamples": 4
+    },
+    {
+      "functionName": "scope.node.name",
+      "source": "../../../../examples/spending-alerts/causal-business.ts",
+      "line": 51,
+      "generatedLine": 6080,
+      "selfUs": 542,
+      "inclusiveUs": 124715,
+      "selfSamples": 4
+    },
+    {
+      "functionName": "validateMaterialSnapshot",
+      "source": "../../../../examples/spending-alerts/causal-publication.ts",
+      "line": 254,
+      "generatedLine": 5495,
+      "selfUs": 542,
+      "inclusiveUs": 4916,
+      "selfSamples": 4
+    },
+    {
+      "functionName": "nodeUp",
+      "source": "../../../../packages/ts/src/node/node-output-runtime.ts",
+      "line": 217,
+      "generatedLine": 2047,
+      "selfUs": 542,
+      "inclusiveUs": 12335,
+      "selfSamples": 5
+    },
+    {
+      "functionName": "exactOccurrence",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 310,
+      "generatedLine": 3726,
+      "selfUs": 541,
+      "inclusiveUs": 2124,
+      "selfSamples": 4
+    },
+    {
+      "functionName": "__name",
+      "source": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/docs/design/causal-lifetime-profile/attempt-1/worker.mjs",
+      "line": 2,
+      "generatedLine": 2,
+      "selfUs": 500,
+      "inclusiveUs": 1250,
+      "selfSamples": 4
+    },
+    {
+      "functionName": "canonicalSnapshot",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 127,
+      "generatedLine": 3599,
+      "selfUs": 500,
+      "inclusiveUs": 3334,
+      "selfSamples": 4
+    },
+    {
+      "functionName": "byteLength",
+      "source": "node:buffer",
+      "line": 844,
+      "generatedLine": 844,
+      "selfUs": 458,
+      "inclusiveUs": 2958,
+      "selfSamples": 3
+    },
+    {
+      "functionName": "get",
+      "source": "node:internal/bootstrap/node",
+      "line": 474,
+      "generatedLine": 474,
+      "selfUs": 458,
+      "inclusiveUs": 458,
+      "selfSamples": 3
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "file:///Users/davidchenallio/src/graphrefly-ts-latency-review/docs/design/causal-lifetime-profile/attempt-1/worker.mjs",
+      "line": 0,
+      "generatedLine": 0,
+      "selfUs": 417,
+      "inclusiveUs": 66501,
+      "selfSamples": 2
+    },
+    {
+      "functionName": "exactVendorStats",
+      "source": "../../../../examples/spending-alerts/causal-numeric.ts",
+      "line": 53,
+      "generatedLine": 6020,
+      "selfUs": 417,
+      "inclusiveUs": 417,
+      "selfSamples": 3
+    },
+    {
+      "functionName": "rotateRight",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 53,
+      "generatedLine": 3524,
+      "selfUs": 417,
+      "inclusiveUs": 417,
+      "selfSamples": 3
+    },
+    {
+      "functionName": "nodeReceiveFromDep",
+      "source": "../../../../packages/ts/src/node/node-input-runtime.ts",
+      "line": 26,
+      "generatedLine": 1495,
+      "selfUs": 375,
+      "inclusiveUs": 284854,
+      "selfSamples": 3
+    },
+    {
+      "functionName": "stableJsonString",
+      "source": "../../../../packages/ts/src/json/codec.ts",
+      "line": 145,
+      "generatedLine": 358,
+      "selfUs": 375,
+      "inclusiveUs": 1167,
+      "selfSamples": 3
+    },
+    {
+      "functionName": "cloneState",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/transition.ts",
+      "line": 53,
+      "generatedLine": 4635,
+      "selfUs": 375,
+      "inclusiveUs": 500,
+      "selfSamples": 3
+    },
+    {
+      "functionName": "_forwardUp",
+      "source": "../../../../packages/ts/src/node/node.ts",
+      "line": 705,
+      "generatedLine": 2930,
+      "selfUs": 374,
+      "inclusiveUs": 8083,
+      "selfSamples": 3
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-admission.ts",
+      "line": 422,
+      "generatedLine": 6689,
+      "selfUs": 334,
+      "inclusiveUs": 38668,
+      "selfSamples": 2
+    },
+    {
+      "functionName": "createHash",
+      "source": "node:crypto",
+      "line": 145,
+      "generatedLine": 145,
+      "selfUs": 292,
+      "inclusiveUs": 542,
+      "selfSamples": 2
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-admission.ts",
+      "line": 378,
+      "generatedLine": 6648,
+      "selfUs": 291,
+      "inclusiveUs": 416,
+      "selfSamples": 2
+    },
+    {
+      "functionName": "nodeRunWave",
+      "source": "../../../../packages/ts/src/node/node-input-runtime.ts",
+      "line": 280,
+      "generatedLine": 1677,
+      "selfUs": 250,
+      "inclusiveUs": 283687,
+      "selfSamples": 2
+    },
+    {
+      "functionName": "_runWave",
+      "source": "../../../../packages/ts/src/node/node.ts",
+      "line": 666,
+      "generatedLine": 2905,
+      "selfUs": 250,
+      "inclusiveUs": 283937,
+      "selfSamples": 2
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-business.ts",
+      "line": 264,
+      "generatedLine": 6245,
+      "selfUs": 250,
+      "inclusiveUs": 47043,
+      "selfSamples": 2
+    },
+    {
+      "functionName": "causalOccurrenceDigest",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 114,
+      "generatedLine": 3586,
+      "selfUs": 250,
+      "inclusiveUs": 1834,
+      "selfSamples": 2
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/transition.ts",
+      "line": 374,
+      "generatedLine": 4928,
+      "selfUs": 250,
+      "inclusiveUs": 2208,
+      "selfSamples": 2
+    },
+    {
+      "functionName": "RegExp: ^(0|[1-9]\\d*)$",
+      "source": "",
+      "line": 0,
+      "generatedLine": 0,
+      "selfUs": 250,
+      "inclusiveUs": 250,
+      "selfSamples": 2
+    },
+    {
+      "functionName": "scope.node.name",
+      "source": "../../../../examples/spending-alerts/causal-focused-host.ts",
+      "line": 310,
+      "generatedLine": 7255,
+      "selfUs": 250,
+      "inclusiveUs": 7082,
+      "selfSamples": 2
+    },
+    {
+      "functionName": "scope.node.name",
+      "source": "../../../../examples/spending-alerts/causal-publication.ts",
+      "line": 411,
+      "generatedLine": 5614,
+      "selfUs": 250,
+      "inclusiveUs": 5542,
+      "selfSamples": 2
+    },
+    {
+      "functionName": "keys",
+      "source": "../../../../examples/spending-alerts/causal-publication.ts",
+      "line": 149,
+      "generatedLine": 5400,
+      "selfUs": 250,
+      "inclusiveUs": 250,
+      "selfSamples": 2
+    },
+    {
+      "functionName": "currentnessChanged",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 426,
+      "generatedLine": 3801,
+      "selfUs": 250,
+      "inclusiveUs": 1251,
+      "selfSamples": 2
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-business.ts",
+      "line": 145,
+      "generatedLine": 6164,
+      "selfUs": 250,
+      "inclusiveUs": 250,
+      "selfSamples": 2
+    },
+    {
+      "functionName": "update",
+      "source": "node:internal/crypto/hash",
+      "line": 136,
+      "generatedLine": 136,
+      "selfUs": 250,
+      "inclusiveUs": 833,
+      "selfSamples": 2
+    },
+    {
+      "functionName": "digest2",
+      "source": "../../../../examples/spending-alerts/causal-inputs.ts",
+      "line": 189,
+      "generatedLine": 5736,
+      "selfUs": 250,
+      "inclusiveUs": 250,
+      "selfSamples": 2
+    },
+    {
+      "functionName": "digest",
+      "source": "../../../../examples/spending-alerts/causal-publication.ts",
+      "line": 161,
+      "generatedLine": 5409,
+      "selfUs": 250,
+      "inclusiveUs": 250,
+      "selfSamples": 2
+    },
+    {
+      "functionName": "Hash",
+      "source": "",
+      "line": 0,
+      "generatedLine": 0,
+      "selfUs": 250,
+      "inclusiveUs": 250,
+      "selfSamples": 2
+    },
+    {
+      "functionName": "nodeEmitToSubs",
+      "source": "../../../../packages/ts/src/node/node-output-runtime.ts",
+      "line": 495,
+      "generatedLine": 2272,
+      "selfUs": 167,
+      "inclusiveUs": 285146,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-material-owner.ts",
+      "line": 87,
+      "generatedLine": 6815,
+      "selfUs": 167,
+      "inclusiveUs": 3625,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "nodeDeliverPullDemand",
+      "source": "../../../../packages/ts/src/node/node-output-runtime.ts",
+      "line": 370,
+      "generatedLine": 2161,
+      "selfUs": 167,
+      "inclusiveUs": 542,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../spending-host-profile-worker.ts",
+      "line": 18,
+      "generatedLine": 9069,
+      "selfUs": 167,
+      "inclusiveUs": 167,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/transition.ts",
+      "line": 347,
+      "generatedLine": 4905,
+      "selfUs": 167,
+      "inclusiveUs": 751,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "occurrenceIdKey",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 156,
+      "generatedLine": 3628,
+      "selfUs": 167,
+      "inclusiveUs": 167,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "nodeIsAsyncPool",
+      "source": "../../../../packages/ts/src/node/node-output-runtime.ts",
+      "line": 317,
+      "generatedLine": 2118,
+      "selfUs": 167,
+      "inclusiveUs": 167,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "_recordDepProjection",
+      "source": "../../../../packages/ts/src/node/node.ts",
+      "line": 622,
+      "generatedLine": 2872,
+      "selfUs": 167,
+      "inclusiveUs": 167,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-business.ts",
+      "line": 102,
+      "generatedLine": 6122,
+      "selfUs": 166,
+      "inclusiveUs": 6792,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "flushAdmissions",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 528,
+      "generatedLine": 3873,
+      "selfUs": 166,
+      "inclusiveUs": 749,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-focused-host.ts",
+      "line": 338,
+      "generatedLine": 7277,
+      "selfUs": 166,
+      "inclusiveUs": 1582,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "pendingObligations",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/lifecycle.ts",
+      "line": 626,
+      "generatedLine": 4572,
+      "selfUs": 166,
+      "inclusiveUs": 3376,
+      "selfSamples": 2
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../spending-host-profile-worker.ts",
+      "line": 30,
+      "generatedLine": 9089,
+      "selfUs": 125,
+      "inclusiveUs": 416,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "nodeMakeCtx",
+      "source": "../../../../packages/ts/src/node/node-context-runtime.ts",
+      "line": 35,
+      "generatedLine": 1395,
+      "selfUs": 125,
+      "inclusiveUs": 542,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "nodeBuildCtx",
+      "source": "../../../../packages/ts/src/node/node-context-runtime.ts",
+      "line": 17,
+      "generatedLine": 1380,
+      "selfUs": 125,
+      "inclusiveUs": 792,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "_receiveFromDep",
+      "source": "../../../../packages/ts/src/node/node.ts",
+      "line": 630,
+      "generatedLine": 2878,
+      "selfUs": 125,
+      "inclusiveUs": 42836,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "invoke",
+      "source": "../../../../packages/ts/src/dispatcher/index.ts",
+      "line": 159,
+      "generatedLine": 1093,
+      "selfUs": 125,
+      "inclusiveUs": 270432,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../packages/ts/src/node/node-context-runtime.ts",
+      "line": 57,
+      "generatedLine": 1409,
+      "selfUs": 125,
+      "inclusiveUs": 211390,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "binding",
+      "source": "../../../../examples/spending-alerts/causal-inputs.ts",
+      "line": 212,
+      "generatedLine": 5763,
+      "selfUs": 125,
+      "inclusiveUs": 250,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "materialDigest",
+      "source": "../../../../examples/spending-alerts/causal-publication.ts",
+      "line": 139,
+      "generatedLine": 5388,
+      "selfUs": 125,
+      "inclusiveUs": 1625,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-business.ts",
+      "line": 307,
+      "generatedLine": 6287,
+      "selfUs": 125,
+      "inclusiveUs": 542,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-business.ts",
+      "line": 316,
+      "generatedLine": 6295,
+      "selfUs": 125,
+      "inclusiveUs": 125,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "makeRequestMaterial",
+      "source": "../../../../examples/spending-alerts/causal-publication.ts",
+      "line": 210,
+      "generatedLine": 5458,
+      "selfUs": 125,
+      "inclusiveUs": 500,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-admission.ts",
+      "line": 193,
+      "generatedLine": 6506,
+      "selfUs": 125,
+      "inclusiveUs": 250,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-admission.ts",
+      "line": 142,
+      "generatedLine": 6468,
+      "selfUs": 125,
+      "inclusiveUs": 1166,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "collect",
+      "source": "../../../../examples/spending-alerts/causal-admission.ts",
+      "line": 49,
+      "generatedLine": 6388,
+      "selfUs": 125,
+      "inclusiveUs": 542,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "graph2.node.name",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/construction.ts",
+      "line": 174,
+      "generatedLine": 5090,
+      "selfUs": 125,
+      "inclusiveUs": 37545,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "validRef",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 183,
+      "generatedLine": 3648,
+      "selfUs": 125,
+      "inclusiveUs": 500,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "receiveAdmissions",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 553,
+      "generatedLine": 3893,
+      "selfUs": 125,
+      "inclusiveUs": 792,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "canonicalTupleKey",
+      "source": "../../../../packages/ts/src/identity.ts",
+      "line": 7,
+      "generatedLine": 3431,
+      "selfUs": 125,
+      "inclusiveUs": 125,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 132,
+      "generatedLine": 3604,
+      "selfUs": 125,
+      "inclusiveUs": 1084,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "receiveEffectAdmissions",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/lifecycle.ts",
+      "line": 438,
+      "generatedLine": 4427,
+      "selfUs": 125,
+      "inclusiveUs": 417,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "emitCoverage",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/evidence.ts",
+      "line": 27,
+      "generatedLine": 3975,
+      "selfUs": 125,
+      "inclusiveUs": 375,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "graph2.node.name",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/construction.ts",
+      "line": 300,
+      "generatedLine": 5213,
+      "selfUs": 125,
+      "inclusiveUs": 5625,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "hasBoundaryTasks",
+      "source": "../../../../packages/ts/src/node/core.ts",
+      "line": 243,
+      "generatedLine": 1280,
+      "selfUs": 125,
+      "inclusiveUs": 125,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "nodeForwardUp",
+      "source": "../../../../packages/ts/src/node/node-output-runtime.ts",
+      "line": 293,
+      "generatedLine": 2099,
+      "selfUs": 125,
+      "inclusiveUs": 10835,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "normalizePullDemand",
+      "source": "../../../../packages/ts/src/node/protocol-guards.ts",
+      "line": 12,
+      "generatedLine": 1350,
+      "selfUs": 125,
+      "inclusiveUs": 125,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "receiveOutcomes",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/lifecycle.ts",
+      "line": 525,
+      "generatedLine": 4495,
+      "selfUs": 125,
+      "inclusiveUs": 2167,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "maybeRelease",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 354,
+      "generatedLine": 3761,
+      "selfUs": 125,
+      "inclusiveUs": 917,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../packages/ts/src/node/node-output-runtime.ts",
+      "line": 33,
+      "generatedLine": 1911,
+      "selfUs": 125,
+      "inclusiveUs": 125,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "graph2.node.name",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/construction.ts",
+      "line": 230,
+      "generatedLine": 5144,
+      "selfUs": 125,
+      "inclusiveUs": 333,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "_fireOwedDemandIfReady",
+      "source": "../../../../packages/ts/src/node/node.ts",
+      "line": 749,
+      "generatedLine": 2963,
+      "selfUs": 125,
+      "inclusiveUs": 125,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "graph2.node.name",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/construction.ts",
+      "line": 258,
+      "generatedLine": 5172,
+      "selfUs": 125,
+      "inclusiveUs": 250,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "freeze",
+      "source": "../../../../examples/spending-alerts/causal-publication.ts",
+      "line": 142,
+      "generatedLine": 5392,
+      "selfUs": 125,
+      "inclusiveUs": 625,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "epoch",
+      "source": "../../../../examples/spending-alerts/causal-publication.ts",
+      "line": 165,
+      "generatedLine": 5414,
+      "selfUs": 125,
+      "inclusiveUs": 125,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/evidence.ts",
+      "line": 213,
+      "generatedLine": 4108,
+      "selfUs": 125,
+      "inclusiveUs": 125,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/evidence.ts",
+      "line": 211,
+      "generatedLine": 4106,
+      "selfUs": 125,
+      "inclusiveUs": 708,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "number",
+      "source": "../../../../examples/spending-alerts/causal-inputs.ts",
+      "line": 170,
+      "generatedLine": 5719,
+      "selfUs": 125,
+      "inclusiveUs": 125,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "validSourceRef",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 172,
+      "generatedLine": 3644,
+      "selfUs": 125,
+      "inclusiveUs": 125,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-focused-host.ts",
+      "line": 326,
+      "generatedLine": 7267,
+      "selfUs": 125,
+      "inclusiveUs": 125,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "Hash",
+      "source": "node:internal/crypto/hash",
+      "line": 92,
+      "generatedLine": 92,
+      "selfUs": 125,
+      "inclusiveUs": 375,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "advanceNodeVersion",
+      "source": "../../../../packages/ts/src/node/versioning.ts",
+      "line": 127,
+      "generatedLine": 791,
+      "selfUs": 125,
+      "inclusiveUs": 125,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/transition.ts",
+      "line": 64,
+      "generatedLine": 4646,
+      "selfUs": 125,
+      "inclusiveUs": 125,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "nodeRefreshCtx",
+      "source": "../../../../packages/ts/src/node/node-context-runtime.ts",
+      "line": 106,
+      "generatedLine": 1454,
+      "selfUs": 125,
+      "inclusiveUs": 125,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "RegExp: ^sha256:[0-9a-f]{64}$",
+      "source": "",
+      "line": 0,
+      "generatedLine": 0,
+      "selfUs": 125,
+      "inclusiveUs": 125,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "dispatch",
+      "source": "",
+      "line": 0,
+      "generatedLine": 0,
+      "selfUs": 125,
+      "inclusiveUs": 125,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "_buildCtx",
+      "source": "../../../../packages/ts/src/node/node.ts",
+      "line": 670,
+      "generatedLine": 2908,
+      "selfUs": 84,
+      "inclusiveUs": 751,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-business.ts",
+      "line": 345,
+      "generatedLine": 6318,
+      "selfUs": 84,
+      "inclusiveUs": 84,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "receiveEvidence",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/evidence.ts",
+      "line": 119,
+      "generatedLine": 4048,
+      "selfUs": 83,
+      "inclusiveUs": 3416,
+      "selfSamples": 1
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../spending-host-profile-worker.ts",
+      "line": 23,
+      "generatedLine": 9079,
+      "selfUs": 0,
+      "inclusiveUs": 27834,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(root)",
+      "source": "",
+      "line": 0,
+      "generatedLine": 0,
+      "selfUs": 0,
+      "inclusiveUs": 87709,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "down",
+      "source": "../../../../packages/ts/src/node/node.ts",
+      "line": 469,
+      "generatedLine": 2747,
+      "selfUs": 0,
+      "inclusiveUs": 13793,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../spending-host-profile-worker.ts",
+      "line": 21,
+      "generatedLine": 9076,
+      "selfUs": 0,
+      "inclusiveUs": 291,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "batch",
+      "source": "../../../../packages/ts/src/batch/batch.ts",
+      "line": 117,
+      "generatedLine": 209,
+      "selfUs": 0,
+      "inclusiveUs": 52167,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "_makeCtx",
+      "source": "../../../../packages/ts/src/node/node.ts",
+      "line": 674,
+      "generatedLine": 2911,
+      "selfUs": 0,
+      "inclusiveUs": 542,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "nodeTryRun",
+      "source": "../../../../packages/ts/src/node/node-input-runtime.ts",
+      "line": 238,
+      "generatedLine": 1644,
+      "selfUs": 0,
+      "inclusiveUs": 283937,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "_tryRun",
+      "source": "../../../../packages/ts/src/node/node.ts",
+      "line": 654,
+      "generatedLine": 2896,
+      "selfUs": 0,
+      "inclusiveUs": 66550,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "nodeMaybeRun",
+      "source": "../../../../packages/ts/src/node/node-input-runtime.ts",
+      "line": 205,
+      "generatedLine": 1617,
+      "selfUs": 0,
+      "inclusiveUs": 66550,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "_maybeRun",
+      "source": "../../../../packages/ts/src/node/node.ts",
+      "line": 646,
+      "generatedLine": 2890,
+      "selfUs": 0,
+      "inclusiveUs": 283937,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../packages/ts/src/node/node-lifecycle-runtime.ts",
+      "line": 39,
+      "generatedLine": 1735,
+      "selfUs": 0,
+      "inclusiveUs": 284979,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "_emitToSubs",
+      "source": "../../../../packages/ts/src/node/node.ts",
+      "line": 765,
+      "generatedLine": 2975,
+      "selfUs": 0,
+      "inclusiveUs": 285146,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "nodeCommitBatchedWave",
+      "source": "../../../../packages/ts/src/node/node-output-runtime.ts",
+      "line": 506,
+      "generatedLine": 2278,
+      "selfUs": 0,
+      "inclusiveUs": 50001,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "__commitBatchedWave",
+      "source": "../../../../packages/ts/src/node/node.ts",
+      "line": 775,
+      "generatedLine": 2983,
+      "selfUs": 0,
+      "inclusiveUs": 50001,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "commit",
+      "source": "../../../../packages/ts/src/batch/batch.ts",
+      "line": 72,
+      "generatedLine": 187,
+      "selfUs": 0,
+      "inclusiveUs": 50001,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-business.ts",
+      "line": 175,
+      "generatedLine": 6187,
+      "selfUs": 0,
+      "inclusiveUs": 15585,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "nodeMakeState",
+      "source": "../../../../packages/ts/src/node/node-context-runtime.ts",
+      "line": 118,
+      "generatedLine": 1466,
+      "selfUs": 0,
+      "inclusiveUs": 167,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "_makeState",
+      "source": "../../../../packages/ts/src/node/node.ts",
+      "line": 687,
+      "generatedLine": 2917,
+      "selfUs": 0,
+      "inclusiveUs": 167,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-admission.ts",
+      "line": 507,
+      "generatedLine": 6751,
+      "selfUs": 0,
+      "inclusiveUs": 292,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "canonicalMaterial",
+      "source": "../../../../examples/spending-alerts/causal-publication.ts",
+      "line": 136,
+      "generatedLine": 5384,
+      "selfUs": 0,
+      "inclusiveUs": 18622,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-business.ts",
+      "line": 231,
+      "generatedLine": 6220,
+      "selfUs": 0,
+      "inclusiveUs": 47418,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "hash",
+      "source": "../../../../examples/spending-alerts/causal-inputs.ts",
+      "line": 134,
+      "generatedLine": 5681,
+      "selfUs": 0,
+      "inclusiveUs": 1541,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-admission.ts",
+      "line": 339,
+      "generatedLine": 6615,
+      "selfUs": 0,
+      "inclusiveUs": 791,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-business.ts",
+      "line": 86,
+      "generatedLine": 6111,
+      "selfUs": 0,
+      "inclusiveUs": 542,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-business.ts",
+      "line": 75,
+      "generatedLine": 6100,
+      "selfUs": 0,
+      "inclusiveUs": 2376,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "occurrenceKey",
+      "source": "../../../../examples/spending-alerts/causal-inputs.ts",
+      "line": 140,
+      "generatedLine": 5689,
+      "selfUs": 0,
+      "inclusiveUs": 1959,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-material-owner.ts",
+      "line": 55,
+      "generatedLine": 6784,
+      "selfUs": 0,
+      "inclusiveUs": 791,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "makeMaterialSnapshot",
+      "source": "../../../../examples/spending-alerts/causal-publication.ts",
+      "line": 226,
+      "generatedLine": 5475,
+      "selfUs": 0,
+      "inclusiveUs": 1959,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../packages/ts/src/graph/operators.ts",
+      "line": 440,
+      "generatedLine": 3056,
+      "selfUs": 0,
+      "inclusiveUs": 43670,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../packages/ts/src/graph/operators.ts",
+      "line": 226,
+      "generatedLine": 3043,
+      "selfUs": 0,
+      "inclusiveUs": 43670,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "graph2.node.name.name",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/construction.ts",
+      "line": 103,
+      "generatedLine": 5041,
+      "selfUs": 0,
+      "inclusiveUs": 43587,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 201,
+      "generatedLine": 3649,
+      "selfUs": 0,
+      "inclusiveUs": 125,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "receiveTerminals",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/lifecycle.ts",
+      "line": 286,
+      "generatedLine": 4312,
+      "selfUs": 0,
+      "inclusiveUs": 1667,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "canonicalEntry",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 138,
+      "generatedLine": 3610,
+      "selfUs": 0,
+      "inclusiveUs": 4544,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "retainEvidence",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/evidence.ts",
+      "line": 64,
+      "generatedLine": 4004,
+      "selfUs": 0,
+      "inclusiveUs": 1208,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "same",
+      "source": "../../../../examples/spending-alerts/causal-inputs.ts",
+      "line": 137,
+      "generatedLine": 5685,
+      "selfUs": 0,
+      "inclusiveUs": 6415,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "retainEffectProposal",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/lifecycle.ts",
+      "line": 102,
+      "generatedLine": 4158,
+      "selfUs": 0,
+      "inclusiveUs": 250,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-focused-host.ts",
+      "line": 384,
+      "generatedLine": 7311,
+      "selfUs": 0,
+      "inclusiveUs": 125,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "graph2.node.name.name",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/construction.ts",
+      "line": 120,
+      "generatedLine": 5052,
+      "selfUs": 0,
+      "inclusiveUs": 958,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "shiftBoundaryTask",
+      "source": "../../../../packages/ts/src/node/core.ts",
+      "line": 253,
+      "generatedLine": 1288,
+      "selfUs": 0,
+      "inclusiveUs": 125,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "drain",
+      "source": "../../../../packages/ts/src/batch/boundary.ts",
+      "line": 90,
+      "generatedLine": 131,
+      "selfUs": 0,
+      "inclusiveUs": 1750,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "exitWave",
+      "source": "../../../../packages/ts/src/batch/boundary.ts",
+      "line": 50,
+      "generatedLine": 106,
+      "selfUs": 0,
+      "inclusiveUs": 1750,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "_up",
+      "source": "../../../../packages/ts/src/node/node.ts",
+      "line": 697,
+      "generatedLine": 2924,
+      "selfUs": 0,
+      "inclusiveUs": 6576,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../packages/ts/src/node/node-rewire-runtime.ts",
+      "line": 25,
+      "generatedLine": 2311,
+      "selfUs": 0,
+      "inclusiveUs": 1625,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "nodeFirePullDemand",
+      "source": "../../../../packages/ts/src/node/node-output-runtime.ts",
+      "line": 388,
+      "generatedLine": 2179,
+      "selfUs": 0,
+      "inclusiveUs": 375,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "_firePullDemand",
+      "source": "../../../../packages/ts/src/node/node.ts",
+      "line": 745,
+      "generatedLine": 2960,
+      "selfUs": 0,
+      "inclusiveUs": 375,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "_deliverPullDemand",
+      "source": "../../../../packages/ts/src/node/node.ts",
+      "line": 737,
+      "generatedLine": 2954,
+      "selfUs": 0,
+      "inclusiveUs": 542,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "nodeOnDemand",
+      "source": "../../../../packages/ts/src/node/node-output-runtime.ts",
+      "line": 382,
+      "generatedLine": 2173,
+      "selfUs": 0,
+      "inclusiveUs": 542,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "_onDemand",
+      "source": "../../../../packages/ts/src/node/node.ts",
+      "line": 741,
+      "generatedLine": 2957,
+      "selfUs": 0,
+      "inclusiveUs": 542,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "nodeMarkDirty",
+      "source": "../../../../packages/ts/src/node/node-input-runtime.ts",
+      "line": 191,
+      "generatedLine": 1608,
+      "selfUs": 0,
+      "inclusiveUs": 250,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "_markDirty",
+      "source": "../../../../packages/ts/src/node/node.ts",
+      "line": 642,
+      "generatedLine": 2887,
+      "selfUs": 0,
+      "inclusiveUs": 250,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-focused-host.ts",
+      "line": 197,
+      "generatedLine": 7150,
+      "selfUs": 0,
+      "inclusiveUs": 15627,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-preset.ts",
+      "line": 158,
+      "generatedLine": 6986,
+      "selfUs": 0,
+      "inclusiveUs": 167,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-admission.ts",
+      "line": 411,
+      "generatedLine": 6679,
+      "selfUs": 0,
+      "inclusiveUs": 6877,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "receiveProposals",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/lifecycle.ts",
+      "line": 368,
+      "generatedLine": 4376,
+      "selfUs": 0,
+      "inclusiveUs": 250,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "profile",
+      "source": "../../../../examples/spending-alerts/causal-publication.ts",
+      "line": 184,
+      "generatedLine": 5436,
+      "selfUs": 0,
+      "inclusiveUs": 125,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 455,
+      "generatedLine": 3816,
+      "selfUs": 0,
+      "inclusiveUs": 1166,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "tick",
+      "source": "../../../../examples/spending-alerts/causal-inputs.ts",
+      "line": 180,
+      "generatedLine": 5724,
+      "selfUs": 0,
+      "inclusiveUs": 125,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-admission.ts",
+      "line": 353,
+      "generatedLine": 6626,
+      "selfUs": 0,
+      "inclusiveUs": 291,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/evidence.ts",
+      "line": 33,
+      "generatedLine": 3978,
+      "selfUs": 0,
+      "inclusiveUs": 250,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/lifecycle.ts",
+      "line": 76,
+      "generatedLine": 4135,
+      "selfUs": 0,
+      "inclusiveUs": 125,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "emitConservation",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/lifecycle.ts",
+      "line": 70,
+      "generatedLine": 4132,
+      "selfUs": 0,
+      "inclusiveUs": 125,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-focused-host.ts",
+      "line": 387,
+      "generatedLine": 7313,
+      "selfUs": 0,
+      "inclusiveUs": 375,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-focused-host.ts",
+      "line": 64,
+      "generatedLine": 7050,
+      "selfUs": 0,
+      "inclusiveUs": 167,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "outcome",
+      "source": "../../../../examples/spending-alerts/causal-inputs.ts",
+      "line": 326,
+      "generatedLine": 5875,
+      "selfUs": 0,
+      "inclusiveUs": 501,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "effectKey",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/identity.ts",
+      "line": 164,
+      "generatedLine": 3636,
+      "selfUs": 0,
+      "inclusiveUs": 417,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "ref2",
+      "source": "../../../../examples/spending-alerts/causal-inputs.ts",
+      "line": 195,
+      "generatedLine": 5744,
+      "selfUs": 0,
+      "inclusiveUs": 125,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "receipt",
+      "source": "../../../../examples/spending-alerts/causal-inputs.ts",
+      "line": 282,
+      "generatedLine": 5829,
+      "selfUs": 0,
+      "inclusiveUs": 167,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-focused-host.ts",
+      "line": 408,
+      "generatedLine": 7318,
+      "selfUs": 0,
+      "inclusiveUs": 125,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "occurrence2",
+      "source": "../../../../examples/spending-alerts/causal-inputs.ts",
+      "line": 200,
+      "generatedLine": 5750,
+      "selfUs": 0,
+      "inclusiveUs": 251,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-admission.ts",
+      "line": 467,
+      "generatedLine": 6727,
+      "selfUs": 0,
+      "inclusiveUs": 291,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-focused-host.ts",
+      "line": 399,
+      "generatedLine": 7316,
+      "selfUs": 0,
+      "inclusiveUs": 125,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "occurrence",
+      "source": "../../../../examples/spending-alerts/causal-publication.ts",
+      "line": 174,
+      "generatedLine": 5425,
+      "selfUs": 0,
+      "inclusiveUs": 125,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "graph2.node.name",
+      "source": "../../../../packages/ts/src/solutions/causal-occurrence/construction.ts",
+      "line": 243,
+      "generatedLine": 5157,
+      "selfUs": 0,
+      "inclusiveUs": 125,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-inputs.ts",
+      "line": 209,
+      "generatedLine": 5759,
+      "selfUs": 0,
+      "inclusiveUs": 167,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-admission.ts",
+      "line": 160,
+      "generatedLine": 6479,
+      "selfUs": 0,
+      "inclusiveUs": 125,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "(anonymous)",
+      "source": "../../../../examples/spending-alerts/causal-admission.ts",
+      "line": 168,
+      "generatedLine": 6487,
+      "selfUs": 0,
+      "inclusiveUs": 125,
+      "selfSamples": 0
+    },
+    {
+      "functionName": "scope.node.name",
+      "source": "../../../../examples/spending-alerts/causal-focused-host.ts",
+      "line": 502,
+      "generatedLine": 7383,
+      "selfUs": 0,
+      "inclusiveUs": 167,
+      "selfSamples": 0
+    }
+  ]
+}

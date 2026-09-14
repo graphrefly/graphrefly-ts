@@ -1,0 +1,685 @@
+{
+	"kind": "untimed-source-and-outcome-data-counts",
+	"command": "node --import tsx scripts/count-spending-host-lifetime.mjs",
+	"scriptSha256": "5fe966e53e0ba6604701405a7186ab4f6e256bffedd7e8df775ce1c1e2b9cf44",
+	"limitations": [
+		"Extra diagnostic subscribers; not a latency measurement.",
+		"Full-snapshot and outcome DATA counts, not exact CPU cost or removable work proof."
+	],
+	"modes": [
+		{
+			"mode": "off",
+			"rows": [
+				{
+					"frontier": 1,
+					"frameOutcomeCounts": [0, 1],
+					"outcomeData": 1
+				},
+				{
+					"frontier": 2,
+					"frameOutcomeCounts": [1, 2],
+					"outcomeData": 3
+				},
+				{
+					"frontier": 3,
+					"frameOutcomeCounts": [2, 3],
+					"outcomeData": 5
+				},
+				{
+					"frontier": 4,
+					"frameOutcomeCounts": [3, 4],
+					"outcomeData": 7
+				},
+				{
+					"frontier": 5,
+					"frameOutcomeCounts": [4, 5],
+					"outcomeData": 9
+				},
+				{
+					"frontier": 6,
+					"frameOutcomeCounts": [5, 6],
+					"outcomeData": 11
+				},
+				{
+					"frontier": 7,
+					"frameOutcomeCounts": [6, 7],
+					"outcomeData": 13
+				},
+				{
+					"frontier": 8,
+					"frameOutcomeCounts": [7, 8],
+					"outcomeData": 15
+				},
+				{
+					"frontier": 9,
+					"frameOutcomeCounts": [8, 9],
+					"outcomeData": 17
+				},
+				{
+					"frontier": 10,
+					"frameOutcomeCounts": [9, 10],
+					"outcomeData": 19
+				},
+				{
+					"frontier": 11,
+					"frameOutcomeCounts": [10, 11],
+					"outcomeData": 21
+				},
+				{
+					"frontier": 12,
+					"frameOutcomeCounts": [11, 12],
+					"outcomeData": 23
+				},
+				{
+					"frontier": 13,
+					"frameOutcomeCounts": [12, 13],
+					"outcomeData": 25
+				},
+				{
+					"frontier": 14,
+					"frameOutcomeCounts": [13, 14],
+					"outcomeData": 27
+				},
+				{
+					"frontier": 15,
+					"frameOutcomeCounts": [14, 15],
+					"outcomeData": 29
+				},
+				{
+					"frontier": 16,
+					"frameOutcomeCounts": [15, 16],
+					"outcomeData": 31
+				},
+				{
+					"frontier": 17,
+					"frameOutcomeCounts": [16, 17],
+					"outcomeData": 33
+				},
+				{
+					"frontier": 18,
+					"frameOutcomeCounts": [17, 18],
+					"outcomeData": 35
+				},
+				{
+					"frontier": 19,
+					"frameOutcomeCounts": [18, 19],
+					"outcomeData": 37
+				},
+				{
+					"frontier": 20,
+					"frameOutcomeCounts": [19, 20],
+					"outcomeData": 39
+				},
+				{
+					"frontier": 21,
+					"frameOutcomeCounts": [20, 21],
+					"outcomeData": 41
+				},
+				{
+					"frontier": 22,
+					"frameOutcomeCounts": [21, 22],
+					"outcomeData": 43
+				},
+				{
+					"frontier": 23,
+					"frameOutcomeCounts": [22, 23],
+					"outcomeData": 45
+				},
+				{
+					"frontier": 24,
+					"frameOutcomeCounts": [23, 24],
+					"outcomeData": 47
+				},
+				{
+					"frontier": 25,
+					"frameOutcomeCounts": [24, 25],
+					"outcomeData": 49
+				},
+				{
+					"frontier": 26,
+					"frameOutcomeCounts": [25, 26],
+					"outcomeData": 51
+				},
+				{
+					"frontier": 27,
+					"frameOutcomeCounts": [26, 27],
+					"outcomeData": 53
+				},
+				{
+					"frontier": 28,
+					"frameOutcomeCounts": [27, 28],
+					"outcomeData": 55
+				},
+				{
+					"frontier": 29,
+					"frameOutcomeCounts": [28, 29],
+					"outcomeData": 57
+				},
+				{
+					"frontier": 30,
+					"frameOutcomeCounts": [29, 30],
+					"outcomeData": 59
+				},
+				{
+					"frontier": 31,
+					"frameOutcomeCounts": [30, 31],
+					"outcomeData": 61
+				},
+				{
+					"frontier": 32,
+					"frameOutcomeCounts": [31, 32],
+					"outcomeData": 63
+				},
+				{
+					"frontier": 33,
+					"frameOutcomeCounts": [32, 33],
+					"outcomeData": 65
+				},
+				{
+					"frontier": 34,
+					"frameOutcomeCounts": [33, 34],
+					"outcomeData": 67
+				},
+				{
+					"frontier": 35,
+					"frameOutcomeCounts": [34, 35],
+					"outcomeData": 69
+				},
+				{
+					"frontier": 36,
+					"frameOutcomeCounts": [35, 36],
+					"outcomeData": 71
+				},
+				{
+					"frontier": 37,
+					"frameOutcomeCounts": [36, 37],
+					"outcomeData": 73
+				},
+				{
+					"frontier": 38,
+					"frameOutcomeCounts": [37, 38],
+					"outcomeData": 75
+				},
+				{
+					"frontier": 39,
+					"frameOutcomeCounts": [38, 39],
+					"outcomeData": 77
+				},
+				{
+					"frontier": 40,
+					"frameOutcomeCounts": [39, 40],
+					"outcomeData": 79
+				},
+				{
+					"frontier": 41,
+					"frameOutcomeCounts": [40, 41],
+					"outcomeData": 81
+				},
+				{
+					"frontier": 42,
+					"frameOutcomeCounts": [41, 42],
+					"outcomeData": 83
+				},
+				{
+					"frontier": 43,
+					"frameOutcomeCounts": [42, 43],
+					"outcomeData": 85
+				},
+				{
+					"frontier": 44,
+					"frameOutcomeCounts": [43, 44],
+					"outcomeData": 87
+				},
+				{
+					"frontier": 45,
+					"frameOutcomeCounts": [44, 45],
+					"outcomeData": 89
+				},
+				{
+					"frontier": 46,
+					"frameOutcomeCounts": [45, 46],
+					"outcomeData": 91
+				},
+				{
+					"frontier": 47,
+					"frameOutcomeCounts": [46, 47],
+					"outcomeData": 93
+				},
+				{
+					"frontier": 48,
+					"frameOutcomeCounts": [47, 48],
+					"outcomeData": 95
+				},
+				{
+					"frontier": 49,
+					"frameOutcomeCounts": [48, 49],
+					"outcomeData": 97
+				},
+				{
+					"frontier": 50,
+					"frameOutcomeCounts": [49, 50],
+					"outcomeData": 99
+				},
+				{
+					"frontier": 51,
+					"frameOutcomeCounts": [50, 51],
+					"outcomeData": 101
+				},
+				{
+					"frontier": 52,
+					"frameOutcomeCounts": [51, 52],
+					"outcomeData": 103
+				},
+				{
+					"frontier": 53,
+					"frameOutcomeCounts": [52, 53],
+					"outcomeData": 105
+				},
+				{
+					"frontier": 54,
+					"frameOutcomeCounts": [53, 54],
+					"outcomeData": 107
+				},
+				{
+					"frontier": 55,
+					"frameOutcomeCounts": [54, 55],
+					"outcomeData": 109
+				},
+				{
+					"frontier": 56,
+					"frameOutcomeCounts": [55, 56],
+					"outcomeData": 111
+				},
+				{
+					"frontier": 57,
+					"frameOutcomeCounts": [56, 57],
+					"outcomeData": 113
+				},
+				{
+					"frontier": 58,
+					"frameOutcomeCounts": [57, 58],
+					"outcomeData": 115
+				},
+				{
+					"frontier": 59,
+					"frameOutcomeCounts": [58, 59],
+					"outcomeData": 117
+				},
+				{
+					"frontier": 60,
+					"frameOutcomeCounts": [59, 60],
+					"outcomeData": 119
+				},
+				{
+					"frontier": 61,
+					"frameOutcomeCounts": [60, 61],
+					"outcomeData": 121
+				},
+				{
+					"frontier": 62,
+					"frameOutcomeCounts": [61, 62],
+					"outcomeData": 123
+				},
+				{
+					"frontier": 63,
+					"frameOutcomeCounts": [62, 63],
+					"outcomeData": 125
+				},
+				{
+					"frontier": 64,
+					"frameOutcomeCounts": [63, 64],
+					"outcomeData": 127
+				}
+			],
+			"totalFrames": 129,
+			"frameLengths": [
+				0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13,
+				14, 14, 15, 15, 16, 16, 17, 17, 18, 18, 19, 19, 20, 20, 21, 21, 22, 22, 23, 23, 24, 24, 25,
+				25, 26, 26, 27, 27, 28, 28, 29, 29, 30, 30, 31, 31, 32, 32, 33, 33, 34, 34, 35, 35, 36, 36,
+				37, 37, 38, 38, 39, 39, 40, 40, 41, 41, 42, 42, 43, 43, 44, 44, 45, 45, 46, 46, 47, 47, 48,
+				48, 49, 49, 50, 50, 51, 51, 52, 52, 53, 53, 54, 54, 55, 55, 56, 56, 57, 57, 58, 58, 59, 59,
+				60, 60, 61, 61, 62, 62, 63, 63, 64
+			],
+			"totalOutcomeDATA": 4096,
+			"uniqueSucceeded": 64,
+			"normalEndReady": true
+		},
+		{
+			"mode": "summary",
+			"rows": [
+				{
+					"frontier": 1,
+					"frameOutcomeCounts": [0, 1],
+					"outcomeData": 1
+				},
+				{
+					"frontier": 2,
+					"frameOutcomeCounts": [1, 2],
+					"outcomeData": 3
+				},
+				{
+					"frontier": 3,
+					"frameOutcomeCounts": [2, 3],
+					"outcomeData": 5
+				},
+				{
+					"frontier": 4,
+					"frameOutcomeCounts": [3, 4],
+					"outcomeData": 7
+				},
+				{
+					"frontier": 5,
+					"frameOutcomeCounts": [4, 5],
+					"outcomeData": 9
+				},
+				{
+					"frontier": 6,
+					"frameOutcomeCounts": [5, 6],
+					"outcomeData": 11
+				},
+				{
+					"frontier": 7,
+					"frameOutcomeCounts": [6, 7],
+					"outcomeData": 13
+				},
+				{
+					"frontier": 8,
+					"frameOutcomeCounts": [7, 8],
+					"outcomeData": 15
+				},
+				{
+					"frontier": 9,
+					"frameOutcomeCounts": [8, 9],
+					"outcomeData": 17
+				},
+				{
+					"frontier": 10,
+					"frameOutcomeCounts": [9, 10],
+					"outcomeData": 19
+				},
+				{
+					"frontier": 11,
+					"frameOutcomeCounts": [10, 11],
+					"outcomeData": 21
+				},
+				{
+					"frontier": 12,
+					"frameOutcomeCounts": [11, 12],
+					"outcomeData": 23
+				},
+				{
+					"frontier": 13,
+					"frameOutcomeCounts": [12, 13],
+					"outcomeData": 25
+				},
+				{
+					"frontier": 14,
+					"frameOutcomeCounts": [13, 14],
+					"outcomeData": 27
+				},
+				{
+					"frontier": 15,
+					"frameOutcomeCounts": [14, 15],
+					"outcomeData": 29
+				},
+				{
+					"frontier": 16,
+					"frameOutcomeCounts": [15, 16],
+					"outcomeData": 31
+				},
+				{
+					"frontier": 17,
+					"frameOutcomeCounts": [16, 17],
+					"outcomeData": 33
+				},
+				{
+					"frontier": 18,
+					"frameOutcomeCounts": [17, 18],
+					"outcomeData": 35
+				},
+				{
+					"frontier": 19,
+					"frameOutcomeCounts": [18, 19],
+					"outcomeData": 37
+				},
+				{
+					"frontier": 20,
+					"frameOutcomeCounts": [19, 20],
+					"outcomeData": 39
+				},
+				{
+					"frontier": 21,
+					"frameOutcomeCounts": [20, 21],
+					"outcomeData": 41
+				},
+				{
+					"frontier": 22,
+					"frameOutcomeCounts": [21, 22],
+					"outcomeData": 43
+				},
+				{
+					"frontier": 23,
+					"frameOutcomeCounts": [22, 23],
+					"outcomeData": 45
+				},
+				{
+					"frontier": 24,
+					"frameOutcomeCounts": [23, 24],
+					"outcomeData": 47
+				},
+				{
+					"frontier": 25,
+					"frameOutcomeCounts": [24, 25],
+					"outcomeData": 49
+				},
+				{
+					"frontier": 26,
+					"frameOutcomeCounts": [25, 26],
+					"outcomeData": 51
+				},
+				{
+					"frontier": 27,
+					"frameOutcomeCounts": [26, 27],
+					"outcomeData": 53
+				},
+				{
+					"frontier": 28,
+					"frameOutcomeCounts": [27, 28],
+					"outcomeData": 55
+				},
+				{
+					"frontier": 29,
+					"frameOutcomeCounts": [28, 29],
+					"outcomeData": 57
+				},
+				{
+					"frontier": 30,
+					"frameOutcomeCounts": [29, 30],
+					"outcomeData": 59
+				},
+				{
+					"frontier": 31,
+					"frameOutcomeCounts": [30, 31],
+					"outcomeData": 61
+				},
+				{
+					"frontier": 32,
+					"frameOutcomeCounts": [31, 32],
+					"outcomeData": 63
+				},
+				{
+					"frontier": 33,
+					"frameOutcomeCounts": [32, 33],
+					"outcomeData": 65
+				},
+				{
+					"frontier": 34,
+					"frameOutcomeCounts": [33, 34],
+					"outcomeData": 67
+				},
+				{
+					"frontier": 35,
+					"frameOutcomeCounts": [34, 35],
+					"outcomeData": 69
+				},
+				{
+					"frontier": 36,
+					"frameOutcomeCounts": [35, 36],
+					"outcomeData": 71
+				},
+				{
+					"frontier": 37,
+					"frameOutcomeCounts": [36, 37],
+					"outcomeData": 73
+				},
+				{
+					"frontier": 38,
+					"frameOutcomeCounts": [37, 38],
+					"outcomeData": 75
+				},
+				{
+					"frontier": 39,
+					"frameOutcomeCounts": [38, 39],
+					"outcomeData": 77
+				},
+				{
+					"frontier": 40,
+					"frameOutcomeCounts": [39, 40],
+					"outcomeData": 79
+				},
+				{
+					"frontier": 41,
+					"frameOutcomeCounts": [40, 41],
+					"outcomeData": 81
+				},
+				{
+					"frontier": 42,
+					"frameOutcomeCounts": [41, 42],
+					"outcomeData": 83
+				},
+				{
+					"frontier": 43,
+					"frameOutcomeCounts": [42, 43],
+					"outcomeData": 85
+				},
+				{
+					"frontier": 44,
+					"frameOutcomeCounts": [43, 44],
+					"outcomeData": 87
+				},
+				{
+					"frontier": 45,
+					"frameOutcomeCounts": [44, 45],
+					"outcomeData": 89
+				},
+				{
+					"frontier": 46,
+					"frameOutcomeCounts": [45, 46],
+					"outcomeData": 91
+				},
+				{
+					"frontier": 47,
+					"frameOutcomeCounts": [46, 47],
+					"outcomeData": 93
+				},
+				{
+					"frontier": 48,
+					"frameOutcomeCounts": [47, 48],
+					"outcomeData": 95
+				},
+				{
+					"frontier": 49,
+					"frameOutcomeCounts": [48, 49],
+					"outcomeData": 97
+				},
+				{
+					"frontier": 50,
+					"frameOutcomeCounts": [49, 50],
+					"outcomeData": 99
+				},
+				{
+					"frontier": 51,
+					"frameOutcomeCounts": [50, 51],
+					"outcomeData": 101
+				},
+				{
+					"frontier": 52,
+					"frameOutcomeCounts": [51, 52],
+					"outcomeData": 103
+				},
+				{
+					"frontier": 53,
+					"frameOutcomeCounts": [52, 53],
+					"outcomeData": 105
+				},
+				{
+					"frontier": 54,
+					"frameOutcomeCounts": [53, 54],
+					"outcomeData": 107
+				},
+				{
+					"frontier": 55,
+					"frameOutcomeCounts": [54, 55],
+					"outcomeData": 109
+				},
+				{
+					"frontier": 56,
+					"frameOutcomeCounts": [55, 56],
+					"outcomeData": 111
+				},
+				{
+					"frontier": 57,
+					"frameOutcomeCounts": [56, 57],
+					"outcomeData": 113
+				},
+				{
+					"frontier": 58,
+					"frameOutcomeCounts": [57, 58],
+					"outcomeData": 115
+				},
+				{
+					"frontier": 59,
+					"frameOutcomeCounts": [58, 59],
+					"outcomeData": 117
+				},
+				{
+					"frontier": 60,
+					"frameOutcomeCounts": [59, 60],
+					"outcomeData": 119
+				},
+				{
+					"frontier": 61,
+					"frameOutcomeCounts": [60, 61],
+					"outcomeData": 121
+				},
+				{
+					"frontier": 62,
+					"frameOutcomeCounts": [61, 62],
+					"outcomeData": 123
+				},
+				{
+					"frontier": 63,
+					"frameOutcomeCounts": [62, 63],
+					"outcomeData": 125
+				},
+				{
+					"frontier": 64,
+					"frameOutcomeCounts": [63, 64],
+					"outcomeData": 127
+				}
+			],
+			"totalFrames": 129,
+			"frameLengths": [
+				0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13,
+				14, 14, 15, 15, 16, 16, 17, 17, 18, 18, 19, 19, 20, 20, 21, 21, 22, 22, 23, 23, 24, 24, 25,
+				25, 26, 26, 27, 27, 28, 28, 29, 29, 30, 30, 31, 31, 32, 32, 33, 33, 34, 34, 35, 35, 36, 36,
+				37, 37, 38, 38, 39, 39, 40, 40, 41, 41, 42, 42, 43, 43, 44, 44, 45, 45, 46, 46, 47, 47, 48,
+				48, 49, 49, 50, 50, 51, 51, 52, 52, 53, 53, 54, 54, 55, 55, 56, 56, 57, 57, 58, 58, 59, 59,
+				60, 60, 61, 61, 62, 62, 63, 63, 64
+			],
+			"totalOutcomeDATA": 4096,
+			"uniqueSucceeded": 64,
+			"normalEndReady": true
+		}
+	]
+}
