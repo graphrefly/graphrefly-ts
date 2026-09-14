@@ -1,0 +1,19 @@
+{
+	"kind": "ingress-coverage-audit",
+	"baseline": "81c270c566443915eec2a7fb70a0d01f14b3ecd3",
+	"verdict": "source-return-wrapper-insufficient",
+	"newDynamicCounterexamples": 1,
+	"focusedTestsPassed": 4,
+	"otherRows": "source inspection, not new dynamic qualification",
+	"runtimeChanged": false,
+	"realIO": 0,
+	"proposal": "explicit asynchronous focused host completion delivery; D160 review required",
+	"locked": false,
+	"files": {
+		"docs/design/causal-ingress-coverage-audit/README.md": "23109a7c76dfe30defbd370e548b92913eba95c776694d52e48b8df9b6412872",
+		"packages/ts/src/__tests__/causal-ingress-owner-feasibility.test.ts": "90a9e7f9f9747a667562a2d7a2245af82220a7f51e804b996a2001be41eab7f5",
+		"packages/ts/src/node/node.ts": "b4f7ea41b8bd6cd9664cde9a31763caef4d4effd17597d868f9ef9b3d699eec6",
+		"packages/ts/src/batch/batch.ts": "a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+		"packages/ts/src/batch/boundary.ts": "d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3"
+	}
+}
