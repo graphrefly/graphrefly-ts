@@ -1,0 +1,68 @@
+=== GraphReFly dashboard build ===
+counts: {
+  decisions: 585,
+  ownerDecisions: 0,
+  phases: 21,
+  backlog: 135,
+  antipatterns: 9,
+  rules: 68,
+  conformance: 30,
+  formalArtifacts: 81,
+  flowcharts: 3,
+  sessions: 14,
+  guide: 11
+}
+gaps: {
+  designPhases: 1,
+  openDecisions: 0,
+  deferredBacklog: 27,
+  uncoveredRules: 2,
+  todoConformance: 0
+}
+authority metrics: {
+  unresolvedRefs: 0,
+  supersessionCycles: 0,
+  ruleRevisionCycles: 0,
+  ambiguousCurrentGovernors: 0,
+  unclassifiedDecisions: 441,
+  currentProtocolRules: 23,
+  draftProtocolRules: 44,
+  exactDuplicateCurrentRuleStatements: 0,
+  activeUncoveredRules: 2,
+  formalCoveragePending: 3
+}
+work federation: {
+  contract: 'graphrefly-work-v1',
+  authority: 'read-only-generated-view-not-execution-authority',
+  metrics: {
+    records: 156,
+    strict_records: 15,
+    legacy_records: 141,
+    legacy_complete_without_evidence: 100,
+    unavailable_ledgers: 0,
+    unstructured_ledgers: 0
+  },
+  dependencyEdges: 49,
+  dependencyCycles: 0,
+  supersessionCycles: 0,
+  orphans: 0
+}
+orphans:
+  decision D792 referenced by no session
+legacy external refs (ok):
+  D2 supersedes legacy R11
+work federation warnings:
+  graphrefly:B121 prerequisite is unavailable in this checkout: graphrefly-ts:CAUSAL-OCCURRENCE-TS
+  graphrefly:B121 prerequisite is unavailable in this checkout: graphrefly-ts:CAUSAL-COMPOSITION-DESIGN-TS
+  graphrefly:B121 prerequisite is unavailable in this checkout: graphrefly-ts:CAUSAL-HOST-PROOF-PREPARATION-TS
+  graphrefly:B121 prerequisite is unavailable in this checkout: graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS
+  graphrefly:B123 prerequisite is unavailable in this checkout: graphrefly-ts:DURABLE-SQLITE-VERTICAL
+  graphrefly:B126 prerequisite is unavailable in this checkout: graphrefly-ts:POSTGRES-DURABILITY
+  graphrefly:B139 prerequisite is unavailable in this checkout: graphrefly-ts:CAUSAL-OCCURRENCE-TS
+  graphrefly:B121 consumed artifact is unavailable in this checkout: ["graphrefly-ts:causal-occurrence-arm-evidence","graphrefly/conformance-arm-evidence/v1","ts-v3"]
+  graphrefly:B121 consumed artifact is unavailable in this checkout: ["graphrefly-ts:causal-composition-design","graphrefly-ts/causal-composition-design/v1","design-v1"]
+  graphrefly:B121 consumed artifact is unavailable in this checkout: ["graphrefly-ts:causal-host-proof-preparation","graphrefly-ts/causal-host-proof-preparation/v1","preparation-v1"]
+  graphrefly:B121 consumed artifact is unavailable in this checkout: ["graphrefly-ts:causal-preset-assembly-evidence","graphrefly-ts/causal-preset-assembly-evidence/v1","preset-v1"]
+  graphrefly:B123 consumed artifact is unavailable in this checkout: ["graphrefly-ts:durable-sqlite-vertical-evidence","graphrefly/durable-runtime-arm-evidence/v1","sqlite-ts-v1"]
+  graphrefly:B126 consumed artifact is unavailable in this checkout: ["graphrefly-ts:postgres-durability-evidence","graphrefly/durable-runtime-arm-evidence/v1","postgres-ts-v1"]
+  graphrefly:B139 consumed artifact is unavailable in this checkout: ["graphrefly-ts:causal-occurrence-arm-evidence","graphrefly/conformance-arm-evidence/v1","ts-v3"]

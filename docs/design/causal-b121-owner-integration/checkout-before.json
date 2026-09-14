@@ -1,0 +1,23 @@
+{
+	"mainBefore": "1bf11e6cdd2c66dbc8907685c25aeca0b6068ba5",
+	"target": "0f537d9eb4f84caceebe2afd7a66600def6677d1",
+	"dirtyFiles": {
+		".agents/skills/conformance/SKILL.md": "a902123430113c2d971bba466243d61f838973103ab0d6fe60aede469fdc90cd",
+		".agents/skills/dashboard/SKILL.md": "91ec6f2fb417d41cc4abd73b84f6dcfe8a29bb4a2a54057decd48336423858a2",
+		".agents/skills/design-review/SKILL.md": "8811bca4c0f54f101461671e7f89f2d2c5fe8bdb5f9d358e5c621a4b24de5ec3",
+		".agents/skills/dev-dispatch/SKILL.md": "a3d5c17189281a23add9dd0e58f17ba7bdf56fd553067535d882e46322609059",
+		".agents/skills/qa/SKILL.md": "8a72a8937abfca607ccf9d0b2b9a341293bede1d92aefc32443f30975548d346",
+		".agents/skills/research/SKILL.md": "ae6f708e5d0af760e2769420ca3130f001bf6f141fd3967179cc5f1138e0d73e",
+		".agents/skills/spec-amend/SKILL.md": "c8e6865b4b9e15391dd96e97a22cf4c0a3f6c6aad907b78ebbb30afb465c7a6d",
+		".claude/skills/design-review/SKILL.md": "5a1f29bdeec6d5bfd8986a6af27a8e86ebd529170c3b7fa7a6ed995af95a5155",
+		".claude/skills/dev-dispatch/SKILL.md": "40af5aed02064ca487272d453604668e08ed58c832d1fbcc176c489f7d1c7d07",
+		".claude/skills/qa/SKILL.md": "0320c79b78ae2f78f9cfb4754ab78e98df5509dbc30a86d6119036e6fb5e9fb5",
+		".claude/skills/research/SKILL.md": "094c59097dc3e22ffb9fc23375d724f34a37fbf448a81ee46cf87ec293bb6519",
+		".gemini/skills/dev-dispatch/SKILL.md": "601b73968dc69556d915fe882712fb827d175836582febeeb3f6af250e93fd15",
+		".gemini/skills/parity/SKILL.md": "4c8841ad5327ec5325d9c99b17ef49296b12ab1d58472e6283cc0da3817c815f",
+		"AGENTS.md": "d30afade4f46922e4293cb6d6acb8ebcfed45439bcc587792c29c452ebe10c63",
+		"CLAUDE.md": "1819becf86be9ccf48c04a2ad98d7259f7d8562bc95f3ded491ce2e3919b2110",
+		"GEMINI.md": "5aa37a74e9599d0a6ae79ed7dba6458ecfb6a83b66c01dbcaaa55ac2eef4efb6"
+	},
+	"stagedBefore": []
+}

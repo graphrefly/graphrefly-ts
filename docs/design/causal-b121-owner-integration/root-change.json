@@ -1,0 +1,10 @@
+{
+	"kind": "work-dependency-and-evidence-update",
+	"owner": "graphrefly",
+	"target": "graphrefly:B121",
+	"authorization": "User continued the explicitly proposed TS/root evidence wiring and gap review",
+	"beforeRecordDigest": "sha256:17e0f019ee7eefa8848b5ee9468f3da47aa588ef8c790033cc5944cf3419f7b1",
+	"afterRecordDigest": "sha256:e384baa62a567108c85fca95749f388bfd1749751f6020cc25643fb65c9a11b6",
+	"rootIntakeDigest": "sha256:6cfae6c0a7a297b4564c98b42c563936611c2fa72957b1289d8c1d85b1a1fc30",
+	"b121Status": "proposed"
+}

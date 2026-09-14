@@ -1,0 +1,23 @@
+{
+	"kind": "owner-integration-receipt",
+	"tsMainBefore": "1bf11e6cdd2c66dbc8907685c25aeca0b6068ba5",
+	"tsMainIntegrated": "0f537d9eb4f84caceebe2afd7a66600def6677d1",
+	"preservedMainDirtyFiles": 16,
+	"rootCommit": "5057b4b6a35b63e1bfddf13a71339bbc826d022d",
+	"rootIntake": {
+		"path": "/Users/davidchenallio/src/graphrefly/sessions/archive/b121-owner-evidence-intake-v1.json",
+		"digest": "sha256:6cfae6c0a7a297b4564c98b42c563936611c2fa72957b1289d8c1d85b1a1fc30"
+	},
+	"newRootDependencies": [
+		"graphrefly-ts:CAUSAL-HOST-PROOF-PREPARATION-TS@preparation-v1",
+		"graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS@preset-v1"
+	],
+	"b121Status": "proposed",
+	"canonicalWorkspaceAuthorityCheckPassed": true,
+	"dashboardCheckPassed": true,
+	"newRuntimeTests": 0,
+	"newConsumerExecutions": 0,
+	"newFileEffects": 0,
+	"newDecisions": 0,
+	"preexistingRootChangesCommitted": false
+}
