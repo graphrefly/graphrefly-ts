@@ -68,8 +68,8 @@ const mutants = [
 	{
 		name: "drop-retained-completion",
 		scenario: "retain",
-		from: "revision++;\n\t\t\tschedule();",
-		to: "records.clear(); revision++;\n\t\t\tschedule();",
+		from: "r.outcome = frozen({",
+		to: "records.clear(); r.outcome = frozen({",
 	},
 	{
 		name: "misassociate-outcome",

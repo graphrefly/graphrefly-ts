@@ -1,0 +1,753 @@
+{"archives": 24, "currentQualified": false, "files": 253, "kind": "lint-frozen-integrity"}
+docs/design/causal-cost-investigation/comparison-proof/count-lint-v1.mjs:31:13 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    29 │ 			for (const step of scenario.steps) {
+    30 │ 				run.send(step);
+  > 31 │ 				capture("initial-" + step.lane);
+       │ 				        ^^^^^^^^^^^^^^^^^^^^^^
+    32 │ 			}
+    33 │ 			const before = mod.graphSnapshot(run);
+  
+  i Unsafe fix: Use a template literal.
+  
+    29 29 │   			for (const step of scenario.steps) {
+    30 30 │   				run.send(step);
+    31    │ - → → → → capture("initial-"·+·step.lane);
+       31 │ + → → → → capture(`initial-${step.lane}`);
+    32 32 │   			}
+    33 33 │   			const before = mod.graphSnapshot(run);
+  
+
+docs/design/causal-cost-investigation/comparison-proof/count-lint-v1.mjs:65:2 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    63 │ writeFileSync(
+    64 │ 	path.join(out, "counts.json"),
+  > 65 │ 	JSON.stringify(
+       │ 	^^^^^^^^^^^^^^^
+  > 66 │ 		{
+        ...
+  > 76 │ 		2,
+  > 77 │ 	) + "\n",
+       │ 	^^^^^^^^
+    78 │ );
+    79 │ 
+  
+  i Unsafe fix: Use a template literal.
+  
+    63 63 │   writeFileSync(
+    64 64 │   	path.join(out, "counts.json"),
+    65    │ - → JSON.stringify(
+       65 │ + → `${JSON.stringify(
+    66 66 │   		{
+    67 67 │   			passed: true,
+    ····· │ 
+    75 75 │   		null,
+    76 76 │   		2,
+    77    │ - → )·+·"\n",
+       77 │ + → )}\n`,
+    78 78 │   );
+    79 79 │   
+  
+
+docs/design/causal-cost-investigation/comparison-proof/remaining-lint-v1.mjs:17:57 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    15 │ 	const entry = { phase, stats: mod.__take() };
+    16 │ 	phases.push(entry);
+  > 17 │ 	appendFileSync(path.join(out, "partial-counts.jsonl"), JSON.stringify(entry) + "\n");
+       │ 	                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    18 │ }
+    19 │ try {
+  
+  i Unsafe fix: Use a template literal.
+  
+    15 15 │   	const entry = { phase, stats: mod.__take() };
+    16 16 │   	phases.push(entry);
+    17    │ - → appendFileSync(path.join(out,·"partial-counts.jsonl"),·JSON.stringify(entry)·+·"\n");
+       17 │ + → appendFileSync(path.join(out,·"partial-counts.jsonl"),·`${JSON.stringify(entry)}\n`);
+    18 18 │   }
+    19 19 │   try {
+  
+
+docs/design/causal-cost-investigation/comparison-proof/remaining-lint-v1.mjs:24:11 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    22 │ 	for (const step of scenario.steps) {
+    23 │ 		run.send(step);
+  > 24 │ 		capture("initial-" + step.lane);
+       │ 		        ^^^^^^^^^^^^^^^^^^^^^^
+    25 │ 	}
+    26 │ 	assert.deepEqual(mod.graphSnapshot(run), expected);
+  
+  i Unsafe fix: Use a template literal.
+  
+    22 22 │   	for (const step of scenario.steps) {
+    23 23 │   		run.send(step);
+    24    │ - → → capture("initial-"·+·step.lane);
+       24 │ + → → capture(`initial-${step.lane}`);
+    25 25 │   	}
+    26 26 │   	assert.deepEqual(mod.graphSnapshot(run), expected);
+  
+
+docs/design/causal-cost-investigation/comparison-proof/remaining-lint-v1.mjs:46:3 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    44 │ 	writeFileSync(
+    45 │ 		path.join(out, "remaining-result.json"),
+  > 46 │ 		JSON.stringify(
+       │ 		^^^^^^^^^^^^^^^
+  > 47 │ 			{
+        ...
+  > 56 │ 			2,
+  > 57 │ 		) + "\n",
+       │ 		^^^^^^^^
+    58 │ 	);
+    59 │ } finally {
+  
+  i Unsafe fix: Use a template literal.
+  
+    44 44 │   	writeFileSync(
+    45 45 │   		path.join(out, "remaining-result.json"),
+    46    │ - → → JSON.stringify(
+       46 │ + → → `${JSON.stringify(
+    47 47 │   			{
+    48 48 │   				passed: true,
+    ····· │ 
+    55 55 │   			null,
+    56 56 │   			2,
+    57    │ - → → )·+·"\n",
+       57 │ + → → )}\n`,
+    58 58 │   	);
+    59 59 │   } finally {
+  
+
+docs/design/causal-cost-investigation/dependency-comparison-tools/build-lint-v1.mjs:55:40 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    53 │ 							`unexpected external ${args.path}`,
+    54 │ 						);
+  > 55 │ 						if (file.endsWith(".js")) file = file.slice(0, -3) + ".ts";
+       │ 						                                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+    56 │ 						assert.ok(!file.startsWith("../") && !path.isAbsolute(file), file);
+    57 │ 						return { path: file, namespace: "snapshot" };
+  
+  i Unsafe fix: Use a template literal.
+  
+     53  53 │   							`unexpected external ${args.path}`,
+     54  54 │   						);
+     55     │ - → → → → → → if·(file.endsWith(".js"))·file·=·file.slice(0,·-3)·+·".ts";
+         55 │ + → → → → → → if·(file.endsWith(".js"))·file·=·`${file.slice(0,·-3)}.ts`;
+     56  56 │   						assert.ok(!file.startsWith("../") && !path.isAbsolute(file), file);
+     57  57 │   						return { path: file, namespace: "snapshot" };
+  
+
+docs/design/causal-cost-investigation/dependency-comparison-tools/build-lint-v1.mjs:78:9 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    76 │ 							content = content.replace(
+    77 │ 								target,
+  > 78 │ 								target + "\n\t\t\texpected: expectedSnapshot(c.plain),",
+       │ 								^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    79 │ 							);
+    80 │ 						}
+  
+  i Unsafe fix: Use a template literal.
+  
+     76  76 │   							content = content.replace(
+     77  77 │   								target,
+     78     │ - → → → → → → → → target·+·"\n\t\t\texpected:·expectedSnapshot(c.plain),",
+         78 │ + → → → → → → → → `${target}\n\t\t\texpected:·expectedSnapshot(c.plain),`,
+     79  79 │   							);
+     80  80 │   						}
+  
+
+docs/design/causal-cost-investigation/implementation-preparation/probe-lint-v1.mjs:68:21 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    66 │ } finally {
+    67 │ 	if (run && !cleaned) run.cleanup();
+  > 68 │ 	writeFileSync(out, JSON.stringify(result, null, 2) + "\n");
+       │ 	                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    69 │ }
+    70 │ 
+  
+  i Unsafe fix: Use a template literal.
+  
+    66 66 │   } finally {
+    67 67 │   	if (run && !cleaned) run.cleanup();
+    68    │ - → writeFileSync(out,·JSON.stringify(result,·null,·2)·+·"\n");
+       68 │ + → writeFileSync(out,·`${JSON.stringify(result,·null,·2)}\n`);
+    69 69 │   }
+    70 70 │   
+  
+
+docs/design/causal-cost-investigation/performance-comparison/build-lint-v1.mjs:55:40 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    53 │ 							`unexpected external ${args.path}`,
+    54 │ 						);
+  > 55 │ 						if (file.endsWith(".js")) file = file.slice(0, -3) + ".ts";
+       │ 						                                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+    56 │ 						assert.ok(!file.startsWith("../") && !path.isAbsolute(file), file);
+    57 │ 						return { path: file, namespace: "snapshot" };
+  
+  i Unsafe fix: Use a template literal.
+  
+     53  53 │   							`unexpected external ${args.path}`,
+     54  54 │   						);
+     55     │ - → → → → → → if·(file.endsWith(".js"))·file·=·file.slice(0,·-3)·+·".ts";
+         55 │ + → → → → → → if·(file.endsWith(".js"))·file·=·`${file.slice(0,·-3)}.ts`;
+     56  56 │   						assert.ok(!file.startsWith("../") && !path.isAbsolute(file), file);
+     57  57 │   						return { path: file, namespace: "snapshot" };
+  
+
+docs/design/causal-cost-investigation/performance-comparison/build-lint-v1.mjs:78:9 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    76 │ 							content = content.replace(
+    77 │ 								target,
+  > 78 │ 								target + "\n\t\t\texpected: expectedSnapshot(c.plain),",
+       │ 								^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    79 │ 							);
+    80 │ 						}
+  
+  i Unsafe fix: Use a template literal.
+  
+     76  76 │   							content = content.replace(
+     77  77 │   								target,
+     78     │ - → → → → → → → → target·+·"\n\t\t\texpected:·expectedSnapshot(c.plain),",
+         78 │ + → → → → → → → → `${target}\n\t\t\texpected:·expectedSnapshot(c.plain),`,
+     79  79 │   							);
+     80  80 │   						}
+  
+
+docs/design/causal-cost-investigation/single-version-rss-tools/test_child-lint-v1.mjs:65:17 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    63 │ 		writeFileSync(e, JSON.stringify(entry));
+    64 │ 		const r = spawnSync(process.execPath, [path.join(root, "tools/child-lint-v1.mjs"), e], {
+  > 65 │ 			env: { PATH: path.dirname(process.execPath) + ":/usr/bin:/bin", LANG: "C", TZ: "UTC" },
+       │ 			             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    66 │ 			encoding: "utf8",
+    67 │ 			timeout: 10000,
+  
+  i Unsafe fix: Use a template literal.
+  
+    63 63 │   		writeFileSync(e, JSON.stringify(entry));
+    64 64 │   		const r = spawnSync(process.execPath, [path.join(root, "tools/child-lint-v1.mjs"), e], {
+    65    │ - → → → env:·{·PATH:·path.dirname(process.execPath)·+·":/usr/bin:/bin",·LANG:·"C",·TZ:·"UTC"·},
+       65 │ + → → → env:·{·PATH:·`${path.dirname(process.execPath)}:/usr/bin:/bin`,·LANG:·"C",·TZ:·"UTC"·},
+    66 66 │   			encoding: "utf8",
+    67 67 │   			timeout: 10000,
+  
+
+docs/design/causal-cost-investigation/single-version-rss-v2-tools/test_child-lint-v1.mjs:65:17 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    63 │ 		writeFileSync(e, JSON.stringify(entry));
+    64 │ 		const r = spawnSync(process.execPath, [path.join(root, "tools/child-lint-v1.mjs"), e], {
+  > 65 │ 			env: { PATH: path.dirname(process.execPath) + ":/usr/bin:/bin", LANG: "C", TZ: "UTC" },
+       │ 			             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    66 │ 			encoding: "utf8",
+    67 │ 			timeout: 10000,
+  
+  i Unsafe fix: Use a template literal.
+  
+    63 63 │   		writeFileSync(e, JSON.stringify(entry));
+    64 64 │   		const r = spawnSync(process.execPath, [path.join(root, "tools/child-lint-v1.mjs"), e], {
+    65    │ - → → → env:·{·PATH:·path.dirname(process.execPath)·+·":/usr/bin:/bin",·LANG:·"C",·TZ:·"UTC"·},
+       65 │ + → → → env:·{·PATH:·`${path.dirname(process.execPath)}:/usr/bin:/bin`,·LANG:·"C",·TZ:·"UTC"·},
+    66 66 │   			encoding: "utf8",
+    67 67 │   			timeout: 10000,
+  
+
+docs/design/causal-cost-investigation/single-version-tools/test_child-lint-v1.mjs:65:17 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    63 │ 		writeFileSync(e, JSON.stringify(entry));
+    64 │ 		const r = spawnSync(process.execPath, [path.join(root, "tools/child-lint-v1.mjs"), e], {
+  > 65 │ 			env: { PATH: path.dirname(process.execPath) + ":/usr/bin:/bin", LANG: "C", TZ: "UTC" },
+       │ 			             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    66 │ 			encoding: "utf8",
+    67 │ 			timeout: 10000,
+  
+  i Unsafe fix: Use a template literal.
+  
+    63 63 │   		writeFileSync(e, JSON.stringify(entry));
+    64 64 │   		const r = spawnSync(process.execPath, [path.join(root, "tools/child-lint-v1.mjs"), e], {
+    65    │ - → → → env:·{·PATH:·path.dirname(process.execPath)·+·":/usr/bin:/bin",·LANG:·"C",·TZ:·"UTC"·},
+       65 │ + → → → env:·{·PATH:·`${path.dirname(process.execPath)}:/usr/bin:/bin`,·LANG:·"C",·TZ:·"UTC"·},
+    66 66 │   			encoding: "utf8",
+    67 67 │   			timeout: 10000,
+  
+
+docs/design/causal-cpu-wall-retained-localization-v1/verify-lint-v1.mjs:51:2 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    49 │ writeFileSync(
+    50 │ 	`${doc}/verification-lint-v1.json`,
+  > 51 │ 	JSON.stringify(
+       │ 	^^^^^^^^^^^^^^^
+  > 52 │ 		{
+        ...
+  > 61 │ 		"\t",
+  > 62 │ 	) + "\n",
+       │ 	^^^^^^^^
+    63 │ );
+    64 │ console.log("RETAINED_GAP_VERIFICATION_DONE", checked);
+  
+  i Unsafe fix: Use a template literal.
+  
+    49 49 │   writeFileSync(
+    50 50 │   	`${doc}/verification-lint-v1.json`,
+    51    │ - → JSON.stringify(
+       51 │ + → `${JSON.stringify(
+    52 52 │   		{
+    53 53 │   			passed: true,
+    ····· │ 
+    60 60 │   		null,
+    61 61 │   		"\t",
+    62    │ - → )·+·"\n",
+       62 │ + → )}\n`,
+    63 63 │   );
+    64 64 │   console.log("RETAINED_GAP_VERIFICATION_DONE", checked);
+  
+
+docs/design/causal-release-allocation-v1/probe-lint-v1.mjs:68:5 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    66 │ 			appendFileSync(
+    67 │ 				path.join(out, "memory.jsonl"),
+  > 68 │ 				JSON.stringify({ completed, ...memory }) + "\n",
+       │ 				^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    69 │ 			);
+    70 │ 			if (memory.rss > 268435456) throw Error("checkpoint RSS limit");
+  
+  i Unsafe fix: Use a template literal.
+  
+    66 66 │   			appendFileSync(
+    67 67 │   				path.join(out, "memory.jsonl"),
+    68    │ - → → → → JSON.stringify({·completed,·...memory·})·+·"\n",
+       68 │ + → → → → `${JSON.stringify({·completed,·...memory·})}\n`,
+    69 69 │   			);
+    70 70 │   			if (memory.rss > 268435456) throw Error("checkpoint RSS limit");
+  
+
+docs/design/causal-release-allocation-v1/probe-lint-v1.mjs:78:48 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+    76 │ } finally {
+    77 │ 	const result = await post("HeapProfiler.stopSampling");
+  > 78 │ 	writeFileSync(path.join(out, "profile.json"), JSON.stringify(result) + "\n");
+       │ 	                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    79 │ 	session.disconnect();
+    80 │ 	writeFileSync(
+  
+  i Unsafe fix: Use a template literal.
+  
+    76 76 │   } finally {
+    77 77 │   	const result = await post("HeapProfiler.stopSampling");
+    78    │ - → writeFileSync(path.join(out,·"profile.json"),·JSON.stringify(result)·+·"\n");
+       78 │ + → writeFileSync(path.join(out,·"profile.json"),·`${JSON.stringify(result)}\n`);
+    79 79 │   	session.disconnect();
+    80 80 │   	writeFileSync(
+  
+
+docs/design/causal-release-memory-v1/probe-lint-v1.mjs:9:22 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+     7 │ const record = (phase, n) => {
+     8 │ 	const m = process.memoryUsage();
+   > 9 │ 	appendFileSync(out, JSON.stringify({ phase, n, ...m }) + "\n");
+       │ 	                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    10 │ 	if (m.rss > 268435456) throw Error("unchanged RSS limit");
+    11 │ };
+  
+  i Unsafe fix: Use a template literal.
+  
+     7  7 │   const record = (phase, n) => {
+     8  8 │   	const m = process.memoryUsage();
+     9    │ - → appendFileSync(out,·JSON.stringify({·phase,·n,·...m·})·+·"\n");
+        9 │ + → appendFileSync(out,·`${JSON.stringify({·phase,·n,·...m·})}\n`);
+    10 10 │   	if (m.rss > 268435456) throw Error("unchanged RSS limit");
+    11 11 │   };
+  
+
+docs/design/causal-unprofiled-latency/incidents/prepare-causal-latency-baseline-lint-v1.mjs:84:2 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  i Template literals are preferred over string concatenation.
+  
+     82 │ writeFileSync(
+     83 │ 	resolve(root, "freeze.json"),
+   > 84 │ 	JSON.stringify(
+        │ 	^^^^^^^^^^^^^^^
+   > 85 │ 		{
+         ...
+   > 97 │ 		2,
+   > 98 │ 	) + "\n",
+        │ 	^^^^^^^^
+     99 │ );
+    100 │ console.log("LATENCY_PREPARED", rows.length, jobs.length);
+  
+  i Unsafe fix: Use a template literal.
+  
+     82  82 │   writeFileSync(
+     83  83 │   	resolve(root, "freeze.json"),
+     84     │ - → JSON.stringify(
+         84 │ + → `${JSON.stringify(
+     85  85 │   		{
+     86  86 │   			scope: "unprofiled latency diagnostic; user expectation about100ms, not a new formal gate",
+    ······· │ 
+     96  96 │   		null,
+     97  97 │   		2,
+     98     │ - → )·+·"\n",
+         98 │ + → )}\n`,
+     99  99 │   );
+    100 100 │   console.log("LATENCY_PREPARED", rows.length, jobs.length);
+  
+
+docs/design/causal-construction-closeout/mutations.json format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+      1   1 │   {
+      2     │ - ··"source":·"examples/spending-alerts/causal-focused-host.ts",
+      3     │ - ··"sourceSha256":·"771fe0c1d409debb836bb446dbf1109464497b80225f4fc49e5a56d106feb022",
+      4     │ - ··"realInboxIO":·0,
+      5     │ - ··"results":·[
+      6     │ - ····{
+      7     │ - ······"name":·"accept-over-capacity-pack",
+      8     │ - ······"mutant":·false,
+      9     │ - ······"status":·0,
+     10     │ - ······"verdict":·"control-pass",
+     11     │ - ······"bundleSha256":·"ab1e2dcb27727567fd9d581b56161688636584ab123155636b61abd042978bd7",
+     12     │ - ······"stdout":·"PASS:overflow\n",
+     13     │ - ······"stderr":·""
+     14     │ - ····},
+     15     │ - ····{
+     16     │ - ······"name":·"accept-over-capacity-pack",
+     17     │ - ······"mutant":·true,
+     18     │ - ······"status":·1,
+     19     │ - ······"verdict":·"behavior-killed",
+     20     │ - ······"bundleSha256":·"d6d94be7951668949e060d06367531dae7f7a13752a1fb46108ab4861af874c7",
+     21     │ - ······"stdout":·"",
+     22     │ - ······"stderr":·"node:internal/modules/run_main:107\n····triggerUncaughtException(\n····^\n\nAssertionError·[ERR_ASSERTION]:·Expected·values·to·be·strictly·equal:\n\ntrue·!==·false\n\n····at·file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/spending-host-mutations-CUfxAL/accept-over-capacity-pack-true.mjs:8798:12·{\n··generatedMessage:·true,\n··code:·'ERR_ASSERTION',\n··actual:·true,\n··expected:·false,\n··operator:·'strictEqual',\n··diff:·'simple'\n}\n\nNode.js·v24.18.0\n"
+     23     │ - ····},
+     24     │ - ····{
+     25     │ - ······"name":·"bypass-final-guard",
+     26     │ - ······"mutant":·false,
+     27     │ - ······"status":·0,
+     28     │ - ······"verdict":·"control-pass",
+     29     │ - ······"bundleSha256":·"ab1e2dcb27727567fd9d581b56161688636584ab123155636b61abd042978bd7",
+     30     │ - ······"stdout":·"PASS:guard\n",
+     31     │ - ······"stderr":·""
+     32     │ - ····},
+     33     │ - ····{
+     34     │ - ······"name":·"bypass-final-guard",
+     35     │ - ······"mutant":·true,
+     36     │ - ······"status":·1,
+     37     │ - ······"verdict":·"behavior-killed",
+     38     │ - ······"bundleSha256":·"11850cfbf57916308b3ceb05333305916be2e90974e82c3765fe28ae37443e5a",
+     39     │ - ······"stdout":·"",
+     40     │ - ······"stderr":·"node:internal/modules/run_main:107\n····triggerUncaughtException(\n····^\n\nAssertionError·[ERR_ASSERTION]:·Expected·values·to·be·strictly·equal:\n\n1·!==·0\n\n····at·file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/spending-host-mutations-CUfxAL/bypass-final-guard-true.mjs:8767:12·{\n··generatedMessage:·true,\n··code:·'ERR_ASSERTION',\n··actual:·1,\n··expected:·0,\n··operator:·'strictEqual',\n··diff:·'simple'\n}\n\nNode.js·v24.18.0\n"
+     41     │ - ····},
+     42     │ - ····{
+     43     │ - ······"name":·"skip-single-write-slot",
+     44     │ - ······"mutant":·false,
+     45     │ - ······"status":·0,
+     46     │ - ······"verdict":·"control-pass",
+     47     │ - ······"bundleSha256":·"ab1e2dcb27727567fd9d581b56161688636584ab123155636b61abd042978bd7",
+     48     │ - ······"stdout":·"PASS:slot\n",
+     49     │ - ······"stderr":·""
+     50     │ - ····},
+     51     │ - ····{
+     52     │ - ······"name":·"skip-single-write-slot",
+     53     │ - ······"mutant":·true,
+     54     │ - ······"status":·1,
+     55     │ - ······"verdict":·"behavior-killed",
+     56     │ - ······"bundleSha256":·"40179faea7950f9591da2c7f2fbac7f89772e4f55f78658db07dfba457f001e1",
+     57     │ - ······"stdout":·"",
+     58     │ - ······"stderr":·"node:internal/modules/run_main:107\n····triggerUncaughtException(\n····^\n\nAssertionError·[ERR_ASSERTION]:·Expected·values·to·be·strictly·equal:\n\n2·!==·1\n\n····at·file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/spending-host-mutations-CUfxAL/skip-single-write-slot-true.mjs:8772:12·{\n··generatedMessage:·true,\n··code:·'ERR_ASSERTION',\n··actual:·2,\n··expected:·1,\n··operator:·'strictEqual',\n··diff:·'simple'\n}\n\nNode.js·v24.18.0\n"
+     59     │ - ····},
+     60     │ - ····{
+     61     │ - ······"name":·"replay-request",
+     62     │ - ······"mutant":·false,
+     63     │ - ······"status":·0,
+     64     │ - ······"verdict":·"control-pass",
+     65     │ - ······"bundleSha256":·"ab1e2dcb27727567fd9d581b56161688636584ab123155636b61abd042978bd7",
+     66     │ - ······"stdout":·"PASS:replay\n",
+     67     │ - ······"stderr":·""
+     68     │ - ····},
+     69     │ - ····{
+     70     │ - ······"name":·"replay-request",
+     71     │ - ······"mutant":·true,
+     72     │ - ······"status":·1,
+     73     │ - ······"verdict":·"behavior-killed",
+     74     │ - ······"bundleSha256":·"fcef346625f4f95c9ad3c3df87f014364a6aa2939653cc3227c75ea15f3b9baa",
+     75     │ - ······"stdout":·"",
+     76     │ - ······"stderr":·"node:internal/modules/run_main:107\n····triggerUncaughtException(\n····^\n\nAssertionError·[ERR_ASSERTION]:·Expected·values·to·be·strictly·equal:\n+·actual·-·expected\n\n+·{\n+···admissionRef:·{\n+·····id:·'sha256:e2d9d5d097e576e9ba171e9b473eae86fa7b58339db734116cf376512f1ba99d',\n+·····kind:·'spending-admission'\n+···},\n+···effectId:·'alert:evaluation-coffee-0',\n+···occurrence:·{\n+·····digest:·'sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1',\n+·····occurrenceId:·'evaluation-coffee-0',\n+·····revision:·1,\n+·····revisionDomain:·'fixture-coffee',\n+·····sourceRefs:·[\n+·······{\n+·········id:·'evaluation-coffee-0',\n+·········kind:·'evaluation'\n+·······}\n+·····]\n+···},\n+···proposalDigest:·'sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f',\n+···requestRef:·{\n+·····id:·'sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74',\n+·····kind:·'spending-alerts/request-material/v1'\n+···},\n+···result:·{\n+·····error:·{\n+·······code:·'spending-host/busy-or-write-budget',\n+·······kind:·'issue',\n+·······message:·'busy-or-write-budget'\n+·····},\n+·····kind:·'error'\n+···},\n+···state:·'cancelled'\n+·}\n-·undefined\n\n····at·file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/spending-host-mutations-CUfxAL/replay-request-true.mjs:8778:12·{\n··generatedMessage:·true,\n··code:·'ERR_ASSERTION',\n··actual:·{\n····occurrence:·{\n······digest:·'sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1',\n······occurrenceId:·'evaluation-coffee-0',\n······revision:·1,\n······revisionDomain:·'fixture-coffee',\n······sourceRefs:·[·{·id:·'evaluation-coffee-0',·kind:·'evaluation'·}·]\n····},\n····effectId:·'alert:evaluation-coffee-0',\n····requestRef:·{\n······id:·'sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74',\n······kind:·'spending-alerts/request-material/v1'\n····},\n····proposalDigest:·'sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f',\n····admissionRef:·{\n······id:·'sha256:e2d9d5d097e576e9ba171e9b473eae86fa7b58339db734116cf376512f1ba99d',\n······kind:·'spending-admission'\n····},\n····state:·'cancelled',\n····result:·{\n······kind:·'error',\n······error:·{\n········kind:·'issue',\n········code:·'spending-host/busy-or-write-budget',\n········message:·'busy-or-write-budget'\n······}\n····}\n··},\n··expected:·undefined,\n··operator:·'strictEqual',\n··diff:·'simple'\n}\n\nNode.js·v24.18.0\n"
+     77     │ - ····},
+     78     │ - ····{
+     79     │ - ······"name":·"drop-retained-completion",
+     80     │ - ······"mutant":·false,
+     81     │ - ······"status":·0,
+     82     │ - ······"verdict":·"control-pass",
+     83     │ - ······"bundleSha256":·"ab1e2dcb27727567fd9d581b56161688636584ab123155636b61abd042978bd7",
+     84     │ - ······"stdout":·"PASS:retain\n",
+     85     │ - ······"stderr":·""
+     86     │ - ····},
+     87     │ - ····{
+     88     │ - ······"name":·"drop-retained-completion",
+     89     │ - ······"mutant":·true,
+     90     │ - ······"status":·1,
+     91     │ - ······"verdict":·"behavior-killed",
+     92     │ - ······"bundleSha256":·"a8c943010363cbe2d1415235f6bea2f0f873aeb88c44d5cf3e7a4d9cf72a0aeb",
+     93     │ - ······"stdout":·"",
+     94     │ - ······"stderr":·"node:internal/modules/run_main:107\n····triggerUncaughtException(\n····^\n\nAssertionError·[ERR_ASSERTION]:·Expected·values·to·be·strictly·equal:\n\n9·!==·1\n\n····at·file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/spending-host-mutations-CUfxAL/drop-retained-completion-true.mjs:8785:12·{\n··generatedMessage:·true,\n··code:·'ERR_ASSERTION',\n··actual:·9,\n··expected:·1,\n··operator:·'strictEqual',\n··diff:·'simple'\n}\n\nNode.js·v24.18.0\n"
+     95     │ - ····},
+     96     │ - ····{
+     97     │ - ······"name":·"misassociate-outcome",
+     98     │ - ······"mutant":·false,
+     99     │ - ······"status":·0,
+    100     │ - ······"verdict":·"control-pass",
+    101     │ - ······"bundleSha256":·"ab1e2dcb27727567fd9d581b56161688636584ab123155636b61abd042978bd7",
+    102     │ - ······"stdout":·"PASS:exact\n",
+    103     │ - ······"stderr":·""
+    104     │ - ····},
+    105     │ - ····{
+    106     │ - ······"name":·"misassociate-outcome",
+    107     │ - ······"mutant":·true,
+    108     │ - ······"status":·1,
+    109     │ - ······"verdict":·"behavior-killed",
+    110     │ - ······"bundleSha256":·"b79e488863a80b5da15756ca12a66929a02556a7ccdddf78a41f9ee61bc2f4a4",
+    111     │ - ······"stdout":·"",
+    112     │ - ······"stderr":·"node:internal/modules/run_main:107\n····triggerUncaughtException(\n····^\n\nAssertionError·[ERR_ASSERTION]:·Expected·values·to·be·strictly·equal:\n+·actual·-·expected\n\n+·undefined\n-·'succeeded'\n\n····at·file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/spending-host-mutations-CUfxAL/misassociate-outcome-true.mjs:8791:12·{\n··generatedMessage:·true,\n··code:·'ERR_ASSERTION',\n··actual:·undefined,\n··expected:·'succeeded',\n··operator:·'strictEqual',\n··diff:·'simple'\n}\n\nNode.js·v24.18.0\n"
+    113     │ - ····},
+    114     │ - ····{
+    115     │ - ······"name":·"accept-counterfeit-admission",
+    116     │ - ······"mutant":·false,
+    117     │ - ······"status":·0,
+    118     │ - ······"verdict":·"control-pass",
+    119     │ - ······"bundleSha256":·"ab1e2dcb27727567fd9d581b56161688636584ab123155636b61abd042978bd7",
+    120     │ - ······"stdout":·"PASS:counterfeit\n",
+    121     │ - ······"stderr":·""
+    122     │ - ····},
+    123     │ - ····{
+    124     │ - ······"name":·"accept-counterfeit-admission",
+    125     │ - ······"mutant":·true,
+    126     │ - ······"status":·1,
+    127     │ - ······"verdict":·"behavior-killed",
+    128     │ - ······"bundleSha256":·"0d71b3fc32e24fa6457b7932214141abd5703f454a199103c5e4f79f4e662dcc",
+    129     │ - ······"stdout":·"",
+    130     │ - ······"stderr":·"node:internal/modules/run_main:107\n····triggerUncaughtException(\n····^\n\nAssertionError·[ERR_ASSERTION]:·Expected·values·to·be·strictly·equal:\n+·actual·-·expected\n\n+·{\n+···admissionRef:·{\n+·····id:·'counterfeit',\n+·····kind:·'wrong-admission'\n+···},\n+···effectId:·'alert:evaluation-coffee-0',\n+···occurrence:·{\n+·····digest:·'sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1',\n+·····occurrenceId:·'evaluation-coffee-0',\n+·····revision:·1,\n+·····revisionDomain:·'fixture-coffee',\n+·····sourceRefs:·[\n+·······{\n+·········id:·'evaluation-coffee-0',\n+·········kind:·'evaluation'\n+·······}\n+·····]\n+···},\n+···proposalDigest:·'sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f',\n+···requestRef:·{\n+·····id:·'sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74',\n+·····kind:·'spending-alerts/request-material/v1'\n+···},\n+···result:·{\n+·····kind:·'ok',\n+·····value:·{\n+·······io:·false\n+·····}\n+···},\n+···state:·'succeeded'\n+·}\n-·undefined\n\n····at·file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/spending-host-mutations-CUfxAL/accept-counterfeit-admission-true.mjs:8807:12·{\n··generatedMessage:·true,\n··code:·'ERR_ASSERTION',\n··actual:·{\n····admissionRef:·{·id:·'counterfeit',·kind:·'wrong-admission'·},\n····effectId:·'alert:evaluation-coffee-0',\n····occurrence:·{\n······digest:·'sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1',\n······occurrenceId:·'evaluation-coffee-0',\n······revision:·1,\n······revisionDomain:·'fixture-coffee',\n······sourceRefs:·[·{·id:·'evaluation-coffee-0',·kind:·'evaluation'·}·]\n····},\n····proposalDigest:·'sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f',\n····requestRef:·{\n······id:·'sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74',\n······kind:·'spending-alerts/request-material/v1'\n····},\n····result:·{·kind:·'ok',·value:·{·io:·false·}·},\n····state:·'succeeded'\n··},\n··expected:·undefined,\n··operator:·'strictEqual',\n··diff:·'simple'\n}\n\nNode.js·v24.18.0\n"
+    131     │ - ····},
+    132     │ - ····{
+    133     │ - ······"name":·"clear-host-on-ui-detach",
+    134     │ - ······"mutant":·false,
+    135     │ - ······"status":·0,
+    136     │ - ······"verdict":·"control-pass",
+    137     │ - ······"bundleSha256":·"ab1e2dcb27727567fd9d581b56161688636584ab123155636b61abd042978bd7",
+    138     │ - ······"stdout":·"PASS:retain\n",
+    139     │ - ······"stderr":·""
+    140     │ - ····},
+    141     │ - ····{
+    142     │ - ······"name":·"clear-host-on-ui-detach",
+    143     │ - ······"mutant":·true,
+    144     │ - ······"status":·1,
+    145     │ - ······"verdict":·"behavior-killed",
+    146     │ - ······"bundleSha256":·"e08ba8ff404645765100ac91722888d0d539b3769a77ec97df15a081967532a3",
+    147     │ - ······"stdout":·"",
+    148     │ - ······"stderr":·"node:internal/modules/run_main:107\n····triggerUncaughtException(\n····^\n\nAssertionError·[ERR_ASSERTION]:·Expected·values·to·be·strictly·equal:\n\n0·!==·1\n\n····at·file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/spending-host-mutations-CUfxAL/clear-host-on-ui-detach-true.mjs:8793:12·{\n··generatedMessage:·true,\n··code:·'ERR_ASSERTION',\n··actual:·0,\n··expected:·1,\n··operator:·'strictEqual',\n··diff:·'simple'\n}\n\nNode.js·v24.18.0\n"
+    149     │ - ····},
+    150     │ - ····{
+  187 more lines truncated
+  
+
+docs/design/causal-construction-closeout/source-binding.json format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+       1    1 │   {
+       2      │ - ··"verified":·true,
+       3      │ - ··"realInboxIO":·0,
+       4      │ - ··"scope":·"One·equivalent·vendorStats·implementation·edit;·no·claim·that·arbitrary·algorithm·changes·preserve·consequences.·Offline·resource·only.",
+       5      │ - ··"provenance":·{
+       6      │ - ····"actor":·"Codex·qualification·tool",
+       7      │ - ····"operation":·"in-memory·esbuild·onLoad·source·edit",
+       8      │ - ····"productionSourceEdited":·false,
+       9      │ - ····"target":·"examples/spending-alerts/causal-business.ts",
+      10      │ - ····"from":·"exactVendorStats(e.prefix.map((t)·=>·t.amount))",
+      11      │ - ····"to":·"exactVendorStats(e.prefix.map(({·amount·})·=>·amount))"
+      12      │ - ··},
+      13      │ - ··"digestMethod":·{
+      14      │ - ····"source":·"SHA256·of·JSON·sorted·metafile·input·path/SHA256·pairs·over·actual·transformed·source·bytes,·including·worker·and·oracle·fixtures",
+      15      │ - ····"runtime":·"SHA256·of·executed·bundle·bytes;·Node/environment·is·recorded·separately"
+      16      │ - ··},
+      17      │ - ··"node":·"v24.18.0",
+      18      │ - ··"toolSha256":·"a739a5e7f0bf227ce8c1479ca1d4492ca71b26ddfe9b85ca59ae497366299467",
+      19      │ - ··"bundles":·[
+      20      │ - ····{
+      21      │ - ······"candidate":·false,
+      22      │ - ······"inputs":·[
+      23      │ - ········{
+      24      │ - ··········"path":·"examples/spending-alerts/causal-admission.ts",
+      25      │ - ··········"sha256":·"73e966f03b721b84e6a34fb0803089fbca24fcfea2bc53cdc0fd809004decca0"
+      26      │ - ········},
+      27      │ - ········{
+      28      │ - ··········"path":·"examples/spending-alerts/causal-business.ts",
+      29      │ - ··········"sha256":·"5808b47b937eaa35336736523d958d9dcfa58053caad9c65df2caac49333c523"
+      30      │ - ········},
+      31      │ - ········{
+      32      │ - ··········"path":·"examples/spending-alerts/causal-focused-host.ts",
+      33      │ - ··········"sha256":·"771fe0c1d409debb836bb446dbf1109464497b80225f4fc49e5a56d106feb022"
+      34      │ - ········},
+      35      │ - ········{
+      36      │ - ··········"path":·"examples/spending-alerts/causal-inputs.ts",
+      37      │ - ··········"sha256":·"dfb1aa266cfed9bb6400171bfba30f046cd09ef94346c18560124566a7364561"
+      38      │ - ········},
+      39      │ - ········{
+      40      │ - ··········"path":·"examples/spending-alerts/causal-material-owner.ts",
+      41      │ - ··········"sha256":·"76a3605e733a2f87b23eb908f37fd7177ef86861c80d839708bd9080c5b9b370"
+      42      │ - ········},
+      43      │ - ········{
+      44      │ - ··········"path":·"examples/spending-alerts/causal-numeric.ts",
+      45      │ - ··········"sha256":·"0acdf5c800e55f7de0736718cc846eea137f880d0cbd0f158b680fa8b2e29dd8"
+      46      │ - ········},
+      47      │ - ········{
+      48      │ - ··········"path":·"examples/spending-alerts/causal-preset.ts",
+      49      │ - ··········"sha256":·"d4388d6a9bd8ed94e89716cb908e3e335ee3081203d25791868e88e8e40a501b"
+      50      │ - ········},
+      51      │ - ········{
+      52      │ - ··········"path":·"examples/spending-alerts/causal-publication.ts",
+      53      │ - ··········"sha256":·"eb303ca7a7ac46ed4b906f8ae5008a252426a8a07ef082bc15bd76e8b43ac743"
+      54      │ - ········},
+      55      │ - ········{
+      56      │ - ··········"path":·"packages/ts/src/batch/batch.ts",
+      57      │ - ··········"sha256":·"a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890"
+      58      │ - ········},
+      59      │ - ········{
+      60      │ - ··········"path":·"packages/ts/src/batch/boundary.ts",
+      61      │ - ··········"sha256":·"d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3"
+      62      │ - ········},
+      63      │ - ········{
+      64      │ - ··········"path":·"packages/ts/src/ctx/types.ts",
+      65      │ - ··········"sha256":·"e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9"
+      66      │ - ········},
+      67      │ - ········{
+      68      │ - ··········"path":·"packages/ts/src/dispatcher/index.ts",
+      69      │ - ··········"sha256":·"32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d"
+      70      │ - ········},
+      71      │ - ········{
+      72      │ - ··········"path":·"packages/ts/src/graph/blueprint.ts",
+      73      │ - ··········"sha256":·"ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b"
+      74      │ - ········},
+      75      │ - ········{
+      76      │ - ··········"path":·"packages/ts/src/graph/checkpoint.ts",
+      77      │ - ··········"sha256":·"303ffb3706bff5aa8f2d61a24290a322b3a7aa75f939318c5eb4e0d996b45ce7"
+      78      │ - ········},
+      79      │ - ········{
+      80      │ - ··········"path":·"packages/ts/src/graph/combinators.ts",
+      81      │ - ··········"sha256":·"e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2"
+      82      │ - ········},
+      83      │ - ········{
+      84      │ - ··········"path":·"packages/ts/src/graph/construction-scope.ts",
+      85      │ - ··········"sha256":·"343e6828b5276525797f97cb9c3998e4c28a1b0215af0b6505404b676856d37b"
+      86      │ - ········},
+      87      │ - ········{
+      88      │ - ··········"path":·"packages/ts/src/graph/describe.ts",
+      89      │ - ··········"sha256":·"d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4"
+      90      │ - ········},
+      91      │ - ········{
+      92      │ - ··········"path":·"packages/ts/src/graph/environment.ts",
+      93      │ - ··········"sha256":·"2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c"
+      94      │ - ········},
+      95      │ - ········{
+      96      │ - ··········"path":·"packages/ts/src/graph/graph-lifecycle.ts",
+      97      │ - ··········"sha256":·"23abc2773517b95265ce11e8144ba026b9ef4cac60af69351960fda00e12ac9d"
+      98      │ - ········},
+      99      │ - ········{
+     100      │ - ··········"path":·"packages/ts/src/graph/graph-support.ts",
+     101      │ - ··········"sha256":·"e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a"
+     102      │ - ········},
+     103      │ - ········{
+     104      │ - ··········"path":·"packages/ts/src/graph/graph-topology-group.ts",
+     105      │ - ··········"sha256":·"044f242b40e0ca8e069dbac19855af5d647513d80cbd54ac4978aa7b0830c119"
+     106      │ - ········},
+     107      │ - ········{
+     108      │ - ··········"path":·"packages/ts/src/graph/graph.ts",
+     109      │ - ··········"sha256":·"54b3644e0de855533f9ac91621b9e4eceb0368d11a953fe0d793dfd22e8b72fe"
+     110      │ - ········},
+     111      │ - ········{
+     112      │ - ··········"path":·"packages/ts/src/graph/higher-order.ts",
+     113      │ - ··········"sha256":·"8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c"
+     114      │ - ········},
+     115      │ - ········{
+     116      │ - ··········"path":·"packages/ts/src/graph/operators.ts",
+     117      │ - ··········"sha256":·"01dcdfe15269da8fede4e3a0057e668f7c3e6e40c1fbad6d3779c6e5bdf715f3"
+     118      │ - ········},
+     119      │ - ········{
+     120      │ - ··········"path":·"packages/ts/src/graph/sources.ts",
+     121      │ - ··········"sha256":·"eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76"
+     122      │ - ········},
+     123      │ - ········{
+     124      │ - ··········"path":·"packages/ts/src/graph/time.ts",
+     125      │ - ··········"sha256":·"04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1"
+     126      │ - ········},
+     127      │ - ········{
+     128      │ - ··········"path":·"packages/ts/src/identity.ts",
+     129      │ - ··········"sha256":·"4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270"
+     130      │ - ········},
+     131      │ - ········{
+     132      │ - ··········"path":·"packages/ts/src/json/codec.ts",
+     133      │ - ··········"sha256":·"7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa"
+     134      │ - ········},
+     135      │ - ········{
+     136      │ - ··········"path":·"packages/ts/src/node/core.ts",
+     137      │ - ··········"sha256":·"87d482706dd0476297f191b485fb14cbbebc8298dd126d8005d8548f2423041c"
+     138      │ - ········},
+     139      │ - ········{
+     140      │ - ··········"path":·"packages/ts/src/node/node-checkpoint-runtime.ts",
+     141      │ - ··········"sha256":·"5ed4b3fe287fdf3c37b3c15eb9dcbaf3509f03212752068b3d9f3a2eeafe40bb"
+     142      │ - ········},
+     143      │ - ········{
+     144      │ - ··········"path":·"packages/ts/src/node/node-context-runtime.ts",
+     145      │ - ··········"sha256":·"6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624"
+     146      │ - ········},
+     147      │ - ········{
+     148      │ - ··········"path":·"packages/ts/src/node/node-input-runtime.ts",
+     149      │ - ··········"sha256":·"9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066"
+     150      │ - ········},
+  7811 more lines truncated
+  
+
+The number of diagnostics exceeds the limit allowed. Use --max-diagnostics to increase it.
+Diagnostics not shown: 2.
+Checked 1177 files in 2s. No fixes applied.
+Found 2 errors.
+Found 20 infos.
+check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+
+
+DONE exit=1

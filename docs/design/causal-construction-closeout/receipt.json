@@ -1,0 +1,39 @@
+{
+	"kind": "private-same-topology-construction-diagnostic",
+	"baseline": "6d2a67eb",
+	"approvalBaseline": "9350d4a5",
+	"decision": "graphrefly-ts:D170",
+	"defaultTests": {
+		"passed": 2626,
+		"skipped": 4
+	},
+	"newTestsPassed": 7,
+	"runtimeMutationControlsPassed": 9,
+	"runtimeMutantsKilled": 9,
+	"sameTopologyAndOutputsVerified": true,
+	"sourceBindingVerified": true,
+	"performanceCells": 8,
+	"stableConstructionSurchargeEstablished": false,
+	"formalPerformanceQualified": false,
+	"overallOwnerWorkComplete": false,
+	"publicExportsAdded": 0,
+	"realInboxIO": 0,
+	"files": {
+		"examples/spending-alerts/causal-focused-host.ts": "771fe0c1d409debb836bb446dbf1109464497b80225f4fc49e5a56d106feb022",
+		"scripts/qualify-spending-focused-host.mjs": "f3aec8d72fa381eb7f44f334fe6e338c69d0b8df9072248ccb35ce804e49da31",
+		"scripts/qualify-spending-host-source-binding.mjs": "a739a5e7f0bf227ce8c1479ca1d4492ca71b26ddfe9b85ca59ae497366299467",
+		"scripts/fixtures/spending-focused-host-direct.ts": "54432ac2054160fd6075854aaec661bb9f3203d622f918e2f1e2db355f9c408e",
+		"scripts/measure-spending-construction-pair.mjs": "a181ea4573cba646d4e4a1a1e81dee0d63a6e88f2d8118431b0cb04591cc7fbc",
+		"packages/ts/src/__tests__/causal-focused-host-construction.test.ts": "844bb4f6274bb3a2a82edfe99ff0575110a188b1bdbdca1c17c674c6badbf8f5",
+		"docs/design/causal-construction-closeout/README.md": "43371345192f78aef25cdaf8a6c14954fe2b3182bfda520997b8295b88bb42ec",
+		"docs/design/causal-construction-closeout/artifact.log": "5bac644bfec886aebbfdce89d373232bbb5e93992591466d3494bf854936063f",
+		"docs/design/causal-construction-closeout/build.log": "6af7a89af29c2b693cca65466c78297fb366321b6e707d321ffb4e38661466ed",
+		"docs/design/causal-construction-closeout/lint-attempt1.log": "d24599d94f035ae6e5af5d2e43c096641d182bb3e099bd1e096e443b69efecb4",
+		"docs/design/causal-construction-closeout/lint-attempt2-build-overlap.log": "bfa668bc5973c31031c408bcb9c508575a96f74de964ae995f27203556d7094a",
+		"docs/design/causal-construction-closeout/lint.log": "3a33460754d4c062614bc5b9a731df7e7de7712286df54e709fa20e21f38aaa9",
+		"docs/design/causal-construction-closeout/mutations.json": "d75e8eceb892aeccb7e99edd93cbb5c7feec58990cc967bee99fa675de1952cc",
+		"docs/design/causal-construction-closeout/performance.json": "963b4906718ab5fba083913f57ea0abb930071819115fa3b23f4453ce12ad060",
+		"docs/design/causal-construction-closeout/source-binding.json": "3f9cf14139d6039dcd0582f058357adf1b457e038f3fb408817ddd86d099fa1e",
+		"docs/design/causal-construction-closeout/tests.log": "8e6ec6e67c46d6aa6d04e2f508f5da258bf3bd2c967ddb40cd70208574e828fa"
+	}
+}
