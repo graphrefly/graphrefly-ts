@@ -1,0 +1,173 @@
+docs/design/causal-host-call-local/verification.json format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     17  17 │   			"comparison": "baseline-prototype",
+     18  18 │   			"repetition": 0,
+     19     │ - → → → "labels":·[
+     20     │ - → → → → "baseline",
+     21     │ - → → → → "prototype"
+     22     │ - → → → ],
+     23     │ - → → → "totalInputCompletionMs":·[
+     24     │ - → → → → 1752.2367490000038,
+     25     │ - → → → → 1729.614209000003
+     26     │ - → → → ],
+         19 │ + → → → "labels":·["baseline",·"prototype"],
+         20 │ + → → → "totalInputCompletionMs":·[1752.2367490000038,·1729.614209000003],
+     27  21 │   			"totalRatio": 0.987089335951371,
+     28     │ - → → → "last8MeanMs":·[
+     29     │ - → → → → 52.35939587500013,
+     30     │ - → → → → 49.9247191249998
+     31     │ - → → → ],
+         22 │ + → → → "last8MeanMs":·[52.35939587500013,·49.9247191249998],
+     32  23 │   			"last8Ratio": 0.9535006714780907
+     33  24 │   		},
+    ······· │ 
+     36  27 │   			"comparison": "baseline-prototype",
+     37  28 │   			"repetition": 1,
+     38     │ - → → → "labels":·[
+     39     │ - → → → → "baseline",
+     40     │ - → → → → "prototype"
+     41     │ - → → → ],
+     42     │ - → → → "totalInputCompletionMs":·[
+     43     │ - → → → → 1710.7281230000026,
+     44     │ - → → → → 1691.6500489999898
+     45     │ - → → → ],
+         29 │ + → → → "labels":·["baseline",·"prototype"],
+         30 │ + → → → "totalInputCompletionMs":·[1710.7281230000026,·1691.6500489999898],
+     46  31 │   			"totalRatio": 0.9888479801416039,
+     47     │ - → → → "last8MeanMs":·[
+     48     │ - → → → → 49.05462999999986,
+     49     │ - → → → → 48.31760387499935
+     50     │ - → → → ],
+         32 │ + → → → "last8MeanMs":·[49.05462999999986,·48.31760387499935],
+     51  33 │   			"last8Ratio": 0.9849754014045052
+     52  34 │   		},
+    ······· │ 
+     55  37 │   			"comparison": "baseline-prototype",
+     56  38 │   			"repetition": 2,
+     57     │ - → → → "labels":·[
+     58     │ - → → → → "baseline",
+     59     │ - → → → → "prototype"
+     60     │ - → → → ],
+     61     │ - → → → "totalInputCompletionMs":·[
+     62     │ - → → → → 1699.7175289999832,
+     63     │ - → → → → 1684.9596210000036
+     64     │ - → → → ],
+         39 │ + → → → "labels":·["baseline",·"prototype"],
+         40 │ + → → → "totalInputCompletionMs":·[1699.7175289999832,·1684.9596210000036],
+     65  41 │   			"totalRatio": 0.9913174349571706,
+     66     │ - → → → "last8MeanMs":·[
+     67     │ - → → → → 49.05862987499904,
+     68     │ - → → → → 48.1504424999996
+     69     │ - → → → ],
+         42 │ + → → → "last8MeanMs":·[49.05862987499904,·48.1504424999996],
+     70  43 │   			"last8Ratio": 0.9814877142449046
+     71  44 │   		},
+    ······· │ 
+     74  47 │   			"comparison": "baseline-baseline-control",
+     75  48 │   			"repetition": 0,
+     76     │ - → → → "labels":·[
+     77     │ - → → → → "baseline-A",
+     78     │ - → → → → "baseline-B"
+     79     │ - → → → ],
+     80     │ - → → → "totalInputCompletionMs":·[
+     81     │ - → → → → 1724.4273290000006,
+     82     │ - → → → → 1722.0131239999973
+     83     │ - → → → ],
+         49 │ + → → → "labels":·["baseline-A",·"baseline-B"],
+         50 │ + → → → "totalInputCompletionMs":·[1724.4273290000006,·1722.0131239999973],
+     84  51 │   			"totalRatio": 0.9985999960918022,
+     85     │ - → → → "last8MeanMs":·[
+     86     │ - → → → → 48.9420882500001,
+     87     │ - → → → → 49.19676025000024
+     88     │ - → → → ],
+         52 │ + → → → "last8MeanMs":·[48.9420882500001,·49.19676025000024],
+     89  53 │   			"last8Ratio": 1.0052035376729178
+     90  54 │   		},
+    ······· │ 
+     93  57 │   			"comparison": "baseline-baseline-control",
+     94  58 │   			"repetition": 1,
+     95     │ - → → → "labels":·[
+     96     │ - → → → → "baseline-A",
+     97     │ - → → → → "baseline-B"
+     98     │ - → → → ],
+     99     │ - → → → "totalInputCompletionMs":·[
+    100     │ - → → → → 1727.6039180000062,
+    101     │ - → → → → 1713.9072900000056
+    102     │ - → → → ],
+         59 │ + → → → "labels":·["baseline-A",·"baseline-B"],
+         60 │ + → → → "totalInputCompletionMs":·[1727.6039180000062,·1713.9072900000056],
+    103  61 │   			"totalRatio": 0.9920718934141706,
+    104     │ - → → → "last8MeanMs":·[
+    105     │ - → → → → 49.57912512500002,
+    106     │ - → → → → 49.048437000000376
+    107     │ - → → → ],
+         62 │ + → → → "last8MeanMs":·[49.57912512500002,·49.048437000000376],
+    108  63 │   			"last8Ratio": 0.9892961377664157
+    109  64 │   		},
+    ······· │ 
+    112  67 │   			"comparison": "baseline-baseline-control",
+    113  68 │   			"repetition": 2,
+    114     │ - → → → "labels":·[
+    115     │ - → → → → "baseline-A",
+    116     │ - → → → → "baseline-B"
+    117     │ - → → → ],
+    118     │ - → → → "totalInputCompletionMs":·[
+    119     │ - → → → → 1757.7622509999965,
+    120     │ - → → → → 1711.0963799999972
+    121     │ - → → → ],
+         69 │ + → → → "labels":·["baseline-A",·"baseline-B"],
+         70 │ + → → → "totalInputCompletionMs":·[1757.7622509999965,·1711.0963799999972],
+    122  71 │   			"totalRatio": 0.9734515455810643,
+    123     │ - → → → "last8MeanMs":·[
+    124     │ - → → → → 49.55147924999915,
+    125     │ - → → → → 49.03986437499998
+    126     │ - → → → ],
+         72 │ + → → → "last8MeanMs":·[49.55147924999915,·49.03986437499998],
+    127  73 │   			"last8Ratio": 0.9896750837161097
+    128  74 │   		},
+    ······· │ 
+    131  77 │   			"comparison": "baseline-prototype",
+    132  78 │   			"repetition": 0,
+    133     │ - → → → "labels":·[
+    134     │ - → → → → "baseline",
+    135     │ - → → → → "prototype"
+    136     │ - → → → ],
+    137     │ - → → → "totalInputCompletionMs":·[
+    138     │ - → → → → 1745.6318829999987,
+    139     │ - → → → → 1723.1645790000111
+    140     │ - → → → ],
+         79 │ + → → → "labels":·["baseline",·"prototype"],
+         80 │ + → → → "totalInputCompletionMs":·[1745.6318829999987,·1723.1645790000111],
+    141  81 │   			"totalRatio": 0.9871294147301115,
+    142     │ - → → → "last8MeanMs":·[
+    143     │ - → → → → 49.80020324999987,
+    144     │ - → → → → 49.31121862500004
+    145     │ - → → → ],
+         82 │ + → → → "last8MeanMs":·[49.80020324999987,·49.31121862500004],
+    146  83 │   			"last8Ratio": 0.9901810717007499
+    147  84 │   		},
+    ······· │ 
+    150  87 │   			"comparison": "baseline-prototype",
+    151  88 │   			"repetition": 1,
+    152     │ - → → → "labels":·[
+    153     │ - → → → → "baseline",
+    154     │ - → → → → "prototype"
+    155     │ - → → → ],
+    156     │ - → → → "totalInputCompletionMs":·[
+    157     │ - → → → → 1725.1364980000126,
+    158     │ - → → → → 1710.0487510000057
+    159     │ - → → → ],
+  90 more lines truncated
+  
+
+Checked 2 files in 14ms. No fixes applied.
+Found 1 error.
+check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+
+
+DONE exit=1

@@ -1,0 +1,20 @@
+{
+	"kind": "canonicalEntry-first-encoding-reuse-counterexample",
+	"baseline": "7d3a5539",
+	"source": "packages/ts/src/solutions/causal-occurrence/identity.ts",
+	"sourceSha256": "54d7cee52121d369f5112e1bba363acd9c4b9d8651d565751b1cc6190799553a",
+	"changingProxy": {
+		"reads": 2,
+		"result": {
+			"key": "{\"x\":1}",
+			"snapshot": {
+				"x": 2
+			}
+		}
+	},
+	"secondTraversalThrow": {
+		"reads": 2,
+		"result": "undefined"
+	},
+	"conclusion": "Global first-encoding reuse changes currently observable trapful-input behavior; not included in this immutable-host prototype."
+}

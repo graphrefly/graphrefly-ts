@@ -1,0 +1,136 @@
+{
+	"kind": "retained-prototype-independent-verification",
+	"verifierSha256": "c97100bd876c058fa0d70e4b133fa0fbc67f71d5f73e7f0bd93beca0934cfb71",
+	"methodSha256": "b06d2a3b8bedff9646fc0a2a522bdfe462a82d2a71059037b93dbbb6e27a7d93",
+	"receiptSha256": "4bffcf955e3f95c3ae0b0b3e74c422c713907a6f440d9be17fcc3c3795925497",
+	"sourceBindingsVerified": true,
+	"compiledBundlesVerified": true,
+	"uniqueTransformationVerified": true,
+	"measuredLifetimesVerified": 24,
+	"frontierRowsVerified": 1536,
+	"pairedWitnessesVerified": 12,
+	"productionModified": false,
+	"formalQualification": false,
+	"comparisons": [
+		{
+			"mode": "off",
+			"comparison": "baseline-prototype",
+			"repetition": 0,
+			"labels": ["baseline", "prototype"],
+			"totalInputCompletionMs": [1752.2367490000038, 1729.614209000003],
+			"totalRatio": 0.987089335951371,
+			"last8MeanMs": [52.35939587500013, 49.9247191249998],
+			"last8Ratio": 0.9535006714780907
+		},
+		{
+			"mode": "off",
+			"comparison": "baseline-prototype",
+			"repetition": 1,
+			"labels": ["baseline", "prototype"],
+			"totalInputCompletionMs": [1710.7281230000026, 1691.6500489999898],
+			"totalRatio": 0.9888479801416039,
+			"last8MeanMs": [49.05462999999986, 48.31760387499935],
+			"last8Ratio": 0.9849754014045052
+		},
+		{
+			"mode": "off",
+			"comparison": "baseline-prototype",
+			"repetition": 2,
+			"labels": ["baseline", "prototype"],
+			"totalInputCompletionMs": [1699.7175289999832, 1684.9596210000036],
+			"totalRatio": 0.9913174349571706,
+			"last8MeanMs": [49.05862987499904, 48.1504424999996],
+			"last8Ratio": 0.9814877142449046
+		},
+		{
+			"mode": "off",
+			"comparison": "baseline-baseline-control",
+			"repetition": 0,
+			"labels": ["baseline-A", "baseline-B"],
+			"totalInputCompletionMs": [1724.4273290000006, 1722.0131239999973],
+			"totalRatio": 0.9985999960918022,
+			"last8MeanMs": [48.9420882500001, 49.19676025000024],
+			"last8Ratio": 1.0052035376729178
+		},
+		{
+			"mode": "off",
+			"comparison": "baseline-baseline-control",
+			"repetition": 1,
+			"labels": ["baseline-A", "baseline-B"],
+			"totalInputCompletionMs": [1727.6039180000062, 1713.9072900000056],
+			"totalRatio": 0.9920718934141706,
+			"last8MeanMs": [49.57912512500002, 49.048437000000376],
+			"last8Ratio": 0.9892961377664157
+		},
+		{
+			"mode": "off",
+			"comparison": "baseline-baseline-control",
+			"repetition": 2,
+			"labels": ["baseline-A", "baseline-B"],
+			"totalInputCompletionMs": [1757.7622509999965, 1711.0963799999972],
+			"totalRatio": 0.9734515455810643,
+			"last8MeanMs": [49.55147924999915, 49.03986437499998],
+			"last8Ratio": 0.9896750837161097
+		},
+		{
+			"mode": "summary",
+			"comparison": "baseline-prototype",
+			"repetition": 0,
+			"labels": ["baseline", "prototype"],
+			"totalInputCompletionMs": [1745.6318829999987, 1723.1645790000111],
+			"totalRatio": 0.9871294147301115,
+			"last8MeanMs": [49.80020324999987, 49.31121862500004],
+			"last8Ratio": 0.9901810717007499
+		},
+		{
+			"mode": "summary",
+			"comparison": "baseline-prototype",
+			"repetition": 1,
+			"labels": ["baseline", "prototype"],
+			"totalInputCompletionMs": [1725.1364980000126, 1710.0487510000057],
+			"totalRatio": 0.9912541720510242,
+			"last8MeanMs": [49.38840099999993, 48.69628149999994],
+			"last8Ratio": 0.9859861933979197
+		},
+		{
+			"mode": "summary",
+			"comparison": "baseline-prototype",
+			"repetition": 2,
+			"labels": ["baseline", "prototype"],
+			"totalInputCompletionMs": [1712.0344209999948, 1697.3838350000042],
+			"totalRatio": 0.9914425867726226,
+			"last8MeanMs": [49.09715637499994, 48.51012499999979],
+			"last8Ratio": 0.9880434750534949
+		},
+		{
+			"mode": "summary",
+			"comparison": "baseline-baseline-control",
+			"repetition": 0,
+			"labels": ["baseline-A", "baseline-B"],
+			"totalInputCompletionMs": [1820.4990399999997, 1719.570877999994],
+			"totalRatio": 0.944560167414312,
+			"last8MeanMs": [49.51154687499991, 48.94435962500006],
+			"last8Ratio": 0.9885443439803687
+		},
+		{
+			"mode": "summary",
+			"comparison": "baseline-baseline-control",
+			"repetition": 1,
+			"labels": ["baseline-A", "baseline-B"],
+			"totalInputCompletionMs": [1713.863454999997, 1725.4253390000113],
+			"totalRatio": 1.0067460940171655,
+			"last8MeanMs": [49.18721849999997, 49.677984500001],
+			"last8Ratio": 1.009977510722649
+		},
+		{
+			"mode": "summary",
+			"comparison": "baseline-baseline-control",
+			"repetition": 2,
+			"labels": ["baseline-A", "baseline-B"],
+			"totalInputCompletionMs": [1713.5748729999996, 1721.5686250000072],
+			"totalRatio": 1.004664956358757,
+			"last8MeanMs": [49.01950524999984, 49.236369624999725],
+			"last8Ratio": 1.0044240425090762
+		}
+	]
+}
