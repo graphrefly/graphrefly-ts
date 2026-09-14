@@ -1,0 +1,17 @@
+{
+	"kind": "host-completion-mechanism-probe",
+	"baseline": "d99595780a7e4d0bee6e10f6257118108eddc46f",
+	"newTests": 9,
+	"focusedTestsPassed": 13,
+	"testTypecheck": "passed",
+	"scopedBiome": "passed",
+	"productionAuthorityExecuted": false,
+	"admissionQuotaProven": false,
+	"realIO": 0,
+	"performanceQualified": false,
+	"initialFailure": "source PAUSE does not stop source production; corrected probe to pause consuming guard",
+	"files": {
+		"packages/ts/src/__tests__/causal-host-completion-feasibility.test.ts": "a7e41e7c0ab7116fd680c584239b611a040920bacd4e18d56091eaf06657f646",
+		"docs/design/causal-host-completion-feasibility/README.md": "c6f35256645e22aa7d742cf006c8797ea2280bf14422ba4b67cef3981baf2877"
+	}
+}
