@@ -1,0 +1,121 @@
+{
+	"kind": "finite-lifetime-independent-recalculation",
+	"sourceBindingsVerified": 56,
+	"timedLifetimesVerified": 12,
+	"frontierRowsVerified": 768,
+	"memoryCellsVerified": 4,
+	"pairedWitnessHashesMatch": true,
+	"recomputedOperations": [
+		{
+			"mode": "off",
+			"arm": "automatic",
+			"repetition": 0,
+			"first8MeanMs": 5.125343375,
+			"last8MeanMs": 50.69110962499997,
+			"maxOperationMs": 61.12220799999977
+		},
+		{
+			"mode": "off",
+			"arm": "manual",
+			"repetition": 0,
+			"first8MeanMs": 4.783229124999821,
+			"last8MeanMs": 49.4797706249999,
+			"maxOperationMs": 53.80583200000001
+		},
+		{
+			"mode": "off",
+			"arm": "manual",
+			"repetition": 1,
+			"first8MeanMs": 4.961531125000192,
+			"last8MeanMs": 48.88906800000018,
+			"maxOperationMs": 54.100625000000946
+		},
+		{
+			"mode": "off",
+			"arm": "automatic",
+			"repetition": 1,
+			"first8MeanMs": 5.349682250000797,
+			"last8MeanMs": 49.08427062500027,
+			"maxOperationMs": 52.092248999999356
+		},
+		{
+			"mode": "off",
+			"arm": "automatic",
+			"repetition": 2,
+			"first8MeanMs": 4.813453374999426,
+			"last8MeanMs": 48.928807875000075,
+			"maxOperationMs": 51.14758400000028
+		},
+		{
+			"mode": "off",
+			"arm": "manual",
+			"repetition": 2,
+			"first8MeanMs": 4.635666750000382,
+			"last8MeanMs": 49.050614749999795,
+			"maxOperationMs": 51.87845799999923
+		},
+		{
+			"mode": "summary",
+			"arm": "automatic",
+			"repetition": 0,
+			"first8MeanMs": 4.9071510000001695,
+			"last8MeanMs": 49.14353662499991,
+			"maxOperationMs": 51.91004100000009
+		},
+		{
+			"mode": "summary",
+			"arm": "manual",
+			"repetition": 0,
+			"first8MeanMs": 4.967150750000087,
+			"last8MeanMs": 48.56065087500008,
+			"maxOperationMs": 51.58262500000092
+		},
+		{
+			"mode": "summary",
+			"arm": "manual",
+			"repetition": 1,
+			"first8MeanMs": 4.679171624999981,
+			"last8MeanMs": 49.133171875000016,
+			"maxOperationMs": 51.76758399999926
+		},
+		{
+			"mode": "summary",
+			"arm": "automatic",
+			"repetition": 1,
+			"first8MeanMs": 4.822666499999741,
+			"last8MeanMs": 51.44461987499949,
+			"maxOperationMs": 54.74674899999991
+		},
+		{
+			"mode": "summary",
+			"arm": "automatic",
+			"repetition": 2,
+			"first8MeanMs": 4.950588375000734,
+			"last8MeanMs": 49.968348875000174,
+			"maxOperationMs": 54.06420900000012
+		},
+		{
+			"mode": "summary",
+			"arm": "manual",
+			"repetition": 2,
+			"first8MeanMs": 4.83158862499954,
+			"last8MeanMs": 49.29079162500034,
+			"maxOperationMs": 53.44300000000112
+		}
+	],
+	"newTestsPassed": 12,
+	"focusedTestsPassed": 52,
+	"productionSourceChanged": false,
+	"formalQualification": false,
+	"compiledBundleRetained": false,
+	"files": {
+		"docs/design/causal-lifetime-closeout/README.md": "7a1471b473d18cce22f9ad0abe0f079532002d329ac8ff3fe88d8bc1eb85d7ce",
+		"docs/design/causal-lifetime-closeout/acceptance-review.md": "187b8b79dde062508ee3d06653d1ef8380c8bd39352a86b63c79093e62596b43",
+		"docs/design/causal-lifetime-closeout/lint.log": "e040fafabd477c01e651504c6351dfe099e1cdff4420abec0994d722a1a695bb",
+		"docs/design/causal-lifetime-closeout/receipt.json": "a9b05182225e3a7dd86b224a988b157ebdeb4eb65efb2edbfce4109b8c33e989",
+		"docs/design/causal-lifetime-closeout/tests.log": "399e93a526bbe8d6011e130d315247c533b34d4bc4b304a40c83d167b8b791eb",
+		"docs/design/causal-lifetime-closeout/types.log": "412e27461b353468005cbff89da0d1cffea3eef9459671dd5aef38a73328075f",
+		"packages/ts/src/__tests__/causal-focused-host-authorization.test.ts": "06b44978da67282d15b5e618e62d9206422a53b92f93ac99bcc3ee42f0c12726",
+		"scripts/measure-spending-host-lifetime.mjs": "7a7dd2304e31f4ee4b7ebb12d7bcb0cc91ffa8b8b8f3c127d523a67decc1aedd"
+	}
+}
