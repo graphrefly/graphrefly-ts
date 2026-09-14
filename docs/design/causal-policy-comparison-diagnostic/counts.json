@@ -1,0 +1,146 @@
+{
+  "untimed": true,
+  "originalSha256": "198bcf776469d12edf5f167be9ecdad4b31be358a54cf249d8112045efd0ce96",
+  "instrumentedSha256": "ae2df8e001b31beebf9ce4c0edb6ff097f0d45cefe74841459c2f62a37d9d7de",
+  "sites": [
+    "same(v.occurrence, e.occurrence) && v.inputDigest === e.inputDigest && v.policyDigest === e.policyDi",
+    "same(f.occurrence, e.occurrence));\n              if (!c || !same(c.policyRef, e.policyRef) || c.poli",
+    "same(c.policyRef, e.policyRef) || c.policyDigest !== e.policyDigest || c.watermark < e.occurrence.re",
+    "same(g.occurrence, e.occurrence) && g.requestDigest === requestDigest && same(g.destinationRef, bind",
+    "same(g.destinationRef, binding3.destinationRef) && g.hostEpoch === binding3.hostEpoch && g.replaySco"
+  ],
+  "results": [
+    {
+      "profile": "P1",
+      "recipe": "initial",
+      "invocations": 6,
+      "encodings": 0,
+      "characters": 0,
+      "repeatedIdentity": 0,
+      "repeatedCharacters": 0,
+      "uniqueIdentity": 0,
+      "sites": {},
+      "stateParity": true
+    },
+    {
+      "profile": "P1",
+      "recipe": "duplicate2",
+      "invocations": 16,
+      "encodings": 0,
+      "characters": 0,
+      "repeatedIdentity": 0,
+      "repeatedCharacters": 0,
+      "uniqueIdentity": 0,
+      "sites": {},
+      "stateParity": true
+    },
+    {
+      "profile": "P1",
+      "recipe": "verification",
+      "invocations": 1,
+      "encodings": 0,
+      "characters": 0,
+      "repeatedIdentity": 0,
+      "repeatedCharacters": 0,
+      "uniqueIdentity": 0,
+      "sites": {},
+      "stateParity": true
+    },
+    {
+      "profile": "P3",
+      "recipe": "initial",
+      "invocations": 6,
+      "encodings": 688,
+      "characters": 149770,
+      "repeatedIdentity": 607,
+      "repeatedCharacters": 136188,
+      "uniqueIdentity": 81,
+      "sites": {
+        "0": 256,
+        "1": 144,
+        "2": 16,
+        "3": 256,
+        "4": 16
+      },
+      "stateParity": true
+    },
+    {
+      "profile": "P3",
+      "recipe": "duplicate2",
+      "invocations": 16,
+      "encodings": 0,
+      "characters": 0,
+      "repeatedIdentity": 0,
+      "repeatedCharacters": 0,
+      "uniqueIdentity": 0,
+      "sites": {},
+      "stateParity": true
+    },
+    {
+      "profile": "P3",
+      "recipe": "verification",
+      "invocations": 1,
+      "encodings": 688,
+      "characters": 149770,
+      "repeatedIdentity": 607,
+      "repeatedCharacters": 136188,
+      "uniqueIdentity": 81,
+      "sites": {
+        "0": 256,
+        "1": 144,
+        "2": 16,
+        "3": 256,
+        "4": 16
+      },
+      "stateParity": true
+    },
+    {
+      "profile": "P6",
+      "recipe": "initial",
+      "invocations": 8,
+      "encodings": 18752,
+      "characters": 4254242,
+      "repeatedIdentity": 18174,
+      "repeatedCharacters": 4159718,
+      "uniqueIdentity": 578,
+      "sites": {
+        "0": 6144,
+        "1": 4160,
+        "2": 128,
+        "3": 8192,
+        "4": 128
+      },
+      "stateParity": true
+    },
+    {
+      "profile": "P6",
+      "recipe": "duplicate2",
+      "invocations": 16,
+      "encodings": 0,
+      "characters": 0,
+      "repeatedIdentity": 0,
+      "repeatedCharacters": 0,
+      "uniqueIdentity": 0,
+      "sites": {},
+      "stateParity": true
+    },
+    {
+      "profile": "P6",
+      "recipe": "verification",
+      "invocations": 3,
+      "encodings": 18752,
+      "characters": 4254242,
+      "repeatedIdentity": 18174,
+      "repeatedCharacters": 4159718,
+      "uniqueIdentity": 578,
+      "sites": {
+        "0": 6144,
+        "1": 4160,
+        "2": 128,
+        "3": 8192,
+        "4": 128
+      },
+      "stateParity": true
+    }
+  ]
+}

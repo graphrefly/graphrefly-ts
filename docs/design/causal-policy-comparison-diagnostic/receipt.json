@@ -1,0 +1,13 @@
+{
+  "verified": true,
+  "archiveSha256": "8aa448cf7af73bba1e263d2fd09575911a0cb4a8d5d7755e480f73e336aa0ce5",
+  "archiveBytes": 977407,
+  "freshExtractionMatched": [
+    "verify-causal-policy-prototype.py",
+    "test-causal-policy-prototype.py",
+    "nine-count-workflow-replay"
+  ],
+  "productChanged": false,
+  "formalQualified": false,
+  "prototypeOnly": true
+}
