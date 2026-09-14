@@ -1,0 +1,154 @@
+{
+	"baseline": "3bb60c9a0541e31eee9b1473d6308f20ebade11a",
+	"kind": "development-walkthrough-freeze-not-B121-blind-study",
+	"files": [
+		{
+			"path": "docs/design/causal-graded-acceptance/protocol.md",
+			"sha256": "bd436a94482d0a740cd2a1ae65bb81a13a364b1516ac1db3b0937ddc2b5b5300"
+		},
+		{
+			"path": "docs/design/causal-graded-entry-implementation/README.md",
+			"sha256": "85ebf4201542e7c9c0d74cc86f5a390f39878b81e5ac8f9fdeb3740aefc0d12f"
+		},
+		{
+			"path": "docs/design/causal-graded-entry-implementation/artifact-check.log",
+			"sha256": "fe56f158350003ea93d57b08f1bc5f2eec11045b05ddc4f734869160fa2fde17"
+		},
+		{
+			"path": "docs/design/causal-graded-entry-implementation/build-review.py",
+			"sha256": "18a794d29706a7166d351dd2e67034712b0751ed7731b6a23eb575c4e61359e9"
+		},
+		{
+			"path": "docs/design/causal-graded-entry-implementation/demo.json",
+			"sha256": "1d637c46d18543abadd1eed4e46eb07abf38880eb7f6866b5f7c3c78ea606f49"
+		},
+		{
+			"path": "docs/design/causal-graded-entry-implementation/focused-tests.log",
+			"sha256": "85ea17dd77afc8feb37ebb26b698e4b32829efa3cfe7deee10be8f738ffac492"
+		},
+		{
+			"path": "docs/design/causal-graded-entry-implementation/mutations.json",
+			"sha256": "a040144d5303bfb87dcd7bb5a372e8f799bfbcc2d58f6dd5f36573b45ab32e83"
+		},
+		{
+			"path": "docs/design/causal-graded-entry-implementation/receipt.json",
+			"sha256": "17c2518ae431acfc829ae427ea0bf560ecee774e07410c3e9fe227afb9152681"
+		},
+		{
+			"path": "docs/design/causal-graded-entry-implementation/review.html",
+			"sha256": "30df917e7ec7852221ae5132f136229b9f25c58317c1cd4e20f01c0a5ff444c5"
+		},
+		{
+			"path": "docs/design/causal-graded-entry-implementation/source-binding.json",
+			"sha256": "026d6306f4271d5d2b53a1691d12e80da51edfcea6b230a137e75f7f3e6aedcd"
+		},
+		{
+			"path": "docs/design/causal-graded-entry-implementation/tests.log",
+			"sha256": "2d797acaeaae0acc254ac6e3c8008aa2fb19d2870f153cac77dadef99f504d62"
+		},
+		{
+			"path": "docs/design/causal-graded-entry-implementation/view-panel-tests.log",
+			"sha256": "ece7f98a2b4601e11a1832e80a66f9dbfaee193305e36760d88eacda175ff9af"
+		},
+		{
+			"path": "examples/spending-alerts/README.md",
+			"sha256": "921be10b241a4340287e5846455e66ea476016768dd4117f68c56fe7d0a23948"
+		},
+		{
+			"path": "examples/spending-alerts/causal-audience.examples.ts",
+			"sha256": "7f692090cc3a0e734edc2da63cd8e51860b12c37e0e8f3b5e4fcaccf1aa84d36"
+		},
+		{
+			"path": "examples/spending-alerts/causal-business.ts",
+			"sha256": "5808b47b937eaa35336736523d958d9dcfa58053caad9c65df2caac49333c523"
+		},
+		{
+			"path": "examples/spending-alerts/causal-entry.ts",
+			"sha256": "49e56fb40676cb72659af34cf7ac4a96d29b72293f6719ab2f6c722140ed8279"
+		},
+		{
+			"path": "examples/spending-alerts/causal-focused-host.ts",
+			"sha256": "771fe0c1d409debb836bb446dbf1109464497b80225f4fc49e5a56d106feb022"
+		},
+		{
+			"path": "examples/spending-alerts/causal-graded-demo.ts",
+			"sha256": "f9166c0652a9f099ee9d9302222297dec303cc5d16100b07273511fd20b0a477"
+		},
+		{
+			"path": "examples/spending-alerts/causal-inputs.ts",
+			"sha256": "dfb1aa266cfed9bb6400171bfba30f046cd09ef94346c18560124566a7364561"
+		},
+		{
+			"path": "examples/spending-alerts/causal-ordinary-panel.ts",
+			"sha256": "6f6db61a5d29a697b65bc73b1325e61b8644640c0bc4b78a2227ca14ac136383"
+		},
+		{
+			"path": "examples/spending-alerts/causal-preset.ts",
+			"sha256": "71f801e17e95b2f7440017048dc08d3479a341d4e5e617be8eff9f513301dd50"
+		},
+		{
+			"path": "examples/spending-alerts/causal-publication.ts",
+			"sha256": "4d2566ff521eeb370388b5d654eebfa9ab6f814c27e35233680f9d9125c7786e"
+		},
+		{
+			"path": "examples/spending-alerts/causal-view-binding.ts",
+			"sha256": "3a8722abf4ed783b8caa794ccb16a1d4fdfdbe26d999160805da746a62427409"
+		},
+		{
+			"path": "examples/spending-alerts/tsconfig.json",
+			"sha256": "366f277ed19e9a1ea7c4faacbf64100bf4180fc67b0c9412010dd23ec1b67bce"
+		},
+		{
+			"path": "packages/ts/src/__tests__/causal-graded-entry.test.ts",
+			"sha256": "68b573ee868da56c263400620c9ff5565095a6ee2a19f84b197a93902d7c395c"
+		},
+		{
+			"path": "packages/ts/src/__tests__/causal-view-binding.test.ts",
+			"sha256": "228131ea71777f349d825d29686b9d2aebdec5dd6b0e6b7dab08b69b48caefbb"
+		},
+		{
+			"path": "packages/ts/src/solutions/causal-occurrence/capabilities.ts",
+			"sha256": "606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7"
+		},
+		{
+			"path": "packages/ts/src/solutions/causal-occurrence/contracts.ts",
+			"sha256": "c2f08b4660f8bd69a680a2533ad5a3d21923603a6027e2c5b460999762a28342"
+		},
+		{
+			"path": "scripts/fixtures/spending-focused-host-direct.ts",
+			"sha256": "54432ac2054160fd6075854aaec661bb9f3203d622f918e2f1e2db355f9c408e"
+		},
+		{
+			"path": "scripts/fixtures/spending-numeric-plain.ts",
+			"sha256": "826a09c8c17878f40b9042fa06955d9514b1b5b791b28e5b8cf9a1c785d44dc9"
+		},
+		{
+			"path": "scripts/fixtures/spending-preset-harness.ts",
+			"sha256": "9c3ba7b674bd56847631a4c07160c1123cc39fa300ef540c2f3aa82880259e22"
+		},
+		{
+			"path": "scripts/fixtures/spending-preset-oracle.ts",
+			"sha256": "1bae2736615e6c2b8db71cc380a31226e73dcea1d31216d45ec13819a92cc8a2"
+		},
+		{
+			"path": "scripts/fixtures/spending-preset-plain.ts",
+			"sha256": "26ee81a80e0d9ff18001af2427741a6cbc6e641853a35e5f7cc7cc4b76e6e0ea"
+		},
+		{
+			"path": "scripts/fixtures/spending-preset-reference-input.ts",
+			"sha256": "e3e967df024c4bb336433bc83bb060be4241d7036083a683311fc9cc464effc7"
+		},
+		{
+			"path": "scripts/fixtures/spending-preset-reference-run.ts",
+			"sha256": "b6b72673a02b6a12e41b5324ce36d1bed11027bfedac718dbc449ed11296b886"
+		},
+		{
+			"path": "scripts/fixtures/spending-preset-reference.ts",
+			"sha256": "bbff086587070d51de01e5c04362b34b22a45b866e9fc38fba529cd9fefdcbc0"
+		},
+		{
+			"path": "scripts/fixtures/spending-publication-oracle.ts",
+			"sha256": "6e2c9c6695567a276c75090c838670c93ecdea7c7b5a48279f959ccf66c4aac1"
+		}
+	]
+}

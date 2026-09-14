@@ -1,0 +1,99 @@
+{
+	"kind": "graded-usage-development-walkthrough-receipt",
+	"baseline": "3bb60c9a",
+	"approval": "User approved 分层使用体验验收与 B121 差距收口: 好的，继续",
+	"owner": "graphrefly-ts evidence; root B121 state unchanged",
+	"executorPlan": {
+		"count": 3,
+		"context": "fresh, fork_turns=none",
+		"model": "inherited current session model; no override, exact backend model not independently recorded",
+		"attemptsPerRole": 1,
+		"toolCallLimit": 10,
+		"providerCalls": 0,
+		"sharedFilesystem": true,
+		"answerIsolation": false
+	},
+	"responses": [
+		{
+			"role": "ordinary",
+			"agent": "/root/graded_ordinary",
+			"toolCalls": 9,
+			"executedDemo": true,
+			"result": "partial",
+			"response": "ordinary-response.md"
+		},
+		{
+			"role": "framework",
+			"agent": "/root/graded_framework",
+			"toolCalls": 8,
+			"executedDemo": false,
+			"result": "partial",
+			"response": "framework-response.md"
+		},
+		{
+			"role": "maintainer",
+			"agent": "/root/graded_maintainer",
+			"toolCalls": 8,
+			"executedDemo": false,
+			"result": "partial",
+			"response": "maintainer-response.md"
+		}
+	],
+	"methodIncident": "Allowed demo has assertions and mutation stderr exposes expectations; all results only suitable for disclosed evidence-interpretation/developer walk-through, never blinded prediction. No replacement trials.",
+	"archivalCalls": "Separate post-trial verbatim archival; not trial retries",
+	"humanTrials": 0,
+	"formalBlindTrials": 0,
+	"currentConsumerQualification": false,
+	"performanceRuns": 0,
+	"runtimeFilesChanged": false,
+	"checks": [
+		"37 frozen input hashes match",
+		"3 response artifacts exist",
+		"local Markdown links resolve",
+		"B121 mapping contains8acceptance rows",
+		"Root backlog SHA256 and actual B121 status/8acceptance texts match saved mapping"
+	],
+	"files": [
+		{
+			"path": "README.md",
+			"sha256": "62a61980ac126fa4ae5e84fc9741319e37435996ebec0e16fa3baba6df1f5fe2"
+		},
+		{
+			"path": "b121-mapping.json",
+			"sha256": "8fa1c6c96449c8f66cae12222d3e546ede9a299dca6d06682bfe7471c66c9f90"
+		},
+		{
+			"path": "check-result.json",
+			"sha256": "d026b6c59729fca73d87df3eec7b7b81b4efe77b596b80a4e9a2c0a186d027c3"
+		},
+		{
+			"path": "check.py",
+			"sha256": "185d8308662667a369a8e23b523c0af368f7a152a6cdb59b462e2968b922356f"
+		},
+		{
+			"path": "framework-response.md",
+			"sha256": "fcf5f698b3ae29dba041d71588d5209186b9558e0a11dae38e712375e8915989"
+		},
+		{
+			"path": "freeze.json",
+			"sha256": "bea79ea4e8ccdfa382927fb41546cccdfef4edbe697e287563c0a94ba620f022"
+		},
+		{
+			"path": "human-review.md",
+			"sha256": "1ef70774fd2824e99cf80ee9f20ad5268821328da6fbcaa4cac01205d081886d"
+		},
+		{
+			"path": "maintainer-response.md",
+			"sha256": "2c42d1fffc00239aed895a6d480fa181c827282aace5430070d414a6147738f6"
+		},
+		{
+			"path": "ordinary-response.md",
+			"sha256": "d71f9cb3b755d132691588a9be86aae7a6c947538fbaea188be2b79e7a8840bf"
+		},
+		{
+			"path": "protocol.md",
+			"sha256": "bd436a94482d0a740cd2a1ae65bb81a13a364b1516ac1db3b0937ddc2b5b5300"
+		}
+	],
+	"documentReview": "Independent host_acceptance review found one checker gap; root hash and actual acceptance comparisons added, check passes. Not a fourth trial."
+}

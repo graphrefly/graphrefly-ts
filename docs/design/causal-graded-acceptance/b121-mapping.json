@@ -1,0 +1,72 @@
+{
+	"kind": "owner-local-gap-analysis-not-root-verdict",
+	"baseline": "3bb60c9a",
+	"rootWork": "graphrefly:B121",
+	"rootStatusObserved": "proposed",
+	"rootBacklogSha256": "89a6d9e0a7607db2bac8f7cfdfeeebdaea7f5faed820a8f659d647cdea4d9505",
+	"acceptance": [
+		{
+			"index": 1,
+			"acceptance": "One retained flagship owner supplies revision-bound implementation evidence and root independently verifies the unchanged causal contract, negative controls and user-visible proof.",
+			"status": "partial",
+			"assessment": "TS implementation receipt available; root independent verification and accepted aggregate absent.",
+			"evidence": "../causal-graded-entry-implementation/receipt.json"
+		},
+		{
+			"index": 2,
+			"acceptance": "The aggregate distinguishes selected-consumer implementation from root verification; one runtime arm alone never completes this milestone.",
+			"status": "open",
+			"assessment": "No root closure. This developer walkthrough is not independent root contract verification.",
+			"evidence": "/Users/davidchenallio/src/graphrefly/plan/backlog.jsonl"
+		},
+		{
+			"index": 3,
+			"acceptance": "Before flagship selection, design review compares the complete contract-v2 bundle with a progressive three-layer composition: causal identity/currentness/admitted release; keyed lifecycle, terminal fan-in, effect conservation and causal quiescence; then retained evidence, bounded retention and retained quiescence. Higher layers include the complete lower-layer dependency closure, while diagnostics remain an orthogonal projection concern.",
+			"status": "design-and-private-implementation",
+			"assessment": "Approved D162/D170 and design implemented; full runtime with progressive handle exposure.",
+			"evidence": "../causal-graded-entry-integrated-review.md"
+		},
+		{
+			"index": 4,
+			"acceptance": "The proposed convenience surface is bound to one Graph and immutable, creates no topology until an explicit factory call, preserves exact typed capability handles for manual composition, and resolves local overrides without a process-global singleton, mutable runtime config, hidden node injection or protocol-semantic switch. Configuration is a construction default, never an assurance claim; authoritative coverage remains typed DATA.",
+			"status": "private-mechanical-evidence",
+			"assessment": "Factory config zero topology, immutable overrides, exact original handles verified; private only.",
+			"evidence": "../causal-graded-entry-implementation/focused-tests.log"
+		},
+		{
+			"index": 5,
+			"acceptance": "Every supported assurance-by-diagnostics composition and local upgrade/downgrade path has an explicit acceptance arm. Missing typed prerequisites fail at compile time where possible; graph, contract, domain or capability incompatibility fails synchronously and failure-atomically before partial topology remains; missing runtime facts remain quiet or bounded DataIssue/coverage DATA rather than protocol ERROR or lifecycle repair. Mutation tests fail when a required prerequisite, occurrence, join, conservation, result or coverage edge is removed.",
+			"status": "partial",
+			"assessment": "Supported full-runtime off/summary and wrong bindings covered; arbitrary capability closure/up-down paths not a universal supported API. No claim all future compositions qualified.",
+			"evidence": "../causal-graded-entry-implementation/receipt.json"
+		},
+		{
+			"index": 6,
+			"acceptance": "B139 owns the separately approved consumer/verification brief; graphrefly-ts:CAUSAL-COMPOSITION-DESIGN-TS owns concrete package design. Before implementation dispatch, register the selected consumer implementation and any required package implementation under their unique owners and add their exact evidence dependencies here; no planned design artifact or old arm receipt substitutes for those producers.",
+			"status": "open-owner-linkage",
+			"assessment": "Root prerequisites list B120, TS original arm, B139 and composition design; selected consumer implementation evidence dependencies are not yet admitted to B121. CAUSAL-PRESET-ASSEMBLY-TS remains planned with unmet formal qualification; local receipts do not silently close it.",
+			"evidence": "/Users/davidchenallio/src/graphrefly/plan/backlog.jsonl"
+		},
+		{
+			"index": 7,
+			"acceptance": "The retained consumer proves actual focused host execution consumes exact admitted requests, including replay/stale/wrong-cause rejection and behavior-sensitive dependency mutations. Same-topology source edits remain visible within declared binding coverage; actor attribution requires provenance and verified-unchanged requires independent current evidence.",
+			"status": "partial-offline",
+			"assessment": "Real graph guard calls simulated resource; actual local inbox write/readback absent. Loaded-source equal-expression test and9runtime mutations cover bounded current evidence, not full S1-S8 physical-host qualification.",
+			"evidence": "../causal-graded-entry-implementation/source-binding.json"
+		},
+		{
+			"index": 8,
+			"acceptance": "Root verifies the selected owner evidence and the frozen plain/human/agent comparisons before closing B121. Completion neither requires the full Stack/Canvas/B134 product nor activates an optional evaluator, live campaign or durable runtime.",
+			"status": "open",
+			"assessment": "No frozen matched full-host Graph/plain human/agent comparison or root aggregate. Developer walkthrough is supplementary evidence only.",
+			"evidence": "protocol.md"
+		}
+	],
+	"unchangedNonGoals": [
+		"No new public API",
+		"No wave change",
+		"No real inbox or provider/live/spend",
+		"No formal performance rerun",
+		"No automatic root completion"
+	]
+}

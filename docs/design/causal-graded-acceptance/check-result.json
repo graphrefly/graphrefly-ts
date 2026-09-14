@@ -1,0 +1,9 @@
+{
+	"kind": "walkthrough-artifact-check",
+	"frozenFiles": 37,
+	"agentResponses": 3,
+	"humanTrials": 0,
+	"formalBlindTrials": 0,
+	"rootB121Closure": false,
+	"passed": true
+}
