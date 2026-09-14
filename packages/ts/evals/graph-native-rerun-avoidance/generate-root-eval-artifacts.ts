@@ -476,10 +476,7 @@ function prettyJson(value: unknown): string {
 	return `${JSON.stringify(value, null, "\t")}\n`;
 }
 
-export async function buildRootEvalGeneratedArtifactBytes(): Promise<RootEvalGeneratedArtifactBytes> {
-	const measuredManifestDigest = await measureCurrentImplementation();
-	if (measuredManifestDigest !== CURRENT_IMPLEMENTATION_MANIFEST_DIGEST)
-		throw new Error("root eval artifact generation rejects implementation manifest drift");
+async function buildRootEvalNoNetworkObservationBytes() {
 	const topology = createRootEvalTopology({
 		profileInput: createCurrentExactModelHarnessProfileInput(),
 		currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
@@ -551,6 +548,44 @@ export async function buildRootEvalGeneratedArtifactBytes(): Promise<RootEvalGen
 	const observeEventBytes = `${rawObservationEvents.map((event) => JSON.stringify(event)).join("\n")}\n`;
 	const runSummaryBytes = prettyJson(runSummary);
 	const mermaidBytes = `%% Deterministic describeToMermaid(root graph.describe()) view; raw JSON remains authority.\n${describeToMermaid(describe)}\n`;
+	return Object.freeze({
+		describe: describeBytes,
+		mermaid: mermaidBytes,
+		observeEvents: observeEventBytes,
+		runSummary: runSummaryBytes,
+	});
+}
+
+/** Private developer diagnostic: no qualification, publication, credential or live dispatch. */
+export async function buildRootEvalCurrentDiagnostic() {
+	const implementationManifestDigest = await measureCurrentImplementation();
+	const observations = await buildRootEvalNoNetworkObservationBytes();
+	if ((await measureCurrentImplementation()) !== implementationManifestDigest)
+		throw new Error("root eval implementation drifted during diagnostic");
+	return Object.freeze({
+		kind: "current-no-network-diagnostic" as const,
+		qualified: false as const,
+		implementationManifestDigest,
+		...observations,
+		runSummary: prettyJson({
+			...JSON.parse(observations.runSummary),
+			authority: "current-unqualified-diagnostic",
+			claimStatus: "unqualified",
+			implementationManifestDigest,
+		}),
+	});
+}
+
+export async function buildRootEvalGeneratedArtifactBytes(): Promise<RootEvalGeneratedArtifactBytes> {
+	const measuredManifestDigest = await measureCurrentImplementation();
+	if (measuredManifestDigest !== CURRENT_IMPLEMENTATION_MANIFEST_DIGEST)
+		throw new Error("root eval artifact generation rejects implementation manifest drift");
+	const {
+		describe: describeBytes,
+		mermaid: mermaidBytes,
+		observeEvents: observeEventBytes,
+		runSummary: runSummaryBytes,
+	} = await buildRootEvalNoNetworkObservationBytes();
 	const evidenceDigests = Object.freeze({
 		describe: empiricalSha256(Buffer.from(describeBytes)),
 		observeEvents: empiricalSha256(Buffer.from(observeEventBytes)),
@@ -687,6 +722,10 @@ export async function checkRootEvalGeneratedArtifacts(): Promise<void> {
 
 async function main(): Promise<void> {
 	const mode = process.argv[2] ?? "--write";
+	if (mode === "--diagnostic") {
+		console.log(JSON.stringify(await buildRootEvalCurrentDiagnostic(), null, 2));
+		return;
+	}
 	if (mode === "--write") return writeRootEvalGeneratedArtifacts();
 	if (mode === "--check") return checkRootEvalGeneratedArtifacts();
 	throw new Error(`unknown root eval artifact mode: ${mode}`);

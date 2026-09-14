@@ -34,6 +34,7 @@
 		"test:ts": "pnpm --filter @graphrefly/ts test",
 		"test:root-eval-soak": "pnpm --filter @graphrefly/ts test:root-eval-soak",
 		"eval:root:artifacts": "tsx packages/ts/evals/graph-native-rerun-avoidance/generate-root-eval-artifacts.ts --write",
+		"eval:root:artifacts:historical-check": "tsx packages/ts/evals/graph-native-rerun-avoidance/check-historical-artifacts.ts",
 		"eval:root:artifacts:check": "tsx packages/ts/evals/graph-native-rerun-avoidance/generate-root-eval-artifacts.ts --check",
 		"eval:root:operator-config:update": "tsx packages/ts/evals/graph-native-rerun-avoidance/update-operator-configuration.ts",
 		"eval:root:live": "node packages/ts/evals/graph-native-rerun-avoidance/run-live-campaign-bootstrap.mjs",

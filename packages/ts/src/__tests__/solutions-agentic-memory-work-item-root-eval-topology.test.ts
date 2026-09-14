@@ -4,6 +4,7 @@ import {
 	empiricalSha256,
 	empiricalStrictJsonDigest,
 } from "../../evals/graph-native-rerun-avoidance/canonical.js";
+import { checkRootEvalHistoricalArtifacts } from "../../evals/graph-native-rerun-avoidance/check-historical-artifacts.js";
 import { createCurrentExactModelHarnessProfileInput } from "../../evals/graph-native-rerun-avoidance/current-exact-profile.js";
 import {
 	admitRootEvalOccurrence,
@@ -51,10 +52,12 @@ import {
 	ROOT_EVAL_REQUIRED_NODES,
 } from "../../evals/graph-native-rerun-avoidance/eval-topology-contract.js";
 import {
+	buildRootEvalCurrentDiagnostic,
 	buildRootEvalGeneratedArtifactBytes,
 	ROOT_EVAL_GENERATED_ARTIFACT_PATHS,
 } from "../../evals/graph-native-rerun-avoidance/generate-root-eval-artifacts.js";
 import { HARNESS_ARMS } from "../../evals/graph-native-rerun-avoidance/harness-campaign-policy.js";
+import * as implementationManifestModule from "../../evals/graph-native-rerun-avoidance/implementation-manifest.js";
 import {
 	CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
 	CURRENT_QUALIFICATION_ARTIFACT_DIGEST,
@@ -1016,7 +1019,12 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 	});
 
 	it("freezes D159 no-network qualification with live authority closed", async () => {
-		expect(await measureCurrentImplementation()).toBe(CURRENT_IMPLEMENTATION_MANIFEST_DIGEST);
+		expect(await checkRootEvalHistoricalArtifacts()).toMatchObject({
+			kind: "historical-integrity",
+			currentQualified: false,
+			implementationManifestDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
+		});
+		expect(await measureCurrentImplementation()).toMatch(/^sha256:[0-9a-f]{64}$/u);
 		const implementationInputs = await measureCurrentImplementationInputs();
 		for (const required of [
 			"runtime/packages/ts/src/graph/index.ts",
@@ -1442,15 +1450,24 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		);
 	});
 
-	it("reproduces raw describe, raw graph.observe envelopes, and the derived run summary", async () => {
-		const generated = await buildRootEvalGeneratedArtifactBytes();
-		for (const key of Object.keys(
-			ROOT_EVAL_GENERATED_ARTIFACT_PATHS,
-		) as (keyof typeof generated)[]) {
-			expect(readFileSync(ROOT_EVAL_GENERATED_ARTIFACT_PATHS[key], "utf8"), key).toBe(
-				generated[key],
-			);
+	it("keeps strict artifact generation closed for controlled manifest drift", async () => {
+		const spy = vi
+			.spyOn(implementationManifestModule, "measureCurrentImplementation")
+			.mockResolvedValue(`sha256:${"0".repeat(64)}`);
+		try {
+			await expect(buildRootEvalGeneratedArtifactBytes()).rejects.toThrow("manifest drift");
+		} finally {
+			spy.mockRestore();
 		}
+	});
+
+	it("reproduces raw describe, raw graph.observe envelopes, and the derived run summary", async () => {
+		const generated = await buildRootEvalCurrentDiagnostic();
+		expect(generated.kind).toBe("current-no-network-diagnostic");
+		expect(generated.qualified).toBe(false);
+		expect(generated.implementationManifestDigest).toBe(await measureCurrentImplementation());
+		expect(generated).not.toHaveProperty("qualification");
+		expect(generated).not.toHaveProperty("artifactSet");
 		const events = generated.observeEvents
 			.trimEnd()
 			.split("\n")
@@ -1524,8 +1541,8 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(summary).toMatchObject({
 			format: "graphrefly.rootEvalRunSummary",
 			version: 1,
-			authority: "derived-no-network-qa",
-			claimStatus: "no-network-identifiability-only",
+			authority: "current-unqualified-diagnostic",
+			claimStatus: "unqualified",
 			efficacyClaim: "none",
 			finding: {
 				passCounts: {
@@ -1540,7 +1557,14 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			peakConcurrentEffects: 1,
 			executedAdmissionCount: 36,
 		});
-		const qualification = JSON.parse(generated.qualification) as Record<string, unknown>;
+		await checkRootEvalHistoricalArtifacts();
+		const historical = Object.fromEntries(
+			Object.entries(ROOT_EVAL_GENERATED_ARTIFACT_PATHS).map(([key, path]) => [
+				key,
+				readFileSync(path, "utf8"),
+			]),
+		);
+		const qualification = JSON.parse(historical.qualification) as Record<string, unknown>;
 		expect(qualification).toMatchObject({
 			measuredImplementationManifestDigest: CURRENT_IMPLEMENTATION_MANIFEST_DIGEST,
 			evidenceDigests: {
@@ -1551,7 +1575,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			},
 			evidenceBindingDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
 		});
-		const artifactSet = JSON.parse(generated.artifactSet) as Record<string, unknown>;
+		const artifactSet = JSON.parse(historical.artifactSet) as Record<string, unknown>;
 		expect(artifactSet).toMatchObject({
 			format: "graphrefly.rootEvalArtifactSet",
 			version: 1,
@@ -1565,19 +1589,19 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				"root-eval-topology.mmd": expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
 			},
 		});
-		expect(empiricalSha256(Buffer.from(generated.d124Describe))).toBe(
+		expect(empiricalSha256(Buffer.from(historical.d124Describe))).toBe(
 			"sha256:91fc8d290eeecb70d281a86fcc3dc2437d6840e9fbaa88b20184d04757ffda54",
 		);
-		expect(empiricalSha256(Buffer.from(generated.d124ObserveEvents))).toBe(
+		expect(empiricalSha256(Buffer.from(historical.d124ObserveEvents))).toBe(
 			"sha256:fb5600fa171f3e5cf5a69432595ab6282433501680d71d247193327bb1338e94",
 		);
-		expect(empiricalSha256(Buffer.from(generated.d124RunSummary))).toBe(
+		expect(empiricalSha256(Buffer.from(historical.d124RunSummary))).toBe(
 			"sha256:38c2a81c0dedb762bb53ab31f9f5531758f711a0d3f2f8695e4fb2eb59096d9b",
 		);
-		expect(empiricalSha256(Buffer.from(generated.d124Mermaid))).toBe(
+		expect(empiricalSha256(Buffer.from(historical.d124Mermaid))).toBe(
 			"sha256:193f393ee67f8259bdc678ed182070d70108779598312498154a960ea4e9200a",
 		);
-		expect(JSON.parse(generated.d124TopologyQualification)).toMatchObject({
+		expect(JSON.parse(historical.d124TopologyQualification)).toMatchObject({
 			artifactDigest: "sha256:a5dfafaca9437a317c82433e3de528fcc6d32805210329ab37bf167497d7200e",
 			qualification: {
 				qualificationDigest:
@@ -1587,7 +1611,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			measuredImplementationManifestDigest:
 				"sha256:2bf1f7b4fa15262f09fdadc491af567d455d4dea81e28478db7223fb22556e0e",
 		});
-		expect(JSON.parse(generated.d124LiveQualification)).toMatchObject({
+		expect(JSON.parse(historical.d124LiveQualification)).toMatchObject({
 			artifactDigest: "sha256:90fdba7d97a6cd4e353cefe6f762ea114d92b2f1b6cdc23e4451f44656cefcfa",
 			qualification: {
 				qualificationDigest:

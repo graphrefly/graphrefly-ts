@@ -1,0 +1,16 @@
+{
+	"archiveSha256": "8293e566a6f125922fcbe3ca399a5d259ea32a500408a2ac5ee60cdae9bcde49",
+	"archiveBytes": 491016,
+	"extractionVerified": true,
+	"files": 37,
+	"historicalAnchorSha256": "cf9add2a071ee40a850e5eb2e0d6537ae4fd748accd7a8fccc132ffab0a68d0c",
+	"defaultTestsPassed": 2571,
+	"defaultTestsSkipped": 4,
+	"typesBuildExportPassed": true,
+	"historicalIntegrityPassed": true,
+	"currentDiagnosticQualified": false,
+	"strictCurrentArtifactGate": "rejected-manifest-drift",
+	"fullLintPassed": false,
+	"LComplete": false,
+	"assemblyComplete": false
+}
