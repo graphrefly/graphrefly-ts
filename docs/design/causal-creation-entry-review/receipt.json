@@ -1,0 +1,29 @@
+{
+	"kind": "creation-entry-design-review",
+	"status": "proposal-not-locked",
+	"baseline": "fbd6e705c6cd93eec3201de89506a568611d7cfd",
+	"owner": "graphrefly-ts",
+	"workContext": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"governingRefs": ["graphrefly-ts:D160", "graphrefly-ts:D162", "graphrefly-ts:D164"],
+	"files": {
+		"docs/design/causal-preset-audience-v1.md": "fbbf673ef20980e8286364a9880e4a58fc5068b880eb16a41540332fe8f09dc5",
+		"docs/design/causal-composition-v1.md": "e57de7a4cb6affe36df5e984abb85569f5f9034d636a8ac7f95de6a3dc794ce1",
+		"examples/spending-alerts/causal-inputs.ts": "dfb1aa266cfed9bb6400171bfba30f046cd09ef94346c18560124566a7364561",
+		"examples/spending-alerts/causal-preset.ts": "d4388d6a9bd8ed94e89716cb908e3e335ee3081203d25791868e88e8e40a501b",
+		"scripts/fixtures/spending-preset-harness.ts": "9c3ba7b674bd56847631a4c07160c1123cc39fa300ef540c2f3aa82880259e22",
+		"packages/ts/package.json": "0ca16a1fcc9602d6f8fa28725f35acf3d7a8be40adeb767fdb89312c6519575d",
+		"docs/design/causal-creation-entry-review/README.md": "3a959256f2c9dedf959f824e50e570344770c1b3cdd12156887b9ceeb4a9af73"
+	},
+	"proposedEntry": "@graphrefly/ts/solutions/spending-alerts",
+	"entryImplemented": false,
+	"outstanding": [
+		"focused host identity and supported source lowering",
+		"application end responsibility with outstanding obligations",
+		"final export/signature approval",
+		"real integration and user creation acceptance",
+		"incremental performance and formal qualification"
+	],
+	"runtimeChanges": false,
+	"newExecutionAuthorization": false,
+	"testsRerun": false
+}
