@@ -1,0 +1,103 @@
+{
+	"kind": "scope-revision-and-public-entry-diagnostic",
+	"baseline": "493e61be5eb9ddd02d7b35a0c8686183556ee7b4",
+	"authority": "TS owner evidence only; D160/D161/D162/D170 and B121 unchanged",
+	"approval": "User approved scope revision, reuse audit and minimal packaging reproduction; no implementation/publicAPI/fullbuildmigration",
+	"findings": {
+		"publicSpendingPromotion": "withdrawn",
+		"newExpectedIdentityChecker": "not needed by observed consumer",
+		"sixthViewPort": "not added",
+		"secondIndependentCapabilityConsumer": "not found in inspected repository",
+		"confirmedDefect": "CJS public cross-entry batch emits intermediate12 then30 instead of only30",
+		"notProven": "Private causal issued/graphRegistrations failures; all CJS behavior; fullbuildmigration necessity"
+	},
+	"checks": {
+		"freshBuild": 0,
+		"existingExportSmoke": 0,
+		"finalFormattedReproducerExit": 0,
+		"probeExitMeaning": "Diagnostic completed, CJS cross-entry conformity remains false",
+		"artifactHashes": 206,
+		"sourceOrRuntimeChanges": false,
+		"newFullUnitSuite": false,
+		"performanceMeasurements": 0,
+		"providerOrRealInboxCalls": 0
+	},
+	"review": {
+		"reuseAudit": "independent host_acceptance source review",
+		"probe": "root executed fresh artifact reproduction",
+		"independentReview": "host_acceptance confirmed valid publicAPI case, bounded conclusion, successful build/export logs; no concrete issue"
+	},
+	"attemptHistory": [
+		"Exploratory direct dist imports found CJS mismatch",
+		"Fresh rebuilt installed-layout probe reproduced bothformats",
+		"Formatting-only cleanup; finalscript rerun confirmed same results; no result selection"
+	],
+	"sources": [
+		{
+			"path": "packages/ts/tsup.config.ts",
+			"sha256": "08cad447d58c9765609148988617e9e111281f18f2855de7a3c355973ac27d5a"
+		},
+		{
+			"path": "packages/ts/package.json",
+			"sha256": "0ca16a1fcc9602d6f8fa28725f35acf3d7a8be40adeb767fdb89312c6519575d"
+		},
+		{
+			"path": "packages/ts/src/batch/batch.ts",
+			"sha256": "a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890"
+		},
+		{
+			"path": "packages/ts/src/batch/boundary.ts",
+			"sha256": "d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3"
+		},
+		{
+			"path": "packages/ts/src/graph/graph.ts",
+			"sha256": "54b3644e0de855533f9ac91621b9e4eceb0368d11a953fe0d793dfd22e8b72fe"
+		},
+		{
+			"path": "packages/ts/src/graph/graph-lifecycle.ts",
+			"sha256": "23abc2773517b95265ce11e8144ba026b9ef4cac60af69351960fda00e12ac9d"
+		},
+		{
+			"path": "packages/ts/src/solutions/causal-occurrence/capabilities.ts",
+			"sha256": "606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7"
+		},
+		{
+			"path": "packages/ts/src/solutions/causal-occurrence/lifecycle.ts",
+			"sha256": "bc8f3c7b353d9a2cfbbb0d39bd8fd88a0b356184bbd448c2252f80503dc6089a"
+		},
+		{
+			"path": "packages/ts/src/adapters/store.ts",
+			"sha256": "545d4bb69ab9f0a6f8f10011a96120f686911e3972c3ebd1c3a61973aea54d28"
+		},
+		{
+			"path": "examples/spending-alerts/causal-view-binding.ts",
+			"sha256": "3a8722abf4ed783b8caa794ccb16a1d4fdfdbe26d999160805da746a62427409"
+		},
+		{
+			"path": "examples/spending-alerts/causal-focused-host.ts",
+			"sha256": "771fe0c1d409debb836bb446dbf1109464497b80225f4fc49e5a56d106feb022"
+		}
+	],
+	"files": [
+		{
+			"path": "README.md",
+			"sha256": "56df09b056df6c972b07e274b542e0679542a2f30917bcd0e97b6060324dbd09"
+		},
+		{
+			"path": "build.log",
+			"sha256": "9d561122f041d1d9145148f7c2753031e1b7a112d148d5a9b10052b80dce8aab"
+		},
+		{
+			"path": "export-smoke.log",
+			"sha256": "bcba2d9d028f43b3854ffa5d77566e0691833a73341010c48c5369efbcfcbde7"
+		},
+		{
+			"path": "reproduce.mjs",
+			"sha256": "e61cd2d03ca2a1dde226b96e486c2218331d67a7f328f7b9ac770b52c92c341a"
+		},
+		{
+			"path": "result.json",
+			"sha256": "2c92fa000705e478ce1a1fd5e026acd8d6e529f92456486726da9263118dd7e5"
+		}
+	]
+}

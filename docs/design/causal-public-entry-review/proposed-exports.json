@@ -1,5 +1,5 @@
 {
-	"status": "proposed-not-implemented",
+	"status": "withdrawn-not-approved-not-implemented",
 	"entries": {
 		"@graphrefly/ts/solutions/spending-alerts": {
 			"values": ["observeSpendingView", "assertSameCausalCapability"],
@@ -50,5 +50,6 @@
 		"transitionCausalAuthority",
 		"generic arbitrary effect runner"
 	],
-	"lifecycleMeaning": "graphEndEligible references original runEndReady; not host drained, not actual end"
+	"lifecycleMeaning": "graphEndEligible references original runEndReady; not host drained, not actual end",
+	"replacement": "../causal-scope-revision/README.md"
 }

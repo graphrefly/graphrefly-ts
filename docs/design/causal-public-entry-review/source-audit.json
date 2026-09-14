@@ -1,7 +1,7 @@
 {
 	"kind": "public-entry-design-source-audit",
 	"baseline": "26dc7350c5c87c793b7d3d07c89088588b089003",
-	"decisionStatus": "proposal; not admitted",
+	"decisionStatus": "withdrawn proposal; original audit retained as history",
 	"implementationStarted": false,
 	"owner": "graphrefly-ts",
 	"governingRefs": [
@@ -82,5 +82,6 @@
 		],
 		"resolution": "Canonical per-format modules and actual package cross-entry tests; required inaccessible declaration-only brand. Reviewed with no remaining critical contradiction.",
 		"qualification": "Design only; no implementation or package performance result"
-	}
+	},
+	"replacement": "../causal-scope-revision/README.md"
 }
