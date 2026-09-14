@@ -33,7 +33,7 @@ const one = (s, a, b) => {
 	assert.equal(s.split(a).length, 2, a);
 	return s.replace(a, b);
 };
-const variants = [
+let variants = [
 	{
 		id: "occurrence-id-only",
 		file: admission,
@@ -186,6 +186,19 @@ const variants = [
 			),
 	},
 ];
+variants.push({
+	id: "policy-grant-identity-bypass",
+	file: admission,
+	kind: "policy-exact-grant",
+	pattern: "policy comparison keeps exact grants",
+	change: (s) => one(s, "sameInInvocation(g.occurrence, e.occurrence)", "true"),
+});
+const only = process.argv.indexOf("--only");
+if (only >= 0) {
+	const ids = process.argv[only + 1]?.split(",");
+	assert.ok(ids?.length && ids.every((id) => variants.some((v) => v.id === id)));
+	variants = variants.filter((v) => ids.includes(v.id));
+}
 const temp = mkdtempSync(join(tmpdir(), "preset-mutations-"));
 const originals = new Map(
 	variants.map((v) => [v.file, readFileSync(resolve(root, v.file), "utf8")]),

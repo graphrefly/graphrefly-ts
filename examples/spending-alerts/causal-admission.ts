@@ -39,7 +39,7 @@ import {
 	type VerificationReceipt,
 } from "./causal-inputs.js";
 import type { MaterialResult, StoredFrame } from "./causal-material-owner.js";
-import { proposalForMaterial } from "./causal-publication.js";
+import { canonicalMaterial, proposalForMaterial } from "./causal-publication.js";
 import type { Flagged } from "./pipeline.js";
 
 interface RowsState {
@@ -154,6 +154,19 @@ export function buildAdmission(
 			}
 			// The current immutable verification frame is unchanged throughout this invocation.
 			let receiptConflict: boolean | undefined;
+			// Checked inputs are parsed passive JSON and deeply frozen; binding is a
+			// private snapshot. Reuse full canonical text only during this callback.
+			let comparisonTexts: Map<unknown, string> | undefined;
+			const comparisonKey = (value: unknown): string => {
+				const prior = comparisonTexts?.get(value);
+				if (prior !== undefined) return prior;
+				const text = canonicalMaterial(value);
+				comparisonTexts ??= new Map();
+				comparisonTexts.set(value, text);
+				return text;
+			};
+			const sameInInvocation = (left: unknown, right: unknown): boolean =>
+				comparisonKey(left) === comparisonKey(right);
 			for (const [k, r] of s.maps[0]) {
 				const e = r.evaluation,
 					gate = s.maps[1].get(k)?.value as Flagged | undefined,
@@ -178,7 +191,7 @@ export function buildAdmission(
 						}
 						const candidates = verification.receipts.filter(
 							(v) =>
-								same(v.occurrence, e.occurrence) &&
+								sameInInvocation(v.occurrence, e.occurrence) &&
 								v.inputDigest === e.inputDigest &&
 								v.policyDigest === e.policyDigest &&
 								v.sourceDigest === binding.sourceDigest &&
@@ -227,10 +240,10 @@ export function buildAdmission(
 								problems.push(issue("policy-input-pending", e.evaluationRef));
 								continue;
 							}
-							const c = current.current.find((f) => same(f.occurrence, e.occurrence));
+							const c = current.current.find((f) => sameInInvocation(f.occurrence, e.occurrence));
 							if (
 								!c ||
-								!same(c.policyRef, e.policyRef) ||
+								!sameInInvocation(c.policyRef, e.policyRef) ||
 								c.policyDigest !== e.policyDigest ||
 								c.watermark < e.occurrence.revision
 							) {
@@ -239,9 +252,9 @@ export function buildAdmission(
 							}
 							const grants = local.grants.filter(
 								(g) =>
-									same(g.occurrence, e.occurrence) &&
+									sameInInvocation(g.occurrence, e.occurrence) &&
 									g.requestDigest === requestDigest &&
-									same(g.destinationRef, binding.destinationRef) &&
+									sameInInvocation(g.destinationRef, binding.destinationRef) &&
 									g.hostEpoch === binding.hostEpoch &&
 									g.replayScope.hostEpoch === binding.hostEpoch &&
 									g.replayScope.compositionEpoch === binding.compositionEpoch,

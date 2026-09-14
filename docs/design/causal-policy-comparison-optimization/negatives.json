@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "reindexedCorruptionsRejected": [
+    "extra-arm",
+    "hidden-failure",
+    "negative-sample",
+    "false-state-check"
+  ]
+}

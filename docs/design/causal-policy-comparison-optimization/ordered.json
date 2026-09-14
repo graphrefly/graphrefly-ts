@@ -1,0 +1,69 @@
+{
+  "verified": true,
+  "scope": "Nine paired workflows, complete policy frame order and authority state after each step; no general alias proof",
+  "results": [
+    {
+      "profile": "P1",
+      "recipe": "initial",
+      "steps": 7,
+      "policyFrames": 6,
+      "orderedPolicyAndAuthorityParity": true
+    },
+    {
+      "profile": "P1",
+      "recipe": "delayed-verification",
+      "steps": 7,
+      "policyFrames": 5,
+      "orderedPolicyAndAuthorityParity": true
+    },
+    {
+      "profile": "P1",
+      "recipe": "wrong-then-replaced-grants",
+      "steps": 8,
+      "policyFrames": 6,
+      "orderedPolicyAndAuthorityParity": true
+    },
+    {
+      "profile": "P3",
+      "recipe": "initial",
+      "steps": 7,
+      "policyFrames": 6,
+      "orderedPolicyAndAuthorityParity": true
+    },
+    {
+      "profile": "P3",
+      "recipe": "delayed-verification",
+      "steps": 7,
+      "policyFrames": 6,
+      "orderedPolicyAndAuthorityParity": true
+    },
+    {
+      "profile": "P3",
+      "recipe": "wrong-then-replaced-grants",
+      "steps": 8,
+      "policyFrames": 7,
+      "orderedPolicyAndAuthorityParity": true
+    },
+    {
+      "profile": "P6",
+      "recipe": "initial",
+      "steps": 8,
+      "policyFrames": 7,
+      "orderedPolicyAndAuthorityParity": true
+    },
+    {
+      "profile": "P6",
+      "recipe": "delayed-verification",
+      "steps": 8,
+      "policyFrames": 7,
+      "orderedPolicyAndAuthorityParity": true
+    },
+    {
+      "profile": "P6",
+      "recipe": "wrong-then-replaced-grants",
+      "steps": 9,
+      "policyFrames": 9,
+      "orderedPolicyAndAuthorityParity": true
+    }
+  ]
+}

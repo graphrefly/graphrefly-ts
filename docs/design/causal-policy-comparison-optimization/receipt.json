@@ -1,0 +1,22 @@
+{
+  "verified": true,
+  "archiveSha256": "8376c7df608ea37c03df27a0785eab75256219e4d69bf0bd0dc67539ba2aa11f",
+  "archiveBytes": 1455321,
+  "freshExtractionMatched": [
+    "timing.json",
+    "negatives.json",
+    "ordered.json"
+  ],
+  "formalQualified": false,
+  "fullTests": {
+    "passed": 2563,
+    "failedExistingD159": 2,
+    "skipped": 4
+  },
+  "finalTargetedPassed": 102,
+  "consumerLoadedMutantsDetected": 18,
+  "exampleAndTestTypesPassed": true,
+  "scopedLintPassed": true,
+  "fullRootLintPassed": false,
+  "remainingWorkComplete": false
+}

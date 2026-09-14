@@ -837,3 +837,53 @@ it("D165 receipt association preserves complete occurrence identity and ordered 
 		for (let i = 0; i < actual.length; i += 2) expect(actual.slice(i, i + 2)).toEqual(expected);
 	}
 });
+
+it("D160 policy comparison keeps exact grants and ordered recovery across frames", () => {
+	const r = run();
+	const a = evaluationFixture(0, "coffee");
+	const b = evaluationFixture(0, "tea");
+	const fa = policyFacts(a),
+		fb = policyFacts(b);
+	const seen: any[] = [];
+	extraStops.push(
+		r.built.admission.publicationPolicy.subscribe((m) => {
+			if (m[0] === "DATA") seen.push(...(m[1] as any).rows);
+		}),
+	);
+	const local = structuredClone({
+		...fa.local,
+		grants: [...fa.local.grants, ...fb.local.grants].map((g) => ({
+			...g,
+			occurrence: { ...g.occurrence, sourceRefs: [...g.occurrence.sourceRefs] },
+		})),
+	});
+	local.grants[1].occurrence.sourceRefs = [{ kind: "wrong", id: "same-id-is-insufficient" }];
+	r.send("pack", evaluationPack([a, b]));
+	r.send("current", { ...fa.current, current: [...fa.current.current, ...fb.current.current] });
+	r.send("verification", {
+		...fa.verification,
+		receipts: [...fa.verification.receipts, ...fb.verification.receipts],
+	});
+	r.send("local", local);
+	r.send("inbox", fa.inbox);
+	const arrival = {
+		packRef: presetBinding.packRef,
+		evaluationRefs: [a.evaluationRef, b.evaluationRef],
+	};
+	r.send("arrivals", arrival);
+	expect(seen.map((x) => [x.evaluation.evaluationRef, x.value.admission?.state])).toEqual([
+		[a.evaluationRef, "admitted"],
+	]);
+	// Mutating the caller's original frame cannot alter its parsed retained snapshot.
+	local.grants[1].occurrence.sourceRefs = structuredClone([...b.occurrence.sourceRefs]);
+	r.send("arrivals", arrival);
+	expect(seen).toHaveLength(1);
+	// A replacement frame must be read afresh, with no cross-invocation memo.
+	r.send("local", local);
+	expect(seen.map((x) => [x.evaluation.evaluationRef, x.value.admission?.state])).toEqual([
+		[a.evaluationRef, "admitted"],
+		[b.evaluationRef, "admitted"],
+	]);
+	r.send("arrivals", arrival);
+	expect(seen).toHaveLength(2);
+});

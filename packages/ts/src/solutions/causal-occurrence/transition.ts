@@ -357,7 +357,7 @@ export function transitionCausalAuthority<T>(
 				current.state === "unverifiable" && current.gapRef !== undefined
 					? {
 							...current,
-							gapRef: { ...current.gapRef, evidenceRef: { ...current.gapRef.evidenceRef } },
+							gapRef: { ...current.gapRef, evidenceRef: { ...current.gapRef.evidenceRef! } },
 						}
 					: { ...current },
 			);
