@@ -1,9 +1,9 @@
 {
-  "verified": true,
-  "base": "0c4cbdf69f60108be622f174d0b74c111fc09a47",
-  "workerSha256": "198bcf776469d12edf5f167be9ecdad4b31be358a54cf249d8112045efd0ce96",
-  "esbuild": "0.28.0",
-  "adapterSha256": "c79419327a8a42881f7206ffc405d6db8b6341a0c5322b88be2788732cbb318f",
-  "sourceFiles": 60,
-  "scope": "Exact workspace rebuild equals captured worker; every bundled source and adapter checked against base git revision. Requires this repository and installed build dependencies."
+	"verified": true,
+	"base": "0c4cbdf69f60108be622f174d0b74c111fc09a47",
+	"workerSha256": "198bcf776469d12edf5f167be9ecdad4b31be358a54cf249d8112045efd0ce96",
+	"esbuild": "0.28.0",
+	"adapterSha256": "c79419327a8a42881f7206ffc405d6db8b6341a0c5322b88be2788732cbb318f",
+	"sourceFiles": 60,
+	"scope": "Exact workspace rebuild equals captured worker; every bundled source and adapter checked against base git revision. Requires this repository and installed build dependencies."
 }

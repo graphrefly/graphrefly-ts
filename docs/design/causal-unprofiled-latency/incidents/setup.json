@@ -1,19 +1,19 @@
 {
-  "sharedCheckoutChangedDuringPreparation": true,
-  "observedSharedHead": "1bf11e6c on main",
-  "isolatedMeasurementBase": "20ba5883",
-  "samplesBeforeIsolation": 0,
-  "dependencySetup": "pnpm auto-install aborted before execution; existing pinned dependencies used by direct Node/esbuild; no modules removal authorized",
-  "cleanup": [
-    {
-      "file": "/Users/davidchenallio/src/graphrefly-ts/scripts/prepare-causal-latency-baseline.mjs",
-      "sha256": "99dd3d44c083be378491b12cec489df0cd731da119e34ae0ffd18416b13a420e",
-      "removedOwnUntrackedPreparationFile": true
-    },
-    {
-      "file": "/Users/davidchenallio/src/graphrefly-ts/scripts/run-causal-latency-baseline.py",
-      "sha256": "83fa65e590dd05cef681ce0bd13c2ec46276a83a4278dc0902a1fce7c0147077",
-      "removedOwnUntrackedPreparationFile": true
-    }
-  ]
+	"sharedCheckoutChangedDuringPreparation": true,
+	"observedSharedHead": "1bf11e6c on main",
+	"isolatedMeasurementBase": "20ba5883",
+	"samplesBeforeIsolation": 0,
+	"dependencySetup": "pnpm auto-install aborted before execution; existing pinned dependencies used by direct Node/esbuild; no modules removal authorized",
+	"cleanup": [
+		{
+			"file": "/Users/davidchenallio/src/graphrefly-ts/scripts/prepare-causal-latency-baseline.mjs",
+			"sha256": "99dd3d44c083be378491b12cec489df0cd731da119e34ae0ffd18416b13a420e",
+			"removedOwnUntrackedPreparationFile": true
+		},
+		{
+			"file": "/Users/davidchenallio/src/graphrefly-ts/scripts/run-causal-latency-baseline.py",
+			"sha256": "83fa65e590dd05cef681ce0bd13c2ec46276a83a4278dc0902a1fce7c0147077",
+			"removedOwnUntrackedPreparationFile": true
+		}
+	]
 }

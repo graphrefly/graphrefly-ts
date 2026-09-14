@@ -1,15 +1,15 @@
 {
-  "owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
-  "before": "351a7ace",
-  "after": "056e1fda",
-  "productChangedThisTurn": false,
-  "processes": 24,
-  "measuredSamples": 144,
-  "independentRecalculation": true,
-  "archiveReplay": true,
-  "reindexedNegatives": 7,
-  "formalQualified": false,
-  "workComplete": false,
-  "authorityLedgerChanged": false,
-  "evidence": "../../../archive/evals/causal-receipt-holdout-evidence-v1/index.json"
+	"owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"before": "351a7ace",
+	"after": "056e1fda",
+	"productChangedThisTurn": false,
+	"processes": 24,
+	"measuredSamples": 144,
+	"independentRecalculation": true,
+	"archiveReplay": true,
+	"reindexedNegatives": 7,
+	"formalQualified": false,
+	"workComplete": false,
+	"authorityLedgerChanged": false,
+	"evidence": "../../../archive/evals/causal-receipt-holdout-evidence-v1/index.json"
 }

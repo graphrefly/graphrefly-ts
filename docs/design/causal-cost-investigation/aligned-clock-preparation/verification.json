@@ -1,27 +1,27 @@
 {
-  "syntheticTests": 5,
-  "malformedCases": 12,
-  "exactRoundingResidues": 3000,
-  "offlineReplay": {
-    "replay": true,
-    "frozenFiles": 19,
-    "consumerExecutions": 0,
-    "cpuProbes": 1,
-    "gcProbes": 0,
-    "notRun": 3,
-    "widthMs": 0.9036692976951599,
-    "thresholdMs": 0.1
-  },
-  "freshArchiveFallbackReplay": true,
-  "preservedDirtyFiles": 22,
-  "checks": {
-    "biome": "pass",
-    "diffWhitespace": "Tracked diff passed before staging; staged check reports one extra blank EOF line in frozen synthetic test. Retained to preserve pre-run source hash; no executable impact.",
-    "dashboard": "pass with existing warnings",
-    "workspaceAuthority": "pass with existing legacy warning"
-  },
-  "productionChanged": false,
-  "fullTsSuiteRerun": false,
-  "reason": "Private preparation scripts and evidence only; no library change",
-  "newExports": 0
+	"syntheticTests": 5,
+	"malformedCases": 12,
+	"exactRoundingResidues": 3000,
+	"offlineReplay": {
+		"replay": true,
+		"frozenFiles": 19,
+		"consumerExecutions": 0,
+		"cpuProbes": 1,
+		"gcProbes": 0,
+		"notRun": 3,
+		"widthMs": 0.9036692976951599,
+		"thresholdMs": 0.1
+	},
+	"freshArchiveFallbackReplay": true,
+	"preservedDirtyFiles": 22,
+	"checks": {
+		"biome": "pass",
+		"diffWhitespace": "Tracked diff passed before staging; staged check reports one extra blank EOF line in frozen synthetic test. Retained to preserve pre-run source hash; no executable impact.",
+		"dashboard": "pass with existing warnings",
+		"workspaceAuthority": "pass with existing legacy warning"
+	},
+	"productionChanged": false,
+	"fullTsSuiteRerun": false,
+	"reason": "Private preparation scripts and evidence only; no library change",
+	"newExports": 0
 }

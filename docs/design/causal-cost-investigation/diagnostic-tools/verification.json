@@ -1,33 +1,33 @@
 {
-  "ownerWork": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
-  "baseCommit": "3d0f4a6e",
-  "checks": {
-    "focusedBiomeExit": 0,
-    "dashboardExit": 0,
-    "workspaceAuthorityExit": 0,
-    "diffCheckExit": 0,
-    "preExistingDirtyFilesPreserved": true,
-    "preparedToolsMatchCurrentSources": true,
-    "portableSyntheticReplay": true
-  },
-  "newConsumerPerformanceSamples": 0,
-  "wholeWorkComplete": false,
-  "captureAuthorized": false,
-  "knownWarnings": [
-    "Existing root D792 orphan / workspace-optional dashboard refs",
-    "Existing canvas legacy-coordinate warning"
-  ],
-  "artifacts": {
-    "docs/design/causal-cost-investigation/diagnostic-tools/README.md": "sha256:d6ab3acb6dec96f3de835402aa036fc6499c07dc82052ae5799450a54f8069d9",
-    "docs/design/causal-cost-investigation/diagnostic-tools/adapterQualification-r2.json": "sha256:cdc41733991b499f31a71901431dc59312e8c908515c4d0c4068fb21de9b4e5b",
-    "docs/design/causal-cost-investigation/diagnostic-tools/adapterQualification.json": "sha256:54b98eecf41af2c740be4a302a00a6cfc6080466ff95bac9f17a22b6bf3ebefe",
-    "docs/design/causal-cost-investigation/diagnostic-tools/archive-replay.json": "sha256:393bad792652f6ec26e367d3afca885007384a6798b08a31338f56680450c9d6",
-    "docs/design/causal-cost-investigation/diagnostic-tools/final-adapter-plan.json": "sha256:f31810b504f18583a72807e42ae38b66f5020e8fe682cf7c0de5d7dc7098085d",
-    "docs/design/causal-cost-investigation/diagnostic-tools/final-adapter-result.json": "sha256:83a78b8d6171e7e8ab40aaa67b8f4148447b3d614f7eace3c29c71ec39c18d3e",
-    "docs/design/causal-cost-investigation/diagnostic-tools/qualification-logs.json": "sha256:ae8cc268e0e0ee80667a8b706e74187d57fbf809061c1d51b4d7a005e104570b",
-    "docs/design/causal-cost-investigation/diagnostic-tools/qualification-plan.json": "sha256:cf57053604adffc6a7fcf79715b222471a0a274d1209d10f0ca0c755885452f3",
-    "docs/design/causal-cost-investigation/diagnostic-tools/qualification.json": "sha256:983df85467aa664d5adcba971563100eb43044d1d72ec4b2cfd1af02aa1f99fc",
-    "docs/design/causal-cost-investigation/diagnostic-tools/review.md": "sha256:a22a584e2e6f5b6532a35d9784ca317a4d2f76b3b6e9bf821c0a194cb1ae0d0a",
-    "docs/design/causal-cost-investigation/diagnostic-tools/toolProbe.json": "sha256:016113a94b4ab608293168e5c832008298c73a67abffd27a1aeb4c6b5e46d688"
-  }
+	"ownerWork": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"baseCommit": "3d0f4a6e",
+	"checks": {
+		"focusedBiomeExit": 0,
+		"dashboardExit": 0,
+		"workspaceAuthorityExit": 0,
+		"diffCheckExit": 0,
+		"preExistingDirtyFilesPreserved": true,
+		"preparedToolsMatchCurrentSources": true,
+		"portableSyntheticReplay": true
+	},
+	"newConsumerPerformanceSamples": 0,
+	"wholeWorkComplete": false,
+	"captureAuthorized": false,
+	"knownWarnings": [
+		"Existing root D792 orphan / workspace-optional dashboard refs",
+		"Existing canvas legacy-coordinate warning"
+	],
+	"artifacts": {
+		"docs/design/causal-cost-investigation/diagnostic-tools/README.md": "sha256:d6ab3acb6dec96f3de835402aa036fc6499c07dc82052ae5799450a54f8069d9",
+		"docs/design/causal-cost-investigation/diagnostic-tools/adapterQualification-r2.json": "sha256:cdc41733991b499f31a71901431dc59312e8c908515c4d0c4068fb21de9b4e5b",
+		"docs/design/causal-cost-investigation/diagnostic-tools/adapterQualification.json": "sha256:54b98eecf41af2c740be4a302a00a6cfc6080466ff95bac9f17a22b6bf3ebefe",
+		"docs/design/causal-cost-investigation/diagnostic-tools/archive-replay.json": "sha256:393bad792652f6ec26e367d3afca885007384a6798b08a31338f56680450c9d6",
+		"docs/design/causal-cost-investigation/diagnostic-tools/final-adapter-plan.json": "sha256:f31810b504f18583a72807e42ae38b66f5020e8fe682cf7c0de5d7dc7098085d",
+		"docs/design/causal-cost-investigation/diagnostic-tools/final-adapter-result.json": "sha256:83a78b8d6171e7e8ab40aaa67b8f4148447b3d614f7eace3c29c71ec39c18d3e",
+		"docs/design/causal-cost-investigation/diagnostic-tools/qualification-logs.json": "sha256:ae8cc268e0e0ee80667a8b706e74187d57fbf809061c1d51b4d7a005e104570b",
+		"docs/design/causal-cost-investigation/diagnostic-tools/qualification-plan.json": "sha256:cf57053604adffc6a7fcf79715b222471a0a274d1209d10f0ca0c755885452f3",
+		"docs/design/causal-cost-investigation/diagnostic-tools/qualification.json": "sha256:983df85467aa664d5adcba971563100eb43044d1d72ec4b2cfd1af02aa1f99fc",
+		"docs/design/causal-cost-investigation/diagnostic-tools/review.md": "sha256:a22a584e2e6f5b6532a35d9784ca317a4d2f76b3b6e9bf821c0a194cb1ae0d0a",
+		"docs/design/causal-cost-investigation/diagnostic-tools/toolProbe.json": "sha256:016113a94b4ab608293168e5c832008298c73a67abffd27a1aeb4c6b5e46d688"
+	}
 }

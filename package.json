@@ -43,7 +43,7 @@
 		"changeset": "changeset",
 		"version-packages": "changeset version && pnpm run build:local-untrusted-js-runner",
 		"release": "pnpm run build && changeset publish",
-		"lint": "biome check . && tsx scripts/check-no-raw-async.ts && tsx scripts/check-typecheck.ts && pnpm --filter @graphrefly/ts test:typecheck",
+		"lint": "python3 scripts/check-causal-lint-evidence.py && biome check . && tsx scripts/check-no-raw-async.ts && tsx scripts/check-typecheck.ts && pnpm --filter @graphrefly/ts test:typecheck",
 		"lint:no-raw-async": "tsx scripts/check-no-raw-async.ts",
 		"lint:typecheck": "tsx scripts/check-typecheck.ts",
 		"lint:fix": "biome check --write .",

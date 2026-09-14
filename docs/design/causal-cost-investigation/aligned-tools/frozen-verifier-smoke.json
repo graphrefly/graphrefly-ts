@@ -1,7 +1,7 @@
 {
-  "passed": true,
-  "syntheticWindows": 2400,
-  "certainSyntheticSamples": 2400,
-  "realConsumerExecutions": 0,
-  "bytecodeFilesCreated": 0
+	"passed": true,
+	"syntheticWindows": 2400,
+	"certainSyntheticSamples": 2400,
+	"realConsumerExecutions": 0,
+	"bytecodeFilesCreated": 0
 }

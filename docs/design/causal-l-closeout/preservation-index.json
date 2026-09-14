@@ -1,0 +1,1553 @@
+{
+	"baseline": "922a758655a4dd2d65662022de2974dd8655191a",
+	"archive": "archive/evals/causal-l-index-preservation-v1/evidence.tar.gz",
+	"archiveSha256": "b08c81fad1761cc2026e29ec4ff8bbca05445fca2847275ffe1cab96e22286af",
+	"files": [
+		{
+			"path": "docs/design/causal-cost-investigation/aligned-clock-preparation/apple-header.json",
+			"sha256": "343b8cf31a0346cac81f642fbcacc7976179a2bdbe289d14c5425e0ab329e1e8",
+			"references": [
+				"docs/design/causal-cost-investigation/aligned-clock-preparation/plan.json",
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/plan.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/aligned-clock-preparation/plan.json",
+			"sha256": "6bd21b270fc177c835034023fa8f01b4694d05866d5f48b35b34505f6c7f29ac",
+			"references": [
+				"docs/design/causal-cost-investigation/aligned-clock-preparation/evidence-index.json",
+				"docs/design/causal-cost-investigation/aligned-clock-preparation/plan.json.claim.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/aligned-clock-preparation/plan.json.claim.json",
+			"sha256": "88b48decdd916874fbeb896341ecc93649884bdce95bac7215da14db7188a118",
+			"references": [
+				"docs/design/causal-cost-investigation/aligned-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/aligned-clock-preparation/probes/00/analysis.json",
+			"sha256": "6412d392fe435e079c2b84eb0af6070abe43a10b0e841befb93798392c8b4cae",
+			"references": [
+				"docs/design/causal-cost-investigation/aligned-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/aligned-clock-preparation/probes/00/command.json",
+			"sha256": "238ec296b795ffd712a9f50ea8489e7aee9277ca7c5d8893c1dbf30924581f4b",
+			"references": [
+				"docs/design/causal-cost-investigation/aligned-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/aligned-clock-preparation/probes/00/exit.json",
+			"sha256": "a04851c88a0cefff9fce422df484d75609a58b388d311f62827ca35e7250ce93",
+			"references": [
+				"docs/design/causal-cost-investigation/aligned-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/aligned-clock-preparation/probes/00/native-clock.json",
+			"sha256": "4f1c601e716e1b57af4f1ef9b68bd8c88fda26e9efcc4b5ee3a9ed1c4206299f",
+			"references": [
+				"docs/design/causal-cost-investigation/aligned-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/aligned-clock-preparation/probes/00/probe.json",
+			"sha256": "57b630ec2aac4263c01f0a95148b15a107d68e62a863617550a23688d7133ae7",
+			"references": [
+				"docs/design/causal-cost-investigation/aligned-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/aligned-clock-preparation/probes/00/process.json",
+			"sha256": "b1230d9279e3196089e8627bbf08ff430702fb962ff309bac264f7e0b2534b6a",
+			"references": [
+				"docs/design/causal-cost-investigation/aligned-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/aligned-clock-preparation/probes/00/profile.json",
+			"sha256": "27fef3d9f05014b687b8d91ab3461858c9c17859d721934001dbd91f5d2aeb26",
+			"references": [
+				"docs/design/causal-cost-investigation/aligned-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/aligned-clock-preparation/probes/result.json",
+			"sha256": "2e70bff65cd3cab7f454a87039700e2c9a1622ac01eec0494710c7eacd567f35",
+			"references": [
+				"docs/design/causal-cost-investigation/aligned-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/aligned-clock-preparation/sources.json",
+			"sha256": "8272cecca29de803981b50804506f154da0552a094dcbc760e2f138aa3fdf31a",
+			"references": [
+				"docs/design/causal-cost-investigation/aligned-clock-preparation/plan.json",
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/plan.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json",
+			"sha256": "8ddb2d2f4766f85542cffea8fefbf440075260138520db63f813914810fda3ef",
+			"references": ["docs/design/causal-cost-investigation/aligned-tools/qualification.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/plan.json",
+			"sha256": "7514e3f096d2a64ab76cec0c98e7981702954dee49dcc832a920c9938e52dd59",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json",
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/plan.json.claim.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/plan.json.claim.json",
+			"sha256": "26b49d619922e01d2fc9eb30956b4144c5c8189c605db58699e26ec665046ee4",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/00/analysis.json",
+			"sha256": "25750ce6fa74f3e843b46f71ad9eae95d8d0380616092f1f977fb94c54e4a5ae",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/00/command.json",
+			"sha256": "b8f415d44642a545db6caa80074f2321414bd3c6b41189b70b0219e48c07e4ff",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/00/exit.json",
+			"sha256": "994717a0307dcddf670571111f7247653503d12af604f82a4dc0ed273a0de076",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/00/native-clock.json",
+			"sha256": "b14493f145872de471dac8795b03b7732ceb0176b4a0d8ed168476a5080704a3",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/00/probe.json",
+			"sha256": "3bf32eee89fbb38605e0de3812c3f8c9a15d8fa25ffc6021e6f4614e198634c4",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/00/process.json",
+			"sha256": "ff7caf9bb98de15436e64ee5e921184bd260e79633828a5b1d1a4667ea6b2f24",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/00/profile.json",
+			"sha256": "000d47c8e7ced98bad9ed80c324c18e56b720f13846bb961997c3a96eb87c591",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/01/analysis.json",
+			"sha256": "adc25a65b7d8e9a8cb443adb3ad107159a7a534d3ef10c6d5e0d0d085a583cb9",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/01/command.json",
+			"sha256": "6ac6484f75b1dbf60d10f6367abdbadd63b8907e63332ff83d0299fae56e605f",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/01/exit.json",
+			"sha256": "6f45466b4e453ea33d1f950d6df1d0f6c8c07a29adb245a66d2ac5280e2f02cb",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/01/native-clock.json",
+			"sha256": "a0af2f3b54635cfb2ef5191869a700a319ff30f59315bdfe0e56d5001fee9800",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/01/probe.json",
+			"sha256": "80d3e3832386f5e36db2c2a740029d742704d2c0560c433da6bf75dfc073f38d",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/01/process.json",
+			"sha256": "a2e03f099585c3c00c994727ef95d97eeee2f32b23377415816bbc7622bdd197",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/01/profile.json",
+			"sha256": "06eb15c56baf01ac8815aa6b57b207ddcf0780e343044235d26e31286f1b533d",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/02/analysis.json",
+			"sha256": "e9bea77fa1240ca4a021a58d15413221a6809b247c7ddb82167b5c6e3ab550f9",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/02/command.json",
+			"sha256": "5492d9dad2ffc4453214ed764a95baac51576d01612fb37cfd0431081a9d21c7",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/02/exit.json",
+			"sha256": "0dba1b4ae866a869e454944b78e189d42a32f19ffff582935081dfbc1c6fc643",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/02/native-clock.json",
+			"sha256": "4f9a559a55385fece296df1a81ff30a0957934d8c96331711c7b684f877b6de8",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/02/probe.json",
+			"sha256": "59d35d554470133338f1a948375a62a84b465e767570dbc97ede1de978ec10de",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/02/process.json",
+			"sha256": "fff6927ecc9cad049fa6bd91a2adfe0492dd90065323dde90a6c6ea57b412ff7",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/02/profile.json",
+			"sha256": "4ec0457c38473fe8b06f81cf6c6fa6a462d0cbc86feb2c9a5a7ae258a6c65639",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/03/analysis.json",
+			"sha256": "d6d8edabdfa20e46aecc239cc26376072c75b41462fae0ed86a6e008affc2db7",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/03/command.json",
+			"sha256": "70006958e605b9a6e0c47b5c6d0ba80f548c1a17dfd3a177c0360a2d777b0dc4",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/03/exit.json",
+			"sha256": "cf271ccdc77b1056ba416e041b6692189e1e3f6f14200a7e6ca579ec3818afa3",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/03/native-clock.json",
+			"sha256": "b7cd72aee64ea3e344f46831370efdb1be2d60579d8fe73a2e5a9305bb46e0ef",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/03/probe.json",
+			"sha256": "ea91eeb7b045952d285d37c894e779f60287d6e12c45a4de703251dd8ab6df60",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/03/process.json",
+			"sha256": "88e0ea0c765909c8dd6bdee434e53111dad63046eb3d0b2a29d14db4a63a72ec",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/result.json",
+			"sha256": "aaa4fcbc89e3f7fa5a9a64a9906e8cd0e27c9905e17697b311f2b3509fb0f929",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/anchor-clock-preparation/probes/timebase.json",
+			"sha256": "58d956a67ea1550578ab58512061596f76e4771333ed53dbcbd5e300afbcbb2e",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/evidence-index.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/caller-attribution.json",
+			"sha256": "d552379590b3bb3dd29bd9a000aa43504289848864f930cf351b7e59aa57222e",
+			"references": ["docs/design/causal-cost-investigation/baseline-receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/candidate-review/partition.json",
+			"sha256": "78b08ff59390f69157f139e99d9a8fe95d0d54b30f4fe30304181b42e0db1d45",
+			"references": ["docs/design/causal-cost-investigation/candidate-review/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/candidate-review/preservation.json",
+			"sha256": "78dcd1afdb9dc86033d071d94573dba11ff25ec30e3e70db01a7d5ae5d2c03aa",
+			"references": ["docs/design/causal-cost-investigation/candidate-review/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/clock-anchor-design/arithmetic.json",
+			"sha256": "b94d1094aaca8dadd1ceec5248b110a4e51283d8dd14598d5ce0d03af915e9ea",
+			"references": ["docs/design/causal-cost-investigation/anchor-clock-preparation/plan.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/clock-anchor-design/per_thread.js",
+			"sha256": "f3bca509ca9ae6be403fcbc0133c45760c6cc76f21f890c8f494f2934efc9e7b",
+			"references": [
+				"docs/design/causal-cost-investigation/anchor-clock-preparation/plan.json",
+				"docs/design/causal-cost-investigation/clock-anchor-design/sources.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/clock-anchor-design/sources.json",
+			"sha256": "632fb99badd630f8c5d23f98d7a31bf523ca62400726b648a0c0a897ea73d7e7",
+			"references": ["docs/design/causal-cost-investigation/anchor-clock-preparation/plan.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/comparison-proof/corrected-counts.json",
+			"sha256": "d2b8390a924a5f12d42d25dde19713019fa81c364fa8d565b44adda17cd994f5",
+			"references": ["docs/design/causal-cost-investigation/comparison-proof/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/comparison-proof/count.mjs",
+			"sha256": "470219c7dd17abc6532ed65a761170c142acfa2efd31b890596ed155f0cc3c64",
+			"references": ["docs/design/causal-cost-investigation/comparison-proof/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/comparison-proof/exit.json",
+			"sha256": "faeba648336d843d9f7ba896833a4641c2d8133f2b4f3e21db15ac4676f6a12c",
+			"references": ["docs/design/causal-cost-investigation/comparison-proof/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/comparison-proof/instrumentation.json",
+			"sha256": "89aebbdf24b3854710c100c21187146753ecbb3a2802874961d1bd07b78b3587",
+			"references": ["docs/design/causal-cost-investigation/comparison-proof/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/comparison-proof/preservation.json",
+			"sha256": "6f164f3efb1fe5c82171a554228eff1e1049d367e766f8b2272aa5d39a0ae6c4",
+			"references": ["docs/design/causal-cost-investigation/comparison-proof/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/comparison-proof/remaining-exit.json",
+			"sha256": "c067412243d709ee30e834798814adce559ed3f643b596bf7a167d4c9eb9d4e5",
+			"references": ["docs/design/causal-cost-investigation/comparison-proof/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/comparison-proof/remaining-result.json",
+			"sha256": "d67d16a852a3e394fba286ffe853b578ac0239aab7f47b5d48b0a9caa875edc9",
+			"references": ["docs/design/causal-cost-investigation/comparison-proof/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/comparison-proof/remaining.mjs",
+			"sha256": "f1b5972b10d895b1e8d21abcfd0b89529ce128a090878bf67aefa077a5def06d",
+			"references": ["docs/design/causal-cost-investigation/comparison-proof/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/comparison-proof/verification.json",
+			"sha256": "640e6c8106132e714d414e3f4e8229ec189e442a15ae7db2f6d349f3c420ea02",
+			"references": ["docs/design/causal-cost-investigation/comparison-proof/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/dependency-comparison-tools/build.mjs",
+			"sha256": "01033c931d371f4cc6e0214671b60b95534810fda29258a4f6d2f845784d7d67",
+			"references": [],
+			"existingArchives": [
+				{
+					"archive": "archive/evals/causal-dependency-comparison-capture-v1/evidence.tar.gz",
+					"archiveSha256": "feffe94e59f9d1224e254b5255a7a2d74cfabc02c97ab0fdf8b2323e000fe5c8",
+					"member": "prepared/tools/build.mjs",
+					"sha256": "01033c931d371f4cc6e0214671b60b95534810fda29258a4f6d2f845784d7d67"
+				},
+				{
+					"archive": "archive/evals/causal-dependency-comparison-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "3a9e3050c4a0f0e8542c5c8f869bd7ce6732b29cabf7f143228959b689e034e2",
+					"member": "build.mjs",
+					"sha256": "01033c931d371f4cc6e0214671b60b95534810fda29258a4f6d2f845784d7d67"
+				},
+				{
+					"archive": "archive/evals/causal-dependency-comparison-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "3a9e3050c4a0f0e8542c5c8f869bd7ce6732b29cabf7f143228959b689e034e2",
+					"member": "prepared/tools/build.mjs",
+					"sha256": "01033c931d371f4cc6e0214671b60b95534810fda29258a4f6d2f845784d7d67"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-capture-v1/evidence.tar.gz",
+					"archiveSha256": "5c02f57d56e2e57f34599ecd9ca808fbc9858c08ca35a2423797d0424aa9c542",
+					"member": "prepared/tools/build.mjs",
+					"sha256": "01033c931d371f4cc6e0214671b60b95534810fda29258a4f6d2f845784d7d67"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "cd115e9b340dc757d977a5fc4bd377df4d44c6fb9275c818bb72f650c7f5f52b",
+					"member": "prepared/tools/build.mjs",
+					"sha256": "01033c931d371f4cc6e0214671b60b95534810fda29258a4f6d2f845784d7d67"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-capture-v1/evidence.tar.gz",
+					"archiveSha256": "5e30f95f34461eb8dcefad46d8f59cf9009923b110a26e3c6e40185dd11ad631",
+					"member": "prepared/tools/build.mjs",
+					"sha256": "01033c931d371f4cc6e0214671b60b95534810fda29258a4f6d2f845784d7d67"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "642aa9d15d829a60df75ad9eb9d4c5d1bc13031222eef3eea94bd08a9d22c9e4",
+					"member": "prepared/tools/build.mjs",
+					"sha256": "01033c931d371f4cc6e0214671b60b95534810fda29258a4f6d2f845784d7d67"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-capture-v1/evidence.tar.gz",
+					"archiveSha256": "ec75ea8538bc7c93e95c4ab9e1462ba93f7f74f320ee232b9796e36b1faf1194",
+					"member": "prepared/tools/build.mjs",
+					"sha256": "01033c931d371f4cc6e0214671b60b95534810fda29258a4f6d2f845784d7d67"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "f5d9c5911cdf7ec1c893c86480289e58512b63567c1be1ee9ef593d3e7fbbe69",
+					"member": "prepared/tools/build.mjs",
+					"sha256": "01033c931d371f4cc6e0214671b60b95534810fda29258a4f6d2f845784d7d67"
+				}
+			]
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/diagnostic-capture/analysis.json",
+			"sha256": "f879ebad66c66e3b8181da9faba0be12aff9a4d84aabf12dd01eecc7aba99c6d",
+			"references": [
+				"docs/design/causal-cost-investigation/diagnostic-capture/receipt.json",
+				"docs/design/causal-cost-investigation/diagnostic-capture/summary.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/diagnostic-capture/archive-replay.json",
+			"sha256": "926e620e48a97d56f8442c8b6f479fb62e195a9fdd251efeef0f0faf031c44a1",
+			"references": ["docs/design/causal-cost-investigation/diagnostic-capture/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/diagnostic-capture/command.json",
+			"sha256": "9f3f161a2955a2086b1a39829494f4e3f18f8a255a121018a383e6bdfd948b89",
+			"references": ["docs/design/causal-cost-investigation/diagnostic-capture/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/diagnostic-capture/receipt.json",
+			"sha256": "9bd500b9d6ee197f5f3d53f69bfc2c11fe945ea1aef29a7c702f6a8ba8b5a0e3",
+			"references": ["docs/design/causal-cost-investigation/diagnostic-capture/verification.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/diagnostic-capture/summary.json",
+			"sha256": "df9b2c11523e0df02224270d78a38146dfc5cc6088dd533fdbea33c5a655d829",
+			"references": ["docs/design/causal-cost-investigation/diagnostic-capture/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/diagnostic-tools/adapterQualification-r2.json",
+			"sha256": "cdc41733991b499f31a71901431dc59312e8c908515c4d0c4068fb21de9b4e5b",
+			"references": ["docs/design/causal-cost-investigation/diagnostic-tools/verification.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/diagnostic-tools/adapterQualification.json",
+			"sha256": "54b98eecf41af2c740be4a302a00a6cfc6080466ff95bac9f17a22b6bf3ebefe",
+			"references": ["docs/design/causal-cost-investigation/diagnostic-tools/verification.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/diagnostic-tools/archive-replay.json",
+			"sha256": "393bad792652f6ec26e367d3afca885007384a6798b08a31338f56680450c9d6",
+			"references": ["docs/design/causal-cost-investigation/diagnostic-tools/verification.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/diagnostic-tools/final-adapter-plan.json",
+			"sha256": "f31810b504f18583a72807e42ae38b66f5020e8fe682cf7c0de5d7dc7098085d",
+			"references": ["docs/design/causal-cost-investigation/diagnostic-tools/verification.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/diagnostic-tools/final-adapter-result.json",
+			"sha256": "83a78b8d6171e7e8ab40aaa67b8f4148447b3d614f7eace3c29c71ec39c18d3e",
+			"references": ["docs/design/causal-cost-investigation/diagnostic-tools/verification.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/diagnostic-tools/qualification-logs.json",
+			"sha256": "ae8cc268e0e0ee80667a8b706e74187d57fbf809061c1d51b4d7a005e104570b",
+			"references": ["docs/design/causal-cost-investigation/diagnostic-tools/verification.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/diagnostic-tools/qualification-plan.json",
+			"sha256": "cf57053604adffc6a7fcf79715b222471a0a274d1209d10f0ca0c755885452f3",
+			"references": ["docs/design/causal-cost-investigation/diagnostic-tools/verification.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/diagnostic-tools/toolProbe.json",
+			"sha256": "016113a94b4ab608293168e5c832008298c73a67abffd27a1aeb4c6b5e46d688",
+			"references": ["docs/design/causal-cost-investigation/diagnostic-tools/verification.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/followup-audit/phase-shares.json",
+			"sha256": "a364f79958fe63578e4184525c9334c582e62ebde7fbfd0adee64663a7d56c07",
+			"references": ["docs/design/causal-cost-investigation/followup-audit/verification.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/implementation-preparation/binding.json",
+			"sha256": "8e012a614e384f892e6a88c7fda96e8dffad84c77584ecf046ab8522753f404f",
+			"references": [
+				"docs/design/causal-cost-investigation/implementation-preparation/receipt.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/implementation-preparation/preservation.json",
+			"sha256": "d5a25f4390752f3af89793beb55c0bda2b1b469851cedc1a38a2c9beb8737ad4",
+			"references": [
+				"docs/design/causal-cost-investigation/implementation-preparation/receipt.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/implementation-preparation/probe.mjs",
+			"sha256": "9857aa6b1e2fa911a17b11d1bd85d5d016892c13052d44d24c1468c4e9ec7ac9",
+			"references": [
+				"docs/design/causal-cost-investigation/implementation-preparation/receipt.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/implementation-preparation/result.json",
+			"sha256": "6fe1bebe60394d96dad8509c19c9ca9fc4cb0e54efb2db8ae17322e5b3962b20",
+			"references": [
+				"docs/design/causal-cost-investigation/implementation-preparation/receipt.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/implementation-preparation/source-hashes.json",
+			"sha256": "50f5ed9d064d9adf3fa67a3cc27a6fee98a4ba4767209ae0906c3f6fa5d9f113",
+			"references": [
+				"docs/design/causal-cost-investigation/implementation-preparation/receipt.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/performance-comparison/build.mjs",
+			"sha256": "990eedadc2a2a24014e87a07c385249bd6a50e20457c3868273992a4ba809a2f",
+			"references": [],
+			"existingArchives": [
+				{
+					"archive": "archive/evals/causal-currentness-comparison-v1/evidence.tar.gz",
+					"archiveSha256": "a97922c0973d1b231fe4adfa818ae661ec2a6a6fabd558d6f1565f999561a703",
+					"member": "run/tools/build.mjs",
+					"sha256": "990eedadc2a2a24014e87a07c385249bd6a50e20457c3868273992a4ba809a2f"
+				},
+				{
+					"archive": "archive/evals/causal-currentness-comparison-v1/initial-stop.tar.gz",
+					"archiveSha256": "fca28ad4fe3a16721af8f0db9d3c4ac03e9ac7248e937836efef07a112d4c166",
+					"member": "run/tools/build.mjs",
+					"sha256": "990eedadc2a2a24014e87a07c385249bd6a50e20457c3868273992a4ba809a2f"
+				}
+			]
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/preservation.json",
+			"sha256": "7e5e261d7930ce52ab0eb2e85ad6748f1dae05d476bc2b509a3902c744fe88e1",
+			"references": ["docs/design/causal-cost-investigation/baseline-receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/recording-capture/analysis.json",
+			"sha256": "f24098373de94cb75339a216c4d26128fff3070eb78746426e16f7da857ecc29",
+			"references": ["docs/design/causal-cost-investigation/recording-capture/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/recording-capture/archive-replay.json",
+			"sha256": "1c7981328738bdf100c122e49c8414d5520145275f16f80dfde706381d2463e4",
+			"references": ["docs/design/causal-cost-investigation/recording-capture/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/recording-capture/command.json",
+			"sha256": "5dcf73c4fcd8f0c46c5b1915244a3138c332052ca1367c0264e331b5d8f51d94",
+			"references": ["docs/design/causal-cost-investigation/recording-capture/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/recording-capture/preservation-before.json",
+			"sha256": "b9ce237311618862ca809a3536ee97d2cc5accff53e08711bd5a52fe3521d1b2",
+			"references": ["docs/design/causal-cost-investigation/diagnostic-capture/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/recording-capture/summary.json",
+			"sha256": "06bf63eff7e92fd8d8207c2edc1749f04da6002c648a17c58998a0c133b961c4",
+			"references": ["docs/design/causal-cost-investigation/recording-capture/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/single-version-rss-tools/child.mjs",
+			"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472",
+			"references": [],
+			"existingArchives": [
+				{
+					"archive": "archive/evals/causal-single-version-capture-v1/evidence.tar.gz",
+					"archiveSha256": "5c02f57d56e2e57f34599ecd9ca808fbc9858c08ca35a2423797d0424aa9c542",
+					"member": "prepared/tools/child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "cd115e9b340dc757d977a5fc4bd377df4d44c6fb9275c818bb72f650c7f5f52b",
+					"member": "child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "cd115e9b340dc757d977a5fc4bd377df4d44c6fb9275c818bb72f650c7f5f52b",
+					"member": "prepared/tools/child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-capture-v1/evidence.tar.gz",
+					"archiveSha256": "5e30f95f34461eb8dcefad46d8f59cf9009923b110a26e3c6e40185dd11ad631",
+					"member": "prepared/tools/child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "642aa9d15d829a60df75ad9eb9d4c5d1bc13031222eef3eea94bd08a9d22c9e4",
+					"member": "child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "642aa9d15d829a60df75ad9eb9d4c5d1bc13031222eef3eea94bd08a9d22c9e4",
+					"member": "prepared/tools/child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-capture-v1/evidence.tar.gz",
+					"archiveSha256": "ec75ea8538bc7c93e95c4ab9e1462ba93f7f74f320ee232b9796e36b1faf1194",
+					"member": "prepared/tools/child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "f5d9c5911cdf7ec1c893c86480289e58512b63567c1be1ee9ef593d3e7fbbe69",
+					"member": "child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "f5d9c5911cdf7ec1c893c86480289e58512b63567c1be1ee9ef593d3e7fbbe69",
+					"member": "prepared/tools/child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				}
+			]
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/single-version-rss-tools/driver.mjs",
+			"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6",
+			"references": [],
+			"existingArchives": [
+				{
+					"archive": "archive/evals/causal-single-version-capture-v1/evidence.tar.gz",
+					"archiveSha256": "5c02f57d56e2e57f34599ecd9ca808fbc9858c08ca35a2423797d0424aa9c542",
+					"member": "prepared/tools/driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "cd115e9b340dc757d977a5fc4bd377df4d44c6fb9275c818bb72f650c7f5f52b",
+					"member": "driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "cd115e9b340dc757d977a5fc4bd377df4d44c6fb9275c818bb72f650c7f5f52b",
+					"member": "prepared/tools/driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-capture-v1/evidence.tar.gz",
+					"archiveSha256": "5e30f95f34461eb8dcefad46d8f59cf9009923b110a26e3c6e40185dd11ad631",
+					"member": "prepared/tools/driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "642aa9d15d829a60df75ad9eb9d4c5d1bc13031222eef3eea94bd08a9d22c9e4",
+					"member": "driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "642aa9d15d829a60df75ad9eb9d4c5d1bc13031222eef3eea94bd08a9d22c9e4",
+					"member": "prepared/tools/driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-capture-v1/evidence.tar.gz",
+					"archiveSha256": "ec75ea8538bc7c93e95c4ab9e1462ba93f7f74f320ee232b9796e36b1faf1194",
+					"member": "prepared/tools/driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "f5d9c5911cdf7ec1c893c86480289e58512b63567c1be1ee9ef593d3e7fbbe69",
+					"member": "driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "f5d9c5911cdf7ec1c893c86480289e58512b63567c1be1ee9ef593d3e7fbbe69",
+					"member": "prepared/tools/driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				}
+			]
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/single-version-rss-tools/test_child.mjs",
+			"sha256": "9c2dd81f8628a965eae8656fa976ca305ceb6f4afc563737772d8625a4c40232",
+			"references": [],
+			"existingArchives": [
+				{
+					"archive": "archive/evals/causal-single-version-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "cd115e9b340dc757d977a5fc4bd377df4d44c6fb9275c818bb72f650c7f5f52b",
+					"member": "test_child.mjs",
+					"sha256": "9c2dd81f8628a965eae8656fa976ca305ceb6f4afc563737772d8625a4c40232"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "642aa9d15d829a60df75ad9eb9d4c5d1bc13031222eef3eea94bd08a9d22c9e4",
+					"member": "test_child.mjs",
+					"sha256": "9c2dd81f8628a965eae8656fa976ca305ceb6f4afc563737772d8625a4c40232"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "f5d9c5911cdf7ec1c893c86480289e58512b63567c1be1ee9ef593d3e7fbbe69",
+					"member": "test_child.mjs",
+					"sha256": "9c2dd81f8628a965eae8656fa976ca305ceb6f4afc563737772d8625a4c40232"
+				}
+			]
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/single-version-rss-v2-tools/child.mjs",
+			"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472",
+			"references": [],
+			"existingArchives": [
+				{
+					"archive": "archive/evals/causal-single-version-capture-v1/evidence.tar.gz",
+					"archiveSha256": "5c02f57d56e2e57f34599ecd9ca808fbc9858c08ca35a2423797d0424aa9c542",
+					"member": "prepared/tools/child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "cd115e9b340dc757d977a5fc4bd377df4d44c6fb9275c818bb72f650c7f5f52b",
+					"member": "child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "cd115e9b340dc757d977a5fc4bd377df4d44c6fb9275c818bb72f650c7f5f52b",
+					"member": "prepared/tools/child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-capture-v1/evidence.tar.gz",
+					"archiveSha256": "5e30f95f34461eb8dcefad46d8f59cf9009923b110a26e3c6e40185dd11ad631",
+					"member": "prepared/tools/child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "642aa9d15d829a60df75ad9eb9d4c5d1bc13031222eef3eea94bd08a9d22c9e4",
+					"member": "child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "642aa9d15d829a60df75ad9eb9d4c5d1bc13031222eef3eea94bd08a9d22c9e4",
+					"member": "prepared/tools/child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-capture-v1/evidence.tar.gz",
+					"archiveSha256": "ec75ea8538bc7c93e95c4ab9e1462ba93f7f74f320ee232b9796e36b1faf1194",
+					"member": "prepared/tools/child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "f5d9c5911cdf7ec1c893c86480289e58512b63567c1be1ee9ef593d3e7fbbe69",
+					"member": "child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "f5d9c5911cdf7ec1c893c86480289e58512b63567c1be1ee9ef593d3e7fbbe69",
+					"member": "prepared/tools/child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				}
+			]
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/single-version-rss-v2-tools/driver.mjs",
+			"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6",
+			"references": [],
+			"existingArchives": [
+				{
+					"archive": "archive/evals/causal-single-version-capture-v1/evidence.tar.gz",
+					"archiveSha256": "5c02f57d56e2e57f34599ecd9ca808fbc9858c08ca35a2423797d0424aa9c542",
+					"member": "prepared/tools/driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "cd115e9b340dc757d977a5fc4bd377df4d44c6fb9275c818bb72f650c7f5f52b",
+					"member": "driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "cd115e9b340dc757d977a5fc4bd377df4d44c6fb9275c818bb72f650c7f5f52b",
+					"member": "prepared/tools/driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-capture-v1/evidence.tar.gz",
+					"archiveSha256": "5e30f95f34461eb8dcefad46d8f59cf9009923b110a26e3c6e40185dd11ad631",
+					"member": "prepared/tools/driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "642aa9d15d829a60df75ad9eb9d4c5d1bc13031222eef3eea94bd08a9d22c9e4",
+					"member": "driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "642aa9d15d829a60df75ad9eb9d4c5d1bc13031222eef3eea94bd08a9d22c9e4",
+					"member": "prepared/tools/driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-capture-v1/evidence.tar.gz",
+					"archiveSha256": "ec75ea8538bc7c93e95c4ab9e1462ba93f7f74f320ee232b9796e36b1faf1194",
+					"member": "prepared/tools/driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "f5d9c5911cdf7ec1c893c86480289e58512b63567c1be1ee9ef593d3e7fbbe69",
+					"member": "driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "f5d9c5911cdf7ec1c893c86480289e58512b63567c1be1ee9ef593d3e7fbbe69",
+					"member": "prepared/tools/driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				}
+			]
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/single-version-rss-v2-tools/test_child.mjs",
+			"sha256": "9c2dd81f8628a965eae8656fa976ca305ceb6f4afc563737772d8625a4c40232",
+			"references": [],
+			"existingArchives": [
+				{
+					"archive": "archive/evals/causal-single-version-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "cd115e9b340dc757d977a5fc4bd377df4d44c6fb9275c818bb72f650c7f5f52b",
+					"member": "test_child.mjs",
+					"sha256": "9c2dd81f8628a965eae8656fa976ca305ceb6f4afc563737772d8625a4c40232"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "642aa9d15d829a60df75ad9eb9d4c5d1bc13031222eef3eea94bd08a9d22c9e4",
+					"member": "test_child.mjs",
+					"sha256": "9c2dd81f8628a965eae8656fa976ca305ceb6f4afc563737772d8625a4c40232"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "f5d9c5911cdf7ec1c893c86480289e58512b63567c1be1ee9ef593d3e7fbbe69",
+					"member": "test_child.mjs",
+					"sha256": "9c2dd81f8628a965eae8656fa976ca305ceb6f4afc563737772d8625a4c40232"
+				}
+			]
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/single-version-tools/child.mjs",
+			"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472",
+			"references": [],
+			"existingArchives": [
+				{
+					"archive": "archive/evals/causal-single-version-capture-v1/evidence.tar.gz",
+					"archiveSha256": "5c02f57d56e2e57f34599ecd9ca808fbc9858c08ca35a2423797d0424aa9c542",
+					"member": "prepared/tools/child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "cd115e9b340dc757d977a5fc4bd377df4d44c6fb9275c818bb72f650c7f5f52b",
+					"member": "child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "cd115e9b340dc757d977a5fc4bd377df4d44c6fb9275c818bb72f650c7f5f52b",
+					"member": "prepared/tools/child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-capture-v1/evidence.tar.gz",
+					"archiveSha256": "5e30f95f34461eb8dcefad46d8f59cf9009923b110a26e3c6e40185dd11ad631",
+					"member": "prepared/tools/child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "642aa9d15d829a60df75ad9eb9d4c5d1bc13031222eef3eea94bd08a9d22c9e4",
+					"member": "child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "642aa9d15d829a60df75ad9eb9d4c5d1bc13031222eef3eea94bd08a9d22c9e4",
+					"member": "prepared/tools/child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-capture-v1/evidence.tar.gz",
+					"archiveSha256": "ec75ea8538bc7c93e95c4ab9e1462ba93f7f74f320ee232b9796e36b1faf1194",
+					"member": "prepared/tools/child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "f5d9c5911cdf7ec1c893c86480289e58512b63567c1be1ee9ef593d3e7fbbe69",
+					"member": "child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "f5d9c5911cdf7ec1c893c86480289e58512b63567c1be1ee9ef593d3e7fbbe69",
+					"member": "prepared/tools/child.mjs",
+					"sha256": "d52a7712ab92e6e99c797da946066ba5e6c4bfaa159cf99a9185c5b2ade9f472"
+				}
+			]
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/single-version-tools/driver.mjs",
+			"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6",
+			"references": [],
+			"existingArchives": [
+				{
+					"archive": "archive/evals/causal-single-version-capture-v1/evidence.tar.gz",
+					"archiveSha256": "5c02f57d56e2e57f34599ecd9ca808fbc9858c08ca35a2423797d0424aa9c542",
+					"member": "prepared/tools/driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "cd115e9b340dc757d977a5fc4bd377df4d44c6fb9275c818bb72f650c7f5f52b",
+					"member": "driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "cd115e9b340dc757d977a5fc4bd377df4d44c6fb9275c818bb72f650c7f5f52b",
+					"member": "prepared/tools/driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-capture-v1/evidence.tar.gz",
+					"archiveSha256": "5e30f95f34461eb8dcefad46d8f59cf9009923b110a26e3c6e40185dd11ad631",
+					"member": "prepared/tools/driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "642aa9d15d829a60df75ad9eb9d4c5d1bc13031222eef3eea94bd08a9d22c9e4",
+					"member": "driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "642aa9d15d829a60df75ad9eb9d4c5d1bc13031222eef3eea94bd08a9d22c9e4",
+					"member": "prepared/tools/driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-capture-v1/evidence.tar.gz",
+					"archiveSha256": "ec75ea8538bc7c93e95c4ab9e1462ba93f7f74f320ee232b9796e36b1faf1194",
+					"member": "prepared/tools/driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "f5d9c5911cdf7ec1c893c86480289e58512b63567c1be1ee9ef593d3e7fbbe69",
+					"member": "driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "f5d9c5911cdf7ec1c893c86480289e58512b63567c1be1ee9ef593d3e7fbbe69",
+					"member": "prepared/tools/driver.mjs",
+					"sha256": "b13a2ce3569b6e028a763654a628b2e9177ce31266b70a16c2ef2f72b57312e6"
+				}
+			]
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/single-version-tools/test_child.mjs",
+			"sha256": "9c2dd81f8628a965eae8656fa976ca305ceb6f4afc563737772d8625a4c40232",
+			"references": [],
+			"existingArchives": [
+				{
+					"archive": "archive/evals/causal-single-version-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "cd115e9b340dc757d977a5fc4bd377df4d44c6fb9275c818bb72f650c7f5f52b",
+					"member": "test_child.mjs",
+					"sha256": "9c2dd81f8628a965eae8656fa976ca305ceb6f4afc563737772d8625a4c40232"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "642aa9d15d829a60df75ad9eb9d4c5d1bc13031222eef3eea94bd08a9d22c9e4",
+					"member": "test_child.mjs",
+					"sha256": "9c2dd81f8628a965eae8656fa976ca305ceb6f4afc563737772d8625a4c40232"
+				},
+				{
+					"archive": "archive/evals/causal-single-version-rss-v2-preparation-v1/prepared.tar.gz",
+					"archiveSha256": "f5d9c5911cdf7ec1c893c86480289e58512b63567c1be1ee9ef593d3e7fbbe69",
+					"member": "test_child.mjs",
+					"sha256": "9c2dd81f8628a965eae8656fa976ca305ceb6f4afc563737772d8625a4c40232"
+				}
+			]
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/source-check.json",
+			"sha256": "2a9ab05f49d5a9cbb6c6bbc3ab66c6723f71fd8427c9e216ab57a790a5d810fd",
+			"references": ["docs/design/causal-cost-investigation/baseline-receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/source-readiness/bind.mjs",
+			"sha256": "ca6721bd2b51b9d8d08faf474043f67e966dd34cc59ddef6cda93d524f446335",
+			"references": ["docs/design/causal-cost-investigation/source-readiness/verification.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/source-readiness/retained-source-comparison.json",
+			"sha256": "5617efdeca22d9bce4a11e5705d7d5b4019aa7be6bd93b059579f9ddf0db4751",
+			"references": ["docs/design/causal-cost-investigation/source-readiness/verification.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cost-investigation/source-readiness/source-manifest.json",
+			"sha256": "bdb3c8d2797d67c1279ed81c331f052b39da7c84482815551c8aa6b3d82dec4d",
+			"references": ["docs/design/causal-cost-investigation/source-readiness/verification.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-cpu-wall-retained-localization-v1/verify.mjs",
+			"sha256": "f4eec3836772ca40a127ff1629f78a82d3b704949a5408149272204393b89cf1",
+			"references": ["docs/design/causal-cpu-wall-retained-localization-v1/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-allocation-v1/binding.json",
+			"sha256": "df0e5be44cb32afa52f4913ab37079c2d7f1ad32ca3f111d286712966863ea51",
+			"references": ["docs/design/causal-release-allocation-v1/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-allocation-v1/preservation.json",
+			"sha256": "2943862df5316f13815fdefdfd1feb8ec525feb3e38f09cc665b6250ef27dc84",
+			"references": ["docs/design/causal-release-allocation-v1/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-allocation-v1/probe.mjs",
+			"sha256": "6ad65a9b2ef37f5b6a2803cfd9713026d79de1a38dff8a679346ad4624b24928",
+			"references": ["docs/design/causal-release-allocation-v1/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-allocation-v1/profile.json",
+			"sha256": "3b8af23641c2166ccf924331aba1683d6efbc631e2a024442b73c2e5bc9824c1",
+			"references": [
+				"docs/design/causal-cost-investigation/caller-attribution.json",
+				"docs/design/causal-cost-investigation/candidate-review/partition.json",
+				"docs/design/causal-release-allocation-v1/receipt.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-allocation-v1/result.json",
+			"sha256": "6f4b09b74d492d680eccdcfcee4216443ff8db5c60ef9488ec957475e7b9576f",
+			"references": ["docs/design/causal-release-allocation-v1/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-allocation-v1/summary.json",
+			"sha256": "f3ee808e36e2442d47941275313cab3030b338946b6b8610dda48913c406c877",
+			"references": ["docs/design/causal-release-allocation-v1/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-boundaries-v1-implementation/analysis.json",
+			"sha256": "19d6cb54e380839288f78a261c0c4bf1f72fdb027e53b069c0f91e376fdfd295",
+			"references": ["docs/design/causal-release-boundaries-v1-implementation/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-boundaries-v1-implementation/portable-verification.json",
+			"sha256": "220f9959aae9d1b248afd21fb1251d5c29a5cf0c5182b3d9b639bb2155e923a4",
+			"references": ["docs/design/causal-release-boundaries-v1-implementation/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-boundaries-v1-implementation/preservation-after.json",
+			"sha256": "0d985f706a8e9ed8e4bf646a868a28220e1b4522ab68b11f8f80934881a4be91",
+			"references": ["docs/design/causal-release-boundaries-v1-implementation/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-boundaries-v1-implementation/segment-arithmetic-verification.json",
+			"sha256": "da5ba0a1f7f219921c4b4de9813d7f5c21dd021084c8971e52ab0ebb8f7895ad",
+			"references": ["docs/design/causal-release-boundaries-v1-implementation/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-comparison-build-v2/archive-verification.json",
+			"sha256": "3814d9bec11d4420066998ebd763c09aaa7a618cbb343dbac541d56a89085c8e",
+			"references": ["docs/design/causal-release-comparison-build-v2/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-comparison-build-v2/preservation.json",
+			"sha256": "0abccaeef6c0f01360b2998016d23127e9671c65e5b3004d532fddaf52026c04",
+			"references": ["docs/design/causal-release-comparison-build-v2/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-comparison-build-v2/retained-guard-verification.json",
+			"sha256": "3313626aa07507227608ee565e0e0ca444dd05413ae4b584e1a0ec6bafccc545",
+			"references": ["docs/design/causal-release-comparison-build-v2/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-comparison-build-v2/source-verification.json",
+			"sha256": "fc13cf70222af86c223b7938c97489160db53d267b7ffde4945c14ff84eb8eae",
+			"references": ["docs/design/causal-release-comparison-build-v2/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-cost-comparison-v2/prefix-only-rejection.json",
+			"sha256": "0f55600afa42a32a22a9cc84e886804a12a1c7efa7c27a568cc1cb616377d8e6",
+			"references": ["docs/design/causal-release-cost-comparison-v2/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-cost-comparison-v2/preservation.json",
+			"sha256": "109039039d10c5279cd1aee824f987288145af7488384475ae2c3d102422caac",
+			"references": ["docs/design/causal-release-cost-comparison-v2/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-cost-comparison-v2/summary.json",
+			"sha256": "2bfa75e89968d03ad0589e6e1072ccc6b8f6a7b9414299f46a001dde24fce8a8",
+			"references": ["docs/design/causal-release-cost-comparison-v2/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-cost-comparison-v2/terminal-verification.json",
+			"sha256": "ba670f40878cfc1adfb3e9d2759e042989e933151b23f35a173fee6641fba2d0",
+			"references": ["docs/design/causal-release-cost-comparison-v2/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-memory-v1/exit.json",
+			"sha256": "9d4829782d552486c9a7176413a9cbf9fd8b3f6d6fb1ff4e4ddf759af249bb40",
+			"references": ["docs/design/causal-release-memory-v1/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-memory-v1/preservation.json",
+			"sha256": "d61bb16f4dbaf84dd7b3acfa7aeee4b7a7fae6041d2647abd479ca72d0ff2dab",
+			"references": ["docs/design/causal-release-memory-v1/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-memory-v1/probe.mjs",
+			"sha256": "d5e787c09c1482ebd06a7a92ad7c509089d4fe7be7f6acde25077193dd418ebc",
+			"references": ["docs/design/causal-release-memory-v1/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-memory-v1/summary.json",
+			"sha256": "60cab07df904eb863029bf02a7e43d2491253c77470503147e5736a849b9a2d2",
+			"references": ["docs/design/causal-release-memory-v1/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-preflight-v1/archive-verification.json",
+			"sha256": "6b2925bbe701c038fe9a76f8ad619de2d1185b1f125d0880198bddcf5e70c9a4",
+			"references": ["docs/design/causal-release-preflight-v1/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-preflight-v1/preservation.json",
+			"sha256": "c6aea7fd4700a63a9aec9ef0f325857b3515aa8faaf3a836f72063b68050d225",
+			"references": ["docs/design/causal-release-preflight-v1/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-release-preflight-v1/run.mjs",
+			"sha256": "6c696be72a9f078625c68ba477e189772d47a518a13ddeb6d86cfd6678efd386",
+			"references": [],
+			"existingArchives": [
+				{
+					"archive": "archive/evals/causal-release-preflight-v1/evidence.tar.gz",
+					"archiveSha256": "655dafacf297ca62ceaaf067950e37db8ad111a9d6ba08b0256e7dd19f137edd",
+					"member": "run/run.mjs",
+					"sha256": "6c696be72a9f078625c68ba477e189772d47a518a13ddeb6d86cfd6678efd386"
+				}
+			]
+		},
+		{
+			"path": "docs/design/causal-release-preflight-v1/verification.json",
+			"sha256": "dcddb47ff326dc8570331ac33850d015fa83bc11e7e5b1a44d65ee7789ea486d",
+			"references": ["docs/design/causal-release-preflight-v1/receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "docs/design/causal-unprofiled-latency/incidents/prepare-causal-latency-baseline.mjs",
+			"sha256": "99dd3d44c083be378491b12cec489df0cd731da119e34ae0ffd18416b13a420e",
+			"references": ["docs/design/causal-unprofiled-latency/incidents/setup.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "packages/ts/qualification/causal-occurrence/cold-v1-helper-differential.json",
+			"sha256": "535d202620becc0641c8b7e57927d5d924e832f3d5979a3975b937013df2f3f7",
+			"references": ["packages/ts/qualification/causal-occurrence/cold-v1-receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "packages/ts/qualification/causal-occurrence/cold-v1-incoming-differential.json",
+			"sha256": "722af3bdad9455bcdebed0b92162e98665340e6d16f0c65969eb66e00e7020de",
+			"references": ["packages/ts/qualification/causal-occurrence/cold-v1-receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "packages/ts/qualification/causal-occurrence/cold-v1-standalone-comparison-final.json",
+			"sha256": "d71daa60aaedeeca0fecb181d07931b6cb3a4c033c8cb32d2d19e05a76ce231a",
+			"references": ["packages/ts/qualification/causal-occurrence/cold-v1-receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "packages/ts/qualification/causal-occurrence/cold-v1-standalone-comparison.json",
+			"sha256": "ad2e0ee5be01ea3f6dbbbf559d540699161eae8fe55247764c488a3dda37c0b9",
+			"references": ["packages/ts/qualification/causal-occurrence/cold-v1-receipt.json"],
+			"existingArchives": []
+		},
+		{
+			"path": "packages/ts/qualification/causal-occurrence/ts-v5-inputs.json",
+			"sha256": "f0f1c797140e4340152ef1d9ded38de847bf53aff7c005d883c2c698c2b31f3b",
+			"references": [
+				"packages/ts/qualification/causal-occurrence/cold-v1-receipt.json",
+				"packages/ts/qualification/causal-occurrence/ts-v6-inputs.json",
+				"packages/ts/qualification/causal-occurrence/ts-v6-receipt.json",
+				"packages/ts/qualification/causal-occurrence/ts-v7-receipt.json",
+				"packages/ts/qualification/causal-occurrence/ts-v8-cold-inputs.json",
+				"packages/ts/qualification/causal-occurrence/ts-v8-receipt.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "packages/ts/qualification/causal-occurrence/ts-v6-inputs.json",
+			"sha256": "f61a22be878f2e988454a8a29180129a147305fc1dd6898232972e84b7511d3f",
+			"references": [
+				"packages/ts/qualification/causal-occurrence/cold-v1-incoming-differential.json",
+				"packages/ts/qualification/causal-occurrence/cold-v1-receipt.json",
+				"packages/ts/qualification/causal-occurrence/ts-v7-incoming-differential.json",
+				"packages/ts/qualification/causal-occurrence/ts-v7-receipt.json",
+				"packages/ts/qualification/causal-occurrence/ts-v8-cold-inputs.json",
+				"packages/ts/qualification/causal-occurrence/ts-v8-incoming-differential.json",
+				"packages/ts/qualification/causal-occurrence/ts-v8-receipt.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "packages/ts/qualification/causal-occurrence/ts-v7-incoming-differential.json",
+			"sha256": "579c38dbaeb6305ea1693d04e963cca7cc86e20b14ef796cd78806fb905deb1a",
+			"references": [
+				"packages/ts/qualification/causal-occurrence/cold-v1-receipt.json",
+				"packages/ts/qualification/causal-occurrence/ts-v7-receipt.json",
+				"packages/ts/qualification/causal-occurrence/ts-v8-cold-inputs.json",
+				"packages/ts/qualification/causal-occurrence/ts-v8-receipt.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "packages/ts/qualification/causal-occurrence/ts-v8-cold-inputs.json",
+			"sha256": "b35f1d7ee6808fd5c482a9013f2b2876ad4621285a96d4f4eede6e5c0f551889",
+			"references": [
+				"packages/ts/qualification/causal-occurrence/cold-v1-receipt.json",
+				"packages/ts/qualification/causal-occurrence/cold-v1-standalone-comparison-final.json",
+				"packages/ts/qualification/causal-occurrence/cold-v1-standalone-comparison.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "packages/ts/qualification/causal-occurrence/ts-v8-helper-differential.json",
+			"sha256": "b3956678d90bdd6dc3c97189376c43ee1c09fc5373a625135983ed6bbb3332af",
+			"references": [
+				"packages/ts/qualification/causal-occurrence/cold-v1-receipt.json",
+				"packages/ts/qualification/causal-occurrence/ts-v8-cold-inputs.json",
+				"packages/ts/qualification/causal-occurrence/ts-v8-receipt.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "packages/ts/qualification/causal-occurrence/ts-v8-incoming-differential.json",
+			"sha256": "38ff2b6983371cff80712f3f373714210230a5f4324f387b0f345d8f1908507d",
+			"references": [
+				"packages/ts/qualification/causal-occurrence/cold-v1-receipt.json",
+				"packages/ts/qualification/causal-occurrence/ts-v8-cold-inputs.json",
+				"packages/ts/qualification/causal-occurrence/ts-v8-receipt.json"
+			],
+			"existingArchives": []
+		},
+		{
+			"path": "scripts/causal-global-cold.mjs",
+			"sha256": "c5969c68498b64fb70c1628e77f698b84a878b6ef011cb63c751e7d74023c6b2",
+			"references": [],
+			"existingArchives": [
+				{
+					"archive": "archive/evals/causal-global-review-evidence-v1/evidence.tar.gz",
+					"archiveSha256": "6e0a60a98c542b9b06d5dd3be9257d913ccf9a12a0ce5ceda2a36910c8326a5e",
+					"member": "cold-v2/causal-global-cold.mjs",
+					"sha256": "c5969c68498b64fb70c1628e77f698b84a878b6ef011cb63c751e7d74023c6b2"
+				},
+				{
+					"archive": "archive/evals/causal-global-review-evidence-v1/evidence.tar.gz",
+					"archiveSha256": "6e0a60a98c542b9b06d5dd3be9257d913ccf9a12a0ce5ceda2a36910c8326a5e",
+					"member": "tools/causal-global-cold.mjs",
+					"sha256": "c5969c68498b64fb70c1628e77f698b84a878b6ef011cb63c751e7d74023c6b2"
+				}
+			]
+		},
+		{
+			"path": "scripts/causal-policy-prototype.mjs",
+			"sha256": "8fee8a755e3407bfbd83977b16b9473927fe23387be53ac4462de8c986be1788",
+			"references": [],
+			"existingArchives": [
+				{
+					"archive": "archive/evals/causal-policy-comparison-evidence-v1/evidence.tar.gz",
+					"archiveSha256": "8aa448cf7af73bba1e263d2fd09575911a0cb4a8d5d7755e480f73e336aa0ce5",
+					"member": "prototype/tool.mjs",
+					"sha256": "8fee8a755e3407bfbd83977b16b9473927fe23387be53ac4462de8c986be1788"
+				},
+				{
+					"archive": "archive/evals/causal-policy-comparison-evidence-v1/evidence.tar.gz",
+					"archiveSha256": "8aa448cf7af73bba1e263d2fd09575911a0cb4a8d5d7755e480f73e336aa0ce5",
+					"member": "tools/causal-policy-prototype.mjs",
+					"sha256": "8fee8a755e3407bfbd83977b16b9473927fe23387be53ac4462de8c986be1788"
+				},
+				{
+					"archive": "archive/evals/causal-policy-product-evidence-v1/evidence.tar.gz",
+					"archiveSha256": "8376c7df608ea37c03df27a0785eab75256219e4d69bf0bd0dc67539ba2aa11f",
+					"member": "preparation-v1/tool.mjs",
+					"sha256": "8fee8a755e3407bfbd83977b16b9473927fe23387be53ac4462de8c986be1788"
+				},
+				{
+					"archive": "archive/evals/causal-policy-product-evidence-v1/evidence.tar.gz",
+					"archiveSha256": "8376c7df608ea37c03df27a0785eab75256219e4d69bf0bd0dc67539ba2aa11f",
+					"member": "timing/tool.mjs",
+					"sha256": "8fee8a755e3407bfbd83977b16b9473927fe23387be53ac4462de8c986be1788"
+				},
+				{
+					"archive": "archive/evals/causal-policy-product-evidence-v1/evidence.tar.gz",
+					"archiveSha256": "8376c7df608ea37c03df27a0785eab75256219e4d69bf0bd0dc67539ba2aa11f",
+					"member": "tools/causal-policy-prototype.mjs",
+					"sha256": "8fee8a755e3407bfbd83977b16b9473927fe23387be53ac4462de8c986be1788"
+				}
+			]
+		},
+		{
+			"path": "scripts/check-causal-recording-source.mjs",
+			"sha256": "fec9459df10800aefbf932e4144d22d74edd8b5dff4095b6b1345193b582e736",
+			"references": [],
+			"existingArchives": [
+				{
+					"archive": "archive/evals/causal-recording-diagnostic-v1/evidence.tar.gz",
+					"archiveSha256": "3bd4707bf9bca230656595645296d2fad6174a3020464bb51cf8e3a8f710d07d",
+					"member": "run/assets/tools/check-causal-recording-source.mjs",
+					"sha256": "fec9459df10800aefbf932e4144d22d74edd8b5dff4095b6b1345193b582e736"
+				},
+				{
+					"archive": "archive/evals/causal-recording-tools-v1/prepared.tar.gz",
+					"archiveSha256": "d1f20ad2261274f8982f506f6bccad5fc2777717e7375e82accbb447d7868ce3",
+					"member": "prepared/tools/check-causal-recording-source.mjs",
+					"sha256": "fec9459df10800aefbf932e4144d22d74edd8b5dff4095b6b1345193b582e736"
+				}
+			]
+		},
+		{
+			"path": "scripts/count-causal-policy-comparisons.mjs",
+			"sha256": "c62cea126253c875fdc24b16a914f0e72da2e354fe9c538c09aa884f713ad4c3",
+			"references": [],
+			"existingArchives": [
+				{
+					"archive": "archive/evals/causal-policy-comparison-evidence-v1/evidence.tar.gz",
+					"archiveSha256": "8aa448cf7af73bba1e263d2fd09575911a0cb4a8d5d7755e480f73e336aa0ce5",
+					"member": "tools/count-causal-policy-comparisons.mjs",
+					"sha256": "c62cea126253c875fdc24b16a914f0e72da2e354fe9c538c09aa884f713ad4c3"
+				}
+			]
+		},
+		{
+			"path": "scripts/derive-causal-cpu-driver.mjs",
+			"sha256": "1a8c28b30876639dcfeed69d7054b202fd60a4b415816d429899e322f2a52f28",
+			"references": [],
+			"existingArchives": [
+				{
+					"archive": "archive/evals/causal-cpu-wall-diagnostic-v1/evidence.tar.gz",
+					"archiveSha256": "9c7f02c656d2403bd09a645ace3a2fc0955d494d8675334dd7610c6be2a9b325",
+					"member": "run/source/scripts/derive-causal-cpu-driver.mjs",
+					"sha256": "1a8c28b30876639dcfeed69d7054b202fd60a4b415816d429899e322f2a52f28"
+				}
+			]
+		},
+		{
+			"path": "scripts/derive-causal-recording-driver.mjs",
+			"sha256": "049b648d45ef47edfd34fcd43ed4f6a732849545584993a077384c0671d03cd6",
+			"references": [],
+			"existingArchives": [
+				{
+					"archive": "archive/evals/causal-recording-diagnostic-v1/evidence.tar.gz",
+					"archiveSha256": "3bd4707bf9bca230656595645296d2fad6174a3020464bb51cf8e3a8f710d07d",
+					"member": "run/assets/tools/derive-causal-recording-driver.mjs",
+					"sha256": "049b648d45ef47edfd34fcd43ed4f6a732849545584993a077384c0671d03cd6"
+				},
+				{
+					"archive": "archive/evals/causal-recording-tools-v1/prepared.tar.gz",
+					"archiveSha256": "d1f20ad2261274f8982f506f6bccad5fc2777717e7375e82accbb447d7868ce3",
+					"member": "prepared/tools/derive-causal-recording-driver.mjs",
+					"sha256": "049b648d45ef47edfd34fcd43ed4f6a732849545584993a077384c0671d03cd6"
+				}
+			]
+		}
+	]
+}

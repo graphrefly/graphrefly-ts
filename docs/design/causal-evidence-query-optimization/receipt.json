@@ -1,45 +1,45 @@
 {
-  "owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
-  "parentCommit": "9d4b8078",
-  "scope": "private evidence terminal query optimization",
-  "sourceDigests": {
-    "packages/ts/src/solutions/causal-occurrence/evidence.ts": "e8649d7f80869d5eab186ae327fe7268f74d4bbb41daa54b826890049ab035fb",
-    "packages/ts/src/__tests__/causal-evidence-terminal.test.ts": "c4618e50b0b0ed20796ff37d8b73a5db55ac0f036a8d062a13f1b7540af4b38b",
-    "scripts/causal-evidence-query-comparison.mjs": "0c9f30b508219f3c30dfd1ac1f9d29b2096b21c552972edcbf5098683b10eae3",
-    "scripts/run-causal-evidence-query-comparison.py": "28a9be553ec5f805323c1b4e83d1377ba0e31a3399e21bd0974a7308eb9da1ba",
-    "scripts/verify-causal-evidence-query-comparison.py": "2c8cd63cc834ae95bae4d9e8afe049e51adfdd6703be8fef1c4f815bd27f3e13",
-    "scripts/causal-evidence-query-comparison.test.py": "f29b712463f40c678e45aca21bafb60f1339c76674c153969d2a1ab01edb3018"
-  },
-  "preservedExistingFiles": 22,
-  "newPublicExports": 0,
-  "retainedStateSchemaChanges": 0,
-  "tests": {
-    "fullPass": 2552,
-    "fullFail": 2,
-    "fullSkip": 4,
-    "failures": "existing D159 implementation manifest drift",
-    "finalFocusedPass": 3,
-    "propertyRuns": 500,
-    "runtimeMutantsKilled": 73,
-    "comparisonCorruptionsRejected": 6
-  },
-  "checks": {
-    "buildAndExports": "passed",
-    "exampleTypecheck": "passed",
-    "packageTestTypecheck": "passed",
-    "noRawAsync": "passed",
-    "scopedBiome": "passed",
-    "fullLint": "failed; archived and existing files, raw log retained",
-    "dashboard": "passed with warnings",
-    "authorityWorkspace": "passed with warnings",
-    "archiveExtractReplay": "passed"
-  },
-  "performance": {
-    "processes": 21,
-    "preflights": 42,
-    "samples": 126,
-    "formalQualification": false,
-    "report": "comparison-verification.json"
-  },
-  "evidenceArchive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz"
+	"owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"parentCommit": "9d4b8078",
+	"scope": "private evidence terminal query optimization",
+	"sourceDigests": {
+		"packages/ts/src/solutions/causal-occurrence/evidence.ts": "e8649d7f80869d5eab186ae327fe7268f74d4bbb41daa54b826890049ab035fb",
+		"packages/ts/src/__tests__/causal-evidence-terminal.test.ts": "c4618e50b0b0ed20796ff37d8b73a5db55ac0f036a8d062a13f1b7540af4b38b",
+		"scripts/causal-evidence-query-comparison.mjs": "0c9f30b508219f3c30dfd1ac1f9d29b2096b21c552972edcbf5098683b10eae3",
+		"scripts/run-causal-evidence-query-comparison.py": "28a9be553ec5f805323c1b4e83d1377ba0e31a3399e21bd0974a7308eb9da1ba",
+		"scripts/verify-causal-evidence-query-comparison.py": "2c8cd63cc834ae95bae4d9e8afe049e51adfdd6703be8fef1c4f815bd27f3e13",
+		"scripts/causal-evidence-query-comparison.test.py": "f29b712463f40c678e45aca21bafb60f1339c76674c153969d2a1ab01edb3018"
+	},
+	"preservedExistingFiles": 22,
+	"newPublicExports": 0,
+	"retainedStateSchemaChanges": 0,
+	"tests": {
+		"fullPass": 2552,
+		"fullFail": 2,
+		"fullSkip": 4,
+		"failures": "existing D159 implementation manifest drift",
+		"finalFocusedPass": 3,
+		"propertyRuns": 500,
+		"runtimeMutantsKilled": 73,
+		"comparisonCorruptionsRejected": 6
+	},
+	"checks": {
+		"buildAndExports": "passed",
+		"exampleTypecheck": "passed",
+		"packageTestTypecheck": "passed",
+		"noRawAsync": "passed",
+		"scopedBiome": "passed",
+		"fullLint": "failed; archived and existing files, raw log retained",
+		"dashboard": "passed with warnings",
+		"authorityWorkspace": "passed with warnings",
+		"archiveExtractReplay": "passed"
+	},
+	"performance": {
+		"processes": 21,
+		"preflights": 42,
+		"samples": 126,
+		"formalQualification": false,
+		"report": "comparison-verification.json"
+	},
+	"evidenceArchive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz"
 }

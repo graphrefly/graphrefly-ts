@@ -1,144 +1,96 @@
 {
-  "verified": true,
-  "formalQualified": false,
-  "processes": 8,
-  "measuredConstructions": 3200,
-  "results": [
-    {
-      "job": {
-        "id": 0,
-        "mode": "off",
-        "repeat": 0,
-        "control": false,
-        "order": [
-          "before",
-          "after"
-        ]
-      },
-      "orderedMediansMs": [
-        0.24597950000000424,
-        0.2303125000000108
-      ],
-      "afterBeforeRatio": 0.936307700438479
-    },
-    {
-      "job": {
-        "id": 1,
-        "mode": "off",
-        "repeat": 1,
-        "control": false,
-        "order": [
-          "after",
-          "before"
-        ]
-      },
-      "orderedMediansMs": [
-        0.236291499999993,
-        0.23735399999998208
-      ],
-      "afterBeforeRatio": 0.9955235639593638
-    },
-    {
-      "job": {
-        "id": 2,
-        "mode": "off",
-        "repeat": 2,
-        "control": false,
-        "order": [
-          "before",
-          "after"
-        ]
-      },
-      "orderedMediansMs": [
-        0.241666500000008,
-        0.23162500000000819
-      ],
-      "afterBeforeRatio": 0.9584489368613379
-    },
-    {
-      "job": {
-        "id": 3,
-        "mode": "off",
-        "repeat": 3,
-        "control": true,
-        "order": [
-          "before",
-          "before"
-        ]
-      },
-      "orderedMediansMs": [
-        0.24689600000000667,
-        0.22222899999999868
-      ],
-      "afterBeforeRatio": 0.9000915365173704
-    },
-    {
-      "job": {
-        "id": 4,
-        "mode": "summary",
-        "repeat": 0,
-        "control": false,
-        "order": [
-          "before",
-          "after"
-        ]
-      },
-      "orderedMediansMs": [
-        0.2468330000000023,
-        0.23556250000000034
-      ],
-      "afterBeforeRatio": 0.954339573719876
-    },
-    {
-      "job": {
-        "id": 5,
-        "mode": "summary",
-        "repeat": 1,
-        "control": false,
-        "order": [
-          "after",
-          "before"
-        ]
-      },
-      "orderedMediansMs": [
-        0.24164549999999707,
-        0.24420800000000042
-      ],
-      "afterBeforeRatio": 0.989506895760977
-    },
-    {
-      "job": {
-        "id": 6,
-        "mode": "summary",
-        "repeat": 2,
-        "control": false,
-        "order": [
-          "before",
-          "after"
-        ]
-      },
-      "orderedMediansMs": [
-        0.2394999999999996,
-        0.2352495000000232
-      ],
-      "afterBeforeRatio": 0.9822526096034389
-    },
-    {
-      "job": {
-        "id": 7,
-        "mode": "summary",
-        "repeat": 3,
-        "control": true,
-        "order": [
-          "before",
-          "before"
-        ]
-      },
-      "orderedMediansMs": [
-        0.2417289999999923,
-        0.2246875000000017
-      ],
-      "afterBeforeRatio": 0.9295016319928882
-    }
-  ]
+	"verified": true,
+	"formalQualified": false,
+	"processes": 8,
+	"measuredConstructions": 3200,
+	"results": [
+		{
+			"job": {
+				"id": 0,
+				"mode": "off",
+				"repeat": 0,
+				"control": false,
+				"order": ["before", "after"]
+			},
+			"orderedMediansMs": [0.24597950000000424, 0.2303125000000108],
+			"afterBeforeRatio": 0.936307700438479
+		},
+		{
+			"job": {
+				"id": 1,
+				"mode": "off",
+				"repeat": 1,
+				"control": false,
+				"order": ["after", "before"]
+			},
+			"orderedMediansMs": [0.236291499999993, 0.23735399999998208],
+			"afterBeforeRatio": 0.9955235639593638
+		},
+		{
+			"job": {
+				"id": 2,
+				"mode": "off",
+				"repeat": 2,
+				"control": false,
+				"order": ["before", "after"]
+			},
+			"orderedMediansMs": [0.241666500000008, 0.23162500000000819],
+			"afterBeforeRatio": 0.9584489368613379
+		},
+		{
+			"job": {
+				"id": 3,
+				"mode": "off",
+				"repeat": 3,
+				"control": true,
+				"order": ["before", "before"]
+			},
+			"orderedMediansMs": [0.24689600000000667, 0.22222899999999868],
+			"afterBeforeRatio": 0.9000915365173704
+		},
+		{
+			"job": {
+				"id": 4,
+				"mode": "summary",
+				"repeat": 0,
+				"control": false,
+				"order": ["before", "after"]
+			},
+			"orderedMediansMs": [0.2468330000000023, 0.23556250000000034],
+			"afterBeforeRatio": 0.954339573719876
+		},
+		{
+			"job": {
+				"id": 5,
+				"mode": "summary",
+				"repeat": 1,
+				"control": false,
+				"order": ["after", "before"]
+			},
+			"orderedMediansMs": [0.24164549999999707, 0.24420800000000042],
+			"afterBeforeRatio": 0.989506895760977
+		},
+		{
+			"job": {
+				"id": 6,
+				"mode": "summary",
+				"repeat": 2,
+				"control": false,
+				"order": ["before", "after"]
+			},
+			"orderedMediansMs": [0.2394999999999996, 0.2352495000000232],
+			"afterBeforeRatio": 0.9822526096034389
+		},
+		{
+			"job": {
+				"id": 7,
+				"mode": "summary",
+				"repeat": 3,
+				"control": true,
+				"order": ["before", "before"]
+			},
+			"orderedMediansMs": [0.2417289999999923, 0.2246875000000017],
+			"afterBeforeRatio": 0.9295016319928882
+		}
+	]
 }

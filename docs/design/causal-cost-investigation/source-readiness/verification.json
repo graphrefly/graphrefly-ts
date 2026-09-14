@@ -1,25 +1,25 @@
 {
-  "ownerWork": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
-  "consumerExecutions": 0,
-  "checks": {
-    "sourceManifestRebuildExact": true,
-    "retainedComparisonReproduced": true,
-    "workingFilesMatchBoundGitRevision": 60,
-    "dashboardExit": 0,
-    "workspaceAuthorityExit": 0,
-    "preExistingDirtyFilesPreserved": true
-  },
-  "limitations": [
-    "Module closure rather than dynamic executed-path proof",
-    "Historical qualification reused with its own source/run identity",
-    "No new performance or runtime test result",
-    "Existing dashboard orphan/workspace-optional and canvas legacy warnings remain"
-  ],
-  "artifacts": {
-    "docs/design/causal-cost-investigation/source-readiness/README.md": "sha256:fa83f6698773e80f1e80877e098a0f3082173057651b4242dddf5348fd43e7e5",
-    "docs/design/causal-cost-investigation/source-readiness/bind.mjs": "sha256:ca6721bd2b51b9d8d08faf474043f67e966dd34cc59ddef6cda93d524f446335",
-    "docs/design/causal-cost-investigation/source-readiness/compare.py": "sha256:459ac6e42e3637eafd87afeac04a037b2503241a35763367d913eaebcbba2083",
-    "docs/design/causal-cost-investigation/source-readiness/retained-source-comparison.json": "sha256:5617efdeca22d9bce4a11e5705d7d5b4019aa7be6bd93b059579f9ddf0db4751",
-    "docs/design/causal-cost-investigation/source-readiness/source-manifest.json": "sha256:bdb3c8d2797d67c1279ed81c331f052b39da7c84482815551c8aa6b3d82dec4d"
-  }
+	"ownerWork": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"consumerExecutions": 0,
+	"checks": {
+		"sourceManifestRebuildExact": true,
+		"retainedComparisonReproduced": true,
+		"workingFilesMatchBoundGitRevision": 60,
+		"dashboardExit": 0,
+		"workspaceAuthorityExit": 0,
+		"preExistingDirtyFilesPreserved": true
+	},
+	"limitations": [
+		"Module closure rather than dynamic executed-path proof",
+		"Historical qualification reused with its own source/run identity",
+		"No new performance or runtime test result",
+		"Existing dashboard orphan/workspace-optional and canvas legacy warnings remain"
+	],
+	"artifacts": {
+		"docs/design/causal-cost-investigation/source-readiness/README.md": "sha256:fa83f6698773e80f1e80877e098a0f3082173057651b4242dddf5348fd43e7e5",
+		"docs/design/causal-cost-investigation/source-readiness/bind.mjs": "sha256:ca6721bd2b51b9d8d08faf474043f67e966dd34cc59ddef6cda93d524f446335",
+		"docs/design/causal-cost-investigation/source-readiness/compare.py": "sha256:459ac6e42e3637eafd87afeac04a037b2503241a35763367d913eaebcbba2083",
+		"docs/design/causal-cost-investigation/source-readiness/retained-source-comparison.json": "sha256:5617efdeca22d9bce4a11e5705d7d5b4019aa7be6bd93b059579f9ddf0db4751",
+		"docs/design/causal-cost-investigation/source-readiness/source-manifest.json": "sha256:bdb3c8d2797d67c1279ed81c331f052b39da7c84482815551c8aa6b3d82dec4d"
+	}
 }

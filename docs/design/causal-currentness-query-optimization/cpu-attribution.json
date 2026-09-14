@@ -1,62 +1,26 @@
 {
-  "kind": "informational CPU attribution",
-  "rawSha256": "4eb354831cf7f4b0dda081ffd5e0ef8a0fc872338a2b6945cb0e0e363ddda9fb",
-  "workerDigest": "7d22b50356f2fcf6ed6799efdfe621a13649c024fa78700f99200d5d517735af",
-  "baselineMatches": true,
-  "samples": 5561,
-  "topSelfSamples": [
-    [
-      "sortedJsonValue",
-      1772
-    ],
-    [
-      "stableJsonString",
-      704
-    ],
-    [
-      "visit",
-      603
-    ],
-    [
-      "",
-      295
-    ],
-    [
-      "string",
-      276
-    ],
-    [
-      "canonicalTupleKey",
-      243
-    ],
-    [
-      "receiveTerminals",
-      227
-    ],
-    [
-      "sha256",
-      109
-    ],
-    [
-      "receiveEvidence",
-      107
-    ],
-    [
-      "(garbage collector)",
-      104
-    ],
-    [
-      "token",
-      103
-    ],
-    [
-      "(program)",
-      102
-    ]
-  ],
-  "ancestryCounts": {
-    "samplesUnderRecomputeCurrentness": 1326,
-    "samplesUnderExactAdmission": 905
-  },
-  "formalQualification": false
+	"kind": "informational CPU attribution",
+	"rawSha256": "4eb354831cf7f4b0dda081ffd5e0ef8a0fc872338a2b6945cb0e0e363ddda9fb",
+	"workerDigest": "7d22b50356f2fcf6ed6799efdfe621a13649c024fa78700f99200d5d517735af",
+	"baselineMatches": true,
+	"samples": 5561,
+	"topSelfSamples": [
+		["sortedJsonValue", 1772],
+		["stableJsonString", 704],
+		["visit", 603],
+		["", 295],
+		["string", 276],
+		["canonicalTupleKey", 243],
+		["receiveTerminals", 227],
+		["sha256", 109],
+		["receiveEvidence", 107],
+		["(garbage collector)", 104],
+		["token", 103],
+		["(program)", 102]
+	],
+	"ancestryCounts": {
+		"samplesUnderRecomputeCurrentness": 1326,
+		"samplesUnderExactAdmission": 905
+	},
+	"formalQualification": false
 }

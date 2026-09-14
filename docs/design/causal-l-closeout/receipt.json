@@ -1,0 +1,40 @@
+{
+	"kind": "offline-lint-closeout",
+	"owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"baseline": "922a7586",
+	"evidenceArchive": "archive/evals/causal-l-closeout-evidence-v1/evidence.tar.gz",
+	"archiveSha256": "10764e9b5261927306bd5e32f76acd98b7af967da18f64213e3062944df09d27",
+	"archiveBytes": 78889,
+	"archiveMembers": 62,
+	"freshExtractionVerified": true,
+	"frozenFiles": 253,
+	"frozenArchives": 24,
+	"optionalExpandedCopies": 4,
+	"maintainedTools": 26,
+	"jsonValueComparisons": 72,
+	"normalizedSourceComparisons": 23,
+	"fakeHostFixtures": 3,
+	"boundaryTests": 11,
+	"defaultTests": {
+		"passed": 2571,
+		"skipped": 4
+	},
+	"lint": "pass: original gates plus archive integrity; 20 Biome infos",
+	"buildExports": "pass",
+	"historicalIntegrity": "pass",
+	"strictCurrentQualification": "rejected: implementation manifest drift",
+	"formalPerformanceQualified": false,
+	"newPerformanceRuns": 0,
+	"libraryRuntimeChanges": false,
+	"gates": "archive/evals/causal-l-closeout-v1/gates-v2.json",
+	"reviews": [
+		{
+			"reviewer": "flush_copy_blind",
+			"status": "three initial findings fixed and retested; no remaining finding"
+		},
+		{
+			"reviewer": "coverage_key_review",
+			"status": "no finding"
+		}
+	]
+}

@@ -1,22 +1,22 @@
 {
-  "owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
-  "before": "7c91ce87",
-  "change": "lazy per-invocation publication-policy receipt conflict result reuse",
-  "persistentStateAdded": false,
-  "publicApiChanged": false,
-  "protocolChanged": false,
-  "tests": {
-    "passed": 2554,
-    "existingD159Failures": 2,
-    "skipped": 4
-  },
-  "loadedMutantsDetected": 17,
-  "processes": 24,
-  "measuredSamples": 144,
-  "archiveReplay": true,
-  "reindexedNegatives": 7,
-  "formalQualified": false,
-  "workComplete": false,
-  "authorityLedgerChanged": false,
-  "evidence": "../../../archive/evals/causal-policy-conflict-evidence-v1/index.json"
+	"owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"before": "7c91ce87",
+	"change": "lazy per-invocation publication-policy receipt conflict result reuse",
+	"persistentStateAdded": false,
+	"publicApiChanged": false,
+	"protocolChanged": false,
+	"tests": {
+		"passed": 2554,
+		"existingD159Failures": 2,
+		"skipped": 4
+	},
+	"loadedMutantsDetected": 17,
+	"processes": 24,
+	"measuredSamples": 144,
+	"archiveReplay": true,
+	"reindexedNegatives": 7,
+	"formalQualified": false,
+	"workComplete": false,
+	"authorityLedgerChanged": false,
+	"evidence": "../../../archive/evals/causal-policy-conflict-evidence-v1/index.json"
 }

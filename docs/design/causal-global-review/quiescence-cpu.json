@@ -1,46 +1,46 @@
 {
-  "verifiedInput": true,
-  "scope": "Observed dataKey frames directly parented by recomputeDomain; unweighted subtree samples, not exact time or removable cost. JIT inlining/frame omission limits source attribution.",
-  "jobs": [
-    {
-      "job": {
-        "id": 0,
-        "recipe": "duplicate2",
-        "repeat": 0
-      },
-      "totalSamples": 2998,
-      "directDataKeySubtreeSamples": 86,
-      "share": 0.028685790527018012
-    },
-    {
-      "job": {
-        "id": 1,
-        "recipe": "duplicate2",
-        "repeat": 1
-      },
-      "totalSamples": 3029,
-      "directDataKeySubtreeSamples": 89,
-      "share": 0.029382634532849124
-    },
-    {
-      "job": {
-        "id": 2,
-        "recipe": "verification",
-        "repeat": 0
-      },
-      "totalSamples": 992,
-      "directDataKeySubtreeSamples": 95,
-      "share": 0.09576612903225806
-    },
-    {
-      "job": {
-        "id": 3,
-        "recipe": "verification",
-        "repeat": 1
-      },
-      "totalSamples": 1009,
-      "directDataKeySubtreeSamples": 100,
-      "share": 0.09910802775024777
-    }
-  ]
+	"verifiedInput": true,
+	"scope": "Observed dataKey frames directly parented by recomputeDomain; unweighted subtree samples, not exact time or removable cost. JIT inlining/frame omission limits source attribution.",
+	"jobs": [
+		{
+			"job": {
+				"id": 0,
+				"recipe": "duplicate2",
+				"repeat": 0
+			},
+			"totalSamples": 2998,
+			"directDataKeySubtreeSamples": 86,
+			"share": 0.028685790527018012
+		},
+		{
+			"job": {
+				"id": 1,
+				"recipe": "duplicate2",
+				"repeat": 1
+			},
+			"totalSamples": 3029,
+			"directDataKeySubtreeSamples": 89,
+			"share": 0.029382634532849124
+		},
+		{
+			"job": {
+				"id": 2,
+				"recipe": "verification",
+				"repeat": 0
+			},
+			"totalSamples": 992,
+			"directDataKeySubtreeSamples": 95,
+			"share": 0.09576612903225806
+		},
+		{
+			"job": {
+				"id": 3,
+				"recipe": "verification",
+				"repeat": 1
+			},
+			"totalSamples": 1009,
+			"directDataKeySubtreeSamples": 100,
+			"share": 0.09910802775024777
+		}
+	]
 }

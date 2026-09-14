@@ -1,10 +1,10 @@
 {
-  "preservedPriorModifiedFiles": 22,
-  "independentVerifierExit": 0,
-  "archiveReplay": true,
-  "sourceChanges": false,
-  "dashboardCheckExit": 0,
-  "workspaceAuthorityCheckExit": 0,
-  "diffCheckExit": 0,
-  "historicalWarnings": "Existing dashboard orphan/workspace-optional and canvas legacy revision warnings"
+	"preservedPriorModifiedFiles": 22,
+	"independentVerifierExit": 0,
+	"archiveReplay": true,
+	"sourceChanges": false,
+	"dashboardCheckExit": 0,
+	"workspaceAuthorityCheckExit": 0,
+	"diffCheckExit": 0,
+	"historicalWarnings": "Existing dashboard orphan/workspace-optional and canvas legacy revision warnings"
 }

@@ -1,22 +1,22 @@
 {
-  "ownerWork": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
-  "sourceCommit": "af22eec78bbe12ed1ca7758ce12fa2c33a46ff8a",
-  "classification": "derived evidence and acceptance-gap audit",
-  "consumerExecutions": 0,
-  "libraryChanges": false,
-  "formalAcceptance": false,
-  "checks": {
-    "derivedOutputReproduces": true,
-    "phaseSumPartitions": true,
-    "dashboardCheck": 0,
-    "workspaceAuthorityCheck": 0,
-    "diffCheck": 0,
-    "preExistingDirtyFilesPreserved": true
-  },
-  "qualificationNote": "First workspace authority check rejected two string evidence refs; converted to existing ref/digest object format and rerun passed. Existing canvas legacy-coordinate warning remains. No new runtime tests needed for derived analysis.",
-  "artifacts": {
-    "docs/design/causal-cost-investigation/followup-audit/README.md": "sha256:971be9863aa42ffb9de686b1aa4baa2dc97e075ae2d6ec9b46eb629c9dd115ef",
-    "docs/design/causal-cost-investigation/followup-audit/analyze.py": "sha256:03244dd660ece3b998d1990dd15f614edcd76ef690f924f2fb1ee35566b9dfe0",
-    "docs/design/causal-cost-investigation/followup-audit/phase-shares.json": "sha256:a364f79958fe63578e4184525c9334c582e62ebde7fbfd0adee64663a7d56c07"
-  }
+	"ownerWork": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"sourceCommit": "af22eec78bbe12ed1ca7758ce12fa2c33a46ff8a",
+	"classification": "derived evidence and acceptance-gap audit",
+	"consumerExecutions": 0,
+	"libraryChanges": false,
+	"formalAcceptance": false,
+	"checks": {
+		"derivedOutputReproduces": true,
+		"phaseSumPartitions": true,
+		"dashboardCheck": 0,
+		"workspaceAuthorityCheck": 0,
+		"diffCheck": 0,
+		"preExistingDirtyFilesPreserved": true
+	},
+	"qualificationNote": "First workspace authority check rejected two string evidence refs; converted to existing ref/digest object format and rerun passed. Existing canvas legacy-coordinate warning remains. No new runtime tests needed for derived analysis.",
+	"artifacts": {
+		"docs/design/causal-cost-investigation/followup-audit/README.md": "sha256:971be9863aa42ffb9de686b1aa4baa2dc97e075ae2d6ec9b46eb629c9dd115ef",
+		"docs/design/causal-cost-investigation/followup-audit/analyze.py": "sha256:03244dd660ece3b998d1990dd15f614edcd76ef690f924f2fb1ee35566b9dfe0",
+		"docs/design/causal-cost-investigation/followup-audit/phase-shares.json": "sha256:a364f79958fe63578e4184525c9334c582e62ebde7fbfd0adee64663a7d56c07"
+	}
 }

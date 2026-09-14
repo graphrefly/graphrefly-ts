@@ -1,459 +1,355 @@
 {
-  "verified": true,
-  "formalQualification": false,
-  "processes": 24,
-  "samples": 144,
-  "preflights": 48,
-  "summary": [
-    {
-      "profile": "P1",
-      "recipe": "initial",
-      "beforeMedianMs": 2.5464169999999626,
-      "afterMedianMs": 2.4275410000000193,
-      "ratios": [
-        0.9304784322383685,
-        1.0190624709150267,
-        0.9871305778326221
-      ]
-    },
-    {
-      "profile": "P1",
-      "recipe": "verification",
-      "beforeMedianMs": 0.4599589999999978,
-      "afterMedianMs": 0.43587500000001,
-      "ratios": [
-        0.9613182914128992,
-        0.9834547210340053,
-        0.9276024291075317
-      ]
-    },
-    {
-      "profile": "P1",
-      "recipe": "sparse",
-      "beforeMedianMs": 1.47120799999999,
-      "afterMedianMs": 1.7425000000000068,
-      "ratios": [
-        1.1884227111326402,
-        0.8355207481676123,
-        1.2268603920884016
-      ]
-    },
-    {
-      "profile": "P1",
-      "recipe": "missing-material",
-      "beforeMedianMs": 0.32287499999998204,
-      "afterMedianMs": 0.33474999999998545,
-      "ratios": [
-        0.9987908101572233,
-        0.9331010452960143,
-        1.0469717382887942
-      ]
-    },
-    {
-      "profile": "P6",
-      "recipe": "initial",
-      "beforeMedianMs": 693.5212499999998,
-      "afterMedianMs": 632.5828329999986,
-      "ratios": [
-        0.7443495551992977,
-        0.9174029552508622,
-        0.900471146341948
-      ]
-    },
-    {
-      "profile": "P6",
-      "recipe": "verification",
-      "beforeMedianMs": 311.03562500000044,
-      "afterMedianMs": 242.51158299999952,
-      "ratios": [
-        0.7832970404401527,
-        0.7814956156027789,
-        0.7796906962024018
-      ]
-    },
-    {
-      "profile": "P6",
-      "recipe": "sparse",
-      "beforeMedianMs": 8.897165999999743,
-      "afterMedianMs": 8.261250000000473,
-      "ratios": [
-        0.9159405757601068,
-        1.0429960453152758,
-        0.9239224040553893
-      ]
-    },
-    {
-      "profile": "P6",
-      "recipe": "missing-material",
-      "beforeMedianMs": 34.08150000000023,
-      "afterMedianMs": 35.58729099999982,
-      "ratios": [
-        1.0432664055279135,
-        1.0531491448250667,
-        1.0559413178325876
-      ]
-    }
-  ],
-  "rows": [
-    {
-      "job": {
-        "id": 0,
-        "profile": "P1",
-        "recipe": "initial",
-        "repeat": 0,
-        "order": [
-          "before",
-          "after"
-        ]
-      },
-      "beforeMedianMs": 2.608916999999991,
-      "afterMedianMs": 2.4275410000000193,
-      "ratio": 0.9304784322383685
-    },
-    {
-      "job": {
-        "id": 1,
-        "profile": "P1",
-        "recipe": "initial",
-        "repeat": 1,
-        "order": [
-          "after",
-          "before"
-        ]
-      },
-      "beforeMedianMs": 2.5464169999999626,
-      "afterMedianMs": 2.594957999999991,
-      "ratio": 1.0190624709150267
-    },
-    {
-      "job": {
-        "id": 2,
-        "profile": "P1",
-        "recipe": "initial",
-        "repeat": 2,
-        "order": [
-          "before",
-          "after"
-        ]
-      },
-      "beforeMedianMs": 2.4314999999999998,
-      "afterMedianMs": 2.4002080000000205,
-      "ratio": 0.9871305778326221
-    },
-    {
-      "job": {
-        "id": 3,
-        "profile": "P1",
-        "recipe": "verification",
-        "repeat": 0,
-        "order": [
-          "before",
-          "after"
-        ]
-      },
-      "beforeMedianMs": 0.4599589999999978,
-      "afterMedianMs": 0.44216699999998355,
-      "ratio": 0.9613182914128992
-    },
-    {
-      "job": {
-        "id": 4,
-        "profile": "P1",
-        "recipe": "verification",
-        "repeat": 1,
-        "order": [
-          "after",
-          "before"
-        ]
-      },
-      "beforeMedianMs": 0.44320799999997007,
-      "afterMedianMs": 0.43587500000001,
-      "ratio": 0.9834547210340053
-    },
-    {
-      "job": {
-        "id": 5,
-        "profile": "P1",
-        "recipe": "verification",
-        "repeat": 2,
-        "order": [
-          "before",
-          "after"
-        ]
-      },
-      "beforeMedianMs": 0.46041600000000926,
-      "afterMedianMs": 0.4270829999999819,
-      "ratio": 0.9276024291075317
-    },
-    {
-      "job": {
-        "id": 6,
-        "profile": "P1",
-        "recipe": "sparse",
-        "repeat": 0,
-        "order": [
-          "before",
-          "after"
-        ]
-      },
-      "beforeMedianMs": 1.47120799999999,
-      "afterMedianMs": 1.7484170000000177,
-      "ratio": 1.1884227111326402
-    },
-    {
-      "job": {
-        "id": 7,
-        "profile": "P1",
-        "recipe": "sparse",
-        "repeat": 1,
-        "order": [
-          "after",
-          "before"
-        ]
-      },
-      "beforeMedianMs": 1.6732079999999883,
-      "afterMedianMs": 1.3980000000000246,
-      "ratio": 0.8355207481676123
-    },
-    {
-      "job": {
-        "id": 8,
-        "profile": "P1",
-        "recipe": "sparse",
-        "repeat": 2,
-        "order": [
-          "before",
-          "after"
-        ]
-      },
-      "beforeMedianMs": 1.4202919999999892,
-      "afterMedianMs": 1.7425000000000068,
-      "ratio": 1.2268603920884016
-    },
-    {
-      "job": {
-        "id": 9,
-        "profile": "P1",
-        "recipe": "missing-material",
-        "repeat": 0,
-        "order": [
-          "before",
-          "after"
-        ]
-      },
-      "beforeMedianMs": 0.3101249999999993,
-      "afterMedianMs": 0.3097500000000082,
-      "ratio": 0.9987908101572233
-    },
-    {
-      "job": {
-        "id": 10,
-        "profile": "P1",
-        "recipe": "missing-material",
-        "repeat": 1,
-        "order": [
-          "after",
-          "before"
-        ]
-      },
-      "beforeMedianMs": 0.3587500000000432,
-      "afterMedianMs": 0.33474999999998545,
-      "ratio": 0.9331010452960143
-    },
-    {
-      "job": {
-        "id": 11,
-        "profile": "P1",
-        "recipe": "missing-material",
-        "repeat": 2,
-        "order": [
-          "before",
-          "after"
-        ]
-      },
-      "beforeMedianMs": 0.32287499999998204,
-      "afterMedianMs": 0.3380409999999756,
-      "ratio": 1.0469717382887942
-    },
-    {
-      "job": {
-        "id": 12,
-        "profile": "P6",
-        "recipe": "initial",
-        "repeat": 0,
-        "order": [
-          "before",
-          "after"
-        ]
-      },
-      "beforeMedianMs": 849.846458,
-      "afterMedianMs": 632.5828329999986,
-      "ratio": 0.7443495551992977
-    },
-    {
-      "job": {
-        "id": 13,
-        "profile": "P6",
-        "recipe": "initial",
-        "repeat": 1,
-        "order": [
-          "after",
-          "before"
-        ]
-      },
-      "beforeMedianMs": 690.785417000001,
-      "afterMedianMs": 633.7285830000001,
-      "ratio": 0.9174029552508622
-    },
-    {
-      "job": {
-        "id": 14,
-        "profile": "P6",
-        "recipe": "initial",
-        "repeat": 2,
-        "order": [
-          "before",
-          "after"
-        ]
-      },
-      "beforeMedianMs": 693.5212499999998,
-      "afterMedianMs": 624.4958750000005,
-      "ratio": 0.900471146341948
-    },
-    {
-      "job": {
-        "id": 15,
-        "profile": "P6",
-        "recipe": "verification",
-        "repeat": 0,
-        "order": [
-          "before",
-          "after"
-        ]
-      },
-      "beforeMedianMs": 311.21979199999987,
-      "afterMedianMs": 243.7775419999998,
-      "ratio": 0.7832970404401527
-    },
-    {
-      "job": {
-        "id": 16,
-        "profile": "P6",
-        "recipe": "verification",
-        "repeat": 1,
-        "order": [
-          "after",
-          "before"
-        ]
-      },
-      "beforeMedianMs": 307.1141669999997,
-      "afterMedianMs": 240.00837499999943,
-      "ratio": 0.7814956156027789
-    },
-    {
-      "job": {
-        "id": 17,
-        "profile": "P6",
-        "recipe": "verification",
-        "repeat": 2,
-        "order": [
-          "before",
-          "after"
-        ]
-      },
-      "beforeMedianMs": 311.03562500000044,
-      "afterMedianMs": 242.51158299999952,
-      "ratio": 0.7796906962024018
-    },
-    {
-      "job": {
-        "id": 18,
-        "profile": "P6",
-        "recipe": "sparse",
-        "repeat": 0,
-        "order": [
-          "before",
-          "after"
-        ]
-      },
-      "beforeMedianMs": 9.019416999999976,
-      "afterMedianMs": 8.261250000000473,
-      "ratio": 0.9159405757601068
-    },
-    {
-      "job": {
-        "id": 19,
-        "profile": "P6",
-        "recipe": "sparse",
-        "repeat": 1,
-        "order": [
-          "after",
-          "before"
-        ]
-      },
-      "beforeMedianMs": 8.407750000000306,
-      "afterMedianMs": 8.769249999999829,
-      "ratio": 1.0429960453152758
-    },
-    {
-      "job": {
-        "id": 20,
-        "profile": "P6",
-        "recipe": "sparse",
-        "repeat": 2,
-        "order": [
-          "before",
-          "after"
-        ]
-      },
-      "beforeMedianMs": 8.897165999999743,
-      "afterMedianMs": 8.220290999999634,
-      "ratio": 0.9239224040553893
-    },
-    {
-      "job": {
-        "id": 21,
-        "profile": "P6",
-        "recipe": "missing-material",
-        "repeat": 0,
-        "order": [
-          "before",
-          "after"
-        ]
-      },
-      "beforeMedianMs": 34.08150000000023,
-      "afterMedianMs": 35.55608399999983,
-      "ratio": 1.0432664055279135
-    },
-    {
-      "job": {
-        "id": 22,
-        "profile": "P6",
-        "recipe": "missing-material",
-        "repeat": 1,
-        "order": [
-          "after",
-          "before"
-        ]
-      },
-      "beforeMedianMs": 34.25345799999923,
-      "afterMedianMs": 36.074000000000524,
-      "ratio": 1.0531491448250667
-    },
-    {
-      "job": {
-        "id": 23,
-        "profile": "P6",
-        "recipe": "missing-material",
-        "repeat": 2,
-        "order": [
-          "before",
-          "after"
-        ]
-      },
-      "beforeMedianMs": 33.70195899999999,
-      "afterMedianMs": 35.58729099999982,
-      "ratio": 1.0559413178325876
-    }
-  ]
+	"verified": true,
+	"formalQualification": false,
+	"processes": 24,
+	"samples": 144,
+	"preflights": 48,
+	"summary": [
+		{
+			"profile": "P1",
+			"recipe": "initial",
+			"beforeMedianMs": 2.5464169999999626,
+			"afterMedianMs": 2.4275410000000193,
+			"ratios": [0.9304784322383685, 1.0190624709150267, 0.9871305778326221]
+		},
+		{
+			"profile": "P1",
+			"recipe": "verification",
+			"beforeMedianMs": 0.4599589999999978,
+			"afterMedianMs": 0.43587500000001,
+			"ratios": [0.9613182914128992, 0.9834547210340053, 0.9276024291075317]
+		},
+		{
+			"profile": "P1",
+			"recipe": "sparse",
+			"beforeMedianMs": 1.47120799999999,
+			"afterMedianMs": 1.7425000000000068,
+			"ratios": [1.1884227111326402, 0.8355207481676123, 1.2268603920884016]
+		},
+		{
+			"profile": "P1",
+			"recipe": "missing-material",
+			"beforeMedianMs": 0.32287499999998204,
+			"afterMedianMs": 0.33474999999998545,
+			"ratios": [0.9987908101572233, 0.9331010452960143, 1.0469717382887942]
+		},
+		{
+			"profile": "P6",
+			"recipe": "initial",
+			"beforeMedianMs": 693.5212499999998,
+			"afterMedianMs": 632.5828329999986,
+			"ratios": [0.7443495551992977, 0.9174029552508622, 0.900471146341948]
+		},
+		{
+			"profile": "P6",
+			"recipe": "verification",
+			"beforeMedianMs": 311.03562500000044,
+			"afterMedianMs": 242.51158299999952,
+			"ratios": [0.7832970404401527, 0.7814956156027789, 0.7796906962024018]
+		},
+		{
+			"profile": "P6",
+			"recipe": "sparse",
+			"beforeMedianMs": 8.897165999999743,
+			"afterMedianMs": 8.261250000000473,
+			"ratios": [0.9159405757601068, 1.0429960453152758, 0.9239224040553893]
+		},
+		{
+			"profile": "P6",
+			"recipe": "missing-material",
+			"beforeMedianMs": 34.08150000000023,
+			"afterMedianMs": 35.58729099999982,
+			"ratios": [1.0432664055279135, 1.0531491448250667, 1.0559413178325876]
+		}
+	],
+	"rows": [
+		{
+			"job": {
+				"id": 0,
+				"profile": "P1",
+				"recipe": "initial",
+				"repeat": 0,
+				"order": ["before", "after"]
+			},
+			"beforeMedianMs": 2.608916999999991,
+			"afterMedianMs": 2.4275410000000193,
+			"ratio": 0.9304784322383685
+		},
+		{
+			"job": {
+				"id": 1,
+				"profile": "P1",
+				"recipe": "initial",
+				"repeat": 1,
+				"order": ["after", "before"]
+			},
+			"beforeMedianMs": 2.5464169999999626,
+			"afterMedianMs": 2.594957999999991,
+			"ratio": 1.0190624709150267
+		},
+		{
+			"job": {
+				"id": 2,
+				"profile": "P1",
+				"recipe": "initial",
+				"repeat": 2,
+				"order": ["before", "after"]
+			},
+			"beforeMedianMs": 2.4314999999999998,
+			"afterMedianMs": 2.4002080000000205,
+			"ratio": 0.9871305778326221
+		},
+		{
+			"job": {
+				"id": 3,
+				"profile": "P1",
+				"recipe": "verification",
+				"repeat": 0,
+				"order": ["before", "after"]
+			},
+			"beforeMedianMs": 0.4599589999999978,
+			"afterMedianMs": 0.44216699999998355,
+			"ratio": 0.9613182914128992
+		},
+		{
+			"job": {
+				"id": 4,
+				"profile": "P1",
+				"recipe": "verification",
+				"repeat": 1,
+				"order": ["after", "before"]
+			},
+			"beforeMedianMs": 0.44320799999997007,
+			"afterMedianMs": 0.43587500000001,
+			"ratio": 0.9834547210340053
+		},
+		{
+			"job": {
+				"id": 5,
+				"profile": "P1",
+				"recipe": "verification",
+				"repeat": 2,
+				"order": ["before", "after"]
+			},
+			"beforeMedianMs": 0.46041600000000926,
+			"afterMedianMs": 0.4270829999999819,
+			"ratio": 0.9276024291075317
+		},
+		{
+			"job": {
+				"id": 6,
+				"profile": "P1",
+				"recipe": "sparse",
+				"repeat": 0,
+				"order": ["before", "after"]
+			},
+			"beforeMedianMs": 1.47120799999999,
+			"afterMedianMs": 1.7484170000000177,
+			"ratio": 1.1884227111326402
+		},
+		{
+			"job": {
+				"id": 7,
+				"profile": "P1",
+				"recipe": "sparse",
+				"repeat": 1,
+				"order": ["after", "before"]
+			},
+			"beforeMedianMs": 1.6732079999999883,
+			"afterMedianMs": 1.3980000000000246,
+			"ratio": 0.8355207481676123
+		},
+		{
+			"job": {
+				"id": 8,
+				"profile": "P1",
+				"recipe": "sparse",
+				"repeat": 2,
+				"order": ["before", "after"]
+			},
+			"beforeMedianMs": 1.4202919999999892,
+			"afterMedianMs": 1.7425000000000068,
+			"ratio": 1.2268603920884016
+		},
+		{
+			"job": {
+				"id": 9,
+				"profile": "P1",
+				"recipe": "missing-material",
+				"repeat": 0,
+				"order": ["before", "after"]
+			},
+			"beforeMedianMs": 0.3101249999999993,
+			"afterMedianMs": 0.3097500000000082,
+			"ratio": 0.9987908101572233
+		},
+		{
+			"job": {
+				"id": 10,
+				"profile": "P1",
+				"recipe": "missing-material",
+				"repeat": 1,
+				"order": ["after", "before"]
+			},
+			"beforeMedianMs": 0.3587500000000432,
+			"afterMedianMs": 0.33474999999998545,
+			"ratio": 0.9331010452960143
+		},
+		{
+			"job": {
+				"id": 11,
+				"profile": "P1",
+				"recipe": "missing-material",
+				"repeat": 2,
+				"order": ["before", "after"]
+			},
+			"beforeMedianMs": 0.32287499999998204,
+			"afterMedianMs": 0.3380409999999756,
+			"ratio": 1.0469717382887942
+		},
+		{
+			"job": {
+				"id": 12,
+				"profile": "P6",
+				"recipe": "initial",
+				"repeat": 0,
+				"order": ["before", "after"]
+			},
+			"beforeMedianMs": 849.846458,
+			"afterMedianMs": 632.5828329999986,
+			"ratio": 0.7443495551992977
+		},
+		{
+			"job": {
+				"id": 13,
+				"profile": "P6",
+				"recipe": "initial",
+				"repeat": 1,
+				"order": ["after", "before"]
+			},
+			"beforeMedianMs": 690.785417000001,
+			"afterMedianMs": 633.7285830000001,
+			"ratio": 0.9174029552508622
+		},
+		{
+			"job": {
+				"id": 14,
+				"profile": "P6",
+				"recipe": "initial",
+				"repeat": 2,
+				"order": ["before", "after"]
+			},
+			"beforeMedianMs": 693.5212499999998,
+			"afterMedianMs": 624.4958750000005,
+			"ratio": 0.900471146341948
+		},
+		{
+			"job": {
+				"id": 15,
+				"profile": "P6",
+				"recipe": "verification",
+				"repeat": 0,
+				"order": ["before", "after"]
+			},
+			"beforeMedianMs": 311.21979199999987,
+			"afterMedianMs": 243.7775419999998,
+			"ratio": 0.7832970404401527
+		},
+		{
+			"job": {
+				"id": 16,
+				"profile": "P6",
+				"recipe": "verification",
+				"repeat": 1,
+				"order": ["after", "before"]
+			},
+			"beforeMedianMs": 307.1141669999997,
+			"afterMedianMs": 240.00837499999943,
+			"ratio": 0.7814956156027789
+		},
+		{
+			"job": {
+				"id": 17,
+				"profile": "P6",
+				"recipe": "verification",
+				"repeat": 2,
+				"order": ["before", "after"]
+			},
+			"beforeMedianMs": 311.03562500000044,
+			"afterMedianMs": 242.51158299999952,
+			"ratio": 0.7796906962024018
+		},
+		{
+			"job": {
+				"id": 18,
+				"profile": "P6",
+				"recipe": "sparse",
+				"repeat": 0,
+				"order": ["before", "after"]
+			},
+			"beforeMedianMs": 9.019416999999976,
+			"afterMedianMs": 8.261250000000473,
+			"ratio": 0.9159405757601068
+		},
+		{
+			"job": {
+				"id": 19,
+				"profile": "P6",
+				"recipe": "sparse",
+				"repeat": 1,
+				"order": ["after", "before"]
+			},
+			"beforeMedianMs": 8.407750000000306,
+			"afterMedianMs": 8.769249999999829,
+			"ratio": 1.0429960453152758
+		},
+		{
+			"job": {
+				"id": 20,
+				"profile": "P6",
+				"recipe": "sparse",
+				"repeat": 2,
+				"order": ["before", "after"]
+			},
+			"beforeMedianMs": 8.897165999999743,
+			"afterMedianMs": 8.220290999999634,
+			"ratio": 0.9239224040553893
+		},
+		{
+			"job": {
+				"id": 21,
+				"profile": "P6",
+				"recipe": "missing-material",
+				"repeat": 0,
+				"order": ["before", "after"]
+			},
+			"beforeMedianMs": 34.08150000000023,
+			"afterMedianMs": 35.55608399999983,
+			"ratio": 1.0432664055279135
+		},
+		{
+			"job": {
+				"id": 22,
+				"profile": "P6",
+				"recipe": "missing-material",
+				"repeat": 1,
+				"order": ["after", "before"]
+			},
+			"beforeMedianMs": 34.25345799999923,
+			"afterMedianMs": 36.074000000000524,
+			"ratio": 1.0531491448250667
+		},
+		{
+			"job": {
+				"id": 23,
+				"profile": "P6",
+				"recipe": "missing-material",
+				"repeat": 2,
+				"order": ["before", "after"]
+			},
+			"beforeMedianMs": 33.70195899999999,
+			"afterMedianMs": 35.58729099999982,
+			"ratio": 1.0559413178325876
+		}
+	]
 }

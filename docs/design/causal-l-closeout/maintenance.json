@@ -1,0 +1,182 @@
+{
+	"copies": [
+		{
+			"original": "docs/design/causal-cost-investigation/comparison-proof/count.mjs",
+			"maintained": "docs/design/causal-cost-investigation/comparison-proof/count-lint-v1.mjs"
+		},
+		{
+			"original": "docs/design/causal-cost-investigation/comparison-proof/remaining.mjs",
+			"maintained": "docs/design/causal-cost-investigation/comparison-proof/remaining-lint-v1.mjs"
+		},
+		{
+			"original": "docs/design/causal-cost-investigation/dependency-comparison-tools/build.mjs",
+			"maintained": "docs/design/causal-cost-investigation/dependency-comparison-tools/build-lint-v1.mjs"
+		},
+		{
+			"original": "docs/design/causal-cost-investigation/implementation-preparation/probe.mjs",
+			"maintained": "docs/design/causal-cost-investigation/implementation-preparation/probe-lint-v1.mjs"
+		},
+		{
+			"original": "docs/design/causal-cost-investigation/performance-comparison/build.mjs",
+			"maintained": "docs/design/causal-cost-investigation/performance-comparison/build-lint-v1.mjs"
+		},
+		{
+			"original": "docs/design/causal-cost-investigation/single-version-rss-tools/child.mjs",
+			"maintained": "docs/design/causal-cost-investigation/single-version-rss-tools/child-lint-v1.mjs"
+		},
+		{
+			"original": "docs/design/causal-cost-investigation/single-version-rss-tools/driver.mjs",
+			"maintained": "docs/design/causal-cost-investigation/single-version-rss-tools/driver-lint-v1.mjs"
+		},
+		{
+			"original": "docs/design/causal-cost-investigation/single-version-rss-tools/test_child.mjs",
+			"maintained": "docs/design/causal-cost-investigation/single-version-rss-tools/test_child-lint-v1.mjs"
+		},
+		{
+			"original": "docs/design/causal-cost-investigation/single-version-rss-v2-tools/child.mjs",
+			"maintained": "docs/design/causal-cost-investigation/single-version-rss-v2-tools/child-lint-v1.mjs"
+		},
+		{
+			"original": "docs/design/causal-cost-investigation/single-version-rss-v2-tools/driver.mjs",
+			"maintained": "docs/design/causal-cost-investigation/single-version-rss-v2-tools/driver-lint-v1.mjs"
+		},
+		{
+			"original": "docs/design/causal-cost-investigation/single-version-rss-v2-tools/test_child.mjs",
+			"maintained": "docs/design/causal-cost-investigation/single-version-rss-v2-tools/test_child-lint-v1.mjs"
+		},
+		{
+			"original": "docs/design/causal-cost-investigation/single-version-tools/child.mjs",
+			"maintained": "docs/design/causal-cost-investigation/single-version-tools/child-lint-v1.mjs"
+		},
+		{
+			"original": "docs/design/causal-cost-investigation/single-version-tools/driver.mjs",
+			"maintained": "docs/design/causal-cost-investigation/single-version-tools/driver-lint-v1.mjs"
+		},
+		{
+			"original": "docs/design/causal-cost-investigation/single-version-tools/test_child.mjs",
+			"maintained": "docs/design/causal-cost-investigation/single-version-tools/test_child-lint-v1.mjs"
+		},
+		{
+			"original": "docs/design/causal-cost-investigation/source-readiness/bind.mjs",
+			"maintained": "docs/design/causal-cost-investigation/source-readiness/bind-lint-v1.mjs"
+		},
+		{
+			"original": "docs/design/causal-cpu-wall-retained-localization-v1/verify.mjs",
+			"maintained": "docs/design/causal-cpu-wall-retained-localization-v1/verify-lint-v1.mjs"
+		},
+		{
+			"original": "docs/design/causal-release-allocation-v1/probe.mjs",
+			"maintained": "docs/design/causal-release-allocation-v1/probe-lint-v1.mjs"
+		},
+		{
+			"original": "docs/design/causal-release-memory-v1/probe.mjs",
+			"maintained": "docs/design/causal-release-memory-v1/probe-lint-v1.mjs"
+		},
+		{
+			"original": "docs/design/causal-release-preflight-v1/run.mjs",
+			"maintained": "docs/design/causal-release-preflight-v1/run-lint-v1.mjs"
+		},
+		{
+			"original": "docs/design/causal-unprofiled-latency/incidents/prepare-causal-latency-baseline.mjs",
+			"maintained": "docs/design/causal-unprofiled-latency/incidents/prepare-causal-latency-baseline-lint-v1.mjs"
+		},
+		{
+			"original": "scripts/causal-global-cold.mjs",
+			"maintained": "scripts/causal-global-cold-lint-v1.mjs"
+		},
+		{
+			"original": "scripts/causal-policy-prototype.mjs",
+			"maintained": "scripts/causal-policy-prototype-lint-v1.mjs"
+		},
+		{
+			"original": "scripts/check-causal-recording-source.mjs",
+			"maintained": "scripts/check-causal-recording-source-lint-v1.mjs"
+		},
+		{
+			"original": "scripts/count-causal-policy-comparisons.mjs",
+			"maintained": "scripts/count-causal-policy-comparisons-lint-v1.mjs"
+		},
+		{
+			"original": "scripts/derive-causal-cpu-driver.mjs",
+			"maintained": "scripts/derive-causal-cpu-driver-lint-v1.mjs"
+		},
+		{
+			"original": "scripts/derive-causal-recording-driver.mjs",
+			"maintained": "scripts/derive-causal-recording-driver-lint-v1.mjs"
+		}
+	],
+	"unboundJson": [
+		"docs/design/causal-cost-investigation/aligned-clock-preparation/verification.json",
+		"docs/design/causal-cost-investigation/aligned-tools/artifact-index.json",
+		"docs/design/causal-cost-investigation/aligned-tools/checks.json",
+		"docs/design/causal-cost-investigation/aligned-tools/frozen-verifier-smoke.json",
+		"docs/design/causal-cost-investigation/aligned-tools/verification.json",
+		"docs/design/causal-cost-investigation/dependency-comparison-capture/archive-replay.json",
+		"docs/design/causal-cost-investigation/dependency-comparison-tools/checks/qualification.json",
+		"docs/design/causal-cost-investigation/diagnostic-capture/verification.json",
+		"docs/design/causal-cost-investigation/diagnostic-tools/verification.json",
+		"docs/design/causal-cost-investigation/followup-audit/verification.json",
+		"docs/design/causal-cost-investigation/recording-capture/verification.json",
+		"docs/design/causal-cost-investigation/recording-tools/archive-replay.json",
+		"docs/design/causal-cost-investigation/recording-tools/check-6.json",
+		"docs/design/causal-cost-investigation/recording-tools/checks.json",
+		"docs/design/causal-cost-investigation/recording-tools/preparation.json",
+		"docs/design/causal-cost-investigation/recording-tools/verification.json",
+		"docs/design/causal-cost-investigation/retained-runtime-audit/verification.json",
+		"docs/design/causal-cost-investigation/single-version-capture/archive-replay.json",
+		"docs/design/causal-cost-investigation/single-version-rss-capture/archive-replay.json",
+		"docs/design/causal-cost-investigation/single-version-rss-tools/checks/archive-replay.json",
+		"docs/design/causal-cost-investigation/single-version-rss-v2-capture/archive-replay.json",
+		"docs/design/causal-cost-investigation/single-version-rss-v2-tools/checks/archive-replay.json",
+		"docs/design/causal-cost-investigation/single-version-tools/checks/archive-replay.json",
+		"docs/design/causal-cost-investigation/source-readiness/verification.json",
+		"docs/design/causal-currentness-query-optimization/comparison-verification.json",
+		"docs/design/causal-currentness-query-optimization/cpu-attribution.json",
+		"docs/design/causal-currentness-query-optimization/receipt.json",
+		"docs/design/causal-currentness-query-optimization/review.json",
+		"docs/design/causal-currentness-query-optimization/runtime-mutations.json",
+		"docs/design/causal-evidence-query-optimization/comparison-verification.json",
+		"docs/design/causal-evidence-query-optimization/receipt.json",
+		"docs/design/causal-evidence-query-optimization/review.json",
+		"docs/design/causal-evidence-query-optimization/runtime-mutations.json",
+		"docs/design/causal-global-review/cold-screen.json",
+		"docs/design/causal-global-review/cold.json",
+		"docs/design/causal-global-review/coverage.json",
+		"docs/design/causal-global-review/cpu-build.json",
+		"docs/design/causal-global-review/cpu.json",
+		"docs/design/causal-global-review/negatives.json",
+		"docs/design/causal-global-review/quiescence-cpu.json",
+		"docs/design/causal-global-review/receipt.json",
+		"docs/design/causal-granularity-diagnostic/negative-verification.json",
+		"docs/design/causal-granularity-diagnostic/qa.json",
+		"docs/design/causal-granularity-diagnostic/receipt.json",
+		"docs/design/causal-granularity-diagnostic/summary.json",
+		"docs/design/causal-performance-completion/coverage-loaded-tests.json",
+		"docs/design/causal-performance-completion/receipt.json",
+		"docs/design/causal-policy-comparison-diagnostic/negatives.json",
+		"docs/design/causal-policy-comparison-diagnostic/receipt.json",
+		"docs/design/causal-policy-comparison-diagnostic/timing.json",
+		"docs/design/causal-policy-comparison-optimization/negatives.json",
+		"docs/design/causal-policy-comparison-optimization/ordered.json",
+		"docs/design/causal-policy-comparison-optimization/receipt.json",
+		"docs/design/causal-policy-comparison-optimization/timing.json",
+		"docs/design/causal-policy-conflict/receipt.json",
+		"docs/design/causal-policy-conflict/summary.json",
+		"docs/design/causal-post-optimization-review/comparison.json",
+		"docs/design/causal-post-optimization-review/receipt.json",
+		"docs/design/causal-receipt-holdout/receipt.json",
+		"docs/design/causal-receipt-holdout/summary.json",
+		"docs/design/causal-receipt-identity-optimization/receipt.json",
+		"docs/design/causal-receipt-identity-optimization/summary.json",
+		"docs/design/causal-receipt-lazy/receipt.json",
+		"docs/design/causal-receipt-lazy/summary.json",
+		"docs/design/causal-unprofiled-latency/environment-observed-after.json",
+		"docs/design/causal-unprofiled-latency/first-use-verification.json",
+		"docs/design/causal-unprofiled-latency/incidents/setup.json",
+		"docs/design/causal-unprofiled-latency/negative-verification.json",
+		"docs/design/causal-unprofiled-latency/receipt.json",
+		"docs/design/causal-unprofiled-latency/replay.json",
+		"docs/design/causal-unprofiled-latency/verification.json",
+		"docs/design/causal-h-closeout/lint-inventory.json"
+	]
+}

@@ -1,41 +1,41 @@
 {
-  "owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
-  "baselineCommit": "586fa795",
-  "sourceDigests": {
-    "packages/ts/src/solutions/causal-occurrence/identity.ts": "1ef482e7d925149aad592567211c54843b53a3aa819d19677d88c79a59d930ec",
-    "scripts/causal-currentness-query-comparison.mjs": "6b498b03bc320b4552f6c8f2b604e931e05d720c7365a1115fc16c854de06197",
-    "scripts/run-causal-currentness-query-comparison.py": "b5d293ffe34da663480544e9173f2e78d5feb30012fc8aed171161138feedac7",
-    "scripts/verify-causal-currentness-query-comparison.py": "4f05ba9a4b6913b373a05a37be44c34b18bd38f66b4f9c371b6569c51bc0f11f",
-    "scripts/causal-currentness-query-comparison.test.py": "871e77ff2b133a8fd4b953e8a889a2e8ab874d18b46e2b976d4bbf01a59b4b9a"
-  },
-  "existingFilesPreserved": 22,
-  "tests": {
-    "pass": 2553,
-    "fail": 2,
-    "skip": 4,
-    "knownFailures": "D159 implementation manifest drift",
-    "runtimeMutantsKilled": 73,
-    "evidenceCorruptionsRejected": 6
-  },
-  "checks": {
-    "buildExport": "passed",
-    "packageTypecheck": "passed",
-    "noRawAsync": "passed",
-    "scopedBiome": "passed",
-    "sourceDiffCheck": "passed",
-    "dashboard": "passed with warnings",
-    "authorityWorkspace": "passed with warnings",
-    "fullLint": "not rerun; preceding archived failures unresolved",
-    "archiveReplay": "passed"
-  },
-  "newPublicAPI": false,
-  "newRetainedState": false,
-  "performance": {
-    "processes": 21,
-    "preflights": 42,
-    "samples": 126,
-    "formalQualification": false,
-    "report": "comparison-verification.json"
-  },
-  "tradeoff": "O(occurrences) call-local array; no heap improvement claimed"
+	"owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"baselineCommit": "586fa795",
+	"sourceDigests": {
+		"packages/ts/src/solutions/causal-occurrence/identity.ts": "1ef482e7d925149aad592567211c54843b53a3aa819d19677d88c79a59d930ec",
+		"scripts/causal-currentness-query-comparison.mjs": "6b498b03bc320b4552f6c8f2b604e931e05d720c7365a1115fc16c854de06197",
+		"scripts/run-causal-currentness-query-comparison.py": "b5d293ffe34da663480544e9173f2e78d5feb30012fc8aed171161138feedac7",
+		"scripts/verify-causal-currentness-query-comparison.py": "4f05ba9a4b6913b373a05a37be44c34b18bd38f66b4f9c371b6569c51bc0f11f",
+		"scripts/causal-currentness-query-comparison.test.py": "871e77ff2b133a8fd4b953e8a889a2e8ab874d18b46e2b976d4bbf01a59b4b9a"
+	},
+	"existingFilesPreserved": 22,
+	"tests": {
+		"pass": 2553,
+		"fail": 2,
+		"skip": 4,
+		"knownFailures": "D159 implementation manifest drift",
+		"runtimeMutantsKilled": 73,
+		"evidenceCorruptionsRejected": 6
+	},
+	"checks": {
+		"buildExport": "passed",
+		"packageTypecheck": "passed",
+		"noRawAsync": "passed",
+		"scopedBiome": "passed",
+		"sourceDiffCheck": "passed",
+		"dashboard": "passed with warnings",
+		"authorityWorkspace": "passed with warnings",
+		"fullLint": "not rerun; preceding archived failures unresolved",
+		"archiveReplay": "passed"
+	},
+	"newPublicAPI": false,
+	"newRetainedState": false,
+	"performance": {
+		"processes": 21,
+		"preflights": 42,
+		"samples": 126,
+		"formalQualification": false,
+		"report": "comparison-verification.json"
+	},
+	"tradeoff": "O(occurrences) call-local array; no heap improvement claimed"
 }

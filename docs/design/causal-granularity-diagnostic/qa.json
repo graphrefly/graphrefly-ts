@@ -1,26 +1,26 @@
 {
-  "classification": "private diagnostic evidence for existing work",
-  "productChanged": false,
-  "regression": {
-    "testFiles": 2,
-    "passed": 149
-  },
-  "runtimeRegression": {
-    "baseline": "passed",
-    "loadedMutants": 16,
-    "detected": 16,
-    "newRecipeMutationQualification": false
-  },
-  "review": "read-only independent reviewer; trace/failure/partial fixes accepted with documented limits",
-  "preparationIncidents": [
-    "Fixture missing parenthesis fixed before bundle creation; empty initial directory removed",
-    "Initial test invocation used wrong cwd and discovered no tests; corrected cwd ran 149 tests",
-    "Pre-timing QA repair bundles retained; no timed retry"
-  ],
-  "remainingLimits": [
-    "Consecutive identical fact notifications normalized in traces",
-    "New recipe-specific mutation battery not implemented",
-    "No formal p95 or relative method qualification",
-    "Independent verifier checks metadata and arithmetic, not business replay"
-  ]
+	"classification": "private diagnostic evidence for existing work",
+	"productChanged": false,
+	"regression": {
+		"testFiles": 2,
+		"passed": 149
+	},
+	"runtimeRegression": {
+		"baseline": "passed",
+		"loadedMutants": 16,
+		"detected": 16,
+		"newRecipeMutationQualification": false
+	},
+	"review": "read-only independent reviewer; trace/failure/partial fixes accepted with documented limits",
+	"preparationIncidents": [
+		"Fixture missing parenthesis fixed before bundle creation; empty initial directory removed",
+		"Initial test invocation used wrong cwd and discovered no tests; corrected cwd ran 149 tests",
+		"Pre-timing QA repair bundles retained; no timed retry"
+	],
+	"remainingLimits": [
+		"Consecutive identical fact notifications normalized in traces",
+		"New recipe-specific mutation battery not implemented",
+		"No formal p95 or relative method qualification",
+		"Independent verifier checks metadata and arithmetic, not business replay"
+	]
 }

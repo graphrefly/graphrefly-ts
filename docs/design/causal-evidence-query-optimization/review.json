@@ -1,10 +1,6 @@
 {
-  "reviewer": "evidence_query_review",
-  "blockingFindings": 0,
-  "coverageFollowups": [
-    "sourceRefs order",
-    "empty required kinds",
-    "foreign pending"
-  ],
-  "followupsAddressed": true
+	"reviewer": "evidence_query_review",
+	"blockingFindings": 0,
+	"coverageFollowups": ["sourceRefs order", "empty required kinds", "foreign pending"],
+	"followupsAddressed": true
 }

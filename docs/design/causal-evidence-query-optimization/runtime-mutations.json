@@ -1,10 +1,7 @@
 {
 	"schema": "graphrefly-ts/causal-occurrence-mutation-qualification/v1",
 	"contract": "graphrefly/causal-occurrence-contract/v1@contract-v2",
-	"behaviorIsolation": [
-		"required-edge assertion",
-		"cold manifest completeness"
-	],
+	"behaviorIsolation": ["required-edge assertion", "cold manifest completeness"],
 	"sourceDigest": "sha256:688f98985fac57987e84eb475b1e53e2961b7fff35f262c2c63762b8caf2afda",
 	"sourceFiles": {
 		"solutions/causal-occurrence.ts": "sha256:215c01b201c2de16f247fd418f289765e776bf6e3c120bd0bcf0bd5895ab7b63",

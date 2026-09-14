@@ -1,15 +1,15 @@
 {
-  "loadedDriverCoordinates": 12,
-  "stubConstructions": 28800,
-  "reverseWhitelistMutations": 12,
-  "observationFailureCases": 31,
-  "pythonTestMethods": 5,
-  "arithmeticCorruptions": 10,
-  "stopCoordinates": 12,
-  "missingWholeEvidenceCases": 5,
-  "resourceSupervisorTestMethods": 5,
-  "syntheticWholeConsumerCoordinates": 12,
-  "syntheticWholeVerificationCoordinates": 12,
-  "consumerExecutions": 0,
-  "realProfiles": 0
+	"loadedDriverCoordinates": 12,
+	"stubConstructions": 28800,
+	"reverseWhitelistMutations": 12,
+	"observationFailureCases": 31,
+	"pythonTestMethods": 5,
+	"arithmeticCorruptions": 10,
+	"stopCoordinates": 12,
+	"missingWholeEvidenceCases": 5,
+	"resourceSupervisorTestMethods": 5,
+	"syntheticWholeConsumerCoordinates": 12,
+	"syntheticWholeVerificationCoordinates": 12,
+	"consumerExecutions": 0,
+	"realProfiles": 0
 }

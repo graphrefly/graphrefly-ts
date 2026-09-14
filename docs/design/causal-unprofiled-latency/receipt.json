@@ -1,39 +1,39 @@
 {
-  "owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
-  "kind": "diagnostic-evidence",
-  "base": "20ba5883910c83d65d339d51007288d0dfe4c0ae",
-  "productRevision": "b30ae176",
-  "branch": "codex/causal-unprofiled-latency",
-  "productChanged": false,
-  "mainProcesses": 120,
-  "firstUseProcesses": 27,
-  "measuredSamplesMain": 6840,
-  "allCapturesComplete": true,
-  "freshArchiveReplay": true,
-  "reindexedNegativesRejected": 5,
-  "formalQualified": false,
-  "userExpectationMs": 100,
-  "expectationIsNewFormalGate": false,
-  "authorityLedgerChanged": false,
-  "workComplete": false,
-  "checks": [
-    "scoped Biome: four authored JS/TS files passed",
-    "Python AST parse passed",
-    "independent main and first-use verification passed",
-    "archive extraction replay matched all three reports"
-  ],
-  "limits": [
-    "No UI/network/process-startup timing",
-    "No qualified p95",
-    "First-use Node version observed after capture",
-    "First-use timed plain instance not directly oracle-checked",
-    "No product test rerun; previous product failures remain"
-  ],
-  "unrelatedChangesPreserved": [
-    "AGENTS.md",
-    ".agents/skills/dev-dispatch/SKILL.md",
-    ".agents/skills/qa/SKILL.md",
-    ".claude/skills/qa/SKILL.md"
-  ],
-  "evidenceIndex": "../../../archive/evals/causal-unprofiled-latency-evidence-v1/index.json"
+	"owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"kind": "diagnostic-evidence",
+	"base": "20ba5883910c83d65d339d51007288d0dfe4c0ae",
+	"productRevision": "b30ae176",
+	"branch": "codex/causal-unprofiled-latency",
+	"productChanged": false,
+	"mainProcesses": 120,
+	"firstUseProcesses": 27,
+	"measuredSamplesMain": 6840,
+	"allCapturesComplete": true,
+	"freshArchiveReplay": true,
+	"reindexedNegativesRejected": 5,
+	"formalQualified": false,
+	"userExpectationMs": 100,
+	"expectationIsNewFormalGate": false,
+	"authorityLedgerChanged": false,
+	"workComplete": false,
+	"checks": [
+		"scoped Biome: four authored JS/TS files passed",
+		"Python AST parse passed",
+		"independent main and first-use verification passed",
+		"archive extraction replay matched all three reports"
+	],
+	"limits": [
+		"No UI/network/process-startup timing",
+		"No qualified p95",
+		"First-use Node version observed after capture",
+		"First-use timed plain instance not directly oracle-checked",
+		"No product test rerun; previous product failures remain"
+	],
+	"unrelatedChangesPreserved": [
+		"AGENTS.md",
+		".agents/skills/dev-dispatch/SKILL.md",
+		".agents/skills/qa/SKILL.md",
+		".claude/skills/qa/SKILL.md"
+	],
+	"evidenceIndex": "../../../archive/evals/causal-unprofiled-latency-evidence-v1/index.json"
 }

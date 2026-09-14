@@ -1,6 +1,6 @@
 {
-  "timing": "observed after both captures, not retroactive per-process provenance",
-  "node": "v24.18.0",
-  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
-  "base": "20ba5883910c83d65d339d51007288d0dfe4c0ae"
+	"timing": "observed after both captures, not retroactive per-process provenance",
+	"node": "v24.18.0",
+	"platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+	"base": "20ba5883910c83d65d339d51007288d0dfe4c0ae"
 }

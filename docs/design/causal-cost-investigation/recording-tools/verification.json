@@ -1,8 +1,8 @@
 {
-  "diffCheck": 0,
-  "dashboardCheck": 0,
-  "workspaceAuthorityCheck": 0,
-  "preservedPriorModifiedFiles": 22,
-  "scope": "Private tools/evidence only; no TS runtime or package export change",
-  "historicalWarnings": "Dashboard orphan/workspace-optional refs and canvas legacy revision warnings remain"
+	"diffCheck": 0,
+	"dashboardCheck": 0,
+	"workspaceAuthorityCheck": 0,
+	"preservedPriorModifiedFiles": 22,
+	"scope": "Private tools/evidence only; no TS runtime or package export change",
+	"historicalWarnings": "Dashboard orphan/workspace-optional refs and canvas legacy revision warnings remain"
 }

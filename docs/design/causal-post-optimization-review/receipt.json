@@ -1,31 +1,31 @@
 {
-  "owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
-  "productCommit": "b30ae176",
-  "productChanges": false,
-  "existingFilesPreserved": 22,
-  "constraints": [
-    "no new cross-wave encoding cache",
-    "no persistent index or side authority",
-    "no protocol or public API changes"
-  ],
-  "rows": 84,
-  "preflights": 84,
-  "observations": 696,
-  "recoveryActions": 480,
-  "formalPerformanceQualified": false,
-  "checks": {
-    "independentBothRunReplay": true,
-    "perNodeInvocationCountsEqual": true,
-    "extractedArchiveReplay": true,
-    "dashboard": "passed with warnings",
-    "authorityWorkspace": "passed with warnings",
-    "productTests": "reused b30ae176; 2553 pass / 2 known D159 manifest failures / 4 skip; 73 runtime mutants killed"
-  },
-  "tools": {
-    "scripts/audit-causal-post-optimization.py": "6592b33a870c3883bd6b25cd6dfd98e43a82bc7b5847eecec5872f144e6d64c3",
-    "scripts/verify-causal-coverage-profile.py": "f4e3b18dba7f785aafde89d0a2c97d73c29c2e66db10d9374c1012946436517c",
-    "scripts/prepare-causal-coverage-profile-v2.mjs": "4f89c2c8d6834d3901ad47375e0e9f9c9b6df3aea7a565edc44ff63c031e895a",
-    "scripts/run-causal-profile-v2.py": "392bd72c68a8e1f5d3aa04b29f29a9ba2e3d26ce56e0f28f17dd295ef71eeaf3"
-  },
-  "rawEvidence": "archive/evals/causal-post-optimization-review-v1/evidence.tar.gz"
+	"owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"productCommit": "b30ae176",
+	"productChanges": false,
+	"existingFilesPreserved": 22,
+	"constraints": [
+		"no new cross-wave encoding cache",
+		"no persistent index or side authority",
+		"no protocol or public API changes"
+	],
+	"rows": 84,
+	"preflights": 84,
+	"observations": 696,
+	"recoveryActions": 480,
+	"formalPerformanceQualified": false,
+	"checks": {
+		"independentBothRunReplay": true,
+		"perNodeInvocationCountsEqual": true,
+		"extractedArchiveReplay": true,
+		"dashboard": "passed with warnings",
+		"authorityWorkspace": "passed with warnings",
+		"productTests": "reused b30ae176; 2553 pass / 2 known D159 manifest failures / 4 skip; 73 runtime mutants killed"
+	},
+	"tools": {
+		"scripts/audit-causal-post-optimization.py": "6592b33a870c3883bd6b25cd6dfd98e43a82bc7b5847eecec5872f144e6d64c3",
+		"scripts/verify-causal-coverage-profile.py": "f4e3b18dba7f785aafde89d0a2c97d73c29c2e66db10d9374c1012946436517c",
+		"scripts/prepare-causal-coverage-profile-v2.mjs": "4f89c2c8d6834d3901ad47375e0e9f9c9b6df3aea7a565edc44ff63c031e895a",
+		"scripts/run-causal-profile-v2.py": "392bd72c68a8e1f5d3aa04b29f29a9ba2e3d26ce56e0f28f17dd295ef71eeaf3"
+	},
+	"rawEvidence": "archive/evals/causal-post-optimization-review-v1/evidence.tar.gz"
 }

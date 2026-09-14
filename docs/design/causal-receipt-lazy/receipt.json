@@ -1,21 +1,21 @@
 {
-  "owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
-  "before": "056e1fda",
-  "change": "lazy invocation-local receipt encoding after material guard",
-  "persistentStateAdded": false,
-  "publicApiChanged": false,
-  "protocolChanged": false,
-  "tests": {
-    "passed": 2554,
-    "existingManifestFailures": 2,
-    "skipped": 4
-  },
-  "loadedMutantsDetected": 17,
-  "processes": 24,
-  "samples": 144,
-  "archiveReplay": true,
-  "formalQualified": false,
-  "workComplete": false,
-  "authorityLedgerChanged": false,
-  "evidence": "../../../archive/evals/causal-receipt-lazy-evidence-v1/index.json"
+	"owner": "graphrefly-ts:CAUSAL-PRESET-ASSEMBLY-TS",
+	"before": "056e1fda",
+	"change": "lazy invocation-local receipt encoding after material guard",
+	"persistentStateAdded": false,
+	"publicApiChanged": false,
+	"protocolChanged": false,
+	"tests": {
+		"passed": 2554,
+		"existingManifestFailures": 2,
+		"skipped": 4
+	},
+	"loadedMutantsDetected": 17,
+	"processes": 24,
+	"samples": 144,
+	"archiveReplay": true,
+	"formalQualified": false,
+	"workComplete": false,
+	"authorityLedgerChanged": false,
+	"evidence": "../../../archive/evals/causal-receipt-lazy-evidence-v1/index.json"
 }
