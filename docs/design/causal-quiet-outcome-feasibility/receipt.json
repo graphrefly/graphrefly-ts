@@ -1,0 +1,33 @@
+{
+	"kind": "no-io-mechanism-feasibility",
+	"baseline": "0feab45b20cde29b3ca69499fda88b5d333bd51c",
+	"candidate": "same-graph static quiet outcome feedback",
+	"candidateVerdict": "not-constructible-via-supported-cold-rewire",
+	"observedError": "rewire: would create a cycle \u2014 dep already transitively depends on this node (R-rewire / D42)",
+	"closingOrdersRejected": 2,
+	"acyclicControlPassed": true,
+	"newProbeTests": 3,
+	"focusedTestsPassed": 27,
+	"testTypecheck": "passed",
+	"scopedBiome": "passed",
+	"realIO": 0,
+	"productionAuthorityExecuted": false,
+	"runtimeSourceChanges": false,
+	"qualification": false,
+	"files": {
+		"packages/ts/src/__tests__/causal-quiet-outcome-feasibility.test.ts": "2737e494affb114e3e76fbf3c098f5dd5c5447322f2a4b6dd3fa39210b5d3f33",
+		"packages/ts/src/node/node-rewire-runtime.ts": "f56d6c2b1618e8245a2576757d0639c6337217b41f11a5c0f7a816f5f3db0e1b",
+		"packages/ts/src/graph/construction-scope.ts": "343e6828b5276525797f97cb9c3998e4c28a1b0215af0b6505404b676856d37b",
+		"packages/ts/src/dispatcher/index.ts": "32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+		"packages/ts/src/ctx/types.ts": "e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+		"docs/design/causal-quiet-outcome-feasibility/README.md": "ccd595a981484331d91ccfbfc2a5a5b0972bc1b56aede1e2a1a17234c6798b9e"
+	},
+	"unrun": [
+		"exact outcome settlement",
+		"multi-rejection retention",
+		"rollback/pause",
+		"UI detachment",
+		"capacity/ack",
+		"runtime mutation"
+	]
+}
