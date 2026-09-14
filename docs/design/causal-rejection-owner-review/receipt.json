@@ -1,0 +1,17 @@
+{
+	"kind": "rejection-owner-design-review",
+	"status": "proposal-not-locked",
+	"baseline": "754eced2e414245fd16743645d15ffe22266fcc1",
+	"recommendation": "retain focused host outcome ownership; source delivery mechanism unresolved",
+	"files": {
+		"docs/design/causal-rejection-owner-review/README.md": "ae78371e9fe682852887ac7f549030f4dae034924ddf2ab7091617cac60167ae",
+		"packages/ts/src/solutions/causal-occurrence/transition.ts": "b85f0fa0d4c61c64f88295814c24c770a414bf7d304fd686a01a4a2c524fe220",
+		"packages/ts/src/solutions/causal-occurrence/lifecycle.ts": "bc8f3c7b353d9a2cfbbb0d39bd8fd88a0b356184bbd448c2252f80503dc6089a",
+		"packages/ts/src/solutions/causal-occurrence/committed-view.ts": "ed6e3b06a849f4f7bc9df455059b26f1dea92a64566acad04bbc8c306b35919d",
+		"packages/ts/src/batch/boundary.ts": "d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+		"packages/ts/src/batch/batch.ts": "a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890"
+	},
+	"runtimeChanges": false,
+	"testsRun": false,
+	"hostExecutions": 0
+}
