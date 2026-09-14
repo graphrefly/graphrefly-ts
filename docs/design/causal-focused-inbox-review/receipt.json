@@ -1,0 +1,17 @@
+{
+	"kind": "focused-inbox-design-review",
+	"status": "proposal-not-qualified",
+	"baseline": "92a27aaaabcfedc58dd641a1c56b015cd28c3095",
+	"files": {
+		"docs/design/causal-focused-inbox-review/README.md": "7697ca179791199f2a02995c17eafa80e8408fe3ff8ec664b9b149658bccf4c6",
+		"packages/ts/src/dispatcher/index.ts": "32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+		"packages/ts/src/ctx/types.ts": "e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+		"packages/ts/src/patterns/admission-handoff.ts": "b08ba190b1aeeede2b2fd2bd187c81e5df4ef2938f76030c9665cae15835b545",
+		"docs/design/causal-composition-v1.md": "e57de7a4cb6affe36df5e984abb85569f5f9034d636a8ac7f95de6a3dc794ce1"
+	},
+	"implementationChanged": false,
+	"ioExecutions": 0,
+	"mechanismTestsRun": 0,
+	"openMechanism": "quiet outcome feedback cold assembly, lossless bounded receipts and acknowledgement",
+	"nextProposedScope": "finite no-I/O mechanism validation"
+}
