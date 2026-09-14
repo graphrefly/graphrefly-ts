@@ -1,0 +1,29 @@
+{
+	"kind": "private-audience-offline-review",
+	"baseline": "d21a85ed",
+	"governing": ["graphrefly-ts:D160", "graphrefly-ts:D162", "graphrefly-ts:D164"],
+	"sourceSha256": {
+		"packages/ts/src/__tests__/spending-alerts-audience.test.ts": "4d51724ae9a6383dab7c30bb3297e4395d36f066d76a88021a53503915619505",
+		"examples/spending-alerts/causal-audience.examples.ts": "60d138e2396e427ad34a286177f4d29cb920ad301315664de7eed1e630105f1f",
+		"examples/spending-alerts/causal-preset.ts": "d4388d6a9bd8ed94e89716cb908e3e335ee3081203d25791868e88e8e40a501b",
+		"packages/ts/package.json": "0ca16a1fcc9602d6f8fa28725f35acf3d7a8be40adeb767fdb89312c6519575d"
+	},
+	"checks": {
+		"focusedFiles": [
+			"spending-alerts-audience.test.ts",
+			"spending-alerts-causal-preset.test.ts",
+			"causal-cold-assembly.d162.test.ts",
+			"causal-committed-view.d163.test.ts"
+		],
+		"passed": 140,
+		"newAudienceTests": 4,
+		"testTypecheck": "passed",
+		"sourceAndExampleTypecheck": "passed"
+	},
+	"humanUnderstandingMeasured": false,
+	"publicFactoryAccepted": false,
+	"actualInboxExecutions": 0,
+	"newPerformanceMeasurements": 0,
+	"formalQualified": false,
+	"review": "local low-risk test/doc review; no independent reviewer this batch"
+}
