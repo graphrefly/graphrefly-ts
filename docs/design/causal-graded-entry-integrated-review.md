@@ -20,6 +20,8 @@ const composition = preset.compose(integration.inputs);
 
 `integration` 在应用启动模块显式准备；它不是全局单例，也不是待新增的万能 provider。
 应用集成模块持有运行所有权与实际 host 资源，UI 只持有展示所需引用。
+私有创建结果保留现有owner及诊断信息，由应用启动模块保存；上面的view/capabilities
+表示消费投影，不是把owner丢弃后藏进新注册表，也不锁定未来公共完整返回类型。
 先把这条使用链做成一个完整的私有离线示例并验收，再单独确认 public export 与真实宿主资格。
 本次推荐实施范围不包含公共发布。批准本稿也不授权真实 inbox、provider/live/spend。
 
