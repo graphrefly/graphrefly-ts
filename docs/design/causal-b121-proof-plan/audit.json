@@ -1,0 +1,424 @@
+{
+	"kind": "b121-readiness-audit",
+	"owner": "graphrefly-ts",
+	"baseline": "aa5bfc1609a8d5d72a2c27d595c47cc7a3eae490",
+	"scope": "read-only evidence and owner/source inspection; no runtime trial, qualification or effect execution",
+	"historicalSourceBinding": {
+		"path": "docs/design/causal-graded-entry-implementation/source-binding.json",
+		"sha256": "026d6306f4271d5d2b53a1691d12e80da51edfcea6b230a137e75f7f3e6aedcd",
+		"declaredScope": "One equivalent vendorStats implementation edit; no claim that arbitrary algorithm changes preserve consequences. Offline resource only.",
+		"inputs": [
+			{
+				"path": "examples/spending-alerts/causal-admission.ts",
+				"recordedSha256": "73e966f03b721b84e6a34fb0803089fbca24fcfea2bc53cdc0fd809004decca0",
+				"currentSha256": "73e966f03b721b84e6a34fb0803089fbca24fcfea2bc53cdc0fd809004decca0",
+				"state": "match"
+			},
+			{
+				"path": "examples/spending-alerts/causal-business.ts",
+				"recordedSha256": "5808b47b937eaa35336736523d958d9dcfa58053caad9c65df2caac49333c523",
+				"currentSha256": "5808b47b937eaa35336736523d958d9dcfa58053caad9c65df2caac49333c523",
+				"state": "match"
+			},
+			{
+				"path": "examples/spending-alerts/causal-focused-host.ts",
+				"recordedSha256": "771fe0c1d409debb836bb446dbf1109464497b80225f4fc49e5a56d106feb022",
+				"currentSha256": "771fe0c1d409debb836bb446dbf1109464497b80225f4fc49e5a56d106feb022",
+				"state": "match"
+			},
+			{
+				"path": "examples/spending-alerts/causal-inputs.ts",
+				"recordedSha256": "dfb1aa266cfed9bb6400171bfba30f046cd09ef94346c18560124566a7364561",
+				"currentSha256": "dfb1aa266cfed9bb6400171bfba30f046cd09ef94346c18560124566a7364561",
+				"state": "match"
+			},
+			{
+				"path": "examples/spending-alerts/causal-material-owner.ts",
+				"recordedSha256": "76a3605e733a2f87b23eb908f37fd7177ef86861c80d839708bd9080c5b9b370",
+				"currentSha256": "76a3605e733a2f87b23eb908f37fd7177ef86861c80d839708bd9080c5b9b370",
+				"state": "match"
+			},
+			{
+				"path": "examples/spending-alerts/causal-numeric.ts",
+				"recordedSha256": "0acdf5c800e55f7de0736718cc846eea137f880d0cbd0f158b680fa8b2e29dd8",
+				"currentSha256": "0acdf5c800e55f7de0736718cc846eea137f880d0cbd0f158b680fa8b2e29dd8",
+				"state": "match"
+			},
+			{
+				"path": "examples/spending-alerts/causal-preset.ts",
+				"recordedSha256": "71f801e17e95b2f7440017048dc08d3479a341d4e5e617be8eff9f513301dd50",
+				"currentSha256": "71f801e17e95b2f7440017048dc08d3479a341d4e5e617be8eff9f513301dd50",
+				"state": "match"
+			},
+			{
+				"path": "examples/spending-alerts/causal-publication.ts",
+				"recordedSha256": "4d2566ff521eeb370388b5d654eebfa9ab6f814c27e35233680f9d9125c7786e",
+				"currentSha256": "4d2566ff521eeb370388b5d654eebfa9ab6f814c27e35233680f9d9125c7786e",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/batch/batch.ts",
+				"recordedSha256": "a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"currentSha256": "a45147b408614e451ffd3c8459deb9a6e5b07fffabf2c7a69c34c2a066852890",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/batch/boundary.ts",
+				"recordedSha256": "d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"currentSha256": "d04546e093175f515f424efe6d8bdb23287acc33bf49a502fa6e781f342bd3a3",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/ctx/types.ts",
+				"recordedSha256": "e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"currentSha256": "e2c17c278b28c6c2f9ae6e483e3b5e6da9676ce97abcdb11e6d114872c7986c9",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/dispatcher/index.ts",
+				"recordedSha256": "32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"currentSha256": "32c759c62e7a2cd56033d7df13252f8ca10390423ba480e227d0ed8d313c847d",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/graph/blueprint.ts",
+				"recordedSha256": "ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"currentSha256": "ce63d1efa776a9abc240a46b6f22a2ea1493f47de34195f5d34d6caaca9a545b",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/graph/checkpoint.ts",
+				"recordedSha256": "303ffb3706bff5aa8f2d61a24290a322b3a7aa75f939318c5eb4e0d996b45ce7",
+				"currentSha256": "303ffb3706bff5aa8f2d61a24290a322b3a7aa75f939318c5eb4e0d996b45ce7",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/graph/combinators.ts",
+				"recordedSha256": "e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"currentSha256": "e62b42fbb2d1097c0aff5550317725f312a3450097275198a5ebdd496af1d0e2",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/graph/construction-scope.ts",
+				"recordedSha256": "343e6828b5276525797f97cb9c3998e4c28a1b0215af0b6505404b676856d37b",
+				"currentSha256": "343e6828b5276525797f97cb9c3998e4c28a1b0215af0b6505404b676856d37b",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/graph/describe.ts",
+				"recordedSha256": "d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"currentSha256": "d43c3a67be7f7776bad9bffac8434343f5c6019fbdf9a1c691e5ca441a899fa4",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/graph/environment.ts",
+				"recordedSha256": "2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"currentSha256": "2e7797663504212bd80955f72e1d832e32f06c2a5824c93d672c5f0105c8498c",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/graph/graph-lifecycle.ts",
+				"recordedSha256": "23abc2773517b95265ce11e8144ba026b9ef4cac60af69351960fda00e12ac9d",
+				"currentSha256": "23abc2773517b95265ce11e8144ba026b9ef4cac60af69351960fda00e12ac9d",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/graph/graph-support.ts",
+				"recordedSha256": "e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"currentSha256": "e8a7c680ef3007f984c08e1c3bcecd8e09d80363740453c0d42a1bdded71c14a",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/graph/graph-topology-group.ts",
+				"recordedSha256": "044f242b40e0ca8e069dbac19855af5d647513d80cbd54ac4978aa7b0830c119",
+				"currentSha256": "044f242b40e0ca8e069dbac19855af5d647513d80cbd54ac4978aa7b0830c119",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/graph/graph.ts",
+				"recordedSha256": "54b3644e0de855533f9ac91621b9e4eceb0368d11a953fe0d793dfd22e8b72fe",
+				"currentSha256": "54b3644e0de855533f9ac91621b9e4eceb0368d11a953fe0d793dfd22e8b72fe",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/graph/higher-order.ts",
+				"recordedSha256": "8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"currentSha256": "8b2743c2c6def92cb257c19ff6c1b11cca1a927014f8a97b4f32d513a89a165c",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/graph/operators.ts",
+				"recordedSha256": "01dcdfe15269da8fede4e3a0057e668f7c3e6e40c1fbad6d3779c6e5bdf715f3",
+				"currentSha256": "01dcdfe15269da8fede4e3a0057e668f7c3e6e40c1fbad6d3779c6e5bdf715f3",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/graph/sources.ts",
+				"recordedSha256": "eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"currentSha256": "eec749f0239492723f02e89d2777d2568a9e4dc6a0030f4d160a1a5249fd3f76",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/graph/time.ts",
+				"recordedSha256": "04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"currentSha256": "04af98331c3a7b09c21dbf2b047c99e37fd8a563a4a42c9745ebd513a9c270d1",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/identity.ts",
+				"recordedSha256": "4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"currentSha256": "4fd4ce5607c11777a29e123e1286bacf029e507077451e175e18d5fe71b1f270",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/json/codec.ts",
+				"recordedSha256": "7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"currentSha256": "7fadd889fa5ca55b83a812e67462a48873c50e67d4b9451e7f361e1af8a44ffa",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/node/core.ts",
+				"recordedSha256": "87d482706dd0476297f191b485fb14cbbebc8298dd126d8005d8548f2423041c",
+				"currentSha256": "87d482706dd0476297f191b485fb14cbbebc8298dd126d8005d8548f2423041c",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/node/node-checkpoint-runtime.ts",
+				"recordedSha256": "5ed4b3fe287fdf3c37b3c15eb9dcbaf3509f03212752068b3d9f3a2eeafe40bb",
+				"currentSha256": "5ed4b3fe287fdf3c37b3c15eb9dcbaf3509f03212752068b3d9f3a2eeafe40bb",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/node/node-context-runtime.ts",
+				"recordedSha256": "6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"currentSha256": "6d2e09377783600a1866df9ad70ec2cb8c09def8138f6efc162ba0d2a6b8b624",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/node/node-input-runtime.ts",
+				"recordedSha256": "9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"currentSha256": "9584a66cf34b057a449aecf80689819ea17717863b0d77f3c5541c686961f066",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/node/node-lifecycle-runtime.ts",
+				"recordedSha256": "c0845b70f2da14aa8692ec2fe4d079cdb0e3be0af777648e0ce2c6adcca3273b",
+				"currentSha256": "c0845b70f2da14aa8692ec2fe4d079cdb0e3be0af777648e0ce2c6adcca3273b",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/node/node-output-runtime.ts",
+				"recordedSha256": "c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"currentSha256": "c6f4929126b041fed9c2f90ca8aede61a291b0ee572746a0110ba1dd858accf4",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/node/node-rewire-runtime.ts",
+				"recordedSha256": "f56d6c2b1618e8245a2576757d0639c6337217b41f11a5c0f7a816f5f3db0e1b",
+				"currentSha256": "f56d6c2b1618e8245a2576757d0639c6337217b41f11a5c0f7a816f5f3db0e1b",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/node/node-runtime-host.ts",
+				"recordedSha256": "7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"currentSha256": "7ac139ceb74b1561346060c10324e0d7d9a1671edda7a71c77853dfffa20f02b",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/node/node.ts",
+				"recordedSha256": "b4f7ea41b8bd6cd9664cde9a31763caef4d4effd17597d868f9ef9b3d699eec6",
+				"currentSha256": "b4f7ea41b8bd6cd9664cde9a31763caef4d4effd17597d868f9ef9b3d699eec6",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/node/owned-acquisition.ts",
+				"recordedSha256": "b0f28f96d0f316bd76922869d55b46ef260bee9b9d473dcaaf64622d24c492d9",
+				"currentSha256": "b0f28f96d0f316bd76922869d55b46ef260bee9b9d473dcaaf64622d24c492d9",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/node/protocol-guards.ts",
+				"recordedSha256": "11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"currentSha256": "11146a2f43c8e2cacd8a500d088025f02b853bb7be90abbc6ad07050896ef177",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/node/runtime-accessors.ts",
+				"recordedSha256": "6ec8dc24114807f55bc4633fb12d4fa24c35d83d0796ce270f7407017073322f",
+				"currentSha256": "6ec8dc24114807f55bc4633fb12d4fa24c35d83d0796ce270f7407017073322f",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/node/versioning.ts",
+				"recordedSha256": "2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"currentSha256": "2e85ef63e93703ec3cda767dcd68e8e32b8f13f263c78d9d6b8ae551cbf8b27a",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/operators/index.ts",
+				"recordedSha256": "67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"currentSha256": "67e774e2f339b483cc8381b3dab5be4708adaffb0e128f1e78911205909f900f",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/protocol/messages.ts",
+				"recordedSha256": "5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"currentSha256": "5b386dd07216c31c023e86446acdc1005e50861023eb0f01effea1d40a122aef",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/solutions/causal-occurrence/capabilities.ts",
+				"recordedSha256": "606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"currentSha256": "606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/solutions/causal-occurrence/committed-view.ts",
+				"recordedSha256": "ed6e3b06a849f4f7bc9df455059b26f1dea92a64566acad04bbc8c306b35919d",
+				"currentSha256": "ed6e3b06a849f4f7bc9df455059b26f1dea92a64566acad04bbc8c306b35919d",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/solutions/causal-occurrence/construction.ts",
+				"recordedSha256": "57a73dfa6eb9a685441403520f790447d63e13b5f221b8c7eba3c2c5dfae06c9",
+				"currentSha256": "57a73dfa6eb9a685441403520f790447d63e13b5f221b8c7eba3c2c5dfae06c9",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/solutions/causal-occurrence/evidence.ts",
+				"recordedSha256": "535700f13c6b639f694d950922e78d3f7a1da29511477af0ba31ed69d8563e34",
+				"currentSha256": "535700f13c6b639f694d950922e78d3f7a1da29511477af0ba31ed69d8563e34",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/solutions/causal-occurrence/identity.ts",
+				"recordedSha256": "54d7cee52121d369f5112e1bba363acd9c4b9d8651d565751b1cc6190799553a",
+				"currentSha256": "54d7cee52121d369f5112e1bba363acd9c4b9d8651d565751b1cc6190799553a",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/solutions/causal-occurrence/lifecycle.ts",
+				"recordedSha256": "bc8f3c7b353d9a2cfbbb0d39bd8fd88a0b356184bbd448c2252f80503dc6089a",
+				"currentSha256": "bc8f3c7b353d9a2cfbbb0d39bd8fd88a0b356184bbd448c2252f80503dc6089a",
+				"state": "match"
+			},
+			{
+				"path": "packages/ts/src/solutions/causal-occurrence/transition.ts",
+				"recordedSha256": "b85f0fa0d4c61c64f88295814c24c770a414bf7d304fd686a01a4a2c524fe220",
+				"currentSha256": "b85f0fa0d4c61c64f88295814c24c770a414bf7d304fd686a01a4a2c524fe220",
+				"state": "match"
+			},
+			{
+				"path": "scripts/fixtures/spending-focused-host-harness.ts",
+				"recordedSha256": "bac4ff883a228fca633ec766aa81d0b3bfd542d64d8e78101daa3f9845cc7dbc",
+				"currentSha256": "bac4ff883a228fca633ec766aa81d0b3bfd542d64d8e78101daa3f9845cc7dbc",
+				"state": "match"
+			},
+			{
+				"path": "scripts/fixtures/spending-numeric-oracle.ts",
+				"recordedSha256": "91f90ff47306b4631dc225a6df4daf60cabbd2e146aa1476915cdbfe4419c8df",
+				"currentSha256": "91f90ff47306b4631dc225a6df4daf60cabbd2e146aa1476915cdbfe4419c8df",
+				"state": "match"
+			},
+			{
+				"path": "scripts/fixtures/spending-preset-harness.ts",
+				"recordedSha256": "9c3ba7b674bd56847631a4c07160c1123cc39fa300ef540c2f3aa82880259e22",
+				"currentSha256": "9c3ba7b674bd56847631a4c07160c1123cc39fa300ef540c2f3aa82880259e22",
+				"state": "match"
+			},
+			{
+				"path": "scripts/fixtures/spending-preset-oracle.ts",
+				"recordedSha256": "1bae2736615e6c2b8db71cc380a31226e73dcea1d31216d45ec13819a92cc8a2",
+				"currentSha256": "1bae2736615e6c2b8db71cc380a31226e73dcea1d31216d45ec13819a92cc8a2",
+				"state": "match"
+			},
+			{
+				"path": "scripts/fixtures/spending-publication-oracle.ts",
+				"recordedSha256": "6e2c9c6695567a276c75090c838670c93ecdea7c7b5a48279f959ccf66c4aac1",
+				"currentSha256": "6e2c9c6695567a276c75090c838670c93ecdea7c7b5a48279f959ccf66c4aac1",
+				"state": "match"
+			},
+			{
+				"path": "source-binding-worker.ts",
+				"recordedSha256": "9250ff0e3e1689c168db9df01e41af6e926e207d054bf6021d3d9257d8c7b7a6",
+				"currentSha256": null,
+				"state": "embedded-worker"
+			}
+		],
+		"toolSha256": "a739a5e7f0bf227ce8c1479ca1d4492ca71b26ddfe9b85ca59ae497366299467",
+		"toolMatchesRecorded": true,
+		"embeddedWorker": "not extracted/executed in this audit; unchanged generation script matches recorded tool digest",
+		"freshQualification": false
+	},
+	"ownerRecords": [
+		{
+			"owner": "graphrefly",
+			"id": "B121",
+			"status": "proposed",
+			"recordSha256": "17e0f019ee7eefa8848b5ee9468f3da47aa588ef8c790033cc5944cf3419f7b1",
+			"source": "/Users/davidchenallio/src/graphrefly/plan/backlog.jsonl"
+		},
+		{
+			"owner": "graphrefly-ts",
+			"id": "CAUSAL-PRESET-ASSEMBLY-TS",
+			"status": "planned",
+			"recordSha256": "55b062d5dcd71a3b7af1b6454866a5c30cf21a92973c335ca03439718ae1f299",
+			"source": "plan/work.jsonl"
+		}
+	],
+	"sources": [
+		{
+			"path": "examples/spending-alerts/causal-focused-host.ts",
+			"sha256": "771fe0c1d409debb836bb446dbf1109464497b80225f4fc49e5a56d106feb022"
+		},
+		{
+			"path": "examples/spending-alerts/causal-numeric.ts",
+			"sha256": "0acdf5c800e55f7de0736718cc846eea137f880d0cbd0f158b680fa8b2e29dd8"
+		},
+		{
+			"path": "examples/spending-alerts/causal-business.ts",
+			"sha256": "5808b47b937eaa35336736523d958d9dcfa58053caad9c65df2caac49333c523"
+		},
+		{
+			"path": "scripts/fixtures/spending-preset-plain.ts",
+			"sha256": "26ee81a80e0d9ff18001af2427741a6cbc6e641853a35e5f7cc7cc4b76e6e0ea"
+		},
+		{
+			"path": "scripts/fixtures/spending-numeric-plain.ts",
+			"sha256": "826a09c8c17878f40b9042fa06955d9514b1b5b791b28e5b8cf9a1c785d44dc9"
+		},
+		{
+			"path": "scripts/fixtures/spending-publication-oracle.ts",
+			"sha256": "6e2c9c6695567a276c75090c838670c93ecdea7c7b5a48279f959ccf66c4aac1"
+		},
+		{
+			"path": "scripts/fixtures/spending-preset-oracle.ts",
+			"sha256": "1bae2736615e6c2b8db71cc380a31226e73dcea1d31216d45ec13819a92cc8a2"
+		},
+		{
+			"path": "scripts/qualify-spending-host-source-binding.mjs",
+			"sha256": "a739a5e7f0bf227ce8c1479ca1d4492ca71b26ddfe9b85ca59ae497366299467"
+		},
+		{
+			"path": "docs/design/causal-layered-use-implementation/receipt.json",
+			"sha256": "c253623624cad3875a74190f1fde22b2a073c3498c0c14e53690b8457575e6aa"
+		}
+	],
+	"review": {
+		"path": "docs/design/causal-b121-proof-plan/README.md",
+		"sha256": "838cab7fbb2245f1fc4bdca8190c36b551584e41c164e06042b40915c8dd92bf"
+	},
+	"findings": [
+		"55 recorded disk inputs unchanged, embedded worker tool unchanged; preserve finite historical simulated evidence",
+		"Plain host lacks matched writer/completion boundaries",
+		"Plain shares oracle material helpers: independent full-arm verifier must avoid them",
+		"B139 Welford source example requires D166 current scoring target mapping",
+		"Root B121 lacks exact consumer implementation producer dependency; original assembly formal conditions remain incomplete"
+	],
+	"executed": {
+		"realInboxWrites": 0,
+		"runtimeTests": 0,
+		"performanceRuns": 0,
+		"authorityMutations": 0
+	}
+}
