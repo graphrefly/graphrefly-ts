@@ -1,0 +1,198 @@
+{
+	"node": "v24.18.0",
+	"method": "12 alternating pairs; fresh Node processes requiring root/graph/core built CJS entry paths; OS cache uncontrolled; diagnostic only",
+	"baseline": {
+		"jsBytes": 11427072,
+		"cjsFiles": 71,
+		"cjsBytes": 8108513,
+		"sourceMapsBytes": 27975099,
+		"packageJsonSha256": "0ca16a1fcc9602d6f8fa28725f35acf3d7a8be40adeb767fdb89312c6519575d"
+	},
+	"candidate": {
+		"jsBytes": 6949590,
+		"cjsFiles": 135,
+		"cjsBytes": 3631031,
+		"sourceMapsBytes": 13214816,
+		"packageJsonSha256": "0ca16a1fcc9602d6f8fa28725f35acf3d7a8be40adeb767fdb89312c6519575d"
+	},
+	"summary": {
+		"baseline": {
+			"p50Ms": 16.454707999999997,
+			"p95Ms": 18.313000000000002
+		},
+		"candidate": {
+			"p50Ms": 19.222458,
+			"p95Ms": 20.735083000000003
+		}
+	},
+	"samples": [
+		{
+			"pair": 0,
+			"name": "baseline",
+			"elapsedMs": 16.454707999999997,
+			"modules": 0,
+			"rssBytes": 58032128
+		},
+		{
+			"pair": 0,
+			"name": "candidate",
+			"elapsedMs": 20.118084,
+			"modules": 46,
+			"rssBytes": 54837248
+		},
+		{
+			"pair": 1,
+			"name": "candidate",
+			"elapsedMs": 20.031874999999996,
+			"modules": 46,
+			"rssBytes": 54689792
+		},
+		{
+			"pair": 1,
+			"name": "baseline",
+			"elapsedMs": 16.926584,
+			"modules": 0,
+			"rssBytes": 58064896
+		},
+		{
+			"pair": 2,
+			"name": "baseline",
+			"elapsedMs": 18.313000000000002,
+			"modules": 0,
+			"rssBytes": 56852480
+		},
+		{
+			"pair": 2,
+			"name": "candidate",
+			"elapsedMs": 20.033292000000003,
+			"modules": 46,
+			"rssBytes": 54296576
+		},
+		{
+			"pair": 3,
+			"name": "candidate",
+			"elapsedMs": 19.740750000000006,
+			"modules": 46,
+			"rssBytes": 54575104
+		},
+		{
+			"pair": 3,
+			"name": "baseline",
+			"elapsedMs": 16.240499999999997,
+			"modules": 0,
+			"rssBytes": 58015744
+		},
+		{
+			"pair": 4,
+			"name": "baseline",
+			"elapsedMs": 16.774541,
+			"modules": 0,
+			"rssBytes": 57229312
+		},
+		{
+			"pair": 4,
+			"name": "candidate",
+			"elapsedMs": 20.735083000000003,
+			"modules": 46,
+			"rssBytes": 54296576
+		},
+		{
+			"pair": 5,
+			"name": "candidate",
+			"elapsedMs": 20.223499999999998,
+			"modules": 46,
+			"rssBytes": 54624256
+		},
+		{
+			"pair": 5,
+			"name": "baseline",
+			"elapsedMs": 17.3355,
+			"modules": 0,
+			"rssBytes": 57933824
+		},
+		{
+			"pair": 6,
+			"name": "baseline",
+			"elapsedMs": 16.316625,
+			"modules": 0,
+			"rssBytes": 57769984
+		},
+		{
+			"pair": 6,
+			"name": "candidate",
+			"elapsedMs": 18.352999999999994,
+			"modules": 46,
+			"rssBytes": 55115776
+		},
+		{
+			"pair": 7,
+			"name": "candidate",
+			"elapsedMs": 19.222458,
+			"modules": 46,
+			"rssBytes": 54509568
+		},
+		{
+			"pair": 7,
+			"name": "baseline",
+			"elapsedMs": 16.920499999999997,
+			"modules": 0,
+			"rssBytes": 57802752
+		},
+		{
+			"pair": 8,
+			"name": "baseline",
+			"elapsedMs": 16.192874999999997,
+			"modules": 0,
+			"rssBytes": 57982976
+		},
+		{
+			"pair": 8,
+			"name": "candidate",
+			"elapsedMs": 19.159125,
+			"modules": 46,
+			"rssBytes": 54476800
+		},
+		{
+			"pair": 9,
+			"name": "candidate",
+			"elapsedMs": 18.300792,
+			"modules": 46,
+			"rssBytes": 54837248
+		},
+		{
+			"pair": 9,
+			"name": "baseline",
+			"elapsedMs": 16.443833,
+			"modules": 0,
+			"rssBytes": 56852480
+		},
+		{
+			"pair": 10,
+			"name": "baseline",
+			"elapsedMs": 16.2485,
+			"modules": 0,
+			"rssBytes": 57769984
+		},
+		{
+			"pair": 10,
+			"name": "candidate",
+			"elapsedMs": 19.048125,
+			"modules": 46,
+			"rssBytes": 54181888
+		},
+		{
+			"pair": 11,
+			"name": "candidate",
+			"elapsedMs": 19.012916999999998,
+			"modules": 46,
+			"rssBytes": 55066624
+		},
+		{
+			"pair": 11,
+			"name": "baseline",
+			"elapsedMs": 17.145290999999997,
+			"modules": 0,
+			"rssBytes": 57278464
+		}
+	]
+}

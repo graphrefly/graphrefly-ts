@@ -81,6 +81,8 @@ export default defineConfig({
 		"src/work-queue/index.ts",
 	],
 	format: ["esm", "cjs"],
+	// Public subpaths must share batch/wave module state in both formats.
+	splitting: true,
 	define: {
 		__GRAPHREFLY_TS_PACKAGE_REVISION__: JSON.stringify(packageRevision),
 	},

@@ -1,0 +1,123 @@
+{
+	"kind": "cjs-cross-entry-batch-repair",
+	"baseline": "ba68578b80a03da3cf9e838ef93bd0b517a0e585",
+	"createdAt": "2026-09-14T18:05:03.851941+00:00",
+	"authorization": "User approved bounded shared-context repair and actual-built-package regression; commit authorized",
+	"sourceHashes": [
+		{
+			"path": "packages/ts/tsup.config.ts",
+			"sha256": "f30cec0ee75f494a8ce362cc8441a3a7e3347885aaad74494e5d8d8c10e88fe5"
+		},
+		{
+			"path": "scripts/check-ts-package-exports.mjs",
+			"sha256": "4470c3ab1a74922ddb19071db377bc99447963c09e634d64cc3dfe2f1d274dba"
+		},
+		{
+			"path": "scripts/check-ts-package-batch.mjs",
+			"sha256": "ae587881a2d11a08f5a1d22609daa29c1766429a659d2451539545ad009ba81f"
+		},
+		{
+			"path": "docs/design/causal-cjs-batch-fix/measure-imports.mjs",
+			"sha256": "4554ba7fc5bf3b21c7215b8c3dec63376c76844df8b15c44ce1adca1bc53878e"
+		}
+	],
+	"checks": {
+		"build": 0,
+		"fullTests": {
+			"exit": 0,
+			"passed": 2669,
+			"skipped": 4
+		},
+		"exportsAndInstalledBehavior": {
+			"exit": 0,
+			"passed": 64
+		},
+		"baselineBehavior": {
+			"exit": 1,
+			"esmPassed": 32,
+			"cjsPassed": 9,
+			"total": 64
+		},
+		"lintAndTypes": 0,
+		"historicalIntegrity": 0,
+		"currentQualified": false
+	},
+	"review": {
+		"blind": "remaining_cpu_review: no concrete blocker",
+		"edge": "remaining_cpu_review independent edge lens: no concrete blocker",
+		"verificationGap": "graded_framework: boundary/INVALIDATE gap closed; no remaining actionable finding"
+	},
+	"limits": [
+		"Same-format entry composition only",
+		"Not consumer performance qualification",
+		"No runtime source, protocol or public API changes",
+		"No real inbox/provider/live/spend"
+	],
+	"evidenceHashes": [
+		{
+			"path": "docs/design/causal-cjs-batch-fix/README.md",
+			"sha256": "be21245f327d90e15902fac72a3b910bdc5c629f96ea6c9d1c6e22abe406535f"
+		},
+		{
+			"path": "docs/design/causal-cjs-batch-fix/artifact-manifests.json",
+			"sha256": "055fd100408a6cc345ec5b49e70f019c44a4e86f3c74f595a7342a6aa2d57f65"
+		},
+		{
+			"path": "docs/design/causal-cjs-batch-fix/artifacts.log",
+			"sha256": "5bac644bfec886aebbfdce89d373232bbb5e93992591466d3494bf854936063f"
+		},
+		{
+			"path": "docs/design/causal-cjs-batch-fix/baseline-34-cases.log",
+			"sha256": "31023ca301c57f96a2fa8940e0088d569594c65af01781feeae18156cffa4859"
+		},
+		{
+			"path": "docs/design/causal-cjs-batch-fix/baseline-initial-expectation.log",
+			"sha256": "7ffb7062c72527f75295a75597307598c0ae6353978171514db29292cacde326"
+		},
+		{
+			"path": "docs/design/causal-cjs-batch-fix/baseline-regression.log",
+			"sha256": "34fdcc34a38e41f832042afff47dbb202d8785cf81ce64a1986bdcaf5c0a4140"
+		},
+		{
+			"path": "docs/design/causal-cjs-batch-fix/baseline-size.json",
+			"sha256": "5db2938624e82dbd45dcf4221ef91b70358ccd1d93756cc357a59eac74ef29aa"
+		},
+		{
+			"path": "docs/design/causal-cjs-batch-fix/build.log",
+			"sha256": "1ffe2e5e0e6c090b440b8240bab6af5f6827302d1883717207dcb1c275e6fde9"
+		},
+		{
+			"path": "docs/design/causal-cjs-batch-fix/exports.log",
+			"sha256": "4996ebd7d52ba63e4cf2e19b8eb4d34200686c61b1a000a6ce6a49b53777a0ab"
+		},
+		{
+			"path": "docs/design/causal-cjs-batch-fix/final-source-check.log",
+			"sha256": "7204a74622bc776e83cfffdb78c3d4836f12b852f4db046e08ab77af5805a67f"
+		},
+		{
+			"path": "docs/design/causal-cjs-batch-fix/import-observations-initial.json",
+			"sha256": "0fd7c27867b356d15fb325fc903d7cf61e89b51d94feaa0bc1ed29ff3821311c"
+		},
+		{
+			"path": "docs/design/causal-cjs-batch-fix/import-observations.json",
+			"sha256": "ef4df069a8b9155cdd15a37f6206e5e379bd18e35a77834a22b87ad3d66dc4c3"
+		},
+		{
+			"path": "docs/design/causal-cjs-batch-fix/lint.log",
+			"sha256": "d90fb8b2899a5d44c28e3a6503f2e542b659b646ae354d46d118c025e7e72d90"
+		},
+		{
+			"path": "docs/design/causal-cjs-batch-fix/measure-imports.mjs",
+			"sha256": "4554ba7fc5bf3b21c7215b8c3dec63376c76844df8b15c44ce1adca1bc53878e"
+		},
+		{
+			"path": "docs/design/causal-cjs-batch-fix/plan.md",
+			"sha256": "8648b427ba175d06681ae2e80708d1ece53a6bab59223784b1479d2a80335837"
+		},
+		{
+			"path": "docs/design/causal-cjs-batch-fix/tests.log",
+			"sha256": "2e9ad417b625fc662c1b42e997bac6ceb3ddd02991ef555712ee3cc203003cdb"
+		}
+	],
+	"logNormalization": "Trailing whitespace removed from captured logs for git whitespace gate; content and exit results retained."
+}

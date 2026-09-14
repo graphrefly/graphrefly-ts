@@ -1194,4 +1194,8 @@ void protobufBundle;
 	rmSync(tmp, { recursive: true, force: true });
 }
 
+execFileSync(process.execPath, [join(ROOT, "scripts/check-ts-package-batch.mjs")], {
+	stdio: "inherit",
+});
+
 console.log("check-ts-package-exports: package ESM/CJS/DTS subpath smoke passed");
