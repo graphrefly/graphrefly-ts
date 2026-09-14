@@ -1,0 +1,18 @@
+{
+	"kind": "admission-capacity-design-and-characterization",
+	"baseline": "ce4201bc18236312c53c7efbd005cc617424c78d",
+	"newTests": 2,
+	"focusedTestsPassed": 15,
+	"testTypecheck": "passed",
+	"scopedBiome": "passed",
+	"productionAuthorityExecuted": true,
+	"hostIntegrated": false,
+	"admissionQuotaProven": false,
+	"realIO": 0,
+	"performanceQualified": false,
+	"finding": "Two exact admissions share one availableSlots=1 observation in both off and summary; readiness is not a reservation.",
+	"files": {
+		"packages/ts/src/__tests__/causal-admission-capacity-feasibility.test.ts": "2269dc273a20fc36d285c06d0f4bd1b3fc7bc3ff77f55834eb33b9aadc1286cd",
+		"docs/design/causal-admission-capacity-review/README.md": "4a7422efc78889704bf5b995ca09c5ffaa1cac04a038b0a6333126a648bbb304"
+	}
+}
