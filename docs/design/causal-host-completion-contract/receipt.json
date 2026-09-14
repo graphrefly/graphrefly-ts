@@ -1,0 +1,12 @@
+{
+	"kind": "focused-host-completion-contract-proposal",
+	"baseline": "c0dc23ec492252fa672c35988025231ef52918d2",
+	"owner": "graphrefly-ts",
+	"status": "details-await-review",
+	"proposedChange": "bounded host-owned microtask completion delivery; request dispatch remains synchronous",
+	"additionalProposedBound": "64 distinct host request records including no-submit refusals",
+	"documentSha256": "5d87e344cd29bd95aaa473a21b7f43f26c7bc87d9c5eed46b756db4935a9fceb",
+	"implementation": false,
+	"realIO": 0,
+	"testsRun": false
+}
