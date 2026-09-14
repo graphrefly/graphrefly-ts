@@ -1,0 +1,86 @@
+{
+	"kind": "public-entry-design-source-audit",
+	"baseline": "26dc7350c5c87c793b7d3d07c89088588b089003",
+	"decisionStatus": "proposal; not admitted",
+	"implementationStarted": false,
+	"owner": "graphrefly-ts",
+	"governingRefs": [
+		"graphrefly-ts:D160",
+		"graphrefly-ts:D161",
+		"graphrefly-ts:D162",
+		"graphrefly-ts:D170",
+		"graphrefly:B139"
+	],
+	"rules": ["R-node-thin", "R-dispatch-all", "R-no-imperative", "R-data-not-peek"],
+	"sourceFiles": [
+		{
+			"path": "packages/ts/package.json",
+			"sha256": "0ca16a1fcc9602d6f8fa28725f35acf3d7a8be40adeb767fdb89312c6519575d"
+		},
+		{
+			"path": "packages/ts/src/core/index.ts",
+			"sha256": "2f99cc666438faa6ecfe573fca3ddf25031edbd6b4481da240d3881aedcbd8ca"
+		},
+		{
+			"path": "packages/ts/src/patterns/index.ts",
+			"sha256": "878446e044e30123417473c717247a2c43cecded15e62df43d02130d780b91f3"
+		},
+		{
+			"path": "packages/ts/src/solutions/index.ts",
+			"sha256": "ae986bb5be2b280b9a6de94259f26bac0aaba980280d54f8b41f6e55ae43ed34"
+		},
+		{
+			"path": "packages/ts/src/solutions/shared-control-panel-authority.ts",
+			"sha256": "f74042e54f72c3c0ab2c8e45d8424260edcbd1c266baf433e83f2af8013b9d71"
+		},
+		{
+			"path": "packages/ts/src/solutions/causal-occurrence/capabilities.ts",
+			"sha256": "606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7"
+		},
+		{
+			"path": "packages/ts/src/graph/construction-scope.ts",
+			"sha256": "343e6828b5276525797f97cb9c3998e4c28a1b0215af0b6505404b676856d37b"
+		},
+		{
+			"path": "examples/spending-alerts/causal-entry.ts",
+			"sha256": "49e56fb40676cb72659af34cf7ac4a96d29b72293f6719ab2f6c722140ed8279"
+		},
+		{
+			"path": "examples/spending-alerts/causal-preset.ts",
+			"sha256": "71f801e17e95b2f7440017048dc08d3479a341d4e5e617be8eff9f513301dd50"
+		},
+		{
+			"path": "examples/spending-alerts/causal-focused-host.ts",
+			"sha256": "771fe0c1d409debb836bb446dbf1109464497b80225f4fc49e5a56d106feb022"
+		},
+		{
+			"path": "examples/spending-alerts/causal-view-binding.ts",
+			"sha256": "3a8722abf4ed783b8caa794ccb16a1d4fdfdbe26d999160805da746a62427409"
+		},
+		{
+			"path": "examples/spending-alerts/causal-inputs.ts",
+			"sha256": "dfb1aa266cfed9bb6400171bfba30f046cd09ef94346c18560124566a7364561"
+		},
+		{
+			"path": "examples/spending-alerts/causal-publication.ts",
+			"sha256": "4d2566ff521eeb370388b5d654eebfa9ab6f814c27e35233680f9d9125c7786e"
+		},
+		{
+			"path": "packages/ts/tsup.config.ts",
+			"sha256": "08cad447d58c9765609148988617e9e111281f18f2855de7a3c355973ac27d5a"
+		},
+		{
+			"path": "packages/ts/src/graph/graph-lifecycle.ts",
+			"sha256": "23abc2773517b95265ce11e8144ba026b9ef4cac60af69351960fda00e12ac9d"
+		}
+	],
+	"review": {
+		"reviewer": "independent host_acceptance",
+		"findings": [
+			"Per-entry bundling can duplicate issued/graphRegistrations",
+			"Structural Pick does not preserve resource nominal typing"
+		],
+		"resolution": "Canonical per-format modules and actual package cross-entry tests; required inaccessible declaration-only brand. Reviewed with no remaining critical contradiction.",
+		"qualification": "Design only; no implementation or package performance result"
+	}
+}

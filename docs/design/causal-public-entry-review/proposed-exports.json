@@ -1,0 +1,54 @@
+{
+	"status": "proposed-not-implemented",
+	"entries": {
+		"@graphrefly/ts/solutions/spending-alerts": {
+			"values": ["observeSpendingView", "assertSameCausalCapability"],
+			"types": [
+				"SpendingView",
+				"SpendingViewObservation",
+				"SpendingViewValues",
+				"CausalCapability",
+				"IdentityCapability",
+				"ExecutionCapability",
+				"RetainedEvidenceCapability",
+				"FullCausalCapability"
+			],
+			"environment": "browser and Node observation; no host or node:crypto runtime dependency"
+		},
+		"@graphrefly/ts/testing/spending-alerts": {
+			"values": ["spendingAlertsFor", "offlineAlertResource"],
+			"types": [
+				"OfflineAlertResource",
+				"OfflineSpendingComposition",
+				"SpendingDefaults",
+				"SpendingOverrides",
+				"SpendingCreationInputs",
+				"SpendingBinding",
+				"Evaluation",
+				"EvaluationPack",
+				"ArrivalFrame",
+				"CurrentFrame",
+				"VerificationFrame",
+				"LocalAuthorityFrame"
+			],
+			"environment": "Node-only offline simulation; no production host qualification"
+		}
+	},
+	"rootAndOtherBarrels": "unchanged; no blanket star exports",
+	"compositionKeys": ["view", "capabilities", "owner", "inspect"],
+	"viewKeys": ["assessment", "publication", "coverage", "issues", "startup", "graphEndEligible"],
+	"nonExports": [
+		"claim",
+		"transfer",
+		"abort",
+		"guard",
+		"source",
+		"built",
+		"afterStart",
+		"prepareConstruction",
+		"buildCausalNodes",
+		"transitionCausalAuthority",
+		"generic arbitrary effect runner"
+	],
+	"lifecycleMeaning": "graphEndEligible references original runEndReady; not host drained, not actual end"
+}
