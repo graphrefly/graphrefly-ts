@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "reindexedCorruptionsRejected": [
+    "missing-arm",
+    "negative-time",
+    "hidden-failure",
+    "different-node"
+  ]
+}

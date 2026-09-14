@@ -1,0 +1,16 @@
+{
+  "verified": true,
+  "archiveSha256": "6e0a60a98c542b9b06d5dd3be9257d913ccf9a12a0ce5ceda2a36910c8326a5e",
+  "archiveBytes": 4126800,
+  "freshExtractionMatched": [
+    "audit-causal-global-review.py",
+    "verify-causal-global-cold.py",
+    "verify-causal-remaining-cpu.py",
+    "test-causal-global-review.py",
+    "test-causal-remaining-cpu.py"
+  ],
+  "productHead": "0c4cbdf69f60108be622f174d0b74c111fc09a47",
+  "productChanged": false,
+  "formalQualified": false,
+  "packingIncident": "Initial macOS tar added AppleDouble files, inventory rejected; retained raw packing-with-appledouble.tar.gz. Repacked identical inputs with Python tarfile; replay passed."
+}

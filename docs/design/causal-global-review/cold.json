@@ -1,0 +1,144 @@
+{
+  "verified": true,
+  "formalQualified": false,
+  "processes": 8,
+  "measuredConstructions": 3200,
+  "results": [
+    {
+      "job": {
+        "id": 0,
+        "mode": "off",
+        "repeat": 0,
+        "control": false,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "orderedMediansMs": [
+        0.2423120000000054,
+        0.24668749999999307
+      ],
+      "afterBeforeRatio": 1.018057298028936
+    },
+    {
+      "job": {
+        "id": 1,
+        "mode": "off",
+        "repeat": 1,
+        "control": false,
+        "order": [
+          "after",
+          "before"
+        ]
+      },
+      "orderedMediansMs": [
+        0.24531250000001137,
+        0.23637499999999534
+      ],
+      "afterBeforeRatio": 1.03781068217881
+    },
+    {
+      "job": {
+        "id": 2,
+        "mode": "off",
+        "repeat": 2,
+        "control": false,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "orderedMediansMs": [
+        0.2400830000000056,
+        0.2311249999999916
+      ],
+      "afterBeforeRatio": 0.9626879037665566
+    },
+    {
+      "job": {
+        "id": 3,
+        "mode": "off",
+        "repeat": 3,
+        "control": true,
+        "order": [
+          "before",
+          "before"
+        ]
+      },
+      "orderedMediansMs": [
+        0.2323754999999963,
+        0.22152099999999564
+      ],
+      "afterBeforeRatio": 0.9532889654890433
+    },
+    {
+      "job": {
+        "id": 4,
+        "mode": "summary",
+        "repeat": 0,
+        "control": false,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "orderedMediansMs": [
+        0.2421045000000035,
+        0.2588749999999891
+      ],
+      "afterBeforeRatio": 1.0692696748717407
+    },
+    {
+      "job": {
+        "id": 5,
+        "mode": "summary",
+        "repeat": 1,
+        "control": false,
+        "order": [
+          "after",
+          "before"
+        ]
+      },
+      "orderedMediansMs": [
+        0.24191700000000083,
+        0.2342505000000017
+      ],
+      "afterBeforeRatio": 1.0327277849993877
+    },
+    {
+      "job": {
+        "id": 6,
+        "mode": "summary",
+        "repeat": 2,
+        "control": false,
+        "order": [
+          "before",
+          "after"
+        ]
+      },
+      "orderedMediansMs": [
+        0.2419165000000092,
+        0.23185400000001266
+      ],
+      "afterBeforeRatio": 0.9584050695178041
+    },
+    {
+      "job": {
+        "id": 7,
+        "mode": "summary",
+        "repeat": 3,
+        "control": true,
+        "order": [
+          "before",
+          "before"
+        ]
+      },
+      "orderedMediansMs": [
+        0.239167000000009,
+        0.2174164999999988
+      ],
+      "afterBeforeRatio": 0.9090572696065535
+    }
+  ]
+}
