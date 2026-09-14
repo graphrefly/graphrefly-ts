@@ -1,0 +1,7 @@
+{
+	"archive": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z.tar.gz",
+	"sha256": "c926eff2a8527ad789ea873ef6ebd05fa9eb66a3ce0a6a1a5ea5983af0cfb242",
+	"expandedPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z",
+	"byteForByteVerified": true,
+	"note": "Complete raw attempt retained in archive; summary and reviewable execution manifest are also committed expanded. Other generated reports, bindings and runtime bundles remain expanded locally; extract archive on a fresh checkout before read-only verification or separately approved execution."
+}

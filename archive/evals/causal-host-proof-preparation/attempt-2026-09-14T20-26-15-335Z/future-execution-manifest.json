@@ -1,0 +1,1926 @@
+{
+  "context": {
+    "baseline": "75ac5832db6bd1c92549d31533294440111c6315",
+    "node": "v24.18.0",
+    "nodeExecutable": "/Users/davidchenallio/.local/share/mise/installs/node/24.18.0/bin/node",
+    "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+    "platform": "darwin",
+    "arch": "arm64",
+    "esbuildVersion": "0.28.0",
+    "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+    "launcherSha256": "32d3fb4fcb5e8150ab5a9aa8157f416dc96326da2c8721290425be95cc4b5959"
+  },
+  "executor": {
+    "path": "scripts/execute-spending-host-proof.mjs",
+    "sha256": "e8014de2131f5e1e90610801d7913c80c7df8ba32c425005ce5926b30db3e253"
+  },
+  "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/source-binding.json",
+  "preparationSummaryPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/summary.json",
+  "verifier": {
+    "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+    "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50"
+  },
+  "scenarios": {
+    "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-scenarios.mjs",
+    "sha256": "sha256:f8e0a607ebbd75257adc462090b62d08f9a8d310c4b41d4b0b7086a9e36375c2"
+  },
+  "proofFaultInjectionMode": "Same frozen held transport schedule in memory and local modes; full/short/reject/unreturned are proof injections, not naturally observed storage failures. Local mode still awaits separate approval.",
+  "authorized": false,
+  "executionPerformed": false,
+  "mode": "local-file-append",
+  "freshDirectory": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af",
+  "precondition": "Separate explicit approval of this exact manifest; directory absent and every file must be created exclusively empty, bound resource held until case ends.",
+  "maximumCalls": 2944,
+  "maximumBytes": 12058624,
+  "maximumWallTimeMs": 1380000,
+  "cleanup": "Close owned resources; retain exact per-case files and independent readback receipts for review. No automatic deletion or reuse.",
+  "boundsScope": "Per-request 4096 bytes, lifetime 64 attempts, one in-flight. Pending/unknown remains unresolved; process teardown is not normal end. No fsync/crash durability claim.",
+  "cases": [
+    {
+      "id": "S1-baseline-graph",
+      "caseId": "S1-baseline",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/1-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S1-baseline-graph"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/1-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S1-baseline-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "14a37016ba40e01285328ba10d3a00b3a1daeafed1488893c27e137aa69fb093",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "Positive no-mutation control: sample=1, threshold=1.1, no alert.",
+      "mutation": "none"
+    },
+    {
+      "id": "S1-baseline-plain",
+      "caseId": "S1-baseline",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/2-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S1-baseline-plain"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/2-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S1-baseline-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "d258be8fecf154a1bdd0c34842e493dfffb96fd4fc08e3caa422720b31224df9",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "Positive no-mutation control: sample=1, threshold=1.1, no alert.",
+      "mutation": "none"
+    },
+    {
+      "id": "S1-score-mutant-graph",
+      "caseId": "S1-score-mutant",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/3-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S1-score-mutant-graph"
+        },
+        "sourceDigest": "sha256:ec2cfc27d662451c768e195de2e8a55950bbad7a4b73583d5308baebb74d134d",
+        "runtimeDigest": "sha256:04dc8db9650cde0179c5201ca2b1a2a8db92b8b608c52ee1bf8e5c67bbd55b46",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/3-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S1-score-mutant-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/sample-to-population-graph.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/sample-to-population-graph.binding.json",
+      "bundleSha256": "sha256:04dc8db9650cde0179c5201ca2b1a2a8db92b8b608c52ee1bf8e5c67bbd55b46",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ec2cfc27d662451c768e195de2e8a55950bbad7a4b73583d5308baebb74d134d",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "4523d66a76fde75a6da09f00d6e3f203f61dfba3782c2ebc93f4e137fd6b0445",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "Actual score mutation changes 1 to about 1.224; verifier must reject observed business before a write.",
+      "mutation": "sample-to-population"
+    },
+    {
+      "id": "S1-score-mutant-plain",
+      "caseId": "S1-score-mutant",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/4-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S1-score-mutant-plain"
+        },
+        "sourceDigest": "sha256:1d9fae126f8c330868087430b1f9e26611209d50768035d89892072e9bd53aae",
+        "runtimeDigest": "sha256:701fa60d88da3e442d24c71e3abb5a9e9ce352c4414770753abed3cafe914124",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/4-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S1-score-mutant-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/sample-to-population-plain.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/sample-to-population-plain.binding.json",
+      "bundleSha256": "sha256:701fa60d88da3e442d24c71e3abb5a9e9ce352c4414770753abed3cafe914124",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:1d9fae126f8c330868087430b1f9e26611209d50768035d89892072e9bd53aae",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "dfa39d97762c20a12bc87c6c27668a41faa9af8ba9357c5a992c6d4b58ef4c09",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "Actual score mutation changes 1 to about 1.224; verifier must reject observed business before a write.",
+      "mutation": "sample-to-population"
+    },
+    {
+      "id": "S2-baseline-graph",
+      "caseId": "S2-baseline",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/5-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S2-baseline-graph"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/5-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S2-baseline-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "f6c632f1f82e7114d9692ce3d21880266b4e62b61abbb80d6202bf7f0a787ac3",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "Positive unmodified full request/readback control.",
+      "mutation": "none"
+    },
+    {
+      "id": "S2-baseline-plain",
+      "caseId": "S2-baseline",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/6-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S2-baseline-plain"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/6-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S2-baseline-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "0afdc84bd993e8b7f687d08fd491fcb5e07cd0289bd9618f5d73477d6b587432",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "Positive unmodified full request/readback control.",
+      "mutation": "none"
+    },
+    {
+      "id": "S2-equivalent-graph",
+      "caseId": "S2-equivalent",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/7-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S2-equivalent-graph"
+        },
+        "sourceDigest": "sha256:3633d079a8a0413f0e4da9eb29b777c3dc1086d59ab654c9f4732193be126754",
+        "runtimeDigest": "sha256:f4f633a6839ebf6fc9a54a28807a6c58acfee9895521198485f332a57bf74f9e",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/7-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S2-equivalent-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/equivalent-score-graph.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/equivalent-score-graph.binding.json",
+      "bundleSha256": "sha256:f4f633a6839ebf6fc9a54a28807a6c58acfee9895521198485f332a57bf74f9e",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:3633d079a8a0413f0e4da9eb29b777c3dc1086d59ab654c9f4732193be126754",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "d74f96a1d96f0629190d06e132ddde024072e998d1160d748f744dd171b3e66e",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "BigInt equivalent score rewrite, original topology, exact expected request bytes.",
+      "mutation": "equivalent-score"
+    },
+    {
+      "id": "S2-equivalent-plain",
+      "caseId": "S2-equivalent",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/8-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S2-equivalent-plain"
+        },
+        "sourceDigest": "sha256:80749702a85bab8cd00bcd0b8d5fd90f7d01f953a62a555443d37daf06fbd52e",
+        "runtimeDigest": "sha256:e34a0a324e5774e0f22dda35af3db0e3ddbc2b6ecdf60bcaa64ba03d59b68fa9",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/8-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S2-equivalent-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/equivalent-score-plain.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/equivalent-score-plain.binding.json",
+      "bundleSha256": "sha256:e34a0a324e5774e0f22dda35af3db0e3ddbc2b6ecdf60bcaa64ba03d59b68fa9",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:80749702a85bab8cd00bcd0b8d5fd90f7d01f953a62a555443d37daf06fbd52e",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "196167bbb44ba1852fe8295d7229935c8bfafdd459472346c62d6240de4fd167",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "BigInt equivalent score rewrite, original topology, exact expected request bytes.",
+      "mutation": "equivalent-score"
+    },
+    {
+      "id": "S3-interleaved-revisions-graph",
+      "caseId": "S3-interleaved-revisions",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/9-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S3-interleaved-revisions-graph"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/9-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S3-interleaved-revisions-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "7f344116eec4a00a3a1f368060c17d10a42612d2fff64399cffe23eaea50c1c8",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 4,
+      "scope": "One instance; coffee/tea and policy/profile revisions interleave, pending verification precedes each exact release. This does not inject a missing internal terminal branch.",
+      "mutation": "none"
+    },
+    {
+      "id": "S3-interleaved-revisions-plain",
+      "caseId": "S3-interleaved-revisions",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/10-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S3-interleaved-revisions-plain"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/10-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S3-interleaved-revisions-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "b64374b2120a5dc8dc42d10866ecea144c433de55c1eea5ae22eca79e356d09f",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 4,
+      "scope": "One instance; coffee/tea and policy/profile revisions interleave, pending verification precedes each exact release. This does not inject a missing internal terminal branch.",
+      "mutation": "none"
+    },
+    {
+      "id": "S3-missing-terminal-report-graph",
+      "caseId": "S3-missing-terminal-report",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/11-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S3-missing-terminal-report-graph"
+        },
+        "sourceDigest": "sha256:58e0fab2e1de2745f3a879c939fae0e75ae99da2a1c144e42dd12f0b42d78892",
+        "runtimeDigest": "sha256:9b72e1f0781d3adbeb039b3338c13667977809974bf01974966da5bbadc09feb",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/11-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S3-missing-terminal-report-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/missing-terminal-report-graph.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/missing-terminal-report-graph.binding.json",
+      "bundleSha256": "sha256:9b72e1f0781d3adbeb039b3338c13667977809974bf01974966da5bbadc09feb",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:58e0fab2e1de2745f3a879c939fae0e75ae99da2a1c144e42dd12f0b42d78892",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "48f386b61fc1b15ab73e00421810793d9258fdbf2ebe62689eb257e2b7ccad99",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "Business and effect succeed, but missing explanation terminal report keeps lifecycle pending; not a missing business input.",
+      "mutation": "missing-terminal-report"
+    },
+    {
+      "id": "S3-missing-terminal-report-plain",
+      "caseId": "S3-missing-terminal-report",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/12-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S3-missing-terminal-report-plain"
+        },
+        "sourceDigest": "sha256:9f5c7fa9221720194eb4da181e2edeaaa53d83e6381932f92f36e84c628ea385",
+        "runtimeDigest": "sha256:6740ea9be082c9d8760291640ac2c8b3dc2db84e3e1ceda2852fb78e4c8488e8",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/12-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S3-missing-terminal-report-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/missing-terminal-report-plain.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/missing-terminal-report-plain.binding.json",
+      "bundleSha256": "sha256:6740ea9be082c9d8760291640ac2c8b3dc2db84e3e1ceda2852fb78e4c8488e8",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:9f5c7fa9221720194eb4da181e2edeaaa53d83e6381932f92f36e84c628ea385",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "20b8e552e7dabad5d04f590fb3ee80105bd937a0f8f05fc3b2132db86008cba8",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "Business and effect succeed, but missing explanation terminal report keeps lifecycle pending; not a missing business input.",
+      "mutation": "missing-terminal-report"
+    },
+    {
+      "id": "S3-missing-business-branch-graph",
+      "caseId": "S3-missing-business-branch",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/13-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S3-missing-business-branch-graph"
+        },
+        "sourceDigest": "sha256:c76212630f5393eb735ec8305f65fd0a3f9cc230d5f9471a5baca6cffbda971d",
+        "runtimeDigest": "sha256:3bfedaffe4bc7e2b2dde1cb6af69f7b6204935d00d9b41cca4463c648fd2ed0a",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/13-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S3-missing-business-branch-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/missing-business-branch-graph.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/missing-business-branch-graph.binding.json",
+      "bundleSha256": "sha256:3bfedaffe4bc7e2b2dde1cb6af69f7b6204935d00d9b41cca4463c648fd2ed0a",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:c76212630f5393eb735ec8305f65fd0a3f9cc230d5f9471a5baca6cffbda971d",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "5ad281bcc6475c1e636a51e40f25e8ee965a082680fd2a0fb6ecca34d0067df2",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "Actual explanation business output is absent, so no complete assessment/material/request can reach the host; retained identity remains pending.",
+      "mutation": "missing-business-branch"
+    },
+    {
+      "id": "S3-missing-business-branch-plain",
+      "caseId": "S3-missing-business-branch",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/14-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S3-missing-business-branch-plain"
+        },
+        "sourceDigest": "sha256:58d56606775c5b85eed095ab88bdfb1597c3688153aa608e1c3d43e249e10dd2",
+        "runtimeDigest": "sha256:71b54aac9c260e6edd76a9f2cddb1f46ea8192473f257b6911bf5fef905bba53",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/14-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S3-missing-business-branch-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/missing-business-branch-plain.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/missing-business-branch-plain.binding.json",
+      "bundleSha256": "sha256:71b54aac9c260e6edd76a9f2cddb1f46ea8192473f257b6911bf5fef905bba53",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:58d56606775c5b85eed095ab88bdfb1597c3688153aa608e1c3d43e249e10dd2",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "318f4313ff7f89b5e4c4341573d415868b80fecbbb3ef04c0cd328ecc90e9679",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "Actual explanation business output is absent, so no complete assessment/material/request can reach the host; retained identity remains pending.",
+      "mutation": "missing-business-branch"
+    },
+    {
+      "id": "S4-stale-current-graph",
+      "caseId": "S4-stale-current",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/15-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S4-stale-current-graph"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/15-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S4-stale-current-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "69e63e014a8a72274835dd77475661fb4ad3b72114dfc965ccebcae4d1685366",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "Exact occurrence with incorrect current policy digest never establishes current admission.",
+      "mutation": "none"
+    },
+    {
+      "id": "S4-stale-current-plain",
+      "caseId": "S4-stale-current",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/16-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S4-stale-current-plain"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/16-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S4-stale-current-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "bcef4bb20dfd41713e8d9d3b989e731c36c3c3400b494a1493649bb419beebd1",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "Exact occurrence with incorrect current policy digest never establishes current admission.",
+      "mutation": "none"
+    },
+    {
+      "id": "S4-revision-gap-graph",
+      "caseId": "S4-revision-gap",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/17-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S4-revision-gap-graph"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/17-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S4-revision-gap-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "4ecfc1cc4ada05e34ad5189de45224860b9a66ea753bc4a631d02f958bfa1409",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "Revision 2 without revision 1 retains an honest sequence gap; no quiet success or request execution.",
+      "mutation": "none"
+    },
+    {
+      "id": "S4-revision-gap-plain",
+      "caseId": "S4-revision-gap",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/18-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S4-revision-gap-plain"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/18-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S4-revision-gap-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "5b50becdeace117c31e11b856bed9a5667d105dcfbdd7f3f130b81ddd1510b9b",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "Revision 2 without revision 1 retains an honest sequence gap; no quiet success or request execution.",
+      "mutation": "none"
+    },
+    {
+      "id": "S5-exact-replay-graph",
+      "caseId": "S5-exact-replay",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/19-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S5-exact-replay-graph"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/19-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S5-exact-replay-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "2c8abb8127a541b02f8ee1ecf716449f10ca5641b5a914d0863b05bc5f835447",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "Exact arrival replay in one lifecycle retains one request/write. Analysis is the read-only verifier, with no writer parameter.",
+      "mutation": "none"
+    },
+    {
+      "id": "S5-exact-replay-plain",
+      "caseId": "S5-exact-replay",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/20-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S5-exact-replay-plain"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/20-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S5-exact-replay-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "6cc4e1a2c7b717de1525f45e1e59186e6e1564b8c09899874efe4b398f3e4731",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "Exact arrival replay in one lifecycle retains one request/write. Analysis is the read-only verifier, with no writer parameter.",
+      "mutation": "none"
+    },
+    {
+      "id": "S5-conflicting-pack-graph",
+      "caseId": "S5-conflicting-pack",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/21-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S5-conflicting-pack-graph"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/21-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S5-conflicting-pack-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "14e342b8e6ec50c8460a8f4459f61cab82b92a686f62059ce28cef32e40b1708",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "Same evaluation ID changed payload cannot replace the immutable pack; existing successful record stays retained.",
+      "mutation": "none"
+    },
+    {
+      "id": "S5-conflicting-pack-plain",
+      "caseId": "S5-conflicting-pack",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/22-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S5-conflicting-pack-plain"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/22-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S5-conflicting-pack-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "4546f818a6da2b1c3cfed0ef264efdc9b1bbb69678ff1e8e3eeff6661462844d",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "Same evaluation ID changed payload cannot replace the immutable pack; existing successful record stays retained.",
+      "mutation": "none"
+    },
+    {
+      "id": "S6-success-graph",
+      "caseId": "S6-success",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/23-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S6-success-graph"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/23-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S6-success-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "159fff9dbbb27f851c5df48171d5dd707811ed26efc8244f983b4386c1e291f0",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "Independent bytes distinguish full/partial/zero readback; rejection never proves known-no-submit.",
+      "mutation": "none"
+    },
+    {
+      "id": "S6-success-plain",
+      "caseId": "S6-success",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/24-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S6-success-plain"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/24-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S6-success-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "c36ee5eb69796fee9dd40c8c67743c4e449171fd25a9ca97e7341d11895cf067",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "Independent bytes distinguish full/partial/zero readback; rejection never proves known-no-submit.",
+      "mutation": "none"
+    },
+    {
+      "id": "S6-short-graph",
+      "caseId": "S6-short",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/25-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S6-short-graph"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/25-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S6-short-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "e9b8fafe783bb194e3288825e947722b04ddfd2df892776df39e5073c33ed3f7",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "Independent bytes distinguish full/partial/zero readback; rejection never proves known-no-submit.",
+      "mutation": "none"
+    },
+    {
+      "id": "S6-short-plain",
+      "caseId": "S6-short",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/26-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S6-short-plain"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/26-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S6-short-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "8f5b81ee8f0cc83fc00c883fee09cd17f0dd38458274d858db77cc062c62fc23",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "Independent bytes distinguish full/partial/zero readback; rejection never proves known-no-submit.",
+      "mutation": "none"
+    },
+    {
+      "id": "S6-rejection-graph",
+      "caseId": "S6-rejection",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/27-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S6-rejection-graph"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/27-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S6-rejection-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "9f9c03d3630a998e6b93f4af4dd575c6505a08a3f6420a9f08c70a60f6f90f2c",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "Independent bytes distinguish full/partial/zero readback; rejection never proves known-no-submit.",
+      "mutation": "none"
+    },
+    {
+      "id": "S6-rejection-plain",
+      "caseId": "S6-rejection",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/28-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S6-rejection-plain"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/28-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S6-rejection-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "ae86937dc6a3b03e367f88706130a8c2b6d10735c6e9ff532f6318cbd73a6f77",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "Independent bytes distinguish full/partial/zero readback; rejection never proves known-no-submit.",
+      "mutation": "none"
+    },
+    {
+      "id": "S6-unreturned-graph",
+      "caseId": "S6-unreturned",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/29-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S6-unreturned-graph"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/29-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S6-unreturned-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "0c6a0d05eabb98044e130ff53607aad1738ce0d312c9aaf8a28052aa51a3ef8c",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "Unreturned writer retains one exact pending request despite stop.",
+      "mutation": "none"
+    },
+    {
+      "id": "S6-unreturned-plain",
+      "caseId": "S6-unreturned",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/30-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S6-unreturned-plain"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/30-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S6-unreturned-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "98b4ce5c284b587232fb3140beb5b401cb88d7cbb90ae723e6c87af6b6ae8355",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "Unreturned writer retains one exact pending request despite stop.",
+      "mutation": "none"
+    },
+    {
+      "id": "S6-known-no-submit-graph",
+      "caseId": "S6-known-no-submit",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/31-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S6-known-no-submit-graph"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/31-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S6-known-no-submit-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "a4170796b2b4ae0c22da213cb96427719181a4f420e9ab87c3aa8b5cc0f4d6c9",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "Stop is present before admission; no transport call is attempted.",
+      "mutation": "none"
+    },
+    {
+      "id": "S6-known-no-submit-plain",
+      "caseId": "S6-known-no-submit",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/32-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S6-known-no-submit-plain"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/32-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S6-known-no-submit-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "24e7c3b658a6a71aec1c20ce788063d72677f08a61c35c627fd3f585aeba1a01",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "Stop is present before admission; no transport call is attempted.",
+      "mutation": "none"
+    },
+    {
+      "id": "S6-wrong-admission-outcome-graph",
+      "caseId": "S6-wrong-admission-outcome",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/33-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S6-wrong-admission-outcome-graph"
+        },
+        "sourceDigest": "sha256:521781cfa8604efb2e0d803a68377fd774942a46c1a9c18cc0e323701830df0d",
+        "runtimeDigest": "sha256:1000959c283d70ac8d3011d032929ddec305d666eb79193f36af72404ecbf43f",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/33-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S6-wrong-admission-outcome-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/wrong-admission-outcome-graph.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/wrong-admission-outcome-graph.binding.json",
+      "bundleSha256": "sha256:1000959c283d70ac8d3011d032929ddec305d666eb79193f36af72404ecbf43f",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:521781cfa8604efb2e0d803a68377fd774942a46c1a9c18cc0e323701830df0d",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "e9ffabe42f352436234bc48b56ca68c37e8ccc48182a7307b9f77c1b511337a5",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "Full independent readback and host success do not settle an authority receiving a different admission identity.",
+      "mutation": "wrong-admission-outcome"
+    },
+    {
+      "id": "S6-wrong-admission-outcome-plain",
+      "caseId": "S6-wrong-admission-outcome",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/34-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S6-wrong-admission-outcome-plain"
+        },
+        "sourceDigest": "sha256:38e0c09ea101a03c28af95a69be398f93cc814fe5a88ac1f1710a9f91d130eaa",
+        "runtimeDigest": "sha256:36a5be91e2f1c6fbc9246beafba8e4226bc4deb4c481bed13a98a56649e4e155",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/34-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S6-wrong-admission-outcome-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/wrong-admission-outcome-plain.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/wrong-admission-outcome-plain.binding.json",
+      "bundleSha256": "sha256:36a5be91e2f1c6fbc9246beafba8e4226bc4deb4c481bed13a98a56649e4e155",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:38e0c09ea101a03c28af95a69be398f93cc814fe5a88ac1f1710a9f91d130eaa",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "1fa0fc8d72e4d8bf55407518f3378971beea5b9fb9360a42d16691e38948dc2b",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "Full independent readback and host success do not settle an authority receiving a different admission identity.",
+      "mutation": "wrong-admission-outcome"
+    },
+    {
+      "id": "S7-missing-verifier-graph",
+      "caseId": "S7-missing-verifier",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/35-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S7-missing-verifier-graph"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/35-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S7-missing-verifier-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "6ffbf21102ea7aae399c2cecc0ee4042fb0b68562545361dc9e9c4cbc02c0df5",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "Absent independent verification is not an implicit pass.",
+      "mutation": "none"
+    },
+    {
+      "id": "S7-missing-verifier-plain",
+      "caseId": "S7-missing-verifier",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/36-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S7-missing-verifier-plain"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/36-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S7-missing-verifier-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "69e9dabefcc9b212bbbd6732d8da397a7c66b739951f5b5a5e8d146bf146d290",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "Absent independent verification is not an implicit pass.",
+      "mutation": "none"
+    },
+    {
+      "id": "S7-missing-current-graph",
+      "caseId": "S7-missing-current",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/37-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S7-missing-current-graph"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/37-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S7-missing-current-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "3000e9b1e6f1410b8f25da0df0272de4f4dec1ac0f3ab84a1d74c4a6e1efac0f",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "No current lane fact is supplied: valid business, verification and local grant cannot substitute for currentness.",
+      "mutation": "none"
+    },
+    {
+      "id": "S7-missing-current-plain",
+      "caseId": "S7-missing-current",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/38-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S7-missing-current-plain"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/38-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S7-missing-current-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "928eb27ea926f3246d6888d9693f3a37d97cf0396068748371ac1cf27fc3169e",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "No current lane fact is supplied: valid business, verification and local grant cannot substitute for currentness.",
+      "mutation": "none"
+    },
+    {
+      "id": "S7-stale-source-graph",
+      "caseId": "S7-stale-source",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/39-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S7-stale-source-graph"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/39-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S7-stale-source-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "9f2f453918ccc8327631ec015cc0fd646fcb2a7db541e30f193dd3bb90e5eef7",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "Receipt with stale source binding is not refreshed from a nominal candidate pass.",
+      "mutation": "none"
+    },
+    {
+      "id": "S7-stale-source-plain",
+      "caseId": "S7-stale-source",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/40-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S7-stale-source-plain"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/40-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S7-stale-source-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "e47e3e28001e23e5ced5bb8e83f72b5ed8fcc5a8b1b6dc16c8db9066adc5b68d",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "Receipt with stale source binding is not refreshed from a nominal candidate pass.",
+      "mutation": "none"
+    },
+    {
+      "id": "S7-over-capacity-graph",
+      "caseId": "S7-over-capacity",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/41-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S7-over-capacity-graph"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/41-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S7-over-capacity-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "1ee2ef3bb0e11ba679ccc7b38cbf7e0dab005a64c830811f18b9f798add85220",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "Invalid over-capacity pack yields no business proof, no writer call, no normal end.",
+      "mutation": "none"
+    },
+    {
+      "id": "S7-over-capacity-plain",
+      "caseId": "S7-over-capacity",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/42-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S7-over-capacity-plain"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/42-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S7-over-capacity-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "6bb168386e84b183f6232f78934665e0b065bc458b6d42ce76decf5aa552d047",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "Invalid over-capacity pack yields no business proof, no writer call, no normal end.",
+      "mutation": "none"
+    },
+    {
+      "id": "S8-normal-graph",
+      "caseId": "S8-normal",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/43-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S8-normal-graph"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/43-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S8-normal-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "fb0c29f59530b06a2e3736efc9dbb10869d80379715efbc955699abb235f6067",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "Known category, daily ratio below threshold, normal sample score: no request.",
+      "mutation": "none"
+    },
+    {
+      "id": "S8-normal-plain",
+      "caseId": "S8-normal",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/44-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S8-normal-plain"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/44-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S8-normal-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "43a02f4c96edac3a2c421dab09e253f43220e42c0ba873656f5728269f7945e9",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 0,
+      "scope": "Known category, daily ratio below threshold, normal sample score: no request.",
+      "mutation": "none"
+    },
+    {
+      "id": "S8-cli-title-graph",
+      "caseId": "S8-cli-title",
+      "arm": "graph",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/45-graph.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S8-cli-title-graph"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/45-graph.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S8-cli-title-graph",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "a72975c84b4dca6053da571d4504cffc71fa96231e5c738b305bd7401a60f9bf",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "CLI-title source is outside proof-worker closure; do not infer arbitrary source equivalence.",
+      "mutation": "cli-title"
+    },
+    {
+      "id": "S8-cli-title-plain",
+      "caseId": "S8-cli-title",
+      "arm": "plain",
+      "path": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/46-plain.jsonl",
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "S8-cli-title-plain"
+        },
+        "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+        "runtimeDigest": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+        "destinationRef": {
+          "kind": "local-inbox",
+          "id": "/Users/davidchenallio/src/graphrefly-ts-latency-review/latency-inputs/proof-7dc208e850ee10af/46-plain.jsonl"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "S8-cli-title-plain",
+        "evidenceMode": "fixture-observations"
+      },
+      "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.mjs",
+      "sourceBindingPath": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/baseline.binding.json",
+      "bundleSha256": "sha256:8e233efeb1ba234168c8631762d40cf7b6d570621a3280727fcc8dc7f4095e79",
+      "verifier": {
+        "bundle": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/frozen-verifier.mjs",
+        "sha256": "sha256:d698fa82b371071631fd828084f7c46abc3551b0007ebac19d4be1d9457afc50",
+        "sourceDigest": "sha256:59ad19d1bb69a2a8fadf3ea08411a3e0847ded3dceaa13cd47ff6ec7706d7d1d"
+      },
+      "nodeExecutableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+      "sourceDigest": "sha256:ef3c3f7310d04a899e6b95db29b499060a3fa1f5eaeef93200521193659a7975",
+      "lockSha256": "d45eaf9f7207ecf19c4b78403f8feee2983605ade4481aefad874cf41d71c485",
+      "node": "v24.18.0",
+      "scenarioSha256": "9e9c40481e22a96fcdb7b51b56891635079131bbceede1aaac06e522dbd3b269",
+      "maximumCalls": 64,
+      "maximumBytes": 262144,
+      "maximumWallTimeMs": 30000,
+      "expectedCalls": 1,
+      "scope": "CLI-title source is outside proof-worker closure; do not infer arbitrary source equivalence.",
+      "mutation": "cli-title"
+    }
+  ]
+}

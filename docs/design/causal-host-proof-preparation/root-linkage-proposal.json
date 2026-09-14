@@ -1,0 +1,113 @@
+{
+	"kind": "unapplied-owner-linkage-proposal",
+	"target": "/Users/davidchenallio/src/graphrefly/plan/backlog.jsonl",
+	"targetId": "B121",
+	"currentRecordSha256": "17e0f019ee7eefa8848b5ee9468f3da47aa588ef8c790033cc5944cf3419f7b1",
+	"reason": "TS producer currently exists only in isolated latency-review worktree; canonical workspace resolves main TS checkout. Preserve root dirty workspace and do not introduce an unresolved dependency.",
+	"proposed": {
+		"work_contract": "graphrefly-work-v1",
+		"id": "B121",
+		"owner": "graphrefly",
+		"kind": "integration-milestone",
+		"outcome": "Select, retain and aggregate the first Causal WYSIWYG flagship proof",
+		"status": "proposed",
+		"governing_refs": [
+			"graphrefly:D683",
+			"graphrefly:D755",
+			"graphrefly:D765",
+			"graphrefly:D772",
+			"graphrefly:D787",
+			"graphrefly:D791",
+			"graphrefly:D792"
+		],
+		"prerequisites": [
+			{
+				"work_ref": "graphrefly:B120",
+				"artifact_ref": "graphrefly:causal-occurrence-contract",
+				"schema": "graphrefly/causal-occurrence-contract/v1",
+				"revision": "contract-v2"
+			},
+			{
+				"work_ref": "graphrefly-ts:CAUSAL-OCCURRENCE-TS",
+				"artifact_ref": "graphrefly-ts:causal-occurrence-arm-evidence",
+				"schema": "graphrefly/conformance-arm-evidence/v1",
+				"revision": "ts-v3"
+			},
+			{
+				"work_ref": "graphrefly:B139",
+				"artifact_ref": "graphrefly:causal-flagship-design-brief",
+				"schema": "graphrefly/causal-flagship-design-brief/v1",
+				"revision": "brief-v1"
+			},
+			{
+				"work_ref": "graphrefly-ts:CAUSAL-COMPOSITION-DESIGN-TS",
+				"artifact_ref": "graphrefly-ts:causal-composition-design",
+				"schema": "graphrefly-ts/causal-composition-design/v1",
+				"revision": "design-v1"
+			},
+			{
+				"work_ref": "graphrefly-ts:CAUSAL-HOST-PROOF-PREPARATION-TS",
+				"artifact_ref": "graphrefly-ts:causal-host-proof-preparation",
+				"schema": "graphrefly-ts/causal-host-proof-preparation/v1",
+				"revision": "preparation-v1"
+			}
+		],
+		"acceptance": [
+			"One retained flagship owner supplies revision-bound implementation evidence and root independently verifies the unchanged causal contract, negative controls and user-visible proof.",
+			"The aggregate distinguishes selected-consumer implementation from root verification; one runtime arm alone never completes this milestone.",
+			"Before flagship selection, design review compares the complete contract-v2 bundle with a progressive three-layer composition: causal identity/currentness/admitted release; keyed lifecycle, terminal fan-in, effect conservation and causal quiescence; then retained evidence, bounded retention and retained quiescence. Higher layers include the complete lower-layer dependency closure, while diagnostics remain an orthogonal projection concern.",
+			"The proposed convenience surface is bound to one Graph and immutable, creates no topology until an explicit factory call, preserves exact typed capability handles for manual composition, and resolves local overrides without a process-global singleton, mutable runtime config, hidden node injection or protocol-semantic switch. Configuration is a construction default, never an assurance claim; authoritative coverage remains typed DATA.",
+			"Every supported assurance-by-diagnostics composition and local upgrade/downgrade path has an explicit acceptance arm. Missing typed prerequisites fail at compile time where possible; graph, contract, domain or capability incompatibility fails synchronously and failure-atomically before partial topology remains; missing runtime facts remain quiet or bounded DataIssue/coverage DATA rather than protocol ERROR or lifecycle repair. Mutation tests fail when a required prerequisite, occurrence, join, conservation, result or coverage edge is removed.",
+			"B139 owns the separately approved consumer/verification brief; graphrefly-ts:CAUSAL-COMPOSITION-DESIGN-TS owns concrete package design. Before implementation dispatch, register the selected consumer implementation and any required package implementation under their unique owners and add their exact evidence dependencies here; no planned design artifact or old arm receipt substitutes for those producers.",
+			"The retained consumer proves actual focused host execution consumes exact admitted requests, including replay/stale/wrong-cause rejection and behavior-sensitive dependency mutations. Same-topology source edits remain visible within declared binding coverage; actor attribution requires provenance and verified-unchanged requires independent current evidence.",
+			"Root verifies the selected owner evidence and the frozen plain/human/agent comparisons before closing B121. Completion neither requires the full Stack/Canvas/B134 product nor activates an optional evaluator, live campaign or durable runtime."
+		],
+		"evidence_refs": [],
+		"produces": [
+			{
+				"artifact_ref": "graphrefly:causal-wysiwyg-flagship-proof",
+				"schema": "graphrefly/causal-wysiwyg-flagship-proof/v1",
+				"revision": "csp14-v1"
+			}
+		],
+		"consumes": [
+			{
+				"artifact_ref": "graphrefly:causal-occurrence-contract",
+				"schema": "graphrefly/causal-occurrence-contract/v1",
+				"revision": "contract-v2"
+			},
+			{
+				"artifact_ref": "graphrefly-ts:causal-occurrence-arm-evidence",
+				"schema": "graphrefly/conformance-arm-evidence/v1",
+				"revision": "ts-v3"
+			},
+			{
+				"artifact_ref": "graphrefly:causal-flagship-design-brief",
+				"schema": "graphrefly/causal-flagship-design-brief/v1",
+				"revision": "brief-v1"
+			},
+			{
+				"artifact_ref": "graphrefly-ts:causal-composition-design",
+				"schema": "graphrefly-ts/causal-composition-design/v1",
+				"revision": "design-v1"
+			},
+			{
+				"artifact_ref": "graphrefly-ts:causal-host-proof-preparation",
+				"schema": "graphrefly-ts/causal-host-proof-preparation/v1",
+				"revision": "preparation-v1"
+			}
+		],
+		"integration_owner": "graphrefly",
+		"supersedes": [],
+		"non_goals": [
+			"Owning the flagship repository implementation",
+			"Canvas integration",
+			"automatic authorization of CSP-14 or downstream work",
+			"Restoring the pre-clean-slate GraphReFlyConfig singleton, replaceable protocol hooks or message registry",
+			"Changing wave protocol, dispatcher semantics or graph concurrency boundaries",
+			"Authorizing the layered public API, TypeScript refactor or any runtime implementation before a later explicit design approval"
+		],
+		"priority": 2,
+		"note": "2026-09-06 staged refinement: B139 brief and user review; then CAUSAL-COMPOSITION-DESIGN-TS and user review; then separately admitted/authorized owner implementation and QA; finally root B121 integration verification. Only the current concrete design is refined. Future implementation producers are selected by those reviews, not invented here. Follow-on product work reuses Stack owner sequencers and B134; optional evaluator work remains deferred. The original CAUSAL-OCCURRENCE-TS acceptance gap is repaired and requalified under the same work identity before this staged path; integration now pins ts-v2 rather than relying on the historical ts-v1 completion claim. 2026-09-06 closure update: the original graphrefly-ts:CAUSAL-OCCURRENCE-TS has now completed corrected ts-v2 runtime qualification; current evidence is owned by that work and packages/ts/qualification/causal-occurrence/ts-v2-receipt.json. The next design step is the B139 brief; this update does not authorize automatic downstream design selection, implementation or live execution. Pre-commit QA correction: current TS arm evidence is ts-v3 after two further capacity regressions were repaired and qualified; ts-v2 remains immutable historical evidence. Resolve current receipts through the same graphrefly-ts:CAUSAL-OCCURRENCE-TS owner work. B139 remains the next design step; no automatic dispatch is authorized. 2026-09-14 prepared producer linkage: source-bound offline local-host proof preparation is a prerequisite only; it neither proves actual inbox effects nor completes B121. Apply once the exact TS producer is available in the workspace owner checkout."
+	}
+}

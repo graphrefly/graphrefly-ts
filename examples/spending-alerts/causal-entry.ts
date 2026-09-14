@@ -1,7 +1,8 @@
 /** Consumer-private graded entry. Configuration never creates or owns a running instance. */
 import type { Graph } from "../../packages/ts/src/graph/graph.js";
-import { composeOfflineSpending, OfflineAlertResource } from "./causal-focused-host.js";
+import { composeSpendingHost } from "./causal-focused-host.js";
 import type { SpendingInputs } from "./causal-inputs.js";
+import { SpendingResource } from "./causal-resource.js";
 
 export interface SpendingDefaults {
 	readonly name: string;
@@ -12,7 +13,7 @@ export interface SpendingOverrides {
 	readonly diagnostics?: "off" | "summary";
 }
 export interface SpendingCreationInputs extends Omit<SpendingInputs, "inbox"> {
-	readonly inbox: Readonly<{ resource: OfflineAlertResource }>;
+	readonly inbox: Readonly<{ resource: SpendingResource }>;
 }
 
 function ownValues(raw: unknown, allowed: readonly string[]): Record<string, unknown> {
@@ -52,10 +53,10 @@ export function spendingAlertsFor(graph: Graph, defaults: SpendingDefaults) {
 			const options = configuration(overrides, settings);
 			const groups = ownValues(inputs, ["evaluations", "verification", "localAuthority", "inbox"]);
 			const inbox = ownValues(groups.inbox, ["resource"]);
-			if (!(inbox.resource instanceof OfflineAlertResource))
-				throw new TypeError("spending entry requires an offline resource");
+			if (!SpendingResource.is(inbox.resource))
+				throw new TypeError("spending entry requires a prepared resource");
 			const resource = inbox.resource;
-			const host = composeOfflineSpending(
+			const host = composeSpendingHost(
 				graph,
 				{
 					evaluations: groups.evaluations as SpendingInputs["evaluations"],

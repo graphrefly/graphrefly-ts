@@ -28,6 +28,7 @@
 		"causal-ordinary-panel.ts",
 		"causal-graded-demo.ts",
 		"../../packages/ts/src/__tests__/causal-graded-entry.test.ts",
-		"../../packages/ts/src/__tests__/causal-view-binding.test.ts"
+		"../../packages/ts/src/__tests__/causal-view-binding.test.ts",
+		"../../scripts/fixtures/spending-proof*.ts"
 	]
 }

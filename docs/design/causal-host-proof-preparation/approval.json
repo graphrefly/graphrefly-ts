@@ -1,0 +1,10 @@
+{
+	"kind": "offline-preparation-approval",
+	"owner": "graphrefly-ts",
+	"baseline": "75ac5832db6bd1c92549d31533294440111c6315",
+	"work": "graphrefly-ts:CAUSAL-HOST-PROOF-PREPARATION-TS",
+	"designSha256": "838cab7fbb2245f1fc4bdca8190c36b551584e41c164e06042b40915c8dd92bf",
+	"userGrant": "批准，继续",
+	"scope": "Complete design section6 preparation including implementation,offline QA,commit and reviewable exact execution manifest",
+	"excluded": "No actual local inbox effects, provider/live/spend, human study or budget change"
+}

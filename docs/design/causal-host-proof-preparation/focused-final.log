@@ -1,0 +1,15 @@
+
+ RUN  v3.2.4 /Users/davidchenallio/src/graphrefly-ts-latency-review/packages/ts
+
+ ✓ src/__tests__/causal-resource.test.ts (11 tests) 41ms
+ ✓ src/__tests__/causal-focused-host-construction.test.ts (7 tests) 66ms
+ ✓ src/__tests__/causal-focused-host-authorization.test.ts (12 tests) 140ms
+ ✓ src/__tests__/causal-focused-host.test.ts (17 tests) 149ms
+ ✓ src/__tests__/causal-focused-host-failures.test.ts (12 tests) 2674ms
+   ✓ 64-request burst retains bounded outcomes but reports pending overload and cannot end  662ms
+   ✓ 64 sequential writes within original pending bound retain lifetime records and end normally  1924ms
+
+ Test Files  5 passed (5)
+      Tests  59 passed (59)
+   Start at  13:25:47
+   Duration  3.27s (transform 392ms, setup 0ms, collect 1.54s, tests 3.07s, environment 0ms, prepare 336ms)

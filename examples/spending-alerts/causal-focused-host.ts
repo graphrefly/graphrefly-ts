@@ -40,65 +40,40 @@ import {
 	type RequestMaterial,
 } from "./causal-publication.js";
 
-/** Test-resource result means only simulated bytes; never a real-host attestation. */
-export class OfflineAlertResource {
-	readonly kind = "offline-alert-resource";
-	readonly binding: SpendingBinding;
-	#claimed = false;
-	constructor(
-		binding: SpendingBinding,
-		private readonly writeBytes: (payload: string) => Promise<{ readonly bytesWritten: number }>,
-	) {
-		this.binding = validateBinding(binding);
-		Object.freeze(this);
-	}
-	claim(): {
-		write: (payload: string) => Promise<{ readonly bytesWritten: number }>;
-		abort: () => void;
-		transfer: () => void;
-	} {
-		if (this.#claimed) throw new TypeError("offline host epoch already claimed");
-		this.#claimed = true;
-		let phase: "cold" | "transferred" | "aborted" = "cold";
-		return {
-			write: (payload) => {
-				if (phase !== "transferred") throw new TypeError("offline lease is not transferred");
-				return this.writeBytes(payload);
-			},
-			abort: () => {
-				if (phase === "cold") {
-					phase = "aborted";
-					this.#claimed = false;
-				}
-			},
-			transfer: () => {
-				if (phase !== "cold") throw new TypeError("offline lease is not cold");
-				phase = "transferred";
-			},
-		};
-	}
-}
+import { type OfflineAlertResource, SpendingResource } from "./causal-resource.js";
+
+export { OfflineAlertResource } from "./causal-resource.js";
+
 type Record = {
 	readonly request: RequestMaterial;
 	readonly admission: NonNullable<CommittedEffectsView["effects"][number]["admission"]>;
 	outcome?: CausalEffectOutcome;
 };
 
-/** One private cold assembly. The owned source cannot be supplied by the caller. */
+/** Explicit simulation entry; real prepared resources use composeSpendingHost. */
 export function composeOfflineSpending(
 	graph: Graph,
 	inputs: Omit<SpendingInputs, "inbox">,
-	rawBinding: SpendingBinding,
+	binding: SpendingBinding,
 	resource: OfflineAlertResource,
+	options: { name: string; diagnostics?: "off" | "summary" },
+) {
+	if (!SpendingResource.is(resource) || resource.mode !== "offline-simulation")
+		throw new TypeError("offline resource required");
+	return composeSpendingHost(graph, inputs, binding, resource, options);
+}
+
+/** One private cold assembly. The owned source cannot be supplied by the caller. */
+export function composeSpendingHost(
+	graph: Graph,
+	inputs: Omit<SpendingInputs, "inbox">,
+	rawBinding: SpendingBinding,
+	resource: SpendingResource,
 	options: { name: string; diagnostics?: "off" | "summary" },
 ) {
 	const binding = validateBinding(rawBinding),
 		name = options.name;
-	if (
-		!(resource instanceof OfflineAlertResource) ||
-		resource.kind !== "offline-alert-resource" ||
-		!same(resource.binding, binding)
-	)
+	if (!SpendingResource.is(resource) || !same(resource.binding, binding))
 		throw new TypeError("offline resource binding");
 	const scope = prepareConstruction(graph, {
 		name,
@@ -170,6 +145,7 @@ export function buildOfflineSpendingHost(
 		revision = 0,
 		notifications = 0;
 	let fault: string | undefined;
+	let dispatchStopped = false;
 	let notified = false;
 	let maxFrameBytes = 0;
 	const source = scope.node<InboxObservationFrame>([], null, {
@@ -180,13 +156,17 @@ export function buildOfflineSpendingHost(
 		frozen({
 			binding,
 			issuerRef: { kind: "fixture", id: "owned-offline-host" },
-			artifactRef: { kind: "fixture-artifact", id: "simulated-writes" },
-			artifactDigest: hash("offline-host-not-real-io"),
+			artifactRef: {
+				kind: "host-observation",
+				id: `${lease.mode}:host-journal`,
+			},
+			// Host observations are not independent transport/readback evidence.
+			artifactDigest: hash(`${lease.mode}:host-journal-only`),
 			readiness: {
-				ready: !fault && inFlight === 0 && records.size < 64,
+				ready: !fault && !dispatchStopped && inFlight === 0 && records.size < 64,
 				observedAt: 0,
 				validThrough: Number.MAX_SAFE_INTEGER,
-				availableSlots: !fault && inFlight === 0 && records.size < 64 ? 1 : 0,
+				availableSlots: !fault && !dispatchStopped && inFlight === 0 && records.size < 64 ? 1 : 0,
 			},
 			outcomes: [...records.values()].flatMap((r) => (r.outcome ? [r.outcome] : [])),
 		});
@@ -219,7 +199,17 @@ export function buildOfflineSpendingHost(
 		if (r.outcome) return;
 		const result =
 			state === "succeeded"
-				? { kind: "ok" as const, value: { source: "offline-host", io: false } }
+				? {
+						kind: "ok" as const,
+						value: {
+							source:
+								lease.mode === "prepared-local-file" || lease.mode === "prepared-local-file-proof"
+									? "local-file-host"
+									: "offline-host",
+							io:
+								lease.mode === "prepared-local-file" || lease.mode === "prepared-local-file-proof",
+						},
+					}
 				: {
 						kind: "error" as const,
 						error: { kind: "issue" as const, code: `spending-host/${code}`, message: code },
@@ -231,6 +221,7 @@ export function buildOfflineSpendingHost(
 			state,
 			result,
 		});
+		if (state === "unknown" || state === "reconcile-required") dispatchStopped = true;
 		revision++;
 		schedule();
 	};
@@ -442,7 +433,7 @@ export function buildOfflineSpendingHost(
 					complete(record, "cancelled", "final-guard");
 					continue;
 				}
-				if (inFlight !== 0 || writes >= Math.min(64, grant.maxWrites)) {
+				if (dispatchStopped || inFlight !== 0 || writes >= Math.min(64, grant.maxWrites)) {
 					complete(record, "cancelled", "busy-or-write-budget");
 					continue;
 				}
@@ -567,6 +558,8 @@ export function buildOfflineSpendingHost(
 		inspect: () =>
 			Object.freeze({
 				fault,
+				dispatchStopped,
+				resourceMode: lease.mode,
 				normalEndReady:
 					!fault && inFlight === 0 && !scheduled && !delivering && runEndReady.cache === true,
 				writes,

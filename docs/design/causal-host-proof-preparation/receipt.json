@@ -1,0 +1,88 @@
+{
+	"schema": "graphrefly-ts/causal-host-proof-preparation/v1",
+	"revision": "preparation-v1",
+	"ownerWork": "graphrefly-ts:CAUSAL-HOST-PROOF-PREPARATION-TS",
+	"decision": "graphrefly-ts:D171",
+	"baseline": "75ac5832db6bd1c92549d31533294440111c6315",
+	"status": "offline-preparation-complete",
+	"realInboxExecutions": 0,
+	"b121Complete": false,
+	"formalPerformanceQualified": false,
+	"fullSuite": {
+		"passed": 2712,
+		"skipped": 4
+	},
+	"postMetadataFocused": {
+		"passed": 59
+	},
+	"offlineArms": {
+		"passed": 46,
+		"cases": 23,
+		"identicalGraphTopologies": 23,
+		"hostRequests": 30,
+		"underlyingMemoryWrites": 26,
+		"readbackBytes": 6338
+	},
+	"currentSummary": {
+		"path": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/summary.json",
+		"digest": "sha256:cc70c2f1075785b674fcb1ce54d4f0fa85d769742509b9acb455432dbf426dca"
+	},
+	"executionManifest": {
+		"path": "archive/evals/causal-host-proof-preparation/attempt-2026-09-14T20-26-15-335Z/future-execution-manifest.json",
+		"digest": "sha256:68e6fbcc564fb6ddc48c9780faa9f61de9c378f0f44075349233e145465a7ec3",
+		"authorized": false
+	},
+	"gates": {
+		"full-tests": {
+			"passed": true,
+			"log": "docs/design/causal-host-proof-preparation/full-tests.log",
+			"digest": "sha256:4fe2e608e7ead78a40ddb25c52ae36a691ab2b9217479d88c1f874c02c47b3a3"
+		},
+		"focused-final": {
+			"passed": true,
+			"log": "docs/design/causal-host-proof-preparation/focused-final.log",
+			"digest": "sha256:87ef96f4b7f38d43c01d4f69dadedd15cfd8bfa5b1d72d569bcf539596c4e3d0"
+		},
+		"lint": {
+			"passed": true,
+			"log": "docs/design/causal-host-proof-preparation/lint.log",
+			"digest": "sha256:02a28dd1ff0c677c53c8d3cce7856cfc58ec0383792420b37f6a9dbd20e2b6a0"
+		},
+		"build": {
+			"passed": true,
+			"log": "docs/design/causal-host-proof-preparation/build.log",
+			"digest": "sha256:f8f4eded7e0311ffe02090f10a4867fab000fb4003dd53e0bd6b5a989976a575"
+		},
+		"exports": {
+			"passed": true,
+			"log": "docs/design/causal-host-proof-preparation/exports.log",
+			"digest": "sha256:521aeee7166dc563d5452655db5ee1c65cb194a71760524581e168f1d0ce8600"
+		},
+		"artifacts": {
+			"passed": true,
+			"log": "docs/design/causal-host-proof-preparation/artifacts.log",
+			"digest": "sha256:fe56f158350003ea93d57b08f1bc5f2eec11045b05ddc4f734869160fa2fde17"
+		},
+		"executor-no-grant": {
+			"passed": true,
+			"log": "docs/design/causal-host-proof-preparation/executor-no-grant.log",
+			"digest": "sha256:5f8ef9f725177f5edae10d30fe40b3b9cb2fe4ec0e3da35ad24cb1ba1be205fc"
+		}
+	},
+	"qa": {
+		"report": "docs/design/causal-host-proof-preparation/qa.md",
+		"independentReport": "docs/design/causal-host-proof-preparation/qa-verification-gap.md",
+		"unresolvedInScope": []
+	},
+	"remaining": [
+		"Separately authorized real local handle execution",
+		"Root producer linkage after owner checkout integration; unapplied exact proposal retained",
+		"B121 root independent aggregation, human/agent comparison, existing formal performance conditions"
+	],
+	"limitations": [
+		"Offline tests use injected memory; no real filesystem proof yet",
+		"Unknown/short/pending never becomes lifecycle complete from teardown",
+		"No durable/crash guarantee, package exports or protocol changes",
+		"Actor provenance is limited to retained isolated tool transform; absent identity evidence remains unknown"
+	]
+}
