@@ -1,0 +1,10 @@
+
+ RUN  v3.2.4 /Users/davidchenallio/src/graphrefly-ts-latency-review/packages/ts
+
+ ✓ src/__tests__/causal-view-binding.test.ts (4 tests) 45ms
+ ✓ src/__tests__/causal-graded-entry.test.ts (24 tests) 85ms
+
+ Test Files  2 passed (2)
+      Tests  28 passed (28)
+   Start at  09:06:06
+   Duration  671ms (transform 258ms, setup 0ms, collect 629ms, tests 130ms, environment 0ms, prepare 143ms)

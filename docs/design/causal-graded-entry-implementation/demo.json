@@ -1,0 +1,4150 @@
+{
+	"mode": "offline-simulation",
+	"realInboxIO": false,
+	"ordinary": {
+		"received": ["assessment", "publication", "coverage", "issues", "startup"],
+		"finalDisplay": "离线模拟 · 不执行真实 inbox I/O\n启动事实：started（不代表运行结束）\n评估：evaluation-coffee-0: 触发告警条件（仍需证据与许可）\n发布：alert:evaluation-coffee-0: succeeded\n证据覆盖：尚无事实\n问题：尚无问题事实\n尚无当前值：coverage, issues"
+	},
+	"framework": {
+		"originalExecutionHandle": true,
+		"originalIdentityHandle": true,
+		"originalRetainedLineage": true
+	},
+	"maintainer": {
+		"graph": "offline-spending-app",
+		"topology": {
+			"nodes": [
+				{
+					"id": "input/pack",
+					"factory": "node",
+					"status": "settled",
+					"deps": [],
+					"name": "input/pack",
+					"value": {
+						"format": "spending-input-v1",
+						"binding": {
+							"packRef": {
+								"kind": "offline-pack",
+								"id": "preset"
+							},
+							"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+							"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+							"destinationRef": {
+								"kind": "offline-inbox",
+								"id": "no-host"
+							},
+							"compositionEpoch": 1,
+							"hostEpoch": 1,
+							"runRef": "preset-fixture",
+							"evidenceMode": "fixture-observations"
+						},
+						"evaluations": [
+							{
+								"evaluationRef": "evaluation-coffee-0",
+								"subjectRef": "evaluation-coffee-0",
+								"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+								"profileRef": {
+									"kind": "profile",
+									"id": "base"
+								},
+								"profile": {
+									"dailyAverage": 100,
+									"typicalCategories": ["coffee"]
+								},
+								"policyRef": {
+									"kind": "policy",
+									"id": "alert"
+								},
+								"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+								"policy": {
+									"zThreshold": 0.5,
+									"dailyRatioThreshold": 100
+								},
+								"prefix": [
+									{
+										"id": "evaluation-coffee-0:tx0",
+										"vendor": "coffee",
+										"category": "coffee",
+										"amount": 100,
+										"timestampIso": "2026-09-09T00:00:00.000Z"
+									},
+									{
+										"id": "evaluation-coffee-0:tx1",
+										"vendor": "coffee",
+										"category": "coffee",
+										"amount": 140,
+										"timestampIso": "2026-09-09T00:00:00.000Z"
+									}
+								],
+								"occurrence": {
+									"revisionDomain": "fixture-coffee",
+									"occurrenceId": "evaluation-coffee-0",
+									"revision": 1,
+									"sourceRefs": [
+										{
+											"kind": "evaluation",
+											"id": "evaluation-coffee-0"
+										}
+									],
+									"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1"
+								}
+							}
+						]
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "input/arrivals",
+					"factory": "node",
+					"status": "settled",
+					"deps": [],
+					"name": "input/arrivals",
+					"value": {
+						"packRef": {
+							"kind": "offline-pack",
+							"id": "preset"
+						},
+						"evaluationRefs": ["evaluation-coffee-0"]
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "input/current-policy",
+					"factory": "node",
+					"status": "settled",
+					"deps": [],
+					"name": "input/current-policy",
+					"value": {
+						"binding": {
+							"packRef": {
+								"kind": "offline-pack",
+								"id": "preset"
+							},
+							"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+							"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+							"destinationRef": {
+								"kind": "offline-inbox",
+								"id": "no-host"
+							},
+							"compositionEpoch": 1,
+							"hostEpoch": 1,
+							"runRef": "preset-fixture",
+							"evidenceMode": "fixture-observations"
+						},
+						"current": [
+							{
+								"revisionDomain": "fixture-coffee",
+								"occurrence": {
+									"revisionDomain": "fixture-coffee",
+									"occurrenceId": "evaluation-coffee-0",
+									"revision": 1,
+									"sourceRefs": [
+										{
+											"kind": "evaluation",
+											"id": "evaluation-coffee-0"
+										}
+									],
+									"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1"
+								},
+								"policyRef": {
+									"kind": "policy",
+									"id": "alert"
+								},
+								"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+								"watermark": 1
+							}
+						]
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "input/independent-verification",
+					"factory": "node",
+					"status": "settled",
+					"deps": [],
+					"name": "input/independent-verification",
+					"value": {
+						"binding": {
+							"packRef": {
+								"kind": "offline-pack",
+								"id": "preset"
+							},
+							"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+							"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+							"destinationRef": {
+								"kind": "offline-inbox",
+								"id": "no-host"
+							},
+							"compositionEpoch": 1,
+							"hostEpoch": 1,
+							"runRef": "preset-fixture",
+							"evidenceMode": "fixture-observations"
+						},
+						"receipts": [
+							{
+								"receiptRef": {
+									"kind": "fixture-verification",
+									"id": "sha256:52d3d18978c27b857d1c59bbb27785c2b22c9a07f834a97cf2bba85426b0ada7"
+								},
+								"issuerRef": {
+									"kind": "fixture",
+									"id": "independent-pairwise-oracle"
+								},
+								"verifierRevision": "spending-oracle-v2",
+								"occurrence": {
+									"revisionDomain": "fixture-coffee",
+									"occurrenceId": "evaluation-coffee-0",
+									"revision": 1,
+									"sourceRefs": [
+										{
+											"kind": "evaluation",
+											"id": "evaluation-coffee-0"
+										}
+									],
+									"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1"
+								},
+								"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+								"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+								"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+								"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+								"requestDigest": "sha256:e048d411599b12336c732410a90fdb46aa4e39ef77a8eb73201da7c26fe94d3d",
+								"numericDomainRef": "spending-finite-v1",
+								"verdict": "pass",
+								"artifactRef": {
+									"kind": "fixture-artifact",
+									"id": "sha256:52d3d18978c27b857d1c59bbb27785c2b22c9a07f834a97cf2bba85426b0ada7"
+								},
+								"artifactDigest": "sha256:52d3d18978c27b857d1c59bbb27785c2b22c9a07f834a97cf2bba85426b0ada7"
+							}
+						]
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "input/local-permission",
+					"factory": "node",
+					"status": "settled",
+					"deps": [],
+					"name": "input/local-permission",
+					"value": {
+						"binding": {
+							"packRef": {
+								"kind": "offline-pack",
+								"id": "preset"
+							},
+							"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+							"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+							"destinationRef": {
+								"kind": "offline-inbox",
+								"id": "no-host"
+							},
+							"compositionEpoch": 1,
+							"hostEpoch": 1,
+							"runRef": "preset-fixture",
+							"evidenceMode": "fixture-observations"
+						},
+						"tick": 1,
+						"stop": true,
+						"grants": [
+							{
+								"grantRef": {
+									"kind": "fixture-grant",
+									"id": "evaluation-coffee-0"
+								},
+								"ownerRef": {
+									"kind": "fixture-owner",
+									"id": "offline"
+								},
+								"operation": "append-alert",
+								"occurrence": {
+									"revisionDomain": "fixture-coffee",
+									"occurrenceId": "evaluation-coffee-0",
+									"revision": 1,
+									"sourceRefs": [
+										{
+											"kind": "evaluation",
+											"id": "evaluation-coffee-0"
+										}
+									],
+									"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1"
+								},
+								"requestDigest": "sha256:e048d411599b12336c732410a90fdb46aa4e39ef77a8eb73201da7c26fe94d3d",
+								"destinationRef": {
+									"kind": "offline-inbox",
+									"id": "no-host"
+								},
+								"hostEpoch": 1,
+								"validFrom": 0,
+								"validThrough": 100,
+								"maxWrites": 64,
+								"replayScope": {
+									"compositionEpoch": 1,
+									"hostEpoch": 1
+								},
+								"revoked": false
+							}
+						]
+					},
+					"version": {
+						"level": 0,
+						"counter": 2
+					}
+				},
+				{
+					"id": "alerts/startup",
+					"factory": "graphConstructionStartup",
+					"status": "settled",
+					"deps": [],
+					"name": "alerts/startup",
+					"value": {
+						"kind": "graph-startup",
+						"instance": "alerts",
+						"epoch": 1,
+						"state": "started"
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/hostFacts",
+					"factory": "offlineSpendingHostFacts",
+					"status": "settled",
+					"deps": [],
+					"name": "alerts/hostFacts",
+					"value": {
+						"binding": {
+							"compositionEpoch": 1,
+							"destinationRef": {
+								"id": "no-host",
+								"kind": "offline-inbox"
+							},
+							"evidenceMode": "fixture-observations",
+							"hostEpoch": 1,
+							"packRef": {
+								"id": "preset",
+								"kind": "offline-pack"
+							},
+							"runRef": "preset-fixture",
+							"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+							"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a"
+						},
+						"issuerRef": {
+							"kind": "fixture",
+							"id": "owned-offline-host"
+						},
+						"artifactRef": {
+							"kind": "fixture-artifact",
+							"id": "simulated-writes"
+						},
+						"artifactDigest": "sha256:371c9070c334154df5e7a0cb893b8a99fb17da8c436d5f7d31165dcb6fa89bb1",
+						"readiness": {
+							"ready": true,
+							"observedAt": 0,
+							"validThrough": 9007199254740991,
+							"availableSlots": 1
+						},
+						"outcomes": [
+							{
+								"occurrence": {
+									"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+									"occurrenceId": "evaluation-coffee-0",
+									"revision": 1,
+									"revisionDomain": "fixture-coffee",
+									"sourceRefs": [
+										{
+											"id": "evaluation-coffee-0",
+											"kind": "evaluation"
+										}
+									]
+								},
+								"effectId": "alert:evaluation-coffee-0",
+								"requestRef": {
+									"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74",
+									"kind": "spending-alerts/request-material/v1"
+								},
+								"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+								"admissionRef": {
+									"id": "sha256:e2d9d5d097e576e9ba171e9b473eae86fa7b58339db734116cf376512f1ba99d",
+									"kind": "spending-admission"
+								},
+								"state": "succeeded",
+								"result": {
+									"kind": "ok",
+									"value": {
+										"source": "offline-host",
+										"io": false
+									}
+								}
+							}
+						]
+					},
+					"version": {
+						"level": 0,
+						"counter": 3
+					}
+				},
+				{
+					"id": "alerts/evaluationSelections",
+					"factory": "spending/evaluationSelections",
+					"status": "settled",
+					"deps": ["input/pack", "input/arrivals"],
+					"name": "alerts/evaluationSelections",
+					"value": {
+						"valid": true,
+						"rows": [
+							{
+								"evaluation": {
+									"evaluationRef": "evaluation-coffee-0",
+									"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"policy": {
+										"dailyRatioThreshold": 100,
+										"zThreshold": 0.5
+									},
+									"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+									"policyRef": {
+										"id": "alert",
+										"kind": "policy"
+									},
+									"prefix": [
+										{
+											"amount": 100,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx0",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										},
+										{
+											"amount": 140,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx1",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										}
+									],
+									"profile": {
+										"dailyAverage": 100,
+										"typicalCategories": ["coffee"]
+									},
+									"profileRef": {
+										"id": "base",
+										"kind": "profile"
+									},
+									"subjectRef": "evaluation-coffee-0"
+								},
+								"value": {
+									"evaluationRef": "evaluation-coffee-0",
+									"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"policy": {
+										"dailyRatioThreshold": 100,
+										"zThreshold": 0.5
+									},
+									"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+									"policyRef": {
+										"id": "alert",
+										"kind": "policy"
+									},
+									"prefix": [
+										{
+											"amount": 100,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx0",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										},
+										{
+											"amount": 140,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx1",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										}
+									],
+									"profile": {
+										"dailyAverage": 100,
+										"typicalCategories": ["coffee"]
+									},
+									"profileRef": {
+										"id": "base",
+										"kind": "profile"
+									},
+									"subjectRef": "evaluation-coffee-0"
+								}
+							}
+						],
+						"issues": []
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/transaction",
+					"factory": "spending/transaction",
+					"status": "settled",
+					"deps": ["alerts/evaluationSelections"],
+					"name": "alerts/transaction",
+					"value": {
+						"valid": true,
+						"rows": [
+							{
+								"evaluation": {
+									"evaluationRef": "evaluation-coffee-0",
+									"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"policy": {
+										"dailyRatioThreshold": 100,
+										"zThreshold": 0.5
+									},
+									"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+									"policyRef": {
+										"id": "alert",
+										"kind": "policy"
+									},
+									"prefix": [
+										{
+											"amount": 100,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx0",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										},
+										{
+											"amount": 140,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx1",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										}
+									],
+									"profile": {
+										"dailyAverage": 100,
+										"typicalCategories": ["coffee"]
+									},
+									"profileRef": {
+										"id": "base",
+										"kind": "profile"
+									},
+									"subjectRef": "evaluation-coffee-0"
+								},
+								"value": {
+									"amount": 140,
+									"category": "coffee",
+									"id": "evaluation-coffee-0:tx1",
+									"timestampIso": "2026-09-09T00:00:00.000Z",
+									"vendor": "coffee"
+								}
+							}
+						],
+						"issues": []
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/vendorStats",
+					"factory": "spending/vendorStats",
+					"status": "settled",
+					"deps": ["alerts/evaluationSelections"],
+					"name": "alerts/vendorStats",
+					"value": {
+						"valid": true,
+						"rows": [
+							{
+								"evaluation": {
+									"evaluationRef": "evaluation-coffee-0",
+									"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"policy": {
+										"dailyRatioThreshold": 100,
+										"zThreshold": 0.5
+									},
+									"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+									"policyRef": {
+										"id": "alert",
+										"kind": "policy"
+									},
+									"prefix": [
+										{
+											"amount": 100,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx0",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										},
+										{
+											"amount": 140,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx1",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										}
+									],
+									"profile": {
+										"dailyAverage": 100,
+										"typicalCategories": ["coffee"]
+									},
+									"profileRef": {
+										"id": "base",
+										"kind": "profile"
+									},
+									"subjectRef": "evaluation-coffee-0"
+								},
+								"value": {
+									"count": 2,
+									"mean": 120,
+									"std": 28.284271247461902,
+									"moments": {
+										"sum": "240",
+										"dispersion": "1600",
+										"exponent": 0
+									}
+								}
+							}
+						],
+						"issues": []
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/userProfile",
+					"factory": "spending/userProfile",
+					"status": "settled",
+					"deps": ["alerts/evaluationSelections"],
+					"name": "alerts/userProfile",
+					"value": {
+						"valid": true,
+						"rows": [
+							{
+								"evaluation": {
+									"evaluationRef": "evaluation-coffee-0",
+									"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"policy": {
+										"dailyRatioThreshold": 100,
+										"zThreshold": 0.5
+									},
+									"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+									"policyRef": {
+										"id": "alert",
+										"kind": "policy"
+									},
+									"prefix": [
+										{
+											"amount": 100,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx0",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										},
+										{
+											"amount": 140,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx1",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										}
+									],
+									"profile": {
+										"dailyAverage": 100,
+										"typicalCategories": ["coffee"]
+									},
+									"profileRef": {
+										"id": "base",
+										"kind": "profile"
+									},
+									"subjectRef": "evaluation-coffee-0"
+								},
+								"value": {
+									"dailyAverage": 100,
+									"typicalCategories": ["coffee"]
+								}
+							}
+						],
+						"issues": []
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/policy",
+					"factory": "spending/policy",
+					"status": "settled",
+					"deps": ["alerts/evaluationSelections"],
+					"name": "alerts/policy",
+					"value": {
+						"valid": true,
+						"rows": [
+							{
+								"evaluation": {
+									"evaluationRef": "evaluation-coffee-0",
+									"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"policy": {
+										"dailyRatioThreshold": 100,
+										"zThreshold": 0.5
+									},
+									"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+									"policyRef": {
+										"id": "alert",
+										"kind": "policy"
+									},
+									"prefix": [
+										{
+											"amount": 100,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx0",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										},
+										{
+											"amount": 140,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx1",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										}
+									],
+									"profile": {
+										"dailyAverage": 100,
+										"typicalCategories": ["coffee"]
+									},
+									"profileRef": {
+										"id": "base",
+										"kind": "profile"
+									},
+									"subjectRef": "evaluation-coffee-0"
+								},
+								"value": {
+									"dailyRatioThreshold": 100,
+									"zThreshold": 0.5
+								}
+							}
+						],
+						"issues": []
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/anomalyScore",
+					"factory": "spending/anomalyScore",
+					"status": "settled",
+					"deps": ["alerts/transaction", "alerts/vendorStats", "alerts/userProfile"],
+					"name": "alerts/anomalyScore",
+					"value": {
+						"valid": true,
+						"rows": [
+							{
+								"evaluation": {
+									"evaluationRef": "evaluation-coffee-0",
+									"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"policy": {
+										"dailyRatioThreshold": 100,
+										"zThreshold": 0.5
+									},
+									"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+									"policyRef": {
+										"id": "alert",
+										"kind": "policy"
+									},
+									"prefix": [
+										{
+											"amount": 100,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx0",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										},
+										{
+											"amount": 140,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx1",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										}
+									],
+									"profile": {
+										"dailyAverage": 100,
+										"typicalCategories": ["coffee"]
+									},
+									"profileRef": {
+										"id": "base",
+										"kind": "profile"
+									},
+									"subjectRef": "evaluation-coffee-0"
+								},
+								"value": {
+									"zScore": 0.7071067811865476,
+									"dailyRatio": 1.4,
+									"categoryFamiliarity": "known",
+									"txn": {
+										"amount": 140,
+										"category": "coffee",
+										"id": "evaluation-coffee-0:tx1",
+										"timestampIso": "2026-09-09T00:00:00.000Z",
+										"vendor": "coffee"
+									}
+								}
+							}
+						],
+						"issues": []
+					},
+					"version": {
+						"level": 0,
+						"counter": 2
+					}
+				},
+				{
+					"id": "alerts/thresholdGate",
+					"factory": "spending/thresholdGate",
+					"status": "settled",
+					"deps": ["alerts/anomalyScore", "alerts/policy"],
+					"name": "alerts/thresholdGate",
+					"value": {
+						"valid": true,
+						"rows": [
+							{
+								"evaluation": {
+									"evaluationRef": "evaluation-coffee-0",
+									"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"policy": {
+										"dailyRatioThreshold": 100,
+										"zThreshold": 0.5
+									},
+									"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+									"policyRef": {
+										"id": "alert",
+										"kind": "policy"
+									},
+									"prefix": [
+										{
+											"amount": 100,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx0",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										},
+										{
+											"amount": 140,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx1",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										}
+									],
+									"profile": {
+										"dailyAverage": 100,
+										"typicalCategories": ["coffee"]
+									},
+									"profileRef": {
+										"id": "base",
+										"kind": "profile"
+									},
+									"subjectRef": "evaluation-coffee-0"
+								},
+								"value": {
+									"flagged": true,
+									"threshold": 0.5,
+									"txn": {
+										"amount": 140,
+										"category": "coffee",
+										"id": "evaluation-coffee-0:tx1",
+										"timestampIso": "2026-09-09T00:00:00.000Z",
+										"vendor": "coffee"
+									},
+									"score": {
+										"zScore": 0.7071067811865476,
+										"dailyRatio": 1.4,
+										"categoryFamiliarity": "known",
+										"txn": {
+											"amount": 140,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx1",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										}
+									}
+								}
+							}
+						],
+						"issues": []
+					},
+					"version": {
+						"level": 0,
+						"counter": 2
+					}
+				},
+				{
+					"id": "alerts/reasonFactors",
+					"factory": "spending/reasonFactors",
+					"status": "settled",
+					"deps": ["alerts/thresholdGate", "alerts/policy"],
+					"name": "alerts/reasonFactors",
+					"value": {
+						"valid": true,
+						"rows": [
+							{
+								"evaluation": {
+									"evaluationRef": "evaluation-coffee-0",
+									"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"policy": {
+										"dailyRatioThreshold": 100,
+										"zThreshold": 0.5
+									},
+									"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+									"policyRef": {
+										"id": "alert",
+										"kind": "policy"
+									},
+									"prefix": [
+										{
+											"amount": 100,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx0",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										},
+										{
+											"amount": 140,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx1",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										}
+									],
+									"profile": {
+										"dailyAverage": 100,
+										"typicalCategories": ["coffee"]
+									},
+									"profileRef": {
+										"id": "base",
+										"kind": "profile"
+									},
+									"subjectRef": "evaluation-coffee-0"
+								},
+								"value": {
+									"factors": ["Amount is 0.71σ above this vendor's historical mean."],
+									"severity": "low",
+									"txn": {
+										"amount": 140,
+										"category": "coffee",
+										"id": "evaluation-coffee-0:tx1",
+										"timestampIso": "2026-09-09T00:00:00.000Z",
+										"vendor": "coffee"
+									}
+								}
+							}
+						],
+						"issues": []
+					},
+					"version": {
+						"level": 0,
+						"counter": 2
+					}
+				},
+				{
+					"id": "alerts/alertMessage",
+					"factory": "spending/alertMessage",
+					"status": "settled",
+					"deps": ["alerts/reasonFactors"],
+					"name": "alerts/alertMessage",
+					"value": {
+						"valid": true,
+						"rows": [
+							{
+								"evaluation": {
+									"evaluationRef": "evaluation-coffee-0",
+									"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"policy": {
+										"dailyRatioThreshold": 100,
+										"zThreshold": 0.5
+									},
+									"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+									"policyRef": {
+										"id": "alert",
+										"kind": "policy"
+									},
+									"prefix": [
+										{
+											"amount": 100,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx0",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										},
+										{
+											"amount": 140,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx1",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										}
+									],
+									"profile": {
+										"dailyAverage": 100,
+										"typicalCategories": ["coffee"]
+									},
+									"profileRef": {
+										"id": "base",
+										"kind": "profile"
+									},
+									"subjectRef": "evaluation-coffee-0"
+								},
+								"value": {
+									"message": "Transaction evaluation-coffee-0:tx1 flagged — severity: low.\nVendor: coffee  Amount: $140.00  Category: coffee\nReasoning:\n  • Amount is 0.71σ above this vendor's historical mean.",
+									"severity": "low"
+								}
+							}
+						],
+						"issues": []
+					},
+					"version": {
+						"level": 0,
+						"counter": 2
+					}
+				},
+				{
+					"id": "alerts/assessment",
+					"factory": "spending/assessment",
+					"status": "settled",
+					"deps": ["alerts/thresholdGate", "alerts/reasonFactors", "alerts/alertMessage"],
+					"name": "alerts/assessment",
+					"value": {
+						"valid": true,
+						"rows": [
+							{
+								"evaluation": {
+									"evaluationRef": "evaluation-coffee-0",
+									"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"policy": {
+										"dailyRatioThreshold": 100,
+										"zThreshold": 0.5
+									},
+									"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+									"policyRef": {
+										"id": "alert",
+										"kind": "policy"
+									},
+									"prefix": [
+										{
+											"amount": 100,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx0",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										},
+										{
+											"amount": 140,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx1",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										}
+									],
+									"profile": {
+										"dailyAverage": 100,
+										"typicalCategories": ["coffee"]
+									},
+									"profileRef": {
+										"id": "base",
+										"kind": "profile"
+									},
+									"subjectRef": "evaluation-coffee-0"
+								},
+								"value": {
+									"kind": "spending-alerts/assessment",
+									"evidenceMode": "fixture-observations",
+									"binding": {
+										"compositionEpoch": 1,
+										"destinationRef": {
+											"id": "no-host",
+											"kind": "offline-inbox"
+										},
+										"evidenceMode": "fixture-observations",
+										"hostEpoch": 1,
+										"packRef": {
+											"id": "preset",
+											"kind": "offline-pack"
+										},
+										"runRef": "preset-fixture",
+										"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+										"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a"
+									},
+									"evaluationRef": "evaluation-coffee-0",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+									"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+									"flagged": true,
+									"score": {
+										"zScore": 0.7071067811865476,
+										"dailyRatio": 1.4,
+										"categoryFamiliarity": "known",
+										"txn": {
+											"amount": 140,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx1",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										}
+									},
+									"reason": {
+										"factors": ["Amount is 0.71σ above this vendor's historical mean."],
+										"severity": "low",
+										"txn": {
+											"amount": 140,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx1",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										}
+									},
+									"message": "Transaction evaluation-coffee-0:tx1 flagged — severity: low.\nVendor: coffee  Amount: $140.00  Category: coffee\nReasoning:\n  • Amount is 0.71σ above this vendor's historical mean."
+								}
+							}
+						],
+						"issues": []
+					},
+					"version": {
+						"level": 0,
+						"counter": 2
+					}
+				},
+				{
+					"id": "alerts/requestMaterials",
+					"factory": "spending/requestMaterials",
+					"status": "settled",
+					"deps": ["alerts/evaluationSelections", "alerts/thresholdGate", "alerts/alertMessage"],
+					"name": "alerts/requestMaterials",
+					"value": {
+						"valid": true,
+						"rows": [
+							{
+								"evaluation": {
+									"evaluationRef": "evaluation-coffee-0",
+									"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"policy": {
+										"dailyRatioThreshold": 100,
+										"zThreshold": 0.5
+									},
+									"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+									"policyRef": {
+										"id": "alert",
+										"kind": "policy"
+									},
+									"prefix": [
+										{
+											"amount": 100,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx0",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										},
+										{
+											"amount": 140,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx1",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										}
+									],
+									"profile": {
+										"dailyAverage": 100,
+										"typicalCategories": ["coffee"]
+									},
+									"profileRef": {
+										"id": "base",
+										"kind": "profile"
+									},
+									"subjectRef": "evaluation-coffee-0"
+								},
+								"value": {
+									"kind": "retained",
+									"material": {
+										"body": {
+											"compositionEpoch": 1,
+											"destinationRef": {
+												"id": "no-host",
+												"kind": "offline-inbox"
+											},
+											"effectId": "alert:evaluation-coffee-0",
+											"hostEpoch": 1,
+											"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+											"occurrence": {
+												"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+												"occurrenceId": "evaluation-coffee-0",
+												"revision": 1,
+												"revisionDomain": "fixture-coffee",
+												"sourceRefs": [
+													{
+														"id": "evaluation-coffee-0",
+														"kind": "evaluation"
+													}
+												]
+											},
+											"payloadDigest": "sha256:e048d411599b12336c732410a90fdb46aa4e39ef77a8eb73201da7c26fe94d3d",
+											"payloadText": "{\"message\":\"Transaction evaluation-coffee-0:tx1 flagged — severity: low.\\nVendor: coffee  Amount: $140.00  Category: coffee\\nReasoning:\\n  • Amount is 0.71σ above this vendor's historical mean.\",\"severity\":\"low\",\"transactionId\":\"evaluation-coffee-0:tx1\",\"vendor\":\"coffee\"}",
+											"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+											"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+											"schema": "spending-alerts/request-material/v1",
+											"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a"
+										},
+										"requestRef": {
+											"kind": "spending-alerts/request-material/v1",
+											"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74"
+										},
+										"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f"
+									}
+								}
+							}
+						],
+						"issues": []
+					},
+					"version": {
+						"level": 0,
+						"counter": 2
+					}
+				},
+				{
+					"id": "alerts/materialStore",
+					"factory": "spending/materialStore",
+					"status": "settled",
+					"deps": ["alerts/requestMaterials"],
+					"name": "alerts/materialStore",
+					"value": {
+						"valid": true,
+						"rows": [
+							{
+								"evaluation": {
+									"evaluationRef": "evaluation-coffee-0",
+									"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"policy": {
+										"dailyRatioThreshold": 100,
+										"zThreshold": 0.5
+									},
+									"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+									"policyRef": {
+										"id": "alert",
+										"kind": "policy"
+									},
+									"prefix": [
+										{
+											"amount": 100,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx0",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										},
+										{
+											"amount": 140,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx1",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										}
+									],
+									"profile": {
+										"dailyAverage": 100,
+										"typicalCategories": ["coffee"]
+									},
+									"profileRef": {
+										"id": "base",
+										"kind": "profile"
+									},
+									"subjectRef": "evaluation-coffee-0"
+								},
+								"value": {
+									"kind": "retained",
+									"material": {
+										"body": {
+											"compositionEpoch": 1,
+											"destinationRef": {
+												"id": "no-host",
+												"kind": "offline-inbox"
+											},
+											"effectId": "alert:evaluation-coffee-0",
+											"hostEpoch": 1,
+											"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+											"occurrence": {
+												"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+												"occurrenceId": "evaluation-coffee-0",
+												"revision": 1,
+												"revisionDomain": "fixture-coffee",
+												"sourceRefs": [
+													{
+														"id": "evaluation-coffee-0",
+														"kind": "evaluation"
+													}
+												]
+											},
+											"payloadDigest": "sha256:e048d411599b12336c732410a90fdb46aa4e39ef77a8eb73201da7c26fe94d3d",
+											"payloadText": "{\"message\":\"Transaction evaluation-coffee-0:tx1 flagged — severity: low.\\nVendor: coffee  Amount: $140.00  Category: coffee\\nReasoning:\\n  • Amount is 0.71σ above this vendor's historical mean.\",\"severity\":\"low\",\"transactionId\":\"evaluation-coffee-0:tx1\",\"vendor\":\"coffee\"}",
+											"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+											"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+											"schema": "spending-alerts/request-material/v1",
+											"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a"
+										},
+										"requestRef": {
+											"kind": "spending-alerts/request-material/v1",
+											"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74"
+										},
+										"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f"
+									}
+								}
+							}
+						],
+						"issues": [],
+						"snapshot": {
+							"body": {
+								"compositionEpoch": 1,
+								"destinationRef": {
+									"id": "no-host",
+									"kind": "offline-inbox"
+								},
+								"hostEpoch": 1,
+								"materials": [
+									{
+										"body": {
+											"compositionEpoch": 1,
+											"destinationRef": {
+												"id": "no-host",
+												"kind": "offline-inbox"
+											},
+											"effectId": "alert:evaluation-coffee-0",
+											"hostEpoch": 1,
+											"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+											"occurrence": {
+												"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+												"occurrenceId": "evaluation-coffee-0",
+												"revision": 1,
+												"revisionDomain": "fixture-coffee",
+												"sourceRefs": [
+													{
+														"id": "evaluation-coffee-0",
+														"kind": "evaluation"
+													}
+												]
+											},
+											"payloadDigest": "sha256:e048d411599b12336c732410a90fdb46aa4e39ef77a8eb73201da7c26fe94d3d",
+											"payloadText": "{\"message\":\"Transaction evaluation-coffee-0:tx1 flagged — severity: low.\\nVendor: coffee  Amount: $140.00  Category: coffee\\nReasoning:\\n  • Amount is 0.71σ above this vendor's historical mean.\",\"severity\":\"low\",\"transactionId\":\"evaluation-coffee-0:tx1\",\"vendor\":\"coffee\"}",
+											"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+											"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+											"schema": "spending-alerts/request-material/v1",
+											"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a"
+										},
+										"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+										"requestRef": {
+											"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74",
+											"kind": "spending-alerts/request-material/v1"
+										}
+									}
+								],
+								"packRef": {
+									"id": "preset",
+									"kind": "offline-pack"
+								},
+								"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+								"schema": "spending-alerts/material-snapshot/v1",
+								"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a"
+							},
+							"digest": "sha256:80ca2acae06397fdae96c53a0dfca96be55562fd00e950c1e27638e49216778c"
+						}
+					},
+					"version": {
+						"level": 0,
+						"counter": 2
+					}
+				},
+				{
+					"id": "alerts/materialSnapshot",
+					"factory": "spending/materialSnapshot",
+					"status": "settled",
+					"deps": ["alerts/materialStore"],
+					"name": "alerts/materialSnapshot",
+					"value": {
+						"body": {
+							"compositionEpoch": 1,
+							"destinationRef": {
+								"id": "no-host",
+								"kind": "offline-inbox"
+							},
+							"hostEpoch": 1,
+							"materials": [
+								{
+									"body": {
+										"compositionEpoch": 1,
+										"destinationRef": {
+											"id": "no-host",
+											"kind": "offline-inbox"
+										},
+										"effectId": "alert:evaluation-coffee-0",
+										"hostEpoch": 1,
+										"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+										"occurrence": {
+											"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+											"occurrenceId": "evaluation-coffee-0",
+											"revision": 1,
+											"revisionDomain": "fixture-coffee",
+											"sourceRefs": [
+												{
+													"id": "evaluation-coffee-0",
+													"kind": "evaluation"
+												}
+											]
+										},
+										"payloadDigest": "sha256:e048d411599b12336c732410a90fdb46aa4e39ef77a8eb73201da7c26fe94d3d",
+										"payloadText": "{\"message\":\"Transaction evaluation-coffee-0:tx1 flagged — severity: low.\\nVendor: coffee  Amount: $140.00  Category: coffee\\nReasoning:\\n  • Amount is 0.71σ above this vendor's historical mean.\",\"severity\":\"low\",\"transactionId\":\"evaluation-coffee-0:tx1\",\"vendor\":\"coffee\"}",
+										"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+										"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+										"schema": "spending-alerts/request-material/v1",
+										"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a"
+									},
+									"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+									"requestRef": {
+										"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74",
+										"kind": "spending-alerts/request-material/v1"
+									}
+								}
+							],
+							"packRef": {
+								"id": "preset",
+								"kind": "offline-pack"
+							},
+							"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+							"schema": "spending-alerts/material-snapshot/v1",
+							"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a"
+						},
+						"digest": "sha256:80ca2acae06397fdae96c53a0dfca96be55562fd00e950c1e27638e49216778c"
+					},
+					"version": {
+						"level": 0,
+						"counter": 2
+					}
+				},
+				{
+					"id": "alerts/effectProposals",
+					"factory": "spending/effectProposals",
+					"status": "settled",
+					"deps": ["alerts/materialStore"],
+					"name": "alerts/effectProposals",
+					"value": {
+						"occurrence": {
+							"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+							"occurrenceId": "evaluation-coffee-0",
+							"revision": 1,
+							"revisionDomain": "fixture-coffee",
+							"sourceRefs": [
+								{
+									"id": "evaluation-coffee-0",
+									"kind": "evaluation"
+								}
+							]
+						},
+						"effectId": "alert:evaluation-coffee-0",
+						"requestRef": {
+							"kind": "spending-alerts/request-material/v1",
+							"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74"
+						},
+						"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f"
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/currentFacts",
+					"factory": "spending/currentFacts",
+					"status": "settled",
+					"deps": ["input/current-policy"],
+					"name": "alerts/currentFacts",
+					"value": {
+						"valid": true,
+						"value": {
+							"binding": {
+								"compositionEpoch": 1,
+								"destinationRef": {
+									"id": "no-host",
+									"kind": "offline-inbox"
+								},
+								"evidenceMode": "fixture-observations",
+								"hostEpoch": 1,
+								"packRef": {
+									"id": "preset",
+									"kind": "offline-pack"
+								},
+								"runRef": "preset-fixture",
+								"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+								"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a"
+							},
+							"current": [
+								{
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+									"policyRef": {
+										"id": "alert",
+										"kind": "policy"
+									},
+									"revisionDomain": "fixture-coffee",
+									"watermark": 1
+								}
+							]
+						}
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/verificationFacts",
+					"factory": "spending/verificationFacts",
+					"status": "settled",
+					"deps": ["input/independent-verification"],
+					"name": "alerts/verificationFacts",
+					"value": {
+						"valid": true,
+						"value": {
+							"binding": {
+								"compositionEpoch": 1,
+								"destinationRef": {
+									"id": "no-host",
+									"kind": "offline-inbox"
+								},
+								"evidenceMode": "fixture-observations",
+								"hostEpoch": 1,
+								"packRef": {
+									"id": "preset",
+									"kind": "offline-pack"
+								},
+								"runRef": "preset-fixture",
+								"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+								"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a"
+							},
+							"receipts": [
+								{
+									"artifactDigest": "sha256:52d3d18978c27b857d1c59bbb27785c2b22c9a07f834a97cf2bba85426b0ada7",
+									"artifactRef": {
+										"id": "sha256:52d3d18978c27b857d1c59bbb27785c2b22c9a07f834a97cf2bba85426b0ada7",
+										"kind": "fixture-artifact"
+									},
+									"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+									"issuerRef": {
+										"id": "independent-pairwise-oracle",
+										"kind": "fixture"
+									},
+									"numericDomainRef": "spending-finite-v1",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+									"receiptRef": {
+										"id": "sha256:52d3d18978c27b857d1c59bbb27785c2b22c9a07f834a97cf2bba85426b0ada7",
+										"kind": "fixture-verification"
+									},
+									"requestDigest": "sha256:e048d411599b12336c732410a90fdb46aa4e39ef77a8eb73201da7c26fe94d3d",
+									"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+									"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+									"verdict": "pass",
+									"verifierRevision": "spending-oracle-v2"
+								}
+							]
+						}
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/localFacts",
+					"factory": "spending/localFacts",
+					"status": "settled",
+					"deps": ["input/local-permission"],
+					"name": "alerts/localFacts",
+					"value": {
+						"valid": true,
+						"value": {
+							"binding": {
+								"compositionEpoch": 1,
+								"destinationRef": {
+									"id": "no-host",
+									"kind": "offline-inbox"
+								},
+								"evidenceMode": "fixture-observations",
+								"hostEpoch": 1,
+								"packRef": {
+									"id": "preset",
+									"kind": "offline-pack"
+								},
+								"runRef": "preset-fixture",
+								"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+								"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a"
+							},
+							"grants": [
+								{
+									"destinationRef": {
+										"id": "no-host",
+										"kind": "offline-inbox"
+									},
+									"grantRef": {
+										"id": "evaluation-coffee-0",
+										"kind": "fixture-grant"
+									},
+									"hostEpoch": 1,
+									"maxWrites": 64,
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"operation": "append-alert",
+									"ownerRef": {
+										"id": "offline",
+										"kind": "fixture-owner"
+									},
+									"replayScope": {
+										"compositionEpoch": 1,
+										"hostEpoch": 1
+									},
+									"requestDigest": "sha256:e048d411599b12336c732410a90fdb46aa4e39ef77a8eb73201da7c26fe94d3d",
+									"revoked": false,
+									"validFrom": 0,
+									"validThrough": 100
+								}
+							],
+							"stop": true,
+							"tick": 1
+						}
+					},
+					"version": {
+						"level": 0,
+						"counter": 2
+					}
+				},
+				{
+					"id": "alerts/inboxFacts",
+					"factory": "spending/inboxFacts",
+					"status": "settled",
+					"deps": ["alerts/hostFacts"],
+					"name": "alerts/inboxFacts",
+					"value": {
+						"valid": true,
+						"value": {
+							"artifactDigest": "sha256:371c9070c334154df5e7a0cb893b8a99fb17da8c436d5f7d31165dcb6fa89bb1",
+							"artifactRef": {
+								"id": "simulated-writes",
+								"kind": "fixture-artifact"
+							},
+							"binding": {
+								"compositionEpoch": 1,
+								"destinationRef": {
+									"id": "no-host",
+									"kind": "offline-inbox"
+								},
+								"evidenceMode": "fixture-observations",
+								"hostEpoch": 1,
+								"packRef": {
+									"id": "preset",
+									"kind": "offline-pack"
+								},
+								"runRef": "preset-fixture",
+								"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+								"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a"
+							},
+							"issuerRef": {
+								"id": "owned-offline-host",
+								"kind": "fixture"
+							},
+							"outcomes": [
+								{
+									"admissionRef": {
+										"id": "sha256:e2d9d5d097e576e9ba171e9b473eae86fa7b58339db734116cf376512f1ba99d",
+										"kind": "spending-admission"
+									},
+									"effectId": "alert:evaluation-coffee-0",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+									"requestRef": {
+										"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74",
+										"kind": "spending-alerts/request-material/v1"
+									},
+									"result": {
+										"kind": "ok",
+										"value": {
+											"io": false,
+											"source": "offline-host"
+										}
+									},
+									"state": "succeeded"
+								}
+							],
+							"readiness": {
+								"availableSlots": 1,
+								"observedAt": 0,
+								"ready": true,
+								"validThrough": 9007199254740991
+							}
+						}
+					},
+					"version": {
+						"level": 0,
+						"counter": 3
+					}
+				},
+				{
+					"id": "alerts/publicationPolicy",
+					"factory": "spending/publicationPolicy",
+					"status": "resolved",
+					"deps": [
+						"alerts/evaluationSelections",
+						"alerts/thresholdGate",
+						"alerts/materialStore",
+						"alerts/currentFacts",
+						"alerts/verificationFacts",
+						"alerts/localFacts",
+						"alerts/inboxFacts"
+					],
+					"name": "alerts/publicationPolicy",
+					"value": {
+						"valid": true,
+						"rows": [
+							{
+								"evaluation": {
+									"evaluationRef": "evaluation-coffee-0",
+									"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"policy": {
+										"dailyRatioThreshold": 100,
+										"zThreshold": 0.5
+									},
+									"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+									"policyRef": {
+										"id": "alert",
+										"kind": "policy"
+									},
+									"prefix": [
+										{
+											"amount": 100,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx0",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										},
+										{
+											"amount": 140,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx1",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										}
+									],
+									"profile": {
+										"dailyAverage": 100,
+										"typicalCategories": ["coffee"]
+									},
+									"profileRef": {
+										"id": "base",
+										"kind": "profile"
+									},
+									"subjectRef": "evaluation-coffee-0"
+								},
+								"value": {
+									"terminal": {
+										"occurrence": {
+											"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+											"occurrenceId": "evaluation-coffee-0",
+											"revision": 1,
+											"revisionDomain": "fixture-coffee",
+											"sourceRefs": [
+												{
+													"id": "evaluation-coffee-0",
+													"kind": "evaluation"
+												}
+											]
+										},
+										"branch": "publication-policy",
+										"state": "completed",
+										"result": {
+											"kind": "ok",
+											"value": {
+												"reason": "fixture-admission",
+												"evidenceMode": "fixture-observations"
+											}
+										}
+									},
+									"admission": {
+										"occurrence": {
+											"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+											"occurrenceId": "evaluation-coffee-0",
+											"revision": 1,
+											"revisionDomain": "fixture-coffee",
+											"sourceRefs": [
+												{
+													"id": "evaluation-coffee-0",
+													"kind": "evaluation"
+												}
+											]
+										},
+										"effectId": "alert:evaluation-coffee-0",
+										"requestRef": {
+											"kind": "spending-alerts/request-material/v1",
+											"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74"
+										},
+										"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+										"admissionRef": {
+											"kind": "spending-admission",
+											"id": "sha256:e2d9d5d097e576e9ba171e9b473eae86fa7b58339db734116cf376512f1ba99d"
+										},
+										"state": "admitted"
+									}
+								}
+							}
+						],
+						"issues": []
+					},
+					"version": {
+						"level": 0,
+						"counter": 3
+					}
+				},
+				{
+					"id": "alerts/occurrences",
+					"factory": "spending/occurrences",
+					"status": "settled",
+					"deps": ["alerts/evaluationSelections"],
+					"name": "alerts/occurrences",
+					"value": {
+						"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+						"occurrenceId": "evaluation-coffee-0",
+						"revision": 1,
+						"revisionDomain": "fixture-coffee",
+						"sourceRefs": [
+							{
+								"id": "evaluation-coffee-0",
+								"kind": "evaluation"
+							}
+						],
+						"value": {
+							"evaluationRef": "evaluation-coffee-0",
+							"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+							"policy": {
+								"dailyRatioThreshold": 100,
+								"zThreshold": 0.5
+							},
+							"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+							"policyRef": {
+								"id": "alert",
+								"kind": "policy"
+							},
+							"prefix": [
+								{
+									"amount": 100,
+									"category": "coffee",
+									"id": "evaluation-coffee-0:tx0",
+									"timestampIso": "2026-09-09T00:00:00.000Z",
+									"vendor": "coffee"
+								},
+								{
+									"amount": 140,
+									"category": "coffee",
+									"id": "evaluation-coffee-0:tx1",
+									"timestampIso": "2026-09-09T00:00:00.000Z",
+									"vendor": "coffee"
+								}
+							],
+							"profile": {
+								"dailyAverage": 100,
+								"typicalCategories": ["coffee"]
+							},
+							"profileRef": {
+								"id": "base",
+								"kind": "profile"
+							},
+							"subjectRef": "evaluation-coffee-0"
+						}
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/occurrenceAdmissions",
+					"factory": "spending/occurrenceAdmissions",
+					"status": "settled",
+					"deps": ["alerts/evaluationSelections", "alerts/currentFacts"],
+					"name": "alerts/occurrenceAdmissions",
+					"value": {
+						"occurrence": {
+							"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+							"occurrenceId": "evaluation-coffee-0",
+							"revision": 1,
+							"revisionDomain": "fixture-coffee",
+							"sourceRefs": [
+								{
+									"id": "evaluation-coffee-0",
+									"kind": "evaluation"
+								}
+							]
+						},
+						"decisionId": "evaluation:evaluation-coffee-0",
+						"decisionDigest": "sha256:7697be70b53749903d3e79d071ff9a03b977751d6dc5fe3f89dc4e2b5248c588",
+						"state": "admitted"
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/branchTerminals",
+					"factory": "spending/branchTerminals",
+					"status": "resolved",
+					"deps": ["alerts/assessment", "alerts/alertMessage", "alerts/publicationPolicy"],
+					"name": "alerts/branchTerminals",
+					"value": {
+						"occurrence": {
+							"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+							"occurrenceId": "evaluation-coffee-0",
+							"revision": 1,
+							"revisionDomain": "fixture-coffee",
+							"sourceRefs": [
+								{
+									"id": "evaluation-coffee-0",
+									"kind": "evaluation"
+								}
+							]
+						},
+						"branch": "publication-policy",
+						"state": "completed",
+						"result": {
+							"kind": "ok",
+							"value": {
+								"reason": "fixture-admission",
+								"evidenceMode": "fixture-observations"
+							}
+						}
+					},
+					"version": {
+						"level": 0,
+						"counter": 3
+					}
+				},
+				{
+					"id": "alerts/effectAdmissions",
+					"factory": "spending/effectAdmissions",
+					"status": "resolved",
+					"deps": ["alerts/publicationPolicy"],
+					"name": "alerts/effectAdmissions",
+					"value": {
+						"occurrence": {
+							"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+							"occurrenceId": "evaluation-coffee-0",
+							"revision": 1,
+							"revisionDomain": "fixture-coffee",
+							"sourceRefs": [
+								{
+									"id": "evaluation-coffee-0",
+									"kind": "evaluation"
+								}
+							]
+						},
+						"effectId": "alert:evaluation-coffee-0",
+						"requestRef": {
+							"kind": "spending-alerts/request-material/v1",
+							"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74"
+						},
+						"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+						"admissionRef": {
+							"kind": "spending-admission",
+							"id": "sha256:e2d9d5d097e576e9ba171e9b473eae86fa7b58339db734116cf376512f1ba99d"
+						},
+						"state": "admitted"
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/effectOutcomes",
+					"factory": "spending/effectOutcomes",
+					"status": "settled",
+					"deps": ["alerts/inboxFacts"],
+					"name": "alerts/effectOutcomes",
+					"value": {
+						"admissionRef": {
+							"id": "sha256:e2d9d5d097e576e9ba171e9b473eae86fa7b58339db734116cf376512f1ba99d",
+							"kind": "spending-admission"
+						},
+						"effectId": "alert:evaluation-coffee-0",
+						"occurrence": {
+							"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+							"occurrenceId": "evaluation-coffee-0",
+							"revision": 1,
+							"revisionDomain": "fixture-coffee",
+							"sourceRefs": [
+								{
+									"id": "evaluation-coffee-0",
+									"kind": "evaluation"
+								}
+							]
+						},
+						"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+						"requestRef": {
+							"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74",
+							"kind": "spending-alerts/request-material/v1"
+						},
+						"result": {
+							"kind": "ok",
+							"value": {
+								"io": false,
+								"source": "offline-host"
+							}
+						},
+						"state": "succeeded"
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/evidence",
+					"factory": "spending/evidence",
+					"status": "settled",
+					"deps": [
+						"alerts/evaluationSelections",
+						"alerts/materialStore",
+						"alerts/verificationFacts"
+					],
+					"name": "alerts/evidence",
+					"value": {
+						"occurrence": {
+							"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+							"occurrenceId": "evaluation-coffee-0",
+							"revision": 1,
+							"revisionDomain": "fixture-coffee",
+							"sourceRefs": [
+								{
+									"id": "evaluation-coffee-0",
+									"kind": "evaluation"
+								}
+							]
+						},
+						"evidenceKind": "spending-verification",
+						"evidenceId": "sha256:08b428668eebc9535b9fd2a5aa71f34e77badb0650b0a84ed2a345f28566ba50",
+						"evidenceDigest": "sha256:76d206482f20c7d90105e94664467c9999092d5af450c53b422b31451aeaa789",
+						"coverage": "included",
+						"refs": ["sha256:52d3d18978c27b857d1c59bbb27785c2b22c9a07f834a97cf2bba85426b0ada7"]
+					},
+					"version": {
+						"level": 0,
+						"counter": 3
+					}
+				},
+				{
+					"id": "alerts/watermarks",
+					"factory": "spending/watermarks",
+					"status": "settled",
+					"deps": ["alerts/currentFacts"],
+					"name": "alerts/watermarks",
+					"value": {
+						"revisionDomain": "fixture-coffee",
+						"revision": 1
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/causal/input/occurrences",
+					"factory": "causalOccurrenceInputLane",
+					"status": "settled",
+					"deps": ["alerts/occurrences"],
+					"name": "alerts/causal/input/occurrences",
+					"value": {
+						"lane": "occurrences",
+						"values": [
+							{
+								"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+								"occurrenceId": "evaluation-coffee-0",
+								"revision": 1,
+								"revisionDomain": "fixture-coffee",
+								"sourceRefs": [
+									{
+										"id": "evaluation-coffee-0",
+										"kind": "evaluation"
+									}
+								],
+								"value": {
+									"evaluationRef": "evaluation-coffee-0",
+									"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+									"policy": {
+										"dailyRatioThreshold": 100,
+										"zThreshold": 0.5
+									},
+									"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+									"policyRef": {
+										"id": "alert",
+										"kind": "policy"
+									},
+									"prefix": [
+										{
+											"amount": 100,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx0",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										},
+										{
+											"amount": 140,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx1",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										}
+									],
+									"profile": {
+										"dailyAverage": 100,
+										"typicalCategories": ["coffee"]
+									},
+									"profileRef": {
+										"id": "base",
+										"kind": "profile"
+									},
+									"subjectRef": "evaluation-coffee-0"
+								}
+							}
+						]
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/causal/input/admissions",
+					"factory": "causalOccurrenceInputLane",
+					"status": "settled",
+					"deps": ["alerts/occurrenceAdmissions"],
+					"name": "alerts/causal/input/admissions",
+					"value": {
+						"lane": "admissions",
+						"values": [
+							{
+								"occurrence": {
+									"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+									"occurrenceId": "evaluation-coffee-0",
+									"revision": 1,
+									"revisionDomain": "fixture-coffee",
+									"sourceRefs": [
+										{
+											"id": "evaluation-coffee-0",
+											"kind": "evaluation"
+										}
+									]
+								},
+								"decisionId": "evaluation:evaluation-coffee-0",
+								"decisionDigest": "sha256:7697be70b53749903d3e79d071ff9a03b977751d6dc5fe3f89dc4e2b5248c588",
+								"state": "admitted"
+							}
+						]
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/causal/input/branch-terminals",
+					"factory": "causalOccurrenceInputLane",
+					"status": "resolved",
+					"deps": ["alerts/branchTerminals"],
+					"name": "alerts/causal/input/branch-terminals",
+					"value": {
+						"lane": "branch-terminals",
+						"values": [
+							{
+								"occurrence": {
+									"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+									"occurrenceId": "evaluation-coffee-0",
+									"revision": 1,
+									"revisionDomain": "fixture-coffee",
+									"sourceRefs": [
+										{
+											"id": "evaluation-coffee-0",
+											"kind": "evaluation"
+										}
+									]
+								},
+								"branch": "assessment",
+								"state": "completed",
+								"result": {
+									"kind": "ok",
+									"value": {
+										"kind": "spending-alerts/assessment",
+										"evidenceMode": "fixture-observations",
+										"binding": {
+											"compositionEpoch": 1,
+											"destinationRef": {
+												"id": "no-host",
+												"kind": "offline-inbox"
+											},
+											"evidenceMode": "fixture-observations",
+											"hostEpoch": 1,
+											"packRef": {
+												"id": "preset",
+												"kind": "offline-pack"
+											},
+											"runRef": "preset-fixture",
+											"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+											"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a"
+										},
+										"evaluationRef": "evaluation-coffee-0",
+										"occurrence": {
+											"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+											"occurrenceId": "evaluation-coffee-0",
+											"revision": 1,
+											"revisionDomain": "fixture-coffee",
+											"sourceRefs": [
+												{
+													"id": "evaluation-coffee-0",
+													"kind": "evaluation"
+												}
+											]
+										},
+										"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+										"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+										"flagged": true,
+										"score": {
+											"zScore": 0.7071067811865476,
+											"dailyRatio": 1.4,
+											"categoryFamiliarity": "known",
+											"txn": {
+												"amount": 140,
+												"category": "coffee",
+												"id": "evaluation-coffee-0:tx1",
+												"timestampIso": "2026-09-09T00:00:00.000Z",
+												"vendor": "coffee"
+											}
+										},
+										"reason": {
+											"factors": ["Amount is 0.71σ above this vendor's historical mean."],
+											"severity": "low",
+											"txn": {
+												"amount": 140,
+												"category": "coffee",
+												"id": "evaluation-coffee-0:tx1",
+												"timestampIso": "2026-09-09T00:00:00.000Z",
+												"vendor": "coffee"
+											}
+										},
+										"message": "Transaction evaluation-coffee-0:tx1 flagged — severity: low.\nVendor: coffee  Amount: $140.00  Category: coffee\nReasoning:\n  • Amount is 0.71σ above this vendor's historical mean."
+									}
+								}
+							},
+							{
+								"occurrence": {
+									"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+									"occurrenceId": "evaluation-coffee-0",
+									"revision": 1,
+									"revisionDomain": "fixture-coffee",
+									"sourceRefs": [
+										{
+											"id": "evaluation-coffee-0",
+											"kind": "evaluation"
+										}
+									]
+								},
+								"branch": "explanation",
+								"state": "completed",
+								"result": {
+									"kind": "ok",
+									"value": {
+										"message": "Transaction evaluation-coffee-0:tx1 flagged — severity: low.\nVendor: coffee  Amount: $140.00  Category: coffee\nReasoning:\n  • Amount is 0.71σ above this vendor's historical mean.",
+										"severity": "low"
+									}
+								}
+							},
+							{
+								"occurrence": {
+									"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+									"occurrenceId": "evaluation-coffee-0",
+									"revision": 1,
+									"revisionDomain": "fixture-coffee",
+									"sourceRefs": [
+										{
+											"id": "evaluation-coffee-0",
+											"kind": "evaluation"
+										}
+									]
+								},
+								"branch": "publication-policy",
+								"state": "completed",
+								"result": {
+									"kind": "ok",
+									"value": {
+										"reason": "fixture-admission",
+										"evidenceMode": "fixture-observations"
+									}
+								}
+							}
+						]
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/causal/input/effect-proposals",
+					"factory": "causalOccurrenceInputLane",
+					"status": "settled",
+					"deps": ["alerts/effectProposals"],
+					"name": "alerts/causal/input/effect-proposals",
+					"value": {
+						"lane": "effect-proposals",
+						"values": [
+							{
+								"occurrence": {
+									"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+									"occurrenceId": "evaluation-coffee-0",
+									"revision": 1,
+									"revisionDomain": "fixture-coffee",
+									"sourceRefs": [
+										{
+											"id": "evaluation-coffee-0",
+											"kind": "evaluation"
+										}
+									]
+								},
+								"effectId": "alert:evaluation-coffee-0",
+								"requestRef": {
+									"kind": "spending-alerts/request-material/v1",
+									"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74"
+								},
+								"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f"
+							}
+						]
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/causal/input/effect-admissions",
+					"factory": "causalOccurrenceInputLane",
+					"status": "resolved",
+					"deps": ["alerts/effectAdmissions"],
+					"name": "alerts/causal/input/effect-admissions",
+					"value": {
+						"lane": "effect-admissions",
+						"values": [
+							{
+								"occurrence": {
+									"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+									"occurrenceId": "evaluation-coffee-0",
+									"revision": 1,
+									"revisionDomain": "fixture-coffee",
+									"sourceRefs": [
+										{
+											"id": "evaluation-coffee-0",
+											"kind": "evaluation"
+										}
+									]
+								},
+								"effectId": "alert:evaluation-coffee-0",
+								"requestRef": {
+									"kind": "spending-alerts/request-material/v1",
+									"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74"
+								},
+								"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+								"admissionRef": {
+									"kind": "spending-admission",
+									"id": "sha256:e2d9d5d097e576e9ba171e9b473eae86fa7b58339db734116cf376512f1ba99d"
+								},
+								"state": "admitted"
+							}
+						]
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/causal/input/effect-outcomes",
+					"factory": "causalOccurrenceInputLane",
+					"status": "settled",
+					"deps": ["alerts/effectOutcomes"],
+					"name": "alerts/causal/input/effect-outcomes",
+					"value": {
+						"lane": "effect-outcomes",
+						"values": [
+							{
+								"admissionRef": {
+									"id": "sha256:e2d9d5d097e576e9ba171e9b473eae86fa7b58339db734116cf376512f1ba99d",
+									"kind": "spending-admission"
+								},
+								"effectId": "alert:evaluation-coffee-0",
+								"occurrence": {
+									"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+									"occurrenceId": "evaluation-coffee-0",
+									"revision": 1,
+									"revisionDomain": "fixture-coffee",
+									"sourceRefs": [
+										{
+											"id": "evaluation-coffee-0",
+											"kind": "evaluation"
+										}
+									]
+								},
+								"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+								"requestRef": {
+									"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74",
+									"kind": "spending-alerts/request-material/v1"
+								},
+								"result": {
+									"kind": "ok",
+									"value": {
+										"io": false,
+										"source": "offline-host"
+									}
+								},
+								"state": "succeeded"
+							}
+						]
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/causal/input/evidence",
+					"factory": "causalOccurrenceInputLane",
+					"status": "settled",
+					"deps": ["alerts/evidence"],
+					"name": "alerts/causal/input/evidence",
+					"value": {
+						"lane": "evidence",
+						"values": [
+							{
+								"occurrence": {
+									"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+									"occurrenceId": "evaluation-coffee-0",
+									"revision": 1,
+									"revisionDomain": "fixture-coffee",
+									"sourceRefs": [
+										{
+											"id": "evaluation-coffee-0",
+											"kind": "evaluation"
+										}
+									]
+								},
+								"evidenceKind": "spending-input",
+								"evidenceId": "evaluation-coffee-0:spending-input",
+								"evidenceDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+								"coverage": "included",
+								"refs": ["preset-fixture"]
+							},
+							{
+								"occurrence": {
+									"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+									"occurrenceId": "evaluation-coffee-0",
+									"revision": 1,
+									"revisionDomain": "fixture-coffee",
+									"sourceRefs": [
+										{
+											"id": "evaluation-coffee-0",
+											"kind": "evaluation"
+										}
+									]
+								},
+								"evidenceKind": "spending-code-binding",
+								"evidenceId": "evaluation-coffee-0:spending-code-binding",
+								"evidenceDigest": "sha256:00a32a674f0984c6e7bec42ad45c00c818e602b48ae793fd94a1cefda99838f7",
+								"coverage": "included",
+								"refs": ["preset-fixture"]
+							},
+							{
+								"occurrence": {
+									"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+									"occurrenceId": "evaluation-coffee-0",
+									"revision": 1,
+									"revisionDomain": "fixture-coffee",
+									"sourceRefs": [
+										{
+											"id": "evaluation-coffee-0",
+											"kind": "evaluation"
+										}
+									]
+								},
+								"evidenceKind": "spending-verification",
+								"evidenceId": "sha256:08b428668eebc9535b9fd2a5aa71f34e77badb0650b0a84ed2a345f28566ba50",
+								"evidenceDigest": "sha256:76d206482f20c7d90105e94664467c9999092d5af450c53b422b31451aeaa789",
+								"coverage": "included",
+								"refs": ["sha256:52d3d18978c27b857d1c59bbb27785c2b22c9a07f834a97cf2bba85426b0ada7"]
+							}
+						]
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/causal/input/watermarks",
+					"factory": "causalOccurrenceInputLane",
+					"status": "settled",
+					"deps": ["alerts/watermarks"],
+					"name": "alerts/causal/input/watermarks",
+					"value": {
+						"lane": "watermarks",
+						"values": [
+							{
+								"revisionDomain": "fixture-coffee",
+								"revision": 1
+							}
+						]
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/causal/arrivals",
+					"factory": "merge",
+					"status": "resolved",
+					"deps": [
+						"alerts/causal/input/occurrences",
+						"alerts/causal/input/admissions",
+						"alerts/causal/input/branch-terminals",
+						"alerts/causal/input/effect-proposals",
+						"alerts/causal/input/effect-admissions",
+						"alerts/causal/input/effect-outcomes",
+						"alerts/causal/input/evidence",
+						"alerts/causal/input/watermarks"
+					],
+					"name": "alerts/causal/arrivals",
+					"value": {
+						"lane": "effect-outcomes",
+						"values": [
+							{
+								"admissionRef": {
+									"id": "sha256:e2d9d5d097e576e9ba171e9b473eae86fa7b58339db734116cf376512f1ba99d",
+									"kind": "spending-admission"
+								},
+								"effectId": "alert:evaluation-coffee-0",
+								"occurrence": {
+									"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+									"occurrenceId": "evaluation-coffee-0",
+									"revision": 1,
+									"revisionDomain": "fixture-coffee",
+									"sourceRefs": [
+										{
+											"id": "evaluation-coffee-0",
+											"kind": "evaluation"
+										}
+									]
+								},
+								"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+								"requestRef": {
+									"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74",
+									"kind": "spending-alerts/request-material/v1"
+								},
+								"result": {
+									"kind": "ok",
+									"value": {
+										"io": false,
+										"source": "offline-host"
+									}
+								},
+								"state": "succeeded"
+							}
+						]
+					},
+					"version": {
+						"level": 0,
+						"counter": 8
+					}
+				},
+				{
+					"id": "alerts/causal/authority",
+					"factory": "causalOccurrenceAuthority",
+					"status": "resolved",
+					"deps": ["alerts/causal/arrivals"],
+					"name": "alerts/causal/authority",
+					"value": {
+						"kind": "fact",
+						"fact": {
+							"kind": "quiescence",
+							"value": {
+								"kind": "causal-quiescence",
+								"revisionDomain": "fixture-coffee",
+								"evaluatedThroughRevision": 1,
+								"lifecycle": true,
+								"retainedEvidence": true,
+								"pendingOccurrenceRefs": [],
+								"pendingEffectIds": []
+							}
+						},
+						"committedEffects": {
+							"kind": "causal-committed-effects",
+							"authorityId": "alerts/causal/authority",
+							"binding": {
+								"contract": "contract-v2",
+								"implementationRevision": "construction-v1",
+								"scope": "full",
+								"epoch": 1
+							},
+							"effects": [
+								{
+									"proposal": {
+										"effectId": "alert:evaluation-coffee-0",
+										"occurrence": {
+											"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+											"occurrenceId": "evaluation-coffee-0",
+											"revision": 1,
+											"revisionDomain": "fixture-coffee",
+											"sourceRefs": [
+												{
+													"id": "evaluation-coffee-0",
+													"kind": "evaluation"
+												}
+											]
+										},
+										"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+										"requestRef": {
+											"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74",
+											"kind": "spending-alerts/request-material/v1"
+										}
+									},
+									"admission": {
+										"admissionRef": {
+											"id": "sha256:e2d9d5d097e576e9ba171e9b473eae86fa7b58339db734116cf376512f1ba99d",
+											"kind": "spending-admission"
+										},
+										"effectId": "alert:evaluation-coffee-0",
+										"occurrence": {
+											"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+											"occurrenceId": "evaluation-coffee-0",
+											"revision": 1,
+											"revisionDomain": "fixture-coffee",
+											"sourceRefs": [
+												{
+													"id": "evaluation-coffee-0",
+													"kind": "evaluation"
+												}
+											]
+										},
+										"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+										"requestRef": {
+											"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74",
+											"kind": "spending-alerts/request-material/v1"
+										},
+										"state": "admitted"
+									},
+									"outcome": {
+										"admissionRef": {
+											"id": "sha256:e2d9d5d097e576e9ba171e9b473eae86fa7b58339db734116cf376512f1ba99d",
+											"kind": "spending-admission"
+										},
+										"effectId": "alert:evaluation-coffee-0",
+										"occurrence": {
+											"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+											"occurrenceId": "evaluation-coffee-0",
+											"revision": 1,
+											"revisionDomain": "fixture-coffee",
+											"sourceRefs": [
+												{
+													"id": "evaluation-coffee-0",
+													"kind": "evaluation"
+												}
+											]
+										},
+										"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+										"requestRef": {
+											"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74",
+											"kind": "spending-alerts/request-material/v1"
+										},
+										"result": {
+											"kind": "ok",
+											"value": {
+												"io": false,
+												"source": "offline-host"
+											}
+										},
+										"state": "succeeded"
+									}
+								}
+							],
+							"retention": []
+						}
+					},
+					"version": {
+						"level": 0,
+						"counter": 12
+					}
+				},
+				{
+					"id": "alerts/causal/release-candidates",
+					"factory": "causalOccurrenceFactProjection",
+					"status": "resolved",
+					"deps": ["alerts/causal/authority"],
+					"name": "alerts/causal/release-candidates",
+					"value": {
+						"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+						"occurrenceId": "evaluation-coffee-0",
+						"revision": 1,
+						"revisionDomain": "fixture-coffee",
+						"sourceRefs": [
+							{
+								"id": "evaluation-coffee-0",
+								"kind": "evaluation"
+							}
+						],
+						"value": {
+							"evaluationRef": "evaluation-coffee-0",
+							"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+							"policy": {
+								"dailyRatioThreshold": 100,
+								"zThreshold": 0.5
+							},
+							"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+							"policyRef": {
+								"id": "alert",
+								"kind": "policy"
+							},
+							"prefix": [
+								{
+									"amount": 100,
+									"category": "coffee",
+									"id": "evaluation-coffee-0:tx0",
+									"timestampIso": "2026-09-09T00:00:00.000Z",
+									"vendor": "coffee"
+								},
+								{
+									"amount": 140,
+									"category": "coffee",
+									"id": "evaluation-coffee-0:tx1",
+									"timestampIso": "2026-09-09T00:00:00.000Z",
+									"vendor": "coffee"
+								}
+							],
+							"profile": {
+								"dailyAverage": 100,
+								"typicalCategories": ["coffee"]
+							},
+							"profileRef": {
+								"id": "base",
+								"kind": "profile"
+							},
+							"subjectRef": "evaluation-coffee-0"
+						}
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/causal/release-port",
+					"factory": "causalOccurrenceQuietReleasePort",
+					"status": "dirty",
+					"deps": ["alerts/causal/release-candidates"],
+					"name": "alerts/causal/release-port",
+					"value": {
+						"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+						"occurrenceId": "evaluation-coffee-0",
+						"revision": 1,
+						"revisionDomain": "fixture-coffee",
+						"sourceRefs": [
+							{
+								"id": "evaluation-coffee-0",
+								"kind": "evaluation"
+							}
+						],
+						"value": {
+							"evaluationRef": "evaluation-coffee-0",
+							"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+							"policy": {
+								"dailyRatioThreshold": 100,
+								"zThreshold": 0.5
+							},
+							"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+							"policyRef": {
+								"id": "alert",
+								"kind": "policy"
+							},
+							"prefix": [
+								{
+									"amount": 100,
+									"category": "coffee",
+									"id": "evaluation-coffee-0:tx0",
+									"timestampIso": "2026-09-09T00:00:00.000Z",
+									"vendor": "coffee"
+								},
+								{
+									"amount": 140,
+									"category": "coffee",
+									"id": "evaluation-coffee-0:tx1",
+									"timestampIso": "2026-09-09T00:00:00.000Z",
+									"vendor": "coffee"
+								}
+							],
+							"profile": {
+								"dailyAverage": 100,
+								"typicalCategories": ["coffee"]
+							},
+							"profileRef": {
+								"id": "base",
+								"kind": "profile"
+							},
+							"subjectRef": "evaluation-coffee-0"
+						}
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/causal/released",
+					"factory": "causalOccurrenceReleased",
+					"status": "settled",
+					"deps": ["alerts/causal/release-port"],
+					"name": "alerts/causal/released",
+					"value": {
+						"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+						"occurrenceId": "evaluation-coffee-0",
+						"revision": 1,
+						"revisionDomain": "fixture-coffee",
+						"sourceRefs": [
+							{
+								"id": "evaluation-coffee-0",
+								"kind": "evaluation"
+							}
+						],
+						"value": {
+							"evaluationRef": "evaluation-coffee-0",
+							"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+							"policy": {
+								"dailyRatioThreshold": 100,
+								"zThreshold": 0.5
+							},
+							"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+							"policyRef": {
+								"id": "alert",
+								"kind": "policy"
+							},
+							"prefix": [
+								{
+									"amount": 100,
+									"category": "coffee",
+									"id": "evaluation-coffee-0:tx0",
+									"timestampIso": "2026-09-09T00:00:00.000Z",
+									"vendor": "coffee"
+								},
+								{
+									"amount": 140,
+									"category": "coffee",
+									"id": "evaluation-coffee-0:tx1",
+									"timestampIso": "2026-09-09T00:00:00.000Z",
+									"vendor": "coffee"
+								}
+							],
+							"profile": {
+								"dailyAverage": 100,
+								"typicalCategories": ["coffee"]
+							},
+							"profileRef": {
+								"id": "base",
+								"kind": "profile"
+							},
+							"subjectRef": "evaluation-coffee-0"
+						}
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/causal/release-events",
+					"factory": "merge",
+					"status": "resolved",
+					"deps": ["alerts/causal/released", "alerts/causal/release-candidates"],
+					"name": "alerts/causal/release-events",
+					"value": {
+						"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+						"occurrenceId": "evaluation-coffee-0",
+						"revision": 1,
+						"revisionDomain": "fixture-coffee",
+						"sourceRefs": [
+							{
+								"id": "evaluation-coffee-0",
+								"kind": "evaluation"
+							}
+						],
+						"value": {
+							"evaluationRef": "evaluation-coffee-0",
+							"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+							"policy": {
+								"dailyRatioThreshold": 100,
+								"zThreshold": 0.5
+							},
+							"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+							"policyRef": {
+								"id": "alert",
+								"kind": "policy"
+							},
+							"prefix": [
+								{
+									"amount": 100,
+									"category": "coffee",
+									"id": "evaluation-coffee-0:tx0",
+									"timestampIso": "2026-09-09T00:00:00.000Z",
+									"vendor": "coffee"
+								},
+								{
+									"amount": 140,
+									"category": "coffee",
+									"id": "evaluation-coffee-0:tx1",
+									"timestampIso": "2026-09-09T00:00:00.000Z",
+									"vendor": "coffee"
+								}
+							],
+							"profile": {
+								"dailyAverage": 100,
+								"typicalCategories": ["coffee"]
+							},
+							"profileRef": {
+								"id": "base",
+								"kind": "profile"
+							},
+							"subjectRef": "evaluation-coffee-0"
+						}
+					},
+					"version": {
+						"level": 0,
+						"counter": 2
+					}
+				},
+				{
+					"id": "alerts/causal/release-controller",
+					"factory": "causalOccurrenceReleaseController",
+					"status": "sentinel",
+					"deps": ["alerts/causal/release-events"],
+					"name": "alerts/causal/release-controller",
+					"version": {
+						"level": 0,
+						"counter": 0
+					}
+				},
+				{
+					"id": "alerts/causal/currentness",
+					"factory": "causalOccurrenceFactProjection",
+					"status": "sentinel",
+					"deps": ["alerts/causal/authority"],
+					"name": "alerts/causal/currentness",
+					"version": {
+						"level": 0,
+						"counter": 0
+					}
+				},
+				{
+					"id": "alerts/causal/terminals",
+					"factory": "causalOccurrenceFactProjection",
+					"status": "sentinel",
+					"deps": ["alerts/causal/authority"],
+					"name": "alerts/causal/terminals",
+					"version": {
+						"level": 0,
+						"counter": 0
+					}
+				},
+				{
+					"id": "alerts/causal/conservation",
+					"factory": "causalOccurrenceFactProjection",
+					"status": "sentinel",
+					"deps": ["alerts/causal/authority"],
+					"name": "alerts/causal/conservation",
+					"version": {
+						"level": 0,
+						"counter": 0
+					}
+				},
+				{
+					"id": "alerts/causal/coverage",
+					"factory": "causalOccurrenceFactProjection",
+					"status": "sentinel",
+					"deps": ["alerts/causal/authority"],
+					"name": "alerts/causal/coverage",
+					"version": {
+						"level": 0,
+						"counter": 3
+					}
+				},
+				{
+					"id": "alerts/causal/quiescence",
+					"factory": "causalOccurrenceFactProjection",
+					"status": "resolved",
+					"deps": ["alerts/causal/authority"],
+					"name": "alerts/causal/quiescence",
+					"value": {
+						"kind": "causal-quiescence",
+						"revisionDomain": "fixture-coffee",
+						"evaluatedThroughRevision": 1,
+						"lifecycle": true,
+						"retainedEvidence": true,
+						"pendingOccurrenceRefs": [],
+						"pendingEffectIds": []
+					},
+					"version": {
+						"level": 0,
+						"counter": 3
+					}
+				},
+				{
+					"id": "alerts/causal/issues",
+					"factory": "causalOccurrenceFactProjection",
+					"status": "sentinel",
+					"deps": ["alerts/causal/authority"],
+					"name": "alerts/causal/issues",
+					"version": {
+						"level": 0,
+						"counter": 0
+					}
+				},
+				{
+					"id": "alerts/causal/committed-effects",
+					"factory": "causalCommittedEffectsProjection",
+					"status": "resolved",
+					"deps": ["alerts/causal/authority"],
+					"name": "alerts/causal/committed-effects",
+					"value": {
+						"kind": "causal-committed-effects",
+						"authorityId": "alerts/causal/authority",
+						"binding": {
+							"contract": "contract-v2",
+							"implementationRevision": "construction-v1",
+							"scope": "full",
+							"epoch": 1
+						},
+						"effects": [
+							{
+								"proposal": {
+									"effectId": "alert:evaluation-coffee-0",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+									"requestRef": {
+										"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74",
+										"kind": "spending-alerts/request-material/v1"
+									}
+								},
+								"admission": {
+									"admissionRef": {
+										"id": "sha256:e2d9d5d097e576e9ba171e9b473eae86fa7b58339db734116cf376512f1ba99d",
+										"kind": "spending-admission"
+									},
+									"effectId": "alert:evaluation-coffee-0",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+									"requestRef": {
+										"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74",
+										"kind": "spending-alerts/request-material/v1"
+									},
+									"state": "admitted"
+								},
+								"outcome": {
+									"admissionRef": {
+										"id": "sha256:e2d9d5d097e576e9ba171e9b473eae86fa7b58339db734116cf376512f1ba99d",
+										"kind": "spending-admission"
+									},
+									"effectId": "alert:evaluation-coffee-0",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+									"requestRef": {
+										"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74",
+										"kind": "spending-alerts/request-material/v1"
+									},
+									"result": {
+										"kind": "ok",
+										"value": {
+											"io": false,
+											"source": "offline-host"
+										}
+									},
+									"state": "succeeded"
+								}
+							}
+						],
+						"retention": []
+					},
+					"version": {
+						"level": 0,
+						"counter": 3
+					}
+				},
+				{
+					"id": "alerts/causal/causal-quiescence",
+					"factory": "causalLifecycleQuiescence",
+					"status": "sentinel",
+					"deps": ["alerts/causal/quiescence"],
+					"name": "alerts/causal/causal-quiescence",
+					"version": {
+						"level": 0,
+						"counter": 0
+					}
+				},
+				{
+					"id": "alerts/requestMaterialJoin",
+					"factory": "spendingRequestMaterialJoin",
+					"status": "settled",
+					"deps": ["alerts/causal/committed-effects", "alerts/materialSnapshot"],
+					"name": "alerts/requestMaterialJoin",
+					"value": {
+						"view": {
+							"kind": "causal-committed-effects",
+							"authorityId": "alerts/causal/authority",
+							"binding": {
+								"contract": "contract-v2",
+								"implementationRevision": "construction-v1",
+								"scope": "full",
+								"epoch": 1
+							},
+							"effects": [
+								{
+									"proposal": {
+										"effectId": "alert:evaluation-coffee-0",
+										"occurrence": {
+											"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+											"occurrenceId": "evaluation-coffee-0",
+											"revision": 1,
+											"revisionDomain": "fixture-coffee",
+											"sourceRefs": [
+												{
+													"id": "evaluation-coffee-0",
+													"kind": "evaluation"
+												}
+											]
+										},
+										"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+										"requestRef": {
+											"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74",
+											"kind": "spending-alerts/request-material/v1"
+										}
+									},
+									"admission": {
+										"admissionRef": {
+											"id": "sha256:e2d9d5d097e576e9ba171e9b473eae86fa7b58339db734116cf376512f1ba99d",
+											"kind": "spending-admission"
+										},
+										"effectId": "alert:evaluation-coffee-0",
+										"occurrence": {
+											"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+											"occurrenceId": "evaluation-coffee-0",
+											"revision": 1,
+											"revisionDomain": "fixture-coffee",
+											"sourceRefs": [
+												{
+													"id": "evaluation-coffee-0",
+													"kind": "evaluation"
+												}
+											]
+										},
+										"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+										"requestRef": {
+											"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74",
+											"kind": "spending-alerts/request-material/v1"
+										},
+										"state": "admitted"
+									},
+									"outcome": {
+										"admissionRef": {
+											"id": "sha256:e2d9d5d097e576e9ba171e9b473eae86fa7b58339db734116cf376512f1ba99d",
+											"kind": "spending-admission"
+										},
+										"effectId": "alert:evaluation-coffee-0",
+										"occurrence": {
+											"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+											"occurrenceId": "evaluation-coffee-0",
+											"revision": 1,
+											"revisionDomain": "fixture-coffee",
+											"sourceRefs": [
+												{
+													"id": "evaluation-coffee-0",
+													"kind": "evaluation"
+												}
+											]
+										},
+										"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+										"requestRef": {
+											"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74",
+											"kind": "spending-alerts/request-material/v1"
+										},
+										"result": {
+											"kind": "ok",
+											"value": {
+												"io": false,
+												"source": "offline-host"
+											}
+										},
+										"state": "succeeded"
+									}
+								}
+							],
+							"retention": []
+						},
+						"index": {
+							"state": "valid",
+							"rows": {},
+							"cacheable": true
+						}
+					},
+					"version": {
+						"level": 0,
+						"counter": 5
+					}
+				},
+				{
+					"id": "alerts/publication",
+					"factory": "spendingPublication",
+					"status": "settled",
+					"deps": ["alerts/requestMaterialJoin"],
+					"name": "alerts/publication",
+					"value": {
+						"kind": "spending-alerts/publication",
+						"authorityId": "alerts/causal/authority",
+						"binding": {
+							"contract": "contract-v2",
+							"implementationRevision": "construction-v1",
+							"scope": "full",
+							"epoch": 1
+						},
+						"asOf": {
+							"compositionEpoch": 1,
+							"destinationRef": {
+								"id": "no-host",
+								"kind": "offline-inbox"
+							},
+							"hostEpoch": 1,
+							"packRef": {
+								"id": "preset",
+								"kind": "offline-pack"
+							},
+							"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+							"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a"
+						},
+						"retention": [],
+						"materialFrame": "valid",
+						"unmatchedMaterials": 0,
+						"rows": [
+							{
+								"proposal": {
+									"effectId": "alert:evaluation-coffee-0",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"proposalDigest": "sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f",
+									"requestRef": {
+										"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74",
+										"kind": "spending-alerts/request-material/v1"
+									}
+								},
+								"recorded": "succeeded",
+								"material": "matched",
+								"payload": {
+									"message": "Transaction evaluation-coffee-0:tx1 flagged — severity: low.\nVendor: coffee  Amount: $140.00  Category: coffee\nReasoning:\n  • Amount is 0.71σ above this vendor's historical mean.",
+									"severity": "low",
+									"transactionId": "evaluation-coffee-0:tx1",
+									"vendor": "coffee"
+								}
+							}
+						]
+					},
+					"version": {
+						"level": 0,
+						"counter": 5
+					}
+				},
+				{
+					"id": "alerts/consumerIssues",
+					"factory": "spending/consumerIssues",
+					"status": "sentinel",
+					"deps": [
+						"alerts/evaluationSelections",
+						"alerts/currentFacts",
+						"alerts/verificationFacts",
+						"alerts/localFacts",
+						"alerts/inboxFacts",
+						"alerts/requestMaterials",
+						"alerts/materialStore",
+						"alerts/publicationPolicy",
+						"alerts/causal/issues"
+					],
+					"name": "alerts/consumerIssues",
+					"version": {
+						"level": 0,
+						"counter": 0
+					}
+				},
+				{
+					"id": "alerts/hostPackFacts",
+					"factory": "offlineSpendingHostPackFacts",
+					"status": "settled",
+					"deps": ["input/pack"],
+					"name": "alerts/hostPackFacts",
+					"value": {
+						"valid": true,
+						"value": {
+							"binding": {
+								"compositionEpoch": 1,
+								"destinationRef": {
+									"id": "no-host",
+									"kind": "offline-inbox"
+								},
+								"evidenceMode": "fixture-observations",
+								"hostEpoch": 1,
+								"packRef": {
+									"id": "preset",
+									"kind": "offline-pack"
+								},
+								"runRef": "preset-fixture",
+								"runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+								"sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a"
+							},
+							"evaluations": [
+								{
+									"evaluationRef": "evaluation-coffee-0",
+									"inputDigest": "sha256:9ed0519b3578ca560f030a6295768a55ac6f1ee53704b06bd1d91a2b26a53b46",
+									"occurrence": {
+										"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+										"occurrenceId": "evaluation-coffee-0",
+										"revision": 1,
+										"revisionDomain": "fixture-coffee",
+										"sourceRefs": [
+											{
+												"id": "evaluation-coffee-0",
+												"kind": "evaluation"
+											}
+										]
+									},
+									"policy": {
+										"dailyRatioThreshold": 100,
+										"zThreshold": 0.5
+									},
+									"policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+									"policyRef": {
+										"id": "alert",
+										"kind": "policy"
+									},
+									"prefix": [
+										{
+											"amount": 100,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx0",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										},
+										{
+											"amount": 140,
+											"category": "coffee",
+											"id": "evaluation-coffee-0:tx1",
+											"timestampIso": "2026-09-09T00:00:00.000Z",
+											"vendor": "coffee"
+										}
+									],
+									"profile": {
+										"dailyAverage": 100,
+										"typicalCategories": ["coffee"]
+									},
+									"profileRef": {
+										"id": "base",
+										"kind": "profile"
+									},
+									"subjectRef": "evaluation-coffee-0"
+								}
+							],
+							"format": "spending-input-v1"
+						}
+					},
+					"version": {
+						"level": 0,
+						"counter": 1
+					}
+				},
+				{
+					"id": "alerts/hostGuard",
+					"factory": "offlineSpendingHostGuard",
+					"status": "sentinel",
+					"deps": [
+						"alerts/causal/committed-effects",
+						"alerts/materialSnapshot",
+						"alerts/currentFacts",
+						"alerts/verificationFacts",
+						"alerts/localFacts",
+						"alerts/inboxFacts",
+						"alerts/hostPackFacts"
+					],
+					"name": "alerts/hostGuard",
+					"version": {
+						"level": 0,
+						"counter": 0
+					}
+				},
+				{
+					"id": "alerts/runEndReady",
+					"factory": "offlineSpendingRunEndReady",
+					"status": "settled",
+					"deps": [
+						"alerts/causal/quiescence",
+						"alerts/causal/committed-effects",
+						"alerts/localFacts",
+						"alerts/hostPackFacts"
+					],
+					"name": "alerts/runEndReady",
+					"value": true,
+					"version": {
+						"level": 0,
+						"counter": 6
+					}
+				}
+			],
+			"edges": [
+				{
+					"from": "input/pack",
+					"to": "alerts/evaluationSelections"
+				},
+				{
+					"from": "input/arrivals",
+					"to": "alerts/evaluationSelections"
+				},
+				{
+					"from": "alerts/evaluationSelections",
+					"to": "alerts/transaction"
+				},
+				{
+					"from": "alerts/evaluationSelections",
+					"to": "alerts/vendorStats"
+				},
+				{
+					"from": "alerts/evaluationSelections",
+					"to": "alerts/userProfile"
+				},
+				{
+					"from": "alerts/evaluationSelections",
+					"to": "alerts/policy"
+				},
+				{
+					"from": "alerts/transaction",
+					"to": "alerts/anomalyScore"
+				},
+				{
+					"from": "alerts/vendorStats",
+					"to": "alerts/anomalyScore"
+				},
+				{
+					"from": "alerts/userProfile",
+					"to": "alerts/anomalyScore"
+				},
+				{
+					"from": "alerts/anomalyScore",
+					"to": "alerts/thresholdGate"
+				},
+				{
+					"from": "alerts/policy",
+					"to": "alerts/thresholdGate"
+				},
+				{
+					"from": "alerts/thresholdGate",
+					"to": "alerts/reasonFactors"
+				},
+				{
+					"from": "alerts/policy",
+					"to": "alerts/reasonFactors"
+				},
+				{
+					"from": "alerts/reasonFactors",
+					"to": "alerts/alertMessage"
+				},
+				{
+					"from": "alerts/thresholdGate",
+					"to": "alerts/assessment"
+				},
+				{
+					"from": "alerts/reasonFactors",
+					"to": "alerts/assessment"
+				},
+				{
+					"from": "alerts/alertMessage",
+					"to": "alerts/assessment"
+				},
+				{
+					"from": "alerts/evaluationSelections",
+					"to": "alerts/requestMaterials"
+				},
+				{
+					"from": "alerts/thresholdGate",
+					"to": "alerts/requestMaterials"
+				},
+				{
+					"from": "alerts/alertMessage",
+					"to": "alerts/requestMaterials"
+				},
+				{
+					"from": "alerts/requestMaterials",
+					"to": "alerts/materialStore"
+				},
+				{
+					"from": "alerts/materialStore",
+					"to": "alerts/materialSnapshot"
+				},
+				{
+					"from": "alerts/materialStore",
+					"to": "alerts/effectProposals"
+				},
+				{
+					"from": "input/current-policy",
+					"to": "alerts/currentFacts"
+				},
+				{
+					"from": "input/independent-verification",
+					"to": "alerts/verificationFacts"
+				},
+				{
+					"from": "input/local-permission",
+					"to": "alerts/localFacts"
+				},
+				{
+					"from": "alerts/hostFacts",
+					"to": "alerts/inboxFacts"
+				},
+				{
+					"from": "alerts/evaluationSelections",
+					"to": "alerts/publicationPolicy"
+				},
+				{
+					"from": "alerts/thresholdGate",
+					"to": "alerts/publicationPolicy"
+				},
+				{
+					"from": "alerts/materialStore",
+					"to": "alerts/publicationPolicy"
+				},
+				{
+					"from": "alerts/currentFacts",
+					"to": "alerts/publicationPolicy"
+				},
+				{
+					"from": "alerts/verificationFacts",
+					"to": "alerts/publicationPolicy"
+				},
+				{
+					"from": "alerts/localFacts",
+					"to": "alerts/publicationPolicy"
+				},
+				{
+					"from": "alerts/inboxFacts",
+					"to": "alerts/publicationPolicy"
+				},
+				{
+					"from": "alerts/evaluationSelections",
+					"to": "alerts/occurrences"
+				},
+				{
+					"from": "alerts/evaluationSelections",
+					"to": "alerts/occurrenceAdmissions"
+				},
+				{
+					"from": "alerts/currentFacts",
+					"to": "alerts/occurrenceAdmissions"
+				},
+				{
+					"from": "alerts/assessment",
+					"to": "alerts/branchTerminals"
+				},
+				{
+					"from": "alerts/alertMessage",
+					"to": "alerts/branchTerminals"
+				},
+				{
+					"from": "alerts/publicationPolicy",
+					"to": "alerts/branchTerminals"
+				},
+				{
+					"from": "alerts/publicationPolicy",
+					"to": "alerts/effectAdmissions"
+				},
+				{
+					"from": "alerts/inboxFacts",
+					"to": "alerts/effectOutcomes"
+				},
+				{
+					"from": "alerts/evaluationSelections",
+					"to": "alerts/evidence"
+				},
+				{
+					"from": "alerts/materialStore",
+					"to": "alerts/evidence"
+				},
+				{
+					"from": "alerts/verificationFacts",
+					"to": "alerts/evidence"
+				},
+				{
+					"from": "alerts/currentFacts",
+					"to": "alerts/watermarks"
+				},
+				{
+					"from": "alerts/occurrences",
+					"to": "alerts/causal/input/occurrences"
+				},
+				{
+					"from": "alerts/occurrenceAdmissions",
+					"to": "alerts/causal/input/admissions"
+				},
+				{
+					"from": "alerts/branchTerminals",
+					"to": "alerts/causal/input/branch-terminals"
+				},
+				{
+					"from": "alerts/effectProposals",
+					"to": "alerts/causal/input/effect-proposals"
+				},
+				{
+					"from": "alerts/effectAdmissions",
+					"to": "alerts/causal/input/effect-admissions"
+				},
+				{
+					"from": "alerts/effectOutcomes",
+					"to": "alerts/causal/input/effect-outcomes"
+				},
+				{
+					"from": "alerts/evidence",
+					"to": "alerts/causal/input/evidence"
+				},
+				{
+					"from": "alerts/watermarks",
+					"to": "alerts/causal/input/watermarks"
+				},
+				{
+					"from": "alerts/causal/input/occurrences",
+					"to": "alerts/causal/arrivals"
+				},
+				{
+					"from": "alerts/causal/input/admissions",
+					"to": "alerts/causal/arrivals"
+				},
+				{
+					"from": "alerts/causal/input/branch-terminals",
+					"to": "alerts/causal/arrivals"
+				},
+				{
+					"from": "alerts/causal/input/effect-proposals",
+					"to": "alerts/causal/arrivals"
+				},
+				{
+					"from": "alerts/causal/input/effect-admissions",
+					"to": "alerts/causal/arrivals"
+				},
+				{
+					"from": "alerts/causal/input/effect-outcomes",
+					"to": "alerts/causal/arrivals"
+				},
+				{
+					"from": "alerts/causal/input/evidence",
+					"to": "alerts/causal/arrivals"
+				},
+				{
+					"from": "alerts/causal/input/watermarks",
+					"to": "alerts/causal/arrivals"
+				},
+				{
+					"from": "alerts/causal/arrivals",
+					"to": "alerts/causal/authority"
+				},
+				{
+					"from": "alerts/causal/authority",
+					"to": "alerts/causal/release-candidates"
+				},
+				{
+					"from": "alerts/causal/release-candidates",
+					"to": "alerts/causal/release-port"
+				},
+				{
+					"from": "alerts/causal/release-port",
+					"to": "alerts/causal/released"
+				},
+				{
+					"from": "alerts/causal/released",
+					"to": "alerts/causal/release-events"
+				},
+				{
+					"from": "alerts/causal/release-candidates",
+					"to": "alerts/causal/release-events"
+				},
+				{
+					"from": "alerts/causal/release-events",
+					"to": "alerts/causal/release-controller"
+				},
+				{
+					"from": "alerts/causal/authority",
+					"to": "alerts/causal/currentness"
+				},
+				{
+					"from": "alerts/causal/authority",
+					"to": "alerts/causal/terminals"
+				},
+				{
+					"from": "alerts/causal/authority",
+					"to": "alerts/causal/conservation"
+				},
+				{
+					"from": "alerts/causal/authority",
+					"to": "alerts/causal/coverage"
+				},
+				{
+					"from": "alerts/causal/authority",
+					"to": "alerts/causal/quiescence"
+				},
+				{
+					"from": "alerts/causal/authority",
+					"to": "alerts/causal/issues"
+				},
+				{
+					"from": "alerts/causal/authority",
+					"to": "alerts/causal/committed-effects"
+				},
+				{
+					"from": "alerts/causal/quiescence",
+					"to": "alerts/causal/causal-quiescence"
+				},
+				{
+					"from": "alerts/causal/committed-effects",
+					"to": "alerts/requestMaterialJoin"
+				},
+				{
+					"from": "alerts/materialSnapshot",
+					"to": "alerts/requestMaterialJoin"
+				},
+				{
+					"from": "alerts/requestMaterialJoin",
+					"to": "alerts/publication"
+				},
+				{
+					"from": "alerts/evaluationSelections",
+					"to": "alerts/consumerIssues"
+				},
+				{
+					"from": "alerts/currentFacts",
+					"to": "alerts/consumerIssues"
+				},
+				{
+					"from": "alerts/verificationFacts",
+					"to": "alerts/consumerIssues"
+				},
+				{
+					"from": "alerts/localFacts",
+					"to": "alerts/consumerIssues"
+				},
+				{
+					"from": "alerts/inboxFacts",
+					"to": "alerts/consumerIssues"
+				},
+				{
+					"from": "alerts/requestMaterials",
+					"to": "alerts/consumerIssues"
+				},
+				{
+					"from": "alerts/materialStore",
+					"to": "alerts/consumerIssues"
+				},
+				{
+					"from": "alerts/publicationPolicy",
+					"to": "alerts/consumerIssues"
+				},
+				{
+					"from": "alerts/causal/issues",
+					"to": "alerts/consumerIssues"
+				},
+				{
+					"from": "input/pack",
+					"to": "alerts/hostPackFacts"
+				},
+				{
+					"from": "alerts/causal/committed-effects",
+					"to": "alerts/hostGuard"
+				},
+				{
+					"from": "alerts/materialSnapshot",
+					"to": "alerts/hostGuard"
+				},
+				{
+					"from": "alerts/currentFacts",
+					"to": "alerts/hostGuard"
+				},
+				{
+					"from": "alerts/verificationFacts",
+					"to": "alerts/hostGuard"
+				},
+				{
+					"from": "alerts/localFacts",
+					"to": "alerts/hostGuard"
+				},
+				{
+					"from": "alerts/inboxFacts",
+					"to": "alerts/hostGuard"
+				},
+				{
+					"from": "alerts/hostPackFacts",
+					"to": "alerts/hostGuard"
+				},
+				{
+					"from": "alerts/causal/quiescence",
+					"to": "alerts/runEndReady"
+				},
+				{
+					"from": "alerts/causal/committed-effects",
+					"to": "alerts/runEndReady"
+				},
+				{
+					"from": "alerts/localFacts",
+					"to": "alerts/runEndReady"
+				},
+				{
+					"from": "alerts/hostPackFacts",
+					"to": "alerts/runEndReady"
+				}
+			]
+		},
+		"nodes": 62,
+		"edges": 101,
+		"authority": "alerts/causal/authority",
+		"owner": "alerts",
+		"startup": "started"
+	},
+	"observations": {
+		"configurationAddedNodes": 0,
+		"simulatedWrites": 1,
+		"pendingAtDetach": 1,
+		"retainedAfterDetach": 1,
+		"completedWhileDetached": "succeeded",
+		"reconnectReusedOriginalView": true,
+		"topologyUnchanged": true,
+		"normalEndReady": true
+	},
+	"evidence": {
+		"occurrence": {
+			"digest": "sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1",
+			"occurrenceId": "evaluation-coffee-0",
+			"revision": 1,
+			"revisionDomain": "fixture-coffee",
+			"sourceRefs": [
+				{
+					"id": "evaluation-coffee-0",
+					"kind": "evaluation"
+				}
+			]
+		},
+		"requestRef": {
+			"id": "sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74",
+			"kind": "spending-alerts/request-material/v1"
+		},
+		"admissionRef": {
+			"id": "sha256:e2d9d5d097e576e9ba171e9b473eae86fa7b58339db734116cf376512f1ba99d",
+			"kind": "spending-admission"
+		},
+		"outcome": "succeeded",
+		"verifier": "spending-oracle-v2",
+		"verifierArtifact": {
+			"kind": "fixture-artifact",
+			"id": "sha256:52d3d18978c27b857d1c59bbb27785c2b22c9a07f834a97cf2bba85426b0ada7"
+		},
+		"codeBinding": "fixture source/runtime digests; not an attestation of this loaded source",
+		"modificationProvenance": "unknown; this run does not establish who changed an algorithm"
+	}
+}

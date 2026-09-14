@@ -397,6 +397,10 @@ export function buildSpendingPublication<T>(
 	binding: CausalBinding,
 	materialSource: Node<unknown>,
 	expected: MaterialProfile,
+	projectionNames: Readonly<{ join: string; publication: string }> = {
+		join: "requestMaterialJoin",
+		publication: "publication",
+	},
 ) {
 	const asOf = freeze(JSON.parse(canonicalMaterial(expected))) as MaterialProfile;
 	keys(asOf, "packRef,sourceDigest,runtimeDigest,destinationRef,compositionEpoch,hostEpoch");
@@ -462,7 +466,7 @@ export function buildSpendingPublication<T>(
 			ctx.down([["DATA", Object.freeze({ view, index: state.index })]]);
 		},
 		{
-			name: "requestMaterialJoin",
+			name: projectionNames.join,
 			factory: "spendingRequestMaterialJoin",
 			errorWhenDepsError: true,
 		},
@@ -473,7 +477,7 @@ export function buildSpendingPublication<T>(
 			for (const j of (depBatch(ctx, 0) ?? []) as JoinResult[])
 				ctx.down([["DATA", publicationFor(j, asOf)]]);
 		},
-		{ name: "publication", factory: "spendingPublication", errorWhenDepsError: true },
+		{ name: projectionNames.publication, factory: "spendingPublication", errorWhenDepsError: true },
 	);
 	return Object.freeze({ causal, requestMaterialJoin, publication });
 }

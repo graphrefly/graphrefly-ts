@@ -1,0 +1,10 @@
+
+ RUN  v3.2.4 /Users/davidchenallio/src/graphrefly-ts-latency-review/packages/ts
+
+ ✓ src/__tests__/spending-alerts-audience.test.ts (4 tests) 53ms
+ ✓ src/__tests__/causal-view-binding.test.ts (7 tests) 61ms
+
+ Test Files  2 passed (2)
+      Tests  11 passed (11)
+   Start at  09:08:47
+   Duration  1.48s (transform 267ms, setup 0ms, collect 523ms, tests 113ms, environment 0ms, prepare 91ms)

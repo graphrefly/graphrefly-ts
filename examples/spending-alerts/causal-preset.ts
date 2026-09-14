@@ -65,8 +65,8 @@ export function spendingNodeNames(
 		`${name}/startup`,
 		...BUSINESS_NAMES.map((n) => `${name}/${n}`),
 		...causalColdNodeNames(`${name}/causal`),
-		"requestMaterialJoin",
-		"publication",
+		`${name}/requestMaterialJoin`,
+		`${name}/publication`,
 		...(diagnostics === "summary" ? [`${name}/diagnosticSummary`] : []),
 	]);
 }
@@ -141,6 +141,7 @@ export function buildSpendingPresetNodes(
 		causalBinding,
 		materials.materialSnapshot,
 		materialProfile(binding),
+		{ join: `${name}/requestMaterialJoin`, publication: `${name}/publication` },
 	);
 	const consumerIssues = make<DataIssue>(
 		"consumerIssues",

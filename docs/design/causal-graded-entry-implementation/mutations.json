@@ -1,0 +1,169 @@
+{
+	"source": "examples/spending-alerts/causal-focused-host.ts",
+	"sourceSha256": "771fe0c1d409debb836bb446dbf1109464497b80225f4fc49e5a56d106feb022",
+	"realInboxIO": 0,
+	"results": [
+		{
+			"name": "accept-over-capacity-pack",
+			"mutant": false,
+			"status": 0,
+			"verdict": "control-pass",
+			"bundleSha256": "6d04132122a045e96d5781b52bfa6bf4211d78c102bafd0d5ab33890b0b82437",
+			"stdout": "PASS:overflow\n",
+			"stderr": ""
+		},
+		{
+			"name": "accept-over-capacity-pack",
+			"mutant": true,
+			"status": 1,
+			"verdict": "behavior-killed",
+			"bundleSha256": "134262b4d4589ce3ad4e89f9c581f129913da570fd93efd420f90eea8e2603e1",
+			"stdout": "",
+			"stderr": "node:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\ntrue !== false\n\n    at file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/spending-host-mutations-ANs3hI/accept-over-capacity-pack-true.mjs:8802:12 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: true,\n  expected: false,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v24.18.0\n"
+		},
+		{
+			"name": "bypass-final-guard",
+			"mutant": false,
+			"status": 0,
+			"verdict": "control-pass",
+			"bundleSha256": "6d04132122a045e96d5781b52bfa6bf4211d78c102bafd0d5ab33890b0b82437",
+			"stdout": "PASS:guard\n",
+			"stderr": ""
+		},
+		{
+			"name": "bypass-final-guard",
+			"mutant": true,
+			"status": 1,
+			"verdict": "behavior-killed",
+			"bundleSha256": "9854679904d25d916e8cdaa372823a46ddd7cf184a3da045f189c4ccd64e4b88",
+			"stdout": "",
+			"stderr": "node:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n1 !== 0\n\n    at file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/spending-host-mutations-ANs3hI/bypass-final-guard-true.mjs:8771:12 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 1,\n  expected: 0,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v24.18.0\n"
+		},
+		{
+			"name": "skip-single-write-slot",
+			"mutant": false,
+			"status": 0,
+			"verdict": "control-pass",
+			"bundleSha256": "6d04132122a045e96d5781b52bfa6bf4211d78c102bafd0d5ab33890b0b82437",
+			"stdout": "PASS:slot\n",
+			"stderr": ""
+		},
+		{
+			"name": "skip-single-write-slot",
+			"mutant": true,
+			"status": 1,
+			"verdict": "behavior-killed",
+			"bundleSha256": "c15f37b1d3859ce71a88761833a00485f448fd6937a72c25e017b8c8425b9c4d",
+			"stdout": "",
+			"stderr": "node:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n2 !== 1\n\n    at file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/spending-host-mutations-ANs3hI/skip-single-write-slot-true.mjs:8776:12 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 2,\n  expected: 1,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v24.18.0\n"
+		},
+		{
+			"name": "replay-request",
+			"mutant": false,
+			"status": 0,
+			"verdict": "control-pass",
+			"bundleSha256": "6d04132122a045e96d5781b52bfa6bf4211d78c102bafd0d5ab33890b0b82437",
+			"stdout": "PASS:replay\n",
+			"stderr": ""
+		},
+		{
+			"name": "replay-request",
+			"mutant": true,
+			"status": 1,
+			"verdict": "behavior-killed",
+			"bundleSha256": "9c8b277e620035367256c03217b0f64ac6f7e19f7c91e5fee8ef87343c04b6fb",
+			"stdout": "",
+			"stderr": "node:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ {\n+   admissionRef: {\n+     id: 'sha256:e2d9d5d097e576e9ba171e9b473eae86fa7b58339db734116cf376512f1ba99d',\n+     kind: 'spending-admission'\n+   },\n+   effectId: 'alert:evaluation-coffee-0',\n+   occurrence: {\n+     digest: 'sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1',\n+     occurrenceId: 'evaluation-coffee-0',\n+     revision: 1,\n+     revisionDomain: 'fixture-coffee',\n+     sourceRefs: [\n+       {\n+         id: 'evaluation-coffee-0',\n+         kind: 'evaluation'\n+       }\n+     ]\n+   },\n+   proposalDigest: 'sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f',\n+   requestRef: {\n+     id: 'sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74',\n+     kind: 'spending-alerts/request-material/v1'\n+   },\n+   result: {\n+     error: {\n+       code: 'spending-host/busy-or-write-budget',\n+       kind: 'issue',\n+       message: 'busy-or-write-budget'\n+     },\n+     kind: 'error'\n+   },\n+   state: 'cancelled'\n+ }\n- undefined\n\n    at file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/spending-host-mutations-ANs3hI/replay-request-true.mjs:8782:12 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: {\n    occurrence: {\n      digest: 'sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1',\n      occurrenceId: 'evaluation-coffee-0',\n      revision: 1,\n      revisionDomain: 'fixture-coffee',\n      sourceRefs: [ { id: 'evaluation-coffee-0', kind: 'evaluation' } ]\n    },\n    effectId: 'alert:evaluation-coffee-0',\n    requestRef: {\n      id: 'sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74',\n      kind: 'spending-alerts/request-material/v1'\n    },\n    proposalDigest: 'sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f',\n    admissionRef: {\n      id: 'sha256:e2d9d5d097e576e9ba171e9b473eae86fa7b58339db734116cf376512f1ba99d',\n      kind: 'spending-admission'\n    },\n    state: 'cancelled',\n    result: {\n      kind: 'error',\n      error: {\n        kind: 'issue',\n        code: 'spending-host/busy-or-write-budget',\n        message: 'busy-or-write-budget'\n      }\n    }\n  },\n  expected: undefined,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v24.18.0\n"
+		},
+		{
+			"name": "drop-retained-completion",
+			"mutant": false,
+			"status": 0,
+			"verdict": "control-pass",
+			"bundleSha256": "6d04132122a045e96d5781b52bfa6bf4211d78c102bafd0d5ab33890b0b82437",
+			"stdout": "PASS:retain\n",
+			"stderr": ""
+		},
+		{
+			"name": "drop-retained-completion",
+			"mutant": true,
+			"status": 1,
+			"verdict": "behavior-killed",
+			"bundleSha256": "d4a26a5206fde4d6e09421dd6d33e154d480f4287b421476b831440b081b14ae",
+			"stdout": "",
+			"stderr": "node:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n9 !== 1\n\n    at file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/spending-host-mutations-ANs3hI/drop-retained-completion-true.mjs:8789:12 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 9,\n  expected: 1,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v24.18.0\n"
+		},
+		{
+			"name": "misassociate-outcome",
+			"mutant": false,
+			"status": 0,
+			"verdict": "control-pass",
+			"bundleSha256": "6d04132122a045e96d5781b52bfa6bf4211d78c102bafd0d5ab33890b0b82437",
+			"stdout": "PASS:exact\n",
+			"stderr": ""
+		},
+		{
+			"name": "misassociate-outcome",
+			"mutant": true,
+			"status": 1,
+			"verdict": "behavior-killed",
+			"bundleSha256": "850e8f8319edf39c7022ff693c457d61166f7ec908bfb9cae25250d6688b549d",
+			"stdout": "",
+			"stderr": "node:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ undefined\n- 'succeeded'\n\n    at file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/spending-host-mutations-ANs3hI/misassociate-outcome-true.mjs:8795:12 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: undefined,\n  expected: 'succeeded',\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v24.18.0\n"
+		},
+		{
+			"name": "accept-counterfeit-admission",
+			"mutant": false,
+			"status": 0,
+			"verdict": "control-pass",
+			"bundleSha256": "6d04132122a045e96d5781b52bfa6bf4211d78c102bafd0d5ab33890b0b82437",
+			"stdout": "PASS:counterfeit\n",
+			"stderr": ""
+		},
+		{
+			"name": "accept-counterfeit-admission",
+			"mutant": true,
+			"status": 1,
+			"verdict": "behavior-killed",
+			"bundleSha256": "8f2f2fc1bbbcbfe046edef8ff0f9b90042589e551f525bee53fb2afd2784b47a",
+			"stdout": "",
+			"stderr": "node:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ {\n+   admissionRef: {\n+     id: 'counterfeit',\n+     kind: 'wrong-admission'\n+   },\n+   effectId: 'alert:evaluation-coffee-0',\n+   occurrence: {\n+     digest: 'sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1',\n+     occurrenceId: 'evaluation-coffee-0',\n+     revision: 1,\n+     revisionDomain: 'fixture-coffee',\n+     sourceRefs: [\n+       {\n+         id: 'evaluation-coffee-0',\n+         kind: 'evaluation'\n+       }\n+     ]\n+   },\n+   proposalDigest: 'sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f',\n+   requestRef: {\n+     id: 'sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74',\n+     kind: 'spending-alerts/request-material/v1'\n+   },\n+   result: {\n+     kind: 'ok',\n+     value: {\n+       io: false\n+     }\n+   },\n+   state: 'succeeded'\n+ }\n- undefined\n\n    at file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/spending-host-mutations-ANs3hI/accept-counterfeit-admission-true.mjs:8811:12 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: {\n    admissionRef: { id: 'counterfeit', kind: 'wrong-admission' },\n    effectId: 'alert:evaluation-coffee-0',\n    occurrence: {\n      digest: 'sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1',\n      occurrenceId: 'evaluation-coffee-0',\n      revision: 1,\n      revisionDomain: 'fixture-coffee',\n      sourceRefs: [ { id: 'evaluation-coffee-0', kind: 'evaluation' } ]\n    },\n    proposalDigest: 'sha256:5b8776ca92f526fd919c11997c2113bb3ae7238d3ee3878fd0e6133cbd7ed89f',\n    requestRef: {\n      id: 'sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74',\n      kind: 'spending-alerts/request-material/v1'\n    },\n    result: { kind: 'ok', value: { io: false } },\n    state: 'succeeded'\n  },\n  expected: undefined,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v24.18.0\n"
+		},
+		{
+			"name": "clear-host-on-ui-detach",
+			"mutant": false,
+			"status": 0,
+			"verdict": "control-pass",
+			"bundleSha256": "6d04132122a045e96d5781b52bfa6bf4211d78c102bafd0d5ab33890b0b82437",
+			"stdout": "PASS:retain\n",
+			"stderr": ""
+		},
+		{
+			"name": "clear-host-on-ui-detach",
+			"mutant": true,
+			"status": 1,
+			"verdict": "behavior-killed",
+			"bundleSha256": "82fbff4e884e2ef4c386fb469f6f15dd7b932d36600b234a5e1dd386128ea5c6",
+			"stdout": "",
+			"stderr": "node:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n0 !== 1\n\n    at file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/spending-host-mutations-ANs3hI/clear-host-on-ui-detach-true.mjs:8797:12 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 0,\n  expected: 1,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v24.18.0\n"
+		},
+		{
+			"name": "underreserve-results",
+			"mutant": false,
+			"status": 0,
+			"verdict": "control-pass",
+			"bundleSha256": "6d04132122a045e96d5781b52bfa6bf4211d78c102bafd0d5ab33890b0b82437",
+			"stdout": "PASS:capacity\n",
+			"stderr": ""
+		},
+		{
+			"name": "underreserve-results",
+			"mutant": true,
+			"status": 1,
+			"verdict": "behavior-killed",
+			"bundleSha256": "b409e93000a28d97b079fbd5a6b57cf104efa562d3111bf1c8aed1da0a4a5d2d",
+			"stdout": "",
+			"stderr": "node:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n1 !== 2\n\n    at file:///private/var/folders/1k/6k95mf1117q9_klyvs61pml00000gn/T/spending-host-mutations-ANs3hI/underreserve-results-true.mjs:8815:12 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 1,\n  expected: 2,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v24.18.0\n"
+		}
+	]
+}

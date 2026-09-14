@@ -1,0 +1,64 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Spending · 分层入口离线审阅</title>
+<style>body{font:16px/1.65 system-ui,sans-serif;background:#f4f5f2;color:#172321;max-width:1100px;margin:40px auto;padding:0 24px}h1{font-size:32px}section,details{background:white;border:1px solid #d6ded6;border-radius:8px;padding:24px;margin:18px 0}summary{cursor:pointer;font-weight:650}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f5f2;padding:16px;font-size:13px}table{border-collapse:collapse;width:100%;font-size:13px}td,th{padding:10px;border-bottom:1px solid #d6ded6;text-align:left;overflow-wrap:anywhere}code{overflow-wrap:anywhere}a{color:#12634c}.tag{color:#76521d}small{color:#53635a}</style>
+<p class="tag">离线模拟 / 已保存的执行观察 / 非实时运行界面</p><h1>一个运行实例，逐层查看</h1><p>普通组件只收到五个业务端口；框架拿原能力；维护者下钻到同一个 Graph。展开下面的内容不会创建实例或执行 I/O。</p>
+<section><h2>普通用户 · 业务结果</h2><pre>离线模拟 · 不执行真实 inbox I/O
+启动事实：started（不代表运行结束）
+评估：evaluation-coffee-0: 触发告警条件（仍需证据与许可）
+发布：alert:evaluation-coffee-0: succeeded
+证据覆盖：尚无事实
+问题：尚无问题事实
+尚无当前值：coverage, issues</pre><p>这些是各端口最近可观察值，不是原子快照，也不是独立证明。缺少 coverage 或 issues 当前值会明确显示缺失。</p><p><a href="demo.json">完整离线运行观察</a> · <a href="../../../examples/spending-alerts/causal-graded-demo.ts">应用接入源码</a></p></section>
+<details><summary>框架作者 · 原能力与运行责任</summary><pre>{
+  &quot;originalExecutionHandle&quot;: true,
+  &quot;originalIdentityHandle&quot;: true,
+  &quot;originalRetainedLineage&quot;: true
+}</pre><p>identity、execution、retained 共享原引用。它们没有 publish/feed 方法。应用保留 owner；退订只结束观察。</p><pre>{
+  &quot;configurationAddedNodes&quot;: 0,
+  &quot;simulatedWrites&quot;: 1,
+  &quot;pendingAtDetach&quot;: 1,
+  &quot;retainedAfterDetach&quot;: 1,
+  &quot;completedWhileDetached&quot;: &quot;succeeded&quot;,
+  &quot;reconnectReusedOriginalView&quot;: true,
+  &quot;topologyUnchanged&quot;: true,
+  &quot;normalEndReady&quot;: true
+}</pre></details>
+<details><summary>Library 维护者 · 原图、请求与结果</summary><p>62 个节点，101 条边。以下数据来自本次 appGraph.describe()。</p><table><thead><tr><th>节点 ID</th><th>Factory</th><th>依赖</th></tr></thead><tbody><tr><td>input/pack</td><td>node</td><td></td></tr><tr><td>input/arrivals</td><td>node</td><td></td></tr><tr><td>input/current-policy</td><td>node</td><td></td></tr><tr><td>input/independent-verification</td><td>node</td><td></td></tr><tr><td>input/local-permission</td><td>node</td><td></td></tr><tr><td>alerts/startup</td><td>graphConstructionStartup</td><td></td></tr><tr><td>alerts/hostFacts</td><td>offlineSpendingHostFacts</td><td></td></tr><tr><td>alerts/evaluationSelections</td><td>spending/evaluationSelections</td><td>input/pack, input/arrivals</td></tr><tr><td>alerts/transaction</td><td>spending/transaction</td><td>alerts/evaluationSelections</td></tr><tr><td>alerts/vendorStats</td><td>spending/vendorStats</td><td>alerts/evaluationSelections</td></tr><tr><td>alerts/userProfile</td><td>spending/userProfile</td><td>alerts/evaluationSelections</td></tr><tr><td>alerts/policy</td><td>spending/policy</td><td>alerts/evaluationSelections</td></tr><tr><td>alerts/anomalyScore</td><td>spending/anomalyScore</td><td>alerts/transaction, alerts/vendorStats, alerts/userProfile</td></tr><tr><td>alerts/thresholdGate</td><td>spending/thresholdGate</td><td>alerts/anomalyScore, alerts/policy</td></tr><tr><td>alerts/reasonFactors</td><td>spending/reasonFactors</td><td>alerts/thresholdGate, alerts/policy</td></tr><tr><td>alerts/alertMessage</td><td>spending/alertMessage</td><td>alerts/reasonFactors</td></tr><tr><td>alerts/assessment</td><td>spending/assessment</td><td>alerts/thresholdGate, alerts/reasonFactors, alerts/alertMessage</td></tr><tr><td>alerts/requestMaterials</td><td>spending/requestMaterials</td><td>alerts/evaluationSelections, alerts/thresholdGate, alerts/alertMessage</td></tr><tr><td>alerts/materialStore</td><td>spending/materialStore</td><td>alerts/requestMaterials</td></tr><tr><td>alerts/materialSnapshot</td><td>spending/materialSnapshot</td><td>alerts/materialStore</td></tr><tr><td>alerts/effectProposals</td><td>spending/effectProposals</td><td>alerts/materialStore</td></tr><tr><td>alerts/currentFacts</td><td>spending/currentFacts</td><td>input/current-policy</td></tr><tr><td>alerts/verificationFacts</td><td>spending/verificationFacts</td><td>input/independent-verification</td></tr><tr><td>alerts/localFacts</td><td>spending/localFacts</td><td>input/local-permission</td></tr><tr><td>alerts/inboxFacts</td><td>spending/inboxFacts</td><td>alerts/hostFacts</td></tr><tr><td>alerts/publicationPolicy</td><td>spending/publicationPolicy</td><td>alerts/evaluationSelections, alerts/thresholdGate, alerts/materialStore, alerts/currentFacts, alerts/verificationFacts, alerts/localFacts, alerts/inboxFacts</td></tr><tr><td>alerts/occurrences</td><td>spending/occurrences</td><td>alerts/evaluationSelections</td></tr><tr><td>alerts/occurrenceAdmissions</td><td>spending/occurrenceAdmissions</td><td>alerts/evaluationSelections, alerts/currentFacts</td></tr><tr><td>alerts/branchTerminals</td><td>spending/branchTerminals</td><td>alerts/assessment, alerts/alertMessage, alerts/publicationPolicy</td></tr><tr><td>alerts/effectAdmissions</td><td>spending/effectAdmissions</td><td>alerts/publicationPolicy</td></tr><tr><td>alerts/effectOutcomes</td><td>spending/effectOutcomes</td><td>alerts/inboxFacts</td></tr><tr><td>alerts/evidence</td><td>spending/evidence</td><td>alerts/evaluationSelections, alerts/materialStore, alerts/verificationFacts</td></tr><tr><td>alerts/watermarks</td><td>spending/watermarks</td><td>alerts/currentFacts</td></tr><tr><td>alerts/causal/input/occurrences</td><td>causalOccurrenceInputLane</td><td>alerts/occurrences</td></tr><tr><td>alerts/causal/input/admissions</td><td>causalOccurrenceInputLane</td><td>alerts/occurrenceAdmissions</td></tr><tr><td>alerts/causal/input/branch-terminals</td><td>causalOccurrenceInputLane</td><td>alerts/branchTerminals</td></tr><tr><td>alerts/causal/input/effect-proposals</td><td>causalOccurrenceInputLane</td><td>alerts/effectProposals</td></tr><tr><td>alerts/causal/input/effect-admissions</td><td>causalOccurrenceInputLane</td><td>alerts/effectAdmissions</td></tr><tr><td>alerts/causal/input/effect-outcomes</td><td>causalOccurrenceInputLane</td><td>alerts/effectOutcomes</td></tr><tr><td>alerts/causal/input/evidence</td><td>causalOccurrenceInputLane</td><td>alerts/evidence</td></tr><tr><td>alerts/causal/input/watermarks</td><td>causalOccurrenceInputLane</td><td>alerts/watermarks</td></tr><tr><td>alerts/causal/arrivals</td><td>merge</td><td>alerts/causal/input/occurrences, alerts/causal/input/admissions, alerts/causal/input/branch-terminals, alerts/causal/input/effect-proposals, alerts/causal/input/effect-admissions, alerts/causal/input/effect-outcomes, alerts/causal/input/evidence, alerts/causal/input/watermarks</td></tr><tr><td>alerts/causal/authority</td><td>causalOccurrenceAuthority</td><td>alerts/causal/arrivals</td></tr><tr><td>alerts/causal/release-candidates</td><td>causalOccurrenceFactProjection</td><td>alerts/causal/authority</td></tr><tr><td>alerts/causal/release-port</td><td>causalOccurrenceQuietReleasePort</td><td>alerts/causal/release-candidates</td></tr><tr><td>alerts/causal/released</td><td>causalOccurrenceReleased</td><td>alerts/causal/release-port</td></tr><tr><td>alerts/causal/release-events</td><td>merge</td><td>alerts/causal/released, alerts/causal/release-candidates</td></tr><tr><td>alerts/causal/release-controller</td><td>causalOccurrenceReleaseController</td><td>alerts/causal/release-events</td></tr><tr><td>alerts/causal/currentness</td><td>causalOccurrenceFactProjection</td><td>alerts/causal/authority</td></tr><tr><td>alerts/causal/terminals</td><td>causalOccurrenceFactProjection</td><td>alerts/causal/authority</td></tr><tr><td>alerts/causal/conservation</td><td>causalOccurrenceFactProjection</td><td>alerts/causal/authority</td></tr><tr><td>alerts/causal/coverage</td><td>causalOccurrenceFactProjection</td><td>alerts/causal/authority</td></tr><tr><td>alerts/causal/quiescence</td><td>causalOccurrenceFactProjection</td><td>alerts/causal/authority</td></tr><tr><td>alerts/causal/issues</td><td>causalOccurrenceFactProjection</td><td>alerts/causal/authority</td></tr><tr><td>alerts/causal/committed-effects</td><td>causalCommittedEffectsProjection</td><td>alerts/causal/authority</td></tr><tr><td>alerts/causal/causal-quiescence</td><td>causalLifecycleQuiescence</td><td>alerts/causal/quiescence</td></tr><tr><td>alerts/requestMaterialJoin</td><td>spendingRequestMaterialJoin</td><td>alerts/causal/committed-effects, alerts/materialSnapshot</td></tr><tr><td>alerts/publication</td><td>spendingPublication</td><td>alerts/requestMaterialJoin</td></tr><tr><td>alerts/consumerIssues</td><td>spending/consumerIssues</td><td>alerts/evaluationSelections, alerts/currentFacts, alerts/verificationFacts, alerts/localFacts, alerts/inboxFacts, alerts/requestMaterials, alerts/materialStore, alerts/publicationPolicy, alerts/causal/issues</td></tr><tr><td>alerts/hostPackFacts</td><td>offlineSpendingHostPackFacts</td><td>input/pack</td></tr><tr><td>alerts/hostGuard</td><td>offlineSpendingHostGuard</td><td>alerts/causal/committed-effects, alerts/materialSnapshot, alerts/currentFacts, alerts/verificationFacts, alerts/localFacts, alerts/inboxFacts, alerts/hostPackFacts</td></tr><tr><td>alerts/runEndReady</td><td>offlineSpendingRunEndReady</td><td>alerts/causal/quiescence, alerts/causal/committed-effects, alerts/localFacts, alerts/hostPackFacts</td></tr></tbody></table><h3>本次 fixture 请求证据</h3><pre>{
+  &quot;occurrence&quot;: {
+    &quot;digest&quot;: &quot;sha256:972f69f08afb53408d1d151b0dfc74cb6f01525181a47012ca0eb678905d92f1&quot;,
+    &quot;occurrenceId&quot;: &quot;evaluation-coffee-0&quot;,
+    &quot;revision&quot;: 1,
+    &quot;revisionDomain&quot;: &quot;fixture-coffee&quot;,
+    &quot;sourceRefs&quot;: [
+      {
+        &quot;id&quot;: &quot;evaluation-coffee-0&quot;,
+        &quot;kind&quot;: &quot;evaluation&quot;
+      }
+    ]
+  },
+  &quot;requestRef&quot;: {
+    &quot;id&quot;: &quot;sha256:5605a8e4de69806871d1130a745f13c23ecc34fedbd701d268d1d1483827fc74&quot;,
+    &quot;kind&quot;: &quot;spending-alerts/request-material/v1&quot;
+  },
+  &quot;admissionRef&quot;: {
+    &quot;id&quot;: &quot;sha256:e2d9d5d097e576e9ba171e9b473eae86fa7b58339db734116cf376512f1ba99d&quot;,
+    &quot;kind&quot;: &quot;spending-admission&quot;
+  },
+  &quot;outcome&quot;: &quot;succeeded&quot;,
+  &quot;verifier&quot;: &quot;spending-oracle-v2&quot;,
+  &quot;verifierArtifact&quot;: {
+    &quot;kind&quot;: &quot;fixture-artifact&quot;,
+    &quot;id&quot;: &quot;sha256:52d3d18978c27b857d1c59bbb27785c2b22c9a07f834a97cf2bba85426b0ada7&quot;
+  },
+  &quot;codeBinding&quot;: &quot;fixture source/runtime digests; not an attestation of this loaded source&quot;,
+  &quot;modificationProvenance&quot;: &quot;unknown; this run does not establish who changed an algorithm&quot;
+}</pre><p>fixture digest 不是加载源码认证。下面的独立源码试验是另一条明确绑定的证据，不能借它替换本次 fixture 身份。</p></details>
+<section><h2>实现、来源、后果：分别核实</h2><p>本次离线 source-binding 试验把 vendorStats 内部 map 表达式等价改写；相同拓扑仍能看到源码与 bundle digest 变化。此结论只覆盖该改写与其测试输入。</p><table><thead><tr><th>版本</th><th>源码闭包</th><th>运行 bundle</th></tr></thead><tbody><tr><td>基线</td><td><code>sha256:21b5b442adab7cb74a9e457a941b092ce71d37787d4e54c93e0987fa00f7b599</code></td><td><code>sha256:8bd846dc13afbe39a7048018758d4109a4b0b07dae7efebf2af8a11d9ded9d15</code></td></tr><tr><td>修改后</td><td><code>sha256:193421ebc925aa45ad071c494ecfe92944f1b5a653c88d23afba291e907c4b88</code></td><td><code>sha256:e6d3c46578c7619e0e36403602d895e4855aa4028a9dcee3a801e206613003a4</code></td></tr></tbody></table><h3>修改来源</h3><pre>{
+  &quot;actor&quot;: &quot;Codex qualification tool&quot;,
+  &quot;operation&quot;: &quot;in-memory esbuild onLoad source edit&quot;,
+  &quot;productionSourceEdited&quot;: false,
+  &quot;target&quot;: &quot;examples/spending-alerts/causal-business.ts&quot;,
+  &quot;from&quot;: &quot;exactVendorStats(e.prefix.map((t) =&gt; t.amount))&quot;,
+  &quot;to&quot;: &quot;exactVendorStats(e.prefix.map(({ amount }) =&gt; amount))&quot;
+}</pre><p>以上为工具记录的实验来源，不是外部签名身份认证。应用 demo 本身没有算法作者认证。</p><h3>独立后果验证</h3><p>独立 plain-code oracle 核对 payload；旧 source/runtime/两者绑定分别阻断执行；新绑定接受。9 个真实代码 mutation 被行为断言捕获。</p><p><a href="source-binding.json">源码／绑定／旧证据结果</a> · <a href="mutations.json">真实 runtime mutation</a> · <a href="receipt.json">本批复核清单与文件哈希</a></p></section>
+<section><h2>审阅问题</h2><ol><li>启动成功时，运行是否已经结束？</li><li>展示组件退出后，谁保留未结义务？</li><li>拓扑相同，能否说明节点实现没变？</li><li>作者来源、结果等价与执行许可分别由什么支持？</li><li>普通组件要理解哪些输入装配细节？需要下钻时能否找到原节点？</li></ol><p>这是开发审阅包。B121 的真实 human/agent 理解度试验尚未执行；正式试验需另用隔离答案键。</p></section>
+<small>私有 consumer 示例；公共入口、真实宿主资格及正式性能资格不在本批完成声明内。</small></html>

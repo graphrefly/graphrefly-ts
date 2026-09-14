@@ -22,6 +22,12 @@
 		"causal-audience.examples.ts",
 		"../../packages/ts/src/__tests__/spending-alerts-causal-preset.test.ts",
 		"../../scripts/fixtures/spending-preset*.ts",
-		"../../packages/ts/src/__tests__/spending-alerts-preset-reference.test.ts"
+		"../../packages/ts/src/__tests__/spending-alerts-preset-reference.test.ts",
+		"causal-entry.ts",
+		"causal-view-binding.ts",
+		"causal-ordinary-panel.ts",
+		"causal-graded-demo.ts",
+		"../../packages/ts/src/__tests__/causal-graded-entry.test.ts",
+		"../../packages/ts/src/__tests__/causal-view-binding.test.ts"
 	]
 }

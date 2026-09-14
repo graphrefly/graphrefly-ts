@@ -7,10 +7,11 @@ import {
 } from "../../packages/ts/src/solutions/causal-occurrence/capabilities.js";
 import type { SpendingAlertsView } from "./causal-preset.js";
 import type { Publication } from "./causal-publication.js";
+import { mountSpendingView } from "./causal-view-binding.js";
 /** A display component receives only the actual five-port object. Subscription is observation. */
 export function ordinaryExample(view: SpendingAlertsView, render: (value: Publication) => void) {
-	return view.publication.subscribe((message) => {
-		if (message[0] === "DATA") render(message[1] as Publication);
+	return mountSpendingView(view, ({ values }) => {
+		if (values.publication) render(values.publication);
 	});
 }
 /** Frameworks pass exact issued handles; an execution view grants no I/O method. */

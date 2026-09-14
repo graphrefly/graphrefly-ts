@@ -1,0 +1,157 @@
+{
+	"kind": "private-graded-entry-implementation-receipt",
+	"date": "2026-09-14",
+	"baseline": "761b2cc95a946d78c9e19e1fdbf5286752e1beb9",
+	"approval": "User approved integrated design: ok 同意，继续",
+	"owner": "graphrefly-ts; existing D162/D170; no new decision",
+	"publicExportsChanged": false,
+	"realInboxIO": 0,
+	"performanceMeasurements": 0,
+	"currentPerformanceQualified": false,
+	"checks": [
+		{
+			"command": "node node_modules/vitest/vitest.mjs run --root packages/ts",
+			"exit": 0,
+			"passed": 2666,
+			"skipped": 4,
+			"log": "tests.log"
+		},
+		{
+			"command": "node node_modules/vitest/vitest.mjs run --root packages/ts causal-view-binding.test.ts spending-alerts-audience.test.ts",
+			"exit": 0,
+			"passed": 11,
+			"scope": "after panel/ERROR review repairs",
+			"log": "view-panel-tests.log"
+		},
+		{
+			"command": "python3 scripts/check-causal-lint-evidence.py && biome check . && tsx scripts/check-no-raw-async.ts && tsx scripts/check-typecheck.ts && tsc --noEmit -p packages/ts/tsconfig.tests.json",
+			"exit": 0,
+			"note": "20 existing Biome informational hints, no errors; example tsconfig covers new tests"
+		},
+		{
+			"command": "build-local-untrusted-js-runner.mjs; tsup (packages/ts); check-ts-package-exports.mjs",
+			"exit": 0,
+			"note": "ESM/CJS/DTS build and package subpath smoke passed"
+		},
+		{
+			"command": "check-historical-artifacts.ts",
+			"exit": 0,
+			"log": "artifact-check.log"
+		},
+		{
+			"command": "qualify-spending-focused-host.mjs",
+			"exit": 0,
+			"controls": 9,
+			"mutantsKilled": 9
+		},
+		{
+			"command": "qualify-spending-host-source-binding.mjs",
+			"exit": 0,
+			"staleCasesBlocked": 3
+		},
+		{
+			"command": "node --import tsx examples/spending-alerts/causal-graded-demo.ts",
+			"exit": 0,
+			"evidence": "demo.json"
+		}
+	],
+	"review": {
+		"blind": "no confirmed defects",
+		"edge": "no confirmed defects",
+		"verificationGap": "ERROR clearing, actual panel assertions and full graph evidence repaired and reviewed"
+	},
+	"files": [
+		{
+			"path": "docs/design/causal-graded-entry-implementation/README.md",
+			"sha256": "85ebf4201542e7c9c0d74cc86f5a390f39878b81e5ac8f9fdeb3740aefc0d12f"
+		},
+		{
+			"path": "docs/design/causal-graded-entry-implementation/artifact-check.log",
+			"sha256": "fe56f158350003ea93d57b08f1bc5f2eec11045b05ddc4f734869160fa2fde17"
+		},
+		{
+			"path": "docs/design/causal-graded-entry-implementation/build-review.py",
+			"sha256": "18a794d29706a7166d351dd2e67034712b0751ed7731b6a23eb575c4e61359e9"
+		},
+		{
+			"path": "docs/design/causal-graded-entry-implementation/demo.json",
+			"sha256": "1d637c46d18543abadd1eed4e46eb07abf38880eb7f6866b5f7c3c78ea606f49"
+		},
+		{
+			"path": "docs/design/causal-graded-entry-implementation/focused-tests.log",
+			"sha256": "85ea17dd77afc8feb37ebb26b698e4b32829efa3cfe7deee10be8f738ffac492"
+		},
+		{
+			"path": "docs/design/causal-graded-entry-implementation/mutations.json",
+			"sha256": "a040144d5303bfb87dcd7bb5a372e8f799bfbcc2d58f6dd5f36573b45ab32e83"
+		},
+		{
+			"path": "docs/design/causal-graded-entry-implementation/source-binding.json",
+			"sha256": "026d6306f4271d5d2b53a1691d12e80da51edfcea6b230a137e75f7f3e6aedcd"
+		},
+		{
+			"path": "docs/design/causal-graded-entry-implementation/tests.log",
+			"sha256": "2d797acaeaae0acc254ac6e3c8008aa2fb19d2870f153cac77dadef99f504d62"
+		},
+		{
+			"path": "docs/design/causal-graded-entry-implementation/view-panel-tests.log",
+			"sha256": "ece7f98a2b4601e11a1832e80a66f9dbfaee193305e36760d88eacda175ff9af"
+		},
+		{
+			"path": "examples/spending-alerts/README.md",
+			"sha256": "921be10b241a4340287e5846455e66ea476016768dd4117f68c56fe7d0a23948"
+		},
+		{
+			"path": "examples/spending-alerts/causal-audience.examples.ts",
+			"sha256": "7f692090cc3a0e734edc2da63cd8e51860b12c37e0e8f3b5e4fcaccf1aa84d36"
+		},
+		{
+			"path": "examples/spending-alerts/causal-entry.ts",
+			"sha256": "49e56fb40676cb72659af34cf7ac4a96d29b72293f6719ab2f6c722140ed8279"
+		},
+		{
+			"path": "examples/spending-alerts/causal-graded-demo.ts",
+			"sha256": "f9166c0652a9f099ee9d9302222297dec303cc5d16100b07273511fd20b0a477"
+		},
+		{
+			"path": "examples/spending-alerts/causal-ordinary-panel.ts",
+			"sha256": "6f6db61a5d29a697b65bc73b1325e61b8644640c0bc4b78a2227ca14ac136383"
+		},
+		{
+			"path": "examples/spending-alerts/causal-preset.ts",
+			"sha256": "71f801e17e95b2f7440017048dc08d3479a341d4e5e617be8eff9f513301dd50"
+		},
+		{
+			"path": "examples/spending-alerts/causal-publication.ts",
+			"sha256": "4d2566ff521eeb370388b5d654eebfa9ab6f814c27e35233680f9d9125c7786e"
+		},
+		{
+			"path": "examples/spending-alerts/causal-view-binding.ts",
+			"sha256": "3a8722abf4ed783b8caa794ccb16a1d4fdfdbe26d999160805da746a62427409"
+		},
+		{
+			"path": "examples/spending-alerts/tsconfig.json",
+			"sha256": "366f277ed19e9a1ea7c4faacbf64100bf4180fc67b0c9412010dd23ec1b67bce"
+		},
+		{
+			"path": "packages/ts/src/__tests__/causal-graded-entry.test.ts",
+			"sha256": "68b573ee868da56c263400620c9ff5565095a6ee2a19f84b197a93902d7c395c"
+		},
+		{
+			"path": "packages/ts/src/__tests__/causal-view-binding.test.ts",
+			"sha256": "228131ea71777f349d825d29686b9d2aebdec5dd6b0e6b7dab08b69b48caefbb"
+		},
+		{
+			"path": "scripts/fixtures/spending-preset-oracle.ts",
+			"sha256": "1bae2736615e6c2b8db71cc380a31226e73dcea1d31216d45ec13819a92cc8a2"
+		},
+		{
+			"path": "scripts/qualify-spending-focused-host.mjs",
+			"sha256": "f3aec8d72fa381eb7f44f334fe6e338c69d0b8df9072248ccb35ce804e49da31"
+		},
+		{
+			"path": "scripts/qualify-spending-host-source-binding.mjs",
+			"sha256": "a739a5e7f0bf227ce8c1479ca1d4492ca71b26ddfe9b85ca59ae497366299467"
+		}
+	]
+}
