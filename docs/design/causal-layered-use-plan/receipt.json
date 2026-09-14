@@ -1,0 +1,127 @@
+{
+	"kind": "layered-use-design-proposal",
+	"status": "proposed",
+	"owner": "graphrefly-ts",
+	"baseline": "8d1f01db535cacdc7c2be096f0c9ea0cdf969eee",
+	"authorityRefs": [
+		"graphrefly:D792",
+		"graphrefly:D793",
+		"graphrefly-ts:D160",
+		"graphrefly-ts:D161",
+		"graphrefly-ts:D162",
+		"graphrefly-ts:D170"
+	],
+	"classification": "Reviewable use/example/acceptance plan within existing architecture, not a new lock or implementation grant",
+	"design": {
+		"path": "docs/design/causal-layered-use-plan/README.md",
+		"sha256": "3043705fa622f564ddc40dfa723a55a835f30cbd099a7f88904b6cb7854fdca1"
+	},
+	"checks": {
+		"relativeLinks": 2,
+		"publicEntryMapping": "verified against package exports",
+		"spendingAndCausalPublicPaths": "absent",
+		"implementationFilesChanged": false,
+		"authorityLedgersChanged": false,
+		"newProductTestsRun": false,
+		"performanceMeasurements": 0,
+		"externalEffects": 0
+	},
+	"sources": [
+		{
+			"path": "packages/ts/package.json",
+			"sha256": "0ca16a1fcc9602d6f8fa28725f35acf3d7a8be40adeb767fdb89312c6519575d"
+		},
+		{
+			"path": "packages/ts/README.md",
+			"sha256": "6c535f3318f35a41cbd424724018c993454f9c9416d2132092b3e6d4cc677019"
+		},
+		{
+			"path": "packages/ts/src/core/index.ts",
+			"sha256": "2f99cc666438faa6ecfe573fca3ddf25031edbd6b4481da240d3881aedcbd8ca"
+		},
+		{
+			"path": "packages/ts/src/graph/index.ts",
+			"sha256": "12e4832970898c8961b799187075162b1327d3d6e95399358bbde319420e9ddf"
+		},
+		{
+			"path": "packages/ts/src/patterns/index.ts",
+			"sha256": "878446e044e30123417473c717247a2c43cecded15e62df43d02130d780b91f3"
+		},
+		{
+			"path": "packages/ts/src/solutions/index.ts",
+			"sha256": "ae986bb5be2b280b9a6de94259f26bac0aaba980280d54f8b41f6e55ae43ed34"
+		},
+		{
+			"path": "packages/ts/src/adapters/store.ts",
+			"sha256": "545d4bb69ab9f0a6f8f10011a96120f686911e3972c3ebd1c3a61973aea54d28"
+		},
+		{
+			"path": "packages/ts/src/solutions/causal-occurrence/capabilities.ts",
+			"sha256": "606b352953fdb54f7ddc076662fc1fc8b88bed2841fdfe07bdf0b85224879fc7"
+		},
+		{
+			"path": "packages/ts/src/solutions/causal-occurrence/construction.ts",
+			"sha256": "57a73dfa6eb9a685441403520f790447d63e13b5f221b8c7eba3c2c5dfae06c9"
+		},
+		{
+			"path": "examples/spending-alerts/README.md",
+			"sha256": "921be10b241a4340287e5846455e66ea476016768dd4117f68c56fe7d0a23948"
+		},
+		{
+			"path": "examples/spending-alerts/causal-entry.ts",
+			"sha256": "49e56fb40676cb72659af34cf7ac4a96d29b72293f6719ab2f6c722140ed8279"
+		},
+		{
+			"path": "examples/spending-alerts/causal-preset.ts",
+			"sha256": "71f801e17e95b2f7440017048dc08d3479a341d4e5e617be8eff9f513301dd50"
+		},
+		{
+			"path": "examples/spending-alerts/causal-focused-host.ts",
+			"sha256": "771fe0c1d409debb836bb446dbf1109464497b80225f4fc49e5a56d106feb022"
+		},
+		{
+			"path": "examples/spending-alerts/causal-audience.examples.ts",
+			"sha256": "7f692090cc3a0e734edc2da63cd8e51860b12c37e0e8f3b5e4fcaccf1aa84d36"
+		},
+		{
+			"path": "examples/spending-alerts/causal-ordinary-panel.ts",
+			"sha256": "6f6db61a5d29a697b65bc73b1325e61b8644640c0bc4b78a2227ca14ac136383"
+		},
+		{
+			"path": "examples/spending-alerts/causal-view-binding.ts",
+			"sha256": "3a8722abf4ed783b8caa794ccb16a1d4fdfdbe26d999160805da746a62427409"
+		},
+		{
+			"path": "examples/spending-alerts/causal-graded-demo.ts",
+			"sha256": "f9166c0652a9f099ee9d9302222297dec303cc5d16100b07273511fd20b0a477"
+		},
+		{
+			"path": "packages/ts/src/__tests__/causal-graded-entry.test.ts",
+			"sha256": "68b573ee868da56c263400620c9ff5565095a6ee2a19f84b197a93902d7c395c"
+		},
+		{
+			"path": "packages/ts/src/__tests__/spending-alerts-audience.test.ts",
+			"sha256": "4d51724ae9a6383dab7c30bb3297e4395d36f066d76a88021a53503915619505"
+		},
+		{
+			"path": "decisions/decisions.jsonl",
+			"sha256": "f613d2720936eae6be91f80e5161dbc688cce99a96ca3cbe4867c1263b877681"
+		},
+		{
+			"path": "plan/work.jsonl",
+			"sha256": "3dfa4e4919b143030cc2c1f7faeddb5a8f8fe831c999527763962564bec1ada7"
+		},
+		{
+			"path": "/Users/davidchenallio/src/graphrefly/authority/ledgers.jsonl",
+			"sha256": "84205978c6cd21ec85836b5f9acb9ef04b056694175730948c76e4e6deeb1ddc"
+		},
+		{
+			"path": "/Users/davidchenallio/src/graphrefly/spec/rules.jsonl",
+			"sha256": "b0d96e757e63a68b5d3a9f6f55cfad96fa8992f2d08f7c27606942807dce62bb"
+		},
+		{
+			"path": "/Users/davidchenallio/src/graphrefly/plan/backlog.jsonl",
+			"sha256": "89a6d9e0a7607db2bac8f7cfdfeeebdaea7f5faed820a8f659d647cdea4d9505"
+		}
+	]
+}
