@@ -1,0 +1,480 @@
+{
+	"kind": "read-only-real-file-proof-replay",
+	"passed": true,
+	"consumersExecuted": 0,
+	"writesPerformed": 0,
+	"manifestSha256": "sha256:68e6fbcc564fb6ddc48c9780faa9f61de9c378f0f44075349233e145465a7ec3",
+	"executionReceiptSha256": "sha256:42cbd7fe9889f8f37949984dad6dda3043b66f2919ed0a83fb86bb42ad9c98fc",
+	"approvalSha256": "sha256:683377a6c71de600e2bf2b818cf612d24a62508744675edd28d0129c1731e61a",
+	"checkedSources": 63,
+	"cases": 46,
+	"hostRequests": 30,
+	"underlyingWrites": 26,
+	"readbackBytes": 6338,
+	"identicalGraphTopologies": 23,
+	"graphPlainBytePairs": 23,
+	"b121Complete": false,
+	"formalPerformanceQualified": false,
+	"results": [
+		{
+			"id": "S1-baseline-graph",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": true
+		},
+		{
+			"id": "S1-baseline-plain",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": true
+		},
+		{
+			"id": "S1-score-mutant-graph",
+			"passed": true,
+			"candidateQualified": false,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": false
+		},
+		{
+			"id": "S1-score-mutant-plain",
+			"passed": true,
+			"candidateQualified": false,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": false
+		},
+		{
+			"id": "S2-baseline-graph",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 1,
+			"readbackBytes": 266,
+			"readbackDigest": "sha256:b214f2d538bcd5acf077ac91c0072c316c4311327ed45b057f101441024fa05d",
+			"normalEndReady": true
+		},
+		{
+			"id": "S2-baseline-plain",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 1,
+			"readbackBytes": 266,
+			"readbackDigest": "sha256:b214f2d538bcd5acf077ac91c0072c316c4311327ed45b057f101441024fa05d",
+			"normalEndReady": true
+		},
+		{
+			"id": "S2-equivalent-graph",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 1,
+			"readbackBytes": 266,
+			"readbackDigest": "sha256:b214f2d538bcd5acf077ac91c0072c316c4311327ed45b057f101441024fa05d",
+			"normalEndReady": true
+		},
+		{
+			"id": "S2-equivalent-plain",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 1,
+			"readbackBytes": 266,
+			"readbackDigest": "sha256:b214f2d538bcd5acf077ac91c0072c316c4311327ed45b057f101441024fa05d",
+			"normalEndReady": true
+		},
+		{
+			"id": "S3-interleaved-revisions-graph",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 4,
+			"underlyingWrites": 4,
+			"readbackBytes": 1040,
+			"readbackDigest": "sha256:6a11983b5ea967f5752e666c3dbbe7114c56aced1583f6bf62f9e94611efba06",
+			"normalEndReady": true
+		},
+		{
+			"id": "S3-interleaved-revisions-plain",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 4,
+			"underlyingWrites": 4,
+			"readbackBytes": 1040,
+			"readbackDigest": "sha256:6a11983b5ea967f5752e666c3dbbe7114c56aced1583f6bf62f9e94611efba06",
+			"normalEndReady": true
+		},
+		{
+			"id": "S3-missing-terminal-report-graph",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 1,
+			"readbackBytes": 266,
+			"readbackDigest": "sha256:b214f2d538bcd5acf077ac91c0072c316c4311327ed45b057f101441024fa05d",
+			"normalEndReady": false
+		},
+		{
+			"id": "S3-missing-terminal-report-plain",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 1,
+			"readbackBytes": 266,
+			"readbackDigest": "sha256:b214f2d538bcd5acf077ac91c0072c316c4311327ed45b057f101441024fa05d",
+			"normalEndReady": false
+		},
+		{
+			"id": "S3-missing-business-branch-graph",
+			"passed": true,
+			"candidateQualified": false,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": false
+		},
+		{
+			"id": "S3-missing-business-branch-plain",
+			"passed": true,
+			"candidateQualified": false,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": false
+		},
+		{
+			"id": "S4-stale-current-graph",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": false
+		},
+		{
+			"id": "S4-stale-current-plain",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": false
+		},
+		{
+			"id": "S4-revision-gap-graph",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": false
+		},
+		{
+			"id": "S4-revision-gap-plain",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": false
+		},
+		{
+			"id": "S5-exact-replay-graph",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 1,
+			"readbackBytes": 266,
+			"readbackDigest": "sha256:b214f2d538bcd5acf077ac91c0072c316c4311327ed45b057f101441024fa05d",
+			"normalEndReady": true
+		},
+		{
+			"id": "S5-exact-replay-plain",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 1,
+			"readbackBytes": 266,
+			"readbackDigest": "sha256:b214f2d538bcd5acf077ac91c0072c316c4311327ed45b057f101441024fa05d",
+			"normalEndReady": true
+		},
+		{
+			"id": "S5-conflicting-pack-graph",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 1,
+			"readbackBytes": 266,
+			"readbackDigest": "sha256:b214f2d538bcd5acf077ac91c0072c316c4311327ed45b057f101441024fa05d",
+			"normalEndReady": false
+		},
+		{
+			"id": "S5-conflicting-pack-plain",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 1,
+			"readbackBytes": 266,
+			"readbackDigest": "sha256:b214f2d538bcd5acf077ac91c0072c316c4311327ed45b057f101441024fa05d",
+			"normalEndReady": false
+		},
+		{
+			"id": "S6-success-graph",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 1,
+			"readbackBytes": 266,
+			"readbackDigest": "sha256:b214f2d538bcd5acf077ac91c0072c316c4311327ed45b057f101441024fa05d",
+			"normalEndReady": true
+		},
+		{
+			"id": "S6-success-plain",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 1,
+			"readbackBytes": 266,
+			"readbackDigest": "sha256:b214f2d538bcd5acf077ac91c0072c316c4311327ed45b057f101441024fa05d",
+			"normalEndReady": true
+		},
+		{
+			"id": "S6-short-graph",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 1,
+			"readbackBytes": 1,
+			"readbackDigest": "sha256:021fb596db81e6d02bf3d2586ee3981fe519f275c0ac9ca76bbcf2ebb4097d96",
+			"normalEndReady": false
+		},
+		{
+			"id": "S6-short-plain",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 1,
+			"readbackBytes": 1,
+			"readbackDigest": "sha256:021fb596db81e6d02bf3d2586ee3981fe519f275c0ac9ca76bbcf2ebb4097d96",
+			"normalEndReady": false
+		},
+		{
+			"id": "S6-rejection-graph",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": false
+		},
+		{
+			"id": "S6-rejection-plain",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": false
+		},
+		{
+			"id": "S6-unreturned-graph",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": false
+		},
+		{
+			"id": "S6-unreturned-plain",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": false
+		},
+		{
+			"id": "S6-known-no-submit-graph",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": true
+		},
+		{
+			"id": "S6-known-no-submit-plain",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": true
+		},
+		{
+			"id": "S6-wrong-admission-outcome-graph",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 1,
+			"readbackBytes": 266,
+			"readbackDigest": "sha256:b214f2d538bcd5acf077ac91c0072c316c4311327ed45b057f101441024fa05d",
+			"normalEndReady": false
+		},
+		{
+			"id": "S6-wrong-admission-outcome-plain",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 1,
+			"readbackBytes": 266,
+			"readbackDigest": "sha256:b214f2d538bcd5acf077ac91c0072c316c4311327ed45b057f101441024fa05d",
+			"normalEndReady": false
+		},
+		{
+			"id": "S7-missing-verifier-graph",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": false
+		},
+		{
+			"id": "S7-missing-verifier-plain",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": false
+		},
+		{
+			"id": "S7-missing-current-graph",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": false
+		},
+		{
+			"id": "S7-missing-current-plain",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": false
+		},
+		{
+			"id": "S7-stale-source-graph",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": false
+		},
+		{
+			"id": "S7-stale-source-plain",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": false
+		},
+		{
+			"id": "S7-over-capacity-graph",
+			"passed": true,
+			"candidateQualified": false,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": false
+		},
+		{
+			"id": "S7-over-capacity-plain",
+			"passed": true,
+			"candidateQualified": false,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": false
+		},
+		{
+			"id": "S8-normal-graph",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": true
+		},
+		{
+			"id": "S8-normal-plain",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 0,
+			"underlyingWrites": 0,
+			"readbackBytes": 0,
+			"readbackDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"normalEndReady": true
+		},
+		{
+			"id": "S8-cli-title-graph",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 1,
+			"readbackBytes": 266,
+			"readbackDigest": "sha256:b214f2d538bcd5acf077ac91c0072c316c4311327ed45b057f101441024fa05d",
+			"normalEndReady": true
+		},
+		{
+			"id": "S8-cli-title-plain",
+			"passed": true,
+			"candidateQualified": true,
+			"hostRequests": 1,
+			"underlyingWrites": 1,
+			"readbackBytes": 266,
+			"readbackDigest": "sha256:b214f2d538bcd5acf077ac91c0072c316c4311327ed45b057f101441024fa05d",
+			"normalEndReady": true
+		}
+	]
+}

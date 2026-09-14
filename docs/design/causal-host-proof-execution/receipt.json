@@ -1,0 +1,49 @@
+{
+	"kind": "bounded-real-local-file-proof-result",
+	"owner": "graphrefly-ts",
+	"preparedByWork": "graphrefly-ts:CAUSAL-HOST-PROOF-PREPARATION-TS",
+	"integrationTarget": "graphrefly:B121",
+	"baselineCommit": "c7d040e3",
+	"passed": true,
+	"cases": 46,
+	"scenarioPairs": 23,
+	"hostRequests": 30,
+	"actualFileWriteCalls": 26,
+	"independentlyReadBytes": 6338,
+	"elapsedSeconds": 5.505,
+	"retries": 0,
+	"archive": {
+		"path": "archive/evals/causal-host-proof-execution/local-files-v1.tar.gz",
+		"digest": "sha256:7317e670202027fc3d102de09a0f5bb44cb04b522a3571fc3528363b33811e2a",
+		"members": 142,
+		"byteForByteVerified": true
+	},
+	"executionReceiptDigest": "sha256:42cbd7fe9889f8f37949984dad6dda3043b66f2919ed0a83fb86bb42ad9c98fc",
+	"manifestDigest": "sha256:68e6fbcc564fb6ddc48c9780faa9f61de9c378f0f44075349233e145465a7ec3",
+	"approvalDigest": "sha256:683377a6c71de600e2bf2b818cf612d24a62508744675edd28d0129c1731e61a",
+	"readOnlyReplay": {
+		"path": "docs/design/causal-host-proof-execution/replay.json",
+		"digest": "sha256:223b6243b25eab3aa9ae38d19ec72cd5b869a20c8f8c7ff02db0059acfa18f26",
+		"consumerExecutions": 0,
+		"writes": 0,
+		"repeatByteIdentical": true
+	},
+	"proofScope": "Exact source-bound Graph/plain frozen scenarios on exclusive local handles with held full/short/reject/pending fault schedule; observed bytes and authority conservation, not fsync/crash durability or performance.",
+	"b121Complete": false,
+	"formalPerformanceQualified": false,
+	"rootProducerLinkageApplied": false,
+	"runtimeCodeChanged": false,
+	"remaining": [
+		"Integrate exact TS producer with root owner locator",
+		"Root independently aggregate finite proof without promoting this receipt to whole B121 completion",
+		"Separately designed human/agent comparison and existing formal performance conditions"
+	],
+	"checks": {
+		"readOnlyReplayPassed": true,
+		"repeatByteIdentical": true,
+		"lintPassed": true,
+		"frozenEvidenceIntegrityPassed": true,
+		"lintLogDigest": "sha256:ba573fab9a68ac3e8dfb351590a774e2b68e20350a952b506df781d25768d6d6",
+		"priorRuntimeTestsReusedFromCommit": "c7d040e3"
+	}
+}

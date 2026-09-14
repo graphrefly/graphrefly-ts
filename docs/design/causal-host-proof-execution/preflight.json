@@ -1,0 +1,9 @@
+{
+	"passed": true,
+	"manifestSha256": "sha256:68e6fbcc564fb6ddc48c9780faa9f61de9c378f0f44075349233e145465a7ec3",
+	"checkedSources": 63,
+	"commit": "c7d040e3e8e2f9c3d04cda987ef1d1e53bde4122",
+	"destinationAbsent": true,
+	"executionReceiptAbsent": true,
+	"noInboxIOYet": true
+}
