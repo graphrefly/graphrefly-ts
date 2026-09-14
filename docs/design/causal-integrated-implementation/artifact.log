@@ -1,0 +1,8 @@
+{
+  "kind": "historical-integrity",
+  "currentQualified": false,
+  "artifactSetDigest": "sha256:cf9add2a071ee40a850e5eb2e0d6537ae4fd748accd7a8fccc132ffab0a68d0c",
+  "implementationManifestDigest": "sha256:afafc16b83f642e2d48c740b67bc6afc49e3efff12a8e0d2621fed00c73f4c90"
+}
+
+DONE exit=0
