@@ -4086,7 +4086,7 @@ function emitRegisteredDepsChanged(node, prev, deps) {
 // packages/ts/runners/local-untrusted-js/runner.ts
 var COMPATIBILITY_REVISION = "graphrefly-local-untrusted-js-compute-v1";
 var RUNNER_API_REVISION = "graphrefly-runner-api-v1";
-var GRAPHREFLY_PACKAGE_REVISION = "graphrefly-ts:0.9.0";
+var GRAPHREFLY_PACKAGE_REVISION = "graphrefly-ts:0.10.0";
 var INPUT_PATHS = ["/input/bundle.mjs", "/input/input.json", "/input/control.json"];
 var MAX_RUNNER_NODES = 1e3;
 var MAX_RUNNER_EDGES = 2e3;

@@ -1,5 +1,11 @@
 # @graphrefly/ts
 
+## 0.10.0
+
+### Minor Changes
+
+- c890db9: Improve causal inspection
+
 ## 0.9.0
 
 ### Minor Changes
