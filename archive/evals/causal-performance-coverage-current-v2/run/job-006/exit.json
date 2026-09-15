@@ -1,0 +1,88 @@
+{
+  "position": 6,
+  "pid": 76072,
+  "exitCode": 0,
+  "start": 288170.350095833,
+  "end": 288171.622416041,
+  "wallStart": 1789308204.996118,
+  "wallEnd": 1789308206.26845,
+  "wakeBefore": "{ sec = 1789275775, usec = 186433 } Sat Sep 12 22:02:55 2026",
+  "wakeAfter": "{ sec = 1789275775, usec = 186433 } Sat Sep 12 22:02:55 2026",
+  "error": null,
+  "cleanupErrors": [],
+  "wakeError": null,
+  "rss": [
+    {
+      "time": 288170.356332875,
+      "code": 0,
+      "stdout": "76072    896 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288170.465925875,
+      "code": 0,
+      "stdout": "76072  78720 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288170.57162625,
+      "code": 0,
+      "stdout": "76072  87440 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288170.68137975,
+      "code": 0,
+      "stdout": "76072 105008 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288170.790813333,
+      "code": 0,
+      "stdout": "76072 109152 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288170.900634875,
+      "code": 0,
+      "stdout": "76072 137120 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288171.008499625,
+      "code": 0,
+      "stdout": "76072 137712 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288171.114112125,
+      "code": 0,
+      "stdout": "76072 137808 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288171.223529541,
+      "code": 0,
+      "stdout": "76072 140992 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288171.329386416,
+      "code": 0,
+      "stdout": "76072 149360 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288171.435314666,
+      "code": 0,
+      "stdout": "76072 198592 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288171.545544375,
+      "code": 0,
+      "stdout": "76072 198768 R   \n",
+      "stderr": ""
+    }
+  ]
+}

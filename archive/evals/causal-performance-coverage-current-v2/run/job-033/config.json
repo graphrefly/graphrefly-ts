@@ -1,0 +1,13 @@
+{
+  "row": {
+    "id": "steady-P1-summary-duplicate-1",
+    "group": "steady",
+    "profile": "P1",
+    "mode": "summary",
+    "change": "duplicate",
+    "dataCount": 1
+  },
+  "identicalReference": false,
+  "scenarioPath": "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-coverage-current-v2/run/P1-inputs.json",
+  "output": "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-coverage-current-v2/run/job-033"
+}

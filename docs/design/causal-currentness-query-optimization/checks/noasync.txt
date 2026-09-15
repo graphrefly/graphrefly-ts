@@ -1,0 +1,2 @@
+$ tsx scripts/check-no-raw-async.ts
+check-no-raw-async: 284 files checked, no raw async outside the sanctioned boundary (26 whole-file allowlisted, 9 pattern-scoped).

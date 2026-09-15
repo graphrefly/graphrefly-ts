@@ -1,0 +1,15 @@
+{
+  "freeze": "243f3ceae444629b95609012acc33d6ca81f4344c0c82eacb4152c2d2130614c",
+  "start": 288162.412746875,
+  "wall": 1789308197.058704,
+  "wake": "{ sec = 1789275775, usec = 186433 } Sat Sep 12 22:02:55 2026",
+  "node": "/Users/davidchenallio/.local/share/mise/installs/node/24/bin/node",
+  "nodeDigest": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+  "environmentKeys": [
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "PATH",
+    "TMPDIR"
+  ]
+}

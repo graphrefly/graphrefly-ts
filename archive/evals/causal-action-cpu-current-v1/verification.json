@@ -1,0 +1,455 @@
+{
+  "verified": true,
+  "formalQualification": false,
+  "scope": "sample counts, not exact CPU-time percentages; inspector overhead included",
+  "jobs": [
+    {
+      "file": "P1-1.json",
+      "sha256": "c4d8ccf2f32ed5769fd41f7d633663ef8df8775941da156a5e2f06c01030f3c5",
+      "samples": 226,
+      "elapsedMs": 139.89350000000002,
+      "topSelfSamples": [
+        [
+          "sortedJsonValue",
+          79
+        ],
+        [
+          "",
+          19
+        ],
+        [
+          "encodeMaterial",
+          13
+        ],
+        [
+          "dataKey",
+          12
+        ],
+        [
+          "sameRef",
+          8
+        ],
+        [
+          "visit",
+          8
+        ],
+        [
+          "(garbage collector)",
+          7
+        ],
+        [
+          "exactAdmission",
+          7
+        ],
+        [
+          "sha256",
+          7
+        ],
+        [
+          "exactOccurrence",
+          4
+        ],
+        [
+          "(program)",
+          4
+        ],
+        [
+          "refKey",
+          3
+        ],
+        [
+          "cloneState",
+          3
+        ],
+        [
+          "recomputeCurrentness",
+          3
+        ],
+        [
+          "canonicalSnapshot",
+          3
+        ]
+      ],
+      "canonicalJsonSamples": 79,
+      "canonicalJsonFraction": 0.3495575221238938,
+      "topCanonicalAncestors": [
+        [
+          "sortedJsonValue > anonymous:3956 > anonymous:3955 > anonymous:3954 > isEvidenceTerminal > recomputeDomain > transitionCausalAuthority > graph.node.name",
+          7
+        ],
+        [
+          "anonymous:3956 > anonymous:3955 > anonymous:3954 > isEvidenceTerminal > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke",
+          6
+        ],
+        [
+          "anonymous:3956 > anonymous:3955 > anonymous:3954 > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave",
+          4
+        ],
+        [
+          "dataKey > retainEvidence > receiveEvidence > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave > _runWave",
+          3
+        ],
+        [
+          "sortedJsonValue > sameRef > exactAdmission > recomputeCurrentness > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke",
+          2
+        ],
+        [
+          "sortedJsonValue > sameRef > anonymous:3956 > anonymous:3955 > anonymous:3954 > isEvidenceTerminal > recomputeDomain > transitionCausalAuthority",
+          2
+        ],
+        [
+          "dataKey > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke > invoke > nodeRunWave > _runWave",
+          2
+        ],
+        [
+          "sameRef > exactOccurrence > pendingObligations > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke > invoke",
+          2
+        ],
+        [
+          "exactAdmission > anonymous:3696 > recomputeCurrentness > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke > invoke",
+          2
+        ],
+        [
+          "sameRef > flushAdmissions > flushPending > transitionCausalAuthority > graph.node.name > invoke > invoke > nodeRunWave",
+          2
+        ]
+      ]
+    },
+    {
+      "file": "P1-2.json",
+      "sha256": "4208dfaf745a8751758519acfea47f1aafd46533af8ab640e428ab34981904c5",
+      "samples": 1643,
+      "elapsedMs": 1105.637667,
+      "topSelfSamples": [
+        [
+          "sortedJsonValue",
+          611
+        ],
+        [
+          "stableJsonString",
+          141
+        ],
+        [
+          "",
+          116
+        ],
+        [
+          "receiveTerminals",
+          78
+        ],
+        [
+          "(garbage collector)",
+          72
+        ],
+        [
+          "visit",
+          71
+        ],
+        [
+          "recomputeCurrentness",
+          63
+        ],
+        [
+          "canonicalTupleKey",
+          42
+        ],
+        [
+          "pendingObligations",
+          41
+        ],
+        [
+          "(program)",
+          33
+        ],
+        [
+          "maybeRelease",
+          28
+        ],
+        [
+          "receiveEvidence",
+          28
+        ],
+        [
+          "dataKey",
+          25
+        ],
+        [
+          "sha256",
+          22
+        ],
+        [
+          "currentnessMetadata",
+          21
+        ]
+      ],
+      "canonicalJsonSamples": 752,
+      "canonicalJsonFraction": 0.4576993304930006,
+      "topCanonicalAncestors": [
+        [
+          "dataKey > refKey > sameRef > anonymous:3956 > anonymous:3955 > anonymous:3954 > recomputeDomain > transitionCausalAuthority",
+          48
+        ],
+        [
+          "stableJsonString > dataKey > refKey > sameRef > anonymous:3956 > anonymous:3955 > anonymous:3954 > recomputeDomain",
+          40
+        ],
+        [
+          "stableJsonString > dataKey > sameRef > anonymous:3956 > anonymous:3955 > anonymous:3954 > recomputeDomain > transitionCausalAuthority",
+          39
+        ],
+        [
+          "dataKey > sameRef > anonymous:3956 > anonymous:3955 > anonymous:3954 > recomputeDomain > transitionCausalAuthority > graph.node.name",
+          39
+        ],
+        [
+          "pendingObligations > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke > invoke > nodeRunWave > _runWave",
+          38
+        ],
+        [
+          "recomputeCurrentness > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke > invoke > nodeRunWave > _runWave",
+          28
+        ],
+        [
+          "maybeRelease > recomputeCurrentness > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke > invoke > nodeRunWave",
+          25
+        ],
+        [
+          "sortedJsonValue > stableJsonString > dataKey > sameRef > anonymous:3956 > anonymous:3955 > anonymous:3954 > recomputeDomain",
+          23
+        ],
+        [
+          "sortedJsonValue > stableJsonString > dataKey > refKey > sameRef > anonymous:3956 > anonymous:3955 > anonymous:3954",
+          22
+        ],
+        [
+          "stableJsonString > dataKey > refKey > pendingObligations > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke",
+          20
+        ]
+      ]
+    },
+    {
+      "file": "P3-1.json",
+      "sha256": "91871c80df4d619711ad0eb859dad8821aba82063d242b903e788cf595efdc2c",
+      "samples": 1607,
+      "elapsedMs": 1010.453542,
+      "topSelfSamples": [
+        [
+          "sortedJsonValue",
+          657
+        ],
+        [
+          "stableJsonString",
+          299
+        ],
+        [
+          "canonicalTupleKey",
+          155
+        ],
+        [
+          "visit",
+          73
+        ],
+        [
+          "sha256",
+          62
+        ],
+        [
+          "",
+          43
+        ],
+        [
+          "string",
+          36
+        ],
+        [
+          "(program)",
+          36
+        ],
+        [
+          "(garbage collector)",
+          32
+        ],
+        [
+          "sameRef",
+          24
+        ],
+        [
+          "canonicalEntry",
+          18
+        ],
+        [
+          "exactOccurrence",
+          14
+        ],
+        [
+          "refKey",
+          12
+        ],
+        [
+          "recomputeDomain",
+          12
+        ],
+        [
+          "token",
+          11
+        ]
+      ],
+      "canonicalJsonSamples": 956,
+      "canonicalJsonFraction": 0.5948973242065961,
+      "topCanonicalAncestors": [
+        [
+          "stableJsonString > dataKey > refKey > sameRef > anonymous:3956 > anonymous:3955 > recomputeDomain > transitionCausalAuthority",
+          219
+        ],
+        [
+          "dataKey > refKey > sameRef > anonymous:3956 > anonymous:3955 > recomputeDomain > transitionCausalAuthority > graph.node.name",
+          181
+        ],
+        [
+          "sortedJsonValue > stableJsonString > dataKey > refKey > sameRef > anonymous:3956 > anonymous:3955 > recomputeDomain",
+          120
+        ],
+        [
+          "stableJsonString > dataKey > refKey > sameRef > anonymous:3956 > anonymous:3955 > isEvidenceTerminal > recomputeDomain",
+          73
+        ],
+        [
+          "dataKey > refKey > sameRef > anonymous:3956 > anonymous:3955 > isEvidenceTerminal > recomputeDomain > transitionCausalAuthority",
+          64
+        ],
+        [
+          "sortedJsonValue > stableJsonString > dataKey > refKey > sameRef > anonymous:3956 > anonymous:3955 > isEvidenceTerminal",
+          37
+        ],
+        [
+          "stableJsonString > dataKey > sameRef > anonymous:3956 > anonymous:3955 > recomputeDomain > transitionCausalAuthority > graph.node.name",
+          15
+        ],
+        [
+          "dataKey > sameRef > anonymous:3956 > anonymous:3955 > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke",
+          12
+        ],
+        [
+          "sameRef > exactAdmission > recomputeCurrentness > recomputeDomain > transitionCausalAuthority > graph.node.name > invoke > nodeRunWave",
+          10
+        ],
+        [
+          "sortedJsonValue > stableJsonString > dataKey > sameRef > anonymous:3956 > anonymous:3955 > recomputeDomain > transitionCausalAuthority",
+          10
+        ]
+      ]
+    },
+    {
+      "file": "P3-2.json",
+      "sha256": "ddff20cd9fa1365445283417170c253dab8e783f04e479b032f06947c90dcad4",
+      "samples": 14523,
+      "elapsedMs": 9197.264874999999,
+      "topSelfSamples": [
+        [
+          "sortedJsonValue",
+          6212
+        ],
+        [
+          "stableJsonString",
+          3281
+        ],
+        [
+          "canonicalTupleKey",
+          1558
+        ],
+        [
+          "visit",
+          630
+        ],
+        [
+          "",
+          462
+        ],
+        [
+          "(program)",
+          293
+        ],
+        [
+          "(garbage collector)",
+          249
+        ],
+        [
+          "string",
+          248
+        ],
+        [
+          "receiveTerminals",
+          199
+        ],
+        [
+          "receiveEvidence",
+          126
+        ],
+        [
+          "sha256",
+          105
+        ],
+        [
+          "freeze3",
+          103
+        ],
+        [
+          "currentnessMetadata",
+          97
+        ],
+        [
+          "recomputeCurrentness",
+          77
+        ],
+        [
+          "refKey",
+          75
+        ]
+      ],
+      "canonicalJsonSamples": 9493,
+      "canonicalJsonFraction": 0.6536528265509881,
+      "topCanonicalAncestors": [
+        [
+          "stableJsonString > dataKey > refKey > sameRef > anonymous:3956 > anonymous:3955 > anonymous:3954 > recomputeDomain",
+          1510
+        ],
+        [
+          "sortedJsonValue > stableJsonString > dataKey > refKey > sameRef > anonymous:3956 > anonymous:3955 > anonymous:3954",
+          1431
+        ],
+        [
+          "dataKey > refKey > sameRef > anonymous:3956 > anonymous:3955 > anonymous:3954 > recomputeDomain > transitionCausalAuthority",
+          1366
+        ],
+        [
+          "stableJsonString > dataKey > refKey > sameRef > anonymous:3956 > anonymous:3955 > anonymous:3954 > isEvidenceTerminal",
+          1132
+        ],
+        [
+          "dataKey > refKey > sameRef > anonymous:3956 > anonymous:3955 > anonymous:3954 > isEvidenceTerminal > recomputeDomain",
+          1006
+        ],
+        [
+          "dataKey > sameRef > anonymous:3956 > anonymous:3955 > anonymous:3954 > recomputeDomain > transitionCausalAuthority > graph.node.name",
+          129
+        ],
+        [
+          "stableJsonString > dataKey > sameRef > anonymous:3956 > anonymous:3955 > anonymous:3954 > isEvidenceTerminal > recomputeDomain",
+          113
+        ],
+        [
+          "stableJsonString > dataKey > sameRef > anonymous:3956 > anonymous:3955 > anonymous:3954 > recomputeDomain > transitionCausalAuthority",
+          107
+        ],
+        [
+          "dataKey > sameRef > anonymous:3956 > anonymous:3955 > anonymous:3954 > isEvidenceTerminal > recomputeDomain > transitionCausalAuthority",
+          93
+        ],
+        [
+          "stableJsonString > dataKey > sameRef > exactAdmission > recomputeCurrentness > recomputeDomain > transitionCausalAuthority > graph.node.name",
+          80
+        ]
+      ]
+    }
+  ]
+}

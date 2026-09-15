@@ -1,0 +1,11 @@
+{
+  "row": {
+    "id": "cold-P3-off",
+    "group": "cold",
+    "profile": "P3",
+    "mode": "off"
+  },
+  "identicalReference": false,
+  "scenarioPath": "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-coverage-current-v1/run/P3-inputs.json",
+  "output": "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-coverage-current-v1/run/job-008"
+}

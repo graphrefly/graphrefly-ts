@@ -1,0 +1,23 @@
+{
+  "job": {
+    "position": 38,
+    "row": {
+      "id": "steady-P1-summary-all-new-2",
+      "group": "steady",
+      "profile": "P1",
+      "mode": "summary",
+      "change": "all-new",
+      "dataCount": 2
+    },
+    "identicalReference": false
+  },
+  "argv": [
+    "/Users/davidchenallio/.local/share/mise/installs/node/24/bin/node",
+    "--trace-gc",
+    "--trace-deopt",
+    "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-coverage-current-v2/run/job-038/entry.mjs"
+  ],
+  "start": 288401.777202875,
+  "wall": 1789308436.425183,
+  "wake": "{ sec = 1789275775, usec = 186433 } Sat Sep 12 22:02:55 2026"
+}

@@ -1,0 +1,100 @@
+{
+  "position": 16,
+  "pid": 75412,
+  "exitCode": -9,
+  "start": 288105.445075125,
+  "end": 288106.885092208,
+  "wallStart": 1789308140.090548,
+  "wallEnd": 1789308141.530577,
+  "wakeBefore": "{ sec = 1789275775, usec = 186433 } Sat Sep 12 22:02:55 2026",
+  "wakeAfter": "{ sec = 1789275775, usec = 186433 } Sat Sep 12 22:02:55 2026",
+  "error": "AssertionError('RSS cap')",
+  "cleanupErrors": [],
+  "wakeError": null,
+  "rss": [
+    {
+      "time": 288105.451216541,
+      "code": 0,
+      "stdout": "75412    688 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288105.560708791,
+      "code": 0,
+      "stdout": "75412  96752 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288105.666900041,
+      "code": 0,
+      "stdout": "75412 120112 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288105.7761805,
+      "code": 0,
+      "stdout": "75412 157424 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288105.885752625,
+      "code": 0,
+      "stdout": "75412 158400 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288105.992192041,
+      "code": 0,
+      "stdout": "75412 163664 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288106.102135041,
+      "code": 0,
+      "stdout": "75412 165040 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288106.209347833,
+      "code": 0,
+      "stdout": "75412 165680 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288106.319238583,
+      "code": 0,
+      "stdout": "75412 176560 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288106.428938375,
+      "code": 0,
+      "stdout": "75412 248512 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288106.539112541,
+      "code": 0,
+      "stdout": "75412 249648 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288106.649251,
+      "code": 0,
+      "stdout": "75412 249968 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288106.755422666,
+      "code": 0,
+      "stdout": "75412 258432 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288106.866870541,
+      "code": 0,
+      "stdout": "75412 273040 R   \n",
+      "stderr": ""
+    }
+  ]
+}

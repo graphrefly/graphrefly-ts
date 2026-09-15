@@ -1,0 +1,13 @@
+{
+  "row": {
+    "id": "cold-P2-summary",
+    "group": "cold",
+    "profile": "P2",
+    "mode": "summary"
+  },
+  "output": "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-position-current-v2/run/12-Z-06-U",
+  "scenarioPath": "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-position-current-v2/run/P2-inputs.json",
+  "control": true,
+  "kind": "control",
+  "orientation": "U"
+}

@@ -59,6 +59,11 @@ import {
 	createRootEvalRetryDelayAdapter,
 } from "./focused-async-adapters.js";
 import { createRootEvalHttpTransportLeaf } from "./http-transport-leaf.js";
+import {
+	auditProviderReportedCost,
+	providerReportedCost,
+	readBoundedResponseBytes as readRootEvalBoundedResponseBytes,
+} from "./openrouter-transport.mjs";
 import { createPrivateDiagnosticSink } from "./private-diagnostic-sink.js";
 import {
 	type EvalNonbillableCostEvidence,
@@ -686,47 +691,7 @@ export function parseRootEvalUniqueJson(bytes: Uint8Array, path: string): unknow
 	}
 }
 
-export async function readRootEvalBoundedResponseBytes(
-	response: Response,
-	maxBytes: number,
-	path: string,
-): Promise<Uint8Array> {
-	if (!Number.isSafeInteger(maxBytes) || maxBytes < 1)
-		throw new TypeError(`${path} byte bound was invalid`);
-	const contentLength = response.headers.get("content-length");
-	if (
-		contentLength !== null &&
-		(!/^\d+$/u.test(contentLength) || Number(contentLength) > maxBytes)
-	) {
-		await response.body?.cancel().catch(() => undefined);
-		throw new TypeError(`${path} exceeded its content-length bound`);
-	}
-	if (response.body === null) throw new TypeError(`${path} body was unavailable`);
-	const reader = response.body.getReader();
-	const chunks: Uint8Array[] = [];
-	let total = 0;
-	try {
-		while (true) {
-			const { done, value } = await reader.read();
-			if (done) break;
-			total += value.byteLength;
-			if (total > maxBytes) {
-				await reader.cancel().catch(() => undefined);
-				throw new TypeError(`${path} exceeded its streaming byte bound`);
-			}
-			chunks.push(value);
-		}
-	} finally {
-		reader.releaseLock();
-	}
-	const bytes = new Uint8Array(total);
-	let offset = 0;
-	for (const chunk of chunks) {
-		bytes.set(chunk, offset);
-		offset += chunk.byteLength;
-	}
-	return bytes;
-}
+export { readBoundedResponseBytes as readRootEvalBoundedResponseBytes } from "./openrouter-transport.mjs";
 
 function hasUnpairedSurrogate(value: string): boolean {
 	for (let index = 0; index < value.length; index += 1) {
@@ -839,68 +804,6 @@ function object(value: unknown, path: string): Record<string, unknown> {
 	if (value === null || typeof value !== "object" || Array.isArray(value))
 		throw new TypeError(`${path} must be an object`);
 	return value as Record<string, unknown>;
-}
-
-function safeInteger(value: unknown, path: string): number {
-	if (!Number.isSafeInteger(value) || (value as number) < 0)
-		throw new TypeError(`${path} must be a non-negative safe integer`);
-	return value as number;
-}
-
-function providerReportedCost(root: Record<string, unknown>): Readonly<{
-	readonly exactProviderCostMicrousd: number;
-	readonly costMicrousd: number;
-	readonly pricingRoundingAllowanceMicrousd: number;
-}> {
-	const usage = object(root.usage, "provider usage");
-	if (typeof usage.cost !== "number" || !Number.isFinite(usage.cost) || usage.cost < 0)
-		throw new TypeError("provider usage.cost must be a non-negative finite number");
-	const exactProviderCostMicrousd = usage.cost * 1_000_000;
-	if (
-		!Number.isFinite(exactProviderCostMicrousd) ||
-		exactProviderCostMicrousd < 0 ||
-		exactProviderCostMicrousd > Number.MAX_SAFE_INTEGER
-	)
-		throw new TypeError("provider usage.cost exceeded safe microusd bounds");
-	const costMicrousd = Math.ceil(exactProviderCostMicrousd);
-	return Object.freeze({
-		exactProviderCostMicrousd,
-		costMicrousd,
-		pricingRoundingAllowanceMicrousd:
-			costMicrousd === Math.floor(exactProviderCostMicrousd) ? 0 : 1,
-	});
-}
-
-function auditProviderReportedCost(
-	root: Record<string, unknown>,
-	pricing: RootEvalLivePricing,
-	cost: ReturnType<typeof providerReportedCost>,
-): void {
-	const usage = object(root.usage, "provider usage");
-	const input = safeInteger(usage.prompt_tokens, "provider usage.prompt_tokens");
-	const output = safeInteger(usage.completion_tokens, "provider usage.completion_tokens");
-	if (safeInteger(usage.total_tokens, "provider usage.total_tokens") !== input + output)
-		throw new TypeError("provider usage total drifted");
-	const details =
-		usage.prompt_tokens_details === undefined
-			? undefined
-			: object(usage.prompt_tokens_details, "provider usage.prompt_tokens_details");
-	const cached =
-		details?.cached_tokens === undefined
-			? 0
-			: safeInteger(details.cached_tokens, "provider usage.cached_tokens");
-	if (cached > input) throw new TypeError("provider cached token usage exceeded input usage");
-	const numerators = [
-		(input - cached) * pricing.inputMicrousdPerMillionTokens,
-		cached * pricing.cacheReadMicrousdPerMillionTokens,
-		output * pricing.outputMicrousdPerMillionTokens,
-	] as const;
-	if (numerators.some((numerator) => !Number.isSafeInteger(numerator) || numerator < 0))
-		throw new TypeError("provider usage pricing arithmetic exceeded safe integer bounds");
-	const tokenPricingAuditMicrousd =
-		numerators.reduce((total, numerator) => total + numerator, 0) / 1_000_000;
-	if (Math.abs(tokenPricingAuditMicrousd - cost.exactProviderCostMicrousd) > 1e-6)
-		throw new TypeError("provider usage.cost disagreed with the admitted route pricing audit");
 }
 
 type ParsedRetryAfter =

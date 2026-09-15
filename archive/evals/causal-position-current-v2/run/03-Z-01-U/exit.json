@@ -1,0 +1,29 @@
+{
+  "position": 3,
+  "panel": "Z",
+  "pair": 1,
+  "category": "control",
+  "kind": "control",
+  "orientation": "U",
+  "argv": [
+    "/Users/davidchenallio/.local/share/mise/installs/node/24/bin/node",
+    "--trace-gc",
+    "--trace-deopt",
+    "--log-deopt",
+    "--no-logfile-per-isolate",
+    "--logfile=v8.log",
+    "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-position-current-v2/run/03-Z-01-U/entry.mjs"
+  ],
+  "cwd": "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-position-current-v2/run/03-Z-01-U",
+  "pid": 88199,
+  "exitCode": 0,
+  "startMonotonic": 288997.878555833,
+  "endMonotonic": 288999.127573458,
+  "startWall": 1789309032.53158,
+  "endWall": 1789309033.780607,
+  "wakeBefore": "{ sec = 1789275775, usec = 186433 } Sat Sep 12 22:02:55 2026",
+  "wakeAfter": "{ sec = 1789275775, usec = 186433 } Sat Sep 12 22:02:55 2026",
+  "childError": null,
+  "cleanupErrors": [],
+  "wakeError": null
+}

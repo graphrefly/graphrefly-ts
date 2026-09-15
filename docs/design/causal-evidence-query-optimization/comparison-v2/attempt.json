@@ -1,0 +1,260 @@
+{
+  "records": [
+    {
+      "job": 0,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-evidence-query-comparison.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison-v2",
+        "0"
+      ],
+      "exitCode": 0,
+      "elapsed": 0.2937943749711849
+    },
+    {
+      "job": 1,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-evidence-query-comparison.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison-v2",
+        "1"
+      ],
+      "exitCode": 0,
+      "elapsed": 0.2897267500520684
+    },
+    {
+      "job": 2,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-evidence-query-comparison.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison-v2",
+        "2"
+      ],
+      "exitCode": 0,
+      "elapsed": 0.2957951669814065
+    },
+    {
+      "job": 3,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-evidence-query-comparison.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison-v2",
+        "3"
+      ],
+      "exitCode": 0,
+      "elapsed": 0.39542929199524224
+    },
+    {
+      "job": 4,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-evidence-query-comparison.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison-v2",
+        "4"
+      ],
+      "exitCode": 0,
+      "elapsed": 0.40470916603226215
+    },
+    {
+      "job": 5,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-evidence-query-comparison.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison-v2",
+        "5"
+      ],
+      "exitCode": 0,
+      "elapsed": 0.4079546250286512
+    },
+    {
+      "job": 6,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-evidence-query-comparison.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison-v2",
+        "6"
+      ],
+      "exitCode": 0,
+      "elapsed": 1.207172750029713
+    },
+    {
+      "job": 7,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-evidence-query-comparison.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison-v2",
+        "7"
+      ],
+      "exitCode": 0,
+      "elapsed": 1.214227833028417
+    },
+    {
+      "job": 8,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-evidence-query-comparison.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison-v2",
+        "8"
+      ],
+      "exitCode": 0,
+      "elapsed": 1.1639697499922477
+    },
+    {
+      "job": 9,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-evidence-query-comparison.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison-v2",
+        "9"
+      ],
+      "exitCode": 0,
+      "elapsed": 4.439971709041856
+    },
+    {
+      "job": 10,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-evidence-query-comparison.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison-v2",
+        "10"
+      ],
+      "exitCode": 0,
+      "elapsed": 4.427510832960252
+    },
+    {
+      "job": 11,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-evidence-query-comparison.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison-v2",
+        "11"
+      ],
+      "exitCode": 0,
+      "elapsed": 4.440823667042423
+    },
+    {
+      "job": 12,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-evidence-query-comparison.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison-v2",
+        "12"
+      ],
+      "exitCode": 0,
+      "elapsed": 6.832180500030518
+    },
+    {
+      "job": 13,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-evidence-query-comparison.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison-v2",
+        "13"
+      ],
+      "exitCode": 0,
+      "elapsed": 6.839997333008796
+    },
+    {
+      "job": 14,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-evidence-query-comparison.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison-v2",
+        "14"
+      ],
+      "exitCode": 0,
+      "elapsed": 6.938224875018932
+    },
+    {
+      "job": 15,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-evidence-query-comparison.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison-v2",
+        "15"
+      ],
+      "exitCode": 0,
+      "elapsed": 38.66363825002918
+    },
+    {
+      "job": 16,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-evidence-query-comparison.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison-v2",
+        "16"
+      ],
+      "exitCode": 0,
+      "elapsed": 38.71767479198752
+    },
+    {
+      "job": 17,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-evidence-query-comparison.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison-v2",
+        "17"
+      ],
+      "exitCode": 0,
+      "elapsed": 38.820701666001696
+    },
+    {
+      "job": 18,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-evidence-query-comparison.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison-v2",
+        "18"
+      ],
+      "exitCode": 0,
+      "elapsed": 0.4074310000287369
+    },
+    {
+      "job": 19,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-evidence-query-comparison.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison-v2",
+        "19"
+      ],
+      "exitCode": 0,
+      "elapsed": 5.9898774169851094
+    },
+    {
+      "job": 20,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/scripts/causal-evidence-query-comparison.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison-v2",
+        "20"
+      ],
+      "exitCode": 0,
+      "elapsed": 63.26940258301329
+    }
+  ],
+  "error": null,
+  "elapsed": 225.4876180839492,
+  "notRun": [],
+  "formalQualification": false
+}

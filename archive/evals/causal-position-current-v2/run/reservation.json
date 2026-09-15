@@ -1,0 +1,703 @@
+{
+  "binding": "a30cca92387f90997cdb6cf0b83c4c10d7d7bd4deafad9f0b42f1c9a273dfd24",
+  "qualification": "18e91a58b0b3b5bfcd0e0dd0599c32796515e3b3b50ae19ff74c41373e9279ff",
+  "sourceVerifier": "681cd8895da6aa8036f0247adf7a788304668cbc81a7d5a2ce03f07b8b6debf6",
+  "executionRoot": "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-position-current-v2/run",
+  "approval": "User authorized performance diagnosis, tool repairs and performance acceptance without stepwise continuation.",
+  "node": "/Users/davidchenallio/.local/share/mise/installs/node/24/bin/node",
+  "nodeDigest": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a",
+  "entropyHex": "96bd5df76a",
+  "orderBits": [
+    0,
+    1,
+    1,
+    0,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    1,
+    1,
+    1,
+    1,
+    0,
+    1,
+    1,
+    0,
+    1,
+    1,
+    1,
+    0,
+    1,
+    0,
+    1,
+    1,
+    1,
+    0,
+    1,
+    1,
+    1,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    1,
+    0
+  ],
+  "schedule": [
+    {
+      "position": 0,
+      "panel": "Z",
+      "pair": 0,
+      "category": "control",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 1,
+      "panel": "Z",
+      "pair": 0,
+      "category": "control",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 2,
+      "panel": "Z",
+      "pair": 1,
+      "category": "control",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 3,
+      "panel": "Z",
+      "pair": 1,
+      "category": "control",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 4,
+      "panel": "Z",
+      "pair": 2,
+      "category": "main",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 5,
+      "panel": "Z",
+      "pair": 2,
+      "category": "main",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 6,
+      "panel": "Z",
+      "pair": 3,
+      "category": "main",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 7,
+      "panel": "Z",
+      "pair": 3,
+      "category": "main",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 8,
+      "panel": "Z",
+      "pair": 4,
+      "category": "main",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 9,
+      "panel": "Z",
+      "pair": 4,
+      "category": "main",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 10,
+      "panel": "Z",
+      "pair": 5,
+      "category": "main",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 11,
+      "panel": "Z",
+      "pair": 5,
+      "category": "main",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 12,
+      "panel": "Z",
+      "pair": 6,
+      "category": "main",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 13,
+      "panel": "Z",
+      "pair": 6,
+      "category": "main",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 14,
+      "panel": "Z",
+      "pair": 7,
+      "category": "main",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 15,
+      "panel": "Z",
+      "pair": 7,
+      "category": "main",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 16,
+      "panel": "Z",
+      "pair": 8,
+      "category": "main",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 17,
+      "panel": "Z",
+      "pair": 8,
+      "category": "main",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 18,
+      "panel": "Z",
+      "pair": 9,
+      "category": "main",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 19,
+      "panel": "Z",
+      "pair": 9,
+      "category": "main",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 20,
+      "panel": "Z",
+      "pair": 10,
+      "category": "main",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 21,
+      "panel": "Z",
+      "pair": 10,
+      "category": "main",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 22,
+      "panel": "Z",
+      "pair": 11,
+      "category": "main",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 23,
+      "panel": "Z",
+      "pair": 11,
+      "category": "main",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 24,
+      "panel": "Z",
+      "pair": 12,
+      "category": "main",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 25,
+      "panel": "Z",
+      "pair": 12,
+      "category": "main",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 26,
+      "panel": "Z",
+      "pair": 13,
+      "category": "main",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 27,
+      "panel": "Z",
+      "pair": 13,
+      "category": "main",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 28,
+      "panel": "Z",
+      "pair": 14,
+      "category": "main",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 29,
+      "panel": "Z",
+      "pair": 14,
+      "category": "main",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 30,
+      "panel": "Z",
+      "pair": 15,
+      "category": "main",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 31,
+      "panel": "Z",
+      "pair": 15,
+      "category": "main",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 32,
+      "panel": "Z",
+      "pair": 16,
+      "category": "main",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 33,
+      "panel": "Z",
+      "pair": 16,
+      "category": "main",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 34,
+      "panel": "Z",
+      "pair": 17,
+      "category": "main",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 35,
+      "panel": "Z",
+      "pair": 17,
+      "category": "main",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 36,
+      "panel": "Z",
+      "pair": 18,
+      "category": "control",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 37,
+      "panel": "Z",
+      "pair": 18,
+      "category": "control",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 38,
+      "panel": "Z",
+      "pair": 19,
+      "category": "control",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 39,
+      "panel": "Z",
+      "pair": 19,
+      "category": "control",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 40,
+      "panel": "M",
+      "pair": 0,
+      "category": "control",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 41,
+      "panel": "M",
+      "pair": 0,
+      "category": "control",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 42,
+      "panel": "M",
+      "pair": 1,
+      "category": "control",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 43,
+      "panel": "M",
+      "pair": 1,
+      "category": "control",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 44,
+      "panel": "M",
+      "pair": 2,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "V"
+    },
+    {
+      "position": 45,
+      "panel": "M",
+      "pair": 2,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "U"
+    },
+    {
+      "position": 46,
+      "panel": "M",
+      "pair": 3,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "U"
+    },
+    {
+      "position": 47,
+      "panel": "M",
+      "pair": 3,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "V"
+    },
+    {
+      "position": 48,
+      "panel": "M",
+      "pair": 4,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "V"
+    },
+    {
+      "position": 49,
+      "panel": "M",
+      "pair": 4,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "U"
+    },
+    {
+      "position": 50,
+      "panel": "M",
+      "pair": 5,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "V"
+    },
+    {
+      "position": 51,
+      "panel": "M",
+      "pair": 5,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "U"
+    },
+    {
+      "position": 52,
+      "panel": "M",
+      "pair": 6,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "V"
+    },
+    {
+      "position": 53,
+      "panel": "M",
+      "pair": 6,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "U"
+    },
+    {
+      "position": 54,
+      "panel": "M",
+      "pair": 7,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "U"
+    },
+    {
+      "position": 55,
+      "panel": "M",
+      "pair": 7,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "V"
+    },
+    {
+      "position": 56,
+      "panel": "M",
+      "pair": 8,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "V"
+    },
+    {
+      "position": 57,
+      "panel": "M",
+      "pair": 8,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "U"
+    },
+    {
+      "position": 58,
+      "panel": "M",
+      "pair": 9,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "V"
+    },
+    {
+      "position": 59,
+      "panel": "M",
+      "pair": 9,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "U"
+    },
+    {
+      "position": 60,
+      "panel": "M",
+      "pair": 10,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "V"
+    },
+    {
+      "position": 61,
+      "panel": "M",
+      "pair": 10,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "U"
+    },
+    {
+      "position": 62,
+      "panel": "M",
+      "pair": 11,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "V"
+    },
+    {
+      "position": 63,
+      "panel": "M",
+      "pair": 11,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "U"
+    },
+    {
+      "position": 64,
+      "panel": "M",
+      "pair": 12,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "U"
+    },
+    {
+      "position": 65,
+      "panel": "M",
+      "pair": 12,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "V"
+    },
+    {
+      "position": 66,
+      "panel": "M",
+      "pair": 13,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "V"
+    },
+    {
+      "position": 67,
+      "panel": "M",
+      "pair": 13,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "U"
+    },
+    {
+      "position": 68,
+      "panel": "M",
+      "pair": 14,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "U"
+    },
+    {
+      "position": 69,
+      "panel": "M",
+      "pair": 14,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "V"
+    },
+    {
+      "position": 70,
+      "panel": "M",
+      "pair": 15,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "V"
+    },
+    {
+      "position": 71,
+      "panel": "M",
+      "pair": 15,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "U"
+    },
+    {
+      "position": 72,
+      "panel": "M",
+      "pair": 16,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "U"
+    },
+    {
+      "position": 73,
+      "panel": "M",
+      "pair": 16,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "V"
+    },
+    {
+      "position": 74,
+      "panel": "M",
+      "pair": 17,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "V"
+    },
+    {
+      "position": 75,
+      "panel": "M",
+      "pair": 17,
+      "category": "main",
+      "kind": "mutation",
+      "orientation": "U"
+    },
+    {
+      "position": 76,
+      "panel": "M",
+      "pair": 18,
+      "category": "control",
+      "kind": "control",
+      "orientation": "V"
+    },
+    {
+      "position": 77,
+      "panel": "M",
+      "pair": 18,
+      "category": "control",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 78,
+      "panel": "M",
+      "pair": 19,
+      "category": "control",
+      "kind": "control",
+      "orientation": "U"
+    },
+    {
+      "position": 79,
+      "panel": "M",
+      "pair": 19,
+      "category": "control",
+      "kind": "control",
+      "orientation": "V"
+    }
+  ],
+  "wake": "{ sec = 1789275775, usec = 186433 } Sat Sep 12 22:02:55 2026",
+  "start": 288993.776942791,
+  "limits": {
+    "processes": 80,
+    "samples": 192000,
+    "childSeconds": 30,
+    "totalSeconds": 900,
+    "retries": 0
+  }
+}

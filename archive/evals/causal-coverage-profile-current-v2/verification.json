@@ -1,0 +1,6155 @@
+{
+  "verified": true,
+  "rows": 84,
+  "preflights": 84,
+  "actionObservations": 696,
+  "formalQualification": false,
+  "elapsed": 531.0185947079444,
+  "maxProcessRSSMiB": 438.484375,
+  "summary": [
+    {
+      "row": {
+        "id": "cold-P1-off",
+        "group": "cold",
+        "profile": "P1",
+        "mode": "off"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.9234999999999971
+          ],
+          "preparationMs": [
+            0.0007500000000035811
+          ],
+          "ms": [
+            0.00041699999999877946
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.7345830000000007
+          ],
+          "preparationMs": [
+            0.0007079999999959341
+          ],
+          "ms": [
+            0.000542000000002929
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.03258300000000247
+          ],
+          "preparationMs": [
+            0.0009159999999965862
+          ],
+          "ms": [
+            0.0002500000000011937
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "cold-P1-summary",
+        "group": "cold",
+        "profile": "P1",
+        "mode": "summary"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.7193329999999918
+          ],
+          "preparationMs": [
+            0.0009589999999946031
+          ],
+          "ms": [
+            0.00041699999999877946
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.8613340000000136
+          ],
+          "preparationMs": [
+            0.0008339999999975589
+          ],
+          "ms": [
+            0.00041699999999877946
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.030083000000004745
+          ],
+          "preparationMs": [
+            0.0006249999999994316
+          ],
+          "ms": [
+            0.00033299999999769625
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "cold-P2-off",
+        "group": "cold",
+        "profile": "P2",
+        "mode": "off"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5849170000000044
+          ],
+          "preparationMs": [
+            0.0007079999999888287
+          ],
+          "ms": [
+            0.0007499999999964757
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.4276659999999879
+          ],
+          "preparationMs": [
+            0.0006659999999953925
+          ],
+          "ms": [
+            0.0003749999999911324
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.020124999999993065
+          ],
+          "preparationMs": [
+            0.0004579999999947404
+          ],
+          "ms": [
+            0.0002499999999940883
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "cold-P2-summary",
+        "group": "cold",
+        "profile": "P2",
+        "mode": "summary"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.4519590000000022
+          ],
+          "preparationMs": [
+            0.0006660000000096034
+          ],
+          "ms": [
+            0.0006249999999994316
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.39854200000000617
+          ],
+          "preparationMs": [
+            0.0005840000000034706
+          ],
+          "ms": [
+            0.0003749999999911324
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.02375000000000682
+          ],
+          "preparationMs": [
+            0.00045799999998052954
+          ],
+          "ms": [
+            0.0002920000000017353
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "cold-P3-off",
+        "group": "cold",
+        "profile": "P3",
+        "mode": "off"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.6797919999999635
+          ],
+          "preparationMs": [
+            0.0016249999999899956
+          ],
+          "ms": [
+            0.0005419999999958236
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3650419999999599
+          ],
+          "preparationMs": [
+            0.00045800000003737296
+          ],
+          "ms": [
+            0.0003749999999627107
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.022084000000006654
+          ],
+          "preparationMs": [
+            0.0002499999999940883
+          ],
+          "ms": [
+            0.00016700000003311288
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "cold-P3-summary",
+        "group": "cold",
+        "profile": "P3",
+        "mode": "summary"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.3887089999999489
+          ],
+          "preparationMs": [
+            0.0004999999999881766
+          ],
+          "ms": [
+            0.00041699999997035775
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.33408299999996416
+          ],
+          "preparationMs": [
+            0.0002089999999839165
+          ],
+          "ms": [
+            0.00016699999997626946
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.01512499999995498
+          ],
+          "preparationMs": [
+            0.00020800000004328467
+          ],
+          "ms": [
+            0.00012500000002546585
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "cold-P4-off",
+        "group": "cold",
+        "profile": "P4",
+        "mode": "off"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.49604199999998855
+          ],
+          "preparationMs": [
+            0.00045799999998052954
+          ],
+          "ms": [
+            0.00033400000006622577
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.306583000000046
+          ],
+          "preparationMs": [
+            0.00020799999992959783
+          ],
+          "ms": [
+            0.00012500000002546585
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.015041999999994005
+          ],
+          "preparationMs": [
+            0.00016700000014679972
+          ],
+          "ms": [
+            0.00012500000002546585
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "cold-P4-summary",
+        "group": "cold",
+        "profile": "P4",
+        "mode": "summary"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.4259590000001481
+          ],
+          "preparationMs": [
+            0.0005830000000059954
+          ],
+          "ms": [
+            0.0004169999997429841
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3221250000001419
+          ],
+          "preparationMs": [
+            0.00020799999992959783
+          ],
+          "ms": [
+            0.00020799999992959783
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.0157920000001468
+          ],
+          "preparationMs": [
+            0.00016700000014679972
+          ],
+          "ms": [
+            0.00012500000002546585
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "cold-P5-off",
+        "group": "cold",
+        "profile": "P5",
+        "mode": "off"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.4291250000001128
+          ],
+          "preparationMs": [
+            0.00045799999998052954
+          ],
+          "ms": [
+            0.00045799999998052954
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.28112499999997453
+          ],
+          "preparationMs": [
+            0.00016700000014679972
+          ],
+          "ms": [
+            0.00016700000014679972
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.04416700000001583
+          ],
+          "preparationMs": [
+            0.0005419999997684499
+          ],
+          "ms": [
+            0.0003339999998388521
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "cold-P5-summary",
+        "group": "cold",
+        "profile": "P5",
+        "mode": "summary"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5147920000008526
+          ],
+          "preparationMs": [
+            0.0003749999996216502
+          ],
+          "ms": [
+            0.0004170000001977314
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3206660000005286
+          ],
+          "preparationMs": [
+            0.00020800000038434519
+          ],
+          "ms": [
+            0.00016700000014679972
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.018874999999752617
+          ],
+          "preparationMs": [
+            0.0001250000004802132
+          ],
+          "ms": [
+            0.0001250000004802132
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "cold-P6-off",
+        "group": "cold",
+        "profile": "P6",
+        "mode": "off"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.6617079999996349
+          ],
+          "preparationMs": [
+            0.0005420000015874393
+          ],
+          "ms": [
+            0.0002920000006270129
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3655830000006972
+          ],
+          "preparationMs": [
+            0.000249999999141437
+          ],
+          "ms": [
+            0.0001250000004802132
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.01566599999932805
+          ],
+          "preparationMs": [
+            0.0002080000012938399
+          ],
+          "ms": [
+            0.0001250000004802132
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "cold-P6-summary",
+        "group": "cold",
+        "profile": "P6",
+        "mode": "summary"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.40054199999940465
+          ],
+          "preparationMs": [
+            0.0004170000011072261
+          ],
+          "ms": [
+            0.0003749999996216502
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.2982499999998254
+          ],
+          "preparationMs": [
+            0.00020899999981338624
+          ],
+          "ms": [
+            0.0001249999986612238
+          ],
+          "totalInvokes": [
+            0
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.01599999999962165
+          ],
+          "preparationMs": [
+            0.00016599999980826396
+          ],
+          "ms": [
+            8.399999933317304e-05
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P1-off-duplicate-1",
+        "group": "steady",
+        "profile": "P1",
+        "mode": "off",
+        "change": "duplicate",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.314249999999447
+          ],
+          "preparationMs": [
+            1.802332999999635
+          ],
+          "ms": [
+            1.3215000000000146
+          ],
+          "totalInvokes": [
+            42
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.34099999999853026
+          ],
+          "preparationMs": [
+            1.824124999999185
+          ],
+          "ms": [
+            1.0855410000003758
+          ],
+          "totalInvokes": [
+            42
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.015208000000711763
+          ],
+          "preparationMs": [
+            0.4383749999997235
+          ],
+          "ms": [
+            0.07799999999951979
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P1-off-duplicate-2",
+        "group": "steady",
+        "profile": "P1",
+        "mode": "off",
+        "change": "duplicate",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.42712500000016007
+          ],
+          "preparationMs": [
+            1.8625840000004246
+          ],
+          "ms": [
+            10.398583000000144
+          ],
+          "totalInvokes": [
+            301
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.37220800000068266
+          ],
+          "preparationMs": [
+            1.8583330000001297
+          ],
+          "ms": [
+            9.020000000000437
+          ],
+          "totalInvokes": [
+            301
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.021208000000115135
+          ],
+          "preparationMs": [
+            0.460665999999037
+          ],
+          "ms": [
+            0.1538749999999709
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P1-off-all-new-1",
+        "group": "steady",
+        "profile": "P1",
+        "mode": "off",
+        "change": "all-new",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.34841600000072503
+          ],
+          "preparationMs": [
+            0.6429580000003625
+          ],
+          "ms": [
+            1.1414169999989099
+          ],
+          "totalInvokes": [
+            92
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.28879200000119454
+          ],
+          "preparationMs": [
+            0.6107080000001588
+          ],
+          "ms": [
+            1.1490000000012515
+          ],
+          "totalInvokes": [
+            92
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.015083999998751096
+          ],
+          "preparationMs": [
+            0.30337499999950523
+          ],
+          "ms": [
+            0.12645799999882001
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P1-off-all-new-2",
+        "group": "steady",
+        "profile": "P1",
+        "mode": "off",
+        "change": "all-new",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.35633299999972223
+          ],
+          "preparationMs": [
+            0.6709170000012818
+          ],
+          "ms": [
+            9.559624999999869
+          ],
+          "totalInvokes": [
+            351
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.41266600000017206
+          ],
+          "preparationMs": [
+            0.7485410000008414
+          ],
+          "ms": [
+            9.841542000000118
+          ],
+          "totalInvokes": [
+            351
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.03012500000113505
+          ],
+          "preparationMs": [
+            0.36349999999947613
+          ],
+          "ms": [
+            0.2143340000002354
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P1-summary-duplicate-1",
+        "group": "steady",
+        "profile": "P1",
+        "mode": "summary",
+        "change": "duplicate",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.37254099999881873
+          ],
+          "preparationMs": [
+            1.7189579999994749
+          ],
+          "ms": [
+            1.0522090000013122
+          ],
+          "totalInvokes": [
+            43
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3307089999998425
+          ],
+          "preparationMs": [
+            1.8259999999991123
+          ],
+          "ms": [
+            1.0650000000005093
+          ],
+          "totalInvokes": [
+            43
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.015541999999186373
+          ],
+          "preparationMs": [
+            0.42862500000046566
+          ],
+          "ms": [
+            0.07920800000101735
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P1-summary-duplicate-2",
+        "group": "steady",
+        "profile": "P1",
+        "mode": "summary",
+        "change": "duplicate",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.3489580000004935
+          ],
+          "preparationMs": [
+            1.7668749999993452
+          ],
+          "ms": [
+            9.92120900000009
+          ],
+          "totalInvokes": [
+            326
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3542909999996482
+          ],
+          "preparationMs": [
+            1.8513750000001892
+          ],
+          "ms": [
+            9.175624999999854
+          ],
+          "totalInvokes": [
+            326
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.021749999999883585
+          ],
+          "preparationMs": [
+            0.4885409999988042
+          ],
+          "ms": [
+            0.1634169999997539
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P1-summary-all-new-1",
+        "group": "steady",
+        "profile": "P1",
+        "mode": "summary",
+        "change": "all-new",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.29020800000034797
+          ],
+          "preparationMs": [
+            0.5977919999986625
+          ],
+          "ms": [
+            1.2591250000004948
+          ],
+          "totalInvokes": [
+            93
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.2960000000002765
+          ],
+          "preparationMs": [
+            0.6462080000001151
+          ],
+          "ms": [
+            1.3660840000011376
+          ],
+          "totalInvokes": [
+            93
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.027750000001105946
+          ],
+          "preparationMs": [
+            0.3668339999985619
+          ],
+          "ms": [
+            0.13741599999957543
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P1-summary-all-new-2",
+        "group": "steady",
+        "profile": "P1",
+        "mode": "summary",
+        "change": "all-new",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.33904099999926984
+          ],
+          "preparationMs": [
+            0.6241250000002765
+          ],
+          "ms": [
+            8.979583000000275
+          ],
+          "totalInvokes": [
+            376
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.4330000000009022
+          ],
+          "preparationMs": [
+            0.6851249999999709
+          ],
+          "ms": [
+            9.838332999999693
+          ],
+          "totalInvokes": [
+            376
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.02162500000122236
+          ],
+          "preparationMs": [
+            0.3439589999998134
+          ],
+          "ms": [
+            0.231458999998722
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P2-off-duplicate-1",
+        "group": "steady",
+        "profile": "P2",
+        "mode": "off",
+        "change": "duplicate",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.3103339999997843
+          ],
+          "preparationMs": [
+            4.48370800000157
+          ],
+          "ms": [
+            2.778374999999869
+          ],
+          "totalInvokes": [
+            43
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.36704199999985576
+          ],
+          "preparationMs": [
+            4.463832999999795
+          ],
+          "ms": [
+            1.8228340000005119
+          ],
+          "totalInvokes": [
+            43
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.017334000000118976
+          ],
+          "preparationMs": [
+            1.4010829999988346
+          ],
+          "ms": [
+            0.07991699999911361
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P2-off-duplicate-2",
+        "group": "steady",
+        "profile": "P2",
+        "mode": "off",
+        "change": "duplicate",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.3383749999993597
+          ],
+          "preparationMs": [
+            4.4793750000008
+          ],
+          "ms": [
+            13.624125000000276
+          ],
+          "totalInvokes": [
+            332
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.30987500000082946
+          ],
+          "preparationMs": [
+            4.292250000000422
+          ],
+          "ms": [
+            13.085124999999607
+          ],
+          "totalInvokes": [
+            332
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.020583999999871594
+          ],
+          "preparationMs": [
+            1.4511249999995925
+          ],
+          "ms": [
+            0.15887500000098953
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P2-off-all-new-1",
+        "group": "steady",
+        "profile": "P2",
+        "mode": "off",
+        "change": "all-new",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.37358300000050804
+          ],
+          "preparationMs": [
+            1.2531250000010914
+          ],
+          "ms": [
+            3.023417000000336
+          ],
+          "totalInvokes": [
+            108
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3550840000007156
+          ],
+          "preparationMs": [
+            1.3077499999999418
+          ],
+          "ms": [
+            3.0322909999995318
+          ],
+          "totalInvokes": [
+            108
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.019291000000521308
+          ],
+          "preparationMs": [
+            1.0880420000012236
+          ],
+          "ms": [
+            0.4416670000009617
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P2-off-all-new-2",
+        "group": "steady",
+        "profile": "P2",
+        "mode": "off",
+        "change": "all-new",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.3564170000008744
+          ],
+          "preparationMs": [
+            1.2999579999996058
+          ],
+          "ms": [
+            14.899833999999828
+          ],
+          "totalInvokes": [
+            397
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.41616699999940465
+          ],
+          "preparationMs": [
+            1.3322500000012951
+          ],
+          "ms": [
+            14.903291999999055
+          ],
+          "totalInvokes": [
+            397
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.04049999999915599
+          ],
+          "preparationMs": [
+            1.0506249999998545
+          ],
+          "ms": [
+            0.5510420000009617
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P2-summary-duplicate-1",
+        "group": "steady",
+        "profile": "P2",
+        "mode": "summary",
+        "change": "duplicate",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5588749999988067
+          ],
+          "preparationMs": [
+            4.491875000001528
+          ],
+          "ms": [
+            1.9617080000007263
+          ],
+          "totalInvokes": [
+            44
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.31416600000011385
+          ],
+          "preparationMs": [
+            4.564333000000261
+          ],
+          "ms": [
+            2.7642500000001746
+          ],
+          "totalInvokes": [
+            44
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.016666999999870313
+          ],
+          "preparationMs": [
+            1.397000000000844
+          ],
+          "ms": [
+            0.07520800000020245
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P2-summary-duplicate-2",
+        "group": "steady",
+        "profile": "P2",
+        "mode": "summary",
+        "change": "duplicate",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.35737499999959255
+          ],
+          "preparationMs": [
+            4.3911669999997684
+          ],
+          "ms": [
+            13.579916000000594
+          ],
+          "totalInvokes": [
+            357
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3757920000007289
+          ],
+          "preparationMs": [
+            4.448875000000044
+          ],
+          "ms": [
+            12.835291999999754
+          ],
+          "totalInvokes": [
+            357
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.021374999998442945
+          ],
+          "preparationMs": [
+            1.481499999999869
+          ],
+          "ms": [
+            0.1491249999999127
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P2-summary-all-new-1",
+        "group": "steady",
+        "profile": "P2",
+        "mode": "summary",
+        "change": "all-new",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.3372909999998228
+          ],
+          "preparationMs": [
+            1.2487909999999829
+          ],
+          "ms": [
+            2.9757079999999405
+          ],
+          "totalInvokes": [
+            109
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.31808400000045367
+          ],
+          "preparationMs": [
+            1.3129590000007738
+          ],
+          "ms": [
+            3.0451670000002196
+          ],
+          "totalInvokes": [
+            109
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.03225000000020373
+          ],
+          "preparationMs": [
+            1.1280000000006112
+          ],
+          "ms": [
+            0.4352920000001177
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P2-summary-all-new-2",
+        "group": "steady",
+        "profile": "P2",
+        "mode": "summary",
+        "change": "all-new",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.34254199999850243
+          ],
+          "preparationMs": [
+            1.276332999999795
+          ],
+          "ms": [
+            15.048209000000497
+          ],
+          "totalInvokes": [
+            422
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3932920000006561
+          ],
+          "preparationMs": [
+            1.3745419999995647
+          ],
+          "ms": [
+            14.355541999999332
+          ],
+          "totalInvokes": [
+            422
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.021917000000030384
+          ],
+          "preparationMs": [
+            1.008125000000291
+          ],
+          "ms": [
+            0.5187089999999444
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P3-off-duplicate-1",
+        "group": "steady",
+        "profile": "P3",
+        "mode": "off",
+        "change": "duplicate",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.4182909999999538
+          ],
+          "preparationMs": [
+            47.13716700000077
+          ],
+          "ms": [
+            48.82508400000006
+          ],
+          "totalInvokes": [
+            43
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.363707999998951
+          ],
+          "preparationMs": [
+            46.58337500000016
+          ],
+          "ms": [
+            49.58166600000004
+          ],
+          "totalInvokes": [
+            43
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.047582999999576714
+          ],
+          "preparationMs": [
+            13.41229199999907
+          ],
+          "ms": [
+            3.739125000000058
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P3-off-duplicate-2",
+        "group": "steady",
+        "profile": "P3",
+        "mode": "off",
+        "change": "duplicate",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.4299159999991389
+          ],
+          "preparationMs": [
+            47.56666699999914
+          ],
+          "ms": [
+            429.9443749999991
+          ],
+          "totalInvokes": [
+            332
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.37954199999876437
+          ],
+          "preparationMs": [
+            46.12479100000019
+          ],
+          "ms": [
+            440.96875
+          ],
+          "totalInvokes": [
+            332
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.04212500000176078
+          ],
+          "preparationMs": [
+            14.396500000000742
+          ],
+          "ms": [
+            8.167292000000089
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P3-off-all-new-1",
+        "group": "steady",
+        "profile": "P3",
+        "mode": "off",
+        "change": "all-new",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.4089590000003227
+          ],
+          "preparationMs": [
+            5.618249999999534
+          ],
+          "ms": [
+            42.20125000000007
+          ],
+          "totalInvokes": [
+            1048
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3506249999991269
+          ],
+          "preparationMs": [
+            5.930833000000348
+          ],
+          "ms": [
+            40.77141600000141
+          ],
+          "totalInvokes": [
+            1048
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.03958299999976589
+          ],
+          "preparationMs": [
+            4.854792000000089
+          ],
+          "ms": [
+            8.852875000000495
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P3-off-all-new-2",
+        "group": "steady",
+        "profile": "P3",
+        "mode": "off",
+        "change": "all-new",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.3617500000000291
+          ],
+          "preparationMs": [
+            6.506583000000319
+          ],
+          "ms": [
+            423.5297499999997
+          ],
+          "totalInvokes": [
+            1337
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.34770900000148686
+          ],
+          "preparationMs": [
+            5.56695899999977
+          ],
+          "ms": [
+            423.59804200000144
+          ],
+          "totalInvokes": [
+            1337
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.04016599999886239
+          ],
+          "preparationMs": [
+            5.090749999999389
+          ],
+          "ms": [
+            12.264208000000508
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P3-off-one-new-1",
+        "group": "steady",
+        "profile": "P3",
+        "mode": "off",
+        "change": "one-new",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.4046249999992142
+          ],
+          "preparationMs": [
+            42.92137499999808
+          ],
+          "ms": [
+            56.194290999999794
+          ],
+          "totalInvokes": [
+            110
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.42483399999764515
+          ],
+          "preparationMs": [
+            42.165750000000116
+          ],
+          "ms": [
+            56.719750000000204
+          ],
+          "totalInvokes": [
+            110
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.04033300000082818
+          ],
+          "preparationMs": [
+            12.62212499999805
+          ],
+          "ms": [
+            4.998333000003186
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P3-off-one-new-2",
+        "group": "steady",
+        "profile": "P3",
+        "mode": "off",
+        "change": "one-new",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.35854200000176206
+          ],
+          "preparationMs": [
+            44.6104579999992
+          ],
+          "ms": [
+            439.510166
+          ],
+          "totalInvokes": [
+            399
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.35645900000235997
+          ],
+          "preparationMs": [
+            42.48433300000033
+          ],
+          "ms": [
+            443.6880000000019
+          ],
+          "totalInvokes": [
+            399
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.034958000000187894
+          ],
+          "preparationMs": [
+            13.61645800000042
+          ],
+          "ms": [
+            7.802459000002273
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P3-summary-duplicate-1",
+        "group": "steady",
+        "profile": "P3",
+        "mode": "summary",
+        "change": "duplicate",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.35020799999983865
+          ],
+          "preparationMs": [
+            48.7221660000032
+          ],
+          "ms": [
+            48.10250000000087
+          ],
+          "totalInvokes": [
+            44
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.37237499999901047
+          ],
+          "preparationMs": [
+            45.581334000002244
+          ],
+          "ms": [
+            48.95574999999735
+          ],
+          "totalInvokes": [
+            44
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.03791600000113249
+          ],
+          "preparationMs": [
+            14.149499999999534
+          ],
+          "ms": [
+            3.610916999998153
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P3-summary-duplicate-2",
+        "group": "steady",
+        "profile": "P3",
+        "mode": "summary",
+        "change": "duplicate",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.519124999998894
+          ],
+          "preparationMs": [
+            49.7946660000016
+          ],
+          "ms": [
+            438.8459159999984
+          ],
+          "totalInvokes": [
+            357
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.4117919999989681
+          ],
+          "preparationMs": [
+            46.63616700000057
+          ],
+          "ms": [
+            435.4794580000016
+          ],
+          "totalInvokes": [
+            357
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.033250000000407454
+          ],
+          "preparationMs": [
+            13.355000000003201
+          ],
+          "ms": [
+            7.201915999998164
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P3-summary-all-new-1",
+        "group": "steady",
+        "profile": "P3",
+        "mode": "summary",
+        "change": "all-new",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.3727920000019367
+          ],
+          "preparationMs": [
+            5.678667000000132
+          ],
+          "ms": [
+            41.16920800000298
+          ],
+          "totalInvokes": [
+            1049
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3456670000014128
+          ],
+          "preparationMs": [
+            6.192333999999391
+          ],
+          "ms": [
+            40.49949999999808
+          ],
+          "totalInvokes": [
+            1049
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.04245900000023539
+          ],
+          "preparationMs": [
+            5.064791000000696
+          ],
+          "ms": [
+            8.56304199999795
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P3-summary-all-new-2",
+        "group": "steady",
+        "profile": "P3",
+        "mode": "summary",
+        "change": "all-new",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.3650000000016007
+          ],
+          "preparationMs": [
+            5.475458000000799
+          ],
+          "ms": [
+            425.55349999999817
+          ],
+          "totalInvokes": [
+            1362
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3593330000003334
+          ],
+          "preparationMs": [
+            6.346708000000945
+          ],
+          "ms": [
+            425.4225409999999
+          ],
+          "totalInvokes": [
+            1362
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.0370420000035665
+          ],
+          "preparationMs": [
+            4.87433400000009
+          ],
+          "ms": [
+            12.152791000000434
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P3-summary-one-new-1",
+        "group": "steady",
+        "profile": "P3",
+        "mode": "summary",
+        "change": "one-new",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.49608399999851827
+          ],
+          "preparationMs": [
+            43.94041699999798
+          ],
+          "ms": [
+            56.148417000000336
+          ],
+          "totalInvokes": [
+            111
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.38612499999726424
+          ],
+          "preparationMs": [
+            42.38258399999904
+          ],
+          "ms": [
+            59.088040999999066
+          ],
+          "totalInvokes": [
+            111
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.033290999999735504
+          ],
+          "preparationMs": [
+            13.074791999999434
+          ],
+          "ms": [
+            4.27837499999805
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P3-summary-one-new-2",
+        "group": "steady",
+        "profile": "P3",
+        "mode": "summary",
+        "change": "one-new",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.36750000000029104
+          ],
+          "preparationMs": [
+            43.132165999999415
+          ],
+          "ms": [
+            439.8309590000026
+          ],
+          "totalInvokes": [
+            424
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3884169999982987
+          ],
+          "preparationMs": [
+            42.772000000000844
+          ],
+          "ms": [
+            442.5086250000022
+          ],
+          "totalInvokes": [
+            424
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.036457999998674495
+          ],
+          "preparationMs": [
+            12.52283399999942
+          ],
+          "ms": [
+            7.861083000003418
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P4-off-duplicate-1",
+        "group": "steady",
+        "profile": "P4",
+        "mode": "off",
+        "change": "duplicate",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5186670000002778
+          ],
+          "preparationMs": [
+            353.6468750000022
+          ],
+          "ms": [
+            531.6645830000016
+          ],
+          "totalInvokes": [
+            43
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.4074579999978596
+          ],
+          "preparationMs": [
+            379.0777500000004
+          ],
+          "ms": [
+            558.5223750000005
+          ],
+          "totalInvokes": [
+            43
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.06337499999790452
+          ],
+          "preparationMs": [
+            158.2602909999987
+          ],
+          "ms": [
+            71.97920800000065
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P4-off-duplicate-2",
+        "group": "steady",
+        "profile": "P4",
+        "mode": "off",
+        "change": "duplicate",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.493332999998529
+          ],
+          "preparationMs": [
+            352.53433299999597
+          ],
+          "ms": [
+            4929.184250000006
+          ],
+          "totalInvokes": [
+            332
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.42787500000122236
+          ],
+          "preparationMs": [
+            388.30825000000186
+          ],
+          "ms": [
+            5422.755707999997
+          ],
+          "totalInvokes": [
+            332
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.04058299999451265
+          ],
+          "preparationMs": [
+            159.0387499999997
+          ],
+          "ms": [
+            142.73850000000675
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P4-off-all-new-1",
+        "group": "steady",
+        "profile": "P4",
+        "mode": "off",
+        "change": "all-new",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.6568749999933061
+          ],
+          "preparationMs": [
+            15.83350000000064
+          ],
+          "ms": [
+            344.29016600000614
+          ],
+          "totalInvokes": [
+            4072
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.46095799999602605
+          ],
+          "preparationMs": [
+            14.609583000004932
+          ],
+          "ms": [
+            372.5309170000037
+          ],
+          "totalInvokes": [
+            4072
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.05087500000081491
+          ],
+          "preparationMs": [
+            12.342167000002519
+          ],
+          "ms": [
+            146.29075000000012
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P4-off-all-new-2",
+        "group": "steady",
+        "profile": "P4",
+        "mode": "off",
+        "change": "all-new",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.49458299999969313
+          ],
+          "preparationMs": [
+            14.861582999998063
+          ],
+          "ms": [
+            4757.871625
+          ],
+          "totalInvokes": [
+            4361
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.40554100000008475
+          ],
+          "preparationMs": [
+            15.554082999995444
+          ],
+          "ms": [
+            5008.479582999993
+          ],
+          "totalInvokes": [
+            4361
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.04533399999490939
+          ],
+          "preparationMs": [
+            12.443874999997206
+          ],
+          "ms": [
+            221.03649999998743
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P4-summary-duplicate-1",
+        "group": "steady",
+        "profile": "P4",
+        "mode": "summary",
+        "change": "duplicate",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.4254170000058366
+          ],
+          "preparationMs": [
+            355.2311250000057
+          ],
+          "ms": [
+            528.3084579999995
+          ],
+          "totalInvokes": [
+            44
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.5374169999995502
+          ],
+          "preparationMs": [
+            379.7988340000011
+          ],
+          "ms": [
+            567.8053329999966
+          ],
+          "totalInvokes": [
+            44
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.07150000000547152
+          ],
+          "preparationMs": [
+            164.71324999998615
+          ],
+          "ms": [
+            72.2309580000001
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P4-summary-duplicate-2",
+        "group": "steady",
+        "profile": "P4",
+        "mode": "summary",
+        "change": "duplicate",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5240840000042226
+          ],
+          "preparationMs": [
+            360.1489169999986
+          ],
+          "ms": [
+            4952.1987910000025
+          ],
+          "totalInvokes": [
+            357
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.41266600000381004
+          ],
+          "preparationMs": [
+            387.96612499999173
+          ],
+          "ms": [
+            5257.0216250000085
+          ],
+          "totalInvokes": [
+            357
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.044834000000264496
+          ],
+          "preparationMs": [
+            159.89958399999887
+          ],
+          "ms": [
+            149.51795799999672
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P4-summary-all-new-1",
+        "group": "steady",
+        "profile": "P4",
+        "mode": "summary",
+        "change": "all-new",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5442500000062864
+          ],
+          "preparationMs": [
+            15.790874999991502
+          ],
+          "ms": [
+            349.3937500000029
+          ],
+          "totalInvokes": [
+            4073
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3836670000018785
+          ],
+          "preparationMs": [
+            15.116958999991766
+          ],
+          "ms": [
+            368.6094579999917
+          ],
+          "totalInvokes": [
+            4073
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.05233299999963492
+          ],
+          "preparationMs": [
+            12.620582999996259
+          ],
+          "ms": [
+            148.14808299999277
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P4-summary-all-new-2",
+        "group": "steady",
+        "profile": "P4",
+        "mode": "summary",
+        "change": "all-new",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5065419999882579
+          ],
+          "preparationMs": [
+            16.268708000003244
+          ],
+          "ms": [
+            4947.172165999989
+          ],
+          "totalInvokes": [
+            4386
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.40654199999698903
+          ],
+          "preparationMs": [
+            14.54374999999709
+          ],
+          "ms": [
+            5098.57037500001
+          ],
+          "totalInvokes": [
+            4386
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.05358299998624716
+          ],
+          "preparationMs": [
+            12.223499999992782
+          ],
+          "ms": [
+            217.4827920000098
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P5-off-duplicate-1",
+        "group": "steady",
+        "profile": "P5",
+        "mode": "off",
+        "change": "duplicate",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.49720900000829715
+          ],
+          "preparationMs": [
+            472.55899999999383
+          ],
+          "ms": [
+            558.0336659999884
+          ],
+          "totalInvokes": [
+            43
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.4460839999956079
+          ],
+          "preparationMs": [
+            521.9875420000026
+          ],
+          "ms": [
+            590.052125000002
+          ],
+          "totalInvokes": [
+            43
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.048250000007101335
+          ],
+          "preparationMs": [
+            234.00349999999162
+          ],
+          "ms": [
+            74.65612499999406
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P5-off-duplicate-2",
+        "group": "steady",
+        "profile": "P5",
+        "mode": "off",
+        "change": "duplicate",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.6549579999991693
+          ],
+          "preparationMs": [
+            480.5946249999979
+          ],
+          "ms": [
+            5009.060540999984
+          ],
+          "totalInvokes": [
+            332
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.42349999997531995
+          ],
+          "preparationMs": [
+            525.3217500000028
+          ],
+          "ms": [
+            5281.081834000011
+          ],
+          "totalInvokes": [
+            332
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.044708000001264736
+          ],
+          "preparationMs": [
+            237.20337500001187
+          ],
+          "ms": [
+            147.1703339999949
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P5-off-all-new-1",
+        "group": "steady",
+        "profile": "P5",
+        "mode": "off",
+        "change": "all-new",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.3728339999797754
+          ],
+          "preparationMs": [
+            53.38437499999418
+          ],
+          "ms": [
+            421.4587499999907
+          ],
+          "totalInvokes": [
+            4072
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.37974999999278225
+          ],
+          "preparationMs": [
+            74.88779100001557
+          ],
+          "ms": [
+            449.28241699998034
+          ],
+          "totalInvokes": [
+            4072
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.04608400000142865
+          ],
+          "preparationMs": [
+            72.17883299998357
+          ],
+          "ms": [
+            163.9129580000008
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P5-off-all-new-2",
+        "group": "steady",
+        "profile": "P5",
+        "mode": "off",
+        "change": "all-new",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5437910000036936
+          ],
+          "preparationMs": [
+            54.266915999993216
+          ],
+          "ms": [
+            4874.4936670000025
+          ],
+          "totalInvokes": [
+            4361
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.39945799999986775
+          ],
+          "preparationMs": [
+            75.1660419999971
+          ],
+          "ms": [
+            5170.623250000004
+          ],
+          "totalInvokes": [
+            4361
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.04725000000325963
+          ],
+          "preparationMs": [
+            72.5334589999984
+          ],
+          "ms": [
+            236.7440840000054
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P5-off-one-new-1",
+        "group": "steady",
+        "profile": "P5",
+        "mode": "off",
+        "change": "one-new",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5050420000043232
+          ],
+          "preparationMs": [
+            469.6408750000119
+          ],
+          "ms": [
+            653.8742499999935
+          ],
+          "totalInvokes": [
+            110
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3941249999916181
+          ],
+          "preparationMs": [
+            513.6317080000008
+          ],
+          "ms": [
+            685.9182919999876
+          ],
+          "totalInvokes": [
+            110
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.04945900000166148
+          ],
+          "preparationMs": [
+            228.95445799999288
+          ],
+          "ms": [
+            73.50562500001979
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P5-off-one-new-2",
+        "group": "steady",
+        "profile": "P5",
+        "mode": "off",
+        "change": "one-new",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.7515830000047572
+          ],
+          "preparationMs": [
+            473.0634999999893
+          ],
+          "ms": [
+            5147.889250000007
+          ],
+          "totalInvokes": [
+            399
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.391250000015134
+          ],
+          "preparationMs": [
+            524.565540999989
+          ],
+          "ms": [
+            5399.950083000003
+          ],
+          "totalInvokes": [
+            399
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.047667000006185845
+          ],
+          "preparationMs": [
+            232.66554100002395
+          ],
+          "ms": [
+            149.30416700002388
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P5-summary-duplicate-1",
+        "group": "steady",
+        "profile": "P5",
+        "mode": "summary",
+        "change": "duplicate",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.4867499999818392
+          ],
+          "preparationMs": [
+            474.26666600001045
+          ],
+          "ms": [
+            558.5238330000138
+          ],
+          "totalInvokes": [
+            44
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.4177499999932479
+          ],
+          "preparationMs": [
+            530.9018330000108
+          ],
+          "ms": [
+            594.0072909999872
+          ],
+          "totalInvokes": [
+            44
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.11037500001839362
+          ],
+          "preparationMs": [
+            236.60283399999025
+          ],
+          "ms": [
+            73.09887499999604
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P5-summary-duplicate-2",
+        "group": "steady",
+        "profile": "P5",
+        "mode": "summary",
+        "change": "duplicate",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.501749999995809
+          ],
+          "preparationMs": [
+            479.13208299997495
+          ],
+          "ms": [
+            5013.237625000009
+          ],
+          "totalInvokes": [
+            357
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3868339999753516
+          ],
+          "preparationMs": [
+            523.1957089999923
+          ],
+          "ms": [
+            5286.813582999981
+          ],
+          "totalInvokes": [
+            357
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.042166999977780506
+          ],
+          "preparationMs": [
+            234.47774999999092
+          ],
+          "ms": [
+            143.12729200001922
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P5-summary-all-new-1",
+        "group": "steady",
+        "profile": "P5",
+        "mode": "summary",
+        "change": "all-new",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5680419999989681
+          ],
+          "preparationMs": [
+            59.55870799999684
+          ],
+          "ms": [
+            424.4238329999789
+          ],
+          "totalInvokes": [
+            4073
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.40504100001999177
+          ],
+          "preparationMs": [
+            75.48062499999651
+          ],
+          "ms": [
+            449.6074999999837
+          ],
+          "totalInvokes": [
+            4073
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.04458300000987947
+          ],
+          "preparationMs": [
+            71.95204199998989
+          ],
+          "ms": [
+            164.81691599998157
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P5-summary-all-new-2",
+        "group": "steady",
+        "profile": "P5",
+        "mode": "summary",
+        "change": "all-new",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5692080000007991
+          ],
+          "preparationMs": [
+            60.57237500001793
+          ],
+          "ms": [
+            4878.693541000015
+          ],
+          "totalInvokes": [
+            4386
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.4396249999990687
+          ],
+          "preparationMs": [
+            74.87054100001114
+          ],
+          "ms": [
+            5147.4712910000235
+          ],
+          "totalInvokes": [
+            4386
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.04495799998403527
+          ],
+          "preparationMs": [
+            72.03070799997658
+          ],
+          "ms": [
+            233.41029199998593
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P5-summary-one-new-1",
+        "group": "steady",
+        "profile": "P5",
+        "mode": "summary",
+        "change": "one-new",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5191249999916181
+          ],
+          "preparationMs": [
+            471.1592500000261
+          ],
+          "ms": [
+            654.2261249999865
+          ],
+          "totalInvokes": [
+            111
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.49941600003512576
+          ],
+          "preparationMs": [
+            510.5613749999902
+          ],
+          "ms": [
+            694.697583000001
+          ],
+          "totalInvokes": [
+            111
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.050749999994877726
+          ],
+          "preparationMs": [
+            230.20416600001045
+          ],
+          "ms": [
+            74.9389159999555
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P5-summary-one-new-2",
+        "group": "steady",
+        "profile": "P5",
+        "mode": "summary",
+        "change": "one-new",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5235000000102445
+          ],
+          "preparationMs": [
+            473.3717920000199
+          ],
+          "ms": [
+            5130.864416999975
+          ],
+          "totalInvokes": [
+            424
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.41683399997418746
+          ],
+          "preparationMs": [
+            511.85920799995074
+          ],
+          "ms": [
+            5398.027125000022
+          ],
+          "totalInvokes": [
+            424
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.049208000011276454
+          ],
+          "preparationMs": [
+            230.20329199999105
+          ],
+          "ms": [
+            150.8880829999689
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P6-off-duplicate-1",
+        "group": "steady",
+        "profile": "P6",
+        "mode": "off",
+        "change": "duplicate",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.39541599998483434
+          ],
+          "preparationMs": [
+            1391.9201250000042
+          ],
+          "ms": [
+            573.6952080000192
+          ],
+          "totalInvokes": [
+            43
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.5781659999629483
+          ],
+          "preparationMs": [
+            1459.3460830000113
+          ],
+          "ms": [
+            598.8254170000437
+          ],
+          "totalInvokes": [
+            43
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.04449999995995313
+          ],
+          "preparationMs": [
+            470.18812499998603
+          ],
+          "ms": [
+            71.87287500000093
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P6-off-duplicate-2",
+        "group": "steady",
+        "profile": "P6",
+        "mode": "off",
+        "change": "duplicate",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5426660000230186
+          ],
+          "preparationMs": [
+            1367.6441249999916
+          ],
+          "ms": [
+            5085.986875000002
+          ],
+          "totalInvokes": [
+            332
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.40754099999321625
+          ],
+          "preparationMs": [
+            1460.6997090000077
+          ],
+          "ms": [
+            5381.147875000024
+          ],
+          "totalInvokes": [
+            332
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.05079099995782599
+          ],
+          "preparationMs": [
+            469.2399999999907
+          ],
+          "ms": [
+            141.89749999996275
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P6-off-all-new-1",
+        "group": "steady",
+        "profile": "P6",
+        "mode": "off",
+        "change": "all-new",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.3541660000337288
+          ],
+          "preparationMs": [
+            50.79429200000595
+          ],
+          "ms": [
+            1339.3652500000317
+          ],
+          "totalInvokes": [
+            4447
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.6019170000217855
+          ],
+          "preparationMs": [
+            77.5724170000176
+          ],
+          "ms": [
+            1399.5986249999842
+          ],
+          "totalInvokes": [
+            4447
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.03395800001453608
+          ],
+          "preparationMs": [
+            69.72641599999042
+          ],
+          "ms": [
+            405.05208300001686
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P6-off-all-new-2",
+        "group": "steady",
+        "profile": "P6",
+        "mode": "off",
+        "change": "all-new",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5667920000269078
+          ],
+          "preparationMs": [
+            51.49599999998463
+          ],
+          "ms": [
+            5802.59508400003
+          ],
+          "totalInvokes": [
+            4781
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.6071250000386499
+          ],
+          "preparationMs": [
+            71.0664580000448
+          ],
+          "ms": [
+            5967.735417000018
+          ],
+          "totalInvokes": [
+            4781
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.0334160000202246
+          ],
+          "preparationMs": [
+            67.50191699998686
+          ],
+          "ms": [
+            427.17787499999395
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P6-off-one-new-1",
+        "group": "steady",
+        "profile": "P6",
+        "mode": "off",
+        "change": "one-new",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5036660000332631
+          ],
+          "preparationMs": [
+            458.37054199998965
+          ],
+          "ms": [
+            1477.5122499999707
+          ],
+          "totalInvokes": [
+            1425
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.37837500002933666
+          ],
+          "preparationMs": [
+            503.9890000000014
+          ],
+          "ms": [
+            1542.5510420000064
+          ],
+          "totalInvokes": [
+            1425
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.03470799996284768
+          ],
+          "preparationMs": [
+            175.16687499999534
+          ],
+          "ms": [
+            323.5525000000489
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P6-off-one-new-2",
+        "group": "steady",
+        "profile": "P6",
+        "mode": "off",
+        "change": "one-new",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5010830000392161
+          ],
+          "preparationMs": [
+            460.34945899999
+          ],
+          "ms": [
+            5989.904500000004
+          ],
+          "totalInvokes": [
+            1759
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3969580000266433
+          ],
+          "preparationMs": [
+            510.59379200002877
+          ],
+          "ms": [
+            6078.738790999982
+          ],
+          "totalInvokes": [
+            1759
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.0354580000275746
+          ],
+          "preparationMs": [
+            173.76224999997066
+          ],
+          "ms": [
+            348.55258399999
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P6-summary-duplicate-1",
+        "group": "steady",
+        "profile": "P6",
+        "mode": "summary",
+        "change": "duplicate",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5225830000126734
+          ],
+          "preparationMs": [
+            1363.9225420000148
+          ],
+          "ms": [
+            566.0247920000111
+          ],
+          "totalInvokes": [
+            44
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.38929199997801334
+          ],
+          "preparationMs": [
+            1454.1000830000266
+          ],
+          "ms": [
+            600.3759590000263
+          ],
+          "totalInvokes": [
+            44
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.04808300000149757
+          ],
+          "preparationMs": [
+            469.72000000003027
+          ],
+          "ms": [
+            71.58470800000941
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P6-summary-duplicate-2",
+        "group": "steady",
+        "profile": "P6",
+        "mode": "summary",
+        "change": "duplicate",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5446249999804422
+          ],
+          "preparationMs": [
+            1371.346750000026
+          ],
+          "ms": [
+            5110.738167000003
+          ],
+          "totalInvokes": [
+            357
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3970839999965392
+          ],
+          "preparationMs": [
+            1461.5342079999973
+          ],
+          "ms": [
+            5444.286207999976
+          ],
+          "totalInvokes": [
+            357
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.05270800000289455
+          ],
+          "preparationMs": [
+            470.5806670000311
+          ],
+          "ms": [
+            142.51641599996947
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P6-summary-all-new-1",
+        "group": "steady",
+        "profile": "P6",
+        "mode": "summary",
+        "change": "all-new",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.4857919999631122
+          ],
+          "preparationMs": [
+            50.92466700001387
+          ],
+          "ms": [
+            1312.2798329999787
+          ],
+          "totalInvokes": [
+            4577
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.38016699999570847
+          ],
+          "preparationMs": [
+            70.01024999999208
+          ],
+          "ms": [
+            1388.953582999995
+          ],
+          "totalInvokes": [
+            4577
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.03562499996041879
+          ],
+          "preparationMs": [
+            68.33237499999814
+          ],
+          "ms": [
+            407.0657920000376
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P6-summary-all-new-2",
+        "group": "steady",
+        "profile": "P6",
+        "mode": "summary",
+        "change": "all-new",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.3671669999603182
+          ],
+          "preparationMs": [
+            51.58250000001863
+          ],
+          "ms": [
+            6033.066708000028
+          ],
+          "totalInvokes": [
+            5895
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.5418330000247806
+          ],
+          "preparationMs": [
+            77.63712499995017
+          ],
+          "ms": [
+            5976.246999999974
+          ],
+          "totalInvokes": [
+            5895
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.03345899999840185
+          ],
+          "preparationMs": [
+            68.39049999997951
+          ],
+          "ms": [
+            429.01479200000176
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P6-summary-one-new-1",
+        "group": "steady",
+        "profile": "P6",
+        "mode": "summary",
+        "change": "one-new",
+        "dataCount": 1
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5117079999763519
+          ],
+          "preparationMs": [
+            458.7654999999795
+          ],
+          "ms": [
+            1470.1771670000162
+          ],
+          "totalInvokes": [
+            1555
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3927499999990687
+          ],
+          "preparationMs": [
+            506.19691699999385
+          ],
+          "ms": [
+            1535.8527079999913
+          ],
+          "totalInvokes": [
+            1555
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.03700000001117587
+          ],
+          "preparationMs": [
+            171.82258300000103
+          ],
+          "ms": [
+            324.76995799998986
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "steady-P6-summary-one-new-2",
+        "group": "steady",
+        "profile": "P6",
+        "mode": "summary",
+        "change": "one-new",
+        "dataCount": 2
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5283330000238493
+          ],
+          "preparationMs": [
+            461.4155000000028
+          ],
+          "ms": [
+            6711.272499999963
+          ],
+          "totalInvokes": [
+            2873
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3861250000190921
+          ],
+          "preparationMs": [
+            510.6818750000093
+          ],
+          "ms": [
+            6542.154792000016
+          ],
+          "totalInvokes": [
+            2873
+          ]
+        },
+        "plain": {
+          "constructMs": [
+            0.03508300002431497
+          ],
+          "preparationMs": [
+            179.64274999999907
+          ],
+          "ms": [
+            372.71791700000176
+          ],
+          "totalInvokes": [
+            null
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "recovery-P1-off",
+        "group": "recovery",
+        "profile": "P1",
+        "mode": "off"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.3284580000326969,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            2.0902920000371523,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            0.08433399995556101,
+            0.0661250000121072,
+            0.06050000002142042,
+            0.05875000002561137,
+            0.05720899999141693,
+            0.05716600001323968,
+            0.06591699999989942,
+            0.05683299998054281,
+            0.05812500003958121,
+            0.056875000009313226,
+            0.05691600003046915,
+            0.05766699998639524,
+            0.05691600003046915,
+            0.055875000020023435,
+            0.05654199997661635,
+            0.07237499998882413,
+            0.05729199998313561,
+            0.05691600003046915,
+            0.05699999997159466,
+            0.05529099999694154
+          ],
+          "totalInvokes": [
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.349333000020124,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            2.0334579999907874,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            0.07800000003771856,
+            0.06349999998928979,
+            0.06150000001071021,
+            0.06029200000921264,
+            0.0590000000083819,
+            0.06020800000987947,
+            0.05991699994774535,
+            0.06091599998762831,
+            0.05912499997066334,
+            0.05937499995343387,
+            0.05995900003472343,
+            0.06041699997149408,
+            0.060249999980442226,
+            0.059084000007715076,
+            0.059332999982871115,
+            0.0740419999929145,
+            0.059624999994412065,
+            0.05949999997392297,
+            0.05987500003539026,
+            0.06041700002970174
+          ],
+          "totalInvokes": [
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "recovery-P1-summary",
+        "group": "recovery",
+        "profile": "P1",
+        "mode": "summary"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.3487500000046566,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            2.0307499999762513,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            0.06941599998390302,
+            0.061916999984532595,
+            0.0598749999771826,
+            0.05975000001490116,
+            0.05774999997811392,
+            0.059416000032797456,
+            0.057333000004291534,
+            0.05699999997159466,
+            0.057250000012572855,
+            0.05662500002654269,
+            0.05670799996005371,
+            0.056874999951105565,
+            0.05712499999208376,
+            0.05741700000362471,
+            0.05712499999208376,
+            0.06141700001899153,
+            0.05704200000036508,
+            0.05654099996900186,
+            0.05612500000279397,
+            0.05666700005531311
+          ],
+          "totalInvokes": [
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3395829999935813,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            2.007584000006318,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            0.07891700003528967,
+            0.08370800002012402,
+            0.0654159999685362,
+            0.06387499999254942,
+            0.06366699998034164,
+            0.06391599995549768,
+            0.06383300002198666,
+            0.06395900005009025,
+            0.06279200001154095,
+            0.06345799996051937,
+            0.06762500002514571,
+            0.06304099998669699,
+            0.06291700003203005,
+            0.06270800001220778,
+            0.06233300000894815,
+            0.06279200001154095,
+            0.06300000002374873,
+            0.0633749999688007,
+            0.0623749999795109,
+            0.06274999998277053
+          ],
+          "totalInvokes": [
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "recovery-P2-off",
+        "group": "recovery",
+        "profile": "P2",
+        "mode": "off"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.40416700002970174,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            5.665708000015002,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            0.22741699998732656,
+            0.19795799994608387,
+            0.20108299999265,
+            0.18541700002970174,
+            0.19662500004051253,
+            0.18595800001639873,
+            0.18537500000093132,
+            0.18241599999601021,
+            0.18304199998965487,
+            0.18008300004294142,
+            0.1844159999745898,
+            0.18454200000269338,
+            0.46804200002225116,
+            0.24575000000186265,
+            0.1966670000110753,
+            0.18800000002374873,
+            0.18362500000512227,
+            0.18291700002737343,
+            0.20545800001127645,
+            0.18416599999181926
+          ],
+          "totalInvokes": [
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3661660000216216,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            5.455040999979246,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            0.2359580000047572,
+            0.21154200000455603,
+            0.20820900000398979,
+            0.2049169999663718,
+            0.5364580000168644,
+            0.22999999998137355,
+            0.2136670000036247,
+            0.20887500001117587,
+            0.20641599997179583,
+            0.2345000000204891,
+            0.20391699997708201,
+            0.20341700001154095,
+            0.20200000004842877,
+            0.20262499997625127,
+            0.20137500000419095,
+            0.20170799997868016,
+            0.2042500000097789,
+            0.22337500000139698,
+            0.26208300003781915,
+            0.22275000001536682
+          ],
+          "totalInvokes": [
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "recovery-P2-summary",
+        "group": "recovery",
+        "profile": "P2",
+        "mode": "summary"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.4013749999576248,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            4.833334000024479,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            0.19841700000688434,
+            0.1673339999979362,
+            0.16479100001743063,
+            0.15845899999840185,
+            0.15845899999840185,
+            0.15495799999916926,
+            0.1550410000490956,
+            0.15533400001004338,
+            0.15429199999198318,
+            0.15370799996890128,
+            0.15683299995725974,
+            0.1597920000203885,
+            0.15220900002168491,
+            0.15383299998939037,
+            0.15708400000585243,
+            0.156790999986697,
+            0.1527500000083819,
+            0.2821249999688007,
+            0.18062499997904524,
+            0.20408300001872703
+          ],
+          "totalInvokes": [
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.446209000016097,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            5.445041000028141,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            0.2445840000291355,
+            0.22391699999570847,
+            0.21574999997392297,
+            0.2157909999950789,
+            0.2026659999974072,
+            0.20283299998845905,
+            0.2124999999650754,
+            0.37291700002970174,
+            0.2441250000265427,
+            0.21616700000595301,
+            0.20566699997289106,
+            0.21337499999208376,
+            0.24320799997076392,
+            0.2567920000292361,
+            0.20566699997289106,
+            0.2082500000251457,
+            0.20691700000315905,
+            0.20583300001453608,
+            0.20587499998509884,
+            0.2056250000023283
+          ],
+          "totalInvokes": [
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "recovery-P3-off",
+        "group": "recovery",
+        "profile": "P3",
+        "mode": "off"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.3895839999895543,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            50.579958000045735,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            0.8317909999750555,
+            0.7349999999860302,
+            0.7271249999757856,
+            0.7117079999879934,
+            0.7121669999905862,
+            0.9649590000044554,
+            0.7469580000033602,
+            0.717791999981273,
+            0.885582999966573,
+            0.7383339999942109,
+            0.8875410000327975,
+            0.7821250000270084,
+            0.7823340000468306,
+            0.7287080000387505,
+            0.7286669999593869,
+            0.9164999999920838,
+            0.7575839999481104,
+            0.7747910000034608,
+            0.7286670000175945,
+            0.714916999975685
+          ],
+          "totalInvokes": [
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.35508299997309223,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            54.67008300003363,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            1.2182499999762513,
+            1.1481670000357553,
+            1.1398329999647103,
+            1.4007500000298023,
+            1.2934580000001006,
+            1.215250000008382,
+            1.1615000000456348,
+            1.3271250000107102,
+            1.1839579999796115,
+            1.1473750000004657,
+            1.168874999973923,
+            1.1856250000419095,
+            1.1821660000132397,
+            1.940375000005588,
+            1.1560000000172295,
+            1.1529169999994338,
+            1.138334000017494,
+            1.3418749999837019,
+            1.2033750000409782,
+            1.34333299996797
+          ],
+          "totalInvokes": [
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "recovery-P3-summary",
+        "group": "recovery",
+        "profile": "P3",
+        "mode": "summary"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.40304100001230836,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            48.945125000027474,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            0.8445000000065193,
+            0.8967079999856651,
+            0.7637499999837019,
+            0.7948749999632128,
+            0.7679160000407137,
+            0.7495830000261776,
+            0.9813750000321306,
+            0.7650839999550954,
+            0.762624999973923,
+            0.8192909999634139,
+            0.7710840000072494,
+            0.8739159999531694,
+            0.7391659999848343,
+            0.7830419999663718,
+            0.7882499999832362,
+            0.7457080000312999,
+            0.8920839999918826,
+            1.3044999999692664,
+            0.7240829999791458,
+            0.7182080000056885
+          ],
+          "totalInvokes": [
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.35399999999208376,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            54.123083999962546,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            1.6770419999957085,
+            1.2850000000325963,
+            1.4041250000009313,
+            1.2861249999841675,
+            1.2484169999952428,
+            1.6085840000305325,
+            1.2901249999995343,
+            1.2335419999435544,
+            1.3745420000050217,
+            1.266583000018727,
+            1.2296670000068843,
+            1.2071249999571592,
+            1.3856249999953434,
+            1.2250420000054874,
+            1.2712499999906868,
+            1.2329580000368878,
+            1.5197499999776483,
+            1.2638749999459833,
+            1.287917000008747,
+            1.2644160000490956
+          ],
+          "totalInvokes": [
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "recovery-P4-off",
+        "group": "recovery",
+        "profile": "P4",
+        "mode": "off"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.7064590000081807,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            387.88341599999694,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            3.1583339999779128,
+            3.2987080000457354,
+            3.064042000041809,
+            3.0164590000058524,
+            2.9762920000357553,
+            3.20087500003865,
+            3.1332920000422746,
+            4.245750000001863,
+            2.799834000004921,
+            2.87662499997532,
+            3.1617090000072494,
+            2.8777920000138693,
+            3.276374999957625,
+            3.1099579999572597,
+            2.908624999981839,
+            3.808000000019092,
+            2.7919159999582916,
+            3.2068749999743886,
+            3.272125000017695,
+            3.2983339999918826
+          ],
+          "totalInvokes": [
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3934579999768175,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            411.024000000034,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            4.654333000013139,
+            4.743458000011742,
+            4.886457999993581,
+            5.293082999996841,
+            5.592834000010043,
+            4.995667000010144,
+            4.662165999994613,
+            4.451292000012472,
+            4.474207999999635,
+            4.583791000011843,
+            4.813541000010446,
+            4.740457999985665,
+            4.5702499999897555,
+            4.413750000006985,
+            4.507541999977548,
+            4.799832999997307,
+            4.9495000000461005,
+            4.683542000013404,
+            4.702667000005022,
+            4.704290999972727
+          ],
+          "totalInvokes": [
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "recovery-P4-summary",
+        "group": "recovery",
+        "profile": "P4",
+        "mode": "summary"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.37616699998034164,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            364.3739160000114,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            3.0576659999787807,
+            3.0582089999807067,
+            2.874707999988459,
+            3.1195000000298023,
+            3.2501249999622814,
+            3.0177499999990687,
+            2.7916670000413433,
+            2.9027079999796115,
+            2.887416999961715,
+            2.8782919999794103,
+            3.361083999974653,
+            2.923750000016298,
+            3.049332999973558,
+            2.775374999968335,
+            3.0905830000410788,
+            3.0497079999768175,
+            2.6997909999918193,
+            2.799250000040047,
+            3.1082079999614507,
+            2.999292000022251
+          ],
+          "totalInvokes": [
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.41912500001490116,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            395.15991699998267,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            4.5622500000172295,
+            4.676875000004657,
+            4.7492919999640435,
+            4.5640000000130385,
+            4.450207999965642,
+            4.712209000019357,
+            4.537917000008747,
+            4.741167000029236,
+            4.563958999991883,
+            5.642250000033528,
+            4.775084000022616,
+            4.653290999995079,
+            4.576832999999169,
+            4.66133400000399,
+            4.654957999999169,
+            4.649957999994513,
+            4.432874999998603,
+            5.426291999989189,
+            4.497792000009213,
+            4.622374999977183
+          ],
+          "totalInvokes": [
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "recovery-P5-off",
+        "group": "recovery",
+        "profile": "P5",
+        "mode": "off"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5871249999618158,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            486.77175000001444,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            3.8156669999589212,
+            2.9936670000315644,
+            2.9535000000032596,
+            3.1460000000079162,
+            2.8642080000136048,
+            2.9595409999601543,
+            2.9644580000313,
+            2.850916999974288,
+            3.035666999989189,
+            2.975957999995444,
+            2.9367499999934807,
+            2.879125000035856,
+            2.8647499999497086,
+            3.026458000007551,
+            3.0055829999619164,
+            2.891708000039216,
+            3.55195900000399,
+            2.874500000034459,
+            2.8352500000037253,
+            3.0545419999980368
+          ],
+          "totalInvokes": [
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.4873329999973066,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            537.1399999999558,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            4.863624999998137,
+            4.465833000023849,
+            4.825459000014234,
+            4.72204199997941,
+            4.685124999959953,
+            4.542167000006884,
+            5.525125000043772,
+            4.7564999999594875,
+            4.514708000002429,
+            4.660624999960419,
+            4.78224999998929,
+            4.619583000021521,
+            4.731333999952767,
+            4.485958000004757,
+            4.710834000026807,
+            4.970708000008017,
+            4.588458999991417,
+            5.747334000014234,
+            4.675332999962848,
+            4.707125000015367
+          ],
+          "totalInvokes": [
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "recovery-P5-summary",
+        "group": "recovery",
+        "profile": "P5",
+        "mode": "summary"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.39137500000651926,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            497.21166700002505,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            2.8943749999743886,
+            2.8452919999836013,
+            3.0542919999570586,
+            3.2263749999692664,
+            3.0089580000494607,
+            2.975750000041444,
+            3.1192080000182614,
+            2.9608749999897555,
+            2.9685000000172295,
+            3.324666000029538,
+            3.84070800000336,
+            3.1658750000060536,
+            3.003833000024315,
+            3.02070900000399,
+            3.695958000025712,
+            3.2824999999720603,
+            3.2574579999782145,
+            3.0179580000112765,
+            2.9617079999879934,
+            3.033208000008017
+          ],
+          "totalInvokes": [
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.3905829999712296,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            556.8498750000144,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            5.555791999970097,
+            4.525250000006054,
+            4.489292000012938,
+            4.632500000006985,
+            4.678874999983236,
+            4.698666999989655,
+            4.407041999977082,
+            4.806333000015002,
+            4.730916000029538,
+            4.567958000057843,
+            4.554667000018526,
+            5.501166999980342,
+            4.57441599998856,
+            4.5505409999750555,
+            4.561291999998502,
+            4.692624999966938,
+            4.724500000011176,
+            4.721459000022151,
+            4.743958000035491,
+            4.495541999989655
+          ],
+          "totalInvokes": [
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17,
+            17
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "recovery-P6-off",
+        "group": "recovery",
+        "profile": "P6",
+        "mode": "off"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.5237919999635778,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            1383.6483339999686,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            5.847124999971129,
+            5.927834000030998,
+            7.1982500000158325,
+            5.876707999967039,
+            5.873250000004191,
+            5.95250000001397,
+            7.069707999995444,
+            5.707708999980241,
+            5.563667000038549,
+            5.9579999999841675,
+            6.820540999993682,
+            5.960542000015266,
+            5.8575829999754205,
+            5.895208999980241,
+            7.173249999992549,
+            5.616791000007652,
+            7.448583000048529,
+            7.145875000045635,
+            6.040416999952868,
+            5.966124999977183
+          ],
+          "totalInvokes": [
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.40520800004014745,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            1470.0874579999945,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            9.375791999977082,
+            9.667084000015166,
+            9.709415999997873,
+            10.474916999984998,
+            9.260333999991417,
+            9.31691699998919,
+            9.179583000019193,
+            9.978082999994513,
+            9.514749999972992,
+            9.317916999978479,
+            9.345333000004757,
+            10.475042000005487,
+            9.554375000006985,
+            9.31616699998267,
+            9.188291999977082,
+            10.433082999952603,
+            9.382916999980807,
+            9.212332999974024,
+            9.308249999943655,
+            10.212958000018261
+          ],
+          "totalInvokes": [
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15
+          ]
+        }
+      }
+    },
+    {
+      "row": {
+        "id": "recovery-P6-summary",
+        "group": "recovery",
+        "profile": "P6",
+        "mode": "summary"
+      },
+      "arms": {
+        "candidate": {
+          "constructMs": [
+            0.3650840000482276,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            1372.233208999969,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            5.6809169999323785,
+            5.808542000013404,
+            5.75199999997858,
+            5.706416999921203,
+            5.752124999999069,
+            5.703291999991052,
+            5.866875000065193,
+            5.791709000011906,
+            6.686125000007451,
+            5.825625000055879,
+            5.9769170000217855,
+            5.688791999942623,
+            7.047458000015467,
+            5.800792000023648,
+            5.673333000042476,
+            6.059374999953434,
+            6.884582999977283,
+            6.131917000049725,
+            5.935666000004858,
+            5.905583000043407
+          ],
+          "totalInvokes": [
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18
+          ]
+        },
+        "reference": {
+          "constructMs": [
+            0.5895829999353737,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "preparationMs": [
+            1469.3694169999799,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "ms": [
+            9.117417000001296,
+            10.108583000022918,
+            9.139083000016399,
+            9.40845900005661,
+            9.650999999954365,
+            10.631165999919176,
+            8.914332999964245,
+            9.251916000037454,
+            9.211624999996275,
+            10.652333000092767,
+            9.340375000028871,
+            9.081165999989025,
+            9.256792000029236,
+            10.650208999984898,
+            9.119999999995343,
+            9.049750000005588,
+            9.357124999980442,
+            10.713417000020854,
+            9.045708999969065,
+            9.227916000061668
+          ],
+          "totalInvokes": [
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18,
+            18
+          ]
+        }
+      }
+    }
+  ]
+}

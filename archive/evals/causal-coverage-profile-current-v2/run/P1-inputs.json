@@ -1,0 +1,768 @@
+{
+  "id": "P1",
+  "evaluations": [
+    {
+      "evaluationRef": "evaluation-coffee-0",
+      "subjectRef": "evaluation-coffee-0",
+      "inputDigest": "sha256:0d2f215fe6d1acbd233730979157bf27104898badeac830152adc66d9e00e1d4",
+      "profileRef": {
+        "kind": "profile",
+        "id": "base"
+      },
+      "profile": {
+        "dailyAverage": 100,
+        "typicalCategories": [
+          "coffee"
+        ]
+      },
+      "policyRef": {
+        "kind": "policy",
+        "id": "normal"
+      },
+      "policyDigest": "sha256:176fd6faa62e8cfc87ac2dd39168816f4446f04f6cdd1a0c75dcdf405693c47d",
+      "policy": {
+        "zThreshold": 100,
+        "dailyRatioThreshold": 100
+      },
+      "prefix": [
+        {
+          "id": "evaluation-coffee-0:tx0",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 100,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        }
+      ],
+      "occurrence": {
+        "revisionDomain": "profile-P1-0",
+        "occurrenceId": "evaluation-coffee-0",
+        "revision": 1,
+        "sourceRefs": [
+          {
+            "kind": "evaluation",
+            "id": "evaluation-coffee-0"
+          }
+        ],
+        "digest": "sha256:cd33e93c41d318a1c8fe580b2045ebfaa8db63bb2d5795bdf9bb5e9078e44884"
+      }
+    }
+  ],
+  "combined": {
+    "current": {
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "preset"
+        },
+        "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+        "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+        "destinationRef": {
+          "kind": "offline-inbox",
+          "id": "no-host"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "preset-fixture",
+        "evidenceMode": "fixture-observations"
+      },
+      "current": [
+        {
+          "revisionDomain": "profile-P1-0",
+          "occurrence": {
+            "revisionDomain": "profile-P1-0",
+            "occurrenceId": "evaluation-coffee-0",
+            "revision": 1,
+            "sourceRefs": [
+              {
+                "kind": "evaluation",
+                "id": "evaluation-coffee-0"
+              }
+            ],
+            "digest": "sha256:cd33e93c41d318a1c8fe580b2045ebfaa8db63bb2d5795bdf9bb5e9078e44884"
+          },
+          "policyRef": {
+            "kind": "policy",
+            "id": "normal"
+          },
+          "policyDigest": "sha256:176fd6faa62e8cfc87ac2dd39168816f4446f04f6cdd1a0c75dcdf405693c47d",
+          "watermark": 1
+        }
+      ]
+    },
+    "verification": {
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "preset"
+        },
+        "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+        "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+        "destinationRef": {
+          "kind": "offline-inbox",
+          "id": "no-host"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "preset-fixture",
+        "evidenceMode": "fixture-observations"
+      },
+      "receipts": [
+        {
+          "receiptRef": {
+            "kind": "fixture-verification",
+            "id": "sha256:a3b9bc4cedd0f88b4bc67ea76b09627f84d561a23bdb80a51e38856ab2ab8667"
+          },
+          "issuerRef": {
+            "kind": "fixture",
+            "id": "independent-pairwise-oracle"
+          },
+          "verifierRevision": "spending-oracle-v2",
+          "occurrence": {
+            "revisionDomain": "profile-P1-0",
+            "occurrenceId": "evaluation-coffee-0",
+            "revision": 1,
+            "sourceRefs": [
+              {
+                "kind": "evaluation",
+                "id": "evaluation-coffee-0"
+              }
+            ],
+            "digest": "sha256:cd33e93c41d318a1c8fe580b2045ebfaa8db63bb2d5795bdf9bb5e9078e44884"
+          },
+          "inputDigest": "sha256:0d2f215fe6d1acbd233730979157bf27104898badeac830152adc66d9e00e1d4",
+          "policyDigest": "sha256:176fd6faa62e8cfc87ac2dd39168816f4446f04f6cdd1a0c75dcdf405693c47d",
+          "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+          "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+          "requestDigest": "sha256:220798606a4b1bb69c2b1c2f13f361ae14bd00a88e16b35f9b3a570fc79d6201",
+          "numericDomainRef": "spending-finite-v1",
+          "verdict": "pass",
+          "artifactRef": {
+            "kind": "fixture-artifact",
+            "id": "sha256:a3b9bc4cedd0f88b4bc67ea76b09627f84d561a23bdb80a51e38856ab2ab8667"
+          },
+          "artifactDigest": "sha256:a3b9bc4cedd0f88b4bc67ea76b09627f84d561a23bdb80a51e38856ab2ab8667"
+        }
+      ]
+    },
+    "local": {
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "preset"
+        },
+        "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+        "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+        "destinationRef": {
+          "kind": "offline-inbox",
+          "id": "no-host"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "preset-fixture",
+        "evidenceMode": "fixture-observations"
+      },
+      "tick": 1,
+      "stop": false,
+      "grants": [
+        {
+          "grantRef": {
+            "kind": "fixture-grant",
+            "id": "evaluation-coffee-0"
+          },
+          "ownerRef": {
+            "kind": "fixture-owner",
+            "id": "offline"
+          },
+          "operation": "append-alert",
+          "occurrence": {
+            "revisionDomain": "profile-P1-0",
+            "occurrenceId": "evaluation-coffee-0",
+            "revision": 1,
+            "sourceRefs": [
+              {
+                "kind": "evaluation",
+                "id": "evaluation-coffee-0"
+              }
+            ],
+            "digest": "sha256:cd33e93c41d318a1c8fe580b2045ebfaa8db63bb2d5795bdf9bb5e9078e44884"
+          },
+          "requestDigest": "sha256:220798606a4b1bb69c2b1c2f13f361ae14bd00a88e16b35f9b3a570fc79d6201",
+          "destinationRef": {
+            "kind": "offline-inbox",
+            "id": "no-host"
+          },
+          "hostEpoch": 1,
+          "validFrom": 0,
+          "validThrough": 100,
+          "maxWrites": 64,
+          "replayScope": {
+            "compositionEpoch": 1,
+            "hostEpoch": 1
+          },
+          "revoked": false
+        }
+      ]
+    },
+    "inbox": {
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "preset"
+        },
+        "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+        "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+        "destinationRef": {
+          "kind": "offline-inbox",
+          "id": "no-host"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "preset-fixture",
+        "evidenceMode": "fixture-observations"
+      },
+      "issuerRef": {
+        "kind": "fixture",
+        "id": "passive-boundary"
+      },
+      "artifactRef": {
+        "kind": "fixture-artifact",
+        "id": "no-io"
+      },
+      "artifactDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+      "readiness": {
+        "ready": true,
+        "observedAt": 0,
+        "validThrough": 100,
+        "availableSlots": 1
+      },
+      "outcomes": []
+    }
+  },
+  "arrivals": {
+    "packRef": {
+      "kind": "offline-pack",
+      "id": "preset"
+    },
+    "evaluationRefs": [
+      "evaluation-coffee-0"
+    ]
+  },
+  "setup": [
+    {
+      "lane": "pack",
+      "values": [
+        {
+          "format": "spending-input-v1",
+          "binding": {
+            "packRef": {
+              "kind": "offline-pack",
+              "id": "preset"
+            },
+            "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "destinationRef": {
+              "kind": "offline-inbox",
+              "id": "no-host"
+            },
+            "compositionEpoch": 1,
+            "hostEpoch": 1,
+            "runRef": "preset-fixture",
+            "evidenceMode": "fixture-observations"
+          },
+          "evaluations": [
+            {
+              "evaluationRef": "evaluation-coffee-0",
+              "subjectRef": "evaluation-coffee-0",
+              "inputDigest": "sha256:0d2f215fe6d1acbd233730979157bf27104898badeac830152adc66d9e00e1d4",
+              "profileRef": {
+                "kind": "profile",
+                "id": "base"
+              },
+              "profile": {
+                "dailyAverage": 100,
+                "typicalCategories": [
+                  "coffee"
+                ]
+              },
+              "policyRef": {
+                "kind": "policy",
+                "id": "normal"
+              },
+              "policyDigest": "sha256:176fd6faa62e8cfc87ac2dd39168816f4446f04f6cdd1a0c75dcdf405693c47d",
+              "policy": {
+                "zThreshold": 100,
+                "dailyRatioThreshold": 100
+              },
+              "prefix": [
+                {
+                  "id": "evaluation-coffee-0:tx0",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 100,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                }
+              ],
+              "occurrence": {
+                "revisionDomain": "profile-P1-0",
+                "occurrenceId": "evaluation-coffee-0",
+                "revision": 1,
+                "sourceRefs": [
+                  {
+                    "kind": "evaluation",
+                    "id": "evaluation-coffee-0"
+                  }
+                ],
+                "digest": "sha256:cd33e93c41d318a1c8fe580b2045ebfaa8db63bb2d5795bdf9bb5e9078e44884"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "lane": "current",
+      "values": [
+        {
+          "binding": {
+            "packRef": {
+              "kind": "offline-pack",
+              "id": "preset"
+            },
+            "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "destinationRef": {
+              "kind": "offline-inbox",
+              "id": "no-host"
+            },
+            "compositionEpoch": 1,
+            "hostEpoch": 1,
+            "runRef": "preset-fixture",
+            "evidenceMode": "fixture-observations"
+          },
+          "current": [
+            {
+              "revisionDomain": "profile-P1-0",
+              "occurrence": {
+                "revisionDomain": "profile-P1-0",
+                "occurrenceId": "evaluation-coffee-0",
+                "revision": 1,
+                "sourceRefs": [
+                  {
+                    "kind": "evaluation",
+                    "id": "evaluation-coffee-0"
+                  }
+                ],
+                "digest": "sha256:cd33e93c41d318a1c8fe580b2045ebfaa8db63bb2d5795bdf9bb5e9078e44884"
+              },
+              "policyRef": {
+                "kind": "policy",
+                "id": "normal"
+              },
+              "policyDigest": "sha256:176fd6faa62e8cfc87ac2dd39168816f4446f04f6cdd1a0c75dcdf405693c47d",
+              "watermark": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "lane": "local",
+      "values": [
+        {
+          "binding": {
+            "packRef": {
+              "kind": "offline-pack",
+              "id": "preset"
+            },
+            "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "destinationRef": {
+              "kind": "offline-inbox",
+              "id": "no-host"
+            },
+            "compositionEpoch": 1,
+            "hostEpoch": 1,
+            "runRef": "preset-fixture",
+            "evidenceMode": "fixture-observations"
+          },
+          "tick": 1,
+          "stop": false,
+          "grants": [
+            {
+              "grantRef": {
+                "kind": "fixture-grant",
+                "id": "evaluation-coffee-0"
+              },
+              "ownerRef": {
+                "kind": "fixture-owner",
+                "id": "offline"
+              },
+              "operation": "append-alert",
+              "occurrence": {
+                "revisionDomain": "profile-P1-0",
+                "occurrenceId": "evaluation-coffee-0",
+                "revision": 1,
+                "sourceRefs": [
+                  {
+                    "kind": "evaluation",
+                    "id": "evaluation-coffee-0"
+                  }
+                ],
+                "digest": "sha256:cd33e93c41d318a1c8fe580b2045ebfaa8db63bb2d5795bdf9bb5e9078e44884"
+              },
+              "requestDigest": "sha256:220798606a4b1bb69c2b1c2f13f361ae14bd00a88e16b35f9b3a570fc79d6201",
+              "destinationRef": {
+                "kind": "offline-inbox",
+                "id": "no-host"
+              },
+              "hostEpoch": 1,
+              "validFrom": 0,
+              "validThrough": 100,
+              "maxWrites": 64,
+              "replayScope": {
+                "compositionEpoch": 1,
+                "hostEpoch": 1
+              },
+              "revoked": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "lane": "inbox",
+      "values": [
+        {
+          "binding": {
+            "packRef": {
+              "kind": "offline-pack",
+              "id": "preset"
+            },
+            "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "destinationRef": {
+              "kind": "offline-inbox",
+              "id": "no-host"
+            },
+            "compositionEpoch": 1,
+            "hostEpoch": 1,
+            "runRef": "preset-fixture",
+            "evidenceMode": "fixture-observations"
+          },
+          "issuerRef": {
+            "kind": "fixture",
+            "id": "passive-boundary"
+          },
+          "artifactRef": {
+            "kind": "fixture-artifact",
+            "id": "no-io"
+          },
+          "artifactDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+          "readiness": {
+            "ready": true,
+            "observedAt": 0,
+            "validThrough": 100,
+            "availableSlots": 1
+          },
+          "outcomes": []
+        }
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "lane": "pack",
+      "values": [
+        {
+          "format": "spending-input-v1",
+          "binding": {
+            "packRef": {
+              "kind": "offline-pack",
+              "id": "preset"
+            },
+            "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "destinationRef": {
+              "kind": "offline-inbox",
+              "id": "no-host"
+            },
+            "compositionEpoch": 1,
+            "hostEpoch": 1,
+            "runRef": "preset-fixture",
+            "evidenceMode": "fixture-observations"
+          },
+          "evaluations": [
+            {
+              "evaluationRef": "evaluation-coffee-0",
+              "subjectRef": "evaluation-coffee-0",
+              "inputDigest": "sha256:0d2f215fe6d1acbd233730979157bf27104898badeac830152adc66d9e00e1d4",
+              "profileRef": {
+                "kind": "profile",
+                "id": "base"
+              },
+              "profile": {
+                "dailyAverage": 100,
+                "typicalCategories": [
+                  "coffee"
+                ]
+              },
+              "policyRef": {
+                "kind": "policy",
+                "id": "normal"
+              },
+              "policyDigest": "sha256:176fd6faa62e8cfc87ac2dd39168816f4446f04f6cdd1a0c75dcdf405693c47d",
+              "policy": {
+                "zThreshold": 100,
+                "dailyRatioThreshold": 100
+              },
+              "prefix": [
+                {
+                  "id": "evaluation-coffee-0:tx0",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 100,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                }
+              ],
+              "occurrence": {
+                "revisionDomain": "profile-P1-0",
+                "occurrenceId": "evaluation-coffee-0",
+                "revision": 1,
+                "sourceRefs": [
+                  {
+                    "kind": "evaluation",
+                    "id": "evaluation-coffee-0"
+                  }
+                ],
+                "digest": "sha256:cd33e93c41d318a1c8fe580b2045ebfaa8db63bb2d5795bdf9bb5e9078e44884"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "lane": "current",
+      "values": [
+        {
+          "binding": {
+            "packRef": {
+              "kind": "offline-pack",
+              "id": "preset"
+            },
+            "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "destinationRef": {
+              "kind": "offline-inbox",
+              "id": "no-host"
+            },
+            "compositionEpoch": 1,
+            "hostEpoch": 1,
+            "runRef": "preset-fixture",
+            "evidenceMode": "fixture-observations"
+          },
+          "current": [
+            {
+              "revisionDomain": "profile-P1-0",
+              "occurrence": {
+                "revisionDomain": "profile-P1-0",
+                "occurrenceId": "evaluation-coffee-0",
+                "revision": 1,
+                "sourceRefs": [
+                  {
+                    "kind": "evaluation",
+                    "id": "evaluation-coffee-0"
+                  }
+                ],
+                "digest": "sha256:cd33e93c41d318a1c8fe580b2045ebfaa8db63bb2d5795bdf9bb5e9078e44884"
+              },
+              "policyRef": {
+                "kind": "policy",
+                "id": "normal"
+              },
+              "policyDigest": "sha256:176fd6faa62e8cfc87ac2dd39168816f4446f04f6cdd1a0c75dcdf405693c47d",
+              "watermark": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "lane": "local",
+      "values": [
+        {
+          "binding": {
+            "packRef": {
+              "kind": "offline-pack",
+              "id": "preset"
+            },
+            "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "destinationRef": {
+              "kind": "offline-inbox",
+              "id": "no-host"
+            },
+            "compositionEpoch": 1,
+            "hostEpoch": 1,
+            "runRef": "preset-fixture",
+            "evidenceMode": "fixture-observations"
+          },
+          "tick": 1,
+          "stop": false,
+          "grants": [
+            {
+              "grantRef": {
+                "kind": "fixture-grant",
+                "id": "evaluation-coffee-0"
+              },
+              "ownerRef": {
+                "kind": "fixture-owner",
+                "id": "offline"
+              },
+              "operation": "append-alert",
+              "occurrence": {
+                "revisionDomain": "profile-P1-0",
+                "occurrenceId": "evaluation-coffee-0",
+                "revision": 1,
+                "sourceRefs": [
+                  {
+                    "kind": "evaluation",
+                    "id": "evaluation-coffee-0"
+                  }
+                ],
+                "digest": "sha256:cd33e93c41d318a1c8fe580b2045ebfaa8db63bb2d5795bdf9bb5e9078e44884"
+              },
+              "requestDigest": "sha256:220798606a4b1bb69c2b1c2f13f361ae14bd00a88e16b35f9b3a570fc79d6201",
+              "destinationRef": {
+                "kind": "offline-inbox",
+                "id": "no-host"
+              },
+              "hostEpoch": 1,
+              "validFrom": 0,
+              "validThrough": 100,
+              "maxWrites": 64,
+              "replayScope": {
+                "compositionEpoch": 1,
+                "hostEpoch": 1
+              },
+              "revoked": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "lane": "inbox",
+      "values": [
+        {
+          "binding": {
+            "packRef": {
+              "kind": "offline-pack",
+              "id": "preset"
+            },
+            "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "destinationRef": {
+              "kind": "offline-inbox",
+              "id": "no-host"
+            },
+            "compositionEpoch": 1,
+            "hostEpoch": 1,
+            "runRef": "preset-fixture",
+            "evidenceMode": "fixture-observations"
+          },
+          "issuerRef": {
+            "kind": "fixture",
+            "id": "passive-boundary"
+          },
+          "artifactRef": {
+            "kind": "fixture-artifact",
+            "id": "no-io"
+          },
+          "artifactDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+          "readiness": {
+            "ready": true,
+            "observedAt": 0,
+            "validThrough": 100,
+            "availableSlots": 1
+          },
+          "outcomes": []
+        }
+      ]
+    },
+    {
+      "lane": "verification",
+      "values": [
+        {
+          "binding": {
+            "packRef": {
+              "kind": "offline-pack",
+              "id": "preset"
+            },
+            "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "destinationRef": {
+              "kind": "offline-inbox",
+              "id": "no-host"
+            },
+            "compositionEpoch": 1,
+            "hostEpoch": 1,
+            "runRef": "preset-fixture",
+            "evidenceMode": "fixture-observations"
+          },
+          "receipts": [
+            {
+              "receiptRef": {
+                "kind": "fixture-verification",
+                "id": "sha256:a3b9bc4cedd0f88b4bc67ea76b09627f84d561a23bdb80a51e38856ab2ab8667"
+              },
+              "issuerRef": {
+                "kind": "fixture",
+                "id": "independent-pairwise-oracle"
+              },
+              "verifierRevision": "spending-oracle-v2",
+              "occurrence": {
+                "revisionDomain": "profile-P1-0",
+                "occurrenceId": "evaluation-coffee-0",
+                "revision": 1,
+                "sourceRefs": [
+                  {
+                    "kind": "evaluation",
+                    "id": "evaluation-coffee-0"
+                  }
+                ],
+                "digest": "sha256:cd33e93c41d318a1c8fe580b2045ebfaa8db63bb2d5795bdf9bb5e9078e44884"
+              },
+              "inputDigest": "sha256:0d2f215fe6d1acbd233730979157bf27104898badeac830152adc66d9e00e1d4",
+              "policyDigest": "sha256:176fd6faa62e8cfc87ac2dd39168816f4446f04f6cdd1a0c75dcdf405693c47d",
+              "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+              "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+              "requestDigest": "sha256:220798606a4b1bb69c2b1c2f13f361ae14bd00a88e16b35f9b3a570fc79d6201",
+              "numericDomainRef": "spending-finite-v1",
+              "verdict": "pass",
+              "artifactRef": {
+                "kind": "fixture-artifact",
+                "id": "sha256:a3b9bc4cedd0f88b4bc67ea76b09627f84d561a23bdb80a51e38856ab2ab8667"
+              },
+              "artifactDigest": "sha256:a3b9bc4cedd0f88b4bc67ea76b09627f84d561a23bdb80a51e38856ab2ab8667"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "lane": "arrivals",
+      "values": [
+        {
+          "packRef": {
+            "kind": "offline-pack",
+            "id": "preset"
+          },
+          "evaluationRefs": [
+            "evaluation-coffee-0"
+          ]
+        }
+      ]
+    }
+  ]
+}

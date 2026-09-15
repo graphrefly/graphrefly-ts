@@ -1,0 +1,94 @@
+{
+  "position": 10,
+  "pid": 75204,
+  "exitCode": 0,
+  "start": 288093.162053041,
+  "end": 288094.540900875,
+  "wallStart": 1789308127.807422,
+  "wallEnd": 1789308129.186282,
+  "wakeBefore": "{ sec = 1789275775, usec = 186433 } Sat Sep 12 22:02:55 2026",
+  "wakeAfter": "{ sec = 1789275775, usec = 186433 } Sat Sep 12 22:02:55 2026",
+  "error": null,
+  "cleanupErrors": [],
+  "wakeError": null,
+  "rss": [
+    {
+      "time": 288093.166971,
+      "code": 0,
+      "stdout": "75204    848 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288093.276606916,
+      "code": 0,
+      "stdout": "75204  74736 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288093.386355125,
+      "code": 0,
+      "stdout": "75204  90576 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288093.496014375,
+      "code": 0,
+      "stdout": "75204 107072 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288093.605426375,
+      "code": 0,
+      "stdout": "75204 111616 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288093.714780958,
+      "code": 0,
+      "stdout": "75204 140896 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288093.824169416,
+      "code": 0,
+      "stdout": "75204 141440 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288093.93041,
+      "code": 0,
+      "stdout": "75204 141632 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288094.035974791,
+      "code": 0,
+      "stdout": "75204 145696 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288094.145254416,
+      "code": 0,
+      "stdout": "75204 155120 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288094.251814,
+      "code": 0,
+      "stdout": "75204 203888 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288094.357190791,
+      "code": 0,
+      "stdout": "75204 203904 R   \n",
+      "stderr": ""
+    },
+    {
+      "time": 288094.462782541,
+      "code": 0,
+      "stdout": "75204 203936 R   \n",
+      "stderr": ""
+    }
+  ]
+}

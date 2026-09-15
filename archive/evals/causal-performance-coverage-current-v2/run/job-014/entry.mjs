@@ -1,0 +1,1 @@
+import {runRow} from "file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-coverage-current-v2/run/worker.mjs"; await runRow("/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-coverage-current-v2/run/job-014/config.json");

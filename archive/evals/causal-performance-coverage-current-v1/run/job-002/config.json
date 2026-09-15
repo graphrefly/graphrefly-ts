@@ -1,0 +1,11 @@
+{
+  "row": {
+    "id": "cold-P1-summary",
+    "group": "cold",
+    "profile": "P1",
+    "mode": "summary"
+  },
+  "identicalReference": true,
+  "scenarioPath": "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-coverage-current-v1/run/P1-inputs.json",
+  "output": "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-coverage-current-v1/run/job-002"
+}

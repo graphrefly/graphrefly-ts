@@ -1,0 +1,21 @@
+{
+  "job": {
+    "position": 14,
+    "row": {
+      "id": "cold-P4-summary",
+      "group": "cold",
+      "profile": "P4",
+      "mode": "summary"
+    },
+    "identicalReference": true
+  },
+  "argv": [
+    "/Users/davidchenallio/.local/share/mise/installs/node/24/bin/node",
+    "--trace-gc",
+    "--trace-deopt",
+    "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-coverage-current-v1/run/job-014/entry.mjs"
+  ],
+  "start": 288100.873359458,
+  "wall": 1789308135.518794,
+  "wake": "{ sec = 1789275775, usec = 186433 } Sat Sep 12 22:02:55 2026"
+}

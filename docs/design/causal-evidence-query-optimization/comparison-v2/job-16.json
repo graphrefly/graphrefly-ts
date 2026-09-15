@@ -1,0 +1,38 @@
+{
+  "job": {
+    "id": 16,
+    "profile": "P4",
+    "count": 2,
+    "repeat": 1,
+    "control": false,
+    "order": [
+      "after",
+      "before"
+    ]
+  },
+  "records": [
+    {
+      "variant": "after",
+      "position": 0,
+      "samples": [
+        936.4468339999994,
+        929.9875420000008,
+        928.8547909999998
+      ]
+    },
+    {
+      "variant": "before",
+      "position": 1,
+      "samples": [
+        4995.162333,
+        4990.590583000005,
+        4960.299875000004
+      ]
+    }
+  ],
+  "pid": 19847,
+  "timeOrigin": 1789312539436.25,
+  "preflights": 2,
+  "stateComparison": true,
+  "formalQualification": false
+}

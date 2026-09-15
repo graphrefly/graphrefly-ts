@@ -1,0 +1,16 @@
+import assert from "node:assert/strict";
+import {readFileSync,appendFileSync,writeFileSync} from "node:fs";
+const config = {"row": {"id": "cold-P2-summary", "group": "cold", "profile": "P2", "mode": "summary"}, "output": "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-position-current-v2/run/39-Z-19-U", "scenarioPath": "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-position-current-v2/run/P2-inputs.json", "control": true, "kind": "control", "orientation": "U"};
+assert.deepEqual(JSON.parse(readFileSync("/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-position-current-v2/run/39-Z-19-U/config.json","utf8")),config);
+const record = module => appendFileSync("/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-position-current-v2/run/39-Z-19-U/entry-events.jsonl",JSON.stringify({module,pid:process.pid})+"\n");
+const n = await import("file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-position-current-v2/run/position.mjs");
+record("N");
+const m0 = await import("file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-position-current-v2/run/worker.mjs");
+record("M0");
+const m1 = await import("file:///Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-position-current-v2/run/worker-copy.mjs");
+record("M1");
+const expected = {"revision": "spending-preset-performance-v1", "coldRows": 12, "steadyRows": 60, "recoveryRows": 12, "warmup": 100, "measured": 300, "orders": [["candidate", "reference"], ["reference", "candidate"], ["candidate", "reference"]], "coldLimit": 1.2, "steadyLimit": 1.1, "recoveryCycles": 20, "stopAfterFailedRow": true, "childTimeoutMs": 900000, "totalTimeoutMs": 7200000, "freshBasis": "distinct evaluation identities absent before the whole wave", "doubleData": "two exact copies of the same arrival frame in one source.down; second copy is intra-wave replay", "memory": "raw process heap/RSS before and after action; GC may make deltas negative, not retained-size proof"};
+assert.deepEqual(m0.RECIPE,expected);assert.deepEqual(m1.RECIPE,expected);
+await n.runRow("/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-position-current-v2/run/39-Z-19-U/config.json",[m0,m1]);
+assert.deepEqual(m0.RECIPE,expected);assert.deepEqual(m1.RECIPE,expected);
+writeFileSync("/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-position-current-v2/run/39-Z-19-U/recipe-after.json",JSON.stringify({pid:process.pid,recipe:expected}));

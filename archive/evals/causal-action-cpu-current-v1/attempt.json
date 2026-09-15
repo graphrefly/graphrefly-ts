@@ -1,0 +1,78 @@
+{
+  "records": [
+    {
+      "job": {
+        "profile": "P1",
+        "dataCount": 1,
+        "repeats": 100
+      },
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-action-cpu-current-v1/tool.mjs",
+        "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-action-cpu-current-v1/worker.mjs",
+        "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-action-cpu-current-v1/P1-inputs.json",
+        "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-action-cpu-current-v1/P1-1.json",
+        "1",
+        "100"
+      ],
+      "code": 0,
+      "elapsed": 0.2565460419864394
+    },
+    {
+      "job": {
+        "profile": "P1",
+        "dataCount": 2,
+        "repeats": 100
+      },
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-action-cpu-current-v1/tool.mjs",
+        "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-action-cpu-current-v1/worker.mjs",
+        "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-action-cpu-current-v1/P1-inputs.json",
+        "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-action-cpu-current-v1/P1-2.json",
+        "2",
+        "100"
+      ],
+      "code": 0,
+      "elapsed": 1.2837964589707553
+    },
+    {
+      "job": {
+        "profile": "P3",
+        "dataCount": 1,
+        "repeats": 20
+      },
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-action-cpu-current-v1/tool.mjs",
+        "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-action-cpu-current-v1/worker.mjs",
+        "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-action-cpu-current-v1/P3-inputs.json",
+        "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-action-cpu-current-v1/P3-1.json",
+        "1",
+        "20"
+      ],
+      "code": 0,
+      "elapsed": 1.4761343330028467
+    },
+    {
+      "job": {
+        "profile": "P3",
+        "dataCount": 2,
+        "repeats": 20
+      },
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-action-cpu-current-v1/tool.mjs",
+        "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-action-cpu-current-v1/worker.mjs",
+        "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-action-cpu-current-v1/P3-inputs.json",
+        "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-action-cpu-current-v1/P3-2.json",
+        "2",
+        "20"
+      ],
+      "code": 0,
+      "elapsed": 10.615644791978411
+    }
+  ],
+  "elapsed": 13.632306916988455,
+  "complete": true
+}

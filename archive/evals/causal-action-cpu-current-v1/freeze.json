@@ -1,0 +1,33 @@
+{
+  "jobs": [
+    {
+      "profile": "P1",
+      "dataCount": 1,
+      "repeats": 100
+    },
+    {
+      "profile": "P1",
+      "dataCount": 2,
+      "repeats": 100
+    },
+    {
+      "profile": "P3",
+      "dataCount": 1,
+      "repeats": 20
+    },
+    {
+      "profile": "P3",
+      "dataCount": 2,
+      "repeats": 20
+    }
+  ],
+  "scope": "four fixed offline action CPU profiles; no performance qualification",
+  "files": {
+    "worker.mjs": "d72fff7041885588d92de6ce2d193e339aa36621a45fe4a4645964943055a99b",
+    "P3-inputs.json": "5acebd49f382916ce32293f2ca297c4107906076d1a2c73cd4700616c46b3023",
+    "tool.mjs": "8714e2a2cefdecf5a87bf40b3e60ce909badb8150cd454cabc4b62ed4ea241d4",
+    "P1-inputs.json": "03eb10cee80ba1fb756161d45dcc31daf96048a4c99f57d883768ab3fc467584"
+  },
+  "maxSecondsPerJob": 60,
+  "maxSecondsTotal": 240
+}

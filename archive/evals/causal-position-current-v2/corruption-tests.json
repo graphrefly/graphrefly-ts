@@ -1,0 +1,40 @@
+{
+  "passed": true,
+  "reindexedCorruptions": [
+    {
+      "mutation": "recipe",
+      "rejected": true,
+      "lastError": "ValueError: runtime recipe"
+    },
+    {
+      "mutation": "preflight",
+      "rejected": true,
+      "lastError": "ValueError: preflight second"
+    },
+    {
+      "mutation": "status",
+      "rejected": true,
+      "lastError": "AssertionError"
+    },
+    {
+      "mutation": "argv",
+      "rejected": true,
+      "lastError": "ValueError: dispatch/exit binding"
+    },
+    {
+      "mutation": "completion",
+      "rejected": true,
+      "lastError": "AssertionError"
+    },
+    {
+      "mutation": "unknown-dispatch",
+      "rejected": true,
+      "lastError": "AssertionError"
+    },
+    {
+      "mutation": "order-bits",
+      "rejected": true,
+      "lastError": "AssertionError"
+    }
+  ]
+}

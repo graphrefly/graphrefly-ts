@@ -67,6 +67,8 @@ export async function measureCurrentImplementationInputs(): Promise<
 		"provider-cost-evidence.ts",
 		"focused-async-adapters.ts",
 		"http-transport-leaf.ts",
+		"openrouter-transport.mjs",
+		"openrouter-transport.d.mts",
 		"private-diagnostic-sink.ts",
 		"quiet-data-boundary.ts",
 		"settled-spend.ts",
@@ -106,6 +108,7 @@ export async function measureCurrentImplementationInputs(): Promise<
 	for (const testName of [
 		"model-harness-profile-current.test.ts",
 		"provider-qualification.test.ts",
+		"openrouter-shared-transport.test.ts",
 		"solutions-agentic-memory-work-item-root-eval-live.test.ts",
 		"solutions-agentic-memory-work-item-root-eval-topology.test.ts",
 	] as const)

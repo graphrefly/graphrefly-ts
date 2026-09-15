@@ -1,0 +1,45 @@
+{
+  "node": "v24.18.0",
+  "pid": 82689,
+  "timeOrigin": 1789308581849.768,
+  "uptimeOffsetMs": -3.7368330000000043,
+  "recipe": {
+    "revision": "spending-preset-performance-v1",
+    "coldRows": 12,
+    "steadyRows": 60,
+    "recoveryRows": 12,
+    "warmup": 100,
+    "measured": 300,
+    "orders": [
+      [
+        "candidate",
+        "reference"
+      ],
+      [
+        "reference",
+        "candidate"
+      ],
+      [
+        "candidate",
+        "reference"
+      ]
+    ],
+    "coldLimit": 1.2,
+    "steadyLimit": 1.1,
+    "recoveryCycles": 20,
+    "stopAfterFailedRow": true,
+    "childTimeoutMs": 900000,
+    "totalTimeoutMs": 7200000,
+    "freshBasis": "distinct evaluation identities absent before the whole wave",
+    "doubleData": "two exact copies of the same arrival frame in one source.down; second copy is intra-wave replay",
+    "memory": "raw process heap/RSS before and after action; GC may make deltas negative, not retained-size proof"
+  },
+  "row": {
+    "id": "steady-P2-off-all-new-1",
+    "group": "steady",
+    "profile": "P2",
+    "mode": "off",
+    "change": "all-new",
+    "dataCount": 1
+  }
+}

@@ -1,0 +1,953 @@
+{
+  "passed": true,
+  "materialHints": {
+    "before": [
+      {
+        "lane": "pack",
+        "newMaterials": 0,
+        "materialPhase": "not-applicable"
+      },
+      {
+        "lane": "current",
+        "newMaterials": 0,
+        "materialPhase": "not-applicable"
+      },
+      {
+        "lane": "local",
+        "newMaterials": 0,
+        "materialPhase": "not-applicable"
+      },
+      {
+        "lane": "inbox",
+        "newMaterials": 0,
+        "materialPhase": "not-applicable"
+      },
+      {
+        "lane": "verification",
+        "newMaterials": 0,
+        "materialPhase": "not-applicable"
+      }
+    ],
+    "action": [
+      {
+        "lane": "arrivals",
+        "newMaterials": 1,
+        "materialPhase": "inclusive-material-generation-and-hash-wave"
+      }
+    ]
+  },
+  "recoveryPorts": {
+    "candidate": {
+      "reemitted": [
+        "startup",
+        "assessment",
+        "publication",
+        "coverage"
+      ],
+      "missing": [
+        "conservation"
+      ]
+    },
+    "reference": {
+      "reemitted": [
+        "startup",
+        "assessment",
+        "publication",
+        "coverage"
+      ],
+      "missing": [
+        "conservation"
+      ]
+    }
+  },
+  "topology": {
+    "candidate": [
+      {
+        "id": "pack",
+        "deps": [],
+        "factory": "node"
+      },
+      {
+        "id": "arrivals",
+        "deps": [],
+        "factory": "node"
+      },
+      {
+        "id": "current",
+        "deps": [],
+        "factory": "node"
+      },
+      {
+        "id": "verification",
+        "deps": [],
+        "factory": "node"
+      },
+      {
+        "id": "local",
+        "deps": [],
+        "factory": "node"
+      },
+      {
+        "id": "inbox",
+        "deps": [],
+        "factory": "node"
+      },
+      {
+        "id": "spending/startup",
+        "deps": [],
+        "factory": "graphConstructionStartup"
+      },
+      {
+        "id": "spending/evaluationSelections",
+        "deps": [
+          "pack",
+          "arrivals"
+        ],
+        "factory": "spending/evaluationSelections"
+      },
+      {
+        "id": "spending/transaction",
+        "deps": [
+          "spending/evaluationSelections"
+        ],
+        "factory": "spending/transaction"
+      },
+      {
+        "id": "spending/vendorStats",
+        "deps": [
+          "spending/evaluationSelections"
+        ],
+        "factory": "spending/vendorStats"
+      },
+      {
+        "id": "spending/userProfile",
+        "deps": [
+          "spending/evaluationSelections"
+        ],
+        "factory": "spending/userProfile"
+      },
+      {
+        "id": "spending/policy",
+        "deps": [
+          "spending/evaluationSelections"
+        ],
+        "factory": "spending/policy"
+      },
+      {
+        "id": "spending/anomalyScore",
+        "deps": [
+          "spending/transaction",
+          "spending/vendorStats",
+          "spending/userProfile"
+        ],
+        "factory": "spending/anomalyScore"
+      },
+      {
+        "id": "spending/thresholdGate",
+        "deps": [
+          "spending/anomalyScore",
+          "spending/policy"
+        ],
+        "factory": "spending/thresholdGate"
+      },
+      {
+        "id": "spending/reasonFactors",
+        "deps": [
+          "spending/thresholdGate",
+          "spending/policy"
+        ],
+        "factory": "spending/reasonFactors"
+      },
+      {
+        "id": "spending/alertMessage",
+        "deps": [
+          "spending/reasonFactors"
+        ],
+        "factory": "spending/alertMessage"
+      },
+      {
+        "id": "spending/assessment",
+        "deps": [
+          "spending/thresholdGate",
+          "spending/reasonFactors",
+          "spending/alertMessage"
+        ],
+        "factory": "spending/assessment"
+      },
+      {
+        "id": "spending/requestMaterials",
+        "deps": [
+          "spending/evaluationSelections",
+          "spending/thresholdGate",
+          "spending/alertMessage"
+        ],
+        "factory": "spending/requestMaterials"
+      },
+      {
+        "id": "spending/materialStore",
+        "deps": [
+          "spending/requestMaterials"
+        ],
+        "factory": "spending/materialStore"
+      },
+      {
+        "id": "spending/materialSnapshot",
+        "deps": [
+          "spending/materialStore"
+        ],
+        "factory": "spending/materialSnapshot"
+      },
+      {
+        "id": "spending/effectProposals",
+        "deps": [
+          "spending/materialStore"
+        ],
+        "factory": "spending/effectProposals"
+      },
+      {
+        "id": "spending/currentFacts",
+        "deps": [
+          "current"
+        ],
+        "factory": "spending/currentFacts"
+      },
+      {
+        "id": "spending/verificationFacts",
+        "deps": [
+          "verification"
+        ],
+        "factory": "spending/verificationFacts"
+      },
+      {
+        "id": "spending/localFacts",
+        "deps": [
+          "local"
+        ],
+        "factory": "spending/localFacts"
+      },
+      {
+        "id": "spending/inboxFacts",
+        "deps": [
+          "inbox"
+        ],
+        "factory": "spending/inboxFacts"
+      },
+      {
+        "id": "spending/publicationPolicy",
+        "deps": [
+          "spending/evaluationSelections",
+          "spending/thresholdGate",
+          "spending/materialStore",
+          "spending/currentFacts",
+          "spending/verificationFacts",
+          "spending/localFacts",
+          "spending/inboxFacts"
+        ],
+        "factory": "spending/publicationPolicy"
+      },
+      {
+        "id": "spending/occurrences",
+        "deps": [
+          "spending/evaluationSelections"
+        ],
+        "factory": "spending/occurrences"
+      },
+      {
+        "id": "spending/occurrenceAdmissions",
+        "deps": [
+          "spending/evaluationSelections",
+          "spending/currentFacts"
+        ],
+        "factory": "spending/occurrenceAdmissions"
+      },
+      {
+        "id": "spending/branchTerminals",
+        "deps": [
+          "spending/assessment",
+          "spending/alertMessage",
+          "spending/publicationPolicy"
+        ],
+        "factory": "spending/branchTerminals"
+      },
+      {
+        "id": "spending/effectAdmissions",
+        "deps": [
+          "spending/publicationPolicy"
+        ],
+        "factory": "spending/effectAdmissions"
+      },
+      {
+        "id": "spending/effectOutcomes",
+        "deps": [
+          "spending/inboxFacts"
+        ],
+        "factory": "spending/effectOutcomes"
+      },
+      {
+        "id": "spending/evidence",
+        "deps": [
+          "spending/evaluationSelections",
+          "spending/materialStore",
+          "spending/verificationFacts"
+        ],
+        "factory": "spending/evidence"
+      },
+      {
+        "id": "spending/watermarks",
+        "deps": [
+          "spending/currentFacts"
+        ],
+        "factory": "spending/watermarks"
+      },
+      {
+        "id": "spending/causal/input/occurrences",
+        "deps": [
+          "spending/occurrences"
+        ],
+        "factory": "causalOccurrenceInputLane"
+      },
+      {
+        "id": "spending/causal/input/admissions",
+        "deps": [
+          "spending/occurrenceAdmissions"
+        ],
+        "factory": "causalOccurrenceInputLane"
+      },
+      {
+        "id": "spending/causal/input/branch-terminals",
+        "deps": [
+          "spending/branchTerminals"
+        ],
+        "factory": "causalOccurrenceInputLane"
+      },
+      {
+        "id": "spending/causal/input/effect-proposals",
+        "deps": [
+          "spending/effectProposals"
+        ],
+        "factory": "causalOccurrenceInputLane"
+      },
+      {
+        "id": "spending/causal/input/effect-admissions",
+        "deps": [
+          "spending/effectAdmissions"
+        ],
+        "factory": "causalOccurrenceInputLane"
+      },
+      {
+        "id": "spending/causal/input/effect-outcomes",
+        "deps": [
+          "spending/effectOutcomes"
+        ],
+        "factory": "causalOccurrenceInputLane"
+      },
+      {
+        "id": "spending/causal/input/evidence",
+        "deps": [
+          "spending/evidence"
+        ],
+        "factory": "causalOccurrenceInputLane"
+      },
+      {
+        "id": "spending/causal/input/watermarks",
+        "deps": [
+          "spending/watermarks"
+        ],
+        "factory": "causalOccurrenceInputLane"
+      },
+      {
+        "id": "spending/causal/arrivals",
+        "deps": [
+          "spending/causal/input/occurrences",
+          "spending/causal/input/admissions",
+          "spending/causal/input/branch-terminals",
+          "spending/causal/input/effect-proposals",
+          "spending/causal/input/effect-admissions",
+          "spending/causal/input/effect-outcomes",
+          "spending/causal/input/evidence",
+          "spending/causal/input/watermarks"
+        ],
+        "factory": "merge"
+      },
+      {
+        "id": "spending/causal/authority",
+        "deps": [
+          "spending/causal/arrivals"
+        ],
+        "factory": "causalOccurrenceAuthority"
+      },
+      {
+        "id": "spending/causal/release-candidates",
+        "deps": [
+          "spending/causal/authority"
+        ],
+        "factory": "causalOccurrenceFactProjection"
+      },
+      {
+        "id": "spending/causal/release-port",
+        "deps": [
+          "spending/causal/release-candidates"
+        ],
+        "factory": "causalOccurrenceQuietReleasePort"
+      },
+      {
+        "id": "spending/causal/released",
+        "deps": [
+          "spending/causal/release-port"
+        ],
+        "factory": "causalOccurrenceReleased"
+      },
+      {
+        "id": "spending/causal/release-events",
+        "deps": [
+          "spending/causal/released",
+          "spending/causal/release-candidates"
+        ],
+        "factory": "merge"
+      },
+      {
+        "id": "spending/causal/release-controller",
+        "deps": [
+          "spending/causal/release-events"
+        ],
+        "factory": "causalOccurrenceReleaseController"
+      },
+      {
+        "id": "spending/causal/currentness",
+        "deps": [
+          "spending/causal/authority"
+        ],
+        "factory": "causalOccurrenceFactProjection"
+      },
+      {
+        "id": "spending/causal/terminals",
+        "deps": [
+          "spending/causal/authority"
+        ],
+        "factory": "causalOccurrenceFactProjection"
+      },
+      {
+        "id": "spending/causal/conservation",
+        "deps": [
+          "spending/causal/authority"
+        ],
+        "factory": "causalOccurrenceFactProjection"
+      },
+      {
+        "id": "spending/causal/coverage",
+        "deps": [
+          "spending/causal/authority"
+        ],
+        "factory": "causalOccurrenceFactProjection"
+      },
+      {
+        "id": "spending/causal/quiescence",
+        "deps": [
+          "spending/causal/authority"
+        ],
+        "factory": "causalOccurrenceFactProjection"
+      },
+      {
+        "id": "spending/causal/issues",
+        "deps": [
+          "spending/causal/authority"
+        ],
+        "factory": "causalOccurrenceFactProjection"
+      },
+      {
+        "id": "spending/causal/committed-effects",
+        "deps": [
+          "spending/causal/authority"
+        ],
+        "factory": "causalCommittedEffectsProjection"
+      },
+      {
+        "id": "spending/causal/causal-quiescence",
+        "deps": [
+          "spending/causal/quiescence"
+        ],
+        "factory": "causalLifecycleQuiescence"
+      },
+      {
+        "id": "requestMaterialJoin",
+        "deps": [
+          "spending/causal/committed-effects",
+          "spending/materialSnapshot"
+        ],
+        "factory": "spendingRequestMaterialJoin"
+      },
+      {
+        "id": "publication",
+        "deps": [
+          "requestMaterialJoin"
+        ],
+        "factory": "spendingPublication"
+      },
+      {
+        "id": "spending/consumerIssues",
+        "deps": [
+          "spending/evaluationSelections",
+          "spending/currentFacts",
+          "spending/verificationFacts",
+          "spending/localFacts",
+          "spending/inboxFacts",
+          "spending/requestMaterials",
+          "spending/materialStore",
+          "spending/publicationPolicy",
+          "spending/causal/issues"
+        ],
+        "factory": "spending/consumerIssues"
+      }
+    ],
+    "reference": [
+      {
+        "id": "pack",
+        "deps": [],
+        "factory": "node"
+      },
+      {
+        "id": "arrivals",
+        "deps": [],
+        "factory": "node"
+      },
+      {
+        "id": "current",
+        "deps": [],
+        "factory": "node"
+      },
+      {
+        "id": "verification",
+        "deps": [],
+        "factory": "node"
+      },
+      {
+        "id": "local",
+        "deps": [],
+        "factory": "node"
+      },
+      {
+        "id": "inbox",
+        "deps": [],
+        "factory": "node"
+      },
+      {
+        "id": "spending/startup",
+        "deps": [],
+        "factory": "graphConstructionStartup"
+      },
+      {
+        "id": "spending/reference/selection",
+        "deps": [
+          "pack",
+          "arrivals"
+        ],
+        "factory": "spendingReference/selection"
+      },
+      {
+        "id": "spending/reference/transaction",
+        "deps": [
+          "spending/reference/selection"
+        ],
+        "factory": "spendingReference/transaction"
+      },
+      {
+        "id": "spending/reference/moments",
+        "deps": [
+          "spending/reference/selection"
+        ],
+        "factory": "spendingReference/moments"
+      },
+      {
+        "id": "spending/reference/profile",
+        "deps": [
+          "spending/reference/selection"
+        ],
+        "factory": "spendingReference/profile"
+      },
+      {
+        "id": "spending/reference/policy",
+        "deps": [
+          "spending/reference/selection"
+        ],
+        "factory": "spendingReference/policy"
+      },
+      {
+        "id": "spending/reference/score",
+        "deps": [
+          "spending/reference/transaction",
+          "spending/reference/moments",
+          "spending/reference/profile"
+        ],
+        "factory": "spendingReference/score"
+      },
+      {
+        "id": "spending/reference/gate",
+        "deps": [
+          "spending/reference/score",
+          "spending/reference/policy"
+        ],
+        "factory": "spendingReference/gate"
+      },
+      {
+        "id": "spending/reference/reason",
+        "deps": [
+          "spending/reference/gate",
+          "spending/reference/policy"
+        ],
+        "factory": "spendingReference/reason"
+      },
+      {
+        "id": "spending/reference/message",
+        "deps": [
+          "spending/reference/reason"
+        ],
+        "factory": "spendingReference/message"
+      },
+      {
+        "id": "spending/reference/assessment",
+        "deps": [
+          "spending/reference/gate",
+          "spending/reference/reason",
+          "spending/reference/message"
+        ],
+        "factory": "spendingReference/assessment"
+      },
+      {
+        "id": "spending/reference/current",
+        "deps": [
+          "current"
+        ],
+        "factory": "spendingReference/current"
+      },
+      {
+        "id": "spending/reference/verification",
+        "deps": [
+          "verification"
+        ],
+        "factory": "spendingReference/verification"
+      },
+      {
+        "id": "spending/reference/local",
+        "deps": [
+          "local"
+        ],
+        "factory": "spendingReference/local"
+      },
+      {
+        "id": "spending/reference/inbox",
+        "deps": [
+          "inbox"
+        ],
+        "factory": "spendingReference/inbox"
+      },
+      {
+        "id": "spending/reference/material",
+        "deps": [
+          "spending/reference/selection",
+          "spending/reference/gate",
+          "spending/reference/message"
+        ],
+        "factory": "spendingReference/material"
+      },
+      {
+        "id": "spending/reference/store",
+        "deps": [
+          "spending/reference/material"
+        ],
+        "factory": "spendingReference/store"
+      },
+      {
+        "id": "spending/reference/snapshot",
+        "deps": [
+          "spending/reference/store"
+        ],
+        "factory": "spendingReference/snapshot"
+      },
+      {
+        "id": "spending/reference/proposals",
+        "deps": [
+          "spending/reference/store"
+        ],
+        "factory": "spendingReference/proposals"
+      },
+      {
+        "id": "spending/reference/permission",
+        "deps": [
+          "spending/reference/selection",
+          "spending/reference/gate",
+          "spending/reference/store",
+          "spending/reference/current",
+          "spending/reference/verification",
+          "spending/reference/local",
+          "spending/reference/inbox"
+        ],
+        "factory": "spendingReference/permission"
+      },
+      {
+        "id": "spending/reference/occurrences",
+        "deps": [
+          "spending/reference/selection"
+        ],
+        "factory": "spendingReference/occurrences"
+      },
+      {
+        "id": "spending/reference/occurrenceAdmissions",
+        "deps": [
+          "spending/reference/selection",
+          "spending/reference/current"
+        ],
+        "factory": "spendingReference/occurrenceAdmissions"
+      },
+      {
+        "id": "spending/reference/terminals",
+        "deps": [
+          "spending/reference/assessment",
+          "spending/reference/message",
+          "spending/reference/permission"
+        ],
+        "factory": "spendingReference/terminals"
+      },
+      {
+        "id": "spending/reference/effectAdmissions",
+        "deps": [
+          "spending/reference/permission"
+        ],
+        "factory": "spendingReference/effectAdmissions"
+      },
+      {
+        "id": "spending/reference/outcomes",
+        "deps": [
+          "spending/reference/inbox"
+        ],
+        "factory": "spendingReference/outcomes"
+      },
+      {
+        "id": "spending/reference/evidence",
+        "deps": [
+          "spending/reference/selection",
+          "spending/reference/store",
+          "spending/reference/verification"
+        ],
+        "factory": "spendingReference/evidence"
+      },
+      {
+        "id": "spending/reference/watermarks",
+        "deps": [
+          "spending/reference/current"
+        ],
+        "factory": "spendingReference/watermarks"
+      },
+      {
+        "id": "spending/causal/input/occurrences",
+        "deps": [
+          "spending/reference/occurrences"
+        ],
+        "factory": "causalOccurrenceInputLane"
+      },
+      {
+        "id": "spending/causal/input/admissions",
+        "deps": [
+          "spending/reference/occurrenceAdmissions"
+        ],
+        "factory": "causalOccurrenceInputLane"
+      },
+      {
+        "id": "spending/causal/input/branch-terminals",
+        "deps": [
+          "spending/reference/terminals"
+        ],
+        "factory": "causalOccurrenceInputLane"
+      },
+      {
+        "id": "spending/causal/input/effect-proposals",
+        "deps": [
+          "spending/reference/proposals"
+        ],
+        "factory": "causalOccurrenceInputLane"
+      },
+      {
+        "id": "spending/causal/input/effect-admissions",
+        "deps": [
+          "spending/reference/effectAdmissions"
+        ],
+        "factory": "causalOccurrenceInputLane"
+      },
+      {
+        "id": "spending/causal/input/effect-outcomes",
+        "deps": [
+          "spending/reference/outcomes"
+        ],
+        "factory": "causalOccurrenceInputLane"
+      },
+      {
+        "id": "spending/causal/input/evidence",
+        "deps": [
+          "spending/reference/evidence"
+        ],
+        "factory": "causalOccurrenceInputLane"
+      },
+      {
+        "id": "spending/causal/input/watermarks",
+        "deps": [
+          "spending/reference/watermarks"
+        ],
+        "factory": "causalOccurrenceInputLane"
+      },
+      {
+        "id": "spending/causal/arrivals",
+        "deps": [
+          "spending/causal/input/occurrences",
+          "spending/causal/input/admissions",
+          "spending/causal/input/branch-terminals",
+          "spending/causal/input/effect-proposals",
+          "spending/causal/input/effect-admissions",
+          "spending/causal/input/effect-outcomes",
+          "spending/causal/input/evidence",
+          "spending/causal/input/watermarks"
+        ],
+        "factory": "merge"
+      },
+      {
+        "id": "spending/causal/authority",
+        "deps": [
+          "spending/causal/arrivals"
+        ],
+        "factory": "causalOccurrenceAuthority"
+      },
+      {
+        "id": "spending/causal/release-candidates",
+        "deps": [
+          "spending/causal/authority"
+        ],
+        "factory": "causalOccurrenceFactProjection"
+      },
+      {
+        "id": "spending/causal/release-port",
+        "deps": [
+          "spending/causal/release-candidates"
+        ],
+        "factory": "causalOccurrenceQuietReleasePort"
+      },
+      {
+        "id": "spending/causal/released",
+        "deps": [
+          "spending/causal/release-port"
+        ],
+        "factory": "causalOccurrenceReleased"
+      },
+      {
+        "id": "spending/causal/release-events",
+        "deps": [
+          "spending/causal/released",
+          "spending/causal/release-candidates"
+        ],
+        "factory": "merge"
+      },
+      {
+        "id": "spending/causal/release-controller",
+        "deps": [
+          "spending/causal/release-events"
+        ],
+        "factory": "causalOccurrenceReleaseController"
+      },
+      {
+        "id": "spending/causal/currentness",
+        "deps": [
+          "spending/causal/authority"
+        ],
+        "factory": "causalOccurrenceFactProjection"
+      },
+      {
+        "id": "spending/causal/terminals",
+        "deps": [
+          "spending/causal/authority"
+        ],
+        "factory": "causalOccurrenceFactProjection"
+      },
+      {
+        "id": "spending/causal/conservation",
+        "deps": [
+          "spending/causal/authority"
+        ],
+        "factory": "causalOccurrenceFactProjection"
+      },
+      {
+        "id": "spending/causal/coverage",
+        "deps": [
+          "spending/causal/authority"
+        ],
+        "factory": "causalOccurrenceFactProjection"
+      },
+      {
+        "id": "spending/causal/quiescence",
+        "deps": [
+          "spending/causal/authority"
+        ],
+        "factory": "causalOccurrenceFactProjection"
+      },
+      {
+        "id": "spending/causal/issues",
+        "deps": [
+          "spending/causal/authority"
+        ],
+        "factory": "causalOccurrenceFactProjection"
+      },
+      {
+        "id": "spending/causal/committed-effects",
+        "deps": [
+          "spending/causal/authority"
+        ],
+        "factory": "causalCommittedEffectsProjection"
+      },
+      {
+        "id": "spending/causal/causal-quiescence",
+        "deps": [
+          "spending/causal/quiescence"
+        ],
+        "factory": "causalLifecycleQuiescence"
+      },
+      {
+        "id": "requestMaterialJoin",
+        "deps": [
+          "spending/causal/committed-effects",
+          "spending/reference/snapshot"
+        ],
+        "factory": "spendingRequestMaterialJoin"
+      },
+      {
+        "id": "publication",
+        "deps": [
+          "requestMaterialJoin"
+        ],
+        "factory": "spendingPublication"
+      },
+      {
+        "id": "spending/reference/issues",
+        "deps": [
+          "spending/reference/selection",
+          "spending/reference/current",
+          "spending/reference/verification",
+          "spending/reference/local",
+          "spending/reference/inbox",
+          "spending/reference/material",
+          "spending/reference/store",
+          "spending/reference/permission",
+          "spending/causal/issues"
+        ],
+        "factory": "spendingReference/issues"
+      }
+    ]
+  },
+  "beforeOccurrences": 0,
+  "afterOccurrences": 1,
+  "preWaveNew": 1,
+  "frameItems": 1,
+  "arrivalDataCount": 2,
+  "newByEntry": [
+    1,
+    0
+  ],
+  "extraVerificationData": 0,
+  "assessments": 1,
+  "effects": 1
+}

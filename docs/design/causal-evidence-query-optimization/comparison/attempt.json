@@ -1,0 +1,41 @@
+{
+  "records": [
+    {
+      "job": 0,
+      "argv": [
+        "node",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison/tool.mjs",
+        "run",
+        "/Users/davidchenallio/src/graphrefly-ts/docs/design/causal-evidence-query-optimization/comparison",
+        "0"
+      ],
+      "exitCode": 1,
+      "elapsed": 0.18641020799987018
+    }
+  ],
+  "error": "AssertionError({'id': 0, 'profile': 'P1', 'count': 1, 'repeat': 0, 'control': False, 'order': ['before', 'after']})",
+  "elapsed": 0.20749549998436123,
+  "notRun": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20
+  ],
+  "formalQualification": false
+}

@@ -1,0 +1,11 @@
+{
+  "kind": "cold-position-pairs-v3-source",
+  "originalDigest": "d72fff7041885588d92de6ce2d193e339aa36621a45fe4a4645964943055a99b",
+  "derivedDigest": "b192d7bef7434b1241dc78d806b26950bcbf4fd5a62af3085611d65797ef08e9",
+  "functionDigests": {
+    "runRow": "c36a27e4a40aaae9cec16aea83a5bfa9db5afff04ddd184eb392838645eec5a3",
+    "schedule": "20db86119f6367133cb1534d3d94c9606d8a764801d8176c2fcbc4475c66063a",
+    "cleanupAll": "512a11336f9831c67126edc36b62e214c29e5817be759788a9fbb2eda369d782"
+  },
+  "parserVersion": "5.9.3"
+}

@@ -1,0 +1,53 @@
+{
+  "verified": true,
+  "methodQualified": false,
+  "consumerQualified": false,
+  "samples": 96000,
+  "panels": [
+    {
+      "panel": "Z",
+      "controlStable": false,
+      "signalPassed": false,
+      "passed": false,
+      "intervals": {
+        "first": {
+          "lower": 0.9413525690240038,
+          "point": 0.9852307550516546,
+          "upper": 1.039165446559287
+        },
+        "second": {
+          "lower": 0.9337392793552292,
+          "point": 0.9766527478978205,
+          "upper": 1.026215391691532
+        },
+        "T": {
+          "lower": 0.9631678587768553,
+          "point": 1.0083026081818156,
+          "upper": 1.0787179595567438
+        }
+      },
+      "mainOrderGroups": {
+        "U": [
+          3,
+          5,
+          6,
+          9,
+          14,
+          17
+        ],
+        "V": [
+          2,
+          4,
+          7,
+          8,
+          10,
+          11,
+          12,
+          13,
+          15,
+          16
+        ]
+      }
+    }
+  ]
+}

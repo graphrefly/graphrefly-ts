@@ -1,0 +1,2091 @@
+{
+  "id": "P2",
+  "evaluations": [
+    {
+      "evaluationRef": "evaluation-coffee-0",
+      "subjectRef": "evaluation-coffee-0",
+      "inputDigest": "sha256:b4c7cf90507cad4caa0e0f740e0c1a78df0a746a51c3d9951aaab7a896277f10",
+      "profileRef": {
+        "kind": "profile",
+        "id": "base"
+      },
+      "profile": {
+        "dailyAverage": 100,
+        "typicalCategories": [
+          "coffee"
+        ]
+      },
+      "policyRef": {
+        "kind": "policy",
+        "id": "alert"
+      },
+      "policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+      "policy": {
+        "zThreshold": 0.5,
+        "dailyRatioThreshold": 100
+      },
+      "prefix": [
+        {
+          "id": "evaluation-coffee-0:tx0",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 100,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx1",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 140,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx2",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 180,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx3",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 220,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx4",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 260,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx5",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 300,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx6",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 340,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx7",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 380,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx8",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 420,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx9",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 460,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx10",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 500,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx11",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 540,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx12",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 580,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx13",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 620,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx14",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 660,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx15",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 700,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx16",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 740,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx17",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 780,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx18",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 820,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx19",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 860,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx20",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 900,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx21",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 940,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx22",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 980,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx23",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1020,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx24",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1060,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx25",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1100,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx26",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1140,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx27",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1180,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx28",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1220,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx29",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1260,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx30",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1300,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx31",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1340,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx32",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1380,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx33",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1420,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx34",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1460,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx35",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1500,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx36",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1540,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx37",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1580,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx38",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1620,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx39",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1660,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx40",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1700,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx41",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1740,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx42",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1780,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx43",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1820,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx44",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1860,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx45",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1900,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx46",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1940,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx47",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 1980,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx48",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 2020,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx49",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 2060,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx50",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 2100,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx51",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 2140,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx52",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 2180,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx53",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 2220,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx54",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 2260,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx55",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 2300,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx56",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 2340,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx57",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 2380,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx58",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 2420,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx59",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 2460,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx60",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 2500,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx61",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 2540,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx62",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 2580,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        },
+        {
+          "id": "evaluation-coffee-0:tx63",
+          "vendor": "coffee",
+          "category": "coffee",
+          "amount": 2620,
+          "timestampIso": "2026-09-09T00:00:00.000Z"
+        }
+      ],
+      "occurrence": {
+        "revisionDomain": "profile-P2-0",
+        "occurrenceId": "evaluation-coffee-0",
+        "revision": 1,
+        "sourceRefs": [
+          {
+            "kind": "evaluation",
+            "id": "evaluation-coffee-0"
+          }
+        ],
+        "digest": "sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd"
+      }
+    }
+  ],
+  "combined": {
+    "current": {
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "preset"
+        },
+        "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+        "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+        "destinationRef": {
+          "kind": "offline-inbox",
+          "id": "no-host"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "preset-fixture",
+        "evidenceMode": "fixture-observations"
+      },
+      "current": [
+        {
+          "revisionDomain": "profile-P2-0",
+          "occurrence": {
+            "revisionDomain": "profile-P2-0",
+            "occurrenceId": "evaluation-coffee-0",
+            "revision": 1,
+            "sourceRefs": [
+              {
+                "kind": "evaluation",
+                "id": "evaluation-coffee-0"
+              }
+            ],
+            "digest": "sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd"
+          },
+          "policyRef": {
+            "kind": "policy",
+            "id": "alert"
+          },
+          "policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+          "watermark": 1
+        }
+      ]
+    },
+    "verification": {
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "preset"
+        },
+        "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+        "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+        "destinationRef": {
+          "kind": "offline-inbox",
+          "id": "no-host"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "preset-fixture",
+        "evidenceMode": "fixture-observations"
+      },
+      "receipts": [
+        {
+          "receiptRef": {
+            "kind": "fixture-verification",
+            "id": "sha256:26289adb273943a30a5cce55a1266306358711f45bc7f83d72a2c77e609aa219"
+          },
+          "issuerRef": {
+            "kind": "fixture",
+            "id": "independent-pairwise-oracle"
+          },
+          "verifierRevision": "spending-oracle-v2",
+          "occurrence": {
+            "revisionDomain": "profile-P2-0",
+            "occurrenceId": "evaluation-coffee-0",
+            "revision": 1,
+            "sourceRefs": [
+              {
+                "kind": "evaluation",
+                "id": "evaluation-coffee-0"
+              }
+            ],
+            "digest": "sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd"
+          },
+          "inputDigest": "sha256:b4c7cf90507cad4caa0e0f740e0c1a78df0a746a51c3d9951aaab7a896277f10",
+          "policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+          "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+          "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+          "requestDigest": "sha256:c5bfa92b390b7c263fbd8e2d74f8b6afde6fade6bc0f5baf4fdbbcb0da79b698",
+          "numericDomainRef": "spending-finite-v1",
+          "verdict": "pass",
+          "artifactRef": {
+            "kind": "fixture-artifact",
+            "id": "sha256:26289adb273943a30a5cce55a1266306358711f45bc7f83d72a2c77e609aa219"
+          },
+          "artifactDigest": "sha256:26289adb273943a30a5cce55a1266306358711f45bc7f83d72a2c77e609aa219"
+        }
+      ]
+    },
+    "local": {
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "preset"
+        },
+        "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+        "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+        "destinationRef": {
+          "kind": "offline-inbox",
+          "id": "no-host"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "preset-fixture",
+        "evidenceMode": "fixture-observations"
+      },
+      "tick": 1,
+      "stop": false,
+      "grants": [
+        {
+          "grantRef": {
+            "kind": "fixture-grant",
+            "id": "evaluation-coffee-0"
+          },
+          "ownerRef": {
+            "kind": "fixture-owner",
+            "id": "offline"
+          },
+          "operation": "append-alert",
+          "occurrence": {
+            "revisionDomain": "profile-P2-0",
+            "occurrenceId": "evaluation-coffee-0",
+            "revision": 1,
+            "sourceRefs": [
+              {
+                "kind": "evaluation",
+                "id": "evaluation-coffee-0"
+              }
+            ],
+            "digest": "sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd"
+          },
+          "requestDigest": "sha256:c5bfa92b390b7c263fbd8e2d74f8b6afde6fade6bc0f5baf4fdbbcb0da79b698",
+          "destinationRef": {
+            "kind": "offline-inbox",
+            "id": "no-host"
+          },
+          "hostEpoch": 1,
+          "validFrom": 0,
+          "validThrough": 100,
+          "maxWrites": 64,
+          "replayScope": {
+            "compositionEpoch": 1,
+            "hostEpoch": 1
+          },
+          "revoked": false
+        }
+      ]
+    },
+    "inbox": {
+      "binding": {
+        "packRef": {
+          "kind": "offline-pack",
+          "id": "preset"
+        },
+        "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+        "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+        "destinationRef": {
+          "kind": "offline-inbox",
+          "id": "no-host"
+        },
+        "compositionEpoch": 1,
+        "hostEpoch": 1,
+        "runRef": "preset-fixture",
+        "evidenceMode": "fixture-observations"
+      },
+      "issuerRef": {
+        "kind": "fixture",
+        "id": "passive-boundary"
+      },
+      "artifactRef": {
+        "kind": "fixture-artifact",
+        "id": "no-io"
+      },
+      "artifactDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+      "readiness": {
+        "ready": true,
+        "observedAt": 0,
+        "validThrough": 100,
+        "availableSlots": 1
+      },
+      "outcomes": []
+    }
+  },
+  "arrivals": {
+    "packRef": {
+      "kind": "offline-pack",
+      "id": "preset"
+    },
+    "evaluationRefs": [
+      "evaluation-coffee-0"
+    ]
+  },
+  "setup": [
+    {
+      "lane": "pack",
+      "values": [
+        {
+          "format": "spending-input-v1",
+          "binding": {
+            "packRef": {
+              "kind": "offline-pack",
+              "id": "preset"
+            },
+            "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "destinationRef": {
+              "kind": "offline-inbox",
+              "id": "no-host"
+            },
+            "compositionEpoch": 1,
+            "hostEpoch": 1,
+            "runRef": "preset-fixture",
+            "evidenceMode": "fixture-observations"
+          },
+          "evaluations": [
+            {
+              "evaluationRef": "evaluation-coffee-0",
+              "subjectRef": "evaluation-coffee-0",
+              "inputDigest": "sha256:b4c7cf90507cad4caa0e0f740e0c1a78df0a746a51c3d9951aaab7a896277f10",
+              "profileRef": {
+                "kind": "profile",
+                "id": "base"
+              },
+              "profile": {
+                "dailyAverage": 100,
+                "typicalCategories": [
+                  "coffee"
+                ]
+              },
+              "policyRef": {
+                "kind": "policy",
+                "id": "alert"
+              },
+              "policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+              "policy": {
+                "zThreshold": 0.5,
+                "dailyRatioThreshold": 100
+              },
+              "prefix": [
+                {
+                  "id": "evaluation-coffee-0:tx0",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 100,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx1",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 140,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx2",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 180,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx3",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 220,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx4",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 260,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx5",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 300,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx6",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 340,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx7",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 380,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx8",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 420,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx9",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 460,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx10",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 500,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx11",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 540,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx12",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 580,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx13",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 620,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx14",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 660,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx15",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 700,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx16",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 740,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx17",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 780,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx18",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 820,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx19",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 860,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx20",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 900,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx21",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 940,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx22",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 980,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx23",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1020,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx24",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1060,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx25",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1100,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx26",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1140,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx27",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1180,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx28",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1220,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx29",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1260,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx30",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1300,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx31",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1340,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx32",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1380,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx33",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1420,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx34",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1460,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx35",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1500,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx36",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1540,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx37",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1580,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx38",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1620,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx39",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1660,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx40",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1700,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx41",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1740,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx42",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1780,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx43",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1820,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx44",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1860,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx45",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1900,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx46",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1940,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx47",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1980,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx48",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2020,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx49",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2060,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx50",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2100,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx51",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2140,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx52",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2180,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx53",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2220,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx54",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2260,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx55",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2300,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx56",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2340,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx57",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2380,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx58",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2420,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx59",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2460,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx60",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2500,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx61",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2540,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx62",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2580,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx63",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2620,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                }
+              ],
+              "occurrence": {
+                "revisionDomain": "profile-P2-0",
+                "occurrenceId": "evaluation-coffee-0",
+                "revision": 1,
+                "sourceRefs": [
+                  {
+                    "kind": "evaluation",
+                    "id": "evaluation-coffee-0"
+                  }
+                ],
+                "digest": "sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "lane": "current",
+      "values": [
+        {
+          "binding": {
+            "packRef": {
+              "kind": "offline-pack",
+              "id": "preset"
+            },
+            "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "destinationRef": {
+              "kind": "offline-inbox",
+              "id": "no-host"
+            },
+            "compositionEpoch": 1,
+            "hostEpoch": 1,
+            "runRef": "preset-fixture",
+            "evidenceMode": "fixture-observations"
+          },
+          "current": [
+            {
+              "revisionDomain": "profile-P2-0",
+              "occurrence": {
+                "revisionDomain": "profile-P2-0",
+                "occurrenceId": "evaluation-coffee-0",
+                "revision": 1,
+                "sourceRefs": [
+                  {
+                    "kind": "evaluation",
+                    "id": "evaluation-coffee-0"
+                  }
+                ],
+                "digest": "sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd"
+              },
+              "policyRef": {
+                "kind": "policy",
+                "id": "alert"
+              },
+              "policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+              "watermark": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "lane": "local",
+      "values": [
+        {
+          "binding": {
+            "packRef": {
+              "kind": "offline-pack",
+              "id": "preset"
+            },
+            "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "destinationRef": {
+              "kind": "offline-inbox",
+              "id": "no-host"
+            },
+            "compositionEpoch": 1,
+            "hostEpoch": 1,
+            "runRef": "preset-fixture",
+            "evidenceMode": "fixture-observations"
+          },
+          "tick": 1,
+          "stop": false,
+          "grants": [
+            {
+              "grantRef": {
+                "kind": "fixture-grant",
+                "id": "evaluation-coffee-0"
+              },
+              "ownerRef": {
+                "kind": "fixture-owner",
+                "id": "offline"
+              },
+              "operation": "append-alert",
+              "occurrence": {
+                "revisionDomain": "profile-P2-0",
+                "occurrenceId": "evaluation-coffee-0",
+                "revision": 1,
+                "sourceRefs": [
+                  {
+                    "kind": "evaluation",
+                    "id": "evaluation-coffee-0"
+                  }
+                ],
+                "digest": "sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd"
+              },
+              "requestDigest": "sha256:c5bfa92b390b7c263fbd8e2d74f8b6afde6fade6bc0f5baf4fdbbcb0da79b698",
+              "destinationRef": {
+                "kind": "offline-inbox",
+                "id": "no-host"
+              },
+              "hostEpoch": 1,
+              "validFrom": 0,
+              "validThrough": 100,
+              "maxWrites": 64,
+              "replayScope": {
+                "compositionEpoch": 1,
+                "hostEpoch": 1
+              },
+              "revoked": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "lane": "inbox",
+      "values": [
+        {
+          "binding": {
+            "packRef": {
+              "kind": "offline-pack",
+              "id": "preset"
+            },
+            "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "destinationRef": {
+              "kind": "offline-inbox",
+              "id": "no-host"
+            },
+            "compositionEpoch": 1,
+            "hostEpoch": 1,
+            "runRef": "preset-fixture",
+            "evidenceMode": "fixture-observations"
+          },
+          "issuerRef": {
+            "kind": "fixture",
+            "id": "passive-boundary"
+          },
+          "artifactRef": {
+            "kind": "fixture-artifact",
+            "id": "no-io"
+          },
+          "artifactDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+          "readiness": {
+            "ready": true,
+            "observedAt": 0,
+            "validThrough": 100,
+            "availableSlots": 1
+          },
+          "outcomes": []
+        }
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "lane": "pack",
+      "values": [
+        {
+          "format": "spending-input-v1",
+          "binding": {
+            "packRef": {
+              "kind": "offline-pack",
+              "id": "preset"
+            },
+            "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "destinationRef": {
+              "kind": "offline-inbox",
+              "id": "no-host"
+            },
+            "compositionEpoch": 1,
+            "hostEpoch": 1,
+            "runRef": "preset-fixture",
+            "evidenceMode": "fixture-observations"
+          },
+          "evaluations": [
+            {
+              "evaluationRef": "evaluation-coffee-0",
+              "subjectRef": "evaluation-coffee-0",
+              "inputDigest": "sha256:b4c7cf90507cad4caa0e0f740e0c1a78df0a746a51c3d9951aaab7a896277f10",
+              "profileRef": {
+                "kind": "profile",
+                "id": "base"
+              },
+              "profile": {
+                "dailyAverage": 100,
+                "typicalCategories": [
+                  "coffee"
+                ]
+              },
+              "policyRef": {
+                "kind": "policy",
+                "id": "alert"
+              },
+              "policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+              "policy": {
+                "zThreshold": 0.5,
+                "dailyRatioThreshold": 100
+              },
+              "prefix": [
+                {
+                  "id": "evaluation-coffee-0:tx0",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 100,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx1",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 140,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx2",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 180,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx3",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 220,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx4",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 260,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx5",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 300,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx6",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 340,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx7",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 380,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx8",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 420,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx9",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 460,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx10",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 500,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx11",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 540,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx12",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 580,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx13",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 620,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx14",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 660,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx15",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 700,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx16",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 740,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx17",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 780,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx18",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 820,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx19",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 860,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx20",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 900,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx21",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 940,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx22",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 980,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx23",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1020,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx24",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1060,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx25",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1100,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx26",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1140,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx27",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1180,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx28",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1220,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx29",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1260,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx30",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1300,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx31",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1340,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx32",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1380,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx33",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1420,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx34",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1460,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx35",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1500,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx36",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1540,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx37",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1580,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx38",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1620,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx39",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1660,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx40",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1700,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx41",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1740,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx42",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1780,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx43",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1820,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx44",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1860,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx45",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1900,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx46",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1940,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx47",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 1980,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx48",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2020,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx49",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2060,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx50",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2100,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx51",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2140,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx52",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2180,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx53",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2220,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx54",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2260,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx55",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2300,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx56",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2340,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx57",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2380,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx58",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2420,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx59",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2460,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx60",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2500,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx61",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2540,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx62",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2580,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                },
+                {
+                  "id": "evaluation-coffee-0:tx63",
+                  "vendor": "coffee",
+                  "category": "coffee",
+                  "amount": 2620,
+                  "timestampIso": "2026-09-09T00:00:00.000Z"
+                }
+              ],
+              "occurrence": {
+                "revisionDomain": "profile-P2-0",
+                "occurrenceId": "evaluation-coffee-0",
+                "revision": 1,
+                "sourceRefs": [
+                  {
+                    "kind": "evaluation",
+                    "id": "evaluation-coffee-0"
+                  }
+                ],
+                "digest": "sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "lane": "current",
+      "values": [
+        {
+          "binding": {
+            "packRef": {
+              "kind": "offline-pack",
+              "id": "preset"
+            },
+            "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "destinationRef": {
+              "kind": "offline-inbox",
+              "id": "no-host"
+            },
+            "compositionEpoch": 1,
+            "hostEpoch": 1,
+            "runRef": "preset-fixture",
+            "evidenceMode": "fixture-observations"
+          },
+          "current": [
+            {
+              "revisionDomain": "profile-P2-0",
+              "occurrence": {
+                "revisionDomain": "profile-P2-0",
+                "occurrenceId": "evaluation-coffee-0",
+                "revision": 1,
+                "sourceRefs": [
+                  {
+                    "kind": "evaluation",
+                    "id": "evaluation-coffee-0"
+                  }
+                ],
+                "digest": "sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd"
+              },
+              "policyRef": {
+                "kind": "policy",
+                "id": "alert"
+              },
+              "policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+              "watermark": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "lane": "local",
+      "values": [
+        {
+          "binding": {
+            "packRef": {
+              "kind": "offline-pack",
+              "id": "preset"
+            },
+            "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "destinationRef": {
+              "kind": "offline-inbox",
+              "id": "no-host"
+            },
+            "compositionEpoch": 1,
+            "hostEpoch": 1,
+            "runRef": "preset-fixture",
+            "evidenceMode": "fixture-observations"
+          },
+          "tick": 1,
+          "stop": false,
+          "grants": [
+            {
+              "grantRef": {
+                "kind": "fixture-grant",
+                "id": "evaluation-coffee-0"
+              },
+              "ownerRef": {
+                "kind": "fixture-owner",
+                "id": "offline"
+              },
+              "operation": "append-alert",
+              "occurrence": {
+                "revisionDomain": "profile-P2-0",
+                "occurrenceId": "evaluation-coffee-0",
+                "revision": 1,
+                "sourceRefs": [
+                  {
+                    "kind": "evaluation",
+                    "id": "evaluation-coffee-0"
+                  }
+                ],
+                "digest": "sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd"
+              },
+              "requestDigest": "sha256:c5bfa92b390b7c263fbd8e2d74f8b6afde6fade6bc0f5baf4fdbbcb0da79b698",
+              "destinationRef": {
+                "kind": "offline-inbox",
+                "id": "no-host"
+              },
+              "hostEpoch": 1,
+              "validFrom": 0,
+              "validThrough": 100,
+              "maxWrites": 64,
+              "replayScope": {
+                "compositionEpoch": 1,
+                "hostEpoch": 1
+              },
+              "revoked": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "lane": "inbox",
+      "values": [
+        {
+          "binding": {
+            "packRef": {
+              "kind": "offline-pack",
+              "id": "preset"
+            },
+            "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "destinationRef": {
+              "kind": "offline-inbox",
+              "id": "no-host"
+            },
+            "compositionEpoch": 1,
+            "hostEpoch": 1,
+            "runRef": "preset-fixture",
+            "evidenceMode": "fixture-observations"
+          },
+          "issuerRef": {
+            "kind": "fixture",
+            "id": "passive-boundary"
+          },
+          "artifactRef": {
+            "kind": "fixture-artifact",
+            "id": "no-io"
+          },
+          "artifactDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+          "readiness": {
+            "ready": true,
+            "observedAt": 0,
+            "validThrough": 100,
+            "availableSlots": 1
+          },
+          "outcomes": []
+        }
+      ]
+    },
+    {
+      "lane": "verification",
+      "values": [
+        {
+          "binding": {
+            "packRef": {
+              "kind": "offline-pack",
+              "id": "preset"
+            },
+            "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+            "destinationRef": {
+              "kind": "offline-inbox",
+              "id": "no-host"
+            },
+            "compositionEpoch": 1,
+            "hostEpoch": 1,
+            "runRef": "preset-fixture",
+            "evidenceMode": "fixture-observations"
+          },
+          "receipts": [
+            {
+              "receiptRef": {
+                "kind": "fixture-verification",
+                "id": "sha256:26289adb273943a30a5cce55a1266306358711f45bc7f83d72a2c77e609aa219"
+              },
+              "issuerRef": {
+                "kind": "fixture",
+                "id": "independent-pairwise-oracle"
+              },
+              "verifierRevision": "spending-oracle-v2",
+              "occurrence": {
+                "revisionDomain": "profile-P2-0",
+                "occurrenceId": "evaluation-coffee-0",
+                "revision": 1,
+                "sourceRefs": [
+                  {
+                    "kind": "evaluation",
+                    "id": "evaluation-coffee-0"
+                  }
+                ],
+                "digest": "sha256:ad0d6c01979c717368dc5b15d51a1d7e9c1788b33220919c21929be0f20799bd"
+              },
+              "inputDigest": "sha256:b4c7cf90507cad4caa0e0f740e0c1a78df0a746a51c3d9951aaab7a896277f10",
+              "policyDigest": "sha256:b15c4cf57a55a47c7eaea1b34eed58915279b41a91a607f97103f11ad8e6c594",
+              "sourceDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+              "runtimeDigest": "sha256:e83bda48a5980d48f89dfeebe15be295234653e454344c39343f3153837fbf5a",
+              "requestDigest": "sha256:c5bfa92b390b7c263fbd8e2d74f8b6afde6fade6bc0f5baf4fdbbcb0da79b698",
+              "numericDomainRef": "spending-finite-v1",
+              "verdict": "pass",
+              "artifactRef": {
+                "kind": "fixture-artifact",
+                "id": "sha256:26289adb273943a30a5cce55a1266306358711f45bc7f83d72a2c77e609aa219"
+              },
+              "artifactDigest": "sha256:26289adb273943a30a5cce55a1266306358711f45bc7f83d72a2c77e609aa219"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "lane": "arrivals",
+      "values": [
+        {
+          "packRef": {
+            "kind": "offline-pack",
+            "id": "preset"
+          },
+          "evaluationRefs": [
+            "evaluation-coffee-0"
+          ]
+        }
+      ]
+    }
+  ]
+}

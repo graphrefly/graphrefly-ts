@@ -1,0 +1,11 @@
+{
+  "row": {
+    "id": "cold-P4-off",
+    "group": "cold",
+    "profile": "P4",
+    "mode": "off"
+  },
+  "identicalReference": false,
+  "scenarioPath": "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-coverage-current-v1/run/P4-inputs.json",
+  "output": "/Users/davidchenallio/src/graphrefly-ts/archive/evals/causal-performance-coverage-current-v1/run/job-012"
+}
