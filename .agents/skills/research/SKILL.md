@@ -1,6 +1,6 @@
 ---
 name: research
-description: "Research a topic triggered by curiosity or a post the user saw. Uses web search to analyze latest trends, competitor landscape, user patterns, future demands, and how findings relate to GraphReFly's roadmap and gaps. Triggers: 'research', 'look into', 'what's the landscape for', 'I saw this post about', 'trend check', 'competitor analysis'."
+description: "Research a requested GraphReFly topic or competitive question using current sources and relevant project authority."
 ---
 
 You are executing the **research** workflow for **GraphReFly**.
@@ -27,7 +27,8 @@ State the extracted topic, trigger, and angle before proceeding.
 
 ## Phase 1: Landscape research
 
-Use `mcp__searxng__searxng_web_search` (preferred) or `WebSearch` to gather intel. Run **at least 4-6 searches** covering different angles. Suggested search patterns (adapt to topic):
+Use `mcp__searxng__searxng_web_search` (preferred) or `WebSearch` to gather intel. Search the angles needed to answer the request. Stop when the material claims and recommendation
+have adequate evidence; expand only for unresolved uncertainty. Suggested search patterns (adapt to topic):
 
 1. **Trend pulse** — `"{topic}" trends 2025 2026` or `"{topic}" state of` 
 2. **User pain points** — `"{topic}" problems OR frustrations OR "wish it could"` or reddit/HN discussions
@@ -36,7 +37,7 @@ Use `mcp__searxng__searxng_web_search` (preferred) or `WebSearch` to gather inte
 5. **Developer adoption** — `"{topic}" adoption OR migration OR "switched to"`
 6. **Academic/deep** — `"{topic}" research OR paper OR architecture` (if relevant)
 
-For each search, read 2-3 promising results using `mcp__searxng__web_url_read` or `WebFetch` to get substance beyond snippets.
+Read the sources needed to substantiate material claims using `mcp__searxng__web_url_read` or `WebFetch` to get substance beyond snippets.
 
 ---
 
@@ -62,7 +63,7 @@ actually implement.
 
 ## Phase 3: Structured analysis
 
-Produce a report with these sections. Be **honest and specific** — don't flatter GraphReFly where it doesn't deserve it.
+Select the sections that answer the request; a narrow question does not require a landscape report. Be **honest and specific** — don't flatter GraphReFly where it doesn't deserve it.
 
 ### 3.1 Trend summary
 
@@ -87,7 +88,7 @@ Build a comparison table:
 |---|---|---|---|---|
 | {name} | {1-line approach} | {2-3 points} | {2-3 points} | {GitHub stars, npm downloads, community size, or "unknown"} |
 
-Include 3-6 competitors. For each, note the most interesting design decision they made.
+Include only competitors relevant to the requested comparison and explain their material differences.
 
 ### 3.4 GraphReFly positioning
 
@@ -132,7 +133,7 @@ over Y". Ask before changing canonical records.
 
 ### 4.2 Discussion prompts
 
-Surface **2-3 open questions** that the research raised but can't answer alone — things that depend on the user's judgment, taste, or strategic priorities. Frame these as genuine questions to spark discussion, not rhetorical ones. Examples:
+Surface unresolved material questions, if any, that the research raised but can't answer alone — things that depend on the user's judgment, taste, or strategic priorities. Frame these as genuine questions to spark discussion, not rhetorical ones. Examples:
 
 - "Competitor X chose to do Y — do we think that's the right trade-off for our users, or does our reactive-first approach make Y unnecessary?"
 - "There's emerging demand for Z, but it would pull us toward {direction}. Is that a direction we want to go?"
@@ -150,4 +151,4 @@ The goal is to leave the user with something to react to, not just a wall of inf
 - **Keep it scannable.** Use tables, bullets, and headers. Avoid walls of prose.
 - **Don't implement.** This skill produces a research report. It does NOT modify code. It MAY suggest phase
   or backlog changes, but must ask before editing canonical records.
-- **Invite discussion.** End on the open questions, not the recommendations. The user should feel pulled to respond, not just informed.
+- Ask a follow-up only when a user decision is needed; otherwise end with the supported recommendation.

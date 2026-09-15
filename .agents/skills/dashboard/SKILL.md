@@ -9,12 +9,10 @@ You are executing **dashboard** for the clean-slate GraphReFly redesign.
 
 ## Code-intelligence routing
 
-Running or interpreting the dashboard needs no source survey. When debugging or changing indexed generator
-implementation, call `codegraph_explore` before raw source Read/`rg` for the named generator symbol, its
-callers/dependents, tests, generated-output boundary, and blast radius. Treat returned source as already read.
-Read jsonl authority, README/schema text, generated HTML, configs, git diff, untracked files, and stale or
-unindexed files directly. If no live index exists, use direct inspection and never initialize one
-autonomously. The generator and consistency gate remain the correctness evidence.
+Use a current Codegraph index when it helps trace the affected symbols; use direct file reads or
+`rg` for simpler lookups, unavailable tools, or stale/unindexed files. Reuse source already read.
+Do not initialize an index merely to satisfy this workflow. Validate through the affected executable
+checks and required gates; an index is context, not correctness evidence.
 
 ## What this skill does
 

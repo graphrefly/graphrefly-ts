@@ -1,6 +1,6 @@
 ---
 name: dev-dispatch
-description: "Implement feature/fix with planning and self-test. Use when user says 'dispatch', 'dev-dispatch', or provides a task with implementation context. Supports --light flag for bug fixes and small changes. Run /qa afterward for code review and final checks."
+description: "Implement the requested feature or fix within project authority and verify affected behavior."
 ---
 
 You are executing the **dev-dispatch** workflow for the **clean-slate GraphReFly** redesign.
@@ -14,46 +14,30 @@ This repo is **`@graphrefly/ts`** — the self-contained TypeScript implementati
 The user's task/context is: $ARGUMENTS
 
 ### Mode detection
-If `$ARGUMENTS` contains `--light`, this is **light mode**. Otherwise **full mode**. Differences are noted inline per phase.
+Use a focused workflow for routine fixes and a fuller plan for substantial changes. `--light` remains
+supported. Neither mode requires another approval for work already authorized by the user; pause
+for unresolved semantic/architectural decisions or an action outside the approved scope.
 
-### Repository ownership practice
+### Shared build and preview
 
-Apply the global `repository-ownership-practice` skill unless `$ARGUMENTS` explicitly contains
-`--delivery-only`.
-
-- Before broad context loading, pause for the user's OWN card and best-effort PREDICT card.
-- Map one concrete input-to-output path before proposing implementation. Limit the implementation map to five
-  files and eight symbols; targeted authority records do not count toward that cap, but load only records that
-  govern the slice.
-- Preserve the user's first debugging pass: hypotheses and cheapest discriminators before a generated fix.
-- Freeze one Given/When/Then behavior and its stopping boundary before code.
-- Finish with diff, behavior, and trace evidence plus the user's TEACH-BACK checkpoint and next-day five
-  questions.
-- Do not begin another slice in the same turn after the teach-back checkpoint. Waiting for the user leaves any
-  Goal active; it is not a blocker.
-
-`--delivery-only` skips waiting for the user's cards and teach-back, not the narrow map, frozen contract,
-three-layer verification, or ownership handoff. Label such work `delivered, not yet ownership-verified`.
+Use `~/.codex/skills/bmad-build/SKILL.md` inside the selected implementation slice, retaining this
+workflow's authority, sequencer and gates. Use `~/.codex/skills/bmad-checkpoint-preview/SKILL.md` for
+human review: build-handoff mode during ordinary delivery; interactive mode for explicit checkpoint
+or `--practice` requests. No prediction or teach-back is required.
 
 ### Workflow floor (non-negotiable)
-- **decision-first and owner-first**: any architectural lock needs an origin-qualified `D#` in its unique owner ledger from `~/src/graphrefly/authority/ledgers.jsonl` BEFORE code (`/design-review` → user approval → append). Cross-project/protocol locks stay in root; TypeScript-only product or implementation locks live in `graphrefly-ts:decisions/decisions.jsonl`. Decisions locked ≠ implementation approved — wait for an explicit "implement".
+- **decision-first and owner-first**: any architectural lock needs an origin-qualified `D#` in its unique owner ledger from `~/src/graphrefly/authority/ledgers.jsonl` BEFORE code (`/design-review` → user approval → append). Cross-project/protocol locks stay in root; TypeScript-only product or implementation locks live in `graphrefly-ts:decisions/decisions.jsonl`. A design lock alone is not implementation approval; the current implementation request can supply that approval.
 - **spec-first** (F-NO-IMPL-DEFINED): any wave-protocol behavior change amends `spec/rules.jsonl` + `formal/*.tla` + `spec/conformance.jsonl` FIRST (`/spec-amend`), THEN code. Operators/sugar/inspection are per-language (D6/D24) — NOT spec, skip spec-amend.
-- **no autonomous decisions**: surface spec↔code conflicts; don't silently pick. File-by-file review for multi-file rewrites.
-- **verify premise**: design tables lag code — inspect the named symbols + check landed markers (`plan/phases.jsonl` status/notes) before designing new surface; a stale premise is a HALT.
+- **no autonomous decisions**: surface spec↔code conflicts; don't silently pick. Review affected boundaries for multi-file rewrites.
+- **verify premise**: design tables lag code — inspect the named symbols + check landed markers (`plan/phases.jsonl` status/notes) before designing new surface; correct stale premises from current evidence; ask only if the correction changes scope or a locked decision.
 - **consistency gate**: after touching any `~/src/graphrefly` jsonl, run `node ~/src/graphrefly/dashboard/build.mjs --check` (non-zero on broken links / orphans).
 
 ### Code-intelligence routing
 
-- For implementation source in a repository with a live `.codegraph` index, call `codegraph_explore`
-  before raw Read/`rg`. Query the named symbols or flow endpoints and request exact source, call paths,
-  dependents, relevant tests, export/build boundaries, and blast radius.
-- Treat returned source as already read; do not re-read or grep it merely to verify Codegraph. Use another
-  targeted query only for uncovered symbols or paths.
-- Read `AGENTS.md`, `CLAUDE.md`, skills, authority jsonl, docs, configs, generated artifacts, git diff,
-  untracked files, and unindexed files directly. If the index is absent/disabled or reports stale files,
-  follow its fallback guidance and never initialize an index autonomously.
-- After edits, verify correctness with git diff, compiler/typecheck, tests, lint, build, and package/export
-  gates. Codegraph informs scope and blast radius; it is not a correctness gate.
+Use a current Codegraph index when it helps trace the affected symbols; use direct file reads or
+`rg` for simpler lookups, unavailable tools, or stale/unindexed files. Reuse source already read.
+Do not initialize an index merely to satisfy this workflow. Validate through the affected executable
+checks and required gates; an index is context, not correctness evidence.
 
 ---
 
@@ -63,7 +47,8 @@ Load context and plan in a bounded pass. Read authority indexes first, then only
 seams governing the frozen slice. Parallelize independent targeted reads; do not load the whole design history
 merely because it is available.
 
-Read in parallel (clean-slate authority):
+Context index: read only the governing records and relevant implementation/tests below, reusing
+material already loaded. Protocol/formal context is needed only when the changed behavior depends on it:
 - `~/src/graphrefly/AGENTS.md` — the single-source authority index (read FIRST).
 - `~/src/graphrefly/spec/rules.jsonl` — the protocol 宪法 (R-* rules); deep-read the rules your change touches.
 - `~/src/graphrefly/authority/ledgers.jsonl` + the resolved owner ledger — the federated decision authority (or invoke `/decision-guard` to recall the governing origin-qualified D#/values/floor).
@@ -81,9 +66,9 @@ Read in parallel (clean-slate authority):
 While planning, validate proposed changes against the clean-slate floor (cite the rule/D#):
 - **Sacred (L0.7):** topology declarative/serializable/inspectable · wave protocol is a public spec · wave protocol impl is **sync** · all fn go through the dispatcher.
 - **8 verbs, closed (D4):** `node`/`graph`/`batch`/`state` + `producer`/`derived`/`effect`/`mount`. **Operators are `node` sugar (D6), not verbs** — per-language, never in parity (D24); real factory names show in `describe`. Adding a verb is a constitutional change.
-- **Messages** `[[Type, Data?], ...]`; one array to `ctx.down`/`ctx.up` = one wave (R-msg-format). 10-type closed set, no user-defined types (R-msg-closed-set).
+- **Messages** `[[Type, Data?], ...]`; one array to `ctx.down`/`ctx.up` = one wave (R-msg-format). The closed message set is defined by R-msg-closed-set; do not duplicate its count here.
 - **DIRTY before DATA/RESOLVED** in the same wave (R-dirty-before-data); two-phase glitch-free diamond (R-two-phase); a diamond/fan-in node recomputes exactly once after all changed deps settle (R-diamond). batch defers tier-≥3, not DIRTY.
-- **`ctx.up` is control-tier only** (DIRTY/PAUSE/RESUME/INVALIDATE/TEARDOWN); DATA/RESOLVED/COMPLETE/ERROR are down-only (R-ctx-up, D8). A handle is pure data, no methods (D7).
+- **`ctx.up`**: read the current control/demand boundary in R-ctx-up before changing its behavior. A handle is pure data, no methods (D7).
 - **No polling** (R-no-polling); **no imperative triggers** (R-no-imperative — reactive `ctx.up`/signals, not emitters/callbacks/timers+set; remove imperative paths when no caller depends); **no raw async** in the sync core (R-no-raw-async / F-SYNC-CORE — async lives only in sources / the pool / the wire bridge).
 - **All fn through the dispatcher** (R-dispatch-all / F-DISPATCH-ALL — no inline-fn bypass). `dispatcher.invoke` is sync void (R-sync-core).
 - **Data moves via messages** (R-data-not-peek — never peek a dep's `.cache` to seed compute; `.cache` is a read-only accessor for external consumers). SENTINEL = absence-of-DATA (R-sentinel); the canonical never-emitted detector is `ctx.prevData[i] === undefined`.
@@ -95,56 +80,24 @@ While planning, validate proposed changes against the clean-slate floor (cite th
 
 **Targeting a sibling (py/rust):** if the task targets `@graphrefly/py` (`~/src/graphrefly-py`) or `@graphrefly/rust` (`~/src/graphrefly-rs`), read that package's local layout + its conformance arm status in `spec/conformance.jsonl`. The cross-language contract is **behavioral conformance (D24)**, not symbol parity. PY public APIs are synchronous (return `Node[T]`/`Graph`/value, no `async def`); async lives at the source/pool boundary only (F-SYNC-CORE).
 
-Do NOT start implementing yet.
 
 ---
 
-## Phase 2: Architecture Discussion
+## Phase 2: Resolve material decisions
 
-### Full mode — HALT
-
-**HALT and report before implementing.** Present:
-
-1. **Architecture assumptions** — how this fits the substrate (`node`/`dispatcher`/`ctx`/`protocol`/`batch`) vs graph-layer (`graph/`) split.
-2. **New patterns** — any not yet in `packages/ts/src/`.
-3. **Options considered** — alternatives with pros/cons.
-4. **Recommendation** — preferred approach + why.
-
-Prioritize (in order):
-1. **Correctness** — matches `~/src/graphrefly/spec/rules.jsonl` + the floor.
-2. **Completeness** — edge cases (errors, COMPLETE, reconnect/reactivate, diamonds, SENTINEL gate, PAUSE lockset).
-3. **Consistency** — matches patterns already in `packages/ts/src/`.
-4. **Simplicity** — minimal solution.
-
-No backward compatibility (pre-1.0).
-
-**Escalation routing** (don't silently pick — no-autonomous-decisions):
-- Architectural lock → `/design-review` → user approval → append a `D#` to `decisions.jsonl`.
-- Wave-protocol behavior change → `/spec-amend` (spec-first: rules + TLA+ + conformance, THEN code).
-- Cross-runtime concern → `/conformance` (behavioral scenario, not structural diff).
-- Deferred/open question with no answer yet → append to `~/src/graphrefly/plan/backlog.jsonl` (B# + trigger); a recurring anti-pattern → `plan/antipatterns.jsonl` (+ a `feedback_*` memory if generalizable).
-
-**Wait for user approval before proceeding.**
-
-### Light mode — Skip unless escalation needed
-
-Proceed directly to Phase 3 **unless** Phase 1 reveals any of these:
-- A change to **wave-protocol behavior** (tiers, wave semantics, diamond/equals/SENTINEL, batch, push-on-subscribe, ctx.up/down contract) → spec-first, escalate.
-- A new architectural lock with no governing `D#`.
-- Multiple viable approaches with non-obvious trade-offs.
-
-If any apply: HALT and present findings as in full mode.
-
----
+Proceed with authorized implementation when existing decisions govern the behavior. Explain material
+assumptions and tradeoffs briefly. Ask only when an unresolved choice changes product semantics,
+public contract, architecture, or authorization. Preserve spec-first amendments and owner-ledger
+approval for new locks; a locked design alone does not authorize implementation when the user deferred it.
 
 ## Phase 3: Implementation & Self-Test
 
-After user approves (full mode) or after Phase 1 (light mode, no escalation):
+Once implementation is authorized and material decisions are resolved:
 
 1. Implement the changes.
    - Treat `~/src/graphrefly/spec/rules.jsonl` as non-negotiable for behavior; if code drifts from a rule, align to the rule — or surface the conflict, don't silently pick.
    - Cite the governing R-id / D# in test expectations.
-2. Create tests (per `guide/guide.jsonl` G-test — unit / property / conformance layering):
+2. Add meaningful behavior tests where needed (per `guide/guide.jsonl` G-test — unit / property / conformance layering):
    - Put tests in the most specific existing file under `packages/ts/src/__tests__/`.
    - Use `graph.observe()` for live message assertions; assert at the node + message level otherwise. A behavioral-protocol change ALSO needs a `spec/conformance.jsonl` scenario (`/conformance`) before its rule flips `draft → active`.
 3. Run checks:
@@ -155,5 +108,5 @@ After user approves (full mode) or after Phase 1 (light mode, no escalation):
 
 If implementation leaves an **open architectural decision** (deferred behavior, parity caveat, "needs spec" item), append it to `~/src/graphrefly/plan/backlog.jsonl` (B# + trigger) — NOT a docs file. If it **lands or advances a CSP-* phase**, update that phase's `status`/`note` in `~/src/graphrefly/plan/phases.jsonl`, flip any conformance-backed `draft` rule to `active` once its scenario is green per arm, then run the consistency gate.
 
-When done, briefly list files changed and new exports added. Run the ownership handoff before suggesting `/qa`.
-In practice mode, wait for the user's teach-back before starting another implementation slice.
+When done, briefly list files changed and new exports added. Apply the shared BMAD QA process with local gates, then provide the checkpoint preview trail.
+Wait for review navigation only when interactive checkpoint mode was explicitly requested.

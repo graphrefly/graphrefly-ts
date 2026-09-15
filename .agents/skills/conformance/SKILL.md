@@ -29,13 +29,10 @@ each runtime passes the same language-agnostic scenarios.
 
 ## Code-intelligence routing
 
-For each indexed runtime implementation, call `codegraph_explore` before raw source Read/`rg` to locate the
-scenario harness and trace the protocol symbols it exercises, their callers/dependents, adjacent tests,
-public boundaries, and blast radius. Treat returned source as already read and query again only for uncovered
-paths. Read spec/conformance jsonl, TLA+, configs, git diff, untracked files, and stale/unindexed files
-directly. If an index is absent or disabled, use direct inspection and never initialize it autonomously.
-Codegraph locates behavioral paths; the shared scenario, property tests, compiler, and runtime gates decide
-conformance.
+Use a current Codegraph index when it helps trace the affected symbols; use direct file reads or
+`rg` for simpler lookups, unavailable tools, or stale/unindexed files. Reuse source already read.
+Do not initialize an index merely to satisfy this workflow. Validate through the affected executable
+checks and required gates; an index is context, not correctness evidence.
 
 ## Phase 1 — scenario integrity
 
