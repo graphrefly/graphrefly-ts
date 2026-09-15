@@ -28,14 +28,10 @@ Protocol behavior is **spec-first**. No "implementation defines what happens." O
 
 ## Code-intelligence routing
 
-Before estimating or implementing each runtime delta, call `codegraph_explore` in every indexed affected
-implementation repo before raw source Read/`rg`. Query the changed rule's protocol symbols and journey
-endpoints for exact source, call paths, callers/dependents, existing conformance/property tests, public
-boundaries, and blast radius. Treat returned source as already read and query again only for uncovered paths.
-Read rules/conformance jsonl, decisions, TLA+, configs, git diff, untracked files, and stale/unindexed files
-directly. If an index is absent or disabled, use direct inspection and never initialize it autonomously.
-Codegraph scopes the implementation work; the amended spec, TLC, scenarios, compiler, and runtime gates decide
-correctness.
+Use a current Codegraph index when it helps trace the affected symbols; use direct file reads or
+`rg` for simpler lookups, unavailable tools, or stale/unindexed files. Reuse source already read.
+Do not initialize an index merely to satisfy this workflow. Validate through the affected executable
+checks and required gates; an index is context, not correctness evidence.
 
 ## Output
 

@@ -1,6 +1,6 @@
 ---
 name: design-review
-description: "Validate the design of a new primitive or API surface against the 5-question lens (Q5–Q9 from the per-unit review format). Use BEFORE coding (or right after a sketch lands) when adding a new public API / pattern factory / domain primitive. Triggers: 'design review', 'review the design', 'is this the right shape', 'before I implement'. Different from /qa — that finds bugs in landed code; this validates abstraction + long-term shape + reactive composability + alternatives."
+description: "Review a proposed public API, primitive, or architectural change against project constraints and resolve material design choices."
 ---
 
 You are executing the **design-review** workflow for the **clean-slate GraphReFly** redesign.
