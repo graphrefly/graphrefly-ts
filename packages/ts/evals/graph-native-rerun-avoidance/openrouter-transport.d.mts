@@ -21,12 +21,8 @@ export interface OpenRouterPricing {
 	readonly cacheReadMicrousdPerMillionTokens: number;
 	readonly outputMicrousdPerMillionTokens: number;
 }
-export function providerReportedCost(
-	root: Record<string, unknown>,
-): OpenRouterCost;
-export function parseOpenRouterUsage(
-	root: Record<string, unknown>,
-): OpenRouterUsage;
+export function providerReportedCost(root: Record<string, unknown>): OpenRouterCost;
+export function parseOpenRouterUsage(root: Record<string, unknown>): OpenRouterUsage;
 export function auditProviderReportedCost(
 	root: Record<string, unknown>,
 	pricing: OpenRouterPricing,

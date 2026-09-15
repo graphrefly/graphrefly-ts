@@ -2335,7 +2335,7 @@
 			"kind": "frozen-evidence",
 			"optional": false,
 			"archive": "archive/evals/causal-passive-facts-lint-v1/evidence.tar.gz",
-			"archiveSha256": "0a916099516fb03828897c70574ba391eaab251b6b7e86d2d04e3b8f75b68c31",
+			"archiveSha256": "1b22f7ada4863eefd17bce3acb9d0b196e19ff7bec9880f8b56105ab74a74f0b",
 			"member": "passive-facts.json",
 			"sha256": "0c0c52227b0fe17a5cbe1427ca6bae35d722bd2c046893c4e0bf327ddd37480a"
 		},
