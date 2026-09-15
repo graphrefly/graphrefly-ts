@@ -2329,6 +2329,636 @@
 			"sha256": "220f9959aae9d1b248afd21fb1251d5c29a5cf0c5182b3d9b639bb2155e923a4",
 			"indexReference": "docs/design/causal-release-boundaries-v1-implementation/receipt.json",
 			"indexRevision": "922a758655a4dd2d65662022de2974dd8655191a"
+		},
+		{
+			"path": "docs/design/causal-comparison-preparation/passive-facts.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-passive-facts-lint-v1/evidence.tar.gz",
+			"archiveSha256": "0a916099516fb03828897c70574ba391eaab251b6b7e86d2d04e3b8f75b68c31",
+			"member": "passive-facts.json",
+			"sha256": "0c0c52227b0fe17a5cbe1427ca6bae35d722bd2c046893c4e0bf327ddd37480a"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/P1-inputs.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-unprofiled-latency-evidence-v1/evidence.tar.gz",
+			"archiveSha256": "cf92b0ad017208e17e09973e8bb1521db381eaa102acbd1beecf93c4b1f88963",
+			"member": "run/P1-inputs.json",
+			"sha256": "03eb10cee80ba1fb756161d45dcc31daf96048a4c99f57d883768ab3fc467584"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/P3-inputs.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-unprofiled-latency-evidence-v1/evidence.tar.gz",
+			"archiveSha256": "cf92b0ad017208e17e09973e8bb1521db381eaa102acbd1beecf93c4b1f88963",
+			"member": "run/P3-inputs.json",
+			"sha256": "5acebd49f382916ce32293f2ca297c4107906076d1a2c73cd4700616c46b3023"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/P4-inputs.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-performance-completion-v1/evidence.tar.gz",
+			"archiveSha256": "466bc9688d40299b07913322d71f428d691e9f1832906de717b2868b26849294",
+			"member": "causal-coverage-profile-current-v1/run/P4-inputs.json",
+			"sha256": "e2f473d1c603d665d28d64a6d589e4a94ce23de815655bb3562e7b42472f7dc7"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/after.mjs",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-receipt-identity-evidence-v1/evidence.tar.gz",
+			"archiveSha256": "5f4b1b60c1f77437a1f1cd15f017563a446479cd6ec3c97048a72dc77cf2dd6e",
+			"member": "capture/run/before.mjs",
+			"sha256": "fe276fb2987e79f7339c2d6462f8a20e18b72e8f1f3b9e82c6df9affc1fb1b68"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/artifact-index.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/artifact-index.json",
+			"sha256": "dcfd4e47a21ebd9c54510d26757c4cc10d8bad4580b619384ae5ddb336758f2f"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/attempt.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/attempt.json",
+			"sha256": "d2ce366e6014dfe43b5b10b9d4ac1537c5cd805aa320ac7be7da9a6334f81510"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/before.mjs",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/before.mjs",
+			"sha256": "7d22b50356f2fcf6ed6799efdfe621a13649c024fa78700f99200d5d517735af"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/freeze.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/freeze.json",
+			"sha256": "9d87121d738758f4527199b901fef52274ea80b4b4641b92a91c8eed8ce1e80f"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/reservation.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/reservation.json",
+			"sha256": "99d7c7331ac8c4ce9fc7d522a55e669afa3cdbf4823ccf1be80863da19ee8c89"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/job-0.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/job-0.json",
+			"sha256": "cea2da1d3c3b27654b16018ee211be8b9b3e9ef27db45d7e75a8f58292cc338a"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/job-1.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/job-1.json",
+			"sha256": "92c054d7a70bb3bb8caec2d4e49ed15a092ccb98accf3c137ddb15941672cfa1"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/job-2.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/job-2.json",
+			"sha256": "150efae4aeb7e269a0358b4bc7d769eb31d43d8ad521eb0b81c8982827b36441"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/job-3.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/job-3.json",
+			"sha256": "731f3f5c21829b63e689415b107f5b0073174bb1791b194b6b6979b606f73d40"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/job-4.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/job-4.json",
+			"sha256": "662b02a2ca744b182373d36280e5c37a0dc16574ca36611a2ed17a69274f1312"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/job-5.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/job-5.json",
+			"sha256": "10720dc47ca285fd63a94562dfaea6403e7d7e600dd224d7cc94950cc5a75b50"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/job-6.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/job-6.json",
+			"sha256": "c72f8ada9cd69fb6766b9c030314d0aed4115b56bc67be42152551341786bbb2"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/job-7.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/job-7.json",
+			"sha256": "37ea70cbf365fafaf72cee2a0c0bbd8f4648f81c6a50b8fde7b54c195c90d729"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/job-8.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/job-8.json",
+			"sha256": "7f1d51f85596a451ed7709c4960ea6b9a3df8816380da384f41a76f55899f6a4"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/job-9.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/job-9.json",
+			"sha256": "7b4b591557a5d76bf9eb81931a5c17c8d350d5b767f962d026c6a38be10aabb4"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/job-10.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/job-10.json",
+			"sha256": "beea61e9ebe86385b4b686a009d43fd8fe3cf096672c3fcbb05fa8e30717d3e3"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/job-11.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/job-11.json",
+			"sha256": "63c67f2259924859048f667c4061a5bd636a1ec3eb67cdeed672eee23a80e9bb"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/job-12.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/job-12.json",
+			"sha256": "254617ad14aab181f81f7a68670a3f1822cccf280902835a93af78efe01d1699"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/job-13.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/job-13.json",
+			"sha256": "1398ee7d37b52d8b31b8e9decaa00e2e1dd2420b2b6e5e52cbd91f8b5dfa408a"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/job-14.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/job-14.json",
+			"sha256": "86bed3b938254982caf7247d2ca8df43b19475a6ee6af754bb9595752764b3ac"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/job-15.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/job-15.json",
+			"sha256": "a0a416215e0bad107bd096ffd872d0be78d5793ea5593dbd6ab4948f66a3046b"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/job-16.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/job-16.json",
+			"sha256": "d83ef55455ba9f6c471d9821f45b61382dda3e9aa23a55a2f10439d8a17f4c25"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/job-17.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/job-17.json",
+			"sha256": "955109dfda8ae18c6be1ec0cf21855a5f069587ee28d6e14293e2e63dd7ca502"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/job-18.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/job-18.json",
+			"sha256": "f7bbb2aaeadce165c5aebf387c9d3efb7f01d56be8a147f17e463ba14a87e4ab"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/job-19.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/job-19.json",
+			"sha256": "c6e7d08cf18cd1610c25d0844b9818ca6d1469299a440f80213a5ce217553924"
+		},
+		{
+			"path": "docs/design/causal-currentness-query-optimization/comparison/job-20.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/job-20.json",
+			"sha256": "e76df51aea26cc572a29a262ed90e7366beec3c1f702ca2fb4913fa2c6b3146e"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/P1-inputs.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-unprofiled-latency-evidence-v1/evidence.tar.gz",
+			"archiveSha256": "cf92b0ad017208e17e09973e8bb1521db381eaa102acbd1beecf93c4b1f88963",
+			"member": "run/P1-inputs.json",
+			"sha256": "03eb10cee80ba1fb756161d45dcc31daf96048a4c99f57d883768ab3fc467584"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/P3-inputs.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-unprofiled-latency-evidence-v1/evidence.tar.gz",
+			"archiveSha256": "cf92b0ad017208e17e09973e8bb1521db381eaa102acbd1beecf93c4b1f88963",
+			"member": "run/P3-inputs.json",
+			"sha256": "5acebd49f382916ce32293f2ca297c4107906076d1a2c73cd4700616c46b3023"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/P4-inputs.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-performance-completion-v1/evidence.tar.gz",
+			"archiveSha256": "466bc9688d40299b07913322d71f428d691e9f1832906de717b2868b26849294",
+			"member": "causal-coverage-profile-current-v1/run/P4-inputs.json",
+			"sha256": "e2f473d1c603d665d28d64a6d589e4a94ce23de815655bb3562e7b42472f7dc7"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/after.mjs",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/before.mjs",
+			"sha256": "7d22b50356f2fcf6ed6799efdfe621a13649c024fa78700f99200d5d517735af"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/artifact-index.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/artifact-index.json",
+			"sha256": "4684163ac5c5288a9173f87e3f4896c3c66a6eed35c2fbbf218e847f449983ca"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/attempt.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/attempt.json",
+			"sha256": "e8bf2c39d46bb0dcc5b803354274cac090b058420f03e676be1669b6ec4874dc"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/before.mjs",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-performance-completion-v1/evidence.tar.gz",
+			"archiveSha256": "466bc9688d40299b07913322d71f428d691e9f1832906de717b2868b26849294",
+			"member": "causal-action-cpu-current-v1/worker.mjs",
+			"sha256": "d72fff7041885588d92de6ce2d193e339aa36621a45fe4a4645964943055a99b"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/freeze.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison/freeze.json",
+			"sha256": "e88b032437bb15ef5b2d6d51e92ff4d160412b46ff0f1bd9bdc606290d731ac9"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/reservation.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/reservation.json",
+			"sha256": "0389028ab40c1a7f0efd9564c292e392ca58ba31529ee0f0cee11bf776f771ea"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/job-0.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/job-0.json",
+			"sha256": "9c59866c519cb23036d580f6dc35d323a571451fd32e6ae1e2470e35059b8fb3"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/job-1.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/job-1.json",
+			"sha256": "1466cce7823d869c0e619a5494cc49fbf197d4048208b968607db677b4412cc0"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/job-2.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/job-2.json",
+			"sha256": "0f98981988ed7bf564d615fb91cfbc9cbe716ff1da7fee67f0b55e948f27479f"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/job-3.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/job-3.json",
+			"sha256": "e12ea3b7b47dcc79595b09457121ba1c6e6d1666e60508d6047f624b1e678d16"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/job-4.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/job-4.json",
+			"sha256": "ea62362e337abccd1dcf876f434ee135e0b115a71d1e39ba5dc02247a5815d3d"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/job-5.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/job-5.json",
+			"sha256": "b76c60cfc50996994d230340afa9b5a7a0a10970ddc64f20b1635ae8c8045a19"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/job-6.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/job-6.json",
+			"sha256": "81f46a31f03bff21e73f3ad291e35549efdeb91275eeaa3b227f4fd6fdc8b932"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/job-7.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/job-7.json",
+			"sha256": "7a272159eb3f349614f3390f5167b694b37597c78487f4136d5ec01905483a80"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/job-8.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/job-8.json",
+			"sha256": "99ed0bf0a328a610945c86c2ba3ff6a2ed32a76291ca307ec1968483ccab0760"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/job-9.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/job-9.json",
+			"sha256": "2cb80666f30b3151b24efd66d9846cb8dcb7b7f7f09c493be4e7fc5f86a75130"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/job-10.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/job-10.json",
+			"sha256": "dd2dd6070dcaefa64165e5706f65575d21601364ced24d9beb6e17f285c6372f"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/job-11.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/job-11.json",
+			"sha256": "30e8815838338d96608c37ec7d10cef87a060709b8f6348a1cc7d4e3cc524d5c"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/job-12.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/job-12.json",
+			"sha256": "87043d8c626d8bb8f8a85cd7b39c296f2100277df4e25687e20d4b6d42af67f5"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/job-13.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/job-13.json",
+			"sha256": "a2b296772f554398cf59e3f458beee9b64bfdf2c9b0b6f09f2516bf9c4b43302"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/job-14.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/job-14.json",
+			"sha256": "f827960e36f97cb61ba3ed66e00bc1c35614eb274cd9770d70f943d86ab33a78"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/job-15.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/job-15.json",
+			"sha256": "5a3063d038a618b88de0a4ddc0a156c630729a6f94326550a0ebc73f5e3c9b3b"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/job-16.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/job-16.json",
+			"sha256": "f801a8070dce4e2f6017c40d3b4884fc779ca4a312721b73d70c05c687fc0bc5"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/job-17.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/job-17.json",
+			"sha256": "4db797d947ce2ad851e1ce7a2ac2e4a347d2aea51658d1370e37d80be227fcf4"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/job-18.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/job-18.json",
+			"sha256": "6aed5cba71815f492518dc7743df09d6012c159ae7505f4b4f5e224c37c29c80"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/job-19.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/job-19.json",
+			"sha256": "b00e602d4e85116b71b060e60a787da5aac5691d78fadc86a19875892cbd6471"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison-v2/job-20.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison-v2/job-20.json",
+			"sha256": "35caf5ebcd3008a6cface48c468a032d8fbaa734478fc8d68980a7beea6857fa"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison/P1-inputs.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-unprofiled-latency-evidence-v1/evidence.tar.gz",
+			"archiveSha256": "cf92b0ad017208e17e09973e8bb1521db381eaa102acbd1beecf93c4b1f88963",
+			"member": "run/P1-inputs.json",
+			"sha256": "03eb10cee80ba1fb756161d45dcc31daf96048a4c99f57d883768ab3fc467584"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison/P3-inputs.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-unprofiled-latency-evidence-v1/evidence.tar.gz",
+			"archiveSha256": "cf92b0ad017208e17e09973e8bb1521db381eaa102acbd1beecf93c4b1f88963",
+			"member": "run/P3-inputs.json",
+			"sha256": "5acebd49f382916ce32293f2ca297c4107906076d1a2c73cd4700616c46b3023"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison/P4-inputs.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-performance-completion-v1/evidence.tar.gz",
+			"archiveSha256": "466bc9688d40299b07913322d71f428d691e9f1832906de717b2868b26849294",
+			"member": "causal-coverage-profile-current-v1/run/P4-inputs.json",
+			"sha256": "e2f473d1c603d665d28d64a6d589e4a94ce23de815655bb3562e7b42472f7dc7"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison/after.mjs",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-currentness-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "f926399c04e11cc4644ad8e743ad2a735dcc31978827774bc5f9c2b8767e0271",
+			"member": "comparison/before.mjs",
+			"sha256": "7d22b50356f2fcf6ed6799efdfe621a13649c024fa78700f99200d5d517735af"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison/artifact-index.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison/artifact-index.json",
+			"sha256": "ba3276cb449dc38b0bed512a6fe42039de60de86286953d3a1f5cb1485ad799b"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison/attempt.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison/attempt.json",
+			"sha256": "e29d24e581cd31156c3eb3e962abbdb2e32b8aba984b50c2cd51512756f5d0b5"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison/before.mjs",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-performance-completion-v1/evidence.tar.gz",
+			"archiveSha256": "466bc9688d40299b07913322d71f428d691e9f1832906de717b2868b26849294",
+			"member": "causal-action-cpu-current-v1/worker.mjs",
+			"sha256": "d72fff7041885588d92de6ce2d193e339aa36621a45fe4a4645964943055a99b"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison/freeze.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison/freeze.json",
+			"sha256": "e88b032437bb15ef5b2d6d51e92ff4d160412b46ff0f1bd9bdc606290d731ac9"
+		},
+		{
+			"path": "docs/design/causal-evidence-query-optimization/comparison/reservation.json",
+			"kind": "frozen-evidence",
+			"optional": false,
+			"archive": "archive/evals/causal-evidence-query-optimization-v1/evidence.tar.gz",
+			"archiveSha256": "2ed7783e15ca497e807be825da8e1980a40977f4745f77acd3c3be9deaf60e3a",
+			"member": "comparison/reservation.json",
+			"sha256": "cf4f0a09022f7457c1d8a578b283b79f184490633a96b2aa75073f3ef72002a4"
 		}
 	],
 	"baselineIncludes": [
