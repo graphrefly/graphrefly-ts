@@ -75,6 +75,14 @@ import {
 } from "./model-harness-profile.js";
 import { MODEL_HARNESS_PROFILE_NO_NETWORK_QA_ARTIFACT_DIGEST } from "./model-harness-profile-qualification.js";
 import {
+	isTransientAvailabilityStatus,
+	OPENROUTER_CONDITIONAL_AVAILABILITY_CODES,
+	OPENROUTER_MAX_AVAILABILITY_RETRIES,
+	OPENROUTER_MAX_CAPACITY_RETRIES,
+	OPENROUTER_MAX_RETRY_DELAY_MS,
+	recoveryDelay,
+} from "./openrouter-recovery.mjs";
+import {
 	type EvalNonbillableCostEvidence,
 	ROOT_EVAL_NONBILLABLE_POLICY,
 	validateNonbillableCostEvidence,
@@ -153,9 +161,9 @@ export const ROOT_EVAL_INITIAL_PROVIDER_CAPACITY = 1 as const;
 export const ROOT_EVAL_RATE_LIMITED_PROVIDER_CAPACITY = 1 as const;
 export const ROOT_EVAL_PROVIDER_START_INTERVAL_MS = 30_000 as const;
 export const ROOT_EVAL_MAX_PROVIDER_DISPATCHES_PER_WORK_ITEM = 5 as const;
-export const ROOT_EVAL_MAX_CAPACITY_RETRIES = 3 as const;
-export const ROOT_EVAL_MAX_AVAILABILITY_RETRIES = 1 as const;
-export const ROOT_EVAL_MAX_INFRASTRUCTURE_RETRY_DELAY_MS = 240_000 as const;
+export const ROOT_EVAL_MAX_CAPACITY_RETRIES = OPENROUTER_MAX_CAPACITY_RETRIES;
+export const ROOT_EVAL_MAX_AVAILABILITY_RETRIES = OPENROUTER_MAX_AVAILABILITY_RETRIES;
+export const ROOT_EVAL_MAX_INFRASTRUCTURE_RETRY_DELAY_MS = OPENROUTER_MAX_RETRY_DELAY_MS;
 export const ROOT_EVAL_RETRY_SETTLEMENT_BOUND_MS = 241_000 as const;
 export const ROOT_EVAL_TOOL_SETTLEMENT_BOUND_MS = 600_000 as const;
 export const ROOT_EVAL_BILLING_SETTLEMENT_BOUND_MS = 256_000 as const;
@@ -464,20 +472,8 @@ export const EVAL_PROVIDER_OUTCOME_REASON_CODES = Object.freeze([
 	"executor-failed",
 ] as const);
 
-export const EVAL_PROVIDER_CONDITIONAL_AVAILABILITY_CODES = Object.freeze([
-	"failed_dependency",
-	"gateway_timeout",
-	"internal_server_error",
-	"provider_internal_error",
-	"provider_overloaded",
-	"request_timeout",
-	"resource_locked",
-	"server_error",
-	"service_unavailable",
-	"temporarily_unavailable",
-	"upstream_error",
-	"upstream_timeout",
-] as const);
+export const EVAL_PROVIDER_CONDITIONAL_AVAILABILITY_CODES =
+	OPENROUTER_CONDITIONAL_AVAILABILITY_CODES;
 
 export type EvalProviderOutcomeReason = (typeof EVAL_PROVIDER_OUTCOME_REASON_CODES)[number];
 export type EvalProviderOutcomeReasonCounts = Readonly<Record<EvalProviderOutcomeReason, number>>;
@@ -2180,14 +2176,11 @@ function normalizeProviderOutcomeCandidate(outcome: EvalProviderOutcome): EvalPr
 				toolProposal: null,
 			});
 		} else if (status < 200 || status >= 300) {
-			const availability =
-				[408, 425, 502, 503, 504, 520].includes(status) ||
-				([409, 423, 424, 500].includes(status) &&
-					(candidate.retryAfterMs > 0 ||
-						(candidate.providerErrorCode !== null &&
-							EVAL_PROVIDER_CONDITIONAL_AVAILABILITY_CODES.includes(
-								candidate.providerErrorCode as (typeof EVAL_PROVIDER_CONDITIONAL_AVAILABILITY_CODES)[number],
-							))));
+			const availability = isTransientAvailabilityStatus(
+				status,
+				candidate.providerErrorCode,
+				candidate.retryAfterMs > 0,
+			);
 			derived = Object.freeze({
 				...candidate,
 				status: availability ? ("retryable" as const) : ("failed" as const),
@@ -2206,12 +2199,8 @@ function normalizeProviderOutcomeCandidate(outcome: EvalProviderOutcome): EvalPr
 	}
 	if (derived.status !== "retryable" || derived.recoveryClass === null)
 		return validateProviderOutcome(derived);
-	const overDelayEnvelope = derived.retryAfterMs > ROOT_EVAL_MAX_INFRASTRUCTURE_RETRY_DELAY_MS;
-	const exhausted =
-		overDelayEnvelope ||
-		(derived.recoveryClass === "capacity"
-			? derived.capacityRetryOrdinal >= ROOT_EVAL_MAX_CAPACITY_RETRIES
-			: derived.availabilityRetryOrdinal >= ROOT_EVAL_MAX_AVAILABILITY_RETRIES);
+	const proposedDelayMs = recoveryDelay({ ...derived, recoveryClass: derived.recoveryClass });
+	const exhausted = proposedDelayMs === null;
 	if (exhausted) {
 		const reason: EvalProviderOutcomeReason =
 			derived.recoveryClass === "capacity"
@@ -2223,16 +2212,10 @@ function normalizeProviderOutcomeCandidate(outcome: EvalProviderOutcome): EvalPr
 			Object.freeze({ ...derived, status: "failed" as const, reason, retryAfterMs: 0 }),
 		);
 	}
-	const fallbackMs =
-		derived.recoveryClass === "capacity"
-			? ([60_000, 120_000, 240_000] as const)[derived.capacityRetryOrdinal]
-			: 60_000;
-	if (fallbackMs === undefined)
-		throw new TypeError("provider recovery fallback was unavailable for its Graph coordinate");
 	return validateProviderOutcome(
 		Object.freeze({
 			...derived,
-			retryAfterMs: Math.max(fallbackMs, derived.retryAfterMs),
+			retryAfterMs: proposedDelayMs!,
 		}),
 	);
 }

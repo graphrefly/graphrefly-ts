@@ -42,7 +42,6 @@ import type {
 } from "./eval-topology.js";
 import {
 	assertRootEvalToolAdmissionReceipt,
-	EVAL_PROVIDER_CONDITIONAL_AVAILABILITY_CODES,
 	ROOT_EVAL_CALLER_SAFETY_LEASE_MS,
 	ROOT_EVAL_DEFAULT_EFFECT_TIMEOUT_MS,
 	ROOT_EVAL_MAX_INFRASTRUCTURE_RETRY_DELAY_MS,
@@ -59,6 +58,11 @@ import {
 	createRootEvalRetryDelayAdapter,
 } from "./focused-async-adapters.js";
 import { createRootEvalHttpTransportLeaf } from "./http-transport-leaf.js";
+import {
+	classifyHttpRecovery,
+	parseRetryAfterMs,
+	providerErrorCode,
+} from "./openrouter-recovery.mjs";
 import {
 	auditProviderReportedCost,
 	providerReportedCost,
@@ -806,65 +810,6 @@ function object(value: unknown, path: string): Record<string, unknown> {
 	return value as Record<string, unknown>;
 }
 
-type ParsedRetryAfter =
-	| Readonly<{ readonly kind: "absent" | "invalid" }>
-	| Readonly<{ readonly kind: "valid"; readonly delayMs: number }>
-	| Readonly<{ readonly kind: "valid-over-limit" }>;
-
-function parseRetryAfterMs(value: string | null, nowMs: number): ParsedRetryAfter {
-	if (value === null) return Object.freeze({ kind: "absent" as const });
-	const trimmed = value.trim();
-	if (/^\d+$/u.test(trimmed)) {
-		const seconds = BigInt(trimmed);
-		if (seconds < 1n) return Object.freeze({ kind: "invalid" as const });
-		if (seconds * 1_000n > BigInt(ROOT_EVAL_MAX_RETRY_DELAY_MS))
-			return Object.freeze({ kind: "valid-over-limit" as const });
-		return Object.freeze({ kind: "valid" as const, delayMs: Number(seconds) * 1_000 });
-	}
-	{
-		const readyAtMs = Date.parse(trimmed);
-		if (!Number.isFinite(readyAtMs)) return Object.freeze({ kind: "invalid" as const });
-		const delayMs = Math.ceil(readyAtMs - nowMs);
-		if (!Number.isSafeInteger(delayMs) || delayMs < 1)
-			return Object.freeze({ kind: "invalid" as const });
-		if (delayMs > ROOT_EVAL_MAX_RETRY_DELAY_MS)
-			return Object.freeze({ kind: "valid-over-limit" as const });
-		return Object.freeze({ kind: "valid" as const, delayMs });
-	}
-}
-
-const CONDITIONAL_AVAILABILITY_CODES = Object.freeze(
-	new Set<string>(EVAL_PROVIDER_CONDITIONAL_AVAILABILITY_CODES),
-);
-
-function providerErrorCode(root: Record<string, unknown>): string | null {
-	const error = root.error;
-	if (error === null || typeof error !== "object" || Array.isArray(error)) return null;
-	const errorRecord = error as Record<string, unknown>;
-	const metadata = errorRecord.metadata;
-	const metadataRecord =
-		metadata !== null && typeof metadata === "object" && !Array.isArray(metadata)
-			? (metadata as Record<string, unknown>)
-			: undefined;
-	const raw = metadataRecord?.provider_error_code ?? errorRecord.code;
-	return typeof raw === "string" ? raw.toLowerCase() : null;
-}
-
-function isTransientAvailabilityResponse(
-	status: number,
-	root: Record<string, unknown>,
-	retryAfter: ParsedRetryAfter,
-): boolean {
-	if ([408, 425, 502, 503, 504, 520].includes(status)) return true;
-	if (![409, 423, 424, 500].includes(status)) return false;
-	const code = providerErrorCode(root);
-	return (
-		retryAfter.kind === "valid" ||
-		retryAfter.kind === "valid-over-limit" ||
-		(code !== null && CONDITIONAL_AVAILABILITY_CODES.has(code))
-	);
-}
-
 function boundedErrorText(value: unknown, maximum: number): value is string {
 	return (
 		typeof value === "string" &&
@@ -1175,7 +1120,7 @@ export function parseRootEvalLiveProviderResponse(input: {
 		});
 	}
 	if (input.status < 200 || input.status >= 300) {
-		const availability = isTransientAvailabilityResponse(input.status, root, retryAfter);
+		const availability = classifyHttpRecovery(input.status, root, retryAfter) === "availability";
 		return Object.freeze({
 			disposition: availability ? ("retryable" as const) : ("failed" as const),
 			reason: availability ? ("http-availability-retryable" as const) : ("http-terminal" as const),

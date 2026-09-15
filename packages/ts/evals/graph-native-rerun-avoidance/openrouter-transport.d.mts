@@ -21,8 +21,12 @@ export interface OpenRouterPricing {
 	readonly cacheReadMicrousdPerMillionTokens: number;
 	readonly outputMicrousdPerMillionTokens: number;
 }
-export function providerReportedCost(root: Record<string, unknown>): OpenRouterCost;
-export function parseOpenRouterUsage(root: Record<string, unknown>): OpenRouterUsage;
+export function providerReportedCost(
+	root: Record<string, unknown>,
+): OpenRouterCost;
+export function parseOpenRouterUsage(
+	root: Record<string, unknown>,
+): OpenRouterUsage;
 export function auditProviderReportedCost(
 	root: Record<string, unknown>,
 	pricing: OpenRouterPricing,
@@ -37,6 +41,7 @@ export interface OpenRouterReceipt {
 	readonly json: unknown;
 }
 export class OpenRouterTransportError extends Error {
+	readonly bodyReadFailed: boolean;
 	readonly receipt: OpenRouterReceipt;
 	constructor(message: string, receipt: OpenRouterReceipt, cause?: unknown);
 }

@@ -68,6 +68,8 @@ export async function measureCurrentImplementationInputs(): Promise<
 		"focused-async-adapters.ts",
 		"http-transport-leaf.ts",
 		"openrouter-transport.mjs",
+		"openrouter-recovery.mjs",
+		"openrouter-recovery.d.mts",
 		"openrouter-transport.d.mts",
 		"private-diagnostic-sink.ts",
 		"quiet-data-boundary.ts",
@@ -109,6 +111,7 @@ export async function measureCurrentImplementationInputs(): Promise<
 		"model-harness-profile-current.test.ts",
 		"provider-qualification.test.ts",
 		"openrouter-shared-transport.test.ts",
+		"openrouter-shared-recovery.test.ts",
 		"solutions-agentic-memory-work-item-root-eval-live.test.ts",
 		"solutions-agentic-memory-work-item-root-eval-topology.test.ts",
 	] as const)
