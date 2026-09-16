@@ -105,6 +105,7 @@ class BoundaryTests(unittest.TestCase):
     def test_actual_biome_maintained_tool(self):
         # Use the real repository config, not a permissive fixture substitute.
         self.config.write_bytes((ROOT / "biome.json").read_bytes())
+        (self.root / ".gitignore").write_text("\n")
         tool = self.root / "docs/design/causal-cost-investigation/new-maintained-tool.mjs"
         tool.parent.mkdir(parents=True)
         tool.write_text("let value = 1;\nvalue = value;\n")
